@@ -2053,6 +2053,66 @@ class AppUser(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Zwei-Faktor-Authentifizierung (TOTP, seit 1.3.34, siehe CLAUDE.md
+    # "Zwei-Faktor-Authentifizierung für Administratoren") -- verschlüsselt
+    # abgelegt wie das SMTP-Passwort (app/crypto.py::encrypt_secret()), da der
+    # Klartext zur Code-Prüfung wiederherstellbar sein muss. totp_confirmed_at
+    # bleibt NULL, solange die Einrichtung nicht mit einem echten, von der App
+    # gelieferten Code bestätigt wurde -- ein abgebrochener Einrichtungsversuch
+    # hinterlässt dadurch nie einen halb aktiven Zustand.
+    totp_secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    totp_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    recovery_codes: Mapped[list["TwoFactorRecoveryCode"]] = relationship(cascade="all, delete-orphan")
+
+    @property
+    def two_factor_configured(self) -> bool:
+        """Für AppUserOut (schemas.py) -- FastAPI liest response_model-Felder auch über
+        Properties, nicht nur über echte Spalten."""
+        return self.totp_confirmed_at is not None
+
+
+class TwoFactorRecoveryCode(Base):
+    """Einmal-Wiederherstellungscodes für die Zwei-Faktor-Authentifizierung (seit 1.3.34).
+
+    Werden alle zusammen bei der ersten erfolgreichen Bestätigung des zweiten Faktors erzeugt und
+    dem Administrator genau einmal im Klartext angezeigt -- danach nur noch als Hash
+    (hash_password()/verify_password(), dieselbe Technik wie beim Benutzerpasswort) gespeichert.
+    Ein Code wird beim Verbrauch nicht gelöscht, sondern über used_at markiert, damit die
+    ursprüngliche Anzahl nachvollziehbar bleibt."""
+
+    __tablename__ = "two_factor_recovery_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("app_users.id"), index=True)
+    code_hash: Mapped[str] = mapped_column(Text)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class FailedLoginAttempt(Base):
+    """Persistenter Fehlversuch-Zähler für die Anmeldesperre (seit 1.3.34, ersetzt den
+    früheren In-Memory-Zähler in app/auth.py -- siehe CLAUDE.md "Anmeldesicherheit für den
+    Onlinebetrieb"). Ein In-Memory-Zähler zählt bei mehreren uvicorn-Workern je Prozess separat
+    (aus fünf zulässigen Versuchen würden bei zwei Workern zehn) und ist nach jedem Neustart
+    wieder leer -- beides für einen frei aus dem Internet erreichbaren Server ungeeignet.
+
+    Bewusst EINE Zeile pro Fehlversuch (nicht ein Zähler je Schlüssel) -- so bleibt das
+    gleitende Zeitfenster ("die letzten N Versuche innerhalb von X Sekunden") exakt nachbildbar,
+    ohne den Zeitpunkt jedes einzelnen Versuchs an anderer Stelle mitführen zu müssen.
+    `bucket` kodiert sowohl die Art der Sperre als auch den Schlüssel selbst (z. B.
+    "login_user:tobias", "login_ip:1.2.3.4", "twofa_user:tobias") -- app/login_security.py ist
+    die einzige Stelle, die dieses Format kennt. Alte Zeilen werden bei jedem neuen Fehlversuch
+    automatisch mit aufgeräumt (siehe register_failed_attempt()), kein separater Aufräumjob
+    nötig -- damit bleibt die Tabelle auf ungefähr die Fehlversuche der letzten Zeitfenster
+    begrenzt, unabhängig davon, wie viele Fehlversuche insgesamt je passiert sind."""
+
+    __tablename__ = "failed_login_attempts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    bucket: Mapped[str] = mapped_column(String(160), index=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
 
 class UserDashboardWidget(Base):
     """Pro Benutzer gespeichertes Dashboard-Layout (sichtbare Widgets + Reihenfolge).

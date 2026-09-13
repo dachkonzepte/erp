@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DACHKONZEPTE ERP – Mein Konto</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}main{max-width:640px;margin:0;padding:22px}
+.card{background:var(--card);border:1px solid var(--line);padding:18px;margin-bottom:16px}.card h2{margin-top:0}
+.field{margin-bottom:12px}.field label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:5px}
+.field input{width:100%;padding:9px 11px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:13.5px}
+.field input:hover{border-color:var(--field-border-hover)}.field input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+button{border:1px solid var(--accent);padding:9px 14px;font-weight:650;cursor:pointer;background:var(--accent);color:#fff;font-size:13.5px}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
+.muted{color:var(--muted);font-size:12.5px}.hidden{display:none!important}
+.status{margin-top:10px;font-size:13px}.status.err{color:var(--danger)}.status.ok{color:var(--success)}
+.pill{display:inline-block;background:var(--soft);border:1px solid var(--line);padding:3px 8px;font-size:10.5px;margin-left:6px}
+.warning-box{background:var(--warning-soft);border:1px solid transparent;color:var(--warning);padding:10px 12px;margin-bottom:12px;font-size:13px}
+.danger-box{background:var(--danger-soft);border:1px solid transparent;color:var(--danger);padding:10px 12px;margin-bottom:12px;font-size:13px}
+.qr-box{text-align:center;margin:14px 0}.qr-box img{max-width:220px;border:1px solid var(--line)}
+.secret-key{font-family:monospace;font-size:14px;letter-spacing:1px;text-align:center;padding:8px;background:var(--soft);margin:8px 0;word-break:break-all}
+.recovery-codes{font-family:monospace;font-size:15px;line-height:1.9;background:var(--soft);border:1px solid var(--line);padding:14px;margin:12px 0;columns:2;column-gap:20px}
+.back{color:var(--accent);text-decoration:none;font-weight:650;display:inline-block;margin-bottom:12px}
+@media print{.no-print{display:none!important}}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+<a class="back no-print" href="/" onclick="if(document.referrer){history.back();return false}">← Zur Startseite</a>
+<div id="loadingMsg" class="muted">Lädt …</div>
+
+<div id="notAuthed" class="card hidden"><h2>Mein Konto</h2><p class="muted">Bitte zuerst <a href="/login">anmelden</a>.</p></div>
+
+<div id="twoFactorSetupCard" class="card hidden">
+  <h2>Zweiten Faktor einrichten</h2>
+  <p class="muted">Als Administrator ist die Zwei-Faktor-Anmeldung verpflichtend, bevor der übrige Bereich des ERP erreichbar ist. Scanne den QR-Code mit einer Authenticator-App (z. B. Google Authenticator, Microsoft Authenticator, Authy).</p>
+  <div class="qr-box"><img id="qrImage" alt="QR-Code für die Authenticator-App"></div>
+  <p class="muted">Geht das Scannen nicht, kann dieser Schlüssel auch manuell eingegeben werden:</p>
+  <div class="secret-key" id="secretKey"></div>
+  <div class="field"><label>Code aus der App</label><input id="setupCode" inputmode="numeric" autocomplete="one-time-code" placeholder="6-stelliger Code"></div>
+  <button onclick="confirmSetup()">Bestätigen und aktivieren</button>
+  <button class="secondary" onclick="startSetup()">Neuen QR-Code anzeigen</button>
+  <div id="setupStatus" class="status"></div>
+</div>
+
+<div id="recoveryCodesCard" class="card hidden">
+  <h2>Wiederherstellungscodes</h2>
+  <div class="danger-box">Diese Codes werden nur EINMAL angezeigt. Jetzt ausdrucken oder an einem sicheren Ort speichern -- ohne sie und ohne Zugriff auf die Authenticator-App ist dieses Konto sonst nur noch über das Notfallskript auf dem Server wiederherstellbar. Jeder Code funktioniert genau einmal.</div>
+  <div class="recovery-codes" id="recoveryCodesList"></div>
+  <button onclick="window.print()">Drucken</button>
+  <button class="secondary" onclick="finishSetup()">Weiter</button>
+</div>
+
+<div id="twoFactorVerifyCard" class="card hidden">
+  <h2>Zweiten Faktor bestätigen</h2>
+  <p class="muted">Bitte den aktuellen Code aus der Authenticator-App eingeben. Geht das nicht mehr (Telefon verloren), kann stattdessen einer der ausgedruckten Wiederherstellungscodes verwendet werden.</p>
+  <div class="field"><label>Code oder Wiederherstellungscode</label><input id="verifyCode" autocomplete="one-time-code" placeholder="6-stelliger Code oder xxxxxx-xxxxxx"></div>
+  <button onclick="verifyCode()">Bestätigen</button>
+  <div id="verifyStatus" class="status"></div>
+</div>
+
+<div id="mainCard" class="hidden">
+  <div class="card">
+    <h2>Passwort ändern</h2>
+    <div class="field"><label>Aktuelles Passwort</label><input id="currentPassword" type="password" autocomplete="current-password"></div>
+    <div class="field"><label>Neues Passwort</label><input id="newPassword" type="password" autocomplete="new-password" placeholder="mindestens 8 Zeichen"></div>
+    <div class="field"><label>Neues Passwort wiederholen</label><input id="newPasswordRepeat" type="password" autocomplete="new-password"></div>
+    <button onclick="changePassword()">Passwort ändern</button>
+    <div id="passwordStatus" class="status"></div>
+  </div>
+  <div id="twoFactorStatusCard" class="card hidden">
+    <h2>Zwei-Faktor-Authentifizierung</h2>
+    <p>Status: <span class="pill" id="twoFactorStatusPill"></span></p>
+    <p class="muted" id="recoveryCodesRemaining"></p>
+  </div>
+</div>
+
+</main>
+</div>
+</div>
+<script>
+let currentStatus=null;
+async function api(u,o={}){const r=await fetch(u,o);let d={};try{d=await r.json()}catch(_){}if(!r.ok)throw Object.assign(Error(d.detail||r.statusText),{detail:d.detail});return d}
+function show(id){document.getElementById(id).classList.remove('hidden')}
+function hide(id){document.getElementById(id).classList.add('hidden')}
+function hideAll(){['notAuthed','twoFactorSetupCard','recoveryCodesCard','twoFactorVerifyCard','mainCard'].forEach(hide)}
+
+async function load(){
+  hide('loadingMsg');
+  try{
+    currentStatus=await api('/api/auth/status');
+  }catch(e){
+    hideAll();show('notAuthed');return;
+  }
+  hideAll();
+  if(!currentStatus.authenticated){show('notAuthed');return}
+  const isAdmin=currentStatus.user.role==='admin';
+  if(isAdmin && currentStatus.two_factor_required && !currentStatus.otp_ok){
+    if(!currentStatus.two_factor_configured){
+      show('twoFactorSetupCard');
+      await startSetup();
+    } else {
+      show('twoFactorVerifyCard');
+    }
+    return;
+  }
+  show('mainCard');
+  if(isAdmin){
+    show('twoFactorStatusCard');
+    document.getElementById('twoFactorStatusPill').textContent=currentStatus.two_factor_configured?'Aktiv':'Nicht eingerichtet';
+    const remaining=currentStatus.two_factor_recovery_codes_remaining;
+    document.getElementById('recoveryCodesRemaining').textContent=remaining==null?'':(remaining<=2?`Achtung: nur noch ${remaining} Wiederherstellungscode(s) übrig.`:`${remaining} Wiederherstellungscodes übrig.`);
+  }
+}
+
+async function startSetup(){
+  const st=document.getElementById('setupStatus');st.className='status';st.textContent='';
+  try{
+    const data=await api('/api/account/2fa/setup/start',{method:'POST'});
+    document.getElementById('qrImage').src=data.qr_code_data_uri;
+    document.getElementById('secretKey').textContent=data.secret;
+    document.getElementById('setupCode').value='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function confirmSetup(){
+  const st=document.getElementById('setupStatus');st.className='status';st.textContent='';
+  try{
+    const data=await api('/api/account/2fa/setup/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:document.getElementById('setupCode').value.trim()})});
+    hide('twoFactorSetupCard');
+    document.getElementById('recoveryCodesList').innerHTML=data.recovery_codes.map(c=>`<div>${c}</div>`).join('');
+    show('recoveryCodesCard');
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function finishSetup(){await load()}
+
+async function verifyCode(){
+  const st=document.getElementById('verifyStatus');st.className='status';st.textContent='';
+  try{
+    await api('/api/account/2fa/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:document.getElementById('verifyCode').value.trim()})});
+    await load();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function changePassword(){
+  const st=document.getElementById('passwordStatus');st.className='status';st.textContent='';
+  const newPw=document.getElementById('newPassword').value;
+  if(newPw!==document.getElementById('newPasswordRepeat').value){st.className='status err';st.textContent='Die beiden neuen Passwörter stimmen nicht überein.';return}
+  try{
+    await api('/api/account/change-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({current_password:document.getElementById('currentPassword').value,new_password:newPw})});
+    st.className='status ok';st.textContent='Passwort geändert.';
+    ['currentPassword','newPassword','newPasswordRepeat'].forEach(id=>document.getElementById(id).value='');
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+load();
+</script>
+</body></html>

@@ -4,18 +4,27 @@ import hmac
 import logging
 import os
 import secrets
-import threading
 import time
 from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import select
 
+from . import login_security
 from .models import AppUser
 from .paths import data_dir
 
 COOKIE_NAME = "dk_erp_auth"
 COOKIE_MAX_AGE = 60 * 60 * 12
+
+# Zweites, unabhängiges Cookie: belegt, dass für DIESE Sitzung bereits ein zweiter Faktor
+# bestätigt wurde (seit 1.3.34, siehe CLAUDE.md "Zwei-Faktor-Authentifizierung für
+# Administratoren"). Bewusst ein eigenes Cookie statt eines zusätzlichen Felds im bestehenden
+# dk_erp_auth-Cookie -- ändert an make_cookie()/parse_cookie()/user_from_request() nichts,
+# betrifft ausschließlich Administratoren, für die role-abhängig geprüft wird. Trägt ein eigenes
+# HMAC-Namespace-Präfix ("otp:"), damit eine signierte otp-Nutzlast nicht als normales
+# Anmelde-Cookie durchgehen könnte, obwohl beide denselben secret_key() nutzen.
+OTP_COOKIE_NAME = "dk_erp_otp_ok"
 
 
 def _parse_bool_env(name: str, default: bool = False) -> bool:
@@ -32,49 +41,6 @@ def _parse_bool_env(name: str, default: bool = False) -> bool:
 COOKIE_SECURE = _parse_bool_env("ERP_COOKIE_SECURE")
 
 logger = logging.getLogger(__name__)
-
-# --- Login-Schutz gegen Brute-Force (seit 1.0.8) -----------------------------
-# Einfacher In-Memory-Zähler pro Benutzername: nach MAX_LOGIN_ATTEMPTS
-# fehlgeschlagenen Versuchen innerhalb von LOGIN_LOCKOUT_SECONDS wird der
-# Benutzername vorübergehend gesperrt -- auch bei danach korrektem Passwort.
-# Bewusst kein DB-Feld dafür (kein Schema-Update nötig); der Zähler lebt nur
-# für die Laufzeit des Prozesses, was für einen einzelnen uvicorn-Worker
-# ausreicht. Ein threading.Lock schützt vor Race Conditions bei parallelen
-# Anfragen.
-MAX_LOGIN_ATTEMPTS = 5
-LOGIN_LOCKOUT_SECONDS = 60
-
-_failed_login_attempts: dict[str, list[float]] = {}
-_failed_login_lock = threading.Lock()
-
-
-def _login_attempt_key(username: str) -> str:
-    return username.strip().lower()
-
-
-def is_login_locked(username: str) -> int | None:
-    """None, wenn nicht gesperrt -- sonst verbleibende Sperrsekunden (>= 1)."""
-    key = _login_attempt_key(username)
-    now = time.time()
-    cutoff = now - LOGIN_LOCKOUT_SECONDS
-    with _failed_login_lock:
-        attempts = [t for t in _failed_login_attempts.get(key, []) if t > cutoff]
-        _failed_login_attempts[key] = attempts
-        if len(attempts) >= MAX_LOGIN_ATTEMPTS:
-            return max(int(attempts[0] + LOGIN_LOCKOUT_SECONDS - now), 1)
-    return None
-
-
-def _register_failed_login(username: str) -> None:
-    key = _login_attempt_key(username)
-    with _failed_login_lock:
-        _failed_login_attempts.setdefault(key, []).append(time.time())
-
-
-def _clear_failed_logins(username: str) -> None:
-    key = _login_attempt_key(username)
-    with _failed_login_lock:
-        _failed_login_attempts.pop(key, None)
 
 
 def _secret_path() -> Path:
@@ -172,20 +138,50 @@ def user_from_request(db, request):
     return user if user and user.active else None
 
 
+def make_otp_ok_cookie(user_id: int) -> str:
+    expiry = int(time.time()) + COOKIE_MAX_AGE
+    payload = f"{user_id}:{expiry}"
+    sig = hmac.new(secret_key(), ("otp:" + payload).encode(), hashlib.sha256).hexdigest()
+    return base64.urlsafe_b64encode(f"{payload}:{sig}".encode()).decode()
+
+
+def otp_ok_for_user(request, user_id: int) -> bool:
+    """Ob FÜR DIESE SITZUNG bereits ein zweiter Faktor bestätigt wurde -- geprüft gegen das
+    separate OTP_COOKIE_NAME-Cookie, nicht gegen einen Zustand auf dem Benutzerdatensatz selbst
+    (sonst würde eine einzige bestätigte Sitzung alle Geräte/Sitzungen mit freischalten)."""
+    value = request.cookies.get(OTP_COOKIE_NAME)
+    if not value:
+        return False
+    try:
+        raw = base64.urlsafe_b64decode(value.encode()).decode()
+        user_id_s, expiry_s, sig = raw.split(":", 2)
+        payload = f"{user_id_s}:{expiry_s}"
+        expected = hmac.new(secret_key(), ("otp:" + payload).encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected) or int(expiry_s) < int(time.time()):
+            return False
+        return int(user_id_s) == user_id
+    except Exception:
+        return False
+
+
 def users_exist(db) -> bool:
     return db.scalar(select(AppUser.id).limit(1)) is not None
 
 
-def authenticate(db, username: str, password: str):
-    if is_login_locked(username) is not None:
-        logger.warning("Login für '%s' abgelehnt: Benutzername ist derzeit gesperrt.", username.strip())
+def two_factor_required(user: AppUser) -> bool:
+    return user.role == "admin"
+
+
+def authenticate(db, username: str, password: str, client_ip: str | None = None):
+    if login_security.login_lockout_seconds(db, username, client_ip) is not None:
+        logger.warning("Login für '%s' abgelehnt: Benutzername oder IP ist derzeit gesperrt.", username.strip())
         return None
     user = db.scalar(select(AppUser).where(AppUser.username == username.strip()))
     if user is None or not user.active or not verify_password(password, user.password_hash):
-        _register_failed_login(username)
+        login_security.register_failed_login(db, username, client_ip)
         logger.warning("Fehlgeschlagener Login-Versuch für Benutzername '%s'.", username.strip())
         return None
-    _clear_failed_logins(username)
+    login_security.clear_failed_login(db, username)
     user.last_login_at = datetime.utcnow()
     db.commit()
     return user

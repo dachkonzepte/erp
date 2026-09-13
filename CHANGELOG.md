@@ -4,6 +4,49 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.34 – Anmeldesicherheit für den Onlinebetrieb: Zwei-Faktor-Anmeldung, persistente Sperre, Mein Konto
+
+Vorbereitung auf den frei aus dem Internet erreichbaren Server. Drei Teile, gemeinsam umgesetzt:
+
+**Persistente Anmeldesperre statt In-Memory-Zähler.** Der bisherige Zähler lebte nur im
+Arbeitsspeicher eines einzelnen Prozesses -- bei zwei uvicorn-Workern hätte jeder für sich
+gezählt (aus fünf zulässigen Fehlversuchen wären zehn geworden), nach jedem Neustart war er
+ohnehin leer. Neue Tabelle `failed_login_attempts` (eine Zeile je Fehlversuch, automatisch
+aufgeräumt bei jedem neuen Fehlversuch, kein separater Aufräumjob nötig). Zwei unabhängige
+Sperren gemeinsam: je Benutzername (5 Versuche/15 Minuten) UND je IP-Adresse (20 Versuche/15
+Minuten) -- eine reine Benutzernamen-Sperre ließe sich durch rotierende Benutzernamen umgehen,
+eine reine IP-Sperre träfe bei wechselnden Adressen nie. Die Fehlermeldung war bereits vorher
+für unbekannten Benutzernamen und falsches Passwort identisch ("Benutzername oder Passwort ist
+falsch") -- unverändert, verrät also weiterhin nicht, ob ein Konto existiert.
+
+**Zwei-Faktor-Authentifizierung (TOTP) für Administratoren, verpflichtend.** Nur für
+Administratoren (nicht für Monteure, die sich täglich auf dem Fahrzeug-Tablet anmelden und
+deutlich weniger Rechte haben) -- Administratoren haben Zugriff auf alle Kunden-, Mitarbeiter-
+und Finanzdaten. Neue Abhängigkeiten `pyotp` (MIT) und `qrcode[pil]` (BSD-3-Clause, zieht
+`pillow` als Extra -- bereits Pflichtabhängigkeit, kein neues Gewicht) -- reine Pip-Pakete ohne
+Systemabhängigkeit, wie zuvor bei `pypdfium2`. Ablauf: Passwort-Anmeldung setzt das normale
+Sitzungs-Cookie immer, aber ein zweites, unabhängiges Cookie (`dk_erp_otp_ok`) fehlt zunächst --
+ohne dieses zweite Cookie bleiben für einen Administrator ausschließlich "Mein Konto"
+(Einrichtung/Code-Eingabe) und Abmelden erreichbar, jeder andere Endpunkt liefert 401. Erst nach
+einem erfolgreich geprüften Code (Ersteinrichtung mit QR-Code + Bestätigungscode, oder bei
+jedem weiteren Login erneut) wird dieses zweite Cookie gesetzt. Nichts wird als aktiv markiert,
+bevor nicht ein echter, von der App gelieferter Code bestätigt wurde -- ein abgebrochener
+Einrichtungsversuch (Fenster geschlossen, ohne zu bestätigen) hinterlässt dadurch nie einen
+halb aktiven Zustand, ein neuer Versuch überschreibt einfach das alte, nie bestätigte Geheimnis.
+Zehn Wiederherstellungscodes werden bei der ersten Bestätigung einmalig angezeigt (gehasht
+gespeichert, jeder genau einmal verwendbar). Ein Administrator kann den zweiten Faktor eines
+ANDEREN Administrators zurücksetzen (verlorenes/neues Telefon), aber bewusst nicht den eigenen
+-- sonst ließe sich die Pflicht über die eigene Benutzerverwaltung wieder abschalten. Gibt es
+nur einen einzigen aktiven Administrator, zeigt die Benutzerverwaltung dafür eine deutliche
+Warnung (dieser Weg existiert dann praktisch nicht). Für den Fall, dass auch die
+Wiederherstellungscodes verloren sind: neues Notfallskript `scripts/reset_admin_2fa.py`, direkt
+auf dem Server ausführbar, mit Rückfrage vor dem Zurücksetzen.
+
+**Neue Seite "Mein Konto".** Vorher konnte niemand sein eigenes Passwort selbst ändern -- nur
+ein Administrator konnte das Passwort eines ANDEREN Kontos setzen. Jeder angemeldete Benutzer
+kann dort jetzt sein eigenes Passwort ändern; Administratoren richten dort außerdem den zweiten
+Faktor ein und geben ihn bei jedem Login erneut ein.
+
 ## 1.3.33 – Geheimnisse für den Serverbetrieb: ERP_SECRET_KEY/ERP_DATA_DIR tatsächlich genutzt
 
 Direkte Fortsetzung der Git-Einrichtung (siehe README/Betriebsdokumentation): `.env.example` hatte

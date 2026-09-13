@@ -181,12 +181,16 @@
           password:document.getElementById('appSidebarPassword').value,
         }),
       }).then(function(resp){
-        if(!resp.ok){
-          return resp.json().catch(function(){return {}}).then(function(data){
+        return resp.json().catch(function(){return {}}).then(function(data){
+          if(!resp.ok){
             errorEl.textContent=data.detail||'Anmeldung fehlgeschlagen.';
-          });
-        }
-        location.reload();
+            return;
+          }
+          // Seit 1.3.34: Administratoren müssen den zweiten Faktor erst bestätigen, bevor der
+          // Rest der Anwendung nutzbar ist (siehe login.html für dieselbe Weiche).
+          if(data.two_factor_required){location.href='/account';return}
+          location.reload();
+        });
       }).catch(function(err){
         errorEl.textContent='Anmeldung fehlgeschlagen: '+err.message;
       });
@@ -197,8 +201,17 @@
     if(!foot)return;
     if(status.authenticated){
       foot.innerHTML='<div class="app-sidebar-user"><span class="dot"></span><span class="app-sidebar-label">'+escHtml(status.user.display_name)+'</span></div>'
+        +'<a class="app-sidebar-account-link" href="/account" title="Mein Konto"><span class="app-sidebar-label">Mein Konto</span></a>'
         +'<button type="button" class="app-sidebar-logout" id="appSidebarLogout"><span class="app-sidebar-icon">'+LOGOUT_ICON+'</span><span class="app-sidebar-label">Abmelden</span></button>';
       bindLogout();
+      // Seit 1.3.34: eine frische Anmeldung als Administrator ohne bereits diese Sitzung
+      // bestätigten zweiten Faktor darf keine andere Seite als "Mein Konto" tatsächlich
+      // benutzen -- jeder /api/-Aufruf dort würde ohnehin von app/main.py's Middleware mit
+      // 401/two_factor_pending abgelehnt. Dieser Status-Abruf läuft auf jeder Seite (dieses
+      // Include steckt überall), daher hier statt in jeder einzelnen Seiten-Datei geprüft.
+      if(status.two_factor_required && !status.otp_ok && location.pathname!=='/account'){
+        location.href='/account';
+      }
     } else {
       foot.innerHTML='<a class="app-sidebar-login-link" href="/login" title="Anmelden">'+KEY_ICON+'</a>'
         +'<div class="app-sidebar-login-status"><span class="dot"></span><span class="app-sidebar-label">Nicht angemeldet</span></div>'

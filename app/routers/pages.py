@@ -51,6 +51,11 @@ def login_page(request: Request):
     return templates.TemplateResponse(request=request, name="login.html", context={})
 
 
+@router.get("/account", response_class=HTMLResponse)
+def account_page(request: Request):
+    return templates.TemplateResponse(request=request, name="account.html", context={})
+
+
 @router.get("/users", response_class=HTMLResponse)
 def users_page(request: Request):
     return templates.TemplateResponse(request=request, name="users.html", context={})

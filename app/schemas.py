@@ -904,11 +904,21 @@ class AppUserOut(BaseModel):
     active: bool
     created_at: datetime
     last_login_at: datetime | None = None
+    two_factor_configured: bool = False
 
 
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=200)
+
+
+class TwoFactorCodeRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
 
 
 class AuditLogOut(BaseModel):

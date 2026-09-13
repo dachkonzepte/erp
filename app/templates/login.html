@@ -39,7 +39,9 @@ async function login(){
   const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('u').value,password:document.getElementById('p').value})});
   let d={};try{d=await r.json()}catch(_){}
   if(!r.ok){document.getElementById('msg').textContent=d.detail||'Anmeldung fehlgeschlagen.';return}
-  location.href=new URLSearchParams(location.search).get('next')||'/projects'
+  // Seit 1.3.34: eine Anmeldung als Administrator ist erst mit bestätigtem zweitem Faktor
+  // abgeschlossen -- bis dahin geht es zuerst nach "Mein Konto", nicht ans eigentliche Ziel.
+  location.href=d.two_factor_required?'/account':(new URLSearchParams(location.search).get('next')||'/projects')
 }
 </script>
 </body>

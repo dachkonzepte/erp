@@ -10,6 +10,7 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import two_factor
 from ..auth import hash_password, user_from_request, users_exist
 from ..database import get_db
 from ..deps import require_admin
@@ -66,6 +67,23 @@ def update_app_user(user_id: int, payload: AppUserUpdate, db: Session = Depends(
         user.password_hash = hash_password(payload.new_password)
     db.commit(); db.refresh(user)
     return user
+
+
+@router.post("/api/users/{user_id}/reset-two-factor")
+def reset_user_two_factor(user_id: int, db: Session = Depends(get_db), current: AppUser = Depends(require_admin("Nur Administratoren dürfen den zweiten Faktor zurücksetzen."))):
+    """Setzt den zweiten Faktor eines ANDEREN Administrators zurück (verlorenes/neues Telefon) --
+    bewusst nicht für das eigene Konto (siehe CLAUDE.md "Zwei-Faktor-Authentifizierung für
+    Administratoren"): sonst ließe sich die Pflicht zum zweiten Faktor über die eigene
+    Benutzerverwaltung wieder abschalten. Existiert nur ein einziger aktiver Administrator, gibt
+    es keinen ANDEREN, der das hier tun könnte -- dann bleiben nur die eigenen
+    Wiederherstellungscodes oder scripts/reset_admin_2fa.py auf dem Server."""
+    user = db.get(AppUser, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="ERP-Benutzer nicht gefunden.")
+    if user.id == current.id:
+        raise HTTPException(status_code=409, detail="Der eigene zweite Faktor kann hier nicht zurückgesetzt werden -- dafür sind die eigenen Wiederherstellungscodes oder das Notfallskript auf dem Server nötig.")
+    two_factor.reset(db, user)
+    return {"ok": True}
 
 
 @router.delete("/api/users/{user_id}")
