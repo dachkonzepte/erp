@@ -56,8 +56,8 @@ def _resolve_roof_component_type_rows(bind):
         return list(DEFAULT_ROOF_COMPONENT_TYPES)
     rows = bind.execute(sa.text(
         "SELECT sort_order, label, value FROM setting_options "
-        "WHERE group_id = :gid AND active = 1 ORDER BY sort_order"
-    ), {"gid": group_id}).fetchall()
+        "WHERE group_id = :gid AND active = :active ORDER BY sort_order"
+    ), {"gid": group_id, "active": True}).fetchall()
     if not rows:
         return list(DEFAULT_ROOF_COMPONENT_TYPES)
     return [(row[0], row[1], row[2]) for row in rows]
@@ -100,7 +100,7 @@ def upgrade() -> None:
     # hinterlegt ist (18 Zeilen ohne option_group -- Konterlattung/Dachlattung/Trennlage sowie
     # die Gründach-Zusatzschichten außer Substrat -- werden explizit False).
     op.execute(
-        "UPDATE roof_layer_types SET has_execution = (CASE WHEN option_group IS NOT NULL THEN 1 ELSE 0 END)"
+        "UPDATE roof_layer_types SET has_execution = (CASE WHEN option_group IS NOT NULL THEN TRUE ELSE FALSE END)"
     )
     # has_notes bleibt für alle 25 bestehenden Zeilen True (bereits der server_default) --
     # keine weitere UPDATE nötig, hier nur zur Dokumentation der Entscheidung belassen.

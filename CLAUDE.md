@@ -20,9 +20,10 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.34** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `1b55170709a6` ("two_factor_auth_and_persistent_login_lockout") --
-  direkt auf `2fffb80e5567` (1.3.32) aufsetzend, 1.3.33 brauchte keine eigene; bei Bedarf per
+- Version: **1.3.35** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf weiterhin `1b55170709a6` ("two_factor_auth_and_persistent_login_lockout")
+  -- 1.3.35 hat KEINEN neuen Kopf angehängt, sondern mehrere bereits bestehende Migrationen
+  in-place repariert (siehe Abschnitt "PostgreSQL-Umstieg" unten) -- bei Bedarf per
   `alembic history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
 - Tests: **1040/1040**, zuletzt am 13.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -463,6 +464,16 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   **Neue Selbstbedienungsseite "Mein Konto"** (`/account`) -- vorher konnte niemand sein eigenes
   Passwort selbst ändern. Details im neuen Abschnitt "Anmeldesicherheit für den Onlinebetrieb"
   unten.
+- Neu seit 1.3.35: **PostgreSQL-Umstieg, erste Reparaturrunde -- nur die Migrationskette, noch
+  kein Datenumzug.** Fünf Punkte: die bisher komplett leere Migration `e057d15af828` legt
+  `invoices`/`invoice_items` jetzt tatsächlich an (vorher ein reiner `create_all()`-Autogenerate-
+  Blindfleck, siehe eigener Abschnitt "PostgreSQL-Umstieg" unten für die volle Herleitung);
+  `datetime('now')` und rohe Boolean-Literale (`1`/`0`) in insgesamt neun Migrationen durch
+  dialektneutrale, gebundene Parameter ersetzt; `app/audit.py`s `.contains()` (case-insensitive
+  nur unter SQLite) auf `.ilike()` umgestellt. Erstmals tatsächlich gegen eine leere PostgreSQL-
+  17-Datenbank verifiziert -- alle 55 Migrationen liefen durch, siehe "Migrations-Workflow"
+  unten für den Bezugspunkt. Datenumzug, Backup-Skript-Umbau und die Abschaltung von
+  `create_all()` im Produktionsbetrieb bleiben ausdrücklich spätere, eigene Schritte.
 
 ## Stack & Struktur
 
@@ -4060,6 +4071,104 @@ normale Benutzer, nicht nur Administratoren), Seiteninhalt/Verdrahtung (Muster
 eine isolierte Testdatenbank (niemals die echte `DATABASE_URL`) -- Bestätigung korrekt/falsch/
 `--yes`/unbekannter Benutzername.
 
+## PostgreSQL-Umstieg: Migrationskette repariert (seit 1.3.35)
+
+Erste Reparaturrunde vor dem eigentlichen Datenumzug -- Nutzervorgabe: "Wir reparieren zuerst,
+bevor irgendetwas umzieht." Datenumzug (eigenes Python-Skript statt pgloader, wie abgestimmt),
+Backup-Skript-Umbau und die Abschaltung von `create_all()` im Produktionsbetrieb sind bewusst
+NICHT Teil dieser Runde -- alle drei sind erkannt und berichtet, aber eigene, spätere Schritte.
+
+### Der `e057d15af828`-Fund: der Migrations-Workflow-Fallstrick, tatsächlich eingetreten
+
+Die Migration `e057d15af828` ("Rechnungswesen") bestand vollständig aus `pass`/`pass` -- ein
+echter No-op, keine invertierte oder unvollständige Logik. Betroffen waren ausgerechnet
+`invoices`/`invoice_items`, zwei der zentralsten Tabellen des ganzen Projekts.
+
+**Wie das entstanden ist** -- exakt der Mechanismus, der im Abschnitt "Migrations-Workflow"
+unten bereits als allgemeine Warnung beschrieben ist ("Fallstrick, seit 1.2.23 bekannt:
+`app/main.py` ruft beim Import `Base.metadata.create_all(bind=engine)` auf"), hier aber der
+tatsächliche Beweis, dass er real zugeschlagen hat, nicht nur eine theoretische Gefahr: als das
+Rechnungswesen-Feature gebaut wurde, hat irgendein Vorgang (ein Testlauf, ein Serverstart, ein
+simpler `import app.main`) `app.main` geladen, BEVOR `alembic revision --autogenerate` für die
+neuen `Invoice`/`InvoiceItem`-Modelle lief. `create_all()` legte beide Tabellen dabei bereits
+real in der SQLite-Datei an. Als Autogenerate danach lief, verglich es den ORM-Modellstand gegen
+die (durch `create_all()` bereits identische) reale Datenbank -- fand keinen Unterschied -- und
+erzeugte eine leere Hülle statt der beiden `CREATE TABLE`-Anweisungen.
+
+**Warum das unter SQLite jahrelang unsichtbar blieb**: `create_all()` läuft bei JEDEM Start von
+`app/main.py` erneut (dasselbe Sicherheitsnetz, das den Fehler verursacht hat, verdeckte ihn
+danach zuverlässig weiter) -- eine lokale, immer schon laufende SQLite-Installation hatte die
+Tabellen dadurch bei jedem Start automatisch nachgezogen, unabhängig vom Zustand der
+Migrationskette. Erst eine komplett FRISCHE Datenbank, aufgebaut ausschließlich über
+`alembic upgrade head` OHNE je einen `create_all()`-Lauf dazwischen, würde diesen Widerspruch
+zeigen -- exakt der Fall bei einer neuen PostgreSQL-Installation für den geplanten Serverumzug,
+wo bei einer leeren Zieldatenbank kein `create_all()` mehr rettend eingreift. Gefunden per
+Skript, das alle `Base.metadata.tables` gegen jeden `create_table(...)`-Aufruf in
+`alembic/versions/*.py` abgeglichen hat -- `invoices`/`invoice_items` waren die einzigen beiden
+Tabellen im ganzen Projekt ohne eine erzeugende Migration.
+
+**Reparatur, in-place statt angehängt**: da die reale, produktive `dachkonzepte_erp.db` längst
+weit über diesem Punkt steht (Head `1b55170709a6`) und Alembic Revisionen ausschließlich über
+die `alembic_version`-Tabelle trackt (nie inhaltlich erneut ausführt), ist ein nachträgliches
+Befüllen der bereits angewendeten Migration sicher -- verifiziert durch `alembic current`/
+`alembic upgrade head` gegen die reale Datei, die dabei unverändert bei ihrem Head-Stand
+blieb (kein "Running upgrade"). Die Migration musste dabei den historischen Spaltenstand ZUM
+DAMALIGEN ZEITPUNKT DER KETTE abbilden, nicht das heutige Vollschema -- sonst hätten die vier
+später folgenden `batch_alter_table('invoices'/'invoice_items', ...)`-Migrationen (`bb175f455b64`,
+`3eb9f52b38ab`, `8c0bddc8321c`, `369f94b5d5d3`) versucht, bereits vorhandene Spalten erneut
+hinzuzufügen. Rekonstruiert durch Rückrechnen: alle vier Folgemigrationen gelesen, ihre
+`add_column`-Aufrufe von `invoices`s heutigem 31-Spalten-Vollschema abgezogen (Ergebnis: 23
+historische Spalten -- ohne `tax_key_id`, `tax_notice_text`, `outro_text_2`, `email_sent_at`,
+`email_sent_to`, `payment_terms_text_template`, `skonto_percent`, `skonto_days`), gegen
+`app/models.py`s eigene "seit 1.0.4x"-datierte Docstring-Kommentare der `Invoice`-Klasse
+kreuzgeprüft (deckungsgleich). `invoice_items` bekam dagegen das volle heutige Schema, da KEINE
+spätere Migration diese Tabelle je verändert (zweiter Grep bestätigt).
+
+### Die übrigen vier Reparaturpunkte derselben Runde
+
+- **`datetime('now')`** (SQLite-spezifische SQL-Funktion, unter PostgreSQL unbekannt) in
+  `257fb2967c93`/`ab5eef23f9ed` durch `sa.text(...).bindparams(now=datetime.utcnow())` ersetzt --
+  SQLAlchemy übersetzt den gebundenen Python-`datetime`-Wert dialektkorrekt.
+- **Boolean-Literale in rohem SQL** (`1`/`0`, unter PostgreSQL strikt typisiert statt implizit
+  nach `boolean` konvertiert wie bei SQLite) in sieben Migrationen (`4609e3fc8976`,
+  `06299a5101f5`, `2fffb80e5567`, `0064c87051aa`, `5c8715dba230`) auf gebundene Python-`True`/
+  `False`-Parameter bzw. `TRUE`/`FALSE`-SQL-Schlüsselwörter umgestellt (letzteres nur, wo keine
+  Bind-Infrastruktur in der jeweiligen Anweisung existierte). **App-seitige
+  `Column == True/False`-ORM-Vergleiche blieben ausdrücklich unangetastet** -- die übersetzt
+  SQLAlchemy bereits pro Dialekt korrekt, betroffen war ausschließlich rohes `sa.text()`-SQL.
+- **`app/audit.py:263`**: `AuditLog.actor_name.contains(actor)` (case-insensitive unter SQLite,
+  case-sensitive unter PostgreSQL -- hätte eine Audit-Log-Suche nach Beauftragtem auf Postgres
+  unauffindbar strenger gemacht) auf `.ilike(f"%{actor}%")` umgestellt. Projektweite Prüfung auf
+  weitere `.contains()`/`.startswith()`-Fälle mit derselben Gefahr: kein zweiter Fund.
+
+### Verifikation -- fester Bezugspunkt für künftige Nachfragen
+
+**Stand: Version 1.3.35, verifiziert am 13.09.2026.** Falls in einem halben Jahr jemand fragt,
+ob die Migrationskette tatsächlich vollständig gegen PostgreSQL läuft: ja, ab genau dieser
+Version, mit vier konkreten Nachweisen, keiner davon nur behauptet:
+
+1. Eine lokale, portable PostgreSQL-17-Instanz (EnterpriseDB-ZIP-Binaries, kein Admin-Zugriff
+   nötig -- `%LOCALAPPDATA%\pgportable`, Port 5433, Datenbank `spielwiese`) wurde geleert und
+   `alembic upgrade head` OHNE `DATABASE_URL`-Override auf SQLite ausgeführt -- alle 55
+   Migrationen liefen vollständig und fehlerfrei durch, `alembic_version` landete korrekt bei
+   `1b55170709a6`, `information_schema.tables` zeigte die erwarteten 122 Tabellen (121
+   ORM-Modelle + `alembic_version`).
+2. Dieselbe, frisch geleerte SQLite-Datei (kein Bestand, kein `create_all()`-Vorlauf) durchlief
+   `alembic upgrade head` ebenfalls vollständig -- keine Regression durch die vier
+   dialektneutralen Fixes.
+3. Die reale, bereits vollständig migrierte Produktionsdatenbank `dachkonzepte_erp.db` blieb bei
+   erneutem `alembic upgrade head` unverändert bei ihrem Head-Stand (kein "Running upgrade") --
+   das in-place-Editieren bereits angewendeter Migrationen hat keine Nebenwirkung auf eine
+   Installation, die längst darüber hinaus ist.
+4. Volle Testsuite `pytest`: 1040/1040 grün.
+
+Sollte diese Prüfung ein weiteres Mal nötig werden (z. B. nach einer künftigen Migration, die
+denselben Risikotyp trägt -- ein neues Modell, das versehentlich vor `--autogenerate` per
+`create_all()` real angelegt wird), ist die oben beschriebene portable PostgreSQL-Instanz auf
+Nutzerwunsch NICHT entfernt worden ("wir brauchen sie noch") -- sie steht für den geplanten
+Datenumzug weiterhin bereit, aktuell gestoppt (`pg_ctl stop`), aber mit Daten und Konfiguration
+unverändert vorhanden.
+
 ## Migrations-Workflow
 
 Bisher: Claude erstellt/ändert Modelle → Tobias führt lokal `alembic revision --autogenerate`
@@ -4100,6 +4209,12 @@ lokale DB bereits funktioniert. Selbst passiert, real erlebt: die neue Tabelle m
 Anlegen eines neuen Modells zuerst `alembic revision --autogenerate`, danach erst irgendetwas
 importieren, das `app.main` lädt (ein reiner `import app.models`-Check löst den Sicherheitsnetz-
 Aufruf nicht aus, das ist unbedenklich).
+
+**Dieser Mechanismus ist kein rein theoretisches Risiko** -- er ist bei `invoices`/
+`invoice_items` (Migration `e057d15af828`) tatsächlich eingetreten und blieb unter SQLite
+jahrelang unsichtbar, bis eine echte, frische PostgreSQL-Verifikation ihn aufgedeckt hat. Siehe
+Abschnitt "PostgreSQL-Umstieg: Migrationskette repariert" oben für die vollständige Herleitung
+und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 
 ## Testen
 

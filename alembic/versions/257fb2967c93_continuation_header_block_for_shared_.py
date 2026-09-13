@@ -17,6 +17,8 @@ Dieselben Standardwerte wie in DEFAULT_SHARED_LAYOUT (app/document_layout.py): s
 Position/Groesse ohne praktische Bedeutung (die Zeile wird an fester Position gezeichnet, siehe
 app/document_frame.py::CONTINUATION_HEADER_Y_MM).
 """
+from datetime import datetime
+
 from alembic import op
 import sqlalchemy as sa
 
@@ -29,6 +31,11 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # datetime('now') war SQLite-spezifisch (unter PostgreSQL: "Funktion datetime(unknown)
+    # existiert nicht"), der rohe Boolean-Literal "1" scheiterte dort ebenfalls ("Spalte
+    # »visible« hat Typ boolean, aber der Ausdruck hat Typ integer") -- beides durch gebundene
+    # Parameter ersetzt (dasselbe, bereits bewaehrte Muster wie in 5c8715dba230), SQLAlchemy
+    # uebersetzt Python-Werte dialektkorrekt statt roher SQL-Literale.
     op.execute(sa.text(
         """
         INSERT INTO document_layout_blocks
@@ -36,14 +43,14 @@ def upgrade() -> None:
              font_size, font_weight, text_align, visible, sort_order, created_at, updated_at)
         SELECT
             'default', 'continuation_header', 'Wiederholungszeile (Folgeseiten)',
-            18, 8, 176, 6, 8, 'normal', 'left', 1, 40, datetime('now'), datetime('now')
+            18, 8, 176, 6, 8, 'normal', 'left', :visible, 40, :now, :now
         WHERE EXISTS (SELECT 1 FROM document_layout_blocks WHERE document_type = 'default')
           AND NOT EXISTS (
               SELECT 1 FROM document_layout_blocks
               WHERE document_type = 'default' AND block_type = 'continuation_header'
           )
         """
-    ))
+    ).bindparams(visible=True, now=datetime.utcnow()))
 
 
 def downgrade() -> None:

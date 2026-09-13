@@ -97,8 +97,8 @@ def downgrade() -> None:
     conn.execute(sa.text(
         "INSERT INTO document_table_fields "
         "(document_type, block_type, field_key, label, is_custom, custom_value, visible, sort_order, created_at) "
-        "VALUES ('quote', :block_type, :field_key, :label, 0, NULL, :visible, :sort_order, :created_at)"
+        "VALUES ('quote', :block_type, :field_key, :label, :is_custom, NULL, :visible, :sort_order, :created_at)"
     ), [
-        {"block_type": bt, "field_key": fk, "label": label, "visible": visible, "sort_order": sort_order, "created_at": created_at}
+        {"block_type": bt, "field_key": fk, "label": label, "is_custom": False, "visible": visible, "sort_order": sort_order, "created_at": created_at}
         for bt, fk, label, visible, sort_order, created_at in _ROWS
     ])

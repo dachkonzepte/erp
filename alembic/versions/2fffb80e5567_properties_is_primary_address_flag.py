@@ -54,10 +54,10 @@ def upgrade() -> None:
     primary_ids = _resolve_primary_address_property_ids(bind)
     if primary_ids:
         bind.execute(
-            sa.text("UPDATE properties SET is_primary_address = 1 WHERE id IN :ids").bindparams(
+            sa.text("UPDATE properties SET is_primary_address = :is_primary WHERE id IN :ids").bindparams(
                 sa.bindparam("ids", expanding=True)
             ),
-            {"ids": primary_ids},
+            {"ids": primary_ids, "is_primary": True},
         )
 
 

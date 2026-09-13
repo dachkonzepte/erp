@@ -69,7 +69,7 @@ def downgrade() -> None:
     conn.execute(sa.text(
         "INSERT INTO document_layout_backgrounds "
         "(document_type, page_type, stored_filename, repeat_on_every_page, uploaded_at) VALUES "
-        "('quote', 'first', '52c12111ef7a4994b565e30f768c4a09.png', 1, '2026-09-10 16:11:45.701643')"
+        "('quote', 'first', '52c12111ef7a4994b565e30f768c4a09.png', true, '2026-09-10 16:11:45.701643')"
     ))
 
     conn.execute(sa.text(

@@ -19,6 +19,8 @@ zusätzlich per update_layout_block() auf den für das echte Briefpapier gemesse
 korrigiert, siehe CLAUDE.md "Einsatzbericht"/"Gemeinsamer Dokumenttyp": dasselbe, mit ~30,8mm
 Kopfgrafik gemessene Briefpapier wie bei "default".
 """
+from datetime import datetime
+
 from alembic import op
 import sqlalchemy as sa
 
@@ -31,6 +33,9 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # datetime('now') war SQLite-spezifisch, der rohe Boolean-Literal "1" scheiterte unter
+    # PostgreSQL ebenfalls -- beides durch gebundene Parameter ersetzt, siehe 257fb2967c93
+    # (dasselbe Muster, dort erstmals für "default" gebraucht).
     op.execute(sa.text(
         """
         INSERT INTO document_layout_blocks
@@ -38,14 +43,14 @@ def upgrade() -> None:
              font_size, font_weight, text_align, visible, sort_order, created_at, updated_at)
         SELECT
             'quote', 'continuation_header', 'Wiederholungszeile (Folgeseiten)',
-            18, 12, 176, 4, 8, 'normal', 'left', 1, 110, datetime('now'), datetime('now')
+            18, 12, 176, 4, 8, 'normal', 'left', :visible, 110, :now, :now
         WHERE EXISTS (SELECT 1 FROM document_layout_blocks WHERE document_type = 'quote')
           AND NOT EXISTS (
               SELECT 1 FROM document_layout_blocks
               WHERE document_type = 'quote' AND block_type = 'continuation_header'
           )
         """
-    ))
+    ).bindparams(visible=True, now=datetime.utcnow()))
 
 
 def downgrade() -> None:

@@ -37,10 +37,10 @@ def _resolve_roof_type_default_template_rows(bind):
     for roof_type in roof_types:
         winner_id = bind.execute(
             sa.text(
-                "SELECT id FROM inspection_templates WHERE roof_type = :rt AND archived = 0 "
+                "SELECT id FROM inspection_templates WHERE roof_type = :rt AND archived = :archived "
                 "ORDER BY sort_order, id LIMIT 1"
             ),
-            {"rt": roof_type},
+            {"rt": roof_type, "archived": False},
         ).scalar()
         if winner_id is not None:
             rows.append((roof_type, winner_id))

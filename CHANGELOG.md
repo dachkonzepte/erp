@@ -4,6 +4,39 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.35 – PostgreSQL-Umstieg: Migrationskette repariert
+
+Erste Reparaturrunde vor dem eigentlichen Datenumzug -- Datenumzug, Backup-Skript-Umbau und die
+Abschaltung von `create_all()` im Produktionsbetrieb bleiben ausdrücklich spätere Schritte.
+
+**Fehlende Tabellen `invoices`/`invoice_items` nachgetragen.** Migration `e057d15af828` war ein
+echter No-op (nur `pass`/`pass`) -- verursacht durch denselben `Base.metadata.create_all()`-
+Mechanismus, der schon im Migrations-Workflow-Abschnitt als Warnung beschrieben ist: die Tabellen
+entstanden beim App-Start automatisch aus den ORM-Modellen, bevor die Migration per
+`--autogenerate` erzeugt wurde, wodurch Autogenerate keinen Unterschied mehr fand. Unter SQLite
+unsichtbar, weil `create_all()` bei jedem Start nachzieht -- auf einer frischen PostgreSQL-
+Datenbank ohne diesen Sicherheitsnetz-Aufruf hätte die Kette dagegen mit `NoSuchTableError`
+abgebrochen. Migration nachträglich mit dem historischen Spaltenstand befüllt (23 Spalten bei
+`invoices`, ohne die 8 später per `add_column` ergänzten; `invoice_items` mit dem vollen
+heutigen Schema, da keine spätere Migration diese Tabelle je verändert) -- in-place editiert,
+nicht als neue Migration angehängt, da die reale Datenbank bereits weit darüber steht und
+Alembic Revisionen nie erneut ausführt.
+
+**Dialektneutrale Fixes.** `datetime('now')` (SQLite-spezifisch) durch gebundene Parameter
+ersetzt (zwei Migrationen); Boolean-Literale (`1`/`0` in rohem SQL, unter PostgreSQL strikt
+typisiert statt implizit konvertiert) auf gebundene Parameter bzw. `TRUE`/`FALSE`-Schlüsselwörter
+umgestellt (sieben Migrationen) -- App-seitige `Column == True/False`-Vergleiche blieben
+unangetastet, die übersetzt SQLAlchemy bereits korrekt. `app/audit.py`: `.contains()` (unter
+SQLite case-insensitive, unter PostgreSQL case-sensitive) auf `.ilike()` umgestellt.
+
+**Verifiziert, nicht nur behauptet.** Eine lokale, portable PostgreSQL-17-Instanz (ohne
+Admin-Rechte, EnterpriseDB-ZIP-Binaries) durchlief `alembic upgrade head` von einer leeren
+Datenbank aus vollständig -- alle 55 Migrationen, 122 Tabellen. Dieselbe Kette lief anschließend
+gegen eine frische, leere SQLite-Datei durch (keine Regression), und die reale, bereits
+vollständig migrierte `dachkonzepte_erp.db` blieb beim erneuten `alembic upgrade head` unverändert
+bei ihrem Head-Stand (reines No-op, wie erwartet). Volle Testsuite 1040/1040 grün. Siehe CLAUDE.md
+"Migrations-Workflow" für die Einordnung als erster tatsächlicher Beleg, dass die Kette dort läuft.
+
 ## 1.3.34 – Anmeldesicherheit für den Onlinebetrieb: Zwei-Faktor-Anmeldung, persistente Sperre, Mein Konto
 
 Vorbereitung auf den frei aus dem Internet erreichbaren Server. Drei Teile, gemeinsam umgesetzt:
