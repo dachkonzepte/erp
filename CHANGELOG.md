@@ -4,6 +4,42 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.33 – Geheimnisse für den Serverbetrieb: ERP_SECRET_KEY/ERP_DATA_DIR tatsächlich genutzt
+
+Direkte Fortsetzung der Git-Einrichtung (siehe README/Betriebsdokumentation): `.env.example` hatte
+`ERP_SECRET_KEY`/`ERP_DATA_DIR` bereits vorgesehen, der Code nutzte sie aber nur teilweise.
+Bestandsaufnahme vor dem Bauen ergab: `ERP_SECRET_KEY` wurde bereits vorrangig gelesen,
+`data/.erp_secret` bereits automatisch nur als Rückfall erzeugt, `DATABASE_URL` funktionierte
+bereits vollständig -- lediglich die sieben unabhängigen Upload-Pfade (Firmenlogo,
+Briefpapier-Hintergründe, Kunden-/Projektdateien, Dachflächen-Skizzen, Einsatzbericht-Fotos/
+-Unterschriften) kannten `ERP_DATA_DIR` nicht, jeder fiel einzeln auf einen eigenen, am
+Projektordner verankerten Pfad zurück.
+
+**Neues, gemeinsames `app/paths.py`** mit einer einzigen Funktion `data_dir()` -- von
+`app/auth.py` (Verschlüsselungsschlüssel), `app/logging_config.py` (Protokoll) und allen sieben
+Upload-Modulen genutzt, statt dass jedes seinen eigenen `ERP_DATA_DIR`-Rückfall mitbringt. Dabei
+eine echte, kleine Inkonsistenz behoben: die beiden bereits bestehenden `ERP_DATA_DIR`-Leser
+lösten ihren Rückfall relativ zum AKTUELLEN ARBEITSVERZEICHNIS auf, die sieben Upload-Pfade
+dagegen relativ zur LAGE DER DATEI SELBST -- heute folgenlos, da jeder bekannte Startweg
+(`start_windows.bat`, `pytest`) das Arbeitsverzeichnis ohnehin auf den Projektordner setzt, aber
+eine tickende Falle für einen künftigen Server-Start mit einem anderen Arbeitsverzeichnis
+(systemd-Unit, Docker-`WORKDIR`). `data_dir()` verankert den Rückfall jetzt einheitlich an der
+Lage der Datei, nicht am Arbeitsverzeichnis -- lokal ändert sich dadurch nichts (beide Pfade
+waren bei gleichem Arbeitsverzeichnis ohnehin identisch).
+
+**Warnung statt Blockade bei abweichendem Schlüssel**: `data/.erp_secret` entschlüsselt die
+bereits gespeicherten SMTP-/Microsoft-365-Zugangsdaten in der Datenbank -- wird auf dem Server
+versehentlich ein anderer `ERP_SECRET_KEY` gesetzt als der, mit dem eine übernommene Datenbank
+verschlüsselt wurde, werden diese Werte unlesbar. Neue Funktion
+`warn_if_secret_key_mismatches_file()`, beim Start aufgerufen: loggt eine deutliche Warnung, wenn
+`ERP_SECRET_KEY` gesetzt UND `data/.erp_secret` vorhanden UND beide unterschiedlich sind -- ohne
+den Start zu blockieren (ein abweichender Schlüssel ist bei einer frischen Installation normal)
+und ohne den Schlüssel selbst jemals auszugeben, auch nicht gekürzt.
+
+`.env.example` um alle sieben `DACHKONZEPTE_*_FILE_ROOT`-Variablen ergänzt (auskommentiert, mit
+Hinweis, dass sie nur gebraucht werden, wenn ein einzelner Ordner abweichend von `ERP_DATA_DIR`
+woanders liegen soll) -- sichtbar beim Einrichten, ohne gesetzt werden zu müssen.
+
 ## 1.3.32 – Objekte: Hauptadressen kennzeichnen und ausblenden
 
 Nach dem Adressimport (1.3.31) bestand die Objektliste in den Stammdaten überwiegend aus reinen

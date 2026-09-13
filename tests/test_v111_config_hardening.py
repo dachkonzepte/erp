@@ -1,7 +1,10 @@
+import logging
 import os
+from pathlib import Path
 
-from app.auth import _parse_bool_env
+from app.auth import _parse_bool_env, warn_if_secret_key_mismatches_file
 from app.models import Customer
+from app.paths import data_dir
 
 
 def test_parse_bool_env_recognizes_common_true_values():
@@ -50,3 +53,76 @@ def test_start_windows_bat_has_no_reload_and_explicit_host():
     bat = (Path(__file__).parents[1] / "start_windows.bat").read_text(encoding="utf-8")
     assert "--reload" not in bat
     assert "--host 127.0.0.1" in bat
+
+
+# --- Geheimnisse für den Serverbetrieb (app/paths.py, seit 1.3.33) ----------
+
+def test_data_dir_is_independent_of_working_directory(tmp_path, monkeypatch):
+    """Der zentrale Fund aus der Bestandsaufnahme: data_dir() muss denselben
+    Pfad liefern, unabhängig davon, aus welchem Arbeitsverzeichnis der Prozess
+    gestartet wurde -- sonst würde ein künftiger Serverstart mit einem anderen
+    Arbeitsverzeichnis (systemd-Unit, Docker-WORKDIR) stillschweigend einen
+    anderen Ordner treffen. Ohne gesetztes ERP_DATA_DIR muss der Pfad also
+    dateibasiert (relativ zu app/paths.py), nicht CWD-relativ, bestimmt sein."""
+    monkeypatch.delenv("ERP_DATA_DIR", raising=False)
+    expected = Path(__file__).resolve().parents[1] / "data"
+
+    monkeypatch.chdir(tmp_path)
+    from_elsewhere = data_dir()
+
+    assert from_elsewhere == expected
+
+
+def test_data_dir_respects_erp_data_dir_override(tmp_path, monkeypatch):
+    override = tmp_path / "irgendwo_ausserhalb"
+    monkeypatch.setenv("ERP_DATA_DIR", str(override))
+    result = data_dir()
+    assert result == override
+    assert override.is_dir()  # wird bei Bedarf angelegt
+
+
+def test_warn_if_secret_key_mismatches_file_logs_when_different(tmp_path, monkeypatch, caplog):
+    monkeypatch.setenv("ERP_DATA_DIR", str(tmp_path))
+    (tmp_path / ".erp_secret").write_text("altes-geheimnis-aus-der-datei", encoding="utf-8")
+    monkeypatch.setenv("ERP_SECRET_KEY", "anderes-geheimnis-aus-der-umgebung")
+
+    with caplog.at_level(logging.WARNING, logger="app.auth"):
+        warn_if_secret_key_mismatches_file()
+
+    assert any("unterscheidet sich" in r.message for r in caplog.records)
+    # Der Schlüssel selbst darf in keiner Log-Zeile auftauchen, auch nicht gekürzt.
+    full_log = "\n".join(r.message for r in caplog.records)
+    assert "altes-geheimnis-aus-der-datei" not in full_log
+    assert "anderes-geheimnis-aus-der-umgebung" not in full_log
+
+
+def test_warn_if_secret_key_mismatches_file_silent_when_equal(tmp_path, monkeypatch, caplog):
+    monkeypatch.setenv("ERP_DATA_DIR", str(tmp_path))
+    (tmp_path / ".erp_secret").write_text("dasselbe-geheimnis", encoding="utf-8")
+    monkeypatch.setenv("ERP_SECRET_KEY", "dasselbe-geheimnis")
+
+    with caplog.at_level(logging.WARNING, logger="app.auth"):
+        warn_if_secret_key_mismatches_file()
+
+    assert caplog.records == []
+
+
+def test_warn_if_secret_key_mismatches_file_silent_when_file_missing(tmp_path, monkeypatch, caplog):
+    monkeypatch.setenv("ERP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("ERP_SECRET_KEY", "frische-installation-ohne-bestehende-datei")
+
+    with caplog.at_level(logging.WARNING, logger="app.auth"):
+        warn_if_secret_key_mismatches_file()
+
+    assert caplog.records == []
+
+
+def test_warn_if_secret_key_mismatches_file_silent_when_env_unset(tmp_path, monkeypatch, caplog):
+    monkeypatch.setenv("ERP_DATA_DIR", str(tmp_path))
+    (tmp_path / ".erp_secret").write_text("irrelevant-da-env-fehlt", encoding="utf-8")
+    monkeypatch.delenv("ERP_SECRET_KEY", raising=False)
+
+    with caplog.at_level(logging.WARNING, logger="app.auth"):
+        warn_if_secret_key_mismatches_file()
+
+    assert caplog.records == []

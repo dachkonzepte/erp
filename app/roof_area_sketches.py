@@ -8,10 +8,9 @@ import os
 from pathlib import Path
 
 from .document_storage import make_stored_filename  # noqa: F401 -- Re-Export für Konsistenz
+from .paths import data_dir
 
-SKETCH_ROOT = Path(os.getenv(
-    "DACHKONZEPTE_ROOF_SKETCH_FILE_ROOT", Path(__file__).resolve().parent.parent / "data" / "roof_area_sketches",
-))
+SKETCH_ROOT = Path(os.getenv("DACHKONZEPTE_ROOF_SKETCH_FILE_ROOT", data_dir() / "roof_area_sketches"))
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # eine gescannte/fotografierte Dachskizze darf größer sein als ein reines Logo
 
 

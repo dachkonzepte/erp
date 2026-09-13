@@ -25,6 +25,7 @@ from .date_utils import add_months
 from .document_storage import make_stored_filename
 from .inspection_templates import ITEM_TYPES
 from .modules import is_module_enabled
+from .paths import data_dir
 from .models import (
     Finding, InspectionItem, InspectionTemplate, InspectionTemplateItem, MaintenanceContract,
     MaintenanceContractItem, Material, Order, Project, RoofArea, RoofTypeInspectionTemplateDefault, ServiceReport,
@@ -52,9 +53,7 @@ REPORT_TYPE_LABELS = {"rapport": "Rapportbericht", "wartung": "Wartungsbericht"}
 # (z. B. 5000) in das Band des nächsten Vorlagenpunkts hineinrutscht.
 COMPONENT_SORT_SPAN = 1_000_000
 
-SIGNATURE_ROOT = Path(os.getenv(
-    "DACHKONZEPTE_SIGNATURE_FILE_ROOT", Path(__file__).resolve().parent.parent / "data" / "service_report_signatures",
-))
+SIGNATURE_ROOT = Path(os.getenv("DACHKONZEPTE_SIGNATURE_FILE_ROOT", data_dir() / "service_report_signatures"))
 
 
 def _signature_directory() -> Path:

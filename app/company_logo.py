@@ -10,8 +10,9 @@ import os
 from pathlib import Path
 
 from .document_storage import make_stored_filename
+from .paths import data_dir
 
-LOGO_ROOT = Path(os.getenv("DACHKONZEPTE_LOGO_FILE_ROOT", Path(__file__).resolve().parent.parent / "data" / "company_logo"))
+LOGO_ROOT = Path(os.getenv("DACHKONZEPTE_LOGO_FILE_ROOT", data_dir() / "company_logo"))
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB reicht für ein Logo bei weitem, verhindert versehentliche Großuploads
 
 

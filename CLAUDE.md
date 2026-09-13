@@ -20,11 +20,11 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.32** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `2fffb80e5567` ("properties: is_primary_address flag") -- direkt auf
-  `9ff6f4131413` (1.3.31) aufsetzend; bei Bedarf per `alembic history`/`heads` prüfen statt sich
-  auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1004/1004**, zuletzt am 12.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
+- Version: **1.3.33** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf weiterhin `2fffb80e5567` ("properties: is_primary_address flag") --
+  1.3.33 ist eine reine Code-Änderung ohne Schema-Anpassung; bei Bedarf per
+  `alembic history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
+- Tests: **1010/1010**, zuletzt am 13.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -430,6 +430,23 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Wartungsvertrag ohne Objekt bisher `None` statt, wie `contract_to_dict()` es für die Anzeige tut,
   "Hauptadresse" -- ein per Schnellauftrag erzeugter Auftrag zeigte dadurch gar kein Objekt.
   Details im neuen Abschnitt "Objekte: Hauptadressen kennzeichnen und ausblenden" unten.
+- Neu seit 1.3.33: **Geheimnisse für den Serverbetrieb -- `ERP_SECRET_KEY`/`ERP_DATA_DIR`
+  tatsächlich genutzt.** Vorbereitung für den Umzug auf einen echten Server (siehe
+  Git-Einrichtung): `ERP_SECRET_KEY` wurde bereits vorrangig gelesen, `data/.erp_secret` bereits
+  automatisch nur als Rückfall erzeugt, `DATABASE_URL` funktionierte bereits vollständig -- neu
+  ist ausschließlich `app/paths.py::data_dir()`, das jetzt auch die sieben bisher unabhängigen
+  Upload-Pfade (Firmenlogo, Briefpapier-Hintergründe, Kunden-/Projektdateien, Dachflächen-
+  Skizzen, Einsatzbericht-Fotos/-Unterschriften) unter `ERP_DATA_DIR` zusammenfasst -- jeweils
+  weiterhin mit eigenem, spezifischerem Override erster Priorität. Dabei eine echte
+  Inkonsistenz behoben: die beiden bereits bestehenden `ERP_DATA_DIR`-Leser lösten ihren
+  Rückfall relativ zum ARBEITSVERZEICHNIS auf, die sieben Upload-Pfade dagegen relativ zur LAGE
+  DER DATEI SELBST -- `data_dir()` vereinheitlicht das dateibasiert, damit ein künftiger
+  Serverstart mit anderem Arbeitsverzeichnis nicht stillschweigend einen anderen Ordner trifft.
+  Neue Funktion `warn_if_secret_key_mismatches_file()` (`app/auth.py`, beim Start aufgerufen)
+  warnt undramatisch (kein Abbruch, gibt den Schlüssel nie aus), wenn `ERP_SECRET_KEY` von einer
+  bereits bestehenden `data/.erp_secret` abweicht -- genau der Fall, der auf einem Server mit
+  übernommener Datenbank bereits verschlüsselte SMTP-/Microsoft-365-Zugangsdaten unlesbar macht.
+  Details im Abschnitt "Geheimnisse für den Serverbetrieb" unten.
 
 ## Stack & Struktur
 
@@ -3747,6 +3764,102 @@ Regressionstest: `tests/test_v209_quick_service_orders.py`.
 isoliert (Name-und-Adresse-Kriterium vs. nur-Name). `tests/test_v247_address_import.py` um eine
 Flag-Prüfung ergänzt. `tests/test_v209_quick_service_orders.py` um den Nebenbefund-Regressionstest
 ergänzt (mit und ohne hinterlegte Kundenadresse).
+
+## Geheimnisse für den Serverbetrieb (`app/paths.py`, seit 1.3.33)
+
+Vorbereitung für den geplanten Umzug auf einen echten Server (das Projekt liegt seit derselben
+Sitzung erstmals in einem privaten GitHub-Repository, siehe unten). Ziel: kein Geheimnis liegt
+als Datei im Projektordner, der aus Git kommt; `ERP_SECRET_KEY` kommt aus der Umgebung;
+`ERP_DATA_DIR` zeigt auf einen Ordner außerhalb des Checkouts, damit ein `git pull` nie Fotos,
+Unterschriften oder den Verschlüsselungsschlüssel berührt; die Datenbankverbindung kommt aus
+`DATABASE_URL`. Lokal soll ohne gesetzte Variablen weiterhin alles mit den bisherigen
+Vorgabewerten funktionieren.
+
+**Bestandsaufnahme vor dem Bauen ergab: das meiste war schon da.** `secret_key()`
+(`app/auth.py`) liest `ERP_SECRET_KEY` bereits vorrangig -- ist die Variable gesetzt, wird
+`data/.erp_secret` gar nicht erst gelesen oder angelegt. Die Datei wird nur als Rückfall beim
+allerersten Start automatisch erzeugt (`secrets.token_hex(32)`). `DATABASE_URL`
+(`app/database.py`) funktionierte bereits vollständig über die Umgebungsvariable. **Fehlend war
+nur eine Vereinheitlichung**: die sieben unabhängigen Upload-Pfade (Firmenlogo,
+Briefpapier-Hintergründe, Kunden-/Projektdateien, Dachflächen-Skizzen,
+Einsatzbericht-Fotos/-Unterschriften) kannten `ERP_DATA_DIR` bisher nicht -- jeder hätte auf
+einem Server einzeln über seine eigene, spezifischere Variable (`DACHKONZEPTE_LOGO_FILE_ROOT`
+usw.) umgelenkt werden müssen.
+
+### `app/paths.py::data_dir()` -- eine Stelle statt neun
+
+Neues, kleines Modul mit einer einzigen Funktion, von `app/auth.py`
+(Verschlüsselungsschlüssel), `app/logging_config.py` (Protokoll) und allen sieben
+Upload-Modulen (`app/company_logo.py`, `app/customer_documents.py`,
+`app/document_layout_background.py`, `app/project_documents.py`, `app/roof_area_sketches.py`,
+`app/service_reports.py`, `app/service_report_photos.py`) genutzt:
+
+```python
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+def data_dir() -> Path:
+    root = Path(os.getenv("ERP_DATA_DIR", str(_PROJECT_ROOT / "data")))
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+```
+
+Jedes der sieben Upload-Module behält seine eigene, spezifischere Variable als Override erster
+Priorität (`Path(os.getenv("DACHKONZEPTE_LOGO_FILE_ROOT", data_dir() / "company_logo"))`) --
+`ERP_DATA_DIR` bestimmt nur den gemeinsamen Fallback, falls keine der spezifischeren Variablen
+gesetzt ist. Lokal ändert sich dadurch nichts: ohne jede Variable ergibt `data_dir()` exakt
+denselben Pfad wie vorher (`<Projektordner>/data`).
+
+**Dabei eine echte, kleine Inkonsistenz behoben.** Die beiden schon vorher bestehenden
+`ERP_DATA_DIR`-Leser (`_secret_path()` in `app/auth.py`, `configure_logging()` in
+`app/logging_config.py`) lösten ihren Fallback relativ zum AKTUELLEN ARBEITSVERZEICHNIS auf
+(`Path("data")`), die sieben Upload-Pfade dagegen relativ zur LAGE DER DATEI SELBST
+(`Path(__file__).resolve().parent.parent`). Heute folgenlos, weil jeder bekannte Startweg
+(`start_windows.bat` wechselt vorher per `cd /d %~dp0` dorthin, `pytest` liest `pytest.ini` aus
+dem Projektordner) das Arbeitsverzeichnis ohnehin auf den Projektordner setzt -- aber eine
+tickende Falle für einen künftigen Server-Start mit einem anderen Arbeitsverzeichnis
+(systemd-Unit, Docker-`WORKDIR`): der Ordner würde dann STILLSCHWEIGEND woanders landen (er
+wird ja automatisch neu angelegt), der Schaden zeigt sich erst später als "die Uploads von
+vorher sind weg". `data_dir()` verankert den Fallback jetzt einheitlich dateibasiert -- der
+Docstring hält diese Begründung ausdrücklich fest, damit ein künftiger Durchgang sie nicht als
+Übervorsicht wieder auf einen arbeitsverzeichnis-relativen Fallback "vereinfacht".
+
+### Warnung statt Blockade bei abweichendem Schlüssel
+
+`data/.erp_secret` entschlüsselt die bereits in der Datenbank gespeicherten SMTP-/
+Microsoft-365-Zugangsdaten (`password_encrypted`/`graph_client_secret_encrypted`, siehe
+`app/crypto.py`/`app/email_sending.py`). Setzt jemand auf dem Server versehentlich einen
+anderen `ERP_SECRET_KEY` als den, mit dem eine übernommene Datenbank verschlüsselt wurde, werden
+diese Werte unlesbar -- bisher unbemerkt bis zum nächsten Versandversuch
+(`decrypt_secret()` wirft dann erst `ValueError`). Neue Funktion
+`warn_if_secret_key_mismatches_file()` (`app/auth.py`, beim Start aus `app/main.py` aufgerufen,
+direkt nach `configure_logging()`): loggt eine deutliche Warnung, wenn `ERP_SECRET_KEY` gesetzt
+UND `data/.erp_secret` vorhanden UND beide unterschiedlich sind -- **kein Abbruch** (ein
+abweichender Schlüssel ist bei einer frischen Testinstallation normal) und **gibt den Schlüssel
+selbst nie aus, auch nicht gekürzt**. Ist `ERP_SECRET_KEY` gesetzt, aber es existiert keine
+`data/.erp_secret` (frische Installation) oder ist die Variable gar nicht gesetzt, bleibt es
+stumm.
+
+**Wie der bestehende Schlüssel sauber auf den Server kommt**: der Inhalt der lokalen
+`data/.erp_secret` (`Get-Content data\.erp_secret`) muss unverändert als Wert von
+`ERP_SECRET_KEY` in der Serverumgebung landen -- über den Secret-Mechanismus der jeweiligen
+Plattform, nie als Datei im Repository (bleibt gitignored) und nie unverschlüsselt durch einen
+Chat/eine E-Mail geleitet.
+
+### `.env.example`
+
+Um `ERP_DATA_DIR` (jetzt mit vollständiger Erklärung, was alles darüber verlegt wird) und alle
+sieben `DACHKONZEPTE_*_FILE_ROOT`-Variablen ergänzt -- auskommentiert, mit dem Hinweis, dass sie
+nur gebraucht werden, wenn ein einzelner Ordner abweichend von `ERP_DATA_DIR` woanders liegen
+soll. So sind sie beim Einrichten eines Servers sichtbar, ohne gesetzt werden zu müssen.
+
+### Tests
+
+`tests/test_v111_config_hardening.py`: `data_dir()` liefert denselben Pfad unabhängig vom
+Arbeitsverzeichnis (der zentrale Fund dieser Etappe) und respektiert `ERP_DATA_DIR`;
+`warn_if_secret_key_mismatches_file()` warnt bei Abweichung, bleibt stumm bei Übereinstimmung/
+fehlender Datei/fehlender Variable, und gibt in keinem Fall den Schlüsselwert selbst aus (per
+`caplog` geprüft). Zusätzlich manuell gegen die echte `data/.erp_secret` verifiziert (mit einem
+bewusst falschen Test-Dummywert, nie dem echten Schlüssel).
 
 ## Migrations-Workflow
 

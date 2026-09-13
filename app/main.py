@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from .audit import reset_audit_context, set_audit_context
-from .auth import user_from_request, users_exist
+from .auth import user_from_request, users_exist, warn_if_secret_key_mismatches_file
 from .catalogs import backfill_existing_services, ensure_import_catalog
 from .database import DATABASE_URL, Base, SessionLocal, engine
 from .logging_config import configure_logging
@@ -23,6 +23,7 @@ from .work_time_models import ensure_default_work_time_models
 
 configure_logging()
 logger = logging.getLogger(__name__)
+warn_if_secret_key_mismatches_file()
 
 Base.metadata.create_all(bind=engine)
 with SessionLocal() as _upgrade_db:

@@ -12,6 +12,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from .models import AppUser
+from .paths import data_dir
 
 COOKIE_NAME = "dk_erp_auth"
 COOKIE_MAX_AGE = 60 * 60 * 12
@@ -77,9 +78,7 @@ def _clear_failed_logins(username: str) -> None:
 
 
 def _secret_path() -> Path:
-    root = Path(os.getenv("ERP_DATA_DIR", "data"))
-    root.mkdir(parents=True, exist_ok=True)
-    return root / ".erp_secret"
+    return data_dir() / ".erp_secret"
 
 
 def secret_key() -> bytes:
@@ -90,6 +89,35 @@ def secret_key() -> bytes:
     if not p.exists():
         p.write_text(secrets.token_hex(32), encoding="utf-8")
     return p.read_text(encoding="utf-8").strip().encode("utf-8")
+
+
+def warn_if_secret_key_mismatches_file() -> None:
+    """Warnt beim Start, wenn ERP_SECRET_KEY gesetzt ist UND bereits eine
+    data/.erp_secret-Datei existiert UND beide unterschiedlich sind -- kein
+    Abbruch, nur ein Hinweis (siehe CLAUDE.md "Geheimnisse für den
+    Serverbetrieb"). Ein abweichender Schlüssel ist z. B. bei einer frischen
+    Testinstallation normal; auf einem Server, der eine bestehende Datenbank
+    übernommen hat, ist es aber genau der Fall, der bereits verschlüsselte
+    SMTP-/Microsoft-365-Zugangsdaten beim nächsten E-Mail-Versand unlesbar
+    macht (decrypt_secret() schlägt dann fehl) -- der Hinweis hier kommt
+    dafür schon beim Start, nicht erst beim ersten Versandversuch. Gibt den
+    Schlüssel selbst nie aus, auch nicht gekürzt."""
+    env = os.getenv("ERP_SECRET_KEY")
+    if not env:
+        return
+    path = _secret_path()
+    if not path.exists():
+        return
+    file_value = path.read_text(encoding="utf-8").strip()
+    if file_value != env.strip():
+        logger.warning(
+            "ERP_SECRET_KEY unterscheidet sich vom Inhalt von %s. Falls hier bereits "
+            "verschlüsselte SMTP-/Microsoft-365-Zugangsdaten aus einer übernommenen "
+            "Datenbank liegen, sind diese mit dem aktuell aktiven Schlüssel (aus der "
+            "Umgebungsvariable) nicht mehr lesbar. Bei einer frischen Installation ist "
+            "das unbedenklich.",
+            path,
+        )
 
 
 def hash_password(password: str) -> str:

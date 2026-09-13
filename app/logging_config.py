@@ -13,17 +13,15 @@ beim Start der App aufgerufen (app/main.py).
 
 import logging
 import logging.handlers
-import os
-from pathlib import Path
+
+from .paths import data_dir
 
 LOG_FORMAT = "%(asctime)s %(levelname)-8s %(name)s: %(message)s"
 LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
 
 
 def configure_logging() -> None:
-    data_dir = Path(os.getenv("ERP_DATA_DIR", "data"))
-    data_dir.mkdir(parents=True, exist_ok=True)
-    log_path = data_dir / "erp.log"
+    log_path = data_dir() / "erp.log"
 
     formatter = logging.Formatter(LOG_FORMAT, datefmt=LOG_DATEFMT)
 

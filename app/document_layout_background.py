@@ -26,8 +26,9 @@ from PIL import Image as PILImage
 import pypdfium2 as pdfium
 
 from .document_storage import make_stored_filename  # noqa: F401 -- Re-Export für Bestandscode/Konsistenz
+from .paths import data_dir
 
-BACKGROUND_ROOT = Path(os.getenv("DACHKONZEPTE_LAYOUT_BACKGROUND_ROOT", Path(__file__).resolve().parent.parent / "data" / "document_layout_backgrounds"))
+BACKGROUND_ROOT = Path(os.getenv("DACHKONZEPTE_LAYOUT_BACKGROUND_ROOT", data_dir() / "document_layout_backgrounds"))
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # ein gescannter/exportierter Briefbogen darf größer sein als ein reines Logo
 
 RASTER_DPI = 200  # ausreichend für Druck, siehe Messung in CLAUDE.md -- JPEG statt PNG loest das

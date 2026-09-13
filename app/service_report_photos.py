@@ -13,9 +13,9 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
-PHOTO_ROOT = Path(os.getenv(
-    "DACHKONZEPTE_SERVICE_REPORT_PHOTO_ROOT", Path(__file__).resolve().parent.parent / "data" / "service_report_photos",
-))
+from .paths import data_dir
+
+PHOTO_ROOT = Path(os.getenv("DACHKONZEPTE_SERVICE_REPORT_PHOTO_ROOT", data_dir() / "service_report_photos"))
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024  # Rohdatei vor der Verkleinerung -- Handyfotos sind groß
 MAX_DIMENSION = 1600  # längste Kante nach der Verkleinerung
 JPEG_QUALITY = 82

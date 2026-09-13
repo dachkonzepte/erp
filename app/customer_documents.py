@@ -11,8 +11,9 @@ from pathlib import Path
 
 from .document_storage import can_preview_type, is_image_type, make_stored_filename  # noqa: F401
 from .models import CustomerDocument
+from .paths import data_dir
 
-CUSTOMER_ROOT = Path(os.getenv("DACHKONZEPTE_CUSTOMER_FILE_ROOT", Path(__file__).resolve().parent.parent / "data" / "customer_files"))
+CUSTOMER_ROOT = Path(os.getenv("DACHKONZEPTE_CUSTOMER_FILE_ROOT", data_dir() / "customer_files"))
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 
