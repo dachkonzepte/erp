@@ -20,11 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.35** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.36** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf weiterhin `1b55170709a6` ("two_factor_auth_and_persistent_login_lockout")
-  -- 1.3.35 hat KEINEN neuen Kopf angehängt, sondern mehrere bereits bestehende Migrationen
-  in-place repariert (siehe Abschnitt "PostgreSQL-Umstieg" unten) -- bei Bedarf per
-  `alembic history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
+  -- weder 1.3.35 noch 1.3.36 hat einen neuen Kopf angehängt (1.3.35 reparierte bereits
+  bestehende Migrationen in-place, 1.3.36 brachte nur ein neues Skript, kein Modell) -- bei
+  Bedarf per `alembic history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu
+  verlassen.
 - Tests: **1040/1040**, zuletzt am 13.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
@@ -474,6 +475,19 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   17-Datenbank verifiziert -- alle 55 Migrationen liefen durch, siehe "Migrations-Workflow"
   unten für den Bezugspunkt. Datenumzug, Backup-Skript-Umbau und die Abschaltung von
   `create_all()` im Produktionsbetrieb bleiben ausdrücklich spätere, eigene Schritte.
+- Neu seit 1.3.36: **Datenumzugsskript, erste Runde -- nur lokal erprobt.**
+  `scripts/migrate_sqlite_to_postgres.py` (neu, neben `reset_admin_2fa.py`) kopiert die reale,
+  ausschließlich lesend geöffnete `dachkonzepte_erp.db` tabellenweise nach PostgreSQL, verweigert
+  eine bereits nicht-leere Zieldatenbank ohne ausdrückliches `--force-truncate`, prüft
+  Fremdschlüssel-Konsistenz und setzt alle Sequenzen zurück. Echter, über dieses Skript
+  hinausgehender Fund: `ALTER TABLE ... DISABLE TRIGGER ALL` (ursprünglicher Plan gegen die
+  beiden selbstreferenzierenden Tabellen) braucht Superuser-Rechte, die eine Anwendungsrolle auf
+  einem gehosteten Server nicht hat -- ersetzt durch einen rechtefreien, mehrstufigen Ladevorgang.
+  Gilt als Grundsatz für jedes künftige Skript gegen PostgreSQL, siehe Abschnitt
+  "PostgreSQL-Umstieg" unten. Lauf gegen die lokale `spielwiese`-Instanz erfolgreich (121
+  Tabellen, 3040 Zeilen, 0 Abweichungen), Anwendung danach tatsächlich gegen PostgreSQL
+  gestartet und die üblichen Lesepfade sowie das Anlegen eines neuen Kunden (Sequenz-Test)
+  bestätigt. Der Umzug auf den Server selbst bleibt ein eigener, späterer Schritt.
 
 ## Stack & Struktur
 
@@ -4168,6 +4182,69 @@ denselben Risikotyp trägt -- ein neues Modell, das versehentlich vor `--autogen
 Nutzerwunsch NICHT entfernt worden ("wir brauchen sie noch") -- sie steht für den geplanten
 Datenumzug weiterhin bereit, aktuell gestoppt (`pg_ctl stop`), aber mit Daten und Konfiguration
 unverändert vorhanden.
+
+### Datenumzugsskript (seit 1.3.36)
+
+Erste Runde des eigentlichen Datenumzugs -- nur das Skript bauen und lokal gegen die portable
+PostgreSQL-Instanz ausprobieren; der Umzug auf den Server bleibt ein eigener, späterer Schritt.
+
+**`scripts/migrate_sqlite_to_postgres.py`** -- Notfall-taugliche Aufrufanleitung, direkt
+auszuführen (dieselbe Sofort-auffindbar-Anforderung wie bei `reset_admin_2fa.py`, siehe oben):
+
+```
+python scripts/migrate_sqlite_to_postgres.py --target-url postgresql+psycopg://user:pass@host:port/dbname
+```
+
+Liest standardmäßig die reale `dachkonzepte_erp.db` im Projektordner -- **ausschließlich
+lesend**: über SQLites Online-Backup-API in eine temporäre Kopie gesichert (verträgt sich mit
+einer parallel laufenden Anwendung), diese zusätzlich per `mode=ro`-URI geöffnet, ein
+Schreibversuch würde vom Treiber selbst verweigert, nicht nur vermieden. **Sicherung gegen eine
+nicht leere Zieldatenbank** (falsch übergebene Verbindungszeichenfolge, verwechselte
+Umgebungsvariable): das Skript verweigert den Dienst, sobald in der Zieldatenbank auch nur eine
+Zeile in einer der dem ORM bekannten Tabellen steht -- außer `--force-truncate` wird
+ausdrücklich gesetzt, und selbst dann fragt es ohne zusätzliches `--yes` interaktiv nach dem
+Datenbanknamen zur Bestätigung (Muster: `reset_admin_2fa.py`). Das Leeren selbst bleibt dabei
+strikt auf die Tabellen beschränkt, die `Base.metadata` tatsächlich kennt -- nie ein
+pauschales DROP SCHEMA/DATABASE anhand der übergebenen Verbindungszeichenfolge. Ablauf:
+`alembic upgrade head` gegen das Ziel, Daten laden (`Base.metadata.sorted_tables`-Reihenfolge),
+Fremdschlüssel-Konsistenz der geladenen Daten prüfen, Sequenzen zurücksetzen (jede Tabelle mit
+Integer-Primärschlüssel, nicht nur eine vermutete Handvoll), Zeilenzahlen Quelle gegen Ziel
+verifizieren, verschlüsselte SMTP-/Microsoft-365-/TOTP-Felder probeweise entschlüsseln (ohne den
+Klartext je auszugeben). Dieselbe Anleitung steht auch im Kopfkommentar der Skriptdatei selbst.
+
+**Fund, der über dieses eine Skript hinausgeht -- ein dauerhaftes Prinzip für jedes künftige
+Skript gegen PostgreSQL:** der erste Entwurf schaltete für die Dauer des Ladens die
+Fremdschlüssel-Trigger auf allen Zieltabellen ab (`ALTER TABLE ... DISABLE TRIGGER ALL`) --
+notwendig, weil zwei Tabellen (`quote_sections`/`order_sections`) sich selbst referenzieren
+(`parent_id`) und PostgreSQL eine Fremdschlüssel-Bedingung standardmäßig sofort bei jeder
+einzelnen Zeile prüft, nicht erst beim Commit. Der erste tatsächliche Testlauf scheiterte damit
+sofort: `InsufficientPrivilege: ... ist ein Systemtrigger`. Die internen, eine
+Fremdschlüssel-Bedingung durchsetzenden Trigger (`RI_ConstraintTrigger_*`) lassen sich nur von
+einem Superuser abschalten -- eine gewöhnliche Anwendungsrolle hat dieses Recht nicht, und genau
+eine solche gewöhnliche Rolle ist auf einem gehosteten PostgreSQL-Server (verwaltete Datenbank,
+kein eigener Serverzugriff) realistisch alles, was zur Verfügung steht. **Die eigentliche Lehre:
+eine Lösung, die Superuser-Rechte voraussetzt, lässt sich lokal (wo die eigene Rolle typischerweise
+Eigentümer aller Tabellen ist und mehr darf) erfolgreich testen und scheitert dann erst beim
+ersten echten Einsatz auf dem Zielserver -- der schlechteste Zeitpunkt, das zu merken.** Behoben
+ohne besondere Rechte: die beiden betroffenen Tabellen werden in mehreren Durchläufen geladen
+(erst Zeilen ohne offene Selbstreferenz, dann die, deren Elternzeile bereits geladen ist, beliebig
+tief verschachtelbar) -- funktioniert mit jeder Rolle, die schlicht INSERT auf ihre eigenen
+Tabellen darf. **Gilt als Grundsatz für jedes künftige Skript, das schreibend gegen eine
+PostgreSQL-Datenbank arbeitet**: nichts bauen, das `DISABLE TRIGGER ALL`, `SET
+session_replication_role` oder eine vergleichbare, Superuser voraussetzende Abkürzung braucht,
+ohne das vorher gegen eine Rolle ohne Superuser-Rechte zu prüfen -- lokal ist die eigene Rolle
+fast immer großzügiger berechtigt als später auf dem echten Server.
+
+**Lauf gegen die lokale `spielwiese`-Instanz, Stand 13.09.2026**: 121 Tabellen, 3040 Zeilen,
+1,7 Sekunden, 0 Zeilenzahl-Abweichungen, 0 verwaiste Fremdschlüssel. Anschließend die Anwendung
+tatsächlich lokal gegen PostgreSQL gestartet (Wegwerf-Testkonto ohne Admin-Rolle, um die
+1.3.34-2FA-Pflicht zu umgehen) und geprüft: Kundenliste (162 Kunden), ein Angebot als PDF
+(225 KB), ein Einsatzbericht als PDF (2,7 MB inkl. Fotos), das verschlüsselte
+Microsoft-365-Client-Secret weiterhin entschlüsselbar. Wichtigster Test: ein neuer Kunde per
+`POST /api/customers` angelegt -- id=163, exakt der nächste freie Wert nach dem bisherigen
+Maximum 162, bestätigt die zurückgesetzten Sequenzen unter echter Last, nicht nur rechnerisch.
+Testkonto/-kunde danach wieder entfernt. **Bewusst NICHT in dieser Runde**: der Umzug auf den
+Server selbst -- erst muss der Weg lokal tragen.
 
 ## Migrations-Workflow
 

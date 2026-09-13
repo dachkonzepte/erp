@@ -4,6 +4,45 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.36 – PostgreSQL-Umstieg: Datenumzugsskript, erste Runde (nur lokal erprobt)
+
+Erste Runde des eigentlichen Datenumzugs -- nur das Skript bauen und gegen die lokale,
+portable PostgreSQL-Instanz ausprobieren. Der Umzug auf den Server bleibt ein eigener,
+späterer Schritt.
+
+**`scripts/migrate_sqlite_to_postgres.py`** (neu, neben `reset_admin_2fa.py`). Die reale
+`dachkonzepte_erp.db` wird ausschließlich lesend geöffnet -- über SQLites Online-Backup-API in
+eine temporäre Kopie gesichert (verträgt sich mit einer parallel laufenden Anwendung) und
+zusätzlich per `mode=ro`-URI geöffnet, ein Schreibversuch würde vom Treiber selbst verweigert.
+Sicherheitsnetz gegen eine falsch übergebene Zielverbindung: das Skript verweigert den Dienst,
+sobald in der Zieldatenbank bereits Daten stehen, außer `--force-truncate` wird ausdrücklich
+gesetzt -- das Leeren selbst bleibt dabei auf genau die dem ORM bekannten Tabellen beschränkt,
+nie ein pauschales DROP SCHEMA/DATABASE. Ablauf: `alembic upgrade head` gegen das Ziel, Daten
+laden (`Base.metadata.sorted_tables`-Reihenfolge, die beiden selbstreferenzierenden Tabellen
+`quote_sections`/`order_sections` in mehreren Durchläufen), Fremdschlüssel-Konsistenz der
+geladenen Daten prüfen (SQLite erzwingt Fremdschlüssel in diesem Projekt nicht selbst -- ein
+eigener Scan deckt etwaige, unter SQLite nie aufgefallene Wanderleichen auf), Sequenzen für
+jede Tabelle mit Integer-Primärschlüssel zurücksetzen, Zeilenzahlen Quelle gegen Ziel
+verifizieren, verschlüsselte SMTP-/Microsoft-365-/TOTP-Felder probeweise entschlüsseln.
+
+**Echter Fund beim ersten Versuch**: der ursprüngliche Plan, Fremdschlüssel-Trigger während des
+Ladens abzuschalten (`ALTER TABLE ... DISABLE TRIGGER ALL`), scheiterte mit
+`InsufficientPrivilege` -- die internen, eine Fremdschlüssel-Bedingung durchsetzenden Trigger
+lassen sich nur von einem Superuser abschalten, eine gewöhnliche Anwendungsrolle (wie sie auf
+einem gehosteten Server zu erwarten ist) hat dieses Recht nicht. Ersetzt durch einen
+rechtefreien, mehrstufigen Ladevorgang genau für die beiden betroffenen Tabellen. Siehe
+CLAUDE.md "PostgreSQL-Umstieg" für die volle Begründung, warum das über diese eine Migration
+hinaus für jedes künftige Skript gilt.
+
+**Lauf gegen die lokale `spielwiese`-Instanz**: 121 Tabellen, 3040 Zeilen, 1,7 Sekunden, 0
+Zeilenzahl-Abweichungen, 0 verwaiste Fremdschlüssel. Anschließend die Anwendung tatsächlich
+lokal gegen PostgreSQL gestartet und geprüft: Kundenliste (162 Kunden), ein Angebot als PDF
+(225 KB), ein Einsatzbericht als PDF (2,7 MB inkl. Fotos), das verschlüsselte
+Microsoft-365-Client-Secret weiterhin entschlüsselbar. Wichtigster Test: ein neuer Kunde per
+`POST /api/customers` angelegt -- id=163, exakt der nächste freie Wert nach dem bisherigen
+Maximum 162, bestätigt die zurückgesetzten Sequenzen unter echter Last. Volle Testsuite
+weiterhin 1040/1040 grün.
+
 ## 1.3.35 – PostgreSQL-Umstieg: Migrationskette repariert
 
 Erste Reparaturrunde vor dem eigentlichen Datenumzug -- Datenumzug, Backup-Skript-Umbau und die
