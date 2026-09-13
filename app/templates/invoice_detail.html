@@ -1,0 +1,231 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP · Rechnung</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}.nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap}button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 12px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}main{padding:18px;max-width:1750px;margin:0}.top{background:var(--card);border:1px solid var(--line);padding:12px 14px;display:flex;align-items:center;gap:15px;margin-bottom:12px;flex-wrap:wrap}.top-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.top-actions a{padding:9px 12px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-weight:650;font-size:13.5px}.top-actions a:hover{background:var(--soft)}.grow{flex:1}.muted{color:var(--muted)}.small{font-size:12px}.badge{background:var(--soft);color:var(--ink);padding:6px 9px;font-size:12px;font-weight:800}.badge.versendet{background:var(--soft);color:var(--accent)}.badge.bezahlt{background:var(--success-soft);color:var(--success)}.badge.storniert{background:var(--danger-soft);color:var(--danger)}.badge.overdue{background:var(--danger-soft);color:var(--danger)}.metrics{display:flex;gap:18px}.metric small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase}.metric b{font-size:15px;color:var(--ink)}.layout{display:grid;grid-template-columns:minmax(680px,1fr) 390px;gap:12px}.card{background:var(--card);border:1px solid var(--line);padding:13px;margin-bottom:12px}.sticky{position:sticky;top:12px;align-self:start;max-height:calc(100vh - 24px);overflow:auto}.notice{background:var(--soft);border-left:4px solid var(--accent);padding:10px;margin-bottom:12px;font-size:13px;color:var(--ink)}.warning{background:var(--warning-soft);border-left-color:var(--warning)}h2,h3{margin:0 0 10px;color:var(--ink)}.fields{display:grid;grid-template-columns:1fr 1fr;gap:9px}.field label{display:block;font-size:11px;font-weight:800;color:var(--muted);margin-bottom:4px}.field input,.field select,.field textarea,dialog input,dialog select,dialog textarea{width:100%;border:1px solid var(--field-border);padding:8px;background:var(--card);color:var(--ink)}.field input:hover,.field select:hover,.field textarea:hover,dialog input:hover,dialog select:hover,dialog textarea:hover{border-color:var(--field-border-hover)}.field input:focus,.field select:focus,.field textarea:focus,dialog input:focus,dialog select:focus,dialog textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}.field textarea,dialog textarea{min-height:70px}.full{grid-column:1/-1}.status{font-size:12px;margin-top:7px;color:var(--muted)}.inv-head,.inv-row{display:grid;grid-template-columns:70px minmax(220px,1fr) 90px 100px 90px 90px 100px 60px;gap:8px;align-items:center}.inv-head{background:var(--soft);padding:8px;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:850}.inv-row{padding:8px;border-bottom:1px solid var(--line);font-size:13px}.inv-row:last-child{border-bottom:0}.inv-row input{width:100%;border:1px solid var(--field-border);padding:5px;text-align:right;background:var(--card);color:var(--ink)}.num{text-align:right}.actions-row{display:flex;flex-direction:column;gap:6px;margin-top:6px}.summary-line{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)}.summary-line.total{font-weight:850;font-size:16px;border-top:2px solid var(--ink);border-bottom:0;margin-top:4px;padding-top:10px}dialog{border:1px solid var(--line);padding:0;width:min(650px,94vw);box-shadow:0 20px 70px rgba(0,0,0,.35);background:var(--card);color:var(--ink)}dialog::backdrop{background:rgba(10,15,13,.5)}.dialog{padding:18px}.dialog-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}.iconbtn{padding:5px 7px;background:var(--soft);color:var(--ink);border:1px solid var(--line);font-size:12px}.iconbtn:hover{background:color-mix(in srgb,var(--ink) 8%,var(--soft))}.iconbtn.danger{background:var(--danger-soft);color:var(--danger);border-color:transparent}@media(max-width:1100px){.layout{grid-template-columns:1fr}.sticky{position:static;max-height:none}}@media(max-width:760px){.inv-head{display:none}.inv-row{grid-template-columns:1fr 80px}.inv-row span:not(:nth-child(2)):not(:nth-child(1)){display:none}}
+.breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:8px}.breadcrumb a{color:var(--accent);text-decoration:none;font-weight:650}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main><div class="breadcrumb" id="breadcrumb">Lädt …</div><div class="top"><div class="grow"><b id="invTitle">Rechnung wird geladen …</b><div id="invContext" class="muted small"></div></div><div class="top-actions"><a id="backOrder" href="#">← Auftrag</a><button class="secondary" onclick="window.open('/api/invoices/'+invoiceId+'/pdf','_blank')">PDF herunterladen</button></div><span id="statusBadge" class="badge">—</span><div class="metrics"><div class="metric"><small>Netto</small><b id="mNet">—</b></div><div class="metric"><small>MwSt.</small><b id="mVat">—</b></div><div class="metric"><small>Brutto</small><b id="mGross">—</b></div></div></div>
+<div id="editLockNotice" class="notice warning" style="display:none">Diese Rechnung ist versendet und kann nicht mehr bearbeitet werden. Korrekturen laufen über eine Stornorechnung.</div>
+<div class="layout">
+<section>
+<div id="pauschalCard" class="card" style="display:none"><h2>Pauschalbetrag</h2><div class="fields"><div class="field full"><label>Bezeichnung</label><input id="pDesc" placeholder="z. B. 1. Abschlag gemäß Auftrag"></div><div class="field"><label>Betrag netto (€)</label><input id="pAmount" placeholder="0,00"></div></div><button onclick="savePauschal()" style="margin-top:8px">Speichern</button><div id="pauschalStatus" class="status"></div></div>
+<div id="itemsCard" class="card" style="display:none"><h2>Positionen</h2><div class="inv-head"><span>OZ</span><span>Leistung</span><span class="num">Soll</span><span class="num">Ist (gesamt)</span><span class="num">abgerechnet</span><span class="num">EP</span><span class="num">Betrag</span><span></span></div><div id="itemsList"></div><button class="secondary" onclick="openItemDialog(null)" style="margin-top:10px">+ Position hinzufügen</button></div>
+</section>
+<aside class="sticky">
+<div class="card"><h3>Rechnungsdaten</h3><div class="fields"><div class="field"><label>Rechnungsdatum</label><input id="iDate" type="date" disabled></div><div class="field"><label>Zahlungsbedingung</label><select id="iPaymentTermSelect" onchange="changePaymentTerm()"></select></div><div class="field"><label>Fällig bis</label><input id="iDue" type="date" disabled></div><div class="field"><label>Steuerschlüssel</label><select id="iTaxKeySelect" onchange="changeTaxKey()"></select></div><div class="field full"><label>Automatischer Fälligkeits-/Skontohinweis <span class="small muted">(wird mit dem Schlusstext auf der Rechnung angezeigt)</span></label><div id="paymentTermsSentence" class="small muted" style="border:1px solid var(--field-border);padding:8px;background:var(--soft)"></div></div><div class="field full"><label>Einleitungstext</label><select id="iIntroTemplate" onchange="applyTextTemplate('iIntro','iIntroTemplate')" style="margin-bottom:6px"></select><textarea id="iIntro"></textarea></div><div class="field full"><label>Schlusstext</label><select id="iOutroTemplate" onchange="applyTextTemplate('iOutro','iOutroTemplate')" style="margin-bottom:6px"></select><textarea id="iOutro"></textarea></div><div class="field full"><label>Schlusstext 2 <span class="small muted">(optional, zweiter, unabhängiger Textblock)</span></label><select id="iOutro2Template" onchange="applyTextTemplate('iOutro2','iOutro2Template')" style="margin-bottom:6px"></select><textarea id="iOutro2"></textarea></div></div><button onclick="saveHeader()" style="margin-top:8px">Kopfdaten speichern</button><div id="headerStatus" class="status"></div></div>
+<div class="card"><h3>Status</h3><div id="statusInfo" class="small muted" style="margin-bottom:10px"></div><div class="actions-row" id="statusActions"></div><div id="statusActionMsg" class="status"></div></div>
+<div class="card" id="remindersCard" style="display:none"><h3>Mahnwesen</h3><div id="reminderStatusInfo" class="small muted" style="margin-bottom:10px"></div><div id="reminderList"></div><div class="actions-row" id="reminderActions"></div><div id="reminderStatusMsg" class="status"></div>
+  <div id="reminderEditor" style="display:none;border:1px solid var(--line);padding:10px;margin-top:10px">
+    <div class="small muted" id="reminderEditorSubtitle" style="margin-bottom:6px"></div>
+    <label class="small muted">Mahntext (mit Platzhaltern)
+      <textarea id="reminderEditorText" rows="6" style="width:100%;font-family:inherit;font-size:13px;padding:8px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);margin-top:4px"></textarea>
+    </label>
+    <div class="small muted" style="margin:6px 0">Verfügbare Platzhalter -- werden beim Anzeigen/PDF automatisch durch die aktuellen Werte ersetzt:
+      <ul style="margin:4px 0 0;padding-left:18px">
+        <li><code>{rechnungsnummer}</code> – Rechnungsnummer</li>
+        <li><code>{rechnungsdatum}</code> – Rechnungsdatum</li>
+        <li><code>{faelligkeitsdatum}</code> – ursprüngliches Fälligkeitsdatum der Rechnung</li>
+        <li><code>{offener_betrag}</code> – noch offener Rechnungsbetrag</li>
+        <li><code>{mahngebuehr}</code> – Mahngebühr (Feld „Mahngebühr" unten)</li>
+        <li><code>{gesamtbetrag}</code> – offener Betrag zzgl. Mahngebühr</li>
+        <li><code>{neue_frist}</code> – neue Zahlungsfrist (Feld „Neue Zahlungsfrist" unten)</li>
+        <li><code>{vorheriges_mahndatum}</code> – Datum der vorherigen Mahnstufe, falls vorhanden</li>
+      </ul>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px">
+      <label class="small muted">Mahngebühr
+        <input id="reminderEditorFeeAmount" type="number" step="0.01" min="0" style="display:block;padding:6px 8px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);margin-top:4px;width:140px">
+      </label>
+      <label class="small muted">Neue Zahlungsfrist
+        <input id="reminderEditorNewDueDate" type="date" style="display:block;padding:6px 8px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);margin-top:4px">
+      </label>
+    </div>
+    <div style="display:flex;gap:6px"><button onclick="saveReminderEditNow()">Speichern</button><button class="secondary" onclick="cancelReminderEdit()">Abbrechen</button></div>
+  </div>
+</div>
+</aside>
+</div>
+</main>
+<dialog id="itemDialog"><div class="dialog"><div class="dialog-head"><h3 id="itemDialogTitle">Position</h3><button class="secondary" onclick="document.getElementById('itemDialog').close()">✕</button></div><div class="fields"><div class="field full"><label>Kurztext</label><input id="itShort"></div><div class="field full"><label>Langtext</label><textarea id="itLong"></textarea></div><div class="field"><label>Einheit</label><input id="itUnit"></div><div class="field"><label>Einheitspreis (€)</label><input id="itPrice"></div><div class="field"><label>Ist-Menge (kumuliert gesamt)</label><input id="itIst"></div><div class="field" id="itSollField"><label>Soll-Menge (aus Auftrag)</label><input id="itSoll" disabled></div></div><div class="dialog-actions"><button class="secondary" onclick="document.getElementById('itemDialog').close()">Abbrechen</button><button onclick="saveItemDialog()">Speichern</button></div><div id="itemStatus" class="status"></div></div></dialog>
+</div>
+</div>
+<script>
+const invoiceId={{ invoice_id }};let invoice=null,editItemId=null,paymentTerms=[],introTemplates=[],outroTemplates=[],taxKeys=[];
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const money=x=>Number(x||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+const qty=x=>x==null?'—':Number(x).toLocaleString('de-DE',{maximumFractionDigits:3});
+const TYPE_LABELS={abschlag_pauschal:'Abschlagsrechnung (Pauschal)',abschlag_leistungsstand:'Abschlagsrechnung (nach Leistungsstand)',schluss:'Schlussrechnung',aufwand:'Rechnung nach Aufwand (Zeitbuchungen)',storno:'Stornorechnung'};
+const STATUS_LABELS={entwurf:'Entwurf',versendet:'Finalisiert',bezahlt:'Bezahlt',storniert:'Storniert'};
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+
+function renderBreadcrumb(){
+  const customerLink=`<a href="/customers/${invoice.customer_id}">${esc(invoice.customer_name)}</a>`;
+  const projectLink=`<a href="/projects/${invoice.project_id}">${esc(invoice.project_number)}</a>`;
+  const orderLink=`<a href="/orders/${invoice.order_id}">${esc(invoice.order_number)}</a>`;
+  document.getElementById('breadcrumb').innerHTML=[customerLink,projectLink,orderLink,esc(invoice.invoice_number||'Entwurf')].join(' · ');
+}
+function render(){
+  renderBreadcrumb();
+  document.getElementById('invTitle').textContent=`${invoice.invoice_number||'Entwurf'} · ${TYPE_LABELS[invoice.invoice_type]||invoice.invoice_type}`;
+  document.getElementById('invContext').textContent=`${invoice.customer_name}${invoice.property_name?' · '+invoice.property_name:''}`;
+  const badge=document.getElementById('statusBadge');badge.textContent=STATUS_LABELS[invoice.status]||invoice.status;badge.className='badge '+invoice.status+(invoice.is_overdue?' overdue':'');
+  if(invoice.is_overdue)badge.textContent+=' · überfällig';
+  document.getElementById('mNet').textContent=money(invoice.net_total);document.getElementById('mVat').textContent=money(invoice.vat_total);document.getElementById('mGross').textContent=money(invoice.gross_total);
+  document.getElementById('backOrder').href='/orders/'+invoice.order_id;
+  document.getElementById('editLockNotice').style.display=invoice.is_editable?'none':'block';
+
+  const isPauschal=invoice.invoice_type==='abschlag_pauschal';
+  document.getElementById('pauschalCard').style.display=isPauschal?'block':'none';
+  document.getElementById('itemsCard').style.display=isPauschal?'none':'block';
+  if(isPauschal){document.getElementById('pDesc').value=invoice.progress_description||'';document.getElementById('pAmount').value=invoice.lump_sum_net??'';document.getElementById('pDesc').disabled=!invoice.is_editable;document.getElementById('pAmount').disabled=!invoice.is_editable;document.querySelector('#pauschalCard button').style.display=invoice.is_editable?'inline-block':'none'}
+  else{renderItems()}
+
+  document.getElementById('iDate').value=invoice.invoice_date;document.getElementById('iDue').value=invoice.due_date||'';document.getElementById('iIntro').value=invoice.intro_text||'';document.getElementById('iOutro').value=invoice.outro_text||'';document.getElementById('iOutro2').value=invoice.outro_text_2||'';
+  document.getElementById('paymentTermsSentence').textContent=invoice.payment_terms_sentence||'—';
+  renderPaymentTermSelect();renderTaxKeySelect();renderTextTemplateSelect('iIntroTemplate',introTemplates);renderTextTemplateSelect('iOutroTemplate',outroTemplates);renderTextTemplateSelect('iOutro2Template',outroTemplates);
+  [...document.querySelectorAll('#iIntro,#iPayment,#iOutro,#iOutro2,#iPaymentTermSelect,#iTaxKeySelect,#iIntroTemplate,#iOutroTemplate,#iOutro2Template')].forEach(el=>el.disabled=!invoice.is_editable);
+  document.querySelector('aside .card button').style.display=invoice.is_editable?'inline-block':'none';
+
+  renderStatusActions();
+  document.getElementById('remindersCard').style.display=invoice.status==='versendet'?'block':'none';
+  if(invoice.status==='versendet')loadAndRenderReminders();
+}
+
+function renderPaymentTermSelect(){const sel=document.getElementById('iPaymentTermSelect');let html=paymentTerms.map(t=>`<option value="${t.id}">${esc(t.label)} (${t.days} Tage${t.skonto_percent?`, ${String(t.skonto_percent).replace('.',',')} % Skonto bei ${t.skonto_days} Tagen`:''})</option>`).join('')||'<option value="">Keine Zahlungsbedingung hinterlegt</option>';const current=paymentTerms.find(t=>t.label.trim().toLowerCase()===String(invoice.payment_terms||'').trim().toLowerCase());if(invoice.payment_terms&&!current)html+=`<option value="" selected>${esc(invoice.payment_terms)} · bisher (keine passende Zahlungsbedingung mehr, Fälligkeit ggf. geschätzt)</option>`;sel.innerHTML=html;if(current)sel.value=current.id}
+function renderTaxKeySelect(){const sel=document.getElementById('iTaxKeySelect');sel.innerHTML=taxKeys.map(t=>`<option value="${t.id}">${esc(t.label)} (${String(t.vat_rate).replace('.',',')} %)</option>`).join('')||'<option value="">Kein Steuerschlüssel hinterlegt</option>';if(invoice.tax_key_id)sel.value=invoice.tax_key_id}
+function renderTextTemplateSelect(selectId,templates){const sel=document.getElementById(selectId);sel.innerHTML='<option value="">— Vorlage wählen … —</option>'+templates.map(t=>`<option value="${esc(t.value)}">${esc(t.label)}</option>`).join('')}
+function applyTextTemplate(textareaId,selectId){const val=document.getElementById(selectId).value;if(val)document.getElementById(textareaId).value=val}
+async function changePaymentTerm(){const id=document.getElementById('iPaymentTermSelect').value;if(!id)return;const st=document.getElementById('headerStatus');try{invoice=await api(`/api/invoices/${invoiceId}/payment-term`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({payment_term_id:Number(id)})});st.textContent='Zahlungsbedingung aktualisiert.';render()}catch(e){st.textContent='Fehler: '+e.message}}
+async function changeTaxKey(){const id=document.getElementById('iTaxKeySelect').value;if(!id)return;const st=document.getElementById('headerStatus');try{invoice=await api(`/api/invoices/${invoiceId}/tax-key`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({tax_key_id:Number(id)})});st.textContent='Steuerschlüssel aktualisiert.';render()}catch(e){st.textContent='Fehler: '+e.message}}
+
+function renderItems(){
+  const el=document.getElementById('itemsList');
+  const rows=invoice.items;
+  el.innerHTML=rows.length?rows.map(i=>`<div class="inv-row"><span>${esc(i.gaeb_oz||i.position_number||'—')}</span><span>${esc(i.short_text)}${i.long_text?`<div class="small muted">${esc(i.long_text)}</div>`:''}</span><span class="num">${qty(i.soll_quantity)}</span><span class="num">${invoice.is_editable?`<input value="${qty(i.ist_quantity)}" onchange="quickIst(${i.id},this.value)">`:qty(i.ist_quantity)}</span><span class="num">${qty(i.billed_quantity)}</span><span class="num">${money(i.unit_price)}</span><span class="num">${money(i.billed_total)}</span><span>${invoice.is_editable?`<button class="iconbtn" onclick="openItemDialog(${i.id})">✎</button> <button class="iconbtn danger" onclick="removeItem(${i.id})">✕</button>`:''}</span></div>`).join(''):'<div class="small muted" style="padding:12px">Noch keine Position.</div>';
+}
+
+async function quickIst(itemId,value){const v=value.replace(',','.');try{invoice=await api(`/api/invoices/${invoiceId}/items/${itemId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ist_quantity:v})});render()}catch(e){alert('Fehler: '+e.message);await reload()}}
+
+function openItemDialog(itemId){
+  editItemId=itemId;
+  const isNew=itemId===null;
+  document.getElementById('itemDialogTitle').textContent=isNew?'Position hinzufügen':'Position bearbeiten';
+  document.getElementById('itemStatus').textContent='';
+  document.getElementById('itSollField').style.display=isNew?'none':'block';
+  if(isNew){document.getElementById('itShort').value='';document.getElementById('itLong').value='';document.getElementById('itUnit').value='';document.getElementById('itPrice').value='';document.getElementById('itIst').value='0';document.getElementById('itSoll').value=''}
+  else{const i=invoice.items.find(x=>x.id===itemId);document.getElementById('itShort').value=i.short_text;document.getElementById('itLong').value=i.long_text||'';document.getElementById('itUnit').value=i.unit;document.getElementById('itPrice').value=i.unit_price;document.getElementById('itIst').value=i.ist_quantity;document.getElementById('itSoll').value=i.soll_quantity??''}
+  document.getElementById('itemDialog').showModal();
+}
+
+async function saveItemDialog(){
+  const st=document.getElementById('itemStatus');
+  const body={short_text:document.getElementById('itShort').value.trim(),long_text:document.getElementById('itLong').value,unit:document.getElementById('itUnit').value.trim(),unit_price:document.getElementById('itPrice').value.replace(',','.'),ist_quantity:document.getElementById('itIst').value.replace(',','.')};
+  if(!body.short_text||!body.unit||!body.unit_price){st.textContent='Bitte Kurztext, Einheit und Preis angeben.';return}
+  try{
+    if(editItemId===null)invoice=await api(`/api/invoices/${invoiceId}/items`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    else invoice=await api(`/api/invoices/${invoiceId}/items/${editItemId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    document.getElementById('itemDialog').close();render();
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+
+async function removeItem(itemId){if(!confirm('Position wirklich entfernen?'))return;try{invoice=await api(`/api/invoices/${invoiceId}/items/${itemId}`,{method:'DELETE'});render()}catch(e){alert('Fehler: '+e.message)}}
+
+async function savePauschal(){const st=document.getElementById('pauschalStatus');try{invoice=await api(`/api/invoices/${invoiceId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({due_date:invoice.due_date,progress_description:document.getElementById('pDesc').value.trim()||null,lump_sum_net:document.getElementById('pAmount').value.replace(',','.'),intro_text:invoice.intro_text,outro_text:invoice.outro_text,payment_terms:invoice.payment_terms})});st.textContent='Gespeichert.';render()}catch(e){st.textContent='Fehler: '+e.message}}
+
+async function saveHeader(){const st=document.getElementById('headerStatus');try{invoice=await api(`/api/invoices/${invoiceId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({due_date:invoice.due_date,progress_description:invoice.progress_description,lump_sum_net:invoice.lump_sum_net,intro_text:document.getElementById('iIntro').value||null,outro_text:document.getElementById('iOutro').value||null,outro_text_2:document.getElementById('iOutro2').value||null,payment_terms:invoice.payment_terms})});st.textContent='Gespeichert.';render()}catch(e){st.textContent='Fehler: '+e.message}}
+
+function renderStatusActions(){
+  const el=document.getElementById('statusActions');const info=document.getElementById('statusInfo');
+  let html='';
+  if(invoice.status==='entwurf'){
+    info.textContent='Diese Rechnung ist noch ein Entwurf und trägt noch keine Rechnungsnummer. "Finalisieren" vergibt die nächste Nummer aus dem Nummernkreis und sperrt die Rechnung für weitere Bearbeitung – ein tatsächlicher Versand (E-Mail/Post) findet dabei nicht statt, das PDF muss weiterhin separat heruntergeladen und verschickt werden.';
+    html+='<button onclick="sendInvoice()">Rechnung finalisieren</button><button class="danger" onclick="deleteInvoiceDraft()">Entwurf löschen</button>';
+  }else if(invoice.status==='versendet'){
+    info.textContent=invoice.paid_date?`Bezahlt am ${new Date(invoice.paid_date).toLocaleDateString('de-DE')}.`:'Diese Rechnung ist finalisiert und wartet auf Zahlung.';
+    html+=emailSendControlsHtml()+'<button onclick="markPaid()">Als bezahlt markieren</button><button class="danger" onclick="stornoInvoice()">Stornieren</button>';
+  }else if(invoice.status==='bezahlt'){
+    info.textContent=`Bezahlt am ${invoice.paid_date?new Date(invoice.paid_date).toLocaleDateString('de-DE'):'—'}.`;
+    html+=emailSendControlsHtml()+'<button class="danger" onclick="stornoInvoice()">Stornieren</button>';
+  }else if(invoice.status==='storniert'){
+    info.textContent='Diese Rechnung wurde storniert.';
+  }
+  if(invoice.email_sent_at){
+    html+=`<div class="small muted" style="width:100%;margin-top:4px">Zuletzt per E-Mail versendet am ${new Date(invoice.email_sent_at).toLocaleDateString('de-DE')} an ${esc(invoice.email_sent_to)}.</div>`;
+  }
+  el.innerHTML=html;
+}
+
+function emailSendControlsHtml(){
+  return `<span style="display:inline-flex;gap:6px;align-items:center"><input id="invoiceEmailInput" type="email" value="${esc(invoice.recipient_email||'')}" placeholder="E-Mail-Adresse" style="padding:7px 10px;border:1px solid var(--field-border);font-family:inherit;font-size:13px;min-width:220px;background:var(--card);color:var(--ink)"><button onclick="sendInvoiceEmail()">✉️ Per E-Mail senden</button></span>`;
+}
+
+async function sendInvoiceEmail(){
+  const toEmail=document.getElementById('invoiceEmailInput').value.trim();
+  if(!toEmail){alert('Bitte eine E-Mail-Adresse angeben.');return}
+  const st=document.getElementById('statusActionMsg');
+  try{
+    invoice=await api(`/api/invoices/${invoiceId}/send-email`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to_email:toEmail})});
+    st.textContent='Per E-Mail versendet.';
+    render();
+  }catch(e){ st.textContent='Fehler: '+e.message }
+}
+
+async function sendInvoice(){if(!confirm('Rechnung jetzt finalisieren? Die Rechnungsnummer wird vergeben, danach ist keine Bearbeitung mehr möglich. Das ist kein tatsächlicher Versand an den Kunden – dafür steht nach dem Finalisieren der Knopf "Per E-Mail senden" zur Verfügung.'))return;const st=document.getElementById('statusActionMsg');try{invoice=await api(`/api/invoices/${invoiceId}/send`,{method:'POST'});st.textContent='Finalisiert.';render()}catch(e){st.textContent='Fehler: '+e.message}}
+async function markPaid(){const st=document.getElementById('statusActionMsg');try{invoice=await api(`/api/invoices/${invoiceId}/mark-paid`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});st.textContent='Als bezahlt markiert.';render()}catch(e){st.textContent='Fehler: '+e.message}}
+async function stornoInvoice(){if(!confirm('Stornorechnung anlegen? Sie wird zunächst als Entwurf angelegt und muss anschließend selbst versendet werden.'))return;try{const storno=await api(`/api/invoices/${invoiceId}/storno`,{method:'POST'});location.href='/invoices/'+storno.id}catch(e){document.getElementById('statusActionMsg').textContent='Fehler: '+e.message}}
+async function deleteInvoiceDraft(){if(!confirm('Diesen Rechnungsentwurf unwiderruflich löschen? Das kann nicht rückgängig gemacht werden.'))return;const orderId=invoice.order_id;try{await api(`/api/invoices/${invoiceId}`,{method:'DELETE'});location.href='/orders/'+orderId}catch(e){document.getElementById('statusActionMsg').textContent='Fehler: '+e.message}}
+
+const REMINDER_LEVEL_LABELS={1:'1. Mahnung',2:'2. Mahnung',3:'3. Mahnung'};
+let currentReminders=[];
+function renderReminders(status,list){currentReminders=list;let info=status.current_level>0?`Aktuell auf Stufe ${status.current_level} (${REMINDER_LEVEL_LABELS[status.current_level]}).`:'Bisher keine Mahnung versendet.';info+=status.next_level?` Nächste Stufe (${REMINDER_LEVEL_LABELS[status.next_level]}) `+(status.is_due_now?'ist fällig.':`wird ab ${new Date(status.next_due_on).toLocaleDateString('de-DE')} fällig.`):' Keine weitere Mahnstufe aktiv/verfügbar.';document.getElementById('reminderStatusInfo').textContent=info;document.getElementById('reminderList').innerHTML=list.length?list.map(r=>`<div style="border:1px solid var(--line);padding:8px;margin-bottom:6px"><b>${REMINDER_LEVEL_LABELS[r.level]||'Stufe '+r.level}</b> ${r.reminder_number?esc(r.reminder_number):'(Entwurf)'} · ${money(r.total_amount)}<div class="small muted">${new Date(r.reminder_date).toLocaleDateString('de-DE')}${r.status==='entwurf'?' · Entwurf':' · Versendet'}</div><div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap">${r.status==='entwurf'?`<button class="secondary iconbtn" onclick="sendReminderNow(${r.id})">Versenden</button><button class="secondary iconbtn" onclick="editReminderNow(${r.id})">Bearbeiten</button><button class="danger iconbtn" onclick="deleteReminderNow(${r.id})">Löschen</button>`:''}<button class="secondary iconbtn" onclick="window.open('/api/reminders/${r.id}/pdf','_blank')">PDF</button></div></div>`).join(''):'<div class="small muted">Noch keine Mahnung zu dieser Rechnung.</div>';document.getElementById('reminderActions').innerHTML=status.next_level?`<button onclick="createReminderNow(${status.next_level})">${REMINDER_LEVEL_LABELS[status.next_level]} erstellen</button>`:''}
+async function loadAndRenderReminders(){try{const [status,list]=await Promise.all([api('/api/invoices/'+invoiceId+'/reminder-status'),api('/api/invoices/'+invoiceId+'/reminders')]);renderReminders(status,list)}catch(e){document.getElementById('reminderStatusInfo').textContent='Fehler: '+e.message}}
+async function createReminderNow(level){const st=document.getElementById('reminderStatusMsg');try{await api('/api/invoices/'+invoiceId+'/reminders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({level})});st.textContent='Mahnung erstellt.';loadAndRenderReminders()}catch(e){st.textContent='Fehler: '+e.message}}
+async function sendReminderNow(id){if(!confirm('Mahnung jetzt versenden? Die Mahnungsnummer wird vergeben, danach ist keine Bearbeitung mehr möglich. Das ist kein tatsächlicher Versand an den Kunden – das PDF muss weiterhin separat heruntergeladen und verschickt werden.'))return;const st=document.getElementById('reminderStatusMsg');try{await api('/api/reminders/'+id+'/send',{method:'POST'});st.textContent='Versendet.';loadAndRenderReminders()}catch(e){st.textContent='Fehler: '+e.message}}
+async function deleteReminderNow(id){if(!confirm('Diesen Mahnungsentwurf unwiderruflich löschen?'))return;const st=document.getElementById('reminderStatusMsg');try{await api('/api/reminders/'+id,{method:'DELETE'});st.textContent='Gelöscht.';loadAndRenderReminders()}catch(e){st.textContent='Fehler: '+e.message}}
+
+function reminderMissingPlaceholderWarning(text,feeAmount,newDueDate){
+  // Reiner Hinweis, kein Blockieren (Nutzerentscheidung 1.3.21) -- es kann gute Gründe geben,
+  // einen Platzhalter absichtlich durch eine feste Zahl zu ersetzen.
+  const missing=[];
+  if(feeAmount!==''&&feeAmount!==null&&!text.includes('{mahngebuehr}')) missing.push('{mahngebuehr} (Mahngebühr)');
+  if(newDueDate&&!text.includes('{neue_frist}')) missing.push('{neue_frist} (neue Zahlungsfrist)');
+  if(!missing.length) return '';
+  return ` Hinweis: ${missing.join(', ')} fehlt im Text -- der Wert wird bei einer künftigen Änderung nicht mehr automatisch nachgezogen.`;
+}
+let editingReminderId=null;
+function editReminderNow(id){
+  const r=currentReminders.find(x=>x.id===id);
+  if(!r)return;
+  editingReminderId=id;
+  document.getElementById('reminderEditorSubtitle').textContent=`${REMINDER_LEVEL_LABELS[r.level]||'Stufe '+r.level} bearbeiten`;
+  document.getElementById('reminderEditorText').value=r.text||'';
+  document.getElementById('reminderEditorFeeAmount').value=r.fee_amount;
+  document.getElementById('reminderEditorNewDueDate').value=r.new_due_date||'';
+  document.getElementById('reminderEditor').style.display='block';
+}
+function cancelReminderEdit(){editingReminderId=null;document.getElementById('reminderEditor').style.display='none'}
+async function saveReminderEditNow(){
+  if(editingReminderId===null)return;
+  const text=document.getElementById('reminderEditorText').value;
+  const feeAmount=document.getElementById('reminderEditorFeeAmount').value;
+  const newDueDate=document.getElementById('reminderEditorNewDueDate').value;
+  const warning=reminderMissingPlaceholderWarning(text,feeAmount,newDueDate);
+  const st=document.getElementById('reminderStatusMsg');
+  try{
+    await api(`/api/reminders/${editingReminderId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text||null,fee_amount:feeAmount,new_due_date:newDueDate||null})});
+    if(warning) alert('Gespeichert.'+warning);
+    cancelReminderEdit();
+    st.textContent='Gespeichert.';
+    loadAndRenderReminders();
+  }catch(e){ st.textContent='Fehler: '+e.message }
+}
+
+async function reload(){invoice=await api('/api/invoices/'+invoiceId);render()}
+async function load(){[invoice,paymentTerms,introTemplates,outroTemplates,taxKeys]=await Promise.all([api('/api/invoices/'+invoiceId),api('/api/payment-terms'),api('/api/settings/option-groups/invoice_intro_texts').then(g=>g.options||[]).catch(()=>[]),api('/api/settings/option-groups/invoice_outro_texts').then(g=>g.options||[]).catch(()=>[]),api('/api/tax-keys').catch(()=>[])]);render()}
+load().catch(e=>document.querySelector('main').innerHTML='<div class="card">Fehler: '+esc(e.message)+'</div>');
+</script></body></html>

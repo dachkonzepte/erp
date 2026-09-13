@@ -1,0 +1,678 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Dachfläche</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:1200px;margin:0;padding:20px}
+.breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+.breadcrumb a{color:var(--accent);text-decoration:none;font-weight:650}
+.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
+.field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
+input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+textarea{min-height:60px;resize:vertical}
+button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
+.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
+.hidden{display:none!important}
+.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
+.editor-card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.editor-card h2{margin:0 0 12px;font-size:16px}
+.fields-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+.editor-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.section-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.section-title h2{margin:0}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:650}
+tr:last-child td{border-bottom:none}
+.badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
+.row-actions{display:flex;gap:6px;flex-wrap:wrap}
+.row-archived{opacity:.6}
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.sketch-wrap{position:relative;border:1px solid var(--line);background:var(--soft);touch-action:none;max-width:640px}
+.sketch-img{display:block;width:100%;height:auto}
+.sketch-marker{position:absolute;width:16px;height:16px;background:var(--accent);border:2px solid #fff;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(0,0,0,.25);pointer-events:none}
+.sketch-marker-label{position:absolute;transform:translate(-50%,4px);font-size:11px;font-weight:700;background:var(--card);border:1px solid var(--line);padding:1px 5px;white-space:nowrap;pointer-events:none}
+.sketch-rect{position:absolute;border:2px solid var(--accent);background:color-mix(in srgb,var(--accent) 18%,transparent);pointer-events:none}
+.sketch-rect-preview{position:absolute;border:2px dashed var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);pointer-events:none}
+.placing-banner{background:var(--warning-soft);color:var(--warning);padding:8px 12px;margin-bottom:10px;font-size:13px;font-weight:650;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.finding-count-link{background:none;border:0;color:var(--accent);font:inherit;font-size:12.5px;font-weight:650;cursor:pointer;padding:0}
+.finding-count-link:hover{text-decoration:underline}
+.finding-history-row td{background:var(--soft)}
+.finding-history-item{display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.finding-history-item:last-child{border-bottom:none}
+@media(max-width:900px){.fields-2col{grid-template-columns:1fr}table{font-size:12.5px}th,td{padding:8px}}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+{% include "_debounce.html" %}
+<div class="app-content">
+<main>
+<div class="breadcrumb" id="breadcrumb">Lädt …</div>
+<div class="hero">
+  <div><h1 id="areaName">Dachfläche</h1><div class="muted small" id="areaMeta"></div></div>
+  <div style="display:flex;gap:8px">
+    <button class="secondary" id="archiveBtn" onclick="toggleAreaArchived()">Archivieren</button>
+    <button class="danger" onclick="deleteRoofAreaNow()">Löschen</button>
+  </div>
+</div>
+
+<div class="editor-card">
+  <h2>Angaben zur Dachfläche</h2>
+  <div class="fields-2col">
+    <div class="field full"><label>Bezeichnung *</label><input id="editName" placeholder="z. B. Hauptdach Süd"></div>
+    <div class="field"><label>Dachtyp</label><select id="editRoofType" onchange="loadLayers()"></select></div>
+    <div class="field"><label>Eindeckung</label><select id="editCovering"></select></div>
+    <div class="field"><label>Dachneigung (Grad)</label><input id="editPitch" type="number" step="0.1" min="0"></div>
+    <div class="field"><label>Fläche (m²)</label><input id="editArea" type="number" step="0.01" min="0"></div>
+    <div class="field"><label>Letzte Sanierung</label><input id="editLastRenovation" type="date"></div>
+    <div class="field"><label>Ausführender Betrieb</label><input id="editContractor"></div>
+    <div class="field"><label>Gewährleistung bis</label><input id="editWarrantyUntil" type="date"></div>
+    <div class="field full"><label>Notizen</label><textarea id="editNotes"></textarea></div>
+  </div>
+  <div class="editor-actions">
+    <button onclick="saveRoofArea()">Speichern</button>
+    <span id="areaStatus" class="status"></span>
+  </div>
+  <div id="legacyBuildUpSection" class="hidden" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+    <h3 style="margin:0 0 4px;font-size:14px">Aufbau (Altbestand, Freitext)</h3>
+    <div class="muted small" style="margin-bottom:8px">Historischer Freitext vor der Umstellung auf die strukturierte Schichtenliste unten -- nur noch lesbar.</div>
+    <div id="legacyBuildUpText" style="white-space:pre-wrap;font-size:13.5px"></div>
+    <div id="legacyInsulationText" class="muted small" style="margin-top:4px"></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title">
+    <h2>Dachaufbau</h2>
+  </div>
+  <div id="layerTypeHint" class="muted small" style="margin-bottom:10px">Bitte zuerst oben einen Dachtyp wählen.</div>
+  <div id="layerRows"></div>
+  <div id="layerMismatchSection" class="hidden" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+    <h3 style="margin:0 0 8px;font-size:13px;color:var(--muted)">Passt nicht zum aktuellen Dachtyp</h3>
+    <div id="layerMismatchRows"></div>
+  </div>
+  <span id="layerStatus" class="status"></span>
+</div>
+
+<div class="card">
+  <h2>Skizze</h2>
+  <div id="sketchHint" class="muted small" style="margin-bottom:10px"></div>
+  <div id="placingBanner" class="placing-banner hidden"><span id="placingText"></span><button class="secondary" onclick="cancelPlacing()">Abbrechen</button></div>
+  <div id="sketchWrap" class="sketch-wrap"><div class="empty">Skizze oder Luftbild hochladen, um Bauteile darauf zu markieren.</div></div>
+  <div class="editor-actions" style="margin-top:10px">
+    <input id="sketchFile" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" onchange="uploadSketch()">
+    <button class="secondary" onclick="document.getElementById('sketchFile').click()">Skizze hochladen/ersetzen</button>
+    <button class="secondary hidden" id="deleteSketchBtn" onclick="deleteSketchNow()">Skizze löschen</button>
+    <span id="sketchStatus" class="status"></span>
+  </div>
+</div>
+
+<div id="componentEditor" class="editor-card hidden">
+  <h2 id="componentEditorHeading">Bauteil anlegen</h2>
+  <div class="fields-2col">
+    <div class="field full"><label>Bezeichnung *</label><input id="editComponentName" placeholder="z. B. Gully Nordost"></div>
+    <div class="field"><label>Bauteiltyp</label><select id="editComponentType"></select></div>
+    <div class="field"><label>Menge</label><input id="editComponentQuantity" type="number" step="0.01" min="0"></div>
+    <div class="field"><label>Einheit</label><select id="editComponentUnit"></select></div>
+    <div class="field"><label>Baujahr</label><input id="editComponentYear" type="number" min="1900" max="2100" step="1"></div>
+    <div class="field"><label>Reihenfolge</label><input id="editComponentSort" type="number" step="1" value="100"></div>
+    <div class="field full"><label>Notizen</label><textarea id="editComponentNotes"></textarea></div>
+  </div>
+  <div class="editor-actions">
+    <button onclick="saveComponent()">Speichern</button>
+    <button class="secondary" onclick="closeComponentEditor()">Abbrechen</button>
+    <span id="componentEditorStatus" class="status"></span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title">
+    <h2>Bauteile</h2>
+    <div style="display:flex;gap:14px;align-items:center">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650"><input type="checkbox" id="showArchivedComponents" style="width:auto" onchange="loadComponents()"> Archivierte anzeigen</label>
+      <button onclick="openNewComponentEditor()">+ Bauteil</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Bezeichnung</th><th>Typ</th><th>Menge</th><th>Baujahr</th><th id="positionColHead">Auf Skizze markiert</th><th id="findingsColHead" class="hidden">Mängel</th><th>Status</th><th></th></tr></thead>
+      <tbody id="componentRows"></tbody>
+    </table>
+  </div>
+  <span id="componentListStatus" class="status"></span>
+</div>
+</main>
+</div>
+</div>
+<script>
+const roofAreaId={{ roof_area_id }};
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
+function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
+function optionsHtml(list,selected){return '<option value="">— keine Auswahl —</option>'+(list||[]).filter(o=>o.active!==false).map(o=>`<option value="${esc(o.value)}" ${o.value===selected?'selected':''}>${esc(o.label)}</option>`).join('')}
+
+let area=null,components=[],roofTypes=[],coverings=[],componentTypes=[],units=[],placingComponentId=null,editingComponentId=null;
+let findingsModuleEnabled=false;
+const componentFindingsCache={},expandedComponentFindings=new Set();
+
+async function isModuleEnabled(key){
+  const modules=await api('/api/modules').catch(()=>[]);
+  const m=modules.find(x=>x.module_key===key);
+  return m?m.enabled:true;
+}
+
+async function toggleComponentFindings(componentId){
+  if(expandedComponentFindings.has(componentId)){
+    expandedComponentFindings.delete(componentId);
+  }else{
+    expandedComponentFindings.add(componentId);
+    if(!componentFindingsCache[componentId]){
+      componentFindingsCache[componentId]=await api(`/api/roof-components/${componentId}/findings`).catch(()=>[]);
+    }
+  }
+  renderComponentRows();
+}
+
+function findingHistoryRowHtml(c){
+  if(!expandedComponentFindings.has(c.id))return'';
+  const findings=componentFindingsCache[c.id]||[];
+  const items=findings.length
+    ?findings.map(f=>`<div class="finding-history-item"><span>${fmtDate(f.created_at)}</span><span style="flex:1">${esc(f.description)}</span><span class="badge">${esc(f.status_label)}</span></div>`).join('')
+    :'<div class="muted small">Keine Mängel erfasst.</div>';
+  return `<tr class="finding-history-row"><td colspan="10">${items}</td></tr>`;
+}
+
+function renderBreadcrumb(){
+  const customerLink=area.customer_id?`<a href="/customers/${area.customer_id}">${esc(area.customer_name||'Kunde')}</a>`:null;
+  const propertyLink=`<a href="/properties/${area.property_id}">${esc(area.property_name||'Objekt')}</a>`;
+  document.getElementById('breadcrumb').innerHTML=[customerLink,propertyLink,esc(area.name)].filter(Boolean).join(' · ');
+}
+
+function renderHeader(){
+  document.getElementById('areaName').textContent=area.name;
+  document.getElementById('areaMeta').textContent=[area.roof_type,area.covering,area.area_sqm?Number(area.area_sqm).toLocaleString('de-DE')+' m²':null].filter(Boolean).join(' · ')||'Noch keine Angaben';
+  document.getElementById('archiveBtn').textContent=area.archived?'Entarchivieren':'Archivieren';
+}
+
+function fillAreaForm(){
+  document.getElementById('editName').value=area.name;
+  document.getElementById('editRoofType').innerHTML=optionsHtml(roofTypes,area.roof_type);
+  document.getElementById('editCovering').innerHTML=optionsHtml(coverings,area.covering);
+  document.getElementById('editPitch').value=area.pitch_degrees??'';
+  document.getElementById('editArea').value=area.area_sqm??'';
+  document.getElementById('editLastRenovation').value=area.last_renovation||'';
+  document.getElementById('editContractor').value=area.contractor||'';
+  document.getElementById('editWarrantyUntil').value=area.warranty_until||'';
+  document.getElementById('editNotes').value=area.notes||'';
+  renderLegacyBuildUp();
+}
+
+function renderLegacyBuildUp(){
+  const hasLegacy=!!(area.build_up||area.insulation);
+  document.getElementById('legacyBuildUpSection').classList.toggle('hidden',!hasLegacy);
+  document.getElementById('legacyBuildUpText').textContent=area.build_up||'';
+  document.getElementById('legacyInsulationText').textContent=area.insulation?('Dämmung (Altbestand): '+area.insulation):'';
+}
+
+// --- Dachaufbau als Schichtenliste (seit 1.2.18) ---
+let layerTypesForRoofType=[], existingLayers=[], layerOptionGroupsCache={};
+
+function currentRoofTypeSelection(){
+  return document.getElementById('editRoofType').value||null;
+}
+
+async function loadLayers(){
+  const roofType=currentRoofTypeSelection();
+  const hint=document.getElementById('layerTypeHint');
+  if(!roofType){
+    hint.classList.remove('hidden');
+    hint.textContent='Bitte zuerst oben einen Dachtyp wählen.';
+    document.getElementById('layerRows').innerHTML='';
+    document.getElementById('layerMismatchSection').classList.add('hidden');
+    return;
+  }
+  hint.classList.add('hidden');
+  const [types,layers]=await Promise.all([
+    api(`/api/roof-layer-types?roof_type=${encodeURIComponent(roofType)}`),
+    api(`/api/roof-areas/${roofAreaId}/layers`),
+  ]);
+  layerTypesForRoofType=types;
+  existingLayers=layers;
+  const groupKeys=[...new Set([...types.map(t=>t.option_group),...layers.map(l=>l.layer_type_option_group)].filter(Boolean))];
+  await Promise.all(groupKeys.map(async k=>{layerOptionGroupsCache[k]=await safeOptionGroup(k)}));
+  renderLayerRows();
+}
+
+function findOrCreateLayerEntry(typeId,typeMeta){
+  let entry=existingLayers.find(l=>l.layer_type_id===typeId);
+  if(!entry){
+    entry={
+      id:null, roof_area_id:roofAreaId, layer_type_id:typeId,
+      layer_type_key:typeMeta.key||null, layer_type_label:typeMeta.label||null,
+      layer_type_roof_type:typeMeta.roof_type||null, layer_type_option_group:typeMeta.option_group||null,
+      layer_type_has_execution:typeMeta.has_execution!==false, layer_type_has_thickness:!!typeMeta.has_thickness,
+      layer_type_has_notes:typeMeta.has_notes!==false,
+      present:false, execution:null, thickness_mm:null, notes:null,
+    };
+    existingLayers.push(entry);
+  }
+  return entry;
+}
+
+// Seit 1.2.19: jeder Aufruf sendet NUR die tatsächlich geänderten Felder (nicht mehr den
+// ganzen entry-Schnappschuss) -- behebt einen bei der Planung empirisch nachgewiesenen Race
+// zwischen setLayerPresent() (fire-and-forget) und einer kurz danach eintippten Bemerkung, bei
+// dem ein älterer Schnappschuss einen neueren überschreiben konnte. upsert_roof_layer() in
+// app/roof_areas.py überschreibt nur noch die im Request tatsächlich enthaltenen Schlüssel.
+async function saveLayerField(typeId,fields){
+  const entry=existingLayers.find(l=>l.layer_type_id===typeId);
+  const st=document.getElementById('layerStatus');
+  try{
+    const saved=await api(`/api/roof-areas/${roofAreaId}/layers/${typeId}`,{
+      method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields),
+    });
+    if(entry)Object.assign(entry,saved);
+    st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function setLayerPresent(typeId,present){
+  const typeMeta=layerTypesForRoofType.find(t=>t.id===typeId)||{};
+  const entry=findOrCreateLayerEntry(typeId,typeMeta);
+  entry.present=present;
+  if(!present){entry.execution=null;entry.thickness_mm=null}
+  renderLayerRows();
+  saveLayerField(typeId,present?{present:true}:{present:false,execution:null,thickness_mm:null});
+}
+
+function onLayerFieldChange(typeId,field,value){
+  const entry=existingLayers.find(l=>l.layer_type_id===typeId);
+  if(!entry)return;
+  entry[field]=value;
+  saveLayerField(typeId,{[field]:value});
+}
+
+// Debounced Gegenstück zu onLayerFieldChange() (seit 1.2.19) -- schließt die Blur-Abhängigkeit
+// von onchange: ein Wert wird spätestens 600ms nach der letzten Eingabe gespeichert, auch wenn
+// das Feld nie den Fokus verlässt (z. B. Reload direkt nach dem Eintippen). Eigener Timer je
+// Zeile+Feld, damit paralleles Tippen in zwei Feldern sich nicht gegenseitig verzögert.
+const _layerFieldDebouncers={};
+function debouncedOnLayerFieldChange(typeId,field,value){
+  const key=typeId+':'+field;
+  if(!_layerFieldDebouncers[key])_layerFieldDebouncers[key]=debounce((t,f,v)=>onLayerFieldChange(t,f,v),600);
+  _layerFieldDebouncers[key](typeId,field,value);
+}
+
+function onLayerExecChange(typeId,groupKey,value){
+  if(value==='__new__'){
+    document.getElementById('layerExecNew-'+typeId).classList.remove('hidden');
+    return;
+  }
+  onLayerFieldChange(typeId,'execution',value||null);
+}
+
+async function submitNewExecution(typeId,groupKey){
+  const input=document.getElementById('layerExecNewInput-'+typeId);
+  const text=input.value.trim();
+  if(!text)return;
+  const st=document.getElementById('layerStatus');
+  try{
+    const existingOptions=(layerOptionGroupsCache[groupKey]&&layerOptionGroupsCache[groupKey].options)||[];
+    const maxSort=existingOptions.reduce((m,o)=>Math.max(m,o.sort_order),0);
+    await api(`/api/settings/option-groups/${groupKey}/options`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:text,value:text,sort_order:maxSort+10})});
+    layerOptionGroupsCache[groupKey]=await api(`/api/settings/option-groups/${groupKey}`);
+    onLayerFieldChange(typeId,'execution',text);
+    renderLayerRows();
+    st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function layerRowHtml(type){
+  const entry=existingLayers.find(l=>l.layer_type_id===type.id);
+  const present=entry?entry.present:false;
+  const execution=entry?entry.execution:null;
+  const thickness=entry?entry.thickness_mm:null;
+  const notes=entry?entry.notes:null;
+  const group=(type.option_group&&type.has_execution!==false)?(layerOptionGroupsCache[type.option_group]||{options:[]}):null;
+  const execHtml=group?`
+    <select class="layer-exec" ${present?'':'disabled'} onchange="onLayerExecChange(${type.id},'${type.option_group}',this.value)" style="width:auto;min-width:160px">
+      ${optionsHtml(group.options,execution)}<option value="__new__">+ Neu…</option>
+    </select>
+    <span class="layer-exec-new hidden" id="layerExecNew-${type.id}" style="display:inline-flex;gap:6px">
+      <input id="layerExecNewInput-${type.id}" placeholder="Neue Ausführung" style="width:140px">
+      <button type="button" class="secondary" onclick="submitNewExecution(${type.id},'${type.option_group}')">Übernehmen</button>
+    </span>`:'';
+  const thicknessHtml=type.has_thickness
+    ?`<input type="number" min="0" step="1" placeholder="mm" value="${thickness??''}" ${present?'':'disabled'} style="width:80px" onchange="onLayerFieldChange(${type.id},'thickness_mm',this.value?Number(this.value):null)" oninput="debouncedOnLayerFieldChange(${type.id},'thickness_mm',this.value?Number(this.value):null)">`:'';
+  const notesHtml=type.has_notes!==false
+    ?`<input placeholder="Bemerkung" value="${esc(notes||'')}" ${present?'':'disabled'} style="width:150px" onchange="onLayerFieldChange(${type.id},'notes',this.value.trim()||null)" oninput="debouncedOnLayerFieldChange(${type.id},'notes',this.value.trim()||null)">`:'';
+  return `<div class="layer-row" style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
+    <div style="flex:1;min-width:150px;font-size:13.5px">${esc(type.label)}</div>
+    <button type="button" class="${present?'':'secondary'}" style="padding:6px 10px;font-size:12.5px" onclick="setLayerPresent(${type.id},true)">Ja</button>
+    <button type="button" class="${!present?'':'secondary'}" style="padding:6px 10px;font-size:12.5px" onclick="setLayerPresent(${type.id},false)">Nein</button>
+    ${execHtml}
+    ${thicknessHtml}
+    ${notesHtml}
+  </div>`;
+}
+
+function renderLayerRows(){
+  const matchingTypeIds=new Set(layerTypesForRoofType.map(t=>t.id));
+  document.getElementById('layerRows').innerHTML=layerTypesForRoofType.map(layerRowHtml).join('')
+    ||'<div class="muted small">Für diesen Dachtyp sind keine Schichttypen hinterlegt.</div>';
+  const mismatched=existingLayers.filter(l=>!matchingTypeIds.has(l.layer_type_id));
+  document.getElementById('layerMismatchSection').classList.toggle('hidden',!mismatched.length);
+  document.getElementById('layerMismatchRows').innerHTML=mismatched.map(l=>layerRowHtml({
+    id:l.layer_type_id, key:l.layer_type_key, label:l.layer_type_label, roof_type:l.layer_type_roof_type,
+    option_group:l.layer_type_option_group, has_execution:l.layer_type_has_execution,
+    has_thickness:l.layer_type_has_thickness, has_notes:l.layer_type_has_notes,
+  })).join('');
+}
+
+async function saveRoofArea(){
+  const st=document.getElementById('areaStatus');
+  const name=document.getElementById('editName').value.trim();
+  if(!name){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben.';return}
+  const payload={
+    name,
+    roof_type:document.getElementById('editRoofType').value||null,
+    covering:document.getElementById('editCovering').value||null,
+    pitch_degrees:document.getElementById('editPitch').value?Number(document.getElementById('editPitch').value):null,
+    area_sqm:document.getElementById('editArea').value?Number(document.getElementById('editArea').value):null,
+    last_renovation:document.getElementById('editLastRenovation').value||null,
+    contractor:document.getElementById('editContractor').value.trim()||null,
+    warranty_until:document.getElementById('editWarrantyUntil').value||null,
+    notes:document.getElementById('editNotes').value.trim()||null,
+  };
+  st.className='status';st.textContent='Speichert …';
+  try{
+    area=await api(`/api/roof-areas/${roofAreaId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    renderBreadcrumb();renderHeader();
+    st.textContent='Gespeichert.';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function toggleAreaArchived(){
+  try{
+    area=await api(`/api/roof-areas/${roofAreaId}/${area.archived?'unarchive':'archive'}`,{method:'POST'});
+    renderHeader();
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+async function deleteRoofAreaNow(){
+  if(!confirm('Diese Dachfläche inkl. aller Bauteile und der Skizze endgültig löschen? Das kann nicht rückgängig gemacht werden.'))return;
+  try{
+    await api(`/api/roof-areas/${roofAreaId}`,{method:'DELETE'});
+    location.href=area.customer_id?`/customers/${area.customer_id}`:'/';
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+function renderSketch(){
+  const wrap=document.getElementById('sketchWrap');
+  const hint=document.getElementById('sketchHint');
+  document.getElementById('deleteSketchBtn').classList.toggle('hidden',!area.has_sketch);
+  updateSketchColumnVisibility();
+  if(!area.has_sketch){
+    hint.textContent='Skizze oder Luftbild hochladen, um Bauteile darauf zu markieren.';
+    wrap.innerHTML='<div class="empty">Skizze oder Luftbild hochladen, um Bauteile darauf zu markieren.</div>';
+    return;
+  }
+  hint.textContent='Bauteile lassen sich per Klick auf die Skizze markieren, damit der Monteur vor Ort erkennt, welcher Gully z. B. "Nordost" ist -- unten bei einem Bauteil zuerst "Position setzen" wählen.';
+  const markers=components.filter(c=>!c.archived&&c.sketch_x!=null&&c.sketch_y!=null).map(c=>
+    (c.sketch_w!=null&&c.sketch_h!=null)
+      ?`<div class="sketch-rect" style="left:${c.sketch_x}%;top:${c.sketch_y}%;width:${c.sketch_w}%;height:${c.sketch_h}%"></div>`+
+       `<div class="sketch-marker-label" style="left:${Number(c.sketch_x)+Number(c.sketch_w)/2}%;top:${c.sketch_y}%">${esc(c.name)}</div>`
+      :`<div class="sketch-marker" style="left:${c.sketch_x}%;top:${c.sketch_y}%"></div>`+
+       `<div class="sketch-marker-label" style="left:${c.sketch_x}%;top:${c.sketch_y}%">${esc(c.name)}</div>`
+  ).join('');
+  wrap.innerHTML=`<img class="sketch-img" src="/api/roof-areas/${roofAreaId}/sketch?t=${Date.now()}" alt="Dachskizze">${markers}`;
+}
+
+function updateSketchColumnVisibility(){
+  document.getElementById('positionColHead').classList.toggle('hidden',!area.has_sketch);
+}
+
+async function uploadSketch(){
+  const input=document.getElementById('sketchFile');
+  if(!input.files.length)return;
+  const st=document.getElementById('sketchStatus');
+  st.className='status';st.textContent='Lädt hoch …';
+  try{
+    const fd=new FormData();
+    fd.append('file',input.files[0]);
+    area=await api(`/api/roof-areas/${roofAreaId}/sketch`,{method:'POST',body:fd});
+    input.value='';
+    renderSketch();
+    st.textContent='Skizze gespeichert.';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function deleteSketchNow(){
+  if(!confirm('Skizze wirklich entfernen?'))return;
+  try{
+    area=await api(`/api/roof-areas/${roofAreaId}/sketch`,{method:'DELETE'});
+    renderSketch();
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+let placingIsArea=false,dragStart=null;
+
+function startPlacing(componentId){
+  placingComponentId=componentId;
+  const c=components.find(x=>x.id===componentId);
+  const type=componentTypes.find(t=>t.value===(c&&c.component_type));
+  placingIsArea=!!(type&&type.is_area);
+  document.getElementById('placingText').textContent=placingIsArea
+    ?`Ziehen Sie ein Rechteck auf der Skizze auf, um die Fläche von "${c?c.name:''}" zu markieren.`
+    :`Klicken Sie auf die Skizze, um die Position von "${c?c.name:''}" zu setzen.`;
+  document.getElementById('placingBanner').classList.remove('hidden');
+}
+function cancelPlacing(){
+  placingComponentId=null;
+  dragStart=null;
+  clearDragPreview();
+  document.getElementById('placingBanner').classList.add('hidden');
+}
+function clearDragPreview(){
+  const el=document.getElementById('sketchDragPreview');
+  if(el)el.remove();
+}
+function sketchPoint(e){
+  const rect=document.getElementById('sketchWrap').getBoundingClientRect();
+  return {
+    x:Math.max(0,Math.min(100,((e.clientX-rect.left)/rect.width)*100)),
+    y:Math.max(0,Math.min(100,((e.clientY-rect.top)/rect.height)*100)),
+  };
+}
+function renderDragPreview(start,end){
+  clearDragPreview();
+  const div=document.createElement('div');
+  div.id='sketchDragPreview';
+  div.className='sketch-rect-preview';
+  div.style.left=Math.min(start.x,end.x)+'%';
+  div.style.top=Math.min(start.y,end.y)+'%';
+  div.style.width=Math.abs(end.x-start.x)+'%';
+  div.style.height=Math.abs(end.y-start.y)+'%';
+  document.getElementById('sketchWrap').appendChild(div);
+}
+document.getElementById('sketchWrap').addEventListener('pointerdown',e=>{
+  if(!placingComponentId||!area.has_sketch||!placingIsArea)return;
+  dragStart=sketchPoint(e);
+  document.getElementById('sketchWrap').setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+document.getElementById('sketchWrap').addEventListener('pointermove',e=>{
+  if(!dragStart)return;
+  renderDragPreview(dragStart,sketchPoint(e));
+});
+document.getElementById('sketchWrap').addEventListener('pointerup',async e=>{
+  if(!placingComponentId||!area.has_sketch)return;
+  const end=sketchPoint(e);
+  const id=placingComponentId;
+  let payload;
+  if(dragStart){
+    payload={
+      sketch_x:Math.min(dragStart.x,end.x), sketch_y:Math.min(dragStart.y,end.y),
+      sketch_w:Math.abs(end.x-dragStart.x), sketch_h:Math.abs(end.y-dragStart.y),
+    };
+  }else{
+    payload={sketch_x:end.x,sketch_y:end.y,sketch_w:null,sketch_h:null};
+  }
+  cancelPlacing();
+  try{
+    await api(`/api/roof-components/${id}/position`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    await loadComponents();
+  }catch(err){alert('Fehler: '+err.message)}
+});
+
+function openNewComponentEditor(){
+  editingComponentId=null;
+  document.getElementById('componentEditorHeading').textContent='Bauteil anlegen';
+  document.getElementById('editComponentName').value='';
+  document.getElementById('editComponentType').innerHTML=optionsHtml(componentTypes,null);
+  document.getElementById('editComponentQuantity').value='';
+  document.getElementById('editComponentUnit').innerHTML=optionsHtml(units,null);
+  document.getElementById('editComponentYear').value='';
+  document.getElementById('editComponentSort').value='100';
+  document.getElementById('editComponentNotes').value='';
+  document.getElementById('componentEditorStatus').textContent='';
+  document.getElementById('componentEditor').classList.remove('hidden');
+  document.getElementById('componentEditor').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function openEditComponentEditor(id){
+  const c=components.find(x=>x.id===id);
+  if(!c)return;
+  editingComponentId=id;
+  document.getElementById('componentEditorHeading').textContent=`Bauteil · ${c.name}`;
+  document.getElementById('editComponentName').value=c.name;
+  document.getElementById('editComponentType').innerHTML=optionsHtml(componentTypes,c.component_type);
+  document.getElementById('editComponentQuantity').value=c.quantity??'';
+  document.getElementById('editComponentUnit').innerHTML=optionsHtml(units,c.unit);
+  document.getElementById('editComponentYear').value=c.year_built??'';
+  document.getElementById('editComponentSort').value=c.sort_order;
+  document.getElementById('editComponentNotes').value=c.notes||'';
+  document.getElementById('componentEditorStatus').textContent='';
+  document.getElementById('componentEditor').classList.remove('hidden');
+  document.getElementById('componentEditor').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function closeComponentEditor(){
+  editingComponentId=null;
+  document.getElementById('componentEditor').classList.add('hidden');
+}
+
+async function saveComponent(){
+  const st=document.getElementById('componentEditorStatus');
+  const name=document.getElementById('editComponentName').value.trim();
+  if(!name){st.textContent='Bitte eine Bezeichnung angeben.';return}
+  const payload={
+    name,
+    component_type:document.getElementById('editComponentType').value||null,
+    quantity:document.getElementById('editComponentQuantity').value?Number(document.getElementById('editComponentQuantity').value):null,
+    unit:document.getElementById('editComponentUnit').value||null,
+    year_built:document.getElementById('editComponentYear').value?Number(document.getElementById('editComponentYear').value):null,
+    sort_order:Number(document.getElementById('editComponentSort').value)||100,
+    notes:document.getElementById('editComponentNotes').value.trim()||null,
+  };
+  try{
+    if(editingComponentId){
+      await api(`/api/roof-components/${editingComponentId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    }else{
+      await api(`/api/roof-areas/${roofAreaId}/components`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    }
+    closeComponentEditor();
+    await loadComponents();
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+
+async function toggleComponentArchived(id,archive){
+  const st=document.getElementById('componentListStatus');
+  try{
+    await api(`/api/roof-components/${id}/${archive?'archive':'unarchive'}`,{method:'POST'});
+    await loadComponents();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function deleteComponentNow(id){
+  if(!confirm('Dieses Bauteil wirklich löschen?'))return;
+  const st=document.getElementById('componentListStatus');
+  try{
+    await api(`/api/roof-components/${id}`,{method:'DELETE'});
+    await loadComponents();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function componentRow(c){
+  const badges=[`<span class="badge">${c.archived?'Archiviert':'Aktiv'}</span>`];
+  const actions=[`<button class="secondary" onclick="openEditComponentEditor(${c.id})">Bearbeiten</button>`];
+  if(area.has_sketch)actions.push(`<button class="secondary" onclick="startPlacing(${c.id})">Position setzen</button>`);
+  actions.push(`<button class="secondary" onclick="toggleComponentArchived(${c.id},${!c.archived})">${c.archived?'Entarchivieren':'Archivieren'}</button>`);
+  actions.push(`<button class="danger" onclick="deleteComponentNow(${c.id})">Löschen</button>`);
+  const findingsCell=findingsModuleEnabled
+    ?`<td><button type="button" class="finding-count-link" onclick="toggleComponentFindings(${c.id})">${c.finding_count||0}</button></td>`:'';
+  const positionCell=area.has_sketch?`<td>${c.sketch_x!=null?'markiert':'—'}</td>`:'';
+  const mainRow=`<tr${c.archived?' class="row-archived"':''}>
+    <td><b>${esc(c.name)}</b>${c.notes?`<div class="muted small">${esc(c.notes)}</div>`:''}</td>
+    <td>${esc(c.component_type||'—')}</td>
+    <td>${c.quantity!=null?Number(c.quantity).toLocaleString('de-DE')+' '+esc(c.unit||''):'—'}</td>
+    <td>${c.year_built||'—'}</td>
+    ${positionCell}
+    ${findingsCell}
+    <td>${badges.join(' ')}</td>
+    <td class="row-actions">${actions.join('')}</td>
+  </tr>`;
+  return mainRow+(findingsModuleEnabled?findingHistoryRowHtml(c):'');
+}
+
+function renderComponentRows(){
+  document.getElementById('componentRows').innerHTML=components.map(componentRow).join('')||'<tr><td colspan="10" class="empty">Noch keine Bauteile angelegt.</td></tr>';
+}
+
+async function loadComponents(){
+  const includeArchived=document.getElementById('showArchivedComponents').checked;
+  const st=document.getElementById('componentListStatus');
+  try{
+    components=await api(`/api/roof-areas/${roofAreaId}/components?include_archived=${includeArchived}`);
+    renderComponentRows();
+    st.textContent='';
+    renderSketch();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function init(){
+  findingsModuleEnabled=await isModuleEnabled('wartungen');
+  document.getElementById('findingsColHead').classList.toggle('hidden',!findingsModuleEnabled);
+  const [rt,cv,ct,un]=await Promise.all([
+    safeOptionGroup('roof_types'), safeOptionGroup('roof_coverings'),
+    api('/api/roof-component-types?include_inactive=true').catch(()=>[]), safeOptionGroup('units'),
+  ]);
+  roofTypes=rt.options||[];coverings=cv.options||[];
+  // Bauteilarten sind seit 1.2.19 eine echte Tabelle (RoofComponentType), keine SettingOptionGroup
+  // mehr -- auf die von optionsHtml() erwartete {value,label,active}-Form abgebildet, key bleibt
+  // dabei textidentisch zum bisherigen Options-Wert (siehe RoofComponentType-Docstring).
+  componentTypes=ct.map(t=>({value:t.key,label:t.label,active:t.active,is_area:!!t.is_area}));
+  units=un.options||[];
+  try{
+    area=await api(`/api/roof-areas/${roofAreaId}`);
+  }catch(e){
+    document.getElementById('breadcrumb').textContent='Fehler: '+e.message;
+    return;
+  }
+  renderBreadcrumb();renderHeader();fillAreaForm();
+  await loadComponents();
+  await loadLayers();
+}
+init();
+</script>
+</body></html>

@@ -1,0 +1,82 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP · Finanzen</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}main{padding:18px;max-width:1400px;margin:0}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+h1{margin:0 0 4px;color:var(--ink)}.muted{color:var(--muted)}.small{font-size:12px}
+.metrics{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.metric{background:var(--card);border:1px solid var(--line);padding:12px 16px;min-width:140px}
+.metric small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:800}
+.metric b{font-size:19px;color:var(--ink)}
+.filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.filters button{border:1px solid var(--line);background:var(--card);padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;color:var(--ink)}
+.filters button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+table{width:100%;border-collapse:collapse}th{text-align:left;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800;padding:8px;border-bottom:2px solid var(--line)}
+td{padding:10px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.number{text-align:right}
+.pill{background:var(--soft);padding:4px 9px;font-size:11px;font-weight:800}
+.pill.overdue{background:var(--danger-soft);color:var(--danger)}
+a.link{color:var(--accent);font-weight:700;text-decoration:none}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+<div class="card"><h1>Finanzen</h1><div class="muted">Alle Rechnungen im Überblick. Weitere buchhalterische Themen folgen hier künftig.</div></div>
+<div class="metrics" id="metrics"></div>
+<div class="card" id="reminderCard" style="display:none"><h2 style="margin:0 0 4px">Mahnwesen</h2><div class="muted small" id="reminderSummaryText" style="margin-bottom:8px"></div><a class="link" href="/mahnwesen">Zum Mahnwesen →</a></div>
+<div class="card">
+  <div class="filters" id="filters"></div>
+  <div style="overflow:auto"><table><thead><tr><th>Rechnung</th><th>Typ</th><th>Kunde</th><th>Auftrag</th><th>Datum</th><th>Fällig</th><th>Status</th><th class="number">Brutto</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+</div>
+</main>
+</div>
+</div>
+<script>
+let allInvoices=[],statusFilter='';
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const money=x=>Number(x||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+const TYPE_LABELS={abschlag_pauschal:'Abschlag (Pauschal)',abschlag_leistungsstand:'Abschlag (Leistungsstand)',schluss:'Schlussrechnung',aufwand:'Aufwand (Zeitbuchungen)',storno:'Storno'};
+const STATUS_LABELS={entwurf:'Entwurf',versendet:'Finalisiert',bezahlt:'Bezahlt',storniert:'Storniert'};
+async function api(u){const r=await fetch(u);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+
+function renderMetrics(){
+  const open=allInvoices.filter(i=>i.status==='versendet');
+  const overdue=allInvoices.filter(i=>i.is_overdue);
+  const openSum=open.reduce((s,i)=>s+Number(i.gross_total),0);
+  const paidTotal=allInvoices.filter(i=>i.status==='bezahlt').reduce((s,i)=>s+Number(i.gross_total),0);
+  document.getElementById('metrics').innerHTML=`
+    <div class="metric"><small>Offene Rechnungen</small><b>${open.length}</b></div>
+    <div class="metric"><small>Offener Betrag</small><b>${money(openSum)}</b></div>
+    <div class="metric"><small>Überfällig</small><b style="${overdue.length?'color:var(--danger)':''}">${overdue.length}</b></div>
+    <div class="metric"><small>Bezahlt (gesamt)</small><b>${money(paidTotal)}</b></div>`;
+}
+
+function renderFilters(){
+  const options=[['','Alle'],['entwurf','Entwurf'],['versendet','Finalisiert'],['bezahlt','Bezahlt'],['storniert','Storniert']];
+  document.getElementById('filters').innerHTML=options.map(([val,label])=>`<button class="${statusFilter===val?'active':''}" onclick="setFilter('${val}')">${label}</button>`).join('');
+}
+function setFilter(val){statusFilter=val;renderFilters();renderRows()}
+
+function renderReminderOverview(rows){
+  document.getElementById('reminderCard').style.display=rows.length?'block':'none';
+  if(!rows.length)return;
+  const dueNow=rows.filter(r=>r.is_due_now).length;
+  document.getElementById('reminderSummaryText').textContent=`${rows.length} überfällige Rechnung${rows.length===1?'':'en'}${dueNow?`, davon ${dueNow} mit fälliger nächster Mahnstufe`:''}.`;
+}
+
+function renderRows(){
+  const rows=statusFilter?allInvoices.filter(i=>i.status===statusFilter):allInvoices;
+  document.getElementById('rows').innerHTML=rows.length?rows.map(i=>`<tr><td><b>${esc(i.invoice_number||'Entwurf')}</b></td><td>${esc(TYPE_LABELS[i.invoice_type]||i.invoice_type)}</td><td>${esc(i.customer_name)}</td><td>${i.order_number?`<a class="link" href="/orders/${i.order_id}">${esc(i.order_number)}</a>${i.project_number?` <span class="muted small">(${esc(i.project_number)})</span>`:''}`:'—'}</td><td>${new Date(i.invoice_date+'T00:00:00').toLocaleDateString('de-DE')}</td><td>${i.due_date?new Date(i.due_date+'T00:00:00').toLocaleDateString('de-DE'):'—'}</td><td><span class="pill ${i.is_overdue?'overdue':''}">${esc(STATUS_LABELS[i.status]||i.status)}${i.is_overdue?' · überfällig':''}</span></td><td class="number">${money(i.gross_total)}</td><td><a class="link" href="/invoices/${i.id}">Öffnen</a></td></tr>`).join(''):'<tr><td colspan="9" class="empty">Keine Rechnungen'+(statusFilter?' mit diesem Status':'')+'.</td></tr>';
+}
+
+async function load(){
+  const [invoices,reminderRows]=await Promise.all([api('/api/invoices'),api('/api/reminders/overdue').catch(()=>[])]);
+  allInvoices=invoices;
+  renderMetrics();renderFilters();renderRows();renderReminderOverview(reminderRows);
+}
+load().catch(e=>document.querySelector('main').innerHTML='<div class="card">Fehler: '+esc(e.message)+'</div>');
+</script></body></html>

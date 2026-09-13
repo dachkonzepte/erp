@@ -1,0 +1,398 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Leistung</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--warning:#9b6a12;--warning-soft:#fdf3dc;color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--warning:#e0a94a;--warning-soft:#3a2f14}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+.topnav{max-width:1100px;margin:24px auto 0;padding:0 22px}.back{color:var(--accent);text-decoration:none;font-weight:700}
+.wrap{max-width:1100px;margin:12px auto 24px;background:var(--card);border:1px solid var(--line);padding:22px}
+.section{margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+.section:last-of-type{border-bottom:0}
+.section h3{margin:0 0 12px;color:var(--ink)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{margin-bottom:11px}
+label{display:block;font-size:12px;font-weight:650;color:var(--muted);margin-bottom:5px}
+input,select,textarea{width:100%;padding:10px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit}
+input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+textarea{resize:vertical}
+button{background:var(--accent);color:#fff;border:1px solid var(--accent);padding:11px 16px;font-weight:650;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.secondary:hover{background:var(--soft)}
+.muted{color:var(--muted);font-size:12px}
+.full{grid-column:1/-1}
+.check{display:flex;gap:8px;align-items:center}
+.check input{width:auto}
+.hidden{display:none!important}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);font-size:14px}
+th{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700}
+.number{text-align:right}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.metric{background:var(--soft);border:1px solid var(--line);padding:10px}
+.metric .label{color:var(--muted);font-size:11px}
+.metric .value{font-size:18px;font-weight:750;margin-top:3px;color:var(--ink)}
+.metric.highlight{background:color-mix(in srgb,var(--accent) 12%,var(--soft));border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
+.addRow{display:flex;gap:8px;margin-top:10px;align-items:end;flex-wrap:wrap}
+.addRow .field{margin:0}
+h1{color:var(--ink)}
+@media(max-width:700px){.grid{grid-template-columns:1fr}.full{grid-column:auto}}
+</style></head><body>
+<div class="topnav"><a class="back" href="#" onclick="history.back();return false">← Leistungskatalog</a></div>
+<div class="wrap">
+  <h1 id="heading">Leistung anlegen</h1>
+  <p id="help" class="muted"></p>
+  <div id="lockedNotice" class="hidden" style="background:var(--warning-soft);border:1px solid color-mix(in srgb,var(--warning) 35%,transparent);padding:12px;margin-bottom:18px;font-size:14px;color:var(--ink)">
+    Diese Leistung wurde importiert und wird bei einem erneuten Import überschrieben, deshalb nicht direkt bearbeitbar. Über „Kopieren“ in der Katalogansicht lässt sich eine unabhängige, bearbeitbare Kopie anlegen.
+  </div>
+
+  <div id="editableArea">
+    <div class="section">
+      <h3>Grunddaten</h3>
+      <div class="grid">
+        <div class="field full"><label>Kurztext *</label><input id="shortText" placeholder="z. B. Dachrinne reinigen"></div>
+        <div class="field full"><label>Langtext</label><textarea id="longText" rows="3" placeholder="Ausführliche Beschreibung, z. B. Umfang, Materialien, Ausführungshinweise …"></textarea></div>
+        <div class="field"><label>Menge</label><input id="quantity" type="number" step="0.01" value="1"></div>
+        <div class="field"><label>Einheit *</label><input id="unit" placeholder="z. B. Stk, m², Std"></div>
+        <div class="field full"><label>Leistungstyp <span class="muted">(für spätere Auswertungen)</span></label>
+          <select id="serviceType">
+            <option value="">— nicht klassifiziert —</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Arbeitszeit</h3>
+      <div class="grid">
+        <div class="field"><label>Zeit vor Ort (Min.)</label><input id="siteTime" type="number" step="0.01" value="0" oninput="recalc()"></div>
+        <div class="field"><label>Werkstattzeit (Min.)</label><input id="workshopTime" type="number" step="0.01" value="0" oninput="recalc()"></div>
+        <div class="field full"><label>Stundensatz (€, optional) <span class="muted" id="laborRateDefault"></span></label><input id="laborRate" placeholder="Standard verwenden" oninput="recalc()"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Material</h3>
+      <table>
+        <thead><tr><th>Material</th><th class="number">Menge</th><th>EH</th><th class="number">Verschnitt %</th><th class="number">EK/Einheit</th><th class="number">Zeilensumme</th><th></th></tr></thead>
+        <tbody id="materialRows"></tbody>
+      </table>
+      <div class="addRow">
+        <div class="field" style="flex:2 1 220px"><label>Material suchen</label><input id="materialSearch" oninput="searchMaterials()" placeholder="Name oder Artikelnummer …"></div>
+        <div class="field" style="flex:2 1 220px"><label>Auswahl</label><select id="materialPick"><option value="">— suchen, dann wählen —</option></select></div>
+        <div class="field" style="width:110px"><label>Menge</label><input id="materialQty" type="number" step="0.01" value="1"></div>
+        <div class="field" style="width:110px"><label>Verschnitt %</label><input id="materialWaste" type="number" step="0.1" value="0"></div>
+        <button type="button" onclick="addMaterialRow()">+ Hinzufügen</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Fremdleistung &amp; Sonstiges</h3>
+      <div class="grid">
+        <div class="field"><label>Fremdleistungskosten (€)</label><input id="subcontractorCost" type="number" step="0.01" value="0" oninput="recalc()"></div>
+        <div class="field"><label>Gerätekosten (€)</label><input id="equipmentCost" type="number" step="0.01" value="0" oninput="recalc()"></div>
+        <div class="field"><label>Sonstige Kosten (€)</label><input id="otherCost" type="number" step="0.01" value="0" oninput="recalc()"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Zuschläge <span class="muted">(leer = globale Vorgabe verwenden)</span></h3>
+      <div class="grid">
+        <div class="field"><label>Materialgewinn % <span class="muted" id="markupDefault"></span></label><input id="markupOverride" placeholder="Standard verwenden" oninput="recalc()"></div>
+        <div class="field"><label>Gemeinkosten % <span class="muted" id="overheadDefault"></span></label><input id="overheadOverride" placeholder="Standard verwenden" oninput="recalc()"></div>
+        <div class="field"><label>Wagnis &amp; Gewinn % <span class="muted" id="riskDefault"></span></label><input id="riskOverride" placeholder="Standard verwenden" oninput="recalc()"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Kalkulation</h3>
+      <div class="metrics" id="calcPreview"></div>
+      <div class="field check" style="margin-top:14px">
+        <input id="manualOverrideCheck" type="checkbox" onchange="toggleManualPrice()">
+        <label for="manualOverrideCheck" style="margin:0">Verkaufspreis stattdessen manuell festlegen</label>
+      </div>
+      <div class="field hidden" id="manualPriceField" style="max-width:220px"><label>Verkaufspreis (€)</label><input id="manualPrice" type="number" step="0.01" oninput="recalc()"></div>
+    </div>
+
+    <button id="saveBtn" onclick="save()">Speichern</button> <span id="msg" class="muted"></span>
+  </div>
+</div>
+
+<script>
+const serviceId = {{ service_id|default('null') }};
+const editing = serviceId !== null;
+const urlParams = new URLSearchParams(location.search);
+const initialCatalogId = urlParams.get('catalog_id') ? Number(urlParams.get('catalog_id')) : null;
+
+let materialRows = [];   // {serviceMaterialId?, materialId, name, quantity, unit, wastePct, purchasePrice, priceBasis}
+let materialSearchResults = [];
+let globalSettings = { labor_rate: 82, material_markup_pct: 0, overhead_pct: 0, risk_profit_pct: 0 };
+let currentService = null;
+let searchDebounce = null;
+
+const el = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const v = id => document.getElementById(id)?.value ?? '';
+async function api(u, o) {
+  const r = await fetch(u, o);
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw Error(d.detail || r.statusText);
+  return d;
+}
+function money(n) { return new Intl.NumberFormat('de-DE', {style:'currency', currency:'EUR'}).format(Number(n||0)); }
+
+async function init() {
+  const [settings, serviceTypeGroup] = await Promise.all([
+    api('/api/calculation-settings'),
+    api('/api/settings/option-groups/service_types'),
+  ]);
+  globalSettings = settings;
+  el('laborRateDefault').textContent = `(Standard: ${money(globalSettings.labor_rate)}/h)`;
+  el('markupDefault').textContent = `(Standard: ${globalSettings.material_markup_pct}%)`;
+  el('overheadDefault').textContent = `(Standard: ${globalSettings.overhead_pct}%)`;
+  el('riskDefault').textContent = `(Standard: ${globalSettings.risk_profit_pct}%)`;
+  el('serviceType').innerHTML = '<option value="">— nicht klassifiziert —</option>'
+    + serviceTypeGroup.options.filter(x => x.active).map(x => `<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('');
+
+  if (editing) {
+    const [service, calc] = await Promise.all([
+      api(`/api/services/${serviceId}`),
+      api(`/api/services/${serviceId}/calculation`),
+    ]);
+    currentService = service;
+    if (!isEditable(service)) {
+      el('heading').textContent = `${service.external_id} · ${firstLine(service.short_text)}`;
+      el('lockedNotice').classList.remove('hidden');
+      el('editableArea').classList.add('hidden');
+      return;
+    }
+    el('heading').textContent = 'Leistung bearbeiten';
+    el('help').textContent = `${service.external_id}`;
+    el('shortText').value = service.short_text || '';
+    el('longText').value = service.long_text || '';
+    el('quantity').value = service.quantity ?? 1;
+    el('unit').value = service.unit || '';
+    el('siteTime').value = calc.site_time_minutes ?? 0;
+    el('workshopTime').value = calc.workshop_time_minutes ?? 0;
+    if (calc.labor_rate_override != null) el('laborRate').value = calc.labor_rate_override;
+    if (calc.material_markup_pct_override != null) el('markupOverride').value = calc.material_markup_pct_override;
+    if (calc.overhead_pct_override != null) el('overheadOverride').value = calc.overhead_pct_override;
+    if (calc.risk_profit_pct_override != null) el('riskOverride').value = calc.risk_profit_pct_override;
+    el('subcontractorCost').value = calc.subcontractor_cost ?? 0;
+    el('equipmentCost').value = calc.equipment_cost ?? 0;
+    el('otherCost').value = calc.other_cost ?? 0;
+    if (calc.manual_sale_price != null) {
+      el('manualOverrideCheck').checked = true;
+      el('manualPrice').value = calc.manual_sale_price;
+      toggleManualPrice();
+    }
+    materialRows = (service.materials || []).map(m => ({
+      serviceMaterialId: m.id, materialId: null, name: m.name, quantity: Number(m.quantity),
+      unit: m.unit, wastePct: Number(m.waste_raw || 0), purchasePrice: Number(m.purchase_price), priceBasis: Number(m.price_basis || 1),
+    }));
+    // service_type steht nicht im Kalkulations-Endpunkt, sondern direkt an der Leistung.
+    if (service.service_type) el('serviceType').value = service.service_type;
+    renderMaterialRows();
+  } else {
+    el('heading').textContent = 'Leistung anlegen';
+    el('help').textContent = 'Wird direkt im gewählten Katalog gespeichert.';
+  }
+  recalc();
+}
+
+function isEditable(service) {
+  return service.source_type !== 'leistungen_dach';
+}
+function firstLine(t) { return String(t || '').split('\n')[0]; }
+
+function toggleManualPrice() {
+  el('manualPriceField').classList.toggle('hidden', !el('manualOverrideCheck').checked);
+  recalc();
+}
+
+let searchTimer = null;
+function searchMaterials() {
+  clearTimeout(searchTimer);
+  const q = v('materialSearch').trim();
+  searchTimer = setTimeout(async () => {
+    if (!q) { materialSearchResults = []; renderMaterialPick(); return; }
+    try {
+      materialSearchResults = await api(`/api/materials?search=${encodeURIComponent(q)}`);
+      renderMaterialPick();
+    } catch (e) { /* stiller Fehlschlag, Suche bleibt einfach leer */ }
+  }, 250);
+}
+function renderMaterialPick() {
+  const select = el('materialPick');
+  if (!materialSearchResults.length) { select.innerHTML = '<option value="">— suchen, dann wählen —</option>'; return; }
+  select.innerHTML = materialSearchResults.map(m =>
+    `<option value="${m.id}">${esc(m.name)}${m.article_number ? ' · '+esc(m.article_number) : ''} (${money(m.purchase_price)}/${esc(m.unit)})</option>`
+  ).join('');
+}
+
+async function addMaterialRow() {
+  const materialId = Number(v('materialPick'));
+  if (!materialId) { el('msg').textContent = 'Bitte zuerst ein Material auswählen.'; return; }
+  const material = materialSearchResults.find(m => m.id === materialId);
+  if (!material) return;
+  const quantity = Number(v('materialQty') || 1);
+  const wastePct = Number(v('materialWaste') || 0);
+
+  if (editing) {
+    try {
+      const updated = await api(`/api/services/${serviceId}/materials`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ material_id: materialId, quantity, waste_pct: wastePct }),
+      });
+      materialRows = (updated.materials || []).map(m => ({
+        serviceMaterialId: m.id, materialId: null, name: m.name, quantity: Number(m.quantity),
+        unit: m.unit, wastePct: Number(m.waste_raw || 0), purchasePrice: Number(m.purchase_price), priceBasis: Number(m.price_basis || 1),
+      }));
+      el('msg').textContent = 'Material hinzugefügt.';
+    } catch (e) { el('msg').textContent = 'Fehler: ' + e.message; return; }
+  } else {
+    materialRows.push({
+      serviceMaterialId: null, materialId: material.id, name: material.name, quantity, unit: material.unit,
+      wastePct, purchasePrice: Number(material.purchase_price), priceBasis: Number(material.price_basis || 1),
+    });
+  }
+  el('materialSearch').value = ''; el('materialQty').value = '1'; el('materialWaste').value = '0';
+  materialSearchResults = []; renderMaterialPick();
+  renderMaterialRows();
+  recalc();
+}
+
+async function removeMaterialRow(index) {
+  const row = materialRows[index];
+  if (editing && row.serviceMaterialId) {
+    try {
+      const updated = await api(`/api/services/${serviceId}/materials/${row.serviceMaterialId}`, {method:'DELETE'});
+      materialRows = (updated.materials || []).map(m => ({
+        serviceMaterialId: m.id, materialId: null, name: m.name, quantity: Number(m.quantity),
+        unit: m.unit, wastePct: Number(m.waste_raw || 0), purchasePrice: Number(m.purchase_price), priceBasis: Number(m.price_basis || 1),
+      }));
+    } catch (e) { el('msg').textContent = 'Fehler: ' + e.message; return; }
+  } else {
+    materialRows.splice(index, 1);
+  }
+  renderMaterialRows();
+  recalc();
+}
+
+function materialRowCost(row) {
+  const adjustedQty = row.quantity * (1 + row.wastePct / 100);
+  return adjustedQty / (row.priceBasis || 1) * row.purchasePrice;
+}
+
+function renderMaterialRows() {
+  const body = el('materialRows');
+  if (!materialRows.length) { body.innerHTML = '<tr><td colspan="7" class="muted">Noch kein Material zugeordnet.</td></tr>'; return; }
+  body.innerHTML = materialRows.map((r, i) => `<tr>
+    <td>${esc(r.name)}</td><td class="number">${r.quantity}</td><td>${esc(r.unit)}</td>
+    <td class="number">${r.wastePct}</td><td class="number">${money(r.purchasePrice)}</td>
+    <td class="number">${money(materialRowCost(r))}</td>
+    <td><button type="button" class="secondary" style="padding:5px 9px;font-size:12px" onclick="removeMaterialRow(${i})">Entfernen</button></td>
+  </tr>`).join('');
+}
+
+function recalc() {
+  const siteTime = Number(v('siteTime') || 0);
+  const workshopTime = Number(v('workshopTime') || 0);
+  const laborRate = v('laborRate') !== '' ? Number(v('laborRate')) : Number(globalSettings.labor_rate);
+  const laborAmount = (siteTime + workshopTime) / 60 * laborRate;
+
+  const materialBaseCost = materialRows.reduce((sum, r) => sum + materialRowCost(r), 0);
+  const markupPct = v('markupOverride') !== '' ? Number(v('markupOverride')) : Number(globalSettings.material_markup_pct);
+  const materialMarkupAmount = materialBaseCost * markupPct / 100;
+  const materialAmount = materialBaseCost + materialMarkupAmount;
+
+  const equipment = Number(v('equipmentCost') || 0);
+  const subcontract = Number(v('subcontractorCost') || 0);
+  const other = Number(v('otherCost') || 0);
+
+  const subtotal = laborAmount + materialAmount + equipment + subcontract + other;
+  const overheadPct = v('overheadOverride') !== '' ? Number(v('overheadOverride')) : Number(globalSettings.overhead_pct);
+  const overheadAmount = subtotal * overheadPct / 100;
+  const afterOverhead = subtotal + overheadAmount;
+  const riskPct = v('riskOverride') !== '' ? Number(v('riskOverride')) : Number(globalSettings.risk_profit_pct);
+  const riskAmount = afterOverhead * riskPct / 100;
+  const calculatedPrice = afterOverhead + riskAmount;
+
+  const manualOn = el('manualOverrideCheck').checked;
+  const manualPrice = manualOn && v('manualPrice') !== '' ? Number(v('manualPrice')) : null;
+  const effectivePrice = manualPrice !== null ? manualPrice : calculatedPrice;
+
+  const items = [
+    ['Lohn', money(laborAmount)], ['Material EK', money(materialBaseCost)], ['Material inkl. Aufschlag', money(materialAmount)],
+    ['Fremdleistung', money(subcontract)], ['GK', money(overheadAmount)], ['Wagnis & Gewinn', money(riskAmount)],
+    ['Berechneter VK', money(calculatedPrice)],
+  ];
+  el('calcPreview').innerHTML = items.map(([l, val]) => `<div class="metric"><div class="label">${esc(l)}</div><div class="value">${val}</div></div>`).join('')
+    + `<div class="metric highlight"><div class="label">${manualOn ? 'Manueller VK' : 'Effektiver VK'}</div><div class="value">${money(effectivePrice)}</div></div>`;
+}
+
+async function save() {
+  const shortText = v('shortText').trim();
+  const unit = v('unit').trim();
+  if (!shortText || !unit) { el('msg').textContent = 'Bitte Kurztext und Einheit ausfüllen.'; return; }
+  el('msg').textContent = 'Speichert …';
+
+  const manualOn = el('manualOverrideCheck').checked;
+  const manualPrice = manualOn && v('manualPrice') !== '' ? v('manualPrice').replace(',', '.') : null;
+
+  const basePayload = {
+    service_type: v('serviceType') || null,
+    short_text: shortText,
+    long_text: v('longText').trim() || null,
+    quantity: v('quantity').replace(',', '.') || '1',
+    unit,
+  };
+
+  try {
+    if (editing) {
+      await api(`/api/services/${serviceId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(basePayload)});
+      await api(`/api/services/${serviceId}/calculation`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          site_time_minutes: v('siteTime').replace(',', '.') || '0',
+          workshop_time_minutes: v('workshopTime').replace(',', '.') || '0',
+          labor_rate_override: v('laborRate') !== '' ? v('laborRate').replace(',', '.') : null,
+          material_markup_pct_override: v('markupOverride') !== '' ? v('markupOverride').replace(',', '.') : null,
+          equipment_cost: v('equipmentCost').replace(',', '.') || '0',
+          subcontractor_cost: v('subcontractorCost').replace(',', '.') || '0',
+          other_cost: v('otherCost').replace(',', '.') || '0',
+          overhead_pct_override: v('overheadOverride') !== '' ? v('overheadOverride').replace(',', '.') : null,
+          risk_profit_pct_override: v('riskOverride') !== '' ? v('riskOverride').replace(',', '.') : null,
+          manual_sale_price: manualPrice,
+          material_overrides: [],
+        }),
+      });
+      location.href = `/leistungskatalog?catalog_id=${currentService.catalog_id ?? ''}`;
+    } else {
+      const payload = {
+        ...basePayload,
+        catalog_id: initialCatalogId,
+        site_time_raw: v('siteTime').replace(',', '.') || '0',
+        workshop_time_raw: v('workshopTime').replace(',', '.') || '0',
+        labor_rate_override: v('laborRate') !== '' ? v('laborRate').replace(',', '.') : null,
+        material_markup_pct_override: v('markupOverride') !== '' ? v('markupOverride').replace(',', '.') : null,
+        equipment_cost: v('equipmentCost').replace(',', '.') || '0',
+        subcontractor_cost: v('subcontractorCost').replace(',', '.') || '0',
+        other_cost: v('otherCost').replace(',', '.') || '0',
+        overhead_pct_override: v('overheadOverride') !== '' ? v('overheadOverride').replace(',', '.') : null,
+        risk_profit_pct_override: v('riskOverride') !== '' ? v('riskOverride').replace(',', '.') : null,
+        sale_price: manualPrice,
+        materials: materialRows.map(r => ({ material_id: r.materialId, quantity: String(r.quantity), waste_pct: String(r.wastePct) })),
+      };
+      await api('/api/services', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+      location.href = `/leistungskatalog?catalog_id=${initialCatalogId ?? ''}`;
+    }
+  } catch (e) {
+    el('msg').textContent = 'Fehler: ' + e.message;
+  }
+}
+
+init().catch(e => el('msg').textContent = 'Fehler: ' + e.message);
+</script>
+</body></html>

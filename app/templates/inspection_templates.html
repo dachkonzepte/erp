@@ -1,0 +1,193 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Prüfvorlagen</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:1100px;margin:0;padding:20px}
+.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
+.field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
+input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
+.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
+.hidden{display:none!important}
+.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
+.editor-card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.editor-card h2{margin:0 0 12px;font-size:16px}
+.fields-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+.editor-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.card{background:var(--card);border:1px solid var(--line);padding:0}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:650}
+tr:last-child td{border-bottom:none}
+.badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
+.badge.archived{background:var(--soft);color:var(--muted)}
+.row-archived{opacity:.6}
+.row-actions{display:flex;gap:6px;flex-wrap:wrap}
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+@media(max-width:700px){.fields-2col{grid-template-columns:1fr}table{font-size:12.5px}th,td{padding:8px}}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+{% if is_module_enabled('wartungen') %}
+<div class="hero"><div><h1>Prüfvorlagen</h1><div class="muted small">Prüfpunkte je Dachtyp für Wartungsberichte -- werden beim Anlegen eines Wartungsberichts gegen den tatsächlichen Bauteilbestand der Dachfläche multipliziert.</div></div><div style="display:flex;gap:14px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650"><input type="checkbox" id="showArchived" style="width:auto" onchange="renderRows()"> Archivierte anzeigen</label><button onclick="openCreateEditor()">+ Neue Vorlage</button></div></div>
+
+<div class="card" style="margin-bottom:14px">
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Dachtyp</th><th>Standardvorlage</th></tr></thead>
+    <tbody id="defaultRows"></tbody>
+  </table>
+  </div>
+</div>
+<div class="muted small" style="margin:-8px 0 14px">Bestimmt, welche Vorlage beim Anlegen eines Wartungsberichts automatisch je Dachfläche verwendet wird -- ohne Zuordnung greift ersatzweise eine Vorlage ohne Dachtyp ("jeder Dachtyp"), falls vorhanden.</div>
+
+<div id="editorCard" class="editor-card hidden">
+  <h2>Vorlage anlegen</h2>
+  <div class="fields-2col">
+    <div class="field full"><label>Bezeichnung *</label><input id="editLabel" placeholder="z. B. Flachdach Standard"></div>
+    <div class="field"><label>Dachtyp <span class="muted small">(optional, sonst für jeden Dachtyp)</span></label><select id="editRoofType"></select></div>
+  </div>
+  <div class="editor-actions">
+    <button onclick="saveTemplate()">Anlegen</button>
+    <button class="secondary" onclick="closeEditor()">Abbrechen</button>
+    <span id="editorStatus" class="status"></span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Bezeichnung</th><th>Dachtyp</th><th>Version</th><th>Punkte</th><th></th><th></th></tr></thead>
+    <tbody id="templateRows"></tbody>
+  </table>
+  </div>
+</div>
+<span id="listStatus" class="status"></span>
+{% else %}
+<div class="editor-card"><h2>Prüfvorlagen</h2><div class="muted">Das Modul Wartungen &amp; Reparaturen ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+{% endif %}
+</main>
+</div>
+</div>
+<script>
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+
+let authStatus=null,templates=[],roofTypes=[],roofTypeDefaults=[];
+
+function roofTypeOptionsHtml(selected){
+  return '<option value="">— jeder Dachtyp —</option>'+roofTypes.map(o=>`<option value="${esc(o.value)}" ${selected===o.value?'selected':''}>${esc(o.label)}</option>`).join('');
+}
+
+function defaultTemplateOptionsHtml(selected){
+  return '<option value="">— keine —</option>'+templates.filter(t=>!t.archived).map(t=>`<option value="${t.id}" ${Number(selected)===t.id?'selected':''}>${esc(t.label)}</option>`).join('');
+}
+
+function defaultRow(d){
+  return `<tr>
+    <td>${esc(d.roof_type_label)}</td>
+    <td><select onchange="saveDefault('${esc(d.roof_type)}',this.value)">${defaultTemplateOptionsHtml(d.inspection_template_id)}</select></td>
+  </tr>`;
+}
+
+function renderDefaultRows(){
+  document.getElementById('defaultRows').innerHTML=roofTypeDefaults.map(defaultRow).join('')||'<tr><td colspan="2" class="empty">Keine Dachtypen in der Optionsgruppe hinterlegt.</td></tr>';
+}
+
+async function saveDefault(roofType,templateId){
+  const st=document.getElementById('listStatus');
+  try{
+    roofTypeDefaults=await api(`/api/roof-type-template-defaults/${encodeURIComponent(roofType)}`,{
+      method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({inspection_template_id:templateId?Number(templateId):null}),
+    });
+    renderDefaultRows();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function openCreateEditor(){
+  document.getElementById('editLabel').value='';
+  document.getElementById('editRoofType').innerHTML=roofTypeOptionsHtml(null);
+  document.getElementById('editorStatus').textContent='';
+  document.getElementById('editorCard').classList.remove('hidden');
+  document.getElementById('editorCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function closeEditor(){
+  document.getElementById('editorCard').classList.add('hidden');
+}
+
+async function saveTemplate(){
+  const st=document.getElementById('editorStatus');
+  const label=document.getElementById('editLabel').value.trim();
+  if(!label){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben.';return}
+  const payload={label,roof_type:document.getElementById('editRoofType').value||null};
+  try{
+    const result=await api('/api/inspection-templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    location.href='/inspection-templates/'+result.id;
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function toggleArchived(id,archive){
+  const st=document.getElementById('listStatus');
+  try{
+    await api(`/api/inspection-templates/${id}/${archive?'archive':'unarchive'}`,{method:'POST'});
+    await loadTemplates();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function row(t){
+  const badges=[];
+  if(t.archived)badges.push('<span class="badge archived">Archiviert</span>');
+  return `<tr${t.archived?' class="row-archived"':''}>
+    <td><b>${esc(t.label)}</b> ${badges.join(' ')}</td>
+    <td>${esc(t.roof_type||'jeder Dachtyp')}</td>
+    <td>${t.version}</td>
+    <td>${t.item_count}</td>
+    <td><a href="/inspection-templates/${t.id}" style="color:var(--accent)">Öffnen</a></td>
+    <td class="row-actions"><button class="secondary" onclick="toggleArchived(${t.id},${!t.archived})">${t.archived?'Entarchivieren':'Archivieren'}</button></td>
+  </tr>`;
+}
+
+function renderRows(){
+  const showArchived=document.getElementById('showArchived').checked;
+  const visible=templates.filter(t=>showArchived||!t.archived);
+  document.getElementById('templateRows').innerHTML=visible.map(row).join('')||'<tr><td colspan="6" class="empty">Noch keine Prüfvorlagen angelegt.</td></tr>';
+}
+
+async function loadTemplates(){
+  const st=document.getElementById('listStatus');
+  st.className='status';st.textContent='Lädt …';
+  try{
+    templates=await api('/api/inspection-templates?include_archived=true');
+    renderRows();
+    st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function init(){
+  authStatus=await api('/api/auth/status').catch(()=>({authenticated:false,user:null}));
+  if(!authStatus.authenticated){
+    document.getElementById('listStatus').className='status err';
+    document.getElementById('listStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
+    return;
+  }
+  const roofTypeGroup=await api('/api/settings/option-groups/roof_types').catch(()=>({options:[]}));
+  roofTypes=roofTypeGroup.options||[];
+  await loadTemplates();
+  roofTypeDefaults=await api('/api/roof-type-template-defaults').catch(()=>[]);
+  renderDefaultRows();
+}
+init();
+</script>
+</body></html>

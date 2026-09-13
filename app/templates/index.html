@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DACHKONZEPTE ERP – Version {{ app_version }}</title>
+  <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+  <style>
+    :root {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color-scheme: light;
+      --accent: {{ get_theme().accent_color }};
+      --bg: #f4f6f5;
+      --card: #fff;
+      --ink: #182420;
+      --line: #dde5e1;
+      --muted: #5c6f68;
+      --field-border: #b9c4bd;
+      --field-border-hover: #8fa098;
+      --soft: #eef5f3;
+      --danger: #c0362c;
+      --warning: #9b6a12;
+      --warning-soft: #fdf3dc;
+      --success: #1f8a5f;
+      --sidebar-bg: #fbfdfc;
+      --sidebar-text: #223028;
+      --sidebar-text-dim: rgba(34,48,40,.7);
+      --sidebar-border: #e2e8e5;
+      --sidebar-hover: color-mix(in srgb, var(--accent) 8%, var(--sidebar-bg));
+      --sidebar-active-bg: color-mix(in srgb, var(--accent) 12%, var(--sidebar-bg));
+      --sidebar-active-text: var(--accent);
+      --sidebar-active-border: var(--accent);
+      color: var(--ink);
+      background: var(--bg);
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #121816;
+      --card: #1a2220;
+      --ink: #e7ece8;
+      --line: #2b3532;
+      --muted: #94a49c;
+      --field-border: #3a4642;
+      --field-border-hover: #4d5b56;
+      --soft: #1e2b26;
+      --danger: #f2837a;
+      --warning: #e0a94a;
+      --warning-soft: #3a2f14;
+      --success: #4ade95;
+      --sidebar-bg: #0e1513;
+      --sidebar-text: #e7ece8;
+      --sidebar-text-dim: rgba(231,236,232,.68);
+      --sidebar-border: rgba(255,255,255,.09);
+      --sidebar-hover: color-mix(in srgb, var(--accent) 16%, var(--sidebar-bg));
+      --sidebar-active-bg: color-mix(in srgb, var(--accent) 22%, var(--sidebar-bg));
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); }
+    main { max-width: 1500px; margin: 0; padding: 22px; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:18px; }
+    .card { background: var(--card); border: 1px solid var(--line); padding: 18px; margin-bottom: 18px; }
+    .card h2, .card h3 { margin-top:0; color: var(--ink); }
+    button { background: var(--accent); color: #fff; border: 1px solid var(--accent); padding: 10px 15px; cursor: pointer; font-weight:650; }
+    button:hover { background: color-mix(in srgb, var(--accent) 85%, black); border-color: color-mix(in srgb, var(--accent) 85%, black); }
+    button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+    button.secondary:hover { background: var(--soft); }
+
+    input, textarea, select { width:100%; padding:9px 10px; border:1px solid var(--field-border); background:var(--card); color:var(--ink); font:inherit; }
+    input:hover, textarea:hover, select:hover { border-color: var(--field-border-hover); }
+    input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+    input[type="checkbox"] { width:auto; }
+    label { font-size:12px; font-weight:650; color:var(--muted); display:block; margin-bottom:5px; }
+    .field { margin-bottom:12px; }
+    .fields { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:12px; }
+    .fields.two { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .toolbar { display:flex; gap:10px; align-items:end; flex-wrap:wrap; }
+    .toolbar .grow { flex:1 1 300px; }
+    .muted { color: var(--muted); }
+    .small { font-size:12px; }
+    .status { margin-top:10px; white-space:pre-wrap; font-size:14px; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+    th { color:var(--muted); font-size:12px; position:sticky; top:0; background:var(--card); }
+    tbody tr:hover { background: color-mix(in srgb, var(--ink) 4%, var(--card)); }
+    .table-wrap { overflow:auto; max-height:580px; }
+    .number { text-align:right; white-space:nowrap; }
+    .badge { display:inline-block; padding:3px 7px; background:var(--soft); color:var(--ink); font-size:11px; }
+    .positive { color:var(--success); }
+    .negative { color:var(--danger); }
+    .split { display:grid; grid-template-columns: minmax(320px,.9fr) minmax(550px,1.6fr); gap:18px; }
+    .summary { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px; margin:14px 0; }
+    .metric { background:var(--soft); border:1px solid var(--line); padding:10px; }
+    .metric .label { color:var(--muted); font-size:11px; }
+    .metric .value { font-size:18px; font-weight:750; margin-top:3px; color:var(--ink); }
+    .source-box { background:var(--soft); border:1px solid var(--line); padding:12px; }
+    .calc-box { background:color-mix(in srgb, var(--accent) 6%, var(--card)); border:1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); padding:12px; }
+    .material-input { min-width:90px; }
+    .hidden { display:none !important; }
+    .section-title { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .hint { padding:9px 11px; background:var(--warning-soft); color:var(--ink); font-size:12px; margin:10px 0; }
+    .back { color:var(--accent); text-decoration:none; font-weight:650; display:inline-block; margin-bottom:12px; }
+    @media (max-width: 1000px) {
+      .grid, .split { grid-template-columns:1fr; }
+      .fields, .summary { grid-template-columns:repeat(2, minmax(0,1fr)); }
+    }
+    @media (max-width: 600px) { .fields, .fields.two, .summary { grid-template-columns:1fr; } main { padding:12px; } }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+  <a class="back" href="#" onclick="history.back();return false">← Stammdaten</a>
+  <div class="grid">
+    <section class="card">
+      <h2>Leistungskatalog importieren</h2>
+      <p class="muted small">XML aus „Leistungen Dach“. Ein erneuter Import aktualisiert die Originaldaten; eigene Kalkulationswerte bleiben erhalten.</p>
+      <div class="toolbar">
+        <div class="grow"><input id="xmlFile" type="file" accept=".xml,text/xml,application/xml"></div>
+        <button onclick="uploadXml()">XML importieren</button>
+      </div>
+      <div id="status" class="status"></div>
+    </section>
+
+    <section class="card">
+      <h2>Kalkulationsvorgaben</h2>
+      <p class="muted small">Lohnansatz, Materialaufschlag, Gemeinkosten und Wagnis &amp; Gewinn gelten global für alle Kataloge und werden unter <a href="/settings#calculation" style="color:var(--accent);font-weight:650">Einstellungen → Kalkulationsgrundlagen</a> gepflegt (dieselbe Ansicht, kein zweiter Datensatz).</p>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="section-title">
+      <div><h2 style="margin-bottom:4px" id="catalogTitle">Leistungskatalog</h2><div class="muted small" id="serviceCount"></div></div>
+      <div style="width:min(420px,100%)"><input id="search" placeholder="Leistungsnummer oder Text suchen …" oninput="renderServices()"></div>
+    </div>
+    <div id="addServiceArea" class="hidden" style="margin-bottom:16px">
+      <a id="addServiceLink" class="link" href="#" style="display:inline-block;background:var(--accent);color:#fff;padding:10px 15px;font-weight:650;text-decoration:none">+ Leistung anlegen</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Leistungsnr.</th><th>Leistung</th><th>EH</th><th class="number">Zeit min</th><th class="number">Quell-VK</th><th class="number">DK VK</th><th class="number">Δ</th><th class="number">Mat.</th><th>Katalog</th><th>Verschieben / Kopieren</th></tr></thead>
+        <tbody id="services"></tbody>
+      </table>
+
+    </div>
+  </section>
+
+  <section id="detailCard" class="card hidden">
+    <div class="section-title">
+      <div><h2 id="detailTitle" style="margin-bottom:4px">Leistung</h2><div id="detailSub" class="muted small"></div></div>
+      <button class="secondary" onclick="closeDetail()">Schließen</button>
+    </div>
+
+    <div class="split">
+      <div>
+        <div class="source-box">
+          <h3>Original · Leistungen Dach</h3>
+          <div id="sourceDetail"></div>
+        </div>
+        <div class="source-box" style="margin-top:12px">
+          <h3>Langtext</h3>
+          <div id="longText" class="small"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="calc-box">
+          <h3>DACHKONZEPTE Kalkulation · je Leistungseinheit</h3>
+          <div class="hint">Leere Override-Felder verwenden automatisch die globalen Vorgaben bzw. die importierten Zeitwerte.</div>
+          <div class="fields">
+            <div class="field"><label>Baustellenzeit min/EH</label><input id="cSiteTime" type="number" step="0.01" placeholder="Quellzeit"></div>
+            <div class="field"><label>Werkstattzeit min/EH</label><input id="cWorkshopTime" type="number" step="0.01" placeholder="Quellzeit"></div>
+            <div class="field"><label>Lohnansatz Override €/h</label><input id="cLaborRate" type="number" step="0.01" placeholder="global"></div>
+            <div class="field"><label>Materialaufschlag Override %</label><input id="cMaterialMarkup" type="number" step="0.01" placeholder="global"></div>
+          </div>
+          <div class="fields">
+            <div class="field"><label>Geräte € / EH</label><input id="cEquipment" type="number" step="0.01"></div>
+            <div class="field"><label>Fremdleistung € / EH</label><input id="cSubcontract" type="number" step="0.01"></div>
+            <div class="field"><label>Sonstige Kosten € / EH</label><input id="cOther" type="number" step="0.01"></div>
+            <div class="field"><label>Manueller VK € / EH</label><input id="cManualSale" type="number" step="0.01" placeholder="optional"></div>
+          </div>
+          <div class="fields two">
+            <div class="field"><label>Gemeinkosten Override %</label><input id="cOverhead" type="number" step="0.01" placeholder="global"></div>
+            <div class="field"><label>Wagnis & Gewinn Override %</label><input id="cRiskProfit" type="number" step="0.01" placeholder="global"></div>
+          </div>
+          <div class="field"><label>Interne Notiz</label><textarea id="cNotes" rows="2"></textarea></div>
+        </div>
+
+        <div class="summary" id="calcSummary"></div>
+
+        <h3>Materialkalkulation</h3>
+        <div class="table-wrap" style="max-height:380px">
+          <table>
+            <thead><tr><th>Material</th><th>EH</th><th class="number">Quell-Menge</th><th>Eigene Menge</th><th>Verschnitt %</th><th class="number">Quell-EK</th><th>Eigener EK</th><th class="number">Kosten</th></tr></thead>
+            <tbody id="calcMaterials"></tbody>
+          </table>
+        </div>
+        <div class="toolbar" style="margin-top:14px; justify-content:flex-end">
+          <span id="calcStatus" class="status" style="margin:0 auto 0 0"></span>
+          <button onclick="saveCalculation()">Kalkulation speichern</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+</div>
+</div>
+<script>
+let servicesData = [];
+let availableCatalogs = [];
+let currentService = null;
+let currentCalculation = null;
+
+async function api(url, options={}) {
+  const res = await fetch(url, options);
+  let data = null;
+  try { data = await res.json(); } catch (_) {}
+  if (!res.ok) throw new Error(data?.detail || res.statusText || 'Unbekannter Fehler');
+  return data;
+}
+
+const urlParams = new URLSearchParams(location.search);
+const currentCatalogId = urlParams.get('catalog_id') ? Number(urlParams.get('catalog_id')) : null;
+
+async function loadServices() {
+  const url = currentCatalogId ? `/api/services?catalog_id=${currentCatalogId}` : '/api/services';
+  const [svc, cats] = await Promise.all([api(url), api('/api/catalogs')]);
+  servicesData = svc;
+  availableCatalogs = cats;
+  document.getElementById('serviceCount').textContent = `${servicesData.length} Leistungen`;
+  if (currentCatalogId) {
+    document.getElementById('addServiceArea').classList.remove('hidden');
+    document.getElementById('addServiceLink').href = `/services/new?catalog_id=${currentCatalogId}`;
+    const cat = availableCatalogs.find(c => c.id === currentCatalogId);
+    if (cat) document.getElementById('catalogTitle').textContent = `Katalog: ${cat.name}`;
+  }
+  renderServices();
+}
+
+function renderServices() {
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  const data = servicesData.filter(s => !q || `${s.external_id} ${s.short_text}`.toLowerCase().includes(q));
+  const body = document.getElementById('services'); body.innerHTML='';
+  const catalogOptions = '<option value="">Zielkatalog wählen …</option>' + availableCatalogs.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  for (const s of data) {
+    const delta = Number(s.calculation_delta || 0);
+    const editable = s.source_type !== 'leistungen_dach';
+    const tr=document.createElement('tr'); tr.style.cursor='pointer'; tr.onclick=()=>loadDetail(s.id);
+    tr.innerHTML=`<td><b>${esc(s.external_id)}</b></td><td>${esc(firstLine(s.short_text))}</td><td>${esc(s.unit)}</td><td class="number">${fmt(s.site_time_raw)}</td><td class="number">${money(s.sale_price)}</td><td class="number"><b>${money(s.calculated_sale_price)}</b></td><td class="number ${delta>=0?'positive':'negative'}">${signedMoney(delta)}</td><td class="number">${s.material_count}</td><td>${esc(s.catalog_name||'—')}</td><td onclick="event.stopPropagation()">${editable?`<a href="/services/${s.id}/edit" style="display:inline-block;margin-bottom:5px;font-size:12px;color:var(--accent);font-weight:650;text-decoration:none">Bearbeiten</a><br>`:''}<select data-service-id="${s.id}" style="width:auto;font-size:12px;padding:3px 5px;margin-bottom:3px">${catalogOptions}</select><br><button onclick="moveOrCopyService(${s.id},'move')" style="font-size:11px;padding:4px 7px;margin-right:4px">Verschieben</button><button class="secondary" onclick="moveOrCopyService(${s.id},'copy')" style="font-size:11px;padding:4px 7px">Kopieren</button></td>`;
+    body.appendChild(tr);
+  }
+}
+
+async function moveOrCopyService(serviceId, action) {
+  const select = document.querySelector(`select[data-service-id="${serviceId}"]`);
+  const targetCatalogId = select && select.value ? Number(select.value) : null;
+  if (!targetCatalogId) { alert('Bitte einen Zielkatalog auswählen.'); return; }
+  try {
+    await api(`/api/services/${serviceId}/${action}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({catalog_id: targetCatalogId})});
+    await loadServices();
+  } catch (e) {
+    alert('Fehler: ' + e.message);
+  }
+}
+
+async function uploadXml() {
+  const input=document.getElementById('xmlFile'), out=document.getElementById('status');
+  if (!input.files.length) { out.textContent='Bitte zuerst eine XML-Datei auswählen.'; return; }
+  const form=new FormData(); form.append('file', input.files[0]); out.textContent='Import läuft …';
+  try {
+    const d=await api('/api/imports/leistungen-dach',{method:'POST',body:form});
+    out.textContent=`Import erfolgreich: ${d.position_count} Leistungen, ${d.material_item_count} Materialpositionen. Neu: ${d.inserted_services}, aktualisiert: ${d.replaced_services}.`;
+    await loadServices();
+  } catch(e) { out.textContent='Fehler: '+e.message; }
+}
+
+async function loadDetail(id) {
+  const [s,c] = await Promise.all([api(`/api/services/${id}`), api(`/api/services/${id}/calculation`)]);
+  currentService=s; currentCalculation=c;
+  document.getElementById('detailCard').classList.remove('hidden');
+  document.getElementById('detailTitle').textContent=`${s.external_id} · ${firstLine(s.short_text)}`;
+  document.getElementById('detailSub').textContent=`Quelle: ${s.source_type} · Tätigkeit ${s.activity_code || '—'}`;
+  document.getElementById('sourceDetail').innerHTML=`
+    <p><b>Einheit:</b> ${esc(s.unit)}</p><p><b>Bezugsmenge:</b> ${fmt(s.quantity)}</p>
+    <p><b>Baustellenzeit:</b> ${fmt(s.site_time_raw)} min/${esc(s.unit)}</p><p><b>Werkstattzeit:</b> ${fmt(s.workshop_time_raw)} min/${esc(s.unit)}</p>
+    <p><b>Quell-VK:</b> ${money(s.sale_price)} / ${esc(s.unit)}</p><p><b>Materialpositionen:</b> ${s.materials.length}</p>`;
+  document.getElementById('longText').innerHTML=esc(s.long_text).replaceAll('\n','<br>');
+
+  blankOrVal('cSiteTime', c.uses_source_site_time ? null : c.site_time_minutes);
+  blankOrVal('cWorkshopTime', c.uses_source_workshop_time ? null : c.workshop_time_minutes);
+  blankOrVal('cLaborRate', c.labor_rate_override); blankOrVal('cMaterialMarkup', c.material_markup_pct_override);
+  val('cEquipment', c.equipment_cost); val('cSubcontract', c.subcontractor_cost); val('cOther', c.other_cost);
+  blankOrVal('cManualSale', c.manual_sale_price); blankOrVal('cOverhead', c.overhead_pct_override); blankOrVal('cRiskProfit', c.risk_profit_pct_override);
+  document.getElementById('cNotes').value=c.notes || '';
+  renderSummary(c); renderMaterials(c);
+  document.getElementById('calcStatus').textContent='';
+  document.getElementById('detailCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function renderSummary(c) {
+  const items=[
+    ['Lohn',money(c.labor_amount)],['Material EK',money(c.material_base_cost)],['Material inkl. Aufschlag',money(c.material_amount)],['GK',money(c.overhead_amount)],
+    ['Wagnis & Gewinn',money(c.risk_profit_amount)],['Berechneter VK',money(c.calculated_sale_price)],['Effektiver DK VK',money(c.effective_sale_price)],['Differenz zu Quellpreis',`${signedMoney(c.delta_to_source)}${c.delta_to_source_pct==null?'':` · ${signed(c.delta_to_source_pct)} %`}`]
+  ];
+  document.getElementById('calcSummary').innerHTML=items.map(([l,v])=>`<div class="metric"><div class="label">${esc(l)}</div><div class="value">${v}</div></div>`).join('');
+}
+
+function renderMaterials(c) {
+  const body=document.getElementById('calcMaterials'); body.innerHTML='';
+  if (!c.materials.length) { body.innerHTML='<tr><td colspan="8" class="muted">Keine Materialstückliste.</td></tr>'; return; }
+  for (const m of c.materials) {
+    const tr=document.createElement('tr'); tr.dataset.materialId=m.material_id;
+    tr.innerHTML=`<td>${esc(firstLine(m.name))}<div class="muted small">${esc(m.article_number||'')}</div></td><td>${esc(m.unit)}</td><td class="number">${fmt(m.source_quantity)}</td>
+      <td><input class="material-input mQty" type="number" step="0.0001" value="${m.quantity_override==null?'':attr(m.quantity_override)}" placeholder="${attr(m.source_quantity)}"></td>
+      <td><input class="material-input mWaste" type="number" step="0.01" value="${attr(m.waste_pct)}"></td>
+      <td class="number">${money(m.source_purchase_price)}</td>
+      <td><input class="material-input mPrice" type="number" step="0.0001" value="${m.purchase_price_override==null?'':attr(m.purchase_price_override)}" placeholder="${attr(m.source_purchase_price)}"></td>
+      <td class="number"><b>${money(m.base_cost)}</b></td>`;
+    body.appendChild(tr);
+  }
+}
+
+async function saveCalculation() {
+  if (!currentService) return;
+  const out=document.getElementById('calcStatus'); out.textContent='Speichern …';
+  const overrides=[...document.querySelectorAll('#calcMaterials tr[data-material-id]')].map(tr=>({
+    material_id:Number(tr.dataset.materialId), quantity_override:nullableNumEl(tr.querySelector('.mQty')), waste_pct:numEl(tr.querySelector('.mWaste'),0),
+    purchase_price_override:nullableNumEl(tr.querySelector('.mPrice')), price_basis_override:null
+  }));
+  const payload={
+    site_time_minutes:nullableNum('cSiteTime'), workshop_time_minutes:nullableNum('cWorkshopTime'), labor_rate_override:nullableNum('cLaborRate'),
+    material_markup_pct_override:nullableNum('cMaterialMarkup'), equipment_cost:num('cEquipment',0), subcontractor_cost:num('cSubcontract',0), other_cost:num('cOther',0),
+    overhead_pct_override:nullableNum('cOverhead'), risk_profit_pct_override:nullableNum('cRiskProfit'), manual_sale_price:nullableNum('cManualSale'),
+    notes:document.getElementById('cNotes').value || null, material_overrides:overrides
+  };
+  try {
+    const c=await api(`/api/services/${currentService.id}/calculation`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    currentCalculation=c; renderSummary(c); renderMaterials(c); out.textContent='Kalkulation gespeichert.'; await loadServices();
+  } catch(e) { out.textContent='Fehler: '+e.message; }
+}
+
+function closeDetail(){document.getElementById('detailCard').classList.add('hidden');currentService=null;currentCalculation=null;}
+function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+function attr(v){return esc(String(v??''));}
+function firstLine(v){return String(v??'').split(/\r?\n/)[0];}
+function money(v){return new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(Number(v||0));}
+function fmt(v){return new Intl.NumberFormat('de-DE',{maximumFractionDigits:4}).format(Number(v||0));}
+function signedMoney(v){const n=Number(v||0);return `${n>=0?'+':''}${money(n)}`;}
+function signed(v){const n=Number(v||0);return `${n>=0?'+':''}${fmt(n)}`;}
+function val(id,v){document.getElementById(id).value=Number(v??0);}
+function blankOrVal(id,v){document.getElementById(id).value=v==null?'':Number(v);}
+function num(id,d=0){const v=document.getElementById(id).value;return v===''?d:Number(v);}
+function nullableNum(id){const v=document.getElementById(id).value;return v===''?null:Number(v);}
+function numEl(el,d=0){return el.value===''?d:Number(el.value);}
+function nullableNumEl(el){return el.value===''?null:Number(el.value);}
+
+loadServices().catch(e=>{document.getElementById('status').textContent='Startfehler: '+e.message;});
+</script>
+</body>
+</html>

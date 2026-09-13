@@ -1,0 +1,45 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Umgebungsvariablen / Zugangsdaten -- .env.example bleibt bewusst ausgenommen
+.env
+.env.*
+!.env.example
+
+# SQLite-Datenbank und ihre Begleitdateien
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Laufzeitdaten: Verschlüsselungsschlüssel (data/.erp_secret), alle sechs
+# Upload-Ordner (Firmenlogo, Briefpapier-Hintergründe, Projektdokumente,
+# Dachflächen-Skizzen, Einsatzbericht-Fotos/-Unterschriften) und die
+# Protokolldateien -- alles selbstständig zur Laufzeit neu erzeugt, siehe
+# CLAUDE.md ("sechster unabhängiger Upload-Pfad ohne zentralen data/-Root")
+data/
+
+# Log-Dateien, auch außerhalb von data/ (z. B. server_stdout.log/
+# uvicorn_stdout.log aus lokalen Testläufen)
+*.log
+
+# Backup-Ordner, falls er versehentlich innerhalb des Projekts landet
+# (normalerweise liegt er unter C:\DACHKONZEPTE-ERP\Backup, also bereits
+# außerhalb dieses Repositories)
+/Backup/
+
+# Betriebssystem
+.DS_Store
+Thumbs.db
+
+# Referenz-PDFs aus echten Produktionsdaten (reale Kundennamen/-adressen,
+# echte Fotos/Unterschriften im Einsatzbericht) -- bleiben lokal als
+# Vergleichsmaterial erhalten, gehören aber nicht in die Git-Historie
+docs/referenz-pdf/
+
+# Einmalige, nicht wiederverwendbare Handarbeit gegen die alte Datenbank aus
+# früheren Sitzungen -- kein Teil der Anwendung, nirgends referenziert
+diag.py
+fix_catalog_columns.py

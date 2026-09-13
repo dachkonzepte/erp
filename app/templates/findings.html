@@ -1,0 +1,147 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Mängel</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:1400px;margin:0;padding:20px}
+.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
+.toolbar{background:var(--card);border:1px solid var(--line);padding:12px 14px;margin-bottom:14px;display:flex;gap:12px;align-items:end;flex-wrap:wrap}
+.field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
+input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
+.hidden{display:none!important}
+.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
+.card{background:var(--card);border:1px solid var(--line);padding:16px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:650}
+tr:last-child td{border-bottom:none}
+.badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
+.badge.dringend,.badge.akute_gefahr{background:var(--danger-soft);color:var(--danger)}
+.badge.mittel{background:var(--warning-soft);color:var(--warning)}
+.badge.erledigt{background:var(--success-soft);color:var(--success)}
+.badge.overdue{background:var(--danger-soft);color:var(--danger)}
+.desc-cell{max-width:320px;white-space:normal}
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+a.row-link{color:var(--accent);text-decoration:none;font-weight:650}
+a.row-link:hover{text-decoration:underline}
+@media(max-width:900px){.toolbar{flex-direction:column;align-items:stretch}table{font-size:12.5px}th,td{padding:8px}}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+{% if is_module_enabled('wartungen') %}
+<div class="hero"><div><h1>Mängel</h1><div class="muted small">Mängel aus Einsatzberichten, über alle Objekte.</div></div></div>
+
+<div class="toolbar">
+  <div class="field" style="min-width:160px"><label>Status</label><select id="filterStatus" onchange="loadFindings()"><option value="">Alle</option></select></div>
+  <div class="field" style="min-width:160px"><label>Schweregrad</label><select id="filterSeverity" onchange="loadFindings()"><option value="">Alle</option></select></div>
+  <div class="field" style="min-width:220px"><label>Objekt</label><select id="filterProperty" onchange="loadFindings()"><option value="">Alle</option></select></div>
+  <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650"><input type="checkbox" id="filterPropertyShowPrimary" style="width:auto" onchange="onShowPrimaryAddressesToggle()"> Hauptadressen in Objektliste anzeigen</label>
+  <div class="field" style="min-width:150px"><label>Zeitraum von</label><input id="filterDateFrom" type="date" onchange="loadFindings()"></div>
+  <div class="field" style="min-width:150px"><label>Zeitraum bis</label><input id="filterDateTo" type="date" onchange="loadFindings()"></div>
+  <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650"><input type="checkbox" id="filterOverdue" style="width:auto" onchange="loadFindings()"> Wiedervorlage überfällig</label>
+  <span id="listStatus" class="status"></span>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Schweregrad</th><th>Beschreibung</th><th>Objekt / Kunde</th><th>Bauteil</th><th>Maßnahme</th><th>Status</th><th>Wiedervorlage</th><th></th></tr></thead>
+      <tbody id="findingRows"></tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card"><h2>Wartungen & Reparaturen</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+{% endif %}
+</main>
+</div>
+</div>
+<script>
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+
+const SEVERITIES=[['gering','Gering'],['mittel','Mittel'],['dringend','Dringend'],['akute_gefahr','Akute Gefahr']];
+const STATUSES=[['offen','Offen'],['in_bearbeitung','In Bearbeitung'],['erledigt','Erledigt'],['zurueckgestellt','Zurückgestellt']];
+
+function isOverdue(f){
+  return f.action==='zurueckgestellt'&&f.resubmission_date&&f.status!=='erledigt'&&new Date(f.resubmission_date+'T00:00:00')<new Date(new Date().toDateString());
+}
+
+function findingRow(f){
+  const overdue=isOverdue(f);
+  return `<tr>
+    <td><span class="badge ${esc(f.severity)}">${esc(f.severity_label)}</span></td>
+    <td class="desc-cell">${esc(f.description)}</td>
+    <td>${esc(f.property_name||f.customer_name||'—')}${f.customer_name&&f.property_name?' · '+esc(f.customer_name):''}</td>
+    <td>${esc(f.roof_component_name||'—')}</td>
+    <td>${esc(f.action_label)}</td>
+    <td><span class="badge ${esc(f.status)}">${esc(f.status_label)}</span></td>
+    <td>${f.resubmission_date?`<span class="${overdue?'badge overdue':''}">${fmtDate(f.resubmission_date)}</span>`:'—'}</td>
+    <td>${f.order_id?`<a class="row-link" href="/orders/${f.order_id}/service-reports">Zum Bericht</a>`:''}</td>
+  </tr>`;
+}
+
+async function loadFindings(){
+  const st=document.getElementById('listStatus');
+  st.className='status';st.textContent='Lädt …';
+  const params=new URLSearchParams();
+  const status=document.getElementById('filterStatus').value;
+  const severity=document.getElementById('filterSeverity').value;
+  const propertyId=document.getElementById('filterProperty').value;
+  const dateFrom=document.getElementById('filterDateFrom').value;
+  const dateTo=document.getElementById('filterDateTo').value;
+  const overdueOnly=document.getElementById('filterOverdue').checked;
+  if(status)params.set('status',status);
+  if(severity)params.set('severity',severity);
+  if(propertyId)params.set('property_id',propertyId);
+  if(dateFrom)params.set('date_from',dateFrom);
+  if(dateTo)params.set('date_to',dateTo);
+  if(overdueOnly)params.set('overdue_only','true');
+  try{
+    const findings=await api('/api/findings?'+params.toString());
+    document.getElementById('findingRows').innerHTML=findings.map(findingRow).join('')||'<tr><td colspan="8" class="empty">Keine Mängel gefunden.</td></tr>';
+    st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+let allProperties=[];
+function renderPropertyFilterOptions(){
+  const sel=document.getElementById('filterProperty');
+  const current=sel.value;
+  const showPrimary=document.getElementById('filterPropertyShowPrimary').checked;
+  const list=allProperties.filter(p=>showPrimary||!p.is_primary_address);
+  sel.innerHTML='<option value="">Alle</option>'+list.map(p=>`<option value="${p.id}">${esc(p.name)}${p.city?' · '+esc(p.city):''}</option>`).join('');
+  if([...sel.options].some(o=>o.value===current))sel.value=current;
+}
+function onShowPrimaryAddressesToggle(){
+  renderPropertyFilterOptions();
+  loadFindings();
+}
+
+async function init(){
+  const authStatus=await api('/api/auth/status').catch(()=>({authenticated:false}));
+  if(!authStatus.authenticated){
+    document.getElementById('listStatus').className='status err';
+    document.getElementById('listStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
+    return;
+  }
+  document.getElementById('filterStatus').innerHTML='<option value="">Alle</option>'+STATUSES.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('');
+  document.getElementById('filterSeverity').innerHTML='<option value="">Alle</option>'+SEVERITIES.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('');
+  allProperties=await api('/api/properties').catch(()=>[]);
+  renderPropertyFilterOptions();
+  await loadFindings();
+}
+init();
+</script>
+</body></html>

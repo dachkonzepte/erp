@@ -1,0 +1,1301 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DACHKONZEPTE ERP – Allgemeine Einstellungen</title>
+  <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--success:#1f8a5f;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+    :root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--success:#4ade95;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+    *{box-sizing:border-box}body{margin:0}
+    main{max-width:1500px;margin:0;padding:26px 22px 60px}.settings-shell{display:grid;grid-template-columns:250px minmax(0,1fr);gap:22px;align-items:start}.settings-sidebar{position:sticky;top:18px;background:var(--card);border:1px solid var(--line);padding:16px}.settings-sidebar h2{font-size:11.5px;margin:2px 0 14px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-weight:800;border-bottom:1px solid var(--line);padding-bottom:10px}.settings-group{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:18px 2px 6px}.settings-menu{display:flex;flex-direction:column;gap:2px}.settings-menu button{width:100%;text-align:left;background:transparent;color:var(--ink);padding:9px 10px;border:0;border-left:2px solid transparent;font-weight:650;font-size:13.5px;cursor:pointer}.settings-menu button:hover{background:var(--soft)}.settings-menu button.active{background:var(--accent);color:#fff;border-left-color:var(--accent)}.settings-menu button:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}.settings-menu .menu-sub{display:block;font-size:11px;font-weight:400;opacity:.72;margin-top:2px}.settings-content{min-width:0}.settings-section{display:none}.settings-section.active{display:block}.card{background:var(--card);border:1px solid var(--line);padding:22px 24px;margin-bottom:18px}.card h2,.card h3{margin-top:0;color:var(--ink);font-weight:800;letter-spacing:-.01em}.fields,.fields-2col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px}.field{display:grid;grid-template-columns:190px minmax(0,1fr);column-gap:14px;align-items:start;padding:8px 0;border-bottom:1px solid var(--line)}.field.full{grid-column:1/-1}.list-narrow{max-width:760px}label{font-size:13px;font-weight:650;color:var(--ink);display:block;margin-bottom:6px}.field>label:first-child{margin:0;padding-top:6px;font-size:13px;font-weight:600;color:var(--muted)}.field>label:first-child~*{grid-column:2}.function-grid .field,.rate-grid .field,.calc-grid .field,.seq-grid .field{display:block;border-bottom:0;padding:0}.function-grid .field>label:first-child,.rate-grid .field>label:first-child,.calc-grid .field>label:first-child,.seq-grid .field>label:first-child{display:block;padding-top:0;margin-bottom:6px;font-size:12px;font-weight:650;color:var(--muted)}input,textarea,select{width:100%;padding:9px 11px;border:1px solid var(--field-border);background:var(--card);font:inherit;font-size:13.5px;color:var(--ink)}input[type=color]{padding:3px;cursor:pointer}input:hover,textarea:hover,select:hover{border-color:var(--field-border-hover)}input:focus,textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}input[type=checkbox]{width:auto}textarea{resize:vertical;line-height:1.5}code{background:var(--soft);padding:1px 5px;font-size:.9em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--line)}button{background:var(--accent);color:#fff;border:1px solid var(--accent);padding:10px 16px;cursor:pointer;font-weight:650;font-size:13.5px}button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}button:active{background:color-mix(in srgb,var(--accent) 70%,black);border-color:color-mix(in srgb,var(--accent) 70%,black)}button:disabled{opacity:.5;cursor:not-allowed}button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}.secondary{background:transparent;color:var(--ink);border:1px solid transparent;padding:9px 13px}.secondary:hover{background:var(--soft);border-color:var(--line)}.secondary:active{background:color-mix(in srgb,var(--ink) 9%,transparent)}.danger{background:transparent;color:var(--danger);border:1px solid transparent;padding:9px 13px}.danger:hover{background:var(--danger-soft);border-color:color-mix(in srgb,var(--danger) 35%,transparent)}.danger:active{background:color-mix(in srgb,var(--danger) 22%,transparent)}.muted{color:var(--muted)}.small{font-size:12px}.status{margin-left:8px;font-size:12.5px;color:var(--muted);font-weight:600}.status.err{color:var(--danger)}.status.ok{color:var(--success)}.hint{background:var(--soft);border-left:3px solid var(--accent);padding:12px 14px;font-size:13px;line-height:1.55;margin:12px 0;color:var(--ink)}.sequence{border:1px solid var(--line);padding:14px 16px;margin-bottom:10px}.seq-grid{display:grid;grid-template-columns:1.25fr 110px 110px 150px 1fr auto;gap:10px;align-items:end}.preview{font-weight:800;padding:9px 11px;background:var(--soft);border:1px solid var(--line);white-space:nowrap;color:var(--ink)}.section-title{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:4px}.badge{display:inline-block;padding:2px 8px;background:transparent;color:var(--muted);border:1px solid var(--line);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}.calc-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.rate-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.rate-result{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;margin:16px 0;background:var(--line);border:1px solid var(--line)}.metric{background:var(--soft);padding:12px 13px}.metric .k{font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}.metric .val{font-size:19px;font-weight:800;margin-top:4px;color:var(--ink)}.big-rate{background:var(--accent);color:#fff;padding:18px 20px;margin-top:14px}.big-rate .muted{color:rgba(255,255,255,.72)}.formula{font-size:12px;line-height:1.6;background:var(--card);border:1px solid var(--line);padding:12px 14px;margin:12px 0;color:var(--ink)}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:11px 10px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:transparent;border-bottom:1px solid var(--line)}tbody tr:hover{background:color-mix(in srgb,var(--ink) 5%,transparent)}tbody tr:last-child td{border-bottom:0}td .secondary,td .danger{padding:6px 10px;font-size:12.5px}.function-grid{display:grid;grid-template-columns:1.3fr 170px 90px 130px auto;gap:10px;align-items:end}.option-editor-panel{border-top:1px solid var(--line);padding-top:16px;margin-top:16px}
+    @media(max-width:1000px){.fields,.fields-2col,.calc-grid,.rate-grid,.rate-result,.seq-grid,.function-grid{grid-template-columns:1fr}main{padding:14px}.settings-shell{grid-template-columns:1fr}.settings-sidebar{position:static}.settings-menu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.card{padding:16px}}@media(max-width:620px){.settings-menu{grid-template-columns:1fr}.card{padding:14px}main{padding:10px}}@media(max-width:480px){.field{display:block}.field>label:first-child{padding-top:0}}
+  </style>
+</head>
+<body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+  <div class="settings-shell">
+    <aside class="settings-sidebar" aria-label="Einstellungsbereiche">
+      <h2>Einstellungen</h2>
+      <div class="settings-group">Unternehmen</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="general" onclick="showSettingsSection('general')">Unternehmensstammdaten<span class="menu-sub">Firma, Bank, Steuer, Standardtexte</span></button>
+        <button type="button" data-settings-section="option-lists" onclick="showSettingsSection('option-lists')">Auswahllisten<span class="menu-sub">Einheiten, Texte, Kategorien …</span></button>
+        <button type="button" data-settings-section="roof-layers" onclick="showSettingsSection('roof-layers')">Dachaufbau<span class="menu-sub">Schichttypen je Dachtyp für Dachflächen</span></button>
+        <button type="button" data-settings-section="component-types" onclick="showSettingsSection('component-types')">Bauteilarten<span class="menu-sub">Gully, Rinne, Photovoltaik, ...</span></button>
+      </div>
+      <div class="settings-group">Finanzen</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="numbers" onclick="showSettingsSection('numbers')">Nummernkreise<span class="menu-sub">Kunden, Angebote, Rechnungen …</span></button>
+        <button type="button" data-settings-section="payment-terms" onclick="showSettingsSection('payment-terms')">Zahlungsbedingungen<span class="menu-sub">Fälligkeit für Rechnungen, Kundenvorgabe</span></button>
+        <button type="button" data-settings-section="tax-keys" onclick="showSettingsSection('tax-keys')">Steuerschlüssel<span class="menu-sub">§13b, Privat, Gewerbe, Solar …</span></button>
+        <button type="button" data-settings-section="reminder-levels" onclick="showSettingsSection('reminder-levels')">Mahnstufen<span class="menu-sub">1./2./3. Mahnung, Fristen, Gebühren</span></button>
+      </div>
+      <div class="settings-group">Dokumente</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="document-layout" onclick="showSettingsSection('document-layout')">Dokumente &amp; Layout<span class="menu-sub">Briefpapier, Ränder, Logo/Firmenkopf/Fußzeile -- für alle Dokumente</span></button>
+        <button type="button" data-settings-section="email-templates" onclick="showSettingsSection('email-templates')">E-Mail-Vorlagen<span class="menu-sub">Betreff/Text je Dokumenttyp</span></button>
+      </div>
+      <div class="settings-group">Personal</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="employee-functions" onclick="showSettingsSection('employee-functions')">Funktionen / Tätigkeiten<span class="menu-sub">Rollen und Mitarbeitergruppen</span></button>
+      </div>
+      <div class="settings-group">Kalkulation</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="labor-rate" onclick="showSettingsSection('labor-rate')">Stundenverrechnungssatz<span class="menu-sub">Mittellohn und Verrechnungssatz</span></button>
+        <button type="button" data-settings-section="calculation" onclick="showSettingsSection('calculation')">Kalkulationsgrundlagen<span class="menu-sub">Material, Zuschläge, Zeitwerte</span></button>
+      </div>
+      <div class="settings-group">Planung</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="planning" onclick="showSettingsSection('planning')">Plantafel & Kapazität<span class="menu-sub">Arbeitszeit, Anfahrt, Arbeitstage, Feiertage</span></button>
+      </div>
+      <div class="settings-group">Darstellung</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="appearance" onclick="showSettingsSection('appearance')">Design<span class="menu-sub">Akzentfarbe, Hell/Dunkel</span></button>
+      </div>
+      <div class="settings-group">System</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="modules" onclick="showSettingsSection('modules')">Module<span class="menu-sub">Optionale ERP-Bausteine ein-/ausschalten</span></button>
+        <button type="button" data-settings-section="tasks" onclick="showSettingsSection('tasks')">Aufgaben<span class="menu-sub">Spalten, Zuweisungs-Benachrichtigung</span></button>
+        <button type="button" data-settings-section="maintenance" onclick="showSettingsSection('maintenance')">Wartungen<span class="menu-sub">Vorlaufzeit, Standard-Sachbearbeiter</span></button>
+        <button type="button" data-settings-section="mobile" onclick="showSettingsSection('mobile')">Vor Ort<span class="menu-sub">Automatische Abmeldung nach Feierabend</span></button>
+        <a href="/inspection-templates" style="text-decoration:none"><button type="button">Prüfvorlagen<span class="menu-sub">Prüfpunkte je Dachtyp für Wartungsberichte</span></button></a>
+        <a href="/users" style="text-decoration:none"><button type="button">Benutzer & Zugriff<span class="menu-sub">Anmeldung und Bearbeiterzuordnung</span></button></a>
+        <a href="/history" style="text-decoration:none"><button type="button">Änderungshistorie<span class="menu-sub">Wer hat wann was geändert?</span></button></a>
+        <a href="/changelog" style="text-decoration:none"><button type="button">Changelog<span class="menu-sub">Was hat sich mit welcher Version geändert?</span></button></a>
+        <a href="/time-backoffice" style="text-decoration:none"><button type="button">Zeiterfassungs-Backoffice<span class="menu-sub">Zeitregeln, Stundenzettel & DATEV</span></button></a>
+        <button type="button" data-settings-section="email-settings" onclick="showSettingsSection('email-settings')">E-Mail-Versand<span class="menu-sub">SMTP-Zugangsdaten (nur Administratoren)</span></button>
+      </div>
+      <div class="settings-group">Importe</div>
+      <div class="settings-menu">
+        <a href="/address-import" style="text-decoration:none"><button type="button">Adressimport (Altsystem)<span class="menu-sub">Kunden, Lieferanten und offene Adressen aus einer CSV-/Excel-Datei</span></button></a>
+      </div>
+    </aside>
+    <div class="settings-content">
+  <section class="card settings-section" id="settings-general">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Unternehmensstammdaten</h2><div class="muted small">Zentrale Daten für spätere Angebote, Rechnungen, PDF-Dokumente und Schnittstellen.</div></div></div>
+    <div class="fields" style="margin-top:14px">
+      <div class="field"><label>Unternehmensname *</label><input id="companyName"></div>
+      <div class="field"><label>Geschäftsführer / Inhaber</label><input id="managingDirector"></div>
+      <div class="field"><label>Straße</label><input id="companyStreet"></div>
+      <div class="field"><label>PLZ / Ort</label><div style="display:grid;grid-template-columns:110px 1fr;gap:8px"><input id="companyZip"><input id="companyCity"></div></div>
+      <div class="field"><label>Land</label><input id="companyCountry"></div>
+      <div class="field"><label>Telefon</label><input id="companyPhone" type="tel"></div>
+      <div class="field"><label>E-Mail</label><input id="companyEmail" type="email"></div>
+      <div class="field"><label>Website</label><input id="companyWebsite"></div>
+      <div class="field"><label>Steuernummer</label><input id="taxNumber"></div>
+      <div class="field"><label>USt-IdNr.</label><input id="vatId"></div>
+      <div class="field"><label>Registergericht</label><input id="registerCourt"></div>
+      <div class="field"><label>Handelsregisternummer</label><input id="registerNumber"></div>
+      <div class="field"><label>IBAN</label><input id="iban"></div>
+      <div class="field"><label>BIC</label><input id="bic"></div>
+      <div class="field"><label>Standard-MwSt. %</label><input id="defaultVat" type="number" step="0.01"></div>
+    </div>
+    <input type="hidden" id="quoteIntro"><input type="hidden" id="quoteOutro">
+    <div class="hint">Angebots-Vortexte, Schlusstexte und Zahlungsbedingungen werden jetzt zentral unter <b>Auswahllisten</b> gepflegt. Dort kannst du mehrere Varianten anlegen und einen Standard festlegen.</div>
+    <button onclick="saveGeneral()">Unternehmensstammdaten speichern</button><span id="generalStatus" class="status"></span>
+  </section>
+
+  <section class="card settings-section" id="settings-numbers">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Nummernkreise</h2><div class="muted small">Format, Startwert und nächste fortlaufende Nummer zentral festlegen.</div></div></div>
+    <div class="hint"><b>Platzhalter:</b> <code>{YYYY}</code> = vierstelliges Jahr, <code>{YY}</code> = zweistelliges Jahr, <code>{NNNN}</code> = laufende Nummer mit vier Stellen. Beispiel: <code>K-{YYYY}-{NNNN}</code> → <b>K-2026-0042</b>. Die Anzahl der N bestimmt die Mindeststellenzahl.</div>
+    <div id="sequences"></div>
+    <div class="muted small">Die Rechnungs- und Auftragsnummernkreise werden bereits gespeichert und später vom jeweiligen Modul verwendet.</div>
+  </section>
+
+  <section class="card settings-section" id="settings-payment-terms">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Zahlungsbedingungen</h2><div class="muted small">Grundlage für die automatische Fälligkeitsberechnung von Rechnungen (Rechnungsdatum + Tage) und später das Mahnwesen.</div></div></div>
+    <div class="hint">Rechnungs-Einleitungs- und Schlusstexte werden weiterhin zentral unter <b>Auswahllisten</b> gepflegt (Gruppen "Rechnungs-Vortexte"/"Rechnungs-Schlusstexte"), da sie technisch zum selben, allgemeinen Textvorlagen-System gehören wie z. B. die Angebotstexte.</div>
+    <div class="list-narrow" style="margin-top:12px;display:flex;align-items:center;gap:10px"><button type="button" class="secondary" onclick="resetPaymentTermForm();showPaymentTermEditor()">+ Zahlungsbedingung</button><span id="paymentTermStatus" class="status"></span></div>
+    <div id="paymentTermEditorPanel" class="option-editor-panel list-narrow" style="display:none">
+      <h3 style="margin-top:0" id="paymentTermEditorHeading">Zahlungsbedingung hinzufügen</h3>
+      <div class="fields">
+        <div class="field"><label>Bezeichnung</label><input id="ptLabel" placeholder="z. B. 21 Tage netto"></div>
+        <div class="field"><label>Tage bis Fälligkeit</label><input id="ptDays" type="number" min="0" placeholder="14"></div>
+        <div class="field"><label>Skonto %  <span class="muted small">(optional)</span></label><input id="ptSkontoPercent" type="number" min="0" max="100" step="0.01" placeholder="z. B. 2"></div>
+        <div class="field"><label>Skonto-Frist in Tagen <span class="muted small">(optional)</span></label><input id="ptSkontoDays" type="number" min="0" step="1" placeholder="z. B. 7"></div>
+        <div class="field full"><label>Eigener Text für Rechnungen <span class="muted small">(optional, sonst automatischer Standardsatz)</span></label><textarea id="ptTextTemplate" placeholder="z. B. Bitte begleichen Sie den Betrag bis zum {faelligkeitsdatum}. Bei Zahlung bis {skontodatum} gewähren wir {skontoprozent}% Skonto, das entspricht {skontobetrag} €."></textarea></div>
+      </div>
+      <div class="hint">Skonto-Prozentsatz und -Frist müssen entweder beide ausgefüllt sein oder beide leer bleiben. Die Skonto-Frist darf nicht länger sein als die reguläre Zahlungsfrist.<br><b>Platzhalter im eigenen Text:</b> <code>{faelligkeitsdatum}</code>, <code>{skontodatum}</code>, <code>{skontoprozent}</code>, <code>{skontobetrag}</code> werden beim Erstellen der Rechnung automatisch durch die tatsächlichen Werte ersetzt. Bitte Skonto-Platzhalter nur in Zahlungsbedingungen verwenden, die auch tatsächlich Skonto haben (sonst bleiben sie leer stehen) – bei Bedarf lieber zwei getrennte Zahlungsbedingungen anlegen.</div>
+      <button id="paymentTermSave" onclick="savePaymentTerm()">Hinzufügen</button> <button class="secondary" onclick="hidePaymentTermEditor()">Abbrechen</button>
+    </div>
+    <div class="list-narrow" style="overflow:auto;margin-top:14px"><table><thead><tr><th>Bezeichnung</th><th>Tage</th><th>Skonto</th><th>Status</th><th></th></tr></thead><tbody id="paymentTermRows"></tbody></table></div>
+  </section>
+
+  <section class="card settings-section" id="settings-tax-keys">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Steuerschlüssel</h2><div class="muted small">Steuert sowohl den Hinweistext auf Angebot/Auftrag/Rechnung als auch den tatsächlich verwendeten Mehrwertsteuersatz.</div></div></div>
+    <div class="hint"><b>Wichtig:</b> die Texte für §13b und Solar sind ein Startpunkt, keine Rechtsberatung – bitte vor Verwendung mit einem Steuerberater abgleichen und bei Bedarf anpassen.</div>
+    <div class="list-narrow" style="margin-top:12px;display:flex;align-items:center;gap:10px"><button type="button" class="secondary" onclick="resetTaxKeyForm();showTaxKeyEditor()">+ Steuerschlüssel</button><span id="taxKeyStatus" class="status"></span></div>
+    <div id="taxKeyEditorPanel" class="option-editor-panel list-narrow" style="display:none">
+      <h3 style="margin-top:0" id="taxKeyEditorHeading">Steuerschlüssel hinzufügen</h3>
+      <div class="fields">
+        <div class="field"><label>Bezeichnung</label><input id="tkLabel" placeholder="z. B. §13b Bauleistungen"></div>
+        <div class="field"><label>MwSt.-Satz %</label><input id="tkVatRate" type="number" min="0" max="100" step="0.01" placeholder="19"></div>
+        <div class="field full"><label>Hinweistext auf dem Dokument <span class="muted small">(optional)</span></label><textarea id="tkNoticeText" placeholder="z. B. Steuerschuldnerschaft des Leistungsempfängers gemäß § 13b UStG."></textarea></div>
+      </div>
+      <button id="taxKeySave" onclick="saveTaxKey()">Hinzufügen</button> <button class="secondary" onclick="hideTaxKeyEditor()">Abbrechen</button>
+    </div>
+    <div class="list-narrow" style="overflow:auto;margin-top:14px"><table><thead><tr><th>Bezeichnung</th><th>MwSt.-Satz</th><th>Status</th><th></th></tr></thead><tbody id="taxKeyRows"></tbody></table></div>
+  </section>
+
+  <section class="card settings-section" id="settings-reminder-levels">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Mahnstufen</h2><div class="muted small">Bis zu drei Mahnstufen, jede einzeln aktivierbar – nur aktive Stufen werden beim Anlegen einer Mahnung angeboten.</div></div></div>
+    <div class="hint"><b>Wichtig:</b> die vorgeschlagenen Fristen, Gebühren und Texte sind ein Startpunkt, keine Rechtsberatung – bitte insbesondere Mahngebühren und Formulierungen vor Verwendung mit einem Steuerberater/Rechtsanwalt abgleichen.</div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-weight:700"><input type="checkbox" id="autoCreateDraftsCheckbox" style="width:auto" onchange="saveAutoCreateSetting(this.checked)"> Mahnungs-Entwürfe automatisch anlegen, sobald die nächste Stufe fällig ist</label>
+    <div class="muted small" style="margin:4px 0 0 26px">Es werden dabei ausschließlich Entwürfe angelegt, niemals automatisch versendet – das bleibt immer ein bewusster, manueller Schritt.</div>
+    <span id="autoCreateStatus" class="status"></span>
+    <div id="reminderLevelRows" style="margin-top:12px"></div>
+  </section>
+
+  <section class="card settings-section" id="settings-document-layout">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Dokumente &amp; Layout</h2><div class="muted small">Gemeinsamer PDF-Rahmen (seit 1.3.1, ab 1.3.6 für jeden Dokumenttyp außer dem Angebot zusammengeführt): ein Briefpapier, ein Satz Ränder, dieselben optionalen gezeichneten Bausteine -- statt je einer eigenen Einstellung pro Dokumenttyp.</div></div></div>
+
+    <div class="hint" style="margin-bottom:14px;font-weight:600">Gilt für alle Dokumenttypen -- Angebot, Mahnung, Rechnung, Auftrag und Einsatzbericht.</div>
+
+    <div id="documentLayoutRollout" class="hint" style="margin-bottom:14px"></div>
+
+    <h3 style="margin:0 0 8px;font-size:14px">Briefpapier</h3>
+    <div class="muted small" style="margin-bottom:10px">Bild oder PDF (bei PDF wird nur die erste Seite verwendet, das Seitenverhältnis muss dabei etwa A4-Hochformat entsprechen) – getrennt für Seite 1 und Folgeseiten, falls sich das Briefpapier unterscheidet (z. B. Adressfenster nur auf Seite 1).</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <div class="margins-title">Seite 1</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+          <input type="file" id="documentLayoutBgFirst" accept="image/png,image/jpeg,image/webp,application/pdf">
+          <button type="button" onclick="uploadDocumentLayoutBackground('first')">Hochladen</button>
+          <button type="button" class="danger" id="documentLayoutBgFirstRemove" style="display:none" onclick="removeDocumentLayoutBackground('first')">Entfernen</button>
+        </div>
+        <span id="documentLayoutBgFirstStatus" class="status"></span>
+      </div>
+      <div>
+        <div class="margins-title">Folgeseiten</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+          <input type="file" id="documentLayoutBgContinuation" accept="image/png,image/jpeg,image/webp,application/pdf">
+          <button type="button" onclick="uploadDocumentLayoutBackground('continuation')">Hochladen</button>
+          <button type="button" class="danger" id="documentLayoutBgContinuationRemove" style="display:none" onclick="removeDocumentLayoutBackground('continuation')">Entfernen</button>
+        </div>
+        <span id="documentLayoutBgContinuationStatus" class="status"></span>
+      </div>
+    </div>
+
+    <h3 style="margin:22px 0 8px;font-size:14px">Randabstände</h3>
+    <div class="muted small" style="margin-bottom:10px">Bestimmen, wo der Inhalt beginnen/enden darf, damit er nicht in den Briefkopf oder die Fußzeile des Briefpapiers läuft – getrennt für Seite 1 und Folgeseiten. Der obere Rand darf auf Folgeseiten kleiner sein als auf Seite 1: dort steht kein Anschriftenfeld mehr im Weg, der Inhalt darf also weiter oben beginnen.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <div class="margins-title">Seite 1</div>
+        <div class="fields-2col">
+          <div class="field"><label>Oben (mm)</label><input id="documentLayoutMarginFirstTop" type="number" step="0.5"></div>
+          <div class="field"><label>Unten (mm)</label><input id="documentLayoutMarginFirstBottom" type="number" step="0.5"></div>
+          <div class="field"><label>Links (mm)</label><input id="documentLayoutMarginFirstLeft" type="number" step="0.5"></div>
+          <div class="field"><label>Rechts (mm)</label><input id="documentLayoutMarginFirstRight" type="number" step="0.5"></div>
+        </div>
+      </div>
+      <div>
+        <div class="margins-title">Folgeseiten</div>
+        <div class="fields-2col">
+          <div class="field"><label>Oben (mm)</label><input id="documentLayoutMarginContinuationTop" type="number" step="0.5"></div>
+          <div class="field"><label>Unten (mm)</label><input id="documentLayoutMarginContinuationBottom" type="number" step="0.5"></div>
+          <div class="field"><label>Links (mm)</label><input id="documentLayoutMarginContinuationLeft" type="number" step="0.5"></div>
+          <div class="field"><label>Rechts (mm)</label><input id="documentLayoutMarginContinuationRight" type="number" step="0.5"></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button onclick="saveDocumentLayoutMargins()">Speichern</button>
+      <button class="danger" onclick="resetDocumentLayoutMargins()">Auf Standard zurücksetzen</button>
+      <span id="documentLayoutMarginsStatus" class="status"></span>
+    </div>
+
+    <h3 style="margin:22px 0 8px;font-size:14px">Gezeichnete Bausteine</h3>
+    <div class="muted small" style="margin-bottom:10px">Rückfall für Installationen ohne eigenes Briefpapier – bei hinterlegtem Briefpapier üblicherweise ausschalten, damit sich nichts überlagert.</div>
+    <div class="hint" style="margin-bottom:10px">Jeder der vier Bausteine wird an einer festen Stelle GEZEICHNET – trifft dort ein eigener, hinterlegter Briefbogen bereits etwas AUFGEDRUCKTES (Kopfgrafik, Fußzeile, eine Dekorfläche o. Ä.), überlagern sich beide sichtbar. Alle vier sind deshalb ausschließlich für Installationen <b>ohne eigenen Briefbogen</b> gedacht bzw. müssen bei einem eigenen Briefbogen auf dessen tatsächliche Gestaltung abgestimmt werden (ausschalten, wo der Briefbogen das Gleiche schon zeigt; sonst die Position prüfen und ggf. anpassen). Logo und Firmenkopf werden am oberen Rand gezeichnet, der fließende Inhalt (Anschrift, Betreff, Mahntext) beginnt direkt darunter, am oberen Randabstand für Seite 1/Folgeseiten (siehe „Randabstände" oben) – wird einer der beiden eingeschaltet, muss der obere Rand mindestens bis zur Unterkante des Bausteins reichen, sonst überlagern sich Baustein und Inhalt sichtbar; die Standardwerte sind dafür bereits ausreichend bemessen, nach einer eigenen Anpassung der Ränder aber selbst zu prüfen. Die Fußzeile (Seitenzahl) sitzt an einer <b>festen</b> Position unten links, unabhängig vom Randabstand – bei einem eigenen Briefbogen liegt dort erfahrungsgemäß bereits dessen aufgedruckter Fußbereich, deshalb steht sie standardmäßig aus (die Seitenangabe steht ohnehin bereits im Meta-Block auf Seite 1 und in der Wiederholungszeile auf Folgeseiten). Die Wiederholungszeile sitzt am oberen Rand jeder Folgeseite – ihre <b>vertikale Position ist seit 1.3.12 einstellbar</b> (Feld unten), weil ein eigener Briefbogen seine Kopfdekoration an praktisch jeder Stelle haben kann; der Standardwert passt für einen Briefbogen ohne eigene Kopfgrafik, bei einer tieferen Kopfgrafik den Wert entsprechend erhöhen, bis die Zeile darunter liegt (und dabei weiterhin oberhalb des oberen Randabstands für Folgeseiten bleibt, sonst überlagert sie den Inhalt).</div>
+    <label style="display:flex;align-items:center;gap:8px;margin:8px 0;font-weight:650"><input type="checkbox" id="documentLayoutBlockLogo" style="width:auto" onchange="toggleDocumentLayoutBlock('logo',this.checked)"> Logo anzeigen</label>
+    <label style="display:flex;align-items:center;gap:8px;margin:8px 0;font-weight:650"><input type="checkbox" id="documentLayoutBlockHeader" style="width:auto" onchange="toggleDocumentLayoutBlock('company_header',this.checked)"> Firmenkopf anzeigen</label>
+    <label style="display:flex;align-items:center;gap:8px;margin:8px 0;font-weight:650"><input type="checkbox" id="documentLayoutBlockFooter" style="width:auto" onchange="toggleDocumentLayoutBlock('footer_text',this.checked)"> Seitenzahl anzeigen</label>
+    <label style="display:flex;align-items:center;gap:8px;margin:8px 0;font-weight:650"><input type="checkbox" id="documentLayoutBlockContinuation" style="width:auto" onchange="toggleDocumentLayoutBlock('continuation_header',this.checked)"> Wiederholungszeile auf Folgeseiten anzeigen</label>
+    <div class="muted small" style="margin:-4px 0 8px">Kompakte Kennzeichnung (z. B. Rechnungsnr., Kunden-Nr., Datum, Seite) oben auf jeder Folgeseite -- ersetzt dort den vollen Kopfbereich, der nur auf Seite 1 steht.</div>
+    <div class="field" style="max-width:220px;margin:0 0 8px 26px"><label>Position von oben (mm)</label><input id="documentLayoutContinuationY" type="number" step="0.5" min="0" onchange="saveContinuationHeaderPosition(this.value)"></div>
+    <span id="documentLayoutBlocksStatus" class="status"></span>
+  </section>
+
+  <section class="card settings-section" id="settings-email-settings">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">E-Mail-Versand</h2><div class="muted small">Versand von Dokumenten per E-Mail direkt aus dem ERP – aktuell für Mahnungen, künftig für weitere Vorgänge.</div></div></div>
+
+    <div class="field" style="max-width:420px;margin-top:12px">
+      <label>Versandweg</label>
+      <select id="emailSendMethod" onchange="onEmailSendMethodChange()">
+        <option value="smtp">SMTP (Benutzername/Passwort)</option>
+        <option value="graph_oauth2">Microsoft 365 (OAuth 2.0 / Graph API)</option>
+      </select>
+    </div>
+
+    <div id="smtpMethodFields">
+      <div class="hint"><b>Hinweis:</b> das Passwort wird verschlüsselt gespeichert und niemals im Klartext angezeigt. Zum Ändern einfach ein neues eingeben – leer lassen, um das gespeicherte Passwort beizubehalten.</div>
+      <div class="fields-2col" style="margin-top:12px">
+        <div class="field"><label>SMTP-Server</label><input id="smtpHost" placeholder="smtp.beispiel.de"></div>
+        <div class="field"><label>Port</label><input id="smtpPort" type="number" value="587"></div>
+        <div class="field"><label>Benutzername</label><input id="smtpUsername"></div>
+        <div class="field"><label>Passwort <span id="smtpPasswordHint" class="muted small"></span></label><input id="smtpPassword" type="password"></div>
+        <div class="field"><label>Verschlüsselung</label><select id="smtpEncryption"><option value="starttls">STARTTLS</option><option value="ssl">SSL/TLS</option><option value="none">Keine</option></select></div>
+        <div class="field"><label>Absender-E-Mail</label><input id="smtpSenderEmail" placeholder="buero@firma.de"></div>
+        <div class="field"><label>Absender-Name</label><input id="smtpSenderName" placeholder="DACHKONZEPTE Rödchen GmbH"></div>
+      </div>
+      <button onclick="saveSmtpSettings()">SMTP-Einstellungen speichern</button>
+    </div>
+
+    <div id="graphMethodFields" style="display:none">
+      <div class="hint">
+        <b>Einmalige Einrichtung in Azure AD/Entra ID nötig (nur durch eine Administratorin/einen Administrator des Microsoft-365-Mandanten):</b>
+        <ol style="margin:8px 0 0 18px;padding:0">
+          <li>Azure Portal → Entra ID → App-Registrierungen → Neue Registrierung</li>
+          <li>Unter "API-Berechtigungen" hinzufügen: Microsoft Graph → <b>Anwendungsberechtigungen</b> (nicht "Delegierte Berechtigungen") → <code>Mail.Send</code></li>
+          <li>Dort auf "Administratorzustimmung erteilen" klicken (nur als globaler Administrator möglich)</li>
+          <li>Unter "Zertifikate & Geheimnisse" einen neuen Clientschlüssel erstellen, Wert sofort kopieren (wird nur einmal angezeigt)</li>
+          <li>Mandanten-ID und Anwendungs-ID (Client-ID) von der Übersichtsseite der App-Registrierung übernehmen</li>
+          <li>Empfehlung: ein gemeinsames Firmenpostfach (z.B. buero@firma.de) statt eines persönlichen Postfachs als Absender verwenden</li>
+        </ol>
+      </div>
+      <div class="fields-2col" style="margin-top:12px">
+        <div class="field"><label>Mandanten-ID (Tenant-ID)</label><input id="graphTenantId" placeholder="00000000-0000-0000-0000-000000000000"></div>
+        <div class="field"><label>Anwendungs-ID (Client-ID)</label><input id="graphClientId" placeholder="00000000-0000-0000-0000-000000000000"></div>
+        <div class="field"><label>Client-Secret <span id="graphSecretHint" class="muted small"></span></label><input id="graphClientSecret" type="password"></div>
+        <div class="field"><label>Absender-Postfach</label><input id="graphSenderMailbox" placeholder="buero@firma.de"></div>
+      </div>
+      <button onclick="saveGraphSettings()">Microsoft-365-Einstellungen speichern</button>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button onclick="testEmailSettings()">Verbindung testen</button>
+      <span id="emailSettingsStatus" class="status"></span>
+    </div>
+  </section>
+
+  <section class="card settings-section" id="settings-email-templates">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">E-Mail-Vorlagen</h2><div class="muted small">Betreff und Text der E-Mail beim Versand eines Dokuments – die Details (Beträge, Positionen) stehen ohnehin im PDF-Anhang, hier reicht eine kurze Nachricht.</div></div></div>
+    <div class="field" style="max-width:320px;margin-top:12px">
+      <label>Dokumenttyp</label>
+      <select id="emailTemplateType" onchange="loadEmailTemplate()">
+        <option value="invoice">Rechnung</option>
+        <option value="quote">Angebot</option>
+        <option value="order">Auftrag</option>
+      </select>
+    </div>
+    <div class="fields-2col" style="margin-top:12px">
+      <div class="field"><label>Betreff <span class="muted small">(leer = eingebauter Standardtext)</span></label><input id="emailTemplateSubject" placeholder="wird automatisch ausgefüllt"></div>
+    </div>
+    <div class="field">
+      <label>Text <span class="muted small">(Platzhalter je nach Dokumenttyp, siehe Hinweis unten)</span></label>
+      <textarea id="emailTemplateBody" rows="6" placeholder="wird automatisch ausgefüllt"></textarea>
+    </div>
+    <div class="hint" id="emailTemplatePlaceholderHint"></div>
+    <button onclick="saveEmailTemplate()">Speichern</button>
+    <span id="emailTemplateStatus" class="status"></span>
+  </section>
+
+  <section class="card settings-section" id="settings-option-lists">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Zentrale Auswahllisten</h2><div class="muted small">Wiederverwendbare ERP-Dropdownwerte an einer Stelle pflegen. Zeitarten, Tätigkeiten und Abwesenheitsarten werden im Zeiterfassungs-Backoffice verwaltet.</div></div></div>
+    <div class="hint"><b>Prinzip:</b> Ein Eintrag kann aktiv/inaktiv sein, eine Sortierung besitzen und als Standard markiert werden. Bei Textbausteinen ist die Bezeichnung kurz, der Wert enthält den vollständigen Text.</div>
+    <div class="list-narrow">
+      <div class="field" style="max-width:420px"><label>Auswahlliste</label><select id="optionGroupSelect" onchange="selectOptionGroup()"></select></div>
+      <div id="optionGroupDescription" class="muted small" style="margin:6px 0 12px"></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><button type="button" class="secondary" id="optionAddToggle" onclick="resetOptionEditor();showOptionEditor()">+ Eintrag</button><span id="optionStatus" class="status"></span></div>
+      <div id="optionEditorPanel" class="option-editor-panel" style="display:none;margin-bottom:14px">
+        <h3 style="margin-top:0" id="optionEditorHeading">Eintrag hinzufügen</h3>
+        <div class="fields">
+          <div class="field full"><label>Bezeichnung *</label><input id="optionLabel"></div>
+          <div class="field full"><label>Wert / Text *</label><textarea id="optionValue" rows="3"></textarea></div>
+          <div class="field"><label>Sortierung</label><input id="optionSort" type="number" value="100"></div>
+          <div class="field"><label>Status</label><select id="optionActive"><option value="true">Aktiv</option><option value="false">Inaktiv</option></select></div>
+          <div class="field"><label>Standard</label><select id="optionDefault"><option value="false">Nein</option><option value="true">Ja</option></select></div>
+        </div>
+        <button id="optionSaveButton" onclick="saveOption()">Hinzufügen</button> <button class="secondary" onclick="hideOptionEditor()">Abbrechen</button>
+      </div>
+      <div style="overflow:auto"><table><thead><tr><th>Bezeichnung</th><th>Status</th><th></th></tr></thead><tbody id="optionRows"></tbody></table></div>
+    </div>
+  </section>
+
+  <section class="card settings-section" id="settings-roof-layers">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Dachaufbau</h2><div class="muted small">Schichttypen je Dachtyp -- steuern, welche Schichten auf einer Dachfläche abgefragt werden.</div></div></div>
+    <div class="hint">Ein Schichttyp mit Ausführungsliste ("Optionsgruppe") lässt bei der Erfassung eine Auswahl zu, sonst nur Ja/Nein und eine Bemerkung. Ein bereits auf einer Dachfläche verwendeter Schichttyp lässt sich nicht löschen, nur deaktivieren.</div>
+    <div class="list-narrow" style="margin-top:12px;display:flex;align-items:center;gap:10px"><button type="button" class="secondary" onclick="resetRoofLayerTypeEditor();showRoofLayerTypeEditor()">+ Schichttyp</button><span id="roofLayerTypeStatus" class="status"></span></div>
+    <div id="roofLayerTypeEditorPanel" class="option-editor-panel list-narrow" style="display:none">
+      <h3 style="margin-top:0" id="roofLayerTypeEditorHeading">Schichttyp hinzufügen</h3>
+      <div class="function-grid">
+        <div class="field"><label>Technischer Schlüssel *</label><input id="roofLayerTypeKey" placeholder="z. B. flachdach_daemmung"></div>
+        <div class="field"><label>Bezeichnung *</label><input id="roofLayerTypeLabel" placeholder="z. B. Dämmung"></div>
+        <div class="field"><label>Dachtyp</label><select id="roofLayerTypeRoofType"></select></div>
+        <div class="field"><label>Optionsgruppe (Ausführung)</label><select id="roofLayerTypeOptionGroup"></select></div>
+        <div class="field"><label>Mit Ausführungsauswahl</label><select id="roofLayerTypeHasExecution"><option value="true">Ja</option><option value="false">Nein</option></select></div>
+        <div class="field"><label>Mit Dicke (mm)</label><select id="roofLayerTypeHasThickness"><option value="false">Nein</option><option value="true">Ja</option></select></div>
+        <div class="field"><label>Mit Bemerkung</label><select id="roofLayerTypeHasNotes"><option value="true">Ja</option><option value="false">Nein</option></select></div>
+      </div>
+      <div class="muted small" style="margin:4px 0 8px">"Mit Ausführungsauswahl" wirkt nur, solange auch eine Optionsgruppe hinterlegt ist -- ohne Optionsgruppe zeigt die Dachfläche ohnehin nur Ja/Nein und ggf. die Bemerkung. Ein deaktiviertes Feld blendet sich auf der Dachfläche nur aus, bereits erfasste Werte gehen dabei nicht verloren.</div>
+      <button onclick="saveRoofLayerType()" id="roofLayerTypeSaveButton">Hinzufügen</button> <button class="secondary" onclick="hideRoofLayerTypeEditor()">Abbrechen</button>
+    </div>
+    <div class="list-narrow" style="overflow:auto;margin-top:14px"><table><thead><tr><th>Schichttyp</th><th>Dachtyp</th><th>Ausführung</th><th>Dicke</th><th>Bemerkung</th><th>Status</th><th></th><th></th></tr></thead><tbody id="roofLayerTypeRows"></tbody></table></div>
+  </section>
+
+  <section class="card settings-section" id="settings-component-types">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Bauteilarten</h2><div class="muted small">Art eines einzelnen Bauteils einer Dachfläche (Gully, Rinne, Photovoltaik, ...).</div></div></div>
+    <div class="hint">"Flächig" bestimmt, ob ein Bauteil dieser Art auf der Skizze als Rechteck aufgezogen wird (z. B. ein Photovoltaik-Feld) statt als einzelner Punktmarker. Eine bereits von einem Bauteil oder einer Prüfvorlage verwendete Bauteilart lässt sich nicht löschen, nur deaktivieren.</div>
+    <div class="list-narrow" style="margin-top:12px;display:flex;align-items:center;gap:10px"><button type="button" class="secondary" onclick="resetComponentTypeEditor();showComponentTypeEditor()">+ Bauteilart</button><span id="componentTypeStatus" class="status"></span></div>
+    <div id="componentTypeEditorPanel" class="option-editor-panel list-narrow" style="display:none">
+      <h3 style="margin-top:0" id="componentTypeEditorHeading">Bauteilart hinzufügen</h3>
+      <div class="function-grid">
+        <div class="field"><label>Technischer Schlüssel *</label><input id="componentTypeKey" placeholder="z. B. Photovoltaik"></div>
+        <div class="field"><label>Bezeichnung *</label><input id="componentTypeLabel" placeholder="z. B. Photovoltaik"></div>
+        <div class="field"><label>Flächig (Rechteck auf Skizze)</label><select id="componentTypeIsArea"><option value="false">Nein</option><option value="true">Ja</option></select></div>
+      </div>
+      <button onclick="saveComponentType()" id="componentTypeSaveButton">Hinzufügen</button> <button class="secondary" onclick="hideComponentTypeEditor()">Abbrechen</button>
+    </div>
+    <div class="list-narrow" style="overflow:auto;margin-top:14px"><table><thead><tr><th>Bauteilart</th><th>Flächig</th><th>Status</th><th></th><th></th></tr></thead><tbody id="componentTypeRows"></tbody></table></div>
+  </section>
+
+  <section class="card settings-section" id="settings-employee-functions">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Mitarbeiterfunktionen / Tätigkeiten</h2><div class="muted small">Zentrale Auswahl für die Mitarbeiter-Stammdaten. Die Zuordnung gewerblich/kaufmännisch steuert automatisch, ob ein Stundenlohn für den Mittellohn erforderlich ist.</div></div></div>
+    <div class="hint">Beispiele: Dachdecker Vorarbeiter, Dachdecker Geselle, Zimmerer Geselle, Lagerist, Büro / Verwaltung. Funktionen, die bereits Mitarbeitern zugeordnet sind, werden nicht gelöscht, sondern bei Bedarf auf <b>inaktiv</b> gesetzt.</div>
+    <div class="list-narrow" style="margin-top:12px;display:flex;align-items:center;gap:10px"><button type="button" class="secondary" onclick="resetEmployeeFunction();showFunctionEditor()">+ Funktion</button><span id="functionStatus" class="status"></span></div>
+    <div id="functionEditorPanel" class="option-editor-panel list-narrow" style="display:none">
+      <h3 style="margin-top:0" id="functionEditorHeading">Funktion hinzufügen</h3>
+      <div class="function-grid">
+        <div class="field"><label>Funktion / Tätigkeit</label><input id="functionName" placeholder="z. B. Dachdecker Geselle"></div>
+        <div class="field"><label>Gruppe</label><select id="functionGroup"><option value="gewerblich">Gewerblich</option><option value="kaufmaennisch">Kaufmännisch</option></select></div>
+        <div class="field"><label>Sortierung</label><input id="functionSort" type="number" value="100" min="0"></div>
+        <div class="field"><label>Status</label><select id="functionActive"><option value="true">Aktiv</option><option value="false">Inaktiv</option></select></div>
+      </div>
+      <div class="fields" style="margin-top:4px"><div class="field"><label>Beschreibung / Hinweis</label><input id="functionDescription" placeholder="optional"></div></div>
+      <button onclick="saveEmployeeFunction()" id="functionSaveButton">Hinzufügen</button> <button class="secondary" onclick="hideFunctionEditor()">Abbrechen</button>
+    </div>
+    <div class="list-narrow" style="overflow:auto;margin-top:14px"><table><thead><tr><th>Funktion</th><th>Gruppe</th><th>Sort.</th><th>Status</th><th></th></tr></thead><tbody id="functionRows"></tbody></table></div>
+  </section>
+
+  <section class="card settings-section" id="settings-labor-rate">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Stundenkostenverrechnungssatz</h2><div class="muted small">Ermittlung aus den aktiven gewerblichen Mitarbeitern und den betrieblichen Kalkulationsparametern.</div></div></div>
+    <div class="hint">Der <b>Mittellohn wird automatisch gewichtet nach den vertraglichen Wochenstunden</b> aller aktiven gewerblichen Mitarbeiter. Vergütungsart, Stundenlohn bzw. Monatsfestgehalt und Wochenstunden pflegst du unter <a href="/master-data#employees">Stammdaten → Mitarbeiter</a>. Festgehälter werden automatisch auf einen kalkulatorischen Stundenwert heruntergerechnet.</div>
+    <div class="rate-grid" style="margin-top:14px">
+      <div class="field"><label>AG-Lohnnebenkosten %</label><input id="employerCostPct" type="number" step="0.01"><div class="muted small">z. B. Sozialabgaben, BG und weitere lohnbezogene Arbeitgeberkosten.</div></div>
+      <div class="field"><label>Produktive Zeit %</label><input id="productiveTimePct" type="number" step="0.01"><div class="muted small">Anteil der bezahlten Arbeitszeit, der verrechenbar auf Baustellen anfällt.</div></div>
+      <div class="field"><label>Fixe Gemeinkosten · Eingabeart</label><select id="fixedOverheadMode" onchange="syncOverheadLabels()"><option value="eur">Euro / Jahr</option><option value="pct">Prozent der direkten Lohnkosten</option></select><div class="muted small">Fixe Kosten wie Miete, Software, Versicherungen, Abschreibungen etc.</div></div>
+      <div class="field"><label id="fixedOverheadValueLabel">Fixe Gemeinkosten € / Jahr</label><input id="fixedOverheadValue" type="number" step="0.01" min="0"><div class="muted small" id="fixedOverheadHelp">Jährlicher Euro-Betrag.</div></div>
+      <div class="field"><label>Variable Gemeinkosten · Eingabeart</label><select id="variableOverheadMode" onchange="syncOverheadLabels()"><option value="eur">Euro / Jahr</option><option value="pct">Prozent der direkten Lohnkosten</option></select><div class="muted small">Zusätzliche variable Gemeinkosten; Mitarbeiter mit Zuordnung „Variable Gemeinkosten“ werden automatisch addiert.</div></div>
+      <div class="field"><label id="variableOverheadValueLabel">Variable Gemeinkosten € / Jahr</label><input id="variableOverheadValue" type="number" step="0.01" min="0"><div class="muted small" id="variableOverheadHelp">Zusätzlicher jährlicher Euro-Betrag ohne die zugeordneten Mitarbeiterkosten.</div></div>
+      <div class="field"><label>Ziel Wagnis & Gewinn %</label><input id="targetProfitPct" type="number" step="0.01"><div class="muted small">Aufschlag auf die Selbstkosten des Stundenverrechnungssatzes.</div></div>
+      <div class="field"><label>Wochen pro Jahr</label><input id="weeksPerYear" type="number" step="0.01"></div>
+    </div>
+    <button onclick="saveLaborRateSettings()">Rechengrundlagen speichern & neu berechnen</button><span id="laborRateStatus" class="status"></span>
+    <div class="formula"><b>Rechenweg:</b> Nur Mitarbeiter mit Kosten-Zuordnung <b>„Stundenkostenverrechnungssatz“</b> bilden Mittellohn und produktive Stunden. Mitarbeiter mit Zuordnung <b>„Variable Gemeinkosten“</b> werden mit Jahresbrutto + AG-Lohnnebenkosten dem variablen Gemeinkostenblock zugeschlagen. Fixe und zusätzliche variable Gemeinkosten können als Jahresbetrag in Euro oder als Prozent der direkten Jahreslohnkosten inkl. AG-Lohnnebenkosten gepflegt werden. Anschließend werden alle Gemeinkosten auf die produktiven Stunden verteilt und Wagnis & Gewinn aufgeschlagen.</div>
+    <div id="laborRateResult" class="rate-result"></div>
+    <div id="laborRateApply" class="big-rate"></div>
+  </section>
+
+  <section class="card settings-section" id="settings-calculation">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Weitere Kalkulationsgrundlagen</h2><div class="muted small">Diese Vorgaben werden als Basis für Katalogleistungen und neue Projektkalkulationen verwendet.</div></div></div>
+    <div class="calc-grid" style="margin-top:14px">
+      <div class="field"><label>Aktueller Stundenkostenverrechnungssatz €/h</label><input id="laborRate" type="number" step="0.01"><div class="muted small">Kann manuell gepflegt oder aus dem Rechner oben übernommen werden.</div></div>
+      <div class="field"><label>Materialaufschlag %</label><input id="materialMarkup" type="number" step="0.01"></div>
+      <div class="field"><label>Positions-Gemeinkosten %</label><input id="overhead" type="number" step="0.01"><div class="muted small">Zusätzlicher Zuschlag in der Leistungskalkulation. Bei bereits voll eingerechneten Gemeinkosten im Stundensatz Doppelansatz vermeiden.</div></div>
+      <div class="field"><label>Positions-Wagnis & Gewinn %</label><input id="riskProfit" type="number" step="0.01"><div class="muted small">Zusätzlicher Zuschlag auf die jeweilige Leistungsposition.</div></div>
+    </div>
+    <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin:5px 0 14px"><input id="sourceMinutes" type="checkbox" style="width:auto"> Importierte „Baustellenzeit“ als Minuten je Einheit interpretieren</label>
+    <button onclick="saveCalculation()">Kalkulationsgrundlagen speichern</button><span id="calcStatus" class="status"></span>
+  </section>
+
+  <section class="card settings-section" id="settings-planning">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Plantafel & Kapazitätsplanung</h2><div class="muted small">Zentrale Parameter für Planungsvorschläge, Tageskapazität und Auslastungsberechnung.</div></div></div>
+    <div class="hint"><b>Planungsvorschlag:</b> Soll-Stunden werden durch die verfügbare Teamkapazität geteilt. Abwesenheiten, automatische gesetzliche Feiertage des gewählten Bundeslands sowie zusätzliche betriebsfreie Tage reduzieren die Kapazität automatisch. Schulferien werden nur visuell dargestellt. Die Anfahrtszeit kann je Planeinsatz überschrieben werden.</div>
+    <div class="fields">
+      <div class="field"><label>Tägliche geplante Arbeitszeit je Vollzeit-MA (h)</label><input id="planningDailyHours" type="number" min="0.25" max="24" step="0.25"></div>
+      <div class="field"><label>Standard-Anfahrtszeit je MA / Tag (h)</label><input id="planningTravelHours" type="number" min="0" max="23.75" step="0.25"><div class="muted small">Gesamte täglich abzuziehende Fahrzeit. Im Planungsvorschlag projektbezogen überschreibbar.</div></div>
+      <div class="field"><label>Bundesland für Kalender / Plantafel</label><select id="planningState"><option value="BW">Baden-Württemberg</option><option value="BY">Bayern</option><option value="BE">Berlin</option><option value="BB">Brandenburg</option><option value="HB">Bremen</option><option value="HH">Hamburg</option><option value="HE">Hessen</option><option value="MV">Mecklenburg-Vorpommern</option><option value="NI">Niedersachsen</option><option value="NW">Nordrhein-Westfalen</option><option value="RP">Rheinland-Pfalz</option><option value="SL">Saarland</option><option value="SN">Sachsen</option><option value="ST">Sachsen-Anhalt</option><option value="SH">Schleswig-Holstein</option><option value="TH">Thüringen</option></select><div class="muted small">Steuert automatische gesetzliche Feiertage und die Ferienanzeige.</div></div>
+      <div class="field"><label>Kalenderautomatik</label><label style="display:flex;gap:7px;align-items:center;margin-bottom:7px"><input id="planningAutoHolidays" type="checkbox" style="width:auto"> Gesetzliche Feiertage automatisch berücksichtigen</label><label style="display:flex;gap:7px;align-items:center"><input id="planningSchoolHolidays" type="checkbox" style="width:auto"> Schulferien in Plantafel anzeigen</label></div>
+    </div>
+    <div class="field"><label>Reguläre Arbeitstage</label><div style="display:flex;gap:14px;flex-wrap:wrap">
+      <label style="display:flex;gap:6px;align-items:center"><input id="planMon" type="checkbox" style="width:auto">Mo</label><label style="display:flex;gap:6px;align-items:center"><input id="planTue" type="checkbox" style="width:auto">Di</label><label style="display:flex;gap:6px;align-items:center"><input id="planWed" type="checkbox" style="width:auto">Mi</label><label style="display:flex;gap:6px;align-items:center"><input id="planThu" type="checkbox" style="width:auto">Do</label><label style="display:flex;gap:6px;align-items:center"><input id="planFri" type="checkbox" style="width:auto">Fr</label><label style="display:flex;gap:6px;align-items:center"><input id="planSat" type="checkbox" style="width:auto">Sa</label><label style="display:flex;gap:6px;align-items:center"><input id="planSun" type="checkbox" style="width:auto">So</label>
+    </div></div>
+    <button onclick="savePlanningSettings()">Planungsgrundlagen speichern</button> <button class="secondary" onclick="syncSchoolHolidays(true)">Ferien jetzt aktualisieren</button><span id="planningStatus" class="status"></span>
+    <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+    <h3>Zusätzliche betriebsfreie Tage</h3><div class="muted small" style="margin-bottom:10px">Gesetzliche Feiertage kommen automatisch aus dem ausgewählten Bundesland. Hier pflegst du nur zusätzliche Betriebsferien, Brückentage oder individuelle arbeitsfreie Tage.</div>
+    <div class="list-narrow" style="margin-top:12px;display:flex;align-items:center;gap:10px"><button type="button" class="secondary" onclick="resetHoliday();showHolidayEditor()">+ Betriebsfreier Tag</button><span id="holidayStatus" class="status"></span></div>
+    <div id="holidayEditorPanel" class="option-editor-panel list-narrow" style="display:none">
+      <h3 style="margin-top:0" id="holidayEditorHeading">Betriebsfreien Tag hinzufügen</h3>
+      <div class="fields">
+        <div class="field"><label>Datum</label><input id="holidayDate" type="date"></div>
+        <div class="field"><label>Bezeichnung</label><input id="holidayName" placeholder="z. B. Tag der Deutschen Einheit"></div>
+        <div class="field"><label>Status</label><select id="holidayActive"><option value="true">Aktiv</option><option value="false">Inaktiv</option></select></div>
+      </div>
+      <button id="holidaySave" onclick="saveHoliday()">Hinzufügen</button> <button class="secondary" onclick="hideHolidayEditor()">Abbrechen</button>
+    </div>
+    <div class="list-narrow" style="overflow:auto;margin-top:14px"><table><thead><tr><th>Datum</th><th>Bezeichnung</th><th>Status</th><th></th></tr></thead><tbody id="holidayRows"></tbody></table></div>
+  </section>
+
+  <section class="card settings-section" id="settings-appearance">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Design</h2><div class="muted small">Akzentfarbe und Farbmodus der Oberfläche.</div></div></div>
+    <div class="hint">Der Hell/Dunkel-Modus wird oben in der Seitenleiste umgeschaltet und pro Gerät im Browser gespeichert. Die Akzentfarbe gilt dagegen zentral für alle Benutzer.</div>
+    <div class="list-narrow">
+      <div class="field"><label>Akzentfarbe</label>
+        <div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="color" id="accentColorPicker" value="#0d9488" style="width:52px;flex:0 0 52px">
+            <input type="text" id="accentColorText" value="#0d9488" maxlength="7" style="max-width:120px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">
+          </div>
+          <div class="muted small" style="margin-top:6px">Wird für Buttons, aktive Navigation und Hervorhebungen verwendet. Änderung wirkt sofort als Vorschau, "Speichern" übernimmt sie dauerhaft für alle.</div>
+          <div id="accentContrastWarning" class="small" style="margin-top:6px;color:var(--danger);font-weight:600"></div>
+        </div>
+      </div>
+      <button onclick="saveAccentColor()">Akzentfarbe speichern</button><span id="accentColorStatus" class="status"></span>
+    </div>
+  </section>
+
+  <section class="card settings-section" id="settings-modules">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Module</h2><div class="muted small">Optionale ERP-Bausteine für diese Installation ein- oder ausschalten.</div></div></div>
+    <div class="hint">Die Kernfunktionen (Kunden, Projekte, Angebote, Aufträge, Rechnungen, Mahnwesen, Zeiterfassung, Planung) sind immer aktiv und tauchen hier nicht auf. Änderungen wirken sofort für alle Benutzer, ohne Neustart.</div>
+    <div class="list-narrow" id="moduleRows"></div>
+  </section>
+
+  <section class="card settings-section" id="settings-tasks">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Aufgaben</h2><div class="muted small">Einstellungen für das Aufgabenmanagement-Modul.</div></div></div>
+    <div id="taskModuleDisabledNotice" class="hint" style="display:none">Das Modul Aufgabenmanagement ist aktuell deaktiviert (siehe „Module" oben) -- die folgenden Einstellungen wirken erst, wenn es wieder aktiv ist.</div>
+    <div id="taskModuleContent">
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:10px;font-weight:650">
+          <input type="checkbox" id="notifyOnAssignment" style="width:auto" onchange="saveTaskSettings()"> Mitarbeiter per E-Mail benachrichtigen, wenn ihm eine Aufgabe zugewiesen wird
+        </label>
+        <span id="taskSettingsStatus" class="status"></span>
+      </div>
+      <div class="section-title" style="margin-top:22px"><div><h2 style="margin-bottom:4px;font-size:15px">Spalten</h2><div class="muted small">Reihenfolge und Bezeichnung des Aufgaben-Boards. Eine Spalte mit "zählt als erledigt" markiert Aufgaben als abgeschlossen.</div></div></div>
+      <div class="list-narrow" id="taskColumnRows"></div>
+      <div class="field" style="max-width:420px;margin-top:10px">
+        <label>Neue Spalte</label>
+        <div style="display:flex;gap:8px">
+          <input id="newTaskColumnLabel" placeholder="Bezeichnung …">
+          <button type="button" onclick="addTaskColumn()">+ Hinzufügen</button>
+        </div>
+        <span id="taskColumnStatus" class="status"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card settings-section" id="settings-maintenance">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Wartungen</h2><div class="muted small">Einstellungen für das Modul Wartungen & Reparaturen.</div></div></div>
+    <div id="maintenanceModuleDisabledNotice" class="hint" style="display:none">Das Modul Wartungen & Reparaturen ist aktuell deaktiviert (siehe „Module" oben) -- die folgenden Einstellungen wirken erst, wenn es wieder aktiv ist.</div>
+    <div id="maintenanceModuleContent">
+      <div class="field" style="max-width:320px">
+        <label>Vorlaufzeit (Tage)</label>
+        <input id="maintenanceLeadDays" type="number" min="0" step="1">
+        <div class="muted small" style="margin-top:4px">Ab wie vielen Tagen vor der Fälligkeit ein Wartungsvertrag als "fällig" gilt -- im Dashboard-Widget, auf der Wartungen-Seite und für die automatische Erinnerungs-Aufgabe.</div>
+      </div>
+      <div class="field" style="max-width:320px">
+        <label>Standard-Sachbearbeiter</label>
+        <select id="maintenanceDefaultEmployee"></select>
+        <div class="muted small" style="margin-top:4px">Wird für die Erinnerungs-Aufgabe verwendet, wenn ein Wartungsvertrag keinen eigenen zuständigen Mitarbeiter hat.</div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;margin:12px 0;font-weight:700"><input type="checkbox" id="maintenanceUseRoofAreaItems" style="width:auto"> Zu wartende Dachflächen verwenden</label>
+      <div class="muted small" style="margin:0 0 12px 26px">Ist der Schalter aus (Standard), verhält sich jeder Wartungsvertrag ausschließlich über Intervall/nächste Fälligkeit -- der Abschnitt "Zu wartende Dachflächen" erscheint nirgends. Ist er an, kann ein Vertrag stattdessen einzelne Dachflächen mit eigenem saisonalem Fenster tragen, die dann die Fälligkeit vollständig übernehmen.</div>
+      <button onclick="saveMaintenanceSettings()">Speichern</button>
+      <span id="maintenanceSettingsStatus" class="status"></span>
+
+      <h3 style="margin:24px 0 8px;font-size:14px">Wartungsfenster</h3>
+      <div class="muted small" style="margin-bottom:10px">Saisonale Fenster (z. B. "Frühjahr", "Herbst") für Positionen je Dachfläche auf Wartungsverträgen -- Start-/Endmonat, nicht Kalendertage.</div>
+      <div class="list-narrow" id="maintenanceWindowRows"></div>
+      <div class="field" style="max-width:520px;margin-top:10px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="newMaintenanceWindowLabel" placeholder="Bezeichnung …" style="flex:1">
+          <input id="newMaintenanceWindowFrom" type="number" min="1" max="12" placeholder="von" style="width:70px">
+          <input id="newMaintenanceWindowTo" type="number" min="1" max="12" placeholder="bis" style="width:70px">
+          <button type="button" onclick="addMaintenanceWindow()">+ Hinzufügen</button>
+        </div>
+        <span id="maintenanceWindowStatus" class="status"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card settings-section" id="settings-mobile">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Vor Ort</h2><div class="muted small">Einstellungen für die Monteursansicht auf dem Fahrzeug-Tablet.</div></div></div>
+    <div class="field" style="max-width:220px">
+      <label>Feierabend-Uhrzeit</label>
+      <input id="mobileShiftEndTime" type="time">
+      <div class="muted small" style="margin-top:4px">Ab dieser Uhrzeit wird eine Anmeldung auf /vor-ort automatisch beendet -- verhindert, dass nachts jemand unter fremdem Namen bucht, wenn ein Tablet im Fahrzeug eingeloggt bleibt. Ein bereits geöffneter Berichtstab wird davon nicht unterbrochen.</div>
+    </div>
+    <button onclick="saveMobileSettings()">Speichern</button>
+    <span id="mobileSettingsStatus" class="status"></span>
+  </section>
+    </div>
+  </div>
+</main>
+</div>
+</div>
+<script>
+let sequences=[],employeeFunctions=[],editingFunctionId=null,optionGroups=[],currentOptionGroup=null,editingOptionId=null,planningSettings=null,planningHolidays=[],editingHolidayId=null,paymentTerms=[],editingPaymentTermId=null,taxKeys=[],editingTaxKeyId=null,reminderLevels=[];
+async function api(url,options={}){const r=await fetch(url,options);let d=null;try{d=await r.json()}catch(_){ }if(!r.ok)throw new Error(d?.detail||r.statusText||'Fehler');return d}
+const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+(function(){
+  function refreshStatusColors(){
+    document.querySelectorAll('.status').forEach(function(el){
+      const text=el.textContent||'';
+      const isErr=/^Fehler/.test(text);
+      el.classList.toggle('err',isErr);
+      el.classList.toggle('ok',!isErr&&text.length>0);
+    });
+  }
+  new MutationObserver(refreshStatusColors).observe(document.body,{subtree:true,childList:true,characterData:true});
+  refreshStatusColors();
+})();
+const v=id=>document.getElementById(id).value.trim();const nv=id=>v(id)||null;const setv=(id,x)=>document.getElementById(id).value=x??'';
+const SETTINGS_SECTIONS=['general','numbers','payment-terms','tax-keys','reminder-levels','document-layout','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','mobile'];
+function showSettingsSection(key,updateHash=true){
+  if(!SETTINGS_SECTIONS.includes(key))key='general';
+  document.querySelectorAll('.settings-section').forEach(x=>x.classList.toggle('active',x.id===`settings-${key}`));
+  document.querySelectorAll('[data-settings-section]').forEach(x=>x.classList.toggle('active',x.dataset.settingsSection===key));
+  if(updateHash&&location.hash!==`#${key}`)history.replaceState(null,'',`#${key}`);
+  document.querySelector('.settings-content')?.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function settingsSectionFromHash(){const key=location.hash.replace('#','');return SETTINGS_SECTIONS.includes(key)?key:'general'}
+window.addEventListener('hashchange',()=>showSettingsSection(settingsSectionFromHash(),false));
+async function load(){
+  const specs=[
+    ['Unternehmensstammdaten','/api/settings/general',{}],
+    ['Nummernkreise','/api/settings/number-sequences',[]],
+    ['Kalkulationsgrundlagen','/api/calculation-settings',{}],
+    ['Stundenverrechnungssatz','/api/labor-rate-settings',{}],
+    ['Stundenverrechnungssatz-Berechnung','/api/labor-rate-calculation',{}],
+    ['Funktionen/Tätigkeiten','/api/settings/employee-functions',[]],
+    ['Auswahllisten','/api/settings/option-groups',[]],
+    ['Plantafel-Einstellungen','/api/planning/settings',{}],
+    ['Feiertage','/api/planning/holidays',[]],
+    ['Zahlungsbedingungen','/api/payment-terms?include_archived=true',[]],
+    ['Steuerschlüssel','/api/tax-keys?include_archived=true',[]],
+    ['Mahnstufen','/api/reminder-levels',[]],
+    ['Mahnwesen-Einstellungen','/api/reminder-settings',{auto_create_drafts:true}],
+    ['Module','/api/modules',[]],
+  ];
+  const results=await Promise.allSettled(specs.map(([,url])=>api(url)));
+  const failed=[];
+  const [g,n,c,lr,lrc,ef,og,ps,ph,pt,tk,rl,rs,ms]=results.map((r,i)=>{
+    if(r.status==='fulfilled')return r.value;
+    failed.push(`${specs[i][0]}: ${r.reason.message}`);
+    return specs[i][2];
+  });
+  if(failed.length){
+    alert('Diese Einstellungen konnten nicht geladen werden, der Rest der Seite funktioniert trotzdem:\n\n'+failed.join('\n')+'\n\nMöglicherweise wurde eine Datenbank-Migration noch nicht (vollständig) ausgeführt -- bitte "alembic upgrade head" prüfen.');
+  }
+  setv('companyName',g.company_name);setv('managingDirector',g.managing_director);setv('companyStreet',g.street);setv('companyZip',g.postal_code);setv('companyCity',g.city);setv('companyCountry',g.country);setv('companyPhone',g.phone);setv('companyEmail',g.email);setv('companyWebsite',g.website);setv('taxNumber',g.tax_number);setv('vatId',g.vat_id);setv('registerCourt',g.register_court);setv('registerNumber',g.register_number);setv('iban',g.iban);setv('bic',g.bic);setv('defaultVat',g.default_vat_rate);setv('quoteIntro',g.default_quote_intro);setv('quoteOutro',g.default_quote_outro);
+  setv('laborRate',c.labor_rate);setv('materialMarkup',c.material_markup_pct);setv('overhead',c.overhead_pct);setv('riskProfit',c.risk_profit_pct);document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
+  setv('employerCostPct',lr.employer_cost_pct);setv('productiveTimePct',lr.productive_time_pct);setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',lr.fixed_overhead_value||0);setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',lr.variable_overhead_value||0);setv('targetProfitPct',lr.target_profit_pct);setv('weeksPerYear',lr.weeks_per_year);syncOverheadLabels();renderLaborRate(lrc);
+  sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();document.getElementById('autoCreateDraftsCheckbox').checked=!!rs.auto_create_drafts;moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadMobileSection();loadDocumentLayoutSection();}
+
+function renderModuleStates(){document.getElementById('moduleRows').innerHTML=moduleStates.length?moduleStates.map(m=>`<div class="field"><label style="display:flex;align-items:center;gap:10px;font-weight:650"><input type="checkbox" style="width:auto" ${m.enabled?'checked':''} onchange="toggleModule('${m.module_key}',this.checked)"> ${esc(m.label)}</label><span id="moduleStatus-${m.module_key}" class="status"></span></div>`).join(''):'<div class="muted small">Keine optionalen Module registriert.</div>'}
+async function toggleModule(key,checked){const st=document.getElementById('moduleStatus-'+key);try{await api(`/api/modules/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:checked})});moduleStates=await api('/api/modules');st.textContent=checked?'Aktiviert.':'Deaktiviert.';loadTaskSection();loadMaintenanceSection()}catch(e){st.textContent='Fehler: '+e.message}}
+
+async function loadMaintenanceSection(){
+  const entry=moduleStates.find(m=>m.module_key==='wartungen');
+  const isEnabled=entry?entry.enabled:true;
+  document.getElementById('maintenanceModuleDisabledNotice').style.display=isEnabled?'none':'block';
+  document.getElementById('maintenanceModuleContent').style.display=isEnabled?'block':'none';
+  if(!isEnabled)return;
+  try{
+    const [ms2,emps]=[await api('/api/maintenance-settings'),await api('/api/employees').catch(()=>[])];
+    document.getElementById('maintenanceLeadDays').value=ms2.reminder_lead_days;
+    document.getElementById('maintenanceUseRoofAreaItems').checked=!!ms2.use_roof_area_items;
+    document.getElementById('maintenanceDefaultEmployee').innerHTML='<option value="">— keiner —</option>'+emps.filter(e=>e.active).map(e=>`<option value="${e.id}" ${Number(ms2.default_responsible_employee_id)===e.id?'selected':''}>${esc(e.first_name+' '+e.last_name)}</option>`).join('');
+    maintenanceWindows=await api('/api/maintenance-windows');renderMaintenanceWindows();
+  }catch(e){document.getElementById('maintenanceSettingsStatus').textContent='Fehler: '+e.message}
+}
+
+let maintenanceWindows=[];
+function renderMaintenanceWindows(){
+  document.getElementById('maintenanceWindowRows').innerHTML=maintenanceWindows.length?maintenanceWindows.map((w,i)=>`<div class="field" style="display:flex;align-items:center;gap:8px">
+    <input value="${esc(w.label)}" style="flex:1" onblur="saveMaintenanceWindow(${w.id},this.value,null,null)">
+    <input type="number" min="1" max="12" value="${w.month_from}" style="width:70px" onblur="saveMaintenanceWindow(${w.id},null,this.value,null)">
+    <input type="number" min="1" max="12" value="${w.month_to}" style="width:70px" onblur="saveMaintenanceWindow(${w.id},null,null,this.value)">
+    <button type="button" class="secondary" ${i===0?'disabled':''} onclick="moveMaintenanceWindow(${i},-1)">↑</button>
+    <button type="button" class="secondary" ${i===maintenanceWindows.length-1?'disabled':''} onclick="moveMaintenanceWindow(${i},1)">↓</button>
+    <button type="button" class="danger" onclick="deleteMaintenanceWindow(${w.id})">×</button>
+  </div>`).join(''):'<div class="muted small">Keine Wartungsfenster vorhanden.</div>';
+}
+async function saveMaintenanceWindow(id,label,monthFrom,monthTo){
+  const w=maintenanceWindows.find(x=>x.id===id);
+  if(!w)return;
+  const payload={
+    label:(label===null?w.label:label.trim())||w.label,
+    month_from:monthFrom===null?w.month_from:Number(monthFrom),
+    month_to:monthTo===null?w.month_to:Number(monthTo),
+  };
+  const st=document.getElementById('maintenanceWindowStatus');
+  try{await api(`/api/maintenance-windows/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});maintenanceWindows=await api('/api/maintenance-windows');renderMaintenanceWindows();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message;renderMaintenanceWindows()}
+}
+async function moveMaintenanceWindow(index,dir){
+  const target=index+dir;
+  if(target<0||target>=maintenanceWindows.length)return;
+  const ids=maintenanceWindows.map(w=>w.id);
+  [ids[index],ids[target]]=[ids[target],ids[index]];
+  const st=document.getElementById('maintenanceWindowStatus');
+  try{maintenanceWindows=await api('/api/maintenance-windows/reorder',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordered_ids:ids})});renderMaintenanceWindows();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+}
+async function deleteMaintenanceWindow(id){
+  if(!confirm('Dieses Wartungsfenster wirklich löschen?'))return;
+  const st=document.getElementById('maintenanceWindowStatus');
+  try{await api(`/api/maintenance-windows/${id}`,{method:'DELETE'});maintenanceWindows=await api('/api/maintenance-windows');renderMaintenanceWindows();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+}
+async function addMaintenanceWindow(){
+  const labelInput=document.getElementById('newMaintenanceWindowLabel');
+  const label=labelInput.value.trim();
+  const monthFrom=Number(document.getElementById('newMaintenanceWindowFrom').value);
+  const monthTo=Number(document.getElementById('newMaintenanceWindowTo').value);
+  const st=document.getElementById('maintenanceWindowStatus');
+  if(!label||!monthFrom||!monthTo){st.textContent='Bitte Bezeichnung sowie Start- und Endmonat angeben.';return}
+  try{
+    await api('/api/maintenance-windows',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,month_from:monthFrom,month_to:monthTo})});
+    labelInput.value='';document.getElementById('newMaintenanceWindowFrom').value='';document.getElementById('newMaintenanceWindowTo').value='';
+    maintenanceWindows=await api('/api/maintenance-windows');renderMaintenanceWindows();st.textContent='';
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+
+let roofLayerTypes=[],editingRoofLayerTypeId=null;
+
+function optionGroupLabel(key){
+  const g=optionGroups.find(x=>x.group_key===key);
+  return g?g.label:key;
+}
+
+function populateRoofLayerTypeSelects(){
+  const roofTypeGroup=optionGroups.find(g=>g.group_key==='roof_types');
+  const roofTypeOptions=(roofTypeGroup?.options||[]).filter(o=>o.active);
+  document.getElementById('roofLayerTypeRoofType').innerHTML='<option value="">— gilt für jeden Dachtyp —</option>'+roofTypeOptions.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+  const layerGroups=optionGroups.filter(g=>g.group_key.startsWith('layer_'));
+  document.getElementById('roofLayerTypeOptionGroup').innerHTML='<option value="">— keine —</option>'+layerGroups.map(g=>`<option value="${esc(g.group_key)}">${esc(g.label)}</option>`).join('');
+}
+
+async function loadRoofLayerTypesSection(){
+  populateRoofLayerTypeSelects();
+  try{
+    roofLayerTypes=await api('/api/roof-layer-types?include_inactive=true');
+    renderRoofLayerTypes();
+  }catch(e){document.getElementById('roofLayerTypeStatus').textContent='Fehler: '+e.message}
+}
+
+function roofLayerTypeRow(t,index,groupItems){
+  const roofTypeArg=t.roof_type?`'${t.roof_type.replace(/'/g,"\\'")}'`:'null';
+  return `<tr>
+    <td>${esc(t.label)}<div class="muted small">${esc(t.key)}</div></td>
+    <td>${t.roof_type?esc(t.roof_type):'—'}</td>
+    <td>${t.option_group&&t.has_execution?esc(optionGroupLabel(t.option_group)):'—'}</td>
+    <td>${t.has_thickness?'Ja':'—'}</td>
+    <td>${t.has_notes?'Ja':'—'}</td>
+    <td><label style="display:flex;align-items:center;gap:6px;font-weight:600"><input type="checkbox" style="width:auto" ${t.active?'checked':''} onchange="toggleRoofLayerTypeActive(${t.id},this.checked)"> Aktiv</label></td>
+    <td style="white-space:nowrap"><button type="button" class="secondary" ${index===0?'disabled':''} onclick="moveRoofLayerType(${roofTypeArg},${index},-1)">↑</button> <button type="button" class="secondary" ${index===groupItems.length-1?'disabled':''} onclick="moveRoofLayerType(${roofTypeArg},${index},1)">↓</button></td>
+    <td style="white-space:nowrap"><button type="button" class="secondary" onclick="editRoofLayerType(${t.id})">Bearbeiten</button> <button type="button" class="danger" onclick="deleteRoofLayerType(${t.id})">Löschen</button></td>
+  </tr>`;
+}
+
+function renderRoofLayerTypes(){
+  const groups={};
+  roofLayerTypes.forEach(t=>{const key=t.roof_type||'';(groups[key]=groups[key]||[]).push(t)});
+  const order=Object.keys(groups).sort((a,b)=>a===''?1:b===''?-1:a.localeCompare(b,'de'));
+  document.getElementById('roofLayerTypeRows').innerHTML=order.map(key=>{
+    const items=groups[key].slice().sort((a,b)=>a.sort_order-b.sort_order);
+    const heading=`<tr><td colspan="8" style="font-weight:700;background:var(--soft)">${key?esc(key):'Gilt für jeden Dachtyp'}</td></tr>`;
+    return heading+items.map((t,i)=>roofLayerTypeRow(t,i,items)).join('');
+  }).join('')||'<tr><td colspan="8" class="empty">Noch keine Schichttypen angelegt.</td></tr>';
+}
+
+async function moveRoofLayerType(roofType,index,dir){
+  const groupItems=roofLayerTypes.filter(t=>(t.roof_type||null)===roofType).sort((a,b)=>a.sort_order-b.sort_order);
+  const target=index+dir;
+  if(target<0||target>=groupItems.length)return;
+  const ids=groupItems.map(t=>t.id);
+  [ids[index],ids[target]]=[ids[target],ids[index]];
+  const st=document.getElementById('roofLayerTypeStatus');
+  try{
+    await api('/api/roof-layer-types/reorder',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({roof_type:roofType,ordered_ids:ids})});
+    roofLayerTypes=await api('/api/roof-layer-types?include_inactive=true');
+    renderRoofLayerTypes();st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function toggleRoofLayerTypeActive(id,checked){
+  const st=document.getElementById('roofLayerTypeStatus');
+  try{
+    await api(`/api/roof-layer-types/${id}/${checked?'activate':'deactivate'}`,{method:'POST'});
+    roofLayerTypes=await api('/api/roof-layer-types?include_inactive=true');
+    renderRoofLayerTypes();st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function resetRoofLayerTypeEditor(){
+  editingRoofLayerTypeId=null;
+  document.getElementById('roofLayerTypeEditorHeading').textContent='Schichttyp hinzufügen';
+  document.getElementById('roofLayerTypeKey').value='';
+  document.getElementById('roofLayerTypeKey').disabled=false;
+  document.getElementById('roofLayerTypeLabel').value='';
+  document.getElementById('roofLayerTypeRoofType').value='';
+  document.getElementById('roofLayerTypeOptionGroup').value='';
+  document.getElementById('roofLayerTypeHasExecution').value='true';
+  document.getElementById('roofLayerTypeHasThickness').value='false';
+  document.getElementById('roofLayerTypeHasNotes').value='true';
+  document.getElementById('roofLayerTypeSaveButton').textContent='Hinzufügen';
+}
+
+function showRoofLayerTypeEditor(){document.getElementById('roofLayerTypeEditorPanel').style.display='block'}
+function hideRoofLayerTypeEditor(){document.getElementById('roofLayerTypeEditorPanel').style.display='none'}
+
+function editRoofLayerType(id){
+  const t=roofLayerTypes.find(x=>x.id===id);
+  if(!t)return;
+  editingRoofLayerTypeId=id;
+  document.getElementById('roofLayerTypeEditorHeading').textContent='Schichttyp bearbeiten';
+  document.getElementById('roofLayerTypeKey').value=t.key;
+  document.getElementById('roofLayerTypeKey').disabled=true;
+  document.getElementById('roofLayerTypeLabel').value=t.label;
+  document.getElementById('roofLayerTypeRoofType').value=t.roof_type||'';
+  document.getElementById('roofLayerTypeOptionGroup').value=t.option_group||'';
+  document.getElementById('roofLayerTypeHasExecution').value=t.has_execution?'true':'false';
+  document.getElementById('roofLayerTypeHasThickness').value=t.has_thickness?'true':'false';
+  document.getElementById('roofLayerTypeHasNotes').value=t.has_notes?'true':'false';
+  document.getElementById('roofLayerTypeSaveButton').textContent='Speichern';
+  showRoofLayerTypeEditor();
+}
+
+async function saveRoofLayerType(){
+  const st=document.getElementById('roofLayerTypeStatus');
+  const key=document.getElementById('roofLayerTypeKey').value.trim();
+  const label=document.getElementById('roofLayerTypeLabel').value.trim();
+  if(!label){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben.';return}
+  const payload={
+    label,
+    roof_type:document.getElementById('roofLayerTypeRoofType').value||null,
+    option_group:document.getElementById('roofLayerTypeOptionGroup').value||null,
+    has_execution:document.getElementById('roofLayerTypeHasExecution').value==='true',
+    has_thickness:document.getElementById('roofLayerTypeHasThickness').value==='true',
+    has_notes:document.getElementById('roofLayerTypeHasNotes').value==='true',
+  };
+  try{
+    if(editingRoofLayerTypeId){
+      await api(`/api/roof-layer-types/${editingRoofLayerTypeId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    }else{
+      if(!key){st.className='status err';st.textContent='Bitte einen technischen Schlüssel angeben.';return}
+      await api('/api/roof-layer-types',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,key})});
+    }
+    roofLayerTypes=await api('/api/roof-layer-types?include_inactive=true');
+    renderRoofLayerTypes();
+    hideRoofLayerTypeEditor();
+    st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function deleteRoofLayerType(id){
+  if(!confirm('Diesen Schichttyp wirklich löschen?'))return;
+  const st=document.getElementById('roofLayerTypeStatus');
+  try{
+    await api(`/api/roof-layer-types/${id}`,{method:'DELETE'});
+    roofLayerTypes=await api('/api/roof-layer-types?include_inactive=true');
+    renderRoofLayerTypes();st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+let componentTypes=[],editingComponentTypeId=null;
+
+async function loadComponentTypesSection(){
+  try{
+    componentTypes=await api('/api/roof-component-types?include_inactive=true');
+    renderComponentTypes();
+  }catch(e){document.getElementById('componentTypeStatus').textContent='Fehler: '+e.message}
+}
+
+function componentTypeRow(t,index){
+  return `<tr>
+    <td>${esc(t.label)}<div class="muted small">${esc(t.key)}</div></td>
+    <td>${t.is_area?'Ja':'—'}</td>
+    <td><label style="display:flex;align-items:center;gap:6px;font-weight:600"><input type="checkbox" style="width:auto" ${t.active?'checked':''} onchange="toggleComponentTypeActive(${t.id},this.checked)"> Aktiv</label></td>
+    <td style="white-space:nowrap"><button type="button" class="secondary" ${index===0?'disabled':''} onclick="moveComponentType(${index},-1)">↑</button> <button type="button" class="secondary" ${index===componentTypes.length-1?'disabled':''} onclick="moveComponentType(${index},1)">↓</button></td>
+    <td style="white-space:nowrap"><button type="button" class="secondary" onclick="editComponentType(${t.id})">Bearbeiten</button> <button type="button" class="danger" onclick="deleteComponentType(${t.id})">Löschen</button></td>
+  </tr>`;
+}
+
+function renderComponentTypes(){
+  const items=componentTypes.slice().sort((a,b)=>a.sort_order-b.sort_order);
+  document.getElementById('componentTypeRows').innerHTML=items.map((t,i)=>componentTypeRow(t,i)).join('')
+    ||'<tr><td colspan="5" class="empty">Noch keine Bauteilarten angelegt.</td></tr>';
+}
+
+async function moveComponentType(index,dir){
+  const items=componentTypes.slice().sort((a,b)=>a.sort_order-b.sort_order);
+  const target=index+dir;
+  if(target<0||target>=items.length)return;
+  const ids=items.map(t=>t.id);
+  [ids[index],ids[target]]=[ids[target],ids[index]];
+  const st=document.getElementById('componentTypeStatus');
+  try{
+    await api('/api/roof-component-types/reorder',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordered_ids:ids})});
+    componentTypes=await api('/api/roof-component-types?include_inactive=true');
+    renderComponentTypes();st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function toggleComponentTypeActive(id,checked){
+  const st=document.getElementById('componentTypeStatus');
+  try{
+    await api(`/api/roof-component-types/${id}/${checked?'activate':'deactivate'}`,{method:'POST'});
+    componentTypes=await api('/api/roof-component-types?include_inactive=true');
+    renderComponentTypes();st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function resetComponentTypeEditor(){
+  editingComponentTypeId=null;
+  document.getElementById('componentTypeEditorHeading').textContent='Bauteilart hinzufügen';
+  document.getElementById('componentTypeKey').value='';
+  document.getElementById('componentTypeKey').disabled=false;
+  document.getElementById('componentTypeLabel').value='';
+  document.getElementById('componentTypeIsArea').value='false';
+  document.getElementById('componentTypeSaveButton').textContent='Hinzufügen';
+}
+
+function showComponentTypeEditor(){document.getElementById('componentTypeEditorPanel').style.display='block'}
+function hideComponentTypeEditor(){document.getElementById('componentTypeEditorPanel').style.display='none'}
+
+function editComponentType(id){
+  const t=componentTypes.find(x=>x.id===id);
+  if(!t)return;
+  editingComponentTypeId=id;
+  document.getElementById('componentTypeEditorHeading').textContent='Bauteilart bearbeiten';
+  document.getElementById('componentTypeKey').value=t.key;
+  document.getElementById('componentTypeKey').disabled=true;
+  document.getElementById('componentTypeLabel').value=t.label;
+  document.getElementById('componentTypeIsArea').value=t.is_area?'true':'false';
+  document.getElementById('componentTypeSaveButton').textContent='Speichern';
+  showComponentTypeEditor();
+}
+
+async function saveComponentType(){
+  const st=document.getElementById('componentTypeStatus');
+  const key=document.getElementById('componentTypeKey').value.trim();
+  const label=document.getElementById('componentTypeLabel').value.trim();
+  if(!label){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben.';return}
+  const payload={label, is_area:document.getElementById('componentTypeIsArea').value==='true'};
+  try{
+    if(editingComponentTypeId){
+      await api(`/api/roof-component-types/${editingComponentTypeId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    }else{
+      if(!key){st.className='status err';st.textContent='Bitte einen technischen Schlüssel angeben.';return}
+      await api('/api/roof-component-types',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,key})});
+    }
+    componentTypes=await api('/api/roof-component-types?include_inactive=true');
+    renderComponentTypes();
+    hideComponentTypeEditor();
+    st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function deleteComponentType(id){
+  if(!confirm('Diese Bauteilart wirklich löschen?'))return;
+  const st=document.getElementById('componentTypeStatus');
+  try{
+    await api(`/api/roof-component-types/${id}`,{method:'DELETE'});
+    componentTypes=await api('/api/roof-component-types?include_inactive=true');
+    renderComponentTypes();st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function loadMobileSection(){
+  try{
+    const ms=await api('/api/mobile-settings');
+    document.getElementById('mobileShiftEndTime').value=ms.shift_end_time;
+  }catch(e){document.getElementById('mobileSettingsStatus').textContent='Fehler: '+e.message}
+}
+async function saveMobileSettings(){
+  const st=document.getElementById('mobileSettingsStatus');
+  const shiftEndTime=document.getElementById('mobileShiftEndTime').value;
+  if(!shiftEndTime){st.textContent='Bitte eine Uhrzeit angeben.';return}
+  try{
+    await api('/api/mobile-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({shift_end_time:shiftEndTime})});
+    st.textContent='Gespeichert.';
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+
+let documentLayoutBlocks={};
+async function loadDocumentLayoutSection(){
+  try{
+    const rollout=await api('/api/document-layout/rollout-status');
+    const line=(rows)=>rows.map(r=>esc(r.label)).join(', ')||'—';
+    document.getElementById('documentLayoutRollout').innerHTML=
+      `<b>Nutzt diese Einstellungen bereits:</b> ${line(rollout.using_shared_settings)}<br>`+
+      `<b>Noch nicht umgestellt:</b> ${line(rollout.not_yet_migrated)} (folgen in eigenen Etappen)<br>`+
+      `<b>Nicht Teil davon:</b> ${line(rollout.excluded)}`;
+  }catch(e){document.getElementById('documentLayoutRollout').textContent='Fehler: '+e.message}
+  try{
+    const blocks=await api('/api/document-layout/default');
+    documentLayoutBlocks={};
+    blocks.forEach(b=>{documentLayoutBlocks[b.block_type]=b});
+    document.getElementById('documentLayoutBlockLogo').checked=!!documentLayoutBlocks.logo?.visible;
+    document.getElementById('documentLayoutBlockHeader').checked=!!documentLayoutBlocks.company_header?.visible;
+    document.getElementById('documentLayoutBlockFooter').checked=!!documentLayoutBlocks.footer_text?.visible;
+    document.getElementById('documentLayoutBlockContinuation').checked=!!documentLayoutBlocks.continuation_header?.visible;
+    if(documentLayoutBlocks.continuation_header)document.getElementById('documentLayoutContinuationY').value=documentLayoutBlocks.continuation_header.y_mm;
+  }catch(e){document.getElementById('documentLayoutBlocksStatus').textContent='Fehler: '+e.message}
+  for(const pageType of ['first','continuation']){
+    const removeBtn=document.getElementById(pageType==='first'?'documentLayoutBgFirstRemove':'documentLayoutBgContinuationRemove');
+    try{
+      const status=await api(`/api/document-layout/default/backgrounds/${pageType}`);
+      removeBtn.style.display=status.has_background?'inline-block':'none';
+    }catch(e){/* noch kein Hintergrund -- Button bleibt ausgeblendet */}
+  }
+  try{
+    const first=await api('/api/document-layout/default/margins/first');
+    const cont=await api('/api/document-layout/default/margins/continuation');
+    setv('documentLayoutMarginFirstTop',first.top_mm);setv('documentLayoutMarginFirstBottom',first.bottom_mm);
+    setv('documentLayoutMarginFirstLeft',first.left_mm);setv('documentLayoutMarginFirstRight',first.right_mm);
+    setv('documentLayoutMarginContinuationTop',cont.top_mm);setv('documentLayoutMarginContinuationBottom',cont.bottom_mm);
+    setv('documentLayoutMarginContinuationLeft',cont.left_mm);setv('documentLayoutMarginContinuationRight',cont.right_mm);
+  }catch(e){document.getElementById('documentLayoutMarginsStatus').textContent='Fehler: '+e.message}
+}
+async function uploadDocumentLayoutBackground(pageType){
+  const inputId=pageType==='first'?'documentLayoutBgFirst':'documentLayoutBgContinuation';
+  const statusEl=document.getElementById(pageType==='first'?'documentLayoutBgFirstStatus':'documentLayoutBgContinuationStatus');
+  const input=document.getElementById(inputId);
+  if(!input.files.length){statusEl.textContent='Bitte eine Datei auswählen.';return}
+  const fd=new FormData();
+  fd.append('file',input.files[0]);
+  try{
+    await api(`/api/document-layout/default/backgrounds/${pageType}`,{method:'POST',body:fd});
+    statusEl.textContent='Gespeichert.';
+    input.value='';
+    document.getElementById(pageType==='first'?'documentLayoutBgFirstRemove':'documentLayoutBgContinuationRemove').style.display='inline-block';
+  }catch(e){statusEl.className='status err';statusEl.textContent='Fehler: '+e.message}
+}
+async function removeDocumentLayoutBackground(pageType){
+  try{
+    await api(`/api/document-layout/default/backgrounds/${pageType}`,{method:'DELETE'});
+    document.getElementById(pageType==='first'?'documentLayoutBgFirstRemove':'documentLayoutBgContinuationRemove').style.display='none';
+  }catch(e){alert('Fehler: '+e.message)}
+}
+async function saveDocumentLayoutMargins(){
+  const st=document.getElementById('documentLayoutMarginsStatus');
+  try{
+    await api('/api/document-layout/default/margins/first',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      top_mm:Number(v('documentLayoutMarginFirstTop')),bottom_mm:Number(v('documentLayoutMarginFirstBottom')),
+      left_mm:Number(v('documentLayoutMarginFirstLeft')),right_mm:Number(v('documentLayoutMarginFirstRight')),
+    })});
+    await api('/api/document-layout/default/margins/continuation',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      top_mm:Number(v('documentLayoutMarginContinuationTop')),bottom_mm:Number(v('documentLayoutMarginContinuationBottom')),
+      left_mm:Number(v('documentLayoutMarginContinuationLeft')),right_mm:Number(v('documentLayoutMarginContinuationRight')),
+    })});
+    st.textContent='Gespeichert.';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+async function resetDocumentLayoutMargins(){
+  if(!confirm('Randabstände für Seite 1 und Folgeseiten wirklich auf die Standardwerte zurücksetzen?'))return;
+  try{
+    const first=await api('/api/document-layout/default/margins/first/reset',{method:'POST'});
+    const cont=await api('/api/document-layout/default/margins/continuation/reset',{method:'POST'});
+    setv('documentLayoutMarginFirstTop',first.top_mm);setv('documentLayoutMarginFirstBottom',first.bottom_mm);
+    setv('documentLayoutMarginFirstLeft',first.left_mm);setv('documentLayoutMarginFirstRight',first.right_mm);
+    setv('documentLayoutMarginContinuationTop',cont.top_mm);setv('documentLayoutMarginContinuationBottom',cont.bottom_mm);
+    setv('documentLayoutMarginContinuationLeft',cont.left_mm);setv('documentLayoutMarginContinuationRight',cont.right_mm);
+    document.getElementById('documentLayoutMarginsStatus').textContent='Zurückgesetzt.';
+  }catch(e){document.getElementById('documentLayoutMarginsStatus').textContent='Fehler: '+e.message}
+}
+async function toggleDocumentLayoutBlock(blockType,checked){
+  const b=documentLayoutBlocks[blockType];
+  if(!b)return;
+  try{
+    await api(`/api/document-layout/blocks/${b.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      x_mm:b.x_mm,y_mm:b.y_mm,width_mm:b.width_mm,height_mm:b.height_mm,content:b.content,
+      font_size:b.font_size,font_weight:b.font_weight,text_align:b.text_align,visible:checked,
+    })});
+    b.visible=checked;
+  }catch(e){alert('Fehler: '+e.message)}
+}
+async function saveContinuationHeaderPosition(newY){
+  const b=documentLayoutBlocks.continuation_header;
+  const st=document.getElementById('documentLayoutBlocksStatus');
+  if(!b)return;
+  try{
+    const updated=await api(`/api/document-layout/blocks/${b.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      x_mm:b.x_mm,y_mm:newY,width_mm:b.width_mm,height_mm:b.height_mm,content:b.content,
+      font_size:b.font_size,font_weight:b.font_weight,text_align:b.text_align,visible:b.visible,
+    })});
+    documentLayoutBlocks.continuation_header=updated;
+    st.textContent='Gespeichert.';
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+
+async function saveMaintenanceSettings(){
+  const st=document.getElementById('maintenanceSettingsStatus');
+  const leadDays=Number(document.getElementById('maintenanceLeadDays').value||0);
+  const empId=document.getElementById('maintenanceDefaultEmployee').value;
+  const useRoofAreaItems=document.getElementById('maintenanceUseRoofAreaItems').checked;
+  try{
+    await api('/api/maintenance-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reminder_lead_days:leadDays,use_roof_area_items:useRoofAreaItems,default_responsible_employee_id:empId?Number(empId):null})});
+    st.textContent='Gespeichert.';
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+
+let taskColumns=[];
+async function loadTaskSection(){
+  const entry=moduleStates.find(m=>m.module_key==='aufgabenmanagement');
+  const isEnabled=entry?entry.enabled:true;
+  document.getElementById('taskModuleDisabledNotice').style.display=isEnabled?'none':'block';
+  document.getElementById('taskModuleContent').style.display=isEnabled?'block':'none';
+  if(!isEnabled)return;
+  try{
+    const ts=await api('/api/task-settings');
+    document.getElementById('notifyOnAssignment').checked=!!ts.notify_on_assignment;
+    taskColumns=await api('/api/task-columns');renderTaskColumns();
+  }catch(e){document.getElementById('taskColumnStatus').textContent='Fehler: '+e.message}
+}
+async function saveTaskSettings(){
+  const st=document.getElementById('taskSettingsStatus');
+  const checked=document.getElementById('notifyOnAssignment').checked;
+  try{await api('/api/task-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({notify_on_assignment:checked})});st.textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}
+}
+function renderTaskColumns(){
+  document.getElementById('taskColumnRows').innerHTML=taskColumns.length?taskColumns.map((c,i)=>`<div class="field" style="display:flex;align-items:center;gap:8px">
+    <input value="${esc(c.label)}" style="flex:1" onblur="saveTaskColumnLabel(${c.id},this.value)">
+    <label style="display:flex;align-items:center;gap:6px;font-weight:600;white-space:nowrap"><input type="checkbox" style="width:auto" ${c.is_done?'checked':''} onchange="toggleTaskColumnDone(${c.id},this.checked)"> zählt als erledigt</label>
+    <button type="button" class="secondary" ${i===0?'disabled':''} onclick="moveTaskColumn(${i},-1)">↑</button>
+    <button type="button" class="secondary" ${i===taskColumns.length-1?'disabled':''} onclick="moveTaskColumn(${i},1)">↓</button>
+    <button type="button" class="danger" onclick="deleteTaskColumn(${c.id})">×</button>
+  </div>`).join(''):'<div class="muted small">Keine Spalten vorhanden.</div>';
+}
+async function saveTaskColumnLabel(id,value){
+  const label=value.trim();
+  if(!label){renderTaskColumns();return}
+  const st=document.getElementById('taskColumnStatus');
+  try{await api(`/api/task-columns/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})});taskColumns=await api('/api/task-columns');renderTaskColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+}
+async function toggleTaskColumnDone(id,checked){
+  const st=document.getElementById('taskColumnStatus');
+  try{await api(`/api/task-columns/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_done:checked})});taskColumns=await api('/api/task-columns');st.textContent=''}catch(e){st.textContent='Fehler: '+e.message;renderTaskColumns()}
+}
+async function moveTaskColumn(index,dir){
+  const target=index+dir;
+  if(target<0||target>=taskColumns.length)return;
+  const ids=taskColumns.map(c=>c.id);
+  [ids[index],ids[target]]=[ids[target],ids[index]];
+  const st=document.getElementById('taskColumnStatus');
+  try{taskColumns=await api('/api/task-columns/reorder',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordered_ids:ids})});renderTaskColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+}
+async function deleteTaskColumn(id){
+  if(!confirm('Diese Spalte wirklich löschen?'))return;
+  const st=document.getElementById('taskColumnStatus');
+  try{await api(`/api/task-columns/${id}`,{method:'DELETE'});taskColumns=await api('/api/task-columns');renderTaskColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+}
+async function addTaskColumn(){
+  const input=document.getElementById('newTaskColumnLabel');
+  const label=input.value.trim();
+  const st=document.getElementById('taskColumnStatus');
+  if(!label){st.textContent='Bitte eine Bezeichnung angeben.';return}
+  try{await api('/api/task-columns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})});input.value='';taskColumns=await api('/api/task-columns');renderTaskColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+}
+
+function renderPaymentTerms(){document.getElementById('paymentTermRows').innerHTML=paymentTerms.length?paymentTerms.map(x=>`<tr><td><b>${esc(x.label)}</b>${x.text_template?'<div class="muted small">eigener Text hinterlegt</div>':''}</td><td>${x.days}</td><td>${x.skonto_percent?`${String(x.skonto_percent).replace('.',',')} % bei ${x.skonto_days} Tagen`:'<span class="muted">—</span>'}</td><td>${x.is_default?'<span class="badge">Standard</span>':(x.archived?'Archiviert':'Aktiv')}</td><td><button class="secondary" onclick="editPaymentTerm(${x.id})">Bearbeiten</button> ${x.is_default?'':x.archived?`<button class="secondary" onclick="unarchivePaymentTerm(${x.id})">Wiederherstellen</button>`:`<button class="secondary" onclick="setDefaultPaymentTerm(${x.id})">Als Standard</button> <button class="danger" onclick="archivePaymentTerm(${x.id})">Archivieren</button>`}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">Noch keine Zahlungsbedingung hinterlegt.</td></tr>'}
+function showPaymentTermEditor(){document.getElementById('paymentTermEditorPanel').style.display='block';document.getElementById('ptLabel').focus()}
+function hidePaymentTermEditor(){resetPaymentTermForm();document.getElementById('paymentTermEditorPanel').style.display='none'}
+function editPaymentTerm(id){const t=paymentTerms.find(x=>x.id===id);if(!t)return;editingPaymentTermId=id;setv('ptLabel',t.label);setv('ptDays',String(t.days));setv('ptSkontoPercent',t.skonto_percent??'');setv('ptSkontoDays',t.skonto_days??'');setv('ptTextTemplate',t.text_template||'');document.getElementById('paymentTermEditorHeading').textContent='Zahlungsbedingung bearbeiten';document.getElementById('paymentTermSave').textContent='Änderungen speichern';document.getElementById('paymentTermStatus').textContent='';showPaymentTermEditor()}
+function resetPaymentTermForm(){editingPaymentTermId=null;setv('ptLabel','');setv('ptDays','');setv('ptSkontoPercent','');setv('ptSkontoDays','');setv('ptTextTemplate','');document.getElementById('paymentTermEditorHeading').textContent='Zahlungsbedingung hinzufügen';document.getElementById('paymentTermSave').textContent='Hinzufügen';document.getElementById('paymentTermStatus').textContent=''}
+async function savePaymentTerm(){const st=document.getElementById('paymentTermStatus');try{const label=v('ptLabel');const days=Number(v('ptDays'));if(!label||isNaN(days))throw Error('Bitte Bezeichnung und Tage angeben.');const skontoPercent=v('ptSkontoPercent')?Number(v('ptSkontoPercent')):null;const skontoDays=v('ptSkontoDays')?Number(v('ptSkontoDays')):null;const textTemplate=v('ptTextTemplate')||null;const url=editingPaymentTermId?`/api/payment-terms/${editingPaymentTermId}`:'/api/payment-terms';await api(url,{method:editingPaymentTermId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,days,skonto_percent:skontoPercent,skonto_days:skontoDays,text_template:textTemplate})});hidePaymentTermEditor();paymentTerms=await api('/api/payment-terms?include_archived=true');renderPaymentTerms()}catch(e){st.textContent='Fehler: '+e.message}}
+async function setDefaultPaymentTerm(id){try{await api(`/api/payment-terms/${id}/set-default`,{method:'POST'});paymentTerms=await api('/api/payment-terms?include_archived=true');renderPaymentTerms()}catch(e){document.getElementById('paymentTermStatus').textContent='Fehler: '+e.message}}
+async function archivePaymentTerm(id){try{await api(`/api/payment-terms/${id}/archive`,{method:'POST'});paymentTerms=await api('/api/payment-terms?include_archived=true');renderPaymentTerms()}catch(e){document.getElementById('paymentTermStatus').textContent='Fehler: '+e.message}}
+async function unarchivePaymentTerm(id){try{await api(`/api/payment-terms/${id}/unarchive`,{method:'POST'});paymentTerms=await api('/api/payment-terms?include_archived=true');renderPaymentTerms()}catch(e){document.getElementById('paymentTermStatus').textContent='Fehler: '+e.message}}
+
+function renderTaxKeys(){document.getElementById('taxKeyRows').innerHTML=taxKeys.length?taxKeys.map(x=>`<tr><td><b>${esc(x.label)}</b>${x.notice_text?'<div class="muted small">Hinweistext hinterlegt</div>':''}</td><td>${String(x.vat_rate).replace('.',',')} %</td><td>${x.is_default?'<span class="badge">Standard</span>':(x.archived?'Archiviert':'Aktiv')}</td><td><button class="secondary" onclick="editTaxKey(${x.id})">Bearbeiten</button> ${x.is_default?'':x.archived?`<button class="secondary" onclick="unarchiveTaxKey(${x.id})">Wiederherstellen</button>`:`<button class="secondary" onclick="setDefaultTaxKey(${x.id})">Als Standard</button> <button class="danger" onclick="archiveTaxKey(${x.id})">Archivieren</button>`}</td></tr>`).join(''):'<tr><td colspan="4" class="muted">Noch kein Steuerschlüssel hinterlegt.</td></tr>'}
+function showTaxKeyEditor(){document.getElementById('taxKeyEditorPanel').style.display='block';document.getElementById('tkLabel').focus()}
+function hideTaxKeyEditor(){resetTaxKeyForm();document.getElementById('taxKeyEditorPanel').style.display='none'}
+function editTaxKey(id){const t=taxKeys.find(x=>x.id===id);if(!t)return;editingTaxKeyId=id;setv('tkLabel',t.label);setv('tkVatRate',String(t.vat_rate));setv('tkNoticeText',t.notice_text||'');document.getElementById('taxKeyEditorHeading').textContent='Steuerschlüssel bearbeiten';document.getElementById('taxKeySave').textContent='Änderungen speichern';document.getElementById('taxKeyStatus').textContent='';showTaxKeyEditor()}
+function resetTaxKeyForm(){editingTaxKeyId=null;setv('tkLabel','');setv('tkVatRate','');setv('tkNoticeText','');document.getElementById('taxKeyEditorHeading').textContent='Steuerschlüssel hinzufügen';document.getElementById('taxKeySave').textContent='Hinzufügen';document.getElementById('taxKeyStatus').textContent=''}
+async function saveTaxKey(){const st=document.getElementById('taxKeyStatus');try{const label=v('tkLabel');const vatRate=Number(v('tkVatRate'));if(!label||isNaN(vatRate))throw Error('Bitte Bezeichnung und MwSt.-Satz angeben.');const noticeText=v('tkNoticeText')||null;const url=editingTaxKeyId?`/api/tax-keys/${editingTaxKeyId}`:'/api/tax-keys';await api(url,{method:editingTaxKeyId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,vat_rate:vatRate,notice_text:noticeText})});hideTaxKeyEditor();taxKeys=await api('/api/tax-keys?include_archived=true');renderTaxKeys()}catch(e){st.textContent='Fehler: '+e.message}}
+async function setDefaultTaxKey(id){try{await api(`/api/tax-keys/${id}/set-default`,{method:'POST'});taxKeys=await api('/api/tax-keys?include_archived=true');renderTaxKeys()}catch(e){document.getElementById('taxKeyStatus').textContent='Fehler: '+e.message}}
+async function archiveTaxKey(id){try{await api(`/api/tax-keys/${id}/archive`,{method:'POST'});taxKeys=await api('/api/tax-keys?include_archived=true');renderTaxKeys()}catch(e){document.getElementById('taxKeyStatus').textContent='Fehler: '+e.message}}
+async function unarchiveTaxKey(id){try{await api(`/api/tax-keys/${id}/unarchive`,{method:'POST'});taxKeys=await api('/api/tax-keys?include_archived=true');renderTaxKeys()}catch(e){document.getElementById('taxKeyStatus').textContent='Fehler: '+e.message}}
+function renderReminderLevels(){document.getElementById('reminderLevelRows').innerHTML=reminderLevels.map(x=>`<div class="option-row"><div class="fields"><div class="field"><label>Bezeichnung</label><input id="rl${x.id}Label" value="${esc(x.label)}"></div><div class="field"><label>Tage${x.level===1?' nach Fälligkeit':' nach vorheriger Mahnung'}</label><input id="rl${x.id}Days" type="number" min="1" value="${x.days_after_previous_step}"></div><div class="field"><label>Mahngebühr €</label><input id="rl${x.id}Fee" type="number" min="0" step="0.01" value="${x.fee_amount}"></div><div class="field" style="display:flex;align-items:flex-end;gap:6px"><label style="display:flex;align-items:center;gap:6px;font-weight:650;margin-bottom:9px"><input id="rl${x.id}Active" type="checkbox" style="width:auto" ${x.active?'checked':''}> Stufe aktiv</label></div></div><div class="field"><label>Mahntext (PDF) <span class="muted small">(Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {offener_betrag} {mahngebuehr} {gesamtbetrag} {neue_frist} {vorheriges_mahndatum})</span></label><textarea id="rl${x.id}Text" rows="4">${esc(x.text_template||'')}</textarea></div><div class="field"><label>E-Mail-Betreff <span class="muted small">(zusätzlich: {mahnstufe}, leer = Standardtext) – auch über "E-Mail-Vorlagen" oben bearbeitbar</span></label><input id="rl${x.id}EmailSubject" value="${esc(x.email_subject_template||'')}" placeholder="${x.level}. Mahnung zu Rechnung {rechnungsnummer}"></div><div class="field"><label>E-Mail-Text <span class="muted small">(kurze Nachricht, Details stehen im PDF-Anhang)</span></label><textarea id="rl${x.id}EmailBody" rows="4" placeholder="Sehr geehrte Damen und Herren, anbei erhalten Sie unsere ${x.level}. Mahnung …">${esc(x.email_body_template||'')}</textarea></div><button onclick="saveReminderLevel(${x.id})">Speichern</button> <span id="rlStatus${x.id}" class="status"></span></div>`).join('');populateReminderLevelEmailOptions()}
+async function saveReminderLevel(id){const st=document.getElementById('rlStatus'+id);try{const label=v('rl'+id+'Label');const days=Number(v('rl'+id+'Days'));const fee=Number(v('rl'+id+'Fee'));if(!label||isNaN(days)||isNaN(fee))throw Error('Bitte Bezeichnung, Tage und Gebühr angeben.');const active=document.getElementById('rl'+id+'Active').checked;const textTemplate=v('rl'+id+'Text')||null;const emailSubject=v('rl'+id+'EmailSubject')||null;const emailBody=v('rl'+id+'EmailBody')||null;await api(`/api/reminder-levels/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,days_after_previous_step:days,fee_amount:fee,text_template:textTemplate,email_subject_template:emailSubject,email_body_template:emailBody,active})});reminderLevels=await api('/api/reminder-levels');renderReminderLevels();document.getElementById('rlStatus'+id).textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
+async function saveAutoCreateSetting(checked){const st=document.getElementById('autoCreateStatus');try{await api('/api/reminder-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({auto_create_drafts:checked})});st.textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
+
+function onEmailSendMethodChange(){
+  const method = document.getElementById('emailSendMethod').value;
+  document.getElementById('smtpMethodFields').style.display = method === 'smtp' ? 'block' : 'none';
+  document.getElementById('graphMethodFields').style.display = method === 'graph_oauth2' ? 'block' : 'none';
+}
+async function loadEmailSettings(){
+  const section = document.getElementById('settings-email-settings');
+  try{
+    const s = await api('/api/email-settings');
+    document.getElementById('emailSendMethod').value = s.send_method || 'smtp';
+    onEmailSendMethodChange();
+    setv('smtpHost', s.host); setv('smtpPort', s.port); setv('smtpUsername', s.username);
+    document.getElementById('smtpEncryption').value = s.encryption;
+    setv('smtpSenderEmail', s.sender_email); setv('smtpSenderName', s.sender_name);
+    document.getElementById('smtpPasswordHint').textContent = s.has_password ? '(gespeichert – leer lassen für unverändert)' : '(noch keins hinterlegt – bitte ausfüllen)';
+    document.getElementById('smtpPassword').placeholder = s.has_password ? 'unverändert lassen' : 'Passwort eingeben';
+    setv('graphTenantId', s.graph_tenant_id); setv('graphClientId', s.graph_client_id); setv('graphSenderMailbox', s.graph_sender_mailbox);
+    document.getElementById('graphSecretHint').textContent = s.has_graph_client_secret ? '(gespeichert – leer lassen für unverändert)' : '(noch keins hinterlegt – bitte ausfüllen)';
+    document.getElementById('graphClientSecret').placeholder = s.has_graph_client_secret ? 'unverändert lassen' : 'Client-Secret eingeben';
+  }catch(e){
+    section.innerHTML = '<div class="section-title"><h2>E-Mail-Versand</h2></div><div class="hint">Diese Einstellung ist nur für Administratoren verfügbar.</div>';
+  }
+}
+async function saveSmtpSettings(){
+  const st = document.getElementById('emailSettingsStatus');
+  try{
+    st.textContent = 'Speichert …';
+    await api('/api/email-settings/method', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({send_method: 'smtp'})});
+    const payload = {
+      host: v('smtpHost'), port: Number(v('smtpPort')), username: v('smtpUsername'),
+      encryption: document.getElementById('smtpEncryption').value,
+      sender_email: v('smtpSenderEmail'), sender_name: v('smtpSenderName') || null,
+      password: v('smtpPassword') || null,
+    };
+    await api('/api/email-settings', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    document.getElementById('smtpPassword').value = '';
+    st.textContent = 'Gespeichert, SMTP ist jetzt der aktive Versandweg.';
+    await loadEmailSettings();
+  }catch(e){ st.textContent = 'Fehler: ' + e.message }
+}
+async function saveGraphSettings(){
+  const st = document.getElementById('emailSettingsStatus');
+  try{
+    st.textContent = 'Speichert …';
+    await api('/api/email-settings/method', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({send_method: 'graph_oauth2'})});
+    const payload = {
+      tenant_id: v('graphTenantId'), client_id: v('graphClientId'),
+      sender_mailbox: v('graphSenderMailbox'), client_secret: v('graphClientSecret') || null,
+    };
+    await api('/api/email-settings/graph', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    document.getElementById('graphClientSecret').value = '';
+    st.textContent = 'Gespeichert, Microsoft 365 ist jetzt der aktive Versandweg.';
+    await loadEmailSettings();
+  }catch(e){ st.textContent = 'Fehler: ' + e.message }
+}
+async function testEmailSettings(){
+  const st = document.getElementById('emailSettingsStatus');
+  st.textContent = 'Teste Verbindung …';
+  try{
+    await api('/api/email-settings/test', {method: 'POST'});
+    st.textContent = 'Verbindung erfolgreich.';
+  }catch(e){ st.textContent = 'Fehlgeschlagen: ' + e.message }
+}
+
+const EMAIL_TEMPLATE_PLACEHOLDER_HINTS = {
+  invoice: 'Verfügbare Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {gesamtbetrag} {kundenname}',
+  quote: 'Verfügbare Platzhalter: {angebotsnummer} {gesamtbetrag} {kundenname}',
+  order: 'Verfügbare Platzhalter: {auftragsnummer} {gesamtbetrag} {kundenname}',
+  reminder: 'Verfügbare Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {offener_betrag} {mahngebuehr} {gesamtbetrag} {neue_frist} {vorheriges_mahndatum} {mahnstufe}',
+};
+function populateReminderLevelEmailOptions(){
+  const select = document.getElementById('emailTemplateType');
+  const previousValue = select.value;
+  [...select.querySelectorAll('option[data-reminder-level]')].forEach(o=>o.remove());
+  reminderLevels.forEach(rl=>{
+    const opt = document.createElement('option');
+    opt.value = 'reminder:'+rl.level;
+    opt.dataset.reminderLevel = rl.level;
+    opt.textContent = 'Mahnung: '+rl.label;
+    select.appendChild(opt);
+  });
+  if([...select.options].some(o=>o.value===previousValue)) select.value = previousValue;
+}
+async function loadEmailTemplate(){
+  const type = document.getElementById('emailTemplateType').value;
+  const st = document.getElementById('emailTemplateStatus');
+  const isReminder = type.startsWith('reminder:');
+  document.getElementById('emailTemplatePlaceholderHint').textContent = EMAIL_TEMPLATE_PLACEHOLDER_HINTS[isReminder?'reminder':type] || '';
+  try{
+    if(isReminder){
+      const level = Number(type.split(':')[1]);
+      const rl = reminderLevels.find(x=>x.level===level);
+      setv('emailTemplateSubject', rl?.email_subject_template);
+      document.getElementById('emailTemplateBody').value = rl?.email_body_template || '';
+    } else {
+      const t = await api(`/api/document-email-templates/${type}`);
+      setv('emailTemplateSubject', t.subject_template);
+      document.getElementById('emailTemplateBody').value = t.body_template || '';
+    }
+    st.textContent = '';
+  }catch(e){ st.textContent = 'Fehler beim Laden: ' + e.message }
+}
+async function saveEmailTemplate(){
+  const type = document.getElementById('emailTemplateType').value;
+  const st = document.getElementById('emailTemplateStatus');
+  const isReminder = type.startsWith('reminder:');
+  try{
+    if(isReminder){
+      const level = Number(type.split(':')[1]);
+      const rl = reminderLevels.find(x=>x.level===level);
+      if(!rl) throw Error('Mahnstufe nicht gefunden.');
+      await api(`/api/reminder-levels/${rl.id}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          label: rl.label, days_after_previous_step: rl.days_after_previous_step, fee_amount: rl.fee_amount,
+          text_template: rl.text_template, active: rl.active,
+          email_subject_template: v('emailTemplateSubject') || null, email_body_template: v('emailTemplateBody') || null,
+        }),
+      });
+      reminderLevels = await api('/api/reminder-levels');
+      renderReminderLevels();  // hält die Mahnstufen-Sektion synchron, da dieselben Felder dort auch angezeigt werden
+    } else {
+      await api(`/api/document-email-templates/${type}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({subject_template: v('emailTemplateSubject') || null, body_template: v('emailTemplateBody') || null}),
+      });
+    }
+    st.textContent = 'Gespeichert.';
+  }catch(e){ st.textContent = 'Fehler: ' + e.message }
+}
+
+function renderPlanningSettings(){if(!planningSettings)return;setv('planningDailyHours',planningSettings.daily_work_hours);setv('planningTravelHours',planningSettings.default_travel_hours_per_employee_day);setv('planningState',planningSettings.federal_state_code||'NW');document.getElementById('planningAutoHolidays').checked=planningSettings.auto_public_holidays!==false;document.getElementById('planningSchoolHolidays').checked=planningSettings.show_school_holidays!==false;document.getElementById('planMon').checked=!!planningSettings.monday;document.getElementById('planTue').checked=!!planningSettings.tuesday;document.getElementById('planWed').checked=!!planningSettings.wednesday;document.getElementById('planThu').checked=!!planningSettings.thursday;document.getElementById('planFri').checked=!!planningSettings.friday;document.getElementById('planSat').checked=!!planningSettings.saturday;document.getElementById('planSun').checked=!!planningSettings.sunday}
+async function savePlanningSettings(){const st=document.getElementById('planningStatus');try{planningSettings=await api('/api/planning/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({daily_work_hours:Number(v('planningDailyHours')||0),default_travel_hours_per_employee_day:Number(v('planningTravelHours')||0),monday:document.getElementById('planMon').checked,tuesday:document.getElementById('planTue').checked,wednesday:document.getElementById('planWed').checked,thursday:document.getElementById('planThu').checked,friday:document.getElementById('planFri').checked,saturday:document.getElementById('planSat').checked,sunday:document.getElementById('planSun').checked,federal_state_code:v('planningState')||'NW',auto_public_holidays:document.getElementById('planningAutoHolidays').checked,show_school_holidays:document.getElementById('planningSchoolHolidays').checked})});st.textContent='Planungsgrundlagen gespeichert.';if(planningSettings.show_school_holidays)await syncSchoolHolidays(false)}catch(e){st.textContent='Fehler: '+e.message}}
+async function syncSchoolHolidays(force){const st=document.getElementById('planningStatus');try{st.textContent='Ferientermine werden aktualisiert …';const y=new Date().getFullYear();const r=await api(`/api/planning/school-holidays/sync?start_year=${y}&years=3&force=${force?'true':'false'}`,{method:'POST'});const bad=(r.results||[]).filter(x=>!x.success);st.textContent=bad.length?`Einstellungen gespeichert. Ferien teilweise nicht aktualisiert (${bad.length} Fehler).`:`Ferientermine ${r.state_name||r.state_code} für ${y}–${y+2} aktualisiert.`}catch(e){st.textContent='Einstellungen gespeichert; Ferien-Synchronisierung nicht möglich: '+e.message}}
+function renderHolidays(){document.getElementById('holidayRows').innerHTML=planningHolidays.map(x=>`<tr><td>${esc(x.holiday_date)}</td><td><b>${esc(x.name)}</b></td><td>${x.active?'Aktiv':'Inaktiv'}</td><td><button class="secondary" onclick="editHoliday(${x.id})">Bearbeiten</button> <button class="danger" onclick="deleteHoliday(${x.id})">Löschen</button></td></tr>`).join('')||'<tr><td colspan="4" class="muted">Noch keine Feiertage / betriebsfreien Tage hinterlegt.</td></tr>'}
+function showHolidayEditor(){document.getElementById('holidayEditorPanel').style.display='block';document.getElementById('holidayDate').focus()}
+function hideHolidayEditor(){resetHoliday();document.getElementById('holidayEditorPanel').style.display='none'}
+function resetHoliday(){editingHolidayId=null;setv('holidayDate','');setv('holidayName','');setv('holidayActive','true');document.getElementById('holidayEditorHeading').textContent='Betriebsfreien Tag hinzufügen';document.getElementById('holidaySave').textContent='Hinzufügen';document.getElementById('holidayStatus').textContent=''}
+function editHoliday(id){const x=planningHolidays.find(y=>y.id===id);if(!x)return;editingHolidayId=id;setv('holidayDate',x.holiday_date);setv('holidayName',x.name);setv('holidayActive',String(x.active));document.getElementById('holidayEditorHeading').textContent='Betriebsfreien Tag bearbeiten';document.getElementById('holidaySave').textContent='Änderungen speichern';document.getElementById('holidayStatus').textContent='';showHolidayEditor()}
+async function saveHoliday(){const st=document.getElementById('holidayStatus');try{const payload={holiday_date:v('holidayDate'),name:v('holidayName'),active:v('holidayActive')==='true'};if(!payload.holiday_date||!payload.name)throw Error('Datum und Bezeichnung sind erforderlich.');await api(editingHolidayId?`/api/planning/holidays/${editingHolidayId}`:'/api/planning/holidays',{method:editingHolidayId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});planningHolidays=await api('/api/planning/holidays');renderHolidays();hideHolidayEditor()}catch(e){st.textContent='Fehler: '+e.message}}
+async function deleteHoliday(id){if(!confirm('Feiertag / betriebsfreien Tag wirklich löschen?'))return;try{await api(`/api/planning/holidays/${id}`,{method:'DELETE'});planningHolidays=await api('/api/planning/holidays');renderHolidays()}catch(e){document.getElementById('holidayStatus').textContent='Fehler: '+e.message}}
+function renderOptionGroups(){const sel=document.getElementById('optionGroupSelect');const old=currentOptionGroup?.group_key||sel.value;sel.innerHTML=optionGroups.map(g=>`<option value="${esc(g.group_key)}">${esc(g.label)}</option>`).join('');if(old&&optionGroups.some(g=>g.group_key===old))sel.value=old;currentOptionGroup=optionGroups.find(g=>g.group_key===sel.value)||optionGroups[0]||null;renderOptions()}
+function selectOptionGroup(){currentOptionGroup=optionGroups.find(g=>g.group_key===v('optionGroupSelect'))||null;hideOptionEditor();renderOptions()}
+function renderOptions(){const g=currentOptionGroup;document.getElementById('optionGroupDescription').textContent=g?.description||'';document.getElementById('optionRows').innerHTML=!g?'<tr><td colspan="3" class="muted">Keine Auswahllisten vorhanden.</td></tr>':g.options.map(o=>`<tr><td><b>${esc(o.label)}</b>${o.is_default?' <span class="badge">Standard</span>':''}<div class="muted small" style="white-space:pre-wrap;margin-top:2px">${esc(o.value)}</div></td><td>${o.active?'Aktiv':'Inaktiv'}</td><td><button class="secondary" onclick="editOption(${o.id})">Bearbeiten</button> <button class="danger" onclick="deleteOption(${o.id})">Löschen</button></td></tr>`).join('')||'<tr><td colspan="3" class="muted">Noch keine Einträge. Mit "+ Eintrag" den ersten Wert anlegen.</td></tr>'}
+function showOptionEditor(){document.getElementById('optionEditorPanel').style.display='block';document.getElementById('optionLabel').focus()}
+function hideOptionEditor(){resetOptionEditor();document.getElementById('optionEditorPanel').style.display='none'}
+function resetOptionEditor(){editingOptionId=null;setv('optionLabel','');setv('optionValue','');setv('optionSort','100');setv('optionActive','true');setv('optionDefault','false');document.getElementById('optionEditorHeading').textContent='Eintrag hinzufügen';document.getElementById('optionSaveButton').textContent='Hinzufügen';document.getElementById('optionStatus').textContent=''}
+function editOption(id){const o=currentOptionGroup?.options.find(x=>x.id===id);if(!o)return;editingOptionId=id;setv('optionLabel',o.label);setv('optionValue',o.value);setv('optionSort',o.sort_order);setv('optionActive',String(o.active));setv('optionDefault',String(o.is_default));document.getElementById('optionEditorHeading').textContent='Eintrag bearbeiten';document.getElementById('optionSaveButton').textContent='Änderungen speichern';showOptionEditor()}
+async function saveOption(){const s=document.getElementById('optionStatus');try{if(!currentOptionGroup)throw Error('Keine Auswahlliste ausgewählt.');const payload={label:v('optionLabel'),value:v('optionValue'),sort_order:Number(v('optionSort')||100),active:v('optionActive')==='true',is_default:v('optionDefault')==='true'};if(!payload.label||!payload.value)throw Error('Bezeichnung und Wert sind erforderlich.');const url=`/api/settings/option-groups/${currentOptionGroup.group_key}/options${editingOptionId?'/'+editingOptionId:''}`;await api(url,{method:editingOptionId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});editingOptionId=null;await load();currentOptionGroup=optionGroups.find(g=>g.group_key===v('optionGroupSelect'))||currentOptionGroup;renderOptions();hideOptionEditor()}catch(e){s.textContent='Fehler: '+e.message}}
+async function deleteOption(id){if(!confirm('Eintrag wirklich löschen? Bestehende Dokumente behalten ihren bereits gespeicherten Wert.'))return;const s=document.getElementById('optionStatus');try{await api(`/api/settings/option-groups/${currentOptionGroup.group_key}/options/${id}`,{method:'DELETE'});s.textContent='Gelöscht.';await load()}catch(e){s.textContent='Fehler: '+e.message}}
+function renderEmployeeFunctions(){document.getElementById('functionRows').innerHTML=employeeFunctions.map(f=>`<tr><td><b>${esc(f.name)}</b>${f.description?`<div class="muted small">${esc(f.description)}</div>`:''}</td><td>${f.employee_group==='gewerblich'?'Gewerblich':'Kaufmännisch'}</td><td>${f.sort_order}</td><td>${f.active?'Aktiv':'Inaktiv'}</td><td><button class="secondary" onclick="editEmployeeFunction(${f.id})">Bearbeiten</button> <button class="danger" onclick="deleteEmployeeFunction(${f.id})">Löschen</button></td></tr>`).join('')||'<tr><td colspan="5" class="muted">Noch keine Funktionen hinterlegt.</td></tr>'}
+function showFunctionEditor(){document.getElementById('functionEditorPanel').style.display='block';document.getElementById('functionName').focus()}
+function hideFunctionEditor(){resetEmployeeFunction();document.getElementById('functionEditorPanel').style.display='none'}
+function resetEmployeeFunction(){editingFunctionId=null;setv('functionName','');setv('functionGroup','gewerblich');setv('functionSort','100');setv('functionActive','true');setv('functionDescription','');document.getElementById('functionEditorHeading').textContent='Funktion hinzufügen';document.getElementById('functionSaveButton').textContent='Hinzufügen';document.getElementById('functionStatus').textContent=''}
+function editEmployeeFunction(id){const f=employeeFunctions.find(x=>x.id===id);if(!f)return;editingFunctionId=id;setv('functionName',f.name);setv('functionGroup',f.employee_group);setv('functionSort',f.sort_order);setv('functionActive',String(f.active));setv('functionDescription',f.description);document.getElementById('functionEditorHeading').textContent='Funktion bearbeiten';document.getElementById('functionSaveButton').textContent='Änderungen speichern';document.getElementById('functionStatus').textContent='';showFunctionEditor()}
+async function saveEmployeeFunction(){const s=document.getElementById('functionStatus');try{const payload={name:v('functionName'),employee_group:v('functionGroup'),description:nv('functionDescription'),sort_order:Number(v('functionSort')||100),active:v('functionActive')==='true'};if(!payload.name)throw new Error('Bitte eine Funktion/Tätigkeit eingeben.');await api(editingFunctionId?`/api/settings/employee-functions/${editingFunctionId}`:'/api/settings/employee-functions',{method:editingFunctionId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});hideFunctionEditor();await load()}catch(e){s.textContent='Fehler: '+e.message}}
+async function deleteEmployeeFunction(id){if(!confirm('Funktion/Tätigkeit wirklich löschen? Zugeordnete Funktionen können nicht gelöscht werden.'))return;const s=document.getElementById('functionStatus');try{await api(`/api/settings/employee-functions/${id}`,{method:'DELETE'});s.textContent='Gelöscht.';await load()}catch(e){s.textContent='Fehler: '+e.message}}
+function renderSequences(){document.getElementById('sequences').innerHTML=sequences.map(s=>`<div class="sequence" data-key="${esc(s.sequence_key)}"><div class="seq-grid"><div class="field"><label>${esc(s.label)} · Format</label><input class="format" value="${esc(s.format_pattern)}"></div><div class="field"><label>Startnummer</label><input class="start" type="number" min="0" value="${s.start_value}"></div><div class="field"><label>Nächste Nr.</label><input class="next" type="number" min="0" value="${s.next_value}"></div><div class="field"><label>Jahreswechsel</label><select class="reset"><option value="false" ${!s.reset_yearly?'selected':''}>fortlaufend</option><option value="true" ${s.reset_yearly?'selected':''}>auf Startnummer zurück</option></select></div><div class="field"><label>Vorschau</label><div class="preview">${esc(s.preview||'—')}</div></div><button onclick="saveSequence('${esc(s.sequence_key)}')">Speichern</button></div><div class="seqStatus status"></div></div>`).join('')}
+async function saveSequence(key){const row=document.querySelector(`.sequence[data-key="${key}"]`),status=row.querySelector('.seqStatus');try{const d=await api(`/api/settings/number-sequences/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({format_pattern:row.querySelector('.format').value.trim(),start_value:Number(row.querySelector('.start').value),next_value:Number(row.querySelector('.next').value),reset_yearly:row.querySelector('.reset').value==='true'})});status.textContent=`Gespeichert. Nächste Vorschau: ${d.preview}`;await load()}catch(e){status.textContent='Fehler: '+e.message}}
+async function saveGeneral(){const s=document.getElementById('generalStatus');try{await api('/api/settings/general',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_name:v('companyName'),managing_director:nv('managingDirector'),street:nv('companyStreet'),postal_code:nv('companyZip'),city:nv('companyCity'),country:v('companyCountry')||'Deutschland',phone:nv('companyPhone'),email:nv('companyEmail'),website:nv('companyWebsite'),tax_number:nv('taxNumber'),vat_id:nv('vatId'),register_court:nv('registerCourt'),register_number:nv('registerNumber'),iban:nv('iban'),bic:nv('bic'),default_vat_rate:Number(v('defaultVat')||19),default_quote_intro:nv('quoteIntro'),default_quote_outro:nv('quoteOutro')})});s.textContent='Unternehmensstammdaten gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
+function money(x){return x==null?'—':Number(x).toLocaleString('de-DE',{style:'currency',currency:'EUR'})}
+function num(x){return x==null?'—':Number(x).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function syncOverheadLabels(){const fm=v('fixedOverheadMode')||'eur',vm=v('variableOverheadMode')||'eur';document.getElementById('fixedOverheadValueLabel').textContent=fm==='pct'?'Fixe Gemeinkosten %':'Fixe Gemeinkosten € / Jahr';document.getElementById('fixedOverheadHelp').textContent=fm==='pct'?'Prozent der direkten Jahreslohnkosten inkl. AG-Lohnnebenkosten.':'Jährlicher Euro-Betrag.';document.getElementById('variableOverheadValueLabel').textContent=vm==='pct'?'Zusätzliche variable Gemeinkosten %':'Zusätzliche variable Gemeinkosten € / Jahr';document.getElementById('variableOverheadHelp').textContent=vm==='pct'?'Prozent der direkten Jahreslohnkosten inkl. AG-Lohnnebenkosten; Personalkosten der zugeordneten Mitarbeiter kommen zusätzlich hinzu.':'Zusätzlicher jährlicher Euro-Betrag; Personalkosten der zugeordneten Mitarbeiter kommen zusätzlich hinzu.'}
+function renderLaborRate(r){const el=document.getElementById('laborRateResult');if(!r.can_calculate){el.innerHTML=`<div class="metric" style="grid-column:1/-1"><div class="k">Berechnung noch nicht möglich</div><div class="val" style="font-size:14px">${esc(r.note||'Keine Daten')}</div></div>`;document.getElementById('laborRateApply').innerHTML='<b>Hinweis:</b> Lege mindestens einen aktiven Mitarbeiter an, der der Kosten-Zuordnung „Stundenkostenverrechnungssatz / direkte Lohnkosten“ zugeordnet ist.';return}
+  const vals=[['Direkte Mitarbeiter',r.direct_employee_count],['Mitarbeiter variable GK',r.variable_overhead_employee_count],['Gewichteter Mittellohn',money(r.weighted_mean_wage)+'/h'],['Produktive Jahresstunden',num(r.annual_productive_hours)+' h'],['Direkte Jahresbruttolöhne',money(r.annual_gross_wages)],['AG-Nebenkosten direkt',money(r.annual_employer_costs)],['Direkte Lohnkosten gesamt',money(r.direct_labor_annual_cost)],['Lohnkosten / produktive h',money(r.labor_cost_per_productive_hour)],['Fixe GK / Jahr',money(r.fixed_overhead_annual)],['Fixe GK / produktive h',money(r.fixed_overhead_per_productive_hour)],['Variable MA-Kosten / Jahr',money(r.variable_employee_costs)],['Zusätzliche variable GK / Jahr',money(r.manual_variable_overhead_annual)],['Variable GK gesamt / Jahr',money(r.variable_overhead_annual)],['Variable GK / produktive h',money(r.variable_overhead_per_productive_hour)],['GK gesamt / produktive h',money(r.overhead_per_productive_hour)],['Selbstkosten / h',money(r.self_cost_per_hour)],['Wagnis & Gewinn / h',money(r.target_profit_per_hour)],['Aktueller Satz',money(r.current_labor_rate)],['Abweichung',money(r.difference_to_current)]];el.innerHTML=vals.map(([k,x])=>`<div class="metric"><div class="k">${k}</div><div class="val">${x}</div></div>`).join('');document.getElementById('laborRateApply').innerHTML=`<div class="muted small">Ermittelter Stundenkostenverrechnungssatz</div><div style="font-size:28px;font-weight:900;margin:3px 0 10px">${money(r.suggested_labor_rate)} / h</div><button onclick="applyLaborRate()">Als aktuellen Verrechnungssatz übernehmen</button>`}
+async function refreshLaborRate(){renderLaborRate(await api('/api/labor-rate-calculation'))}
+async function saveLaborRateSettings(){const s=document.getElementById('laborRateStatus');try{await api('/api/labor-rate-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({employer_cost_pct:Number(v('employerCostPct')||0),productive_time_pct:Number(v('productiveTimePct')||0),fixed_overhead_mode:v('fixedOverheadMode')||'eur',fixed_overhead_value:Number(v('fixedOverheadValue')||0),variable_overhead_mode:v('variableOverheadMode')||'eur',variable_overhead_value:Number(v('variableOverheadValue')||0),target_profit_pct:Number(v('targetProfitPct')||0),weeks_per_year:Number(v('weeksPerYear')||52)})});s.textContent='Rechengrundlagen gespeichert.';await refreshLaborRate()}catch(e){s.textContent='Fehler: '+e.message}}
+async function applyLaborRate(){const s=document.getElementById('laborRateStatus');try{const c=await api('/api/labor-rate-calculation/apply',{method:'POST'});setv('laborRate',c.labor_rate);s.textContent=`${money(c.labor_rate)}/h als aktueller Stundenkostenverrechnungssatz übernommen.`;await refreshLaborRate()}catch(e){s.textContent='Fehler: '+e.message}}
+async function saveCalculation(){const s=document.getElementById('calcStatus');try{await api('/api/calculation-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({labor_rate:Number(v('laborRate')||0),material_markup_pct:Number(v('materialMarkup')||0),overhead_pct:Number(v('overhead')||0),risk_profit_pct:Number(v('riskProfit')||0),use_source_time_as_minutes:document.getElementById('sourceMinutes').checked})});s.textContent='Kalkulationsgrundlagen gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
+function isHexColor(x){return /^#[0-9a-fA-F]{6}$/.test(x)}
+function whiteContrastRatio(hex){const r=parseInt(hex.slice(1,3),16)/255,g=parseInt(hex.slice(3,5),16)/255,b=parseInt(hex.slice(5,7),16)/255;const lin=c=>c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4);const L=0.2126*lin(r)+0.7152*lin(g)+0.0722*lin(b);return 1.05/(L+0.05)}
+function checkAccentContrast(hex){const warn=document.getElementById('accentContrastWarning');if(!warn)return;warn.textContent=isHexColor(hex)&&whiteContrastRatio(hex)<3?'Hinweis: Diese Farbe ist sehr hell – weißer Button-Text könnte schwer lesbar sein.':''}
+function previewAccentColor(hex){if(isHexColor(hex)){document.documentElement.style.setProperty('--accent',hex);checkAccentContrast(hex)}}
+async function loadAppearance(){try{const a=await api('/api/settings/appearance');setv('accentColorText',a.accent_color);document.getElementById('accentColorPicker').value=a.accent_color;checkAccentContrast(a.accent_color)}catch(e){}}
+async function saveAccentColor(){const s=document.getElementById('accentColorStatus');const hex=v('accentColorText');if(!isHexColor(hex)){s.textContent='Fehler: bitte einen gültigen Hex-Farbwert eingeben (z. B. #0d9488).';return}try{await api('/api/settings/appearance',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({accent_color:hex})});s.textContent='Gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
+document.getElementById('accentColorPicker').addEventListener('input',function(){setv('accentColorText',this.value);previewAccentColor(this.value)});
+document.getElementById('accentColorText').addEventListener('input',function(){if(isHexColor(this.value)){document.getElementById('accentColorPicker').value=this.value;previewAccentColor(this.value)}});
+showSettingsSection(settingsSectionFromHash(),false);
+load().catch(e=>alert('Einstellungen konnten nicht geladen werden: '+e.message));
+loadEmailSettings();
+loadEmailTemplate();
+loadAppearance();
+</script>
+</body>
+</html>

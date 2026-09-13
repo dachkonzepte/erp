@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DACHKONZEPTE ERP – Adressimport</title>
+  <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+    :root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+    *{box-sizing:border-box}body{margin:0}main{max-width:1500px;margin:0;padding:22px}
+    .card{background:var(--card);border:1px solid var(--line);padding:18px;margin-bottom:18px}
+    .card h2{margin-top:0}
+    .section-title{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+    .back{color:var(--accent);text-decoration:none;font-weight:650;display:inline-block;margin-bottom:12px}
+    button{background:var(--accent);color:#fff;border:1px solid var(--accent);padding:9px 15px;cursor:pointer;font-weight:650;font-size:13.5px}
+    button:hover{background:color-mix(in srgb,var(--accent) 85%,black)}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
+    .danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
+    input,select{padding:9px 11px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:13.5px}
+    input:hover,select:hover{border-color:var(--field-border-hover)}
+    .muted{color:var(--muted)}.small{font-size:12px}
+    .summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}
+    .metric{background:var(--soft);border:1px solid var(--line);padding:12px}
+    .metric .k{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase}
+    .metric .v{font-size:20px;font-weight:800;margin-top:3px}
+    table{width:100%;border-collapse:collapse;font-size:12.5px}
+    th,td{text-align:left;padding:8px 7px;border-bottom:1px solid var(--line);vertical-align:top}
+    th{color:var(--muted);font-size:10.5px;text-transform:uppercase;font-weight:700}
+    .table-wrap{overflow:auto;max-height:520px}
+    .pill{display:inline-block;padding:2px 8px;background:var(--soft);border:1px solid var(--line);font-size:10.5px}
+    .pill.customer{color:var(--success);border-color:color-mix(in srgb,var(--success) 40%,var(--line))}
+    .pill.supplier{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+    .pill.unassigned{color:var(--warning);border-color:color-mix(in srgb,var(--warning) 40%,var(--line))}
+    .pill.duplicate{color:var(--muted)}
+    .note{color:var(--warning);font-size:11px}
+    .status{margin-left:8px;font-size:12.5px;color:var(--muted);font-weight:600}
+    .status.err{color:var(--danger)}.status.ok{color:var(--success)}
+    .hidden{display:none!important}
+    .worklist-row{border:1px solid var(--line);padding:10px;margin-bottom:8px}
+    .worklist-row .fields{font-size:12.5px;margin-bottom:8px}
+    .worklist-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .worklist-actions select{max-width:280px}
+    @media(max-width:900px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  </style>
+</head>
+<body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+  <a class="back" href="#" onclick="history.back();return false">← Einstellungen</a>
+
+  <section class="card">
+    <h2>Adressimport aus dem Altsystem</h2>
+    <p class="muted small">CSV oder Excel (.xlsx) mit den Spalten Adresse, Kunde, Lieferant, Anrede, Titel, Vorname, Name, Straße, Land, PLZ, Ort, Telefon, Fax, Mobil, Mail. Zeilen mit Kundennummer werden Kunden, Zeilen mit Lieferantennummer werden Lieferanten, alle übrigen landen in der Arbeitsliste unten zur manuellen Zuordnung. Ein erneuter Import derselben Datei überspringt bereits übernommene Adressnummern automatisch.</p>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <input id="fileInput" type="file" accept=".csv,.xlsx">
+      <button onclick="uploadFile()">Datei hochladen</button>
+      <span id="uploadStatus" class="status"></span>
+    </div>
+  </section>
+
+  <section class="card hidden" id="previewCard">
+    <div class="section-title"><h2 style="margin:0">Vorschau: <span id="previewFilename"></span></h2></div>
+    <div class="summary">
+      <div class="metric"><div class="k">Kunden</div><div class="v" id="countCustomers">0</div></div>
+      <div class="metric"><div class="k">Lieferanten</div><div class="v" id="countSuppliers">0</div></div>
+      <div class="metric"><div class="k">Unzugeordnet</div><div class="v" id="countUnassigned">0</div></div>
+      <div class="metric"><div class="k">Bereits importiert (übersprungen)</div><div class="v" id="countDuplicates">0</div></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Zeile</th><th>Adressnr.</th><th>Name</th><th>Ort</th><th>Klassifikation</th><th>Hinweise</th></tr></thead>
+        <tbody id="previewRows"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+      <button onclick="confirmPreview()">Import bestätigen</button>
+      <button class="secondary" onclick="discardPreview()">Verwerfen</button>
+      <span id="confirmStatus" class="status"></span>
+    </div>
+  </section>
+
+  <section class="card" id="worklistCard">
+    <div class="section-title"><div><h2 style="margin:0 0 4px">Nicht zuordenbare Adressen</h2><div class="muted small">Weder Kunden- noch Lieferantennummer im Altsystem -- Interessenten oder Objektanschriften, manuell zu entscheiden.</div></div><div style="width:min(320px,100%)"><input id="worklistSearch" placeholder="Suchen …" oninput="renderWorklist()"></div></div>
+    <div id="worklistEmpty" class="muted small hidden">Nichts offen -- alle Adressen aus dem Import sind zugeordnet oder verworfen.</div>
+    <div id="worklistRows"></div>
+  </section>
+
+  <section class="card">
+    <div class="section-title"><h2 style="margin:0">Importläufe</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Datum</th><th>Datei</th><th>Kunden</th><th>Lieferanten</th><th>Unzugeordnet</th><th>Übersprungen</th><th>Status</th><th></th></tr></thead>
+        <tbody id="runRows"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+</div>
+</div>
+<script>
+let customers = [];
+let worklist = [];
+let latestPreview = null;
+const esc = s => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+async function api(url, options = {}) {
+  const r = await fetch(url, options);
+  let d = null; try { d = await r.json(); } catch (_) {}
+  if (!r.ok) throw new Error(Array.isArray(d?.detail) ? d.detail.map(x => x.msg).join(', ') : (d?.detail || r.statusText || 'Fehler'));
+  return d;
+}
+const CLASS_LABELS = {customer: 'Kunde', supplier: 'Lieferant', unassigned: 'Unzugeordnet', duplicate: 'Bereits importiert'};
+
+async function uploadFile() {
+  const input = document.getElementById('fileInput'), status = document.getElementById('uploadStatus');
+  if (!input.files.length) { status.textContent = 'Bitte zuerst eine Datei auswählen.'; status.className = 'status err'; return; }
+  status.textContent = 'Wird eingelesen …'; status.className = 'status';
+  const form = new FormData(); form.append('file', input.files[0]);
+  try {
+    const preview = await api('/api/address-import/upload', { method: 'POST', body: form });
+    latestPreview = { filename: input.files[0].name };
+    renderPreview(preview);
+    status.textContent = ''; document.getElementById('confirmStatus').textContent = '';
+  } catch (e) { status.textContent = 'Fehler: ' + e.message; status.className = 'status err'; }
+}
+
+function renderPreview(preview) {
+  document.getElementById('previewCard').classList.remove('hidden');
+  document.getElementById('previewFilename').textContent = latestPreview ? latestPreview.filename : '';
+  document.getElementById('countCustomers').textContent = preview.counts.customer || 0;
+  document.getElementById('countSuppliers').textContent = preview.counts.supplier || 0;
+  document.getElementById('countUnassigned').textContent = preview.counts.unassigned || 0;
+  document.getElementById('countDuplicates').textContent = preview.counts.duplicate || 0;
+  document.getElementById('previewRows').innerHTML = preview.rows.map(r => `<tr><td>${r.row_number}</td><td>${esc(r.legacy_address_number || '—')}</td><td>${esc([r.first_name, r.last_name].filter(Boolean).join(' ') || '—')}</td><td>${esc(r.city || '—')}</td><td><span class="pill ${r.classification}">${CLASS_LABELS[r.classification] || r.classification}</span></td><td class="note">${esc(r.validation_notes || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Keine Zeilen.</td></tr>';
+}
+
+async function loadPendingPreview() {
+  const preview = await api('/api/address-import/preview');
+  if (preview.total > 0) renderPreview(preview);
+}
+
+async function confirmPreview() {
+  const status = document.getElementById('confirmStatus');
+  status.textContent = 'Wird gespeichert …'; status.className = 'status';
+  try {
+    const filename = latestPreview ? latestPreview.filename : 'import.csv';
+    const result = await api('/api/address-import/confirm?filename=' + encodeURIComponent(filename), { method: 'POST' });
+    status.textContent = `Übernommen: ${result.row_count_customers} Kunde(n), ${result.row_count_suppliers} Lieferant(en), ${result.row_count_unassigned} unzugeordnet, ${result.row_count_skipped_duplicates} übersprungen.`;
+    status.className = 'status ok';
+    document.getElementById('previewCard').classList.add('hidden');
+    document.getElementById('fileInput').value = '';
+    await Promise.all([loadWorklist(), loadRuns()]);
+  } catch (e) { status.textContent = 'Fehler: ' + e.message; status.className = 'status err'; }
+}
+
+async function discardPreview() {
+  await api('/api/address-import/discard-preview', { method: 'POST' });
+  document.getElementById('previewCard').classList.add('hidden');
+  document.getElementById('fileInput').value = '';
+  document.getElementById('confirmStatus').textContent = '';
+}
+
+async function loadWorklist(search) {
+  worklist = await api('/api/address-import/unassigned' + (search ? '?search=' + encodeURIComponent(search) : ''));
+  renderWorklist();
+}
+
+function renderWorklist() {
+  const q = document.getElementById('worklistSearch').value.trim();
+  if (q) { loadWorklist(q); return; }
+  const empty = document.getElementById('worklistEmpty');
+  empty.classList.toggle('hidden', worklist.length > 0);
+  const customerOptions = '<option value="">Kunde wählen …</option>' + customers.map(c => `<option value="${c.id}">${esc(c.customer_number)} · ${esc(c.name)}</option>`).join('');
+  document.getElementById('worklistRows').innerHTML = worklist.map(r => `
+    <div class="worklist-row">
+      <div class="fields"><b>${esc([r.first_name, r.last_name].filter(Boolean).join(' ') || 'Ohne Namen')}</b> · ${esc(r.street || '—')}, ${esc(r.postal_code || '')} ${esc(r.city || '')} · ${esc(r.phone || r.mobile || '—')} · ${esc(r.email || '—')} <span class="muted">Adressnr. ${esc(r.legacy_address_number || '—')}</span></div>
+      <div class="worklist-actions">
+        <select id="worklistCustomer-${r.id}">${customerOptions}</select>
+        <button class="secondary" onclick="assignAsProperty(${r.id})">Als Objekt zuordnen</button>
+        <button class="secondary" onclick="createAsCustomer(${r.id})">Als neuen Kunden anlegen</button>
+        <button class="danger" onclick="discardWorklistRow(${r.id})">Verwerfen</button>
+      </div>
+    </div>`).join('');
+}
+
+async function assignAsProperty(id) {
+  const sel = document.getElementById('worklistCustomer-' + id);
+  if (!sel.value) { alert('Bitte zuerst einen Kunden auswählen.'); return; }
+  try { await api(`/api/address-import/unassigned/${id}/assign-property?customer_id=${sel.value}`, { method: 'POST' }); await loadWorklist(); }
+  catch (e) { alert('Fehler: ' + e.message); }
+}
+async function createAsCustomer(id) {
+  try { await api(`/api/address-import/unassigned/${id}/create-customer`, { method: 'POST' }); await loadWorklist(); }
+  catch (e) { alert('Fehler: ' + e.message); }
+}
+async function discardWorklistRow(id) {
+  if (!confirm('Diese Adresse wirklich verwerfen? Sie erscheint dann nicht mehr in der Arbeitsliste.')) return;
+  try { await api(`/api/address-import/unassigned/${id}/discard`, { method: 'POST' }); await loadWorklist(); }
+  catch (e) { alert('Fehler: ' + e.message); }
+}
+
+async function loadRuns() {
+  const runs = await api('/api/address-import/runs');
+  document.getElementById('runRows').innerHTML = runs.map(r => `<tr><td>${new Date(r.created_at + 'Z').toLocaleString('de-DE')}</td><td>${esc(r.source_filename)}</td><td>${r.row_count_customers}</td><td>${r.row_count_suppliers}</td><td>${r.row_count_unassigned}</td><td>${r.row_count_skipped_duplicates}</td><td>${r.status === 'reverted' ? '<span class="pill">Rückgängig gemacht</span>' : '<span class="pill customer">Abgeschlossen</span>'}</td><td>${r.can_revert ? `<button class="danger" onclick="revertRun(${r.id})">Rückgängig machen</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Noch keine Importläufe.</td></tr>';
+}
+
+async function revertRun(id) {
+  if (!confirm('Diesen Importlauf wirklich vollständig rückgängig machen? Alle dabei angelegten Kunden/Lieferanten werden gelöscht.')) return;
+  try { await api(`/api/address-import/runs/${id}/revert`, { method: 'POST' }); await Promise.all([loadRuns(), loadWorklist()]); }
+  catch (e) { alert('Fehler: ' + e.message); }
+}
+
+async function init() {
+  customers = await api('/api/customers');
+  await Promise.all([loadPendingPreview(), loadWorklist(), loadRuns()]);
+}
+init().catch(e => { document.getElementById('uploadStatus').textContent = 'Startfehler: ' + e.message; document.getElementById('uploadStatus').className = 'status err'; });
+</script>
+</body>
+</html>

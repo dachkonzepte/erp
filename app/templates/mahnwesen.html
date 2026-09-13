@@ -1,0 +1,236 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP · Mahnwesen</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}main{padding:18px;max-width:1400px;margin:0}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+h1{margin:0 0 4px;color:var(--ink)}h2{margin:0 0 4px;color:var(--ink)}.muted{color:var(--muted)}.small{font-size:12px}
+.metrics{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.metric{background:var(--card);border:1px solid var(--line);padding:12px 16px;min-width:140px}
+.metric small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:800}
+.metric b{font-size:19px;color:var(--ink)}
+table{width:100%;border-collapse:collapse}th{text-align:left;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800;padding:8px;border-bottom:2px solid var(--line)}
+td{padding:10px 8px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top}
+.number{text-align:right}
+.pill{background:var(--soft);padding:4px 9px;font-size:11px;font-weight:800;display:inline-block}
+.pill.overdue{background:var(--danger-soft);color:var(--danger)}
+.pill.entwurf{background:var(--warning-soft);color:var(--warning)}
+a.link{color:var(--accent);font-weight:700;text-decoration:none}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+.row-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+button{font-family:inherit;cursor:pointer;padding:6px 11px;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button:hover{background:var(--soft)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.primary:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+button.danger{background:var(--danger-soft);color:var(--danger);border-color:transparent}
+button.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
+.status-msg{font-size:12px;color:var(--muted);margin-left:4px}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+<div class="card"><h1>Mahnwesen</h1><div class="muted">Überfällige Rechnungen, offene Mahnungsentwürfe und die vollständige Mahnungshistorie.</div></div>
+<div class="card" id="autoCreateBanner" style="display:none;background:var(--success-soft);border-color:transparent;font-weight:700"></div>
+<div class="metrics" id="metrics"></div>
+<div class="card" id="editorCard" style="display:none">
+  <h2>Mahnungsentwurf bearbeiten</h2>
+  <div class="muted small" style="margin-bottom:10px" id="editorSubtitle"></div>
+  <div style="display:flex;flex-direction:column;gap:10px;max-width:640px">
+    <label class="small muted">Mahntext (mit Platzhaltern)
+      <textarea id="editorText" rows="8" style="width:100%;font-family:inherit;font-size:13px;padding:8px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);margin-top:4px"></textarea>
+    </label>
+    <div class="small muted">Verfügbare Platzhalter -- werden beim Anzeigen/PDF automatisch durch die aktuellen Werte ersetzt:
+      <ul style="margin:4px 0 0;padding-left:18px">
+        <li><code>{rechnungsnummer}</code> – Rechnungsnummer</li>
+        <li><code>{rechnungsdatum}</code> – Rechnungsdatum</li>
+        <li><code>{faelligkeitsdatum}</code> – ursprüngliches Fälligkeitsdatum der Rechnung</li>
+        <li><code>{offener_betrag}</code> – noch offener Rechnungsbetrag</li>
+        <li><code>{mahngebuehr}</code> – Mahngebühr (Feld „Mahngebühr" unten)</li>
+        <li><code>{gesamtbetrag}</code> – offener Betrag zzgl. Mahngebühr</li>
+        <li><code>{neue_frist}</code> – neue Zahlungsfrist (Feld „Neue Zahlungsfrist" unten)</li>
+        <li><code>{vorheriges_mahndatum}</code> – Datum der vorherigen Mahnstufe, falls vorhanden</li>
+      </ul>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <label class="small muted">Mahngebühr
+        <input id="editorFeeAmount" type="number" step="0.01" min="0" style="display:block;padding:6px 8px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);margin-top:4px;width:140px">
+      </label>
+      <label class="small muted">Neue Zahlungsfrist
+        <input id="editorNewDueDate" type="date" style="display:block;padding:6px 8px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);margin-top:4px">
+      </label>
+    </div>
+    <div class="row-actions">
+      <button class="primary" onclick="saveReminderEdit()">Speichern</button>
+      <button onclick="cancelEditReminder()">Abbrechen</button>
+      <span class="status-msg" id="editorStatus"></span>
+    </div>
+  </div>
+</div>
+<div class="card">
+  <h2>Benötigt Aufmerksamkeit</h2>
+  <div class="muted small" style="margin-bottom:10px">Überfällige, finalisierte Rechnungen – Mahnungen können direkt hier erstellt, geprüft und versendet werden.</div>
+  <div style="overflow:auto"><table><thead><tr><th>Rechnung</th><th>Kunde</th><th>Fällig seit</th><th class="number">Offener Betrag</th><th>Stufe</th><th></th></tr></thead><tbody id="attentionRows"></tbody></table></div>
+</div>
+<div class="card">
+  <h2>Alle Mahnungen</h2>
+  <div class="muted small" style="margin-bottom:10px">Vollständige Historie, Entwürfe und versendete zusammen.</div>
+  <div style="overflow:auto"><table><thead><tr><th>Mahnung</th><th>Rechnung</th><th>Kunde</th><th>Stufe</th><th>Datum</th><th class="number">Betrag</th><th>Status</th><th>Aktionen</th><th>E-Mail</th></tr></thead><tbody id="allRows"></tbody></table></div>
+</div>
+</main>
+</div>
+</div>
+<script>
+let levelLabels={},attentionRows=[],allReminders=[];
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const money=x=>Number(x||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+const fmtDate=s=>s?new Date(s+'T00:00:00').toLocaleDateString('de-DE'):'—';
+async function api(u,opts){const r=await fetch(u,opts);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.status===204?null:r.json()}
+
+function levelLabel(level){return levelLabels[level]||`Stufe ${level}`}
+
+function renderMetrics(){
+  const dueNow=attentionRows.filter(r=>r.is_due_now).length;
+  const drafts=allReminders.filter(r=>r.status==='entwurf').length;
+  const sentTotal=allReminders.filter(r=>r.status==='versendet').length;
+  document.getElementById('metrics').innerHTML=`
+    <div class="metric"><small>Benötigt Aufmerksamkeit</small><b>${attentionRows.length}</b></div>
+    <div class="metric"><small>Davon fällig</small><b style="${dueNow?'color:var(--danger)':''}">${dueNow}</b></div>
+    <div class="metric"><small>Entwürfe offen</small><b>${drafts}</b></div>
+    <div class="metric"><small>Versendet (gesamt)</small><b>${sentTotal}</b></div>`;
+}
+
+function renderAttentionRows(){
+  document.getElementById('attentionRows').innerHTML=attentionRows.length?attentionRows.map(r=>{
+    let stufeCell=r.current_level?`Aktuell: ${esc(levelLabel(r.current_level))}<br>`:'';
+    stufeCell+=r.next_level?`Nächste: ${esc(levelLabel(r.next_level))}${r.is_due_now?' <span class="pill overdue">fällig</span>':' <span class="small muted">ab '+fmtDate(r.next_due_on)+'</span>'}`:'<span class="small muted">keine weitere Stufe</span>';
+    let actions;
+    if(r.draft){
+      actions=`<div class="row-actions"><span class="pill entwurf">${esc(levelLabel(r.draft.level))} · Entwurf</span>
+        <button class="primary" onclick="sendReminder(${r.draft.id})">Versenden</button>
+        <button onclick="editReminder(${r.draft.id})">Bearbeiten</button>
+        <button onclick="window.open('/api/reminders/${r.draft.id}/pdf','_blank')">PDF</button>
+        <button class="danger" onclick="deleteReminder(${r.draft.id})">Löschen</button></div>`;
+    } else if(r.next_level){
+      actions=`<button onclick="createReminder(${r.invoice_id},${r.next_level})">${esc(levelLabel(r.next_level))} erstellen</button>`;
+    } else {
+      actions='<span class="small muted">—</span>';
+    }
+    return `<tr><td><b>${esc(r.invoice_number||'—')}</b> <a class="link small" href="/invoices/${r.invoice_id}">öffnen</a></td><td>${esc(r.customer_name)}</td><td>${fmtDate(r.due_date)}</td><td class="number">${money(r.outstanding_amount)}</td><td>${stufeCell}</td><td>${actions}</td></tr>`;
+  }).join(''):'<tr><td colspan="6" class="empty">Keine überfälligen Rechnungen – alles im grünen Bereich.</td></tr>';
+}
+
+function emailStatusLabel(r){
+  if(!r.email_sent_at) return '<span class="small muted">noch nicht versendet</span>';
+  return `<span class="small muted">versendet ${fmtDate(r.email_sent_at.slice(0,10))} an ${esc(r.email_sent_to)}</span>`;
+}
+function renderAllRows(){
+  document.getElementById('allRows').innerHTML=allReminders.length?allReminders.map(r=>{
+    const emailAction = r.status==='versendet' ? `<div style="display:flex;gap:5px;align-items:center"><input id="reminderEmailInput${r.id}" type="email" value="${esc(r.recipient_email||'')}" placeholder="E-Mail-Adresse" style="padding:5px 7px;border:1px solid var(--field-border);font-family:inherit;font-size:12px;width:150px;background:var(--card);color:var(--ink)"><button onclick="sendReminderEmail(${r.id})">✉️</button></div><div style="margin-top:3px">${emailStatusLabel(r)}</div>` : '<span class="small muted">erst nach Finalisieren</span>';
+    // Entwürfe sind hier -- anders als in "Benötigt Aufmerksamkeit" -- oft die einzige Stelle, an
+    // der ein Betreiber die Mahnungshistorie insgesamt durchsieht; Versenden/Löschen fehlten hier
+    // bisher komplett, obwohl ein Entwurf gerade in dieser Tabelle als solcher erkennbar ist.
+    const actions = r.status==='entwurf'
+      ? `<div class="row-actions"><button class="primary" onclick="sendReminder(${r.id})">Versenden</button>
+        <button onclick="editReminder(${r.id})">Bearbeiten</button>
+        <button onclick="window.open('/api/reminders/${r.id}/pdf','_blank')">PDF</button>
+        <button class="danger" onclick="deleteReminder(${r.id})">Löschen</button></div>`
+      : `<button onclick="window.open('/api/reminders/${r.id}/pdf','_blank')">PDF</button>`;
+    return `<tr><td><b>${esc(r.reminder_number||'(Entwurf)')}</b></td><td><a class="link" href="/invoices/${r.invoice_id}">${esc(r.invoice_number||'—')}</a></td><td>${esc(r.customer_name)}</td><td>${esc(levelLabel(r.level))}</td><td>${fmtDate(r.reminder_date)}</td><td class="number">${money(r.total_amount)}</td><td>${r.status==='entwurf'?'<span class="pill entwurf">Entwurf</span>':'<span class="pill">Versendet</span>'}</td><td>${actions}</td><td>${emailAction}</td></tr>`;
+  }).join(''):'<tr><td colspan="9" class="empty">Noch keine Mahnungen erstellt.</td></tr>';
+}
+async function sendReminderEmail(id){
+  const input = document.getElementById('reminderEmailInput'+id);
+  const toEmail = input.value.trim();
+  if(!toEmail){ alert('Bitte eine E-Mail-Adresse angeben.'); return; }
+  try{
+    await api(`/api/reminders/${id}/send-email`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({to_email: toEmail})});
+    await reload();
+  }catch(e){ alert('Fehler beim Versenden: ' + e.message) }
+}
+
+async function reload(){
+  const [attention,all]=await Promise.all([api('/api/reminders/overdue'),api('/api/reminders')]);
+  attentionRows=attention;allReminders=all;
+  renderMetrics();renderAttentionRows();renderAllRows();
+}
+async function createReminder(invoiceId,level){
+  try{
+    await api(`/api/invoices/${invoiceId}/reminders`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({level})});
+    await reload();
+  }catch(e){ alert('Fehler: '+e.message) }
+}
+async function sendReminder(id){
+  if(!confirm('Mahnung jetzt versenden? Die Mahnungsnummer wird vergeben, danach ist keine Bearbeitung mehr möglich. Das ist kein tatsächlicher Versand an den Kunden – das PDF muss weiterhin separat heruntergeladen und verschickt werden.'))return;
+  try{
+    await api(`/api/reminders/${id}/send`,{method:'POST'});
+    await reload();
+  }catch(e){ alert('Fehler: '+e.message) }
+}
+async function deleteReminder(id){
+  if(!confirm('Diesen Mahnungsentwurf unwiderruflich löschen?'))return;
+  try{
+    await api(`/api/reminders/${id}`,{method:'DELETE'});
+    await reload();
+  }catch(e){ alert('Fehler: '+e.message) }
+}
+
+let editingReminderId=null;
+function editReminder(id){
+  const r=allReminders.find(x=>x.id===id);
+  if(!r){ alert('Mahnung nicht gefunden – bitte Seite neu laden.'); return; }
+  editingReminderId=id;
+  document.getElementById('editorSubtitle').textContent=`${levelLabel(r.level)} zu Rechnung ${r.invoice_number||'—'} (${r.customer_name})`;
+  document.getElementById('editorText').value=r.text||'';
+  document.getElementById('editorFeeAmount').value=r.fee_amount;
+  document.getElementById('editorNewDueDate').value=r.new_due_date||'';
+  document.getElementById('editorStatus').textContent='';
+  const card=document.getElementById('editorCard');
+  card.style.display='block';
+  card.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function cancelEditReminder(){
+  editingReminderId=null;
+  document.getElementById('editorCard').style.display='none';
+}
+function reminderMissingPlaceholderWarning(text,feeAmount,newDueDate){
+  // Reiner Hinweis, kein Blockieren (Nutzerentscheidung 1.3.21) -- es kann gute Gründe geben,
+  // einen Platzhalter absichtlich durch eine feste Zahl zu ersetzen.
+  const missing=[];
+  if(feeAmount!==''&&feeAmount!==null&&!text.includes('{mahngebuehr}')) missing.push('{mahngebuehr} (Mahngebühr)');
+  if(newDueDate&&!text.includes('{neue_frist}')) missing.push('{neue_frist} (neue Zahlungsfrist)');
+  if(!missing.length) return '';
+  return ` Hinweis: ${missing.join(', ')} fehlt im Text -- der Wert wird bei einer künftigen Änderung nicht mehr automatisch nachgezogen.`;
+}
+async function saveReminderEdit(){
+  if(editingReminderId===null)return;
+  const text=document.getElementById('editorText').value;
+  const feeAmount=document.getElementById('editorFeeAmount').value;
+  const newDueDate=document.getElementById('editorNewDueDate').value;
+  const warning=reminderMissingPlaceholderWarning(text,feeAmount,newDueDate);
+  try{
+    await api(`/api/reminders/${editingReminderId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      text: text||null, fee_amount: feeAmount, new_due_date: newDueDate||null,
+    })});
+    if(warning) alert('Gespeichert.'+warning);
+    cancelEditReminder();
+    await reload();
+  }catch(e){ document.getElementById('editorStatus').textContent='Fehler: '+e.message }
+}
+
+async function init(){
+  const levels=await api('/api/reminder-levels');
+  levels.forEach(l=>levelLabels[l.level]=l.label);
+  try{
+    const created=await api('/api/reminders/auto-create',{method:'POST'});
+    if(created.length){
+      const banner=document.getElementById('autoCreateBanner');
+      banner.style.display='block';
+      banner.textContent=`${created.length} Mahnungs-Entwurf${created.length===1?'':'e'} automatisch angelegt (${created.map(r=>levelLabel(r.level)).join(', ')}) – bitte prüfen.`;
+    }
+  }catch(e){ /* Automatisierung optional -- Übersicht soll trotzdem laden */ }
+  await reload();
+}
+init().catch(e=>document.querySelector('main').innerHTML='<div class="card">Fehler: '+esc(e.message)+'</div>');
+</script></body></html>

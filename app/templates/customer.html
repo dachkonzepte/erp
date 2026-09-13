@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DACHKONZEPTE ERP – Kundenakte</title>
+  <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+    :root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+    *{box-sizing:border-box}body{margin:0}
+    main{max-width:1450px;margin:0;padding:22px}.card{background:var(--card);border:1px solid var(--line);padding:18px;margin-bottom:18px}.card h2,.card h3{margin-top:0;color:var(--ink)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.field{margin-bottom:10px}label{font-size:12.5px;font-weight:650;color:var(--muted);display:block;margin-bottom:5px}input,textarea,select{width:100%;padding:9px 11px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:13.5px}input:hover,textarea:hover,select:hover{border-color:var(--field-border-hover)}input:focus,textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}textarea{resize:vertical}button{background:var(--accent);color:#fff;border:1px solid var(--accent);padding:10px 16px;cursor:pointer;font-weight:650;font-size:13.5px}button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}button.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}button.secondary:hover{background:var(--soft)}button.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}button.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}.plus{width:32px;height:32px;padding:0;font-size:20px;line-height:1}.muted{color:var(--muted)}.small{font-size:12px}.status{margin-left:8px;font-size:12.5px;color:var(--muted);font-weight:600}.status.err{color:var(--danger)}.status.ok{color:#1f8a5f}.section-title{display:flex;justify-content:space-between;gap:12px;align-items:center}.badge{display:inline-block;padding:2px 8px;background:var(--soft);border:1px solid var(--line);font-size:10.5px}.extra-row{display:grid;grid-template-columns:140px 170px minmax(220px,1fr) auto auto;gap:8px;align-items:end;background:var(--soft);border:1px solid var(--line);padding:8px;margin-bottom:8px}.extra-row .field{margin:0}.object-card{border:1px solid var(--line);padding:12px;margin-bottom:10px}.object-card.main{border-color:var(--accent);background:var(--soft)}.project-card{border:1px solid var(--line);padding:12px;margin-bottom:10px}.quote{display:grid;grid-template-columns:120px 1fr 110px 110px;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:13px}.number{text-align:right}.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{background:var(--card);border:1px solid var(--line);padding:13px}.metric .k{font-size:11px;color:var(--muted)}.metric .v{font-size:20px;font-weight:800;margin-top:3px;color:var(--ink)}.hidden{display:none!important}
+    .roof-table-wrap{overflow-x:auto}.roof-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}.roof-table th,.roof-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}.roof-table th{color:var(--muted);font-size:10.5px;text-transform:uppercase;font-weight:650}.roof-table a{color:var(--accent);font-weight:650;text-decoration:none}
+    .upload{border:2px dashed var(--field-border);padding:16px;background:var(--card);margin-bottom:14px}.upload.drag{border-color:var(--accent);background:var(--soft)}.upload-grid{display:grid;grid-template-columns:150px 150px 140px minmax(160px,1fr) auto;gap:9px;align-items:end}.file-picker{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}.file-picker input{max-width:420px}.category-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-bottom:14px}.cat{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:10px;text-align:left;cursor:pointer}.cat.active{background:var(--soft);border-color:var(--accent)}.cat b{display:block}.documents{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}.doc{border:1px solid var(--line);overflow:hidden;background:var(--card);min-width:0}.thumb{height:120px;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:34px;color:var(--muted);overflow:hidden}.thumb img{width:100%;height:100%;object-fit:cover}.doc-body{padding:11px}.doc-name{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.doc-meta{font-size:11px;color:var(--muted);margin:5px 0 9px}.doc-description{font-size:12px;margin:0 0 9px;white-space:pre-wrap}.doc-actions{display:flex;gap:6px;flex-wrap:wrap}.doc-actions a,.doc-actions button{font-size:11px;padding:6px 8px;border:0;text-decoration:none;cursor:pointer;font-weight:750}.doc-actions a,.doc-actions .edit{background:var(--soft);color:var(--accent)}.search-row{display:flex;gap:9px;align-items:center;margin-bottom:12px}
+    @media(max-width:900px){.grid,.fields,.summary{grid-template-columns:1fr}.extra-row{grid-template-columns:1fr}.quote{grid-template-columns:1fr}.number{text-align:left}main{padding:12px}.upload-grid,.documents,.category-cards{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+  <div class="section-title" style="margin-bottom:14px"><div><h1 id="pageTitle" style="margin:0 0 3px">Kundenakte</h1><div id="pageSub" class="muted"></div></div><span id="customerIdBadge" class="badge"></span></div>
+  <div class="summary"><div class="metric"><div class="k">Objekte</div><div id="metricProperties" class="v">–</div></div><div class="metric"><div class="k">Anfragen</div><div id="metricInquiries" class="v">–</div></div><div class="metric"><div class="k">Projekte</div><div id="metricProjects" class="v">–</div></div><div class="metric"><div class="k">Angebote</div><div id="metricQuotes" class="v">–</div></div><div class="metric"><div class="k">Angebotssumme netto</div><div id="metricNet" class="v">–</div></div></div>
+
+  <div class="grid">
+    <section class="card">
+      <div class="section-title"><h2>Stammdaten</h2><span class="badge">Hauptadresse synchron</span></div>
+      <div class="fields">
+        <div class="field"><label>Kundennummer</label><input id="customerNumber"><div class="muted small">Änderbar, z. B. zur Übernahme aus einem Altsystem. Muss eindeutig sein.</div></div>
+        <div class="field"><label>Kundenkategorie</label><select id="category"></select></div>
+        <div class="field"><label>Zahlungsbedingung (Standard für Rechnungen)</label><select id="defaultPaymentTerm"></select></div>
+        <div class="field"><label>Anrede</label><select id="salutation"></select></div>
+        <div class="field"><label>Titel</label><input id="title"></div>
+        <div class="field"><label>Vorname</label><input id="firstName"></div>
+        <div class="field"><label>Nachname / Firma *</label><input id="lastName"></div>
+        <div class="field"><label>Ansprechpartner</label><input id="contact"></div>
+        <div class="field"><label>Straße</label><input id="street"></div>
+        <div class="field"><label>Land</label><input id="country"></div>
+        <div class="field"><label>PLZ / Ort</label><div style="display:grid;grid-template-columns:100px 1fr;gap:8px"><input id="zip"><input id="city"></div></div>
+        <div class="field"><label>Primäre E-Mail</label><input id="email" type="email"></div>
+        <div class="field"><label>Zweite E-Mail-Adresse</label><input id="email2" type="email"></div>
+        <div class="field"><label>Primäre Rufnummer</label><input id="phone" type="tel"></div>
+        <div class="field"><label>Mobil</label><input id="mobile" type="tel"></div>
+        <div class="field"><label>Fax</label><input id="fax" type="tel"></div>
+      </div>
+      <div class="field"><label>Interne Kundennotizen</label><textarea id="notes" rows="4" placeholder="z. B. bevorzugte Erreichbarkeit, Besonderheiten, Kundenwünsche …"></textarea></div>
+      <button onclick="saveCustomer()">Stammdaten speichern</button><span id="customerStatus" class="status"></span>
+    </section>
+
+    <section class="card">
+      <div class="section-title"><div><h2 style="margin-bottom:4px">Kontakte & Kundenwissen</h2><div class="muted small">Beliebig viele Telefonnummern, E-Mails, Geburtstage und freie Informationen.</div></div><button class="plus" onclick="newExtra()" title="Information hinzufügen">+</button></div>
+      <div id="extras"></div>
+      <div id="extraEmpty" class="muted small">Noch keine zusätzlichen Informationen vorhanden.</div>
+    </section>
+  </div>
+
+  <div class="grid">
+    <section class="card">
+      <div class="section-title"><div><h2 style="margin-bottom:4px">Objekte</h2><div class="muted small">Die Hauptadresse wird automatisch aus den Kundenstammdaten geführt.</div></div><button class="plus" onclick="newProperty()" title="Objekt hinzufügen">+</button></div>
+      <div id="properties"></div>
+      <div id="propertyEditor" class="object-card hidden">
+        <h3 id="propertyEditorTitle">Objekt</h3>
+        <input id="propertyId" type="hidden">
+        <div class="field"><label>Bezeichnung *</label><input id="propertyName"></div>
+        <div class="fields"><div class="field"><label>Straße</label><input id="propertyStreet"></div><div class="field"><label>PLZ / Ort</label><div style="display:grid;grid-template-columns:100px 1fr;gap:8px"><input id="propertyZip"><input id="propertyCity"></div></div></div>
+        <div class="field"><label>Notizen zum Objekt</label><textarea id="propertyNotes" rows="3"></textarea></div>
+        <div class="toolbar"><button onclick="saveProperty()">Objekt speichern</button><button class="secondary" onclick="closePropertyEditor()">Abbrechen</button><span id="propertyStatus" class="status"></span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-title"><div><h2 style="margin-bottom:4px">Anfragen</h2><div class="muted small">Vertriebshistorie vor der eigentlichen Projektanlage.</div></div><a id="newInquiryLink" href="/inquiries" style="text-decoration:none"><button>Neue Anfrage</button></a></div>
+      <div id="inquiries"></div>
+      <div id="inquiriesEmpty" class="muted small">Noch keine Anfrage vorhanden.</div>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Dokumente</h2><div class="muted small">Verträge, Schriftverkehr und weitere Unterlagen direkt in der Kundenmappe.</div></div></div>
+    <div id="docUploadZone" class="upload">
+      <div class="upload-grid">
+        <div class="field"><label>Kategorie</label><select id="docCategory"></select></div>
+        <div class="field"><label>Unterordner <span class="muted small">(optional)</span></label><input id="docSubfolder" list="docSubfolderSuggestions"><datalist id="docSubfolderSuggestions"></datalist></div>
+        <div class="field"><label>Dokumentdatum</label><input id="docDate" type="date"></div>
+        <div class="field"><label>Notiz / Beschreibung</label><input id="docDescription" placeholder="optional"></div>
+        <button onclick="document.getElementById('docFiles').click()">+ Dateien auswählen</button>
+      </div>
+      <div class="file-picker"><input id="docFiles" type="file" multiple onchange="showSelectedDocs()"><span id="docSelectedInfo" class="muted small">Dateien auswählen oder hierher ziehen.</span><button id="docUploadButton" class="secondary" style="display:none" onclick="uploadDocuments()">Hochladen</button></div>
+      <div id="docUploadStatus" class="status"></div>
+    </div>
+    <div id="docCategoryCards" class="category-cards"></div>
+    <div id="docSubfolderCards" class="category-cards" style="display:none"></div>
+    <div class="search-row"><input id="docSearch" placeholder="Dateien suchen …" oninput="renderCustomerDocuments()"></div>
+    <div id="customerDocuments" class="documents"></div>
+    <div id="docEmpty" class="muted small">Noch keine Dokumente vorhanden.</div>
+    <div id="docEditor" class="object-card hidden" style="margin-top:12px">
+      <h3>Dateiinformationen bearbeiten</h3>
+      <input id="docEditId" type="hidden">
+      <div class="field"><label>Datei</label><input id="docEditName" disabled></div>
+      <div class="fields">
+        <div class="field"><label>Kategorie</label><select id="docEditCategory"></select></div>
+        <div class="field"><label>Unterordner</label><input id="docEditSubfolder" list="docSubfolderSuggestions"></div>
+        <div class="field"><label>Dokumentdatum</label><input id="docEditDate" type="date"></div>
+      </div>
+      <div class="field"><label>Notiz / Beschreibung</label><textarea id="docEditDescription" rows="3"></textarea></div>
+      <div class="toolbar"><button onclick="saveDocEdit()">Speichern</button><button class="secondary" onclick="closeDocEditor()">Abbrechen</button><span id="docEditStatus" class="status"></span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Projekte & Angebote</h2><div class="muted small">Vollständige Projekt- und Angebotshistorie dieses Kunden.</div></div><a id="newProjectLink" href="/projects/new" style="text-decoration:none"><button>Projekt anlegen</button></a></div>
+    <div id="projects"></div>
+    <div id="projectsEmpty" class="muted small">Noch keine Projekte vorhanden.</div>
+  </section>
+</main>
+</div>
+</div>
+<script>
+const customerId={{ customer_id }};
+let customer=null, properties=[], inquiries=[], projects=[], projectQuotes=new Map(), customerCategoryGroup={options:[]}, customerSalutationGroup={options:[]}, paymentTerms=[], roofAreas=new Map();
+let customerDocuments=[], docCategoryGroup={options:[]}, activeDocCategory='', activeDocSubfolder='', editingDocId=null;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const v=id=>document.getElementById(id).value; const nv=id=>v(id).trim()||null; const setv=(id,x)=>document.getElementById(id).value=x??'';
+const money=x=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(Number(x||0));
+async function api(url,opt={}){const r=await fetch(url,opt);if(!r.ok){let m=`HTTP ${r.status}`;try{const j=await r.json();m=j.detail||m}catch{}throw new Error(m)}if(r.status===204)return null;return r.json()}
+function renderCategorySelect(current){const rows=(customerCategoryGroup.options||[]).filter(o=>o.active).sort((a,b)=>a.sort_order-b.sort_order),sel=document.getElementById('category');let html=rows.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}${o.is_default?' · Standard':''}</option>`).join('');if(current&&!rows.some(o=>o.value===current))html+=`<option value="${esc(current)}">${esc(current)} · bisher</option>`;sel.innerHTML=html;sel.value=current||rows.find(o=>o.is_default)?.value||rows[0]?.value||'Privatkunde'}
+function renderPaymentTermSelect(current){const sel=document.getElementById('defaultPaymentTerm');sel.innerHTML='<option value="">— Systemstandard verwenden —</option>'+paymentTerms.map(t=>`<option value="${t.id}">${esc(t.label)} (${t.days} Tage)</option>`).join('');sel.value=current||''}
+function renderSalutationSelect(current){const rows=(customerSalutationGroup.options||[]).filter(o=>o.active).sort((a,b)=>a.sort_order-b.sort_order),sel=document.getElementById('salutation');let html='<option value="">—</option>'+rows.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');if(current&&!rows.some(o=>o.value===current))html+=`<option value="${esc(current)}">${esc(current)} · bisher</option>`;sel.innerHTML=html;sel.value=current||''}
+async function load(){
+  [customer,properties,inquiries,allProjects,customerCategoryGroup,customerSalutationGroup,paymentTerms,customerDocuments,docCategoryGroup]=await Promise.all([api(`/api/customers/${customerId}`),api(`/api/properties?customer_id=${customerId}`),api(`/api/inquiries?customer_id=${customerId}`),api('/api/projects'),api('/api/settings/option-groups/customer_categories'),api('/api/settings/option-groups/customer_salutations'),api('/api/payment-terms'),api(`/api/customers/${customerId}/documents`),api('/api/settings/option-groups/project_document_categories').catch(()=>({options:[]}))]);
+  projects=allProjects.filter(p=>p.customer_id===customerId);
+  projectQuotes.clear();
+  await Promise.all(projects.map(async p=>{projectQuotes.set(p.id,await api(`/api/projects/${p.id}/quotes`))}));
+  roofAreas.clear();
+  await Promise.all(properties.map(async p=>{roofAreas.set(p.id,await api(`/api/roof-areas?property_id=${p.id}`).catch(()=>[]))}));
+  render();
+}
+function render(){
+  document.getElementById('pageTitle').textContent=customer.name;document.getElementById('pageSub').textContent=[customer.customer_number,customer.category,customer.contact_person,customer.city].filter(Boolean).join(' · ');document.getElementById('customerIdBadge').textContent=customer.customer_number;
+  setv('customerNumber',customer.customer_number);renderCategorySelect(customer.category||'Privatkunde');renderSalutationSelect(customer.salutation);renderPaymentTermSelect(customer.default_payment_term_id);setv('title',customer.title);setv('firstName',customer.first_name);setv('lastName',customer.last_name);setv('contact',customer.contact_person);setv('street',customer.street);setv('country',customer.country);setv('zip',customer.postal_code);setv('city',customer.city);setv('email',customer.email);setv('email2',customer.email_2);setv('phone',customer.phone);setv('mobile',customer.mobile);setv('fax',customer.fax);setv('notes',customer.notes);
+  renderExtras();renderProperties();renderInquiries();renderProjects();renderDocCategories();
+  const quoteList=[...projectQuotes.values()].flat();const net=quoteList.reduce((a,q)=>a+Number(q.net_total||0),0);
+  document.getElementById('metricProperties').textContent=properties.length;document.getElementById('metricInquiries').textContent=inquiries.length;document.getElementById('metricProjects').textContent=projects.length;document.getElementById('metricQuotes').textContent=quoteList.length;document.getElementById('metricNet').textContent=money(net);
+  document.getElementById('newProjectLink').href=`/projects/new?customer_id=${customerId}`;document.getElementById('newInquiryLink').href=`/inquiries?customer_id=${customerId}`;
+}
+async function saveCustomer(){const s=document.getElementById('customerStatus');try{customer=await api(`/api/customers/${customerId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_number:v('customerNumber'),category:v('category'),salutation:nv('salutation'),title:nv('title'),first_name:nv('firstName'),last_name:v('lastName'),contact_person:nv('contact'),street:nv('street'),country:v('country')||'Deutschland',postal_code:nv('zip'),city:nv('city'),email:nv('email'),email_2:nv('email2'),phone:nv('phone'),mobile:nv('mobile'),fax:nv('fax'),notes:nv('notes'),default_payment_term_id:v('defaultPaymentTerm')?Number(v('defaultPaymentTerm')):null})});s.textContent='Gespeichert.';await load()}catch(e){s.textContent='Fehler: '+e.message}}
+function typeOptions(type){return [['phone','Telefon'],['email','E-Mail'],['birthday','Geburtstag'],['info','Information']].map(([x,l])=>`<option value="${x}" ${x===type?'selected':''}>${l}</option>`).join('')}
+function extraInputType(type){return type==='email'?'email':type==='birthday'?'date':type==='phone'?'tel':'text'}
+function renderExtras(){const h=document.getElementById('extras');h.innerHTML=customer.extra_infos.map(i=>`<div class="extra-row" data-id="${i.id}"><div class="field"><label>Typ</label><select class="xt" onchange="this.closest('.extra-row').querySelector('.xv').type=extraInputType(this.value)">${typeOptions(i.info_type)}</select></div><div class="field"><label>Bezeichnung</label><input class="xl" value="${esc(i.label||'')}"></div><div class="field"><label>Wert</label><input class="xv" type="${extraInputType(i.info_type)}" value="${esc(i.value)}"></div><button onclick="saveExtra(${i.id})">Speichern</button><button class="danger" onclick="deleteExtra(${i.id})">×</button></div>`).join('');document.getElementById('extraEmpty').classList.toggle('hidden',customer.extra_infos.length>0)}
+function newExtra(){const h=document.getElementById('extras');const d=document.createElement('div');d.className='extra-row';d.dataset.id='new';d.innerHTML=`<div class="field"><label>Typ</label><select class="xt" onchange="this.closest('.extra-row').querySelector('.xv').type=extraInputType(this.value)">${typeOptions('phone')}</select></div><div class="field"><label>Bezeichnung</label><input class="xl" placeholder="z. B. Mobil"></div><div class="field"><label>Wert</label><input class="xv" type="tel"></div><button onclick="createExtra(this)">Speichern</button><button class="secondary" onclick="this.closest('.extra-row').remove()">×</button>`;h.prepend(d);document.getElementById('extraEmpty').classList.add('hidden')}
+function extraPayload(row){return{info_type:row.querySelector('.xt').value,label:row.querySelector('.xl').value.trim()||null,value:row.querySelector('.xv').value.trim()}}
+async function createExtra(btn){const row=btn.closest('.extra-row');try{if(!extraPayload(row).value)throw new Error('Bitte einen Wert eingeben.');await api(`/api/customers/${customerId}/extra-infos`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(extraPayload(row))});await load()}catch(e){alert(e.message)}}
+async function saveExtra(id){const row=document.querySelector(`.extra-row[data-id="${id}"]`);try{await api(`/api/customers/${customerId}/extra-infos/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(extraPayload(row))});await load()}catch(e){alert(e.message)}}
+async function deleteExtra(id){if(!confirm('Diesen Eintrag löschen?'))return;try{await api(`/api/customers/${customerId}/extra-infos/${id}`,{method:'DELETE'});await load()}catch(e){alert(e.message)}}
+function roofAreaRows(propertyId){
+  const list=(roofAreas.get(propertyId)||[]).filter(r=>!r.archived);
+  if(!list.length)return '<div class="muted small">Noch keine Dachflächen angelegt.</div>';
+  return `<div class="roof-table-wrap"><table class="roof-table"><thead><tr><th>Name</th><th>Fläche</th><th>Eindeckung</th><th>Gewährleistung</th><th></th></tr></thead><tbody>${list.map(r=>`<tr><td>${esc(r.name)}</td><td>${r.area_sqm?Number(r.area_sqm).toLocaleString('de-DE')+' m²':'—'}</td><td>${esc(r.covering||'—')}</td><td>${r.warranty_until?new Date(r.warranty_until+'T00:00:00').toLocaleDateString('de-DE'):'—'}</td><td><a href="/roof-areas/${r.id}">Öffnen</a></td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderProperties(){document.getElementById('properties').innerHTML=properties.map(p=>`<div class="object-card ${p.is_primary_address?'main':''}"><div class="section-title"><div><b>${esc(p.name)}</b>${p.is_primary_address?' <span class="badge">Hauptadresse</span>':''}<div class="muted small">${esc([p.street,[p.postal_code,p.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')||'Keine Adresse hinterlegt')}</div>${p.notes?`<div class="small" style="margin-top:5px">${esc(p.notes)}</div>`:''}</div><div style="display:flex;gap:6px"><a href="/properties/${p.id}"><button class="secondary">Öffnen</button></a>${p.is_primary_address?'':`<button class="secondary" onclick="editProperty(${p.id})">Bearbeiten</button>`}</div></div><div style="margin-top:10px"><div class="section-title" style="margin-bottom:6px"><b class="small" style="color:var(--muted)">Dachflächen</b><button class="secondary" style="padding:5px 10px;font-size:12px" onclick="toggleNewRoofArea(${p.id})">+ Dachfläche</button></div>${roofAreaRows(p.id)}<div id="newRoofAreaForm-${p.id}" class="hidden" style="margin-top:8px;display:flex;gap:8px;align-items:end"><div class="field" style="flex:1;margin:0"><label>Bezeichnung neue Dachfläche</label><input id="newRoofAreaName-${p.id}" placeholder="z. B. Hauptdach Süd"></div><button onclick="createRoofArea(${p.id})">Anlegen</button><button class="secondary" onclick="toggleNewRoofArea(${p.id})">Abbrechen</button></div><div id="newRoofAreaStatus-${p.id}" class="status"></div></div></div>`).join('')}
+function toggleNewRoofArea(propertyId){const el=document.getElementById('newRoofAreaForm-'+propertyId);el.classList.toggle('hidden');if(!el.classList.contains('hidden'))document.getElementById('newRoofAreaName-'+propertyId).focus()}
+async function createRoofArea(propertyId){
+  const name=document.getElementById('newRoofAreaName-'+propertyId).value.trim();
+  const st=document.getElementById('newRoofAreaStatus-'+propertyId);
+  if(!name){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben.';return}
+  try{
+    const result=await api('/api/roof-areas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({property_id:propertyId,name})});
+    location.href='/roof-areas/'+result.id;
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+function newProperty(){setv('propertyId','');setv('propertyName','');setv('propertyStreet','');setv('propertyZip','');setv('propertyCity','');setv('propertyNotes','');document.getElementById('propertyEditorTitle').textContent='Neues Objekt';document.getElementById('propertyEditor').classList.remove('hidden')}
+function editProperty(id){const p=properties.find(x=>x.id===id);if(!p)return;setv('propertyId',p.id);setv('propertyName',p.name);setv('propertyStreet',p.street);setv('propertyZip',p.postal_code);setv('propertyCity',p.city);setv('propertyNotes',p.notes);document.getElementById('propertyEditorTitle').textContent='Objekt bearbeiten';document.getElementById('propertyEditor').classList.remove('hidden')}
+function closePropertyEditor(){document.getElementById('propertyEditor').classList.add('hidden')}
+async function saveProperty(){const id=v('propertyId');const payload={name:v('propertyName'),street:nv('propertyStreet'),postal_code:nv('propertyZip'),city:nv('propertyCity'),notes:nv('propertyNotes')};const s=document.getElementById('propertyStatus');try{if(id)await api(`/api/properties/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});else await api('/api/properties',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_id:customerId,...payload})});s.textContent='Gespeichert.';closePropertyEditor();await load()}catch(e){s.textContent='Fehler: '+e.message}}
+function inquiryStatus(x){return({neu:'Neu',termin_offen:'Termin abstimmen',termin_geplant:'Termin geplant',aufmass_erfolgt:'Aufmaß erfolgt',projekt_erstellt:'Projekt / Angebot',gewonnen:'Gewonnen',verloren:'Verloren'}[x]||x)}
+function renderInquiries(){document.getElementById('inquiries').innerHTML=inquiries.map(i=>`<div class="project-card"><div class="section-title"><div><b>${esc(i.inquiry_number)} · ${esc(i.title)}</b><div class="muted small">${esc(i.property_name||'Kein Objekt')} · ${esc(inquiryStatus(i.status))}</div>${i.follow_up_at?`<div class="small" style="margin-top:5px">Wiedervorlage: ${esc(new Date(i.follow_up_at).toLocaleString('de-DE'))}</div>`:''}</div><a href="/inquiries"><button class="secondary">Pipeline öffnen</button></a></div></div>`).join('');document.getElementById('inquiriesEmpty').classList.toggle('hidden',inquiries.length>0)}
+function renderProjects(){const h=document.getElementById('projects');h.innerHTML=projects.map(p=>{const qs=projectQuotes.get(p.id)||[];return`<div class="project-card"><div class="section-title"><div><b>${esc(p.project_number)} · ${esc(p.name)}</b><div class="muted small">${esc(p.property_name||'Kein Objekt')} · Status ${esc(p.status)}</div></div><a href="/projects?project_id=${p.id}"><button class="secondary">Projekt öffnen</button></a></div><div style="margin-top:8px">${qs.length?qs.map(q=>`<div class="quote"><div><b>${esc(q.quote_number)}</b></div><div>${esc(q.title)} <span class="badge">${esc(q.status)}</span></div><div class="number">${money(q.net_total)} netto</div><div class="number">${money(q.gross_total)} brutto</div></div>`).join(''):'<div class="muted small">Noch kein Angebot.</div>'}</div></div>`}).join('');document.getElementById('projectsEmpty').classList.toggle('hidden',projects.length>0)}
+
+function docIcon(d){if(d.is_image)return `<img loading="lazy" src="/api/customer-documents/${d.id}/view" alt="">`;if(d.content_type==='application/pdf')return 'PDF';if((d.content_type||'').includes('spreadsheet')||(d.original_filename||'').match(/\.xlsx?$/i))return 'XLS';if((d.content_type||'').includes('word')||(d.original_filename||'').match(/\.docx?$/i))return 'DOC';return '📄'}
+function fileSize(x){return x<1024?x+' B':x<1048576?(x/1024).toFixed(1)+' KB':(x/1048576).toFixed(1)+' MB'}
+
+function renderDocCategories(){
+  const cats=docCategoryGroup.options||[];
+  const allCats=[...new Set([...cats.map(x=>x.value),...customerDocuments.map(x=>x.category)])];
+  document.getElementById('docCategory').innerHTML=cats.filter(x=>x.active).map(x=>`<option value="${esc(x.value)}" ${x.is_default?'selected':''}>${esc(x.label)}</option>`).join('');
+  document.getElementById('docCategoryCards').innerHTML=`<button class="cat ${!activeDocCategory?'active':''}" onclick="filterDocCategory('')"><b>Alle Dateien</b><span class="muted small">${customerDocuments.length} Einträge</span></button>`+allCats.map(c=>`<button class="cat ${activeDocCategory===c?'active':''}" onclick="filterDocCategory('${esc(c).replace(/'/g,"\\'")}')"><b>${esc(c)}</b><span class="muted small">${customerDocuments.filter(d=>d.category===c).length} Dateien</span></button>`).join('');
+  document.getElementById('docSubfolderSuggestions').innerHTML=[...new Set(customerDocuments.map(d=>d.subfolder).filter(Boolean))].map(s=>`<option value="${esc(s)}">`).join('');
+  renderDocSubfolders();
+  renderCustomerDocuments();
+}
+function filterDocCategory(c){activeDocCategory=c;activeDocSubfolder='';renderDocCategories()}
+function renderDocSubfolders(){
+  const el=document.getElementById('docSubfolderCards');
+  if(!activeDocCategory){el.style.display='none';el.innerHTML='';return}
+  const subs=[...new Set(customerDocuments.filter(d=>d.category===activeDocCategory).map(d=>d.subfolder).filter(Boolean))].sort();
+  if(!subs.length){el.style.display='none';el.innerHTML='';return}
+  el.style.display='';
+  el.innerHTML=`<button class="cat ${!activeDocSubfolder?'active':''}" onclick="filterDocSubfolder('')"><b>Alle Unterordner</b><span class="muted small">${customerDocuments.filter(d=>d.category===activeDocCategory).length} Dateien</span></button>`+subs.map(s=>`<button class="cat ${activeDocSubfolder===s?'active':''}" onclick="filterDocSubfolder('${esc(s).replace(/'/g,"\\'")}')"><b>${esc(s)}</b><span class="muted small">${customerDocuments.filter(d=>d.category===activeDocCategory&&d.subfolder===s).length} Dateien</span></button>`).join('');
+}
+function filterDocSubfolder(s){activeDocSubfolder=s;renderDocSubfolders();renderCustomerDocuments()}
+
+function renderCustomerDocuments(){
+  const q=document.getElementById('docSearch').value.trim().toLowerCase();
+  const list=customerDocuments.filter(d=>(!activeDocCategory||d.category===activeDocCategory)&&(!activeDocSubfolder||d.subfolder===activeDocSubfolder)&&(!q||[d.original_filename,d.category,d.subfolder,d.description].some(x=>String(x||'').toLowerCase().includes(q))));
+  document.getElementById('customerDocuments').innerHTML=list.map(d=>`<div class="doc"><div class="thumb">${docIcon(d)}</div><div class="doc-body"><div class="doc-name" title="${esc(d.original_filename)}">${esc(d.original_filename)}</div><div class="doc-meta">${esc(d.category)}${d.subfolder?' / '+esc(d.subfolder):''} · ${fileSize(d.file_size)}${d.document_date?' · '+new Date(d.document_date+'T00:00:00').toLocaleDateString('de-DE'):''}<br>${new Date(d.uploaded_at).toLocaleString('de-DE')}</div>${d.description?`<div class="doc-description">${esc(d.description)}</div>`:'<div class="doc-description muted">Keine Beschreibung</div>'}<div class="doc-actions">${d.can_preview?`<a target="_blank" href="/api/customer-documents/${d.id}/view">Öffnen</a>`:''}<a href="/api/customer-documents/${d.id}/download">Download</a><button class="edit" onclick="editDocRow(${d.id})">Bearbeiten</button><button class="danger" onclick="removeDocRow(${d.id})">Löschen</button></div></div></div>`).join('');
+  document.getElementById('docEmpty').classList.toggle('hidden',list.length>0);
+}
+
+function showSelectedDocs(){
+  const fs=document.getElementById('docFiles').files,n=fs.length;
+  document.getElementById('docSelectedInfo').textContent=n?n+' Datei(en) ausgewählt.':'Dateien auswählen oder hierher ziehen.';
+  document.getElementById('docUploadButton').style.display=n?'inline-block':'none';
+}
+async function uploadDocuments(){
+  const input=document.getElementById('docFiles'),status=document.getElementById('docUploadStatus');
+  if(!input.files.length)return;
+  status.textContent='Upload läuft …';let done=0;
+  try{
+    for(const f of input.files){
+      const fd=new FormData();
+      fd.append('file',f);
+      fd.append('category',document.getElementById('docCategory').value||'Sonstiges');
+      fd.append('subfolder',document.getElementById('docSubfolder').value.trim());
+      fd.append('document_date',document.getElementById('docDate').value);
+      fd.append('description',document.getElementById('docDescription').value);
+      await api(`/api/customers/${customerId}/documents`,{method:'POST',body:fd});
+      done++;
+    }
+    status.textContent=done+' Datei(en) hochgeladen.';
+    input.value='';showSelectedDocs();
+    document.getElementById('docDescription').value='';document.getElementById('docSubfolder').value='';
+    customerDocuments=await api(`/api/customers/${customerId}/documents`);
+    renderDocCategories();
+  }catch(e){status.textContent='Fehler nach '+done+' Datei(en): '+e.message}
+}
+
+function editDocRow(id){
+  const d=customerDocuments.find(x=>x.id===id);if(!d)return;
+  editingDocId=id;
+  document.getElementById('docEditName').value=d.original_filename;
+  document.getElementById('docEditSubfolder').value=d.subfolder||'';
+  document.getElementById('docEditDate').value=d.document_date||'';
+  document.getElementById('docEditDescription').value=d.description||'';
+  const cats=docCategoryGroup.options||[];const all=[...cats];
+  if(d.category&&!all.some(x=>x.value===d.category))all.push({value:d.category,label:d.category,active:true});
+  document.getElementById('docEditCategory').innerHTML=all.filter(x=>x.active||x.value===d.category).map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('');
+  document.getElementById('docEditCategory').value=d.category;
+  document.getElementById('docEditStatus').textContent='';
+  document.getElementById('docEditor').classList.remove('hidden');
+}
+function closeDocEditor(){document.getElementById('docEditor').classList.add('hidden')}
+async function saveDocEdit(){
+  if(!editingDocId)return;
+  const st=document.getElementById('docEditStatus');
+  try{
+    st.textContent='Speichert …';
+    await api(`/api/customer-documents/${editingDocId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      category:document.getElementById('docEditCategory').value,
+      subfolder:document.getElementById('docEditSubfolder').value.trim()||null,
+      document_date:document.getElementById('docEditDate').value||null,
+      description:document.getElementById('docEditDescription').value.trim()||null,
+    })});
+    customerDocuments=await api(`/api/customers/${customerId}/documents`);
+    renderDocCategories();
+    closeDocEditor();
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+async function removeDocRow(id){
+  if(!confirm('Datei wirklich aus der Kundenmappe löschen?'))return;
+  await api(`/api/customer-documents/${id}`,{method:'DELETE'});
+  customerDocuments=await api(`/api/customers/${customerId}/documents`);
+  renderDocCategories();
+}
+const docZone=document.getElementById('docUploadZone');
+['dragenter','dragover'].forEach(e=>docZone.addEventListener(e,x=>{x.preventDefault();docZone.classList.add('drag')}));
+['dragleave','drop'].forEach(e=>docZone.addEventListener(e,x=>{x.preventDefault();docZone.classList.remove('drag')}));
+docZone.addEventListener('drop',e=>{document.getElementById('docFiles').files=e.dataTransfer.files;showSelectedDocs()});
+
+load().catch(e=>{document.getElementById('pageTitle').textContent='Kundenakte konnte nicht geladen werden';document.getElementById('pageSub').textContent=e.message});
+</script>
+</body>
+</html>

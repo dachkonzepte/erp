@@ -1,0 +1,247 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Prüfvorlage</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:1400px;margin:0;padding:20px}
+.breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:6px}
+.breadcrumb a{color:var(--accent);text-decoration:none}
+.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
+.field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
+input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+textarea{min-height:60px;resize:vertical}
+button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
+.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
+.hidden{display:none!important}
+.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.card h2{margin:0 0 12px;font-size:16px}
+.fields-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fields-4col{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+.editor-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:1400px}
+th,td{text-align:left;padding:8px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-size:11px;text-transform:uppercase;font-weight:650;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td input,td select{padding:6px 7px;font-size:12.5px}
+.group-row td{background:var(--soft);font-weight:700;padding:8px 9px}
+.chk{width:auto!important}
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
+@media(max-width:700px){.fields-2col,.fields-4col{grid-template-columns:1fr}}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+<div class="breadcrumb"><a href="/inspection-templates">Prüfvorlagen</a> / <span id="breadcrumbLabel">…</span></div>
+<div class="hero">
+  <div><h1 id="pageTitle">Prüfvorlage</h1><div class="muted small">Version <span id="versionBadge">1</span></div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <input id="copyLabel" placeholder="Name der Kopie …" style="width:220px">
+    <button class="secondary" onclick="copyTemplate()">Vorlage kopieren</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Metadaten</h2>
+  <div class="fields-2col">
+    <div class="field"><label>Bezeichnung *</label><input id="editLabel"></div>
+    <div class="field"><label>Dachtyp <span class="muted small">(optional, sonst für jeden Dachtyp)</span></label><select id="editRoofType"></select></div>
+    <div class="field full"><label>Beschreibung</label><textarea id="editDescription"></textarea></div>
+  </div>
+  <div class="editor-actions">
+    <button onclick="saveTemplateMeta()">Speichern</button>
+    <span id="metaStatus" class="status"></span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Prüfpunkte</h2>
+  <div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th>Gruppe</th><th>Text *</th><th>Bauteiltyp</th><th>Typ</th><th>Pflicht</th>
+        <th>Ziel min</th><th>Ziel max</th><th>Einheit</th><th>Foto</th><th>Vorher/Nachher</th><th>Reihenfolge</th><th></th>
+      </tr></thead>
+      <tbody id="itemRows"></tbody>
+    </table>
+  </div>
+  <div class="editor-actions">
+    <button onclick="addItem()">+ Punkt</button>
+    <span id="itemStatus" class="status"></span>
+  </div>
+</div>
+</main>
+</div>
+</div>
+<script>
+const templateId={{ template_id }};
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+
+const ITEM_TYPES=[
+  ['ja_nein','Ja/Nein (ok/nicht ok/entfällt)'],['condition_grade','Zustandsstufe (1-4)'],
+  ['measurement','Messwert mit Soll-Bereich'],['quantity','Menge'],['leak_test','Dichtheitsprüfung'],
+  ['free_text','Freitext'],['photo','Foto'],
+];
+
+let authStatus=null,template=null,roofTypes=[],componentTypes=[];
+
+function roofTypeOptionsHtml(selected){
+  return '<option value="">— jeder Dachtyp —</option>'+roofTypes.map(o=>`<option value="${esc(o.value)}" ${selected===o.value?'selected':''}>${esc(o.label)}</option>`).join('');
+}
+function componentTypeOptionsHtml(selected){
+  return '<option value="">— kein Bauteiltyp —</option>'+componentTypes.map(o=>`<option value="${esc(o.value)}" ${selected===o.value?'selected':''}>${esc(o.label)}</option>`).join('');
+}
+function itemTypeOptionsHtml(selected){
+  return ITEM_TYPES.map(([v,l])=>`<option value="${v}" ${selected===v?'selected':''}>${esc(l)}</option>`).join('');
+}
+
+function fillMetaForm(){
+  document.getElementById('pageTitle').textContent=template.label;
+  document.getElementById('breadcrumbLabel').textContent=template.label;
+  document.getElementById('versionBadge').textContent=template.version;
+  document.getElementById('editLabel').value=template.label;
+  document.getElementById('editRoofType').innerHTML=roofTypeOptionsHtml(template.roof_type);
+  document.getElementById('editDescription').value=template.description||'';
+}
+
+async function saveTemplateMeta(){
+  const st=document.getElementById('metaStatus');
+  const label=document.getElementById('editLabel').value.trim();
+  if(!label){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben.';return}
+  const payload={label,roof_type:document.getElementById('editRoofType').value||null,description:document.getElementById('editDescription').value.trim()||null};
+  try{
+    template=await api(`/api/inspection-templates/${templateId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    fillMetaForm();
+    st.textContent='Gespeichert.';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function copyTemplate(){
+  const label=document.getElementById('copyLabel').value.trim();
+  if(!label){alert('Bitte einen Namen für die Kopie angeben.');return}
+  try{
+    const copy=await api(`/api/inspection-templates/${templateId}/copy`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})});
+    location.href='/inspection-templates/'+copy.id;
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+function itemRow(item){
+  return `<tr data-item-id="${item.id}">
+    <td><input value="${esc(item.group_name)}" onblur="saveItem(${item.id})" data-field="group_name"></td>
+    <td><input value="${esc(item.text)}" onblur="saveItem(${item.id})" data-field="text" style="min-width:220px"></td>
+    <td><select onblur="saveItem(${item.id})" data-field="component_type">${componentTypeOptionsHtml(item.component_type)}</select></td>
+    <td><select onchange="saveItem(${item.id})" data-field="item_type">${itemTypeOptionsHtml(item.item_type)}</select></td>
+    <td style="text-align:center"><input type="checkbox" class="chk" ${item.required?'checked':''} onchange="saveItem(${item.id})" data-field="required"></td>
+    <td><input type="number" step="0.01" value="${item.target_min??''}" onblur="saveItem(${item.id})" data-field="target_min" style="width:70px"></td>
+    <td><input type="number" step="0.01" value="${item.target_max??''}" onblur="saveItem(${item.id})" data-field="target_max" style="width:70px"></td>
+    <td><input value="${esc(item.unit)}" onblur="saveItem(${item.id})" data-field="unit" style="width:60px"></td>
+    <td style="text-align:center"><input type="checkbox" class="chk" ${item.photo_required?'checked':''} onchange="saveItem(${item.id})" data-field="photo_required"></td>
+    <td style="text-align:center"><input type="checkbox" class="chk" ${item.photo_before_after?'checked':''} onchange="saveItem(${item.id})" data-field="photo_before_after"></td>
+    <td><input type="number" value="${item.sort_order}" onblur="saveItem(${item.id})" data-field="sort_order" style="width:60px"></td>
+    <td><button class="danger" onclick="deleteItem(${item.id})">×</button></td>
+  </tr>`;
+}
+
+function renderItems(){
+  const groups={};
+  const order=[];
+  for(const item of template.items){
+    const key=item.group_name||'Ohne Gruppe';
+    if(!(key in groups)){groups[key]=[];order.push(key)}
+    groups[key].push(item);
+  }
+  let html='';
+  for(const key of order){
+    html+=`<tr class="group-row"><td colspan="12">${esc(key)}</td></tr>`;
+    html+=groups[key].map(itemRow).join('');
+  }
+  document.getElementById('itemRows').innerHTML=html||'<tr><td colspan="12" class="empty">Noch keine Prüfpunkte angelegt.</td></tr>';
+}
+
+function readItemForm(row){
+  const val=field=>row.querySelector(`[data-field="${field}"]`);
+  const numOrNull=field=>{const v=val(field).value;return v===''?null:Number(v)};
+  return {
+    group_name:val('group_name').value.trim()||null,
+    text:val('text').value.trim(),
+    component_type:val('component_type').value||null,
+    item_type:val('item_type').value,
+    required:val('required').checked,
+    target_min:numOrNull('target_min'),
+    target_max:numOrNull('target_max'),
+    unit:val('unit').value.trim()||null,
+    photo_required:val('photo_required').checked,
+    photo_before_after:val('photo_before_after').checked,
+    sort_order:Number(val('sort_order').value)||100,
+  };
+}
+
+async function saveItem(itemId){
+  const st=document.getElementById('itemStatus');
+  const row=document.querySelector(`tr[data-item-id="${itemId}"]`);
+  const payload=readItemForm(row);
+  if(!payload.text){st.className='status err';st.textContent='Bitte einen Prüftext angeben.';return}
+  try{
+    await api(`/api/inspection-template-items/${itemId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    template=await api(`/api/inspection-templates/${templateId}`);
+    document.getElementById('versionBadge').textContent=template.version;
+    st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function addItem(){
+  const st=document.getElementById('itemStatus');
+  try{
+    await api(`/api/inspection-templates/${templateId}/items`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      text:'Neuer Prüfpunkt',item_type:'ja_nein',group_name:null,required:false,sort_order:100,
+    })});
+    template=await api(`/api/inspection-templates/${templateId}`);
+    document.getElementById('versionBadge').textContent=template.version;
+    renderItems();
+    st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function deleteItem(itemId){
+  if(!confirm('Diesen Prüfpunkt wirklich löschen?'))return;
+  const st=document.getElementById('itemStatus');
+  try{
+    await api(`/api/inspection-template-items/${itemId}`,{method:'DELETE'});
+    template=await api(`/api/inspection-templates/${templateId}`);
+    document.getElementById('versionBadge').textContent=template.version;
+    renderItems();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function init(){
+  authStatus=await api('/api/auth/status').catch(()=>({authenticated:false,user:null}));
+  if(!authStatus.authenticated){
+    document.getElementById('metaStatus').className='status err';
+    document.getElementById('metaStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
+    return;
+  }
+  const roofTypeGroup=await api('/api/settings/option-groups/roof_types').catch(()=>({options:[]}));
+  roofTypes=roofTypeGroup.options||[];
+  // Bauteilarten sind seit 1.2.19 eine echte Tabelle (RoofComponentType), keine SettingOptionGroup
+  // mehr -- key bleibt textidentisch zum bisherigen Options-Wert, deshalb hier nur auf die von
+  // componentTypeOptionsHtml() erwartete {value,label}-Form abgebildet.
+  const componentTypeRows=await api('/api/roof-component-types').catch(()=>[]);
+  componentTypes=componentTypeRows.map(t=>({value:t.key,label:t.label}));
+  template=await api(`/api/inspection-templates/${templateId}`);
+  fillMetaForm();
+  renderItems();
+}
+init();
+</script>
+</body></html>

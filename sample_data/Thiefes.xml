@@ -1,0 +1,1075 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Projekt Name="Leistungen Dach" Version="3">
+  <LVDaten>
+    <Titel Name="Leistungen Dach">
+      <Position Name="Ton-Solar-/Kabeldurchgangsziege Braas Rubin 11V.:&#xD;&#xA;Lieferung und Einbau von Kabeldurchgangziegel, passend zur Flächendeckung.">
+        <Langtext>
+          <Line_0>Ton-Solar-/Kabeldurchgangsziegel Braas Rubin 11V:</Line_0>
+          <Line_1>Lieferung und Einbau von Ton-Solar-/Kabeldurchgang, passend zur Flächendeckung, zur Durchführung von Leitungen bis zu 70 mm Durchmesser.</Line_1>
+          <Line_2>Hersteller: Braas</Line_2>
+          <Line_3>Typ: Rubin 11V</Line_3>
+          <Line_4>- Mehrpreis zur Flächendeckung -</Line_4>
+        </Langtext>
+        <LeistungenDachArtikel>L200219202015</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fswiss\fprq2\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\f0\fs22 Ton-Solar-/Kabeldurchgangsziegel Braas Rubin 11V:\par
+\b0 Lieferung und Einbau von Ton-Solar-/Kabeldurchgang, passend zur Fl\'e4chendeckung, zur Durchf\'fchrung von Leitungen bis zu 70 mm Durchmesser.\par
+Hersteller: Braas\par
+Typ: Rubin 11V\par
+- Mehrpreis zur Fl\'e4chendeckung -\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>2,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>Stück</Mengeneinheit>
+        <VKPreis>184,20400000000000000000000000</VKPreis>
+        <Taetigkeit></Taetigkeit>
+        <Stueckliste>
+          <Item Name="BRA Rubin 11V Solar-/Kabeld.P. ANTE&#xD;&#xA;Matt anthrazit eng. 70mm">
+            <Menge>1,0000000000</Menge>
+            <Artikelnummer>2733953</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>166,7</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="BRAAS Rubin 11V ganz P           ANTE&#xD;&#xA;Matt anthrazit eng.">
+            <Menge>-1,0000000000</Menge>
+            <Artikelnummer>2730002</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>1,63</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+        </Stueckliste>
+      </Position>
+      <Position Name="Rinnen 7tlg rd. vorbewittert:&#xD;&#xA;Befestigung von außenliegenden, halbrunden&#xD;&#xA;Hängedachrinnen, mit verzinkten Rinnenhaltern.">
+        <Langtext>
+          <Line_0>Rinnen 7tlg rd.:</Line_0>
+          <Line_1>Befestigung von außenliegenden, halbrunden Hängedachrinnen, mit verzinkten Rinnenhaltern, im Gefälle, auf Holz.</Line_1>
+          <Line_2>Werkstoff:  	Titanzink, vorbewittert</Line_2>
+          <Line_3>Dicke:   	0,7 mm</Line_3>
+          <Line_4>Nenngröße:  	285 mm (7-teilig)</Line_4>
+          <Line_5>Formteile werden gesondert vergütet. </Line_5>
+        </Langtext>
+        <LeistungenDachArtikel>L600109101011</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fprq12\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\f0\fs20 Rinnen 7tlg rd.:\b0\par
+Befestigung von au\'dfenliegenden, halbrunden H\'e4ngedachrinnen, mit verzinkten Rinnenhaltern, im Gef\'e4lle, auf Holz.\par
+Werkstoff:  \tab Titanzink, vorbewittert\par
+Dicke:   \tab 0,7 mm\par
+Nenngr\'f6\'dfe:  \tab 285 mm (7-teilig)\par
+Formteile werden gesondert verg\'fctet. \par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>27,50</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>m</Mengeneinheit>
+        <VKPreis>66,039999999999999999999999997</VKPreis>
+        <Taetigkeit>81</Taetigkeit>
+        <Stueckliste>
+          <Item Name="Lötzinn 40% L-PBSN-40, Zinn, in Stangen">
+            <Menge>0,0700000000</Menge>
+            <Artikelnummer>0593603</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>4,7142857142857142857142857143</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="BIERMANN Rinneisenstift 4,2x65, verzinkt">
+            <Menge>0,0800000000</Menge>
+            <Artikelnummer>1017913</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>12</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="RHEINZINK Rinne halbrund 0,7 mm, 7-teilig, &#xD;&#xA;3,00 m, Zink vorbewittert pro">
+            <Menge>1,0500000000</Menge>
+            <Artikelnummer>5835413</Artikelnummer>
+            <Mengeneinheit>m</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>14,514285714285714285714285714</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="RHEINZINK Rinneneisen Rund 7-teilig, &#xD;&#xA;25x6/2-Federn, Zink vorbewittert blaugrau ummantelt">
+            <Menge>1,8000000000</Menge>
+            <Artikelnummer>5864688</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>5,95</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+        </Stueckliste>
+      </Position>
+      <Position Name="Rinnenböden 285 rd vorbew.:&#xD;&#xA;Lieferung und Einbau von Rinnenböden, glatt, aus Titanzink  in  Hängerinne, halbrund, eingelötet.">
+        <Langtext>
+          <Line_0>Rinnenböden 285 rd vorbew.:</Line_0>
+          <Line_1>Lieferung und Einbau von Rinnenböden, glatt, aus Titanzink  in  Hängerinne, halbrund, eingelötet.</Line_1>
+          <Line_2>Werkstoff: 	Titanzink, vorbewittert</Line_2>
+          <Line_3>Dicke:		0,7 mm</Line_3>
+          <Line_4>Nenngröße:	285 mm (7-tlg)</Line_4>
+          <Line_5>- Mehrpreis als Zulage -</Line_5>
+        </Langtext>
+        <LeistungenDachArtikel>L600109151011</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fprq12\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\f0\fs20 Rinnenb\'f6den 285 rd vorbew.:\par
+\b0 Lieferung und Einbau von Rinnenb\'f6den, glatt, aus Titanzink  in  H\'e4ngerinne, halbrund, eingel\'f6tet.\par
+Werkstoff: \tab Titanzink, vorbewittert\par
+Dicke:\tab\tab 0,7 mm\par
+Nenngr\'f6\'dfe:\tab 285 mm (7-tlg)\par
+- Mehrpreis als Zulage -\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>15,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>Stück</Mengeneinheit>
+        <VKPreis>21,4000</VKPreis>
+        <Taetigkeit>81</Taetigkeit>
+        <Stueckliste>
+          <Item Name="Lötzinn 40% L-PBSN-40, Zinn, in Stangen">
+            <Menge>0,0800000000</Menge>
+            <Artikelnummer>0593603</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>4,75</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="RHEINZINK Rinnenboden Rund, 7-teilig, rechts, Zink vorbewitter pro">
+            <Menge>0,5500000000</Menge>
+            <Artikelnummer>5863059</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>1,0727272727272727272727272727</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="RHEINZINK Rinnenboden Rund 7-teilig, links, Zink vorbewittert pro">
+            <Menge>0,5500000000</Menge>
+            <Artikelnummer>5863065</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>1,0727272727272727272727272727</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+        </Stueckliste>
+      </Position>
+      <Position Name="Rinneneinhangstutzen 285/87 vorbew.:&#xD;&#xA;Lieferung und Einbau von Rinneneinhangstutzen für halbrunde Hängerinnen, mit geraden Abgang.">
+        <Langtext>
+          <Line_0>Rinneneinhangstutzen 285/87 vorbew.:</Line_0>
+          <Line_1>Lieferung und Einbau von Rinneneinhangstutzen für halbrunde Hängerinnen, mit geraden Abgang.</Line_1>
+          <Line_2>Werkstoff: 	Titanzink, vorbewittert</Line_2>
+          <Line_3>Dicke: 		0,7 mm</Line_3>
+          <Line_4>Nenngröße: 	285 mm (7-teilig)</Line_4>
+          <Line_5>Nennweite: 	87 mm</Line_5>
+        </Langtext>
+        <LeistungenDachArtikel>L600109201011</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\fs20 Rinneneinhangstutzen 285/87 vorbew.:\par
+\b0 Lieferung und Einbau von Rinneneinhangstutzen f\'fcr halbrunde H\'e4ngerinnen, mit geraden Abgang.\par
+Werkstoff: \tab Titanzink, vorbewittert\par
+Dicke: \tab\tab 0,7 mm\par
+Nenngr\'f6\'dfe: \tab 285 mm (7-teilig)\par
+Nennweite: \tab 87 mm\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>15,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>Stück</Mengeneinheit>
+        <VKPreis>28,6600</VKPreis>
+        <Taetigkeit>81</Taetigkeit>
+        <Stueckliste>
+          <Item Name="RHEINZINK Einhangstutzen Rund 7-teilig, NW 87, gerade, geschweißt, Zink vorbewittert pro">
+            <Menge>1,1000000000</Menge>
+            <Artikelnummer>5863464</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>7,4181818181818181818181818182</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+        </Stueckliste>
+      </Position>
+      <Position Name="Traufblech 200 vorbew.:&#xD;&#xA;Befestigung von Traufblechen aus Titanzinkblech.">
+        <Langtext>
+          <Line_0>Traufblech 200 vorbew.:</Line_0>
+          <Line_1>Befestigung von Traufblechen aus Titanzinkblech, verdeckt, mit Haften, auf Holz, Nähte verlötet.</Line_1>
+          <Line_2>Werkstoff: 	Titanzink, vorbewittert</Line_2>
+          <Line_3>Dicke:	 	0,7 mm</Line_3>
+          <Line_4>Zuschnitt: 	200 mm</Line_4>
+          <Line_5>Kantungen:	bis 3</Line_5>
+        </Langtext>
+        <LeistungenDachArtikel>L600109301021</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\fs20 Traufblech 200 vorbew.:\b0\par
+Befestigung von Traufblechen aus Titanzinkblech, verdeckt, mit Haften, auf Holz, N\'e4hte verl\'f6tet.\par
+Werkstoff: \tab Titanzink, vorbewittert\par
+Dicke:\tab  \tab 0,7 mm\par
+Zuschnitt: \tab 200 mm\par
+Kantungen:\tab bis 3\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>10,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>m</Mengeneinheit>
+        <VKPreis>24,070000000000000000000000003</VKPreis>
+        <Taetigkeit>81</Taetigkeit>
+        <Stueckliste>
+          <Item Name="BRAAS Hafte für Traufstreifen, verzinkt">
+            <Menge>2,0000000000</Menge>
+            <Artikelnummer>0673094</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>0,28</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="Haftenagel 2,5x25 mm, V2A (10800St/Pak)">
+            <Menge>4,5000000000</Menge>
+            <Artikelnummer>0720911</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>0,0711111111111111111111111111</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="RHEINZINK Tafel 0,7 mm, 1000x2000 mm, &#xD;&#xA;Zink vorbewittert pro">
+            <Menge>1,1100000000</Menge>
+            <Artikelnummer>5834130</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>7,7477477477477477477477477477</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="Lötzinn 40% L-PBSN Zinn, Stangen">
+            <Menge>0,0500000000</Menge>
+            <Artikelnummer>5922580</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>9,4</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+        </Stueckliste>
+      </Position>
+      <Position Name="Regenfallrohr rd 76 vorbew.:&#xD;&#xA;Lieferung und Befestigung  von Regenfallrohren, kreisförmig. ">
+        <Langtext>
+          <Line_0>Regenfallrohr rd 76 vorbew.:</Line_0>
+          <Line_1>Lieferung und Befestigung  von Regenfallrohren, kreisförmig. Befestigung mit verzinkten Rohrschellen an Dachgauben.</Line_1>
+          <Line_2>Werkstoff:  	Titanzink, vorbewittert</Line_2>
+          <Line_3>Dicke: 		0,7/065 mm</Line_3>
+          <Line_4>Nennweite:  	76 mm ((8-tlg)</Line_4>
+        </Langtext>
+        <LeistungenDachArtikel>L600109501021</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fprq12\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\f0\fs20 Regenfallrohr rd 76 vorbew.:\par
+\b0 Lieferung und Befestigung  von Regenfallrohren, kreisf\'f6rmig. Befestigung mit verzinkten Rohrschellen an Dachgauben.\par
+Werkstoff:  \tab Titanzink, vorbewittert\par
+Dicke: \tab\tab 0,7/065 mm\par
+Nennweite:  \tab 76 mm ((8-tlg)\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>25,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>m</Mengeneinheit>
+        <VKPreis>54,750000000000000000000000003</VKPreis>
+        <Taetigkeit>81</Taetigkeit>
+        <Stueckliste>
+          <Item Name="RHEINZINK Fallrohr Rund 0,7 mm, 8-teilig, &#xD;&#xA;NW 80, 2,00 m, geschweißt, Zink vorbewittert pro">
+            <Menge>1,1000000000</Menge>
+            <Artikelnummer>5836151</Artikelnummer>
+            <Mengeneinheit>m</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>15,463636363636363636363636364</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="RHEINZINK Rohrmuffe 8-teilig, NW 76, Zink vorbewittert pro">
+            <Menge>0,3000000000</Menge>
+            <Artikelnummer>5863004</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>3,3333333333333333333333333333</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="OVE Rohrschellen Rund 8-teilig/NW76, 200 mm, mit Scharnier Winkelst.V2A-Schr., feuerverzinkt">
+            <Menge>0,6000000000</Menge>
+            <Artikelnummer>5145114</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>3,2333333333333333333333333333</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+        </Stueckliste>
+      </Position>
+      <Position Name="Fallrohrbogen 76 vorbew.:&#xD;&#xA;Lieferung und Einbau von Fallrohrbögen.">
+        <Langtext>
+          <Line_0>Fallrohrbogen 76 vorbew.:</Line_0>
+          <Line_1>Mehrpreis für Lieferung und Einbau von Fallrohrbögen.</Line_1>
+          <Line_2>Werkstoff:  	Titanzink, vorbewittert</Line_2>
+          <Line_3>Dicke:  		0,7/0,65 mm</Line_3>
+          <Line_4>Nennweite:  	76 mm (8-tlg)</Line_4>
+          <Line_5>Winkel:  	45 / 60 Grad</Line_5>
+        </Langtext>
+        <LeistungenDachArtikel>L600109601021</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fprq12\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\f0\fs20 Fallrohrbogen 76 vorbew.:\par
+\b0 Mehrpreis f\'fcr Lieferung und Einbau von Fallrohrb\'f6gen.\par
+Werkstoff:  \tab Titanzink, vorbewittert\par
+Dicke:  \tab\tab 0,7/0,65 mm\par
+Nennweite:  \tab 76 mm (8-tlg)\par
+Winkel:  \tab 45 / 60 Grad\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>10,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>Stück</Mengeneinheit>
+        <VKPreis>18,360000000000000000000000003</VKPreis>
+        <Taetigkeit>81</Taetigkeit>
+        <Stueckliste>
+          <Item Name="Lötzinn 40% L-PBSN-40, Zinn, in Stangen">
+            <Menge>0,0800000000</Menge>
+            <Artikelnummer>0593603</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>4,75</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="RHEINZINK Rohrbogen 60Grad, 8-teilig, NW76, Zink">
+            <Menge>0,0000000000</Menge>
+            <Artikelnummer>5841749</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>0,000</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="RHEINZINK Objektbogen 60 Grad, 8-teilig, geschweißt, Zink vorbewittert pro">
+            <Menge>1,1000000000</Menge>
+            <Artikelnummer>5863279</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>3,9818181818181818181818181818</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+        </Stueckliste>
+      </Position>
+      <Position Name="Ausbau / Zwischenlagerung Dachflächenfenster:&#xD;&#xA;Ausbau und Zwischenlagerung der Dachflächenfenster zur Wiederverwendung.">
+        <Langtext>
+          <Line_0>Ausbau / Zwischenlagerung Dachflächenfenster:</Line_0>
+          <Line_1>Ausbau der Dachflächenfenster im Bereich der Steildachfläche, einschl. Lagerung zur Wiederverwendung. </Line_1>
+        </Langtext>
+        <LeistungenDachArtikel>L700002200020</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fprq12\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\f0\fs20 Ausbau / Zwischenlagerung Dachfl\'e4chenfenster:\par
+\b0 Ausbau der Dachfl\'e4chenfenster im Bereich der Steildachfl\'e4che, einschl. Lagerung zur Wiederverwendung. \par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>80,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>Stück</Mengeneinheit>
+        <VKPreis>104,96000000000000000000000000</VKPreis>
+        <Taetigkeit>71</Taetigkeit>
+        <Stueckliste />
+      </Position>
+      <Position Name="Einbau Dachflächenfenster:&#xD;&#xA;Einbau von vorhandenen Dachflächenfenstern in die Steildachfläche, einschl. Eindeckrahmen.">
+        <Langtext>
+          <Line_0>Einbau Dachflächenfenster:</Line_0>
+          <Line_1>Einbau von bauseits vorhandenen bzw. zwischengelagerten Dachflächenfenstern in die Steildachfläche, einschl. erforderlicher Hinzulieferung des passenden Eindeckrahmens.</Line_1>
+          <Line_2>Fenstergröße:  bis 120 x 145 cm</Line_2>
+        </Langtext>
+        <LeistungenDachArtikel>L700005100010</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fprq12\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\f0\fs20 Einbau Dachfl\'e4chenfenster:\b0\par
+Einbau von bauseits vorhandenen bzw. zwischengelagerten Dachfl\'e4chenfenstern in die Steildachfl\'e4che, einschl. erforderlicher Hinzulieferung des passenden Eindeckrahmens.\par
+Fenstergr\'f6\'dfe:  bis 120 x 145 cm\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>240,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>Stück</Mengeneinheit>
+        <VKPreis>319,080</VKPreis>
+        <Taetigkeit>71</Taetigkeit>
+        <Stueckliste>
+          <Item Name="VELUX EDZ M10 2000 AL (Ziegel) Eindeckrahmen + BDX">
+            <Menge>1,0000000000</Menge>
+            <Artikelnummer>7081901</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>0</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="SPAXschrauben 6,0x50 mm">
+            <Menge>20,0000000000</Menge>
+            <Artikelnummer>9750518</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>0,08</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="SIGA Klebeband RISSAN grün, einseitig ">
+            <Menge>0,1000000000</Menge>
+            <Artikelnummer>6389001</Artikelnummer>
+            <Mengeneinheit>Rolle</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>22,2</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+        </Stueckliste>
+      </Position>
+      <Position Name="VELUX Innenfutter LSD SK08 2000&#xD;&#xA;Grundelement 50  weiß: &#xD;&#xA;Lieferung und fachgerechter Einbau von VELUX Innenfutter für Fenster in Dachbereichen ohne&#xD;&#xA;Abseite oder als Grundelement für andere&#xD;&#xA;Einbausituationen.">
+        <Langtext>
+          <Line_0>VELUX Innenfutter LSD SK08 2000</Line_0>
+          <Line_1>Grundelement 50  weiß: </Line_1>
+          <Line_2>Lieferung und fachgerechter Einbau von VELUX Innenfutter für Fenster in Dachbereichen ohne</Line_2>
+          <Line_3>Abseite oder als Grundelement für andere</Line_3>
+          <Line_4>Einbausituationen.</Line_4>
+          <Line_5>Geeignet für Dachdicken von 17 bis 53 cm und </Line_5>
+          <Line_6>Dachneigungen von 15° bis 90°.</Line_6>
+          <Line_7>(Bei 15° bis 25° und 65° bis 90° mit leicht schräg verlaufenden Ober- und Unterteilen). </Line_7>
+          <Line_8>Breitenteile direkt am Fenster in lotrechter Ausführung für mehr Platz zur Einbringung von Wärmedämmung, ansonsten waagerecht / senkrecht einbaubar.</Line_8>
+          <Line_9>Oberflächen aus weißem, seidenmatten Kunststoff, NCS S 0500-N.</Line_9>
+          <Line_10>Abdeckleisten weiß foliert.</Line_10>
+          <Line_11>Inklusive zur Fenstergröße passender</Line_11>
+          <Line_12>Dampfsperrschürze zur Herstellung einer</Line_12>
+          <Line_13>luftdichten Anbindung.</Line_13>
+          <Line_14>Einschließlich aller Befestigungsmaterialien zum Anschließen der Dampfbremsschürze an die Dampfsperre des Daches.</Line_14>
+        </Langtext>
+        <LeistungenDachArtikel>L700145250075</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\fs20 VELUX Innenfutter LSD SK08 2000\par
+Grundelement 50  wei\'df: \b0\par
+Lieferung und fachgerechter Einbau von VELUX Innenfutter f\'fcr Fenster in Dachbereichen ohne\par
+Abseite oder als Grundelement f\'fcr andere\par
+Einbausituationen.\par
+Geeignet f\'fcr Dachdicken von 17 bis 53 cm und \par
+Dachneigungen von 15\'b0 bis 90\'b0.\par
+(Bei 15\'b0 bis 25\'b0 und 65\'b0 bis 90\'b0 mit leicht schr\'e4g verlaufenden Ober- und Unterteilen). \par
+Breitenteile direkt am Fenster in lotrechter Ausf\'fchrung f\'fcr mehr Platz zur Einbringung von W\'e4rmed\'e4mmung, ansonsten waagerecht / senkrecht einbaubar.\par
+Oberfl\'e4chen aus wei\'dfem, seidenmatten Kunststoff, NCS S 0500-N.\par
+Abdeckleisten wei\'df foliert.\par
+Inklusive zur Fenstergr\'f6\'dfe passender\par
+Dampfsperrsch\'fcrze zur Herstellung einer\par
+luftdichten Anbindung.\par
+Einschlie\'dflich aller Befestigungsmaterialien zum Anschlie\'dfen der Dampfbremssch\'fcrze an die Dampfsperre des Daches.\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>200,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>Stck</Mengeneinheit>
+        <VKPreis>869,1200000000000000000000000</VKPreis>
+        <Taetigkeit>71</Taetigkeit>
+        <Stueckliste>
+          <Item Name="Latte 30/50 mm, 4,00 m, imprägniert &#xD;&#xA;(keine Dachlatte nach DIN 4074)">
+            <Menge>4,0000000000</Menge>
+            <Artikelnummer>3001083</Artikelnummer>
+            <Mengeneinheit>m</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>0,64</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="VELUX Innenfutter LSD SK08 2000&#xD;&#xA;Grundelement 50  weiß">
+            <Menge>1,0000000000</Menge>
+            <Artikelnummer>LSDSK082000</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>549</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+        </Stueckliste>
+      </Position>
+      <Position Name="VELUX Innenfutter LSD PK08 2000&#xD;&#xA;Grundelement 50  weiß: &#xD;&#xA;Lieferung und fachgerechter Einbau von VELUX Innenfutter für Fenster in Dachbereichen ohne&#xD;&#xA;Abseite oder als Grundelement für andere&#xD;&#xA;Einbausituationen.">
+        <Langtext>
+          <Line_0>VELUX Innenfutter LSD PK08 2000</Line_0>
+          <Line_1>Grundelement 50  weiß: </Line_1>
+          <Line_2>Lieferung und fachgerechter Einbau von VELUX Innenfutter für Fenster in Dachbereichen ohne</Line_2>
+          <Line_3>Abseite oder als Grundelement für andere</Line_3>
+          <Line_4>Einbausituationen.</Line_4>
+          <Line_5>Geeignet für Dachdicken von 17 bis 53 cm und </Line_5>
+          <Line_6>Dachneigungen von 15° bis 90°.</Line_6>
+          <Line_7>(Bei 15° bis 25° und 65° bis 90° mit leicht schräg verlaufenden Ober- und Unterteilen). </Line_7>
+          <Line_8>Breitenteile direkt am Fenster in lotrechter Ausführung für mehr Platz zur Einbringung von Wärmedämmung, ansonsten waagerecht / senkrecht einbaubar.</Line_8>
+          <Line_9>Oberflächen aus weißem, seidenmatten Kunststoff, NCS S 0500-N.</Line_9>
+          <Line_10>Abdeckleisten weiß foliert.</Line_10>
+          <Line_11>Inklusive zur Fenstergröße passender</Line_11>
+          <Line_12>Dampfsperrschürze zur Herstellung einer</Line_12>
+          <Line_13>luftdichten Anbindung.</Line_13>
+          <Line_14>Einschließlich aller Befestigungsmaterialien zum Anschließen der Dampfbremsschürze an die Dampfsperre des Daches.</Line_14>
+        </Langtext>
+        <LeistungenDachArtikel>L700145250060</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\fs20 VELUX Innenfutter LSD PK08 2000\par
+Grundelement 50  wei\'df: \b0\par
+Lieferung und fachgerechter Einbau von VELUX Innenfutter f\'fcr Fenster in Dachbereichen ohne\par
+Abseite oder als Grundelement f\'fcr andere\par
+Einbausituationen.\par
+Geeignet f\'fcr Dachdicken von 17 bis 53 cm und \par
+Dachneigungen von 15\'b0 bis 90\'b0.\par
+(Bei 15\'b0 bis 25\'b0 und 65\'b0 bis 90\'b0 mit leicht schr\'e4g verlaufenden Ober- und Unterteilen). \par
+Breitenteile direkt am Fenster in lotrechter Ausf\'fchrung f\'fcr mehr Platz zur Einbringung von W\'e4rmed\'e4mmung, ansonsten waagerecht / senkrecht einbaubar.\par
+Oberfl\'e4chen aus wei\'dfem, seidenmatten Kunststoff, NCS S 0500-N.\par
+Abdeckleisten wei\'df foliert.\par
+Inklusive zur Fenstergr\'f6\'dfe passender\par
+Dampfsperrsch\'fcrze zur Herstellung einer\par
+luftdichten Anbindung.\par
+Einschlie\'dflich aller Befestigungsmaterialien zum Anschlie\'dfen der Dampfbremssch\'fcrze an die Dampfsperre des Daches.\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>200,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>Stck</Mengeneinheit>
+        <VKPreis>831,7200000000000000000000000</VKPreis>
+        <Taetigkeit>71</Taetigkeit>
+        <Stueckliste>
+          <Item Name="Latte 30/50 mm, 4,00 m, imprägniert &#xD;&#xA;(keine Dachlatte nach DIN 4074)">
+            <Menge>4,0000000000</Menge>
+            <Artikelnummer>3001083</Artikelnummer>
+            <Mengeneinheit>m</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>0,64</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="VELUX Innenfutter LSD PK08 2000&#xD;&#xA;Grundelement 50  weiß">
+            <Menge>1,0000000000</Menge>
+            <Artikelnummer>LSDPK082000</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>515</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+        </Stueckliste>
+      </Position>
+      <Position Name="Beideckung Dachflächenfenster:&#xD;&#xA;Fachgerechte Beideckung der neu eingebauten Dachflächenfenster| ohne Arbeiten an der Fensterleibung.">
+        <Langtext>
+          <Line_0>Beideckung Dachflächenfenster:</Line_0>
+          <Line_1>Fachgerechte Beideckung der neu eingebauten Dachflächenfenster in die vorhandene Dacheindeckung mit vorhandenem Material sowie Hinzulieferung von neuem Ergänzungsmaterial. </Line_1>
+          <Line_2>Enthält nicht die Beiarbeit / Anschluss an die vorhandene Innenleibung bzw. Herstellung einer neuen Innenleibung.   </Line_2>
+        </Langtext>
+        <LeistungenDachArtikel>L700009100010</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fprq12\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\f0\fs20 Beideckung Dachfl\'e4chenfenster:\b0\par
+Fachgerechte Beideckung der neu eingebauten Dachfl\'e4chenfenster in die vorhandene Dacheindeckung mit vorhandenem Material sowie Hinzulieferung von neuem Erg\'e4nzungsmaterial. \line Enth\'e4lt nicht die Beiarbeit / Anschluss an die vorhandene Innenleibung bzw. Herstellung einer neuen Innenleibung.   \par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>60,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>Stück</Mengeneinheit>
+        <VKPreis>95,220</VKPreis>
+        <Taetigkeit>71</Taetigkeit>
+        <Stueckliste />
+      </Position>
+      <Position Name="Abriss Metallbekleidung Dachausbauten:&#xD;&#xA;Aufnahme der Bekleidung von senkr. Wangen- und Ansichtsflächen an Dachausbauten.">
+        <Langtext>
+          <Line_0>Abriss Metallbekleidung Dachausbauten:</Line_0>
+          <Line_1>Aufnahme der Bekleidung von senkr. Wangen- und Ansichtsflächen an Dachausbauten in der Steildachfläche, bestehend aus Metallblechen sowie Vordeckung, einschl. Verladung in Container.</Line_1>
+        </Langtext>
+        <LeistungenDachArtikel>L600101202010</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fprq12\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\f0\fs20 Abriss Metallbekleidung Dachausbauten:\b0\par
+Aufnahme der Bekleidung von senkr. Wangen- und Ansichtsfl\'e4chen an Dachausbauten in der Steildachfl\'e4che, bestehend aus Metallblechen sowie Vordeckung, einschl. Verladung in Container.\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>25,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>m²</Mengeneinheit>
+        <VKPreis>32,800000000000000000000000003</VKPreis>
+        <Taetigkeit>81</Taetigkeit>
+        <Stueckliste />
+      </Position>
+      <Position Name="Abriss Pfostenbekleidung:&#xD;&#xA;Aufnahme der Bekleidung von Pfosten / Riegeln an Dachaufbauten| Breite bis 0,25 m.">
+        <Langtext>
+          <Line_0>Abriss Pfostenbekleidung:</Line_0>
+          <Line_1>Aufnahme der Bekleidung von Pfosten / Riegeln an Dachaufbauten aus div. Werkstoffen, inkl. Transport und Verladung in Container. Breite bis 0,25 m</Line_1>
+        </Langtext>
+        <LeistungenDachArtikel>L600101205010</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\fs20 Abriss Pfostenbekleidung:\b0\par
+Aufnahme der Bekleidung von Pfosten / Riegeln an Dachaufbauten aus div. Werkstoffen, inkl. Transport und Verladung in Container. Breite bis 0,25 m\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>6,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>m</Mengeneinheit>
+        <VKPreis>8,152</VKPreis>
+        <Taetigkeit>81</Taetigkeit>
+        <Stueckliste />
+      </Position>
+      <Position Name="Abriss Leibungsbekleidung:&#xD;&#xA;Aufnahme der Bekleidung von Leibungen an Dachaufbauten| Breite bis 0,15 m.">
+        <Langtext>
+          <Line_0>Abriss Leibungsbekleidung:</Line_0>
+          <Line_1>Aufnahme der Bekleidung von Leibungen an Dachaufbauten aus div. Werkstoffen, inkl. Transport und Verladung in Container. Breite bis 0,15 m.</Line_1>
+        </Langtext>
+        <LeistungenDachArtikel>L600101205020</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\fs20 Abriss Leibungsbekleidung:\b0\par
+Aufnahme der Bekleidung von Leibungen an Dachaufbauten aus div. Werkstoffen, inkl. Transport und Verladung in Container. Breite bis 0,15 m.\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>6,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>m</Mengeneinheit>
+        <VKPreis>8,152</VKPreis>
+        <Taetigkeit>81</Taetigkeit>
+        <Stueckliste />
+      </Position>
+      <Position Name="Dämmung/Schalung senkr. Flächen 160 mm:&#xD;&#xA;Dämmung der senkr. Gaubenflächen und Aufdoppelung der Schalung auf vorh. Schalung.">
+        <Langtext>
+          <Line_0>Dämmung, Schalung senkr. Flächen:</Line_0>
+          <Line_1>Dämmung der senkr. Gaubenflächen und Aufdoppelung der Schalung auf vorh. Schalung wie folgt:</Line_1>
+          <Line_2>- Einbau einer Wind-/ Dampfsperre</Line_2>
+          <Line_3>- Einbau einer imprägnierten Konterlattung 6 x 18 cm </Line_3>
+          <Line_4>- Einbau einer Wärmedämmung D = 160 mm</Line_4>
+          <Line_5>- Verschalung mit  24 mm imprägn. Holzschalung </Line_5>
+          <Line_6>  einschl. Verschnitt für Kleinflächen </Line_6>
+          <Line_7>Die Klassifizierung der verwendeten Hölzer entspricht den derzeit gültigen Fachregeln sowie den DIN- und EN-Normen.</Line_7>
+          <Line_8>Befestigung entsprechend den derzeit gültigen Fachregeln.</Line_8>
+        </Langtext>
+        <LeistungenDachArtikel>L600102201116</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fcharset0 Arial;}{\f1\fnil\fprq12\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\fs20 D\'e4mmung, Schalung senkr. Fl\'e4chen:\b0\par
+D\'e4mmung der senkr. Gaubenfl\'e4chen und Aufdoppelung der Schalung auf vorh. Schalung wie folgt:\par
+- Einbau einer Wind-/ Dampfsperre\par
+- Einbau einer impr\'e4gnierten Konterlattung 6 x 18 cm \par
+- Einbau einer W\'e4rmed\'e4mmung D = 160 mm\par
+- Verschalung mit  24 mm impr\'e4gn. Holzschalung \par
+  einschl. Verschnitt f\'fcr Kleinfl\'e4chen \par
+\f1 Die Klassifizierung der verwendeten H\'f6lzer entspricht den derzeit g\'fcltigen Fachregeln sowie den DIN- und EN-Normen.\par
+Befestigung entsprechend den derzeit g\'fcltigen Fachregeln.\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>85,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>m²</Mengeneinheit>
+        <VKPreis>173,23000000000000000000000000</VKPreis>
+        <Taetigkeit>81</Taetigkeit>
+        <Stueckliste>
+          <Item Name="Rahmen 60/60 impr.         4,50&#xD;&#xA;(0,0036)">
+            <Menge>7,0000000000</Menge>
+            <Artikelnummer>3002114</Artikelnummer>
+            <Mengeneinheit>m</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>1,9</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="Schalung 24 mm, 16-30 mm, 4,00 m, imprägniert">
+            <Menge>1,3000000000</Menge>
+            <Artikelnummer>3003223</Artikelnummer>
+            <Mengeneinheit>m²</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>9,6</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="Drahtstift Senkkopf 5,5x160 mm, 5,0kg/Pak, feuerverzinkt">
+            <Menge>0,1500000000</Menge>
+            <Artikelnummer>3710078</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>4,4</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="PUREN Standard, WLS 024, 80 mm Nut-/Federverbindung, kaschiert, 2400x1020 mm">
+            <Menge>0,0000000000</Menge>
+            <Artikelnummer>5515997</Artikelnummer>
+            <Mengeneinheit>m²</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>0,000</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="DÖRKEN DELTA-Reflex, B1, ">
+            <Menge>1,2500000000</Menge>
+            <Artikelnummer>1343104</Artikelnummer>
+            <Mengeneinheit>m²</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>7,152</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="Drahtstift Senkkopf 3,1x80 mm, 5,0kg/Pak, feuerverzinkt">
+            <Menge>0,1250000000</Menge>
+            <Artikelnummer>3710069</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>4,4</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="ISOVER Kontur FSP1 60 mm, 040, Fassadendämmplatte 1250x600 mm 4,5m²/Pak">
+            <Menge>1,1000000000</Menge>
+            <Artikelnummer>2510452</Artikelnummer>
+            <Mengeneinheit>m²</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>6,8818181818181818181818181818</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="ISOVER Kontur FSP1 100 mm, 040, Fassadendämmplatte 1250x600 mm 3,75m²/Pak">
+            <Menge>1,1000000000</Menge>
+            <Artikelnummer>2510454</Artikelnummer>
+            <Mengeneinheit>m²</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>11,454545454545454545454545455</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+        </Stueckliste>
+      </Position>
+      <Position Name="Dämmung Gaubenpfosten:&#xD;&#xA;Einbau von Wärmedämmung auf die Gaubenpfosten / -Riegel einschl. der erforderlichen Aufdoppelung mit Schalung.">
+        <Langtext>
+          <Line_0>Dämmung Gaubenpfosten:</Line_0>
+          <Line_1>Einbau von Wärmedämmung auf die Gaubenpfosten / -Riegel einschl. der erforderlichen Aufdoppelung mit Schalung 24 mm sowie den notwendigen Unterfütterungen zur nachfolgenden Bekleidung.</Line_1>
+          <Line_2>Breite: 	bis 20 cm</Line_2>
+        </Langtext>
+        <LeistungenDachArtikel>L600102202010</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\fs20 D\'e4mmung Gaubenpfosten:\b0\par
+Einbau von W\'e4rmed\'e4mmung auf die Gaubenpfosten / -Riegel einschl. der erforderlichen Aufdoppelung mit Schalung 24 mm sowie den notwendigen Unterf\'fctterungen zur nachfolgenden Bekleidung.\par
+Breite: \tab bis 20 cm\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>30,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>m</Mengeneinheit>
+        <VKPreis>48,140</VKPreis>
+        <Taetigkeit>81</Taetigkeit>
+        <Stueckliste>
+          <Item Name="Rahmen 40/60 mm, 4,00 m, imprägniert &#xD;&#xA;(keine Dachlatte nach DIN 4074)">
+            <Menge>2,2000000000</Menge>
+            <Artikelnummer>3002043</Artikelnummer>
+            <Mengeneinheit>m</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>1,25</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="Drahtstift Senkkopf 2,8x65 mm, 2,5kg/Pak, feuerverzinkt">
+            <Menge>0,1000000000</Menge>
+            <Artikelnummer>3710062</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>3,5</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="Drahtstift Senkkopf 4,2x120 mm, 5,0kg/Pak, feuerverzinkt">
+            <Menge>0,1000000000</Menge>
+            <Artikelnummer>3710075</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>4,4</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="BÖRNER PUR Dämmplatten, WLS 030, 60 mm beids. Mineralvlieskaschiert, ohne Falz, 100kPa">
+            <Menge>0,2500000000</Menge>
+            <Artikelnummer>0611528</Artikelnummer>
+            <Mengeneinheit>m²</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>11,64</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="HOLZ Schalung 24mm, 16-30mm, 3,50m, imprägniert">
+            <Menge>0,3000000000</Menge>
+            <Artikelnummer>3003222</Artikelnummer>
+            <Mengeneinheit>M2</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>5,1</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+        </Stueckliste>
+      </Position>
+      <Position Name="Abriss Schornsteinkopf-Einfassung (Stück):&#xD;&#xA;Aufnahme der Metallanschlüsse an aufgehenden Baukörpern - Schornsteinkopf - aus Schichtstücken u. Ä. inkl. Verwahrung.">
+        <Langtext>
+          <Line_0>Abriss Schornsteinkopf-Einfassung:</Line_0>
+          <Line_1>Aufnahme der Metallanschlüsse an aufgehenden Baukörpern - Schornsteinkopf - aus Schichtstücken u. Ä. inkl. Verwahrung. </Line_1>
+          <Line_2>Einschl. Abtransport und Entsorgung. </Line_2>
+        </Langtext>
+        <LeistungenDachArtikel>L600201500220</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\fs20 Abriss Schornsteinkopf-Einfassung:\b0\par
+Aufnahme der Metallanschl\'fcsse an aufgehenden Bauk\'f6rpern - Schornsteinkopf - aus Schichtst\'fccken u. \'c4. inkl. Verwahrung. \par
+Einschl. Abtransport und Entsorgung. \par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>45,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>Stck</Mengeneinheit>
+        <VKPreis>59,7900</VKPreis>
+        <Taetigkeit>82</Taetigkeit>
+        <Stueckliste>
+          <Item Name="Entsorgung Baumischabfall">
+            <Menge>0,0050000000</Menge>
+            <Artikelnummer>99030120</Artikelnummer>
+            <Mengeneinheit>to</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>136</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+        </Stueckliste>
+      </Position>
+      <Position Name="Abriss Schornsteinkopf 1 züg.&lt; 1,8 m:&#xD;&#xA;Abriss von Schornsteinköpfen, einschl. Verladung. &#xD;&#xA;Abmessung: 1-zügig, Höhe bis 1,80 m.">
+        <Langtext>
+          <Line_0>Abriss Schornsteinkopf &lt; 1,8 m:</Line_0>
+          <Line_1>Abriss von gemauerten Schornsteinköpfen, einschl. Abtransport und Verladung in Container.</Line_1>
+          <Line_2>Abmessung: 1-zügig, </Line_2>
+          <Line_3>Höhe über Dach bis 1,80 m.</Line_3>
+        </Langtext>
+        <LeistungenDachArtikel>L600201001010</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fprq12\fcharset0 Arial;}{\f1\fnil\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\f0\fs20 Abriss \f1 Schornstein\f0 kopf &lt; 1,8 m:\b0\par
+Abriss von gemauerten \f1 Schornstein\f0 k\'f6pfen, einschl. Abtransport und Verladung in Container.\par
+Abmessung: 1-z\'fcgig, \par
+H\'f6he \'fcber Dach bis 1,80 m.\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>210,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>m</Mengeneinheit>
+        <VKPreis>275,520</VKPreis>
+        <Taetigkeit>82</Taetigkeit>
+        <Stueckliste />
+      </Position>
+      <Position Name="Abriss Schornsteinkopfbekleidung:&#xD;&#xA;Aufnahme der Schornsteinkopfbekleidung, bestehend aus FZ-Platten, Schiefer, Verbundwerkstoffen u. Ä., inkl. Verladung">
+        <Langtext>
+          <Line_0>Abriss Schornsteinkopfbekleidung:</Line_0>
+          <Line_1>Aufnahme der Schornsteinkopfbekleidung, bestehend aus FZ-Platten oder -Tafeln, Schiefer, Verbundmaterial, Metall usw., einschl. Abtransport und Verladung in Container.</Line_1>
+        </Langtext>
+        <LeistungenDachArtikel>L600201005010</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\fs20 Abriss Schornsteinkopfbekleidung:\b0\par
+Aufnahme der Schornsteinkopfbekleidung, bestehend aus FZ-Platten oder -Tafeln, Schiefer, Verbundmaterial, Metall usw., einschl. Abtransport und Verladung in Container.\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>15,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>m²</Mengeneinheit>
+        <VKPreis>19,6800</VKPreis>
+        <Taetigkeit>82</Taetigkeit>
+        <Stueckliste />
+      </Position>
+      <Position Name="Schornsteinkopfbekleidung Zn vorbew. incl. Dämmung:&#xD;&#xA;Herstellung einer gedämmten Schornsteinkopfbekleidung aus Titanzink inkl. Unterkonstruktion.">
+        <Langtext>
+          <Line_0>Schornsteinkopfbekleidung:</Line_0>
+          <Line_1>Herstellung einer gedämmten, hinterlüfteten Schornsteinkopfbekleidung aus Zinkblech, komplett mit erforderlicher Unterkonstruktion, Eckausbildungen, An- und Abschlüssen.</Line_1>
+          <Line_2>Werkstoff: 	Titanzink 07, vorbewittert</Line_2>
+          <Line_3>Format: 	in Scharen Falztechnik </Line_3>
+        </Langtext>
+        <LeistungenDachArtikel>L600210004021</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fprq12\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\f0\fs20 Schornsteinkopfbekleidung:\b0\par
+Herstellung einer ged\'e4mmten, hinterl\'fcfteten Schornsteinkopfbekleidung aus Zinkblech, komplett mit erforderlicher Unterkonstruktion, Eckausbildungen, An- und Abschl\'fcssen.\par
+Werkstoff: \tab Titanzink 07, vorbewittert\par
+Format: \tab in Scharen Falztechnik \par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>190,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>m²</Mengeneinheit>
+        <VKPreis>385,50000000000000000000000000</VKPreis>
+        <Taetigkeit>82</Taetigkeit>
+        <Stueckliste>
+          <Item Name="Rahmen 40/80 mm, 4,00 m, imprägniert">
+            <Menge>2,2000000000</Menge>
+            <Artikelnummer>3002243</Artikelnummer>
+            <Mengeneinheit>m</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>1,6909090909090909090909090909</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="Schalung 24 mm, 16-30 mm, 4,00 m, imprägniert">
+            <Menge>1,2500000000</Menge>
+            <Artikelnummer>3003223</Artikelnummer>
+            <Mengeneinheit>m²</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>9,6</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="FISCHER Universal-Rahmendübel FUR 10 x 115 T, galv. verzinkt m. Sicherheitsschraube (50St/Pk)">
+            <Menge>5,0000000000</Menge>
+            <Artikelnummer>2110855</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>1,67</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="BAUDER  V13 besandet, ">
+            <Menge>1,2500000000</Menge>
+            <Artikelnummer>0410011</Artikelnummer>
+            <Mengeneinheit>m²</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>4,448</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="Haftenagel 2,5x25 mm, V2A (10800St/Pak)">
+            <Menge>65,0000000000</Menge>
+            <Artikelnummer>0720911</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>0,07</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="Schraubnagel 3,1x65 mm, V2A (100St/VE)">
+            <Menge>20,0000000000</Menge>
+            <Artikelnummer>3283469</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>0,08</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="RHEINZINK Traufstreifen 200/0,70 gl-Wu ZN*P&#xD;&#xA;vorbewittert pro Länge 3 m">
+            <Menge>0,5000000000</Menge>
+            <Artikelnummer>5835702</Artikelnummer>
+            <Mengeneinheit>m</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>9,94</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="RHEINZINK Band 0,7 mm, 670 mm, 100 kg/Coil, Zink vorbewittert pro">
+            <Menge>7,0000000000</Menge>
+            <Artikelnummer>5834380</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>10</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="RHEINZINK Festhaft Dach/Wand &#xD;&#xA;für maschinelle Stehfalzdeckung, Zink">
+            <Menge>6,0000000000</Menge>
+            <Artikelnummer>5842602</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>0,51</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="ISOVER Kontur FSP1 60 mm, 040, Fassadendämmplatte 1250x600 mm 4,5m²/Pak">
+            <Menge>1,0500000000</Menge>
+            <Artikelnummer>2510452</Artikelnummer>
+            <Mengeneinheit>m²</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>6,8761904761904761904761904762</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="FISCHER Dämmstoffhalter f. weiche Fassadendämmung DHK  60 mm 250St/Pak">
+            <Menge>4,0000000000</Menge>
+            <Artikelnummer>2110201</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>0,49</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="Breitkopfstift 2,8x25 mm, F145, gerauhter Schaft, V2A (2,5kg/Pak)">
+            <Menge>0,0500000000</Menge>
+            <Artikelnummer>3716220</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>17</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+        </Stueckliste>
+      </Position>
+      <Position Name="Schornsteinkopfabdeckung Zn vorbew. 1-zügig 80/80 (St):&#xD;&#xA;Anfertigung und Montage einer Schornsteinkopf-Abdeckung mit umlaufender Tropfkante.">
+        <Langtext>
+          <Line_0>Schornsteinkopfabdeckung 1-zügig 80/80 vorbew.:</Line_0>
+          <Line_1>Anfertigung und Montage einer Schornsteinkopf-Abdeckung mit umlaufender Tropfkante und Anschluss / Einfassung der vorhandenen Rauchrohre bzw. Schornsteinkopf-Aufsätze.</Line_1>
+          <Line_2>Werkstoff: 	Titanzink, vorbewittert</Line_2>
+          <Line_3>Dicke:	 	0,8 mm</Line_3>
+          <Line_4>Größe: 		bis 80 x 80 cm / </Line_4>
+          <Line_5>		1-zügig</Line_5>
+        </Langtext>
+        <LeistungenDachArtikel>L600215001021</LeistungenDachArtikel>
+        <LeistungenDachBild></LeistungenDachBild>
+        <LeistungenDachRTF>{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fnil\fprq12\fcharset0 Arial;}{\f1\fnil\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1031\b\f0\fs20 Schornstein\f1 kopfabdeckung 1-z\'fcgig 80/80 vorbew.:\par
+\b0 Anfertigung und Montage einer \f0 Schornstein\f1 kopf-Abdeckung mit umlaufender Tropfkante und Anschluss / Einfassung der vorhandenen Rauchrohre bzw. \f0 Schornstein\f1 kopf-Aufs\'e4tze.\par
+Werkstoff: \tab Titanzink, vorbewittert\par
+Dicke:\tab  \tab 0,8 mm\par
+Gr\'f6\'dfe: \tab\tab bis 80 x 80 cm / \par
+\tab\tab 1-z\'fcgig\par
+}
+</LeistungenDachRTF>
+        <Menge>1,0000000000</Menge>
+        <Baustellenzeit>90,00</Baustellenzeit>
+        <Werkstattzeit>0</Werkstattzeit>
+        <Mengeneinheit>Stück</Mengeneinheit>
+        <VKPreis>207,260</VKPreis>
+        <Taetigkeit>82</Taetigkeit>
+        <Stueckliste>
+          <Item Name="RHEINZINK Tafel 0,8 mm, 1000x2000 mm, &#xD;&#xA;(11,52 kg/Tafel)">
+            <Menge>0,0000000000</Menge>
+            <Artikelnummer>5844040</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>0,000</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="RHEINZINK Tafel 0,8 mm, 1000x2000 mm, &#xD;&#xA;Zink vorbewittert pro">
+            <Menge>4,0500000000</Menge>
+            <Artikelnummer>5834140</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>10,049382716049382716049382716</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="RHEINZINK Traufstreifen 200/0,7 BF.glatt 3,0 m &#xD;&#xA;0,70 x 200 x 3.000 mm, 38°">
+            <Menge>3,5000000000</Menge>
+            <Artikelnummer>5831971</Artikelnummer>
+            <Mengeneinheit>m</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>7,0314285714285714285714285714</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="Lötzinn 40% L-PBSN-40, Zinn, in Stangen">
+            <Menge>0,2500000000</Menge>
+            <Artikelnummer>0593603</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>4,72</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="Nageldübel Dicht A2 6x60&#xD;&#xA;mit Scheibe Durchmesser 15 mm">
+            <Menge>8,0000000000</Menge>
+            <Artikelnummer>5646152</Artikelnummer>
+            <Mengeneinheit>Stck</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>0,76</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+          <Item Name="ENKE Spachtelmasse Enkolit Frühjahr, 11kg/Gebinde">
+            <Menge>1,0000000000</Menge>
+            <Artikelnummer>1730001</Artikelnummer>
+            <Mengeneinheit>kg</Mengeneinheit>
+            <Verschnit>0</Verschnit>
+            <Preis>8,5</Preis>
+            <Preisbasis>1,000</Preisbasis>
+          </Item>
+        </Stueckliste>
+      </Position>
+    </Titel>
+  </LVDaten>
+</Projekt>

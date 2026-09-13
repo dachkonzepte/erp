@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DACHKONZEPTE ERP – Anfragen & Pipeline 0.6</title>
+  <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink)}
+    :root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg)}
+    main{max-width:1600px;margin:0;padding:22px}.card{background:var(--card);border:1px solid var(--line);padding:18px;margin-bottom:18px}.card h2,.card h3{margin-top:0;color:var(--ink)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.field{margin-bottom:10px}label{font-size:12.5px;font-weight:650;color:var(--muted);display:block;margin-bottom:5px}input,textarea,select{width:100%;padding:9px 11px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:13.5px}input:hover,textarea:hover,select:hover{border-color:var(--field-border-hover)}input:focus,textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}textarea{resize:vertical}button{background:var(--accent);color:#fff;border:1px solid var(--accent);padding:10px 16px;cursor:pointer;font-weight:650;font-size:13.5px}button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}button.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}button.secondary:hover{background:var(--soft)}button.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}button.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}.toolbar{display:flex;gap:9px;align-items:end;flex-wrap:wrap}.grow{flex:1 1 260px}.muted{color:var(--muted)}.small{font-size:12px}.status-msg{margin-left:8px;font-size:12.5px;color:var(--muted);font-weight:600}.hidden{display:none!important}.section-title{display:flex;justify-content:space-between;align-items:center;gap:12px}.badge{display:inline-flex;align-items:center;padding:2px 8px;background:var(--soft);border:1px solid var(--line);font-size:10.5px;font-weight:700}.badge.high{background:var(--warning-soft);color:var(--warning);border-color:transparent}.badge.urgent{background:var(--danger-soft);color:var(--danger);border-color:transparent}.badge.low{background:var(--soft);color:var(--muted);border-color:transparent}.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{background:var(--card);border:1px solid var(--line);padding:14px}.metric .label{font-size:11px;color:var(--muted);font-weight:700}.metric .value{font-size:24px;font-weight:850;margin-top:3px;color:var(--ink)}.metric.due .value{color:var(--warning)}
+    .pipeline{display:grid;grid-template-columns:repeat(5,minmax(245px,1fr));gap:12px;overflow-x:auto;padding-bottom:5px}.column{background:var(--soft);border:1px solid var(--line);min-height:420px;padding:10px}.column-head{display:flex;justify-content:space-between;align-items:center;margin:2px 2px 10px;font-size:13px;font-weight:850;color:var(--ink)}.count{background:var(--card);border:1px solid var(--line);padding:2px 7px;font-size:11px}.lead{background:var(--card);border:1px solid var(--line);padding:11px;margin-bottom:9px;cursor:pointer}.lead:hover{border-color:var(--accent)}.lead.due{border-left:4px solid var(--warning)}.lead.urgent{border-left:4px solid var(--danger)}.lead-title{font-weight:800;font-size:13px;line-height:1.3;color:var(--ink)}.lead-meta{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.45}.lead-row{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:8px}.empty{font-size:12px;color:var(--muted);padding:10px 5px}.editor{border:1px solid var(--line);background:var(--soft);padding:14px}.linked{background:var(--success-soft);border:1px solid color-mix(in srgb,var(--success) 35%,transparent);padding:10px 12px;margin-bottom:10px}.warning{background:var(--warning-soft);color:var(--warning);padding:9px 11px;font-size:12px;font-weight:600}.lost{background:var(--danger-soft);border:1px solid color-mix(in srgb,var(--danger) 35%,transparent);padding:10px}.right{text-align:right}
+    @media(max-width:1100px){.grid,.grid4{grid-template-columns:1fr 1fr}.grid3{grid-template-columns:1fr 1fr}.metric-grid{grid-template-columns:1fr 1fr}}@media(max-width:650px){main{padding:12px}.grid,.grid3,.grid4,.metric-grid{grid-template-columns:1fr}.pipeline{grid-template-columns:repeat(5,280px)}}
+  </style>
+</head>
+<body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+  <div class="metric-grid">
+    <div class="metric"><div class="label">Offene Anfragen</div><div class="value" id="metricOpen">0</div></div>
+    <div class="metric"><div class="label">Besichtigungen geplant</div><div class="value" id="metricVisits">0</div></div>
+    <div class="metric due"><div class="label">Wiedervorlagen fällig</div><div class="value" id="metricDue">0</div></div>
+    <div class="metric"><div class="label">Projekte erzeugt</div><div class="value" id="metricConverted">0</div></div>
+  </div>
+
+  <section class="card">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Neue Anfrage</h2><div class="muted small">Anfrage zuerst als Vertriebsfall erfassen. Projekt und Angebot entstehen erst nach Qualifizierung/Aufmaß.</div></div><button class="secondary" onclick="toggleCreate()" id="toggleCreateButton">Maske ausblenden</button></div>
+    <div id="createArea">
+      <div class="grid4" style="margin-top:12px">
+        <div class="field"><label>Kunde *</label><select id="newCustomer" onchange="loadNewProperties(true)"></select></div>
+        <div class="field"><label>Objekt</label><select id="newProperty"></select></div>
+        <div class="field"><label>Priorität</label><select id="newPriority"><option value="niedrig">Niedrig</option><option value="normal" selected>Normal</option><option value="hoch">Hoch</option><option value="dringend">Dringend</option></select></div>
+        <div class="field"><label>Herkunft</label><select id="newSource"><option>Telefon</option><option>Website</option><option>Google</option><option>Empfehlung</option><option>Bestandskunde</option><option>Hausverwaltung</option><option>Architekt / Planer</option><option>Öffentliche Ausschreibung</option><option value="sonstiges">Sonstiges</option></select></div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label>Betreff / gewünschte Leistung *</label><input id="newTitle" placeholder="z. B. Energetische Dachsanierung EFH"></div>
+        <div class="field"><label>Ansprechpartner</label><input id="newContact"></div>
+        <div class="field"><label>Zuständig intern</label><input id="newAssigned" placeholder="z. B. Tobias"></div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label>Besichtigung / Aufmaß</label><input id="newVisit" type="datetime-local"></div>
+        <div class="field"><label>Wiedervorlage</label><input id="newFollowUp" type="datetime-local"></div>
+        <div class="field"><label>Status</label><select id="newStatus"><option value="neu">Neu eingegangen</option><option value="termin_offen">Termin abstimmen</option><option value="termin_geplant">Termin geplant</option><option value="aufmass_erfolgt">Aufmaß erfolgt</option></select></div>
+      </div>
+      <div class="field"><label>Anfrage / Notizen</label><textarea id="newDescription" rows="3" placeholder="Was möchte der Kunde? Besonderheiten, Rückrufwunsch, technische Hinweise …"></textarea></div>
+      <button onclick="createInquiry()">Anfrage speichern</button><span id="createStatus" class="status-msg"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="section-title">
+      <div><h2 style="margin-bottom:4px">Vertriebspipeline</h2><div class="muted small">Karten anklicken, um Termine, Wiedervorlage und Status zu bearbeiten.</div></div>
+      <div class="toolbar"><div class="field" style="margin:0"><label>Suche</label><input id="search" placeholder="Kunde, Anfrage, Nummer …" oninput="renderPipeline()"></div><div class="field" style="margin:0"><label>Ansicht</label><select id="viewFilter" onchange="renderPipeline()"><option value="open">Offen</option><option value="all">Alle</option><option value="due">Wiedervorlage fällig</option></select></div><button class="secondary" onclick="loadAll()">Aktualisieren</button></div>
+    </div>
+    <div class="pipeline" style="margin-top:14px">
+      <div class="column"><div class="column-head"><span>Eingang</span><span class="count" id="countIncoming">0</span></div><div id="colIncoming"></div></div>
+      <div class="column"><div class="column-head"><span>Besichtigung</span><span class="count" id="countVisit">0</span></div><div id="colVisit"></div></div>
+      <div class="column"><div class="column-head"><span>Aufmaß / Klärung</span><span class="count" id="countMeasure">0</span></div><div id="colMeasure"></div></div>
+      <div class="column"><div class="column-head"><span>Projekt / Angebot</span><span class="count" id="countOffer">0</span></div><div id="colOffer"></div></div>
+      <div class="column"><div class="column-head"><span>Abgeschlossen</span><span class="count" id="countDone">0</span></div><div id="colDone"></div></div>
+    </div>
+  </section>
+
+  <section id="editorCard" class="card hidden">
+    <div class="section-title"><div><h2 id="editorHeading" style="margin-bottom:4px">Anfrage</h2><div id="editorSub" class="muted small"></div></div><button class="secondary" onclick="closeEditor()">Schließen</button></div>
+    <div id="linkedProject" class="linked hidden"></div>
+    <div class="editor">
+      <div class="grid4">
+        <div class="field"><label>Kunde *</label><select id="editCustomer" onchange="loadEditProperties()"></select></div>
+        <div class="field"><label>Objekt</label><select id="editProperty"></select></div>
+        <div class="field"><label>Status</label><select id="editStatus" onchange="toggleLostReason()"><option value="neu">Neu eingegangen</option><option value="termin_offen">Termin abstimmen</option><option value="termin_geplant">Termin geplant</option><option value="aufmass_erfolgt">Aufmaß erfolgt</option><option value="projekt_erstellt">Projekt / Angebot erstellt</option><option value="gewonnen">Gewonnen</option><option value="verloren">Verloren</option></select></div>
+        <div class="field"><label>Priorität</label><select id="editPriority"><option value="niedrig">Niedrig</option><option value="normal">Normal</option><option value="hoch">Hoch</option><option value="dringend">Dringend</option></select></div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label>Betreff *</label><input id="editTitle"></div>
+        <div class="field"><label>Herkunft</label><select id="editSource"><option>Telefon</option><option>Website</option><option>Google</option><option>Empfehlung</option><option>Bestandskunde</option><option>Hausverwaltung</option><option>Architekt / Planer</option><option>Öffentliche Ausschreibung</option><option value="sonstiges">Sonstiges</option></select></div>
+        <div class="field"><label>Ansprechpartner</label><input id="editContact"></div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label>Zuständig intern</label><input id="editAssigned"></div>
+        <div class="field"><label>Besichtigung / Aufmaß</label><input id="editVisit" type="datetime-local"></div>
+        <div class="field"><label>Wiedervorlage</label><input id="editFollowUp" type="datetime-local"></div>
+      </div>
+      <div class="field"><label>Anfrage / Notizen</label><textarea id="editDescription" rows="4"></textarea></div>
+      <div id="lostArea" class="field lost hidden"><label>Grund verloren *</label><textarea id="editLostReason" rows="2" placeholder="z. B. Preis, kein Auftrag, Kunde nicht erreichbar …"></textarea></div>
+      <div class="toolbar"><button onclick="saveInquiry()">Änderungen speichern</button><button id="convertButton" onclick="convertInquiry()">Projekt + Angebot erzeugen</button><button id="openProjectButton" class="secondary hidden" onclick="openLinkedProject()">Projekt öffnen</button><span id="editStatusMsg" class="status-msg"></span></div>
+      <div id="convertHint" class="warning" style="margin-top:10px">„Projekt + Angebot erzeugen“ erstellt aus dieser Anfrage ein reguläres Projekt und ein leeres Angebot. Danach kalkulierst du wie bisher im LV-Editor.</div>
+    </div>
+  </section>
+</main>
+</div>
+</div>
+<script>
+let customers=[], properties=[], inquiries=[], currentInquiry=null, defaultVat=19;
+const q=new URLSearchParams(location.search);const presetCustomer=Number(q.get('customer_id')||0);
+const el=id=>document.getElementById(id);const val=id=>el(id).value;const nv=id=>val(id).trim()||null;const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(url,opt={}){const r=await fetch(url,opt);if(!r.ok){let m=`HTTP ${r.status}`;try{const j=await r.json();m=j.detail||m}catch{}throw new Error(m)}if(r.status===204)return null;return r.json()}
+function isoOrNull(x){return x?x+':00':null}function inputDate(x){return x?String(x).slice(0,16):''}function fmtDate(x){if(!x)return '—';const d=new Date(x);return d.toLocaleString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})}
+function isClosed(i){return ['gewonnen','verloren'].includes(i.status)}function isDue(i){return !isClosed(i)&&i.follow_up_at&&new Date(i.follow_up_at)<=new Date()}
+function priorityLabel(x){return({niedrig:'Niedrig',normal:'Normal',hoch:'Hoch',dringend:'Dringend'}[x]||x)}function statusLabel(x){return({neu:'Neu',termin_offen:'Termin abstimmen',termin_geplant:'Termin geplant',aufmass_erfolgt:'Aufmaß erfolgt',projekt_erstellt:'Projekt / Angebot',gewonnen:'Gewonnen',verloren:'Verloren'}[x]||x)}
+function sourceOptionEnsure(select,value){if(value&&!Array.from(select.options).some(o=>o.value===value)){const o=document.createElement('option');o.value=value;o.textContent=value;select.appendChild(o)}select.value=value||'sonstiges'}
+async function loadAll(){[customers,properties,inquiries]=await Promise.all([api('/api/customers'),api('/api/properties'),api('/api/inquiries')]);renderCustomerOptions();renderMetrics();renderPipeline();if(currentInquiry){currentInquiry=inquiries.find(x=>x.id===currentInquiry.id)||null;if(currentInquiry)fillEditor()}}
+function renderCustomerOptions(){for(const id of ['newCustomer','editCustomer']){const s=el(id),old=Number(s.value||0);s.innerHTML='<option value="">Bitte wählen</option>'+customers.map(c=>`<option value="${c.id}">${esc(c.customer_number)} · ${esc(c.name)}</option>`).join('');if(customers.some(c=>c.id===old))s.value=old}if(presetCustomer&&customers.some(c=>c.id===presetCustomer)&&!val('newCustomer')){el('newCustomer').value=presetCustomer;loadNewProperties(true)}}
+function propertiesFor(customerId){return properties.filter(p=>p.customer_id===Number(customerId))}function propertyOptions(customerId,selected){const ps=propertiesFor(customerId);return '<option value="">Kein Objekt</option>'+ps.map(p=>`<option value="${p.id}" ${p.id===Number(selected)?'selected':''}>${esc(p.name)} · ${esc([p.street,[p.postal_code,p.city].filter(Boolean).join(' ')].filter(Boolean).join(', '))}</option>`).join('')}
+function loadNewProperties(selectMain=false){const cid=Number(val('newCustomer'));el('newProperty').innerHTML=propertyOptions(cid,null);const c=customers.find(x=>x.id===cid);if(c&&!val('newContact'))el('newContact').value=c.contact_person||'';if(selectMain){const main=propertiesFor(cid).find(p=>p.name==='Hauptadresse')||propertiesFor(cid)[0];if(main)el('newProperty').value=main.id}}
+function loadEditProperties(){const cid=Number(val('editCustomer'));const selected=currentInquiry?.property_id;el('editProperty').innerHTML=propertyOptions(cid,selected)}
+function renderMetrics(){const open=inquiries.filter(i=>!isClosed(i));el('metricOpen').textContent=open.length;el('metricVisits').textContent=open.filter(i=>i.status==='termin_geplant'&&i.visit_at).length;el('metricDue').textContent=open.filter(isDue).length;el('metricConverted').textContent=inquiries.filter(i=>i.project_id).length}
+function card(i){const pclass=i.priority==='dringend'?'urgent':i.priority==='hoch'?'high':i.priority==='niedrig'?'low':'';const cls=isDue(i)?'due':i.priority==='dringend'?'urgent':'';return `<div class="lead ${cls}" onclick="openInquiry(${i.id})"><div class="lead-title">${esc(i.title)}</div><div class="lead-meta"><b>${esc(i.customer_name)}</b><br>${esc(i.property_name||'Kein Objekt')}<br>${esc(i.inquiry_number)}</div><div class="lead-meta">${i.visit_at?'📅 '+esc(fmtDate(i.visit_at)):''}${i.visit_at&&i.follow_up_at?'<br>':''}${i.follow_up_at?'↻ '+esc(fmtDate(i.follow_up_at)):''}</div><div class="lead-row"><span class="badge ${pclass}">${esc(priorityLabel(i.priority))}</span>${isDue(i)?'<span class="badge high">Wiedervorlage</span>':`<span class="badge">${esc(statusLabel(i.status))}</span>`}</div></div>`}
+function renderColumn(id,countId,items){el(id).innerHTML=items.length?items.map(card).join(''):'<div class="empty">Keine Anfragen</div>';el(countId).textContent=items.length}
+function renderPipeline(){const search=val('search').trim().toLowerCase(),view=val('viewFilter');let list=inquiries.filter(i=>!search||[i.inquiry_number,i.title,i.customer_name,i.property_name,i.description].join(' ').toLowerCase().includes(search));if(view==='open')list=list.filter(i=>!isClosed(i));if(view==='due')list=list.filter(isDue);renderColumn('colIncoming','countIncoming',list.filter(i=>i.status==='neu'));renderColumn('colVisit','countVisit',list.filter(i=>['termin_offen','termin_geplant'].includes(i.status)));renderColumn('colMeasure','countMeasure',list.filter(i=>i.status==='aufmass_erfolgt'));renderColumn('colOffer','countOffer',list.filter(i=>i.status==='projekt_erstellt'));renderColumn('colDone','countDone',list.filter(i=>['gewonnen','verloren'].includes(i.status)))}
+function toggleCreate(){const a=el('createArea');a.classList.toggle('hidden');el('toggleCreateButton').textContent=a.classList.contains('hidden')?'Maske einblenden':'Maske ausblenden'}
+function inquiryPayload(prefix){return{customer_id:Number(val(prefix+'Customer')),property_id:Number(val(prefix+'Property'))||null,title:val(prefix+'Title').trim(),description:nv(prefix+'Description'),status:val(prefix+'Status'),priority:val(prefix+'Priority'),source:val(prefix+'Source'),contact_person:nv(prefix+'Contact'),assigned_to:nv(prefix+'Assigned'),visit_at:isoOrNull(val(prefix+'Visit')),follow_up_at:isoOrNull(val(prefix+'FollowUp')),lost_reason:prefix==='edit'?nv('editLostReason'):null}}
+async function createInquiry(){const s=el('createStatus');try{const payload=inquiryPayload('new');if(!payload.customer_id||!payload.title)throw new Error('Bitte Kunde und Betreff ausfüllen.');if(payload.visit_at&&payload.status==='neu')payload.status='termin_geplant';const created=await api('/api/inquiries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});s.textContent=`${created.inquiry_number} gespeichert.`;for(const id of ['newTitle','newDescription','newVisit','newFollowUp'])el(id).value='';el('newPriority').value='normal';el('newStatus').value='neu';await loadAll();openInquiry(created.id)}catch(e){s.textContent='Fehler: '+e.message}}
+function openInquiry(id){currentInquiry=inquiries.find(x=>x.id===id);if(!currentInquiry)return;fillEditor();el('editorCard').classList.remove('hidden');el('editorCard').scrollIntoView({behavior:'smooth',block:'start'})}
+function fillEditor(){const i=currentInquiry;el('editorHeading').textContent=`${i.inquiry_number} · ${i.title}`;el('editorSub').textContent=`${i.customer_name} · angelegt ${fmtDate(i.created_at)}`;el('editCustomer').value=i.customer_id;loadEditProperties();el('editProperty').value=i.property_id||'';el('editTitle').value=i.title;el('editStatus').value=i.status;el('editPriority').value=i.priority;sourceOptionEnsure(el('editSource'),i.source);el('editContact').value=i.contact_person||'';el('editAssigned').value=i.assigned_to||'';el('editVisit').value=inputDate(i.visit_at);el('editFollowUp').value=inputDate(i.follow_up_at);el('editDescription').value=i.description||'';el('editLostReason').value=i.lost_reason||'';toggleLostReason();const linked=!!i.project_id;el('convertButton').classList.toggle('hidden',linked);el('convertHint').classList.toggle('hidden',linked);el('openProjectButton').classList.toggle('hidden',!linked);el('editCustomer').disabled=linked;el('editProperty').disabled=linked;el('linkedProject').classList.toggle('hidden',!linked);if(linked)el('linkedProject').innerHTML=`Verknüpft mit <b>${esc(i.project_number)}</b>. Änderungen an Kunde/Objekt erfolgen jetzt im Projekt bzw. Kundenstamm.`}
+function toggleLostReason(){el('lostArea').classList.toggle('hidden',val('editStatus')!=='verloren')}
+function closeEditor(){currentInquiry=null;el('editorCard').classList.add('hidden');el('editCustomer').disabled=false;el('editProperty').disabled=false}
+async function saveInquiry(){const s=el('editStatusMsg');try{const payload=inquiryPayload('edit');if(!payload.customer_id||!payload.title)throw new Error('Bitte Kunde und Betreff ausfüllen.');currentInquiry=await api(`/api/inquiries/${currentInquiry.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});s.textContent='Gespeichert.';await loadAll()}catch(e){s.textContent='Fehler: '+e.message}}
+async function convertInquiry(){if(!currentInquiry||currentInquiry.project_id)return;if(!confirm('Projekt und erstes Angebot aus dieser Anfrage erzeugen?'))return;const s=el('editStatusMsg');try{const result=await api(`/api/inquiries/${currentInquiry.id}/convert`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_name:currentInquiry.title,quote_title:'Angebot Dacharbeiten',create_quote:true,vat_rate:defaultVat})});s.textContent=`${result.project.project_number} und ${result.quote?.quote_number||'Projekt'} erzeugt.`;await loadAll();currentInquiry=inquiries.find(x=>x.id===result.inquiry.id);fillEditor()}catch(e){s.textContent='Fehler: '+e.message}}
+function openLinkedProject(){if(currentInquiry?.project_id)location.href=`/projects?project_id=${currentInquiry.project_id}`}
+async function init(){
+  try{const g=await api('/api/settings/general');defaultVat=Number(g.default_vat_rate||19)}catch(e){}
+  try{await loadAll()}catch(e){el('createStatus').textContent='Fehler beim Laden: '+e.message;return}
+  // Direkteinstieg vom Dashboard-Widget (?inquiry=<id>, seit 1.3.24, Muster ?report= aus 1.2.22) --
+  // fehlt die Anfrage in der geladenen Liste, passiert nichts, kein Fehler.
+  const deepLinkInquiryId=Number(new URLSearchParams(location.search).get('inquiry'))||null;
+  if(deepLinkInquiryId&&inquiries.some(x=>x.id===deepLinkInquiryId)){
+    openInquiry(deepLinkInquiryId);
+  }
+}
+init();
+</script>
+</body>
+</html>

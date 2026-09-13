@@ -1,0 +1,295 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Start</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:1300px;margin:0;padding:20px}
+.hero{margin-bottom:18px}.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
+.widgets{display:flex;flex-direction:column;gap:14px}
+.widget-card{background:var(--card);border:1px solid var(--line);padding:16px}
+.widget-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.widget-head h2{margin:0;font-size:15.5px;color:var(--ink)}
+.widget-actions{display:flex;gap:4px;flex:0 0 auto}
+.iconbtn{padding:5px 8px;background:var(--soft);color:var(--ink);border:1px solid var(--line);cursor:pointer;font-size:12px}
+.iconbtn:hover{background:color-mix(in srgb,var(--ink) 8%,var(--soft))}
+.iconbtn:disabled{opacity:.4;cursor:default}
+.iconbtn.danger{background:var(--danger-soft);color:var(--danger);border-color:transparent}
+.iconbtn.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
+.muted{color:var(--muted)}.small{font-size:12px}
+.status{font-size:13px}.status.err{color:var(--danger)}.status.ok{background:var(--success-soft);color:var(--success);padding:10px 12px;display:block}
+.field{margin-bottom:10px}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+select,input{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit}
+select:hover,input:hover{border-color:var(--field-border-hover)}
+select:focus,input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.secondary:hover{background:var(--soft)}
+.hidden{display:none!important}
+.metrics{display:flex;gap:14px;flex-wrap:wrap}
+.metric{background:var(--card);border:1px solid var(--line);padding:12px 16px;min-width:150px;flex:1}
+.metric small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:800}
+.metric b{font-size:21px;display:block;margin-top:3px;color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800;padding:8px;border-bottom:2px solid var(--line)}
+td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.number{text-align:right}
+a.link{color:var(--accent);font-weight:650;text-decoration:none}
+.task-list{display:flex;flex-direction:column}
+.task-row{display:flex;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--ink)}
+.task-row:last-child{border-bottom:0}
+.task-row:hover{background:var(--soft)}
+.task-type{flex:0 0 auto;font-size:10px;text-transform:uppercase;font-weight:800;padding:3px 7px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.task-type.reminder,.task-type.quote{background:var(--warning-soft);color:var(--warning)}
+.task-row.urgent .task-type{background:var(--danger-soft);color:var(--danger)}
+.task-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.task-title{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.task-due{flex:0 0 auto;color:var(--muted);font-size:12px;white-space:nowrap}
+.widget-picker{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+@media(max-width:760px){main{padding:12px}.task-due{display:none}}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+<div class="hero"><h1 id="greeting">Start</h1><div class="muted small">Aufgaben, Kennzahlen und laufende Projekte auf einen Blick. Über „+ Widget hinzufügen" lässt sich das Dashboard anpassen.</div></div>
+<div class="widgets" id="widgets"></div>
+<div class="widget-card" style="margin-top:14px">
+  <button class="secondary" onclick="toggleAddWidgetPanel()">+ Widget hinzufügen</button>
+  <div id="addWidgetPanel" class="hidden widget-picker"></div>
+</div>
+</main>
+</div>
+</div>
+<script>
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const money=x=>Number(x||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+
+const PROJECT_STATUS_LABELS={anfrage:'Anfrage',planung:'Planung',beauftragt:'Beauftragt',ausfuehrung:'Ausführung',abgeschlossen:'Abgeschlossen'};
+const DEFAULT_LAYOUT=[{widget_key:'my_tasks',sort_order:10,visible:true},{widget_key:'kpis',sort_order:20,visible:true},{widget_key:'active_projects',sort_order:30,visible:true}];
+
+let authStatus=null,layout=[],employees=[],selectedTaskEmployeeId='';
+
+function isInquiryClosed(i){return['gewonnen','verloren'].includes(i.status)}
+
+async function renderMyTasksWidget(container){
+  if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
+  const isAdmin=authStatus.user.role==='admin';
+  if(!isAdmin&&!authStatus.user.employee_id){container.innerHTML='<div class="muted small">Ihr Benutzer ist keinem Mitarbeiter zugeordnet – Aufgaben können nicht angezeigt werden.</div>';return}
+  let selectorHtml='';
+  if(isAdmin){
+    if(selectedTaskEmployeeId===''&&authStatus.user.employee_id)selectedTaskEmployeeId=String(authStatus.user.employee_id);
+    if(!employees.length)employees=await api('/api/employees').catch(()=>[]);
+    const opts=['<option value="">Alle</option>'].concat(employees.filter(e=>e.active).map(e=>`<option value="${e.id}" ${String(e.id)===selectedTaskEmployeeId?'selected':''}>${esc(e.first_name+' '+e.last_name)}</option>`));
+    selectorHtml=`<div class="field"><label>Aufgaben von</label><select id="taskEmployeeFilter">${opts.join('')}</select></div>`;
+  }
+  const empId=isAdmin?(selectedTaskEmployeeId||''):authStatus.user.employee_id;
+  container.innerHTML=selectorHtml+'<div id="taskListArea" class="muted small">Lädt …</div>';
+  if(isAdmin)document.getElementById('taskEmployeeFilter').addEventListener('change',e=>{selectedTaskEmployeeId=e.target.value;renderMyTasksWidget(container)});
+  await loadAndRenderTasks(empId,isAdmin);
+}
+
+let modulesCache=null;
+async function isModuleEnabled(key){
+  if(!modulesCache)modulesCache=await api('/api/modules').catch(()=>[]);
+  const m=modulesCache.find(x=>x.module_key===key);
+  return m?m.enabled:true;
+}
+
+async function loadAndRenderTasks(empId,isAdmin){
+  const area=document.getElementById('taskListArea');
+  const empIdNum=empId?Number(empId):null;
+  const qs=empId?('?employee_id='+empId):'';
+  const tasksEnabled=await isModuleEnabled('aufgabenmanagement');
+  const [wpTasks,overdueInvoices,quotes,inquiries,absences,myTasks]=await Promise.all([
+    api('/api/work-preparation/tasks'+qs).catch(()=>[]),
+    api('/api/reminders/overdue').catch(()=>[]),
+    api('/api/quotes').catch(()=>[]),
+    api('/api/inquiries').catch(()=>[]),
+    isAdmin?api('/api/absence-requests?status=pending').catch(()=>[]):Promise.resolve([]),
+    tasksEnabled?api('/api/tasks'+qs).catch(()=>[]):Promise.resolve([]),
+  ]);
+  const rows=[];
+  wpTasks.forEach(t=>rows.push({type:'Arbeitsvorbereitung',cls:'wp',title:t.title,sub:`${t.order_number} · ${t.project_name}`,due:t.due_date,urgent:t.priority==='dringend'||t.priority==='hoch',href:`/orders/${t.order_id}/work-preparation`}));
+  myTasks.filter(t=>!t.status_is_done).forEach(t=>rows.push({type:'Aufgabe',cls:'task',title:t.title,sub:t.project_number?`${t.project_number} · ${t.project_name}`:(t.source_label||''),due:t.due_date,urgent:t.priority==='dringend'||t.priority==='hoch',href:`/tasks?task=${t.id}`}));
+  overdueInvoices.filter(i=>!empIdNum||i.caseworker_employee_id===empIdNum).forEach(i=>rows.push({type:'Mahnung',cls:'reminder',title:`${i.invoice_number||'Rechnung'} überfällig`,sub:i.customer_name,due:i.due_date,urgent:!!i.is_due_now,href:`/invoices/${i.invoice_id}`}));
+  const soon=new Date();soon.setDate(soon.getDate()+7);
+  quotes.filter(q=>q.valid_until&&['versendet','in_pruefung'].includes(q.status)&&new Date(q.valid_until)<=soon&&(!empIdNum||q.caseworker_employee_id===empIdNum)).forEach(q=>rows.push({type:'Bindefrist',cls:'quote',title:`${q.quote_number} läuft ab`,sub:q.customer_name,due:q.valid_until,urgent:true,href:`/quotes/${q.id}/edit`}));
+  let nameNeedle=null;
+  if(empIdNum){const emp=employees.find(e=>e.id===empIdNum);if(emp)nameNeedle=(emp.first_name+' '+emp.last_name).toLowerCase()}
+  inquiries.filter(i=>!isInquiryClosed(i)&&i.follow_up_at&&new Date(i.follow_up_at)<=new Date())
+    .filter(i=>!empIdNum||(nameNeedle&&(i.assigned_to||'').toLowerCase().includes(nameNeedle)))
+    .forEach(i=>rows.push({type:'Wiedervorlage',cls:'inquiry',title:i.title,sub:i.customer_name||'',due:i.follow_up_at,urgent:true,href:`/inquiries?inquiry=${i.id}`}));
+  absences.forEach(a=>rows.push({type:'Freigabe',cls:'absence',title:`Abwesenheitsantrag ${a.employee_name}`,sub:`${a.absence_type} · ${fmtDate(a.start_date)}–${fmtDate(a.end_date)}`,due:null,urgent:false,href:`/time-backoffice?absence=${a.id}#absences`}));
+  rows.sort((a,b)=>(a.due||'9999')<(b.due||'9999')?-1:1);
+  area.className='';
+  area.innerHTML=rows.length?`<div class="task-list">${rows.map(r=>`<a class="task-row ${r.urgent?'urgent':''}" href="${r.href}"><span class="task-type ${r.cls}">${esc(r.type)}</span><span class="task-main"><span class="task-title">${esc(r.title)}</span><span class="muted small">${esc(r.sub||'')}</span></span>${r.due?`<span class="task-due">${fmtDate(r.due)}</span>`:''}</a>`).join('')}</div>`:'<div class="status ok">Keine offenen Aufgaben.</div>';
+}
+
+async function renderKpisWidget(container){
+  if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
+  const [invoices,overdue,projects]=await Promise.all([api('/api/invoices'),api('/api/reminders/overdue'),api('/api/projects')]);
+  const open=invoices.filter(i=>i.status==='versendet');
+  const openSum=open.reduce((s,i)=>s+Number(i.gross_total||0),0);
+  const active=projects.filter(p=>!p.archived&&['planung','beauftragt','ausfuehrung'].includes(p.status));
+  let hoursHtml='';
+  if(authStatus.user.employee_id){
+    const d=new Date();
+    const from=new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10);
+    const to=new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().slice(0,10);
+    const entries=await api(`/api/time-entries?employee_id=${authStatus.user.employee_id}&start_date=${from}&end_date=${to}&limit=1000`).catch(()=>[]);
+    const hours=entries.filter(e=>e.counts_as_productive&&e.status==='booked').reduce((s,e)=>s+Number(e.hours||0),0);
+    hoursHtml=`<div class="metric"><small>Meine Stunden (Monat)</small><b>${hours.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} h</b></div>`;
+  }
+  container.innerHTML=`<div class="metrics">
+    <div class="metric"><small>Offene Rechnungen</small><b>${open.length}</b></div>
+    <div class="metric"><small>Offener Betrag</small><b>${money(openSum)}</b></div>
+    <div class="metric"><small>Überfällig</small><b style="${overdue.length?'color:var(--danger)':''}">${overdue.length}</b></div>
+    <div class="metric"><small>Aktive Projekte</small><b>${active.length}</b></div>
+    ${hoursHtml}
+  </div>`;
+}
+
+async function renderActiveProjectsWidget(container){
+  if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
+  const projects=await api('/api/projects');
+  const active=projects.filter(p=>!p.archived&&p.status!=='abgeschlossen');
+  container.innerHTML=active.length?`<div style="overflow:auto"><table><thead><tr><th>Projekt</th><th>Kunde</th><th>Status</th><th class="number">Angebote</th><th class="number">Aufträge</th><th></th></tr></thead><tbody>${active.map(p=>`<tr><td><b>${esc(p.project_number)}</b><div class="muted small">${esc(p.name)}</div></td><td>${esc(p.customer_name)}</td><td>${esc(PROJECT_STATUS_LABELS[p.status]||p.status)}</td><td class="number">${p.quote_count}</td><td class="number">${p.order_count}</td><td><a class="link" href="/projects/${p.id}">Öffnen</a></td></tr>`).join('')}</tbody></table></div>`:'<div class="status ok">Keine laufenden Projekte.</div>';
+}
+
+async function renderDueMaintenanceWidget(container){
+  if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
+  if(!await isModuleEnabled('wartungen')){container.innerHTML='<div class="muted small">Das Modul Wartungen &amp; Reparaturen ist deaktiviert.</div>';return}
+  const [contracts,maintenanceSettings]=await Promise.all([
+    api('/api/maintenance-contracts').catch(()=>[]),
+    api('/api/maintenance-settings').catch(()=>({use_roof_area_items:false})),
+  ]);
+  // Verträge mit aktiven, zu wartenden Dachflächen zeigen deren einzelne fällige/überfällige
+  // Zeilen statt einer einzigen Vertrags-Zeile -- nur wenn use_roof_area_items an ist (seit
+  // 1.2.19); ist der Schalter aus, zählt IMMER die Vertragsebene, auch bei vorhandenem
+  // Altbestand an Positionen (gleiche Regel wie überall sonst, siehe app/maintenance_contracts.py).
+  const rows=[];
+  contracts.forEach(c=>{
+    const activeItems=(c.items||[]).filter(i=>!i.archived);
+    if(maintenanceSettings.use_roof_area_items&&activeItems.length){
+      activeItems.filter(i=>i.is_due||i.is_overdue).forEach(i=>rows.push({
+        title:`${c.title} · ${i.roof_area_name||''}`, subtitle:`${c.customer_name||''} · ${c.property_name||''}`,
+        due_date:i.next_due_date, overdue:i.is_overdue, contract_id:c.id,
+      }));
+    }else if(c.is_due){
+      rows.push({title:c.title, subtitle:`${c.customer_name||''} · ${c.property_name||''}`, due_date:c.next_due_date, overdue:false, contract_id:c.id});
+    }
+  });
+  container.innerHTML=rows.length?`<div class="task-list">${rows.map(r=>`<a class="task-row urgent" href="/maintenance-contracts/${r.contract_id}"><span class="task-type">${r.overdue?'Überfällig':'Wartung'}</span><span class="task-main"><span class="task-title">${esc(r.title)}</span><span class="muted small">${esc(r.subtitle)}</span></span><span class="task-due">${fmtDate(r.due_date)}</span></a>`).join('')}</div>`:'<div class="status ok">Keine fälligen Wartungsverträge.</div>';
+}
+
+async function renderCriticalFindingsWidget(container){
+  if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
+  if(!await isModuleEnabled('wartungen')){container.innerHTML='<div class="muted small">Das Modul Wartungen &amp; Reparaturen ist deaktiviert.</div>';return}
+  const findings=await api('/api/findings?severity=akute_gefahr').catch(()=>[]);
+  const open=findings.filter(f=>f.status!=='erledigt');
+  container.innerHTML=open.length?`<div class="task-list">${open.map(f=>`<a class="task-row urgent" href="${f.order_id?'/orders/'+f.order_id+'/service-reports':'/findings'}"><span class="task-type">Akute Gefahr</span><span class="task-main"><span class="task-title">${esc(f.description)}</span><span class="muted small">${esc(f.property_name||f.customer_name||'')}</span></span></a>`).join('')}</div>`:'<div class="status ok">Keine akuten Gefahren erfasst.</div>';
+}
+
+const WIDGETS={
+  my_tasks:{label:'Meine Aufgaben',render:renderMyTasksWidget},
+  kpis:{label:'Kennzahlen',render:renderKpisWidget},
+  active_projects:{label:'Laufende Projekte',render:renderActiveProjectsWidget},
+  due_maintenance:{label:'Fällige Wartungen',render:renderDueMaintenanceWidget},
+  critical_findings:{label:'Akute Mängel',render:renderCriticalFindingsWidget},
+};
+
+function visibleWidgets(){return layout.filter(w=>w.visible).sort((a,b)=>a.sort_order-b.sort_order)}
+
+async function persistLayout(){if(!authStatus.authenticated)return;await api('/api/dashboard/widgets',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({widgets:layout})}).catch(()=>{})}
+
+async function moveWidget(key,dir){
+  const vis=visibleWidgets();
+  const idx=vis.findIndex(w=>w.widget_key===key);
+  const swapIdx=idx+dir;
+  if(swapIdx<0||swapIdx>=vis.length)return;
+  const tmp=vis[idx].sort_order;vis[idx].sort_order=vis[swapIdx].sort_order;vis[swapIdx].sort_order=tmp;
+  await persistLayout();
+  renderShell();
+}
+
+async function removeWidget(key){
+  const w=layout.find(x=>x.widget_key===key);
+  if(w)w.visible=false;
+  await persistLayout();
+  renderShell();
+}
+
+async function addWidget(key){
+  const w=layout.find(x=>x.widget_key===key);
+  if(w){w.visible=true}
+  else{const maxOrder=layout.reduce((m,x)=>Math.max(m,x.sort_order),0);layout.push({widget_key:key,sort_order:maxOrder+10,visible:true})}
+  await persistLayout();
+  renderShell();
+}
+
+function toggleAddWidgetPanel(show){
+  const el=document.getElementById('addWidgetPanel');
+  const willShow=show===undefined?el.classList.contains('hidden'):show;
+  el.classList.toggle('hidden',!willShow);
+  if(willShow)renderAddWidgetList();
+}
+
+function renderAddWidgetList(){
+  const visKeys=new Set(visibleWidgets().map(w=>w.widget_key));
+  const hiddenKeys=Object.keys(WIDGETS).filter(k=>!visKeys.has(k));
+  const list=document.getElementById('addWidgetPanel');
+  list.innerHTML=hiddenKeys.length?hiddenKeys.map(k=>`<button class="secondary" onclick="addWidget('${k}')">+ ${esc(WIDGETS[k].label)}</button>`).join(''):'<div class="muted small">Alle verfügbaren Widgets sind bereits sichtbar.</div>';
+}
+
+function renderShell(){
+  const container=document.getElementById('widgets');
+  const vis=visibleWidgets();
+  container.innerHTML=vis.map((w,i)=>`
+    <div class="widget-card">
+      <div class="widget-head">
+        <h2>${esc(WIDGETS[w.widget_key]?.label||w.widget_key)}</h2>
+        <div class="widget-actions">
+          <button class="iconbtn" title="Nach oben" ${i===0?'disabled':''} onclick="moveWidget('${w.widget_key}',-1)">↑</button>
+          <button class="iconbtn" title="Nach unten" ${i===vis.length-1?'disabled':''} onclick="moveWidget('${w.widget_key}',1)">↓</button>
+          <button class="iconbtn danger" title="Entfernen" onclick="removeWidget('${w.widget_key}')">✕</button>
+        </div>
+      </div>
+      <div class="widget-body" id="widget-body-${w.widget_key}"><div class="muted small">Lädt …</div></div>
+    </div>`).join('')||'<div class="widget-card"><div class="muted small">Keine Widgets sichtbar. Über „+ Widget hinzufügen" unten wieder einblenden.</div></div>';
+  vis.forEach(w=>{
+    const body=document.getElementById('widget-body-'+w.widget_key);
+    const fn=WIDGETS[w.widget_key]&&WIDGETS[w.widget_key].render;
+    if(fn&&body)fn(body).catch(e=>{body.innerHTML=`<div class="status err">Fehler: ${esc(e.message)}</div>`});
+  });
+  if(!document.getElementById('addWidgetPanel').classList.contains('hidden'))renderAddWidgetList();
+}
+
+function renderGreeting(){
+  const el=document.getElementById('greeting');
+  if(authStatus&&authStatus.authenticated){
+    const hour=new Date().getHours();
+    const salute=hour<11?'Guten Morgen':hour<18?'Guten Tag':'Guten Abend';
+    el.textContent=`${salute}, ${authStatus.user.display_name}.`;
+  }else{
+    el.textContent='Start';
+  }
+}
+
+async function init(){
+  authStatus=await api('/api/auth/status').catch(()=>({authenticated:false,user:null}));
+  renderGreeting();
+  if(authStatus.authenticated){
+    layout=await api('/api/dashboard/widgets').catch(()=>DEFAULT_LAYOUT.map(w=>({...w})));
+    employees=await api('/api/employees').catch(()=>[]);
+  }else{
+    layout=DEFAULT_LAYOUT.map(w=>({...w}));
+  }
+  renderShell();
+}
+init();
+</script>
+</body></html>

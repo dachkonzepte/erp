@@ -1,0 +1,219 @@
+{# _sidebar.html -- gemeinsame Navigations-Sidebar, per {% include %} eingebunden.
+   Erwartet: request (von Jinja2Templates automatisch bereitgestellt).
+   Rollenprüfung direkt aus request.state.erp_user -- kein zusätzlicher API-Call,
+   keine Änderung an den Python-Routen nötig.
+
+   Theming: alle Farben laufen über --sidebar-*/--accent, mit Fallback auf die
+   bisherigen Werte (var(--sidebar-bg, #163a2b) usw.), damit Seiten, die noch
+   nicht auf das neue Token-System umgestellt sind, unverändert im alten
+   dunkelgrünen Look bleiben. Erst wenn eine Seite --sidebar-bg/--accent im
+   eigenen :root selbst definiert (siehe settings.html), greift das neue Theme. #}
+{% set current_user = request.state.erp_user %}
+{% set is_admin = current_user and current_user.role == 'admin' %}
+{% set path = request.url.path %}
+<style>
+.app-layout{display:flex;min-height:100vh}
+.app-sidebar{width:240px;flex:0 0 240px;
+  --_bg:var(--sidebar-bg,#163a2b);--_text:var(--sidebar-text,#ffffff);
+  --_text-dim:var(--sidebar-text-dim,rgba(255,255,255,.88));--_border:var(--sidebar-border,rgba(255,255,255,.18));
+  --_hover:var(--sidebar-hover,rgba(255,255,255,.1));--_active-bg:var(--sidebar-active-bg,rgba(255,255,255,.14));
+  --_active-text:var(--sidebar-active-text,#ffffff);--_active-border:var(--sidebar-active-border,#ffffff);
+  background:var(--_bg);color:var(--_text);display:flex;flex-direction:column;transition:width .15s ease,flex-basis .15s ease;overflow:hidden;position:sticky;top:0;height:100vh;border-right:1px solid var(--_border)
+}
+.app-sidebar.collapsed{width:60px;flex-basis:60px}
+.app-sidebar-head{display:flex;align-items:center;justify-content:space-between;padding:16px 14px;border-bottom:1px solid var(--_border);white-space:nowrap;gap:8px}
+.app-sidebar-brand{font-weight:800;letter-spacing:.03em;overflow:hidden}
+.app-sidebar.collapsed .app-sidebar-brand{opacity:0;width:0}
+.app-sidebar-headbtns{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.app-sidebar-toggle,.app-theme-toggle{background:none;border:1px solid var(--_border);color:var(--_text);width:30px;height:30px;flex:0 0 30px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.app-sidebar-toggle:hover,.app-theme-toggle:hover{background:var(--_hover)}
+.app-sidebar-toggle svg,.app-theme-toggle svg{width:15px;height:15px}
+.app-sidebar.collapsed .app-theme-toggle{display:none}
+.app-sidebar-nav{padding:10px;overflow-y:auto;overflow-x:hidden;flex:1}
+.app-sidebar-foot{border-top:1px solid var(--_border);padding:10px;white-space:nowrap;overflow:hidden}
+.app-sidebar-version{padding:8px 10px 12px;font-size:11px;color:var(--_text-dim);white-space:nowrap;overflow:hidden}
+.app-sidebar.collapsed .app-sidebar-version{display:none}
+.app-sidebar-user{padding:6px 10px;font-size:12px;opacity:.85;overflow:hidden;text-overflow:ellipsis;color:var(--_text-dim)}
+.app-sidebar-logout{display:flex;align-items:center;gap:11px;width:100%;background:none;border:0;color:var(--_text);font-weight:600;font-size:14px;padding:9px 10px;cursor:pointer;text-align:left}
+.app-sidebar-logout:hover{background:var(--_hover)}
+.app-sidebar.collapsed .app-sidebar-user{display:none}
+.app-sidebar-login-status{padding:6px 10px 8px;font-size:12px;color:var(--_text-dim);display:flex;align-items:center;gap:7px}
+.app-sidebar-login-status .dot{width:7px;height:7px;background:#e08a8a;flex:0 0 7px}
+.app-sidebar-user .dot{width:7px;height:7px;background:#3fb37a;flex:0 0 7px;display:inline-block;margin-right:7px;vertical-align:middle}
+.app-sidebar-login-form{display:flex;flex-direction:column;gap:6px}
+.app-sidebar-login-form input{width:100%;padding:7px 9px;border:1px solid var(--_border);background:color-mix(in srgb,var(--_text) 6%,transparent);color:var(--_text);font:inherit;font-size:13px}
+.app-sidebar-login-form input::placeholder{color:var(--_text-dim)}
+.app-sidebar-login-form button{background:var(--_text);color:var(--_bg);border:0;padding:8px;font-weight:700;cursor:pointer;font-size:13px}
+.app-sidebar-login-error{font-size:11px;color:#ff8f87;min-height:14px}
+.app-sidebar.collapsed .app-sidebar-login-form,.app-sidebar.collapsed .app-sidebar-login-status{display:none}
+.app-sidebar-login-link{display:none}
+.app-sidebar.collapsed .app-sidebar-login-link{display:flex;align-items:center;justify-content:center;color:var(--_text);text-decoration:none;padding:9px 0}
+.app-sidebar-login-link svg{width:17px;height:17px}
+.app-sidebar-link{display:flex;align-items:center;gap:11px;color:var(--_text-dim);text-decoration:none;font-weight:600;font-size:14px;padding:9px 10px 9px 8px;white-space:nowrap;margin-bottom:1px;border-left:2px solid transparent}
+.app-sidebar-link:hover{background:var(--_hover)}
+.app-sidebar-link.active{background:var(--_active-bg);color:var(--_active-text);border-left-color:var(--_active-border)}
+.app-sidebar-icon{flex:0 0 18px;display:inline-flex;align-items:center;justify-content:center}
+.app-sidebar-icon svg,.app-sidebar-toggle svg,.app-sidebar-login-link svg,.app-theme-toggle svg{stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.app-sidebar-icon svg .fdot{fill:currentColor}
+.app-sidebar-icon svg{width:18px;height:18px}
+.app-sidebar.collapsed .app-sidebar-label{display:none}
+.app-sidebar-sub{margin-left:29px;font-size:13px;opacity:.92}
+.app-sidebar.collapsed .app-sidebar-sub{margin-left:0}
+.app-sidebar-group{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--_text-dim);margin:16px 10px 6px;white-space:nowrap;overflow:hidden}
+.app-sidebar.collapsed .app-sidebar-group{opacity:0;height:1px;margin:8px 0;overflow:hidden}
+.app-content{flex:1;min-width:0}
+@media(max-width:1000px){
+  .app-sidebar{position:fixed;top:0;left:0;bottom:0;z-index:40;width:240px;flex-basis:240px;transform:translateX(-100%);transition:transform .15s ease}
+  .app-sidebar.mobile-open{transform:translateX(0)}
+  .app-sidebar.collapsed{width:240px;flex-basis:240px}
+  .app-sidebar.collapsed .app-sidebar-brand,.app-sidebar.collapsed .app-sidebar-label{opacity:1;width:auto;display:flex}
+  .app-sidebar.collapsed .app-theme-toggle{display:flex}
+  .app-sidebar-scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:39}
+  .app-sidebar-scrim.visible{display:block}
+}
+</style>
+<aside class="app-sidebar" id="appSidebar" aria-label="Hauptnavigation">
+  <div class="app-sidebar-head">
+    <span class="app-sidebar-brand">DACHKONZEPTE</span>
+    <div class="app-sidebar-headbtns">
+      <button type="button" class="app-theme-toggle" id="appThemeToggle" aria-label="Hell/Dunkel umschalten" title="Hell/Dunkel umschalten"></button>
+      <button type="button" class="app-sidebar-toggle" id="appSidebarToggle" aria-label="Navigation ein-/ausklappen"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
+    </div>
+  </div>
+  <nav class="app-sidebar-nav">
+    <a class="app-sidebar-link{{ ' active' if path == '/' }}" href="/"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9"/><path d="M10 20v-6h4v6"/></svg></span><span class="app-sidebar-label">Start</span></a>
+    {% if is_module_enabled('aufgabenmanagement') %}
+    <a class="app-sidebar-link{{ ' active' if path == '/tasks' }}" href="/tasks"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="4.5" y="3.5" width="15" height="17" rx="0"/><polyline points="8,9 9.3,10.3 12,7.6"/><line x1="14" y1="9" x2="16.5" y2="9"/><polyline points="8,15 9.3,16.3 12,13.6"/><line x1="14" y1="15" x2="16.5" y2="15"/></svg></span><span class="app-sidebar-label">Aufgaben</span></a>
+    {% endif %}
+    {% if is_module_enabled('wartungen') %}
+    <a class="app-sidebar-link{{ ' active' if path == '/maintenance-contracts' }}" href="/maintenance-contracts"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="7" cy="7" r="3"/><line x1="9.5" y1="9.5" x2="17" y2="17"/><polyline points="15,15 17,13 19,15 17,17"/></svg></span><span class="app-sidebar-label">Wartungen</span></a>
+    <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/findings' }}" href="/findings"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M12 3.5 4.5 18h15z"/><line x1="12" y1="9" x2="12" y2="13.5"/><circle class="fdot" cx="12" cy="16" r="0.9"/></svg></span><span class="app-sidebar-label">Mängel</span></a>
+    {% endif %}
+    <a class="app-sidebar-link{{ ' active' if path == '/inquiries' }}" href="/inquiries"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M4 13h4.5l1.5 2.5h4L15.5 13H20"/><path d="M4 13V6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v7"/><path d="M4 13v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg></span><span class="app-sidebar-label">Anfragen</span></a>
+    <a class="app-sidebar-link{{ ' active' if path == '/projects' }}" href="/projects"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a1 1 0 0 1 1-1h4.5l2 2h8.5a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/></svg></span><span class="app-sidebar-label">Projekte</span></a>
+    <a class="app-sidebar-link{{ ' active' if path == '/planning' }}" href="/planning"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg></span><span class="app-sidebar-label">Planung</span></a>
+    <a class="app-sidebar-link{{ ' active' if path == '/time-tracking' }}" href="/time-tracking"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.3"/><polyline points="12,7.3 12,12 15.3,14"/></svg></span><span class="app-sidebar-label">Zeiterfassung</span></a>
+    {% if is_admin %}
+    <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/time-backoffice' }}" href="/time-backoffice"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="5.5" y="3" width="13" height="18"/><line x1="8" y1="7.5" x2="16" y2="7.5"/><line x1="8" y1="11.5" x2="16" y2="11.5"/><line x1="8" y1="15.5" x2="13" y2="15.5"/></svg></span><span class="app-sidebar-label">Backoffice</span></a>
+    {% endif %}
+    <a class="app-sidebar-link{{ ' active' if path == '/finanzen' }}" href="/finanzen"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M16.5 7.2a5.8 5.8 0 1 0 0 9.6"/><line x1="6" y1="10.5" x2="14" y2="10.5"/><line x1="6" y1="13.5" x2="13" y2="13.5"/></svg></span><span class="app-sidebar-label">Finanzen</span></a>
+    <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/mahnwesen' }}" href="/mahnwesen"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13"/><polyline points="3.7,6 12,13 20.3,6"/></svg></span><span class="app-sidebar-label">Mahnwesen</span></a>
+    <div class="app-sidebar-group">Stammdaten</div>
+    <a class="app-sidebar-link{{ ' active' if path == '/master-data' }}" href="/master-data"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6.3" rx="8" ry="2.8"/><path d="M4 6.3v5.7c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8V6.3"/><path d="M4 12v5.7c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8V12"/></svg></span><span class="app-sidebar-label">Stammdaten</span></a>
+    <div class="app-sidebar-group">System</div>
+    <a class="app-sidebar-link{{ ' active' if path == '/settings' }}" href="/settings"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><circle class="fdot" cx="9" cy="7" r="1.7"/><line x1="4" y1="12.5" x2="20" y2="12.5"/><circle class="fdot" cx="15" cy="12.5" r="1.7"/><line x1="4" y1="18" x2="20" y2="18"/><circle class="fdot" cx="7" cy="18" r="1.7"/></svg></span><span class="app-sidebar-label">Einstellungen</span></a>
+  </nav>
+  {% if current_user %}
+  <div class="app-sidebar-foot" id="appSidebarFoot">
+    <div class="app-sidebar-user"><span class="dot"></span><span class="app-sidebar-label">{{ current_user.display_name }}</span></div>
+    <button type="button" class="app-sidebar-logout" id="appSidebarLogout"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M9 4.5H5.3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1H9"/><polyline points="14,15.5 18,12 14,8.5"/><line x1="18" y1="12" x2="8.3" y2="12"/></svg></span><span class="app-sidebar-label">Abmelden</span></button>
+  </div>
+  {% else %}
+  <div class="app-sidebar-foot" id="appSidebarFoot"></div>
+  {% endif %}
+  <div class="app-sidebar-version"><span class="app-sidebar-label">Version {{ app_version }}</span></div>
+</aside>
+<div class="app-sidebar-scrim" id="appSidebarScrim"></div>
+<script>
+(function(){
+  var sidebar=document.getElementById('appSidebar');
+  var toggle=document.getElementById('appSidebarToggle');
+  var scrim=document.getElementById('appSidebarScrim');
+  var themeToggle=document.getElementById('appThemeToggle');
+  var LOGOUT_ICON='<svg viewBox="0 0 24 24"><path d="M9 4.5H5.3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1H9"/><polyline points="14,15.5 18,12 14,8.5"/><line x1="18" y1="12" x2="8.3" y2="12"/></svg>';
+  var KEY_ICON='<svg viewBox="0 0 24 24"><circle cx="7.5" cy="16.5" r="3"/><line x1="9.7" y1="14.3" x2="19" y2="5"/><line x1="14.5" y1="9.5" x2="17" y2="7"/></svg>';
+  var SUN_ICON='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.5" y1="4.5" x2="6.5" y2="6.5"/><line x1="17.5" y1="17.5" x2="19.5" y2="19.5"/><line x1="4.5" y1="19.5" x2="6.5" y2="17.5"/><line x1="17.5" y1="6.5" x2="19.5" y2="4.5"/></svg>';
+  var MOON_ICON='<svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg>';
+  var isMobile=function(){return window.matchMedia('(max-width:1000px)').matches};
+  var apply=function(){
+    if(isMobile()) return;
+    var collapsed=localStorage.getItem('erp_sidebar_collapsed')==='1';
+    sidebar.classList.toggle('collapsed',collapsed);
+  };
+  toggle.addEventListener('click',function(){
+    if(isMobile()){
+      var open=sidebar.classList.toggle('mobile-open');
+      scrim.classList.toggle('visible',open);
+      return;
+    }
+    var collapsed=sidebar.classList.toggle('collapsed');
+    localStorage.setItem('erp_sidebar_collapsed',collapsed?'1':'0');
+  });
+  scrim.addEventListener('click',function(){
+    sidebar.classList.remove('mobile-open');
+    scrim.classList.remove('visible');
+  });
+  var currentTheme=function(){return document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light'};
+  var renderThemeToggle=function(){
+    var dark=currentTheme()==='dark';
+    themeToggle.innerHTML=dark?SUN_ICON:MOON_ICON;
+    themeToggle.title=dark?'Zu hellem Modus wechseln':'Zu dunklem Modus wechseln';
+  };
+  themeToggle.addEventListener('click',function(){
+    var next=currentTheme()==='dark'?'light':'dark';
+    document.documentElement.setAttribute('data-theme',next);
+    try{localStorage.setItem('erp_theme',next)}catch(e){}
+    renderThemeToggle();
+  });
+  renderThemeToggle();
+  var escHtml=function(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})};
+  var bindLogout=function(){
+    var logoutBtn=document.getElementById('appSidebarLogout');
+    if(logoutBtn){
+      logoutBtn.addEventListener('click',function(){
+        fetch('/api/auth/logout',{method:'POST'}).finally(function(){
+          location.href='/login?next='+encodeURIComponent(location.pathname);
+        });
+      });
+    }
+  };
+  var bindLoginForm=function(){
+    var form=document.getElementById('appSidebarLoginForm');
+    if(!form)return;
+    form.addEventListener('submit',function(e){
+      e.preventDefault();
+      var errorEl=document.getElementById('appSidebarLoginError');
+      errorEl.textContent='';
+      fetch('/api/auth/login',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          username:document.getElementById('appSidebarUsername').value,
+          password:document.getElementById('appSidebarPassword').value,
+        }),
+      }).then(function(resp){
+        if(!resp.ok){
+          return resp.json().catch(function(){return {}}).then(function(data){
+            errorEl.textContent=data.detail||'Anmeldung fehlgeschlagen.';
+          });
+        }
+        location.reload();
+      }).catch(function(err){
+        errorEl.textContent='Anmeldung fehlgeschlagen: '+err.message;
+      });
+    });
+  };
+  var renderAuthFoot=function(status){
+    var foot=document.getElementById('appSidebarFoot');
+    if(!foot)return;
+    if(status.authenticated){
+      foot.innerHTML='<div class="app-sidebar-user"><span class="dot"></span><span class="app-sidebar-label">'+escHtml(status.user.display_name)+'</span></div>'
+        +'<button type="button" class="app-sidebar-logout" id="appSidebarLogout"><span class="app-sidebar-icon">'+LOGOUT_ICON+'</span><span class="app-sidebar-label">Abmelden</span></button>';
+      bindLogout();
+    } else {
+      foot.innerHTML='<a class="app-sidebar-login-link" href="/login" title="Anmelden">'+KEY_ICON+'</a>'
+        +'<div class="app-sidebar-login-status"><span class="dot"></span><span class="app-sidebar-label">Nicht angemeldet</span></div>'
+        +'<form class="app-sidebar-login-form" id="appSidebarLoginForm">'
+        +'<input type="text" id="appSidebarUsername" placeholder="Benutzername" autocomplete="username" required>'
+        +'<input type="password" id="appSidebarPassword" placeholder="Passwort" autocomplete="current-password" required>'
+        +'<button type="submit">Anmelden</button>'
+        +'<div class="app-sidebar-login-error" id="appSidebarLoginError"></div>'
+        +'</form>';
+      bindLoginForm();
+    }
+  };
+  bindLogout();
+  fetch('/api/auth/status').then(function(r){return r.json()}).then(renderAuthFoot).catch(function(){});
+  apply();
+  window.addEventListener('resize',apply);
+})();
+</script>

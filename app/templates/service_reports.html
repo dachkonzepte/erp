@@ -1,0 +1,1246 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Einsatzbericht</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:900px;margin:0;padding:18px}
+.breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+.breadcrumb a{color:var(--accent);text-decoration:none;font-weight:650}
+.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
+.top-links{display:flex;gap:8px;flex-wrap:wrap}
+.top-links a{padding:9px 12px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-weight:650;font-size:13.5px}
+.top-links a:hover{background:var(--soft)}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.card h2{margin:0 0 12px;font-size:16px}
+.fields-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+.field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+input,select,textarea{padding:10px 11px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:14px;width:100%}
+input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+textarea{min-height:80px;resize:vertical}
+button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:11px 15px;font:inherit;font-weight:650;font-size:14px;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
+.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
+.hidden{display:none!important}
+.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
+.editor-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.report-card{border:1px solid var(--line);padding:14px;margin-bottom:10px}
+.report-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
+.badge.unterschrieben{background:var(--success-soft);color:var(--success)}
+.badge.entwurf{background:var(--warning-soft);color:var(--warning)}
+.report-desc{white-space:pre-wrap;margin-top:8px;font-size:13.5px}
+.report-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.report-actions button,.report-actions a{padding:7px 10px;font-size:12.5px}
+.report-actions a{border:1px solid var(--line);color:var(--ink);text-decoration:none;display:inline-flex;align-items:center}
+.report-actions a:hover{background:var(--soft)}
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.sig-canvas{width:100%;height:220px;border:2px dashed var(--field-border);background:var(--card);touch-action:none;display:block}
+.sig-hint{color:var(--muted);font-size:12.5px;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-size:11px;text-transform:uppercase;font-weight:650}
+tr:last-child td{border-bottom:none}
+.table-scroll{overflow-x:auto}
+.inspection-panel{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}
+.inspection-progress{font-size:12.5px;color:var(--muted);margin-bottom:8px}
+.inspection-hint{background:var(--soft);border-left:3px solid var(--accent);padding:8px 10px;font-size:12.5px;margin-bottom:8px}
+.inspection-open-list{margin:2px 0 10px 2px}
+.inspection-area{margin-bottom:4px}
+.inspection-group{font-weight:700;font-size:12.5px;margin:10px 0 4px}
+.inspection-row{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.inspection-row .itext{flex:1;min-width:220px;font-size:13px}
+.inspection-row .itext .req{color:var(--danger);font-weight:800}
+.inspection-row .ictl{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.inspection-row .ictl button{padding:6px 10px;font-size:12px}
+.inspection-row .ictl input,.inspection-row .ictl select{width:auto;padding:6px 7px;font-size:12.5px}
+.inspection-row .ictl .result-picker{display:flex;gap:6px;flex-wrap:wrap}
+.badge.out-of-range{background:var(--danger-soft);color:var(--danger);font-weight:800;font-size:10.5px;padding:2px 6px;text-transform:uppercase}
+.badge.dringend,.badge.akute_gefahr{background:var(--danger-soft);color:var(--danger)}
+.badge.mittel{background:var(--warning-soft);color:var(--warning)}
+.badge.erledigt{background:var(--success-soft);color:var(--success)}
+.finding-hint{background:var(--danger-soft);color:var(--danger);padding:6px 10px;font-size:12.5px;font-weight:650;display:flex;justify-content:space-between;align-items:center;gap:8px;margin:4px 0}
+.finding-hint button{padding:4px 9px;font-size:12px}
+.item-photos{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 0 8px}
+.photo-thumb{position:relative;display:inline-flex}
+.photo-thumb img{width:52px;height:52px;object-fit:cover;border:1px solid var(--line)}
+.photo-del{position:absolute;top:-8px;right:-8px;padding:0;width:18px;height:18px;font-size:11px;line-height:1;border-radius:50%}
+.photo-slot-empty{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.finding-card{border:1px solid var(--line);padding:10px;margin-bottom:8px}
+.finding-head{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.finding-desc{font-size:13.5px;white-space:pre-wrap}
+.finding-meta{margin-top:4px}
+.finding-followup{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.finding-followup select{width:auto}
+.finding-followup input[type=date]{width:auto}
+.finding-form{border:1px dashed var(--field-border);padding:10px;margin-top:8px}
+.finding-form-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.finding-form-row select,.finding-form-row input{width:auto}
+@media(max-width:700px){.fields-2col{grid-template-columns:1fr}}
+/* Tablet-Breakpoint (seit 1.3.0, konsistent mit planning.html 950px/tasks.html 900px) -- die
+   Flächen-/Gruppen-Zuklappblöcke aus 1.2.22 bleiben unverändert, sie funktionieren auf Tablet
+   bereits gut. Alles hier zielt auf Bedienelemente <44px (siehe CLAUDE.md, Bestandsaufnahme:
+   34-40px gemessen) und die beiden Tabellen (Material, Zeitbuchungen), die sich sonst nur per
+   horizontalem Scrollen bedienen ließen. */
+@media(max-width:900px){
+  .inspection-row{flex-direction:column;align-items:stretch}
+  .inspection-row .itext{min-width:0}
+  .inspection-row .ictl{width:100%}
+  .inspection-row .ictl .result-picker{width:100%}
+  .inspection-row .ictl .result-picker button{flex:1;min-height:44px;font-size:13.5px;padding:8px 6px}
+  .inspection-row .ictl input,.inspection-row .ictl select{min-height:44px;font-size:14px;padding:9px 10px}
+  .report-actions button,.report-actions a{min-height:44px;padding:10px 13px;font-size:13.5px}
+  .editor-actions button{min-height:44px}
+  .top-links a{min-height:44px;display:inline-flex;align-items:center}
+  .table-scroll table thead{display:none}
+  .table-scroll table,.table-scroll table tbody,.table-scroll table tr{display:block;width:100%}
+  .table-scroll table tr{border:1px solid var(--line);margin-bottom:8px;padding:2px 8px}
+  .table-scroll table td{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px dashed var(--line);padding:8px 0}
+  .table-scroll table td:last-child{border-bottom:0}
+  .table-scroll table td::before{content:attr(data-label);font-weight:700;color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.03em}
+  .table-scroll table td input,.table-scroll table td select{width:auto;max-width:60%;min-height:40px}
+}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+{% include "_debounce.html" %}
+<div class="app-content">
+<main>
+{% if is_module_enabled('wartungen') %}
+<div class="breadcrumb" id="breadcrumb">Lädt …</div>
+<div class="hero">
+  <div><h1>Einsatzbericht</h1><div class="muted small" id="orderContext">Auftrag wird geladen …</div></div>
+  <div class="top-links"><a id="orderLink" href="#">← Auftrag</a><a id="timeLink" href="#">Zeiterfassung (Auftrag)</a></div>
+</div>
+
+<div id="editorCard" class="card hidden">
+  <h2 id="editorHeading">Bericht anlegen</h2>
+  <div class="fields-2col">
+    <div class="field"><label>Berichtstyp</label><select id="editType" onchange="onEditTypeChange()"><option value="rapport">Rapportbericht (Reparatur)</option><option value="wartung">Wartungsbericht</option></select></div>
+    <div class="field"><label>Datum des Einsatzes</label><input id="editPerformedAt" type="date"></div>
+    <div class="field full"><label>Durchgeführt von <span class="muted small">(optional)</span></label><select id="editEmployee"></select></div>
+    <div class="field full" id="editRoofAreaField"><label>Dachflächen <span class="muted small">(für Prüfpunkte, mehrere möglich)</span></label><div id="editRoofAreaChecks" style="display:flex;flex-wrap:wrap;gap:10px"></div></div>
+    <div class="field full" id="editInspectionTemplateField"><label>Vorlage</label><select id="editInspectionTemplate"></select><div class="muted small hidden" id="editInspectionTemplateHint" style="margin-top:6px">Vorlage wird automatisch je Dachfläche nach Dachtyp bestimmt.</div></div>
+    <div class="field full"><label>Durchgeführte Arbeiten / Feststellungen</label><textarea id="editDescription"></textarea></div>
+  </div>
+  <div class="editor-actions">
+    <button onclick="saveReport()">Speichern</button>
+    <button class="secondary" onclick="closeEditor()">Abbrechen</button>
+    <span id="editorStatus" class="status"></span>
+  </div>
+</div>
+
+<div id="signCard" class="card hidden">
+  <h2 id="signHeading">Unterschrift Monteur</h2>
+  <div class="muted small" id="signHint" style="margin-bottom:8px">Bitte selbst unterschreiben, danach das Gerät an den Kunden weitergeben.</div>
+  <canvas id="sigCanvas" class="sig-canvas"></canvas>
+  <div class="sig-hint">Mit Finger oder Stift direkt auf dem Feld unterschreiben.</div>
+  <div class="fields-2col" style="margin-top:12px">
+    <div class="field full"><label id="signNameLabel">Name des Monteurs</label><input id="signatureName" placeholder="Vor- und Nachname"></div>
+  </div>
+  <div class="editor-actions">
+    <button id="signNextBtn" onclick="confirmSignatureStep()">Weiter</button>
+    <button class="secondary" onclick="clearSignature()">Löschen</button>
+    <button class="secondary" onclick="closeSignPanel()">Abbrechen</button>
+    <span id="signStatus" class="status"></span>
+  </div>
+</div>
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+    <h2 style="margin:0">Berichte zu diesem Auftrag</h2>
+    <button onclick="openCreateEditor()">+ Bericht</button>
+  </div>
+  <div id="reportList" style="margin-top:12px"></div>
+  <span id="listStatus" class="status"></span>
+</div>
+
+<div id="historyCard" class="card hidden">
+  <h2>Frühere Berichte zu diesem Gebäude</h2>
+  <div class="muted small" style="margin-bottom:10px">Unterschriebene Berichte aus anderen Aufträgen für dasselbe Gebäude -- hilfreich, um frühere Feststellungen zu sehen.</div>
+  <div id="historyList"></div>
+</div>
+
+<div class="card">
+  <h2>Erfasste Zeiten zu diesem Auftrag</h2>
+  <div class="fields-2col" style="margin-bottom:10px">
+    <div class="field"><label>Mitarbeiter</label><select id="teEmployee"></select></div>
+    <div class="field"><label>Datum</label><input id="teDate" type="date"></div>
+    <div class="field"><label>Zeitart</label><select id="teType"></select></div>
+    <div class="field"><label>Tätigkeit</label><select id="teActivity"></select></div>
+    <div class="field"><label>LV-Position <span class="muted small">(optional)</span></label><select id="teOrderItem"></select></div>
+    <div class="field"><label>Stunden</label><input id="teHours" type="number" step="0.01" min="0"></div>
+    <div class="field full"><label>Notizen <span class="muted small">(optional)</span></label><input id="teNotes"></div>
+  </div>
+  <div class="editor-actions" style="margin-bottom:10px">
+    <button type="button" onclick="saveReportTimeEntry()">Zeit buchen</button>
+    <span id="teStatus" class="status"></span>
+  </div>
+  <div id="timeEntriesTable"></div>
+</div>
+{% else %}
+<div class="card"><h2>Wartungen & Reparaturen</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+{% endif %}
+</main>
+</div>
+</div>
+<script>
+const orderId={{ order_id }};
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
+function fmtDateTime(s){if(!s)return'';return new Date(s).toLocaleString('de-DE')}
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+
+let authStatus=null,employees=[],reports=[],editingReportId=null,signingReportId=null;
+let roofAreasForOrder=[],inspectionTemplates=[],orderData=null,timeEntryTypes=[],timeEntryActivities=[];
+async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
+function optionsHtml(list,selected){return '<option value="">— keine Auswahl —</option>'+(list||[]).filter(o=>o.active!==false).map(o=>`<option value="${esc(o.value)}" ${o.value===selected?'selected':''}>${esc(o.label)}</option>`).join('')}
+const inspectionItemsCache={},inspectionSyncHints={},expandedReportIds=new Set();
+const findingsCache={},photosCache={},expandedFindingsReportIds=new Set();
+let activeFindingForm=null; // {reportId, inspectionItemId}
+// Seit 1.2.23 (Materialerfassung): materialsCache je Bericht, eigener Panel-Umschalter auf
+// gleicher Stufe wie Prüfpunkte/Mängel. pendingMaterialFindingId merkt, dass der NÄCHSTE über
+// das Formular angelegte Eintrag einem bestimmten Mangel zugeordnet werden soll (Button
+// "+ Material" am Mangel, Muster activeFindingForm). selectedMaterialCatalogId je Bericht hält
+// den zuletzt per Suche ausgewählten Katalogeintrag fest, bis das Formular abgeschickt oder der
+// Katalogbezug wieder entfernt wird.
+const materialsCache={},expandedMaterialsReportIds=new Set();
+const pendingMaterialFindingId={},selectedMaterialCatalogId={},materialSearchResults={};
+// Seit 1.2.22 (kompakte Berichtsseite): expandedAreaKeys -- welche Dachflächen-Blöcke
+// aufgeklappt sind (Anwesenheit = offen, Default zu). closedGroupKeys -- welche group_name-
+// Gruppen INNERHALB einer aufgeklappten Fläche zugeklappt sind (Anwesenheit = zu, Default
+// offen -- invers zu den übrigen Sets, da hier "offen" der Normalfall ist). openNotesItemIds --
+// welche Bemerkungsfelder (nicht-free_text-Punkte) manuell aufgeklappt wurden.
+const expandedAreaKeys=new Set(),closedGroupKeys=new Set(),openNotesItemIds=new Set();
+function toggleReportArea(reportId,areaKey){
+  const key=`${reportId}:${areaKey}`;
+  if(expandedAreaKeys.has(key))expandedAreaKeys.delete(key);else expandedAreaKeys.add(key);
+  renderReportList();
+}
+function toggleGroup(reportId,areaKey,groupName){
+  const key=`${reportId}:${areaKey}:${groupName}`;
+  if(closedGroupKeys.has(key))closedGroupKeys.delete(key);else closedGroupKeys.add(key);
+  renderReportList();
+}
+function toggleItemNotes(itemId){
+  if(openNotesItemIds.has(itemId))openNotesItemIds.delete(itemId);else openNotesItemIds.add(itemId);
+  renderReportList();
+}
+function isItemAnswered(item){
+  if(item.item_type==='ja_nein'||item.item_type==='leak_test')return item.result!=null;
+  if(item.item_type==='condition_grade')return item.condition_grade!=null;
+  if(item.item_type==='measurement')return item.measured_value!=null;
+  if(item.item_type==='quantity')return item.quantity!=null;
+  if(item.item_type==='free_text')return !!(item.notes&&item.notes.trim());
+  return true;
+}
+const SEVERITIES=[['gering','Gering'],['mittel','Mittel'],['dringend','Dringend'],['akute_gefahr','Akute Gefahr']];
+const ACTIONS=[['sofort_behoben','Sofort behoben'],['buero_pruefen','Büro prüfen lassen'],['zurueckgestellt','Zurückgestellt']];
+const FINDING_STATUSES=[['offen','Offen'],['in_bearbeitung','In Bearbeitung'],['erledigt','Erledigt'],['zurueckgestellt','Zurückgestellt']];
+
+async function loadReportExtras(reportId){
+  findingsCache[reportId]=await api(`/api/service-reports/${reportId}/findings`).catch(()=>[]);
+  photosCache[reportId]=await api(`/api/service-reports/${reportId}/photos`).catch(()=>[]);
+  materialsCache[reportId]=await api(`/api/service-reports/${reportId}/materials`).catch(()=>[]);
+}
+
+function employeeOptionsHtml(selected){
+  return '<option value="">— nicht zugeordnet —</option>'+employees.filter(e=>e.active).map(e=>`<option value="${e.id}" ${Number(selected)===e.id?'selected':''}>${esc(e.first_name+' '+e.last_name)}</option>`).join('');
+}
+function editRoofAreaChecksHtml(selectedIds){
+  return roofAreasForOrder.map(a=>`<label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:400">
+    <input type="checkbox" value="${a.id}" style="width:auto" ${selectedIds.includes(a.id)?'checked':''} onchange="onEditRoofAreaChange()"> ${esc(a.name)}
+  </label>`).join('')||'<span class="muted small">Keine Dachflächen für dieses Objekt.</span>';
+}
+function getEditRoofAreaIds(){
+  return [...document.querySelectorAll('#editRoofAreaChecks input:checked')].map(el=>Number(el.value));
+}
+function onEditRoofAreaChange(){
+  // Eine explizite Vorlagenwahl gilt nur bei genau einer angehakten Fläche -- bei mehreren
+  // entscheidet ausschließlich die Dachtyp-Standardvorlage (siehe create_report()).
+  const ids=getEditRoofAreaIds();
+  const select=document.getElementById('editInspectionTemplate');
+  const hint=document.getElementById('editInspectionTemplateHint');
+  if(ids.length===1){
+    select.classList.remove('hidden');
+    hint.classList.add('hidden');
+  }else{
+    select.value='';
+    select.classList.add('hidden');
+    hint.classList.remove('hidden');
+  }
+}
+function inspectionTemplateOptionsHtml(selected,reportType){
+  const defaultLabel=reportType==='wartung'?'— automatisch nach Dachtyp —':'— keine —';
+  return `<option value="">${defaultLabel}</option>`+inspectionTemplates.filter(t=>!t.archived).map(t=>`<option value="${t.id}" ${Number(selected)===t.id?'selected':''}>${esc(t.label)}</option>`).join('');
+}
+
+function updateRoofAreaFieldsVisibility(){
+  const hasRoofAreas=roofAreasForOrder.length>0;
+  document.getElementById('editRoofAreaField').classList.toggle('hidden',!hasRoofAreas);
+  document.getElementById('editInspectionTemplateField').classList.toggle('hidden',!hasRoofAreas);
+}
+
+function onEditTypeChange(){
+  document.getElementById('editInspectionTemplate').innerHTML=inspectionTemplateOptionsHtml(null,document.getElementById('editType').value);
+}
+
+function openCreateEditor(){
+  editingReportId=null;
+  document.getElementById('editorHeading').textContent='Bericht anlegen';
+  document.getElementById('editType').value='rapport';
+  document.getElementById('editPerformedAt').value=new Date().toISOString().slice(0,10);
+  document.getElementById('editEmployee').innerHTML=employeeOptionsHtml(authStatus.user?authStatus.user.employee_id:null);
+  document.getElementById('editRoofAreaChecks').innerHTML=editRoofAreaChecksHtml([]);
+  document.getElementById('editInspectionTemplate').innerHTML=inspectionTemplateOptionsHtml(null,'rapport');
+  onEditRoofAreaChange();
+  updateRoofAreaFieldsVisibility();
+  document.getElementById('editRoofAreaField').classList.remove('hidden');
+  document.getElementById('editInspectionTemplateField').classList.remove('hidden');
+  if(!roofAreasForOrder.length){
+    document.getElementById('editRoofAreaField').classList.add('hidden');
+    document.getElementById('editInspectionTemplateField').classList.add('hidden');
+  }
+  document.getElementById('editDescription').value='';
+  document.getElementById('editorStatus').textContent='';
+  document.getElementById('signCard').classList.add('hidden');
+  document.getElementById('editorCard').classList.remove('hidden');
+  document.getElementById('editorCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function openEditEditor(id){
+  const r=reports.find(x=>x.id===id);
+  if(!r)return;
+  editingReportId=id;
+  document.getElementById('editorHeading').textContent='Bericht bearbeiten';
+  document.getElementById('editType').value=r.report_type;
+  document.getElementById('editPerformedAt').value=r.performed_at;
+  document.getElementById('editEmployee').innerHTML=employeeOptionsHtml(r.created_by_employee_id);
+  document.getElementById('editDescription').value=r.description||'';
+  document.getElementById('editorStatus').textContent='';
+  // Dachfläche/Vorlage sind nur beim Anlegen wählbar -- Generierung ist ein Einmal-Vorgang.
+  document.getElementById('editRoofAreaField').classList.add('hidden');
+  document.getElementById('editInspectionTemplateField').classList.add('hidden');
+  document.getElementById('signCard').classList.add('hidden');
+  document.getElementById('editorCard').classList.remove('hidden');
+  document.getElementById('editorCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function closeEditor(){
+  editingReportId=null;
+  document.getElementById('editorCard').classList.add('hidden');
+}
+
+async function saveReport(){
+  const st=document.getElementById('editorStatus');
+  const payload={
+    report_type:document.getElementById('editType').value,
+    description:document.getElementById('editDescription').value.trim()||null,
+    performed_at:document.getElementById('editPerformedAt').value||null,
+  };
+  try{
+    if(editingReportId){
+      await api(`/api/service-reports/${editingReportId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    }else{
+      payload.created_by_employee_id=document.getElementById('editEmployee').value?Number(document.getElementById('editEmployee').value):null;
+      const roofAreaIds=getEditRoofAreaIds();
+      const inspectionTemplateId=document.getElementById('editInspectionTemplate').value;
+      payload.roof_area_ids=roofAreaIds.length?roofAreaIds:null;
+      payload.inspection_template_id=inspectionTemplateId?Number(inspectionTemplateId):null;
+      await api(`/api/orders/${orderId}/service-reports`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    }
+    closeEditor();
+    await loadReports();
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+
+async function deleteReportConfirm(id){
+  if(!confirm('Diesen Bericht wirklich löschen?'))return;
+  const st=document.getElementById('listStatus');
+  try{
+    await api(`/api/service-reports/${id}`,{method:'DELETE'});
+    await loadReports();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+let sigCtx=null,sigDrawing=false,sigLast=null,sigHasContent=false;
+function sigPos(e){const c=document.getElementById('sigCanvas');const r=c.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top}}
+function initSignaturePad(){
+  const canvas=document.getElementById('sigCanvas');
+  canvas.width=canvas.clientWidth;
+  canvas.height=canvas.clientHeight;
+  sigCtx=canvas.getContext('2d');
+  sigCtx.lineWidth=2.5;sigCtx.lineCap='round';sigCtx.strokeStyle='#182420';
+  sigHasContent=false;
+  canvas.onpointerdown=e=>{sigDrawing=true;sigLast=sigPos(e);canvas.setPointerCapture(e.pointerId);e.preventDefault()};
+  canvas.onpointermove=e=>{if(!sigDrawing)return;const p=sigPos(e);sigCtx.beginPath();sigCtx.moveTo(sigLast.x,sigLast.y);sigCtx.lineTo(p.x,p.y);sigCtx.stroke();sigLast=p;sigHasContent=true;e.preventDefault()};
+  canvas.onpointerup=()=>{sigDrawing=false};
+  canvas.onpointercancel=()=>{sigDrawing=false};
+}
+function clearSignature(){
+  const canvas=document.getElementById('sigCanvas');
+  sigCtx.clearRect(0,0,canvas.width,canvas.height);
+  sigHasContent=false;
+}
+
+// Seit 1.3.0: zwei Unterschriften nacheinander auf derselben Karte -- sigStep steuert, welcher
+// Schritt gerade läuft. Schritt 1 (Monteur) merkt seine PNG-Daten zwischen (installerSigDataUrl/
+// installerSigName) und leert das Canvas für Schritt 2 (Kunde); erst der zweite Schritt sendet
+// beide Unterschriften in einem API-Aufruf (siehe sign_report() in app/service_reports.py).
+let sigStep='monteur',installerSigDataUrl=null,installerSigName='';
+
+function openSignPanel(id){
+  signingReportId=id;
+  sigStep='monteur';installerSigDataUrl=null;installerSigName='';
+  document.getElementById('editorCard').classList.add('hidden');
+  document.getElementById('signStatus').textContent='';
+  renderSignStep();
+  document.getElementById('signCard').classList.remove('hidden');
+  document.getElementById('signCard').scrollIntoView({behavior:'smooth',block:'start'});
+  initSignaturePad();
+}
+
+function renderSignStep(){
+  const nameInput=document.getElementById('signatureName');
+  if(sigStep==='monteur'){
+    document.getElementById('signHeading').textContent='Unterschrift Monteur';
+    document.getElementById('signHint').textContent='Bitte selbst unterschreiben, danach das Gerät an den Kunden weitergeben.';
+    document.getElementById('signNameLabel').textContent='Name des Monteurs';
+    // Vorbelegt mit dem angemeldeten Benutzer, aber änderbar -- es kann jemand anders vor Ort
+    // gewesen sein als wer gerade am ERP angemeldet ist.
+    nameInput.value=(authStatus&&authStatus.user&&authStatus.user.display_name)||'';
+    document.getElementById('signNextBtn').textContent='Weiter';
+  }else{
+    document.getElementById('signHeading').textContent='Unterschrift Kunde';
+    document.getElementById('signHint').textContent='Bitte Gerät zum Unterschreiben an den Kunden weitergeben.';
+    document.getElementById('signNameLabel').textContent='Name der unterschreibenden Person';
+    nameInput.value='';
+    document.getElementById('signNextBtn').textContent='Unterschrift bestätigen';
+  }
+}
+
+function closeSignPanel(){
+  signingReportId=null;
+  sigStep='monteur';installerSigDataUrl=null;installerSigName='';
+  document.getElementById('signCard').classList.add('hidden');
+}
+
+async function confirmSignatureStep(){
+  const st=document.getElementById('signStatus');
+  const name=document.getElementById('signatureName').value.trim();
+  if(!name){st.textContent='Bitte den Namen der unterschreibenden Person angeben.';return}
+  if(!sigHasContent){st.textContent='Bitte zuerst unterschreiben.';return}
+  const dataUrl=document.getElementById('sigCanvas').toDataURL('image/png');
+  if(sigStep==='monteur'){
+    installerSigDataUrl=dataUrl;
+    installerSigName=name;
+    sigStep='kunde';
+    clearSignature();
+    st.textContent='';
+    renderSignStep();
+    return;
+  }
+  try{
+    await api(`/api/service-reports/${signingReportId}/sign`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      installer_signature_png_base64:installerSigDataUrl, installer_signature_name:installerSigName,
+      customer_signature_png_base64:dataUrl, customer_signature_name:name,
+    })});
+    closeSignPanel();
+    await loadReports();
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+
+const CONDITION_GRADE_LABELS={1:'Neuwertig',2:'Gebrauchsspuren',3:'Abgenutzt',4:'Sanierung erforderlich'};
+
+function hasInspectionSection(r){
+  return r.report_type==='wartung'||!!r.inspection_template_id;
+}
+
+function reportCard(r){
+  const badges=[`<span class="badge">${esc(r.report_type_label)}</span>`,`<span class="badge ${r.status}">${esc(r.status)}</span>`];
+  const actions=[];
+  if(r.status==='entwurf'){
+    actions.push(`<button class="secondary" onclick="openEditEditor(${r.id})">Bearbeiten</button>`);
+    actions.push(`<button onclick="openSignPanel(${r.id})">Unterschreiben</button>`);
+    actions.push(`<button class="danger" onclick="deleteReportConfirm(${r.id})">Löschen</button>`);
+  }else{
+    actions.push(`<a href="/api/service-reports/${r.id}/pdf" target="_blank">PDF öffnen</a>`);
+  }
+  if(hasInspectionSection(r)){
+    actions.push(`<button class="secondary" onclick="toggleReportInspectionItems(${r.id})">Prüfpunkte</button>`);
+  }
+  // Seit 1.2.22: zählt nur Mängel OHNE Prüfpunktbezug -- Mängel zu einem Prüfpunkt rendern
+  // jetzt inline dort (inspectionItemRowHtml()), nicht mehr zusätzlich hier, sonst dieselbe
+  // Mangel-Karte zweimal mit denselben DOM-IDs (Duplikat-Bug, siehe findingsPanelHtml()).
+  const findingCount=(findingsCache[r.id]||[]).filter(f=>f.inspection_item_id==null).length;
+  actions.push(`<button class="secondary" onclick="toggleReportFindings(${r.id})">Mängel ohne Prüfpunkt${findingCount?' ('+findingCount+')':''}</button>`);
+  const materialCount=(materialsCache[r.id]||[]).length;
+  actions.push(`<button class="secondary" onclick="toggleReportMaterials(${r.id})">Material${materialCount?' ('+materialCount+')':''}</button>`);
+  const signedInfo=r.status==='unterschrieben'?`<div class="muted small" style="margin-top:6px">${r.installer_signature_name?'Monteur: '+esc(r.installer_signature_name)+' · ':''}Kunde: ${esc(r.signature_name)} (${fmtDateTime(r.signed_at)})</div>`:'';
+  const isOpen=expandedReportIds.has(r.id);
+  const panel=hasInspectionSection(r)&&isOpen?`<div class="inspection-panel">${inspectionItemsPanelHtml(r)}</div>`:'';
+  const findingsOpen=expandedFindingsReportIds.has(r.id);
+  const findingsPanel=findingsOpen?`<div class="inspection-panel">${findingsPanelHtml(r)}</div>`:'';
+  const materialsOpen=expandedMaterialsReportIds.has(r.id);
+  const materialsPanel=materialsOpen?`<div class="inspection-panel">${materialsPanelHtml(r)}</div>`:'';
+  return `<div class="report-card">
+    <div class="report-head">
+      <div>${badges.join(' ')} <span class="muted small">${fmtDate(r.performed_at)}${r.created_by_employee_name?' · '+esc(r.created_by_employee_name):''}</span></div>
+    </div>
+    ${r.description?`<div class="report-desc">${esc(r.description)}</div>`:''}
+    ${signedInfo}
+    <div class="report-actions">${actions.join('')}</div>
+    ${panel}
+    ${findingsPanel}
+    ${materialsPanel}
+  </div>`;
+}
+
+function toggleReportMaterials(reportId){
+  if(expandedMaterialsReportIds.has(reportId)){expandedMaterialsReportIds.delete(reportId)}
+  else{expandedMaterialsReportIds.add(reportId)}
+  renderReportList();
+}
+
+function toggleReportFindings(reportId){
+  if(expandedFindingsReportIds.has(reportId)){expandedFindingsReportIds.delete(reportId)}
+  else{expandedFindingsReportIds.add(reportId)}
+  renderReportList();
+}
+
+function openFindingForm(reportId,inspectionItemId){
+  activeFindingForm={reportId,inspectionItemId:inspectionItemId||null};
+  expandedFindingsReportIds.add(reportId);
+  renderReportList();
+  const el=document.getElementById('findingFormCard-'+reportId);
+  if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function closeFindingForm(){
+  activeFindingForm=null;
+  renderReportList();
+}
+
+function onFindingActionChange(reportId){
+  const action=document.getElementById('findingAction-'+reportId).value;
+  document.getElementById('findingResubmission-'+reportId).classList.toggle('hidden',action!=='zurueckgestellt');
+}
+
+async function submitFindingForm(reportId){
+  const st=document.getElementById('findingFormStatus-'+reportId);
+  const description=document.getElementById('findingDesc-'+reportId).value.trim();
+  if(!description){st.textContent='Bitte eine Beschreibung angeben.';return}
+  const action=document.getElementById('findingAction-'+reportId).value;
+  const resubmissionDate=document.getElementById('findingResubmission-'+reportId).value||null;
+  if(action==='zurueckgestellt'&&!resubmissionDate){st.textContent='Bitte ein Wiedervorlagedatum angeben.';return}
+  const report=reports.find(x=>x.id===reportId);
+  const payload={
+    description, severity:document.getElementById('findingSeverity-'+reportId).value, action,
+    inspection_item_id:activeFindingForm.inspectionItemId, resubmission_date:resubmissionDate,
+    created_by_employee_id:(report&&report.created_by_employee_id)||null,
+  };
+  try{
+    // Seit 1.2.21 bewusst KEIN Navigieren mehr nach dem Anlegen -- "buero_pruefen" erzeugt nur
+    // noch eine Aufgabe, nie einen Auftrag/Projekt (siehe app/findings.py). Der Monteur bleibt
+    // im Bericht, genau wie bei jeder anderen Maßnahme.
+    await api(`/api/service-reports/${reportId}/findings`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    closeFindingForm();
+    await loadReportExtras(reportId);
+    renderReportList();
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+
+function findingFormHtml(r){
+  if(!activeFindingForm||activeFindingForm.reportId!==r.id)return'';
+  const item=activeFindingForm.inspectionItemId?(inspectionItemsCache[r.id]||[]).find(i=>i.id===activeFindingForm.inspectionItemId):null;
+  return `<div class="finding-form" id="findingFormCard-${r.id}">
+    ${item?`<div class="muted small">Zu Prüfpunkt: ${esc(item.text)}</div>`:''}
+    <textarea id="findingDesc-${r.id}" placeholder="Beschreibung des Mangels"></textarea>
+    <div class="finding-form-row">
+      <select id="findingSeverity-${r.id}">${SEVERITIES.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('')}</select>
+      <select id="findingAction-${r.id}" onchange="onFindingActionChange(${r.id})">${ACTIONS.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('')}</select>
+      <input id="findingResubmission-${r.id}" type="date" class="hidden">
+    </div>
+    <div class="editor-actions">
+      <button type="button" onclick="submitFindingForm(${r.id})">Mangel anlegen</button>
+      <button type="button" class="secondary" onclick="closeFindingForm()">Abbrechen</button>
+      <span id="findingFormStatus-${r.id}" class="status"></span>
+    </div>
+  </div>`;
+}
+
+function photoThumbHtml(p,reportId,isDraft){
+  const del=isDraft?`<button type="button" class="danger photo-del" onclick="deletePhotoUI(${p.id},${reportId})">×</button>`:'';
+  return `<span class="photo-thumb"><a href="/api/service-report-photos/${p.id}/file" target="_blank"><img src="/api/service-report-photos/${p.id}/file" alt=""></a>${del}</span>`;
+}
+
+function itemPhotoSectionHtml(item,reportId,isDraft){
+  const photos=(photosCache[reportId]||[]).filter(p=>p.inspection_item_id===item.id);
+  if(item.photo_before_after){
+    const before=photos.find(p=>p.kind==='vorher');
+    const after=photos.find(p=>p.kind==='nachher');
+    const slot=(p,kind,label)=>{
+      if(p)return photoThumbHtml(p,reportId,isDraft);
+      if(!isDraft)return `<span class="photo-slot-empty">${esc(label)}: —</span>`;
+      return `<span class="photo-slot-empty">${esc(label)}: <input type="file" accept="image/png,image/jpeg,image/webp" capture="environment" class="hidden" id="itemPhoto-${item.id}-${kind}" onchange="uploadItemPhoto(${item.id},${reportId},'${kind}')"><button type="button" class="secondary" onclick="document.getElementById('itemPhoto-${item.id}-${kind}').click()">+ ${esc(label)}</button></span>`;
+    };
+    return `<div class="item-photos">${slot(before,'vorher','Vorher')}${slot(after,'nachher','Nachher')}</div>`;
+  }
+  const uploadBtn=isDraft?`<input type="file" accept="image/png,image/jpeg,image/webp" capture="environment" class="hidden" id="itemPhoto-${item.id}-allgemein" onchange="uploadItemPhoto(${item.id},${reportId},'allgemein')"><button type="button" class="secondary" onclick="document.getElementById('itemPhoto-${item.id}-allgemein').click()">+ Foto</button>`:'';
+  if(!photos.length&&!uploadBtn)return'';
+  return `<div class="item-photos">${photos.map(p=>photoThumbHtml(p,reportId,isDraft)).join('')}${uploadBtn}</div>`;
+}
+
+async function uploadItemPhoto(itemId,reportId,kind){
+  const input=document.getElementById(`itemPhoto-${itemId}-${kind}`);
+  if(!input.files.length)return;
+  const fd=new FormData();
+  fd.append('file',input.files[0]);
+  fd.append('inspection_item_id',itemId);
+  fd.append('kind',kind);
+  try{
+    await api(`/api/service-reports/${reportId}/photos`,{method:'POST',body:fd});
+    input.value='';
+    await loadReportExtras(reportId);
+    renderReportList();
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+async function uploadFindingPhoto(findingId,reportId){
+  const input=document.getElementById('findingPhoto-'+findingId);
+  if(!input.files.length)return;
+  const fd=new FormData();
+  fd.append('file',input.files[0]);
+  fd.append('finding_id',findingId);
+  try{
+    await api(`/api/service-reports/${reportId}/photos`,{method:'POST',body:fd});
+    input.value='';
+    await loadReportExtras(reportId);
+    renderReportList();
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+async function deletePhotoUI(photoId,reportId){
+  if(!confirm('Dieses Foto wirklich löschen?'))return;
+  try{
+    await api(`/api/service-report-photos/${photoId}`,{method:'DELETE'});
+    await loadReportExtras(reportId);
+    renderReportList();
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+function onFfuActionChange(findingId,reportId){
+  const container=document.querySelector(`.finding-followup[data-finding="${findingId}"]`);
+  const action=container.querySelector('.ffu-action').value;
+  const dateInput=container.querySelector('.ffu-resubmission');
+  dateInput.classList.toggle('hidden',action!=='zurueckgestellt');
+  if(action!=='zurueckgestellt')submitFindingFollowup(findingId,reportId);
+}
+
+async function submitFindingFollowup(findingId,reportId){
+  const container=document.querySelector(`.finding-followup[data-finding="${findingId}"]`);
+  const statusEl=document.getElementById('ffuStatus-'+findingId);
+  const finding=(findingsCache[reportId]||[]).find(f=>f.id===findingId);
+  const newStatus=container.querySelector('.ffu-status').value;
+  const newAction=container.querySelector('.ffu-action').value;
+  const resubmissionDate=container.querySelector('.ffu-resubmission').value||null;
+  const payload={};
+  if(finding&&newStatus!==finding.status)payload.status=newStatus;
+  if(finding&&newAction!==finding.action)payload.action=newAction;
+  if(resubmissionDate)payload.resubmission_date=resubmissionDate;
+  if(!Object.keys(payload).length)return;
+  try{
+    await api(`/api/findings/${findingId}/followup`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    await loadReportExtras(reportId);
+    renderReportList();
+  }catch(e){statusEl.textContent='Fehler: '+e.message}
+}
+
+function findingCard(f,r){
+  const photos=(photosCache[r.id]||[]).filter(p=>p.finding_id===f.id);
+  const isDraft=r.status==='entwurf';
+  const photoThumbs=photos.map(p=>photoThumbHtml(p,r.id,isDraft)).join('');
+  const uploadControl=isDraft?`<input type="file" accept="image/png,image/jpeg,image/webp" capture="environment" class="hidden" id="findingPhoto-${f.id}" onchange="uploadFindingPhoto(${f.id},${r.id})"><button type="button" class="secondary" onclick="document.getElementById('findingPhoto-${f.id}').click()">+ Foto</button>`:'';
+  const followUpLink=f.follow_up_order_id?`<a href="/orders/${f.follow_up_order_id}" style="color:var(--accent)">Folgeauftrag ansehen</a>`:'';
+  // Sperre auf BEIDE Artefakte geprüft, nicht nur follow_up_task_id -- ein per Migration auf
+  // buero_pruefen umgeschriebener, ehemals "folgeauftrag"-Mangel trägt nur follow_up_order_id.
+  const lockedAction=(action)=>action==='buero_pruefen'&&(f.follow_up_task_id||f.follow_up_order_id)&&f.action!==action;
+  const canRetryTask=f.action==='buero_pruefen'&&!f.follow_up_task_id&&!f.follow_up_order_id;
+  const retryButton=canRetryTask?`<button type="button" class="secondary" onclick="retryFindingAction(${f.id},${r.id})">Aufgabe nachholen</button>`:'';
+  // Seit 1.2.23: "+ Material" ordnet den nächsten über das Materialformular angelegten Eintrag
+  // direkt diesem Mangel zu (Muster wie "+ Mangel" am Prüfpunkt) -- ein Monteur, der z. B. einen
+  // Gully instandsetzt und dabei Material verbraucht, soll beides zusammen erfassen können.
+  const addMaterialButton=isDraft?`<button type="button" class="secondary" onclick="openMaterialFormForFinding(${r.id},${f.id})">+ Material</button>`:'';
+  return `<div class="finding-card">
+    <div class="finding-head">
+      <span class="badge ${esc(f.severity)}">${esc(f.severity_label)}</span>
+      <span class="badge ${esc(f.status)}">${esc(f.status_label)}</span>
+      ${f.roof_component_name?`<span class="muted small">${esc(f.roof_component_name)}</span>`:''}
+    </div>
+    <div class="finding-desc">${esc(f.description)}</div>
+    <div class="finding-meta muted small">Maßnahme: ${esc(f.action_label)}${f.resubmission_date?' · Wiedervorlage '+fmtDate(f.resubmission_date):''}${followUpLink?' · '+followUpLink:''}</div>
+    <div class="item-photos">${photoThumbs}${uploadControl}</div>
+    ${addMaterialButton?`<div style="margin-top:6px">${addMaterialButton}</div>`:''}
+    <div class="finding-followup" data-finding="${f.id}">
+      <select class="ffu-status" onchange="submitFindingFollowup(${f.id},${r.id})">${FINDING_STATUSES.map(([k,l])=>`<option value="${k}" ${f.status===k?'selected':''}>${esc(l)}</option>`).join('')}</select>
+      <select class="ffu-action" onchange="onFfuActionChange(${f.id},${r.id})">${ACTIONS.map(([k,l])=>`<option value="${k}" ${f.action===k?'selected':''} ${lockedAction(k)?'disabled':''}>${esc(l)}</option>`).join('')}</select>
+      <input type="date" class="ffu-resubmission ${f.action==='zurueckgestellt'?'':'hidden'}" value="${f.resubmission_date||''}">
+      ${retryButton}
+      <span id="ffuStatus-${f.id}" class="status"></span>
+    </div>
+  </div>`;
+}
+
+async function retryFindingAction(findingId,reportId){
+  try{
+    await api(`/api/findings/${findingId}/followup`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'buero_pruefen'})});
+    await loadReportExtras(reportId);
+    renderReportList();
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+function findingsPanelHtml(r){
+  // Seit 1.2.22: nur Mängel OHNE Prüfpunktbezug -- die mit Bezug rendern inline am jeweiligen
+  // Prüfpunkt (inspectionItemRowHtml()); dieselbe Karte hier zusätzlich zu zeigen, würde
+  // doppelte DOM-IDs erzeugen (data-finding/#ffuStatus-* je Mangel sind nicht mehrfachtauglich).
+  const findings=(findingsCache[r.id]||[]).filter(f=>f.inspection_item_id==null);
+  const list=findings.map(f=>findingCard(f,r)).join('')||'<div class="muted small">Keine Mängel ohne Prüfpunktbezug.</div>';
+  const formHtml=findingFormHtml(r);
+  const addBtn=r.status==='entwurf'?`<div style="margin-top:8px"><button type="button" class="secondary" onclick="openFindingForm(${r.id},null)">+ Mangel</button></div>`:'';
+  return `${list}${formHtml}${addBtn}`;
+}
+
+// --- Verbrauchtes Material (seit 1.2.23) ---
+
+const materialFormDraft={}; // {reportId: {search, description, unit, quantity, roofAreaId}}
+function _materialDraft(reportId){
+  if(!materialFormDraft[reportId])materialFormDraft[reportId]={search:'',description:'',unit:'',quantity:'',roofAreaId:''};
+  return materialFormDraft[reportId];
+}
+
+function openMaterialFormForFinding(reportId,findingId){
+  pendingMaterialFindingId[reportId]=findingId;
+  expandedMaterialsReportIds.add(reportId);
+  renderReportList();
+  const el=document.getElementById('matDescription-'+reportId);
+  if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
+}
+function clearPendingMaterialFinding(reportId){
+  pendingMaterialFindingId[reportId]=null;
+  renderReportList();
+}
+
+const _materialSearchDebouncers={};
+function debouncedSearchMaterials(reportId){
+  _materialDraft(reportId).search=document.getElementById('matSearch-'+reportId).value;
+  if(!_materialSearchDebouncers[reportId])_materialSearchDebouncers[reportId]=debounce(id=>searchMaterialsForReport(id),250);
+  _materialSearchDebouncers[reportId](reportId);
+}
+async function searchMaterialsForReport(reportId){
+  const q=_materialDraft(reportId).search.trim();
+  if(!q){materialSearchResults[reportId]=[];renderReportList();return}
+  try{
+    materialSearchResults[reportId]=await api(`/api/materials?search=${encodeURIComponent(q)}`);
+  }catch(e){materialSearchResults[reportId]=[]}
+  renderReportList();
+}
+function pickMaterialFromSearch(reportId){
+  const select=document.getElementById('matSearchResults-'+reportId);
+  const id=Number(select.value);
+  if(!id)return;
+  const material=(materialSearchResults[reportId]||[]).find(m=>m.id===id);
+  if(!material)return;
+  selectedMaterialCatalogId[reportId]=id;
+  const draft=_materialDraft(reportId);
+  draft.description=material.name;
+  draft.unit=material.unit||'';
+  document.getElementById('matDescription-'+reportId).value=draft.description;
+  document.getElementById('matUnit-'+reportId).value=draft.unit;
+}
+function clearMaterialCatalogSelection(reportId){
+  selectedMaterialCatalogId[reportId]=null;
+  renderReportList();
+}
+
+async function saveMaterialRow(reportId){
+  const st=document.getElementById('matStatus-'+reportId);
+  const description=(document.getElementById('matDescription-'+reportId).value||'').trim();
+  const unit=(document.getElementById('matUnit-'+reportId).value||'').trim();
+  const quantity=document.getElementById('matQuantity-'+reportId).value;
+  const materialId=selectedMaterialCatalogId[reportId]||null;
+  if(!materialId&&!description){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben oder ein Material aus dem Katalog wählen.';return}
+  if(!quantity||Number(quantity)<=0){st.className='status err';st.textContent='Bitte eine Menge größer als 0 angeben.';return}
+  const areaSelect=document.getElementById('matAreaSel-'+reportId);
+  const roofAreaId=areaSelect&&areaSelect.value?Number(areaSelect.value):null;
+  const payload={
+    material_id:materialId, description:materialId?null:description, quantity:Number(quantity),
+    unit:unit||null, roof_area_id:roofAreaId, finding_id:pendingMaterialFindingId[reportId]||null,
+  };
+  try{
+    await api(`/api/service-reports/${reportId}/materials`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    materialFormDraft[reportId]={search:'',description:'',unit:'',quantity:'',roofAreaId:''};
+    selectedMaterialCatalogId[reportId]=null;
+    materialSearchResults[reportId]=[];
+    materialsCache[reportId]=await api(`/api/service-reports/${reportId}/materials`);
+    st.textContent='';
+    renderReportList();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function saveMaterialField(materialId,reportId,field,value){
+  const payload={};
+  if(field==='quantity'){
+    const num=Number(value);
+    if(!value||num<=0){alert('Bitte eine Menge größer als 0 angeben.');renderReportList();return}
+    payload.quantity=num;
+  }else if(field==='description'){
+    if(!value.trim()){alert('Bitte eine Bezeichnung angeben.');renderReportList();return}
+    payload.description=value.trim();
+  }else{
+    payload[field]=value.trim()||null;
+  }
+  try{
+    await api(`/api/service-report-materials/${materialId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    materialsCache[reportId]=await api(`/api/service-reports/${reportId}/materials`);
+    renderReportList();
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+async function deleteMaterialUI(materialId,reportId){
+  if(!confirm('Diese Materialzeile wirklich löschen?'))return;
+  try{
+    await api(`/api/service-report-materials/${materialId}`,{method:'DELETE'});
+    materialsCache[reportId]=await api(`/api/service-reports/${reportId}/materials`);
+    renderReportList();
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+function materialsPanelHtml(r){
+  const rows=materialsCache[r.id]||[];
+  const isDraft=r.status==='entwurf';
+  const namedAreas=(r.roof_areas||[]).filter(a=>a.roof_area_id!=null);
+  const areaName=(id)=>{
+    const a=namedAreas.find(x=>x.roof_area_id===id);
+    return a?(a.roof_area_name||('Fläche '+id)):null;
+  };
+  const rowsHtml=rows.length?`<div class="table-scroll"><table><thead><tr><th>Bezeichnung</th><th>Menge</th><th>Einheit</th><th>Fläche</th><th></th></tr></thead><tbody>${rows.map(m=>`
+    <tr>
+      <td data-label="Bezeichnung">${isDraft?`<input value="${esc(m.description)}" onchange="saveMaterialField(${m.id},${r.id},'description',this.value)" style="min-width:160px">`:esc(m.description)}</td>
+      <td data-label="Menge">${isDraft?`<input type="number" step="0.001" min="0.001" value="${m.quantity}" style="width:90px" onchange="saveMaterialField(${m.id},${r.id},'quantity',this.value)">`:esc(String(m.quantity))}</td>
+      <td data-label="Einheit">${isDraft?`<input value="${esc(m.unit||'')}" onchange="saveMaterialField(${m.id},${r.id},'unit',this.value)" style="width:70px">`:esc(m.unit||'')}</td>
+      <td data-label="Fläche" class="muted small">${esc(areaName(m.roof_area_id)||'—')}</td>
+      <td data-label="">${isDraft?`<button type="button" class="danger" onclick="deleteMaterialUI(${m.id},${r.id})">×</button>`:''}</td>
+    </tr>`).join('')}</tbody></table></div>`:'<div class="muted small">Noch kein Material erfasst.</div>';
+
+  if(!isDraft)return rowsHtml;
+
+  const draft=_materialDraft(r.id);
+  const pendingFindingId=pendingMaterialFindingId[r.id];
+  const pendingBadge=pendingFindingId?`<div class="finding-hint">Wird zugeordnet zu Mangel #${pendingFindingId}<button type="button" class="secondary" onclick="clearPendingMaterialFinding(${r.id})">✕</button></div>`:'';
+  const selectedId=selectedMaterialCatalogId[r.id];
+  const results=materialSearchResults[r.id]||[];
+  const catalogHint=selectedId?`<button type="button" class="secondary" onclick="clearMaterialCatalogSelection(${r.id})">Katalogbezug entfernen</button>`:'';
+  const areaSelect=namedAreas.length>1?`<select id="matAreaSel-${r.id}" onchange="_materialDraft(${r.id}).roofAreaId=this.value">
+      <option value="">— ohne Fläche —</option>
+      ${namedAreas.map(a=>`<option value="${a.roof_area_id}" ${draft.roofAreaId===String(a.roof_area_id)?'selected':''}>${esc(a.roof_area_name||'Fläche '+a.roof_area_id)}</option>`).join('')}
+    </select>`:'';
+
+  return `${pendingBadge}
+  ${rowsHtml}
+  <div class="inspection-row" style="margin-top:10px;flex-wrap:wrap">
+    <input id="matSearch-${r.id}" value="${esc(draft.search)}" placeholder="Material suchen (Name/Artikelnr.) …" oninput="debouncedSearchMaterials(${r.id})" style="min-width:200px">
+    <select id="matSearchResults-${r.id}" onchange="pickMaterialFromSearch(${r.id})" style="min-width:200px">
+      <option value="">${results.length?'— Treffer wählen —':'— suchen —'}</option>
+      ${results.map(m=>`<option value="${m.id}">${esc(m.name)}${m.article_number?' · '+esc(m.article_number):''}</option>`).join('')}
+    </select>
+    ${catalogHint}
+  </div>
+  <div class="inspection-row" style="flex-wrap:wrap">
+    <input id="matDescription-${r.id}" value="${esc(draft.description)}" oninput="_materialDraft(${r.id}).description=this.value" placeholder="Bezeichnung" style="flex:1;min-width:200px">
+    <input id="matUnit-${r.id}" value="${esc(draft.unit)}" oninput="_materialDraft(${r.id}).unit=this.value" placeholder="Einheit" style="width:90px">
+    <input id="matQuantity-${r.id}" type="number" step="0.001" min="0.001" value="${esc(draft.quantity)}" oninput="_materialDraft(${r.id}).quantity=this.value" placeholder="Menge" style="width:100px">
+    ${areaSelect}
+    <button type="button" onclick="saveMaterialRow(${r.id})">+ Material</button>
+  </div>
+  <span id="matStatus-${r.id}" class="status"></span>`;
+}
+
+async function toggleReportInspectionItems(reportId){
+  if(expandedReportIds.has(reportId)){
+    expandedReportIds.delete(reportId);
+    renderReportList();
+    return;
+  }
+  expandedReportIds.add(reportId);
+  await loadReportInspectionItems(reportId);
+  renderReportList();
+}
+
+async function loadReportInspectionItems(reportId){
+  const r=reports.find(x=>x.id===reportId);
+  if(!r)return;
+  if(r.status==='entwurf'){
+    try{
+      const syncResult=await api(`/api/service-reports/${reportId}/inspection-items/sync`,{method:'POST'});
+      inspectionItemsCache[reportId]=syncResult.items;
+      inspectionSyncHints[reportId]=syncResult.added;
+    }catch(e){
+      inspectionItemsCache[reportId]=await api(`/api/service-reports/${reportId}/inspection-items`).catch(()=>[]);
+    }
+  }else{
+    inspectionItemsCache[reportId]=await api(`/api/service-reports/${reportId}/inspection-items`).catch(()=>[]);
+  }
+}
+
+function itemControlInnerHtml(item){
+  // Seit 1.2.22: liefert nur noch den INNEREN Inhalt, keinen eigenen .ictl-Wrapper mehr --
+  // inspectionItemRowHtml() baut GENAU EINEN .ictl[data-item]-Container je Zeile, der zusätzlich
+  // das (jetzt für jeden Punkttyp mögliche) Bemerkungsfeld aufnimmt. saveInspectionResult() liest
+  // per querySelector nur den ERSTEN Container mit diesem data-item -- zwei getrennte Container
+  // mit demselben data-item hätten das Bemerkungsfeld beim Speichern stillschweigend ignoriert.
+  if(item.item_type==='ja_nein'||item.item_type==='leak_test'){
+    const durationField=item.item_type==='leak_test'?`<input type="number" min="0" placeholder="Minuten" value="${item.duration_minutes??''}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="duration_minutes">`:'';
+    return `<div class="result-picker">
+      <button type="button" class="${item.result==='ok'?'':'secondary'}" onclick="setResultAndSave(${item.id},'ok')">OK</button>
+      <button type="button" class="${item.result==='nok'?'':'secondary'}" onclick="setResultAndSave(${item.id},'nok')">Nicht OK</button>
+      <button type="button" class="${item.result==='na'?'':'secondary'}" onclick="setResultAndSave(${item.id},'na')">Entfällt</button>
+    </div>
+      ${durationField}`;
+  }
+  if(item.item_type==='condition_grade'){
+    return `<div class="result-picker">${[1,2,3,4].map(g=>`<button type="button" class="${item.condition_grade===g?'':'secondary'}" onclick="setGradeAndSave(${item.id},${g})">${g} – ${esc(CONDITION_GRADE_LABELS[g])}</button>`).join('')}</div>`;
+  }
+  if(item.item_type==='measurement'){
+    const outOfRange=item.measured_value!=null&&((item.target_min!=null&&Number(item.measured_value)<Number(item.target_min))||(item.target_max!=null&&Number(item.measured_value)>Number(item.target_max)));
+    const range=(item.target_min!=null||item.target_max!=null)?`<span class="muted small">Soll: ${item.target_min??''}–${item.target_max??''} ${esc(item.unit||'')}</span>`:'';
+    return `<input type="number" step="0.01" value="${item.measured_value??''}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="measured_value">
+      <span class="muted small">${esc(item.unit||'')}</span> ${range}
+      ${outOfRange?'<span class="badge out-of-range">Außerhalb Soll</span>':''}`;
+  }
+  if(item.item_type==='quantity'){
+    return `<input type="number" step="0.01" value="${item.quantity??''}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="quantity">
+      <span class="muted small">${esc(item.unit||'')}</span>`;
+  }
+  if(item.item_type==='free_text'){
+    return `<input value="${esc(item.notes)}" style="min-width:220px;flex:1" onchange="saveInspectionResult(${item.id})" oninput="debouncedSaveInspectionResult(${item.id})" data-field="notes">`;
+  }
+  if(item.item_type==='photo'){
+    return `<span class="muted small">Fotoerfassung folgt</span>`;
+  }
+  return '';
+}
+
+function setResultAndSave(itemId,result){
+  saveInspectionResult(itemId,{result});
+}
+
+function setGradeAndSave(itemId,grade){
+  saveInspectionResult(itemId,{condition_grade:grade});
+}
+
+// Debounced Gegenstück zu saveInspectionResult() für Pflicht-Freitextpunkte (seit 1.2.19) --
+// schließt die Blur-Abhängigkeit von onchange: tippt der Monteur einen Punkt aus und drückt
+// direkt "Unterschreiben" statt vorher wegzuklicken, feuert onchange nie, sign_report() lehnt
+// dann mit "Pflichtpunkt nicht beantwortet" ab, obwohl er beantwortet wurde. Eigener Timer je
+// Prüfpunkt, damit paralleles Tippen in zwei Punkten sich nicht gegenseitig verzögert.
+const _inspectionItemDebouncers={};
+function debouncedSaveInspectionResult(itemId){
+  if(!_inspectionItemDebouncers[itemId])_inspectionItemDebouncers[itemId]=debounce(id=>saveInspectionResult(id),600);
+  _inspectionItemDebouncers[itemId](itemId);
+}
+
+async function saveInspectionResult(itemId,overrides){
+  const reportId=[...expandedReportIds].find(id=>(inspectionItemsCache[id]||[]).some(i=>i.id===itemId));
+  const container=document.querySelector(`.ictl[data-item="${itemId}"]`);
+  // Seit 1.2.19: der Container wird IMMER gelesen (nicht mehr übersprungen, sobald overrides
+  // wahr ist) -- vorher sendete z. B. jeder OK/Nicht-OK/Entfällt-Klick auf einem leak_test-Punkt
+  // NUR {result}, wodurch das im selben Container sitzende duration_minutes-Feld serverseitig
+  // gelöscht wurde. overrides gewinnt jetzt nur noch für seine eigenen Schlüssel, per
+  // Object.assign darüber gelegt statt den Read komplett zu ersetzen.
+  const payload={};
+  if(container){
+    container.querySelectorAll('[data-field]').forEach(el=>{
+      const field=el.dataset.field;
+      const value=el.value;
+      payload[field]=value===''?null:(el.type==='number'?Number(value):value);
+    });
+  }
+  Object.assign(payload,overrides||{});
+  const report=reports.find(r=>r.id===reportId);
+  if(report&&report.created_by_employee_id)payload.recorded_by_employee_id=report.created_by_employee_id;
+  try{
+    await api(`/api/inspection-items/${itemId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(reportId){
+      inspectionItemsCache[reportId]=await api(`/api/service-reports/${reportId}/inspection-items`);
+      renderReportList();
+    }
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+async function regenerateInspectionItems(reportId){
+  if(!confirm('Prüfpunkte wirklich neu erzeugen? Bereits erfasste Ergebnisse gehen dabei verloren.'))return;
+  try{
+    await api(`/api/service-reports/${reportId}/inspection-items/regenerate`,{method:'POST'});
+    inspectionItemsCache[reportId]=await api(`/api/service-reports/${reportId}/inspection-items`);
+    renderReportList();
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+async function deleteInspectionItemUI(itemId,reportId){
+  if(!confirm('Diesen Prüfpunkt wirklich löschen?'))return;
+  try{
+    await api(`/api/inspection-items/${itemId}`,{method:'DELETE'});
+    inspectionItemsCache[reportId]=await api(`/api/service-reports/${reportId}/inspection-items`);
+    renderReportList();
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+async function addManualInspectionItem(reportId){
+  const input=document.getElementById('newItemText-'+reportId);
+  const text=input.value.trim();
+  if(!text){return}
+  const itemType=document.getElementById('newItemType-'+reportId).value;
+  const areaSelect=document.getElementById('newItemArea-'+reportId);
+  const roofAreaId=areaSelect&&areaSelect.value?Number(areaSelect.value):null;
+  try{
+    await api(`/api/service-reports/${reportId}/inspection-items`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,item_type:itemType,roof_area_id:roofAreaId})});
+    input.value='';
+    inspectionItemsCache[reportId]=await api(`/api/service-reports/${reportId}/inspection-items`);
+    renderReportList();
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+function inspectionItemRowHtml(item,r){
+  const isNegative=item.result==='nok'||[3,4].includes(item.condition_grade);
+  const itemFindings=(findingsCache[r.id]||[]).filter(f=>f.inspection_item_id===item.id);
+  const findingHint=(isNegative&&!itemFindings.length&&r.status==='entwurf')
+    ?`<div class="finding-hint">Mangel fehlt noch.<button type="button" class="secondary" onclick="openFindingForm(${r.id},${item.id})">+ Mangel</button></div>`:'';
+  // Seit 1.2.22: ein bereits erfasster Mangel rendert als echte Karte direkt hier, nicht mehr
+  // nur im separaten "Mängel"-Gesamtpanel (das bleibt zusätzlich als Übersicht bestehen).
+  const findingCardsHtml=itemFindings.map(f=>findingCard(f,r)).join('');
+  // Bemerkungsfeld: bei free_text ist notes bereits die Hauptkontrolle, sonst ein
+  // Auf-Bedarf-Feld -- automatisch aufgeklappt, wenn schon Text drinsteht.
+  const showNotesToggle=item.item_type!=='free_text';
+  const hasNotesText=!!(item.notes&&item.notes.trim());
+  const notesOpen=hasNotesText||openNotesItemIds.has(item.id);
+  const notesToggleBtn=showNotesToggle?`<button type="button" class="secondary" style="padding:5px 8px;font-size:11px" onclick="toggleItemNotes(${item.id})">${notesOpen?'Bemerkung ▲':'+ Bemerkung'}</button>`:'';
+  const notesField=(showNotesToggle&&notesOpen)?`<input placeholder="Bemerkung" value="${esc(item.notes)}" style="min-width:160px" onchange="saveInspectionResult(${item.id})" oninput="debouncedSaveInspectionResult(${item.id})" data-field="notes">`:'';
+  return `
+    <div class="inspection-row">
+      <div class="itext">${item.required?'<span class="req">*</span> ':''}${esc(item.text)}</div>
+      <div class="ictl" data-item="${item.id}">${itemControlInnerHtml(item)}${notesField}</div>
+      ${notesToggleBtn}
+      ${r.status==='entwurf'?`<button type="button" class="danger" onclick="deleteInspectionItemUI(${item.id},${r.id})">×</button>`:''}
+    </div>
+    ${findingHint}
+    ${findingCardsHtml}
+    ${itemPhotoSectionHtml(item,r.id,r.status==='entwurf')}`;
+}
+
+function inspectionItemsPanelHtml(r){
+  const items=inspectionItemsCache[r.id]||[];
+  const added=inspectionSyncHints[r.id]||0;
+  const syncHint=added>0?`<div class="inspection-hint">${added} Prüfpunkt${added===1?'':'e'} für neu erfasste Bauteile ergänzt.</div>`:'';
+
+  const answeredCount=items.filter(isItemAnswered).length;
+  const openRequired=items.filter(i=>i.required&&!isItemAnswered(i));
+  const namedAreas=(r.roof_areas||[]).filter(a=>a.roof_area_id!=null);
+  const areaNameById={};
+  namedAreas.forEach(a=>{areaNameById[a.roof_area_id]=a.roof_area_name});
+  const overview=`<div class="inspection-progress"><b>${answeredCount} von ${items.length}</b> beantwortet`
+    +(openRequired.length?`, <b>${openRequired.length}</b> Pflichtpunkt${openRequired.length===1?'':'e'} offen`:'')+'</div>'
+    +(openRequired.length?`<div class="inspection-open-list muted small">${openRequired.map(i=>{
+        const areaName=i.roof_area_id!=null?areaNameById[i.roof_area_id]:null;
+        return `<div>${areaName?esc(areaName)+': ':''}${esc(i.text)}</div>`;
+      }).join('')}</div>`:'');
+
+  // Flächen-Blöcke: bei genau einer Fläche (neu ODER Altbestand-Bericht vor 1.2.22, dessen
+  // Prüfpunkte nie ein roof_area_id trugen) gehören ALLE Punkte in diesen einen Block, egal was
+  // an item.roof_area_id steht -- so funktioniert dieselbe Rendering-Logik für beide Fälle ohne
+  // Sonderfall. Erst ab zwei benannten Flächen wird strikt nach item.roof_area_id zugeordnet;
+  // ein Punkt ohne passende Fläche (z. B. manuell ohne Auswahl ergänzt) landet in einem
+  // zusätzlichen "Ohne Fläche zugeordnet"-Block, statt unsichtbar zu werden.
+  let areaBlocks;
+  if(namedAreas.length<=1){
+    areaBlocks=[{key:namedAreas[0]?namedAreas[0].roof_area_id:'none',label:namedAreas[0]?namedAreas[0].roof_area_name:'Prüfpunkte',items}];
+  }else{
+    areaBlocks=namedAreas.map(a=>({key:a.roof_area_id,label:a.roof_area_name||('Fläche '+a.roof_area_id),items:items.filter(i=>i.roof_area_id===a.roof_area_id)}));
+    const unassigned=items.filter(i=>!namedAreas.some(a=>a.roof_area_id===i.roof_area_id));
+    if(unassigned.length)areaBlocks.push({key:'unassigned',label:'Ohne Fläche zugeordnet',items:unassigned});
+  }
+
+  const areasHtml=areaBlocks.map(block=>{
+    const areaKey=String(block.key);
+    const isOpen=expandedAreaKeys.has(`${r.id}:${areaKey}`);
+    const areaAnswered=block.items.filter(isItemAnswered).length;
+    const groups={};
+    const groupOrder=[];
+    for(const item of block.items){
+      const key=item.group_name||'Allgemein';
+      if(!(key in groups)){groups[key]=[];groupOrder.push(key)}
+      groups[key].push(item);
+    }
+    const groupsHtml=groupOrder.map(groupName=>{
+      const groupKey=`${r.id}:${areaKey}:${groupName}`;
+      const isClosed=closedGroupKeys.has(groupKey);
+      const safeGroupName=groupName.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const heading=`<div class="inspection-group" style="cursor:pointer" onclick="toggleGroup(${r.id},'${areaKey}','${safeGroupName}')">${isClosed?'▶':'▼'} ${esc(groupName)}</div>`;
+      return heading+(isClosed?'':groups[groupName].map(item=>inspectionItemRowHtml(item,r)).join(''));
+    }).join('');
+    return `<div class="inspection-area">
+      <div class="inspection-area-head" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:8px 2px;border-bottom:1px solid var(--line)" onclick="toggleReportArea(${r.id},'${areaKey}')">
+        <b>${isOpen?'▼':'▶'} ${esc(block.label)}</b><span class="muted small">${areaAnswered} von ${block.items.length}</span>
+      </div>
+      ${isOpen?`<div style="padding:2px 0 6px">${groupsHtml||'<div class="muted small">Keine Prüfpunkte.</div>'}</div>`:''}
+    </div>`;
+  }).join('');
+
+  const areaOptionsForAdd=namedAreas.length>1
+    ?`<select id="newItemArea-${r.id}"><option value="">— ohne Fläche —</option>${namedAreas.map(a=>`<option value="${a.roof_area_id}">${esc(a.roof_area_name||'Fläche '+a.roof_area_id)}</option>`).join('')}</select>`:'';
+  const addForm=r.status==='entwurf'?`<div class="inspection-row" style="margin-top:8px">
+    <input id="newItemText-${r.id}" placeholder="Zusätzlicher Prüfpunkt …" style="flex:1;min-width:220px">
+    ${areaOptionsForAdd}
+    <select id="newItemType-${r.id}">
+      <option value="ja_nein">Ja/Nein</option><option value="condition_grade">Zustandsstufe</option>
+      <option value="measurement">Messwert</option><option value="quantity">Menge</option>
+      <option value="leak_test">Dichtheitsprüfung</option><option value="free_text">Freitext</option>
+      <option value="photo">Foto</option>
+    </select>
+    <button type="button" class="secondary" onclick="addManualInspectionItem(${r.id})">+ Punkt</button>
+  </div>`:'';
+  const regenerateButton=r.status==='entwurf'&&r.roof_areas&&r.roof_areas.length>0
+    ?`<div style="margin-top:8px"><button type="button" class="secondary" onclick="regenerateInspectionItems(${r.id})">Prüfpunkte neu erzeugen</button></div>`:'';
+  return `${syncHint}${overview}${areasHtml||'<div class="muted small">Noch keine Prüfpunkte.</div>'}${addForm}${regenerateButton}`;
+}
+
+function renderReportList(){
+  document.getElementById('reportList').innerHTML=reports.map(reportCard).join('')||'<div class="empty">Noch keine Berichte zu diesem Auftrag.</div>';
+}
+
+async function loadReports(){
+  const st=document.getElementById('listStatus');
+  st.className='status';st.textContent='Lädt …';
+  try{
+    reports=await api(`/api/orders/${orderId}/service-reports`);
+    // Prüfpunkte werden seit 1.2.22 für JEDEN Bericht eager geladen (nicht mehr erst beim
+    // ersten Aufklappen) -- der Gesamtfortschritt im Bericht-Panel-Kopf braucht die Zahlen
+    // schon vor dem ersten Klick auf "Prüfpunkte". Gleiches Muster wie loadReportExtras()
+    // (Mängel/Fotos), nur um Prüfpunkte ergänzt.
+    await Promise.all(reports.map(r=>Promise.all([
+      loadReportExtras(r.id),
+      hasInspectionSection(r)?loadReportInspectionItems(r.id):Promise.resolve(),
+    ])));
+    renderReportList();
+    st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function historyCard(r){
+  const badges=[`<span class="badge">${esc(r.report_type_label)}</span>`];
+  return `<div class="report-card">
+    <div class="report-head">
+      <div>${badges.join(' ')} <span class="muted small">${fmtDate(r.performed_at)} · Auftrag ${esc(r.order_number||'')}${r.order_title?' – '+esc(r.order_title):''}</span></div>
+      <a href="/api/service-reports/${r.id}/pdf" target="_blank">PDF öffnen</a>
+    </div>
+    ${r.description?`<div class="report-desc">${esc(r.description)}</div>`:''}
+  </div>`;
+}
+
+async function loadPropertyHistory(){
+  try{
+    const history=await api(`/api/orders/${orderId}/property-service-reports`);
+    if(!history.length)return;
+    document.getElementById('historyCard').classList.remove('hidden');
+    document.getElementById('historyList').innerHTML=history.map(historyCard).join('');
+  }catch(e){/* kein Gebäude verknüpft oder Fehler -- Karte bleibt einfach ausgeblendet */}
+}
+
+async function loadTimeEntries(){
+  try{
+    const entries=await api(`/api/time-entries?order_id=${orderId}`);
+    const rows=entries.map(e=>`<tr><td data-label="Datum">${fmtDate(e.work_date)}</td><td data-label="Mitarbeiter">${esc(e.employee_name||'')}</td><td data-label="Tätigkeit">${esc(e.activity||'')}</td><td data-label="Stunden">${Number(e.hours).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} h</td></tr>`).join('');
+    if(!rows){document.getElementById('timeEntriesTable').innerHTML='<div class="empty">Noch keine Zeitbuchungen zu diesem Auftrag.</div>';return}
+    const total=entries.reduce((sum,e)=>sum+Number(e.hours||0),0);
+    document.getElementById('timeEntriesTable').innerHTML=`<div class="table-scroll"><table><thead><tr><th>Datum</th><th>Mitarbeiter</th><th>Tätigkeit</th><th>Stunden</th></tr></thead><tbody>${rows}<tr><td colspan="3" data-label="" style="text-align:right"><b>Gesamt</b></td><td data-label="Gesamtstunden"><b>${total.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} h</b></td></tr></tbody></table></div>`;
+  }catch(e){document.getElementById('timeEntriesTable').innerHTML=`<div class="status err">Fehler: ${esc(e.message)}</div>`}
+}
+
+function refreshTimeEntryOrderItemOptions(){
+  const items=(orderData&&orderData.items)||[];
+  document.getElementById('teOrderItem').innerHTML='<option value="">— ohne LV-Position —</option>'
+    +items.map(i=>`<option value="${i.id}">${esc(i.position_number||'')} ${esc(i.short_text||'')}</option>`).join('');
+}
+
+async function saveReportTimeEntry(){
+  const st=document.getElementById('teStatus');
+  const employeeId=document.getElementById('teEmployee').value;
+  const workDate=document.getElementById('teDate').value;
+  const hours=document.getElementById('teHours').value;
+  if(!employeeId||!workDate||!hours){st.className='status err';st.textContent='Bitte Mitarbeiter, Datum und Stunden angeben.';return}
+  const payload={
+    employee_id:Number(employeeId), order_id:orderId, work_date:workDate,
+    order_item_id:document.getElementById('teOrderItem').value?Number(document.getElementById('teOrderItem').value):null,
+    entry_type:document.getElementById('teType').value||'site',
+    activity:document.getElementById('teActivity').value||null,
+    hours:Number(hours), notes:document.getElementById('teNotes').value.trim()||null,
+  };
+  try{
+    await api('/api/time-entries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    document.getElementById('teHours').value='';
+    document.getElementById('teNotes').value='';
+    st.textContent='Gebucht.';
+    await loadTimeEntries();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function init(){
+  authStatus=await api('/api/auth/status').catch(()=>({authenticated:false,user:null}));
+  if(!authStatus.authenticated){
+    document.getElementById('listStatus').className='status err';
+    document.getElementById('listStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
+    return;
+  }
+  document.getElementById('orderLink').href='/orders/'+orderId;
+  document.getElementById('timeLink').href='/time-tracking?order_id='+orderId;
+  api(`/api/orders/${orderId}`).then(o=>{
+    orderData=o;
+    document.getElementById('orderContext').textContent=`${o.order_number} · ${o.customer_name}`;
+    const customerLink=o.customer_id?`<a href="/customers/${o.customer_id}">${esc(o.customer_name)}</a>`:esc(o.customer_name);
+    const orderLink=`<a href="/orders/${orderId}">${esc(o.order_number)}</a>`;
+    document.getElementById('breadcrumb').innerHTML=[customerLink,orderLink,'Einsatzberichte'].join(' · ');
+    refreshTimeEntryOrderItemOptions();
+  }).catch(()=>{});
+  employees=await api('/api/employees').catch(()=>[]);
+  roofAreasForOrder=await api(`/api/orders/${orderId}/roof-areas`).catch(()=>[]);
+  inspectionTemplates=await api('/api/inspection-templates').catch(()=>[]);
+  const [typesGroup,activitiesGroup]=await Promise.all([
+    safeOptionGroup('time_entry_types'), safeOptionGroup('time_entry_activities'),
+  ]);
+  timeEntryTypes=typesGroup.options||[];
+  timeEntryActivities=activitiesGroup.options||[];
+  document.getElementById('teEmployee').innerHTML=employeeOptionsHtml(null);
+  document.getElementById('teType').innerHTML=optionsHtml(timeEntryTypes,'site');
+  document.getElementById('teType').value='site';
+  document.getElementById('teActivity').innerHTML=optionsHtml(timeEntryActivities,null);
+  document.getElementById('teDate').value=new Date().toISOString().slice(0,10);
+  await loadReports();
+  // "Wartung durchführen" (Vertragsseite, seit 1.2.22) navigiert direkt hierher mit
+  // ?report=<id> -- öffnet nur das Prüfpunkte-Panel dieses Berichts, die Dachflächen-Blöcke
+  // darin bleiben trotzdem zugeklappt (kein Widerspruch zum Abnahmekriterium "beim Öffnen ist
+  // keine Prüfliste aufgeklappt").
+  const deepLinkReportId=Number(new URLSearchParams(location.search).get('report'))||null;
+  if(deepLinkReportId&&reports.some(r=>r.id===deepLinkReportId)){
+    expandedReportIds.add(deepLinkReportId);
+    renderReportList();
+    document.querySelector('#reportList')?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  await loadPropertyHistory();
+  await loadTimeEntries();
+}
+init();
+</script>
+</body></html>

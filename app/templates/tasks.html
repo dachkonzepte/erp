@@ -1,0 +1,365 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Aufgaben</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:1500px;margin:0;padding:20px}
+.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
+.toolbar{background:var(--card);border:1px solid var(--line);padding:12px 14px;margin-bottom:14px;display:flex;gap:12px;align-items:end;flex-wrap:wrap}
+.field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
+input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+textarea{min-height:70px;resize:vertical}
+button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
+.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
+.hidden{display:none!important}
+.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
+.editor-card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.editor-card h2{margin:0 0 12px;font-size:16px}
+.fields-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+.editor-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.column{background:var(--card);border:1px solid var(--line);padding:12px;min-height:200px}
+.column-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-weight:800}
+.count{background:var(--soft);color:var(--muted);padding:2px 8px;font-size:12px;font-weight:800}
+.task-card{border:1px solid var(--line);padding:10px;margin-bottom:8px;cursor:pointer}
+.task-card:hover{border-color:var(--accent)}
+.task-card.overdue{border-left:3px solid var(--danger)}
+.task-card.archived{opacity:.6}
+.badge.archived{background:var(--soft);color:var(--muted)}
+.task-title{font-weight:650;margin-bottom:5px}
+.task-meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
+.badge.hoch,.badge.dringend{background:var(--danger-soft);color:var(--danger)}
+.badge.due{background:var(--danger-soft);color:var(--danger)}
+.badge.source{background:var(--warning-soft);color:var(--warning);text-transform:none;text-decoration:none}
+.task-sub{color:var(--muted);font-size:12px;margin-top:4px}
+.empty{padding:20px;text-align:center;color:var(--muted);font-size:13px}
+.checklist-section{margin-top:4px}
+.checklist-section h3{margin:0 0 8px;font-size:13px;color:var(--muted);font-weight:650}
+.checklist-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
+.checklist-row input[type=checkbox]{width:auto;flex:none}
+.checklist-row span{flex:1;font-size:13.5px}
+.checklist-row span.done{text-decoration:line-through;color:var(--muted)}
+.checklist-row button{padding:3px 8px;font-size:12px}
+.checklist-add{display:flex;gap:8px;margin-top:8px}
+.checklist-hint{color:var(--muted);font-size:13px}
+@media(max-width:900px){.board{grid-template-columns:1fr}.fields-2col{grid-template-columns:1fr}}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+{% if is_module_enabled('aufgabenmanagement') %}
+<div class="hero"><div><h1>Aufgaben</h1><div class="muted small">Eigene und zugewiesene Aufgaben, optional mit einem Projekt verknüpft.</div></div><button onclick="openCreateEditor()">+ Aufgabe</button></div>
+
+<div class="toolbar">
+  <div class="field" id="employeeFilterField" style="min-width:220px"><label>Aufgaben von</label><select id="employeeFilter"></select></div>
+  <div class="field" style="flex:1;min-width:220px"><label>Suche</label><input id="searchInput" placeholder="Titel durchsuchen …" oninput="renderBoard()"></div>
+  <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650"><input type="checkbox" id="showArchived" style="width:auto" onchange="renderBoard()"> Archivierte anzeigen</label>
+  <span id="loadStatus" class="status"></span>
+</div>
+
+<div id="editorCard" class="editor-card hidden">
+  <h2 id="editorHeading">Aufgabe anlegen</h2>
+  <div class="fields-2col">
+    <div class="field full"><label>Titel *</label><input id="editTitle"></div>
+    <div class="field full"><label>Beschreibung</label><textarea id="editDescription"></textarea></div>
+    <div class="field"><label>Status</label><select id="editStatus"></select></div>
+    <div class="field"><label>Priorität</label><select id="editPriority"><option value="niedrig">Niedrig</option><option value="normal" selected>Normal</option><option value="hoch">Hoch</option><option value="dringend">Dringend</option></select></div>
+    <div class="field"><label>Fälligkeit</label><input id="editDue" type="date"></div>
+    <div class="field"><label>Zuständig</label><select id="editEmployee"></select></div>
+    <div class="field full"><label>Projekt <span class="muted small">(optional)</span></label><select id="editProject"></select></div>
+  </div>
+  <div id="editorSourceInfo" class="task-sub hidden"></div>
+  <div style="margin-top:8px" class="hidden" id="createProjectFromTaskWrap">
+    <button type="button" id="createProjectFromTaskBtn" onclick="createProjectFromTask()">Vorgang erstellen</button>
+    <span id="createProjectFromTaskStatus" class="status"></span>
+  </div>
+  <div id="checklistSection" class="checklist-section hidden">
+    <h3>Checkliste</h3>
+    <div id="checklistItems"></div>
+    <div class="checklist-add">
+      <input id="checklistNewTitle" placeholder="Neuer Punkt …" onkeydown="if(event.key==='Enter'){event.preventDefault();addChecklistItemClick()}">
+      <button type="button" class="secondary" onclick="addChecklistItemClick()">+ Hinzufügen</button>
+    </div>
+  </div>
+  <div id="checklistHint" class="checklist-hint hidden">Checkliste ist nach dem ersten Speichern verfügbar.</div>
+  <div class="editor-actions">
+    <button onclick="saveTask()">Speichern</button>
+    <button class="secondary" onclick="closeEditor()">Abbrechen</button>
+    <button id="archiveTaskButton" class="secondary hidden" onclick="toggleArchiveTask()">Archivieren</button>
+    <button id="deleteTaskButton" class="danger hidden" onclick="deleteTaskConfirm()">Löschen</button>
+    <span id="editorStatus" class="status"></span>
+  </div>
+</div>
+
+<div class="board" id="board"></div>
+{% else %}
+<div class="editor-card"><h2>Aufgabenmanagement</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+{% endif %}
+</main>
+</div>
+</div>
+<script>
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+const PRIORITY_LABELS={niedrig:'Niedrig',normal:'Normal',hoch:'Hoch',dringend:'Dringend'};
+
+let authStatus=null,employees=[],projects=[],tasks=[],columns=[],editingTaskId=null,selectedEmployeeId='';
+
+function isOverdue(t){return t.due_date&&!t.status_is_done&&new Date(t.due_date+'T00:00:00')<new Date(new Date().toDateString())}
+
+async function loadColumns(){
+  columns=await api('/api/task-columns');
+  document.getElementById('board').style.gridTemplateColumns=`repeat(${columns.length||1},minmax(0,1fr))`;
+  document.getElementById('board').innerHTML=columns.map(c=>`<div class="column"><div class="column-head"><span>${esc(c.label)}</span><span class="count" id="count-${esc(c.key)}">0</span></div><div id="col-${esc(c.key)}"></div></div>`).join('');
+  document.getElementById('editStatus').innerHTML=columns.map(c=>`<option value="${esc(c.key)}">${esc(c.label)}</option>`).join('');
+}
+
+async function loadFilters(){
+  const isAdmin=authStatus.user&&authStatus.user.role==='admin';
+  document.getElementById('employeeFilterField').classList.toggle('hidden',!isAdmin);
+  if(!isAdmin)return;
+  if(selectedEmployeeId===''&&authStatus.user.employee_id)selectedEmployeeId=String(authStatus.user.employee_id);
+  const opts=['<option value="">Alle</option>'].concat(employees.filter(e=>e.active).map(e=>`<option value="${e.id}" ${String(e.id)===selectedEmployeeId?'selected':''}>${esc(e.first_name+' '+e.last_name)}</option>`));
+  document.getElementById('employeeFilter').innerHTML=opts.join('');
+  document.getElementById('employeeFilter').addEventListener('change',e=>{selectedEmployeeId=e.target.value;loadTasks()});
+}
+
+async function loadTasks(){
+  const st=document.getElementById('loadStatus');
+  st.className='status';st.textContent='Lädt …';
+  try{
+    const isAdmin=authStatus.user&&authStatus.user.role==='admin';
+    const empId=isAdmin?selectedEmployeeId:(authStatus.user?authStatus.user.employee_id:null);
+    const qs=(empId?'employee_id='+empId+'&':'')+'include_archived=true';
+    tasks=await api('/api/tasks?'+qs);
+    st.textContent='';
+    renderBoard();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function card(t){
+  const overdue=isOverdue(t);
+  const badges=[`<span class="badge ${t.priority}">${esc(PRIORITY_LABELS[t.priority]||t.priority)}</span>`];
+  if(t.archived)badges.push('<span class="badge archived">Archiviert</span>');
+  if(t.due_date)badges.push(`<span class="badge ${overdue?'due':''}">${overdue?'⚠ ':''}${fmtDate(t.due_date)}</span>`);
+  if(t.checklist_items&&t.checklist_items.length){
+    const done=t.checklist_items.filter(i=>i.done).length;
+    badges.push(`<span class="badge">☑ ${done}/${t.checklist_items.length}</span>`);
+  }
+  if(t.source_label){
+    const inner=esc(t.source_label);
+    badges.push(t.source_url?`<a class="badge source" href="${t.source_url}" onclick="event.stopPropagation()">${inner}</a>`:`<span class="badge source">${inner}</span>`);
+  }
+  const sub=[t.assigned_employee_name,t.project_number?`${t.project_number} · ${t.project_name||''}`:null].filter(Boolean).join(' · ');
+  return `<div class="task-card ${overdue?'overdue':''} ${t.archived?'archived':''}" onclick="openEditor(${t.id})"><div class="task-title">${esc(t.title)}</div><div class="task-meta">${badges.join('')}</div>${sub?`<div class="task-sub">${esc(sub)}</div>`:''}</div>`;
+}
+
+function renderBoard(){
+  const q=(document.getElementById('searchInput').value||'').toLowerCase().trim();
+  const showArchived=document.getElementById('showArchived').checked;
+  const filtered=tasks.filter(t=>(!q||t.title.toLowerCase().includes(q))&&(showArchived||!t.archived));
+  const byStatus={};
+  columns.forEach(c=>{byStatus[c.key]=[]});
+  filtered.forEach(t=>{(byStatus[t.status]||(byStatus[t.status]=[])).push(t)});
+  columns.forEach(c=>{
+    const col=document.getElementById('col-'+c.key);
+    if(!col)return;
+    col.innerHTML=byStatus[c.key].map(card).join('')||'<div class="empty">Keine Aufgaben</div>';
+    document.getElementById('count-'+c.key).textContent=byStatus[c.key].length;
+  });
+}
+
+function employeeOptionsHtml(selected){
+  return '<option value="">— nicht zugeordnet —</option>'+employees.filter(e=>e.active).map(e=>`<option value="${e.id}" ${Number(selected)===e.id?'selected':''}>${esc(e.first_name+' '+e.last_name)}</option>`).join('');
+}
+function projectOptionsHtml(selected){
+  return '<option value="">— kein Projekt —</option>'+projects.map(p=>`<option value="${p.id}" ${Number(selected)===p.id?'selected':''}>${esc(p.project_number+' · '+p.name)}</option>`).join('');
+}
+
+function openCreateEditor(){
+  editingTaskId=null;
+  document.getElementById('editorHeading').textContent='Aufgabe anlegen';
+  document.getElementById('editTitle').value='';
+  document.getElementById('editDescription').value='';
+  document.getElementById('editStatus').value=columns.length?columns[0].key:'';
+  document.getElementById('editPriority').value='normal';
+  document.getElementById('editDue').value='';
+  document.getElementById('editEmployee').innerHTML=employeeOptionsHtml(authStatus.user?authStatus.user.employee_id:null);
+  document.getElementById('editProject').innerHTML=projectOptionsHtml(null);
+  document.getElementById('editorSourceInfo').classList.add('hidden');
+  document.getElementById('createProjectFromTaskWrap').classList.add('hidden');
+  document.getElementById('archiveTaskButton').classList.add('hidden');
+  document.getElementById('deleteTaskButton').classList.add('hidden');
+  document.getElementById('checklistSection').classList.add('hidden');
+  document.getElementById('checklistHint').classList.remove('hidden');
+  document.getElementById('editorStatus').textContent='';
+  document.getElementById('editorCard').classList.remove('hidden');
+  document.getElementById('editorCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function openEditor(id){
+  const t=tasks.find(x=>x.id===id);
+  if(!t)return;
+  editingTaskId=id;
+  document.getElementById('editorHeading').textContent=`Aufgabe · ${t.title}`;
+  document.getElementById('editTitle').value=t.title;
+  document.getElementById('editDescription').value=t.description||'';
+  document.getElementById('editStatus').value=t.status;
+  document.getElementById('editPriority').value=t.priority;
+  document.getElementById('editDue').value=t.due_date||'';
+  document.getElementById('editEmployee').innerHTML=employeeOptionsHtml(t.assigned_employee_id);
+  document.getElementById('editProject').innerHTML=projectOptionsHtml(t.project_id);
+  const info=document.getElementById('editorSourceInfo');
+  if(t.source_label){info.classList.remove('hidden');info.textContent='Automatisch angelegt: '+t.source_label}
+  else{info.classList.add('hidden')}
+  updateCreateProjectFromTaskButton(t);
+  const archiveBtn=document.getElementById('archiveTaskButton');
+  archiveBtn.classList.remove('hidden');
+  archiveBtn.textContent=t.archived?'Entarchivieren':'Archivieren';
+  document.getElementById('deleteTaskButton').classList.remove('hidden');
+  document.getElementById('checklistHint').classList.add('hidden');
+  document.getElementById('checklistSection').classList.remove('hidden');
+  renderChecklist(t.checklist_items||[]);
+  document.getElementById('editorStatus').textContent='';
+  document.getElementById('editorCard').classList.remove('hidden');
+  document.getElementById('editorCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+async function updateCreateProjectFromTaskButton(t){
+  const wrap=document.getElementById('createProjectFromTaskWrap');
+  const btn=document.getElementById('createProjectFromTaskBtn');
+  document.getElementById('createProjectFromTaskStatus').textContent='';
+  if(t.source_module!=='wartungsbericht'){wrap.classList.add('hidden');return}
+  try{
+    const finding=await api(`/api/tasks/${t.id}/finding`);
+    if(!finding){wrap.classList.add('hidden');return}
+    wrap.classList.remove('hidden');
+    if(finding.follow_up_order_id){btn.disabled=true;btn.textContent='Vorgang bereits erstellt'}
+    else{btn.disabled=false;btn.textContent='Vorgang erstellen'}
+  }catch(e){wrap.classList.add('hidden')}
+}
+
+async function createProjectFromTask(){
+  if(!editingTaskId)return;
+  const st=document.getElementById('createProjectFromTaskStatus');
+  try{
+    const result=await api(`/api/tasks/${editingTaskId}/create-follow-up-project`,{method:'POST'});
+    location.href='/projects/'+result.project_id;
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function renderChecklist(items){
+  document.getElementById('checklistItems').innerHTML=items.map(i=>`<div class="checklist-row"><input type="checkbox" ${i.done?'checked':''} onchange="toggleChecklistItem(${i.id},this.checked)"><span class="${i.done?'done':''}">${esc(i.title)}</span><button type="button" class="danger" onclick="deleteChecklistItemClick(${i.id})">×</button></div>`).join('')||'<div class="muted small">Noch keine Punkte.</div>';
+}
+
+async function refreshEditorTask(){
+  if(!editingTaskId)return;
+  await loadTasks();
+  const t=tasks.find(x=>x.id===editingTaskId);
+  if(t)renderChecklist(t.checklist_items||[]);
+}
+
+async function addChecklistItemClick(){
+  const input=document.getElementById('checklistNewTitle');
+  const title=input.value.trim();
+  if(!title)return;
+  try{
+    await api(`/api/tasks/${editingTaskId}/checklist-items`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title})});
+    input.value='';
+    await refreshEditorTask();
+  }catch(e){document.getElementById('editorStatus').textContent='Fehler: '+e.message}
+}
+
+async function toggleChecklistItem(itemId,done){
+  try{
+    await api(`/api/tasks/${editingTaskId}/checklist-items/${itemId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({done})});
+    await refreshEditorTask();
+  }catch(e){document.getElementById('editorStatus').textContent='Fehler: '+e.message}
+}
+
+async function deleteChecklistItemClick(itemId){
+  try{
+    await api(`/api/tasks/${editingTaskId}/checklist-items/${itemId}`,{method:'DELETE'});
+    await refreshEditorTask();
+  }catch(e){document.getElementById('editorStatus').textContent='Fehler: '+e.message}
+}
+
+function closeEditor(){
+  editingTaskId=null;
+  document.getElementById('editorCard').classList.add('hidden');
+}
+
+async function saveTask(){
+  const st=document.getElementById('editorStatus');
+  const title=document.getElementById('editTitle').value.trim();
+  if(!title){st.textContent='Bitte einen Titel angeben.';return}
+  const payload={
+    title,
+    description:document.getElementById('editDescription').value.trim()||null,
+    status:document.getElementById('editStatus').value,
+    priority:document.getElementById('editPriority').value,
+    due_date:document.getElementById('editDue').value||null,
+    assigned_employee_id:document.getElementById('editEmployee').value?Number(document.getElementById('editEmployee').value):null,
+    project_id:document.getElementById('editProject').value?Number(document.getElementById('editProject').value):null,
+  };
+  try{
+    if(editingTaskId){await api(`/api/tasks/${editingTaskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})}
+    else{await api('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})}
+    closeEditor();
+    await loadTasks();
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+
+async function deleteTaskConfirm(){
+  if(!editingTaskId)return;
+  if(!confirm('Diese Aufgabe wirklich löschen?'))return;
+  try{
+    await api(`/api/tasks/${editingTaskId}`,{method:'DELETE'});
+    closeEditor();
+    await loadTasks();
+  }catch(e){document.getElementById('editorStatus').textContent='Fehler: '+e.message}
+}
+
+async function toggleArchiveTask(){
+  if(!editingTaskId)return;
+  const t=tasks.find(x=>x.id===editingTaskId);
+  const archive=!(t&&t.archived);
+  try{
+    await api(`/api/tasks/${editingTaskId}/${archive?'archive':'unarchive'}`,{method:'POST'});
+    closeEditor();
+    await loadTasks();
+  }catch(e){document.getElementById('editorStatus').textContent='Fehler: '+e.message}
+}
+
+async function init(){
+  authStatus=await api('/api/auth/status').catch(()=>({authenticated:false,user:null}));
+  if(!authStatus.authenticated){
+    document.getElementById('loadStatus').className='status err';
+    document.getElementById('loadStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
+    return;
+  }
+  [employees,projects]=await Promise.all([api('/api/employees').catch(()=>[]),api('/api/projects').catch(()=>[])]);
+  await loadColumns();
+  await loadFilters();
+  await loadTasks();
+  // Direkteinstieg vom Dashboard-Widget "Meine Aufgaben" (?task=<id>, seit 1.3.24, Muster
+  // ?report= aus 1.2.22) -- fehlt die Aufgabe im aktuell geladenen Board (z. B. Admin-Filter auf
+  // eine andere Person), passiert nichts, kein Fehler.
+  const deepLinkTaskId=Number(new URLSearchParams(location.search).get('task'))||null;
+  if(deepLinkTaskId&&tasks.some(t=>t.id===deepLinkTaskId)){
+    openEditor(deepLinkTaskId);
+  }
+}
+init();
+</script>
+</body></html>

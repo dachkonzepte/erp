@@ -1,0 +1,410 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Wartungsvertrag</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:1200px;margin:0;padding:20px}
+.breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+.breadcrumb a{color:var(--accent);text-decoration:none;font-weight:650}
+.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
+.field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
+input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+textarea{min-height:60px;resize:vertical}
+button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
+.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
+.hidden{display:none!important}
+.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
+.editor-card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.editor-card h2{margin:0 0 12px;font-size:16px}
+.fields-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+.editor-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.section-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.section-title h2{margin:0;font-size:16px}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:650}
+tr:last-child td{border-bottom:none}
+.badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
+.badge.due{background:var(--danger-soft);color:var(--danger)}
+.badge.overdue{background:var(--danger);color:#fff}
+.badge.pausiert{background:var(--warning-soft);color:var(--warning)}
+.badge.beendet{background:var(--soft);color:var(--muted)}
+.badge.archived{background:var(--soft);color:var(--muted)}
+.row-archived{opacity:.6}
+.row-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+@media(max-width:900px){.fields-2col{grid-template-columns:1fr}table{font-size:12.5px}th,td{padding:8px}}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+<div class="breadcrumb" id="breadcrumb">Lädt …</div>
+<div class="hero">
+  <div><h1 id="contractTitle">Wartungsvertrag</h1><div class="muted small" id="contractMeta"></div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <button id="performMaintenanceBtn" onclick="performMaintenanceNow()">Wartung durchführen</button>
+    <button class="secondary" id="createProjectBtn" onclick="createProjectNow(null)">Vorgang erstellen</button>
+    <button class="secondary" id="pauseBtn" onclick="setStatus('pausiert')">Pausieren</button>
+    <button class="secondary" id="reactivateBtn" onclick="setStatus('aktiv')">Reaktivieren</button>
+    <button class="secondary" id="finishBtn" onclick="setStatus('beendet')">Beenden</button>
+    <button class="secondary" id="archiveBtn" onclick="toggleArchived()">Archivieren</button>
+    <button class="danger" onclick="deleteContractNow()">Löschen</button>
+  </div>
+</div>
+<div class="muted small hidden" id="performMaintenanceHint" style="margin:-6px 0 12px"></div>
+<div class="muted small hidden" id="createProjectHint" style="margin:-6px 0 12px"></div>
+<div class="muted small hidden" id="createProjectResult" style="margin:8px 0;padding:10px 12px;background:var(--soft);border:1px solid var(--line)"></div>
+<span id="contractStatus" class="status"></span>
+
+<div class="editor-card">
+  <h2>Vertragsstammdaten</h2>
+  <div class="fields-2col">
+    <div class="field"><label>Kunde</label><input id="viewCustomer" disabled></div>
+    <div class="field"><label>Objekt <span class="muted small">(optional, sonst Hauptadresse des Kunden)</span></label><select id="editProperty"></select></div>
+    <div class="field full"><label>Bezeichnung *</label><input id="editTitle" placeholder="z. B. Jährliche Dachwartung"></div>
+    <div class="field"><label>Intervall (Monate)</label><input id="editInterval" type="number" min="1" max="24" list="intervalMonthsOptions">
+      <datalist id="intervalMonthsOptions">{% for m in range(1, 25) %}<option value="{{ m }}">{{ m }} Monat{{ 'e' if m != 1 else '' }}</option>{% endfor %}</datalist>
+    </div>
+    <div class="field"><label>Nächste Fälligkeit *</label><input id="editDueDate" type="date"></div>
+    <div class="field"><label>Mustervorgang <span class="muted small">(optional – ohne Mustervorgang kann für diesen Vertrag kein Vorgang erstellt werden)</span></label><select id="editTemplate"></select></div>
+    <div class="field"><label>Zuständig <span class="muted small">(optional)</span></label><select id="editResponsible"></select></div>
+    <div class="field full"><label>Notizen</label><textarea id="editNotes"></textarea></div>
+  </div>
+  <div class="editor-actions">
+    <button onclick="saveContractDetail()">Speichern</button>
+    <span id="editorStatus" class="status"></span>
+  </div>
+</div>
+
+<div class="card hidden" id="itemsCard">
+  <div class="section-title"><h2>Zu wartende Dachflächen</h2></div>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Dachfläche</th><th>Fenster</th><th>Fälligkeit</th><th>Beschreibung</th><th>Dauer</th><th></th></tr></thead>
+    <tbody id="itemRows"></tbody>
+  </table></div>
+  <div class="fields-2col" style="margin-top:14px">
+    <div class="field"><label>Dachfläche *</label><select id="itemRoofArea"></select></div>
+    <div class="field"><label>Fenster *</label><select id="itemWindow"></select></div>
+    <div class="field"><label>Mustervorgang <span class="muted small">(optional, sonst der des Vertrags – ohne einen von beiden kein Vorgang für diese Dachfläche möglich)</span></label><select id="itemTemplate"></select></div>
+    <div class="field"><label>Prüfvorlage <span class="muted small">(optional)</span></label><select id="itemInspectionTemplate"></select></div>
+    <div class="field"><label>Dauer (Minuten) <span class="muted small">(optional)</span></label><input id="itemDuration" type="number" min="0"></div>
+    <div class="field full"><label>Beschreibung <span class="muted small">(optional)</span></label><input id="itemDescription"></div>
+  </div>
+  <div class="editor-actions"><button onclick="addContractItem()">+ Zu wartende Dachfläche</button><span id="itemStatus" class="status"></span></div>
+</div>
+
+<div class="card">
+  <div class="section-title"><h2>Vertragshistorie</h2></div>
+  <div id="historyBody" class="muted small">Lädt …</div>
+</div>
+
+</main>
+</div>
+</div>
+<script>
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+
+const contractId={{ contract_id }};
+let contract=null,maintenanceSettings={use_roof_area_items:false},properties=[],employees=[],templates=[];
+let maintenanceWindows=[],inspectionTemplates=[],roofAreas=[],history=[];
+
+function propertyOptionsHtml(customerId,selected){
+  const filtered=properties.filter(p=>p.customer_id===Number(customerId)&&!p.is_primary_address);
+  return '<option value="">— Hauptadresse verwenden —</option>'+filtered.map(p=>`<option value="${p.id}" ${Number(selected)===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
+}
+function templateOptionsHtml(selected){
+  return '<option value="">— keiner —</option>'+templates.map(t=>`<option value="${t.id}" ${Number(selected)===t.id?'selected':''}>${esc(t.project_number+' · '+t.name)}</option>`).join('');
+}
+function employeeOptionsHtml(selected){
+  return '<option value="">— nicht zugeordnet —</option>'+employees.filter(e=>e.active).map(e=>`<option value="${e.id}" ${Number(selected)===e.id?'selected':''}>${esc(e.first_name+' '+e.last_name)}</option>`).join('');
+}
+function roofAreaOptionsHtml(){
+  return roofAreas.length?roofAreas.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join(''):'<option value="">— keine Dachflächen angelegt —</option>';
+}
+function windowOptionsHtml(){
+  return maintenanceWindows.map(w=>`<option value="${w.id}">${esc(w.label)} (${w.month_from}.-${w.month_to}. Monat)</option>`).join('');
+}
+function inspectionTemplateOptionsHtml(){
+  return '<option value="">— automatisch nach Dachtyp —</option>'+inspectionTemplates.filter(t=>!t.archived).map(t=>`<option value="${t.id}">${esc(t.label)}</option>`).join('');
+}
+
+function renderBreadcrumb(){
+  const customerLink=`<a href="/customers/${contract.customer_id}">${esc(contract.customer_name||'Kunde')}</a>`;
+  const propertyLink=contract.property_id?`<a href="/properties/${contract.property_id}">${esc(contract.property_name||'Objekt')}</a>`:null;
+  document.getElementById('breadcrumb').innerHTML=[customerLink,propertyLink,esc(contract.title)].filter(Boolean).join(' · ');
+}
+
+function renderHero(){
+  document.getElementById('contractTitle').textContent=contract.title;
+  document.getElementById('contractMeta').textContent=[contract.customer_name,contract.property_name,`${contract.interval_months} Monate Intervall`].filter(Boolean).join(' · ');
+  document.getElementById('pauseBtn').classList.toggle('hidden',contract.status!=='aktiv');
+  document.getElementById('reactivateBtn').classList.toggle('hidden',contract.status!=='pausiert');
+  document.getElementById('finishBtn').classList.toggle('hidden',contract.status==='beendet');
+  document.getElementById('archiveBtn').textContent=contract.archived?'Entarchivieren':'Archivieren';
+  updatePerformMaintenanceButton();
+  updateCreateProjectButton();
+}
+
+function updatePerformMaintenanceButton(){
+  // "Wartung durchführen" ist eine reine Vertragsebenen-Aktion (siehe app/maintenance_contracts.py::
+  // create_maintenance_visit()) -- übernehmen aktive Positionen unter use_roof_area_items bereits
+  // die Fälligkeitssteuerung je Dachfläche, bleibt dafür ausschließlich der Weg je Position
+  // zuständig (Tabelle unten), gleiche Sperre wie bei "Vorgang erstellen".
+  const btn=document.getElementById('performMaintenanceBtn');
+  const hint=document.getElementById('performMaintenanceHint');
+  const activeItems=(contract.items||[]).filter(i=>!i.archived);
+  if(maintenanceSettings.use_roof_area_items&&activeItems.length>0){
+    btn.classList.add('hidden');
+    hint.classList.add('hidden');
+    return;
+  }
+  btn.classList.remove('hidden');
+  btn.disabled=false;
+  hint.classList.add('hidden');
+}
+
+function updateCreateProjectButton(){
+  const btn=document.getElementById('createProjectBtn');
+  const hint=document.getElementById('createProjectHint');
+  const activeItems=(contract.items||[]).filter(i=>!i.archived);
+  if(maintenanceSettings.use_roof_area_items&&activeItems.length>0){
+    // Positionen übernehmen die Fälligkeit vollständig -- "Vorgang erstellen" existiert dann
+    // nur je Dachfläche in der Tabelle unten, das Backend lehnt den Vertrags-weiten Aufruf ab.
+    btn.classList.add('hidden');
+    hint.classList.add('hidden');
+    return;
+  }
+  btn.classList.remove('hidden');
+  if(!contract.template_project_id){
+    btn.disabled=true;
+    hint.textContent='Für diesen Vertrag ist kein Mustervorgang hinterlegt -- ohne Mustervorgang kann kein Vorgang erstellt werden.';
+    hint.classList.remove('hidden');
+  }else{
+    btn.disabled=false;
+    hint.classList.add('hidden');
+  }
+}
+
+async function performMaintenanceNow(){
+  const st=document.getElementById('contractStatus');
+  try{
+    const result=await api(`/api/maintenance-contracts/${contractId}/perform-maintenance`,{method:'POST'});
+    location.href=`/orders/${result.order_id}/service-reports?report=${result.report_id}`;
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function fillEditor(){
+  document.getElementById('viewCustomer').value=contract.customer_name||'';
+  document.getElementById('editProperty').innerHTML=propertyOptionsHtml(contract.customer_id,contract.property_id);
+  document.getElementById('editTitle').value=contract.title;
+  document.getElementById('editInterval').value=contract.interval_months;
+  document.getElementById('editDueDate').value=contract.next_due_date||'';
+  document.getElementById('editTemplate').innerHTML=templateOptionsHtml(contract.template_project_id);
+  document.getElementById('editResponsible').innerHTML=employeeOptionsHtml(contract.responsible_employee_id);
+  document.getElementById('editNotes').value=contract.notes||'';
+}
+
+async function saveContractDetail(){
+  const st=document.getElementById('editorStatus');
+  const title=document.getElementById('editTitle').value.trim();
+  const dueDate=document.getElementById('editDueDate').value;
+  if(!title||!dueDate){st.className='status err';st.textContent='Bitte Bezeichnung und Fälligkeit angeben.';return}
+  const propertyId=document.getElementById('editProperty').value;
+  const payload={
+    property_id:propertyId?Number(propertyId):null,
+    title,
+    interval_months:Number(document.getElementById('editInterval').value)||12,
+    next_due_date:dueDate,
+    template_project_id:document.getElementById('editTemplate').value?Number(document.getElementById('editTemplate').value):null,
+    responsible_employee_id:document.getElementById('editResponsible').value?Number(document.getElementById('editResponsible').value):null,
+    notes:document.getElementById('editNotes').value.trim()||null,
+  };
+  try{
+    contract=await api(`/api/maintenance-contracts/${contractId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    render();
+    st.className='status';st.textContent='Gespeichert.';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function setStatus(status){
+  const st=document.getElementById('contractStatus');
+  try{
+    contract=await api(`/api/maintenance-contracts/${contractId}/status`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+    render();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function toggleArchived(){
+  const st=document.getElementById('contractStatus');
+  try{
+    contract=await api(`/api/maintenance-contracts/${contractId}/${contract.archived?'unarchive':'archive'}`,{method:'POST'});
+    render();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function deleteContractNow(){
+  if(!confirm('Diesen Wartungsvertrag wirklich löschen? Das kann nicht rückgängig gemacht werden.'))return;
+  try{
+    await api(`/api/maintenance-contracts/${contractId}`,{method:'DELETE'});
+    location.href='/maintenance-contracts';
+  }catch(e){document.getElementById('contractStatus').className='status err';document.getElementById('contractStatus').textContent='Fehler: '+e.message}
+}
+
+async function createProjectNow(itemId){
+  if(itemId){
+    const item=(contract.items||[]).find(i=>i.id===itemId);
+    if(item&&!item.is_due&&!item.is_overdue&&!confirm(`Diese Dachfläche ist erst am ${fmtDate(item.next_due_date)} fällig. Trotzdem jetzt einen Vorgang anlegen?`))return;
+  }else if(!contract.is_due&&!confirm(`Dieser Vertrag ist erst am ${fmtDate(contract.next_due_date)} fällig. Trotzdem jetzt einen Vorgang anlegen?`)){
+    return;
+  }
+  const st=document.getElementById('contractStatus');
+  const resultPanel=document.getElementById('createProjectResult');
+  try{
+    const result=await api(`/api/maintenance-contracts/${contractId}/create-project`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item_id:itemId||null})});
+    // Seit 1.2.20 bewusst KEIN sofortiger Sprung zum neuen Vorgang -- der eigentliche nächste
+    // Schritt (Einsatzbericht) liegt zwei Ebenen entfernt (Vorgang -> Angebot beauftragen ->
+    // Auftrag -> Einsatzbericht); ein stiller Sprung allein zeigt nicht, wie es weitergeht. Statt
+    // dessen ein Ergebnis-Panel mit explizitem nächsten Schritt und einem echten Link.
+    const orders=await api(`/api/projects/${result.project_id}/orders`).catch(()=>[]);
+    if(orders.length){
+      const order=orders[0];
+      resultPanel.innerHTML=`Vorgang erstellt: <b>${esc(result.project_number)}</b>. Auftrag <b>${esc(order.order_number)}</b> liegt bereits vor. <a href="/orders/${order.id}/service-reports">Einsatzbericht anlegen</a>`;
+    }else{
+      resultPanel.innerHTML=`Vorgang erstellt: <b>${esc(result.project_number)}</b>. Nächster Schritt: dort das Angebot prüfen und beauftragen -- danach lässt sich über den entstehenden Auftrag ein Einsatzbericht anlegen. <a href="/projects/${result.project_id}">Vorgang öffnen</a>`;
+    }
+    resultPanel.classList.remove('hidden');
+    st.textContent='';
+    await reloadContract();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function itemRow(item){
+  const badges=[];
+  if(item.archived)badges.push('<span class="badge archived">Archiviert</span>');
+  if(item.is_overdue)badges.push('<span class="badge overdue">⚠ überfällig</span>');
+  else if(item.is_due)badges.push('<span class="badge due">fällig</span>');
+  const hasTemplate=!!(item.template_project_id||contract.template_project_id);
+  const actions=[`<button ${hasTemplate?'':'disabled'} onclick="createProjectNow(${item.id})">Vorgang erstellen</button>`];
+  actions.push(`<button class="secondary" onclick="toggleItemArchived(${item.id},${!item.archived})">${item.archived?'Entarchivieren':'Archivieren'}</button>`);
+  actions.push(`<button class="danger" onclick="deleteContractItem(${item.id})">Löschen</button>`);
+  if(!hasTemplate)actions.push('<span class="muted small">Kein Mustervorgang hinterlegt.</span>');
+  return `<tr${item.archived?' class="row-archived"':''}>
+    <td>${esc(item.roof_area_name||'')}</td>
+    <td>${esc(item.maintenance_window_label||'')}</td>
+    <td>${fmtDate(item.next_due_date)} ${badges.join(' ')}</td>
+    <td>${esc(item.description||'')}</td>
+    <td>${item.duration_minutes?item.duration_minutes+' min':'—'}</td>
+    <td class="row-actions">${actions.join('')}</td>
+  </tr>`;
+}
+
+function renderItems(){
+  document.getElementById('itemsCard').classList.toggle('hidden',!maintenanceSettings.use_roof_area_items);
+  if(!maintenanceSettings.use_roof_area_items)return;
+  const items=contract.items||[];
+  document.getElementById('itemRows').innerHTML=items.length?items.map(itemRow).join(''):'<tr><td colspan="6" class="empty">Noch keine Dachflächen zugeordnet.</td></tr>';
+  document.getElementById('itemRoofArea').innerHTML=roofAreaOptionsHtml();
+  document.getElementById('itemWindow').innerHTML=windowOptionsHtml();
+  document.getElementById('itemTemplate').innerHTML=templateOptionsHtml(null);
+  document.getElementById('itemInspectionTemplate').innerHTML=inspectionTemplateOptionsHtml();
+}
+
+async function reloadContract(){
+  contract=await api(`/api/maintenance-contracts/${contractId}`);
+  render();
+}
+
+async function addContractItem(){
+  const st=document.getElementById('itemStatus');
+  const roofAreaId=document.getElementById('itemRoofArea').value;
+  const windowId=document.getElementById('itemWindow').value;
+  if(!roofAreaId||!windowId){st.className='status err';st.textContent='Bitte Dachfläche und Fenster wählen.';return}
+  const templateId=document.getElementById('itemTemplate').value;
+  const inspectionTemplateId=document.getElementById('itemInspectionTemplate').value;
+  const duration=document.getElementById('itemDuration').value;
+  const description=document.getElementById('itemDescription').value.trim();
+  const payload={
+    roof_area_id:Number(roofAreaId), maintenance_window_id:Number(windowId),
+    template_project_id:templateId?Number(templateId):null,
+    inspection_template_id:inspectionTemplateId?Number(inspectionTemplateId):null,
+    duration_minutes:duration?Number(duration):null,
+    description:description||null,
+  };
+  try{
+    await api(`/api/maintenance-contracts/${contractId}/items`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    document.getElementById('itemDuration').value='';document.getElementById('itemDescription').value='';
+    st.textContent='';
+    await reloadContract();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function toggleItemArchived(itemId,archived){
+  const st=document.getElementById('itemStatus');
+  try{
+    await api(`/api/maintenance-contract-items/${itemId}/${archived?'archive':'unarchive'}`,{method:'POST'});
+    await reloadContract();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function deleteContractItem(itemId){
+  if(!confirm('Diese Dachfläche wirklich von diesem Vertrag entfernen?'))return;
+  const st=document.getElementById('itemStatus');
+  try{
+    await api(`/api/maintenance-contract-items/${itemId}`,{method:'DELETE'});
+    await reloadContract();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function renderHistory(){
+  document.getElementById('historyBody').innerHTML=history.length
+    ?`<div class="table-scroll"><table><thead><tr><th>Datum</th><th>Auftrag</th><th>Typ</th></tr></thead><tbody>${history.map(h=>`<tr><td>${fmtDate(h.performed_at)}</td><td><a href="/orders/${h.order_id}" style="color:var(--accent)">${esc(h.order_number||'')}</a></td><td>${esc(h.report_type_label||'')}</td></tr>`).join('')}</tbody></table></div>`
+    :'<div class="muted small">Noch keine unterschriebenen Einsatzberichte.</div>';
+}
+
+function render(){
+  renderBreadcrumb();renderHero();fillEditor();renderItems();
+}
+
+async function loadRoofAreasIfNeeded(){
+  if(!maintenanceSettings.use_roof_area_items||!contract.property_id){roofAreas=[];return}
+  roofAreas=await api('/api/roof-areas?property_id='+contract.property_id).catch(()=>[]);
+}
+
+async function init(){
+  try{
+    contract=await api(`/api/maintenance-contracts/${contractId}`);
+  }catch(e){
+    document.getElementById('breadcrumb').textContent='Fehler: '+e.message;
+    return;
+  }
+  [maintenanceSettings,properties,employees,templates]=await Promise.all([
+    api('/api/maintenance-settings').catch(()=>({use_roof_area_items:false})),
+    api('/api/properties').catch(()=>[]), api('/api/employees').catch(()=>[]),
+    api('/api/project-templates').catch(()=>[]),
+  ]);
+  if(maintenanceSettings.use_roof_area_items){
+    [maintenanceWindows,inspectionTemplates]=await Promise.all([
+      api('/api/maintenance-windows').catch(()=>[]), api('/api/inspection-templates').catch(()=>[]),
+    ]);
+    await loadRoofAreasIfNeeded();
+  }
+  render();
+  history=await api(`/api/maintenance-contracts/${contractId}/history`).catch(()=>[]);
+  renderHistory();
+}
+init();
+</script>
+</body></html>

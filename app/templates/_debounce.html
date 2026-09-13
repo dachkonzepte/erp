@@ -1,0 +1,15 @@
+<script>
+/* Geteilter Helfer (seit 1.2.19) gegen die Blur-Abhängigkeit von onchange-Autosave-Feldern --
+   ein Wert wird spätestens ms nach der letzten Eingabe gespeichert, auch wenn das Feld nie den
+   Fokus verlässt (z. B. Reload direkt nach dem Eintippen, ohne vorher wegzuklicken). Jede Seite
+   bindet diese Datei per Jinja-Include ein und baut ihre eigene, seiteneigene Speicherlogik
+   (z. B. je Zeile/Feld) darauf auf -- der Helfer selbst wird nicht dupliziert, nur seine
+   Anwendung ist je Seite eigener Code. */
+function debounce(fn, ms) {
+  let timer;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), ms);
+  };
+}
+</script>

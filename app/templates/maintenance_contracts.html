@@ -1,0 +1,275 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Wartungen</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:1400px;margin:0;padding:20px}
+.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
+.field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
+input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+textarea{min-height:60px;resize:vertical}
+button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
+.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
+.hidden{display:none!important}
+.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
+.editor-card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.editor-card h2{margin:0 0 12px;font-size:16px}
+.fields-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+.editor-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.card{background:var(--card);border:1px solid var(--line);padding:0}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:650}
+tr:last-child td{border-bottom:none}
+.badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
+.badge.due{background:var(--danger-soft);color:var(--danger)}
+.badge.overdue{background:var(--danger);color:#fff}
+.badge.pausiert{background:var(--warning-soft);color:var(--warning)}
+.badge.beendet{background:var(--soft);color:var(--muted)}
+.badge.archived{background:var(--soft);color:var(--muted)}
+.row-archived{opacity:.6}
+.row-overdue{background:var(--danger-soft)}
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.table-scroll{overflow-x:auto}
+.contract-link{color:var(--accent);text-decoration:none;font-weight:700}
+.contract-link:hover{text-decoration:underline}
+@media(max-width:900px){.fields-2col{grid-template-columns:1fr}table{font-size:12.5px}th,td{padding:8px}}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+{% if is_module_enabled('wartungen') %}
+<div class="hero"><div><h1>Wartungen &amp; Reparaturen</h1><div class="muted small">Wiederkehrende Wartungsverträge, ihre Fälligkeiten und einmalige Reparatur-/Wartungsaufträge.</div></div><div style="display:flex;gap:14px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650"><input type="checkbox" id="showArchived" style="width:auto" onchange="renderRows()"> Archivierte anzeigen</label><button onclick="openCreateEditor()">+ Wartungsvertrag</button></div></div>
+
+<div class="editor-card">
+  <h2>Fällige Wartungen im Fenster</h2>
+  <div class="muted small" style="margin-bottom:10px">Fällige oder überfällige, zu wartende Dachflächen, gruppiert nach PLZ/Ort -- für die Tourenplanung.</div>
+  <div id="dueItemsOverview"></div>
+</div>
+
+<div class="editor-card">
+  <h2>Reparatur/Wartung erfassen</h2>
+  <div class="muted small" style="margin-bottom:10px">Für einen einzelnen, einmaligen Auftrag -- legt im Hintergrund Projekt, Angebot und Beauftragung in einem Schritt an. Abgerechnet wird später über die Zeitbuchungen auf dem Auftrag.</div>
+  <div class="fields-2col">
+    <div class="field"><label>Kunde *</label><select id="qsoCustomer" onchange="onQsoCustomerChange()"></select></div>
+    <div class="field"><label>Objekt <span class="muted small">(optional, sonst Hauptadresse des Kunden)</span></label><select id="qsoProperty"></select></div>
+    <div class="field"><label>Art *</label><select id="qsoType"><option value="reparatur">Reparatur</option><option value="wartung">Wartung</option></select></div>
+    <div class="field"><label>Bezeichnung *</label><input id="qsoTitle" placeholder="z. B. Dachrinne verstopft"></div>
+    <div class="field"><label>Zuständig <span class="muted small">(optional)</span></label><select id="qsoResponsible"></select></div>
+    <div class="field"><label>Ausführungsdatum <span class="muted small">(optional)</span></label><input id="qsoExecutionDate" type="date"></div>
+    <div class="field full"><label>Beschreibung <span class="muted small">(optional)</span></label><textarea id="qsoDescription"></textarea></div>
+  </div>
+  <div class="editor-actions">
+    <button onclick="saveQuickServiceOrder()">Auftrag anlegen</button>
+    <span id="qsoStatus" class="status"></span>
+  </div>
+</div>
+
+<div id="editorCard" class="editor-card hidden">
+  <h2>Wartungsvertrag anlegen</h2>
+  <div class="fields-2col">
+    <div class="field"><label>Kunde *</label><select id="editCustomer" onchange="onCustomerChange()"></select></div>
+    <div class="field"><label>Objekt <span class="muted small">(optional, sonst Hauptadresse des Kunden)</span></label><select id="editProperty"></select></div>
+    <div class="field full"><label>Bezeichnung *</label><input id="editTitle" placeholder="z. B. Jährliche Dachwartung"></div>
+    <div class="field"><label>Intervall (Monate)</label><input id="editInterval" type="number" min="1" max="24" list="intervalMonthsOptions" value="12">
+      <datalist id="intervalMonthsOptions">{% for m in range(1, 25) %}<option value="{{ m }}">{{ m }} Monat{{ 'e' if m != 1 else '' }}</option>{% endfor %}</datalist>
+    </div>
+    <div class="field"><label>Nächste Fälligkeit *</label><input id="editDueDate" type="date"></div>
+    <div class="field"><label>Mustervorgang <span class="muted small">(optional – ohne Mustervorgang kann für diesen Vertrag kein Vorgang erstellt werden)</span></label><select id="editTemplate"></select></div>
+    <div class="field"><label>Zuständig <span class="muted small">(optional)</span></label><select id="editResponsible"></select></div>
+    <div class="field full"><label>Notizen</label><textarea id="editNotes"></textarea></div>
+  </div>
+  <div class="editor-actions">
+    <button onclick="saveContract()">Anlegen</button>
+    <button class="secondary" onclick="closeEditor()">Abbrechen</button>
+    <span id="editorStatus" class="status"></span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-scroll"><table>
+    <thead><tr><th>Bezeichnung</th><th>Kunde / Objekt</th><th>Intervall</th><th>Fälligkeit</th><th>Zuständig</th><th>Status</th></tr></thead>
+    <tbody id="contractRows"></tbody>
+  </table></div>
+</div>
+<span id="listStatus" class="status"></span>
+{% else %}
+<div class="editor-card"><h2>Wartungen & Reparaturen</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+{% endif %}
+</main>
+</div>
+</div>
+<script>
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+
+let authStatus=null,customers=[],properties=[],employees=[],templates=[],contracts=[];
+
+function customerOptionsHtml(selected){
+  return '<option value="">— wählen —</option>'+customers.map(c=>`<option value="${c.id}" ${Number(selected)===c.id?'selected':''}>${esc(c.name)}</option>`).join('');
+}
+function propertyOptionsHtml(customerId,selected){
+  const filtered=properties.filter(p=>p.customer_id===Number(customerId)&&!p.is_primary_address);
+  return '<option value="">— Hauptadresse verwenden —</option>'+filtered.map(p=>`<option value="${p.id}" ${Number(selected)===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
+}
+function templateOptionsHtml(selected){
+  return '<option value="">— keiner —</option>'+templates.map(t=>`<option value="${t.id}" ${Number(selected)===t.id?'selected':''}>${esc(t.project_number+' · '+t.name)}</option>`).join('');
+}
+function employeeOptionsHtml(selected){
+  return '<option value="">— nicht zugeordnet —</option>'+employees.filter(e=>e.active).map(e=>`<option value="${e.id}" ${Number(selected)===e.id?'selected':''}>${esc(e.first_name+' '+e.last_name)}</option>`).join('');
+}
+
+function onCustomerChange(){
+  document.getElementById('editProperty').innerHTML=propertyOptionsHtml(document.getElementById('editCustomer').value,null);
+}
+
+function onQsoCustomerChange(){
+  document.getElementById('qsoProperty').innerHTML=propertyOptionsHtml(document.getElementById('qsoCustomer').value,null);
+}
+
+async function saveQuickServiceOrder(){
+  const st=document.getElementById('qsoStatus');
+  const customerId=document.getElementById('qsoCustomer').value;
+  const title=document.getElementById('qsoTitle').value.trim();
+  if(!customerId||!title){st.className='status err';st.textContent='Bitte Kunde und Bezeichnung angeben.';return}
+  const payload={
+    customer_id:Number(customerId),
+    property_id:document.getElementById('qsoProperty').value?Number(document.getElementById('qsoProperty').value):null,
+    order_type:document.getElementById('qsoType').value,
+    title,
+    description:document.getElementById('qsoDescription').value.trim()||null,
+    caseworker_employee_id:document.getElementById('qsoResponsible').value?Number(document.getElementById('qsoResponsible').value):null,
+    execution_start:document.getElementById('qsoExecutionDate').value||null,
+  };
+  st.className='status';st.textContent='Lege Auftrag an …';
+  try{
+    const result=await api('/api/quick-service-orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    // Direkt zum neuen Auftrag wechseln (etabliertes Navigations-Muster nach dem Anlegen).
+    location.href='/orders/'+result.order_id;
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function openCreateEditor(){
+  document.getElementById('editCustomer').innerHTML=customerOptionsHtml(null);
+  document.getElementById('editProperty').innerHTML=propertyOptionsHtml(null,null);
+  document.getElementById('editTitle').value='';
+  document.getElementById('editInterval').value='12';
+  document.getElementById('editDueDate').value='';
+  document.getElementById('editTemplate').innerHTML=templateOptionsHtml(null);
+  document.getElementById('editResponsible').innerHTML=employeeOptionsHtml(null);
+  document.getElementById('editNotes').value='';
+  document.getElementById('editorStatus').textContent='';
+  document.getElementById('editorCard').classList.remove('hidden');
+  document.getElementById('editorCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function closeEditor(){
+  document.getElementById('editorCard').classList.add('hidden');
+}
+
+async function saveContract(){
+  const st=document.getElementById('editorStatus');
+  const customerId=document.getElementById('editCustomer').value;
+  const propertyId=document.getElementById('editProperty').value;
+  const title=document.getElementById('editTitle').value.trim();
+  const dueDate=document.getElementById('editDueDate').value;
+  if(!customerId||!title||!dueDate){st.textContent='Bitte Kunde, Bezeichnung und Fälligkeit angeben.';return}
+  const payload={
+    customer_id:Number(customerId),
+    property_id:propertyId?Number(propertyId):null,
+    title,
+    interval_months:Number(document.getElementById('editInterval').value)||12,
+    next_due_date:dueDate,
+    template_project_id:document.getElementById('editTemplate').value?Number(document.getElementById('editTemplate').value):null,
+    responsible_employee_id:document.getElementById('editResponsible').value?Number(document.getElementById('editResponsible').value):null,
+    notes:document.getElementById('editNotes').value.trim()||null,
+  };
+  try{
+    const created=await api('/api/maintenance-contracts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    // Direkt zum neu angelegten Vertrag wechseln (Projektmuster "nach Anlegen direkt zum Datensatz").
+    location.href='/maintenance-contracts/'+created.id;
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+
+function row(c){
+  const badges=[`<span class="badge ${c.status}">${esc(c.status)}</span>`];
+  if(c.archived)badges.push('<span class="badge archived">Archiviert</span>');
+  if(c.is_due)badges.push('<span class="badge due">⚠ fällig</span>');
+  return `<tr${c.archived?' class="row-archived"':''}>
+    <td><a class="contract-link" href="/maintenance-contracts/${c.id}">${esc(c.title)}</a>${c.notes?`<div class="muted small">${esc(c.notes)}</div>`:''}</td>
+    <td>${esc(c.customer_name||'')}<div class="muted small">${esc(c.property_name||'')}${c.property_address?' · '+esc(c.property_address):''}</div></td>
+    <td>${c.interval_months} Monate</td>
+    <td>${fmtDate(c.next_due_date)}</td>
+    <td>${esc(c.responsible_employee_name||'—')}</td>
+    <td>${badges.join(' ')}</td>
+  </tr>`;
+}
+
+function renderRows(){
+  const showArchived=document.getElementById('showArchived').checked;
+  const visible=contracts.filter(c=>showArchived||!c.archived);
+  document.getElementById('contractRows').innerHTML=visible.map(row).join('')||'<tr><td colspan="6" class="empty">Noch keine Wartungsverträge angelegt.</td></tr>';
+}
+
+async function loadDueOverview(){
+  const container=document.getElementById('dueItemsOverview');
+  try{
+    const rows=await api('/api/maintenance-contracts/due-items');
+    if(!rows.length){container.innerHTML='<div class="empty">Keine fälligen oder überfälligen Dachflächen.</div>';return}
+    const groups={};
+    rows.forEach(r=>{
+      const key=(r.property_postal_code||'—')+' '+(r.property_city||'');
+      (groups[key]=groups[key]||[]).push(r);
+    });
+    container.innerHTML=Object.keys(groups).sort().map(key=>{
+      const rowsHtml=groups[key].map(r=>`<tr${r.is_overdue?' class="row-overdue"':''}>
+        <td><a href="/maintenance-contracts/${r.contract_id}" style="color:var(--accent)">${esc(r.contract_title)}</a></td><td>${esc(r.customer_name||'')}</td><td>${esc(r.roof_area_name||'')}</td>
+        <td>${esc(r.maintenance_window_label||'')}</td><td>${fmtDate(r.next_due_date)}</td>
+        <td>${r.is_overdue?'<span class="badge overdue">⚠ überfällig</span>':'<span class="badge due">fällig</span>'}</td>
+      </tr>`).join('');
+      return `<div class="card" style="margin-bottom:10px"><div style="padding:10px 12px;font-weight:650;border-bottom:1px solid var(--line)">${esc(key.trim())}</div>
+        <div class="table-scroll"><table><thead><tr><th>Vertrag</th><th>Kunde</th><th>Dachfläche</th><th>Fenster</th><th>Fälligkeit</th><th>Status</th></tr></thead><tbody>${rowsHtml}</tbody></table></div></div>`;
+    }).join('');
+  }catch(e){container.innerHTML='<div class="empty">Fehler: '+esc(e.message)+'</div>'}
+}
+
+async function loadContracts(){
+  const st=document.getElementById('listStatus');
+  st.className='status';st.textContent='Lädt …';
+  try{
+    contracts=await api('/api/maintenance-contracts?include_archived=true');
+    renderRows();
+    st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function init(){
+  authStatus=await api('/api/auth/status').catch(()=>({authenticated:false,user:null}));
+  if(!authStatus.authenticated){
+    document.getElementById('listStatus').className='status err';
+    document.getElementById('listStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
+    return;
+  }
+  [customers,properties,employees,templates]=await Promise.all([
+    api('/api/customers').catch(()=>[]), api('/api/properties').catch(()=>[]),
+    api('/api/employees').catch(()=>[]), api('/api/project-templates').catch(()=>[]),
+  ]);
+  document.getElementById('qsoCustomer').innerHTML=customerOptionsHtml(null);
+  document.getElementById('qsoProperty').innerHTML=propertyOptionsHtml(null,null);
+  document.getElementById('qsoResponsible').innerHTML=employeeOptionsHtml(null);
+  await api('/api/maintenance-contracts/check-due',{method:'POST'}).catch(()=>null);
+  await loadContracts();
+  await loadDueOverview();
+}
+init();
+</script>
+</body></html>

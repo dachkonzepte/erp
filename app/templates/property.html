@@ -1,0 +1,234 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Objekt</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:1200px;margin:0;padding:20px}
+.breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+.breadcrumb a{color:var(--accent);text-decoration:none;font-weight:650}
+.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
+.field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
+input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+textarea{min-height:60px;resize:vertical}
+button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
+.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
+.hidden{display:none!important}
+.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
+.editor-card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.editor-card h2{margin:0 0 12px;font-size:16px}
+.fields-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+.editor-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.section-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.section-title h2{margin:0}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:650}
+tr:last-child td{border-bottom:none}
+.badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
+.badge.due{background:var(--danger-soft);color:var(--danger)}
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.bulk-name-row{display:flex;gap:8px;margin-bottom:8px}
+.bulk-name-row input{flex:1}
+@media(max-width:900px){.fields-2col{grid-template-columns:1fr}table{font-size:12.5px}th,td{padding:8px}}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+<main>
+<div class="breadcrumb" id="breadcrumb">Lädt …</div>
+<div class="hero">
+  <div><h1 id="propertyName">Objekt</h1><div class="muted small" id="propertyMeta"></div></div>
+</div>
+
+<div class="editor-card">
+  <h2>Objektstammdaten</h2>
+  <div class="fields-2col">
+    <div class="field full"><label>Bezeichnung *</label><input id="editName"></div>
+    <div class="field"><label>Straße</label><input id="editStreet"></div>
+    <div class="field"><label>PLZ / Ort</label><div style="display:grid;grid-template-columns:100px 1fr;gap:8px"><input id="editZip"><input id="editCity"></div></div>
+    <div class="field full"><label>Notizen</label><textarea id="editNotes"></textarea></div>
+  </div>
+  <div class="editor-actions">
+    <button onclick="saveProperty()">Speichern</button>
+    <span id="propertyStatus" class="status"></span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title">
+    <h2>Dachflächen</h2>
+    <button onclick="toggleBulkForm()">+ Dachflächen anlegen</button>
+  </div>
+  <div id="bulkForm" class="hidden" style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--line)">
+    <div class="field" style="max-width:280px;margin-bottom:10px"><label>Dachtyp (für alle Zeilen)</label><select id="bulkRoofType"></select></div>
+    <div id="bulkNameRows"></div>
+    <div class="editor-actions">
+      <button type="button" class="secondary" onclick="addBulkNameRow()">+ weitere Zeile</button>
+      <button onclick="submitBulkRoofAreas()">Anlegen</button>
+      <span id="bulkStatus" class="status"></span>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Dachtyp</th><th>Fläche</th><th>Eindeckung</th><th>Gewährleistung</th><th></th></tr></thead>
+      <tbody id="roofAreaRows"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="maintenanceCard" class="card hidden">
+  <h2>Wartungsverträge</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Titel</th><th>Status</th><th>Fällig</th><th></th></tr></thead>
+      <tbody id="maintenanceRows"></tbody>
+    </table>
+  </div>
+</div>
+</main>
+</div>
+</div>
+<script>
+const propertyId={{ property_id }};
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
+function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
+function optionsHtml(list,selected){return '<option value="">— keine Auswahl —</option>'+(list||[]).filter(o=>o.active!==false).map(o=>`<option value="${esc(o.value)}" ${o.value===selected?'selected':''}>${esc(o.label)}</option>`).join('')}
+
+let property=null,customer=null,roofAreas=[],roofTypes=[];
+
+async function isModuleEnabled(key){
+  const modules=await api('/api/modules').catch(()=>[]);
+  const m=modules.find(x=>x.module_key===key);
+  return m?m.enabled:true;
+}
+
+function renderBreadcrumb(){
+  const customerLink=customer?`<a href="/customers/${customer.id}">${esc(customer.name)}</a>`:null;
+  document.getElementById('breadcrumb').innerHTML=[customerLink,esc(property.name)].filter(Boolean).join(' · ');
+}
+
+function renderHeader(){
+  document.getElementById('propertyName').textContent=property.name;
+  document.getElementById('propertyMeta').textContent=[property.street,[property.postal_code,property.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')||'Keine Adresse hinterlegt';
+}
+
+function fillPropertyForm(){
+  document.getElementById('editName').value=property.name;
+  document.getElementById('editStreet').value=property.street||'';
+  document.getElementById('editZip').value=property.postal_code||'';
+  document.getElementById('editCity').value=property.city||'';
+  document.getElementById('editNotes').value=property.notes||'';
+}
+
+async function saveProperty(){
+  const st=document.getElementById('propertyStatus');
+  const name=document.getElementById('editName').value.trim();
+  if(!name){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben.';return}
+  const payload={
+    name,
+    street:document.getElementById('editStreet').value.trim()||null,
+    postal_code:document.getElementById('editZip').value.trim()||null,
+    city:document.getElementById('editCity').value.trim()||null,
+    notes:document.getElementById('editNotes').value.trim()||null,
+  };
+  st.className='status';st.textContent='Speichert …';
+  try{
+    property=await api(`/api/properties/${propertyId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    renderBreadcrumb();renderHeader();
+    st.textContent='Gespeichert.';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function roofAreaRow(r){
+  return `<tr>
+    <td><a href="/roof-areas/${r.id}" style="color:var(--accent);font-weight:650;text-decoration:none">${esc(r.name)}</a></td>
+    <td>${esc(r.roof_type||'—')}</td>
+    <td>${r.area_sqm?Number(r.area_sqm).toLocaleString('de-DE')+' m²':'—'}</td>
+    <td>${esc(r.covering||'—')}</td>
+    <td>${r.warranty_until?fmtDate(r.warranty_until):'—'}</td>
+    <td><a href="/roof-areas/${r.id}" style="color:var(--accent);font-weight:650;text-decoration:none">Öffnen</a></td>
+  </tr>`;
+}
+
+async function loadRoofAreas(){
+  roofAreas=await api(`/api/roof-areas?property_id=${propertyId}`).catch(()=>[]);
+  document.getElementById('roofAreaRows').innerHTML=roofAreas.map(roofAreaRow).join('')||'<tr><td colspan="6" class="empty">Noch keine Dachflächen angelegt.</td></tr>';
+}
+
+function toggleBulkForm(){
+  const el=document.getElementById('bulkForm');
+  el.classList.toggle('hidden');
+  if(!el.classList.contains('hidden')&&!document.getElementById('bulkNameRows').children.length){
+    document.getElementById('bulkRoofType').innerHTML=optionsHtml(roofTypes,null);
+    addBulkNameRow();addBulkNameRow();addBulkNameRow();
+  }
+}
+
+function addBulkNameRow(){
+  const wrap=document.getElementById('bulkNameRows');
+  const row=document.createElement('div');
+  row.className='bulk-name-row';
+  row.innerHTML='<input placeholder="Bezeichnung, z. B. Hauptdach Süd">';
+  wrap.appendChild(row);
+}
+
+async function submitBulkRoofAreas(){
+  const st=document.getElementById('bulkStatus');
+  const roofType=document.getElementById('bulkRoofType').value||null;
+  const names=[...document.querySelectorAll('#bulkNameRows input')].map(i=>i.value);
+  try{
+    await api(`/api/properties/${propertyId}/roof-areas/bulk`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({roof_type:roofType,names})});
+    document.getElementById('bulkNameRows').innerHTML='';
+    document.getElementById('bulkForm').classList.add('hidden');
+    st.textContent='';
+    await loadRoofAreas();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function maintenanceRow(c){
+  return `<tr>
+    <td>${esc(c.title)}</td>
+    <td><span class="badge ${c.is_due?'due':''}">${esc(c.status)}</span></td>
+    <td>${fmtDate(c.next_due_date)}</td>
+    <td><a href="/maintenance-contracts/${c.id}" style="color:var(--accent);font-weight:650;text-decoration:none">Öffnen</a></td>
+  </tr>`;
+}
+
+async function loadMaintenanceContracts(){
+  if(!await isModuleEnabled('wartungen'))return;
+  try{
+    const contracts=await api(`/api/properties/${propertyId}/maintenance-contracts`);
+    if(!contracts.length)return;
+    document.getElementById('maintenanceCard').classList.remove('hidden');
+    document.getElementById('maintenanceRows').innerHTML=contracts.map(maintenanceRow).join('');
+  }catch(e){/* Modul deaktiviert oder Fehler -- Karte bleibt einfach ausgeblendet */}
+}
+
+async function init(){
+  const rt=await safeOptionGroup('roof_types');
+  roofTypes=rt.options||[];
+  try{
+    property=await api(`/api/properties/${propertyId}`);
+    customer=await api(`/api/customers/${property.customer_id}`).catch(()=>null);
+  }catch(e){
+    document.getElementById('breadcrumb').textContent='Fehler: '+e.message;
+    return;
+  }
+  renderBreadcrumb();renderHeader();fillPropertyForm();
+  await loadRoofAreas();
+  await loadMaintenanceContracts();
+}
+init();
+</script>
+</body></html>

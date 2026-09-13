@@ -1,0 +1,79 @@
+"""Router: field_view (seit 1.3.0) -- Monteursansicht /vor-ort auf dem Fahrzeug-Tablet: heutige
+Einsätze (Plantafel, über list_todays_assignments_for_employee()) und offene Entwurfsberichte
+(über list_draft_reports_for_employee(), nur bei aktivem Modul "wartungen"). Kein eigener
+OPTIONAL_MODULES-Eintrag (siehe CLAUDE.md) -- eine neue Oberfläche über bereits bestehenden
+bzw. bereits eigenständig geschalteten Daten, kein neues fachliches Modul.
+
+Trägt außerdem das Web-App-Manifest und die PWA-Icons (GET /manifest.json,
+GET /api/mobile-icon/{size}.png) -- dieselbe Datei, da beides ausschließlich der
+Monteursansicht dient."""
+
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+
+from ..auth import COOKIE_NAME
+from ..database import get_db
+from ..deps import require_admin
+from ..mobile_manifest import build_icon_png, build_manifest
+from ..mobile_settings import get_or_create_mobile_settings, is_past_shift_end, mobile_settings_to_dict, update_mobile_settings
+from ..modules import is_module_enabled
+from ..planning import list_todays_assignments_for_employee
+from ..schemas import MobileSettingsOut, MobileSettingsUpdate
+from ..service_reports import list_draft_reports_for_employee
+
+router = APIRouter()
+
+
+@router.get("/api/field-view/today")
+def get_field_view_today(request: Request, db: Session = Depends(get_db)):
+    """Löst den Mitarbeiter ausschließlich über request.state.erp_user.employee_id auf, nie
+    über einen Client-Parameter -- jeder sieht ausschließlich seine eigenen Einsätze. Prüft
+    zusätzlich die Feierabend-Grenze (MobileSettings.shift_end_time) und meldet bei
+    Überschreitung ab (Cookie löschen, 401) -- bewusst nur an diesem und dem GET /vor-ort-
+    Einstiegspunkt, nicht in der globalen Middleware (siehe CLAUDE.md)."""
+    user = getattr(request.state, "erp_user", None)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Bitte zuerst anmelden.")
+    if is_past_shift_end(get_or_create_mobile_settings(db)):
+        response = JSONResponse(status_code=401, content={"detail": "Feierabend -- bitte erneut anmelden."})
+        response.delete_cookie(COOKIE_NAME)
+        return response
+    if user.employee_id is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Ihr ERP-Benutzerkonto ist keinem Mitarbeiter zugeordnet -- bitte einen Administrator kontaktieren.",
+        )
+    draft_reports = list_draft_reports_for_employee(db, user.employee_id) if is_module_enabled(db, "wartungen") else []
+    return {
+        "assignments": list_todays_assignments_for_employee(db, user.employee_id),
+        "draft_reports": draft_reports,
+    }
+
+
+@router.get("/api/mobile-settings", response_model=MobileSettingsOut)
+def get_mobile_settings(db: Session = Depends(get_db)):
+    return mobile_settings_to_dict(get_or_create_mobile_settings(db))
+
+
+@router.put("/api/mobile-settings", response_model=MobileSettingsOut)
+def put_mobile_settings(
+    payload: MobileSettingsUpdate, db: Session = Depends(get_db),
+    _admin=Depends(require_admin("Nur Administratoren dürfen die Monteursansicht-Einstellungen ändern.")),
+):
+    shift_end_time = datetime.strptime(payload.shift_end_time, "%H:%M").time()
+    return update_mobile_settings(db, shift_end_time)
+
+
+@router.get("/manifest.json")
+def get_manifest(db: Session = Depends(get_db)):
+    return JSONResponse(build_manifest(db), media_type="application/manifest+json")
+
+
+@router.get("/api/mobile-icon/{size}.png")
+def get_mobile_icon(size: int, db: Session = Depends(get_db)):
+    if size < 16 or size > 1024:
+        raise HTTPException(status_code=404, detail="Ungültige Icon-Größe.")
+    return Response(content=build_icon_png(db, size), media_type="image/png")
