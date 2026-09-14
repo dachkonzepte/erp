@@ -9,6 +9,7 @@
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
+{% include "_topbar.html" %}
 <main><div class="breadcrumb" id="breadcrumb">Lädt …</div><div class="top"><div class="grow"><b id="orderTitle">Auftrag wird geladen …</b><div id="orderContext" class="muted small"></div></div><div class="top-actions"><a id="backProject" href="/projects">← Projektmappe</a><a id="sourceQuote" href="#">Quellangebot</a><a id="workPrepLink" href="#">Arbeitsvorbereitung</a><a id="serviceReportsLink" href="#" style="display:none">Einsatzberichte</a><button class="secondary" onclick="window.open('/api/orders/'+orderId+'/pdf','_blank')">PDF-Auftragsbestätigung</button></div><span id="statusBadge" class="badge">—</span><div class="metrics"><div class="metric"><small>Netto</small><b id="net">—</b></div><div class="metric"><small>MwSt.</small><b id="vat">—</b></div><div class="metric"><small>Brutto</small><b id="gross">—</b></div></div></div>
 <div id="orderEmailSection" class="card" style="display:none">
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">

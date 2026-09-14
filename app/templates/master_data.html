@@ -8,6 +8,7 @@
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
+{% include "_topbar.html" %}
 <main><div class="layout">
 <aside class="side"><h3>Stammdaten</h3><button data-view="customers" onclick="showView('customers')">Kunden</button><button data-view="properties" onclick="showView('properties')">Objekte</button><button data-view="employees" onclick="showView('employees')">Mitarbeiter</button><button data-view="teams" onclick="showView('teams')">Kolonnen / Teams</button><button data-view="resources" onclick="showView('resources')">Fuhrpark & Maschinen</button><button data-view="suppliers" onclick="showView('suppliers')">Lieferanten</button><button data-view="catalogs" onclick="showView('catalogs')">Leistungskataloge</button><button data-view="materialGroups" onclick="showView('materialGroups')">Materialkataloge</button></aside>
 <section class="card"><div class="head"><div><h1 id="title">Stammdaten</h1><div id="subtitle" class="muted small"></div></div><div class="toolbar"><input id="search" placeholder="Suchen …" oninput="render()"><a id="addLink" class="add" href="#">+ Hinzufügen</a></div></div><div id="content"></div></section>

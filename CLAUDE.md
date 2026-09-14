@@ -20,12 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.44** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `60d7c8a775f0` ("raise default sidebar logo height") -- direkt auf
-  `4ba46163a7e8` (1.3.43) aufsetzend, keine der Versionen 1.3.40–1.3.42 brauchte eine eigene
-  Migration -- bei Bedarf per `alembic history`/`heads` prüfen statt sich auf eine hier
-  aufgeschriebene Liste zu verlassen.
-- Tests: **1087/1087**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
+- Version: **1.3.45** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf weiterhin `60d7c8a775f0` ("raise default sidebar logo height") -- 1.3.45
+  (Topbar) brauchte keine eigene Migration, da sie ausschließlich Python/Jinja/CSS/JS anfasst,
+  keine Datenbankspalte -- bei Bedarf per `alembic history`/`heads` prüfen statt sich auf eine
+  hier aufgeschriebene Liste zu verlassen.
+- Tests: **1102/1102**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -566,6 +566,16 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   in den unteren Bereich gewandert, direkt über dem Benutzer-/Abmelden-Block -- "Mein Konto"
   bleibt vorerst, wo es ist. Topbar, Suche und Schnellzugriff folgen einzeln in späteren
   Schritten. Details im neuen Abschnitt "Umgestaltung der Sidebar" unten.
+- Neu seit 1.3.45: **Umgestaltung der Sidebar, Schritt 2 von vier -- die Topbar.** Eine
+  waagerechte, beim Scrollen sichtbare Leiste (`_topbar.html`, neu) sitzt jetzt oberhalb des
+  Inhaltsbereichs auf allen 31 Seiten mit Sidebar (bewusst NICHT auf `/vor-ort`, siehe Abschnitt
+  unten) -- links bleibt in diesem Schritt Platz für die in Schritt 3 folgende Suche reserviert,
+  rechts steht ein runder Kontoknopf mit den Initialen des angemeldeten Benutzers (`app/
+  auth.py::resolve_account_display()`, bevorzugt aus dem verknüpften `Employee`, sonst dem
+  Benutzernamen). Ein Klick öffnet ein Menü mit vollem Namen, "Mein Konto" und "Abmelden" --
+  "Abmelden" bleibt zusätzlich unten in der Sidebar. Fünfter, ebenso ausnahmegesicherter
+  Jinja-Global `account_display()` (Prinzip aus 1.3.42). Details im Abschnitt "Umgestaltung der
+  Sidebar" → "Schritt 2: Topbar" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -4806,11 +4816,12 @@ Interpretation "eine einzige, durchgehende Form ohne Text" war es nicht). Das ä
 
 ## Umgestaltung der Sidebar (seit 1.3.44)
 
-Größerer Umbau von `_sidebar.html` in vier einzelnen Schritten -- dieser Abschnitt wächst mit
-jedem Schritt. Schritt 1 (diese Version): Kopfbereich (Logo) und die beiden
-Kopfzeilen-Schaltflächen. Schritt 2-4 (Topbar, Suche, Schnellzugriff) folgen einzeln in
-späteren Versionen -- **bewusst nicht in dieser Version vorgezogen**, auch wenn manches davon
-(z. B. "Mein Konto") thematisch verwandt ist.
+Größerer Umbau von `_sidebar.html`/dem Seitenlayout in vier einzelnen Schritten -- dieser
+Abschnitt wächst mit jedem Schritt. Schritt 1 (1.3.44): Kopfbereich (Logo) und die beiden
+Kopfzeilen-Schaltflächen. Schritt 2 (1.3.45, diese Version): eine Topbar über dem Inhaltsbereich
+samt Kontobereich rechts. Schritt 3-4 (Suche, Schnellzugriff) folgen einzeln in späteren
+Versionen -- **bewusst nicht vorgezogen**, auch wenn der links reservierte, noch leere
+Suchen-Platz in der Topbar bereits auf Schritt 3 vorbereitet.
 
 ### Schritt 1: Kopfbereich und Schaltflächen
 
@@ -4904,6 +4915,109 @@ Werkzeug-Einschränkung dieser Umgebung) -- die tatsächliche visuelle Zentrieru
 deshalb nur an der Markup-/CSS-Struktur nachgewiesen (`tests/test_v253_sidebar_layout.py`), nicht
 an einem gerenderten Bild. Sollte bei Gelegenheit im Browser gegenprüft werden, insbesondere mit
 dem tatsächlich hochgeladenen Sidebar-Logo.
+
+### Schritt 2: Topbar
+
+**Ausgangslage**: mit "Mein Konto" noch in der Sidebar (Schritt 1 verschiebt es bewusst nicht)
+und keiner Leiste über dem Inhaltsbereich gab es weder Platz für eine künftige Suche (Schritt 3)
+noch einen für den ganzen Bildschirm einheitlichen Ort für Kontoinformationen.
+
+**Punkt 1 -- die Leiste selbst (`app/templates/_topbar.html`, neu).**
+
+- Waagerecht, beginnt rechts neben der Sidebar (liegt als `{% include %}` innerhalb von
+  `.app-content`, direkt nach dessen öffnendem `<div>` -- nie über die Sidebar hinweg, da
+  `.app-content{flex:1;min-width:0}` in der bestehenden Flexbox-Aufteilung ohnehin nur den nach
+  der Sidebar verbleibenden Platz einnimmt).
+- `position:sticky;top:0` -- bleibt beim Scrollen sichtbar. Kein Zwischen-`overflow`-Vorfahre
+  zwischen `.app-topbar` und dem Dokument-Scrollroot geprüft (sonst bräche die sticky-
+  Positionierung), keiner gefunden.
+- Höhe ergibt sich allein aus Innenabstand (`padding:12px 20px`, auf schmalen Bildschirmen
+  `10px 16px`) plus dem 38px-Kontoknopf -- bewusst kein festgelegter `height`-Wert, damit die
+  Leiste nicht dominiert, aber der Knopf bequem (≥38px) bedienbar bleibt.
+- Ausschließlich bestehende Design-System-Variablen (`var(--card)`, `var(--line)`,
+  `var(--accent)`, `var(--ink)`, `var(--soft)`) -- keine eigenen Farben. Die einzige feste
+  Hex-Farbe (`#fff`, Text auf `var(--accent)` beim Kontoknopf) ist die bereits im ganzen Projekt
+  etablierte Konvention für Text auf Akzentfarbe (z. B. `settings.html`s Buttons), keine neue
+  Erfindung -- als Test abgesichert (`test_topbar_is_sticky_and_uses_design_system_variables_only`).
+- Links bleibt in diesem Schritt ein leerer `<div class="app-topbar-search-slot">` (`flex:1`) --
+  reserviert für Schritt 3, absichtlich ohne Inhalt.
+- **Kollision mit der Sidebar in beiden Engpass-Zuständen geprüft, nicht nur behauptet:**
+  - *Eingeklappte Desktop-Sidebar (60px)*: `.app-content{flex:1}` füllt in der bestehenden
+    Flexbox-Aufteilung automatisch den nach der Sidebar verbleibenden Platz, unabhängig von deren
+    aktueller Breite (240px oder 60px) -- die (in `.app-content` verschachtelte) Topbar beginnt
+    dadurch ganz automatisch dort, wo die Sidebar gerade endet, ohne jede Sonderbehandlung.
+  - *Schmaler Bildschirm (`@media(max-width:1000px)`)*: die mobile Sidebar wechselt dort auf
+    `position:fixed` und verlässt damit den Flex-Fluss vollständig -- `.app-content` (und darin
+    die Topbar) beansprucht dadurch automatisch die volle Breite, unabhängig davon, ob die
+    Off-Canvas-Schublade offen oder geschlossen ist. Eine geöffnete mobile Sidebar
+    (`z-index:40`)/ihr Scrim (`z-index:39`) sollen die Topbar dabei bewusst überlagern (gewolltes
+    Ausklapp-Verhalten, kein Bug) -- die Topbar bekommt deshalb absichtlich ein niedrigeres
+    `z-index:10`. Das Kontomenü selbst (`z-index:45`) liegt trotzdem über allem, da es ein
+    eigenes, schwebendes Overlay ist.
+  - **Nebenbefund, nicht behoben, nur vermerkt**: auf einem wirklich schmalen Bildschirm gibt es
+    aktuell offenbar gar keinen Weg, die Off-Canvas-Sidebar überhaupt zu ÖFFNEN -- der einzige
+    Umschalter (`#appSidebarToggle`) sitzt selbst innerhalb von `<aside class="app-sidebar">`,
+    die im geschlossenen Zustand per `transform:translateX(-100%)` unsichtbar/unerreichbar ist.
+    Vorher UND nachher bestehend (durch die 1.3.44-Verschiebung der Schaltflächen nicht
+    verursacht), aber jetzt relevant, weil eine künftige Topbar-Hamburger-Schaltfläche eine
+    naheliegende Lösung wäre -- nicht Teil dieses Schritts, hier nur festgehalten.
+
+**Punkt 2 -- der Kontobereich rechts.**
+
+- Neuer, gemeinsamer Helfer `app/auth.py::resolve_account_display(db, user) -> dict` (nach
+  `user_from_request()`): bevorzugt `Employee.first_name`/`last_name` über
+  `AppUser.employee_id` (seit 1.3.34 die Verknüpfung, aber **ohne** ORM-`relationship` -- daher
+  ein expliziter `db.get(Employee, id)`), fällt auf `username` zurück, wenn kein Mitarbeiter
+  verknüpft ist ODER die `employee_id` ins Leere zeigt (Verteidigung in der Tiefe). Initialen:
+  erstes Zeichen von Vor- und Nachname bei ≥2 Namensteilen ("Tobias Rödchen" → "TR"), sonst die
+  ersten zwei Zeichen des einzigen Teils, geklammert auf mindestens ein Zeichen (ein
+  einbuchstabiger Benutzername liefert genau diesen einen Buchstaben, keinen `IndexError`).
+  **Bewusst NICHT `AppUser.display_name`** -- das ist ein freies Textfeld ohne verlässliche
+  Vorname/Nachname-Trennung, `Employee.first_name`/`last_name` sind strukturierte Felder.
+- Fünfter Jinja-Global `account_display()` (`app/routers/pages.py::_account_display()`) --
+  umhüllt `resolve_account_display()` mit einer eigenen, kurzlebigen `SessionLocal()` (Muster
+  der bestehenden vier) und fängt jede Ausnahme ab (Prinzip aus 1.3.42: "ein Jinja-Global, der
+  auf jeder Seite läuft, darf nie eine Ausnahme werfen") -- Rückfall bei Fehler: der
+  Benutzername selbst, notfalls ein bloßes `"?"`. Anonym (kein `current_user`): leere Strings,
+  der Kontoknopf erscheint dann gar nicht. Als sechster `env.globals[...]`-Eintrag im
+  projektweiten Audit-Test (`test_no_further_database_backed_jinja_globals_exist_unguarded`,
+  `tests/test_v252_deployment_hardening.py`) mitgezählt.
+- **SSR statt zusätzlichem Fetch, bewusste Entscheidung**: Name/Initialen kommen direkt
+  server-seitig gerendert in die Seite (wie schon die Sidebar-Nutzerinfo) -- kein zusätzlicher
+  `fetch()`-Aufruf beim Laden nötig, da sich Initialen kaum je innerhalb einer Sitzung ändern.
+  Nur das Öffnen/Schließen des Menüs (Klick auf den Knopf, Klick daneben, Escape) braucht JS --
+  ohne jeden weiteren Netzwerkzugriff, da Name/Initialen bereits im HTML stehen.
+- Menü (`#appTopbarAccountMenu`): voller Name als Überschrift, `<a href="/account">Mein
+  Konto</a>`, `<button>Abmelden</button>` -- Logout dupliziert bewusst denselben
+  Fetch-plus-Redirect-Code aus `_sidebar.html` (etablierte Projektkonvention: kein gemeinsames
+  JS-Modul, kleine Snippets werden geteilt statt ausgelagert). Schließt bei Klick außerhalb
+  (`document.addEventListener("click", ...)`, prüft `!menu.contains(e.target)`) oder Escape.
+
+**Punkt 3 -- was in der Sidebar bleibt, unverändert.** "Abmelden" bleibt zusätzlich unten in der
+Sidebar (zwei Wege schaden nicht), ebenso Benutzername und Versionsnummer. Die beiden
+1.3.44-Schaltflächen (Hell/Dunkel, Ein-/Ausklappen) bleiben, wo sie sind -- `_sidebar.html` wird
+in diesem Schritt an keiner Stelle angefasst.
+
+**Rollout auf 31 Seiten**: jede Vorlage mit `{% include "_sidebar.html" %}` bekommt direkt nach
+dem öffnenden `<div class="app-content">` zusätzlich `{% include "_topbar.html" %}` -- per Grep
+verifiziert: genau 31 Treffer, je Datei genau einmal. **Bewusst ausgenommen**: die Monteursansicht
+(`vor_ort.html`, nutzt `_mobile_header.html` statt der Sidebar) -- eigene Einschätzung, die der
+Nutzer-Neigung ausdrücklich zustimmt: `_mobile_header.html` zeigt den Namen des angemeldeten
+Monteurs bereits prominent und hat einen eigenen Ein-Klick-Abmelden-Button; ein zusätzlicher,
+für den Desktop gedachter Kontoknopf/-menü würde der bewusst schmal gehaltenen, aufs Wesentliche
+reduzierten Feld-Tablet-Ansicht entgegenwirken. Als Konsistenz-Test festgehalten
+(`test_every_template_with_sidebar_also_includes_topbar`, `tests/test_v254_topbar.py`) --
+Partials (Dateien mit führendem `_`) sind davon ausgenommen, da `_topbar.html`s eigener,
+erklärender Jinja-Kommentar den Text `{% include "_sidebar.html" %}` selbst zitiert und sonst
+fälschlich als Treffer gezählt würde (reiner Text-Scan-Fund, kein Rendering-Risiko -- ein
+Jinja-Kommentar wird beim Rendern vollständig entfernt, anders als der 1.2.19-Fund in
+`_debounce.html`, der ein JS-Kommentar war).
+
+**Kein echter Browser-Screenshot möglich** (dieselbe Werkzeug-Einschränkung wie bei Schritt 1) --
+Platzierung/Sticky-Verhalten/Menü-Interaktion sind ausschließlich über eine bare
+`jinja2.Environment` mit gestubbten Globals (`tests/test_v254_topbar.py`) sowie an der reinen
+Markup-/CSS-Struktur nachgewiesen, nicht an einem gerenderten Bild. Sollte bei Gelegenheit im
+Browser gegenprüft werden.
 
 ## Migrations-Workflow
 

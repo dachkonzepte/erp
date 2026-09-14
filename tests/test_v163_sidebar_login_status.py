@@ -72,6 +72,10 @@ def _render(user):
     # Verhalten (Fallback auf den Schriftzug ohne Logo) wird in
     # tests/test_v249_sidebar_logo.py getestet.
     env.globals["sidebar_logo_url"] = lambda: None
+    # Seiten binden seit 1.3.45 zusätzlich _topbar.html ein, das account_display() aufruft
+    # (app/routers/pages.py) -- auch das nur ein Stub, echtes Verhalten wird in
+    # tests/test_v254_topbar.py getestet.
+    env.globals["account_display"] = lambda current_user: {"full_name": "", "initials": ""}
     tmpl = env.get_template("project_folder.html")  # eine beliebige Seite, die _sidebar.html einbindet
     return tmpl.render(request=FakeRequest("/x", user), app_version="1.0.63", project_id=1)
 

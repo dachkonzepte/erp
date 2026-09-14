@@ -4,6 +4,33 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.45 – Umgestaltung der Sidebar, Schritt 2: Topbar
+
+Zweiter von vier geplanten Schritten (Suche und Schnellzugriff folgen einzeln in späteren
+Versionen). Eine neue, beim Scrollen sichtbare Leiste (`_topbar.html`) sitzt jetzt oberhalb des
+Inhaltsbereichs auf allen 31 Seiten mit Sidebar -- beginnt rechts neben der Sidebar, nie über sie
+hinweg, im bestehenden Design-System ohne eigene Farben. Links bleibt in diesem Schritt Platz für
+die in Schritt 3 folgende Suche reserviert.
+
+Rechts erscheint ein runder Kontoknopf mit den Initialen des angemeldeten Benutzers -- bei
+"Tobias Rödchen" also "TR". Ein neuer, gemeinsamer Helfer (`resolve_account_display()`) liest den
+vollen Namen bevorzugt vom über `employee_id` verknüpften `Employee` (Vor-/Nachname), fällt ohne
+Verknüpfung auf den Benutzernamen zurück -- bewusst nicht auf das freie `display_name`-Feld, das
+sich nicht verlässlich in zwei Namensteile trennen lässt. Ein Klick öffnet ein kleines Menü mit
+vollem Namen, "Mein Konto" und "Abmelden"; es schließt sich bei Klick daneben oder mit Escape.
+"Abmelden" bleibt zusätzlich unten in der Sidebar, ebenso Benutzername/Versionsnummer und die
+beiden 1.3.44-Schaltflächen -- zwei Wege zum Abmelden schaden nicht.
+
+Die Monteursansicht (`/vor-ort`) bekommt bewusst keine Topbar -- sie nutzt `_mobile_header.html`,
+das den Namen des Monteurs bereits zeigt und einen eigenen Abmelden-Button hat; ein zusätzlicher,
+für den Desktop gedachter Kontoknopf würde der bewusst schmal gehaltenen Feld-Tablet-Ansicht
+entgegenwirken. Kollision mit der Sidebar in beiden Engpasszuständen geprüft: die eingeklappte
+Desktop-Sidebar (60px) und die mobile Off-Canvas-Sidebar verschieben die Topbar bereits durch die
+bestehende Flexbox-Aufteilung korrekt, ohne eigene Sonderbehandlung -- eine geöffnete mobile
+Sidebar überlagert die Topbar dabei absichtlich (niedrigeres z-index). Fünfter, ebenso
+ausnahmegesicherter Jinja-Global (`account_display()`, Prinzip aus 1.3.42) -- ein DB-Fehler fällt
+auf den Benutzernamen zurück statt die Seite mitzureißen.
+
 ## 1.3.44 – Umgestaltung der Sidebar, Schritt 1: Kopfbereich und Schaltflächen
 
 Erster von vier geplanten Schritten (Topbar, Suche und Schnellzugriff folgen einzeln in

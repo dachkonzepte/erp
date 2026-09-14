@@ -9,6 +9,7 @@
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
+{% include "_topbar.html" %}
 <main><div class="breadcrumb" id="breadcrumb">Lädt …</div><div class="top"><div class="grow"><b id="invTitle">Rechnung wird geladen …</b><div id="invContext" class="muted small"></div></div><div class="top-actions"><a id="backOrder" href="#">← Auftrag</a><button class="secondary" onclick="window.open('/api/invoices/'+invoiceId+'/pdf','_blank')">PDF herunterladen</button></div><span id="statusBadge" class="badge">—</span><div class="metrics"><div class="metric"><small>Netto</small><b id="mNet">—</b></div><div class="metric"><small>MwSt.</small><b id="mVat">—</b></div><div class="metric"><small>Brutto</small><b id="mGross">—</b></div></div></div>
 <div id="editLockNotice" class="notice warning" style="display:none">Diese Rechnung ist versendet und kann nicht mehr bearbeitet werden. Korrekturen laufen über eine Stornorechnung.</div>
 <div class="layout">

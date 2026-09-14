@@ -2,6 +2,7 @@
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
+{% include "_topbar.html" %}
 <main><a class="back" href="#" onclick="history.back();return false">← Einstellungen</a><div class="card"><h2>Änderungshistorie</h2><div class="filters"><div><label>Suche</label><input id="q" placeholder="Datensatz, Feld, alter/neuer Wert …" oninput="render()"></div><div><label>Bereich</label><select id="type" onchange="load()"><option value="">Alle Bereiche</option></select></div><div><label>Bearbeiter</label><input id="actor" placeholder="Name" onkeydown="if(event.key==='Enter')load()"></div><button onclick="load()">Aktualisieren</button></div><div class="muted" style="margin-bottom:10px">Das Protokoll ist über die normale ERP-Oberfläche nicht bearbeitbar oder löschbar.</div><div class="scroll"><table><thead><tr><th>Zeitpunkt</th><th>Wer</th><th>Aktion</th><th>Bereich / Datensatz</th><th>Feld</th><th>Änderung</th></tr></thead><tbody id="rows"></tbody></table></div></div></main>
 </div>
 </div>

@@ -8,6 +8,7 @@
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
+{% include "_topbar.html" %}
 <main><div class="layout"><aside class="side"><h3>Projekte & Vorgänge</h3><button data-view="projects" onclick="showView('projects')">Projekte <span id="nProjects" class="badge"></span></button><button data-view="quotes" onclick="showView('quotes')">Angebote <span id="nQuotes" class="badge"></span></button><button data-view="orders" onclick="showView('orders')">Aufträge <span id="nOrders" class="badge"></span></button><button data-view="inquiries" onclick="showView('inquiries')">Anfragen <span id="nInquiries" class="badge"></span></button><button data-view="templates" onclick="showView('templates')">Mustervorgänge <span id="nTemplates" class="badge"></span></button></aside>
 <section class="card"><div class="head"><div><h1 id="title">Projekte</h1><div id="subtitle" class="muted small"></div></div><div class="toolbar"><input id="search" class="search" placeholder="Suchen …" oninput="render()"><label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650;color:var(--ink)"><input type="checkbox" id="showArchived" style="width:auto" onchange="render()"> Archivierte anzeigen</label><a id="addLink" class="add" href="/projects/new">+ Projekt</a></div></div><div id="content"></div></section></div></main>
 </div>

@@ -38,6 +38,7 @@ tr:last-child td{border-bottom:none}
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
+{% include "_topbar.html" %}
 <main>
 {% if is_module_enabled('wartungen') %}
 <div class="hero"><div><h1>Prüfvorlagen</h1><div class="muted small">Prüfpunkte je Dachtyp für Wartungsberichte -- werden beim Anlegen eines Wartungsberichts gegen den tatsächlichen Bauteilbestand der Dachfläche multipliziert.</div></div><div style="display:flex;gap:14px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650"><input type="checkbox" id="showArchived" style="width:auto" onchange="renderRows()"> Archivierte anzeigen</label><button onclick="openCreateEditor()">+ Neue Vorlage</button></div></div>

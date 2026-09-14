@@ -1,0 +1,96 @@
+{# _topbar.html -- Leiste oberhalb des Inhaltsbereichs (seit 1.3.45, "Umgestaltung der Sidebar",
+   Schritt 2/4, siehe CLAUDE.md). Wird als ERSTES Kind innerhalb von .app-content eingebunden --
+   also NACH {% include "_sidebar.html" %}, direkt hinter <div class="app-content">, VOR <main>
+   -- dadurch beginnt sie automatisch rechts neben der Sidebar (kein CSS-Sonderfall nötig: die
+   Sidebar ist ein eigener Flex-Nachbar von .app-content, die Topbar liegt INNERHALB von
+   .app-content). Bleibt beim Scrollen sichtbar über position:sticky;top:0 -- dieselbe Technik
+   wie .app-sidebar selbst (dort zusätzlich height:100vh, hier nicht nötig, da die Topbar nur
+   eine schmale Zeile ist, kein volles Rail).
+
+   Design-System: ausschließlich vorhandene --card/--line/--ink/--muted/--soft/--accent-
+   Variablen (dieselben, die jede Seite ohnehin in ihrem eigenen :root definiert, siehe
+   CLAUDE.md "Design-System") -- keine eigenen Farben.
+
+   Kollision mit der Sidebar geprüft, beide Zustände: eingeklappt (60px, Desktop) --
+   .app-content{flex:1} füllt automatisch den verbleibenden Platz, die Topbar (darin) beginnt
+   entsprechend weiter links, keine Überlappung. Schmaler Bildschirm (<1000px) -- .app-sidebar
+   wird dort position:fixed (siehe _sidebar.html), fällt dadurch aus der Flex-Berechnung von
+   .app-layout heraus, .app-content (und damit die Topbar) nimmt die volle Breite ein; eine
+   geöffnete Mobil-Sidebar (.mobile-open, z-index:40) legt sich beim Öffnen bewusst ÜBER die
+   Topbar (z-index hier niedriger, siehe unten) -- das ist das gewünschte Überlagern einer
+   Flyout-Schublade, keine kaputte Kollision.
+
+   Links bleibt in diesem Schritt bewusst leer (.app-topbar-search-slot, flex:1) -- dort kommt
+   in Schritt 3 die Suche hinein, der Platz ist bereits reserviert.
+
+   Kontoknopf rechts: runde Schaltfläche mit den Initialen (account_display(current_user),
+   siehe app/auth.py::resolve_account_display() -- bevorzugt Employee.first_name/last_name über
+   AppUser.employee_id (seit 1.3.34), sonst der Benutzername). Klick öffnet ein Menü mit vollem
+   Namen als Überschrift, "Mein Konto" (-> /account) und "Abmelden" -- schließt bei Klick daneben
+   oder Escape. "Abmelden" dupliziert bewusst dieselben drei Zeilen wie
+   _sidebar.html::bindLogout() (kein gemeinsames JS-Modul in diesem Projekt, siehe an anderer
+   Stelle bereits etablierte Konvention) -- "Abmelden" bleibt dabei ZUSÄTZLICH unten in der
+   Sidebar bestehen (zwei Wege schaden nicht, siehe CLAUDE.md).
+
+   Erscheint NICHT auf /vor-ort -- _mobile_header.html hat seit 1.3.0 einen eigenen, bewusst
+   schmal gehaltenen Aufbau und bindet dieses Include nicht ein.
+
+   Ohne angemeldeten Benutzer bleibt der Kontobereich rechts leer (praktisch nie der Fall, jede
+   Seite mit Topbar verlangt ohnehin eine Anmeldung) -- defensiv statt eines leeren/kaputten
+   Knopfes. #}
+{% set current_user = request.state.erp_user %}
+{% set _account = account_display(current_user) %}
+<style>
+.app-topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line)}
+.app-topbar-search-slot{flex:1;min-width:0}
+.app-topbar-account{position:relative;flex:0 0 auto}
+.app-topbar-account-btn{width:38px;height:38px;border-radius:50%;background:var(--accent);color:#fff;border:0;font-weight:800;font-size:13px;letter-spacing:.02em;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.app-topbar-account-btn:hover{background:color-mix(in srgb,var(--accent) 85%,black)}
+.app-topbar-account-btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.app-topbar-account-menu{position:absolute;top:calc(100% + 8px);right:0;min-width:200px;background:var(--card);border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:45;padding:6px}
+.app-topbar-account-menu[hidden]{display:none}
+.app-topbar-account-name{padding:8px 10px;font-weight:800;color:var(--ink);font-size:13px;border-bottom:1px solid var(--line);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.app-topbar-account-menu a,.app-topbar-account-menu button{display:block;width:100%;text-align:left;padding:9px 10px;font:inherit;font-size:13.5px;font-weight:650;color:var(--ink);background:none;border:0;text-decoration:none;cursor:pointer;box-sizing:border-box}
+.app-topbar-account-menu a:hover,.app-topbar-account-menu button:hover{background:var(--soft)}
+@media(max-width:1000px){.app-topbar{padding:10px 16px}}
+</style>
+<div class="app-topbar">
+  <div class="app-topbar-search-slot"></div>
+  <div class="app-topbar-account">
+    {% if current_user %}
+    <button type="button" class="app-topbar-account-btn" id="appTopbarAccountBtn" aria-haspopup="true" aria-expanded="false" title="{{ _account.full_name }}">{{ _account.initials }}</button>
+    <div class="app-topbar-account-menu" id="appTopbarAccountMenu" hidden>
+      <div class="app-topbar-account-name">{{ _account.full_name }}</div>
+      <a href="/account">Mein Konto</a>
+      <button type="button" id="appTopbarLogout">Abmelden</button>
+    </div>
+    {% endif %}
+  </div>
+</div>
+<script>
+(function(){
+  var btn=document.getElementById('appTopbarAccountBtn');
+  var menu=document.getElementById('appTopbarAccountMenu');
+  if(!btn||!menu)return;
+  var close=function(){menu.hidden=true;btn.setAttribute('aria-expanded','false')};
+  var open=function(){menu.hidden=false;btn.setAttribute('aria-expanded','true')};
+  btn.addEventListener('click',function(e){
+    e.stopPropagation();
+    if(menu.hidden)open();else close();
+  });
+  document.addEventListener('click',function(e){
+    if(!menu.hidden && !menu.contains(e.target) && e.target!==btn)close();
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape' && !menu.hidden)close();
+  });
+  var logoutBtn=document.getElementById('appTopbarLogout');
+  if(logoutBtn){
+    logoutBtn.addEventListener('click',function(){
+      fetch('/api/auth/logout',{method:'POST'}).finally(function(){
+        location.href='/login?next='+encodeURIComponent(location.pathname);
+      });
+    });
+  }
+})();
+</script>

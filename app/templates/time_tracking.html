@@ -8,6 +8,7 @@
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
+{% include "_topbar.html" %}
 <main><div class="grid"><div>
 <div class="card"><div class="date-head"><div><h2>Zeiterfassung</h2><div class="muted small">Ist-Stunden direkt auf Auftrag und optional LV-Position buchen.</div></div><div id="employeeWrap" class="field" style="min-width:230px"><label>Mitarbeiter</label><select id="employee" onchange="employeeChanged()"></select></div></div></div><div id="loadWarning" class="card" style="display:none;border-color:var(--warning);background:var(--warning-soft);color:var(--ink)"></div>
 <div id="activeCard" class="card" style="display:none"><div class="timer"><div class="small muted">Laufende Zeiterfassung</div><div id="activeTime" class="timer-time">00:00:00</div><div id="activeContext" class="timer-context"></div><div id="activeMeta" class="small muted"></div><div class="fields" style="margin-top:12px"><div class="field"><label>Zusätzliche Pause beim Stoppen (Min.)</label><input id="stopBreak" type="number" min="0" step="5" value="0"></div><div style="align-self:end"><button class="danger" style="width:100%" onclick="stopCurrent()">■ Zeit stoppen</button></div></div></div></div>

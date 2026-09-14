@@ -55,6 +55,7 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
+{% include "_topbar.html" %}
 <main>
 {% if is_module_enabled('aufgabenmanagement') %}
 <div class="hero"><div><h1>Aufgaben</h1><div class="muted small">Eigene und zugewiesene Aufgaben, optional mit einem Projekt verknüpft.</div></div><button onclick="openCreateEditor()">+ Aufgabe</button></div>

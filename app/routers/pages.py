@@ -14,6 +14,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from ..auth import resolve_account_display
 from ..company_logo import DEFAULT_SIDEBAR_LOGO_HEIGHT_PX, sidebar_logo_filename
 from ..company_logo import sidebar_logo_height_px as _sidebar_logo_height_px_lookup
 from ..database import SessionLocal, get_db
@@ -29,15 +30,16 @@ router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
 
-# Die vier Jinja-Globals unten laufen bei JEDER Seitenanfrage (jede Seite bindet _sidebar.html
-# ein, das get_theme()/is_module_enabled()/sidebar_logo_url()/sidebar_logo_height_px() aufruft) --
-# jeweils mit einer eigenen, kurzlebigen SessionLocal(), siehe Docstrings unten. Ein DB-Zustand,
-# der eine dieser Funktionen zum Werfen bringt (z. B. eine durch eine uebersprungene Migration
-# fehlende Spalte, oder ein general_settings.logo_filename, das auf eine kaputte Datei zeigt),
-# darf deshalb NIE als Ausnahme durchschlagen -- sonst antwortet JEDE Seite mit 500,
-# einschliesslich der Anmeldeseite, und niemand kommt mehr ins System, um es zu reparieren
-# (realer Vorfall, siehe CLAUDE.md). Jede der vier Funktionen faengt deshalb jede Ausnahme ab,
-# loggt sie und faellt auf einen sicheren, immer darstellbaren Wert zurueck.
+# Die fuenf Jinja-Globals unten laufen bei JEDER Seitenanfrage (jede Seite bindet _sidebar.html
+# UND seit 1.3.45 _topbar.html ein, die get_theme()/is_module_enabled()/sidebar_logo_url()/
+# sidebar_logo_height_px()/account_display() aufrufen) -- jeweils mit einer eigenen,
+# kurzlebigen SessionLocal(), siehe Docstrings unten. Ein DB-Zustand, der eine dieser Funktionen
+# zum Werfen bringt (z. B. eine durch eine uebersprungene Migration fehlende Spalte, oder ein
+# general_settings.logo_filename, das auf eine kaputte Datei zeigt), darf deshalb NIE als
+# Ausnahme durchschlagen -- sonst antwortet JEDE Seite mit 500, einschliesslich der
+# Anmeldeseite, und niemand kommt mehr ins System, um es zu reparieren (realer Vorfall, siehe
+# CLAUDE.md). Jede der fuenf Funktionen faengt deshalb jede Ausnahme ab, loggt sie und faellt
+# auf einen sicheren, immer darstellbaren Wert zurueck.
 
 
 def _current_theme() -> dict:
@@ -114,6 +116,27 @@ def _sidebar_logo_height_px() -> int:
 
 templates.env.globals["sidebar_logo_url"] = _sidebar_logo_url
 templates.env.globals["sidebar_logo_height_px"] = _sidebar_logo_height_px
+
+
+def _account_display(current_user) -> dict:
+    """Jinja-Global (seit 1.3.45): liefert vollen Namen + Initialen für den Kontoknopf der
+    Topbar (_topbar.html) -- current_user ist request.state.erp_user (None, falls nicht
+    angemeldet), von der aufrufenden Vorlage bereits als current_user gesetzt (Muster
+    _sidebar.html). Die eigentliche "woher kommt der Name"-Entscheidung liegt bewusst in
+    auth.py::resolve_account_display(), nicht hier -- dieser Global bleibt ein reiner
+    DB-Zugriffs-Baukasten wie get_theme()/sidebar_logo_url() oben."""
+    if current_user is None:
+        return {"full_name": "", "initials": ""}
+    try:
+        with SessionLocal() as db:
+            return resolve_account_display(db, current_user)
+    except Exception:
+        logger.exception("account_display() fehlgeschlagen, falle auf den Benutzernamen zurück")
+        username = getattr(current_user, "username", "") or ""
+        return {"full_name": username, "initials": (username[:2].upper() if username else "?")}
+
+
+templates.env.globals["account_display"] = _account_display
 
 
 @router.get("/login", response_class=HTMLResponse)

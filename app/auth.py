@@ -11,7 +11,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from . import login_security
-from .models import AppUser
+from .models import AppUser, Employee
 from .paths import data_dir
 
 COOKIE_NAME = "dk_erp_auth"
@@ -136,6 +136,31 @@ def user_from_request(db, request):
         return None
     user = db.get(AppUser, user_id)
     return user if user and user.active else None
+
+
+def resolve_account_display(db, user: AppUser) -> dict:
+    """Liefert vollen Namen und Initialen für den Kontoknopf der Topbar (seit 1.3.45, siehe
+    CLAUDE.md "Umgestaltung der Sidebar") -- bevorzugt aus dem über AppUser.employee_id (seit
+    1.3.34) verknüpften Employee (first_name/last_name), da AppUser.display_name ein einzelnes
+    Freitextfeld ist, das sich nicht zuverlässig in zwei Initialen zerlegen lässt ("Tobias
+    Rödchen" -> "TR" braucht die getrennten Namensteile, nicht irgendeinen Anzeigetext). Fehlt
+    die Verknüpfung (oder zeigt sie ins Leere, z. B. ein gelöschter Mitarbeiter), fällt es auf
+    den Benutzernamen zurück."""
+    full_name = None
+    if user.employee_id:
+        employee = db.get(Employee, user.employee_id)
+        if employee is not None:
+            full_name = f"{employee.first_name} {employee.last_name}".strip()
+    if not full_name:
+        full_name = user.username
+    parts = full_name.split()
+    if len(parts) >= 2:
+        initials = (parts[0][0] + parts[-1][0]).upper()
+    elif parts and parts[0]:
+        initials = parts[0][:2].upper()
+    else:
+        initials = "?"
+    return {"full_name": full_name, "initials": initials}
 
 
 def make_otp_ok_cookie(user_id: int) -> str:

@@ -27,6 +27,7 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
+{% include "_topbar.html" %}
 <main>
 <a class="back no-print" href="/" onclick="if(document.referrer){history.back();return false}">← Zur Startseite</a>
 <div id="loadingMsg" class="muted">Lädt …</div>

@@ -10,6 +10,7 @@
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
+{% include "_topbar.html" %}
 <main>
 <div class="toolbar"><h1>Plantafel</h1><button class="secondary" onclick="movePeriod(-7)">← Woche</button><button class="secondary" onclick="goToday()">Heute</button><button class="secondary" onclick="movePeriod(7)">Woche →</button><input id="startPicker" type="date" onchange="jumpToDate(this.value)"><select id="rangeDays" onchange="loadBoard()"><option value="14">2 Wochen</option><option value="21">3 Wochen</option><option value="28">4 Wochen</option></select><div class="viewtabs"><button data-view="teams" onclick="setView('teams')">Kolonnen</button><button data-view="employees" onclick="setView('employees')">Mitarbeiter</button><button data-view="resources" onclick="setView('resources')">Fahrzeuge / Maschinen</button></div><button class="secondary" onclick="openAbsences()">Abwesenheiten</button><button onclick="openCreate()">+ Einsatz planen</button><span class="statusbar" id="status">—</span></div>
 <div id="conflictBanner"></div>

@@ -10,6 +10,7 @@
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
+{% include "_topbar.html" %}
 <main>
 <a class="back" href="#" onclick="history.back();return false">← Einstellungen</a>
 <div class="card"><h2>ERP-Benutzer</h2><p class="muted">Administratoren können Benutzerkonten bearbeiten, Passwörter zurücksetzen, aktivieren/deaktivieren und löschen. Änderungen werden im Audit-Log protokolliert.</p><div id="authInfo" class="muted"></div><div id="soleAdminWarning" class="hidden" style="background:var(--danger-soft);color:var(--danger);padding:10px 12px;margin:10px 0;font-size:13px">Es gibt aktuell nur einen einzigen aktiven Administrator. Der Weg "Zweiten Faktor zurücksetzen" über diese Seite steht deshalb praktisch nicht zur Verfügung -- die eigenen, ausgedruckten Wiederherstellungscodes und das Notfallskript auf dem Server (siehe CLAUDE.md) sind die einzige Absicherung, falls das Telefon mit der Authenticator-App verloren geht.</div><div style="overflow:auto"><table><thead><tr><th>Benutzer</th><th>Anzeigename</th><th>Mitarbeiter</th><th>Rolle</th><th>Status</th><th>2FA</th><th>Letzte Anmeldung</th><th></th></tr></thead><tbody id="rows"></tbody></table></div></div>
