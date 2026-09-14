@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.47 – Serverseitige Anmeldeschranke für Seiten
+
+Auf Nutzeranfrage geprüft, wie sich `/` ohne Anmeldung, `/` mit Anmeldung und `/login` bei
+bestehender Anmeldung verhalten. Befund: bisher rendierte jede Seite -- auch `/`, `/tasks`,
+`/settings` -- ihr Gerüst mit Status 200 unabhängig vom Anmeldestatus, keine Umleitung, kein
+Fehler; die einzige Reaktion auf fehlende Anmeldung war ein Login-Formular im Fußbereich der
+Sidebar, der übrige Seiteninhalt blieb (nutzlos) stehen. `/` mit Anmeldung zeigte das Dashboard
+bereits korrekt (keine separate `/dashboard`-Route, `/` rendert es direkt). `/login` bei
+bestehender Anmeldung zeigte die Maske unverändert erneut.
+
+Zwei Behebungen: eine neue, serverseitige Prüfung leitet eine Seitenanfrage ohne angemeldeten
+Benutzer jetzt auf `/login` um (ausgenommen `/login` selbst, `/health`, `/manifest.json` und
+die Bootstrap-Phase vor der allerersten Kontoanlage); `/login` leitet umgekehrt weiter, wenn
+schon jemand angemeldet ist -- aufs Dashboard, oder auf "Mein Konto", falls ein Administrator
+den zweiten Faktor noch nicht bestätigt hat.
+
+Auf Nachfrage zusätzlich ergänzt, mit minimalem Aufwand, da die Anmeldeseite den nötigen
+Parameter bereits liest: die neue Umleitung merkt sich die ursprünglich gewünschte Seite
+(`?next=`) und führt nach dem Anmelden dorthin zurück, statt immer aufs Dashboard.
+
 ## 1.3.46 – Mobiler Öffnen-Umschalter für die Sidebar
 
 Echter Nebenbefund aus 1.3.45, behoben vor Schritt 3 (Suche). Auf einem schmalen Bildschirm gab

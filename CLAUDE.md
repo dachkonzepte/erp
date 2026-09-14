@@ -20,12 +20,13 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.46** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.47** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf weiterhin `60d7c8a775f0` ("raise default sidebar logo height") -- weder
-  1.3.45 (Topbar) noch 1.3.46 (mobiler Öffnen-Umschalter) brauchten eine eigene Migration, da
-  beide ausschließlich Python/Jinja/CSS/JS anfassen, keine Datenbankspalte -- bei Bedarf per
-  `alembic history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1111/1111**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
+  1.3.45 (Topbar), 1.3.46 (mobiler Öffnen-Umschalter) noch 1.3.47 (Anmeldeschranke für Seiten)
+  brauchten eine eigene Migration, da alle drei ausschließlich Python/Jinja/CSS/JS anfassen,
+  keine Datenbankspalte -- bei Bedarf per `alembic history`/`heads` prüfen statt sich auf eine
+  hier aufgeschriebene Liste zu verlassen.
+- Tests: **1125/1125**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -585,6 +586,18 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   vollständig aus (kein Kollabieren im Desktop-Sinn auf Mobilgeräten, nur Auf/Zu -- zwei
   Bedienungen für dieselbe Aktion nebeneinander wären verwirrender gewesen). Details im
   Abschnitt "Umgestaltung der Sidebar" → "Nachtrag zu Schritt 2" unten.
+- Neu seit 1.3.47: **Serverseitige Anmeldeschranke für Seiten.** Auf Nutzeranfrage geprüft:
+  bisher rendierte JEDE Seite (auch `/`, `/tasks`, `/settings`) ihr Gerüst unabhängig vom
+  Anmeldestatus -- keine Umleitung, kein Fehler, nur clientseitig ein Login-Formular im
+  Sidebar-Fußbereich. Jetzt: ohne Anmeldung führt jede Seite (außer `/login`/`/health`/
+  `/manifest.json`, plus die bestehende Bootstrap-Ausnahme) auf `/login`, `/login` bei
+  bestehender Anmeldung leitet aufs Dashboard weiter (bzw. `/account` bei ausstehendem
+  zweitem Faktor) statt die Maske erneut zu zeigen. `/` mit Anmeldung zeigte das Dashboard
+  bereits korrekt (keine Änderung nötig). Auf Nachfrage ergänzt, Kosten minimal, da
+  `login.html` es bereits liest: die Umleitung hängt `?next=<Pfad>` an, dieselbe Konvention
+  wie die bestehenden Abmelden-Links -- nach dem Anmelden geht es zur ursprünglich
+  gewünschten Seite, nicht immer zum Rückfall `/projects`. Details im neuen Abschnitt
+  "Serverseitige Anmeldeschranke für Seiten" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -4433,6 +4446,77 @@ normale Benutzer, nicht nur Administratoren), Seiteninhalt/Verdrahtung (Muster
 `test_v163_sidebar_login_status.py`), und `scripts/reset_admin_2fa.py`s `main()` direkt gegen
 eine isolierte Testdatenbank (niemals die echte `DATABASE_URL`) -- Bestätigung korrekt/falsch/
 `--yes`/unbekannter Benutzername.
+
+## Serverseitige Anmeldeschranke für Seiten (seit 1.3.47)
+
+Auf Nutzeranfrage geprüft: was passiert bei Aufruf von `/` ohne Anmeldung, `/` mit
+Anmeldung, `/login` bei bestehender Anmeldung -- und ob nach dem Anmelden zur ursprünglich
+gewünschten Seite zurückgeführt wird. Befund vor dieser Version: **keine** HTML-Seite prüfte
+den Anmeldestatus serverseitig -- jede Seite (auch `/tasks`, `/settings`, `/` selbst) rendere
+ihr Gerüst mit Status 200, unabhängig davon, ob jemand angemeldet war. Die einzige
+Auswirkung fehlender Anmeldung war rein clientseitig: `_sidebar.html`s
+`fetch('/api/auth/status')` zeigte dann nur ein Login-Formular im Fußbereich, der übrige
+Seiteninhalt blieb (nutzlos) stehen. `/` mit Anmeldung zeigte bereits korrekt das Dashboard
+-- aber nicht durch eine Weiterleitung, sondern weil `/` schon immer direkt `dashboard.html`
+rendert (`dashboard_page()`, keine separate `/dashboard`-Route). `/login` bei bestehender
+Anmeldung zeigte die Maske unverändert erneut -- `login_page()` prüfte den Anmeldestatus
+gar nicht.
+
+**Behoben, zwei Teile:**
+
+1. **`app/main.py::_page_requires_login(has_users, method, path)`** -- bewusst eine neue,
+   getrennte Funktion, NICHT in `_request_requires_login()` verschmolzen: eine `/api/`-Anfrage
+   soll bei fehlender Anmeldung weiterhin die dortige 401-JSON-Antwort bekommen, nie einen
+   Redirect auf eine HTML-Seite (ein API-Client könnte damit nichts anfangen). Greift nur bei
+   `GET`, nicht `/api/...`, und lässt `/login` (sonst könnte sich niemand anmelden), `/health`
+   (externe Überwachung, bereits zuvor ungated) und `/manifest.json` (reine PWA-Ressource der
+   Monteursansicht, ohnehin nur von der bereits angemeldeten Seite `/vor-ort` aus verlinkt)
+   sowie die bereits bestehende Bootstrap-Ausnahme (kein einziger ERP-Benutzer angelegt --
+   `/users` muss für die allererste Kontoanlage erreichbar bleiben) unangetastet. In der
+   Middleware (`identity_and_audit_middleware`) verdrahtet: ohne angemeldeten Benutzer liefert
+   eine sonst betroffene Seite jetzt `302 → /login?next=<Pfad>` statt zu rendern.
+2. **`app/routers/pages.py::login_page()`** -- leitet weiter, wenn `request.state.erp_user`
+   bereits gesetzt ist: auf `/`, außer ein Administrator hat den zweiten Faktor noch nicht
+   bestätigt (`not request.state.otp_ok`), dann auf `/account` -- dort ist ohnehin nichts
+   anderes nutzbar (siehe `_blocked_pending_two_factor()`), ein Redirect aufs Dashboard hätte
+   dort nur einen weiteren, überflüssigen Zwischenschritt über `_sidebar.html`s eigene
+   Weiterleitung erzeugt.
+
+**Rückführung zur ursprünglich gewünschten Seite (`?next=`), auf Nachfrage ergänzt** -- Kosten
+waren minimal, da `login.html` einen solchen Parameter bereits liest und honoriert (bisher nur
+für die bestehenden Abmelden-Links gebaut, siehe `_sidebar.html`/`_topbar.html`/
+`_mobile_header.html`/`vor_ort.html`: `location.href='/login?next='+encodeURIComponent(
+location.pathname)`). Der neue Redirect in `identity_and_audit_middleware` hängt dieselbe
+Konvention an (`?next=<Pfad>`, ohne Query-String -- exakt wie bei jenen Links) -- keine
+Template-Änderung nötig, `login.html`s Anmeldeformular führt danach automatisch zur
+ursprünglich gewünschten Seite statt immer zu `/projects` (dem bisherigen Rückfall ohne
+`next`, unverändert).
+
+**Fallstrick beim Testen, selbst gefunden**: `tests/test_v218_template_rendering.py`
+(`router_test_client()`, injiziert einen fest angemeldeten Admin-Kontext OHNE die produktive
+Middleware) rendert JEDE Seiten-Route inkl. `/login` -- die neue `login_page()`-Logik griff
+dabei auf `request.state.otp_ok` zu, das dieser Testaufbau nie setzt (nur die echte Middleware
+tut das). `AttributeError` statt eines einfachen Testfehlers. Behoben durch
+`getattr(request.state, "otp_ok", True)` statt direktem Attributzugriff -- robuster
+Rückfallwert, passend zum bereits etablierten Muster in `app/deps.py::require_admin()`
+(`getattr(request.state, "erp_user", None)`).
+
+**Isolierter Ende-zu-Ende-Test** (`tests/test_v256_login_wall_for_pages.py`, Muster
+`test_v250_two_factor_auth.py::_make_test_app()` -- eigene, throwaway In-Memory-SQLite-Engine,
+eigene, aus den echten Funktionen `_page_requires_login()`/`_request_requires_login()`
+nachgebaute Middleware, NICHT `router_test_client()`, das für "ohne Anmeldung"-Szenarien
+ungeeignet ist): direkte Prüfung der Entscheidungsregel selbst (analog
+`test_v106_access_control.py`), sowie über einen echten `TestClient` mit echten Cookies --
+unangemeldeter Aufruf einer geschützten Seite liefert `302` mit korrektem `next=`, `/login`
+selbst bleibt erreichbar und zeigt die Maske, `/health` bleibt ungated, die Bootstrap-Ausnahme
+vor der ersten Kontoanlage greift, eine angemeldete Person erreicht Seiten direkt, `/login`
+leitet eine bereits angemeldete Person weiter (auf `/` bzw. `/account` bei ausstehendem
+zweitem Faktor). **Bewusst nicht end-to-end mit echtem Browser geprüft** (dieselbe, bereits
+mehrfach dokumentierte Werkzeug-Einschränkung dieser Umgebung) -- `login.html`s eigene,
+bereits bestehende JS-Auswertung von `next` (unverändert) lässt sich ohne echten Browser
+nicht ausführen; die Tests belegen stattdessen den vollständigen SERVERSEITIGEN Anteil des
+Rundwegs (korrekter `next`-Wert im Redirect, Zielseite nach der Anmeldung tatsächlich direkt
+erreichbar).
 
 ## PostgreSQL-Umstieg: Migrationskette repariert (seit 1.3.35)
 

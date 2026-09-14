@@ -10,7 +10,7 @@ import logging
 from fastapi import APIRouter
 from pathlib import Path
 from fastapi import Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -141,6 +141,17 @@ templates.env.globals["account_display"] = _account_display
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
+    """Seit 1.3.47: zeigt die Anmeldemaske nicht noch einmal, wenn schon jemand angemeldet ist
+    (vorher: die Maske erschien unverändert erneut, unabhängig vom Anmeldestatus). Ein
+    Administrator mit noch unbestätigtem zweitem Faktor geht dabei -- wie überall sonst,
+    siehe login.html/_sidebar.html -- direkt nach "Mein Konto", nicht aufs Dashboard, da dort
+    ohnehin nichts nutzbar wäre."""
+    current_user = getattr(request.state, "erp_user", None)
+    if current_user is not None:
+        otp_ok = getattr(request.state, "otp_ok", True)
+        if current_user.role == "admin" and not otp_ok:
+            return RedirectResponse(url="/account", status_code=302)
+        return RedirectResponse(url="/", status_code=302)
     return templates.TemplateResponse(request=request, name="login.html", context={})
 
 

@@ -1,8 +1,9 @@
 import logging
 import os
+from urllib.parse import quote
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from .audit import reset_audit_context, set_audit_context
 from .auth import otp_ok_for_user, user_from_request, users_exist, warn_if_secret_key_mismatches_file
@@ -156,6 +157,29 @@ def _request_requires_login(has_users: bool, method: str, path: str) -> bool:
     return method == "GET" and path.startswith("/api/")
 
 
+# Bleiben ohne Anmeldung erreichbar, obwohl sie keine /api/-Endpunkte sind: /login naturgemäß
+# (sonst könnte sich niemand anmelden), /health für externe Überwachung (bereits zuvor
+# ungated), /manifest.json als reine PWA-Ressource der Monteursansicht (wird ohnehin nur von
+# der bereits angemeldeten Seite /vor-ort aus verlinkt, siehe app/routers/field_view.py).
+_PUBLIC_PAGE_PATHS = {"/login", "/health", "/manifest.json"}
+
+
+def _page_requires_login(has_users: bool, method: str, path: str) -> bool:
+    """Seit 1.3.47: ohne Anmeldung führte jede Seite bisher zu einem stillen Rendern des
+    Seiten-Gerüsts (kein Redirect, kein Fehler) -- ob überhaupt etwas nutzbar ist, entschied
+    rein die clientseitige JS jeder Seite. Diese Funktion entscheidet stattdessen serverseitig,
+    ob eine HTML-Seitenanfrage ohne angemeldeten Benutzer auf /login umgeleitet wird.
+
+    Bewusst getrennt von _request_requires_login() oben, nicht darin verschmolzen: eine
+    /api/-Anfrage soll bei fehlender Anmeldung weiterhin die dortige 401-JSON-Antwort bekommen,
+    nie einen Redirect auf eine HTML-Seite -- ein API-Client würde eine Login-Seite als Antwort
+    nicht sinnvoll verarbeiten können. Bewusst nur GET: Seiten kennen ohnehin kein POST/PUT/....
+    """
+    if not has_users or method != "GET" or path.startswith("/api/"):
+        return False
+    return path not in _PUBLIC_PAGE_PATHS
+
+
 # Diese Endpunkte bleiben für einen Administrator erreichbar, dessen Sitzung das Passwort
 # bereits bestätigt hat, aber noch keinen zweiten Faktor -- alles andere unter /api/ ist
 # solange blockiert (seit 1.3.34, siehe CLAUDE.md "Zwei-Faktor-Authentifizierung für
@@ -195,6 +219,14 @@ async def identity_and_audit_middleware(request: Request, call_next):
         # API-Zugriffe nur angemeldet erlaubt (siehe _request_requires_login).
         if user is None and _request_requires_login(has_users, request.method, request.url.path):
             return JSONResponse(status_code=401, content={"detail":"Bitte zuerst als ERP-Benutzer anmelden."})
+        if user is None and _page_requires_login(has_users, request.method, request.url.path):
+            # Dieselbe ?next=<Pfad>-Konvention wie bei den bestehenden Abmelden-Links
+            # (_sidebar.html/_topbar.html/_mobile_header.html/vor_ort.html: location.href=
+            # '/login?next='+encodeURIComponent(location.pathname)) -- login.html liest und
+            # honoriert next bereits (siehe dort), nur der Query-String selbst wird bewusst
+            # nicht mitgegeben, exakt wie bei jenen Links.
+            next_target = quote(request.url.path, safe="")
+            return RedirectResponse(url=f"/login?next={next_target}", status_code=302)
         if user is not None and not otp_ok and _blocked_pending_two_factor(request.url.path):
             return JSONResponse(status_code=401, content={"detail": "Zwei-Faktor-Bestätigung ausstehend.", "two_factor_pending": True})
         try:
