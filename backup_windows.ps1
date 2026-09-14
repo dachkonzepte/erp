@@ -43,7 +43,7 @@ if ($RobocopyExitCode -ge 8) {
 $SizeMB = [math]::Round((Get-ChildItem $Destination -Recurse -File | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
 Write-Output "Backup erstellt: $Destination ($SizeMB MB)"
 
-$OldBackups = Get-ChildItem $DestinationRoot -Directory | Sort-Object CreationTime -Descending | Select-Object -Skip $KeepCount
+$OldBackups = Get-ChildItem $DestinationRoot -Directory -Filter "v*_*" | Sort-Object CreationTime -Descending | Select-Object -Skip $KeepCount
 foreach ($old in $OldBackups) {
     Remove-Item $old.FullName -Recurse -Force
     Write-Output "Altes Backup entfernt: $($old.FullName)"

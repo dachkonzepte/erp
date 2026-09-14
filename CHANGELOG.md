@@ -4,6 +4,65 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.41 – backup_windows.ps1: Bereinigung nur noch auf eigene Ordner beschränkt
+
+Echter Vorfall, kein vorsorglicher Fix: die automatische Bereinigung (seit 1.1.5, behält nur die
+3 jüngsten Backups) nahm bisher JEDEN Ordner unter `C:\DACHKONZEPTE-ERP\Backup\` in die Rotation
+auf, nicht nur die vom Skript selbst erzeugten (`v<VERSION>_<Zeitstempel>`). Ein dort ohne Bezug
+zu diesem Skript abgelegter Ordner `Server` (Kopien der Server-Sicherungen von
+`/home/tobias/backups/`) fiel dadurch bei einem Lauf aus der Rotation und wurde per
+`Remove-Item -Recurse -Force` gelöscht -- ohne Papierkorb, unwiderruflich. Kein echter
+Datenverlust (dieselben Sicherungen liegen unverändert auf dem Produktivserver), aber ein
+Weckruf: die Bereinigung filtert jetzt zusätzlich auf das eigene Namensmuster (`-Filter
+"v*_*"`) und rührt nichts anderes mehr an. **Neue Regel (siehe CLAUDE.md Regel 9): unter
+`Backup\` dürfen ausschließlich vom Skript selbst erzeugte Ordner liegen** -- alles andere
+gehört in einen separaten Ordner außerhalb davon.
+
+## 1.3.40 – Firmenlogo: verkleinerte Anzeige-Rendition für Sidebar/Vorschau
+
+Die real hochgeladene Logo-Datei war 8000×5295px/252KB. Da dieses Projekt ausschließlich
+klassische Mehrseiten-Navigation macht (keine SPA), lädt und dekodiert der Browser bei JEDER
+Seitenanfrage die vollen 42 Megapixel, nur um sie in der Sidebar auf 24-80px Höhe darzustellen.
+
+`replace_logo()` (`app/company_logo.py`) erzeugt beim Hochladen jetzt zusätzlich zur
+unveränderten Originaldatei (weiterhin für PDFs/das PWA-Icon, die beide direkt von der Platte
+lesen -- dort zählt die volle Auflösung tatsächlich) eine verkleinerte Anzeige-Rendition
+(längste Kante max. 480px, reicht für 80px CSS-Höhe selbst auf einem 3x-Retina-Bildschirm
+bequem aus). `GET /api/settings/general/logo` -- der einzige HTTP-Auslieferungsweg, genutzt von
+der Sidebar UND der Vorschau in den Einstellungen -- liefert bevorzugt diese Rendition, fällt
+auf das Original zurück, wenn keine existiert (SVG, oder ein vor dieser Version hochgeladenes
+Logo). Scheitert die Rendition-Erzeugung, bricht der Upload nicht ab. Zusätzlich
+`Cache-Control: private, max-age=31536000, immutable` auf der Antwort, sicher dank des
+bereits bestehenden `?v=<stored_filename>`-Cache-Brechers in der URL.
+
+Real gemessen (mit der tatsächlichen Logo-Datei, gegen eine isolierte Testinstanz): Original
+258.475 Bytes/8000×5295px -- ausgelieferte Rendition 19.530 Bytes/480×318px. Faktor ~13 bei der
+Übertragungsgröße, Faktor ~278 bei der Pixelzahl.
+
+## 1.3.39 – Firmenlogo in der Sidebar: CSS-Fehler behoben, Höhe einstellbar
+
+Rückmeldung nach dem ersten echten Einsatz: bei 32px Höhe war ein Schriftzug unter dem
+Bildzeichen nicht mehr lesbar.
+
+**Echter, selbst gefundener CSS-Fehler behoben.** Der ursprüngliche Ansatz (`height` +
+`max-width` + `object-fit:contain` auf demselben `<img>`) verkleinert bei einem breiten Logo die
+Höhe wieder -- die CSS-Ersatzelement-Breiten/Höhen-Auflösung verwirft die feste Höhe, sobald
+`max-width` eingreift. Behoben durch Entkopplung: die Breitenbegrenzung (200px) sitzt jetzt auf
+einem umschließenden `<span>` mit `overflow:hidden`, das `<img>` selbst trägt nur noch die feste
+Höhe -- ein zu breites Logo wird dadurch rechts abgeschnitten statt verkleinert. An einem
+synthetischen 1000×60px-Testbild nachgewiesen.
+
+**Anzeigehöhe einstellbar** (24-80px, Standard 48, Feld direkt neben dem Upload in
+Einstellungen → Unternehmensstammdaten) -- neue Spalte `GeneralSettings.sidebar_logo_height_px`,
+neuer Jinja-Global `sidebar_logo_height_px()`.
+
+**Untersucht, bevor über einen zweiten, eigenen Sidebar-Upload entschieden wurde**: die
+tatsächlich hochgeladene Datei (8000×5295px RGBA-PNG) enthält entgegen der ursprünglichen
+Annahme ("Bildzeichen mit Schriftzug darunter") **keinen Schriftzug** -- nur ein einzelnes,
+durchgehendes geometrisches Symbol (Alphakanal-Bounding-Box lückenlos über die gesamte Höhe).
+Ergebnis: mehr Höhe reicht, ein zweiter Upload ist nicht nötig -- vom Nutzer bestätigt, nicht
+gebaut.
+
 ## 1.3.38 – Firmenlogo in der Sidebar statt des Schriftzugs "DACHKONZEPTE"
 
 Befund vor dem Bauen ergab zwei Überraschungen: `GeneralSettings.logo_filename` stand in der

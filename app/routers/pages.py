@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from ..company_logo import sidebar_logo_filename
+from ..company_logo import sidebar_logo_filename, sidebar_logo_height_px
 from ..database import SessionLocal, get_db
 from ..deps import require_admin
 from ..modules import is_module_enabled
@@ -64,7 +64,17 @@ def _sidebar_logo_url() -> str | None:
     return f"/api/settings/general/logo?v={filename}"
 
 
+def _sidebar_logo_height_px() -> int:
+    """Jinja-Global (seit 1.3.39): liefert die eingestellte Anzeigehöhe des Sidebar-Logos in
+    Pixeln (Einstellungen -> Unternehmensstammdaten). Wird nur ausgewertet, wenn
+    sidebar_logo_url() bereits eine URL liefert -- ohne Logo bleibt es beim Schriftzug, dessen
+    Größe unverändert über CSS läuft."""
+    with SessionLocal() as db:
+        return sidebar_logo_height_px(db)
+
+
 templates.env.globals["sidebar_logo_url"] = _sidebar_logo_url
+templates.env.globals["sidebar_logo_height_px"] = _sidebar_logo_height_px
 
 
 @router.get("/login", response_class=HTMLResponse)

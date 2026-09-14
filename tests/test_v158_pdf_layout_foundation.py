@@ -173,6 +173,90 @@ def test_delete_logo_removes_file(tmp_path, monkeypatch):
     assert not path.exists()
 
 
+# ---------------------------------------------------------------------------
+# Anzeige-Rendition (seit 1.3.39) -- ein real hochgeladenes Logo war 8000x5295px/252KB,
+# obwohl es in der Sidebar auf 24-80px Höhe skaliert wird. GET .../logo ist der einzige
+# HTTP-Auslieferungsweg (Sidebar + Einstellungen-Vorschau) -- PDFs/PWA-Icon lesen weiterhin
+# das unveränderte Original direkt von der Platte.
+# ---------------------------------------------------------------------------
+
+def _make_png_bytes(size):
+    from io import BytesIO
+
+    from PIL import Image
+
+    buf = BytesIO()
+    Image.new("RGBA", size, (30, 130, 60, 255)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def test_replace_logo_creates_display_rendition_for_real_image(tmp_path, monkeypatch):
+    import app.company_logo as company_logo
+    monkeypatch.setattr(company_logo, "LOGO_ROOT", tmp_path / "company_logo")
+
+    stored = company_logo.replace_logo(None, "logo.png", _make_png_bytes((2000, 1000)))
+
+    original_path = company_logo.logo_path(stored)
+    display_path = company_logo.display_logo_path(stored)
+    assert original_path.is_file()
+    assert display_path.is_file()
+
+    from PIL import Image
+    with Image.open(original_path) as original, Image.open(display_path) as display:
+        assert original.size == (2000, 1000)
+        # Seitenverhältnis erhalten, längste Kante auf MAX_DISPLAY_DIMENSION verkleinert
+        assert display.size[0] == company_logo.MAX_DISPLAY_DIMENSION
+        assert display.size[1] == company_logo.MAX_DISPLAY_DIMENSION // 2
+    assert display_path.stat().st_size < original_path.stat().st_size
+
+
+def test_replace_logo_skips_display_rendition_for_unreadable_data(tmp_path, monkeypatch):
+    """Nicht-Bilddaten (z. B. eine beschädigte Datei) dürfen den Upload selbst nicht scheitern
+    lassen -- nur die Rendition entfällt, view_company_logo() fällt dann auf das Original
+    zurück (siehe dortiger Test)."""
+    import app.company_logo as company_logo
+    monkeypatch.setattr(company_logo, "LOGO_ROOT", tmp_path / "company_logo")
+
+    stored = company_logo.replace_logo(None, "logo.png", b"keine echten Bilddaten")
+
+    assert company_logo.logo_path(stored).is_file()
+    assert not company_logo.display_logo_path(stored).is_file()
+
+
+def test_delete_logo_removes_both_original_and_display_rendition(tmp_path, monkeypatch):
+    import app.company_logo as company_logo
+    monkeypatch.setattr(company_logo, "LOGO_ROOT", tmp_path / "company_logo")
+
+    stored = company_logo.replace_logo(None, "logo.png", _make_png_bytes((600, 600)))
+    assert company_logo.display_logo_path(stored).is_file()
+
+    company_logo.delete_logo(stored)
+    assert not company_logo.logo_path(stored).exists()
+    assert not company_logo.display_logo_path(stored).exists()
+
+
+def test_view_company_logo_serves_display_rendition_over_real_route(threaded_db_session, router_test_client, tmp_path, monkeypatch):
+    import app.company_logo as company_logo
+    monkeypatch.setattr(company_logo, "LOGO_ROOT", tmp_path / "company_logo")
+
+    from app.routers.settings import router as settings_router
+    client = router_test_client(threaded_db_session, settings_router)
+
+    resp = client.post(
+        "/api/settings/general/logo",
+        files={"file": ("logo.png", _make_png_bytes((2000, 1000)), "image/png")},
+    )
+    assert resp.status_code == 200
+    stored = resp.json()["logo_filename"]
+
+    logo_resp = client.get("/api/settings/general/logo")
+    assert logo_resp.status_code == 200
+    assert logo_resp.headers["cache-control"] == "private, max-age=31536000, immutable"
+    # Die ausgelieferten Bytes müssen der (kleineren) Rendition entsprechen, nicht dem Original
+    assert logo_resp.content == company_logo.display_logo_path(stored).read_bytes()
+    assert len(logo_resp.content) < len(company_logo.logo_path(stored).read_bytes())
+
+
 def test_general_settings_model_has_logo_filename_column():
     src = Path("app/models.py").read_text(encoding="utf-8")
     body_start = src.index("class GeneralSettings(Base):")

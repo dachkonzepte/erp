@@ -1791,6 +1791,12 @@ class GeneralSettings(Base):
     default_quote_intro: Mapped[str | None] = mapped_column(Text, nullable=True)
     default_quote_outro: Mapped[str | None] = mapped_column(Text, nullable=True)
     logo_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Anzeigehöhe des Firmenlogos in der Sidebar (seit 1.3.39, siehe CLAUDE.md "Firmenlogo in
+    # der Sidebar") -- einstellbar zwischen 24 und 80px (app/company_logo.py:
+    # MIN/MAX_SIDEBAR_LOGO_HEIGHT_PX), damit der Betreiber bei einem Logo mit kleinem
+    # Bildzeichen samt Schriftzug nicht bei jedem Wechsel nachfragen muss. server_default
+    # nötig, siehe Lektion aus 1.0.68 (NOT-NULL-Spalte auf bereits bestehender Tabelle).
+    sidebar_logo_height_px: Mapped[int] = mapped_column(default=48, server_default="48")
     # Automatisierung im Mahnwesen (seit 1.0.71): legt automatisch einen
     # Mahnungs-ENTWURF an, sobald die nächste Mahnstufe einer Rechnung
     # fällig ist -- versendet wird dadurch nie automatisch, das bleibt

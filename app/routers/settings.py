@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..calculation import get_or_create_settings
-from ..company_logo import MAX_UPLOAD_BYTES as LOGO_MAX_UPLOAD_BYTES, delete_logo, logo_path, replace_logo
+from ..company_logo import MAX_UPLOAD_BYTES as LOGO_MAX_UPLOAD_BYTES, delete_logo, display_logo_path, logo_path, replace_logo
 from ..database import get_db
 from ..employees import ensure_default_employee_functions
 from ..models import Employee, EmployeeFunction, EmployeeProfile, SettingOption
@@ -201,13 +201,25 @@ async def upload_company_logo(file: UploadFile = File(...), db: Session = Depend
 
 @router.get("/api/settings/general/logo")
 def view_company_logo(db: Session = Depends(get_db)):
+    """Einziger HTTP-Auslieferungsweg fürs Firmenlogo -- genutzt von der Sidebar und der
+    Vorschau in den Einstellungen, NICHT von PDFs/dem PWA-Icon (die lesen logo_path() direkt
+    von der Platte, siehe document_frame.py/mobile_manifest.py). Liefert deshalb bevorzugt die
+    verkleinerte Anzeige-Rendition (siehe company_logo.py-Moduldocstring) -- fällt auf das
+    Original zurück, wenn keine existiert (SVG, oder ein vor 1.3.39 hochgeladenes Logo)."""
     settings = get_or_create_general_settings(db)
     if not settings.logo_filename:
         raise HTTPException(status_code=404, detail="Kein Logo hinterlegt.")
+    # stored_filename ist ein zufälliger, je Upload neuer Name (?v=<stored_filename> in der
+    # Sidebar-URL, siehe app/routers/pages.py::_sidebar_logo_url()) -- dieselbe URL zeigt damit
+    # nie auf einen später geänderten Inhalt, langes Caching ist deshalb sicher.
+    cache_headers = {"Cache-Control": "private, max-age=31536000, immutable"}
+    display_path = display_logo_path(settings.logo_filename)
+    if display_path.is_file():
+        return FileResponse(display_path, headers=cache_headers)
     path = logo_path(settings.logo_filename)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Logo-Datei nicht gefunden.")
-    return FileResponse(path)
+    return FileResponse(path, headers=cache_headers)
 
 
 @router.delete("/api/settings/general/logo", response_model=GeneralSettingsOut)

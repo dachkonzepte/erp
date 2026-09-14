@@ -9,12 +9,21 @@
    dunkelgrünen Look bleiben. Erst wenn eine Seite --sidebar-bg/--accent im
    eigenen :root selbst definiert (siehe settings.html), greift das neue Theme.
 
-   Firmenlogo (seit 1.3.38, siehe CLAUDE.md "Firmenlogo in der Sidebar"): sidebar_logo_url()
-   (Jinja-Global, app/routers/pages.py) liefert eine URL oder None -- ohne Logo bleibt es beim
-   Schriftzug, eine leere Stelle wäre schlechter als Text. Dasselbe Firmenlogo wie für PDFs/das
-   PWA-Icon (app/company_logo.py), kein eigener Sidebar-Upload; die "welches Logo"-Entscheidung
-   liegt bewusst in company_logo.py::sidebar_logo_filename(), nicht hier, damit ein späterer,
-   dedizierter Sidebar-Logo-Upload nur dort umgestellt werden müsste. #}
+   Firmenlogo (seit 1.3.38, Anzeigehöhe einstellbar seit 1.3.39, siehe CLAUDE.md "Firmenlogo in
+   der Sidebar"): sidebar_logo_url() (Jinja-Global, app/routers/pages.py) liefert eine URL oder
+   None -- ohne Logo bleibt es beim Schriftzug, eine leere Stelle wäre schlechter als Text.
+   Dasselbe Firmenlogo wie für PDFs/das PWA-Icon (app/company_logo.py), kein eigener
+   Sidebar-Upload; die "welches Logo"-Entscheidung liegt bewusst in
+   company_logo.py::sidebar_logo_filename(), nicht hier, damit ein späterer, dedizierter
+   Sidebar-Logo-Upload nur dort umgestellt werden müsste. Die Höhe kommt per Inline-Style von
+   sidebar_logo_height_px() (Einstellungen -> Unternehmensstammdaten, 24-80px) -- bewusst NICHT
+   zusätzlich als max-width/max-height auf demselben <img> begrenzt: ein Wrapper
+   (.app-sidebar-logo-wrap, max-width:200px, overflow:hidden) schneidet ein zu breites Logo
+   stattdessen rechts ab, statt die eingestellte Höhe wieder zu verkleinern -- ein <img> mit
+   sowohl fester Höhe ALS AUCH einer Breitenbegrenzung würde bei einem sehr breiten Logo genau
+   das tun (die CSS-Ersatzelement-Breiten/Höhen-Auflösung verwirft die feste Höhe, sobald
+   max-width eingreift), das war ein real gefundener Fehler in der ersten Fassung. flex:0 0 auto
+   auf dem <img> verhindert zusätzlich, dass Flexbox selbst es verkleinert. #}
 {% set current_user = request.state.erp_user %}
 {% set is_admin = current_user and current_user.role == 'admin' %}
 {% set path = request.url.path %}
@@ -30,8 +39,9 @@
 .app-sidebar.collapsed{width:60px;flex-basis:60px}
 .app-sidebar-head{display:flex;align-items:center;justify-content:space-between;padding:16px 14px;border-bottom:1px solid var(--_border);white-space:nowrap;gap:8px}
 .app-sidebar-brand{font-weight:800;letter-spacing:.03em;overflow:hidden}
-.app-sidebar-logo{height:32px;width:auto;max-width:160px;object-fit:contain;display:block}
-.app-sidebar.collapsed .app-sidebar-brand,.app-sidebar.collapsed .app-sidebar-logo{opacity:0;width:0}
+.app-sidebar-logo-wrap{max-width:200px;overflow:hidden;display:flex;align-items:center}
+.app-sidebar-logo{width:auto;display:block;flex:0 0 auto}
+.app-sidebar.collapsed .app-sidebar-brand,.app-sidebar.collapsed .app-sidebar-logo-wrap{opacity:0;width:0}
 .app-sidebar-headbtns{display:flex;align-items:center;gap:6px;flex:0 0 auto}
 .app-sidebar-toggle,.app-theme-toggle{background:none;border:1px solid var(--_border);color:var(--_text);width:30px;height:30px;flex:0 0 30px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
 .app-sidebar-toggle:hover,.app-theme-toggle:hover{background:var(--_hover)}
@@ -74,7 +84,7 @@
   .app-sidebar{position:fixed;top:0;left:0;bottom:0;z-index:40;width:240px;flex-basis:240px;transform:translateX(-100%);transition:transform .15s ease}
   .app-sidebar.mobile-open{transform:translateX(0)}
   .app-sidebar.collapsed{width:240px;flex-basis:240px}
-  .app-sidebar.collapsed .app-sidebar-brand,.app-sidebar.collapsed .app-sidebar-logo,.app-sidebar.collapsed .app-sidebar-label{opacity:1;width:auto;display:flex}
+  .app-sidebar.collapsed .app-sidebar-brand,.app-sidebar.collapsed .app-sidebar-logo-wrap,.app-sidebar.collapsed .app-sidebar-label{opacity:1;width:auto;display:flex}
   .app-sidebar.collapsed .app-theme-toggle{display:flex}
   .app-sidebar-scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:39}
   .app-sidebar-scrim.visible{display:block}
@@ -84,7 +94,7 @@
   <div class="app-sidebar-head">
     {% set logo_url = sidebar_logo_url() %}
     {% if logo_url %}
-    <img class="app-sidebar-logo" src="{{ logo_url }}" alt="DACHKONZEPTE">
+    <span class="app-sidebar-logo-wrap"><img class="app-sidebar-logo" src="{{ logo_url }}" alt="DACHKONZEPTE" style="height:{{ sidebar_logo_height_px() }}px"></span>
     {% else %}
     <span class="app-sidebar-brand">DACHKONZEPTE</span>
     {% endif %}

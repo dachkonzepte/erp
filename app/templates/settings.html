@@ -101,8 +101,8 @@
 
     <h3 style="margin:22px 0 8px;font-size:14px">Firmenlogo</h3>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
-      <div id="companyLogoPreviewWrap" style="display:none;align-items:center;height:48px">
-        <img id="companyLogoPreview" style="height:48px;max-width:220px;object-fit:contain" alt="Firmenlogo">
+      <div id="companyLogoPreviewWrap" style="display:none;align-items:center;overflow:hidden;max-width:220px">
+        <img id="companyLogoPreview" style="width:auto;display:block;flex:0 0 auto" alt="Firmenlogo">
       </div>
       <span id="companyLogoEmptyHint" class="muted small">Kein Logo hinterlegt.</span>
     </div>
@@ -111,8 +111,14 @@
       <button type="button" onclick="uploadCompanyLogo()">Hochladen</button>
       <button type="button" class="danger" id="companyLogoRemove" style="display:none" onclick="removeCompanyLogo()">Entfernen</button>
     </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+      <label for="companyLogoHeight" style="font-size:13px">Anzeigehöhe in der Seitenleiste</label>
+      <input type="number" id="companyLogoHeight" min="24" max="80" step="1" style="width:70px">
+      <span class="muted small">px (24–80)</span>
+      <button type="button" onclick="saveLogoHeight()">Übernehmen</button>
+    </div>
     <span id="companyLogoStatus" class="status"></span>
-    <div class="hint">Erscheint, sobald hinterlegt, oben links in der Seitenleiste statt des Schriftzugs "DACHKONZEPTE" -- sowie (einzeln abschaltbar, siehe Dokumente &amp; Layout weiter unten) auf PDF-Dokumenten und als Symbol der Monteursansicht auf dem Startbildschirm. PNG, JPEG, WebP oder SVG, max. 5 MB.</div>
+    <div class="hint">Erscheint, sobald hinterlegt, oben links in der Seitenleiste statt des Schriftzugs "DACHKONZEPTE" -- sowie (einzeln abschaltbar, siehe Dokumente &amp; Layout weiter unten) auf PDF-Dokumenten und als Symbol der Monteursansicht auf dem Startbildschirm. PNG, JPEG, WebP oder SVG, max. 5 MB. Ist das Logo breiter als der verfügbare Platz in der Seitenleiste, wird es rechts abgeschnitten statt in der Höhe verkleinert.</div>
   </section>
 
   <section class="card settings-section" id="settings-numbers">
@@ -988,13 +994,25 @@ async function removeDocumentLayoutBackground(pageType){
   }catch(e){alert('Fehler: '+e.message)}
 }
 function renderCompanyLogo(){
-  const wrap=document.getElementById('companyLogoPreviewWrap'),emptyHint=document.getElementById('companyLogoEmptyHint'),removeBtn=document.getElementById('companyLogoRemove'),img=document.getElementById('companyLogoPreview');
+  const wrap=document.getElementById('companyLogoPreviewWrap'),emptyHint=document.getElementById('companyLogoEmptyHint'),removeBtn=document.getElementById('companyLogoRemove'),img=document.getElementById('companyLogoPreview'),heightInput=document.getElementById('companyLogoHeight');
+  const height=(generalSettings&&generalSettings.sidebar_logo_height_px)||48;
+  heightInput.value=height;
   if(generalSettings&&generalSettings.logo_filename){
     img.src='/api/settings/general/logo?v='+encodeURIComponent(generalSettings.logo_filename);
-    wrap.style.display='flex';emptyHint.style.display='none';removeBtn.style.display='inline-block';
+    img.style.height=height+'px';
+    wrap.style.display='flex';wrap.style.height=height+'px';emptyHint.style.display='none';removeBtn.style.display='inline-block';
   }else{
     wrap.style.display='none';emptyHint.style.display='inline';removeBtn.style.display='none';
   }
+}
+async function saveLogoHeight(){
+  const input=document.getElementById('companyLogoHeight'),st=document.getElementById('companyLogoStatus');
+  const height=Number(input.value);
+  if(!Number.isInteger(height)||height<24||height>80){st.textContent='Bitte einen Wert zwischen 24 und 80 eingeben.';return}
+  try{
+    generalSettings=await api('/api/settings/general',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...generalSettings,sidebar_logo_height_px:height})});
+    st.textContent='Gespeichert.';renderCompanyLogo();
+  }catch(e){st.textContent='Fehler: '+e.message}
 }
 async function uploadCompanyLogo(){
   const input=document.getElementById('companyLogoFile'),st=document.getElementById('companyLogoStatus');

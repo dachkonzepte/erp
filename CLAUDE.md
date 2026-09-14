@@ -20,12 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.38** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf weiterhin `1b55170709a6` ("two_factor_auth_and_persistent_login_lockout")
-  -- keine der Versionen 1.3.35–1.3.38 hat einen neuen Kopf angehängt (1.3.35 reparierte bereits
-  bestehende Migrationen in-place, 1.3.36–1.3.38 brachten kein neues Modell) -- bei Bedarf per
-  `alembic history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1045/1045**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
+- Version: **1.3.41** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf weiterhin `c327ff4ad332` ("sidebar logo height") -- direkt auf
+  `1b55170709a6` (1.3.34) aufsetzend, keine der übrigen Versionen 1.3.35–1.3.41 brauchte eine
+  eigene Migration -- bei Bedarf per `alembic history`/`heads` prüfen statt sich auf eine hier
+  aufgeschriebene Liste zu verlassen.
+- Tests: **1054/1054**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -508,6 +508,31 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   (`app/company_logo.py::sidebar_logo_filename()`) und einen neuen Jinja-Global
   (`sidebar_logo_url()`). Ohne Logo bleibt der Schriftzug. Details im neuen Abschnitt
   "Firmenlogo in der Sidebar" unten.
+- Neu seit 1.3.39: **Echter CSS-Fehler behoben, Sidebar-Logo-Höhe einstellbar.** `height` +
+  `max-width` + `object-fit:contain` auf demselben `<img>` verkleinert bei einem breiten Logo
+  die Höhe wieder (CSS-Ersatzelement-Auflösung verwirft die feste Höhe, sobald `max-width`
+  eingreift) -- behoben durch einen umschließenden Wrapper (`overflow:hidden`), der ein zu
+  breites Logo abschneidet statt es zu verkleinern. Neues Feld "Anzeigehöhe" (24-80px,
+  Standard 48) in Einstellungen → Unternehmensstammdaten. An der tatsächlich hochgeladenen
+  Datei geprüft, ob ein zweiter, eigener Sidebar-Upload nötig ist (Nutzerannahme: "Bildzeichen
+  mit Schriftzug darunter") -- Ergebnis: die Datei enthält gar keinen Schriftzug, nur ein
+  einzelnes geometrisches Symbol. Mehr Höhe reicht, kein zweiter Upload gebaut. Details im
+  Abschnitt "Firmenlogo in der Sidebar" unten.
+- Neu seit 1.3.40: **Verkleinerte Anzeige-Rendition fürs Firmenlogo.** Die reale Logo-Datei war
+  8000×5295px/252KB -- bei jeder Seitenanfrage (klassische Mehrseiten-Navigation, keine SPA)
+  wurden davon bisher die vollen 42 Megapixel geladen UND dekodiert, nur um sie auf 24-80px
+  Höhe darzustellen. `replace_logo()` erzeugt seither zusätzlich zur unveränderten
+  Originaldatei (weiterhin für PDFs/das PWA-Icon) eine auf max. 480px Kantenlänge verkleinerte
+  Anzeige-Rendition -- `GET /api/settings/general/logo` (der einzige HTTP-Auslieferungsweg)
+  liefert bevorzugt diese. Real gemessen: 258.475 → 19.530 Bytes (Faktor ~13), 42,4 Mio. → 153.000
+  Pixel (Faktor ~278). Details im Abschnitt "Firmenlogo in der Sidebar" unten.
+- Neu seit 1.3.41: **`backup_windows.ps1`-Vorfall behoben.** Die automatische Bereinigung nahm
+  bisher JEDEN Ordner unter `Backup\` in die Rotation auf, nicht nur die eigenen -- ein dort
+  ohne Bezug zum Skript abgelegter Ordner (`Server`, Kopien der Server-Sicherungen) wurde
+  dadurch real gelöscht (kein Datenverlust, dieselben Sicherungen lagen unverändert auf dem
+  Produktivserver). Bereinigung filtert seither zusätzlich auf das eigene Namensmuster. Neue
+  Regel in Regel 9 unten: unter `Backup\` dürfen ausschließlich vom Skript selbst erzeugte
+  Ordner liegen.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -772,6 +797,15 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
    Lauf nur die 3 jüngsten Backup-Ordner, ältere werden am Ende desselben Laufs automatisch
    gelöscht (Parameter `-KeepCount`, falls doch mal mehr/weniger gebraucht wird) – bei normalem
    Betrieb (ein Backup pro abgeschlossenem Update) entspricht das genau den letzten 3 Versionen.
+   **Deshalb (seit 1.3.40, echter Vorfall): unter `C:\DACHKONZEPTE-ERP\Backup\` dürfen
+   ausschließlich vom Skript selbst erzeugte Ordner liegen (Namensmuster `v<VERSION>_<Zeitstempel>`,
+   z. B. `v1.3.40_20260914-135537`).** Die Bereinigung filtert seit 1.3.40 zwar zusätzlich auf
+   genau dieses Muster (`Get-ChildItem ... -Filter "v*_*"`, vorher griff sie auf JEDEN Ordner in
+   diesem Verzeichnis zu) -- ein zuvor dort abgelegter, fremder Ordner (`Server`, Kopien der
+   Server-Sicherungen von `/home/tobias/backups/`) wurde dadurch real gelöscht, bevor die
+   Filterung existierte (zum Glück ohne echten Datenverlust, da dieselben Sicherungen unverändert
+   auf dem Produktivserver lagen). Andere Dateien -- auch fremde, auch scheinbar sicher benannte
+   -- gehören deshalb in einen ANDEREN Ordner, nie direkt unter `Backup\`.
 
 10. **Jeder Stammdatenbereich folgt demselben Muster, ausnahmslos (seit 1.3.30 als Regel
     festgehalten, nachdem Mitarbeiter zweimal davon abwich):** beim Einstieg zeigt sich immer
@@ -4482,12 +4516,11 @@ Vorkehrung für später:
   ein Logo ersetzt wird.
 - **`_sidebar.html`**: `{% if sidebar_logo_url() %}` zeigt ein `<img class="app-sidebar-logo">`,
   sonst unverändert der `<span class="app-sidebar-brand">`-Schriftzug -- eine leere Stelle wäre
-  schlechter als Text. CSS `height:32px;width:auto;max-width:160px;object-fit:contain` --
-  feste Höhe, Breite nach Seitenverhältnis, nie verzerrt, durch `max-width` an einem sehr breiten
-  Logo begrenzt, damit es nicht mit den Theme-/Einklapp-Buttons in derselben Kopfzeile kollidiert
-  (vertikal zentriert bereits durch das bestehende `align-items:center` der Kopfzeile). Verhält
-  sich beim Einklappen der Sidebar (60px-Icon-Leiste) und auf Mobilgeräten exakt wie der bisherige
-  Schriftzug (dieselben CSS-Regeln um `.app-sidebar-logo` ergänzt statt neuer, eigener Regeln).
+  schlechter als Text. Ursprünglich `height:32px;width:auto;max-width:160px;object-fit:contain`
+  auf demselben `<img>` -- **in 1.3.39 als echter Fehler erkannt und anders gelöst, siehe dort**.
+  Verhält sich beim Einklappen der Sidebar (60px-Icon-Leiste) und auf Mobilgeräten exakt wie der
+  bisherige Schriftzug (dieselben CSS-Regeln um die Logo-Elemente ergänzt statt neuer, eigener
+  Regeln).
 - **`_mobile_header.html` (Monteursansicht) bewusst unverändert** -- der Auftrag bezog sich
   ausdrücklich auf "die Sidebar"; die mobile Kopfzeile hat einen eigenen, deutlich schmaleren
   Aufbau (geteilte Zeile mit dem Mitarbeiternamen, Zusatz "· Vor Ort") und war nicht Teil dieser
@@ -4509,9 +4542,94 @@ pixelgenau identisch mit der hochgeladenen Datei (Content-Type `image/png`, Pill
 der Maße), für alle drei Seitenverhältnisse. Entfernen des Logos lässt die Sidebar korrekt zum
 Schriftzug zurückfallen. **Kein echter Browser-Screenshot** -- in dieser Umgebung stand kein
 Browser-Automatisierungswerkzeug zur Verfügung (dieselbe, bereits in "Mitarbeiter-Formular
-list-first" dokumentierte Einschränkung); die CSS-Regel selbst (feste Höhe, `width:auto`,
-`object-fit:contain`) ist mathematisch aspect-ratio-treu, aber ein tatsächliches, reales
-Firmenlogo sollte bei Gelegenheit einmal im Browser angesehen werden.
+list-first" dokumentierte Einschränkung). Genau dieser fehlende Browser-Screenshot ließ einen
+echten CSS-Fehler durchrutschen -- siehe "Fehlerbehebung und einstellbare Höhe" unten: die
+Behauptung "mathematisch aspect-ratio-treu" für `height`+`max-width`+`object-fit:contain` auf
+demselben `<img>` war falsch.
+
+### Fehlerbehebung und einstellbare Höhe (seit 1.3.39)
+
+Rückmeldung nach dem ersten echten Einsatz: bei 32px Höhe war ein Schriftzug unter dem
+Bildzeichen nicht mehr lesbar. Zwei Änderungen plus eine Untersuchung an der tatsächlich
+hochgeladenen Datei, bevor irgendetwas an einem zweiten Upload gebaut wurde.
+
+**Echter, selbst gefundener CSS-Fehler.** Der ursprüngliche Ansatz (`height`, `max-width` und
+`object-fit:contain` alle auf demselben `<img>`) verkleinert bei einem breiten Logo die Höhe
+wieder: die CSS-Ersatzelement-Breiten/Höhen-Auflösung (CSS 2.1 §10.3.2/§10.4) verwirft die feste
+Höhe, sobald `max-width` als Override eingreift -- `width` wird dann auf `max-width` festgelegt
+UND `height` bleibt zwar formal wie angegeben, aber `object-fit:contain` skaliert den
+sichtbaren Bildinhalt anschließend so, dass er in die (jetzt schmalere) Box passt, was bei einem
+hinreichend breiten Bild die tatsächlich sichtbare Höhe unter den konfigurierten Wert drückt --
+exakt das Symptom, das man vermeiden will. Behoben durch Entkopplung: die Breitenbegrenzung
+(jetzt 200px) sitzt auf einem umschließenden `<span class="app-sidebar-logo-wrap">`
+(`overflow:hidden`), das `<img>` selbst trägt NUR noch die feste Höhe (als Inline-Style, siehe
+unten) und `flex:0 0 auto` (verhindert zusätzlich ein Verkleinern durch Flexbox selbst). Ein zu
+breites Logo wird dadurch rechts **abgeschnitten**, nicht mehr verkleinert -- an einem
+synthetischen 1000×60px-Testbild (Seitenverhältnis 16,7:1) nachgewiesen: bei 64px eingestellter
+Höhe liefert die Sidebar exakt `style="height:64px"` ohne jedes `max-width` auf dem `<img>`.
+**Grundsatz für jedes künftige `<img>` mit unbekanntem Seitenverhältnis**: `height` (oder
+`width`) UND eine Begrenzung der anderen Achse (`max-width`/`max-height`) nie auf demselben
+Element -- die Begrenzung gehört auf einen Wrapper mit `overflow:hidden`, sonst kann die feste
+Achse bei einem extremen Seitenverhältnis unbemerkt unterlaufen werden.
+
+**Einstellbare Höhe** (24-80px, Feld direkt neben dem Upload in Einstellungen →
+Unternehmensstammdaten): `GeneralSettings.sidebar_logo_height_px` (Migration `c327ff4ad332`,
+`server_default='48'`), `app/company_logo.py::sidebar_logo_height_px(db)` (auf den erlaubten
+Bereich geklammert, dieselbe Verteidigung-in-der-Tiefe wie bei `sidebar_logo_filename()`), neuer
+Jinja-Global `sidebar_logo_height_px()` -- die Sidebar liest die Höhe live, kein
+Serverneustart nötig. Auswirkung auf den Kopfbereich (wie vom Nutzer verlangt, VOR dem Bauen
+berichtet): bei 48px (neuer Standard) wächst die Kopfzeile von vorher ca. 52px auf ca. 80px
+(+~54%), am oberen Ende (80px) auf ca. 112px (+~115%) -- beides im normalen Rahmen für einen
+Sidebar-Header mit Logo, kein Kompromiss nötig, aber bewusst nicht unbegrenzt (deshalb die
+80px-Obergrenze).
+
+**Die tatsächlich hochgeladene Datei, genau untersucht, bevor über einen zweiten Upload
+entschieden wurde**: 8000×5295px RGBA-PNG, Inhalts-Bounding-Box (per Alphakanal) 5970×4907px
+(Seitenverhältnis ≈1,22:1). Der Inhalt ist eine EINZIGE, durchgehende geometrische Form (ein
+zweifarbiges Chevron/Dach-Symbol) -- lückenlos von y≈132px bis y≈5148px, **kein Schriftzug an
+irgendeiner Stelle** (auch am unteren Rand der Inhalts-Box vergrößert nachgeprüft: reines Weiß).
+Das widerlegt die ursprüngliche Annahme "Bildzeichen mit Schriftzug darunter" -- vermutlich wird
+der Firmenname in PDFs ohnehin separat als echter Text gezeichnet
+(`build_din5008_header_block()`), nicht als Teil der Logo-Grafik; der optische Gesamteindruck
+"Icon + Name" entsteht erst durch beides zusammen, nicht durch eine einzelne Bilddatei.
+**Ergebnis: mehr Höhe reicht, kein eigener Sidebar-Upload nötig** -- ein einfaches, kräftiges,
+fast quadratisches Symbol ohne feine Details bleibt bei jeder Höhe zwischen 24 und 80px klar
+erkennbar, die Rechnung "wird der Schriftzug bei X px unter 8px und damit unlesbar" war für
+diese Datei von Anfang an gegenstandslos, da es keinen Schriftzug gibt. Vom Nutzer bestätigt --
+kein zweiter Upload gebaut, `sidebar_logo_filename()` bleibt bei genau einer Stufe
+(Firmenlogo → Schriftzug).
+
+### Anzeige-Rendition (seit 1.3.40)
+
+Die echte, hochgeladene Datei war 8000×5295px/252KB -- in der Sidebar auf 24-80px Höhe
+dargestellt. Ohne Gegenmaßnahme lädt UND dekodiert der Browser bei JEDER Seitenanfrage die
+vollen 42 Megapixel, da dieses Projekt ausschließlich klassische Mehrseiten-Navigation macht
+(keine SPA) -- die Sidebar wird bei jedem Klick neu angefordert, nicht nur einmal. Selbst mit
+perfektem Netzwerk-Caching bliebe der Dekodier-Aufwand (42 Mio. Pixel → Bitmap im Speicher)
+bei jedem Rendern bestehen.
+
+**Lösung**: `replace_logo()` (`app/company_logo.py`) erzeugt beim Hochladen zusätzlich zur
+unveränderten Originaldatei (weiterhin für PDFs/das PWA-Icon, die beide `logo_path()` direkt von
+der Platte lesen, siehe `document_frame.py`/`mobile_manifest.py` -- dort zählt die volle
+Auflösung tatsächlich, ein Druck-PDF darf nicht durch diese Änderung an Qualität verlieren) eine
+verkleinerte Anzeige-Rendition (`display_logo_path()`, `<stem>_display.png`, längste Kante auf
+`MAX_DISPLAY_DIMENSION=480` px herunterskaliert -- reicht für 80px CSS-Höhe selbst auf einem
+3x-Retina-Bildschirm bequem aus). `GET /api/settings/general/logo` -- der EINZIGE
+HTTP-Auslieferungsweg (Sidebar-`<img>` UND die Vorschau in den Einstellungen; PDFs/PWA-Icon
+nutzen ihn nie) -- liefert bevorzugt diese Rendition, fällt auf das Original zurück, wenn keine
+existiert (SVG -- dort unnötig, bereits vektoriell/klein -- oder ein vor 1.3.40 hochgeladenes
+Logo). Scheitert die Rendition-Erzeugung (z. B. ein Pillow nicht bekanntes/beschädigtes Format),
+bricht der Upload NICHT ab -- ein etwas größeres Original ist besser als ein fehlgeschlagener
+Upload, `view_company_logo()` fällt dann einfach auf das Original zurück. Zusätzlich
+`Cache-Control: private, max-age=31536000, immutable` auf der Antwort -- sicher, weil die URL
+bereits einen `?v=<stored_filename>`-Cache-Brecher trägt (derselbe Name zeigt nie auf einen
+später geänderten Inhalt, ein neuer Upload bekommt einen neuen Namen).
+
+**Real gemessen, nicht nur behauptet** (mit der tatsächlichen Logo-Datei, gegen eine isolierte
+Testinstanz): Original 258.475 Bytes/8000×5295px -- ausgelieferte Rendition 19.530 Bytes/
+480×318px. **Faktor ~13 bei der Übertragungsgröße, Faktor ~278 bei der Pixelzahl** (42,4 Mio. →
+153.000 Pixel). Beide Dateien bestätigt nebeneinander auf der Platte vorhanden, Sidebar zeigt
+weiterhin `style="height:48px"` unverändert korrekt.
 
 ## Migrations-Workflow
 
@@ -4638,6 +4756,15 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   liegt und ein stiller Sprung nicht zeigt, wie es weitergeht. Gilt nur für diesen einen Fall,
   keine neue Standardregel – die Sofort-Navigieren-Regel bleibt für alle anderen "X erstellen"-
   Aktionen unverändert in Kraft.
+- **Bei mehreren aufeinanderfolgenden Versionen innerhalb derselben Sitzung: jeweils committen,
+  bevor die nächste beginnt** -- nicht mehrere Versionsstände ansammeln und erst am Ende in
+  einem einzigen Commit zusammenfassen. Bei 1.3.39–1.3.41 (Sidebar-Logo: CSS-Fehler behoben,
+  Anzeige-Rendition, Backup-Skript-Fix) ist genau das passiert, weil ein echter Vorfall
+  (gelöschter Fremd-Ordner unter `Backup\`, siehe Regel 9) mittendrin die Aufmerksamkeit band --
+  nachvollziehbar in diesem einen Fall, aber nicht der Normalfall. Ein Commit pro Version hält
+  die Stände einzeln durchsuchbar/rücksetzbar; ein nachträglich zusammengefasster Commit über
+  mehrere Versionen (wie bei 1.3.39–1.3.41 nötig, weil keine sauberen Zwischenstände mehr
+  vorlagen) ist ein Notbehelf, kein Vorbild für den Regelfall.
 
 ## Bekannte, bewusst offene Punkte
 
