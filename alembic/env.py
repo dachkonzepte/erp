@@ -6,8 +6,22 @@ target_metadata zeigt auf Base.metadata aus den bestehenden SQLAlchemy-
 Modellen -- der Import von app.models ist notwendig, damit alle Tabellen
 dort tatsaechlich bei Base.metadata registriert werden, bevor Alembic sie
 inspiziert.
+
+Anders als app/database.py (dort ist ein stiller Rueckfall auf SQLite eine
+bewusste Bequemlichkeit fuer die lokale Entwicklung) verlangt alembic
+DATABASE_URL hier UNBEDINGT, ohne jeden Rueckfall -- und zwar unabhaengig
+von ERP_ENV: ein fehlender Rueckfall waere wirkungslos, wenn ausgerechnet
+ERP_ENV selbst mangels geladener Umgebung ebenfalls auf seinen Vorgabewert
+zurueckfiele. Hintergrund (siehe CLAUDE.md "Migrations-Workflow" bzw.
+"Produktivbetrieb"): auf dem Server lief `alembic upgrade head` einmal ohne
+geladene .env -- vorher importierte diese Datei DATABASE_URL bereits ueber
+app.database, also bereits mit dessen SQLite-Vorgabewert aufgeloest, und der
+Fehler ging dadurch unbemerkt unter. Seit 1.3.37 ist create_all() im
+Produktivbetrieb abgeschaltet -- eine deshalb uebersprungene Migration wird
+nicht mehr stillschweigend ueberbrueckt, sondern legt das System lahm.
 """
 
+import os
 import sys
 from logging.config import fileConfig
 from pathlib import Path
@@ -17,8 +31,18 @@ from sqlalchemy import engine_from_config, pool
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.database import Base, DATABASE_URL  # noqa: E402
+from app.database import Base  # noqa: E402
 from app import models  # noqa: E402,F401  (Import registriert alle Tabellen)
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise SystemExit(
+        "DATABASE_URL ist nicht gesetzt. alembic faellt bewusst NICHT auf einen "
+        "Standardwert zurueck (z. B. SQLite oder einen falschen Treiber) -- vorher "
+        "die Umgebungsvariablen laden, z. B.:\n"
+        "  set -a; source .env; set +a\n"
+        "Danach erneut versuchen."
+    )
 
 config = context.config
 config.set_main_option("sqlalchemy.url", DATABASE_URL)

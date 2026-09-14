@@ -4,6 +4,35 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.42 – Zwei Vorfälle beim Ausliefern von 1.3.38–1.3.41 behoben
+
+Beim Einspielen von 1.3.38 bis 1.3.41 lief `alembic upgrade head` auf dem Server ohne geladene
+Umgebungsvariablen -- der Bereitstellungsablauf hatte den Schritt "Umgebung laden" verloren.
+`alembic/env.py` importierte `DATABASE_URL` bisher über `app.database` (dort ein bewusster,
+stiller SQLite-Rückfall für die lokale Entwicklung) -- ohne geladene `.env` griff derselbe
+Rückfall auch beim Deployment, die Migration lief scheinbar fehlerfrei durch, traf aber nicht die
+echte Datenbank. Aufgefallen ist es erst, als eine fehlende Spalte jede Seite mit 500
+beantwortete. Behoben: `alembic/env.py` liest `DATABASE_URL` jetzt unbedingt direkt aus der
+Umgebung und bricht mit einer klaren Fehlermeldung ab, wenn sie fehlt -- unabhängig von `ERP_ENV`
+(sonst hätte dieselbe fehlende Umgebung auch `ERP_ENV` selbst auf ihren Entwicklungs-Vorgabewert
+zurückfallen lassen). Der dokumentierte Bereitstellungsablauf bekommt dafür die beiden
+verlorengegangenen Zeilen zurück (`set -a; source .env; set +a` und `alembic current` als
+Nachweis, dass die Migration tatsächlich gegriffen hat).
+
+Nachdem die Migration nachgeholt war, legte das Hochladen eines Logos danach jede Seite lahm,
+einschließlich der Anmeldeseite -- Notbehelf war ein direkter Datenbank-Eingriff. Ursache: (1)
+der Logo-Upload-Endpunkt prüfte nur den vom Client frei wählbaren `content_type`-Header, nicht
+den tatsächlichen Dateiinhalt -- neue `company_logo.py::validate_logo_image()` verlangt jetzt,
+dass Pillow die Datei tatsächlich dekodieren kann (SVG ausgenommen), der Endpunkt antwortet bei
+einem ungültigen Bild mit 400 statt eines später anderswo durchschlagenden Fehlers; (2) keiner
+der vier Jinja-Globals, die auf jeder Seite laufen (`get_theme()`, `is_module_enabled()`,
+`sidebar_logo_url()`, `sidebar_logo_height_px()`), fing eine Ausnahme ab -- ein DB-Zustand, der
+eine davon zum Werfen brachte, beantwortete dadurch JEDE Seite mit 500. Alle vier fallen jetzt bei
+jedem Fehler auf einen sicheren Wert zurück (Standard-Akzentfarbe, Modul aktiv, kein Logo, Standard-
+Höhe), statt die Ausnahme durchschlagen zu lassen -- ein Jinja-Global, das auf jeder Seite läuft,
+darf niemals eine Ausnahme werfen. Siehe CLAUDE.md "Produktivbetrieb" für die vollständige
+Herleitung beider Vorfälle.
+
 ## 1.3.41 – backup_windows.ps1: Bereinigung nur noch auf eigene Ordner beschränkt
 
 Echter Vorfall, kein vorsorglicher Fix: die automatische Bereinigung (seit 1.1.5, behält nur die

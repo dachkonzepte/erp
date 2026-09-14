@@ -20,12 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.41** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.42** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf weiterhin `c327ff4ad332` ("sidebar logo height") -- direkt auf
-  `1b55170709a6` (1.3.34) aufsetzend, keine der übrigen Versionen 1.3.35–1.3.41 brauchte eine
+  `1b55170709a6` (1.3.34) aufsetzend, keine der übrigen Versionen 1.3.35–1.3.42 brauchte eine
   eigene Migration -- bei Bedarf per `alembic history`/`heads` prüfen statt sich auf eine hier
   aufgeschriebene Liste zu verlassen.
-- Tests: **1054/1054**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
+- Tests: **1071/1071**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -533,6 +533,18 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Produktivserver). Bereinigung filtert seither zusätzlich auf das eigene Namensmuster. Neue
   Regel in Regel 9 unten: unter `Backup\` dürfen ausschließlich vom Skript selbst erzeugte
   Ordner liegen.
+- Neu seit 1.3.42: **Zwei reale Vorfälle beim Ausliefern von 1.3.38–1.3.41 behoben.** (1)
+  `alembic upgrade head` lief auf dem Server ohne geladene Umgebungsvariablen und migrierte
+  dadurch stillschweigend nicht die echte Datenbank -- `alembic/env.py` verlangt `DATABASE_URL`
+  seither unbedingt direkt aus der Umgebung, kein Rückfall mehr wie bei `app/database.py`, und
+  der dokumentierte Bereitstellungsablauf hat seine beiden verlorengegangenen Zeilen
+  (`source .env`, `alembic current`) zurück. (2) Ein fehlgeschlagener Logo-Upload legte danach
+  jede Seite lahm, einschließlich der Anmeldeseite -- neue `validate_logo_image()` prüft die
+  Datei jetzt tatsächlich per Pillow statt nur den spoofbaren `content_type`-Header (400 statt
+  500 bei Ungültigem), und alle vier Jinja-Globals in `app/routers/pages.py`
+  (`get_theme()`/`is_module_enabled()`/`sidebar_logo_url()`/`sidebar_logo_height_px()`) fangen
+  seither jede Ausnahme ab und fallen auf einen sicheren Wert zurück. Details im Abschnitt
+  "Produktivbetrieb" → "Zwei Vorfälle beim Ausliefern von 1.3.38–1.3.41" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -598,37 +610,34 @@ Speicherbedarf der Anwendung selbst.
 Lokal bauen, volle Testsuite, bei Oberflächenänderungen zusätzlich ein Klicktest im Browser.
 Committen -- der Betreiber pusht (etablierte Praxis dieser Sitzungen: Claude Code committet,
 aber pusht nie ohne ausdrückliche Aufforderung). Auf dem Server: sichern, `git pull`, Abhängigkeiten,
-Migrationen, Dienst neu starten. Bei Schemaänderungen läuft die Migration vorher einmal gegen
-`spielwiese` (die Probe-Datenbank auf demselben Server, nicht die lokale, portable Instanz aus
-der Entwicklung), erst danach gegen `dachkonzepte`.
+Migrationen, Dienst neu starten.
 
-Als Befehlsblock zum Kopieren -- Pfade wie oben, `.venv` als angenommener, aber nicht anderswo
-in diesem Dokument bestätigter Name des virtuellen Umgebungsordners auf dem Server (bei
-Abweichung entsprechend anpassen):
+**Korrigiert seit 1.3.42, nach einem realen Vorfall beim Ausliefern von 1.3.38–1.3.41** (siehe
+"Zwei Vorfälle beim Ausliefern von 1.3.38–1.3.41" unten für die volle Herleitung) -- exakt diese
+Abfolge, keine Zeile auslassen:
 
 ```bash
-# Auf dem Server, im Projektordner:
+/home/tobias/backup.sh
 cd /home/tobias/erp
-
-# 1. Sichern (zusätzlich zur ohnehin taeglichen 2-Uhr-Sicherung, siehe oben)
-bash /home/tobias/backup.sh
-
-# 2. Neuen Code holen
 git pull
-
-# 3. Abhaengigkeiten aktualisieren
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# 4. Bei Schemaaenderungen: zuerst gegen die Probe-Datenbank
-DATABASE_URL=postgresql+psycopg://<user>:<pass>@localhost:5432/spielwiese alembic upgrade head
-# -- pruefen, dann erst gegen die echte Datenbank (DATABASE_URL kommt aus .env):
-alembic upgrade head
-
-# 5. Dienst neu starten und Status pruefen
-sudo systemctl restart erp.service
-sudo systemctl status erp.service --no-pager
+set -a; source .env; set +a
+.venv/bin/pip install -r requirements.txt
+.venv/bin/alembic upgrade head
+.venv/bin/alembic current
+sudo systemctl restart erp
 ```
+
+Die vierte Zeile (`set -a; source .env; set +a`) lädt `DATABASE_URL`/`ERP_SECRET_KEY`/`ERP_ENV`
+usw. tatsächlich in die Shell-Umgebung -- ohne sie fiel `alembic upgrade head` bisher
+stillschweigend auf einen falschen Wert zurück (siehe Vorfall 1 unten); seit 1.3.42 bricht
+alembic statt eines stillen Rückfalls mit einer klaren Fehlermeldung ab, wenn `DATABASE_URL`
+fehlt. Die siebte Zeile (`alembic current`) ist der einzige tatsächliche Nachweis, dass die
+Migration gegriffen hat -- "keine Fehlermeldung gesehen" ist kein Ersatz dafür, siehe Vorfall 1.
+
+Bei Schemaänderungen läuft die Migration vorher zusätzlich einmal gegen `spielwiese` (die
+Probe-Datenbank auf demselben Server, nicht die lokale, portable Instanz aus der Entwicklung) --
+`DATABASE_URL=postgresql+psycopg://<user>:<pass>@localhost:5432/spielwiese .venv/bin/alembic
+upgrade head`, geprüft, danach erst die Abfolge oben gegen `dachkonzepte`.
 
 ### Was das für Migrationen heißt
 
@@ -649,6 +658,15 @@ Prüfe künftig bei **jeder** Migration, bevor sie auf den Server geht:
   wieder her?** Nicht nur "irgendein" Vorzustand -- siehe die `5c8715dba230`/`0064c87051aa`-
   Migrationen (Abschnitt "Aufräumen nach dem PDF-Umbau") als Vorbild: ihr `downgrade()` liest die
   zuletzt tatsächlich vorhandenen Werte vor dem Schreiben aus, nicht nur Code-Standardwerte.
+- **Ist sie tatsächlich gelaufen?** Seit 1.3.37 ist `Base.metadata.create_all()` im
+  Produktivbetrieb abgeschaltet (`ERP_ENV`) -- gewollt, aber mit einer echten Konsequenz: eine
+  übersprungene oder fehlgeschlagene Migration wird seither nicht mehr stillschweigend
+  überbrückt (wie es unter SQLite/lokal noch geschähe), sondern legt das System beim nächsten
+  Zugriff auf eine fehlende Spalte/Tabelle sofort lahm. `alembic upgrade head` ohne Fehlermeldung
+  ist deshalb kein ausreichender Nachweis -- siehe Vorfall 1 im nächsten Abschnitt, in dem genau
+  das passierte, weil die Migration in Wirklichkeit gegen die falsche Datenbank lief. Der Ablauf
+  ("Der Weg einer Änderung auf den Server" oben) endet deshalb ausdrücklich mit `alembic
+  current`, nicht mit `alembic upgrade head`.
 
 **Warum das keine abstrakte Vorsicht ist, sondern eine bereits gemachte Erfahrung**: die
 Migration `e057d15af828` war seit ihrer Erstellung eine leere Hülle (nur `pass`/`pass`) --
@@ -662,6 +680,79 @@ ohne dieses Sicherheitsnetz hätte die Kette mit `NoSuchTableError` abgebrochen.
 1.3.35-Reparaturrunde, die das (und sechs weitere, dialektbedingte Fixes) behoben hat, bevor
 überhaupt umgezogen wurde. Diese Erfahrung ist der Grund für die drei Prüfpunkte oben -- nicht
 Vorsicht um ihrer selbst willen.
+
+### Zwei Vorfälle beim Ausliefern von 1.3.38–1.3.41, beide behoben (seit 1.3.42)
+
+**Vorfall 1: `alembic upgrade head` lief ohne geladene Umgebungsvariablen, migrierte dadurch die
+falsche Datenbank, und der Fehler ging unbemerkt unter.** Beim Einspielen von 1.3.38 bis 1.3.41
+lief `alembic upgrade head` auf dem Server, ohne dass zuvor `.env` geladen wurde -- der
+Bereitstellungsablauf hatte genau diesen Schritt verloren (siehe die korrigierte Abfolge oben).
+`alembic/env.py` importierte `DATABASE_URL` bis dahin aus `app.database` -- dort ist ein stiller
+Rückfall auf SQLite eine bewusste, für die lokale Entwicklung gedachte Bequemlichkeit
+(`os.getenv("DATABASE_URL", "sqlite:///...")`). Ohne geladene Umgebung griff genau dieser
+Rückfall auch beim Deployment: `alembic upgrade head` lief scheinbar fehlerfrei durch, migrierte
+aber nicht `dachkonzepte`, ohne das an dieser Stelle sichtbar zu machen. Aufgefallen ist es erst,
+als eine fehlende Spalte jede Seite mit 500 beantwortete -- die Datenbank blieb auf `1b55170709a6`,
+dem Stand vor dem gesamten Umzug.
+
+Behoben: `alembic/env.py` liest `DATABASE_URL` jetzt direkt über `os.environ.get(...)`, nicht
+mehr über den bereits mit einem Vorgabewert versehenen Import aus `app.database` -- fehlt die
+Variable, bricht alembic mit einer klaren, erklärenden Fehlermeldung ab, statt still auf
+irgendeinen Wert zurückzufallen. **Unbedingt, unabhängig von `ERP_ENV`**: eine an
+`ERP_ENV=="production"` gekoppelte Prüfung hätte hier nicht geholfen -- fehlt die Umgebung
+komplett, fiele `ERP_ENV` selbst ebenso auf seinen Entwicklungs-Vorgabewert zurück, die Prüfung
+griffe also nie genau dann, wenn sie gebraucht wird. Das ist eine bewusste, unbedingte Abweichung
+von der bisherigen, lokal etablierten Praxis dieser Sitzungen (alembic ohne gesetzte Variablen
+laufen zu lassen und sich auf denselben SQLite-Rückfall wie die App zu verlassen) -- lokal muss
+`DATABASE_URL` für einen alembic-Aufruf ab jetzt ausdrücklich gesetzt werden, z. B.
+`DATABASE_URL=sqlite:///./dachkonzepte_erp.db alembic upgrade head` (oder die lokale
+Postgres-Verbindungszeichenfolge). Zusätzlich verlangte der Vorfall die oben bereits
+beschriebene Korrektur des Bereitstellungsablaufs selbst (`set -a; source .env; set +a` UND
+`alembic current` waren beide verlorengegangen).
+
+**Vorfall 2: ein fehlgeschlagener Logo-Upload legte danach jede Seite lahm, einschließlich der
+Anmeldeseite.** Nachdem die nachgeholte Migration griff, führte das Hochladen eines Logos dazu,
+dass jede Seite mit 500 antwortete. Bei der Untersuchung ließ sich der genau gemeldete Ablauf
+(eine Funktion `save_logo()`, bestimmte Zeilennummern in `company_logo.py`) im tatsächlichen Code
+nicht wortgleich wiederfinden -- vermutlich eine sinngemäße statt einer wörtlichen Beschreibung
+des Vorfalls (weder `save_logo` noch der genannte Fehlertext kamen im Projekt vor). Der reale, im
+Code tatsächlich vorhandene Risikobereich war aber ebenso ernst und traf denselben Kern der
+Meldung: (1) der Upload-Endpunkt (`POST /api/settings/general/logo`) prüfte bis dahin
+ausschließlich den vom Client mitgeschickten `content_type`-Header -- frei wählbar, kein
+Nachweis des tatsächlichen Dateiinhalts, eine beliebige Datei mit vorgetäuschtem
+`image/png`-Header wäre durchgekommen; (2) KEINER der vier Jinja-Globals, die auf jeder Seite
+laufen (`get_theme()`, `is_module_enabled()`, `sidebar_logo_url()`, `sidebar_logo_height_px()`
+in `app/routers/pages.py`), fing eine Ausnahme ab -- ein DB-Zustand, der eine davon zum Werfen
+brachte (z. B. genau die in Vorfall 1 beschriebene fehlende Spalte, oder eine kaputte
+Logo-Referenz), schlug ungefiltert durch und beantwortete dadurch JEDE Seite mit 500,
+einschließlich `login.html` (das `get_theme()` direkt für seine Akzentfarbe aufruft, nicht nur
+über das dort gar nicht eingebundene `_sidebar.html`) -- niemand konnte sich mehr anmelden, um es
+zu reparieren. Notbehelf war `UPDATE general_settings SET logo_filename = NULL` direkt in der
+Datenbank.
+
+Behoben, drei Teile:
+1. `company_logo.py::validate_logo_image()` prüft jetzt VOR jeder Persistierung (vor
+   `replace_logo()`, vor dem Setzen von `logo_filename`, vor `db.commit()`), ob Pillow die Datei
+   tatsächlich öffnen/dekodieren kann -- SVG ausgenommen (Pillow kann SVG grundsätzlich nicht
+   öffnen, das ist dort kein Fehler). `routers/settings.py::upload_company_logo()` fängt ein
+   daraus resultierendes `ValueError` ab und antwortet mit **400** und einem verständlichen Text,
+   nicht mit 500.
+2. **Alle vier** Jinja-Globals in `app/routers/pages.py` sind jetzt gegen jede Ausnahme
+   abgesichert (`try/except Exception`, über einen neuen `logger` protokolliert, mit sicherem
+   Rückfallwert): `get_theme()` → Standard-Akzentfarbe (`#0d9488`), `is_module_enabled()` →
+   `True` (dieselbe Opt-out-Philosophie wie im Normalfall, siehe `app/modules.py`),
+   `sidebar_logo_url()` → `None` (Rückfall auf den Schriftzug), `sidebar_logo_height_px()` →
+   `DEFAULT_SIDEBAR_LOGO_HEIGHT_PX`. **Prinzip, nicht nur Einzelfall-Fix**: ein Jinja-Global, der
+   auf jeder Seite läuft, darf NIE eine Ausnahme werfen -- ein DB-Zustand, der das auslöst, darf
+   höchstens den betroffenen Teil der Seite auf einen Rückfallwert reduzieren, niemals die ganze
+   Seite (und damit möglicherweise auch die Anmeldeseite) unerreichbar machen. Geprüft, ob es
+   weitere solche Globals gibt (`grep "env.globals\["` über `app/`): nein -- diese vier sind die
+   einzigen mit Datenbankzugriff, alle vier sind jetzt abgesichert.
+3. Tests ergänzt (`tests/test_v108_login_lockout_and_logging.py`-Nachbarschaft bzw. neue Datei,
+   siehe "Testen" unten) für: den Upload-Endpunkt mit einer nicht dekodierbaren Datei (400, nicht
+   500), jedes der vier Globals unter einer simulierten, fehlschlagenden Funktion (Rückfall
+   greift, keine Ausnahme verlässt die Funktion), und einen Ende-zu-Ende-Test, dass eine
+   `general_settings`-Zeile in einem ungültigen Zustand das Rendern echter Seiten nicht verhindert.
 
 ### Zwei Nebenbefunde vom Server, beide behoben
 
@@ -4644,6 +4735,15 @@ kann `alembic revision --autogenerate` und bei Bedarf auch `alembic upgrade head
 ausführen. Die inhaltliche Prüfung (Kettenanschluss, `server_default`, Feldnamen) bleibt trotzdem
 wichtig – nur eben vor Ort statt per Hochladen einer Datei.
 
+**Seit 1.3.42 muss `DATABASE_URL` dafür ausdrücklich gesetzt sein, auch lokal** -- siehe
+"Produktivbetrieb" → "Zwei Vorfälle beim Ausliefern von 1.3.38–1.3.41" oben für den realen
+Vorfall, der dazu geführt hat. `alembic/env.py` fällt anders als `app/database.py` NICHT mehr
+still auf SQLite zurück, sondern bricht mit einer klaren Fehlermeldung ab, wenn die Variable
+fehlt. Ein `alembic`-Aufruf in dieser Sitzung/lokal sieht deshalb künftig so aus:
+`DATABASE_URL=sqlite:///./dachkonzepte_erp.db alembic upgrade head` (oder die lokale
+Postgres-Verbindungszeichenfolge) -- nicht mehr nackt `alembic upgrade head` ohne vorangestellte
+Variable, wie es in dieser Sitzung bisher wiederholt üblich war.
+
 **Fallstrick, seit 1.3.31 real erlebt: ein laufender `--reload`-Dev-Server tut dasselbe bei jedem
 Speichern.** Läuft während der Arbeit bereits ein `uvicorn --reload`-Prozess gegen die echte
 `dachkonzepte_erp.db` (z. B. vom Nutzer selbst gestartet), lädt dessen Auto-Reload bei JEDER
@@ -4842,13 +4942,13 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   `DEFAULT_OPTION_GROUPS` entfernt. Bereits vorhandene `SettingOptionGroup`/`SettingOption`-
   Zeilen einer laufenden Installation bleiben dabei unangetastet in der DB stehen (nichts liest
   sie mehr) statt gelöscht zu werden. Reine Aufräum-Idee für später, kein Fehler.
-- **Jinja-Globals `get_theme()`/`is_module_enabled()`/`sidebar_logo_url()` (seit 1.3.38) umgehen
-  `get_db()`** (`app/routers/pages.py`):
-  alle drei öffnen bei jedem Template-Rendern selbst eine `SessionLocal()`-Verbindung zur echten
-  Datenbankdatei, statt die per `get_db()` injizierte (und in Tests per
-  `app.dependency_overrides` austauschbare) Session zu verwenden – sie sind damit nicht auf eine
-  Test-Session umstellbar. Seit 1.2.20 (siehe `tests/test_v218_template_rendering.py`) löst das
-  der erste Test aus, der praktisch jede Seite rendert (`_sidebar.html` bindet
+- **Jinja-Globals `get_theme()`/`is_module_enabled()`/`sidebar_logo_url()`/
+  `sidebar_logo_height_px()` (letztere beide seit 1.3.38/1.3.39) umgehen `get_db()`**
+  (`app/routers/pages.py`): alle vier öffnen bei jedem Template-Rendern selbst eine
+  `SessionLocal()`-Verbindung zur echten Datenbankdatei, statt die per `get_db()` injizierte (und
+  in Tests per `app.dependency_overrides` austauschbare) Session zu verwenden – sie sind damit
+  nicht auf eine Test-Session umstellbar. Seit 1.2.20 (siehe `tests/test_v218_template_rendering.py`)
+  löst das der erste Test aus, der praktisch jede Seite rendert (`_sidebar.html` bindet
   `is_module_enabled()` ein, jede Seite bindet `_sidebar.html` ein) – für einen reinen Lesetest
   unschädlich, aber ein Vorbild, dem ein künftiger, auch SCHREIBENDER Test nicht folgen darf.
   Geprüft, ob sich das mit wenig Aufwand beheben lässt: nein – `is_module_enabled('wartungen')`
@@ -4857,7 +4957,12 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   jeden der rund 30 Seiten-Router in `app/routers/pages.py` um `db: Session = Depends(get_db)`
   plus passenden Kontext-Eintrag ergänzen, oder einen neuen contextvar-basierten Mechanismus
   einführen, der sowohl in der echten Middleware als auch in `router_test_client` verdrahtet
-  werden müsste – beides kein kleiner Fix mehr, bleibt daher im Merkzettel.
+  werden müsste – beides kein kleiner Fix mehr, bleibt daher im Merkzettel. **Seit 1.3.42
+  unabhängig davon abgesichert**: alle vier fangen jetzt jede Ausnahme ab und fallen auf einen
+  sicheren Wert zurück (siehe "Produktivbetrieb" → "Zwei Vorfälle beim Ausliefern von
+  1.3.38–1.3.41" oben) – das löst NICHT die hier beschriebene Test-Umstellbarkeit, aber das
+  eigentlich gefährlichere Problem (eine echte Ausnahme reißt jede Seite mit sich, einschließlich
+  der Anmeldeseite) ist damit unabhängig von dieser offenen Baustelle geschlossen.
 - **`onchange`-only-Autosave-Muster (Blur-Abhängigkeit) existiert an weiteren Stellen**: bei der
   Behebung des 1.2.19-Datenverlusts in der Dachaufbau-Schichtenliste (siehe dort) wurde der
   neue, geteilte `_debounce.html`-Helfer bewusst nur dort UND beim Pflicht-Freitextfeld in

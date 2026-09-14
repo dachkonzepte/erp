@@ -83,6 +83,24 @@ def _encode_png(image: Image.Image) -> bytes:
     return buf.getvalue()
 
 
+def validate_logo_image(content_type: str | None, data: bytes) -> None:
+    """Prüft VOR jeder Persistierung, dass eine hochgeladene Rasterdatei tatsächlich ein von
+    Pillow dekodierbares Bild ist -- der vom Client mitgeschickte content_type ist nur ein
+    Hinweis (frei wählbar, kein verlässlicher Nachweis des tatsächlichen Dateiinhalts). SVG wird
+    bewusst ausgenommen: Pillow kann SVG grundsätzlich nicht öffnen, das ist dort kein Fehler,
+    kein Dateiformatproblem. Muss vom Aufrufer VOR replace_logo()/vor dem Setzen von
+    GeneralSettings.logo_filename/vor db.commit() aufgerufen werden -- ein fehlgeschlagener
+    Upload darf keine Datenbankzeile auf eine nie gespeicherte oder unbrauchbare Datei zeigen
+    lassen (siehe CLAUDE.md "Firmenlogo in der Sidebar", Fehlerbehebung)."""
+    if (content_type or "").lower() == "image/svg+xml":
+        return
+    try:
+        image = Image.open(BytesIO(data))
+        image.load()
+    except Exception as exc:
+        raise ValueError(f"Ungültiges Bild: {exc}") from exc
+
+
 def replace_logo(old_stored_filename: str | None, original_filename: str, data: bytes) -> str:
     """Legt die neue Logo-Datei ab und entfernt die alte (falls vorhanden).
     Gibt den neuen stored_filename zurück, der auf GeneralSettings.logo_filename

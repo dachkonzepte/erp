@@ -5,6 +5,8 @@ siehe README). Enthaelt 22 Endpunkt(e), unveraendert
 uebernommen -- reine Verschiebung, keine Verhaltensaenderung.
 """
 
+import logging
+
 from fastapi import APIRouter
 from pathlib import Path
 from fastapi import Depends, HTTPException, Request
@@ -12,25 +14,42 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from ..company_logo import sidebar_logo_filename, sidebar_logo_height_px
+from ..company_logo import DEFAULT_SIDEBAR_LOGO_HEIGHT_PX, sidebar_logo_filename
+from ..company_logo import sidebar_logo_height_px as _sidebar_logo_height_px_lookup
 from ..database import SessionLocal, get_db
 from ..deps import require_admin
 from ..modules import is_module_enabled
 from ..settings import get_accent_color
 from ..version import APP_VERSION
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
+
+# Die vier Jinja-Globals unten laufen bei JEDER Seitenanfrage (jede Seite bindet _sidebar.html
+# ein, das get_theme()/is_module_enabled()/sidebar_logo_url()/sidebar_logo_height_px() aufruft) --
+# jeweils mit einer eigenen, kurzlebigen SessionLocal(), siehe Docstrings unten. Ein DB-Zustand,
+# der eine dieser Funktionen zum Werfen bringt (z. B. eine durch eine uebersprungene Migration
+# fehlende Spalte, oder ein general_settings.logo_filename, das auf eine kaputte Datei zeigt),
+# darf deshalb NIE als Ausnahme durchschlagen -- sonst antwortet JEDE Seite mit 500,
+# einschliesslich der Anmeldeseite, und niemand kommt mehr ins System, um es zu reparieren
+# (realer Vorfall, siehe CLAUDE.md). Jede der vier Funktionen faengt deshalb jede Ausnahme ab,
+# loggt sie und faellt auf einen sicheren, immer darstellbaren Wert zurueck.
 
 
 def _current_theme() -> dict:
     """Jinja-Global (Aufruf als Funktion, kein statischer Wert): liest die
     Akzentfarbe live aus general_settings, damit Änderungen ohne Neustart
     des Servers auf der nächsten Seitenanfrage sichtbar werden."""
-    with SessionLocal() as db:
-        return {"accent_color": get_accent_color(db)}
+    try:
+        with SessionLocal() as db:
+            return {"accent_color": get_accent_color(db)}
+    except Exception:
+        logger.exception("get_theme() fehlgeschlagen, falle auf Standard-Akzentfarbe zurück")
+        return {"accent_color": "#0d9488"}
 
 
 templates.env.globals["get_theme"] = _current_theme
@@ -40,8 +59,12 @@ def _is_module_enabled(module_key: str) -> bool:
     """Jinja-Global (seit 1.0.103): liest den Modul-Zustand live aus der DB, damit ein
     Admin ein Modul in den Einstellungen umschalten kann, ohne den Server neu zu
     starten. Verwendung z. B. in _sidebar.html: {% if is_module_enabled('aufgabenmanagement') %}."""
-    with SessionLocal() as db:
-        return is_module_enabled(db, module_key)
+    try:
+        with SessionLocal() as db:
+            return is_module_enabled(db, module_key)
+    except Exception:
+        logger.exception("is_module_enabled(%r) fehlgeschlagen, falle auf aktiv zurück (Opt-out-Default)", module_key)
+        return True
 
 
 templates.env.globals["is_module_enabled"] = _is_module_enabled
@@ -57,8 +80,12 @@ def _sidebar_logo_url() -> str | None:
     Logo-Wechsel ohne Serverneustart auf der nächsten Seitenanfrage sichtbar wird). Der
     Query-Parameter ?v=<stored_filename> bricht das Browser-Bild-Caching gezielt auf, sobald
     ein Logo ersetzt wird -- stored_filename ist ein neuer, zufälliger Name je Upload."""
-    with SessionLocal() as db:
-        filename = sidebar_logo_filename(db)
+    try:
+        with SessionLocal() as db:
+            filename = sidebar_logo_filename(db)
+    except Exception:
+        logger.exception("sidebar_logo_url() fehlgeschlagen, falle auf den Schriftzug zurück")
+        return None
     if not filename:
         return None
     return f"/api/settings/general/logo?v={filename}"
@@ -69,8 +96,12 @@ def _sidebar_logo_height_px() -> int:
     Pixeln (Einstellungen -> Unternehmensstammdaten). Wird nur ausgewertet, wenn
     sidebar_logo_url() bereits eine URL liefert -- ohne Logo bleibt es beim Schriftzug, dessen
     Größe unverändert über CSS läuft."""
-    with SessionLocal() as db:
-        return sidebar_logo_height_px(db)
+    try:
+        with SessionLocal() as db:
+            return _sidebar_logo_height_px_lookup(db)
+    except Exception:
+        logger.exception("sidebar_logo_height_px() fehlgeschlagen, falle auf den Standardwert zurück")
+        return DEFAULT_SIDEBAR_LOGO_HEIGHT_PX
 
 
 templates.env.globals["sidebar_logo_url"] = _sidebar_logo_url

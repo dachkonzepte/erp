@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..calculation import get_or_create_settings
-from ..company_logo import MAX_UPLOAD_BYTES as LOGO_MAX_UPLOAD_BYTES, delete_logo, display_logo_path, logo_path, replace_logo
+from ..company_logo import MAX_UPLOAD_BYTES as LOGO_MAX_UPLOAD_BYTES, delete_logo, display_logo_path, logo_path, replace_logo, validate_logo_image
 from ..database import get_db
 from ..employees import ensure_default_employee_functions
 from ..models import Employee, EmployeeFunction, EmployeeProfile, SettingOption
@@ -192,6 +192,10 @@ async def upload_company_logo(file: UploadFile = File(...), db: Session = Depend
     data = await file.read(LOGO_MAX_UPLOAD_BYTES + 1)
     if len(data) > LOGO_MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Logo ist größer als 5 MB.")
+    try:
+        validate_logo_image(file.content_type, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     settings = get_or_create_general_settings(db)
     settings.logo_filename = replace_logo(settings.logo_filename, file.filename, data)
     db.commit()
