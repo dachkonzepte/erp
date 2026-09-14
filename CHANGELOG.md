@@ -4,6 +4,38 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.37 – Produktivbetrieb: Rahmenbedingungen dokumentiert, zwei Nebenbefunde behoben
+
+Das ERP läuft seit dem 14.09.2026 auf einem echten Server (Ionos-VPS, Ubuntu, 2 Kerne, 4 GB RAM,
+PostgreSQL, Nginx, Let's Encrypt, `gunicorn` als systemd-Dienst unter `app.dachkonzepte.gmbh`).
+Neuer CLAUDE.md-Abschnitt "Produktivbetrieb" hält die daraus folgenden Rahmenbedingungen fest:
+die zwei Umgebungen (Entwicklung jetzt ebenfalls gegen die lokale PostgreSQL-Instanz statt
+SQLite), das 4-GB-Speicherbudget (beim ersten Anlauf wurden Arbeitsprozesse bei 809 MB vom
+System abgeschossen), die Serverumgebung im Einzelnen (Pfade, Datenbanken, Dienst, Sicherung,
+Notfallskripte), der Weg einer Änderung auf den Server als kopierbarer Befehlsblock, und was das
+für künftige Migrationen bedeutet (Rückweg ist ein Backup-Restore, kein Rückgängig nebenbei) --
+mit Verweis auf den bereits gemachten `e057d15af828`-Fund und die 1.3.35-Reparaturrunde als
+Beleg, dass das keine abstrakte Vorsicht ist.
+
+Zwei Nebenbefunde vom Server-Aufsetzen behoben: (1) die Verbindungszeichenfolge wurde dort
+zunächst mit `postgresql+psycopg2` angelegt, obwohl `requirements.txt` ausschließlich `psycopg`
+(Version 3) installiert -- `psycopg2-binary` musste von Hand nachinstalliert werden, ein
+zweiter, nirgends dokumentierter Treiber. `requirements.txt` und `.env.example` stellen jetzt
+unmissverständlich klar, dass es `postgresql+psycopg` heißen muss. (2) Ein
+Microsoft-365-Client-Secret ließ sich nach dem Umzug nicht mehr entschlüsseln (verschlüsselt mit
+einem inzwischen anderen Schlüssel) -- CLAUDE.md hält als dauerhafte Regel fest, dass
+`data/.erp_secret`/`ERP_SECRET_KEY` niemals gelöscht oder ersetzt werden dürfen, solange
+verschlüsselte Werte in der Datenbank stehen; der bereits betroffene Wert muss einmalig über die
+Einstellungen neu eingetragen werden.
+
+Dazu die beiden zuletzt zurückgestellten Punkte umgesetzt: `app/main.py` ruft
+`Base.metadata.create_all()` nicht mehr auf, wenn die neue Umgebungsvariable `ERP_ENV=production`
+gesetzt ist (die Migrationskette ist dort seither die einzige Quelle für das Schema -- genau der
+Mechanismus, der den `e057d15af828`-Fund erst ermöglicht hatte, ist damit für die Produktion
+entschärft); `backup_windows.ps1` trägt jetzt einen deutlichen Kopfkommentar, dass es
+ausschließlich die lokale Windows-Entwicklungsumgebung sichert, nicht den Server (der sein
+eigenes `/home/tobias/backup.sh` hat).
+
 ## 1.3.36 – PostgreSQL-Umstieg: Datenumzugsskript, erste Runde (nur lokal erprobt)
 
 Erste Runde des eigentlichen Datenumzugs -- nur das Skript bauen und gegen die lokale,

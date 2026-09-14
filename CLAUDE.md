@@ -488,13 +488,189 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Tabellen, 3040 Zeilen, 0 Abweichungen), Anwendung danach tatsächlich gegen PostgreSQL
   gestartet und die üblichen Lesepfade sowie das Anlegen eines neuen Kunden (Sequenz-Test)
   bestätigt. Der Umzug auf den Server selbst bleibt ein eigener, späterer Schritt.
+- Neu seit 1.3.37: **Produktivbetrieb seit 14.09.2026** -- das ERP läuft seither auf einem
+  echten Server, siehe eigener Abschnitt "Produktivbetrieb" unten für die vollständigen
+  Rahmenbedingungen (zwei Umgebungen, Speicherbudget, der Weg einer Änderung auf den Server,
+  was das für Migrationen heißt). Zwei der zuvor bewusst zurückgestellten Punkte umgesetzt:
+  `Base.metadata.create_all()` läuft nicht mehr, wenn `ERP_ENV=production` gesetzt ist (die
+  Migrationskette ist dort seither die einzige Quelle für das Schema), und
+  `backup_windows.ps1` ist jetzt ausdrücklich als lokal-Windows-only gekennzeichnet -- der
+  Server hat sein eigenes, unabhängiges Backup. Dazu zwei echte Nebenbefunde vom
+  Erstaufsetzen behoben: die Verwechslungsgefahr `postgresql+psycopg` vs.
+  `+psycopg2` in `requirements.txt`/`.env.example` beseitigt, und in CLAUDE.md festgehalten,
+  dass `data/.erp_secret` niemals gelöscht werden darf, solange verschlüsselte Werte in der
+  Datenbank stehen.
+
+## Produktivbetrieb (seit 14.09.2026)
+
+Das ERP läuft seit diesem Tag auf einem echten Server, nicht mehr nur lokal auf Tobias'
+Windows-Rechner. Das ändert die Rahmenbedingungen für alles, was künftig gebaut wird -- dieser
+Abschnitt hält sie fest, damit eine neue Sitzung nicht erst am Betrieb selbst lernen muss, was
+davor nur Theorie war.
+
+### Die zwei Umgebungen
+
+- **Entwicklung**: Windows-Rechner (`C:\DACHKONZEPTE-ERP\1 Prototype\`), weiterhin der Ort, an
+  dem gebaut und getestet wird. **Ab sofort mit der lokalen PostgreSQL-Instanz statt SQLite**
+  (siehe Abschnitt "PostgreSQL-Umstieg" unten für die portable, admin-rechte-freie Instanz),
+  damit ein Postgres-spezifischer Fehler hier auffällt und nicht erst auf dem Server -- SQLite
+  bleibt als schneller Einstieg für einen frischen Checkout ohne installiertes PostgreSQL
+  nutzbar, ist aber nicht mehr das, wogegen ernsthaft entwickelt werden soll.
+- **Produktion**: ein Ionos-VPS, Ubuntu, 2 Kerne, 4 GB RAM. PostgreSQL, Nginx als Reverse Proxy,
+  HTTPS über Let's Encrypt, `gunicorn` als systemd-Dienst, erreichbar unter
+  `app.dachkonzepte.gmbh`.
+
+**Der Code kommt ausschließlich über Git dorthin. Niemals Dateien von Hand kopieren** -- jede
+Abweichung zwischen dem, was lokal committet wurde, und dem, was tatsächlich auf dem Server
+liegt, ist ab jetzt ein echtes Risiko (überschriebene, nie committete Änderungen; ein Server-
+Stand, den `git log` nicht erklären kann), nicht nur ein theoretisches.
+
+### Was beim Bauen zu beachten ist
+
+- **Speicherbudget.** Der Server hat 4 GB RAM -- beim Entwickeln auf einem deutlich größeren
+  Rechner fällt Speicherverbrauch nicht auf, auf dem Server schon. Beim ersten Anlauf wurden die
+  Arbeitsprozesse bei 809 MB vom System abgeschossen (OOM). Bei allem, was größere Datenmengen
+  im Speicher hält -- PDF-Erzeugung mit vielen Fotos (siehe `service_report_pdf.py`), Importe
+  (Adressimport, XML-Import), Massenabfragen ohne Begrenzung -- den Verbrauch mitdenken, nicht
+  erst auf dem Server merken.
+- **Umgebungsvariablen statt fest verdrahteter Pfade/Werte.** Alles, was der Server anders
+  macht als die Entwicklungsumgebung, gehört in eine Umgebungsvariable (Muster: `ERP_SECRET_KEY`,
+  `ERP_DATA_DIR`, `DATABASE_URL`, jetzt auch `ERP_ENV`, siehe unten) -- nie ein Pfad oder Wert,
+  der nur unter Windows bzw. nur lokal stimmt. Die vorhandenen Variablen sind in `.env.example`
+  dokumentiert, das ist die verbindliche Liste.
+- **Datenmenge wächst.** Heute (Stand des ersten Datenumzugs) 3040 Zeilen über alle Tabellen,
+  162 Kunden. Das ist der Anfang, nicht der Bestand, mit dem langfristig geplant werden darf --
+  eine Abfrage, die lokal an einer kleinen Datenmenge schnell ist, muss das bei tausenden Kunden/
+  Aufträgen/Zeitbuchungen nicht bleiben. Bei neuen, potenziell großen Abfragen (fehlender Index,
+  `N+1`-Nachladen, ungefilterte Listen) das im Kopf behalten, nicht erst wenn es spürbar wird.
+
+### Die Serverumgebung im Einzelnen
+
+| Was | Wo |
+|---|---|
+| Projektordner | `/home/tobias/erp` |
+| Datenordner (`ERP_DATA_DIR`, außerhalb von Git) | `/home/tobias/erp-data` |
+| Umgebung | `/home/tobias/erp/.env` |
+| Datenbank | `dachkonzepte` (produktiv), `spielwiese` (Probe, siehe unten) |
+| Dienst | `erp.service`, `gunicorn` mit einem Arbeitsprozess |
+| Sicherung | `/home/tobias/backup.sh`, täglich 2 Uhr UTC, 14 Tage Aufbewahrung |
+| Notfallskripte | `scripts/reset_admin_2fa.py`, `scripts/migrate_sqlite_to_postgres.py` |
+
+Ein Arbeitsprozess (`gunicorn`, kein `--workers 2+`) ist bewusst so gewählt, nicht versehentlich
+klein -- passend zum 4-GB-Speicherbudget oben; jeder zusätzliche Worker verdoppelt effektiv den
+Speicherbedarf der Anwendung selbst.
+
+### Der Weg einer Änderung auf den Server
+
+Lokal bauen, volle Testsuite, bei Oberflächenänderungen zusätzlich ein Klicktest im Browser.
+Committen -- der Betreiber pusht (etablierte Praxis dieser Sitzungen: Claude Code committet,
+aber pusht nie ohne ausdrückliche Aufforderung). Auf dem Server: sichern, `git pull`, Abhängigkeiten,
+Migrationen, Dienst neu starten. Bei Schemaänderungen läuft die Migration vorher einmal gegen
+`spielwiese` (die Probe-Datenbank auf demselben Server, nicht die lokale, portable Instanz aus
+der Entwicklung), erst danach gegen `dachkonzepte`.
+
+Als Befehlsblock zum Kopieren -- Pfade wie oben, `.venv` als angenommener, aber nicht anderswo
+in diesem Dokument bestätigter Name des virtuellen Umgebungsordners auf dem Server (bei
+Abweichung entsprechend anpassen):
+
+```bash
+# Auf dem Server, im Projektordner:
+cd /home/tobias/erp
+
+# 1. Sichern (zusätzlich zur ohnehin taeglichen 2-Uhr-Sicherung, siehe oben)
+bash /home/tobias/backup.sh
+
+# 2. Neuen Code holen
+git pull
+
+# 3. Abhaengigkeiten aktualisieren
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# 4. Bei Schemaaenderungen: zuerst gegen die Probe-Datenbank
+DATABASE_URL=postgresql+psycopg://<user>:<pass>@localhost:5432/spielwiese alembic upgrade head
+# -- pruefen, dann erst gegen die echte Datenbank (DATABASE_URL kommt aus .env):
+alembic upgrade head
+
+# 5. Dienst neu starten und Status pruefen
+sudo systemctl restart erp.service
+sudo systemctl status erp.service --no-pager
+```
+
+### Was das für Migrationen heißt
+
+Eine Migration läuft künftig auf echten Produktivdaten, nicht mehr nur auf einer leeren
+Testdatenbank oder Tobias' lokaler Entwicklungskopie. Der Rückweg ist ein Backup-Restore, keine
+Kleinigkeit mehr, die man nebenbei rückgängig macht.
+
+Prüfe künftig bei **jeder** Migration, bevor sie auf den Server geht:
+
+- **Läuft sie tatsächlich gegen PostgreSQL?** Kein `datetime('now')` (SQLite-spezifisch), keine
+  nackten Boolean-Literale `1`/`0` in rohem SQL (unter PostgreSQL strikt typisiert, unter
+  SQLite stillschweigend als Integer durchgewunken) -- siehe Abschnitt "PostgreSQL-Umstieg"
+  unten für die Fehlerklasse im Detail.
+- **Ist sie auf einem Bestand mit echten Daten getestet, nicht nur auf einer leeren
+  Datenbank?** Eine leere Datenbank verdeckt genau die Fehler, die an echten Daten auffallen --
+  siehe unten.
+- **Kann sie rückgängig gemacht werden, und stellt `downgrade()` den tatsächlichen Vorzustand
+  wieder her?** Nicht nur "irgendein" Vorzustand -- siehe die `5c8715dba230`/`0064c87051aa`-
+  Migrationen (Abschnitt "Aufräumen nach dem PDF-Umbau") als Vorbild: ihr `downgrade()` liest die
+  zuletzt tatsächlich vorhandenen Werte vor dem Schreiben aus, nicht nur Code-Standardwerte.
+
+**Warum das keine abstrakte Vorsicht ist, sondern eine bereits gemachte Erfahrung**: die
+Migration `e057d15af828` war seit ihrer Erstellung eine leere Hülle (nur `pass`/`pass`) --
+entstanden, weil `Base.metadata.create_all()` beim App-Start die Tabellen
+`invoices`/`invoice_items` bereits real angelegt hatte, bevor `alembic revision --autogenerate`
+lief, wodurch Autogenerate keinen Unterschied mehr fand. Unter SQLite (und lokal, wo
+`create_all()` bis zu diesem Server-Rollout bei jedem Start nachzog) blieb das unbemerkt --
+erst eine frische PostgreSQL-Datenbank
+ohne dieses Sicherheitsnetz hätte die Kette mit `NoSuchTableError` abgebrochen. Siehe Abschnitt
+"PostgreSQL-Umstieg: Migrationskette repariert" unten für die vollständige Herleitung und die
+1.3.35-Reparaturrunde, die das (und sechs weitere, dialektbedingte Fixes) behoben hat, bevor
+überhaupt umgezogen wurde. Diese Erfahrung ist der Grund für die drei Prüfpunkte oben -- nicht
+Vorsicht um ihrer selbst willen.
+
+### Zwei Nebenbefunde vom Server, beide behoben
+
+1. **`psycopg` (Version 3) vs. `psycopg2` -- Verwechslungsgefahr in der Verbindungszeichenfolge.**
+   `requirements.txt` installiert ausschließlich `psycopg[binary]` (Version 3, SQLAlchemy-
+   Dialektname `psycopg`) -- beim erstmaligen Aufsetzen des Servers wurde die
+   Verbindungszeichenfolge trotzdem mit `postgresql+psycopg2://` angelegt (der weithin bekanntere,
+   ältere Treibername), was zu einem Importfehler führte, da das dafür nötige, separate Paket
+   `psycopg2` nirgends installiert war. Behoben durch `psycopg2-binary`, von Hand
+   nachinstalliert -- funktionierte, aber ein zweiter, in `requirements.txt` nirgends
+   dokumentierter Treiber, der bei einer künftigen Neuinstallation wieder fehlen würde. Jetzt
+   vereinheitlicht: `requirements.txt` trägt einen erklärenden Kommentar direkt an der
+   `psycopg`-Zeile, `.env.example` erklärt explizit, dass die Verbindungszeichenfolge
+   `postgresql+psycopg` lauten muss und **nicht** `postgresql+psycopg2` -- mit einem Verweis auf
+   genau diesen Vorfall. `psycopg2-binary` kann auf dem Server bei Gelegenheit entfernt werden,
+   sobald die Verbindungszeichenfolge dort korrigiert ist (das ist eine Server-Administrations-
+   aufgabe, kein Teil dieser Änderung).
+2. **Ein Microsoft-365-Client-Secret ließ sich nach dem Umzug nicht mehr entschlüsseln.** Der
+   gespeicherte Wert stammt aus einer Zeit mit einem anderen `ERP_SECRET_KEY`/einer anderen
+   `data/.erp_secret` als der, die jetzt tatsächlich gilt -- Entschlüsselung schlägt seither mit
+   dem in `app/crypto.py::decrypt_secret()` dokumentierten `ValueError` fehl. **Daraus folgt eine
+   dauerhafte Regel, nicht nur eine Randnotiz: `data/.erp_secret` darf niemals gelöscht oder durch
+   einen neuen, zufällig erzeugten Wert ersetzt werden, solange verschlüsselte Werte (SMTP-
+   Passwort, Microsoft-365-Client-Secret, TOTP-Geheimnisse) in der Datenbank stehen** -- jeder
+   dieser Werte wird mit genau diesem einen Schlüssel verschlüsselt (`app/crypto.py`, abgeleitet
+   von `secret_key()` in `app/auth.py`) und wird ohne ihn unwiederbringlich unlesbar, nicht nur
+   vorübergehend. Auf einem Server, auf dem `ERP_SECRET_KEY` als Umgebungsvariable gesetzt ist
+   (siehe `.env.example`), gilt dasselbe für diese Variable -- sie darf sich nach dem ersten
+   Verschlüsseln eines Werts nicht mehr ändern. Der bereits betroffene Wert selbst lässt sich
+   nicht nachträglich reparieren (der alte Schlüssel ist verloren) -- ein Administrator muss das
+   Microsoft-365-Client-Secret einmalig über Einstellungen → E-Mail-Versand neu eintragen.
 
 ## Stack & Struktur
 
 - **Backend:** FastAPI, SQLAlchemy 2.0, Alembic, Pydantic, ReportLab
 - **Frontend:** Jinja2-Templates mit eingebettetem, framework-losem JavaScript (kein React/Vue) –
   jede Seite ist eine einzelne `.html`-Datei mit `<style>` und `<script>` direkt darin
-- **Datenbank:** SQLite lokal, auf PostgreSQL-Umstieg vorbereitet
+- **Datenbank:** PostgreSQL produktiv (seit 14.09.2026, siehe Abschnitt "Produktivbetrieb"
+  oben) und seither auch in der lokalen Entwicklung Standard, statt der früher rein lokalen
+  SQLite-Datei -- SQLite bleibt als schneller Einstieg für einen frischen Checkout ohne
+  installiertes PostgreSQL nutzbar (`DATABASE_URL`-Standardwert), ist aber nicht mehr das,
+  wogegen ernsthaft entwickelt werden soll
 - **Tests:** pytest, Dateien unter `tests/test_vNNN_thema.py` – die Nummer bezieht sich lose auf
   die Version, in der das Feature entstand
 - **Layout:** `app/*.py` enthält die Geschäftslogik modulweise (z. B. `projects.py`, `invoices.py`,

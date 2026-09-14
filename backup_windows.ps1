@@ -1,5 +1,10 @@
 <#
-Erstellt ein vollstaendiges Backup des Projekts (Code + Datenbank + hochgeladene
+NUR fuer die lokale Windows-Entwicklungsumgebung -- sichert NICHT den Produktivserver.
+Seit dem Produktivbetrieb (siehe CLAUDE.md "Produktivbetrieb") hat der Server sein eigenes,
+unabhaengiges Backup unter /home/tobias/backup.sh (taeglich 2 Uhr UTC, 14 Tage Aufbewahrung) --
+dieses Skript hier kennt den Server nicht und laeuft dort auch nicht.
+
+Erstellt ein vollstaendiges Backup des lokalen Projekts (Code + Datenbank + hochgeladene
 Dateien wie Firmenlogo, Projektdokumente, Layout-Hintergruende, der Verschluesselungs-
 schluessel data\.erp_secret) unter C:\DACHKONZEPTE-ERP\Backup -- ein Ordner pro Lauf,
 benannt nach VERSION und Zeitstempel.

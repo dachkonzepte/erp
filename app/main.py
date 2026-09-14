@@ -1,4 +1,5 @@
 import logging
+import os
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -25,7 +26,20 @@ configure_logging()
 logger = logging.getLogger(__name__)
 warn_if_secret_key_mismatches_file()
 
-Base.metadata.create_all(bind=engine)
+# Sicherheitsnetz nur fuer die lokale Entwicklung (siehe CLAUDE.md "Produktivbetrieb" --
+# genau dieser Aufruf hat die Migration e057d15af828 einst zu einer leeren Huelle gemacht,
+# weil er beim Start bereits alle Tabellen aus den ORM-Modellen anlegte, bevor Autogenerate
+# lief). Auf dem Produktivserver (ERP_ENV=production) ist die Migrationskette
+# (alembic upgrade head, siehe "Der Weg einer Aenderung auf den Server") die EINZIGE Quelle
+# fuer das Schema -- eine fehlende Migration soll dort sofort sichtbar auffallen, nicht
+# durch dieses Sicherheitsnetz kommentarlos verdeckt werden.
+if os.getenv("ERP_ENV", "development") != "production":
+    Base.metadata.create_all(bind=engine)
+else:
+    logger.info(
+        "ERP_ENV=production -- Base.metadata.create_all() wird nicht ausgefuehrt, "
+        "alembic upgrade head ist hier die alleinige Quelle fuer das Datenbankschema."
+    )
 with SessionLocal() as _upgrade_db:
     ensure_existing_order_revisions(_upgrade_db)
     ensure_default_work_time_models(_upgrade_db)
