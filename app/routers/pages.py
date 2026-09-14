@@ -70,25 +70,33 @@ def _is_module_enabled(module_key: str) -> bool:
 templates.env.globals["is_module_enabled"] = _is_module_enabled
 
 
+_SIDEBAR_LOGO_ENDPOINTS = {
+    "sidebar": "/api/settings/general/sidebar-logo",
+    "company": "/api/settings/general/logo",
+}
+
+
 def _sidebar_logo_url() -> str | None:
     """Jinja-Global: liefert die URL des Logos, das _sidebar.html oben links statt des
     Schriftzugs "DACHKONZEPTE" zeigen soll, oder None, wenn keins hinterlegt ist (Fallback
     dann der Schriftzug -- eine leere Stelle wäre schlechter als Text). Die eigentliche
     "welches Logo"-Entscheidung liegt bewusst in company_logo.py::sidebar_logo_filename(),
-    nicht hier -- dieser Global bleibt ein reiner URL-Baukasten (Muster get_theme()/
-    is_module_enabled() oben: live aus der DB, eigene, kurzlebige Session je Aufruf, damit ein
-    Logo-Wechsel ohne Serverneustart auf der nächsten Seitenanfrage sichtbar wird). Der
+    nicht hier -- dieser Global baut nur noch die passende URL aus deren Ergebnis (seit 1.3.43
+    ein SidebarLogoReference mit source "sidebar"/"company", da beide Logos in getrennten
+    Ordnern hinter getrennten Endpunkten liegen, siehe _SIDEBAR_LOGO_ENDPOINTS). Muster
+    get_theme()/is_module_enabled() oben: live aus der DB, eigene, kurzlebige Session je Aufruf,
+    damit ein Logo-Wechsel ohne Serverneustart auf der nächsten Seitenanfrage sichtbar wird. Der
     Query-Parameter ?v=<stored_filename> bricht das Browser-Bild-Caching gezielt auf, sobald
     ein Logo ersetzt wird -- stored_filename ist ein neuer, zufälliger Name je Upload."""
     try:
         with SessionLocal() as db:
-            filename = sidebar_logo_filename(db)
+            ref = sidebar_logo_filename(db)
+        if ref is None:
+            return None
+        return f"{_SIDEBAR_LOGO_ENDPOINTS[ref.source]}?v={ref.stored_filename}"
     except Exception:
         logger.exception("sidebar_logo_url() fehlgeschlagen, falle auf den Schriftzug zurück")
         return None
-    if not filename:
-        return None
-    return f"/api/settings/general/logo?v={filename}"
 
 
 def _sidebar_logo_height_px() -> int:

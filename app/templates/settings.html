@@ -101,8 +101,8 @@
 
     <h3 style="margin:22px 0 8px;font-size:14px">Firmenlogo</h3>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
-      <div id="companyLogoPreviewWrap" style="display:none;align-items:center;overflow:hidden;max-width:220px">
-        <img id="companyLogoPreview" style="width:auto;display:block;flex:0 0 auto" alt="Firmenlogo">
+      <div id="companyLogoPreviewWrap" style="display:none;align-items:center;overflow:hidden;max-width:220px;height:60px">
+        <img id="companyLogoPreview" style="width:auto;height:60px;display:block;flex:0 0 auto" alt="Firmenlogo">
       </div>
       <span id="companyLogoEmptyHint" class="muted small">Kein Logo hinterlegt.</span>
     </div>
@@ -111,14 +111,29 @@
       <button type="button" onclick="uploadCompanyLogo()">Hochladen</button>
       <button type="button" class="danger" id="companyLogoRemove" style="display:none" onclick="removeCompanyLogo()">Entfernen</button>
     </div>
+    <span id="companyLogoStatus" class="status"></span>
+    <div class="hint">Wird (einzeln abschaltbar, siehe Dokumente &amp; Layout weiter unten) auf PDF-Dokumenten sowie als Symbol der Monteursansicht auf dem Startbildschirm verwendet. Erscheint außerdem ersatzweise oben links in der Seitenleiste, solange dort kein eigenes Sidebar-Logo hinterlegt ist (siehe unten). PNG, JPEG, WebP oder SVG, max. 5 MB.</div>
+
+    <h3 style="margin:22px 0 8px;font-size:14px">Sidebar-Logo</h3>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+      <div id="sidebarLogoPreviewWrap" style="display:none;align-items:center;overflow:hidden;max-width:220px">
+        <img id="sidebarLogoPreview" style="width:auto;display:block;flex:0 0 auto" alt="Sidebar-Logo">
+      </div>
+      <span id="sidebarLogoEmptyHint" class="muted small">Kein eigenes Sidebar-Logo hinterlegt.</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="file" id="sidebarLogoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+      <button type="button" onclick="uploadSidebarLogo()">Hochladen</button>
+      <button type="button" class="danger" id="sidebarLogoRemove" style="display:none" onclick="removeSidebarLogo()">Entfernen</button>
+    </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
-      <label for="companyLogoHeight" style="font-size:13px">Anzeigehöhe in der Seitenleiste</label>
-      <input type="number" id="companyLogoHeight" min="24" max="80" step="1" style="width:70px">
+      <label for="sidebarLogoHeight" style="font-size:13px">Anzeigehöhe in der Seitenleiste</label>
+      <input type="number" id="sidebarLogoHeight" min="24" max="80" step="1" style="width:70px">
       <span class="muted small">px (24–80)</span>
       <button type="button" onclick="saveLogoHeight()">Übernehmen</button>
     </div>
-    <span id="companyLogoStatus" class="status"></span>
-    <div class="hint">Erscheint, sobald hinterlegt, oben links in der Seitenleiste statt des Schriftzugs "DACHKONZEPTE" -- sowie (einzeln abschaltbar, siehe Dokumente &amp; Layout weiter unten) auf PDF-Dokumenten und als Symbol der Monteursansicht auf dem Startbildschirm. PNG, JPEG, WebP oder SVG, max. 5 MB. Ist das Logo breiter als der verfügbare Platz in der Seitenleiste, wird es rechts abgeschnitten statt in der Höhe verkleinert.</div>
+    <span id="sidebarLogoStatus" class="status"></span>
+    <div class="hint">Erscheint ausschließlich oben links in der Seitenleiste, statt des Firmenlogos bzw. des Schriftzugs "DACHKONZEPTE" -- sinnvoll, wenn das Firmenlogo (wie hier) selbst einen Schriftzug enthält, der bei keiner erlaubten Höhe mehr lesbar wäre. Hier lässt sich stattdessen eine reduzierte Variante hinterlegen (z. B. nur ein Bildzeichen). <span id="sidebarLogoFallbackHint"></span> Die Höhe oben gilt für das jeweils tatsächlich in der Seitenleiste gezeigte Logo. PNG, JPEG, WebP oder SVG, max. 5 MB. Ist das gezeigte Logo breiter als der verfügbare Platz, wird es rechts abgeschnitten statt in der Höhe verkleinert.</div>
   </section>
 
   <section class="card settings-section" id="settings-numbers">
@@ -603,7 +618,7 @@ async function load(){
     alert('Diese Einstellungen konnten nicht geladen werden, der Rest der Seite funktioniert trotzdem:\n\n'+failed.join('\n')+'\n\nMöglicherweise wurde eine Datenbank-Migration noch nicht (vollständig) ausgeführt -- bitte "alembic upgrade head" prüfen.');
   }
   setv('companyName',g.company_name);setv('managingDirector',g.managing_director);setv('companyStreet',g.street);setv('companyZip',g.postal_code);setv('companyCity',g.city);setv('companyCountry',g.country);setv('companyPhone',g.phone);setv('companyEmail',g.email);setv('companyWebsite',g.website);setv('taxNumber',g.tax_number);setv('vatId',g.vat_id);setv('registerCourt',g.register_court);setv('registerNumber',g.register_number);setv('iban',g.iban);setv('bic',g.bic);setv('defaultVat',g.default_vat_rate);setv('quoteIntro',g.default_quote_intro);setv('quoteOutro',g.default_quote_outro);
-  generalSettings=g;renderCompanyLogo();
+  generalSettings=g;renderCompanyLogo();renderSidebarLogo();
   setv('laborRate',c.labor_rate);setv('materialMarkup',c.material_markup_pct);setv('overhead',c.overhead_pct);setv('riskProfit',c.risk_profit_pct);document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
   setv('employerCostPct',lr.employer_cost_pct);setv('productiveTimePct',lr.productive_time_pct);setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',lr.fixed_overhead_value||0);setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',lr.variable_overhead_value||0);setv('targetProfitPct',lr.target_profit_pct);setv('weeksPerYear',lr.weeks_per_year);syncOverheadLabels();renderLaborRate(lrc);
   sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();document.getElementById('autoCreateDraftsCheckbox').checked=!!rs.auto_create_drafts;moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadMobileSection();loadDocumentLayoutSection();}
@@ -994,25 +1009,14 @@ async function removeDocumentLayoutBackground(pageType){
   }catch(e){alert('Fehler: '+e.message)}
 }
 function renderCompanyLogo(){
-  const wrap=document.getElementById('companyLogoPreviewWrap'),emptyHint=document.getElementById('companyLogoEmptyHint'),removeBtn=document.getElementById('companyLogoRemove'),img=document.getElementById('companyLogoPreview'),heightInput=document.getElementById('companyLogoHeight');
-  const height=(generalSettings&&generalSettings.sidebar_logo_height_px)||48;
-  heightInput.value=height;
+  const wrap=document.getElementById('companyLogoPreviewWrap'),emptyHint=document.getElementById('companyLogoEmptyHint'),removeBtn=document.getElementById('companyLogoRemove'),img=document.getElementById('companyLogoPreview');
   if(generalSettings&&generalSettings.logo_filename){
     img.src='/api/settings/general/logo?v='+encodeURIComponent(generalSettings.logo_filename);
-    img.style.height=height+'px';
-    wrap.style.display='flex';wrap.style.height=height+'px';emptyHint.style.display='none';removeBtn.style.display='inline-block';
+    wrap.style.display='flex';emptyHint.style.display='none';removeBtn.style.display='inline-block';
   }else{
     wrap.style.display='none';emptyHint.style.display='inline';removeBtn.style.display='none';
   }
-}
-async function saveLogoHeight(){
-  const input=document.getElementById('companyLogoHeight'),st=document.getElementById('companyLogoStatus');
-  const height=Number(input.value);
-  if(!Number.isInteger(height)||height<24||height>80){st.textContent='Bitte einen Wert zwischen 24 und 80 eingeben.';return}
-  try{
-    generalSettings=await api('/api/settings/general',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...generalSettings,sidebar_logo_height_px:height})});
-    st.textContent='Gespeichert.';renderCompanyLogo();
-  }catch(e){st.textContent='Fehler: '+e.message}
+  renderSidebarLogoFallbackHint();
 }
 async function uploadCompanyLogo(){
   const input=document.getElementById('companyLogoFile'),st=document.getElementById('companyLogoStatus');
@@ -1029,6 +1033,54 @@ async function removeCompanyLogo(){
   try{
     generalSettings=await api('/api/settings/general/logo',{method:'DELETE'});
     st.textContent='Entfernt.';renderCompanyLogo();
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+function renderSidebarLogoFallbackHint(){
+  const hint=document.getElementById('sidebarLogoFallbackHint');
+  if(!hint)return;
+  const hasSidebarLogo=generalSettings&&generalSettings.sidebar_logo_filename;
+  if(hasSidebarLogo){hint.textContent='';return}
+  hint.textContent=(generalSettings&&generalSettings.logo_filename)
+    ? 'Ohne eigenes Sidebar-Logo zeigt die Seitenleiste aktuell ersatzweise das Firmenlogo.'
+    : 'Ohne eigenes Sidebar-Logo UND ohne Firmenlogo zeigt die Seitenleiste aktuell den Schriftzug "DACHKONZEPTE".';
+}
+function renderSidebarLogo(){
+  const wrap=document.getElementById('sidebarLogoPreviewWrap'),emptyHint=document.getElementById('sidebarLogoEmptyHint'),removeBtn=document.getElementById('sidebarLogoRemove'),img=document.getElementById('sidebarLogoPreview'),heightInput=document.getElementById('sidebarLogoHeight');
+  const height=(generalSettings&&generalSettings.sidebar_logo_height_px)||48;
+  heightInput.value=height;
+  if(generalSettings&&generalSettings.sidebar_logo_filename){
+    img.src='/api/settings/general/sidebar-logo?v='+encodeURIComponent(generalSettings.sidebar_logo_filename);
+    img.style.height=height+'px';
+    wrap.style.display='flex';wrap.style.height=height+'px';emptyHint.style.display='none';removeBtn.style.display='inline-block';
+  }else{
+    wrap.style.display='none';emptyHint.style.display='inline';removeBtn.style.display='none';
+  }
+  renderSidebarLogoFallbackHint();
+}
+async function saveLogoHeight(){
+  const input=document.getElementById('sidebarLogoHeight'),st=document.getElementById('sidebarLogoStatus');
+  const height=Number(input.value);
+  if(!Number.isInteger(height)||height<24||height>80){st.textContent='Bitte einen Wert zwischen 24 und 80 eingeben.';return}
+  try{
+    generalSettings=await api('/api/settings/general',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...generalSettings,sidebar_logo_height_px:height})});
+    st.textContent='Gespeichert.';renderSidebarLogo();
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+async function uploadSidebarLogo(){
+  const input=document.getElementById('sidebarLogoFile'),st=document.getElementById('sidebarLogoStatus');
+  if(!input.files.length){st.textContent='Bitte eine Datei auswählen.';return}
+  const fd=new FormData();fd.append('file',input.files[0]);
+  try{
+    generalSettings=await api('/api/settings/general/sidebar-logo',{method:'POST',body:fd});
+    input.value='';st.textContent='Gespeichert.';renderSidebarLogo();
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+async function removeSidebarLogo(){
+  if(!confirm('Sidebar-Logo wirklich entfernen?'))return;
+  const st=document.getElementById('sidebarLogoStatus');
+  try{
+    generalSettings=await api('/api/settings/general/sidebar-logo',{method:'DELETE'});
+    st.textContent='Entfernt.';renderSidebarLogo();
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 async function saveDocumentLayoutMargins(){

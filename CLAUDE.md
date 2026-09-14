@@ -20,12 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.42** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf weiterhin `c327ff4ad332` ("sidebar logo height") -- direkt auf
-  `1b55170709a6` (1.3.34) aufsetzend, keine der übrigen Versionen 1.3.35–1.3.42 brauchte eine
-  eigene Migration -- bei Bedarf per `alembic history`/`heads` prüfen statt sich auf eine hier
+- Version: **1.3.43** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `4ba46163a7e8` ("sidebar logo dedicated upload") -- direkt auf
+  `c327ff4ad332` (1.3.39) aufsetzend, keine der Versionen 1.3.40–1.3.42 brauchte eine eigene
+  Migration -- bei Bedarf per `alembic history`/`heads` prüfen statt sich auf eine hier
   aufgeschriebene Liste zu verlassen.
-- Tests: **1071/1071**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
+- Tests: **1075/1075**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -545,6 +545,18 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   (`get_theme()`/`is_module_enabled()`/`sidebar_logo_url()`/`sidebar_logo_height_px()`) fangen
   seither jede Ausnahme ab und fallen auf einen sicheren Wert zurück. Details im Abschnitt
   "Produktivbetrieb" → "Zwei Vorfälle beim Ausliefern von 1.3.38–1.3.41" unten.
+- Neu seit 1.3.43: **Korrektur zu 1.3.39 -- das Firmenlogo enthält doch einen Schriftzug**
+  ("DACHKONZEPTE GmbH"/"RÖDCHEN" unterhalb des Dachzeichens, von der damaligen
+  Alphakanal-Bounding-Box-Auswertung nicht erkannt) -- deshalb jetzt ein eigener, dedizierter
+  Sidebar-Logo-Upload (`GeneralSettings.sidebar_logo_filename`, eigener Ordner unter
+  `ERP_DATA_DIR`, neue Endpunkte `POST/GET/DELETE /api/settings/general/sidebar-logo`), nach dem
+  Muster des bestehenden Firmenlogo-Uploads. `company_logo.py::sidebar_logo_filename()` löst
+  seither drei statt zwei Stufen auf (Sidebar-Logo → Firmenlogo → Schriftzug) und liefert dafür
+  ein `SidebarLogoReference`-Tupel statt eines nackten Dateinamens -- beide Logos liegen in
+  getrennten Ordnern hinter getrennten Auslieferungsrouten. Die 1.3.42-Ausnahmesicherheit des
+  zugehörigen Jinja-Globals bleibt dabei vollständig erhalten. Einstellungen trennen "Firmenlogo"
+  (PDFs, PWA-Icon) und "Sidebar-Logo" (nur Navigation) jetzt in zwei eigene Abschnitte. Details
+  im Abschnitt "Firmenlogo in der Sidebar" → "Korrektur: doch ein Schriftzug" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -4688,7 +4700,8 @@ fast quadratisches Symbol ohne feine Details bleibt bei jeder Höhe zwischen 24 
 erkennbar, die Rechnung "wird der Schriftzug bei X px unter 8px und damit unlesbar" war für
 diese Datei von Anfang an gegenstandslos, da es keinen Schriftzug gibt. Vom Nutzer bestätigt --
 kein zweiter Upload gebaut, `sidebar_logo_filename()` bleibt bei genau einer Stufe
-(Firmenlogo → Schriftzug).
+(Firmenlogo → Schriftzug). **Diese Diagnose war falsch -- seit 1.3.43 korrigiert, siehe
+"Korrektur: doch ein Schriftzug" am Ende dieses Abschnitts.**
 
 ### Anzeige-Rendition (seit 1.3.40)
 
@@ -4721,6 +4734,66 @@ Testinstanz): Original 258.475 Bytes/8000×5295px -- ausgelieferte Rendition 19.
 480×318px. **Faktor ~13 bei der Übertragungsgröße, Faktor ~278 bei der Pixelzahl** (42,4 Mio. →
 153.000 Pixel). Beide Dateien bestätigt nebeneinander auf der Platte vorhanden, Sidebar zeigt
 weiterhin `style="height:48px"` unverändert korrekt.
+
+### Korrektur: doch ein Schriftzug -- dedizierter Sidebar-Logo-Upload (seit 1.3.43)
+
+Die 1.3.39-Diagnose ("kein Schriftzug an irgendeiner Stelle", per Bounding-Box-Auswertung des
+Alphakanals ermittelt) war falsch. Auf einem echten Screenshot der Sidebar ist "DACHKONZEPTE
+GmbH" und darunter gesperrt "RÖDCHEN" klar erkennbar, unterhalb des Dachzeichens -- die
+automatisierte Auswertung hat das nicht erkannt, mutmaßlich weil Schriftzug und Bildzeichen
+räumlich zu nah beieinander liegen, um über eine einzelne Inhalts-Bounding-Box getrennt zu
+werden (die Messung selbst -- 8000×5295px, Inhalts-Box 5970×4907px -- bleibt richtig, nur ihre
+Interpretation "eine einzige, durchgehende Form ohne Text" war es nicht). Das ändert die
+1.3.39-Antwort: ein zweiter, dedizierter Sidebar-Logo-Upload ist doch nötig.
+
+- **Zwei unabhängige Uploads statt einem** (`app/company_logo.py`, vollständig überarbeiteter
+  Moduldocstring dort): **Firmenlogo** (`LOGO_ROOT`, `GeneralSettings.logo_filename`) bleibt für
+  PDFs und das PWA-Icon zuständig, unverändert. Neu: **Sidebar-Logo** (`SIDEBAR_LOGO_ROOT`, neue
+  Spalte `GeneralSettings.sidebar_logo_filename`, Migration `4ba46163a7e8`, eigener Ordner unter
+  `ERP_DATA_DIR` -- Umgebungsvariable `DACHKONZEPTE_SIDEBAR_LOGO_FILE_ROOT`, achte Variable dieser
+  Art, siehe `.env.example`). Beide Uploads teilen sich dieselbe Speicher-/Validierungslogik
+  (`validate_logo_image()`, Anzeige-Rendition aus 1.3.40) über einen gemeinsam genutzten
+  `root`-Parameter an `logo_directory()`/`logo_path()`/`display_logo_path()`/
+  `_generate_display_rendition()`/`replace_logo()`/`delete_logo()` -- `replace_sidebar_logo()`/
+  `delete_sidebar_logo()`/`sidebar_logo_path()`/`sidebar_logo_display_path()` sind dünne
+  Wrapper, die `root=SIDEBAR_LOGO_ROOT` fest einsetzen. **Fallstrick beim Bauen, selbst gefunden
+  und behoben, bevor er in Produktion gegangen wäre**: ein naiver `root: Path = LOGO_ROOT`-
+  Vorgabewert an diesen Funktionen hätte den bestehenden Testmustern
+  (`monkeypatch.setattr(company_logo, "LOGO_ROOT", tmp_path / ...)`, u. a. in
+  `tests/test_v158_pdf_layout_foundation.py`/`test_v249_sidebar_logo.py`) den Boden entzogen --
+  ein Vorgabewert wird einmalig bei der Modul-Definition gebunden, nicht bei jedem Aufruf neu aus
+  dem (dann längst geänderten) Modul-Global gelesen. Stattdessen `root: Path | None = None` mit
+  `if root is None: root = LOGO_ROOT` im Funktionskörper -- liest `LOGO_ROOT` bei jedem Aufruf
+  frisch, genau wie vor dem Umbau.
+- **Drei statt zwei Stufen** (`sidebar_logo_filename(db)`, weiterhin in `company_logo.py`): (1)
+  Sidebar-Logo, falls hinterlegt und die Datei existiert, (2) sonst Firmenlogo unter derselben
+  Bedingung, (3) sonst `None` (Schriftzug). Liefert dafür seit 1.3.43 kein nacktes
+  `str | None` mehr, sondern ein `SidebarLogoReference`-NamedTuple (`source: "sidebar"|"company"`,
+  `stored_filename`) -- der einzige Aufrufer (`sidebar_logo_url()` in `app/routers/pages.py`)
+  braucht die Quelle, um die richtige von zwei getrennten Auslieferungsrouten anzusprechen
+  (`GET /api/settings/general/sidebar-logo` bzw. `.../logo`, je im eigenen Ordner). Die
+  1.3.42-Ausnahmesicherheit dieses Jinja-Globals bleibt dabei unverändert vollständig -- der
+  gesamte Rangfolge-Aufruf UND das URL-Zusammensetzen aus `ref.source`/`ref.stored_filename`
+  liegen innerhalb desselben `try/except Exception`-Blocks, ein unerwarteter Wert schlägt also
+  ebenso wenig durch wie ein DB-Fehler.
+- **Zwei neue Endpunkte** (`app/routers/settings.py`, Muster der bestehenden Firmenlogo-Routen):
+  `POST/GET/DELETE /api/settings/general/sidebar-logo` -- Upload validiert genauso über
+  `validate_logo_image()` (400 statt 500 bei einem ungültigen Bild, siehe 1.3.42), GET liefert
+  bevorzugt die Anzeige-Rendition mit demselben unveränderlichen Cache-Header wie beim
+  Firmenlogo.
+- **Einstellungen klar getrennt** (Unternehmensstammdaten → zwei eigene Abschnitte
+  "Firmenlogo"/"Sidebar-Logo" statt eines gemeinsamen): das Firmenlogo-Feld verlor dabei sein
+  bisheriges Höhenfeld (das war ohnehin die Sidebar-Anzeigehöhe, nicht seine eigene) -- es wandert
+  vollständig zum neuen Sidebar-Logo-Abschnitt, wo es fachlich hingehört (gilt für das jeweils
+  tatsächlich in der Seitenleiste gezeigte Logo, unabhängig davon, welche Stufe greift). Ein
+  client-seitig berechneter Hinweistext im Sidebar-Logo-Abschnitt sagt live, welche Stufe ohne
+  eigenes Sidebar-Logo aktuell greift ("zeigt ersatzweise das Firmenlogo" / "zeigt den
+  Schriftzug").
+- **Tests** (`tests/test_v249_sidebar_logo.py`, überarbeitet): alle drei Stufen einzeln (nur
+  Firmenlogo, Sidebar-Logo vor Firmenlogo, Sidebar-Logo-Datei fehlt → Rückfall auf Firmenlogo,
+  beides fehlt → `None`), die drei neuen Endpunkte über `router_test_client()`, und dass ein
+  Sidebar-Logo-Upload den Firmenlogo-Ordner/-Datensatz unangetastet lässt (getrennte Ordner,
+  getrennte Spalten).
 
 ## Migrations-Workflow
 

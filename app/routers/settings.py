@@ -12,7 +12,18 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..calculation import get_or_create_settings
-from ..company_logo import MAX_UPLOAD_BYTES as LOGO_MAX_UPLOAD_BYTES, delete_logo, display_logo_path, logo_path, replace_logo, validate_logo_image
+from ..company_logo import (
+    MAX_UPLOAD_BYTES as LOGO_MAX_UPLOAD_BYTES,
+    delete_logo,
+    delete_sidebar_logo,
+    display_logo_path,
+    logo_path,
+    replace_logo,
+    replace_sidebar_logo,
+    sidebar_logo_display_path,
+    sidebar_logo_path,
+    validate_logo_image,
+)
 from ..database import get_db
 from ..employees import ensure_default_employee_functions
 from ..models import Employee, EmployeeFunction, EmployeeProfile, SettingOption
@@ -231,6 +242,57 @@ def remove_company_logo(db: Session = Depends(get_db)):
     settings = get_or_create_general_settings(db)
     delete_logo(settings.logo_filename)
     settings.logo_filename = None
+    db.commit()
+    db.refresh(settings)
+    return settings
+
+
+@router.post("/api/settings/general/sidebar-logo", response_model=GeneralSettingsOut)
+async def upload_sidebar_logo(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Eigener, dedizierter Sidebar-Logo-Upload (seit 1.3.43, siehe CLAUDE.md "Firmenlogo in
+    der Sidebar") -- unabhängig vom Firmenlogo-Upload oben, eigener Ordner
+    (company_logo.py::SIDEBAR_LOGO_ROOT), aber dieselbe Validierung/Größenbegrenzung."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Bitte eine Datei auswählen.")
+    if (file.content_type or "").lower() not in ("image/png", "image/jpeg", "image/svg+xml", "image/webp"):
+        raise HTTPException(status_code=422, detail="Bitte PNG, JPEG, WebP oder SVG verwenden.")
+    data = await file.read(LOGO_MAX_UPLOAD_BYTES + 1)
+    if len(data) > LOGO_MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Logo ist größer als 5 MB.")
+    try:
+        validate_logo_image(file.content_type, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    settings = get_or_create_general_settings(db)
+    settings.sidebar_logo_filename = replace_sidebar_logo(settings.sidebar_logo_filename, file.filename, data)
+    db.commit()
+    db.refresh(settings)
+    return settings
+
+
+@router.get("/api/settings/general/sidebar-logo")
+def view_sidebar_logo(db: Session = Depends(get_db)):
+    """Auslieferungsweg für das dedizierte Sidebar-Logo -- Gegenstück zu view_company_logo()
+    oben, nur im eigenen Ordner. Genutzt von sidebar_logo_url() (app/routers/pages.py), wenn
+    company_logo.py::sidebar_logo_filename() die Quelle "sidebar" auflöst."""
+    settings = get_or_create_general_settings(db)
+    if not settings.sidebar_logo_filename:
+        raise HTTPException(status_code=404, detail="Kein Sidebar-Logo hinterlegt.")
+    cache_headers = {"Cache-Control": "private, max-age=31536000, immutable"}
+    display_path = sidebar_logo_display_path(settings.sidebar_logo_filename)
+    if display_path.is_file():
+        return FileResponse(display_path, headers=cache_headers)
+    path = sidebar_logo_path(settings.sidebar_logo_filename)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Logo-Datei nicht gefunden.")
+    return FileResponse(path, headers=cache_headers)
+
+
+@router.delete("/api/settings/general/sidebar-logo", response_model=GeneralSettingsOut)
+def remove_sidebar_logo(db: Session = Depends(get_db)):
+    settings = get_or_create_general_settings(db)
+    delete_sidebar_logo(settings.sidebar_logo_filename)
+    settings.sidebar_logo_filename = None
     db.commit()
     db.refresh(settings)
     return settings

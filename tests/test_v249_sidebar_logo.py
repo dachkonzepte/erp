@@ -1,20 +1,31 @@
-"""Version 1.3.38/1.3.39 -- Firmenlogo in der Sidebar statt des Schriftzugs "DACHKONZEPTE",
-Anzeigehöhe einstellbar (24-80px).
+"""Version 1.3.38/1.3.39/1.3.43 -- Firmenlogo in der Sidebar statt des Schriftzugs
+"DACHKONZEPTE", Anzeigehöhe einstellbar (24-80px), seit 1.3.43 zusätzlich ein eigener,
+dedizierter Sidebar-Logo-Upload.
 
-Kein zweiter, eigener Sidebar-Logo-Upload (siehe CLAUDE.md "Firmenlogo in der Sidebar") --
-_sidebar.html zeigt heute dasselbe Firmenlogo, das bereits für PDF-Dokumente/das PWA-Icon
-existiert (app/company_logo.py). Ist keins hinterlegt, bleibt der Schriftzug.
+**Korrektur zu 1.3.39/1.3.40** (siehe CLAUDE.md "Firmenlogo in der Sidebar"): die dort per
+Bounding-Box-Auswertung des Alphakanals gestellte Diagnose "kein Schriftzug vorhanden" war
+falsch -- die reale Datei zeigt "DACHKONZEPTE GmbH"/"RÖDCHEN" unterhalb des Dachzeichens, nur
+räumlich zu nah am Bildzeichen, um automatisiert getrennt zu werden. Deshalb seit 1.3.43:
+app/company_logo.py::sidebar_logo_filename() löst jetzt DREI Stufen auf (Sidebar-Logo ->
+Firmenlogo -> Schriftzug) statt nur zwei, und liefert dafür ein SidebarLogoReference-NamedTuple
+(source + stored_filename) statt eines nackten Strings -- der Aufrufer (sidebar_logo_url() in
+app/routers/pages.py) braucht die Quelle, um die richtige Auslieferungsroute zu wählen
+(Sidebar-Logo und Firmenlogo liegen in getrennten Ordnern hinter getrennten Endpunkten).
 
 app/company_logo.py::sidebar_logo_filename()/sidebar_logo_height_px() werden hier isoliert
-getestet (die eigentlichen "welches Logo"/"wie groß"-Entscheidungen); die Template-Logik
-(img vs. span, Höhe als Inline-Style) wird über eine bare jinja2.Environment mit gestubbten
-Globals geprüft, exakt das bereits etablierte Muster aus tests/test_v163_sidebar_login_status.py.
-Bewusst KEIN Ende-zu-Ende-Test über eine echte Seite (router_test_client()): die REALE
-app/routers/pages.py-Fassung dieser Globals öffnet wie get_theme()/is_module_enabled() eine
-eigene SessionLocal() gegen die echte Datenbankdatei (siehe CLAUDE.md, "Bekannte, bewusst offene
-Punkte") und lässt sich deshalb nicht per Test-Session umstellen -- ein solcher Test würde nur
-zufällig den aktuellen Inhalt der echten dachkonzepte_erp.db spiegeln und bei einem später
-tatsächlich hochgeladenen Logo ohne jede Codeänderung fehlschlagen.
+getestet (die eigentlichen "welches Logo"/"wie groß"-Entscheidungen), ebenso die beiden neuen
+Router-Endpunkte für den Sidebar-Logo-Upload (POST/GET/DELETE .../sidebar-logo, über
+router_test_client() -- das sind normale, per Depends(get_db) injizierte Endpunkte, anders als
+die Jinja-Globals unten). Die Template-Logik (img vs. span, Höhe als Inline-Style) wird über
+eine bare jinja2.Environment mit gestubbten Globals geprüft, exakt das bereits etablierte
+Muster aus tests/test_v163_sidebar_login_status.py. Bewusst KEIN Ende-zu-Ende-Test über eine
+echte Seite (router_test_client() für die SEITEN-Router): die REALE app/routers/pages.py-Fassung
+der vier Jinja-Globals öffnet wie get_theme()/is_module_enabled() eine eigene SessionLocal()
+gegen die echte Datenbankdatei (siehe CLAUDE.md, "Bekannte, bewusst offene Punkte") und lässt
+sich deshalb nicht per Test-Session umstellen -- ein solcher Test würde nur zufällig den
+aktuellen Inhalt der echten dachkonzepte_erp.db spiegeln. Deren Ausnahmesicherheit (seit 1.3.42)
+wird stattdessen in tests/test_v252_deployment_hardening.py direkt gegen die Modulfunktionen
+geprüft.
 
 Kein echter Browser-Screenshot möglich (kein Automatisierungswerkzeug in dieser Umgebung) --
 dass ein breites Logo bei fester Höhe rechts abgeschnitten wird (.app-sidebar-logo-wrap,
@@ -33,33 +44,124 @@ from app.settings import get_or_create_general_settings
 
 
 # ---------------------------------------------------------------------------
-# company_logo.sidebar_logo_filename() -- welches Logo liefert die Funktion
+# company_logo.sidebar_logo_filename() -- welches Logo liefert die Funktion, in welcher Stufe
 # ---------------------------------------------------------------------------
 
-def test_sidebar_logo_filename_none_when_no_logo_set(db_session):
+def test_sidebar_logo_filename_none_when_nothing_set(db_session):
     assert company_logo.sidebar_logo_filename(db_session) is None
 
 
-def test_sidebar_logo_filename_returns_filename_when_file_exists(db_session, tmp_path, monkeypatch):
+def test_sidebar_logo_filename_falls_back_to_company_logo_when_no_sidebar_logo_set(db_session, tmp_path, monkeypatch):
     monkeypatch.setattr(company_logo, "LOGO_ROOT", tmp_path / "company_logo")
     stored = company_logo.replace_logo(None, "logo.png", b"Bildinhalt")
     settings = get_or_create_general_settings(db_session)
     settings.logo_filename = stored
     db_session.commit()
 
-    assert company_logo.sidebar_logo_filename(db_session) == stored
+    ref = company_logo.sidebar_logo_filename(db_session)
+    assert ref == company_logo.SidebarLogoReference("company", stored)
+
+
+def test_sidebar_logo_filename_prefers_dedicated_sidebar_logo_over_company_logo(db_session, tmp_path, monkeypatch):
+    monkeypatch.setattr(company_logo, "LOGO_ROOT", tmp_path / "company_logo")
+    monkeypatch.setattr(company_logo, "SIDEBAR_LOGO_ROOT", tmp_path / "sidebar_logo")
+    company_stored = company_logo.replace_logo(None, "logo.png", b"Firmenlogo-Bildinhalt")
+    sidebar_stored = company_logo.replace_sidebar_logo(None, "sidebar.png", b"Sidebar-Logo-Bildinhalt")
+    settings = get_or_create_general_settings(db_session)
+    settings.logo_filename = company_stored
+    settings.sidebar_logo_filename = sidebar_stored
+    db_session.commit()
+
+    ref = company_logo.sidebar_logo_filename(db_session)
+    assert ref == company_logo.SidebarLogoReference("sidebar", sidebar_stored)
+
+
+def test_sidebar_logo_filename_falls_back_to_company_logo_when_sidebar_file_missing(db_session, tmp_path, monkeypatch):
+    """Verteidigung in der Tiefe: ein Datenbankeintrag ohne zugehörige Datei (z. B. nach einem
+    von Hand gelöschten Ordner) fällt auf die nächste Stufe zurück, statt zu einem defekten
+    <img> zu führen."""
+    monkeypatch.setattr(company_logo, "LOGO_ROOT", tmp_path / "company_logo")
+    monkeypatch.setattr(company_logo, "SIDEBAR_LOGO_ROOT", tmp_path / "sidebar_logo")
+    company_stored = company_logo.replace_logo(None, "logo.png", b"Firmenlogo-Bildinhalt")
+    settings = get_or_create_general_settings(db_session)
+    settings.logo_filename = company_stored
+    settings.sidebar_logo_filename = "nie-hochgeladen.png"
+    db_session.commit()
+
+    ref = company_logo.sidebar_logo_filename(db_session)
+    assert ref == company_logo.SidebarLogoReference("company", company_stored)
 
 
 def test_sidebar_logo_filename_none_when_file_missing_despite_db_entry(db_session, tmp_path, monkeypatch):
-    """Verteidigung in der Tiefe: ein Datenbankeintrag ohne zugehörige Datei (z. B. nach
-    einem von Hand gelöschten Ordner) soll zum Schriftzug zurückfallen, nicht zu einem
-    defekten <img>."""
+    """Wie oben, aber ohne jede zweite Stufe -- fällt bis auf den Schriftzug (None) zurück."""
     monkeypatch.setattr(company_logo, "LOGO_ROOT", tmp_path / "company_logo")
     settings = get_or_create_general_settings(db_session)
     settings.logo_filename = "nie-hochgeladen.png"
     db_session.commit()
 
     assert company_logo.sidebar_logo_filename(db_session) is None
+
+
+# ---------------------------------------------------------------------------
+# Router: POST/GET/DELETE /api/settings/general/sidebar-logo -- eigener Upload, eigener Ordner
+# ---------------------------------------------------------------------------
+
+def _make_png_bytes(size=(300, 60)):
+    from io import BytesIO
+
+    from PIL import Image
+
+    buf = BytesIO()
+    Image.new("RGBA", size, (10, 90, 40, 255)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def test_upload_view_and_remove_sidebar_logo_over_real_routes(threaded_db_session, router_test_client, tmp_path, monkeypatch):
+    monkeypatch.setattr(company_logo, "SIDEBAR_LOGO_ROOT", tmp_path / "sidebar_logo")
+    from app.routers.settings import router as settings_router
+    client = router_test_client(threaded_db_session, settings_router)
+
+    upload_resp = client.post(
+        "/api/settings/general/sidebar-logo",
+        files={"file": ("sidebar-logo.png", _make_png_bytes(), "image/png")},
+    )
+    assert upload_resp.status_code == 200
+    stored = upload_resp.json()["sidebar_logo_filename"]
+    assert stored
+
+    view_resp = client.get("/api/settings/general/sidebar-logo")
+    assert view_resp.status_code == 200
+    assert view_resp.headers["cache-control"] == "private, max-age=31536000, immutable"
+
+    remove_resp = client.delete("/api/settings/general/sidebar-logo")
+    assert remove_resp.status_code == 200
+    assert remove_resp.json()["sidebar_logo_filename"] is None
+    assert client.get("/api/settings/general/sidebar-logo").status_code == 404
+
+
+def test_sidebar_logo_upload_does_not_touch_company_logo_folder(threaded_db_session, router_test_client, tmp_path, monkeypatch):
+    """Beide Uploads liegen in eigenen, unabhängigen Ordnern -- ein Sidebar-Logo-Upload darf
+    ein bereits hinterlegtes Firmenlogo nicht berühren."""
+    monkeypatch.setattr(company_logo, "LOGO_ROOT", tmp_path / "company_logo")
+    monkeypatch.setattr(company_logo, "SIDEBAR_LOGO_ROOT", tmp_path / "sidebar_logo")
+    from app.routers.settings import router as settings_router
+    client = router_test_client(threaded_db_session, settings_router)
+
+    company_resp = client.post(
+        "/api/settings/general/logo",
+        files={"file": ("logo.png", _make_png_bytes((200, 200)), "image/png")},
+    )
+    assert company_resp.status_code == 200
+    company_filename = company_resp.json()["logo_filename"]
+
+    sidebar_resp = client.post(
+        "/api/settings/general/sidebar-logo",
+        files={"file": ("sidebar-logo.png", _make_png_bytes(), "image/png")},
+    )
+    assert sidebar_resp.status_code == 200
+    assert sidebar_resp.json()["logo_filename"] == company_filename  # unveraendert
+    assert client.get("/api/settings/general/logo").status_code == 200
+    assert client.get("/api/settings/general/sidebar-logo").status_code == 200
 
 
 # ---------------------------------------------------------------------------

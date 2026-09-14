@@ -669,6 +669,7 @@ class GeneralSettingsOut(BaseModel):
     default_quote_intro: str | None
     default_quote_outro: str | None
     logo_filename: str | None
+    sidebar_logo_filename: str | None
     sidebar_logo_height_px: int
 
 

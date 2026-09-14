@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.43 – Korrektur: doch ein Schriftzug -- dedizierter Sidebar-Logo-Upload
+
+Die 1.3.39-Diagnose ("kein Schriftzug im Firmenlogo, nur ein einzelnes geometrisches Symbol",
+per Bounding-Box-Auswertung des Alphakanals ermittelt) war falsch -- ein echter Screenshot
+zeigt "DACHKONZEPTE GmbH"/"RÖDCHEN" deutlich lesbar unterhalb des Dachzeichens. Der Schriftzug
+lag der automatisierten Messung räumlich zu nah am Bildzeichen, um getrennt erkannt zu werden.
+Damit war die 1.3.39-Schlussfolgerung ("mehr Höhe reicht, kein zweiter Upload nötig") hinfällig.
+
+Neuer, eigener Sidebar-Logo-Upload (`GeneralSettings.sidebar_logo_filename`, eigener Ordner
+unter `ERP_DATA_DIR`, zwei neue Endpunkte `POST/GET/DELETE /api/settings/general/sidebar-logo`)
+nach dem Muster des bestehenden Firmenlogo-Uploads -- beide teilen sich Speicher- und
+Validierungslogik über einen `root`-Parameter. `company_logo.py::sidebar_logo_filename()` löst
+jetzt drei Stufen auf: eigenes Sidebar-Logo, sonst Firmenlogo, sonst der Schriftzug
+"DACHKONZEPTE" -- und liefert dafür ein `SidebarLogoReference`-Tupel statt eines nackten
+Dateinamens, da beide Logos in getrennten Ordnern hinter getrennten Auslieferungsrouten liegen.
+Die 1.3.42-Ausnahmesicherheit des zugehörigen Jinja-Globals bleibt dabei vollständig erhalten.
+Einstellungen zeigen "Firmenlogo" (PDFs, PWA-Icon) und "Sidebar-Logo" (nur Navigation) jetzt als
+zwei klar getrennte Abschnitte, inklusive eines Live-Hinweises, welche Stufe ohne eigenes
+Sidebar-Logo aktuell greift.
+
 ## 1.3.42 – Zwei Vorfälle beim Ausliefern von 1.3.38–1.3.41 behoben
 
 Beim Einspielen von 1.3.38 bis 1.3.41 lief `alembic upgrade head` auf dem Server ohne geladene
