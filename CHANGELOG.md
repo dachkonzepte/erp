@@ -4,6 +4,27 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.46 – Mobiler Öffnen-Umschalter für die Sidebar
+
+Echter Nebenbefund aus 1.3.45, behoben vor Schritt 3 (Suche). Auf einem schmalen Bildschirm gab
+es keinen erreichbaren Weg, die Off-Canvas-Sidebar zu öffnen -- ihr einziger Umschalter
+(`#appSidebarToggle`, unten in der Sidebar) steckte selbst innerhalb des `<aside>`, das im
+geschlossenen Zustand komplett unsichtbar ist. Die gesamte Navigation war dadurch auf schmalen
+Bildschirmen unerreichbar.
+
+Neuer Umschalter links in der Topbar (`#appTopbarMenuBtn`), außerhalb der Sidebar und deshalb
+auch bei geschlossener Sidebar erreichbar -- erscheint nur unterhalb desselben Umbruchpunkts wie
+die Off-Canvas-Sidebar selbst, steht vor dem für die kommende Suche (Schritt 3) reservierten
+Platz. Klick öffnet, erneuter Klick oder ein Klick auf den Hintergrund schließt, exakt wie
+bisher gefordert.
+
+Der alte Umschalter unten in der Sidebar blendet sich dafür unterhalb des Umbruchpunkts
+vollständig aus -- auf Mobilgeräten gibt es kein Kollabieren im Desktop-Sinn, nur Auf/Zu, und
+zwei Bedienungen für dieselbe Aktion nebeneinander wären nur verwirrend gewesen. Ein neuer Test
+sichert gezielt die Ursache des Fehlers ab (der Öffnen-Auslöser liegt außerhalb des Elements,
+das er öffnet) -- genau die Art Fehler, die eine reine Struktur-/CSS-Prüfung ohne echten
+Browser sonst übersieht.
+
 ## 1.3.45 – Umgestaltung der Sidebar, Schritt 2: Topbar
 
 Zweiter von vier geplanten Schritten (Suche und Schnellzugriff folgen einzeln in späteren

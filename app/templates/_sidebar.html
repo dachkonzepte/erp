@@ -48,7 +48,22 @@
    Schaltflächen werden dafür NICHT von renderAuthFoot() (weiter unten im Skript) mitgerendert,
    sondern bleiben als statisches Jinja-Markup außerhalb von #appSidebarFoot bestehen -- ihre
    Event-Listener werden dadurch beim Ersetzen von #appSidebarFoot.innerHTML nie zerstört, ein
-   erneutes Binden ist nicht nötig. #}
+   erneutes Binden ist nicht nötig.
+
+   Mobiler Öffnen-Umschalter (seit 1.3.46, echter Fund: siehe CLAUDE.md "Umgestaltung der
+   Sidebar" -> "Schritt 2: Topbar", Nebenbefund): #appSidebarToggle war auf schmalen Bildschirmen
+   nie erreichbar, da er selbst innerhalb dieses <aside> steckt, das im geschlossenen Zustand per
+   transform:translateX(-100%) komplett unsichtbar ist -- die Off-Canvas-Sidebar ließ sich dort
+   also überhaupt nicht öffnen. Der tatsächliche Öffnen-Auslöser sitzt seither in _topbar.html
+   (#appTopbarMenuBtn, außerhalb dieses <aside>, daher auch im geschlossenen Zustand erreichbar).
+   #appSidebarToggle selbst blendet sich deshalb unterhalb des Umbruchpunkts vollständig aus
+   (@media(max-width:1000px) unten) -- er hätte dort ohnehin nur dieselbe Auf/Zu-Aktion wie der
+   neue Knopf ausgelöst, mit einer für "Ein-/Ausklappen" (Desktop-Kollabieren) irreführenden
+   Beschriftung/Ikonografie, da es auf Mobilgeräten kein Kollabieren im Desktop-Sinn gibt, nur
+   Auf/Zu. Zwei verschiedene Bedienungen für dieselbe Aktion nebeneinander wären verwirrender
+   gewesen als eine einzige. Sein Klick-Handler verliert dafür den jetzt toten
+   isMobile()-Zweig -- unerreichbar, da das Element selbst display:none ist, kein Grund, den
+   Code stehen zu lassen. #}
 {% set current_user = request.state.erp_user %}
 {% set is_admin = current_user and current_user.role == 'admin' %}
 {% set path = request.url.path %}
@@ -121,6 +136,12 @@
   .app-sidebar.collapsed{width:240px;flex-basis:240px}
   .app-sidebar.collapsed .app-sidebar-brand,.app-sidebar.collapsed .app-sidebar-label{opacity:1;width:auto;display:flex}
   .app-sidebar.collapsed .app-theme-toggle{display:flex}
+  /* Seit 1.3.46: kein Kollabieren im Desktop-Sinn auf Mobilgeräten, nur Auf/Zu -- dafür sitzt
+     seither der Umschalter #appTopbarMenuBtn in _topbar.html, erreichbar auch bei geschlossener
+     Sidebar. #appSidebarToggle waere hier ohnehin unerreichbar gewesen (siehe Kommentar oben)
+     und blendet sich deshalb komplett aus, statt zwei Bedienungen fuer dieselbe Aktion
+     nebeneinanderzustellen. */
+  .app-sidebar-toggle{display:none}
   .app-sidebar-scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:39}
   .app-sidebar-scrim.visible{display:block}
 }
@@ -191,11 +212,9 @@
     sidebar.classList.toggle('collapsed',collapsed);
   };
   toggle.addEventListener('click',function(){
-    if(isMobile()){
-      var open=sidebar.classList.toggle('mobile-open');
-      scrim.classList.toggle('visible',open);
-      return;
-    }
+    // Seit 1.3.46 nur noch das Desktop-Kollabieren -- auf Mobilgeräten ist dieser Knopf
+    // per CSS ausgeblendet (siehe @media(max-width:1000px) oben), das Auf/Zu der
+    // Off-Canvas-Sidebar dort übernimmt #appTopbarMenuBtn in _topbar.html.
     var collapsed=sidebar.classList.toggle('collapsed');
     localStorage.setItem('erp_sidebar_collapsed',collapsed?'1':'0');
   });

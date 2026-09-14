@@ -20,12 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.45** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf weiterhin `60d7c8a775f0` ("raise default sidebar logo height") -- 1.3.45
-  (Topbar) brauchte keine eigene Migration, da sie ausschließlich Python/Jinja/CSS/JS anfasst,
-  keine Datenbankspalte -- bei Bedarf per `alembic history`/`heads` prüfen statt sich auf eine
-  hier aufgeschriebene Liste zu verlassen.
-- Tests: **1102/1102**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
+- Version: **1.3.46** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf weiterhin `60d7c8a775f0` ("raise default sidebar logo height") -- weder
+  1.3.45 (Topbar) noch 1.3.46 (mobiler Öffnen-Umschalter) brauchten eine eigene Migration, da
+  beide ausschließlich Python/Jinja/CSS/JS anfassen, keine Datenbankspalte -- bei Bedarf per
+  `alembic history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
+- Tests: **1111/1111**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -576,6 +576,15 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   "Abmelden" bleibt zusätzlich unten in der Sidebar. Fünfter, ebenso ausnahmegesicherter
   Jinja-Global `account_display()` (Prinzip aus 1.3.42). Details im Abschnitt "Umgestaltung der
   Sidebar" → "Schritt 2: Topbar" unten.
+- Neu seit 1.3.46: **Echter Nebenbefund aus Schritt 2 behoben, vor Schritt 3 (Suche).** Auf einem
+  schmalen Bildschirm ließ sich die Off-Canvas-Sidebar überhaupt nicht öffnen -- ihr einziger
+  Umschalter (`#appSidebarToggle`) steckte selbst innerhalb des `<aside>`, das im geschlossenen
+  Zustand unsichtbar ist. Neuer Umschalter `#appTopbarMenuBtn` links in der Topbar (vor dem für
+  Schritt 3 reservierten Suchen-Platzhalter), erscheint nur unterhalb des Umbruchpunkts, öffnet/
+  schließt dieselbe Off-Canvas-Sidebar. `#appSidebarToggle` blendet sich dort im Gegenzug
+  vollständig aus (kein Kollabieren im Desktop-Sinn auf Mobilgeräten, nur Auf/Zu -- zwei
+  Bedienungen für dieselbe Aktion nebeneinander wären verwirrender gewesen). Details im
+  Abschnitt "Umgestaltung der Sidebar" → "Nachtrag zu Schritt 2" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -5018,6 +5027,60 @@ Platzierung/Sticky-Verhalten/Menü-Interaktion sind ausschließlich über eine b
 `jinja2.Environment` mit gestubbten Globals (`tests/test_v254_topbar.py`) sowie an der reinen
 Markup-/CSS-Struktur nachgewiesen, nicht an einem gerenderten Bild. Sollte bei Gelegenheit im
 Browser gegenprüft werden.
+
+### Nachtrag zu Schritt 2 (seit 1.3.46): mobiler Öffnen-Umschalter
+
+Echter, vor Schritt 3 (Suche) gemeldeter und behobener Nebenbefund -- genau die Art Fehler, die
+eine reine Struktur-/CSS-Prüfung ohne echten Browser leicht übersieht, weil sie nichts über
+tatsächliche Bildschirmbreiten weiß, siehe unten für den dafür geschriebenen Test.
+
+**Der Fund**: auf einem schmalen Bildschirm (`<1000px`) gab es keinen erreichbaren Weg, die
+Off-Canvas-Sidebar überhaupt zu öffnen. Ihr einziger bisheriger Umschalter (`#appSidebarToggle`,
+seit 1.3.44 unten in `.app-sidebar-utilities`) steckte selbst innerhalb von
+`<aside class="app-sidebar">` -- im geschlossenen Zustand per `transform:translateX(-100%)`
+komplett unsichtbar. Bereits in 1.3.45 als Nebenbefund vermerkt (siehe Schritt 2 oben, "vorher
+UND nachher bestehend"), hier zuerst behoben.
+
+**Lösung: ein zweiter Umschalter außerhalb der Sidebar.** Neuer `#appTopbarMenuBtn` in
+`_topbar.html` -- als erstes Kind von `.app-topbar`, VOR dem für Schritt 3 reservierten
+Suchen-Platzhalter (`.app-topbar-search-slot`), damit er auch bei geschlossener Sidebar
+erreichbar bleibt (liegt in `.app-content`, nicht in `.app-sidebar`). Erscheint ausschließlich
+unterhalb desselben Umbruchpunkts wie die Off-Canvas-Sidebar selbst (`max-width:1000px`, exakt
+derselbe Wert wie in `_sidebar.html` -- ein abweichender Wert hätte ein Fenster geöffnet, in dem
+der Knopf entweder sichtbar ist, aber nichts Erreichbares steuert, oder unsichtbar bleibt,
+während die Sidebar bereits off-canvas ist). Auf Desktop-Breite `display:none`, braucht dort
+keinen Platz -- der Suchen-Platzhalter bekommt seine volle Breite ungeschmälert; dieser
+reservierte 38px-Knopf muss beim Bauen der Suche (Schritt 3) links mitgedacht werden.
+
+Öffnet/schließt dasselbe Zustandspaar wie zuvor `#appSidebarToggle`
+(`#appSidebar.mobile-open`/`#appSidebarScrim.visible`) -- Schließen per Klick auf den
+Hintergrund bleibt unverändert bei `_sidebar.html`s bestehendem Scrim-Handler, der neue Knopf
+synchronisiert dabei nur sein eigenes `aria-expanded`, damit es nach diesem Weg nicht fälschlich
+`"true"` bleibt.
+
+**Geprüft: ist der Umschalter unten aus 1.3.44 auf Mobilgeräten überhaupt noch sinnvoll?** Nein
+-- auf Mobilgeräten gibt es kein Kollabieren im Desktop-Sinn (60px-Icon-Leiste), nur Auf/Zu der
+Off-Canvas-Sidebar, und genau das übernimmt jetzt `#appTopbarMenuBtn`. `#appSidebarToggle`
+blendet sich deshalb unterhalb des Umbruchpunkts vollständig aus (`.app-sidebar-toggle{display:
+none}` innerhalb des bestehenden `@media(max-width:1000px)`-Blocks in `_sidebar.html`) --
+zwei verschiedene Bedienungen für dieselbe Aktion nebeneinander wären verwirrender gewesen als
+eine einzige, und die alte Beschriftung/Ikonografie ("Ein-/Ausklappen", drei horizontale
+Striche) beschreibt auf Mobilgeräten ohnehin die falsche Handlung. Sein Klick-Handler verliert
+dabei den jetzt toten `isMobile()`-Zweig (unerreichbar, da das Element selbst `display:none`
+ist) -- bewusst entfernt statt als totes Code stehen zu lassen. **Bewusst NICHT** dieselbe Regel
+wie die 1.3.44-Desktop-Prüfung (`.app-sidebar.collapsed .app-sidebar-toggle{display:none}`, die
+bleibt unverändert abwesend/verboten -- dort geht es um das Kollabieren auf Desktop-Breite,
+hier um eine komplett andere, mobile-spezifische Regel).
+
+**Test, der genau diese Bildschirmbreiten-Invariante prüft** (`tests/test_v255_mobile_sidebar_
+toggle.py`): nicht nur "der Knopf existiert irgendwo", sondern konkret, dass `#appTopbarMenuBtn`
+außerhalb von `<aside id="appSidebar">` im Markup steht (die eigentliche Ursache des Fehlers),
+dass er vor dem Suchen-Platzhalter steht, denselben Umbruchpunkt wie die Sidebar selbst nutzt,
+dasselbe Zustandspaar toggelt wie zuvor `#appSidebarToggle`, `aria-controls`/`aria-expanded`
+trägt und bei Klick auf den Hintergrund resynchronisiert, dass `#appSidebarToggle` unterhalb des
+Umbruchpunkts tatsächlich verschwindet (und sein Klick-Handler den toten Zweig verloren hat,
+ohne das Desktop-Kollabieren selbst anzufassen), und dass `/vor-ort` unverändert ohne diesen
+Knopf bleibt.
 
 ## Migrations-Workflow
 

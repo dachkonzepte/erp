@@ -23,6 +23,26 @@
    Links bleibt in diesem Schritt bewusst leer (.app-topbar-search-slot, flex:1) -- dort kommt
    in Schritt 3 die Suche hinein, der Platz ist bereits reserviert.
 
+   Mobiler Öffnen-Umschalter (#appTopbarMenuBtn, seit 1.3.46, echter Nebenbefund aus Schritt 2):
+   unterhalb des Umbruchpunkts (max-width:1000px, derselbe Wert wie _sidebar.html) gab es KEINEN
+   erreichbaren Weg, die Off-Canvas-Sidebar zu öffnen -- ihr einziger bisheriger Umschalter
+   (#appSidebarToggle) steckte selbst innerhalb von <aside class="app-sidebar">, die im
+   geschlossenen Zustand per transform komplett unsichtbar ist. Dieser neue Knopf steht deshalb
+   bewusst AUSSERHALB der Sidebar (hier, in .app-content) -- als erstes Kind von .app-topbar, VOR
+   dem Suchen-Platzhalter, damit er auch bei geschlossener Sidebar erreichbar bleibt. Erscheint
+   ausschließlich unterhalb des Umbruchpunkts (auf Desktop-Breite gibt es die Off-Canvas-Sidebar
+   gar nicht, dort bleibt der Knopf display:none) -- braucht dadurch auf Desktop-Breite keinen
+   Platz, der Suchen-Platzhalter bekommt seine volle Breite ungeschmälert. Bei der künftigen
+   Suche (Schritt 3) muss dieser reservierte 38px-Knopf links mitgedacht werden, nicht erst dann
+   entdeckt werden. Öffnet/schließt dieselbe Sidebar wie #appSidebarToggle (dasselbe Zustandspaar
+   .app-sidebar.mobile-open/#appSidebarScrim.visible) -- #appSidebarToggle blendet sich seither
+   unterhalb des Umbruchpunkts komplett aus (siehe _sidebar.html), damit nicht zwei Bedienungen
+   für dieselbe Aktion nebeneinanderstehen (dort gibt es ohnehin kein Kollabieren im
+   Desktop-Sinn, nur Auf/Zu). Schließen bei Klick auf den Hintergrund übernimmt weiterhin
+   _sidebar.html::scrim (unverändert) -- dieser Knopf synchronisiert dabei nur sein eigenes
+   aria-expanded, damit es nicht fälschlich "true" bleibt, wenn über den Hintergrund geschlossen
+   wurde.
+
    Kontoknopf rechts: runde Schaltfläche mit den Initialen (account_display(current_user),
    siehe app/auth.py::resolve_account_display() -- bevorzugt Employee.first_name/last_name über
    AppUser.employee_id (seit 1.3.34), sonst der Benutzername). Klick öffnet ein Menü mit vollem
@@ -42,6 +62,10 @@
 {% set _account = account_display(current_user) %}
 <style>
 .app-topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line)}
+.app-topbar-menu-btn{display:none;flex:0 0 auto;width:38px;height:38px;border:1px solid var(--line);background:none;color:var(--ink);cursor:pointer;align-items:center;justify-content:center;padding:0}
+.app-topbar-menu-btn:hover{background:var(--soft)}
+.app-topbar-menu-btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.app-topbar-menu-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .app-topbar-search-slot{flex:1;min-width:0}
 .app-topbar-account{position:relative;flex:0 0 auto}
 .app-topbar-account-btn{width:38px;height:38px;border-radius:50%;background:var(--accent);color:#fff;border:0;font-weight:800;font-size:13px;letter-spacing:.02em;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
@@ -52,9 +76,10 @@
 .app-topbar-account-name{padding:8px 10px;font-weight:800;color:var(--ink);font-size:13px;border-bottom:1px solid var(--line);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .app-topbar-account-menu a,.app-topbar-account-menu button{display:block;width:100%;text-align:left;padding:9px 10px;font:inherit;font-size:13.5px;font-weight:650;color:var(--ink);background:none;border:0;text-decoration:none;cursor:pointer;box-sizing:border-box}
 .app-topbar-account-menu a:hover,.app-topbar-account-menu button:hover{background:var(--soft)}
-@media(max-width:1000px){.app-topbar{padding:10px 16px}}
+@media(max-width:1000px){.app-topbar{padding:10px 16px}.app-topbar-menu-btn{display:flex}}
 </style>
 <div class="app-topbar">
+  <button type="button" class="app-topbar-menu-btn" id="appTopbarMenuBtn" aria-label="Navigation öffnen" aria-controls="appSidebar" aria-expanded="false"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
   <div class="app-topbar-search-slot"></div>
   <div class="app-topbar-account">
     {% if current_user %}
@@ -90,6 +115,22 @@
       fetch('/api/auth/logout',{method:'POST'}).finally(function(){
         location.href='/login?next='+encodeURIComponent(location.pathname);
       });
+    });
+  }
+  var menuBtn=document.getElementById('appTopbarMenuBtn');
+  var mobileSidebar=document.getElementById('appSidebar');
+  var mobileScrim=document.getElementById('appSidebarScrim');
+  if(menuBtn && mobileSidebar && mobileScrim){
+    menuBtn.addEventListener('click',function(e){
+      e.stopPropagation();
+      var open=mobileSidebar.classList.toggle('mobile-open');
+      mobileScrim.classList.toggle('visible',open);
+      menuBtn.setAttribute('aria-expanded',open?'true':'false');
+    });
+    // Schliessen per Klick auf den Hintergrund passiert bereits in _sidebar.html -- hier nur
+    // aria-expanded nachziehen, damit es nach diesem Weg nicht faelschlich "true" bleibt.
+    mobileScrim.addEventListener('click',function(){
+      menuBtn.setAttribute('aria-expanded','false');
     });
   }
 })();
