@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from ..company_logo import sidebar_logo_filename
 from ..database import SessionLocal, get_db
 from ..deps import require_admin
 from ..modules import is_module_enabled
@@ -44,6 +45,26 @@ def _is_module_enabled(module_key: str) -> bool:
 
 
 templates.env.globals["is_module_enabled"] = _is_module_enabled
+
+
+def _sidebar_logo_url() -> str | None:
+    """Jinja-Global: liefert die URL des Logos, das _sidebar.html oben links statt des
+    Schriftzugs "DACHKONZEPTE" zeigen soll, oder None, wenn keins hinterlegt ist (Fallback
+    dann der Schriftzug -- eine leere Stelle wäre schlechter als Text). Die eigentliche
+    "welches Logo"-Entscheidung liegt bewusst in company_logo.py::sidebar_logo_filename(),
+    nicht hier -- dieser Global bleibt ein reiner URL-Baukasten (Muster get_theme()/
+    is_module_enabled() oben: live aus der DB, eigene, kurzlebige Session je Aufruf, damit ein
+    Logo-Wechsel ohne Serverneustart auf der nächsten Seitenanfrage sichtbar wird). Der
+    Query-Parameter ?v=<stored_filename> bricht das Browser-Bild-Caching gezielt auf, sobald
+    ein Logo ersetzt wird -- stored_filename ist ein neuer, zufälliger Name je Upload."""
+    with SessionLocal() as db:
+        filename = sidebar_logo_filename(db)
+    if not filename:
+        return None
+    return f"/api/settings/general/logo?v={filename}"
+
+
+templates.env.globals["sidebar_logo_url"] = _sidebar_logo_url
 
 
 @router.get("/login", response_class=HTMLResponse)

@@ -4,6 +4,35 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.38 – Firmenlogo in der Sidebar statt des Schriftzugs "DACHKONZEPTE"
+
+Befund vor dem Bauen ergab zwei Überraschungen: `GeneralSettings.logo_filename` stand in der
+echten Datenbank auf `NULL` -- es wurde noch nie ein Firmenlogo hochgeladen, obwohl das dafür
+zuständige Backend (`app/company_logo.py`, seit 1.0.58, für PDF-Dokumente und das PWA-Icon der
+Monteursansicht) seit langem existiert. Und: es gab dafür überhaupt keine Oberfläche -- der
+Upload-Endpunkt (`POST /api/settings/general/logo`) wurde von keinem Template aufgerufen,
+vermutlich ein Rest aus der 1.0.58-Grundlage für den 1.3.20 entfernten PDF-Layout-Editor. Auf
+Rückfrage ergänzt: ein minimales Upload-Feld (Vorschau, Hochladen, Entfernen) in Einstellungen
+→ Unternehmensstammdaten, ohne das sich die neue Sidebar-Anzeige nie hätte befüllen oder testen
+lassen.
+
+Wie vom Nutzer entschieden: kein zweiter, eigener Sidebar-Logo-Upload -- die Sidebar
+(`_sidebar.html`) zeigt dasselbe Firmenlogo wie PDFs/das PWA-Icon, statt des bisherigen reinen
+Schriftzugs "DACHKONZEPTE". Bewusst über eine eigene Funktion entkoppelt
+(`app/company_logo.py::sidebar_logo_filename()`, mit Existenzprüfung der Datei -- ein
+Datenbankeintrag ohne Datei fällt auf den Schriftzug zurück statt auf ein defektes Bild) plus
+einen neuen Jinja-Global (`sidebar_logo_url()`, Muster `get_theme()`/`is_module_enabled()`, inkl.
+cache-brechendem `?v=`-Parameter): ein späterer, dedizierter Sidebar-Logo-Upload müsste nur diese
+eine Funktion umstellen, keine der Aufrufstellen. CSS (`height:32px;width:auto;max-width:160px;
+object-fit:contain`) hält jedes Seitenverhältnis unverzerrt und zentriert, verhält sich beim
+Einklappen der Sidebar und auf Mobilgeräten wie der bisherige Schriftzug. Ist kein Logo
+hinterlegt, bleibt der Schriftzug -- eine leere Stelle wäre schlechter als Text. Die mobile
+Kopfzeile der Monteursansicht (`_mobile_header.html`) bleibt bewusst unverändert, war nicht Teil
+der Anfrage. Mangels echtem Firmenlogo mit drei synthetischen Testbildern (quadratisch, breit,
+hoch) gegen eine isolierte Testinstanz durchgespielt -- Hochladen, Sidebar-Anzeige, Entfernen,
+alle drei Seitenverhältnisse byte- und pixelgenau bestätigt; ein echter Browser-Screenshot war in
+dieser Umgebung nicht möglich (kein Automatisierungswerkzeug verfügbar).
+
 ## 1.3.37 – Produktivbetrieb: Rahmenbedingungen dokumentiert, zwei Nebenbefunde behoben
 
 Das ERP läuft seit dem 14.09.2026 auf einem echten Server (Ionos-VPS, Ubuntu, 2 Kerne, 4 GB RAM,

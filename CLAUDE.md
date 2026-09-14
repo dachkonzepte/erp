@@ -20,13 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.36** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.38** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf weiterhin `1b55170709a6` ("two_factor_auth_and_persistent_login_lockout")
-  -- weder 1.3.35 noch 1.3.36 hat einen neuen Kopf angehängt (1.3.35 reparierte bereits
-  bestehende Migrationen in-place, 1.3.36 brachte nur ein neues Skript, kein Modell) -- bei
-  Bedarf per `alembic history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu
-  verlassen.
-- Tests: **1040/1040**, zuletzt am 13.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
+  -- keine der Versionen 1.3.35–1.3.38 hat einen neuen Kopf angehängt (1.3.35 reparierte bereits
+  bestehende Migrationen in-place, 1.3.36–1.3.38 brachten kein neues Modell) -- bei Bedarf per
+  `alembic history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
+- Tests: **1045/1045**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -500,6 +499,15 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   `+psycopg2` in `requirements.txt`/`.env.example` beseitigt, und in CLAUDE.md festgehalten,
   dass `data/.erp_secret` niemals gelöscht werden darf, solange verschlüsselte Werte in der
   Datenbank stehen.
+- Neu seit 1.3.38: **Firmenlogo in der Sidebar statt des Schriftzugs "DACHKONZEPTE"** --
+  Befund vor dem Bauen ergab zwei Überraschungen: es gab noch nie ein hochgeladenes Logo, und es
+  gab (trotz seit 1.0.58 bestehendem Upload-Endpunkt) gar keine Oberfläche dafür. Auf Rückfrage
+  eine minimale Upload-Oberfläche in Einstellungen → Unternehmensstammdaten ergänzt. Kein
+  zweiter, eigener Sidebar-Logo-Upload -- die Sidebar zeigt dasselbe Firmenlogo wie PDFs/das
+  PWA-Icon, über eine neue, bewusst austauschbare Funktion
+  (`app/company_logo.py::sidebar_logo_filename()`) und einen neuen Jinja-Global
+  (`sidebar_logo_url()`). Ohne Logo bleibt der Schriftzug. Details im neuen Abschnitt
+  "Firmenlogo in der Sidebar" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -4422,6 +4430,89 @@ Maximum 162, bestätigt die zurückgesetzten Sequenzen unter echter Last, nicht 
 Testkonto/-kunde danach wieder entfernt. **Bewusst NICHT in dieser Runde**: der Umzug auf den
 Server selbst -- erst muss der Weg lokal tragen.
 
+## Firmenlogo in der Sidebar (seit 1.3.38)
+
+Die Sidebar zeigte oben links immer nur den Schriftzug "DACHKONZEPTE" (`_sidebar.html`, reiner
+`<span>`, keine Gestaltung außer fett/Letter-Spacing). Sollte durch ein Logo ersetzt werden,
+das jederzeit austauschbar ist.
+
+### Befund vor dem Bauen -- zwei echte Überraschungen
+
+Es gibt bereits seit 1.0.58 ein Firmenlogo-System (`app/company_logo.py`,
+`GeneralSettings.logo_filename`, `DACHKONZEPTE_LOGO_FILE_ROOT`, über `data_dir()` also bereits
+`ERP_DATA_DIR`-fähig) -- genutzt für den gezeichneten `logo`-PDF-Baustein
+(`app/document_frame.py::_draw_logo()`, Standard `visible=False`, siehe "PDF-Rahmen" oben) und
+das PWA-Startbildschirm-Icon der Monteursansicht (`app/mobile_manifest.py::build_icon_png()`).
+Erlaubt: PNG/JPEG/WebP/SVG, max. 5 MB, keine Prüfung von Seitenverhältnis oder Pixelmaßen.
+Ausgeliefert über `GET /api/settings/general/logo` (nur die normale Anmeldepflicht, kein
+Admin-Vorbehalt -- unabhängig davon geprüft, nicht in dieser Runde geändert).
+
+**Erste Überraschung: es gibt (und gab) nie ein hochgeladenes Logo.** `GeneralSettings.
+logo_filename` stand in der echten Datenbank auf `NULL`, `data/company_logo/` war leer. Die
+Frage "taugt das vorhandene Logo für die schmale Sidebar" ließ sich deshalb nicht beantworten --
+es gab keine Datei zum Ansehen.
+
+**Zweite Überraschung: es gab (und gibt jetzt neu) keine Oberfläche dafür.** Der Upload-Endpunkt
+(`POST /api/settings/general/logo`) existierte, wurde aber von KEINEM Template aufgerufen --
+weder ein `<input type="file">` noch ein Aufruf der URL fand sich irgendwo. Die
+"Unternehmensstammdaten"-Sektion in `settings.html` hatte nur Textfelder (Name, Adresse, Bank,
+Steuer), kein Logo-Feld. Vermutlich ein Rest aus der 1.0.58-Grundlage für den seither (1.3.20)
+wieder entfernten PDF-Layout-Editor, dessen eigentliche Logo-Verwaltung mit ihm verschwunden ist,
+ohne dass eine Ersatzstelle nachgezogen wurde. Auf Rückfrage ergänzt (siehe unten) -- ohne sie
+wäre die neue Sidebar-Anzeige nie zu testen oder zu befüllen gewesen.
+
+### Entscheidung: dasselbe Logo, keinen zweiten Upload
+
+Wie vom Nutzer vorgegeben: kein eigener, zweiter Sidebar-Logo-Upload. Stattdessen zeigt die
+Sidebar dasselbe Firmenlogo, das auch PDFs/das PWA-Icon nutzen -- mit einer bewussten
+Vorkehrung für später:
+
+- **`app/company_logo.py::sidebar_logo_filename(db) -> str | None`** -- die eigentliche
+  "welches Logo zeigt die Sidebar"-Entscheidung, heute immer `GeneralSettings.logo_filename`
+  (mit Existenzprüfung der Datei -- ein Datenbankeintrag ohne Datei fällt auf den Schriftzug
+  zurück, nicht auf ein defektes `<img>`). Ein späterer, dedizierter Sidebar-Logo-Upload müsste
+  nur diese eine Funktion umstellen, keine der Aufrufstellen.
+- **`sidebar_logo_url()`** (Jinja-Global, `app/routers/pages.py`, Muster `get_theme()`/
+  `is_module_enabled()` -- eigene, kurzlebige `SessionLocal()` je Aufruf, damit ein Logo-Wechsel
+  ohne Serverneustart auf der nächsten Seitenanfrage sichtbar wird, siehe "Bekannte, bewusst
+  offene Punkte" für die dabei bereits bekannte Einschränkung, dass das nicht per Test-Session
+  umstellbar ist). Liefert `/api/settings/general/logo?v=<stored_filename>` oder `None` --
+  der `?v=`-Parameter (der pro Upload neue, zufällige `stored_filename`, siehe
+  `document_storage.py::make_stored_filename()`) bricht gezielt das Browser-Bild-Caching, sobald
+  ein Logo ersetzt wird.
+- **`_sidebar.html`**: `{% if sidebar_logo_url() %}` zeigt ein `<img class="app-sidebar-logo">`,
+  sonst unverändert der `<span class="app-sidebar-brand">`-Schriftzug -- eine leere Stelle wäre
+  schlechter als Text. CSS `height:32px;width:auto;max-width:160px;object-fit:contain` --
+  feste Höhe, Breite nach Seitenverhältnis, nie verzerrt, durch `max-width` an einem sehr breiten
+  Logo begrenzt, damit es nicht mit den Theme-/Einklapp-Buttons in derselben Kopfzeile kollidiert
+  (vertikal zentriert bereits durch das bestehende `align-items:center` der Kopfzeile). Verhält
+  sich beim Einklappen der Sidebar (60px-Icon-Leiste) und auf Mobilgeräten exakt wie der bisherige
+  Schriftzug (dieselben CSS-Regeln um `.app-sidebar-logo` ergänzt statt neuer, eigener Regeln).
+- **`_mobile_header.html` (Monteursansicht) bewusst unverändert** -- der Auftrag bezog sich
+  ausdrücklich auf "die Sidebar"; die mobile Kopfzeile hat einen eigenen, deutlich schmaleren
+  Aufbau (geteilte Zeile mit dem Mitarbeiternamen, Zusatz "· Vor Ort") und war nicht Teil dieser
+  Anfrage.
+- **Settings-Oberfläche ergänzt** (Einstellungen → Unternehmensstammdaten, neuer Abschnitt
+  "Firmenlogo" -- Datei-Upload/Vorschau/Entfernen, Muster der bereits bestehenden
+  Briefpapier-Upload-Felder unter Dokumente & Layout): da es vorher gar keine Oberfläche gab,
+  war ein bloßer Hinweistext ("dieses Logo erscheint auch in der Sidebar") ohne Weg, überhaupt
+  eines hochzuladen, wirkungslos gewesen -- die Ergänzung war Voraussetzung dafür, dass sich die
+  neue Sidebar-Anzeige praktisch nutzen und testen lässt, nicht nur Text.
+
+### Geprüft, nicht nur behauptet
+
+Kein reales Firmenlogo vorhanden, also mit drei synthetischen Testbildern (quadratisch 200×200,
+breit 600×100, hoch 100×600) gegen eine isolierte, lokale Testinstanz (frische SQLite-Datei,
+eigener Port) tatsächlich durchgespielt: Hochladen über den echten Endpunkt, Sidebar zeigt danach
+das `<img>` mit korrekter, cache-brechender URL, ausgeliefertes Bild byte- und
+pixelgenau identisch mit der hochgeladenen Datei (Content-Type `image/png`, Pillow-Nachmessung
+der Maße), für alle drei Seitenverhältnisse. Entfernen des Logos lässt die Sidebar korrekt zum
+Schriftzug zurückfallen. **Kein echter Browser-Screenshot** -- in dieser Umgebung stand kein
+Browser-Automatisierungswerkzeug zur Verfügung (dieselbe, bereits in "Mitarbeiter-Formular
+list-first" dokumentierte Einschränkung); die CSS-Regel selbst (feste Höhe, `width:auto`,
+`object-fit:contain`) ist mathematisch aspect-ratio-treu, aber ein tatsächliches, reales
+Firmenlogo sollte bei Gelegenheit einmal im Browser angesehen werden.
+
 ## Migrations-Workflow
 
 Bisher: Claude erstellt/ändert Modelle → Tobias führt lokal `alembic revision --autogenerate`
@@ -4624,8 +4715,9 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   `DEFAULT_OPTION_GROUPS` entfernt. Bereits vorhandene `SettingOptionGroup`/`SettingOption`-
   Zeilen einer laufenden Installation bleiben dabei unangetastet in der DB stehen (nichts liest
   sie mehr) statt gelöscht zu werden. Reine Aufräum-Idee für später, kein Fehler.
-- **Jinja-Globals `get_theme()`/`is_module_enabled()` umgehen `get_db()`** (`app/routers/pages.py`):
-  beide öffnen bei jedem Template-Rendern selbst eine `SessionLocal()`-Verbindung zur echten
+- **Jinja-Globals `get_theme()`/`is_module_enabled()`/`sidebar_logo_url()` (seit 1.3.38) umgehen
+  `get_db()`** (`app/routers/pages.py`):
+  alle drei öffnen bei jedem Template-Rendern selbst eine `SessionLocal()`-Verbindung zur echten
   Datenbankdatei, statt die per `get_db()` injizierte (und in Tests per
   `app.dependency_overrides` austauschbare) Session zu verwenden – sie sind damit nicht auf eine
   Test-Session umstellbar. Seit 1.2.20 (siehe `tests/test_v218_template_rendering.py`) löst das

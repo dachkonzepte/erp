@@ -98,6 +98,21 @@
     <input type="hidden" id="quoteIntro"><input type="hidden" id="quoteOutro">
     <div class="hint">Angebots-Vortexte, Schlusstexte und Zahlungsbedingungen werden jetzt zentral unter <b>Auswahllisten</b> gepflegt. Dort kannst du mehrere Varianten anlegen und einen Standard festlegen.</div>
     <button onclick="saveGeneral()">Unternehmensstammdaten speichern</button><span id="generalStatus" class="status"></span>
+
+    <h3 style="margin:22px 0 8px;font-size:14px">Firmenlogo</h3>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+      <div id="companyLogoPreviewWrap" style="display:none;align-items:center;height:48px">
+        <img id="companyLogoPreview" style="height:48px;max-width:220px;object-fit:contain" alt="Firmenlogo">
+      </div>
+      <span id="companyLogoEmptyHint" class="muted small">Kein Logo hinterlegt.</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="file" id="companyLogoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+      <button type="button" onclick="uploadCompanyLogo()">Hochladen</button>
+      <button type="button" class="danger" id="companyLogoRemove" style="display:none" onclick="removeCompanyLogo()">Entfernen</button>
+    </div>
+    <span id="companyLogoStatus" class="status"></span>
+    <div class="hint">Erscheint, sobald hinterlegt, oben links in der Seitenleiste statt des Schriftzugs "DACHKONZEPTE" -- sowie (einzeln abschaltbar, siehe Dokumente &amp; Layout weiter unten) auf PDF-Dokumenten und als Symbol der Monteursansicht auf dem Startbildschirm. PNG, JPEG, WebP oder SVG, max. 5 MB.</div>
   </section>
 
   <section class="card settings-section" id="settings-numbers">
@@ -528,7 +543,7 @@
 </div>
 </div>
 <script>
-let sequences=[],employeeFunctions=[],editingFunctionId=null,optionGroups=[],currentOptionGroup=null,editingOptionId=null,planningSettings=null,planningHolidays=[],editingHolidayId=null,paymentTerms=[],editingPaymentTermId=null,taxKeys=[],editingTaxKeyId=null,reminderLevels=[];
+let sequences=[],employeeFunctions=[],editingFunctionId=null,optionGroups=[],currentOptionGroup=null,editingOptionId=null,planningSettings=null,planningHolidays=[],editingHolidayId=null,paymentTerms=[],editingPaymentTermId=null,taxKeys=[],editingTaxKeyId=null,reminderLevels=[],generalSettings=null;
 async function api(url,options={}){const r=await fetch(url,options);let d=null;try{d=await r.json()}catch(_){ }if(!r.ok)throw new Error(d?.detail||r.statusText||'Fehler');return d}
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 (function(){
@@ -582,6 +597,7 @@ async function load(){
     alert('Diese Einstellungen konnten nicht geladen werden, der Rest der Seite funktioniert trotzdem:\n\n'+failed.join('\n')+'\n\nMöglicherweise wurde eine Datenbank-Migration noch nicht (vollständig) ausgeführt -- bitte "alembic upgrade head" prüfen.');
   }
   setv('companyName',g.company_name);setv('managingDirector',g.managing_director);setv('companyStreet',g.street);setv('companyZip',g.postal_code);setv('companyCity',g.city);setv('companyCountry',g.country);setv('companyPhone',g.phone);setv('companyEmail',g.email);setv('companyWebsite',g.website);setv('taxNumber',g.tax_number);setv('vatId',g.vat_id);setv('registerCourt',g.register_court);setv('registerNumber',g.register_number);setv('iban',g.iban);setv('bic',g.bic);setv('defaultVat',g.default_vat_rate);setv('quoteIntro',g.default_quote_intro);setv('quoteOutro',g.default_quote_outro);
+  generalSettings=g;renderCompanyLogo();
   setv('laborRate',c.labor_rate);setv('materialMarkup',c.material_markup_pct);setv('overhead',c.overhead_pct);setv('riskProfit',c.risk_profit_pct);document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
   setv('employerCostPct',lr.employer_cost_pct);setv('productiveTimePct',lr.productive_time_pct);setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',lr.fixed_overhead_value||0);setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',lr.variable_overhead_value||0);setv('targetProfitPct',lr.target_profit_pct);setv('weeksPerYear',lr.weeks_per_year);syncOverheadLabels();renderLaborRate(lrc);
   sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();document.getElementById('autoCreateDraftsCheckbox').checked=!!rs.auto_create_drafts;moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadMobileSection();loadDocumentLayoutSection();}
@@ -970,6 +986,32 @@ async function removeDocumentLayoutBackground(pageType){
     await api(`/api/document-layout/default/backgrounds/${pageType}`,{method:'DELETE'});
     document.getElementById(pageType==='first'?'documentLayoutBgFirstRemove':'documentLayoutBgContinuationRemove').style.display='none';
   }catch(e){alert('Fehler: '+e.message)}
+}
+function renderCompanyLogo(){
+  const wrap=document.getElementById('companyLogoPreviewWrap'),emptyHint=document.getElementById('companyLogoEmptyHint'),removeBtn=document.getElementById('companyLogoRemove'),img=document.getElementById('companyLogoPreview');
+  if(generalSettings&&generalSettings.logo_filename){
+    img.src='/api/settings/general/logo?v='+encodeURIComponent(generalSettings.logo_filename);
+    wrap.style.display='flex';emptyHint.style.display='none';removeBtn.style.display='inline-block';
+  }else{
+    wrap.style.display='none';emptyHint.style.display='inline';removeBtn.style.display='none';
+  }
+}
+async function uploadCompanyLogo(){
+  const input=document.getElementById('companyLogoFile'),st=document.getElementById('companyLogoStatus');
+  if(!input.files.length){st.textContent='Bitte eine Datei auswählen.';return}
+  const fd=new FormData();fd.append('file',input.files[0]);
+  try{
+    generalSettings=await api('/api/settings/general/logo',{method:'POST',body:fd});
+    input.value='';st.textContent='Gespeichert.';renderCompanyLogo();
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+async function removeCompanyLogo(){
+  if(!confirm('Logo wirklich entfernen?'))return;
+  const st=document.getElementById('companyLogoStatus');
+  try{
+    generalSettings=await api('/api/settings/general/logo',{method:'DELETE'});
+    st.textContent='Entfernt.';renderCompanyLogo();
+  }catch(e){st.textContent='Fehler: '+e.message}
 }
 async function saveDocumentLayoutMargins(){
   const st=document.getElementById('documentLayoutMarginsStatus');

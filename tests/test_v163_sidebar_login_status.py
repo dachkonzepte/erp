@@ -67,6 +67,11 @@ def _render(user):
     # Module (siehe app/modules.py) -- ebenfalls nur ein Stub, echtes Verhalten wird
     # in tests/test_v197_module_toggle.py getestet.
     env.globals["is_module_enabled"] = lambda key: True
+    # _sidebar.html zeigt seit 1.3.38 statt des Schriftzugs ein Logo, falls eines hinterlegt
+    # ist (app/company_logo.py::sidebar_logo_filename()) -- auch das nur ein Stub, echtes
+    # Verhalten (Fallback auf den Schriftzug ohne Logo) wird in
+    # tests/test_v249_sidebar_logo.py getestet.
+    env.globals["sidebar_logo_url"] = lambda: None
     tmpl = env.get_template("project_folder.html")  # eine beliebige Seite, die _sidebar.html einbindet
     return tmpl.render(request=FakeRequest("/x", user), app_version="1.0.63", project_id=1)
 
