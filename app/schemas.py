@@ -692,7 +692,7 @@ class GeneralSettingsUpdate(BaseModel):
     default_vat_rate: Decimal = Field(default=Decimal("19.00"), ge=0, le=100)
     default_quote_intro: str | None = None
     default_quote_outro: str | None = None
-    sidebar_logo_height_px: int = Field(default=48, ge=24, le=80)
+    sidebar_logo_height_px: int = Field(default=64, ge=24, le=120)
 
 
 class AppearanceSettingsOut(BaseModel):

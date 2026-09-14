@@ -128,8 +128,8 @@
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
       <label for="sidebarLogoHeight" style="font-size:13px">Anzeigehöhe in der Seitenleiste</label>
-      <input type="number" id="sidebarLogoHeight" min="24" max="80" step="1" style="width:70px">
-      <span class="muted small">px (24–80)</span>
+      <input type="number" id="sidebarLogoHeight" min="24" max="120" step="1" style="width:70px">
+      <span class="muted small">px (24–120)</span>
       <button type="button" onclick="saveLogoHeight()">Übernehmen</button>
     </div>
     <span id="sidebarLogoStatus" class="status"></span>
@@ -1060,7 +1060,7 @@ function renderSidebarLogo(){
 async function saveLogoHeight(){
   const input=document.getElementById('sidebarLogoHeight'),st=document.getElementById('sidebarLogoStatus');
   const height=Number(input.value);
-  if(!Number.isInteger(height)||height<24||height>80){st.textContent='Bitte einen Wert zwischen 24 und 80 eingeben.';return}
+  if(!Number.isInteger(height)||height<24||height>120){st.textContent='Bitte einen Wert zwischen 24 und 120 eingeben.';return}
   try{
     generalSettings=await api('/api/settings/general',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...generalSettings,sidebar_logo_height_px:height})});
     st.textContent='Gespeichert.';renderSidebarLogo();

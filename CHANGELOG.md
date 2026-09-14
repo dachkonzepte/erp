@@ -4,6 +4,29 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.44 – Umgestaltung der Sidebar, Schritt 1: Kopfbereich und Schaltflächen
+
+Erster von vier geplanten Schritten (Topbar, Suche und Schnellzugriff folgen einzeln in
+späteren Versionen). Das Logo stand bisher oben links neben den beiden Schaltflächen für
+Hell/Dunkel und Ein-/Ausklappen -- dadurch blieb wenig Breite, ein Logo mit Schriftzug wäre
+darin unlesbar klein geblieben.
+
+Das Logo steht jetzt allein im Kopfbereich, waagerecht zentriert, mit der vollen verfügbaren
+Breite (die Breitenbegrenzung ist dafür von einem festen 200px-Wert auf `max-width:100%`
+umgestellt -- relativ, damit sie nicht erneut zu eng wird, sollte sich die Sidebar-Breite je
+ändern). Die einstellbare Anzeigehöhe reicht seither bis 120px (vorher 80), Standardwert von 48
+auf 64 angehoben, da der Kopf sich die Breite nicht mehr mit den Schaltflächen teilen muss. Die
+eingeklappte Sidebar (60px) bekommt eine eigene, feste, kleinere Logo-Höhe (32px) statt der
+einstellbaren -- dort ist ohnehin kaum Platz.
+
+Die beiden Schaltflächen sind in den unteren Bereich gewandert, direkt über dem
+Benutzer-/Abmelden-Block. "Mein Konto" bleibt an seiner bisherigen Stelle -- das wandert erst mit
+der Topbar in einem späteren Schritt. Geprüft und als Test festgehalten: die Schaltfläche zum
+Wiederausklappen bleibt im eingeklappten Zustand garantiert erreichbar (nur der Hell/Dunkel-
+Umschalter verschwindet dort, unverändertes, bestehendes Verhalten) -- die Ausnahmesicherheit
+der Jinja-Globals aus 1.3.42 ist von diesem rein strukturellen Umbau nicht betroffen und bleibt
+unverändert bestehen.
+
 ## 1.3.43 – Korrektur: doch ein Schriftzug -- dedizierter Sidebar-Logo-Upload
 
 Die 1.3.39-Diagnose ("kein Schriftzug im Firmenlogo, nur ein einzelnes geometrisches Symbol",

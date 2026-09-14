@@ -168,20 +168,23 @@ def test_sidebar_logo_upload_does_not_touch_company_logo_folder(threaded_db_sess
 # company_logo.sidebar_logo_height_px() -- wie groß liefert die Funktion
 # ---------------------------------------------------------------------------
 
-def test_sidebar_logo_height_px_default_is_48(db_session):
-    assert company_logo.sidebar_logo_height_px(db_session) == 48
+def test_sidebar_logo_height_px_default_is_64(db_session):
+    """Seit 1.3.44 (siehe CLAUDE.md "Umgestaltung der Sidebar") -- der Kopfbereich teilt sich
+    nicht mehr mit den beiden Kopfzeilen-Schaltflächen, ein größerer Standardwert wirkt dadurch
+    nicht mehr gedrängt."""
+    assert company_logo.sidebar_logo_height_px(db_session) == 64
 
 
 def test_sidebar_logo_height_px_returns_configured_value(db_session):
     settings = get_or_create_general_settings(db_session)
-    settings.sidebar_logo_height_px = 64
+    settings.sidebar_logo_height_px = 90
     db_session.commit()
 
-    assert company_logo.sidebar_logo_height_px(db_session) == 64
+    assert company_logo.sidebar_logo_height_px(db_session) == 90
 
 
 def test_sidebar_logo_height_px_clamps_out_of_range_value(db_session):
-    """Verteidigung in der Tiefe: ein Wert außerhalb 24-80 (z. B. durch einen direkten
+    """Verteidigung in der Tiefe: ein Wert außerhalb 24-120 (z. B. durch einen direkten
     Datenbankzugriff, das Feld selbst hat keine DB-seitige Prüfung) darf die Sidebar nicht
     absurd groß/klein machen."""
     settings = get_or_create_general_settings(db_session)
@@ -192,6 +195,13 @@ def test_sidebar_logo_height_px_clamps_out_of_range_value(db_session):
     settings.sidebar_logo_height_px = 1
     db_session.commit()
     assert company_logo.sidebar_logo_height_px(db_session) == company_logo.MIN_SIDEBAR_LOGO_HEIGHT_PX
+
+
+def test_sidebar_logo_height_px_bounds_are_24_to_120():
+    """Seit 1.3.44 auf 120px angehoben (vorher 80), siehe CLAUDE.md "Umgestaltung der
+    Sidebar" -- ein Logo mit Schriftzug soll bei ausreichender Höhe lesbar sein."""
+    assert company_logo.MIN_SIDEBAR_LOGO_HEIGHT_PX == 24
+    assert company_logo.MAX_SIDEBAR_LOGO_HEIGHT_PX == 120
 
 
 # ---------------------------------------------------------------------------

@@ -1798,13 +1798,15 @@ class GeneralSettings(Base):
     # sidebar_logo_filename() löst daraus auf, was _sidebar.html tatsächlich zeigt (Sidebar-Logo
     # -> Firmenlogo -> Schriftzug).
     sidebar_logo_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # Anzeigehöhe des in der Sidebar gezeigten Logos (seit 1.3.39, siehe CLAUDE.md "Firmenlogo in
-    # der Sidebar") -- einstellbar zwischen 24 und 80px (app/company_logo.py:
-    # MIN/MAX_SIDEBAR_LOGO_HEIGHT_PX), damit der Betreiber bei einem Logo mit kleinem
-    # Bildzeichen samt Schriftzug nicht bei jedem Wechsel nachfragen muss. Gilt unabhängig davon,
-    # ob tatsächlich das Sidebar-Logo oder ersatzweise das Firmenlogo gezeigt wird. server_default
-    # nötig, siehe Lektion aus 1.0.68 (NOT-NULL-Spalte auf bereits bestehender Tabelle).
-    sidebar_logo_height_px: Mapped[int] = mapped_column(default=48, server_default="48")
+    # Anzeigehöhe des in der Sidebar gezeigten Logos (seit 1.3.39, Bereich auf 24-120px erweitert
+    # und Standardwert von 48 auf 64 angehoben seit 1.3.44, siehe CLAUDE.md "Umgestaltung der
+    # Sidebar") -- einstellbar (app/company_logo.py: MIN/MAX_SIDEBAR_LOGO_HEIGHT_PX), damit der
+    # Betreiber bei einem Logo mit kleinem Bildzeichen samt Schriftzug nicht bei jedem Wechsel
+    # nachfragen muss. Gilt unabhängig davon, ob tatsächlich das Sidebar-Logo oder ersatzweise
+    # das Firmenlogo gezeigt wird -- NICHT für die eingeklappte Sidebar, die nutzt eine eigene,
+    # feste, kleinere Höhe (siehe _sidebar.html). server_default nötig, siehe Lektion aus 1.0.68
+    # (NOT-NULL-Spalte auf bereits bestehender Tabelle).
+    sidebar_logo_height_px: Mapped[int] = mapped_column(default=64, server_default="64")
     # Automatisierung im Mahnwesen (seit 1.0.71): legt automatisch einen
     # Mahnungs-ENTWURF an, sobald die nächste Mahnstufe einer Rechnung
     # fällig ist -- versendet wird dadurch nie automatisch, das bleibt

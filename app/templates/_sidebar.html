@@ -10,20 +10,45 @@
    eigenen :root selbst definiert (siehe settings.html), greift das neue Theme.
 
    Firmenlogo/Sidebar-Logo (seit 1.3.38, Anzeigehöhe einstellbar seit 1.3.39, eigener,
-   dedizierter Sidebar-Upload seit 1.3.43, siehe CLAUDE.md "Firmenlogo in der Sidebar"):
+   dedizierter Sidebar-Upload seit 1.3.43, Kopfbereich-Umgestaltung seit 1.3.44 -- siehe
+   CLAUDE.md "Firmenlogo in der Sidebar"/"Umgestaltung der Sidebar"):
    sidebar_logo_url() (Jinja-Global, app/routers/pages.py) liefert eine URL oder None -- ohne
    Logo bleibt es beim Schriftzug, eine leere Stelle wäre schlechter als Text. Die "welches
    Logo"-Entscheidung (Sidebar-Logo -> Firmenlogo -> Schriftzug) liegt bewusst in
    company_logo.py::sidebar_logo_filename(), nicht hier -- dieser Include kennt nur das Ergebnis
-   (eine URL), nicht die beiden getrennten Ordner/Endpunkte dahinter. Die Höhe kommt per Inline-Style von
-   sidebar_logo_height_px() (Einstellungen -> Unternehmensstammdaten, 24-80px) -- bewusst NICHT
-   zusätzlich als max-width/max-height auf demselben <img> begrenzt: ein Wrapper
-   (.app-sidebar-logo-wrap, max-width:200px, overflow:hidden) schneidet ein zu breites Logo
+   (eine URL), nicht die beiden getrennten Ordner/Endpunkte dahinter. Die Höhe kommt per
+   Inline-Style von sidebar_logo_height_px() (Einstellungen -> Unternehmensstammdaten, seit
+   1.3.44 24-120px) -- bewusst NICHT zusätzlich als max-width/max-height auf demselben <img>
+   begrenzt: ein Wrapper (.app-sidebar-logo-wrap, max-width:100% -- seit 1.3.44 die volle
+   verfügbare Kopfbereichsbreite statt vorher fester 200px, da der Kopf sich seither nicht mehr
+   mit den beiden Schaltflächen teilen muss, siehe unten) schneidet ein zu breites Logo
    stattdessen rechts ab, statt die eingestellte Höhe wieder zu verkleinern -- ein <img> mit
    sowohl fester Höhe ALS AUCH einer Breitenbegrenzung würde bei einem sehr breiten Logo genau
    das tun (die CSS-Ersatzelement-Breiten/Höhen-Auflösung verwirft die feste Höhe, sobald
-   max-width eingreift), das war ein real gefundener Fehler in der ersten Fassung. flex:0 0 auto
-   auf dem <img> verhindert zusätzlich, dass Flexbox selbst es verkleinert. #}
+   max-width eingreift), das war ein real gefundener Fehler in der ersten Fassung (1.3.39). Bei
+   der Vergrößerung auf bis zu 120px seit 1.3.44 gilt dieselbe Regel unverändert weiter -- die
+   Breitenbegrenzung wächst automatisch mit (relativ, nicht fest), sonst würde sie bei einem
+   breiten Logo genau wie damals zuerst greifen. flex:0 0 auto auf dem <img> verhindert
+   zusätzlich, dass Flexbox selbst es verkleinert.
+
+   Eingeklappte Sidebar (60px breit, seit 1.3.44): für das Logo dort eine eigene, feste,
+   kleinere Höhe (32px, per !important, da die konfigurierte Höhe als Inline-Style sonst
+   Vorrang hätte) statt der einstellbaren -- bei 60px Breite ist ohnehin kaum Platz, eine
+   eigene Behandlung ist sinnvoller als die für die volle Breite gedachte Einstellung dort
+   ebenfalls anzuwenden. Der reine Schriftzug-Rückfall (kein Logo hinterlegt) bleibt beim
+   bisherigen Verhalten, komplett ausgeblendet -- für "DACHKONZEPTE" ist bei 60px kein
+   sinnvoller Platz. Beides gilt bewusst nur auf Desktop-Breite (@media(min-width:1001px)):
+   auf Mobilgeräten bedeutet "collapsed" (durch einen Resize ohne Neuladen entstanden, siehe
+   das bestehende @media(max-width:1000px)-Zurücksetzen unten) weiterhin die volle,
+   unveränderte Darstellung.
+
+   Die beiden Kopfzeilen-Schaltflächen (Hell/Dunkel, Ein-/Ausklappen) sind seit 1.3.44 in den
+   unteren Bereich gewandert (.app-sidebar-utilities, direkt über dem Benutzer-/Abmelden-Block)
+   -- der Kopf zeigt seither ausschließlich das Logo, zentriert, mit der vollen Breite. Beide
+   Schaltflächen werden dafür NICHT von renderAuthFoot() (weiter unten im Skript) mitgerendert,
+   sondern bleiben als statisches Jinja-Markup außerhalb von #appSidebarFoot bestehen -- ihre
+   Event-Listener werden dadurch beim Ersetzen von #appSidebarFoot.innerHTML nie zerstört, ein
+   erneutes Binden ist nicht nötig. #}
 {% set current_user = request.state.erp_user %}
 {% set is_admin = current_user and current_user.role == 'admin' %}
 {% set path = request.url.path %}
@@ -37,19 +62,29 @@
   background:var(--_bg);color:var(--_text);display:flex;flex-direction:column;transition:width .15s ease,flex-basis .15s ease;overflow:hidden;position:sticky;top:0;height:100vh;border-right:1px solid var(--_border)
 }
 .app-sidebar.collapsed{width:60px;flex-basis:60px}
-.app-sidebar-head{display:flex;align-items:center;justify-content:space-between;padding:16px 14px;border-bottom:1px solid var(--_border);white-space:nowrap;gap:8px}
+.app-sidebar-head{display:flex;align-items:center;justify-content:center;padding:20px 14px;border-bottom:1px solid var(--_border);white-space:nowrap;gap:8px}
 .app-sidebar-brand{font-weight:800;letter-spacing:.03em;overflow:hidden}
-.app-sidebar-logo-wrap{max-width:200px;overflow:hidden;display:flex;align-items:center}
+.app-sidebar-logo-wrap{max-width:100%;overflow:hidden;display:flex;align-items:center}
 .app-sidebar-logo{width:auto;display:block;flex:0 0 auto}
-.app-sidebar.collapsed .app-sidebar-brand,.app-sidebar.collapsed .app-sidebar-logo-wrap{opacity:0;width:0}
-.app-sidebar-headbtns{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.app-sidebar.collapsed .app-sidebar-brand{display:none}
+.app-sidebar-bottom{border-top:1px solid var(--_border)}
+.app-sidebar-utilities{display:flex;align-items:center;gap:6px;padding:10px 14px}
 .app-sidebar-toggle,.app-theme-toggle{background:none;border:1px solid var(--_border);color:var(--_text);width:30px;height:30px;flex:0 0 30px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
 .app-sidebar-toggle:hover,.app-theme-toggle:hover{background:var(--_hover)}
 .app-sidebar-toggle svg,.app-theme-toggle svg{width:15px;height:15px}
 .app-sidebar.collapsed .app-theme-toggle{display:none}
 .app-sidebar-nav{padding:10px;overflow-y:auto;overflow-x:hidden;flex:1}
-.app-sidebar-foot{border-top:1px solid var(--_border);padding:10px;white-space:nowrap;overflow:hidden}
+.app-sidebar-foot{padding:10px;white-space:nowrap;overflow:hidden}
 .app-sidebar-version{padding:8px 10px 12px;font-size:11px;color:var(--_text-dim);white-space:nowrap;overflow:hidden}
+@media(min-width:1001px){
+  /* Eingeklappte Sidebar (60px): eigene, feste, kleinere Logo-Hoehe statt der einstellbaren --
+     bei so wenig Breite ist die fuer die volle Breite gedachte Einstellung nicht sinnvoll
+     anwendbar. !important, da die konfigurierte Hoehe als Inline-Style sonst Vorrang haette.
+     Nur auf Desktop-Breite wirksam, siehe @media(max-width:1000px) weiter unten. */
+  .app-sidebar.collapsed .app-sidebar-head{padding-left:6px;padding-right:6px}
+  .app-sidebar.collapsed .app-sidebar-logo{height:32px!important}
+  .app-sidebar.collapsed .app-sidebar-utilities{justify-content:center;padding:10px 8px}
+}
 .app-sidebar.collapsed .app-sidebar-version{display:none}
 .app-sidebar-user{padding:6px 10px;font-size:12px;opacity:.85;overflow:hidden;text-overflow:ellipsis;color:var(--_text-dim)}
 .app-sidebar-logout{display:flex;align-items:center;gap:11px;width:100%;background:none;border:0;color:var(--_text);font-weight:600;font-size:14px;padding:9px 10px;cursor:pointer;text-align:left}
@@ -84,7 +119,7 @@
   .app-sidebar{position:fixed;top:0;left:0;bottom:0;z-index:40;width:240px;flex-basis:240px;transform:translateX(-100%);transition:transform .15s ease}
   .app-sidebar.mobile-open{transform:translateX(0)}
   .app-sidebar.collapsed{width:240px;flex-basis:240px}
-  .app-sidebar.collapsed .app-sidebar-brand,.app-sidebar.collapsed .app-sidebar-logo-wrap,.app-sidebar.collapsed .app-sidebar-label{opacity:1;width:auto;display:flex}
+  .app-sidebar.collapsed .app-sidebar-brand,.app-sidebar.collapsed .app-sidebar-label{opacity:1;width:auto;display:flex}
   .app-sidebar.collapsed .app-theme-toggle{display:flex}
   .app-sidebar-scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:39}
   .app-sidebar-scrim.visible{display:block}
@@ -98,10 +133,6 @@
     {% else %}
     <span class="app-sidebar-brand">DACHKONZEPTE</span>
     {% endif %}
-    <div class="app-sidebar-headbtns">
-      <button type="button" class="app-theme-toggle" id="appThemeToggle" aria-label="Hell/Dunkel umschalten" title="Hell/Dunkel umschalten"></button>
-      <button type="button" class="app-sidebar-toggle" id="appSidebarToggle" aria-label="Navigation ein-/ausklappen"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
-    </div>
   </div>
   <nav class="app-sidebar-nav">
     <a class="app-sidebar-link{{ ' active' if path == '/' }}" href="/"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9"/><path d="M10 20v-6h4v6"/></svg></span><span class="app-sidebar-label">Start</span></a>
@@ -126,15 +157,21 @@
     <div class="app-sidebar-group">System</div>
     <a class="app-sidebar-link{{ ' active' if path == '/settings' }}" href="/settings"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><circle class="fdot" cx="9" cy="7" r="1.7"/><line x1="4" y1="12.5" x2="20" y2="12.5"/><circle class="fdot" cx="15" cy="12.5" r="1.7"/><line x1="4" y1="18" x2="20" y2="18"/><circle class="fdot" cx="7" cy="18" r="1.7"/></svg></span><span class="app-sidebar-label">Einstellungen</span></a>
   </nav>
-  {% if current_user %}
-  <div class="app-sidebar-foot" id="appSidebarFoot">
-    <div class="app-sidebar-user"><span class="dot"></span><span class="app-sidebar-label">{{ current_user.display_name }}</span></div>
-    <button type="button" class="app-sidebar-logout" id="appSidebarLogout"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M9 4.5H5.3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1H9"/><polyline points="14,15.5 18,12 14,8.5"/><line x1="18" y1="12" x2="8.3" y2="12"/></svg></span><span class="app-sidebar-label">Abmelden</span></button>
+  <div class="app-sidebar-bottom">
+    <div class="app-sidebar-utilities">
+      <button type="button" class="app-theme-toggle" id="appThemeToggle" aria-label="Hell/Dunkel umschalten" title="Hell/Dunkel umschalten"></button>
+      <button type="button" class="app-sidebar-toggle" id="appSidebarToggle" aria-label="Navigation ein-/ausklappen"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
+    </div>
+    {% if current_user %}
+    <div class="app-sidebar-foot" id="appSidebarFoot">
+      <div class="app-sidebar-user"><span class="dot"></span><span class="app-sidebar-label">{{ current_user.display_name }}</span></div>
+      <button type="button" class="app-sidebar-logout" id="appSidebarLogout"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M9 4.5H5.3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1H9"/><polyline points="14,15.5 18,12 14,8.5"/><line x1="18" y1="12" x2="8.3" y2="12"/></svg></span><span class="app-sidebar-label">Abmelden</span></button>
+    </div>
+    {% else %}
+    <div class="app-sidebar-foot" id="appSidebarFoot"></div>
+    {% endif %}
+    <div class="app-sidebar-version"><span class="app-sidebar-label">Version {{ app_version }}</span></div>
   </div>
-  {% else %}
-  <div class="app-sidebar-foot" id="appSidebarFoot"></div>
-  {% endif %}
-  <div class="app-sidebar-version"><span class="app-sidebar-label">Version {{ app_version }}</span></div>
 </aside>
 <div class="app-sidebar-scrim" id="appSidebarScrim"></div>
 <script>

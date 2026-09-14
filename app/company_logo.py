@@ -50,13 +50,18 @@ MAX_DISPLAY_DIMENSION = 480  # längste Kante der Anzeige-Rendition -- reicht f�
 # selbst auf einem 3x-Retina-Bildschirm bequem aus, ohne bei einem quadratischen/breiten Logo
 # unnötig groß zu werden
 
-# Anzeigehöhe des in der Sidebar gezeigten Logos (seit 1.3.39) -- gilt unabhängig davon, ob
-# tatsächlich das Sidebar-Logo oder ersatzweise das Firmenlogo gezeigt wird (siehe
-# sidebar_logo_filename() unten), einstellbar, damit ein kleines Bildzeichen größer dargestellt
-# werden kann, ohne dass der Betreiber dafür Code ändern lassen muss.
-DEFAULT_SIDEBAR_LOGO_HEIGHT_PX = 48
+# Anzeigehöhe des in der Sidebar gezeigten Logos (seit 1.3.39, Obergrenze auf 120px angehoben
+# und Standardwert auf 64px erhöht seit 1.3.44 -- siehe CLAUDE.md "Umgestaltung der Sidebar":
+# das Logo teilt sich den Kopfbereich seither nicht mehr mit den beiden Kopfzeilen-Schaltflächen
+# (die sind in den unteren Bereich gewandert), eine größere Standardhöhe wirkt dadurch nicht
+# mehr gedrängt) -- gilt unabhängig davon, ob tatsächlich das Sidebar-Logo oder ersatzweise das
+# Firmenlogo gezeigt wird (siehe sidebar_logo_filename() unten), einstellbar, damit ein kleines
+# Bildzeichen größer dargestellt werden kann, ohne dass der Betreiber dafür Code ändern lassen
+# muss. Die eingeklappte Sidebar (60px Breite) nutzt bewusst NICHT diesen konfigurierten Wert,
+# sondern eine eigene, feste, kleinere Höhe (siehe _sidebar.html) -- dort ist ohnehin kaum Platz.
+DEFAULT_SIDEBAR_LOGO_HEIGHT_PX = 64
 MIN_SIDEBAR_LOGO_HEIGHT_PX = 24
-MAX_SIDEBAR_LOGO_HEIGHT_PX = 80
+MAX_SIDEBAR_LOGO_HEIGHT_PX = 120
 
 
 def logo_directory(root: Path | None = None) -> Path:

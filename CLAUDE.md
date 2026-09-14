@@ -20,12 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.43** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `4ba46163a7e8` ("sidebar logo dedicated upload") -- direkt auf
-  `c327ff4ad332` (1.3.39) aufsetzend, keine der Versionen 1.3.40–1.3.42 brauchte eine eigene
+- Version: **1.3.44** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `60d7c8a775f0` ("raise default sidebar logo height") -- direkt auf
+  `4ba46163a7e8` (1.3.43) aufsetzend, keine der Versionen 1.3.40–1.3.42 brauchte eine eigene
   Migration -- bei Bedarf per `alembic history`/`heads` prüfen statt sich auf eine hier
   aufgeschriebene Liste zu verlassen.
-- Tests: **1075/1075**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
+- Tests: **1087/1087**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -557,6 +557,15 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   zugehörigen Jinja-Globals bleibt dabei vollständig erhalten. Einstellungen trennen "Firmenlogo"
   (PDFs, PWA-Icon) und "Sidebar-Logo" (nur Navigation) jetzt in zwei eigene Abschnitte. Details
   im Abschnitt "Firmenlogo in der Sidebar" → "Korrektur: doch ein Schriftzug" unten.
+- Neu seit 1.3.44: **Umgestaltung der Sidebar, Schritt 1 von vier.** Das Logo steht jetzt allein
+  im Kopfbereich, zentriert, mit der vollen verfügbaren Breite (Breitenbegrenzung von festen
+  200px auf relatives `max-width:100%` umgestellt) -- vorher teilte es sich den schmalen Kopf mit
+  den beiden Schaltflächen für Hell/Dunkel und Ein-/Ausklappen. Einstellbare Höhe jetzt 24-120px
+  (vorher 24-80), Standardwert 64 (vorher 48). Die eingeklappte Sidebar (60px) bekommt eine
+  eigene, feste, kleinere Logo-Höhe (32px) statt der einstellbaren. Die beiden Schaltflächen sind
+  in den unteren Bereich gewandert, direkt über dem Benutzer-/Abmelden-Block -- "Mein Konto"
+  bleibt vorerst, wo es ist. Topbar, Suche und Schnellzugriff folgen einzeln in späteren
+  Schritten. Details im neuen Abschnitt "Umgestaltung der Sidebar" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -4794,6 +4803,107 @@ Interpretation "eine einzige, durchgehende Form ohne Text" war es nicht). Das ä
   beides fehlt → `None`), die drei neuen Endpunkte über `router_test_client()`, und dass ein
   Sidebar-Logo-Upload den Firmenlogo-Ordner/-Datensatz unangetastet lässt (getrennte Ordner,
   getrennte Spalten).
+
+## Umgestaltung der Sidebar (seit 1.3.44)
+
+Größerer Umbau von `_sidebar.html` in vier einzelnen Schritten -- dieser Abschnitt wächst mit
+jedem Schritt. Schritt 1 (diese Version): Kopfbereich (Logo) und die beiden
+Kopfzeilen-Schaltflächen. Schritt 2-4 (Topbar, Suche, Schnellzugriff) folgen einzeln in
+späteren Versionen -- **bewusst nicht in dieser Version vorgezogen**, auch wenn manches davon
+(z. B. "Mein Konto") thematisch verwandt ist.
+
+### Schritt 1: Kopfbereich und Schaltflächen
+
+**Ausgangslage**: das Logo stand oben links, direkt daneben (im selben, schmalen Kopfbereich)
+die beiden Schaltflächen für Hell/Dunkel und Ein-/Ausklappen -- dadurch blieb für das Logo selbst
+wenig Breite, ein Logo mit Schriftzug wäre darin unlesbar klein geblieben.
+
+**Punkt 1 -- Logo allein, zentriert, volle Breite.**
+
+- `.app-sidebar-head` wechselt von `justify-content:space-between` (Logo links, Buttons rechts)
+  zu `justify-content:center` mit nur noch einem Kind (Logo bzw. Schriftzug-Fallback) -- die
+  beiden Schaltflächen sind komplett aus dem Kopf entfernt, siehe Punkt 2.
+- `.app-sidebar-logo-wrap`s Breitenbegrenzung wechselt von einem festen `max-width:200px` zu
+  `max-width:100%` -- **bewusst relativ statt eines neuen, größeren festen Werts**: genau das
+  war die vom Nutzer benannte Gefahr ("die Breitenbegrenzung muss entsprechend mitwachsen,
+  sonst greift sie wieder zuerst und drückt die Höhe herunter") -- ein fester Wert hätte bei
+  einer künftigen Änderung der Sidebar-Breite (240px) wieder auseinanderlaufen können, ein
+  relativer nie. Die zugrundeliegende 1.3.39-Regel (Höhe und Breitenbegrenzung nie auf
+  demselben `<img>`, die Begrenzung gehört auf einen Wrapper mit `overflow:hidden`) bleibt
+  unverändert gültig und wird hier nur konsequent weitergeführt, nicht neu erfunden.
+- **Höhenbereich auf 24-120px erweitert** (vorher 24-80), Standardwert von 48 auf 64 angehoben
+  -- `company_logo.py::MIN/MAX/DEFAULT_SIDEBAR_LOGO_HEIGHT_PX`, `GeneralSettings.
+  sidebar_logo_height_px` (Migration `60d7c8a775f0`, reiner `server_default`-Wechsel 48→64),
+  `GeneralSettingsUpdate.sidebar_logo_height_px` (Pydantic-Grenzen), `settings.html` (Zahlenfeld
+  `min`/`max`, Hinweistext, JS-Validierung). Begründung für den angehobenen Standardwert: der
+  Kopf teilt sich die Breite nicht mehr mit den beiden Schaltflächen, ein größerer Standardwert
+  wirkt dadurch nicht mehr gedrängt wie vorher. **Ausdrücklich transparent**: eine erneute,
+  präzise Nachrechnung "wird ein Schriftzug bei Höhe X noch lesbar" (wie in 1.3.39 versucht)
+  konnte für diese Version nicht wiederholt werden -- die lokal verfügbare Beispieldatei
+  (`4ce61c7cadf743b7bee52db6bac1b4f8.png`) enthält bei tatsächlichem Nachsehen (Pillow-
+  Zeilenprofil der Alphakanal-Tinte UND direktes Betrachten der Datei) nachweislich **keinen**
+  Schriftzug, nur das zweifarbige Dachzeichen -- ein Widerspruch zur zuletzt beschriebenen
+  Beobachtung ("DACHKONZEPTE GmbH"/"RÖDCHEN" auf einem Sidebar-Screenshot erkennbar), der sich
+  mit den hier verfügbaren Mitteln nicht auflösen ließ (vermutlich zeigte jener Screenshot eine
+  andere, tatsächlich hochgeladene Datei aus einer Umgebung, die dieser Sitzung nicht zugänglich
+  ist). 64px ist deshalb eine begründete, aber nicht anhand einer konkreten Schriftzug-Höhe
+  durchgerechnete Zwischenlösung -- bei Gelegenheit gegen die tatsächlich verwendete Datei
+  visuell im Browser zu prüfen.
+- **Eingeklappte Sidebar (60px) -- eigene, feste Behandlung statt der einstellbaren Höhe.** Wie
+  vom Nutzer erwartet ("vermutlich braucht es dafür eine eigene Behandlung") reicht die für die
+  volle Breite gedachte, einstellbare Höhe bei 60px nicht: bei 6px Kopf-Padding je Seite (eigens
+  für den eingeklappten Zustand reduziert, vorher 14px) bleiben nur 48px Breite, ein bei 120px
+  Höhe konfiguriertes Logo würde bei gleichem Seitenverhältnis weit darüber liegen. Lösung:
+  `.app-sidebar.collapsed .app-sidebar-logo{height:32px!important}` -- eine feste, vom
+  eingestellten Wert unabhängige, kleinere Höhe (die `!important` ist nötig, da die konfigurierte
+  Höhe als Inline-Style sonst Vorrang hätte). Für das reine Text-Schriftzug-Fallback (kein Logo
+  hinterlegt) bleibt es bei "gar keins" -- vollständig ausgeblendet wie bisher, für
+  "DACHKONZEPTE" ist bei 60px kein sinnvoller Platz, anders als bei einem meist eher quadratischen
+  Bildzeichen. Beide Regeln bewusst in `@media(min-width:1001px)` gekapselt (nicht einfach nur
+  `.app-sidebar.collapsed ...`) -- auf Mobilgeräten kann die `collapsed`-Klasse durch einen
+  Resize ohne Neuladen bestehen bleiben (siehe das bereits bestehende
+  `@media(max-width:1000px)`-Zurücksetzen), dort soll das aber weiterhin die volle, unveränderte
+  Darstellung bedeuten, nicht die geschrumpfte Desktop-Variante.
+
+**Punkt 2 -- Hell/Dunkel und Ein-/Ausklappen in den unteren Bereich.**
+
+Neuer Wrapper `.app-sidebar-bottom` (mit dem `border-top`, das vorher auf `.app-sidebar-foot`
+saß) umschließt jetzt in dieser Reihenfolge: eine neue Zeile `.app-sidebar-utilities` (beide
+Schaltflächen, direkt unter der Navigation), `#appSidebarFoot` (Benutzer/Abmelden bzw.
+Login-Formular, unverändert), `.app-sidebar-version`. "Neben Abmelden" wörtlich als eigene Zeile
+direkt darüber umgesetzt, nicht als eine einzige, gemeinsame Zeile mit dem Abmelden-Button --
+letzteres hätte bei einem vollbreiten Text-Button plus zwei Icon-Buttons zusammengedrängt gewirkt,
+genau das vom Nutzer benannte Risiko ("ohne dass es gedrängt wirkt"). Beide Bereiche liegen
+dadurch trotzdem sichtbar im selben, unteren Block direkt aneinander angrenzend.
+
+Bewusst **keine** Änderung an `renderAuthFoot()` (dem JS, das `#appSidebarFoot` bei jedem
+Auth-Status-Abruf per `innerHTML` neu aufbaut, inkl. "Mein Konto"): die beiden Schaltflächen
+sitzen als statisches Jinja-Markup außerhalb von `#appSidebarFoot`, ihre einmalig beim
+Skriptstart gebundenen Event-Listener (`toggle.addEventListener(...)`, `themeToggle.
+addEventListener(...)`) werden dadurch nie zerstört -- kein erneutes Binden nötig, kein Risiko,
+die sicherheitsrelevante Login/Logout-Logik dabei versehentlich anzufassen. "Mein Konto" bleibt
+deshalb unverändert innerhalb von `#appSidebarFoot`, exakt wie vom Nutzer vorgegeben ("wandert
+erst mit der Topbar in einem späteren Schritt nach oben").
+
+**Bedienbarkeit im eingeklappten Zustand geprüft**: `.app-sidebar.collapsed .app-sidebar-toggle`
+wird an KEINER Stelle auf `display:none` gesetzt (nur `.app-theme-toggle` verschwindet
+eingeklappt, bereits bestehendes, unverändertes Verhalten) -- die Schaltfläche, mit der man
+wieder ausklappt, bleibt im eingeklappten Zustand also garantiert erreichbar. Als Regressionstest
+festgehalten (`test_collapse_toggle_is_never_hidden_when_collapsed_but_theme_toggle_is`,
+`tests/test_v253_sidebar_layout.py`), da ein versehentliches `display:none` auf der falschen
+Klasse genau diese Bedienbarkeit stillschweigend gebrochen hätte.
+
+**Was unverändert bleibt, geprüft statt nur behauptet**: `_mobile_header.html` kennt keine der
+hier verschobenen/neuen Klassen (`app-sidebar-head`/`app-sidebar-utilities`/`app-theme-toggle`/
+`app-sidebar-toggle`) -- als Test festgehalten. Navigationseinträge, ihre Reihenfolge und die
+Gruppen "Stammdaten"/"System" (1.3.28) sind an keiner Stelle angefasst, nur Kopf- und
+Fußbereich drumherum.
+
+**Kein echter Browser-Screenshot möglich** (dieselbe, bereits mehrfach dokumentierte
+Werkzeug-Einschränkung dieser Umgebung) -- die tatsächliche visuelle Zentrierung/Anordnung ist
+deshalb nur an der Markup-/CSS-Struktur nachgewiesen (`tests/test_v253_sidebar_layout.py`), nicht
+an einem gerenderten Bild. Sollte bei Gelegenheit im Browser gegenprüft werden, insbesondere mit
+dem tatsächlich hochgeladenen Sidebar-Logo.
 
 ## Migrations-Workflow
 
