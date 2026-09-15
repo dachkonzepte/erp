@@ -2878,6 +2878,55 @@ class ServiceReportOut(BaseModel):
     updated_at: datetime
 
 
+class ServiceReportHistoryItemOut(BaseModel):
+    id: int
+    roof_area_id: int | None = None
+    roof_area_name: str | None = None
+    group_name: str | None = None
+    text: str
+    item_type: str
+    result: str | None = None
+    condition_grade: int | None = None
+    measured_value: Decimal | None = None
+    quantity: Decimal | None = None
+    unit: str | None = None
+    notes: str | None = None
+
+
+class ServiceReportHistoryFindingOut(BaseModel):
+    id: int
+    description: str
+    severity: str
+    severity_label: str
+    action: str
+    action_label: str
+    status: str
+    status_label: str
+    roof_component_name: str | None = None
+    resubmission_date: date | None = None
+    photo_count: int
+
+
+class ServiceReportHistoryOut(BaseModel):
+    """Rechtekonzept Teil B, Nachtrag 1.3.56: reduziertes Gegenstück zu ServiceReportOut für
+    GET /api/orders/{order_id}/property-service-reports, wenn ein Monteur (`field`) aufruft --
+    die Wartungshistorie desselben Objekts zeigt ihm gewollt fremde Berichte, aber nur Datum,
+    Berichtstyp, Monteur, Prüfergebnisse und Mängel mit Status (Betreibervorgabe, siehe
+    list_property_history_for_field()). Trägt bewusst kein `description`, kein Material, keine
+    Unterschrifts-/Vertrags-/Kundenfelder; die Anwesenheit von `inspection_items` ist für
+    service_reports.html zugleich das Signal, den PDF-Link nicht zu rendern."""
+    id: int
+    order_number: str | None = None
+    order_title: str | None = None
+    report_type: str
+    report_type_label: str
+    performed_at: date
+    created_by_employee_name: str | None = None
+    roof_areas: list[ServiceReportRoofAreaOut] = []
+    inspection_items: list[ServiceReportHistoryItemOut] = []
+    findings: list[ServiceReportHistoryFindingOut] = []
+
+
 class ServiceReportCreate(BaseModel):
     report_type: str
     description: str | None = None

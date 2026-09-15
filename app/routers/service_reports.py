@@ -24,17 +24,19 @@ from ..modules import is_module_enabled
 from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
 from ..schemas import (
     InspectionItemCreate, InspectionItemOut, InspectionItemResultUpdate, InspectionItemsSyncResult,
-    PropertyAccessOut, RoofAreaOut, ServiceReportCreate, ServiceReportMaterialCreate, ServiceReportMaterialOut,
-    ServiceReportMaterialUpdate, ServiceReportOut, ServiceReportPhotoOut, ServiceReportSign, ServiceReportUpdate,
+    PropertyAccessOut, RoofAreaOut, ServiceReportCreate, ServiceReportHistoryOut, ServiceReportMaterialCreate,
+    ServiceReportMaterialOut, ServiceReportMaterialUpdate, ServiceReportOut, ServiceReportPhotoOut, ServiceReportSign,
+    ServiceReportUpdate,
 )
 from ..service_report_pdf import build_service_report_pdf
 from ..service_report_photos import MAX_UPLOAD_BYTES, photo_path
 from ..service_reports import (
     add_inspection_item, add_material, add_photo, create_report, delete_inspection_item, delete_material,
     delete_photo, delete_report, get_property_context_for_order, get_report_row, list_inspection_items,
-    list_materials_for_invoicing, list_materials_for_report, list_photos, list_property_history, list_reports,
-    list_roof_areas_for_order, material_to_dict, regenerate_inspection_items, sign_report, sync_inspection_items,
-    update_inspection_item, update_material, update_report,
+    list_materials_for_invoicing, list_materials_for_report, list_photos, list_property_history,
+    list_property_history_for_field, list_reports, list_roof_areas_for_order, material_to_dict,
+    regenerate_inspection_items, sign_report, sync_inspection_items, update_inspection_item, update_material,
+    update_report,
 )
 from .orders import require_field_order_access
 
@@ -125,15 +127,18 @@ def get_order_materials(order_id: int, db: Session = Depends(get_db), _role: App
     return [material_to_dict(m) for m in list_materials_for_invoicing(db, order_id)]
 
 
-@router.get("/api/orders/{order_id}/property-service-reports", response_model=list[ServiceReportOut])
+@router.get("/api/orders/{order_id}/property-service-reports", response_model=list[ServiceReportOut] | list[ServiceReportHistoryOut])
 def get_property_service_report_history(order_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     """Wartungshistorie desselben Objekts (seit 1.2.4) -- ein Monteur sieht hier bewusst auch
     frühere, unterschriebene Berichte ANDERER Aufträge, an denen er nicht beteiligt war (die
-    Arbeit vor Ort braucht das). Die Zuordnung wird nur für den AKTUELLEN Auftrag geprüft;
-    geprüft (Teil B), dass report_to_dict() dabei keine Preise, Material-Einkaufswerte oder
-    Kundennotizen mitliefert -- siehe tests/test_v260_role_audit.py."""
+    Arbeit vor Ort braucht das). Die Zuordnung wird nur für den AKTUELLEN Auftrag geprüft.
+    Für `field` seit 1.3.56 ein reduziertes Modell (ServiceReportHistoryOut: Datum, Berichtstyp,
+    Monteur, Prüfergebnisse, Mängel mit Status -- Betreibervorgabe), Büro/Admin bekommen
+    unverändert das volle ServiceReportOut; siehe tests/test_v260_role_audit.py."""
     _require_module_enabled(db)
     require_field_order_access(db, _role, order_id)
+    if _role.role == ROLE_FIELD:
+        return [ServiceReportHistoryOut.model_validate(r) for r in list_property_history_for_field(db, order_id)]
     return list_property_history(db, order_id)
 
 

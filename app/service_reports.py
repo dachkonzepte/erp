@@ -198,6 +198,16 @@ def list_property_history(db: Session, order_id: int) -> list[dict]:
     property_id) -- das zugehörige Gebäude wird deshalb über order.project.property_id
     aufgelöst. Ohne verknüpftes Gebäude (property_id ist bei Project optional) gibt es keine
     Historie, das ist kein Fehler."""
+    reports = _property_history_reports(
+        db, order_id, selectinload(ServiceReport.order), selectinload(ServiceReport.created_by_employee),
+    )
+    return [{**report_to_dict(r), "order_title": r.order.title if r.order else None} for r in reports]
+
+
+def _property_history_reports(db: Session, order_id: int, *options) -> list[ServiceReport]:
+    """Gemeinsame Abfrage für list_property_history() (volles Modell, Büro/Admin) und
+    list_property_history_for_field() (reduziertes Modell, Monteur) -- dieselben Berichte,
+    nur unterschiedlich eager geladen und unterschiedlich serialisiert."""
     order = db.get(Order, order_id)
     if order is None or order.project is None or order.project.property_id is None:
         return []
@@ -206,17 +216,73 @@ def list_property_history(db: Session, order_id: int) -> list[dict]:
         select(ServiceReport)
         .join(Order, ServiceReport.order_id == Order.id)
         .join(Project, Order.project_id == Project.id)
-        .options(selectinload(ServiceReport.order), selectinload(ServiceReport.created_by_employee))
+        .options(*options)
         .where(
             Project.property_id == property_id, ServiceReport.order_id != order_id,
             ServiceReport.status == "unterschrieben",
         )
         .order_by(ServiceReport.performed_at.desc(), ServiceReport.id.desc())
     )
-    return [
-        {**report_to_dict(r), "order_title": r.order.title if r.order else None}
-        for r in db.scalars(query).all()
-    ]
+    return db.scalars(query).all()
+
+
+def list_property_history_for_field(db: Session, order_id: int) -> list[dict]:
+    """Reduziertes Gegenstück zu list_property_history() für die Rolle `field` (Rechtekonzept
+    Teil B, Nachtrag 1.3.56, Betreibervorgabe): ein Monteur sieht frühere Berichte desselben
+    Objekts, an denen er nicht beteiligt war -- aber nur, was die Arbeit vor Ort braucht: Datum,
+    Berichtstyp, Monteur, Prüfergebnisse, Mängel mit Status. Bewusst OHNE Beschreibungstext,
+    Material, Unterschriftsdaten, Vertragsbezug, Kunden-/Objekt-IDs und ohne die Erledigungs-
+    Verweise der Mängel (Folgeauftrag/Aufgabe -- Büro-Vorgänge). Die Prüfpunkt-Bemerkung
+    (InspectionItem.notes) ist Teil des Prüfergebnisses und steht auf dem Kunden-PDF -- keine
+    interne Bemerkung, deshalb enthalten. Das PDF eines fremden Berichts bleibt für `field`
+    gesperrt (es trägt u. a. die Zeitbuchungen der Kollegen)."""
+    reports = _property_history_reports(
+        db, order_id,
+        selectinload(ServiceReport.order), selectinload(ServiceReport.created_by_employee),
+        selectinload(ServiceReport.roof_area), selectinload(ServiceReport.inspection_template),
+        selectinload(ServiceReport.report_roof_areas).selectinload(ServiceReportRoofArea.roof_area),
+        selectinload(ServiceReport.report_roof_areas).selectinload(ServiceReportRoofArea.inspection_template),
+        selectinload(ServiceReport.inspection_items).selectinload(InspectionItem.roof_area),
+        selectinload(ServiceReport.findings),
+    )
+    return [_history_report_to_field_dict(r) for r in reports]
+
+
+_HISTORY_FINDING_KEYS = (
+    "id", "description", "severity", "severity_label", "action", "action_label",
+    "status", "status_label", "roof_component_name", "resubmission_date", "photo_count",
+)
+
+
+def _history_report_to_field_dict(report: ServiceReport) -> dict:
+    # Lokaler Import: findings.py hängt über quick_service_orders/tasks an derselben Modulgruppe
+    # wie dieses Modul -- ein Modulebenen-Import wäre der Zirkel-Kandidat aus Regel 3.
+    from .findings import finding_to_dict
+
+    areas = _report_roof_areas_to_dicts(report)
+    area_names = {a["roof_area_id"]: a["roof_area_name"] for a in areas}
+    items = sorted(report.inspection_items, key=lambda i: (i.sort_order, i.id))
+    return {
+        "id": report.id,
+        "order_number": report.order.order_number if report.order else None,
+        "order_title": report.order.title if report.order else None,
+        "report_type": report.report_type,
+        "report_type_label": REPORT_TYPE_LABELS.get(report.report_type, report.report_type),
+        "performed_at": report.performed_at,
+        "created_by_employee_name": _employee_name(report.created_by_employee),
+        "roof_areas": areas,
+        "inspection_items": [{
+            "id": i.id, "roof_area_id": i.roof_area_id,
+            "roof_area_name": area_names.get(i.roof_area_id) or (i.roof_area.name if i.roof_area else None),
+            "group_name": i.group_name, "text": i.text, "item_type": i.item_type,
+            "result": i.result, "condition_grade": i.condition_grade, "measured_value": i.measured_value,
+            "quantity": i.quantity, "unit": i.unit, "notes": i.notes,
+        } for i in items],
+        "findings": [
+            {key: values[key] for key in _HISTORY_FINDING_KEYS}
+            for values in (finding_to_dict(f) for f in report.findings)
+        ],
+    }
 
 
 def list_contract_history(db: Session, contract_id: int) -> list[dict]:

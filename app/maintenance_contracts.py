@@ -514,7 +514,7 @@ def create_project_from_contract(db: Session, contract_id: int, item_id: int | N
     return {"project_id": new_project.id, "project_number": new_project.project_number}
 
 
-def create_maintenance_visit(db: Session, contract_id: int) -> dict:
+def create_maintenance_visit(db: Session, contract_id: int, created_by_employee_id: int | None = None) -> dict:
     """"Wartung durchführen" (seit 1.2.22): fasst Anlegen des Auftrags UND eines vorbereiteten
     Wartungsberichts über ALLE nicht archivierten Dachflächen des Objekts in einem Schritt
     zusammen -- bewusst ohne den Mustervorgang (Wartung wird über die Vertragspauschale oder
@@ -529,7 +529,13 @@ def create_maintenance_visit(db: Session, contract_id: int) -> dict:
     Die Fälligkeit wird hier bewusst NICHT fortgeschrieben (anders als
     create_project_from_contract()) -- das übernimmt sign_report() über
     ServiceReport.advance_due_date_on_sign, siehe dort. Ein angelegter, aber nie unterschriebener
-    Bericht soll den Turnus nicht verschieben."""
+    Bericht soll den Turnus nicht verschieben.
+
+    created_by_employee_id (seit 1.3.56, Rechtekonzept): der Ersteller des vorbereiteten
+    Berichts -- für einen Monteur, der vor Ort eine ungeplante Wartung startet, ist das sein
+    einziger Zugriffsweg auf den neuen Auftrag (field_may_access_order(), Weg "eigener
+    Bericht"): eine Plantafel-Zuordnung existiert für diesen Auftrag noch nicht. Der Router
+    setzt den Wert wie bei POST /api/orders/{id}/service-reports über _employee_for_request()."""
     contract = db.get(MaintenanceContract, contract_id)
     if contract is None:
         raise ValueError("Wartungsvertrag nicht gefunden.")
@@ -552,7 +558,7 @@ def create_maintenance_visit(db: Session, contract_id: int) -> dict:
 
     report = create_report(
         db, order_id=result["order_id"], report_type="wartung", roof_area_ids=roof_area_ids,
-        advance_due_date_on_sign=True,
+        advance_due_date_on_sign=True, created_by_employee_id=created_by_employee_id,
     )
     return {**result, "report_id": report["id"]}
 

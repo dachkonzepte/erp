@@ -538,18 +538,22 @@ class TestObjectFilteringForFieldTeilB:
         """Die Wartungshistorie zeigt einem Monteur bewusst frühere Berichte ANDERER Aufträge
         desselben Objekts -- dasselbe Muster wie bei purchase_price geprüft: kein Schlüssel der
         Antwort darf Preis/Einkauf/Vergütung/Kundennotiz transportieren, auch nicht verschachtelt."""
+        from app.findings import create_finding
         from app.materials import create_manual_material
         from app.models import ServiceReport
         from app.routers.service_reports import router as sr_router
-        from app.service_reports import add_material, create_report
+        from app.service_reports import add_inspection_item, add_material, create_report, update_inspection_item
         db = threaded_db_session
         monteur = self._employee(db, "T-B9", "Hans", "Historie")
         earlier, customer, prop = self._order(db, "AUF-B-0040", "P-B-0040")
         current, _, _ = self._order(db, "AUF-B-0041", "P-B-0041", property_id=prop, customer=customer)
         self._assign_individually(db, current, monteur)
-        old_id = create_report(db, earlier.id, "wartung", description="Frühjahrswartung")["id"]
+        old_id = create_report(db, earlier.id, "wartung", description="Frühjahrswartung -- Beschreibungstext")["id"]
         material = create_manual_material(db, name="Dachziegel", unit="Stk", purchase_price=Decimal("12.50"))
         add_material(db, old_id, material_id=material.id, quantity=Decimal("2"))
+        item = add_inspection_item(db, old_id, "Gully Nordost", "ja_nein", group_name="Entwässerung")
+        update_inspection_item(db, item["id"], {"result": "nok", "notes": "Laub, gereinigt"})
+        create_finding(db, old_id, "Gully verstopft", "mittel", "sofort_behoben", inspection_item_id=item["id"])
         db.get(ServiceReport, old_id).status = "unterschrieben"; db.commit()
 
         field = router_test_client(db, sr_router, role="field", employee_id=monteur.id)
@@ -557,6 +561,24 @@ class TestObjectFilteringForFieldTeilB:
         assert response.status_code == 200, response.text
         history = response.json()
         assert [r["id"] for r in history] == [old_id]
+        # Reduziertes Modell (seit 1.3.56): Datum, Berichtstyp, Monteur, Prüfergebnisse, Mängel mit
+        # Status -- kein Beschreibungstext, kein Material, keine Unterschrifts-/Vertrags-/Kundenfelder.
+        entry = history[0]
+        assert set(entry) == {
+            "id", "order_number", "order_title", "report_type", "report_type_label", "performed_at",
+            "created_by_employee_name", "roof_areas", "inspection_items", "findings",
+        }
+        assert [(i["text"], i["result"], i["notes"]) for i in entry["inspection_items"]] == [("Gully Nordost", "nok", "Laub, gereinigt")]
+        assert [f["description"] for f in entry["findings"]] == ["Gully verstopft"]
+        assert set(entry["findings"][0]) == {
+            "id", "description", "severity", "severity_label", "action", "action_label",
+            "status", "status_label", "roof_component_name", "resubmission_date", "photo_count",
+        }
+        # Büro bekommt unverändert das volle Modell samt Beschreibungstext, ohne die Inline-Ergebnisse
+        office = router_test_client(db, sr_router, role="office")
+        full = office.get(f"/api/orders/{current.id}/property-service-reports").json()[0]
+        assert full["description"] == "Frühjahrswartung -- Beschreibungstext"
+        assert "inspection_items" not in full and "status" in full
 
         def keys(obj):
             if isinstance(obj, dict):
@@ -600,5 +622,57 @@ class TestObjectFilteringForFieldTeilB:
 
         admin = router_test_client(db, tt_router, role="admin")
         assert {r["id"] for r in admin.get(f"/api/time-entries?order_id={order.id}").json()} == {mine.id, theirs.id}
+        # Büro sieht die Buchungen aller (seit 1.3.56, Betreiberentscheidung) -- es rechnet sie ab;
+        # auch ein Büro-Konto ohne Mitarbeiterverknüpfung, das vorher 403 bekam.
+        office = router_test_client(db, tt_router, role="office")
+        assert {r["id"] for r in office.get(f"/api/time-entries?order_id={order.id}").json()} == {mine.id, theirs.id}
         unlinked = router_test_client(db, tt_router, role="field")
         assert unlinked.get("/api/time-entries").status_code == 403
+
+    def test_field_can_start_an_unplanned_maintenance_visit_and_sign_it(
+        self, router_test_client, threaded_db_session, tmp_path, monkeypatch,
+    ):
+        """Betreibervorgabe (1.3.56): ein Monteur muss vor Ort eine ungeplante Wartung starten
+        können. Der vorbereitete Bericht trägt ihn als Ersteller -- sein Zugriffsweg auf den neuen
+        Auftrag, eine Plantafel-Zuordnung gibt es dafür nicht. Die Vertragsdaten selbst bleiben
+        Büro. Und die Unterschrift läuft für ihn bis zum Ende durch: "Rechnung erstellen"-Aufgabe
+        und Fortschreibung der Vertragsfälligkeit sind reine In-Process-Aufrufe ohne Rollenprüfung
+        (sign_report() -> create_task()/MaintenanceContract, keine Depends(...)-Kette dahinter)."""
+        import base64
+        from datetime import date
+        from sqlalchemy import select
+        from app import service_reports as service_reports_module
+        from app.maintenance_contracts import create_contract
+        from app.models import MaintenanceContract, ServiceReport, Task
+        from app.routers.maintenance_contracts import router as mc_router
+        from app.routers.service_reports import router as sr_router
+        from tests.test_v203_service_reports import TINY_PNG
+        monkeypatch.setattr(service_reports_module, "SIGNATURE_ROOT", tmp_path / "sigs")
+        db = threaded_db_session
+        monteur = self._employee(db, "T-B12", "Uwe", "Ungeplant")
+        _, customer, prop = self._order(db, "AUF-B-0060", "P-B-0060")
+        contract = create_contract(db, customer_id=customer.id, property_id=prop, title="Jahreswartung",
+                                   interval_months=12, next_due_date=date(2026, 10, 1))
+        field = router_test_client(db, mc_router, sr_router, role="field", employee_id=monteur.id)
+        assert field.get(f"/api/maintenance-contracts/{contract['id']}").status_code == 403
+
+        started = field.post(f"/api/maintenance-contracts/{contract['id']}/perform-maintenance")
+        assert started.status_code == 200, started.text
+        report_id, order_id = started.json()["report_id"], started.json()["order_id"]
+        assert db.get(ServiceReport, report_id).created_by_employee_id == monteur.id
+        assert field.get(f"/api/orders/{order_id}/service-reports").status_code == 200  # Weg "eigener Bericht"
+
+        png = base64.b64encode(TINY_PNG).decode()
+        signed = field.post(f"/api/service-reports/{report_id}/sign", json={
+            "installer_signature_png_base64": png, "installer_signature_name": "Uwe Ungeplant",
+            "customer_signature_png_base64": png, "customer_signature_name": "Kunde vor Ort",
+        })
+        assert signed.status_code == 200, signed.text
+        assert signed.json()["status"] == "unterschrieben"
+        assert db.get(MaintenanceContract, contract["id"]).next_due_date == date(2027, 10, 1)
+        tasks = db.scalars(select(Task).where(Task.source_module == "wartungsbericht")).all()
+        assert [t.source_url for t in tasks] == [f"/orders/{order_id}"]
+
+        # ohne Mitarbeiterverknüpfung kein Start -- der Bericht wäre für niemanden erreichbar
+        unlinked = router_test_client(db, mc_router, role="field")
+        assert unlinked.post(f"/api/maintenance-contracts/{contract['id']}/perform-maintenance").status_code == 403

@@ -9,11 +9,14 @@ JEDE Rolle -- ein Monteur bucht eigene Zeiten und sieht eigene. Die eigentliche 
 die eigene Person sitzt bereits seit jeher in den Endpunkten selbst, nicht im Rollen-Gate:
 _time_entry_employee_for_request() (nur die eigene employee_id darf angegeben werden),
 _time_entry_can_edit() (aendern/loeschen nur eigene Zeilen), _group_actor() (Gruppenbuchung nur
-mit eigener Mitarbeiterverknuepfung) und get_time_entries() (ein Nicht-Admin bekommt IMMER
+mit eigener Mitarbeiterverknuepfung) und get_time_entries() (ein Monteur bekommt IMMER
 employee_id = eigene, auch bei ?order_id=... -- list_entries() verknuepft beide Filter mit UND,
 siehe app/time_tracking.py; die Zeitbuchungen der Kollegen zum selben Auftrag bleiben also
-unsichtbar). Der Backoffice-Bereich (app/routers/time_backoffice.py) ist davon getrennt und
-bleibt wie bisher admin-only ueber require_admin().
+unsichtbar). Seit 1.3.56 gilt diese Lese-Eingrenzung nur noch fuer ROLE_FIELD, nicht mehr fuer
+jeden Nicht-Admin: das Buero sieht die Buchungen aller (es rechnet sie ab, order.html/
+project_folder.html lesen "alle Buchungen des Auftrags/Projekts"). Der Backoffice-Bereich
+(app/routers/time_backoffice.py) ist davon getrennt und bleibt wie bisher admin-only ueber
+require_admin().
 """
 
 from fastapi import APIRouter
@@ -152,7 +155,10 @@ def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:S
 @router.get("/api/time-entries", response_model=list[TimeEntryOut])
 def get_time_entries(request: Request, employee_id: int | None = None, project_id: int | None = None, order_id: int | None = None, start_date: date | None = None, end_date: date | None = None, limit: int = 500, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     user = getattr(request.state, "erp_user", None)
-    if user is not None and user.role != "admin":
+    # Seit 1.3.56 nur noch für Monteure (vorher: jeder Nicht-Admin): ein Monteur sieht
+    # ausschließlich eigene Buchungen, auch bei ?order_id=...; Büro/Admin sehen alle -- das Büro
+    # rechnet sie ab (order.html/project_folder.html lesen darüber "alle Buchungen des Auftrags").
+    if user is not None and user.role == ROLE_FIELD:
         if user.employee_id is None:
             raise HTTPException(status_code=403, detail="Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet.")
         employee_id = user.employee_id

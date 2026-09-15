@@ -4,6 +4,51 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.56 – Rechtekonzept, Nachtrag zu Teil B: ungeplante Wartung für Monteure, reduzierte Historie, Büro sieht alle Zeiten
+
+Vier Punkte aus der Betreiber-Rückmeldung zu 1.3.55, dazu die Wortwahl an die Vorgabe
+angeglichen: ein Monteur sieht einen Auftrag über ZWEI Wege -- Planungsbezug (Team-Besetzung
+oder Einzelzuweisung an der Arbeitsvorbereitung) ODER ein selbst angelegter Bericht -- kein
+dritter, keine Vertrauensbasis (Auftragsnummern sind fortlaufend, wer eine kennt, kennt alle).
+
+(1) **"Wartung durchführen" für Monteure.** `POST /api/maintenance-contracts/{id}/perform-
+maintenance` war seit Teil A Büro/Admin -- ein Monteur, der vor Ort eine ungeplante Wartung
+startet, hätte den Weg nicht gehabt. Jetzt für jede Rolle offen; der vorbereitete Bericht trägt
+den Anfragenden als Ersteller (`create_maintenance_visit(created_by_employee_id=...)`, dieselbe
+`_employee_for_request()`-Regel wie beim Anlegen eines Berichts: Nicht-Admin = eigene
+Mitarbeiterverknüpfung, Admin = keine) -- das ist sein Zugriffsweg auf den neu erzeugten
+Auftrag, eine Plantafel-Zuordnung gibt es dafür nicht. Ein `field`-Konto ohne
+Mitarbeiterverknüpfung wird abgelehnt, der Bericht wäre sonst für niemanden erreichbar. Die
+Vertragsdaten selbst (Liste, Detail, Bearbeitung) bleiben Büro. Noch offen: ein Einstieg dazu
+auf `/vor-ort` (den Vertrag finden, ohne die Büro-Vertragsseite) -- Teil der ausstehenden
+Seiten-Klassifizierung; und jeder Monteur kann den Vorgang für JEDEN Vertrag auslösen (es gibt
+keine Zuordnung Monteur ↔ Vertrag), was einen Auftrag anlegt -- Datenintegrität, kein Datenleck,
+bewusst so entschieden.
+
+(2) **Wartungshistorie als reduziertes Modell** für `field` (`ServiceReportHistoryOut`,
+`list_property_history_for_field()`): Datum, Berichtstyp, Monteur, Prüfergebnisse, Mängel mit
+Status -- kein Beschreibungstext, kein Material, keine Unterschrifts-/Vertrags-/Kundenfelder,
+keine Erledigungs-Verweise der Mängel. Das PDF eines fremden Berichts bleibt für `field`
+gesperrt (es trägt u. a. die Zeitbuchungen der Kollegen); `service_reports.html` zeigt einem
+Monteur deshalb Prüfergebnisse und Mängel inline statt des PDF-Links -- erkennbar an der
+Anwesenheit von `inspection_items`, keine Rollenlogik im Template. Büro/Admin bekommen
+unverändert das volle Modell samt PDF-Link. Entscheidung dabei: die Prüfpunkt-Bemerkung
+(`InspectionItem.notes`) zählt zum Prüfergebnis und steht auf dem Kunden-PDF -- keine interne
+Bemerkung, deshalb enthalten.
+
+(3) **Büro sieht alle Zeitbuchungen.** Die Eingrenzung auf die eigene Person in
+`GET /api/time-entries` gilt jetzt nur noch für `field` (vorher: jeder Nicht-Admin) -- der
+1.3.55-Nebenbefund ist damit behoben, `order.html`/`project_folder.html` bekommen für ein
+Büro-Konto wieder "alle Buchungen des Auftrags/Projekts", auch ohne Mitarbeiterverknüpfung.
+Buchen, Ändern und Löschen bleiben für jeden Nicht-Admin auf die eigene Person begrenzt.
+
+(4) **`sign_report()` unter dem neuen Konzept geprüft.** Die "Rechnung erstellen"-Aufgabe
+(`create_task()`) und die Fortschreibung der Vertragsfälligkeit sind reine In-Process-Aufrufe
+ohne Rollenprüfung (Rollen-Gates sitzen ausschließlich als `Depends(...)` an Routern) -- kein
+Punkt, an dem die Unterschrift eines Monteurs scheitern könnte. Als Ende-zu-Ende-Test
+festgehalten: Monteur startet eine ungeplante Wartung, unterschreibt über die echte Route, die
+Aufgabe entsteht, die Fälligkeit rückt um zwölf Monate.
+
 ## 1.3.55 – Rechtekonzept, Etappe 3 + Rest-Etappe Teil B: Objekt-Filterung für Monteure, Audit-Test bei null
 
 Abschluss der in 1.3.51 begonnenen Klassifizierung: die 65 verbleibenden, aktiv von Monteuren

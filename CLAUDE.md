@@ -20,13 +20,13 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.55** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.56** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf weiterhin `7a2b4e9f1c3d` ("app user role office field") -- keine der
-  Versionen 1.3.52 bis 1.3.55 brauchte eine eigene Migration (reine Rollen-Gate-/Response-Schema-/
+  Versionen 1.3.52 bis 1.3.56 brauchte eine eigene Migration (reine Rollen-Gate-/Response-Schema-/
   Objekt-Filterungs-Umstellungen auf bereits bestehenden Endpunkten und Tabellen), siehe
   Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
   eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1193 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1194 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
   dort), zuletzt am 15.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -713,6 +713,19 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Nebenbefund (nicht behoben, siehe "Bekannte, bewusst offene Punkte"): dieselbe Eingrenzung trifft
   auch `office`-Konten mit Mitarbeiterverknüpfung in `order.html`/`project_folder.html`. Details im
   Abschnitt "Rechtekonzept" → "Objekt-Filterung" unten.
+- Neu seit 1.3.56: **Rechtekonzept, Nachtrag zu Teil B nach Betreiber-Rückmeldung.** Vier Punkte:
+  (1) `POST /api/maintenance-contracts/{id}/perform-maintenance` ("Wartung durchführen") ist für
+  jede Rolle offen, der vorbereitete Bericht trägt den Anfragenden als Ersteller -- ein Monteur
+  muss vor Ort eine ungeplante Wartung starten können, und der eigene Bericht ist dann sein
+  Zugriffsweg auf den neuen Auftrag (Vertragsdaten selbst bleiben Büro; ein `/vor-ort`-Einstieg
+  dazu fehlt noch). (2) Die Wartungshistorie liefert `field` ein reduziertes Modell
+  (`ServiceReportHistoryOut`: Datum, Berichtstyp, Monteur, Prüfergebnisse, Mängel mit Status),
+  `service_reports.html` zeigt sie inline statt des für fremde Berichte gesperrten PDF-Links.
+  (3) Büro sieht alle Zeitbuchungen -- die Eingrenzung in `GET /api/time-entries` gilt nur noch
+  für `field`, der 1.3.55-Nebenbefund ist behoben. (4) `sign_report()` geprüft: Aufgabe und
+  Vertragsfortschreibung sind In-Process-Aufrufe ohne Rollenprüfung, per Ende-zu-Ende-Test
+  belegt. Wortwahl angeglichen: zwei Wege (Planungsbezug in zwei Formen ODER eigener Bericht),
+  kein dritter. Details im Abschnitt "Rechtekonzept" → "Objekt-Filterung" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -5548,18 +5561,21 @@ Auftrag/Bericht öffnen, nicht nur irgendeinen". Bis 1.3.54 prüften
 beliebigen Auftrag über die URL erreichen können, nicht nur die eigenen.
 
 **Die eine Definition (seit 1.3.55): `app/orders.py::field_may_access_order(db, employee_id,
-order_id)`.** Vorgegeben waren zwei Wege (Plantafel-Team-Besetzung, direkte Zuweisung an der
-Arbeitsvorbereitung) mit der Auflage, zu prüfen, ob das vollständig ist -- war es nicht, zwei
-Funde, die sich aus dem Code ergaben, nicht aus der Vorgabe:
+order_id)`.** Vorgegeben war der Planungsbezug (Plantafel-Team-Besetzung, direkte Zuweisung an
+der Arbeitsvorbereitung) mit der Auflage, zu prüfen, ob das vollständig ist -- war es nicht;
+seit der Betreiber-Rückmeldung (1.3.56) lautet die Festlegung: **zwei Wege, Planungsbezug ODER
+ein selbst angelegter Bericht, kein dritter, keine Vertrauensbasis** (Auftragsnummern sind
+fortlaufend -- wer eine kennt, kennt alle; eine Zuordnung, die jeder umgehen kann, wäre
+Dekoration). Zwei Funde, die sich aus dem Code ergaben, nicht aus der Vorgabe:
 
-1. **Team-Besetzung an der AV** (`WorkPreparationTeamAssignment` → Besetzungs-Schnappschuss
+1a. **Team-Besetzung an der AV** (`WorkPreparationTeamAssignment` → Besetzungs-Schnappschuss
    `WorkPreparationTeamEmployee`) -- der Weg der Plantafel, denn jeder `PlanningSlot` hängt an
    genau so einer Zuweisung; geprüft wird aber an der AV, nicht am Slot, und OHNE den
    Datumsfilter von `list_todays_assignments_for_employee()`: ein vor Tagen begonnener
    Entwurfsbericht muss weiter bearbeitbar bleiben, ein für nächste Woche geplanter schon
    vorbereitet werden können. Die Tagesliste ist die datumsgefilterte Sicht auf dieselben
    Tabellen, keine dritte Quelle.
-2. **Einzelzuweisung an der AV** (`WorkPreparationEmployee`) -- bewusst OHNE einen
+1b. **Einzelzuweisung an der AV** (`WorkPreparationEmployee`) -- bewusst OHNE einen
    `PlanningSlot` vorauszusetzen: die Tagesliste braucht den Slot nur für das Datum, die
    Zuordnung selbst hängt an der AV. **Fund 1**: genau diese beiden Wege trug
    `app/time_tracking.py::employee_assigned_order_ids()` schon seit jeher als EIGENE, zweite
@@ -5568,20 +5584,45 @@ Funde, die sich aus dem Code ergaben, nicht aus der Vorgabe:
    und Berichtszugriff nie auseinanderlaufen (lokaler Import wegen Regel 3: `orders.py`
    erreicht über `invoices`/`projects` transitiv `work_preparation.py`, das `time_tracking.py`
    importiert).
-3. **Eigener Bericht** (`ServiceReport.created_by_employee_id`) -- **Fund 2**: `/vor-ort` findet
+2. **Eigener Bericht** (`ServiceReport.created_by_employee_id`) -- **Fund 2**: `/vor-ort` findet
    seine "offenen Entwurfsberichte" seit 1.3.0 über genau dieses Feld
-   (`list_draft_reports_for_employee()`), unabhängig von jeder Planung. Ohne diesen dritten Weg
+   (`list_draft_reports_for_employee()`), unabhängig von jeder Planung. Ohne diesen zweiten Weg
    verlöre ein Monteur den Zugriff auf einen begonnenen Bericht, sobald das Büro ihn umplant
    oder aus dem Team nimmt -- `/vor-ort` zeigte den Entwurf noch, die Berichtsseite antwortete
    403 (exakt die Divergenz "Tagesliste ja, Bericht nein", die vermieden werden sollte).
-   Bootstrappt bewusst NICHT: den ersten Bericht zu einem Auftrag kann nur anlegen, wer über
-   1. oder 2. zugeordnet ist -- "Wartung durchführen" (`create_maintenance_visit()`) legt
-   seinen Bericht ohne `created_by_employee_id` an, der Monteur erreicht ihn erst über die
-   Planung.
+   Bootstrappt nur über einen selbst angelegten Bericht: den ersten Bericht zu einem
+   GEPLANTEN Auftrag legt an, wer über 1a./1b. zugeordnet ist; eine UNGEPLANTE Wartung startet
+   ein Monteur vor Ort über "Wartung durchführen" (siehe unten, seit 1.3.56) -- der so erzeugte
+   Bericht trägt ihn als Ersteller, das ist dann sein Zugriffsweg auf den neuen Auftrag.
 
-Kein vierter Weg (geprüft): Monteure legen selbst keine Aufträge an (`quick_service_orders.py`
-ist seit Teil A Büro/Admin), Zeitbuchungen setzen 1./2. bereits voraus, jede andere Verbindung
-Mitarbeiter ↔ Auftrag läuft über eine der drei Tabellen oben.
+Kein dritter Weg (geprüft): Monteure legen selbst keine Aufträge an (`quick_service_orders.py`
+ist seit Teil A Büro/Admin; der Schnellauftrag hinter "Wartung durchführen" läuft in-process),
+Zeitbuchungen setzen 1a./1b. bereits voraus, jede andere Verbindung Mitarbeiter ↔ Auftrag läuft
+über eine der drei Tabellen oben.
+
+**"Wartung durchführen" für Monteure (seit 1.3.56, Betreibervorgabe)**:
+`POST /api/maintenance-contracts/{id}/perform-maintenance` war seit Teil A Büro/Admin -- ein
+Monteur, der vor Ort eine ungeplante Wartung startet, hätte den Weg nicht gehabt. Jetzt
+`require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD)`; `create_maintenance_visit()` bekommt
+`created_by_employee_id` und setzt den Anfragenden als Ersteller des vorbereiteten Berichts
+(dieselbe `_employee_for_request()`-Regel wie `POST /api/orders/{id}/service-reports`:
+Nicht-Admin = eigene Mitarbeiterverknüpfung, Admin = keine). Ein `field`-Konto ohne
+Mitarbeiterverknüpfung wird mit 403 abgelehnt -- der Bericht wäre sonst für niemanden
+erreichbar, der ihn ausfüllen soll. Alle übrigen Endpunkte der Datei (Vertragsliste, Detail,
+Bearbeitung, Historie, Einstellungen) bleiben Büro/Admin. Zwei bewusst offene Folgen: (a) es gibt
+keine Zuordnung Monteur ↔ Vertrag, jeder Monteur kann den Vorgang für jeden Vertrag auslösen
+(legt einen Auftrag an -- Datenintegrität, kein Datenleck, so entschieden); (b) auf `/vor-ort`
+fehlt noch ein Einstieg, um den Vertrag ohne die Büro-Vertragsseite zu finden -- Teil der
+ausstehenden Seiten-Klassifizierung (Etappenplan Schritt 3).
+
+**`sign_report()` unter dem neuen Konzept geprüft (1.3.56)**: die Unterschriftsroutine erzeugt
+danach die "Rechnung erstellen"-Aufgabe (`create_task()`) und schreibt in Vertragsdaten
+(`MaintenanceContract.next_due_date`) -- beides reine In-Process-Aufrufe; Rollen-Gates sitzen in
+diesem Projekt ausschließlich als `Depends(...)` an Routern, nie in der Geschäftslogik. Ein
+Monteur kann daran also nicht scheitern. Als Ende-zu-Ende-Test festgehalten
+(`test_field_can_start_an_unplanned_maintenance_visit_and_sign_it`): Monteur startet die
+ungeplante Wartung, unterschreibt über die echte Route, die Aufgabe entsteht, die Fälligkeit
+rückt um `interval_months`.
 
 **Anwendung**: `app/routers/orders.py::require_field_order_access(db, role, order_id)` ist die
 eine Router-Stelle, die die Entscheidung in ein 403 übersetzt (Büro/Admin passieren ungeprüft,
@@ -5607,19 +5648,34 @@ das volle `OrderOut` (Union-Response-Model, Muster `list[EmployeeOut] | list[Emp
 
 **Wartungshistorie** (`GET /api/orders/{id}/property-service-reports`): ein Monteur sieht dort
 gewollt frühere, unterschriebene Berichte ANDERER Aufträge desselben Objekts -- geprüft wird nur
-die Zuordnung zum aktuellen Auftrag. Per Test belegt (`test_maintenance_history_carries_no_
-prices_purchase_values_or_customer_notes`, rekursiv über alle Schlüssel, mit Katalogmaterial
-im Bericht), dass `report_to_dict()` dabei weder Preise, Einkaufswerte, Vergütung noch
-Kundennotizen transportiert.
+die Zuordnung zum aktuellen Auftrag. **Seit 1.3.56 ein reduziertes Modell für `field`**
+(`ServiceReportHistoryOut`, `list_property_history_for_field()`, Betreibervorgabe): Datum,
+Berichtstyp, Monteur, Prüfergebnisse (Prüfpunkte mit Ergebnis/Zustand/Messwert/Bemerkung, je
+Dachfläche), Mängel mit Status -- kein Beschreibungstext, kein Material, keine Unterschrifts-/
+Vertrags-/Kundenfelder, keine Erledigungs-Verweise der Mängel (Folgeauftrag/Aufgabe sind
+Büro-Vorgänge). Die Prüfpunkt-Bemerkung (`InspectionItem.notes`) zählt zum Prüfergebnis und
+steht auf dem Kunden-PDF -- keine interne Bemerkung, deshalb enthalten. Das PDF eines fremden
+Berichts bleibt für `field` über `require_field_order_access()` gesperrt (es trägt u. a. die
+Zeitbuchungen der Kollegen), `service_reports.html::historyCard()` zeigt einem Monteur deshalb
+Prüfergebnisse und Mängel inline statt des PDF-Links -- erkennbar an der Anwesenheit von
+`inspection_items` in der Antwort, keine Rollenlogik im Template. Büro/Admin bekommen
+unverändert das volle `ServiceReportOut` samt PDF-Link (Union-Response-Model wie bei
+`GET /api/orders/{id}`). Per Test belegt (`test_maintenance_history_carries_no_prices_
+purchase_values_or_customer_notes`): exakte Schlüsselmenge des reduzierten Modells, rekursiv
+kein Preis-/Einkaufs-/Vergütungs-/Notiz-Schlüssel, Büro weiterhin mit Beschreibungstext.
 
 **Zeiterfassung**: `?order_id=` in `GET /api/time-entries` liefert einem Monteur NICHT die
-Buchungen der Kollegen -- `get_time_entries()` setzt für jeden Nicht-Admin `employee_id` auf
-die eigene Person, `list_entries()` verknüpft beide Filter mit UND (geprüft, kein Fund, als
-Test festgehalten); `_time_entry_can_edit()`/`_time_entry_employee_for_request()` verhindern
-Ändern/Löschen fremder Zeilen und Buchen unter fremdem Namen. Alle 13 Endpunkte tragen jetzt
+Buchungen der Kollegen -- `get_time_entries()` setzt für `ROLE_FIELD` `employee_id` auf die
+eigene Person, `list_entries()` verknüpft beide Filter mit UND (geprüft, kein Fund, als Test
+festgehalten); `_time_entry_can_edit()`/`_time_entry_employee_for_request()` verhindern
+Ändern/Löschen fremder Zeilen und Buchen unter fremdem Namen. **Seit 1.3.56 gilt die
+Lese-Eingrenzung nur noch für `field`** (vorher jeder Nicht-Admin, ein Vorher-Zustand aus der
+Zeit vor dem Rechtekonzept): das Büro sieht die Buchungen aller, auch ohne eigene
+Mitarbeiterverknüpfung -- es rechnet sie ab, `order.html`/`project_folder.html` lesen darüber
+"alle Buchungen des Auftrags/Projekts" für "Rechnung aus Aufwand" und die Kennzahlen
+(Betreiberentscheidung: "Die Summe über alle sieht das Büro"). Alle 13 Endpunkte tragen
 `require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD)`, der Backoffice-Bereich
-(`time_backoffice.py`) bleibt admin-only. Nebenbefund dabei: dieselbe Eingrenzung trifft auch
-`office`-Konten mit Mitarbeiterverknüpfung -- siehe "Bekannte, bewusst offene Punkte".
+(`time_backoffice.py`) bleibt admin-only.
 
 **Büro/Admin-only innerhalb der Teil-B-Dateien**: `GET /api/orders` (Liste), jede
 Auftragsbearbeitung (`PUT`, Steuerschlüssel, Positionen, Abschnitte, Sync mit dem Quellangebot),
@@ -5753,10 +5809,15 @@ ist in der Liste ohnehin sichtbar, keine verdeckte Änderung möglich).
    (`app/orders.py`, drei Wege, siehe "Objekt-Filterung" oben) und `require_field_order_access()`
    (`app/routers/orders.py`) sind auf `orders.py`/`service_reports.py`/`findings.py` angewendet;
    `properties.py`/`roof_areas.py` brauchten sie nicht (seit Teil A Büro/Admin, der Monteur liest
-   Objekt und Dachflächen ausschließlich auftragsbezogen über `service_reports.py`). **Noch offen**:
-   die Seiten-Klassifizierung (welche der 31 Seiten ist für wen gedacht, inkl.
+   Objekt und Dachflächen ausschließlich auftragsbezogen über `service_reports.py`). Nachtrag
+   1.3.56 nach Betreiber-Rückmeldung: "Wartung durchführen" für Monteure, reduzierte Historie,
+   Büro sieht alle Zeitbuchungen, `sign_report()` geprüft. **Noch offen**: die
+   Seiten-Klassifizierung (welche der 31 Seiten ist für wen gedacht, inkl.
    `access_denied.html`-Verdrahtung und `is_field`-Ausblendungen in den Templates -- heute
-   rendert jede Seite ihr Gerüst für jede Rolle, erst der API-Aufruf dahinter antwortet 403).
+   rendert jede Seite ihr Gerüst für jede Rolle, erst der API-Aufruf dahinter antwortet 403),
+   darin ein `/vor-ort`-Einstieg für "Wartung durchführen" (der Monteur muss den Vertrag finden
+   können, ohne die Büro-Vertragsseite) und der "Auftrag"-Link in `service_reports.html`, der
+   auf eine Büro-Seite zeigt.
 4. Erstes echtes `field`-Testkonto anlegen, vollständigen Monteurs-Ablauf im Browser
    durchklicken. -- offen.
 
@@ -5906,18 +5967,6 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 
 ## Bekannte, bewusst offene Punkte
 
-- **`GET /api/time-entries` grenzt auch `office`-Konten auf die eigene Person ein** (gefunden bei
-  Rechtekonzept Teil B, 1.3.55, nicht behoben): `app/routers/time_tracking.py::get_time_entries()`
-  setzt für JEDEN Nicht-Admin `employee_id` auf die eigene Mitarbeiterverknüpfung -- gewollt für
-  Monteure (Anmerkung 3 der Teil-B-Vorgabe, als Test belegt), aber `order.html` und
-  `project_folder.html` lesen über `?order_id=`/`?project_id=` ohne `employee_id` "alle Buchungen
-  des Auftrags/Projekts" (Rechnung aus Aufwand, Kennzahlen). Ein `office`-Konto MIT
-  Mitarbeiterverknüpfung sähe dort nur seine eigenen Zeilen, eines OHNE bekäme 403. Vorher-Zustand
-  (die Eingrenzung ist älter als das Rechtekonzept), bisher unbemerkt, weil beide realen Konten
-  Administratoren sind. Saubere Lösung, falls ein Büro-Konto entsteht: die Eingrenzung in
-  `get_time_entries()` auf `ROLE_FIELD` beschränken (Büro darf die Buchungen aller sehen -- es
-  rechnet sie ab), nicht auf "kein Admin". Bewusst nicht in 1.3.55 mitgeändert: eine fachliche
-  Entscheidung über Büro-Rechte, keine Klassifizierung.
 - **Bewusst keine Erkennungsspalte für manuell bearbeiteten Mahntext -- nur ein Hinweis beim
   Speichern** (seit 1.3.21, siehe Abschnitt "Mahnwesen: Löschen/Versenden/Bearbeiten" oben für die
   volle Untersuchung/Begründung). `update_reminder_draft()` erlaubt das unabhängige Ändern von

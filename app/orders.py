@@ -251,30 +251,33 @@ def field_may_access_order(db: Session, employee_id: int, order_id: int) -> bool
     `field`) einen Auftrag sehen darf -- von den Routern orders.py/service_reports.py/findings.py
     über require_field_order_access() gemeinsam genutzt, nirgends nachgebaut, damit ein Monteur
     nie den Auftrag in der Tagesliste sieht, aber nicht den Bericht dazu (oder umgekehrt).
-    Drei gleichrangige Wege, es reicht einer:
+    Zwei Wege, es reicht einer -- Planungsbezug (in zwei Formen) ODER ein eigener Bericht, kein
+    dritter (Betreibervorgabe: keine Vertrauensbasis, Auftragsnummern sind fortlaufend):
 
-    1. Team-Besetzung an der Arbeitsvorbereitung (der Weg der Plantafel: jeder PlanningSlot
+    1a. Team-Besetzung an der Arbeitsvorbereitung (der Weg der Plantafel: jeder PlanningSlot
        hängt an genau so einer WorkPreparationTeamAssignment) -- aber OHNE den Datumsfilter der
        Tagesliste: ein vor Tagen begonnener Entwurfsbericht muss weiter bearbeitbar bleiben,
        ein für nächste Woche geplanter schon vorbereitet werden können.
-    2. Direkte Einzelzuweisung an der Arbeitsvorbereitung (WorkPreparationEmployee) -- bewusst
+    1b. Direkte Einzelzuweisung an der Arbeitsvorbereitung (WorkPreparationEmployee) -- bewusst
        OHNE einen PlanningSlot vorauszusetzen: die Tagesliste braucht den Slot nur für das
        Datum, die Zuordnung selbst hängt an der AV.
-       (1. und 2. sind exakt employee_assigned_order_ids(), das die Zeiterfassung seit jeher
+       (1a. und 1b. sind exakt employee_assigned_order_ids(), das die Zeiterfassung seit jeher
        für die Auftragsauswahl eines Nicht-Admins nutzt -- geprüft, keine zweite Definition.)
-    3. Ein Bericht, den er selbst angelegt hat (ServiceReport.created_by_employee_id) -- exakt
+    2. Ein Bericht, den er selbst angelegt hat (ServiceReport.created_by_employee_id) -- exakt
        der Weg, über den /vor-ort seine "offenen Entwurfsberichte" schon immer findet
        (service_reports.py::list_draft_reports_for_employee()). Ohne diesen dritten Weg verlöre
        ein Monteur den Zugriff auf einen begonnenen Bericht, sobald das Büro ihn umplant oder
        aus dem Team nimmt -- /vor-ort zeigte den Entwurf dann noch, die Berichtsseite nicht
-       mehr. Umgekehrt bootstrappt dieser Weg NICHT: den ersten Bericht zu einem Auftrag kann
-       nur anlegen, wer über 1. oder 2. zugeordnet ist ("Wartung durchführen" legt seinen
-       Bericht ohne created_by_employee_id an, siehe maintenance_contracts.py::
-       create_maintenance_visit() -- der Monteur erreicht ihn erst über die Planung).
+       mehr. Bootstrappt nur über einen selbst angelegten Bericht: den ersten Bericht zu einem
+       geplanten Auftrag legt an, wer über 1a./1b. zugeordnet ist; eine UNGEPLANTE Wartung
+       startet ein Monteur vor Ort über "Wartung durchführen" (maintenance_contracts.py::
+       create_maintenance_visit(), seit 1.3.56 mit created_by_employee_id) -- der so erzeugte
+       Bericht trägt ihn als Ersteller, das ist dann sein Zugriffsweg auf den neuen Auftrag.
 
-    Kein vierter Weg (geprüft): Monteure legen selbst keine Aufträge an
-    (quick_service_orders.py ist Büro/Admin), Zeitbuchungen setzen 1./2. bereits voraus, und
-    jede andere Verbindung Mitarbeiter <-> Auftrag läuft über eine der drei Tabellen oben."""
+    Kein dritter Weg (geprüft): Monteure legen selbst keine Aufträge an
+    (quick_service_orders.py ist Büro/Admin; der Schnellauftrag hinter "Wartung durchführen"
+    läuft in-process), Zeitbuchungen setzen 1a./1b. bereits voraus, und jede andere Verbindung
+    Mitarbeiter <-> Auftrag läuft über eine der drei Tabellen oben."""
     individual, team = _assigned_order_id_queries(employee_id)
     for stmt in (individual, team):
         if db.scalar(stmt.where(WorkPreparation.order_id == order_id).limit(1)) is not None:

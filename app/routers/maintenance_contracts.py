@@ -2,13 +2,13 @@
 "wartungen" (siehe app/modules.py). Jeder Endpunkt prüft zuerst is_module_enabled() -- 403 bei
 deaktiviertem Modul, unabhängig von der Rolle, gleiches Muster wie bei tasks.py/modules.py."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
 from ..maintenance_contracts import (
     check_due_contracts_and_create_reminders, create_contract, create_contract_item,
     create_maintenance_contract_from_project, create_maintenance_visit, create_project_from_contract,
@@ -20,6 +20,7 @@ from ..maintenance_contracts import (
 )
 from ..modules import is_module_enabled
 from ..service_reports import list_contract_history
+from .service_reports import _employee_for_request
 from ..schemas import (
     MaintenanceContractCreate, MaintenanceContractCreateProjectRequest, MaintenanceContractFromProjectCreate,
     MaintenanceContractItemCreate, MaintenanceContractItemOut, MaintenanceContractItemUpdate,
@@ -38,6 +39,11 @@ MODULE_KEY = "wartungen"
 # diese Verwaltungsendpunkte selbst). Einige Endpunkte hier tragen bereits eine eigene,
 # strengere require_admin()-Prüfung (Wartungsfenster/-einstellungen ändern) -- unverändert.
 _role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+# Einzige Ausnahme (seit 1.3.56, Rechtekonzept Teil B, Nachtrag): "Wartung durchführen" -- ein
+# Monteur muss vor Ort eine ungeplante Wartung starten können. Der Bericht wird dabei auf ihn
+# als Ersteller gesetzt, sonst hätte er auf den neu erzeugten Auftrag keinen Zugriff (siehe
+# post_perform_maintenance()). Vertragsdaten selbst (Liste, Detail, Bearbeitung) bleiben Büro.
+_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
 
 
 def _require_module_enabled(db: Session):
@@ -172,10 +178,18 @@ def post_create_project_from_contract(contract_id: int, payload: MaintenanceCont
 
 
 @router.post("/api/maintenance-contracts/{contract_id}/perform-maintenance")
-def post_perform_maintenance(contract_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_perform_maintenance(contract_id: int, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    """Für jede Rolle (seit 1.3.56): ein Monteur startet damit vor Ort eine ungeplante Wartung.
+    Der vorbereitete Bericht bekommt ihn als Ersteller (dieselbe _employee_for_request()-Regel
+    wie POST /api/orders/{id}/service-reports: Nicht-Admin = eigene employee_id, Admin = keine)
+    -- das ist sein Zugriffsweg auf den neuen Auftrag, eine Plantafel-Zuordnung gibt es dafür
+    noch nicht. Ein field-Konto ohne Mitarbeiterverknüpfung wird abgelehnt: der Bericht wäre
+    sonst für niemanden erreichbar, der ihn ausfüllen soll."""
     _require_module_enabled(db)
+    if _role.role == ROLE_FIELD and _role.employee_id is None:
+        raise HTTPException(status_code=403, detail="Ihr ERP-Benutzerkonto ist keinem Mitarbeiter zugeordnet.")
     try:
-        return create_maintenance_visit(db, contract_id)
+        return create_maintenance_visit(db, contract_id, created_by_employee_id=_employee_for_request(request, None))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
