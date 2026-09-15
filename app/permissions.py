@@ -34,6 +34,17 @@ ROLE_LABELS = {
     ROLE_FIELD: "Monteur",
 }
 
+
+def default_home_page_for_role(role: str | None) -> str:
+    """Landing-Seite ohne ein mitgegebenes `next` -- ein Monteur landet auf /vor-ort (seine
+    einzige freigegebene Desktop-Startseite; die übrigen vier für ihn offenen Seiten
+    -- /account, /time-tracking, /orders/{id}/service-reports -- sind keine sinnvollen
+    Einstiegspunkte ohne Kontext), jede andere Rolle unverändert auf dem Dashboard. Genutzt von
+    app/routers/pages.py::login_page() (bereits angemeldeter Aufruf von /login) UND vom
+    403-Handler in app/main.py (Ziel des "Zur Startseite"-Links auf access_denied.html) --
+    beide kennen die Rolle bereits aus request.state.erp_user."""
+    return "/vor-ort" if role == ROLE_FIELD else "/"
+
 _DEFAULT_MESSAGE = "Für Ihre Rolle nicht verfügbar."
 
 
@@ -97,4 +108,31 @@ ROLE_AUDIT_EXEMPT = frozenset({
     # exakt dieselbe, bereits an anderer Stelle etablierte Bootstrap-Ausnahme (siehe
     # app/main.py::_request_requires_login()).
     ("POST", "/api/users"),
+})
+
+# Dasselbe Prinzip wie ROLE_AUDIT_EXEMPT, aber für SEITENROUTEN (app/routers/pages.py,
+# app/routers/field_view.py) statt /api/-Endpunkte -- siehe tests/test_v260_role_audit.py::
+# test_all_page_routes_have_an_explicit_role_check(). Eine Seite ohne Depends(require_role(...))
+# gilt als admin-only, exakt dieselbe Standardverweigerung wie bei der API; eine Seite, die ein
+# Monteur nicht öffnen darf, muss serverseitig sperren (403 -> access_denied.html), nicht nur im
+# Sidebar-Menü ausgeblendet sein (siehe CLAUDE.md "Rechtekonzept" -> "Sichtbarkeit in der
+# Oberfläche").
+PAGE_AUDIT_EXEMPT = frozenset({
+    # Anmeldung selbst -- dieselbe Begründung wie bei den /api/auth/*-Endpunkten oben.
+    ("GET", "/login"),
+    # Externe Überwachung, bereits vor jeder Anmeldepflicht ungated.
+    ("GET", "/health"),
+    # PWA-Ressource der Monteursansicht (app/routers/field_view.py) -- wird ohnehin nur von der
+    # bereits angemeldeten Seite /vor-ort aus verlinkt, muss aber vor dem ersten Login
+    # ("Zum Startbildschirm hinzufügen") erreichbar bleiben, dieselbe Begründung wie beim
+    # gleichnamigen API-Icon-Endpunkt oben.
+    ("GET", "/manifest.json"),
+    # Bootstrap-Fall beim Anlegen des allerersten ERP-Benutzers (app/routers/pages.py::
+    # users_page(), Gegenstück zu POST /api/users oben) -- dort existiert per Definition noch
+    # kein angemeldeter Benutzer, jede Depends(require_role(...))-Prüfung würde also immer
+    # scheitern. Die Seite prüft die Büro-/Admin-Pflicht deshalb selbst
+    # (_require_users_page_access()), aber erst NACHDEM festgestellt wurde, dass das System
+    # schon konfiguriert ist -- ohne require_role(...)-Depends trägt sie keine _dk_roles-Markierung
+    # und muss deshalb hier einzeln stehen, wie POST /api/users.
+    ("GET", "/users"),
 })

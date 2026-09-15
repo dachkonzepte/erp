@@ -4,6 +4,50 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.57 – Rechtekonzept: Seiten-Klassifizierung -- dieselbe Standardverweigerung für Seiten wie für die API
+
+Bis hierhin war ausschließlich die API rollengeprüft -- jede der Seiten-Routen in
+`app/routers/pages.py` rendierte ihr Gerüst für jede angemeldete Rolle, unabhängig davon, ob die
+API-Aufrufe dahinter überhaupt etwas lieferten. Für einen Monteur bedeutete das: er konnte
+`/customers/{id}`, `/finanzen`, `/maintenance-contracts` und jede andere Büro-Seite öffnen und
+sah eine leere oder fehlerhafte Ansicht -- kein Datenleck, aber auch keine echte Sperre, nur eine
+im Sidebar-Menü versteckte Tür, die trotzdem offen war. Auf ausdrückliche Vorgabe geschlossen:
+eine Seite, die eine Rolle nicht öffnen darf, muss serverseitig sperren, nicht nur im Menü fehlen.
+
+`app/permissions.py::require_role()` wird dafür unverändert wiederverwendet (keine neue
+Dependency-Art nötig, es braucht nur `request.state.erp_user`) -- jede Seiten-Route bekam
+`_role: AppUser = _role_dep` (Büro/Admin) bzw. `_any_role_dep` (jede Rolle). Vier Seiten bleiben
+für `field` offen: `/account`, `/vor-ort`, `/time-tracking`, `/orders/{id}/service-reports` --
+exakt die vier, die ein Monteur tatsächlich braucht, gespiegelt an der bereits bestehenden
+API-Klassifizierung der jeweiligen Fachdomäne. `/users` bekommt eine bespoke, bootstrap-aware
+Dependency (`_require_users_page_access()`) statt `require_role(...)` -- derselbe Fall wie
+`POST /api/users`: vor dem ersten ERP-Benutzer kann niemand eine Rollenprüfung erfüllen. Neue
+`PAGE_AUDIT_EXEMPT`-Liste (`app/permissions.py`) für die vier strukturellen Ausnahmen
+(`/login`, `/health`, `/manifest.json`, `/users`).
+
+Ein 403 auf einer Seiten-Route zeigt jetzt `access_denied.html` (bereits in Etappe 1 vorbereitet,
+aber nie verdrahtet) statt einer für einen Browser unlesbaren JSON-Antwort -- ein neuer
+Exception-Handler in `app/main.py` fängt das ab, jeder andere Fall (API, andere Statuscodes)
+läuft unverändert über FastAPIs Standard-Handler. "Zur Startseite" führt rollenabhängig
+(`default_home_page_for_role()`, `app/permissions.py`): `/vor-ort` für `field`, sonst `/`, und
+`/users` für den anonymen Bootstrap-Fall. Dieselbe Funktion korrigiert auch die Login-Landing
+ohne `next` an zwei bisher hartkodierten Stellen (`login_page()`: vorher immer `/`; `login.html`:
+vorher immer `/projects`) -- ohne diese Korrektur hätte ein Monteur nach dem Login auf einer nun
+gesperrten Seite gestanden.
+
+Ein Nebenfund beim Testen: `tests/test_v256_login_wall_for_pages.py` erzeugte Testkonten mit dem
+Rollennamen von vor dem Rechtekonzept (`role="user"`) -- harmlos, solange keine Seite eine Rolle
+prüfte, jetzt korrigiert auf `role="office"`. Der Audit-Test (`tests/test_v260_role_audit.py`)
+deckt Seiten-Routen jetzt genauso ab wie die API, direkt als harter Test (kein `xfail`-
+Zwischenschritt), beide bei null unklassifizierten Routen. Eine zweite Testgruppe belegt
+stichprobenhaft die tatsächlich richtige Rollenzuordnung sowie den Exception-Handler selbst
+(HTML für Seiten, unverändert JSON für die API). 1199 Tests grün.
+
+Bewusst offen: ein `/vor-ort`-Einstieg, über den ein Monteur einen Wartungsvertrag für eine
+ungeplante Wartung findet, ohne die jetzt gesperrte Büro-Vertragsliste zu durchsuchen (Vorschlag
+vorgelegt, wartet auf Rückmeldung); der "Auftrag"-Link in `service_reports.html` führt für einen
+Monteur jetzt auf `access_denied.html` (kein Datenleck, nur ein unnötiger Zwischenstopp).
+
 ## 1.3.56 – Rechtekonzept, Nachtrag zu Teil B: ungeplante Wartung für Monteure, reduzierte Historie, Büro sieht alle Zeiten
 
 Vier Punkte aus der Betreiber-Rückmeldung zu 1.3.55, dazu die Wortwahl an die Vorgabe

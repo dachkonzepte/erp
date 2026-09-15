@@ -2,11 +2,13 @@ import logging
 import os
 from urllib.parse import quote
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from .audit import reset_audit_context, set_audit_context
 from .auth import otp_ok_for_user, user_from_request, users_exist, warn_if_secret_key_mismatches_file
+from .permissions import default_home_page_for_role
 from .catalogs import backfill_existing_services, ensure_import_catalog
 from .database import DATABASE_URL, Base, SessionLocal, engine
 from .logging_config import configure_logging
@@ -137,6 +139,31 @@ app.include_router(roof_areas.router)
 app.include_router(inspection_templates.router)
 app.include_router(findings.router)
 app.include_router(field_view.router)
+
+
+@app.exception_handler(HTTPException)
+async def _role_check_403_shows_access_denied_page(request: Request, exc: HTTPException):
+    """Seit "Rechtekonzept" (Seiten-Klassifizierung, siehe CLAUDE.md): ein 403 aus
+    Depends(require_role(...))/require_admin() auf einer SEITEN-Route (nicht /api/) zeigt
+    access_denied.html statt der für API-Clients gedachten JSON-Antwort -- dieselbe
+    Standardverweigerung wie bei den API-Endpunkten, nur in einer für einen Browser lesbaren
+    Antwort statt eines rohen {"detail": ...}. Jeder andere Statuscode und jeder /api/-Pfad
+    verhält sich unverändert wie FastAPIs eigener Standard-Handler, an den hier bewusst
+    delegiert wird (keine Kopie, kein zweiter Ort mit eigener Fehlerbehandlung).
+
+    user is None kann diesen Zweig nur während des Bootstrap-Falls erreichen (kein ERP-Benutzer
+    existiert -- _page_requires_login() redirectet sonst schon vorher auf /login, siehe dort):
+    "Zur Startseite" zeigt dann auf /users, die einzige in diesem Zustand erreichbare Seite,
+    statt auf das (für einen anonymen Aufruf ebenfalls gesperrte) Dashboard."""
+    if exc.status_code == 403 and not request.url.path.startswith("/api/"):
+        user = getattr(request.state, "erp_user", None)
+        home_url = "/users" if user is None else default_home_page_for_role(user.role)
+        return pages.templates.TemplateResponse(
+            request=request, name="access_denied.html",
+            context={"message": exc.detail if isinstance(exc.detail, str) else None, "home_url": home_url},
+            status_code=403,
+        )
+    return await http_exception_handler(request, exc)
 
 
 def _request_requires_login(has_users: bool, method: str, path: str) -> bool:

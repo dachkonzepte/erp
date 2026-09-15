@@ -44,8 +44,12 @@ async function login(){
   // Seit 1.3.48: location.search (z. B. "?next=%2Ftasks") wird dabei unverändert an /account
   // weitergereicht, sonst wüsste account.html nach der Bestätigung nicht mehr, wohin es
   // eigentlich gehen sollte (vorher ging es danach immer nur nach /account selbst, siehe
-  // CLAUDE.md).
-  location.href=d.two_factor_required?('/account'+location.search):(new URLSearchParams(location.search).get('next')||'/projects')
+  // CLAUDE.md). Seit "Rechtekonzept" (Seiten-Klassifizierung): ohne next landet ein Monteur
+  // auf /vor-ort statt /projects (dort ist er seit derselben Etappe serverseitig gesperrt) --
+  // Python-Gegenstück app/permissions.py::default_home_page_for_role(), hier bewusst als reiner
+  // JS-Zweig dupliziert statt geteilt (kein gemeinsames JS-Modul in diesem Projekt) und mit dem
+  // hier etablierten Rückfall /projects, nicht dem server-seitig genutzten "/" (siehe dort).
+  location.href=d.two_factor_required?('/account'+location.search):(new URLSearchParams(location.search).get('next')||(d.role==='field'?'/vor-ort':'/projects'))
 }
 </script>
 </body>

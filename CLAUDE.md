@@ -20,13 +20,13 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.56** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.57** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf weiterhin `7a2b4e9f1c3d` ("app user role office field") -- keine der
-  Versionen 1.3.52 bis 1.3.56 brauchte eine eigene Migration (reine Rollen-Gate-/Response-Schema-/
+  Versionen 1.3.52 bis 1.3.57 brauchte eine eigene Migration (reine Rollen-Gate-/Response-Schema-/
   Objekt-Filterungs-Umstellungen auf bereits bestehenden Endpunkten und Tabellen), siehe
   Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
   eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1194 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1199 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
   dort), zuletzt am 15.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -726,6 +726,18 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Vertragsfortschreibung sind In-Process-Aufrufe ohne Rollenprüfung, per Ende-zu-Ende-Test
   belegt. Wortwahl angeglichen: zwei Wege (Planungsbezug in zwei Formen ODER eigener Bericht),
   kein dritter. Details im Abschnitt "Rechtekonzept" → "Objekt-Filterung" unten.
+- Neu seit 1.3.57: **Rechtekonzept, Seiten-Klassifizierung.** Dieselbe Standardverweigerung wie
+  bei der API, jetzt auch für die Seiten-Routen selbst (`app/routers/pages.py`) -- vorher
+  rendierte jede Seite ihr Gerüst für jede Rolle, erst der API-Aufruf dahinter antwortete 403
+  (kein Datenleck, aber keine echte Sperre). `require_role()` wiederverwendet (keine neue
+  Dependency-Art), vier Seiten für `field` (`/account`, `/vor-ort`, `/time-tracking`,
+  `/orders/{id}/service-reports`), jede andere Büro/Admin; `/users` bootstrap-aware wie
+  `POST /api/users`. Ein neuer Exception-Handler in `app/main.py` zeigt bei einem 403 auf einer
+  Seiten-Route `access_denied.html` statt roher JSON, "Zur Startseite" führt rollenabhängig
+  (`/vor-ort` für `field`, sonst `/`, `/users` im anonymen Bootstrap-Fall). Login-Landing ohne
+  `next` dafür an zwei Stellen auf `/vor-ort` für `field` korrigiert (`login_page()`,
+  `login.html`). Der Audit-Test deckt jetzt Seiten UND API ab, beide bei null. Details im
+  Abschnitt "Rechtekonzept" → "Seiten-Klassifizierung" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -5574,7 +5586,14 @@ Dekoration). Zwei Funde, die sich aus dem Code ergaben, nicht aus der Vorgabe:
    Datumsfilter von `list_todays_assignments_for_employee()`: ein vor Tagen begonnener
    Entwurfsbericht muss weiter bearbeitbar bleiben, ein für nächste Woche geplanter schon
    vorbereitet werden können. Die Tagesliste ist die datumsgefilterte Sicht auf dieselben
-   Tabellen, keine dritte Quelle.
+   Tabellen, keine dritte Quelle. **Bewusst an der Arbeitsvorbereitung geprüft, nicht am
+   `PlanningSlot` selbst** (auf Nachfrage bestätigt, nicht verschärfen): ein Team, das einer AV
+   bereits zugewiesen ist, aber noch keinen Termin im Kalender hat (`WorkPreparationTeamAssignment`
+   existiert, aber kein `PlanningSlot` referenziert sie), soll den Auftrag schon sehen -- die
+   Terminierung ist ein reiner Planungsschritt, keine Zugriffsentscheidung. Eine Prüfung, die
+   zusätzlich einen `PlanningSlot` verlangt, würde genau den Fall verschärfen, der bei der
+   1a./1b.-Herleitung bewusst ausgeschlossen wurde: die Tagesliste braucht den Slot nur für das
+   Datum "heute", nicht für die Zugriffsfrage selbst.
 1b. **Einzelzuweisung an der AV** (`WorkPreparationEmployee`) -- bewusst OHNE einen
    `PlanningSlot` vorauszusetzen: die Tagesliste braucht den Slot nur für das Datum, die
    Zuordnung selbst hängt an der AV. **Fund 1**: genau diese beiden Wege trug
@@ -5712,8 +5731,78 @@ schränkt erst ein, WER die Seite erreicht -- die Anzeige selbst ist unabhängig
 wird für einen Monteur zu reinem Text, weil `OrderFieldAccessOut` (die Antwort von
 `GET /api/orders/{id}` für `field`) bewusst kein `customer_id` trägt -- dieselbe Entscheidung wie
 bei `PropertyAccessOut`, und keine Rollenlogik im Template nötig (Anmerkung "ausblenden, nicht
-ausgrauen"). Der "Auftrag"-Link daneben (`/orders/{id}`, eine Büro-Seite) bleibt vorerst --
-Teil der noch offenen Seiten-Klassifizierung (Etappenplan Schritt 3).
+ausgrauen"). Der "Auftrag"-Link daneben (`/orders/{id}`, eine Büro-Seite) führt seit 1.3.57 für
+einen Monteur auf `access_denied.html` (die Seite ist jetzt gesperrt, siehe "Seiten-
+Klassifizierung" unten) -- kein Datenleck (die API dahinter war es ohnehin nie), aber ein
+unnötiger Zwischenstopp; bewusst nicht mitgefixt, siehe „Bekannte, bewusst offene Punkte".
+
+### Seiten-Klassifizierung (seit 1.3.57): dieselbe Standardverweigerung wie bei der API
+
+Bis hierhin war ausschließlich die API rollengeprüft -- jede der (damals) 31 Seiten-Routen in
+`app/routers/pages.py` rendierte ihr Gerüst für JEDE angemeldete Rolle, unabhängig davon, ob
+die API-Aufrufe dahinter für diese Rolle überhaupt etwas lieferten. Für einen Monteur bedeutete
+das: er konnte `/customers/{id}`, `/finanzen`, `/maintenance-contracts` usw. öffnen und sah eine
+leere oder fehlerhafte Seite (die API-Aufrufe scheiterten längst mit 403) -- kein Datenleck, aber
+auch keine echte Sperre, nur eine im Sidebar-Menü versteckte Tür, die trotzdem offen war. Auf
+ausdrückliche Vorgabe geschlossen: **eine Seite, die eine Rolle nicht öffnen darf, muss
+serverseitig sperren, nicht nur im Menü fehlen.**
+
+- **Mechanismus, wiederverwendet statt neu erfunden**: `app/permissions.py::require_role()`
+  trägt bereits die `_dk_roles`-Markierung (für den Audit-Test) und braucht für seine Prüfung
+  nur `request.state.erp_user` -- exakt das, was auch eine Seiten-Route hat, keine
+  Sonderfassung nötig. Jede Seiten-Route in `app/routers/pages.py` bekam deshalb schlicht
+  `_role: AppUser = _role_dep` (Büro/Admin) bzw. `_any_role_dep` (jede Rolle) als zusätzlichen
+  Parameter -- dieselben zwei Konstanten wie an jeder API-Datei dieser Etappe.
+- **Vier Seiten für `field`, jede andere Büro/Admin**: `/account`, `/vor-ort`, `/time-tracking`,
+  `/orders/{order_id}/service-reports` -- exakt die vier Seiten, die ein Monteur tatsächlich
+  braucht (Selbstbedienung, seine Einstiegsseite, seine Zeitbuchung, sein Bericht). Jede andere
+  Seite (Kunden, Objekte, Dachflächen, Projekte, Angebote/Aufträge/Rechnungen/Mahnungen,
+  Stammdaten, Einstellungen, Aufgaben, Wartungsverträge, Prüfvorlagen, Mängelliste, Änderungs-
+  historie, Adressimport, Zeiterfassungs-Backoffice) ist Büro/Admin -- gespiegelt an der bereits
+  bestehenden API-Klassifizierung der jeweiligen Fachdomäne, keine neue Entscheidung.
+  `/time-backoffice` und `/address-import` trugen bereits vorher `Depends(require_admin(...))`
+  (admin-only) und blieben unverändert -- `require_admin()` markiert `_dk_roles` schon lange.
+- **`/users` ist die einzige Seite mit einer bespoken Dependency statt `require_role(...)`**
+  (`_require_users_page_access()`, `app/routers/pages.py`): exakt derselbe Bootstrap-Fall wie
+  `POST /api/users` -- vor dem allerersten ERP-Benutzer gibt es niemanden, der eine Rollenprüfung
+  erfüllen könnte, danach Büro/Admin wie die Benutzerliste selbst. Trägt deshalb keine
+  `_dk_roles`-Markierung und steht einzeln begründet in der neuen `PAGE_AUDIT_EXEMPT`
+  (`app/permissions.py`) -- zusammen mit `/login`, `/health`, `/manifest.json` (dieselben drei
+  strukturellen Ausnahmen wie bei der API, jetzt für Seiten).
+- **403 zeigt `access_denied.html`, nicht rohes JSON**: ein neuer Exception-Handler in
+  `app/main.py` (`_role_check_403_shows_access_denied_page()`, registriert für `HTTPException`)
+  fängt jeden 403 ab und rendert für Nicht-`/api/`-Pfade das bereits in Etappe 1 vorbereitete,
+  aber nie verdrahtete `access_denied.html` -- jeder andere Statuscode und jeder `/api/`-Pfad
+  läuft unverändert über FastAPIs eigenen Standard-Handler (`http_exception_handler`, daran
+  delegiert, keine Kopie). "Zur Startseite" zeigt auf `app/permissions.py::
+  default_home_page_for_role(role)` -- `/vor-ort` für `field`, sonst `/` --, außer der Aufruf war
+  anonym (nur im Bootstrap-Fall möglich, `_page_requires_login()` leitet sonst schon vorher auf
+  `/login` um): dann auf `/users`, die einzige in diesem Zustand erreichbare Seite.
+- **Login-Landing für `field` korrigiert, an zwei Stellen**: `default_home_page_for_role()`
+  wird auch von `login_page()` genutzt (bereits angemeldeter Aufruf von `/login`, vorher
+  hartkodiert `"/"`) -- ohne diese Korrektur hätte ein Monteur nach dem zweiten Login-Versuch
+  auf einer jetzt gesperrten Seite gelandet. `login.html`s eigener, client-seitiger Rückfall
+  ohne `next` (`"/projects"`, JS, kein gemeinsames Modul mit Python) bekam denselben Zweig
+  separat dupliziert (`d.role==='field' ? '/vor-ort' : '/projects'`) -- die beiden
+  unterschiedlichen Nicht-Feld-Rückfälle (`/` server-seitig, `/projects` client-seitig) sind
+  ein bereits bestehender, dokumentierter Unterschied (siehe 1.3.47/1.3.48) und wurden nicht
+  vereinheitlicht, nur jeweils um den `field`-Zweig ergänzt.
+- **Ein vorher unbemerkter Test-Fund**: `tests/test_v256_login_wall_for_pages.py::make_user()`
+  erzeugte Konten mit `role="user"` (der Rollenname vor dem Rechtekonzept) -- harmlos, solange
+  keine Seite eine Rolle prüfte. Zwei Tests dieser Datei (bereits angemeldeter Nutzer erreicht
+  `/`/`/tasks` direkt) schlugen mit der neuen Sperre entsprechend fehl, bis der Standard auf
+  `role="office"` (den direkten Nachfolger von `"user"`) korrigiert wurde -- kein Fund an der
+  neuen Logik selbst, ein veralteter Testfixture-Wert.
+- **Audit-Test deckt jetzt beide Ebenen ab**: `tests/test_v260_role_audit.py::
+  test_all_page_routes_have_an_explicit_role_check()` (Muster der API-Variante, dieselbe
+  `_iter_role_marked_dependants()`-Hilfsfunktion, jetzt parametrisiert auf `/api/`- vs.
+  Seiten-Routen) steht bei null unklassifizierten Seiten-Routen, direkt als harter Test (kein
+  `xfail`-Zwischenschritt wie bei der API-Fassung, da hier von Anfang an vollständig gebaut).
+  Eine zweite Testgruppe (`TestPageRouteClassification`) belegt stichprobenhaft, dass die
+  Rollen dabei auch tatsächlich richtig zugeordnet sind (der Audit-Test allein sieht nur "trägt
+  eine Markierung", nicht "die richtige") -- inkl. eines isolierten Tests für den neuen
+  Exception-Handler selbst (HTML für Seiten, unverändert JSON für `/api/`, korrekter
+  `home_url`-Wert für `field`/anonym).
 
 ### Aufgaben: heute gesperrt, nicht angefasst, dokumentierter Grund
 
@@ -5805,19 +5894,21 @@ ist in der Liste ohnehin sichtbar, keine verdeckte Änderung möglich).
    `time_tracking.py`, 1.3.55 -- erst NACH Etappe 3, weil ein blankes Büro+Admin-Gate dort den
    Einsatzbericht-Ablauf gebrochen hätte, genau der Fehler von `GET /api/employees` in 1.3.53).
    Der Audit-Test steht bei null und ist seit 1.3.55 ein harter Test (`xfail` entfernt).
-3. **Objekt-Filterung für `field`** -- **API-Seite fertig (1.3.55)**: `field_may_access_order()`
-   (`app/orders.py`, drei Wege, siehe "Objekt-Filterung" oben) und `require_field_order_access()`
+3. **Objekt-Filterung für `field`** -- **fertig (1.3.55-1.3.57)**: `field_may_access_order()`
+   (`app/orders.py`, zwei Wege, siehe "Objekt-Filterung" oben) und `require_field_order_access()`
    (`app/routers/orders.py`) sind auf `orders.py`/`service_reports.py`/`findings.py` angewendet;
    `properties.py`/`roof_areas.py` brauchten sie nicht (seit Teil A Büro/Admin, der Monteur liest
    Objekt und Dachflächen ausschließlich auftragsbezogen über `service_reports.py`). Nachtrag
    1.3.56 nach Betreiber-Rückmeldung: "Wartung durchführen" für Monteure, reduzierte Historie,
-   Büro sieht alle Zeitbuchungen, `sign_report()` geprüft. **Noch offen**: die
-   Seiten-Klassifizierung (welche der 31 Seiten ist für wen gedacht, inkl.
-   `access_denied.html`-Verdrahtung und `is_field`-Ausblendungen in den Templates -- heute
-   rendert jede Seite ihr Gerüst für jede Rolle, erst der API-Aufruf dahinter antwortet 403),
-   darin ein `/vor-ort`-Einstieg für "Wartung durchführen" (der Monteur muss den Vertrag finden
-   können, ohne die Büro-Vertragsseite) und der "Auftrag"-Link in `service_reports.html`, der
-   auf eine Büro-Seite zeigt.
+   Büro sieht alle Zeitbuchungen, `sign_report()` geprüft. **Seit 1.3.57 zusätzlich die
+   Seiten-Klassifizierung**: dieselbe Standardverweigerung gilt jetzt auch für die
+   Seiten-Routen selbst (`app/routers/pages.py`, `Depends(require_role(...))` je Route,
+   `PAGE_AUDIT_EXEMPT` für die vier strukturellen Ausnahmen), ein 403 zeigt `access_denied.html`
+   statt einer rohen JSON-Antwort (`app/main.py`s Exception-Handler), der Audit-Test deckt beide
+   Ebenen ab -- siehe "Seiten-Klassifizierung" unten für die volle Herleitung. **Noch offen**:
+   ein `/vor-ort`-Einstieg für "Wartung durchführen" (der Monteur muss den Vertrag finden können,
+   ohne die Büro-Vertragsseite -- Vorschlag vorgelegt, wartet auf Rückmeldung, siehe dort) und
+   der "Auftrag"-Link in `service_reports.html`, der auf eine jetzt gesperrte Büro-Seite zeigt.
 4. Erstes echtes `field`-Testkonto anlegen, vollständigen Monteurs-Ablauf im Browser
    durchklicken. -- offen.
 
@@ -5967,6 +6058,15 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 
 ## Bekannte, bewusst offene Punkte
 
+- **`service_reports.html`s "Auftrag"-Link zeigt für `field` auf eine jetzt gesperrte Seite**
+  (seit 1.3.57, Seiten-Klassifizierung): `/orders/{id}` ist Büro/Admin -- ein Monteur, der auf
+  diesen Link klickt, landet auf `access_denied.html` statt auf der Auftragsseite. Kein
+  Datenleck (die API dahinter war für `field` nie erreichbar), aber ein unnötiger Zwischenstopp.
+  Nicht mitgefixt, da außerhalb des angefragten Umfangs (Seiten-Klassifizierung, nicht
+  Template-Aufräumen) -- saubere spätere Lösung: den Link clientseitig ausblenden, wenn
+  `authStatus.user.role==='field'` (Muster `can()`, aber ohne Server-Rendering-Kontext auf
+  dieser Seite verfügbar, siehe `_sidebar.html`s `can(current_user, ...)` für das Gegenstück
+  mit Server-Rendering).
 - **Bewusst keine Erkennungsspalte für manuell bearbeiteten Mahntext -- nur ein Hinweis beim
   Speichern** (seit 1.3.21, siehe Abschnitt "Mahnwesen: Löschen/Versenden/Bearbeiten" oben für die
   volle Untersuchung/Begründung). `update_reminder_draft()` erlaubt das unabhängige Ändern von

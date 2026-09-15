@@ -22,7 +22,7 @@ import pytest
 import app.routers as routers_package
 from app.deps import require_admin
 from app.models import AppUser
-from app.permissions import ROLE_ADMIN, ROLE_AUDIT_EXEMPT, ROLE_OFFICE, require_role
+from app.permissions import ROLE_ADMIN, ROLE_AUDIT_EXEMPT, ROLE_OFFICE, PAGE_AUDIT_EXEMPT, require_role
 
 
 def _iter_role_marked_dependants(dependant):
@@ -36,11 +36,13 @@ def _iter_role_marked_dependants(dependant):
         yield from _iter_role_marked_dependants(sub)
 
 
-def _discover_api_routes():
+def _discover_routes(*, api: bool):
     """Importiert jedes Modul unter app/routers/ selbst (kein app.main -- siehe CLAUDE.md
     "Migrations-Workflow" zum Risiko, app.main in einem Test zu importieren: Base.metadata.
     create_all() liefe sonst gegen die echte, lokale DATABASE_URL) und liefert (method, path,
-    route) für jede registrierte /api/-Route."""
+    route) für jede registrierte /api/-Route (api=True) bzw. jede Seiten-Route (api=False --
+    alles andere, u. a. app/routers/pages.py/field_view.py, seit "Rechtekonzept" Seiten-
+    Klassifizierung ebenso auditiert wie die API)."""
     found = []
     for module_info in pkgutil.iter_modules(routers_package.__path__, prefix="app.routers."):
         module = importlib.import_module(module_info.name)
@@ -49,11 +51,27 @@ def _discover_api_routes():
             continue
         for route in router.routes:
             path = getattr(route, "path", "")
-            if not path.startswith("/api/"):
+            if path.startswith("/api/") != api:
                 continue
             for method in (route.methods or set()) - {"HEAD", "OPTIONS"}:
                 found.append((method, path, route))
     return found
+
+
+def _discover_api_routes():
+    return _discover_routes(api=True)
+
+
+def _unclassified(routes, exempt):
+    unclassified = []
+    for method, path, route in routes:
+        if (method, path) in exempt:
+            continue
+        if any(True for _ in _iter_role_marked_dependants(route.dependant)):
+            continue
+        unclassified.append(f"{method} {path}")
+    unclassified.sort()
+    return unclassified
 
 
 def test_all_api_routes_have_an_explicit_role_check():
@@ -62,18 +80,26 @@ def test_all_api_routes_have_an_explicit_role_check():
     lässt ab jetzt den vollständigen Testlauf rot werden -- genau die gewollte
     Standardverweigerung (Regel 11 in CLAUDE.md). Wer einen Endpunkt aus strukturellen Gründen
     ohne Rollenprüfung braucht, trägt ihn mit Begründung in ROLE_AUDIT_EXEMPT ein."""
-    unclassified = []
-    for method, path, route in _discover_api_routes():
-        if (method, path) in ROLE_AUDIT_EXEMPT:
-            continue
-        if any(True for _ in _iter_role_marked_dependants(route.dependant)):
-            continue
-        unclassified.append(f"{method} {path}")
-    unclassified.sort()
+    unclassified = _unclassified(_discover_api_routes(), ROLE_AUDIT_EXEMPT)
     assert not unclassified, (
         f"{len(unclassified)} /api/-Endpunkt(e) ohne erkennbare Rollenprüfung -- Standard ist "
         f"admin-only (siehe app/permissions.py), das ist die Etappe-2/3-Checkliste, keine "
         f"Panik: \n" + "\n".join(unclassified)
+    )
+
+
+def test_all_page_routes_have_an_explicit_role_check():
+    """Seit "Rechtekonzept", Seiten-Klassifizierung (siehe CLAUDE.md): dieselbe
+    Standardverweigerung wie bei den API-Endpunkten, jetzt auch für Seiten-Routen
+    (app/routers/pages.py, app/routers/field_view.py) -- eine Seite, die ein Monteur nicht
+    öffnen darf, muss serverseitig sperren (Depends(require_role(...)) -> 403 ->
+    access_denied.html über app/main.py's Exception-Handler), nicht nur im Sidebar-Menü
+    ausgeblendet sein. Wer eine Seite aus strukturellen Gründen ohne Rollenprüfung braucht,
+    trägt sie mit Begründung in PAGE_AUDIT_EXEMPT ein (app/permissions.py)."""
+    unclassified = _unclassified(_discover_routes(api=False), PAGE_AUDIT_EXEMPT)
+    assert not unclassified, (
+        f"{len(unclassified)} Seiten-Route(n) ohne erkennbare Rollenprüfung -- Standard ist "
+        f"admin-only (siehe app/permissions.py): \n" + "\n".join(unclassified)
     )
 
 
@@ -676,3 +702,109 @@ class TestObjectFilteringForFieldTeilB:
         # ohne Mitarbeiterverknüpfung kein Start -- der Bericht wäre für niemanden erreichbar
         unlinked = router_test_client(db, mc_router, role="field")
         assert unlinked.post(f"/api/maintenance-contracts/{contract['id']}/perform-maintenance").status_code == 403
+
+
+class TestPageRouteClassification:
+    """Seit "Rechtekonzept", Seiten-Klassifizierung (siehe CLAUDE.md): dieselbe Standard-
+    verweigerung wie bei der API, jetzt für Seiten-Routen. Vollständigkeit sichert
+    test_all_page_routes_have_an_explicit_role_check() oben -- hier stichprobenhaft belegt,
+    dass die Rollen dabei auch tatsächlich RICHTIG zugeordnet wurden (ein Endpunkt könnte
+    _dk_roles tragen und trotzdem die falsche Rollenmenge haben, das würde der Audit-Test
+    allein nicht auffangen)."""
+
+    def test_field_reaches_only_the_four_pages_it_needs(self, router_test_client, threaded_db_session):
+        from app.routers.pages import router as pages_router
+        db = threaded_db_session
+        field = router_test_client(db, pages_router, role="field")
+        for path in ("/account", "/vor-ort", "/time-tracking", "/orders/1/service-reports"):
+            assert field.get(path, follow_redirects=False).status_code == 200, path
+        for path in (
+            "/", "/tasks", "/leistungskatalog", "/maintenance-contracts", "/maintenance-contracts/1",
+            "/projects", "/planning", "/projects/new", "/projects/1", "/quotes/new", "/services/new",
+            "/services/1/edit", "/master-data", "/master-data/teams/new", "/master-data/teams/1/edit",
+            "/quotes/1/edit", "/orders/1", "/invoices/1", "/finanzen", "/mahnwesen", "/changelog",
+            "/orders/1/work-preparation", "/roof-areas/1", "/properties/1", "/findings",
+            "/inspection-templates", "/inspection-templates/1", "/inquiries", "/customers/1", "/settings",
+            "/history",
+        ):
+            assert field.get(path, follow_redirects=False).status_code == 403, path
+
+    def test_office_and_admin_reach_the_buero_pages_field_is_blocked_from(self, router_test_client, threaded_db_session):
+        from app.routers.pages import router as pages_router
+        db = threaded_db_session
+        for role in ("office", "admin"):
+            client = router_test_client(db, pages_router, role=role)
+            assert client.get("/", follow_redirects=False).status_code == 200, role
+            assert client.get("/tasks", follow_redirects=False).status_code == 200, role
+            assert client.get("/customers/1", follow_redirects=False).status_code == 200, role
+        # admin- statt require_role(...)-gated (unverändert seit vor dem Rechtekonzept)
+        admin = router_test_client(db, pages_router, role="admin")
+        assert admin.get("/address-import", follow_redirects=False).status_code == 200
+        office = router_test_client(db, pages_router, role="office")
+        assert office.get("/address-import", follow_redirects=False).status_code == 403
+
+    def test_users_page_is_bootstrap_exempt_then_buero_only(self, router_test_client, threaded_db_session):
+        """router_test_client() injiziert den angemeldeten Benutzer direkt in request.state,
+        ohne eine echte AppUser-Zeile anzulegen -- users_exist(db) bleibt deshalb False, bis wir
+        selbst eine anlegen. Das bildet den Bootstrap-Fall exakt nach: kein Benutzer in der
+        Datenbank, aber (anders als ein echter Bootstrap-Aufruf) hier zusätzlich ein bereits
+        gesetzter role="field"-Kontext -- und selbst DER kommt durch, weil
+        _require_users_page_access() den users_exist()-Zweig vor jeder Rollenprüfung auswertet."""
+        from app.models import AppUser
+        from app.routers.pages import router as pages_router
+        db = threaded_db_session
+        bootstrap = router_test_client(db, pages_router, role="field")
+        assert bootstrap.get("/users", follow_redirects=False).status_code == 200
+
+        db.add(AppUser(username="erste.admina", display_name="Erste Admina", role="admin", active=True,
+                       password_hash="x"))
+        db.commit()
+        field = router_test_client(db, pages_router, role="field")
+        assert field.get("/users", follow_redirects=False).status_code == 403
+        office = router_test_client(db, pages_router, role="office")
+        assert office.get("/users", follow_redirects=False).status_code == 200
+
+
+def test_403_on_a_page_route_renders_access_denied_html_not_json():
+    """Isolierter Test der Exception-Handler-Verdrahtung selbst (app/main.py) -- ohne
+    router_test_client(), das keine eigenen Exception-Handler registriert, und ohne die echte
+    app.main.app/Middleware anzufassen (deren Middleware liefe gegen die echte DATABASE_URL).
+    Ein Mini-FastAPI mit genau einer role-gegateten Seite plus demselben Handler wie main.py."""
+    from fastapi import Depends, FastAPI, HTTPException, Request
+    from fastapi.testclient import TestClient
+    from app.main import _role_check_403_shows_access_denied_page
+    from app.models import AppUser
+    from app.permissions import ROLE_ADMIN, require_role
+
+    app = FastAPI()
+    app.add_exception_handler(HTTPException, _role_check_403_shows_access_denied_page)
+
+    @app.middleware("http")
+    async def _fake_identity(request: Request, call_next):
+        role = request.headers.get("x-test-role")
+        request.state.erp_user = AppUser(username="x", display_name="x", role=role, active=True, password_hash="x") if role else None
+        return await call_next(request)
+
+    @app.get("/buero-only")
+    def buero_only(request: Request, _role: AppUser = Depends(require_role(ROLE_ADMIN))):
+        return {"ok": True}
+
+    @app.get("/api/buero-only")
+    def api_buero_only(request: Request, _role: AppUser = Depends(require_role(ROLE_ADMIN))):
+        return {"ok": True}
+
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/buero-only", headers={"x-test-role": "field"})
+    assert resp.status_code == 403
+    assert "text/html" in resp.headers["content-type"]
+    assert "Diese Seite ist für Ihre Rolle nicht verfügbar" in resp.text
+    assert 'href="/vor-ort"' in resp.text  # default_home_page_for_role("field")
+
+    resp_anon = client.get("/buero-only")  # kein x-test-role-Header -> erp_user bleibt None
+    assert resp_anon.status_code == 403
+    assert 'href="/users"' in resp_anon.text  # Bootstrap-Wegweiser statt des gesperrten Dashboards
+
+    # ein /api/-Pfad bleibt unverändert JSON (kein zweiter Ort mit eigener Fehlerbehandlung)
+    resp_api = client.get("/api/buero-only", headers={"x-test-role": "field"})
+    assert resp_api.status_code == 403
+    assert resp_api.headers["content-type"].startswith("application/json")
