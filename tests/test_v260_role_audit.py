@@ -56,13 +56,12 @@ def _discover_api_routes():
     return found
 
 
-@pytest.mark.xfail(
-    reason="Etappe 2/3 (voller Rollen-Sweep aller Router) ist noch offen, siehe CLAUDE.md "
-           "'Rechtekonzept' -- dieser Test bleibt bis dahin absichtlich rot, das ist die "
-           "Checkliste dafür, kein Regressionsfund. pytest -rx zeigt die vollständige Liste.",
-    strict=False,
-)
 def test_all_api_routes_have_an_explicit_role_check():
+    """Seit Teil B (1.3.55) bei null und damit ein HARTER Test (die xfail-Markierung aus 1.3.51
+    ist entfernt): ein neuer /api/-Endpunkt ohne Depends(require_role(...))/require_admin(...)
+    lässt ab jetzt den vollständigen Testlauf rot werden -- genau die gewollte
+    Standardverweigerung (Regel 11 in CLAUDE.md). Wer einen Endpunkt aus strukturellen Gründen
+    ohne Rollenprüfung braucht, trägt ihn mit Begründung in ROLE_AUDIT_EXEMPT ein."""
     unclassified = []
     for method, path, route in _discover_api_routes():
         if (method, path) in ROLE_AUDIT_EXEMPT:
@@ -338,3 +337,268 @@ class TestRoleGateOnTheRemainingBueroOnlyFiles:
         client = router_test_client(threaded_db_session, wp_router, role="field", employee_id=emp.id)
         assert client.get("/api/work-preparation/tasks").status_code == 200
         assert client.post("/api/orders/1/work-preparation/employees", json={"employee_id": 1}).status_code == 403
+
+
+class TestObjectFilteringForFieldTeilB:
+    """Nachweis für Teil B (Rechtekonzept, Etappe 3 -- siehe CLAUDE.md): Aufträge, Einsatzberichte,
+    Mängel, Zeiterfassung, Prüfvorlagen. Kern ist app/orders.py::field_may_access_order(), die
+    EINE Definition, wann ein Monteur einen Auftrag sehen darf -- hier je Weg einzeln belegt und
+    über die echten Routen (403 vs. 200) an Auftrag, Bericht, Mangel und Zeitbuchung geprüft."""
+
+    @staticmethod
+    def _employee(db, number, first, last):
+        from app.models import Employee
+        emp = Employee(employee_number=number, first_name=first, last_name=last,
+                       employee_group="angestellt", hourly_wage="30", weekly_hours="40", active=True)
+        db.add(emp); db.commit()
+        return emp
+
+    @staticmethod
+    def _order(db, order_number, project_number, property_id=None, customer=None):
+        """Muster tests/test_v261_permissions_foundation.py::_make_order_with_property() plus eine
+        LV-Position (Muster make_order_with_item() in test_v133_invoices.py) -- die Position
+        braucht es, um die preisfreie Antwort für `field` an einer echten Zeile zu belegen."""
+        from app.models import Customer, Order, OrderItem, Project, Property
+        if customer is None:
+            customer = Customer(name="Testkunde", last_name="Testkunde")
+            db.add(customer); db.flush()
+        if property_id is None:
+            prop = Property(customer_id=customer.id, name="Objekt Nord", street="Teststr. 1", city="Teststadt",
+                            notes="Büro-interner Vermerk, nicht für den Monteur")
+            db.add(prop); db.flush()
+            property_id = prop.id
+        project = Project(project_number=project_number, name="Testprojekt", customer_id=customer.id, property_id=property_id)
+        db.add(project); db.flush()
+        # source_quote_id ist UNIQUE auf orders -- aus der Nummer abgeleitet, damit mehrere
+        # Aufträge je Test nebeneinander existieren können (kein echter Quote-Datensatz nötig,
+        # SQLite prüft Fremdschlüssel in dieser Testkonfiguration nicht).
+        order = Order(order_number=order_number, project_id=project.id,
+                      source_quote_id=int(order_number.rsplit("-", 1)[-1]),
+                      quote_number_snapshot=f"A-{order_number}", title="Testauftrag", customer_name=customer.name,
+                      customer_number="K-0001", property_name="Objekt Nord")
+        db.add(order); db.flush()
+        db.add(OrderItem(order_id=order.id, sort_order=10, position_number="1", short_text="Dacheindeckung",
+                         quantity=Decimal("100"), unit="m²", unit_price=Decimal("50")))
+        db.commit()
+        return order, customer, property_id
+
+    @staticmethod
+    def _assign_individually(db, order, emp):
+        from app.models import WorkPreparationEmployee
+        from app.work_preparation import ensure_preparation
+        prep = ensure_preparation(db, order.id)
+        row = WorkPreparationEmployee(preparation_id=prep.id, employee_id=emp.id)
+        db.add(row); db.commit()
+        return row
+
+    @staticmethod
+    def _assign_via_team(db, order, emp):
+        from app.models import Team, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee
+        from app.work_preparation import ensure_preparation
+        prep = ensure_preparation(db, order.id)
+        team = Team(name=f"Kolonne {order.order_number}")
+        db.add(team); db.flush()
+        assignment = WorkPreparationTeamAssignment(preparation_id=prep.id, team_id=team.id, team_name_snapshot=team.name)
+        db.add(assignment); db.flush()
+        db.add(WorkPreparationTeamEmployee(assignment_id=assignment.id, employee_id=emp.id,
+                                           employee_name_snapshot=f"{emp.first_name} {emp.last_name}"))
+        db.commit()
+        return assignment
+
+    def test_field_may_access_order_knows_exactly_three_paths(self, threaded_db_session):
+        """Weg 1 Team-Besetzung an der AV, Weg 2 Einzelzuweisung an der AV, Weg 3 eigener Bericht --
+        jeweils nur für den betroffenen Auftrag; und die Zeiterfassung (employee_assigned_order_ids)
+        liest seit Teil B dieselbe Definition (Weg 1+2), keine zweite."""
+        from app.orders import employee_assigned_order_ids, field_may_access_order
+        from app.service_reports import create_report
+        from app.time_tracking import employee_assigned_order_ids as via_time_tracking
+        db = threaded_db_session
+        alone = self._employee(db, "T-B1", "Anna", "Allein")
+        single = self._employee(db, "T-B2", "Ede", "Einzeln")
+        teamed = self._employee(db, "T-B3", "Tom", "Team")
+        writer = self._employee(db, "T-B4", "Willi", "Bericht")
+        order_a, customer, prop = self._order(db, "AUF-B-0001", "P-B-0001")
+        order_b, _, _ = self._order(db, "AUF-B-0002", "P-B-0002", property_id=prop, customer=customer)
+        order_c, _, _ = self._order(db, "AUF-B-0003", "P-B-0003", property_id=prop, customer=customer)
+        self._assign_individually(db, order_a, single)
+        self._assign_via_team(db, order_b, teamed)
+        create_report(db, order_c.id, "rapport", created_by_employee_id=writer.id)
+
+        assert field_may_access_order(db, single.id, order_a.id)
+        assert field_may_access_order(db, teamed.id, order_b.id)
+        assert field_may_access_order(db, writer.id, order_c.id)
+        assert not field_may_access_order(db, single.id, order_b.id)
+        assert not field_may_access_order(db, teamed.id, order_c.id)
+        assert not field_may_access_order(db, writer.id, order_a.id)
+        assert not any(field_may_access_order(db, alone.id, o.id) for o in (order_a, order_b, order_c))
+
+        assert employee_assigned_order_ids(db, single.id) == {order_a.id}
+        assert employee_assigned_order_ids(db, teamed.id) == {order_b.id}
+        assert via_time_tracking(db, teamed.id) == {order_b.id}
+        assert via_time_tracking(db, writer.id) == set()  # Weg 3 ist bewusst KEINE Zeiterfassungs-Zuordnung
+
+    def test_field_gets_only_assigned_orders_and_no_prices(self, router_test_client, threaded_db_session):
+        from app.routers.orders import router as orders_router
+        db = threaded_db_session
+        monteur = self._employee(db, "T-B5", "Max", "Monteur")
+        mine, customer, prop = self._order(db, "AUF-B-0010", "P-B-0010")
+        foreign, _, _ = self._order(db, "AUF-B-0011", "P-B-0011", property_id=prop, customer=customer)
+        self._assign_individually(db, mine, monteur)
+        field = router_test_client(db, orders_router, role="field", employee_id=monteur.id)
+
+        response = field.get(f"/api/orders/{mine.id}")
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert set(body) == {"id", "order_number", "customer_name", "items"}
+        assert set(body["items"][0]) == {"id", "position_number", "gaeb_oz", "short_text", "unit"}
+
+        assert field.get(f"/api/orders/{foreign.id}").status_code == 403
+        assert field.get("/api/orders/999999").status_code == 403  # fremd und nicht existent sehen gleich aus
+        assert field.get("/api/orders").status_code == 403
+        assert field.get(f"/api/orders/{mine.id}/pdf").status_code == 403
+        assert field.get(f"/api/orders/{mine.id}/revisions").status_code == 403
+        assert field.post(f"/api/orders/{mine.id}/revisions", json={"reason": "x"}).status_code == 403
+
+        office = router_test_client(db, orders_router, role="office")
+        full = office.get(f"/api/orders/{foreign.id}").json()
+        assert "net_total" in full and "unit_price" in full["items"][0]
+        # ein field-Konto ohne Mitarbeiterverknüpfung kann keinem Auftrag zugeordnet sein
+        unlinked = router_test_client(db, orders_router, role="field")
+        assert unlinked.get(f"/api/orders/{mine.id}").status_code == 403
+
+    def test_report_and_finding_endpoints_follow_the_same_order_access(self, router_test_client, threaded_db_session):
+        from app.routers.findings import router as findings_router
+        from app.routers.inspection_templates import router as templates_router
+        from app.routers.service_reports import router as sr_router
+        from app.service_reports import create_report
+        db = threaded_db_session
+        monteur = self._employee(db, "T-B6", "Kai", "Kolonne")
+        mine, customer, prop = self._order(db, "AUF-B-0020", "P-B-0020")
+        foreign, _, _ = self._order(db, "AUF-B-0021", "P-B-0021", property_id=prop, customer=customer)
+        self._assign_via_team(db, mine, monteur)
+        fid = create_report(db, foreign.id, "rapport")["id"]
+        field = router_test_client(db, sr_router, findings_router, templates_router, role="field", employee_id=monteur.id)
+        update = {"report_type": "rapport", "performed_at": "2026-09-14"}
+
+        assert field.get(f"/api/orders/{mine.id}/service-reports").status_code == 200
+        assert field.get(f"/api/orders/{mine.id}/property").status_code == 200
+        assert field.get(f"/api/orders/{mine.id}/roof-areas").status_code == 200
+        created = field.post(f"/api/orders/{mine.id}/service-reports", json={"report_type": "rapport"})
+        assert created.status_code == 200, created.text
+        report_id = created.json()["id"]
+        for suffix in ("inspection-items", "findings", "materials", "photos"):
+            assert field.get(f"/api/service-reports/{report_id}/{suffix}").status_code == 200, suffix
+        assert field.put(f"/api/service-reports/{report_id}", json=update).status_code == 200
+        assert field.get("/api/inspection-templates").status_code == 200
+
+        assert field.get(f"/api/orders/{foreign.id}/service-reports").status_code == 403
+        assert field.get(f"/api/orders/{foreign.id}/property").status_code == 403
+        assert field.post(f"/api/orders/{foreign.id}/service-reports", json={"report_type": "rapport"}).status_code == 403
+        for suffix in ("inspection-items", "findings", "materials", "photos", "pdf"):
+            assert field.get(f"/api/service-reports/{fid}/{suffix}").status_code == 403, suffix
+        assert field.put(f"/api/service-reports/{fid}", json=update).status_code == 403
+        assert field.delete(f"/api/service-reports/{fid}").status_code == 403
+        assert field.post(f"/api/service-reports/{fid}/inspection-items/sync").status_code == 403
+
+        assert field.get(f"/api/orders/{mine.id}/materials").status_code == 403
+        assert field.get("/api/findings").status_code == 403
+        assert field.get("/api/roof-components/1/findings").status_code == 403
+        assert field.post("/api/inspection-templates", json={"label": "x"}).status_code == 403
+        assert field.get("/api/roof-type-template-defaults").status_code == 403
+
+        office = router_test_client(db, sr_router, findings_router, role="office")
+        assert office.get(f"/api/orders/{foreign.id}/service-reports").status_code == 200
+        assert office.get(f"/api/service-reports/{fid}/findings").status_code == 200
+        assert office.get(f"/api/orders/{foreign.id}/materials").status_code == 200
+
+    def test_own_draft_report_survives_being_taken_off_the_planning(self, router_test_client, threaded_db_session):
+        """Weg 3 über die echte Route: nimmt das Büro den Monteur wieder aus der AV, bleibt sein
+        begonnener Bericht erreichbar (sonst zeigte /vor-ort den Entwurf, die Berichtsseite
+        aber 403) -- ein nie zugeordneter Kollege bleibt draußen."""
+        from app.routers.service_reports import router as sr_router
+        db = threaded_db_session
+        monteur = self._employee(db, "T-B7", "Rita", "Umgeplant")
+        colleague = self._employee(db, "T-B8", "Carl", "Kollege")
+        order, _, _ = self._order(db, "AUF-B-0030", "P-B-0030")
+        assignment = self._assign_individually(db, order, monteur)
+        field = router_test_client(db, sr_router, role="field", employee_id=monteur.id)
+        created = field.post(f"/api/orders/{order.id}/service-reports", json={"report_type": "rapport"})
+        assert created.status_code == 200, created.text
+        assert created.json()["created_by_employee_id"] == monteur.id
+
+        db.delete(assignment); db.commit()
+        assert field.get(f"/api/orders/{order.id}/service-reports").status_code == 200
+        response = field.put(f"/api/service-reports/{created.json()['id']}",
+                             json={"report_type": "rapport", "performed_at": "2026-09-14", "description": "Nachtrag"})
+        assert response.status_code == 200, response.text
+        other = router_test_client(db, sr_router, role="field", employee_id=colleague.id)
+        assert other.get(f"/api/orders/{order.id}/service-reports").status_code == 403
+
+    def test_maintenance_history_carries_no_prices_purchase_values_or_customer_notes(self, router_test_client, threaded_db_session):
+        """Die Wartungshistorie zeigt einem Monteur bewusst frühere Berichte ANDERER Aufträge
+        desselben Objekts -- dasselbe Muster wie bei purchase_price geprüft: kein Schlüssel der
+        Antwort darf Preis/Einkauf/Vergütung/Kundennotiz transportieren, auch nicht verschachtelt."""
+        from app.materials import create_manual_material
+        from app.models import ServiceReport
+        from app.routers.service_reports import router as sr_router
+        from app.service_reports import add_material, create_report
+        db = threaded_db_session
+        monteur = self._employee(db, "T-B9", "Hans", "Historie")
+        earlier, customer, prop = self._order(db, "AUF-B-0040", "P-B-0040")
+        current, _, _ = self._order(db, "AUF-B-0041", "P-B-0041", property_id=prop, customer=customer)
+        self._assign_individually(db, current, monteur)
+        old_id = create_report(db, earlier.id, "wartung", description="Frühjahrswartung")["id"]
+        material = create_manual_material(db, name="Dachziegel", unit="Stk", purchase_price=Decimal("12.50"))
+        add_material(db, old_id, material_id=material.id, quantity=Decimal("2"))
+        db.get(ServiceReport, old_id).status = "unterschrieben"; db.commit()
+
+        field = router_test_client(db, sr_router, role="field", employee_id=monteur.id)
+        response = field.get(f"/api/orders/{current.id}/property-service-reports")
+        assert response.status_code == 200, response.text
+        history = response.json()
+        assert [r["id"] for r in history] == [old_id]
+
+        def keys(obj):
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    yield key
+                    yield from keys(value)
+            elif isinstance(obj, list):
+                for value in obj:
+                    yield from keys(value)
+        forbidden = ("price", "preis", "purchase", "einkauf", "wage", "lohn", "gehalt", "cost", "kosten",
+                     "customer_note", "property_note")
+        offending = sorted({k for k in keys(history) if any(f in k.lower() for f in forbidden)})
+        assert offending == [], offending
+
+    def test_field_sees_and_edits_only_own_time_entries_even_filtered_by_order(self, router_test_client, threaded_db_session):
+        """Anmerkung 3 der Teil-B-Vorgabe: ?order_id=... liefert einem Monteur NICHT die Buchungen
+        der Kollegen -- get_time_entries() setzt employee_id für jeden Nicht-Admin auf die eigene
+        Person, list_entries() verknüpft beide Filter mit UND. Fremde Zeilen sind weder änderbar
+        noch löschbar, und Buchen unter fremdem Namen wird abgelehnt."""
+        from datetime import date
+        from app.routers.time_tracking import router as tt_router
+        from app.time_tracking import create_manual_entry
+        db = threaded_db_session
+        me = self._employee(db, "T-B10", "Ich", "Selbst")
+        colleague = self._employee(db, "T-B11", "Du", "Kollege")
+        order, _, _ = self._order(db, "AUF-B-0050", "P-B-0050")
+        mine = create_manual_entry(db, employee_id=me.id, order_id=order.id, work_date=date(2026, 9, 14), hours=Decimal("2"))
+        theirs = create_manual_entry(db, employee_id=colleague.id, order_id=order.id, work_date=date(2026, 9, 14), hours=Decimal("3"))
+        field = router_test_client(db, tt_router, role="field", employee_id=me.id)
+
+        rows = field.get(f"/api/time-entries?order_id={order.id}").json()
+        assert [r["id"] for r in rows] == [mine.id]
+        rows = field.get(f"/api/time-entries?order_id={order.id}&employee_id={colleague.id}").json()
+        assert [r["id"] for r in rows] == [mine.id]
+        assert field.delete(f"/api/time-entries/{theirs.id}").status_code == 403
+        assert field.post("/api/time-entries", json={
+            "employee_id": colleague.id, "order_id": order.id, "work_date": "2026-09-14", "hours": 1,
+        }).status_code == 403
+        assert field.get("/api/time-tracking/context").status_code == 200
+        assert field.get("/api/time-tracking/settings").status_code == 200
+
+        admin = router_test_client(db, tt_router, role="admin")
+        assert {r["id"] for r in admin.get(f"/api/time-entries?order_id={order.id}").json()} == {mine.id, theirs.id}
+        unlinked = router_test_client(db, tt_router, role="field")
+        assert unlinked.get("/api/time-entries").status_code == 403

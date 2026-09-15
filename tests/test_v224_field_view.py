@@ -299,14 +299,16 @@ def test_non_admin_cannot_set_foreign_employee_id_on_create_report():
     emp1 = make_employee(db, "M-1", "Erika", "Eins")
     emp2 = make_employee(db, "M-2", "Otto", "Zwei")
     user = make_non_admin(db, emp1.id, "sb1")
+    # Direktaufruf ohne FastAPI-DI: seit Rechtekonzept Teil B tragen diese Endpunkte einen
+    # _role-Parameter (Depends(require_role(...))), der hier ausdrücklich mitgegeben werden muss.
     try:
         post_service_report(order.id, ServiceReportCreate(report_type="rapport", created_by_employee_id=emp2.id),
-                             request_with_user(user), db=db)
+                             request_with_user(user), db=db, _role=user)
         assert False, "sollte HTTPException auslösen"
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 403
     result = post_service_report(order.id, ServiceReportCreate(report_type="rapport", created_by_employee_id=None),
-                                  request_with_user(user), db=db)
+                                  request_with_user(user), db=db, _role=user)
     assert result["created_by_employee_id"] == emp1.id
 
 
@@ -316,7 +318,7 @@ def test_admin_can_set_any_employee_id_on_create_report():
     emp2 = make_employee(db, "M-2", "Otto", "Zwei")
     admin = make_admin(db)
     result = post_service_report(order.id, ServiceReportCreate(report_type="rapport", created_by_employee_id=emp2.id),
-                                  request_with_user(admin), db=db)
+                                  request_with_user(admin), db=db, _role=admin)
     assert result["created_by_employee_id"] == emp2.id
 
 
@@ -331,7 +333,7 @@ def test_non_admin_cannot_set_foreign_employee_id_on_add_photo():
     try:
         asyncio.run(post_service_report_photo(
             report["id"], request_with_user(user), file=upload, inspection_item_id=None, finding_id=None,
-            kind="allgemein", caption=None, created_by_employee_id=emp2.id, db=db,
+            kind="allgemein", caption=None, created_by_employee_id=emp2.id, db=db, _role=user,
         ))
         assert False, "sollte HTTPException auslösen"
     except Exception as exc:
@@ -349,7 +351,7 @@ def test_non_admin_cannot_set_foreign_employee_id_on_add_material():
         post_service_report_material(
             report["id"],
             ServiceReportMaterialCreate(description="Dachziegel", quantity=Decimal("1"), created_by_employee_id=emp2.id),
-            request_with_user(user), db=db,
+            request_with_user(user), db=db, _role=user,
         )
         assert False, "sollte HTTPException auslösen"
     except Exception as exc:
@@ -367,7 +369,7 @@ def test_non_admin_cannot_set_foreign_employee_id_on_create_finding():
         post_finding(
             report["id"],
             FindingCreate(description="Mangel", severity="mittel", action="sofort_behoben", created_by_employee_id=emp2.id),
-            request_with_user(user), db=db,
+            request_with_user(user), db=db, _role=user,
         )
         assert False, "sollte HTTPException auslösen"
     except Exception as exc:

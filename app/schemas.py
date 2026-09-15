@@ -1130,6 +1130,33 @@ class OrderOut(BaseModel):
     recipient_email: str | None = None  # aktuell hinterlegte Kunden-E-Mail, für die Versand-Oberfläche
 
 
+class OrderFieldAccessItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    position_number: str | None = None
+    gaeb_oz: str | None = None
+    short_text: str
+    unit: str | None = None
+
+
+class OrderFieldAccessOut(BaseModel):
+    """Rechtekonzept, Teil B (siehe CLAUDE.md): feldsicheres Gegenstück zu OrderOut für
+    GET /api/orders/{order_id}, wenn ein Monteur (`field`) aufruft -- exakt die Felder, die
+    service_reports.html (Auftragsnummer/Kundenname in der Kopfzeile, LV-Positionen als Auswahl
+    für die Zeitbuchung) und time_tracking.html (ensureOrderItems()) tatsächlich lesen. Bewusst
+    OHNE unit_price/line_total/net_total/vat_total/gross_total/invoiced_*/open_* (das LV ist ein
+    kaufmännisches Dokument, order_to_dict() liefert es vollständig), ohne Vertragstexte
+    (intro/outro/payment_terms/remarks/tax_notice_text), ohne Sachbearbeiter/Projektleiter,
+    ohne Kundenadresse/-nummer, ohne Revisions-/Versand-Metadaten -- und ohne customer_id:
+    dadurch rendert service_reports.html den Kundennamen für einen Monteur automatisch als
+    reinen Text statt als Link auf die (Büro-)Kundenseite, ohne eigene Rollenlogik im Template."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    order_number: str
+    customer_name: str
+    items: list[OrderFieldAccessItemOut] = Field(default_factory=list)
+
+
 class OrderEmailSend(BaseModel):
     to_email: str | None = None  # None = automatisch aus Kundenstammdaten
 

@@ -8,8 +8,6 @@ from sqlalchemy.orm import Session, selectinload
 from .models import (
     Employee, Order, OrderItem, Project, TimeEntry, Team, TeamEmployee,
     TimeEntryGroup, TimeEntryGroupMember,
-    WorkPreparation, WorkPreparationEmployee, WorkPreparationTeamAssignment,
-    WorkPreparationTeamEmployee,
 )
 
 from .work_time_models import automatic_break_minutes_for_timer
@@ -238,18 +236,14 @@ def order_item_actual_hours(db: Session, order_id: int) -> dict[int, Decimal]:
 
 
 def employee_assigned_order_ids(db: Session, employee_id: int) -> set[int]:
-    ids=set(db.scalars(
-        select(WorkPreparation.order_id)
-        .join(WorkPreparationEmployee, WorkPreparationEmployee.preparation_id==WorkPreparation.id)
-        .where(WorkPreparationEmployee.employee_id==employee_id)
-    ).all())
-    ids.update(db.scalars(
-        select(WorkPreparation.order_id)
-        .join(WorkPreparationTeamAssignment, WorkPreparationTeamAssignment.preparation_id==WorkPreparation.id)
-        .join(WorkPreparationTeamEmployee, WorkPreparationTeamEmployee.assignment_id==WorkPreparationTeamAssignment.id)
-        .where(WorkPreparationTeamEmployee.employee_id==employee_id)
-    ).all())
-    return ids
+    """Seit Rechtekonzept Teil B nur noch eine Weiterleitung: die Definition "welchen Aufträgen
+    ist ein Mitarbeiter zugeordnet" lebt in app/orders.py (_assigned_order_id_queries()), damit
+    die Auftragsauswahl der Zeiterfassung und die Objekt-Filterung für `field`
+    (field_may_access_order()) nie auseinanderlaufen. Lokaler Import: orders.py erreicht über
+    invoices/projects transitiv Module, die dieses Modul importieren (work_preparation.py) --
+    dieselbe Zirkel-Vermeidung wie Regel 3 in CLAUDE.md."""
+    from .orders import employee_assigned_order_ids as _canonical
+    return _canonical(db, employee_id)
 
 
 def time_tracking_context(db: Session, employee_id: int | None = None, include_all_orders: bool = False) -> dict:

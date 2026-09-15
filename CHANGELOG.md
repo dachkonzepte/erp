@@ -4,6 +4,60 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.55 – Rechtekonzept, Etappe 3 + Rest-Etappe Teil B: Objekt-Filterung für Monteure, Audit-Test bei null
+
+Abschluss der in 1.3.51 begonnenen Klassifizierung: die 65 verbleibenden, aktiv von Monteuren
+genutzten Endpunkte (`orders.py`, `service_reports.py`, `findings.py`, `inspection_templates.py`,
+`time_tracking.py`) sind klassifiziert, der Vollständigkeits-Audit-Test
+(`tests/test_v260_role_audit.py`) steht bei **null** unklassifizierten Endpunkten und ist ab jetzt
+ein harter Test (die `xfail`-Markierung aus 1.3.51 ist entfernt) -- ein neuer `/api/`-Endpunkt ohne
+Rollenangabe färbt den nächsten vollständigen Testlauf rot. Die neun Einträge in
+`ROLE_AUDIT_EXEMPT` (Login, Zwei-Faktor-Einrichtung, eigenes Passwort, `/api/field-view/today`,
+PWA-Icon, Bootstrap-Benutzeranlage) bleiben die einzigen rollenlosen Endpunkte, jeder einzeln
+begründet.
+
+Kern ist `app/orders.py::field_may_access_order()`, die EINE Definition, wann ein Monteur einen
+Auftrag sehen darf. Geprüft, ob die vorgegebene Definition (Plantafel-Team-Besetzung oder direkte
+Zuweisung an der Arbeitsvorbereitung) vollständig ist -- war sie nicht, zwei Funde: (1) `/vor-ort`
+findet "offene Entwurfsberichte" seit 1.3.0 über `ServiceReport.created_by_employee_id`, ein Weg,
+der ohne dritten Zugriffspfad abreißt, sobald das Büro den Monteur umplant oder aus dem Team nimmt
+(die Tagesliste zeigte den Entwurf noch, die Berichtsseite hätte 403 geantwortet) -- deshalb ein
+dritter, gleichrangiger Weg "eigener Bericht", der bewusst NICHT bootstrappt (den ersten Bericht zu
+einem Auftrag kann nur anlegen, wer über Team oder Einzelzuweisung zugeordnet ist; "Wartung
+durchführen" legt seinen Bericht ohne Ersteller an). (2) Die Zeiterfassung trug in
+`app/time_tracking.py::employee_assigned_order_ids()` bereits eine eigene, zweite Definition
+derselben Zuordnung (Auftragsauswahl eines Nicht-Admins) -- jetzt eine reine Weiterleitung auf
+`app/orders.py`, damit Zeitbuchung und Berichtszugriff nie auseinanderlaufen. Team-Besetzung wird
+an der AV geprüft, nicht am `PlanningSlot`: der Slot trägt nur das Datum, die Zuordnung hängt an
+der Arbeitsvorbereitung; die Tagesliste (`list_todays_assignments_for_employee()`) bleibt die
+datumsgefilterte Sicht auf dieselben zwei Tabellen. Kein vierter Weg gefunden.
+
+`GET /api/orders/{id}` liefert einem Monteur ein preisfreies `OrderFieldAccessOut` (Auftragsnummer,
+Kundenname, LV-Positionen ohne Preise -- exakt, was `service_reports.html`/`time_tracking.html`
+lesen; `order_to_dict()` hätte sonst `unit_price`/`line_total`/Summen mitgeliefert), das volle LV
+bleibt Büro/Admin. Ohne `customer_id` im reduzierten Schema wird der Kundenname in der
+Berichtsseite für Monteure automatisch Text statt Link auf die (Büro-)Kundenseite -- der seit
+1.3.51 vorgemerkte offene Punkt, ohne Rollenlogik im Template gelöst. Fremde und nicht
+existierende Aufträge antworten für Monteure gleichermaßen 403 (kein URL-Raten von
+Auftragsnummern). Wartungshistorie (Anmerkung 2): zeigt gewollt auch fremde, unterschriebene
+Berichte desselben Objekts, per Test belegt ohne Preis-/Einkaufs-/Vergütungs-/Kundennotiz-Schlüssel
+(auch verschachtelt, inkl. Katalogmaterial). Zeiterfassung (Anmerkung 3): `?order_id=` liefert
+einem Monteur NICHT die Buchungen der Kollegen -- die Endpunkte setzten die eigene `employee_id`
+für jeden Nicht-Admin schon immer durch, `list_entries()` verknüpft beide Filter mit UND (geprüft,
+kein Fund, als Test festgehalten); fremde Zeilen bleiben unveränderbar, Backoffice bleibt
+admin-only. Büro/Admin-only innerhalb der Teil-B-Dateien: Auftragsliste, jede Auftragsbearbeitung,
+Revisionen, Auftrags-PDF/-Versand, `GET /api/orders/{id}/materials` (Rechnungsentscheidung für
+`order.html`), auftragsübergreifende Mängelliste, Bauteil-Mängelhistorie, die gesamte
+Prüfvorlagen-Verwaltung (nur die Vorlagenliste bleibt für Monteure lesbar, `service_reports.html`
+braucht sie).
+
+Nebenbefund, gemeldet, nicht behoben: dieselbe Selbstbedienungs-Eingrenzung in `GET /api/time-entries`
+trifft auch ein `office`-Konto mit Mitarbeiterverknüpfung -- `order.html`/`project_folder.html`
+lesen darüber "alle Buchungen des Auftrags/Projekts" (u. a. für "Rechnung aus Aufwand"), ein
+Büro-Nutzer ohne Admin-Rolle sähe dort nur seine eigenen. Vorher-Zustand, nicht durch diese
+Version verursacht (beide realen Konten sind Administratoren, deshalb bisher unbemerkt), siehe
+CLAUDE.md "Bekannte, bewusst offene Punkte".
+
 ## 1.3.54 – Rechtekonzept, Rest-Etappe Teil A: 164 weitere Endpunkte klassifiziert
 
 Fortsetzung nach 1.3.51–1.3.53: die verbleibenden ~230 unklassifizierten Endpunkte zerfallen in

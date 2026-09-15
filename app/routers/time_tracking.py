@@ -3,6 +3,17 @@
 Automatisch aus app/main.py in Version 1.0.7 extrahiert (main.py-Aufteilung,
 siehe README). Enthaelt 13 Endpunkt(e) und 5 interne Hilfsfunktion(en), unveraendert
 uebernommen -- reine Verschiebung, keine Verhaltensaenderung.
+
+Seit "Rechtekonzept", Teil B (siehe CLAUDE.md): jeder Endpunkt hier ist Selbstbedienung fuer
+JEDE Rolle -- ein Monteur bucht eigene Zeiten und sieht eigene. Die eigentliche Eingrenzung auf
+die eigene Person sitzt bereits seit jeher in den Endpunkten selbst, nicht im Rollen-Gate:
+_time_entry_employee_for_request() (nur die eigene employee_id darf angegeben werden),
+_time_entry_can_edit() (aendern/loeschen nur eigene Zeilen), _group_actor() (Gruppenbuchung nur
+mit eigener Mitarbeiterverknuepfung) und get_time_entries() (ein Nicht-Admin bekommt IMMER
+employee_id = eigene, auch bei ?order_id=... -- list_entries() verknuepft beide Filter mit UND,
+siehe app/time_tracking.py; die Zeitbuchungen der Kollegen zum selben Auftrag bleiben also
+unsichtbar). Der Backoffice-Bereich (app/routers/time_backoffice.py) ist davon getrennt und
+bleibt wie bisher admin-only ueber require_admin().
 """
 
 from fastapi import APIRouter
@@ -12,13 +23,16 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import TimeEntry, TimeEntryGroup
+from ..models import AppUser, TimeEntry, TimeEntryGroup
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
 from ..schemas import TimeEntryManualCreate, TimeEntryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..time_backoffice import get_or_create_time_settings, rounded_hours, time_settings_dict
 from ..time_tracking import active_group_for_employee, active_entry as active_time_entry, create_group_manual_entry, create_manual_entry, delete_entry as delete_time_entry_row, entry_to_dict, group_for_entry, group_member_ids, group_to_dict, list_entries as list_time_entries, start_group_timer, start_timer, stop_group_timer, stop_timer, time_tracking_context, update_entry as update_time_entry_row
 from ..work_time_models import automatic_break_minutes_for_timer
 
 router = APIRouter()
+
+_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
 
 def _time_entry_employee_for_request(request: Request, requested_employee_id: int | None, db: Session) -> int:
     user = getattr(request.state, "erp_user", None)
@@ -71,12 +85,12 @@ def _group_actor(request: Request) -> tuple[int | None, bool, int | None]:
 
 
 @router.get("/api/time-tracking/settings", response_model=TimeTrackingSettingsOut)
-def get_mobile_time_settings(db:Session=Depends(get_db)):
+def get_mobile_time_settings(db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
     return TimeTrackingSettingsOut.model_validate(time_settings_dict(get_or_create_time_settings(db), db))
 
 
 @router.get("/api/time-tracking/context")
-def get_time_tracking_context(request: Request, employee_id: int | None = None, db: Session = Depends(get_db)):
+def get_time_tracking_context(request: Request, employee_id: int | None = None, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     user = getattr(request.state, "erp_user", None)
     resolved = employee_id
     include_all = bool(user and user.role == "admin")
@@ -91,7 +105,7 @@ def get_time_tracking_context(request: Request, employee_id: int | None = None, 
 
 
 @router.post("/api/time-entry-groups", response_model=TimeGroupOut)
-def create_time_group_manual(payload:TimeGroupManualCreate,request:Request,db:Session=Depends(get_db)):
+def create_time_group_manual(payload:TimeGroupManualCreate,request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,manual=True,group=True)
     actor,is_admin,user_id=_group_actor(request)
     try:
@@ -102,7 +116,7 @@ def create_time_group_manual(payload:TimeGroupManualCreate,request:Request,db:Se
 
 
 @router.post("/api/time-entry-groups/start", response_model=TimeGroupOut)
-def start_time_group(payload:TimeGroupTimerStart,request:Request,db:Session=Depends(get_db)):
+def start_time_group(payload:TimeGroupTimerStart,request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,group=True)
     actor,is_admin,user_id=_group_actor(request)
     try:
@@ -113,7 +127,7 @@ def start_time_group(payload:TimeGroupTimerStart,request:Request,db:Session=Depe
 
 
 @router.get("/api/time-entry-groups/active", response_model=TimeGroupOut | None)
-def get_active_time_group(request:Request,employee_id:int|None=None,db:Session=Depends(get_db)):
+def get_active_time_group(request:Request,employee_id:int|None=None,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
     resolved=_time_entry_employee_for_request(request,employee_id,db)
     user=getattr(request.state,"erp_user",None)
     row=active_group_for_employee(db,resolved,initiated_only=bool(user is not None and user.role!="admin"))
@@ -121,7 +135,7 @@ def get_active_time_group(request:Request,employee_id:int|None=None,db:Session=D
 
 
 @router.post("/api/time-entry-groups/{group_id}/stop", response_model=TimeGroupOut)
-def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:Session=Depends(get_db)):
+def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
     group=db.get(TimeEntryGroup,group_id)
     if group is None: raise HTTPException(status_code=404,detail="Gruppenbuchung wurde nicht gefunden.")
     user=getattr(request.state,"erp_user",None)
@@ -136,7 +150,7 @@ def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:S
 
 
 @router.get("/api/time-entries", response_model=list[TimeEntryOut])
-def get_time_entries(request: Request, employee_id: int | None = None, project_id: int | None = None, order_id: int | None = None, start_date: date | None = None, end_date: date | None = None, limit: int = 500, db: Session = Depends(get_db)):
+def get_time_entries(request: Request, employee_id: int | None = None, project_id: int | None = None, order_id: int | None = None, start_date: date | None = None, end_date: date | None = None, limit: int = 500, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     user = getattr(request.state, "erp_user", None)
     if user is not None and user.role != "admin":
         if user.employee_id is None:
@@ -147,14 +161,14 @@ def get_time_entries(request: Request, employee_id: int | None = None, project_i
 
 
 @router.get("/api/time-entries/active", response_model=TimeEntryOut | None)
-def get_active_time_entry(request: Request, employee_id: int | None = None, db: Session = Depends(get_db)):
+def get_active_time_entry(request: Request, employee_id: int | None = None, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     resolved = _time_entry_employee_for_request(request, employee_id, db)
     row = active_time_entry(db, resolved)
     return TimeEntryOut.model_validate(entry_to_dict(row)) if row else None
 
 
 @router.post("/api/time-entries", response_model=TimeEntryOut)
-def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Session = Depends(get_db)):
+def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     settings=_validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,manual=True)
     employee_id = _time_entry_employee_for_request(request, payload.employee_id, db)
     user = getattr(request.state, "erp_user", None)
@@ -166,7 +180,7 @@ def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Sess
 
 
 @router.post("/api/time-entries/start", response_model=TimeEntryOut)
-def start_time_entry(payload: TimeTimerStart, request: Request, db: Session = Depends(get_db)):
+def start_time_entry(payload: TimeTimerStart, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity)
     employee_id = _time_entry_employee_for_request(request, payload.employee_id, db)
     user = getattr(request.state, "erp_user", None)
@@ -178,7 +192,7 @@ def start_time_entry(payload: TimeTimerStart, request: Request, db: Session = De
 
 
 @router.post("/api/time-entries/{entry_id}/stop", response_model=TimeEntryOut)
-def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db: Session = Depends(get_db)):
+def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     current = db.get(TimeEntry, entry_id)
     if current is None:
         raise HTTPException(status_code=404, detail="Zeiterfassung nicht gefunden.")
@@ -206,7 +220,7 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
 
 
 @router.put("/api/time-entries/{entry_id}", response_model=TimeEntryOut)
-def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db: Session = Depends(get_db)):
+def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity)
     current = db.get(TimeEntry, entry_id)
     if current is None:
@@ -222,7 +236,7 @@ def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db
 
 
 @router.delete("/api/time-entries/{entry_id}")
-def remove_time_entry(entry_id: int, request: Request, db: Session = Depends(get_db)):
+def remove_time_entry(entry_id: int, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     current = db.get(TimeEntry, entry_id)
     if current is None:
         raise HTTPException(status_code=404, detail="Zeitbuchung nicht gefunden.")

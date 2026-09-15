@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session, selectinload
 from .models import (
     Employee, Order, OrderItem, OrderSection, OrderRevision,
     OrderItemCalculationSnapshot, OrderItemMaterialSnapshot,
-    Project, QuoteEmployeeAssignment, TaxKey,
+    Project, QuoteEmployeeAssignment, ServiceReport, TaxKey,
+    WorkPreparation, WorkPreparationEmployee, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee,
 )
 from .invoices import compute_order_billing_progress
 from .projects import ensure_quote_structure, load_quote
@@ -207,6 +208,83 @@ def create_order_revision(db: Session, order: Order, *, reason: str, source: str
     db.commit()
     db.refresh(rev)
     return rev
+
+
+def _assigned_order_id_queries(employee_id: int):
+    """Die beiden Zuordnungs-Abfragen Mitarbeiter -> Auftrag, EINMAL definiert (Rechtekonzept,
+    Etappe 3, siehe CLAUDE.md): Einzelzuweisung an der Arbeitsvorbereitung
+    (WorkPreparationEmployee) und Team-Besetzung an der Arbeitsvorbereitung
+    (WorkPreparationTeamAssignment -> Besetzungs-Schnappschuss WorkPreparationTeamEmployee).
+    Beide hängen an der AV selbst, nicht am PlanningSlot -- die Plantafel (planning.py::
+    list_todays_assignments_for_employee()) ist nur die datumsgefilterte Sicht auf dieselben
+    zwei Tabellen (ein Slot trägt team_assignment_id bzw. preparation_id), keine dritte Quelle.
+    Genutzt von employee_assigned_order_ids() (Auftragsauswahl der Zeiterfassung) UND
+    field_may_access_order() (Objekt-Filterung für `field`) -- damit ein Monteur nie Zeit auf
+    einen Auftrag buchen kann, dessen Bericht er nicht öffnen darf, oder umgekehrt."""
+    individual = (
+        select(WorkPreparation.order_id)
+        .join(WorkPreparationEmployee, WorkPreparationEmployee.preparation_id == WorkPreparation.id)
+        .where(WorkPreparationEmployee.employee_id == employee_id)
+    )
+    team = (
+        select(WorkPreparation.order_id)
+        .join(WorkPreparationTeamAssignment, WorkPreparationTeamAssignment.preparation_id == WorkPreparation.id)
+        .join(WorkPreparationTeamEmployee, WorkPreparationTeamEmployee.assignment_id == WorkPreparationTeamAssignment.id)
+        .where(WorkPreparationTeamEmployee.employee_id == employee_id)
+    )
+    return individual, team
+
+
+def employee_assigned_order_ids(db: Session, employee_id: int) -> set[int]:
+    """Alle Aufträge, denen ein Mitarbeiter über die AV zugeordnet ist (Einzel- oder
+    Team-Zuweisung) -- historisch in app/time_tracking.py beheimatet, seit Rechtekonzept
+    Teil B hier, damit Zeiterfassung und Objekt-Filterung dieselbe Definition teilen
+    (app/time_tracking.py importiert sie von hier zurück)."""
+    individual, team = _assigned_order_id_queries(employee_id)
+    ids = set(db.scalars(individual).all())
+    ids.update(db.scalars(team).all())
+    return ids
+
+
+def field_may_access_order(db: Session, employee_id: int, order_id: int) -> bool:
+    """Rechtekonzept, Etappe 3 (siehe CLAUDE.md): DIE eine Definition, wann ein Monteur (Rolle
+    `field`) einen Auftrag sehen darf -- von den Routern orders.py/service_reports.py/findings.py
+    über require_field_order_access() gemeinsam genutzt, nirgends nachgebaut, damit ein Monteur
+    nie den Auftrag in der Tagesliste sieht, aber nicht den Bericht dazu (oder umgekehrt).
+    Drei gleichrangige Wege, es reicht einer:
+
+    1. Team-Besetzung an der Arbeitsvorbereitung (der Weg der Plantafel: jeder PlanningSlot
+       hängt an genau so einer WorkPreparationTeamAssignment) -- aber OHNE den Datumsfilter der
+       Tagesliste: ein vor Tagen begonnener Entwurfsbericht muss weiter bearbeitbar bleiben,
+       ein für nächste Woche geplanter schon vorbereitet werden können.
+    2. Direkte Einzelzuweisung an der Arbeitsvorbereitung (WorkPreparationEmployee) -- bewusst
+       OHNE einen PlanningSlot vorauszusetzen: die Tagesliste braucht den Slot nur für das
+       Datum, die Zuordnung selbst hängt an der AV.
+       (1. und 2. sind exakt employee_assigned_order_ids(), das die Zeiterfassung seit jeher
+       für die Auftragsauswahl eines Nicht-Admins nutzt -- geprüft, keine zweite Definition.)
+    3. Ein Bericht, den er selbst angelegt hat (ServiceReport.created_by_employee_id) -- exakt
+       der Weg, über den /vor-ort seine "offenen Entwurfsberichte" schon immer findet
+       (service_reports.py::list_draft_reports_for_employee()). Ohne diesen dritten Weg verlöre
+       ein Monteur den Zugriff auf einen begonnenen Bericht, sobald das Büro ihn umplant oder
+       aus dem Team nimmt -- /vor-ort zeigte den Entwurf dann noch, die Berichtsseite nicht
+       mehr. Umgekehrt bootstrappt dieser Weg NICHT: den ersten Bericht zu einem Auftrag kann
+       nur anlegen, wer über 1. oder 2. zugeordnet ist ("Wartung durchführen" legt seinen
+       Bericht ohne created_by_employee_id an, siehe maintenance_contracts.py::
+       create_maintenance_visit() -- der Monteur erreicht ihn erst über die Planung).
+
+    Kein vierter Weg (geprüft): Monteure legen selbst keine Aufträge an
+    (quick_service_orders.py ist Büro/Admin), Zeitbuchungen setzen 1./2. bereits voraus, und
+    jede andere Verbindung Mitarbeiter <-> Auftrag läuft über eine der drei Tabellen oben."""
+    individual, team = _assigned_order_id_queries(employee_id)
+    for stmt in (individual, team):
+        if db.scalar(stmt.where(WorkPreparation.order_id == order_id).limit(1)) is not None:
+            return True
+    own_report = (
+        select(ServiceReport.id)
+        .where(ServiceReport.order_id == order_id, ServiceReport.created_by_employee_id == employee_id)
+        .limit(1)
+    )
+    return db.scalar(own_report) is not None
 
 
 def order_to_dict(order: Order, db: Session | None = None, include_sync_state: bool = True) -> dict:
