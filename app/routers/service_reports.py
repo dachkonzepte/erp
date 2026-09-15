@@ -13,7 +13,7 @@ from ..database import get_db
 from ..modules import is_module_enabled
 from ..schemas import (
     InspectionItemCreate, InspectionItemOut, InspectionItemResultUpdate, InspectionItemsSyncResult,
-    PropertyOut, RoofAreaOut, ServiceReportCreate, ServiceReportMaterialCreate, ServiceReportMaterialOut,
+    PropertyAccessOut, RoofAreaOut, ServiceReportCreate, ServiceReportMaterialCreate, ServiceReportMaterialOut,
     ServiceReportMaterialUpdate, ServiceReportOut, ServiceReportPhotoOut, ServiceReportSign, ServiceReportUpdate,
 )
 from ..service_report_pdf import build_service_report_pdf
@@ -60,14 +60,18 @@ def get_roof_areas_for_order(order_id: int, db: Session = Depends(get_db)):
     return list_roof_areas_for_order(db, order_id)
 
 
-@router.get("/api/orders/{order_id}/property", response_model=PropertyOut | None)
+@router.get("/api/orders/{order_id}/property", response_model=PropertyAccessOut | None)
 def get_property_for_order(order_id: int, db: Session = Depends(get_db)):
     """Seit "Rechtekonzept" (siehe CLAUDE.md): der Weg, über den der Einsatzbericht Objektname/
     Anschrift/Zugang/Ansprechpartner vor Ort zeigt -- bewusst NICHT über /api/properties/{id}
     (Kundenkontext, für einen Monteur künftig gesperrt), sondern über den bereits erreichbaren
     Auftrag. Kein is_module_enabled()-Gate wie bei den übrigen Endpunkten dieser Datei -- ein
-    Objekt ist Kern-Stammdatum, nicht Teil des Moduls "wartungen"."""
-    return get_property_context_for_order(db, order_id)
+    Objekt ist Kern-Stammdatum, nicht Teil des Moduls "wartungen". Liefert seit 1.3.53
+    PropertyAccessOut statt PropertyOut -- die volle Property (inkl. `notes`/`customer_id`) hätte
+    genau den Kundenkontext wieder mitgeliefert, den dieser Endpunkt laut eigener Begründung
+    NICHT zeigen soll (echter Befund, siehe CLAUDE.md "Rechtekonzept")."""
+    prop = get_property_context_for_order(db, order_id)
+    return PropertyAccessOut.model_validate(prop) if prop is not None else None
 
 
 @router.get("/api/orders/{order_id}/service-reports", response_model=list[ServiceReportOut])

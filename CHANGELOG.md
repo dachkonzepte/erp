@@ -4,6 +4,46 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.53 – Rechtekonzept: Preisleck bei Monteur-Endpunkten behoben, ein echter Nebenfund
+
+Auf Rückmeldung behoben statt dokumentiert: `GET /api/materials` (für Monteure bewusst offen,
+siehe 1.3.52) lieferte weiterhin `purchase_price`/`price_basis` mit -- genau die Einkaufspreise,
+die ein Monteur nicht sehen soll. Entscheidung für Weg (a) (ein Endpunkt, rollenabhängige
+Antwort) statt eines zweiten, eigenen Endpunkts: geprüft, welche Felder
+`service_reports.html`s Materialsuche tatsächlich liest (`id`/`name`/`article_number`/`unit`) --
+genau diese vier bildet das neue `MaterialSearchOut` ab. `GET /api/materials` liefert seither für
+`field` `list[MaterialSearchOut]`, für Büro/Admin unverändert `list[MaterialCatalogOut]`
+(`response_model=list[MaterialCatalogOut] | list[MaterialSearchOut]`, FastAPI/Pydantic wählen
+das passende Modell anhand der tatsächlich zurückgegebenen Felder).
+
+Bei der zusätzlich angefragten Prüfung aller für Monteure bewusst offenen Endpunkte auf dasselbe
+Muster (Preise/Kosten/Vergütung/interne Notizen in der Antwort, aber nicht in der Oberfläche)
+zwei weitere echte Funde:
+
+1. **`GET /api/orders/{order_id}/property`** (seit 1.3.51, für den Einsatzbericht gebaut) lieferte
+   die volle `PropertyOut` -- inklusive `notes` (allgemeiner, büro-interner Freitext) und
+   `customer_id`, exakt der Kundenkontext, den dieser Endpunkt laut eigener Begründung NICHT
+   zeigen sollte. Neues, feldsicheres `PropertyAccessOut` (nur die Felder, die die "Objekt &
+   Zugang"-Karte tatsächlich anzeigt: Name/Anschrift/Zugang/Ansprechpartner vor Ort).
+2. **`GET /api/employees`** wurde in 1.3.52 blanket auf Büro+Admin gesperrt -- dabei übersehen,
+   dass `service_reports.html` (vom Monteur genutzt) darüber sein Mitarbeiter-Auswahlfeld für
+   die kompakte Zeitbuchung befüllt (`employees=await api('/api/employees').catch(()=>[])`). Die
+   Sperre hätte das Feld für `field` unbemerkt leer gelassen (der Fehler wurde durch `.catch()`
+   verschluckt) -- ein echter, in 1.3.52 selbst eingeführter Regressionsfund, kein Preisleck.
+   Behoben wie bei den Materialien: `GET /api/employees` bleibt für `field` erreichbar, liefert
+   aber `EmployeeNameOut` (nur `id`/`first_name`/`last_name`/`active`) statt der vollen
+   `EmployeeOut` mit Lohn-/Gehaltsfeldern und `important_info`. Einzelabruf/Anlegen/Ändern/
+   Sachbearbeiter-Liste bleiben für `field` weiterhin gesperrt.
+
+**Bewusst nicht Teil dieser Version**: `GET /api/orders/{id}` liefert weiterhin die volle,
+bepreiste Auftrags-LV an jede Rolle (der Endpunkt ist Teil der ~230 noch unklassifizierten
+Router aus 1.3.52) -- `service_reports.html` liest davon aktuell nur
+Auftragsnummer/Kundenname/-ID und die LV-Positionsliste für das "LV-Position optional"-Feld der
+Zeitbuchung, keine Preise. Eine Behebung braucht dieselbe Objekt-Filterung (`field_may_access_order()`,
+siehe CLAUDE.md "Rechtekonzept" → Etappe 3), die noch nicht gebaut ist -- eine isolierte
+Preis-Ausblendung ohne diese Filterung würde die eigentliche Frage ("darf `field` DIESEN Auftrag
+überhaupt sehen") nur verdecken. Gemeldet, nicht verschwiegen.
+
 ## 1.3.52 – Rechtekonzept, Etappe 3: der riskante Batch (Finanzen, Kalkulation, Mitarbeiter, Einstellungen, Benutzer, Historie, Aufgaben) + `can()` + Vollständigkeits-Audit
 
 Fortsetzung von 1.3.51, nach Risiko statt Alphabet geordnet (Vorgabe: Geld/Preise/Personendaten

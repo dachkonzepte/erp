@@ -21,7 +21,7 @@ from ..models import AppUser, Material, MaterialGroup
 from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
 from ..schemas import (
     MaterialCatalogCreate, MaterialCatalogOut, MaterialCatalogUpdate,
-    MaterialGroupCreate, MaterialGroupOut, MaterialMoveOrCopy,
+    MaterialGroupCreate, MaterialGroupOut, MaterialMoveOrCopy, MaterialSearchOut,
 )
 
 router = APIRouter()
@@ -29,18 +29,21 @@ router = APIRouter()
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Materialkatalog-Verwaltung ist Büro-/Admin-Bereich --
 # EINE Ausnahme: die Suche unten (GET /api/materials) wird von service_reports.html für die
 # Materialerfassung eines Monteurs am Einsatzbericht aufgerufen (siehe CLAUDE.md
-# "Materialerfassung"), bleibt deshalb für jede Rolle offen. Bekannter, noch offener Punkt
-# (siehe CLAUDE.md "Rechtekonzept"): MaterialCatalogOut trägt purchase_price -- ein Monteur
-# sieht darüber weiterhin Einkaufspreise, obwohl das ausdrücklich nicht gewünscht ist. Eine
-# echte Behebung (eigenes, preisloses Response-Schema für diesen Aufrufweg) ist bewusst NICHT
-# Teil dieser Etappe, um die Materialerfassung nicht zu brechen -- gemeldet, nicht verschwiegen.
+# "Materialerfassung"), bleibt deshalb für jede Rolle offen. Ein Monteur bekommt dafür seit
+# 1.3.53 nicht mehr MaterialCatalogOut (trägt purchase_price/price_basis -- Einkaufspreise),
+# sondern das feldsichere MaterialSearchOut mit exakt den vier Feldern, die die Suchmaske
+# tatsächlich liest -- master_data.html (Büro/Admin-Katalogverwaltung, braucht die Preise für
+# die Tabelle) ruft denselben Endpunkt weiterhin mit voller Antwort.
 _role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
 _any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
 
 
-@router.get("/api/materials", response_model=list[MaterialCatalogOut])
+@router.get("/api/materials", response_model=list[MaterialCatalogOut] | list[MaterialSearchOut])
 def get_materials(search: str | None = Query(default=None), catalog_id: int | None = Query(default=None), db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
-    return list_materials(db, search=search, catalog_id=catalog_id)
+    materials = list_materials(db, search=search, catalog_id=catalog_id)
+    if _role.role == ROLE_FIELD:
+        return [MaterialSearchOut.model_validate(m) for m in materials]
+    return materials
 
 
 @router.get("/api/materials/{material_id}", response_model=MaterialCatalogOut)

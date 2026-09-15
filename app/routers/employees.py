@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session, selectinload
 from ..database import get_db
 from ..employees import apply_employee_payload, employee_to_dict, ensure_default_employee_functions, ensure_employee_profiles, set_cost_allocation, set_planning_visibility
 from ..models import AppUser, Employee, EmployeeProfile, EmployeeRoleSettings
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
-from ..schemas import EmployeeCreate, EmployeeOut, EmployeeUpdate
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
+from ..schemas import EmployeeCreate, EmployeeNameOut, EmployeeOut, EmployeeUpdate
 
 router = APIRouter()
 
@@ -22,11 +22,21 @@ router = APIRouter()
 # (hourly_wage/effective_hourly_wage/annual_gross_wage) -- Büro/Admin, das war der zentrale
 # Fund der Suche-Bestandsaufnahme (jeder angemeldete Benutzer konnte das bisher lesen).
 _role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, message="Mitarbeiterdaten sind nur für Büro und Administratoren verfügbar."))
+# GET /api/employees allein bleibt zusätzlich für `field` offen -- service_reports.html (vom
+# Monteur genutzt) füllt darüber sein Mitarbeiter-Auswahlfeld für die kompakte Zeitbuchung
+# (nur id/first_name/last_name/active gelesen, siehe employeeOptionsHtml() dort). Ohne diese
+# Ausnahme wäre der Aufruf seit der obigen Sperre für `field` 403 gelaufen -- durch das dortige
+# `.catch(()=>[])` unbemerkt, das Auswahlfeld aber stillschweigend leer (echter, jetzt behobener
+# Fund). Ein Monteur bekommt dafür EmployeeNameOut statt EmployeeOut, siehe dort.
+_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
 
 
-@router.get("/api/employees", response_model=list[EmployeeOut])
-def list_employees(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    return [employee_to_dict(e, db) for e in ensure_employee_profiles(db)]
+@router.get("/api/employees", response_model=list[EmployeeOut] | list[EmployeeNameOut])
+def list_employees(db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    employees = [employee_to_dict(e, db) for e in ensure_employee_profiles(db)]
+    if _role.role == ROLE_FIELD:
+        return [EmployeeNameOut.model_validate(e) for e in employees]
+    return employees
 
 
 @router.get("/api/employees/caseworkers", response_model=list[EmployeeOut])

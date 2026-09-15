@@ -20,12 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.52** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf weiterhin `7a2b4e9f1c3d` ("app user role office field") -- 1.3.52 brauchte
-  keine eigene Migration (reine Rollen-Gate-Umstellung auf bereits bestehenden Endpunkten), siehe
-  Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
-  eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1177 passed, 1 xfailed** (nicht 1178/1178 grün -- eine der Testdateien aus
+- Version: **1.3.53** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf weiterhin `7a2b4e9f1c3d` ("app user role office field") -- weder 1.3.52
+  noch 1.3.53 brauchten eine eigene Migration (reine Rollen-Gate-/Response-Schema-Umstellungen
+  auf bereits bestehenden Endpunkten), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per
+  `alembic history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
+- Tests: **1178 passed, 1 xfailed** (nicht 1179/1179 grün -- eine der Testdateien aus
   "Rechtekonzept" enthält eine ABSICHTLICH weiterhin fehlschlagende Prüfung, siehe dort;
   `strict=False` verhindert, dass sie den Testlauf als Ganzes rot färbt), zuletzt am 15.09.2026
   mit `pytest` in Tobias' `.venv` unter Windows
@@ -654,8 +654,8 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   `changelog.py`, `catalogs.py`, `labor_rate.py`, `imports.py`, `audit.py`, `employees.py`
   (behebt den ursprünglichen Suche-Fund `hourly_wage`/`effective_hourly_wage`/
   `annual_gross_wage`), `services.py`, `users.py` (nur die Benutzerliste), `materials.py` (Suche
-  bleibt für Monteure offen, Verwaltung nicht -- bekannter, weiterhin offener Punkt: die Suche
-  liefert dabei `purchase_price` mit). Dazu, wie in 1.3.51 vorgeschlagen und vom Nutzer
+  bleibt für Monteure offen, Verwaltung nicht -- der dabei zunächst offen gebliebene Fund, dass
+  die Suche `purchase_price` mitliefert, ist seit 1.3.53 behoben, siehe dort). Dazu, wie in 1.3.51 vorgeschlagen und vom Nutzer
   bestätigt: **Aufgaben** (`app/routers/tasks.py`/`task_columns.py`, dazu die beiden
   `/api/tasks/{task_id}/finding`- und `.../create-follow-up-project`-Endpunkte, die aus
   historischen Gründen in `app/routers/findings.py` liegen) auf Büro+Admin umgestellt, Monteur
@@ -670,6 +670,22 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Endpunkte -- der Rest (überwiegend risikoärmer: Objekte, Aufträge, Angebote, Projekte,
   Einsatzberichte, Zeiterfassung, Plantafel u. a.) ist die nächste, separate Etappe, wie
   ausdrücklich vom Nutzer verlangt ("erst die riskanten, dann berichten, dann die übrigen").
+- Neu seit 1.3.53: **Rechtekonzept -- Preisleck bei `GET /api/materials` behoben, zwei weitere
+  echte Funde beim angefragten Nachziehen desselben Musters.** `field` bekommt seither
+  `MaterialSearchOut` (nur `id`/`article_number`/`name`/`unit`) statt der vollen
+  `MaterialCatalogOut` (`purchase_price`/`price_basis`) -- ein Endpunkt, rollenabhängige Antwort
+  (`response_model=list[MaterialCatalogOut] | list[MaterialSearchOut]`), keine zweite Route.
+  Dieselbe Prüfung bei allen bewusst für `field` offenen Endpunkten ergab zwei weitere Funde:
+  `GET /api/orders/{order_id}/property` (seit 1.3.51) lieferte die volle `PropertyOut` inkl.
+  `notes`/`customer_id` -- genau der Kundenkontext, den der Endpunkt laut eigener Begründung
+  nicht zeigen sollte, jetzt `PropertyAccessOut`. `GET /api/employees` war seit der 1.3.52-Sperre
+  für `field` komplett unerreichbar (403), obwohl `service_reports.html` darüber sein
+  Mitarbeiter-Auswahlfeld für die Zeitbuchung füllt (durch `.catch(()=>[])` unbemerkt leer
+  geblieben) -- jetzt wieder erreichbar, liefert `field` aber `EmployeeNameOut` (nur
+  `id`/`first_name`/`last_name`/`active`) statt der vollen `EmployeeOut`. Bewusst nicht
+  behoben: `GET /api/orders/{id}` liefert weiterhin die volle, bepreiste LV an jede Rolle --
+  das braucht die noch nicht gebaute Objekt-Filterung (Etappe 3), siehe CLAUDE.md
+  "Rechtekonzept" und CHANGELOG.md für die volle Begründung.
 
 ## Produktivbetrieb (seit 14.09.2026)
 

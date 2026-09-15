@@ -15,6 +15,7 @@ deshalb ABSICHTLICH so gebaut, dass er die noch unklassifizierten Endpunkte NAME
 
 import importlib
 import pkgutil
+from decimal import Decimal
 
 import pytest
 
@@ -127,14 +128,32 @@ class TestRoleGateOnTheHighRiskBatch:
     oben sicher, hier geht es um den tatsächlichen Ablehnungsnachweis für die sensibelsten
     Fälle je Datei."""
 
-    def test_field_is_rejected_from_employee_wage_data(self, router_test_client, threaded_db_session):
+    def test_field_gets_no_wage_data_from_the_employee_list(self, router_test_client, threaded_db_session):
         """Der ursprüngliche Fund der Suche-Bestandsaufnahme: EmployeeOut trägt
-        hourly_wage/effective_hourly_wage/annual_gross_wage -- genau das darf ein Monteur
-        nicht mehr sehen."""
+        hourly_wage/effective_hourly_wage/annual_gross_wage -- genau das darf ein Monteur nicht
+        sehen. GET /api/employees bleibt für `field` seit 1.3.53 aber ERREICHBAR (statt 403) --
+        service_reports.html füllt darüber sein Mitarbeiter-Auswahlfeld für die Zeitbuchung,
+        siehe CLAUDE.md 'Rechtekonzept' -- liefert dafür nur EmployeeNameOut (id/first_name/
+        last_name/active), kein Lohn-/Gehaltsfeld. Die übrige Verwaltung (Einzelabruf/Anlegen/
+        Ändern/Sachbearbeiter-Liste) bleibt für field weiterhin gesperrt."""
+        from app.employees import ensure_employee_profiles
+        from app.models import Employee
         from app.routers.employees import router as employees_router
+        emp = Employee(first_name="Erika", last_name="Testfrau", employee_group="angestellt",
+                        hourly_wage="45", weekly_hours="40", active=True)
+        threaded_db_session.add(emp); threaded_db_session.commit()
+        ensure_employee_profiles(threaded_db_session)
+
         client = router_test_client(threaded_db_session, employees_router, role="field")
         response = client.get("/api/employees")
-        assert response.status_code == 403
+        assert response.status_code == 200
+        rows = response.json()
+        assert len(rows) == 1
+        assert set(rows[0].keys()) == {"id", "first_name", "last_name", "active"}
+
+        assert client.get(f"/api/employees/{emp.id}").status_code == 403
+        assert client.get("/api/employees/caseworkers").status_code == 403
+        assert client.post("/api/employees", json={"first_name": "x", "last_name": "y"}).status_code == 403
 
     def test_office_still_reaches_employee_wage_data(self, router_test_client, threaded_db_session):
         from app.routers.employees import router as employees_router
@@ -167,14 +186,27 @@ class TestRoleGateOnTheHighRiskBatch:
         assert client.get("/api/settings/general/logo").status_code == 404  # kein Logo hinterlegt, aber KEIN 403
         assert client.delete("/api/settings/general/logo").status_code == 403
 
-    def test_field_can_still_search_materials_but_not_manage_the_catalog(self, router_test_client, threaded_db_session):
-        """Bekannter, bewusst offener Punkt (siehe CLAUDE.md "Rechtekonzept"): die Suche liefert
-        weiterhin purchase_price mit -- hier nur belegt, dass die Rollenprüfung selbst wie
-        vorgesehen greift (Suche offen, Verwaltung gesperrt), nicht der Preis-Fund behoben ist."""
+    def test_field_can_still_search_materials_but_gets_no_purchase_price(self, router_test_client, threaded_db_session):
+        """Seit 1.3.53 behoben (vorher bekannter, offener Punkt, siehe CLAUDE.md
+        'Rechtekonzept'): GET /api/materials bleibt für Monteure erreichbar (Materialerfassung
+        am Einsatzbericht), liefert ihnen aber MaterialSearchOut statt MaterialCatalogOut --
+        kein purchase_price/price_basis/catalog_id/source in der Antwort. Verwaltung
+        (POST/PUT/move/copy) bleibt für field weiterhin gesperrt."""
+        from app.materials import create_manual_material
         from app.routers.materials import router as materials_router
-        client = router_test_client(threaded_db_session, materials_router, role="field")
-        assert client.get("/api/materials").status_code == 200
-        assert client.post("/api/materials", json={"name": "x", "unit": "Stk", "purchase_price": "1"}).status_code == 403
+        create_manual_material(threaded_db_session, "Dachziegel rot", "Stk", Decimal("12.50"))
+
+        field_client = router_test_client(threaded_db_session, materials_router, role="field")
+        field_response = field_client.get("/api/materials")
+        assert field_response.status_code == 200
+        field_rows = field_response.json()
+        assert len(field_rows) == 1
+        assert set(field_rows[0].keys()) == {"id", "article_number", "name", "unit"}
+        assert field_client.post("/api/materials", json={"name": "x", "unit": "Stk", "purchase_price": "1"}).status_code == 403
+
+        office_client = router_test_client(threaded_db_session, materials_router, role="office")
+        office_rows = office_client.get("/api/materials").json()
+        assert Decimal(office_rows[0]["purchase_price"]) == Decimal("12.50")
 
     def test_field_is_rejected_from_the_user_list_and_audit_log(self, router_test_client, threaded_db_session):
         from app.routers.audit import router as audit_router

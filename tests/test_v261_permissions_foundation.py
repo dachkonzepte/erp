@@ -68,7 +68,7 @@ def _make_order_with_property(db, order_number="AUF-TEST-0001"):
     prop = Property(
         customer_id=customer.id, name="Baustelle Nord", street="Teststr. 1", city="Teststadt",
         access_notes="Schlüsselkasten Code 4711", site_contact_name="Herr Meier",
-        site_contact_phone="0170 1234567",
+        site_contact_phone="0170 1234567", notes="Büro-interner Vermerk, nicht für den Monteur",
     )
     db.add(prop); db.flush()
     project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id, property_id=prop.id)
@@ -112,6 +112,23 @@ def test_get_property_for_order_endpoint(router_test_client, threaded_db_session
     data = response.json()
     assert data["access_notes"] == "Schlüsselkasten Code 4711"
     assert data["site_contact_phone"] == "0170 1234567"
+
+
+def test_get_property_for_order_endpoint_does_not_leak_internal_notes_or_customer_context(router_test_client, threaded_db_session):
+    """Seit 1.3.53 behoben (echter Befund, siehe CLAUDE.md 'Rechtekonzept'): PropertyOut (die
+    vorherige Antwortform) trug `notes`/`customer_id` mit -- genau der Kundenkontext, den dieser
+    Endpunkt laut eigener Begründung NICHT zeigen soll. PropertyAccessOut lässt beide weg."""
+    from app.routers.service_reports import router as sr_router
+    order, prop = _make_order_with_property(threaded_db_session)
+    client = router_test_client(threaded_db_session, sr_router)
+    data = client.get(f"/api/orders/{order.id}/property").json()
+    assert "notes" not in data
+    assert "customer_id" not in data
+    assert "is_primary_address" not in data
+    assert set(data.keys()) == {
+        "id", "name", "street", "postal_code", "city",
+        "access_notes", "site_contact_name", "site_contact_phone",
+    }
 
 
 # ---------------------------------------------------------------------------

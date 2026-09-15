@@ -260,6 +260,27 @@ class PropertyOut(PropertyCreate):
     is_primary_address: bool = False
 
 
+class PropertyAccessOut(BaseModel):
+    """Rechtekonzept (seit 1.3.53, siehe CLAUDE.md): feldsicheres Gegenstück zu PropertyOut für
+    GET /api/orders/{order_id}/property -- exakt die Felder, die service_reports.html's
+    "Objekt & Zugang"-Karte tatsächlich anzeigt (Name/Anschrift/Zugang/Ansprechpartner vor Ort).
+    Bewusst OHNE `notes` (allgemeines, büro-internes Freitextfeld, nicht für den Einsatzbericht
+    gedacht) und OHNE `customer_id`/`is_primary_address` (Kundenkontext, den ein Monteur laut
+    Docstring von get_property_context_for_order() gerade NICHT über diesen Weg erreichen soll)
+    -- PropertyOut selbst trug bisher alle diese Felder mit, obwohl der Endpunkt ausdrücklich
+    dafür gebaut wurde, den Kundenkontext NICHT zu zeigen (echter Befund, kein Design-Fehler
+    dieser Version)."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    street: str | None
+    postal_code: str | None
+    city: str | None
+    access_notes: str | None
+    site_contact_name: str | None
+    site_contact_phone: str | None
+
+
 class PropertyUpdate(BaseModel):
     customer_id: int | None = None
     name: str = Field(min_length=1, max_length=255)
@@ -806,6 +827,21 @@ class EmployeeOut(EmployeeCreate):
     function_name: str | None = None
     effective_hourly_wage: Decimal | None = None
     annual_gross_wage: Decimal | None = None
+
+
+class EmployeeNameOut(BaseModel):
+    """Rechtekonzept (seit 1.3.53, siehe CLAUDE.md): feldsicheres Gegenstück zu EmployeeOut für
+    GET /api/employees, wenn ein Monteur (`field`) aufruft -- service_reports.html braucht von
+    dort ausschließlich id/first_name/last_name/active für das Mitarbeiter-Auswahlfeld der
+    kompakten Zeitbuchung (echter, bei der 1.3.52-Sperre übersehener Fund: `_role_dep` blockierte
+    diesen Endpunkt für `field` komplett, das Auswahlfeld blieb dadurch stillschweigend leer,
+    siehe der Aufruf mit `.catch(()=>[])`). Ohne Lohn-/Gehaltsfelder UND ohne `important_info`
+    (freier, büro-interner Vermerk)."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    first_name: str
+    last_name: str
+    active: bool
 
 
 class LaborRateSettingsOut(BaseModel):
@@ -2235,6 +2271,20 @@ class MaterialCatalogOut(BaseModel):
     source: str
     catalog_id: int | None
     created_at: datetime
+
+
+class MaterialSearchOut(BaseModel):
+    """Rechtekonzept (seit 1.3.53, siehe CLAUDE.md): feldsicheres Gegenstück zu
+    MaterialCatalogOut für GET /api/materials, wenn ein Monteur (`field`) aufruft --
+    exakt die Felder, die service_reports.html's Materialsuche tatsächlich liest
+    (id/name/article_number für die Trefferliste, unit für die Übernahme ins
+    Erfassungsformular), ohne purchase_price/price_basis (Einkaufspreise) oder
+    catalog_id/source/created_at (für die Suche ohne Bedeutung)."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    article_number: str | None
+    name: str
+    unit: str
 
 
 class MaterialCatalogCreate(BaseModel):
