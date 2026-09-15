@@ -68,17 +68,22 @@ def router_test_client():
     Admin-Kontext -- reine Test-Infrastruktur, betrifft nicht die Auth-Prüfung selbst.
 
     Verwendung: client = router_test_client(db, some_router, other_router); db muss mit der
-    threaded_db_session-Fixture erzeugt worden sein."""
-    def _make(db, *routers):
+    threaded_db_session-Fixture erzeugt worden sein.
+
+    Seit "Rechtekonzept" (siehe CLAUDE.md): optionale Parameter role/employee_id, um dieselbe
+    Test-App auch als Büro-/Monteur-Konto statt fest als Administrator zu durchlaufen (z. B. um
+    require_role(...)-Ablehnungen zu belegen) -- Vorgabewerte bleiben "admin"/None, kein
+    bestehender Aufruf muss sich ändern."""
+    def _make(db, *routers, role="admin", employee_id=None):
         app = FastAPI()
         for router in routers:
             app.include_router(router)
 
         @app.middleware("http")
-        async def _fake_admin_identity(request, call_next):
+        async def _fake_identity(request, call_next):
             request.state.erp_user = AppUser(
-                username="admin-test", display_name="Admin", role="admin", active=True,
-                password_hash=hash_password("Passwort123"),
+                username=f"{role}-test", display_name=role.capitalize(), role=role, active=True,
+                employee_id=employee_id, password_hash=hash_password("Passwort123"),
             )
             return await call_next(request)
 

@@ -13,17 +13,17 @@ from ..database import get_db
 from ..modules import is_module_enabled
 from ..schemas import (
     InspectionItemCreate, InspectionItemOut, InspectionItemResultUpdate, InspectionItemsSyncResult,
-    RoofAreaOut, ServiceReportCreate, ServiceReportMaterialCreate, ServiceReportMaterialOut,
+    PropertyOut, RoofAreaOut, ServiceReportCreate, ServiceReportMaterialCreate, ServiceReportMaterialOut,
     ServiceReportMaterialUpdate, ServiceReportOut, ServiceReportPhotoOut, ServiceReportSign, ServiceReportUpdate,
 )
 from ..service_report_pdf import build_service_report_pdf
 from ..service_report_photos import MAX_UPLOAD_BYTES, photo_path
 from ..service_reports import (
     add_inspection_item, add_material, add_photo, create_report, delete_inspection_item, delete_material,
-    delete_photo, delete_report, get_report_row, list_inspection_items, list_materials_for_invoicing,
-    list_materials_for_report, list_photos, list_property_history, list_reports, list_roof_areas_for_order,
-    material_to_dict, regenerate_inspection_items, sign_report, sync_inspection_items, update_inspection_item,
-    update_material, update_report,
+    delete_photo, delete_report, get_property_context_for_order, get_report_row, list_inspection_items,
+    list_materials_for_invoicing, list_materials_for_report, list_photos, list_property_history, list_reports,
+    list_roof_areas_for_order, material_to_dict, regenerate_inspection_items, sign_report, sync_inspection_items,
+    update_inspection_item, update_material, update_report,
 )
 from ..models import ServiceReportPhoto
 
@@ -58,6 +58,16 @@ def _employee_for_request(request: Request, requested_employee_id: int | None) -
 def get_roof_areas_for_order(order_id: int, db: Session = Depends(get_db)):
     _require_module_enabled(db)
     return list_roof_areas_for_order(db, order_id)
+
+
+@router.get("/api/orders/{order_id}/property", response_model=PropertyOut | None)
+def get_property_for_order(order_id: int, db: Session = Depends(get_db)):
+    """Seit "Rechtekonzept" (siehe CLAUDE.md): der Weg, über den der Einsatzbericht Objektname/
+    Anschrift/Zugang/Ansprechpartner vor Ort zeigt -- bewusst NICHT über /api/properties/{id}
+    (Kundenkontext, für einen Monteur künftig gesperrt), sondern über den bereits erreichbaren
+    Auftrag. Kein is_module_enabled()-Gate wie bei den übrigen Endpunkten dieser Datei -- ein
+    Objekt ist Kern-Stammdatum, nicht Teil des Moduls "wartungen"."""
+    return get_property_context_for_order(db, order_id)
 
 
 @router.get("/api/orders/{order_id}/service-reports", response_model=list[ServiceReportOut])

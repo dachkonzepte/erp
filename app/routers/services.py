@@ -13,7 +13,8 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..calculation import build_calculation, get_settings_for_catalog, get_service_for_calculation
 from ..database import get_db
-from ..models import Catalog, Material, MaterialCalculationOverride, Service, ServiceCalculation
+from ..models import AppUser, Catalog, Material, MaterialCalculationOverride, Service, ServiceCalculation
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
 from ..schemas import (
     ServiceBaseUpdate, ServiceCalculationOut, ServiceCalculationUpdate, ServiceCreate,
     ServiceDetailOut, ServiceListOut, ServiceMaterialAdd, ServiceMoveOrCopy,
@@ -25,8 +26,14 @@ from ..services import (
 
 router = APIRouter()
 
+# Seit "Rechtekonzept" (siehe CLAUDE.md): Leistungskatalog trägt Kalkulation/Verkaufspreise --
+# Büro/Admin, nirgends von einer Monteurs-Seite genutzt (geprüft, anders als bei
+# GET /api/materials, siehe dort).
+_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+
+
 @router.get("/api/services", response_model=list[ServiceListOut])
-def list_services(catalog_id: int | None = Query(default=None), db: Session = Depends(get_db)):
+def list_services(catalog_id: int | None = Query(default=None), db: Session = Depends(get_db), _role: AppUser = _role_dep):
     settings_cache: dict[int | None, object] = {}
     stmt = (
         select(Service)
@@ -77,7 +84,7 @@ def _resolve_materials(db: Session, items: list[ServiceMaterialAdd]) -> list[tup
 
 
 @router.post("/api/services", response_model=ServiceDetailOut)
-def create_service(payload: ServiceCreate, db: Session = Depends(get_db)):
+def create_service(payload: ServiceCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     """Erzeugt eine manuell erfasste Leistung mit vollständiger Kalkulation
     (Zeit, Material aus dem Katalog, Fremdleistung, Zuschläge). Eigentliche
     Logik in app/services.py, testbar ohne FastAPI."""
@@ -106,7 +113,7 @@ _EDIT_LOCKED_DETAIL = "Importierte Leistungen können nicht direkt bearbeitet we
 
 
 @router.put("/api/services/{service_id}", response_model=ServiceDetailOut)
-def update_service_base(service_id: int, payload: ServiceBaseUpdate, db: Session = Depends(get_db)):
+def update_service_base(service_id: int, payload: ServiceBaseUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     service = get_service_for_calculation(db, service_id)
     if service is None:
         raise HTTPException(status_code=404, detail="Leistung nicht gefunden.")
@@ -120,7 +127,7 @@ def update_service_base(service_id: int, payload: ServiceBaseUpdate, db: Session
 
 
 @router.post("/api/services/{service_id}/materials", response_model=ServiceDetailOut)
-def add_service_material(service_id: int, payload: ServiceMaterialAdd, db: Session = Depends(get_db)):
+def add_service_material(service_id: int, payload: ServiceMaterialAdd, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     service = get_service_for_calculation(db, service_id)
     if service is None:
         raise HTTPException(status_code=404, detail="Leistung nicht gefunden.")
@@ -135,7 +142,7 @@ def add_service_material(service_id: int, payload: ServiceMaterialAdd, db: Sessi
 
 
 @router.delete("/api/services/{service_id}/materials/{service_material_id}", response_model=ServiceDetailOut)
-def delete_service_material(service_id: int, service_material_id: int, db: Session = Depends(get_db)):
+def delete_service_material(service_id: int, service_material_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     service = get_service_for_calculation(db, service_id)
     if service is None:
         raise HTTPException(status_code=404, detail="Leistung nicht gefunden.")
@@ -149,7 +156,7 @@ def delete_service_material(service_id: int, service_material_id: int, db: Sessi
 
 
 @router.post("/api/services/{service_id}/move", response_model=ServiceDetailOut)
-def move_service(service_id: int, payload: ServiceMoveOrCopy, db: Session = Depends(get_db)):
+def move_service(service_id: int, payload: ServiceMoveOrCopy, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     service = db.get(Service, service_id)
     if service is None:
         raise HTTPException(status_code=404, detail="Leistung nicht gefunden.")
@@ -162,7 +169,7 @@ def move_service(service_id: int, payload: ServiceMoveOrCopy, db: Session = Depe
 
 
 @router.post("/api/services/{service_id}/copy", response_model=ServiceDetailOut)
-def copy_service(service_id: int, payload: ServiceMoveOrCopy, db: Session = Depends(get_db)):
+def copy_service(service_id: int, payload: ServiceMoveOrCopy, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     """Erzeugt eine unabhängige Kopie einer Leistung -- ein späterer
     Re-Import der ursprünglichen Quelle wirkt sich nicht auf die Kopie aus,
     siehe Konzept 'Fertigkatalog nur zur Aufnahme, Arbeit findet in eigenen
@@ -178,7 +185,7 @@ def copy_service(service_id: int, payload: ServiceMoveOrCopy, db: Session = Depe
 
 
 @router.get("/api/services/{service_id}", response_model=ServiceDetailOut)
-def get_service(service_id: int, db: Session = Depends(get_db)):
+def get_service(service_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     service = db.scalar(
         select(Service)
         .options(selectinload(Service.materials))
@@ -190,7 +197,7 @@ def get_service(service_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/services/{service_id}/calculation", response_model=ServiceCalculationOut)
-def get_service_calculation(service_id: int, db: Session = Depends(get_db)):
+def get_service_calculation(service_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     service = get_service_for_calculation(db, service_id)
     if service is None:
         raise HTTPException(status_code=404, detail="Leistung nicht gefunden.")
@@ -203,6 +210,7 @@ def update_service_calculation(
     service_id: int,
     payload: ServiceCalculationUpdate,
     db: Session = Depends(get_db),
+    _role: AppUser = _role_dep,
 ):
     service = get_service_for_calculation(db, service_id)
     if service is None:

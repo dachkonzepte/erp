@@ -20,7 +20,7 @@ from ..schemas import AppUserCreate, AppUserOut, AppUserUpdate
 router = APIRouter()
 
 @router.get("/api/users", response_model=list[AppUserOut])
-def list_app_users(db: Session = Depends(get_db)):
+def list_app_users(db: Session = Depends(get_db), current: AppUser = Depends(require_admin("Nur Administratoren dürfen die Benutzerliste einsehen."))):
     return db.scalars(select(AppUser).order_by(AppUser.display_name)).all()
 
 

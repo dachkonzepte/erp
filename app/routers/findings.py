@@ -12,13 +12,25 @@ from ..findings import (
     create_finding, create_follow_up_project_for_task, get_finding_for_task, list_findings,
     list_findings_for_component, list_findings_for_report, update_finding_followup,
 )
+from ..models import AppUser
 from ..modules import is_module_enabled
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
 from ..schemas import FindingCreate, FindingFollowupUpdate, FindingOut
 from .service_reports import _employee_for_request
 
 router = APIRouter()
 
 MODULE_KEY = "wartungen"
+
+# Seit "Rechtekonzept" (siehe CLAUDE.md → "Aufgaben"): die beiden /api/tasks/{task_id}/...-
+# Endpunkte unten gehören inhaltlich zur Aufgaben-Sperre für `field` (dieselbe Entscheidung wie
+# in app/routers/tasks.py/task_columns.py), auch wenn sie aus historischen Gründen in dieser
+# Datei liegen -- "Vorgang erstellen" aus einer Aufgabe heraus ist ohnehin eine Büro-Aktion am
+# Schreibtisch (siehe CLAUDE.md "Aufgabe"). Die übrigen Endpunkte dieser Datei (Mängel-
+# Workflow während eines Einsatzberichts) bleiben bewusst unklassifiziert -- Teil der nächsten,
+# noch zu bestätigenden Etappe (Monteure erfassen Mängel selbst, siehe CLAUDE.md "Mängel und
+# Fotos"), nicht dieser Runde.
+_task_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
 
 
 def _require_module_enabled(db: Session):
@@ -81,7 +93,7 @@ def get_component_findings(component_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/tasks/{task_id}/finding", response_model=FindingOut | None)
-def get_task_finding(task_id: int, db: Session = Depends(get_db)):
+def get_task_finding(task_id: int, db: Session = Depends(get_db), _role: AppUser = _task_role_dep):
     """Rückrichtung von einer Aufgabe zum Mangel, der sie erzeugt hat (seit 1.2.21) -- für die
     "Vorgang erstellen"-Schaltfläche im Aufgaben-Editor. URL-Präfix richtet sich nach dem
     Task-Kontext, aus dem der Endpunkt aufgerufen wird; die Business-Logik bleibt in
@@ -91,7 +103,7 @@ def get_task_finding(task_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api/tasks/{task_id}/create-follow-up-project")
-def post_task_create_follow_up_project(task_id: int, db: Session = Depends(get_db)):
+def post_task_create_follow_up_project(task_id: int, db: Session = Depends(get_db), _role: AppUser = _task_role_dep):
     _require_module_enabled(db)
     try:
         return create_follow_up_project_for_task(db, task_id)

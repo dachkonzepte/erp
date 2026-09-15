@@ -10,13 +10,21 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import require_admin
+from ..models import AppUser
 from ..modules import is_module_enabled
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
 from ..schemas import TaskColumnCreate, TaskColumnOut, TaskColumnReorder, TaskColumnUpdate
 from ..task_columns import create_column, delete_column, list_columns, reorder_columns, update_column
 
 router = APIRouter()
 
 MODULE_KEY = "aufgabenmanagement"
+
+# Seit "Rechtekonzept" (siehe CLAUDE.md → "Aufgaben"): dieselbe Büro+Admin-Sperre wie in
+# tasks.py -- Aufgaben bleiben für `field` vorerst vollständig gesperrt, das schließt auch die
+# Spaltenliste des Kanban-Boards mit ein. Die vier verändernden Endpunkte sind bereits
+# require_admin()-gated (strenger als office) und bleiben unverändert.
+_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
 
 
 def _require_module_enabled(db: Session):
@@ -25,7 +33,7 @@ def _require_module_enabled(db: Session):
 
 
 @router.get("/api/task-columns", response_model=list[TaskColumnOut])
-def get_task_columns(db: Session = Depends(get_db)):
+def get_task_columns(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return list_columns(db)
 

@@ -57,6 +57,7 @@ def _render(logo_url=None, height=64):
     # Seiten binden seit 1.3.45 zusätzlich _topbar.html ein, das account_display() aufruft --
     # auch das nur ein Stub, echtes Verhalten wird in tests/test_v254_topbar.py getestet.
     env.globals["account_display"] = lambda current_user: {"full_name": "", "initials": ""}
+    env.globals["can"] = lambda current_user, *roles: current_user is not None and current_user.role in roles
     tmpl = env.get_template("project_folder.html")  # eine beliebige Seite, die _sidebar.html einbindet
     return tmpl.render(request=_FakeRequest("/x", _FakeUser()), app_version="1.0.0", project_id=1)
 

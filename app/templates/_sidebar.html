@@ -81,7 +81,10 @@
    _mobile_header.html) hat einen eigenen, komplett unabhängigen Abmelden-Weg (#mobileHeaderLogout,
    eigene CSS-Klassen ohne app-sidebar-Präfix) und ist von dieser Aufräumung nicht betroffen. #}
 {% set current_user = request.state.erp_user %}
-{% set is_admin = current_user and current_user.role == 'admin' %}
+{# Seit "Rechtekonzept" (siehe CLAUDE.md): Rollenprüfung läuft ausschließlich über den
+   can(current_user, ...)-Jinja-Global (app/routers/pages.py) -- kein current_user.role-
+   Vergleich mehr direkt hier, damit nicht doch wieder zwei leicht unterschiedliche Wege
+   entstehen (siehe Kommentar bei can() für die Begründung). #}
 {% set path = request.url.path %}
 <style>
 .app-layout{display:flex;min-height:100vh}
@@ -169,7 +172,10 @@
   </div>
   <nav class="app-sidebar-nav">
     <a class="app-sidebar-link{{ ' active' if path == '/' }}" href="/"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9"/><path d="M10 20v-6h4v6"/></svg></span><span class="app-sidebar-label">Start</span></a>
-    {% if is_module_enabled('aufgabenmanagement') %}
+    {# Seit "Rechtekonzept": Aufgaben bleiben für Monteure gesperrt (siehe CLAUDE.md
+       "Rechtekonzept" → "Aufgaben" -- heute wird in der echten Datenbank keine einzige
+       Aufgabe an einen Monteur zugewiesen, kein Anwendungsfall dafür). #}
+    {% if is_module_enabled('aufgabenmanagement') and can(current_user, 'admin', 'office') %}
     <a class="app-sidebar-link{{ ' active' if path == '/tasks' }}" href="/tasks"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="4.5" y="3.5" width="15" height="17" rx="0"/><polyline points="8,9 9.3,10.3 12,7.6"/><line x1="14" y1="9" x2="16.5" y2="9"/><polyline points="8,15 9.3,16.3 12,13.6"/><line x1="14" y1="15" x2="16.5" y2="15"/></svg></span><span class="app-sidebar-label">Aufgaben</span></a>
     {% endif %}
     {% if is_module_enabled('wartungen') %}
@@ -180,15 +186,23 @@
     <a class="app-sidebar-link{{ ' active' if path == '/projects' }}" href="/projects"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a1 1 0 0 1 1-1h4.5l2 2h8.5a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/></svg></span><span class="app-sidebar-label">Projekte</span></a>
     <a class="app-sidebar-link{{ ' active' if path == '/planning' }}" href="/planning"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg></span><span class="app-sidebar-label">Planung</span></a>
     <a class="app-sidebar-link{{ ' active' if path == '/time-tracking' }}" href="/time-tracking"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.3"/><polyline points="12,7.3 12,12 15.3,14"/></svg></span><span class="app-sidebar-label">Zeiterfassung</span></a>
-    {% if is_admin %}
+    {% if can(current_user, 'admin') %}
     <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/time-backoffice' }}" href="/time-backoffice"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="5.5" y="3" width="13" height="18"/><line x1="8" y1="7.5" x2="16" y2="7.5"/><line x1="8" y1="11.5" x2="16" y2="11.5"/><line x1="8" y1="15.5" x2="13" y2="15.5"/></svg></span><span class="app-sidebar-label">Backoffice</span></a>
     {% endif %}
+    {# Seit "Rechtekonzept" (siehe CLAUDE.md): Finanzen/Mahnwesen/Stammdaten/Einstellungen sind
+       für einen Monteur nicht vorgesehen -- ausgeblendet, nicht nur ausgegraut. Das Ausblenden
+       läuft der Backend-Absicherung teils voraus (siehe CLAUDE.md "Rechtekonzept" → Etappenplan,
+       "erst die riskanten Router, dann die übrigen") -- ein verstecktes, aber noch nicht
+       serverseitig gesperrtes Ziel ist kein neues Risiko (die direkte URL war vorher genauso
+       erreichbar), nur noch keine vollständige Absicherung. #}
+    {% if can(current_user, 'admin', 'office') %}
     <a class="app-sidebar-link{{ ' active' if path == '/finanzen' }}" href="/finanzen"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M16.5 7.2a5.8 5.8 0 1 0 0 9.6"/><line x1="6" y1="10.5" x2="14" y2="10.5"/><line x1="6" y1="13.5" x2="13" y2="13.5"/></svg></span><span class="app-sidebar-label">Finanzen</span></a>
     <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/mahnwesen' }}" href="/mahnwesen"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13"/><polyline points="3.7,6 12,13 20.3,6"/></svg></span><span class="app-sidebar-label">Mahnwesen</span></a>
     <div class="app-sidebar-group">Stammdaten</div>
     <a class="app-sidebar-link{{ ' active' if path == '/master-data' }}" href="/master-data"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6.3" rx="8" ry="2.8"/><path d="M4 6.3v5.7c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8V6.3"/><path d="M4 12v5.7c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8V12"/></svg></span><span class="app-sidebar-label">Stammdaten</span></a>
     <div class="app-sidebar-group">System</div>
     <a class="app-sidebar-link{{ ' active' if path == '/settings' }}" href="/settings"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><circle class="fdot" cx="9" cy="7" r="1.7"/><line x1="4" y1="12.5" x2="20" y2="12.5"/><circle class="fdot" cx="15" cy="12.5" r="1.7"/><line x1="4" y1="18" x2="20" y2="18"/><circle class="fdot" cx="7" cy="18" r="1.7"/></svg></span><span class="app-sidebar-label">Einstellungen</span></a>
+    {% endif %}
   </nav>
   <div class="app-sidebar-bottom">
     <div class="app-sidebar-utilities">

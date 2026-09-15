@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import require_admin
 from ..modules import is_module_enabled
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
 from ..schemas import (
     TaskChecklistItemCreate, TaskChecklistItemOut, TaskChecklistItemUpdate,
     TaskCreate, TaskOut, TaskSettingsOut, TaskSettingsUpdate, TaskUpdate,
@@ -21,11 +22,19 @@ from ..tasks import (
     add_checklist_item, create_task, delete_checklist_item, delete_task,
     get_or_create_task_settings, list_tasks, set_task_archived, update_checklist_item, update_task, update_task_settings,
 )
-from ..models import Task
+from ..models import AppUser, Task
 
 router = APIRouter()
 
 MODULE_KEY = "aufgabenmanagement"
+
+# Seit "Rechtekonzept" (siehe CLAUDE.md → "Aufgaben"): heute wird in der echten Datenbank keine
+# einzige Aufgabe an einen Monteur zugewiesen -- Aufgaben bleiben deshalb für `field` vorerst
+# vollständig gesperrt, unabhängig von der bereits bestehenden Employee-Eigentümer-Filterung
+# unten (die weiterhin unverändert für jeden Nicht-Admin greift, der `office` erreicht). Siehe
+# CLAUDE.md für die dabei gefundene, noch offene Lücke (PUT/DELETE/archive prüfen heute KEINE
+# Eigentümerschaft) -- Grund, warum eine Öffnung für `field` nicht ohne Weiteres möglich ist.
+_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
 
 
 def _require_module_enabled(db: Session):
@@ -46,7 +55,8 @@ def _require_task_access(db: Session, request: Request, task_id: int) -> Task:
 
 @router.get("/api/tasks", response_model=list[TaskOut])
 def get_tasks(request: Request, employee_id: int | None = None, status: str | None = None,
-              project_id: int | None = None, include_archived: bool = False, db: Session = Depends(get_db)):
+              project_id: int | None = None, include_archived: bool = False, db: Session = Depends(get_db),
+              _role: AppUser = _role_dep):
     _require_module_enabled(db)
     user = getattr(request.state, "erp_user", None)
     if user is not None and user.role != "admin":
@@ -57,7 +67,7 @@ def get_tasks(request: Request, employee_id: int | None = None, status: str | No
 
 
 @router.post("/api/tasks", response_model=TaskOut)
-def post_task(payload: TaskCreate, request: Request, db: Session = Depends(get_db)):
+def post_task(payload: TaskCreate, request: Request, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     user = getattr(request.state, "erp_user", None)
     try:
@@ -72,7 +82,7 @@ def post_task(payload: TaskCreate, request: Request, db: Session = Depends(get_d
 
 
 @router.put("/api/tasks/{task_id}", response_model=TaskOut)
-def put_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db)):
+def put_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         result = update_task(
@@ -88,7 +98,7 @@ def put_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db)):
 
 
 @router.delete("/api/tasks/{task_id}")
-def delete_task_endpoint(task_id: int, db: Session = Depends(get_db)):
+def delete_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     if not delete_task(db, task_id):
         raise HTTPException(status_code=404, detail="Aufgabe nicht gefunden.")
@@ -96,7 +106,7 @@ def delete_task_endpoint(task_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api/tasks/{task_id}/archive", response_model=TaskOut)
-def archive_task_endpoint(task_id: int, db: Session = Depends(get_db)):
+def archive_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = set_task_archived(db, task_id, True)
     if result is None:
@@ -105,7 +115,7 @@ def archive_task_endpoint(task_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api/tasks/{task_id}/unarchive", response_model=TaskOut)
-def unarchive_task_endpoint(task_id: int, db: Session = Depends(get_db)):
+def unarchive_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = set_task_archived(db, task_id, False)
     if result is None:
@@ -114,7 +124,7 @@ def unarchive_task_endpoint(task_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api/tasks/{task_id}/checklist-items", response_model=TaskChecklistItemOut)
-def post_checklist_item(task_id: int, payload: TaskChecklistItemCreate, request: Request, db: Session = Depends(get_db)):
+def post_checklist_item(task_id: int, payload: TaskChecklistItemCreate, request: Request, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     _require_task_access(db, request, task_id)
     try:
@@ -127,7 +137,7 @@ def post_checklist_item(task_id: int, payload: TaskChecklistItemCreate, request:
 
 
 @router.put("/api/tasks/{task_id}/checklist-items/{item_id}", response_model=TaskChecklistItemOut)
-def put_checklist_item(task_id: int, item_id: int, payload: TaskChecklistItemUpdate, request: Request, db: Session = Depends(get_db)):
+def put_checklist_item(task_id: int, item_id: int, payload: TaskChecklistItemUpdate, request: Request, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     _require_task_access(db, request, task_id)
     try:
@@ -140,7 +150,7 @@ def put_checklist_item(task_id: int, item_id: int, payload: TaskChecklistItemUpd
 
 
 @router.delete("/api/tasks/{task_id}/checklist-items/{item_id}")
-def delete_checklist_item_endpoint(task_id: int, item_id: int, request: Request, db: Session = Depends(get_db)):
+def delete_checklist_item_endpoint(task_id: int, item_id: int, request: Request, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     _require_task_access(db, request, task_id)
     if not delete_checklist_item(db, task_id, item_id):
@@ -149,7 +159,7 @@ def delete_checklist_item_endpoint(task_id: int, item_id: int, request: Request,
 
 
 @router.get("/api/task-settings", response_model=TaskSettingsOut)
-def get_task_settings(db: Session = Depends(get_db)):
+def get_task_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return get_or_create_task_settings(db)
 

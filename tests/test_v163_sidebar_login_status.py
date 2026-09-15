@@ -76,6 +76,7 @@ def _render(user):
     # (app/routers/pages.py) -- auch das nur ein Stub, echtes Verhalten wird in
     # tests/test_v254_topbar.py getestet.
     env.globals["account_display"] = lambda current_user: {"full_name": "", "initials": ""}
+    env.globals["can"] = lambda current_user, *roles: current_user is not None and current_user.role in roles
     tmpl = env.get_template("project_folder.html")  # eine beliebige Seite, die _sidebar.html einbindet
     return tmpl.render(request=FakeRequest("/x", user), app_version="1.0.63", project_id=1)
 

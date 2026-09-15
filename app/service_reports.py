@@ -28,8 +28,8 @@ from .modules import is_module_enabled
 from .paths import data_dir
 from .models import (
     Finding, InspectionItem, InspectionTemplate, InspectionTemplateItem, MaintenanceContract,
-    MaintenanceContractItem, Material, Order, Project, RoofArea, RoofTypeInspectionTemplateDefault, ServiceReport,
-    ServiceReportMaterial, ServiceReportPhoto, ServiceReportRoofArea, Task,
+    MaintenanceContractItem, Material, Order, Project, Property, RoofArea, RoofTypeInspectionTemplateDefault,
+    ServiceReport, ServiceReportMaterial, ServiceReportPhoto, ServiceReportRoofArea, Task,
 )
 from .roof_areas import list_roof_areas
 from .service_report_photos import delete_photo_file, resize_and_store_photo
@@ -407,6 +407,21 @@ def list_roof_areas_for_order(db: Session, order_id: int) -> list[dict]:
     if order is None or order.project is None or order.project.property_id is None:
         return []
     return list_roof_areas(db, order.project.property_id)
+
+
+def get_property_context_for_order(db: Session, order_id: int) -> Property | None:
+    """Seit "Rechtekonzept" (siehe CLAUDE.md): liefert das mit dem Auftrag verknüpfte Objekt
+    LIVE (nicht als Schnappschuss) -- Zugang/Ansprechpartner vor Ort sollen sich sofort
+    aktualisieren, wenn das Büro sie im Objekt ändert, nicht erst mit dem nächsten Auftrag.
+    Löst wie list_roof_areas_for_order() über order.project.property_id auf, damit ein Monteur
+    diese Angaben über den Einsatzbericht lesen kann, ohne /api/properties/{id} (Kundenkontext)
+    aufzurufen -- genau die in dieser Version verlangte Abgrenzung. None ohne Fehler, wenn kein
+    Objekt verknüpft ist (Auftrag läuft dann über die Kunden-Hauptadresse, siehe order.property_name/
+    -address in order_to_dict())."""
+    order = db.get(Order, order_id)
+    if order is None or order.project is None or order.project.property_id is None:
+        return None
+    return db.get(Property, order.project.property_id)
 
 
 def update_report(db: Session, report_id: int, report_type: str, description: str | None,

@@ -20,12 +20,15 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.50** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf weiterhin `60d7c8a775f0` ("raise default sidebar logo height") -- keine
-  der Versionen 1.3.45-1.3.50 brauchte eine eigene Migration, da alle sechs ausschließlich
-  Python/Jinja/CSS/JS anfassen, keine Datenbankspalte -- bei Bedarf per `alembic history`/
-  `heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1155/1155**, zuletzt am 15.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
+- Version: **1.3.52** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf weiterhin `7a2b4e9f1c3d` ("app user role office field") -- 1.3.52 brauchte
+  keine eigene Migration (reine Rollen-Gate-Umstellung auf bereits bestehenden Endpunkten), siehe
+  Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
+  eine hier aufgeschriebene Liste zu verlassen.
+- Tests: **1177 passed, 1 xfailed** (nicht 1178/1178 grün -- eine der Testdateien aus
+  "Rechtekonzept" enthält eine ABSICHTLICH weiterhin fehlschlagende Prüfung, siehe dort;
+  `strict=False` verhindert, dass sie den Testlauf als Ganzes rot färbt), zuletzt am 15.09.2026
+  mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -627,6 +630,46 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   `a{color:var(--accent)}`-Regel im eigenen `<style>`-Block der betroffenen Datei -- dasselbe,
   in `login.html` bereits etablierte Muster, keine HTML-Umstrukturierung. Details im
   Abschnitt "Umgestaltung der Sidebar" → "Nachtrag (seit 1.3.50)" unten.
+- Neu seit 1.3.51: **Rechtekonzept, Etappe 1+2 -- Fundament, Standardverweigerung, drei
+  Beispieldateien.** Vorbereitung für die kommenden Monteurskonten (Schritt 4 der Suche, siehe
+  eigener, ausführlicher Abschnitt "Rechtekonzept" unten). Aus zwei Rollen (`admin`/`user`)
+  werden drei (`admin`/`office`/`field`), zentral geprüft über die neue
+  `app/permissions.py::require_role()` -- `app/deps.py::require_admin()` bleibt unverändert
+  bestehen (deckt sich mit `require_role("admin")`), Bestandskonten bleiben unverändert
+  Administratoren. **Standardverweigerung statt Positivliste**: ein neuer, automatisierter Test
+  geht jede registrierte `/api/`-Route durch und benennt jede ohne erkennbare Rollenprüfung --
+  ein vergessener Endpunkt fällt dadurch beim nächsten vollständigen Testlauf auf, nicht erst
+  durch Zufall (neue Regel 11). Als Nachweis bereits umgestellt: `customers.py`/`invoices.py`/
+  `reminders.py` (Büro+Admin, Monteur ausgeschlossen, keine Objekt-Filterung nötig). Dabei
+  zusätzlich: `Property` bekommt Zugang/Ansprechpartner-vor-Ort-Felder samt einem neuen,
+  auftragsbezogenen Lesepfad für den Einsatzbericht; geprüft, ob Aufgaben heute je einem
+  Monteur zugewiesen werden (nein) -- Aufgaben bleiben für diese Rolle vorerst gesperrt;
+  `users.html` bekommt eine sichere Voreinstellung ("Monteur" statt eines bare "Benutzer") und
+  eine Bestätigungsabfrage beim Anlegen ohne ausdrücklich gewählte Rolle. Die übrigen, noch
+  unklassifizierten Endpunkte sind die konkrete Checkliste für die nächste, noch zu bestätigende
+  Etappe -- bewusst noch nicht angefasst.
+- Neu seit 1.3.52: **Rechtekonzept, Etappe 3 -- der riskante Batch, nach Risiko statt Alphabet
+  geordnet.** Auf Vorgabe zuerst alles, was Geld, Preise oder Personendaten zeigt: `settings.py`,
+  `document_layout.py`, `document_email_templates.py`, `payment_terms.py`, `tax_keys.py`,
+  `changelog.py`, `catalogs.py`, `labor_rate.py`, `imports.py`, `audit.py`, `employees.py`
+  (behebt den ursprünglichen Suche-Fund `hourly_wage`/`effective_hourly_wage`/
+  `annual_gross_wage`), `services.py`, `users.py` (nur die Benutzerliste), `materials.py` (Suche
+  bleibt für Monteure offen, Verwaltung nicht -- bekannter, weiterhin offener Punkt: die Suche
+  liefert dabei `purchase_price` mit). Dazu, wie in 1.3.51 vorgeschlagen und vom Nutzer
+  bestätigt: **Aufgaben** (`app/routers/tasks.py`/`task_columns.py`, dazu die beiden
+  `/api/tasks/{task_id}/finding`- und `.../create-follow-up-project`-Endpunkte, die aus
+  historischen Gründen in `app/routers/findings.py` liegen) auf Büro+Admin umgestellt, Monteur
+  ausgeschlossen -- siehe eigener Abschnitt "Aufgaben" unten für den dabei gefundenen, bewusst
+  nicht behobenen Eigentümerschafts-Fund bei PUT/DELETE/archive/unarchive. Die übrigen Endpunkte
+  von `findings.py` (Mängel-Workflow während eines Einsatzberichts, von Monteuren selbst
+  bedient) bleiben bewusst unklassifiziert -- gehören zur nächsten Etappe, nicht zu dieser.
+  Neuer Jinja-Global `can(current_user, *roles)` (`app/routers/pages.py`) löst lokale
+  `current_user.role == '...'`-Vergleiche in `_sidebar.html` ab -- genau das Muster, das bei
+  `build_customer_and_meta_block()` zu drei divergierenden Varianten geführt hat. Der
+  Vollständigkeits-Audit-Test (seit 1.3.51) sinkt dadurch von 243 auf 230 unklassifizierte
+  Endpunkte -- der Rest (überwiegend risikoärmer: Objekte, Aufträge, Angebote, Projekte,
+  Einsatzberichte, Zeiterfassung, Plantafel u. a.) ist die nächste, separate Etappe, wie
+  ausdrücklich vom Nutzer verlangt ("erst die riskanten, dann berichten, dann die übrigen").
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -998,6 +1041,22 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Prüfung, warum sich der Vergütungsrechner doch vollständig in `master_data_form.html`
     unterbringen ließ) im Abschnitt "Mitarbeiter-Formular: ein Bereich statt zwei Ähnlicher"
     unten.
+
+11. **Jeder neue `/api/`-Endpunkt braucht eine ausdrückliche Rollenangabe
+    (`Depends(require_role(...))` aus `app/permissions.py`, oder das ältere
+    `Depends(require_admin(...))` aus `app/deps.py`) -- Standardverweigerung, nicht
+    Positivliste (seit "Rechtekonzept", siehe eigener Abschnitt unten für die volle
+    Begründung).** Fehlt sie, gilt der Endpunkt als admin-only, nicht als für jeden
+    Angemeldeten offen -- das ist die Umkehrung des tatsächlich wiederholt aufgetretenen
+    Fehlers (`/users` seit 1.3.28, `EmployeeOut`-Lohnfelder seit 1.0.6, siehe dort): eine
+    Positivliste (Sidebar/Menü zeigt einer Rolle nur, was für sie gedacht ist) lässt einen
+    ungesicherten Endpunkt einfach für jeden funktionieren -- niemand merkt es, bis jemand
+    gezielt danach sucht. `tests/test_v260_role_audit.py` erzwingt die Regel mechanisch: er
+    geht jede registrierte Route durch und benennt jede ohne erkennbare Rollenprüfung
+    namentlich -- ein vergessener Endpunkt fällt dadurch beim nächsten vollständigen
+    Testlauf auf, nicht erst durch Zufall. Diese eine Prüfung bleibt bis zum Abschluss der
+    dort dokumentierten Etappe 2/3 absichtlich rot (`xfail`, `strict=False`) -- ihre
+    namentliche Liste ist die Checkliste für diese Etappe, kein Fehlerbefund.
 
 ## Fachbegriffe & Domänenmodell
 
@@ -5335,6 +5394,250 @@ Farbkorrektur. Vor dem Schreiben jeweils per Grep bestätigt: der jeweils einzig
 `.report-actions a`, `.top-actions a`, `.delivery-tag a`) bleiben durch die höhere
 CSS-Spezifität ihrer eigenen Klassen unberührt, unabhängig von der Regel-Reihenfolge im
 Stylesheet. Tests: `tests/test_v259_unstyled_link_audit.py`.
+
+## Rechtekonzept (seit 1.3.51, Etappe 1+2)
+
+Vorbereitung dafür, dass die kommenden Monteurskonten UND die für Schritt 3 der Sidebar-
+Suche geplante Rollenfilterung auf echtem Boden stehen, nicht auf einer einzelnen `admin`-
+Prüfung. Vier Etappen (siehe unten "Etappenplan"), diese Version deckt 1+2 ab und wurde vor
+Etappe 3 bewusst zur Zwischenbestätigung angehalten.
+
+### Befund vor dem Bauen
+
+- **`AppUser.role`** (`app/models.py`) war schon immer eine unbeschränkte `String(30)`-Spalte
+  ohne Datenbank-Constraint -- die einzige Einschränkung auf zwei Werte saß ausschließlich in
+  Pydantic (`app/schemas.py`, `pattern="^(admin|user)$"`).
+- **Reale Datenbank**: genau zwei Konten, beide `role="admin"`, beide aktiv -- Tobias mit
+  verknüpftem Mitarbeiter, "Admin" als reines Systemkonto ohne Mitarbeiterverknüpfung. **Kein
+  einziges `role="user"`-Konto existierte** -- die Monteurskonten, für die dieses Konzept
+  gebaut wird, gab es zum Zeitpunkt dieser Untersuchung noch nicht.
+- **Admin-geprüfte Bereiche** (`require_admin()`, zwölf Dateien): Benutzerverwaltung
+  (Schreibzugriffe, nicht `GET /api/users` selbst), Adressimport, Zeiterfassungs-Backoffice,
+  Freigabe von Abwesenheitsanträgen, Wartungsfenster-/Aufgaben-Spalten-Verwaltung,
+  Modul-Umschalter, E-Mail-Einstellungen, Monteursansicht-Konfiguration -- ausschließlich
+  Konfiguration/Verwaltung, keine fachlichen Kerndaten.
+- **Alles andere prüfte nichts** -- für jeden angemeldeten Benutzer erreichbar: Kunden,
+  Projekte, Angebote, Aufträge, Rechnungen, Mahnungen, Leistungen/Materialien (inkl.
+  Einkaufspreisen), Mitarbeiter (inkl. `EmployeeOut.hourly_wage`/`effective_hourly_wage`/
+  `annual_gross_wage`), Objekte, Dachflächen, Einsatzberichte, Änderungshistorie, u. v. m. --
+  praktisch der gesamte fachliche Kern der Anwendung. Damit war der reale Zustand nicht
+  "Admin gegen eingeschränkter Rest", sondern "Admin gegen Rest", und "Rest" hieß praktisch
+  alles.
+- **Der Modulschalter (`OPTIONAL_MODULES`, `app/modules.py`) bleibt eine andere, unveränderte
+  Achse**: eine Zeile je `module_key` für die GANZE Installation, keine Verknüpfung zu
+  `AppUser`/`role` an irgendeiner Stelle -- er entscheidet "ist die Funktion in diesem Betrieb
+  eingeschaltet", nicht "darf diese Person sie nutzen". Beide Mechanismen bestehen unverändert
+  parallel, keine Überschneidung.
+- **`/vor-ort` heute**: die Seite selbst prüft nur die allgemeine Anmeldepflicht, keine Rolle.
+  Die eigentliche Voraussetzung sitzt ausschließlich in `GET /api/field-view/today` -- der
+  angemeldete `AppUser` muss ein `employee_id` tragen (422 sonst), danach sieht er
+  ausschließlich seine eigenen heutigen Plantafel-Zuordnungen. Sobald er von dort in einen
+  Einsatzbericht wechselt (`/orders/{id}/service-reports`), greift dagegen **keine** Prüfung
+  mehr -- rein technisch könnte er heute jeden beliebigen Auftrag über die URL ansteuern, nicht
+  nur seine eigenen (siehe "Objekt-Filterung" unten, Etappe 3).
+
+### Drei Rollen: `admin` / `office` / `field`
+
+Bewusst nicht mehr als drei -- bei einem Betrieb mit einem Büro und mehreren Monteuren
+bräuchte eine frei konfigurierbare Rollenmatrix mit Einzelrechten mehr Verwaltungsaufwand als
+Nutzen. `admin` behält alle bisherigen, admin-gateten Verwaltungsbereiche zusätzlich zu allem,
+was `office` sieht. `office` ist fachlich das, was `role="user"` schon immer bedeutet hat --
+voller Zugriff außer den zwölf Verwaltungsbereichen. `field` ist neu und deutlich enger, siehe
+"Objekt-Filterung" unten.
+
+`app/permissions.py::require_role(*rollen, message=...)` verallgemeinert
+`app/deps.py::require_admin()` auf drei statt zwei Rollen -- **`require_admin()` selbst bleibt
+unverändert bestehen**, an den zwölf Dateien, die es nutzen, wurde nichts geändert (es deckt
+sich exakt mit `require_role("admin")`, kein Grund, etwas Funktionierendes anzufassen).
+
+**Migration `7a2b4e9f1c3d`** (reine Daten-Migration): bestehende `role="user"`-Zeilen werden zu
+`role="office"` -- auf der echten, lokalen Datenbank betraf das 0 Zeilen (siehe Befund oben),
+die Migration existiert trotzdem für jede andere Installation. `downgrade()` kann `field` nicht
+verlustfrei zurückführen (dieser Wert existierte im Zwei-Rollen-Modell nicht) -- sowohl
+`office` als auch `field` werden beim Zurückrollen zu `user`, der nächstliegenden, am wenigsten
+überraschenden Entsprechung.
+
+### Standardverweigerung statt Positivliste -- der wichtigste Teil dieses Entwurfs
+
+Der reale Befund oben (praktisch alles ungated) ist kein Einzelfall, sondern das erwartbare
+Ergebnis einer **Positivliste**: die Sidebar/das Menü zeigt einer Rolle nur, was für sie gedacht
+ist (z. B. der frühere admin-gatete `/users`-Sidebarlink, siehe 1.3.28) -- das fühlt sich nach
+einer Absicherung an, ist aber nur eine Anzeige-Entscheidung. Ob der darunterliegende Endpunkt
+selbst geprüft ist, ist eine ZWEITE, unabhängige Frage -- vergisst man sie, funktioniert der
+Endpunkt einfach für jeden, ohne Fehler, ohne Auffälligkeit. Niemand merkt es, bis jemand
+gezielt mit einer fremden Rolle danach sucht (exakt das, was die Suche-Bestandsaufnahme dieser
+Sitzung getan hat).
+
+Die Umkehrung ist eine **Negativliste**: Standardverweigerung. Ein Endpunkt ohne ausdrückliche
+Rollenangabe gilt nicht als "offen", sondern als **admin-only**. Der entscheidende Unterschied:
+mit dieser Umkehrung fällt ein vergessener Endpunkt beim ERSTEN Aufruf durch eine andere Rolle
+auf -- sie bekommt sofort ein sichtbares 403, keine stille Funktion. Damit das nicht erst durch
+einen zufälligen Praxisfall auffällt, erzwingt `tests/test_v260_role_audit.py` das bereits beim
+nächsten vollständigen Testlauf: er geht jede registrierte `/api/`-Route durch (importiert dafür
+jedes Modul unter `app/routers/` einzeln über `pkgutil` -- bewusst NICHT `app.main`, das würde
+`Base.metadata.create_all()` gegen die echte, lokale `DATABASE_URL` auslösen, siehe
+"Migrations-Workflow" unten) und listet jede Route ohne erkennbare `_dk_roles`-Markierung
+(gesetzt von `require_role()`/`require_admin()`) namentlich auf. **Diese Regel ist jetzt
+Regel 11** (siehe oben) -- jeder neue `/api/`-Endpunkt braucht ab sofort eine ausdrückliche
+Rollenangabe, sonst schlägt der nächste Testlauf mit seinem Namen fehl.
+
+Eine kleine, einzeln begründete Ausnahmeliste (`ROLE_AUDIT_EXEMPT` in `app/permissions.py`)
+deckt die Fälle ab, die aus einem strukturellen Grund keine Rollenprüfung tragen können (Login
+selbst, Zwei-Faktor-Ersteinrichtung, das eigene Passwort ändern -- für jede Rolle gedacht,
+`GET /api/field-view/today` -- prüft stattdessen `employee_id`, das PWA-Icon) -- jeder Eintrag
+dort ist einzeln kommentiert, kein bequemer Sammelplatz für "kommt später".
+
+**Der Test bleibt bis zum Abschluss von Etappe 2/3 absichtlich rot** (`@pytest.mark.xfail(...,
+strict=False)`, damit er den Testlauf nicht insgesamt als fehlgeschlagen zeigt) -- seine
+Fehlerliste ist zugleich die konkrete Checkliste für diese Etappe. Diese Version hat bereits
+drei Dateien klassifiziert (`customers.py`/`invoices.py`/`reminders.py`, 43 Endpunkte,
+`require_role(ROLE_ADMIN, ROLE_OFFICE)`, Monteur ausgeschlossen -- keine Objekt-Filterung
+nötig, da Kunden/Rechnungen/Mahnungen für einen Monteur an keiner Stelle vorgesehen sind) als
+Nachweis, dass der Mechanismus trägt; **334 Endpunkte über alle übrigen Router-Dateien bleiben
+für die nächste Etappe offen** -- bewusst nicht in dieser Version durchgezogen (siehe
+"Etappenplan" unten für die Begründung, das anzuhalten).
+
+### Objekt-Filterung -- warum Rollen allein für `field` nicht reichen (Etappe 3, noch offen)
+
+Eine Rolle beantwortet "darf diese Person Finanzen/Kalkulation/Mitarbeiterdaten sehen" --
+binär, für einen ganzen Funktionsbereich. Sie beantwortet NICHT "darf ein Monteur DIESEN
+Auftrag/Bericht öffnen, nicht nur irgendeinen". Genau diese zweite Frage bleibt heute komplett
+offen: `service_reports.py`/`findings.py`/`orders.py`/`properties.py`/`roof_areas.py` prüfen
+nach wie vor gar nichts (siehe Befund oben) -- ein künftiges `field`-Konto könnte, sobald es
+existiert, jeden beliebigen Auftrag über die URL erreichen, nicht nur die eigenen.
+
+Vorgeschlagene, noch nicht gebaute Lösung: eine einzige Prüffunktion
+`field_may_access_order(db, employee_id, order_id)`, die dieselbe Zuordnung wie
+`list_todays_assignments_for_employee()` (Plantafel-Team-/Einzelzuweisung) auswertet, aber
+bewusst NICHT auf "heute" begrenzt (ein Monteur muss einen vor Tagen begonnenen Entwurfsbericht
+weiter bearbeiten können) -- ergänzt um "oder er hat den Bericht selbst angelegt"
+(`created_by_employee_id`). Da praktisch jeder für `field` relevante Endpunkt über `order_id`
+oder `service_report_id` (das selbst zu genau einem `order_id` gehört) parametrisiert ist,
+deckt diese eine Funktion den Großteil ab; `Property`/`RoofArea` (direkt über `property_id`/
+`roof_area_id` adressiert) brauchen eine kleine Ableitung darüber, ob das Objekt zu einem
+erlaubten Auftrag gehört.
+
+### Kundendaten für einen Monteur: ausschließlich über den Bericht, nicht über eine Kundenseite
+
+Enger gefasst als eine reine Rollen-Sperre auf `/customers/*`: ein Monteur soll Kundendaten nie
+über eine eigene Seite oder eine Adresse mit Kunden-ID sehen, sondern ausschließlich das, was
+im Einsatzbericht selbst steht. Geprüft, ob das inhaltlich schon vollständig ist -- war es
+NICHT: `Order`/`ServiceReport` trugen Objektname/Anschrift (als Schnappschuss), aber weder
+einen "Zugang" (Schlüssel, Codes, Hunde, Parken) noch einen vom Kunden-Hauptansprechpartner
+unabhängigen "Ansprechpartner vor Ort" (Hausverwaltung vs. tatsächlich anzutreffende Person).
+
+Ergänzt: `Property.access_notes`/`site_contact_name`/`site_contact_phone` (Migration
+`1ccb91b19e8a`, alle nullable, bewusst NICHT das bestehende `notes`-Feld umgewidmet, um dort
+bereits erfasste Freitexte nicht umzudeuten) -- gepflegt auf der Objektseite (`property.html`),
+gelesen über einen neuen, auftragsbezogenen Weg **ohne** `/api/properties/{id}`:
+`GET /api/orders/{order_id}/property` (`app/routers/service_reports.py`, Geschäftslogik
+`get_property_context_for_order()` in `app/service_reports.py`, löst wie
+`list_roof_areas_for_order()` über `order.project.property_id` auf) -- LIVE gelesen, kein
+Schnappschuss, da sich ein Torcode/eine Kontaktperson ändern kann, ohne dass deshalb ein neuer
+Auftrag entsteht. `service_reports.html` zeigt das in einer neuen Karte "Objekt & Zugang"
+oberhalb des Berichts-Editors, sichtbar für jeden, der die Seite heute schon erreicht (Etappe 3
+schränkt erst ein, WER die Seite erreicht -- die Anzeige selbst ist unabhängig davon richtig).
+
+**Noch offen, Teil von Etappe 3**: der Kundenname-Link in derselben Seite
+(`document.getElementById('breadcrumb')`, zeigt heute auf `/customers/{id}`) müsste für einen
+Monteur zu reinem Text werden (Anmerkung "ausblenden, nicht ausgrauen", siehe unten) -- bewusst
+noch nicht umgesetzt, da das erst sinnvoll testbar ist, sobald ein echtes `field`-Konto über die
+Etappe-3-Objektfilterung tatsächlich auf dieser Seite landen kann.
+
+### Aufgaben: heute gesperrt, nicht angefasst, dokumentierter Grund
+
+Geprüft, bevor entschieden wurde: existiert heute überhaupt eine Aufgabe, die sinnvoll einem
+Monteur statt dem Büro zugewiesen würde? Die echte Datenbank zeigt: **alle** aktuell
+zugewiesenen Aufgaben (`Task.assigned_employee_id`) gehen an Employee-ID 1 -- Tobias, den
+Geschäftsführer, verknüpft über `AppUser`-Konto "Tobias". Keine einzige Aufgabe ist an einen
+der acht Dachdecker-Mitarbeiter (Vorarbeiter/Geselle/Auszubildende) oder die beiden
+Büro-Mitarbeiterinnen adressiert. Automatisch erzeugte Aufgaben (Wartungs-Erinnerungen,
+"buero_pruefen"-Mängelmaßnahme) landen laut Code ohnehin beim konfigurierten
+Sachbearbeiter/Standard-Verantwortlichen -- fachlich eine Büro-Rolle, kein Monteurs-Vorgang.
+
+**Entscheidung**: Aufgaben (`/tasks`, `/api/tasks*`, `/api/task-columns*`, `/api/task-settings`,
+dazu die beiden `/api/tasks/{task_id}/finding`- und `.../create-follow-up-project`-Endpunkte, die
+aus historischen Gründen in `app/routers/findings.py` statt `tasks.py` liegen)
+bleiben für `field` vorerst vollständig gesperrt (umgesetzt in 1.3.52, Büro+Admin wie die übrige
+Verwaltung) statt einer eigenen "nur eigene Aufgaben"-Filterung. Sollte sich der Betriebsablauf
+ändern (eine Aufgabe wird künftig gezielt einem Monteur zugewiesen), ist das ein bewusster,
+späterer Schritt -- keine stillschweigend mitgebaute Funktion ohne heutigen Anwendungsfall.
+
+**Was dafür fehlen würde, festgehalten für den nächsten Durchgang** (nicht gebaut, nur
+dokumentiert, wie verlangt) -- geprüft direkt am Code, nicht nur vermutet:
+
+1. **Ein "eigene Aufgaben"-Filter existiert teilweise schon, aber lückenhaft.**
+   `GET /api/tasks` (`app/routers/tasks.py::get_tasks()`) schränkt für jeden Nicht-Admin
+   bereits heute auf `employee_id == request.state.erp_user.employee_id` ein, und
+   `_require_task_access()` tut dasselbe für die Checklisten-Endpunkte
+   (`POST/PUT/DELETE .../checklist-items*`). **Aber**: `PUT /api/tasks/{id}` (Titel/Status/
+   Priorität/Zuweisung ändern), `DELETE /api/tasks/{id}` und die beiden
+   Archivieren/Reaktivieren-Endpunkte prüfen GAR KEINE Eigentümerschaft -- ein Nicht-Admin
+   könnte darüber heute schon jede beliebige Aufgabe ändern, nicht nur seine eigene, wenn er
+   diese Endpunkte erreicht. Das ist eine bereits im Code bestehende Lücke, unabhängig vom
+   Rechtekonzept -- fiele beim Öffnen von Aufgaben für `field` sofort auf, weil dann zum ersten
+   Mal jemand mit einer wirklich anderen Interessenlage als "Büro" darauf träfe. Vor einer
+   Öffnung für `field` müsste dieselbe `_require_task_access()`-Prüfung auch auf diese drei/vier
+   Endpunkte ausgedehnt werden.
+2. **Eine belastbare Zuweisung an den AppUser, nicht nur an den Employee.** Der bestehende
+   Filter (Punkt 1) funktioniert nur, weil er `request.state.erp_user.employee_id` gegen
+   `Task.assigned_employee_id` vergleicht -- verlässt sich also auf eine verlässliche
+   Employee↔AppUser-Zuordnung. `AppUser.employee_id` ist aber nullable UND ohne
+   Unique-Constraint (zwei AppUser-Konten könnten theoretisch dieselbe `employee_id` tragen,
+   oder eine Aufgabe könnte einem Employee zugewiesen sein, der gar kein Login hat). Heute
+   folgenlos (ein einziges Admin-Konto mit Employee-Verknüpfung), würde aber bei mehreren
+   echten Monteurskonten zur tatsächlichen Fehlerquelle, sollte diese Zuordnung je nicht
+   eindeutig sein.
+
+### Sichtbarkeit in der Oberfläche: ausblenden, nicht ausgrauen (Fundament gelegt, noch nicht verdrahtet)
+
+Ein Monteur soll nicht einmal sehen, DASS es Finanzen/Kalkulation/Stammdaten gibt -- kein
+ausgegrauter, unklickbarer Menüpunkt. `_sidebar.html` bekommt dafür `is_office`/`is_field`
+(neben dem bestehenden `is_admin`), nach demselben Muster berechnet -- in dieser Version noch
+ungenutzt (keine Navigationseinträge wurden bereits umgestellt, das ist Teil der Etappe-2/3-
+Umsetzung an den einzelnen Seiten).
+
+**Ausnahme, wie gefordert**: wer eine Adresse von Hand eintippt (kein Menüpunkt führt dorthin,
+also kein Ausblenden möglich), bekommt eine verständliche Meldung statt einer rohen
+403-JSON-Antwort. Neues, eigenständiges Template `app/templates/access_denied.html` (Muster
+`login.html` -- eigenständige Seite, kein `_sidebar.html`-Include, da eine Person ohne Zugriff
+auf eine Seite meist auch nicht die volle Navigation sehen soll) mit einem Link zurück zur
+jeweiligen Startseite. Noch nicht in die Middleware verdrahtet -- das braucht die
+Seiten-Klassifizierung aus Etappe 2/3 (welche der 31 Seiten ist für wen gedacht), nicht nur die
+API-Klassifizierung.
+
+### Bestandsschutz und sichere Voreinstellung beim Anlegen (`users.html`)
+
+Tobias und "Admin" bleiben unverändert `role="admin"` -- keine ihrer Zeilen wurde durch die
+Migration berührt (0 betroffene Zeilen, siehe oben). Für NEUE Konten:
+`AppUserCreate`/`AppUserUpdate` (`app/schemas.py`) haben jetzt `default="field"` statt
+`default="user"` -- die am wenigsten privilegierte Rolle, nicht mehr eine, die praktisch schon
+immer vollen Zugriff bedeutete. Das Auswahlfeld in `users.html` listet "Monteur" absichtlich
+zuerst (Browser wählen ohne Interaktion die erste `<option>`). **Zusätzlich, wie verlangt, eine
+Warnung**: legt jemand ein NEUES Konto an, ohne das Rollenfeld ausdrücklich zu ändern
+(`roleTouched`-Flag, per `onchange` gesetzt), erscheint vor dem Speichern eine
+`confirm()`-Bestätigung mit der Rolle, die tatsächlich vergeben würde -- verhindert, dass eine
+Rolle "einfach passiert", unabhängig von der (bereits sicheren) Voreinstellung selbst. Gilt
+bewusst nur beim Anlegen, nicht beim Bearbeiten eines bestehenden Kontos (dessen aktuelle Rolle
+ist in der Liste ohnehin sichtbar, keine verdeckte Änderung möglich).
+
+### Etappenplan
+
+1. **Fundament** (diese Version): dritte Rollenstufe, `require_role()`, Migration,
+   Standardverweigerungs-Mechanismus samt Audit-Test. -- **fertig**.
+2. **Rollen-Gate nachziehen**: `require_role(...)` an alle heute ungeschützten Finanz-/
+   Kalkulations-/Mitarbeiter-/Stammdaten-/Verwaltungs-Endpunkte hängen, entlang der vom
+   Audit-Test namentlich gelisteten 334 Routen. -- **an drei Dateien exemplarisch fertig
+   (43 Endpunkte), der Rest bewusst angehalten**: das ist die Etappe, an der am meisten
+   schiefgehen kann (Regressionsgefahr für `office`, falsche Einordnung einzelner
+   Endpunkte) -- die vollständige Klassifizierungsliste (Datei → vorgeschlagene Rolle) wartet
+   auf Bestätigung, bevor sie mechanisch durchgezogen wird.
+3. **Objekt-Filterung für `field`**: `field_may_access_order()` bauen, auf
+   `service_reports.py`/`findings.py`/`orders.py`/`properties.py`/`roof_areas.py` anwenden,
+   dazu die Seiten-Klassifizierung (welche der 31 Seiten ist für wen gedacht, inkl.
+   `access_denied.html`-Verdrahtung und `is_field`-Ausblendungen in den Templates). -- offen.
+4. Erstes echtes `field`-Testkonto anlegen, vollständigen Monteurs-Ablauf im Browser
+   durchklicken. -- offen.
 
 ## Migrations-Workflow
 

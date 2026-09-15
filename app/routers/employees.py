@@ -12,18 +12,25 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
 from ..employees import apply_employee_payload, employee_to_dict, ensure_default_employee_functions, ensure_employee_profiles, set_cost_allocation, set_planning_visibility
-from ..models import Employee, EmployeeProfile, EmployeeRoleSettings
+from ..models import AppUser, Employee, EmployeeProfile, EmployeeRoleSettings
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
 from ..schemas import EmployeeCreate, EmployeeOut, EmployeeUpdate
 
 router = APIRouter()
 
+# Seit "Rechtekonzept" (siehe CLAUDE.md): EmployeeOut trägt Lohn-/Gehaltsfelder
+# (hourly_wage/effective_hourly_wage/annual_gross_wage) -- Büro/Admin, das war der zentrale
+# Fund der Suche-Bestandsaufnahme (jeder angemeldete Benutzer konnte das bisher lesen).
+_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, message="Mitarbeiterdaten sind nur für Büro und Administratoren verfügbar."))
+
+
 @router.get("/api/employees", response_model=list[EmployeeOut])
-def list_employees(db: Session = Depends(get_db)):
+def list_employees(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return [employee_to_dict(e, db) for e in ensure_employee_profiles(db)]
 
 
 @router.get("/api/employees/caseworkers", response_model=list[EmployeeOut])
-def list_caseworkers(db: Session = Depends(get_db)):
+def list_caseworkers(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     employees = ensure_employee_profiles(db)
     result = []
     for employee in employees:
@@ -34,7 +41,7 @@ def list_caseworkers(db: Session = Depends(get_db)):
 
 
 @router.get("/api/employees/{employee_id}", response_model=EmployeeOut)
-def get_employee(employee_id: int, db: Session = Depends(get_db)):
+def get_employee(employee_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     ensure_employee_profiles(db)
     employee = db.scalar(
         select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function))
@@ -46,7 +53,7 @@ def get_employee(employee_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api/employees", response_model=EmployeeOut)
-def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
+def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     ensure_default_employee_functions(db)
     if payload.employee_number:
         exists = db.scalar(select(Employee).where(Employee.employee_number == payload.employee_number))
@@ -79,7 +86,7 @@ def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/api/employees/{employee_id}", response_model=EmployeeOut)
-def update_employee(employee_id: int, payload: EmployeeUpdate, db: Session = Depends(get_db)):
+def update_employee(employee_id: int, payload: EmployeeUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     employee = db.scalar(select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function)).where(Employee.id == employee_id))
     if employee is None:
         raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden.")

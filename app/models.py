@@ -408,6 +408,17 @@ class Property(Base):
     postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
     city: Mapped[str | None] = mapped_column(String(120), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Seit "Rechtekonzept" (siehe CLAUDE.md): ein Monteur soll den Zugang zu einem Objekt und
+    # den Ansprechpartner vor Ort ausschließlich über den Einsatzbericht erfahren, nicht über
+    # die Kundenakte -- bisher stand dafür nichts Strukturiertes zur Verfügung, nur das oben
+    # bereits bestehende, unspezifische notes-Feld. access_notes ist bewusst ein eigenes Feld
+    # (nicht notes selbst umgewidmet, um bestehende, dort bereits erfasste Freitexte nicht
+    # umzudeuten). site_contact_* ist bewusst NICHT Customer.contact_person -- der
+    # Hauptansprechpartner des Kunden ist häufig nicht dieselbe Person, die am konkreten Objekt
+    # vor Ort ist (z. B. Hausverwaltung vs. Mieter/Hausmeister).
+    access_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    site_contact_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    site_contact_phone: Mapped[str | None] = mapped_column(String(60), nullable=True)
     # Seit "Objekte: Hauptadressen kennzeichnen und ausblenden" (siehe CLAUDE.md) -- wird
     # ausschließlich dort gesetzt, wo die Hauptadresse automatisch entsteht
     # (routers/customers.py::create_customer()/update_customer(),

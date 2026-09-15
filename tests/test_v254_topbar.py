@@ -131,6 +131,7 @@ def _render(user=_FakeUser(), account=None):
     env.globals["account_display"] = lambda current_user: (
         account if account is not None else {"full_name": "Tobias Rödchen", "initials": "TR"}
     )
+    env.globals["can"] = lambda current_user, *roles: current_user is not None and current_user.role in roles
     tmpl = env.get_template("project_folder.html")  # eine beliebige Seite, die beide Includes einbindet
     return tmpl.render(request=_FakeRequest("/x", user), app_version="1.0.0", project_id=1)
 

@@ -245,6 +245,12 @@ class PropertyCreate(BaseModel):
     postal_code: str | None = None
     city: str | None = None
     notes: str | None = None
+    # Seit "Rechtekonzept" (siehe CLAUDE.md): das, was ein Monteur über den Einsatzbericht
+    # lesen soll, ohne die Kundenakte zu öffnen -- Zugang (Schlüssel, Codes, Hunde, Parken) und
+    # Ansprechpartner VOR ORT, bewusst getrennt von Customer.contact_person (siehe app/models.py).
+    access_notes: str | None = None
+    site_contact_name: str | None = None
+    site_contact_phone: str | None = None
 
 
 class PropertyOut(PropertyCreate):
@@ -261,6 +267,9 @@ class PropertyUpdate(BaseModel):
     postal_code: str | None = None
     city: str | None = None
     notes: str | None = None
+    access_notes: str | None = None
+    site_contact_name: str | None = None
+    site_contact_phone: str | None = None
 
 
 class ProjectCreate(BaseModel):
@@ -885,7 +894,11 @@ class AppUserCreate(BaseModel):
     password: str = Field(min_length=8, max_length=200)
     display_name: str = Field(min_length=1, max_length=160)
     employee_id: int | None = None
-    role: str = Field(default="user", pattern="^(admin|user)$")
+    # Seit "Rechtekonzept" (siehe CLAUDE.md): drei statt zwei Rollen -- Standardwert ist
+    # bewusst die am wenigsten privilegierte Rolle "field" (Monteur), nicht mehr "user"/"admin".
+    # Wer beim Anlegen die Rolle vergisst, bekommt dadurch nie versehentlich einen
+    # Administrator, sondern das am wenigsten weit reichende Konto.
+    role: str = Field(default="field", pattern="^(admin|office|field)$")
     active: bool = True
 
 
@@ -893,7 +906,7 @@ class AppUserUpdate(BaseModel):
     username: str = Field(min_length=3, max_length=80)
     display_name: str = Field(min_length=1, max_length=160)
     employee_id: int | None = None
-    role: str = Field(default="user", pattern="^(admin|user)$")
+    role: str = Field(default="field", pattern="^(admin|office|field)$")
     active: bool = True
     new_password: str | None = Field(default=None, min_length=8, max_length=200)
 

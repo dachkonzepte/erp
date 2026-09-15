@@ -140,6 +140,22 @@ def _account_display(current_user) -> dict:
 templates.env.globals["account_display"] = _account_display
 
 
+def _can(current_user, *roles: str) -> bool:
+    """Jinja-Global (seit "Rechtekonzept", siehe CLAUDE.md): DIE eine Stelle für Rollenprüfung
+    in Vorlagen -- kein current_user.role-Vergleich soll je an zwei Stellen leicht
+    unterschiedlich geschrieben werden, exakt das Muster, das bei
+    build_din5008_header_block()s Vorgängern (drei divergierende Varianten, siehe CLAUDE.md
+    "Kopfbereich") bereits einmal zum Problem wurde. Verwendung:
+    {% if can(current_user, 'admin', 'office') %}...{% endif %}. current_user ist
+    request.state.erp_user (None, falls nicht angemeldet) -- wie bei account_display() von der
+    aufrufenden Vorlage bereits als current_user gesetzt, kein DB-Zugriff nötig, deshalb auch
+    keine try/except-Absicherung wie bei den DB-gestützten Globals oben."""
+    return current_user is not None and current_user.role in roles
+
+
+templates.env.globals["can"] = _can
+
+
 def _safe_next_target(value: str | None) -> str | None:
     """Nur echte, app-interne Pfade -- kein offener Redirect über einen von außen
     mitgegebenen next-Wert (im Unterschied zu app/main.py's Middleware, die next selbst aus

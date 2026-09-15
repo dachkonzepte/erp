@@ -226,10 +226,16 @@ def test_sidebar_logo_height_px_survives_a_missing_general_settings_table(monkey
 
 def test_no_further_database_backed_jinja_globals_exist_unguarded():
     """Geprüft wie in CLAUDE.md dokumentiert: grep über app/ auf env.globals[ -- es dürfen nur
-    die fünf bereits abgesicherten Zuweisungen (plus das statische app_version) existieren --
-    seit 1.3.45 zusätzlich account_display() (_topbar.html), ebenso try/except-gehärtet wie die
-    vier seit 1.3.42. Schlägt fehl, falls ein künftiges Global registriert wird, ohne dass dieser
-    Test (und die Absicherung selbst) mitbedacht werden."""
+    die fünf bereits abgesicherten, DB-gestützten Zuweisungen (plus das statische app_version)
+    existieren -- seit 1.3.45 zusätzlich account_display() (_topbar.html), ebenso
+    try/except-gehärtet wie die vier seit 1.3.42. Schlägt fehl, falls ein künftiges,
+    DB-gestütztes Global registriert wird, ohne dass dieser Test (und die Absicherung selbst)
+    mitbedacht werden.
+
+    Seit "Rechtekonzept" (siehe CLAUDE.md) kommt can() als SIEBTES Global dazu -- bewusst NICHT
+    Teil der obigen Fünf/Sechs-Zählung, da es keinen Datenbankzugriff hat (current_user kommt
+    fertig aus request.state, siehe app/permissions.py-Parallele) und deshalb auch keine
+    try/except-Absicherung braucht, siehe Docstring von can() selbst."""
     root = Path(__file__).parents[1]
     matches = []
     for py_file in (root / "app").rglob("*.py"):
@@ -240,4 +246,5 @@ def test_no_further_database_backed_jinja_globals_exist_unguarded():
 
     src = (root / "app" / "routers" / "pages.py").read_text(encoding="utf-8")
     assigned = [line.strip() for line in src.splitlines() if line.strip().startswith("templates.env.globals[")]
-    assert len(assigned) == 6  # app_version + die fünf abgesicherten Globals
+    assert len(assigned) == 7  # app_version + die fünf abgesicherten, DB-gestützten Globals + can()
+    assert 'templates.env.globals["can"] = _can' in assigned

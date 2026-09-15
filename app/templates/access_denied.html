@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DACHKONZEPTE ERP – Kein Zugriff</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);display:grid;min-height:100vh;place-items:center}
+.card{width:min(430px,calc(100% - 30px));background:var(--card);border:1px solid var(--line);padding:28px}
+h1{margin:0 0 10px;font-size:20px}
+p{margin:0 0 18px;color:var(--muted);font-size:14px;line-height:1.5}
+a.button{display:inline-block;border:1px solid var(--accent);padding:11px 16px;background:var(--accent);color:#fff;font-weight:650;font-size:13.5px;text-decoration:none}
+a.button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+</style></head>
+<body>
+<div class="card">
+  <h1>Diese Seite ist für Ihre Rolle nicht verfügbar</h1>
+  <p>{{ message or "Bitte wenden Sie sich an eine Person mit den passenden Rechten, falls Sie diese Seite benötigen." }}</p>
+  <a class="button" href="{{ home_url or '/' }}">Zur Startseite</a>
+</div>
+</body>
+</html>

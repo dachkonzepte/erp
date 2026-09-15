@@ -4,6 +4,80 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.52 – Rechtekonzept, Etappe 3: der riskante Batch (Finanzen, Kalkulation, Mitarbeiter, Einstellungen, Benutzer, Historie, Aufgaben) + `can()` + Vollständigkeits-Audit
+
+Fortsetzung von 1.3.51, nach Risiko statt Alphabet geordnet (Vorgabe: Geld/Preise/Personendaten
+zuerst). Auf Büro+Admin umgestellt, Monteur ausgeschlossen: `settings.py` (24 Endpunkte, davon
+drei bewusst weiterhin für jede Rolle offen -- Optionsgruppen-Einzelabruf, Firmenlogo/
+Sidebar-Logo-Anzeige, siehe unten), `document_layout.py`, `document_email_templates.py`,
+`payment_terms.py`, `tax_keys.py`, `changelog.py`, `catalogs.py`, `labor_rate.py`, `imports.py`,
+`audit.py`, `employees.py` (der ursprüngliche Fund der Suche-Bestandsaufnahme:
+`hourly_wage`/`effective_hourly_wage`/`annual_gross_wage` sind jetzt kein Monteur-Zugriff mehr),
+`services.py`, `catalogs.py`. `materials.py`: Verwaltung Büro+Admin, die Suche
+(`GET /api/materials`) bleibt für Monteure offen (Materialerfassung am Einsatzbericht) --
+bekannter, bewusst offener Punkt dabei gemeldet: die Suche liefert weiterhin `purchase_price`
+mit, ein Monteur sieht darüber Einkaufspreise (siehe CLAUDE.md "Rechtekonzept"). `users.py`:
+nur `GET /api/users` (Benutzerliste) neu admin-only gemacht, die übrigen Endpunkte waren es
+bereits.
+
+**Aufgaben bleiben für Monteure gesperrt** (bestätigte Entscheidung aus 1.3.51) --
+`app/routers/tasks.py`/`app/routers/task_columns.py` auf Büro+Admin umgestellt, dazu die beiden
+`/api/tasks/{task_id}/finding`- und `.../create-follow-up-project`-Endpunkte (liegen aus
+historischen Gründen in `app/routers/findings.py`, gehören aber inhaltlich zur selben Sperre --
+"Vorgang erstellen" aus einer Aufgabe heraus ist ohnehin eine Büro-Aktion am Schreibtisch). Die
+übrigen Endpunkte von `findings.py` (Mängel-Workflow während eines Einsatzberichts, von Monteuren
+selbst bedient) bleiben bewusst unklassifiziert -- Teil der nächsten Etappe. Dabei ein bereits
+vorher bestehender, unabhängiger Code-Fund entdeckt und in CLAUDE.md festgehalten (nicht behoben,
+außerhalb dieses Auftrags): `PUT`/`DELETE`/Archivieren/Entarchivieren einer Aufgabe prüfen bis
+heute keine Eigentümerschaft, anders als `GET /api/tasks` und die Checklisten-Endpunkte.
+CLAUDE.md hält außerdem fest, was für eine künftige Öffnung an Monteure fehlen würde: eine
+belastbare Zuweisung an den `AppUser` statt nur an den `Employee`, und ein lückenloser "nur
+eigene Aufgaben"-Filter.
+
+**Neuer Jinja-Global `can(current_user, *roles)`** (`app/routers/pages.py`) -- die eine Stelle
+für Rollenprüfung in Vorlagen, ersetzt lokale `current_user.role == '...'`-Vergleiche (genau das
+Muster, das bei `build_customer_and_meta_block()` zu drei divergierenden Varianten geführt hat,
+siehe CLAUDE.md "Kopfbereich"). `_sidebar.html`: Backoffice-Link admin-only wie zuvor (jetzt über
+`can()`), Finanzen/Mahnwesen/Stammdaten/Einstellungen-Links sowie der Aufgaben-Link zusätzlich
+auf Büro+Admin eingeschränkt -- ein ausgeblendeter Link ist immer sicher, unabhängig vom
+Fertigstellungsgrad der Backend-Sperre, da die direkte URL vorher genauso erreichbar war.
+
+**Neuer Test** `tests/test_v260_role_audit.py::test_all_api_routes_have_an_explicit_role_check`
+(aus 1.3.51 bereits vorhanden, hier um sechs weitere Nachweis-Tests für den riskanten Batch
+sowie zwei für Aufgaben/Kanban-Spalten ergänzt) läuft über alle registrierten Router und meldet
+jeden `/api/`-Endpunkt ohne erkennbare Rollenprüfung namentlich -- die unklassifizierten
+Endpunkte sanken durch diese Version von 243 auf 230 (der Rest, überwiegend risikoärmer, ist die
+nächste, separate Etappe). Sechs Testdateien mit eigenem, gestubbtem Jinja-Environment
+(`test_v163`/`test_v249`/`test_v253`/`test_v254`/`test_v255`/`test_v258`) und
+`test_v252_deployment_hardening.py` (Zähl-Assertion) mussten dafür um den neuen `can()`-Stub
+ergänzt werden.
+
+## 1.3.51 – Rechtekonzept, Etappe 1+2: Fundament, Standardverweigerung, drei Beispieldateien
+
+Vorbereitung für die kommenden Monteurskonten (siehe CLAUDE.md "Rechtekonzept" für die
+vollständige Bestandsaufnahme, den Etappenplan und den aktuellen Zwischenstand). Aus zwei
+Rollen (`admin`/`user`) werden drei (`admin`/`office`/`field`) -- Bestandskonten (Tobias, Admin)
+bleiben unverändert Administratoren. Zentrale, neue Prüffunktion `app/permissions.py::
+require_role()`, `app/deps.py::require_admin()` bleibt unverändert bestehen und deckt sich mit
+`require_role("admin")`. **Standardverweigerung statt Positivliste**: ein neuer, automatisierter
+Test geht jede registrierte `/api/`-Route durch und schlägt mit einer namentlichen Liste fehl,
+wenn eine ohne erkennbare Rollenprüfung registriert ist -- ein vergessener Endpunkt fällt dadurch
+beim nächsten vollständigen Testlauf auf, nicht erst durch Zufall (siehe CLAUDE.md, neue Regel 11).
+Als Nachweis, dass der Mechanismus trägt, sind `customers.py`/`invoices.py`/`reminders.py`
+(43 Endpunkte) bereits auf Büro+Admin umgestellt, Monteur ausgeschlossen -- die übrigen, noch
+unklassifizierten Endpunkte sind die konkrete Checkliste für die nächste, noch zu bestätigende
+Etappe.
+
+Dabei umgesetzt: `Property` bekommt `access_notes`/`site_contact_name`/`site_contact_phone`
+(Zugang und Ansprechpartner vor Ort) plus einen neuen, auftragsbezogenen Lesepfad
+(`GET /api/orders/{id}/property`) -- ein Monteur soll das über den Einsatzbericht erfahren, nicht
+über die Kundenakte. Geprüft, ob Aufgaben heute je einem Monteur zugewiesen werden: nein, in der
+echten Datenbank gehen alle zugewiesenen Aufgaben an den Geschäftsführer -- Aufgaben bleiben für
+die Monteursrolle deshalb vorerst gesperrt, bis der Bedarf entsteht. `users.html`: drei Rollen im
+Auswahlfeld, "Monteur" (die am wenigsten privilegierte) ist jetzt die Voreinstellung statt eines
+bare "Benutzer", zusätzlich eine Bestätigungsabfrage beim Anlegen eines neuen Kontos ohne
+ausdrücklich gewählte Rolle.
+
 ## 1.3.50 – Vier weitere unstyled Links behoben
 
 Nachtrag zu 1.3.49: der dort entfernte "Mein Konto"-Link in der Sidebar hatte keine eigene

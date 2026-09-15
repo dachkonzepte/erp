@@ -123,6 +123,20 @@ a{color:var(--accent)}
   <div class="top-links"><a id="orderLink" href="#">← Auftrag</a><a id="timeLink" href="#">Zeiterfassung (Auftrag)</a></div>
 </div>
 
+<!-- Seit "Rechtekonzept" (siehe CLAUDE.md): Objektname/Anschrift/Zugang/Ansprechpartner vor Ort
+     stehen hier, damit ein Monteur sie nie über die Kundenakte/Objektseite (fremder Kontext,
+     künftig gesperrt) nachschlagen muss -- über /api/orders/{id}/property, nicht über
+     /api/properties/{id}. Nur sichtbar, wenn ein Objekt verknüpft ist. -->
+<div id="propertyCard" class="card hidden">
+  <h2>Objekt &amp; Zugang</h2>
+  <div class="fields-2col">
+    <div class="field full"><label>Objekt</label><div id="propName" class="muted"></div></div>
+    <div class="field full" id="propAddressField"><label>Anschrift</label><div id="propAddress" class="muted"></div></div>
+    <div class="field full hidden" id="propAccessField"><label>Zugang</label><div id="propAccess"></div></div>
+    <div class="field full hidden" id="propContactField"><label>Ansprechpartner vor Ort</label><div id="propContact"></div></div>
+  </div>
+</div>
+
 <div id="editorCard" class="card hidden">
   <h2 id="editorHeading">Bericht anlegen</h2>
   <div class="fields-2col">
@@ -1181,6 +1195,21 @@ function refreshTimeEntryOrderItemOptions(){
     +items.map(i=>`<option value="${i.id}">${esc(i.position_number||'')} ${esc(i.short_text||'')}</option>`).join('');
 }
 
+function renderPropertyCard(p){
+  const card=document.getElementById('propertyCard');
+  if(!p){card.classList.add('hidden');return}
+  card.classList.remove('hidden');
+  document.getElementById('propName').textContent=p.name||'—';
+  const addressLine=[p.street,[p.postal_code,p.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  document.getElementById('propAddressField').classList.toggle('hidden',!addressLine);
+  document.getElementById('propAddress').textContent=addressLine;
+  document.getElementById('propAccessField').classList.toggle('hidden',!p.access_notes);
+  document.getElementById('propAccess').textContent=p.access_notes||'';
+  const contactLine=[p.site_contact_name,p.site_contact_phone].filter(Boolean).join(' · ');
+  document.getElementById('propContactField').classList.toggle('hidden',!contactLine);
+  document.getElementById('propContact').textContent=contactLine;
+}
+
 async function saveReportTimeEntry(){
   const st=document.getElementById('teStatus');
   const employeeId=document.getElementById('teEmployee').value;
@@ -1222,6 +1251,7 @@ async function init(){
   }).catch(()=>{});
   employees=await api('/api/employees').catch(()=>[]);
   roofAreasForOrder=await api(`/api/orders/${orderId}/roof-areas`).catch(()=>[]);
+  renderPropertyCard(await api(`/api/orders/${orderId}/property`).catch(()=>null));
   inspectionTemplates=await api('/api/inspection-templates').catch(()=>[]);
   const [typesGroup,activitiesGroup]=await Promise.all([
     safeOptionGroup('time_entry_types'), safeOptionGroup('time_entry_activities'),

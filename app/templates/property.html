@@ -58,6 +58,14 @@ tr:last-child td{border-bottom:none}
     <div class="field"><label>PLZ / Ort</label><div style="display:grid;grid-template-columns:100px 1fr;gap:8px"><input id="editZip"><input id="editCity"></div></div>
     <div class="field full"><label>Notizen</label><textarea id="editNotes"></textarea></div>
   </div>
+  <!-- Seit "Rechtekonzept" (siehe CLAUDE.md): das ist -- neben den obigen Feldern -- alles, was
+       ein Monteur über den Einsatzbericht lesen soll, ohne diese Objektseite selbst öffnen zu
+       müssen (siehe app/routers/service_reports.py::get_property_for_order()). -->
+  <div class="fields-2col">
+    <div class="field full"><label>Zugang <span class="muted small">(Schlüssel, Codes, Hunde, Parken – erscheint im Einsatzbericht)</span></label><textarea id="editAccessNotes"></textarea></div>
+    <div class="field"><label>Ansprechpartner vor Ort</label><input id="editSiteContactName"></div>
+    <div class="field"><label>Telefon vor Ort</label><input id="editSiteContactPhone"></div>
+  </div>
   <div class="editor-actions">
     <button onclick="saveProperty()">Speichern</button>
     <span id="propertyStatus" class="status"></span>
@@ -130,6 +138,9 @@ function fillPropertyForm(){
   document.getElementById('editZip').value=property.postal_code||'';
   document.getElementById('editCity').value=property.city||'';
   document.getElementById('editNotes').value=property.notes||'';
+  document.getElementById('editAccessNotes').value=property.access_notes||'';
+  document.getElementById('editSiteContactName').value=property.site_contact_name||'';
+  document.getElementById('editSiteContactPhone').value=property.site_contact_phone||'';
 }
 
 async function saveProperty(){
@@ -142,6 +153,9 @@ async function saveProperty(){
     postal_code:document.getElementById('editZip').value.trim()||null,
     city:document.getElementById('editCity').value.trim()||null,
     notes:document.getElementById('editNotes').value.trim()||null,
+    access_notes:document.getElementById('editAccessNotes').value.trim()||null,
+    site_contact_name:document.getElementById('editSiteContactName').value.trim()||null,
+    site_contact_phone:document.getElementById('editSiteContactPhone').value.trim()||null,
   };
   st.className='status';st.textContent='Speichert …';
   try{

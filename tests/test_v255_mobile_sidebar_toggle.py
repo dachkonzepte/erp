@@ -49,6 +49,7 @@ def _render():
     env.globals["sidebar_logo_url"] = lambda: None
     env.globals["sidebar_logo_height_px"] = lambda: 64
     env.globals["account_display"] = lambda current_user: {"full_name": "Tobias Rödchen", "initials": "TR"}
+    env.globals["can"] = lambda current_user, *roles: current_user is not None and current_user.role in roles
     tmpl = env.get_template("project_folder.html")  # eine beliebige Seite, die beide Includes einbindet
     return tmpl.render(request=_FakeRequest("/x", _FakeUser()), app_version="1.0.0", project_id=1)
 

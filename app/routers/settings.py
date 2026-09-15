@@ -26,20 +26,34 @@ from ..company_logo import (
 )
 from ..database import get_db
 from ..employees import ensure_default_employee_functions
-from ..models import Employee, EmployeeFunction, EmployeeProfile, SettingOption
+from ..models import AppUser, Employee, EmployeeFunction, EmployeeProfile, SettingOption
 from ..option_settings import ensure_default_option_groups, get_option_group, option_group_to_dict
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
 from ..schemas import AppearanceSettingsOut, AppearanceSettingsUpdate, CalculationSettingsOut, CalculationSettingsUpdate, EmployeeFunctionCreate, EmployeeFunctionOut, EmployeeFunctionUpdate, GeneralSettingsOut, GeneralSettingsUpdate, NumberPreviewOut, NumberSequenceOut, NumberSequenceUpdate, SettingOptionCreate, SettingOptionGroupOut, SettingOptionOut, SettingOptionUpdate
 from ..settings import ensure_default_sequences, get_accent_color, get_or_create_general_settings, preview_number, set_accent_color, update_sequence
 
 router = APIRouter()
 
+# Seit "Rechtekonzept" (siehe CLAUDE.md): die meisten Endpunkte dieser Datei sind Büro-/
+# Admin-Konfiguration. ZWEI Ausnahmen bleiben für JEDE Rolle offen (_any_role_dep) -- nicht
+# ungeprüft, sondern ausdrücklich so erklärt, siehe Regel 11: (1) eine einzelne Auswahlliste
+# nach Schlüssel (GET .../option-groups/{group_key}) wird von service_reports.html/
+# time_tracking.html/roof_area.html für ganz normale, auch für einen Monteur vorgesehene
+# Formulare gelesen -- die LISTE aller Gruppen (ohne group_key, nur von quote_editor.html/
+# settings.html genutzt) bleibt dagegen Büro/Admin. (2) das Firmen-/Sidebar-Logo ANZEIGEN
+# (nicht hochladen/entfernen) -- keine sensiblen Daten, wird von jeder Seite mit Sidebar
+# unabhängig von der Rolle geladen.
+_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, message="Nur für Büro und Administratoren verfügbar."))
+_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+
+
 @router.get("/api/calculation-settings", response_model=CalculationSettingsOut)
-def get_calculation_settings(db: Session = Depends(get_db)):
+def get_calculation_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return CalculationSettingsOut.model_validate(get_or_create_settings(db), from_attributes=True)
 
 
 @router.put("/api/calculation-settings", response_model=CalculationSettingsOut)
-def update_calculation_settings(payload: CalculationSettingsUpdate, db: Session = Depends(get_db)):
+def update_calculation_settings(payload: CalculationSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     settings = get_or_create_settings(db)
     settings.labor_rate = payload.labor_rate
     settings.material_markup_pct = payload.material_markup_pct
@@ -52,12 +66,12 @@ def update_calculation_settings(payload: CalculationSettingsUpdate, db: Session 
 
 
 @router.get("/api/settings/option-groups", response_model=list[SettingOptionGroupOut])
-def list_setting_option_groups(db: Session = Depends(get_db)):
+def list_setting_option_groups(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return [option_group_to_dict(g) for g in ensure_default_option_groups(db)]
 
 
 @router.get("/api/settings/option-groups/{group_key}", response_model=SettingOptionGroupOut)
-def get_setting_option_group(group_key: str, db: Session = Depends(get_db)):
+def get_setting_option_group(group_key: str, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     ensure_default_option_groups(db)
     group = get_option_group(db, group_key)
     if group is None:
@@ -66,7 +80,7 @@ def get_setting_option_group(group_key: str, db: Session = Depends(get_db)):
 
 
 @router.post("/api/settings/option-groups/{group_key}/options", response_model=SettingOptionOut)
-def create_setting_option(group_key: str, payload: SettingOptionCreate, db: Session = Depends(get_db)):
+def create_setting_option(group_key: str, payload: SettingOptionCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     ensure_default_option_groups(db)
     group = get_option_group(db, group_key)
     if group is None:
@@ -84,7 +98,7 @@ def create_setting_option(group_key: str, payload: SettingOptionCreate, db: Sess
 
 
 @router.put("/api/settings/option-groups/{group_key}/options/{option_id}", response_model=SettingOptionOut)
-def update_setting_option(group_key: str, option_id: int, payload: SettingOptionUpdate, db: Session = Depends(get_db)):
+def update_setting_option(group_key: str, option_id: int, payload: SettingOptionUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     ensure_default_option_groups(db)
     group = get_option_group(db, group_key)
     row = db.get(SettingOption, option_id)
@@ -103,7 +117,7 @@ def update_setting_option(group_key: str, option_id: int, payload: SettingOption
 
 
 @router.delete("/api/settings/option-groups/{group_key}/options/{option_id}")
-def delete_setting_option(group_key: str, option_id: int, db: Session = Depends(get_db)):
+def delete_setting_option(group_key: str, option_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     ensure_default_option_groups(db)
     group = get_option_group(db, group_key); row = db.get(SettingOption, option_id)
     if group is None or row is None or row.group_id != group.id:
@@ -112,12 +126,12 @@ def delete_setting_option(group_key: str, option_id: int, db: Session = Depends(
 
 
 @router.get("/api/settings/employee-functions", response_model=list[EmployeeFunctionOut])
-def list_employee_functions(db: Session = Depends(get_db)):
+def list_employee_functions(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return ensure_default_employee_functions(db)
 
 
 @router.post("/api/settings/employee-functions", response_model=EmployeeFunctionOut)
-def create_employee_function(payload: EmployeeFunctionCreate, db: Session = Depends(get_db)):
+def create_employee_function(payload: EmployeeFunctionCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     exists = db.scalar(select(EmployeeFunction).where(EmployeeFunction.name == payload.name.strip()))
     if exists:
         raise HTTPException(status_code=409, detail="Diese Funktion/Tätigkeit ist bereits vorhanden.")
@@ -130,7 +144,7 @@ def create_employee_function(payload: EmployeeFunctionCreate, db: Session = Depe
 
 
 @router.put("/api/settings/employee-functions/{function_id}", response_model=EmployeeFunctionOut)
-def update_employee_function(function_id: int, payload: EmployeeFunctionUpdate, db: Session = Depends(get_db)):
+def update_employee_function(function_id: int, payload: EmployeeFunctionUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     function = db.get(EmployeeFunction, function_id)
     if function is None:
         raise HTTPException(status_code=404, detail="Funktion/Tätigkeit nicht gefunden.")
@@ -157,7 +171,7 @@ def update_employee_function(function_id: int, payload: EmployeeFunctionUpdate, 
 
 
 @router.delete("/api/settings/employee-functions/{function_id}")
-def delete_employee_function(function_id: int, db: Session = Depends(get_db)):
+def delete_employee_function(function_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     function = db.get(EmployeeFunction, function_id)
     if function is None:
         raise HTTPException(status_code=404, detail="Funktion/Tätigkeit nicht gefunden.")
@@ -170,12 +184,12 @@ def delete_employee_function(function_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/settings/general", response_model=GeneralSettingsOut)
-def get_general_settings(db: Session = Depends(get_db)):
+def get_general_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return get_or_create_general_settings(db)
 
 
 @router.put("/api/settings/general", response_model=GeneralSettingsOut)
-def put_general_settings(payload: GeneralSettingsUpdate, db: Session = Depends(get_db)):
+def put_general_settings(payload: GeneralSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     settings = get_or_create_general_settings(db)
     for key, value in payload.model_dump().items():
         setattr(settings, key, value)
@@ -185,17 +199,17 @@ def put_general_settings(payload: GeneralSettingsUpdate, db: Session = Depends(g
 
 
 @router.get("/api/settings/appearance", response_model=AppearanceSettingsOut)
-def get_appearance_settings(db: Session = Depends(get_db)):
+def get_appearance_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return AppearanceSettingsOut(accent_color=get_accent_color(db))
 
 
 @router.put("/api/settings/appearance", response_model=AppearanceSettingsOut)
-def put_appearance_settings(payload: AppearanceSettingsUpdate, db: Session = Depends(get_db)):
+def put_appearance_settings(payload: AppearanceSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return AppearanceSettingsOut(accent_color=set_accent_color(db, payload.accent_color))
 
 
 @router.post("/api/settings/general/logo", response_model=GeneralSettingsOut)
-async def upload_company_logo(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_company_logo(file: UploadFile = File(...), db: Session = Depends(get_db), _role: AppUser = _role_dep):
     if not file.filename:
         raise HTTPException(status_code=400, detail="Bitte eine Datei auswählen.")
     if (file.content_type or "").lower() not in ("image/png", "image/jpeg", "image/svg+xml", "image/webp"):
@@ -215,7 +229,7 @@ async def upload_company_logo(file: UploadFile = File(...), db: Session = Depend
 
 
 @router.get("/api/settings/general/logo")
-def view_company_logo(db: Session = Depends(get_db)):
+def view_company_logo(db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     """Einziger HTTP-Auslieferungsweg fürs Firmenlogo -- genutzt von der Sidebar und der
     Vorschau in den Einstellungen, NICHT von PDFs/dem PWA-Icon (die lesen logo_path() direkt
     von der Platte, siehe document_frame.py/mobile_manifest.py). Liefert deshalb bevorzugt die
@@ -238,7 +252,7 @@ def view_company_logo(db: Session = Depends(get_db)):
 
 
 @router.delete("/api/settings/general/logo", response_model=GeneralSettingsOut)
-def remove_company_logo(db: Session = Depends(get_db)):
+def remove_company_logo(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     settings = get_or_create_general_settings(db)
     delete_logo(settings.logo_filename)
     settings.logo_filename = None
@@ -248,7 +262,7 @@ def remove_company_logo(db: Session = Depends(get_db)):
 
 
 @router.post("/api/settings/general/sidebar-logo", response_model=GeneralSettingsOut)
-async def upload_sidebar_logo(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_sidebar_logo(file: UploadFile = File(...), db: Session = Depends(get_db), _role: AppUser = _role_dep):
     """Eigener, dedizierter Sidebar-Logo-Upload (seit 1.3.43, siehe CLAUDE.md "Firmenlogo in
     der Sidebar") -- unabhängig vom Firmenlogo-Upload oben, eigener Ordner
     (company_logo.py::SIDEBAR_LOGO_ROOT), aber dieselbe Validierung/Größenbegrenzung."""
@@ -271,7 +285,7 @@ async def upload_sidebar_logo(file: UploadFile = File(...), db: Session = Depend
 
 
 @router.get("/api/settings/general/sidebar-logo")
-def view_sidebar_logo(db: Session = Depends(get_db)):
+def view_sidebar_logo(db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     """Auslieferungsweg für das dedizierte Sidebar-Logo -- Gegenstück zu view_company_logo()
     oben, nur im eigenen Ordner. Genutzt von sidebar_logo_url() (app/routers/pages.py), wenn
     company_logo.py::sidebar_logo_filename() die Quelle "sidebar" auflöst."""
@@ -289,7 +303,7 @@ def view_sidebar_logo(db: Session = Depends(get_db)):
 
 
 @router.delete("/api/settings/general/sidebar-logo", response_model=GeneralSettingsOut)
-def remove_sidebar_logo(db: Session = Depends(get_db)):
+def remove_sidebar_logo(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     settings = get_or_create_general_settings(db)
     delete_sidebar_logo(settings.sidebar_logo_filename)
     settings.sidebar_logo_filename = None
@@ -299,7 +313,7 @@ def remove_sidebar_logo(db: Session = Depends(get_db)):
 
 
 @router.get("/api/settings/number-sequences", response_model=list[NumberSequenceOut])
-def list_number_sequences(db: Session = Depends(get_db)):
+def list_number_sequences(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     sequences = ensure_default_sequences(db)
     result = []
     for sequence in sequences:
@@ -314,7 +328,7 @@ def list_number_sequences(db: Session = Depends(get_db)):
 
 
 @router.put("/api/settings/number-sequences/{sequence_key}", response_model=NumberSequenceOut)
-def put_number_sequence(sequence_key: str, payload: NumberSequenceUpdate, db: Session = Depends(get_db)):
+def put_number_sequence(sequence_key: str, payload: NumberSequenceUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     try:
         sequence = update_sequence(
             db, sequence_key, format_pattern=payload.format_pattern,
@@ -333,7 +347,7 @@ def put_number_sequence(sequence_key: str, payload: NumberSequenceUpdate, db: Se
 
 
 @router.get("/api/settings/number-sequences/{sequence_key}/preview", response_model=NumberPreviewOut)
-def get_number_preview(sequence_key: str, db: Session = Depends(get_db)):
+def get_number_preview(sequence_key: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     try:
         value = preview_number(db, sequence_key)
         db.commit()

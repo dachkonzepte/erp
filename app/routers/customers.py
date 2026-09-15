@@ -19,7 +19,8 @@ from sqlalchemy.orm import Session, selectinload
 from ..crm import compose_customer_name, ensure_customer_profile, ensure_customer_profiles
 from ..customer_documents import MAX_UPLOAD_BYTES, customer_directory, make_stored_filename
 from ..database import get_db
-from ..models import Customer, CustomerDocument, CustomerExtraInfo, Property
+from ..models import AppUser, Customer, CustomerDocument, CustomerExtraInfo, Property
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
 from .customer_documents import _customer_document_out
 from ..schemas import (
     CustomerCreate, CustomerDocumentOut, CustomerExtraInfoCreate, CustomerExtraInfoOut,
@@ -28,8 +29,14 @@ from ..schemas import (
 
 router = APIRouter()
 
+# Seit "Rechtekonzept" (siehe CLAUDE.md): Kundendaten sind Büro-/Admin-Bereich, ein Monteur
+# erreicht das, was er über einen Einsatz braucht, ausschließlich über
+# GET /api/orders/{id}/property (app/routers/service_reports.py) -- nie über diese Datei.
+_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, message="Kundendaten sind nur für Büro und Administratoren verfügbar."))
+
+
 @router.get("/api/customers", response_model=list[CustomerOut])
-def list_customers(db: Session = Depends(get_db)):
+def list_customers(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     customers = db.scalars(
         select(Customer)
         .options(selectinload(Customer.extra_infos), selectinload(Customer.profile))
@@ -40,7 +47,7 @@ def list_customers(db: Session = Depends(get_db)):
 
 
 @router.get("/api/customers/{customer_id}", response_model=CustomerOut)
-def get_customer(customer_id: int, db: Session = Depends(get_db)):
+def get_customer(customer_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     customer = db.scalar(
         select(Customer)
         .options(selectinload(Customer.extra_infos), selectinload(Customer.profile))
@@ -54,7 +61,7 @@ def get_customer(customer_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/api/customers/{customer_id}", response_model=CustomerOut)
-def update_customer(customer_id: int, payload: CustomerUpdate, db: Session = Depends(get_db)):
+def update_customer(customer_id: int, payload: CustomerUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     customer = db.scalar(
         select(Customer)
         .options(selectinload(Customer.extra_infos), selectinload(Customer.properties), selectinload(Customer.profile))
@@ -103,7 +110,8 @@ def update_customer(customer_id: int, payload: CustomerUpdate, db: Session = Dep
 
 @router.post("/api/customers/{customer_id}/extra-infos", response_model=CustomerExtraInfoOut)
 def create_customer_extra_info(
-    customer_id: int, payload: CustomerExtraInfoCreate, db: Session = Depends(get_db)
+    customer_id: int, payload: CustomerExtraInfoCreate, db: Session = Depends(get_db),
+    _role: AppUser = _role_dep,
 ):
     if db.get(Customer, customer_id) is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
@@ -116,7 +124,8 @@ def create_customer_extra_info(
 
 @router.put("/api/customers/{customer_id}/extra-infos/{info_id}", response_model=CustomerExtraInfoOut)
 def update_customer_extra_info(
-    customer_id: int, info_id: int, payload: CustomerExtraInfoUpdate, db: Session = Depends(get_db)
+    customer_id: int, info_id: int, payload: CustomerExtraInfoUpdate, db: Session = Depends(get_db),
+    _role: AppUser = _role_dep,
 ):
     info = db.get(CustomerExtraInfo, info_id)
     if info is None or info.customer_id != customer_id:
@@ -129,7 +138,7 @@ def update_customer_extra_info(
 
 
 @router.delete("/api/customers/{customer_id}/extra-infos/{info_id}")
-def delete_customer_extra_info(customer_id: int, info_id: int, db: Session = Depends(get_db)):
+def delete_customer_extra_info(customer_id: int, info_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     info = db.get(CustomerExtraInfo, info_id)
     if info is None or info.customer_id != customer_id:
         raise HTTPException(status_code=404, detail="Kundeninformation nicht gefunden.")
@@ -139,7 +148,7 @@ def delete_customer_extra_info(customer_id: int, info_id: int, db: Session = Dep
 
 
 @router.post("/api/customers", response_model=CustomerOut)
-def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
+def create_customer(payload: CustomerCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     data = payload.model_dump(exclude={"extra_infos", "category", "customer_number", "default_payment_term_id"})
     data["name"] = compose_customer_name(data.get("salutation"), data.get("title"), data.get("first_name"), data["last_name"])
     customer = Customer(**data)
@@ -179,7 +188,7 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/api/customers/{customer_id}/documents", response_model=list[CustomerDocumentOut])
-def list_customer_documents(customer_id: int, db: Session = Depends(get_db)):
+def list_customer_documents(customer_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     if db.get(Customer, customer_id) is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
     docs = db.scalars(select(CustomerDocument).where(CustomerDocument.customer_id == customer_id).order_by(CustomerDocument.uploaded_at.desc())).all()
@@ -190,6 +199,7 @@ def list_customer_documents(customer_id: int, db: Session = Depends(get_db)):
 async def upload_customer_document(
     customer_id: int, file: UploadFile = File(...), category: str = Form("Sonstiges"), subfolder: str | None = Form(None),
     description: str | None = Form(None), document_date: str | None = Form(None), db: Session = Depends(get_db),
+    _role: AppUser = _role_dep,
 ):
     if db.get(Customer, customer_id) is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")

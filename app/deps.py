@@ -41,4 +41,8 @@ def require_admin(message: str = _DEFAULT_MESSAGE):
             raise HTTPException(status_code=403, detail=message)
         return user
 
+    # Seit "Rechtekonzept" (siehe CLAUDE.md, app/permissions.py::require_role()): reine
+    # Markierung für tests/test_v260_role_audit.py, damit dieser require_admin() als bereits
+    # klassifiziert erkennt -- ändert das Verhalten dieser Funktion an keiner Stelle.
+    _dependency._dk_roles = frozenset({"admin"})
     return _dependency

@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..invoices import get_invoice
-from ..models import Reminder, ReminderLevel
+from ..models import AppUser, Reminder, ReminderLevel
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
 from ..reminder_pdf import build_reminder_pdf
 from ..reminders import (
     auto_create_due_reminder_drafts, compute_reminder_status, create_reminder, delete_reminder_draft,
@@ -22,6 +23,10 @@ from ..reminders import (
 from ..schemas import ReminderCreate, ReminderEmailSend, ReminderLevelOut, ReminderLevelUpdate, ReminderOut, ReminderSettingsOut, ReminderSettingsUpdate, ReminderStatusOut, ReminderUpdate, InvoiceNeedingAttentionOut
 
 router = APIRouter()
+
+# Seit "Rechtekonzept" (siehe CLAUDE.md): Mahnwesen ist Büro-/Admin-Bereich, für einen Monteur
+# an keiner Stelle vorgesehen -- keine Objekt-Filterung nötig, reiner Rollen-Block.
+_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, message="Mahnwesen ist nur für Büro und Administratoren verfügbar."))
 
 
 def _get_invoice_or_404(db: Session, invoice_id: int):
@@ -39,13 +44,13 @@ def _get_reminder_or_404(db: Session, reminder_id: int) -> Reminder:
 
 
 @router.get("/api/reminder-levels", response_model=list[ReminderLevelOut])
-def get_reminder_levels(db: Session = Depends(get_db)):
+def get_reminder_levels(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     ensure_default_reminder_levels(db)
     return list_reminder_levels(db)
 
 
 @router.put("/api/reminder-levels/{level_id}", response_model=ReminderLevelOut)
-def put_reminder_level(level_id: int, payload: ReminderLevelUpdate, db: Session = Depends(get_db)):
+def put_reminder_level(level_id: int, payload: ReminderLevelUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     level_row = db.get(ReminderLevel, level_id)
     if level_row is None:
         raise HTTPException(status_code=404, detail="Mahnstufe nicht gefunden.")
@@ -57,47 +62,47 @@ def put_reminder_level(level_id: int, payload: ReminderLevelUpdate, db: Session 
 
 
 @router.get("/api/reminders/overdue", response_model=list[InvoiceNeedingAttentionOut])
-def get_overdue_invoices(db: Session = Depends(get_db)):
+def get_overdue_invoices(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     ensure_default_reminder_levels(db)
     return list_invoices_needing_attention(db)
 
 
 @router.get("/api/reminders", response_model=list[ReminderOut])
-def get_all_reminders(db: Session = Depends(get_db)):
+def get_all_reminders(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return [reminder_to_dict(r) for r in list_all_reminders(db)]
 
 
 @router.get("/api/reminder-settings", response_model=ReminderSettingsOut)
-def get_reminder_settings(db: Session = Depends(get_db)):
+def get_reminder_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return ReminderSettingsOut(auto_create_drafts=get_reminder_auto_create_setting(db))
 
 
 @router.put("/api/reminder-settings", response_model=ReminderSettingsOut)
-def put_reminder_settings(payload: ReminderSettingsUpdate, db: Session = Depends(get_db)):
+def put_reminder_settings(payload: ReminderSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return ReminderSettingsOut(auto_create_drafts=set_reminder_auto_create_setting(db, payload.auto_create_drafts))
 
 
 @router.post("/api/reminders/auto-create", response_model=list[ReminderOut])
-def post_auto_create_reminder_drafts(db: Session = Depends(get_db)):
+def post_auto_create_reminder_drafts(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     ensure_default_reminder_levels(db)
     return [reminder_to_dict(r) for r in auto_create_due_reminder_drafts(db)]
 
 
 @router.get("/api/invoices/{invoice_id}/reminder-status", response_model=ReminderStatusOut)
-def get_invoice_reminder_status(invoice_id: int, db: Session = Depends(get_db)):
+def get_invoice_reminder_status(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
     ensure_default_reminder_levels(db)
     return compute_reminder_status(db, invoice)
 
 
 @router.get("/api/invoices/{invoice_id}/reminders", response_model=list[ReminderOut])
-def get_invoice_reminders(invoice_id: int, db: Session = Depends(get_db)):
+def get_invoice_reminders(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _get_invoice_or_404(db, invoice_id)
     return [reminder_to_dict(r) for r in list_reminders_for_invoice(db, invoice_id)]
 
 
 @router.post("/api/invoices/{invoice_id}/reminders", response_model=ReminderOut)
-def post_invoice_reminder(invoice_id: int, payload: ReminderCreate, db: Session = Depends(get_db)):
+def post_invoice_reminder(invoice_id: int, payload: ReminderCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         reminder = create_reminder(db, invoice, payload.level)
@@ -107,7 +112,7 @@ def post_invoice_reminder(invoice_id: int, payload: ReminderCreate, db: Session 
 
 
 @router.post("/api/reminders/{reminder_id}/send", response_model=ReminderOut)
-def post_send_reminder(reminder_id: int, db: Session = Depends(get_db)):
+def post_send_reminder(reminder_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     reminder = _get_reminder_or_404(db, reminder_id)
     try:
         finalize_and_send_reminder(db, reminder)
@@ -117,7 +122,7 @@ def post_send_reminder(reminder_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api/reminders/{reminder_id}/send-email", response_model=ReminderOut)
-def post_send_reminder_email(reminder_id: int, payload: ReminderEmailSend, db: Session = Depends(get_db)):
+def post_send_reminder_email(reminder_id: int, payload: ReminderEmailSend, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     """Tatsächlicher E-Mail-Versand (seit 1.0.74) -- getrennt vom
     Finalisieren oben (/send), das nur Nummer/Status setzt. Kann auf einer
     bereits finalisierten Mahnung auch mehrfach aufgerufen werden (z.B.
@@ -131,7 +136,7 @@ def post_send_reminder_email(reminder_id: int, payload: ReminderEmailSend, db: S
 
 
 @router.put("/api/reminders/{reminder_id}", response_model=ReminderOut)
-def put_reminder(reminder_id: int, payload: ReminderUpdate, db: Session = Depends(get_db)):
+def put_reminder(reminder_id: int, payload: ReminderUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     reminder = _get_reminder_or_404(db, reminder_id)
     try:
         update_reminder_draft(
@@ -143,7 +148,7 @@ def put_reminder(reminder_id: int, payload: ReminderUpdate, db: Session = Depend
 
 
 @router.delete("/api/reminders/{reminder_id}")
-def delete_reminder(reminder_id: int, db: Session = Depends(get_db)):
+def delete_reminder(reminder_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     reminder = _get_reminder_or_404(db, reminder_id)
     try:
         delete_reminder_draft(db, reminder)
@@ -153,7 +158,7 @@ def delete_reminder(reminder_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/reminders/{reminder_id}/pdf")
-def get_reminder_pdf(reminder_id: int, db: Session = Depends(get_db)):
+def get_reminder_pdf(reminder_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     reminder = _get_reminder_or_404(db, reminder_id)
     pdf = build_reminder_pdf(db, reminder)
     name_part = reminder.reminder_number or f"Entwurf-{reminder.id}"

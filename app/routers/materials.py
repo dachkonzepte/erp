@@ -17,7 +17,8 @@ from ..material_groups import (
     move_material_to_group, set_material_group_archived,
 )
 from ..materials import create_manual_material, get_material, list_materials, update_material
-from ..models import Material, MaterialGroup
+from ..models import AppUser, Material, MaterialGroup
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
 from ..schemas import (
     MaterialCatalogCreate, MaterialCatalogOut, MaterialCatalogUpdate,
     MaterialGroupCreate, MaterialGroupOut, MaterialMoveOrCopy,
@@ -25,14 +26,25 @@ from ..schemas import (
 
 router = APIRouter()
 
+# Seit "Rechtekonzept" (siehe CLAUDE.md): Materialkatalog-Verwaltung ist Büro-/Admin-Bereich --
+# EINE Ausnahme: die Suche unten (GET /api/materials) wird von service_reports.html für die
+# Materialerfassung eines Monteurs am Einsatzbericht aufgerufen (siehe CLAUDE.md
+# "Materialerfassung"), bleibt deshalb für jede Rolle offen. Bekannter, noch offener Punkt
+# (siehe CLAUDE.md "Rechtekonzept"): MaterialCatalogOut trägt purchase_price -- ein Monteur
+# sieht darüber weiterhin Einkaufspreise, obwohl das ausdrücklich nicht gewünscht ist. Eine
+# echte Behebung (eigenes, preisloses Response-Schema für diesen Aufrufweg) ist bewusst NICHT
+# Teil dieser Etappe, um die Materialerfassung nicht zu brechen -- gemeldet, nicht verschwiegen.
+_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+
 
 @router.get("/api/materials", response_model=list[MaterialCatalogOut])
-def get_materials(search: str | None = Query(default=None), catalog_id: int | None = Query(default=None), db: Session = Depends(get_db)):
+def get_materials(search: str | None = Query(default=None), catalog_id: int | None = Query(default=None), db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     return list_materials(db, search=search, catalog_id=catalog_id)
 
 
 @router.get("/api/materials/{material_id}", response_model=MaterialCatalogOut)
-def get_material_by_id(material_id: int, db: Session = Depends(get_db)):
+def get_material_by_id(material_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     material = get_material(db, material_id)
     if material is None:
         raise HTTPException(status_code=404, detail="Material nicht gefunden.")
@@ -40,7 +52,7 @@ def get_material_by_id(material_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api/materials", response_model=MaterialCatalogOut)
-def post_material(payload: MaterialCatalogCreate, db: Session = Depends(get_db)):
+def post_material(payload: MaterialCatalogCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     if payload.catalog_id is not None and db.get(MaterialGroup, payload.catalog_id) is None:
         raise HTTPException(status_code=404, detail="Materialkatalog nicht gefunden.")
     return create_manual_material(
@@ -51,7 +63,7 @@ def post_material(payload: MaterialCatalogCreate, db: Session = Depends(get_db))
 
 
 @router.put("/api/materials/{material_id}", response_model=MaterialCatalogOut)
-def put_material(material_id: int, payload: MaterialCatalogUpdate, db: Session = Depends(get_db)):
+def put_material(material_id: int, payload: MaterialCatalogUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     material = update_material(
         db, material_id, payload.name, payload.unit, payload.purchase_price,
         payload.article_number, payload.price_basis,
@@ -62,7 +74,7 @@ def put_material(material_id: int, payload: MaterialCatalogUpdate, db: Session =
 
 
 @router.post("/api/materials/{material_id}/move", response_model=MaterialCatalogOut)
-def move_material(material_id: int, payload: MaterialMoveOrCopy, db: Session = Depends(get_db)):
+def move_material(material_id: int, payload: MaterialMoveOrCopy, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     material = db.get(Material, material_id)
     if material is None:
         raise HTTPException(status_code=404, detail="Material nicht gefunden.")
@@ -72,7 +84,7 @@ def move_material(material_id: int, payload: MaterialMoveOrCopy, db: Session = D
 
 
 @router.post("/api/materials/{material_id}/copy", response_model=MaterialCatalogOut)
-def copy_material(material_id: int, payload: MaterialMoveOrCopy, db: Session = Depends(get_db)):
+def copy_material(material_id: int, payload: MaterialMoveOrCopy, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     original = db.get(Material, material_id)
     if original is None:
         raise HTTPException(status_code=404, detail="Material nicht gefunden.")
@@ -82,17 +94,17 @@ def copy_material(material_id: int, payload: MaterialMoveOrCopy, db: Session = D
 
 
 @router.get("/api/material-groups", response_model=list[MaterialGroupOut])
-def get_material_groups(include_archived: bool = Query(default=False), db: Session = Depends(get_db)):
+def get_material_groups(include_archived: bool = Query(default=False), db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return list_material_groups(db, include_archived=include_archived)
 
 
 @router.post("/api/material-groups", response_model=MaterialGroupOut)
-def post_material_group(payload: MaterialGroupCreate, db: Session = Depends(get_db)):
+def post_material_group(payload: MaterialGroupCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return create_material_group(db, payload.name, payload.description)
 
 
 @router.post("/api/material-groups/{group_id}/archive", response_model=MaterialGroupOut)
-def archive_material_group(group_id: int, db: Session = Depends(get_db)):
+def archive_material_group(group_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     try:
         group = set_material_group_archived(db, group_id, True)
     except ValueError as e:
@@ -103,7 +115,7 @@ def archive_material_group(group_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api/material-groups/{group_id}/unarchive", response_model=MaterialGroupOut)
-def unarchive_material_group(group_id: int, db: Session = Depends(get_db)):
+def unarchive_material_group(group_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     group = set_material_group_archived(db, group_id, False)
     if group is None:
         raise HTTPException(status_code=404, detail="Materialkatalog nicht gefunden.")

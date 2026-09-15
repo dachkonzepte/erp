@@ -19,13 +19,18 @@ from ..document_layout_background import (
 )
 from ..document_page_margins import PAGE_TYPES, get_margins, reset_margins_to_default, update_margins
 from ..document_type_fallback import SHARED_DOCUMENT_TYPE
-from ..models import DocumentLayoutBlock
+from ..models import AppUser, DocumentLayoutBlock
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
 from ..schemas import (
     DocumentLayoutBackgroundOut, DocumentLayoutBlockOut, DocumentLayoutBlockUpdate,
     DocumentPageMarginsOut, DocumentPageMarginsUpdate,
 )
 
 router = APIRouter()
+
+# Seit "Rechtekonzept" (siehe CLAUDE.md): ausschließlich von settings.html genutzt (geprüft),
+# Büro-/Admin-Konfiguration, für keinen Monteur relevant.
+_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
 
 # Nur dieser eine document_type-Wert darf tatsächlich BESCHRIEBEN werden -- SHARED_DOCUMENT_TYPE
 # ("default", der geteilte Satz für jeden Dokumenttyp, siehe app/document_type_fallback.py). Ein
@@ -77,7 +82,7 @@ def _get_block_or_404(db: Session, block_id: int) -> DocumentLayoutBlock:
 # document_type-Wert verschluckt und liefe sofort in _validate_readable_document_type() ins 404,
 # das exakte Literal-vs-Platzhalter-Muster, vor dem tests/test_v167_pagination.py bereits warnt.
 @router.get("/api/document-layout/rollout-status")
-def get_shared_frame_rollout_status():
+def get_shared_frame_rollout_status(_role: AppUser = _role_dep):
     """Welche Dokumenttypen nutzen den geteilten Satz (Briefpapier/Ränder/Bausteine) bereits
     tatsächlich beim Rendern, welche noch nicht? Liest RENDERERS_USING_SHARED_FRAME direkt aus
     app/document_frame.py -- also von genau der Stelle, die ein künftiger Renderer beim Umstellen
@@ -104,13 +109,13 @@ def get_shared_frame_rollout_status():
 
 
 @router.get("/api/document-layout/{document_type}", response_model=list[DocumentLayoutBlockOut])
-def get_document_layout(document_type: str, db: Session = Depends(get_db)):
+def get_document_layout(document_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _validate_readable_document_type(document_type)
     return ensure_default_layout(db, document_type)
 
 
 @router.put("/api/document-layout/blocks/{block_id}", response_model=DocumentLayoutBlockOut)
-def put_layout_block(block_id: int, payload: DocumentLayoutBlockUpdate, db: Session = Depends(get_db)):
+def put_layout_block(block_id: int, payload: DocumentLayoutBlockUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     block = _get_block_or_404(db, block_id)
     return update_layout_block(
         db, block, x_mm=payload.x_mm, y_mm=payload.y_mm, width_mm=payload.width_mm, height_mm=payload.height_mm,
@@ -120,20 +125,20 @@ def put_layout_block(block_id: int, payload: DocumentLayoutBlockUpdate, db: Sess
 
 
 @router.post("/api/document-layout/{document_type}/reset", response_model=list[DocumentLayoutBlockOut])
-def post_reset_document_layout(document_type: str, db: Session = Depends(get_db)):
+def post_reset_document_layout(document_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _validate_writable_document_type(document_type)
     return reset_layout_to_default(db, document_type)
 
 
 @router.get("/api/document-layout/{document_type}/background", response_model=DocumentLayoutBackgroundOut)
-def get_document_layout_background_status(document_type: str, db: Session = Depends(get_db)):
+def get_document_layout_background_status(document_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _validate_readable_document_type(document_type)
     row = get_effective_background(db, document_type)
     return DocumentLayoutBackgroundOut(document_type=document_type, has_background=row is not None, repeat_on_every_page=row.repeat_on_every_page if row else True)
 
 
 @router.get("/api/document-layout/{document_type}/background/file")
-def get_document_layout_background_file(document_type: str, db: Session = Depends(get_db)):
+def get_document_layout_background_file(document_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _validate_readable_document_type(document_type)
     row = get_effective_background(db, document_type)
     if row is None:
@@ -145,7 +150,7 @@ def get_document_layout_background_file(document_type: str, db: Session = Depend
 
 
 @router.post("/api/document-layout/{document_type}/background", response_model=DocumentLayoutBackgroundOut)
-async def upload_document_layout_background(document_type: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_document_layout_background(document_type: str, file: UploadFile = File(...), db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _validate_writable_document_type(document_type)
     if not file.filename:
         raise HTTPException(status_code=400, detail="Bitte eine Datei auswählen.")
@@ -161,7 +166,7 @@ async def upload_document_layout_background(document_type: str, file: UploadFile
 
 
 @router.delete("/api/document-layout/{document_type}/background", response_model=DocumentLayoutBackgroundOut)
-def delete_document_layout_background(document_type: str, db: Session = Depends(get_db)):
+def delete_document_layout_background(document_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _validate_writable_document_type(document_type)
     existing = get_background(db, document_type)
     if existing is not None:
@@ -182,7 +187,7 @@ def delete_document_layout_background(document_type: str, db: Session = Depends(
 # relevant, siehe DocumentLayoutBackground-Docstring.
 
 @router.get("/api/document-layout/{document_type}/backgrounds/{page_type}", response_model=DocumentLayoutBackgroundOut)
-def get_document_layout_background_status_for_page_type(document_type: str, page_type: str, db: Session = Depends(get_db)):
+def get_document_layout_background_status_for_page_type(document_type: str, page_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _validate_readable_document_type(document_type)
     _validate_page_type(page_type)
     row = get_effective_background(db, document_type, page_type)
@@ -190,7 +195,7 @@ def get_document_layout_background_status_for_page_type(document_type: str, page
 
 
 @router.get("/api/document-layout/{document_type}/backgrounds/{page_type}/file")
-def get_document_layout_background_file_for_page_type(document_type: str, page_type: str, db: Session = Depends(get_db)):
+def get_document_layout_background_file_for_page_type(document_type: str, page_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _validate_readable_document_type(document_type)
     _validate_page_type(page_type)
     row = get_effective_background(db, document_type, page_type)
@@ -203,7 +208,7 @@ def get_document_layout_background_file_for_page_type(document_type: str, page_t
 
 
 @router.post("/api/document-layout/{document_type}/backgrounds/{page_type}", response_model=DocumentLayoutBackgroundOut)
-async def upload_document_layout_background_for_page_type(document_type: str, page_type: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_document_layout_background_for_page_type(document_type: str, page_type: str, file: UploadFile = File(...), db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _validate_writable_document_type(document_type)
     _validate_page_type(page_type)
     if not file.filename:
@@ -225,7 +230,7 @@ async def upload_document_layout_background_for_page_type(document_type: str, pa
 
 
 @router.delete("/api/document-layout/{document_type}/backgrounds/{page_type}", response_model=DocumentLayoutBackgroundOut)
-def delete_document_layout_background_for_page_type(document_type: str, page_type: str, db: Session = Depends(get_db)):
+def delete_document_layout_background_for_page_type(document_type: str, page_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _validate_writable_document_type(document_type)
     _validate_page_type(page_type)
     existing = get_background(db, document_type, page_type)
@@ -241,21 +246,21 @@ def _validate_page_type(page_type: str) -> None:
 
 
 @router.get("/api/document-layout/{document_type}/margins/{page_type}", response_model=DocumentPageMarginsOut)
-def get_document_page_margins(document_type: str, page_type: str, db: Session = Depends(get_db)):
+def get_document_page_margins(document_type: str, page_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _validate_readable_document_type(document_type)
     _validate_page_type(page_type)
     return get_margins(db, document_type, page_type)
 
 
 @router.put("/api/document-layout/{document_type}/margins/{page_type}", response_model=DocumentPageMarginsOut)
-def put_document_page_margins(document_type: str, page_type: str, payload: DocumentPageMarginsUpdate, db: Session = Depends(get_db)):
+def put_document_page_margins(document_type: str, page_type: str, payload: DocumentPageMarginsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _validate_writable_document_type(document_type)
     _validate_page_type(page_type)
     return update_margins(db, document_type, page_type, top_mm=payload.top_mm, bottom_mm=payload.bottom_mm, left_mm=payload.left_mm, right_mm=payload.right_mm)
 
 
 @router.post("/api/document-layout/{document_type}/margins/{page_type}/reset", response_model=DocumentPageMarginsOut)
-def post_reset_document_page_margins(document_type: str, page_type: str, db: Session = Depends(get_db)):
+def post_reset_document_page_margins(document_type: str, page_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _validate_writable_document_type(document_type)
     _validate_page_type(page_type)
     return reset_margins_to_default(db, document_type, page_type)

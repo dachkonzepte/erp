@@ -12,17 +12,23 @@ from sqlalchemy.orm import Session
 from ..calculation import get_or_create_settings
 from ..database import get_db
 from ..labor_rate import calculate_labor_rate, get_or_create_labor_rate_settings, get_or_create_overhead_settings, labor_rate_settings_dict
+from ..models import AppUser
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
 from ..schemas import CalculationSettingsOut, LaborRateCalculationOut, LaborRateSettingsOut, LaborRateSettingsUpdate
 
 router = APIRouter()
 
+# Seit "Rechtekonzept" (siehe CLAUDE.md): Kalkulationsgrundlage aus den Mitarbeiter-
+# Stundenlöhnen -- Büro/Admin, für keinen Monteur relevant.
+_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+
 @router.get("/api/labor-rate-settings", response_model=LaborRateSettingsOut)
-def get_labor_rate_settings(db: Session = Depends(get_db)):
+def get_labor_rate_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return LaborRateSettingsOut.model_validate(labor_rate_settings_dict(db))
 
 
 @router.put("/api/labor-rate-settings", response_model=LaborRateSettingsOut)
-def update_labor_rate_settings(payload: LaborRateSettingsUpdate, db: Session = Depends(get_db)):
+def update_labor_rate_settings(payload: LaborRateSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     settings = get_or_create_labor_rate_settings(db)
     overhead = get_or_create_overhead_settings(db, settings)
     settings.employer_cost_pct = payload.employer_cost_pct
@@ -54,12 +60,12 @@ def update_labor_rate_settings(payload: LaborRateSettingsUpdate, db: Session = D
 
 
 @router.get("/api/labor-rate-calculation", response_model=LaborRateCalculationOut)
-def get_labor_rate_calculation(db: Session = Depends(get_db)):
+def get_labor_rate_calculation(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return LaborRateCalculationOut.model_validate(calculate_labor_rate(db, get_or_create_settings(db)))
 
 
 @router.post("/api/labor-rate-calculation/apply", response_model=CalculationSettingsOut)
-def apply_labor_rate_calculation(db: Session = Depends(get_db)):
+def apply_labor_rate_calculation(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     calc_settings = get_or_create_settings(db)
     result = calculate_labor_rate(db, calc_settings)
     if not result["can_calculate"] or result["suggested_labor_rate"] is None:
