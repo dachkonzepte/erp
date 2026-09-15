@@ -152,12 +152,12 @@ def test_collapse_toggle_is_never_hidden_when_collapsed_but_theme_toggle_is():
     assert ".app-sidebar.collapsed .app-theme-toggle{display:none}" in html
 
 
-def test_account_link_position_unchanged_for_this_step():
-    """"Mein Konto" wandert laut Auftrag erst mit der Topbar in einem spaeteren Schritt --
-    dieser Schritt fasst die Jinja-Vorlage dafuer nicht an (das Auth-Fuss-Markup wird ohnehin
-    zur Laufzeit per renderAuthFoot() im Skript neu aufgebaut, nicht hier serverseitig)."""
+def test_account_link_removed_since_1_3_49():
+    """"Mein Konto" (und Benutzername/Abmelden) wanderten mit der Topbar (Schritt 2, 1.3.45)
+    dorthin -- seit 1.3.49 ist die Sidebar-eigene Kopie davon vollständig entfernt, siehe
+    tests/test_v163_sidebar_login_status.py für den zugehörigen Regressionstest."""
     html = _render("/api/settings/general/logo?v=abc123.png")
-    assert "app-sidebar-account-link" in html  # Teil des unveraendert belassenen JS-Templates
+    assert "app-sidebar-account-link" not in html
 
 
 # ---------------------------------------------------------------------------

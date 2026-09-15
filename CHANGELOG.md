@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.49 – Aufräumen im Fußbereich der Sidebar
+
+Benutzername, "Mein Konto" und "Abmelden" standen im unteren Bereich der Sidebar noch,
+obwohl alle drei bereits seit der Topbar (Schritt 2, 1.3.45) über deren Kontoknopf erreichbar
+sind -- zwei Stellen für dasselbe verwirren. Entfernt: der untere Bereich zeigt jetzt nur noch
+die beiden Schaltflächen für Hell/Dunkel und Ein-/Ausklappen sowie die Versionsnummer.
+
+Das dafür zuständige Element bleibt bestehen, rendert aber nur noch leer -- es wird weiterhin
+für den einen verbleibenden Fall gebraucht: eine Sitzung, die während des Browsens abläuft,
+bekommt dort ohne Neuladen der Seite ein kompaktes Anmeldeformular zurück. Eine kleine
+CSS-Ergänzung verhindert dabei eine unnötig gepolsterte Leerstelle. Toter, dadurch nicht mehr
+aufgerufener Code (Escaping-Helfer, Abmelden-Bindung) wurde entfernt statt nur ausgeblendet.
+Die Monteursansicht mit ihrem eigenen, unabhängigen Abmelde-Weg bleibt unangetastet.
+
+Nebenbefund: der entfernte "Mein Konto"-Link hatte keine eigene Formatierung und wäre als
+blauer Standardlink statt im Design-System erschienen -- erledigt sich durch die Entfernung.
+Auf Nachfrage nach demselben Muster gesucht: vier weitere, unabhängige Stellen mit demselben
+Fehler gefunden (jeweils ein per JavaScript zusammengesetzter Link, bei dem die passende
+Formatierung beim Bauen vergessen wurde) und gemeldet -- Behebung zurückgestellt.
+
 ## 1.3.48 – Zwei Fehler in der Anmelde-Umleitung, auf dem Produktivserver gefunden
 
 Zwei reale Beobachtungen aus 1.3.46/1.3.47 behoben. `/login` leitete eine bereits vollständig

@@ -76,8 +76,12 @@ def test_account_page_shows_recovery_codes_only_once_with_print_option():
     assert "window.print()" in html
 
 
-def test_sidebar_links_to_account_page():
-    html = (Path(__file__).parents[1] / "app" / "templates" / "_sidebar.html").read_text(encoding="utf-8")
+def test_account_page_is_reachable_from_the_global_chrome():
+    """Bis 1.3.48 verlinkte _sidebar.html selbst auf /account ("Mein Konto" im Fußbereich) --
+    seit 1.3.49 (Aufräumen des Fußbereichs, siehe CLAUDE.md) lebt dieser Link nur noch im
+    Kontoknopf der Topbar, die Sidebar selbst nicht mehr. Eigener Regressionstest dafür in
+    tests/test_v254_topbar.py::test_account_menu_contains_full_name_account_link_and_logout."""
+    html = (Path(__file__).parents[1] / "app" / "templates" / "_topbar.html").read_text(encoding="utf-8")
     assert 'href="/account"' in html
 
 

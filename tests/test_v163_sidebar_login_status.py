@@ -124,14 +124,6 @@ def test_sidebar_login_reloads_page_on_success_instead_of_redirect():
     assert "location.reload()" in html
 
 
-def test_sidebar_escapes_display_name_to_prevent_xss():
-    """display_name kommt aus der Datenbank (Benutzerverwaltung) -- beim
-    dynamischen Aufbau per JS muss das escaped werden, sonst wäre ein
-    bösartiger Anzeigename ein gespeichertes XSS."""
-    html = (Path(__file__).parents[1] / "app" / "templates" / "_sidebar.html").read_text(encoding="utf-8")
-    assert "escHtml" in html
-
-
 def test_sidebar_collapsed_state_hides_login_form_but_shows_icon_link():
     """Ein Login-Formular mit Texteingaben passt nicht in die eingeklappte,
     60px schmale Sidebar -- dort stattdessen nur ein kompakter Icon-Link."""
@@ -140,10 +132,15 @@ def test_sidebar_collapsed_state_hides_login_form_but_shows_icon_link():
     assert "app-sidebar-login-link" in html
 
 
-def test_sidebar_logout_button_still_works_for_already_logged_in_render():
-    """Regressionstest: der bestehende, serverseitig vorgerenderte
-    'eingeloggt'-Fall darf durch die neue, dynamische Logik nicht kaputt
-    gegangen sein."""
+def test_sidebar_foot_renders_empty_for_an_authenticated_user_since_1_3_49():
+    """Seit 1.3.49: Benutzername/"Mein Konto"/Abmelden-Button sind aus der Sidebar entfernt --
+    beide sind bereits über den Kontoknopf der Topbar erreichbar (seit Schritt 2, 1.3.45), zwei
+    Stellen für dasselbe hätten nur verwirrt. #appSidebarFoot bleibt als Element bestehen (für
+    das clientseitige Wiederanmelde-Formular bei einer während des Browsens ablaufenden
+    Sitzung), rendert serverseitig aber für JEDEN Anmeldestatus leer."""
     html = _render(FakeUser("admin"))
-    assert 'id="appSidebarLogout"' in html
-    assert "Test Nutzer" in html  # display_name des serverseitig übergebenen Nutzers
+    assert 'id="appSidebarLogout"' not in html
+    assert "Test Nutzer" not in html
+    foot_start = html.index('id="appSidebarFoot"')
+    foot_tag_end = html.index(">", foot_start)
+    assert html[foot_tag_end:foot_tag_end + len("></div>")] == "></div>"

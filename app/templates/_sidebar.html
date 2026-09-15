@@ -63,7 +63,23 @@
    Auf/Zu. Zwei verschiedene Bedienungen für dieselbe Aktion nebeneinander wären verwirrender
    gewesen als eine einzige. Sein Klick-Handler verliert dafür den jetzt toten
    isMobile()-Zweig -- unerreichbar, da das Element selbst display:none ist, kein Grund, den
-   Code stehen zu lassen. #}
+   Code stehen zu lassen.
+
+   Fußbereich aufgeräumt (seit 1.3.49): Benutzername, "Mein Konto" und "Abmelden" sind hier
+   entfernt -- alle drei sind seit Schritt 2 (1.3.45) über den Kontoknopf der Topbar erreichbar
+   (_topbar.html), zwei Stellen für dasselbe hätten nur verwirrt. #appSidebarFoot bleibt als
+   Element bestehen (jetzt IMMER leer gerendert, unabhängig vom Anmeldestatus) -- es wird
+   weiterhin gebraucht, aber nur noch für den einen verbleibenden Fall: eine Sitzung, die
+   während des Browsens abläuft, bekommt dort (ohne Neuladen der Seite) ein kompaktes
+   Anmeldeformular zurück, siehe renderAuthFoot() im Skript unten. Ohne einen einzigen ERP-
+   Benutzer im System (Bootstrap-Fall) bzw. bei einer bestehenden Anmeldung bleibt das Element
+   leer -- .app-sidebar-foot:empty{padding:0} verhindert dabei eine unnötige, gepolsterte
+   Leerstelle zwischen den beiden Schaltflächen und der Versionsnummer. Der eigens dafür
+   geschriebene escHtml()-Helfer und die alte bindLogout()-Funktion sind mit dem Wegfall des
+   serverseitig UND clientseitig gerenderten Benutzernamens/Abmelden-Buttons hier ebenfalls
+   entfernt -- beide hatten sonst keinen Aufrufer mehr. Die Monteursansicht (/vor-ort,
+   _mobile_header.html) hat einen eigenen, komplett unabhängigen Abmelden-Weg (#mobileHeaderLogout,
+   eigene CSS-Klassen ohne app-sidebar-Präfix) und ist von dieser Aufräumung nicht betroffen. #}
 {% set current_user = request.state.erp_user %}
 {% set is_admin = current_user and current_user.role == 'admin' %}
 {% set path = request.url.path %}
@@ -90,6 +106,7 @@
 .app-sidebar.collapsed .app-theme-toggle{display:none}
 .app-sidebar-nav{padding:10px;overflow-y:auto;overflow-x:hidden;flex:1}
 .app-sidebar-foot{padding:10px;white-space:nowrap;overflow:hidden}
+.app-sidebar-foot:empty{padding:0}
 .app-sidebar-version{padding:8px 10px 12px;font-size:11px;color:var(--_text-dim);white-space:nowrap;overflow:hidden}
 @media(min-width:1001px){
   /* Eingeklappte Sidebar (60px): eigene, feste, kleinere Logo-Hoehe statt der einstellbaren --
@@ -101,13 +118,8 @@
   .app-sidebar.collapsed .app-sidebar-utilities{justify-content:center;padding:10px 8px}
 }
 .app-sidebar.collapsed .app-sidebar-version{display:none}
-.app-sidebar-user{padding:6px 10px;font-size:12px;opacity:.85;overflow:hidden;text-overflow:ellipsis;color:var(--_text-dim)}
-.app-sidebar-logout{display:flex;align-items:center;gap:11px;width:100%;background:none;border:0;color:var(--_text);font-weight:600;font-size:14px;padding:9px 10px;cursor:pointer;text-align:left}
-.app-sidebar-logout:hover{background:var(--_hover)}
-.app-sidebar.collapsed .app-sidebar-user{display:none}
 .app-sidebar-login-status{padding:6px 10px 8px;font-size:12px;color:var(--_text-dim);display:flex;align-items:center;gap:7px}
 .app-sidebar-login-status .dot{width:7px;height:7px;background:#e08a8a;flex:0 0 7px}
-.app-sidebar-user .dot{width:7px;height:7px;background:#3fb37a;flex:0 0 7px;display:inline-block;margin-right:7px;vertical-align:middle}
 .app-sidebar-login-form{display:flex;flex-direction:column;gap:6px}
 .app-sidebar-login-form input{width:100%;padding:7px 9px;border:1px solid var(--_border);background:color-mix(in srgb,var(--_text) 6%,transparent);color:var(--_text);font:inherit;font-size:13px}
 .app-sidebar-login-form input::placeholder{color:var(--_text-dim)}
@@ -183,14 +195,7 @@
       <button type="button" class="app-theme-toggle" id="appThemeToggle" aria-label="Hell/Dunkel umschalten" title="Hell/Dunkel umschalten"></button>
       <button type="button" class="app-sidebar-toggle" id="appSidebarToggle" aria-label="Navigation ein-/ausklappen"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
     </div>
-    {% if current_user %}
-    <div class="app-sidebar-foot" id="appSidebarFoot">
-      <div class="app-sidebar-user"><span class="dot"></span><span class="app-sidebar-label">{{ current_user.display_name }}</span></div>
-      <button type="button" class="app-sidebar-logout" id="appSidebarLogout"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M9 4.5H5.3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1H9"/><polyline points="14,15.5 18,12 14,8.5"/><line x1="18" y1="12" x2="8.3" y2="12"/></svg></span><span class="app-sidebar-label">Abmelden</span></button>
-    </div>
-    {% else %}
     <div class="app-sidebar-foot" id="appSidebarFoot"></div>
-    {% endif %}
     <div class="app-sidebar-version"><span class="app-sidebar-label">Version {{ app_version }}</span></div>
   </div>
 </aside>
@@ -201,7 +206,6 @@
   var toggle=document.getElementById('appSidebarToggle');
   var scrim=document.getElementById('appSidebarScrim');
   var themeToggle=document.getElementById('appThemeToggle');
-  var LOGOUT_ICON='<svg viewBox="0 0 24 24"><path d="M9 4.5H5.3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1H9"/><polyline points="14,15.5 18,12 14,8.5"/><line x1="18" y1="12" x2="8.3" y2="12"/></svg>';
   var KEY_ICON='<svg viewBox="0 0 24 24"><circle cx="7.5" cy="16.5" r="3"/><line x1="9.7" y1="14.3" x2="19" y2="5"/><line x1="14.5" y1="9.5" x2="17" y2="7"/></svg>';
   var SUN_ICON='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.5" y1="4.5" x2="6.5" y2="6.5"/><line x1="17.5" y1="17.5" x2="19.5" y2="19.5"/><line x1="4.5" y1="19.5" x2="6.5" y2="17.5"/><line x1="17.5" y1="6.5" x2="19.5" y2="4.5"/></svg>';
   var MOON_ICON='<svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg>';
@@ -235,17 +239,6 @@
     renderThemeToggle();
   });
   renderThemeToggle();
-  var escHtml=function(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})};
-  var bindLogout=function(){
-    var logoutBtn=document.getElementById('appSidebarLogout');
-    if(logoutBtn){
-      logoutBtn.addEventListener('click',function(){
-        fetch('/api/auth/logout',{method:'POST'}).finally(function(){
-          location.href='/login?next='+encodeURIComponent(location.pathname);
-        });
-      });
-    }
-  };
   var bindLoginForm=function(){
     var form=document.getElementById('appSidebarLoginForm');
     if(!form)return;
@@ -279,31 +272,29 @@
     var foot=document.getElementById('appSidebarFoot');
     if(!foot)return;
     if(status.authenticated){
-      foot.innerHTML='<div class="app-sidebar-user"><span class="dot"></span><span class="app-sidebar-label">'+escHtml(status.user.display_name)+'</span></div>'
-        +'<a class="app-sidebar-account-link" href="/account" title="Mein Konto"><span class="app-sidebar-label">Mein Konto</span></a>'
-        +'<button type="button" class="app-sidebar-logout" id="appSidebarLogout"><span class="app-sidebar-icon">'+LOGOUT_ICON+'</span><span class="app-sidebar-label">Abmelden</span></button>';
-      bindLogout();
-      // Seit 1.3.34: eine frische Anmeldung als Administrator ohne bereits diese Sitzung
-      // bestätigten zweiten Faktor darf keine andere Seite als "Mein Konto" tatsächlich
-      // benutzen -- jeder /api/-Aufruf dort würde ohnehin von app/main.py's Middleware mit
-      // 401/two_factor_pending abgelehnt. Dieser Status-Abruf läuft auf jeder Seite (dieses
-      // Include steckt überall), daher hier statt in jeder einzelnen Seiten-Datei geprüft.
+      // Seit 1.3.49: nichts mehr anzuzeigen -- Benutzername/"Mein Konto"/"Abmelden" leben
+      // ausschließlich noch im Kontoknopf der Topbar (_topbar.html). Der Zwei-Faktor-Check
+      // bleibt trotzdem nötig, unabhängig davon, ob hier etwas angezeigt wird: eine frische
+      // Anmeldung als Administrator ohne bereits diese Sitzung bestätigten zweiten Faktor darf
+      // keine andere Seite als "Mein Konto" tatsächlich benutzen -- jeder /api/-Aufruf dort
+      // würde ohnehin von app/main.py's Middleware mit 401/two_factor_pending abgelehnt. Dieser
+      // Status-Abruf läuft auf jeder Seite (dieses Include steckt überall), daher hier statt in
+      // jeder einzelnen Seiten-Datei geprüft.
       if(status.two_factor_required && !status.otp_ok && location.pathname!=='/account'){
         location.href='/account';
       }
-    } else {
-      foot.innerHTML='<a class="app-sidebar-login-link" href="/login" title="Anmelden">'+KEY_ICON+'</a>'
-        +'<div class="app-sidebar-login-status"><span class="dot"></span><span class="app-sidebar-label">Nicht angemeldet</span></div>'
-        +'<form class="app-sidebar-login-form" id="appSidebarLoginForm">'
-        +'<input type="text" id="appSidebarUsername" placeholder="Benutzername" autocomplete="username" required>'
-        +'<input type="password" id="appSidebarPassword" placeholder="Passwort" autocomplete="current-password" required>'
-        +'<button type="submit">Anmelden</button>'
-        +'<div class="app-sidebar-login-error" id="appSidebarLoginError"></div>'
-        +'</form>';
-      bindLoginForm();
+      return;
     }
+    foot.innerHTML='<a class="app-sidebar-login-link" href="/login" title="Anmelden">'+KEY_ICON+'</a>'
+      +'<div class="app-sidebar-login-status"><span class="dot"></span><span class="app-sidebar-label">Nicht angemeldet</span></div>'
+      +'<form class="app-sidebar-login-form" id="appSidebarLoginForm">'
+      +'<input type="text" id="appSidebarUsername" placeholder="Benutzername" autocomplete="username" required>'
+      +'<input type="password" id="appSidebarPassword" placeholder="Passwort" autocomplete="current-password" required>'
+      +'<button type="submit">Anmelden</button>'
+      +'<div class="app-sidebar-login-error" id="appSidebarLoginError"></div>'
+      +'</form>';
+    bindLoginForm();
   };
-  bindLogout();
   fetch('/api/auth/status').then(function(r){return r.json()}).then(renderAuthFoot).catch(function(){});
   apply();
   window.addEventListener('resize',apply);

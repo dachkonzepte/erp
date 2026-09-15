@@ -20,12 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.48** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.49** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf weiterhin `60d7c8a775f0` ("raise default sidebar logo height") -- keine
-  der Versionen 1.3.45-1.3.48 brauchte eine eigene Migration, da alle vier ausschließlich
+  der Versionen 1.3.45-1.3.49 brauchte eine eigene Migration, da alle fünf ausschließlich
   Python/Jinja/CSS/JS anfassen, keine Datenbankspalte -- bei Bedarf per `alembic history`/
   `heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1144/1144**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
+- Tests: **1150/1150**, zuletzt am 15.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -609,6 +609,20 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   zu zeichnen; die Ersteinrichtung bleibt bewusst auf `/account` (Wiederherstellungscodes
   müssen erst gesehen werden). Details im Abschnitt "Serverseitige Anmeldeschranke für
   Seiten" → "Fehlerbehebung" unten.
+- Neu seit 1.3.49: **Aufräumen im Fußbereich der Sidebar.** Benutzername, "Mein Konto" und
+  "Abmelden" standen dort noch, obwohl alle drei bereits seit Schritt 2 (1.3.45) über den
+  Kontoknopf der Topbar erreichbar sind -- entfernt, der untere Bereich zeigt jetzt nur noch
+  die beiden Schaltflächen (Hell/Dunkel, Ein-/Ausklappen) und die Version. `#appSidebarFoot`
+  bleibt als Element bestehen (rendert aber jetzt immer leer), da es weiterhin fürs
+  clientseitige Wiederanmelde-Formular bei einer während des Browsens ablaufenden Sitzung
+  gebraucht wird -- eine neue `:empty{padding:0}`-Regel verhindert dabei eine unnötig
+  gepolsterte Leerstelle. Toter Code (escHtml/bindLogout/LOGOUT_ICON) entfernt statt nur
+  ausgeblendet. `/vor-ort` unangetastet (eigener, unabhängiger Abmelde-Weg). Nebenbefund: der
+  entfernte "Mein Konto"-Link hatte keine eigene CSS-Regel (blauer Standardlink statt
+  Design-System) -- auf Nachfrage vier weitere, unabhängige Fälle desselben Musters anderswo
+  gefunden und gemeldet (`account.html`, `settings.html`, `service_reports.html`,
+  `work_preparation.html`), Behebung bewusst zurückgestellt. Details im Abschnitt
+  "Umgestaltung der Sidebar" → "Aufräumen im Fußbereich" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -5239,6 +5253,68 @@ trägt und bei Klick auf den Hintergrund resynchronisiert, dass `#appSidebarTogg
 Umbruchpunkts tatsächlich verschwindet (und sein Klick-Handler den toten Zweig verloren hat,
 ohne das Desktop-Kollabieren selbst anzufassen), und dass `/vor-ort` unverändert ohne diesen
 Knopf bleibt.
+
+### Aufräumen im Fußbereich (seit 1.3.49)
+
+Im unteren Bereich standen noch Benutzername, "Mein Konto" und "Abmelden" -- alle drei bereits
+seit Schritt 2 (1.3.45) über den Kontoknopf der Topbar erreichbar. Zwei Stellen für dasselbe
+verwirren, alle drei entfernt: der untere Bereich zeigt jetzt nur noch die beiden
+Schaltflächen (Hell/Dunkel, Ein-/Ausklappen) und die Versionsnummer.
+
+- **`#appSidebarFoot` bleibt als Element bestehen**, rendert serverseitig aber für JEDEN
+  Anmeldestatus leer (`{% if current_user %}...{% else %}...{% endif %}` entfällt, immer nur
+  `<div class="app-sidebar-foot" id="appSidebarFoot"></div>`) -- es wird weiterhin gebraucht,
+  aber nur noch für den einen verbleibenden Fall: eine Sitzung, die während des Browsens
+  abläuft (Cookie verfällt, während der Tab offen bleibt), bekommt dort über
+  `renderAuthFoot()`s bestehenden "nicht angemeldet"-Zweig (unverändert) ein kompaktes
+  Anmeldeformular zurück, ohne die Seite neu laden zu müssen. Neue Regel
+  `.app-sidebar-foot:empty{padding:0}` -- ohne sie hätte das jetzt immer leere Element trotzdem
+  sein `padding:10px` behalten und eine unnötige, gepolsterte Leerstelle zwischen den beiden
+  Schaltflächen und der Version aufgerissen.
+- **Toter Code entfernt, nicht nur ausgeblendet**: `escHtml()` (diente ausschließlich dem
+  Escapen von `display_name` beim JS-Aufbau des jetzt entfallenen Benutzernamen-Blocks),
+  `bindLogout()` und die `LOGOUT_ICON`-Konstante (der einzige noch verbleibende Abmelden-Weg in
+  diesem Include ist entfallen) sowie die CSS-Regeln `.app-sidebar-user`/`.app-sidebar-logout`
+  (inkl. der eingeklappt-Sonderregel) -- alle hatten nach der Entfernung des SSR- UND des
+  JS-gerenderten authentifizierten Fußbereichs keinen Aufrufer mehr.
+- **Geprüft (wie verlangt): `/vor-ort` unangetastet.** `_mobile_header.html` hat einen
+  komplett eigenständigen, unabhängigen Abmelde-Weg (`#mobileHeaderLogout`, eigene
+  `.mobile-*`-CSS-Klassen ohne `app-sidebar`-Präfix) -- projektweiter Grep bestätigt, dass
+  keine der entfernten Klassen/IDs (`app-sidebar-user`, `app-sidebar-logout`,
+  `app-sidebar-account-link`, `appSidebarLogout`, `appSidebarFoot`) außerhalb von
+  `_sidebar.html` selbst vorkommt.
+- **Geprüft (wie verlangt): unterhalb des mobilen Umbruchpunkts.** Da `#appSidebarToggle`
+  dort bereits seit 1.3.46 `display:none` ist, zeigt der untere Bereich auf einem schmalen
+  Bildschirm jetzt tatsächlich nur noch die Hell/Dunkel-Schaltfläche (links ausgerichtet,
+  passend zu den darüber ebenfalls linksbündigen Navigationseinträgen) und die Version darunter
+  -- ein einzelner Icon-Button in einer eigenen Zeile ist ein unauffälliges, bereits an anderer
+  Stelle im Projekt vorkommendes Muster (z. B. die eingeklappte Desktop-Sidebar zeigt ebenfalls
+  einzelne, freistehende Icons), kein Sonderfall, der eine eigene Zentrierung o. Ä. gebraucht
+  hätte. Kein echter Browser-Screenshot möglich (dieselbe, wiederholt dokumentierte
+  Werkzeug-Einschränkung dieser Umgebung) -- nur strukturell geprüft.
+- **Nebenbefund aus dem Auftrag**: der jetzt entfernte "Mein Konto"-Link
+  (`.app-sidebar-account-link`) hatte keine eigene CSS-Regel und wäre als blau unterstrichener
+  Browser-Standardlink erschienen, nicht im Design-System -- erledigt sich durch die
+  Entfernung selbst. Auf Nachfrage projektweit nach demselben Muster gesucht (ein `<a>` ohne
+  eigene Farb-/Unterstreichungsregel, weder über eine allgemeine `a{...}`-Regel im Datei-eigenen
+  `<style>` noch über eine spezifische, tatsächlich definierte Klasse) -- vier weitere,
+  unabhängige Funde, aber bewusst NICHT im selben Zug mitbehoben (anderer Ursprung, andere
+  Dateien, kein Zusammenhang mit der Sidebar):
+  - `account.html`: `<a href="/login">anmelden</a>` im "nicht angemeldet"-Hinweis (ohne Klasse,
+    kein allgemeines `a{}` in dieser Datei).
+  - `settings.html`: `<a href="/master-data#employees">Stammdaten → Mitarbeiter</a>` im
+    Kalkulationsgrundlagen-Hinweistext (ohne Klasse, kein allgemeines `a{}`).
+  - `service_reports.html`: der PDF-Öffnen-Link in `historyCard()` (Wartungshistorie-Panel) --
+    eine zweite, unabhängige Kopie desselben Features, die (anders als die bereits über
+    `.report-actions a{...}` gestylte erste Kopie) in einem unstyled `<div class="report-head">`
+    landet.
+  - `work_preparation.html`: der Datei-Öffnen-Link in `renderDelivery()` (Lieferschein-Tabelle)
+    -- eine zweite, unabhängige Kopie desselben Features wie `deliveryTags()` (dort über
+    `.delivery-tag a{...}` korrekt gestylt), hier ohne die umschließende Klasse.
+  Alle vier folgen demselben Muster wie der ursprüngliche Fund: ein per JS-Template-String
+  zusammengesetzter `<a>`, bei dem die passende CSS-Klasse beim Bauen vergessen wurde -- kein
+  einzelner Ursprung, eher ein wiederkehrendes Risiko dieser Bauweise. Gemeldet, Behebung auf
+  Rückmeldung.
 
 ## Migrations-Workflow
 
