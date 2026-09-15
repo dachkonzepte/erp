@@ -2632,6 +2632,27 @@ class MaintenanceContractOut(BaseModel):
     updated_at: datetime
 
 
+class FieldMaintenanceContractOut(BaseModel):
+    """Rechtekonzept (siehe CLAUDE.md, /vor-ort-Vertragsfinder): reduziertes Gegenstück zu
+    MaintenanceContractOut innerhalb einer FieldMaintenancePropertyGroupOut -- nur, was ein
+    Monteur braucht, um "Wartung durchführen" gezielt für den richtigen Vertrag anzustoßen."""
+    id: int
+    title: str
+    next_due_date: date
+    is_due: bool
+
+
+class FieldMaintenancePropertyGroupOut(BaseModel):
+    """Ein Objekt, an dem ein Monteur aktuell oder in Kürze zu tun hat, mit allen seinen
+    Wartungsverträgen (list_relevant_contracts_for_employee() in app/maintenance_contracts.py).
+    property_name/customer_name bewusst nur so weit, wie das Objekt erkennbar wird -- keine
+    Kundennummer, keine Straße/PLZ, nur der Ort."""
+    property_name: str
+    city: str | None = None
+    customer_name: str | None = None
+    contracts: list[FieldMaintenanceContractOut] = []
+
+
 class MaintenanceContractCreate(BaseModel):
     customer_id: int
     property_id: int | None = None

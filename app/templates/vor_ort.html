@@ -25,8 +25,14 @@
     .assign-card .meta{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;font-size:12.5px;color:var(--muted)}
     .status-pill{display:inline-block;padding:4px 9px;font-size:11.5px;font-weight:700;border:1px solid var(--line);white-space:nowrap}
     .status-pill.has-report{color:var(--success);border-color:var(--success)}
+    .status-pill.due{color:var(--danger);border-color:var(--danger)}
     .empty,.loading,.error{color:var(--muted);font-size:13.5px;padding:14px 2px}
     .error{color:var(--danger)}
+    .contract-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+    .contract-row .contract-info{display:flex;flex-direction:column;gap:3px}
+    .contract-row .contract-title{font-size:13.5px;font-weight:650}
+    .perform-btn{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:8px 11px;font-weight:650;font-size:13px;white-space:nowrap}
+    .perform-btn:disabled{opacity:.6}
   </style>
 </head>
 <body>
@@ -36,6 +42,8 @@
   <div id="assignmentsList" class="loading">Lädt…</div>
   <h1>Offene Berichte</h1>
   <div id="draftReportsList" class="loading">Lädt…</div>
+  <h1>Wartungen an meinen Objekten</h1>
+  <div id="maintenanceList" class="loading">Lädt…</div>
 </main>
 <script>
 (function(){
@@ -72,8 +80,46 @@
         +'</a>';
     }).join('');
   }
+  function renderMaintenance(groups){
+    var el=document.getElementById('maintenanceList');
+    if(!groups.length){el.className='empty';el.textContent='Keine Wartungen an Ihren aktuellen Objekten.';return}
+    el.className='';
+    el.innerHTML=groups.map(function(g){
+      var rows=g.contracts.map(function(c){
+        return '<div class="contract-row">'
+          +'<div class="contract-info"><span class="contract-title">'+esc(c.title)+'</span>'
+          +(c.is_due?'<span class="status-pill due">Fällig</span>':'')+'</div>'
+          +'<button class="perform-btn" data-contract-id="'+c.id+'">Wartung durchführen</button>'
+          +'</div>';
+      }).join('');
+      return '<div class="assign-card">'
+        +'<div class="obj">'+esc(g.property_name)+(g.city?' · '+esc(g.city):'')+'</div>'
+        +(g.customer_name?'<div class="addr">'+esc(g.customer_name)+'</div>':'')
+        +rows
+        +'</div>';
+    }).join('');
+    el.querySelectorAll('.perform-btn').forEach(function(btn){
+      btn.addEventListener('click',function(){performMaintenance(Number(btn.dataset.contractId),btn)});
+    });
+  }
+  function performMaintenance(contractId,btn){
+    btn.disabled=true;
+    btn.textContent='Wird angelegt…';
+    fetch('/api/maintenance-contracts/'+contractId+'/perform-maintenance',{method:'POST'}).then(function(r){
+      if(!r.ok){
+        return r.json().catch(function(){return {}}).then(function(d){throw new Error(d.detail||'Fehler beim Anlegen.')});
+      }
+      return r.json();
+    }).then(function(data){
+      location.href='/orders/'+data.order_id+'/service-reports?report='+data.report_id;
+    }).catch(function(err){
+      alert(err.message||'Fehler beim Anlegen.');
+      btn.disabled=false;
+      btn.textContent='Wartung durchführen';
+    });
+  }
   function showError(message){
-    ['assignmentsList','draftReportsList'].forEach(function(id){
+    ['assignmentsList','draftReportsList','maintenanceList'].forEach(function(id){
       var el=document.getElementById(id);
       el.className='error';
       el.textContent=message;
@@ -93,6 +139,15 @@
     renderDrafts(data.draft_reports||[]);
   }).catch(function(err){
     if(err.message!=='nicht angemeldet') showError(err.message||'Fehler beim Laden.');
+  });
+  fetch('/api/field-view/maintenance-contracts').then(function(r){
+    if(!r.ok) return [];
+    return r.json();
+  }).then(function(groups){
+    renderMaintenance(groups||[]);
+  }).catch(function(){
+    document.getElementById('maintenanceList').className='empty';
+    document.getElementById('maintenanceList').textContent='Keine Wartungen an Ihren aktuellen Objekten.';
   });
 })();
 </script>

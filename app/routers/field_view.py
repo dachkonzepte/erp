@@ -17,13 +17,14 @@ from sqlalchemy.orm import Session
 from ..auth import COOKIE_NAME
 from ..database import get_db
 from ..deps import require_admin
+from ..maintenance_contracts import list_relevant_contracts_for_employee
 from ..mobile_manifest import build_icon_png, build_manifest
 from ..mobile_settings import get_or_create_mobile_settings, is_past_shift_end, mobile_settings_to_dict, update_mobile_settings
 from ..models import AppUser
 from ..modules import is_module_enabled
 from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
 from ..planning import list_todays_assignments_for_employee
-from ..schemas import MobileSettingsOut, MobileSettingsUpdate
+from ..schemas import FieldMaintenancePropertyGroupOut, MobileSettingsOut, MobileSettingsUpdate
 from ..service_reports import list_draft_reports_for_employee
 
 router = APIRouter()
@@ -57,6 +58,23 @@ def get_field_view_today(request: Request, db: Session = Depends(get_db)):
         "assignments": list_todays_assignments_for_employee(db, user.employee_id),
         "draft_reports": draft_reports,
     }
+
+
+@router.get("/api/field-view/maintenance-contracts", response_model=list[FieldMaintenancePropertyGroupOut])
+def get_field_view_maintenance_contracts(request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    """"Wartungen an meinen Objekten" (siehe CLAUDE.md) -- Objekte, an denen der angemeldete
+    Mitarbeiter aktuell oder in Kürze zu tun hat, samt ihren Wartungsverträgen, damit ein Monteur
+    ohne die volle Vertragsliste zu durchsuchen eine ungeplante Wartung starten kann. Löst den
+    Mitarbeiter wie GET /api/field-view/today ausschließlich über request.state.erp_user auf --
+    fehlt die Verknüpfung oder ist das Modul "wartungen" aus, bewusst eine leere Liste statt
+    eines Fehlers (die Karte blendet dann leise aus, siehe vor_ort.html), da diese Karte anders
+    als die Tagesliste kein Kernbestandteil der Seite ist."""
+    if not is_module_enabled(db, "wartungen"):
+        return []
+    user = getattr(request.state, "erp_user", None)
+    if user is None or user.employee_id is None:
+        return []
+    return list_relevant_contracts_for_employee(db, user.employee_id)
 
 
 @router.get("/api/mobile-settings", response_model=MobileSettingsOut)

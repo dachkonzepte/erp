@@ -20,13 +20,13 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.57** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.58** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf weiterhin `7a2b4e9f1c3d` ("app user role office field") -- keine der
-  Versionen 1.3.52 bis 1.3.57 brauchte eine eigene Migration (reine Rollen-Gate-/Response-Schema-/
+  Versionen 1.3.52 bis 1.3.58 brauchte eine eigene Migration (reine Rollen-Gate-/Response-Schema-/
   Objekt-Filterungs-Umstellungen auf bereits bestehenden Endpunkten und Tabellen), siehe
   Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
   eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1199 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1216 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
   dort), zuletzt am 15.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -738,6 +738,19 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   `next` dafür an zwei Stellen auf `/vor-ort` für `field` korrigiert (`login_page()`,
   `login.html`). Der Audit-Test deckt jetzt Seiten UND API ab, beide bei null. Details im
   Abschnitt "Rechtekonzept" → "Seiten-Klassifizierung" unten.
+- Neu seit 1.3.58: **Rechtekonzept, Nachtrag -- Vertragsfinder auf `/vor-ort`.** Letzte
+  Seiten-Klassifizierungs-Lücke geschlossen: ein Monteur konnte "Wartung durchführen" bisher nur
+  von der Büro-Vertragsseite aus starten, die für ihn gesperrt ist. Neue Karte "Wartungen an
+  meinen Objekten" -- zeigt die Objekte, an denen er über die Arbeitsvorbereitung aktuell oder in
+  Kürze (±14 Tage um eine echte `PlanningSlot`-Terminierung, `WorkPreparation.planned_start/
+  planned_end` als Rückfall) zugeordnet ist, mit allen Wartungsverträgen des Objekts, fällige
+  hervorgehoben. Vorher geprüft und bewusst gegen eine Kombination mit
+  `WorkPreparation.status` entschieden (Feld ist zwar über die AV-Oberfläche änderbar, aber die
+  reale Datenbank hat dafür nur eine einzige Zeile -- zu dünn für ein Urteil -- und "offen ODER
+  Zeitfenster" hätte das Altlasten-Risiko, das das Zeitfenster gerade vermeiden soll, an anderer
+  Stelle wieder eingeführt). Reduziertes Schema (kein Kundennummer, keine Adresse über den Ort
+  hinaus), Karte blendet bei fehlender Objektzuordnung nur einen ruhigen Hinweis ein, nie eine
+  leere Fläche. Details im Abschnitt "Rechtekonzept" → "Vertragsfinder auf /vor-ort" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -5705,6 +5718,69 @@ Prüfvorlagen-Verwaltung inkl. Einzelansicht und Dachtyp-Standardzuordnung -- nu
 `GET /api/inspection-templates` (Vorlagenliste) bleibt für `field` lesbar, `service_reports.html`
 lädt sie für die Vorlagenauswahl.
 
+### Vertragsfinder auf /vor-ort (seit 1.3.58): "Wartungen an meinen Objekten"
+
+Zuletzt offener Punkt aus der Seiten-Klassifizierung (1.3.57): einem Monteur fehlte auf
+`/vor-ort` der Weg, einen Wartungsvertrag zu finden, um eine ungeplante Wartung zu starten --
+"Wartung durchführen" (`create_maintenance_visit()`, seit 1.3.56 für Monteure erreichbar) sitzt
+auf der Büro-Vertragsseite (`/maintenance-contracts/{id}`), die für `field` gesperrt ist. Ein
+Monteur soll dabei NICHT die volle Vertragsliste durchsuchen können, aber die Objekte erreichen,
+an denen er heute oder in Kürze zu tun hat -- Betreibervorgabe, vor dem Bauen als Vorschlag
+vorgelegt und mit zwei Korrekturen bestätigt.
+
+**Erst geprüft, wie verlangt: ist `WorkPreparation.status` zuverlässig genug, um "offene AV ODER
+Zeitfenster" zu kombinieren?** Zwei Befunde, gegenläufig:
+- Statisch UND tatsächlich beschreibbar: `PUT /api/orders/{order_id}/work-preparation`
+  (`work_preparation.html`s `saveHeader()`, Büro/Admin) kann den Status jederzeit auf einen der
+  fünf Werte setzen -- das Feld ist kein toter Code, anders als zunächst vermutet.
+- Aber die reale, lokale Datenbank enthält für diese Prüfung nur **eine einzige**
+  `WorkPreparation`-Zeile insgesamt (`status="offen"`) -- zu dünn, um "wird das im Alltag
+  verlässlich gepflegt" empirisch zu beurteilen.
+- Entscheidend gegen die Kombination: "offen ODER Zeitfenster" hätte das Risiko, das das
+  Zeitfenster gerade vermeiden soll, an anderer Stelle wieder eingeführt -- eine AV, die
+  tatsächlich fertig ist, aber nie manuell auf "abgeschlossen" gesetzt wurde (leicht zu
+  vergessen, reines Büro-Freitextfeld ohne Zwang), bliebe dann unabhängig vom Datum sichtbar,
+  exakt die Altlast, die vermieden werden sollte. **Ergebnis: Zeitfenster allein**, wie vom
+  Nutzer selbst als Rückfall vorgegeben -- `WorkPreparation.status` fließt in
+  `list_field_relevant_property_ids()` nirgends ein.
+
+**`app/planning.py::list_field_relevant_property_ids(db, employee_id, window_days=14)`** -- die
+eine Definition, welche Objekte relevant sind:
+- Zuordnung an der AV (Team oder Einzeln) über die bereits bestehende
+  `employee_assigned_order_ids()` (`app/orders.py`) -- dieselben Aufträge, über die auch die
+  Zeiterfassung und `field_may_access_order()` entscheiden, keine dritte Definition.
+- Datum: JEDER `PlanningSlot` dieser AV (`preparation_id`, unabhängig davon, über welchen der
+  beiden Wege der Mitarbeiter zugeordnet ist -- ein Slot trägt keine `employee_id`) innerhalb
+  ±14 Tage um heute. Fehlt jede Terminierung, `WorkPreparation.planned_start`/`planned_end` als
+  Rückfall. Fehlt auch das, bleibt die AV unberücksichtigt -- kein Anhaltspunkt, kein Raten.
+- Objekt-Auflösung: `order.project.property` geht vor, ohne verknüpftes Objekt die
+  Hauptadresse-`Property` des Kunden (`is_primary_address`) -- damit ein Wartungsvertrag mit
+  `property_id IS NULL` (bedeutet "Hauptadresse", `contract_to_dict()`) über denselben Abgleich
+  gefunden wird.
+
+**`app/maintenance_contracts.py::list_relevant_contracts_for_employee()`** -- gruppiert nach
+Objekt, zeigt ALLE (nicht archivierten) Verträge des Objekts, `is_due` je Vertrag hervorgehoben
+(zweite Nutzerkorrektur: "alle zeigen, fällige hervorheben", nicht nur die fälligen). Ein Vertrag
+mit aktiven "Zu wartenden Dachflächen" unter `MaintenanceSettings.use_roof_area_items` wird
+übersprungen -- `create_maintenance_visit()` lehnt "Wartung durchführen" dafür grundsätzlich ab
+(reine Vertragsebene, siehe dort), ein Button, der zuverlässig mit einer Fehlermeldung endet,
+wäre schlechter als gar keiner.
+
+**Reduziertes Schema** (`FieldMaintenancePropertyGroupOut`/`FieldMaintenanceContractOut`,
+`app/schemas.py`) -- erste Nutzerkorrektur: `property_name`/`customer_name` nur so weit, wie das
+Objekt erkennbar wird. `customer_name` steht deshalb dabei (ohne ihn wäre "Hauptadresse" allein
+niemandem zuzuordnen), aber weder Kundennummer noch Straße/PLZ -- nur `city` ("der Ort").
+
+**`GET /api/field-view/maintenance-contracts`** (`app/routers/field_view.py`, `_any_role_dep` wie
+`.../today`) -- löst den Mitarbeiter ausschließlich über `request.state.erp_user` auf. Fehlt die
+Mitarbeiterverknüpfung oder ist das Modul "wartungen" aus, bewusst eine **leere Liste, kein
+Fehler** -- dritte Nutzerkorrektur: die Karte "Wartungen an meinen Objekten" darf leer bleiben,
+ohne zu stören. `vor_ort.html` zeigt bei leerer Antwort einen ruhigen Hinweistext (dasselbe
+Muster wie die beiden bestehenden Karten bei "keine Einsätze"/"keine Entwürfe"), nie eine leere
+Fläche. Klick auf "Wartung durchführen" ruft `POST /api/maintenance-contracts/{id}/perform-
+maintenance` (seit 1.3.56 für Monteure offen) und navigiert direkt zu
+`/orders/{order_id}/service-reports?report={report_id}` (Muster `maintenance_contract.html`).
+
 ### Kundendaten für einen Monteur: ausschließlich über den Bericht, nicht über eine Kundenseite
 
 Enger gefasst als eine reine Rollen-Sperre auf `/customers/*`: ein Monteur soll Kundendaten nie
@@ -5894,7 +5970,7 @@ ist in der Liste ohnehin sichtbar, keine verdeckte Änderung möglich).
    `time_tracking.py`, 1.3.55 -- erst NACH Etappe 3, weil ein blankes Büro+Admin-Gate dort den
    Einsatzbericht-Ablauf gebrochen hätte, genau der Fehler von `GET /api/employees` in 1.3.53).
    Der Audit-Test steht bei null und ist seit 1.3.55 ein harter Test (`xfail` entfernt).
-3. **Objekt-Filterung für `field`** -- **fertig (1.3.55-1.3.57)**: `field_may_access_order()`
+3. **Objekt-Filterung für `field`** -- **fertig (1.3.55-1.3.58)**: `field_may_access_order()`
    (`app/orders.py`, zwei Wege, siehe "Objekt-Filterung" oben) und `require_field_order_access()`
    (`app/routers/orders.py`) sind auf `orders.py`/`service_reports.py`/`findings.py` angewendet;
    `properties.py`/`roof_areas.py` brauchten sie nicht (seit Teil A Büro/Admin, der Monteur liest
@@ -5905,10 +5981,13 @@ ist in der Liste ohnehin sichtbar, keine verdeckte Änderung möglich).
    Seiten-Routen selbst (`app/routers/pages.py`, `Depends(require_role(...))` je Route,
    `PAGE_AUDIT_EXEMPT` für die vier strukturellen Ausnahmen), ein 403 zeigt `access_denied.html`
    statt einer rohen JSON-Antwort (`app/main.py`s Exception-Handler), der Audit-Test deckt beide
-   Ebenen ab -- siehe "Seiten-Klassifizierung" unten für die volle Herleitung. **Noch offen**:
-   ein `/vor-ort`-Einstieg für "Wartung durchführen" (der Monteur muss den Vertrag finden können,
-   ohne die Büro-Vertragsseite -- Vorschlag vorgelegt, wartet auf Rückmeldung, siehe dort) und
-   der "Auftrag"-Link in `service_reports.html`, der auf eine jetzt gesperrte Büro-Seite zeigt.
+   Ebenen ab -- siehe "Seiten-Klassifizierung" unten für die volle Herleitung. **Seit 1.3.58
+   zusätzlich der `/vor-ort`-Vertragsfinder**: die Karte "Wartungen an meinen Objekten" (siehe
+   eigener Abschnitt "Objekt-Filterung" → "Vertragsfinder auf /vor-ort" unten) schließt die
+   zuletzt offene Lücke -- ein Monteur konnte bisher nur eine bereits geplante Wartung
+   durchführen, keine ungeplante an einem Objekt starten, an dem er gerade arbeitet. **Noch
+   offen**: der "Auftrag"-Link in `service_reports.html`, der auf eine jetzt gesperrte Büro-Seite
+   zeigt (siehe "Bekannte, bewusst offene Punkte").
 4. Erstes echtes `field`-Testkonto anlegen, vollständigen Monteurs-Ablauf im Browser
    durchklicken. -- offen.
 

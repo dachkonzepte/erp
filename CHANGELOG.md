@@ -4,6 +4,47 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.58 – Rechtekonzept, Nachtrag: Vertragsfinder auf /vor-ort ("Wartungen an meinen Objekten")
+
+Letzter offener Punkt aus der 1.3.57-Seitenklassifizierung: "Wartung durchführen" wurde für
+Monteure geöffnet (1.3.56), sitzt aber auf der Büro-Vertragsseite (`/maintenance-contracts/{id}`),
+die für `field` gesperrt ist -- ein Monteur hatte keinen Weg, einen Wartungsvertrag überhaupt zu
+finden, um vor Ort eine ungeplante Wartung zu starten. Auf ausdrückliche Vorgabe NICHT die volle
+Vertragsliste öffnen, sondern eine neue Karte "Wartungen an meinen Objekten" auf `/vor-ort`, die
+nur die Objekte zeigt, an denen der Monteur aktuell oder in Kürze zu tun hat.
+
+Vor dem Bauen geprüft, wie verlangt: taugt `WorkPreparation.status` als zusätzliches Signal
+("offene Arbeitsvorbereitung ODER Zuordnung im Zeitfenster")? Das Feld lässt sich tatsächlich
+ändern (`PUT /api/orders/{id}/work-preparation`, Büro-Formular mit fünf Werten) -- kein toter
+Code, wie zunächst vermutet. Die reale, lokale Datenbank enthält für die Prüfung aber nur eine
+einzige `WorkPreparation`-Zeile, zu dünn für ein Urteil über die Zuverlässigkeit im Alltag.
+Entscheidend: eine Kombination mit dem Status hätte das Risiko, das das Zeitfenster gerade
+vermeiden soll, an anderer Stelle wieder eingeführt -- eine tatsächlich abgeschlossene, aber nie
+manuell auf "abgeschlossen" gesetzte Arbeitsvorbereitung bliebe unabhängig vom Datum sichtbar.
+Ergebnis (wie vom Nutzer selbst als Rückfall vorgegeben): das Zeitfenster allein, ohne den Status.
+
+Neue Funktion `app/planning.py::list_field_relevant_property_ids()` -- ein ±14-Tage-Fenster um
+eine tatsächliche `PlanningSlot`-Terminierung der AV-Zuordnung (Team oder Einzeln, dieselben
+Aufträge wie `employee_assigned_order_ids()`), `WorkPreparation.planned_start`/`planned_end` als
+Rückfall ohne Terminierung. Ohne verknüpftes Objekt greift die Hauptadresse des Kunden
+(`Property.is_primary_address`), damit ein Wartungsvertrag mit `property_id IS NULL` ebenfalls
+gefunden wird. `app/maintenance_contracts.py::list_relevant_contracts_for_employee()` gruppiert
+nach Objekt und zeigt alle (nicht archivierten) Verträge, fällige hervorgehoben -- ein Vertrag mit
+aktiven Positionen unter `MaintenanceSettings.use_roof_area_items` wird übersprungen, da
+"Wartung durchführen" dafür ohnehin ablehnt und ein Button ohne Wirkung schlechter wäre als gar
+keiner.
+
+Reduziertes Schema (`FieldMaintenancePropertyGroupOut`/`FieldMaintenanceContractOut`): kein
+Kundennummer, keine Straße/PLZ -- nur so viel `property_name`/`customer_name`/Ort, wie zur
+Wiedererkennung des Objekts nötig ist. Neuer Endpunkt `GET /api/field-view/maintenance-contracts`
+liefert bei fehlender Mitarbeiterverknüpfung oder deaktiviertem Modul "wartungen" bewusst eine
+leere Liste statt eines Fehlers -- die Karte auf `vor_ort.html` zeigt dafür einen ruhigen
+Hinweistext, nie eine leere Fläche (Muster der beiden bestehenden Karten). Klick auf "Wartung
+durchführen" ruft den bereits bestehenden `POST .../perform-maintenance`-Endpunkt und navigiert
+direkt zum neuen Bericht. Keine Migration nötig (reine neue Funktionen/ein neuer Endpunkt auf
+bereits bestehenden Tabellen). Details in CLAUDE.md, Abschnitt "Rechtekonzept" → "Vertragsfinder
+auf /vor-ort".
+
 ## 1.3.57 – Rechtekonzept: Seiten-Klassifizierung -- dieselbe Standardverweigerung für Seiten wie für die API
 
 Bis hierhin war ausschließlich die API rollengeprüft -- jede der Seiten-Routen in

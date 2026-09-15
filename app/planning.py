@@ -8,16 +8,16 @@ from urllib.error import URLError, HTTPError
 from zoneinfo import ZoneInfo
 from decimal import Decimal, ROUND_HALF_UP
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from .models import (
     Employee, EmployeeAbsence, EmployeePlanningSettings, EmployeeProfile, OperationalResource, Order, PlanningHoliday,
-    PlanningSettings, PlanningRegionSettings, PlanningSchoolHoliday, PlanningSchoolHolidaySync, PlanningSlot, PlanningSlotCapacity, Project, Team, TeamEmployee,
+    PlanningSettings, PlanningRegionSettings, PlanningSchoolHoliday, PlanningSchoolHolidaySync, PlanningSlot, PlanningSlotCapacity, Project, Property, Team, TeamEmployee,
     TeamResource, WorkPreparation, WorkPreparationEmployee, WorkPreparationTeamAssignment,
     WorkPreparationTeamEmployee, WorkPreparationTeamResource,
 )
-from .orders import load_order
+from .orders import employee_assigned_order_ids, load_order
 from .service_reports import count_reports_for_order
 from .work_preparation import ensure_preparation, planned_hours
 from .version import APP_VERSION
@@ -636,6 +636,101 @@ def list_todays_assignments_for_employee(db: Session, employee_id: int, day: dat
             "report_count": count_reports_for_order(db, order.id),
         })
     return result
+
+
+def list_field_relevant_property_ids(db: Session, employee_id: int, *, window_days: int = 14,
+                                      today: date | None = None) -> set[int]:
+    """Objekte, an denen ein Monteur aktuell oder in Kürze zu tun hat -- Grundlage für die Karte
+    "Wartungen an meinen Objekten" auf /vor-ort (Rechtekonzept, siehe CLAUDE.md, Abschnitt
+    "Objekt-Filterung" bzw. der Nachtrag zum /vor-ort-Vertragsfinder dort).
+
+    Betreibervorgabe: kein ungefiltertes "war je einmal zugeordnet" (würde über die Jahre zu
+    einer Liste mit lauter Altlasten anwachsen), stattdessen ein großzügiges Zeitfenster
+    (±window_days Tage) um eine TATSÄCHLICHE Terminierung. WorkPreparation.status bewusst NICHT
+    einbezogen -- geprüft: das Feld lässt sich zwar ändern (PUT .../work-preparation, Büro-
+    Formular mit fünf Werten), aber die reale Datenbank enthält bei dieser Prüfung nur eine
+    einzige WorkPreparation-Zeile insgesamt, zu dünn für ein Urteil über die Zuverlässigkeit im
+    Alltag -- und "offen ODER Zeitfenster" hätte genau das Risiko wieder eingeführt, das dieses
+    Zeitfenster vermeiden soll: eine vergessene, nie auf "abgeschlossen" gesetzte AV bliebe dann
+    unabhängig vom Datum sichtbar. Zeitfenster allein ist deshalb der sauberere Weg (Nutzervorgabe
+    für genau diesen Fall).
+
+    Datumsquelle: die Zuordnung hängt an der AV (dieselben Aufträge wie employee_assigned_order_ids()
+    in app/orders.py -- Team- oder Einzelzuweisung), das Datum kommt aus JEDEM PlanningSlot dieser
+    AV (unabhängig davon, über welchen der beiden Wege der Mitarbeiter zugeordnet ist -- ein
+    PlanningSlot trägt preparation_id, nicht employee_id). Fehlt jede Terminierung (AV noch nicht
+    in die Plantafel eingeplant), WorkPreparation.planned_start/planned_end als Rückfall. Fehlt
+    auch das, bleibt die AV unberücksichtigt -- kein Anhaltspunkt für "aktuell", kein Raten.
+
+    Liefert Property.id -- bei einem Auftrag ohne verknüpftes Objekt (Order.project.property_id
+    IS NULL) zusätzlich die Hauptadresse-Property-ID des Kunden (is_primary_address), damit ein
+    Wartungsvertrag mit property_id IS NULL (bedeutet "Hauptadresse", siehe contract_to_dict() in
+    app/maintenance_contracts.py) über denselben Abgleich gefunden werden kann."""
+    today = today or date.today()
+    window_start = today - timedelta(days=window_days)
+    window_end = today + timedelta(days=window_days)
+
+    order_ids = employee_assigned_order_ids(db, employee_id)
+    if not order_ids:
+        return set()
+
+    preps = db.scalars(select(WorkPreparation).where(WorkPreparation.order_id.in_(order_ids))).all()
+    if not preps:
+        return set()
+    prep_by_id = {p.id: p for p in preps}
+
+    slot_rows = db.execute(
+        select(PlanningSlot.preparation_id, func.min(PlanningSlot.start_date), func.max(PlanningSlot.end_date))
+        .where(PlanningSlot.preparation_id.in_(prep_by_id))
+        .group_by(PlanningSlot.preparation_id)
+    ).all()
+    relevant_prep_ids: set[int] = set()
+    prep_ids_with_slot: set[int] = set()
+    for prep_id, start, end in slot_rows:
+        prep_ids_with_slot.add(prep_id)
+        if start <= window_end and end >= window_start:
+            relevant_prep_ids.add(prep_id)
+
+    for prep_id, prep in prep_by_id.items():
+        if prep_id in prep_ids_with_slot:
+            continue  # bereits über einen echten PlanningSlot entschieden
+        start = prep.planned_start or prep.planned_end
+        end = prep.planned_end or prep.planned_start
+        if start is None:
+            continue  # weder Slot noch geplanter Zeitraum -- kein Datum, keine Aufnahme
+        if start <= window_end and end >= window_start:
+            relevant_prep_ids.add(prep_id)
+
+    if not relevant_prep_ids:
+        return set()
+
+    orders = db.scalars(
+        select(Order)
+        .join(WorkPreparation, WorkPreparation.order_id == Order.id)
+        .where(WorkPreparation.id.in_(relevant_prep_ids))
+        .options(selectinload(Order.project).selectinload(Project.property))
+    ).all()
+
+    property_ids: set[int] = set()
+    customer_ids_needing_primary: set[int] = set()
+    for order in orders:
+        project = order.project
+        prop = project.property if project else None
+        if prop is not None:
+            property_ids.add(prop.id)
+        elif project is not None and project.customer_id is not None:
+            customer_ids_needing_primary.add(project.customer_id)
+
+    if customer_ids_needing_primary:
+        primary_ids = db.scalars(
+            select(Property.id).where(
+                Property.customer_id.in_(customer_ids_needing_primary),
+                Property.is_primary_address == True,  # noqa: E712 -- SQLAlchemy-Vergleich
+            )
+        ).all()
+        property_ids.update(primary_ids)
+
+    return property_ids
 
 
 def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSettings) -> tuple[dict[int, list[dict]], dict[int, dict[date, dict]]]:

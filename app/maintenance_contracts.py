@@ -20,15 +20,16 @@ entfernt, die Modell-/Funktionsnamen im Code bleiben unverändert)."""
 import calendar
 from datetime import date, timedelta
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from .date_utils import add_months
 from .models import (
     MaintenanceContract, MaintenanceContractItem, MaintenanceSettings, MaintenanceWindow,
-    Project, RoofArea, ServiceReport, Task,
+    Project, Property, RoofArea, ServiceReport, Task,
 )
 from .modules import is_module_enabled
+from .planning import list_field_relevant_property_ids
 from .projects import duplicate_project, get_or_create_project_profile
 from .quick_service_orders import create_quick_service_order
 from .roof_areas import list_roof_areas
@@ -271,6 +272,81 @@ def list_contracts_for_property(db: Session, property_id: int, include_archived:
         contract_to_dict(c, settings.reminder_lead_days, settings.use_roof_area_items)
         for c in db.scalars(query).all()
     ]
+
+
+def list_relevant_contracts_for_employee(db: Session, employee_id: int) -> list[dict]:
+    """Reduziertes, nach Objekt gruppiertes Wartungsvertrags-Schema für die Karte "Wartungen an
+    meinen Objekten" auf /vor-ort (Rechtekonzept, siehe CLAUDE.md) -- ein Monteur soll ohne die
+    volle Vertragsliste zu durchsuchen die Objekte erreichen, an denen er aktuell oder in Kürze
+    zu tun hat (list_field_relevant_property_ids() in app/planning.py, ±14-Tage-Fenster), und von
+    dort aus eine ungeplante Wartung starten (POST .../perform-maintenance).
+
+    property_name/customer_name bewusst nur so weit, wie der Monteur das Objekt erkennt --
+    customer_name steht dazu, weil "Hauptadresse" allein (der Rückfall ohne eigenes Objekt)
+    niemanden identifiziert; weder Kundennummer noch Straße/PLZ werden zurückgegeben, nur der Ort
+    (Betreibervorgabe). Archivierte Verträge bleiben außen vor (Muster list_contracts()).
+
+    Ein Vertrag mit aktiven Positionen unter MaintenanceSettings.use_roof_area_items wird
+    übersprungen -- create_maintenance_visit() lehnt "Wartung durchführen" dafür grundsätzlich ab
+    (siehe dort), ein Monteur hätte auf /vor-ort keine Möglichkeit, statt dessen je Position
+    vorzugehen; ein Button, der zuverlässig mit einer Fehlermeldung endet, wäre schlechter als
+    gar keiner."""
+    property_ids = list_field_relevant_property_ids(db, employee_id)
+    if not property_ids:
+        return []
+
+    primary_rows = db.execute(
+        select(Property.customer_id).where(
+            Property.id.in_(property_ids), Property.is_primary_address == True,  # noqa: E712
+        )
+    ).all()
+    customer_ids_via_primary = {row[0] for row in primary_rows}
+
+    conditions = [MaintenanceContract.property_id.in_(property_ids)]
+    if customer_ids_via_primary:
+        conditions.append(
+            (MaintenanceContract.property_id.is_(None))
+            & (MaintenanceContract.customer_id.in_(customer_ids_via_primary))
+        )
+    query = (
+        select(MaintenanceContract)
+        .where(MaintenanceContract.archived == False, or_(*conditions))  # noqa: E712
+        .options(
+            selectinload(MaintenanceContract.customer), selectinload(MaintenanceContract.property),
+            selectinload(MaintenanceContract.items),
+        )
+        .order_by(MaintenanceContract.next_due_date)
+    )
+    contracts = db.scalars(query).all()
+    if not contracts:
+        return []
+
+    settings = get_or_create_maintenance_settings(db)
+    groups: dict[tuple, dict] = {}
+    for contract in contracts:
+        if settings.use_roof_area_items and any(not i.archived for i in contract.items):
+            continue
+        if contract.property is not None:
+            key = ("property", contract.property.id)
+            property_name = contract.property.name
+            city = contract.property.city
+        else:
+            key = ("customer", contract.customer_id)
+            property_name = "Hauptadresse"
+            city = contract.customer.city if contract.customer else None
+        group = groups.setdefault(key, {
+            "property_name": property_name,
+            "city": city,
+            "customer_name": contract.customer.name if contract.customer else None,
+            "contracts": [],
+        })
+        group["contracts"].append({
+            "id": contract.id,
+            "title": contract.title,
+            "next_due_date": contract.next_due_date,
+            "is_due": _is_due(contract, settings.reminder_lead_days, settings.use_roof_area_items),
+        })
+    return [g for g in groups.values() if g["contracts"]]
 
 
 def create_contract(db: Session, customer_id: int, property_id: int | None, title: str, interval_months: int,
