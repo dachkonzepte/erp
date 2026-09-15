@@ -41,7 +41,11 @@ async function login(){
   if(!r.ok){document.getElementById('msg').textContent=d.detail||'Anmeldung fehlgeschlagen.';return}
   // Seit 1.3.34: eine Anmeldung als Administrator ist erst mit bestätigtem zweitem Faktor
   // abgeschlossen -- bis dahin geht es zuerst nach "Mein Konto", nicht ans eigentliche Ziel.
-  location.href=d.two_factor_required?'/account':(new URLSearchParams(location.search).get('next')||'/projects')
+  // Seit 1.3.48: location.search (z. B. "?next=%2Ftasks") wird dabei unverändert an /account
+  // weitergereicht, sonst wüsste account.html nach der Bestätigung nicht mehr, wohin es
+  // eigentlich gehen sollte (vorher ging es danach immer nur nach /account selbst, siehe
+  // CLAUDE.md).
+  location.href=d.two_factor_required?('/account'+location.search):(new URLSearchParams(location.search).get('next')||'/projects')
 }
 </script>
 </body>

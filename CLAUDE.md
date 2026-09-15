@@ -20,13 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.47** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf weiterhin `60d7c8a775f0` ("raise default sidebar logo height") -- weder
-  1.3.45 (Topbar), 1.3.46 (mobiler Öffnen-Umschalter) noch 1.3.47 (Anmeldeschranke für Seiten)
-  brauchten eine eigene Migration, da alle drei ausschließlich Python/Jinja/CSS/JS anfassen,
-  keine Datenbankspalte -- bei Bedarf per `alembic history`/`heads` prüfen statt sich auf eine
-  hier aufgeschriebene Liste zu verlassen.
-- Tests: **1125/1125**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
+- Version: **1.3.48** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf weiterhin `60d7c8a775f0` ("raise default sidebar logo height") -- keine
+  der Versionen 1.3.45-1.3.48 brauchte eine eigene Migration, da alle vier ausschließlich
+  Python/Jinja/CSS/JS anfassen, keine Datenbankspalte -- bei Bedarf per `alembic history`/
+  `heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
+- Tests: **1144/1144**, zuletzt am 14.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -598,6 +597,18 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   wie die bestehenden Abmelden-Links -- nach dem Anmelden geht es zur ursprünglich
   gewünschten Seite, nicht immer zum Rückfall `/projects`. Details im neuen Abschnitt
   "Serverseitige Anmeldeschranke für Seiten" unten.
+- Neu seit 1.3.48: **Zwei reale Fehler aus 1.3.47, auf dem Produktivserver gefunden.** (1)
+  `/login` leitete trotz bestehender Anmeldung nicht auf `next` weiter (immer aufs
+  Dashboard) -- behoben, plus die eigentliche Ursache des konkret gemeldeten Symptoms
+  ("Anmeldemaske erscheint erneut"): `account.html`s Link "Zur Startseite" sprang bei
+  vorhandenem `document.referrer` per `history.back()` zurück auf die während der
+  Zwei-Faktor-Pflicht durchlaufene, noch unangemeldete `/login`-Ansicht -- teils direkt aus
+  dem Bfcache, ganz ohne Serveranfrage. Jetzt ein einfacher `href="/"`. (2) Nach Bestätigung
+  des Codes landete man auf `/account` statt auf dem eigentlichen Ziel --
+  `verifyCode()` leitet jetzt auf `next`/das Dashboard weiter, statt nur die Kontoseite neu
+  zu zeichnen; die Ersteinrichtung bleibt bewusst auf `/account` (Wiederherstellungscodes
+  müssen erst gesehen werden). Details im Abschnitt "Serverseitige Anmeldeschranke für
+  Seiten" → "Fehlerbehebung" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -4517,6 +4528,69 @@ bereits bestehende JS-Auswertung von `next` (unverändert) lässt sich ohne echt
 nicht ausführen; die Tests belegen stattdessen den vollständigen SERVERSEITIGEN Anteil des
 Rundwegs (korrekter `next`-Wert im Redirect, Zielseite nach der Anmeldung tatsächlich direkt
 erreichbar).
+
+### Fehlerbehebung (seit 1.3.48): zwei reale Fehler in der Umleitung, auf dem Produktivserver gefunden
+
+**Fehler 1: `/login` leitete trotz bestehender, vollständiger Anmeldung nicht auf `next`
+weiter.** `login_page()` (1.3.47) redirectete eine bereits angemeldete Person mit
+bestätigtem zweitem Faktor immer auf `/`, unabhängig von einem mitgegebenen `?next=` --
+behoben: liest `next` jetzt über die neue `_safe_next_target()` (siehe unten) und leitet
+dorthin weiter, sonst weiterhin aufs Dashboard.
+
+Die konkret gemeldete Beobachtung ("Anmeldemaske erscheint erneut, obwohl die Sitzung
+besteht") hatte aber eine ANDERE, eigentliche Ursache, die dieser Fix allein nicht behoben
+hätte: `account.html`s Link "← Zur Startseite" trug `onclick="if(document.referrer){
+history.back();return false}"` -- während der 1.3.34-Zwei-Faktor-Pflicht zeigte
+`document.referrer` dort auf `/login` (die Seite, von der `login.html`s JS nach der
+Passwort-Eingabe auf `/account` weiterleitet). Ein Klick sprang deshalb über den
+Browser-Verlauf zurück auf genau diese Login-Ansicht -- ggf. direkt aus dem bfcache, **ohne
+jede Serveranfrage**, weshalb auch ein korrekt umleitendes `login_page()` das Symptom nicht
+verhindert hätte: der Browser fragte den Server gar nicht erst. Behoben durch einen
+einfachen `href="/"` ohne den `history.back()`-Zusatz -- "Zur Startseite" meint ein
+konkretes Ziel, kein "zurück zur vorigen Seite" wie die sonst im Projekt üblichen
+`history.back()`-Links (`users.html`, `master_data_form.html` u. a., dort unverändert
+richtig, da deren Vorseite immer eine legitime, bereits angemeldete Seite ist).
+
+**Fehler 2: nach Bestätigung des Codes landete man auf `/account` statt auf dem
+eigentlichen Ziel.** `account.html::verifyCode()` (die ROUTINE-Bestätigung -- zweiter Faktor
+war schon eingerichtet, nur diese Sitzung musste ihn noch bestätigen) rief nach Erfolg nur
+`load()` auf, was lediglich die Kontoseite selbst neu zeichnete (zeigt dann "Passwort
+ändern"/Zwei-Faktor-Status). Behoben: leitet jetzt auf `next` bzw. das Dashboard weiter.
+**Bewusst unverändert**: die ERSTEINRICHTUNG (`confirmSetup()`/`finishSetup()`) bleibt auf
+`/account` -- dort müssen erst die einmalig angezeigten Wiederherstellungscodes gesehen
+werden, `/account` ist in diesem Fall das tatsächliche, gewollte Ziel, kein Zwischenschritt.
+Damit `next` über den Zwischenschritt `/account` hinweg erhalten bleibt (vorher ging dabei
+jede Information über das ursprüngliche Ziel verloren), hängt `login.html` beim Weiterleiten
+auf `/account` jetzt `location.search` unverändert an.
+
+**`_safe_next_target()`** (`app/routers/pages.py`, neu): da `login_page()` seit 1.3.48 einen
+vom Client mitgegebenen `next`-Wert tatsächlich für einen SERVERSEITIGEN Redirect verwendet
+(anders als `app/main.py`s Middleware, die `next` selbst aus dem aufgerufenen Pfad baut und
+deshalb nichts validieren muss), wird der Wert vorher geprüft -- akzeptiert nur Werte, die
+mit genau einem `/` beginnen, lehnt `//...` (protokoll-relativ) und absolute URLs ab. Ohne
+diese Prüfung wäre ein serverseitiger offener Redirect entstanden (`?next=https://
+evil.example/...`), eine strengere Gefahrenklasse als die bereits bestehende, rein
+clientseitige `next`-Auswertung in `login.html` (dort schon seit früherer Version
+ungeprüft, aber dort nur wirksam, wenn die Zielseite selbst dieses JS ausführt -- kein
+neuer Fund, unverändert gelassen, siehe „Bekannte, bewusst offene Punkte").
+
+**Geprüft, wie verlangt: `request.state.otp_ok` überall korrekt ausgewertet?** Projektweiter
+Grep bestätigt genau drei Lesestellen: `app/main.py` selbst (setzt den Wert), `app/routers/
+auth.py::auth_status()` und `app/routers/pages.py::login_page()` -- beide Leser nutzen
+bereits `getattr(request.state, "otp_ok", True)` mit sicherem Rückfall (der zweite davon erst
+seit 1.3.47, siehe dort für den Fund im Testaufbau, der genau diese Absicherung nötig
+machte). Kein weiterer Fund.
+
+**Tests** (`tests/test_v257_login_redirect_fixes.py`): vier Kombinationen (next: ja/nein ×
+zweiter Faktor eingerichtet: ja/nein) für `login_page()`s Entscheidung bei bestehender
+Anmeldung, sowie der vollständige serverseitige Rundweg für alle drei Anmeldewege (ohne
+Zwei-Faktor, über die Ersteinrichtung, über die Routine-Bestätigung) -- jeweils bestätigt,
+dass ein nachfolgender Aufruf tatsächlich zum ursprünglichen Ziel führt, nicht zurück nach
+`/account`. Dazu `_safe_next_target()` isoliert sowie drei Strukturprüfungen der
+Template-Quellen (next-Weitergabe in `login.html`, `verifyCode()` leitet weiter statt
+`load()` erneut aufzurufen, der "Zur Startseite"-Link trägt kein `history.back()` mehr) --
+die eigentliche JS-Navigation selbst lässt sich ohne echten Browser nicht ausführen
+(dieselbe, wiederholt dokumentierte Werkzeug-Einschränkung dieser Umgebung).
 
 ## PostgreSQL-Umstieg: Migrationskette repariert (seit 1.3.35)
 

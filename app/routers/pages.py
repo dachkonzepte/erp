@@ -6,6 +6,7 @@ uebernommen -- reine Verschiebung, keine Verhaltensaenderung.
 """
 
 import logging
+from urllib.parse import quote
 
 from fastapi import APIRouter
 from pathlib import Path
@@ -139,19 +140,36 @@ def _account_display(current_user) -> dict:
 templates.env.globals["account_display"] = _account_display
 
 
+def _safe_next_target(value: str | None) -> str | None:
+    """Nur echte, app-interne Pfade -- kein offener Redirect über einen von außen
+    mitgegebenen next-Wert (im Unterschied zu app/main.py's Middleware, die next selbst aus
+    dem aufgerufenen Pfad baut und deshalb nichts validieren muss, kommt dieser Wert hier
+    direkt aus der Query-String eines Clients). Muss mit genau einem "/" beginnen -- "//..."
+    wäre protokoll-relativ auf eine fremde Domain, ein absoluter "https://..."-Wert erst recht."""
+    if not value or not value.startswith("/") or value.startswith("//"):
+        return None
+    return value
+
+
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
     """Seit 1.3.47: zeigt die Anmeldemaske nicht noch einmal, wenn schon jemand angemeldet ist
-    (vorher: die Maske erschien unverändert erneut, unabhängig vom Anmeldestatus). Ein
-    Administrator mit noch unbestätigtem zweitem Faktor geht dabei -- wie überall sonst,
-    siehe login.html/_sidebar.html -- direkt nach "Mein Konto", nicht aufs Dashboard, da dort
-    ohnehin nichts nutzbar wäre."""
+    (vorher: die Maske erschien unverändert erneut, unabhängig vom Anmeldestatus). Seit 1.3.48
+    (echter Fund, siehe CLAUDE.md): die Weiterleitung ignorierte next bisher vollständig und
+    ging immer aufs Dashboard -- jetzt landet eine bereits vollständig angemeldete Person
+    (zweiter Faktor bestätigt, falls nötig) auf next, wenn vorhanden, sonst aufs Dashboard. Ein
+    Administrator mit noch unbestätigtem zweitem Faktor geht weiterhin direkt nach "Mein
+    Konto" (dort ist ohnehin nichts anderes nutzbar) -- next wird dabei als Query-Parameter
+    mitgegeben, damit account.html nach der Bestätigung selbst noch weiß, wohin es
+    anschließend gehen soll (siehe dort)."""
     current_user = getattr(request.state, "erp_user", None)
     if current_user is not None:
         otp_ok = getattr(request.state, "otp_ok", True)
+        next_target = _safe_next_target(request.query_params.get("next"))
         if current_user.role == "admin" and not otp_ok:
-            return RedirectResponse(url="/account", status_code=302)
-        return RedirectResponse(url="/", status_code=302)
+            url = f"/account?next={quote(next_target, safe='')}" if next_target else "/account"
+            return RedirectResponse(url=url, status_code=302)
+        return RedirectResponse(url=next_target or "/", status_code=302)
     return templates.TemplateResponse(request=request, name="login.html", context={})
 
 

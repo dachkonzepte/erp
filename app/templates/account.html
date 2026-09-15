@@ -29,7 +29,17 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
-<a class="back no-print" href="/" onclick="if(document.referrer){history.back();return false}">← Zur Startseite</a>
+<!-- Bewusst ein einfacher href="/" statt des sonst im Projekt üblichen
+     onclick="history.back();return false" ("← Zurück"-Muster, z. B. users.html/
+     master_data_form.html): diese Seite ist während der 1.3.34-Zwei-Faktor-Pflicht oft über
+     eine Server-Weiterleitung von /login aus erreicht worden, deren document.referrer dann
+     die ANMELDESEITE ist. Ein vorheriger history.back()-Zusatz (bis 1.3.48) führte über den
+     Browser-Verlauf zurück auf genau diese, ggf. aus dem bfcache stammende, noch
+     unangemeldete Login-Ansicht -- echter, auf dem Produktivserver beobachteter Fund, siehe
+     CLAUDE.md. "Zur Startseite" meint hier ein konkretes Ziel (das Dashboard), kein
+     "zurück zur vorigen Seite" wie bei den anderen Links -- ein einfacher Link ist deshalb
+     richtig, keine Verkürzung. -->
+<a class="back no-print" href="/">← Zur Startseite</a>
 <div id="loadingMsg" class="muted">Lädt …</div>
 
 <div id="notAuthed" class="card hidden"><h2>Mein Konto</h2><p class="muted">Bitte zuerst <a href="/login">anmelden</a>.</p></div>
@@ -139,10 +149,16 @@ async function confirmSetup(){
 async function finishSetup(){await load()}
 
 async function verifyCode(){
+  // Seit 1.3.48: nach einer erfolgreichen ROUTINE-Bestätigung (zweiter Faktor war schon
+  // eingerichtet, nur diese Sitzung brauchte den Code) geht es weiter zum eigentlich
+  // gewünschten Ziel -- vorher blieb man hier auf /account stehen (echter, gemeldeter Fund,
+  // siehe CLAUDE.md). Gilt NICHT für die Ersteinrichtung (confirmSetup()/finishSetup() unten)
+  // -- dort müssen erst die einmalig angezeigten Wiederherstellungscodes gesehen werden,
+  // /account ist dort das tatsächliche Ziel, kein Zwischenschritt.
   const st=document.getElementById('verifyStatus');st.className='status';st.textContent='';
   try{
     await api('/api/account/2fa/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:document.getElementById('verifyCode').value.trim()})});
-    await load();
+    location.href=new URLSearchParams(location.search).get('next')||'/';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
