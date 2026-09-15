@@ -19,12 +19,18 @@ from ..database import get_db
 from ..deps import require_admin
 from ..mobile_manifest import build_icon_png, build_manifest
 from ..mobile_settings import get_or_create_mobile_settings, is_past_shift_end, mobile_settings_to_dict, update_mobile_settings
+from ..models import AppUser
 from ..modules import is_module_enabled
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
 from ..planning import list_todays_assignments_for_employee
 from ..schemas import MobileSettingsOut, MobileSettingsUpdate
 from ..service_reports import list_draft_reports_for_employee
 
 router = APIRouter()
+
+# Seit "Rechtekonzept" (siehe CLAUDE.md): reiner Lesezugriff auf eine nicht-sensible
+# Konfigurationszeile (Feierabend-Uhrzeit) -- für jede Rolle offen, Muster wie GET /api/modules.
+_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
 
 
 @router.get("/api/field-view/today")
@@ -54,7 +60,7 @@ def get_field_view_today(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/api/mobile-settings", response_model=MobileSettingsOut)
-def get_mobile_settings(db: Session = Depends(get_db)):
+def get_mobile_settings(db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     return mobile_settings_to_dict(get_or_create_mobile_settings(db))
 
 

@@ -11,11 +11,16 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import ProjectDocument
+from ..models import AppUser, ProjectDocument
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
 from ..project_documents import can_preview_type, document_path, is_image_type
 from ..schemas import ProjectDocumentOut, ProjectDocumentUpdate
 
 router = APIRouter()
+
+# Seit "Rechtekonzept" (siehe CLAUDE.md): Projektdokumente sind Büro-/Admin-Bereich -- kein
+# Endpunkt dieser Datei wird von einer Monteur-Vorlage aufgerufen.
+_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
 
 def _project_document_out(doc: ProjectDocument) -> ProjectDocumentOut:
     return ProjectDocumentOut(
@@ -27,7 +32,7 @@ def _project_document_out(doc: ProjectDocument) -> ProjectDocumentOut:
 
 
 @router.put("/api/project-documents/{document_id}", response_model=ProjectDocumentOut)
-def update_project_document(document_id: int, payload: ProjectDocumentUpdate, db: Session = Depends(get_db)):
+def update_project_document(document_id: int, payload: ProjectDocumentUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     doc = db.get(ProjectDocument, document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
@@ -36,7 +41,7 @@ def update_project_document(document_id: int, payload: ProjectDocumentUpdate, db
 
 
 @router.get("/api/project-documents/{document_id}/view")
-def view_project_document(document_id: int, db: Session = Depends(get_db)):
+def view_project_document(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     doc = db.get(ProjectDocument, document_id)
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc)
@@ -45,7 +50,7 @@ def view_project_document(document_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/project-documents/{document_id}/download")
-def download_project_document(document_id: int, db: Session = Depends(get_db)):
+def download_project_document(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     doc = db.get(ProjectDocument, document_id)
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc)
@@ -54,7 +59,7 @@ def download_project_document(document_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/api/project-documents/{document_id}")
-def delete_project_document(document_id: int, db: Session = Depends(get_db)):
+def delete_project_document(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     doc = db.get(ProjectDocument, document_id)
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc); db.delete(doc); db.commit(); path.unlink(missing_ok=True)

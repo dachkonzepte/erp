@@ -4,6 +4,41 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.54 – Rechtekonzept, Rest-Etappe Teil A: 164 weitere Endpunkte klassifiziert
+
+Fortsetzung nach 1.3.51–1.3.53: die verbleibenden ~230 unklassifizierten Endpunkte zerfallen in
+zwei Teile (siehe CLAUDE.md "Rechtekonzept" → "Etappenplan"). Diese Version deckt Teil A ab --
+Dateien ohne jeden Monteur-Bezug (geprüft: kein Endpunkt wird von `service_reports.html`/
+`vor_ort.html`/`_mobile_header.html` aufgerufen), auf Büro+Admin umgestellt: `quotes.py` (22),
+`planning.py` (16), `maintenance_contracts.py` (22), `projects.py` (15), `resource_planning.py`
+(15, Teams/Ressourcen/Lieferanten), `roof_areas.py` (34, Dachflächen/Bauteile/Schicht-/
+Bauteilarten), `properties.py` (4), `inquiries.py` (5), `customer_documents.py` (4),
+`project_documents.py` (4), `quick_service_orders.py` (1).
+
+Drei Dateien brauchten dabei eine feinere Prüfung statt eines blanken Sperr-Durchgangs, weil sie
+bereits bestehende Selbstbedienungs-Endpunkte mit eigener Eigentümerschafts-Filterung enthalten
+-- diese bleiben bewusst für JEDE Rolle offen, nicht nur Büro+Admin, da auch ein Monteur seine
+eigenen Anträge/Aufgaben/sein eigenes Dashboard erreichen muss:
+
+- `absence_requests.py`: Abwesenheitsanträge ansehen/stellen/zurückziehen bleibt Selbstbedienung
+  für jede Rolle (die bereits bestehende `employee_id`-Filterung sorgt dafür, dass niemand fremde
+  Anträge sieht/ändert) -- nur die Freigabe (`review`) bleibt admin-only, wie schon bisher.
+- `work_preparation.py`: das Dashboard-Widget "Meine Aufgaben" (`GET /api/work-preparation/tasks`,
+  dieselbe Eigentümerschafts-Filterung wie bei Abwesenheitsanträgen) bleibt für jede Rolle offen,
+  die eigentliche Arbeitsvorbereitung (Zuordnungen/Material/Teams/Lieferscheine bearbeiten) ist
+  Büro+Admin.
+- `dashboard.py` (eigenes Widget-Layout, rein per `user.id` isoliert) und `modules.py`/
+  `field_view.py`s `GET /api/mobile-settings` (nicht-sensible Ein/Aus-/Konfigurationszustände,
+  von jeder Seite clientseitig gebraucht) bleiben für jede Rolle lesbar -- reines Muster wie das
+  bereits bestehende `GET /api/settings/option-groups/{key}`.
+
+Der Vollständigkeits-Audit-Test sinkt dadurch von 230 auf 66 unklassifizierte Endpunkte -- die
+verbleibenden (Aufträge, Einsatzberichte, Mängel, Prüfvorlagen, Zeiterfassung) sind Teil B und
+brauchen zuerst die noch nicht gebaute Objekt-Filterung (`field_may_access_order()`, CLAUDE.md
+"Rechtekonzept" → Etappe 3), da sie von Monteuren aktiv genutzt werden und ein blankes
+Büro+Admin-Gate den Einsatzbericht-Ablauf brechen würde (exakt der Fehler, der in 1.3.53 bei
+`GET /api/employees` bereits einmal passiert ist).
+
 ## 1.3.53 – Rechtekonzept: Preisleck bei Monteur-Endpunkten behoben, ein echter Nebenfund
 
 Auf Rückmeldung behoben statt dokumentiert: `GET /api/materials` (für Monteure bewusst offen,

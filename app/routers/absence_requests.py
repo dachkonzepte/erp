@@ -12,15 +12,25 @@ from sqlalchemy.orm import Session
 from ..absence_requests import request_to_dict as absence_request_to_dict, cancel_request as cancel_absence_request_row, create_request as create_absence_request_row, list_requests as list_absence_request_rows, review_request as review_absence_request_row
 from ..database import get_db
 from ..deps import require_admin
-from ..models import EmployeeAbsenceRequest
+from ..models import AppUser, EmployeeAbsenceRequest
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
 from ..schemas import EmployeeAbsenceRequestCreate, EmployeeAbsenceRequestOut, EmployeeAbsenceRequestReview
 
 from .time_tracking import _time_entry_employee_for_request
 
 router = APIRouter()
 
+# Seit "Rechtekonzept" (siehe CLAUDE.md): Abwesenheitsanträge selbst (ansehen/stellen/
+# zurückziehen) sind Selbstbedienung für JEDE Rolle -- jeder Mitarbeiter, auch ein Monteur,
+# stellt seinen eigenen Urlaubs-/Abwesenheitsantrag, die bereits bestehende
+# Eigentümerschafts-Filterung unten (employee_id == eigene ID für Nicht-Admin) sorgt dafür,
+# dass niemand fremde Anträge sieht/ändert. Nur die FREIGABE (review_absence_request) bleibt
+# admin-only, wie schon bisher über ihre eigene require_admin()-Prüfung.
+_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+
+
 @router.get("/api/absence-requests", response_model=list[EmployeeAbsenceRequestOut])
-def get_absence_requests(request: Request, employee_id: int | None = None, status: str | None = None, db: Session = Depends(get_db)):
+def get_absence_requests(request: Request, employee_id: int | None = None, status: str | None = None, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     user=getattr(request.state,"erp_user",None)
     if user is not None and user.role != "admin":
         if user.employee_id is None:
@@ -31,7 +41,7 @@ def get_absence_requests(request: Request, employee_id: int | None = None, statu
 
 
 @router.post("/api/absence-requests", response_model=EmployeeAbsenceRequestOut)
-def post_absence_request(payload: EmployeeAbsenceRequestCreate, request: Request, db: Session = Depends(get_db)):
+def post_absence_request(payload: EmployeeAbsenceRequestCreate, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     employee_id=_time_entry_employee_for_request(request,payload.employee_id,db)
     user=getattr(request.state,"erp_user",None)
     try:
@@ -51,7 +61,7 @@ def review_absence_request(request_id:int,payload:EmployeeAbsenceRequestReview,d
 
 
 @router.delete("/api/absence-requests/{request_id}")
-def delete_absence_request(request_id:int,request:Request,db:Session=Depends(get_db)):
+def delete_absence_request(request_id:int,request:Request,db:Session=Depends(get_db),_role:AppUser=_any_role_dep):
     row=db.get(EmployeeAbsenceRequest,request_id)
     if row is None: raise HTTPException(status_code=404,detail="Abwesenheitsantrag wurde nicht gefunden.")
     user=getattr(request.state,"erp_user",None)

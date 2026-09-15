@@ -8,9 +8,15 @@ from sqlalchemy.orm import Session
 
 from ..dashboard import get_widget_layout, save_widget_layout
 from ..database import get_db
+from ..models import AppUser
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
 from ..schemas import DashboardWidgetLayoutUpdate, DashboardWidgetOut
 
 router = APIRouter()
+
+# Seit "Rechtekonzept" (siehe CLAUDE.md): das eigene Dashboard-Layout ist Selbstbedienung für
+# JEDE Rolle -- rein per user.id isoliert, keine büro-spezifischen Daten.
+_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
 
 
 def _require_login(request: Request):
@@ -21,12 +27,12 @@ def _require_login(request: Request):
 
 
 @router.get("/api/dashboard/widgets", response_model=list[DashboardWidgetOut])
-def get_dashboard_widgets(request: Request, db: Session = Depends(get_db)):
+def get_dashboard_widgets(request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     user = _require_login(request)
     return get_widget_layout(db, user.id)
 
 
 @router.put("/api/dashboard/widgets", response_model=list[DashboardWidgetOut])
-def update_dashboard_widgets(payload: DashboardWidgetLayoutUpdate, request: Request, db: Session = Depends(get_db)):
+def update_dashboard_widgets(payload: DashboardWidgetLayoutUpdate, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     user = _require_login(request)
     return save_widget_layout(db, user.id, [w.model_dump() for w in payload.widgets])

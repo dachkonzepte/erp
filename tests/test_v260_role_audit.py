@@ -240,3 +240,101 @@ class TestRoleGateOnTheHighRiskBatch:
             client = router_test_client(threaded_db_session, tasks_router, task_columns_router, role=role, employee_id=emp.id)
             assert client.get("/api/tasks").status_code == 200, role
             assert client.get("/api/task-columns").status_code == 200, role
+
+
+class TestRoleGateOnTheRemainingBueroOnlyFiles:
+    """Nachweis für Teil A der Rest-Etappe (siehe CLAUDE.md 'Rechtekonzept'): reine Büro-/Admin-
+    Dateien ohne Monteur-Bezug (geprüft: kein Endpunkt wird von service_reports.html/vor_ort.html/
+    _mobile_header.html aufgerufen) -- stichprobenhaft je Datei, nicht erschöpfend, die
+    Vollständigkeit sichert weiterhin test_all_api_routes_have_an_explicit_role_check oben."""
+
+    def test_field_is_rejected_from_quotes_planning_and_maintenance_contracts(self, router_test_client, threaded_db_session):
+        from app.routers.maintenance_contracts import router as mc_router
+        from app.routers.planning import router as planning_router
+        from app.routers.quotes import router as quotes_router
+        client = router_test_client(threaded_db_session, quotes_router, planning_router, mc_router, role="field")
+        assert client.get("/api/quotes").status_code == 403
+        assert client.get("/api/planning/holidays").status_code == 403
+        assert client.get("/api/maintenance-contracts").status_code == 403
+
+    def test_field_is_rejected_from_projects_resource_planning_and_roof_areas(self, router_test_client, threaded_db_session):
+        from app.routers.projects import router as projects_router
+        from app.routers.resource_planning import router as rp_router
+        from app.routers.roof_areas import router as roof_areas_router
+        client = router_test_client(threaded_db_session, projects_router, rp_router, roof_areas_router, role="field")
+        assert client.get("/api/projects").status_code == 403
+        assert client.get("/api/teams").status_code == 403
+        assert client.get("/api/suppliers").status_code == 403
+        assert client.get("/api/resources").status_code == 403
+        assert client.get("/api/roof-areas?property_id=1").status_code == 403
+        assert client.get("/api/roof-component-types").status_code == 403
+
+    def test_field_is_rejected_from_properties_inquiries_and_documents(self, router_test_client, threaded_db_session):
+        from app.routers.customer_documents import router as cust_docs_router
+        from app.routers.inquiries import router as inquiries_router
+        from app.routers.project_documents import router as proj_docs_router
+        from app.routers.properties import router as properties_router
+        client = router_test_client(
+            threaded_db_session, properties_router, inquiries_router, cust_docs_router, proj_docs_router, role="field",
+        )
+        assert client.get("/api/properties").status_code == 403
+        assert client.get("/api/inquiries").status_code == 403
+        assert client.get("/api/customer-documents/1/view").status_code == 403
+        assert client.get("/api/project-documents/1/view").status_code == 403
+
+    def test_field_is_rejected_from_quick_service_orders(self, router_test_client, threaded_db_session):
+        from app.routers.quick_service_orders import router as qso_router
+        client = router_test_client(threaded_db_session, qso_router, role="field")
+        response = client.post("/api/quick-service-orders", json={
+            "customer_id": 1, "order_type": "reparatur", "title": "x",
+        })
+        assert response.status_code == 403
+
+    def test_office_and_admin_still_reach_the_buero_only_files(self, router_test_client, threaded_db_session):
+        from app.routers.quotes import router as quotes_router
+        for role in ("admin", "office"):
+            client = router_test_client(threaded_db_session, quotes_router, role=role)
+            assert client.get("/api/quotes").status_code == 200, role
+
+    def test_absence_requests_stay_open_to_field_as_self_service(self, router_test_client, threaded_db_session):
+        """Anders als die übrigen Dateien dieser Etappe: Abwesenheitsanträge stellen/ansehen/
+        zurückziehen ist Selbstbedienung für JEDE Rolle (siehe CLAUDE.md 'Rechtekonzept') -- nur
+        die Freigabe (review) bleibt admin-only über ihre eigene, unveränderte require_admin()."""
+        from app.models import Employee
+        from app.routers.absence_requests import router as absence_router
+        emp = Employee(employee_number="T-260b", first_name="Otto", last_name="Testmann",
+                        employee_group="angestellt", hourly_wage="30", weekly_hours="40", active=True)
+        threaded_db_session.add(emp); threaded_db_session.commit()
+        client = router_test_client(threaded_db_session, absence_router, role="field", employee_id=emp.id)
+        assert client.get("/api/absence-requests").status_code == 200
+        created = client.post("/api/absence-requests", json={
+            "employee_id": emp.id, "absence_type": "urlaub", "start_date": "2026-10-01", "end_date": "2026-10-02",
+        })
+        assert created.status_code == 200, created.text
+        assert client.post(f"/api/absence-requests/{created.json()['id']}/review", json={"decision": "genehmigt"}).status_code == 403
+
+    def test_dashboard_and_modules_stay_open_to_every_role(self, router_test_client, threaded_db_session):
+        """Eigenes Dashboard-Layout (rein per user.id isoliert) und der Modul-Ein/Aus-Zustand
+        (nicht-sensible Konfiguration, von jeder Seite clientseitig gebraucht) sind für jede
+        Rolle lesbar -- siehe CLAUDE.md 'Rechtekonzept'."""
+        from app.routers.dashboard import router as dashboard_router
+        from app.routers.modules import router as modules_router
+        client = router_test_client(threaded_db_session, dashboard_router, modules_router, role="field")
+        assert client.get("/api/dashboard/widgets").status_code == 200
+        assert client.get("/api/modules").status_code == 200
+        assert client.put("/api/modules/wartungen", json={"enabled": True}).status_code == 403
+
+    def test_work_preparation_my_tasks_widget_stays_open_but_editing_does_not(self, router_test_client, threaded_db_session):
+        """Dasselbe Selbstbedienungs-Muster wie bei Abwesenheitsanträgen: GET /api/work-
+        preparation/tasks ("Meine Aufgaben"-Widget) bleibt für field offen, die eigentliche
+        AV-Bearbeitung (hier: eine Mitarbeiterzuordnung anlegen) nicht. Braucht eine echte
+        employee_id -- sonst lehnt die Funktion selbst (nicht die Rollenprüfung) mit 403 ab,
+        weil ein Nicht-Admin ohne Mitarbeiterverknüpfung keine eigenen Aufgaben haben kann."""
+        from app.models import Employee
+        from app.routers.work_preparation import router as wp_router
+        emp = Employee(employee_number="T-260c", first_name="Klaus", last_name="Testig",
+                        employee_group="angestellt", hourly_wage="30", weekly_hours="40", active=True)
+        threaded_db_session.add(emp); threaded_db_session.commit()
+        client = router_test_client(threaded_db_session, wp_router, role="field", employee_id=emp.id)
+        assert client.get("/api/work-preparation/tasks").status_code == 200
+        assert client.post("/api/orders/1/work-preparation/employees", json={"employee_id": 1}).status_code == 403

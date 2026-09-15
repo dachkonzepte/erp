@@ -14,9 +14,10 @@ from sqlalchemy.orm import Session, selectinload
 from ..database import get_db
 from ..invoices import invoice_overview_row, invoice_summary_for_order, list_invoices_for_project
 from ..work_preparation import planned_hours
-from ..models import Customer, Order, Project, ProjectDocument, ProjectProfile, Property, Quote
+from ..models import AppUser, Customer, Order, Project, ProjectDocument, ProjectProfile, Property, Quote
 from ..option_settings import default_option_value, ensure_default_option_groups
 from ..orders import load_order, order_to_dict
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
 from ..project_documents import MAX_UPLOAD_BYTES, make_stored_filename, project_directory
 from ..projects import delete_project, duplicate_project, load_project, load_quote, next_project_number, next_quote_number, quote_to_dict, set_project_archived
 from ..service_reports import count_reports_for_order
@@ -26,6 +27,10 @@ from ..settings import get_or_create_general_settings
 from .project_documents import _project_document_out
 
 router = APIRouter()
+
+# Seit "Rechtekonzept" (siehe CLAUDE.md): Projekte/Mustervorgänge sind Büro-/Admin-Bereich --
+# geprüft, kein Endpunkt dieser Datei wird von einer Monteur-Vorlage aufgerufen.
+_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
 
 def _ensure_project_profile(db: Session, project_id: int, category: str | None = None) -> ProjectProfile:
     ensure_default_option_groups(db)
@@ -69,7 +74,7 @@ def _list_projects(db: Session, *, is_template: bool, include_archived: bool = F
 
 
 @router.get("/api/projects", response_model=list[ProjectListOut])
-def list_projects(include_archived: bool = False, db: Session = Depends(get_db)):
+def list_projects(include_archived: bool = False, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     """Zeigt bewusst NUR normale Projekte -- Mustervorgänge (is_template=True)
     haben eine eigene Übersicht (siehe list_project_templates unten), damit
     sie nicht aus Versehen wie ein echtes Projekt bearbeitet werden."""
@@ -77,12 +82,12 @@ def list_projects(include_archived: bool = False, db: Session = Depends(get_db))
 
 
 @router.get("/api/project-templates", response_model=list[ProjectListOut])
-def list_project_templates(include_archived: bool = False, db: Session = Depends(get_db)):
+def list_project_templates(include_archived: bool = False, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return _list_projects(db, is_template=True, include_archived=include_archived)
 
 
 @router.post("/api/projects/{project_id}/archive", response_model=ProjectListOut)
-def archive_project_endpoint(project_id: int, db: Session = Depends(get_db)):
+def archive_project_endpoint(project_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     project = load_project(db, project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
@@ -91,7 +96,7 @@ def archive_project_endpoint(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api/projects/{project_id}/unarchive", response_model=ProjectListOut)
-def unarchive_project_endpoint(project_id: int, db: Session = Depends(get_db)):
+def unarchive_project_endpoint(project_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     project = load_project(db, project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
@@ -100,7 +105,7 @@ def unarchive_project_endpoint(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/api/projects/{project_id}")
-def delete_project_endpoint(project_id: int, db: Session = Depends(get_db)):
+def delete_project_endpoint(project_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     project = load_project(db, project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
@@ -112,7 +117,7 @@ def delete_project_endpoint(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api/projects/{project_id}/duplicate", response_model=ProjectListOut)
-def duplicate_project_endpoint(project_id: int, payload: ProjectDuplicateRequest, db: Session = Depends(get_db)):
+def duplicate_project_endpoint(project_id: int, payload: ProjectDuplicateRequest, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     """Gemeinsamer Endpunkt für 'Vorgang kopieren', 'als Mustervorgang
     speichern' und 'neuen Vorgang aus Muster erstellen' -- der Quellstatus
     (ob is_template) spielt keine Rolle, nur payload.as_template bestimmt
@@ -126,7 +131,7 @@ def duplicate_project_endpoint(project_id: int, payload: ProjectDuplicateRequest
 
 
 @router.post("/api/projects", response_model=ProjectListOut)
-def create_project(payload: ProjectCreate, db: Session = Depends(get_db)):
+def create_project(payload: ProjectCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     customer = db.get(Customer, payload.customer_id)
     if customer is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
@@ -155,7 +160,7 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/api/projects/{project_id}", response_model=ProjectDetailOut)
-def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depends(get_db)):
+def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     project = db.get(Project, project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
@@ -178,7 +183,7 @@ def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depend
 
 
 @router.get("/api/projects/{project_id}", response_model=ProjectDetailOut)
-def get_project_detail(project_id: int, db: Session = Depends(get_db)):
+def get_project_detail(project_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     project = db.scalar(
         select(Project).options(
             selectinload(Project.customer).selectinload(Customer.profile),
@@ -201,7 +206,7 @@ def get_project_detail(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/projects/{project_id}/documents", response_model=list[ProjectDocumentOut])
-def list_project_documents(project_id: int, db: Session = Depends(get_db)):
+def list_project_documents(project_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     if db.get(Project, project_id) is None:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
     docs = db.scalars(select(ProjectDocument).where(ProjectDocument.project_id == project_id).order_by(ProjectDocument.uploaded_at.desc())).all()
@@ -212,7 +217,7 @@ def list_project_documents(project_id: int, db: Session = Depends(get_db)):
 async def upload_project_document(
     project_id: int, file: UploadFile = File(...), category: str = Form("Sonstiges"),
     description: str | None = Form(None), document_date: str | None = Form(None), db: Session = Depends(get_db),
-    subfolder: str | None = Form(None),
+    subfolder: str | None = Form(None), _role: AppUser = _role_dep,
 ):
     if db.get(Project, project_id) is None:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
@@ -243,7 +248,7 @@ async def upload_project_document(
 
 
 @router.get("/api/projects/{project_id}/orders", response_model=list[OrderListOut])
-def list_project_orders(project_id: int, db: Session = Depends(get_db)):
+def list_project_orders(project_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     if db.get(Project, project_id) is None: raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
     orders = db.scalars(select(Order).where(Order.project_id == project_id).order_by(Order.id.desc())).all()
     result=[]
@@ -255,14 +260,14 @@ def list_project_orders(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/projects/{project_id}/invoices", response_model=list[InvoiceOverviewOut])
-def list_project_invoices(project_id: int, db: Session = Depends(get_db)):
+def list_project_invoices(project_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     if db.get(Project, project_id) is None: raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
     invoices = list_invoices_for_project(db, project_id)
     return [invoice_overview_row(inv) for inv in invoices]
 
 
 @router.get("/api/projects/{project_id}/quotes", response_model=list[QuoteListOut])
-def list_project_quotes(project_id: int, db: Session = Depends(get_db)):
+def list_project_quotes(project_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     project = load_project(db, project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
@@ -278,7 +283,7 @@ def list_project_quotes(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api/projects/{project_id}/quotes", response_model=QuoteOut)
-def create_quote(project_id: int, payload: QuoteCreate, db: Session = Depends(get_db)):
+def create_quote(project_id: int, payload: QuoteCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     project = load_project(db, project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")

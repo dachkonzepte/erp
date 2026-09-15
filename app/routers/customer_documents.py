@@ -14,10 +14,15 @@ from sqlalchemy.orm import Session
 
 from ..customer_documents import can_preview_type, document_path, is_image_type
 from ..database import get_db
-from ..models import CustomerDocument
+from ..models import AppUser, CustomerDocument
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
 from ..schemas import CustomerDocumentOut, CustomerDocumentUpdate
 
 router = APIRouter()
+
+# Seit "Rechtekonzept" (siehe CLAUDE.md): Kundendokumente sind Büro-/Admin-Bereich -- kein
+# Endpunkt dieser Datei wird von einer Monteur-Vorlage aufgerufen.
+_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
 
 def _customer_document_out(doc: CustomerDocument) -> CustomerDocumentOut:
     return CustomerDocumentOut(
@@ -29,7 +34,7 @@ def _customer_document_out(doc: CustomerDocument) -> CustomerDocumentOut:
 
 
 @router.put("/api/customer-documents/{document_id}", response_model=CustomerDocumentOut)
-def update_customer_document(document_id: int, payload: CustomerDocumentUpdate, db: Session = Depends(get_db)):
+def update_customer_document(document_id: int, payload: CustomerDocumentUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     doc = db.get(CustomerDocument, document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
@@ -38,7 +43,7 @@ def update_customer_document(document_id: int, payload: CustomerDocumentUpdate, 
 
 
 @router.get("/api/customer-documents/{document_id}/view")
-def view_customer_document(document_id: int, db: Session = Depends(get_db)):
+def view_customer_document(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     doc = db.get(CustomerDocument, document_id)
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc)
@@ -47,7 +52,7 @@ def view_customer_document(document_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/customer-documents/{document_id}/download")
-def download_customer_document(document_id: int, db: Session = Depends(get_db)):
+def download_customer_document(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     doc = db.get(CustomerDocument, document_id)
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc)
@@ -56,7 +61,7 @@ def download_customer_document(document_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/api/customer-documents/{document_id}")
-def delete_customer_document(document_id: int, db: Session = Depends(get_db)):
+def delete_customer_document(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     doc = db.get(CustomerDocument, document_id)
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc); db.delete(doc); db.commit(); path.unlink(missing_ok=True)

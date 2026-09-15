@@ -20,12 +20,13 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.53** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.54** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf weiterhin `7a2b4e9f1c3d` ("app user role office field") -- weder 1.3.52
-  noch 1.3.53 brauchten eine eigene Migration (reine Rollen-Gate-/Response-Schema-Umstellungen
-  auf bereits bestehenden Endpunkten), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per
-  `alembic history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1178 passed, 1 xfailed** (nicht 1179/1179 grün -- eine der Testdateien aus
+  noch 1.3.53/1.3.54 brauchten eine eigene Migration (reine Rollen-Gate-/Response-Schema-
+  Umstellungen auf bereits bestehenden Endpunkten), siehe Abschnitt "Rechtekonzept" unten; bei
+  Bedarf per `alembic history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu
+  verlassen.
+- Tests: **1186 passed, 1 xfailed** (nicht 1187/1187 grün -- eine der Testdateien aus
   "Rechtekonzept" enthält eine ABSICHTLICH weiterhin fehlschlagende Prüfung, siehe dort;
   `strict=False` verhindert, dass sie den Testlauf als Ganzes rot färbt), zuletzt am 15.09.2026
   mit `pytest` in Tobias' `.venv` unter Windows
@@ -686,6 +687,19 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   behoben: `GET /api/orders/{id}` liefert weiterhin die volle, bepreiste LV an jede Rolle --
   das braucht die noch nicht gebaute Objekt-Filterung (Etappe 3), siehe CLAUDE.md
   "Rechtekonzept" und CHANGELOG.md für die volle Begründung.
+- Neu seit 1.3.54: **Rechtekonzept, Rest-Etappe Teil A -- 164 weitere, monteur-unabhängige
+  Endpunkte klassifiziert.** `quotes.py`/`planning.py`/`maintenance_contracts.py`/`projects.py`/
+  `resource_planning.py` (Teams/Ressourcen/Lieferanten)/`roof_areas.py`/`properties.py`/
+  `inquiries.py`/`customer_documents.py`/`project_documents.py`/`quick_service_orders.py` auf
+  Büro+Admin umgestellt -- vorher geprüft, dass keiner ihrer Endpunkte von
+  `service_reports.html`/`vor_ort.html`/`_mobile_header.html` aufgerufen wird. Drei Dateien
+  bekamen stattdessen eine feinere, rollenoffene Behandlung, weil sie bereits bestehende
+  Selbstbedienungs-Endpunkte mit eigener Eigentümerschafts-Filterung enthalten (Abwesenheitsanträge,
+  das "Meine Aufgaben"-Widget der Arbeitsvorbereitung, das eigene Dashboard-Layout, der
+  Modul-Ein/Aus-Zustand) -- jede Rolle darf diese lesen/für sich selbst schreiben, siehe
+  CHANGELOG.md für die Einzelheiten. Der Audit-Test sinkt von 230 auf 66 unklassifizierte
+  Endpunkte -- Teil B (Aufträge/Einsatzberichte/Mängel/Prüfvorlagen/Zeiterfassung) bleibt bewusst
+  offen, bis die Objekt-Filterung (Etappe 3) gebaut ist.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -5643,15 +5657,19 @@ ist in der Liste ohnehin sichtbar, keine verdeckte Änderung möglich).
    Standardverweigerungs-Mechanismus samt Audit-Test. -- **fertig**.
 2. **Rollen-Gate nachziehen**: `require_role(...)` an alle heute ungeschützten Finanz-/
    Kalkulations-/Mitarbeiter-/Stammdaten-/Verwaltungs-Endpunkte hängen, entlang der vom
-   Audit-Test namentlich gelisteten 334 Routen. -- **an drei Dateien exemplarisch fertig
-   (43 Endpunkte), der Rest bewusst angehalten**: das ist die Etappe, an der am meisten
-   schiefgehen kann (Regressionsgefahr für `office`, falsche Einordnung einzelner
-   Endpunkte) -- die vollständige Klassifizierungsliste (Datei → vorgeschlagene Rolle) wartet
-   auf Bestätigung, bevor sie mechanisch durchgezogen wird.
+   Audit-Test namentlich gelisteten Routen. -- **weitgehend fertig (1.3.51-1.3.54, 164 von
+   ursprünglich 334 Endpunkten klassifiziert)**: der riskante Batch (Finanzen/Kalkulation/
+   Mitarbeiter/Einstellungen/Benutzer/Historie/Aufgaben, 1.3.52) und Teil A des Rests (alle
+   Dateien ohne Monteur-Bezug, 1.3.54) sind durch. Bewusst noch offen: die 66 verbleibenden
+   Endpunkte (Aufträge/Einsatzberichte/Mängel/Prüfvorlagen/Zeiterfassung, "Teil B") -- die
+   werden aktiv von Monteuren genutzt, ein blankes Büro+Admin-Gate würde den
+   Einsatzbericht-Ablauf brechen (genau der Fehler, der bei `GET /api/employees` in 1.3.53
+   bereits einmal passiert ist) -- diese Klassifizierung braucht deshalb zuerst Etappe 3.
 3. **Objekt-Filterung für `field`**: `field_may_access_order()` bauen, auf
    `service_reports.py`/`findings.py`/`orders.py`/`properties.py`/`roof_areas.py` anwenden,
    dazu die Seiten-Klassifizierung (welche der 31 Seiten ist für wen gedacht, inkl.
-   `access_denied.html`-Verdrahtung und `is_field`-Ausblendungen in den Templates). -- offen.
+   `access_denied.html`-Verdrahtung und `is_field`-Ausblendungen in den Templates) UND die
+   66 Teil-B-Endpunkte aus Schritt 2 damit klassifizieren. -- offen, nächster Schritt.
 4. Erstes echtes `field`-Testkonto anlegen, vollständigen Monteurs-Ablauf im Browser
    durchklicken. -- offen.
 
