@@ -23,6 +23,10 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
 .recovery-codes{font-family:monospace;font-size:15px;line-height:1.9;background:var(--soft);border:1px solid var(--line);padding:14px;margin:12px 0;columns:2;column-gap:20px}
 .back{color:var(--accent);text-decoration:none;font-weight:650;display:inline-block;margin-bottom:12px}
 @media print{.no-print{display:none!important}}
+/* Seit 1.3.50: allgemeine Link-Farbe (Muster login.html) -- der einzige davon betroffene
+   Link ("Bitte zuerst anmelden.") hatte bislang keine eigene Regel und erschien deshalb als
+   blau unterstrichener Browser-Standardlink statt im Design-System, siehe CLAUDE.md. */
+a{color:var(--accent)}
 </style></head><body>
 <div class="app-layout">
 {% include "_sidebar.html" %}

@@ -20,12 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.49** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.50** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf weiterhin `60d7c8a775f0` ("raise default sidebar logo height") -- keine
-  der Versionen 1.3.45-1.3.49 brauchte eine eigene Migration, da alle fünf ausschließlich
+  der Versionen 1.3.45-1.3.50 brauchte eine eigene Migration, da alle sechs ausschließlich
   Python/Jinja/CSS/JS anfassen, keine Datenbankspalte -- bei Bedarf per `alembic history`/
   `heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1150/1150**, zuletzt am 15.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
+- Tests: **1155/1155**, zuletzt am 15.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -623,6 +623,10 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   gefunden und gemeldet (`account.html`, `settings.html`, `service_reports.html`,
   `work_preparation.html`), Behebung bewusst zurückgestellt. Details im Abschnitt
   "Umgestaltung der Sidebar" → "Aufräumen im Fußbereich" unten.
+- Neu seit 1.3.50: **Die vier weiteren Funde aus 1.3.49 behoben.** Jeweils eine allgemeine
+  `a{color:var(--accent)}`-Regel im eigenen `<style>`-Block der betroffenen Datei -- dasselbe,
+  in `login.html` bereits etablierte Muster, keine HTML-Umstrukturierung. Details im
+  Abschnitt "Umgestaltung der Sidebar" → "Nachtrag (seit 1.3.50)" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -5315,6 +5319,22 @@ Schaltflächen (Hell/Dunkel, Ein-/Ausklappen) und die Versionsnummer.
   zusammengesetzter `<a>`, bei dem die passende CSS-Klasse beim Bauen vergessen wurde -- kein
   einzelner Ursprung, eher ein wiederkehrendes Risiko dieser Bauweise. Gemeldet, Behebung auf
   Rückmeldung.
+
+#### Nachtrag (seit 1.3.50): die vier weiteren Funde behoben
+
+Auf Rückmeldung nachgezogen -- alle vier bekommen eine allgemeine `a{color:var(--accent)}`
+-Regel in ihrem eigenen `<style>`-Block, exakt das in `login.html` bereits etablierte,
+einfachste Muster (recolort, behält den Standard-Unterstrich für einen normalen Inline-Text-
+Link -- kein `text-decoration:none` wie bei den button-artigen Links dieses Design-Systems).
+Bewusst KEINE HTML-Umstrukturierung (z. B. den `service_reports.html`-Link nachträglich in
+`.report-actions` umzuhängen oder den `work_preparation.html`-Link in `.delivery-tag` zu
+verpacken) -- beides hätte das Layout sichtbar verändert (Button-Optik bzw. Pill-Hintergrund
+an einer Stelle, an der bisher ein einfacher Text stand), mehr als die angefragte, risikoarme
+Farbkorrektur. Vor dem Schreiben jeweils per Grep bestätigt: der jeweils einzige unstyled
+`<a>` in der betroffenen Datei -- alle bereits spezifischer gestylten Links (`.back`,
+`.report-actions a`, `.top-actions a`, `.delivery-tag a`) bleiben durch die höhere
+CSS-Spezifität ihrer eigenen Klassen unberührt, unabhängig von der Regel-Reihenfolge im
+Stylesheet. Tests: `tests/test_v259_unstyled_link_audit.py`.
 
 ## Migrations-Workflow
 

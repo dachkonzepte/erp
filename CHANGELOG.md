@@ -4,6 +4,21 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.50 – Vier weitere unstyled Links behoben
+
+Nachtrag zu 1.3.49: der dort entfernte "Mein Konto"-Link in der Sidebar hatte keine eigene
+Formatierung gehabt. Auf Nachfrage nach demselben Muster im übrigen Projekt gesucht -- vier
+weitere, unabhängige Stellen gefunden, an denen ein per JavaScript zusammengesetzter Link die
+passende Formatierung nicht bekommen hatte und deshalb als blauer, unterstrichener
+Browser-Standardlink statt im einheitlichen Erscheinungsbild erschienen wäre: ein Hinweistext
+auf der Kontoseite, ein Verweis in den Kalkulationsgrundlagen der Einstellungen, ein
+PDF-Öffnen-Link in der Wartungshistorie eines Einsatzberichts und ein Datei-Öffnen-Link in
+der Lieferschein-Tabelle der Arbeitsvorbereitung.
+
+Alle vier jetzt behoben, jeweils mit derselben, bereits an anderer Stelle etablierten,
+einfachsten Lösung -- keine Änderung an Aufbau oder Anordnung der betroffenen Seiten, nur die
+fehlende Farbgebung ergänzt.
+
 ## 1.3.49 – Aufräumen im Fußbereich der Sidebar
 
 Benutzername, "Mein Konto" und "Abmelden" standen im unteren Bereich der Sidebar noch,
