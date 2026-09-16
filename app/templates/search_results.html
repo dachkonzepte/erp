@@ -1,0 +1,140 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP · Suche</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}main{padding:18px;max-width:1100px;margin:0}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+h1{margin:0 0 4px;color:var(--ink)}h2{color:var(--ink)}.muted{color:var(--muted)}.small{font-size:12px}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+.search-form{display:flex;gap:8px;margin-top:10px}
+.search-form input{flex:1;min-width:0;padding:9px 12px;font-size:14px;border:1px solid var(--field-border);background:var(--card);color:var(--ink)}
+.search-form input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--field-border-hover)}
+.search-form button{padding:9px 18px;background:var(--accent);color:#fff;border:0;font-weight:700;font-size:14px;cursor:pointer}
+.filters{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.filters button{border:1px solid var(--line);background:var(--card);padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--ink)}
+.filters button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.result-list{display:flex;flex-direction:column}
+.result-hit{display:block;padding:9px 4px;text-decoration:none;color:var(--ink);border-bottom:1px solid var(--line)}
+.result-hit:last-child{border-bottom:none}
+.result-hit:hover,.result-hit:focus{background:var(--soft)}
+.result-hit .ttl{font-weight:700;font-size:14px}
+.result-hit .sub{color:var(--muted);font-size:12.5px;margin-top:1px}
+.more-btn{margin-top:10px;border:1px solid var(--line);background:var(--card);padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;color:var(--ink)}
+.more-btn:hover{background:var(--soft)}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+{% include "_topbar.html" %}
+<main>
+<div class="card">
+  <h1>Suche</h1>
+  <div class="muted small">Kunden, Objekte, Aufträge, Rechnungen und alle übrigen Gruppe-A-Datensatzarten.</div>
+  <form class="search-form" id="searchForm">
+    <input type="search" id="searchInput" placeholder="Suchbegriff (mindestens 2 Zeichen) …" autocomplete="off" aria-label="Suchbegriff">
+    <button type="submit">Suchen</button>
+  </form>
+  <div class="filters" id="typeFilters"></div>
+</div>
+<div id="resultGroups"></div>
+</main>
+</div>
+</div>
+<script>
+/* TYPE_LABELS muss mit OFFICE_SEARCH_SOURCES (app/search.py) synchron bleiben -- Reihenfolge,
+   Schlüssel UND Beschriftung. Kein Endpunkt liefert diese Liste, da sie sich nur ändert, wenn
+   ohnehin die Registry selbst geändert wird (siehe tests/test_v271_office_search_ui.py für den
+   Abgleich gegen EXPECTED_OFFICE_SEARCH_KEYS aus tests/test_v270_office_search.py). */
+var TYPE_LABELS=[
+  ['customers','Kunden'],['properties','Objekte'],['roof_areas','Dachflächen'],
+  ['projects','Projekte'],['quotes','Angebote'],['orders','Aufträge'],
+  ['invoices','Rechnungen'],['reminders','Mahnungen'],['inquiries','Anfragen'],
+  ['tasks','Aufgaben'],['employees','Mitarbeiter'],['service_reports','Einsatzberichte'],
+  ['findings','Mängel'],['maintenance_contracts','Wartungsverträge'],
+  ['services','Leistungen'],['materials','Materialien'],['suppliers','Lieferanten']
+];
+var query='',selectedTypes=new Set(),groupLimits={},groups=[];
+function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
+
+function updateUrl(){
+  var p=new URLSearchParams();
+  if(query)p.set('q',query);
+  if(selectedTypes.size)p.set('types',Array.from(selectedTypes).join(','));
+  var qs=p.toString();
+  history.replaceState(null,'',location.pathname+(qs?'?'+qs:''));
+}
+
+function renderFilterPills(){
+  var html=TYPE_LABELS.map(function(pair){
+    var key=pair[0],label=pair[1];
+    return '<button type="button" class="'+(selectedTypes.has(key)?'active':'')+'" onclick="toggleType(\''+key+'\')">'+esc(label)+'</button>';
+  }).join('');
+  html+='<button type="button" class="'+(selectedTypes.size?'':'active')+'" onclick="clearTypes()">Alle</button>';
+  document.getElementById('typeFilters').innerHTML=html;
+}
+function toggleType(key){
+  if(selectedTypes.has(key))selectedTypes.delete(key);else selectedTypes.add(key);
+  renderFilterPills();updateUrl();runSearch();
+}
+function clearTypes(){selectedTypes.clear();renderFilterPills();updateUrl();runSearch()}
+
+function renderGroups(){
+  var wrap=document.getElementById('resultGroups');
+  if(!query||query.trim().length<2){
+    wrap.innerHTML='<div class="card empty">Suchbegriff eingeben (mindestens 2 Zeichen).</div>';
+    return;
+  }
+  if(!groups.length){
+    wrap.innerHTML='<div class="card empty">Keine Treffer für &quot;'+esc(query)+'&quot;.</div>';
+    return;
+  }
+  wrap.innerHTML=groups.map(function(g){
+    var hits=g.hits.map(function(h){
+      return '<a class="result-hit" href="'+h.url+'"><div class="ttl">'+esc(h.title)+'</div>'+(h.subtitle?'<div class="sub">'+esc(h.subtitle)+'</div>':'')+'</a>';
+    }).join('');
+    var more=g.hits.length<g.total?'<button type="button" class="more-btn" onclick="loadMore(\''+g.key+'\')">weitere anzeigen</button>':'';
+    return '<div class="card"><h2 style="margin:0 0 10px">'+esc(g.label)+' <span class="muted small">('+g.total+')</span></h2><div class="result-list">'+hits+'</div>'+more+'</div>';
+  }).join('');
+}
+
+async function runSearch(){
+  groupLimits={};
+  if(!query||query.trim().length<2){groups=[];renderGroups();return}
+  var p=new URLSearchParams({q:query,limit:'20'});
+  if(selectedTypes.size)p.set('types',Array.from(selectedTypes).join(','));
+  var r=await fetch('/api/search?'+p.toString());
+  groups=r.ok?await r.json():[];
+  groups.forEach(function(g){groupLimits[g.key]=20});
+  renderGroups();
+}
+
+async function loadMore(key){
+  groupLimits[key]=(groupLimits[key]||20)+20;
+  var p=new URLSearchParams({q:query,limit:String(groupLimits[key]),types:key});
+  var r=await fetch('/api/search?'+p.toString());
+  if(!r.ok)return;
+  var res=await r.json();
+  var updated=res.find(function(g){return g.key===key});
+  var idx=groups.findIndex(function(g){return g.key===key});
+  if(updated&&idx>=0)groups[idx]=updated;
+  renderGroups();
+}
+
+document.getElementById('searchForm').addEventListener('submit',function(e){
+  e.preventDefault();
+  query=document.getElementById('searchInput').value.trim();
+  updateUrl();runSearch();
+});
+
+(function init(){
+  var params=new URLSearchParams(location.search);
+  query=params.get('q')||'';
+  var typesParam=params.get('types');
+  if(typesParam)typesParam.split(',').forEach(function(t){if(t)selectedTypes.add(t)});
+  document.getElementById('searchInput').value=query;
+  renderFilterPills();
+  runSearch();
+})();
+</script>
+</body></html>

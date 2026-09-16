@@ -4,6 +4,32 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.67 – Büro-Suche, Etappe 2: die Oberfläche
+
+Nach Rückmeldung zu Etappe 1 gebaut. Suchfeld in der seit 1.3.45 reservierten Topbar-Position
+(`app/templates/_topbar.html`) -- Vorschläge beim Tippen mit demselben Debounce (300ms) und
+derselben Mindestlänge (2 Zeichen) wie die Monteurs-Suche, ruft ausschließlich `GET /api/search`,
+nie den Monteurs-Endpunkt (Separate-Endpunkt-Prinzip). Rendert nur für `admin`/`office` -- für
+`field` fehlt das Eingabefeld strukturell im Markup. Ein Vorschlag zeigt Gruppen-Label/Titel/
+Untertitel, ein Klick führt direkt auf die `url` des Treffers; Bestätigen öffnet `/suche`.
+
+Neue Ergebnisseite `GET /suche` (`app/routers/pages.py`, `app/templates/search_results.html`):
+Gruppierung nach Datensatzart, reale Trefferzahl je Gruppe, Liste auf 20 gekappt mit "weitere
+anzeigen" (fragt gezielt nur die eine Gruppe erneut ab), Filter nach Art über 17 hartcodierte
+Umschalt-Knöpfe (gegen die Registry abgeglichen, ein Regressionstest verhindert stilles
+Auseinanderlaufen). Die Seite trägt dieselbe `require_role(ROLE_ADMIN, ROLE_OFFICE)`-Absicherung
+wie jede andere Büro-Seite, nicht nur der API-Endpunkt dahinter -- ein Monteur, der die Adresse
+von Hand eintippt, bekommt 403 vor jedem Rendern, per echtem Ende-zu-Ende-Test gegen eine
+isolierte, laufende Serverinstanz bestätigt (nicht nur über den vereinfachten Testclient).
+
+Dabei ein kleiner, transparent gemeldeter Fund: die Monteurs-Suche (`_mobile_header.html`)
+schloss ihre Vorschlagsliste bisher nur per Klick daneben, keine Escape-Behandlung, obwohl die
+Anfrage für die neue Büro-Suche "wie in der Monteurs-Suche" annahm, dass Escape dort schon
+funktioniert -- für beide nachgezogen, nicht nur für die neue. 10 neue Tests
+(`tests/test_v271_office_search_ui.py`), ein bestehender Test in `tests/test_v254_topbar.py` in
+zwei umgeschrieben (die 1.3.45-Erwartung "Suchslot bleibt leer" ist jetzt bewusst überholt).
+Volle Suite grün (1344/1344). Damit ist die Büro-Suche vollständig.
+
 ## 1.3.66 – Büro-Suche, Etappe 1: Registry, Kernstruktur, Rollensicherheit
 
 Der ursprüngliche Wunsch aus der 1.3.64-Bestandsaufnahme: Vorschläge beim Tippen, Ergebnisseite

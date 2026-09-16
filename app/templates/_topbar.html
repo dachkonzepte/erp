@@ -20,8 +20,21 @@
    Topbar (z-index hier niedriger, siehe unten) -- das ist das gewünschte Überlagern einer
    Flyout-Schublade, keine kaputte Kollision.
 
-   Links bleibt in diesem Schritt bewusst leer (.app-topbar-search-slot, flex:1) -- dort kommt
-   in Schritt 3 die Suche hinein, der Platz ist bereits reserviert.
+   Links: die Büro-Suche (seit 1.3.67, "Büro-Suche" -> "Etappe 2", siehe CLAUDE.md) --
+   .app-topbar-search-slot (flex:1, seit 1.3.45 reserviert) trägt jetzt das Eingabefeld samt
+   Vorschlagsliste. Vorschläge beim Tippen (300ms Debounce, Mindestlänge 2 -- dieselben Werte
+   wie die Monteurs-Suche in _mobile_header.html, absichtlich NICHT über den geteilten
+   _debounce.html-Helfer, sondern ein eigener, winziger Timer direkt in der bestehenden IIFE
+   unten: _topbar.html wird auf allen 31 Büro-Seiten eingebunden, von denen mindestens zwei
+   (roof_area.html, service_reports.html) _debounce.html bereits selbst einbinden -- ein
+   zusätzliches Include hier hätte die Funktion global doppelt definiert, exakt das Muster, das
+   seit 1.3.65 für die Monteurs-Kopfzeile bewusst vermieden wird). Ruft GET /api/search auf --
+   niemals den Monteurs-Suchendpunkt aus _mobile_header.html, der bleibt ausschließlich der
+   Monteurs-Suche vorbehalten (Separate-Endpunkt-Prinzip, siehe CLAUDE.md "Büro-Suche"). Ein Klick auf einen
+   Vorschlag führt direkt auf dessen url; Bestätigen (Enter) öffnet /suche?q=... -- die
+   Ergebnisseite mit Gruppen/Filtern/"weitere anzeigen" (app/templates/search_results.html).
+   Erscheint NICHT auf /mobil (siehe unten, "Erscheint NICHT auf /vor-ort") -- der Monteur hat
+   seine eigene, bereits bestehende Suche.
 
    Mobiler Öffnen-Umschalter (#appTopbarMenuBtn, seit 1.3.46, echter Nebenbefund aus Schritt 2):
    unterhalb des Umbruchpunkts (max-width:1000px, derselbe Wert wie _sidebar.html) gab es KEINEN
@@ -67,6 +80,18 @@
 .app-topbar-menu-btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .app-topbar-menu-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .app-topbar-search-slot{flex:1;min-width:0}
+.app-topbar-search{position:relative;width:100%;max-width:480px}
+.app-topbar-search input{width:100%;box-sizing:border-box;padding:8px 12px;font-size:14px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.app-topbar-search input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.app-topbar-search-results{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--card);border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:20;max-height:70vh;overflow-y:auto}
+.app-topbar-search-results[hidden]{display:none}
+.app-topbar-search-hit{display:block;padding:9px 12px;text-decoration:none;color:var(--ink);border-bottom:1px solid var(--line)}
+.app-topbar-search-hit:last-child{border-bottom:none}
+.app-topbar-search-hit:hover,.app-topbar-search-hit:focus{background:var(--soft)}
+.app-topbar-search-hit .grp{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+.app-topbar-search-hit .ttl{font-weight:700;font-size:14px}
+.app-topbar-search-hit .sub{color:var(--muted);font-size:12.5px;margin-top:1px}
+.app-topbar-search-note{padding:9px 12px;color:var(--muted);font-size:12.5px}
 .app-topbar-account{position:relative;flex:0 0 auto}
 .app-topbar-account-btn{width:38px;height:38px;border-radius:50%;background:var(--accent);color:#fff;border:0;font-weight:800;font-size:13px;letter-spacing:.02em;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
 .app-topbar-account-btn:hover{background:color-mix(in srgb,var(--accent) 85%,black)}
@@ -80,7 +105,14 @@
 </style>
 <div class="app-topbar">
   <button type="button" class="app-topbar-menu-btn" id="appTopbarMenuBtn" aria-label="Navigation öffnen" aria-controls="appSidebar" aria-expanded="false"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
-  <div class="app-topbar-search-slot"></div>
+  <div class="app-topbar-search-slot">
+    {% if current_user and current_user.role in ("admin", "office") %}
+    <div class="app-topbar-search">
+      <input type="search" id="appTopbarSearchInput" placeholder="Suchen (Kunden, Aufträge, Rechnungen, …) …" autocomplete="off" aria-label="Suche">
+      <div class="app-topbar-search-results" id="appTopbarSearchResults" hidden></div>
+    </div>
+    {% endif %}
+  </div>
   <div class="app-topbar-account">
     {% if current_user %}
     <button type="button" class="app-topbar-account-btn" id="appTopbarAccountBtn" aria-haspopup="true" aria-expanded="false" title="{{ _account.full_name }}">{{ _account.initials }}</button>
@@ -131,6 +163,57 @@
     // aria-expanded nachziehen, damit es nach diesem Weg nicht faelschlich "true" bleibt.
     mobileScrim.addEventListener('click',function(){
       menuBtn.setAttribute('aria-expanded','false');
+    });
+  }
+  // Büro-Suche (seit 1.3.67) -- fehlt im Markup fuer field (siehe Jinja-Bedingung oben), diese
+  // Elemente existieren dann schlicht nicht, kein Fehler.
+  var searchInput=document.getElementById('appTopbarSearchInput');
+  var searchResults=document.getElementById('appTopbarSearchResults');
+  if(searchInput && searchResults){
+    var escHtml=function(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})};
+    var renderSuggestions=function(groups){
+      var rows=[];
+      groups.forEach(function(g){
+        g.hits.slice(0,4).forEach(function(h){
+          rows.push('<a class="app-topbar-search-hit" href="'+h.url+'"><div class="grp">'+escHtml(g.label)+'</div><div class="ttl">'+escHtml(h.title)+'</div>'+(h.subtitle?'<div class="sub">'+escHtml(h.subtitle)+'</div>':'')+'</a>');
+        });
+      });
+      if(!rows.length){
+        searchResults.innerHTML='<div class="app-topbar-search-note">Keine Treffer.</div>';
+        searchResults.hidden=false;
+        return;
+      }
+      searchResults.innerHTML=rows.slice(0,10).join('');
+      searchResults.hidden=false;
+    };
+    var runTopbarSearch=function(){
+      var q=searchInput.value.trim();
+      if(q.length<2){searchResults.hidden=true;searchResults.innerHTML='';return}
+      fetch('/api/search?q='+encodeURIComponent(q)+'&limit=5').then(function(r){
+        if(!r.ok)return [];
+        return r.json();
+      }).then(function(groups){
+        renderSuggestions(groups||[]);
+      }).catch(function(){
+        searchResults.hidden=true;
+      });
+    };
+    var searchTimer;
+    searchInput.addEventListener('input',function(){
+      clearTimeout(searchTimer);
+      searchTimer=setTimeout(runTopbarSearch,300);
+    });
+    searchInput.addEventListener('keydown',function(e){
+      if(e.key==='Enter'){
+        e.preventDefault();
+        var q=searchInput.value.trim();
+        if(q.length>=2)location.href='/suche?q='+encodeURIComponent(q);
+      }else if(e.key==='Escape'){
+        searchResults.hidden=true;
+      }
+    });
+    document.addEventListener('click',function(e){
+      if(!searchResults.hidden && !searchResults.contains(e.target) && e.target!==searchInput)searchResults.hidden=true;
     });
   }
 })();

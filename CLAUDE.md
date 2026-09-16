@@ -20,7 +20,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.66** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.67** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf jetzt `f803985ebc2f` ("property documents table", siehe Abschnitt
   "Dateiablage je Objekt" unten) -- vorher `9137945e8785` ("document categories foundation"),
   davor `7a2b4e9f1c3d` ("app user role office field"): keine der
@@ -30,7 +30,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   bestehenden, geteilten "default"-Satz zurück, siehe "Fünf weitere Anpassungen"), siehe
   Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
   eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1333 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1344 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
   dort), zuletzt am 16.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -894,6 +894,23 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Monteurs-Suche: ein Monteur bekommt 403 -- plain und mit manipulierten Parametern --, null
   durchgelassen. Die Oberfläche (Etappe 2) ist bewusst noch nicht Teil dieser Version. Details
   im neuen Abschnitt "Büro-Suche" unten.
+- Neu seit 1.3.67: **Büro-Suche, Etappe 2 -- die Oberfläche.** Suchfeld in der seit 1.3.45
+  reservierten Topbar-Position (`_topbar.html`), Vorschläge beim Tippen mit demselben Debounce
+  (300ms) und derselben Mindestlänge (2 Zeichen) wie die Monteurs-Suche -- ruft ausschließlich
+  `GET /api/search`, nie den Monteurs-Endpunkt. Rendert nur für `admin`/`office` (die Suche
+  selbst fehlt im Markup für `field`, kein nie funktionierendes Eingabefeld). Bestätigen öffnet
+  `/suche` -- die Ergebnisseite, nach Datensatzart gruppiert, reale Trefferzahl je Gruppe, Liste
+  je Art auf 20 gekappt mit "weitere anzeigen", Filter nach Art (die 17 Filter-Schlüssel sind
+  client-seitig hartcodiert, ein Test gleicht sie gegen `OFFICE_SEARCH_SOURCES` ab). `/suche`
+  trägt dieselbe `require_role(ROLE_ADMIN, ROLE_OFFICE)`-Absicherung wie jede andere Büro-Seite
+  -- ein Monteur, der die Adresse von Hand eintippt, bekommt 403, bevor irgendetwas rendert
+  (per echtem Ende-zu-Ende-Test gegen eine isolierte Serverinstanz bestätigt, nicht nur per
+  `router_test_client`). Dabei ein kleiner, transparent gemeldeter Fund: die Monteurs-Suche
+  (`_mobile_header.html`) schloss ihre Vorschlagsliste bisher nur per Klick daneben, nicht per
+  Escape, obwohl die Anfrage für die Büro-Suche "wie in der Monteurs-Suche" annahm, dass Escape
+  dort schon funktioniert -- für beide nachgezogen, nicht nur für die neue. 10 neue Tests
+  (`tests/test_v271_office_search_ui.py`), dazu ein bestehender Test in `tests/test_v254_topbar.py`
+  in zwei umgeschrieben (die 1.3.45-Erwartung "Suchslot bleibt leer" ist jetzt bewusst überholt).
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -7033,6 +7050,62 @@ Die Oberfläche (Suchfeld im reservierten `.app-topbar-search-slot`, siehe "Umge
 Sidebar" -> "Schritt 2", die Ergebnisseite mit Filtern/"weitere anzeigen") -- wartet auf
 Rückmeldung zu dieser Etappe, wie ausdrücklich vom Nutzer verlangt ("Nach Etappe 1 ... berichte
 mir, bevor die Oberfläche kommt").
+
+### Etappe 2 (seit 1.3.67): die Oberfläche
+
+Nach Rückmeldung zu Etappe 1 gebaut -- Suchfeld in der Topbar, Ergebnisseite. Baut ausschließlich
+auf bereits bestehenden Bausteinen auf: dem seit 1.3.45 reservierten `.app-topbar-search-slot`,
+`GET /api/search` aus Etappe 1, und `require_role()`/`_role_dep` aus dem Rechtekonzept.
+
+**Suchfeld in der Topbar** (`app/templates/_topbar.html`): rendert nur, wenn
+`current_user.role in ("admin", "office")` -- für `field` fehlt das Eingabefeld strukturell im
+Markup, kein nie funktionierendes Feld (kleine, opportunistische Vorwegnahme des in "Rechtekonzept"
+-> "Sichtbarkeit in der Oberfläche" bereits als künftiges Ziel festgehaltenen "ausblenden statt
+ausgrauen" -- ohne den dort beschriebenen größeren Umbau der übrigen Navigation vorzuziehen).
+Vorschläge beim Tippen: 300ms Debounce, Mindestlänge 2 Zeichen -- dieselben Werte wie die
+Monteurs-Suche, absichtlich NICHT über den geteilten `_debounce.html`-Helfer eingebunden, sondern
+ein eigener, winziger Timer direkt in der bestehenden IIFE der Datei: `_topbar.html` wird auf
+allen 31 Büro-Seiten eingebunden, von denen mindestens zwei (`roof_area.html`,
+`service_reports.html`) `_debounce.html` bereits selbst einbinden -- ein zusätzliches Include hier
+hätte die Funktion global doppelt definiert, exakt das Muster, das seit 1.3.65 für die
+Monteurs-Kopfzeile bewusst vermieden wird. Ruft ausschließlich `GET /api/search` auf, niemals den
+Monteurs-Suchendpunkt (Separate-Endpunkt-Prinzip, siehe oben) -- ein Vorschlag zeigt Gruppen-Label/
+Titel/Untertitel, ein Klick führt direkt auf die `url` des Treffers. Bestätigen (Enter) öffnet
+`/suche?q=...`. Schließt bei Klick daneben und bei Escape.
+
+**Kleiner, transparent gemeldeter Fund dabei**: die Anfrage ging davon aus, dass Escape die
+Monteurs-Suche bereits schließt ("wie in der Monteurs-Suche") -- tatsächlich hatte
+`_mobile_header.html` bisher NUR den Klick-daneben-Schluss, keine Escape-Behandlung. Für beide
+nachgezogen, nicht nur für die neue Büro-Suche, statt die Prämisse stillschweigend nur für eine
+Seite aufzulösen (Muster: dieselbe Transparenz wie bei der 1.3.61-Prämisse-Korrektur zur
+Tätigkeit im Nachtrag/Schnellstart).
+
+**Ergebnisseite** (`GET /suche`, `app/routers/pages.py::office_search_page()`,
+`app/templates/search_results.html`) -- trägt **dieselbe `_role_dep`-Absicherung wie jede andere
+Büro-Seite**, nicht nur der API-Endpunkt dahinter: ein Monteur, der `/suche` über die Adresse
+aufruft, bekommt 403 -> `access_denied.html`, bevor überhaupt etwas rendert. Automatisch vom
+bestehenden Seiten-Audit-Test erfasst (`_dk_roles`-Markierung über `require_role()`), keine neue
+`PAGE_AUDIT_EXEMPT`-Zeile nötig. Zusätzlich per echtem Ende-zu-Ende-Test gegen eine isolierte,
+tatsächlich laufende Serverinstanz bestätigt (nicht nur `router_test_client`): ein frisch
+angelegtes `field`-Konto bekommt sowohl auf `GET /suche` als auch auf `GET /api/search` über
+echtes HTTP 403 -- null durchgelassen.
+
+Die Seite selbst rendert nur das Gerüst, `q`/`types` werden client-seitig aus `location.search`
+gelesen (Muster: jede andere Seite in diesem Projekt lädt ihre Daten per `fetch()` nach). Zeigt je
+zurückgegebener Gruppe die reale Trefferzahl (`total`) und die auf `limit=20` gekappte Liste
+(`hits`) -- "weitere anzeigen" fragt gezielt NUR diese eine Gruppe erneut ab (`types=<key>` +
+erhöhtes `limit`), nicht die gesamte Suche neu. Filter nach Datensatzart: 17 Umschalt-Knöpfe
+("Alle" setzt zurück), mehrere gleichzeitig wählbar -- die Schlüssel/Beschriftungen sind
+client-seitig hartcodiert (`TYPE_LABELS`, kein Endpunkt liefert diese Liste, sie ändert sich nur,
+wenn ohnehin die Registry selbst geändert wird), ein Regressionstest gleicht sie gegen
+`OFFICE_SEARCH_SOURCES` ab (Schlüssel UND Reihenfolge), damit ein künftiges Auseinanderlaufen
+auffällt.
+
+**Tests**: `tests/test_v271_office_search_ui.py` (10 neue Tests -- Seiten-Absicherung,
+Typenlisten-Abgleich, Topbar-Verdrahtung), dazu `tests/test_v254_topbar.py::
+test_search_slot_is_present_and_empty` in zwei Tests umgeschrieben (die 1.3.45-Erwartung "Suchslot
+bleibt leer" ist jetzt bewusst überholt -- ein Test für admin/office, ein Test für field). Volle
+Suite weiterhin grün (1344/1344).
 
 ## Migrations-Workflow
 

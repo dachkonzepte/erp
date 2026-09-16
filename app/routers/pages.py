@@ -403,6 +403,18 @@ def finanzen_page(request: Request, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="finanzen.html", context={})
 
 
+@router.get("/suche", response_class=HTMLResponse)
+def office_search_page(request: Request, _role: AppUser = _role_dep):
+    """Ergebnisseite der Büro-Suche (Etappe 2, seit 1.3.67, siehe CLAUDE.md "Büro-Suche") --
+    trägt bewusst dieselbe _role_dep-Absicherung wie jede andere Büro-Seite, NICHT nur der
+    API-Endpunkt dahinter (GET /api/search): ein Monteur, der /suche über die Adresse aufruft,
+    bekommt 403 -> access_denied.html, bevor die Seite überhaupt rendert, unabhängig davon, was
+    die API täte. Die Seite selbst rendert nur das Gerüst -- q/types kommen als Query-Parameter
+    und werden client-seitig aus location.search gelesen (Muster: jede andere Seite in diesem
+    Projekt lädt ihre Daten per fetch() nach)."""
+    return templates.TemplateResponse(request=request, name="search_results.html", context={})
+
+
 @router.get("/mahnwesen", response_class=HTMLResponse)
 def mahnwesen_page(request: Request, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="mahnwesen.html", context={})

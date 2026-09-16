@@ -144,13 +144,35 @@ def test_topbar_appears_right_after_app_content_before_main():
     assert content_idx < topbar_idx < main_idx
 
 
-def test_search_slot_is_present_and_empty():
-    """Schritt 3 (Suche) folgt später -- der Platz ist bereits reserviert, aber leer."""
-    html = _render()
+def test_search_slot_carries_the_office_search_for_admin_and_office():
+    """Schritt 3 (Suche) ist seit 1.3.67 gebaut (siehe CLAUDE.md "Büro-Suche") -- der seit 1.3.45
+    reservierte Platz ist jetzt gefüllt, für admin/office."""
+    for role in ("admin", "office"):
+        class _RoleUser:
+            pass
+        user = _RoleUser()
+        user.role = role
+        user.display_name = "Test Nutzer"
+        user.username = "test.nutzer"
+        html = _render(user=user)
+        start = html.index('<div class="app-topbar-search-slot">')
+        end = html.index('<div class="app-topbar-account">', start)
+        slot = html[start:end]
+        assert 'id="appTopbarSearchInput"' in slot, role
+        assert 'id="appTopbarSearchResults"' in slot, role
+
+
+def test_search_slot_is_empty_for_field():
+    """Die Büro-Suche rendert nicht für `field` -- kein nie funktionierendes Eingabefeld."""
+    class _FieldUser:
+        role = "field"
+        display_name = "Monteur"
+        username = "monteur"
+    html = _render(user=_FieldUser())
     start = html.index('<div class="app-topbar-search-slot">')
-    end = html.index("</div>", start)
+    end = html.index('<div class="app-topbar-account">', start)
     slot = html[start:end]
-    assert slot.strip() == '<div class="app-topbar-search-slot">'
+    assert "appTopbarSearchInput" not in slot
 
 
 def test_account_button_shows_the_resolved_initials():
