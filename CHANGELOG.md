@@ -4,6 +4,65 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.62 – Dateiablage je Objekt, Schritt 1: Kategorie-Stammdaten mit zwei unabhängigen Schlössern
+
+Erster Schritt der "Runde 2" der Monteurs-Erweiterung (Dateiablage je Objekt) -- ausdrücklich nur
+das Fundament, wie vom Betreiber vorgegeben: die Kategorie-Stammdaten samt Migration und der
+festen Code-Sperrliste. Die mobile Objektansicht und die geteilte Suche bauen erst in einer
+späteren, noch zu bestätigenden Runde darauf auf.
+
+Neue echte Stammdatentabelle `DocumentCategory` (`app/document_categories.py`) löst die bisherige
+freie Optionsgruppe `project_document_categories` ab -- dieselbe Hochstufung SettingOptionGroup →
+echte Tabelle wie bei `RoofComponentType`/`RoofLayerType` (1.2.19/1.2.18), da eine reine
+Auswahlliste `is_sensitive`/`is_field_visible` nicht tragen konnte. Acht Kategorien wortgleich aus
+der bisherigen Optionsgruppe übernommen (Pläne, Bilder / Fotos, Lieferscheine, Aufmaß,
+Schriftverkehr, Verträge / Freigaben, Rechnungen / Belege, Sonstiges) -- die letzten beiden sind
+als sensibel markiert.
+
+**Zwei unabhängige Schlösser gegen "sensible Kategorie für Monteure sichtbar", wie ausdrücklich
+verlangt:** (1) `create_category()`/`update_category()` lehnen die Kombination
+`is_sensitive=True` + `is_field_visible=True` immer ab, und `is_sensitive` kann, einmal gesetzt,
+nie wieder auf `False` zurückgesetzt werden -- weder über die Oberfläche noch über die API. (2)
+`HARD_LOCKED_CATEGORY_KEYS` ist eine feste, im Code verankerte Sperrliste ("Rechnungen / Belege",
+"Verträge / Freigaben") -- `field_may_see_category()` prüft sie unabhängig von den beiden Feldern,
+selbst wenn jemand die Datenbank direkt manipuliert. Mit einem Test belegt, der ein
+`DocumentCategory`-Objekt unter Umgehung von `create_category()`/`update_category()` direkt mit
+`is_field_visible=True` konstruiert -- `field_may_see_category()` bleibt trotzdem bei `False`.
+
+`category_id` (neue, zusätzliche Fremdschlüsselspalte, die bestehende Freitextspalte `category`
+bleibt unverändert bestehen) auf `CustomerDocument`/`ProjectDocument`. Migration `9137945e8785`
+folgt Regel 1 (`server_default` bei NOT-NULL-Spalten auf bestehenden Tabellen): die Spalte wird
+zunächst nullable angelegt, aus dem Bestand befüllt (exakte Übereinstimmung mit dem `key`, sonst
+Rückfall auf "Sonstiges" -- nie auf eine sichtbare oder sensible Kategorie), erst danach auf NOT
+NULL gesetzt. Gegen die echte, lokale Datenbank geprüft: `customer_documents` war leer (0 Zeilen),
+`project_documents` hatte genau eine Zeile mit `category='Pläne'` -- ein exakter Treffer, kein
+einziger unklassifizierbarer String im gesamten Bestand.
+
+Vier bestehende Endpunkte (`upload_customer_document()`, `upload_project_document()`,
+`update_customer_document()`, `update_project_document()`) befüllen `category_id` jetzt über eine
+neue Hilfsfunktion `resolve_category_id()` -- sonst hätte die neue NOT-NULL-Spalte ab dem Moment
+der Migration jeden neuen Upload/jede Aktualisierung brechen lassen. Dabei ein echter, über die
+vier bereits bekannten Endpunkte hinausgehender Fund: der Lieferschein-Upload in
+`app/routers/work_preparation.py::upload_work_preparation_delivery_note()` legt ebenfalls
+`ProjectDocument`-Zeilen an und hätte ohne dieselbe Korrektur in Produktion mit einem
+`IntegrityError` fehlgeschlagen -- behoben, bevor es zum echten Vorfall wird. Zwei bestehende
+Tests (`test_v066_audit_history.py`, `test_v083_material_bulk_assignment.py`) konstruierten
+`ProjectDocument` ebenfalls direkt ohne `category_id` und wurden entsprechend nachgezogen.
+
+Neuer Router `app/routers/document_categories.py` (`GET/POST/PUT` + `activate`/`deactivate`,
+Büro/Admin) und ein neuer Einstellungen-Abschnitt "Dokumentkategorien" (Gruppe "Dokumente") --
+bewusst kein DELETE-Endpunkt in dieser Runde, Deaktivieren reicht vorerst. Die Oberfläche
+spiegelt beide Schlösser: das "Sensibel"-Kontrollkästchen lässt sich nach dem Setzen nicht mehr
+entfernen, und ist eine Kategorie sensibel (oder fest gesperrt), ist "Für Monteure sichtbar"
+deaktiviert.
+
+20 neue Tests (`tests/test_v266_document_categories.py`): Selbst-Seeding, beide Schlösser samt der
+Datenbank-Manipulations-Simulation, Router-Rollenprüfung (`field` bekommt 403), die
+Freitext-Zuordnung (`resolve_category_id()`), die vier Regressions-Endpunkte, und die
+Seed-/Backfill-Logik der Migration isoliert gegen eine eigene Connection (Muster aus 1.2.19/1.3.12
+-- die Resolver-Funktion steckt als eigenständige, testbare Funktion direkt in der
+Migrationsdatei).
+
 ## 1.3.61 – Fünf weitere Anpassungen an der Monteursansicht
 
 Fünf rollenbezogene Punkte, alle ohne neues Datenmodell.

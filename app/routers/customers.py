@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..crm import compose_customer_name, ensure_customer_profile, ensure_customer_profiles
 from ..customer_documents import MAX_UPLOAD_BYTES, customer_directory, make_stored_filename
 from ..database import get_db
+from ..document_categories import resolve_category_id
 from ..models import AppUser, Customer, CustomerDocument, CustomerExtraInfo, Property
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
 from .customer_documents import _customer_document_out
@@ -219,8 +220,9 @@ async def upload_customer_document(
         except ValueError:
             target.unlink(missing_ok=True)
             raise HTTPException(status_code=422, detail="Ungültiges Dokumentdatum.")
+    category_value = (category or "Sonstiges").strip()
     doc = CustomerDocument(
-        customer_id=customer_id, category=(category or "Sonstiges").strip(),
+        customer_id=customer_id, category=category_value, category_id=resolve_category_id(db, category_value),
         subfolder=(subfolder.strip() or None) if isinstance(subfolder, str) else None,
         original_filename=Path(file.filename).name,
         stored_filename=stored, content_type=file.content_type, file_size=len(data), description=(description or None), document_date=parsed_date,

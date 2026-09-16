@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..customer_documents import can_preview_type, document_path, is_image_type
 from ..database import get_db
+from ..document_categories import resolve_category_id
 from ..models import AppUser, CustomerDocument
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
 from ..schemas import CustomerDocumentOut, CustomerDocumentUpdate
@@ -38,7 +39,8 @@ def update_customer_document(document_id: int, payload: CustomerDocumentUpdate, 
     doc = db.get(CustomerDocument, document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
-    doc.category = payload.category; doc.subfolder = (payload.subfolder or None); doc.description = payload.description; doc.document_date = payload.document_date
+    doc.category = payload.category; doc.category_id = resolve_category_id(db, payload.category)
+    doc.subfolder = (payload.subfolder or None); doc.description = payload.description; doc.document_date = payload.document_date
     db.commit(); db.refresh(doc); return _customer_document_out(doc)
 
 

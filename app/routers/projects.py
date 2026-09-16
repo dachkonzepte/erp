@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
+from ..document_categories import resolve_category_id
 from ..invoices import invoice_overview_row, invoice_summary_for_order, list_invoices_for_project
 from ..work_preparation import planned_hours
 from ..models import AppUser, Customer, Order, Project, ProjectDocument, ProjectProfile, Property, Quote
@@ -237,8 +238,9 @@ async def upload_project_document(
         except ValueError:
             target.unlink(missing_ok=True)
             raise HTTPException(status_code=422, detail="Ungültiges Dokumentdatum.")
+    category_value = (category or "Sonstiges").strip()
     doc = ProjectDocument(
-        project_id=project_id, category=(category or "Sonstiges").strip(),
+        project_id=project_id, category=category_value, category_id=resolve_category_id(db, category_value),
         subfolder=(subfolder.strip() or None) if isinstance(subfolder, str) else None,
         original_filename=Path(file.filename).name,
         stored_filename=stored, content_type=file.content_type, file_size=len(data), description=(description or None), document_date=parsed_date,

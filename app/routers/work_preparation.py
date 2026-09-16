@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
+from ..document_categories import resolve_category_id
 from ..models import AppUser, Employee, Order, PlanningSlot, ProjectDocument, Supplier, Team, TeamEmployee, TeamResource, WorkPreparation, WorkPreparationDeliveryNote, WorkPreparationEmployee, WorkPreparationMaterial, WorkPreparationMaterialDeliveryNote, WorkPreparationMaterialSupplier, WorkPreparationTask, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource
 from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
 from ..project_documents import MAX_UPLOAD_BYTES, document_path, make_stored_filename, project_directory
@@ -245,7 +246,7 @@ async def upload_work_preparation_delivery_note(
         try: parsed_date=_date.fromisoformat(document_date)
         except ValueError: raise HTTPException(status_code=422,detail="Ungültiges Dokumentdatum.")
     stored=make_stored_filename(file.filename); target=project_directory(order.project_id)/stored; target.write_bytes(data)
-    doc=ProjectDocument(project_id=order.project_id,category="Lieferscheine",original_filename=Path(file.filename).name,stored_filename=stored,content_type=file.content_type,file_size=len(data),description=description or None,document_date=parsed_date)
+    doc=ProjectDocument(project_id=order.project_id,category="Lieferscheine",category_id=resolve_category_id(db,"Lieferscheine"),original_filename=Path(file.filename).name,stored_filename=stored,content_type=file.content_type,file_size=len(data),description=description or None,document_date=parsed_date)
     db.add(doc); db.flush()
     link=WorkPreparationDeliveryNote(preparation_id=prep.id,project_document_id=doc.id,supplier_id=supplier.id if supplier else None,delivery_note_number=(delivery_note_number or None),document_date=parsed_date,notes=description or None)
     db.add(link); db.commit(); return preparation_to_dict(db,load_preparation(db,order_id))

@@ -20,15 +20,16 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.61** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf weiterhin `7a2b4e9f1c3d` ("app user role office field") -- keine der
+- Version: **1.3.62** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `9137945e8785` ("document categories foundation", siehe Abschnitt
+  "Dateiablage je Objekt" unten) -- vorher `7a2b4e9f1c3d` ("app user role office field"): keine der
   Versionen 1.3.52 bis 1.3.61 brauchte eine eigene Migration (reine Rollen-Gate-/Response-Schema-/
   Objekt-Filterungs-Umstellungen auf bereits bestehenden Endpunkten und Tabellen; 1.3.61s neuer
   PDF-Dokumenttyp "field_timesheet" fällt ohne eigene Zeile automatisch auf den bereits
   bestehenden, geteilten "default"-Satz zurück, siehe "Fünf weitere Anpassungen"), siehe
   Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
   eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1267 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1287 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
   dort), zuletzt am 16.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -809,6 +810,29 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Plantafel (Seite und API), fremde Stunden und fremde Plantafel-Einträge bleiben für `field`
   gesperrt -- null "durchgelassen". Details im Abschnitt "Rechtekonzept" → "Fünf weitere
   Anpassungen an der Monteursansicht" unten.
+- Neu seit 1.3.62: **Dateiablage je Objekt, Schritt 1 -- Kategorie-Stammdaten, ausdrücklich nur
+  das Fundament.** Neue echte Stammdatentabelle `DocumentCategory` (`app/document_categories.py`)
+  löst die bisherige freie Optionsgruppe `project_document_categories` ab -- dieselbe Hochstufung
+  wie bei `RoofComponentType`/`RoofLayerType`. Acht Kategorien wortgleich übernommen, zwei davon
+  ("Rechnungen / Belege", "Verträge / Freigaben") als sensibel markiert. **Zwei unabhängige
+  Schlösser gegen "sensible Kategorie für Monteure sichtbar"**: (1) `is_sensitive` kann, einmal
+  gesetzt, nie wieder auf `False` zurückgesetzt werden, und die Kombination `is_sensitive=True` +
+  `is_field_visible=True` ist in `create_category()`/`update_category()` immer verboten; (2) eine
+  feste, im Code verankerte Sperrliste (`HARD_LOCKED_CATEGORY_KEYS`), die `field_may_see_category()`
+  unabhängig von diesen beiden Feldern prüft -- bleibt selbst bei einer direkten
+  Datenbankmanipulation wirksam, per Test belegt. Neue Spalte `category_id` (FK, zusätzlich zur
+  bestehenden Freitextspalte `category`) auf `CustomerDocument`/`ProjectDocument`, Migration
+  `9137945e8785` befüllt sie aus dem Bestand (Regel 1: nullable anlegen, backfillen, erst danach
+  NOT NULL) -- gegen die echte Datenbank geprüft: `customer_documents` leer, `project_documents`
+  eine Zeile mit einem exakten Treffer ("Pläne"), kein unklassifizierbarer String. Dabei ein
+  echter, über die vier bereits angepassten Upload-/Update-Endpunkte hinausgehender Fund: der
+  Lieferschein-Upload in `app/routers/work_preparation.py` legt ebenfalls `ProjectDocument`-Zeilen
+  an und hätte ohne dieselbe Korrektur in Produktion mit einem `IntegrityError` fehlgeschlagen --
+  behoben. Neuer Einstellungen-Abschnitt "Dokumentkategorien" (Büro/Admin, kein Löschen in dieser
+  Runde). **Bewusst NICHT Teil dieser Version**: die mobile Objektansicht (zusammengeführte
+  Dokumente aller nicht archivierten Projekte eines Objekts) und die geteilte, feldbegrenzte Suche
+  -- beides wartet auf die ausdrückliche Bestätigung der hier gebauten Grundlage. Details im neuen
+  Abschnitt "Dateiablage je Objekt" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -6370,6 +6394,168 @@ ist in der Liste ohnehin sichtbar, keine verdeckte Änderung möglich).
    "Bekannte, bewusst offene Punkte").
 4. Erstes echtes `field`-Testkonto anlegen, vollständigen Monteurs-Ablauf im Browser
    durchklicken. -- offen.
+
+## Dateiablage je Objekt ("Runde 2" der Monteurs-Erweiterung, seit 1.3.62)
+
+Ziel (Betreibervorgabe): jeder Mitarbeiter -- auch Monteure -- kann Bilder und Dokumente zu einem
+Objekt hochladen und ansehen, mit einer admin-gesteuerten Freigabe für Monteure UND einer
+kategorieabhängigen Sperre für sensible Dokumente. Vorgehen ausdrücklich in Etappen: zuerst
+Befund+Vorschlag (kein Code), dann diese Version -- **nur das Fundament** (Kategorie-Stammdaten,
+Migration, feste Code-Sperrliste) --, danach erst die mobile Objektansicht und die geteilte Suche,
+jeweils erst nach Bestätigung des vorherigen Schritts.
+
+### Befund vor dem Bauen (Runde-2-Vorlauf, keine Codeänderung)
+
+Vier bestehende Upload-Wege, unterschiedlich objekt-/projekt-/kundenbezogen: `roof_area_sketches`
+(an `RoofArea`, damit indirekt an `Property`), `project_files`/`ProjectDocument` (an `Project`,
+nicht direkt an `Property`), `customer_documents`/`CustomerDocument` (an `Customer`, nicht an
+`Property`), `service_report_photos` (an `Finding`/`InspectionItem` über den Einsatzbericht).
+**Keiner der vier hängt heute direkt an einem `Property`** -- eine Dateiablage je Objekt bräuchte
+entweder eine neue, objektbezogene Ablage oder eine Zusammenführung der bereits projekt-/
+kundenbezogenen Dokumente über die Objektzuordnung. Alle vier folgen demselben Speichermuster:
+`ERP_DATA_DIR`/`data_dir()` (siehe "Geheimnisse für den Serverbetrieb" oben) plus einem
+dedizierten, rollen-geprüften Auslieferungsendpunkt -- kein `StaticFiles`-Mount irgendwo im
+Projekt. `resize_and_store_photo()` (`app/service_report_photos.py`, 1.2.17) verkleinert Fotos mit
+Pillow (`exif_transpose()` + `thumbnail()` auf 1600px + JPEG q82) -- dabei ein echter,
+architektonischer Fund: der Aufrufer (`post_service_report_photo`, eine `async def`-Route) ruft
+diese synchrone, CPU-gebundene Funktion direkt auf, ohne `run_in_threadpool()`/
+`asyncio.to_thread()` -- blockiert damit den EINEN gunicorn-Arbeitsprozess des 4-GB-Produktivservers
+für die Dauer jeder Verkleinerung. Für eine künftige, neue Foto-Upload-Route in der Objektablage
+NICHT verbatim kopieren -- entweder eine gewöhnliche `def`-Route (Starlette threadpoolt synchrone
+Routen automatisch) oder ein expliziter `run_in_threadpool()`-Aufruf.
+
+Als Vorbild für den künftigen Objektzugriff eines Monteurs vorgeschlagen (noch nicht gebaut,
+Entscheidung steht noch aus): dasselbe Zwei-Wege-Muster wie `field_may_access_order()`
+(`app/orders.py`, siehe "Rechtekonzept" → "Objekt-Filterung" oben) -- Planungsbezug (aktuell/nah
+zugeordnet) ODER ein eigener, bereits angelegter Bezug (z. B. ein selbst hochgeladenes Dokument),
+damit ein Monteur nach einer Umplanung nicht den Zugriff auf bereits Hochgeladenes verliert.
+
+### Entscheidungen des Betreibers für diese und die folgenden Etappen (bereits getroffen, noch nicht alle umgesetzt)
+
+1. **Objekt statt Projekt als Leitkonzept.** In der künftigen mobilen Ansicht öffnet ein Monteur
+   ein Objekt und sieht die Dokumente ALLER nicht archivierten Projekte dieses Objekts,
+   zusammengeführt, nach Kategorie gruppiert -- "die Pläne von der Baustelle Musterstraße", nicht
+   "die Pläne aus Projekt P-2026-0012". Eigene Uploads eines Monteurs binden sich an das OBJEKT,
+   nicht an ein bestimmtes Projekt (ein spontaner Einsatz hat oft gar kein Projekt) -- ob das eine
+   eigene, objektbezogene Ablage-Tabelle braucht oder einem Sammelprojekt des Objekts zugeordnet
+   wird, ist noch offen; der Betreiber neigt zur eigenen, objektbezogenen Ablage. **Noch nicht
+   gebaut** -- gehört zur nächsten Etappe.
+2. **Kategorie-Stammdaten mit `is_sensitive`/`is_field_visible`** -- diese Version, siehe unten.
+3. **Feste Code-Sperrliste zusätzlich zur Einstellung** -- diese Version, siehe unten
+   (`HARD_LOCKED_CATEGORY_KEYS`).
+4. **Geteilte Suche mit serverseitiger Feldbegrenzung.** Eine gemeinsame Kernfunktion mit
+   unterschiedlicher Feld-/Ergebnisbegrenzung statt zweier getrennter Implementierungen (Muster:
+   genau das, was bei `build_customer_and_meta_block()` mit drei divergierenden Varianten zum
+   Problem wurde, siehe "Kopfbereich" oben). Die Begrenzung für Monteure muss dabei SERVERSEITIG
+   sitzen, nicht nur in der Aufrufweise -- ein Monteur, der den Büro-Suchendpunkt direkt aufruft,
+   muss dieselbe Begrenzung bekommen, nicht die vollen Ergebnisse. **Noch nicht gebaut** -- gehört
+   zur übernächsten Etappe (nach der mobilen Objektansicht).
+
+### Diese Version: Kategorie-Stammdaten (`DocumentCategory`), Migration, zwei unabhängige Schlösser
+
+Siehe `app/document_categories.py` für die vollständige, im Moduldocstring festgehaltene
+Begründung -- hier nur die Zusammenfassung. Echte Stammdatentabelle statt einer weiteren
+Optionsgruppe (dieselbe Hochstufung wie `RoofComponentType`/`RoofLayerType`, 1.2.19/1.2.18): eine
+reine Auswahlliste kann `is_sensitive`/`is_field_visible` nicht tragen. `key` bleibt bewusst
+textidentisch zu den bisherigen Optionswerten der abgelösten Gruppe `project_document_categories`
+(`app/option_settings.py`) -- die bestehenden, unveränderten Freitext-Spalten
+`CustomerDocument.category`/`ProjectDocument.category` matchen dadurch unverändert weiter.
+
+**Acht Kategorien** (`DEFAULT_CATEGORIES`, wortgleich aus der abgelösten Optionsgruppe): Pläne,
+Bilder / Fotos, Lieferscheine, Aufmaß (alle vier `is_field_visible=True`), Schriftverkehr (weder
+sensibel noch sichtbar), Verträge / Freigaben und Rechnungen / Belege (beide `is_sensitive=True`),
+Sonstiges (Rückfallkategorie, weder sensibel noch sichtbar).
+
+**Zwei unabhängige Schlösser, wie ausdrücklich vom Betreiber verlangt ("zwei unabhängige
+Schlösser, kein gemeinsamer Schlüssel")**:
+1. `is_sensitive`/`is_field_visible` in `DocumentCategory` selbst -- `create_category()`/
+   `update_category()` (`app/document_categories.py`) lehnen die Kombination
+   `is_sensitive=True` + `is_field_visible=True` grundsätzlich ab, unabhängig vom Key. Zusätzlich
+   ist `is_sensitive` **einmal gesetzt unveränderlich** -- `update_category()` verweigert jeden
+   Versuch, eine bereits sensible Kategorie wieder auf `is_sensitive=False` zu setzen (weder über
+   die Oberfläche noch über die API, da beide denselben Endpunkt nutzen).
+2. `HARD_LOCKED_CATEGORY_KEYS` (`frozenset({"Rechnungen / Belege", "Verträge / Freigaben"})`) --
+   eine feste, im Code verankerte Sperrliste, die `field_may_see_category()` UNABHÄNGIG von den
+   beiden Datenbankfeldern prüft. Selbst wenn jemand die `document_categories`-Tabelle direkt
+   manipuliert (rohes SQL, ein Bug in einer künftigen Änderung), bleibt `field_may_see_category()`
+   für diese beiden Kategorien hart auf `False` -- kein gemeinsamer Prüfpfad mit Schloss 1. Per
+   Test belegt (`tests/test_v266_document_categories.py::
+   test_field_may_see_category_blocks_hard_locked_keys_even_with_tampered_flags`): ein
+   `DocumentCategory`-Objekt wird dort DIREKT konstruiert, unter vollständiger Umgehung von
+   `create_category()`/`update_category()`, mit `is_field_visible=True` für einen gesperrten Key
+   -- `field_may_see_category()` liefert trotzdem `False`.
+
+`create_category()`/`update_category()` sind noch UNGENUTZT von jedem Anzeigepfad in dieser
+Version (kein Monteur sieht heute schon eine Kategorie -- die mobile Objektansicht kommt erst in
+der nächsten Etappe) -- die Validierung ist bereits vollständig, damit die kommende Etappe darauf
+aufbauen kann, ohne die Schloss-Logik selbst nachzuziehen.
+
+**Migration/Backfill der bestehenden Freitext-Kategorien** (`category_id`, neue, zusätzliche
+FK-Spalte -- `category`, der Freitext, bleibt unverändert stehen und ist weiterhin das einzige
+Feld, das das bestehende Upload-/Bearbeiten-Formular direkt beschreibt). Migration `9137945e8785`
+folgt Regel 1 (server_default bei NOT-NULL-Spalten auf bestehenden Tabellen): `category_id` wird
+zunächst NULLABLE angelegt (ein `server_default` auf eine konkrete ID wäre fragil, da der
+Fremdschlüssel auf eine erst in DERSELBEN Migration befüllte Tabelle zeigt), aus dem Bestand
+befüllt (`_resolve_category_id()`, standalone und eigenständig testbar direkt in der
+Migrationsdatei, Muster aus 1.2.19/1.3.12/1.3.22), erst danach auf NOT NULL gesetzt.
+Zuordnungsregel: exakte Übereinstimmung des Freitexts gegen `key`, sonst Rückfall auf
+"Sonstiges" -- NIE auf eine sichtbare oder sensible Kategorie, im Zweifel gesperrt statt offen.
+
+**Vor dem Schreiben gegen die echte, lokale Datenbank geprüft, wie verlangt** ("berichte mir,
+welche Strings du vorfindest"): `customer_documents` war zum Zeitpunkt der Migration LEER (0
+Zeilen) -- kein Backfill nötig. `project_documents` hatte GENAU EINE Zeile, `category='Pläne'` --
+ein exakter Treffer auf den gleichnamigen Kategorie-Key, kein einziger unklassifizierbarer String
+im gesamten Bestand. Nach dem Lauf verifiziert: alle 8 Kategorien korrekt gesät, die eine reale
+Zeile trägt `category_id` mit dem korrekten Bezug auf "Pläne".
+
+**Vier bestehende Endpunkte mussten für ein funktionsfähiges Gesamtbild mit angefasst werden**
+(nicht Teil der ursprünglichen "nur Stammdaten"-Anfrage im engeren Sinne, aber ohne sie hätte die
+neue NOT-NULL-Spalte ab dem Moment der Migration jeden neuen Upload/jede Aktualisierung brechen
+lassen -- ein unvollständiger Zustand wäre schlechter gewesen als die kleine, surgical
+Erweiterung): `upload_customer_document()`/`upload_project_document()`
+(`app/routers/customers.py`/`projects.py`) und `update_customer_document()`/
+`update_project_document()` (`app/routers/customer_documents.py`/`project_documents.py`) befüllen
+`category_id` jetzt über die neue `resolve_category_id()` zusätzlich zum unveränderten
+`category`-Freitext.
+
+**Echter Fund über diese vier Endpunkte hinaus, beim Testlauf entdeckt und sofort behoben**: der
+Lieferschein-Upload `upload_work_preparation_delivery_note()`
+(`app/routers/work_preparation.py`) legt ebenfalls eine `ProjectDocument`-Zeile
+(`category="Lieferscheine"`) an -- ohne dieselbe Korrektur hätte dieser Endpunkt in Produktion mit
+einem `IntegrityError: NOT NULL constraint failed` fehlgeschlagen, sobald die Migration gelaufen
+wäre. Zwei bestehende Tests (`tests/test_v066_audit_history.py`,
+`tests/test_v083_material_bulk_assignment.py`) konstruierten `ProjectDocument` ebenfalls direkt
+ohne `category_id` (Regel 7: Modell-Konstruktoren gegen `app/models.py` prüfen, hier: eine neue
+NOT-NULL-Spalte trifft auch bestehende Test-Fixtures) -- beide nachgezogen.
+
+**Router und Oberfläche** (`app/routers/document_categories.py`, Muster
+`app/routers/roof_areas.py`s Bauteilarten-Endpunkte): `GET/POST/PUT` + `activate`/`deactivate`,
+Büro/Admin (`require_role(ROLE_ADMIN, ROLE_OFFICE)`) -- bewusst KEIN DELETE-Endpunkt in dieser
+Runde (die beiden fest gesperrten Kategorien dürfen ohnehin nie verschwinden, ob ein
+"Löschen blockiert bei Verwendung"-Mechanismus wie bei `RoofComponentType` gebraucht wird,
+entscheidet sich erst, wenn echte Dokumente `category_id` in nennenswerter Zahl tragen).
+Einstellungen → Dokumente → "Dokumentkategorien" (neuer Abschnitt, `settings.html`): Liste +
+Bearbeiten-Panel, spiegelt beide Schlösser in der Oberfläche selbst (das "Sensibel"-Kontrollkästchen
+lässt sich nach dem Setzen nicht mehr entfernen, "Für Monteure sichtbar" ist deaktiviert, sobald
+sensibel oder fest gesperrt) -- rein kosmetisch, die eigentliche Durchsetzung sitzt serverseitig
+in `create_category()`/`update_category()`.
+
+**20 neue Tests** (`tests/test_v266_document_categories.py`): Selbst-Seeding (inkl. "rührt eine
+bereits gesäte Zeile nie wieder an"), beide Schlösser einzeln (inkl. der
+DB-Manipulations-Simulation für Schloss 2), Router-Rollenprüfung (`field` bekommt 403 auf jeden
+Endpunkt), die Freitext-Zuordnung `resolve_category_id()` (Treffer/Rückfall), die vier
+Regressions-Endpunkte (Upload/Update setzt `category_id` tatsächlich), und die Migration isoliert
+(`_resolve_category_id()`/`_seed_default_categories()`/`_backfill_table_category_ids()` direkt
+gegen eine eigene, leichte Connection aufgerufen -- kein `batch_alter_table()`-Aufruf getestet,
+siehe CLAUDE.md "Testen" für die Begründung, warum nur die Befüll-Logik, nicht der Schema-Umbau
+selbst geprüft wird).
+
+**Bewusst NICHT Teil dieser Version** (nächste, noch zu bestätigende Etappen): die mobile
+Objektansicht (Punkt 1 oben, inkl. der noch offenen Frage "eigene objektbezogene Ablage oder
+Sammelprojekt je Objekt für eigene Monteur-Uploads"), die geteilte, feldbegrenzte Suche (Punkt 4
+oben), und ein tatsächlicher Upload-Weg für Objektdateien selbst -- diese Version legt
+ausschließlich das Fundament, mit dem eine künftige Datei ihre Kategorie zuordnen und ein Monteur
+später geprüft werden kann, ob er sie sehen darf.
 
 ## Migrations-Workflow
 

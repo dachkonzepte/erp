@@ -534,6 +534,40 @@ class ProjectProfile(Base):
     project: Mapped[Project] = relationship(back_populates="profile")
 
 
+class DocumentCategory(Base):
+    """Echte Stammdatentabelle für Dokumentkategorien (seit 1.3.62, Fundament für die
+    Dateiablage je Objekt, siehe CLAUDE.md "Dateiablage je Objekt") -- löst die bisherige freie
+    Optionsgruppe project_document_categories ab (galt für Kunden- UND Projektmappe). Dieselbe
+    Hochstufung SettingOptionGroup -> echte Tabelle wie bei RoofComponentType/RoofLayerType
+    (1.2.19/1.2.18): eine reine Options-Auswahlliste konnte is_sensitive/is_field_visible nicht
+    tragen. key bleibt bewusst textidentisch zu den bisherigen Options-Werten ("Pläne",
+    "Rechnungen / Belege", ...), damit CustomerDocument.category/ProjectDocument.category (beide
+    weiterhin einfache Strings, siehe dort) unverändert weiter funktionieren -- category_id ist
+    ein zusätzliches, aus dem String aufgelöstes Feld, kein Ersatz dafür.
+
+    is_sensitive ist EINMAL auf True gesetzt UNVERÄNDERLICH -- kann über update_category()
+    (app/document_categories.py) nie wieder auf False zurückgesetzt werden. is_field_visible
+    kann bei is_sensitive=True gar nicht erst True werden -- diese Kombination wird sowohl in
+    create_category() als auch in update_category() abgelehnt, nicht nur in der Oberfläche.
+    Zusätzlich gibt es eine zweite, unabhängige Sperre: HARD_LOCKED_CATEGORY_KEYS
+    (app/document_categories.py) -- "Rechnungen / Belege" und "Verträge / Freigaben" sind dort
+    fest im Code eingetragen und bleiben für Monteure gesperrt, selbst wenn jemand is_sensitive/
+    is_field_visible direkt in der Datenbank manipuliert (field_may_see_category() prüft beide
+    Sperren unabhängig voneinander -- zwei Schlösser, kein gemeinsamer Schlüssel)."""
+
+    __tablename__ = "document_categories"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String(80), unique=True)
+    label: Mapped[str] = mapped_column(String(120))
+    is_sensitive: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    is_field_visible: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    sort_order: Mapped[int] = mapped_column(default=100, server_default="100")
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class ProjectDocument(Base):
     """Datei in einer Projektmappe. Die Datei selbst liegt im lokalen Projektspeicher.
 
@@ -545,13 +579,21 @@ class ProjectDocument(Base):
     eigene Verwaltungstabelle für Unterordner: sie entstehen einfach dadurch,
     dass jemand beim Hochladen einen Namen einträgt, und verschwinden wieder,
     sobald keine Datei mehr darauf verweist -- genau wie ein Dateisystem-Ordner
-    ohne Inhalt."""
+    ohne Inhalt.
+
+    category_id (seit 1.3.62, siehe CLAUDE.md "Dateiablage je Objekt"): aus category
+    aufgelöste Fremdschlüsselbeziehung auf die neue Stammdatentabelle DocumentCategory --
+    category selbst bleibt der freie String und alleinige Quelle beim Hochladen/Ändern,
+    category_id wird von den Endpunkten in app/routers/projects.py/project_documents.py
+    zusätzlich MITGESETZT (nie umgekehrt), damit is_sensitive/is_field_visible je Datei
+    nachschlagbar sind, ohne category als Text zu duplizieren oder zu ersetzen."""
 
     __tablename__ = "project_documents"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
     category: Mapped[str] = mapped_column(String(100), default="Sonstiges", index=True)
+    category_id: Mapped[int] = mapped_column(ForeignKey("document_categories.id"), index=True)
     subfolder: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
     original_filename: Mapped[str] = mapped_column(String(255))
     stored_filename: Mapped[str] = mapped_column(String(255), unique=True)
@@ -562,6 +604,7 @@ class ProjectDocument(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
     project: Mapped[Project] = relationship(back_populates="documents")
+    document_category: Mapped["DocumentCategory"] = relationship()
 
 
 class CustomerDocument(Base):
@@ -576,13 +619,17 @@ class CustomerDocument(Base):
     ein manuell gepflegter, nicht durch die Datenbank erzwungener Bezug. Die
     bestehende ProjectDocument-Tabelle bleibt dabei unangetastet -- keine
     riskante Umbenennung/Migration einer Tabelle, die bereits echte Dateien auf
-    der Festplatte referenziert."""
+    der Festplatte referenziert.
+
+    category_id (seit 1.3.62): dieselbe Ergänzung wie bei ProjectDocument.category_id, siehe
+    dort für die volle Begründung."""
 
     __tablename__ = "customer_documents"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), index=True)
     category: Mapped[str] = mapped_column(String(100), default="Sonstiges", index=True)
+    category_id: Mapped[int] = mapped_column(ForeignKey("document_categories.id"), index=True)
     subfolder: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
     original_filename: Mapped[str] = mapped_column(String(255))
     stored_filename: Mapped[str] = mapped_column(String(255), unique=True)
@@ -593,6 +640,7 @@ class CustomerDocument(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
     customer: Mapped["Customer"] = relationship(back_populates="documents")
+    document_category: Mapped["DocumentCategory"] = relationship()
 
 
 class Quote(Base):

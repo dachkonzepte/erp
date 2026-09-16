@@ -3,6 +3,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
+from app.document_categories import resolve_category_id
 from app.main import create_customer, create_project, update_project, update_project_document
 from app.schemas import CustomerCreate, ProjectCreate, ProjectUpdate, ProjectDocumentUpdate
 from app.models import AuditLog, ProjectDocument
@@ -49,7 +50,7 @@ def test_document_description_change_is_in_project_history():
     try:
         customer = create_customer(CustomerCreate(last_name="Dok Kunde"), db)
         project = create_project(ProjectCreate(customer_id=customer.id, name="Dok Projekt"), db)
-        doc = ProjectDocument(project_id=project.id, category="Pläne", original_filename="plan.pdf", stored_filename="x-plan.pdf", file_size=10, description="Alt")
+        doc = ProjectDocument(project_id=project.id, category="Pläne", category_id=resolve_category_id(db, "Pläne"), original_filename="plan.pdf", stored_filename="x-plan.pdf", file_size=10, description="Alt")
         db.add(doc); db.commit()
         update_project_document(doc.id, ProjectDocumentUpdate(category="Pläne", description="Neu beschrieben", document_date=None), db)
     finally:

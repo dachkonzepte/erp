@@ -44,6 +44,7 @@
       <div class="settings-group">Dokumente</div>
       <div class="settings-menu">
         <button type="button" data-settings-section="document-layout" onclick="showSettingsSection('document-layout')">Dokumente &amp; Layout<span class="menu-sub">Briefpapier, Ränder, Logo/Firmenkopf/Fußzeile -- für alle Dokumente</span></button>
+        <button type="button" data-settings-section="document-categories" onclick="showSettingsSection('document-categories')">Dokumentkategorien<span class="menu-sub">Fundament der Dateiablage je Objekt -- Sichtbarkeit für Monteure</span></button>
         <button type="button" data-settings-section="email-templates" onclick="showSettingsSection('email-templates')">E-Mail-Vorlagen<span class="menu-sub">Betreff/Text je Dokumenttyp</span></button>
       </div>
       <div class="settings-group">Personal</div>
@@ -396,6 +397,24 @@
     <div class="list-narrow" style="overflow:auto;margin-top:14px"><table><thead><tr><th>Bauteilart</th><th>Flächig</th><th>Status</th><th></th><th></th></tr></thead><tbody id="componentTypeRows"></tbody></table></div>
   </section>
 
+  <section class="card settings-section" id="settings-document-categories">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Dokumentkategorien</h2><div class="muted small">Fundament der Dateiablage je Objekt -- steuert, welche Kategorie für Monteure sichtbar sein darf.</div></div></div>
+    <div class="hint">Eine sensible Kategorie kann nicht gleichzeitig für Monteure sichtbar sein, und ist eine Kategorie einmal als sensibel markiert, lässt sich das nicht mehr rückgängig machen. "Rechnungen / Belege" und "Verträge / Freigaben" sind zusätzlich fest im Code gesperrt -- unabhängig von diesen beiden Feldern bleiben sie für Monteure immer unsichtbar. Kein Löschen in dieser Ansicht, nur Deaktivieren.</div>
+    <div class="list-narrow" style="margin-top:12px;display:flex;align-items:center;gap:10px"><button type="button" class="secondary" onclick="resetDocumentCategoryEditor();showDocumentCategoryEditor()">+ Kategorie</button><span id="documentCategoryStatus" class="status"></span></div>
+    <div id="documentCategoryEditorPanel" class="option-editor-panel list-narrow" style="display:none">
+      <h3 style="margin-top:0" id="documentCategoryEditorHeading">Kategorie hinzufügen</h3>
+      <div class="function-grid">
+        <div class="field"><label>Technischer Schlüssel *</label><input id="documentCategoryKey" placeholder="z. B. Fotos vor Ort"></div>
+        <div class="field"><label>Bezeichnung *</label><input id="documentCategoryLabel" placeholder="z. B. Fotos vor Ort"></div>
+        <div class="field"><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="documentCategorySensitive" onchange="syncDocumentCategoryVisibilityLock()"> Sensibel</label></div>
+        <div class="field"><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="documentCategoryFieldVisible"> Für Monteure sichtbar</label></div>
+      </div>
+      <div class="muted small" id="documentCategoryLockHint" style="display:none;margin-top:6px">Diese Kategorie ist fest gesperrt -- sensibel und für Monteure unsichtbar, unveränderlich.</div>
+      <button onclick="saveDocumentCategory()" id="documentCategorySaveButton">Hinzufügen</button> <button class="secondary" onclick="hideDocumentCategoryEditor()">Abbrechen</button>
+    </div>
+    <div class="list-narrow" style="overflow:auto;margin-top:14px"><table><thead><tr><th>Kategorie</th><th>Sensibel</th><th>Für Monteure sichtbar</th><th>Status</th><th></th></tr></thead><tbody id="documentCategoryRows"></tbody></table></div>
+  </section>
+
   <section class="card settings-section" id="settings-employee-functions">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Mitarbeiterfunktionen / Tätigkeiten</h2><div class="muted small">Zentrale Auswahl für die Mitarbeiter-Stammdaten. Die Zuordnung gewerblich/kaufmännisch steuert automatisch, ob ein Stundenlohn für den Mittellohn erforderlich ist.</div></div></div>
     <div class="hint">Beispiele: Dachdecker Vorarbeiter, Dachdecker Geselle, Zimmerer Geselle, Lagerist, Büro / Verwaltung. Funktionen, die bereits Mitarbeitern zugeordnet sind, werden nicht gelöscht, sondern bei Bedarf auf <b>inaktiv</b> gesetzt.</div>
@@ -586,7 +605,7 @@ const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
   refreshStatusColors();
 })();
 const v=id=>document.getElementById(id).value.trim();const nv=id=>v(id)||null;const setv=(id,x)=>document.getElementById(id).value=x??'';
-const SETTINGS_SECTIONS=['general','numbers','payment-terms','tax-keys','reminder-levels','document-layout','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','mobile'];
+const SETTINGS_SECTIONS=['general','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','mobile'];
 function showSettingsSection(key,updateHash=true){
   if(!SETTINGS_SECTIONS.includes(key))key='general';
   document.querySelectorAll('.settings-section').forEach(x=>x.classList.toggle('active',x.id===`settings-${key}`));
@@ -627,7 +646,7 @@ async function load(){
   generalSettings=g;renderCompanyLogo();renderSidebarLogo();
   setv('laborRate',c.labor_rate);setv('materialMarkup',c.material_markup_pct);setv('overhead',c.overhead_pct);setv('riskProfit',c.risk_profit_pct);document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
   setv('employerCostPct',lr.employer_cost_pct);setv('productiveTimePct',lr.productive_time_pct);setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',lr.fixed_overhead_value||0);setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',lr.variable_overhead_value||0);setv('targetProfitPct',lr.target_profit_pct);setv('weeksPerYear',lr.weeks_per_year);syncOverheadLabels();renderLaborRate(lrc);
-  sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();document.getElementById('autoCreateDraftsCheckbox').checked=!!rs.auto_create_drafts;moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadMobileSection();loadDocumentLayoutSection();}
+  sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();document.getElementById('autoCreateDraftsCheckbox').checked=!!rs.auto_create_drafts;moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadDocumentCategoriesSection();loadMobileSection();loadDocumentLayoutSection();}
 
 function renderModuleStates(){document.getElementById('moduleRows').innerHTML=moduleStates.length?moduleStates.map(m=>`<div class="field"><label style="display:flex;align-items:center;gap:10px;font-weight:650"><input type="checkbox" style="width:auto" ${m.enabled?'checked':''} onchange="toggleModule('${m.module_key}',this.checked)"> ${esc(m.label)}</label><span id="moduleStatus-${m.module_key}" class="status"></span></div>`).join(''):'<div class="muted small">Keine optionalen Module registriert.</div>'}
 async function toggleModule(key,checked){const st=document.getElementById('moduleStatus-'+key);try{await api(`/api/modules/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:checked})});moduleStates=await api('/api/modules');st.textContent=checked?'Aktiviert.':'Deaktiviert.';loadTaskSection();loadMaintenanceSection()}catch(e){st.textContent='Fehler: '+e.message}}
@@ -939,6 +958,110 @@ async function deleteComponentType(id){
     await api(`/api/roof-component-types/${id}`,{method:'DELETE'});
     componentTypes=await api('/api/roof-component-types?include_inactive=true');
     renderComponentTypes();st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+// Seit 1.3.62 (siehe CLAUDE.md "Dateiablage je Objekt"): dieselben zwei Schlüssel wie
+// HARD_LOCKED_CATEGORY_KEYS in app/document_categories.py -- hier nur für die Oberfläche
+// dupliziert (deaktiviert die entsprechenden Kontrollkästchen), die eigentliche Sperre sitzt
+// serverseitig in create_category()/update_category()/field_may_see_category().
+const HARD_LOCKED_DOCUMENT_CATEGORY_KEYS=['Rechnungen / Belege','Verträge / Freigaben'];
+let documentCategories=[],editingDocumentCategoryId=null;
+
+async function loadDocumentCategoriesSection(){
+  try{
+    documentCategories=await api('/api/document-categories?include_inactive=true');
+    renderDocumentCategories();
+  }catch(e){document.getElementById('documentCategoryStatus').textContent='Fehler: '+e.message}
+}
+
+function documentCategoryRow(c){
+  return `<tr>
+    <td>${esc(c.label)}<div class="muted small">${esc(c.key)}</div></td>
+    <td>${c.is_sensitive?'Ja':'—'}</td>
+    <td>${c.is_field_visible?'Ja':'—'}</td>
+    <td><label style="display:flex;align-items:center;gap:6px;font-weight:600"><input type="checkbox" style="width:auto" ${c.active?'checked':''} onchange="toggleDocumentCategoryActive(${c.id},this.checked)"> Aktiv</label></td>
+    <td style="white-space:nowrap"><button type="button" class="secondary" onclick="editDocumentCategory(${c.id})">Bearbeiten</button></td>
+  </tr>`;
+}
+
+function renderDocumentCategories(){
+  const items=documentCategories.slice().sort((a,b)=>a.sort_order-b.sort_order);
+  document.getElementById('documentCategoryRows').innerHTML=items.map(documentCategoryRow).join('')
+    ||'<tr><td colspan="5" class="empty">Noch keine Dokumentkategorien angelegt.</td></tr>';
+}
+
+async function toggleDocumentCategoryActive(id,checked){
+  const st=document.getElementById('documentCategoryStatus');
+  try{
+    await api(`/api/document-categories/${id}/${checked?'activate':'deactivate'}`,{method:'POST'});
+    documentCategories=await api('/api/document-categories?include_inactive=true');
+    renderDocumentCategories();st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function syncDocumentCategoryVisibilityLock(){
+  const sensitive=document.getElementById('documentCategorySensitive').checked;
+  const visible=document.getElementById('documentCategoryFieldVisible');
+  visible.disabled=sensitive;
+  if(sensitive)visible.checked=false;
+}
+
+function resetDocumentCategoryEditor(){
+  editingDocumentCategoryId=null;
+  document.getElementById('documentCategoryEditorHeading').textContent='Kategorie hinzufügen';
+  document.getElementById('documentCategoryKey').value='';
+  document.getElementById('documentCategoryKey').disabled=false;
+  document.getElementById('documentCategoryLabel').value='';
+  document.getElementById('documentCategorySensitive').checked=false;
+  document.getElementById('documentCategorySensitive').disabled=false;
+  document.getElementById('documentCategoryFieldVisible').checked=false;
+  document.getElementById('documentCategoryFieldVisible').disabled=false;
+  document.getElementById('documentCategoryLockHint').style.display='none';
+  document.getElementById('documentCategorySaveButton').textContent='Hinzufügen';
+}
+
+function showDocumentCategoryEditor(){document.getElementById('documentCategoryEditorPanel').style.display='block'}
+function hideDocumentCategoryEditor(){document.getElementById('documentCategoryEditorPanel').style.display='none'}
+
+function editDocumentCategory(id){
+  const c=documentCategories.find(x=>x.id===id);
+  if(!c)return;
+  const locked=HARD_LOCKED_DOCUMENT_CATEGORY_KEYS.includes(c.key);
+  editingDocumentCategoryId=id;
+  document.getElementById('documentCategoryEditorHeading').textContent='Kategorie bearbeiten';
+  document.getElementById('documentCategoryKey').value=c.key;
+  document.getElementById('documentCategoryKey').disabled=true;
+  document.getElementById('documentCategoryLabel').value=c.label;
+  document.getElementById('documentCategorySensitive').checked=c.is_sensitive;
+  // Einmal sensibel gesetzt, bleibt es sensibel (siehe app/document_categories.py) -- das
+  // Kontrollkästchen lässt sich dann nicht mehr entfernen, nur noch von false auf true heben.
+  document.getElementById('documentCategorySensitive').disabled=c.is_sensitive||locked;
+  document.getElementById('documentCategoryFieldVisible').checked=c.is_field_visible;
+  document.getElementById('documentCategoryFieldVisible').disabled=c.is_sensitive||locked;
+  document.getElementById('documentCategoryLockHint').style.display=locked?'block':'none';
+  document.getElementById('documentCategorySaveButton').textContent='Speichern';
+  showDocumentCategoryEditor();
+}
+
+async function saveDocumentCategory(){
+  const st=document.getElementById('documentCategoryStatus');
+  const key=document.getElementById('documentCategoryKey').value.trim();
+  const label=document.getElementById('documentCategoryLabel').value.trim();
+  if(!label){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben.';return}
+  const isSensitive=document.getElementById('documentCategorySensitive').checked;
+  const isFieldVisible=document.getElementById('documentCategoryFieldVisible').checked;
+  try{
+    if(editingDocumentCategoryId){
+      await api(`/api/document-categories/${editingDocumentCategoryId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,is_sensitive:isSensitive,is_field_visible:isFieldVisible})});
+    }else{
+      if(!key){st.className='status err';st.textContent='Bitte einen technischen Schlüssel angeben.';return}
+      await api('/api/document-categories',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,label,is_sensitive:isSensitive,is_field_visible:isFieldVisible})});
+    }
+    documentCategories=await api('/api/document-categories?include_inactive=true');
+    renderDocumentCategories();
+    hideDocumentCategoryEditor();
+    st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 

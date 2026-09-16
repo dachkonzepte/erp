@@ -2208,6 +2208,29 @@ class ComponentTypeReorder(BaseModel):
     ordered_ids: list[int]
 
 
+class DocumentCategoryOut(BaseModel):
+    id: int
+    key: str
+    label: str
+    is_sensitive: bool
+    is_field_visible: bool
+    sort_order: int
+    active: bool
+
+
+class DocumentCategoryCreate(BaseModel):
+    key: str = Field(min_length=1, max_length=80)
+    label: str = Field(min_length=1, max_length=120)
+    is_sensitive: bool = False
+    is_field_visible: bool = False
+
+
+class DocumentCategoryUpdate(BaseModel):
+    label: str = Field(min_length=1, max_length=120)
+    is_field_visible: bool = False
+    is_sensitive: bool | None = None
+
+
 class EmployeePayrollSettingsOut(EmployeePayrollSettingsUpdate):
     employee_id: int
     employee_name: str

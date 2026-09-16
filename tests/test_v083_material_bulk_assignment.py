@@ -6,6 +6,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
+from app.document_categories import resolve_category_id
 from app.models import Service, ProjectDocument, WorkPreparationDeliveryNote, WorkPreparationMaterialDeliveryNote
 from app.main import (
     create_customer, create_project, create_quote, add_quote_item, create_supplier,
@@ -39,7 +40,7 @@ def setup_order(db):
 
 
 def add_delivery_note(db, order, prep, supplier):
-    doc=ProjectDocument(project_id=order.project_id,category='Lieferscheine',original_filename='LS-100.pdf',stored_filename='test.pdf',content_type='application/pdf',file_size=100,document_date=date(2026,9,1))
+    doc=ProjectDocument(project_id=order.project_id,category='Lieferscheine',category_id=resolve_category_id(db,'Lieferscheine'),original_filename='LS-100.pdf',stored_filename='test.pdf',content_type='application/pdf',file_size=100,document_date=date(2026,9,1))
     db.add(doc); db.flush()
     note=WorkPreparationDeliveryNote(preparation_id=prep.id,project_document_id=doc.id,supplier_id=supplier.id,delivery_note_number='LS-100',document_date=date(2026,9,1))
     db.add(note); db.commit()
