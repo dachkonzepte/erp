@@ -189,7 +189,15 @@ def test_list_draft_reports_only_shows_own_open_drafts():
 
 # --- GET /api/field-view/today --------------------------------------------------------------
 
-def test_field_view_today_returns_assignments_and_drafts_for_linked_employee():
+def test_field_view_today_returns_assignments_and_drafts_for_linked_employee(monkeypatch):
+    # Festes now VOR dem Standard-Feierabend (19 Uhr) -- ohne das wäre dieser Test von der
+    # tatsächlichen Wanduhrzeit abhängig und schlüge nach 19 Uhr JEDEN Tag fehl, unabhängig
+    # von jeder Codeänderung (siehe CLAUDE.md "Bekannte, bewusst offene Punkte", jetzt behoben).
+    # Muster wie test_is_past_shift_end_before_and_after_configured_time() unten, das
+    # is_past_shift_end() bereits direkt mit einem festen now aufruft -- get_field_view_today()
+    # selbst nimmt bewusst KEINEN now-Parameter über die HTTP-Schnittstelle an (Sicherheitsrisiko,
+    # siehe app/routers/field_view.py::_now()), deshalb hier über die private Bruchstelle gesetzt.
+    monkeypatch.setattr("app.routers.field_view._now", lambda: datetime(2026, 9, 10, 8, 0))
     db = db_session()
     order, _ = make_order_with_item(db)
     emp = make_employee(db, "M-1", "Erika", "Eins")
@@ -203,7 +211,10 @@ def test_field_view_today_returns_assignments_and_drafts_for_linked_employee():
     assert any(r["id"] == report["id"] for r in result["draft_reports"])
 
 
-def test_field_view_today_rejects_unlinked_employee():
+def test_field_view_today_rejects_unlinked_employee(monkeypatch):
+    # Dasselbe feste now wie oben -- dieser Test prüft die 422-Ablehnung ohne Mitarbeiterverknüpfung,
+    # nicht die Feierabend-Grenze, und darf deshalb ebenso nicht von der Wanduhrzeit abhängen.
+    monkeypatch.setattr("app.routers.field_view._now", lambda: datetime(2026, 9, 10, 8, 0))
     db = db_session()
     user = make_non_admin(db, None, "mont2")
     try:

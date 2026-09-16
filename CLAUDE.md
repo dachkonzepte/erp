@@ -20,7 +20,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.70** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.71** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf jetzt `da9d9425e257` ("project pipeline columns", siehe Abschnitt
   "Umbau der Projektliste" unten) -- vorher `f803985ebc2f` ("property documents table", siehe
   Abschnitt "Dateiablage je Objekt" unten), davor `9137945e8785` ("document categories
@@ -30,23 +30,15 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1382 passed, 2 vorbestehend zeitabhängig flakend** (seit 1.3.55 wieder vollständig
-  grün ohne `xfail` -- der Audit-Test des Rechtekonzepts steht bei null unklassifizierten
-  Endpunkten und ist ein harter Test, siehe dort), zuletzt am 16.09.2026 gegen 19:26 Uhr mit
-  `pytest` in Tobias' `.venv` unter Windows ausgeführt. Die zwei Ausnahmen
-  (`tests/test_v224_field_view.py::test_field_view_today_returns_assignments_and_drafts_for_linked_employee`/
-  `..._rejects_unlinked_employee`) sind eine bereits vor dieser Sitzung bestehende, von der
-  tatsächlichen Wanduhrzeit abhängige Schwäche -- beide rufen `get_field_view_today()` direkt
-  auf, ohne die Feierabend-Prüfung (`is_past_shift_end()`, Standard 19:00 Uhr,
-  `app/mobile_settings.py`) über ein festes `now` zu entkoppeln, schlagen deshalb JEDEN Tag nach
-  19 Uhr fehl, unabhängig von jeder Codeänderung -- verifiziert durch einen isolierten Lauf nur
-  dieser beiden Tests, ohne jeden Bezug zur Projekt-Pipeline (kein `Project(...)` in dieser
-  Testdatei). Nicht behoben, da außerhalb des angefragten Umfangs -- siehe „Bekannte, bewusst
-  offene Punkte" für die Nennung. Die Suite enthält weiterhin echte, über einen FastAPI-
-  `TestClient` laufende Routen-Tests (seit 1.2.15, Testabhängigkeit `httpx`) für die
-  tatsächliche URL-Auflösung, nicht nur Aufrufe der Business-Funktionen direkt; der zugehörige
-  Test-Helfer (`router_test_client`/`threaded_db_session`) lebt seit 1.2.16 als gemeinsame
-  Fixture in `tests/conftest.py`, nicht mehr lokal in einer einzelnen Testdatei.
+- Tests: **1382 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+  Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
+  dort), zuletzt am 16.09.2026 gegen 20:22 Uhr (bewusst NACH dem Standard-Feierabend 19:00 Uhr
+  ausgeführt, um die 1.3.71-Korrektur zu belegen) mit `pytest` in Tobias' `.venv` unter Windows
+  ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
+  1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
+  Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
+  `threaded_db_session`) lebt seit 1.2.16 als gemeinsame Fixture in `tests/conftest.py`, nicht
+  mehr lokal in einer einzelnen Testdatei.
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
   Eingabefelder, einfarbige Sidebar-Icons) ist auf **alle** Templates ausgerollt (1.0.97–1.0.100,
@@ -968,6 +960,22 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Projekt-Pipeline (`app/routers/project_pipeline_columns.py`, dieselbe Büro+Admin-Sperre wie
   der Rest der Projektverwaltung). Diese Version liefert AUSSCHLIESSLICH das Fundament -- die
   Listen- und Kanban-Oberfläche selbst folgt erst in der zweiten Runde, nach Bestätigung.
+- Neu seit 1.3.71: **Wanduhrzeit-Flake in `tests/test_v224_field_view.py` behoben, unabhängig
+  von der Projekt-Pipeline (eigener Commit, wie verlangt).** Zwei bereits vor 1.3.70 bestehende
+  Tests (`test_field_view_today_returns_assignments_and_drafts_for_linked_employee`/
+  `..._rejects_unlinked_employee`) riefen `get_field_view_today()` direkt auf und schlugen
+  deshalb JEDEN Tag nach 19 Uhr (dem Standard-Feierabend) fehl, unabhängig von jeder
+  Codeänderung -- ein Test, der irgendwann garantiert rot wird, gewöhnt an eine rote Suite und
+  verdeckt dadurch echte Fehler. Neue, private Bruchstelle `app/routers/field_view.py::_now()`
+  (liefert `datetime.now()`, von `get_field_view_today()` jetzt statt des impliziten Rückfalls
+  in `is_past_shift_end()` explizit durchgereicht) -- **bewusst NICHT als Query-/Body-Parameter
+  auf der Route selbst**, das hätte einem Monteur erlaubt, die Feierabend-Abmeldung per
+  `?now=...` zu umgehen, ein echtes Sicherheitsrisiko. Die beiden Tests monkeypatchen
+  `_now()` jetzt auf einen festen Vormittagswert -- exakt das Muster, das
+  `test_is_past_shift_end_before_and_after_configured_time()` in derselben Datei für
+  `is_past_shift_end()` bereits direkt vormacht (ein festes `now`), nur über die private
+  Python-Bruchstelle statt eines HTTP-Parameters. Verifiziert um 20:22 Uhr (nach dem
+  Standard-Feierabend) grün.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -7502,20 +7510,6 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 
 ## Bekannte, bewusst offene Punkte
 
-- **Zwei Tests in `tests/test_v224_field_view.py` sind von der tatsächlichen Wanduhrzeit
-  abhängig, unabhängig von jeder Codeänderung.** Gefunden bei 1.3.70 (Projekt-Pipeline), aber
-  bereits vorher bestehend und ohne jeden Zusammenhang zu diesem Feature -- die Testdatei enthält
-  keine einzige `Project(...)`-Konstruktion. `test_field_view_today_returns_assignments_and_
-  drafts_for_linked_employee`/`..._rejects_unlinked_employee` rufen
-  `get_field_view_today()` (`app/routers/field_view.py`) direkt auf, ohne die darin geprüfte
-  Feierabend-Grenze (`is_past_shift_end()`, Standard 19:00 Uhr, `app/mobile_settings.py`) über
-  ein festes `now` zu entkoppeln -- nach 19 Uhr liefert die Funktion einen frühen
-  `JSONResponse`(401) statt der erwarteten Zuordnungsliste, die Tests schlagen dann fehl,
-  egal welcher Code sonst geändert wurde. Verifiziert durch einen isolierten Lauf nur dieser
-  beiden Tests zu unterschiedlichen Uhrzeiten. Nicht behoben (außerhalb des angefragten
-  Umfangs) -- eine saubere Lösung wäre, `now` in beiden Tests explizit vor 19:00 Uhr zu setzen
-  (Muster: die Funktion nimmt bereits einen optionalen `now`-Parameter für genau diesen Zweck,
-  siehe `is_past_shift_end(settings, now=None)`), nur der Testaufruf nutzt ihn bisher nicht.
 - **Kolonnenführer-Rolle für Gruppenbuchungen -- bewusst offen, wie vom Betreiber vorgegeben**
   (seit 1.3.60, siehe Abschnitt "Zeiterfassung für Monteure" oben): die reduzierte
   `time_tracking_field.html` kennt keine Gruppenbuchung mehr, ein Monteur bucht nur für sich

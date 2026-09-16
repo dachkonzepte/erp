@@ -70,6 +70,23 @@ router = APIRouter()
 _any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
 
 
+def _now() -> datetime:
+    """Eigene, ersetzbare Bruchstelle für den aktuellen Zeitpunkt (seit 1.3.71) -- ausschließlich
+    für tests/test_v224_field_view.py, das zwei bereits vor dieser Korrektur bestehende Tests
+    hatte, die nach 19 Uhr (dem Standard-Feierabend, siehe unten) IMMER fehlschlugen, unabhängig
+    von jeder Codeänderung: is_past_shift_end() erwartet zwar bereits ein optionales `now`,
+    get_field_view_today() reichte es aber nirgends durch, sondern verließ sich stillschweigend
+    auf dessen eigenen datetime.now()-Rückfall.
+
+    BEWUSST NICHT als Query-/Body-Parameter auf der Route selbst -- das würde einem Monteur
+    erlauben, die Feierabend-Abmeldung per `?now=...` zu umgehen, ein echtes Sicherheitsrisiko.
+    Diese Funktion ist stattdessen eine reine Python-Ebene: die Tests rufen get_field_view_today()
+    ohnehin schon direkt als Funktion auf (nicht über HTTP), monkeypatchen hier `_now` genauso,
+    wie sie `db=`/`request=` bereits direkt statt über FastAPIs Depends()-Mechanismus setzen --
+    kein Weg, der über eine echte HTTP-Anfrage erreichbar wäre."""
+    return datetime.now()
+
+
 @router.get("/api/field-view/today")
 def get_field_view_today(request: Request, db: Session = Depends(get_db)):
     """Löst den Mitarbeiter ausschließlich über request.state.erp_user.employee_id auf, nie
@@ -80,7 +97,7 @@ def get_field_view_today(request: Request, db: Session = Depends(get_db)):
     user = getattr(request.state, "erp_user", None)
     if user is None:
         raise HTTPException(status_code=401, detail="Bitte zuerst anmelden.")
-    if is_past_shift_end(get_or_create_mobile_settings(db)):
+    if is_past_shift_end(get_or_create_mobile_settings(db), _now()):
         response = JSONResponse(status_code=401, content={"detail": "Feierabend -- bitte erneut anmelden."})
         response.delete_cookie(COOKIE_NAME)
         return response

@@ -4,6 +4,28 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.71 – Wanduhrzeit-Flake in `tests/test_v224_field_view.py` behoben
+
+Unabhängig von der Projekt-Pipeline (eigener Commit, wie ausdrücklich verlangt -- "eine eigene
+kleine Korrektur, nicht vermischt"). Zwei bereits vor 1.3.70 bestehende Tests
+(`test_field_view_today_returns_assignments_and_drafts_for_linked_employee`/
+`..._rejects_unlinked_employee`) riefen `get_field_view_today()` (`app/routers/field_view.py`)
+direkt auf, ohne die darin geprüfte Feierabend-Grenze (`is_past_shift_end()`, Standard 19:00 Uhr)
+über ein festes `now` zu entkoppeln -- sie schlugen deshalb JEDEN Tag nach 19 Uhr fehl,
+unabhängig von jeder Codeänderung. Ein Test, der irgendwann garantiert rot wird, ist schlimmer
+als keiner: man gewöhnt sich an eine rote Suite und übersieht dabei einen echten Fehler.
+
+Behoben über eine neue, private Bruchstelle `_now()` in `app/routers/field_view.py` -- liefert
+`datetime.now()`, wird jetzt von `get_field_view_today()` explizit an `is_past_shift_end()`
+durchgereicht, statt sich auf dessen impliziten `datetime.now()`-Rückfall zu verlassen. Bewusst
+KEIN Query-/Body-Parameter auf der Route selbst: das hätte einem Monteur erlaubt, die
+Feierabend-Abmeldung per `?now=...` zu umgehen, ein echtes Sicherheitsrisiko. Die beiden Tests
+monkeypatchen `_now()` jetzt auf einen festen Vormittagswert -- dasselbe Muster, das
+`test_is_past_shift_end_before_and_after_configured_time()` in derselben Datei für
+`is_past_shift_end()` bereits direkt mit einem festen `now` vormacht, nur über die private
+Python-Bruchstelle statt eines HTTP-Parameters. Verifiziert um 20:22 Uhr (nach dem
+Standard-Feierabend) -- vollständige Suite grün (1382/1382), keine Regression.
+
 ## 1.3.70 – Umbau der Projektliste, Fundament: Projekt-Pipeline
 
 Erster Baustein des vom Nutzer verlangten Umbaus (Befund zuvor separat geliefert, keine
