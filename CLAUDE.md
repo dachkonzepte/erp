@@ -20,7 +20,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.65** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.66** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf jetzt `f803985ebc2f` ("property documents table", siehe Abschnitt
   "Dateiablage je Objekt" unten) -- vorher `9137945e8785` ("document categories foundation"),
   davor `7a2b4e9f1c3d` ("app user role office field"): keine der
@@ -30,7 +30,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   bestehenden, geteilten "default"-Satz zurück, siehe "Fünf weitere Anpassungen"), siehe
   Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
   eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1322 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1333 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
   dort), zuletzt am 16.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -876,6 +876,24 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Liste zuerst nur die Liste geschlossen, ein zweiter Tipp wäre nötig gewesen. 8 neue,
   strukturelle Tests (`tests/test_v269_mobile_header_search.py`). Details im Abschnitt
   "Dateiablage je Objekt" → "Nachtrag (seit 1.3.65)" unten.
+- Neu seit 1.3.66: **Büro-Suche, Etappe 1 -- Registry, Kernstruktur, Rollensicherheit.**
+  Erweitert den geteilten Suchkern aus 1.3.64 (`app/search.py`) um 16 weitere
+  Gruppe-A-Datensatzarten (Kunden, Aufträge, Rechnungen, Mahnungen, Angebote, Projekte,
+  Dachflächen, Anfragen, Aufgaben, Mitarbeiter, Einsatzberichte, Mängel, Wartungsverträge,
+  Leistungen, Materialien, Lieferanten) über eine neue `SearchSource`-Registry
+  (`OFFICE_SEARCH_SOURCES`, 17 Einträge) und einen Dispatcher (`search_office()`) -- die
+  Vollständigkeitsprüfung wurde ZUSAMMEN mit der Registry gebaut, nicht danach. JEDE Quelle
+  bleibt Büro+Admin (nichts admin-only: Kalkulationsgrundlagen sind keine Gruppe-A-Entität,
+  Einkaufspreise/Vergütung sind bereits anderswo Büro+Admin-sichtbar), JEDE `row_fn` liefert
+  strukturell nur `{id, title, subtitle, url}` -- nie ein Preis-/Lohnfeld. ILIKE statt
+  Volltextsuche (empirisch geprüft: 472 Zeilen, ~0.03ms je Abfrage; die Schwelle für einen
+  künftigen Wechsel ist dokumentiert). "orders"/"invoices" durchsuchen Snapshot UND live
+  Kundenname unabhängig voneinander -- der Fund, der sonst zur stillen Lücke geworden wäre.
+  Neuer, eigenständiger Endpunkt `GET /api/search` (niemals gemeinsam mit der Monteurs-Suche),
+  `require_role(ROLE_ADMIN, ROLE_OFFICE)` als primäre Sicherung. Angriffstest wie bei der
+  Monteurs-Suche: ein Monteur bekommt 403 -- plain und mit manipulierten Parametern --, null
+  durchgelassen. Die Oberfläche (Etappe 2) ist bewusst noch nicht Teil dieser Version. Details
+  im neuen Abschnitt "Büro-Suche" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -6843,6 +6861,178 @@ Vorschlagsliste steht strukturell nach `<nav>`; Kopf/Reiter tragen kein `positio
 einzeln; die Maximalbreite ist gesetzt), nicht an einem gerenderten Bild. Sollte bei Gelegenheit
 im Browser gegengeprüft werden, insbesondere das Verhalten bei offener Vorschlagsliste auf einem
 echten Touchscreen.
+
+## Büro-Suche (seit 1.3.66, Etappe 1)
+
+Der ursprüngliche Wunsch aus der Suche-Bestandsaufnahme (siehe "Dateiablage je Objekt" ->
+"Schritt 3", 1.3.64): Vorschläge beim Tippen, Ergebnisseite mit Filtern bei Bestätigung, für die
+volle "Gruppe A" (17 Datensatzarten) statt nur Objekte. Baut direkt auf zwei bereits bestehenden
+Fundamenten auf, ändert an keinem der beiden etwas: dem geteilten Suchkern aus 1.3.64
+(`search_properties()` bleibt UNVERÄNDERT die eine Objektsuche, die "properties"-Quelle unten
+ruft sie direkt auf -- der 1.3.64-Moduldocstring-Versprecher "eine künftige Büro-Suche erweitert
+den Kern, ersetzt ihn nicht" ist damit eingelöst) und dem Rechtekonzept (`require_role()`,
+Standardverweigerung). Vor dem Bauen ein reiner Befund-Durchgang (keine Codeänderung), danach vom
+Nutzer vier Entscheidungen -- siehe unten, jede einzeln umgesetzt. Zwei Etappen, wie verlangt:
+Etappe 1 (diese Version) -- Registry, Kernstruktur, Rollensicherheit; Etappe 2 (Oberfläche:
+Suchfeld in der Topbar, Ergebnisseite) folgt erst nach Rückmeldung zu dieser Etappe.
+
+### Registry-Muster (`app/search.py`)
+
+`SearchSource` (frozen dataclass) -- analog im Geist zu `require_role()`s "keine impliziten
+Defaults"-Philosophie: `key`/`label`/`allowed_roles`/`query_fn`/`row_fn` sind Pflichtfelder, nur
+`module_key` hat einen Default (`None`, siehe unten). `OFFICE_SEARCH_SOURCES` ist ein Tupel aus
+17 solchen Quellen -- **Registry und Vollständigkeitstest wurden ZUSAMMEN gebaut, nicht
+danach** (ausdrückliche Vorgabe): `tests/test_v270_office_search.py::
+EXPECTED_OFFICE_SEARCH_KEYS` vergleicht die tatsächlich registrierten Schlüssel gegen die 17
+erwarteten und prüft zusätzlich, dass jede `allowed_roles`-Menge nicht-leer und eine Teilmenge
+von `{admin, office}` ist (ROLE_FIELD darf NIE enthalten sein) und jeder `module_key` entweder
+`None` oder einer der beiden bekannten Modul-Schlüssel ist -- Muster: dieselbe mechanische
+Absicherung wie beim Rollen-Audit-Test (Regel 11), eine Registry ohne erzwungene
+Vollständigkeit ist nur ein Vorschlag, keine Absicherung.
+
+`search_office(db, role, query, *, limit_per_type=20, types=None)` ist der EINE Dispatcher --
+geht die Registry durch und filtert **dreifach**: Rolle (`source.allowed_roles`), optionaler
+`types`-Filter (welche Datensatzarten überhaupt durchsucht werden sollen), Modul-Zustand (dritte,
+unabhängige Achse, siehe unten). Prüft `MIN_QUERY_LENGTH` (aus der Monteurs-Suche
+wiederverwendet, `=2`) EINMAL zentral, bevor irgendeine der 17 Quellfunktionen aufgerufen wird --
+keine der 17 prüft es erneut, das ist beabsichtigt. `_count_and_fetch(db, stmt, order_by, limit,
+*, options=())` ist der gemeinsame Helfer fast jeder Quelle: EIN gefilterter Basis-`stmt`, zwei
+Verwendungen (eine echte `COUNT(*)`-Abfrage für die reale Trefferzahl, eine gekappte, geordnete
+Liste für die Anzeige) -- kann nie auseinanderlaufen, im Unterschied zu
+`build_customer_and_meta_block()`s historischer Divergenz in drei Varianten (siehe
+"Kopfbereich"), die hier von Anfang an vermieden wird.
+
+**Der Fund beim Customer-Suchen (Regel 7, vor dem Schreiben geprüft, nicht aus dem Gedächtnis
+geraten)**: `Customer.customer_number` ist ein Python-`@property` (`self.profile.customer_number
+if self.profile else None`), KEINE gemappte Spalte -- `Customer.customer_number.ilike(...)` in
+einer Query würde mit einem `AttributeError` scheitern (ein Property-Descriptor kennt kein
+`.ilike()`). Die "customers"-Quelle joint deshalb `CustomerProfile` (`outerjoin`, ein Kunde ohne
+Profil-Zeile bleibt trotzdem über `Customer.name` allein auffindbar) und filtert auf
+`CustomerProfile.customer_number` -- die tatsächliche, gemappte Spalte. Zum Vergleich geprüft:
+`Order.customer_number`/`Invoice.customer_number`/`Supplier.supplier_number`/
+`Employee.employee_number` sind alle echte, gemappte Spalten -- nur bei `Customer` ist es dieser
+eine Sonderfall.
+
+### Die vier Entscheidungen -- jede einzeln umgesetzt
+
+**1. Rechnungen für Büro sichtbar, nichts in der Registry admin-only.** Die Grenze verläuft
+zwischen Büro und Monteur, nicht zwischen Admin und Büro -- JEDE der 17 Quellen trägt
+`allowed_roles={ROLE_ADMIN, ROLE_OFFICE}`, keine Ausnahme. Geprüfte Rückfrage (Auftrag: "prüfe,
+ob es innerhalb der Finanzdaten etwas gibt, das nur Admin sehen soll"): **nein, nichts** --
+Kalkulationsgrundlagen sind gar keine Gruppe-A-Entität (eine einzelne Singleton-Settings-Zeile,
+nicht durchsuchbar), Einkaufspreise (`Material.purchase_price`) und Vergütung
+(`Employee.hourly_wage`/`effective_hourly_wage`/`annual_gross_wage`) sind seit dem
+Rechtekonzept (1.3.52) bereits über die normalen Material-/Mitarbeiter-Stammdatenseiten
+Büro+Admin-sichtbar -- eine Einschränkung nur am Sucheinstieg wäre inkonsistent mit dem Rest der
+Anwendung und würde nichts schützen (Büro sieht dieselben Daten ohnehin auf der jeweiligen
+Stammdatenseite). Der tatsächliche, ausreichende Schutz ist unabhängig von der Rolle: JEDE
+`row_fn` liefert strukturell ausschließlich `{id, title, subtitle, url}` -- eine reine
+Trefferkurzform, nie ein Preis-/Lohn-/Einkaufsfeld, unabhängig davon, welche Rolle sucht.
+`OfficeSearchHitOut` (Pydantic, `app/schemas.py`) kappt das zusätzlich strukturell, als zweite,
+unabhängige Sperre.
+
+**2. ILIKE statt Volltextsuche.** Empirisch geprüft (nicht angenommen), gegen die echte,
+lokale `dachkonzepte_erp.db`: 472 Zeilen über alle 17 Tabellen zusammen (customers=162,
+properties=163, roof_areas=4, projects=8, quotes=10, orders=6, invoices=6, reminders=2,
+inquiries=0, tasks=7, employees=12, service_reports=4, findings=4, maintenance_contracts=2,
+services=24, materials=56, suppliers=2). `EXPLAIN QUERY PLAN` + Zeitmessung an vier
+repräsentativen, gejointen ILIKE-Abfragen (Angebot→Projekt→Kunde, Mahnung→Rechnung,
+Aufgabe→Projekt, Wartungsvertrag→Kunde): alle ≈0.03ms. Bei dieser Größenordnung ist "ein Query
+je Datensatzart" (17 einzelne, kleine Abfragen statt einer UNION-Abfrage über alle Tabellen)
+sowohl einfacher zu warten als auch schnell genug -- eine UNION-Query über 17 strukturell
+verschiedene Tabellen (unterschiedliche Spalten, unterschiedliche Joins) wäre erheblich
+komplexer geworden, ohne einen messbaren Vorteil bei dieser Datenmenge.
+
+**Schwelle für einen künftigen Wechsel, wie ausdrücklich verlangt festgehalten** (damit ein
+späterer Durchgang das nicht neu herleiten muss): Volltextsuche (PostgreSQL `pg_trgm`/`tsvector`
+bzw. SQLite `FTS5`) wird erst relevant, wenn EINE der beiden folgenden Schwellen überschritten
+wird -- (a) die Gesamtzahl der Zeilen über alle 17 Tabellen wächst in den fünfstelligen Bereich
+(grobe Faustregel: ab ~50.000-100.000 Zeilen wird ein voller Tabellenscan pro Suchanfrage auf
+gewöhnlicher Server-Hardware spürbar, nicht mehr nur theoretisch), ODER (b) eine einzelne Quelle
+(am ehesten "properties"/"customers"/"orders", die am schnellsten wachsen) allein bereits
+mehrere tausend Zeilen trägt UND die Suche dabei spürbar (>100ms) langsam wird. Beides ist bei
+472 Zeilen und ~0.03ms je Abfrage um mehrere Größenordnungen entfernt -- ein neuer Index wäre
+hier ebenso wirkungslos wie bei der Monteurs-Suche (siehe "Suche als Einstieg": ein B-Baum-Index
+hilft einem präfixlosen `ILIKE('%term%')` weder unter SQLite noch unter PostgreSQL, `EXPLAIN
+QUERY PLAN` zeigt `SCAN` selbst bei einem bereits indizierten Feld).
+
+**3. Snapshot UND live-Name durchsucht, unabhängig voneinander.** Der Fund, der sonst zur
+stillen Lücke geworden wäre: "orders" und "invoices" durchsuchen IMMER beide Felder --
+die eingefrorene Schnappschuss-Spalte (`Order.customer_name`/`Invoice.customer_name`, seit
+1.3.31/1.3.32 bereits als für die Suche nutzbar verifiziert, siehe dort) UND die live
+`Customer.name` über den Projekt-Join. Wer nach der alten Schreibweise sucht, findet die alte
+Rechnung mit dem eingefrorenen Namen; wer nach der heutigen sucht, findet den aktuellen Kunden
+UND -- über den JOIN zum heutigen Kunden, nicht über den eigenen unveränderten Schnappschuss --
+auch die Rechnung, da sie ja weiterhin zu diesem Kunden gehört. Beide Suchwege bleiben dabei
+unabhängig: würde nur die live `Customer.name` gejoint (die Schnappschuss-Spalte selbst nie
+geprüft), verlöre eine Suche nach der ALTEN Schreibweise jede Rechnung, deren Kunde inzwischen
+umbenannt/umformatiert wurde -- exakt die stille Lücke. Belegt in
+`tests/test_v270_office_search.py::test_invoice_found_via_frozen_snapshot_and_customer_found_via_live_name`:
+ein Kunde ("Wolfgang Rödchen"), dessen Schreibweise nach einer Rechnung auf "Wolfgang Roedchen"
+korrigiert wird -- die Suche nach der alten Schreibweise findet weiterhin die alte Rechnung
+(über deren unverändertes `customer_name`-Feld), die Suche nach der neuen findet den
+aktualisierten Kunden. "Reminders" durchsucht dagegen nur `Invoice.customer_name` (den
+Schnappschuss der zugehörigen Rechnung) -- bei nur zwei Mahnungen im echten Bestand kein
+Bedarf für denselben, aufwendigeren Doppel-Join wie bei Aufträgen/Rechnungen.
+
+**4. Ergebnisseite-Begrenzung.** `search_office()` liefert je Datensatzart die REALE Trefferzahl
+(`total`, aus `_count_and_fetch()`s unabhängiger `COUNT(*)`-Abfrage) UND eine auf
+`limit_per_type` (Standard 20, `OFFICE_SEARCH_RESULT_LIMIT`) gekappte Liste (`hits`) -- die
+Oberfläche (Etappe 2) zeigt daraus je Datensatzart die Trefferzahl und "weitere anzeigen" statt
+Seitenzahlen, konsistent mit dem Rest des Projekts (siehe CLAUDE.md: nirgends im Projekt gibt es
+eine nummerierte Seitenpaginierung).
+
+### Dritte, unabhängige Achse: der Modul-Umschalter
+
+Nicht ausdrücklich vom Nutzer angefragt, aber Konsequenz der bereits bestehenden Regel
+("API-Endpunkte müssen den Modul-Zustand selbst prüfen, sonst bleibt die Funktion über die API
+erreichbar, obwohl die Oberfläche sie versteckt", siehe "Modul-Umschalter" oben): vier Quellen
+hängen an einem abschaltbaren Modul -- `tasks` (Modul `"aufgabenmanagement"`),
+`service_reports`/`findings`/`maintenance_contracts` (Modul `"wartungen"`).
+`SearchSource.module_key` trägt dafür den jeweiligen Schlüssel (`None` für die übrigen 13),
+`search_office()` prüft `is_module_enabled(db, module_key)` für jede Quelle mit gesetztem
+`module_key` zusätzlich zur Rolle -- unabhängig davon, ob der Suchende Büro oder Admin ist. Bei
+deaktiviertem Modul verschwinden die betroffenen Quellen komplett aus dem Ergebnis, auch wenn
+die zugrunde liegenden Daten weiterhin passend wären (per Test belegt).
+
+### Separate-Endpunkt-Prinzip (seit 1.3.64 etabliert, hier bestätigt) und Router
+
+`GET /api/search` (`app/routers/search.py`, neu) ist ein VÖLLIG EIGENSTÄNDIGER Endpunkt --
+niemals ein gemeinsamer, rollenverzweigender Endpunkt mit der Monteurs-Suche
+(`GET /api/field-view/properties/search`). Das macht `Depends(require_role(ROLE_ADMIN,
+ROLE_OFFICE, message=...))` (ROLE_FIELD ausdrücklich NICHT dabei) zur PRIMÄREN Sicherung: ein
+Monteur bekommt 403, BEVOR `search_office()` auch nur eine Zeile liest -- die rolleninterne
+Filterung in `search_office()` selbst (jede Quelle prüft `role` gegen `source.allowed_roles`)
+ist eine zweite, unabhängige Absicherung, kein Ersatz dafür. Automatisch durch den bestehenden
+Rollen-Audit-Test (`tests/test_v260_role_audit.py`) erfasst, da `require_role()` die dafür
+nötige `_dk_roles`-Markierung trägt -- keine Änderung an jenem Test nötig.
+
+`q` (Suchbegriff), `types` (optionale, kommagetrennte Liste von `SearchSource`-Schlüsseln, um
+gezielt nur bestimmte Datensatzarten zu durchsuchen -- Etappe 2 nutzt das für Filter auf der
+Ergebnisseite), `limit` (geklammert auf `[1, 100]`, bevor er als `limit_per_type` an
+`search_office()` geht -- ein Client kann damit nie mehr als 100 Treffer je Datensatzart
+erzwingen, unabhängig vom übergebenen Wert).
+
+### Der verlangte Angriffstest -- null durchgelassen
+
+Mirror des Monteurs-Suche-Angriffstests (1.3.64/1.3.65), gegen eine isolierte Testinstanz (nie
+gegen die echte `dachkonzepte_erp.db`): ein Monteur, der `GET /api/search` aufruft -- **plain
+UND mit manipulierten Parametern** (`types=invoices,customers,employees`, `limit=999999`) --
+bekommt in BEIDEN Fällen **403**, identisch, nie irgendeine Zeile, geschweige denn eine Rechnung
+oder ein Preisfeld. Büro/Admin bekommen dagegen 200 mit korrekt gruppierten Ergebnissen
+INKLUSIVE einer `invoices`-Gruppe (belegt Entscheidung 1 über den tatsächlichen Router-Weg, nicht
+nur die Kernfunktion direkt). Ein rekursiver Schlüssel-Scan über JEDE zurückgegebene Zeile (über
+alle 17 Gruppen, mit absichtlich gesetztem `Employee.hourly_wage`/`Material.purchase_price`/
+`Service.sale_price` in den Testdaten) findet in keiner Rolle ein Preis-/Lohn-/Einkaufsfeld --
+strukturell garantiert, da jede Zeile ausschließlich `{id, title, subtitle, url}` trägt.
+`tests/test_v270_office_search.py`, 11 neue Tests, alle grün.
+
+### Bewusst NICHT Teil dieser Etappe
+
+Die Oberfläche (Suchfeld im reservierten `.app-topbar-search-slot`, siehe "Umgestaltung der
+Sidebar" -> "Schritt 2", die Ergebnisseite mit Filtern/"weitere anzeigen") -- wartet auf
+Rückmeldung zu dieser Etappe, wie ausdrücklich vom Nutzer verlangt ("Nach Etappe 1 ... berichte
+mir, bevor die Oberfläche kommt").
 
 ## Migrations-Workflow
 

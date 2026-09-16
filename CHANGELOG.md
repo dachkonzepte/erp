@@ -4,6 +4,42 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.66 – Büro-Suche, Etappe 1: Registry, Kernstruktur, Rollensicherheit
+
+Der ursprüngliche Wunsch aus der 1.3.64-Bestandsaufnahme: Vorschläge beim Tippen, Ergebnisseite
+mit Filtern bei Bestätigung, für die volle "Gruppe A" (17 Datensatzarten) statt nur Objekte.
+Erste von zwei Etappen -- diese Version liefert Registry/Kern/Rollensicherheit, die Oberfläche
+(Suchfeld in der Topbar, Ergebnisseite) folgt erst nach Rückmeldung.
+
+Erweitert den geteilten Suchkern aus 1.3.64 (`app/search.py`) um 16 weitere Datensatzarten
+(Kunden, Aufträge, Rechnungen, Mahnungen, Angebote, Projekte, Dachflächen, Anfragen, Aufgaben,
+Mitarbeiter, Einsatzberichte, Mängel, Wartungsverträge, Leistungen, Materialien, Lieferanten)
+über eine neue `SearchSource`-Registry (`OFFICE_SEARCH_SOURCES`) und einen Dispatcher
+(`search_office()`) -- `search_properties()` selbst bleibt unverändert, die "properties"-Quelle
+ruft sie direkt auf. Der Vollständigkeitstest wurde zusammen mit der Registry gebaut, nicht
+danach (Regel-11-Muster).
+
+Vier Entscheidungen vom Betreiber, jede umgesetzt: (1) jede der 17 Quellen bleibt Büro+Admin,
+nichts admin-only -- geprüft, ob innerhalb der Finanzdaten etwas admin-only sein müsste
+(Kalkulationsgrundlagen sind keine Gruppe-A-Entität, Einkaufspreise/Vergütung sind bereits
+anderswo Büro+Admin-sichtbar); der eigentliche Schutz ist strukturell (jede Zeile trägt nur
+`{id, title, subtitle, url}`, nie ein Preis-/Lohnfeld). (2) ILIKE statt Volltextsuche, empirisch
+begründet (472 Zeilen, ~0.03ms je Abfrage) -- die Schwelle für einen künftigen Wechsel zu
+PostgreSQL `pg_trgm`/SQLite `FTS5` ist in CLAUDE.md dokumentiert. (3) "orders"/"invoices"
+durchsuchen sowohl den eingefrorenen Kunden-Schnappschuss als auch den live Kundennamen,
+unabhängig voneinander -- ein Kunde, dessen Name sich seit einer Rechnung anders formatiert,
+wird über beide Schreibweisen gefunden (mit eigenem Test belegt). (4) die Ergebnisseite bekommt
+je Datensatzart die reale Trefferzahl plus eine auf 20 gekappte Liste, für ein künftiges "weitere
+anzeigen" statt Seitenzahlen.
+
+Neuer, eigenständiger Endpunkt `GET /api/search` (`app/routers/search.py`) -- niemals ein
+gemeinsamer, rollenverzweigender Endpunkt mit der Monteurs-Suche (Prinzip seit 1.3.64).
+`require_role(ROLE_ADMIN, ROLE_OFFICE)` ist die primäre Sicherung, automatisch vom bestehenden
+Rollen-Audit-Test erfasst. Angriffstest wie bei der Monteurs-Suche: ein Monteur bekommt 403 --
+plain und mit manipulierten Parametern (`types=`, `limit=999999`) --, identisch, null
+durchgelassen; Büro/Admin bekommen 200 inklusive einer `invoices`-Gruppe. 11 neue Tests
+(`tests/test_v270_office_search.py`), volle Suite weiterhin grün (1333/1333).
+
 ## 1.3.65 – Zwei Anpassungen an der Monteurs-Suche
 
 Nach dem ersten Einsatz gemeldete Rückmeldung zur 1.3.64-Suche.

@@ -1,9 +1,10 @@
-"""Geteilte Suchkernfunktion (siehe CLAUDE.md "Dateiablage je Objekt" -> "Suche als Einstieg").
-Heute nur Objekte (Property) -- die Büro-Suche existiert noch nicht (bisher nur Befund, nie
-gebaut). Diese Datei ist trotzdem bereits als geteilter KERN angelegt, den eine künftige
-Büro-Suche um weitere Datensatzarten (Kunden, Aufträge, ...) ERWEITERT, nicht ersetzt -- Muster:
-die Lehre aus build_customer_and_meta_block()s historischer Divergenz in drei Varianten (siehe
-CLAUDE.md "Kopfbereich"), hier von Anfang an vermieden.
+"""Geteilte Suchkernfunktion (siehe CLAUDE.md "Dateiablage je Objekt" -> "Suche als Einstieg" UND
+"Büro-Suche"). Zwei Suchen leben hier nebeneinander, wie beim Anlegen der Datei versprochen (siehe
+1.3.64-Moduldocstring, unten unverändert erhalten): die Monteurs-Suche (nur Objekte,
+search_properties_for_field()) UND, seit 1.3.66, die Büro-Suche (Etappe 1: Registry, Kern,
+Rollensicherheit -- die Oberfläche folgt erst in Etappe 2).
+
+=== Monteurs-Suche (seit 1.3.64, unverändert) ===
 
 Zwei Schichten, bewusst getrennt:
 
@@ -21,28 +22,92 @@ search_properties_for_field() kombiniert beide zu der EINEN Funktion, die ein Mo
 aufrufen darf. WICHTIG für jeden künftigen, auch für `field` erreichbaren Such-Endpunkt (auch
 einen gemeinsamen Büro+Monteur-Endpunkt): bei role==ROLE_FIELD MUSS er
 search_properties_for_field() aufrufen, NIE search_properties() direkt zurückgeben -- die
-Feldbegrenzung sitzt serverseitig, an der Rolle, nicht an der URL/dem Aufrufer. Das ist die
-konkrete Umsetzung von Regel 11 (Standardverweigerung) für dieses Konzept: ein Monteur, der einen
-künftigen, gemeinsamen Büro-Such-Endpunkt direkt aufruft, muss über DIESELBE Funktion trotzdem
-nur Objekte und nur die harmlosen Felder bekommen, nicht die vollen Ergebnisse.
+Feldbegrenzung sitzt serverseitig, an der Rolle, nicht an der URL/dem Aufrufer.
 
-Index-Frage geprüft, nicht nur angenommen (siehe CLAUDE.md für die empirische Belegung): ein
-gewöhnlicher B-Baum-Index hilft einem präfixlosen `ILIKE('%term%')` weder unter SQLite noch unter
-PostgreSQL (Customer.name trägt bereits einen Index UND SQLite ignoriert ihn nachweislich bei
-diesem Abfragemuster, EXPLAIN QUERY PLAN zeigt "SCAN"). Bei der aktuellen Datenmenge (163 Objekte,
-162 Kunden) ist ein voller Tabellenscan je Suchanfrage ohnehin irrelevant (< 1ms) -- ein neuer
-Index wäre hier reine Dekoration ohne messbaren Nutzen. Die tatsächlich wirksamen Hebel gegen zu
-teure Anfragen sind MIN_QUERY_LENGTH (verhindert eine sehr breite Anfrage bei nur einem Zeichen)
-und der client-seitige 300ms-Debounce (verhindert eine Anfrage je Tastendruck) -- siehe
-app/templates/mobil.html."""
+=== Büro-Suche, Etappe 1 (seit 1.3.66) ===
 
-from sqlalchemy import or_, select
+Der KERN aus 1.3.64 wird um 16 weitere Gruppe-A-Datensatzarten ERWEITERT, nicht ersetzt --
+search_properties() bleibt unverändert die EINE Objektsuche, die "properties"-Quelle unten ruft
+sie direkt auf. Architektur, entlang der vier Entscheidungen aus dem Befund:
+
+- **Rollen (Entscheidung 1)**: JEDE der 17 Quellen trägt allowed_roles={ROLE_ADMIN, ROLE_OFFICE}
+  -- die Grenze verläuft zwischen Büro und Monteur, nicht zwischen Admin und Büro. Kalkulations-
+  grundlagen sind keine Gruppe-A-Entität (Singleton-Settings-Zeile, nicht durchsuchbar);
+  Einkaufspreise/Vergütung sind bereits an anderer Stelle Büro+Admin-sichtbar (Material-/
+  Mitarbeiter-Stammdaten, 1.3.52), eine Einschränkung nur hier würde nichts schützen. Der
+  eigentliche Schutz: KEIN row_fn liefert je ein Preis-/Lohn-/Einkaufsfeld, unabhängig von der
+  Rolle -- reine Suchtreffer-Kurzform (id/title/subtitle/url), keine Kalkulationsdaten.
+- **ILIKE statt Volltextsuche (Entscheidung 2)**: empirisch geprüft (siehe CLAUDE.md
+  "Büro-Suche" für die Zahlen) -- bei 472 Zeilen über alle 17 Tabellen liegt jede der
+  repräsentativen, gejointen ILIKE-Abfragen bei ~0.03ms. Schwelle für einen Wechsel zu
+  PostgreSQL pg_trgm/tsvector bzw. SQLite FTS5: siehe CLAUDE.md, dort konkret benannt, damit ein
+  künftiger Durchgang es nicht neu herleiten muss.
+- **Snapshot UND live (Entscheidung 3)**: "orders"/"invoices" durchsuchen IMMER beide -- die
+  eingefrorene Schnappschuss-Spalte (Order.customer_name/Invoice.customer_name) UND die live
+  Customer.name über den Projekt-Join. Wer nach der alten Schreibweise sucht, findet die alte
+  Rechnung; wer nach der neuen sucht, findet den heutigen Kunden -- beide unabhängig voneinander,
+  nie nur einer der beiden Wege (siehe tests/test_v270_office_search.py für den Belegtest).
+- **Ergebnisseite-Begrenzung (Entscheidung 4)**: jede Quelle liefert ihre REALE Trefferzahl
+  (total) UND eine auf limit_per_type (Standard 20) gekappte Liste -- die Oberfläche (Etappe 2)
+  zeigt daraus "weitere anzeigen" statt Seitenzahlen.
+
+**Dritte, unabhängige Achse: der Modul-Umschalter (app/modules.py).** Vier Quellen
+(tasks/service_reports/findings/maintenance_contracts) hängen an einem abschaltbaren Modul --
+SearchSource.module_key trägt dafür den jeweiligen module_key, search_office() prüft
+is_module_enabled() für jede Quelle mit gesetztem module_key zusätzlich zur Rolle. Das ist KEINE
+vom Nutzer ausdrücklich verlangte Prüfung, sondern folgt aus der bereits bestehenden Regel
+("API-Endpunkte müssen den Zustand selbst prüfen, sonst bleibt die Funktion über die API
+erreichbar, obwohl die Oberfläche sie versteckt", siehe CLAUDE.md "Modul-Umschalter").
+
+**search_office() prüft MIN_QUERY_LENGTH ZENTRAL, EINMAL, bevor irgendeine der 17 Quellfunktionen
+aufgerufen wird** -- keine der 17 Funktionen prüft es erneut, das ist beabsichtigt, kein
+Versehen.
+
+**Registry-Vollständigkeit ist mechanisch erzwungen** (Muster: Regel 11/require_role() -- eine
+Registry ohne erzwungene Vollständigkeit ist nur ein Vorschlag, keine Absicherung):
+tests/test_v270_office_search.py::EXPECTED_OFFICE_SEARCH_KEYS vergleicht die tatsächlich
+registrierten Schlüssel gegen die 17 erwarteten -- eine vergessene oder falsch deklarierte
+Datensatzart fällt beim nächsten Testlauf auf, nicht erst durch Zufall."""
+
+from dataclasses import dataclass
+from typing import Callable
+
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from .models import Customer, Property
+from .materials import list_materials
+from .modules import is_module_enabled
+from .models import (
+    Customer, CustomerProfile, Employee, Finding, Inquiry, Invoice, MaintenanceContract, Material,
+    Order, Project, Property, Quote, Reminder, RoofArea, Service, ServiceReport, Supplier, Task,
+)
+from .permissions import ROLE_ADMIN, ROLE_OFFICE
 
 MIN_QUERY_LENGTH = 2
 SEARCH_RESULT_LIMIT = 10
+OFFICE_SEARCH_RESULT_LIMIT = 20
+
+OFFICE_ROLES = frozenset({ROLE_ADMIN, ROLE_OFFICE})
+
+
+def _property_search_base_stmt(term: str):
+    """Reiner WHERE-/JOIN-Aufbau, geteilt von search_properties() (Monteurs-Suche) und
+    _search_properties_office() (Büro-Suche, Quelle "properties") -- EIN Filter, zwei Aufrufer,
+    kann nicht auseinanderlaufen (Muster: die Lehre aus build_customer_and_meta_block(), siehe
+    CLAUDE.md "Kopfbereich"). Trägt bewusst KEINE .options()/.order_by()/.limit() -- die setzt
+    jeder Aufrufer selbst (search_properties() für sich, _count_and_fetch() für die Büro-Suche)."""
+    pattern = f"%{term}%"
+    return (
+        select(Property)
+        .join(Customer, Property.customer_id == Customer.id)
+        .where(or_(
+            Property.name.ilike(pattern),
+            Property.street.ilike(pattern),
+            Property.postal_code.ilike(pattern),
+            Property.city.ilike(pattern),
+            Customer.name.ilike(pattern),
+        ))
+    )
 
 
 def search_properties(db: Session, query: str, *, limit: int = SEARCH_RESULT_LIMIT) -> list[Property]:
@@ -53,18 +118,9 @@ def search_properties(db: Session, query: str, *, limit: int = SEARCH_RESULT_LIM
     term = (query or "").strip()
     if len(term) < MIN_QUERY_LENGTH:
         return []
-    pattern = f"%{term}%"
     stmt = (
-        select(Property)
-        .join(Customer, Property.customer_id == Customer.id)
+        _property_search_base_stmt(term)
         .options(selectinload(Property.customer))
-        .where(or_(
-            Property.name.ilike(pattern),
-            Property.street.ilike(pattern),
-            Property.postal_code.ilike(pattern),
-            Property.city.ilike(pattern),
-            Customer.name.ilike(pattern),
-        ))
         .order_by(Property.name)
         .limit(limit)
     )
@@ -91,3 +147,415 @@ def search_properties_for_field(db: Session, query: str, *, limit: int = SEARCH_
     Angebot) mit Schicht 2 (Feldbegrenzung). Siehe Moduldocstring, warum künftiger Code diese
     Reduktion nicht selbst nachbauen darf."""
     return field_safe_property_search_results(search_properties(db, query, limit=limit))
+
+
+# --------------------------------------------------------------------------------------------
+# Büro-Suche, Etappe 1: Registry + Dispatcher (siehe Moduldocstring oben)
+# --------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SearchSource:
+    """Eine Gruppe-A-Datensatzart der Büro-Suche -- analog im Geist zu require_role() (kein
+    Feld mit einem "harmlosen" impliziten Default außer module_key, das für die meisten Quellen
+    schlicht nicht gilt): key/label/allowed_roles/query_fn/row_fn müssen für jede Quelle bewusst
+    angegeben werden."""
+
+    key: str
+    label: str
+    allowed_roles: frozenset[str]
+    query_fn: Callable[[Session, str, int], tuple[int, list]]
+    row_fn: Callable[[object], dict]
+    module_key: str | None = None
+
+
+def _count_and_fetch(db: Session, stmt, order_by, limit: int, *, options: tuple = ()) -> tuple[int, list]:
+    """Gemeinsamer Helfer für (fast) jede Büro-Suchquelle -- EIN gefilterter Basis-`stmt`
+    (JOIN+WHERE, ohne .options()/.order_by()/.limit()), zwei Verwendungen: eine echte
+    COUNT(*)-Abfrage für die Gesamttrefferzahl (Entscheidung 4) und eine gekappte, geordnete
+    Liste für die Anzeige -- beide aus demselben Filter, können dadurch nie auseinanderlaufen
+    (Muster: die Lehre aus build_customer_and_meta_block()s historischer Divergenz, siehe
+    CLAUDE.md "Kopfbereich"). `options` wird bewusst NUR auf die Fetch-Abfrage angewendet --
+    Eager-Load-Strategien sind für eine reine Zählung irrelevant und unnötig."""
+    count = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    fetch_stmt = stmt
+    for option in options:
+        fetch_stmt = fetch_stmt.options(option)
+    rows = db.scalars(fetch_stmt.order_by(order_by).limit(limit)).all()
+    return count, rows
+
+
+# --- Kunden ---
+
+def _search_customers(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = (
+        select(Customer)
+        .outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+        .where(or_(Customer.name.ilike(pattern), CustomerProfile.customer_number.ilike(pattern)))
+    )
+    return _count_and_fetch(db, stmt, Customer.name, limit)
+
+
+def _customer_row(c: Customer) -> dict:
+    return {"id": c.id, "title": c.name, "subtitle": c.city, "url": f"/customers/{c.id}"}
+
+
+# --- Objekte (nutzt denselben Filter wie die Monteurs-Suche) ---
+
+def _search_properties_office(db: Session, term: str, limit: int) -> tuple[int, list]:
+    return _count_and_fetch(
+        db, _property_search_base_stmt(term), Property.name, limit,
+        options=(selectinload(Property.customer),),
+    )
+
+
+def _property_office_row(p: Property) -> dict:
+    sub = " · ".join(x for x in [p.customer.name, p.city] if x)
+    return {"id": p.id, "title": p.name, "subtitle": sub or None, "url": f"/properties/{p.id}"}
+
+
+# --- Dachflächen ---
+
+def _search_roof_areas(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = select(RoofArea).where(RoofArea.name.ilike(pattern))
+    return _count_and_fetch(db, stmt, RoofArea.name, limit, options=(selectinload(RoofArea.property),))
+
+
+def _roof_area_row(r: RoofArea) -> dict:
+    return {"id": r.id, "title": r.name, "subtitle": r.property.name if r.property else None, "url": f"/roof-areas/{r.id}"}
+
+
+# --- Projekte ---
+
+def _search_projects(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = (
+        select(Project)
+        .join(Customer, Project.customer_id == Customer.id)
+        .where(or_(
+            Project.project_number.ilike(pattern),
+            Project.name.ilike(pattern),
+            Customer.name.ilike(pattern),
+        ))
+    )
+    return _count_and_fetch(db, stmt, Project.id.desc(), limit, options=(selectinload(Project.customer),))
+
+
+def _project_row(p: Project) -> dict:
+    return {"id": p.id, "title": f"{p.project_number} · {p.name}", "subtitle": p.customer.name, "url": f"/projects/{p.id}"}
+
+
+# --- Angebote ---
+
+def _search_quotes(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = (
+        select(Quote)
+        .join(Project, Quote.project_id == Project.id)
+        .join(Customer, Project.customer_id == Customer.id)
+        .where(or_(
+            Quote.quote_number.ilike(pattern),
+            Quote.title.ilike(pattern),
+            Customer.name.ilike(pattern),
+        ))
+    )
+    return _count_and_fetch(
+        db, stmt, Quote.id.desc(), limit,
+        options=(selectinload(Quote.project).selectinload(Project.customer),),
+    )
+
+
+def _quote_row(q: Quote) -> dict:
+    return {"id": q.id, "title": f"{q.quote_number} · {q.title}", "subtitle": q.project.customer.name, "url": f"/quotes/{q.id}/edit"}
+
+
+# --- Aufträge (Entscheidung 3: Snapshot UND live durchsucht) ---
+
+def _search_orders(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = (
+        select(Order)
+        .join(Project, Order.project_id == Project.id)
+        .join(Customer, Project.customer_id == Customer.id)
+        .where(or_(
+            Order.order_number.ilike(pattern),
+            Order.title.ilike(pattern),
+            Order.customer_name.ilike(pattern),  # eingefroren
+            Customer.name.ilike(pattern),  # live
+        ))
+    )
+    return _count_and_fetch(db, stmt, Order.id.desc(), limit)
+
+
+def _order_row(o: Order) -> dict:
+    return {"id": o.id, "title": f"{o.order_number} · {o.title}", "subtitle": o.customer_name, "url": f"/orders/{o.id}"}
+
+
+# --- Rechnungen (Entscheidung 3: Snapshot UND live durchsucht, DER konkrete Fund) ---
+
+def _search_invoices(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = (
+        select(Invoice)
+        .join(Order, Invoice.order_id == Order.id)
+        .join(Project, Order.project_id == Project.id)
+        .join(Customer, Project.customer_id == Customer.id)
+        .where(or_(
+            Invoice.invoice_number.ilike(pattern),
+            Invoice.customer_name.ilike(pattern),  # eingefroren -- findet die alte Rechnung
+            Customer.name.ilike(pattern),  # live -- findet den heutigen Kunden
+        ))
+    )
+    return _count_and_fetch(db, stmt, Invoice.id.desc(), limit)
+
+
+def _invoice_row(i: Invoice) -> dict:
+    return {"id": i.id, "title": i.invoice_number or "Entwurf", "subtitle": i.customer_name, "url": f"/invoices/{i.id}"}
+
+
+# --- Mahnungen ---
+
+def _search_reminders(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = (
+        select(Reminder)
+        .join(Invoice, Reminder.invoice_id == Invoice.id)
+        .where(or_(
+            Reminder.reminder_number.ilike(pattern),
+            Invoice.customer_name.ilike(pattern),
+        ))
+    )
+    return _count_and_fetch(db, stmt, Reminder.id.desc(), limit, options=(selectinload(Reminder.invoice),))
+
+
+def _reminder_row(r: Reminder) -> dict:
+    return {
+        "id": r.id, "title": r.reminder_number or f"Mahnung Stufe {r.level}",
+        "subtitle": r.invoice.customer_name, "url": f"/invoices/{r.invoice_id}",
+    }
+
+
+# --- Anfragen ---
+
+def _search_inquiries(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = (
+        select(Inquiry)
+        .join(Customer, Inquiry.customer_id == Customer.id)
+        .where(or_(
+            Inquiry.inquiry_number.ilike(pattern),
+            Inquiry.title.ilike(pattern),
+            Customer.name.ilike(pattern),
+        ))
+    )
+    return _count_and_fetch(db, stmt, Inquiry.id.desc(), limit, options=(selectinload(Inquiry.customer),))
+
+
+def _inquiry_row(i: Inquiry) -> dict:
+    return {"id": i.id, "title": f"{i.inquiry_number} · {i.title}", "subtitle": i.customer.name, "url": f"/inquiries?inquiry={i.id}"}
+
+
+# --- Aufgaben (Modul "aufgabenmanagement") ---
+
+def _search_tasks(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = select(Task).where(Task.title.ilike(pattern))
+    return _count_and_fetch(db, stmt, Task.id.desc(), limit, options=(selectinload(Task.project),))
+
+
+def _task_row(t: Task) -> dict:
+    return {"id": t.id, "title": t.title, "subtitle": t.project.name if t.project else None, "url": f"/tasks?task={t.id}"}
+
+
+# --- Mitarbeiter ---
+
+def _search_employees(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = select(Employee).where(or_(
+        Employee.first_name.ilike(pattern),
+        Employee.last_name.ilike(pattern),
+        Employee.employee_number.ilike(pattern),
+    ))
+    return _count_and_fetch(db, stmt, Employee.last_name, limit)
+
+
+def _employee_row(e: Employee) -> dict:
+    return {"id": e.id, "title": f"{e.first_name} {e.last_name}", "subtitle": e.employee_number, "url": f"/master-data/employees/{e.id}/edit"}
+
+
+# --- Einsatzberichte (Modul "wartungen") ---
+
+def _search_service_reports(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = (
+        select(ServiceReport)
+        .join(Order, ServiceReport.order_id == Order.id)
+        .where(or_(
+            Order.order_number.ilike(pattern),
+            Order.customer_name.ilike(pattern),
+            ServiceReport.description.ilike(pattern),
+        ))
+    )
+    return _count_and_fetch(db, stmt, ServiceReport.id.desc(), limit, options=(selectinload(ServiceReport.order),))
+
+
+def _service_report_row(r: ServiceReport) -> dict:
+    return {
+        "id": r.id, "title": f"Bericht zu Auftrag {r.order.order_number}",
+        "subtitle": r.order.customer_name, "url": f"/orders/{r.order_id}/service-reports?report={r.id}",
+    }
+
+
+# --- Mängel (Modul "wartungen") ---
+
+def _search_findings(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = (
+        select(Finding)
+        .join(ServiceReport, Finding.service_report_id == ServiceReport.id)
+        .join(Order, ServiceReport.order_id == Order.id)
+        .where(or_(
+            Finding.description.ilike(pattern),
+            Order.order_number.ilike(pattern),
+        ))
+    )
+    return _count_and_fetch(
+        db, stmt, Finding.id.desc(), limit,
+        options=(selectinload(Finding.service_report).selectinload(ServiceReport.order),),
+    )
+
+
+def _finding_row(f: Finding) -> dict:
+    order = f.service_report.order
+    return {
+        "id": f.id, "title": f.description[:80],
+        "subtitle": f"Auftrag {order.order_number}",
+        "url": f"/orders/{order.id}/service-reports?report={f.service_report_id}",
+    }
+
+
+# --- Wartungsverträge (Modul "wartungen") ---
+
+def _search_maintenance_contracts(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = (
+        select(MaintenanceContract)
+        .join(Customer, MaintenanceContract.customer_id == Customer.id)
+        .where(or_(
+            MaintenanceContract.title.ilike(pattern),
+            Customer.name.ilike(pattern),
+        ))
+    )
+    return _count_and_fetch(db, stmt, MaintenanceContract.id.desc(), limit, options=(selectinload(MaintenanceContract.customer),))
+
+
+def _maintenance_contract_row(m: MaintenanceContract) -> dict:
+    return {"id": m.id, "title": m.title, "subtitle": m.customer.name, "url": f"/maintenance-contracts/{m.id}"}
+
+
+# --- Leistungen ---
+
+def _search_services(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = select(Service).where(or_(
+        Service.short_text.ilike(pattern),
+        Service.external_id.ilike(pattern),
+    ))
+    return _count_and_fetch(db, stmt, Service.id.desc(), limit)
+
+
+def _service_row(s: Service) -> dict:
+    return {"id": s.id, "title": (s.short_text or "").split("\n")[0][:120], "subtitle": s.external_id, "url": f"/services/{s.id}/edit"}
+
+
+# --- Materialien (reines "fetch all, cap in Python" -- bewusste Tradeoff-Entscheidung bei
+# aktueller Größenordnung, siehe CLAUDE.md; list_materials() ist die bereits bestehende,
+# etablierte Suchfunktion, keine Zweitimplementierung derselben Sache) ---
+
+def _search_materials(db: Session, term: str, limit: int) -> tuple[int, list]:
+    rows_all = list_materials(db, search=term)
+    return len(rows_all), rows_all[:limit]
+
+
+def _material_row(m) -> dict:
+    return {"id": m.id, "title": m.name, "subtitle": m.article_number, "url": f"/master-data/materials/{m.id}/edit"}
+
+
+# --- Lieferanten ---
+
+def _search_suppliers(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = select(Supplier).where(or_(
+        Supplier.name.ilike(pattern),
+        Supplier.supplier_number.ilike(pattern),
+    ))
+    return _count_and_fetch(db, stmt, Supplier.name, limit)
+
+
+def _supplier_row(s: Supplier) -> dict:
+    return {"id": s.id, "title": s.name, "subtitle": s.city, "url": f"/master-data/suppliers/{s.id}/edit"}
+
+
+# --- Die Registry selbst -- siehe tests/test_v270_office_search.py für die erzwungene
+# Vollständigkeitsprüfung (EXPECTED_OFFICE_SEARCH_KEYS), gebaut ZUSAMMEN mit dieser Liste, nicht
+# danach (ausdrückliche Vorgabe, siehe CLAUDE.md "Büro-Suche"). ---
+
+OFFICE_SEARCH_SOURCES: tuple[SearchSource, ...] = (
+    SearchSource("customers", "Kunden", OFFICE_ROLES, _search_customers, _customer_row),
+    SearchSource("properties", "Objekte", OFFICE_ROLES, _search_properties_office, _property_office_row),
+    SearchSource("roof_areas", "Dachflächen", OFFICE_ROLES, _search_roof_areas, _roof_area_row),
+    SearchSource("projects", "Projekte", OFFICE_ROLES, _search_projects, _project_row),
+    SearchSource("quotes", "Angebote", OFFICE_ROLES, _search_quotes, _quote_row),
+    SearchSource("orders", "Aufträge", OFFICE_ROLES, _search_orders, _order_row),
+    SearchSource("invoices", "Rechnungen", OFFICE_ROLES, _search_invoices, _invoice_row),
+    SearchSource("reminders", "Mahnungen", OFFICE_ROLES, _search_reminders, _reminder_row),
+    SearchSource("inquiries", "Anfragen", OFFICE_ROLES, _search_inquiries, _inquiry_row),
+    SearchSource("tasks", "Aufgaben", OFFICE_ROLES, _search_tasks, _task_row, module_key="aufgabenmanagement"),
+    SearchSource("employees", "Mitarbeiter", OFFICE_ROLES, _search_employees, _employee_row),
+    SearchSource("service_reports", "Einsatzberichte", OFFICE_ROLES, _search_service_reports, _service_report_row, module_key="wartungen"),
+    SearchSource("findings", "Mängel", OFFICE_ROLES, _search_findings, _finding_row, module_key="wartungen"),
+    SearchSource("maintenance_contracts", "Wartungsverträge", OFFICE_ROLES, _search_maintenance_contracts, _maintenance_contract_row, module_key="wartungen"),
+    SearchSource("services", "Leistungen", OFFICE_ROLES, _search_services, _service_row),
+    SearchSource("materials", "Materialien", OFFICE_ROLES, _search_materials, _material_row),
+    SearchSource("suppliers", "Lieferanten", OFFICE_ROLES, _search_suppliers, _supplier_row),
+)
+
+
+def search_office(
+    db: Session, role: str, query: str, *,
+    limit_per_type: int = OFFICE_SEARCH_RESULT_LIMIT, types: frozenset[str] | None = None,
+) -> list[dict]:
+    """Der EINE Dispatcher der Büro-Suche (siehe Moduldocstring) -- geht OFFICE_SEARCH_SOURCES
+    durch und filtert dreifach: Rolle (source.allowed_roles -- ein Monteur bekommt aus JEDER
+    Quelle nichts, da role==ROLE_FIELD in keiner allowed_roles-Menge steckt; die eigentliche,
+    primäre Sicherung ist trotzdem der Router selbst, siehe app/routers/search.py), optionaler
+    `types`-Filter (Client-Parameter, welche Datensatzarten überhaupt durchsucht werden sollen),
+    Modul-Zustand (source.module_key, falls gesetzt -- dritte, von der Rolle unabhängige Achse).
+
+    Liefert nur Gruppen mit mindestens einem Treffer (total > 0) -- eine leere Gruppe wäre auf
+    der Ergebnisseite nur Rauschen. Prüft MIN_QUERY_LENGTH EINMAL zentral, bevor irgendeine der
+    17 Quellfunktionen aufgerufen wird -- diese selbst prüfen es nicht erneut (siehe
+    Moduldocstring)."""
+    term = (query or "").strip()
+    if len(term) < MIN_QUERY_LENGTH:
+        return []
+    groups = []
+    for source in OFFICE_SEARCH_SOURCES:
+        if role not in source.allowed_roles:
+            continue
+        if types is not None and source.key not in types:
+            continue
+        if source.module_key is not None and not is_module_enabled(db, source.module_key):
+            continue
+        total, rows = source.query_fn(db, term, limit_per_type)
+        if total == 0:
+            continue
+        groups.append({
+            "key": source.key,
+            "label": source.label,
+            "total": total,
+            "hits": [source.row_fn(row) for row in rows],
+        })
+    return groups

@@ -19,7 +19,7 @@ from .routers import (
     absence_requests, account, address_import, audit, auth, catalogs, changelog, customer_documents, customers,
     dashboard, document_categories, document_email_templates, document_layout, email_settings, employees, field_view, findings, imports, inquiries, inspection_templates, invoices, labor_rate, maintenance_contracts, materials, modules, orders,
     pages, payment_terms, planning, project_documents, projects, properties, property_documents, quick_service_orders, quotes, reminders,
-    resource_planning, roof_areas, service_reports, services, settings, task_columns, tasks, tax_keys, time_backoffice, time_tracking, users,
+    resource_planning, roof_areas, search, service_reports, services, settings, task_columns, tasks, tax_keys, time_backoffice, time_tracking, users,
     work_preparation,
 )
 from .version import APP_VERSION
@@ -141,6 +141,7 @@ app.include_router(roof_areas.router)
 app.include_router(inspection_templates.router)
 app.include_router(findings.router)
 app.include_router(field_view.router)
+app.include_router(search.router)
 
 
 @app.exception_handler(HTTPException)

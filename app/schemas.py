@@ -450,6 +450,31 @@ class PropertySearchHitOut(BaseModel):
     customer_name: str
 
 
+class OfficeSearchHitOut(BaseModel):
+    """Ein einzelner Treffer der Büro-Suche (siehe app/search.py, Etappe 1 seit 1.3.66) --
+    bewusst nur vier Felder, unabhängig von der Datensatzart: id (zum Verlinken innerhalb der
+    jeweiligen Datensatzart, nicht global eindeutig über alle 17 Arten), title/subtitle (bereits
+    von der jeweiligen row_fn zusammengesetzter Anzeigetext, z. B. "AUF-2026-0012 · Dacheindeckung"),
+    url (Zielseite). KEIN Preis-/Lohn-/Einkaufsfeld -- die row_fn jeder Quelle liefert das
+    strukturell nie, response_model ist hier zusätzliche, strukturelle Absicherung, kein
+    Ersatz dafür."""
+    id: int
+    title: str
+    subtitle: str | None
+    url: str
+
+
+class OfficeSearchGroupOut(BaseModel):
+    """Eine Datensatzart-Gruppe der Büro-Suche-Ergebnisseite -- `total` ist die REALE
+    Trefferzahl (Entscheidung 4, siehe CLAUDE.md "Büro-Suche"), `hits` die auf limit_per_type
+    gekappte Liste; `total > len(hits)` ist der Fall, in dem die Oberfläche (Etappe 2)
+    "weitere anzeigen" statt Seitenzahlen zeigt."""
+    key: str
+    label: str
+    total: int
+    hits: list[OfficeSearchHitOut]
+
+
 class QuoteCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     vat_rate: Decimal = Field(default=Decimal("19.00"), ge=0, le=100)
