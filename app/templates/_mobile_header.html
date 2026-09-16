@@ -8,7 +8,12 @@
    Zeigt den angemeldeten Mitarbeiter (current_user.display_name) IMMER sichtbar -- Punkt 4:
    "ein Bericht, der versehentlich unter fremdem Namen unterschrieben wird, ist das Schlimmste,
    was hier passieren kann". Alle drei Ziele (Einsätze/Zeiterfassung/Abmelden) sind mindestens
-   44px hoch (Bestandsaufnahme: bisherige Bedienelemente maßen 28-40px, siehe CLAUDE.md). #}
+   44px hoch (Bestandsaufnahme: bisherige Bedienelemente maßen 28-40px, siehe CLAUDE.md).
+
+   "Zeiterfassung" verlinkt seit 1.3.60 unveraendert auf /time-tracking -- die Seite selbst
+   entscheidet seither rollenbewusst, welche Vorlage sie rendert (time_tracking_field.html fuer
+   `field`, siehe app/routers/pages.py::time_tracking_page() und CLAUDE.md "Zeiterfassung fuer
+   Monteure"), diese Kopfzeile muss den Pfad deshalb nicht kennen. #}
 {% set current_user = request.state.erp_user %}
 {% set path = request.url.path %}
 <style>
@@ -28,7 +33,7 @@
 </div>
 <nav class="mobile-nav">
   <a href="/vor-ort" class="{{ 'active' if path == '/vor-ort' }}">Einsätze</a>
-  <a href="/time-tracking">Zeiterfassung</a>
+  <a href="/time-tracking" class="{{ 'active' if path == '/time-tracking' }}">Zeiterfassung</a>
   <button type="button" id="mobileHeaderLogout">Abmelden</button>
 </nav>
 <script>

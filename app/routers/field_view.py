@@ -12,6 +12,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..auth import COOKIE_NAME
@@ -20,10 +21,10 @@ from ..deps import require_admin
 from ..maintenance_contracts import list_relevant_contracts_for_employee
 from ..mobile_manifest import build_icon_png, build_manifest
 from ..mobile_settings import get_or_create_mobile_settings, is_past_shift_end, mobile_settings_to_dict, update_mobile_settings
-from ..models import AppUser
+from ..models import AppUser, Order
 from ..modules import is_module_enabled
 from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
-from ..planning import list_todays_assignments_for_employee
+from ..planning import list_field_bookable_order_ids, list_todays_assignments_for_employee
 from ..schemas import FieldMaintenancePropertyGroupOut, MobileSettingsOut, MobileSettingsUpdate
 from ..service_reports import list_draft_reports_for_employee
 
@@ -75,6 +76,35 @@ def get_field_view_maintenance_contracts(request: Request, db: Session = Depends
     if user is None or user.employee_id is None:
         return []
     return list_relevant_contracts_for_employee(db, user.employee_id)
+
+
+@router.get("/api/field-view/time-tracking/orders")
+def get_field_view_time_tracking_orders(request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    """Auftragsauswahl für die reduzierte Zeiterfassung auf /vor-ort (seit 1.3.60, siehe
+    CLAUDE.md „Zeiterfassung für Monteure"). Löst den Mitarbeiter wie GET /api/field-view/today
+    ausschließlich über request.state.erp_user auf -- kein employee_id-Parameter, ein Monteur
+    kann hierüber nie die Auftragsliste eines Kollegen abrufen. Reines Anzeige-Dict statt eines
+    Pydantic-response_model (Muster list_relevant_contracts_for_employee() oben) -- die drei
+    Felder entsprechen exakt dem, was time_tracking_context() (app/time_tracking.py) für die
+    volle Seite ohnehin schon liefert, kein neues Anzeigeformat."""
+    user = getattr(request.state, "erp_user", None)
+    if user is None or user.employee_id is None:
+        return []
+    order_ids = list_field_bookable_order_ids(db, user.employee_id)
+    if not order_ids:
+        return []
+    rows = db.scalars(
+        select(Order)
+        .where(
+            Order.id.in_(order_ids),
+            or_(Order.status.is_(None), func.lower(func.coalesce(Order.status, "")).not_in(["abgeschlossen", "storniert"])),
+        )
+        .order_by(Order.order_number.desc())
+    ).all()
+    return [
+        {"id": o.id, "order_number": o.order_number, "customer_name": o.customer_name, "property_address": o.property_address}
+        for o in rows
+    ]
 
 
 @router.get("/api/mobile-settings", response_model=MobileSettingsOut)

@@ -283,7 +283,18 @@ def planning_page(request: Request, _role: AppUser = _role_dep):
 
 @router.get("/time-tracking", response_class=HTMLResponse)
 def time_tracking_page(request: Request, _role: AppUser = _any_role_dep):
-    return templates.TemplateResponse(request=request, name="time_tracking.html", context={})
+    """Seit 1.3.60 rollenbewusst statt einer festen Vorlage (siehe CLAUDE.md „Zeiterfassung für
+    Monteure"): dieselbe URL rendert für `field` die reduzierte time_tracking_field.html
+    (Muster _mobile_header.html/vor_ort.html) statt der vollen, Sidebar-getragenen
+    time_tracking.html -- bewusst KEINE zweite Route (z. B. /vor-ort/zeit), damit die Weiche an
+    der Rolle hängt, nicht am Weg: _sidebar.html/_mobile_header.html/service_reports.html
+    verlinken alle unverändert auf /time-tracking, ein Büro-Konto, das testweise als `field`
+    unterwegs ist (oder umgekehrt), sieht bei JEDEM Aufruf -- Sidebar-Link, altes Lesezeichen,
+    eingetippte Adresse, ?order_id=-Link von service_reports.html -- exakt das, was die aktuelle
+    Sitzungsrolle vorsieht. `_role` ist das AppUser-Objekt aus require_role() (siehe
+    app/permissions.py), keine zweite Anfrage an request.state nötig."""
+    template_name = "time_tracking_field.html" if _role.role == ROLE_FIELD else "time_tracking.html"
+    return templates.TemplateResponse(request=request, name=template_name, context={})
 
 
 @router.get("/time-backoffice", response_class=HTMLResponse)

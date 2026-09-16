@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DACHKONZEPTE ERP – Zeiterfassung</title>
+  {#
+    time_tracking_field.html -- reduzierte Zeiterfassung fuer die Rolle `field` (seit 1.3.60,
+    siehe CLAUDE.md "Zeiterfassung fuer Monteure"). Wird ausschliesslich von
+    app/routers/pages.py::time_tracking_page() gerendert, wenn die aktuelle Sitzungsrolle
+    `field` ist -- dieselbe URL /time-tracking zeigt fuer office/admin unveraendert
+    time_tracking.html. Muster _mobile_header.html/vor_ort.html: keine _sidebar.html, grosse
+    Bedienelemente (>=44px), self-scoped API-Aufrufe (kein employee_id-Parameter noetig, die
+    bestehenden Endpunkte in app/routers/time_tracking.py loesen `field` immer auf die eigene
+    Person auf).
+
+    Bewusst NICHT enthalten: Gruppenbuchung (Betreibervorgabe -- ein Monteur bucht nur fuer
+    sich, siehe CLAUDE.md "Zeiterfassung fuer Monteure" fuer den als offen festgehaltenen
+    Kolonnenfuehrer-Punkt), Mitarbeiterauswahl (immer die eigene Person), LV-Position und
+    Pause-Minuten in der Nachtrag-Maske (vom Betreiber ausdruecklich nicht in die abgespeckte
+    Variante aufgenommen -- Auftrag/Datum/Zeitraum-oder-Dauer/Zeitart/Notiz reichen).
+  #}
+  <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--success:#1f8a5f;--success-soft:#eaf5ef;--travel-btn:#3d6a8c;--workshop-btn:#7a5a34;--other-btn:#5c6660;color:var(--ink);background:var(--bg)}
+    :root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--success:#4ade95;--success-soft:#173226}
+    *{box-sizing:border-box}body{margin:0}
+    main{max-width:720px;margin:0 auto;padding:16px 14px 60px}
+    h2{font-size:15px;margin:0 0 10px;color:var(--ink)}
+    .muted{color:var(--muted)}.small{font-size:12px}
+    .card{background:var(--card);border:1px solid var(--line);padding:14px 16px;margin-bottom:12px}
+    .date-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+    .field{margin-bottom:10px}.field:last-child{margin-bottom:0}
+    .field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+    select,input,textarea{width:100%;padding:10px 11px;border:1px solid var(--field-border);font:inherit;font-size:14.5px;background:var(--card);color:var(--ink);min-height:44px}
+    textarea{min-height:60px;resize:vertical}
+    button{border:1px solid var(--accent);padding:11px 13px;background:var(--accent);color:#fff;font-weight:650;font-size:14px;cursor:pointer;min-height:44px}
+    .secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}
+    .danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}
+    .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+    .tiles button{background:var(--soft);color:var(--ink);border:1px solid var(--line);min-height:52px;font-weight:700}
+    .tiles button.travel{border-color:var(--travel-btn)}
+    .tiles button.workshop{border-color:var(--workshop-btn)}
+    .tiles button.selected{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .timer-time{font-size:30px;font-weight:900;letter-spacing:.02em;margin:6px 0 2px}
+    .timer-context{font-weight:700}
+    .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+    .metric{background:var(--soft);padding:10px}
+    .metric small{display:block;text-transform:uppercase;color:var(--muted);font-size:9px;font-weight:700}
+    .metric b{font-size:18px}
+    .entries{display:grid;gap:8px}
+    .entry{border:1px solid var(--line);padding:10px;display:flex;justify-content:space-between;align-items:start;gap:8px}
+    .entry-type{font-weight:800}
+    .entry-hours{font-weight:900;font-size:15.5px;white-space:nowrap}
+    .entry-actions{display:flex;gap:5px;flex-shrink:0}
+    .entry-actions button{padding:6px 9px;font-size:11.5px;min-height:36px}
+    .empty{padding:18px;text-align:center;color:var(--muted);border:1px dashed var(--field-border);font-size:13px}
+    .error{color:var(--danger)}
+    .status{font-size:12.5px;min-height:18px;margin-top:7px;color:var(--muted);font-weight:600}
+    .modal{border:1px solid var(--line);width:min(480px,calc(100% - 20px));padding:0;box-shadow:0 20px 70px rgba(0,0,0,.35);background:var(--card);color:var(--ink)}
+    .modal::backdrop{background:rgba(7,17,11,.6)}
+    .modal-body{padding:16px}
+    .modal-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:12px}
+    .mode-toggle{display:flex;gap:8px;margin-bottom:10px}
+    .mode-toggle button{flex:1;background:var(--soft);color:var(--ink);border:1px solid var(--line);min-height:40px;font-size:13px}
+    .mode-toggle button.selected{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .range-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .request-row{border:1px solid var(--line);padding:9px;margin-top:8px}
+    .request-head{display:flex;justify-content:space-between;gap:8px;align-items:start}
+    .pill{display:inline-block;background:var(--soft);border:1px solid var(--line);padding:2px 7px;font-size:10.5px;font-weight:700}
+    [hidden]{display:none!important}
+  </style>
+</head>
+<body>
+{% include "_mobile_header.html" %}
+<main>
+  <div id="loadWarning" class="card error" hidden></div>
+
+  <div id="activeCard" class="card" hidden>
+    <div class="muted small">Laufende Zeiterfassung</div>
+    <div id="activeTime" class="timer-time">00:00:00</div>
+    <div id="activeContext" class="timer-context"></div>
+    <div class="field" style="margin-top:12px">
+      <label>Zusätzliche Pause beim Stoppen (Min.)</label>
+      <input id="stopBreak" type="number" min="0" step="5" value="0">
+    </div>
+    <button class="danger" style="width:100%" id="stopBtn">■ Zeit stoppen</button>
+  </div>
+
+  <div id="quickCard" class="card" hidden>
+    <h2>Schnell starten</h2>
+    <div class="field"><label>Auftrag</label><select id="quickOrder"></select></div>
+    <div id="quickTiles" class="tiles" style="margin-top:4px"></div>
+    <div id="quickStatus" class="status"></div>
+  </div>
+
+  <div class="card">
+    <h2>Heute</h2>
+    <div class="metrics">
+      <div class="metric"><small>Produktiv</small><b id="todayProductive">0,00 h</b></div>
+      <div class="metric"><small>Fahrzeit</small><b id="todayTravel">0,00 h</b></div>
+      <div class="metric"><small>Gesamt</small><b id="todayTotal">0,00 h</b></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="date-head"><h2>Meine Buchungen</h2><button class="secondary" id="openManualBtn" hidden>+ Nachtragen</button></div>
+    <div id="entriesList" class="entries"></div>
+  </div>
+
+  <div class="card">
+    <div class="date-head"><h2>Abwesenheit</h2><button class="secondary" id="openAbsenceBtn">+ Antrag</button></div>
+    <div class="muted small">Urlaub oder Krankheit beantragen, eigene Anträge einsehen.</div>
+  </div>
+</main>
+
+<dialog id="manualDialog" class="modal">
+  <div class="modal-body">
+    <h2 id="manualTitle">Buchung nachtragen</h2>
+    <div class="field"><label>Auftrag</label><select id="manualOrder"></select></div>
+    <div class="field"><label>Datum</label><input id="manualDate" type="date"></div>
+    <div class="mode-toggle">
+      <button type="button" id="modeRangeBtn">Von / Bis</button>
+      <button type="button" id="modeDurationBtn">Dauer</button>
+    </div>
+    <div id="rangeFields" class="field">
+      <div class="range-fields">
+        <div><label>Von</label><input id="manualFrom" type="time"></div>
+        <div><label>Bis</label><input id="manualTo" type="time"></div>
+      </div>
+    </div>
+    <div id="durationField" class="field" hidden>
+      <label>Dauer (Stunden)</label>
+      <input id="manualDuration" type="number" min="0.25" max="24" step="0.25" value="1">
+    </div>
+    <div class="field"><label>Zeitart</label><div id="manualTiles" class="tiles"></div></div>
+    <div class="field"><label>Notiz</label><input id="manualNotes" placeholder="optional"></div>
+    <div id="manualStatus" class="status"></div>
+    <div class="modal-actions">
+      <button class="secondary" id="manualCancelBtn">Abbrechen</button>
+      <button id="manualSaveBtn">Speichern</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="absenceDialog" class="modal">
+  <div class="modal-body">
+    <h2>Abwesenheit beantragen</h2>
+    <div class="field"><label>Art</label><select id="absenceType"></select></div>
+    <div class="range-fields">
+      <div class="field"><label>Von</label><input id="absenceStart" type="date"></div>
+      <div class="field"><label>Bis</label><input id="absenceEnd" type="date"></div>
+    </div>
+    <div class="field"><label>Notiz / Grund</label><textarea id="absenceNotes"></textarea></div>
+    <div id="absenceStatus" class="status"></div>
+    <div class="modal-actions">
+      <button class="secondary" id="absenceCancelBtn">Schließen</button>
+      <button id="absenceSubmitBtn">Antrag senden</button>
+    </div>
+    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
+    <h2>Meine Anträge</h2>
+    <div id="absenceListRows"></div>
+  </div>
+</dialog>
+
+<script>
+const $=id=>document.getElementById(id);
+const params=new URLSearchParams(location.search),initialOrderId=Number(params.get('order_id')||0);
+const today=()=>new Date().toISOString().slice(0,10);
+const fmtDate=s=>s?new Date(s+'T12:00:00').toLocaleDateString('de-DE'):'—';
+const num=x=>Number(x||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+async function api(url,opt={}){const r=await fetch(url,opt);let data=null;try{data=await r.json()}catch{}if(!r.ok)throw new Error(data?.detail||`HTTP ${r.status}`);return data}
+async function safeOptionGroup(key,fallback){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:fallback}}}
+
+let orders=[],types=[],absenceTypes=[],timeSettings={default_break_minutes:0,allow_manual_entries:true};
+let active=null,tick=null,editingId=null,manualType='site',manualMode='range',myEmployeeId=null;
+const manualDialog=$('manualDialog'),absenceDialog=$('absenceDialog');
+
+function typeLabel(v){return types.find(x=>x.value===v)?.label||({site:'Baustellenzeit',travel:'Fahrzeit',workshop:'Werkstattzeit',other:'Sonstige'}[v]||v)}
+function typeCssClass(v){return v==='travel'?'travel':v==='workshop'?'workshop':''}
+function orderOptions(selected){return '<option value="">— Auftrag wählen —</option>'+orders.map(o=>`<option value="${o.id}" ${String(o.id)===String(selected)?'selected':''}>${esc(o.order_number)}${o.customer_name?' · '+esc(o.customer_name):''}${o.property_address?' · '+esc(o.property_address.replace(/\n/g,', ')):''}</option>`).join('')}
+
+function renderQuickTiles(){
+  $('quickTiles').innerHTML=types.map(t=>`<button type="button" class="${typeCssClass(t.value)}" data-value="${esc(t.value)}">▶ ${esc(t.label)}</button>`).join('');
+  $('quickTiles').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>startQuick(b.dataset.value)));
+}
+function renderManualTiles(){
+  $('manualTiles').innerHTML=types.map(t=>`<button type="button" class="${typeCssClass(t.value)}${t.value===manualType?' selected':''}" data-value="${esc(t.value)}">${esc(t.label)}</button>`).join('');
+  $('manualTiles').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{manualType=b.dataset.value;renderManualTiles()}));
+}
+
+async function loadActive(){
+  active=await api('/api/time-entries/active');
+  $('activeCard').hidden=!active;
+  $('quickCard').hidden=!!active;
+  if(tick){clearInterval(tick);tick=null}
+  if(active){
+    $('activeContext').textContent=`${active.order_number||''}${active.project_name?' · '+active.project_name:''} · ${typeLabel(active.entry_type)}`;
+    updateClock();tick=setInterval(updateClock,1000);
+  }
+}
+function updateClock(){if(!active?.started_at)return;const sec=Math.max(0,(Date.now()-new Date(active.started_at).getTime())/1000),h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=Math.floor(sec%60);$('activeTime').textContent=[h,m,s].map(x=>String(x).padStart(2,'0')).join(':')}
+
+async function startQuick(type){
+  const order=Number($('quickOrder').value||0);
+  if(!order){$('quickStatus').textContent='Bitte Auftrag auswählen.';return}
+  $('quickStatus').textContent='';
+  try{
+    // employee_id ist im Schema Pflicht (TimeTimerStart), obwohl kein Mitarbeiterfeld sichtbar
+    // ist -- der Router ueberschreibt einen fremden Wert ohnehin auf die eigene Person
+    // (_time_entry_employee_for_request()), das Feld muss aber im Request stehen, sonst lehnt
+    // Pydantic die Anfrage schon vor dem Router mit 422 ab.
+    await api('/api/time-entries/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({employee_id:myEmployeeId,order_id:order,entry_type:type})});
+    await loadActive();
+  }catch(e){$('quickStatus').textContent='Fehler: '+e.message}
+}
+async function stopCurrent(){
+  if(!active)return;
+  try{
+    await api(`/api/time-entries/${active.id}/stop`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({break_minutes:Number($('stopBreak').value||0)})});
+    $('stopBreak').value=0;await loadActive();await loadEntries();
+  }catch(e){alert(e.message)}
+}
+
+function renderEntry(e){
+  return `<div class="entry"><div><div class="entry-type">${esc(typeLabel(e.entry_type))}</div><div class="small muted">${fmtDate(e.work_date)} · ${esc(e.order_number||'')}</div>${e.notes?`<div class="small muted">${esc(e.notes)}</div>`:''}</div><div style="text-align:right"><div class="entry-hours">${num(e.hours)} h</div><div class="entry-actions" style="margin-top:6px">${timeSettings.allow_manual_entries?`<button class="secondary" onclick="editEntry(${e.id})">Ändern</button><button class="danger" onclick="deleteEntry(${e.id})">×</button>`:''}</div></div></div>`;
+}
+let allEntries=[];
+async function loadEntries(){
+  const from=new Date();from.setDate(from.getDate()-14);
+  const rows=await api(`/api/time-entries?start_date=${from.toISOString().slice(0,10)}&end_date=${today()}`);
+  allEntries=rows.filter(e=>e.status==='booked');
+  const todayRows=allEntries.filter(e=>e.work_date===today());
+  const prod=todayRows.filter(e=>e.counts_as_productive).reduce((a,b)=>a+Number(b.hours),0);
+  const travel=todayRows.filter(e=>e.entry_type==='travel').reduce((a,b)=>a+Number(b.hours),0);
+  const total=todayRows.reduce((a,b)=>a+Number(b.hours),0);
+  $('todayProductive').textContent=num(prod)+' h';$('todayTravel').textContent=num(travel)+' h';$('todayTotal').textContent=num(total)+' h';
+  $('entriesList').innerHTML=allEntries.length?allEntries.map(renderEntry).join(''):'<div class="empty">Noch keine Buchungen in den letzten 14 Tagen.</div>';
+}
+
+function setMode(mode){
+  manualMode=mode;
+  $('modeRangeBtn').classList.toggle('selected',mode==='range');
+  $('modeDurationBtn').classList.toggle('selected',mode==='duration');
+  $('rangeFields').hidden=mode!=='range';
+  $('durationField').hidden=mode!=='duration';
+}
+function openManual(row=null){
+  editingId=row?.id||null;
+  $('manualTitle').textContent=row?'Buchung ändern':'Buchung nachtragen';
+  $('manualOrder').innerHTML=orderOptions(row?.order_id||initialOrderId||null);
+  $('manualDate').value=row?.work_date||today();
+  manualType=row?.entry_type||types.find(t=>t.is_default)?.value||'site';
+  renderManualTiles();
+  setMode('duration');
+  $('manualDuration').value=row?.hours||1;
+  $('manualFrom').value='';$('manualTo').value='';
+  $('manualNotes').value=row?.notes||'';
+  $('manualStatus').textContent='';
+  manualDialog.showModal();
+}
+function editEntry(id){const e=allEntries.find(x=>x.id===id);if(e)openManual(e)}
+function hoursFromRange(from,to){
+  if(!from||!to)return null;
+  const [fh,fm]=from.split(':').map(Number),[th,tm]=to.split(':').map(Number);
+  const start=fh*60+fm,end=th*60+tm;
+  if(end<=start)return null;
+  return Math.round(((end-start)/60)*100)/100;
+}
+async function saveManual(){
+  const orderId=Number($('manualOrder').value||0);
+  if(!orderId){$('manualStatus').textContent='Bitte Auftrag auswählen.';return}
+  let hours=null;
+  if(manualMode==='range'){
+    hours=hoursFromRange($('manualFrom').value,$('manualTo').value);
+    if(hours===null){$('manualStatus').textContent='Bitte Von und Bis angeben -- Bis muss nach Von liegen.';return}
+  }else{
+    hours=Number($('manualDuration').value||0);
+    if(!(hours>0)){$('manualStatus').textContent='Bitte eine Dauer größer als 0 angeben.';return}
+  }
+  const body={employee_id:myEmployeeId,order_id:orderId,work_date:$('manualDate').value,entry_type:manualType,hours,break_minutes:timeSettings.default_break_minutes||0,notes:$('manualNotes').value.trim()||null};
+  try{
+    await api(editingId?`/api/time-entries/${editingId}`:'/api/time-entries',{method:editingId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    manualDialog.close();await loadEntries();
+  }catch(e){$('manualStatus').textContent='Fehler: '+e.message}
+}
+async function deleteEntry(id){
+  if(!confirm('Zeitbuchung wirklich löschen?'))return;
+  try{await api(`/api/time-entries/${id}`,{method:'DELETE'});await loadEntries()}catch(e){alert(e.message)}
+}
+
+function absenceStatusLabel(s){return ({pending:'Offen',approved:'Genehmigt',rejected:'Abgelehnt',cancelled:'Zurückgezogen'}[s]||s)}
+async function loadAbsenceRows(){
+  try{
+    const rows=await api('/api/absence-requests');
+    $('absenceListRows').innerHTML=rows.length?rows.map(r=>`<div class="request-row"><div class="request-head"><div><b>${esc(r.absence_type)}</b><div class="small muted">${fmtDate(r.start_date)}–${fmtDate(r.end_date)}</div></div><span class="pill">${esc(absenceStatusLabel(r.status))}</span></div>${r.notes?`<div class="small muted" style="margin-top:5px">${esc(r.notes)}</div>`:''}${r.review_notes?`<div class="small" style="margin-top:5px">Freigabe: ${esc(r.review_notes)}</div>`:''}${r.status==='pending'?`<div style="margin-top:7px"><button class="danger" onclick="cancelAbsence(${r.id})">Zurückziehen</button></div>`:''}</div>`).join(''):'<div class="empty">Keine Abwesenheitsanträge vorhanden.</div>';
+  }catch(e){$('absenceListRows').innerHTML=`<div class="empty">${esc(e.message)}</div>`}
+}
+function openAbsence(){
+  $('absenceType').innerHTML=absenceTypes.map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('');
+  $('absenceStart').value=today();$('absenceEnd').value=today();$('absenceNotes').value='';$('absenceStatus').textContent='';
+  loadAbsenceRows();
+  absenceDialog.showModal();
+}
+async function submitAbsence(){
+  try{
+    const body={employee_id:myEmployeeId,absence_type:$('absenceType').value,start_date:$('absenceStart').value,end_date:$('absenceEnd').value,notes:$('absenceNotes').value.trim()||null};
+    await api('/api/absence-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    $('absenceStatus').textContent='Antrag wurde gesendet.';await loadAbsenceRows();
+  }catch(e){$('absenceStatus').textContent='Fehler: '+e.message}
+}
+async function cancelAbsence(id){
+  if(!confirm('Abwesenheitsantrag wirklich zurückziehen?'))return;
+  try{await api(`/api/absence-requests/${id}`,{method:'DELETE'});await loadAbsenceRows()}catch(e){alert(e.message)}
+}
+
+function showLoadWarning(message){const el=$('loadWarning');if(!message){el.hidden=true;el.textContent='';return}el.hidden=false;el.textContent=message}
+
+async function init(){
+  const auth=await api('/api/auth/status');
+  if(!auth.authenticated||!auth.user?.employee_id){
+    showLoadWarning('Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. Bitte unter Einstellungen → Benutzer & Zugriff einen Mitarbeiter zuordnen lassen.');
+    return;
+  }
+  myEmployeeId=auth.user.employee_id;
+  try{timeSettings=await api('/api/time-tracking/settings')}catch(e){console.warn('Zeiterfassungs-Einstellungen konnten nicht geladen werden',e)}
+  $('openManualBtn').hidden=!timeSettings.allow_manual_entries;
+  try{orders=await api('/api/field-view/time-tracking/orders')}catch(e){orders=[]}
+  const defaultTypes=[{label:'Baustellenzeit',value:'site',active:true,is_default:true},{label:'Fahrzeit',value:'travel',active:true},{label:'Werkstattzeit',value:'workshop',active:true},{label:'Sonstige Arbeitszeit',value:'other',active:true}];
+  const tg=await safeOptionGroup('time_entry_types',defaultTypes);
+  types=(tg.options||defaultTypes).filter(x=>x.active!==false);
+  const abg=await safeOptionGroup('absence_types',[{label:'Urlaub',value:'Urlaub',active:true,is_default:true},{label:'Krankheit',value:'Krankheit',active:true}]);
+  absenceTypes=(abg.options||[]).filter(x=>x.active!==false);
+
+  $('quickOrder').innerHTML=orderOptions(initialOrderId||null);
+  if(!orders.length)showLoadWarning('Keine eigenen Aufträge im Zeitraum gefunden. Ist ein Einsatz nicht dabei, wenden Sie sich an das Büro.');
+  renderQuickTiles();
+  $('stopBtn').addEventListener('click',stopCurrent);
+  $('openManualBtn').addEventListener('click',()=>openManual());
+  $('manualCancelBtn').addEventListener('click',()=>manualDialog.close());
+  $('manualSaveBtn').addEventListener('click',saveManual);
+  $('modeRangeBtn').addEventListener('click',()=>setMode('range'));
+  $('modeDurationBtn').addEventListener('click',()=>setMode('duration'));
+  $('openAbsenceBtn').addEventListener('click',openAbsence);
+  $('absenceCancelBtn').addEventListener('click',()=>absenceDialog.close());
+  $('absenceSubmitBtn').addEventListener('click',submitAbsence);
+
+  await loadActive();
+  await loadEntries();
+}
+init().catch(e=>{
+  if(String(e.message||'').includes('401')){location.href='/login?next='+encodeURIComponent(location.pathname);return}
+  document.body.insertAdjacentHTML('beforeend',`<div style="padding:20px;color:var(--danger)">Fehler: ${esc(e.message)}</div>`);
+});
+</script>
+</body>
+</html>

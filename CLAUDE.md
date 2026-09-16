@@ -20,13 +20,13 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.59** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.60** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf weiterhin `7a2b4e9f1c3d` ("app user role office field") -- keine der
-  Versionen 1.3.52 bis 1.3.59 brauchte eine eigene Migration (reine Rollen-Gate-/Response-Schema-/
+  Versionen 1.3.52 bis 1.3.60 brauchte eine eigene Migration (reine Rollen-Gate-/Response-Schema-/
   Objekt-Filterungs-Umstellungen auf bereits bestehenden Endpunkten und Tabellen), siehe
   Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
   eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1234 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1246 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
   dort), zuletzt am 16.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -769,6 +769,24 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   dieser zweiten Lücke ("kein Datenleck, so akzeptiert") ist damit überholt und aus CLAUDE.md
   entfernt. Details im Abschnitt "Rechtekonzept" → "Berichts-Eigentümerschaft" bzw. "Fund:
   fremde Wartung per geratener Vertrags-ID" unten.
+- Neu seit 1.3.60: **Zeiterfassung für Monteure -- reduzierte Ansicht statt der vollen,
+  sidebar-getragenen Seite.** `/time-tracking` rendert seit dieser Version rollenbewusst zwei
+  verschiedene Vorlagen unter derselben URL: `time_tracking_field.html` (neu, im Stil von
+  `_mobile_header.html`/`vor_ort.html`, keine Gruppenbuchung, keine Mitarbeiterauswahl) für
+  `field`, unverändert `time_tracking.html` für Büro/Admin -- die Weiche hängt dafür bewusst an
+  der Rolle (`app/routers/pages.py::time_tracking_page()`), nicht an einer zweiten Route, damit
+  alle drei bestehenden Linkquellen (`_sidebar.html`, `_mobile_header.html`,
+  `service_reports.html`s `#timeLink`) unverändert bleiben konnten und die volle Seite für
+  `field` strukturell unerreichbar wird, unabhängig vom Weg dorthin. Die Auftragsauswahl der
+  reduzierten Nachtrag-/Schnellstart-Maske nutzt ein neues `list_field_bookable_order_ids()`
+  (`app/planning.py`, dasselbe ±14-Tage-Fenster wie der 1.3.58-Wartungsfinder) -- dabei ein
+  echter Fund: ein per "Wartung durchführen" gestarteter, ungeplanter Auftrag hat gar keine
+  `WorkPreparation` und wäre in jedem Zeitfenster unsichtbar geblieben, unabhängig von dessen
+  Größe; behoben durch eine ungefensterte Ergänzung um selbst angelegte Berichte (derselbe zweite
+  Weg wie `field_may_access_order()`). Gruppenbuchung ist für Monteure vollständig entfernt
+  (Betreibervorgabe: "ein Monteur bucht nur für sich") -- ob künftig ein Kolonnenführer
+  gruppenbuchen darf, ist als offener Punkt festgehalten, siehe „Bekannte, bewusst offene
+  Punkte". Details im Abschnitt "Rechtekonzept" → "Zeiterfassung für Monteure" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -5871,6 +5889,104 @@ trägt und die Regel für alle Kind-Objekte eines Berichts einheitlich gelten so
 zweiten Durchlauf desselben Angriffstests bestätigt: 0 "durchgelassen", inklusive PUT/DELETE/
 sign auf einem fremden Bericht.
 
+### Zeiterfassung für Monteure (seit 1.3.60)
+
+Bis dahin führte "Zeiterfassung" auf `/vor-ort` nur als Link auf die volle, sidebar-getragene
+`time_tracking.html` -- für `field` seit der Seiten-Klassifizierung (1.3.57) zwar erreichbar
+(eine der vier freigegebenen Seiten), aber mit der kompletten Büro-Oberfläche samt
+Mitarbeiter-Umschalter-Optik und Gruppenbuchung, nicht der schmalen, handschuhtauglichen
+Bedienung des restlichen `/vor-ort`. Befund vor dem Bauen (siehe eigener Befund-Austausch): die
+API-Endpunkte in `app/routers/time_tracking.py`/`absence_requests.py` waren bereits vollständig
+self-scoped (Rechtekonzept Teil B, 1.3.55/56) -- die Reduktion ist eine reine Darstellungsfrage,
+keine Zugriffsfrage; `time_backoffice.html` (admin-only) bleibt die einzige echte Büro-Funktion
+in diesem Bereich.
+
+**Drei Betreiberentscheidungen, umgesetzt:**
+
+1. **Manuelle Buchung/Nachtrag bleibt, aber abgespeckt.** Ein Monteur braucht sie ("merkt abends,
+   dass er eine Stunde vergessen hat, oder korrigiert eine falsche"), aber nur für die eigenen
+   Buchungen -- das leistete `_time_entry_employee_for_request()`/`_time_entry_can_edit()`
+   bereits vorher, unverändert wiederverwendet. Feldliste in der neuen Maske: Auftrag (aus den
+   eigenen Einsätzen), Datum, Von-Bis **oder** Dauer (Umschalter, Stunden werden clientseitig aus
+   der Uhrzeitspanne berechnet -- `POST /api/time-entries` kennt in seinem Schema
+   (`TimeEntryManualCreate`) gar kein `started_at`/`ended_at`, nur `hours`, anders als
+   `create_manual_entry()` selbst, das beides könnte), Zeitart, Notiz. Kein Mitarbeiterfeld (immer
+   die eigene Person -- `employee_id` wird trotzdem im Request mitgeschickt, da das Schema es
+   verlangt, nur eben ohne sichtbares Feld, siehe Code-Kommentar in `time_tracking_field.html`),
+   keine LV-Position, keine Pause-Minuten (nutzt `TimeTrackingSettings.default_break_minutes`
+   still im Hintergrund, sofern konfiguriert). **Bekannter, bewusst nicht behobener Randfall**: ist
+   `require_order_item`/`require_activity` im Backoffice aktiviert, verlangt der Server ein Feld,
+   das die reduzierte Maske gar nicht anbietet -- die Anfrage schlägt dann mit einer klaren,
+   bereits vorhandenen deutschen Fehlermeldung fehl (kein Absturz), aber ohne Weg, sie in dieser
+   Maske zu beheben. Für diese Installation nicht relevant (beide Schalter stehen auf Default
+   `False`), nicht eigens abgefangen.
+
+2. **Auftragsauswahl: dasselbe ±14-Tage-Fenster wie der 1.3.58-Wartungsfinder, plus ein dabei
+   gefundener echter Fund.** Neue Funktion `app/planning.py::list_field_bookable_order_ids()`
+   nutzt exakt dieselbe, jetzt in `_relevant_preparation_ids_for_employee()` ausgelagerte
+   Zeitfenster-Logik wie `list_field_relevant_property_ids()` (1.3.58) -- "was dort als 'meine
+   Objekte' gilt, gilt hier als 'meine Aufträge'". Vor dem Bauen geprüft (Betreibervorgabe: "das
+   Fenster muss den laufenden Einsatz sicher erfassen"): ein erst gestern zugewiesener, heute
+   bearbeiteter Auftrag fällt zuverlässig ins Fenster, SOFERN die Arbeitsvorbereitung überhaupt
+   ein Datum trägt (echter `PlanningSlot` oder `planned_start`/`-end`) -- für einen für heute
+   terminierten Einsatz ist das bei jeder sinnvollen Fenstergröße der Fall, das war nie das
+   eigentliche Risiko.
+
+   Das eigentliche, von der Fenstergröße UNABHÄNGIGE Risiko: ein per "Wartung durchführen"
+   (`create_maintenance_visit()`, seit 1.3.56 auch für Monteure) gestarteter, ungeplanter Auftrag
+   hat GAR KEINE `WorkPreparation` -- `create_quick_service_order()` legt bewusst keine an (kein
+   Plantafel-Bezug). Ein solcher Auftrag taucht in `employee_assigned_order_ids()` und damit in
+   keinem Zeitfenster jemals auf, unabhängig von dessen Größe -- ein zu enges Fenster hätte das
+   nicht gelöst, ein beliebig großes auch nicht. `list_field_bookable_order_ids()` ergänzt deshalb
+   UNGEFENSTERT jeden Auftrag, zu dem der Monteur bereits selbst einen `ServiceReport` angelegt
+   hat (`created_by_employee_id`) -- exakt der zweite der beiden Wege, über die
+   `field_may_access_order()` (`app/orders.py`) ohnehin schon Zugriff gewährt. Ohne diese Ergänzung
+   hätte ein Monteur nach "Wartung durchführen" zwar seinen Bericht öffnen, aber nie Zeit auf den
+   dafür entstandenen Auftrag buchen können -- exakt die Divergenz, die `field_may_access_order()`
+   an anderer Stelle bereits ausdrücklich vermeidet.
+
+   `GET /api/field-view/time-tracking/orders` (`app/routers/field_view.py`) liefert die
+   aufgelöste Liste (id/order_number/customer_name/property_address, dieselben Felder wie
+   `time_tracking_context()` für die volle Seite) -- löst den Mitarbeiter ausschließlich über
+   `request.state.erp_user` auf, kein `employee_id`-Parameter, bewusst eine leere Liste statt
+   eines Fehlers ohne Mitarbeiterverknüpfung (Muster `GET /api/field-view/maintenance-contracts`).
+
+3. **Gruppenbuchung komplett entfernt, Abwesenheitsantrag bleibt.** Ein Monteur bucht nur für
+   sich -- die neue `time_tracking_field.html` enthält keinerlei Gruppenbuchungs-Markup, keinen
+   Aufruf von `/api/time-entry-groups*`. **Offener Punkt, hier bewusst festgehalten (Betreiber-
+   vorgabe):** in der Praxis bucht eine Kolonne trotzdem oft gemeinsam -- dafür bleibt vorerst nur
+   der Weg über die volle `time_tracking.html` (Büro/Admin). Ob und wie ein Kolonnenführer künftig
+   selbst gruppenbuchen darf (z. B. eine vierte Rollenausprägung oder ein Team-Attribut
+   "Kolonnenführer"), ist eine eigene, spätere Entscheidung -- nicht Teil dieser Version.
+   Abwesenheitsanträge dagegen sind unverändert self-service (siehe `absence_requests.py`, bereits
+   seit dem Rechtekonzept korrekt eingegrenzt) und stehen in der reduzierten Ansicht wie in der
+   vollen.
+
+**Die Weiche hängt an der Rolle, nicht am Weg.** Auf ausdrückliche Vorgabe geprüft: es gibt DREI
+unabhängige Linkquellen zu `/time-tracking` (`_sidebar.html`, `_mobile_header.html`,
+`service_reports.html`s `#timeLink` mit `?order_id=`) -- eine Lösung über eine zweite Route (z. B.
+`/vor-ort/zeit`) hätte alle drei einzeln anpassen müssen und wäre bei jeder künftigen, neuen
+Verlinkung erneut anfällig. Stattdessen bleibt die URL `/time-tracking` für jede Rolle identisch --
+`app/routers/pages.py::time_tracking_page()` entscheidet servereitig anhand der AKTUELLEN
+Sitzungsrolle (`_role.role`, das `AppUser`-Objekt aus `require_role()`), welche Vorlage gerendert
+wird: `time_tracking_field.html` für `field`, unverändert `time_tracking.html` sonst. Damit gilt
+automatisch, ohne dass ein einziger Link geändert werden musste: ein Büro-Konto, das testweise als
+`field` unterwegs ist (oder umgekehrt), sieht bei JEDEM Aufruf -- Sidebar-Link, altes Lesezeichen,
+eingetippte Adresse, `?order_id=`-Link -- exakt das, was die aktuelle Rolle vorsieht, nie einen
+Zwischenstand aus einer früheren Rolle. Da es dieselbe, bereits `_dk_roles`-markierte
+`require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD)`-Dependency wie zuvor bleibt (nur die
+Template-Wahl im Funktionskörper ist neu), bleibt `/time-tracking` unverändert eine der vier für
+`field` freigegebenen Seiten -- der Audit-Test (`test_v260_role_audit.py`) prüft davon unberührt
+weiter.
+
+**Punkt 4 der Anfrage, ausdrücklich geprüft: die volle Seite ist für `field` jetzt strukturell
+unerreichbar, nicht nur standardmäßig anders.** Es gibt keine zweite URL, unter der
+`time_tracking.html` unabhängig von der Rolle gerendert würde -- `time_tracking_page()` ist die
+EINZIGE Stelle im Code, die diese Vorlage lädt. Ein Monteur, der `/time-tracking` über die
+Adresszeile eintippt oder ein altes Lesezeichen (aus der Zeit vor 1.3.60) öffnet, bekommt
+serverseitig immer `time_tracking_field.html` -- der im vorherigen Screenshot gezeigte Zustand
+(volle Sidebar) ist danach für `field` nicht mehr erreichbar, unabhängig vom Weg dorthin.
+
 ### Kundendaten für einen Monteur: ausschließlich über den Bericht, nicht über eine Kundenseite
 
 Enger gefasst als eine reine Rollen-Sperre auf `/customers/*`: ein Monteur soll Kundendaten nie
@@ -6081,8 +6197,12 @@ ist in der Liste ohnehin sichtbar, keine verdeckte Änderung möglich).
    gemeinsamen Auftrag lesen/ändern/löschen/signieren (siehe "Berichts-Eigentümerschaft" oben)
    und eine Wartung auf einem fremden Vertrag per geratener ID auslösen (siehe "Fund: fremde
    Wartung per geratener Vertrags-ID" oben) -- ein zweiter Durchlauf desselben Angriffstests
-   bestätigt beide als geschlossen. **Noch offen**: der "Auftrag"-Link in `service_reports.html`,
-   der auf eine jetzt gesperrte Büro-Seite zeigt (siehe "Bekannte, bewusst offene Punkte").
+   bestätigt beide als geschlossen. **Seit 1.3.60 zusätzlich die reduzierte Zeiterfassung**
+   (siehe "Zeiterfassung für Monteure" oben) -- die volle, sidebar-getragene `time_tracking.html`
+   war zuvor die letzte für `field` erreichbare Seite ohne eine eigens dafür gebaute, schmale
+   Ansicht. **Noch offen**: der "Auftrag"-Link in `service_reports.html`, der auf eine jetzt
+   gesperrte Büro-Seite zeigt, und die Kolonnenführer-Rolle für Gruppenbuchungen (beide siehe
+   "Bekannte, bewusst offene Punkte").
 4. Erstes echtes `field`-Testkonto anlegen, vollständigen Monteurs-Ablauf im Browser
    durchklicken. -- offen.
 
@@ -6232,6 +6352,14 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 
 ## Bekannte, bewusst offene Punkte
 
+- **Kolonnenführer-Rolle für Gruppenbuchungen -- bewusst offen, wie vom Betreiber vorgegeben**
+  (seit 1.3.60, siehe Abschnitt "Zeiterfassung für Monteure" oben): die reduzierte
+  `time_tracking_field.html` kennt keine Gruppenbuchung mehr, ein Monteur bucht nur für sich
+  selbst. In der Praxis bucht eine Kolonne aber oft gemeinsam -- dafür bleibt vorerst nur die
+  volle `time_tracking.html` (Büro/Admin) erreichbar. Ob und wie ein einzelner Monteur (z. B. der
+  Kolonnenführer) künftig selbst gruppenbuchen darf -- eine vierte Rollenausprägung, ein
+  Team-Attribut "Kolonnenführer", oder eine andere Lösung -- ist eine eigene, spätere
+  Entscheidung, ausdrücklich noch nicht getroffen.
 - **`service_reports.html`s "Auftrag"-Link zeigt für `field` auf eine jetzt gesperrte Seite**
   (seit 1.3.57, Seiten-Klassifizierung): `/orders/{id}` ist Büro/Admin -- ein Monteur, der auf
   diesen Link klickt, landet auf `access_denied.html` statt auf der Auftragsseite. Kein

@@ -4,6 +4,49 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.60 – Zeiterfassung für Monteure
+
+`/time-tracking` zeigte für die Rolle `field` bisher die volle, sidebar-getragene Bürooberfläche
+(`time_tracking.html`) -- seit der Seiten-Klassifizierung (1.3.57) zwar erreichbar, aber ohne die
+schmale, handschuhtaugliche Bedienung des übrigen `/vor-ort`. Befund vor dem Bauen: die
+API-Endpunkte in `app/routers/time_tracking.py`/`absence_requests.py` waren bereits vollständig
+self-scoped (Rechtekonzept Teil B) -- die Reduktion ist eine reine Darstellungsfrage, keine
+Zugriffsfrage.
+
+Neue, reduzierte Vorlage `time_tracking_field.html` (Muster `_mobile_header.html`/`vor_ort.html`):
+Schnellstart (Auftrag + große Zeitart-Kacheln), laufender Timer mit Stopp, "Heute"-Summen, eigene
+Buchungen der letzten 14 Tage mit Ändern/Löschen, eine abgespeckte Nachtrag-Maske (Auftrag, Datum,
+Von-Bis oder Dauer als Umschalter, Zeitart, Notiz -- kein Mitarbeiterfeld, keine LV-Position, keine
+sichtbaren Pause-Minuten) und Abwesenheitsanträge. Bewusst **ohne** Gruppenbuchung
+(Betreibervorgabe: "ein Monteur bucht nur für sich") -- ob künftig ein Kolonnenführer selbst
+gruppenbuchen darf, bleibt als offener Punkt festgehalten.
+
+Die Weiche zwischen reduzierter und voller Ansicht hängt an der Rolle, nicht an der URL:
+`app/routers/pages.py::time_tracking_page()` rendert unter derselben `/time-tracking`-Adresse
+rollenbewusst die passende Vorlage. Das war eine bewusste Entscheidung gegen eine zweite Route
+(z. B. `/vor-ort/zeit`) -- es gibt drei unabhängige Linkquellen (`_sidebar.html`,
+`_mobile_header.html`, `service_reports.html`s `#timeLink`), eine URL-basierte Weiche hätte jede
+einzeln anpassen müssen und wäre bei jedem künftigen neuen Link erneut anfällig gewesen. Damit ist
+die volle Seite für `field` jetzt strukturell unerreichbar, unabhängig vom Weg dorthin (Adresse,
+altes Lesezeichen, Sidebar-Link, `?order_id=`-Link) -- ein Büro-Konto, das testweise als `field`
+unterwegs ist, oder umgekehrt, sieht bei jedem Aufruf exakt das, was die aktuelle Sitzungsrolle
+vorsieht.
+
+Die Auftragsauswahl der reduzierten Ansicht nutzt ein neues `list_field_bookable_order_ids()`
+(`app/planning.py`) -- dasselbe ±14-Tage-Zeitfenster wie der 1.3.58-Wartungsfinder
+(`list_field_relevant_property_ids()`, die gemeinsame Zeitfenster-Logik wurde dafür in
+`_relevant_preparation_ids_for_employee()` ausgelagert), auf Aufträge statt Objekte angewendet.
+Dabei ein echter, von der Fenstergröße unabhängiger Fund: ein per "Wartung durchführen" gestarteter,
+ungeplanter Auftrag hat gar keine `WorkPreparation` (`create_quick_service_order()` legt bewusst
+keine an) und wäre in jedem Zeitfenster unsichtbar geblieben. Behoben durch eine ungefensterte
+Ergänzung um Aufträge, zu denen der Monteur bereits selbst einen Bericht angelegt hat -- derselbe
+zweite Zugriffsweg, den `field_may_access_order()` ohnehin schon kennt. Neuer Endpunkt
+`GET /api/field-view/time-tracking/orders` liefert die aufgelöste Liste, self-scoped über
+`request.state.erp_user`.
+
+12 neue Tests (`tests/test_v264_field_time_tracking.py`). Volle Suite: 1246/1246. Keine Migration
+nötig.
+
 ## 1.3.59 – Rechtekonzept: zwei Funde aus einem Sicherheitstest behoben
 
 Ein adversarialer Test gegen eine isolierte Testinstanz (eigene, temporäre Datenbank, ein

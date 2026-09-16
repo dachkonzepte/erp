@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .models import (
     Employee, EmployeeAbsence, EmployeePlanningSettings, EmployeeProfile, OperationalResource, Order, PlanningHoliday,
-    PlanningSettings, PlanningRegionSettings, PlanningSchoolHoliday, PlanningSchoolHolidaySync, PlanningSlot, PlanningSlotCapacity, Project, Property, Team, TeamEmployee,
+    PlanningSettings, PlanningRegionSettings, PlanningSchoolHoliday, PlanningSchoolHolidaySync, PlanningSlot, PlanningSlotCapacity, Project, Property, ServiceReport, Team, TeamEmployee,
     TeamResource, WorkPreparation, WorkPreparationEmployee, WorkPreparationTeamAssignment,
     WorkPreparationTeamEmployee, WorkPreparationTeamResource,
 )
@@ -638,35 +638,14 @@ def list_todays_assignments_for_employee(db: Session, employee_id: int, day: dat
     return result
 
 
-def list_field_relevant_property_ids(db: Session, employee_id: int, *, window_days: int = 14,
-                                      today: date | None = None) -> set[int]:
-    """Objekte, an denen ein Monteur aktuell oder in Kürze zu tun hat -- Grundlage für die Karte
-    "Wartungen an meinen Objekten" auf /vor-ort (Rechtekonzept, siehe CLAUDE.md, Abschnitt
-    "Objekt-Filterung" bzw. der Nachtrag zum /vor-ort-Vertragsfinder dort).
-
-    Betreibervorgabe: kein ungefiltertes "war je einmal zugeordnet" (würde über die Jahre zu
-    einer Liste mit lauter Altlasten anwachsen), stattdessen ein großzügiges Zeitfenster
-    (±window_days Tage) um eine TATSÄCHLICHE Terminierung. WorkPreparation.status bewusst NICHT
-    einbezogen -- geprüft: das Feld lässt sich zwar ändern (PUT .../work-preparation, Büro-
-    Formular mit fünf Werten), aber die reale Datenbank enthält bei dieser Prüfung nur eine
-    einzige WorkPreparation-Zeile insgesamt, zu dünn für ein Urteil über die Zuverlässigkeit im
-    Alltag -- und "offen ODER Zeitfenster" hätte genau das Risiko wieder eingeführt, das dieses
-    Zeitfenster vermeiden soll: eine vergessene, nie auf "abgeschlossen" gesetzte AV bliebe dann
-    unabhängig vom Datum sichtbar. Zeitfenster allein ist deshalb der sauberere Weg (Nutzervorgabe
-    für genau diesen Fall).
-
-    Datumsquelle: die Zuordnung hängt an der AV (dieselben Aufträge wie employee_assigned_order_ids()
-    in app/orders.py -- Team- oder Einzelzuweisung), das Datum kommt aus JEDEM PlanningSlot dieser
-    AV (unabhängig davon, über welchen der beiden Wege der Mitarbeiter zugeordnet ist -- ein
-    PlanningSlot trägt preparation_id, nicht employee_id). Fehlt jede Terminierung (AV noch nicht
-    in die Plantafel eingeplant), WorkPreparation.planned_start/planned_end als Rückfall. Fehlt
-    auch das, bleibt die AV unberücksichtigt -- kein Anhaltspunkt für "aktuell", kein Raten.
-
-    Liefert Property.id -- bei einem Auftrag ohne verknüpftes Objekt (Order.project.property_id
-    IS NULL) zusätzlich die Hauptadresse-Property-ID des Kunden (is_primary_address), damit ein
-    Wartungsvertrag mit property_id IS NULL (bedeutet "Hauptadresse", siehe contract_to_dict() in
-    app/maintenance_contracts.py) über denselben Abgleich gefunden werden kann."""
-    today = today or date.today()
+def _relevant_preparation_ids_for_employee(db: Session, employee_id: int, *, window_days: int,
+                                            today: date) -> set[int]:
+    """Gemeinsame Zeitfenster-Logik für list_field_relevant_property_ids() (Objekte) UND
+    list_field_bookable_order_ids() (Aufträge, seit 1.3.60) -- welche Arbeitsvorbereitungen eines
+    Mitarbeiters innerhalb von ±window_days um `today` liegen, entweder über einen echten
+    PlanningSlot oder (Rückfall) über WorkPreparation.planned_start/planned_end. Ausgelagert, damit
+    beide Funktionen exakt dasselbe Fenster auswerten statt es zweimal parallel nachzubauen --
+    „was dort als 'meine Objekte' gilt, gilt hier als 'meine Aufträge'" (Betreibervorgabe)."""
     window_start = today - timedelta(days=window_days)
     window_end = today + timedelta(days=window_days)
 
@@ -701,6 +680,39 @@ def list_field_relevant_property_ids(db: Session, employee_id: int, *, window_da
         if start <= window_end and end >= window_start:
             relevant_prep_ids.add(prep_id)
 
+    return relevant_prep_ids
+
+
+def list_field_relevant_property_ids(db: Session, employee_id: int, *, window_days: int = 14,
+                                      today: date | None = None) -> set[int]:
+    """Objekte, an denen ein Monteur aktuell oder in Kürze zu tun hat -- Grundlage für die Karte
+    "Wartungen an meinen Objekten" auf /vor-ort (Rechtekonzept, siehe CLAUDE.md, Abschnitt
+    "Objekt-Filterung" bzw. der Nachtrag zum /vor-ort-Vertragsfinder dort).
+
+    Betreibervorgabe: kein ungefiltertes "war je einmal zugeordnet" (würde über die Jahre zu
+    einer Liste mit lauter Altlasten anwachsen), stattdessen ein großzügiges Zeitfenster
+    (±window_days Tage) um eine TATSÄCHLICHE Terminierung. WorkPreparation.status bewusst NICHT
+    einbezogen -- geprüft: das Feld lässt sich zwar ändern (PUT .../work-preparation, Büro-
+    Formular mit fünf Werten), aber die reale Datenbank enthält bei dieser Prüfung nur eine
+    einzige WorkPreparation-Zeile insgesamt, zu dünn für ein Urteil über die Zuverlässigkeit im
+    Alltag -- und "offen ODER Zeitfenster" hätte genau das Risiko wieder eingeführt, das dieses
+    Zeitfenster vermeiden soll: eine vergessene, nie auf "abgeschlossen" gesetzte AV bliebe dann
+    unabhängig vom Datum sichtbar. Zeitfenster allein ist deshalb der sauberere Weg (Nutzervorgabe
+    für genau diesen Fall).
+
+    Datumsquelle: die Zuordnung hängt an der AV (dieselben Aufträge wie employee_assigned_order_ids()
+    in app/orders.py -- Team- oder Einzelzuweisung), das Datum kommt aus JEDEM PlanningSlot dieser
+    AV (unabhängig davon, über welchen der beiden Wege der Mitarbeiter zugeordnet ist -- ein
+    PlanningSlot trägt preparation_id, nicht employee_id). Fehlt jede Terminierung (AV noch nicht
+    in die Plantafel eingeplant), WorkPreparation.planned_start/planned_end als Rückfall. Fehlt
+    auch das, bleibt die AV unberücksichtigt -- kein Anhaltspunkt für "aktuell", kein Raten.
+
+    Liefert Property.id -- bei einem Auftrag ohne verknüpftes Objekt (Order.project.property_id
+    IS NULL) zusätzlich die Hauptadresse-Property-ID des Kunden (is_primary_address), damit ein
+    Wartungsvertrag mit property_id IS NULL (bedeutet "Hauptadresse", siehe contract_to_dict() in
+    app/maintenance_contracts.py) über denselben Abgleich gefunden werden kann."""
+    today = today or date.today()
+    relevant_prep_ids = _relevant_preparation_ids_for_employee(db, employee_id, window_days=window_days, today=today)
     if not relevant_prep_ids:
         return set()
 
@@ -731,6 +743,47 @@ def list_field_relevant_property_ids(db: Session, employee_id: int, *, window_da
         property_ids.update(primary_ids)
 
     return property_ids
+
+
+def list_field_bookable_order_ids(db: Session, employee_id: int, *, window_days: int = 14,
+                                   today: date | None = None) -> set[int]:
+    """Aufträge, die ein Monteur in der reduzierten Zeiterfassung auf /vor-ort wählen darf (seit
+    1.3.60, siehe CLAUDE.md „Zeiterfassung für Monteure"). Dasselbe Zeitfenster wie
+    list_field_relevant_property_ids() (1.3.58-Wartungsfinder), auf Aufträge statt Objekte
+    angewendet -- „was dort als 'meine Objekte' gilt, gilt hier als 'meine Aufträge'"
+    (Betreibervorgabe).
+
+    Vor dem Bauen geprüft (Betreibervorgabe: "das Fenster muss den laufenden Einsatz sicher
+    erfassen"): das Fenster selbst deckt den Fall "gestern zugewiesen, heute im Einsatz"
+    zuverlässig ab, SOFERN die Arbeitsvorbereitung überhaupt ein Datum trägt (echter PlanningSlot
+    oder planned_start/-end) -- ein für heute eingeplanter Einsatz liegt bei jeder sinnvollen
+    Fenstergröße innerhalb ±window_days um heute. Ein echter, unabhängig von der Fenstergröße
+    bestehender Fund dabei: ein per "Wartung durchführen" (create_maintenance_visit(), seit 1.3.56
+    auch für Monteure) gestarteter, UNGEPLANTER Auftrag hat GAR KEINE WorkPreparation --
+    create_quick_service_order() legt bewusst keine an (kein Plantafel-Bezug). Ein solcher Auftrag
+    taucht in employee_assigned_order_ids() und damit in keinem Zeitfenster jemals auf, unabhängig
+    von dessen Größe -- das Problem ist eine fehlende Datumsquelle, kein zu enges Fenster.
+
+    Deshalb zusätzlich, UNGEFENSTERT: jeder Auftrag, zu dem der Monteur bereits selbst einen
+    ServiceReport angelegt hat (created_by_employee_id) -- exakt der zweite der beiden Wege, über
+    die field_may_access_order() (app/orders.py) einem Monteur Zugriff auf einen Auftrag gewährt.
+    Ohne diese zweite Quelle könnte ein Monteur nach "Wartung durchführen" zwar seinen Bericht
+    öffnen, aber keine Zeit auf den dafür entstandenen Auftrag buchen -- exakt die Divergenz, die
+    field_may_access_order() an anderer Stelle bereits ausdrücklich vermeidet ("ein Monteur soll
+    nie Zeit auf einen Auftrag buchen können, dessen Bericht er nicht öffnen darf, oder
+    umgekehrt")."""
+    today = today or date.today()
+    relevant_prep_ids = _relevant_preparation_ids_for_employee(db, employee_id, window_days=window_days, today=today)
+
+    order_ids: set[int] = set()
+    if relevant_prep_ids:
+        order_ids.update(db.scalars(
+            select(WorkPreparation.order_id).where(WorkPreparation.id.in_(relevant_prep_ids))
+        ).all())
+    order_ids.update(db.scalars(
+        select(ServiceReport.order_id).where(ServiceReport.created_by_employee_id == employee_id).distinct()
+    ).all())
+    return order_ids
 
 
 def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSettings) -> tuple[dict[int, list[dict]], dict[int, dict[date, dict]]]:
