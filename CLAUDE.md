@@ -20,7 +20,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.67** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.68** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf jetzt `f803985ebc2f` ("property documents table", siehe Abschnitt
   "Dateiablage je Objekt" unten) -- vorher `9137945e8785` ("document categories foundation"),
   davor `7a2b4e9f1c3d` ("app user role office field"): keine der
@@ -30,7 +30,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   bestehenden, geteilten "default"-Satz zurück, siehe "Fünf weitere Anpassungen"), siehe
   Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
   eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1344 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1352 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
   dort), zuletzt am 16.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -911,6 +911,22 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   dort schon funktioniert -- für beide nachgezogen, nicht nur für die neue. 10 neue Tests
   (`tests/test_v271_office_search_ui.py`), dazu ein bestehender Test in `tests/test_v254_topbar.py`
   in zwei umgeschrieben (die 1.3.45-Erwartung "Suchslot bleibt leer" ist jetzt bewusst überholt).
+- Neu seit 1.3.68: **Hell/Dunkel-Umschalter in der Monteurs-Kopfzeile.** Gemeldete Lücke: die
+  Büro-Sidebar hat den Umschalter seit 1.3.44 im Fußbereich, `_mobile_header.html` hatte nie
+  einen. Ergänzt nach demselben Mechanismus wie die Sidebar (`data-theme`-Attribut,
+  `localStorage`-Schlüssel `'erp_theme'`, dieselben SUN_ICON/MOON_ICON-SVGs) -- dupliziert statt
+  geteilt, wie bei kleinen JS-Schnipseln in diesem Projekt üblich. Der neue, kleine Icon-Knopf
+  (`#mobileThemeToggle`, 30×30px) sitzt oben rechts neben dem Benutzernamen, beide zusammen in
+  einem neuen `.mobile-header-right`-Wrapper (`flex:0 0 auto`) -- `.mobile-header` behält dadurch
+  genau zwei direkte Kinder, sein `justify-content:space-between` bleibt unverändert. Kollidiert
+  strukturell nicht mit Suchfeld (1.3.65) oder den vier Reitern (beide in eigenen Blockzeilen des
+  seit 1.3.65 gemeinsamen sticky-Wrappers); auf schmalen Bildschirmen kann nur
+  `.mobile-header-brand` (bereits `overflow:hidden`) schrumpfen, der rechte Block bleibt fest --
+  die Kopfzeile kann dadurch nicht umbrechen. Geprüft statt angenommen: `get_theme()` wird bereits
+  in allen vier Monteursseiten (`mobil.html`/`mobil_objekt.html`/`field_timesheet.html`/
+  `time_tracking_field.html`) im eigenen `:root`-Block gelesen, exakt wie auf jeder anderen Seite
+  -- keine Codeänderung nötig, nur als Regressionstest festgehalten (`tests/
+  test_v272_mobile_header_theme_toggle.py`).
 
 ## Produktivbetrieb (seit 14.09.2026)
 

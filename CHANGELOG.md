@@ -4,6 +4,33 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.68 – Hell/Dunkel-Umschalter in der Monteurs-Kopfzeile
+
+Gemeldete Lücke: die Büro-Sidebar hat den Hell/Dunkel-Umschalter seit 1.3.44 im Fußbereich, die
+Monteurs-Kopfzeile (`_mobile_header.html`) hatte nie einen -- ein Monteur konnte sein Tablet nicht
+auf ein anderes Design umstellen. Ergänzt nach demselben Mechanismus wie die Sidebar (dasselbe
+`data-theme`-Attribut auf `<html>`, derselbe `localStorage`-Schlüssel `'erp_theme'`, dieselben
+SUN_ICON/MOON_ICON-SVGs) -- dupliziert statt geteilt, wie in diesem Projekt bei kleinen
+JS-Schnipseln üblich (kein gemeinsames Modul). Ein Monteur, der auf dem Tablet umschaltet, findet
+seine Wahl beim nächsten Öffnen wieder.
+
+Anordnung: der neue, kleine Icon-Knopf (`#mobileThemeToggle`, 30×30px) sitzt in der Kopfzeile
+selbst, oben rechts neben dem Benutzernamen -- beide zusammen in einem neuen, gemeinsamen
+`.mobile-header-right`-Wrapper (`flex:0 0 auto`, schrumpft nie), damit `.mobile-header` weiterhin
+genau zwei direkte Kindelemente hat und dessen `justify-content:space-between` unverändert greift.
+Kollidiert dadurch strukturell nicht mit dem Suchfeld (1.3.65, eigene Zeile darunter) oder den vier
+Reitern (ebenfalls eigene Zeile) -- beide sitzen in eigenen, vom Kopf getrennten Blockzeilen des
+seit 1.3.65 gemeinsamen sticky-Wrappers. Auf schmalen Bildschirmen kann nur `.mobile-header-brand`
+(bereits mit `overflow:hidden`/Ellipsis) schrumpfen, der rechte Block bleibt bei fester Breite --
+die Kopfzeile kann dadurch strukturell nicht umbrechen, unabhängig von der Bildschirmbreite.
+
+Geprüft statt angenommen: `get_theme()` (der seit 1.3.42 ausnahmesichere Jinja-Global) wird in
+allen vier Monteursseiten-Templates (`mobil.html`, `mobil_objekt.html`, `field_timesheet.html`,
+`time_tracking_field.html`) bereits im eigenen `:root`-Block für `--accent` gelesen, genau wie auf
+jeder anderen Seite des Design-Systems -- keine Codeänderung nötig, nur als Regressionstest
+festgehalten. Ein Fehler in `get_theme()` sperrt dadurch schon heute keine Monteursseite, exakt
+wie gefordert.
+
 ## 1.3.67 – Büro-Suche, Etappe 2: die Oberfläche
 
 Nach Rückmeldung zu Etappe 1 gebaut. Suchfeld in der seit 1.3.45 reservierten Topbar-Position
