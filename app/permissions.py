@@ -36,14 +36,18 @@ ROLE_LABELS = {
 
 
 def default_home_page_for_role(role: str | None) -> str:
-    """Landing-Seite ohne ein mitgegebenes `next` -- ein Monteur landet auf /vor-ort (seine
-    einzige freigegebene Desktop-Startseite; die übrigen vier für ihn offenen Seiten
-    -- /account, /time-tracking, /orders/{id}/service-reports -- sind keine sinnvollen
-    Einstiegspunkte ohne Kontext), jede andere Rolle unverändert auf dem Dashboard. Genutzt von
-    app/routers/pages.py::login_page() (bereits angemeldeter Aufruf von /login) UND vom
+    """Landing-Seite ohne ein mitgegebenes `next` -- ein Monteur landet auf /mobil (seit 1.3.61,
+    bis dahin /vor-ort -- reine Umbenennung, siehe CLAUDE.md "Monteursansicht: Umbenennung zu
+    /mobil"; seine einzige freigegebene Desktop-Startseite -- die übrigen für ihn offenen Seiten
+    -- /account, /mobil/stundenzettel, /time-tracking, /orders/{id}/service-reports -- sind keine
+    sinnvollen Einstiegspunkte ohne Kontext), jede andere Rolle unverändert auf dem Dashboard.
+    Genutzt von app/routers/pages.py::login_page() (bereits angemeldeter Aufruf von /login),
+    app/routers/pages.py::dashboard_page() (seit 1.3.61: ein Monteur, der / von Hand aufruft,
+    wird direkt weitergeleitet statt access_denied.html zu sehen -- CLAUDE.md, dort auch die
+    Begründung, warum NUR / diesen Redirect bekommt, keine andere Büro-Seite) UND vom
     403-Handler in app/main.py (Ziel des "Zur Startseite"-Links auf access_denied.html) --
-    beide kennen die Rolle bereits aus request.state.erp_user."""
-    return "/vor-ort" if role == ROLE_FIELD else "/"
+    alle drei kennen die Rolle bereits aus request.state.erp_user."""
+    return "/mobil" if role == ROLE_FIELD else "/"
 
 _DEFAULT_MESSAGE = "Für Ihre Rolle nicht verfügbar."
 
@@ -123,7 +127,7 @@ PAGE_AUDIT_EXEMPT = frozenset({
     # Externe Überwachung, bereits vor jeder Anmeldepflicht ungated.
     ("GET", "/health"),
     # PWA-Ressource der Monteursansicht (app/routers/field_view.py) -- wird ohnehin nur von der
-    # bereits angemeldeten Seite /vor-ort aus verlinkt, muss aber vor dem ersten Login
+    # bereits angemeldeten Seite /mobil aus verlinkt, muss aber vor dem ersten Login
     # ("Zum Startbildschirm hinzufügen") erreichbar bleiben, dieselbe Begründung wie beim
     # gleichnamigen API-Icon-Endpunkt oben.
     ("GET", "/manifest.json"),

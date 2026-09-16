@@ -153,10 +153,11 @@ def test_menu_button_aria_expanded_resyncs_on_scrim_click():
 
 
 # ---------------------------------------------------------------------------
-# Nicht Teil dieser Version: /vor-ort bleibt unverändert ohne Topbar/Menü-Knopf.
+# Nicht Teil dieser Version: /mobil (bis 1.3.60 /vor-ort) bleibt unverändert ohne
+# Topbar/Menü-Knopf.
 # ---------------------------------------------------------------------------
 
 def test_mobile_field_view_still_has_no_topbar_menu_button():
     root = Path(__file__).parents[1]
-    vor_ort = (root / "app" / "templates" / "vor_ort.html").read_text(encoding="utf-8")
-    assert "appTopbarMenuBtn" not in vor_ort
+    mobil = (root / "app" / "templates" / "mobil.html").read_text(encoding="utf-8")
+    assert "appTopbarMenuBtn" not in mobil

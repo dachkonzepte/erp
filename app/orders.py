@@ -264,10 +264,10 @@ def field_may_access_order(db: Session, employee_id: int, order_id: int) -> bool
        (1a. und 1b. sind exakt employee_assigned_order_ids(), das die Zeiterfassung seit jeher
        für die Auftragsauswahl eines Nicht-Admins nutzt -- geprüft, keine zweite Definition.)
     2. Ein Bericht, den er selbst angelegt hat (ServiceReport.created_by_employee_id) -- exakt
-       der Weg, über den /vor-ort seine "offenen Entwurfsberichte" schon immer findet
-       (service_reports.py::list_draft_reports_for_employee()). Ohne diesen dritten Weg verlöre
-       ein Monteur den Zugriff auf einen begonnenen Bericht, sobald das Büro ihn umplant oder
-       aus dem Team nimmt -- /vor-ort zeigte den Entwurf dann noch, die Berichtsseite nicht
+       der Weg, über den /mobil (bis 1.3.60 /vor-ort) seine "offenen Entwurfsberichte" schon
+       immer findet (service_reports.py::list_draft_reports_for_employee()). Ohne diesen dritten
+       Weg verlöre ein Monteur den Zugriff auf einen begonnenen Bericht, sobald das Büro ihn
+       umplant oder aus dem Team nimmt -- /mobil zeigte den Entwurf dann noch, die Berichtsseite nicht
        mehr. Bootstrappt nur über einen selbst angelegten Bericht: den ersten Bericht zu einem
        geplanten Auftrag legt an, wer über 1a./1b. zugeordnet ist; eine UNGEPLANTE Wartung
        startet ein Monteur vor Ort über "Wartung durchführen" (maintenance_contracts.py::

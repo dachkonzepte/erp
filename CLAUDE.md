@@ -20,13 +20,15 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.60** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.61** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf weiterhin `7a2b4e9f1c3d` ("app user role office field") -- keine der
-  Versionen 1.3.52 bis 1.3.60 brauchte eine eigene Migration (reine Rollen-Gate-/Response-Schema-/
-  Objekt-Filterungs-Umstellungen auf bereits bestehenden Endpunkten und Tabellen), siehe
+  Versionen 1.3.52 bis 1.3.61 brauchte eine eigene Migration (reine Rollen-Gate-/Response-Schema-/
+  Objekt-Filterungs-Umstellungen auf bereits bestehenden Endpunkten und Tabellen; 1.3.61s neuer
+  PDF-Dokumenttyp "field_timesheet" fällt ohne eigene Zeile automatisch auf den bereits
+  bestehenden, geteilten "default"-Satz zurück, siehe "Fünf weitere Anpassungen"), siehe
   Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
   eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1246 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1267 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
   dort), zuletzt am 16.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -750,7 +752,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeitfenster" hätte das Altlasten-Risiko, das das Zeitfenster gerade vermeiden soll, an anderer
   Stelle wieder eingeführt). Reduziertes Schema (kein Kundennummer, keine Adresse über den Ort
   hinaus), Karte blendet bei fehlender Objektzuordnung nur einen ruhigen Hinweis ein, nie eine
-  leere Fläche. Details im Abschnitt "Rechtekonzept" → "Vertragsfinder auf /vor-ort" unten.
+  leere Fläche. Details im Abschnitt "Rechtekonzept" → "Vertragsfinder auf /mobil" unten.
 - Neu seit 1.3.59: **Rechtekonzept, zwei Funde aus einem Sicherheitstest behoben.** Ein
   adversarialer Test gegen eine isolierte Testinstanz (eigene, temporäre Datenbank, nie gegen
   die echte `dachkonzepte_erp.db`) fand zwei echte Lücken, beide geschlossen, ein zweiter
@@ -787,6 +789,26 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   (Betreibervorgabe: "ein Monteur bucht nur für sich") -- ob künftig ein Kolonnenführer
   gruppenbuchen darf, ist als offener Punkt festgehalten, siehe „Bekannte, bewusst offene
   Punkte". Details im Abschnitt "Rechtekonzept" → "Zeiterfassung für Monteure" unten.
+- Neu seit 1.3.61: **fünf weitere, rollenbezogene Anpassungen an der Monteursansicht.** (1)
+  Umbenennung: `/vor-ort` → `/mobil`, Titel "DACHKONZEPTE GmbH - Mobil", `/vor-ort` entfällt
+  ersatzlos (alle drei tatsächlichen Linkquellen geprüft und mitgezogen: `mobile_manifest.py`,
+  `login.html`, `default_home_page_for_role()`). (2) `GET /` leitet für `field` jetzt auf `/mobil`
+  weiter statt mit 403 zu sperren -- die Rolle entscheidet das Ziel, nicht der Weg, deckt auch
+  einen von Hand eingetippten Aufruf ab. (3) Tätigkeit im Nachtrag UND im Schnellstart ergänzt --
+  **Prämisse korrigiert**: der Nutzer nahm an, der Schnellstart habe das Feld schon, tatsächlich
+  hatte KEINS von beiden es (nur die Zeitart-Kacheln), transparent gemeldet statt stillschweigend
+  einseitig aufgelöst. (4) Eigener Stundenzettel (`/mobil/stundenzettel`, neuer Renderer
+  `app/field_timesheet_pdf.py`, PDF über den gemeinsamen Rahmen mit Briefkopf, neuer, komplett
+  neuer PDF-Dokumenttyp `"field_timesheet"` -- fällt ohne eigene Zeile automatisch auf den
+  geteilten "default"-Satz zurück, keine Migration nötig) -- der bestehende, admin-only
+  Büro-Stundenzettel (`app/time_backoffice.py`) diente nur inhaltlich als Vorlage, nutzt selbst
+  nie den gemeinsamen Rahmen. (5) "Meine kommenden Termine" -- neue Karte auf `/mobil`
+  (`list_upcoming_assignments_for_employee()`, `app/planning.py`, ±30 Tage, dieselbe Zuordnung wie
+  die Tagesliste, nur über ein Zeitfenster statt eines Tages), reine Leseansicht ohne Zugriff auf
+  die Plantafel selbst. Abschließender, vom Nutzer verlangter Angriffstest bestätigt: volle
+  Plantafel (Seite und API), fremde Stunden und fremde Plantafel-Einträge bleiben für `field`
+  gesperrt -- null "durchgelassen". Details im Abschnitt "Rechtekonzept" → "Fünf weitere
+  Anpassungen an der Monteursansicht" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -2081,8 +2103,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   aufgenommen – erscheint nur, wenn ein Nutzer es aktiv über "+ Widget hinzufügen" dazuholt.
   Zeigt `is_due`-Verträge aus `GET /api/maintenance-contracts`, blendet sich über
   `isModuleEnabled('wartungen')` selbst aus, wenn das Modul deaktiviert ist.
-- **Monteursansicht** (`GET /vor-ort`, seit 1.3.0, `app/routers/field_view.py`,
-  `app/templates/vor_ort.html`): eigene, schmale Einstiegsseite fürs Fahrzeug-Tablet statt einer
+- **Monteursansicht** (`GET /mobil`, seit 1.3.0 -- bis 1.3.60 unter `/vor-ort`, siehe CLAUDE.md
+  "Monteursansicht: Umbenennung zu /mobil" (1.3.61), `app/routers/field_view.py`,
+  `app/templates/mobil.html`): eigene, schmale Einstiegsseite fürs Fahrzeug-Tablet statt einer
   zweiten App – dieselbe Codebasis, dieselbe Anmeldung. **Bewusst kein eigener
   `OPTIONAL_MODULES`-Eintrag** (siehe Modul-Umschalter oben): eine neue Oberfläche über bereits
   bestehenden (Plantafel, immer aktiv) bzw. bereits eigenständig geschalteten (Wartungsberichte,
@@ -2147,7 +2170,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Vor Ort): geprüft NUR an den beiden mobilen Einstiegspunkten (`GET /api/field-view/today`
     löscht bei Überschreitung das Auth-Cookie und liefert 401), NICHT in der globalen
     `identity_and_audit_middleware` – Schreibtisch-Nutzer mit demselben Login-Mechanismus bleiben
-    unberührt. **`GET /vor-ort` selbst prüft die Grenze NICHT** (bewusste Abweichung von der
+    unberührt. **`GET /mobil` selbst prüft die Grenze NICHT** (bewusste Abweichung von der
     ursprünglichen Planung, die einen serverseitigen Redirect auch auf der Seite vorsah): ein
     serverseitiger Redirect auf der Seite wäre wanduhrzeit-abhängig gewesen und hätte den
     generischen `test_v218_template_rendering.py`-Seiten-Rendertest (fester, immer angemeldeter
@@ -2174,7 +2197,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Platzhalter-Quadrat – reine Laufzeit-Erzeugung OHNE Caching (Icons werden selten angefragt,
     nur beim "Zum Startbildschirm hinzufügen"; Einfachheit vor Optimierung, kein
     Cache-Invalidierungsproblem bei einem späteren Logo-Wechsel). `<link rel="manifest">` plus
-    `theme-color`/Apple-Touch-Icon-Tags sitzen AUSSCHLIESSLICH in `vor_ort.html`s `<head>` – das
+    `theme-color`/Apple-Touch-Icon-Tags sitzen AUSSCHLIESSLICH in `mobil.html`s `<head>` – das
     ist die einzige Seite, die als Startadresse installiert werden soll. Kein Service Worker,
     keine Offline-Logik (bewusst außerhalb dieser Iteration).
 
@@ -4675,7 +4698,7 @@ gar nicht.
    Redirect auf eine HTML-Seite (ein API-Client könnte damit nichts anfangen). Greift nur bei
    `GET`, nicht `/api/...`, und lässt `/login` (sonst könnte sich niemand anmelden), `/health`
    (externe Überwachung, bereits zuvor ungated) und `/manifest.json` (reine PWA-Ressource der
-   Monteursansicht, ohnehin nur von der bereits angemeldeten Seite `/vor-ort` aus verlinkt)
+   Monteursansicht, ohnehin nur von der bereits angemeldeten Seite `/mobil` aus verlinkt)
    sowie die bereits bestehende Bootstrap-Ausnahme (kein einziger ERP-Benutzer angelegt --
    `/users` muss für die allererste Kontoanlage erreichbar bleiben) unangetastet. In der
    Middleware (`identity_and_audit_middleware`) verdrahtet: ohne angemeldeten Benutzer liefert
@@ -5431,8 +5454,8 @@ dass er vor dem Suchen-Platzhalter steht, denselben Umbruchpunkt wie die Sidebar
 dasselbe Zustandspaar toggelt wie zuvor `#appSidebarToggle`, `aria-controls`/`aria-expanded`
 trägt und bei Klick auf den Hintergrund resynchronisiert, dass `#appSidebarToggle` unterhalb des
 Umbruchpunkts tatsächlich verschwindet (und sein Klick-Handler den toten Zweig verloren hat,
-ohne das Desktop-Kollabieren selbst anzufassen), und dass `/vor-ort` unverändert ohne diesen
-Knopf bleibt.
+ohne das Desktop-Kollabieren selbst anzufassen), und dass `/mobil` (damals `/vor-ort`) unverändert
+ohne diesen Knopf bleibt.
 
 ### Aufräumen im Fußbereich (seit 1.3.49)
 
@@ -5457,7 +5480,7 @@ Schaltflächen (Hell/Dunkel, Ein-/Ausklappen) und die Versionsnummer.
   diesem Include ist entfallen) sowie die CSS-Regeln `.app-sidebar-user`/`.app-sidebar-logout`
   (inkl. der eingeklappt-Sonderregel) -- alle hatten nach der Entfernung des SSR- UND des
   JS-gerenderten authentifizierten Fußbereichs keinen Aufrufer mehr.
-- **Geprüft (wie verlangt): `/vor-ort` unangetastet.** `_mobile_header.html` hat einen
+- **Geprüft (wie verlangt): `/mobil` (damals `/vor-ort`) unangetastet.** `_mobile_header.html` hat einen
   komplett eigenständigen, unabhängigen Abmelde-Weg (`#mobileHeaderLogout`, eigene
   `.mobile-*`-CSS-Klassen ohne `app-sidebar`-Präfix) -- projektweiter Grep bestätigt, dass
   keine der entfernten Klassen/IDs (`app-sidebar-user`, `app-sidebar-logout`,
@@ -5652,11 +5675,11 @@ Dekoration). Zwei Funde, die sich aus dem Code ergaben, nicht aus der Vorgabe:
    und Berichtszugriff nie auseinanderlaufen (lokaler Import wegen Regel 3: `orders.py`
    erreicht über `invoices`/`projects` transitiv `work_preparation.py`, das `time_tracking.py`
    importiert).
-2. **Eigener Bericht** (`ServiceReport.created_by_employee_id`) -- **Fund 2**: `/vor-ort` findet
-   seine "offenen Entwurfsberichte" seit 1.3.0 über genau dieses Feld
+2. **Eigener Bericht** (`ServiceReport.created_by_employee_id`) -- **Fund 2**: `/mobil` (damals
+   `/vor-ort`) findet seine "offenen Entwurfsberichte" seit 1.3.0 über genau dieses Feld
    (`list_draft_reports_for_employee()`), unabhängig von jeder Planung. Ohne diesen zweiten Weg
    verlöre ein Monteur den Zugriff auf einen begonnenen Bericht, sobald das Büro ihn umplant
-   oder aus dem Team nimmt -- `/vor-ort` zeigte den Entwurf noch, die Berichtsseite antwortete
+   oder aus dem Team nimmt -- die Monteursansicht zeigte den Entwurf noch, die Berichtsseite antwortete
    403 (exakt die Divergenz "Tagesliste ja, Bericht nein", die vermieden werden sollte).
    Bootstrappt nur über einen selbst angelegten Bericht: den ersten Bericht zu einem
    GEPLANTEN Auftrag legt an, wer über 1a./1b. zugeordnet ist; eine UNGEPLANTE Wartung startet
@@ -5678,7 +5701,7 @@ Nicht-Admin = eigene Mitarbeiterverknüpfung, Admin = keine). Ein `field`-Konto 
 Mitarbeiterverknüpfung wird mit 403 abgelehnt -- der Bericht wäre sonst für niemanden
 erreichbar, der ihn ausfüllen soll. Alle übrigen Endpunkte der Datei (Vertragsliste, Detail,
 Bearbeitung, Historie, Einstellungen) bleiben Büro/Admin. **Korrigiert seit 1.3.59** (siehe
-Abschnitt "Vertragsfinder auf /vor-ort" → "Fund: fremde Wartung per geratener Vertrags-ID"
+Abschnitt "Vertragsfinder auf /mobil" → "Fund: fremde Wartung per geratener Vertrags-ID"
 unten): dieser Endpunkt prüfte bis dahin keine Zuordnung Monteur ↔ Vertrag, jeder Monteur konnte
 den Vorgang für JEDEN Vertrag auslösen. Die ursprüngliche Einstufung dazu -- "legt einen Auftrag
 an, Datenintegrität, kein Datenleck, so akzeptiert" -- ist überholt: ein Sicherheitstest hat
@@ -5757,10 +5780,11 @@ Prüfvorlagen-Verwaltung inkl. Einzelansicht und Dachtyp-Standardzuordnung -- nu
 `GET /api/inspection-templates` (Vorlagenliste) bleibt für `field` lesbar, `service_reports.html`
 lädt sie für die Vorlagenauswahl.
 
-### Vertragsfinder auf /vor-ort (seit 1.3.58): "Wartungen an meinen Objekten"
+### Vertragsfinder auf /mobil (seit 1.3.58 -- bis 1.3.60 /vor-ort): "Wartungen an meinen Objekten"
 
 Zuletzt offener Punkt aus der Seiten-Klassifizierung (1.3.57): einem Monteur fehlte auf
-`/vor-ort` der Weg, einen Wartungsvertrag zu finden, um eine ungeplante Wartung zu starten --
+`/vor-ort` (heute `/mobil`, siehe "Monteursansicht: Umbenennung zu /mobil", 1.3.61) der Weg,
+einen Wartungsvertrag zu finden, um eine ungeplante Wartung zu starten --
 "Wartung durchführen" (`create_maintenance_visit()`, seit 1.3.56 für Monteure erreichbar) sitzt
 auf der Büro-Vertragsseite (`/maintenance-contracts/{id}`), die für `field` gesperrt ist. Ein
 Monteur soll dabei NICHT die volle Vertragsliste durchsuchen können, aber die Objekte erreichen,
@@ -5814,7 +5838,7 @@ niemandem zuzuordnen), aber weder Kundennummer noch Straße/PLZ -- nur `city` ("
 `.../today`) -- löst den Mitarbeiter ausschließlich über `request.state.erp_user` auf. Fehlt die
 Mitarbeiterverknüpfung oder ist das Modul "wartungen" aus, bewusst eine **leere Liste, kein
 Fehler** -- dritte Nutzerkorrektur: die Karte "Wartungen an meinen Objekten" darf leer bleiben,
-ohne zu stören. `vor_ort.html` zeigt bei leerer Antwort einen ruhigen Hinweistext (dasselbe
+ohne zu stören. `mobil.html` zeigt bei leerer Antwort einen ruhigen Hinweistext (dasselbe
 Muster wie die beiden bestehenden Karten bei "keine Einsätze"/"keine Entwürfe"), nie eine leere
 Fläche. Klick auf "Wartung durchführen" ruft `POST /api/maintenance-contracts/{id}/perform-
 maintenance` (seit 1.3.56 für Monteure offen) und navigiert direkt zu
@@ -5987,6 +6011,142 @@ Adresszeile eintippt oder ein altes Lesezeichen (aus der Zeit vor 1.3.60) öffne
 serverseitig immer `time_tracking_field.html` -- der im vorherigen Screenshot gezeigte Zustand
 (volle Sidebar) ist danach für `field` nicht mehr erreichbar, unabhängig vom Weg dorthin.
 
+### Fünf weitere Anpassungen an der Monteursansicht (seit 1.3.61)
+
+Fünf rollenbezogene Punkte, alle ohne neues Datenmodell außer Punkt 4 (siehe dort -- am Ende doch
+keine neue Tabelle, nur ein neuer, bereits bestehender Mechanismus zweitverwendet).
+
+**Punkt 1 -- Umbenennung und neue URL: `/vor-ort` → `/mobil`.** `/vor-ort` entfällt ersatzlos
+(keine Weiterleitung -- der Nutzer hatte ausdrücklich bestätigt, dass es keine Lesezeichen darauf
+gibt), `app/routers/pages.py::field_view_page()` ist jetzt unter `/mobil` registriert und rendert
+`app/templates/mobil.html` (umbenannt und erweitert aus `vor_ort.html`, das gelöscht wurde,
+Titel "DACHKONZEPTE GmbH - Mobil"). Geprüft, wie verlangt, ob im Code irgendwo `/vor-ort`
+VERLINKT ist (nicht nur in Prosa erwähnt) -- alle drei tatsächlichen Linkquellen aus 1.3.60
+gefunden und mitgezogen:
+1. `app/mobile_manifest.py::build_manifest()` -- `start_url` jetzt `/mobil`.
+2. `app/templates/login.html` -- der clientseitige Rückfall ohne `next`
+   (`d.role==='field'?'/mobil':'/projects'`).
+3. `app/permissions.py::default_home_page_for_role()` -- die eine, gemeinsame Quelle für
+   `login_page()`, den 403-Exception-Handler UND (neu, siehe Punkt 2) `dashboard_page()`.
+
+`app/templates/_mobile_header.html` verlinkte selbst nicht auf `/vor-ort` als Ziel (die Einträge
+sind bereits relativ zur aktuellen Seite, `path == '/mobil'` statt eines hartkodierten Strings),
+musste also nur den Vergleichswert mitziehen. Reine Docstring-/Kommentar-Erwähnungen in rund
+einem Dutzend weiterer Dateien (`app/service_reports.py`, `app/models.py`, `app/orders.py`,
+`app/mobile_settings.py`, `app/schemas.py`, `app/routers/quotes.py` u. a.) wurden für
+Stellen korrigiert, die LAUFENDES Verhalten beschreiben (z. B. "GET /mobil prüft die
+Feierabend-Grenze NICHT") -- rein historische "Neu seit 1.3.X"-Einträge weiter oben in dieser
+Datei bleiben unverändert bei `/vor-ort`, da sie beschreiben, was zu jenem Zeitpunkt tatsächlich
+gebaut wurde (Regel 8/etablierte Konvention dieser Datei), siehe z. B. "Neu seit 1.3.57"/
+"Neu seit 1.3.58" oben. Der Abschnitt "Vertragsfinder auf /vor-ort" (1.3.58) heißt seither
+"Vertragsfinder auf /mobil" -- er ist ein aktiver Querverweis aus mehreren Code-Kommentaren
+(`app/maintenance_contracts.py`, `app/routers/maintenance_contracts.py`), keine reine
+Versionshistorie, deshalb umbenannt statt unverändert gelassen.
+
+**Punkt 2 -- Startseite für Monteure.** `app/routers/pages.py::dashboard_page()` (`GET /`) trug
+bisher `_role_dep` (Büro/Admin, 403 für `field`) -- jetzt `_any_role_dep`, mit einer Weiche im
+Funktionskörper: `if _role.role == ROLE_FIELD: return RedirectResponse(default_home_page_for_role(...))`,
+sonst unverändert das Dashboard. Deckt beide vom Nutzer genannten Fälle in einer einzigen
+Prüfung ab -- nach dem Anmelden (über `login_page()`s bereits bestehende Weiche) UND ein von
+Hand eingetipptes `/` (über `dashboard_page()`s neue Weiche), da beide dieselbe
+`default_home_page_for_role()`-Funktion nutzen. Kein drittes Verhalten neben "gesperrt"/"offen"
+-- die Rolle entscheidet das Ziel, nicht der Weg (exakt die vom Nutzer vorgegebene Formulierung).
+`tests/test_v260_role_audit.py::test_field_reaches_only_the_five_pages_it_needs` prüft seither
+für `/` einen 302 auf `/mobil` statt eines 403.
+
+**Punkt 3 -- Tätigkeit im Nachtrag, PRÄMISSE KORRIGIERT.** Der Nutzer nannte als Ausgangspunkt
+"der Schnellstart hat schon ein Tätigkeitsfeld, der Nachtrag noch nicht" -- beim Nachsehen im
+tatsächlichen `time_tracking_field.html` (Stand 1.3.60) stimmte das nicht: WEDER Schnellstart
+NOCH Nachtrag hatten ein Tätigkeitsfeld, nur die "Zeitart"-Kacheln (Baustelle/Fahrzeit/Werkstatt/
+Sonstige) existierten -- "Tätigkeit" ist ein davon unabhängiges Konzept
+(`time_entry_activities`-Optionsgruppe, z. B. "Dacheindeckung", "Reparatur"), das bei der
+1.3.60-Reduktion bewusst aus BEIDEN Abschnitten weggelassen worden war. Diese Diskrepanz wurde
+vor der Umsetzung transparent gemacht, nicht stillschweigend nach der einen oder anderen Seite
+aufgelöst. Umgesetzt wie vom Nutzer für den Korrekturfall verlangt ("ergänze es, mit denselben
+Werten wie im Schnellstart"): ein neues, optionales `<select id="quickActivity">` UND
+`<select id="manualActivity">`, beide befüllt aus derselben `time_entry_activities`-Optionsgruppe
+wie die volle `time_tracking.html` (`safeOptionGroup('time_entry_activities', ...)`, Werte/Label
+identisch zum Vorbild). Kein Backend-Fund nötig -- `TimeTimerStart`/`TimeEntryManualCreate`
+(`app/schemas.py`) kannten `activity: str | None` schon immer, `_time_entry_*`-Endpunkte
+verarbeiteten es bereits korrekt, nur die reduzierte Maske hatte kein Feld dafür.
+
+**Punkt 4 -- Stundenzettel.** Neue Seite `/mobil/stundenzettel` (`field_timesheet_page()`, eigene
+Seite statt eines weiteren Kartenabschnitts auf `/mobil` -- Monatswahl/Liste/PDF-Knopf passen
+strukturell nicht zum einfachen Karten-Muster der übrigen Abschnitte dort). Vor dem Bauen
+geprüft, wie verlangt: der bestehende Büro-Stundenzettel (`app/time_backoffice.py::
+build_timesheet_pdf()`, admin-only, `GET /api/time-backoffice/timesheet.pdf`) ist ein
+ALTER, eigener `SimpleDocTemplate`/`landscape(A4)`-Renderer, der den gemeinsamen PDF-Rahmen aus
+dem 1.3.1–1.3.20-Umbau NIE genutzt hat (vor oder unabhängig davon entstanden) -- er konnte also
+nur als inhaltliche Vorlage dienen (Spaltenauswahl Datum/Auftrag/Zeitart/Tätigkeit/Stunden,
+Tagessummen-/Gesamtsummenzeilen, Gruppierung je Mitarbeiter), nicht als Code-Vorbild für den vom
+Nutzer ausdrücklich geforderten "gemeinsamen Rahmen ... mit Briefkopf".
+
+Neuer, dedizierter Renderer `app/field_timesheet_pdf.py::build_field_timesheet_pdf(db,
+employee_id, year, month) -> bytes` -- nutzt `render_framed_pdf()` mit einem KOMPLETT NEUEN
+`document_type="field_timesheet"` (erstmals seit `service_report` in 1.3.11 wieder ein Typ ohne
+jede Vorgeschichte), eingetragen in `DOCUMENT_TYPES` (`app/document_layout.py`) UND
+`RENDERERS_USING_SHARED_FRAME` (`app/document_frame.py`) -- ohne beide Einträge wirft
+`render_framed_pdf()`/`ensure_default_layout()` einen `ValueError` (Muster exakt wie 1.3.11
+dokumentiert). Fällt ohne eigene Zeile automatisch auf den geteilten `"default"`-Briefpapier-/
+Rand-/Bausteinsatz zurück (`resolve_shared_document_type()`) -- **kein neues Datenmodell, keine
+Migration**, entgegen der ursprünglichen Erwartung "Punkt 4 könnte eine Ausnahme brauchen": der
+bereits bestehende Rückfallmechanismus aus 1.3.6 reicht vollständig aus. Portrait statt Landscape
+(anders als der Büro-Stundenzettel), fünf Spalten (Datum/Auftrag/Zeitart/Tätigkeit/Stunden statt
+neun), `build_din5008_header_block()` mit dem Mitarbeiternamen als "Empfänger" (DIN-5008-korrekt
+für ein personenbezogenes Dokument) und der Personalnummer als zusätzlicher Meta-Zeile, sofern
+gesetzt. Zeitart-Beschriftungen kommen server-seitig aus `get_option_group(db,
+"time_entry_types")` (dieselbe Optionsgruppe, dieselbe Auflösung wie clientseitig in
+`time_tracking_field.html`), keine hartkodierte Fallback-Tabelle im PDF selbst.
+
+Kein neuer JSON-Endpunkt für die Bildschirmansicht -- bewusste Entscheidung: `field_timesheet.html`
+ruft direkt das bereits bestehende, für `field` self-scoped `GET /api/time-entries?start_date=&
+end_date=` auf (seit 1.3.56 self-scoped, siehe "Objekt-Filterung" oben) und gruppiert client-seitig
+nach Tag. Nur die PDF-Erzeugung braucht zwangsläufig einen serverseitigen Weg: neuer Endpunkt
+`GET /api/field-view/timesheet.pdf?year=&month=` (`app/routers/field_view.py`, `_any_role_dep`),
+löst den Mitarbeiter ausschließlich über `request.state.erp_user` auf (kein Client-Parameter --
+ein Monteur kann so nie den Stundenzettel eines Kollegen abrufen), Standard ist der laufende
+Monat, 422 statt 500 ohne Mitarbeiterverknüpfung (anders als die übrigen, bewusst leer statt
+fehlerhaft antwortenden Listen-Endpunkte dieser Datei -- ein Stundenzettel-PDF ohne Mitarbeiter
+ergibt keinen Sinn, eine leere Liste dagegen schon).
+
+**Punkt 5 -- Eigene Plantafel-Einträge ("Meine kommenden Termine").** Neuer Kartenabschnitt
+direkt auf `/mobil` (bewusst KEIN eigener Reiter/keine eigene Seite wie bei Punkt 4 -- eine
+einfache, datumssortierte Liste passt strukturell zu den drei bestehenden Kartenabschnitten
+"Heutige Einsätze"/"Offene Berichte"/"Wartungen an meinen Objekten", anders als Punkt 4s
+Monatswahl+PDF-Knopf). Neue Funktion `app/planning.py::list_upcoming_assignments_for_employee(db,
+employee_id, *, today=None, days_ahead=30)` -- dieselbe Zuordnung wie die bereits bestehende
+Tagesliste (`_employee_assignment_slot_condition()`, seit 1.3.61 aus
+`list_todays_assignments_for_employee()` in eine gemeinsame, jetzt zweitverwendete Hilfsfunktion
+ausgelagert, ebenso `_slot_query_with_order_options()`/`_slot_to_assignment_dict()`), aber über
+ein Zeitfenster (±30 Tage voraus) statt eines einzelnen Tages. Bewusst `PlanningSlot.end_date >=
+today` (nicht `start_date >= today`) -- ein bereits laufender, mehrtägiger Einsatz bleibt
+sichtbar, auch wenn sein Slot vor dem Fensterbeginn angefangen hat; dieselbe Überlegung, die
+schon bei der Tagesliste selbst gilt. Neuer Endpunkt `GET /api/field-view/upcoming`
+(`app/routers/field_view.py`, `_any_role_dep`) -- löst den Mitarbeiter ausschließlich über
+`request.state.erp_user` auf, bewusst eine leere Liste statt eines Fehlers ohne
+Mitarbeiterverknüpfung (Muster `GET /api/field-view/maintenance-contracts`, da diese Karte kein
+Kernbestandteil der Seite ist wie die Tagesliste). `mobil.html` rendert die Zeilen als reine,
+NICHT anklickbare Karten (`<div>` statt `<a>`, anders als "Heutige Einsätze") -- bewusste, kleine
+Abgrenzung, die die vom Nutzer betonte "reine Leseansicht, kein Zugriff auf die Plantafel selbst"
+optisch unterstreicht, auch wenn ein Klick technisch ohnehin nirgends hinführen würde.
+
+Geprüft, dass die volle Plantafel für Monteure gesperrt bleibt: `GET /planning`
+(`app/routers/pages.py`) trägt weiterhin `_role_dep` (Büro/Admin, unverändert seit der
+1.3.57-Seiten-Klassifizierung), `GET /api/planning` und die übrigen Endpunkte in
+`app/routers/planning.py` tragen weiterhin `_role_dep` = `require_role(ROLE_ADMIN, ROLE_OFFICE)`
+(unverändert seit Rest-Etappe Teil A, 1.3.54) -- keiner der fünf Punkte dieser Runde berührt
+diese Datei.
+
+**Der vom Nutzer verlangte, wiederholte Angriffstest** (`tests/test_v265_mobile_rename_and_extras.py::
+TestVollePlantafelBleibtGesperrt`, gegen eine isolierte Testinstanz, nie gegen die echte
+Datenbank): volle Plantafel-Seite (`/planning`) UND volle Plantafel-API (`GET /api/planning`,
+`GET /api/planning/settings`) liefern für `field` weiterhin 403; ein `field`-Konto, das
+`?employee_id=<Kollege>` an `GET /api/time-entries` anhängt, bekommt trotzdem nur die eigenen
+Stunden zurück (die bestehende, seit 1.3.56 geltende Überschreibung greift unverändert); ein
+`field`-Konto sieht über `GET /api/field-view/upcoming` nie die kommenden Plantafel-Einträge
+eines Kollegen. Alle vier Fälle mit einem zweiten Testdurchlauf bestätigt: null "durchgelassen".
+1267/1267 Tests grün.
+
 ### Kundendaten für einen Monteur: ausschließlich über den Bericht, nicht über eine Kundenseite
 
 Enger gefasst als eine reine Rollen-Sperre auf `/customers/*`: ein Monteur soll Kundendaten nie
@@ -6035,9 +6195,12 @@ serverseitig sperren, nicht nur im Menü fehlen.**
   Sonderfassung nötig. Jede Seiten-Route in `app/routers/pages.py` bekam deshalb schlicht
   `_role: AppUser = _role_dep` (Büro/Admin) bzw. `_any_role_dep` (jede Rolle) als zusätzlichen
   Parameter -- dieselben zwei Konstanten wie an jeder API-Datei dieser Etappe.
-- **Vier Seiten für `field`, jede andere Büro/Admin**: `/account`, `/vor-ort`, `/time-tracking`,
-  `/orders/{order_id}/service-reports` -- exakt die vier Seiten, die ein Monteur tatsächlich
-  braucht (Selbstbedienung, seine Einstiegsseite, seine Zeitbuchung, sein Bericht). Jede andere
+- **Fünf Seiten für `field`, jede andere Büro/Admin** (bei Einführung 1.3.57 waren es vier --
+  `/mobil/stundenzettel` kam erst mit 1.3.61 dazu, `/vor-ort` heißt seit derselben Version
+  `/mobil`, siehe "Monteursansicht: Umbenennung zu /mobil"): `/account`, `/mobil`,
+  `/mobil/stundenzettel`, `/time-tracking`, `/orders/{order_id}/service-reports` -- exakt die
+  Seiten, die ein Monteur tatsächlich braucht (Selbstbedienung, seine Einstiegsseite, sein
+  eigener Stundenzettel, seine Zeitbuchung, sein Bericht). Jede andere
   Seite (Kunden, Objekte, Dachflächen, Projekte, Angebote/Aufträge/Rechnungen/Mahnungen,
   Stammdaten, Einstellungen, Aufgaben, Wartungsverträge, Prüfvorlagen, Mängelliste, Änderungs-
   historie, Adressimport, Zeiterfassungs-Backoffice) ist Büro/Admin -- gespiegelt an der bereits
@@ -6057,9 +6220,10 @@ serverseitig sperren, nicht nur im Menü fehlen.**
   aber nie verdrahtete `access_denied.html` -- jeder andere Statuscode und jeder `/api/`-Pfad
   läuft unverändert über FastAPIs eigenen Standard-Handler (`http_exception_handler`, daran
   delegiert, keine Kopie). "Zur Startseite" zeigt auf `app/permissions.py::
-  default_home_page_for_role(role)` -- `/vor-ort` für `field`, sonst `/` --, außer der Aufruf war
-  anonym (nur im Bootstrap-Fall möglich, `_page_requires_login()` leitet sonst schon vorher auf
-  `/login` um): dann auf `/users`, die einzige in diesem Zustand erreichbare Seite.
+  default_home_page_for_role(role)` -- `/mobil` (bis 1.3.60 `/vor-ort`) für `field`, sonst `/` --,
+  außer der Aufruf war anonym (nur im Bootstrap-Fall möglich, `_page_requires_login()` leitet
+  sonst schon vorher auf `/login` um): dann auf `/users`, die einzige in diesem Zustand
+  erreichbare Seite.
 - **Login-Landing für `field` korrigiert, an zwei Stellen**: `default_home_page_for_role()`
   wird auch von `login_page()` genutzt (bereits angemeldeter Aufruf von `/login`, vorher
   hartkodiert `"/"`) -- ohne diese Korrektur hätte ein Monteur nach dem zweiten Login-Versuch
@@ -6188,8 +6352,9 @@ ist in der Liste ohnehin sichtbar, keine verdeckte Änderung möglich).
    `PAGE_AUDIT_EXEMPT` für die vier strukturellen Ausnahmen), ein 403 zeigt `access_denied.html`
    statt einer rohen JSON-Antwort (`app/main.py`s Exception-Handler), der Audit-Test deckt beide
    Ebenen ab -- siehe "Seiten-Klassifizierung" unten für die volle Herleitung. **Seit 1.3.58
-   zusätzlich der `/vor-ort`-Vertragsfinder**: die Karte "Wartungen an meinen Objekten" (siehe
-   eigener Abschnitt "Objekt-Filterung" → "Vertragsfinder auf /vor-ort" unten) schließt die
+   zusätzlich der `/mobil`-Vertragsfinder** (damals noch unter `/vor-ort`)**: die Karte "Wartungen
+   an meinen Objekten" (siehe eigener Abschnitt "Objekt-Filterung" → "Vertragsfinder auf /mobil"
+   unten) schließt die
    zuletzt offene Lücke -- ein Monteur konnte bisher nur eine bereits geplante Wartung
    durchführen, keine ungeplante an einem Objekt starten, an dem er gerade arbeitet. **Seit
    1.3.59 ein Sicherheitstest gegen eine isolierte Testinstanz** (nie gegen die echte
@@ -6487,7 +6652,7 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   angefragte Funktionserweiterung, kein kleiner Fix.
 - **Feierabend-Abmeldung deckt keinen bereits offenen Berichtstab ab** (seit 1.3.0, siehe
   Abschnitt "Monteursansicht"): `MobileSettings.shift_end_time` wird nur an den beiden mobilen
-  Einstiegspunkten geprüft (`GET /vor-ort`-Seitenaufruf, `GET /api/field-view/today`), bewusst
+  Einstiegspunkten geprüft (`GET /mobil`-Seitenaufruf, `GET /api/field-view/today`), bewusst
   NICHT in den gemeinsamen Formular-Endpunkten (`PUT /api/inspection-items/{id}`,
   `POST /api/service-reports/{id}/sign` usw.) – das würde auch Schreibtisch-Nutzer treffen, die
   spät noch etwas nachtragen. Ein Monteur, der einen Bericht vor der Feierabend-Grenze geöffnet

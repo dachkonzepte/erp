@@ -1,6 +1,8 @@
-"""Router: field_view (seit 1.3.0) -- Monteursansicht /vor-ort auf dem Fahrzeug-Tablet: heutige
-Einsätze (Plantafel, über list_todays_assignments_for_employee()) und offene Entwurfsberichte
-(über list_draft_reports_for_employee(), nur bei aktivem Modul "wartungen"). Kein eigener
+"""Router: field_view (seit 1.3.0) -- Monteursansicht /mobil (bis 1.3.60 /vor-ort, reine
+Umbenennung, siehe CLAUDE.md "Monteursansicht: Umbenennung zu /mobil") auf dem Fahrzeug-Tablet:
+heutige Einsätze (Plantafel, über list_todays_assignments_for_employee()), offene Entwurfsberichte
+(über list_draft_reports_for_employee(), nur bei aktivem Modul "wartungen") und, seit 1.3.61,
+eigene kommende Plantafel-Termine sowie ein eigener Stundenzettel (PDF). Kein eigener
 OPTIONAL_MODULES-Eintrag (siehe CLAUDE.md) -- eine neue Oberfläche über bereits bestehenden
 bzw. bereits eigenständig geschalteten Daten, kein neues fachliches Modul.
 
@@ -8,7 +10,7 @@ Trägt außerdem das Web-App-Manifest und die PWA-Icons (GET /manifest.json,
 GET /api/mobile-icon/{size}.png) -- dieselbe Datei, da beides ausschließlich der
 Monteursansicht dient."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -18,13 +20,14 @@ from sqlalchemy.orm import Session
 from ..auth import COOKIE_NAME
 from ..database import get_db
 from ..deps import require_admin
+from ..field_timesheet_pdf import build_field_timesheet_pdf
 from ..maintenance_contracts import list_relevant_contracts_for_employee
 from ..mobile_manifest import build_icon_png, build_manifest
 from ..mobile_settings import get_or_create_mobile_settings, is_past_shift_end, mobile_settings_to_dict, update_mobile_settings
 from ..models import AppUser, Order
 from ..modules import is_module_enabled
 from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
-from ..planning import list_field_bookable_order_ids, list_todays_assignments_for_employee
+from ..planning import list_field_bookable_order_ids, list_todays_assignments_for_employee, list_upcoming_assignments_for_employee
 from ..schemas import FieldMaintenancePropertyGroupOut, MobileSettingsOut, MobileSettingsUpdate
 from ..service_reports import list_draft_reports_for_employee
 
@@ -40,7 +43,7 @@ def get_field_view_today(request: Request, db: Session = Depends(get_db)):
     """Löst den Mitarbeiter ausschließlich über request.state.erp_user.employee_id auf, nie
     über einen Client-Parameter -- jeder sieht ausschließlich seine eigenen Einsätze. Prüft
     zusätzlich die Feierabend-Grenze (MobileSettings.shift_end_time) und meldet bei
-    Überschreitung ab (Cookie löschen, 401) -- bewusst nur an diesem und dem GET /vor-ort-
+    Überschreitung ab (Cookie löschen, 401) -- bewusst nur an diesem und dem GET /mobil-
     Einstiegspunkt, nicht in der globalen Middleware (siehe CLAUDE.md)."""
     user = getattr(request.state, "erp_user", None)
     if user is None:
@@ -68,7 +71,7 @@ def get_field_view_maintenance_contracts(request: Request, db: Session = Depends
     ohne die volle Vertragsliste zu durchsuchen eine ungeplante Wartung starten kann. Löst den
     Mitarbeiter wie GET /api/field-view/today ausschließlich über request.state.erp_user auf --
     fehlt die Verknüpfung oder ist das Modul "wartungen" aus, bewusst eine leere Liste statt
-    eines Fehlers (die Karte blendet dann leise aus, siehe vor_ort.html), da diese Karte anders
+    eines Fehlers (die Karte blendet dann leise aus, siehe mobil.html), da diese Karte anders
     als die Tagesliste kein Kernbestandteil der Seite ist."""
     if not is_module_enabled(db, "wartungen"):
         return []
@@ -80,7 +83,7 @@ def get_field_view_maintenance_contracts(request: Request, db: Session = Depends
 
 @router.get("/api/field-view/time-tracking/orders")
 def get_field_view_time_tracking_orders(request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
-    """Auftragsauswahl für die reduzierte Zeiterfassung auf /vor-ort (seit 1.3.60, siehe
+    """Auftragsauswahl für die reduzierte Zeiterfassung auf /mobil (seit 1.3.60, siehe
     CLAUDE.md „Zeiterfassung für Monteure"). Löst den Mitarbeiter wie GET /api/field-view/today
     ausschließlich über request.state.erp_user auf -- kein employee_id-Parameter, ein Monteur
     kann hierüber nie die Auftragsliste eines Kollegen abrufen. Reines Anzeige-Dict statt eines
@@ -105,6 +108,52 @@ def get_field_view_time_tracking_orders(request: Request, db: Session = Depends(
         {"id": o.id, "order_number": o.order_number, "customer_name": o.customer_name, "property_address": o.property_address}
         for o in rows
     ]
+
+
+@router.get("/api/field-view/upcoming")
+def get_field_view_upcoming(request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    """"Eigene Plantafel-Einträge" auf /mobil (seit 1.3.61, siehe CLAUDE.md "Zeiterfassung für
+    Monteure" -> "Eigene Plantafel-Einträge") -- eine reine Leseansicht der eigenen KOMMENDEN
+    Termine, kein Zugriff auf die Plantafel selbst: kein Verschieben, keine fremden
+    Kolonnen/Aufträge. Löst den Mitarbeiter wie GET /api/field-view/today ausschließlich über
+    request.state.erp_user auf, bewusst eine leere Liste statt eines Fehlers ohne
+    Mitarbeiterverknüpfung (dieselbe Kartenlogik wie die Wartungen-Karte, kein Kernbestandteil
+    der Seite). GET /planning (die volle Plantafel) bleibt für `field` weiterhin gesperrt --
+    dieser Endpunkt zeigt nur die eigene, bereits stark eingegrenzte Sicht, siehe
+    list_upcoming_assignments_for_employee() (app/planning.py)."""
+    user = getattr(request.state, "erp_user", None)
+    if user is None or user.employee_id is None:
+        return []
+    return list_upcoming_assignments_for_employee(db, user.employee_id)
+
+
+@router.get("/api/field-view/timesheet.pdf")
+def get_field_view_timesheet_pdf(
+    request: Request, year: int | None = None, month: int | None = None,
+    db: Session = Depends(get_db), _role: AppUser = _any_role_dep,
+):
+    """Eigener Stundenzettel als PDF (seit 1.3.61, siehe CLAUDE.md "Zeiterfassung für Monteure"
+    -> "Stundenzettel") -- ausschließlich die eigenen Buchungen, wie der Bildschirm-Stundenzettel
+    ausschließlich über request.state.erp_user aufgelöst, kein employee_id-Parameter. Baut auf
+    demselben gemeinsamen PDF-Rahmen wie Mahnung/Rechnung/Auftrag/Einsatzbericht/Angebot
+    (render_framed_pdf(), siehe app/field_timesheet_pdf.py) -- mit Briefkopf, NICHT die alte,
+    landscape-eigene Büro-Vorlage aus app/time_backoffice.py (admin-only, mehrere Mitarbeiter
+    gleichzeitig, nutzt selbst bewusst NICHT den gemeinsamen Rahmen -- kein Vorbild für den
+    Rahmen, nur für die Spaltenauswahl)."""
+    user = getattr(request.state, "erp_user", None)
+    if user is None or user.employee_id is None:
+        raise HTTPException(status_code=422, detail="Ihr ERP-Benutzerkonto ist keinem Mitarbeiter zugeordnet.")
+    today = date.today()
+    year = year or today.year
+    month = month or today.month
+    if not (1 <= month <= 12):
+        raise HTTPException(status_code=422, detail="Ungültiger Monat.")
+    try:
+        data = build_field_timesheet_pdf(db, user.employee_id, year, month)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    filename = f"Stundenzettel_{year:04d}-{month:02d}.pdf"
+    return Response(content=data, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
 @router.get("/api/mobile-settings", response_model=MobileSettingsOut)

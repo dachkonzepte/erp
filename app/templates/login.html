@@ -45,11 +45,13 @@ async function login(){
   // weitergereicht, sonst wüsste account.html nach der Bestätigung nicht mehr, wohin es
   // eigentlich gehen sollte (vorher ging es danach immer nur nach /account selbst, siehe
   // CLAUDE.md). Seit "Rechtekonzept" (Seiten-Klassifizierung): ohne next landet ein Monteur
-  // auf /vor-ort statt /projects (dort ist er seit derselben Etappe serverseitig gesperrt) --
-  // Python-Gegenstück app/permissions.py::default_home_page_for_role(), hier bewusst als reiner
-  // JS-Zweig dupliziert statt geteilt (kein gemeinsames JS-Modul in diesem Projekt) und mit dem
-  // hier etablierten Rückfall /projects, nicht dem server-seitig genutzten "/" (siehe dort).
-  location.href=d.two_factor_required?('/account'+location.search):(new URLSearchParams(location.search).get('next')||(d.role==='field'?'/vor-ort':'/projects'))
+  // auf /mobil statt /projects (dort ist er seit derselben Etappe serverseitig gesperrt -- /mobil
+  // hieß bis 1.3.60 /vor-ort, reine Umbenennung, siehe CLAUDE.md "Monteursansicht: Umbenennung
+  // zu /mobil") -- Python-Gegenstück app/permissions.py::default_home_page_for_role(), hier
+  // bewusst als reiner JS-Zweig dupliziert statt geteilt (kein gemeinsames JS-Modul in diesem
+  // Projekt) und mit dem hier etablierten Rückfall /projects, nicht dem server-seitig genutzten
+  // "/" (siehe dort).
+  location.href=d.two_factor_required?('/account'+location.search):(new URLSearchParams(location.search).get('next')||(d.role==='field'?'/mobil':'/projects'))
 }
 </script>
 </body>

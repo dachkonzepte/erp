@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from .document_type_fallback import SHARED_DOCUMENT_TYPE, resolve_shared_document_type
 from .models import DocumentLayoutBlock, DocumentLayoutBackground
 
-DOCUMENT_TYPES = {"quote", "order", "invoice", "reminder", "service_report"}
+DOCUMENT_TYPES = {"quote", "order", "invoice", "reminder", "service_report", "field_timesheet"}
 
 # Seit 1.3.1 (app/document_frame.py, CLAUDE.md "PDF-Rahmen"): die vier gezeichneten Bausteine, die
 # als optionaler Rückfall neben Briefpapier-Hintergrund + Rändern zur Verfügung stehen.

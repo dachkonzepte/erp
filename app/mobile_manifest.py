@@ -1,4 +1,5 @@
-"""Web-App-Manifest und PWA-Icons für die Monteursansicht (seit 1.3.0, /vor-ort). Reine
+"""Web-App-Manifest und PWA-Icons für die Monteursansicht (seit 1.3.0, /mobil -- bis 1.3.60
+/vor-ort, siehe CLAUDE.md "Monteursansicht: Umbenennung zu /mobil"). Reine
 Laufzeit-Erzeugung ohne Caching -- Icons werden selten angefragt (nur beim "Zum Startbildschirm
 hinzufügen"), Einfachheit vor Optimierung, kein Cache-Invalidierungsproblem bei einem späteren
 Logo-Wechsel. Kein StaticFiles-Mount (im ganzen Projekt gibt es keinen, geprüft in app/main.py)
@@ -47,9 +48,9 @@ def build_manifest(db: Session) -> dict:
     general = get_or_create_general_settings(db)
     accent = get_accent_color(db)
     return {
-        "name": f"{general.company_name} – Vor Ort",
-        "short_name": "Vor Ort",
-        "start_url": "/vor-ort",
+        "name": f"{general.company_name} – Mobil",
+        "short_name": "Mobil",
+        "start_url": "/mobil",
         "display": "standalone",
         "background_color": "#ffffff",
         "theme_color": accent,

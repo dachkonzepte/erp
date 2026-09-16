@@ -227,7 +227,7 @@ def list_reports_for_field(db: Session, order_id: int, viewer_employee_id: int |
 
 
 def list_draft_reports_for_employee(db: Session, employee_id: int) -> list[dict]:
-    """Für die Monteursansicht (/vor-ort, seit 1.3.0) -- offene (noch nicht unterschriebene)
+    """Für die Monteursansicht (/mobil, seit 1.3.0 -- bis 1.3.60 /vor-ort) -- offene (noch nicht unterschriebene)
     Berichte, an denen dieser Mitarbeiter zuletzt gearbeitet hat. created_by_employee_id ist die
     einzige vorhandene Zuordnung (kein eigenes "zuletzt bearbeitet von"-Feld), sortiert nach
     updated_at absteigend."""

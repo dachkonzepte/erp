@@ -576,16 +576,15 @@ def slot_to_dict(slot: PlanningSlot, conflicts: list[dict] | None = None, db: Se
     }
 
 
-def list_todays_assignments_for_employee(db: Session, employee_id: int, day: date | None = None) -> list[dict]:
-    """Für die Monteursansicht (/vor-ort, seit 1.3.0) -- alle PlanningSlot-Zeilen, die einen
-    Mitarbeiter für den angegebenen Tag betreffen, über beide Zuordnungswege: Team-Zugehörigkeit
-    (WorkPreparationTeamEmployee, Snapshot der Team-Besetzung zum Zuweisungszeitpunkt der
-    WorkPreparationTeamAssignment, an der der Slot über team_assignment_id hängt) und direkte
-    Einzelzuweisung (WorkPreparationEmployee -- an der WorkPreparation selbst, nicht am
-    einzelnen Slot; jeder Slot dieser AV zählt dann). Adress-/Objektname-Auflösung exakt wie in
-    slot_to_dict(): order.project.property geht vor, order.property_name/-address ist der
-    Rückfall ohne verknüpftes Objekt."""
-    day = day or date.today()
+def _employee_assignment_slot_condition(employee_id: int):
+    """Gemeinsame Zuordnungs-Bedingung Mitarbeiter -> PlanningSlot (Team- ODER Einzelzuweisung an
+    der Arbeitsvorbereitung) -- seit 1.3.61 aus list_todays_assignments_for_employee()
+    ausgelagert, damit list_upcoming_assignments_for_employee() (siehe dort, "Eigene
+    Plantafel-Einträge" auf /mobil) dieselbe Zuordnung nutzt statt sie ein zweites Mal
+    nachzubauen. Team-Zugehörigkeit über WorkPreparationTeamEmployee (Snapshot der
+    Team-Besetzung zum Zuweisungszeitpunkt der WorkPreparationTeamAssignment, an der der Slot
+    über team_assignment_id hängt), direkte Einzelzuweisung über WorkPreparationEmployee (an der
+    WorkPreparation selbst, nicht am einzelnen Slot -- jeder Slot dieser AV zählt dann)."""
     team_slot_ids = (
         select(PlanningSlot.id)
         .join(WorkPreparationTeamAssignment, PlanningSlot.team_assignment_id == WorkPreparationTeamAssignment.id)
@@ -598,18 +597,49 @@ def list_todays_assignments_for_employee(db: Session, employee_id: int, day: dat
         .join(WorkPreparationEmployee, WorkPreparationEmployee.preparation_id == WorkPreparation.id)
         .where(WorkPreparationEmployee.employee_id == employee_id)
     )
+    return PlanningSlot.id.in_(team_slot_ids) | PlanningSlot.id.in_(individual_slot_ids)
+
+
+def _slot_query_with_order_options():
+    """Gemeinsame Basisabfrage (Eager-Load bis zum Objekt) für beide Funktionen unten."""
+    return select(PlanningSlot).options(
+        selectinload(PlanningSlot.preparation)
+        .selectinload(WorkPreparation.order)
+        .selectinload(Order.project)
+        .selectinload(Project.property),
+    )
+
+
+def _slot_to_assignment_dict(db: Session, slot: PlanningSlot, *, include_report_count: bool) -> dict:
+    """Adress-/Objektname-Auflösung exakt wie in slot_to_dict(): order.project.property geht vor,
+    order.property_name/-address ist der Rückfall ohne verknüpftes Objekt."""
+    order = slot.preparation.order
+    project = order.project
+    prop = project.property if project else None
+    if prop:
+        address = ", ".join(x for x in [prop.street, f"{prop.postal_code or ''} {prop.city or ''}".strip()] if x)
+    else:
+        address = order.property_address.replace("\n", ", ") if order.property_address else ""
+    result = {
+        "slot_id": slot.id, "order_id": order.id, "order_number": order.order_number,
+        "customer_name": order.customer_name,
+        "property_name": prop.name if prop else order.property_name,
+        "property_address": address,
+        "start_date": slot.start_date, "end_date": slot.end_date,
+    }
+    if include_report_count:
+        result["report_count"] = count_reports_for_order(db, order.id)
+    return result
+
+
+def list_todays_assignments_for_employee(db: Session, employee_id: int, day: date | None = None) -> list[dict]:
+    """Für die Monteursansicht (/mobil, seit 1.3.0, bis 1.3.60 unter /vor-ort) -- alle
+    PlanningSlot-Zeilen, die einen Mitarbeiter für den angegebenen Tag betreffen, über beide
+    Zuordnungswege (siehe _employee_assignment_slot_condition())."""
+    day = day or date.today()
     query = (
-        select(PlanningSlot)
-        .options(
-            selectinload(PlanningSlot.preparation)
-            .selectinload(WorkPreparation.order)
-            .selectinload(Order.project)
-            .selectinload(Project.property),
-        )
-        .where(
-            PlanningSlot.start_date <= day, PlanningSlot.end_date >= day,
-            PlanningSlot.id.in_(team_slot_ids) | PlanningSlot.id.in_(individual_slot_ids),
-        )
+        _slot_query_with_order_options()
+        .where(PlanningSlot.start_date <= day, PlanningSlot.end_date >= day, _employee_assignment_slot_condition(employee_id))
         .order_by(PlanningSlot.start_date)
     )
     slots = db.scalars(query).all()
@@ -620,21 +650,41 @@ def list_todays_assignments_for_employee(db: Session, employee_id: int, day: dat
         if slot.id in seen_slot_ids:
             continue  # ein Slot kann über BEIDE Wege gleichzeitig zutreffen, kein Duplikat
         seen_slot_ids.add(slot.id)
-        order = slot.preparation.order
-        project = order.project
-        prop = project.property if project else None
-        if prop:
-            address = ", ".join(x for x in [prop.street, f"{prop.postal_code or ''} {prop.city or ''}".strip()] if x)
-        else:
-            address = order.property_address.replace("\n", ", ") if order.property_address else ""
-        result.append({
-            "slot_id": slot.id, "order_id": order.id, "order_number": order.order_number,
-            "customer_name": order.customer_name,
-            "property_name": prop.name if prop else order.property_name,
-            "property_address": address,
-            "start_date": slot.start_date, "end_date": slot.end_date,
-            "report_count": count_reports_for_order(db, order.id),
-        })
+        result.append(_slot_to_assignment_dict(db, slot, include_report_count=True))
+    return result
+
+
+def list_upcoming_assignments_for_employee(db: Session, employee_id: int, *, today: date | None = None,
+                                            days_ahead: int = 30) -> list[dict]:
+    """"Eigene Plantafel-Einträge" auf /mobil (seit 1.3.61, siehe CLAUDE.md) -- eine reine
+    Leseansicht der KOMMENDEN eigenen Termine, kein Zugriff auf die Plantafel selbst: dieselbe
+    Zuordnung wie list_todays_assignments_for_employee() (_employee_assignment_slot_condition()),
+    aber über ein Zeitfenster statt eines einzelnen Tages. Bewusst `end_date >= today` (nicht
+    `start_date >= today`) -- ein bereits laufender, mehrtägiger Einsatz bleibt sichtbar, auch
+    wenn sein Slot vor dem Fensterbeginn angefangen hat, exakt wie bei der Tagesliste selbst.
+    `days_ahead` (Standard 30) begrenzt den Horizont, damit die Liste nicht mit weit in der
+    Zukunft liegenden, noch unsicheren Terminen überladen wird -- kein neues Datenmodell, dieselben
+    beiden Zuordnungstabellen (WorkPreparationEmployee/WorkPreparationTeamAssignment) wie überall
+    sonst in diesem Abschnitt."""
+    today = today or date.today()
+    window_end = today + timedelta(days=days_ahead)
+    query = (
+        _slot_query_with_order_options()
+        .where(
+            PlanningSlot.end_date >= today, PlanningSlot.start_date <= window_end,
+            _employee_assignment_slot_condition(employee_id),
+        )
+        .order_by(PlanningSlot.start_date)
+    )
+    slots = db.scalars(query).all()
+
+    result = []
+    seen_slot_ids: set[int] = set()
+    for slot in slots:
+        if slot.id in seen_slot_ids:
+            continue
+        seen_slot_ids.add(slot.id)
+        result.append(_slot_to_assignment_dict(db, slot, include_report_count=False))
     return result
 
 
@@ -686,8 +736,8 @@ def _relevant_preparation_ids_for_employee(db: Session, employee_id: int, *, win
 def list_field_relevant_property_ids(db: Session, employee_id: int, *, window_days: int = 14,
                                       today: date | None = None) -> set[int]:
     """Objekte, an denen ein Monteur aktuell oder in Kürze zu tun hat -- Grundlage für die Karte
-    "Wartungen an meinen Objekten" auf /vor-ort (Rechtekonzept, siehe CLAUDE.md, Abschnitt
-    "Objekt-Filterung" bzw. der Nachtrag zum /vor-ort-Vertragsfinder dort).
+    "Wartungen an meinen Objekten" auf /mobil (Rechtekonzept, siehe CLAUDE.md, Abschnitt
+    "Objekt-Filterung" bzw. der Nachtrag zum /mobil-Vertragsfinder dort).
 
     Betreibervorgabe: kein ungefiltertes "war je einmal zugeordnet" (würde über die Jahre zu
     einer Liste mit lauter Altlasten anwachsen), stattdessen ein großzügiges Zeitfenster
@@ -747,7 +797,7 @@ def list_field_relevant_property_ids(db: Session, employee_id: int, *, window_da
 
 def list_field_bookable_order_ids(db: Session, employee_id: int, *, window_days: int = 14,
                                    today: date | None = None) -> set[int]:
-    """Aufträge, die ein Monteur in der reduzierten Zeiterfassung auf /vor-ort wählen darf (seit
+    """Aufträge, die ein Monteur in der reduzierten Zeiterfassung auf /mobil wählen darf (seit
     1.3.60, siehe CLAUDE.md „Zeiterfassung für Monteure"). Dasselbe Zeitfenster wie
     list_field_relevant_property_ids() (1.3.58-Wartungsfinder), auf Aufträge statt Objekte
     angewendet -- „was dort als 'meine Objekte' gilt, gilt hier als 'meine Aufträge'"

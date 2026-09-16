@@ -72,6 +72,10 @@ RENDERERS_USING_SHARED_FRAME: dict[str, str] = {
     # "nutzt den gemeinsamen Rahmen" erscheinen, obwohl produktiv noch der alte Renderer läuft --
     # bewusst in Kauf genommen für die Dauer des Parallelbetriebs, siehe CLAUDE.md.
     "quote": "Angebot",
+    # Seit 1.3.61: eigener Stundenzettel für Monteure (app/field_timesheet_pdf.py) -- "mit
+    # Briefkopf" war Betreibervorgabe, kein eigenes Briefpapier/keine eigenen Ränder nötig, fällt
+    # ohne eigene Zeile automatisch auf den geteilten "default"-Satz zurück (siehe dort).
+    "field_timesheet": "Stundenzettel (Monteur)",
 }
 
 

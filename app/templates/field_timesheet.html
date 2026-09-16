@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DACHKONZEPTE ERP – Stundenzettel</title>
+  {#
+    field_timesheet.html -- eigener Stundenzettel für Monteure (seit 1.3.61, siehe CLAUDE.md
+    "Zeiterfassung für Monteure" -> "Stundenzettel"). Monatsansicht am Bildschirm, PDF-Download
+    über GET /api/field-view/timesheet.pdf. Läd die Bildschirmdaten direkt über das bereits
+    bestehende, für `field` self-scoped GET /api/time-entries?start_date=&end_date= -- KEIN
+    eigener JSON-Endpunkt nötig (bewusste Entscheidung, siehe CLAUDE.md), nur die PDF-Erzeugung
+    braucht einen eigenen, serverseitigen Endpunkt. Muster _mobile_header.html/mobil.html: keine
+    _sidebar.html, self-scoped API-Aufrufe (kein employee_id-Parameter nötig).
+  #}
+  <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--soft:#eef5f3;--danger:#c0362c;color:var(--ink);background:var(--bg)}
+    :root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--soft:#1e2b26;--danger:#f2837a}
+    *{box-sizing:border-box}body{margin:0}
+    main{max-width:720px;margin:0 auto;padding:16px 14px 60px}
+    h2{font-size:15px;margin:0 0 10px;color:var(--ink)}
+    .muted{color:var(--muted)}.small{font-size:12px}
+    .card{background:var(--card);border:1px solid var(--line);padding:14px 16px;margin-bottom:12px}
+    .month-head{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+    .month-head .field{flex:1;min-width:160px}
+    .field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+    input,select{width:100%;padding:10px 11px;border:1px solid var(--field-border);font:inherit;font-size:14.5px;background:var(--card);color:var(--ink);min-height:44px}
+    a.pdf-btn,button{display:inline-block;border:1px solid var(--accent);padding:11px 13px;background:var(--accent);color:#fff;font-weight:650;font-size:14px;cursor:pointer;text-decoration:none;text-align:center;min-height:44px}
+    .day-group{margin-bottom:14px}
+    .day-group:last-child{margin-bottom:0}
+    .day-head{font-weight:800;font-size:13.5px;margin-bottom:6px;display:flex;justify-content:space-between;gap:8px}
+    .entry-row{border:1px solid var(--line);padding:9px 11px;margin-bottom:6px;display:flex;justify-content:space-between;gap:8px;align-items:start}
+    .entry-row .info{font-size:13px}
+    .entry-row .order{font-weight:700}
+    .entry-row .meta{color:var(--muted);font-size:12px;margin-top:2px}
+    .entry-row .hours{font-weight:800;white-space:nowrap}
+    .day-total{text-align:right;font-weight:700;font-size:12.5px;color:var(--muted);margin-top:2px}
+    .month-total{display:flex;justify-content:space-between;align-items:center;font-size:16px;font-weight:800;border-top:2px solid var(--line);padding-top:10px;margin-top:6px}
+    .empty{padding:18px;text-align:center;color:var(--muted);border:1px dashed var(--field-border);font-size:13px}
+    .error{color:var(--danger)}
+    .loading{color:var(--muted);font-size:13.5px;padding:14px 2px}
+  </style>
+</head>
+<body>
+{% include "_mobile_header.html" %}
+<main>
+  <div id="loadWarning" class="card error" hidden></div>
+  <div class="card">
+    <h2>Stundenzettel</h2>
+    <div class="month-head">
+      <div class="field"><label>Monat</label><input id="monthInput" type="month"></div>
+      <a id="pdfLink" class="pdf-btn" href="#">PDF herunterladen</a>
+    </div>
+  </div>
+  <div class="card">
+    <div id="entriesArea" class="loading">Lädt…</div>
+    <div id="monthTotalRow" class="month-total" hidden><span>Monatssumme</span><span id="monthTotal">0,00 h</span></div>
+  </div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const num=x=>Number(x||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
+async function api(url,opt={}){const r=await fetch(url,opt);let data=null;try{data=await r.json()}catch{}if(!r.ok)throw new Error(data?.detail||`HTTP ${r.status}`);return data}
+function showLoadWarning(message){const el=$('loadWarning');if(!message){el.hidden=true;el.textContent='';return}el.hidden=false;el.textContent=message}
+
+function monthBounds(ym){
+  const [y,m]=ym.split('-').map(Number);
+  const start=`${y}-${String(m).padStart(2,'0')}-01`;
+  const lastDay=new Date(y,m,0).getDate();
+  const end=`${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+  return {y,m,start,end};
+}
+function fmtDay(s){const d=new Date(s+'T12:00:00');return d.toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'})}
+
+async function loadMonth(ym){
+  const {y,m,start,end}=monthBounds(ym);
+  $('pdfLink').href=`/api/field-view/timesheet.pdf?year=${y}&month=${m}`;
+  const area=$('entriesArea');
+  area.className='loading';area.textContent='Lädt…';
+  $('monthTotalRow').hidden=true;
+  let rows;
+  try{
+    rows=await api(`/api/time-entries?start_date=${start}&end_date=${end}&limit=2000`);
+  }catch(e){
+    area.className='error';area.textContent='Fehler beim Laden: '+e.message;
+    return;
+  }
+  rows=(rows||[]).filter(r=>r.status==='booked');
+  if(!rows.length){
+    area.className='empty';area.textContent='Keine Zeitbuchungen in diesem Monat.';
+    return;
+  }
+  const byDay={};
+  rows.forEach(r=>{(byDay[r.work_date]=byDay[r.work_date]||[]).push(r)});
+  const days=Object.keys(byDay).sort();
+  let monthTotal=0;
+  area.className='';
+  area.innerHTML=days.map(day=>{
+    const dayRows=byDay[day].slice().sort((a,b)=>String(a.started_at||'').localeCompare(String(b.started_at||'')));
+    let dayTotal=0;
+    const rowsHtml=dayRows.map(r=>{
+      dayTotal+=Number(r.hours||0);
+      return `<div class="entry-row"><div class="info"><div class="order">${esc(r.order_number||'')}</div><div class="meta">${esc(r.activity||'')}</div></div><div class="hours">${num(r.hours)} h</div></div>`;
+    }).join('');
+    monthTotal+=dayTotal;
+    return `<div class="day-group"><div class="day-head">${esc(fmtDay(day))}</div>${rowsHtml}<div class="day-total">Tagessumme: ${num(dayTotal)} h</div></div>`;
+  }).join('');
+  $('monthTotal').textContent=num(monthTotal)+' h';
+  $('monthTotalRow').hidden=false;
+}
+
+async function init(){
+  const auth=await api('/api/auth/status');
+  if(!auth.authenticated||!auth.user?.employee_id){
+    showLoadWarning('Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. Bitte unter Einstellungen → Benutzer & Zugriff einen Mitarbeiter zuordnen lassen.');
+    return;
+  }
+  const now=new Date();
+  const currentYm=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  $('monthInput').value=currentYm;
+  $('monthInput').addEventListener('change',()=>{if($('monthInput').value)loadMonth($('monthInput').value)});
+  await loadMonth(currentYm);
+}
+init().catch(e=>{
+  if(String(e.message||'').includes('401')){location.href='/login?next='+encodeURIComponent(location.pathname);return}
+  document.body.insertAdjacentHTML('beforeend',`<div style="padding:20px;color:var(--danger)">Fehler: ${esc(e.message)}</div>`);
+});
+</script>
+</body>
+</html>

@@ -3,10 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>DACHKONZEPTE ERP – Vor Ort</title>
+  <title>DACHKONZEPTE GmbH - Mobil</title>
   {# Manifest/Theme-Farbe/Apple-Touch-Icon bewusst NUR auf dieser Seite (seit 1.3.0) -- das ist
      die einzige Seite, die als Startadresse installiert werden soll (start_url in
-     app/mobile_manifest.py), siehe CLAUDE.md "Web-App-Manifest". #}
+     app/mobile_manifest.py), siehe CLAUDE.md "Web-App-Manifest". Seite hieß bis 1.3.60 /vor-ort
+     (app/templates/vor_ort.html), reine Umbenennung samt neuem Titel, siehe CLAUDE.md
+     "Monteursansicht: Umbenennung zu /mobil". Seit 1.3.61 zusätzlich "Meine kommenden Termine"
+     (Punkt 5, siehe CLAUDE.md "Zeiterfassung für Monteure" -> "Eigene Plantafel-Einträge") --
+     reine Leseansicht, KEIN Zugriff auf die Plantafel selbst, deshalb bewusst als reine Karte
+     ohne Link gerendert (anders als "Heutige Einsätze", die in den Bericht führen). #}
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="{{ get_theme().accent_color }}">
   <link rel="apple-touch-icon" href="/api/mobile-icon/192.png">
@@ -42,6 +47,8 @@
   <div id="assignmentsList" class="loading">Lädt…</div>
   <h1>Offene Berichte</h1>
   <div id="draftReportsList" class="loading">Lädt…</div>
+  <h1>Meine kommenden Termine</h1>
+  <div id="upcomingList" class="loading">Lädt…</div>
   <h1>Wartungen an meinen Objekten</h1>
   <div id="maintenanceList" class="loading">Lädt…</div>
 </main>
@@ -78,6 +85,19 @@
         +'<div class="obj">'+esc(r.order_number?('Auftrag '+r.order_number):('Auftrag #'+r.order_id))+'</div>'
         +'<div class="addr">'+esc(r.report_type_label)+'</div>'
         +'</a>';
+    }).join('');
+  }
+  function renderUpcoming(list){
+    var el=document.getElementById('upcomingList');
+    if(!list.length){el.className='empty';el.textContent='Keine kommenden Termine geplant.';return}
+    el.className='';
+    el.innerHTML=list.map(function(a){
+      var period=fmtDate(a.start_date)+(a.end_date&&a.end_date!==a.start_date?' – '+fmtDate(a.end_date):'');
+      return '<div class="assign-card">'
+        +'<div class="obj">'+esc(a.property_name||a.customer_name)+'</div>'
+        +(a.property_address?'<div class="addr">'+esc(a.property_address)+'</div>':'')
+        +'<div class="meta"><span>Auftrag '+esc(a.order_number)+'</span><span>'+esc(period)+'</span></div>'
+        +'</div>';
     }).join('');
   }
   function renderMaintenance(groups){
@@ -119,7 +139,7 @@
     });
   }
   function showError(message){
-    ['assignmentsList','draftReportsList','maintenanceList'].forEach(function(id){
+    ['assignmentsList','draftReportsList','upcomingList','maintenanceList'].forEach(function(id){
       var el=document.getElementById(id);
       el.className='error';
       el.textContent=message;
@@ -139,6 +159,15 @@
     renderDrafts(data.draft_reports||[]);
   }).catch(function(err){
     if(err.message!=='nicht angemeldet') showError(err.message||'Fehler beim Laden.');
+  });
+  fetch('/api/field-view/upcoming').then(function(r){
+    if(!r.ok) return [];
+    return r.json();
+  }).then(function(list){
+    renderUpcoming(list||[]);
+  }).catch(function(){
+    document.getElementById('upcomingList').className='empty';
+    document.getElementById('upcomingList').textContent='Keine kommenden Termine geplant.';
   });
   fetch('/api/field-view/maintenance-contracts').then(function(r){
     if(!r.ok) return [];

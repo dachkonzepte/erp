@@ -722,14 +722,25 @@ class TestPageRouteClassification:
     _dk_roles tragen und trotzdem die falsche Rollenmenge haben, das würde der Audit-Test
     allein nicht auffangen)."""
 
-    def test_field_reaches_only_the_four_pages_it_needs(self, router_test_client, threaded_db_session):
+    def test_field_reaches_only_the_five_pages_it_needs(self, router_test_client, threaded_db_session):
+        """Seit 1.3.61: /vor-ort ist zu /mobil geworden (die alte URL entfällt ersatzlos, siehe
+        CLAUDE.md "Monteursansicht: Umbenennung zu /mobil"), dazu die neue fünfte Seite
+        /mobil/stundenzettel (Punkt 4 "Stundenzettel"). "/" ist für field seit Punkt 2
+        ("Startseite für Monteure") kein 403 mehr, sondern ein 302 auf /mobil -- die Rolle
+        entscheidet das Ziel, nicht ob der Weg gesperrt ist."""
         from app.routers.pages import router as pages_router
         db = threaded_db_session
         field = router_test_client(db, pages_router, role="field")
-        for path in ("/account", "/vor-ort", "/time-tracking", "/orders/1/service-reports"):
+        for path in ("/account", "/mobil", "/mobil/stundenzettel", "/time-tracking", "/orders/1/service-reports"):
             assert field.get(path, follow_redirects=False).status_code == 200, path
+        # /vor-ort entfällt ersatzlos -- keine Route mehr registriert, 404 statt 403/200.
+        assert field.get("/vor-ort", follow_redirects=False).status_code == 404
+        # "/" leitet auf die eigene Startseite weiter, statt zu sperren.
+        root = field.get("/", follow_redirects=False)
+        assert root.status_code == 302
+        assert root.headers["location"] == "/mobil"
         for path in (
-            "/", "/tasks", "/leistungskatalog", "/maintenance-contracts", "/maintenance-contracts/1",
+            "/tasks", "/leistungskatalog", "/maintenance-contracts", "/maintenance-contracts/1",
             "/projects", "/planning", "/projects/new", "/projects/1", "/quotes/new", "/services/new",
             "/services/1/edit", "/master-data", "/master-data/teams/new", "/master-data/teams/1/edit",
             "/quotes/1/edit", "/orders/1", "/invoices/1", "/finanzen", "/mahnwesen", "/changelog",
@@ -808,7 +819,7 @@ def test_403_on_a_page_route_renders_access_denied_html_not_json():
     assert resp.status_code == 403
     assert "text/html" in resp.headers["content-type"]
     assert "Diese Seite ist für Ihre Rolle nicht verfügbar" in resp.text
-    assert 'href="/vor-ort"' in resp.text  # default_home_page_for_role("field")
+    assert 'href="/mobil"' in resp.text  # default_home_page_for_role("field"), seit 1.3.61 (bis 1.3.60 /vor-ort)
 
     resp_anon = client.get("/buero-only")  # kein x-test-role-Header -> erp_user bleibt None
     assert resp_anon.status_code == 403

@@ -23,7 +23,7 @@ router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Angebote sind reiner Büro-/Admin-Bereich -- geprüft
 # (siehe CLAUDE.md "Rechtekonzept" → Teil A des Rest-Etappe-Durchgangs), kein einziger Endpunkt
-# dieser Datei wird von einer Monteur-Vorlage (service_reports.html/vor_ort.html/
+# dieser Datei wird von einer Monteur-Vorlage (service_reports.html/mobil.html/
 # _mobile_header.html) aufgerufen.
 _role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
 

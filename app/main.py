@@ -187,7 +187,7 @@ def _request_requires_login(has_users: bool, method: str, path: str) -> bool:
 # Bleiben ohne Anmeldung erreichbar, obwohl sie keine /api/-Endpunkte sind: /login naturgemäß
 # (sonst könnte sich niemand anmelden), /health für externe Überwachung (bereits zuvor
 # ungated), /manifest.json als reine PWA-Ressource der Monteursansicht (wird ohnehin nur von
-# der bereits angemeldeten Seite /vor-ort aus verlinkt, siehe app/routers/field_view.py).
+# der bereits angemeldeten Seite /mobil aus verlinkt, siehe app/routers/field_view.py).
 _PUBLIC_PAGE_PATHS = {"/login", "/health", "/manifest.json"}
 
 

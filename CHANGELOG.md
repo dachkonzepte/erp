@@ -4,6 +4,52 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.61 – Fünf weitere Anpassungen an der Monteursansicht
+
+Fünf rollenbezogene Punkte, alle ohne neues Datenmodell.
+
+**Umbenennung** -- `/vor-ort` wird zu `/mobil`, Titel "DACHKONZEPTE GmbH - Mobil". `/vor-ort`
+entfällt ersatzlos (keine Weiterleitung, keine bekannten Lesezeichen). Alle drei tatsächlichen
+Linkquellen geprüft und mitgezogen: `app/mobile_manifest.py` (`start_url`), `login.html` (der
+clientseitige Rückfall ohne `next`), `app/permissions.py::default_home_page_for_role()` (die eine,
+gemeinsame Quelle für `login_page()`, den 403-Exception-Handler und `dashboard_page()`).
+`app/templates/vor_ort.html` ist gelöscht, `app/templates/mobil.html` tritt an seine Stelle.
+
+**Startseite für Monteure** -- `GET /` leitet für `field` jetzt auf `/mobil` weiter statt mit 403
+zu sperren (`dashboard_page()` trägt seither `_any_role_dep` statt `_role_dep`, mit einer
+rollenbewussten Weiche im Funktionskörper). Deckt sowohl den Fall nach dem Anmelden als auch
+einen von Hand eingetippten Aufruf ab -- die Rolle entscheidet das Ziel, nicht der Weg.
+
+**Tätigkeit im Nachtrag und im Schnellstart** -- ein optionales Tätigkeit-Feld ist jetzt in
+BEIDEN Abschnitten von `time_tracking_field.html` vorhanden, aus derselben
+`time_entry_activities`-Optionsgruppe wie in der vollen `time_tracking.html`. Ausdrücklich
+festgehalten: die als Ausgangspunkt genannte Annahme ("der Schnellstart hat das Feld schon")
+traf nicht zu -- vor 1.3.61 hatte keins der beiden Formulare ein Tätigkeitsfeld, nur die
+Zeitart-Kacheln. Backend-seitig war nichts zu ändern, `activity` war auf beiden Schemas schon
+immer optional.
+
+**Stundenzettel** -- neue Seite `/mobil/stundenzettel`: Monatsansicht am Bildschirm (Standard der
+laufende Monat, nur eigene Buchungen, Tagessummen und Monatssumme) sowie ein PDF-Download über
+den gemeinsamen PDF-Rahmen mit Briefkopf. Neuer Renderer `app/field_timesheet_pdf.py`, neuer
+Dokumenttyp `"field_timesheet"` (`DOCUMENT_TYPES`/`RENDERERS_USING_SHARED_FRAME`) -- fällt ohne
+eigene Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, keine
+Migration nötig. Der bestehende, admin-only Büro-Stundenzettel (`app/time_backoffice.py`, nie auf
+dem gemeinsamen Rahmen) diente nur inhaltlich als Vorlage (Spaltenauswahl, Summenzeilen). Kein
+neuer JSON-Endpunkt für die Bildschirmansicht -- die nutzt das bereits self-scoped
+`GET /api/time-entries`; nur die PDF-Erzeugung braucht den neuen `GET
+/api/field-view/timesheet.pdf`.
+
+**Eigene Plantafel-Einträge** -- neue Karte "Meine kommenden Termine" auf `/mobil`:
+`list_upcoming_assignments_for_employee()` (`app/planning.py`, ±30 Tage, dieselbe Zuordnung wie
+die bestehende Tagesliste, jetzt in einer gemeinsamen Hilfsfunktion ausgelagert) über den neuen
+`GET /api/field-view/upcoming`. Reine Leseansicht ohne Zugriff auf die Plantafel selbst --
+gerendert als nicht anklickbare Karten.
+
+**Angriffstest wiederholt, wie verlangt** -- volle Plantafel (Seite `/planning` und API
+`GET /api/planning`), fremde Stunden (auch bei einem expliziten `?employee_id=`-Manipulationsversuch)
+und fremde Plantafel-Einträge bleiben für `field` gesperrt. Null "durchgelassen", zweiter
+Testdurchlauf bestätigt. 1267/1267 Tests grün.
+
 ## 1.3.60 – Zeiterfassung für Monteure
 
 `/time-tracking` zeigte für die Rolle `field` bisher die volle, sidebar-getragene Bürooberfläche

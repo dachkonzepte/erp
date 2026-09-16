@@ -162,11 +162,17 @@ templates.env.globals["can"] = _can
 # wie bei /api/-Endpunkten -- eine Seite ohne einen dieser beiden Depends() ist admin-only,
 # nicht "für jeden Angemeldeten offen" (tests/test_v260_role_audit.py::
 # test_all_page_routes_have_an_explicit_role_check() erzwingt das). _any_role_dep ist die
-# Ausnahme für die vier Seiten, die ein Monteur tatsächlich braucht (/account, /vor-ort,
-# /time-tracking, /orders/{id}/service-reports) -- jede andere Seite ist Büro/Admin, exakt
-# gespiegelt an der API-Klassifizierung der jeweiligen Fachdomäne (siehe dort). Ein 403 aus
-# diesen Dependencies wird von app/main.py's Exception-Handler zu access_denied.html statt
-# einer rohen JSON-Antwort.
+# Ausnahme für die fünf Seiten, die ein Monteur tatsächlich braucht (/account, /mobil,
+# /mobil/stundenzettel, /time-tracking, /orders/{id}/service-reports -- seit 1.3.61, vorher vier;
+# /mobil hieß bis 1.3.60 /vor-ort) -- jede andere Seite ist Büro/Admin, exakt gespiegelt an der
+# API-Klassifizierung der jeweiligen Fachdomäne (siehe dort). Ein 403 aus diesen Dependencies
+# wird von app/main.py's Exception-Handler zu access_denied.html statt einer rohen JSON-Antwort.
+#
+# Sonderfall "/" (seit 1.3.61, Punkt 2 "Startseite für Monteure", siehe CLAUDE.md): trägt seither
+# ebenfalls _any_role_dep statt _role_dep, zeigt einem Monteur aber NIE das Dashboard -- die Route
+# selbst leitet ihn sofort auf default_home_page_for_role() weiter (siehe dashboard_page() unten).
+# Das ist bewusst kein drittes Verhalten neben "gesperrt"/"offen", sondern dieselbe Weiche wie
+# login_page()/der 403-Exception-Handler: die Rolle entscheidet das Ziel, nicht der aufgerufene Weg.
 _role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
 _any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
 
@@ -233,7 +239,14 @@ def history_page(request: Request, _role: AppUser = _role_dep):
 
 
 @router.get("/", response_class=HTMLResponse)
-def dashboard_page(request: Request, _role: AppUser = _role_dep):
+def dashboard_page(request: Request, _role: AppUser = _any_role_dep):
+    """Seit 1.3.61 (Punkt 2 "Startseite für Monteure", siehe CLAUDE.md "Zeiterfassung für
+    Monteure"): ein Monteur landet nach dem Anmelden direkt auf /mobil, nicht auf einer Seite
+    ohne Zugriffsrechte -- die Weiche hängt an der Rolle (default_home_page_for_role()), nicht
+    am Weg, deckt also auch den Fall ab, dass ein Monteur "/" von Hand aufruft. Büro/Admin
+    sehen unverändert das Dashboard."""
+    if _role.role == ROLE_FIELD:
+        return RedirectResponse(url=default_home_page_for_role(_role.role), status_code=302)
     return templates.TemplateResponse(request=request, name="dashboard.html", context={})
 
 
@@ -247,16 +260,26 @@ def tasks_page(request: Request, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="tasks.html", context={})
 
 
-@router.get("/vor-ort", response_class=HTMLResponse)
+@router.get("/mobil", response_class=HTMLResponse)
 def field_view_page(request: Request, _role: AppUser = _any_role_dep):
-    """Monteursansicht (seit 1.3.0) -- eigene, schlanke Seite statt der vollen Sidebar (siehe
-    _mobile_header.html). Rendert nur das statische Gerüst (Projektkonvention, siehe
-    test_v218_template_rendering.py) -- die Feierabend-Prüfung sitzt bewusst NUR in GET
-    /api/field-view/today (einzige Quelle der Wahrheit statt zweier Prüfstellen), dessen 401
-    das Frontend (vor_ort.html) zu /login weiterleitet. Ein serverseitiger Redirect hier hätte
-    denselben Effekt gehabt, wäre aber zusätzlich wanduhrzeit-abhängig und damit gegen den
-    generischen Seiten-Rendertest geflackert."""
-    return templates.TemplateResponse(request=request, name="vor_ort.html", context={})
+    """Monteursansicht (seit 1.3.0, bis 1.3.60 unter /vor-ort -- reine Umbenennung, siehe
+    CLAUDE.md "Monteursansicht: Umbenennung zu /mobil", keine Verhaltensänderung) -- eigene,
+    schlanke Seite statt der vollen Sidebar (siehe _mobile_header.html). Rendert nur das
+    statische Gerüst (Projektkonvention, siehe test_v218_template_rendering.py) -- die
+    Feierabend-Prüfung sitzt bewusst NUR in GET /api/field-view/today (einzige Quelle der
+    Wahrheit statt zweier Prüfstellen), dessen 401 das Frontend (mobil.html) zu /login
+    weiterleitet. Ein serverseitiger Redirect hier hätte denselben Effekt gehabt, wäre aber
+    zusätzlich wanduhrzeit-abhängig und damit gegen den generischen Seiten-Rendertest geflackert."""
+    return templates.TemplateResponse(request=request, name="mobil.html", context={})
+
+
+@router.get("/mobil/stundenzettel", response_class=HTMLResponse)
+def field_timesheet_page(request: Request, _role: AppUser = _any_role_dep):
+    """Eigener Stundenzettel für Monteure (seit 1.3.61, siehe CLAUDE.md "Zeiterfassung für
+    Monteure" -> "Stundenzettel"). Eigene Seite statt eines weiteren Kartenabschnitts auf /mobil
+    -- Monatswahl, Liste und PDF-Knopf passen strukturell nicht zur einfachen Karten-Liste der
+    übrigen Abschnitte dort. Rendert nur das statische Gerüst, alle Daten kommen per fetch()."""
+    return templates.TemplateResponse(request=request, name="field_timesheet.html", context={})
 
 
 @router.get("/maintenance-contracts", response_class=HTMLResponse)
@@ -285,8 +308,8 @@ def planning_page(request: Request, _role: AppUser = _role_dep):
 def time_tracking_page(request: Request, _role: AppUser = _any_role_dep):
     """Seit 1.3.60 rollenbewusst statt einer festen Vorlage (siehe CLAUDE.md „Zeiterfassung für
     Monteure"): dieselbe URL rendert für `field` die reduzierte time_tracking_field.html
-    (Muster _mobile_header.html/vor_ort.html) statt der vollen, Sidebar-getragenen
-    time_tracking.html -- bewusst KEINE zweite Route (z. B. /vor-ort/zeit), damit die Weiche an
+    (Muster _mobile_header.html/mobil.html) statt der vollen, Sidebar-getragenen
+    time_tracking.html -- bewusst KEINE zweite Route (z. B. /mobil/zeit), damit die Weiche an
     der Rolle hängt, nicht am Weg: _sidebar.html/_mobile_header.html/service_reports.html
     verlinken alle unverändert auf /time-tracking, ein Büro-Konto, das testweise als `field`
     unterwegs ist (oder umgekehrt), sieht bei JEDEM Aufruf -- Sidebar-Link, altes Lesezeichen,

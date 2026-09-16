@@ -180,11 +180,12 @@ def test_writable_document_types_endpoint_accepts_only_default(threaded_db_sessi
 
 
 def test_rollout_status_lists_reminder_as_using_shared_settings(threaded_db_session, router_test_client):
-    """Name historisch (seit 1.3.6) -- prüft inzwischen alle fünf bereits umgestellten Renderer
+    """Name historisch (seit 1.3.6) -- prüft inzwischen alle sechs bereits umgestellten Renderer
     (Mahnung, Rechnung seit 1.3.7, Auftrag seit 1.3.10, Einsatzbericht seit 1.3.11, Angebot seit
     1.3.13 -- dort zunächst nur der NEUE, parallele Renderer app/quote_framed_pdf.py, der
     produktive Vorschau-/Versand-Pfad läuft bis zur Umstellung weiterhin über den alten
-    quote_layout_pdf.py), nicht mehr nur die Mahnung."""
+    quote_layout_pdf.py -- und der Monteurs-Stundenzettel seit 1.3.61, app/field_timesheet_pdf.py),
+    nicht mehr nur die Mahnung."""
     from app.routers.document_layout import router as document_layout_router
 
     db = threaded_db_session
@@ -195,7 +196,7 @@ def test_rollout_status_lists_reminder_as_using_shared_settings(threaded_db_sess
     using = {row["document_type"] for row in body["using_shared_settings"]}
     pending = {row["document_type"] for row in body["not_yet_migrated"]}
     excluded = {row["document_type"] for row in body["excluded"]}
-    assert using == {"reminder", "invoice", "order", "service_report", "quote"}
+    assert using == {"reminder", "invoice", "order", "service_report", "quote", "field_timesheet"}
     assert pending == set()
     # "excluded" war bis 1.3.13 hartkodiert {"quote"} -- seit der neue, parallele
     # Angebots-Renderer "quote" selbst registriert, wäre das ein Widerspruch zu "using". Aktuell

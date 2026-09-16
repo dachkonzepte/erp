@@ -2633,7 +2633,7 @@ class MaintenanceContractOut(BaseModel):
 
 
 class FieldMaintenanceContractOut(BaseModel):
-    """Rechtekonzept (siehe CLAUDE.md, /vor-ort-Vertragsfinder): reduziertes Gegenstück zu
+    """Rechtekonzept (siehe CLAUDE.md, /mobil-Vertragsfinder -- bis 1.3.60 /vor-ort): reduziertes Gegenstück zu
     MaintenanceContractOut innerhalb einer FieldMaintenancePropertyGroupOut -- nur, was ein
     Monteur braucht, um "Wartung durchführen" gezielt für den richtigen Vertrag anzustoßen."""
     id: int
@@ -2699,7 +2699,7 @@ class MaintenanceSettingsUpdate(BaseModel):
     default_responsible_employee_id: int | None = None
 
 
-# --- Version 1.3.0: Monteursansicht (/vor-ort) ---
+# --- Version 1.3.0: Monteursansicht (/mobil, bis 1.3.60 /vor-ort) ---
 class MobileSettingsOut(BaseModel):
     shift_end_time: str  # "HH:MM", siehe mobile_settings_to_dict() in app/mobile_settings.py
 

@@ -2264,7 +2264,7 @@ class MobileSettings(Base):
     MaintenanceSettings (immer genau eine Zeile mit id=1). shift_end_time ist der einzige
     Zweck dieser Tabelle: eine feste Uhrzeit, ab der die Fahrzeug-Tablet-Anmeldung als beendet
     gilt (siehe is_past_shift_end() in app/mobile_settings.py) -- geprüft nur an den mobilen
-    Einstiegspunkten (GET /vor-ort, GET /api/field-view/today), NICHT in der globalen
+    Einstiegspunkten (GET /mobil, GET /api/field-view/today -- /mobil hieß bis 1.3.60 /vor-ort), NICHT in der globalen
     Middleware, damit Schreibtisch-Nutzer mit demselben Login-Mechanismus davon unberührt
     bleiben."""
 

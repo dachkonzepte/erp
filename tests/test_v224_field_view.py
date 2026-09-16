@@ -1,4 +1,4 @@
-"""Version 1.3.0 -- Monteursansicht (/vor-ort): heutige Einsätze aus der Plantafel (beide
+"""Version 1.3.0 -- Monteursansicht (/mobil, bis 1.3.60 /vor-ort): heutige Einsätze aus der Plantafel (beide
 Zuordnungswege), offene Entwurfsberichte, die einheitliche created_by_employee_id-Sperre an
 allen vier Einsatzbericht-Endpunkten (ServiceReport/ServiceReportPhoto/ServiceReportMaterial/
 Finding), zwei Pflicht-Unterschriften, die Feierabend-Abmeldung und das Web-App-Manifest."""
@@ -249,7 +249,7 @@ def test_manifest_json_has_expected_shape():
     assert response.status_code == 200
     assert response.media_type == "application/manifest+json"
     body = json.loads(response.body)
-    assert body["start_url"] == "/vor-ort"
+    assert body["start_url"] == "/mobil"  # seit 1.3.61 (bis 1.3.60 /vor-ort)
     assert body["display"] == "standalone"
     assert len(body["icons"]) == 2
 
