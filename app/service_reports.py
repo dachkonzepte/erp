@@ -260,18 +260,30 @@ def _property_history_reports(db: Session, order_id: int, *options) -> list[Serv
     order = db.get(Order, order_id)
     if order is None or order.project is None or order.project.property_id is None:
         return []
-    property_id = order.project.property_id
+    return _property_history_reports_for_property_id(db, order.project.property_id, order_id, *options)
+
+
+def _property_history_reports_for_property_id(
+    db: Session, property_id: int, exclude_order_id: int | None, *options
+) -> list[ServiceReport]:
+    """Seit "Dateiablage je Objekt" (siehe CLAUDE.md) aus _property_history_reports()
+    herausgelöst: dort wird property_id stets erst aus einem Auftrag hergeleitet
+    (order.project.property_id) -- die neue mobile Objektansicht kennt property_id dagegen
+    direkt (ein Monteur öffnet dort JEDES Objekt, nicht nur eines über einen bereits bekannten
+    Auftrag) und braucht deshalb einen Einstieg ohne Auftragsbezug. exclude_order_id bleibt
+    optional, damit list_property_history()/list_property_history_for_field() (schließen den
+    eigenen Auftrag aus) UND die neue, rein objektbezogene Abfrage (kein "eigener" Auftrag,
+    also nichts auszuschließen) dieselbe Funktion nutzen."""
     query = (
         select(ServiceReport)
         .join(Order, ServiceReport.order_id == Order.id)
         .join(Project, Order.project_id == Project.id)
         .options(*options)
-        .where(
-            Project.property_id == property_id, ServiceReport.order_id != order_id,
-            ServiceReport.status == "unterschrieben",
-        )
-        .order_by(ServiceReport.performed_at.desc(), ServiceReport.id.desc())
+        .where(Project.property_id == property_id, ServiceReport.status == "unterschrieben")
     )
+    if exclude_order_id is not None:
+        query = query.where(ServiceReport.order_id != exclude_order_id)
+    query = query.order_by(ServiceReport.performed_at.desc(), ServiceReport.id.desc())
     return db.scalars(query).all()
 
 
@@ -286,6 +298,18 @@ def list_property_history_for_field(db: Session, order_id: int) -> list[dict]:
     interne Bemerkung, deshalb enthalten. Das PDF eines fremden Berichts bleibt für `field`
     gesperrt (es trägt u. a. die Zeitbuchungen der Kollegen)."""
     reports = _property_history_reports(db, order_id, *_FIELD_REPORT_DETAIL_OPTIONS)
+    return [_history_report_to_field_dict(r) for r in reports]
+
+
+def list_maintenance_history_for_property_field(db: Session, property_id: int) -> list[dict]:
+    """Objektbezogenes Gegenstück zu list_property_history_for_field() für die neue mobile
+    Objektansicht (siehe CLAUDE.md "Dateiablage je Objekt") -- dort gibt es keinen "eigenen"
+    Auftrag, von dem aus property_id sonst hergeleitet würde (ein Monteur öffnet hier JEDES
+    Objekt direkt), deshalb kein exclude_order_id und ALLE unterschriebenen Berichte des
+    Objekts statt "Berichte ANDERER Aufträge". Dasselbe reduzierte Schema wie
+    list_property_history_for_field() (_history_report_to_field_dict()) -- keine erneute,
+    eigene Feldliste."""
+    reports = _property_history_reports_for_property_id(db, property_id, None, *_FIELD_REPORT_DETAIL_OPTIONS)
     return [_history_report_to_field_dict(r) for r in reports]
 
 

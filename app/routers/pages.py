@@ -162,9 +162,10 @@ templates.env.globals["can"] = _can
 # wie bei /api/-Endpunkten -- eine Seite ohne einen dieser beiden Depends() ist admin-only,
 # nicht "für jeden Angemeldeten offen" (tests/test_v260_role_audit.py::
 # test_all_page_routes_have_an_explicit_role_check() erzwingt das). _any_role_dep ist die
-# Ausnahme für die fünf Seiten, die ein Monteur tatsächlich braucht (/account, /mobil,
-# /mobil/stundenzettel, /time-tracking, /orders/{id}/service-reports -- seit 1.3.61, vorher vier;
-# /mobil hieß bis 1.3.60 /vor-ort) -- jede andere Seite ist Büro/Admin, exakt gespiegelt an der
+# Ausnahme für die sechs Seiten, die ein Monteur tatsächlich braucht (/account, /mobil,
+# /mobil/stundenzettel, /mobil/objekt/{property_id}, /time-tracking,
+# /orders/{id}/service-reports -- seit "Dateiablage je Objekt" sechs, vorher fünf seit 1.3.61,
+# vorher vier; /mobil hieß bis 1.3.60 /vor-ort) -- jede andere Seite ist Büro/Admin, exakt gespiegelt an der
 # API-Klassifizierung der jeweiligen Fachdomäne (siehe dort). Ein 403 aus diesen Dependencies
 # wird von app/main.py's Exception-Handler zu access_denied.html statt einer rohen JSON-Antwort.
 #
@@ -280,6 +281,16 @@ def field_timesheet_page(request: Request, _role: AppUser = _any_role_dep):
     -- Monatswahl, Liste und PDF-Knopf passen strukturell nicht zur einfachen Karten-Liste der
     übrigen Abschnitte dort. Rendert nur das statische Gerüst, alle Daten kommen per fetch()."""
     return templates.TemplateResponse(request=request, name="field_timesheet.html", context={})
+
+
+@router.get("/mobil/objekt/{property_id}", response_class=HTMLResponse)
+def field_property_page(request: Request, property_id: int, _role: AppUser = _any_role_dep):
+    """Mobile Objektansicht (seit "Dateiablage je Objekt", siehe CLAUDE.md) -- in dieser Runde
+    noch ohne Suche erreichbar, nur über eine bekannte Objekt-ID (die Suche als Einstieg folgt
+    als eigener, späterer Schritt). Rendert nur das statische Gerüst, alle Daten kommen per
+    fetch() gegen die eigenständig gesicherten /api/field-view/properties/{property_id}/...-
+    Endpunkte (app/routers/field_view.py) -- dort, nicht hier, sitzt die inhaltliche Sperre."""
+    return templates.TemplateResponse(request=request, name="mobil_objekt.html", context={"property_id": property_id})
 
 
 @router.get("/maintenance-contracts", response_class=HTMLResponse)

@@ -4,6 +4,55 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.63 – Dateiablage je Objekt, Schritt 2: die mobile Objektansicht
+
+Zweiter Schritt der "Dateiablage je Objekt" (nach den Kategorie-Stammdaten aus 1.3.62) -- die
+mobile Objektansicht selbst, in dieser Version noch über eine feste Objekt-ID erreichbar
+(`/mobil/objekt/{property_id}`), die geteilte Suche als eigentlicher Einstieg folgt als eigener,
+späterer Schritt.
+
+**Neue Tabelle `PropertyDocument`** (`app/models.py`) -- eigene, objektgebundene Dateiablage für
+die eigenen Uploads eines Monteurs vor Ort: ein spontaner Einsatz hat oft gar kein Projekt,
+`ProjectDocument` konnte solche Uploads deshalb nicht aufnehmen. Bewusst objektbezogen statt
+einem Sammelprojekt je Objekt zugeordnet (Betreiberentscheidung) -- ein Sammelprojekt wäre in
+jeder projektbezogenen Auswertung fälschlich als echter Auftrag/Angebot mitgezählt worden.
+Anders als `CustomerDocument`/`ProjectDocument` trägt die neue Tabelle bewusst nur `category_id`,
+keinen zusätzlichen freien `category`-String -- der Freitext existiert dort nur wegen
+Altbestands-Kompatibilität, die eine brandneue Tabelle nicht braucht.
+
+Die mobile Objektansicht führt zwei Dokumentquellen zu einer Liste zusammen
+(`list_merged_documents_for_property()`, `app/property_documents.py`): die eigenen
+`PropertyDocument`-Uploads UND die Dokumente ALLER nicht archivierten Projekte des Objekts
+(`Project.property_id`) -- wie vom Betreiber vorgegeben ("ein Dachdecker denkt in Objekten,
+nicht in Projektnummern"). `CustomerDocument` bleibt bewusst außen vor, das ist Kundenebene,
+nicht Objektebene. Dieselbe Funktion bedient sowohl die Büro-Sicht (voller Bestand, neuer
+Abschnitt "Objektdateien" auf `property.html`, macht Monteur-Uploads dort auffindbar) als auch
+die Monteursansicht (`field_visible_only=True`).
+
+**Rechte, der heikelste Teil dieser Runde**: ab der mobilen Objektansicht gilt eine ANDERE Regel
+als sonst im Rechtekonzept -- ein Monteur erreicht JEDES Objekt über seine ID, nicht nur die
+eigenen (die sonst übliche Zuordnungsprüfung entfällt hier bewusst). Die Grenze sitzt
+stattdessen ausschließlich im Inhalt: harmlose Objektfelder (`PropertyAccessOut`, dieselbe
+Teilmenge wie beim bereits bestehenden `GET /api/orders/{order_id}/property` -- kein `notes`,
+keine `customer_id`), nur für Monteure freigegebene Dokumentkategorien
+(`field_may_see_category()`, beide Schlösser aus 1.3.62) und das bereits etablierte reduzierte
+Wartungshistorie-Schema (`ServiceReportHistoryOut`). Der Datei-Ausliefer-Endpunkt prüft
+`field_may_see_category()` ERNEUT am Ausliefer-Zeitpunkt, nicht nur bei der Auflistung -- eine
+über die Liste nie gezeigte, aber per geratener ID angefragte Datei aus einer gesperrten
+Kategorie liefert denselben 404 wie eine tatsächlich nicht existierende. Der Upload-Endpunkt
+prüft `category_id` serverseitig gegen `field_may_see_category()`, unabhängig davon, was die
+Kategorie-Auswahlliste der Oberfläche anbietet -- ein direkter API-Aufruf mit einer gesperrten
+Kategorie schlägt ebenso fehl. Bilder werden beim Hochladen wie Berichtsfotos aus 1.2.17
+verkleinert, Dokumente bleiben im Original.
+
+15 neue Angriffstests (`tests/test_v267_property_field_documents.py`), wie verlangt: fremdes
+Objekt über die ID öffnen (erlaubt, aber nur harmlose Felder), Datei aus gesperrter Kategorie
+über geratene ID (abgewiesen, inkl. einer direkten Datenbank-Manipulationssimulation wie in
+1.3.62), Datei eines falschen Objekts über die URL (abgewiesen), archivierte Projekte
+ausgeschlossen, Upload in eine gesperrte Kategorie serverseitig abgewiesen, kein Endpunkt liefert
+Preis-/Kosten-/interne Felder (rekursiver Schlüssel-Scan, Fehlerklasse `purchase_price` aus
+1.3.53), Büro sieht Monteur-Uploads. Volle Suite grün.
+
 ## 1.3.62 – Dateiablage je Objekt, Schritt 1: Kategorie-Stammdaten mit zwei unabhängigen Schlössern
 
 Erster Schritt der "Runde 2" der Monteurs-Erweiterung (Dateiablage je Objekt) -- ausdrücklich nur

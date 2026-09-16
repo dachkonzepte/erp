@@ -438,6 +438,12 @@ class Property(Base):
     roof_areas: Mapped[list["RoofArea"]] = relationship(
         back_populates="property", cascade="all, delete-orphan", order_by="RoofArea.name"
     )
+    # Objektgebundene Dateien (seit "Dateiablage je Objekt", siehe CLAUDE.md) -- eigene Ablage
+    # NEBEN den bereits bestehenden ProjectDocument/CustomerDocument, siehe PropertyDocument
+    # unten für die Begründung, warum es keine dritte, polymorphe Tabelle gibt.
+    documents: Mapped[list["PropertyDocument"]] = relationship(
+        back_populates="property", cascade="all, delete-orphan", order_by="PropertyDocument.uploaded_at.desc()"
+    )
 
 
 class Inquiry(Base):
@@ -641,6 +647,46 @@ class CustomerDocument(Base):
 
     customer: Mapped["Customer"] = relationship(back_populates="documents")
     document_category: Mapped["DocumentCategory"] = relationship()
+
+
+class PropertyDocument(Base):
+    """Datei, die direkt an einem Objekt (Property) hängt -- seit "Dateiablage je Objekt"
+    (siehe CLAUDE.md), Runde 2 der Monteurs-Erweiterung. Trägt vor allem die eigenen Uploads
+    eines Monteurs vor Ort: ein spontaner Einsatz hat oft gar kein Projekt, ProjectDocument kann
+    solche Uploads deshalb nicht aufnehmen -- die Entscheidung war explizit objektbezogene
+    Ablage statt eines Sammelprojekts je Objekt (siehe CLAUDE.md "Dateiablage je Objekt" für die
+    volle Begründung, u. a. dass ein Sammelprojekt in jeder projektbezogenen Auswertung
+    fälschlich als echter Auftrag/Angebot mitgezählt worden wäre). Das Büro sieht/verwaltet
+    dieselbe Tabelle zusätzlich über eine eigene Objektseiten-Sektion -- diese Datei ist NICHT
+    monteur-exklusiv, nur monteur-tauglich.
+
+    Anders als ProjectDocument/CustomerDocument trägt diese neue Tabelle bewusst NUR category_id,
+    keinen zusätzlichen freien category-String: dort existiert category als Freitext nur, weil
+    beim Hochstufen zu DocumentCategory (1.3.62) bereits bestehende Freitext-Werte weiter matchen
+    mussten -- für eine brandneue Tabelle ohne Altbestand gibt es diesen Zwang nicht, ein
+    zusätzliches Freitextfeld wäre hier nur eine potenzielle zweite Quelle der Wahrheit.
+
+    uploaded_by_employee_id ist von Anfang an gehärtet vorgesehen (Muster
+    _employee_for_request()/app/routers/service_reports.py) -- ein Monteur darf beim Hochladen
+    nur die eigene employee_id angeben, nie eine fremde; Büro-Uploads bleiben NULL oder tragen
+    die eigene, freiwillig gesetzte Mitarbeiter-ID."""
+
+    __tablename__ = "property_documents"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    property_id: Mapped[int] = mapped_column(ForeignKey("properties.id"), index=True)
+    category_id: Mapped[int] = mapped_column(ForeignKey("document_categories.id"), index=True)
+    original_filename: Mapped[str] = mapped_column(String(255))
+    stored_filename: Mapped[str] = mapped_column(String(255), unique=True)
+    content_type: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    file_size: Mapped[int] = mapped_column(default=0)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    uploaded_by_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True, index=True)
+
+    property: Mapped["Property"] = relationship(back_populates="documents")
+    document_category: Mapped["DocumentCategory"] = relationship()
+    uploaded_by_employee: Mapped["Employee | None"] = relationship()
 
 
 class Quote(Base):

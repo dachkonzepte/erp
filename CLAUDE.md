@@ -20,16 +20,17 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.62** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `9137945e8785` ("document categories foundation", siehe Abschnitt
-  "Dateiablage je Objekt" unten) -- vorher `7a2b4e9f1c3d` ("app user role office field"): keine der
+- Version: **1.3.63** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `f803985ebc2f` ("property documents table", siehe Abschnitt
+  "Dateiablage je Objekt" unten) -- vorher `9137945e8785` ("document categories foundation"),
+  davor `7a2b4e9f1c3d` ("app user role office field"): keine der
   Versionen 1.3.52 bis 1.3.61 brauchte eine eigene Migration (reine Rollen-Gate-/Response-Schema-/
   Objekt-Filterungs-Umstellungen auf bereits bestehenden Endpunkten und Tabellen; 1.3.61s neuer
   PDF-Dokumenttyp "field_timesheet" fällt ohne eigene Zeile automatisch auf den bereits
   bestehenden, geteilten "default"-Satz zurück, siehe "Fünf weitere Anpassungen"), siehe
   Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
   eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1287 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1302 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
   dort), zuletzt am 16.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -833,6 +834,20 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Dokumente aller nicht archivierten Projekte eines Objekts) und die geteilte, feldbegrenzte Suche
   -- beides wartet auf die ausdrückliche Bestätigung der hier gebauten Grundlage. Details im neuen
   Abschnitt "Dateiablage je Objekt" unten.
+- Neu seit 1.3.63: **Dateiablage je Objekt, Schritt 2 -- die mobile Objektansicht.** Neue Tabelle
+  `PropertyDocument` (eigene, objektgebundene Uploads eines Monteurs -- bewusst objektbezogen
+  statt einem Sammelprojekt je Objekt, ein spontaner Einsatz hat oft kein Projekt). Neue Seite
+  `/mobil/objekt/{property_id}` (in dieser Runde noch ohne Suche, nur über eine bekannte
+  Objekt-ID) zeigt Objektname/Adresse (Google-Maps-Link), Ansprechpartner (`tel:`-Link),
+  Zugangshinweise, eine zusammengeführte, nach Kategorie gruppierte Dokumentliste (eigene
+  Objekt-Uploads PLUS alle nicht archivierten Projekte des Objekts), eigene Uploads (Bilder
+  verkleinert wie 1.2.17) und frühere Wartungsberichte im reduzierten Schema. **Ab hier gilt eine
+  ANDERE Regel als sonst im Rechtekonzept**: ein Monteur erreicht JEDES Objekt über seine ID,
+  nicht nur die eigenen -- die Sperre sitzt ausschließlich im Inhalt (harmlose Objektfelder,
+  `field_may_see_category()` bei jeder Dokumentanzeige UND erneut am Datei-Ausliefer-Endpunkt,
+  reduziertes Wartungshistorie-Schema). Büro sieht dieselbe Dokumentliste (ungefiltert) über
+  einen neuen Abschnitt auf `property.html`. 15 neue Angriffstests, null "durchgelassen". Details
+  im Abschnitt "Dateiablage je Objekt" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -6556,6 +6571,102 @@ Sammelprojekt je Objekt für eigene Monteur-Uploads"), die geteilte, feldbegrenz
 oben), und ein tatsächlicher Upload-Weg für Objektdateien selbst -- diese Version legt
 ausschließlich das Fundament, mit dem eine künftige Datei ihre Kategorie zuordnen und ein Monteur
 später geprüft werden kann, ob er sie sehen darf.
+
+### Schritt 2 (seit 1.3.63): die mobile Objektansicht
+
+Baut auf dem Kategorie-Fundament aus 1.3.62 auf. Erst die Ansicht selbst, die geteilte Suche
+(Punkt 4 aus der ursprünglichen Betreiber-Entscheidung, siehe oben) kommt als eigener, späterer
+Schritt -- in dieser Version ist `/mobil/objekt/{property_id}` deshalb nur über eine bekannte
+Objekt-ID erreichbar, nicht aus `/mobil` heraus verlinkt.
+
+**Punkt 2 der Anfrage (Objekt- statt Sammelprojekt-Ablage), entschieden**: neue Tabelle
+`PropertyDocument` (`app/models.py`), direkt an `Property` gebunden -- die vom Betreiber
+favorisierte Variante. Begründung, wie angefragt geprüft: ein Sammelprojekt je Objekt hätte in
+JEDER projektbezogenen Auswertung (Projektliste, Kennzahlen, Rechnungslauf-Kandidaten) als
+scheinbar echter Vorgang mitgezählt, ohne einer zu sein -- eine eigene Tabelle vermeidet das
+vollständig, kostet dafür eine zusätzliche, aber sehr schlanke Tabelle (nur `property_id`,
+`category_id`, Datei-Metadaten, `uploaded_by_employee_id`). Anders als `CustomerDocument`/
+`ProjectDocument` trägt sie bewusst NUR `category_id`, keinen zusätzlichen freien
+`category`-String -- der Freitext existiert dort ausschließlich wegen Altbestands-Kompatibilität
+(1.3.62 musste bestehende Freitext-Werte weiter matchen lassen), eine brandneue Tabelle ohne
+Altbestand hat diesen Zwang nicht. **Auffindbarkeit fürs Büro geprüft, wie verlangt**: ein neuer
+Abschnitt "Objektdateien" auf `property.html` zeigt dieselbe zusammengeführte Liste
+(`list_merged_documents_for_property()`, `app/property_documents.py`) ungefiltert -- ein
+Monteur-Upload landet dort sofort sichtbar, mit Upload-/Löschmöglichkeit auch fürs Büro selbst.
+
+**Zwei Dokumentquellen, eine Funktion**: `list_merged_documents_for_property(db, property_id, *,
+field_visible_only=False)` führt `PropertyDocument` (eigene Objekt-Uploads) UND `ProjectDocument`
+aus ALLEN NICHT ARCHIVIERTEN Projekten des Objekts (`Project.property_id`) zusammen, sortiert
+nach Kategorie-Reihenfolge -- wie vom Betreiber vorgegeben ("ein Dachdecker denkt in Objekten,
+nicht in Projektnummern"). `CustomerDocument` bleibt bewusst AUSSEN VOR -- Kundenebene, nicht
+Objektebene, gehört fachlich nicht zu "den Dokumenten dieses Objekts". Dieselbe Funktion bedient
+Büro (`field_visible_only=False`, voller Bestand) UND Monteursansicht
+(`field_visible_only=True`) -- kein zweiter, divergierender Weg (Muster: genau die Lehre aus
+`build_customer_and_meta_block()`, siehe "Kopfbereich" oben).
+
+**Bildverkleinerung wie 1.2.17, aber keine Wiederverwendung von `resize_and_store_photo()`**: die
+bestehende Funktion (`app/service_report_photos.py`) ist fest an ihr eigenes `PHOTO_ROOT`
+gebunden, nicht parametrisierbar -- `app/property_documents.py` trägt deshalb eine eigene,
+strukturell identische Kopie (`_store_uploaded_file()`) mit eigenem `PROPERTY_ROOT`
+(`DACHKONZEPTE_PROPERTY_FILE_ROOT`, neunte Env-Var dieser Art, siehe "Geheimnisse für den
+Serverbetrieb" oben). Bilder werden verkleinert (1600px, JPEG q82), Dokumente (PDF u. Ä.) bleiben
+im Original -- dieselbe Unterscheidung wie ursprünglich verlangt.
+
+### Punkt 3 (Rechte) -- die eine bewusste Ausnahme im ganzen Rechtekonzept
+
+Ab der mobilen Objektansicht gilt eine ANDERE Zugriffsregel als überall sonst im Rechtekonzept
+(siehe eigener Abschnitt oben): **ein Monteur erreicht JEDES Objekt über seine ID, nicht nur die
+eigenen** -- die sonst übliche Zuordnungsprüfung (`list_field_relevant_property_ids()`,
+Planungsbezug) wird hier ausdrücklich NICHT angewendet, wie vom Betreiber vorgegeben ("die alte
+Grenze 'nur zugeordnete Objekte' ist für diese Ansicht aufgehoben"). Die Grenze sitzt
+stattdessen ausschließlich im INHALT:
+
+- **Objektfelder**: `PropertyAccessOut` (bereits bestehendes Schema aus dem Rechtekonzept, seit
+  1.3.51, dort für `GET /api/orders/{order_id}/property`) -- `id`/`name`/`street`/`postal_code`/
+  `city`/`access_notes`/`site_contact_name`/`site_contact_phone`, bewusst OHNE `notes`,
+  `customer_id`, `is_primary_address`. `GET /api/field-view/properties/{property_id}`
+  (`app/routers/field_view.py`) liefert es unverändert bei jeder existierenden `property_id` --
+  kein zweites, neues Schema nötig, das bestehende war bereits exakt die richtige Teilmenge.
+- **Dokumente**: `field_may_see_category()` (beide Schlösser aus 1.3.62) filtert JEDE Anzeige --
+  bei der Auflistung (`GET .../properties/{id}/documents`) UND ERNEUT, unabhängig davon, am
+  Datei-Ausliefer-Endpunkt (`GET .../documents/{source}/{document_id}/view|download`). Eine über
+  die Liste nie gezeigte, aber per geratener `{source}/{document_id}` angefragte Datei aus einer
+  gesperrten Kategorie liefert denselben 404 wie eine tatsächlich nicht existierende Datei --
+  ununterscheidbar, damit eine Anfrage nicht einmal bestätigt, dass die Datei existiert. Der
+  Ausliefer-Endpunkt prüft zusätzlich, dass das Dokument tatsächlich zu der in der URL
+  angegebenen `property_id` gehört (bei `source=project` zusätzlich: das Projekt ist nicht
+  archiviert) -- eine Korrektheitsmaßnahme, kein Rechte-Schutz im engeren Sinn (jedes Objekt ist
+  ohnehin erreichbar), aber sie verhindert, dass eine Objekt-URL fremde Dokument-IDs "durchreicht".
+- **Eigene Uploads**: `POST .../properties/{property_id}/documents` prüft `category_id`
+  serverseitig gegen `field_may_see_category()` -- unabhängig davon, was
+  `GET .../document-categories` (die Kategorie-Auswahl der Oberfläche, selbst bereits nur
+  freigegebene Kategorien listend) anbietet. Ein direkter API-Aufruf mit einer gesperrten
+  Kategorie schlägt mit 422 fehl, exakt wie über die Oberfläche.
+- **Wartungshistorie**: `list_maintenance_history_for_property_field()` (`app/service_reports.py`,
+  neu aus der bereits bestehenden `_property_history_reports()`-Abfrage herausgelöst in eine
+  property_id-first-Variante `_property_history_reports_for_property_id()`) liefert dasselbe,
+  bereits etablierte reduzierte `ServiceReportHistoryOut`-Schema wie
+  `list_property_history_for_field()` (Rechtekonzept → "Berichts-Eigentümerschaft") --
+  objektbezogen statt auftragsbezogen, deshalb ohne den dortigen Ausschluss "nicht der eigene
+  Auftrag" (hier gibt es keinen "eigenen" Auftrag, von dem aus die Ansicht geöffnet wurde).
+
+**Angriffstest (`tests/test_v267_property_field_documents.py`, 15 Tests), wie verlangt**:
+fremdes Objekt über die ID öffnen -- erlaubt, aber nur die harmlosen Felder (per
+`set(body) == {...}`-Vergleich belegt, kein `notes`/`customer_id`); Datei aus gesperrter
+Kategorie über geratene ID -- 404, inklusive einer direkten Datenbank-Manipulationssimulation
+(dieselbe Technik wie 1.3.62: `DocumentCategory.is_field_visible` direkt auf `True` gesetzt,
+`field_may_see_category()` bleibt trotzdem bei `False`, da `HARD_LOCKED_CATEGORY_KEYS`
+unabhängig geprüft wird); Datei eines ANDEREN Objekts über die URL -- 404, obwohl dieselbe Datei
+über die korrekte `property_id` abrufbar ist; archivierte Projekte vollständig ausgeschlossen
+(Liste UND Datei-Abruf); Upload in eine nicht freigegebene bzw. fest gesperrte Kategorie --
+422, server- nicht nur oberflächenseitig; kein Endpunkt dieser Runde liefert ein Preis-/Kosten-/
+internes Feld (rekursiver Schlüssel-Scan über alle vier neuen Endpunkte, Fehlerklasse
+`purchase_price` aus 1.3.53); Büro sieht einen Monteur-Upload sofort in der eigenen Liste. Ein
+zweiter Punkt (Upload ohne Mitarbeiterverknüpfung -- 422) rundet das ab. Null "durchgelassen".
+
+**Bewusst NICHT Teil dieser Version**: die geteilte, feldbegrenzte Suche (Punkt 4 der
+ursprünglichen Entscheidung) -- `/mobil/objekt/{property_id}` bleibt bis dahin nur über eine
+bekannte ID erreichbar, keine Verlinkung aus `/mobil`.
 
 ## Migrations-Workflow
 

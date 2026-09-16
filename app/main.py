@@ -18,7 +18,7 @@ from .orders import ensure_existing_order_revisions
 from .routers import (
     absence_requests, account, address_import, audit, auth, catalogs, changelog, customer_documents, customers,
     dashboard, document_categories, document_email_templates, document_layout, email_settings, employees, field_view, findings, imports, inquiries, inspection_templates, invoices, labor_rate, maintenance_contracts, materials, modules, orders,
-    pages, payment_terms, planning, project_documents, projects, properties, quick_service_orders, quotes, reminders,
+    pages, payment_terms, planning, project_documents, projects, properties, property_documents, quick_service_orders, quotes, reminders,
     resource_planning, roof_areas, service_reports, services, settings, task_columns, tasks, tax_keys, time_backoffice, time_tracking, users,
     work_preparation,
 )
@@ -114,6 +114,7 @@ app.include_router(settings.router)
 app.include_router(resource_planning.router)
 app.include_router(services.router)
 app.include_router(properties.router)
+app.include_router(property_documents.router)
 app.include_router(planning.router)
 app.include_router(time_tracking.router)
 app.include_router(time_backoffice.router)

@@ -387,6 +387,54 @@ class CustomerDocumentUpdate(BaseModel):
     document_date: date | None = None
 
 
+class PropertyDocumentOut(BaseModel):
+    """Einzelnes PropertyDocument (Büro-Sicht, app/routers/property_documents.py) -- anders als
+    Customer-/ProjectDocumentOut ohne `category`-Freitext, siehe PropertyDocument-Klassendocstring
+    in app/models.py für die Begründung (keine Altbestands-Freitexte zu erhalten)."""
+    id: int
+    property_id: int
+    category_id: int
+    category_key: str
+    category_label: str
+    original_filename: str
+    content_type: str | None = None
+    file_size: int
+    description: str | None = None
+    uploaded_at: datetime
+    uploaded_by_employee_id: int | None = None
+    is_image: bool = False
+    can_preview: bool = False
+
+
+class PropertyDocumentListItemOut(BaseModel):
+    """Eine Zeile der zusammengeführten Objekt-Dokumentliste (list_merged_documents_for_property(),
+    app/property_documents.py) -- source unterscheidet, über welchen Einzel-Endpunkt eine Zeile
+    angesehen/heruntergeladen wird (source="property" -> /api/property-documents/{id}/...,
+    source="project" -> das bereits bestehende /api/project-documents/{id}/... bzw., für die
+    Monteursansicht, /api/field-view/properties/{property_id}/documents/{source}/{id}/...)."""
+    source: str
+    id: int
+    property_id: int
+    project_id: int | None = None
+    category_key: str
+    category_label: str
+    original_filename: str
+    content_type: str | None = None
+    file_size: int
+    description: str | None = None
+    uploaded_at: datetime
+    is_image: bool = False
+    can_preview: bool = False
+
+
+class FieldDocumentCategoryOut(BaseModel):
+    """Für die Kategorie-Auswahl beim Monteur-Upload (GET /api/field-view/document-categories) --
+    nur die für Monteure freigegebenen Kategorien, keine der beiden Schloss-Felder selbst."""
+    id: int
+    key: str
+    label: str
+
+
 class QuoteCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     vat_rate: Decimal = Field(default=Decimal("19.00"), ge=0, le=100)

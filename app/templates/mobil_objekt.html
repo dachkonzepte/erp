@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DACHKONZEPTE GmbH - Objekt</title>
+  {# Mobile Objektansicht (seit "Dateiablage je Objekt", siehe CLAUDE.md) -- in dieser Runde nur
+     über eine bekannte Objekt-ID erreichbar (property_id aus der Server-Route), die Suche als
+     Einstieg folgt als eigener, späterer Schritt. WICHTIG: ein Monteur erreicht hier JEDES
+     Objekt, nicht nur seine eigenen -- die inhaltliche Sperre sitzt ausschließlich in dem, was
+     die /api/field-view/properties/{property_id}/...-Endpunkte zurückliefern (siehe dort), nicht
+     in dieser Seite. Kein <link rel="manifest">/Theme-Color hier -- das bleibt bewusst auf
+     mobil.html beschränkt (einzige Startadresse für "Zum Startbildschirm hinzufügen"). #}
+  <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--soft:#eef5f3;--danger:#c0362c;--success:#1f8a5f;color:var(--ink);background:var(--bg)}
+    :root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--soft:#1e2b26;--danger:#f2837a;--success:#4ade95}
+    *{box-sizing:border-box}body{margin:0}
+    main{max-width:720px;margin:0 auto;padding:16px 14px 60px}
+    a{color:var(--accent)}
+    .back-link{display:inline-block;margin-bottom:12px;color:var(--muted);text-decoration:none;font-size:13px}
+    h1{font-size:15px;margin:20px 0 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:800}
+    h1:first-of-type{margin-top:6px}
+    .card{background:var(--card);border:1px solid var(--line);padding:14px 16px;margin-bottom:10px}
+    .obj-name{font-weight:800;font-size:18px}
+    .obj-addr{margin-top:4px}
+    .obj-addr a{text-decoration:none}
+    .contact-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+    .contact-row a{font-weight:650;text-decoration:none}
+    .empty,.loading,.error{color:var(--muted);font-size:13.5px;padding:10px 2px}
+    .error{color:var(--danger)}
+    .doc-group-title{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px}
+    .doc-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+    .doc-row:last-child{border-bottom:0}
+    .doc-name{font-size:13.5px}
+    .doc-meta{font-size:11.5px;color:var(--muted);margin-top:1px}
+    .doc-actions{display:flex;gap:6px;flex:0 0 auto}
+    .doc-actions a{min-height:36px;display:flex;align-items:center;padding:0 10px;border:1px solid var(--line);text-decoration:none;font-size:12.5px;font-weight:650;color:var(--ink)}
+    .field{margin-bottom:10px}
+    .field label{display:block;font-size:12px;font-weight:650;color:var(--muted);margin-bottom:4px}
+    .field input,.field select,.field textarea{width:100%;padding:10px 11px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:14px;min-height:44px}
+    .field textarea{min-height:60px;resize:vertical}
+    button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:11px 14px;font-weight:650;font-size:14px;min-height:44px;width:100%}
+    button:disabled{opacity:.6}
+    .status{font-size:12.5px;margin-top:8px}
+    .status.err{color:var(--danger)}
+    .status.ok{color:var(--success)}
+    .history-item{padding:10px 0;border-bottom:1px solid var(--line)}
+    .history-item:last-child{border-bottom:0}
+    .history-title{font-weight:650;font-size:13.5px}
+    .history-meta{font-size:11.5px;color:var(--muted);margin-top:2px}
+    .finding-row{margin-top:6px;padding:8px;background:var(--soft);font-size:12.5px}
+    .finding-row .sev{font-weight:700}
+  </style>
+</head>
+<body>
+{% include "_mobile_header.html" %}
+<main>
+  <a class="back-link" href="/mobil">← Einsätze</a>
+  <div id="propertyCard" class="card loading">Lädt…</div>
+
+  <h1>Dokumente</h1>
+  <div id="documentsList" class="loading">Lädt…</div>
+
+  <h1>Datei hochladen</h1>
+  <div class="card">
+    <form id="uploadForm">
+      <div class="field">
+        <label for="uploadCategory">Kategorie</label>
+        <select id="uploadCategory" required></select>
+      </div>
+      <div class="field">
+        <label for="uploadFile">Datei (Foto oder Dokument)</label>
+        <input type="file" id="uploadFile" accept="image/*,application/pdf" required>
+      </div>
+      <div class="field">
+        <label for="uploadDescription">Bemerkung (optional)</label>
+        <textarea id="uploadDescription"></textarea>
+      </div>
+      <button type="submit" id="uploadSubmit">Hochladen</button>
+      <div id="uploadStatus" class="status"></div>
+    </form>
+  </div>
+
+  <h1>Frühere Wartungsberichte</h1>
+  <div id="historyList" class="loading">Lädt…</div>
+</main>
+<script>
+(function(){
+  var propertyId={{ property_id }};
+  function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
+  function fmtDate(s){
+    if(!s)return'';
+    var d=new Date(s+'T00:00:00');
+    if(isNaN(d))return s;
+    return d.toLocaleDateString('de-DE');
+  }
+  function fmtDateTime(s){
+    if(!s)return'';
+    var d=new Date(s);
+    if(isNaN(d))return s;
+    return d.toLocaleDateString('de-DE')+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+  }
+  async function api(u,o){
+    var r=await fetch(u,o);
+    if(!r.ok){
+      var d=await r.json().catch(function(){return {}});
+      throw new Error(d.detail||r.statusText);
+    }
+    if(r.status===204)return null;
+    return r.json();
+  }
+
+  function renderProperty(p){
+    var el=document.getElementById('propertyCard');
+    var addrParts=[p.street,[p.postal_code,p.city].filter(Boolean).join(' ')].filter(Boolean);
+    var addrText=addrParts.join(', ');
+    var mapsUrl='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(addrText);
+    var html='<div class="obj-name">'+esc(p.name)+'</div>';
+    if(addrText)html+='<div class="obj-addr"><a href="'+mapsUrl+'" target="_blank" rel="noopener">'+esc(addrText)+'</a></div>';
+    if(p.site_contact_name||p.site_contact_phone){
+      html+='<div class="contact-row"><span>'+esc(p.site_contact_name||'Ansprechpartner vor Ort')+'</span>';
+      if(p.site_contact_phone){
+        html+='<a href="tel:'+esc(p.site_contact_phone.replace(/\s+/g,''))+'">'+esc(p.site_contact_phone)+'</a>';
+      }
+      html+='</div>';
+    }
+    if(p.access_notes){
+      html+='<div class="contact-row" style="display:block"><div class="doc-meta" style="margin-bottom:2px">Zugang</div>'+esc(p.access_notes)+'</div>';
+    }
+    el.className='card';
+    el.innerHTML=html;
+  }
+
+  function renderDocuments(list){
+    var el=document.getElementById('documentsList');
+    if(!list.length){el.className='empty';el.textContent='Keine Dokumente hinterlegt.';return}
+    el.className='';
+    var html='';
+    var lastCategory=null;
+    list.forEach(function(d){
+      if(d.category_label!==lastCategory){
+        html+='<div class="doc-group-title">'+esc(d.category_label)+'</div>';
+        lastCategory=d.category_label;
+      }
+      var base='/api/field-view/properties/'+propertyId+'/documents/'+d.source+'/'+d.id;
+      html+='<div class="card doc-row"><div><div class="doc-name">'+esc(d.original_filename)+'</div>'
+        +'<div class="doc-meta">'+fmtDate((d.uploaded_at||'').slice(0,10))+(d.description?' · '+esc(d.description):'')+'</div></div>'
+        +'<div class="doc-actions">'
+        +(d.can_preview?'<a href="'+base+'/view" target="_blank" rel="noopener">Ansehen</a>':'')
+        +'<a href="'+base+'/download">Laden</a>'
+        +'</div></div>';
+    });
+    el.innerHTML=html;
+  }
+
+  function renderCategories(list){
+    var sel=document.getElementById('uploadCategory');
+    if(!list.length){
+      sel.innerHTML='<option value="">Keine Kategorie freigegeben</option>';
+      sel.disabled=true;
+      document.getElementById('uploadSubmit').disabled=true;
+      return;
+    }
+    sel.innerHTML=list.map(function(c){return '<option value="'+c.id+'">'+esc(c.label)+'</option>'}).join('');
+  }
+
+  function findingRow(f){
+    return '<div class="finding-row"><span class="sev">'+esc(f.severity_label)+'</span> · '+esc(f.description)
+      +(f.roof_component_name?' ('+esc(f.roof_component_name)+')':'')
+      +'<div class="doc-meta">'+esc(f.status_label)+' · '+esc(f.action_label)+'</div></div>';
+  }
+
+  function renderHistory(list){
+    var el=document.getElementById('historyList');
+    if(!list.length){el.className='empty';el.textContent='Keine früheren Wartungsberichte.';return}
+    el.className='';
+    el.innerHTML=list.map(function(r){
+      var findings=(r.findings||[]).map(findingRow).join('');
+      return '<div class="card history-item">'
+        +'<div class="history-title">'+esc(r.report_type_label)+' · '+fmtDate(r.performed_at)+'</div>'
+        +'<div class="history-meta">'+esc(r.created_by_employee_name||'')+(r.order_number?' · Auftrag '+esc(r.order_number):'')+'</div>'
+        +findings
+        +'</div>';
+    }).join('');
+  }
+
+  function showError(message){
+    ['propertyCard','documentsList','historyList'].forEach(function(id){
+      var el=document.getElementById(id);
+      el.className='error';
+      el.textContent=message;
+    });
+  }
+
+  api('/api/field-view/properties/'+propertyId).then(renderProperty).catch(function(err){
+    document.getElementById('propertyCard').className='error';
+    document.getElementById('propertyCard').textContent=err.message||'Objekt nicht gefunden.';
+  });
+  function reloadDocuments(){
+    return api('/api/field-view/properties/'+propertyId+'/documents').then(renderDocuments).catch(function(err){
+      document.getElementById('documentsList').className='error';
+      document.getElementById('documentsList').textContent=err.message||'Fehler beim Laden.';
+    });
+  }
+  reloadDocuments();
+  api('/api/field-view/document-categories').then(renderCategories).catch(function(){
+    renderCategories([]);
+  });
+  api('/api/field-view/properties/'+propertyId+'/maintenance-history').then(renderHistory).catch(function(err){
+    document.getElementById('historyList').className='error';
+    document.getElementById('historyList').textContent=err.message||'Fehler beim Laden.';
+  });
+
+  document.getElementById('uploadForm').addEventListener('submit',function(e){
+    e.preventDefault();
+    var fileInput=document.getElementById('uploadFile');
+    if(!fileInput.files.length){alert('Bitte eine Datei auswählen.');return}
+    var fd=new FormData();
+    fd.append('file',fileInput.files[0]);
+    fd.append('category_id',document.getElementById('uploadCategory').value);
+    var description=document.getElementById('uploadDescription').value.trim();
+    if(description)fd.append('description',description);
+    var btn=document.getElementById('uploadSubmit');
+    var status=document.getElementById('uploadStatus');
+    btn.disabled=true;btn.textContent='Wird hochgeladen…';status.className='status';status.textContent='';
+    fetch('/api/field-view/properties/'+propertyId+'/documents',{method:'POST',body:fd}).then(function(r){
+      if(!r.ok)return r.json().catch(function(){return {}}).then(function(d){throw new Error(d.detail||'Fehler beim Hochladen.')});
+      return r.json();
+    }).then(function(){
+      status.className='status ok';status.textContent='Hochgeladen.';
+      fileInput.value='';
+      document.getElementById('uploadDescription').value='';
+      reloadDocuments();
+    }).catch(function(err){
+      status.className='status err';status.textContent=err.message||'Fehler beim Hochladen.';
+    }).finally(function(){
+      btn.disabled=false;btn.textContent='Hochladen';
+    });
+  });
+})();
+</script>
+</body>
+</html>

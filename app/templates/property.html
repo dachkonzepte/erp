@@ -94,6 +94,30 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<div class="card">
+  <!-- Seit "Dateiablage je Objekt" (siehe CLAUDE.md): zeigt DIESELBE zusammengeführte Liste
+       (eigene Objekt-Uploads UND Dokumente aller nicht archivierten Projekte des Objekts) wie
+       die mobile Ansicht -- hier ohne die Kategorie-Einschränkung field_visible_only=True, das
+       Büro sieht immer den vollen Bestand, auch sensible/gesperrte Kategorien. Macht Uploads
+       eines Monteurs hier auffindbar. -->
+  <div class="section-title">
+    <h2>Objektdateien</h2>
+  </div>
+  <div id="propertyDocUploadStatus" class="status"></div>
+  <div class="fields-2col" style="margin-bottom:12px;align-items:end">
+    <div class="field"><label>Kategorie</label><select id="propertyDocCategory"></select></div>
+    <div class="field"><label>Datei</label><input type="file" id="propertyDocFile"></div>
+    <div class="field full"><label>Bemerkung (optional)</label><input id="propertyDocDescription"></div>
+    <div class="field full"><button type="button" onclick="uploadPropertyDocument()">Hochladen</button></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Kategorie</th><th>Datei</th><th>Herkunft</th><th>Hochgeladen</th><th></th></tr></thead>
+      <tbody id="propertyDocRows"></tbody>
+    </table>
+  </div>
+</div>
+
 <div id="maintenanceCard" class="card hidden">
   <h2>Wartungsverträge</h2>
   <div class="table-wrap">
@@ -220,6 +244,60 @@ function maintenanceRow(c){
   </tr>`;
 }
 
+let documentCategories=[];
+
+function propertyDocumentRow(d){
+  const origin=d.source==='property'?'Objekt':`<a href="/projects/${d.project_id}" style="color:var(--accent);font-weight:650;text-decoration:none">Projekt</a>`;
+  const viewUrl=d.source==='property'?`/api/property-documents/${d.id}/view`:`/api/project-documents/${d.id}/view`;
+  const downloadUrl=d.source==='property'?`/api/property-documents/${d.id}/download`:`/api/project-documents/${d.id}/download`;
+  return `<tr>
+    <td>${esc(d.category_label)}</td>
+    <td>${d.can_preview?`<a href="${viewUrl}" target="_blank" style="color:var(--accent);text-decoration:none">${esc(d.original_filename)}</a>`:esc(d.original_filename)}</td>
+    <td>${origin}</td>
+    <td>${fmtDate((d.uploaded_at||'').slice(0,10))}</td>
+    <td style="white-space:nowrap">
+      <a href="${downloadUrl}" style="color:var(--accent);font-weight:650;text-decoration:none">Laden</a>
+      ${d.source==='property'?` <button type="button" class="danger" onclick="deletePropertyDocument(${d.id})">Löschen</button>`:''}
+    </td>
+  </tr>`;
+}
+
+async function loadPropertyDocuments(){
+  const docs=await api(`/api/properties/${propertyId}/documents`).catch(()=>[]);
+  document.getElementById('propertyDocRows').innerHTML=docs.map(propertyDocumentRow).join('')||'<tr><td colspan="5" class="empty">Noch keine Dateien hinterlegt.</td></tr>';
+}
+
+async function loadDocumentCategoriesForUpload(){
+  documentCategories=await api('/api/document-categories').catch(()=>[]);
+  document.getElementById('propertyDocCategory').innerHTML=documentCategories.map(c=>`<option value="${c.id}">${esc(c.label)}</option>`).join('');
+}
+
+async function uploadPropertyDocument(){
+  const st=document.getElementById('propertyDocUploadStatus');
+  const fileInput=document.getElementById('propertyDocFile');
+  if(!fileInput.files.length){st.className='status err';st.textContent='Bitte eine Datei auswählen.';return}
+  const fd=new FormData();
+  fd.append('file',fileInput.files[0]);
+  fd.append('category_id',document.getElementById('propertyDocCategory').value);
+  const description=document.getElementById('propertyDocDescription').value.trim();
+  if(description)fd.append('description',description);
+  st.className='status';st.textContent='Wird hochgeladen …';
+  try{
+    await api(`/api/properties/${propertyId}/documents`,{method:'POST',body:fd});
+    fileInput.value='';document.getElementById('propertyDocDescription').value='';
+    st.textContent='Hochgeladen.';
+    await loadPropertyDocuments();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function deletePropertyDocument(id){
+  if(!confirm('Diese Datei wirklich löschen?'))return;
+  try{
+    await api(`/api/property-documents/${id}`,{method:'DELETE'});
+    await loadPropertyDocuments();
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
 async function loadMaintenanceContracts(){
   if(!await isModuleEnabled('wartungen'))return;
   try{
@@ -242,6 +320,8 @@ async function init(){
   }
   renderBreadcrumb();renderHeader();fillPropertyForm();
   await loadRoofAreas();
+  await loadDocumentCategoriesForUpload();
+  await loadPropertyDocuments();
   await loadMaintenanceContracts();
 }
 init();
