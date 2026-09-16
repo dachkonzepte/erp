@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
 from ..invoices import invoice_summary_for_order
-from ..models import AppUser, Order
+from ..models import AppUser, Order, ServiceReport
 from ..order_pdf import build_order_pdf
 from ..orders import create_order_revision, field_may_access_order, list_order_revisions, load_order, order_to_dict, send_order_email, sync_order_from_source_quote, update_order_header, update_order_item, update_order_section, update_order_tax_key
 from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
@@ -48,6 +48,39 @@ def require_field_order_access(db: Session, role: AppUser, order_id: int) -> Non
         return
     if role.employee_id is None or not field_may_access_order(db, role.employee_id, order_id):
         raise HTTPException(status_code=403, detail=FIELD_ORDER_DENIED)
+
+
+FIELD_REPORT_NOT_OWNER = "Dieser Bericht wurde von einer anderen Person angelegt."
+
+
+def require_field_report_ownership(db: Session, role: AppUser, report_id: int) -> None:
+    """Fund "fremde Berichte lesen und schreiben auf einem gemeinsamen Auftrag" (Sicherheitstest,
+    siehe CLAUDE.md "Rechtekonzept" -> "Berichts-Eigentümerschaft"): require_field_order_access()
+    prüft nur "gehört der AUFTRAG zu mir" -- auf einem Mehrpersonen-Auftrag (Team-Besetzung an der
+    AV) reicht das für den EINZELNEN Bericht nicht, sonst kann jeder Monteur mit Zugriff auf den
+    Auftrag jeden Bericht darauf ändern, löschen und signieren, unabhängig davon, wer ihn angelegt
+    hat. Diese Funktion prüft zusätzlich, ob der angemeldete Monteur der Ersteller
+    (created_by_employee_id) des konkreten Berichts ist -- Büro/Admin bleiben unbeschränkt (das
+    Rollen-Gate reicht dort, wie bei require_field_order_access()).
+
+    Bewusste betriebliche Festlegung, keine technische Annahme (Betreibervorgabe): in diesem
+    Betrieb schreibt jeder Monteur seinen eigenen Bericht nach getaner Arbeit, niemand führt den
+    Bericht eines Kollegen fort. Ändert sich dieser Ablauf (zwei Monteure arbeiten gemeinsam an
+    einem Bericht), ist DIES die Stelle, die dann von "Ersteller" auf "alle dem Auftrag
+    zugeordneten Monteure" (employee_assigned_order_ids()) erweitert werden muss -- nicht der
+    Auftragsbezug selbst, der bleibt richtig.
+
+    Gilt für Schreibzugriffe (ändern/löschen/signieren/Prüfpunkte, Fotos, Material ergänzen) UND
+    für den lesenden Detailzugriff auf einen EINZELNEN Bericht (PDF, Prüfpunkte, Fotos, Material,
+    Mängel) -- was ein Monteur von einem fremden Bericht auf demselben Auftrag sehen darf, ohne
+    dessen Ersteller zu sein, ist ausschließlich die reduzierte Zusammenfassung in der
+    Berichtsliste (list_reports_for_field() in app/service_reports.py), nicht mehr."""
+    report = db.get(ServiceReport, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Bericht nicht gefunden.")
+    require_field_order_access(db, role, report.order_id)
+    if role.role == ROLE_FIELD and report.created_by_employee_id != role.employee_id:
+        raise HTTPException(status_code=403, detail=FIELD_REPORT_NOT_OWNER)
 
 
 @router.get("/api/orders", response_model=list[OrderListOut])

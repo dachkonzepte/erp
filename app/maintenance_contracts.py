@@ -590,6 +590,47 @@ def create_project_from_contract(db: Session, contract_id: int, item_id: int | N
     return {"project_id": new_project.id, "project_number": new_project.project_number}
 
 
+def contract_effective_property_id(db: Session, contract: MaintenanceContract) -> int | None:
+    """Löst auf, welches Property tatsächlich zu diesem Vertrag gehört -- contract.property_id
+    selbst, falls gesetzt, sonst die Hauptadresse des Kunden (contract_to_dict() bildet diesen
+    Rückfall für die ANZEIGE bereits nach; diese Funktion liefert stattdessen die tatsächliche
+    Property.id, für den Abgleich gegen list_field_relevant_property_ids() unten). None nur,
+    wenn der Kunde -- ungewöhnlich, da jeder Kunde automatisch eine Hauptadresse bekommt -- gar
+    keine als solche geflaggte Property besitzt."""
+    if contract.property_id is not None:
+        return contract.property_id
+    return db.scalar(
+        select(Property.id).where(
+            Property.customer_id == contract.customer_id, Property.is_primary_address == True,  # noqa: E712
+        )
+    )
+
+
+def field_may_perform_maintenance(db: Session, employee_id: int, contract_id: int) -> bool:
+    """Rechtekonzept, Fund "fremde Wartung per geratener Vertrags-ID" (Sicherheitstest, siehe
+    CLAUDE.md "Rechtekonzept" -> "Vertragsfinder auf /vor-ort"): create_maintenance_visit() prüfte
+    bisher keine Zuordnung zwischen Monteur und Vertrag -- ein Monteur konnte "Wartung
+    durchführen" für JEDEN Vertrag auslösen, dessen ID er (fortlaufend, leicht erraten) kannte,
+    und damit einen echten Auftrag unter einem ihm fremden Kunden anlegen. Das ist keine
+    Datenleck-Frage, sondern eine Manipulation der Geschäftsdaten -- die frühere Einstufung
+    "kein Datenleck, so akzeptiert" ist damit überholt (siehe CLAUDE.md-Historie).
+
+    Diese Funktion zieht dieselbe Grenze wie der Vertragsfinder auf /vor-ort ("Wartungen an
+    meinen Objekten"): ein Monteur darf eine Wartung nur an einem Objekt starten, das über
+    list_field_relevant_property_ids() erreichbar ist -- also an einem Objekt, an dem er über die
+    Arbeitsvorbereitung tatsächlich aktuell oder in Kürze zu tun hat. Ein Vertrag ohne eigenes
+    Objekt (property_id IS NULL, bedeutet "Hauptadresse des Kunden") zählt über die aufgelöste
+    Hauptadresse-Property (contract_effective_property_id()) -- dieselbe Auflösung wie im
+    Vertragsfinder selbst."""
+    contract = db.get(MaintenanceContract, contract_id)
+    if contract is None:
+        return False
+    property_id = contract_effective_property_id(db, contract)
+    if property_id is None:
+        return False
+    return property_id in list_field_relevant_property_ids(db, employee_id)
+
+
 def create_maintenance_visit(db: Session, contract_id: int, created_by_employee_id: int | None = None) -> dict:
     """"Wartung durchführen" (seit 1.2.22): fasst Anlegen des Auftrags UND eines vorbereiteten
     Wartungsberichts über ALLE nicht archivierten Dachflächen des Objekts in einem Schritt

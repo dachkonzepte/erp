@@ -177,6 +177,55 @@ def list_reports(db: Session, order_id: int) -> list[dict]:
     return [report_to_dict(r) for r in db.scalars(query).all()]
 
 
+# Deckt sowohl report_to_dict() (order, created_by_employee, roof_area, inspection_template,
+# report_roof_areas) als auch _history_report_to_field_dict() (zusätzlich inspection_items,
+# findings) ab -- list_reports_for_field() unten braucht je Zeile potenziell beides, ohne vorher
+# zu wissen, welche der beiden Formen für diese eine Zeile gebraucht wird.
+_FIELD_REPORT_DETAIL_OPTIONS = (
+    selectinload(ServiceReport.order), selectinload(ServiceReport.created_by_employee),
+    selectinload(ServiceReport.roof_area), selectinload(ServiceReport.inspection_template),
+    selectinload(ServiceReport.report_roof_areas).selectinload(ServiceReportRoofArea.roof_area),
+    selectinload(ServiceReport.report_roof_areas).selectinload(ServiceReportRoofArea.inspection_template),
+    selectinload(ServiceReport.inspection_items).selectinload(InspectionItem.roof_area),
+    selectinload(ServiceReport.findings),
+)
+
+
+def list_reports_for_field(db: Session, order_id: int, viewer_employee_id: int | None) -> list[tuple[dict, bool]]:
+    """Berichtsliste eines Auftrags für die Rolle `field` (Fund "fremde Berichte lesen und
+    schreiben auf einem gemeinsamen Auftrag", siehe CLAUDE.md "Rechtekonzept" ->
+    "Berichts-Eigentümerschaft"): auf einem Mehrpersonen-Auftrag (Team-Besetzung an der AV)
+    zeigte GET /api/orders/{order_id}/service-reports bisher das volle ServiceReportOut für JEDEN
+    Bericht, unabhängig vom Ersteller -- inklusive Freitext, Unterschriftsdaten eines Kollegen.
+
+    Der EIGENE Bericht (created_by_employee_id == viewer_employee_id) bleibt das volle Schema --
+    ohne das könnte ein Monteur seinen eigenen, noch nicht unterschriebenen Bericht nicht mehr
+    bearbeiten: service_reports.html liest den Beschreibungstext zum Bearbeiten direkt aus DIESER
+    Liste (kein separater Einzelabruf vor dem Öffnen des Bearbeiten-Formulars). Jeder Bericht
+    eines ANDEREN Erstellers kommt im reduzierten Schema wie die Wartungshistorie
+    (_history_report_to_field_dict(), list_property_history_for_field()) -- keine vertraulichen
+    Notizen, kein voller Freitext, keine Zeitbuchungen der Kollegen.
+
+    Liefert (dict, is_own)-Paare statt fertiger Pydantic-Modelle: der Router wählt je Zeile
+    explizit ServiceReportOut.model_validate(...) oder ServiceReportHistoryOut.model_validate(...)
+    -- bewusst KEIN response_model=list[A] | list[B] auf der Route selbst, da sich beide Schemata
+    strukturell zu weit überlappen (u. a. dieselbe roof_areas-Liste, beide mit ausschließlich
+    optionalen Zusatzfeldern), um sich verlässlich auf Pydantics automatische Unterscheidung
+    zwischen den beiden Varianten innerhalb EINER Liste zu verlassen."""
+    query = (
+        select(ServiceReport)
+        .options(*_FIELD_REPORT_DETAIL_OPTIONS)
+        .where(ServiceReport.order_id == order_id)
+        .order_by(ServiceReport.performed_at.desc(), ServiceReport.id.desc())
+    )
+    result = []
+    for r in db.scalars(query).all():
+        is_own = viewer_employee_id is not None and r.created_by_employee_id == viewer_employee_id
+        row = report_to_dict(r) if is_own else _history_report_to_field_dict(r)
+        result.append((row, is_own))
+    return result
+
+
 def list_draft_reports_for_employee(db: Session, employee_id: int) -> list[dict]:
     """Für die Monteursansicht (/vor-ort, seit 1.3.0) -- offene (noch nicht unterschriebene)
     Berichte, an denen dieser Mitarbeiter zuletzt gearbeitet hat. created_by_employee_id ist die
@@ -236,15 +285,7 @@ def list_property_history_for_field(db: Session, order_id: int) -> list[dict]:
     (InspectionItem.notes) ist Teil des Prüfergebnisses und steht auf dem Kunden-PDF -- keine
     interne Bemerkung, deshalb enthalten. Das PDF eines fremden Berichts bleibt für `field`
     gesperrt (es trägt u. a. die Zeitbuchungen der Kollegen)."""
-    reports = _property_history_reports(
-        db, order_id,
-        selectinload(ServiceReport.order), selectinload(ServiceReport.created_by_employee),
-        selectinload(ServiceReport.roof_area), selectinload(ServiceReport.inspection_template),
-        selectinload(ServiceReport.report_roof_areas).selectinload(ServiceReportRoofArea.roof_area),
-        selectinload(ServiceReport.report_roof_areas).selectinload(ServiceReportRoofArea.inspection_template),
-        selectinload(ServiceReport.inspection_items).selectinload(InspectionItem.roof_area),
-        selectinload(ServiceReport.findings),
-    )
+    reports = _property_history_reports(db, order_id, *_FIELD_REPORT_DETAIL_OPTIONS)
     return [_history_report_to_field_dict(r) for r in reports]
 
 

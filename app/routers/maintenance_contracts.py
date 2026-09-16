@@ -13,7 +13,8 @@ from ..maintenance_contracts import (
     check_due_contracts_and_create_reminders, create_contract, create_contract_item,
     create_maintenance_contract_from_project, create_maintenance_visit, create_project_from_contract,
     create_window, delete_contract,
-    delete_contract_item, delete_window, get_contract, get_or_create_maintenance_settings, list_contracts,
+    delete_contract_item, delete_window, field_may_perform_maintenance, get_contract,
+    get_or_create_maintenance_settings, list_contracts,
     list_contracts_for_property, list_due_items_grouped,
     list_windows, maintenance_settings_to_dict, reorder_windows, set_contract_archived, set_contract_status,
     set_item_archived, update_contract, update_contract_item, update_maintenance_settings, update_window,
@@ -42,7 +43,11 @@ _role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
 # Einzige Ausnahme (seit 1.3.56, Rechtekonzept Teil B, Nachtrag): "Wartung durchführen" -- ein
 # Monteur muss vor Ort eine ungeplante Wartung starten können. Der Bericht wird dabei auf ihn
 # als Ersteller gesetzt, sonst hätte er auf den neu erzeugten Auftrag keinen Zugriff (siehe
-# post_perform_maintenance()). Vertragsdaten selbst (Liste, Detail, Bearbeitung) bleiben Büro.
+# post_perform_maintenance()). Seit dem Fund "fremde Wartung per geratener Vertrags-ID"
+# (Sicherheitstest, siehe CLAUDE.md "Rechtekonzept" -> "Vertragsfinder auf /vor-ort") zusätzlich
+# über field_may_perform_maintenance() auf ein Objekt beschränkt, an dem der Monteur tatsächlich
+# zugeordnet ist -- dieselbe Grenze wie list_field_relevant_property_ids() auf /vor-ort. Büro/
+# Admin bleiben unbeschränkt. Vertragsdaten selbst (Liste, Detail, Bearbeitung) bleiben Büro.
 _any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
 
 
@@ -184,10 +189,19 @@ def post_perform_maintenance(contract_id: int, request: Request, db: Session = D
     wie POST /api/orders/{id}/service-reports: Nicht-Admin = eigene employee_id, Admin = keine)
     -- das ist sein Zugriffsweg auf den neuen Auftrag, eine Plantafel-Zuordnung gibt es dafür
     noch nicht. Ein field-Konto ohne Mitarbeiterverknüpfung wird abgelehnt: der Bericht wäre
-    sonst für niemanden erreichbar, der ihn ausfüllen soll."""
+    sonst für niemanden erreichbar, der ihn ausfüllen soll.
+
+    Seit dem Fund "fremde Wartung per geratener Vertrags-ID" (Sicherheitstest, siehe CLAUDE.md
+    "Rechtekonzept" -> "Vertragsfinder auf /vor-ort"): zusätzlich field_may_perform_maintenance()
+    -- ein Monteur darf nur an einem Objekt eine Wartung starten, an dem er über die
+    Arbeitsvorbereitung tatsächlich aktuell oder in Kürze zu tun hat (dieselbe Grenze wie die
+    Karte "Wartungen an meinen Objekten" auf /vor-ort). Büro/Admin bleiben unbeschränkt."""
     _require_module_enabled(db)
-    if _role.role == ROLE_FIELD and _role.employee_id is None:
-        raise HTTPException(status_code=403, detail="Ihr ERP-Benutzerkonto ist keinem Mitarbeiter zugeordnet.")
+    if _role.role == ROLE_FIELD:
+        if _role.employee_id is None:
+            raise HTTPException(status_code=403, detail="Ihr ERP-Benutzerkonto ist keinem Mitarbeiter zugeordnet.")
+        if not field_may_perform_maintenance(db, _role.employee_id, contract_id):
+            raise HTTPException(status_code=403, detail="Dieses Objekt ist Ihnen aktuell nicht zugeordnet.")
     try:
         return create_maintenance_visit(db, contract_id, created_by_employee_id=_employee_for_request(request, None))
     except ValueError as exc:

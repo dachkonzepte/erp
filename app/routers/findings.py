@@ -16,8 +16,8 @@ from ..models import AppUser, Finding
 from ..modules import is_module_enabled
 from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
 from ..schemas import FindingCreate, FindingFollowupUpdate, FindingOut
-from .orders import require_field_order_access
-from .service_reports import _employee_for_request, _order_id_for_report
+from .orders import require_field_report_ownership
+from .service_reports import _employee_for_request
 
 router = APIRouter()
 
@@ -32,10 +32,12 @@ MODULE_KEY = "wartungen"
 # Entscheidung wie in app/routers/tasks.py), auch wenn sie aus historischen Gründen hier liegen
 # -- "Vorgang erstellen" aus einer Aufgabe heraus ist eine Büro-Aktion am Schreibtisch.
 #
-# Jede Rolle, mit Objekt-Filterung (Teil B): der Mängel-Workflow WÄHREND eines Einsatzberichts
-# (Mängel eines Berichts lesen/anlegen, Nachverfolgung ändern) -- vom Monteur selbst bedient
-# (service_reports.html). Für `field` zusätzlich require_field_order_access() über den Auftrag
-# des Berichts, dieselbe eine Definition wie in service_reports.py/orders.py.
+# Jede Rolle, mit Eigentümerschaft (Teil B, seit dem Fund "fremde Berichte lesen und schreiben
+# auf einem gemeinsamen Auftrag" -- siehe CLAUDE.md "Rechtekonzept" -> "Berichts-
+# Eigentümerschaft"): der Mängel-Workflow WÄHREND eines Einsatzberichts (Mängel eines Berichts
+# lesen/anlegen, Nachverfolgung ändern) -- vom Monteur selbst bedient (service_reports.html). Für
+# `field` zusätzlich require_field_report_ownership() -- ein Mangel gehört zu genau einem
+# Bericht, dessen Ersteller muss man sein, nicht nur irgendwer mit Zugriff auf den Auftrag.
 _office_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
 _any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
 
@@ -45,11 +47,11 @@ def _require_module_enabled(db: Session):
         raise HTTPException(status_code=403, detail="Das Modul Wartungen & Reparaturen ist deaktiviert.")
 
 
-def _order_id_for_finding(db: Session, finding_id: int) -> int:
+def _report_id_for_finding(db: Session, finding_id: int) -> int:
     finding = db.get(Finding, finding_id)
     if finding is None:
         raise HTTPException(status_code=404, detail="Mangel nicht gefunden.")
-    return _order_id_for_report(db, finding.service_report_id)
+    return finding.service_report_id
 
 
 @router.get("/api/findings", response_model=list[FindingOut])
@@ -67,15 +69,21 @@ def get_findings(
 
 @router.get("/api/service-reports/{report_id}/findings", response_model=list[FindingOut])
 def get_report_findings(report_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    """Seit dem Fund "fremde Berichte lesen und schreiben auf einem gemeinsamen Auftrag" (siehe
+    CLAUDE.md "Rechtekonzept" -> "Berichts-Eigentümerschaft"): require_field_report_ownership()
+    statt require_field_order_access() -- ein Monteur sieht die vollen Mängeldaten eines Berichts
+    nur, wenn er dessen Ersteller ist. Die reduzierte Mängel-Zusammenfassung eines fremden
+    Berichts (Beschreibung, Schweregrad, Status) bleibt weiterhin über die Berichtsliste
+    erreichbar (list_reports_for_field() in app/service_reports.py)."""
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report(db, report_id))
+    require_field_report_ownership(db, _role, report_id)
     return list_findings_for_report(db, report_id)
 
 
 @router.post("/api/service-reports/{report_id}/findings", response_model=FindingOut)
 def post_finding(report_id: int, payload: FindingCreate, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report(db, report_id))
+    require_field_report_ownership(db, _role, report_id)
     employee_id = _employee_for_request(request, payload.created_by_employee_id)
     try:
         return create_finding(
@@ -90,7 +98,7 @@ def post_finding(report_id: int, payload: FindingCreate, request: Request, db: S
 @router.put("/api/findings/{finding_id}/followup", response_model=FindingOut)
 def put_finding_followup(finding_id: int, payload: FindingFollowupUpdate, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_finding(db, finding_id))
+    require_field_report_ownership(db, _role, _report_id_for_finding(db, finding_id))
     try:
         result = update_finding_followup(
             db, finding_id, status=payload.status, action=payload.action,

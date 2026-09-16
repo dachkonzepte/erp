@@ -4,6 +4,55 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.59 – Rechtekonzept: zwei Funde aus einem Sicherheitstest behoben
+
+Ein adversarialer Test gegen eine isolierte Testinstanz (eigene, temporäre Datenbank, ein
+synthetisches `field`-Testkonto, danach vollständig gelöscht -- nie gegen die echte
+`dachkonzepte_erp.db`) sollte die Negativliste des Rechtekonzepts aus Sicht eines Angreifers
+durchgehen, nicht nur aus der eines gutwilligen Nutzers. Zwei echte Lücken, beide behoben, ein
+zweiter Durchlauf desselben Tests bestätigt: null "durchgelassen".
+
+**Fund 1, der schwerwiegendere: fremde Berichte lesen und schreiben auf einem gemeinsamen
+Auftrag.** `require_field_order_access()` prüfte nur "gehört der Auftrag zu mir", nie "gehört der
+Bericht zu mir". Auf jedem Mehrpersonen-Auftrag (Team-Besetzung an der Arbeitsvorbereitung)
+konnte ein Monteur mit legitimem Auftragszugriff jeden Bericht eines Kollegen lesen (volles
+Schema inkl. Freitext), ändern, löschen und sogar signieren -- dieselbe ungeprüfte Auftragsebene
+stand vor PUT/DELETE/sign genauso wie vor Prüfpunkten, Fotos, Material und Mängeln.
+
+Getrennt nach Zugriffsart behoben: Lesen der Berichtsliste (`GET /api/orders/{id}/service-reports`)
+bleibt für jeden mit Auftragszugriff erlaubt, aber jetzt pro Bericht statt pro Auftrag -- der
+eigene Bericht zeigt weiterhin das volle Schema (zum Bearbeiten unverzichtbar), jeder Bericht
+eines anderen Erstellers kommt im bereits bestehenden reduzierten Schema der Wartungshistorie
+(`ServiceReportHistoryOut`, neue Funktion `list_reports_for_field()` in `app/service_reports.py`).
+Jeder Schreib- und Detailzugriff auf einen KONKRETEN Bericht (PUT/DELETE/sign, Prüfpunkte samt
+regenerate/sync, Fotos, Material, Mängel, PDF) verlangt jetzt zusätzlich, dass der angemeldete
+Monteur der Ersteller ist -- neue Funktion `require_field_report_ownership()` in
+`app/routers/orders.py`, angewendet in `app/routers/service_reports.py` und `app/routers/findings.py`.
+Büro/Admin bleiben an keiner Stelle eingeschränkt.
+
+Auf Rückfrage, ob "nur der Ersteller" zu eng ist (arbeiten je zwei Monteure an einem Bericht?):
+Betreiberantwort -- in diesem Betrieb schreibt jeder Monteur seinen eigenen Bericht nach getaner
+Arbeit, keine Fortführung durch einen Kollegen. Bewusst als betriebliche Festlegung dokumentiert,
+nicht als technische Annahme -- ändert sich der Ablauf, ist genau diese eine Stelle auf "alle dem
+Auftrag zugeordneten Monteure" zu erweitern.
+
+**Fund 2: fremde Wartung per geratener Vertrags-ID.** `POST /api/maintenance-contracts/{id}/
+perform-maintenance` prüfte für Monteure seit 1.3.56 nur die eigene Mitarbeiterverknüpfung, keine
+Zuordnung zum Vertrag selbst. Über eine fortlaufende, leicht erratbare ID konnte ein Monteur für
+JEDEN Vertrag einen echten Auftrag samt Projekt und vorbereitetem Bericht unter einem ihm
+völlig fremden Kunden anlegen. Die ursprüngliche Einstufung ("legt einen Auftrag an, kein
+Datenleck, so akzeptiert") ist überholt -- eine Manipulation von Geschäftsdaten über eine triviale
+ID-Iteration ist kein tolerierbarer Nebeneffekt. Neue Funktion `field_may_perform_maintenance()`
+in `app/maintenance_contracts.py` zieht dieselbe Grenze wie der Vertragsfinder auf `/vor-ort`
+(`list_field_relevant_property_ids()`) -- ein Monteur darf eine Wartung nur an einem Objekt
+starten, dem er über die Arbeitsvorbereitung tatsächlich zugeordnet ist. Büro/Admin bleiben
+unbeschränkt.
+
+18 neue Tests (`tests/test_v263_report_ownership_and_contract_scope.py`), ein bestehender Test
+angepasst (die AV-Zuordnung, die "Wartung durchführen" jetzt voraussetzt, gehörte vorher nicht
+zum Testaufbau). Keine Migration nötig. Details in CLAUDE.md, Abschnitt "Rechtekonzept" →
+"Berichts-Eigentümerschaft" bzw. "Fund: fremde Wartung per geratener Vertrags-ID".
+
 ## 1.3.58 – Rechtekonzept, Nachtrag: Vertragsfinder auf /vor-ort ("Wartungen an meinen Objekten")
 
 Letzter offener Punkt aus der 1.3.57-Seitenklassifizierung: "Wartung durchführen" wurde für

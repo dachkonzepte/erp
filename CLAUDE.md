@@ -20,15 +20,15 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.58** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.59** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf weiterhin `7a2b4e9f1c3d` ("app user role office field") -- keine der
-  Versionen 1.3.52 bis 1.3.58 brauchte eine eigene Migration (reine Rollen-Gate-/Response-Schema-/
+  Versionen 1.3.52 bis 1.3.59 brauchte eine eigene Migration (reine Rollen-Gate-/Response-Schema-/
   Objekt-Filterungs-Umstellungen auf bereits bestehenden Endpunkten und Tabellen), siehe
   Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
   eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1216 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1234 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 15.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
+  dort), zuletzt am 16.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -751,6 +751,24 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Stelle wieder eingeführt). Reduziertes Schema (kein Kundennummer, keine Adresse über den Ort
   hinaus), Karte blendet bei fehlender Objektzuordnung nur einen ruhigen Hinweis ein, nie eine
   leere Fläche. Details im Abschnitt "Rechtekonzept" → "Vertragsfinder auf /vor-ort" unten.
+- Neu seit 1.3.59: **Rechtekonzept, zwei Funde aus einem Sicherheitstest behoben.** Ein
+  adversarialer Test gegen eine isolierte Testinstanz (eigene, temporäre Datenbank, nie gegen
+  die echte `dachkonzepte_erp.db`) fand zwei echte Lücken, beide geschlossen, ein zweiter
+  Durchlauf desselben Tests bestätigt: null "durchgelassen". (1) Ein Monteur mit Zugriff auf
+  einen Mehrpersonen-Auftrag konnte jeden Bericht eines Kollegen darauf lesen, ändern, löschen
+  und signieren -- `require_field_order_access()` prüfte nur den Auftrag, nie den Bericht selbst.
+  Neue `require_field_report_ownership()` (`app/routers/orders.py`) verlangt für jeden Schreib-/
+  Detailzugriff auf einen konkreten Bericht (PUT/DELETE/sign, Prüfpunkte, Fotos, Material,
+  Mängel, PDF) den Ersteller -- eine bewusste betriebliche Festlegung (jeder Monteur schreibt
+  seinen eigenen Bericht), keine technische Annahme. Die Berichtsliste selbst bleibt für jeden
+  mit Auftragszugriff sichtbar, aber pro Bericht: der eigene voll, jeder fremde im reduzierten
+  Schema der Wartungshistorie (`list_reports_for_field()`). (2) "Wartung durchführen" prüfte für
+  Monteure keine Zuordnung zum Vertrag -- eine geratene, fortlaufende ID legte einen echten
+  Auftrag unter einem fremden Kunden an. `field_may_perform_maintenance()` zieht jetzt dieselbe
+  Grenze wie der Vertragsfinder (`list_field_relevant_property_ids()`). Die frühere Einstufung
+  dieser zweiten Lücke ("kein Datenleck, so akzeptiert") ist damit überholt und aus CLAUDE.md
+  entfernt. Details im Abschnitt "Rechtekonzept" → "Berichts-Eigentümerschaft" bzw. "Fund:
+  fremde Wartung per geratener Vertrags-ID" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -5641,11 +5659,14 @@ Monteur, der vor Ort eine ungeplante Wartung startet, hätte den Weg nicht gehab
 Nicht-Admin = eigene Mitarbeiterverknüpfung, Admin = keine). Ein `field`-Konto ohne
 Mitarbeiterverknüpfung wird mit 403 abgelehnt -- der Bericht wäre sonst für niemanden
 erreichbar, der ihn ausfüllen soll. Alle übrigen Endpunkte der Datei (Vertragsliste, Detail,
-Bearbeitung, Historie, Einstellungen) bleiben Büro/Admin. Zwei bewusst offene Folgen: (a) es gibt
-keine Zuordnung Monteur ↔ Vertrag, jeder Monteur kann den Vorgang für jeden Vertrag auslösen
-(legt einen Auftrag an -- Datenintegrität, kein Datenleck, so entschieden); (b) auf `/vor-ort`
-fehlt noch ein Einstieg, um den Vertrag ohne die Büro-Vertragsseite zu finden -- Teil der
-ausstehenden Seiten-Klassifizierung (Etappenplan Schritt 3).
+Bearbeitung, Historie, Einstellungen) bleiben Büro/Admin. **Korrigiert seit 1.3.59** (siehe
+Abschnitt "Vertragsfinder auf /vor-ort" → "Fund: fremde Wartung per geratener Vertrags-ID"
+unten): dieser Endpunkt prüfte bis dahin keine Zuordnung Monteur ↔ Vertrag, jeder Monteur konnte
+den Vorgang für JEDEN Vertrag auslösen. Die ursprüngliche Einstufung dazu -- "legt einen Auftrag
+an, Datenintegrität, kein Datenleck, so akzeptiert" -- ist überholt: ein Sicherheitstest hat
+gezeigt, dass sich darüber echte Auftrags-/Projektdatensätze unter fremden Kunden anlegen
+lassen, über fortlaufende, leicht erratbare IDs. Das ist Manipulation von Geschäftsdaten, keine
+zu tolerierende Nebenwirkung -- `field_may_perform_maintenance()` schließt die Lücke, siehe dort.
 
 **`sign_report()` unter dem neuen Konzept geprüft (1.3.56)**: die Unterschriftsroutine erzeugt
 danach die "Rechnung erstellen"-Aufgabe (`create_task()`) und schreibt in Vertragsdaten
@@ -5780,6 +5801,75 @@ Muster wie die beiden bestehenden Karten bei "keine Einsätze"/"keine Entwürfe"
 Fläche. Klick auf "Wartung durchführen" ruft `POST /api/maintenance-contracts/{id}/perform-
 maintenance` (seit 1.3.56 für Monteure offen) und navigiert direkt zu
 `/orders/{order_id}/service-reports?report={report_id}` (Muster `maintenance_contract.html`).
+
+### Fund: fremde Wartung per geratener Vertrags-ID (behoben seit 1.3.59)
+
+Ein Sicherheitstest gegen eine isolierte Testinstanz (eigene, temporäre Datenbank, nie gegen die
+echte `dachkonzepte_erp.db`) hat gezeigt: `POST /api/maintenance-contracts/{id}/perform-
+maintenance` prüfte für `field` seit 1.3.56 zwar die Mitarbeiterverknüpfung, aber KEINE Zuordnung
+zwischen Monteur und Vertrag. Ein Monteur konnte damit für JEDEN Vertrag -- fortlaufende,
+leicht erratbare ID -- einen echten Auftrag samt Projekt und vorbereitetem Bericht unter einem
+ihm völlig fremden Kunden anlegen. Die ursprüngliche Einstufung dieser Lücke ("legt einen
+Auftrag an, kein Datenleck, so akzeptiert") ist damit überholt: das ist keine Frage vertraulicher
+Daten, sondern eine Manipulation der Geschäftsdaten, über eine triviale ID-Iteration auslösbar --
+genau der Angriff, den die Standardverweigerung des ganzen Rechtekonzepts verhindern soll.
+
+**`app/maintenance_contracts.py::field_may_perform_maintenance(db, employee_id, contract_id)`**
+zieht dieselbe Grenze wie der Vertragsfinder selbst: ein Monteur darf eine Wartung nur an einem
+Objekt starten, das über `list_field_relevant_property_ids()` erreichbar ist -- also an einem
+Objekt, an dem er über die Arbeitsvorbereitung tatsächlich aktuell oder in Kürze zu tun hat.
+`contract_effective_property_id()` löst dafür denselben Hauptadresse-Rückfall auf wie
+`contract_to_dict()` (ein Vertrag mit `property_id IS NULL` zählt über die Hauptadresse-`Property`
+des Kunden). Der Router (`post_perform_maintenance()`) prüft das zusätzlich zur bestehenden
+Mitarbeiterverknüpfung-Prüfung, ausschließlich für `field` -- Büro/Admin bleiben unbeschränkt.
+Geprüft und mit einem zweiten Durchlauf desselben Angriffstests bestätigt: 0 "durchgelassen".
+
+### Berichts-Eigentümerschaft: fremde Berichte auf einem gemeinsamen Auftrag (behoben seit 1.3.59)
+
+Derselbe Sicherheitstest fand einen zweiten, schwerwiegenderen Fund: `require_field_order_access()`
+prüft nur "gehört der AUFTRAG zu mir" -- auf einem Mehrpersonen-Auftrag (mehrere Monteure über
+Team-Besetzung an der AV zugeordnet) reichte das für einen EINZELNEN Bericht nicht. Ein Monteur
+mit legitimem Auftragszugriff konnte jeden Bericht eines Kollegen auf demselben Auftrag lesen
+(volles Schema inkl. Freitext), ändern, löschen und sogar signieren -- dieselbe, ungeprüfte
+Auftragsebene stand vor PUT/DELETE/sign UND vor Prüfpunkten, Fotos, Material und Mängeln.
+
+**Trennung nach Zugriffsart** (Betreibervorgabe):
+- **Lesen der Berichtsliste** (`GET /api/orders/{order_id}/service-reports`): bleibt für jeden
+  mit Auftragszugriff erlaubt -- aber pro Bericht, nicht pro Auftrag. Der eigene Bericht
+  (`created_by_employee_id` == der angemeldete Monteur) zeigt weiterhin das volle
+  `ServiceReportOut` -- ohne das könnte ein Monteur seinen eigenen, noch nicht unterschriebenen
+  Bericht nicht mehr bearbeiten, `service_reports.html` liest den Beschreibungstext zum
+  Bearbeiten direkt aus dieser Liste, kein separater Einzelabruf davor. Jeder Bericht eines
+  ANDEREN Erstellers kommt im reduzierten Schema der Wartungshistorie (`ServiceReportHistoryOut`,
+  über `app/service_reports.py::list_reports_for_field()`, die dieselbe Konvertierungsfunktion
+  wie `list_property_history_for_field()` wiederverwendet) -- keine vertraulichen Notizen, kein
+  voller Freitext, keine Zeitbuchungen der Kollegen. Bewusst **kein** `response_model=list[A] |
+  list[B]` auf der Route -- beide Schemata überlappen sich strukturell zu weit (dieselbe
+  `roof_areas`-Liste, überwiegend optionale Zusatzfelder), um sich verlässlich auf Pydantics
+  automatische Unterscheidung innerhalb EINER Liste zu verlassen; der Router wählt stattdessen
+  je Zeile explizit das passende Schema und validiert einzeln.
+- **Schreiben und Detailzugriff auf einen konkreten Bericht** (PUT/DELETE/sign, Prüfpunkte,
+  Fotos, Material, Mängel, PDF): nur der Ersteller. Neue Funktion
+  `app/routers/orders.py::require_field_report_ownership(db, role, report_id)` -- prüft zuerst
+  wie bisher `require_field_order_access()` (derselbe Auftragsbezug), danach zusätzlich
+  `report.created_by_employee_id == role.employee_id`. Büro/Admin bleiben unbeschränkt.
+
+**Bewusste betriebliche Festlegung, keine technische Annahme** (auf Rückfrage, ob "nur der
+Ersteller" zu eng ist -- könnten zwei Monteure legitim an einem Bericht arbeiten, einer beginnt,
+der andere schließt ab?): in diesem Betrieb schreibt jeder Monteur seinen eigenen Bericht nach
+getaner Arbeit, keine Fortführung durch einen Kollegen (Betreiberantwort). Ändert sich dieser
+Ablauf, ist `require_field_report_ownership()` die Stelle, die dann von "Ersteller" auf "alle dem
+Auftrag zugeordneten Monteure" (`employee_assigned_order_ids()`) erweitert werden muss -- nicht
+der Auftragsbezug selbst, der bleibt richtig.
+
+Betrifft `app/routers/service_reports.py` (PUT/DELETE/sign-Bericht, PDF, Prüfpunkte inkl.
+regenerate/sync, Fotos, Material -- je Endpunkt einzeln mit einem Test belegt, der den Zugriff
+eines Nicht-Erstellers ablehnt) und `app/routers/findings.py` (Mängel eines Berichts lesen/
+anlegen, Nachverfolgung ändern -- Eigentümerschaft hängt am PARENT-Bericht, nicht an
+`Finding.created_by_employee_id` selbst, da `InspectionItem` gar kein eigenes Ersteller-Feld
+trägt und die Regel für alle Kind-Objekte eines Berichts einheitlich gelten soll). Mit einem
+zweiten Durchlauf desselben Angriffstests bestätigt: 0 "durchgelassen", inklusive PUT/DELETE/
+sign auf einem fremden Bericht.
 
 ### Kundendaten für einen Monteur: ausschließlich über den Bericht, nicht über eine Kundenseite
 
@@ -5970,7 +6060,7 @@ ist in der Liste ohnehin sichtbar, keine verdeckte Änderung möglich).
    `time_tracking.py`, 1.3.55 -- erst NACH Etappe 3, weil ein blankes Büro+Admin-Gate dort den
    Einsatzbericht-Ablauf gebrochen hätte, genau der Fehler von `GET /api/employees` in 1.3.53).
    Der Audit-Test steht bei null und ist seit 1.3.55 ein harter Test (`xfail` entfernt).
-3. **Objekt-Filterung für `field`** -- **fertig (1.3.55-1.3.58)**: `field_may_access_order()`
+3. **Objekt-Filterung für `field`** -- **fertig (1.3.55-1.3.59)**: `field_may_access_order()`
    (`app/orders.py`, zwei Wege, siehe "Objekt-Filterung" oben) und `require_field_order_access()`
    (`app/routers/orders.py`) sind auf `orders.py`/`service_reports.py`/`findings.py` angewendet;
    `properties.py`/`roof_areas.py` brauchten sie nicht (seit Teil A Büro/Admin, der Monteur liest
@@ -5985,9 +6075,14 @@ ist in der Liste ohnehin sichtbar, keine verdeckte Änderung möglich).
    zusätzlich der `/vor-ort`-Vertragsfinder**: die Karte "Wartungen an meinen Objekten" (siehe
    eigener Abschnitt "Objekt-Filterung" → "Vertragsfinder auf /vor-ort" unten) schließt die
    zuletzt offene Lücke -- ein Monteur konnte bisher nur eine bereits geplante Wartung
-   durchführen, keine ungeplante an einem Objekt starten, an dem er gerade arbeitet. **Noch
-   offen**: der "Auftrag"-Link in `service_reports.html`, der auf eine jetzt gesperrte Büro-Seite
-   zeigt (siehe "Bekannte, bewusst offene Punkte").
+   durchführen, keine ungeplante an einem Objekt starten, an dem er gerade arbeitet. **Seit
+   1.3.59 ein Sicherheitstest gegen eine isolierte Testinstanz** (nie gegen die echte
+   `dachkonzepte_erp.db`) mit zwei echten Funden, beide behoben: fremde Berichte auf einem
+   gemeinsamen Auftrag lesen/ändern/löschen/signieren (siehe "Berichts-Eigentümerschaft" oben)
+   und eine Wartung auf einem fremden Vertrag per geratener ID auslösen (siehe "Fund: fremde
+   Wartung per geratener Vertrags-ID" oben) -- ein zweiter Durchlauf desselben Angriffstests
+   bestätigt beide als geschlossen. **Noch offen**: der "Auftrag"-Link in `service_reports.html`,
+   der auf eine jetzt gesperrte Büro-Seite zeigt (siehe "Bekannte, bewusst offene Punkte").
 4. Erstes echtes `field`-Testkonto anlegen, vollständigen Monteurs-Ablauf im Browser
    durchklicken. -- offen.
 

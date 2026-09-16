@@ -5,10 +5,23 @@ deaktiviertem Modul, gleiches Muster wie bei maintenance_contracts.py/tasks.py.
 Seit "Rechtekonzept", Teil B (siehe CLAUDE.md): fast jeder Endpunkt dieser Datei wird vom
 Monteur selbst bedient (service_reports.html vor Ort) -- Rollen-Gate für jede Rolle, dazu für
 `field` die Objekt-Filterung über require_field_order_access() (app/routers/orders.py, die eine
-Übersetzung von app/orders.py::field_may_access_order() in ein 403). Endpunkte, die nicht
-direkt über order_id laufen, lösen zuerst report_id/item_id/photo_id/material_id auf den
-Auftrag auf (_order_id_for_report()/_order_id_for_report_child()). Einzige Ausnahme:
-GET /api/orders/{order_id}/materials (für order.html, "Rechnung aus Aufwand" -- reine
+Übersetzung von app/orders.py::field_may_access_order() in ein 403) für Endpunkte, die einen
+ganzen Auftrag betreffen (order_id direkt bekannt).
+
+Seit dem Fund "fremde Berichte lesen und schreiben auf einem gemeinsamen Auftrag" (Sicherheits-
+test, siehe CLAUDE.md "Rechtekonzept" -> "Berichts-Eigentümerschaft"): require_field_order_access()
+allein reicht für einen EINZELNEN Bericht nicht -- auf einem Mehrpersonen-Auftrag (Team-Besetzung
+an der AV) hätte sonst jeder Monteur mit Zugriff auf den Auftrag jeden Bericht darauf lesen,
+ändern, löschen und signieren können, unabhängig vom Ersteller. Jeder Endpunkt, der einen
+KONKRETEN Bericht (oder dessen Prüfpunkte/Fotos/Material) betrifft, prüft deshalb zusätzlich
+über require_field_report_ownership() (app/routers/orders.py), dass der angemeldete Monteur der
+Ersteller (created_by_employee_id) dieses Berichts ist -- Büro/Admin bleiben unbeschränkt.
+Endpunkte, die nicht direkt über report_id laufen, lösen zuerst item_id/photo_id/material_id
+über service_report_id auf (_report_id_for_child()). Die Berichtsliste eines Auftrags
+(GET .../service-reports) ist die EINZIGE Ausnahme von der Ersteller-Prüfung: dort sieht ein
+Monteur JEDEN Bericht des Auftrags, aber im reduzierten Schema für alles außer dem eigenen
+(list_reports_for_field() in app/service_reports.py). Zweite Ausnahme, unverändert seit
+1.3.55: GET /api/orders/{order_id}/materials (für order.html, "Rechnung aus Aufwand" -- reine
 Büro-Entscheidung) bleibt Büro/Admin."""
 
 import base64
@@ -19,7 +32,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import AppUser, InspectionItem, ServiceReport, ServiceReportMaterial, ServiceReportPhoto
+from ..models import AppUser, InspectionItem, ServiceReportMaterial, ServiceReportPhoto
 from ..modules import is_module_enabled
 from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
 from ..schemas import (
@@ -34,11 +47,11 @@ from ..service_reports import (
     add_inspection_item, add_material, add_photo, create_report, delete_inspection_item, delete_material,
     delete_photo, delete_report, get_property_context_for_order, get_report_row, list_inspection_items,
     list_materials_for_invoicing, list_materials_for_report, list_photos, list_property_history,
-    list_property_history_for_field, list_reports, list_roof_areas_for_order, material_to_dict,
-    regenerate_inspection_items, sign_report, sync_inspection_items, update_inspection_item, update_material,
-    update_report,
+    list_property_history_for_field, list_reports, list_reports_for_field, list_roof_areas_for_order,
+    material_to_dict, regenerate_inspection_items, sign_report, sync_inspection_items, update_inspection_item,
+    update_material, update_report,
 )
-from .orders import require_field_order_access
+from .orders import require_field_order_access, require_field_report_ownership
 
 router = APIRouter()
 
@@ -70,22 +83,18 @@ def _employee_for_request(request: Request, requested_employee_id: int | None) -
     return requested_employee_id
 
 
-def _order_id_for_report(db: Session, report_id: int) -> int:
-    """Auflösung Bericht -> Auftrag für die Objekt-Filterung (Teil B); 404, wenn es den Bericht
-    nicht gibt -- dieselbe Antwort, die der jeweilige Endpunkt ohnehin gegeben hätte."""
-    report = db.get(ServiceReport, report_id)
-    if report is None:
-        raise HTTPException(status_code=404, detail="Bericht nicht gefunden.")
-    return report.order_id
-
-
-def _order_id_for_report_child(db: Session, model, row_id: int, not_found: str) -> int:
-    """Wie _order_id_for_report(), eine Ebene tiefer: Prüfpunkt/Foto/Material (und in
-    findings.py der Mangel) tragen alle service_report_id."""
+def _report_id_for_child(db: Session, model, row_id: int, not_found: str) -> int:
+    """Auflösung Prüfpunkt/Foto/Material (und in findings.py der Mangel) -> service_report_id,
+    für require_field_report_ownership() unten -- die den zugehörigen Auftrag und dessen
+    Ersteller bereits selbst aus dem Bericht ableitet, eine Ebene tiefer als früher
+    _order_id_for_report_child() (entfernt seit dem Fund "fremde Berichte lesen und schreiben
+    auf einem gemeinsamen Auftrag", siehe CLAUDE.md "Rechtekonzept" -> "Berichts-
+    Eigentümerschaft"). 404, wenn es die Zeile nicht gibt -- dieselbe Antwort, die der jeweilige
+    Endpunkt ohnehin gegeben hätte."""
     row = db.get(model, row_id)
     if row is None:
         raise HTTPException(status_code=404, detail=not_found)
-    return _order_id_for_report(db, row.service_report_id)
+    return row.service_report_id
 
 
 @router.get("/api/orders/{order_id}/roof-areas", response_model=list[RoofAreaOut])
@@ -110,11 +119,24 @@ def get_property_for_order(order_id: int, db: Session = Depends(get_db), _role: 
     return PropertyAccessOut.model_validate(prop) if prop is not None else None
 
 
-@router.get("/api/orders/{order_id}/service-reports", response_model=list[ServiceReportOut])
+@router.get("/api/orders/{order_id}/service-reports")
 def get_service_reports(order_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    """Fund "fremde Berichte lesen und schreiben auf einem gemeinsamen Auftrag" (siehe CLAUDE.md
+    "Rechtekonzept" -> "Berichts-Eigentümerschaft"): Büro/Admin bekommen wie bisher die volle
+    Liste. Für `field` gilt jetzt PRO BERICHT, nicht mehr pro Auftrag: der eigene Bericht bleibt
+    voll (zum Bearbeiten), jeder Bericht eines Kollegen kommt im reduzierten Schema der
+    Wartungshistorie (list_reports_for_field() in app/service_reports.py). Bewusst OHNE
+    response_model -- die beiden Schemata pro Zeile werden hier explizit einzeln validiert
+    (siehe list_reports_for_field()s Docstring, warum ein response_model=list[A] | list[B]
+    dafür nicht verlässlich genug wäre)."""
     _require_module_enabled(db)
     require_field_order_access(db, _role, order_id)
-    return list_reports(db, order_id)
+    if _role.role != ROLE_FIELD:
+        return list_reports(db, order_id)
+    return [
+        (ServiceReportOut if is_own else ServiceReportHistoryOut).model_validate(row).model_dump(mode="json")
+        for row, is_own in list_reports_for_field(db, order_id, _role.employee_id)
+    ]
 
 
 @router.get("/api/orders/{order_id}/materials", response_model=list[ServiceReportMaterialOut])
@@ -160,7 +182,7 @@ def post_service_report(order_id: int, payload: ServiceReportCreate, request: Re
 @router.put("/api/service-reports/{report_id}", response_model=ServiceReportOut)
 def put_service_report(report_id: int, payload: ServiceReportUpdate, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report(db, report_id))
+    require_field_report_ownership(db, _role, report_id)
     try:
         result = update_report(db, report_id, report_type=payload.report_type,
                                 description=payload.description, performed_at=payload.performed_at)
@@ -174,7 +196,7 @@ def put_service_report(report_id: int, payload: ServiceReportUpdate, db: Session
 @router.delete("/api/service-reports/{report_id}")
 def delete_service_report(report_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report(db, report_id))
+    require_field_report_ownership(db, _role, report_id)
     try:
         deleted = delete_report(db, report_id)
     except ValueError as exc:
@@ -196,7 +218,7 @@ def _decode_signature_png(raw: str) -> bytes:
 @router.post("/api/service-reports/{report_id}/sign", response_model=ServiceReportOut)
 def post_sign_service_report(report_id: int, payload: ServiceReportSign, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report(db, report_id))
+    require_field_report_ownership(db, _role, report_id)
     installer_bytes = _decode_signature_png(payload.installer_signature_png_base64)
     customer_bytes = _decode_signature_png(payload.customer_signature_png_base64)
     try:
@@ -215,7 +237,7 @@ def post_sign_service_report(report_id: int, payload: ServiceReportSign, db: Ses
 @router.get("/api/service-reports/{report_id}/pdf")
 def get_service_report_pdf(report_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report(db, report_id))
+    require_field_report_ownership(db, _role, report_id)
     report = get_report_row(db, report_id)
     if report is None:
         raise HTTPException(status_code=404, detail="Bericht nicht gefunden.")
@@ -235,14 +257,14 @@ def get_service_report_pdf(report_id: int, db: Session = Depends(get_db), _role:
 @router.get("/api/service-reports/{report_id}/inspection-items", response_model=list[InspectionItemOut])
 def get_inspection_items(report_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report(db, report_id))
+    require_field_report_ownership(db, _role, report_id)
     return list_inspection_items(db, report_id)
 
 
 @router.post("/api/service-reports/{report_id}/inspection-items", response_model=InspectionItemOut)
 def post_inspection_item(report_id: int, payload: InspectionItemCreate, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report(db, report_id))
+    require_field_report_ownership(db, _role, report_id)
     try:
         return add_inspection_item(
             db, report_id, payload.text, payload.item_type, group_name=payload.group_name,
@@ -256,7 +278,7 @@ def post_inspection_item(report_id: int, payload: InspectionItemCreate, db: Sess
 @router.post("/api/service-reports/{report_id}/inspection-items/regenerate", response_model=ServiceReportOut)
 def post_regenerate_inspection_items(report_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report(db, report_id))
+    require_field_report_ownership(db, _role, report_id)
     try:
         return regenerate_inspection_items(db, report_id)
     except ValueError as exc:
@@ -266,7 +288,7 @@ def post_regenerate_inspection_items(report_id: int, db: Session = Depends(get_d
 @router.post("/api/service-reports/{report_id}/inspection-items/sync", response_model=InspectionItemsSyncResult)
 def post_sync_inspection_items(report_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report(db, report_id))
+    require_field_report_ownership(db, _role, report_id)
     try:
         return sync_inspection_items(db, report_id)
     except ValueError as exc:
@@ -276,7 +298,7 @@ def post_sync_inspection_items(report_id: int, db: Session = Depends(get_db), _r
 @router.put("/api/inspection-items/{item_id}", response_model=InspectionItemOut)
 def put_inspection_item(item_id: int, payload: InspectionItemResultUpdate, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report_child(db, InspectionItem, item_id, "Prüfpunkt nicht gefunden."))
+    require_field_report_ownership(db, _role, _report_id_for_child(db, InspectionItem, item_id, "Prüfpunkt nicht gefunden."))
     fields = payload.model_dump(exclude_unset=True)
     try:
         result = update_inspection_item(db, item_id, fields)
@@ -290,7 +312,7 @@ def put_inspection_item(item_id: int, payload: InspectionItemResultUpdate, db: S
 @router.delete("/api/inspection-items/{item_id}")
 def delete_inspection_item_endpoint(item_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report_child(db, InspectionItem, item_id, "Prüfpunkt nicht gefunden."))
+    require_field_report_ownership(db, _role, _report_id_for_child(db, InspectionItem, item_id, "Prüfpunkt nicht gefunden."))
     try:
         deleted = delete_inspection_item(db, item_id)
     except ValueError as exc:
@@ -306,7 +328,7 @@ def delete_inspection_item_endpoint(item_id: int, db: Session = Depends(get_db),
 @router.get("/api/service-reports/{report_id}/photos", response_model=list[ServiceReportPhotoOut])
 def get_service_report_photos(report_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report(db, report_id))
+    require_field_report_ownership(db, _role, report_id)
     return list_photos(db, report_id)
 
 
@@ -317,7 +339,7 @@ async def post_service_report_photo(
     created_by_employee_id: int | None = Form(None), db: Session = Depends(get_db), _role: AppUser = _any_role_dep,
 ):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report(db, report_id))
+    require_field_report_ownership(db, _role, report_id)
     employee_id = _employee_for_request(request, created_by_employee_id)
     if not file.filename:
         raise HTTPException(status_code=400, detail="Bitte eine Datei auswählen.")
@@ -341,7 +363,7 @@ def get_service_report_photo_file(photo_id: int, db: Session = Depends(get_db), 
     photo = db.get(ServiceReportPhoto, photo_id)
     if photo is None:
         raise HTTPException(status_code=404, detail="Foto nicht gefunden.")
-    require_field_order_access(db, _role, _order_id_for_report(db, photo.service_report_id))
+    require_field_report_ownership(db, _role, photo.service_report_id)
     path = photo_path(photo.file_path)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Bilddatei nicht gefunden.")
@@ -351,7 +373,7 @@ def get_service_report_photo_file(photo_id: int, db: Session = Depends(get_db), 
 @router.delete("/api/service-report-photos/{photo_id}")
 def delete_service_report_photo(photo_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report_child(db, ServiceReportPhoto, photo_id, "Foto nicht gefunden."))
+    require_field_report_ownership(db, _role, _report_id_for_child(db, ServiceReportPhoto, photo_id, "Foto nicht gefunden."))
     try:
         deleted = delete_photo(db, photo_id)
     except ValueError as exc:
@@ -367,7 +389,7 @@ def delete_service_report_photo(photo_id: int, db: Session = Depends(get_db), _r
 @router.get("/api/service-reports/{report_id}/materials", response_model=list[ServiceReportMaterialOut])
 def get_service_report_materials(report_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report(db, report_id))
+    require_field_report_ownership(db, _role, report_id)
     return list_materials_for_report(db, report_id)
 
 
@@ -377,7 +399,7 @@ def post_service_report_material(
     _role: AppUser = _any_role_dep,
 ):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report(db, report_id))
+    require_field_report_ownership(db, _role, report_id)
     employee_id = _employee_for_request(request, payload.created_by_employee_id)
     try:
         return add_material(
@@ -393,7 +415,7 @@ def post_service_report_material(
 @router.put("/api/service-report-materials/{material_id}", response_model=ServiceReportMaterialOut)
 def put_service_report_material(material_id: int, payload: ServiceReportMaterialUpdate, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report_child(db, ServiceReportMaterial, material_id, "Material nicht gefunden."))
+    require_field_report_ownership(db, _role, _report_id_for_child(db, ServiceReportMaterial, material_id, "Material nicht gefunden."))
     fields = payload.model_dump(exclude_unset=True)
     try:
         result = update_material(db, material_id, fields)
@@ -407,7 +429,7 @@ def put_service_report_material(material_id: int, payload: ServiceReportMaterial
 @router.delete("/api/service-report-materials/{material_id}")
 def delete_service_report_material(material_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, _order_id_for_report_child(db, ServiceReportMaterial, material_id, "Material nicht gefunden."))
+    require_field_report_ownership(db, _role, _report_id_for_child(db, ServiceReportMaterial, material_id, "Material nicht gefunden."))
     try:
         deleted = delete_material(db, material_id)
     except ValueError as exc:

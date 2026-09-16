@@ -663,22 +663,32 @@ class TestObjectFilteringForFieldTeilB:
         Auftrag, eine Plantafel-Zuordnung gibt es dafür nicht. Die Vertragsdaten selbst bleiben
         Büro. Und die Unterschrift läuft für ihn bis zum Ende durch: "Rechnung erstellen"-Aufgabe
         und Fortschreibung der Vertragsfälligkeit sind reine In-Process-Aufrufe ohne Rollenprüfung
-        (sign_report() -> create_task()/MaintenanceContract, keine Depends(...)-Kette dahinter)."""
+        (sign_report() -> create_task()/MaintenanceContract, keine Depends(...)-Kette dahinter).
+
+        Seit dem Fund "fremde Wartung per geratener Vertrags-ID" (1.3.59, siehe CLAUDE.md
+        "Rechtekonzept" -> "Vertragsfinder auf /vor-ort") setzt "Wartung durchführen" für `field`
+        zusätzlich voraus, dass der Monteur dem Objekt des Vertrags tatsächlich zugeordnet ist --
+        hier über eine Team-Besetzung an der AV mit einem PlanningSlot im Zeitfenster, dieselbe
+        Grenze wie list_field_relevant_property_ids()."""
         import base64
-        from datetime import date
+        from datetime import date, timedelta
         from sqlalchemy import select
         from app import service_reports as service_reports_module
         from app.maintenance_contracts import create_contract
-        from app.models import MaintenanceContract, ServiceReport, Task
+        from app.models import MaintenanceContract, PlanningSlot, ServiceReport, Task
         from app.routers.maintenance_contracts import router as mc_router
         from app.routers.service_reports import router as sr_router
         from tests.test_v203_service_reports import TINY_PNG
         monkeypatch.setattr(service_reports_module, "SIGNATURE_ROOT", tmp_path / "sigs")
         db = threaded_db_session
         monteur = self._employee(db, "T-B12", "Uwe", "Ungeplant")
-        _, customer, prop = self._order(db, "AUF-B-0060", "P-B-0060")
+        order, customer, prop = self._order(db, "AUF-B-0060", "P-B-0060")
         contract = create_contract(db, customer_id=customer.id, property_id=prop, title="Jahreswartung",
                                    interval_months=12, next_due_date=date(2026, 10, 1))
+        assignment = self._assign_via_team(db, order, monteur)
+        db.add(PlanningSlot(preparation_id=assignment.preparation_id, team_assignment_id=assignment.id,
+                            start_date=date.today() - timedelta(days=1), end_date=date.today() + timedelta(days=1)))
+        db.commit()
         field = router_test_client(db, mc_router, sr_router, role="field", employee_id=monteur.id)
         assert field.get(f"/api/maintenance-contracts/{contract['id']}").status_code == 403
 
