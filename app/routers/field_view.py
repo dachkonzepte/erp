@@ -194,7 +194,7 @@ def get_field_view_property_search(q: str = "", db: Session = Depends(get_db), _
     Weg, mehr als Objekte zu bekommen. `limit` ist bewusst NICHT client-steuerbar (fest auf
     SEARCH_RESULT_LIMIT) -- ein ?limit=10000 kann nie mehr als die vorgesehenen zehn Treffer
     erzwingen. response_model=list[PropertySearchHitOut] kappt zusätzlich strukturell auf
-    id/name/city, selbst falls die Funktion künftig versehentlich mehr zurückgäbe."""
+    id/name/city/customer_name, selbst falls die Funktion künftig versehentlich mehr zurückgäbe."""
     return search_properties_for_field(db, q)
 
 

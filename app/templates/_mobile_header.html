@@ -15,38 +15,113 @@
    entscheidet seither rollenbewusst, welche Vorlage sie rendert (time_tracking_field.html fuer
    `field`, siehe app/routers/pages.py::time_tracking_page() und CLAUDE.md "Zeiterfassung fuer
    Monteure"), diese Kopfzeile muss den Pfad deshalb nicht kennen. "Stundenzettel" (seit 1.3.61)
-   ist dagegen eine eigene, nur fuer `field` gedachte Seite (/mobil/stundenzettel). #}
+   ist dagegen eine eigene, nur fuer `field` gedachte Seite (/mobil/stundenzettel).
+
+   Seit 1.3.65 zusätzlich die Objektsuche (siehe CLAUDE.md "Suche als Einstieg") -- vorher stand
+   sie nur auf mobil.html, jetzt in einer eigenen Zeile über den vier Reitern, damit sie von JEDER
+   Seite der Monteursansicht erreichbar ist. Kopf/Suche/Reiter/Vorschlagsliste liegen dafür
+   gemeinsam in EINEM sticky-Wrapper (.mobile-header-wrap) statt -- wie vorher bei Kopf und Reiter
+   je einzeln -- mit hart codierten "top"-Pixelwerten aufeinander gestapelt zu werden: eine neue
+   Zeile hätte sonst jeden dieser Werte neu vermessen müssen, ein einziger sticky-Block braucht
+   das nicht. Die Vorschlagsliste hängt bewusst als letztes Kind DIESES Wrappers (nicht direkt
+   unter dem Suchfeld) mit `top:100%` relativ zum GANZEN Wrapper -- sie öffnet sich dadurch erst
+   UNTERHALB der Reiter, überlagert sie also nie: sonst hätte ein Tipp auf einen Reiter bei
+   offener Vorschlagsliste zuerst die Liste getroffen (und nur geschlossen), nicht den Reiter
+   selbst -- ein zweiter Tipp wäre nötig gewesen. Bindet dafür den Debounce-Helfer ein (siehe
+   app/templates/_debounce.html, vorher auf mobil.html gebunden, jetzt hier, da die Suche von
+   dort weggezogen ist) -- kein anderes Template, das diese Kopfzeile einbindet, bindet ihn
+   zusätzlich selbst ein, keine doppelte Funktionsdefinition. #}
 {% set current_user = request.state.erp_user %}
 {% set path = request.url.path %}
+{% include "_debounce.html" %}
 <style>
-.mobile-header{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border-bottom:1px solid var(--line);padding:10px 14px}
+.mobile-header-wrap{position:sticky;top:0;z-index:30}
+.mobile-header{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border-bottom:1px solid var(--line);padding:10px 14px}
 .mobile-header-brand{font-weight:800;letter-spacing:.02em;color:var(--ink);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mobile-header-user{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px;white-space:nowrap;flex:0 0 auto}
 .mobile-header-user .dot{width:7px;height:7px;background:var(--success,#1f8a5f);flex:0 0 7px;display:inline-block}
-.mobile-nav{display:flex;gap:6px;padding:8px 10px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:45px;z-index:29}
+.mobile-search-bar{background:var(--card);border-bottom:1px solid var(--line);padding:8px 14px}
+.mobile-search-bar input{display:block;width:100%;max-width:640px;margin:0 auto;padding:11px 13px;font-size:16px;min-height:44px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:0}
+.mobile-search-bar input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.mobile-nav{display:flex;gap:6px;padding:8px 10px;background:var(--card);border-bottom:1px solid var(--line)}
 .mobile-nav a,.mobile-nav button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;background:var(--soft);color:var(--ink);border:1px solid var(--line);font-weight:650;font-size:12.5px;text-decoration:none;cursor:pointer;font-family:inherit}
 .mobile-nav a.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .mobile-nav button{color:var(--danger,#c0362c)}
 .mobile-nav button:active,.mobile-nav a:active{background:color-mix(in srgb,var(--ink) 8%,var(--soft))}
+.mobile-search-results{position:absolute;left:0;right:0;top:100%;max-width:640px;margin-left:auto;margin-right:auto;background:var(--card);border-bottom:1px solid var(--line);max-height:70vh;overflow-y:auto;z-index:20}
+.mobile-search-hit{display:block;padding:11px 14px;text-decoration:none;color:var(--ink);border-bottom:1px solid var(--line)}
+.mobile-search-hit:last-child{border-bottom:none}
+.mobile-search-hit:active{background:var(--soft)}
+.mobile-search-hit .obj{font-weight:700;font-size:14.5px}
+.mobile-search-hit .cust{color:var(--muted);font-size:12.5px;margin-top:1px}
+.mobile-search-note{padding:9px 14px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line)}
 </style>
-<div class="mobile-header">
-  <span class="mobile-header-brand">DACHKONZEPTE · Mobil</span>
-  <span class="mobile-header-user">{% if current_user %}<span class="dot"></span>{{ current_user.display_name }}{% endif %}</span>
+<div class="mobile-header-wrap" id="mobileHeaderWrap">
+  <div class="mobile-header">
+    <span class="mobile-header-brand">DACHKONZEPTE · Mobil</span>
+    <span class="mobile-header-user">{% if current_user %}<span class="dot"></span>{{ current_user.display_name }}{% endif %}</span>
+  </div>
+  <div class="mobile-search-bar">
+    <input id="mobileObjectSearch" type="search" placeholder="Objekt suchen (Name, Adresse, Ort, Kunde) …" autocomplete="off" aria-label="Objekt suchen">
+  </div>
+  <nav class="mobile-nav">
+    <a href="/mobil" class="{{ 'active' if path == '/mobil' }}">Einsätze</a>
+    <a href="/time-tracking" class="{{ 'active' if path == '/time-tracking' }}">Zeiterfassung</a>
+    <a href="/mobil/stundenzettel" class="{{ 'active' if path == '/mobil/stundenzettel' }}">Stundenzettel</a>
+    <button type="button" id="mobileHeaderLogout">Abmelden</button>
+  </nav>
+  <div id="mobileObjectSearchResults" class="mobile-search-results" hidden></div>
 </div>
-<nav class="mobile-nav">
-  <a href="/mobil" class="{{ 'active' if path == '/mobil' }}">Einsätze</a>
-  <a href="/time-tracking" class="{{ 'active' if path == '/time-tracking' }}">Zeiterfassung</a>
-  <a href="/mobil/stundenzettel" class="{{ 'active' if path == '/mobil/stundenzettel' }}">Stundenzettel</a>
-  <button type="button" id="mobileHeaderLogout">Abmelden</button>
-</nav>
 <script>
 (function(){
   var logoutBtn=document.getElementById('mobileHeaderLogout');
-  if(!logoutBtn)return;
-  logoutBtn.addEventListener('click',function(){
-    fetch('/api/auth/logout',{method:'POST'}).finally(function(){
-      location.href='/login?next='+encodeURIComponent(location.pathname);
+  if(logoutBtn){
+    logoutBtn.addEventListener('click',function(){
+      fetch('/api/auth/logout',{method:'POST'}).finally(function(){
+        location.href='/login?next='+encodeURIComponent(location.pathname);
+      });
     });
+  }
+  function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
+  var searchInput=document.getElementById('mobileObjectSearch');
+  var searchBox=document.getElementById('mobileObjectSearchResults');
+  function renderSearchResults(hits){
+    if(!hits.length){
+      searchBox.innerHTML='<div class="mobile-search-note">Kein Objekt gefunden.</div>';
+      searchBox.hidden=false;
+      return;
+    }
+    var html=hits.map(function(h){
+      var sub=[h.customer_name,h.city].filter(Boolean).join(' · ');
+      return '<a class="mobile-search-hit" href="/mobil/objekt/'+h.id+'"><div class="obj">'+esc(h.name)+'</div>'
+        +(sub?'<div class="cust">'+esc(sub)+'</div>':'')+'</a>';
+    }).join('');
+    // Der Server begrenzt fest auf zehn Treffer (SEARCH_RESULT_LIMIT, app/search.py) und liefert
+    // keine Gesamtzahl mit -- sind es genau zehn, ist "mehr vorhanden" die naheliegendste
+    // Annahme, kein zusätzlicher Zähl-Request nötig.
+    if(hits.length>=10){
+      html+='<div class="mobile-search-note">Weitere Treffer möglich -- Suche verfeinern.</div>';
+    }
+    searchBox.innerHTML=html;
+    searchBox.hidden=false;
+  }
+  function runObjectSearch(){
+    var q=searchInput.value.trim();
+    if(q.length<2){searchBox.hidden=true;searchBox.innerHTML='';return}
+    fetch('/api/field-view/properties/search?q='+encodeURIComponent(q)).then(function(r){
+      if(!r.ok)return [];
+      return r.json();
+    }).then(function(hits){
+      renderSearchResults(hits||[]);
+    }).catch(function(){
+      searchBox.hidden=true;
+    });
+  }
+  var debouncedObjectSearch=debounce(runObjectSearch,300);
+  searchInput.addEventListener('input',debouncedObjectSearch);
+  document.addEventListener('click',function(e){
+    var wrap=document.getElementById('mobileHeaderWrap');
+    if(!wrap.contains(e.target))searchBox.hidden=true;
   });
 })();
 </script>

@@ -12,7 +12,10 @@ Zwei Schichten, bewusst getrennt:
    aufruft. Gibt volle Property-ORM-Objekte zurück -- eine künftige, reichhaltigere Büro-Suche
    liest daraus, welche Felder sie zusätzlich zeigen will, ohne diese Funktion anzufassen.
 2. field_safe_property_search_results() -- reduziert JEDES Ergebnis auf die für `field`
-   zulässigen, harmlosen Felder (id, name, city).
+   zulässigen, harmlosen Felder (id, name, city, customer_name -- seit 1.3.65 mit Kundenname,
+   siehe dort: ein Monteur, der zum Objekt fährt, kennt den Kunden ohnehin, das Feld ist nicht
+   sensibel; weiterhin NICHT enthalten: Kundennummer, interne Notizen, volle Adresse über den
+   Ort hinaus, alles Finanzielle).
 
 search_properties_for_field() kombiniert beide zu der EINEN Funktion, die ein Monteurs-Endpunkt
 aufrufen darf. WICHTIG für jeden künftigen, auch für `field` erreichbaren Such-Endpunkt (auch
@@ -34,7 +37,7 @@ und der client-seitige 300ms-Debounce (verhindert eine Anfrage je Tastendruck) -
 app/templates/mobil.html."""
 
 from sqlalchemy import or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from .models import Customer, Property
 
@@ -54,6 +57,7 @@ def search_properties(db: Session, query: str, *, limit: int = SEARCH_RESULT_LIM
     stmt = (
         select(Property)
         .join(Customer, Property.customer_id == Customer.id)
+        .options(selectinload(Property.customer))
         .where(or_(
             Property.name.ilike(pattern),
             Property.street.ilike(pattern),
@@ -68,10 +72,17 @@ def search_properties(db: Session, query: str, *, limit: int = SEARCH_RESULT_LIM
 
 
 def field_safe_property_search_results(properties: list[Property]) -> list[dict]:
-    """Schicht 2 (siehe Moduldocstring) -- reduziert auf id/name/city, die einzigen Felder, die
-    die Vorschlagsliste laut Anfrage zeigen darf (Objektname und Ort zur Identifikation, kein
-    Kunde, keine volle Adresse, keine Kundennummer)."""
-    return [{"id": p.id, "name": p.name, "city": p.city} for p in properties]
+    """Schicht 2 (siehe Moduldocstring) -- reduziert auf id/name/city/customer_name, die einzigen
+    Felder, die die Vorschlagsliste zeigen darf. Kundenname seit 1.3.65 dabei (nicht sensibel --
+    ein Monteur, der zum Objekt fährt, kennt den Kunden ohnehin, und mehrere Objekte desselben
+    Kunden sind ohne ihn kaum zu unterscheiden) -- weiterhin keine Kundennummer, keine interne
+    Notiz, keine volle Adresse über den Ort hinaus, nichts Finanzielles. `selectinload()` in
+    search_properties() lädt `Property.customer` bereits mit, dieser Zugriff löst also keine
+    zusätzliche Abfrage je Zeile aus."""
+    return [
+        {"id": p.id, "name": p.name, "city": p.city, "customer_name": p.customer.name}
+        for p in properties
+    ]
 
 
 def search_properties_for_field(db: Session, query: str, *, limit: int = SEARCH_RESULT_LIMIT) -> list[dict]:

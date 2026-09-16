@@ -38,26 +38,11 @@
     .contract-row .contract-title{font-size:13.5px;font-weight:650}
     .perform-btn{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:8px 11px;font-weight:650;font-size:13px;white-space:nowrap}
     .perform-btn:disabled{opacity:.6}
-    .search-wrap{position:relative;margin-bottom:6px}
-    .search-wrap input{width:100%;padding:12px 14px;font-size:16px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:0}
-    .search-wrap input:focus{outline:2px solid var(--accent);outline-offset:-1px}
-    .search-results{position:absolute;left:0;right:0;top:100%;margin-top:2px;background:var(--card);border:1px solid var(--line);max-height:70vh;overflow-y:auto;z-index:20}
-    .search-hit{display:block;padding:11px 14px;text-decoration:none;color:var(--ink);border-bottom:1px solid var(--line)}
-    .search-hit:last-child{border-bottom:none}
-    .search-hit:active{background:var(--soft)}
-    .search-hit .obj{font-weight:700;font-size:14.5px}
-    .search-hit .city{color:var(--muted);font-size:12.5px;margin-top:1px}
-    .search-note{padding:9px 14px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line)}
   </style>
 </head>
 <body>
 {% include "_mobile_header.html" %}
-{% include "_debounce.html" %}
 <main>
-  <div class="search-wrap">
-    <input id="objectSearch" type="search" placeholder="Objekt suchen (Name, Adresse, Ort, Kunde) …" autocomplete="off" aria-label="Objekt suchen">
-    <div id="objectSearchResults" class="search-results" hidden></div>
-  </div>
   <h1>Heutige Einsätze</h1>
   <div id="assignmentsList" class="loading">Lädt…</div>
   <h1>Offene Berichte</h1>
@@ -153,45 +138,6 @@
       btn.textContent='Wartung durchführen';
     });
   }
-  function renderSearchResults(hits){
-    var box=document.getElementById('objectSearchResults');
-    if(!hits.length){
-      box.innerHTML='<div class="search-note">Kein Objekt gefunden.</div>';
-      box.hidden=false;
-      return;
-    }
-    var html=hits.map(function(h){
-      return '<a class="search-hit" href="/mobil/objekt/'+h.id+'"><div class="obj">'+esc(h.name)+'</div>'
-        +(h.city?'<div class="city">'+esc(h.city)+'</div>':'')+'</a>';
-    }).join('');
-    // Der Server begrenzt fest auf zehn Treffer (SEARCH_RESULT_LIMIT, app/search.py) und liefert
-    // keine Gesamtzahl mit -- sind es genau zehn, ist "mehr vorhanden" die naheliegendste
-    // Annahme, kein zusätzlicher Zähl-Request nötig.
-    if(hits.length>=10){
-      html+='<div class="search-note">Weitere Treffer möglich -- Suche verfeinern.</div>';
-    }
-    box.innerHTML=html;
-    box.hidden=false;
-  }
-  function runObjectSearch(){
-    var q=document.getElementById('objectSearch').value.trim();
-    var box=document.getElementById('objectSearchResults');
-    if(q.length<2){box.hidden=true;box.innerHTML='';return}
-    fetch('/api/field-view/properties/search?q='+encodeURIComponent(q)).then(function(r){
-      if(!r.ok)return [];
-      return r.json();
-    }).then(function(hits){
-      renderSearchResults(hits||[]);
-    }).catch(function(){
-      box.hidden=true;
-    });
-  }
-  var debouncedObjectSearch=debounce(runObjectSearch,300);
-  document.getElementById('objectSearch').addEventListener('input',debouncedObjectSearch);
-  document.addEventListener('click',function(e){
-    var wrap=document.querySelector('.search-wrap');
-    if(!wrap.contains(e.target))document.getElementById('objectSearchResults').hidden=true;
-  });
   function showError(message){
     ['assignmentsList','draftReportsList','upcomingList','maintenanceList'].forEach(function(id){
       var el=document.getElementById(id);

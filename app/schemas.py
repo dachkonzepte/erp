@@ -436,15 +436,18 @@ class FieldDocumentCategoryOut(BaseModel):
 
 
 class PropertySearchHitOut(BaseModel):
-    """Ein Vorschlag der Monteurs-Objektsuche (siehe app/search.py) -- bewusst nur Objektname und
-    Ort zur Identifikation (CLAUDE.md "Suche als Einstieg" -> Punkt 3), kein Kunde, keine volle
-    Adresse, keine Kundennummer. Als response_model auf dem Such-Endpunkt eine zusätzliche,
-    strukturelle Sperre: selbst ein künftiger Programmierfehler in search_properties_for_field(),
-    der versehentlich mehr Felder zurückgäbe, würde von Pydantic vor der Auslieferung wieder auf
-    genau diese drei Felder gekappt."""
+    """Ein Vorschlag der Monteurs-Objektsuche (siehe app/search.py) -- Objektname, Ort UND
+    Kundenname zur Identifikation (seit 1.3.65: ein Objekt ist ohne Kundenname schwer einzuordnen,
+    besonders bei mehreren Objekten desselben Kunden; der Name selbst ist nicht sensibel -- ein
+    Monteur, der zum Objekt fährt, kennt den Kunden ohnehin). Weiterhin NICHT enthalten: Kundennummer,
+    interne Notizen, volle Adresse über den Ort hinaus, alles Finanzielle. Als response_model auf
+    dem Such-Endpunkt eine zusätzliche, strukturelle Sperre: selbst ein künftiger Programmierfehler
+    in search_properties_for_field(), der versehentlich mehr Felder zurückgäbe, würde von Pydantic
+    vor der Auslieferung wieder auf genau diese vier Felder gekappt."""
     id: int
     name: str
     city: str | None
+    customer_name: str
 
 
 class QuoteCreate(BaseModel):

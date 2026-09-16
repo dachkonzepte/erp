@@ -4,6 +4,30 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.65 – Zwei Anpassungen an der Monteurs-Suche
+
+Nach dem ersten Einsatz gemeldete Rückmeldung zur 1.3.64-Suche.
+
+**Kundenname in den Vorschlägen.** Nur Objektname und Ort reichten zur Identifikation nicht --
+ein Objekt ist ohne Kundenname schwer einzuordnen, besonders wenn ein Kunde mehrere Objekte hat.
+`PropertySearchHitOut` bekommt ein viertes Feld `customer_name` -- bewusst nicht sensibel (ein
+Monteur, der zum Objekt fährt, kennt den Kunden ohnehin). Kundennummer, interne Notizen, die
+volle Adresse über den Ort hinaus und alles Finanzielle bleiben weiterhin gesperrt. Die rollenlose
+Kernfunktion `search_properties()` bleibt unverändert, nur die feldsichere Reduktionsschicht
+wurde erweitert -- der Angriffstest aus 1.3.64 wurde entsprechend angepasst, nicht neu geschrieben.
+
+**Suche in die Kopfzeile.** Das Suchfeld saß bisher nur auf der Einsätze-Seite, unerreichbar von
+den drei anderen Monteursseiten aus -- umgezogen in die gemeinsame Kopfzeile `_mobile_header.html`,
+die alle vier Seiten ohnehin einbinden. Dabei die alte, seit 1.3.45 bestehende Stapel-Architektur
+(zwei einzeln mit hart codierten Pixelwerten aufeinandergesetzte sticky-Elemente) durch einen
+gemeinsamen sticky-Wrapper mit normalen, nie überlappenden Blockzeilen abgelöst -- robuster gegen
+künftige neue Zeilen und von Natur aus überlappungsfrei auf jeder Bildschirmgröße. Die
+Vorschlagsliste öffnet sich bewusst unterhalb der gesamten Kopfzeile statt direkt unter dem
+Suchfeld, damit sie die Reiter nie überdeckt -- sonst hätte ein Tipp auf einen Reiter bei offener
+Liste zuerst nur die Liste geschlossen, statt sofort zu navigieren. Auf Tablets bekommen Suchfeld
+und Vorschlagsliste eine zentrierte Maximalbreite, auf Smartphones bleibt beides unverändert voll
+breit.
+
 ## 1.3.64 – Dateiablage je Objekt, Schritt 3: die geteilte Suche als Einstieg
 
 Letzter, ursprünglich zweimal zurückgestellter Schritt der Monteurs-Erweiterung -- ein Monteur

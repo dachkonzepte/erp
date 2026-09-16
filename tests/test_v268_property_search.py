@@ -5,7 +5,12 @@ search_properties_for_field() als die einzige für Monteure zulässige Reduktion
 tatsächlichen Router-Endpunkt GET /api/field-view/properties/search -- und den vom Nutzer
 verlangten Angriffstest: findet ein Monteur über die Suche etwas anderes als Objekte, liefert die
 Vorschlagsantwort ein gesperrtes Feld mit, kommt ein Monteur mit manipulierten Parametern an mehr
-als Objekte."""
+als Objekte.
+
+Seit 1.3.65: der Kundenname ist ein viertes, erlaubtes Feld in der Vorschlagsantwort (bewusst
+nicht sensibel -- ein Monteur, der zum Objekt fährt, kennt den Kunden ohnehin). Die Erwartung
+"nur id/name/city" ist deshalb überall auf "id/name/city/customer_name" erweitert; alles andere
+(Kundennummer, interne Notiz, volle Adresse, alles Finanzielle) bleibt gesperrt."""
 
 import pytest
 
@@ -30,8 +35,10 @@ _FORBIDDEN_SUBSTRINGS = (
     "price", "preis", "purchase", "einkauf", "wage", "lohn", "gehalt", "cost", "kosten",
     "betrag", "amount", "vergüt", "customer_note", "property_note", "notiz", "kunden_nr",
     "customer_number", "legacy_address_number", "street", "strasse", "postal", "plz",
-    "customer_id", "customer_name",
+    "customer_id",
 )
+# customer_name ist seit 1.3.65 ein erlaubtes, viertes Feld -- bewusst NICHT in dieser Liste
+# (siehe CLAUDE.md "Suche als Einstieg" -> Punkt 1 der 1.3.65-Anfrage).
 
 
 def _offending_keys(payload):
@@ -91,7 +98,7 @@ def test_search_properties_caps_at_limit(db_session):
 
 # --- Schicht 2: field_safe_property_search_results()/search_properties_for_field() ---
 
-def test_search_properties_for_field_reduces_to_id_name_city_only(db_session):
+def test_search_properties_for_field_reduces_to_id_name_city_customer_name(db_session):
     db = db_session
     kunde = _customer(db, "Firma mit Kundennummer")
     kunde.legacy_address_number = "K-99887"
@@ -104,24 +111,33 @@ def test_search_properties_for_field_reduces_to_id_name_city_only(db_session):
     hits = search_properties_for_field(db, "Geheimnissen")
     assert len(hits) == 1
     hit = hits[0]
-    assert set(hit.keys()) == {"id", "name", "city"}
+    assert set(hit.keys()) == {"id", "name", "city", "customer_name"}
     assert hit["id"] == prop.id
     assert hit["name"] == "Objekt mit Geheimnissen"
     assert hit["city"] == "Verrat"
+    assert hit["customer_name"] == "Firma mit Kundennummer"
     assert not _offending_keys(hits)
 
 
-def test_search_properties_for_field_matched_via_customer_leaks_nothing_about_customer(db_session):
-    """Ein Treffer über den Kundennamen darf trotzdem nur die Objektfelder zeigen -- der Kunde
-    selbst (Name, Kundennummer, Adresse) darf nicht in der Antwort auftauchen."""
+def test_search_properties_for_field_matched_via_customer_shows_only_the_name_not_more(db_session):
+    """Ein Treffer über den Kundennamen darf den Kundennamen selbst zeigen (seit 1.3.65 erlaubt),
+    aber sonst nichts über den Kunden -- keine Kundennummer, keine Adresse, kein weiteres Feld."""
     db = db_session
     kunde = _customer(db, "Sehr Geheime Schmidt AG")
+    kunde.legacy_address_number = "K-77665"
+    db.commit()
     prop = _property(db, kunde, "Baustelle Nord", city="Nordstadt")
     hits = search_properties_for_field(db, "Sehr Geheime Schmidt")
     assert len(hits) == 1
-    assert set(hits[0].keys()) == {"id", "name", "city"}
-    for value in hits[0].values():
+    hit = hits[0]
+    assert set(hit.keys()) == {"id", "name", "city", "customer_name"}
+    assert hit["customer_name"] == "Sehr Geheime Schmidt AG"
+    # "Schmidt" darf NUR im customer_name-Feld auftauchen, sonst nirgends in der Antwort.
+    for key, value in hit.items():
+        if key == "customer_name":
+            continue
         assert "Schmidt" not in str(value)
+    assert not _offending_keys(hits)
 
 
 # --- Router: GET /api/field-view/properties/search ---
@@ -137,8 +153,9 @@ def test_field_view_search_endpoint_finds_property_and_returns_only_harmless_fie
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert len(body) == 1
-    assert set(body[0].keys()) == {"id", "name", "city"}
+    assert set(body[0].keys()) == {"id", "name", "city", "customer_name"}
     assert body[0]["id"] == prop.id
+    assert body[0]["customer_name"] == "Musterfirma Schmidt"
 
     resp2 = field.get("/api/field-view/properties/search", params={"q": "Schmidt"})
     assert resp2.status_code == 200
@@ -158,7 +175,7 @@ def test_field_view_search_endpoint_never_returns_more_than_objects(router_test_
     assert resp.status_code == 200
     body = resp.json()
     assert len(body) == 1
-    assert set(body[0].keys()) == {"id", "name", "city"}
+    assert set(body[0].keys()) == {"id", "name", "city", "customer_name"}
     assert not _offending_keys(body)
 
 
@@ -181,7 +198,7 @@ def test_field_view_search_endpoint_manipulated_parameters_still_only_objects(ro
     body = resp.json()
     assert len(body) <= SEARCH_RESULT_LIMIT
     for row in body:
-        assert set(row.keys()) == {"id", "name", "city"}
+        assert set(row.keys()) == {"id", "name", "city", "customer_name"}
     assert not _offending_keys(body)
 
 

@@ -20,7 +20,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.64** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.65** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf jetzt `f803985ebc2f` ("property documents table", siehe Abschnitt
   "Dateiablage je Objekt" unten) -- vorher `9137945e8785` ("document categories foundation"),
   davor `7a2b4e9f1c3d` ("app user role office field"): keine der
@@ -30,7 +30,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   bestehenden, geteilten "default"-Satz zurück, siehe "Fünf weitere Anpassungen"), siehe
   Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
   eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1314 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1322 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
   dort), zuletzt am 16.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -860,6 +860,22 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   gewöhnlicher B-Baum-Index hilft einer Substring-Suche nachweislich nicht (`EXPLAIN QUERY PLAN`
   zeigt `SCAN` selbst bei einem bereits indizierten Feld) -- keine neue Migration. 12 neue
   Angriffstests, null "durchgelassen". Details im Abschnitt "Dateiablage je Objekt" unten.
+- Neu seit 1.3.65: **Zwei Anpassungen an der Monteurs-Suche, nach dem ersten Einsatz
+  gemeldet.** (1) Kundenname als viertes, bewusst erlaubtes Feld in den Vorschlägen
+  (`PropertySearchHitOut.customer_name`) -- ein Objekt ist ohne Kunde schwer einzuordnen,
+  besonders bei mehreren Objekten desselben Kunden; nicht sensibel, ein Monteur kennt den Kunden
+  ohnehin. Kundennummer/interne Notiz/volle Adresse/alles Finanzielle bleiben weiterhin gesperrt,
+  der Angriffstest aus 1.3.64 wurde entsprechend angepasst (weiterhin 12 Tests). (2) Die Suche
+  wandert von `mobil.html` in die gemeinsame Kopfzeile `_mobile_header.html` -- damit von jeder
+  der vier Monteursseiten aus erreichbar, nicht nur von "Einsätze". Dabei die alte, seit 1.3.45
+  bestehende Kopfzeilen-Architektur (zwei einzeln mit hart codierten `top`-Pixelwerten
+  gestapelte sticky-Elemente) durch EINEN gemeinsamen sticky-Wrapper mit normalen, nie
+  überlappenden Blockzeilen abgelöst -- robuster gegen künftige neue Zeilen. Die Vorschlagsliste
+  öffnet sich bewusst unterhalb der GESAMTEN Kopfzeile (nicht direkt unter dem Suchfeld), damit
+  sie die Reiter darunter nie überdeckt -- sonst hätte ein Tipp auf einen Reiter bei offener
+  Liste zuerst nur die Liste geschlossen, ein zweiter Tipp wäre nötig gewesen. 8 neue,
+  strukturelle Tests (`tests/test_v269_mobile_header_search.py`). Details im Abschnitt
+  "Dateiablage je Objekt" → "Nachtrag (seit 1.3.65)" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -6709,8 +6725,9 @@ Moduldocstring von `app/search.py` hält als verbindliche Regel fest, dass JEDER
 für `field` erreichbare Endpunkt (auch ein gemeinsamer Büro+Monteur-Endpunkt) bei `role==
 ROLE_FIELD` zwingend `search_properties_for_field()` aufrufen muss, nie die volle Kernfunktion
 direkt zurückgeben darf. `response_model=list[PropertySearchHitOut]` (`app/schemas.py`) kappt
-zusätzlich strukturell auf genau drei Felder -- eine zweite, unabhängige Sperre, falls die
-Funktion selbst je einen Fehler hätte. `q` ist der einzige Client-Parameter; `limit` ist bewusst
+zusätzlich strukturell auf genau drei Felder (seit 1.3.65: vier, siehe Nachtrag unten) -- eine
+zweite, unabhängige Sperre, falls die Funktion selbst je einen Fehler hätte. `q` ist der einzige
+Client-Parameter; `limit` ist bewusst
 NICHT client-steuerbar (fest auf `SEARCH_RESULT_LIMIT=10`), ein `?limit=99999` kann nie mehr als
 zehn Treffer erzwingen, unbekannte Parameter (`?type=customer` u. Ä.) ignoriert FastAPI ohnehin.
 
@@ -6728,12 +6745,12 @@ client-seitige Debounce (siehe unten) -- beide bereits eingebaut. Sollte die Dat
 Größenordnungen wachsen, wäre der richtige nächste Schritt PostgreSQL `pg_trgm`/SQLite `FTS5`,
 kein gewöhnlicher B-Baum-Index -- als Hinweis für später festgehalten, nicht gebaut.
 
-**Oberfläche** (`app/templates/mobil.html`): ein Suchfeld oberhalb der vier bestehenden
-Kartenabschnitte, `{% include "_debounce.html" %}` (derselbe, bereits bestehende, generische
-`debounce(fn, ms)`-Helfer wie bei `roof_area.html`/`service_reports.html`, hier zum ersten Mal
-für eine Suche statt eines Autosave verwendet -- der Helfer selbst ist dafür bereits geeignet,
-siehe CLAUDE.md-Fußnote zu `_debounce.html`) mit 300ms Verzögerung nach dem letzten Tastendruck.
-Eine Vorschlagsliste (`position:absolute` unter dem Eingabefeld) zeigt Objektname und Ort je
+**Oberfläche** (ursprünglich `app/templates/mobil.html`, seit 1.3.65 in `_mobile_header.html`
+umgezogen, siehe Nachtrag unten): ein Suchfeld, `{% include "_debounce.html" %}` (derselbe,
+bereits bestehende, generische `debounce(fn, ms)`-Helfer wie bei `roof_area.html`/
+`service_reports.html`, hier zum ersten Mal für eine Suche statt eines Autosave verwendet -- der
+Helfer selbst ist dafür bereits geeignet, siehe CLAUDE.md-Fußnote zu `_debounce.html`) mit 300ms
+Verzögerung nach dem letzten Tastendruck. Eine Vorschlagsliste zeigt Objektname und Ort je
 Treffer, ein Klick führt direkt zu `/mobil/objekt/{id}`. Bei genau zehn Treffern (dem Limit) ein
 Hinweistext "Weitere Treffer möglich -- Suche verfeinern" -- ohne einen zusätzlichen
 Zähl-Request: der Server liefert keine Gesamtzahl, das Erreichen des Limits ist die naheliegende
@@ -6744,16 +6761,88 @@ Vorschlagsliste genügt, wie ausdrücklich vorgegeben.
 
 **Angriffstest (`tests/test_v268_property_search.py`, 12 Tests), wie verlangt**: findet ein
 Monteur über die Suche etwas anderes als Objekte -- nein, jede Antwort des tatsächlichen
-Router-Endpunkts enthält ausschließlich `id`/`name`/`city` (rekursiver Schlüssel-Scan, Fehlerklasse
-`purchase_price`); liefert die Vorschlagsantwort ein gesperrtes Feld mit (Kundennummer, interne
-Notiz) -- nein, auch bei einem Treffer über den Kundennamen bleibt die Antwort auf die drei
-harmlosen Objektfelder beschränkt, der Kundenname selbst taucht nirgends in der Antwort auf;
-kommt ein Monteur, der den Such-Endpunkt mit anderen Parametern aufruft (`type=customer`,
-`full=true`, `fields=all`, `limit=99999`), an mehr als Objekte -- nein, unverändert höchstens
-zehn Treffer, unverändert nur die drei Felder. Zusätzlich: Literal-vs-Platzhalter-Kollisionscheck
+Router-Endpunkts enthält ausschließlich `id`/`name`/`city` (seit 1.3.65 zusätzlich
+`customer_name`, siehe Nachtrag -- rekursiver Schlüssel-Scan, Fehlerklasse `purchase_price`);
+liefert die Vorschlagsantwort ein gesperrtes Feld mit (Kundennummer, interne Notiz) -- nein, auch
+bei einem Treffer über den Kundennamen bleibt die Antwort auf die drei harmlosen Objektfelder
+beschränkt (Stand 1.3.64 -- seit 1.3.65 ist der Kundenname selbst ein viertes, bewusst erlaubtes
+Feld, alles andere über den Kunden bleibt weiterhin gesperrt); kommt ein Monteur, der den
+Such-Endpunkt mit anderen Parametern aufruft (`type=customer`, `full=true`, `fields=all`,
+`limit=99999`), an mehr als Objekte -- nein, unverändert höchstens zehn Treffer, unverändert nur
+die (seit 1.3.65: vier) erlaubten Felder. Zusätzlich: Literal-vs-Platzhalter-Kollisionscheck
 (`.../search` scheitert nicht am `{property_id}`-Platzhalter), `MIN_QUERY_LENGTH`-Grenze,
 Limit-Kappung bei 15 tatsächlich angelegten Treffern. Null "durchgelassen". Damit ist die
 Monteursansicht laut Betreibervorgabe vollständig.
+
+### Nachtrag (seit 1.3.65): Kundenname in den Vorschlägen, Suche in die Kopfzeile
+
+Zwei vom Betreiber nach dem ersten Einsatz gemeldete Anpassungen an der 1.3.64-Suche.
+
+**Punkt 1 -- Kundenname in den Vorschlägen.** Nur Objektname und Ort reichten zur Identifikation
+nicht: ein Objekt ist ohne Kundenname schwer einzuordnen, besonders wenn ein Kunde mehrere
+Objekte hat. `PropertySearchHitOut` (`app/schemas.py`) bekommt ein viertes Feld `customer_name`
+-- bewusst NICHT sensibel (ein Monteur, der zum Objekt fährt, kennt den Kunden ohnehin), im
+Unterschied zu Kundennummer/interner Notiz/voller Adresse/allem Finanziellen, die weiterhin
+gesperrt bleiben. Die reine Kernfunktion `search_properties()` (Schicht 1, siehe oben) bleibt
+unverändert rollenlos -- nur `field_safe_property_search_results()` (Schicht 2) wurde erweitert,
+mit `selectinload(Property.customer)` in `search_properties()` bereits vorgeladen, damit der
+Zugriff auf `p.customer.name` keine zusätzliche Abfrage je Treffer auslöst. Der Angriffstest aus
+1.3.64 wurde angepasst statt neu geschrieben: die Erwartung "nur id/name/city" wird überall zu
+"id/name/city/customer_name", ein eigener Test belegt zusätzlich, dass ein Treffer über den
+Kundennamen (`Customer.name` als Suchkriterium) den Namen zwar jetzt zeigen darf, aber sonst
+nichts Weiteres über den Kunden durchlässt (12 Tests weiterhin in
+`tests/test_v268_property_search.py`, teils erweitert, teils umbenannt).
+
+**Punkt 2 -- Suche in die Kopfzeile.** Das Suchfeld saß bisher nur auf `mobil.html` ("Einsätze"),
+unerreichbar von den drei anderen Monteursseiten aus. Umgezogen in `_mobile_header.html` -- die
+gemeinsame, schlanke Kopfzeile, die `mobil.html`/`mobil_objekt.html`/`field_timesheet.html`/
+`time_tracking_field.html` ohnehin schon alle einbinden -- damit ist die Suche automatisch von
+jeder dieser vier Seiten aus erreichbar, ohne dass jede sie einzeln nachbauen müsste. Der
+Debounce-Helfer (`_debounce.html`) zog mit um -- genau einmal eingebunden (in
+`_mobile_header.html` selbst), keines der vier Templates bindet ihn zusätzlich eigenständig ein,
+sonst wäre `debounce()` doppelt definiert.
+
+**Bei der Gelegenheit die alte, seit 1.3.45 bestehende Stapel-Architektur der Kopfzeile
+abgelöst.** Kopf (`.mobile-header`) und Reiter (`.mobile-nav`) waren bisher zwei EINZELN sticky
+positionierte Elemente, die sich über einen hart codierten `top:45px`-Wert am Reiter aufeinander
+stapelten (der Kopf-Höhe geschätzt, nie exakt vermessen -- funktionierte bisher nur, weil sich
+zwischen beiden nichts einschob). Eine neue Zeile dazwischen hätte diesen Wert neu vermessen
+müssen, UND hätte bei jeder künftigen Änderung der Kopf-Höhe (z. B. ein längerer Mitarbeitername)
+erneut brechen können -- ein fragiles Muster für exakt das, was jetzt gebraucht wurde. Ersetzt
+durch EINEN gemeinsamen sticky-Wrapper (`.mobile-header-wrap`), der Kopf/Suchfeld/Reiter als
+normale, nie überlappende Blockzeilen enthält -- kein Pixelwert mehr zu pflegen, unabhängig von
+der tatsächlichen Höhe jeder Zeile. Das beantwortet zugleich die geforderte Prüfung für beide
+Bildschirmgrößen: auf einem schmalen Smartphone-Hochformat können normale Blockzeilen sich
+strukturell nicht überlappen, unabhängig von der Fensterbreite -- kein Sonderfall nötig.
+
+**Die Vorschlagsliste überlagert die Reiter bewusst NICHT.** Naiv direkt unter dem Eingabefeld
+geöffnet, hätte sie visuell über den darunterliegenden Reitern gelegen (Suchfeld steht jetzt ÜBER
+den Reitern, eine aufklappende Liste reicht überall dorthin herab) -- ein Tipp auf einen Reiter
+bei offener Liste hätte dann zuerst die Liste getroffen (und nur geschlossen), nicht den Reiter
+selbst; ein zweiter Tipp wäre nötig gewesen, genau das vom Betreiber benannte Risiko ("ein
+offener Vorschlag ... darf nicht stehenbleiben"). Behoben durch die Positionierung: die
+Vorschlagsliste ist ein Kind des GANZEN sticky-Wrappers (nicht nur des Suchfelds), mit
+`top:100%` relativ zu dessen Unterkante -- sie öffnet sich dadurch strukturell erst UNTERHALB der
+Reiter, kann sie also nie überdecken. Die Reiter bleiben damit bei offener Liste jederzeit mit
+einem einzigen Tipp erreichbar. Dass eine offene Liste beim tatsächlichen Wechsel der Seite
+verschwindet, ergibt sich zusätzlich schon aus der Architektur dieses Projekts (klassische
+Mehrseiten-Navigation, kein SPA, siehe CLAUDE.md "Stack & Struktur") -- ein Tipp auf einen Reiter
+lädt ohnehin die komplette Seite neu.
+
+**Maximalbreite fürs Tablet.** Suchfeld UND Vorschlagsliste bekommen `max-width:640px` mit
+zentrierenden Rändern (`margin:auto`) -- auf einem Tablet wirkt das Feld dadurch nicht unnötig
+breit, auf einem Smartphone (immer schmaler als 640px) ändert die Regel nichts, das Feld bleibt
+dort ohnehin voll breit.
+
+**Kein echter Browser-Screenshot möglich** (dieselbe, wiederholt dokumentierte
+Werkzeug-Einschränkung dieser Umgebung) -- die Layout-/Überlappungsfreiheit ist ausschließlich
+strukturell an den Template-Quellen nachgewiesen (`tests/test_v269_mobile_header_search.py`, 8
+Tests: Suchfeld/-liste liegen in `_mobile_header.html`, nicht mehr in `mobil.html`; der
+Debounce-Helfer ist genau einmal eingebunden; alle vier Seiten binden die Kopfzeile ein; die
+Vorschlagsliste steht strukturell nach `<nav>`; Kopf/Reiter tragen kein `position:sticky` mehr
+einzeln; die Maximalbreite ist gesetzt), nicht an einem gerenderten Bild. Sollte bei Gelegenheit
+im Browser gegengeprüft werden, insbesondere das Verhalten bei offener Vorschlagsliste auf einem
+echten Touchscreen.
 
 ## Migrations-Workflow
 
