@@ -72,9 +72,18 @@ def require_field_report_ownership(db: Session, role: AppUser, report_id: int) -
 
     Gilt für Schreibzugriffe (ändern/löschen/signieren/Prüfpunkte, Fotos, Material ergänzen) UND
     für den lesenden Detailzugriff auf einen EINZELNEN Bericht (PDF, Prüfpunkte, Fotos, Material,
-    Mängel) -- was ein Monteur von einem fremden Bericht auf demselben Auftrag sehen darf, ohne
-    dessen Ersteller zu sein, ist ausschließlich die reduzierte Zusammenfassung in der
-    Berichtsliste (list_reports_for_field() in app/service_reports.py), nicht mehr."""
+    Mängel) AUF DEMSELBEN AUFTRAG -- was ein Monteur von einem fremden Bericht auf demselben
+    Auftrag sehen darf, ohne dessen Ersteller zu sein, ist ausschließlich die reduzierte
+    Zusammenfassung in der Berichtsliste (list_reports_for_field() in app/service_reports.py).
+
+    Bewusste, separate Ausnahme (siehe CLAUDE.md "Dateiablage je Objekt"): die objektbezogene
+    Wartungshistorie (GET /api/field-view/properties/{property_id}/maintenance-history/
+    {report_id}/pdf, app/routers/field_view.py) prüft NICHT über diese Funktion, sondern über
+    resolve_property_history_report_for_field() (app/service_reports.py) -- dort darf ein
+    Monteur das vollständige PDF eines fremden, bereits unterschriebenen Berichts lesen, wenn er
+    zu einem für ihn erreichbaren Objekt gehört (jedes Objekt, siehe field_view.py), unabhängig
+    vom Auftragsbezug und ohne Ersteller-Prüfung. Reines Lesen, kein Auftrags-Endpunkt -- diese
+    Funktion hier bleibt für alle Schreibzugriffe und den auftragsbezogenen Weg unverändert."""
     report = db.get(ServiceReport, report_id)
     if report is None:
         raise HTTPException(status_code=404, detail="Bericht nicht gefunden.")

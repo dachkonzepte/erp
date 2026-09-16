@@ -130,7 +130,11 @@ def _render_photo_flowables(photos, small_style, content_width_mm: float, max_wi
     return flowables
 
 
-def build_service_report_pdf(db, report) -> bytes:
+def build_service_report_pdf(db, report, *, include_time_entries: bool = True) -> bytes:
+    """include_time_entries=False (siehe build_service_report_pdf_for_field() unten) lässt den
+    Abschnitt "Erfasste Zeiten" komplett weg -- list_entries() wird dann gar nicht erst
+    aufgerufen, nicht nur die Tabelle ausgeblendet. Alles andere bleibt byte-identisch zum
+    Kundendokument: kein zweiter Renderer, nur ein Schalter für exakt diesen einen Abschnitt."""
     if report.status != "unterschrieben":
         raise ValueError("Nur unterschriebene Berichte können als PDF exportiert werden.")
     data = report_to_dict(report)
@@ -319,7 +323,7 @@ def build_service_report_pdf(db, report) -> bytes:
                 story.append(KeepTogether(block))
                 story.append(Spacer(1, 2 * mm))
 
-        entries = list_entries(db, order_id=order.id)
+        entries = list_entries(db, order_id=order.id) if include_time_entries else []
         if entries:
             rows = [["Datum", "Mitarbeiter", "Tätigkeit", "Stunden"]]
             for e in entries:
@@ -395,3 +399,15 @@ def build_service_report_pdf(db, report) -> bytes:
         db, document_type="service_report", title=f"{label} - Auftrag {order.order_number}",
         content_story=build_story, continuation_header_rows=continuation_header_rows,
     )
+
+
+def build_service_report_pdf_for_field(db, report) -> bytes:
+    """Für die objektbezogene Detailansicht eines Monteurs (GET /api/field-view/properties/
+    {property_id}/maintenance-history/{report_id}/pdf, siehe CLAUDE.md "Dateiablage je Objekt" --
+    ein Monteur will nachvollziehen, was beim letzten Einsatz an diesem Objekt gemacht wurde,
+    auch von einem inzwischen ausgeschiedenen Kollegen). Entspricht dem Kundendokument bis auf
+    den einen Unterschied, den er nicht sehen darf: die Zeitbuchungen der Kollegen am selben
+    Auftrag (fremde Personendaten, kein Preis -- ServiceReportMaterial/TimeEntry tragen ohnehin
+    nirgends eine Preisspalte, dieser Schalter dient ausschließlich dem Personendatenschutz).
+    Kein eigener Renderer -- nur build_service_report_pdf() mit include_time_entries=False."""
+    return build_service_report_pdf(db, report, include_time_entries=False)

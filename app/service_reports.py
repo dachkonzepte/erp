@@ -313,6 +313,33 @@ def list_maintenance_history_for_property_field(db: Session, property_id: int) -
     return [_history_report_to_field_dict(r) for r in reports]
 
 
+def resolve_property_history_report_for_field(db: Session, property_id: int, report_id: int) -> ServiceReport | None:
+    """Detailansicht EINES früheren Wartungsberichts für die mobile Objektansicht -- Anlass: ein
+    Monteur will nachvollziehen, was beim letzten Einsatz an diesem Objekt gemacht wurde, auch
+    von einem inzwischen ausgeschiedenen Kollegen (siehe CLAUDE.md "Dateiablage je Objekt").
+    Muster resolve_property_document_for_field() (app/property_documents.py): verifiziert am
+    Abrufzeitpunkt erneut, dass der Bericht tatsächlich zu GENAU diesem Objekt gehört und bereits
+    unterschrieben ist, sonst None -- der Router liefert dafür 404, ununterscheidbar von
+    "existiert nicht", nie ein 403 (kein Bestätigen per URL-Raten, dass irgendein Bericht mit
+    dieser ID existiert).
+
+    Bewusst OHNE die Ersteller-Prüfung von require_field_report_ownership()
+    (app/routers/orders.py): die Wartungshistorie zeigt einem Monteur schon immer fremde Berichte
+    desselben Objekts (list_maintenance_history_for_property_field() oben) -- das ist dieselbe,
+    bereits etablierte Ausnahme, hier nur als Detailansicht (vollständiges PDF statt der
+    reduzierten Liste) statt als reine Zusammenfassung. Kein Auftragsbezug, keine Rolle jenseits
+    des Rollen-Gates auf der Route selbst -- jedes Objekt ist für `field` ohnehin erreichbar
+    (siehe Moduldocstring app/routers/field_view.py), die einzige Prüfung hier ist die
+    Objekt-Zugehörigkeit des Berichts."""
+    report = get_report_row(db, report_id)
+    if report is None or report.status != "unterschrieben":
+        return None
+    order = report.order
+    if order is None or order.project is None or order.project.property_id != property_id:
+        return None
+    return report
+
+
 _HISTORY_FINDING_KEYS = (
     "id", "description", "severity", "severity_label", "action", "action_label",
     "status", "status_label", "roof_component_name", "resubmission_date", "photo_count",

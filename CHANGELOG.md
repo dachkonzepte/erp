@@ -4,6 +4,54 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.69 – Wartungsbericht-Detailansicht für Monteure, ausschließlich über das Objekt
+
+Anlass: ein Monteur führt dieselbe Wartung erneut durch und will nachvollziehen, was beim
+letzten Einsatz gemacht wurde -- auch von einem inzwischen ausgeschiedenen Kollegen. Bisher
+zeigte die mobile Objektansicht (`/mobil/objekt/{property_id}`) dafür nur das reduzierte
+Wartungshistorie-Schema (Datum, Berichtstyp, Monteur, Prüfergebnisse, Mängel mit Status) -- den
+einzelnen Bericht im Detail samt Fotos, oder als PDF, konnte ein Monteur nicht öffnen.
+
+Vorab ein Befund, dann auf Bestätigung gebaut. Vier Punkte:
+
+1. **Der vermutete "internal_note"-Fund existiert nicht.** Ein rekursiver Schlüssel-Scan gegen
+   `ServiceReportHistoryOut` und die zugrunde liegenden Modelle (`ServiceReport`, `Finding`,
+   `InspectionItem`) findet kein Feld dieses Namens oder mit vergleichbarer Bedeutung -- nichts
+   wurde entfernt. Als Regressionstest festgehalten (erweitert den bereits bestehenden
+   Exact-Key-Set-Test aus `tests/test_v260_role_audit.py` um zusätzliche Suchbegriffe:
+   "internal"/"office_note"/"vermerk"/"betrag"/"summe").
+2. **Kein Preis war je im Bericht-PDF enthalten** -- weder Material (`ServiceReportMaterial`
+   trägt strukturell keine Preisspalte) noch Zeitbuchungen (`TimeEntry` hat kein Preis-/
+   Stundensatzfeld). Das PDF, das ein Monteur ohne die Zeitbuchungen der Kollegen sehen darf,
+   entsteht deshalb NICHT über einen eigenen Renderer, sondern über einen einzigen Schalter am
+   bestehenden: `build_service_report_pdf(db, report, include_time_entries=False)` lässt den
+   Abschnitt "Erfasste Zeiten" komplett weg -- `list_entries()` wird dabei gar nicht erst
+   aufgerufen (nicht nur die Tabelle ausgeblendet, per Test mit einem Aufruf-Wächter belegt).
+   Alles andere bleibt exakt wie im Kundendokument, inklusive dem "damaliger Monteur"-Meta-Feld
+   (per Vorgabe ausdrücklich erlaubt). `build_service_report_pdf_for_field()` ist die dünne,
+   dokumentierende Wrapper-Funktion dafür.
+3. **Zugang ausschließlich über das Objekt.** Neuer Endpunkt
+   `GET /api/field-view/properties/{property_id}/maintenance-history/{report_id}/pdf` --
+   `resolve_property_history_report_for_field()` (`app/service_reports.py`) verifiziert am
+   Abrufzeitpunkt erneut, dass der Bericht tatsächlich zu GENAU diesem Objekt gehört und bereits
+   unterschrieben ist (Muster `resolve_property_document_for_field()`), sonst 404 --
+   ununterscheidbar von "existiert nicht", nie ein 403 (kein Bestätigen per URL-Raten). Eine
+   geratene `report_id` ohne Objektweg (es gibt keine Route ohne `property_id`) und ein Bericht,
+   der zu einem ANDEREN Objekt gehört, wurden im Angriffstest je einzeln geprüft.
+4. **Nur Lesen.** Unter diesem Pfad existiert kein PUT/DELETE/sign (405 bei einem Versuch) --
+   die bestehenden Berichts-Endpunkte bleiben unverändert über `require_field_report_ownership()`
+   (`app/routers/orders.py`) auf den eigenen Bericht beschränkt, unberührt von dieser Änderung.
+   Bewusste, dokumentierte Ausnahme zu deren Docstring: die objektbezogene Detailansicht prüft
+   keine Ersteller-Zuordnung -- die Wartungshistorie zeigt einem Monteur schon immer fremde
+   Berichte desselben Objekts (seit 1.3.56), diese Version ist nur die Detail-Variante derselben
+   Ausnahme.
+
+`app/templates/mobil_objekt.html` bekommt dafür einen "Als PDF ansehen"-Link je Historieneintrag
+(Muster der bereits bestehenden Dokument-Aktionsknöpfe, `.doc-actions`). 9 neue Tests
+(`tests/test_v273_maintenance_report_field_detail.py`): geratene ID, fremdes Objekt, Entwurf
+(noch nicht unterschrieben), interne Felder, Preisfelder, fremde Zeit, Schreibversuch über den
+alten UND den neuen Weg -- null "durchgelassen".
+
 ## 1.3.68 – Hell/Dunkel-Umschalter in der Monteurs-Kopfzeile
 
 Gemeldete Lücke: die Büro-Sidebar hat den Hell/Dunkel-Umschalter seit 1.3.44 im Fußbereich, die

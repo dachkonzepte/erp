@@ -20,7 +20,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.68** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.69** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf jetzt `f803985ebc2f` ("property documents table", siehe Abschnitt
   "Dateiablage je Objekt" unten) -- vorher `9137945e8785` ("document categories foundation"),
   davor `7a2b4e9f1c3d` ("app user role office field"): keine der
@@ -30,7 +30,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   bestehenden, geteilten "default"-Satz zurück, siehe "Fünf weitere Anpassungen"), siehe
   Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
   eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1352 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1361 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
   dort), zuletzt am 16.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -927,6 +927,26 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   `time_tracking_field.html`) im eigenen `:root`-Block gelesen, exakt wie auf jeder anderen Seite
   -- keine Codeänderung nötig, nur als Regressionstest festgehalten (`tests/
   test_v272_mobile_header_theme_toggle.py`).
+- Neu seit 1.3.69: **Wartungsbericht-Detailansicht für Monteure, ausschließlich über das Objekt.**
+  Ein Monteur, der dieselbe Wartung erneut durchführt, will nachvollziehen, was letztes Jahr
+  gemacht wurde -- auch von einem inzwischen ausgeschiedenen Kollegen. Vorab ein Befund: der
+  vermutete "internal_note"-Fund existiert nicht (rekursiver Schlüssel-Scan gegen
+  `ServiceReportHistoryOut` und die zugrunde liegenden Modelle, kein Fund -- nichts entfernt),
+  und der Bericht-PDF trug ohnehin nie einen Preis (`ServiceReportMaterial`/`TimeEntry` haben
+  strukturell keine Preisspalte) -- der einzige gesperrte Abschnitt ist "Erfasste Zeiten" wegen
+  fremder Personendaten, nicht wegen eines Preises. Das preisfreie, zeitfreie PDF entsteht deshalb
+  NICHT über einen eigenen Renderer, sondern über einen Schalter am bestehenden:
+  `build_service_report_pdf(db, report, include_time_entries=False)` (Wrapper
+  `build_service_report_pdf_for_field()`) lässt "Erfasste Zeiten" komplett weg -- `list_entries()`
+  wird dabei gar nicht erst aufgerufen. Neuer Endpunkt `GET /api/field-view/properties/
+  {property_id}/maintenance-history/{report_id}/pdf` -- `resolve_property_history_report_for_field()`
+  (`app/service_reports.py`) verifiziert erneut, dass der Bericht zu GENAU diesem Objekt gehört
+  und bereits unterschrieben ist (Muster `resolve_property_document_for_field()`), sonst 404,
+  ununterscheidbar von "existiert nicht". Reines Lesen -- kein PUT/DELETE/sign unter diesem Pfad,
+  die bestehenden Endpunkte bleiben unverändert über `require_field_report_ownership()`
+  beschränkt (dessen Docstring trägt seither eine dokumentierte Ausnahme für diesen neuen,
+  objektbezogenen Weg). Siehe eigener Unterabschnitt "Wartungsbericht-Detailansicht" im Abschnitt
+  "Dateiablage je Objekt" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -6894,6 +6914,71 @@ Vorschlagsliste steht strukturell nach `<nav>`; Kopf/Reiter tragen kein `positio
 einzeln; die Maximalbreite ist gesetzt), nicht an einem gerenderten Bild. Sollte bei Gelegenheit
 im Browser gegengeprüft werden, insbesondere das Verhalten bei offener Vorschlagsliste auf einem
 echten Touchscreen.
+
+### Wartungsbericht-Detailansicht (seit 1.3.69)
+
+Anlass: ein Monteur führt dieselbe Wartung erneut durch und will nachvollziehen, was beim
+letzten Einsatz gemacht wurde -- auch von einem inzwischen ausgeschiedenen Kollegen. Die mobile
+Objektansicht zeigte dafür bisher nur das reduzierte Wartungshistorie-Schema
+(`ServiceReportHistoryOut`, seit 1.3.56/1.3.63) -- Datum, Berichtstyp, Monteur, Prüfergebnisse,
+Mängel mit Status, aber keinen Weg, den einzelnen Bericht im Detail (samt Fotos) oder als PDF zu
+öffnen. Vorab ein reiner Befund, dann auf Bestätigung gebaut.
+
+**Befund, der die ursprüngliche Annahme korrigiert.** Die Anfrage ging von einem "PDF ohne
+Preise" aus -- tatsächlich enthält das Bericht-PDF an KEINER Stelle einen Preis:
+`ServiceReportMaterial` trägt strukturell keine Preisspalte (der Monteur erfasst nur, WAS
+verbraucht wurde, siehe Klassendocstring in `app/models.py`), `TimeEntry` hat kein Preis-/
+Stundensatzfeld. Der einzige Abschnitt, der für einen Monteur gesperrt bleiben muss, ist
+"Erfasste Zeiten" (`app/service_report_pdf.py`) -- wegen der FREMDEN PERSONENDATEN (wer hat wann
+wie viele Stunden gebucht), nicht wegen eines Preises. Ebenso geprüft und mit KEINEM FUND
+bestätigt: ein vermutetes `internal_note`-Feld existiert an keiner Stelle im reduzierten Schema
+oder den zugrunde liegenden Modellen (`ServiceReport`/`Finding`/`InspectionItem`) -- ein
+rekursiver Schlüssel-Scan (Muster `test_maintenance_history_carries_no_prices_purchase_values_
+or_customer_notes`, `tests/test_v260_role_audit.py`, hier um zusätzliche Suchbegriffe erweitert)
+bestätigt das, nichts wurde entfernt.
+
+**Ein Schalter statt eines eigenen Renderers.** Weil der einzige zu entfernende Abschnitt schon
+vorher isoliert war (eine einzige `if entries:`-Tabelle am Ende der Story), reicht ein neuer,
+optionaler Parameter: `build_service_report_pdf(db, report, include_time_entries=False)` lässt
+"Erfasste Zeiten" komplett weg -- `list_entries()` wird dabei GAR NICHT ERST aufgerufen, nicht
+nur die Tabelle ausgeblendet (per Test mit einem Aufruf-Wächter belegt, der eine Ausnahme wirft,
+falls die Funktion doch aufgerufen würde). Alles andere bleibt exakt wie im Kundendokument,
+inklusive des "Monteur"-Meta-Felds (`created_by_employee_name`) -- das bleibt ausdrücklich
+sichtbar (Vorgabe: "damaliger Monteur" ist erlaubt), nur ein ZWEITER, fremder Zeitbucher
+verschwindet. `build_service_report_pdf_for_field()` ist die dünne, dokumentierende
+Wrapper-Funktion für genau diesen Aufruf -- kein zweiter, paralleler Renderer nach dem Muster
+des Angebots-Umbaus (1.3.13): der wäre für "eine von zehn Abschnitten weglassen" unverhältnismäßig
+gewesen.
+
+**Zugang ausschließlich über das Objekt.** Neuer Endpunkt `GET /api/field-view/properties/
+{property_id}/maintenance-history/{report_id}/pdf` (`app/routers/field_view.py`) --
+`resolve_property_history_report_for_field()` (`app/service_reports.py`) verifiziert am
+Abrufzeitpunkt ERNEUT, dass der Bericht tatsächlich zu GENAU diesem Objekt gehört und bereits
+unterschrieben ist (`status=="unterschrieben"`, dieselbe Grenze wie die Historie selbst) -- Muster
+`resolve_property_document_for_field()` (`app/property_documents.py`, seit 1.3.63): sonst `None`,
+der Router liefert dafür 404, ununterscheidbar von "existiert nicht", NIE ein 403 (kein
+Bestätigen per URL-Raten, dass irgendein Bericht mit dieser ID existiert). Bewusst OHNE die
+Ersteller-Prüfung von `require_field_report_ownership()` (`app/routers/orders.py`, Rechtekonzept
+-> "Berichts-Eigentümerschaft") -- die Wartungshistorie zeigt einem Monteur schon immer fremde
+Berichte desselben Objekts (`list_maintenance_history_for_property_field()`, seit 1.3.56/1.3.63),
+diese Version ist nur die Detail-Variante derselben, bereits etablierten Ausnahme: Objekt- statt
+Ersteller-Zugehörigkeit, nur lesend, als vollständiges Dokument statt der reduzierten Liste.
+`require_field_report_ownership()`s Docstring trägt seither eine ausdrückliche Notiz zu dieser
+Ausnahme, damit die Behauptung dort ("nur die reduzierte Zusammenfassung, nicht mehr") nicht
+stillschweigend falsch wird.
+
+**Nur Lesen.** Unter diesem Pfad existiert kein PUT/DELETE/sign (405 bei einem Versuch, da nur
+GET registriert ist) -- die bestehenden Berichts-Endpunkte (`PUT`/`DELETE`/`.../sign`) bleiben
+unverändert über `require_field_report_ownership()` auf den eigenen Bericht beschränkt, komplett
+unberührt von dieser Änderung (per Test belegt: derselbe Monteur, der über das Objekt lesen darf,
+bekommt über den klassischen Weg weiterhin 403 für PUT/DELETE/sign an einem fremden Bericht).
+
+`app/templates/mobil_objekt.html`s `renderHistory()` bekommt dafür einen "Als PDF ansehen"-Link
+je Historieneintrag (Muster der bereits bestehenden `.doc-actions`-Knöpfe). 9 neue Tests
+(`tests/test_v273_maintenance_report_field_detail.py`): geratene `report_id` ohne echten
+Objektweg, ein Bericht, der zu einem ANDEREN Objekt gehört, ein noch nicht unterschriebener
+Entwurf, interne/preisähnliche Schlüssel (rekursiver Scan), die fremde Zeitbuchung im PDF-Text,
+und ein Schreibversuch über den alten UND den neuen Weg -- null "durchgelassen".
 
 ## Büro-Suche (seit 1.3.66, Etappe 1)
 

@@ -19,7 +19,14 @@ Die Grenze sitzt stattdessen ausschließlich im INHALT -- harmlose Objektfelder
 (field_may_see_category(), beide Schlösser aus 1.3.62) und das bereits etablierte reduzierte
 Wartungshistorie-Schema (ServiceReportHistoryOut) -- nie Preise, Beträge, Kalkulationen oder
 Kundennotizen. Jeder dieser Endpunkte prüft das eigenständig, nicht nur die Auflistung: ein
-Datei-Abruf über eine geratene ID prüft field_may_see_category() ERNEUT am Ausliefer-Zeitpunkt."""
+Datei-Abruf über eine geratene ID prüft field_may_see_category() ERNEUT am Ausliefer-Zeitpunkt.
+
+Die Wartungshistorie (.../maintenance-history) hat seither eine Detail-Variante
+(.../maintenance-history/{report_id}/pdf) -- bewusst OHNE die sonst überall geltende
+Ersteller-Prüfung require_field_report_ownership() (app/routers/orders.py): ein Monteur darf
+hier auch den Bericht eines längst ausgeschiedenen Kollegen lesen, solange er zu diesem Objekt
+gehört und bereits unterschrieben ist. Reines Lesen -- kein PUT/DELETE/sign existiert unter
+diesem Pfad, siehe resolve_property_history_report_for_field() (app/service_reports.py)."""
 
 from datetime import date, datetime
 from typing import Literal
@@ -50,7 +57,11 @@ from ..schemas import (
     PropertyAccessOut, PropertyDocumentListItemOut, PropertySearchHitOut, ServiceReportHistoryOut,
 )
 from ..search import search_properties_for_field
-from ..service_reports import list_draft_reports_for_employee, list_maintenance_history_for_property_field
+from ..service_report_pdf import build_service_report_pdf_for_field
+from ..service_reports import (
+    list_draft_reports_for_employee, list_maintenance_history_for_property_field,
+    resolve_property_history_report_for_field,
+)
 
 router = APIRouter()
 
@@ -327,6 +338,38 @@ def get_field_view_property_maintenance_history(property_id: int, db: Session = 
     if db.get(Property, property_id) is None:
         raise HTTPException(status_code=404, detail="Objekt nicht gefunden.")
     return list_maintenance_history_for_property_field(db, property_id)
+
+
+@router.get("/api/field-view/properties/{property_id}/maintenance-history/{report_id}/pdf")
+def get_field_view_property_maintenance_history_report_pdf(
+    property_id: int, report_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep,
+):
+    """Detailansicht EINES früheren Berichts, ausschließlich über das Objekt erreichbar (Anlass:
+    ein Monteur will vor einer erneuten Wartung nachvollziehen, was beim letzten Einsatz gemacht
+    wurde, auch von einem inzwischen ausgeschiedenen Kollegen) -- die Liste oben zeigt dafür
+    bereits `id` je Eintrag, dieser Endpunkt löst genau EINEN davon in ein vollständiges PDF auf.
+
+    Anders als require_field_report_ownership() (app/routers/orders.py, für den EIGENEN Auftrag/
+    Bericht gedacht) prüft resolve_property_history_report_for_field() KEINE Ersteller-Zuordnung
+    -- nur, dass der Bericht tatsächlich zu DIESEM Objekt gehört und bereits unterschrieben ist.
+    Eine geratene report_id oder eine, die zu einem ANDEREN Objekt gehört, liefert denselben 404
+    wie ein nicht existierender Bericht (Muster resolve_property_document_for_field() oben).
+    Reines Lesen: unter diesem Pfad existiert kein PUT/DELETE/sign -- die schreibenden
+    Berichts-Endpunkte in app/routers/service_reports.py bleiben unverändert über
+    require_field_report_ownership() auf den eigenen Bericht beschränkt.
+
+    Das PDF entspricht dem Kundendokument bis auf einen einzigen Unterschied: keine Zeitbuchungen
+    der Kollegen (build_service_report_pdf_for_field(), siehe app/service_report_pdf.py) -- kein
+    Preis wird dadurch entfernt, ServiceReportMaterial/TimeEntry tragen ohnehin nirgends eine
+    Preisspalte."""
+    if db.get(Property, property_id) is None:
+        raise HTTPException(status_code=404, detail="Objekt nicht gefunden.")
+    report = resolve_property_history_report_for_field(db, property_id, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Bericht nicht gefunden.")
+    pdf = build_service_report_pdf_for_field(db, report)
+    filename = f"Einsatzbericht_{report.order.order_number}_{report.id}.pdf".replace("/", "-")
+    return Response(content=pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{filename}"'})
 
 
 @router.get("/api/mobile-settings", response_model=MobileSettingsOut)

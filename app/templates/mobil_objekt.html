@@ -177,10 +177,16 @@
     el.className='';
     el.innerHTML=list.map(function(r){
       var findings=(r.findings||[]).map(findingRow).join('');
+      // PDF-Link (seit "Wartungsbericht-Detailansicht", siehe CLAUDE.md) -- ausschließlich über
+      // property_id+r.id erreichbar, nie eine freie Berichtssuche. Zeigt bewusst dasselbe Ziel
+      // wie ein fremder Bericht (resolve_property_history_report_for_field prüft keine
+      // Ersteller-Zuordnung), auch von einem inzwischen ausgeschiedenen Kollegen.
+      var pdfUrl='/api/field-view/properties/'+propertyId+'/maintenance-history/'+r.id+'/pdf';
       return '<div class="card history-item">'
         +'<div class="history-title">'+esc(r.report_type_label)+' · '+fmtDate(r.performed_at)+'</div>'
         +'<div class="history-meta">'+esc(r.created_by_employee_name||'')+(r.order_number?' · Auftrag '+esc(r.order_number):'')+'</div>'
         +findings
+        +'<div class="doc-actions" style="margin-top:6px"><a href="'+pdfUrl+'" target="_blank" rel="noopener">Als PDF ansehen</a></div>'
         +'</div>';
     }).join('');
   }
