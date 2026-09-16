@@ -4,6 +4,45 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.70 – Umbau der Projektliste, Fundament: Projekt-Pipeline
+
+Erster Baustein des vom Nutzer verlangten Umbaus (Befund zuvor separat geliefert, keine
+Codeänderung -- siehe CLAUDE.md "Umbau der Projektliste"): die Projektliste soll eine eigene,
+frei konfigurierbare Kanban-Ansicht bekommen, analog zu den Aufgaben. Die wichtigste
+Entscheidung dabei -- Kanban-Spalte als neues, unabhängiges Feld neben dem bestehenden
+`Project.status`, statt den Status durch die Spalten zu ersetzen -- ist getroffen: `status`
+bleibt automatisch/kennzahlengesteuert (Beauftragung, Duplizieren, Dashboard-KPIs), die neue
+`pipeline_column_id` ist eine rein frei per Ziehen gesetzte Arbeitsansicht ohne jede fachliche
+Bedeutung. Diese Version liefert AUSSCHLIESSLICH das Fundament -- Datenmodell, Migration mit
+Startspalte für alle Bestandsprojekte, Spaltenverwaltung in den Einstellungen. Die Listen- und
+Kanban-Oberfläche selbst folgt erst in der zweiten Runde, nach Bestätigung dieses Schritts.
+
+Neue Stammdatentabelle `ProjectPipelineColumn` (`key`/`label`/`sort_order`, Migration
+`da9d9425e257`) -- bewusst nach demselben Muster wie `TaskColumn` aufgebaut (Slug-Erzeugung,
+sort_order-Schrittweite 10, Löschschutz bei letzter Spalte/bei Verwendung), aber ohne
+`is_done`: die Pipeline-Spalte trägt keine Automatik, ein wirkungsloses "erledigt"-Flag wäre
+nur irreführend gewesen. Vier Startspalten ("Neu", "In Bearbeitung", "Wartet",
+"Abgeschlossen") -- ein schlanker, allgemeiner Satz statt fein aufgeteilter Phasen, der Betrieb
+passt sie in den Einstellungen an. Neue Spalte `Project.pipeline_column_id` (FK, NOT NULL) --
+ein Projekt ohne Spalte würde im künftigen Kanban unsichtbar bleiben, deshalb Pflichtfeld statt
+optional; die Migration legt sie zunächst nullable an, befüllt ALLE Bestandsprojekte auf die
+erste Spalte ("Neu") und setzt danach NOT NULL (Regel 1). Alle vier Stellen, die ein neues
+`Project` anlegen (`app/projects.py::duplicate_project()`, `app/quick_service_orders.py`,
+`app/routers/inquiries.py::convert_inquiry()`, `app/routers/projects.py::create_project()`)
+setzen die Startspalte jetzt explizit über die neue `default_pipeline_column_id()`.
+
+Bewusst KEINE gemeinsame, generische Abstraktion mit `app/task_columns.py` -- Task verweist
+über den String-Schlüssel (`Task.status == TaskColumn.key`), Project dagegen über die
+numerische ID (`Project.pipeline_column_id == ProjectPipelineColumn.id`), zwei unterschiedliche
+Referenzformen, und die Pipeline-Spalte kennt kein `is_done`. Eine Abstraktion für nur diese
+zwei, sich in diesem Punkt unterscheidenden Nutzer wäre eine Überabstraktion gewesen -- das
+MUSTER (nicht der Code) ist identisch übernommen, damit beide Spaltensysteme nicht
+auseinanderdriften. Neuer Router `app/routers/project_pipeline_columns.py`
+(`/api/project-pipeline-columns`), dieselbe Büro+Admin-Sperre wie der Rest der
+Projektverwaltung, Schreibzugriffe zusätzlich admin-only (Muster `task_columns.py`). Neuer
+Einstellungen-Abschnitt "Projekt-Pipeline" (Gruppe "Projekte") mit derselben
+Bearbeiten/Verschieben/Löschen-Oberfläche wie bei den Aufgaben-Spalten.
+
 ## 1.3.69 – Wartungsbericht-Detailansicht für Monteure, ausschließlich über das Objekt
 
 Anlass: ein Monteur führt dieselbe Wartung erneut durch und will nachvollziehen, was beim

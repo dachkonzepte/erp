@@ -23,6 +23,7 @@ from tests.test_v167_pagination import count_pdf_pages
 
 from app.document_page_margins import update_margins
 from app.models import Customer, Employee, Order, OrderItem, Project
+from app.project_pipeline_columns import default_pipeline_column_id
 
 
 def test_order_pdf_contains_expected_content():
@@ -126,7 +127,7 @@ def test_order_pdf_uses_frozen_snapshot_not_live_customer_or_property_data():
     customer = Customer(name="Alter Kundenname", last_name="Alter Kundenname", street="Alte Straße 1", postal_code="11111", city="Altstadt")
     db.add(customer)
     db.flush()
-    project = Project(project_number="P-TEST-0002", name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number="P-TEST-0002", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     order = Order(

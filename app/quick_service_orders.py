@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from .models import Project, Quote
 from .orders import create_order_from_quote
+from .project_pipeline_columns import default_pipeline_column_id
 from .projects import create_free_quote_item, next_project_number, next_quote_number
 
 ORDER_TYPES = ("reparatur", "wartung")
@@ -37,6 +38,7 @@ def create_quick_service_order(
     project = Project(
         project_number=next_project_number(db), customer_id=customer_id, property_id=property_id,
         name=title, description=(description or None),
+        pipeline_column_id=default_pipeline_column_id(db),
     )
     db.add(project)
     db.flush()

@@ -10,6 +10,7 @@ from app.maintenance_contracts import (
 from app.models import (
     Customer, MaintenanceContractItem, MaintenanceWindow, Order, Project, ProjectProfile,
 )
+from app.project_pipeline_columns import default_pipeline_column_id
 from app.projects import duplicate_project
 from app.roof_areas import create_roof_area, delete_roof_area
 from app.routers.maintenance_contracts import router as maintenance_contracts_router
@@ -169,7 +170,7 @@ def test_duplicate_project_does_not_copy_maintenance_contract_tags():
     in list_contract_history() des Original-Vertrags."""
     db = db_session()
     customer, prop = make_customer_and_property(db)
-    source = Project(project_number="P-TEST-0050", name="Quelle", customer_id=customer.id, property_id=prop.id)
+    source = Project(project_number="P-TEST-0050", name="Quelle", customer_id=customer.id, property_id=prop.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(source); db.flush()
     contract = create_contract(db, customer.id, prop.id, "Vertrag", 12, date.today())
     db.add(ProjectProfile(project_id=source.id, category="Dach", source_maintenance_contract_id=contract["id"]))

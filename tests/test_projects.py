@@ -3,6 +3,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import Customer, Project
+from app.project_pipeline_columns import default_pipeline_column_id
 from app.projects import next_project_number
 
 
@@ -15,7 +16,7 @@ def test_project_number_sequence():
     db.add(customer)
     db.flush()
     assert next_project_number(db).endswith("0001")
-    db.add(Project(project_number=next_project_number(db), customer_id=customer.id, name="Testprojekt"))
+    db.add(Project(project_number=next_project_number(db), customer_id=customer.id, name="Testprojekt", pipeline_column_id=default_pipeline_column_id(db)))
     db.commit()
     assert next_project_number(db).endswith("0002")
 

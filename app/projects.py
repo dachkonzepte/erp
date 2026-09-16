@@ -13,6 +13,7 @@ from .models import (
     QuoteEmployeeAssignment, TaxKey,
 )
 from .project_documents import project_directory
+from .project_pipeline_columns import default_pipeline_column_id
 from .settings import preview_number
 from .payment_terms import get_default_payment_term
 
@@ -743,6 +744,7 @@ def duplicate_project(db: Session, source_project: Project, *, as_template: bool
         project_number=next_project_number(db), customer_id=source_project.customer_id,
         property_id=source_project.property_id, name=source_project.name, status="anfrage",
         description=source_project.description, is_template=as_template,
+        pipeline_column_id=default_pipeline_column_id(db),
     )
     db.add(new_project)
     db.flush()

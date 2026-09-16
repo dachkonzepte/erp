@@ -262,7 +262,8 @@ def test_customer_document_update_recomputes_category_id(threaded_db_session, ro
 
 def _make_project(db, customer, prop, number="P-TEST-0001"):
     from app.models import Project
-    project = Project(project_number=number, name="Testprojekt", customer_id=customer.id, property_id=prop.id, status="anfrage")
+    from app.project_pipeline_columns import default_pipeline_column_id
+    project = Project(project_number=number, name="Testprojekt", customer_id=customer.id, property_id=prop.id, status="anfrage", pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.commit()
     return project
 

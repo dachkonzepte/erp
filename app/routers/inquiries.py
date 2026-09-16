@@ -15,6 +15,7 @@ from ..inquiries import inquiry_to_dict, load_inquiry, next_inquiry_number
 from ..models import AppUser, Customer, Inquiry, Project, Property, Quote
 from ..option_settings import default_option_value
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..project_pipeline_columns import default_pipeline_column_id
 from ..projects import load_project, load_quote, next_project_number, next_quote_number, quote_to_dict
 from ..schemas import InquiryConvertOut, InquiryConvertRequest, InquiryCreate, InquiryOut, InquiryUpdate, ProjectListOut, QuoteOut
 from ..settings import get_or_create_general_settings
@@ -127,6 +128,7 @@ def convert_inquiry(inquiry_id: int, payload: InquiryConvertRequest, db: Session
         name=(payload.project_name or inquiry.title).strip(),
         status="angebot",
         description=inquiry.description,
+        pipeline_column_id=default_pipeline_column_id(db),
     )
     db.add(project)
     db.flush()

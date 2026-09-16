@@ -13,6 +13,7 @@ from app.invoices import (
     finalize_and_send_invoice,
 )
 from app.models import Order, OrderItem, Customer, Project
+from app.project_pipeline_columns import default_pipeline_column_id
 from app.orders import order_to_dict
 
 
@@ -26,7 +27,7 @@ def make_order_with_item(db, quantity=Decimal("100"), unit_price=Decimal("50"), 
     customer = Customer(name="Test Kunde", last_name="Test Kunde")
     db.add(customer)
     db.flush()
-    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     order = Order(

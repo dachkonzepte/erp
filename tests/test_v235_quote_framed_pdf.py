@@ -25,6 +25,7 @@ from app.document_layout import (
 )
 from app.document_page_margins import ensure_default_margins
 from app.models import Customer, DocumentLayoutBlock, Project, Quote, QuoteItem, QuoteItemLayout, QuoteSection
+from app.project_pipeline_columns import default_pipeline_column_id
 from app.projects import load_quote
 from app.quote_framed_pdf import _build_items_table, build_quote_framed_pdf
 from app.settings import get_or_create_general_settings
@@ -43,7 +44,7 @@ def make_quote_with_item(db, quantity=Decimal("100"), unit_price=Decimal("50"), 
     customer = Customer(name="Test Kunde", last_name="Test Kunde", street="Musterstr. 1", postal_code="12345", city="Musterstadt")
     db.add(customer)
     db.flush()
-    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     quote = Quote(quote_number="A-TEST-0001", project_id=project.id, title="Testangebot", vat_rate=vat_rate)
@@ -213,7 +214,7 @@ def _make_multi_section_quote(db):
     customer = Customer(name="Test Kunde GmbH", last_name="Test Kunde GmbH", street="Musterstr. 1", postal_code="12345", city="Musterstadt")
     db.add(customer)
     db.flush()
-    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     quote = Quote(quote_number="A-TEST-0002", project_id=project.id, title="Großes Testangebot", vat_rate=Decimal("19.00"))

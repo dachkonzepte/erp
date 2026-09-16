@@ -385,6 +385,7 @@ class TestObjectFilteringForFieldTeilB:
         LV-Position (Muster make_order_with_item() in test_v133_invoices.py) -- die Position
         braucht es, um die preisfreie Antwort für `field` an einer echten Zeile zu belegen."""
         from app.models import Customer, Order, OrderItem, Project, Property
+        from app.project_pipeline_columns import default_pipeline_column_id
         if customer is None:
             customer = Customer(name="Testkunde", last_name="Testkunde")
             db.add(customer); db.flush()
@@ -393,7 +394,7 @@ class TestObjectFilteringForFieldTeilB:
                             notes="Büro-interner Vermerk, nicht für den Monteur")
             db.add(prop); db.flush()
             property_id = prop.id
-        project = Project(project_number=project_number, name="Testprojekt", customer_id=customer.id, property_id=property_id)
+        project = Project(project_number=project_number, name="Testprojekt", customer_id=customer.id, property_id=property_id, pipeline_column_id=default_pipeline_column_id(db))
         db.add(project); db.flush()
         # source_quote_id ist UNIQUE auf orders -- aus der Nummer abgeleitet, damit mehrere
         # Aufträge je Test nebeneinander existieren können (kein echter Quote-Datensatz nötig,

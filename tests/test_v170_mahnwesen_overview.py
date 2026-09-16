@@ -36,11 +36,12 @@ def test_compute_reminder_status_draft_none_for_invoice_without_due_date():
     nicht abstürzen."""
     from decimal import Decimal
     from app.models import Customer, Invoice, Order, Project
+    from app.project_pipeline_columns import default_pipeline_column_id
     db = db_session()
     customer = Customer(name="Test Kunde", last_name="Test Kunde")
     db.add(customer)
     db.flush()
-    project = Project(project_number="P-TEST-0002", name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number="P-TEST-0002", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     order = Order(

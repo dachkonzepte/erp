@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.invoices import create_schlussrechnung, update_invoice_tax_key, create_storno_draft
 from app.models import Order, OrderItem, Quote, QuoteItem, Project, Customer
+from app.project_pipeline_columns import default_pipeline_column_id
 from app.orders import order_to_dict, update_order_tax_key
 from app.projects import quote_to_dict, update_quote_tax_key
 from app.tax_keys import create_tax_key, update_tax_key
@@ -21,7 +22,7 @@ def make_order_with_item(db, quantity=Decimal("100"), unit_price=Decimal("50"), 
     customer = Customer(name="Test Kunde", last_name="Test Kunde")
     db.add(customer)
     db.flush()
-    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     order = Order(
@@ -44,7 +45,7 @@ def make_quote_with_item(db, quantity=Decimal("100"), unit_price=Decimal("50"), 
     customer = Customer(name="Test Kunde", last_name="Test Kunde")
     db.add(customer)
     db.flush()
-    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     quote = Quote(quote_number="A-TEST-0001", project_id=project.id, title="Testangebot", vat_rate=vat_rate)

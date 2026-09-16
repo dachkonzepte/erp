@@ -38,12 +38,13 @@ def _order_with_property(db, order_number, project_number, customer=None, proper
     """Muster tests/test_v260_role_audit.py::TestObjectFilteringForFieldTeilB._order() --
     ein Auftrag mit eigenem, benanntem Objekt (project.property_id gesetzt)."""
     from app.models import Customer, Order, OrderItem, Project, Property
+    from app.project_pipeline_columns import default_pipeline_column_id
     if customer is None:
         customer = Customer(name="Testkunde", last_name="Testkunde", city="Teststadt")
         db.add(customer); db.flush()
     prop = Property(customer_id=customer.id, name=property_name, street="Teststr. 1", city="Teststadt")
     db.add(prop); db.flush()
-    project = Project(project_number=project_number, name="Testprojekt", customer_id=customer.id, property_id=prop.id)
+    project = Project(project_number=project_number, name="Testprojekt", customer_id=customer.id, property_id=prop.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.flush()
     order = Order(order_number=order_number, project_id=project.id,
                   source_quote_id=int(order_number.rsplit("-", 1)[-1]),
@@ -60,7 +61,8 @@ def _order_without_property(db, order_number, project_number, customer):
     """Ein Auftrag OHNE eigenes Objekt (project.property_id bleibt NULL) -- für den
     Hauptadresse-Rückfall-Fall."""
     from app.models import Order, OrderItem, Project
-    project = Project(project_number=project_number, name="Testprojekt", customer_id=customer.id)
+    from app.project_pipeline_columns import default_pipeline_column_id
+    project = Project(project_number=project_number, name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.flush()
     order = Order(order_number=order_number, project_id=project.id,
                   source_quote_id=int(order_number.rsplit("-", 1)[-1]),

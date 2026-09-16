@@ -486,6 +486,17 @@ class Project(Base):
     property_id: Mapped[int | None] = mapped_column(ForeignKey("properties.id"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(50), default="anfrage", index=True)
+    # Kanban-Spalte der Projektliste (seit 1.3.70) -- eine von `status` oben VOLLSTÄNDIG
+    # unabhängige zweite Achse, siehe ProjectPipelineColumn-Klassendocstring für die volle
+    # Begründung. `status` bleibt die einzige Quelle für Automatik/Kennzahlen (Beauftragung,
+    # Duplizieren, Dashboard-Filter usw.) -- keine Funktion dieses Projekts darf
+    # `pipeline_column_id` lesen, um daraus `status` abzuleiten, oder umgekehrt. Jede der vier
+    # Project(...)-Konstruktionsstellen (app/projects.py::duplicate_project(),
+    # app/quick_service_orders.py, app/routers/inquiries.py::convert_inquiry(),
+    # app/routers/projects.py::create_project()) setzt sie explizit auf
+    # project_pipeline_columns.default_pipeline_column_id(db) -- ein Projekt ohne Spalte würde
+    # im künftigen Kanban unsichtbar bleiben, deshalb NOT NULL statt eines optionalen Felds.
+    pipeline_column_id: Mapped[int] = mapped_column(ForeignKey("project_pipeline_columns.id"), index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Mustervorgang (seit 1.0.92) -- ein als Vorlage markiertes Projekt bleibt
     # technisch ein normales Projekt (gleiche Tabelle, gleiche Beziehungen),
@@ -510,6 +521,47 @@ class Project(Base):
         back_populates="project", cascade="all, delete-orphan", order_by="ProjectDocument.uploaded_at.desc()"
     )
     profile: Mapped["ProjectProfile | None"] = relationship(back_populates="project", uselist=False, cascade="all, delete-orphan")
+    pipeline_column: Mapped["ProjectPipelineColumn"] = relationship()
+
+
+class ProjectPipelineColumn(Base):
+    """Konfigurierbare Kanban-Spalte der Projektliste (seit 1.3.70) -- bewusst ein ZWEITES,
+    von Project.status vollständig unabhängiges Feld, kein Ersatz dafür.
+
+    Project.status ist heute nicht durchgängig eine freie Anwenderentscheidung: er wird an
+    mehreren Stellen automatisch überschrieben (Beauftragung -> "beauftragt", Duplizieren/
+    Mustervorgang -> "anfrage", Anfrage-Umwandlung -> "angebot") UND von Kennzahlen gelesen
+    (Dashboard-KPI "Aktive Projekte", Widget "Laufende Projekte" -- beide werten feste
+    status-Wortlaute aus). Eine frei per Ziehen sortierbare Kanban-Spalte hätte, wäre sie
+    dasselbe Feld wie bei TaskColumn/Task.status (siehe dort -- dort IST die Spalte der
+    Status, kein separates Feld), zwei echte Risiken, die es bei Aufgaben nie gab: (1) ein
+    Admin könnte eine Spalte umbenennen/löschen, deren Wortlaut in den KPI-Auswertungen fest
+    verdrahtet ist, wodurch eine Kennzahl lautlos falsch würde, nicht nur die Kanban-Anzeige;
+    (2) ein von Hand verschobenes Projekt würde beim nächsten automatischen Schreibvorgang
+    (Beauftragung, Resync) unbemerkt wieder zurückspringen. `pipeline_column_id` ist deshalb
+    eine rein freie, vom Nutzer per Ziehen gesetzte Arbeitsansicht ohne jede fachliche
+    Bedeutung -- KEINE Funktion dieses Projekts leitet `status` aus ihr ab oder überschreibt
+    sie automatisch. Wer diese beiden Felder später zusammenlegen will, bricht damit die
+    bestehende Statusautomatik/Kennzahlenauswertung -- siehe CLAUDE.md "Projekt-Pipeline"
+    für die vollständige Herleitung dieser Entscheidung.
+
+    Bewusst nach demselben Muster wie TaskColumn aufgebaut (key/label/sort_order, siehe dort),
+    aber OHNE is_done -- die Pipeline-Spalte trägt keine Automatik (anders als
+    TaskColumn.is_done -> Task.completed_at), ein "erledigt"-Flag ohne Wirkung wäre nur
+    irreführend. Eine gemeinsame, generische Abstraktion für nur diese zwei Nutzer (Task
+    verweist über den String-Schlüssel Task.status == TaskColumn.key, Project dagegen über die
+    numerische ID Project.pipeline_column_id == ProjectPipelineColumn.id -- zwei
+    unterschiedliche Referenzformen) wurde bewusst nicht gebaut, siehe
+    app/project_pipeline_columns.py."""
+
+    __tablename__ = "project_pipeline_columns"
+    __table_args__ = (UniqueConstraint("key", name="uq_project_pipeline_column_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String(40))
+    label: Mapped[str] = mapped_column(String(80))
+    sort_order: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class ProjectProfile(Base):

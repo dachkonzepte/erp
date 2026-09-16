@@ -5,6 +5,7 @@ from app.models import (
     Customer, Project, ProjectProfile, Quote, QuoteDocumentMeta, QuoteItem,
     QuoteItemCalculation, QuoteItemLayout, QuoteItemMaterialCalculation, QuoteSection,
 )
+from app.project_pipeline_columns import default_pipeline_column_id
 from app.projects import duplicate_project, load_project
 from tests.test_v153_mahnwesen import db_session
 
@@ -23,7 +24,7 @@ def make_full_project(db, *, category="Sanierung", project_number="P-TEST-0001",
     customer = Customer(name="Ursprungskunde", last_name="Ursprungskunde", email="ursprung@example.com")
     db.add(customer)
     db.flush()
-    project = Project(project_number=project_number, name="Dachsanierung Musterweg", customer_id=customer.id, status="beauftragt")
+    project = Project(project_number=project_number, name="Dachsanierung Musterweg", customer_id=customer.id, status="beauftragt", pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     db.add(ProjectProfile(project_id=project.id, category=category))
@@ -235,7 +236,7 @@ def test_duplicate_project_without_any_quote_still_works():
     customer = Customer(name="Kunde ohne Angebot", last_name="Kunde ohne Angebot")
     db.add(customer)
     db.flush()
-    empty_project = Project(project_number="P-TEST-0002", name="Noch ohne Angebot", customer_id=customer.id)
+    empty_project = Project(project_number="P-TEST-0002", name="Noch ohne Angebot", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(empty_project)
     db.commit()
     empty_project = load_project(db, empty_project.id)

@@ -121,6 +121,7 @@ def test_migration_backfills_existing_rows_from_current_template_label():
     db = Session()
 
     from app.models import Customer, Order, Project, Property, ServiceReport
+    from app.project_pipeline_columns import default_pipeline_column_id
 
     customer = Customer(name="Test Kunde", last_name="Test Kunde")
     db.add(customer)
@@ -134,7 +135,7 @@ def test_migration_backfills_existing_rows_from_current_template_label():
     template = InspectionTemplate(label="Bestandsvorlage", sort_order=10)
     db.add(template)
     db.flush()
-    project = Project(project_number="P-TEST-0097", name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number="P-TEST-0097", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     order = Order(
@@ -172,6 +173,7 @@ def test_migration_backfill_leaves_rows_without_template_untouched():
     db = Session()
 
     from app.models import Customer, Order, Project, Property, ServiceReport
+    from app.project_pipeline_columns import default_pipeline_column_id
 
     customer = Customer(name="Test Kunde", last_name="Test Kunde")
     db.add(customer)
@@ -182,7 +184,7 @@ def test_migration_backfill_leaves_rows_without_template_untouched():
     area = RoofArea(property_id=prop.id, name="Bestandsflaeche")
     db.add(area)
     db.flush()
-    project = Project(project_number="P-TEST-0096", name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number="P-TEST-0096", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     order = Order(

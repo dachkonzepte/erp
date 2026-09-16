@@ -79,11 +79,12 @@ def test_get_invoice_recipient_email_returns_live_customer_email():
 def test_send_invoice_email_rejects_draft():
     from decimal import Decimal
     from app.models import Customer, Invoice, Order, Project
+    from app.project_pipeline_columns import default_pipeline_column_id
     db = db_session()
     customer = Customer(name="Test Kunde", last_name="Test Kunde")
     db.add(customer)
     db.flush()
-    project = Project(project_number="P-DRAFT-0001", name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number="P-DRAFT-0001", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     order = Order(

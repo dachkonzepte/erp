@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from app import address_import as ai
 from app.database import Base
 from app.models import Customer, CustomerProfile, ImportedAddress, ImportRun, Project, Property, Supplier
+from app.project_pipeline_columns import default_pipeline_column_id
 
 
 def db_session():
@@ -303,7 +304,7 @@ def test_revert_refused_when_a_created_customer_already_has_a_project():
     ai.create_preview(db, make_csv([customer_row()]), "adressen.csv")
     run = ai.confirm_import(db, "adressen.csv", employee_id=None)
     customer = db.scalar(select(Customer).where(Customer.import_run_id == run.id))
-    db.add(Project(customer_id=customer.id, project_number="P-TEST-1", name="Dachsanierung")); db.commit()
+    db.add(Project(customer_id=customer.id, project_number="P-TEST-1", name="Dachsanierung", pipeline_column_id=default_pipeline_column_id(db))); db.commit()
 
     runs = ai.list_import_runs(db)
     assert runs[0]["can_revert"] is False

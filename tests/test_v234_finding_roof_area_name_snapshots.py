@@ -187,6 +187,7 @@ def test_migration_backfills_existing_rows_from_current_names():
     db = Session()
 
     from app.models import Customer, Order, Project, Property, ServiceReport
+    from app.project_pipeline_columns import default_pipeline_column_id
 
     customer = Customer(name="Test Kunde", last_name="Test Kunde")
     db.add(customer)
@@ -200,7 +201,7 @@ def test_migration_backfills_existing_rows_from_current_names():
     component = RoofComponent(roof_area_id=area.id, name="Bestandsbauteil")
     db.add(component)
     db.flush()
-    project = Project(project_number="P-TEST-0099", name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number="P-TEST-0099", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     order = Order(
@@ -243,11 +244,12 @@ def test_migration_backfill_leaves_findings_without_component_untouched():
     db = Session()
 
     from app.models import Customer, Order, Project, ServiceReport
+    from app.project_pipeline_columns import default_pipeline_column_id
 
     customer = Customer(name="Test Kunde", last_name="Test Kunde")
     db.add(customer)
     db.flush()
-    project = Project(project_number="P-TEST-0098", name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number="P-TEST-0098", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     order = Order(

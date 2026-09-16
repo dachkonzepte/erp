@@ -13,6 +13,7 @@ from PIL import Image
 
 from app.document_categories import ensure_default_categories
 from app.models import Customer, DocumentCategory, Employee, Order, OrderItem, Project, Property, PropertyDocument, ProjectDocument
+from app.project_pipeline_columns import default_pipeline_column_id
 from tests.test_v153_mahnwesen import db_session  # noqa: F401 -- re-exportiert db_session als Fixture
 
 
@@ -52,7 +53,7 @@ def _customer_and_property(db, name="Objekt Nord"):
 
 
 def _project(db, customer, prop, number="P-TEST-0001", archived=False):
-    project = Project(project_number=number, name="Testprojekt", customer_id=customer.id, property_id=prop.id, archived=archived)
+    project = Project(project_number=number, name="Testprojekt", customer_id=customer.id, property_id=prop.id, archived=archived, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.commit()
     return project
 

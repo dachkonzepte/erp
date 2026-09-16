@@ -10,6 +10,7 @@ from app.maintenance_contracts import (
 )
 from app.models import AppUser, Customer, Employee, MaintenanceContract, Project, Property, Task
 from app.modules import set_module_enabled
+from app.project_pipeline_columns import default_pipeline_column_id
 from app.tasks import list_tasks
 from tests.test_v153_mahnwesen import db_session
 
@@ -24,7 +25,8 @@ def make_customer_and_property(db):
 
 def make_template_project(db, customer, prop, number="P-TEMPLATE-0001"):
     project = Project(project_number=number, name="Jahreswartung Dach", customer_id=customer.id,
-                       property_id=prop.id, is_template=True, status="anfrage")
+                       property_id=prop.id, is_template=True, status="anfrage",
+                       pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.commit()
     return project
 

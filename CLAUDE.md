@@ -20,24 +20,33 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.69** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `f803985ebc2f` ("property documents table", siehe Abschnitt
-  "Dateiablage je Objekt" unten) -- vorher `9137945e8785` ("document categories foundation"),
-  davor `7a2b4e9f1c3d` ("app user role office field"): keine der
-  Versionen 1.3.52 bis 1.3.61 brauchte eine eigene Migration (reine Rollen-Gate-/Response-Schema-/
-  Objekt-Filterungs-Umstellungen auf bereits bestehenden Endpunkten und Tabellen; 1.3.61s neuer
-  PDF-Dokumenttyp "field_timesheet" fällt ohne eigene Zeile automatisch auf den bereits
-  bestehenden, geteilten "default"-Satz zurück, siehe "Fünf weitere Anpassungen"), siehe
-  Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
-  eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1361 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
-  Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 16.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
-  ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
-  1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
-  Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
-  `threaded_db_session`) lebt seit 1.2.16 als gemeinsame Fixture in `tests/conftest.py`, nicht
-  mehr lokal in einer einzelnen Testdatei.
+- Version: **1.3.70** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `da9d9425e257` ("project pipeline columns", siehe Abschnitt
+  "Umbau der Projektliste" unten) -- vorher `f803985ebc2f` ("property documents table", siehe
+  Abschnitt "Dateiablage je Objekt" unten), davor `9137945e8785` ("document categories
+  foundation"): keine der Versionen 1.3.52 bis 1.3.61 brauchte eine eigene Migration (reine
+  Rollen-Gate-/Response-Schema-/Objekt-Filterungs-Umstellungen auf bereits bestehenden
+  Endpunkten und Tabellen; 1.3.61s neuer PDF-Dokumenttyp "field_timesheet" fällt ohne eigene
+  Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
+  weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
+  history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
+- Tests: **1382 passed, 2 vorbestehend zeitabhängig flakend** (seit 1.3.55 wieder vollständig
+  grün ohne `xfail` -- der Audit-Test des Rechtekonzepts steht bei null unklassifizierten
+  Endpunkten und ist ein harter Test, siehe dort), zuletzt am 16.09.2026 gegen 19:26 Uhr mit
+  `pytest` in Tobias' `.venv` unter Windows ausgeführt. Die zwei Ausnahmen
+  (`tests/test_v224_field_view.py::test_field_view_today_returns_assignments_and_drafts_for_linked_employee`/
+  `..._rejects_unlinked_employee`) sind eine bereits vor dieser Sitzung bestehende, von der
+  tatsächlichen Wanduhrzeit abhängige Schwäche -- beide rufen `get_field_view_today()` direkt
+  auf, ohne die Feierabend-Prüfung (`is_past_shift_end()`, Standard 19:00 Uhr,
+  `app/mobile_settings.py`) über ein festes `now` zu entkoppeln, schlagen deshalb JEDEN Tag nach
+  19 Uhr fehl, unabhängig von jeder Codeänderung -- verifiziert durch einen isolierten Lauf nur
+  dieser beiden Tests, ohne jeden Bezug zur Projekt-Pipeline (kein `Project(...)` in dieser
+  Testdatei). Nicht behoben, da außerhalb des angefragten Umfangs -- siehe „Bekannte, bewusst
+  offene Punkte" für die Nennung. Die Suite enthält weiterhin echte, über einen FastAPI-
+  `TestClient` laufende Routen-Tests (seit 1.2.15, Testabhängigkeit `httpx`) für die
+  tatsächliche URL-Auflösung, nicht nur Aufrufe der Business-Funktionen direkt; der zugehörige
+  Test-Helfer (`router_test_client`/`threaded_db_session`) lebt seit 1.2.16 als gemeinsame
+  Fixture in `tests/conftest.py`, nicht mehr lokal in einer einzelnen Testdatei.
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
   Eingabefelder, einfarbige Sidebar-Icons) ist auf **alle** Templates ausgerollt (1.0.97–1.0.100,
@@ -947,6 +956,18 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   beschränkt (dessen Docstring trägt seither eine dokumentierte Ausnahme für diesen neuen,
   objektbezogenen Weg). Siehe eigener Unterabschnitt "Wartungsbericht-Detailansicht" im Abschnitt
   "Dateiablage je Objekt" unten.
+- Neu seit 1.3.70: **Umbau der Projektliste, Fundament -- Projekt-Pipeline.** Erste Etappe eines
+  vom Nutzer angefragten, mehrstufigen Umbaus (Befund zuvor separat berichtet, keine
+  Codeänderung -- siehe eigener Abschnitt "Umbau der Projektliste" unten für die vollständige
+  Herleitung inkl. der wichtigsten Entscheidung: Kanban-Spalte als neues, von `Project.status`
+  UNABHÄNGIGES Feld, kein Ersatz dafür). Neue Stammdatentabelle `ProjectPipelineColumn` (Muster
+  `TaskColumn`, aber ohne `is_done`), neue Spalte `Project.pipeline_column_id` (FK, NOT NULL --
+  Migration `da9d9425e257` befüllt dafür ALLE Bestandsprojekte auf die erste Spalte "Neu"), alle
+  vier `Project(...)`-Konstruktionsstellen setzen sie jetzt explizit über die neue
+  `default_pipeline_column_id()`. Spaltenverwaltung unter Einstellungen → Projekte →
+  Projekt-Pipeline (`app/routers/project_pipeline_columns.py`, dieselbe Büro+Admin-Sperre wie
+  der Rest der Projektverwaltung). Diese Version liefert AUSSCHLIESSLICH das Fundament -- die
+  Listen- und Kanban-Oberfläche selbst folgt erst in der zweiten Runde, nach Bestätigung.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -7208,6 +7229,133 @@ test_search_slot_is_present_and_empty` in zwei Tests umgeschrieben (die 1.3.45-E
 bleibt leer" ist jetzt bewusst überholt -- ein Test für admin/office, ein Test für field). Volle
 Suite weiterhin grün (1344/1344).
 
+## Umbau der Projektliste (seit 1.3.70, Fundament)
+
+Betreiber-Auftrag: die Projektliste (Sidebar → Projekte) wird breiter und ruhiger -- der linke
+Kasten "Projekte & Vorgänge" mit den vier Reitern Angebote/Aufträge/Anfragen/Mustervorgänge
+entfällt zugunsten einer Liste über die volle Breite mit Kategoriefilter, plus einer
+umschaltbaren Kanban-Ansicht mit frei konfigurierbaren Spalten wie bei den Aufgaben. Vorgehen
+ausdrücklich in Etappen (Muster "Dateiablage je Objekt"): erst Befund (keine Codeänderung),
+dann diese Version -- **nur das Fundament** --, danach erst die Listen-/Kanban-Oberfläche.
+
+### Befund (vor dieser Version, keine Codeänderung)
+
+- **Projektliste heute**: fünf separate Endpunkte (`/api/projects`, `/api/quotes`, `/api/orders`,
+  `/api/inquiries`, `/api/project-templates`), parallel geladen (`Promise.all`) -- Angebote/
+  Aufträge/Anfragen sind KEINE `Project`-Zeilen, sondern eigene Tabellen
+  (`Quote`/`Order`/`Inquiry`), die an ein Projekt hängen. Ein Kategoriefilter auf der
+  Projektliste kann diese drei Reiter deshalb nicht ersetzen -- nur "Mustervorgänge"
+  (`Project.is_template=True`) ist dieselbe Tabelle wie die Hauptliste. Seit der Büro-Suche
+  (1.3.66/1.3.67) sind Angebote/Aufträge/Anfragen bereits unabhängig über `GET /api/search`
+  auffindbar, was den ursprünglichen Zweck der Reiter (schnelles Finden ohne Umweg über das
+  Projekt) teilweise entkräftet, aber die reinen Zähler nicht ersetzt.
+- **Kategorie**: `ProjectProfile.category`, Optionsgruppe `project_categories` -- heute nur
+  Anzeige + Teil der Freitextsuche, kein eigenes Filter-Dropdown.
+- **`Project.status`**: ein ungeprüfter freier String ohne Datenbank-Constraint (Pydantic prüft
+  nichts Sinnvolles), OHNE eine einzige Quelle der Wahrheit -- teils frei vom Nutzer editierbar
+  (`PUT /api/projects/{id}`), teils automatisch überschrieben: `create_order_from_quote()`/
+  `sync_order_from_source_quote()` (`app/orders.py`) setzen `"beauftragt"`,
+  `duplicate_project()` (`app/projects.py`) setzt `"anfrage"` zurück, `convert_inquiry()`
+  (`app/routers/inquiries.py`) setzt `"angebot"` -- ein Wert, der in keiner UI-Dropdown-Liste
+  vorkommt (ein bereits bestehender, unabhängiger Rohrbruch, nur gemeldet, nicht behoben).
+  Gelesen wird `status` u. a. von den Dashboard-KPIs "Aktive Projekte"/"Laufende Projekte"
+  (feste Wortlaute fest verdrahtet).
+- **Task-Kanban als Vorbild geprüft**: `TaskColumn` (key/label/sort_order/is_done) --
+  `Task.status` **IST** direkt `TaskColumn.key`, kein separates Feld daneben.
+  `TaskColumn.is_done` steuert automatisch `Task.completed_at`. **Korrigierte Prämisse**: die
+  Aufgabenseite hat entgegen der ursprünglichen Annahme des Nutzers **kein Drag & Drop und
+  keinen Listen/Kanban-Umschalter** -- es gibt nur eine einzige Board-Ansicht, das Verschieben
+  zwischen Spalten läuft ausschließlich über ein `<select>`-Feld im Bearbeiten-Formular plus
+  "Speichern". Transparent gemeldet statt stillschweigend umgangen, siehe Segment-Historie
+  dieser Sitzung.
+
+### Die wichtigste Entscheidung (Punkt 2 der Anfrage): zwei unabhängige Felder
+
+Variante A gewählt (vom Nutzer bestätigt): `Project.pipeline_column_id` ist ein NEUES,
+UNABHÄNGIGES Feld neben dem bestehenden `status` -- keine Ablösung des Status durch die
+Kanban-Spalten (Variante B, das Task-Muster). Begründung, warum Project hier NICHT dem
+Task-Vorbild folgt, obwohl "so viel wie möglich vom bestehenden Mechanismus" wiederverwendet
+werden sollte: `Project.status` trägt echte Geschäftslogik-Automatik (Beauftragung,
+Duplizieren, Anfrage-Umwandlung) UND wird von Kennzahlen mit festen Wortlauten gelesen
+(Dashboard-KPIs) -- `Task.status` hatte davon nichts, bei Aufgaben WAR die Spalte schon immer
+der einzige Status. Eine freie, per Ziehen sortierbare Kanban-Spalte, wäre sie dasselbe Feld,
+hätte zwei echte Risiken: (1) ein Admin könnte eine Spalte umbenennen/löschen, deren Wortlaut in
+den KPI-Auswertungen fest verdrahtet ist -- eine Kennzahl würde lautlos falsch, nicht nur die
+Kanban-Anzeige; (2) ein von Hand verschobenes Projekt würde beim nächsten automatischen
+Schreibvorgang (Beauftragung, Resync) unbemerkt wieder zurückspringen -- ein Zurückspringen,
+das der Nutzer nicht erwartet und nicht sofort bemerkt.
+
+**Die beiden Felder bleiben strikt getrennt, in beide Richtungen**: `status` bleibt exakt wie
+bisher automatisch/kennzahlengesteuert -- keine Funktion dieses Projekts darf ihn aus
+`pipeline_column_id` ableiten. Und `pipeline_column_id` wird NIE automatisch von einer
+Geschäftslogik-Funktion überschrieben (anders als `status`) -- es ist eine rein freie, vom
+Nutzer per Ziehen gesetzte Arbeitsansicht ohne jede fachliche Bedeutung, die einzige Automatik
+ist die Startspalte bei der Neuanlage. **Transparente Randnotiz**: der Nutzer bezog sich in
+seiner Entscheidung auf eine Funktion `_recompute_project_status()` als Sinnbild für "die
+Status-Automatik" -- eine Funktion mit genau diesem Namen existiert im Code nicht; die
+tatsächliche Automatik sitzt verteilt an den vier oben genannten Stellen
+(`create_order_from_quote()`/`sync_order_from_source_quote()`/`duplicate_project()`/
+`convert_inquiry()`). Die Entscheidung selbst ("keine dieser Stellen rührt
+`pipeline_column_id` an, und keine künftige Pipeline-Funktion rührt `status` an") gilt davon
+unberührt -- nur der Name war ein Sinnbild, keine wörtliche Referenz auf eine existierende
+Funktion.
+
+### Was in dieser Version gebaut wurde (Fundament)
+
+- **`ProjectPipelineColumn`** (`app/models.py`, Migration `da9d9425e257`) -- `key`/`label`/
+  `sort_order`, bewusst nach demselben MUSTER wie `TaskColumn` aufgebaut (Slug-Erzeugung,
+  `sort_order`-Schrittweite 10, Löschschutz bei letzter Spalte/bei Verwendung), aber OHNE
+  `is_done` -- die Pipeline-Spalte trägt keine Automatik, ein wirkungsloses "erledigt"-Flag wäre
+  nur irreführend gewesen. Vier Startspalten: "Neu", "In Bearbeitung", "Wartet",
+  "Abgeschlossen" -- ein schlanker, allgemeiner Satz statt fein aufgeteilter Branchenphasen, der
+  Betrieb passt sie in den Einstellungen frei an.
+- **`Project.pipeline_column_id`** (FK auf `ProjectPipelineColumn.id`, NOT NULL) -- ein Projekt
+  ohne Spalte würde im künftigen Kanban unsichtbar bleiben, deshalb Pflichtfeld statt optional.
+  Migration legt die Spalte zunächst NULLABLE an (Regel 1 -- der Fremdschlüssel zeigt auf eine
+  erst in derselben Migration befüllte Tabelle, ein `server_default` auf eine konkrete ID wäre
+  fragil), befüllt ALLE Bestandsprojekte auf die erste Spalte ("Neu", niedrigste `sort_order`)
+  und setzt danach NOT NULL. Gegen die echte, lokale Datenbank geprüft: 8 Bestandsprojekte,
+  0 mit einer vorher schon vorhandenen Pipeline-Spalte (Tabelle existierte noch nicht), alle 8
+  nach der Migration korrekt auf die "Neu"-Spalte gesetzt, 0 NULL-Werte.
+- **Startspalte für neue Projekte**: alle VIER Stellen, die ein `Project` konstruieren
+  (`app/projects.py::duplicate_project()`, `app/quick_service_orders.py::
+  create_quick_service_order()`, `app/routers/inquiries.py::convert_inquiry()`,
+  `app/routers/projects.py::create_project()`) setzen `pipeline_column_id` jetzt explizit über
+  die neue `app/project_pipeline_columns.py::default_pipeline_column_id(db)` -- die Spalte mit
+  der niedrigsten `sort_order`, selbst-seedend wie bei den Aufgaben-Spalten, falls die Tabelle
+  (z. B. eine per `Base.metadata.create_all()` erzeugte Testdatenbank) noch komplett leer ist.
+  Ein Duplikat/eine Kopie startet dabei bewusst NEU in der ersten Spalte, unabhängig davon, wo
+  die Quelle stand -- exakt dasselbe Prinzip wie bei `status="anfrage"` in `duplicate_project()`.
+- **Bewusst KEINE gemeinsame, generische Abstraktion mit `app/task_columns.py`.** Task verweist
+  über den STRING-Schlüssel (`Task.status == TaskColumn.key`), Project dagegen über die
+  NUMERISCHE ID (`Project.pipeline_column_id == ProjectPipelineColumn.id`) -- zwei
+  unterschiedliche Referenzformen -- und die Pipeline-Spalte kennt kein `is_done`. Eine
+  Abstraktion für nur diese zwei, sich in diesem Punkt unterscheidenden Nutzer wäre eine
+  Überabstraktion gewesen (Regel dieses Projekts: keine Abstraktion vor dem dritten Nutzer,
+  siehe z. B. den zurückgestellten `build_totals_table()`-Vorschlag unter "Gemeinsamer
+  Dokumenttyp"). Stattdessen ist das MUSTER (nicht der Code) identisch übernommen -- dieselbe
+  Slug-Erzeugung, dieselbe `sort_order`-Schrittweite, dieselben zwei Löschschutz-Bedingungen --
+  damit beide Spaltensysteme nicht auseinanderdriften, wie vom Nutzer verlangt. Neues, eigenes
+  Modul `app/project_pipeline_columns.py`, neuer Router `app/routers/project_pipeline_columns.py`
+  (`/api/project-pipeline-columns`, dieselbe Büro+Admin-Sperre wie der Rest der
+  Projektverwaltung, `require_role(ROLE_ADMIN, ROLE_OFFICE)` für GET, zusätzlich admin-only für
+  die vier verändernden Endpunkte -- Muster `app/routers/task_columns.py`). Kein Modul-Gate --
+  Projekte sind Teil der immer aktiven Kern-ERP-Kette.
+- **Spaltenverwaltung** unter Einstellungen → neue Gruppe "Projekte" → "Projekt-Pipeline" --
+  dieselbe Bearbeiten/Verschieben/Löschen-Oberfläche wie bei den Aufgaben-Spalten (Label-Feld,
+  ↑/↓-Buttons, Löschen), nur ohne die "zählt als erledigt"-Checkbox.
+
+### Bewusst NICHT Teil dieser Version
+
+Die Listen- und Kanban-Oberfläche selbst (voller Breite Liste ohne den linken Reiter-Kasten,
+Kategoriefilter, Kontextmenü je Zeile, umschaltbare Kanban-Ansicht mit Drag-and-Drop) -- das ist
+die zweite, noch zu bauende Runde, nach Bestätigung dieses Fundaments. Für das Verschieben per
+Ziehen ist bereits entschieden (Muster übernommen von der Absicherungs-ÜBERLEGUNG bei den
+Aufgaben, nicht von einem dort tatsächlich vorhandenen Mechanismus, da es dort gar kein Drag &
+Drop gibt, siehe Befund oben): nur die Pipeline-Spalte ändert sich, kein fachlicher Status, der
+Wechsel ist über die Spaltenzuordnung jederzeit umkehrbar -- ein versehentliches Ziehen hat
+keine fachliche Folge, deshalb kein Bestätigungsdialog nötig.
+
 ## Migrations-Workflow
 
 Bisher: Claude erstellt/ändert Modelle → Tobias führt lokal `alembic revision --autogenerate`
@@ -7354,6 +7502,20 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 
 ## Bekannte, bewusst offene Punkte
 
+- **Zwei Tests in `tests/test_v224_field_view.py` sind von der tatsächlichen Wanduhrzeit
+  abhängig, unabhängig von jeder Codeänderung.** Gefunden bei 1.3.70 (Projekt-Pipeline), aber
+  bereits vorher bestehend und ohne jeden Zusammenhang zu diesem Feature -- die Testdatei enthält
+  keine einzige `Project(...)`-Konstruktion. `test_field_view_today_returns_assignments_and_
+  drafts_for_linked_employee`/`..._rejects_unlinked_employee` rufen
+  `get_field_view_today()` (`app/routers/field_view.py`) direkt auf, ohne die darin geprüfte
+  Feierabend-Grenze (`is_past_shift_end()`, Standard 19:00 Uhr, `app/mobile_settings.py`) über
+  ein festes `now` zu entkoppeln -- nach 19 Uhr liefert die Funktion einen frühen
+  `JSONResponse`(401) statt der erwarteten Zuordnungsliste, die Tests schlagen dann fehl,
+  egal welcher Code sonst geändert wurde. Verifiziert durch einen isolierten Lauf nur dieser
+  beiden Tests zu unterschiedlichen Uhrzeiten. Nicht behoben (außerhalb des angefragten
+  Umfangs) -- eine saubere Lösung wäre, `now` in beiden Tests explizit vor 19:00 Uhr zu setzen
+  (Muster: die Funktion nimmt bereits einen optionalen `now`-Parameter für genau diesen Zweck,
+  siehe `is_past_shift_end(settings, now=None)`), nur der Testaufruf nutzt ihn bisher nicht.
 - **Kolonnenführer-Rolle für Gruppenbuchungen -- bewusst offen, wie vom Betreiber vorgegeben**
   (seit 1.3.60, siehe Abschnitt "Zeiterfassung für Monteure" oben): die reduzierte
   `time_tracking_field.html` kennt keine Gruppenbuchung mehr, ein Monteur bucht nur für sich

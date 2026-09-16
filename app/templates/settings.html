@@ -34,6 +34,10 @@
         <button type="button" data-settings-section="roof-layers" onclick="showSettingsSection('roof-layers')">Dachaufbau<span class="menu-sub">Schichttypen je Dachtyp für Dachflächen</span></button>
         <button type="button" data-settings-section="component-types" onclick="showSettingsSection('component-types')">Bauteilarten<span class="menu-sub">Gully, Rinne, Photovoltaik, ...</span></button>
       </div>
+      <div class="settings-group">Projekte</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="project-pipeline" onclick="showSettingsSection('project-pipeline')">Projekt-Pipeline<span class="menu-sub">Kanban-Spalten der Projektliste</span></button>
+      </div>
       <div class="settings-group">Finanzen</div>
       <div class="settings-menu">
         <button type="button" data-settings-section="numbers" onclick="showSettingsSection('numbers')">Nummernkreise<span class="menu-sub">Kunden, Angebote, Rechnungen …</span></button>
@@ -141,6 +145,20 @@
     </div>
     <span id="sidebarLogoStatus" class="status"></span>
     <div class="hint">Erscheint ausschließlich oben links in der Seitenleiste, statt des Firmenlogos bzw. des Schriftzugs "DACHKONZEPTE" -- sinnvoll, wenn das Firmenlogo (wie hier) selbst einen Schriftzug enthält, der bei keiner erlaubten Höhe mehr lesbar wäre. Hier lässt sich stattdessen eine reduzierte Variante hinterlegen (z. B. nur ein Bildzeichen). <span id="sidebarLogoFallbackHint"></span> Die Höhe oben gilt für das jeweils tatsächlich in der Seitenleiste gezeigte Logo. PNG, JPEG, WebP oder SVG, max. 5 MB. Ist das gezeigte Logo breiter als der verfügbare Platz, wird es rechts abgeschnitten statt in der Höhe verkleinert.</div>
+  </section>
+
+  <section class="card settings-section" id="settings-project-pipeline">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Projekt-Pipeline</h2><div class="muted small">Frei sortierbare Kanban-Spalten der Projektliste -- unabhängig vom bestehenden Projektstatus.</div></div></div>
+    <div class="hint">Diese Spalten sind eine reine, frei per Ziehen gesetzte Arbeitsansicht -- sie haben keine Auswirkung auf den Projektstatus (dieser bleibt automatisch/über Kennzahlen gesteuert, z. B. bei einer Beauftragung) und keine Automatik wie bei den Aufgaben-Spalten ("zählt als erledigt"). Ein neu angelegtes Projekt landet immer in der ersten Spalte.</div>
+    <div class="list-narrow" id="projectPipelineColumnRows"></div>
+    <div class="field" style="max-width:420px;margin-top:10px">
+      <label>Neue Spalte</label>
+      <div style="display:flex;gap:8px">
+        <input id="newProjectPipelineColumnLabel" placeholder="Bezeichnung …">
+        <button type="button" onclick="addProjectPipelineColumn()">+ Hinzufügen</button>
+      </div>
+      <span id="projectPipelineColumnStatus" class="status"></span>
+    </div>
   </section>
 
   <section class="card settings-section" id="settings-numbers">
@@ -605,7 +623,7 @@ const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
   refreshStatusColors();
 })();
 const v=id=>document.getElementById(id).value.trim();const nv=id=>v(id)||null;const setv=(id,x)=>document.getElementById(id).value=x??'';
-const SETTINGS_SECTIONS=['general','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','mobile'];
+const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','mobile'];
 function showSettingsSection(key,updateHash=true){
   if(!SETTINGS_SECTIONS.includes(key))key='general';
   document.querySelectorAll('.settings-section').forEach(x=>x.classList.toggle('active',x.id===`settings-${key}`));
@@ -646,7 +664,7 @@ async function load(){
   generalSettings=g;renderCompanyLogo();renderSidebarLogo();
   setv('laborRate',c.labor_rate);setv('materialMarkup',c.material_markup_pct);setv('overhead',c.overhead_pct);setv('riskProfit',c.risk_profit_pct);document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
   setv('employerCostPct',lr.employer_cost_pct);setv('productiveTimePct',lr.productive_time_pct);setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',lr.fixed_overhead_value||0);setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',lr.variable_overhead_value||0);setv('targetProfitPct',lr.target_profit_pct);setv('weeksPerYear',lr.weeks_per_year);syncOverheadLabels();renderLaborRate(lrc);
-  sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();document.getElementById('autoCreateDraftsCheckbox').checked=!!rs.auto_create_drafts;moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadDocumentCategoriesSection();loadMobileSection();loadDocumentLayoutSection();}
+  sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();document.getElementById('autoCreateDraftsCheckbox').checked=!!rs.auto_create_drafts;moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadDocumentCategoriesSection();loadMobileSection();loadDocumentLayoutSection();loadProjectPipelineSection();}
 
 function renderModuleStates(){document.getElementById('moduleRows').innerHTML=moduleStates.length?moduleStates.map(m=>`<div class="field"><label style="display:flex;align-items:center;gap:10px;font-weight:650"><input type="checkbox" style="width:auto" ${m.enabled?'checked':''} onchange="toggleModule('${m.module_key}',this.checked)"> ${esc(m.label)}</label><span id="moduleStatus-${m.module_key}" class="status"></span></div>`).join(''):'<div class="muted small">Keine optionalen Module registriert.</div>'}
 async function toggleModule(key,checked){const st=document.getElementById('moduleStatus-'+key);try{await api(`/api/modules/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:checked})});moduleStates=await api('/api/modules');st.textContent=checked?'Aktiviert.':'Deaktiviert.';loadTaskSection();loadMaintenanceSection()}catch(e){st.textContent='Fehler: '+e.message}}
@@ -1330,6 +1348,45 @@ async function addTaskColumn(){
   const st=document.getElementById('taskColumnStatus');
   if(!label){st.textContent='Bitte eine Bezeichnung angeben.';return}
   try{await api('/api/task-columns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})});input.value='';taskColumns=await api('/api/task-columns');renderTaskColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+}
+
+let projectPipelineColumns=[];
+async function loadProjectPipelineSection(){
+  try{projectPipelineColumns=await api('/api/project-pipeline-columns');renderProjectPipelineColumns()}catch(e){document.getElementById('projectPipelineColumnStatus').textContent='Fehler: '+e.message}
+}
+function renderProjectPipelineColumns(){
+  document.getElementById('projectPipelineColumnRows').innerHTML=projectPipelineColumns.length?projectPipelineColumns.map((c,i)=>`<div class="field" style="display:flex;align-items:center;gap:8px">
+    <input value="${esc(c.label)}" style="flex:1" onblur="saveProjectPipelineColumnLabel(${c.id},this.value)">
+    <button type="button" class="secondary" ${i===0?'disabled':''} onclick="moveProjectPipelineColumn(${i},-1)">↑</button>
+    <button type="button" class="secondary" ${i===projectPipelineColumns.length-1?'disabled':''} onclick="moveProjectPipelineColumn(${i},1)">↓</button>
+    <button type="button" class="danger" onclick="deleteProjectPipelineColumn(${c.id})">×</button>
+  </div>`).join(''):'<div class="muted small">Keine Spalten vorhanden.</div>';
+}
+async function saveProjectPipelineColumnLabel(id,value){
+  const label=value.trim();
+  if(!label){renderProjectPipelineColumns();return}
+  const st=document.getElementById('projectPipelineColumnStatus');
+  try{await api(`/api/project-pipeline-columns/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})});projectPipelineColumns=await api('/api/project-pipeline-columns');renderProjectPipelineColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+}
+async function moveProjectPipelineColumn(index,dir){
+  const target=index+dir;
+  if(target<0||target>=projectPipelineColumns.length)return;
+  const ids=projectPipelineColumns.map(c=>c.id);
+  [ids[index],ids[target]]=[ids[target],ids[index]];
+  const st=document.getElementById('projectPipelineColumnStatus');
+  try{projectPipelineColumns=await api('/api/project-pipeline-columns/reorder',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordered_ids:ids})});renderProjectPipelineColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+}
+async function deleteProjectPipelineColumn(id){
+  if(!confirm('Diese Spalte wirklich löschen?'))return;
+  const st=document.getElementById('projectPipelineColumnStatus');
+  try{await api(`/api/project-pipeline-columns/${id}`,{method:'DELETE'});projectPipelineColumns=await api('/api/project-pipeline-columns');renderProjectPipelineColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+}
+async function addProjectPipelineColumn(){
+  const input=document.getElementById('newProjectPipelineColumnLabel');
+  const label=input.value.trim();
+  const st=document.getElementById('projectPipelineColumnStatus');
+  if(!label){st.textContent='Bitte eine Bezeichnung angeben.';return}
+  try{await api('/api/project-pipeline-columns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})});input.value='';projectPipelineColumns=await api('/api/project-pipeline-columns');renderProjectPipelineColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
 }
 
 function renderPaymentTerms(){document.getElementById('paymentTermRows').innerHTML=paymentTerms.length?paymentTerms.map(x=>`<tr><td><b>${esc(x.label)}</b>${x.text_template?'<div class="muted small">eigener Text hinterlegt</div>':''}</td><td>${x.days}</td><td>${x.skonto_percent?`${String(x.skonto_percent).replace('.',',')} % bei ${x.skonto_days} Tagen`:'<span class="muted">—</span>'}</td><td>${x.is_default?'<span class="badge">Standard</span>':(x.archived?'Archiviert':'Aktiv')}</td><td><button class="secondary" onclick="editPaymentTerm(${x.id})">Bearbeiten</button> ${x.is_default?'':x.archived?`<button class="secondary" onclick="unarchivePaymentTerm(${x.id})">Wiederherstellen</button>`:`<button class="secondary" onclick="setDefaultPaymentTerm(${x.id})">Als Standard</button> <button class="danger" onclick="archivePaymentTerm(${x.id})">Archivieren</button>`}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">Noch keine Zahlungsbedingung hinterlegt.</td></tr>'}

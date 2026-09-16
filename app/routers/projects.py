@@ -20,6 +20,7 @@ from ..option_settings import default_option_value, ensure_default_option_groups
 from ..orders import load_order, order_to_dict
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
 from ..project_documents import MAX_UPLOAD_BYTES, make_stored_filename, project_directory
+from ..project_pipeline_columns import default_pipeline_column_id
 from ..projects import delete_project, duplicate_project, load_project, load_quote, next_project_number, next_quote_number, quote_to_dict, set_project_archived
 from ..service_reports import count_reports_for_order
 from ..schemas import InvoiceOverviewOut, OrderListOut, ProjectCreate, ProjectDetailOut, ProjectDocumentOut, ProjectDuplicateRequest, ProjectListOut, ProjectUpdate, QuoteCreate, QuoteListOut, QuoteOut
@@ -142,7 +143,7 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db), _role:
         if property_obj is None or property_obj.customer_id != payload.customer_id:
             raise HTTPException(status_code=422, detail="Objekt gehört nicht zum ausgewählten Kunden.")
     data = payload.model_dump(exclude={"category"})
-    project = Project(project_number=next_project_number(db), **data)
+    project = Project(project_number=next_project_number(db), pipeline_column_id=default_pipeline_column_id(db), **data)
     db.add(project)
     db.flush()
     _ensure_project_profile(db, project.id, payload.category)

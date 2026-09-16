@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.document_layout import get_background, set_background, set_background_repeat
 from app.models import Customer, Project, Quote, QuoteItem
+from app.project_pipeline_columns import default_pipeline_column_id
 
 
 def db_session():
@@ -28,7 +29,7 @@ def make_quote_with_items(db, item_count=1, vat_rate=Decimal("19.00")):
     customer = Customer(name="Test Kunde", last_name="Test Kunde")
     db.add(customer)
     db.flush()
-    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     quote = Quote(quote_number="A-TEST-0001", project_id=project.id, title="Testangebot", vat_rate=vat_rate)

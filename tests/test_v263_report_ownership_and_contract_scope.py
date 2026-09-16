@@ -35,12 +35,13 @@ def _employee(db, number, first, last):
 
 def _order_with_property(db, order_number, project_number, customer=None, property_name="Objekt Nord"):
     from app.models import Customer, Order, OrderItem, Project, Property
+    from app.project_pipeline_columns import default_pipeline_column_id
     if customer is None:
         customer = Customer(name="Testkunde", last_name="Testkunde", city="Teststadt")
         db.add(customer); db.flush()
     prop = Property(customer_id=customer.id, name=property_name, street="Teststr. 1", city="Teststadt")
     db.add(prop); db.flush()
-    project = Project(project_number=project_number, name="Testprojekt", customer_id=customer.id, property_id=prop.id)
+    project = Project(project_number=project_number, name="Testprojekt", customer_id=customer.id, property_id=prop.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.flush()
     order = Order(order_number=order_number, project_id=project.id,
                   source_quote_id=int(order_number.rsplit("-", 1)[-1]),

@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from app.findings import create_finding, list_findings_for_component, update_finding_followup
 from app.modules import set_module_enabled
 from app.models import Finding, Project, ServiceReportPhoto, Task
+from app.project_pipeline_columns import default_pipeline_column_id
 from app.roof_areas import create_roof_area, create_roof_component, delete_roof_component
 from app.service_report_pdf import build_service_report_pdf
 from app.service_reports import add_photo, create_report, delete_photo, delete_report, list_inspection_items, list_photos, sign_report, update_inspection_item
@@ -28,7 +29,7 @@ def _build_extra_order(db, suffix, source_quote_id):
     customer = Customer(name=f"Test Kunde {suffix}", last_name=f"Test Kunde {suffix}")
     db.add(customer)
     db.flush()
-    project = Project(project_number=f"P-TEST-{suffix}", name=f"Testprojekt {suffix}", customer_id=customer.id)
+    project = Project(project_number=f"P-TEST-{suffix}", name=f"Testprojekt {suffix}", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     order = Order(

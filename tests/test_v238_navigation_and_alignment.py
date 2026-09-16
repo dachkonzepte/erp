@@ -26,11 +26,12 @@ from app.projects import quote_to_dict
 
 def test_quote_to_dict_includes_customer_id_for_breadcrumb():
     from app.models import Customer, Project, Quote
+    from app.project_pipeline_columns import default_pipeline_column_id
     db = db_session()
     customer = Customer(name="Test Kunde", last_name="Test Kunde")
     db.add(customer)
     db.flush()
-    project = Project(project_number="P-TEST-0300", name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number="P-TEST-0300", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     quote = Quote(project_id=project.id, quote_number="A-TEST-0300", title="Testangebot", vat_rate=Decimal("19.00"))

@@ -27,10 +27,11 @@ def _employee(db, number, first, last):
 
 def _order(db, order_number, project_number, customer=None):
     from app.models import Customer, Order, OrderItem, Project
+    from app.project_pipeline_columns import default_pipeline_column_id
     if customer is None:
         customer = Customer(name="Testkunde", last_name="Testkunde", city="Teststadt")
         db.add(customer); db.flush()
-    project = Project(project_number=project_number, name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number=project_number, name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.flush()
     order = Order(order_number=order_number, project_id=project.id,
                   source_quote_id=int(order_number.rsplit("-", 1)[-1]),

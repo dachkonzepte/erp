@@ -19,6 +19,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import AppUser, Customer, Order, Project, Property
+from app.project_pipeline_columns import default_pipeline_column_id
 from app.schemas import AppUserCreate, PropertyCreate, PropertyOut, PropertyUpdate
 from app.service_reports import get_property_context_for_order
 
@@ -71,7 +72,7 @@ def _make_order_with_property(db, order_number="AUF-TEST-0001"):
         site_contact_phone="0170 1234567", notes="Büro-interner Vermerk, nicht für den Monteur",
     )
     db.add(prop); db.flush()
-    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id, property_id=prop.id)
+    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id, property_id=prop.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.flush()
     order = Order(
         order_number=order_number, project_id=project.id, source_quote_id=1, quote_number_snapshot="A-TEST-0001",
@@ -93,7 +94,7 @@ def test_get_property_context_for_order_returns_the_live_property(db_session):
 def test_get_property_context_for_order_returns_none_without_linked_property(db_session):
     customer = Customer(name="Testkunde", last_name="Testkunde")
     db_session.add(customer); db_session.flush()
-    project = Project(project_number="P-TEST-0002", name="Testprojekt ohne Objekt", customer_id=customer.id)
+    project = Project(project_number="P-TEST-0002", name="Testprojekt ohne Objekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db_session))
     db_session.add(project); db_session.flush()
     order = Order(
         order_number="AUF-TEST-0002", project_id=project.id, source_quote_id=1, quote_number_snapshot="A-TEST-0002",

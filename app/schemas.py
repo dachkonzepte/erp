@@ -2610,6 +2610,25 @@ class TaskUpdate(BaseModel):
 
 
 # --- Version 1.1.1: Konfigurierbare Aufgaben-Spalten ---
+class ProjectPipelineColumnOut(BaseModel):
+    id: int
+    key: str
+    label: str
+    sort_order: int
+
+
+class ProjectPipelineColumnCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=80)
+
+
+class ProjectPipelineColumnUpdate(BaseModel):
+    label: str | None = Field(default=None, min_length=1, max_length=80)
+
+
+class ProjectPipelineColumnReorder(BaseModel):
+    ordered_ids: list[int]
+
+
 class TaskColumnOut(BaseModel):
     id: int
     key: str

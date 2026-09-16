@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from app.models import Customer, Order, Project, Property
+from app.project_pipeline_columns import default_pipeline_column_id
 from app.service_reports import create_report, list_property_history, sign_report
 from tests.test_v133_invoices import db_session
 from tests.test_v203_service_reports import TINY_PNG
@@ -26,7 +27,8 @@ def make_property_context(db, property_name="Hauptdach"):
     prop = Property(customer_id=customer.id, name=property_name)
     db.add(prop); db.flush()
     project = Project(project_number="P-" + property_name, name="Projekt " + property_name,
-                       customer_id=customer.id, property_id=prop.id)
+                       customer_id=customer.id, property_id=prop.id,
+                       pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.commit()
     return {"customer": customer, "property": prop, "project": project}
 
@@ -35,7 +37,7 @@ def test_no_history_without_a_linked_property():
     db = db_session()
     customer = Customer(name="Ohne Gebaeude", last_name="Ohne Gebaeude")
     db.add(customer); db.flush()
-    project = Project(project_number="P-OHNE", name="Projekt ohne Gebäude", customer_id=customer.id)
+    project = Project(project_number="P-OHNE", name="Projekt ohne Gebäude", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.commit()
     order = Order(order_number="AUF-OHNE", project_id=project.id, source_quote_id=1, quote_number_snapshot="A-OHNE",
                   title="Auftrag ohne Gebäude", vat_rate=Decimal("19.00"), customer_name=customer.name)

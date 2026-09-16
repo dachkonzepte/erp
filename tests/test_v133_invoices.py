@@ -20,6 +20,7 @@ from app.invoices import (
     visible_items,
 )
 from app.models import Order, OrderItem, Customer, Project
+from app.project_pipeline_columns import default_pipeline_column_id
 
 
 def db_session():
@@ -42,7 +43,7 @@ def make_order_with_item(
     customer = Customer(name="Test Kunde", last_name="Test Kunde")
     db.add(customer)
     db.flush()
-    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id)
+    project = Project(project_number="P-TEST-0001", name="Testprojekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project)
     db.flush()
     order = Order(

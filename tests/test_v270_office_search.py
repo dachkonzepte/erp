@@ -28,6 +28,7 @@ from app.models import (
     ServiceReport, Supplier, Task,
 )
 from app.permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE
+from app.project_pipeline_columns import default_pipeline_column_id
 from app.search import OFFICE_SEARCH_SOURCES, search_office
 from tests.test_v153_mahnwesen import db_session  # noqa: F401 -- re-exportiert db_session als Fixture
 
@@ -79,7 +80,7 @@ def test_invoice_found_via_frozen_snapshot_and_customer_found_via_live_name(db_s
     db = db_session
     customer = Customer(name="Wolfgang Rödchen", last_name="Rödchen", first_name="Wolfgang")
     db.add(customer); db.flush()
-    project = Project(project_number="P-SNAP-0001", name="Snapshot-Projekt", customer_id=customer.id)
+    project = Project(project_number="P-SNAP-0001", name="Snapshot-Projekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.flush()
     quote = Quote(quote_number="A-SNAP-0001", project_id=project.id, title="Snapshot-Angebot")
     db.add(quote); db.flush()
@@ -138,7 +139,7 @@ def _build_full_dataset(db, marker: str):
     db.add(prop); db.flush()
     db.add(RoofArea(property_id=prop.id, name=f"{marker} Dachfläche"))
 
-    project = Project(project_number=f"P-{marker}", name=f"{marker} Projekt", customer_id=customer.id)
+    project = Project(project_number=f"P-{marker}", name=f"{marker} Projekt", customer_id=customer.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(project); db.flush()
 
     quote = Quote(quote_number=f"A-{marker}", project_id=project.id, title=f"{marker} Angebot")
