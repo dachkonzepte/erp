@@ -435,6 +435,18 @@ class FieldDocumentCategoryOut(BaseModel):
     label: str
 
 
+class PropertySearchHitOut(BaseModel):
+    """Ein Vorschlag der Monteurs-Objektsuche (siehe app/search.py) -- bewusst nur Objektname und
+    Ort zur Identifikation (CLAUDE.md "Suche als Einstieg" -> Punkt 3), kein Kunde, keine volle
+    Adresse, keine Kundennummer. Als response_model auf dem Such-Endpunkt eine zusätzliche,
+    strukturelle Sperre: selbst ein künftiger Programmierfehler in search_properties_for_field(),
+    der versehentlich mehr Felder zurückgäbe, würde von Pydantic vor der Auslieferung wieder auf
+    genau diese drei Felder gekappt."""
+    id: int
+    name: str
+    city: str | None
+
+
 class QuoteCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     vat_rate: Decimal = Field(default=Decimal("19.00"), ge=0, le=100)

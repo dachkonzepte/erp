@@ -47,8 +47,9 @@ from ..property_documents import (
 )
 from ..schemas import (
     FieldDocumentCategoryOut, FieldMaintenancePropertyGroupOut, MobileSettingsOut, MobileSettingsUpdate,
-    PropertyAccessOut, PropertyDocumentListItemOut, ServiceReportHistoryOut,
+    PropertyAccessOut, PropertyDocumentListItemOut, PropertySearchHitOut, ServiceReportHistoryOut,
 )
+from ..search import search_properties_for_field
 from ..service_reports import list_draft_reports_for_employee, list_maintenance_history_for_property_field
 
 router = APIRouter()
@@ -174,6 +175,27 @@ def get_field_view_timesheet_pdf(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     filename = f"Stundenzettel_{year:04d}-{month:02d}.pdf"
     return Response(content=data, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.get("/api/field-view/properties/search", response_model=list[PropertySearchHitOut])
+def get_field_view_property_search(q: str = "", db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    """Die Monteurs-Objektsuche (Kernfunktion in app/search.py, siehe dort für die Begründung,
+    warum eine künftige Büro-Suche sie erweitert statt ersetzt). MUSS vor
+    GET /api/field-view/properties/{property_id} registriert sein: Starlette matcht Routen in
+    Registrierungsreihenfolge, nicht nach Spezifität -- ein Aufruf von .../properties/search
+    würde sonst am {property_id}:int-Platzhalter scheitern (422, "search" ist keine gültige
+    Ganzzahl), das bereits mehrfach dokumentierte Literal-vs-Platzhalter-Muster (siehe CLAUDE.md).
+
+    Liefert UNABHÄNGIG vom Aufrufer IMMER das feldsichere Ergebnis von
+    search_properties_for_field() -- dieser Endpunkt IST die Monteurs-Suche, kein gemeinsamer,
+    rollenabhängig antwortender Endpunkt (eine künftige, reichhaltigere Büro-Suche bekommt einen
+    EIGENEN Endpunkt auf search_properties()). `q` ist der einzige Client-Parameter; ein
+    zusätzlicher, erfundener Parameter (z. B. ?type=customer) wird von FastAPI ignoriert, kein
+    Weg, mehr als Objekte zu bekommen. `limit` ist bewusst NICHT client-steuerbar (fest auf
+    SEARCH_RESULT_LIMIT) -- ein ?limit=10000 kann nie mehr als die vorgesehenen zehn Treffer
+    erzwingen. response_model=list[PropertySearchHitOut] kappt zusätzlich strukturell auf
+    id/name/city, selbst falls die Funktion künftig versehentlich mehr zurückgäbe."""
+    return search_properties_for_field(db, q)
 
 
 @router.get("/api/field-view/properties/{property_id}", response_model=PropertyAccessOut)

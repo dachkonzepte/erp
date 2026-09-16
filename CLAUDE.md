@@ -20,7 +20,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.63** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.64** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf jetzt `f803985ebc2f` ("property documents table", siehe Abschnitt
   "Dateiablage je Objekt" unten) -- vorher `9137945e8785` ("document categories foundation"),
   davor `7a2b4e9f1c3d` ("app user role office field"): keine der
@@ -30,7 +30,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   bestehenden, geteilten "default"-Satz zurück, siehe "Fünf weitere Anpassungen"), siehe
   Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic history`/`heads` prüfen statt sich auf
   eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1302 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1314 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
   dort), zuletzt am 16.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -848,6 +848,18 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   reduziertes Wartungshistorie-Schema). Büro sieht dieselbe Dokumentliste (ungefiltert) über
   einen neuen Abschnitt auf `property.html`. 15 neue Angriffstests, null "durchgelassen". Details
   im Abschnitt "Dateiablage je Objekt" unten.
+- Neu seit 1.3.64: **Dateiablage je Objekt, Schritt 3 -- die geteilte Suche als Einstieg,
+  letzter Schritt der Monteurs-Erweiterung.** Neue, geteilte Kernfunktion (`app/search.py`) --
+  die Büro-Suche existiert weiterhin nicht (nur Befund), aber die Datei ist bereits als Kern
+  angelegt, den eine künftige Büro-Suche um weitere Datensatzarten erweitert statt sie zu
+  ersetzen. Sucht Objekte nach Name/Straße/PLZ/Ort und Kundenname, neuer Endpunkt
+  `GET /api/field-view/properties/search` liefert dabei UNABHÄNGIG vom Aufrufer immer nur die
+  drei harmlosen Felder (`id`/`name`/`city`) -- die Feldbegrenzung sitzt serverseitig, an der
+  Rolle, nicht an der URL. Suchfeld auf `/mobil` mit 300ms-Debounce, Vorschlagsliste führt direkt
+  zu `/mobil/objekt/{id}`. Index-Frage empirisch geprüft (nicht nur angenommen): ein
+  gewöhnlicher B-Baum-Index hilft einer Substring-Suche nachweislich nicht (`EXPLAIN QUERY PLAN`
+  zeigt `SCAN` selbst bei einem bereits indizierten Feld) -- keine neue Migration. 12 neue
+  Angriffstests, null "durchgelassen". Details im Abschnitt "Dateiablage je Objekt" unten.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -6575,9 +6587,10 @@ später geprüft werden kann, ob er sie sehen darf.
 ### Schritt 2 (seit 1.3.63): die mobile Objektansicht
 
 Baut auf dem Kategorie-Fundament aus 1.3.62 auf. Erst die Ansicht selbst, die geteilte Suche
-(Punkt 4 aus der ursprünglichen Betreiber-Entscheidung, siehe oben) kommt als eigener, späterer
-Schritt -- in dieser Version ist `/mobil/objekt/{property_id}` deshalb nur über eine bekannte
-Objekt-ID erreichbar, nicht aus `/mobil` heraus verlinkt.
+(Punkt 4 aus der ursprünglichen Betreiber-Entscheidung, siehe oben) kam als eigener, späterer
+Schritt -- in dieser Version war `/mobil/objekt/{property_id}` deshalb nur über eine bekannte
+Objekt-ID erreichbar, nicht aus `/mobil` heraus verlinkt. **Seit 1.3.64 verlinkt, siehe "Schritt 3"
+unten.**
 
 **Punkt 2 der Anfrage (Objekt- statt Sammelprojekt-Ablage), entschieden**: neue Tabelle
 `PropertyDocument` (`app/models.py`), direkt an `Property` gebunden -- die vom Betreiber
@@ -6664,9 +6677,83 @@ internes Feld (rekursiver Schlüssel-Scan über alle vier neuen Endpunkte, Fehle
 `purchase_price` aus 1.3.53); Büro sieht einen Monteur-Upload sofort in der eigenen Liste. Ein
 zweiter Punkt (Upload ohne Mitarbeiterverknüpfung -- 422) rundet das ab. Null "durchgelassen".
 
-**Bewusst NICHT Teil dieser Version**: die geteilte, feldbegrenzte Suche (Punkt 4 der
-ursprünglichen Entscheidung) -- `/mobil/objekt/{property_id}` bleibt bis dahin nur über eine
-bekannte ID erreichbar, keine Verlinkung aus `/mobil`.
+### Schritt 3 (seit 1.3.64): die geteilte Suche als Einstieg
+
+Letzter, ursprünglich zweimal zurückgestellter Punkt (Punkt 4 der Betreiber-Entscheidung, siehe
+oben) -- ein Monteur bekommt einen Weg, ein Objekt zu FINDEN, statt seine ID zu kennen. Mit
+dieser Version gilt: "Damit ist die Monteursansicht vollständig" (Betreibervorgabe).
+
+**Geteilte Kernfunktion statt zwei divergierender Implementierungen** (`app/search.py`, neu) --
+die Büro-Suche existiert weiterhin nicht (nur Befund, nie gebaut), diese Datei ist trotzdem
+bereits als geteilter KERN angelegt: eine künftige Büro-Suche ERWEITERT ihn um weitere
+Datensatzarten (Kunden, Aufträge, ...), ersetzt ihn nicht. Zwei bewusst getrennte Schichten:
+
+1. `search_properties(db, query, *, limit=10)` -- reine Datenbeschaffung, KEINE Rollenprüfung.
+   Sucht `Property` nach Name/Straße/PLZ/Ort UND dem Namen des zugehörigen Kunden (Join), gibt
+   volle `Property`-ORM-Objekte zurück. Eine zu kurze Anfrage (< `MIN_QUERY_LENGTH=2`) liefert
+   bewusst `[]` statt der ersten N Objekte -- eine Vorschlagsliste ohne brauchbaren Suchbegriff
+   wäre irreführend, und ein Ein-Zeichen-Muster (`ILIKE('%e%')`) würde einen unnötig breiten
+   Treffer über nahezu den ganzen Bestand erzeugen.
+2. `field_safe_property_search_results()`/`search_properties_for_field()` -- reduziert JEDES
+   Ergebnis auf `id`/`name`/`city` (Punkt 3 der Anfrage: nur so viel wie zur Identifikation
+   nötig, kein Kunde, keine volle Adresse, keine Kundennummer).
+
+**Die Feldbegrenzung sitzt serverseitig, an der Rolle, nicht an der URL** (wie ausdrücklich
+verlangt): `GET /api/field-view/properties/search` (`app/routers/field_view.py`, registriert VOR
+`GET .../properties/{property_id}` -- sonst die bereits mehrfach dokumentierte
+Literal-vs-Platzhalter-Kollision, "search" scheitert am `int`-Platzhalter mit 422) ruft
+UNABHÄNGIG vom Aufrufer immer `search_properties_for_field()` auf -- dieser Endpunkt IST die
+Monteurs-Suche, kein gemeinsamer, rollenabhängig antwortender Endpunkt. Eine künftige,
+reichhaltigere Büro-Suche bekommt einen EIGENEN Endpunkt auf `search_properties()` -- der
+Moduldocstring von `app/search.py` hält als verbindliche Regel fest, dass JEDER künftige, auch
+für `field` erreichbare Endpunkt (auch ein gemeinsamer Büro+Monteur-Endpunkt) bei `role==
+ROLE_FIELD` zwingend `search_properties_for_field()` aufrufen muss, nie die volle Kernfunktion
+direkt zurückgeben darf. `response_model=list[PropertySearchHitOut]` (`app/schemas.py`) kappt
+zusätzlich strukturell auf genau drei Felder -- eine zweite, unabhängige Sperre, falls die
+Funktion selbst je einen Fehler hätte. `q` ist der einzige Client-Parameter; `limit` ist bewusst
+NICHT client-steuerbar (fest auf `SEARCH_RESULT_LIMIT=10`), ein `?limit=99999` kann nie mehr als
+zehn Treffer erzwingen, unbekannte Parameter (`?type=customer` u. Ä.) ignoriert FastAPI ohnehin.
+
+**Index-Frage geprüft, nicht nur angenommen** (wie ausdrücklich verlangt): empirisch gegen die
+echte, lokale `dachkonzepte_erp.db` mit `EXPLAIN QUERY PLAN` belegt -- `customers.name` trägt
+bereits einen B-Baum-Index (`ix_customers_name`), trotzdem zeigt `SELECT * FROM customers WHERE
+name LIKE '%test%'` `SCAN customers` (voller Tabellenscan, Index vollständig ignoriert). Ein
+gewöhnlicher B-Baum-Index unterstützt nur Präfix-Suchen (`LIKE 'term%'`), keine Substring-Suchen
+mit führendem Platzhalter -- ein neuer Index auf `Property.name`/`street`/`postal_code`/`city`
+wäre für dieses Abfragemuster ebenso wirkungslos. Bei der aktuellen Datenmenge (163 Objekte, 162
+Kunden) ist ein voller Tabellenscan je Suchanfrage ohnehin irrelevant (< 1ms) -- deshalb **keine
+neue Migration für Indizes**. Die tatsächlich wirksamen Hebel gegen zu teure Anfragen sind
+`MIN_QUERY_LENGTH` (verhindert eine sehr breite Anfrage bei nur einem Zeichen) und der
+client-seitige Debounce (siehe unten) -- beide bereits eingebaut. Sollte die Datenmenge um
+Größenordnungen wachsen, wäre der richtige nächste Schritt PostgreSQL `pg_trgm`/SQLite `FTS5`,
+kein gewöhnlicher B-Baum-Index -- als Hinweis für später festgehalten, nicht gebaut.
+
+**Oberfläche** (`app/templates/mobil.html`): ein Suchfeld oberhalb der vier bestehenden
+Kartenabschnitte, `{% include "_debounce.html" %}` (derselbe, bereits bestehende, generische
+`debounce(fn, ms)`-Helfer wie bei `roof_area.html`/`service_reports.html`, hier zum ersten Mal
+für eine Suche statt eines Autosave verwendet -- der Helfer selbst ist dafür bereits geeignet,
+siehe CLAUDE.md-Fußnote zu `_debounce.html`) mit 300ms Verzögerung nach dem letzten Tastendruck.
+Eine Vorschlagsliste (`position:absolute` unter dem Eingabefeld) zeigt Objektname und Ort je
+Treffer, ein Klick führt direkt zu `/mobil/objekt/{id}`. Bei genau zehn Treffern (dem Limit) ein
+Hinweistext "Weitere Treffer möglich -- Suche verfeinern" -- ohne einen zusätzlichen
+Zähl-Request: der Server liefert keine Gesamtzahl, das Erreichen des Limits ist die naheliegende
+Annahme, dass mehr existieren könnten. Eine Anfrage unter zwei Zeichen löst client-seitig gar
+keinen Request aus (spart den Roundtrip, den `MIN_QUERY_LENGTH` serverseitig ohnehin verwerfen
+würde). Keine Ergebnisseite mit Filtern (wie bei einer künftigen Büro-Suche) -- die
+Vorschlagsliste genügt, wie ausdrücklich vorgegeben.
+
+**Angriffstest (`tests/test_v268_property_search.py`, 12 Tests), wie verlangt**: findet ein
+Monteur über die Suche etwas anderes als Objekte -- nein, jede Antwort des tatsächlichen
+Router-Endpunkts enthält ausschließlich `id`/`name`/`city` (rekursiver Schlüssel-Scan, Fehlerklasse
+`purchase_price`); liefert die Vorschlagsantwort ein gesperrtes Feld mit (Kundennummer, interne
+Notiz) -- nein, auch bei einem Treffer über den Kundennamen bleibt die Antwort auf die drei
+harmlosen Objektfelder beschränkt, der Kundenname selbst taucht nirgends in der Antwort auf;
+kommt ein Monteur, der den Such-Endpunkt mit anderen Parametern aufruft (`type=customer`,
+`full=true`, `fields=all`, `limit=99999`), an mehr als Objekte -- nein, unverändert höchstens
+zehn Treffer, unverändert nur die drei Felder. Zusätzlich: Literal-vs-Platzhalter-Kollisionscheck
+(`.../search` scheitert nicht am `{property_id}`-Platzhalter), `MIN_QUERY_LENGTH`-Grenze,
+Limit-Kappung bei 15 tatsächlich angelegten Treffern. Null "durchgelassen". Damit ist die
+Monteursansicht laut Betreibervorgabe vollständig.
 
 ## Migrations-Workflow
 

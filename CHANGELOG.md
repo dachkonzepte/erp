@@ -4,6 +4,37 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.64 – Dateiablage je Objekt, Schritt 3: die geteilte Suche als Einstieg
+
+Letzter, ursprünglich zweimal zurückgestellter Schritt der Monteurs-Erweiterung -- ein Monteur
+findet ein Objekt jetzt über ein Suchfeld auf `/mobil`, statt seine ID kennen zu müssen. Damit
+gilt laut Betreibervorgabe: "Damit ist die Monteursansicht vollständig."
+
+**Neue, geteilte Kernfunktion** (`app/search.py`) -- die Büro-Suche existiert weiterhin nicht (nur
+Befund, nie gebaut), diese Datei ist aber bereits als Kern angelegt, den eine künftige Büro-Suche
+um weitere Datensatzarten erweitert, statt sie zu ersetzen. Zwei Schichten: `search_properties()`
+(reine, rollenlose Datenbeschaffung über Objektname/Straße/PLZ/Ort UND den Namen des zugehörigen
+Kunden) und `search_properties_for_field()` (reduziert jedes Ergebnis auf `id`/`name`/`city`).
+Die Feldbegrenzung sitzt serverseitig, an der Rolle, nicht an der URL -- der neue Endpunkt
+`GET /api/field-view/properties/search` ruft ausschließlich die feldsichere Funktion auf,
+zusätzlich abgesichert durch ein knappes `response_model`. Registriert vor
+`GET .../properties/{property_id}`, sonst die bekannte Literal-vs-Platzhalter-Kollision.
+
+**Index-Frage empirisch geprüft, nicht angenommen**: `EXPLAIN QUERY PLAN` gegen die echte
+Datenbank zeigt, dass selbst ein bereits bestehender Index (`customers.name`) bei einer
+Substring-Suche (`ILIKE('%term%')`) ignoriert wird (`SCAN`, kein `SEARCH ... USING INDEX`) -- ein
+gewöhnlicher B-Baum-Index hilft nur Präfix-Suchen. Bei der aktuellen Datenmenge (163 Objekte, 162
+Kunden) ist ein voller Tabellenscan ohnehin irrelevant -- keine neue Migration für Indizes. Gegen
+zu teure Anfragen wirken statt eines Index eine serverseitige Mindestlänge (zwei Zeichen) und ein
+300ms-Debounce auf `/mobil` (`_debounce.html`, bereits bestehender Helfer, erstmals für eine Suche
+statt eines Autosave verwendet).
+
+Vorschlagsliste auf `/mobil` zeigt Objektname und Ort je Treffer, ein Klick führt direkt zu
+`/mobil/objekt/{id}`; bei zehn Treffern (dem festen Limit) ein Hinweis, die Suche zu verfeinern.
+Angriffstest (12 neue Tests): kein Endpunkt liefert etwas anderes als Objekte, kein gesperrtes
+Feld (Kundennummer, interne Notiz) taucht in der Antwort auf, manipulierte Parameter (`limit`,
+erfundene Felder) ändern weder die Trefferzahl noch das Antwortschema. Null "durchgelassen".
+
 ## 1.3.63 – Dateiablage je Objekt, Schritt 2: die mobile Objektansicht
 
 Zweiter Schritt der "Dateiablage je Objekt" (nach den Kategorie-Stammdaten aus 1.3.62) -- die
