@@ -21,17 +21,46 @@ nur das PATTERN: is_due prüft eine Vorlaufzeit (reminder_lead_days) VOR dem eig
 next_due_date, is_overdue prüft, ob next_due_date bereits verstrichen ist -- exakt dieselbe
 Zwei-Stufen-Idee wie beim Wartungsmodul, mit eigenen, einfacheren, an die Gerätefrist
 angepassten Funktionen (siehe CLAUDE.md, "gleiches Muster, dokumentierte Trennung", analog zu
-den Projekt-Pipeline-Spalten)."""
+den Projekt-Pipeline-Spalten).
+
+Automatische Fälligkeitsberechnung (seit 1.4.2, _compute_next_due_date()): next_due_date wird
+nicht mehr direkt vom Client übernommen, sobald interval_months gesetzt ist -- stattdessen
+IMMER aus dem tatsächlichen last_inspection_date (oder, beim allerersten Anlegen ohne dieses,
+aus dem Anschaffungsdatum des Betriebsmittels) plus Intervall minus einen Tag berechnet. Der
+entscheidende Punkt: eine verspätet erledigte Prüfung verschiebt den GESAMTEN Rhythmus mit --
+die Basis ist immer das zuletzt tatsächliche Prüfdatum, nie eine kumulative Fortschreibung ab
+dem ursprünglichen Anschaffungsdatum (siehe tests/test_v278_operational_assets_erweiterungen.py
+für den Belegtest). Eine Prüffrist ohne interval_months (einmalige Prüfung) bleibt vollständig
+manuell.
+
+Erinnerungs-Aufgabe (check_due_asset_inspections_and_create_reminders()): On-Demand wie
+check_due_contracts_and_create_reminders() (app/maintenance_contracts.py) -- läuft nur beim
+Aufruf der Stammdaten-Betriebsmittelliste, kein Hintergrundjob. last_reminder_due_date ist
+derselbe Idempotenz-Stempel wie bei MaintenanceContract."""
 
 from datetime import date, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import event, select
 from sqlalchemy.orm import Session, selectinload
 
-from .models import OperationalAsset, OperationalAssetInspection, OperationalAssetSettings, OperationalResource
+from .date_utils import add_months
+from .modules import is_module_enabled
+from .models import (
+    OperationalAsset, OperationalAssetDocument, OperationalAssetInspection, OperationalAssetSettings,
+    OperationalResource,
+)
 from .operational_asset_documents import delete_document_file
+from .tasks import create_task
 
 MODULE_KEY = "betriebsmittel"
+
+
+@event.listens_for(OperationalAssetDocument, "before_delete")
+def _delete_operational_asset_document_file(mapper, connection, target: OperationalAssetDocument) -> None:
+    """Feuert für JEDEN ORM-Löschweg -- direkt über delete_asset_document() genauso wie
+    kaskadiert über OperationalAsset.documents (cascade="all, delete-orphan") beim Löschen des
+    ganzen Betriebsmittels. Muster app/roof_areas.py::_delete_roof_area_sketch_file()."""
+    delete_document_file(target.stored_filename)
 
 
 def is_inspection_due(next_due_date: date | None, lead_days: int, *, today: date | None = None) -> bool:
@@ -85,12 +114,15 @@ def _inspection_to_dict(inspection: OperationalAssetInspection, lead_days: int, 
     }
 
 
-def _resolve_identity(asset: OperationalAsset) -> tuple[str | None, str | None, str | None, str | None, str | None, str | None]:
+def resolve_asset_identity(asset: OperationalAsset) -> tuple[str | None, str | None, str | None, str | None, str | None, str | None]:
     """Löst bei verknüpfter Ressource die Identitätsfelder LIVE auf -- niemals von
     OperationalAsset selbst gelesen, solange resource_id gesetzt ist (siehe Moduldocstring).
-    Geteilt zwischen asset_to_dict() (volle Ansicht) und asset_field_dict() (Monteur-Ansicht,
-    Stufe 2), damit beide Ansichten für dasselbe Asset nie unterschiedliche Namen/Typen zeigen
-    könnten."""
+    Geteilt zwischen asset_to_dict() (volle Ansicht), asset_field_dict() (Monteur-Ansicht,
+    Stufe 2) UND, seit 1.4.2, app/search.py::_operational_asset_row() (Büro-Suche, Punkt 3) --
+    damit alle drei Ansichten für dasselbe Asset nie unterschiedliche Namen/Typen zeigen
+    könnten. Ohne führenden Unterstrich (seit 1.4.2), da search.py als dritter Aufrufer
+    hinzukam -- ein modulübergreifend genutzter Helfer ist kein privates Implementierungsdetail
+    mehr."""
     resource = asset.resource
     if resource is not None:
         return resource.name, resource.resource_type, resource.manufacturer, resource.model, resource.identifier, resource.resource_number
@@ -101,9 +133,9 @@ def asset_field_dict(asset: OperationalAsset) -> dict:
     """Reduzierte Ansicht für die Rolle `field` (Rechtekonzept, Betriebsmittelverwaltung
     Stufe 2, siehe CLAUDE.md) -- ausschließlich Bezeichnung/Art/Hersteller/Modell/
     Bedienungshinweise. Bewusst KEIN Ressourcenbezug, keine Prüffristen, keine Kosten, keine
-    Artikelnummer/kein Produktlink -- diese Felder gehören zur Beschaffung/Planung, nicht zur
-    Bedienung vor Ort."""
-    name, asset_type, manufacturer, model, _identifier, _resource_number = _resolve_identity(asset)
+    Artikelnummer/kein Produktlink, keine Dokumente -- diese Felder gehören zur Beschaffung/
+    Planung, nicht zur Bedienung vor Ort."""
+    name, asset_type, manufacturer, model, _identifier, _resource_number = resolve_asset_identity(asset)
     return {
         "id": asset.id,
         "name": name,
@@ -123,10 +155,24 @@ def asset_qr_target_url(base_url: str, asset_id: int) -> str:
     return f"{base_url.rstrip('/')}/betriebsmittel/{asset_id}"
 
 
+def _document_to_dict(document: OperationalAssetDocument) -> dict:
+    return {
+        "id": document.id,
+        "asset_id": document.asset_id,
+        "document_type": document.document_type,
+        "original_filename": document.original_filename,
+        "notes": document.notes,
+        "uploaded_at": document.uploaded_at,
+    }
+
+
 def asset_to_dict(asset: OperationalAsset, lead_days: int, *, today: date | None = None) -> dict:
     """Löst bei verknüpfter Ressource die Identitätsfelder LIVE auf -- niemals von
-    OperationalAsset selbst gelesen, solange resource_id gesetzt ist (siehe Moduldocstring)."""
-    name, asset_type, manufacturer, model, identifier, resource_number = _resolve_identity(asset)
+    OperationalAsset selbst gelesen, solange resource_id gesetzt ist (siehe Moduldocstring).
+    Bewusst die einzige Stelle, die je documents befüllt -- asset_field_dict() (Rolle `field`)
+    kennt dieses Feld an keiner Stelle, ein Monteur bekommt es dadurch strukturell nie, auch
+    nicht über den QR-Code (siehe Klassendocstring von OperationalAssetDocument)."""
+    name, asset_type, manufacturer, model, identifier, resource_number = resolve_asset_identity(asset)
 
     inspections = [_inspection_to_dict(i, lead_days, today=today) for i in asset.inspections]
     due_dates = [i["next_due_date"] for i in inspections if i["next_due_date"] is not None]
@@ -157,12 +203,14 @@ def asset_to_dict(asset: OperationalAsset, lead_days: int, *, today: date | None
         "is_overdue": is_overdue,
         "next_due_date": next_due_date,
         "inspections": inspections,
+        "documents": [_document_to_dict(d) for d in asset.documents],
     }
 
 
 def _asset_query():
     return select(OperationalAsset).options(
-        selectinload(OperationalAsset.resource), selectinload(OperationalAsset.inspections)
+        selectinload(OperationalAsset.resource), selectinload(OperationalAsset.inspections),
+        selectinload(OperationalAsset.documents),
     )
 
 
@@ -281,16 +329,39 @@ def delete_asset(db: Session, asset_id: int) -> bool:
     return True
 
 
+def _compute_next_due_date(
+    interval_months: int | None, last_inspection_date: date | None, acquisition_date: date | None,
+) -> date | None:
+    """Automatische Fälligkeitsberechnung (siehe Moduldocstring) -- None bedeutet "kein
+    Intervall, next_due_date bleibt manuell/vom Client übernommen", NICHT "unbekannt".
+    Basis ist last_inspection_date, falls vorhanden (auch beim allerersten Anlegen, wenn eine
+    frühere Prüfung nachträglich als last_inspection_date eingetragen wird), sonst das
+    Anschaffungsdatum des Betriebsmittels (erste Fälligkeit ohne jede vorherige Prüfung). Fehlt
+    beides, kann nichts berechnet werden -- next_due_date wird dann None, nicht der zuletzt
+    manuell eingegebene Wert, da sonst kein Ankerdatum für den "nie kumulativ"-Anspruch existiert."""
+    if interval_months is None:
+        return None
+    base = last_inspection_date or acquisition_date
+    if base is None:
+        return None
+    return add_months(base, interval_months) - timedelta(days=1)
+
+
 def create_inspection(db: Session, asset_id: int, payload: dict) -> dict | None:
     asset = db.get(OperationalAsset, asset_id)
     if asset is None:
         return None
+    interval_months = payload.get("interval_months")
+    last_inspection_date = payload.get("last_inspection_date")
+    next_due_date = _compute_next_due_date(interval_months, last_inspection_date, asset.acquisition_date)
+    if interval_months is None:
+        next_due_date = payload.get("next_due_date")  # manuell, einmalige Prüfung ohne Intervall
     inspection = OperationalAssetInspection(
         asset_id=asset_id,
         inspection_type=payload["inspection_type"].strip(),
-        interval_months=payload.get("interval_months"),
-        last_inspection_date=payload.get("last_inspection_date"),
-        next_due_date=payload.get("next_due_date"),
+        interval_months=interval_months,
+        last_inspection_date=last_inspection_date,
+        next_due_date=next_due_date,
         inspector=payload.get("inspector"),
         notes=payload.get("notes"),
     )
@@ -304,10 +375,15 @@ def update_inspection(db: Session, inspection_id: int, payload: dict) -> dict | 
     inspection = db.get(OperationalAssetInspection, inspection_id)
     if inspection is None:
         return None
+    interval_months = payload.get("interval_months")
+    last_inspection_date = payload.get("last_inspection_date")
+    next_due_date = _compute_next_due_date(interval_months, last_inspection_date, inspection.asset.acquisition_date)
+    if interval_months is None:
+        next_due_date = payload.get("next_due_date")  # manuell, einmalige Prüfung ohne Intervall
     inspection.inspection_type = payload["inspection_type"].strip()
-    inspection.interval_months = payload.get("interval_months")
-    inspection.last_inspection_date = payload.get("last_inspection_date")
-    inspection.next_due_date = payload.get("next_due_date")
+    inspection.interval_months = interval_months
+    inspection.last_inspection_date = last_inspection_date
+    inspection.next_due_date = next_due_date
     inspection.inspector = payload.get("inspector")
     inspection.notes = payload.get("notes")
     db.commit()
@@ -347,3 +423,87 @@ def remove_inspection_document(db: Session, inspection_id: int) -> dict | None:
     db.commit()
     lead_days = get_or_create_operational_asset_settings(db).reminder_lead_days
     return _inspection_to_dict(inspection, lead_days)
+
+
+def create_asset_document(db: Session, asset_id: int, *, document_type: str, notes: str | None,
+                           stored_filename: str, original_filename: str) -> dict | None:
+    """Anders als set_inspection_document() (1:1 je Prüffrist, ersetzt immer die vorherige
+    Datei) legt dies IMMER eine neue, unabhängige Zeile an -- ein Betriebsmittel kann beliebig
+    viele Dokumente tragen (Anschaffungsrechnung UND Leasingvertrag UND ...). Der Aufrufer
+    (Router) validiert Content-Type/Größe und speichert die Datei VOR diesem Aufruf -- schlägt
+    die Zuordnung fehl (Asset nicht gefunden), bleibt die Datei bewusst auf der Platte liegen
+    statt hier nachträglich aufgeräumt zu werden; der Router prüft die Asset-Existenz deshalb
+    VOR dem Speichern der Datei, nicht danach (siehe routers/operational_assets.py)."""
+    asset = db.get(OperationalAsset, asset_id)
+    if asset is None:
+        return None
+    document = OperationalAssetDocument(
+        asset_id=asset_id, document_type=document_type.strip(), notes=(notes or None),
+        stored_filename=stored_filename, original_filename=original_filename,
+    )
+    db.add(document)
+    db.commit()
+    return _document_to_dict(document)
+
+
+def delete_asset_document(db: Session, document_id: int) -> bool:
+    """db.delete() löst das before_delete-Event oben aus, das die Datei von der Festplatte
+    entfernt -- kein separater delete_document_file()-Aufruf hier nötig (Muster
+    app/service_reports.py::delete_photo())."""
+    document = db.get(OperationalAssetDocument, document_id)
+    if document is None:
+        return False
+    db.delete(document)
+    db.commit()
+    return True
+
+
+def check_due_asset_inspections_and_create_reminders(db: Session) -> list[int]:
+    """On-Demand-Erinnerung (kein Scheduler) -- Muster
+    check_due_contracts_and_create_reminders() (app/maintenance_contracts.py): läuft nur beim
+    Aufruf der Stammdaten-Betriebsmittelliste (master_data.html), nicht als Hintergrundjob.
+    last_reminder_due_date verhindert, dass ein erneuter Seitenaufruf für dieselbe Fälligkeit
+    doppelt erinnert -- OHNE expliziten Reset an anderer Stelle nötig: ändert sich
+    next_due_date (Neuberechnung nach einer Prüfung), unterscheidet es sich automatisch vom
+    alten Stempel, die Gleichheitsprüfung unten wird dadurch von selbst wieder False.
+
+    Die Aufgabe geht bewusst UNASSIGNED ("allgemein ans Büro") statt an einen konkreten
+    Mitarbeiter -- es gibt (anders als bei MaintenanceContract.responsible_employee_id) kein
+    Feld für einen Zuständigen je Betriebsmittel oder Modul-Einstellung. Für die reale, aktuell
+    ausschließlich aus Admin-Konten bestehende Installation ist das folgenlos; sobald echte
+    Büro-Konten ohne Admin-Rolle existieren, sehen NUR Admins eine unassigned Aufgabe
+    (GET /api/tasks filtert für jeden Nicht-Admin auf assigned_employee_id==eigene_id,
+    siehe app/routers/tasks.py) -- ein bereits bestehendes, allgemeines Verhalten des
+    Aufgabenmoduls, keine für dieses Feature neu eingeführte Lücke."""
+    if not is_module_enabled(db, "aufgabenmanagement"):
+        return []
+    settings = get_or_create_operational_asset_settings(db)
+    threshold = date.today() + timedelta(days=settings.reminder_lead_days)
+    due = db.scalars(
+        select(OperationalAssetInspection)
+        .options(selectinload(OperationalAssetInspection.asset).selectinload(OperationalAsset.resource))
+        .where(
+            OperationalAssetInspection.next_due_date.is_not(None),
+            OperationalAssetInspection.next_due_date <= threshold,
+        )
+    ).all()
+    reminded = []
+    for inspection in due:
+        if inspection.last_reminder_due_date == inspection.next_due_date:
+            continue
+        asset = inspection.asset
+        name, *_rest = resolve_asset_identity(asset)
+        create_task(
+            db, title=f"Prüffrist fällig: {name} -- {inspection.inspection_type}",
+            description=(
+                f"Prüffrist \"{inspection.inspection_type}\" für Betriebsmittel \"{name}\" ist am "
+                f"{inspection.next_due_date.strftime('%d.%m.%Y')} fällig."
+            ),
+            source_module="betriebsmittel", source_label=f"Betriebsmittel {name}",
+            source_url=f"/betriebsmittel/{asset.id}",
+        )
+        inspection.last_reminder_due_date = inspection.next_due_date
+        reminded.append(inspection.id)
+    if reminded:
+        db.commit()
+    return reminded

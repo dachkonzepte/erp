@@ -52,7 +52,8 @@ var TYPE_LABELS=[
   ['invoices','Rechnungen'],['reminders','Mahnungen'],['inquiries','Anfragen'],
   ['tasks','Aufgaben'],['employees','Mitarbeiter'],['service_reports','Einsatzberichte'],
   ['findings','Mängel'],['maintenance_contracts','Wartungsverträge'],
-  ['services','Leistungen'],['materials','Materialien'],['suppliers','Lieferanten']
+  ['services','Leistungen'],['materials','Materialien'],['suppliers','Lieferanten'],
+  ['operational_assets','Betriebsmittel']
 ];
 var query='',selectedTypes=new Set(),groupLimits={},groups=[];
 function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}

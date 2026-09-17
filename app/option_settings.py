@@ -135,6 +135,22 @@ DEFAULT_OPTION_GROUPS = {
             (50, "Sonstige Prüfung", "Sonstige Prüfung", False),
         ],
     },
+    # Seit 1.4.2 (Betriebsmittel-Dokumentenablage, Punkt 4): bewusst dasselbe leichtgewichtige
+    # Muster wie operational_asset_inspection_types oben -- KEINE DocumentCategory-Stammdaten
+    # (1.3.62), da deren gesamter Zweck (is_sensitive/is_field_visible, zwei Schlösser gegen
+    # "sensible Kategorie für Monteure sichtbar") hier gegenstandslos ist: Betriebsmittel-
+    # Dokumente sind ausnahmslos Büro/Admin-only, es gibt keine Feld-sichtbare Stufe, die ein
+    # Schloss überhaupt bräuchte. Siehe app/models.py::OperationalAssetDocument.
+    "operational_asset_document_types": {
+        "label": "Dokumentarten · Betriebsmittel",
+        "description": "Zentrale Auswahl für die Dokumentenablage je Betriebsmittel (Anschaffungsrechnung, Leasingvertrag u. Ä.).",
+        "sort_order": 66,
+        "options": [
+            (10, "Anschaffungsrechnung", "Anschaffungsrechnung", True),
+            (20, "Leasingvertrag", "Leasingvertrag", False),
+            (30, "Sonstiges", "Sonstiges", False),
+        ],
+    },
     "service_types": {
         "label": "Leistungstypen",
         "description": "Klassifizierung eigener (nicht importierter) Leistungen für spätere Auswertungen.",

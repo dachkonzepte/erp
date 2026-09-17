@@ -3407,6 +3407,9 @@ class OperationalAsset(Base):
     inspections: Mapped[list["OperationalAssetInspection"]] = relationship(
         back_populates="asset", cascade="all, delete-orphan", order_by="OperationalAssetInspection.next_due_date"
     )
+    documents: Mapped[list["OperationalAssetDocument"]] = relationship(
+        back_populates="asset", cascade="all, delete-orphan", order_by="OperationalAssetDocument.uploaded_at.desc()"
+    )
 
 
 class OperationalAssetInspection(Base):
@@ -3418,7 +3421,18 @@ class OperationalAssetInspection(Base):
     gekoppelt, was für eine turnusmäßige Gerätefrist (z. B. jährliche UVV-Prüfung) fachlich
     nicht passt. Das PATTERN (Vorlaufzeit-gesteuertes is_due, eigenständiges is_overdue) ist
     identisch übernommen -- exakt die "gleiches Muster, dokumentierte Trennung"-Vorgabe wie
-    bei den Pipeline-Spalten (siehe CLAUDE.md)."""
+    bei den Pipeline-Spalten (siehe CLAUDE.md).
+
+    next_due_date wird seit 1.4.2 automatisch berechnet (app/operational_assets.py::
+    _compute_next_due_date()), sobald interval_months gesetzt ist -- IMMER vom tatsächlichen
+    last_inspection_date aus (oder, ohne dieses, vom Anschaffungsdatum des Betriebsmittels),
+    NIE kumulativ fortgeschrieben. Eine Prüffrist ohne interval_months (einmalige Prüfung)
+    bleibt vollständig manuell, next_due_date kommt dann direkt vom Client.
+    last_reminder_due_date ist derselbe Idempotenz-Stempel wie MaintenanceContract.
+    last_reminder_due_date (siehe dort) -- verhindert eine doppelte Erinnerungs-Aufgabe für
+    denselben Fälligkeitstermin, bewusst NIE explizit zurückgesetzt: ändert sich next_due_date
+    (Neuberechnung nach einer Prüfung), unterscheidet es sich automatisch vom alten Stempel,
+    ein Reset wäre redundant."""
 
     __tablename__ = "operational_asset_inspections"
 
@@ -3432,10 +3446,42 @@ class OperationalAssetInspection(Base):
     document_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     document_original_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_reminder_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     asset: Mapped[OperationalAsset] = relationship(back_populates="inspections")
+
+
+class OperationalAssetDocument(Base):
+    """Dokumentenablage je Betriebsmittel (seit 1.4.2, Punkt 4) -- Anschaffungsrechnung,
+    Leasingvertrag u. Ä. Bewusst eine SCHLANKE, eigene Ablage OHNE die volle DocumentCategory-
+    Stammdatentabelle aus 1.3.62 (Kunden-/Projektdokumente): DocumentCategory trägt
+    is_sensitive/is_field_visible -- zwei Schlösser gegen "sensible Kategorie für Monteure
+    sichtbar". Diese Achse existiert hier gar nicht: ALLE Betriebsmittel-Dokumente sind
+    ausnahmslos Büro/Admin-only, auch über den QR-Code nie erreichbar (OperationalAssetFieldOut
+    kennt dieses Feld an keiner Stelle, siehe app/schemas.py) -- ein Kategorie-Schloss für eine
+    Stufe, die es nie gibt, wäre nur Ballast. document_type ist deshalb ein einfaches, freies
+    String-Feld, per Dropdown aus der self-seedenden Optionsgruppe
+    operational_asset_document_types befüllt -- exakt dasselbe, bereits etablierte Muster wie
+    OperationalAssetInspection.inspection_type, nicht die schwergewichtigere Stammdatentabelle.
+
+    Löschen: eine echte cascade="all, delete-orphan"-Relationship auf OperationalAsset.documents
+    UND ein before_delete-Event (app/operational_assets.py, Muster app/roof_areas.py::
+    _delete_roof_area_sketch_file()) räumen die Datei von der Festplatte auf -- feuert für
+    JEDEN ORM-Löschweg, auch kaskadiert beim Löschen des ganzen Betriebsmittels."""
+
+    __tablename__ = "operational_asset_documents"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("operational_assets.id"), index=True)
+    document_type: Mapped[str] = mapped_column(String(80), index=True)
+    stored_filename: Mapped[str] = mapped_column(String(255))
+    original_filename: Mapped[str] = mapped_column(String(255))
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    asset: Mapped[OperationalAsset] = relationship(back_populates="documents")
 
 
 class OperationalAssetSettings(Base):

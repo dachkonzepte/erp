@@ -8,29 +8,35 @@ GET /api/operational-assets/{asset_id} ist zusätzlich für `field` erreichbar (
 dem Etikett führt jeden -- Büro wie Monteur -- auf /betriebsmittel/{id}) -- aber liefert dann
 NIE mehr als OperationalAssetFieldOut, unabhängig davon, über welchen Weg (QR-Code oder die
 volle Büro-URL) aufgerufen wurde: die Rollenprüfung sitzt serverseitig im Router, nicht am Pfad.
-Jeder andere Endpunkt dieser Datei bleibt Büro-/Admin-only wie bisher."""
+Jeder andere Endpunkt dieser Datei bleibt Büro-/Admin-only wie bisher -- ausdrücklich
+eingeschlossen die drei Dokumentenablage-Endpunkte (seit 1.4.2, Punkt 4): eine
+Betriebsmittel-Rechnung ist auch über eine geratene document_id nie für `field` erreichbar,
+require_role() lehnt vor jedem Handler ab."""
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AppUser
 from ..modules import is_module_enabled
-from ..operational_asset_documents import ALLOWED_CONTENT_TYPES, MAX_UPLOAD_BYTES, document_path, replace_document
+from ..operational_asset_documents import (
+    ALLOWED_CONTENT_TYPES, MAX_UPLOAD_BYTES, document_path, replace_document, save_document,
+)
 from ..operational_assets import (
-    MODULE_KEY, asset_qr_target_url, create_asset, create_inspection, delete_asset, delete_inspection, get_asset,
+    MODULE_KEY, asset_qr_target_url, check_due_asset_inspections_and_create_reminders, create_asset,
+    create_asset_document, create_inspection, delete_asset, delete_asset_document, delete_inspection, get_asset,
     get_asset_field, get_or_create_operational_asset_settings, list_assets, list_due_assets,
     operational_asset_settings_to_dict, remove_inspection_document, set_inspection_document, update_asset,
     update_inspection, update_operational_asset_settings,
 )
-from ..models import OperationalAssetInspection
+from ..models import OperationalAsset, OperationalAssetDocument, OperationalAssetInspection
 from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
 from ..qr_codes import qr_code_png_bytes
 from ..schemas import (
-    OperationalAssetCreate, OperationalAssetFieldOut, OperationalAssetInspectionCreate, OperationalAssetInspectionOut,
-    OperationalAssetInspectionUpdate, OperationalAssetListOut, OperationalAssetOut, OperationalAssetSettingsOut,
-    OperationalAssetSettingsUpdate, OperationalAssetUpdate,
+    OperationalAssetCreate, OperationalAssetDocumentOut, OperationalAssetFieldOut, OperationalAssetInspectionCreate,
+    OperationalAssetInspectionOut, OperationalAssetInspectionUpdate, OperationalAssetListOut, OperationalAssetOut,
+    OperationalAssetSettingsOut, OperationalAssetSettingsUpdate, OperationalAssetUpdate,
 )
 from ..settings import get_or_create_general_settings
 
@@ -66,6 +72,16 @@ def get_due_operational_assets(db: Session = Depends(get_db), _role: AppUser = _
     Pfad VOR /{asset_id} deklariert (Muster GET /api/maintenance-contracts/due-items)."""
     _require_module_enabled(db)
     return list_due_assets(db)
+
+
+@router.post("/api/operational-assets/check-due")
+def post_operational_assets_check_due(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """On-Demand-Erinnerung (Punkt 2) -- vom Frontend beim Aufruf von master_data.html#assets
+    ausgelöst, kein Hintergrund-Job (Muster POST /api/maintenance-contracts/check-due). Bewusst
+    als literaler Pfad VOR /{asset_id} deklariert, wie /due oben."""
+    _require_module_enabled(db)
+    reminded = check_due_asset_inspections_and_create_reminders(db)
+    return {"reminded_inspection_ids": reminded}
 
 
 @router.get("/api/operational-assets", response_model=list[OperationalAssetListOut])
@@ -196,6 +212,56 @@ def delete_operational_asset_inspection_document(inspection_id: int, db: Session
     if result is None:
         raise HTTPException(status_code=404, detail="Prüffrist nicht gefunden.")
     return result
+
+
+# Betriebsmittel-Dokumentenablage (seit 1.4.2, Punkt 4) -- Anschaffungsrechnung, Leasingvertrag
+# u. Ä. Ausnahmslos Büro-/Admin-only (_role_dep, NIE _any_role_dep): ein Monteur bekommt hier
+# unabhängig von jeder geratenen document_id ein 403, bevor der Handler überhaupt läuft --
+# require_role() schließt ROLE_FIELD aus diesen drei Endpunkten strukturell aus.
+@router.post("/api/operational-assets/{asset_id}/documents", response_model=OperationalAssetDocumentOut)
+async def upload_operational_asset_document(
+    asset_id: int, document_type: str = Form(...), notes: str | None = Form(None),
+    file: UploadFile = File(...), db: Session = Depends(get_db), _role: AppUser = _role_dep,
+):
+    _require_module_enabled(db)
+    if not document_type.strip():
+        raise HTTPException(status_code=422, detail="Bitte eine Art wählen.")
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Bitte eine Datei auswählen.")
+    if (file.content_type or "").lower() not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(status_code=422, detail="Bitte PDF, PNG, JPEG oder WebP verwenden.")
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Datei ist größer als 10 MB.")
+    # Existenz VOR dem Speichern prüfen (siehe create_asset_document()-Docstring) -- eine Datei
+    # für ein nicht existierendes Betriebsmittel wird nie erst auf die Platte geschrieben.
+    if db.get(OperationalAsset, asset_id) is None:
+        raise HTTPException(status_code=404, detail="Betriebsmittel nicht gefunden.")
+    stored = save_document(file.filename, data)
+    result = create_asset_document(
+        db, asset_id, document_type=document_type, notes=notes, stored_filename=stored, original_filename=file.filename,
+    )
+    return result
+
+
+@router.get("/api/operational-asset-documents/{document_id}/file")
+def get_operational_asset_document_file(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    _require_module_enabled(db)
+    document = db.get(OperationalAssetDocument, document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
+    path = document_path(document.stored_filename)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Dokumentdatei nicht gefunden.")
+    return FileResponse(path, filename=document.original_filename or path.name)
+
+
+@router.delete("/api/operational-asset-documents/{document_id}")
+def delete_operational_asset_document_endpoint(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    _require_module_enabled(db)
+    if not delete_asset_document(db, document_id):
+        raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
+    return {"deleted": True}
 
 
 @router.get("/api/operational-asset-settings", response_model=OperationalAssetSettingsOut)

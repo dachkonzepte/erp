@@ -4,7 +4,7 @@ Oberfläche ab:
 1. Die Ergebnisseite `/suche` liegt HINTER `require_role(ROLE_ADMIN, ROLE_OFFICE)` als eigene
    Seiten-Absicherung -- nicht nur der API-Endpunkt (`GET /api/search`) dahinter. Ein Monteur,
    der die Seite über die Adresse aufruft, bekommt 403, bevor irgendetwas gerendert wird.
-2. Die 17 im Client (`search_results.html`) hartcodierten Filter-Schlüssel bleiben synchron mit
+2. Die (seit 1.4.2: 18) im Client (`search_results.html`) hartcodierten Filter-Schlüssel bleiben synchron mit
    der Registry (`app/search.py::OFFICE_SEARCH_SOURCES`) -- ein Regressionstest, der bei einer
    künftigen Registry-Änderung auffällt, wenn die Kopie im Template nicht mitgezogen wurde.
 3. Die Suchleiste in der Topbar ruft ausschließlich `GET /api/search`, nie den Monteurs-Endpunkt
@@ -68,7 +68,7 @@ def test_search_results_page_type_filter_keys_match_the_registry():
     assert match, "TYPE_LABELS-Array nicht gefunden"
     keys = re.findall(r"\['([a-z_]+)','", match.group(1))
     assert set(keys) == EXPECTED_OFFICE_SEARCH_KEYS
-    assert len(keys) == len(OFFICE_SEARCH_SOURCES) == 17
+    assert len(keys) == len(OFFICE_SEARCH_SOURCES) == 18
     # Reihenfolge muss ebenfalls übereinstimmen -- eine abweichende Reihenfolge waere zwar
     # funktional harmlos (Filter wirken unabhaengig von der Anzeigereihenfolge), aber ein
     # stilles Auseinanderlaufen der beiden Listen ist genau das, was dieser Test verhindern soll.

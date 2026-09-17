@@ -230,9 +230,13 @@ def test_office_role_full_crud_flow_via_router(threaded_db_session, router_test_
     client = router_test_client(threaded_db_session, assets_router, role="office")
     created = client.post("/api/operational-assets", json={"name": "Leiter Alu 6m", "asset_type": "Sonstiges"}).json()
     assert created["id"]
+    # Ohne Intervall bleibt next_due_date manuell (seit 1.4.2, siehe
+    # tests/test_v278_operational_assets_erweiterungen.py für die automatische Berechnung MIT
+    # Intervall) -- fuer diesen generischen CRUD-Test reicht der einfache, weiterhin
+    # client-gesteuerte Fall.
     inspection = client.post(
         f"/api/operational-assets/{created['id']}/inspections",
-        json={"inspection_type": "Leiterprüfung", "interval_months": 12, "next_due_date": str(date.today() - timedelta(days=1))},
+        json={"inspection_type": "Leiterprüfung", "interval_months": None, "next_due_date": str(date.today() - timedelta(days=1))},
     ).json()
     assert inspection["is_overdue"] is True
     detail = client.get(f"/api/operational-assets/{created['id']}").json()

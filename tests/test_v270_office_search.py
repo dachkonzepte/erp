@@ -24,8 +24,8 @@ import pytest
 
 from app.models import (
     Customer, CustomerProfile, Employee, EnabledModule, Finding, ImportBatch, Inquiry, Invoice,
-    MaintenanceContract, Material, Order, Project, Property, Quote, Reminder, RoofArea, Service,
-    ServiceReport, Supplier, Task,
+    MaintenanceContract, Material, OperationalAsset, Order, Project, Property, Quote, Reminder, RoofArea,
+    Service, ServiceReport, Supplier, Task,
 )
 from app.permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE
 from app.project_pipeline_columns import default_pipeline_column_id
@@ -35,7 +35,7 @@ from tests.test_v153_mahnwesen import db_session  # noqa: F401 -- re-exportiert 
 EXPECTED_OFFICE_SEARCH_KEYS = frozenset({
     "customers", "properties", "roof_areas", "projects", "quotes", "orders", "invoices",
     "reminders", "inquiries", "tasks", "employees", "service_reports", "findings",
-    "maintenance_contracts", "services", "materials", "suppliers",
+    "maintenance_contracts", "services", "materials", "suppliers", "operational_assets",
 })
 
 _FORBIDDEN_KEY_SUBSTRINGS = (
@@ -53,10 +53,10 @@ def _offending_keys(rows: list[dict]) -> list[str]:
 
 # --- 1./2.: Registry-Vollständigkeit und Rollensicherheit ---
 
-def test_registry_declares_exactly_the_expected_seventeen_keys():
+def test_registry_declares_exactly_the_expected_eighteen_keys():
     actual = {s.key for s in OFFICE_SEARCH_SOURCES}
     assert actual == EXPECTED_OFFICE_SEARCH_KEYS
-    assert len(OFFICE_SEARCH_SOURCES) == 17
+    assert len(OFFICE_SEARCH_SOURCES) == 18
 
 
 def test_registry_allowed_roles_never_empty_and_never_include_field():
@@ -68,7 +68,7 @@ def test_registry_allowed_roles_never_empty_and_never_include_field():
 
 def test_registry_module_keys_are_known_or_none():
     for source in OFFICE_SEARCH_SOURCES:
-        assert source.module_key in (None, "aufgabenmanagement", "wartungen"), source.key
+        assert source.module_key in (None, "aufgabenmanagement", "wartungen", "betriebsmittel"), source.key
 
 
 # --- 3.: Entscheidung 3 -- Snapshot UND live durchsucht ---
@@ -177,6 +177,7 @@ def _build_full_dataset(db, marker: str):
         site_time_raw=Decimal("60"), workshop_time_raw=Decimal("0"), sale_price=Decimal("777.00"),
     ))
     db.add(Material(name=f"{marker} Material", unit="Stk", purchase_price=Decimal("55.55")))
+    db.add(OperationalAsset(name=f"{marker} Betriebsmittel", asset_type="Sonstiges"))
     db.commit()
     return {"customer": customer, "invoice": invoice, "order": order}
 
@@ -184,8 +185,8 @@ def _build_full_dataset(db, marker: str):
 # --- 4.: Der Angriffstest + Ende-zu-Ende-Beleg, dass jede Quelle tatsächlich einen Treffer liefert ---
 
 def test_admin_finds_a_hit_in_every_single_group_and_no_row_ever_carries_extra_fields(db_session):
-    """Stärkster Beleg, dass query_fn/row_fn für alle 17 Quellen tatsächlich funktionieren (nicht
-    nur, dass die Registry 17 Schlüssel deklariert) -- UND die strukturelle Garantie, dass keine
+    """Stärkster Beleg, dass query_fn/row_fn für alle 18 Quellen tatsächlich funktionieren (nicht
+    nur, dass die Registry 18 Schlüssel deklariert) -- UND die strukturelle Garantie, dass keine
     Zeile je ein anderes Feld als id/title/subtitle/url trägt, unabhängig vom Inhalt der Quelle
     (Employee.hourly_wage/Material.purchase_price/Service.sale_price sind in den Testdaten
     bewusst gesetzt, tauchen aber in keiner Zeile auf)."""
@@ -208,7 +209,7 @@ def test_admin_finds_a_hit_in_every_single_group_and_no_row_ever_carries_extra_f
 
 
 def test_field_role_gets_nothing_from_any_source_pure_function(db_session):
-    """Reine Funktionsprüfung (kein Router): ROLE_FIELD steckt in KEINER der 17 allowed_roles --
+    """Reine Funktionsprüfung (kein Router): ROLE_FIELD steckt in KEINER der 18 allowed_roles --
     search_office() liefert für diese Rolle immer eine leere Liste, unabhängig vom Suchbegriff."""
     db = db_session
     marker = "Feldtest"
@@ -309,3 +310,19 @@ def test_module_gated_sources_disappear_when_their_module_is_disabled(db_session
     groups = search_office(db, ROLE_ADMIN, marker)
     found_keys = {g["key"] for g in groups}
     assert found_keys == EXPECTED_OFFICE_SEARCH_KEYS - {"tasks", "service_reports", "findings", "maintenance_contracts"}
+
+
+def test_operational_assets_source_disappears_when_betriebsmittel_module_is_disabled(db_session):
+    """Punkt 3 ("nur wenn das Modul aktiv ist") -- eigener Test statt nur in der Sammel-
+    Prüfung oben, damit ein künftiger Fund an genau dieser Quelle nicht in einer Vier-Module-
+    Prüfung untergeht."""
+    db = db_session
+    marker = "BMModultest"
+    _build_full_dataset(db, marker)
+    db.add(EnabledModule(module_key="betriebsmittel", enabled=False))
+    db.commit()
+
+    groups = search_office(db, ROLE_ADMIN, marker)
+    found_keys = {g["key"] for g in groups}
+    assert "operational_assets" not in found_keys
+    assert found_keys == EXPECTED_OFFICE_SEARCH_KEYS - {"operational_assets"}

@@ -115,9 +115,11 @@ tr:last-child td{border-bottom:none}
   </table></div>
   <div class="fields-2col" style="margin-top:14px">
     <div class="field"><label>Art *</label><select id="inspType"></select></div>
-    <div class="field"><label>Intervall (Monate)</label><input id="inspInterval" type="number" min="1"></div>
+    <div class="field"><label>Intervall (Monate)</label><input id="inspInterval" type="number" min="1" oninput="syncInspNextDueState()"></div>
     <div class="field"><label>Letzte Prüfung</label><input id="inspLast" type="date"></div>
-    <div class="field"><label>Nächste Fälligkeit</label><input id="inspNext" type="date"></div>
+    <div class="field"><label>Nächste Fälligkeit</label><input id="inspNext" type="date">
+      <div class="muted small hidden" id="inspNextHint">Wird automatisch aus Intervall + letzter Prüfung (oder, ohne diese, dem Anschaffungsdatum) berechnet.</div>
+    </div>
     <div class="field"><label>Prüfer <span class="muted small">(optional)</span></label><input id="inspInspector"></div>
     <div class="field full"><label>Bemerkung <span class="muted small">(optional)</span></label><input id="inspNotes"></div>
   </div>
@@ -125,6 +127,23 @@ tr:last-child td{border-bottom:none}
     <button id="inspSubmitBtn" onclick="submitInspection()">+ Prüffrist hinzufügen</button>
     <button class="secondary hidden" id="inspCancelBtn" onclick="cancelInspectionEdit()">Abbrechen</button>
     <span id="inspStatus" class="status"></span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title"><h2>Dokumente <span class="muted small">(Anschaffungsrechnung, Leasingvertrag u. Ä. -- nur Büro/Admin, nie über den QR-Code sichtbar)</span></h2></div>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Art</th><th>Datei</th><th>Hochgeladen</th><th>Bemerkung</th><th></th></tr></thead>
+    <tbody id="documentRows"></tbody>
+  </table></div>
+  <div class="fields-2col" style="margin-top:14px">
+    <div class="field"><label>Art *</label><select id="docType"></select></div>
+    <div class="field"><label>Datei *</label><input type="file" id="docFile"></div>
+    <div class="field full"><label>Bemerkung <span class="muted small">(optional)</span></label><input id="docNotes"></div>
+  </div>
+  <div class="editor-actions">
+    <button onclick="submitDocument()">+ Dokument hochladen</button>
+    <span id="docStatus" class="status"></span>
   </div>
 </div>
 
@@ -156,6 +175,7 @@ function inspectionTypeOptionsHtml(){
   return assetInspectionTypes.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
 }
 let assetInspectionTypes=[];
+let assetDocumentTypes=[];
 
 function toggleResourceFields(){
   const linked=document.getElementById('editHasResource').checked;
@@ -298,6 +318,12 @@ function renderInspections(){
   document.getElementById('inspType').innerHTML=inspectionTypeOptionsHtml();
 }
 
+function syncInspNextDueState(){
+  const hasInterval=!!document.getElementById('inspInterval').value;
+  document.getElementById('inspNext').disabled=hasInterval;
+  document.getElementById('inspNextHint').classList.toggle('hidden',!hasInterval);
+}
+
 function fillInspectionForm(insp){
   document.getElementById('inspType').value=insp.inspection_type;
   document.getElementById('inspInterval').value=insp.interval_months||'';
@@ -305,6 +331,7 @@ function fillInspectionForm(insp){
   document.getElementById('inspNext').value=insp.next_due_date||'';
   document.getElementById('inspInspector').value=insp.inspector||'';
   document.getElementById('inspNotes').value=insp.notes||'';
+  syncInspNextDueState();
 }
 
 function clearInspectionForm(){
@@ -314,6 +341,7 @@ function clearInspectionForm(){
   document.getElementById('inspNext').value='';
   document.getElementById('inspInspector').value='';
   document.getElementById('inspNotes').value='';
+  syncInspNextDueState();
 }
 
 function editInspection(id){
@@ -389,13 +417,63 @@ async function removeInspectionDocument(id){
   }catch(e){document.getElementById('inspStatus').className='status err';document.getElementById('inspStatus').textContent='Fehler: '+e.message}
 }
 
+function documentTypeOptionsHtml(){
+  return assetDocumentTypes.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+}
+
+function documentRow(doc){
+  return `<tr>
+    <td>${esc(doc.document_type)}</td>
+    <td><a href="/api/operational-asset-documents/${doc.id}/file" target="_blank" style="color:var(--accent)">${esc(doc.original_filename)}</a></td>
+    <td>${fmtDate(doc.uploaded_at)}</td>
+    <td>${esc(doc.notes||'')}</td>
+    <td class="row-actions"><button class="danger" onclick="deleteDocumentNow(${doc.id})">Löschen</button></td>
+  </tr>`;
+}
+
+function renderDocuments(){
+  const rows=asset.documents||[];
+  document.getElementById('documentRows').innerHTML=rows.length?rows.map(documentRow).join(''):'<tr><td colspan="5" class="empty">Noch keine Dokumente hinterlegt.</td></tr>';
+  document.getElementById('docType').innerHTML=documentTypeOptionsHtml();
+}
+
+async function submitDocument(){
+  const st=document.getElementById('docStatus');
+  const docType=document.getElementById('docType').value;
+  const file=document.getElementById('docFile').files[0];
+  if(!docType){st.className='status err';st.textContent='Bitte eine Art wählen.';return}
+  if(!file){st.className='status err';st.textContent='Bitte eine Datei wählen.';return}
+  const form=new FormData();
+  form.append('document_type',docType);
+  form.append('file',file);
+  const notes=document.getElementById('docNotes').value.trim();
+  if(notes)form.append('notes',notes);
+  try{
+    await fetch(`/api/operational-assets/${assetId}/documents`,{method:'POST',body:form}).then(async r=>{
+      if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
+    });
+    document.getElementById('docFile').value='';
+    document.getElementById('docNotes').value='';
+    st.textContent='';
+    await reloadAsset();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function deleteDocumentNow(id){
+  if(!confirm('Dieses Dokument wirklich löschen?'))return;
+  try{
+    await api(`/api/operational-asset-documents/${id}`,{method:'DELETE'});
+    await reloadAsset();
+  }catch(e){document.getElementById('docStatus').className='status err';document.getElementById('docStatus').textContent='Fehler: '+e.message}
+}
+
 async function reloadAsset(){
   asset=await api(`/api/operational-assets/${assetId}`);
   render();
 }
 
 function render(){
-  renderBreadcrumb();renderHero();fillEditor();renderInspections();
+  renderBreadcrumb();renderHero();fillEditor();renderInspections();renderDocuments();
 }
 
 async function init(){
@@ -405,15 +483,17 @@ async function init(){
     document.getElementById('breadcrumb').textContent='Fehler: '+e.message;
     return;
   }
-  const [resourceList,typeGroup,inspectionTypeGroup]=await Promise.all([
+  const [resourceList,typeGroup,inspectionTypeGroup,documentTypeGroup]=await Promise.all([
     api('/api/resources').catch(()=>[]),
     safeOptionGroup('resource_types'),
     safeOptionGroup('operational_asset_inspection_types'),
+    safeOptionGroup('operational_asset_document_types'),
   ]);
   const takenIds=new Set((await api('/api/operational-assets').catch(()=>[])).filter(a=>a.id!==assetId&&a.resource_id).map(a=>a.resource_id));
   resources=resourceList.map(r=>({...r,taken:takenIds.has(r.id)}));
   assetTypes=typeGroup.options||[];
   assetInspectionTypes=inspectionTypeGroup.options||[];
+  assetDocumentTypes=documentTypeGroup.options||[];
   render();
 }
 init();

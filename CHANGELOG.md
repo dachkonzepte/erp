@@ -4,6 +4,69 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.4.2 – Betriebsmittelverwaltung: Fälligkeitsberechnung, Erinnerung, Büro-Suche, Dokumentenablage
+
+Vier reine Bürofunktions-Ergänzungen zur Betriebsmittelverwaltung (1.4.0/1.4.1) -- kein Monteur
+betroffen, siehe die beiden abschließenden Angriffstests unten.
+
+**Punkt 1 -- automatische Fälligkeitsberechnung, mit der entscheidenden Feinheit.**
+`OperationalAssetInspection.next_due_date` wird bei jedem Anlegen/Bearbeiten automatisch berechnet
+(`_compute_next_due_date()`, `app/operational_assets.py`), sobald `interval_months` gesetzt ist --
+`Anschaffungsdatum (bzw. das zuletzt tatsächliche Prüfdatum) + Intervall − 1 Tag`. Die erste
+Fälligkeit beim Anlegen mit Anschaffungsdatum ist deshalb `Anschaffungsdatum + Intervall − 1 Tag`,
+nie das Anschaffungsdatum selbst. **Entscheidend**: die Basis ist immer `last_inspection_date`,
+falls vorhanden, sonst das Anschaffungsdatum -- NIE kumulativ vom Anschaffungsdatum fortgeschrieben.
+Verspätet sich eine Prüfung, verschiebt sich der gesamte Rhythmus mit, statt auseinanderzudriften
+-- mit einem eigenen Test belegt, der eine deutlich verspätete Prüfung gegen die (falsche)
+kumulative Berechnung abgrenzt. Eine Prüffrist ohne Intervall (einmalige Prüfung) bleibt
+vollständig manuell, unverändert.
+
+**Punkt 2 -- Meldung und Aufgabe vier Wochen vorher, On-Demand wie bei den Wartungsverträgen.**
+Neue `check_due_asset_inspections_and_create_reminders()`, ausgelöst per Fire-and-Forget-Aufruf
+(`POST /api/operational-assets/check-due`) beim Laden der Stammdaten-Betriebsmittelliste -- kein
+Hintergrundjob, derselbe Auslöser-Mechanismus wie `check_due_contracts_and_create_reminders()`.
+Erinnert per `create_task()` (Aufgabe **unassigned**, "allgemein ans Büro" -- es gibt kein Feld für
+einen Zuständigen je Betriebsmittel), idempotent über einen neuen Stempel
+`OperationalAssetInspection.last_reminder_due_date` (dasselbe Muster wie bei `MaintenanceContract`,
+ohne expliziten Reset nötig, da eine Neuberechnung von `next_due_date` den Stempel automatisch
+veralten lässt). Erscheint ausschließlich im bestehenden "Fällige Prüffristen"-Panel und im
+Aufgabenbereich -- kein zweites Dashboard-Widget. **Transparent festgehalten**: eine unassigned
+Aufgabe ist für Nicht-Admin-Büro-Konten nach dem heutigen Task-System nicht sichtbar (`GET
+/api/tasks` filtert für jeden Nicht-Admin auf die eigene `employee_id`) -- eine bereits bestehende,
+allgemeine Einschränkung des Aufgabenmoduls, keine für dieses Feature neu eingeführte Lücke.
+
+**Punkt 3 -- Betriebsmittel in der Büro-Suche**, 18. Registry-Eintrag (`app/search.py`,
+Mindestrolle Büro, gated auf das Modul "betriebsmittel"). Durchsucht Bezeichnung/Art/Hersteller/
+Modell/Kennzeichen/Artikelnummer, führt auf `/betriebsmittel/{id}`. Ein ressourcenverknüpftes Asset
+(Kran, Fahrzeug, Anhänger) trägt seine eigenen Identitätsfelder als `NULL` (Live-Auflösung, siehe
+1.4.0) -- die neue Quelle joint deshalb zusätzlich `OperationalResource` und nutzt denselben
+`resolve_asset_identity()`-Helfer wie die Betriebsmittelseite selbst, sonst wäre jedes
+ressourcenverknüpfte Asset unauffindbar gewesen. Der Registry-Vollständigkeitstest
+(`EXPECTED_OFFICE_SEARCH_KEYS`) deckt den neuen Eintrag ab.
+
+**Punkt 4 -- Dokumentenablage am Betriebsmittel**, für Anschaffungsrechnung, Leasingvertrag u. Ä.
+Neue Tabelle `OperationalAssetDocument` (mehrere unabhängige Dateien je Betriebsmittel, anders als
+die bestehende 1:1-Ablage je Prüffrist) plus `save_document()` in `app/operational_asset_documents.py`
+-- gleicher Speicherordner/`ERP_DATA_DIR`-Anbindung wie die bestehende Prüffristen-Ablage, kein
+zweiter Ordner. `document_type` läuft über eine neue, schlanke, self-seedende Optionsgruppe
+(`operational_asset_document_types`: Anschaffungsrechnung, Leasingvertrag, Sonstiges) -- bewusst
+NICHT die schwergewichtige `DocumentCategory`-Stammdatentabelle aus 1.3.62: deren gesamter Zweck
+(`is_sensitive`/`is_field_visible`, zwei Schlösser gegen "sensible Kategorie für Monteure sichtbar")
+ist hier gegenstandslos, da Betriebsmittel-Dokumente ausnahmslos Büro/Admin-only sind, ohne jede
+Monteur-sichtbare Stufe. Löschen räumt die Datei über ein `before_delete`-Event von der Platte auf
+(Muster `app/roof_areas.py`), feuert für jeden ORM-Löschweg, auch kaskadiert beim Löschen des
+ganzen Betriebsmittels. Drei neue, ausnahmslos Büro/Admin-only-Endpunkte (Upload/Ansehen/Löschen).
+
+**Abschließender Angriffstest, wie verlangt**: ein Monteur (`field`) erreicht keinen der drei
+Dokumentenablage-Endpunkte -- auch nicht über eine geratene, fortlaufende Datei-ID (`require_role()`
+schließt die Rolle strukturell aus, unabhängig davon, ob die ID existiert). Die Büro-Suche liefert
+einem Monteur über den echten Router (`GET /api/search`) durchgängig 403, nie ein Betriebsmittel.
+Beide Fälle in `tests/test_v278_operational_assets_erweiterungen.py` belegt, 0 "durchgelassen".
+
+Migration `ed896599a211` (neue Tabelle `operational_asset_documents`, neue, nullable Spalte
+`operational_asset_inspections.last_reminder_due_date`) gegen die echte, lokale Datenbank
+angewendet. Volle Suite: 1441 Tests grün.
+
 ## 1.4.1 – Betriebsmittelverwaltung, Stufe 2 (QR-Code-Etikett, rollenabhängige Ansicht)
 
 Zweite Etappe des dreistufigen Betriebsmittel-Umbaus (siehe 1.4.0) -- Stufe 3 (Betriebsmittel im

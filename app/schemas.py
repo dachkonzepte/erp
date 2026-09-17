@@ -3263,6 +3263,10 @@ class OperationalAssetInspectionCreate(BaseModel):
     inspection_type: str = Field(min_length=1, max_length=80)
     interval_months: int | None = Field(default=None, ge=1)
     last_inspection_date: date | None = None
+    # Wird seit 1.4.2 ignoriert, sobald interval_months gesetzt ist -- der Server berechnet
+    # next_due_date dann automatisch (siehe app/operational_assets.py::_compute_next_due_date()).
+    # Bleibt im Schema, weil eine Prüffrist OHNE Intervall (einmalige Prüfung) weiterhin manuell
+    # bleibt und dieses Feld dafür braucht.
     next_due_date: date | None = None
     inspector: str | None = Field(default=None, max_length=160)
     notes: str | None = None
@@ -3270,6 +3274,17 @@ class OperationalAssetInspectionCreate(BaseModel):
 
 class OperationalAssetInspectionUpdate(OperationalAssetInspectionCreate):
     pass
+
+
+class OperationalAssetDocumentOut(BaseModel):
+    """Dokumentenablage je Betriebsmittel (seit 1.4.2, Punkt 4) -- ausschließlich Teil von
+    OperationalAssetOut, NIE von OperationalAssetFieldOut (siehe dort)."""
+    id: int
+    asset_id: int
+    document_type: str
+    original_filename: str
+    notes: str | None = None
+    uploaded_at: datetime
 
 
 class OperationalAssetOut(BaseModel):
@@ -3295,6 +3310,7 @@ class OperationalAssetOut(BaseModel):
     is_overdue: bool
     next_due_date: date | None = None
     inspections: list[OperationalAssetInspectionOut] = Field(default_factory=list)
+    documents: list[OperationalAssetDocumentOut] = Field(default_factory=list)
 
 
 class OperationalAssetFieldOut(BaseModel):
@@ -3303,10 +3319,12 @@ class OperationalAssetFieldOut(BaseModel):
     Monteur (`field`) aufruft -- ausschließlich Bezeichnung/Art/Hersteller/Modell/
     Bedienungshinweise. Bewusst OHNE resource_id/asset_number/identifier/resource_number
     (Inventardaten), notes/cost_notes/acquisition_*/recurring_cost_per_month (Beschaffung/
-    Kosten), article_number/product_url (Beschaffung) und inspections (Prüffristen, Büro-
-    Vorgang) -- ein Monteur, der eine Betriebsmittelseite über den QR-Code oder direkt über
-    die volle Büro-URL öffnet, bekommt serverseitig nie mehr als diese fünf Felder,
-    unabhängig vom Weg dorthin (siehe get_operational_asset())."""
+    Kosten), article_number/product_url (Beschaffung), inspections (Prüffristen, Büro-Vorgang)
+    UND documents (seit 1.4.2, Punkt 4 -- Anschaffungsrechnung/Leasingvertrag sind ausnahmslos
+    Büro/Admin-only, auch über den QR-Code nie sichtbar) -- ein Monteur, der eine
+    Betriebsmittelseite über den QR-Code oder direkt über die volle Büro-URL öffnet, bekommt
+    serverseitig nie mehr als diese fünf Felder, unabhängig vom Weg dorthin (siehe
+    get_operational_asset())."""
     id: int
     name: str
     asset_type: str | None = None

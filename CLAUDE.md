@@ -20,9 +20,11 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.4.1** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `ccb5c4c0915b` ("operational assets stufe 2 qr and public base
-  url", siehe Abschnitt "Betriebsmittelverwaltung" -> "Stufe 2" unten) -- vorher `5917bb099776`
+- Version: **1.4.2** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `ed896599a211` ("operational assets erweiterungen faelligkeit
+  dokumente", siehe Abschnitt "Betriebsmittelverwaltung" -> "Vier Ergänzungen (seit 1.4.2)"
+  unten) -- vorher `ccb5c4c0915b` ("operational assets stufe 2 qr and public base url", Stufe
+  2), davor `5917bb099776`
   ("operational assets betriebsmittel", Stufe 1), davor `da9d9425e257` ("project pipeline
   columns", siehe Abschnitt "Umbau der Projektliste" unten), davor `f803985ebc2f` ("property
   documents table", siehe
@@ -33,10 +35,10 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1424 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1441 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 17.09.2026 (1.4.1, Betriebsmittelverwaltung Stufe 2, siehe eigener
-  Abschnitt unten für den echten Browser-Nachweis abseits von `pytest`) mit `pytest` in Tobias'
+  dort), zuletzt am 17.09.2026 (1.4.2, Betriebsmittelverwaltung -- vier Ergänzungen, siehe
+  eigener Abschnitt unten) mit `pytest` in Tobias'
   `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
@@ -1080,6 +1082,44 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Bestätigung, dass das Druck-Etikett ausschließlich QR-Code + Name zeigt, keine Sidebar. Dabei
   ein selbst gefundener und vor jedem Test korrigierter CSS-Fehler: das Etikett-Element lag
   ursprünglich verschachtelt innerhalb des ausgeblendeten `.app-layout`, siehe oben.
+- Neu seit 1.4.2: **Betriebsmittelverwaltung, vier weitere Ergänzungen -- alle reine
+  Bürofunktion, kein Monteur betroffen.** (1) **Automatische Fälligkeitsberechnung**:
+  `OperationalAssetInspection.next_due_date` wird bei gesetztem `interval_months` seither
+  automatisch berechnet (`_compute_next_due_date()`, `app/operational_assets.py`) --
+  `letztes tatsächliches Prüfdatum (oder, ohne dieses, Anschaffungsdatum) + Intervall − 1 Tag`,
+  NIE kumulativ vom Anschaffungsdatum fortgeschrieben: verspätet sich eine Prüfung, verschiebt
+  sich der ganze Rhythmus mit, statt auseinanderzudriften -- mit einem eigenen Test belegt, der
+  genau diese Feinheit gegen die (falsche) kumulative Rechnung abgrenzt. Eine Prüffrist ohne
+  Intervall bleibt vollständig manuell. (2) **Meldung und Aufgabe vier Wochen vorher**, On-Demand
+  wie bei den Wartungsverträgen: neuer, Fire-and-Forget-ausgelöster Endpunkt `POST
+  /api/operational-assets/check-due` (beim Laden von `master_data.html#assets`, kein
+  Hintergrundjob), erinnert per `create_task()` (Aufgabe **unassigned**, "allgemein ans Büro" --
+  es gibt kein Zuständigkeits-Feld je Betriebsmittel), idempotent über einen neuen Stempel
+  `OperationalAssetInspection.last_reminder_due_date` (dasselbe Muster wie `MaintenanceContract`,
+  kein expliziter Reset nötig). Erscheint ausschließlich im bestehenden "Fällige
+  Prüffristen"-Panel und im Aufgabenbereich, kein zweites Dashboard-Widget. **Transparent
+  festgehalten**: eine unassigned Aufgabe ist für Nicht-Admin-Büro-Konten nach dem heutigen
+  Task-System unsichtbar (`GET /api/tasks` filtert für jeden Nicht-Admin auf die eigene
+  `employee_id`) -- eine bereits bestehende, allgemeine Einschränkung des Aufgabenmoduls, keine
+  neu eingeführte Lücke. (3) **Betriebsmittel in der Büro-Suche**, 18. Registry-Eintrag
+  (`app/search.py`, Mindestrolle Büro, modulgated) -- durchsucht Bezeichnung/Art/Hersteller/
+  Modell/Kennzeichen/Artikelnummer; ein ressourcenverknüpftes Asset (Kran, Fahrzeug, Anhänger)
+  trägt seine eigenen Identitätsfelder als `NULL` (Live-Auflösung seit 1.4.0), die neue Quelle
+  joint deshalb `OperationalResource` und nutzt denselben `resolve_asset_identity()`-Helfer wie
+  die Betriebsmittelseite selbst -- sonst wäre jedes ressourcenverknüpfte Asset unauffindbar
+  gewesen. (4) **Dokumentenablage am Betriebsmittel** (Anschaffungsrechnung, Leasingvertrag
+  u. Ä.): neue Tabelle `OperationalAssetDocument` (mehrere unabhängige Dateien je Betriebsmittel,
+  anders als die bestehende 1:1-Ablage je Prüffrist), `document_type` über eine neue, schlanke,
+  self-seedende Optionsgruppe statt der schwergewichtigen `DocumentCategory`-Stammdatentabelle
+  aus 1.3.62 -- deren zwei Schlösser gegen "sensible Kategorie für Monteure sichtbar" sind hier
+  gegenstandslos, da Betriebsmittel-Dokumente ausnahmslos Büro/Admin-only sind, ohne jede
+  Monteur-sichtbare Stufe. Löschen räumt die Datei über ein `before_delete`-Event auf (Muster
+  `app/roof_areas.py`). **Abschließender Angriffstest, wie verlangt**: ein Monteur erreicht
+  keinen der drei Dokumentenablage-Endpunkte, auch nicht über eine geratene, fortlaufende
+  Datei-ID (`require_role()` schließt die Rolle strukturell aus); die Büro-Suche liefert einem
+  Monteur über den echten Router durchgängig 403, nie ein Betriebsmittel -- beide Fälle in
+  `tests/test_v278_operational_assets_erweiterungen.py` belegt. Migration `ed896599a211`,
+  volle Suite 1441 Tests grün.
 - Neu seit 1.3.73: **Kontextmenü der Projektliste -- Beschneidung durch `overflow:auto`
   behoben, per echtem Headless-Browser-Test verifiziert.** Gemeldeter Fehler an 1.3.72: das
   Drei-Punkte-Menü klappte innerhalb des seit 1.3.9 scrollbaren `.wrap`-Tabellencontainers auf
@@ -8035,6 +8075,169 @@ QR-Endpunkt, unterschiedlicher QR-Inhalt mit/ohne `public_base_url`-Override,
 Seitenvorlagen-Auswahl je Rolle. Migration `ccb5c4c0915b` (vier neue, nullable Spalten -- Regel
 1 greift nicht, da keine NOT-NULL-Spalte auf einer bestehenden Tabelle entsteht) erfolgreich
 gegen die echte, lokale `dachkonzepte_erp.db` angewendet. Volle Suite: 1424 Tests grün.
+
+### Vier Ergänzungen (seit 1.4.2)
+
+Vierter Auftrag zur Betriebsmittelverwaltung, unabhängig von der weiterhin gesperrten Stufe 3
+(Betriebsmittel im Bericht) -- vier vom Nutzer benannte Punkte, ausdrücklich reine Bürofunktion
+("Alle drei reine Bürofunktion, kein Monteur betroffen" -- tatsächlich vier Punkte plus der
+abschließende Angriffstest).
+
+**Punkt 1 -- automatische Fälligkeitsberechnung der Prüffristen, mit der entscheidenden
+Feinheit.** `app/operational_assets.py::_compute_next_due_date(interval_months,
+last_inspection_date, acquisition_date)` -- neu, wird von `create_inspection()`/
+`update_inspection()` aufgerufen, sobald `interval_months` gesetzt ist:
+
+```python
+base = last_inspection_date or acquisition_date
+if base is None:
+    return None
+return add_months(base, interval_months) - timedelta(days=1)
+```
+
+`add_months()` wird unverändert aus `app/date_utils.py` wiederverwendet (bereits geteilt zwischen
+`maintenance_contracts.py`/`service_reports.py`, siehe dort). **Erste Fälligkeit beim Anlegen mit
+Anschaffungsdatum**: `Anschaffungsdatum + Intervall − 1 Tag`, nie das Anschaffungsdatum selbst --
+bei Anschaffung ist noch nichts fällig, exakt wie vom Nutzer verlangt. **Die entscheidende
+Feinheit, mit eigenem Test belegt**: die Basis ist nach einer erledigten Prüfung IMMER das
+tatsächliche `last_inspection_date`, nie eine kumulative Fortschreibung ab dem ursprünglichen
+Anschaffungsdatum -- verspätet sich eine Prüfung, verschiebt sich der gesamte Rhythmus mit,
+driftet nicht auseinander. `test_late_inspection_advances_next_due_date_from_actual_date_not_
+cumulatively_from_acquisition()` (`tests/test_v278_operational_assets_erweiterungen.py`) legt eine
+Prüfung deutlich verspätet an (statt am geplanten 2024-12-31 erst am 2025-02-15) und belegt
+explizit, dass die neue Fälligkeit vom TATSÄCHLICHEN Datum aus (2026-02-14) berechnet wird, nicht
+von der (falschen) kumulativen Rechnung ab dem Anschaffungsdatum (2025-12-31). **Eine Prüffrist
+ohne Intervall (einmalige Prüfung) bleibt vollständig manuell** -- geprüft, dass es diesen Fall
+gibt (`OperationalAssetInspectionCreate.next_due_date` existierte bereits, wird bei
+`interval_months is None` unverändert direkt vom Client übernommen) und ihn sauber behandelt:
+kein Server-Eingriff, `next_due_date` bleibt exakt, was der Client sendet, auch beim Wechsel von
+intervallbasiert zurück auf manuell.
+
+**Punkt 2 -- Meldung und Aufgabe vier Wochen vorher, derselbe Auslöser wie bei den
+Wartungsverträgen.** `check_due_asset_inspections_and_create_reminders()` (neu,
+`app/operational_assets.py`) -- **On-Demand, kein Scheduler**: geprüft, wie die Wartungsverträge
+ihre Erinnerungen erzeugen (`check_due_contracts_and_create_reminders()`,
+`app/maintenance_contracts.py`) -- derselbe Mechanismus wiederverwendet, ausgelöst per
+Fire-and-Forget-`fetch()` (`master_data.html`s `load()`, gated auf `bmModuleEnabled`) beim Öffnen
+der Stammdaten-Betriebsmittelliste, über einen neuen, literalen Endpunkt `POST
+/api/operational-assets/check-due` (deklariert vor `/{asset_id}`, Muster
+`POST /api/maintenance-contracts/check-due`). **Idempotenz über denselben Stempel-Mechanismus wie
+`MaintenanceContract`**: neue, nullable Spalte `OperationalAssetInspection.last_reminder_due_date`
+-- pro Prüffrist und Fälligkeitstermin genau einmal, nicht bei jedem Durchlauf erneut. **Ohne
+expliziten Reset**, anders als bei `MaintenanceContract` (das ihn an mehreren Stellen zurücksetzt):
+`next_due_date` wird bei diesem Feature bei JEDER Prüfung frisch neu berechnet (Punkt 1), weicht
+dadurch automatisch vom alten Stempel ab, sobald sich etwas ändert -- ein Reset wäre redundant.
+`test_check_due_reminds_again_after_next_due_date_actually_changes()` belegt das explizit: nach
+einer neuen Prüfung mit geänderter Fälligkeit erinnert der nächste Aufruf erneut, ohne dass irgend
+etwas den Stempel manuell zurücksetzen musste.
+
+Die Aufgabe geht **unassigned** ("allgemein ans Büro", `assigned_employee_id=None`) mit Verweis
+auf das Betriebsmittel (`source_module="betriebsmittel"`, `source_url="/betriebsmittel/{id}"`) --
+wortgetreu wie vom Nutzer verlangt, es gibt (anders als `MaintenanceContract.
+responsible_employee_id`) kein Zuständigkeits-Feld je Betriebsmittel oder eine passende
+Modul-Einstellung dafür. **Dabei ein bereits bestehendes, transparent gemeldetes Verhalten des
+Task-Systems entdeckt, nicht neu eingeführt**: `GET /api/tasks` (`app/routers/tasks.py`) erzwingt
+für jeden NICHT-Admin-Aufrufer `employee_id == request.state.erp_user.employee_id` -- eine
+unassigned Aufgabe ist damit für ein Büro-Konto ohne Admin-Rolle in der heutigen Aufgabenliste
+unsichtbar, nur ein Administrator sieht sie. Bewusst NICHT durch ein ungefragtes, neues
+`default_responsible_employee_id`-Einstellungsfeld umgangen -- die Anfrage sagte ausdrücklich
+"allgemein ans Büro", eine stillschweigende Zuweisung an eine erratene Person hätte diese Vorgabe
+unterlaufen. **Kein zweites Dashboard-Widget**: die Prüffristen erscheinen weiterhin nur im
+bestehenden, seit Stufe 1 vorhandenen "Fällige Prüffristen"-Panel, die Aufgabe im Aufgabenbereich.
+
+**Punkt 3 -- Betriebsmittel in der Büro-Suche.** 18. Eintrag in `OFFICE_SEARCH_SOURCES`
+(`app/search.py`) -- `SearchSource("operational_assets", "Betriebsmittel", OFFICE_ROLES,
+_search_operational_assets, _operational_asset_row, module_key="betriebsmittel")`. Mindestrolle
+Büro (`OFFICE_ROLES = {ROLE_ADMIN, ROLE_OFFICE}`, dieselbe Konstante wie jede andere Quelle) -- ein
+Monteur findet Betriebsmittel in der Suche NICHT, die Registry erbt die Rollenprüfung automatisch
+über den bereits bestehenden `search_office()`-Dispatcher UND den primär sichernden
+`GET /api/search`-Router (`require_role(ROLE_ADMIN, ROLE_OFFICE)`, ROLE_FIELD ausdrücklich nicht
+dabei). Nur wenn das Modul "betriebsmittel" aktiv ist (`module_key="betriebsmittel"`, dritte,
+bereits bestehende Achse des Dispatchers). Durchsucht Bezeichnung/Art/Hersteller/Modell/
+Kennzeichen/Artikelnummer, führt auf `/betriebsmittel/{id}`.
+
+**Live-Auflösung beachtet, sonst wären ressourcenverknüpfte Assets unauffindbar gewesen**: ein
+Asset MIT `resource_id` trägt seine eigenen Identitätsfelder (`name`/`asset_type`/`manufacturer`/
+`model`/`identifier`) als `NULL` (siehe Stufe 1, "Live-Auflösung statt Kopie") -- ein Suchfilter,
+der nur `OperationalAsset` selbst prüft, hätte jeden Kran/Fahrzeug/Anhänger nie gefunden.
+`_search_operational_assets()` joint deshalb zusätzlich per `outerjoin` auf `OperationalResource`
+und filtert auf BEIDE Tabellen; `_operational_asset_row()` nutzt für den angezeigten Namen denselben
+`resolve_asset_identity()`-Helfer wie `asset_to_dict()`/`asset_field_dict()` -- dafür musste die
+Funktion umbenannt werden (`_resolve_identity()` → `resolve_asset_identity()`, ohne führenden
+Unterstrich, da sie jetzt modulübergreifend genutzt wird), damit Suche, Büro-Ansicht und
+Monteur-Ansicht (Stufe 2) für dasselbe Asset garantiert nie unterschiedliche Namen zeigen können.
+Der Registry-Vollständigkeitstest (`EXPECTED_OFFICE_SEARCH_KEYS`,
+`tests/test_v270_office_search.py`) deckt den neuen Eintrag mit ab -- inkl. eines neuen Tests, der
+belegt, dass die Quelle beim Deaktivieren des Moduls "betriebsmittel" verschwindet. **Nebeneffekt
+korrigiert**: `search_results.html`s clientseitig hartcodierte `TYPE_LABELS`-Liste (17 Einträge,
+seit Etappe 2 der Büro-Suche) musste um den 18. Eintrag ergänzt werden, sonst hätte der
+bestehende Abgleichstest (`test_search_results_page_type_filter_keys_match_the_registry`) die
+Divergenz sofort angezeigt -- genau der Zweck dieses Tests.
+
+**Punkt 4 -- Dokumentenablage am Betriebsmittel, für Anschaffungsrechnung, Leasingvertrag u. Ä.**
+Vor dem Bauen geprüft, wie ausdrücklich verlangt, ob die Kategorie-Stammdaten aus 1.3.62
+(`DocumentCategory`) genutzt werden können oder eine schlanke eigene Ablage genügt -- Ergebnis:
+**schlanke eigene Ablage**, `DocumentCategory`s gesamter Zweck (`is_sensitive`/`is_field_visible`,
+zwei unabhängige Schlösser gegen "sensible Kategorie für Monteure sichtbar") ist hier
+gegenstandslos, da Betriebsmittel-Dokumente AUSNAHMSLOS Büro/Admin-only sind -- es gibt keine
+Feld-sichtbare Stufe, die ein Schloss überhaupt bräuchte. Stattdessen dasselbe leichtgewichtige
+Muster wie `OperationalAssetInspection.inspection_type`: eine neue, self-seedende Optionsgruppe
+`operational_asset_document_types` (`app/option_settings.py`, drei Werte: Anschaffungsrechnung,
+Leasingvertrag, Sonstiges).
+
+Neue Tabelle `OperationalAssetDocument` (`app/models.py`) -- bewusst NICHT das bestehende
+1:1-Muster je Prüffrist (`OperationalAssetInspection.document_filename`, ersetzt immer die
+vorherige Datei) wiederverwendet, da ein Betriebsmittel beliebig viele UNABHÄNGIGE Dokumente
+tragen kann (Anschaffungsrechnung UND Leasingvertrag UND ...). Neue Relationship
+`OperationalAsset.documents` (`cascade="all, delete-orphan"`). Speicherort: derselbe Ordner/dieselbe
+Umgebungsvariable wie die bestehende Prüffristen-Ablage (`app/operational_asset_documents.py`,
+`DACHKONZEPTE_OPERATIONAL_ASSET_FILE_ROOT`, über `ERP_DATA_DIR` wie jeder Upload dieses Projekts)
+-- neue `save_document()`-Funktion für das unabhängige, mehrere-Dateien-Muster, neben der
+bestehenden `replace_document()` für die 1:1-Ablage. **Löschen räumt die Datei auf**: neues
+`@event.listens_for(OperationalAssetDocument, "before_delete")` (Muster
+`app/roof_areas.py::_delete_roof_area_sketch_file()`) -- feuert für JEDEN ORM-Löschweg, auch
+kaskadiert beim Löschen des ganzen Betriebsmittels, kein separater Aufräum-Aufruf in
+`delete_asset_document()`/`delete_asset()` nötig.
+
+Drei neue Endpunkte (`app/routers/operational_assets.py`), **ausnahmslos** `_role_dep` (Büro/Admin,
+NIE `_any_role_dep`, anders als der Einzelabruf aus Stufe 2): `POST
+/api/operational-assets/{asset_id}/documents` (multipart, `document_type`+`notes` als Form-Felder,
+`file` als Upload -- Existenzprüfung des Assets VOR dem Speichern der Datei, damit eine Datei für
+ein nicht existierendes Betriebsmittel nie erst auf die Platte geschrieben wird), `GET
+/api/operational-asset-documents/{document_id}/file`, `DELETE
+/api/operational-asset-documents/{document_id}`.
+
+**Abschließender Angriffstest, wie explizit für nach dieser Runde verlangt**: ein Monteur kommt
+über keinen Weg an eine Betriebsmittel-Rechnung, auch nicht über eine geratene Datei-ID --
+`test_field_can_never_reach_an_operational_asset_document_via_any_path()` prüft alle drei
+Endpunkte sowohl mit einer echten, existierenden `document_id` als auch mit geratenen,
+fortlaufenden IDs (1, 2, 9999): durchgängig 403, `require_role()` schließt die Rolle strukturell
+aus, unabhängig davon, ob die ID existiert -- kein 404-vs-403-Unterschied, der verraten könnte, ob
+ein Dokument existiert. Und die Büro-Suche liefert einem Monteur kein Betriebsmittel --
+`test_office_search_endpoint_never_returns_an_operational_asset_to_field_role()` ruft den echten
+`GET /api/search`-Router mit `role="field"` auf und erwartet 403, bevor `search_office()` auch nur
+eine Zeile liest. Beide Tests in `tests/test_v278_operational_assets_erweiterungen.py`, 0
+"durchgelassen".
+
+**Verifiziert**: 16 neue Tests (`tests/test_v278_operational_assets_erweiterungen.py`) --
+Fälligkeitsberechnung (Erst-Fälligkeit, verspätete Prüfung, manuelle Prüffrist, Wechsel
+manuell→intervallbasiert, `_compute_next_due_date()` isoliert), Erinnerungs-Idempotenz (inkl. des
+Falls "erinnert erneut nach echter Änderung" und "Modul deaktiviert"), Suche (ressourcenverknüpft
+UND eigenständig, Rollenausschluss auf Funktionsebene), Dokumentenablage (voller Upload/Ansehen/
+Löschen-Zyklus über den Router, Datei-Aufräumen von der Platte), die beiden Angriffstests. Dabei
+zwei bereits bestehende Tests korrigiert (nicht Regressionen, sondern durch dieses Feature
+tatsächlich veraltete Annahmen): `tests/test_v276_operational_assets.py::
+test_office_role_full_crud_flow_via_router` sendete bisher `interval_months` UND `next_due_date`
+gemeinsam und erwartete, dass der manuelle Wert übernommen wird -- genau das Verhalten, das Punkt 1
+bewusst ändert; umgestellt auf `interval_months=None` (die weiterhin manuelle Variante), da der
+Test generisch den CRUD-Fluss prüft, nicht die neue Berechnung selbst. `tests/
+test_v271_office_search_ui.py`s hartcodierter Registrierungs-Zähler (`== 17`) und ein
+Docstring-Verweis wurden auf 18 aktualisiert. Migration `ed896599a211` (neue Tabelle
+`operational_asset_documents`, neue, nullable Spalte
+`operational_asset_inspections.last_reminder_due_date` -- Regel 1 greift bei keiner der beiden,
+da weder eine NOT-NULL-Spalte auf einer bestehenden Tabelle noch Bestandsdaten für die neue
+Tabelle existieren) erfolgreich gegen die echte, lokale `dachkonzepte_erp.db` angewendet. Volle
+Suite: 1441 Tests grün.
 
 ## Migrations-Workflow
 

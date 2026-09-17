@@ -30,7 +30,7 @@ Der KERN aus 1.3.64 wird um 16 weitere Gruppe-A-Datensatzarten ERWEITERT, nicht 
 search_properties() bleibt unverändert die EINE Objektsuche, die "properties"-Quelle unten ruft
 sie direkt auf. Architektur, entlang der vier Entscheidungen aus dem Befund:
 
-- **Rollen (Entscheidung 1)**: JEDE der 17 Quellen trägt allowed_roles={ROLE_ADMIN, ROLE_OFFICE}
+- **Rollen (Entscheidung 1)**: JEDE der (seit 1.4.2: 18) Quellen trägt allowed_roles={ROLE_ADMIN, ROLE_OFFICE}
   -- die Grenze verläuft zwischen Büro und Monteur, nicht zwischen Admin und Büro. Kalkulations-
   grundlagen sind keine Gruppe-A-Entität (Singleton-Settings-Zeile, nicht durchsuchbar);
   Einkaufspreise/Vergütung sind bereits an anderer Stelle Büro+Admin-sichtbar (Material-/
@@ -59,15 +59,27 @@ vom Nutzer ausdrücklich verlangte Prüfung, sondern folgt aus der bereits beste
 ("API-Endpunkte müssen den Zustand selbst prüfen, sonst bleibt die Funktion über die API
 erreichbar, obwohl die Oberfläche sie versteckt", siehe CLAUDE.md "Modul-Umschalter").
 
-**search_office() prüft MIN_QUERY_LENGTH ZENTRAL, EINMAL, bevor irgendeine der 17 Quellfunktionen
-aufgerufen wird** -- keine der 17 Funktionen prüft es erneut, das ist beabsichtigt, kein
-Versehen.
+**search_office() prüft MIN_QUERY_LENGTH ZENTRAL, EINMAL, bevor irgendeine der (seit 1.4.2: 18)
+Quellfunktionen aufgerufen wird** -- keine der Funktionen prüft es erneut, das ist
+beabsichtigt, kein Versehen.
 
 **Registry-Vollständigkeit ist mechanisch erzwungen** (Muster: Regel 11/require_role() -- eine
 Registry ohne erzwungene Vollständigkeit ist nur ein Vorschlag, keine Absicherung):
 tests/test_v270_office_search.py::EXPECTED_OFFICE_SEARCH_KEYS vergleicht die tatsächlich
-registrierten Schlüssel gegen die 17 erwarteten -- eine vergessene oder falsch deklarierte
-Datensatzart fällt beim nächsten Testlauf auf, nicht erst durch Zufall."""
+registrierten Schlüssel gegen die erwarteten -- eine vergessene oder falsch deklarierte
+Datensatzart fällt beim nächsten Testlauf auf, nicht erst durch Zufall.
+
+=== Nachtrag (seit 1.4.2, Punkt 3): Betriebsmittel ===
+
+Achtzehnte Quelle -- "operational_assets", dieselben drei Achsen wie jede andere: Rolle
+(OFFICE_ROLES), Modul (module_key="betriebsmittel", eine vierte, unabhängige Achse, die dieses
+Feature ohnehin schon kennt), keine Preis-/Kostenfelder im row_fn (`article_number` fließt nur
+als Suchkriterium ein, nie in die Antwort). Sucht Bezeichnung/Art/Hersteller/Modell/
+Kennzeichen/Artikelnummer -- bei einem ressourcenverknüpften Asset (resource_id gesetzt) sind
+die eigenen Identitätsfelder auf OperationalAsset selbst NULL (siehe app/operational_assets.py-
+Moduldocstring), deshalb outerjoin auf OperationalResource UND row_fn über
+resolve_asset_identity() -- derselbe Helfer, den auch die Betriebsmittelseite selbst nutzt,
+kann also nie einen anderen Namen zeigen."""
 
 from dataclasses import dataclass
 from typing import Callable
@@ -79,8 +91,10 @@ from .materials import list_materials
 from .modules import is_module_enabled
 from .models import (
     Customer, CustomerProfile, Employee, Finding, Inquiry, Invoice, MaintenanceContract, Material,
-    Order, Project, Property, Quote, Reminder, RoofArea, Service, ServiceReport, Supplier, Task,
+    OperationalAsset, OperationalResource, Order, Project, Property, Quote, Reminder, RoofArea, Service,
+    ServiceReport, Supplier, Task,
 )
+from .operational_assets import resolve_asset_identity
 from .permissions import ROLE_ADMIN, ROLE_OFFICE
 
 MIN_QUERY_LENGTH = 2
@@ -483,6 +497,44 @@ def _material_row(m) -> dict:
     return {"id": m.id, "title": m.name, "subtitle": m.article_number, "url": f"/master-data/materials/{m.id}/edit"}
 
 
+# --- Betriebsmittel (Modul "betriebsmittel", seit 1.4.2 Punkt 3) -- Live-Auflösung beachten:
+# ein Asset MIT resource_id trägt seine eigenen Identitätsfelder (name/asset_type/manufacturer/
+# model/identifier) als NULL (siehe app/operational_assets.py-Moduldocstring, "Live-Auflösung
+# statt Kopie") -- ein Suchfilter, der nur OperationalAsset selbst prüft, würde jedes
+# ressourcenverknüpfte Betriebsmittel (Kran, Fahrzeug, Anhänger) unauffindbar machen. Der
+# outerjoin auf OperationalResource UND resolve_asset_identity() im row_fn (derselbe Helfer wie
+# asset_to_dict()/asset_field_dict(), siehe dort) stellen sicher, dass beide Fälle -- mit und
+# ohne Ressourcenbezug -- gefunden werden und niemals einen anderen Namen zeigen als die
+# Betriebsmittelseite selbst. ---
+
+def _search_operational_assets(db: Session, term: str, limit: int) -> tuple[int, list]:
+    pattern = f"%{term}%"
+    stmt = (
+        select(OperationalAsset)
+        .outerjoin(OperationalResource, OperationalAsset.resource_id == OperationalResource.id)
+        .where(or_(
+            OperationalAsset.name.ilike(pattern),
+            OperationalAsset.asset_type.ilike(pattern),
+            OperationalAsset.manufacturer.ilike(pattern),
+            OperationalAsset.model.ilike(pattern),
+            OperationalAsset.identifier.ilike(pattern),
+            OperationalAsset.article_number.ilike(pattern),
+            OperationalResource.name.ilike(pattern),
+            OperationalResource.resource_type.ilike(pattern),
+            OperationalResource.manufacturer.ilike(pattern),
+            OperationalResource.model.ilike(pattern),
+            OperationalResource.identifier.ilike(pattern),
+        ))
+    )
+    return _count_and_fetch(db, stmt, OperationalAsset.id.desc(), limit, options=(selectinload(OperationalAsset.resource),))
+
+
+def _operational_asset_row(a: OperationalAsset) -> dict:
+    name, asset_type, manufacturer, model, identifier, _resource_number = resolve_asset_identity(a)
+    sub = " · ".join(x for x in [asset_type, manufacturer, model, identifier] if x)
+    return {"id": a.id, "title": name or f"Betriebsmittel #{a.id}", "subtitle": sub or None, "url": f"/betriebsmittel/{a.id}"}
+
+
 # --- Lieferanten ---
 
 def _search_suppliers(db: Session, term: str, limit: int) -> tuple[int, list]:
@@ -520,6 +572,10 @@ OFFICE_SEARCH_SOURCES: tuple[SearchSource, ...] = (
     SearchSource("services", "Leistungen", OFFICE_ROLES, _search_services, _service_row),
     SearchSource("materials", "Materialien", OFFICE_ROLES, _search_materials, _material_row),
     SearchSource("suppliers", "Lieferanten", OFFICE_ROLES, _search_suppliers, _supplier_row),
+    SearchSource(
+        "operational_assets", "Betriebsmittel", OFFICE_ROLES, _search_operational_assets, _operational_asset_row,
+        module_key="betriebsmittel",
+    ),
 )
 
 
@@ -536,7 +592,7 @@ def search_office(
 
     Liefert nur Gruppen mit mindestens einem Treffer (total > 0) -- eine leere Gruppe wäre auf
     der Ergebnisseite nur Rauschen. Prüft MIN_QUERY_LENGTH EINMAL zentral, bevor irgendeine der
-    17 Quellfunktionen aufgerufen wird -- diese selbst prüfen es nicht erneut (siehe
+    Quellfunktionen aufgerufen wird -- diese selbst prüfen es nicht erneut (siehe
     Moduldocstring)."""
     term = (query or "").strip()
     if len(term) < MIN_QUERY_LENGTH:
