@@ -15,7 +15,7 @@ from ..database import get_db
 from ..document_categories import resolve_category_id
 from ..invoices import invoice_overview_row, invoice_summary_for_order, list_invoices_for_project
 from ..work_preparation import planned_hours
-from ..models import AppUser, Customer, Order, Project, ProjectDocument, ProjectProfile, Property, Quote
+from ..models import AppUser, Customer, Order, Project, ProjectDocument, ProjectPipelineColumn, ProjectProfile, Property, Quote
 from ..option_settings import default_option_value, ensure_default_option_groups
 from ..orders import load_order, order_to_dict
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
@@ -23,7 +23,7 @@ from ..project_documents import MAX_UPLOAD_BYTES, make_stored_filename, project_
 from ..project_pipeline_columns import default_pipeline_column_id
 from ..projects import delete_project, duplicate_project, load_project, load_quote, next_project_number, next_quote_number, quote_to_dict, set_project_archived
 from ..service_reports import count_reports_for_order
-from ..schemas import InvoiceOverviewOut, OrderListOut, ProjectCreate, ProjectDetailOut, ProjectDocumentOut, ProjectDuplicateRequest, ProjectListOut, ProjectUpdate, QuoteCreate, QuoteListOut, QuoteOut
+from ..schemas import InvoiceOverviewOut, OrderListOut, ProjectCreate, ProjectDetailOut, ProjectDocumentOut, ProjectDuplicateRequest, ProjectListOut, ProjectPipelineColumnMove, ProjectUpdate, QuoteCreate, QuoteListOut, QuoteOut
 from ..settings import get_or_create_general_settings
 
 from .project_documents import _project_document_out
@@ -55,6 +55,7 @@ def _project_to_list_out(p: Project) -> "ProjectListOut":
         customer_id=p.customer_id, customer_name=p.customer.name, property_id=p.property_id,
         property_name=p.property.name if p.property else None,
         category=p.profile.category if p.profile else None,
+        pipeline_column_id=p.pipeline_column_id,
         quote_count=len(p.quotes), order_count=len(p.orders), document_count=len(p.documents),
         archived=p.archived,
     )
@@ -156,7 +157,9 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db), _role:
         id=project.id, project_number=project.project_number, name=project.name, status=project.status,
         customer_id=project.customer_id, customer_name=project.customer.name,
         property_id=project.property_id, property_name=project.property.name if project.property else None,
-        category=project.profile.category if project.profile else None, quote_count=len(project.quotes), order_count=len(project.orders),
+        category=project.profile.category if project.profile else None,
+        pipeline_column_id=project.pipeline_column_id,
+        quote_count=len(project.quotes), order_count=len(project.orders),
         document_count=len(project.documents),
     )
 
@@ -202,9 +205,28 @@ def get_project_detail(project_id: int, db: Session = Depends(get_db), _role: Ap
         customer_phone=project.customer.phone, customer_email=project.customer.email,
         property_id=project.property_id, property_name=prop.name if prop else None,
         property_street=prop.street if prop else None, property_postal_code=prop.postal_code if prop else None, property_city=prop.city if prop else None,
+        pipeline_column_id=project.pipeline_column_id,
         quote_count=len(project.quotes), order_count=len(project.orders), document_count=len(project.documents), description=project.description,
         category=project.profile.category if project.profile else None, archived=project.archived, is_template=project.is_template,
     )
+
+
+@router.put("/api/projects/{project_id}/pipeline-column", response_model=ProjectListOut)
+def move_project_pipeline_column(project_id: int, payload: ProjectPipelineColumnMove, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Verschiebt ein Projekt im Kanban -- ändert ausschließlich pipeline_column_id, nie
+    Project.status (der bleibt automatisch/kennzahlengesteuert, siehe CLAUDE.md 'Umbau der
+    Projektliste'). Kein Bestätigungsdialog auf der Oberfläche nötig -- die Änderung betrifft
+    nur die Spaltenzuordnung, ist jederzeit durch erneutes Ziehen umkehrbar und hat keine
+    fachliche Folge."""
+    project = load_project(db, project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
+    column = db.get(ProjectPipelineColumn, payload.pipeline_column_id)
+    if column is None:
+        raise HTTPException(status_code=404, detail="Pipeline-Spalte nicht gefunden.")
+    project.pipeline_column_id = column.id
+    db.commit()
+    return _project_to_list_out(project)
 
 
 @router.get("/api/projects/{project_id}/documents", response_model=list[ProjectDocumentOut])

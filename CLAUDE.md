@@ -20,7 +20,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.71** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.72** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf jetzt `da9d9425e257` ("project pipeline columns", siehe Abschnitt
   "Umbau der Projektliste" unten) -- vorher `f803985ebc2f` ("property documents table", siehe
   Abschnitt "Dateiablage je Objekt" unten), davor `9137945e8785` ("document categories
@@ -30,10 +30,9 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1382 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1391 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 16.09.2026 gegen 20:22 Uhr (bewusst NACH dem Standard-Feierabend 19:00 Uhr
-  ausgeführt, um die 1.3.71-Korrektur zu belegen) mit `pytest` in Tobias' `.venv` unter Windows
+  dort), zuletzt am 17.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -959,7 +958,8 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   `default_pipeline_column_id()`. Spaltenverwaltung unter Einstellungen → Projekte →
   Projekt-Pipeline (`app/routers/project_pipeline_columns.py`, dieselbe Büro+Admin-Sperre wie
   der Rest der Projektverwaltung). Diese Version liefert AUSSCHLIESSLICH das Fundament -- die
-  Listen- und Kanban-Oberfläche selbst folgt erst in der zweiten Runde, nach Bestätigung.
+  Listen- und Kanban-Oberfläche selbst folgt erst in der zweiten Runde, nach Bestätigung
+  (umgesetzt seit 1.3.72, siehe dort).
 - Neu seit 1.3.71: **Wanduhrzeit-Flake in `tests/test_v224_field_view.py` behoben, unabhängig
   von der Projekt-Pipeline (eigener Commit, wie verlangt).** Zwei bereits vor 1.3.70 bestehende
   Tests (`test_field_view_today_returns_assignments_and_drafts_for_linked_employee`/
@@ -976,6 +976,23 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   `is_past_shift_end()` bereits direkt vormacht (ein festes `now`), nur über die private
   Python-Bruchstelle statt eines HTTP-Parameters. Verifiziert um 20:22 Uhr (nach dem
   Standard-Feierabend) grün.
+- Neu seit 1.3.72: **Umbau der Projektliste, Runde 2 -- die Oberfläche.** `app/templates/
+  projects.html` vollständig neu gebaut (siehe Abschnitt "Umbau der Projektliste" unten für die
+  volle Herleitung). Linker Fünf-Reiter-Kasten entfällt, volle Breite, Kategoriefilter, Kontext-
+  menü je Zeile statt sechs Inline-Links, umschaltbare Kanban-Ansicht (native HTML5-Drag-and-
+  Drop, Muster Plantafel) mit den Pipeline-Spalten aus 1.3.70. Vor dem Entfernen geprüft und dem
+  Nutzer gemeldet: die Angebote/Aufträge-Reiter waren die einzige projektübergreifende Über-
+  sicht -- auf Rückmeldung durch einen neuen, rein client-seitigen Status-Filter ersetzt
+  ("Angebot: Entwurf"/"Versendet"/"Auftrag vorhanden"/"Ohne Angebot"), der Anfragen-Reiter war
+  dagegen redundant (`/inquiries` existiert bereits) und entfällt ersatzlos. Mustervorgänge
+  bleiben über ein Kontrollkästchen "Nur Mustervorgänge" in derselben Liste erreichbar statt
+  eines eigenen Zugangs. Neuer Endpunkt `PUT /api/projects/{id}/pipeline-column` ändert
+  ausschließlich `pipeline_column_id`, nie `Project.status`, kein Bestätigungsdialog (Absicherung
+  aus dem Fundament). `ProjectListOut`/`ProjectDetailOut` liefern jetzt `pipeline_column_id` mit.
+  Per echtem HTTP-Smoke-Test gegen eine isolierte, temporäre Datenbank bestätigt: Monteur bleibt
+  weiterhin vollständig ausgesperrt (Seite UND API 403), Verschieben im Kanban ändert nachweis-
+  lich nie den Status. Kein echter Browser-Klicktest möglich (Werkzeug-Einschränkung dieser
+  Umgebung) -- Drag-and-Drop/Kontextmenü nur über Quelltext- und Endpunktprüfung abgesichert.
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -7237,7 +7254,7 @@ test_search_slot_is_present_and_empty` in zwei Tests umgeschrieben (die 1.3.45-E
 bleibt leer" ist jetzt bewusst überholt -- ein Test für admin/office, ein Test für field). Volle
 Suite weiterhin grün (1344/1344).
 
-## Umbau der Projektliste (seit 1.3.70, Fundament)
+## Umbau der Projektliste (seit 1.3.70, Fundament + 1.3.72, Oberfläche)
 
 Betreiber-Auftrag: die Projektliste (Sidebar → Projekte) wird breiter und ruhiger -- der linke
 Kasten "Projekte & Vorgänge" mit den vier Reitern Angebote/Aufträge/Anfragen/Mustervorgänge
@@ -7353,16 +7370,115 @@ Funktion.
   dieselbe Bearbeiten/Verschieben/Löschen-Oberfläche wie bei den Aufgaben-Spalten (Label-Feld,
   ↑/↓-Buttons, Löschen), nur ohne die "zählt als erledigt"-Checkbox.
 
-### Bewusst NICHT Teil dieser Version
+### Runde 2 (seit 1.3.72): die Oberfläche
 
-Die Listen- und Kanban-Oberfläche selbst (voller Breite Liste ohne den linken Reiter-Kasten,
-Kategoriefilter, Kontextmenü je Zeile, umschaltbare Kanban-Ansicht mit Drag-and-Drop) -- das ist
-die zweite, noch zu bauende Runde, nach Bestätigung dieses Fundaments. Für das Verschieben per
-Ziehen ist bereits entschieden (Muster übernommen von der Absicherungs-ÜBERLEGUNG bei den
-Aufgaben, nicht von einem dort tatsächlich vorhandenen Mechanismus, da es dort gar kein Drag &
-Drop gibt, siehe Befund oben): nur die Pipeline-Spalte ändert sich, kein fachlicher Status, der
-Wechsel ist über die Spaltenzuordnung jederzeit umkehrbar -- ein versehentliches Ziehen hat
-keine fachliche Folge, deshalb kein Bestätigungsdialog nötig.
+`app/templates/projects.html` wurde vollständig neu gebaut -- kein inkrementelles Anpassen des
+alten Fünf-Reiter-Templates.
+
+**Vorab erneut geprüft, wie beim Fundament (Muster "Dateiablage je Objekt"/"Büro-Suche"): erst
+Befund, dann bauen.** Zwei offene Fragen aus dem Fundament wurden dabei neu bewertet, nicht nur
+aus dem Gedächtnis übernommen:
+
+- **Angebote/Aufträge-Reiter -- echter Funktionsverlust, dem Nutzer VOR dem Entfernen
+  gemeldet** (wie ausdrücklich verlangt: "sag mir das, bevor du sie ersatzlos entfernst").
+  `app/routers/pages.py` hat bis heute keine `/quotes`- oder `/orders`-Seite -- die beiden Reiter
+  waren die einzige Möglichkeit, alle Angebote/Aufträge projektübergreifend in einer Liste zu
+  sehen. Die ursprüngliche Nutzer-Annahme ("ersetzbar durch Suche und Kategoriefilter") trifft
+  nur teilweise zu: die Büro-Suche (`/suche`, seit 1.3.66/1.3.67) verlangt einen Suchbegriff und
+  ersetzt kein "alle Angebote im Entwurf durchblättern", der Kategoriefilter filtert nach
+  *Projekt*-Kategorie, nicht nach Angebots-/Auftragsstatus. Drei Lösungen zur Wahl gestellt
+  (ersatzlos entfernen / Status-Filter in der neuen Liste ergänzen / eigene schlanke
+  `/quotes`-`/orders`-Seiten neu bauen) -- Nutzer wählte **Status-Filter in der neuen Liste**.
+  "Anfragen" war dagegen redundant (`/inquiries` existiert bereits als eigenständige Seite,
+  `app/routers/pages.py:463`) -- entfällt ersatzlos, ohne Ersatzlösung nötig.
+- **Tasks-Prämisse ein zweites Mal verifiziert** (nicht nur aus dem Fundament-Befund erinnert):
+  `tasks.html` hat weiterhin kein `draggable`/`dragstart`/`dragover`/`drop` und keinen
+  Listen/Kanban-Umschalter -- ein erneuter, gezielter Grep bestätigt das. Umschalter und
+  Drag-and-drop der Projekt-Kanban-Ansicht sind deshalb ein eigenständiger Entwurf, keine Kopie
+  eines bestehenden Mechanismus -- nur die bereits im Fundament vereinbarte
+  Absicherungs-Begründung ("nur die Pipeline-Spalte ändert sich, kein fachlicher Status, kein
+  Bestätigungsdialog nötig") bleibt unverändert gültig.
+
+**Status-Filter, technisch** (Punkt 1 der Nutzerentscheidung): kein neues Backend-Feld, keine
+neue Aggregation -- rein client-seitig aus den bereits bestehenden, unverändert weiterlaufenden
+`GET /api/quotes`/`GET /api/orders` berechnet (beide liefern `project_id`, `status` je
+Angebot/Auftrag). Dropdown "Angebot / Auftrag": Alle / Angebot: Entwurf / Angebot: Versendet /
+Auftrag vorhanden / Ohne Angebot -- wirkt identisch in Liste UND Kanban (eine gemeinsame
+`filteredRows()`-Funktion für beide Ansichten).
+
+**Listenansicht** (volle Breite -- das `.layout`-Grid mit der 245px-Seitenspalte ist komplett
+entfernt): Spalten Projektnummer/Bezeichnung/Kunde/Objekt/Kategorie/Status/Angebote/Dateien wie
+bisher, Kategoriefilter oberhalb, bestehende Textsuche und "Archivierte anzeigen" bleiben. Die
+sechs Zeilenaktionen (Projektmappe/+Angebot/Angebote/Kopieren/Als Mustervorgang speichern/
+Archivieren/Löschen) wandern in ein Drei-Punkte-Kontextmenü je Zeile (`.menu-cell`, öffnet/
+schließt über `toggleMenu()`/`closeAllMenus()`, Escape schließt zusätzlich) -- die Zeile selbst
+führt per Klick in die Projektmappe (`event.stopPropagation()` auf der Menüzelle verhindert die
+Navigation bei einem Klick auf ⋮ oder einen Menüpunkt). "Angebote" führt jetzt auf
+`/projects/{id}#sec-quotes` (die bereits bestehende Angebote-Sektion in `project_folder.html`)
+statt auf den entfallenen, projektübergreifenden Reiter -- das reicht, weil der Status-Filter
+oben das projektübergreifende Durchsuchen jetzt übernimmt.
+
+**Kanban-Ansicht**: Spalten aus `GET /api/project-pipeline-columns` in `sort_order`, eine Karte
+je Projekt (Projektnummer, Bezeichnung, Kunde/Objekt, Status als kleines Kennzeichen).
+Verschieben per **nativem HTML5-Drag-and-drop** (`draggable`, `dragstart`/`dragover`/`drop` --
+dieselbe Technik wie die Plantafel, nicht Pointer-Events wie die Dachflächen-Skizze/der
+Unterschriften-Canvas): Projekte sind Büro/Admin-only, also strukturell Desktop-orientiert, nicht
+der Touch-first-Monteur-Kontext, in dem native HTML5-DnD laut Plantafel-Erfahrung nicht
+funktioniert -- deshalb hier unproblematisch. Ruft den neuen Endpunkt
+`PUT /api/projects/{id}/pipeline-column` (`ProjectPipelineColumnMove`-Schema, `{pipeline_column_id:
+int}`) auf -- ändert ausschließlich `Project.pipeline_column_id`, fasst `status` nie an, 404 bei
+unbekanntem Projekt/unbekannter Spalte, `require_role(ROLE_ADMIN, ROLE_OFFICE)` wie der Rest der
+Projektverwaltung (kein admin-only-Sonderfall wie bei den Spalten-STAMMDATEN selbst -- das
+Verschieben eines einzelnen Projekts ist Tagesgeschäft, nicht Konfiguration). Optimistisches
+UI-Update (`moveProjectColumn()` setzt `pipeline_column_id` sofort lokal, rendert neu, rollt bei
+einem fehlgeschlagenen Request zurück) statt auf die Server-Antwort zu warten. Kein
+Bestätigungsdialog -- wie im Fundament entschieden.
+
+**Mustervorgänge** (Punkt 1 der Anfrage, dritter Teil): Kontrollkästchen "Nur Mustervorgänge"
+statt eines eigenen Zugangs -- schaltet die Datenquelle der ganzen Liste (Liste UND Kanban) auf
+`GET /api/project-templates` um, Kontextmenü zeigt für Mustervorgang-Zeilen "Neuen Vorgang
+erstellen" statt der sechs normalen Aktionen. Kein zweiter Rendering-Pfad -- dieselben
+`renderList()`/`renderKanban()`-Funktionen, nur `menuItemsFor()` verzweigt.
+
+**Kopfzeile, Punkt 4 der Anfrage**: Suche, Kategoriefilter, Status-Filter, "Nur Mustervorgänge",
+"Archivierte anzeigen" und der Liste/Kanban-Umschalter sitzen in EINER gemeinsamen Kopfzeile über
+dem Inhalt (`.toolbar`), nicht verstreut -- Muster an `tasks.html`s Kopfzeile angelehnt (Suche +
+Checkbox in einer Reihe), um zwei unterschiedlich bediente Umschalter für dasselbe Prinzip zu
+vermeiden. Die Ansichtswahl (`erp_project_view`, `localStorage`, Muster `erp_theme`) bleibt beim
+nächsten Öffnen erhalten.
+
+**Schema-Erweiterung, technisch notwendig für die Kanban-Gruppierung**: `ProjectListOut`/
+`ProjectDetailOut` bekommen `pipeline_column_id` als Pflichtfeld -- ergänzt an allen vier
+Stellen, die das Schema manuell befüllen (`routers/projects.py`: Liste, Anlegen, Detail;
+`routers/inquiries.py`: `convert_inquiry()`s Rückgabe), sonst hätte ein bestehender Aufrufer mit
+einem Pydantic-Validierungsfehler abgebrochen (per Testlauf bestätigt, bevor die Endpunkte
+angepasst waren).
+
+**Rollen geprüft, keine Änderung nötig** (letztes Akzeptanzkriterium): `/projects` UND
+`/api/projects*` tragen unverändert `require_role(ROLE_ADMIN, ROLE_OFFICE)` -- der Umbau
+selbst rührt daran nichts an. Per echtem HTTP-Smoke-Test gegen eine isolierte, temporäre
+Serverinstanz bestätigt (nicht nur angenommen): ein Monteur-Konto bekommt sowohl auf die Seite
+als auch auf `GET /api/projects` 403, `/mobil` bleibt für dieselbe Rolle unverändert erreichbar.
+
+**Verifikation**: `node --check` gegen den extrahierten `<script>`-Block (keine JS-Syntaxfehler).
+Neue Tests (`tests/test_v275_project_list_pipeline_move.py`) für den neuen Endpunkt (ändert nur
+die Spalte, nie `status`; 404 bei unbekanntem Projekt/unbekannter Spalte; `field` bekommt 403,
+`admin`/`office` dürfen verschieben) und die `pipeline_column_id`-Präsenz in allen drei
+betroffenen Response-Pfaden. Drei bestehende Tests, die die alte Fünf-Reiter-Struktur
+voraussetzten (`test_v063_navigation_hubs.py`, `test_v192_project_templates.py`), auf die neue
+Struktur umgeschrieben, nicht nur angepasst. **Echter End-to-end-Smoke-Test** gegen eine
+isolierte, temporäre SQLite-Datenbank (niemals `dachkonzepte_erp.db`) auf einem separaten Port:
+Projekt anlegen, per `PUT .../pipeline-column` zwischen zwei Spalten verschieben (`status` blieb
+dabei nachweislich `"anfrage"`, unverändert), Büro-Rolle sieht `/projects` (200), Monteur-Rolle
+bekommt 403 auf Seite und API, `/mobil` bleibt für sie erreichbar -- Instanz und temporäre
+Datenbank danach vollständig entfernt. **Bewusst NICHT möglich**: ein echter Browser-Klicktest
+(Drag-and-drop, Kontextmenü-Öffnen/-Schließen per Maus, Live-Filtern) -- dieselbe, in dieser
+Sitzung bereits mehrfach dokumentierte Werkzeug-Einschränkung (kein
+Browser-Automatisierungswerkzeug verfügbar). Die clientseitige Interaktionslogik ist dadurch nur
+über Quelltextprüfung und `node --check` abgesichert, nicht über eine tatsächliche
+Bildschirminteraktion -- sollte bei Gelegenheit im Browser nachgeprüft werden, insbesondere das
+Drag-and-drop-Gefühl und ob das Kontextmenü auf einem schmalen Bildschirm (`@media(max-width:
+850px)`) noch bedienbar bleibt.
 
 ## Migrations-Workflow
 

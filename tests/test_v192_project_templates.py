@@ -279,7 +279,11 @@ def test_projects_page_has_duplicate_and_template_actions():
     html = (Path(__file__).parents[1] / "app" / "templates" / "projects.html").read_text(encoding="utf-8")
     assert "duplicateProject" in html
     assert "Als Mustervorgang speichern" in html
-    assert "data-view=\"templates\"" in html
+    # Seit "Runde 2 der Projektliste" (siehe CLAUDE.md) kein eigener Reiter mehr --
+    # Mustervorgänge bleiben stattdessen über einen Filter in derselben Liste sichtbar.
+    assert "onlyTemplates" in html
+    assert "Nur Mustervorgänge" in html
+    assert "/api/project-templates" in html
 
 
 def test_project_folder_page_has_duplicate_and_template_actions():

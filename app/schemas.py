@@ -321,6 +321,7 @@ class ProjectListOut(BaseModel):
     property_id: int | None
     property_name: str | None
     category: str | None = None
+    pipeline_column_id: int
     quote_count: int
     order_count: int = 0
     document_count: int = 0
@@ -330,6 +331,13 @@ class ProjectListOut(BaseModel):
 
 class ProjectDuplicateRequest(BaseModel):
     as_template: bool = False
+
+
+class ProjectPipelineColumnMove(BaseModel):
+    """Payload für PUT /api/projects/{id}/pipeline-column -- ändert ausschließlich die
+    Kanban-Spalte eines Projekts, nie Project.status. Siehe CLAUDE.md 'Umbau der
+    Projektliste' für die Begründung der Trennung."""
+    pipeline_column_id: int
 
 
 class ProjectDetailOut(ProjectListOut):

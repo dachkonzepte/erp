@@ -56,6 +56,7 @@ def _project_list_out(project: Project) -> ProjectListOut:
         id=project.id, project_number=project.project_number, name=project.name, status=project.status,
         customer_id=project.customer_id, customer_name=project.customer.name,
         property_id=project.property_id, property_name=project.property.name if project.property else None,
+        pipeline_column_id=project.pipeline_column_id,
         quote_count=len(project.quotes), order_count=len(project.orders),
     )
 
