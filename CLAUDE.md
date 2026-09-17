@@ -20,7 +20,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.4.2** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.4.3** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf jetzt `ed896599a211` ("operational assets erweiterungen faelligkeit
   dokumente", siehe Abschnitt "Betriebsmittelverwaltung" -> "Vier Ergänzungen (seit 1.4.2)"
   unten) -- vorher `ccb5c4c0915b` ("operational assets stufe 2 qr and public base url", Stufe
@@ -35,10 +35,10 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1441 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1462 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 17.09.2026 (1.4.2, Betriebsmittelverwaltung -- vier Ergänzungen, siehe
-  eigener Abschnitt unten) mit `pytest` in Tobias'
+  dort), zuletzt am 17.09.2026 (1.4.3, Änderung am Aufgabenmodul -- empfängerlose Aufgaben für
+  ganz Büro sichtbar, siehe eigener Abschnitt unten) mit `pytest` in Tobias'
   `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
@@ -1132,6 +1132,40 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   dieser Datei wiederholte Einschränkung "kein Browser-Automatisierungswerkzeug verfügbar" ist
   damit für Headless-Chrome-Fälle nicht mehr uneingeschränkt gültig, siehe eigener Abschnitt
   "Headless-Chrome-Verifikation über CDP" unten.
+- Neu seit 1.4.3: **Änderung am Aufgabenmodul -- empfängerlose Aufgaben für ganz Büro sichtbar,
+  "Übernehmen"/"Zurück in den Büro-Eingang".** Anlass war der in 1.4.2 transparent gemeldete
+  Fund, dass eine unassigned Aufgabe für Nicht-Admin-Büro-Konten unsichtbar bleibt -- erst
+  Befund (wo der Filter überall sitzt: exakt eine Stelle, `list_tasks()`/dessen einziger
+  Aufrufer `GET /api/tasks`), dann bestätigter Bauauftrag. Neues `has_role(user, *roles) ->
+  bool` (`app/permissions.py`) ist jetzt die EINE Rollenquelle -- `require_role()` und der
+  Jinja-Global `can()` delegieren beide daran, statt je einen eigenen Vergleich zu tragen
+  (genau das bei `build_din5008_header_block()` bereits einmal aufgetretene
+  Drei-Varianten-Muster, hier vermieden). Neues `app/tasks.py::list_tasks_for_user(db, user,
+  ...)` ist der ausschließliche Einstiegspunkt für jede Task-Sichtbarkeit -- Admin frei
+  wählbar, Büro ohne `unassigned_only` zwingend auf die eigene `employee_id` (Kollegen-Aufgaben
+  bleiben unsichtbar, unverändert), mit `unassigned_only=True` sieht JEDES Büro-/Admin-Konto den
+  gemeinsamen Eingang (`list_tasks()` bekommt dafür einen neuen, vorrangigen
+  `unassigned_only`-Parameter). "Übernehmen" (`claim_task()`, `POST /api/tasks/{id}/claim`)
+  weist fest zu -- kein dritter Zustand neben zugewiesen/empfängerlos -- über exakt dasselbe
+  Feld wie jede andere Zuweisung, lehnt eine bereits vergebene Aufgabe ab (400, verhindert
+  versehentliches Stehlen) und verlangt eine `employee_id`-Verknüpfung (klare 400-Meldung, kein
+  stiller Fehler -- derselbe Fall wie beim Monteur ohne Mitarbeiterverknüpfung). "Zurück in den
+  Büro-Eingang" (`release_task()`, `POST /api/tasks/{id}/release`) macht eine Aufgabe wieder
+  empfängerlos, bewusst OHNE Eigentümerschafts-Prüfung -- konsistent mit der bereits
+  bestehenden, dokumentierten Lücke bei PUT/DELETE/archive/unarchive (siehe "Aufgabe" unten),
+  keine isolierte Verschärfung nur hier. Neues, opt-in Dashboard-Widget "Offene
+  Büro-Aufgaben" (`open_office_tasks`, Muster `due_maintenance`/`due_assets`, nicht im
+  Standard-Layout) samt "Übernehmen"-Button je Zeile; `/tasks` bekommt einen neuen Button
+  "Zurück in den Büro-Eingang" im Editor, sichtbar nur bei bereits zugewiesener Aufgabe -- der
+  Board-Fetch selbst bleibt für Nicht-Admin unverändert "nur eigene". Ein Monteur bleibt von der
+  gesamten `/api/tasks*`-Familie weiterhin vollständig ausgeschlossen (unverändert seit
+  "Rechtekonzept") -- bestätigt per Angriffstest: 403 auf Liste UND auf Übernehmen/Zurückgeben,
+  auch mit geratener Aufgaben-ID, bevor irgendeine Geschäftslogik läuft.
+  **Bewusst nicht Teil dieser Änderung, transparent vermerkt**: die bei derselben Untersuchung
+  gefundene, unabhängige Lücke in der Büro-Suche (`app/search.py::_search_tasks()` ohne
+  Mitarbeiter-Filterung -- jedes Büro-/Admin-Konto findet über `/suche` jede Aufgabe per Titel,
+  unabhängig von der Zuweisung) bleibt ein offener Punkt, siehe „Bekannte, bewusst offene
+  Punkte" unten.
 
 ### Headless-Chrome-Verifikation über CDP (seit 1.3.73)
 
@@ -1795,8 +1829,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
 - **Aufgabe** (`Task`, seit 1.1.0, erstes Modul `aufgabenmanagement`): freie, eigenständige Aufgabe
   mit Status und Priorität, optional einem Mitarbeiter und/oder einem `Project` zugeordnet –
   unabhängig von den älteren, bereichsgebundenen `WorkPreparationTask`-Einträgen der
-  Arbeitsvorbereitung. Sichtbarkeit folgt demselben Muster wie das Dashboard-Widget „Meine
-  Aufgaben" (eigene Aufgaben für Sachbearbeiter, serverseitig erzwungen; Admin frei wählbar). Drei
+  Arbeitsvorbereitung. **Sichtbarkeit, zentral über EINE Stelle entschieden (seit 1.4.3, siehe
+  Unterabschnitt "Sichtbarkeit für Büro-Konten" unten)**: `app/tasks.py::list_tasks_for_user()`
+  ist der ausschließliche Einstiegspunkt -- eigene zugewiesene Aufgaben für ein Büro-Konto
+  (serverseitig erzwungen, Kollegen-Aufgaben bleiben unsichtbar), Admin frei wählbar,
+  empfängerlose Aufgaben zusätzlich für JEDES Büro-/Admin-Konto sichtbar. Drei
   freie Felder `source_module`/`source_label`/`source_url` sind die **Automatisierungs-
   Anschlussstelle**: ein künftiges Modul (z. B. digitale Wartungsberichte) ruft `create_task()` in
   `app/tasks.py` direkt in-process auf, um automatisiert eine Aufgabe zu erzeugen, ohne dass
@@ -1842,6 +1879,58 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     nach Erfolg **sofort** zum neuen Vorgang (anders als die 1.2.20-Ausnahme bei "Vorgang
     erstellen" auf der Wartungsvertrags-Seite) – hier sitzt der Sachbearbeiter am Schreibtisch
     und bearbeitet die Aufgabe gezielt, nicht mitten in einer Felderfassung.
+  - **Sichtbarkeit für Büro-Konten, "Übernehmen"/"Zurück in den Büro-Eingang" (seit 1.4.3)**:
+    Anlass war der in 1.4.2 gemeldete Fund, dass eine unassigned Aufgabe für ein Büro-Konto ohne
+    Admin-Rolle nach dem damaligen Filter unsichtbar blieb -- erst Befund (der Filter sitzt
+    exakt an einer Stelle: `list_tasks()`, aufgerufen ausschließlich von `GET /api/tasks`),
+    dann bestätigter Bauauftrag. `app/tasks.py::list_tasks_for_user(db, user, *, unassigned_only
+    ..., employee_id=...)` ist seither die EINE Stelle für jede Task-Sichtbarkeitsentscheidung
+    (Liste, Dashboard-Widget, jede Zählung) -- nutzt `has_role()` (`app/permissions.py`, neu die
+    zentrale Rollenquelle für `require_role()` UND den Jinja-Global `can()`, statt eines
+    zweiten, eigenen Wegs zur Rollenbestimmung -- genau das Muster, das bei
+    `build_din5008_header_block()` bereits einmal zu drei divergierenden Varianten geführt hat,
+    siehe "Kopfbereich"). `list_tasks()` bekommt dafür einen neuen, vorrangigen
+    `unassigned_only: bool`-Parameter (`Task.assigned_employee_id.is_(None)`). Admin bleibt frei
+    wählbar; ein Büro-Konto ist ohne `unassigned_only` weiterhin zwingend auf die eigene
+    `employee_id` festgelegt (Kollegen-Aufgaben bleiben unsichtbar, unverändert); mit
+    `unassigned_only=True` sieht JEDES Büro-/Admin-Konto den gemeinsamen Eingang, unabhängig von
+    der eigenen `employee_id` -- das reine SEHEN braucht dafür keine Mitarbeiter-Verknüpfung
+    (nur das Übernehmen selbst, siehe unten). Ein Monteur bekommt von `list_tasks_for_user()`
+    stets eine leere Liste (die primäre Absicherung bleibt aber `require_role()` am Router --
+    ein Monteur erreicht `GET /api/tasks` gar nicht, unverändert seit "Rechtekonzept").
+
+    **"Übernehmen" weist fest zu, kein dritter Zustand**: `claim_task(db, task_id, user)`
+    (`POST /api/tasks/{id}/claim`) setzt `assigned_employee_id` auf die eigene, verknüpfte
+    `employee_id` -- exakt dasselbe Feld wie jede andere Zuweisung, keine zweite Zuweisungsart.
+    Fehlt die Mitarbeiter-Verknüpfung, eine klare 400-Meldung, kein stiller Fehler -- derselbe
+    Fall wie beim Monteur ohne `employee_id` an anderer Stelle. Eine bereits vergebene Aufgabe
+    lässt sich nicht "übernehmen" (400) -- eine neue, bewusste Sperre gegen versehentliches
+    Stehlen einer Kollegen-Aufgabe, die die bestehende PUT-Zuweisung nicht kennt. "Zurück in den
+    Büro-Eingang" (`release_task()`, `POST /api/tasks/{id}/release`) setzt `assigned_employee_id`
+    zurück auf `NULL`, bewusst OHNE Eigentümerschafts-Prüfung -- konsistent mit der bereits
+    bestehenden, dokumentierten Lücke bei PUT/DELETE/archive/unarchive (kein Eigentümer-Check,
+    siehe oben), keine isolierte Verschärfung nur hier.
+
+    **Oberfläche**: neues, opt-in Dashboard-Widget "Offene Büro-Aufgaben" (`open_office_tasks`,
+    `app/templates/dashboard.html`, Muster `due_maintenance`/`due_assets` -- NICHT im
+    `DEFAULT_LAYOUT`) zeigt `GET /api/tasks?unassigned_only=true` mit einem
+    "Übernehmen"-Button je Zeile, der nach Erfolg gezielt nur den eigenen Widget-Container neu
+    rendert. "Meine Aufgaben" bleibt unverändert (ausschließlich eigene zugewiesene Aufgaben,
+    nie unassigned). `/tasks` bekommt einen neuen Button "Zurück in den Büro-Eingang" im Editor,
+    sichtbar nur bei bereits zugewiesener Aufgabe -- der Board-Fetch selbst (`loadTasks()`)
+    bleibt für Nicht-Admin unverändert "nur eigene Aufgaben"; ein Monteur sieht dort weiterhin
+    nichts (gesamte `/api/tasks*`-Familie bleibt Büro/Admin-only).
+
+    **Angriffstest bestätigt** (`tests/test_v279_task_visibility.py`, 21 Tests): ein Monteur
+    bekommt über `GET /api/tasks?unassigned_only=true` UND über die Claim/Release-Endpunkte --
+    auch mit einer geratenen, nicht existierenden Aufgaben-ID -- durchgängig 403, bevor
+    irgendeine Geschäftslogik läuft. Ein Büro-Konto sieht die empfängerlosen, aber nicht die
+    persönlich zugewiesene Aufgabe eines Kollegen, auch nicht mit manipuliertem
+    `employee_id`-Parameter. **Bewusst nicht Teil dieser Änderung** (transparent gemeldet, kein
+    Auftrag dazu): die unabhängige Lücke in der Büro-Suche
+    (`app/search.py::_search_tasks()` ohne Mitarbeiter-Filterung -- jedes Büro-/Admin-Konto
+    findet über `/suche` jede Aufgabe per Titel, unabhängig von der Zuweisung), siehe „Bekannte,
+    bewusst offene Punkte" unten.
 - **Wartungsvertrag** (`MaintenanceContract`, seit 1.2.0, Modul `wartungen`): wiederkehrender
   Vertrag je Kunde, optional mit einem zusätzlichen **Objekt** (`property_id`, seit 1.2.9
   optional – vorher wie bei "ein Wartungsvertrag ohne Gebäude ergibt fachlich keinen Sinn"
@@ -8385,6 +8474,20 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 
 ## Bekannte, bewusst offene Punkte
 
+- **Büro-Suche findet Aufgaben unabhängig von der Zuweisung -- keine Mitarbeiter-Filterung**
+  (gefunden bei der 1.4.3-Untersuchung zur Aufgaben-Sichtbarkeit, siehe Abschnitt "Aufgabe" ->
+  "Sichtbarkeit für Büro-Konten" oben): `app/search.py::_search_tasks()` (die "tasks"-Quelle der
+  Büro-Suche, seit 1.3.66) hat keine Mitarbeiter-Filterung -- jedes Büro-/Admin-Konto findet
+  über `/suche` JEDE Aufgabe per Titel, unabhängig davon, ob sie ihm zugewiesen ist. Kein
+  Datenleck im engeren Sinn (Aufgaben sind ohnehin Büro/Admin-Gruppe-A-Inhalt, keine sensiblen
+  Finanz-/Lohndaten wie bei den anderen 17 Quellen), aber eine Inkonsistenz zur 1.4.3-Regel
+  ("ein Büro-Konto sieht die persönlich zugewiesene Aufgabe eines Kollegen nicht") -- über die
+  Suche ließe sich eine solche Aufgabe trotzdem finden (der resultierende Link führt allerdings
+  auf `/tasks?task=<id>`, wo das Hauptboard sie für ein fremdes Konto ohnehin nicht lädt, siehe
+  `openEditor()` in `tasks.html` -- der Fund ist also praktisch folgenlos, aber die
+  Suchtrefferliste selbst zeigt Titel/Untertitel unabhängig davon). Bewusst NICHT im Rahmen der
+  1.4.3-Änderung behoben -- der Auftrag betraf ausdrücklich nur `GET /api/tasks`/Dashboard/
+  Übernehmen-Zurückgeben, nicht die Büro-Suche. Bleibt offen, bis explizit angefragt.
 - **Kolonnenführer-Rolle für Gruppenbuchungen -- bewusst offen, wie vom Betreiber vorgegeben**
   (seit 1.3.60, siehe Abschnitt "Zeiterfassung für Monteure" oben): die reduzierte
   `time_tracking_field.html` kennt keine Gruppenbuchung mehr, ein Monteur bucht nur für sich

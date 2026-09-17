@@ -22,7 +22,7 @@ from ..database import SessionLocal, get_db
 from ..deps import require_admin
 from ..modules import is_module_enabled
 from ..models import AppUser
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, default_home_page_for_role, require_role
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, default_home_page_for_role, has_role, require_role
 from ..settings import get_accent_color
 from ..version import APP_VERSION
 
@@ -151,8 +151,10 @@ def _can(current_user, *roles: str) -> bool:
     {% if can(current_user, 'admin', 'office') %}...{% endif %}. current_user ist
     request.state.erp_user (None, falls nicht angemeldet) -- wie bei account_display() von der
     aufrufenden Vorlage bereits als current_user gesetzt, kein DB-Zugriff nötig, deshalb auch
-    keine try/except-Absicherung wie bei den DB-gestützten Globals oben."""
-    return current_user is not None and current_user.role in roles
+    keine try/except-Absicherung wie bei den DB-gestützten Globals oben. Delegiert seit der
+    Aufgaben-Sichtbarkeitsänderung an has_role() (app/permissions.py) -- dieselbe eine Quelle,
+    die auch require_role() und list_tasks_for_user() (app/tasks.py) nutzen."""
+    return has_role(current_user, *roles)
 
 
 templates.env.globals["can"] = _can

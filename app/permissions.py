@@ -52,6 +52,15 @@ def default_home_page_for_role(role: str | None) -> str:
 _DEFAULT_MESSAGE = "Für Ihre Rolle nicht verfügbar."
 
 
+def has_role(user: AppUser | None, *roles: str) -> bool:
+    """Die EINE Quelle für "hat diese Person eine dieser Rollen" -- genutzt von require_role()
+    unten, vom Jinja-Global can() (app/routers/pages.py) UND von list_tasks_for_user()
+    (app/tasks.py). Ein zweiter, eigener Weg zur Rollenbestimmung wäre genau das Muster, das bei
+    build_din5008_header_block() zu drei divergierenden Varianten geführt hat (siehe CLAUDE.md
+    "Kopfbereich") -- hier bewusst vermieden."""
+    return user is not None and user.role in roles
+
+
 def require_role(*allowed_roles: str, message: str = _DEFAULT_MESSAGE):
     """Fabrik für eine FastAPI-Dependency, die 403 auslöst, wenn die angemeldete Person keine
     der übergebenen Rollen trägt (sonst den AppUser zurückgibt) -- Verallgemeinerung von
@@ -66,7 +75,7 @@ def require_role(*allowed_roles: str, message: str = _DEFAULT_MESSAGE):
 
     def _dependency(request: Request) -> AppUser:
         user = getattr(request.state, "erp_user", None)
-        if user is None or user.role not in allowed:
+        if not has_role(user, *allowed):
             raise HTTPException(status_code=403, detail=message)
         return user
 

@@ -95,6 +95,7 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
   <div class="editor-actions">
     <button onclick="saveTask()">Speichern</button>
     <button class="secondary" onclick="closeEditor()">Abbrechen</button>
+    <button id="releaseTaskButton" class="secondary hidden" onclick="releaseTaskNow()">Zurück in den Büro-Eingang</button>
     <button id="archiveTaskButton" class="secondary hidden" onclick="toggleArchiveTask()">Archivieren</button>
     <button id="deleteTaskButton" class="danger hidden" onclick="deleteTaskConfirm()">Löschen</button>
     <span id="editorStatus" class="status"></span>
@@ -199,6 +200,7 @@ function openCreateEditor(){
   document.getElementById('editProject').innerHTML=projectOptionsHtml(null);
   document.getElementById('editorSourceInfo').classList.add('hidden');
   document.getElementById('createProjectFromTaskWrap').classList.add('hidden');
+  document.getElementById('releaseTaskButton').classList.add('hidden');
   document.getElementById('archiveTaskButton').classList.add('hidden');
   document.getElementById('deleteTaskButton').classList.add('hidden');
   document.getElementById('checklistSection').classList.add('hidden');
@@ -224,6 +226,7 @@ function openEditor(id){
   if(t.source_label){info.classList.remove('hidden');info.textContent='Automatisch angelegt: '+t.source_label}
   else{info.classList.add('hidden')}
   updateCreateProjectFromTaskButton(t);
+  document.getElementById('releaseTaskButton').classList.toggle('hidden',!t.assigned_employee_id);
   const archiveBtn=document.getElementById('archiveTaskButton');
   archiveBtn.classList.remove('hidden');
   archiveBtn.textContent=t.archived?'Entarchivieren':'Archivieren';
@@ -326,6 +329,15 @@ async function deleteTaskConfirm(){
   if(!confirm('Diese Aufgabe wirklich löschen?'))return;
   try{
     await api(`/api/tasks/${editingTaskId}`,{method:'DELETE'});
+    closeEditor();
+    await loadTasks();
+  }catch(e){document.getElementById('editorStatus').textContent='Fehler: '+e.message}
+}
+
+async function releaseTaskNow(){
+  if(!editingTaskId)return;
+  try{
+    await api(`/api/tasks/${editingTaskId}/release`,{method:'POST'});
     closeEditor();
     await loadTasks();
   }catch(e){document.getElementById('editorStatus').textContent='Fehler: '+e.message}

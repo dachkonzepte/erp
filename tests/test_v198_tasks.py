@@ -85,18 +85,18 @@ def test_non_admin_locked_to_own_tasks_regardless_of_param():
     emp1, emp2 = make_employees(db)
     create_task(db, title="Für Erika", assigned_employee_id=emp1.id)
     create_task(db, title="Für Otto", assigned_employee_id=emp2.id)
-    user = AppUser(username="u1", display_name="U1", role="user", employee_id=emp1.id, active=True, password_hash=hash_password("Passwort123"))
+    user = AppUser(username="u1", display_name="U1", role="office", employee_id=emp1.id, active=True, password_hash=hash_password("Passwort123"))
     db.add(user); db.commit()
-    rows = get_tasks(request_with_user(user), employee_id=emp2.id, status=None, project_id=None, db=db)
+    rows = get_tasks(employee_id=emp2.id, status=None, project_id=None, db=db, _role=user)
     assert [r["title"] for r in rows] == ["Für Erika"]
 
 
 def test_non_admin_without_employee_link_gets_403():
     db = db_session()
-    user = AppUser(username="u2", display_name="U2", role="user", employee_id=None, active=True, password_hash=hash_password("Passwort123"))
+    user = AppUser(username="u2", display_name="U2", role="office", employee_id=None, active=True, password_hash=hash_password("Passwort123"))
     db.add(user); db.commit()
     try:
-        get_tasks(request_with_user(user), employee_id=None, status=None, project_id=None, db=db)
+        get_tasks(employee_id=None, status=None, project_id=None, db=db, _role=user)
         assert False, "sollte HTTPException auslösen"
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 403
@@ -109,9 +109,9 @@ def test_admin_can_choose_employee_or_all():
     create_task(db, title="Für Otto", assigned_employee_id=emp2.id)
     admin = AppUser(username="admin1", display_name="Admin", role="admin", employee_id=None, active=True, password_hash=hash_password("Passwort123"))
     db.add(admin); db.commit()
-    all_rows = get_tasks(request_with_user(admin), employee_id=None, status=None, project_id=None, db=db)
+    all_rows = get_tasks(employee_id=None, status=None, project_id=None, db=db, _role=admin)
     assert len(all_rows) == 2
-    emp2_rows = get_tasks(request_with_user(admin), employee_id=emp2.id, status=None, project_id=None, db=db)
+    emp2_rows = get_tasks(employee_id=emp2.id, status=None, project_id=None, db=db, _role=admin)
     assert [r["title"] for r in emp2_rows] == ["Für Otto"]
 
 
@@ -128,7 +128,7 @@ def test_tasks_endpoints_return_403_when_module_disabled_even_for_admin():
         except Exception as exc:
             assert getattr(exc, "status_code", None) == 403
 
-    expect_403(get_tasks, request_with_user(admin), employee_id=None, status=None, project_id=None, db=db)
+    expect_403(get_tasks, employee_id=None, status=None, project_id=None, db=db, _role=admin)
     expect_403(post_task, TaskCreate(title="x"), request_with_user(admin), db=db)
     expect_403(put_task, 1, TaskUpdate(title="x", status="offen", priority="normal"), db=db)
     expect_403(delete_task_endpoint, 1, db=db)

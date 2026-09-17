@@ -194,6 +194,26 @@ async function renderDueAssetsWidget(container){
   container.innerHTML=assets.length?`<div class="task-list">${assets.map(a=>`<a class="task-row urgent" href="/betriebsmittel/${a.id}"><span class="task-type">${a.is_overdue?'Überfällig':'Prüfung fällig'}</span><span class="task-main"><span class="task-title">${esc(a.name)}</span><span class="muted small">${esc(a.asset_type||'')}</span></span><span class="task-due">${fmtDate(a.next_due_date)}</span></a>`).join('')}</div>`:'<div class="status ok">Keine fälligen Prüffristen.</div>';
 }
 
+async function renderOpenOfficeTasksWidget(container){
+  if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
+  if(!['admin','office'].includes(authStatus.user.role)){container.innerHTML='<div class="muted small">Nur für Büro und Admin verfügbar.</div>';return}
+  if(!await isModuleEnabled('aufgabenmanagement')){container.innerHTML='<div class="muted small">Das Modul Aufgabenmanagement ist deaktiviert.</div>';return}
+  await loadAndRenderOpenOfficeTasks(container);
+}
+
+async function loadAndRenderOpenOfficeTasks(container){
+  const rows=(await api('/api/tasks?unassigned_only=true').catch(()=>[])).filter(t=>!t.status_is_done&&!t.archived);
+  container.innerHTML=rows.length?`<div class="task-list">${rows.map(t=>`<div class="task-row"><span class="task-type">Aufgabe</span><span class="task-main"><span class="task-title">${esc(t.title)}</span><span class="muted small">${esc(t.project_number?`${t.project_number} · ${t.project_name}`:(t.source_label||''))}</span></span>${t.due_date?`<span class="task-due">${fmtDate(t.due_date)}</span>`:''}<button class="secondary" style="flex:0 0 auto" onclick="claimOpenTask(${t.id})">Übernehmen</button></div>`).join('')}</div>`:'<div class="status ok">Keine offenen Büro-Aufgaben.</div>';
+}
+
+async function claimOpenTask(taskId){
+  try{
+    await api('/api/tasks/'+taskId+'/claim',{method:'POST'});
+  }catch(e){alert('Fehler: '+e.message);return}
+  const body=document.getElementById('widget-body-open_office_tasks');
+  if(body)loadAndRenderOpenOfficeTasks(body);
+}
+
 async function renderCriticalFindingsWidget(container){
   if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
   if(!await isModuleEnabled('wartungen')){container.innerHTML='<div class="muted small">Das Modul Wartungen &amp; Reparaturen ist deaktiviert.</div>';return}
@@ -209,6 +229,7 @@ const WIDGETS={
   due_maintenance:{label:'Fällige Wartungen',render:renderDueMaintenanceWidget},
   due_assets:{label:'Fällige Betriebsmittelfristen',render:renderDueAssetsWidget},
   critical_findings:{label:'Akute Mängel',render:renderCriticalFindingsWidget},
+  open_office_tasks:{label:'Offene Büro-Aufgaben',render:renderOpenOfficeTasksWidget},
 };
 
 function visibleWidgets(){return layout.filter(w=>w.visible).sort((a,b)=>a.sort_order-b.sort_order)}

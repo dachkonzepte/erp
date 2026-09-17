@@ -17,7 +17,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from .email_sending import send_plain_email
-from .models import Employee, Task, TaskChecklistItem, TaskColumn, TaskSettings
+from .models import AppUser, Employee, Task, TaskChecklistItem, TaskColumn, TaskSettings
+from .permissions import ROLE_ADMIN, ROLE_OFFICE, has_role
 from .task_columns import ensure_default_columns
 
 PRIORITIES = ("niedrig", "normal", "hoch", "dringend")
@@ -83,11 +84,14 @@ def _load_task(db: Session, task_id: int) -> Task | None:
 
 
 def list_tasks(db: Session, employee_id: int | None = None, status: str | None = None,
-                project_id: int | None = None, include_archived: bool = False) -> list[dict]:
+                project_id: int | None = None, include_archived: bool = False,
+                unassigned_only: bool = False) -> list[dict]:
     query = select(Task).options(
         selectinload(Task.assigned_employee), selectinload(Task.project), selectinload(Task.checklist_items)
     )
-    if employee_id is not None:
+    if unassigned_only:
+        query = query.where(Task.assigned_employee_id.is_(None))
+    elif employee_id is not None:
         query = query.where(Task.assigned_employee_id == employee_id)
     if status is not None:
         query = query.where(Task.status == status)
@@ -98,6 +102,73 @@ def list_tasks(db: Session, employee_id: int | None = None, status: str | None =
     query = query.order_by(Task.due_date.is_(None), Task.due_date, Task.id.desc())
     columns_by_key = _columns_by_key(db)
     return [task_to_dict(t, columns_by_key) for t in db.scalars(query).all()]
+
+
+def list_tasks_for_user(db: Session, user: AppUser, *, status: str | None = None,
+                         project_id: int | None = None, include_archived: bool = False,
+                         employee_id: int | None = None, unassigned_only: bool = False) -> list[dict]:
+    """Der EINE, rollenbewusste Einstiegspunkt für Task-Sichtbarkeit -- ersetzt die frühere,
+    inline im Router sitzende is_admin-Prüfung (siehe CLAUDE.md "Änderung am Aufgabenmodul").
+    Nutzt has_role() (app/permissions.py) statt einer eigenen Rollenbestimmung -- dieselbe
+    Quelle wie require_role()/can(). Monteure sehen NIE etwas (die gesamte /api/tasks*-Familie
+    ist Büro/Admin-only, unverändert seit "Rechtekonzept") -- der Aufrufer (der Router) muss das
+    ohnehin schon per require_role() durchsetzen, diese Funktion verweigert zusätzlich, falls sie
+    doch mit einer anderen Rolle aufgerufen wird (leere Liste statt eines Fehlers, da sie selbst
+    keine HTTP-Antwort formuliert).
+
+    unassigned_only hat Vorrang und gilt für JEDES Büro-/Admin-Konto gleich -- empfängerlose
+    Aufgaben sind der gemeinsame Büro-Eingang, unabhängig von der eigenen employee_id. Ohne
+    unassigned_only bleibt Admin frei wählbar (employee_id-Parameter), ein Büro-Konto ist
+    dagegen zwingend auf die eigene employee_id festgelegt (der employee_id-Parameter wird für
+    diese Rolle ignoriert) -- exakt das bisherige Verhalten von GET /api/tasks, nur zentralisiert."""
+    if not has_role(user, ROLE_ADMIN, ROLE_OFFICE):
+        return []
+    if unassigned_only:
+        effective_employee_id = None
+    elif has_role(user, ROLE_ADMIN):
+        effective_employee_id = employee_id
+    else:
+        if user.employee_id is None:
+            raise ValueError("Ihr Büro-Konto ist keinem Mitarbeiter zugeordnet.")
+        effective_employee_id = user.employee_id
+    return list_tasks(db, employee_id=effective_employee_id, status=status, project_id=project_id,
+                       include_archived=include_archived, unassigned_only=unassigned_only)
+
+
+def claim_task(db: Session, task_id: int, user: AppUser) -> dict | None:
+    """"Übernehmen" -- weist eine bisher empfängerlose Aufgabe fest der übernehmenden Person zu
+    (kein dritter Zustand neben zugewiesen/empfängerlos, siehe CLAUDE.md). Dasselbe Feld wie
+    jede andere Zuweisung (Task.assigned_employee_id) -- keine zweite Zuweisungsart. Lehnt ab,
+    wenn das Büro-Konto keiner employee_id zugeordnet ist (dieselbe, klare Meldung wie beim
+    bisherigen Monteur-Fall in GET /api/tasks) oder die Aufgabe bereits vergeben ist (verhindert,
+    dass "Übernehmen" versehentlich eine Kollegen-Aufgabe stiehlt -- eine neue, bewusste Sperre,
+    die die bestehende PUT-Zuweisung nicht kennt, da Übernehmen ausdrücklich nur für wirklich
+    empfängerlose Aufgaben gedacht ist)."""
+    if user.employee_id is None:
+        raise ValueError("Ihr Büro-Konto ist keinem Mitarbeiter zugeordnet.")
+    task = db.get(Task, task_id)
+    if task is None:
+        return None
+    if task.assigned_employee_id is not None:
+        raise ValueError("Diese Aufgabe ist bereits vergeben.")
+    task.assigned_employee_id = user.employee_id
+    db.commit()
+    task = _load_task(db, task.id)
+    notify_task_assignment(db, task)
+    return task_to_dict(task, _columns_by_key(db))
+
+
+def release_task(db: Session, task_id: int) -> dict | None:
+    """"Zurück in den Büro-Eingang" -- macht eine Aufgabe wieder empfängerlos. Bewusst OHNE
+    Eigentümerschafts-Prüfung (wer released, muss nicht der aktuelle Inhaber sein) -- konsistent
+    mit der bereits bestehenden, dokumentierten Lücke bei PUT/DELETE/archive/unarchive auf
+    Aufgaben (siehe CLAUDE.md "Aufgabe"), keine isolierte, inkonsistente Verschärfung nur hier."""
+    task = db.get(Task, task_id)
+    if task is None:
+        return None
+    task.assigned_employee_id = None
+    db.commit()
+    return task_to_dict(_load_task(db, task.id), _columns_by_key(db))
 
 
 def get_or_create_task_settings(db: Session) -> TaskSettings:

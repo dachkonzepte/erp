@@ -3,9 +3,13 @@ ein-/ausschaltbare Modul (siehe app/modules.py, "aufgabenmanagement").
 
 Jeder Endpunkt prüft zuerst is_module_enabled() -- 403 bei deaktiviertem Modul,
 unabhängig von der Rolle, damit die API nicht heimlich weiter erreichbar ist, nur weil
-die Oberfläche versteckt ist. Die Sichtbarkeits-Logik in GET /api/tasks ist bewusst
-identisch zu get_open_work_preparation_tasks() (app/routers/work_preparation.py) und
-get_absence_requests() (app/routers/absence_requests.py)."""
+die Oberfläche versteckt ist. Die Sichtbarkeits-Logik in GET /api/tasks läuft seit der
+Aufgaben-Sichtbarkeitsänderung ausschließlich über app/tasks.py::list_tasks_for_user() --
+die EINE Stelle, an der jede Task-Ansicht entschieden wird (Liste, Dashboard-Widget,
+Zähler), siehe CLAUDE.md "Änderung am Aufgabenmodul". Empfängerlose Aufgaben
+(unassigned_only=True) sind seither für JEDES Büro-/Admin-Konto sichtbar -- der gemeinsame
+Büro-Eingang; eine persönlich zugewiesene Aufgabe eines Kollegen bleibt weiterhin
+unsichtbar, unverändert."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -19,8 +23,9 @@ from ..schemas import (
     TaskCreate, TaskOut, TaskSettingsOut, TaskSettingsUpdate, TaskUpdate,
 )
 from ..tasks import (
-    add_checklist_item, create_task, delete_checklist_item, delete_task,
-    get_or_create_task_settings, list_tasks, set_task_archived, update_checklist_item, update_task, update_task_settings,
+    add_checklist_item, claim_task, create_task, delete_checklist_item, delete_task,
+    get_or_create_task_settings, list_tasks_for_user, release_task, set_task_archived,
+    update_checklist_item, update_task, update_task_settings,
 )
 from ..models import AppUser, Task
 
@@ -54,16 +59,18 @@ def _require_task_access(db: Session, request: Request, task_id: int) -> Task:
 
 
 @router.get("/api/tasks", response_model=list[TaskOut])
-def get_tasks(request: Request, employee_id: int | None = None, status: str | None = None,
-              project_id: int | None = None, include_archived: bool = False, db: Session = Depends(get_db),
+def get_tasks(employee_id: int | None = None, status: str | None = None,
+              project_id: int | None = None, include_archived: bool = False,
+              unassigned_only: bool = False, db: Session = Depends(get_db),
               _role: AppUser = _role_dep):
     _require_module_enabled(db)
-    user = getattr(request.state, "erp_user", None)
-    if user is not None and user.role != "admin":
-        if user.employee_id is None:
-            raise HTTPException(status_code=403, detail="Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet.")
-        employee_id = user.employee_id
-    return list_tasks(db, employee_id=employee_id, status=status, project_id=project_id, include_archived=include_archived)
+    try:
+        return list_tasks_for_user(
+            db, _role, status=status, project_id=project_id, include_archived=include_archived,
+            employee_id=employee_id, unassigned_only=unassigned_only,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
 
 @router.post("/api/tasks", response_model=TaskOut)
@@ -118,6 +125,32 @@ def archive_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: Ap
 def unarchive_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = set_task_archived(db, task_id, False)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Aufgabe nicht gefunden.")
+    return result
+
+
+@router.post("/api/tasks/{task_id}/claim", response_model=TaskOut)
+def claim_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """"Übernehmen" -- weist eine empfängerlose Aufgabe fest der aufrufenden Person zu. Die
+    primäre Absicherung gegen einen Monteur mit geratener Aufgaben-ID ist bereits _role_dep
+    (Büro/Admin, 403 vor jeder Geschäftslogik) -- siehe CLAUDE.md "Änderung am Aufgabenmodul"."""
+    _require_module_enabled(db)
+    try:
+        result = claim_task(db, task_id, _role)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail="Aufgabe nicht gefunden.")
+    return result
+
+
+@router.post("/api/tasks/{task_id}/release", response_model=TaskOut)
+def release_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """"Zurück in den Büro-Eingang" -- macht eine Aufgabe wieder empfängerlos. Bewusst ohne
+    Eigentümerschafts-Prüfung, siehe app/tasks.py::release_task()."""
+    _require_module_enabled(db)
+    result = release_task(db, task_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Aufgabe nicht gefunden.")
     return result

@@ -4,6 +4,71 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.4.3 – Änderung am Aufgabenmodul: empfängerlose Aufgaben für ganz Büro sichtbar, Übernehmen/Zurückgeben
+
+Bug-Meldung aus 1.4.2 ("eine unassigned Aufgabe ist für Nicht-Admin-Büro-Konten unsichtbar") war
+Anlass für eine erst per Befund, dann per bestätigtem Bauauftrag umgesetzte Änderung am
+Aufgabenmodul selbst -- nicht nur an der Betriebsmittelverwaltung.
+
+**Zentrale Rollenbestimmung, wie ausdrücklich verlangt.** Neues `has_role(user, *roles) -> bool`
+(`app/permissions.py`) ist jetzt die EINE Quelle für "hat diese Person eine dieser Rollen" --
+`require_role()`s interne Prüfung UND der Jinja-Global `can()` (`app/routers/pages.py`) delegieren
+beide daran, statt je einen eigenen `user.role in (...)`-Vergleich zu tragen. Bewusst vermieden:
+genau das Muster, das bei `build_din5008_header_block()`s Vorgängern zu drei divergierenden
+Varianten geführt hat (siehe CLAUDE.md "Kopfbereich").
+
+**Neue Sichtbarkeitsregel, eine einzige Stelle.** `app/tasks.py::list_tasks_for_user(db, user, ...)`
+ist jetzt der ausschließliche Einstiegspunkt für jede Task-Sichtbarkeitsentscheidung -- ersetzt die
+bisherige, inline im Router sitzende `user.role != "admin"`-Prüfung. `list_tasks()` bekommt dafür
+einen neuen `unassigned_only: bool`-Parameter (Vorrang vor `employee_id`, filtert
+`Task.assigned_employee_id.is_(None)`). Admin bleibt frei wählbar; ein Büro-Konto ist ohne
+`unassigned_only` weiterhin zwingend auf die eigene `employee_id` festgelegt (Kollegen-Aufgaben
+bleiben unsichtbar, unverändert); mit `unassigned_only=True` sieht JEDES Büro-/Admin-Konto den
+gemeinsamen Eingang, unabhängig von der eigenen `employee_id` -- das Sehen selbst braucht dafür
+keine Mitarbeiter-Verknüpfung (die braucht erst das Übernehmen, siehe unten). `GET /api/tasks`
+bekommt einen neuen Query-Parameter `unassigned_only` und delegiert vollständig an
+`list_tasks_for_user()` -- geprüft und bestätigt: Liste (`/tasks`), Dashboard-Widget und jede
+Zählung laufen ausschließlich über diesen einen Endpunkt, es gibt keine zweite SQL-Filterstelle.
+
+**"Übernehmen" weist fest zu, kein dritter Zustand.** Neue Funktionen `claim_task()`/
+`release_task()` (`app/tasks.py`) und Endpunkte `POST /api/tasks/{id}/claim`/`.../release` (beide
+hinter dem bestehenden `require_role(ROLE_ADMIN, ROLE_OFFICE)`-Gate). Übernehmen setzt
+`assigned_employee_id` auf die eigene, verknüpfte `employee_id` -- exakt dasselbe Feld wie jede
+andere Zuweisung, keine zweite Zuweisungsart. Fehlt die Mitarbeiter-Verknüpfung, eine klare
+Meldung (400), kein stiller Fehler -- derselbe Fall wie beim Monteur ohne `employee_id` an anderer
+Stelle. Eine bereits vergebene Aufgabe lässt sich nicht "übernehmen" (400, verhindert ein
+versehentliches Stehlen einer Kollegen-Aufgabe) -- eine neue, bewusste Sperre, die die bestehende
+PUT-Zuweisung nicht kennt. "Zurück in den Büro-Eingang" (`release_task()`) setzt
+`assigned_employee_id` zurück auf `NULL`, bewusst OHNE Eigentümerschafts-Prüfung -- konsistent mit
+der bereits bestehenden, dokumentierten Lücke bei PUT/DELETE/archive/unarchive auf Aufgaben (siehe
+CLAUDE.md "Aufgabe"), keine isolierte, inkonsistente Verschärfung nur hier.
+
+**Dashboard und Board.** Neues, opt-in Dashboard-Widget "Offene Büro-Aufgaben"
+(`open_office_tasks`, `app/templates/dashboard.html`, Muster `due_maintenance`/`due_assets` --
+NICHT im Standard-Layout) zeigt `GET /api/tasks?unassigned_only=true` mit einem
+"Übernehmen"-Button je Zeile, der nach Erfolg gezielt nur diesen einen Widget-Container neu
+rendert. "Meine Aufgaben" bleibt unverändert (zeigt weiterhin ausschließlich die eigenen
+zugewiesenen Aufgaben, niemals unassigned). `/tasks` bekommt einen neuen Button "Zurück in den
+Büro-Eingang" im Editor, sichtbar nur bei bereits zugewiesener Aufgabe -- der Board-Fetch selbst
+(`loadTasks()`) bleibt unverändert "nur eigene" für Nicht-Admin; ein Monteur sieht weiterhin
+ausschließlich seine eigenen Aufgaben -- die gesamte `/api/tasks*`-Familie bleibt Büro/Admin-only,
+unverändert seit "Rechtekonzept".
+
+**Der verlangte Angriffstest, bestätigt (`tests/test_v279_task_visibility.py`, 21 neue Tests).**
+Ein Monteur bekommt über `GET /api/tasks?unassigned_only=true` UND über `POST .../claim`/`.../release`
+-- auch mit einer geratenen, nicht existierenden Aufgaben-ID -- durchgängig 403, bevor irgendeine
+Geschäftslogik läuft (die primäre Absicherung ist bereits `require_role()`). Ein Büro-Konto sieht
+über `unassigned_only=true` die empfängerlosen Aufgaben, aber nicht die persönlich zugewiesene
+Aufgabe eines Kollegen -- weder im Standardfall noch mit manipuliertem `employee_id`-Parameter.
+Volle Suite: 1462 Tests grün.
+
+**Bewusst unadressiert, transparent vermerkt:** die in derselben Untersuchung gefundene,
+unabhängige Lücke in der Büro-Suche (`app/search.py::_search_tasks()` hat keine
+Mitarbeiter-Filterung -- jedes Büro-/Admin-Konto findet über `/suche` jede Aufgabe per Titel,
+unabhängig von der Zuweisung) ist NICHT Teil dieser Änderung -- der aktuelle Auftrag betraf
+ausdrücklich nur `GET /api/tasks`/Dashboard/Übernehmen-Zurückgeben. Bleibt als offener Punkt
+vermerkt, bis explizit angefragt.
+
 ## 1.4.2 – Betriebsmittelverwaltung: Fälligkeitsberechnung, Erinnerung, Büro-Suche, Dokumentenablage
 
 Vier reine Bürofunktions-Ergänzungen zur Betriebsmittelverwaltung (1.4.0/1.4.1) -- kein Monteur
