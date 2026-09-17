@@ -305,6 +305,16 @@ def maintenance_contract_page(request: Request, contract_id: int, _role: AppUser
     )
 
 
+@router.get("/betriebsmittel/{asset_id}", response_class=HTMLResponse)
+def operational_asset_page(request: Request, asset_id: int, _role: AppUser = _role_dep):
+    """Nur Rollen-Gate (Büro/Admin), kein Modul-Check auf der Seitenroute selbst -- etablierte
+    Konvention (siehe tasks_page()/maintenance_contract_page()), der API-Endpunkt dahinter
+    prüft is_module_enabled() unabhängig davon."""
+    return templates.TemplateResponse(
+        request=request, name="operational_asset.html", context={"asset_id": asset_id}
+    )
+
+
 @router.get("/projects", response_class=HTMLResponse)
 def projects_page(request: Request, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="projects.html", context={})
@@ -368,7 +378,7 @@ def master_data_page(request: Request, _role: AppUser = _role_dep):
 
 @router.get("/master-data/{data_type}/new", response_class=HTMLResponse)
 def master_data_create_page(request: Request, data_type: str, _role: AppUser = _role_dep):
-    if data_type not in {"customers", "properties", "employees", "suppliers", "resources", "teams", "catalogs", "materials", "materialGroups"}:
+    if data_type not in {"customers", "properties", "employees", "suppliers", "resources", "teams", "catalogs", "materials", "materialGroups", "assets"}:
         raise HTTPException(status_code=404, detail="Stammdatenbereich nicht gefunden.")
     return templates.TemplateResponse(request=request, name="master_data_form.html", context={"data_type": data_type})
 

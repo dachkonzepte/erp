@@ -3217,3 +3217,101 @@ class ServiceReportMaterialUpdate(BaseModel):
     inspection_item_id: int | None = None
     finding_id: int | None = None
     notes: str | None = None
+
+
+# --- Version 1.4.0: Betriebsmittelverwaltung (Modul "betriebsmittel") ---
+
+class OperationalAssetInspectionOut(BaseModel):
+    id: int
+    asset_id: int
+    inspection_type: str
+    interval_months: int | None = None
+    last_inspection_date: date | None = None
+    next_due_date: date | None = None
+    inspector: str | None = None
+    document_filename: str | None = None
+    document_original_name: str | None = None
+    notes: str | None = None
+    is_due: bool
+    is_overdue: bool
+
+
+class OperationalAssetInspectionCreate(BaseModel):
+    inspection_type: str = Field(min_length=1, max_length=80)
+    interval_months: int | None = Field(default=None, ge=1)
+    last_inspection_date: date | None = None
+    next_due_date: date | None = None
+    inspector: str | None = Field(default=None, max_length=160)
+    notes: str | None = None
+
+
+class OperationalAssetInspectionUpdate(OperationalAssetInspectionCreate):
+    pass
+
+
+class OperationalAssetOut(BaseModel):
+    id: int
+    resource_id: int | None = None
+    asset_number: str | None = None
+    name: str
+    asset_type: str | None = None
+    manufacturer: str | None = None
+    model: str | None = None
+    identifier: str | None = None
+    resource_number: str | None = None
+    notes: str | None = None
+    acquisition_date: date | None = None
+    acquisition_cost: Decimal | None = None
+    recurring_cost_per_month: Decimal | None = None
+    cost_notes: str | None = None
+    active: bool
+    is_due: bool
+    is_overdue: bool
+    next_due_date: date | None = None
+    inspections: list[OperationalAssetInspectionOut] = Field(default_factory=list)
+
+
+class OperationalAssetListOut(BaseModel):
+    id: int
+    resource_id: int | None = None
+    asset_number: str | None = None
+    name: str
+    asset_type: str | None = None
+    active: bool
+    is_due: bool
+    is_overdue: bool
+    next_due_date: date | None = None
+
+
+class OperationalAssetCreate(BaseModel):
+    resource_id: int | None = None
+    asset_number: str | None = Field(default=None, max_length=50)
+    name: str | None = Field(default=None, max_length=255)
+    asset_type: str | None = Field(default=None, max_length=50)
+    manufacturer: str | None = Field(default=None, max_length=120)
+    model: str | None = Field(default=None, max_length=120)
+    identifier: str | None = Field(default=None, max_length=120)
+    notes: str | None = None
+    acquisition_date: date | None = None
+    acquisition_cost: Decimal | None = None
+    recurring_cost_per_month: Decimal | None = None
+    cost_notes: str | None = None
+    active: bool = True
+
+    @model_validator(mode="after")
+    def _name_required_when_unlinked(self):
+        if self.resource_id is None and not (self.name and self.name.strip()):
+            raise ValueError("Bezeichnung ist erforderlich, wenn kein Ressourcenbezug gewählt ist.")
+        return self
+
+
+class OperationalAssetUpdate(OperationalAssetCreate):
+    pass
+
+
+class OperationalAssetSettingsOut(BaseModel):
+    reminder_lead_days: int
+
+
+class OperationalAssetSettingsUpdate(BaseModel):
+    reminder_lead_days: int = Field(ge=0)

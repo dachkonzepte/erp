@@ -73,6 +73,7 @@
         <button type="button" data-settings-section="modules" onclick="showSettingsSection('modules')">Module<span class="menu-sub">Optionale ERP-Bausteine ein-/ausschalten</span></button>
         <button type="button" data-settings-section="tasks" onclick="showSettingsSection('tasks')">Aufgaben<span class="menu-sub">Spalten, Zuweisungs-Benachrichtigung</span></button>
         <button type="button" data-settings-section="maintenance" onclick="showSettingsSection('maintenance')">Wartungen<span class="menu-sub">Vorlaufzeit, Standard-Sachbearbeiter</span></button>
+        <button type="button" data-settings-section="operational-assets" onclick="showSettingsSection('operational-assets')">Betriebsmittel<span class="menu-sub">Vorlaufzeit für Prüffristen</span></button>
         <button type="button" data-settings-section="mobile" onclick="showSettingsSection('mobile')">Vor Ort<span class="menu-sub">Automatische Abmeldung nach Feierabend</span></button>
         <a href="/inspection-templates" style="text-decoration:none"><button type="button">Prüfvorlagen<span class="menu-sub">Prüfpunkte je Dachtyp für Wartungsberichte</span></button></a>
         <a href="/users" style="text-decoration:none"><button type="button">Benutzer & Zugriff<span class="menu-sub">Anmeldung und Bearbeiterzuordnung</span></button></a>
@@ -591,6 +592,20 @@
     </div>
   </section>
 
+  <section class="card settings-section" id="settings-operational-assets">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Betriebsmittel</h2><div class="muted small">Einstellungen für das Modul Betriebsmittelverwaltung.</div></div></div>
+    <div id="operationalAssetModuleDisabledNotice" class="hint" style="display:none">Das Modul Betriebsmittelverwaltung ist aktuell deaktiviert (siehe „Module" oben) -- die folgende Einstellung wirkt erst, wenn es wieder aktiv ist.</div>
+    <div id="operationalAssetModuleContent">
+      <div class="field" style="max-width:320px">
+        <label>Vorlaufzeit (Tage)</label>
+        <input id="operationalAssetLeadDays" type="number" min="0" step="1">
+        <div class="muted small" style="margin-top:4px">Ab wie vielen Tagen vor der Fälligkeit eine Prüf-/Wartungsfrist als "fällig" gilt -- im Dashboard-Widget und auf der Stammdaten-Übersicht.</div>
+      </div>
+      <button onclick="saveOperationalAssetSettings()">Speichern</button>
+      <span id="operationalAssetSettingsStatus" class="status"></span>
+    </div>
+  </section>
+
   <section class="card settings-section" id="settings-mobile">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Vor Ort</h2><div class="muted small">Einstellungen für die Monteursansicht auf dem Fahrzeug-Tablet.</div></div></div>
     <div class="field" style="max-width:220px">
@@ -623,7 +638,7 @@ const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
   refreshStatusColors();
 })();
 const v=id=>document.getElementById(id).value.trim();const nv=id=>v(id)||null;const setv=(id,x)=>document.getElementById(id).value=x??'';
-const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','mobile'];
+const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','operational-assets','mobile'];
 function showSettingsSection(key,updateHash=true){
   if(!SETTINGS_SECTIONS.includes(key))key='general';
   document.querySelectorAll('.settings-section').forEach(x=>x.classList.toggle('active',x.id===`settings-${key}`));
@@ -664,10 +679,30 @@ async function load(){
   generalSettings=g;renderCompanyLogo();renderSidebarLogo();
   setv('laborRate',c.labor_rate);setv('materialMarkup',c.material_markup_pct);setv('overhead',c.overhead_pct);setv('riskProfit',c.risk_profit_pct);document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
   setv('employerCostPct',lr.employer_cost_pct);setv('productiveTimePct',lr.productive_time_pct);setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',lr.fixed_overhead_value||0);setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',lr.variable_overhead_value||0);setv('targetProfitPct',lr.target_profit_pct);setv('weeksPerYear',lr.weeks_per_year);syncOverheadLabels();renderLaborRate(lrc);
-  sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();document.getElementById('autoCreateDraftsCheckbox').checked=!!rs.auto_create_drafts;moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadDocumentCategoriesSection();loadMobileSection();loadDocumentLayoutSection();loadProjectPipelineSection();}
+  sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();document.getElementById('autoCreateDraftsCheckbox').checked=!!rs.auto_create_drafts;moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadDocumentCategoriesSection();loadMobileSection();loadDocumentLayoutSection();loadProjectPipelineSection();}
 
 function renderModuleStates(){document.getElementById('moduleRows').innerHTML=moduleStates.length?moduleStates.map(m=>`<div class="field"><label style="display:flex;align-items:center;gap:10px;font-weight:650"><input type="checkbox" style="width:auto" ${m.enabled?'checked':''} onchange="toggleModule('${m.module_key}',this.checked)"> ${esc(m.label)}</label><span id="moduleStatus-${m.module_key}" class="status"></span></div>`).join(''):'<div class="muted small">Keine optionalen Module registriert.</div>'}
-async function toggleModule(key,checked){const st=document.getElementById('moduleStatus-'+key);try{await api(`/api/modules/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:checked})});moduleStates=await api('/api/modules');st.textContent=checked?'Aktiviert.':'Deaktiviert.';loadTaskSection();loadMaintenanceSection()}catch(e){st.textContent='Fehler: '+e.message}}
+async function toggleModule(key,checked){const st=document.getElementById('moduleStatus-'+key);try{await api(`/api/modules/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:checked})});moduleStates=await api('/api/modules');st.textContent=checked?'Aktiviert.':'Deaktiviert.';loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection()}catch(e){st.textContent='Fehler: '+e.message}}
+
+async function loadOperationalAssetSection(){
+  const entry=moduleStates.find(m=>m.module_key==='betriebsmittel');
+  const isEnabled=entry?entry.enabled:true;
+  document.getElementById('operationalAssetModuleDisabledNotice').style.display=isEnabled?'none':'block';
+  document.getElementById('operationalAssetModuleContent').style.display=isEnabled?'block':'none';
+  if(!isEnabled)return;
+  try{
+    const settings=await api('/api/operational-asset-settings');
+    document.getElementById('operationalAssetLeadDays').value=settings.reminder_lead_days;
+  }catch(e){document.getElementById('operationalAssetSettingsStatus').textContent='Fehler: '+e.message}
+}
+async function saveOperationalAssetSettings(){
+  const st=document.getElementById('operationalAssetSettingsStatus');
+  const leadDays=Number(document.getElementById('operationalAssetLeadDays').value||0);
+  try{
+    await api('/api/operational-asset-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reminder_lead_days:leadDays})});
+    st.className='status';st.textContent='Gespeichert.';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
 
 async function loadMaintenanceSection(){
   const entry=moduleStates.find(m=>m.module_key==='wartungen');

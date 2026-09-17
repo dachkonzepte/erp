@@ -187,6 +187,13 @@ async function renderDueMaintenanceWidget(container){
   container.innerHTML=rows.length?`<div class="task-list">${rows.map(r=>`<a class="task-row urgent" href="/maintenance-contracts/${r.contract_id}"><span class="task-type">${r.overdue?'Überfällig':'Wartung'}</span><span class="task-main"><span class="task-title">${esc(r.title)}</span><span class="muted small">${esc(r.subtitle)}</span></span><span class="task-due">${fmtDate(r.due_date)}</span></a>`).join('')}</div>`:'<div class="status ok">Keine fälligen Wartungsverträge.</div>';
 }
 
+async function renderDueAssetsWidget(container){
+  if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
+  if(!await isModuleEnabled('betriebsmittel')){container.innerHTML='<div class="muted small">Das Modul Betriebsmittelverwaltung ist deaktiviert.</div>';return}
+  const assets=await api('/api/operational-assets/due').catch(()=>[]);
+  container.innerHTML=assets.length?`<div class="task-list">${assets.map(a=>`<a class="task-row urgent" href="/betriebsmittel/${a.id}"><span class="task-type">${a.is_overdue?'Überfällig':'Prüfung fällig'}</span><span class="task-main"><span class="task-title">${esc(a.name)}</span><span class="muted small">${esc(a.asset_type||'')}</span></span><span class="task-due">${fmtDate(a.next_due_date)}</span></a>`).join('')}</div>`:'<div class="status ok">Keine fälligen Prüffristen.</div>';
+}
+
 async function renderCriticalFindingsWidget(container){
   if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
   if(!await isModuleEnabled('wartungen')){container.innerHTML='<div class="muted small">Das Modul Wartungen &amp; Reparaturen ist deaktiviert.</div>';return}
@@ -200,6 +207,7 @@ const WIDGETS={
   kpis:{label:'Kennzahlen',render:renderKpisWidget},
   active_projects:{label:'Laufende Projekte',render:renderActiveProjectsWidget},
   due_maintenance:{label:'Fällige Wartungen',render:renderDueMaintenanceWidget},
+  due_assets:{label:'Fällige Betriebsmittelfristen',render:renderDueAssetsWidget},
   critical_findings:{label:'Akute Mängel',render:renderCriticalFindingsWidget},
 };
 

@@ -4,6 +4,113 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.4.0 – Betriebsmittelverwaltung, Stufe 1 (neues Modul "betriebsmittel")
+
+Erstes echtes neues Modul seit Version 1.3.0 (daher der Minor-Sprung, Regel 8) -- Befund zuvor
+separat berichtet (kein Code), dann fünf vom Nutzer bestätigte Bau-Entscheidungen umgesetzt.
+Dreistufig angelegt: diese Version liefert ausschließlich **Stufe 1** (Datenmodell mit
+Ressourcenbezug, Prüffristen, Kosten, Stammdatenpflege, Modulschalter) -- QR-Code/rollenabhängige
+Ansicht (Stufe 2) und Betriebsmittel im Bericht (Stufe 3) folgen erst nach Rückmeldung.
+
+**Modulschalter zuerst, wie ausdrücklich verlangt** ("bevor irgendein Endpunkt gebaut wird"):
+`OPTIONAL_MODULES["betriebsmittel"] = "Betriebsmittelverwaltung"` (`app/modules.py`) war der
+erste Codeschritt dieser Version, jeder Endpunkt in `app/routers/operational_assets.py` prüft
+`is_module_enabled()` von Anfang an (403, Muster `maintenance_contracts.py`).
+
+**Eigene Inventarschicht statt Erweiterung von `OperationalResource`** -- die zentrale
+Bau-Entscheidung: `OperationalAsset` trägt ein optionales `resource_id` (unique -- höchstens
+ein Betriebsmittel je Ressource, verhindert Doppelerfassung auf Datenbankebene). Ein Kran ist
+ein Betriebsmittel MIT Ressourcenbezug (bleibt über den unveränderten `Team`/`TeamResource`/
+`PlanningSlot`-Weg in der Plantafel disponierbar), eine Leiter eins OHNE. Ist ein Asset
+verknüpft, werden Name/Typ/Hersteller/Modell/Kennzeichen bei JEDEM Lesezugriff LIVE von der
+Ressource aufgelöst (`app/operational_assets.py::asset_to_dict()`) -- niemals als eigene Kopie
+gespeichert, das ist der eigentliche Schutz gegen Namensdivergenz zwischen beiden Tabellen. Ist
+kein Ressourcenbezug gewählt, ist die Bezeichnung Pflicht (Pydantic-Validator in
+`OperationalAssetCreate`, nicht per DB-Constraint, da das Feld im verknüpften Fall NULL bleiben
+muss). **Ausdrückliche Warnung in `app/models.py`s Klassendocstring** (auf Wunsch des Nutzers
+festgehalten): `OperationalResource` und `OperationalAsset` dürfen künftig NICHT zu einer
+einzigen Tabelle zusammengeführt werden -- die Plantafel-Disposition referenziert ausschließlich
+`operational_resources.id` und kennt `OperationalAsset` überhaupt nicht, eine Zusammenführung
+würde diese Fremdschlüssel brechen.
+
+**Fälligkeitslogik: Muster übernommen, Code bewusst nicht wiederverwendet.** Geprüft, ob
+`MaintenanceContractItem`s `_is_item_due()`/`_is_item_overdue()` (`app/maintenance_contracts.py`)
+direkt nutzbar sind -- nein: `_is_item_overdue()` ist an die saisonalen `MaintenanceWindow`-Fenster
+der Wartungsverträge gekoppelt, was für eine turnusmäßige Geräteprüfung (z. B. "TÜV alle 12
+Monate") fachlich nicht passt. Neue, eigene Funktionen `is_inspection_due()`/
+`is_inspection_overdue()` (`app/operational_assets.py`) übernehmen nur das PATTERN (Vorlaufzeit-
+gesteuertes `is_due`, eigenständiges `is_overdue` für bereits verstrichene Fristen) --
+dieselbe "gleiches Muster, dokumentierte Trennung"-Vorgabe wie bei den Projekt-Pipeline-Spalten
+(CLAUDE.md). Eigene Singleton-Einstellung `OperationalAssetSettings.reminder_lead_days`
+(Default 30, unabhängig von `MaintenanceSettings`).
+
+**Datenmodell**: `OperationalAsset` (Identität bei fehlendem Ressourcenbezug, Notizen,
+Anschaffungsdatum/-kosten, `recurring_cost_per_month`, Status), `OperationalAssetInspection`
+(Art/Intervall/letzte Prüfung/nächste Fälligkeit/Prüfer/Dokument/Notizen, cascade beim Löschen
+des Assets), `OperationalAssetSettings` (Singleton). Neue, self-seedende Optionsgruppe
+`operational_asset_inspection_types` (TÜV/HU, Leiterprüfung, UVV-Prüfung, Wartung, Sonstige
+Prüfung) -- `asset_type` selbst nutzt bewusst dieselbe, bereits bestehende Gruppe
+`resource_types` wie `OperationalResource`, keine doppelte Typliste. Migration `5917bb099776`
+legt alle drei Tabellen an UND backfillt für jede der 5 real bestehenden `OperationalResource`-
+Zeilen ein verknüpftes `OperationalAsset` (nur `resource_id` gesetzt) -- ohne diesen Schritt
+wären die 5 Bestandsressourcen aus der Stammdaten-Übersicht verschwunden, sobald diese auf die
+Asset-Ansicht umgestellt wird. Gegen die echte, migrierte Datenbank verifiziert: alle 5 Zeilen
+korrekt verknüpft.
+
+**Dokument-Ablage für Prüffristen** (`app/operational_asset_documents.py`, Muster
+`app/roof_area_sketches.py`): eigener `data/operational_asset_documents/`-Ordner (neue
+Umgebungsvariable `DACHKONZEPTE_OPERATIONAL_ASSET_FILE_ROOT`, in `.env.example` ergänzt), PDF
+zusätzlich zu Bildern erlaubt (Prüfprotokolle), 10 MB-Grenze.
+
+**Kosten monatsnormalisiert statt Intervall+Betrag** (`recurring_cost_per_month`) -- bewusste
+Vorentscheidung für die vom Nutzer bereits angekündigte künftige Gesamtkostenübersicht: eine
+solche Auswertung kann dadurch trivial über alle Assets summieren, ohne zuvor unterschiedliche
+Intervalle umrechnen zu müssen. In CLAUDE.md als Merkposten für diese künftige Auswertung
+festgehalten.
+
+**"Fuhrpark & Maschinen" wird zur Weiche, nicht zu zwei Parallelpflegen** -- dieselbe Weiche wie
+bei Mitarbeitern in 1.3.26: EIN Stammdaten-Navigationsknopf (`master_data.html`, umbenannt auf
+"Betriebsmittel"), dessen Inhalt live nach Modulzustand umschaltet. Modul an: die reiche
+Asset-Liste (`GET /api/operational-assets`, eigener `.catch(()=>[])`-abgesicherter Fetch-Zweig
+in `load()`, da dieser Endpunkt modulgated ist -- der einzige unter den vielen unbedingten
+Fetches dieser Datei, der 403 liefern könnte). Modul aus: unverändert die alte, rohe
+Ressourcenliste (`GET /api/resources`, weiterhin ungegatet, Kern-ERP) -- die 5 Bestandsressourcen
+bleiben dadurch auch bei deaktiviertem Modul erreichbar. Anlegen führt über
+`master_data_form.html`s neue `assetForm()` (Ressourcenbezug-Umschalter, bereits verknüpfte
+Ressourcen werden aus der Auswahl ausgeschlossen), Bearbeiten bewusst NICHT über dasselbe
+Formular, sondern direkt über die neue, eigene, reichere Detailseite `GET /betriebsmittel/{id}`
+(`app/templates/operational_asset.html`, Muster `maintenance_contract.html`) -- Regel-10-
+Präzedenzfall "eigene Detailseite statt generischem Formular, wenn ein Bereich das
+rechtfertigt" (wie Property/Wartungsvertrag), Anlegen bounct nach dem Speichern sofort dorthin.
+Die Detailseite verlinkt bei verknüpfter Ressource zusätzlich auf deren eigene Stammdatenseite
+(`/master-data/resources/{id}/edit`), damit auch die reinen Ressourcenfelder (Kennzeichen,
+Hersteller bei Fuhrpark) erreichbar bleiben.
+
+**Dashboard-Widget "Fällige Betriebsmittelfristen"** (`due_assets`, Muster `due_maintenance`,
+`app/templates/dashboard.html`) und ein "Fällige Prüffristen"-Panel oben auf der Stammdaten-
+Betriebsmittelliste (nur bei aktivem Modul) decken die verlangte Sichtbarkeit auf einer
+Übersicht UND im Dashboard ab, ohne eine dritte, eigene Seite dafür zu bauen.
+
+**Einstellungen** → System → "Betriebsmittel" (neuer Abschnitt, `settings.html`, Muster
+"Wartungen"): einziges konfigurierbares Feld ist die Vorlaufzeit, mit Deaktiviert-Hinweis wie
+beim Wartungsmodul.
+
+**Transparenz-Hinweis zum Opt-out-Standard, wie bereits im Befund angekündigt**: ohne die
+`EnabledModule`-Zeile gilt ein neuer Registry-Eintrag sofort als aktiv (`is_module_enabled()`s
+Opt-out-Philosophie, `app/modules.py`) -- das neue Modul war ab dem Moment der Migration auf
+jeder Installation ohne explizite Zeile live, bis ein Admin es unter Einstellungen → Module
+bewusst abschaltet. Kein Sonderfall für diese Version, aber wie beim allerersten Modul (1.1.0)
+explizit erwähnt, damit es niemanden überrascht.
+
+Per echtem, CDP-gesteuertem Headless-Chrome gegen eine isolierte, temporäre SQLite-Instanz
+verifiziert (Muster 1.3.73/1.3.74): Stammdatenliste, Anlegen → Bounce zur Detailseite, Prüffrist
+mit überfälligem Datum anlegen → Badges/"Fällige Prüffristen"-Panel erscheinen korrekt,
+Einstellungen-Abschnitt zeigt den geladenen Wert, und -- direkt in der Datenbank deaktiviert --
+der vollständige Rückfall auf die alte Fuhrpark-Ansicht samt funktionierendem 403 auf der API.
+1410 Tests grün (17 neu, `tests/test_v276_operational_assets.py`: Doppelerfassungs-Schutz,
+Live-Auflösung, Name-Pflicht-Validator, Fälligkeits-Aggregation über mehrere Prüffristen,
+Migrations-Backfill isoliert, Rollen- und Modul-Gate über echte Router).
+
 ## 1.3.74 – Umbau der Projekt-Detailseite (die Projektmappe)
 
 Zweiter Teil des vom Nutzer angefragten Umbaus (Befund zuvor separat berichtet, keine

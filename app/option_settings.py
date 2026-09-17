@@ -123,6 +123,18 @@ DEFAULT_OPTION_GROUPS = {
             (60, "Sonstiges", "Sonstiges", False),
         ],
     },
+    "operational_asset_inspection_types": {
+        "label": "Prüfungsarten · Betriebsmittel",
+        "description": "Zentrale Auswahl für Prüf- und Wartungsfristen von Betriebsmitteln.",
+        "sort_order": 66,
+        "options": [
+            (10, "TÜV / Hauptuntersuchung", "TÜV / Hauptuntersuchung", True),
+            (20, "Leiterprüfung", "Leiterprüfung", False),
+            (30, "UVV-Prüfung", "UVV-Prüfung", False),
+            (40, "Wartung", "Wartung", False),
+            (50, "Sonstige Prüfung", "Sonstige Prüfung", False),
+        ],
+    },
     "service_types": {
         "label": "Leistungstypen",
         "description": "Klassifizierung eigener (nicht importierter) Leistungen für spätere Auswertungen.",

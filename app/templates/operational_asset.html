@@ -1,0 +1,385 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Betriebsmittel</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:1100px;margin:0;padding:20px}
+.breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+.breadcrumb a{color:var(--accent);text-decoration:none;font-weight:650}
+.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
+.field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
+input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+textarea{min-height:60px;resize:vertical}
+button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
+.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
+.hidden{display:none!important}
+.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
+.editor-card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.editor-card h2{margin:0 0 12px;font-size:16px}
+.fields-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+.editor-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.section-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.section-title h2{margin:0;font-size:16px}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:650}
+tr:last-child td{border-bottom:none}
+.badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
+.badge.due{background:var(--danger-soft);color:var(--danger)}
+.badge.overdue{background:var(--danger);color:#fff}
+.badge.linked{background:var(--success-soft);color:var(--success)}
+.badge.standalone{background:var(--soft);color:var(--muted)}
+.badge.inactive{background:var(--soft);color:var(--muted)}
+.row-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.check{display:flex;align-items:center;gap:8px}.check input{width:auto}
+@media(max-width:900px){.fields-2col{grid-template-columns:1fr}table{font-size:12.5px}th,td{padding:8px}}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+{% include "_topbar.html" %}
+<main>
+<div class="breadcrumb" id="breadcrumb">Lädt …</div>
+<div class="hero">
+  <div><h1 id="assetTitle">Betriebsmittel</h1><div class="muted small" id="assetMeta"></div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <button class="danger" onclick="deleteAssetNow()">Löschen</button>
+  </div>
+</div>
+<span id="assetStatus" class="status"></span>
+
+<div class="editor-card">
+  <h2>Stammdaten</h2>
+  <div class="fields-2col">
+    <div class="field full check"><label style="margin:0"><input type="checkbox" id="editHasResource" onchange="toggleResourceFields()" style="width:auto"> Mit Ressourcenbezug (inventarisiert und in der Plantafel disponierbar)</label></div>
+    <div class="field full" id="resourceFieldWrap"><label>Ressource</label><select id="editResource"></select>
+      <div class="muted small hidden" id="resourceEditLink" style="margin-top:4px"></div>
+    </div>
+    <div class="field" id="nameFieldWrap"><label>Bezeichnung *</label><input id="editName" placeholder="z. B. Leiter Alu 6m"></div>
+    <div class="field" id="typeFieldWrap"><label>Typ</label><select id="editType"></select></div>
+    <div class="field" id="manufacturerFieldWrap"><label>Hersteller</label><input id="editManufacturer"></div>
+    <div class="field" id="modelFieldWrap"><label>Modell</label><input id="editModel"></div>
+    <div class="field" id="identifierFieldWrap"><label>Kennzeichen / Seriennummer</label><input id="editIdentifier"></div>
+    <div class="field"><label>Betriebsmittelnummer <span class="muted small">(optional)</span></label><input id="editAssetNumber"></div>
+    <div class="field"><label>Status</label><select id="editActive"><option value="1">Aktiv</option><option value="0">Inaktiv</option></select></div>
+    <div class="field full"><label>Notizen</label><textarea id="editNotes"></textarea></div>
+  </div>
+  <div class="editor-actions">
+    <button onclick="saveAsset()">Speichern</button>
+    <span id="editorStatus" class="status"></span>
+  </div>
+</div>
+
+<div class="editor-card">
+  <h2>Kosten <span class="muted small">(nur Büro/Admin sichtbar)</span></h2>
+  <div class="fields-2col">
+    <div class="field"><label>Anschaffungsdatum</label><input id="editAcqDate" type="date"></div>
+    <div class="field"><label>Anschaffungskosten (EUR)</label><input id="editAcqCost" type="number" step="0.01" min="0"></div>
+    <div class="field"><label>Laufende Kosten je Monat (EUR) <span class="muted small">(z. B. Leasing/Versicherung, monatsnormalisiert)</span></label><input id="editRecurringCost" type="number" step="0.01" min="0"></div>
+    <div class="field full"><label>Kosten-Notizen</label><textarea id="editCostNotes"></textarea></div>
+  </div>
+  <div class="editor-actions">
+    <button onclick="saveAsset()">Speichern</button>
+    <span id="costStatus" class="status"></span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title"><h2>Prüf-/Wartungsfristen</h2></div>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Art</th><th>Intervall</th><th>Letzte Prüfung</th><th>Nächste Fälligkeit</th><th>Prüfer</th><th>Dokument</th><th></th></tr></thead>
+    <tbody id="inspectionRows"></tbody>
+  </table></div>
+  <div class="fields-2col" style="margin-top:14px">
+    <div class="field"><label>Art *</label><select id="inspType"></select></div>
+    <div class="field"><label>Intervall (Monate)</label><input id="inspInterval" type="number" min="1"></div>
+    <div class="field"><label>Letzte Prüfung</label><input id="inspLast" type="date"></div>
+    <div class="field"><label>Nächste Fälligkeit</label><input id="inspNext" type="date"></div>
+    <div class="field"><label>Prüfer <span class="muted small">(optional)</span></label><input id="inspInspector"></div>
+    <div class="field full"><label>Bemerkung <span class="muted small">(optional)</span></label><input id="inspNotes"></div>
+  </div>
+  <div class="editor-actions">
+    <button id="inspSubmitBtn" onclick="submitInspection()">+ Prüffrist hinzufügen</button>
+    <button class="secondary hidden" id="inspCancelBtn" onclick="cancelInspectionEdit()">Abbrechen</button>
+    <span id="inspStatus" class="status"></span>
+  </div>
+</div>
+
+</main>
+</div>
+</div>
+<script>
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
+
+const assetId={{ asset_id }};
+let asset=null,resources=[],assetTypes=[],editingInspectionId=null;
+
+function resourceOptionsHtml(selected){
+  const available=resources.filter(r=>r.active&&(!r.taken||r.id===Number(selected)));
+  const opts=available.map(r=>`<option value="${r.id}" ${Number(selected)===r.id?'selected':''}>${esc(r.resource_type+' · '+r.name)}</option>`).join('');
+  return '<option value="">— bitte wählen —</option>'+opts;
+}
+function typeOptionsHtml(selected){
+  return assetTypes.map(o=>`<option value="${esc(o.value)}" ${o.value===selected?'selected':''}>${esc(o.label)}</option>`).join('');
+}
+function inspectionTypeOptionsHtml(){
+  return assetInspectionTypes.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+}
+let assetInspectionTypes=[];
+
+function toggleResourceFields(){
+  const linked=document.getElementById('editHasResource').checked;
+  document.getElementById('resourceFieldWrap').classList.toggle('hidden',!linked);
+  for(const id of ['nameFieldWrap','typeFieldWrap','manufacturerFieldWrap','modelFieldWrap','identifierFieldWrap']){
+    document.getElementById(id).classList.toggle('hidden',linked);
+  }
+}
+
+function renderBreadcrumb(){
+  document.getElementById('breadcrumb').innerHTML=
+    '<a href="/master-data#assets">Stammdaten · Betriebsmittel</a> · '+esc(asset.name);
+}
+
+function renderHero(){
+  document.getElementById('assetTitle').textContent=asset.asset_number?`${asset.asset_number} · ${asset.name}`:asset.name;
+  const badges=[];
+  badges.push(asset.resource_id?'<span class="badge linked">Mit Ressourcenbezug</span>':'<span class="badge standalone">Eigenständig</span>');
+  if(!asset.active)badges.push('<span class="badge inactive">Inaktiv</span>');
+  if(asset.is_overdue)badges.push('<span class="badge overdue">⚠ Prüfung überfällig</span>');
+  else if(asset.is_due)badges.push('<span class="badge due">Prüfung fällig</span>');
+  document.getElementById('assetMeta').innerHTML=[asset.asset_type,badges.join(' ')].filter(Boolean).join(' · ');
+}
+
+function fillEditor(){
+  document.getElementById('editHasResource').checked=!!asset.resource_id;
+  document.getElementById('editResource').innerHTML=resourceOptionsHtml(asset.resource_id);
+  document.getElementById('editType').innerHTML=typeOptionsHtml(asset.asset_type);
+  document.getElementById('editName').value=asset.resource_id?'':(asset.name||'');
+  document.getElementById('editManufacturer').value=asset.resource_id?'':(asset.manufacturer||'');
+  document.getElementById('editModel').value=asset.resource_id?'':(asset.model||'');
+  document.getElementById('editIdentifier').value=asset.resource_id?'':(asset.identifier||'');
+  document.getElementById('editAssetNumber').value=asset.asset_number||'';
+  document.getElementById('editActive').value=asset.active?'1':'0';
+  document.getElementById('editNotes').value=asset.notes||'';
+  document.getElementById('editAcqDate').value=asset.acquisition_date||'';
+  document.getElementById('editAcqCost').value=asset.acquisition_cost??'';
+  document.getElementById('editRecurringCost').value=asset.recurring_cost_per_month??'';
+  document.getElementById('editCostNotes').value=asset.cost_notes||'';
+  const link=document.getElementById('resourceEditLink');
+  if(asset.resource_id){
+    link.innerHTML=`<a href="/master-data/resources/${asset.resource_id}/edit" style="color:var(--accent)">Ressourcen-Stammdaten bearbeiten →</a>`;
+    link.classList.remove('hidden');
+  }else{
+    link.classList.add('hidden');
+  }
+  toggleResourceFields();
+}
+
+async function saveAsset(){
+  const hasResource=document.getElementById('editHasResource').checked;
+  const resourceId=hasResource?document.getElementById('editResource').value:'';
+  if(hasResource&&!resourceId){
+    document.getElementById('editorStatus').className='status err';
+    document.getElementById('editorStatus').textContent='Bitte eine Ressource wählen.';
+    return;
+  }
+  const name=document.getElementById('editName').value.trim();
+  if(!hasResource&&!name){
+    document.getElementById('editorStatus').className='status err';
+    document.getElementById('editorStatus').textContent='Bitte eine Bezeichnung angeben, wenn kein Ressourcenbezug gewählt ist.';
+    return;
+  }
+  const payload={
+    resource_id:hasResource?Number(resourceId):null,
+    asset_number:document.getElementById('editAssetNumber').value.trim()||null,
+    name:hasResource?null:name,
+    asset_type:hasResource?null:(document.getElementById('editType').value||null),
+    manufacturer:hasResource?null:(document.getElementById('editManufacturer').value.trim()||null),
+    model:hasResource?null:(document.getElementById('editModel').value.trim()||null),
+    identifier:hasResource?null:(document.getElementById('editIdentifier').value.trim()||null),
+    notes:document.getElementById('editNotes').value.trim()||null,
+    acquisition_date:document.getElementById('editAcqDate').value||null,
+    acquisition_cost:document.getElementById('editAcqCost').value||null,
+    recurring_cost_per_month:document.getElementById('editRecurringCost').value||null,
+    cost_notes:document.getElementById('editCostNotes').value.trim()||null,
+    active:document.getElementById('editActive').value==='1',
+  };
+  const st1=document.getElementById('editorStatus'),st2=document.getElementById('costStatus');
+  try{
+    asset=await api(`/api/operational-assets/${assetId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    render();
+    st1.className='status';st1.textContent='Gespeichert.';
+    st2.className='status';st2.textContent='Gespeichert.';
+  }catch(e){st1.className='status err';st1.textContent='Fehler: '+e.message;st2.className='status err';st2.textContent='Fehler: '+e.message}
+}
+
+async function deleteAssetNow(){
+  if(!confirm('Dieses Betriebsmittel wirklich löschen? Prüffristen und hinterlegte Dokumente werden mitgelöscht -- eine verknüpfte Ressource bleibt davon unberührt. Das kann nicht rückgängig gemacht werden.'))return;
+  try{
+    await api(`/api/operational-assets/${assetId}`,{method:'DELETE'});
+    location.href='/master-data#assets';
+  }catch(e){document.getElementById('assetStatus').className='status err';document.getElementById('assetStatus').textContent='Fehler: '+e.message}
+}
+
+function inspectionRow(insp){
+  const badges=[];
+  if(insp.is_overdue)badges.push('<span class="badge overdue">⚠ überfällig</span>');
+  else if(insp.is_due)badges.push('<span class="badge due">fällig</span>');
+  const doc=insp.document_filename
+    ?`<a href="/api/operational-asset-inspections/${insp.id}/document" target="_blank" style="color:var(--accent)">${esc(insp.document_original_name||'ansehen')}</a> <button class="secondary" style="padding:3px 8px" onclick="removeInspectionDocument(${insp.id})">✕</button>`
+    :`<input type="file" id="inspFile${insp.id}" class="hidden" onchange="uploadInspectionDocument(${insp.id})"><button class="secondary" style="padding:3px 8px" onclick="document.getElementById('inspFile${insp.id}').click()">Hochladen</button>`;
+  return `<tr>
+    <td>${esc(insp.inspection_type)}</td>
+    <td>${insp.interval_months?insp.interval_months+' Mon.':'—'}</td>
+    <td>${fmtDate(insp.last_inspection_date)}</td>
+    <td>${fmtDate(insp.next_due_date)} ${badges.join(' ')}</td>
+    <td>${esc(insp.inspector||'')}</td>
+    <td>${doc}</td>
+    <td class="row-actions">
+      <button class="secondary" onclick="editInspection(${insp.id})">Bearbeiten</button>
+      <button class="danger" onclick="deleteInspectionNow(${insp.id})">Löschen</button>
+    </td>
+  </tr>`;
+}
+
+function renderInspections(){
+  const rows=asset.inspections||[];
+  document.getElementById('inspectionRows').innerHTML=rows.length?rows.map(inspectionRow).join(''):'<tr><td colspan="7" class="empty">Noch keine Prüffristen erfasst.</td></tr>';
+  document.getElementById('inspType').innerHTML=inspectionTypeOptionsHtml();
+}
+
+function fillInspectionForm(insp){
+  document.getElementById('inspType').value=insp.inspection_type;
+  document.getElementById('inspInterval').value=insp.interval_months||'';
+  document.getElementById('inspLast').value=insp.last_inspection_date||'';
+  document.getElementById('inspNext').value=insp.next_due_date||'';
+  document.getElementById('inspInspector').value=insp.inspector||'';
+  document.getElementById('inspNotes').value=insp.notes||'';
+}
+
+function clearInspectionForm(){
+  document.getElementById('inspType').selectedIndex=0;
+  document.getElementById('inspInterval').value='';
+  document.getElementById('inspLast').value='';
+  document.getElementById('inspNext').value='';
+  document.getElementById('inspInspector').value='';
+  document.getElementById('inspNotes').value='';
+}
+
+function editInspection(id){
+  const insp=(asset.inspections||[]).find(i=>i.id===id);
+  if(!insp)return;
+  editingInspectionId=id;
+  fillInspectionForm(insp);
+  document.getElementById('inspSubmitBtn').textContent='Speichern';
+  document.getElementById('inspCancelBtn').classList.remove('hidden');
+  document.getElementById('inspType').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function cancelInspectionEdit(){
+  editingInspectionId=null;
+  clearInspectionForm();
+  document.getElementById('inspSubmitBtn').textContent='+ Prüffrist hinzufügen';
+  document.getElementById('inspCancelBtn').classList.add('hidden');
+}
+
+async function submitInspection(){
+  const st=document.getElementById('inspStatus');
+  const inspectionType=document.getElementById('inspType').value;
+  if(!inspectionType){st.className='status err';st.textContent='Bitte eine Art wählen.';return}
+  const payload={
+    inspection_type:inspectionType,
+    interval_months:document.getElementById('inspInterval').value?Number(document.getElementById('inspInterval').value):null,
+    last_inspection_date:document.getElementById('inspLast').value||null,
+    next_due_date:document.getElementById('inspNext').value||null,
+    inspector:document.getElementById('inspInspector').value.trim()||null,
+    notes:document.getElementById('inspNotes').value.trim()||null,
+  };
+  try{
+    if(editingInspectionId){
+      await api(`/api/operational-asset-inspections/${editingInspectionId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    }else{
+      await api(`/api/operational-assets/${assetId}/inspections`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    }
+    cancelInspectionEdit();
+    st.textContent='';
+    await reloadAsset();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function deleteInspectionNow(id){
+  if(!confirm('Diese Prüffrist wirklich löschen?'))return;
+  const st=document.getElementById('inspStatus');
+  try{
+    await api(`/api/operational-asset-inspections/${id}`,{method:'DELETE'});
+    if(editingInspectionId===id)cancelInspectionEdit();
+    await reloadAsset();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function uploadInspectionDocument(id){
+  const input=document.getElementById(`inspFile${id}`);
+  const file=input.files[0];
+  if(!file)return;
+  const st=document.getElementById('inspStatus');
+  const form=new FormData();form.append('file',file);
+  try{
+    await fetch(`/api/operational-asset-inspections/${id}/document`,{method:'POST',body:form}).then(async r=>{
+      if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
+    });
+    await reloadAsset();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function removeInspectionDocument(id){
+  if(!confirm('Dokument wirklich entfernen?'))return;
+  try{
+    await api(`/api/operational-asset-inspections/${id}/document`,{method:'DELETE'});
+    await reloadAsset();
+  }catch(e){document.getElementById('inspStatus').className='status err';document.getElementById('inspStatus').textContent='Fehler: '+e.message}
+}
+
+async function reloadAsset(){
+  asset=await api(`/api/operational-assets/${assetId}`);
+  render();
+}
+
+function render(){
+  renderBreadcrumb();renderHero();fillEditor();renderInspections();
+}
+
+async function init(){
+  try{
+    asset=await api(`/api/operational-assets/${assetId}`);
+  }catch(e){
+    document.getElementById('breadcrumb').textContent='Fehler: '+e.message;
+    return;
+  }
+  const [resourceList,typeGroup,inspectionTypeGroup]=await Promise.all([
+    api('/api/resources').catch(()=>[]),
+    safeOptionGroup('resource_types'),
+    safeOptionGroup('operational_asset_inspection_types'),
+  ]);
+  const takenIds=new Set((await api('/api/operational-assets').catch(()=>[])).filter(a=>a.id!==assetId&&a.resource_id).map(a=>a.resource_id));
+  resources=resourceList.map(r=>({...r,taken:takenIds.has(r.id)}));
+  assetTypes=typeGroup.options||[];
+  assetInspectionTypes=inspectionTypeGroup.options||[];
+  render();
+}
+init();
+</script>
+</body></html>

@@ -149,9 +149,11 @@ def test_save_builds_a_valid_employee_payload_and_the_generic_name_check_does_no
     """save()'s allgemeine Pflichtfeldpruefung haengt an body.name -- Mitarbeiter hat kein
     `name`-Feld (nur first_name/last_name), muss deshalb explizit ausgenommen werden. Seit dem
     Adressimport (CLAUDE.md "Adressimport aus dem Altsystem") gilt dieselbe Ausnahme auch für
-    Kunden (last_name statt name)."""
+    Kunden (last_name statt name); seit der Betriebsmittelverwaltung (1.4.0) ebenso für
+    Assets (name bleibt NULL, wenn ein Ressourcenbezug gewählt ist -- geprüft ist das bereits
+    serverseitig über den Pydantic-Validator)."""
     form = _form()
-    assert "if(!body.name&&type!=='employees'&&type!=='customers')throw Error" in form
+    assert "if(!body.name&&type!=='employees'&&type!=='customers'&&type!=='assets')throw Error" in form
     assert "type==='employees'&&(!body.first_name||!body.last_name)" in form
     assert "url=editing?`/api/employees/${recordId}`:'/api/employees'" in form
 

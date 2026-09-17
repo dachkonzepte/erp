@@ -3332,3 +3332,105 @@ class RoofLayer(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     layer_type: Mapped["RoofLayerType"] = relationship()
+
+
+class OperationalAsset(Base):
+    """Betriebsmittel (seit 1.4.0, Modul "betriebsmittel") -- die bewusste Form, wie
+    OperationalResource für die Betriebsmittelverwaltung "erweitert" wird: NICHT durch
+    zusätzliche Spalten auf OperationalResource selbst, sondern durch eine eigene
+    Inventarschicht mit optionalem Bezug zu genau einer Ressource. Ein Kran ist ein
+    Betriebsmittel MIT Ressourcenbezug (inventarisiert und in der Plantafel disponierbar
+    über den unverändert bestehenden Weg Team/TeamResource), eine Leiter ein
+    Betriebsmittel OHNE (nie in der Disposition, aber trotzdem inventarisiert/prüfpflichtig).
+
+    Verhindert Doppelerfassung: resource_id ist unique (höchstens ein Asset je Ressource)
+    UND die eigenen Identitätsfelder (name/asset_type/manufacturer/model/identifier) bleiben
+    NULL, solange resource_id gesetzt ist -- Anzeige/API lösen sie in diesem Fall IMMER live
+    von der verknüpften OperationalResource auf (operational_assets.py::asset_to_dict()),
+    nie als eigene Kopie. Ist resource_id NULL, sind die eigenen Felder die einzige Quelle,
+    name ist dann Pflicht (in der Business-Logik geprüft, nicht per DB-Constraint, da das
+    Feld für den verknüpften Fall NULL bleiben muss).
+
+    WARNUNG für künftige Änderungen: OperationalResource und OperationalAsset NICHT zu einer
+    einzigen Tabelle zusammenführen -- die Plantafel/Team-Disposition (Team, TeamResource,
+    WorkPreparationTeamResource, PlanningSlot) referenziert ausschließlich
+    operational_resources.id und kennt OperationalAsset überhaupt nicht. Eine Zusammenführung
+    würde diese Fremdschlüssel brechen oder eine Migration alter IDs erfordern -- genau das
+    Risiko, vor dem diese getrennte Tabelle bewusst schützt.
+
+    recurring_cost_per_month ist absichtlich EIN monatsnormalisierter Wert (nicht
+    Intervall+Betrag) -- eine künftige Gesamtkostenübersicht kann dadurch trivial über alle
+    Assets summieren, ohne Intervalle vorher umzurechnen."""
+
+    __tablename__ = "operational_assets"
+    __table_args__ = (UniqueConstraint("resource_id", name="uq_operational_asset_resource"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    resource_id: Mapped[int | None] = mapped_column(ForeignKey("operational_resources.id"), nullable=True, index=True)
+    asset_number: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+
+    # Nur befüllt/gültig, wenn resource_id NULL ist (eigenständiges Betriebsmittel).
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    asset_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    manufacturer: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    identifier: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    acquisition_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    acquisition_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    recurring_cost_per_month: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    cost_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    resource: Mapped["OperationalResource | None"] = relationship()
+    inspections: Mapped[list["OperationalAssetInspection"]] = relationship(
+        back_populates="asset", cascade="all, delete-orphan", order_by="OperationalAssetInspection.next_due_date"
+    )
+
+
+class OperationalAssetInspection(Base):
+    """Prüf-/Wartungsfrist eines Betriebsmittels (seit 1.4.0) -- eigenes, frisches
+    Fälligkeitsmuster (is_inspection_due()/is_inspection_overdue() in
+    app/operational_assets.py), bewusst NICHT dieselben Funktionen wie
+    MaintenanceContractItem (app/maintenance_contracts.py) wiederverwendet: deren
+    _is_item_overdue() ist an die saisonalen MaintenanceWindow-Fenster der Wartungsverträge
+    gekoppelt, was für eine turnusmäßige Gerätefrist (z. B. jährliche UVV-Prüfung) fachlich
+    nicht passt. Das PATTERN (Vorlaufzeit-gesteuertes is_due, eigenständiges is_overdue) ist
+    identisch übernommen -- exakt die "gleiches Muster, dokumentierte Trennung"-Vorgabe wie
+    bei den Pipeline-Spalten (siehe CLAUDE.md)."""
+
+    __tablename__ = "operational_asset_inspections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("operational_assets.id"), index=True)
+    inspection_type: Mapped[str] = mapped_column(String(80), index=True)
+    interval_months: Mapped[int | None] = mapped_column(nullable=True)
+    last_inspection_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    next_due_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    inspector: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    document_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    document_original_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    asset: Mapped[OperationalAsset] = relationship(back_populates="inspections")
+
+
+class OperationalAssetSettings(Base):
+    """Einstellungen für das Modul "betriebsmittel" (seit 1.4.0), Singleton wie
+    MaintenanceSettings/TaskSettings (immer genau eine Zeile mit id=1).
+    reminder_lead_days steuert, ab wie vielen Tagen VOR next_due_date eine Prüffrist bereits
+    als fällig gilt -- dasselbe Konzept wie MaintenanceSettings.reminder_lead_days, aber eine
+    eigene, unabhängige Einstellung (kein gemeinsamer Datensatz mit dem Wartungsmodul)."""
+
+    __tablename__ = "operational_asset_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    reminder_lead_days: Mapped[int] = mapped_column(default=30, server_default="30")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

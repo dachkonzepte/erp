@@ -16,6 +16,7 @@ from .models import EnabledModule
 OPTIONAL_MODULES = {
     "aufgabenmanagement": "Aufgabenmanagement",
     "wartungen": "Wartungen & Reparaturen",
+    "betriebsmittel": "Betriebsmittelverwaltung",
 }
 
 

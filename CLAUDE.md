@@ -20,9 +20,11 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.74** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `da9d9425e257` ("project pipeline columns", siehe Abschnitt
-  "Umbau der Projektliste" unten) -- vorher `f803985ebc2f` ("property documents table", siehe
+- Version: **1.4.0** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `5917bb099776` ("operational assets betriebsmittel", siehe
+  Abschnitt "Betriebsmittelverwaltung" unten) -- vorher `da9d9425e257` ("project pipeline
+  columns", siehe Abschnitt "Umbau der Projektliste" unten), davor `f803985ebc2f` ("property
+  documents table", siehe
   Abschnitt "Dateiablage je Objekt" unten), davor `9137945e8785` ("document categories
   foundation"): keine der Versionen 1.3.52 bis 1.3.61 brauchte eine eigene Migration (reine
   Rollen-Gate-/Response-Schema-/Objekt-Filterungs-Umstellungen auf bereits bestehenden
@@ -30,10 +32,11 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1391 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1410 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 17.09.2026 (1.3.73, reiner CSS/JS-Fix ohne Backend-Änderung, siehe dort für
-  den echten Browser-Nachweis abseits von `pytest`) mit `pytest` in Tobias' `.venv` unter Windows
+  dort), zuletzt am 17.09.2026 (1.4.0, Betriebsmittelverwaltung Stufe 1, siehe eigener
+  Abschnitt unten für den echten Browser-Nachweis abseits von `pytest`) mit `pytest` in Tobias'
+  `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -1006,6 +1009,25 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   URL-Hash (Muster `settings.html`), die drei externen Tiefenverweise (`projects.html`/
   `order.html`/`work_preparation.html`) mussten dafür nicht geändert werden. Per echtem,
   CDP-gesteuertem Headless-Chrome gegen eine isolierte Testinstanz verifiziert (Muster 1.3.73).
+- Neu seit 1.4.0: **Betriebsmittelverwaltung, Stufe 1** -- erstes neues Modul (`module_key
+  "betriebsmittel"`) seit der Monteursansicht. `OperationalAsset` ist eine eigene, neue Tabelle
+  mit optionalem Bezug zu genau einer `OperationalResource` (unique -- höchstens ein
+  Betriebsmittel je Ressource), NICHT deren Erweiterung -- die Plantafel-Disposition
+  referenziert weiterhin ausschließlich `operational_resources.id`. Ist ein Asset verknüpft,
+  werden Name/Typ/Hersteller/Modell/Kennzeichen bei jedem Lesezugriff LIVE aus der Ressource
+  aufgelöst, nie als Kopie gespeichert -- der Schutz gegen Doppelerfassung/Namensdivergenz.
+  Prüf-/Wartungsfristen (`OperationalAssetInspection`) mit eigener, frischer Fälligkeitslogik
+  (`is_inspection_due()`/`is_inspection_overdue()`) -- bewusst NICHT dieselben Funktionen wie
+  beim Wartungsmodul wiederverwendet (dessen `_is_item_overdue()` ist an saisonale
+  `MaintenanceWindow`-Fenster gekoppelt), nur das Muster ist identisch. Kosten
+  monatsnormalisiert (`recurring_cost_per_month`) als Vorbereitung für eine spätere
+  Gesamtkostenübersicht. Migration `5917bb099776` backfillt für alle 5 real bestehenden
+  `OperationalResource`-Zeilen ein verknüpftes Asset. Stammdaten-Navigationsknopf schaltet
+  zwischen der reichen Asset-Ansicht (Modul an) und der alten, rohen Ressourcenliste (Modul
+  aus) um -- keine zweite, verwaiste Pflege. Eigene Detailseite `/betriebsmittel/{id}` (Regel
+  10, wie Property/Wartungsvertrag). Siehe eigener Abschnitt "Betriebsmittelverwaltung" unten
+  für die vollständige Herleitung. QR-Code + rollenabhängige Ansicht (Stufe 2) und
+  Betriebsmittel im Bericht (Stufe 3) sind bewusst noch nicht gebaut.
 - Neu seit 1.3.73: **Kontextmenü der Projektliste -- Beschneidung durch `overflow:auto`
   behoben, per echtem Headless-Browser-Test verifiziert.** Gemeldeter Fehler an 1.3.72: das
   Drei-Punkte-Menü klappte innerhalb des seit 1.3.9 scrollbaren `.wrap`-Tabellencontainers auf
@@ -7666,6 +7688,183 @@ JavaScript-Konsolenfehler beim Laden oder bei den drei Interaktionen (die eine b
 404-Konsolenmeldung ist plattformweit üblich -- ein vom Browser automatisch angefragtes,
 fehlendes `favicon.ico`, unabhängig von diesem Template, auf jeder Seite dieses Projekts
 gleichermaßen zu erwarten).
+
+## Betriebsmittelverwaltung (seit 1.4.0, Modul "betriebsmittel")
+
+Erstes neues Modul seit der Monteursansicht (die aber bewusst KEIN Modul ist, siehe dort) --
+Befund zuvor separat berichtet (kein Code), dann fünf vom Nutzer bestätigte Bau-Entscheidungen
+umgesetzt. Dreistufig: diese Version liefert ausschließlich **Stufe 1** -- Datenmodell mit
+Ressourcenbezug, Prüffristen, Kosten, Stammdatenpflege, Modulschalter. QR-Code +
+rollenabhängige Ansicht (Stufe 2) und Betriebsmittel im Bericht (Stufe 3) sind bewusst noch
+nicht gebaut, folgen erst nach Rückmeldung zu dieser Etappe.
+
+**Der Modulschalter zuerst, wie ausdrücklich verlangt**: `OPTIONAL_MODULES["betriebsmittel"] =
+"Betriebsmittelverwaltung"` (`app/modules.py`) war der allererste Codeschritt dieser Version --
+erst danach entstand ein einziger Endpunkt. Jeder Endpunkt in
+`app/routers/operational_assets.py` prüft `is_module_enabled()` (403, exaktes Muster aus
+`app/routers/maintenance_contracts.py`, eigener `_require_module_enabled(db)`-Helfer,
+`MODULE_KEY = "betriebsmittel"`).
+
+### Eigene Inventarschicht statt Erweiterung von `OperationalResource` -- die zentrale Entscheidung
+
+`OperationalAsset` (`app/models.py`) ist eine eigene, neue Tabelle mit einem OPTIONALEN Bezug
+zu genau einer `OperationalResource` (`resource_id`, `UniqueConstraint` -- höchstens ein
+Betriebsmittel je Ressource, verhindert Doppelerfassung bereits auf Datenbankebene, nicht nur
+in der Anwendungslogik). Genau die vom Nutzer vorgegebene Unterscheidung: "Ein Kran ist ein
+Betriebsmittel MIT Ressourcenbezug -- inventarisiert und planbar. Eine Leiter ist ein
+Betriebsmittel OHNE." Ein Kran bleibt über den komplett unveränderten `Team`/`TeamResource`/
+`WorkPreparationTeamResource`/`PlanningSlot`-Weg in der Plantafel disponierbar, eine Leiter hat
+mit diesem Weg nie etwas zu tun.
+
+**Live-Auflösung statt Kopie, der eigentliche Schutz gegen Doppelerfassung/Namensdivergenz**:
+ist ein Asset verknüpft (`resource_id` gesetzt), bleiben seine eigenen Identitätsfelder
+(`name`/`asset_type`/`manufacturer`/`model`/`identifier`) auf der Datenbank IMMER `NULL` --
+`app/operational_assets.py::asset_to_dict()` löst sie bei JEDEM Lesezugriff live aus der
+verknüpften `OperationalResource` auf, niemals aus einer gespeicherten Kopie. Benennt jemand
+die Ressource um, zeigt das Betriebsmittel sofort den neuen Namen, ohne selbst angefasst zu
+werden -- ein klassisches "zwei Kopien laufen auseinander" kann dadurch strukturell nicht
+entstehen. Ist kein Ressourcenbezug gewählt, sind dieselben Felder die einzige Quelle, `name`
+wird dann zur Pflicht (Pydantic-`model_validator` in `OperationalAssetCreate`, bewusst NICHT
+als DB-`NOT NULL`-Constraint, da die Spalte im verknüpften Fall zwingend `NULL` bleiben muss).
+Die Business-Logik (`create_asset()`/`update_asset()`) setzt beim Verknüpfen zusätzlich die
+eigenen Felder aktiv auf `NULL` zurück, falls vorher eigenständig befüllt.
+
+**Ausdrückliche, dauerhafte Warnung -- bewusst im Klassendocstring von `OperationalAsset`
+UND hier festgehalten, damit sie niemand übersieht**: `OperationalResource` und
+`OperationalAsset` dürfen NIE zu einer einzigen Tabelle zusammengeführt werden. Die
+Plantafel-Disposition referenziert ausschließlich `operational_resources.id` und kennt
+`OperationalAsset` an keiner Stelle -- eine Zusammenführung würde diese Fremdschlüssel brechen
+oder eine riskante ID-Migration erfordern. Das ist die bewusste Form von "Ressourcen
+erweitern", die der Nutzer angefragt hat: eine zweite, optional angehängte Schicht, kein Umbau
+der bestehenden.
+
+### Fälligkeitslogik: Muster übernommen, Code bewusst NICHT wiederverwendet
+
+Geprüft, ob `MaintenanceContractItem`s `_is_item_due()`/`_is_item_overdue()`
+(`app/maintenance_contracts.py`) sich direkt wiederverwenden lassen -- Ergebnis: nein.
+`_is_item_overdue()` ist an die saisonalen `MaintenanceWindow`-Fenster der Wartungsverträge
+gekoppelt (`_window_close_date()`, Start-/Endmonat statt Kalendertage) -- das passt fachlich
+nicht auf eine turnusmäßige Geräteprüfung wie "TÜV alle 12 Monate", die kein saisonales Fenster
+kennt, nur ein festes Intervall. Beide Funktionen sind außerdem privat und eng an
+`MaintenanceContract`/`MaintenanceContractItem` gekoppelt.
+
+Übernommen ist deshalb nur das PATTERN, nicht der Code -- exakt die vom Nutzer verlangte
+"gemeinsame Funktion, wenn sie sich anbietet, sonst dasselbe Muster mit dokumentierter
+Trennung, wie bei den Pipeline-Spalten"-Vorgabe. Neue, eigenständige Funktionen
+`is_inspection_due()`/`is_inspection_overdue()` (`app/operational_assets.py`): `is_due` prüft
+eine konfigurierbare Vorlaufzeit VOR der eigentlichen Fälligkeit (`next_due_date <= heute +
+reminder_lead_days`), `is_overdue` prüft unabhängig davon, ob das Datum bereits verstrichen ist
+(`next_due_date < heute`) -- dieselbe Zwei-Stufen-Idee wie beim Wartungsmodul, aber ohne dessen
+Fenster-Semantik. Eigene, unabhängige Singleton-Einstellung `OperationalAssetSettings.
+reminder_lead_days` (Default 30 Tage) -- kein gemeinsamer Datensatz mit `MaintenanceSettings`.
+
+Ein Asset aggregiert über alle seine Prüffristen: `is_due`/`is_overdue` sind `true`, wenn
+MINDESTENS EINE Prüffrist das jeweils erfüllt, `next_due_date` (fürs Sortieren/Anzeigen) ist die
+früheste aller künftigen Fristen.
+
+### Datenmodell
+
+- **`OperationalAsset`**: `resource_id` (optional, unique), eigene Identitätsfelder (nur
+  relevant ohne Ressourcenbezug), `asset_number`, `notes`, `acquisition_date`,
+  `acquisition_cost`, `recurring_cost_per_month`, `cost_notes`, `active`.
+- **`OperationalAssetInspection`**: `asset_id`, `inspection_type` (aus der neuen, self-seedenden
+  Optionsgruppe `operational_asset_inspection_types` -- TÜV/HU, Leiterprüfung, UVV-Prüfung,
+  Wartung, Sonstige Prüfung), `interval_months`, `last_inspection_date`, `next_due_date`,
+  `inspector`, `document_filename`/`document_original_name`, `notes`. Cascade beim Löschen des
+  Assets (`cascade="all, delete-orphan"`).
+- **`OperationalAssetSettings`**: Singleton (`reminder_lead_days`).
+
+`asset_type` selbst nutzt bewusst dieselbe, bereits bestehende Optionsgruppe `resource_types`
+wie `OperationalResource` -- keine zweite, parallele Typliste nur für eigenständige
+Betriebsmittel.
+
+**Migration `5917bb099776`** legt alle drei Tabellen an UND backfillt in derselben Migration
+für jede der zum Zeitpunkt des Schreibens real bestehenden 5 `OperationalResource`-Zeilen
+(3× Fahrzeug, 1× Kran, 1× Anhänger) ein verknüpftes `OperationalAsset` (nur `resource_id`
+gesetzt, eigene Felder `NULL`) -- ohne diesen Schritt wären alle 5 Bestandsressourcen aus der
+Stammdaten-Übersicht verschwunden, sobald diese (bei aktivem Modul) auf die Asset-Ansicht
+umgestellt wird. Die Backfill-Logik steckt als eigenständige, direkt testbare Funktion
+(`_backfill_assets_for_existing_resources()`) in der Migrationsdatei selbst (Muster aus
+1.2.19/1.3.12/1.3.22, siehe "Testen" unten) -- gegen die echte, migrierte Datenbank verifiziert:
+alle 5 Zeilen korrekt verknüpft, 0 verwaiste Ressourcen.
+
+**Dokument-Ablage für Prüffristen** (`app/operational_asset_documents.py`, Muster
+`app/roof_area_sketches.py`): eigener `data/operational_asset_documents/`-Ordner (neue
+Umgebungsvariable `DACHKONZEPTE_OPERATIONAL_ASSET_FILE_ROOT`, in `.env.example` ergänzt, zehnte
+Variable dieser Art), PDF zusätzlich zu PNG/JPEG/WebP erlaubt (Prüfprotokolle/Plaketten-Fotos,
+anders als bei der reinen Bild-Skizze der Dachfläche), 10 MB-Grenze.
+
+### Kosten: monatsnormalisiert statt Intervall+Betrag -- Vorbereitung für eine künftige Gesamtkostenübersicht
+
+`recurring_cost_per_month` (ein einzelner, bereits auf den Monat umgerechneter Betrag) statt
+eines Intervall+Betrag-Paars -- bewusste Vorentscheidung, weil der Nutzer eine spätere
+"Gesamtkostenübersicht" bereits angekündigt hat: eine solche Auswertung kann dadurch trivial
+über alle Assets `SUM(recurring_cost_per_month)` bilden, ohne zuvor unterschiedliche Intervalle
+(monatlich/jährlich/quartalsweise) umrechnen zu müssen. **Merkposten für diese künftige
+Auswertung**: `acquisition_cost` (einmalig) und `recurring_cost_per_month` (laufend) sind die
+beiden Felder, die sie lesen wird -- beide bereits vorhanden, nichts davon ist noch zu ergänzen,
+nur die Auswertung selbst fehlt noch.
+
+### "Fuhrpark & Maschinen" wird zur Weiche, nicht zu zwei Parallelpflegen
+
+Dieselbe Weiche wie bei Mitarbeitern in 1.3.26 ("die Stammdatenseite führt auf die
+Betriebsmittelverwaltung, statt eine ärmere Parallelpflege zu bleiben"), aber ohne dass die
+alte Seite entfällt -- die 5 Bestandsressourcen dürfen nie verschwinden, auch nicht bei
+deaktiviertem Modul:
+
+- **EIN Stammdaten-Navigationsknopf** (`master_data.html`, Jinja-bedingte Beschriftung: "Betriebsmittel"
+  bei aktivem Modul, sonst weiterhin "Fuhrpark & Maschinen") statt zwei getrennter Einträge.
+- **Modul an**: die reiche Asset-Liste (`GET /api/operational-assets`) -- eigener,
+  `.catch(()=>[])`-abgesicherter Fetch-Zweig in `load()`s `Promise.all(...)`, da dieser
+  Endpunkt (anders als jeder andere, bisher unbedingt geladene Fetch dieser Datei) modulgated
+  ist und 403 liefern könnte, sobald das Modul während einer Sitzung abgeschaltet wird. Ein
+  "Fällige Prüffristen"-Panel steht oben, "+ Hinzufügen" führt auf `/master-data/assets/new`.
+- **Modul aus**: unverändert die alte, rohe Ressourcenliste (`GET /api/resources`, weiterhin
+  ungegatet, Kern-ERP -- diese Datei fragt sie ohnehin immer ab, da `teamForm()` sie unabhängig
+  vom Betriebsmittel-Modul braucht), "+ Hinzufügen" führt weiterhin auf
+  `/master-data/resources/new`.
+- **Anlegen** läuft über `master_data_form.html`s neue `assetForm()` (Ressourcenbezug-
+  Umschalter, bereits verknüpfte Ressourcen werden aus der Auswahl ausgeschlossen). **Bearbeiten
+  bewusst NICHT über dasselbe Formular** -- Regel-10-Präzedenzfall "eigene, reichere
+  Detailseite statt generischem Formular, wenn ein Bereich das rechtfertigt" (wie Property/
+  Wartungsvertrag): `master_data_form.html` bounct bei `type==='assets'&&editing` sofort auf
+  `GET /betriebsmittel/{id}` (`app/templates/operational_asset.html`, Muster
+  `maintenance_contract.html`), Anlegen bounct nach dem Speichern ebenso dorthin. Die
+  Detailseite verlinkt bei verknüpfter Ressource zusätzlich auf deren eigene Stammdatenseite
+  (`/master-data/resources/{id}/edit`), damit reine Ressourcenfelder (Kennzeichen, Hersteller
+  bei Fuhrpark) weiterhin erreichbar bleiben, ohne sie auf der Betriebsmittelseite zu
+  duplizieren.
+
+### Sichtbarkeit auf Übersicht und Dashboard
+
+Dashboard-Widget "Fällige Betriebsmittelfristen" (`due_assets`, Muster `due_maintenance`,
+`app/templates/dashboard.html`, blendet sich über `isModuleEnabled('betriebsmittel')` selbst
+aus) UND das "Fällige Prüffristen"-Panel auf der Stammdaten-Betriebsmittelliste decken die
+verlangte Sichtbarkeit "auf einer Übersicht und im Dashboard" ab, ohne eine dritte, eigene
+Seite dafür zu bauen.
+
+### Einstellungen
+
+Einstellungen → System → "Betriebsmittel" (neuer Abschnitt, `settings.html`, Muster
+"Wartungen"): einziges konfigurierbares Feld ist `reminder_lead_days`, mit demselben
+Deaktiviert-Hinweis-Mechanismus wie beim Wartungsmodul (`operationalAssetModuleDisabledNotice`).
+
+### Verifikation
+
+Per echtem, CDP-gesteuertem Headless-Chrome gegen eine isolierte, temporäre SQLite-Instanz
+verifiziert (Muster 1.3.73/1.3.74, Büro-Testkonto statt Admin, um die 1.3.34-Zwei-Faktor-Pflicht
+nicht extra einzurichten): Stammdatenliste zeigt korrekt "Betriebsmittel"/die Nächste-Prüffrist-
+Spalte, Anlegen bounct tatsächlich zu `/betriebsmittel/{id}`, eine Prüffrist mit einem Datum in
+der Vergangenheit lässt sofort das "⚠ PRÜFUNG ÜBERFÄLLIG"-Badge UND das "Fällige Prüffristen"-
+Panel auf der Übersicht erscheinen, der Einstellungen-Abschnitt lädt den Wert 30 korrekt, und --
+das Modul direkt in der Datenbank deaktiviert -- der vollständige Rückfall auf die alte
+Fuhrpark-Ansicht (Sidebar-Label, Seitentitel, Add-Link, die alten Ressourcenspalten) samt
+funktionierendem `403` auf `GET /api/operational-assets`. Keine JavaScript-Konsolenfehler
+außer dem plattformweit üblichen fehlenden `favicon.ico`. `pytest` vollständig grün (1410
+Tests, 17 davon neu in `tests/test_v276_operational_assets.py`: Doppelerfassungs-Schutz,
+Live-Auflösung bei Umbenennung der Ressource, Name-Pflicht-Validator, Fälligkeits-Aggregation
+über mehrere Prüffristen, Migrations-Backfill isoliert gegen eine frische Verbindung, Rollen-
+UND Modul-Gate über echte Router-Endpunkte).
 
 ## Migrations-Workflow
 
