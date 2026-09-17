@@ -91,7 +91,10 @@ def test_time_tracking_context_contains_order_items_and_mobile_ui_exists():
     assert '/time-tracking' in main and '/api/time-entries/start' in main
     assert 'Schnell starten' in html and 'LV-Position' in html and 'Fahrzeit' in html
     assert 'time_entry_types' in options and 'time_entry_activities' in options
-    assert 'Zeiterfassung im Projekt' in project_html and 'href="#sec-times"' in project_html
+    # Seit 1.3.74 (Umbau der Projekt-Detailseite): kein Sprungmarken-Link mehr,
+    # sondern ein echter Reiter (siehe tests/test_v064_project_folders.py für
+    # die vollständige Prüfung der Reiterleiste).
+    assert 'Zeiterfassung im Projekt' in project_html and 'data-tab="sec-times"' in project_html
 
 
 def test_version_1_0():

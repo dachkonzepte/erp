@@ -4,6 +4,80 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.74 – Umbau der Projekt-Detailseite (die Projektmappe)
+
+Zweiter Teil des vom Nutzer angefragten Umbaus (Befund zuvor separat berichtet, keine
+Codeänderung) -- `app/templates/project_folder.html` vollständig neu gebaut. Ziel: die linke,
+sprungmarken-basierte Bereichsnavigation wird zu einer echten, waagerechten Reiterleiste, das
+Hauptfeld nutzt die volle Breite, Vorbild war das vom Nutzer gezeigte LB.tec-Layout.
+
+Fünf vorab bestätigte Entscheidungen, jede umgesetzt:
+
+1. **Acht echte Reiter** statt neun Sprungmarken (Kennzahlen entfällt als Reiter, siehe Punkt 2):
+   Übersicht (frühere "Projektinformationen"), Dateien, Angebote, Aufträge, Rechnungen,
+   Arbeitsvorbereitung, Zeiten, Historie -- mit denselben Zählungen wie bisher an der linken
+   Navigation (Dateien/Angebote/Aufträge/Rechnungen/Zeiten), jetzt am jeweiligen Reiter. Die
+   Reiter-Schlüssel sind bewusst identisch mit den bisherigen Sprungmarken-IDs (`sec-info`,
+   `sec-files`, `sec-quotes`, `sec-orders`, `sec-invoices`, `sec-workprep`, `sec-times`,
+   `sec-history`) -- die drei bestehenden externen Tiefenverweise (`projects.html`s
+   Kontextmenü-Link auf `#sec-quotes`, `order.html`/`work_preparation.html`s Breadcrumb-Link auf
+   `#sec-orders`) mussten dadurch nicht geändert werden, sie aktivieren jetzt automatisch den
+   richtigen Reiter statt zu einer Sprungmarke zu scrollen.
+2. **Kennzahlen als fester, immer sichtbarer Block über den Reitern**, kein eigener Reiter --
+   entgegen dem eigenen Befund-Vorschlag (Zusammenlegung mit "Übersicht"), auf ausdrücklichen
+   Nutzerwunsch. Schlank gehalten: die frühere dritte KPI-Gruppe "Dokumente" (Angebote/Aufträge/
+   Rechnungen-Zählung) entfällt, weil dieselben Zahlen jetzt an den Reitern stehen -- keine
+   dritte, redundante Stelle für dieselbe Zahl (vorher: Kopf-Badges UND Kennzahlen-Dashboard UND
+   Seitenleiste zeigten dieselben vier Zahlen dreifach). Übrig bleiben sechs kompakte Kacheln
+   (Finanzen: Projektwert/Abgerechnet/Noch offen; Stunden: Soll/Ist/Abweichung), wiederverwendet
+   über die bereits bestehenden `.metric`/`.grid`-Klassen (dieselben, die auch die
+   Zeiterfassungs-Sektion nutzt) statt einer dritten, eigenen Kachel-Optik -- die alte
+   `.kpi-groups`/`.kpi-group`-CSS (nur für diese eine Stelle gebaut) entfällt vollständig. Per
+   echtem Browser-Test (siehe unten) nachgemessen: Kopf + Kennzahlen-Streifen + Reiterleiste
+   zusammen 309px bei 855px Ansichtsfensterhöhe (~36 %) -- deutlich unter der Hälfte.
+3. **"Übersicht" ist der Reiter beim Öffnen**, der aktive Reiter steht im URL-Hash
+   (`#sec-quotes` usw.) -- adaptiert aus dem bereits etablierten Muster in `settings.html`
+   (`showSettingsSection()`/`history.replaceState`/`hashchange`-Listener mit einer validierten
+   Schlüsselliste), nicht neu erfunden, wie ausdrücklich verlangt geprüft. `master_data.html`s
+   älteres, einfacheres `viewFromHash()` wurde ebenfalls geprüft, `settings.html`s Fassung passt
+   aber besser (Bookmark-/Reload-Fähigkeit war dort von Anfang an mitgedacht).
+4. **Ein einziger permanenter Kopf-Button: "Projektmappe bearbeiten"**, nicht "+ Angebot" wie in
+   der eigenen Befund-Vermutung. Gegen die echte, lokale Datenbank geprüft statt nur vermutet: 6
+   von 8 Projekten tragen bereits den Status "beauftragt" (die Angebotsphase ist für die meiste
+   Projektlaufzeit bereits abgeschlossen), 6 von 8 haben genau ein Angebot -- die Projektmappe
+   wird also überwiegend zum Nachsehen (Dateien, Aufträge, Rechnungen, Zeiten) statt zum Anlegen
+   eines weiteren Angebots geöffnet. "+ Angebot" verschwindet dabei nicht (bleibt unverändert in
+   den Reitern Übersicht UND Angebote erhalten, wie zuvor doppelt vorhanden) -- nur die
+   permanente Kopf-Position wechselt. Der Rest (Kopieren, Als Mustervorgang speichern,
+   Wartungsvertrag erstellen, Archivieren/Entarchivieren, Löschen) wandert ins Drei-Punkte-Menü,
+   exakt nach dem in `projects.html` etablierten Muster (1.3.72/1.3.73: `.menu`/`.menu-btn`/
+   `toggleMenu()`/`positionMenu()`/`closeAllMenus()`, `position:fixed`, Escape/Scroll/Resize
+   schließen das Menü) -- keine zweite, eigene Menü-Implementierung.
+5. **Bereichsinhalte unverändert, nur ihre Erreichbarkeit ändert sich**: Upload-Zone mit
+   Drag&Drop, Kategorie-/Unterordner-Filterkarten, Suche, alle Tabellen, alle Modals (Projekt
+   bearbeiten, Dateimetadaten bearbeiten, Wartungsvertrag erstellen) sind eins zu eins aus dem
+   bisherigen Template übernommen, nur die Collapse-Buttons (▾/▸) und ihr `localStorage`-Zustand
+   (`dachkonzepte_project_folder_collapsed_sections`) entfallen -- bei genau einem sichtbaren
+   Bereich zur selben Zeit ist ein Ein-/Ausklappen wirkungslos geworden, keine Funktion, die noch
+   etwas leistet. **Eager statt lazy Laden**: der bestehende einzelne `Promise.all(...)`-Aufruf in
+   `load()` bleibt unverändert -- bei 8 Bestandsprojekten mit insgesamt einstelligen bis
+   niedrigen zweistelligen Zeilenzahlen (Dateien/Angebote/Aufträge/Rechnungen/Zeiteinträge/
+   Historie je Projekt) gäbe es keinen messbaren Ladezeitgewinn durch Reiterwechsel-Nachladen,
+   nur zusätzliche Komplexität (Ladezustand je Reiter, doppelte Fehlerbehandlung) ohne fachlichen
+   Nutzen -- Reiterwechsel schaltet ausschließlich `display:none`/`display:block` um.
+
+**Rollen-Check bestätigt, nicht nur angenommen**: `/projects/{project_id}` (Seitenroute,
+`app/routers/pages.py`) UND der komplette `app/routers/projects.py`-Router (`_role_dep`) tragen
+unverändert `require_role(ROLE_ADMIN, ROLE_OFFICE)` -- dieser Umbau rührt daran nichts an, ein
+Monteur bleibt vollständig ausgesperrt (Seite UND API). Per echtem, gegen eine isolierte,
+temporäre Testinstanz gesteuertem Headless-Chrome (CDP, Muster 1.3.73) verifiziert, nicht nur
+behauptet: Standardansicht zeigt "Übersicht" aktiv, Kennzahlen-Streifen kompakt (105px) und
+Kopfbereich (141px) und Reiterleiste (39px) zusammen weit unter der halben Bildschirmhöhe;
+Klick auf "Dateien" schaltet den Reiter tatsächlich um und setzt den URL-Hash; ein Neuladen mit
+`#sec-quotes` in der Adresse aktiviert direkt den Angebote-Reiter (Tiefenverweis-Fähigkeit
+bestätigt); das Drei-Punkte-Menü öffnet vollständig innerhalb des Ansichtsfensters mit allen
+fünf Einträgen; keine JavaScript-Fehler beim Laden oder bei den Interaktionen.
+
 ## 1.3.73 – Kontextmenü der Projektliste: Beschneidung durch overflow:auto behoben
 
 Gemeldeter Fehler an 1.3.72: das Drei-Punkte-Kontextmenü klappte innerhalb des seit 1.3.9

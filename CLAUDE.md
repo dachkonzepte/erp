@@ -20,7 +20,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.73** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.74** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf jetzt `da9d9425e257` ("project pipeline columns", siehe Abschnitt
   "Umbau der Projektliste" unten) -- vorher `f803985ebc2f` ("property documents table", siehe
   Abschnitt "Dateiablage je Objekt" unten), davor `9137945e8785` ("document categories
@@ -994,6 +994,18 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   weiterhin vollständig ausgesperrt (Seite UND API 403), Verschieben im Kanban ändert nachweis-
   lich nie den Status. Kein echter Browser-Klicktest möglich (Werkzeug-Einschränkung dieser
   Umgebung) -- Drag-and-Drop/Kontextmenü nur über Quelltext- und Endpunktprüfung abgesichert.
+- Neu seit 1.3.74: **Umbau der Projekt-Detailseite (die Projektmappe).** `app/templates/
+  project_folder.html` vollständig neu gebaut -- die linke, sprungmarken-basierte
+  Bereichsnavigation ist einer echten, waagerechten Reiterleiste gewichen (siehe Abschnitt
+  "Umbau der Projekt-Detailseite" unten für die vollständige Herleitung inkl. Befund und der
+  fünf vom Nutzer bestätigten Bau-Entscheidungen). Kennzahlen bleiben als schlanker, immer
+  sichtbarer Block über den Reitern (ausdrücklich gegen die eigene Befund-Empfehlung, die eine
+  Zusammenlegung mit "Übersicht" vorgeschlagen hatte), der permanente Kopf-Button ist entgegen
+  der eigenen Vermutung "Projektmappe bearbeiten" statt "+ Angebot" -- gegen die reale,
+  lokale Datenbank begründet (6 von 8 Projekten bereits "beauftragt"). Reiter-Auswahl steht im
+  URL-Hash (Muster `settings.html`), die drei externen Tiefenverweise (`projects.html`/
+  `order.html`/`work_preparation.html`) mussten dafür nicht geändert werden. Per echtem,
+  CDP-gesteuertem Headless-Chrome gegen eine isolierte Testinstanz verifiziert (Muster 1.3.73).
 - Neu seit 1.3.73: **Kontextmenü der Projektliste -- Beschneidung durch `overflow:auto`
   behoben, per echtem Headless-Browser-Test verifiziert.** Gemeldeter Fehler an 1.3.72: das
   Drei-Punkte-Menü klappte innerhalb des seit 1.3.9 scrollbaren `.wrap`-Tabellencontainers auf
@@ -7545,6 +7557,115 @@ schließt ein offenes Menü. Geprüft, ob dasselbe Muster anderswo im Projekt be
 (wie verlangt) -- einziger Fund war der Kontoknopf in `_topbar.html`, der aber nie in einem
 `overflow`-Container sitzt und deshalb kein Vorbild für DIESES Problem ist; kein zweiter,
 divergierender Lösungsweg also, aber auch kein wiederverwendbarer bestehender.
+
+## Umbau der Projekt-Detailseite (die Projektmappe, seit 1.3.74)
+
+Zweistufiger Auftrag (Muster "Dateiablage je Objekt"/"Büro-Suche"): erst Befund + Vorschlag
+(keine Codeänderung), dann nach Bestätigung der Bau. Vorbild war ein vom Nutzer gezeigtes
+LB.tec-Layout: oben der Projektkopf, darunter die Reiter, darunter der breite Inhalt.
+
+### Befund (keine Codeänderung, vorher berichtet)
+
+`project_folder.html` nutzte bis 1.3.73 CSS `:target`-Sprungmarken, kein `showTab`, keine
+Tab-Auswahl -- die linke `.side`-Leiste war eine reine Anker-Liste (`<a href="#sec-...">`), neun
+Bereiche gleichzeitig im DOM (`.card:target{outline:...}` als Beleg). Das entspricht fachlich
+KEINEN echten Reitern, obwohl die Oberfläche optisch danach aussah. Drei externe Dateien
+verlinken auf zwei dieser Anker (`projects.html` → `#sec-quotes`, `order.html`/
+`work_preparation.html` → `#sec-orders`) -- mussten beim Umbau berücksichtigt werden, damit sie
+nicht brechen.
+
+### Fünf Bau-Entscheidungen, jede einzeln bestätigt und umgesetzt
+
+1. **Acht echte Reiter statt neun Sprungmarken** -- Kennzahlen wird kein eigener Reiter (siehe
+   Punkt 2). Übersicht (frühere "Projektinformationen"), Dateien, Angebote, Aufträge,
+   Rechnungen, Arbeitsvorbereitung, Zeiten, Historie, mit denselben Zählungen wie zuvor an der
+   linken Navigation (Dateien/Angebote/Aufträge/Rechnungen/Zeiten). **Reiter-Schlüssel bewusst
+   identisch mit den bisherigen Sprungmarken-IDs** (`sec-info`/`sec-files`/`sec-quotes`/
+   `sec-orders`/`sec-invoices`/`sec-workprep`/`sec-times`/`sec-history`) -- eine kürzere,
+   sprechendere Schlüsselliste (wie bei `settings.html`s `SETTINGS_SECTIONS`) hätte die drei
+   externen Tiefenverweise gebrochen; Wiederverwendung derselben Strings kostet nichts (URLs
+   sind nicht zum Lesen gedacht) und macht `projects.html`/`order.html`/`work_preparation.html`
+   komplett unangetastet.
+2. **Kennzahlen als fester, immer sichtbarer Block über den Reitern, kein eigener Reiter** --
+   entgegen der eigenen Befund-Empfehlung (Zusammenlegung mit "Übersicht"), auf ausdrücklichen
+   Nutzerwunsch ("Sie gehören nicht in einen Reiter"). Schlank gehalten: die frühere dritte
+   KPI-Gruppe "Dokumente" (Angebote/Aufträge/Rechnungen-Zählung, `kQuoteCount`/`kOrderCount`/
+   `kInvoiceCount`) entfällt ersatzlos -- dieselben drei Zahlen standen vorher DREIFACH auf der
+   Seite (Kopf-Badges, Kennzahlen-Dashboard, linke Navigation), jetzt genau EINMAL (an den
+   Reitern). Übrig bleiben sechs kompakte Kacheln (Finanzen: Projektwert/Abgerechnet/Noch offen;
+   Stunden: Soll/Ist/Abweichung) über die bereits bestehenden `.metric`/`.grid`-Klassen (dieselben,
+   die auch `sec-times`s eigene Zusammenfassung nutzt) -- keine dritte, eigene Kachel-Optik neben
+   den alten, jetzt entfernten `.kpi-groups`/`.kpi-group-label`/`.kpi-value`-Regeln. Per echtem
+   Browser-Test nachgemessen: Kopf (141px) + Kennzahlen-Streifen (105px) + Reiterleiste (39px) =
+   309px bei 855px Ansichtsfensterhöhe (~36 %) -- der geforderte "nicht die halbe Bildschirmhöhe"
+   ist damit klar erfüllt, nicht nur behauptet.
+3. **"Übersicht" ist der Reiter beim Öffnen, der aktive Reiter steht im URL-Hash.** Vor dem
+   Bauen geprüft, welche bestehende Seite das Problem "Reiter in der Adresse, Reload/Lesezeichen
+   zeigt denselben Reiter" schon löst, statt es neu zu erfinden: `settings.html`
+   (`showSettingsSection(key,updateHash=true)`/`settingsSectionFromHash()`/
+   `history.replaceState` (nicht `pushState`)/`hashchange`-Listener mit einer validierten
+   `SETTINGS_SECTIONS`-Allowlist) passt genau. `master_data.html`s älteres, einfacheres
+   `viewFromHash()` (nur eine Allowlist + `showView()`, kein `replaceState`/kein
+   `hashchange`-Listener) wurde ebenfalls geprüft, aber verworfen -- es kennt kein Zurücksynchen
+   bei Browser-Vor/Zurück und keine explizite "nur bei tatsächlicher Änderung schreiben"-Regel,
+   beides für einen Reload/Lesezeichen-Anwendungsfall relevanter als bei einer reinen
+   Stammdaten-Ansichtsumschaltung. `project_folder.html`s `showTab(key,updateHash=true)`/
+   `tabFromHash()`/`hashchange`-Listener sind deshalb eine wörtliche Adaption von
+   `settings.html`s Fassung, nur auf die 8 Reiter-Schlüssel umgestellt.
+4. **Ein einziger permanenter Kopf-Button: "Projektmappe bearbeiten", nicht "+ Angebot".** Die
+   eigene Befund-Vermutung ("+ Angebot", da einzige `btn primary`-Farbe im alten Kopf) wurde beim
+   Bauen widerlegt -- gegen die echte, lokale `dachkonzepte_erp.db` geprüft statt nur vermutet:
+   **6 von 8 Projekten tragen bereits `status="beauftragt"`, 6 von 8 haben genau EIN Angebot**
+   (nur zwei haben ein zweites). Die Angebotsphase ist damit für die meiste Projektlaufzeit
+   bereits abgeschlossen -- die Projektmappe wird überwiegend zum Nachsehen (Dateien, Aufträge,
+   Rechnungen, Zeiten) geöffnet, nicht zum Anlegen eines weiteren Angebots. "+ Angebot"
+   verschwindet dabei nicht (bleibt unverändert in den Reitern Übersicht UND Angebote, wie schon
+   vorher an zwei Stellen) -- nur die permanente Kopf-Position wechselt. Der Rest (Kopieren, Als
+   Mustervorgang speichern, Wartungsvertrag erstellen, Archivieren/Entarchivieren, Löschen)
+   wandert ins Drei-Punkte-Menü, **exakt nach dem in `projects.html` etablierten Muster**
+   (1.3.72/1.3.73: `.menu`/`.menu-btn`/`toggleMenu()`/`positionMenu()`/`closeAllMenus()`,
+   `position:fixed`, Escape/Scroll/Resize schließen das Menü) -- keine zweite, eigene
+   Menü-Implementierung, wie ausdrücklich verlangt geprüft und wiederverwendet.
+5. **Bereichsinhalte unverändert, nur ihre Erreichbarkeit ändert sich.** Upload-Zone mit
+   Drag&Drop, Kategorie-/Unterordner-Filterkarten, Suche, alle Tabellen, alle drei Modals
+   (Projekt bearbeiten, Dateimetadaten bearbeiten, Wartungsvertrag erstellen) sind eins zu eins
+   aus dem bisherigen Template übernommen. **Explizit entschieden und gestrichen**: die
+   Collapse-Buttons (▾/▸, `toggleSection()`/`setSectionCollapsed()`) und ihr `localStorage`-
+   Zustand (`dachkonzepte_project_folder_collapsed_sections`) -- bei genau einem sichtbaren
+   Bereich zur selben Zeit (echte Reiter statt gleichzeitig sichtbarer Karten) ist ein
+   Ein-/Ausklappen wirkungslos geworden, keine Funktion, die noch etwas leistet, kein
+   Funktionsverlust im Sinne der Vorgabe "kein Bereich verliert Funktion" (die bezog sich auf
+   Bereichs-INHALTE/Aktionen, nicht auf diese jetzt gegenstandslose UI-Bequemlichkeit). **Eager
+   statt lazy Laden, wie im Bau-Auftrag ausdrücklich zur Wahl gestellt**: der bestehende einzelne
+   `Promise.all(...)`-Aufruf in `load()` bleibt unverändert -- bei den heutigen Datenmengen (8
+   Bestandsprojekte, je einstellige bis niedrige zweistellige Zeilenzahlen pro Bereich) gäbe es
+   keinen messbaren Ladezeitgewinn durch ein Nachladen je Reiterwechsel, nur zusätzliche
+   Komplexität (Ladezustand je Reiter, doppelte Fehlerbehandlung) ohne fachlichen Nutzen --
+   ein Reiterwechsel schaltet ausschließlich `display:none`/`display:block` um
+   (`.tab-pane{display:none}.tab-pane.active{display:block}`), keine zweite Ladelogik.
+
+### Rollen-Check, bestätigt statt angenommen
+
+`/projects/{project_id}` (Seitenroute, `app/routers/pages.py::project_folder_page()`) UND der
+komplette `app/routers/projects.py`-Router (`_role_dep`, inkl. `GET /api/projects/{id}`) tragen
+unverändert `require_role(ROLE_ADMIN, ROLE_OFFICE)` -- dieser Umbau rührt an keiner der beiden
+Stellen etwas an, ein Monteur bleibt vollständig ausgesperrt (Seite UND API 403), genau wie vor
+diesem Umbau.
+
+### Verifikation
+
+Per echtem, gegen eine isolierte, temporäre SQLite-Testinstanz (niemals `dachkonzepte_erp.db`)
+CDP-gesteuertem Headless-Chrome bestätigt (Muster 1.3.73, eigener PowerShell/.NET-Treiber, kein
+Playwright im Projekt vorhanden): Standardansicht zeigt "Übersicht" aktiv; die drei genannten
+Höhen (Kopf/Kennzahlen-Streifen/Reiterleiste) wie oben gemessen; Klick auf "Dateien" schaltet
+den Reiter tatsächlich um (`sec-info` wird inaktiv, `sec-files` aktiv) und setzt den URL-Hash auf
+`#sec-files`; ein Neuladen mit `#sec-quotes` in der Adresse aktiviert direkt den
+Angebote-Reiter (Tiefenverweis-Fähigkeit bestätigt, nicht nur angenommen); das Drei-Punkte-Menü
+öffnet vollständig innerhalb des Ansichtsfensters mit allen fünf erwarteten Einträgen; keine
+JavaScript-Konsolenfehler beim Laden oder bei den drei Interaktionen (die eine beobachtete
+404-Konsolenmeldung ist plattformweit üblich -- ein vom Browser automatisch angefragtes,
+fehlendes `favicon.ico`, unabhängig von diesem Template, auf jeder Seite dieses Projekts
+gleichermaßen zu erwarten).
 
 ## Migrations-Workflow
 

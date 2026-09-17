@@ -55,79 +55,134 @@ def test_project_folder_ui_exists():
     projects = (root / "app/templates/projects.html").read_text(encoding="utf-8")
     assert '@router.get("/projects/{project_id}"' in main
     assert '@router.post("/api/projects/{project_id}/documents"' in main
-    # "Übersicht" bewusst nicht mehr in dieser Liste: seit 1.0.48 wurde der frühere
-    # Übersicht-Reiter in eine eigenständige "Kennzahlen"-Sektion und eine
-    # "Projektinformationen"-Sektion aufgeteilt (siehe Roadmap-Punkt "Projektmappen-
-    # Übersicht als zentrales Cockpit").
-    for label in ["Projektinformationen", "Kennzahlen", "Dateien", "Angebote", "Dokumentdatum", "Notiz / Beschreibung"]:
+    # "Kennzahlen" ist seit 1.3.74 keine eigene Überschrift mehr, sondern ein
+    # überschriftsloser, immer sichtbarer Kennzahlen-Streifen (siehe
+    # test_project_folder_has_a_persistent_compact_kpi_strip) -- deshalb bewusst
+    # nicht mehr in dieser Liste.
+    for label in ["Übersicht", "Dateien", "Angebote", "Dokumentdatum", "Notiz / Beschreibung"]:
         assert label in html
     assert "Projektmappe" in projects
 
 
-def test_project_folder_is_a_single_consolidated_page_not_tabs():
-    """Seit 1.0.48 (Roadmap: 'Projektmappen-Übersicht als zentrales Cockpit')
-    sind alle Bereiche gleichzeitig auf einer Seite sichtbar statt einzeln
-    umschaltbarer Reiter -- die Seitenleiste ist eine Sprungmarken-Liste,
-    keine Tab-Auswahl mehr."""
+def test_project_folder_uses_real_tabs_not_jump_anchors():
+    """Seit 1.3.74 (Umbau der Projekt-Detailseite): die frühere linke
+    Sprungmarken-Navigation ist einer echten, waagerechten Reiterleiste
+    gewichen -- nur der aktive Reiter ist sichtbar, der Rest ist per
+    JavaScript ausgeblendet (`.tab-pane{display:none}`), nicht per
+    Scroll-Sprungmarke (`:target`) erreichbar."""
     root = Path(__file__).parents[1]
     html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
-    # Bewusst die genaue frühere Regel geprüft (".section{display:none}"), NICHT
-    # nur "display:none}.section" -- seit 1.0.50 gibt es mit ".section-body"
-    # eine neue, absichtliche Regel, die zufällig densel­ben, zu weit gefassten
-    # Teilstring enthalten würde und den Test sonst fälschlich hätte anschlagen lassen.
-    assert ".section{display:none}" not in html.replace(" ", "")
-    assert "showTab" not in html
-    for section_id in ["sec-kennzahlen", "sec-info", "sec-files", "sec-quotes", "sec-orders", "sec-invoices", "sec-workprep", "sec-times", "sec-history"]:
+    assert "showTab" in html
+    assert "TAB_KEYS" in html
+    assert '.tab-pane{display:none}' in html.replace(" ", "")
+    assert '.tab-pane.active{display:block}' in html.replace(" ", "")
+    # Kein Sprungmarken-Highlight mehr (":target") und keine linke Seitenleiste.
+    assert ":target" not in html
+    assert 'class="side"' not in html
+    for section_id in ["sec-info", "sec-files", "sec-quotes", "sec-orders", "sec-invoices", "sec-workprep", "sec-times", "sec-history"]:
         assert f'id="{section_id}"' in html
-        assert f'href="#{section_id}"' in html
+        assert f"data-tab=\"{section_id}\"" in html
+        assert f"showTab('{section_id}')" in html
+    # "sec-kennzahlen" ist kein Reiter mehr -- die Kennzahlen sind ein eigener,
+    # immer sichtbarer Block oberhalb der Reiterleiste (siehe unten).
+    assert "sec-kennzahlen" not in html
 
 
-def test_project_folder_sections_are_collapsible():
-    """Seit 1.0.50: jedes Modul lässt sich einzeln ein-/ausklappen (bleibt
-    dabei aber immer mit sichtbarem Titel auffindbar), Zustand wird in
-    localStorage gemerkt -- reine UI-Präferenz, bewusst nicht in der
-    Datenbank, da sie keinen fachlichen Bezug zum Projekt hat."""
+def test_project_folder_tab_selection_is_readable_from_the_url_hash():
+    """Punkt 3 des Bau-Auftrags: der aktive Reiter gehört in die Adresse,
+    damit ein Neuladen oder ein Lesezeichen denselben Reiter zeigt --
+    adaptiert aus dem bereits etablierten Muster in settings.html
+    (showSettingsSection()/history.replaceState/hashchange), nicht neu
+    erfunden. Die drei bestehenden externen Tiefenverweise (projects.html,
+    order.html, work_preparation.html) verlinken auf `#sec-quotes`/
+    `#sec-orders` -- die Reiter-Schlüssel sind deshalb bewusst identisch mit
+    den bisherigen Sprungmarken-IDs, damit keine der drei Dateien geändert
+    werden musste."""
     root = Path(__file__).parents[1]
     html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
-    assert "toggleSection" in html
-    assert "localStorage" in html
-    for section_id in ["sec-kennzahlen", "sec-info", "sec-files", "sec-quotes", "sec-orders", "sec-invoices", "sec-workprep", "sec-times", "sec-history"]:
-        assert f'id="toggle-{section_id}"' in html
-        assert f"toggleSection('{section_id}')" in html
-    # Jede Sektion muss einen section-body-Wrapper haben, der beim Einklappen
-    # ausgeblendet wird -- der Titel selbst (Toolbar) bleibt außerhalb davon,
-    # damit er beim Einklappen sichtbar und klickbar bleibt.
-    assert html.count('class="section-body"') == 9
+    assert "tabFromHash" in html
+    assert "history.replaceState" in html
+    assert "hashchange" in html
+    assert "showTab(tabFromHash(),false)" in html.replace(" ", "")
+    order_html = (root / "app/templates/order.html").read_text(encoding="utf-8")
+    work_prep_html = (root / "app/templates/work_preparation.html").read_text(encoding="utf-8")
+    projects_html = (root / "app/templates/projects.html").read_text(encoding="utf-8")
+    assert "#sec-orders" in order_html
+    assert "#sec-orders" in work_prep_html
+    assert "#sec-quotes" in projects_html
 
 
-def test_project_folder_shows_kpi_dashboard():
-    """Die vier bei der Klärung ausgewählten Kennzahlen müssen als eigene
-    Elemente vorhanden sein: Projektwert, Abgerechnet/offen,
-    Zeiterfassungsstand, Anzahl Angebote/Aufträge/Rechnungen."""
+def test_project_folder_defaults_to_uebersicht_tab():
+    """Punkt 3: 'Übersicht' (sec-info) ist beim Öffnen ohne Hash aktiv --
+    sowohl im statischen Markup (active-Klasse) als auch im Rückfall von
+    tabFromHash(), falls die Adresse einen unbekannten/keinen Reiter nennt."""
     root = Path(__file__).parents[1]
     html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
-    for element_id in ["kValueNet", "kValueGross", "kInvoicedNet", "kInvoicedGross", "kOpenNet", "kOpenGross", "kHours", "kQuoteCount", "kOrderCount", "kInvoiceCount"]:
+    assert 'id="sec-info" class="card tab-pane active"' in html
+    assert "key='sec-info'" in html.replace(" ", "")
+
+
+def test_project_folder_tab_counts_replace_the_old_sidebar_counts():
+    """Punkt 1: die Zählungen wandern von der linken Navigation (entfernt)
+    auf die Reiter -- exakt dieselben vier Zähler wie vorher (Dateien,
+    Angebote, Aufträge, Rechnungen), dazu Zeiten wie schon an der alten
+    Sprungmarken-Navigation. Arbeitsvorbereitung/Historie/Übersicht hatten
+    auch vorher keine Zahl und bekommen auch jetzt keine."""
+    root = Path(__file__).parents[1]
+    html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
+    for element_id in ["tabCountFiles", "tabCountQuotes", "tabCountOrders", "tabCountInvoices", "tabCountTimes"]:
+        assert f'id="{element_id}"' in html
+    # Die alten, dreifach redundanten Zähler (Kopfbereich-Badges UND
+    # Kennzahlen-Dashboard UND Seitenleiste) sind auf genau eine Stelle
+    # (die Reiter) konsolidiert.
+    for removed_id in ["sideDocCount", "sideQuoteCount", "sideOrderCount", "sideInvoiceCount", "sideTimeCount", "docBadge", "quoteBadge", "orderBadge", "invoiceBadge", "kQuoteCount", "kOrderCount", "kInvoiceCount"]:
+        assert removed_id not in html
+
+
+def test_project_folder_header_has_one_primary_button_and_a_three_dot_menu():
+    """Punkt 4: nur eine Aktion bleibt permanent sichtbar. Die reale,
+    lokale Produktionsdatenbank zeigt, dass 6 von 8 Projekten bereits den
+    Status 'beauftragt' tragen (Angebotsphase damit für die meiste Zeit der
+    Projektlaufzeit abgeschlossen) -- 'Projektmappe bearbeiten' passt daher
+    besser zum überwiegenden Nachsehen-statt-Anlegen-Ablauf als '+ Angebot'
+    (bleibt als Aktion innerhalb der Reiter Übersicht/Angebote erhalten,
+    verschwindet also nicht, ist nur nicht mehr die permanent sichtbare
+    Kopfaktion). Der Rest wandert ins Drei-Punkte-Menü, wie in der
+    Projektliste (projects.html, 1.3.72/1.3.73: .menu/.menu-btn/toggleMenu/
+    positionMenu/closeAllMenus, position:fixed, Escape/Scroll/Resize
+    schließen das Menü)."""
+    root = Path(__file__).parents[1]
+    html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
+    assert '<button class="btn primary" onclick="openProjectEdit()">Projektmappe bearbeiten</button>' in html
+    for fn in ["toggleMenu", "positionMenu", "closeAllMenus"]:
+        assert f"function {fn}" in html
+    assert "position:fixed" in html
+    for action in ["duplicateProjectHere(false)", "duplicateProjectHere(true)", "toggleArchivedHere()", "deleteProjectHere()"]:
+        assert action in html
+    # "+ Angebot" bleibt erhalten -- nur nicht mehr als permanente Kopfaktion.
+    assert 'id="newQuote"' in html
+    assert 'id="newQuote2"' in html
+
+
+def test_project_folder_has_a_persistent_compact_kpi_strip():
+    """Punkt 2 des Bau-Auftrags: die Kennzahlen bleiben über allen Reitern
+    sichtbar (kein eigener Reiter), aber schlank -- die frühere, dritte
+    KPI-Gruppe 'Dokumente' (Angebote/Aufträge/Rechnungen-Zählung) entfällt
+    hier, weil dieselben Zahlen jetzt bereits an den Reitern stehen
+    (test_project_folder_tab_counts_replace_the_old_sidebar_counts) --
+    keine dritte, redundante Stelle für dieselbe Zahl. Übrig bleiben sechs
+    kompakte Kacheln (Finanzen: Projektwert/Abgerechnet/Noch offen; Stunden:
+    Soll/Ist/Abweichung), wiederverwendet über die bereits bestehenden
+    .metric/.grid-Klassen (dieselben, die auch die Zeiterfassungs-Sektion
+    nutzt) statt einer dritten, eigenen Kachel-Optik."""
+    root = Path(__file__).parents[1]
+    html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
+    assert 'class="kpi-strip card"' in html
+    assert "kpi-groups" not in html
+    assert "kpi-group-label" not in html
+    for element_id in ["kValueNet", "kValueGross", "kInvoicedNet", "kInvoicedGross", "kOpenNet", "kOpenGross", "kPlannedHours", "kHours", "kHoursVariance"]:
         assert f'id="{element_id}"' in html
     assert "renderKennzahlen" in html
-
-
-def test_kpi_dashboard_grouped_into_three_balanced_clusters_since_1065():
-    """Die Kennzahlen-Kacheln waren bis 1.0.64 neun optisch identische
-    Karten in einem einzelnen 4er-Raster (unausgeglichene letzte Zeile,
-    keine Hierarchie -- vom Nutzer als 'noch nicht überzeugend' bemängelt).
-    Seit 1.0.65 in drei natürliche, gleich große Gruppen (Finanzen, Stunden,
-    Dokumente) sortiert, 'Noch offen' als wichtigste Zahl optisch betont.
-    Alle bestehenden IDs müssen dabei unverändert erhalten bleiben (siehe
-    test_project_folder_shows_kpi_dashboard und test_v141), damit
-    renderKennzahlen() unverändert funktioniert."""
-    root = Path(__file__).parents[1]
-    html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
-    assert "kpi-groups" in html
-    assert html.count('class="kpi-group-label"') == 3
-    assert "Finanzen" in html and "Stunden" in html and "Dokumente" in html
-    assert "kpi-emphasis" in html  # "Noch offen" optisch hervorgehoben
-    for element_id in ["kValueNet", "kValueGross", "kInvoicedNet", "kInvoicedGross", "kOpenNet", "kOpenGross", "kPlannedHours", "kHours", "kHoursVariance", "kQuoteCount", "kOrderCount", "kInvoiceCount"]:
-        assert f'id="{element_id}"' in html
 
 
 def test_kpi_redesign_does_not_affect_existing_metric_class_used_by_time_tracking():
