@@ -1964,6 +1964,12 @@ class GeneralSettings(Base):
     # feste, kleinere Höhe (siehe _sidebar.html). server_default nötig, siehe Lektion aus 1.0.68
     # (NOT-NULL-Spalte auf bereits bestehender Tabelle).
     sidebar_logo_height_px: Mapped[int] = mapped_column(default=64, server_default="64")
+    # Öffentliche Adresse für QR-Codes/Links (seit Betriebsmittelverwaltung Stufe 2) -- optionaler
+    # Override, falls die aus der jeweiligen Anfrage abgeleitete Domain (request.base_url) hinter
+    # einem Reverse-Proxy nicht das Schema/den Host zeigt, unter dem die Installation öffentlich
+    # erreichbar ist. Bleibt das Feld leer, wird request.base_url verwendet -- kein hartkodierter
+    # Wert, der sonst bei jeder Installation auf "localhost" zeigen würde.
+    public_base_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Automatisierung im Mahnwesen (seit 1.0.71): legt automatisch einen
     # Mahnungs-ENTWURF an, sobald die nächste Mahnstufe einer Rechnung
     # fällig ist -- versendet wird dadurch nie automatisch, das bleibt
@@ -3377,6 +3383,16 @@ class OperationalAsset(Base):
     identifier: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Beschaffung (seit Stufe 2) -- Büro/Admin-only, siehe OperationalAssetFieldOut: ein Monteur
+    # sieht diese beiden Felder an keiner Stelle, sie gehören zur Beschaffung, nicht zur Bedienung.
+    article_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    product_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Bedienungshinweise (seit Stufe 2) -- bewusst ein EIGENES Feld, getrennt von notes: notes
+    # kann beliebige interne/Beschaffungs-Vermerke enthalten, usage_notes ist das einzige
+    # Freitextfeld, das ein Monteur über die rollenabhängige Betriebsmittelseite zu sehen bekommt.
+    usage_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     acquisition_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     acquisition_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)

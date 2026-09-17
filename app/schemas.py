@@ -1,6 +1,17 @@
 from datetime import date, datetime
 from decimal import Decimal
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from urllib.parse import urlparse
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+def _require_http_url(value: str) -> str:
+    """Lehnt alles außer echten http(s)-Adressen ab -- u. a. javascript:/data:-Schemata, die
+    sonst als anklickbarer Link ausgegeben würden. Geteilt zwischen OperationalAssetCreate
+    (Produktlink) und GeneralSettingsUpdate (öffentliche Basis-Adresse für QR-Codes)."""
+    parsed = urlparse(value)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("Bitte eine vollständige http(s)-Adresse angeben (z. B. https://…).")
+    return value
 
 
 class MaterialOut(BaseModel):
@@ -797,6 +808,7 @@ class GeneralSettingsOut(BaseModel):
     logo_filename: str | None
     sidebar_logo_filename: str | None
     sidebar_logo_height_px: int
+    public_base_url: str | None
 
 
 class GeneralSettingsUpdate(BaseModel):
@@ -819,6 +831,17 @@ class GeneralSettingsUpdate(BaseModel):
     default_quote_intro: str | None = None
     default_quote_outro: str | None = None
     sidebar_logo_height_px: int = Field(default=64, ge=24, le=120)
+    public_base_url: str | None = None
+
+    @field_validator("public_base_url")
+    @classmethod
+    def _validate_public_base_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            return None
+        return _require_http_url(value)
 
 
 class AppearanceSettingsOut(BaseModel):
@@ -3260,6 +3283,9 @@ class OperationalAssetOut(BaseModel):
     identifier: str | None = None
     resource_number: str | None = None
     notes: str | None = None
+    article_number: str | None = None
+    product_url: str | None = None
+    usage_notes: str | None = None
     acquisition_date: date | None = None
     acquisition_cost: Decimal | None = None
     recurring_cost_per_month: Decimal | None = None
@@ -3269,6 +3295,24 @@ class OperationalAssetOut(BaseModel):
     is_overdue: bool
     next_due_date: date | None = None
     inspections: list[OperationalAssetInspectionOut] = Field(default_factory=list)
+
+
+class OperationalAssetFieldOut(BaseModel):
+    """Rechtekonzept, Betriebsmittelverwaltung Stufe 2 (siehe CLAUDE.md): feldsicheres
+    Gegenstück zu OperationalAssetOut für GET /api/operational-assets/{asset_id}, wenn ein
+    Monteur (`field`) aufruft -- ausschließlich Bezeichnung/Art/Hersteller/Modell/
+    Bedienungshinweise. Bewusst OHNE resource_id/asset_number/identifier/resource_number
+    (Inventardaten), notes/cost_notes/acquisition_*/recurring_cost_per_month (Beschaffung/
+    Kosten), article_number/product_url (Beschaffung) und inspections (Prüffristen, Büro-
+    Vorgang) -- ein Monteur, der eine Betriebsmittelseite über den QR-Code oder direkt über
+    die volle Büro-URL öffnet, bekommt serverseitig nie mehr als diese fünf Felder,
+    unabhängig vom Weg dorthin (siehe get_operational_asset())."""
+    id: int
+    name: str
+    asset_type: str | None = None
+    manufacturer: str | None = None
+    model: str | None = None
+    usage_notes: str | None = None
 
 
 class OperationalAssetListOut(BaseModel):
@@ -3292,11 +3336,24 @@ class OperationalAssetCreate(BaseModel):
     model: str | None = Field(default=None, max_length=120)
     identifier: str | None = Field(default=None, max_length=120)
     notes: str | None = None
+    article_number: str | None = Field(default=None, max_length=100)
+    product_url: str | None = Field(default=None, max_length=500)
+    usage_notes: str | None = None
     acquisition_date: date | None = None
     acquisition_cost: Decimal | None = None
     recurring_cost_per_month: Decimal | None = None
     cost_notes: str | None = None
     active: bool = True
+
+    @field_validator("product_url")
+    @classmethod
+    def _validate_product_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            return None
+        return _require_http_url(value)
 
     @model_validator(mode="after")
     def _name_required_when_unlinked(self):

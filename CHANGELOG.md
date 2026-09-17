@@ -4,6 +4,67 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.4.1 – Betriebsmittelverwaltung, Stufe 2 (QR-Code-Etikett, rollenabhängige Ansicht)
+
+Zweite Etappe des dreistufigen Betriebsmittel-Umbaus (siehe 1.4.0) -- Stufe 3 (Betriebsmittel im
+Bericht) folgt weiterhin erst nach Rückmeldung. Vier Teile, wie vorgegeben umgesetzt.
+
+**Zwei neue Felder, Büro/Admin-only**: `article_number`/`product_url` auf `OperationalAsset`
+(neue, nullable Spalten -- Beschaffung, kein Monteur sieht sie an irgendeiner Stelle).
+`product_url` wird per Pydantic-`field_validator` geprüft -- nur `http`/`https` mit gültigem
+Host, alles andere (`javascript:`, bloßer Text, `ftp://`) wird mit 422 abgelehnt, bevor es je als
+anklickbarer Link ausgegeben werden könnte. Auf der Betriebsmittelseite als Link mit
+`target="_blank" rel="noopener"` dargestellt.
+
+**Bewusste Prämissen-Korrektur, transparent gemeldet**: Punkt 3 der Anfrage nennt
+"Bedienungshinweise" als Bestandteil der reduzierten Monteursansicht, ohne das explizit als
+neues Feld in Punkt 1 aufzuführen. Da das bestehende `notes`-Feld beliebige interne/
+Beschaffungsvermerke tragen kann (in der echten Nutzung z. B. Einkaufsdetails, Rabatte), wäre es
+falsch gewesen, es einfach für Monteure freizugeben. Stattdessen ein drittes, neues Feld
+`usage_notes` ("Bedienungshinweise") -- das EINZIGE Freitextfeld, das die reduzierte Ansicht
+zeigt, unabhängig davon, was in `notes` steht.
+
+**QR-Code, wiederverwendete Bibliothek statt neuer Abhängigkeit**: `qrcode[pil]` ist bereits seit
+1.3.34 Projektabhängigkeit (Zwei-Faktor-Setup, `app/two_factor.py`) -- BSD-3-Clause, siehe dort für
+die Lizenzprüfung. Neues, eigenständiges `app/qr_codes.py::qr_code_png_bytes()` statt einer
+Erweiterung von `two_factor.py`: derselbe fünfzeilige Erzeugungscode wäre trivial zu duplizieren
+gewesen, aber ein sicherheitskritisches Modul für einen zweiten, fachlich unabhängigen
+Anwendungsfall anzufassen wäre unnötiges Risiko gewesen. Neuer Endpunkt
+`GET /api/operational-assets/{id}/qr-code.png` (Büro/Admin-only -- Drucken ist ein Büro-Vorgang,
+das Scannen des fertigen Etiketts dagegen nicht) liefert den Code als PNG, kodiert die
+VOLLSTÄNDIGE URL inklusive Domain.
+
+**Domain nie hartkodiert**: neues, optionales Feld `GeneralSettings.public_base_url`
+(Einstellungen → Unternehmensstammdaten, "Öffentliche Adresse") -- wenn gesetzt, wird es
+verwendet, sonst fällt der Endpunkt auf `request.base_url` zurück (die tatsächliche
+Aufrufadresse). Kein hartkodierter Wert, der sonst auf `localhost`/`127.0.0.1` zeigen würde,
+sobald die Installation nicht lokal aufgerufen wird -- und ein Override für den Fall, dass ein
+künftiger Reverse-Proxy Schema/Host nicht korrekt durchreicht. Ebenfalls per `field_validator`
+auf http(s) beschränkt.
+
+**Rollenabhängige Seite, dasselbe Muster wie `time_tracking_page()`**: der QR-Code führt jeden --
+Büro wie Monteur -- auf `/betriebsmittel/{id}`, aber die Seite rendert für `field` die neue,
+reduzierte `operational_asset_field.html` (Bezeichnung/Art/Hersteller/Modell/Bedienungshinweise)
+statt der vollen `operational_asset.html` -- die Weiche hängt an der Rolle, nicht am Weg
+(QR-Code oder von Hand eingetippte Büro-URL liefern serverseitig identisch dasselbe). Neues
+`OperationalAssetFieldOut`-Schema für `GET /api/operational-assets/{id}` (Union-Response-Model,
+Muster `OrderOut | OrderFieldAccessOut`) -- die Antwort wird im Router explizit als validiertes
+Pydantic-Modell zurückgegeben, damit die Union-Deklaration nie versehentlich das jeweils andere
+Schema für die Serialisierung wählt. Per echtem, CDP-gesteuertem Headless-Chrome-Test gegen eine
+isolierte Testinstanz verifiziert (zwei echte Testkonten, Rolle Büro und Monteur): die
+Monteursansicht zeigt nachweislich weder Kosten noch Artikelnummer/Produktlink noch die interne
+`notes`-Notiz, die API-Antwort enthält exakt die sechs erlaubten Schlüssel, der QR-Endpunkt
+liefert für `field` 403. Zusätzlich per `Page.printToPDF` geprüft: das gedruckte Etikett zeigt
+ausschließlich QR-Code und Bezeichnung, keine Sidebar/Navigation (dabei ein eigener CSS-Fehler
+im ersten Entwurf gefunden und behoben -- `body>*:not(#printLabel)` griff nicht, weil
+`#printLabel` kein direktes Kind von `<body>` war, sondern tief in `.app-layout` verschachtelt;
+korrigiert durch `.app-layout{display:none!important}` plus einen Sibling-`<div>` außerhalb
+davon).
+
+14 neue Tests (`tests/test_v277_operational_assets_stufe2.py`), volle Suite weiterhin grün
+(1424/1424). Migration `ccb5c4c0915b` (vier neue, nullable Spalten -- `article_number`/
+`product_url`/`usage_notes` auf `operational_assets`, `public_base_url` auf `general_settings`).
+
 ## 1.4.0 – Betriebsmittelverwaltung, Stufe 1 (neues Modul "betriebsmittel")
 
 Erstes echtes neues Modul seit Version 1.3.0 (daher der Minor-Sprung, Regel 8) -- Befund zuvor

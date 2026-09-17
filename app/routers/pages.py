@@ -306,13 +306,17 @@ def maintenance_contract_page(request: Request, contract_id: int, _role: AppUser
 
 
 @router.get("/betriebsmittel/{asset_id}", response_class=HTMLResponse)
-def operational_asset_page(request: Request, asset_id: int, _role: AppUser = _role_dep):
-    """Nur Rollen-Gate (Büro/Admin), kein Modul-Check auf der Seitenroute selbst -- etablierte
-    Konvention (siehe tasks_page()/maintenance_contract_page()), der API-Endpunkt dahinter
-    prüft is_module_enabled() unabhängig davon."""
-    return templates.TemplateResponse(
-        request=request, name="operational_asset.html", context={"asset_id": asset_id}
-    )
+def operational_asset_page(request: Request, asset_id: int, _role: AppUser = _any_role_dep):
+    """Seit Betriebsmittelverwaltung Stufe 2 (siehe CLAUDE.md) rollenbewusst wie
+    time_tracking_page(): dieselbe URL (Ziel des QR-Codes auf dem Etikett, siehe
+    routers/operational_assets.py) rendert für `field` die reduzierte
+    operational_asset_field.html statt der vollen, Büro-getragenen operational_asset.html --
+    die Weiche hängt an der Rolle, nicht am Weg (QR-Code oder von Hand eingetippte URL). Kein
+    Modul-Check auf der Seitenroute selbst -- etablierte Konvention (siehe tasks_page()/
+    maintenance_contract_page()), der API-Endpunkt dahinter prüft is_module_enabled()
+    unabhängig davon."""
+    template_name = "operational_asset_field.html" if _role.role == ROLE_FIELD else "operational_asset.html"
+    return templates.TemplateResponse(request=request, name=template_name, context={"asset_id": asset_id})
 
 
 @router.get("/projects", response_class=HTMLResponse)

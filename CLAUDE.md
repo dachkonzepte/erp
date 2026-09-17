@@ -20,9 +20,10 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.4.0** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `5917bb099776` ("operational assets betriebsmittel", siehe
-  Abschnitt "Betriebsmittelverwaltung" unten) -- vorher `da9d9425e257` ("project pipeline
+- Version: **1.4.1** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `ccb5c4c0915b` ("operational assets stufe 2 qr and public base
+  url", siehe Abschnitt "Betriebsmittelverwaltung" -> "Stufe 2" unten) -- vorher `5917bb099776`
+  ("operational assets betriebsmittel", Stufe 1), davor `da9d9425e257` ("project pipeline
   columns", siehe Abschnitt "Umbau der Projektliste" unten), davor `f803985ebc2f` ("property
   documents table", siehe
   Abschnitt "Dateiablage je Objekt" unten), davor `9137945e8785` ("document categories
@@ -32,9 +33,9 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1410 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1424 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 17.09.2026 (1.4.0, Betriebsmittelverwaltung Stufe 1, siehe eigener
+  dort), zuletzt am 17.09.2026 (1.4.1, Betriebsmittelverwaltung Stufe 2, siehe eigener
   Abschnitt unten für den echten Browser-Nachweis abseits von `pytest`) mit `pytest` in Tobias'
   `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -1028,6 +1029,57 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   10, wie Property/Wartungsvertrag). Siehe eigener Abschnitt "Betriebsmittelverwaltung" unten
   für die vollständige Herleitung. QR-Code + rollenabhängige Ansicht (Stufe 2) und
   Betriebsmittel im Bericht (Stufe 3) sind bewusst noch nicht gebaut.
+- Neu seit 1.4.1: **Betriebsmittelverwaltung, Stufe 2 -- QR-Code-Etikett, rollenabhängige
+  Ansicht.** Drei neue, nullable Felder auf `OperationalAsset` (`article_number`/`product_url`/
+  `usage_notes`, letzteres eine transparent dokumentierte, nicht wörtlich als eigenes Feld
+  angeforderte Ergänzung -- Punkt 3 der Anfrage nannte "Bedienungshinweise" als Monteur-
+  sichtbares Feld, ohne es unter Punkt 1 als neues Feld zu benennen). `product_url` erzwingt
+  über einen Pydantic-`field_validator` (`_require_http_url()`, `app/schemas.py`) ausschließlich
+  http(s)-Adressen -- `javascript:`/andere Schemata werden mit 422 abgelehnt, der Link öffnet im
+  Formular mit `target="_blank" rel="noopener"`. Jedes Betriebsmittel bekommt einen QR-Code
+  (`app/qr_codes.py`, neues, eigenständiges Modul statt einer Erweiterung des
+  sicherheitskritischen `app/two_factor.py`) über die bereits bestehende Abhängigkeit
+  `qrcode[pil]` (seit 1.3.34, BSD-3-Clause, keine neue Bibliothek nötig) -- kodiert die
+  **vollständige** Ziel-URL inklusive Domain, damit ein Kamera-Scan die Seite direkt öffnet.
+  **Domain-Herkunft bewusst nicht hartkodiert**: neues, optionales
+  `GeneralSettings.public_base_url` (Einstellungen → Unternehmensstammdaten, "Öffentliche
+  Adresse") hat Vorrang, sonst Rückfall auf `request.base_url` -- gewählt, weil im Projekt noch
+  kein Basis-URL-Mechanismus existiert und der Produktions-Nginx-Reverse-Proxy ohne bestätigte
+  `ProxyHeadersMiddleware`/Trusted-Proxy-Konfiguration `request.base_url` allein nicht verlässlich
+  macht. Neuer, Büro/Admin-only-Endpunkt `GET /api/operational-assets/{asset_id}/qr-code.png`,
+  Button "Etikett drucken" auf `/betriebsmittel/{id}` zeigt QR-Code + Name als druckbares Etikett
+  über eine `@media print`-Regel, die den kompletten `.app-layout` ausblendet und nur das
+  Etikett-Element (bewusst als direktes Geschwisterelement, nicht verschachtelt -- ein
+  `display:none` auf einem Vorfahren hätte es sonst ebenfalls versteckt) einblendet.
+
+  **Rollenabhängige Ansicht, das eigentliche Kernstück**: der QR-Code führt JEDEN (Büro UND
+  Monteur) auf dieselbe URL `/betriebsmittel/{id}` -- die Weiche hängt an der Rolle, nicht am
+  Pfad, exakt das schon bei `time_tracking_page()` etablierte Muster.
+  `app/routers/pages.py::operational_asset_page()` wählt serverseitig zwischen
+  `operational_asset_field.html` (neu -- Bezeichnung/Art/Hersteller/Modell/Bedienungshinweise,
+  NICHT Prüffristen/Kosten/Artikelnummer/Produktlink) und dem unveränderten
+  `operational_asset.html`. `GET /api/operational-assets/{asset_id}` ist von Büro/Admin-only auf
+  `_any_role_dep` erweitert und liefert je Rolle explizit `OperationalAssetFieldOut.model_validate(...)`
+  oder `OperationalAssetOut.model_validate(...)` (Union-Response-Model, Muster
+  `OrderOut | OrderFieldAccessOut` aus dem Rechtekonzept -- nie ein bloßes Dict zurückgegeben,
+  um Pydantics mehrdeutige Union-Serialisierung zu vermeiden). **Serverseitig, nicht pfadbasiert
+  geprüft**: ein Monteur, der die volle Büro-URL statt des mobilen Wegs aufruft, bekommt
+  garantiert dieselbe reduzierte Ansicht -- verifiziert per rekursivem Schlüssel-Scan (Fehlerklasse
+  `purchase_price`) sowohl auf der reinen Schema-Ebene als auch am echten Router-Response.
+
+  **Punkt 4 (Scan-Weg) geprüft, wie verlangt NICHT ungefragt gebaut**: moderne Telefone öffnen
+  einen per Kamera-App gescannten QR-Code direkt als Link, ohne dass ein eigener Scanner in die
+  Anwendung eingebaut werden muss -- kein dedizierter In-App-Scanner umgesetzt.
+
+  **Verifiziert**: 14 neue Tests (`tests/test_v277_operational_assets_stufe2.py`, u. a.
+  URL-Validierung, reduziertes Schema exakt, QR-PNG-Gültigkeit über Pillow, 403 für Monteur auf
+  dem QR-Endpunkt), volle Suite grün, dazu ein echter, CDP-gesteuerter Zwei-Rollen-Browsertest
+  (Büro voll inkl. neuer Felder + funktionierender QR-Endpunkt + 422 bei `javascript:`-Produktlink;
+  Monteur strikt reduziert mit exakt sechs erlaubten JSON-Schlüsseln + 403 auf dem QR-Endpunkt)
+  gegen eine isolierte, temporäre Datenbank -- inkl. einer über `Page.printToPDF` echt gerenderten
+  Bestätigung, dass das Druck-Etikett ausschließlich QR-Code + Name zeigt, keine Sidebar. Dabei
+  ein selbst gefundener und vor jedem Test korrigierter CSS-Fehler: das Etikett-Element lag
+  ursprünglich verschachtelt innerhalb des ausgeblendeten `.app-layout`, siehe oben.
 - Neu seit 1.3.73: **Kontextmenü der Projektliste -- Beschneidung durch `overflow:auto`
   behoben, per echtem Headless-Browser-Test verifiziert.** Gemeldeter Fehler an 1.3.72: das
   Drei-Punkte-Menü klappte innerhalb des seit 1.3.9 scrollbaren `.wrap`-Tabellencontainers auf
@@ -7865,6 +7917,124 @@ Tests, 17 davon neu in `tests/test_v276_operational_assets.py`: Doppelerfassungs
 Live-Auflösung bei Umbenennung der Ressource, Name-Pflicht-Validator, Fälligkeits-Aggregation
 über mehrere Prüffristen, Migrations-Backfill isoliert gegen eine frische Verbindung, Rollen-
 UND Modul-Gate über echte Router-Endpunkte).
+
+### Stufe 2 (seit 1.4.1): QR-Code-Etikett, rollenabhängige Ansicht
+
+Zweite Etappe, nach Bestätigung von Stufe 1 gebaut. Vier Punkte plus ein abschließender, vom
+Nutzer verlangter Angriffstest.
+
+**Punkt 1 -- zwei neue Felder, nur für Büro/Admin.** `article_number` (Artikelnummer, Freitext)
+und `product_url` (Produktlink) auf `OperationalAsset` -- beide gehören laut Nutzervorgabe "zur
+Beschaffung, nicht zur Bedienung" und erscheinen deshalb NIE in der reduzierten Monteursansicht
+(siehe Punkt 3). **`product_url` bewusst strikt validiert**: ein Feld, das eine beliebige
+Zeichenkette als Link ausgibt, ist sonst ein Einfallstor (Nutzerformulierung) --
+`app/schemas.py::_require_http_url()` (gemeinsamer, modulweiter `field_validator`-Helfer, per
+`urlparse` auf Schema `http`/`https` und ein vorhandenes `netloc` geprüft) lehnt alles andere
+mit 422 ab, insbesondere `javascript:`-Links. Derselbe Helfer sichert zusätzlich das neue
+`GeneralSettings.public_base_url` (siehe Punkt 2) ab -- eine öffentliche Basis-URL trägt
+dasselbe Risiko wie ein Produktlink, wenn sie ungeprüft bliebe. Der Link öffnet im
+Bearbeiten-Formular über eine Vorschau mit `target="_blank" rel="noopener"` (verhindert, dass
+die geöffnete Seite über `window.opener` Zugriff auf die ERP-Seite bekommt).
+
+**Implizite Zusatzanforderung, transparent aufgelöst statt stillschweigend geraten**: Punkt 3
+der Anfrage nennt "Bedienungshinweise -- falls es die gibt" als Monteur-sichtbares Feld, ohne
+dass Punkt 1 es unter den neuen Feldern ausdrücklich benennt. Als drittes neues Feld
+`usage_notes` (Text, nullable) ergänzt -- eine bewusste, offen kommunizierte Interpretation,
+keine verdeckte Annahme, konsistent mit der sonst in diesem Projekt geübten Praxis (siehe
+z. B. die 1.3.60-Prämisse-Korrektur zur Tätigkeit im Nachtrag).
+
+**Punkt 2 -- QR-Code, Bibliotheks- und Domain-Entscheidung.** Vor jeder Codeänderung geprüft
+(wie ausdrücklich verlangt): `qrcode[pil]` ist bereits seit 1.3.34 Projektabhängigkeit (für die
+TOTP-Ersteinrichtung, BSD-3-Clause) -- keine neue, zusätzlich lizenzpflichtige Bibliothek nötig.
+Wiederverwendet über ein neues, eigenständiges Modul `app/qr_codes.py`
+(`qr_code_png_bytes(data: str) -> bytes`), NICHT durch eine Erweiterung des
+sicherheitskritischen `app/two_factor.py` -- getrennte Verantwortlichkeiten, kein Risiko für den
+Zwei-Faktor-Code durch eine unverwandte neue Funktion. Der Code enthält die VOLLSTÄNDIGE
+Ziel-URL inklusive Domain (`asset_qr_target_url()`, `app/operational_assets.py`), damit ein
+Scan mit der Telefonkamera direkt die Seite öffnet -- eine reine relative Pfadangabe hätte auf
+dem Telefon nichts Sinnvolles ergeben.
+
+**Woher die Domain kommt, bewusst nicht hartkodiert**: geprüft, ob im Projekt bereits ein
+Mechanismus für eine öffentliche Basis-URL existiert -- keiner gefunden (`request.base_url`
+wird an keiner Stelle projektweit für einen absoluten Link nach außen verwendet). Neues,
+optionales `GeneralSettings.public_base_url` (Einstellungen → Unternehmensstammdaten,
+"Öffentliche Adresse") hat Vorrang; ist es leer, fällt `_resolve_public_base_url()`
+(`app/routers/operational_assets.py`) auf `request.base_url` zurück. Begründung für den
+konfigurierbaren Vorrang statt eines blinden Vertrauens in `request.base_url` allein: die
+Produktionsumgebung läuft hinter einem Nginx-Reverse-Proxy (siehe "Produktivbetrieb" oben),
+ohne dass diese Sitzung eine bestätigte `ProxyHeadersMiddleware`/Trusted-Proxy-Konfiguration
+vorgefunden hat -- `request.base_url` allein könnte dadurch das falsche Schema (`http` statt
+`https`) oder die falsche interne Adresse liefern, "alle Codes zeigen auf localhost" ist genau
+das vom Nutzer benannte Risiko. Neuer, Büro/Admin-only-Endpunkt
+`GET /api/operational-assets/{asset_id}/qr-code.png` (`_role_dep`, wie jeder andere
+Verwaltungs-Endpunkt dieses Routers außer dem in Punkt 3 erweiterten Einzelabruf) liefert das
+PNG direkt als `Response(media_type="image/png")`.
+
+**Button "Etikett drucken"**: auf `/betriebsmittel/{id}` (`operational_asset.html`) ergänzt --
+zeigt ein druckbares Etikett mit QR-Code über der Bezeichnung. Umgesetzt über eine
+`@media print`-Regel, die `.app-layout` komplett ausblendet und ausschließlich das
+Etikett-Element einblendet. **Selbst gefundener und vor jedem Testlauf korrigierter CSS-Fehler**:
+der erste Entwurf platzierte das Etikett-`<div>` verschachtelt innerhalb von `.app-layout` --
+`display:none` auf einem Vorfahren blendet Nachfahren unabhängig von deren eigenem
+`display`-Wert aus, das Etikett wäre beim Drucken also mit ausgeblendet worden. Behoben, indem
+das Etikett-Element zu einem direkten Geschwisterelement von `.app-layout` verschoben wurde
+(unmittelbar vor dem `<script>`-Tag) -- per echtem `Page.printToPDF` (CDP) bestätigt, dass beim
+Drucken ausschließlich QR-Code + Name erscheinen, keine Sidebar/Topbar.
+
+**Punkt 3 -- die rollenabhängige Ansicht, das Kernstück dieser Stufe.** Der QR-Code führt JEDEN
+(Büro UND Monteur) auf dieselbe URL `/betriebsmittel/{id}` -- Inhalt ist rollenabhängig, Zugang
+bleibt offen: exakt dasselbe Muster wie bei `time_tracking_page()` ("die Weiche hängt an der
+Rolle, nicht am Weg"). `app/routers/pages.py::operational_asset_page()` ist von `_role_dep`
+(Büro/Admin) auf `_any_role_dep` erweitert und wählt serverseitig die Vorlage:
+`operational_asset_field.html` (neu, Muster `_mobile_header.html`, zeigt ausschließlich
+Bezeichnung/Art/Hersteller/Modell/Bedienungshinweise) für `field`, unverändert
+`operational_asset.html` für Büro/Admin.
+
+`GET /api/operational-assets/{asset_id}` ist ebenfalls von `_role_dep` auf `_any_role_dep`
+erweitert, `response_model=OperationalAssetOut | OperationalAssetFieldOut`. Neues Schema
+`OperationalAssetFieldOut` (id/name/asset_type/manufacturer/model/usage_notes -- genau sechs
+Felder, NICHT Prüffristen/Kosten/Artikelnummer/Produktlink). Der Router konstruiert je Rolle
+EXPLIZIT `OperationalAssetFieldOut.model_validate(...)` bzw.
+`OperationalAssetOut.model_validate(...)` -- niemals ein bloßes Dict zurückgegeben, Muster
+`OrderOut | OrderFieldAccessOut` (Rechtekonzept, `app/routers/orders.py::get_order()`), das
+Pydantics sonst mehrdeutige Union-Serialisierung vermeidet.
+
+**Serverseitig geprüft, nicht pfadbasiert -- genau die vom Nutzer verlangte Härte**: ein Monteur,
+der die volle Büro-URL `/betriebsmittel/{id}` statt des mobilen Wegs aufruft, bekommt
+garantiert dieselbe reduzierte Seite UND dieselbe reduzierte API-Antwort, unabhängig vom Pfad --
+die Rollenprüfung sitzt an `_any_role_dep`/der Router-internen Verzweigung, nicht an einer
+zweiten, für Monteure gedachten Route. Verifiziert per rekursivem Schlüssel-Scan (Fehlerklasse
+`purchase_price` -- ein Feld, das in der Antwort steht, aber nicht in der Oberfläche gezeigt
+wird, ist trotzdem sichtbar) sowohl auf reiner Schema-Ebene (`asset_field_dict()`) als auch am
+echten, über `router_test_client()` abgerufenen Router-Response.
+
+**Punkt 4 -- kein dedizierter Scanner, wie ausdrücklich verlangt nicht ungefragt gebaut.**
+Geprüft, ob ein eigener In-App-QR-Scanner nötig ist: moderne Telefone öffnen einen per
+Kamera-App gescannten QR-Code direkt als anklickbaren Link, ohne dass die Anwendung selbst
+etwas dafür bereitstellen muss. Kein Scanner umgesetzt -- sollte sich in der Praxis ein Gerät
+(z. B. ein älteres Tablet ohne funktionierende Kamera-App-Integration) finden, das das nicht
+leistet, ist ein eigener In-App-Scanner ein separat zu bewertender, eigenständiger Aufwand
+(zusätzliche Berechtigungsanfrage für die Kamera, eine JS-Bibliothek für das Decodieren), kein
+kleiner Nachtrag.
+
+**Angriffstest, wie vom Nutzer verlangt, mit echtem Browser statt nur `pytest`**: per
+CDP-gesteuertem Headless-Chrome gegen eine isolierte, temporäre SQLite-Datenbank (niemals gegen
+`dachkonzepte_erp.db`) mit zwei echten Rollenkonten geprüft. Büro sieht die volle Ansicht
+inklusive der drei neuen Felder, eine funktionierende QR-Code-Vorschau und -- ein
+`PUT`-Request mit `product_url: "javascript:alert(1)"` -- eine 422-Ablehnung. Monteur bekommt
+über dieselbe URL `/betriebsmittel/1` exakt die sechs erlaubten JSON-Schlüssel (keine Kosten,
+keine Artikelnummer, kein Produktlink, keine Prüffristen), keinen "Etikett drucken"-Button im
+Markup, und 403 beim direkten Aufruf des QR-Endpunkts -- null "durchgelassen".
+
+**Tests/Migration**: 14 neue Tests (`tests/test_v277_operational_assets_stufe2.py`) -- Punkte im
+Einzelnen: URL-Validierung (gültige/ungültige Schemata), Persistenz der drei neuen Felder,
+exakte Schlüsselmenge des reduzierten Schemas (Funktionsebene UND Router-Response mit
+rekursivem Scan), 403 für Monteur bei deaktiviertem Modul, die reine
+`asset_qr_target_url()`-Funktion, PNG-Gültigkeit über Pillow, 403 für Monteur auf dem
+QR-Endpunkt, unterschiedlicher QR-Inhalt mit/ohne `public_base_url`-Override,
+Seitenvorlagen-Auswahl je Rolle. Migration `ccb5c4c0915b` (vier neue, nullable Spalten -- Regel
+1 greift nicht, da keine NOT-NULL-Spalte auf einer bestehenden Tabelle entsteht) erfolgreich
+gegen die echte, lokale `dachkonzepte_erp.db` angewendet. Volle Suite: 1424 Tests grün.
 
 ## Migrations-Workflow
 

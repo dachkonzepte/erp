@@ -723,17 +723,20 @@ class TestPageRouteClassification:
     _dk_roles tragen und trotzdem die falsche Rollenmenge haben, das würde der Audit-Test
     allein nicht auffangen)."""
 
-    def test_field_reaches_only_the_six_pages_it_needs(self, router_test_client, threaded_db_session):
+    def test_field_reaches_only_the_seven_pages_it_needs(self, router_test_client, threaded_db_session):
         """Seit 1.3.61: /vor-ort ist zu /mobil geworden (die alte URL entfällt ersatzlos, siehe
         CLAUDE.md "Monteursansicht: Umbenennung zu /mobil"), dazu die fünfte Seite
         /mobil/stundenzettel (Punkt 4 "Stundenzettel"). Seit "Dateiablage je Objekt" eine sechste:
-        /mobil/objekt/{property_id}. "/" ist für field seit Punkt 2 ("Startseite für Monteure")
-        kein 403 mehr, sondern ein 302 auf /mobil -- die Rolle entscheidet das Ziel, nicht ob der
-        Weg gesperrt ist."""
+        /mobil/objekt/{property_id}. Seit Betriebsmittelverwaltung Stufe 2 eine siebte:
+        /betriebsmittel/{asset_id} -- Ziel des QR-Codes auf dem Etikett, das jeden erreicht, nicht
+        nur Büro/Admin (die Seite rendert für `field` aber die reduzierte
+        operational_asset_field.html, siehe operational_asset_page()). "/" ist für field seit
+        Punkt 2 ("Startseite für Monteure") kein 403 mehr, sondern ein 302 auf /mobil -- die Rolle
+        entscheidet das Ziel, nicht ob der Weg gesperrt ist."""
         from app.routers.pages import router as pages_router
         db = threaded_db_session
         field = router_test_client(db, pages_router, role="field")
-        for path in ("/account", "/mobil", "/mobil/stundenzettel", "/mobil/objekt/1", "/time-tracking", "/orders/1/service-reports"):
+        for path in ("/account", "/mobil", "/mobil/stundenzettel", "/mobil/objekt/1", "/time-tracking", "/orders/1/service-reports", "/betriebsmittel/1"):
             assert field.get(path, follow_redirects=False).status_code == 200, path
         # /vor-ort entfällt ersatzlos -- keine Route mehr registriert, 404 statt 403/200.
         assert field.get("/vor-ort", follow_redirects=False).status_code == 404

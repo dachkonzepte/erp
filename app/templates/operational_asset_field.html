@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DACHKONZEPTE ERP – Betriebsmittel</title>
+  {#
+    operational_asset_field.html -- reduzierte Betriebsmittelansicht für die Rolle `field`
+    (Betriebsmittelverwaltung Stufe 2, seit 1.4.1, siehe CLAUDE.md). Ziel des QR-Codes auf dem
+    Etikett -- erreicht JEDES Betriebsmittel über seine ID (kein Zuordnungs-Filter wie bei
+    Aufträgen/Objekten, ein Werkzeug ist keiner Person zugeordnet), zeigt aber serverseitig
+    ausschließlich das, was GET /api/operational-assets/{id} für `field` liefert
+    (OperationalAssetFieldOut): Bezeichnung/Art/Hersteller/Modell/Bedienungshinweise. Kein
+    Ressourcenbezug, keine Prüffristen, keine Kosten, keine Artikelnummer/kein Produktlink --
+    das sind Beschaffungs-/Planungsfelder, keine Bedienungsinformationen. Muster
+    _mobile_header.html/field_timesheet.html: keine _sidebar.html, rein lesend.
+  #}
+  <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--soft:#eef5f3;--danger:#c0362c;color:var(--ink);background:var(--bg)}
+    :root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--soft:#1e2b26;--danger:#f2837a}
+    *{box-sizing:border-box}body{margin:0}
+    main{max-width:640px;margin:0 auto;padding:16px 14px 60px}
+    .card{background:var(--card);border:1px solid var(--line);padding:16px}
+    h1{margin:0 0 4px;font-size:20px}
+    .muted{color:var(--muted)}
+    .meta{font-size:14px;margin-bottom:14px}
+    .field-block{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+    .field-block h2{margin:0 0 6px;font-size:13px;color:var(--muted);text-transform:uppercase;font-weight:650}
+    .field-block .text{font-size:15px;white-space:pre-wrap}
+    .empty{padding:22px;text-align:center;color:var(--muted);font-size:13.5px}
+    .error{color:var(--danger)}
+  </style>
+</head>
+<body>
+{% include "_mobile_header.html" %}
+<main>
+  <div class="card" id="assetCard">
+    <div class="muted">Lädt …</div>
+  </div>
+</main>
+<script>
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const assetId={{ asset_id }};
+
+function render(asset){
+  const card=document.getElementById('assetCard');
+  const meta=[asset.asset_type,asset.manufacturer,asset.model].filter(Boolean).join(' · ');
+  card.innerHTML=`
+    <h1>${esc(asset.name)}</h1>
+    ${meta?`<div class="meta muted">${esc(meta)}</div>`:''}
+    ${asset.usage_notes?`<div class="field-block"><h2>Bedienungshinweise</h2><div class="text">${esc(asset.usage_notes)}</div></div>`:''}
+  `;
+}
+
+async function init(){
+  const card=document.getElementById('assetCard');
+  try{
+    const r=await fetch(`/api/operational-assets/${assetId}`);
+    if(!r.ok){
+      const detail=(await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText;
+      card.innerHTML=`<div class="error">${esc(detail)}</div>`;
+      return;
+    }
+    render(await r.json());
+  }catch(e){
+    card.innerHTML=`<div class="error">Fehler: ${esc(e.message)}</div>`;
+  }
+}
+init();
+</script>
+</body>
+</html>

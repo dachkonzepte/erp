@@ -85,24 +85,48 @@ def _inspection_to_dict(inspection: OperationalAssetInspection, lead_days: int, 
     }
 
 
+def _resolve_identity(asset: OperationalAsset) -> tuple[str | None, str | None, str | None, str | None, str | None, str | None]:
+    """Löst bei verknüpfter Ressource die Identitätsfelder LIVE auf -- niemals von
+    OperationalAsset selbst gelesen, solange resource_id gesetzt ist (siehe Moduldocstring).
+    Geteilt zwischen asset_to_dict() (volle Ansicht) und asset_field_dict() (Monteur-Ansicht,
+    Stufe 2), damit beide Ansichten für dasselbe Asset nie unterschiedliche Namen/Typen zeigen
+    könnten."""
+    resource = asset.resource
+    if resource is not None:
+        return resource.name, resource.resource_type, resource.manufacturer, resource.model, resource.identifier, resource.resource_number
+    return asset.name, asset.asset_type, asset.manufacturer, asset.model, asset.identifier, None
+
+
+def asset_field_dict(asset: OperationalAsset) -> dict:
+    """Reduzierte Ansicht für die Rolle `field` (Rechtekonzept, Betriebsmittelverwaltung
+    Stufe 2, siehe CLAUDE.md) -- ausschließlich Bezeichnung/Art/Hersteller/Modell/
+    Bedienungshinweise. Bewusst KEIN Ressourcenbezug, keine Prüffristen, keine Kosten, keine
+    Artikelnummer/kein Produktlink -- diese Felder gehören zur Beschaffung/Planung, nicht zur
+    Bedienung vor Ort."""
+    name, asset_type, manufacturer, model, _identifier, _resource_number = _resolve_identity(asset)
+    return {
+        "id": asset.id,
+        "name": name,
+        "asset_type": asset_type,
+        "manufacturer": manufacturer,
+        "model": model,
+        "usage_notes": asset.usage_notes,
+    }
+
+
+def asset_qr_target_url(base_url: str, asset_id: int) -> str:
+    """Baut die vollständige, im QR-Code kodierte Ziel-URL -- inklusive Domain, damit ein Scan
+    mit der Telefonkamera direkt die Seite öffnet, ohne dass die Kamera-App einen relativen
+    Pfad raten müsste. base_url kommt vom Router (request.base_url oder
+    GeneralSettings.public_base_url, siehe routers/operational_assets.py) -- diese Funktion
+    kennt selbst keine Domain, damit sie nie hartkodiert werden kann."""
+    return f"{base_url.rstrip('/')}/betriebsmittel/{asset_id}"
+
+
 def asset_to_dict(asset: OperationalAsset, lead_days: int, *, today: date | None = None) -> dict:
     """Löst bei verknüpfter Ressource die Identitätsfelder LIVE auf -- niemals von
     OperationalAsset selbst gelesen, solange resource_id gesetzt ist (siehe Moduldocstring)."""
-    resource = asset.resource
-    if resource is not None:
-        name = resource.name
-        asset_type = resource.resource_type
-        manufacturer = resource.manufacturer
-        model = resource.model
-        identifier = resource.identifier
-        resource_number = resource.resource_number
-    else:
-        name = asset.name
-        asset_type = asset.asset_type
-        manufacturer = asset.manufacturer
-        model = asset.model
-        identifier = asset.identifier
-        resource_number = None
+    name, asset_type, manufacturer, model, identifier, resource_number = _resolve_identity(asset)
 
     inspections = [_inspection_to_dict(i, lead_days, today=today) for i in asset.inspections]
     due_dates = [i["next_due_date"] for i in inspections if i["next_due_date"] is not None]
@@ -121,6 +145,9 @@ def asset_to_dict(asset: OperationalAsset, lead_days: int, *, today: date | None
         "identifier": identifier,
         "resource_number": resource_number,
         "notes": asset.notes,
+        "article_number": asset.article_number,
+        "product_url": asset.product_url,
+        "usage_notes": asset.usage_notes,
         "acquisition_date": asset.acquisition_date,
         "acquisition_cost": asset.acquisition_cost,
         "recurring_cost_per_month": asset.recurring_cost_per_month,
@@ -149,6 +176,14 @@ def get_asset(db: Session, asset_id: int) -> dict | None:
         return None
     lead_days = get_or_create_operational_asset_settings(db).reminder_lead_days
     return asset_to_dict(asset, lead_days)
+
+
+def get_asset_field(db: Session, asset_id: int) -> dict | None:
+    """Reduzierter Einzelabruf für die Rolle `field` (siehe asset_field_dict())."""
+    asset = _load(db, asset_id)
+    if asset is None:
+        return None
+    return asset_field_dict(asset)
 
 
 def list_assets(db: Session, *, include_inactive: bool = True) -> list[dict]:
@@ -187,6 +222,9 @@ def create_asset(db: Session, payload: dict) -> dict:
         resource_id=resource_id,
         asset_number=payload.get("asset_number"),
         notes=payload.get("notes"),
+        article_number=payload.get("article_number"),
+        product_url=payload.get("product_url"),
+        usage_notes=payload.get("usage_notes"),
         acquisition_date=payload.get("acquisition_date"),
         acquisition_cost=payload.get("acquisition_cost"),
         recurring_cost_per_month=payload.get("recurring_cost_per_month"),
@@ -215,6 +253,9 @@ def update_asset(db: Session, asset_id: int, payload: dict) -> dict | None:
         setattr(asset, field, None if resource_id is not None else payload.get(field))
     asset.asset_number = payload.get("asset_number")
     asset.notes = payload.get("notes")
+    asset.article_number = payload.get("article_number")
+    asset.product_url = payload.get("product_url")
+    asset.usage_notes = payload.get("usage_notes")
     asset.acquisition_date = payload.get("acquisition_date")
     asset.acquisition_cost = payload.get("acquisition_cost")
     asset.recurring_cost_per_month = payload.get("recurring_cost_per_month")

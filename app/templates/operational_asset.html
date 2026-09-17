@@ -44,6 +44,13 @@ tr:last-child td{border-bottom:none}
 .empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
 .check{display:flex;align-items:center;gap:8px}.check input{width:auto}
 @media(max-width:900px){.fields-2col{grid-template-columns:1fr}table{font-size:12.5px}th,td{padding:8px}}
+.print-only{display:none}
+@media print{
+  .app-layout{display:none!important}
+  #printLabel{display:flex!important;flex-direction:column;align-items:center;gap:10px;padding:20mm}
+  #printLabelImg{width:60mm;height:60mm}
+  #printLabelName{font-size:16pt;font-weight:700;text-align:center}
+}
 </style></head><body>
 <div class="app-layout">
 {% include "_sidebar.html" %}
@@ -54,6 +61,7 @@ tr:last-child td{border-bottom:none}
 <div class="hero">
   <div><h1 id="assetTitle">Betriebsmittel</h1><div class="muted small" id="assetMeta"></div></div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <button class="secondary" onclick="printLabel()">Etikett drucken</button>
     <button class="danger" onclick="deleteAssetNow()">Löschen</button>
   </div>
 </div>
@@ -74,6 +82,7 @@ tr:last-child td{border-bottom:none}
     <div class="field"><label>Betriebsmittelnummer <span class="muted small">(optional)</span></label><input id="editAssetNumber"></div>
     <div class="field"><label>Status</label><select id="editActive"><option value="1">Aktiv</option><option value="0">Inaktiv</option></select></div>
     <div class="field full"><label>Notizen</label><textarea id="editNotes"></textarea></div>
+    <div class="field full"><label>Bedienungshinweise <span class="muted small">(für Monteure sichtbar, z. B. Kurzanleitung, Sicherheitshinweise)</span></label><textarea id="editUsageNotes"></textarea></div>
   </div>
   <div class="editor-actions">
     <button onclick="saveAsset()">Speichern</button>
@@ -82,8 +91,11 @@ tr:last-child td{border-bottom:none}
 </div>
 
 <div class="editor-card">
-  <h2>Kosten <span class="muted small">(nur Büro/Admin sichtbar)</span></h2>
+  <h2>Kosten &amp; Beschaffung <span class="muted small">(nur Büro/Admin sichtbar)</span></h2>
   <div class="fields-2col">
+    <div class="field"><label>Artikelnummer <span class="muted small">(optional)</span></label><input id="editArticleNumber"></div>
+    <div class="field"><label>Produktlink <span class="muted small">(optional, http/https)</span></label><input id="editProductUrl" type="url" placeholder="https://..."></div>
+    <div class="field full hidden" id="productUrlPreviewWrap"><a id="productUrlPreview" href="#" target="_blank" rel="noopener" style="color:var(--accent)">Produktlink öffnen →</a></div>
     <div class="field"><label>Anschaffungsdatum</label><input id="editAcqDate" type="date"></div>
     <div class="field"><label>Anschaffungskosten (EUR)</label><input id="editAcqCost" type="number" step="0.01" min="0"></div>
     <div class="field"><label>Laufende Kosten je Monat (EUR) <span class="muted small">(z. B. Leasing/Versicherung, monatsnormalisiert)</span></label><input id="editRecurringCost" type="number" step="0.01" min="0"></div>
@@ -118,6 +130,10 @@ tr:last-child td{border-bottom:none}
 
 </main>
 </div>
+</div>
+<div id="printLabel" class="print-only">
+  <img id="printLabelImg" alt="QR-Code">
+  <div id="printLabelName"></div>
 </div>
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -164,6 +180,13 @@ function renderHero(){
   document.getElementById('assetMeta').innerHTML=[asset.asset_type,badges.join(' ')].filter(Boolean).join(' · ');
 }
 
+function printLabel(){
+  const img=document.getElementById('printLabelImg');
+  document.getElementById('printLabelName').textContent=asset.asset_number?`${asset.asset_number} · ${asset.name}`:asset.name;
+  img.onload=()=>window.print();
+  img.src=`/api/operational-assets/${assetId}/qr-code.png?v=${Date.now()}`;
+}
+
 function fillEditor(){
   document.getElementById('editHasResource').checked=!!asset.resource_id;
   document.getElementById('editResource').innerHTML=resourceOptionsHtml(asset.resource_id);
@@ -175,10 +198,20 @@ function fillEditor(){
   document.getElementById('editAssetNumber').value=asset.asset_number||'';
   document.getElementById('editActive').value=asset.active?'1':'0';
   document.getElementById('editNotes').value=asset.notes||'';
+  document.getElementById('editUsageNotes').value=asset.usage_notes||'';
+  document.getElementById('editArticleNumber').value=asset.article_number||'';
+  document.getElementById('editProductUrl').value=asset.product_url||'';
   document.getElementById('editAcqDate').value=asset.acquisition_date||'';
   document.getElementById('editAcqCost').value=asset.acquisition_cost??'';
   document.getElementById('editRecurringCost').value=asset.recurring_cost_per_month??'';
   document.getElementById('editCostNotes').value=asset.cost_notes||'';
+  const productPreview=document.getElementById('productUrlPreviewWrap');
+  if(asset.product_url){
+    document.getElementById('productUrlPreview').href=asset.product_url;
+    productPreview.classList.remove('hidden');
+  }else{
+    productPreview.classList.add('hidden');
+  }
   const link=document.getElementById('resourceEditLink');
   if(asset.resource_id){
     link.innerHTML=`<a href="/master-data/resources/${asset.resource_id}/edit" style="color:var(--accent)">Ressourcen-Stammdaten bearbeiten →</a>`;
@@ -212,6 +245,9 @@ async function saveAsset(){
     model:hasResource?null:(document.getElementById('editModel').value.trim()||null),
     identifier:hasResource?null:(document.getElementById('editIdentifier').value.trim()||null),
     notes:document.getElementById('editNotes').value.trim()||null,
+    usage_notes:document.getElementById('editUsageNotes').value.trim()||null,
+    article_number:document.getElementById('editArticleNumber').value.trim()||null,
+    product_url:document.getElementById('editProductUrl').value.trim()||null,
     acquisition_date:document.getElementById('editAcqDate').value||null,
     acquisition_cost:document.getElementById('editAcqCost').value||null,
     recurring_cost_per_month:document.getElementById('editRecurringCost').value||null,

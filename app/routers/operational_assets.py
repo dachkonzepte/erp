@@ -1,10 +1,17 @@
 """Router: operational_assets (seit 1.4.0) -- Betriebsmittelverwaltung, Teil des Moduls
 "betriebsmittel" (siehe app/modules.py). Jeder Endpunkt prüft zuerst is_module_enabled() --
 403 bei deaktiviertem Modul, unabhängig von der Rolle, gleiches Muster wie
-maintenance_contracts.py."""
+maintenance_contracts.py.
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+Seit Stufe 2 (siehe CLAUDE.md "Betriebsmittelverwaltung" -> Stufe 2) EINE Ausnahme:
+GET /api/operational-assets/{asset_id} ist zusätzlich für `field` erreichbar (der QR-Code auf
+dem Etikett führt jeden -- Büro wie Monteur -- auf /betriebsmittel/{id}) -- aber liefert dann
+NIE mehr als OperationalAssetFieldOut, unabhängig davon, über welchen Weg (QR-Code oder die
+volle Büro-URL) aufgerufen wurde: die Rollenprüfung sitzt serverseitig im Router, nicht am Pfad.
+Jeder andere Endpunkt dieser Datei bleibt Büro-/Admin-only wie bisher."""
+
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -12,24 +19,40 @@ from ..models import AppUser
 from ..modules import is_module_enabled
 from ..operational_asset_documents import ALLOWED_CONTENT_TYPES, MAX_UPLOAD_BYTES, document_path, replace_document
 from ..operational_assets import (
-    MODULE_KEY, create_asset, create_inspection, delete_asset, delete_inspection, get_asset,
-    get_or_create_operational_asset_settings, list_assets, list_due_assets, operational_asset_settings_to_dict,
-    remove_inspection_document, set_inspection_document, update_asset, update_inspection,
-    update_operational_asset_settings,
+    MODULE_KEY, asset_qr_target_url, create_asset, create_inspection, delete_asset, delete_inspection, get_asset,
+    get_asset_field, get_or_create_operational_asset_settings, list_assets, list_due_assets,
+    operational_asset_settings_to_dict, remove_inspection_document, set_inspection_document, update_asset,
+    update_inspection, update_operational_asset_settings,
 )
 from ..models import OperationalAssetInspection
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
+from ..qr_codes import qr_code_png_bytes
 from ..schemas import (
-    OperationalAssetCreate, OperationalAssetInspectionCreate, OperationalAssetInspectionOut,
+    OperationalAssetCreate, OperationalAssetFieldOut, OperationalAssetInspectionCreate, OperationalAssetInspectionOut,
     OperationalAssetInspectionUpdate, OperationalAssetListOut, OperationalAssetOut, OperationalAssetSettingsOut,
     OperationalAssetSettingsUpdate, OperationalAssetUpdate,
 )
+from ..settings import get_or_create_general_settings
 
 router = APIRouter()
 
 # Betriebsmittelverwaltung ist Büro-/Admin-Bereich, wie Fuhrpark & Maschinen (resource_planning.py)
-# -- kein Endpunkt dieser Datei wird von einer Monteur-Vorlage aufgerufen.
+# -- kein Endpunkt dieser Datei außer den beiden unten (Einzelabruf, QR-Code) wird von einer
+# Monteur-Vorlage aufgerufen.
 _role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+
+
+def _resolve_public_base_url(request: Request, db: Session) -> str:
+    """Domain für den QR-Code -- bevorzugt GeneralSettings.public_base_url (Einstellungen ->
+    Unternehmensstammdaten), falls hinterlegt, sonst die tatsächliche Anfrage-Adresse
+    (request.base_url). NIE hartkodiert -- sonst zeigten alle Codes auf localhost/127.0.0.1,
+    sobald die App nicht lokal aufgerufen wird."""
+    general = get_or_create_general_settings(db)
+    configured = (general.public_base_url or "").strip()
+    if configured:
+        return configured.rstrip("/")
+    return str(request.base_url).rstrip("/")
 
 
 def _require_module_enabled(db: Session):
@@ -51,13 +74,35 @@ def get_operational_assets(include_inactive: bool = True, db: Session = Depends(
     return list_assets(db, include_inactive=include_inactive)
 
 
-@router.get("/api/operational-assets/{asset_id}", response_model=OperationalAssetOut)
-def get_operational_asset(asset_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+@router.get("/api/operational-assets/{asset_id}", response_model=OperationalAssetOut | OperationalAssetFieldOut)
+def get_operational_asset(asset_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    """Für `field` (seit Stufe 2, siehe Moduldocstring): liefert ausschließlich
+    OperationalAssetFieldOut, egal ob über den QR-Code-Etikett-Weg oder eine von Hand
+    eingetippte Büro-URL aufgerufen -- die Antwort ist bereits als Pydantic-Modell validiert
+    (Muster GET /api/orders/{order_id}), damit die Union-Response-Deklaration nie versehentlich
+    das jeweils andere Schema für die Serialisierung wählt."""
     _require_module_enabled(db)
+    if _role.role == ROLE_FIELD:
+        result = get_asset_field(db, asset_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Betriebsmittel nicht gefunden.")
+        return OperationalAssetFieldOut.model_validate(result)
     result = get_asset(db, asset_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Betriebsmittel nicht gefunden.")
-    return result
+    return OperationalAssetOut.model_validate(result)
+
+
+@router.get("/api/operational-assets/{asset_id}/qr-code.png")
+def get_operational_asset_qr_code(asset_id: int, request: Request, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Büro-/Admin-only -- das Drucken eines Etiketts ist ein Büro-Vorgang, das SCANNEN des
+    fertigen Etiketts (GET .../{asset_id} oben) ist dagegen für jeden erreichbar."""
+    _require_module_enabled(db)
+    if get_asset(db, asset_id) is None:
+        raise HTTPException(status_code=404, detail="Betriebsmittel nicht gefunden.")
+    target_url = asset_qr_target_url(_resolve_public_base_url(request, db), asset_id)
+    png = qr_code_png_bytes(target_url)
+    return Response(content=png, media_type="image/png")
 
 
 @router.post("/api/operational-assets", response_model=OperationalAssetOut)
