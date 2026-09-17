@@ -4,6 +4,39 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.3.73 – Kontextmenü der Projektliste: Beschneidung durch overflow:auto behoben
+
+Gemeldeter Fehler an 1.3.72: das Drei-Punkte-Kontextmenü klappte innerhalb des seit 1.3.9
+seitlich scrollbaren `.wrap`-Tabellencontainers (`overflow:auto`) auf -- dessen `overflow`
+beschneidet nicht nur horizontal, sondern auch vertikal, was das Menü am unteren Rand abschnitt.
+
+Geprüft, ob sich dasselbe Muster anderswo im Projekt schon findet, statt eine zweite Lösung zu
+erfinden: der einzige bestehende "Klick-öffnet-ein-Menü"-Baustein ist der Kontoknopf in
+`_topbar.html` -- der sitzt aber nicht in einem overflow-Container, sein einfaches
+`position:absolute` war für dieses Problem nie geprüft und taugt hier nicht als Vorbild.
+
+Gewählte Lösung: `.menu` wechselt von `position:absolute` (relativ zur Zelle) auf
+`position:fixed` (relativ zum Ansichtsfenster) -- ohne das Element im DOM zu verschieben. Das
+funktioniert, weil ein `position:fixed`-Element sein Containing Block beim Ansichtsfenster hat
+und dadurch NICHT vom `overflow` eines Vorfahren beschnitten wird, solange kein Vorfahre
+`transform`/`filter`/`contain` trägt -- geprüft: `.app-content`/`main`/`.card` tun das nicht,
+nur die (unbeteiligte) Off-Canvas-Sidebar hat ein `transform`, aber als Geschwister-Element,
+nicht als Vorfahre der Tabelle. Position wird jetzt per JS (`positionMenu()`) aus
+`getBoundingClientRect()` des Drei-Punkte-Knopfs berechnet: rechtsbündig zum Knopf (mit
+Rand-Klemmung), unterhalb des Knopfs -- klappt aber nach OBEN, wenn darunter nicht genug Platz im
+Ansichtsfenster ist. Ein neuer, globaler Scroll-Listener (Capture-Phase, da Scroll-Events nicht
+bubbeln) schließt ein offenes Menü, sobald irgendetwas gescrollt wird (die Liste selbst oder die
+Seite) -- ein fixed-positioniertes Menü folgt dem Knopf sonst nicht mit und stünde an der
+falschen Stelle.
+
+**Per echtem, per Chrome-DevTools-Protocol gesteuertem Headless-Browser verifiziert** (kein
+Test-Framework wie Playwright im Projekt vorhanden, deshalb ein eigener, kleiner
+PowerShell/CDP-Treiber gegen eine isolierte Testinstanz mit 25 Testprojekten): Menü an der
+letzten Zeile klappt nachweislich nach oben und liegt vollständig innerhalb des
+Ansichtsfensters (vorher: unten abgeschnitten, `bottom` 11px über die Fensterhöhe hinaus); Menü
+an der ersten Zeile klappt weiterhin normal nach unten; Scrollen der Liste bei offenem Menü
+schließt es. Screenshots beider Fälle optisch bestätigt.
+
 ## 1.3.72 – Umbau der Projektliste, Runde 2: die Oberfläche
 
 Baut auf dem 1.3.70-Fundament auf (`pipeline_column_id`, Spalten-Stammdaten, Verwaltung in den

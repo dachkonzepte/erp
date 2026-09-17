@@ -24,7 +24,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 .menu-cell{position:relative;width:36px}
 .menu-btn{border:1px solid transparent;background:transparent;color:var(--ink);font-size:16px;line-height:1;padding:6px 9px;cursor:pointer}
 .menu-btn:hover{background:var(--soft);border-color:var(--line)}
-.menu{position:absolute;right:0;top:calc(100% + 2px);background:var(--card);border:1px solid var(--line);min-width:210px;z-index:30;box-shadow:0 6px 18px rgba(0,0,0,.15)}
+.menu{position:fixed;background:var(--card);border:1px solid var(--line);min-width:210px;z-index:100;box-shadow:0 6px 18px rgba(0,0,0,.15)}
 .menu a,.menu button.menu-item{display:block;width:100%;text-align:left;padding:9px 13px;background:none;border:0;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;text-decoration:none}
 .menu a:hover,.menu button.menu-item:hover{background:var(--soft)}
 .kanban{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px;align-items:flex-start}
@@ -193,16 +193,37 @@ async function moveProjectColumn(projectId,columnId){
 }
 
 let openMenuId=null;
+function positionMenu(el,btn){
+  // .menu ist position:fixed und wird deshalb NICHT vom overflow:auto der .wrap-Tabelle
+  // beschnitten (fixed-Elemente nutzen das Ansichtsfenster als Containing Block, solange kein
+  // Vorfahre transform/filter/contain trägt -- hier geprüft: keiner tut das). Position wird
+  // deshalb per JS relativ zum Knopf berechnet statt per CSS relativ zur Zelle.
+  const margin=8;
+  el.hidden=false;
+  const rect=btn.getBoundingClientRect();
+  const mw=el.offsetWidth,mh=el.offsetHeight;
+  const left=Math.max(margin,Math.min(rect.right-mw,window.innerWidth-mw-margin));
+  let top=rect.bottom+2;
+  if(top+mh>window.innerHeight-margin)top=Math.max(margin,rect.top-mh-2);
+  el.style.left=left+'px';
+  el.style.top=top+'px';
+}
 function toggleMenu(e,id){
   e.stopPropagation();
   const el=document.getElementById('menu-'+id);
   const wasOpen=!el.hidden;
   closeAllMenus();
-  if(!wasOpen){el.hidden=false;openMenuId=id}
+  if(!wasOpen){positionMenu(el,e.currentTarget);openMenuId=id}
 }
 function closeAllMenus(){document.querySelectorAll('.menu').forEach(m=>m.hidden=true);openMenuId=null}
 document.addEventListener('click',closeAllMenus);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAllMenus()});
+// Ein offenes, fixed-positioniertes Menü bliebe beim Scrollen der Liste (oder der Seite) an
+// der zuletzt berechneten Stelle stehen, statt dem Knopf zu folgen -- schließen statt
+// nachzuführen, wie bei der Kontenmenü-Interaktion in _topbar.html üblich. Scroll-Events
+// bubblen nicht, "true" (Capture-Phase) fängt sie trotzdem auch vom .wrap-Container ab.
+document.addEventListener('scroll',closeAllMenus,true);
+window.addEventListener('resize',closeAllMenus);
 
 async function duplicateProject(id,asTemplate){
   if(!confirm(asTemplate?'Dieses Projekt als Mustervorgang speichern? Angebot inkl. Positionen und Kalkulation wird dabei kopiert.':'Dieses Projekt kopieren? Ein neues Projekt mit Kopie des Angebots (Positionen, Kalkulation) wird angelegt.'))return;

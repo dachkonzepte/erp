@@ -20,7 +20,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.3.72** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.3.73** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf jetzt `da9d9425e257` ("project pipeline columns", siehe Abschnitt
   "Umbau der Projektliste" unten) -- vorher `f803985ebc2f` ("property documents table", siehe
   Abschnitt "Dateiablage je Objekt" unten), davor `9137945e8785` ("document categories
@@ -32,7 +32,8 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
 - Tests: **1391 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 17.09.2026 mit `pytest` in Tobias' `.venv` unter Windows
+  dort), zuletzt am 17.09.2026 (1.3.73, reiner CSS/JS-Fix ohne Backend-Änderung, siehe dort für
+  den echten Browser-Nachweis abseits von `pytest`) mit `pytest` in Tobias' `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
   Business-Funktionen direkt; der zugehörige Test-Helfer (`router_test_client`/
@@ -993,6 +994,53 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   weiterhin vollständig ausgesperrt (Seite UND API 403), Verschieben im Kanban ändert nachweis-
   lich nie den Status. Kein echter Browser-Klicktest möglich (Werkzeug-Einschränkung dieser
   Umgebung) -- Drag-and-Drop/Kontextmenü nur über Quelltext- und Endpunktprüfung abgesichert.
+- Neu seit 1.3.73: **Kontextmenü der Projektliste -- Beschneidung durch `overflow:auto`
+  behoben, per echtem Headless-Browser-Test verifiziert.** Gemeldeter Fehler an 1.3.72: das
+  Drei-Punkte-Menü klappte innerhalb des seit 1.3.9 scrollbaren `.wrap`-Tabellencontainers auf
+  und wurde von dessen `overflow:auto` auch vertikal beschnitten. `.menu` wechselt von
+  `position:absolute` auf `position:fixed` (kein anderer, dafür geeigneter Vorfahre trägt
+  `transform`/`filter`/`contain`, geprüft) -- Position wird per JS aus der `getBoundingClientRect()`
+  des Drei-Punkte-Knopfs berechnet, klappt bei zu wenig Platz nach oben statt unten, ein globaler
+  Scroll-Listener schließt ein offenes Menü statt es fehlpositioniert stehen zu lassen. **Erste
+  echte Browser-Verifikation seit langer Zeit** (siehe unten "Werkzeug-Notiz") -- die bisher in
+  dieser Datei wiederholte Einschränkung "kein Browser-Automatisierungswerkzeug verfügbar" ist
+  damit für Headless-Chrome-Fälle nicht mehr uneingeschränkt gültig, siehe eigener Abschnitt
+  "Headless-Chrome-Verifikation über CDP" unten.
+
+### Headless-Chrome-Verifikation über CDP (seit 1.3.73)
+
+Dutzende frühere Versionen dieser Datei vermerken "kein Browser-Automatisierungswerkzeug
+verfügbar" (kein Playwright/Puppeteer als Projekt- oder Systemabhängigkeit) und belegen
+UI-Änderungen deshalb nur strukturell (Quelltext-/CSS-Prüfung, `node --check`). Für 1.3.73 wurde
+das erste Mal geprüft, ob das wirklich stimmt -- Ergebnis: **Chrome UND Edge sind auf dieser
+Windows-Maschine bereits systemweit installiert** (`C:\Program Files\Google\Chrome\Application\
+chrome.exe`, `...\Microsoft\Edge\...`), auch wenn kein npm-Paket wie Playwright/Puppeteer im
+Projekt oder global via npm vorhanden ist. Chrome lässt sich mit `--headless=new
+--remote-debugging-port=<port>` gezielt für genau eine automatisierte Sitzung starten (eigenes
+`--user-data-dir` im Scratchpad, unabhängig vom Profil des Nutzers) und über das Chrome
+DevTools Protocol (CDP) fernsteuern -- **ohne** npm-Installation, da PowerShell/.NET bereits
+einen WebSocket-Client mitbringt (`System.Net.WebSockets.ClientWebSocket`). Ablauf, der für
+1.3.73 tatsächlich funktioniert hat: `GET http://127.0.0.1:<port>/json/list` liefert die
+`webSocketDebuggerUrl` der Seite, `Network.setCookie` setzt das Session-Cookie (aus einem
+vorherigen HTTP-Login übernommen -- kein UI-Login nötig), `Page.navigate` lädt die Zielseite,
+`Runtime.evaluate` führt beliebiges JS aus (Klicks simulieren, Zustand auslesen), `Page.
+captureScreenshot` liefert ein PNG zur visuellen Bestätigung. **Wichtig, sonst false positives**:
+`Runtime.evaluate` mit `returnByValue:true` liefert bei einem JS-Fehler ein leeres Ergebnis statt
+eines Fehlers, wenn `exceptionDetails` nicht explizit geprüft wird -- ein Test, der das
+übersieht, hält einen kaputten Aufruf für "erfolgreich, aber leer". Ein eigens ausgeführter
+Testlauf hätte ohne diese Prüfung fast einen Testfehler übersehen (siehe Abschnitt "Runde 2" bei
+1.3.72 -- der erste Testdurchlauf für "letzte Zeile" schlug fehl, weil `.wrap.scrollTop=999999`
+zwar den TABELLEN-eigenen Scroll ausreizt, aber die SEITE selbst (Kopfzeile+Toolbar+Karte)
+zusätzlich Platz braucht, den ein echter Mausrad-Scroll durch Scroll-Chaining automatisch
+mitnimmt, ein reines `.wrap.scrollTop=...` aber nicht -- `window.scrollTo(0,
+document.body.scrollHeight)` musste ergänzt werden, sonst wurde ein tatsächlich unsichtbarer,
+außerhalb des Ansichtsfensters liegender Knopf angeklickt, was kein reales Nutzerszenario
+abbildet). **Kein dauerhaft installiertes Werkzeug, kein neuer Projektbestandteil** -- das
+Skript lag nur temporär im Scratchpad dieser Sitzung, für eine künftige Sitzung ist diese
+Fähigkeit (Chrome+CDP über PowerShell) neu zu bauen, aber jetzt als grundsätzlich funktionierender
+Weg bekannt, bevor eine künftige Anfrage wieder pauschal auf "kein Browser verfügbar" verweist --
+mindestens für gezielte, einzelne Verifikationen wie diese, nicht notwendigerweise praktikabel für
+eine große Zahl laufender UI-Tests (deutlich aufwendiger als ein fertiges Test-Framework).
 
 ## Produktivbetrieb (seit 14.09.2026)
 
@@ -7479,6 +7527,24 @@ Browser-Automatisierungswerkzeug verfügbar). Die clientseitige Interaktionslogi
 Bildschirminteraktion -- sollte bei Gelegenheit im Browser nachgeprüft werden, insbesondere das
 Drag-and-drop-Gefühl und ob das Kontextmenü auf einem schmalen Bildschirm (`@media(max-width:
 850px)`) noch bedienbar bleibt.
+
+**Korrektur (seit 1.3.73)**: genau dieser fehlende Klicktest ließ einen echten Fehler durch --
+das Kontextmenü wurde vom `overflow:auto` des `.wrap`-Tabellencontainers abgeschnitten. Siehe
+"Kontextmenü der Projektliste" unten für die Behebung, und "Headless-Chrome-Verifikation über
+CDP" dafür, dass ein echter Browsertest in dieser Umgebung entgegen der bisherigen Annahme doch
+möglich ist -- die obige "kein echter Browser-Klicktest möglich"-Einschränkung war zu pauschal.
+
+### Kontextmenü der Projektliste: Beschneidung durch overflow:auto behoben (seit 1.3.73)
+
+Siehe CHANGELOG.md 1.3.73 für die vollständige Herleitung (Ursache, geprüfte Alternativen,
+gewählte Lösung `position:fixed` statt DOM-Umzug, Scroll-Schließen, Verifikationsdetails) --
+hier nur die Kurzfassung: `.menu` (`app/templates/projects.html`) ist jetzt `position:fixed`,
+Position wird per JS aus `getBoundingClientRect()` des Drei-Punkte-Knopfs berechnet (rechtsbündig,
+klappt bei zu wenig Platz nach oben statt unten), ein globaler `scroll`-Listener (Capture-Phase)
+schließt ein offenes Menü. Geprüft, ob dasselbe Muster anderswo im Projekt bereits gelöst wurde
+(wie verlangt) -- einziger Fund war der Kontoknopf in `_topbar.html`, der aber nie in einem
+`overflow`-Container sitzt und deshalb kein Vorbild für DIESES Problem ist; kein zweiter,
+divergierender Lösungsweg also, aber auch kein wiederverwendbarer bestehender.
 
 ## Migrations-Workflow
 
