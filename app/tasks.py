@@ -85,7 +85,7 @@ def _load_task(db: Session, task_id: int) -> Task | None:
 
 def list_tasks(db: Session, employee_id: int | None = None, status: str | None = None,
                 project_id: int | None = None, include_archived: bool = False,
-                unassigned_only: bool = False) -> list[dict]:
+                unassigned_only: bool = False, search: str | None = None) -> list[dict]:
     query = select(Task).options(
         selectinload(Task.assigned_employee), selectinload(Task.project), selectinload(Task.checklist_items)
     )
@@ -97,6 +97,8 @@ def list_tasks(db: Session, employee_id: int | None = None, status: str | None =
         query = query.where(Task.status == status)
     if project_id is not None:
         query = query.where(Task.project_id == project_id)
+    if search:
+        query = query.where(Task.title.ilike(f"%{search}%"))
     if not include_archived:
         query = query.where(Task.archived == False)  # noqa: E712 -- SQLAlchemy-Vergleich, kein Python-Bool-Vergleich
     query = query.order_by(Task.due_date.is_(None), Task.due_date, Task.id.desc())
@@ -106,7 +108,8 @@ def list_tasks(db: Session, employee_id: int | None = None, status: str | None =
 
 def list_tasks_for_user(db: Session, user: AppUser, *, status: str | None = None,
                          project_id: int | None = None, include_archived: bool = False,
-                         employee_id: int | None = None, unassigned_only: bool = False) -> list[dict]:
+                         employee_id: int | None = None, unassigned_only: bool = False,
+                         search: str | None = None) -> list[dict]:
     """Der EINE, rollenbewusste Einstiegspunkt für Task-Sichtbarkeit -- ersetzt die frühere,
     inline im Router sitzende is_admin-Prüfung (siehe CLAUDE.md "Änderung am Aufgabenmodul").
     Nutzt has_role() (app/permissions.py) statt einer eigenen Rollenbestimmung -- dieselbe
@@ -120,7 +123,11 @@ def list_tasks_for_user(db: Session, user: AppUser, *, status: str | None = None
     Aufgaben sind der gemeinsame Büro-Eingang, unabhängig von der eigenen employee_id. Ohne
     unassigned_only bleibt Admin frei wählbar (employee_id-Parameter), ein Büro-Konto ist
     dagegen zwingend auf die eigene employee_id festgelegt (der employee_id-Parameter wird für
-    diese Rolle ignoriert) -- exakt das bisherige Verhalten von GET /api/tasks, nur zentralisiert."""
+    diese Rolle ignoriert) -- exakt das bisherige Verhalten von GET /api/tasks, nur zentralisiert.
+
+    search wird unverändert an list_tasks() durchgereicht (Titel-ILIKE) -- genutzt von
+    app/search.py::_search_tasks() (Büro-Suche), damit die Sichtbarkeitsregel dort NICHT ein
+    zweites Mal nachgebaut wird, siehe dort."""
     if not has_role(user, ROLE_ADMIN, ROLE_OFFICE):
         return []
     if unassigned_only:
@@ -132,7 +139,7 @@ def list_tasks_for_user(db: Session, user: AppUser, *, status: str | None = None
             raise ValueError("Ihr Büro-Konto ist keinem Mitarbeiter zugeordnet.")
         effective_employee_id = user.employee_id
     return list_tasks(db, employee_id=effective_employee_id, status=status, project_id=project_id,
-                       include_archived=include_archived, unassigned_only=unassigned_only)
+                       include_archived=include_archived, unassigned_only=unassigned_only, search=search)
 
 
 def claim_task(db: Session, task_id: int, user: AppUser) -> dict | None:

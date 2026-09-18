@@ -312,6 +312,89 @@ def test_module_gated_sources_disappear_when_their_module_is_disabled(db_session
     assert found_keys == EXPECTED_OFFICE_SEARCH_KEYS - {"tasks", "service_reports", "findings", "maintenance_contracts"}
 
 
+# --- Aufgaben-Sichtbarkeit in der Büro-Suche (seit 1.4.4, Fund aus 1.4.3) ---
+# _search_tasks() hatte bis 1.4.3 keine Mitarbeiterfilterung -- ein Büro-Konto fand darüber auch
+# die persönlich zugewiesene Aufgabe eines Kollegen. Behoben durch tatsächliche Wiederverwendung
+# von list_tasks_for_user() (app/tasks.py) statt einer zweiten, hier nachgebauten Kopie der
+# Regel -- siehe CLAUDE.md "Änderung am Aufgabenmodul" für die volle Herleitung.
+
+def test_office_search_finds_own_and_unassigned_tasks_never_a_colleagues(db_session):
+    """Der vom Nutzer verlangte Angriffstest, Kernfunktions-Ebene: ein Büro-Konto findet die
+    eigenen UND die empfängerlosen Aufgaben, aber nicht die eines Kollegen -- dieselbe Regel wie
+    list_tasks_for_user()/GET /api/tasks."""
+    db = db_session
+    marker = "Aufgabensuche"
+    emp1 = Employee(first_name="Erika", last_name="Eins")
+    emp2 = Employee(first_name="Otto", last_name="Zwei")
+    db.add_all([emp1, emp2]); db.commit()
+    own = Task(title=f"{marker} Meine Aufgabe", assigned_employee_id=emp1.id)
+    colleague = Task(title=f"{marker} Kollegen-Aufgabe", assigned_employee_id=emp2.id)
+    unassigned = Task(title=f"{marker} Offene Aufgabe")
+    db.add_all([own, colleague, unassigned]); db.commit()
+
+    groups = search_office(db, ROLE_OFFICE, marker, employee_id=emp1.id)
+    by_key = {g["key"]: g for g in groups}
+    assert "tasks" in by_key, "keine Treffer -- eigene/empfängerlose Aufgabe wurde nicht gefunden"
+    found_ids = {h["id"] for h in by_key["tasks"]["hits"]}
+    assert found_ids == {own.id, unassigned.id}
+    assert colleague.id not in found_ids, "Kollegen-Aufgabe darf über die Suche nicht auffindbar sein"
+    assert by_key["tasks"]["total"] == 2
+
+
+def test_office_search_without_employee_link_still_finds_the_shared_inbox(db_session):
+    """Sehen der empfängerlosen Aufgaben braucht keine employee_id-Verknüpfung -- dieselbe
+    Großzügigkeit wie list_tasks_for_user() beim direkten Sehen des gemeinsamen Eingangs."""
+    db = db_session
+    marker = "Aufgabensuche2"
+    emp1 = Employee(first_name="Erika", last_name="Drei")
+    db.add(emp1); db.commit()
+    assigned = Task(title=f"{marker} Zugewiesen", assigned_employee_id=emp1.id)
+    unassigned = Task(title=f"{marker} Offen")
+    db.add_all([assigned, unassigned]); db.commit()
+
+    groups = search_office(db, ROLE_OFFICE, marker, employee_id=None)
+    by_key = {g["key"]: g for g in groups}
+    assert {h["id"] for h in by_key["tasks"]["hits"]} == {unassigned.id}
+
+
+def test_admin_search_finds_every_task_including_a_colleagues(db_session):
+    db = db_session
+    marker = "Aufgabensuche3"
+    emp1 = Employee(first_name="Erika", last_name="Vier")
+    db.add(emp1); db.commit()
+    assigned = Task(title=f"{marker} Zugewiesen", assigned_employee_id=emp1.id)
+    unassigned = Task(title=f"{marker} Offen")
+    db.add_all([assigned, unassigned]); db.commit()
+
+    groups = search_office(db, ROLE_ADMIN, marker)
+    by_key = {g["key"]: g for g in groups}
+    assert {h["id"] for h in by_key["tasks"]["hits"]} == {assigned.id, unassigned.id}
+
+
+def test_office_search_router_finds_own_and_unassigned_but_not_colleagues_task(router_test_client, threaded_db_session):
+    """Derselbe Angriffstest über den echten HTTP-Weg (GET /api/search), nicht nur die
+    Kernfunktion -- ein Monteur findet über diese Quelle ohnehin gar nichts (die Registry sperrt
+    das bereits über die Rolle, siehe test_office_search_router_field_role_always_gets_403)."""
+    from app.routers.search import router as search_router
+    db = threaded_db_session
+    marker = "Aufgabenrouter"
+    emp1 = Employee(first_name="Erika", last_name="Fünf")
+    emp2 = Employee(first_name="Otto", last_name="Sechs")
+    db.add_all([emp1, emp2]); db.commit()
+    own = Task(title=f"{marker} Meine Aufgabe", assigned_employee_id=emp1.id)
+    colleague = Task(title=f"{marker} Kollegen-Aufgabe", assigned_employee_id=emp2.id)
+    unassigned = Task(title=f"{marker} Offene Aufgabe")
+    db.add_all([own, colleague, unassigned]); db.commit()
+
+    client = router_test_client(db, search_router, role="office", employee_id=emp1.id)
+    resp = client.get("/api/search", params={"q": marker})
+    assert resp.status_code == 200, resp.text
+    by_key = {g["key"]: g for g in resp.json()}
+    found_ids = {h["id"] for h in by_key["tasks"]["hits"]}
+    assert found_ids == {own.id, unassigned.id}
+    assert colleague.id not in found_ids
+
+
 def test_operational_assets_source_disappears_when_betriebsmittel_module_is_disabled(db_session):
     """Punkt 3 ("nur wenn das Modul aktiv ist") -- eigener Test statt nur in der Sammel-
     Prüfung oben, damit ein künftiger Fund an genau dieser Quelle nicht in einer Vier-Module-

@@ -20,7 +20,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.4.3** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.4.4** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf jetzt `ed896599a211` ("operational assets erweiterungen faelligkeit
   dokumente", siehe Abschnitt "Betriebsmittelverwaltung" -> "Vier Ergänzungen (seit 1.4.2)"
   unten) -- vorher `ccb5c4c0915b` ("operational assets stufe 2 qr and public base url", Stufe
@@ -35,10 +35,11 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1462 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1466 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 17.09.2026 (1.4.3, Änderung am Aufgabenmodul -- empfängerlose Aufgaben für
-  ganz Büro sichtbar, siehe eigener Abschnitt unten) mit `pytest` in Tobias'
+  dort), zuletzt am 18.09.2026 (1.4.4, Büro-Suche findet Aufgaben jetzt über dieselbe
+  Sichtbarkeitsregel wie `GET /api/tasks` -- Nachtrag zu 1.4.3, siehe Abschnitt "Büro-Suche"
+  unten) mit `pytest` in Tobias'
   `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
@@ -1161,11 +1162,24 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   gesamten `/api/tasks*`-Familie weiterhin vollständig ausgeschlossen (unverändert seit
   "Rechtekonzept") -- bestätigt per Angriffstest: 403 auf Liste UND auf Übernehmen/Zurückgeben,
   auch mit geratener Aufgaben-ID, bevor irgendeine Geschäftslogik läuft.
-  **Bewusst nicht Teil dieser Änderung, transparent vermerkt**: die bei derselben Untersuchung
-  gefundene, unabhängige Lücke in der Büro-Suche (`app/search.py::_search_tasks()` ohne
-  Mitarbeiter-Filterung -- jedes Büro-/Admin-Konto findet über `/suche` jede Aufgabe per Titel,
-  unabhängig von der Zuweisung) bleibt ein offener Punkt, siehe „Bekannte, bewusst offene
-  Punkte" unten.
+  Die dabei transparent vermerkte, unabhängige Lücke in der Büro-Suche
+  (`app/search.py::_search_tasks()` ohne Mitarbeiter-Filterung) ist seit 1.4.4 behoben, siehe
+  dort.
+- Neu seit 1.4.4: **Nachtrag zu 1.4.3 -- Büro-Suche findet Aufgaben jetzt über dieselbe
+  Sichtbarkeitsregel wie `GET /api/tasks`.** Die in 1.4.3 transparent gemeldete, unabhängige
+  Lücke (`app/search.py::_search_tasks()` ohne Mitarbeiter-Filterung -- ein Büro-Konto fand
+  darüber auch die persönlich zugewiesene Aufgabe eines Kollegen) wurde behoben, solange der
+  Zusammenhang frisch war. **Keine zweite Kopie der Regel**, wie ausdrücklich verlangt:
+  `app/tasks.py::list_tasks()`/`list_tasks_for_user()` bekommen einen neuen, optionalen
+  `search`-Parameter, `_search_tasks()` ruft `list_tasks_for_user()` seither zweimal auf (eigene
+  + empfängerlose) und vereinigt beide Listen -- keine eigene, hier nachgebaute SQL-Filterlogik.
+  `search_office()` bekommt dafür einen neuen, optionalen `employee_id`-Parameter (nur für
+  "tasks" relevant, jede andere Quelle unverändert), ein transientes `AppUser`-Objekt trägt
+  Rolle/`employee_id` in `list_tasks_for_user()` hinein. Angriffstest bestätigt: Büro-Konto
+  findet eigene + empfängerlose, nie die eines Kollegen; Admin findet alle; Monteur findet
+  weiterhin nichts (bereits über die Registry-Rollenprüfung abgedeckt). Siehe Abschnitt
+  "Büro-Suche" -> "Nachtrag (seit 1.4.4)" unten für die volle Herleitung. Volle Suite: 1466
+  Tests grün.
 
 ### Headless-Chrome-Verifikation über CDP (seit 1.3.73)
 
@@ -1926,11 +1940,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     auch mit einer geratenen, nicht existierenden Aufgaben-ID -- durchgängig 403, bevor
     irgendeine Geschäftslogik läuft. Ein Büro-Konto sieht die empfängerlosen, aber nicht die
     persönlich zugewiesene Aufgabe eines Kollegen, auch nicht mit manipuliertem
-    `employee_id`-Parameter. **Bewusst nicht Teil dieser Änderung** (transparent gemeldet, kein
-    Auftrag dazu): die unabhängige Lücke in der Büro-Suche
-    (`app/search.py::_search_tasks()` ohne Mitarbeiter-Filterung -- jedes Büro-/Admin-Konto
-    findet über `/suche` jede Aufgabe per Titel, unabhängig von der Zuweisung), siehe „Bekannte,
-    bewusst offene Punkte" unten.
+    `employee_id`-Parameter. Die dabei transparent gemeldete, unabhängige Lücke in der
+    Büro-Suche (`app/search.py::_search_tasks()` ohne Mitarbeiter-Filterung) ist seit 1.4.4
+    behoben -- siehe Abschnitt "Büro-Suche" -> "Nachtrag (seit 1.4.4)" unten.
 - **Wartungsvertrag** (`MaintenanceContract`, seit 1.2.0, Modul `wartungen`): wiederkehrender
   Vertrag je Kunde, optional mit einem zusätzlichen **Objekt** (`property_id`, seit 1.2.9
   optional – vorher wie bei "ein Wartungsvertrag ohne Gebäude ergibt fachlich keinen Sinn"
@@ -7517,6 +7529,53 @@ test_search_slot_is_present_and_empty` in zwei Tests umgeschrieben (die 1.3.45-E
 bleibt leer" ist jetzt bewusst überholt -- ein Test für admin/office, ein Test für field). Volle
 Suite weiterhin grün (1344/1344).
 
+### Nachtrag (seit 1.4.4): Aufgaben-Sichtbarkeit in der Büro-Suche
+
+Gemeldete Lücke aus 1.4.3 (siehe Abschnitt "Aufgabe" -> "Sichtbarkeit für Büro-Konten" oben):
+`_search_tasks()` (die "tasks"-Quelle) hatte -- anders als jede andere Quelle -- keine
+Mitarbeiter-Filterung. Ein Büro-Konto fand über `/suche` auch die persönlich zugewiesene Aufgabe
+eines Kollegen, genau die Grenze, die `list_tasks_for_user()` (`GET /api/tasks`, Dashboard) seit
+1.4.3 zieht -- zwei Stellen, eine Regel, aber nur an einer gepflegt.
+
+**Behoben durch tatsächliche Wiederverwendung, keine zweite Kopie der Regel** -- ausdrückliche
+Vorgabe des Betreibers ("Nutze wenn möglich dieselbe Filterfunktion, nicht eine zweite, die
+dieselbe Regel nachbaut -- sonst laufen Liste und Suche beim nächsten Mal wieder auseinander").
+`app/tasks.py::list_tasks()`/`list_tasks_for_user()` bekommen einen neuen, optionalen
+`search: str | None`-Parameter (Titel-ILIKE, unverändert an `list_tasks()` durchgereicht).
+`_search_tasks()` (`app/search.py`) ruft `list_tasks_for_user()` seither **zweimal** auf --
+einmal ohne `unassigned_only` ("eigene"), einmal mit ("empfängerlose") -- und vereinigt beide
+Ergebnislisten (Duplikate über die `id` entfernt): `list_tasks_for_user()` liefert für die
+getrennten Board-Tabs bewusst ENTWEDER eigene ODER empfängerlose Aufgaben (ein
+Entweder-Oder-Schalter, richtig so für "Meine Aufgaben"/"Offene Büro-Aufgaben" als zwei getrennte
+Ansichten) -- die Suche braucht dagegen beide KOMBINIERT in einer Trefferliste, deshalb zwei
+Aufrufe statt einem dritten, neuen Query-Modus. Ein Büro-Konto ohne Mitarbeiterverknüpfung kann
+"eigene" nicht bestimmen (`ValueError`) -- das wird abgefangen, damit wenigstens die
+empfängerlosen weiterhin gefunden werden (dieselbe Großzügigkeit wie beim direkten Sehen des
+gemeinsamen Eingangs), statt die Suche für dieses Konto komplett leer zu lassen.
+
+**Transportmechanismus**: `search_office()` bekommt einen neuen, optionalen
+`employee_id: int | None = None`-Parameter (nur für "tasks" relevant, jede andere Quelle
+ignoriert ihn -- kein bestehender Aufrufer musste sich ändern, da der Default `None` das
+bisherige Verhalten für Admin unverändert lässt). Ein transientes, nie persistiertes
+`AppUser(role=role, employee_id=employee_id)`-Objekt trägt beide Werte in
+`list_tasks_for_user()` hinein -- dieselbe Technik wie `router_test_client()`s Test-Identität,
+kein neuer Mechanismus. **Bewusst kein einheitlicher 4-Parameter-`query_fn` für alle 18
+Quellen** (das hätte 17 unbeteiligte Funktionssignaturen um einen ungenutzten Parameter
+erweitert) -- `search_office()`s Dispatch-Schleife behandelt "tasks" stattdessen als einzigen,
+klar kommentierten Sonderfall (`if source.key == "tasks": ...`), der zusätzlich `role`/
+`employee_id` an `source.query_fn` übergibt. `_task_row()` liest seither ein Dict
+(`task_to_dict()`-Schema, geliefert von `list_tasks_for_user()`) statt eines ORM-`Task`-Objekts --
+Feldnamen entsprechend angepasst (`project_name` statt `t.project.name`).
+
+**Der verlangte Angriffstest** (`tests/test_v270_office_search.py`, vier neue Tests): ein
+Büro-Konto findet über die Suche die eigenen UND die empfängerlosen Aufgaben, nie die eines
+Kollegen (Kernfunktions- UND echter Router-Test); ein Büro-Konto ohne Mitarbeiterverknüpfung
+findet weiterhin die empfängerlosen; Admin findet alle. Ein Monteur findet über die Büro-Suche
+gar nichts -- unverändert bereits durch `allowed_roles`/den Router-`require_role()`-Gate
+abgedeckt (`test_field_role_gets_nothing_from_any_source_pure_function`/
+`test_office_search_router_field_role_always_gets_403`), keine neue Prüfung dafür nötig. Volle
+Suite grün (1466/1466).
+
 ## Umbau der Projektliste (seit 1.3.70, Fundament + 1.3.72, Oberfläche)
 
 Betreiber-Auftrag: die Projektliste (Sidebar → Projekte) wird breiter und ruhiger -- der linke
@@ -8474,20 +8533,6 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 
 ## Bekannte, bewusst offene Punkte
 
-- **Büro-Suche findet Aufgaben unabhängig von der Zuweisung -- keine Mitarbeiter-Filterung**
-  (gefunden bei der 1.4.3-Untersuchung zur Aufgaben-Sichtbarkeit, siehe Abschnitt "Aufgabe" ->
-  "Sichtbarkeit für Büro-Konten" oben): `app/search.py::_search_tasks()` (die "tasks"-Quelle der
-  Büro-Suche, seit 1.3.66) hat keine Mitarbeiter-Filterung -- jedes Büro-/Admin-Konto findet
-  über `/suche` JEDE Aufgabe per Titel, unabhängig davon, ob sie ihm zugewiesen ist. Kein
-  Datenleck im engeren Sinn (Aufgaben sind ohnehin Büro/Admin-Gruppe-A-Inhalt, keine sensiblen
-  Finanz-/Lohndaten wie bei den anderen 17 Quellen), aber eine Inkonsistenz zur 1.4.3-Regel
-  ("ein Büro-Konto sieht die persönlich zugewiesene Aufgabe eines Kollegen nicht") -- über die
-  Suche ließe sich eine solche Aufgabe trotzdem finden (der resultierende Link führt allerdings
-  auf `/tasks?task=<id>`, wo das Hauptboard sie für ein fremdes Konto ohnehin nicht lädt, siehe
-  `openEditor()` in `tasks.html` -- der Fund ist also praktisch folgenlos, aber die
-  Suchtrefferliste selbst zeigt Titel/Untertitel unabhängig davon). Bewusst NICHT im Rahmen der
-  1.4.3-Änderung behoben -- der Auftrag betraf ausdrücklich nur `GET /api/tasks`/Dashboard/
-  Übernehmen-Zurückgeben, nicht die Büro-Suche. Bleibt offen, bis explizit angefragt.
 - **Kolonnenführer-Rolle für Gruppenbuchungen -- bewusst offen, wie vom Betreiber vorgegeben**
   (seit 1.3.60, siehe Abschnitt "Zeiterfassung für Monteure" oben): die reduzierte
   `time_tracking_field.html` kennt keine Gruppenbuchung mehr, ein Monteur bucht nur für sich
@@ -8635,3 +8680,8 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 Der frühere Eintrag "Randeinstellungen der Einstellungsseite betreffen 'quote' nicht" ist mit
 1.3.20 vollständig aufgelöst: "quote" nimmt jetzt am "default"-Rückfall teil, siehe Abschnitt
 "Aufräumen nach dem PDF-Umbau" unten.
+
+Der frühere Eintrag "Büro-Suche findet Aufgaben unabhängig von der Zuweisung" ist mit 1.4.4
+vollständig aufgelöst: `_search_tasks()` (`app/search.py`) nutzt seither `list_tasks_for_user()`
+(`app/tasks.py`) und findet damit dieselbe Menge wie `GET /api/tasks`, siehe Abschnitt
+"Büro-Suche" -> "Nachtrag (seit 1.4.4)" unten.

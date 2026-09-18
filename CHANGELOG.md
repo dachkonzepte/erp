@@ -4,6 +4,39 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.4.4 – Nachtrag zu 1.4.3: Büro-Suche findet Aufgaben über dieselbe Sichtbarkeitsregel
+
+Der bei 1.4.3 transparent gemeldete, offene Punkt wurde behoben, solange der Zusammenhang noch
+frisch war: die Büro-Suche (`app/search.py::_search_tasks()`) hatte keine Mitarbeiter-Filterung
+-- ein Büro-Konto fand darüber auch die persönlich zugewiesene Aufgabe eines Kollegen, genau die
+Grenze, die 1.4.3 für `GET /api/tasks`/das Dashboard gezogen hatte.
+
+**Keine zweite Kopie der Regel, wie ausdrücklich verlangt.** `app/tasks.py::list_tasks()`/
+`list_tasks_for_user()` bekommen einen neuen, optionalen `search: str | None`-Parameter
+(Titel-ILIKE). `_search_tasks()` ruft `list_tasks_for_user()` seither ZWEIMAL auf -- einmal ohne
+`unassigned_only` (eigene Aufgaben), einmal mit (empfängerlose) -- und vereinigt beide Listen
+(Duplikate über die `id` entfernt), statt eine eigene, dritte Filterlogik nachzubauen:
+`list_tasks_for_user()` liefert für die getrennten Board-Tabs bewusst ENTWEDER eigene ODER
+empfängerlose Aufgaben, die Suche braucht dagegen beide kombiniert. Ein Büro-Konto ohne
+Mitarbeiterverknüpfung kann "eigene" nicht bestimmen (`ValueError`, abgefangen) -- findet aber
+weiterhin die empfängerlosen, statt komplett leer zu bleiben.
+
+`search_office()` bekommt einen neuen, optionalen `employee_id`-Parameter (nur für die
+"tasks"-Quelle relevant, Default `None` -- kein bestehender Aufrufer musste sich ändern). Ein
+transientes, nie persistiertes `AppUser(role=role, employee_id=employee_id)`-Objekt trägt beide
+Werte in `list_tasks_for_user()` hinein. Bewusst KEIN einheitlicher 4-Parameter-`query_fn` für
+alle 18 Quellen (hätte 17 unbeteiligte Funktionssignaturen um einen ungenutzten Parameter
+erweitert) -- die Dispatch-Schleife behandelt "tasks" stattdessen als einzigen, klar
+kommentierten Sonderfall. `_task_row()` liest seither ein Dict (`task_to_dict()`-Schema) statt
+eines ORM-`Task`-Objekts.
+
+**Der verlangte Angriffstest** (vier neue Tests in `tests/test_v270_office_search.py`, Kernfunktions-
+UND echter Router-Test): ein Büro-Konto findet über die Suche die eigenen und die empfängerlosen
+Aufgaben, nie die eines Kollegen -- auch nicht ohne eigene Mitarbeiterverknüpfung (dann nur die
+empfängerlosen). Admin findet alle. Ein Monteur findet über die Büro-Suche weiterhin gar
+nichts -- unverändert bereits über die Registry-Rollenprüfung/`require_role()` am Router
+abgedeckt, kein neuer Test dafür nötig. Volle Suite: 1466 Tests grün.
+
 ## 1.4.3 – Änderung am Aufgabenmodul: empfängerlose Aufgaben für ganz Büro sichtbar, Übernehmen/Zurückgeben
 
 Bug-Meldung aus 1.4.2 ("eine unassigned Aufgabe ist für Nicht-Admin-Büro-Konten unsichtbar") war

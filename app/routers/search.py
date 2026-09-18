@@ -42,4 +42,4 @@ def get_office_search(
     Treffer je Datensatzart erzwingen, unabhängig vom übergebenen Wert."""
     type_filter = frozenset(t.strip() for t in types.split(",") if t.strip()) if types else None
     capped_limit = max(1, min(limit, 100))
-    return search_office(db, _role.role, q, limit_per_type=capped_limit, types=type_filter)
+    return search_office(db, _role.role, q, limit_per_type=capped_limit, types=type_filter, employee_id=_role.employee_id)

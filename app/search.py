@@ -79,7 +79,17 @@ Kennzeichen/Artikelnummer -- bei einem ressourcenverknüpften Asset (resource_id
 die eigenen Identitätsfelder auf OperationalAsset selbst NULL (siehe app/operational_assets.py-
 Moduldocstring), deshalb outerjoin auf OperationalResource UND row_fn über
 resolve_asset_identity() -- derselbe Helfer, den auch die Betriebsmittelseite selbst nutzt,
-kann also nie einen anderen Namen zeigen."""
+kann also nie einen anderen Namen zeigen.
+
+=== Nachtrag (seit 1.4.4): Aufgaben-Sichtbarkeit in der Büro-Suche ===
+
+Gemeldete Lücke aus 1.4.3: _search_tasks() hatte keine Mitarbeiterfilterung -- ein Büro-Konto
+fand darüber auch die persönlich zugewiesene Aufgabe eines Kollegen, genau die Grenze, die
+list_tasks_for_user() (GET /api/tasks, Dashboard) seit 1.4.3 zieht. Behoben durch tatsächliche
+Wiederverwendung von list_tasks_for_user() (app/tasks.py) statt einer zweiten, hier nachgebauten
+Kopie der Regel -- search_office() bekommt dafür einen neuen, optionalen `employee_id`-Parameter
+(nur für die "tasks"-Quelle relevant) und dispatcht "tasks" als einzigen Sonderfall mit
+zusätzlichem role/employee_id-Argument, siehe _search_tasks()/search_office() für die Details."""
 
 from dataclasses import dataclass
 from typing import Callable
@@ -90,12 +100,13 @@ from sqlalchemy.orm import Session, selectinload
 from .materials import list_materials
 from .modules import is_module_enabled
 from .models import (
-    Customer, CustomerProfile, Employee, Finding, Inquiry, Invoice, MaintenanceContract, Material,
-    OperationalAsset, OperationalResource, Order, Project, Property, Quote, Reminder, RoofArea, Service,
-    ServiceReport, Supplier, Task,
+    AppUser, Customer, CustomerProfile, Employee, Finding, Inquiry, Invoice, MaintenanceContract,
+    Material, OperationalAsset, OperationalResource, Order, Project, Property, Quote, Reminder,
+    RoofArea, Service, ServiceReport, Supplier,
 )
 from .operational_assets import resolve_asset_identity
 from .permissions import ROLE_ADMIN, ROLE_OFFICE
+from .tasks import list_tasks_for_user
 
 MIN_QUERY_LENGTH = 2
 SEARCH_RESULT_LIMIT = 10
@@ -178,7 +189,11 @@ class SearchSource:
     key: str
     label: str
     allowed_roles: frozenset[str]
-    query_fn: Callable[[Session, str, int], tuple[int, list]]
+    # (Session, str, int) -> (total, rows) für jede Quelle außer "tasks" -- deren query_fn
+    # (_search_tasks()) braucht zusätzlich role/employee_id, siehe search_office()s Dispatch-
+    # Sonderfall dafür. Kein eigenes Feld dafür in dieser Dataclass, um die 17 übrigen Quellen
+    # nicht mit einer ungenutzten Signaturerweiterung zu belasten (siehe _search_tasks()-Docstring).
+    query_fn: Callable[..., tuple[int, list]]
     row_fn: Callable[[object], dict]
     module_key: str | None = None
 
@@ -371,16 +386,45 @@ def _inquiry_row(i: Inquiry) -> dict:
     return {"id": i.id, "title": f"{i.inquiry_number} · {i.title}", "subtitle": i.customer.name, "url": f"/inquiries?inquiry={i.id}"}
 
 
-# --- Aufgaben (Modul "aufgabenmanagement") ---
+# --- Aufgaben (Modul "aufgabenmanagement") -- EINZIGE Quelle, deren Sichtbarkeit vom Aufrufer
+# selbst abhängt (Büro sieht nur die eigenen UND die empfängerlosen Aufgaben, nie die eines
+# Kollegen -- exakt die Regel, die list_tasks_for_user()/GET /api/tasks seit 1.4.3 durchsetzt,
+# siehe CLAUDE.md "Änderung am Aufgabenmodul"). Der ursprüngliche Fund, der zu dieser Ergänzung
+# führte: _search_tasks() hatte KEINE Mitarbeiterfilterung, ein Büro-Konto fand darüber auch die
+# persönlich zugewiesene Aufgabe eines Kollegen -- genau die Grenze, die 1.4.3 in der Aufgaben-
+# liste gezogen hatte, stand in der Suche wieder offen. ---
 
-def _search_tasks(db: Session, term: str, limit: int) -> tuple[int, list]:
-    pattern = f"%{term}%"
-    stmt = select(Task).where(Task.title.ilike(pattern))
-    return _count_and_fetch(db, stmt, Task.id.desc(), limit, options=(selectinload(Task.project),))
+def _search_tasks(db: Session, term: str, limit: int, role: str, employee_id: int | None) -> tuple[int, list]:
+    """Nutzt list_tasks_for_user() (app/tasks.py) -- DIESELBE Filterfunktion wie GET /api/tasks/
+    das Dashboard, keine zweite, hier nachgebaute Kopie der Regel (genau das war die Ursache der
+    ursprünglichen Lücke: zwei Stellen, eine Regel, nur an einer gepflegt). Ein transientes,
+    nie persistiertes AppUser-Objekt trägt Rolle/employee_id in list_tasks_for_user() hinein --
+    dieselbe Technik wie router_test_client()s Test-Identität, kein neuer Mechanismus.
+
+    Zwei Aufrufe statt einem: list_tasks_for_user() liefert für die getrennten Board-Tabs
+    ("Meine Aufgaben"/"Offene Büro-Aufgaben") bewusst ENTWEDER die eigenen ODER die
+    empfängerlosen Aufgaben (unassigned_only ist ein Entweder-Oder-Schalter) -- die Suche
+    braucht dagegen beide KOMBINIERT in einer einzigen Trefferliste. Ein Büro-Konto ohne
+    Mitarbeiterverknüpfung kann "eigene" nicht bestimmen (ValueError, siehe dort) -- das wird
+    hier abgefangen, damit wenigstens die empfängerlosen weiterhin gefunden werden, statt die
+    ganze Suche für dieses Konto leer zu lassen (dieselbe Großzügigkeit wie beim direkten Sehen
+    des gemeinsamen Eingangs). Ein Monteur erreicht diese Funktion ohnehin nie -- search_office()
+    filtert "tasks" bereits über allowed_roles aus, list_tasks_for_user() verweigert zusätzlich
+    (leere Liste) als zweite, unabhängige Absicherung."""
+    user = AppUser(role=role, employee_id=employee_id)
+    try:
+        own = list_tasks_for_user(db, user, include_archived=True, search=term)
+    except ValueError:
+        own = []
+    unassigned = list_tasks_for_user(db, user, include_archived=True, unassigned_only=True, search=term)
+    seen_ids = {t["id"] for t in own}
+    combined = own + [t for t in unassigned if t["id"] not in seen_ids]
+    combined.sort(key=lambda t: t["id"], reverse=True)
+    return len(combined), combined[:limit]
 
 
-def _task_row(t: Task) -> dict:
-    return {"id": t.id, "title": t.title, "subtitle": t.project.name if t.project else None, "url": f"/tasks?task={t.id}"}
+def _task_row(t: dict) -> dict:
+    return {"id": t["id"], "title": t["title"], "subtitle": t["project_name"], "url": f"/tasks?task={t['id']}"}
 
 
 # --- Mitarbeiter ---
@@ -582,6 +626,7 @@ OFFICE_SEARCH_SOURCES: tuple[SearchSource, ...] = (
 def search_office(
     db: Session, role: str, query: str, *,
     limit_per_type: int = OFFICE_SEARCH_RESULT_LIMIT, types: frozenset[str] | None = None,
+    employee_id: int | None = None,
 ) -> list[dict]:
     """Der EINE Dispatcher der Büro-Suche (siehe Moduldocstring) -- geht OFFICE_SEARCH_SOURCES
     durch und filtert dreifach: Rolle (source.allowed_roles -- ein Monteur bekommt aus JEDER
@@ -589,6 +634,11 @@ def search_office(
     primäre Sicherung ist trotzdem der Router selbst, siehe app/routers/search.py), optionaler
     `types`-Filter (Client-Parameter, welche Datensatzarten überhaupt durchsucht werden sollen),
     Modul-Zustand (source.module_key, falls gesetzt -- dritte, von der Rolle unabhängige Achse).
+
+    `employee_id` (seit 1.4.4, siehe CLAUDE.md "Änderung am Aufgabenmodul") ist ausschließlich
+    für die "tasks"-Quelle relevant -- jede andere Quelle ignoriert ihn, unverändert. Optional
+    mit Default None, damit kein bestehender Aufrufer sich ändern muss (ein Admin-Aufruf ohne
+    employee_id sieht über _search_tasks() weiterhin alles, exakt wie vorher).
 
     Liefert nur Gruppen mit mindestens einem Treffer (total > 0) -- eine leere Gruppe wäre auf
     der Ergebnisseite nur Rauschen. Prüft MIN_QUERY_LENGTH EINMAL zentral, bevor irgendeine der
@@ -605,7 +655,13 @@ def search_office(
             continue
         if source.module_key is not None and not is_module_enabled(db, source.module_key):
             continue
-        total, rows = source.query_fn(db, term, limit_per_type)
+        if source.key == "tasks":
+            # Einzige Quelle, die pro Aufrufer scopen muss (siehe _search_tasks()-Docstring) --
+            # bekommt deshalb zusätzlich role/employee_id, jede andere Quelle bleibt beim
+            # einheitlichen 3-Parameter-Aufruf.
+            total, rows = source.query_fn(db, term, limit_per_type, role, employee_id)
+        else:
+            total, rows = source.query_fn(db, term, limit_per_type)
         if total == 0:
             continue
         groups.append({
