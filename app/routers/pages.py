@@ -178,6 +178,9 @@ templates.env.globals["can"] = _can
 # login_page()/der 403-Exception-Handler: die Rolle entscheidet das Ziel, nicht der aufgerufene Weg.
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 _any_role_dep = Depends(require_min_role(ROLE_FIELD))
+# Betriebskosten-Übersicht ist Teil der Finanzen-Achse (Rechtekonzept Etappe 2, 1.4.8) -- ein
+# buero_auftrag-Konto darf diese Seite an keiner Stelle öffnen, nicht nur die API dahinter.
+_finanzen_role_dep = Depends(require_min_role(ROLE_OFFICE_FINANZEN))
 
 
 def _require_users_page_access(request: Request, db: Session = Depends(get_db)) -> AppUser | None:
@@ -305,6 +308,15 @@ def maintenance_contract_page(request: Request, contract_id: int, _role: AppUser
     return templates.TemplateResponse(
         request=request, name="maintenance_contract.html", context={"contract_id": contract_id}
     )
+
+
+@router.get("/betriebskosten", response_class=HTMLResponse)
+def recurring_costs_page(request: Request, _role: AppUser = _finanzen_role_dep):
+    """Betriebskosten-Übersicht (seit 1.5.0) -- buero_finanzen-only (siehe _finanzen_role_dep
+    oben), kein Modul-Check auf der Seitenroute selbst (etablierte Konvention, siehe
+    maintenance_contracts_page()), der API-Endpunkt dahinter prüft is_module_enabled()
+    unabhängig davon."""
+    return templates.TemplateResponse(request=request, name="recurring_costs.html", context={})
 
 
 @router.get("/betriebsmittel/{asset_id}", response_class=HTMLResponse)

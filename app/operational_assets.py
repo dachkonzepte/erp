@@ -47,7 +47,7 @@ from .date_utils import add_months
 from .modules import is_module_enabled
 from .models import (
     OperationalAsset, OperationalAssetDocument, OperationalAssetInspection, OperationalAssetSettings,
-    OperationalResource, ServiceReportAsset,
+    OperationalResource, RecurringCost, ServiceReportAsset,
 )
 from .operational_asset_documents import delete_document_file
 from .tasks import create_task
@@ -166,13 +166,28 @@ def _document_to_dict(document: OperationalAssetDocument) -> dict:
     }
 
 
-def asset_to_dict(asset: OperationalAsset, lead_days: int, *, today: date | None = None) -> dict:
+def asset_to_dict(asset: OperationalAsset, lead_days: int, *, today: date | None = None,
+                   db: Session | None = None) -> dict:
     """Löst bei verknüpfter Ressource die Identitätsfelder LIVE auf -- niemals von
     OperationalAsset selbst gelesen, solange resource_id gesetzt ist (siehe Moduldocstring).
     Bewusst die einzige Stelle, die je documents befüllt -- asset_field_dict() (Rolle `field`)
     kennt dieses Feld an keiner Stelle, ein Monteur bekommt es dadurch strukturell nie, auch
-    nicht über den QR-Code (siehe Klassendocstring von OperationalAssetDocument)."""
+    nicht über den QR-Code (siehe Klassendocstring von OperationalAssetDocument).
+
+    has_linked_recurring_cost (seit 1.5.0, Betriebskosten-Übersicht): true, wenn mindestens ein
+    aktiver RecurringCost (app/recurring_costs.py) auf dieses Betriebsmittel zeigt -- der
+    Transparenz-Hinweis auf DIESER Seite der Doppelzählungsfrage (das Gegenstück ist
+    asset_quick_cost_hint auf RecurringCostOut). Nur berechnet, wenn eine db-Session übergeben
+    wird (Muster: optionaler Parameter statt einer Pflichtabhängigkeit, da asset_to_dict() auch
+    ohne DB-Zugriff aufgerufen werden könnte) -- ohne db bleibt es konservativ False."""
     name, asset_type, manufacturer, model, identifier, resource_number = resolve_asset_identity(asset)
+    has_linked_recurring_cost = False
+    if db is not None:
+        has_linked_recurring_cost = db.scalar(
+            select(RecurringCost.id)
+            .where(RecurringCost.asset_id == asset.id, RecurringCost.active == True)  # noqa: E712
+            .limit(1)
+        ) is not None
 
     inspections = [_inspection_to_dict(i, lead_days, today=today) for i in asset.inspections]
     due_dates = [i["next_due_date"] for i in inspections if i["next_due_date"] is not None]
@@ -200,6 +215,7 @@ def asset_to_dict(asset: OperationalAsset, lead_days: int, *, today: date | None
         "cost_notes": asset.cost_notes,
         "active": asset.active,
         "selectable_in_reports": asset.selectable_in_reports,
+        "has_linked_recurring_cost": has_linked_recurring_cost,
         "is_due": is_due,
         "is_overdue": is_overdue,
         "next_due_date": next_due_date,
@@ -224,7 +240,7 @@ def get_asset(db: Session, asset_id: int) -> dict | None:
     if asset is None:
         return None
     lead_days = get_or_create_operational_asset_settings(db).reminder_lead_days
-    return asset_to_dict(asset, lead_days)
+    return asset_to_dict(asset, lead_days, db=db)
 
 
 def get_asset_field(db: Session, asset_id: int) -> dict | None:
@@ -241,7 +257,7 @@ def list_assets(db: Session, *, include_inactive: bool = True) -> list[dict]:
     if not include_inactive:
         query = query.where(OperationalAsset.active == True)  # noqa: E712
     query = query.order_by(OperationalAsset.name)
-    return [asset_to_dict(a, lead_days) for a in db.scalars(query).all()]
+    return [asset_to_dict(a, lead_days, db=db) for a in db.scalars(query).all()]
 
 
 def list_due_assets(db: Session) -> list[dict]:
@@ -302,7 +318,7 @@ def create_asset(db: Session, payload: dict) -> dict:
     db.add(asset)
     db.commit()
     lead_days = get_or_create_operational_asset_settings(db).reminder_lead_days
-    return asset_to_dict(_load(db, asset.id), lead_days)
+    return asset_to_dict(_load(db, asset.id), lead_days, db=db)
 
 
 def update_asset(db: Session, asset_id: int, payload: dict) -> dict | None:
@@ -331,7 +347,7 @@ def update_asset(db: Session, asset_id: int, payload: dict) -> dict | None:
     asset.selectable_in_reports = payload.get("selectable_in_reports", False)
     db.commit()
     lead_days = get_or_create_operational_asset_settings(db).reminder_lead_days
-    return asset_to_dict(_load(db, asset.id), lead_days)
+    return asset_to_dict(_load(db, asset.id), lead_days, db=db)
 
 
 def delete_asset(db: Session, asset_id: int) -> bool:

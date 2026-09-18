@@ -71,6 +71,12 @@
         <button type="button" data-settings-section="labor-rate" onclick="showSettingsSection('labor-rate')">Stundenverrechnungssatz<span class="menu-sub">Mittellohn und Verrechnungssatz</span></button>
         <button type="button" data-settings-section="calculation" onclick="showSettingsSection('calculation')">Kalkulationsgrundlagen<span class="menu-sub">Material, Zuschläge, Zeitwerte</span></button>
       </div>
+      {# Betriebskosten-Übersicht (seit 1.5.0) gehört zur selben Finanzen-Achse wie oben --
+         buero_auftrag sieht diesen Menüpunkt deshalb ebenfalls nicht. #}
+      <div class="settings-group">Betriebskosten</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="recurring-costs" onclick="showSettingsSection('recurring-costs')">Betriebskosten<span class="menu-sub">Vorlaufzeit für Kündigungsfristen</span></button>
+      </div>
       {% endif %}
       <div class="settings-group">Planung</div>
       <div class="settings-menu">
@@ -496,6 +502,17 @@
     <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin:5px 0 14px"><input id="sourceMinutes" type="checkbox" style="width:auto"> Importierte „Baustellenzeit“ als Minuten je Einheit interpretieren</label>
     <button onclick="saveCalculation()">Kalkulationsgrundlagen speichern</button><span id="calcStatus" class="status"></span>
   </section>
+
+  <section class="card settings-section" id="settings-recurring-costs">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Betriebskosten</h2><div class="muted small">Einstellungen für das Modul Betriebskosten-Übersicht.</div></div></div>
+    <div id="recurringCostModuleDisabledNotice" class="hint" style="display:none">Das Modul Betriebskosten-Übersicht ist aktuell deaktiviert (siehe „Module" oben) -- die folgende Einstellung wirkt erst, wenn es wieder aktiv ist.</div>
+    <div id="recurringCostModuleContent">
+      <div class="fields">
+        <div class="field"><label>Vorlaufzeit für Kündigungsfristen (Tage)</label><input id="recurringCostLeadDays" type="number" min="0"><div class="muted small">Ab wie vielen Tagen vor der berechneten Kündigungsfrist eine Aufgabe für Büro-Finanzen erzeugt wird.</div></div>
+      </div>
+      <button onclick="saveRecurringCostSettings()">Speichern</button><span id="recurringCostSettingsStatus" class="status"></span>
+    </div>
+  </section>
   {% endif %}
 
   <section class="card settings-section" id="settings-planning">
@@ -658,7 +675,7 @@ const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
   refreshStatusColors();
 })();
 const v=id=>document.getElementById(id).value.trim();const nv=id=>v(id)||null;const setv=(id,x)=>document.getElementById(id).value=x??'';
-const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','operational-assets','mobile'];
+const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','recurring-costs','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','operational-assets','mobile'];
 function showSettingsSection(key,updateHash=true){
   if(!SETTINGS_SECTIONS.includes(key))key='general';
   document.querySelectorAll('.settings-section').forEach(x=>x.classList.toggle('active',x.id===`settings-${key}`));
@@ -706,11 +723,12 @@ async function load(){
   if(canSeeCalculationSettings){
     setv('laborRate',c.labor_rate);setv('materialMarkup',c.material_markup_pct);setv('overhead',c.overhead_pct);setv('riskProfit',c.risk_profit_pct);document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
     setv('employerCostPct',lr.employer_cost_pct);setv('productiveTimePct',lr.productive_time_pct);setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',lr.fixed_overhead_value||0);setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',lr.variable_overhead_value||0);setv('targetProfitPct',lr.target_profit_pct);setv('weeksPerYear',lr.weeks_per_year);syncOverheadLabels();renderLaborRate(lrc);
+    loadRecurringCostsSettingsSection();
   }
   sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();document.getElementById('autoCreateDraftsCheckbox').checked=!!rs.auto_create_drafts;moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadDocumentCategoriesSection();loadMobileSection();loadDocumentLayoutSection();loadProjectPipelineSection();}
 
 function renderModuleStates(){document.getElementById('moduleRows').innerHTML=moduleStates.length?moduleStates.map(m=>`<div class="field"><label style="display:flex;align-items:center;gap:10px;font-weight:650"><input type="checkbox" style="width:auto" ${m.enabled?'checked':''} onchange="toggleModule('${m.module_key}',this.checked)"> ${esc(m.label)}</label><span id="moduleStatus-${m.module_key}" class="status"></span></div>`).join(''):'<div class="muted small">Keine optionalen Module registriert.</div>'}
-async function toggleModule(key,checked){const st=document.getElementById('moduleStatus-'+key);try{await api(`/api/modules/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:checked})});moduleStates=await api('/api/modules');st.textContent=checked?'Aktiviert.':'Deaktiviert.';loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection()}catch(e){st.textContent='Fehler: '+e.message}}
+async function toggleModule(key,checked){const st=document.getElementById('moduleStatus-'+key);try{await api(`/api/modules/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:checked})});moduleStates=await api('/api/modules');st.textContent=checked?'Aktiviert.':'Deaktiviert.';loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();if(canSeeCalculationSettings)loadRecurringCostsSettingsSection()}catch(e){st.textContent='Fehler: '+e.message}}
 
 async function loadOperationalAssetSection(){
   const entry=moduleStates.find(m=>m.module_key==='betriebsmittel');
@@ -728,6 +746,29 @@ async function saveOperationalAssetSettings(){
   const leadDays=Number(document.getElementById('operationalAssetLeadDays').value||0);
   try{
     await api('/api/operational-asset-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reminder_lead_days:leadDays})});
+    st.className='status';st.textContent='Gespeichert.';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+// Betriebskosten-Übersicht (seit 1.5.0) -- nur aufgerufen, wenn canSeeCalculationSettings
+// (buero_finanzen/admin), siehe load()/toggleModule() oben: die DOM-Elemente existieren für
+// buero_auftrag gar nicht erst (Jinja hat den ganzen <section>-Block entfernt).
+async function loadRecurringCostsSettingsSection(){
+  const entry=moduleStates.find(m=>m.module_key==='betriebskosten');
+  const isEnabled=entry?entry.enabled:true;
+  document.getElementById('recurringCostModuleDisabledNotice').style.display=isEnabled?'none':'block';
+  document.getElementById('recurringCostModuleContent').style.display=isEnabled?'block':'none';
+  if(!isEnabled)return;
+  try{
+    const settings=await api('/api/recurring-cost-settings');
+    document.getElementById('recurringCostLeadDays').value=settings.reminder_lead_days;
+  }catch(e){document.getElementById('recurringCostSettingsStatus').textContent='Fehler: '+e.message}
+}
+async function saveRecurringCostSettings(){
+  const st=document.getElementById('recurringCostSettingsStatus');
+  const leadDays=Number(document.getElementById('recurringCostLeadDays').value||0);
+  try{
+    await api('/api/recurring-cost-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reminder_lead_days:leadDays})});
     st.className='status';st.textContent='Gespeichert.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }

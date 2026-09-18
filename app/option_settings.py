@@ -152,6 +152,34 @@ DEFAULT_OPTION_GROUPS = {
             (30, "Sonstiges", "Sonstiges", False),
         ],
     },
+    # Seit 1.5.0 (Betriebskosten-Übersicht Schicht 1): dasselbe leichtgewichtige Muster wie
+    # operational_asset_inspection_types/-document_types oben -- freie, self-seedende
+    # Auswahllisten statt einer eigenen Stammdatentabelle, da category/document_type hier keine
+    # eigene Konfiguration (Sichtbarkeits-/Sensibilitätsflags) tragen müssen.
+    "recurring_cost_categories": {
+        "label": "Kategorien · Betriebskosten",
+        "description": "Zentrale Auswahl für die Kategorisierung wiederkehrender Kostenposten.",
+        "sort_order": 68,
+        "options": [
+            (10, "Miete", "Miete", True),
+            (20, "Leasing", "Leasing", False),
+            (30, "Versicherung", "Versicherung", False),
+            (40, "Software / Abonnements", "Software / Abonnements", False),
+            (50, "Wartungsvertrag", "Wartungsvertrag", False),
+            (60, "Sonstiges", "Sonstiges", False),
+        ],
+    },
+    "recurring_cost_document_types": {
+        "label": "Dokumentarten · Betriebskosten",
+        "description": "Zentrale Auswahl für die Dokumentenablage je Kostenposten (Vertrag, Rechnung, Kündigungsschreiben u. Ä.).",
+        "sort_order": 68,
+        "options": [
+            (10, "Vertrag", "Vertrag", True),
+            (20, "Rechnung", "Rechnung", False),
+            (30, "Kündigungsschreiben", "Kündigungsschreiben", False),
+            (40, "Sonstiges", "Sonstiges", False),
+        ],
+    },
     "service_types": {
         "label": "Leistungstypen",
         "description": "Klassifizierung eigener (nicht importierter) Leistungen für spätere Auswertungen.",

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .email_sending import send_plain_email
 from .models import AppUser, Employee, Task, TaskChecklistItem, TaskColumn, TaskSettings
-from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, has_min_role, has_role
+from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLES, has_min_role, has_role
 from .task_columns import ensure_default_columns
 
 PRIORITIES = ("niedrig", "normal", "hoch", "dringend")
@@ -65,6 +65,7 @@ def task_to_dict(task: Task, columns_by_key: dict[str, TaskColumn] | None = None
         "source_module": task.source_module,
         "source_label": task.source_label,
         "source_url": task.source_url,
+        "min_visible_role": task.min_visible_role,
         "archived": task.archived,
         "checklist_items": [
             {"id": i.id, "title": i.title, "done": i.done} for i in sorted(task.checklist_items, key=lambda i: (i.sort_order, i.id))
@@ -127,7 +128,17 @@ def list_tasks_for_user(db: Session, user: AppUser, *, status: str | None = None
 
     search wird unverändert an list_tasks() durchgereicht (Titel-ILIKE) -- genutzt von
     app/search.py::_search_tasks() (Büro-Suche), damit die Sichtbarkeitsregel dort NICHT ein
-    zweites Mal nachgebaut wird, siehe dort."""
+    zweites Mal nachgebaut wird, siehe dort.
+
+    min_visible_role (seit 1.5.0, allgemeine Erweiterung des claim/release-Modells, nicht nur
+    für Betriebskosten -- siehe CLAUDE.md "Aufgabe"): eine empfängerlose Aufgabe kann optional
+    eine Ziel-Mindestrolle tragen. Der Filter wird UNBEDINGT auf jede zurückgegebene Zeile
+    angewendet (has_min_role(user, row.min_visible_role)), nicht nur im unassigned_only-Zweig --
+    für Konsistenz, auch wenn er praktisch nur dort greift (eine bereits einem konkreten
+    Mitarbeiter zugewiesene Aufgabe ist ohnehin nur für diesen selbst oder Admin sichtbar,
+    unabhängig von min_visible_role). Ein buero_auftrag-Konto sieht dadurch eine
+    finanz-adressierte Aufgabe an KEINER Stelle -- weder in der Liste noch im gemeinsamen
+    Büro-Eingang."""
     if not has_min_role(user, ROLE_OFFICE_AUFTRAG):
         return []
     if unassigned_only:
@@ -138,8 +149,9 @@ def list_tasks_for_user(db: Session, user: AppUser, *, status: str | None = None
         if user.employee_id is None:
             raise ValueError("Ihr Büro-Konto ist keinem Mitarbeiter zugeordnet.")
         effective_employee_id = user.employee_id
-    return list_tasks(db, employee_id=effective_employee_id, status=status, project_id=project_id,
+    rows = list_tasks(db, employee_id=effective_employee_id, status=status, project_id=project_id,
                        include_archived=include_archived, unassigned_only=unassigned_only, search=search)
+    return [r for r in rows if r["min_visible_role"] is None or has_min_role(user, r["min_visible_role"])]
 
 
 def claim_task(db: Session, task_id: int, user: AppUser) -> dict | None:
@@ -150,12 +162,21 @@ def claim_task(db: Session, task_id: int, user: AppUser) -> dict | None:
     bisherigen Monteur-Fall in GET /api/tasks) oder die Aufgabe bereits vergeben ist (verhindert,
     dass "Übernehmen" versehentlich eine Kollegen-Aufgabe stiehlt -- eine neue, bewusste Sperre,
     die die bestehende PUT-Zuweisung nicht kennt, da Übernehmen ausdrücklich nur für wirklich
-    empfängerlose Aufgaben gedacht ist)."""
+    empfängerlose Aufgaben gedacht ist).
+
+    Rollen-Gate (seit 1.5.0): trägt die Aufgabe ein min_visible_role, das die übernehmende
+    Person nicht erfüllt, wird mit PermissionError abgelehnt -- bewusst ein anderer
+    Exception-Typ als ValueError, damit der Router das als 403 (Rollenverstoß) statt 400
+    (Geschäftsregel) beantworten kann. Geprüft VOR der "bereits vergeben"-Prüfung, damit eine
+    geratene Aufgaben-ID einer fremden Rolle immer dasselbe 403 liefert, unabhängig vom
+    Zuweisungszustand."""
     if user.employee_id is None:
         raise ValueError("Ihr Büro-Konto ist keinem Mitarbeiter zugeordnet.")
     task = db.get(Task, task_id)
     if task is None:
         return None
+    if task.min_visible_role is not None and not has_min_role(user, task.min_visible_role):
+        raise PermissionError("Diese Aufgabe ist für Ihre Rolle nicht sichtbar.")
     if task.assigned_employee_id is not None:
         raise ValueError("Diese Aufgabe ist bereits vergeben.")
     task.assigned_employee_id = user.employee_id
@@ -226,9 +247,18 @@ def create_task(db: Session, title: str, description: str | None = None, priorit
                  due_date: date | None = None, assigned_employee_id: int | None = None,
                  project_id: int | None = None, created_by_user_id: int | None = None,
                  source_module: str | None = None, source_label: str | None = None,
-                 source_url: str | None = None, status: str | None = None) -> dict:
+                 source_url: str | None = None, status: str | None = None,
+                 min_visible_role: str | None = None) -> dict:
     """Legt eine neue Aufgabe an. Wird sowohl vom manuellen "+Aufgabe"-Endpunkt als auch
-    -- künftig -- direkt von anderen Modulen aufgerufen (siehe Modul-Docstring oben)."""
+    -- künftig -- direkt von anderen Modulen aufgerufen (siehe Modul-Docstring oben).
+
+    min_visible_role (seit 1.5.0): optionale Ziel-Mindestrolle für eine empfängerlose Aufgabe
+    (siehe list_tasks_for_user()/claim_task()). Wirkt unabhängig von assigned_employee_id --
+    bewusst nicht dagegen validiert, ob beide gleichzeitig gesetzt sind: eine bereits
+    zugewiesene Aufgabe wird über die Zuweisung selbst gesteuert, ein zusätzlich gesetztes
+    min_visible_role ist dann folgenlos, aber kein Fehler."""
+    if min_visible_role is not None and min_visible_role not in ROLES:
+        raise ValueError(f"Unbekannte Rolle: {min_visible_role}")
     columns_by_key = _columns_by_key(db)
     if status is None:
         status = _default_column_key(db)
@@ -238,7 +268,7 @@ def create_task(db: Session, title: str, description: str | None = None, priorit
         title=title.strip(), description=(description or None), status=status, priority=priority,
         due_date=due_date, assigned_employee_id=assigned_employee_id, project_id=project_id,
         created_by_user_id=created_by_user_id, source_module=source_module,
-        source_label=source_label, source_url=source_url,
+        source_label=source_label, source_url=source_url, min_visible_role=min_visible_role,
     )
     db.add(task)
     db.commit()
@@ -250,10 +280,12 @@ def create_task(db: Session, title: str, description: str | None = None, priorit
 
 def update_task(db: Session, task_id: int, title: str, description: str | None, status: str,
                  priority: str, due_date: date | None, assigned_employee_id: int | None,
-                 project_id: int | None) -> dict | None:
+                 project_id: int | None, min_visible_role: str | None = None) -> dict | None:
     task = db.get(Task, task_id)
     if task is None:
         return None
+    if min_visible_role is not None and min_visible_role not in ROLES:
+        raise ValueError(f"Unbekannte Rolle: {min_visible_role}")
     columns_by_key = _columns_by_key(db)
     _validate_status(status, columns_by_key)
     was_done = columns_by_key[task.status].is_done if task.status in columns_by_key else False
@@ -265,6 +297,7 @@ def update_task(db: Session, task_id: int, title: str, description: str | None, 
     task.due_date = due_date
     task.assigned_employee_id = assigned_employee_id
     task.project_id = project_id
+    task.min_visible_role = min_visible_role
     now_done = columns_by_key[status].is_done
     if now_done and not was_done:
         task.completed_at = datetime.utcnow()

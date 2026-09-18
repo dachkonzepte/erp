@@ -2363,6 +2363,14 @@ class Task(Base):
     source_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
+    # Rollen-Zielgruppe für empfängerlose Aufgaben (seit 1.5.0) -- allgemeine Erweiterung des
+    # claim/release-Modells (1.4.3), nicht nur für Betriebskosten. NULL = wie bisher an jedes
+    # Büro-/Admin-Konto (list_tasks_for_user()); z. B. "buero_finanzen" grenzt eine
+    # empfängerlose Aufgabe auf Finanzen+Admin ein (ROLE_RANK-Hierarchie, has_min_role()) -- ein
+    # buero_auftrag-Konto sieht/übernimmt sie dann nicht. Wirkt NUR auf empfängerlose Aufgaben;
+    # eine bereits zugewiesene Aufgabe ignoriert dieses Feld, die Zuweisung selbst entscheidet.
+    min_visible_role: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
+
     assigned_employee: Mapped["Employee | None"] = relationship()
     project: Mapped["Project | None"] = relationship()
     checklist_items: Mapped[list["TaskChecklistItem"]] = relationship(
@@ -3553,6 +3561,101 @@ class OperationalAssetSettings(Base):
     eigene, unabhängige Einstellung (kein gemeinsamer Datensatz mit dem Wartungsmodul)."""
 
     __tablename__ = "operational_asset_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    reminder_lead_days: Mapped[int] = mapped_column(default=30, server_default="30")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class RecurringCost(Base):
+    """Kostenposten der Betriebskosten-Übersicht (seit 1.5.0, Modul "betriebskosten") --
+    Schicht 1: reine Erfassung wiederkehrender Verträge (Miete, Leasing, Versicherung,
+    Software-Abo u. Ä.). Bewusst KEINE Migration der bestehenden
+    OperationalAsset.acquisition_cost/recurring_cost_per_month -- die monthly_cost am
+    Betriebsmittel ist eine schnelle Notiz beim Anlegen, dieser Kostenposten der detaillierte
+    Vertrag mit Partner/Kündigungsfrist/Dokument. Beide Quellen bestehen nebeneinander,
+    recurring_costs.py::overview_summary() führt sie in der Summe zusammen.
+
+    annual_amount ist ein GESPEICHERTES, normiertes Feld -- berechnet von
+    normalize_to_annual() (recurring_costs.py) bei jedem Anlegen/Ändern, NICHT bei jeder
+    Summierung neu aus amount/billing_interval berechnet. **ANDOCKPUNKT für den späteren
+    Verrechnungssatz-Kreislauf**: Schicht 3 summiert annual_amount über alle aktiven Posten
+    und speist das Ergebnis in LaborRateOverheadSettings.fixed_overhead_value (Modus "eur")
+    ein -- siehe app/labor_rate.py::calculate_labor_rate(), dort ist `fixed_overhead` bereits
+    heute die Summe genau solcher Fixkosten, nur noch händisch einzutragen. Diese Spalte ist
+    der Wert, den ein künftiger automatischer Kreislauf dort einsetzen wird -- keine neue
+    Stelle nötig, nur diese eine Summe.
+
+    asset_id ist OPTIONAL: zeigt ein Kostenposten auf ein Betriebsmittel, ERSETZT er dessen
+    monthly_cost in der Betriebskosten-Summe (overview_summary() schließt
+    OperationalAsset.recurring_cost_per_month für jedes Asset mit mindestens einem aktiven,
+    verknüpften RecurringCost aus der Summe aus) -- kein Doppelzählen derselben Leasingrate.
+    Absichtlich KEIN Unique-Constraint auf asset_id: ein Betriebsmittel kann mehrere
+    unabhängige Kostenposten tragen (z. B. Leasingrate UND Versicherung für denselben
+    Transporter), die Ersetzungsregel greift bereits, sobald IRGENDEIN verknüpfter Posten
+    existiert.
+
+    billing_interval ist ein fester Code-Wert (BILLING_INTERVALS in recurring_costs.py, keine
+    Optionsgruppe -- wie SEVERITIES/ACTIONS/STATUSES bei Finding). "einmalig" ist bereits ein
+    gültiger Wert (kein DB-Constraint auf dieser Spalte, nur Pydantic prüft die erlaubte
+    Menge) -- normalize_to_annual() liefert dafür bewusst 0 (kein laufender Jahresbetrag,
+    fließt nicht in die wiederkehrende Summe ein), der Posten selbst bleibt sichtbar. Eine
+    eigene Erfassungsoberfläche für einmalige Kosten ist NICHT Teil von Schicht 1 -- das
+    Modell steht ihr nicht im Weg, siehe CLAUDE.md."""
+
+    __tablename__ = "recurring_costs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    label: Mapped[str] = mapped_column(String(255))
+    category: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    billing_interval: Mapped[str] = mapped_column(String(20))
+    annual_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    vendor: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    contract_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notice_period_months: Mapped[int | None] = mapped_column(nullable=True)
+    asset_id: Mapped[int | None] = mapped_column(ForeignKey("operational_assets.id"), nullable=True, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", index=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_reminder_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    asset: Mapped["OperationalAsset | None"] = relationship()
+    documents: Mapped[list["RecurringCostDocument"]] = relationship(
+        back_populates="cost", cascade="all, delete-orphan", order_by="RecurringCostDocument.uploaded_at.desc()"
+    )
+
+
+class RecurringCostDocument(Base):
+    """Dokumentenablage je Kostenposten (seit 1.5.0) -- Vertrag, Rechnung, Kündigungsschreiben
+    u. Ä. Muster OperationalAssetDocument (1.4.2): mehrere unabhängige Dateien je Kostenposten,
+    document_type aus der self-seedenden Optionsgruppe recurring_cost_document_types statt
+    einer schwergewichtigen Stammdatentabelle -- Kostenposten-Dokumente sind ausnahmslos
+    Büro/Admin-only, keine Feld-sichtbare Stufe existiert. Löschen räumt die Datei über ein
+    before_delete-Event auf (app/recurring_costs.py, Muster app/roof_areas.py)."""
+
+    __tablename__ = "recurring_cost_documents"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    recurring_cost_id: Mapped[int] = mapped_column(ForeignKey("recurring_costs.id"), index=True)
+    document_type: Mapped[str] = mapped_column(String(80), index=True)
+    stored_filename: Mapped[str] = mapped_column(String(255))
+    original_filename: Mapped[str] = mapped_column(String(255))
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    cost: Mapped[RecurringCost] = relationship(back_populates="documents")
+
+
+class RecurringCostSettings(Base):
+    """Einstellungen für das Modul "betriebskosten" (seit 1.5.0), Singleton wie
+    OperationalAssetSettings/TaskSettings (immer genau eine Zeile mit id=1).
+    reminder_lead_days steuert, ab wie vielen Tagen VOR der berechneten Kündigungsfrist eine
+    Aufgabe erzeugt wird -- eigene, unabhängige Einstellung, kein gemeinsamer Datensatz mit
+    einem anderen Modul."""
+
+    __tablename__ = "recurring_cost_settings"
 
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
     reminder_lead_days: Mapped[int] = mapped_column(default=30, server_default="30")

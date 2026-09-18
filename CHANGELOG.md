@@ -4,6 +4,83 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.5.0 – Betriebskosten-Übersicht, Schicht 1 (Kostenerfassung)
+
+Neues Modul (`module_key "betriebskosten"`, buero_finanzen/admin-only) -- erst Befund zu den
+fünf Rückfragen aus der Anfrage berichtet, dann vier vom Betreiber entschiedene Punkte gebaut.
+Neue Tabelle `RecurringCost` (`app/models.py`) bildet den detaillierten wiederkehrenden Vertrag
+ab (Miete, Leasing, Versicherung, Software-Abo u. Ä.) -- **bewusst KEINE Migration** der
+bestehenden `OperationalAsset.acquisition_cost`/`recurring_cost_per_month`: die monatliche
+Kosten-Notiz am Betriebsmittel bleibt die schnelle Notiz beim Anlegen, der neue Kostenposten der
+detaillierte Vertrag mit Partner/Kündigungsfrist/Dokument, beide bestehen nebeneinander.
+
+**Doppelzählung verhindert, nicht nur erkannt**: zeigt ein Kostenposten optional auf ein
+Betriebsmittel (`RecurringCost.asset_id`), ERSETZT er dessen `recurring_cost_per_month` in der
+Betriebskosten-Summe (`app/recurring_costs.py::overview_summary()`), statt sie zu ergänzen --
+kein Unique-Constraint auf `asset_id` (ein Betriebsmittel kann mehrere unabhängige Kostenposten
+tragen, z. B. Leasingrate UND Versicherung), die Ersetzung greift bereits, sobald irgendein
+aktiver Posten existiert. Zwei Transparenz-Hinweise (Muster `material_markup_hint`): jeder
+Kostenposten mit `asset_id` trägt `asset_quick_cost_hint`, jedes Betriebsmittel trägt
+`has_linked_recurring_cost` (`OperationalAssetOut`, NICHT `OperationalAssetFieldOut`) -- beide
+nicht persistiert, reine Anzeigehinweise.
+
+**`annual_amount` -- der Andockpunkt für den späteren Verrechnungssatz-Kreislauf.** Ein
+GESPEICHERTES Feld, von `normalize_to_annual()` bei jedem Anlegen/Ändern berechnet (nicht bei
+jeder Summierung neu). Siehe `app/labor_rate.py::calculate_labor_rate()`/
+`LaborRateOverheadSettings.fixed_overhead_value` (Modus "eur") -- dort ist `fixed_overhead`
+bereits heute die Summe genau solcher Fixkosten, nur noch händisch eingetragen; die Summe aller
+aktiven `annual_amount`-Werte ist der Wert, den ein künftiger, automatischer Kreislauf dort
+einsetzen wird. Festgehalten in CLAUDE.md, mit Verweis auf die konkrete Codestelle.
+
+**Rhythmus als fester Code-Wert** (`BILLING_INTERVALS`, keine Optionsgruppe -- die Rechenregel
+gehört zum Code, nicht zur freien Konfiguration): monatlich/vierteljaehrlich/halbjaehrlich/
+jaehrlich/einmalig. "einmalig" ist bereits ein gültiger Wert (Punkt 4 der Anfrage) --
+`normalize_to_annual()` liefert dafür bewusst 0 (kein laufender Beitrag zur Summe), der Posten
+bleibt trotzdem sichtbar; eine eigene Erfassungsoberfläche für einmalige Kosten ist NICHT Teil
+dieser Version, das Modell steht ihr aber nicht im Weg.
+
+**Allgemeine Erweiterung des Aufgabenmodells, nicht nur für Betriebskosten**: neue, nullable
+Spalte `Task.min_visible_role` (String, seit 1.4.3 sitzt das claim/release-Modell bereits an
+`app/tasks.py::list_tasks_for_user()`/`claim_task()`) -- eine empfängerlose Aufgabe kann
+optional eine Ziel-Mindestrolle tragen. Ohne Angabe geht sie wie bisher an jedes Büro-/
+Admin-Konto; mit z. B. `buero_finanzen` nur an Finanzen und Admin, geprüft über die bereits
+bestehende `has_min_role()`-Hierarchie (kein zweiter Rollenvergleich). `list_tasks_for_user()`
+filtert jede zurückgegebene Zeile zusätzlich danach; `claim_task()` wirft ein neues, eigenes
+`PermissionError` (statt `ValueError`), wenn die übernehmende Rolle die Mindestrolle nicht
+erfüllt -- der Router (`app/routers/tasks.py::claim_task_endpoint()`) mappt das auf 403, getrennt
+von der 400-Zuordnung für Geschäftsregeln. Die Kündigungsfrist-Erinnerung
+(`check_due_cancellations_and_create_reminders()`, On-Demand wie beim Betriebsmittel-Modul)
+nutzt genau das: die Aufgabe geht NICHT unassigned ans ganze Büro, sondern trägt
+`min_visible_role=ROLE_OFFICE_FINANZEN` -- eine Kündigungsfrist geht nur Finanzen/Admin etwas an.
+
+**Kündigungsfrist als reine Ableitung**, nicht gespeichert: `cancellation_deadline()` =
+`contract_end_date` minus `notice_period_months` (`add_months()` mit negativem Vorzeichen,
+`app/date_utils.py`). `is_cancellation_due()`/`is_cancellation_overdue()` -- dasselbe
+Zwei-Stufen-Muster wie bei den Betriebsmittel-Prüffristen, eigene, unabhängige
+`RecurringCostSettings.reminder_lead_days` (Default 30 Tage).
+
+**Dokumentenablage** (`RecurringCostDocument`, Muster `OperationalAssetDocument`) -- mehrere
+unabhängige Dateien je Kostenposten (Vertrag, Rechnung, Kündigungsschreiben), `document_type`
+aus der neuen, self-seedenden Optionsgruppe `recurring_cost_document_types`; Löschen räumt die
+Datei über ein `before_delete`-Event auf. Zweite neue Optionsgruppe `recurring_cost_categories`
+für die Kategorisierung.
+
+**Oberfläche**: `GET /betriebskosten` (`app/templates/recurring_costs.html`) -- Summenkarte
+(Monats-/Jahresbetrag, Kündigungsfristen hervorgehoben, fällig getrennt von überfällig
+ausgewiesen), Anlegen/Bearbeiten-Formular samt Dokumentenablage, Liste mit Betriebsmittel-Bezug
+und Transparenz-Hinweis. Sidebar-Link unter Finanzen, STRENGER gegated als "Finanzen" selbst
+(nur `buero_finanzen`/admin, kein `buero_auftrag`) -- eigener `{% if %}`-Block, damit
+`buero_auftrag` "Finanzen"/"Mahnwesen" weiterhin sieht, nur diesen einen Eintrag nicht. Neue
+Einstellungen-Gruppe "Betriebskosten" (Vorlaufzeit für Kündigungsfristen), innerhalb desselben,
+bereits bestehenden `buero_finanzen`-gegateten Menüblocks wie Kalkulationsgrundlagen.
+
+**Abschließender Angriffstest, wie verlangt**: `buero_auftrag` und `field` kommen über KEINEN
+Weg an die Betriebskosten -- Liste, Einzelabruf, Übersicht/Summe, Dokumente (auch über eine
+geratene Datei-ID), und die finanz-adressierte Erinnerungs-Aufgabe (weder sichtbar noch
+übernehmbar, auch mit bekannter ID). Rekursiver Schlüssel-Scan, je ein Testkonto pro Rolle. Null
+durchgelassen. Migration `fc79aa5629d0`, 26 neue Tests
+(`tests/test_v283_recurring_costs.py`), volle Suite: 1558 Tests grün.
+
 ## 1.4.8 – Rechtekonzept: vier Rollen statt zwei, Etappe 2 (die Verengungen)
 
 Zweite und letzte Etappe des vom Betreiber beauftragten Rollen-Umbaus (siehe CLAUDE.md

@@ -1,0 +1,381 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Betriebskosten</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:1400px;margin:0;padding:20px}
+.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
+.field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
+input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+textarea{min-height:60px;resize:vertical}
+button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
+.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
+.hidden{display:none!important}
+.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
+.editor-card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.editor-card h2{margin:0 0 12px;font-size:16px}
+.fields-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+.editor-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.card{background:var(--card);border:1px solid var(--line);padding:0}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:650}
+tr:last-child td{border-bottom:none}
+.badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
+.badge.due{background:var(--warning-soft);color:var(--warning)}
+.badge.overdue{background:var(--danger);color:#fff}
+.badge.inactive{background:var(--soft);color:var(--muted)}
+.row-archived{opacity:.6}
+.row-overdue{background:var(--danger-soft)}
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.table-scroll{overflow-x:auto}
+.row-actions{display:flex;gap:6px;flex-wrap:wrap}
+.row-actions button{padding:5px 9px;font-size:12.5px}
+.metric-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:4px}
+.metric{background:var(--soft);border:1px solid var(--line);padding:12px 16px;min-width:170px}
+.metric .label{font-size:11.5px;color:var(--muted);text-transform:uppercase;font-weight:650;margin-bottom:4px}
+.metric .value{font-size:19px;font-weight:700}
+.hint-icon{cursor:help;color:var(--warning);font-weight:800}
+@media(max-width:900px){.fields-2col{grid-template-columns:1fr}table{font-size:12.5px}th,td{padding:8px}.metric{min-width:130px}}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+{% include "_topbar.html" %}
+<main>
+{% if is_module_enabled('betriebskosten') %}
+<div class="hero"><div><h1>Betriebskosten-Übersicht</h1><div class="muted small">Wiederkehrende Kostenposten (Miete, Leasing, Versicherung, Software u. Ä.) -- Kündigungsfristen und Jahressumme auf einen Blick.</div></div><div style="display:flex;gap:14px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650"><input type="checkbox" id="showInactive" style="width:auto" onchange="renderRows()"> Inaktive anzeigen</label><button onclick="openCreateEditor()">+ Kostenposten</button></div></div>
+
+<div class="editor-card">
+  <h2>Summe &amp; Kündigungsfristen</h2>
+  <div class="metric-row">
+    <div class="metric"><div class="label">Monatlich</div><div class="value" id="mMonthly">–</div></div>
+    <div class="metric"><div class="label">Jährlich</div><div class="value" id="mAnnual">–</div></div>
+    <div class="metric"><div class="label">Kostenposten</div><div class="value" id="mCount">–</div></div>
+    <div class="metric"><div class="label">Betriebsmittel-Notizen ohne Posten</div><div class="value" id="mAssetCount">–</div></div>
+  </div>
+  <div id="cancellationsOverview" style="margin-top:10px"></div>
+</div>
+
+<div id="editorCard" class="editor-card hidden">
+  <h2 id="editorTitle">Kostenposten anlegen</h2>
+  <div class="fields-2col">
+    <div class="field full"><label>Bezeichnung *</label><input id="editLabel" placeholder="z. B. Bürolokal Übach-Palenberg"></div>
+    <div class="field"><label>Kategorie</label><select id="editCategory"></select></div>
+    <div class="field"><label>Vertragspartner</label><input id="editVendor"></div>
+    <div class="field"><label>Betrag (EUR) *</label><input id="editAmount" type="number" step="0.01" min="0"></div>
+    <div class="field"><label>Rhythmus *</label><select id="editInterval">
+      <option value="monatlich">Monatlich</option>
+      <option value="vierteljaehrlich">Vierteljährlich</option>
+      <option value="halbjaehrlich">Halbjährlich</option>
+      <option value="jaehrlich">Jährlich</option>
+      <option value="einmalig">Einmalig</option>
+    </select></div>
+    <div class="field"><label>Vertragsende <span class="muted small">(optional)</span></label><input id="editContractEnd" type="date"></div>
+    <div class="field"><label>Kündigungsfrist (Monate) <span class="muted small">(optional)</span></label><input id="editNoticePeriod" type="number" min="1" max="24"></div>
+    <div class="field"><label>Betriebsmittel <span class="muted small">(optional -- ersetzt dessen monatliche Kosten-Notiz in der Summe)</span></label><select id="editAsset"></select></div>
+    <div class="field" id="editActiveWrap"><label>Status</label><select id="editActive"><option value="1">Aktiv</option><option value="0">Inaktiv</option></select></div>
+    <div class="field full"><label>Notizen</label><textarea id="editNotes"></textarea></div>
+  </div>
+  <div class="editor-actions">
+    <button onclick="saveCost()">Speichern</button>
+    <button class="secondary" onclick="closeEditor()">Abbrechen</button>
+    <span id="editorStatus" class="status"></span>
+  </div>
+
+  <div id="documentsSection" class="hidden" style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px">
+    <h2>Dokumente</h2>
+    <div class="fields-2col" style="margin-bottom:10px">
+      <div class="field"><label>Art</label><select id="docType"></select></div>
+      <div class="field"><label>Datei</label><input id="docFile" type="file"></div>
+      <div class="field full"><label>Notizen <span class="muted small">(optional)</span></label><input id="docNotes"></div>
+    </div>
+    <div class="editor-actions"><button onclick="submitDocument()">Hochladen</button><span id="docStatus" class="status"></span></div>
+    <div class="table-scroll" style="margin-top:10px"><table>
+      <thead><tr><th>Art</th><th>Datei</th><th>Hochgeladen</th><th>Notizen</th><th></th></tr></thead>
+      <tbody id="documentRows"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-scroll"><table>
+    <thead><tr><th>Bezeichnung</th><th>Kategorie</th><th>Betrag / Rhythmus</th><th>Jahresbetrag</th><th>Kündigungsfrist</th><th>Betriebsmittel</th><th>Status</th><th></th></tr></thead>
+    <tbody id="costRows"></tbody>
+  </table></div>
+</div>
+<span id="listStatus" class="status"></span>
+{% else %}
+<div class="editor-card"><h2>Betriebskosten-Übersicht</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+{% endif %}
+</main>
+</div>
+</div>
+<script>
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
+function fmtMoney(v){if(v==null)return'–';return Number(v).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'}
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
+
+const BILLING_LABELS={monatlich:'Monatlich',vierteljaehrlich:'Vierteljährlich',halbjaehrlich:'Halbjährlich',jaehrlich:'Jährlich',einmalig:'Einmalig'};
+
+let costs=[],categories=[],documentTypes=[],assets=[],currentEditId=null;
+
+function categoryOptionsHtml(selected){
+  return '<option value="">— keine —</option>'+categories.map(o=>`<option value="${esc(o.value)}" ${o.value===selected?'selected':''}>${esc(o.label)}</option>`).join('');
+}
+function documentTypeOptionsHtml(){
+  return documentTypes.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+}
+function assetOptionsHtml(selected){
+  const opts=assets.map(a=>`<option value="${a.id}" ${Number(selected)===a.id?'selected':''}>${esc(a.name||('#'+a.id))}</option>`).join('');
+  return '<option value="">— kein Betriebsmittel —</option>'+opts;
+}
+function assetName(id){
+  const a=assets.find(x=>x.id===id);
+  return a?(a.name||('#'+a.id)):('#'+id);
+}
+
+function openCreateEditor(){
+  currentEditId=null;
+  document.getElementById('editorTitle').textContent='Kostenposten anlegen';
+  document.getElementById('editLabel').value='';
+  document.getElementById('editCategory').innerHTML=categoryOptionsHtml(null);
+  document.getElementById('editVendor').value='';
+  document.getElementById('editAmount').value='';
+  document.getElementById('editInterval').value='monatlich';
+  document.getElementById('editContractEnd').value='';
+  document.getElementById('editNoticePeriod').value='';
+  document.getElementById('editAsset').innerHTML=assetOptionsHtml(null);
+  document.getElementById('editActive').value='1';
+  document.getElementById('editActiveWrap').classList.add('hidden');
+  document.getElementById('editNotes').value='';
+  document.getElementById('editorStatus').textContent='';
+  document.getElementById('documentsSection').classList.add('hidden');
+  document.getElementById('editorCard').classList.remove('hidden');
+  document.getElementById('editorCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function openEditEditor(id){
+  const c=costs.find(x=>x.id===id);
+  if(!c)return;
+  currentEditId=id;
+  document.getElementById('editorTitle').textContent='Kostenposten bearbeiten';
+  document.getElementById('editLabel').value=c.label;
+  document.getElementById('editCategory').innerHTML=categoryOptionsHtml(c.category);
+  document.getElementById('editVendor').value=c.vendor||'';
+  document.getElementById('editAmount').value=c.amount;
+  document.getElementById('editInterval').value=c.billing_interval;
+  document.getElementById('editContractEnd').value=c.contract_end_date||'';
+  document.getElementById('editNoticePeriod').value=c.notice_period_months??'';
+  document.getElementById('editAsset').innerHTML=assetOptionsHtml(c.asset_id);
+  document.getElementById('editActive').value=c.active?'1':'0';
+  document.getElementById('editActiveWrap').classList.remove('hidden');
+  document.getElementById('editNotes').value=c.notes||'';
+  document.getElementById('editorStatus').textContent='';
+  document.getElementById('documentsSection').classList.remove('hidden');
+  document.getElementById('docType').innerHTML=documentTypeOptionsHtml();
+  document.getElementById('docStatus').textContent='';
+  renderDocuments(c);
+  document.getElementById('editorCard').classList.remove('hidden');
+  document.getElementById('editorCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function closeEditor(){
+  document.getElementById('editorCard').classList.add('hidden');
+  currentEditId=null;
+}
+
+async function saveCost(){
+  const st=document.getElementById('editorStatus');
+  const label=document.getElementById('editLabel').value.trim();
+  const amount=document.getElementById('editAmount').value;
+  if(!label||!amount){st.className='status err';st.textContent='Bitte Bezeichnung und Betrag angeben.';return}
+  const payload={
+    label,
+    category:document.getElementById('editCategory').value||null,
+    amount:Number(amount),
+    billing_interval:document.getElementById('editInterval').value,
+    vendor:document.getElementById('editVendor').value.trim()||null,
+    contract_end_date:document.getElementById('editContractEnd').value||null,
+    notice_period_months:document.getElementById('editNoticePeriod').value?Number(document.getElementById('editNoticePeriod').value):null,
+    asset_id:document.getElementById('editAsset').value?Number(document.getElementById('editAsset').value):null,
+    active:document.getElementById('editActive').value==='1',
+    notes:document.getElementById('editNotes').value.trim()||null,
+  };
+  try{
+    if(currentEditId){
+      await api(`/api/recurring-costs/${currentEditId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    }else{
+      const created=await api('/api/recurring-costs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      currentEditId=created.id;
+    }
+    closeEditor();
+    await loadAll();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function toggleActive(id){
+  const c=costs.find(x=>x.id===id);
+  if(!c)return;
+  const payload={
+    label:c.label,category:c.category,amount:c.amount,billing_interval:c.billing_interval,
+    vendor:c.vendor,contract_end_date:c.contract_end_date,notice_period_months:c.notice_period_months,
+    asset_id:c.asset_id,active:!c.active,notes:c.notes,
+  };
+  try{
+    await api(`/api/recurring-costs/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    await loadAll();
+  }catch(e){document.getElementById('listStatus').className='status err';document.getElementById('listStatus').textContent='Fehler: '+e.message}
+}
+
+async function deleteCostNow(id){
+  if(!confirm('Diesen Kostenposten wirklich löschen?'))return;
+  try{
+    await api(`/api/recurring-costs/${id}`,{method:'DELETE'});
+    await loadAll();
+  }catch(e){document.getElementById('listStatus').className='status err';document.getElementById('listStatus').textContent='Fehler: '+e.message}
+}
+
+function documentRow(doc){
+  return `<tr>
+    <td>${esc(doc.document_type)}</td>
+    <td><a href="/api/recurring-cost-documents/${doc.id}/file" target="_blank" style="color:var(--accent)">${esc(doc.original_filename)}</a></td>
+    <td>${fmtDate(doc.uploaded_at)}</td>
+    <td>${esc(doc.notes||'')}</td>
+    <td class="row-actions"><button class="danger" onclick="deleteDocumentNow(${doc.id})">Löschen</button></td>
+  </tr>`;
+}
+
+function renderDocuments(c){
+  const rows=c.documents||[];
+  document.getElementById('documentRows').innerHTML=rows.length?rows.map(documentRow).join(''):'<tr><td colspan="5" class="empty">Noch keine Dokumente hinterlegt.</td></tr>';
+}
+
+async function submitDocument(){
+  const st=document.getElementById('docStatus');
+  if(!currentEditId){st.className='status err';st.textContent='Bitte zuerst speichern.';return}
+  const docType=document.getElementById('docType').value;
+  const file=document.getElementById('docFile').files[0];
+  if(!docType){st.className='status err';st.textContent='Bitte eine Art wählen.';return}
+  if(!file){st.className='status err';st.textContent='Bitte eine Datei wählen.';return}
+  const form=new FormData();
+  form.append('document_type',docType);
+  form.append('file',file);
+  const notes=document.getElementById('docNotes').value.trim();
+  if(notes)form.append('notes',notes);
+  try{
+    await fetch(`/api/recurring-costs/${currentEditId}/documents`,{method:'POST',body:form}).then(async r=>{
+      if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
+    });
+    document.getElementById('docFile').value='';
+    document.getElementById('docNotes').value='';
+    st.textContent='';
+    await loadAll();
+    openEditEditor(currentEditId);
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function deleteDocumentNow(id){
+  if(!confirm('Dieses Dokument wirklich löschen?'))return;
+  try{
+    await api(`/api/recurring-cost-documents/${id}`,{method:'DELETE'});
+    await loadAll();
+    if(currentEditId)openEditEditor(currentEditId);
+  }catch(e){document.getElementById('docStatus').className='status err';document.getElementById('docStatus').textContent='Fehler: '+e.message}
+}
+
+function row(c){
+  const badges=[];
+  if(!c.active)badges.push('<span class="badge inactive">Inaktiv</span>');
+  if(c.is_cancellation_overdue)badges.push('<span class="badge overdue">⚠ Frist überfällig</span>');
+  else if(c.is_cancellation_due)badges.push('<span class="badge due">Frist läuft ab</span>');
+  const cancellation=c.cancellation_deadline?fmtDate(c.cancellation_deadline):'—';
+  const assetCell=c.asset_id
+    ? `${esc(assetName(c.asset_id))} ${c.asset_quick_cost_hint?`<span class="hint-icon" title="${esc(c.asset_quick_cost_hint)}">ⓘ</span>`:''}`
+    : '—';
+  return `<tr${!c.active?' class="row-archived"':''}${c.is_cancellation_overdue?' class="row-overdue"':''}>
+    <td>${esc(c.label)}${c.vendor?`<div class="muted small">${esc(c.vendor)}</div>`:''}</td>
+    <td>${esc(c.category||'—')}</td>
+    <td>${fmtMoney(c.amount)} / ${esc(BILLING_LABELS[c.billing_interval]||c.billing_interval)}</td>
+    <td>${fmtMoney(c.annual_amount)}</td>
+    <td>${cancellation}</td>
+    <td>${assetCell}</td>
+    <td>${badges.join(' ')||'<span class="badge">Aktiv</span>'}</td>
+    <td class="row-actions">
+      <button class="secondary" onclick="openEditEditor(${c.id})">Bearbeiten</button>
+      <button class="secondary" onclick="toggleActive(${c.id})">${c.active?'Deaktivieren':'Aktivieren'}</button>
+      <button class="danger" onclick="deleteCostNow(${c.id})">Löschen</button>
+    </td>
+  </tr>`;
+}
+
+function renderRows(){
+  const showInactive=document.getElementById('showInactive').checked;
+  const visible=costs.filter(c=>showInactive||c.active);
+  document.getElementById('costRows').innerHTML=visible.map(row).join('')||'<tr><td colspan="8" class="empty">Noch keine Kostenposten angelegt.</td></tr>';
+}
+
+function cancellationRow(c){
+  return `<tr${c.is_cancellation_overdue?' class="row-overdue"':''}>
+    <td><a href="#" onclick="openEditEditor(${c.id});return false" style="color:var(--accent)">${esc(c.label)}</a></td>
+    <td>${esc(c.category||'—')}</td>
+    <td>${fmtDate(c.cancellation_deadline)}</td>
+    <td>${c.is_cancellation_overdue?'<span class="badge overdue">⚠ überfällig</span>':'<span class="badge due">fällig</span>'}</td>
+  </tr>`;
+}
+
+async function renderOverview(){
+  const container=document.getElementById('cancellationsOverview');
+  try{
+    const summary=await api('/api/recurring-costs/overview');
+    document.getElementById('mMonthly').textContent=fmtMoney(summary.monthly_total);
+    document.getElementById('mAnnual').textContent=fmtMoney(summary.annual_total);
+    document.getElementById('mCount').textContent=summary.cost_count;
+    document.getElementById('mAssetCount').textContent=summary.asset_quick_cost_count;
+    const rows=[...summary.cancellations_overdue,...summary.cancellations_due];
+    if(!rows.length){container.innerHTML='<div class="empty">Keine fälligen oder überfälligen Kündigungsfristen.</div>';return}
+    container.innerHTML=`<div class="table-scroll"><table><thead><tr><th>Kostenposten</th><th>Kategorie</th><th>Kündigungsfrist</th><th>Status</th></tr></thead><tbody>${rows.map(cancellationRow).join('')}</tbody></table></div>`;
+  }catch(e){container.innerHTML='<div class="empty">Fehler: '+esc(e.message)+'</div>'}
+}
+
+async function loadAll(){
+  const st=document.getElementById('listStatus');
+  st.className='status';st.textContent='Lädt …';
+  try{
+    costs=await api('/api/recurring-costs?include_inactive=true');
+    renderRows();
+    st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+  await renderOverview();
+}
+
+async function init(){
+  const authStatus=await api('/api/auth/status').catch(()=>({authenticated:false,user:null}));
+  if(!authStatus.authenticated){
+    document.getElementById('listStatus').className='status err';
+    document.getElementById('listStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
+    return;
+  }
+  const [categoryGroup,documentTypeGroup,assetList]=await Promise.all([
+    safeOptionGroup('recurring_cost_categories'),
+    safeOptionGroup('recurring_cost_document_types'),
+    api('/api/operational-assets').catch(()=>[]),
+  ]);
+  categories=categoryGroup.options||[];
+  documentTypes=documentTypeGroup.options||[];
+  assets=assetList;
+  await api('/api/recurring-costs/check-due',{method:'POST'}).catch(()=>null);
+  await loadAll();
+}
+init();
+</script>
+</body></html>

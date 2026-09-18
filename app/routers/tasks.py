@@ -82,7 +82,7 @@ def post_task(payload: TaskCreate, request: Request, db: Session = Depends(get_d
             db, title=payload.title, description=payload.description, priority=payload.priority,
             due_date=payload.due_date, assigned_employee_id=payload.assigned_employee_id,
             project_id=payload.project_id, created_by_user_id=getattr(user, "id", None),
-            status=payload.status,
+            status=payload.status, min_visible_role=payload.min_visible_role,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -96,6 +96,7 @@ def put_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db), _
             db, task_id, title=payload.title, description=payload.description, status=payload.status,
             priority=payload.priority, due_date=payload.due_date,
             assigned_employee_id=payload.assigned_employee_id, project_id=payload.project_id,
+            min_visible_role=payload.min_visible_role,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -134,10 +135,16 @@ def unarchive_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: 
 def claim_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     """"Übernehmen" -- weist eine empfängerlose Aufgabe fest der aufrufenden Person zu. Die
     primäre Absicherung gegen einen Monteur mit geratener Aufgaben-ID ist bereits _role_dep
-    (Büro/Admin, 403 vor jeder Geschäftslogik) -- siehe CLAUDE.md "Änderung am Aufgabenmodul"."""
+    (Büro/Admin, 403 vor jeder Geschäftslogik) -- siehe CLAUDE.md "Änderung am Aufgabenmodul".
+    Eine zweite, feinere Absicherung (seit 1.5.0): trägt die Aufgabe ein min_visible_role, das
+    die aufrufende Rolle nicht erfüllt (z. B. buero_auftrag gegen eine finanz-adressierte
+    Aufgabe), wirft app/tasks.py::claim_task() ein PermissionError -- hier auf 403 gemappt,
+    getrennt von der 400-Zuordnung für ValueError (Geschäftsregel)."""
     _require_module_enabled(db)
     try:
         result = claim_task(db, task_id, _role)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if result is None:

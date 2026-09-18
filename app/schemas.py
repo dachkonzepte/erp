@@ -2651,6 +2651,9 @@ class TaskOut(BaseModel):
     source_module: str | None = None
     source_label: str | None = None
     source_url: str | None = None
+    # Rollen-Zielgruppe für empfängerlose Aufgaben (seit 1.5.0) -- siehe app/models.py::Task
+    # und app/tasks.py::list_tasks_for_user()/claim_task().
+    min_visible_role: str | None = None
     archived: bool
     checklist_items: list[TaskChecklistItemOut] = Field(default_factory=list)
     created_at: datetime
@@ -2666,6 +2669,7 @@ class TaskCreate(BaseModel):
     due_date: date | None = None
     assigned_employee_id: int | None = None
     project_id: int | None = None
+    min_visible_role: str | None = Field(default=None, pattern="^(admin|buero_finanzen|buero_auftrag|field)$")
 
 
 class TaskUpdate(BaseModel):
@@ -2676,6 +2680,7 @@ class TaskUpdate(BaseModel):
     due_date: date | None = None
     assigned_employee_id: int | None = None
     project_id: int | None = None
+    min_visible_role: str | None = Field(default=None, pattern="^(admin|buero_finanzen|buero_auftrag|field)$")
 
 
 # --- Version 1.1.1: Konfigurierbare Aufgaben-Spalten ---
@@ -3370,6 +3375,10 @@ class OperationalAssetOut(BaseModel):
     cost_notes: str | None = None
     active: bool
     selectable_in_reports: bool
+    # Transparenz-Hinweis (seit 1.5.0, Betriebskosten-Übersicht) -- true, wenn ein aktiver
+    # RecurringCost auf dieses Betriebsmittel zeigt; dessen annual_amount ersetzt dann
+    # recurring_cost_per_month in der Betriebskosten-Summe, siehe app/recurring_costs.py.
+    has_linked_recurring_cost: bool = False
     is_due: bool
     is_overdue: bool
     next_due_date: date | None = None
@@ -3456,3 +3465,71 @@ class OperationalAssetSettingsOut(BaseModel):
 
 class OperationalAssetSettingsUpdate(BaseModel):
     reminder_lead_days: int = Field(ge=0)
+
+
+# --- Version 1.5.0: Betriebskosten-Übersicht, Schicht 1 ---
+class RecurringCostDocumentOut(BaseModel):
+    id: int
+    recurring_cost_id: int
+    document_type: str
+    original_filename: str
+    notes: str | None = None
+    uploaded_at: datetime
+
+
+class RecurringCostOut(BaseModel):
+    id: int
+    label: str
+    category: str | None = None
+    amount: Decimal
+    billing_interval: str
+    annual_amount: Decimal
+    vendor: str | None = None
+    contract_end_date: date | None = None
+    notice_period_months: int | None = None
+    cancellation_deadline: date | None = None
+    is_cancellation_due: bool
+    is_cancellation_overdue: bool
+    asset_id: int | None = None
+    # Transparenz-Hinweis (Muster material_markup_hint) -- nicht persistiert, siehe
+    # app/recurring_costs.py::cost_to_dict().
+    asset_quick_cost_hint: str | None = None
+    active: bool
+    notes: str | None = None
+    documents: list[RecurringCostDocumentOut] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class RecurringCostCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=255)
+    category: str | None = None
+    amount: Decimal = Field(ge=0)
+    billing_interval: str = Field(pattern="^(monatlich|vierteljaehrlich|halbjaehrlich|jaehrlich|einmalig)$")
+    vendor: str | None = Field(default=None, max_length=255)
+    contract_end_date: date | None = None
+    notice_period_months: int | None = Field(default=None, ge=1)
+    asset_id: int | None = None
+    active: bool = True
+    notes: str | None = None
+
+
+class RecurringCostUpdate(RecurringCostCreate):
+    pass
+
+
+class RecurringCostSettingsOut(BaseModel):
+    reminder_lead_days: int
+
+
+class RecurringCostSettingsUpdate(BaseModel):
+    reminder_lead_days: int = Field(ge=0)
+
+
+class RecurringCostOverviewOut(BaseModel):
+    monthly_total: Decimal
+    annual_total: Decimal
+    cost_count: int
+    asset_quick_cost_count: int
+    cancellations_due: list[RecurringCostOut] = Field(default_factory=list)
+    cancellations_overdue: list[RecurringCostOut] = Field(default_factory=list)

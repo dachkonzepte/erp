@@ -17,6 +17,7 @@ OPTIONAL_MODULES = {
     "aufgabenmanagement": "Aufgabenmanagement",
     "wartungen": "Wartungen & Reparaturen",
     "betriebsmittel": "Betriebsmittelverwaltung",
+    "betriebskosten": "Betriebskosten-Übersicht",
 }
 
 
