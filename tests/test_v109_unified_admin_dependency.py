@@ -74,10 +74,18 @@ def test_time_backoffice_router_fully_uses_shared_dependency():
     # time-backoffice-Routen hat mehr eine eigene lokale _require_admin-Prüfung.
     # (Der Name taucht im Docstring der Datei noch als Erklärung auf, daher
     # gezielt auf die konkreten Code-Muster prüfen statt auf den bloßen Namen.)
+    #
+    # Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8, siehe CLAUDE.md): das Zeiterfassungs-
+    # Backoffice ist von require_admin() auf require_min_role(ROLE_OFFICE_AUFTRAG) angehoben --
+    # die "eine geteilte Abhängigkeit, keine lokale Kopie"-Eigenschaft, die dieser Test seit der
+    # 1.1.x-Konsolidierung prüft, gilt unverändert weiter, nur mit der neuen Abhängigkeit statt
+    # der alten. Kein Endpunkt darf mehr require_admin() nutzen (die Anhebung wäre sonst nicht
+    # vollständig), alle 15 teilen sich weiterhin dieselbe, einmal definierte _role_dep-Variable.
     src = (Path(__file__).parents[1] / "app/routers/time_backoffice.py").read_text(encoding="utf-8")
     assert "def _require_admin" not in src
     assert "_require_admin(request)" not in src
-    assert src.count("Depends(require_admin(") >= 15
+    assert "Depends(require_admin(" not in src
+    assert src.count("_role=_role_dep") >= 15
 
 
 def test_all_local_relative_imports_in_routers_resolve():

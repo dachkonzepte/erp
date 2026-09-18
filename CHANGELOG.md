@@ -4,6 +4,93 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.4.8 – Rechtekonzept: vier Rollen statt zwei, Etappe 2 (die Verengungen)
+
+Zweite und letzte Etappe des vom Betreiber beauftragten Rollen-Umbaus (siehe CLAUDE.md
+"Rechtekonzept" -> "Vier Rollen" für die vollständige Herleitung). Diese Version setzt die drei
+in 1.4.7 angekündigten Verengungen und die eine Erweiterung tatsächlich um -- ab jetzt sieht
+`buero_auftrag` nicht mehr dasselbe wie `buero_finanzen`.
+
+**Verengt auf `require_min_role(buero_finanzen)`**: `GET/PUT /api/calculation-settings`
+(`app/routers/settings.py`) und die komplette `app/routers/labor_rate.py` (alle 4 Endpunkte,
+ein einziger Modul-`_role_dep`) -- die Pflege der Kalkulationsgrundlagen und der Herleitung des
+Stundenverrechnungssatzes aus den Mitarbeiter-Stundenlöhnen. Geprüft, was der fertige Satz für
+`buero_auftrag` bedeutet: `CalculationSettings.labor_rate` ist ein eigenständig gespeicherter
+Wert, keine aus den drei Kalkulationsfaktoren berechnete Größe -- `buero_auftrag` sieht ihn
+weiterhin dort, wo er ANGEWENDET wird (Angebotskalkulation/Leistungskatalog, beide bereits
+unverengt), nur nicht mehr, wo er GEPFLEGT wird.
+
+**Mitarbeitervergütung verengt, der Bestand bleibt**: `app/routers/employees.py` bekommt eine
+dritte, rollenabhängige Antwortform. Neues `EmployeeRosterOut`-Schema (`app/schemas.py`) --
+Name, Funktion, Kontakt, Planung, Kosten-Zuordnung (eine reine Kategorie, kein Betrag), aber
+ohne `compensation_type`/`hourly_wage`/`monthly_salary`/`effective_hourly_wage`/
+`annual_gross_wage`. `_employee_out_for_role()` ist die eine Stelle, die je Rolle zwischen
+`EmployeeOut` (buero_finanzen/admin), `EmployeeRosterOut` (buero_auftrag) und `EmployeeNameOut`
+(field, unverändert seit 1.3.53) wählt -- angewendet auf alle drei Lese-Endpunkte (Liste,
+Sachbearbeiter, Einzelabruf). **Anlegen/Bearbeiten dagegen komplett auf `buero_finanzen`**,
+nicht nur die Vergütungsfelder: das Formular (`master_data_form.html::employeeForm()`) ist ein
+einziges, kombiniertes Formular mit den Lohnfeldern direkt darin (Regel 10 -- kein zweites,
+vergütungsfreies Formular für einen einzelnen Bereich). Eine Aufteilung der Schreibrechte hätte
+ein zweites Formular oder eine partielle PUT-Semantik gebraucht, UND ein echtes Risiko
+eingeführt: ein für `buero_auftrag` unsichtbares Lohnfeld würde beim Speichern sonst den
+bestehenden Wert eines Kollegen stillschweigend auf 0/`None` überschreiben. Diese Erweiterung
+über eine wörtliche Lesart der Anfrage hinaus wird hier transparent festgehalten, wie in diesem
+Projekt üblich. `app/routers/pages.py::_require_finanzen_for_employees()` sperrt zusätzlich die
+beiden Formular-SEITEN (`/master-data/employees/new|{id}/edit`) selbst für `buero_auftrag` --
+sonst hätte diese Rolle ein Formular gesehen, dessen Speichern die API ohnehin abgelehnt hätte.
+`master_data.html` blendet Vergütungsspalte, "Gewichteter Mittellohn"-Kachel, "+ Hinzufügen" und
+"Bearbeiten" für `buero_auftrag` aus (ausblenden, nicht ausgrauen) -- die zählenden Kennzahlen
+("MA im Verrechnungssatz"/"MA in variablen GK") bleiben sichtbar, da sie keinen Betrag zeigen.
+
+**Zeiterfassungs-Backoffice angehoben** (`app/routers/time_backoffice.py`, 15 Endpunkte): von
+`require_admin()` auf `require_min_role(buero_auftrag)` -- Betreiberbegründung: Zeiten der
+Kolonnen korrigieren/Abwesenheiten verwalten gehört zum laufenden, von `buero_auftrag`
+geführten Betrieb. Vor der Anhebung wie verlangt geprüft, ob dabei Vergütung mitsichtbar wird --
+kein Fund: `EmployeePayrollSettingsOut` trägt nur `datev_personnel_number`/
+`payroll_export_enabled` (eine Personalnummer-Zuordnung, kein Betrag), `backoffice_summary()`/
+`build_timesheet_pdf()`/`build_time_csv()` zeigen ausschließlich Stunden, `build_datev_export()`s
+"Lohnart" ist eine DATEV-Buchungskategorie (Zeitart-zu-Buchungscode), kein €-Betrag. Kein
+einziges €-Vergütungsfeld in der ganzen Datei -- die gesamte Datei hebt sich deshalb einheitlich
+an, ohne dass innerhalb von ihr etwas verengt werden musste.
+
+**Eigener Fund dieser Etappe, nicht in der ursprünglichen Anfrage benannt: die
+Änderungshistorie.** `GET /api/audit-logs` (`app/routers/audit.py`) zeigt Vorher-/Nachher-Werte
+und angelegt/gelöscht-Schnappschüsse über ALLE Entitäten hinweg, auch Mitarbeiter --
+`AuditLog.old_value`/`new_value` einer `hourly_wage`-Änderung enthält den Betrag im Klartext,
+der JSON-Schnappschuss eines neu angelegten Mitarbeiters ebenso. Das ist wörtlich "jede
+Auswertung, die Löhne zeigt". Neue `app/audit.py::WAGE_FIELD_NAMES`/`redact_wage_snapshot()`:
+für `buero_auftrag` entfallen "geändert"-Zeilen mit einem Lohnfeld vollständig (nie old/new_value
+zeigen), "angelegt"/"gelöscht"-Schnappschüsse werden um die drei Lohnschlüssel bereinigt, ohne
+die zugrunde liegende `AuditLog`-Zeile zu mutieren (ein neues `AuditLogOut`, nicht das
+ORM-Objekt selbst, damit nichts versehentlich in einer späteren Session-Aktion committet wird).
+`buero_finanzen`/`admin` sehen die Historie unverändert vollständig. Andere Entitäten (Projekte,
+Angebote, Kunden ...) bleiben für `buero_auftrag` vollständig einsehbar -- nur Lohnfelder
+entfallen, nicht die Historie als Ganzes.
+
+**Beim Bauen gefundener und behobener Jinja-Fehler**: die neuen Sichtbarkeits-Bedingungen in
+`settings.html`/`master_data.html` (`{% if can(current_user, 'admin', 'buero_finanzen') %}`)
+verließen sich auf `{% set current_user = request.state.erp_user %}` aus dem eingebundenen
+`_sidebar.html` -- ein `{% set %}` innerhalb eines `{% include %}` wirkt in Jinja aber NICHT in
+der einbindenden Vorlage nach, unabhängig von der Rolle. Beide Dateien setzen `current_user`
+seither selbst, direkt nach `<body>`. Ohne diesen Fund hätte jeder Aufruf von `/settings` und
+`/master-data` -- für JEDE Rolle, nicht nur `buero_auftrag` -- mit `UndefinedError` abgebrochen;
+gefangen durch den bereits bestehenden `test_v218_template_rendering.py` (der jede Seiten-Route
+einmal rendert), nicht durch manuelles Ausprobieren.
+
+**Angriffstest zum Abschluss** (`tests/test_v282_role_narrowing_etappe2.py`, 18 Tests, je ein
+Testkonto pro Rolle): `buero_auftrag` bekommt 403 auf Kalkulationsgrundlagen/
+Stundenverrechnungssatz-Herleitung/Mitarbeiter-Schreiben, ohne dass in irgendeiner Antwort ein
+Lohnfeld auftaucht (rekursiver Schlüssel-Scan, auch durch als JSON-String codierte
+`AuditLogOut.details`-Werte hindurch); `buero_auftrag` erreicht das Zeiterfassungs-Backoffice
+(200), aber ohne jedes Lohnfeld; `buero_finanzen` sieht alles davon (200, inkl. Lohnfeldern wo
+vorgesehen); `field` bleibt überall gesperrt, wie zuvor. Zusätzlich zwei ältere Tests korrigiert,
+die durch diese Etappe echt veraltet waren: `test_v109_unified_admin_dependency.py` prüfte
+bisher "alle 15 time-backoffice-Routen nutzen `require_admin()`" -- jetzt auf die neue, ebenso
+geteilte `_role_dep`-Variable umgestellt; `test_v067_admin_and_masterdata_edit.py` rief
+`get_employee()` bisher ohne Rollen-Argument direkt auf (unproblematisch, solange die Funktion
+`_role` nie inhaltlich auswertete) -- seit `_employee_out_for_role()` braucht der direkte Aufruf
+jetzt eine echte Rolle. Volle Suite: 1532 Tests grün.
+
 ## 1.4.7 – Rechtekonzept: vier Rollen statt zwei, Etappe 1 (reine Rollen-Erweiterung)
 
 Erste von zwei Etappen des vom Betreiber beauftragten Rollen-Umbaus (Befund + Vorschlag zuvor

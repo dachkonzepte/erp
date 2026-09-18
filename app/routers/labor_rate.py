@@ -13,14 +13,16 @@ from ..calculation import get_or_create_settings
 from ..database import get_db
 from ..labor_rate import calculate_labor_rate, get_or_create_labor_rate_settings, get_or_create_overhead_settings, labor_rate_settings_dict
 from ..models import AppUser
-from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
+from ..permissions import ROLE_OFFICE_FINANZEN, require_min_role
 from ..schemas import CalculationSettingsOut, LaborRateCalculationOut, LaborRateSettingsOut, LaborRateSettingsUpdate
 
 router = APIRouter()
 
-# Seit "Rechtekonzept" (siehe CLAUDE.md): Kalkulationsgrundlage aus den Mitarbeiter-
-# Stundenlöhnen -- Büro/Admin, für keinen Monteur relevant.
-_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
+# Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8, siehe CLAUDE.md): Kalkulationsgrundlage aus
+# den Mitarbeiter-Stundenlöhnen -- explizit die HERLEITUNG des Verrechnungssatzes (Lohnansatz,
+# Gemeinkosten), nicht nur "Büro" -- calculate_labor_rate() liefert u. a. weighted_mean_wage/
+# annual_gross_wages, also echte Vergütungsaggregate. buero_finanzen/admin, nicht buero_auftrag.
+_role_dep = Depends(require_min_role(ROLE_OFFICE_FINANZEN, message="Der Stundenverrechnungssatz ist nur für Büro – Finanzen und Administratoren einsehbar."))
 
 @router.get("/api/labor-rate-settings", response_model=LaborRateSettingsOut)
 def get_labor_rate_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):

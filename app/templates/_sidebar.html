@@ -186,7 +186,7 @@
     <a class="app-sidebar-link{{ ' active' if path == '/projects' }}" href="/projects"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a1 1 0 0 1 1-1h4.5l2 2h8.5a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/></svg></span><span class="app-sidebar-label">Projekte</span></a>
     <a class="app-sidebar-link{{ ' active' if path == '/planning' }}" href="/planning"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg></span><span class="app-sidebar-label">Planung</span></a>
     <a class="app-sidebar-link{{ ' active' if path == '/time-tracking' }}" href="/time-tracking"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.3"/><polyline points="12,7.3 12,12 15.3,14"/></svg></span><span class="app-sidebar-label">Zeiterfassung</span></a>
-    {% if can(current_user, 'admin') %}
+    {% if can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
     <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/time-backoffice' }}" href="/time-backoffice"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="5.5" y="3" width="13" height="18"/><line x1="8" y1="7.5" x2="16" y2="7.5"/><line x1="8" y1="11.5" x2="16" y2="11.5"/><line x1="8" y1="15.5" x2="13" y2="15.5"/></svg></span><span class="app-sidebar-label">Backoffice</span></a>
     {% endif %}
     {# Seit "Rechtekonzept" (siehe CLAUDE.md): Finanzen/Mahnwesen/Stammdaten/Einstellungen sind

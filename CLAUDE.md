@@ -20,7 +20,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.4.7** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.4.8** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf jetzt `7677d9d878ba` ("app user role office split finanzen auftrag",
   reine Daten-Migration für die Aufteilung der Rolle "office" in `buero_finanzen`/`buero_auftrag`,
   siehe Abschnitt "Rechtekonzept" -> "Vier Rollen" unten) -- vorher `b2226e22b9f0`
@@ -34,18 +34,19 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   columns", siehe Abschnitt "Umbau der Projektliste" unten), davor `f803985ebc2f` ("property
   documents table", siehe
   Abschnitt "Dateiablage je Objekt" unten), davor `9137945e8785` ("document categories
-  foundation"): keine der Versionen 1.3.52 bis 1.3.61 brauchte eine eigene Migration (reine
+  foundation"): keine der Versionen 1.3.52 bis 1.3.61 UND auch 1.4.8 selbst brauchte eine eigene
+  Migration (1.4.8: reine Rollen-Gate-/Response-Schema-/Audit-Redaction-Umstellungen auf bereits
+  bestehenden Endpunkten und Tabellen, kein neues/geändertes Modell; 1.3.52-1.3.61: reine
   Rollen-Gate-/Response-Schema-/Objekt-Filterungs-Umstellungen auf bereits bestehenden
   Endpunkten und Tabellen; 1.3.61s neuer PDF-Dokumenttyp "field_timesheet" fällt ohne eigene
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1514 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1532 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 18.09.2026 (1.4.7, Rechtekonzept "Vier Rollen" Etappe 1 -- reine
-  Rollen-Erweiterung, siehe Abschnitt "Rechtekonzept" -> "Vier Rollen" unten; davor 1.4.5,
-  Betriebsmittelverwaltung Stufe 3 -- eingesetzte
-  Betriebsmittel im Einsatzbericht, siehe Abschnitt "Betriebsmittelverwaltung" unten) mit
+  dort), zuletzt am 18.09.2026 (1.4.8, Rechtekonzept "Vier Rollen" Etappe 2 -- die Verengungen,
+  siehe Abschnitt "Rechtekonzept" -> "Vier Rollen" unten; davor 1.4.7, Etappe 1 -- reine
+  Rollen-Erweiterung) mit
   `pytest` in Tobias'
   `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -6864,14 +6865,14 @@ ist in der Liste ohnehin sichtbar, keine verdeckte Änderung möglich).
 4. Erstes echtes `field`-Testkonto anlegen, vollständigen Monteurs-Ablauf im Browser
    durchklicken. -- offen.
 
-### Vier Rollen (seit 1.4.7, Etappe 1: Rollen-Erweiterung)
+### Vier Rollen (seit 1.4.7/1.4.8, Etappe 1: Rollen-Erweiterung, Etappe 2: die Verengungen)
 
-Neuer, vom Betreiber beauftragter Umbau auf dem obigen Fundament -- Vorgehen wie bei den
-größeren Umbauten dieses Projekts üblich: erst ein reiner Befund + Vorschlag (keine
-Codeänderung, separat berichtet), dann nach Bestätigung der Bau, in zwei ausdrücklich
-angeforderten Etappen. **Diese Version ist Etappe 1 -- die Rollen-Erweiterung selbst.** Etappe 2
-(die drei Verengungen + eine Erweiterung, siehe unten) folgt erst nach Rückmeldung zu dieser
-Etappe -- bis dahin sieht `buero_auftrag` überall exakt dasselbe wie `buero_finanzen`.
+Vom Betreiber beauftragter Umbau auf dem obigen Fundament -- Vorgehen wie bei den größeren
+Umbauten dieses Projekts üblich: erst ein reiner Befund + Vorschlag (keine Codeänderung,
+separat berichtet), dann nach Bestätigung der Bau, in zwei ausdrücklich angeforderten Etappen.
+**1.4.7 war Etappe 1 -- die reine Rollen-Erweiterung** (bis dahin sah `buero_auftrag` überall
+exakt dasselbe wie `buero_finanzen`). **1.4.8 ist Etappe 2 -- die Verengungen selbst**, siehe
+eigener Unterabschnitt unten: ab jetzt unterscheiden sich beide Rollen tatsächlich.
 
 **Anlass**: die bisherige Rolle `office` bündelte zu viel unter einem Dach -- ein Sachbearbeiter,
 der Angebote schreibt, sah damit automatisch auch die Kostenstruktur des Betriebs
@@ -6973,44 +6974,71 @@ isoliert): `require_min_role(ROLE_OFFICE_AUFTRAG)` lässt `buero_auftrag`, `buer
 gebliebener Altwert (`"office"`) fällt an JEDER Schwelle sicher durch (Standardverweigerung, kein
 stiller Rückfall). Volle Suite: 1514 Tests grün.
 
-**Bewusst NICHT Teil dieser Etappe** (Etappe 2, folgt nach Rückmeldung zu dieser Etappe):
+**Etappe 2 (seit 1.4.8) -- die Verengungen, umgesetzt.** Drei der vier ursprünglich angekündigten
+Punkte wurden gebaut, der zweite (Betriebskosten-Übersicht) bleibt ein reiner Vormerkposten, da
+er im Code noch nicht existiert:
 
-1. **Kalkulationsgrundlagen/Stundenverrechnungssatz-Herleitung** -> `buero_finanzen` (die bereits
-   in der Bestandsaufnahme bestätigten 6 Endpunkte: `GET/PUT /api/calculation-settings` in
-   `settings.py`, alle 4 Endpunkte in `labor_rate.py`). **Nachgeschärft vom Betreiber, noch nicht
-   umgesetzt**: der Stundenverrechnungssatz zerfällt in den FERTIGEN Satz als Zahl (bleibt für
-   `buero_auftrag` sichtbar, aber NUR dort, wo er in einer Kalkulation angewendet wird -- Angebots-
-   Kalkulation/Leistungskatalog, beides bereits heute unverengt) und seine HERLEITUNG (Lohnansatz/
-   Gemeinkosten/Materialaufschlag/Wagnis & Gewinn -- nur `buero_finanzen`/`admin`). Geprüft (siehe
-   `app/calculation.py`): `CalculationSettings.labor_rate` ist ein direkt gespeicherter Wert
-   (Decimal-Spalte), KEIN aus `material_markup_pct`/`overhead_pct`/`risk_profit_pct` berechnetes
-   Ergebnis -- diese drei sind eigenständige, für sich stehende Kalkulationsfaktoren, keine
-   Bestandteile, aus denen sich `labor_rate` zusammensetzt. Die eigentliche "Herleitung" des
-   Satzes (Lohnansatz aus Mitarbeiter-Stundenlöhnen, Gemeinkosten) ist bereits vollständig in
-   `labor_rate.py` (`LaborRateSettings`/`LaborRateCalculationOut`) gekapselt, NICHT in
-   `CalculationSettings` selbst. Daraus folgt: `buero_auftrag` braucht KEINEN neuen, dedizierten
-   Endpunkt für "nur die fertige Zahl" -- es sieht den Satz bereits über die (unverengt
-   bleibenden) Kalkulations-/Katalog-Endpunkte, wo er angewendet wird; die geplante Verengung von
-   `GET/PUT /api/calculation-settings` + `labor_rate.py` auf `buero_finanzen` (die Stelle, wo man
-   die Bestandteile PFLEGT) erreicht die vom Betreiber verlangte Trennung deshalb bereits
-   vollständig, ohne weitere Endpunkt-Aufteilung.
-2. **Betriebskosten-Übersicht** -> `buero_finanzen` (existiert im Code noch nicht, reiner
-   Vormerkposten).
-3. **Mitarbeitervergütung** -> `buero_finanzen`. Noch zu lokalisieren (nicht nur
-   `GET /api/employees`, siehe `app/employees.py`/`app/routers/employees.py`/`app/labor_rate.py`/
-   `app/audit.py`, sowie `master_data.html`/`master_data_form.html`/`settings.html` für den
-   Vergütungsrechner) -- der Mitarbeiter-BESTAND ohne Vergütung (Name/Funktion/Qualifikation)
-   bleibt bei `buero_auftrag`.
-4. **Zeiterfassungs-Backoffice** (`app/routers/time_backoffice.py`, `/time-backoffice`,
-   `/address-import`) -> von `require_admin()` auf `require_min_role(ROLE_OFFICE_AUFTRAG)`
-   angehoben (Betreiberbegründung: Zeiten der Kolonnen korrigieren/Abwesenheiten verwalten
-   gehört zum laufenden, von `buero_auftrag` geführten Betrieb) -- vor der Umsetzung zu prüfen,
-   dass dabei keine Vergütungsdaten in einer Zeitauswertung mitsichtbar werden.
+1. **Kalkulationsgrundlagen/Stundenverrechnungssatz-Herleitung -> `buero_finanzen`.** Wie beim
+   Nachschärfen vorab geklärt (siehe Herleitung oben, unverändert gültig): `GET/PUT
+   /api/calculation-settings` (`app/routers/settings.py`) und alle 4 Endpunkte in
+   `app/routers/labor_rate.py` (ein einziger Modul-`_role_dep`) sind auf
+   `require_min_role(ROLE_OFFICE_FINANZEN)` verengt -- das ist genau die Stelle, an der die
+   Bestandteile GEPFLEGT werden. Der fertige Satz bleibt für `buero_auftrag` dort sichtbar, wo er
+   ANGEWENDET wird (Angebotskalkulation/Leistungskatalog), ohne einen eigenen, neuen Endpunkt --
+   diese Trennung ergab sich bereits aus der bestehenden Architektur, keine Endpunkt-Aufteilung
+   nötig.
+2. **Betriebskosten-Übersicht** -> `buero_finanzen` (existiert im Code weiterhin nicht, bleibt
+   reiner Vormerkposten für ein künftiges Feature).
+3. **Mitarbeitervergütung -> `buero_finanzen`, der Bestand bleibt `buero_auftrag`.** Neues
+   `EmployeeRosterOut`-Schema (`app/schemas.py`) -- Name, Funktion, Kontakt, Planung,
+   Kosten-Zuordnung (eine Kategorie, kein Betrag), OHNE `compensation_type`/`hourly_wage`/
+   `monthly_salary`/`effective_hourly_wage`/`annual_gross_wage`. `app/routers/employees.py::
+   _employee_out_for_role()` wählt je Rolle zwischen `EmployeeOut` (buero_finanzen/admin),
+   `EmployeeRosterOut` (buero_auftrag) und `EmployeeNameOut` (field, unverändert seit 1.3.53) --
+   angewendet auf Liste/Sachbearbeiter/Einzelabruf. **Anlegen/Bearbeiten komplett auf
+   `buero_finanzen`**, nicht nur die Lohnfelder -- `master_data_form.html::employeeForm()` ist
+   EIN kombiniertes Formular mit den Lohnfeldern direkt darin (Regel 10), eine Rechte-Aufteilung
+   hätte ein zweites Formular gebraucht und das Risiko eingeführt, dass ein für `buero_auftrag`
+   unsichtbares Lohnfeld beim Speichern den Wert eines Kollegen stillschweigend auf 0/`None`
+   überschreibt -- bewusste, transparent gemeldete Erweiterung über die wörtliche Anfrage
+   hinaus. `_require_finanzen_for_employees()` (`app/routers/pages.py`) sperrt zusätzlich die
+   beiden Formular-SEITEN selbst, `master_data.html` blendet Vergütungsspalte/"Gewichteter
+   Mittellohn"/"+ Hinzufügen"/"Bearbeiten" für `buero_auftrag` aus (ausblenden, nicht ausgrauen).
+   **Eigener, bei der Umsetzung gefundener Zusatzpunkt, in der ursprünglichen Anfrage nicht
+   benannt**: die Änderungshistorie (`GET /api/audit-logs`) zeigt Vorher-/Nachher-Werte und
+   angelegt/gelöscht-Schnappschüsse über ALLE Entitäten -- auch eine `hourly_wage`-Änderung im
+   Klartext. `app/audit.py::WAGE_FIELD_NAMES`/`redact_wage_snapshot()` entfernen für
+   `buero_auftrag` betroffene "geändert"-Zeilen vollständig und bereinigen "angelegt"/
+   "gelöscht"-Schnappschüsse um die drei Lohnschlüssel, ohne die `AuditLog`-Zeile selbst zu
+   mutieren; `buero_finanzen`/`admin` sehen die Historie unverändert vollständig, andere
+   Entitäten bleiben für `buero_auftrag` unangetastet sichtbar.
+4. **Zeiterfassungs-Backoffice** (`app/routers/time_backoffice.py`, `/time-backoffice`, 15
+   Endpunkte) -> von `require_admin()` auf `require_min_role(ROLE_OFFICE_AUFTRAG)` angehoben.
+   Vor der Anhebung wie verlangt geprüft, ob dabei Vergütung mitsichtbar wird -- kein Fund
+   (`EmployeePayrollSettingsOut` trägt nur eine DATEV-Personalnummer-Zuordnung, `backoffice_summary()`/
+   `build_timesheet_pdf()`/`build_time_csv()` zeigen ausschließlich Stunden, `build_datev_export()`s
+   "Lohnart" ist eine Buchungskategorie, kein €-Betrag) -- die gesamte Datei hebt sich deshalb
+   einheitlich an, ohne interne Verengung. **`/address-import` bleibt bewusst UNVERÄNDERT
+   admin-only** -- die Betreiberanfrage nannte ausdrücklich nur "das Zeiterfassungs-Backoffice",
+   `require_admin()` bleibt in `app/routers/pages.py` deshalb weiterhin importiert und für diese
+   eine Seite in Gebrauch.
 
-Angriffstest am Ende von Etappe 2, wie vom Betreiber verlangt: je ein Testkonto pro Rolle, das
-gegen jede verengte Grenze anläuft -- `buero_auftrag` darf über KEINEN Weg an
-Kalkulationsgrundlagen/Betriebskosten/Vergütung, auch nicht über eine geratene URL oder einen
-manipulierten Parameter, dieselbe Gründlichkeit wie beim ursprünglichen Rechtekonzept.
+**Beim Bauen gefundener Jinja-Fehler, behoben**: die neuen `{% if can(current_user, 'admin',
+'buero_finanzen') %}`-Bedingungen in `settings.html`/`master_data.html` verließen sich auf ein
+`{% set current_user = ... %}` aus dem eingebundenen `_sidebar.html` -- ein `{% set %}`
+innerhalb eines `{% include %}` wirkt in Jinja aber NICHT in der einbindenden Vorlage nach,
+unabhängig von der Rolle. Beide Dateien setzen `current_user` seither selbst, direkt nach
+`<body>`. Ohne diesen Fund hätte `/settings` und `/master-data` für JEDE Rolle mit
+`UndefinedError` abgebrochen -- durch den bereits bestehenden `test_v218_template_rendering.py`
+gefangen, nicht durch manuelles Ausprobieren.
+
+**Angriffstest zum Abschluss, wie vom Betreiber verlangt** (`tests/test_v282_role_narrowing_etappe2.py`,
+18 Tests, je ein Testkonto pro Rolle): `buero_auftrag` bekommt 403 auf Kalkulationsgrundlagen/
+Stundenverrechnungssatz-Herleitung/Mitarbeiter-Schreiben, kein Lohnfeld in irgendeiner Antwort
+(rekursiver Schlüssel-Scan, auch durch als JSON-String codierte `AuditLogOut.details`-Werte
+hindurch); `buero_auftrag` erreicht das Zeiterfassungs-Backoffice (erlaubt), aber ohne
+Lohndaten; `buero_finanzen` sieht alles davon (erlaubt); `field` bleibt überall gesperrt, wie
+zuvor. Null durchgelassen. Volle Suite: 1532 Tests grün.
 
 ## Dateiablage je Objekt ("Runde 2" der Monteurs-Erweiterung, seit 1.3.62)
 

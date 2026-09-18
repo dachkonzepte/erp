@@ -68,7 +68,14 @@ def test_property_and_employee_can_be_edited_and_are_audited():
         payload = EmployeeUpdate(employee_number="MA-1", first_name="Max", last_name="Neu", function_id=fn.id, employee_group=fn.employee_group, hourly_wage=22, weekly_hours=39, street="Mitarbeiterstr. 1", postal_code="52531", city="Übach-Palenberg", country="Deutschland", phone="02451", mobile="0170", email="max@example.de", birthday=None, important_info="Hinweis", available_as_caseworker=True, active=True)
         out = update_employee(emp.id, payload, db)
         assert out["last_name"] == "Neu" and out["available_as_caseworker"] is True
-        assert get_employee(emp.id, db)["email"] == "max@example.de"
+        # Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8, siehe CLAUDE.md): get_employee()
+        # wählt seit dieser Etappe rollenabhängig zwischen EmployeeOut/EmployeeRosterOut/
+        # EmployeeNameOut -- ein direkter Funktionsaufruf (ohne FastAPI-DI) muss die Rolle
+        # deshalb jetzt explizit mitgeben, sonst bliebe _role der unaufgelöste Depends(...)-
+        # Platzhalter des Vorgabewerts. Admin, um weiterhin das volle Schema (inkl. E-Mail) zu
+        # prüfen.
+        admin_role = AppUser(role="admin")
+        assert get_employee(emp.id, db, admin_role).email == "max@example.de"
     finally:
         reset_audit_context(token)
     assert db.scalar(select(AuditLog).where(AuditLog.entity_type == "Objekt", AuditLog.action == "geändert")) is not None

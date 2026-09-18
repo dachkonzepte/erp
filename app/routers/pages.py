@@ -22,7 +22,7 @@ from ..database import SessionLocal, get_db
 from ..deps import require_admin
 from ..modules import is_module_enabled
 from ..models import AppUser
-from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, default_home_page_for_role, has_min_role, has_role, require_min_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, default_home_page_for_role, has_min_role, has_role, require_min_role
 from ..settings import get_accent_color
 from ..version import APP_VERSION
 
@@ -348,7 +348,7 @@ def time_tracking_page(request: Request, _role: AppUser = _any_role_dep):
 
 
 @router.get("/time-backoffice", response_class=HTMLResponse)
-def time_backoffice_page(request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin("Das Zeiterfassungs-Backoffice ist nur für Administratoren verfügbar."))):
+def time_backoffice_page(request: Request, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="time_backoffice.html", context={})
 
 
@@ -382,10 +382,22 @@ def master_data_page(request: Request, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="master_data.html", context={})
 
 
+def _require_finanzen_for_employees(data_type: str, role: AppUser) -> None:
+    """Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8, siehe CLAUDE.md): Mitarbeiter anlegen/
+    bearbeiten läuft über EIN kombiniertes Formular mit den Vergütungsfeldern direkt darin
+    (master_data_form.html::employeeForm()) -- die Seite selbst muss deshalb buero_finanzen-only
+    sein, nicht nur die API dahinter, sonst würde buero_auftrag ein Formular sehen, dessen
+    Speichern serverseitig ohnehin abgelehnt wird. Jeder andere Stammdatenbereich bleibt bei
+    buero_auftrag (_role_dep)."""
+    if data_type == "employees" and not has_min_role(role, ROLE_OFFICE_FINANZEN):
+        raise HTTPException(status_code=403, detail="Mitarbeiter anlegen/bearbeiten ist nur für Büro – Finanzen und Administratoren verfügbar.")
+
+
 @router.get("/master-data/{data_type}/new", response_class=HTMLResponse)
 def master_data_create_page(request: Request, data_type: str, _role: AppUser = _role_dep):
     if data_type not in {"customers", "properties", "employees", "suppliers", "resources", "teams", "catalogs", "materials", "materialGroups", "assets"}:
         raise HTTPException(status_code=404, detail="Stammdatenbereich nicht gefunden.")
+    _require_finanzen_for_employees(data_type, _role)
     return templates.TemplateResponse(request=request, name="master_data_form.html", context={"data_type": data_type})
 
 
@@ -393,6 +405,7 @@ def master_data_create_page(request: Request, data_type: str, _role: AppUser = _
 def master_data_edit_page(request: Request, data_type: str, record_id: int, _role: AppUser = _role_dep):
     if data_type not in {"properties", "employees", "suppliers", "resources", "teams", "materials"}:
         raise HTTPException(status_code=404, detail="Stammdatenbereich nicht gefunden.")
+    _require_finanzen_for_employees(data_type, _role)
     return templates.TemplateResponse(
         request=request, name="master_data_form.html",
         context={"data_type": data_type, "record_id": record_id},

@@ -255,6 +255,29 @@ def write_audit(session, flush_context):
         session.info["audit_disabled"] = False
 
 
+WAGE_FIELD_NAMES = {"hourly_wage", "monthly_salary", "compensation_type"}
+
+
+def redact_wage_snapshot(details_json):
+    """Entfernt Vergütungsfelder aus einem angelegt/gelöscht-Schnappschuss (JSON-String) --
+    Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8, siehe CLAUDE.md): buero_auftrag nutzt
+    denselben /api/audit-logs-Endpunkt wie buero_finanzen, darf aber keine Vergütung sehen.
+    Rückgabe unverändert, falls details leer/kein JSON-Objekt ist oder keine der drei Wage-
+    Spalten enthält (kein unnötiges Neu-Serialisieren)."""
+    if not details_json:
+        return details_json
+    try:
+        data = json.loads(details_json)
+    except (TypeError, ValueError):
+        return details_json
+    if not isinstance(data, dict):
+        return details_json
+    redacted = {k: v for k, v in data.items() if k not in WAGE_FIELD_NAMES}
+    if len(redacted) == len(data):
+        return details_json
+    return json.dumps(redacted, ensure_ascii=False)
+
+
 def audit_rows(db, project_id=None, entity_type=None, entity_id=None, actor=None, limit=250):
     stmt = select(AuditLog).order_by(AuditLog.occurred_at.desc(), AuditLog.id.desc()).limit(min(max(limit,1),1000))
     if project_id is not None: stmt = stmt.where(AuditLog.project_id == project_id)

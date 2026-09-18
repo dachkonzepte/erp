@@ -948,6 +948,39 @@ class EmployeeOut(EmployeeCreate):
     annual_gross_wage: Decimal | None = None
 
 
+class EmployeeRosterOut(BaseModel):
+    """Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8, siehe CLAUDE.md): feldsicheres
+    Gegenstück zu EmployeeOut für buero_auftrag -- der Mitarbeiter-BESTAND ohne Vergütung
+    (Name, Funktion, Kontakt, Planung), dieselbe Fehlerklasse wie EmployeeNameOut/
+    MaterialSearchOut/PropertyAccessOut. Fehlt bewusst: compensation_type/hourly_wage/
+    monthly_salary/effective_hourly_wage/annual_gross_wage -- die Vergütungsfelder bleiben
+    buero_finanzen/admin vorbehalten (EmployeeOut). cost_allocation bleibt enthalten -- das ist
+    nur eine Kalkulations-KATEGORIE (welcher Kostentopf), kein Betrag."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    employee_number: str | None = None
+    first_name: str
+    last_name: str
+    job_title: str | None = None
+    function_id: int | None = None
+    function_name: str | None = None
+    employee_group: str
+    weekly_hours: Decimal
+    street: str | None = None
+    postal_code: str | None = None
+    city: str | None = None
+    country: str
+    phone: str | None = None
+    mobile: str | None = None
+    email: str | None = None
+    birthday: date | None = None
+    important_info: str | None = None
+    available_as_caseworker: bool
+    show_on_planning_board: bool
+    cost_allocation: str | None = None
+    active: bool
+
+
 class EmployeeNameOut(BaseModel):
     """Rechtekonzept (seit 1.3.53, siehe CLAUDE.md): feldsicheres Gegenstück zu EmployeeOut für
     GET /api/employees, wenn ein Monteur (`field`) aufruft -- service_reports.html braucht von

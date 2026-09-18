@@ -19,6 +19,11 @@
   </style>
 </head>
 <body>
+{# current_user wird hier -- nicht nur in _sidebar.html -- gesetzt: ein {% set %} innerhalb
+   eines {% include %} bleibt lokal auf die eingebundene Vorlage beschränkt und wirkt nicht in
+   dieser Vorlage nach (Jinja-Scoping), can(current_user, ...) unten würde sonst 'current_user
+   is undefined' werfen. #}
+{% set current_user = request.state.erp_user %}
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
@@ -55,11 +60,18 @@
       <div class="settings-menu">
         <button type="button" data-settings-section="employee-functions" onclick="showSettingsSection('employee-functions')">Funktionen / Tätigkeiten<span class="menu-sub">Rollen und Mitarbeitergruppen</span></button>
       </div>
+      {% if can(current_user, 'admin', 'buero_finanzen') %}
+      {# Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8, siehe CLAUDE.md): die Herleitung des
+         Stundenverrechnungssatzes (Lohnansatz/Gemeinkosten) UND seine Bestandteile
+         (Materialaufschlag/Gemeinkosten/Wagnis & Gewinn) sind buero_finanzen/admin --
+         buero_auftrag sieht den fertigen Satz weiterhin dort, wo er angewendet wird
+         (Angebots-Kalkulation/Leistungskatalog), nicht hier, wo man ihn herleitet/pflegt. #}
       <div class="settings-group">Kalkulation</div>
       <div class="settings-menu">
         <button type="button" data-settings-section="labor-rate" onclick="showSettingsSection('labor-rate')">Stundenverrechnungssatz<span class="menu-sub">Mittellohn und Verrechnungssatz</span></button>
         <button type="button" data-settings-section="calculation" onclick="showSettingsSection('calculation')">Kalkulationsgrundlagen<span class="menu-sub">Material, Zuschläge, Zeitwerte</span></button>
       </div>
+      {% endif %}
       <div class="settings-group">Planung</div>
       <div class="settings-menu">
         <button type="button" data-settings-section="planning" onclick="showSettingsSection('planning')">Plantafel & Kapazität<span class="menu-sub">Arbeitszeit, Anfahrt, Arbeitstage, Feiertage</span></button>
@@ -453,6 +465,7 @@
     <div class="list-narrow" style="overflow:auto;margin-top:14px"><table><thead><tr><th>Funktion</th><th>Gruppe</th><th>Sort.</th><th>Status</th><th></th></tr></thead><tbody id="functionRows"></tbody></table></div>
   </section>
 
+  {% if can(current_user, 'admin', 'buero_finanzen') %}
   <section class="card settings-section" id="settings-labor-rate">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Stundenkostenverrechnungssatz</h2><div class="muted small">Ermittlung aus den aktiven gewerblichen Mitarbeitern und den betrieblichen Kalkulationsparametern.</div></div></div>
     <div class="hint">Der <b>Mittellohn wird automatisch gewichtet nach den vertraglichen Wochenstunden</b> aller aktiven gewerblichen Mitarbeiter. Vergütungsart, Stundenlohn bzw. Monatsfestgehalt und Wochenstunden pflegst du unter <a href="/master-data#employees">Stammdaten → Mitarbeiter</a>. Festgehälter werden automatisch auf einen kalkulatorischen Stundenwert heruntergerechnet.</div>
@@ -483,6 +496,7 @@
     <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin:5px 0 14px"><input id="sourceMinutes" type="checkbox" style="width:auto"> Importierte „Baustellenzeit“ als Minuten je Einheit interpretieren</label>
     <button onclick="saveCalculation()">Kalkulationsgrundlagen speichern</button><span id="calcStatus" class="status"></span>
   </section>
+  {% endif %}
 
   <section class="card settings-section" id="settings-planning">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Plantafel & Kapazitätsplanung</h2><div class="muted small">Zentrale Parameter für Planungsvorschläge, Tageskapazität und Auslastungsberechnung.</div></div></div>
@@ -624,6 +638,11 @@
 </div>
 <script>
 let sequences=[],employeeFunctions=[],editingFunctionId=null,optionGroups=[],currentOptionGroup=null,editingOptionId=null,planningSettings=null,planningHolidays=[],editingHolidayId=null,paymentTerms=[],editingPaymentTermId=null,taxKeys=[],editingTaxKeyId=null,reminderLevels=[],generalSettings=null;
+// Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8): Kalkulationsgrundlagen/Stundenverrechnungssatz
+// sind buero_finanzen/admin-only -- die zugehoerigen <section>-Bloecke sind fuer buero_auftrag
+// bereits per Jinja aus dem Markup entfernt, load() darf ihre Endpunkte fuer diese Rolle deshalb
+// weder abrufen (403) noch ihre DOM-Elemente beschreiben (waeren nicht vorhanden).
+const canSeeCalculationSettings={{ 'true' if can(current_user, 'admin', 'buero_finanzen') else 'false' }};
 async function api(url,options={}){const r=await fetch(url,options);let d=null;try{d=await r.json()}catch(_){ }if(!r.ok)throw new Error(d?.detail||r.statusText||'Fehler');return d}
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 (function(){
@@ -666,7 +685,13 @@ async function load(){
     ['Mahnwesen-Einstellungen','/api/reminder-settings',{auto_create_drafts:true}],
     ['Module','/api/modules',[]],
   ];
-  const results=await Promise.allSettled(specs.map(([,url])=>api(url)));
+  const results=await Promise.allSettled(specs.map(([label,url],i)=>{
+    // Kalkulationsgrundlagen/Stundenverrechnungssatz sind fuer buero_auftrag verengt (403) --
+    // fuer diese Rolle gar nicht erst abrufen, sonst zeigt load() faelschlich einen
+    // "Migration nicht ausgefuehrt"-Alarm statt der eigentlichen Ursache (fehlende Rolle).
+    if(!canSeeCalculationSettings&&i>=2&&i<=4)return Promise.resolve(specs[i][2]);
+    return api(url);
+  }));
   const failed=[];
   const [g,n,c,lr,lrc,ef,og,ps,ph,pt,tk,rl,rs,ms]=results.map((r,i)=>{
     if(r.status==='fulfilled')return r.value;
@@ -678,8 +703,10 @@ async function load(){
   }
   setv('companyName',g.company_name);setv('managingDirector',g.managing_director);setv('companyStreet',g.street);setv('companyZip',g.postal_code);setv('companyCity',g.city);setv('companyCountry',g.country);setv('companyPhone',g.phone);setv('companyEmail',g.email);setv('companyWebsite',g.website);setv('publicBaseUrl',g.public_base_url);setv('taxNumber',g.tax_number);setv('vatId',g.vat_id);setv('registerCourt',g.register_court);setv('registerNumber',g.register_number);setv('iban',g.iban);setv('bic',g.bic);setv('defaultVat',g.default_vat_rate);setv('quoteIntro',g.default_quote_intro);setv('quoteOutro',g.default_quote_outro);
   generalSettings=g;renderCompanyLogo();renderSidebarLogo();
-  setv('laborRate',c.labor_rate);setv('materialMarkup',c.material_markup_pct);setv('overhead',c.overhead_pct);setv('riskProfit',c.risk_profit_pct);document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
-  setv('employerCostPct',lr.employer_cost_pct);setv('productiveTimePct',lr.productive_time_pct);setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',lr.fixed_overhead_value||0);setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',lr.variable_overhead_value||0);setv('targetProfitPct',lr.target_profit_pct);setv('weeksPerYear',lr.weeks_per_year);syncOverheadLabels();renderLaborRate(lrc);
+  if(canSeeCalculationSettings){
+    setv('laborRate',c.labor_rate);setv('materialMarkup',c.material_markup_pct);setv('overhead',c.overhead_pct);setv('riskProfit',c.risk_profit_pct);document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
+    setv('employerCostPct',lr.employer_cost_pct);setv('productiveTimePct',lr.productive_time_pct);setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',lr.fixed_overhead_value||0);setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',lr.variable_overhead_value||0);setv('targetProfitPct',lr.target_profit_pct);setv('weeksPerYear',lr.weeks_per_year);syncOverheadLabels();renderLaborRate(lrc);
+  }
   sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();document.getElementById('autoCreateDraftsCheckbox').checked=!!rs.auto_create_drafts;moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadDocumentCategoriesSection();loadMobileSection();loadDocumentLayoutSection();loadProjectPipelineSection();}
 
 function renderModuleStates(){document.getElementById('moduleRows').innerHTML=moduleStates.length?moduleStates.map(m=>`<div class="field"><label style="display:flex;align-items:center;gap:10px;font-weight:650"><input type="checkbox" style="width:auto" ${m.enabled?'checked':''} onchange="toggleModule('${m.module_key}',this.checked)"> ${esc(m.label)}</label><span id="moduleStatus-${m.module_key}" class="status"></span></div>`).join(''):'<div class="muted small">Keine optionalen Module registriert.</div>'}

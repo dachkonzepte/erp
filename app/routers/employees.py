@@ -13,15 +13,27 @@ from sqlalchemy.orm import Session, selectinload
 from ..database import get_db
 from ..employees import apply_employee_payload, employee_to_dict, ensure_default_employee_functions, ensure_employee_profiles, set_cost_allocation, set_planning_visibility
 from ..models import AppUser, Employee, EmployeeProfile, EmployeeRoleSettings
-from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
-from ..schemas import EmployeeCreate, EmployeeNameOut, EmployeeOut, EmployeeUpdate
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, require_min_role
+from ..schemas import EmployeeCreate, EmployeeNameOut, EmployeeOut, EmployeeRosterOut, EmployeeUpdate
 
 router = APIRouter()
 
-# Seit "Rechtekonzept" (siehe CLAUDE.md): EmployeeOut trägt Lohn-/Gehaltsfelder
-# (hourly_wage/effective_hourly_wage/annual_gross_wage) -- Büro/Admin, das war der zentrale
-# Fund der Suche-Bestandsaufnahme (jeder angemeldete Benutzer konnte das bisher lesen).
+# Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8, siehe CLAUDE.md): EmployeeOut trägt Lohn-/
+# Gehaltsfelder (hourly_wage/effective_hourly_wage/annual_gross_wage) -- buero_finanzen/admin,
+# das war der zentrale Fund der Suche-Bestandsaufnahme (jeder angemeldete Benutzer konnte das
+# ursprünglich lesen). buero_auftrag sieht weiterhin den Mitarbeiter-BESTAND (Name, Funktion,
+# Kontakt, Planung) -- als EmployeeRosterOut, siehe _employee_out_for_role() unten -- nur die
+# Vergütung selbst bleibt verengt.
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Mitarbeiterdaten sind nur für Büro und Administratoren verfügbar."))
+# Anlegen/Ändern läuft über EIN kombiniertes Formular mit den Vergütungsfeldern direkt darin
+# (master_data_form.html::employeeForm(), Regel 10 -- kein zweites, vergütungsfreies Formular
+# für buero_auftrag) -- deshalb buero_finanzen-only, nicht nur das Lesen der Vergütung selbst.
+# Eine Aufteilung der Schreibrechte (buero_auftrag darf Name/Kontakt ändern, aber keine Löhne)
+# würde ein zweites Formular/eine partielle PUT-Semantik erfordern und wäre ohne echtes
+# Schutzrisiko (ein leeres, für buero_auftrag unsichtbares Lohnfeld würde beim Speichern sonst
+# den bestehenden Wert eines Kollegen stillschweigend auf 0/None überschreiben) -- bewusst nicht
+# gebaut, siehe CLAUDE.md.
+_finanzen_dep = Depends(require_min_role(ROLE_OFFICE_FINANZEN, message="Mitarbeiter anlegen/bearbeiten ist nur für Büro – Finanzen und Administratoren verfügbar."))
 # GET /api/employees allein bleibt zusätzlich für `field` offen -- service_reports.html (vom
 # Monteur genutzt) füllt darüber sein Mitarbeiter-Auswahlfeld für die kompakte Zeitbuchung
 # (nur id/first_name/last_name/active gelesen, siehe employeeOptionsHtml() dort). Ohne diese
@@ -31,26 +43,36 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Mitarbeiterda
 _any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
-@router.get("/api/employees", response_model=list[EmployeeOut] | list[EmployeeNameOut])
+def _employee_out_for_role(role: AppUser, data: dict):
+    """Die EINE Stelle, die entscheidet, welches der drei Mitarbeiter-Schemata eine Rolle sieht
+    -- dieselbe Fehlerklasse wie purchase_price (siehe CLAUDE.md "Rechtekonzept"): field bekommt
+    EmployeeNameOut (nur Name, kein Kontakt/Vergütung), buero_auftrag EmployeeRosterOut (Bestand
+    ohne Vergütung), buero_finanzen/admin das volle EmployeeOut inkl. Vergütung."""
+    if role.role == ROLE_FIELD:
+        return EmployeeNameOut.model_validate(data)
+    if has_min_role(role, ROLE_OFFICE_FINANZEN):
+        return EmployeeOut.model_validate(data)
+    return EmployeeRosterOut.model_validate(data)
+
+
+@router.get("/api/employees", response_model=list[EmployeeOut] | list[EmployeeRosterOut] | list[EmployeeNameOut])
 def list_employees(db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     employees = [employee_to_dict(e, db) for e in ensure_employee_profiles(db)]
-    if _role.role == ROLE_FIELD:
-        return [EmployeeNameOut.model_validate(e) for e in employees]
-    return employees
+    return [_employee_out_for_role(_role, e) for e in employees]
 
 
-@router.get("/api/employees/caseworkers", response_model=list[EmployeeOut])
+@router.get("/api/employees/caseworkers", response_model=list[EmployeeOut] | list[EmployeeRosterOut])
 def list_caseworkers(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     employees = ensure_employee_profiles(db)
     result = []
     for employee in employees:
         role = db.scalar(select(EmployeeRoleSettings).where(EmployeeRoleSettings.employee_id == employee.id))
         if employee.active and role is not None and role.available_as_caseworker:
-            result.append(employee_to_dict(employee, db))
+            result.append(_employee_out_for_role(_role, employee_to_dict(employee, db)))
     return result
 
 
-@router.get("/api/employees/{employee_id}", response_model=EmployeeOut)
+@router.get("/api/employees/{employee_id}", response_model=EmployeeOut | EmployeeRosterOut)
 def get_employee(employee_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     ensure_employee_profiles(db)
     employee = db.scalar(
@@ -59,11 +81,11 @@ def get_employee(employee_id: int, db: Session = Depends(get_db), _role: AppUser
     )
     if employee is None:
         raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden.")
-    return employee_to_dict(employee, db)
+    return _employee_out_for_role(_role, employee_to_dict(employee, db))
 
 
 @router.post("/api/employees", response_model=EmployeeOut)
-def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db), _role: AppUser = _finanzen_dep):
     ensure_default_employee_functions(db)
     if payload.employee_number:
         exists = db.scalar(select(Employee).where(Employee.employee_number == payload.employee_number))
@@ -96,7 +118,7 @@ def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db), _rol
 
 
 @router.put("/api/employees/{employee_id}", response_model=EmployeeOut)
-def update_employee(employee_id: int, payload: EmployeeUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def update_employee(employee_id: int, payload: EmployeeUpdate, db: Session = Depends(get_db), _role: AppUser = _finanzen_dep):
     employee = db.scalar(select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function)).where(Employee.id == employee_id))
     if employee is None:
         raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden.")

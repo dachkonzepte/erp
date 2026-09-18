@@ -28,7 +28,7 @@ from ..database import get_db
 from ..employees import ensure_default_employee_functions
 from ..models import AppUser, Employee, EmployeeFunction, EmployeeProfile, SettingOption
 from ..option_settings import ensure_default_option_groups, get_option_group, option_group_to_dict
-from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, require_min_role
 from ..schemas import AppearanceSettingsOut, AppearanceSettingsUpdate, CalculationSettingsOut, CalculationSettingsUpdate, EmployeeFunctionCreate, EmployeeFunctionOut, EmployeeFunctionUpdate, GeneralSettingsOut, GeneralSettingsUpdate, NumberPreviewOut, NumberSequenceOut, NumberSequenceUpdate, SettingOptionCreate, SettingOptionGroupOut, SettingOptionOut, SettingOptionUpdate
 from ..settings import ensure_default_sequences, get_accent_color, get_or_create_general_settings, preview_number, set_accent_color, update_sequence
 
@@ -45,15 +45,21 @@ router = APIRouter()
 # unabhängig von der Rolle geladen.
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Nur für Büro und Administratoren verfügbar."))
 _any_role_dep = Depends(require_min_role(ROLE_FIELD))
+# Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8, siehe CLAUDE.md): Kalkulationsgrundlagen --
+# hier stehen die BESTANDTEILE des Stundenverrechnungssatzes (material_markup_pct/overhead_pct/
+# risk_profit_pct) UND der fertige, gespeicherte Satz selbst (labor_rate). buero_auftrag sieht
+# den fertigen Satz weiterhin dort, wo er angewendet wird (Angebots-Kalkulation/Leistungskatalog,
+# beide unverengt) -- nicht hier, wo man die Bestandteile PFLEGT.
+_finanzen_dep = Depends(require_min_role(ROLE_OFFICE_FINANZEN, message="Kalkulationsgrundlagen sind nur für Büro – Finanzen und Administratoren verfügbar."))
 
 
 @router.get("/api/calculation-settings", response_model=CalculationSettingsOut)
-def get_calculation_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_calculation_settings(db: Session = Depends(get_db), _role: AppUser = _finanzen_dep):
     return CalculationSettingsOut.model_validate(get_or_create_settings(db), from_attributes=True)
 
 
 @router.put("/api/calculation-settings", response_model=CalculationSettingsOut)
-def update_calculation_settings(payload: CalculationSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def update_calculation_settings(payload: CalculationSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _finanzen_dep):
     settings = get_or_create_settings(db)
     settings.labor_rate = payload.labor_rate
     settings.material_markup_pct = payload.material_markup_pct
