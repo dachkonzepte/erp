@@ -1,7 +1,12 @@
 """Änderung am Aufgabenmodul (seit 1.4.3, siehe CLAUDE.md "Änderung am Aufgabenmodul"):
 empfängerlose Aufgaben werden für ALLE Büro-/Admin-Konten sichtbar, nicht nur für den Admin
 bzw. den zufällig zugewiesenen Mitarbeiter. Rollenbestimmung läuft dabei zentral über
-has_role() (app/permissions.py) statt einer eigenen, zweiten is_admin-Prüfung.
+has_min_role() (app/permissions.py, seit der Vier-Rollen-Erweiterung -- siehe CLAUDE.md
+"Rechtekonzept" -> "Vier Rollen") statt einer eigenen, zweiten is_admin-Prüfung: sowohl
+buero_finanzen als auch buero_auftrag erfüllen den Mindestrang buero_auftrag, beide werden
+hier deshalb gleich behandelt ("buero_auftrag" im Testcode unten steht repräsentativ für "irgendeine
+Bürorolle", siehe die dedizierte Hierarchie-Prüfung in test_v281_role_hierarchy.py für den
+Nachweis, dass buero_finanzen dort dasselbe leistet).
 
 Drei Dinge werden hier belegt:
 1. app/tasks.py::list_tasks_for_user() ist die EINE Stelle, an der jede Sichtbarkeitsregel
@@ -23,7 +28,7 @@ from sqlalchemy.orm import sessionmaker
 from app.auth import hash_password
 from app.database import Base
 from app.models import AppUser, Employee
-from app.permissions import has_role
+from app.permissions import ROLE_OFFICE_AUFTRAG, has_min_role
 from app.tasks import claim_task, create_task, list_tasks, list_tasks_for_user, release_task
 
 
@@ -47,16 +52,22 @@ def make_user(db, role, employee_id=None, username="u"):
     return user
 
 
-# --- has_role() / list_tasks() Grundlagen ---
+# --- has_min_role() / list_tasks() Grundlagen ---
 
-def test_has_role_is_the_shared_check():
+def test_has_min_role_is_the_shared_check():
+    """Seit der Vier-Rollen-Erweiterung nutzt list_tasks_for_user() has_min_role(user,
+    ROLE_OFFICE_AUFTRAG) statt has_role(user, ROLE_ADMIN, ROLE_OFFICE) -- admin UND
+    buero_finanzen erfüllen diesen Mindestrang automatisch (Hierarchie), buero_auftrag ist
+    die Schwelle selbst, field bleibt darunter."""
     admin = AppUser(username="a", display_name="A", role="admin", active=True, password_hash="x")
-    office = AppUser(username="b", display_name="B", role="office", active=True, password_hash="x")
+    finanzen = AppUser(username="b1", display_name="B1", role="buero_finanzen", active=True, password_hash="x")
+    auftrag = AppUser(username="b2", display_name="B2", role="buero_auftrag", active=True, password_hash="x")
     field = AppUser(username="c", display_name="C", role="field", active=True, password_hash="x")
-    assert has_role(admin, "admin", "office")
-    assert has_role(office, "admin", "office")
-    assert not has_role(field, "admin", "office")
-    assert not has_role(None, "admin", "office")
+    assert has_min_role(admin, ROLE_OFFICE_AUFTRAG)
+    assert has_min_role(finanzen, ROLE_OFFICE_AUFTRAG)
+    assert has_min_role(auftrag, ROLE_OFFICE_AUFTRAG)
+    assert not has_min_role(field, ROLE_OFFICE_AUFTRAG)
+    assert not has_min_role(None, ROLE_OFFICE_AUFTRAG)
 
 
 def test_list_tasks_unassigned_only_ignores_employee_id_and_takes_precedence():
@@ -88,7 +99,7 @@ def test_office_without_unassigned_only_sees_only_own_never_colleagues():
     create_task(db, title="Für Erika", assigned_employee_id=emp1.id)
     create_task(db, title="Für Otto", assigned_employee_id=emp2.id)
     create_task(db, title="Empfängerlos")
-    office = make_user(db, "office", employee_id=emp1.id, username="office1")
+    office = make_user(db, "buero_auftrag", employee_id=emp1.id, username="office1")
     rows = list_tasks_for_user(db, office)
     assert {r["title"] for r in rows} == {"Für Erika"}
     # Auch ein manipulierter employee_id-Parameter wird ignoriert -- das Büro-Konto bleibt
@@ -103,7 +114,7 @@ def test_office_sees_unassigned_but_not_colleagues_assigned_tasks():
     create_task(db, title="Für Otto", assigned_employee_id=emp2.id)
     create_task(db, title="Offene Büro-Aufgabe 1")
     create_task(db, title="Offene Büro-Aufgabe 2")
-    office = make_user(db, "office", employee_id=emp1.id, username="office2")
+    office = make_user(db, "buero_auftrag", employee_id=emp1.id, username="office2")
     rows = list_tasks_for_user(db, office, unassigned_only=True)
     assert {r["title"] for r in rows} == {"Offene Büro-Aufgabe 1", "Offene Büro-Aufgabe 2"}
 
@@ -113,14 +124,14 @@ def test_office_without_employee_link_can_still_see_the_shared_inbox():
     Übernehmen selbst (claim_task) verlangt sie, siehe unten."""
     db = db_session()
     create_task(db, title="Empfängerlos")
-    office = make_user(db, "office", employee_id=None, username="office3")
+    office = make_user(db, "buero_auftrag", employee_id=None, username="office3")
     rows = list_tasks_for_user(db, office, unassigned_only=True)
     assert {r["title"] for r in rows} == {"Empfängerlos"}
 
 
 def test_office_without_employee_link_gets_value_error_for_non_unassigned_view():
     db = db_session()
-    office = make_user(db, "office", employee_id=None, username="office4")
+    office = make_user(db, "buero_auftrag", employee_id=None, username="office4")
     with pytest.raises(ValueError):
         list_tasks_for_user(db, office)
 
@@ -139,7 +150,7 @@ def test_claim_assigns_to_own_employee_id_no_third_state():
     db = db_session()
     emp1, _ = make_employees(db)
     t = create_task(db, title="Empfängerlos")
-    office = make_user(db, "office", employee_id=emp1.id, username="office5")
+    office = make_user(db, "buero_auftrag", employee_id=emp1.id, username="office5")
     result = claim_task(db, t["id"], office)
     assert result["assigned_employee_id"] == emp1.id
 
@@ -148,7 +159,7 @@ def test_claim_rejects_already_assigned_task():
     db = db_session()
     emp1, emp2 = make_employees(db)
     t = create_task(db, title="Für Otto", assigned_employee_id=emp2.id)
-    office = make_user(db, "office", employee_id=emp1.id, username="office6")
+    office = make_user(db, "buero_auftrag", employee_id=emp1.id, username="office6")
     with pytest.raises(ValueError):
         claim_task(db, t["id"], office)
 
@@ -156,7 +167,7 @@ def test_claim_rejects_already_assigned_task():
 def test_claim_without_employee_link_raises_clear_error_not_silent_failure():
     db = db_session()
     t = create_task(db, title="Empfängerlos")
-    office = make_user(db, "office", employee_id=None, username="office7")
+    office = make_user(db, "buero_auftrag", employee_id=None, username="office7")
     with pytest.raises(ValueError):
         claim_task(db, t["id"], office)
 
@@ -164,7 +175,7 @@ def test_claim_without_employee_link_raises_clear_error_not_silent_failure():
 def test_claim_unknown_task_returns_none():
     db = db_session()
     emp1, _ = make_employees(db)
-    office = make_user(db, "office", employee_id=emp1.id, username="office8")
+    office = make_user(db, "buero_auftrag", employee_id=emp1.id, username="office8")
     assert claim_task(db, 9999, office) is None
 
 
@@ -231,7 +242,7 @@ def test_office_sees_unassigned_via_router_but_never_colleagues_assigned_task(ro
     emp1, emp2 = make_employees(db)
     create_task(db, title="Für Otto", assigned_employee_id=emp2.id)
     create_task(db, title="Offene Büro-Aufgabe")
-    client = router_test_client(db, tasks_router.router, role="office", employee_id=emp1.id)
+    client = router_test_client(db, tasks_router.router, role="buero_auftrag", employee_id=emp1.id)
 
     default_resp = client.get("/api/tasks")
     assert default_resp.status_code == 200, default_resp.text
@@ -249,7 +260,7 @@ def test_office_can_claim_unassigned_task_via_router_and_then_release_it(router_
     db = threaded_db_session
     emp1, _ = make_employees(db)
     task = create_task(db, title="Offene Büro-Aufgabe")
-    client = router_test_client(db, tasks_router.router, role="office", employee_id=emp1.id)
+    client = router_test_client(db, tasks_router.router, role="buero_auftrag", employee_id=emp1.id)
 
     claim_resp = client.post(f"/api/tasks/{task['id']}/claim")
     assert claim_resp.status_code == 200, claim_resp.text
@@ -270,7 +281,7 @@ def test_office_without_employee_link_gets_clear_403_when_claiming(router_test_c
     from app.routers import tasks as tasks_router
     db = threaded_db_session
     task = create_task(db, title="Offene Büro-Aufgabe")
-    client = router_test_client(db, tasks_router.router, role="office", employee_id=None)
+    client = router_test_client(db, tasks_router.router, role="buero_auftrag", employee_id=None)
     resp = client.post(f"/api/tasks/{task['id']}/claim")
     assert resp.status_code == 400, resp.text
     assert "Mitarbeiter" in resp.json()["detail"]
@@ -281,7 +292,7 @@ def test_claiming_an_already_taken_task_via_router_returns_400_not_a_silent_stea
     db = threaded_db_session
     emp1, emp2 = make_employees(db)
     task = create_task(db, title="Für Otto", assigned_employee_id=emp2.id)
-    client = router_test_client(db, tasks_router.router, role="office", employee_id=emp1.id)
+    client = router_test_client(db, tasks_router.router, role="buero_auftrag", employee_id=emp1.id)
     resp = client.post(f"/api/tasks/{task['id']}/claim")
     assert resp.status_code == 400, resp.text
     reloaded = list_tasks(db, employee_id=emp2.id)

@@ -344,7 +344,7 @@ def test_office_can_see_and_manage_property_documents_uploaded_by_field(router_t
     assert upload.status_code == 200, upload.text
     doc_id = upload.json()["id"]
 
-    office = router_test_client(db, prop_doc_router, role="office")
+    office = router_test_client(db, prop_doc_router, role="buero_auftrag")
     listing = office.get(f"/api/properties/{prop.id}/documents")
     assert listing.status_code == 200
     assert any(d["id"] == doc_id and d["source"] == "property" for d in listing.json())

@@ -49,10 +49,11 @@ from app.routers import pages as pages_router_module
 PASSWORD = "RichtigesPasswort123"
 
 
-def make_user(db, username="user.test", role="office"):
+def make_user(db, username="user.test", role="buero_auftrag"):
     # Seit "Rechtekonzept" (Seiten-Klassifizierung): "user" ist keine gueltige Rolle mehr --
     # jede require_role(...)-Pruefung auf einer Seite wuerde damit unabhaengig vom eigentlichen
-    # Testzweck fehlschlagen. "office" ist der direkte Nachfolger des alten, binaeren "user".
+    # Testzweck fehlschlagen. "buero_auftrag" ist eine der beiden Bueroollen, Nachfolger des
+    # alten, binaeren "user"/spaeter "office" (siehe CLAUDE.md "Rechtekonzept" -> "Vier Rollen").
     user = AppUser(username=username, display_name=username, role=role, active=True,
                     password_hash=hash_password(PASSWORD))
     db.add(user); db.commit()

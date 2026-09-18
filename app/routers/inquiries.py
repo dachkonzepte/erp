@@ -14,7 +14,7 @@ from ..database import get_db
 from ..inquiries import inquiry_to_dict, load_inquiry, next_inquiry_number
 from ..models import AppUser, Customer, Inquiry, Project, Property, Quote
 from ..option_settings import default_option_value
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_pipeline_columns import default_pipeline_column_id
 from ..projects import load_project, load_quote, next_project_number, next_quote_number, quote_to_dict
 from ..schemas import InquiryConvertOut, InquiryConvertRequest, InquiryCreate, InquiryOut, InquiryUpdate, ProjectListOut, QuoteOut
@@ -24,7 +24,7 @@ router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Anfragen (Vertriebspipeline) sind Büro-/Admin-Bereich
 # -- kein Endpunkt dieser Datei wird von einer Monteur-Vorlage aufgerufen.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 INQUIRY_STATUSES = {"neu", "termin_offen", "termin_geplant", "aufmass_erfolgt", "projekt_erstellt", "gewonnen", "verloren"}
 INQUIRY_PRIORITIES = {"niedrig", "normal", "hoch", "dringend"}

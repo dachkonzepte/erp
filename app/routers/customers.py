@@ -21,7 +21,7 @@ from ..customer_documents import MAX_UPLOAD_BYTES, customer_directory, make_stor
 from ..database import get_db
 from ..document_categories import resolve_category_id
 from ..models import AppUser, Customer, CustomerDocument, CustomerExtraInfo, Property
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from .customer_documents import _customer_document_out
 from ..schemas import (
     CustomerCreate, CustomerDocumentOut, CustomerExtraInfoCreate, CustomerExtraInfoOut,
@@ -33,7 +33,7 @@ router = APIRouter()
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Kundendaten sind Büro-/Admin-Bereich, ein Monteur
 # erreicht das, was er über einen Einsatz braucht, ausschließlich über
 # GET /api/orders/{id}/property (app/routers/service_reports.py) -- nie über diese Datei.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, message="Kundendaten sind nur für Büro und Administratoren verfügbar."))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Kundendaten sind nur für Büro und Administratoren verfügbar."))
 
 
 @router.get("/api/customers", response_model=list[CustomerOut])

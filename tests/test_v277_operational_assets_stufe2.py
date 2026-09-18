@@ -114,7 +114,7 @@ def test_field_role_gets_reduced_schema_via_router_never_full_asset_data(threade
     from app.routers.operational_assets import router as assets_router
 
     db = threaded_db_session
-    office = router_test_client(db, assets_router, role="office")
+    office = router_test_client(db, assets_router, role="buero_auftrag")
     created = office.post("/api/operational-assets", json={
         "name": "Kran", "asset_type": "Kran", "manufacturer": "Böcker", "model": "AHK36",
         "identifier": "X-123", "asset_number": "BM-001", "notes": "interne Beschaffungsnotiz",
@@ -136,7 +136,7 @@ def test_office_role_still_gets_the_full_schema_via_router(threaded_db_session, 
     from app.routers.operational_assets import router as assets_router
 
     db = threaded_db_session
-    office = router_test_client(db, assets_router, role="office")
+    office = router_test_client(db, assets_router, role="buero_auftrag")
     created = office.post("/api/operational-assets", json={
         "name": "Kran", "article_number": "ART-1", "product_url": "https://shop.example.test/kran",
         "usage_notes": "Vor Gebrauch Standfestigkeit prüfen.",
@@ -154,7 +154,7 @@ def test_module_disabled_returns_403_for_field_on_single_asset_endpoint(threaded
     from app.routers.operational_assets import router as assets_router
 
     db = threaded_db_session
-    office = router_test_client(db, assets_router, role="office")
+    office = router_test_client(db, assets_router, role="buero_auftrag")
     created = office.post("/api/operational-assets", json={"name": "Kran"}).json()
     db.add(EnabledModule(module_key="betriebsmittel", enabled=False))
     db.commit()
@@ -174,7 +174,7 @@ def test_qr_code_endpoint_returns_a_valid_png_for_office_role(threaded_db_sessio
     from app.routers.operational_assets import router as assets_router
 
     db = threaded_db_session
-    office = router_test_client(db, assets_router, role="office")
+    office = router_test_client(db, assets_router, role="buero_auftrag")
     created = office.post("/api/operational-assets", json={"name": "Kran"}).json()
     r = office.get(f"/api/operational-assets/{created['id']}/qr-code.png")
     assert r.status_code == 200
@@ -187,7 +187,7 @@ def test_qr_code_endpoint_is_403_for_field_role_printing_is_a_buero_vorgang(thre
     from app.routers.operational_assets import router as assets_router
 
     db = threaded_db_session
-    office = router_test_client(db, assets_router, role="office")
+    office = router_test_client(db, assets_router, role="buero_auftrag")
     created = office.post("/api/operational-assets", json={"name": "Kran"}).json()
     field = router_test_client(db, assets_router, role="field")
     assert field.get(f"/api/operational-assets/{created['id']}/qr-code.png").status_code == 403
@@ -200,7 +200,7 @@ def test_qr_code_content_changes_when_public_base_url_is_configured(threaded_db_
     from app.routers.operational_assets import router as assets_router
 
     db = threaded_db_session
-    office = router_test_client(db, assets_router, role="office")
+    office = router_test_client(db, assets_router, role="buero_auftrag")
     created = office.post("/api/operational-assets", json={"name": "Kran"}).json()
 
     without_override = office.get(f"/api/operational-assets/{created['id']}/qr-code.png").content
@@ -230,7 +230,7 @@ def test_operational_asset_page_renders_full_template_for_office(threaded_db_ses
     from app.routers.pages import router as pages_router
 
     db = threaded_db_session
-    office = router_test_client(db, pages_router, role="office")
+    office = router_test_client(db, pages_router, role="buero_auftrag")
     r = office.get("/betriebsmittel/1")
     assert r.status_code == 200
     assert "Etikett drucken" in r.text

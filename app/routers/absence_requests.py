@@ -13,7 +13,7 @@ from ..absence_requests import request_to_dict as absence_request_to_dict, cance
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser, EmployeeAbsenceRequest
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
+from ..permissions import ROLE_FIELD, require_min_role
 from ..schemas import EmployeeAbsenceRequestCreate, EmployeeAbsenceRequestOut, EmployeeAbsenceRequestReview
 
 from .time_tracking import _time_entry_employee_for_request
@@ -26,7 +26,7 @@ router = APIRouter()
 # Eigentümerschafts-Filterung unten (employee_id == eigene ID für Nicht-Admin) sorgt dafür,
 # dass niemand fremde Anträge sieht/ändert. Nur die FREIGABE (review_absence_request) bleibt
 # admin-only, wie schon bisher über ihre eigene require_admin()-Prüfung.
-_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+_any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
 @router.get("/api/absence-requests", response_model=list[EmployeeAbsenceRequestOut])

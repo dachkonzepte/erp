@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AppUser
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..tax_keys import (
     create_tax_key, ensure_default_tax_keys, list_tax_keys,
     set_default_tax_key, set_tax_key_archived, update_tax_key,
@@ -20,7 +20,7 @@ router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Steuerschlüssel sind Büro-/Admin-Konfiguration, nur
 # von quote_editor.html (Angebotseditor, kein Monteurs-Werkzeug) genutzt.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 @router.get("/api/tax-keys", response_model=list[TaxKeyOut])

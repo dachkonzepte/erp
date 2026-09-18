@@ -37,7 +37,7 @@ from ..operational_assets import (
     update_asset, update_inspection, update_operational_asset_settings,
 )
 from ..models import OperationalAsset, OperationalAssetDocument, OperationalAssetInspection
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role, require_role
 from ..qr_codes import qr_code_png_bytes
 from ..schemas import (
     OperationalAssetCreate, OperationalAssetDocumentOut, OperationalAssetFieldOut, OperationalAssetInspectionCreate,
@@ -51,8 +51,8 @@ router = APIRouter()
 # Betriebsmittelverwaltung ist Büro-/Admin-Bereich, wie Fuhrpark & Maschinen (resource_planning.py)
 # -- kein Endpunkt dieser Datei außer den beiden unten (Einzelabruf, QR-Code) wird von einer
 # Monteur-Vorlage aufgerufen.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
-_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
+_any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
 def _resolve_public_base_url(request: Request, db: Session) -> str:

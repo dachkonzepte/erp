@@ -237,7 +237,7 @@ def test_office_can_read_but_not_mutate(threaded_db_session, router_test_client)
     db = threaded_db_session
     ensure_default_columns(db)
     column_id = list_columns(db)[0]["id"]
-    client = router_test_client(db, pipeline_columns_router, role="office")
+    client = router_test_client(db, pipeline_columns_router, role="buero_auftrag")
     assert client.get("/api/project-pipeline-columns").status_code == 200
     assert client.post("/api/project-pipeline-columns", json={"label": "X"}).status_code == 403
     assert client.put(f"/api/project-pipeline-columns/{column_id}", json={"label": "X"}).status_code == 403

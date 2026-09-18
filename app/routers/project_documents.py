@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..document_categories import resolve_category_id
 from ..models import AppUser, ProjectDocument
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_documents import can_preview_type, document_path, is_image_type
 from ..schemas import ProjectDocumentOut, ProjectDocumentUpdate
 
@@ -21,7 +21,7 @@ router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Projektdokumente sind Büro-/Admin-Bereich -- kein
 # Endpunkt dieser Datei wird von einer Monteur-Vorlage aufgerufen.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 def _project_document_out(doc: ProjectDocument) -> ProjectDocumentOut:
     return ProjectDocumentOut(

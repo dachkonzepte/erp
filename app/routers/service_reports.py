@@ -34,7 +34,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import AppUser, InspectionItem, ServiceReportAsset, ServiceReportMaterial, ServiceReportPhoto
 from ..modules import is_module_enabled
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import (
     InspectionItemCreate, InspectionItemOut, InspectionItemResultUpdate, InspectionItemsSyncResult,
     PropertyAccessOut, RoofAreaOut, ServiceReportAssetCreate, ServiceReportAssetOut, ServiceReportAssetUpdate,
@@ -58,8 +58,8 @@ router = APIRouter()
 MODULE_KEY = "wartungen"
 PHOTO_CONTENT_TYPES = ("image/png", "image/jpeg", "image/webp")
 
-_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
-_office_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_any_role_dep = Depends(require_min_role(ROLE_FIELD))
+_office_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 def _require_module_enabled(db: Session):

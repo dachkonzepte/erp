@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AppUser
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import ImportSummary
 from ..service import persist_project
 from ..importers.leistungen_dach import LeistungenDachImportError, parse_leistungen_dach_xml
@@ -19,7 +19,7 @@ from ..importers.leistungen_dach import LeistungenDachImportError, parse_leistun
 router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Leistungskatalog-Import (Kalkulation/Preise), Büro/Admin.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 @router.post("/api/imports/leistungen-dach", response_model=ImportSummary)

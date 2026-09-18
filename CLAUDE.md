@@ -20,9 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.4.5** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `b2226e22b9f0` ("service_report_assets_und_selectable_in_reports",
-  siehe Abschnitt "Betriebsmittelverwaltung" -> "Stufe 3 (seit 1.4.5)" unten) -- vorher
+- Version: **1.4.7** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `7677d9d878ba` ("app user role office split finanzen auftrag",
+  reine Daten-Migration für die Aufteilung der Rolle "office" in `buero_finanzen`/`buero_auftrag`,
+  siehe Abschnitt "Rechtekonzept" -> "Vier Rollen" unten) -- vorher `b2226e22b9f0`
+  ("service_report_assets_und_selectable_in_reports", siehe Abschnitt "Betriebsmittelverwaltung"
+  -> "Stufe 3 (seit 1.4.5)" unten), davor
   `ed896599a211` ("operational assets erweiterungen faelligkeit
   dokumente", siehe Abschnitt "Betriebsmittelverwaltung" -> "Vier Ergänzungen (seit 1.4.2)"
   unten), davor `ccb5c4c0915b` ("operational assets stufe 2 qr and public base url", Stufe
@@ -37,9 +40,11 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1492 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1514 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 18.09.2026 (1.4.5, Betriebsmittelverwaltung Stufe 3 -- eingesetzte
+  dort), zuletzt am 18.09.2026 (1.4.7, Rechtekonzept "Vier Rollen" Etappe 1 -- reine
+  Rollen-Erweiterung, siehe Abschnitt "Rechtekonzept" -> "Vier Rollen" unten; davor 1.4.5,
+  Betriebsmittelverwaltung Stufe 3 -- eingesetzte
   Betriebsmittel im Einsatzbericht, siehe Abschnitt "Betriebsmittelverwaltung" unten) mit
   `pytest` in Tobias'
   `.venv` unter Windows
@@ -1614,8 +1619,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     unten.
 
 11. **Jeder neue `/api/`-Endpunkt braucht eine ausdrückliche Rollenangabe
-    (`Depends(require_role(...))` aus `app/permissions.py`, oder das ältere
-    `Depends(require_admin(...))` aus `app/deps.py`) -- Standardverweigerung, nicht
+    (`Depends(require_min_role(...))` aus `app/permissions.py` -- seit der Vier-Rollen-
+    Erweiterung 1.4.7 die primäre, hierarchiebasierte Prüfart für die überwältigende Mehrheit
+    der Fälle, siehe "Rechtekonzept" -> "Vier Rollen" --, das ältere, flache
+    `Depends(require_role(...))` für echte, nicht-hierarchische Rollenmengen, oder das noch
+    ältere `Depends(require_admin(...))` aus `app/deps.py`) -- Standardverweigerung, nicht
     Positivliste (seit "Rechtekonzept", siehe eigener Abschnitt unten für die volle
     Begründung).** Fehlt sie, gilt der Endpunkt als admin-only, nicht als für jeden
     Angemeldeten offen -- das ist die Umkehrung des tatsächlich wiederholt aufgetretenen
@@ -6855,6 +6863,154 @@ ist in der Liste ohnehin sichtbar, keine verdeckte Änderung möglich).
    "Bekannte, bewusst offene Punkte").
 4. Erstes echtes `field`-Testkonto anlegen, vollständigen Monteurs-Ablauf im Browser
    durchklicken. -- offen.
+
+### Vier Rollen (seit 1.4.7, Etappe 1: Rollen-Erweiterung)
+
+Neuer, vom Betreiber beauftragter Umbau auf dem obigen Fundament -- Vorgehen wie bei den
+größeren Umbauten dieses Projekts üblich: erst ein reiner Befund + Vorschlag (keine
+Codeänderung, separat berichtet), dann nach Bestätigung der Bau, in zwei ausdrücklich
+angeforderten Etappen. **Diese Version ist Etappe 1 -- die Rollen-Erweiterung selbst.** Etappe 2
+(die drei Verengungen + eine Erweiterung, siehe unten) folgt erst nach Rückmeldung zu dieser
+Etappe -- bis dahin sieht `buero_auftrag` überall exakt dasselbe wie `buero_finanzen`.
+
+**Anlass**: die bisherige Rolle `office` bündelte zu viel unter einem Dach -- ein Sachbearbeiter,
+der Angebote schreibt, sah damit automatisch auch die Kostenstruktur des Betriebs
+(Kalkulationsgrundlagen, künftig Betriebskosten) und die Vergütung der Kollegen. Der Betreiber
+wollte das trennen, ohne die seit "Rechtekonzept" etablierte Standardverweigerung/den
+Audit-Mechanismus neu zu erfinden.
+
+**Vier Rollen** (`app/permissions.py`): `admin` bleibt alles inklusive Systemverwaltung.
+`buero_finanzen` = alles Fachliche/Kaufmännische PLUS Betriebskosten-Übersicht (künftig)/
+Kalkulationsgrundlagen/Stundenverrechnungssatz-Herleitung/Mitarbeitervergütung -- Schnittstelle
+zum Steuerberater, keine Systemverwaltung. `buero_auftrag` = derselbe fachliche/kaufmännische
+Kern (Projekte, Angebote MIT voller Kalkulation/Marge/Einkaufspreisen -- das bleibt bewusst
+unverengt, siehe unten --, Aufträge, Rechnungen, Mahnwesen, Planung, Wartung, Anfragen, Aufgaben,
+Betriebsmittel-Bestand) OHNE die vier finanzspezifischen Bereiche oben. `field` unverändert.
+
+**Die Hierarchie -- die zentrale, vom Betreiber selbst gestellte Frage** ("kann buero_finanzen
+alles, was buero_auftrag kann, plus mehr? Prüfe, ob has_role() das als Hierarchie abbilden
+kann"): ja, über eine neue, parallele Prüfart. `ROLE_RANK` (`app/permissions.py`) ist eine reine
+Ganzzahl-Kette -- `field=0 < buero_auftrag=1 < buero_finanzen=2 < admin=3` --, `has_min_role(user,
+min_role)` prüft `ROLE_RANK[user.role] >= ROLE_RANK[min_role]`, `require_min_role(min_role, *,
+message=...)` ist die dazugehörige FastAPI-Dependency-Fabrik (Muster `require_role()`, trägt
+ebenso eine `_dk_roles`-Markierung -- hier die vollständige, aus `ROLE_RANK` abgeleitete Menge
+aller Rollen ab diesem Rang, damit `tests/test_v260_role_audit.py` ohne jede Sonderbehandlung
+weiterläuft). `has_role()`/`require_role()` (die FLACHE Mengenprüfung) bleiben unverändert
+bestehen -- für `require_admin()`-äquivalente Fälle und echte "für jede Rolle offen"-Stellen,
+keine Ablösung, eine zweite, weiterhin gültige Prüfart daneben.
+
+**Warum das die Migration deutlich weniger invasiv macht, als zunächst befürchtet**: eine
+exhaustive Durchsuchung aller `require_role(...)`-Aufrufe im Projekt (vor dem Bauen, nicht
+danach) ergab, dass im GESAMTEN Projekt nur genau ZWEI Rollenkombinationen je vorkamen --
+`require_role(ROLE_ADMIN, ROLE_OFFICE)` in ~40 Dateien und `require_role(ROLE_ADMIN, ROLE_OFFICE,
+ROLE_FIELD)` in ~15 Dateien, keine dritte. Beide übersetzen sich verlustfrei und OHNE
+Einzelentscheidung in `require_min_role(ROLE_OFFICE_AUFTRAG)` bzw. `require_min_role(ROLE_FIELD)`
+-- ein Skript hat diese reine Textersetzung über ~55 Endpunkt-Dependencies in ~45 `app/routers/`-
+Dateien vorgenommen, gefolgt von einer automatischen Importzeilen-Bereinigung (ungenutzte Symbole
+entfernt, `require_min_role` ergänzt) und einer echten Modul-für-Modul-Importprobe (jedes
+`app.routers.*`-Modul einzeln importiert -- fängt einen falschen/fehlenden Import sofort als
+`ImportError`, nicht erst als Testfehler). Zwei App-Kernmodule brauchten dieselbe Umstellung
+manuell: `app/tasks.py::list_tasks_for_user()` (`has_role(user, ROLE_ADMIN, ROLE_OFFICE)` ->
+`has_min_role(user, ROLE_OFFICE_AUFTRAG)`) und `app/search.py::OFFICE_ROLES` (die EINE, von allen
+18 Büro-Suchquellen referenzierte Konstante, erweitert auf `{ROLE_ADMIN, ROLE_OFFICE_FINANZEN,
+ROLE_OFFICE_AUFTRAG}` -- bestätigt exakt die in der vorangegangenen Bestandsaufnahme getroffene
+Vorhersage, dass die Suche nur EINE Konstantenänderung braucht, keine 18 Einzelentscheidungen).
+Ein einziger, vom Skript naturgemäß nicht erfasster manueller Rollenvergleich
+(`app/routers/pages.py::_require_users_page_access()`, `user.role not in (ROLE_ADMIN,
+ROLE_OFFICE)`, kein `require_role(...)`-Aufruf, sondern eine Inline-Bedingung im Bootstrap-Pfad)
+wurde beim Import-Check als `ImportError` sichtbar und auf `has_min_role(user,
+ROLE_OFFICE_AUFTRAG)` umgestellt. Drei literale `can(current_user, 'admin', 'office')`-Aufrufe in
+`_sidebar.html`/`_topbar.html` (Jinja-Templates kennen keine Rollenkonstanten, nur String-Literale,
+`can()` selbst ist eine FLACHE Mengenprüfung ohne Hierarchie -- siehe `app/routers/pages.py::_can()`)
+wurden auf `can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag')` erweitert.
+`require_admin()` (`app/deps.py`) bleibt in dieser Etappe unverändert -- die Verschiebung von
+`time_backoffice.py`/`address-import` auf `buero_auftrag` ist Teil von Etappe 2.
+
+**Migration `7677d9d878ba`** (reine Daten-Migration, kein Schema-Umbau -- `app_users.role` war
+immer schon eine unbeschränkte `String(30)`-Spalte ohne Constraint, siehe oben): ein bestehendes
+`role="office"`-Konto wird `buero_finanzen` -- die umfassendere der beiden neuen Rollen, exakt
+wie vom Betreiber vorgegeben (Bestandsschutz: ein bereits eingerichtetes Büro-Konto darf durch
+den Split nie Zugriff verlieren, umgekehrt zur "sicherste Rolle zuerst"-Regel bei NEUEN Konten
+unten). **Vor der Migration geprüft, nicht geraten, wie ausdrücklich verlangt** ("ich will
+wissen, wer welche Rolle bekommt, bevor sie vergeben wird"): die echte, lokale
+`dachkonzepte_erp.db` trägt genau zwei Konten -- Tobias (mit Mitarbeiterverknüpfung) und Admin
+(reines Systemkonto) --, BEIDE bereits `admin`. **0 Zeilen betroffen.** Migration trotzdem
+angewendet (Kettenanschluss für jede andere Installation), Bestand danach erneut verifiziert:
+beide Konten unverändert `admin`. `downgrade()` bildet beide neuen Werte gleich auf `office`
+zurück (kann die Aufteilung nicht verlustfrei rückgängig machen, dieselbe Konvention wie die
+vorangegangene Rollen-Migration `7a2b4e9f1c3d`).
+
+**Neue Konten, sicherer Vorgabewert** (`app/schemas.py::AppUserCreate`/`AppUserUpdate`): Pattern
+erweitert auf alle vier Rollen, der SCHEMA-Vorgabewert (greift nur, wenn ein Aufruf `role` ganz
+weglässt -- `users.html` schickt immer einen ausdrücklich gewählten Wert) geändert von `"field"`
+auf `"buero_auftrag"` -- die restriktivere der beiden Bürorollen, damit niemand allein durch
+Weglassen des Feldes Zugriff auf Kalkulationsgrundlagen/Mitarbeitervergütung erbt. Die
+Sidebar-Voreinstellung in `users.html` bleibt davon bewusst UNABHÄNGIG weiterhin `field`
+(Monteur) -- die am wenigsten privilegierte Rolle über alle vier Stufen hinweg, unverändert seit
+1.3.51 (Begründung: die beiden Vorgaben beantworten unterschiedliche Fragen -- "welche der zwei
+Bürorollen, falls office unspezifisch bliebe" vs. "welche Rolle soll ein Administrator beim
+Anlegen eines neuen Kontos ohne bewusste Wahl voreingestellt sehen", und für Letzteres bleibt die
+niedrigste Stufe insgesamt die sicherste Antwort). Rollen-Dropdown zeigt jetzt vier Optionen
+("Monteur"/"Büro – Auftrag"/"Büro – Finanzen"/"Administrator", in dieser Rangfolge), die
+bestehende Bestätigungsabfrage beim Anlegen ohne ausdrücklich gewählte Rolle bleibt unverändert.
+
+**Testfolgen**: ~140 Vorkommen von `role="office"`/`ROLE_OFFICE` über ~35 Testdateien einzeln
+durchgesehen und eingeordnet -- der weit überwiegende Teil sind reine Testaufbau-Stellen,
+mechanisch auf `buero_auftrag` umbenannt (Wahl als Repräsentant, nicht willkürlich: es ist die
+untere der beiden Bürorollen-Schwellen, ein damit erfolgreicher Test beweist bei einer
+`>=`-Rang-Prüfung automatisch, dass auch `buero_finanzen`/`admin` bestehen würden). Eine kleine
+Zahl von Stellen, die ausdrücklich "office UND admin dürfen beide" belegen sollten, wurde auf
+alle drei nicht-Monteur-Rollen erweitert statt nur umbenannt -- stärkerer Nachweis der Hierarchie
+an genau den Stellen, die das schon vorher zeigen wollten (u. a.
+`TestRoleGateOnCustomersInvoicesReminders`, die Aufgaben-/Seiten-Klassifizierungstests in
+`test_v260_role_audit.py`, die Büro-Suche in `test_v270_office_search.py`).
+`tests/test_v261_permissions_foundation.py`s Migrationstest für die HISTORISCHE Migration
+`7a2b4e9f1c3d` (role='user' -> 'office') blieb bewusst unverändert -- der testet eine bereits
+abgeschlossene, andere Migration. Neue, dedizierte Datei `tests/test_v281_role_hierarchy.py` --
+end-to-end-Nachweis der Hierarchie über eine echte FastAPI-Testroute (nicht nur die Funktion
+isoliert): `require_min_role(ROLE_OFFICE_AUFTRAG)` lässt `buero_auftrag`, `buero_finanzen` UND
+`admin` durch, ohne dass Letztere in der Dependency-Definition einzeln genannt wurden; ein liegen
+gebliebener Altwert (`"office"`) fällt an JEDER Schwelle sicher durch (Standardverweigerung, kein
+stiller Rückfall). Volle Suite: 1514 Tests grün.
+
+**Bewusst NICHT Teil dieser Etappe** (Etappe 2, folgt nach Rückmeldung zu dieser Etappe):
+
+1. **Kalkulationsgrundlagen/Stundenverrechnungssatz-Herleitung** -> `buero_finanzen` (die bereits
+   in der Bestandsaufnahme bestätigten 6 Endpunkte: `GET/PUT /api/calculation-settings` in
+   `settings.py`, alle 4 Endpunkte in `labor_rate.py`). **Nachgeschärft vom Betreiber, noch nicht
+   umgesetzt**: der Stundenverrechnungssatz zerfällt in den FERTIGEN Satz als Zahl (bleibt für
+   `buero_auftrag` sichtbar, aber NUR dort, wo er in einer Kalkulation angewendet wird -- Angebots-
+   Kalkulation/Leistungskatalog, beides bereits heute unverengt) und seine HERLEITUNG (Lohnansatz/
+   Gemeinkosten/Materialaufschlag/Wagnis & Gewinn -- nur `buero_finanzen`/`admin`). Geprüft (siehe
+   `app/calculation.py`): `CalculationSettings.labor_rate` ist ein direkt gespeicherter Wert
+   (Decimal-Spalte), KEIN aus `material_markup_pct`/`overhead_pct`/`risk_profit_pct` berechnetes
+   Ergebnis -- diese drei sind eigenständige, für sich stehende Kalkulationsfaktoren, keine
+   Bestandteile, aus denen sich `labor_rate` zusammensetzt. Die eigentliche "Herleitung" des
+   Satzes (Lohnansatz aus Mitarbeiter-Stundenlöhnen, Gemeinkosten) ist bereits vollständig in
+   `labor_rate.py` (`LaborRateSettings`/`LaborRateCalculationOut`) gekapselt, NICHT in
+   `CalculationSettings` selbst. Daraus folgt: `buero_auftrag` braucht KEINEN neuen, dedizierten
+   Endpunkt für "nur die fertige Zahl" -- es sieht den Satz bereits über die (unverengt
+   bleibenden) Kalkulations-/Katalog-Endpunkte, wo er angewendet wird; die geplante Verengung von
+   `GET/PUT /api/calculation-settings` + `labor_rate.py` auf `buero_finanzen` (die Stelle, wo man
+   die Bestandteile PFLEGT) erreicht die vom Betreiber verlangte Trennung deshalb bereits
+   vollständig, ohne weitere Endpunkt-Aufteilung.
+2. **Betriebskosten-Übersicht** -> `buero_finanzen` (existiert im Code noch nicht, reiner
+   Vormerkposten).
+3. **Mitarbeitervergütung** -> `buero_finanzen`. Noch zu lokalisieren (nicht nur
+   `GET /api/employees`, siehe `app/employees.py`/`app/routers/employees.py`/`app/labor_rate.py`/
+   `app/audit.py`, sowie `master_data.html`/`master_data_form.html`/`settings.html` für den
+   Vergütungsrechner) -- der Mitarbeiter-BESTAND ohne Vergütung (Name/Funktion/Qualifikation)
+   bleibt bei `buero_auftrag`.
+4. **Zeiterfassungs-Backoffice** (`app/routers/time_backoffice.py`, `/time-backoffice`,
+   `/address-import`) -> von `require_admin()` auf `require_min_role(ROLE_OFFICE_AUFTRAG)`
+   angehoben (Betreiberbegründung: Zeiten der Kolonnen korrigieren/Abwesenheiten verwalten
+   gehört zum laufenden, von `buero_auftrag` geführten Betrieb) -- vor der Umsetzung zu prüfen,
+   dass dabei keine Vergütungsdaten in einer Zeitauswertung mitsichtbar werden.
+
+Angriffstest am Ende von Etappe 2, wie vom Betreiber verlangt: je ein Testkonto pro Rolle, das
+gegen jede verengte Grenze anläuft -- `buero_auftrag` darf über KEINEN Weg an
+Kalkulationsgrundlagen/Betriebskosten/Vergütung, auch nicht über eine geratene URL oder einen
+manipulierten Parameter, dieselbe Gründlichkeit wie beim ursprünglichen Rechtekonzept.
 
 ## Dateiablage je Objekt ("Runde 2" der Monteurs-Erweiterung, seit 1.3.62)
 

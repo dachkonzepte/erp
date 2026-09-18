@@ -339,7 +339,7 @@ class TestFieldViewMaintenanceContractsEndpoint:
     def test_office_and_admin_can_reach_it_too(self, router_test_client, threaded_db_session):
         from app.routers.field_view import router as field_view_router
         db = threaded_db_session
-        for role in ("office", "admin"):
+        for role in ("buero_auftrag", "admin"):
             client = router_test_client(db, field_view_router, role=role)
             resp = client.get("/api/field-view/maintenance-contracts")
             assert resp.status_code == 200, role

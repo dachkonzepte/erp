@@ -45,7 +45,7 @@ def test_admin_cannot_delete_self_or_remove_last_admin():
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 409
     try:
-        update_app_user(admin.id, AppUserUpdate(username="admin", display_name="Admin", employee_id=None, role="office", active=True, new_password=None), db, admin)
+        update_app_user(admin.id, AppUserUpdate(username="admin", display_name="Admin", employee_id=None, role="buero_auftrag", active=True, new_password=None), db, admin)
         assert False, "last admin demotion should fail"
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 409

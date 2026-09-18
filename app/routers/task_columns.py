@@ -12,7 +12,7 @@ from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser
 from ..modules import is_module_enabled
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import TaskColumnCreate, TaskColumnOut, TaskColumnReorder, TaskColumnUpdate
 from ..task_columns import create_column, delete_column, list_columns, reorder_columns, update_column
 
@@ -24,7 +24,7 @@ MODULE_KEY = "aufgabenmanagement"
 # tasks.py -- Aufgaben bleiben für `field` vorerst vollständig gesperrt, das schließt auch die
 # Spaltenliste des Kanban-Boards mit ein. Die vier verändernden Endpunkte sind bereits
 # require_admin()-gated (strenger als office) und bleiben unverändert.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 def _require_module_enabled(db: Session):

@@ -217,7 +217,7 @@ class TestFieldTimeTrackingPageRouting:
     def test_office_and_admin_still_get_the_full_sidebar_template_with_group_booking(self, router_test_client, threaded_db_session):
         from app.routers.pages import router as pages_router
         db = threaded_db_session
-        for role in ("office", "admin"):
+        for role in ("buero_auftrag", "admin"):
             client = router_test_client(db, pages_router, role=role)
             resp = client.get("/time-tracking")
             assert resp.status_code == 200, role

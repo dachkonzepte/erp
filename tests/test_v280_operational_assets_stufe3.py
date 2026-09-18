@@ -383,7 +383,7 @@ def test_selectable_for_report_endpoint_recursive_key_scan_for_every_role(thread
     _make_selectable_asset(db, name="Kran")
     create_asset(db, {"name": "Trennschleifer"})  # nicht freigegeben -- darf nie auftauchen
 
-    for role, employee_id in (("field", None), ("office", None), ("admin", None)):
+    for role, employee_id in (("field", None), ("buero_auftrag", None), ("admin", None)):
         client = router_test_client(db, operational_assets_router, role=role, employee_id=employee_id)
         resp = client.get("/api/operational-assets/selectable-for-report")
         assert resp.status_code == 200, (role, resp.text)

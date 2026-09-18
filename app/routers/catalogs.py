@@ -11,13 +11,13 @@ from sqlalchemy.orm import Session
 from ..catalogs import create_catalog, list_catalogs, set_catalog_archived
 from ..database import get_db
 from ..models import AppUser
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import CatalogCreate, CatalogOut
 
 router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): reine Katalog-Container-Verwaltung, Büro/Admin.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 @router.get("/api/catalogs", response_model=list[CatalogOut])

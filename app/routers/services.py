@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..calculation import build_calculation, get_settings_for_catalog, get_service_for_calculation
 from ..database import get_db
 from ..models import AppUser, Catalog, Material, MaterialCalculationOverride, Service, ServiceCalculation
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import (
     ServiceBaseUpdate, ServiceCalculationOut, ServiceCalculationUpdate, ServiceCreate,
     ServiceDetailOut, ServiceListOut, ServiceMaterialAdd, ServiceMoveOrCopy,
@@ -29,7 +29,7 @@ router = APIRouter()
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Leistungskatalog trägt Kalkulation/Verkaufspreise --
 # Büro/Admin, nirgends von einer Monteurs-Seite genutzt (geprüft, anders als bei
 # GET /api/materials, siehe dort).
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 @router.get("/api/services", response_model=list[ServiceListOut])

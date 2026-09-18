@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AppUser, TimeEntry, TimeEntryGroup
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
+from ..permissions import ROLE_FIELD, require_min_role
 from ..schemas import TimeEntryManualCreate, TimeEntryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..time_backoffice import get_or_create_time_settings, rounded_hours, time_settings_dict
 from ..time_tracking import active_group_for_employee, active_entry as active_time_entry, create_group_manual_entry, create_manual_entry, delete_entry as delete_time_entry_row, entry_to_dict, group_for_entry, group_member_ids, group_to_dict, list_entries as list_time_entries, start_group_timer, start_timer, stop_group_timer, stop_timer, time_tracking_context, update_entry as update_time_entry_row
@@ -35,7 +35,7 @@ from ..work_time_models import automatic_break_minutes_for_timer
 
 router = APIRouter()
 
-_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+_any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 def _time_entry_employee_for_request(request: Request, requested_employee_id: int | None, db: Session) -> int:
     user = getattr(request.state, "erp_user", None)

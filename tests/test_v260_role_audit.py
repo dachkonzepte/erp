@@ -22,7 +22,10 @@ import pytest
 import app.routers as routers_package
 from app.deps import require_admin
 from app.models import AppUser
-from app.permissions import ROLE_ADMIN, ROLE_AUDIT_EXEMPT, ROLE_OFFICE, PAGE_AUDIT_EXEMPT, require_role
+from app.permissions import (
+    PAGE_AUDIT_EXEMPT, ROLE_ADMIN, ROLE_AUDIT_EXEMPT, ROLE_FIELD, ROLE_OFFICE_AUFTRAG,
+    ROLE_OFFICE_FINANZEN, require_min_role, require_role,
+)
 
 
 def _iter_role_marked_dependants(dependant):
@@ -105,18 +108,38 @@ def test_all_page_routes_have_an_explicit_role_check():
 
 def test_require_admin_and_require_role_both_carry_the_audit_marker():
     """require_admin() (app/deps.py) und require_role() (app/permissions.py) müssen beide die
-    _dk_roles-Markierung tragen -- sonst würde der Audit-Test oben jeden der zwölf bereits
+    _dk_roles-Markierung tragen -- sonst würde der Audit-Test oben jeden der bereits
     bestehenden admin-gateten Endpunkte fälschlich als unklassifiziert melden."""
     admin_dep = require_admin("x")
     assert admin_dep._dk_roles == frozenset({"admin"})
-    role_dep = require_role(ROLE_ADMIN, ROLE_OFFICE)
-    assert role_dep._dk_roles == frozenset({"admin", "office"})
+    role_dep = require_role(ROLE_ADMIN, ROLE_OFFICE_FINANZEN)
+    assert role_dep._dk_roles == frozenset({"admin", "buero_finanzen"})
+
+
+def test_require_min_role_carries_the_full_rank_derived_audit_marker():
+    """require_min_role() (app/permissions.py, seit der Vier-Rollen-Erweiterung -- CLAUDE.md
+    "Rechtekonzept" -> "Vier Rollen" -- die primäre Prüfart für die überwältigende Mehrheit der
+    Endpunkte) markiert NICHT nur den übergebenen Mindestrang selbst, sondern die vollständige,
+    aus ROLE_RANK abgeleitete Menge aller Rollen AB diesem Rang -- der Audit-Test oben prüft nur
+    auf PRÄSENZ irgendeiner _dk_roles-Markierung, das genügt hier bereits, aber die Menge selbst
+    muss trotzdem stimmen, sonst würde ein falscher Mindestrang unbemerkt bleiben."""
+    auftrag_dep = require_min_role(ROLE_OFFICE_AUFTRAG)
+    assert auftrag_dep._dk_roles == frozenset({"buero_auftrag", "buero_finanzen", "admin"})
+    finanzen_dep = require_min_role(ROLE_OFFICE_FINANZEN)
+    assert finanzen_dep._dk_roles == frozenset({"buero_finanzen", "admin"})
+    field_dep = require_min_role(ROLE_FIELD)
+    assert field_dep._dk_roles == frozenset({"field", "buero_auftrag", "buero_finanzen", "admin"})
+    admin_dep = require_min_role(ROLE_ADMIN)
+    assert admin_dep._dk_roles == frozenset({"admin"})
 
 
 class TestRoleGateOnCustomersInvoicesReminders:
-    """Nachweis am Beispiel: office/admin dürfen weiterhin alles wie bisher, field wird an
-    genau diesen drei Dateien abgelehnt (403), ohne dass Objekt-Filterung nötig ist -- Kunden/
-    Rechnungen/Mahnungen sind für einen Monteur an keiner Stelle vorgesehen, siehe CLAUDE.md."""
+    """Nachweis am Beispiel: beide Bürorollen und admin dürfen weiterhin alles wie bisher (seit
+    der Vier-Rollen-Erweiterung -- CLAUDE.md "Rechtekonzept" -> "Vier Rollen" -- über die
+    Hierarchie: require_min_role(ROLE_OFFICE_AUFTRAG) lässt buero_finanzen automatisch mit
+    durch), field wird an genau diesen drei Dateien abgelehnt (403), ohne dass Objekt-Filterung
+    nötig ist -- Kunden/Rechnungen/Mahnungen sind für einen Monteur an keiner Stelle vorgesehen,
+    siehe CLAUDE.md."""
 
     def _client(self, router_test_client, threaded_db_session, role):
         from app.routers.customers import router as customers_router
@@ -126,7 +149,7 @@ class TestRoleGateOnCustomersInvoicesReminders:
             threaded_db_session, customers_router, invoices_router, reminders_router, role=role,
         )
 
-    @pytest.mark.parametrize("role", ["admin", "office"])
+    @pytest.mark.parametrize("role", ["admin", "buero_finanzen", "buero_auftrag"])
     def test_office_and_admin_still_reach_customers_invoices_reminders(
         self, router_test_client, threaded_db_session, role,
     ):
@@ -180,9 +203,15 @@ class TestRoleGateOnTheHighRiskBatch:
         assert client.get("/api/employees/caseworkers").status_code == 403
         assert client.post("/api/employees", json={"first_name": "x", "last_name": "y"}).status_code == 403
 
-    def test_office_still_reaches_employee_wage_data(self, router_test_client, threaded_db_session):
+    @pytest.mark.parametrize("role", ["buero_finanzen", "buero_auftrag"])
+    def test_office_still_reaches_employee_wage_data(self, router_test_client, threaded_db_session, role):
+        """Etappe 1 (reine Rollen-Erweiterung, noch keine Verengung -- siehe CLAUDE.md
+        "Rechtekonzept" -> "Vier Rollen"): beide Bürorollen sehen hier noch dasselbe. Die
+        angekündigte Verengung der Mitarbeitervergütung auf buero_finanzen ist Etappe 2 und
+        macht diesen Test dann für buero_auftrag bewusst rot -- das ist der Punkt, nicht ein
+        Fehler, siehe dort."""
         from app.routers.employees import router as employees_router
-        client = router_test_client(threaded_db_session, employees_router, role="office")
+        client = router_test_client(threaded_db_session, employees_router, role=role)
         assert client.get("/api/employees").status_code == 200
 
     def test_field_is_rejected_from_calculation_settings_and_option_group_list(self, router_test_client, threaded_db_session):
@@ -229,7 +258,7 @@ class TestRoleGateOnTheHighRiskBatch:
         assert set(field_rows[0].keys()) == {"id", "article_number", "name", "unit"}
         assert field_client.post("/api/materials", json={"name": "x", "unit": "Stk", "purchase_price": "1"}).status_code == 403
 
-        office_client = router_test_client(threaded_db_session, materials_router, role="office")
+        office_client = router_test_client(threaded_db_session, materials_router, role="buero_auftrag")
         office_rows = office_client.get("/api/materials").json()
         assert Decimal(office_rows[0]["purchase_price"]) == Decimal("12.50")
 
@@ -261,7 +290,7 @@ class TestRoleGateOnTheHighRiskBatch:
         emp = Employee(employee_number="T-260", first_name="Erika", last_name="Testfrau",
                         employee_group="angestellt", hourly_wage="30", weekly_hours="40", active=True)
         threaded_db_session.add(emp); threaded_db_session.commit()
-        for role in ("admin", "office"):
+        for role in ("admin", "buero_finanzen", "buero_auftrag"):
             client = router_test_client(threaded_db_session, tasks_router, task_columns_router, role=role, employee_id=emp.id)
             assert client.get("/api/tasks").status_code == 200, role
             assert client.get("/api/task-columns").status_code == 200, role
@@ -317,7 +346,7 @@ class TestRoleGateOnTheRemainingBueroOnlyFiles:
 
     def test_office_and_admin_still_reach_the_buero_only_files(self, router_test_client, threaded_db_session):
         from app.routers.quotes import router as quotes_router
-        for role in ("admin", "office"):
+        for role in ("admin", "buero_finanzen", "buero_auftrag"):
             client = router_test_client(threaded_db_session, quotes_router, role=role)
             assert client.get("/api/quotes").status_code == 200, role
 
@@ -486,7 +515,7 @@ class TestObjectFilteringForFieldTeilB:
         assert field.get(f"/api/orders/{mine.id}/revisions").status_code == 403
         assert field.post(f"/api/orders/{mine.id}/revisions", json={"reason": "x"}).status_code == 403
 
-        office = router_test_client(db, orders_router, role="office")
+        office = router_test_client(db, orders_router, role="buero_auftrag")
         full = office.get(f"/api/orders/{foreign.id}").json()
         assert "net_total" in full and "unit_price" in full["items"][0]
         # ein field-Konto ohne Mitarbeiterverknüpfung kann keinem Auftrag zugeordnet sein
@@ -533,7 +562,7 @@ class TestObjectFilteringForFieldTeilB:
         assert field.post("/api/inspection-templates", json={"label": "x"}).status_code == 403
         assert field.get("/api/roof-type-template-defaults").status_code == 403
 
-        office = router_test_client(db, sr_router, findings_router, role="office")
+        office = router_test_client(db, sr_router, findings_router, role="buero_auftrag")
         assert office.get(f"/api/orders/{foreign.id}/service-reports").status_code == 200
         assert office.get(f"/api/service-reports/{fid}/findings").status_code == 200
         assert office.get(f"/api/orders/{foreign.id}/materials").status_code == 200
@@ -602,7 +631,7 @@ class TestObjectFilteringForFieldTeilB:
             "status", "status_label", "roof_component_name", "resubmission_date", "photo_count",
         }
         # Büro bekommt unverändert das volle Modell samt Beschreibungstext, ohne die Inline-Ergebnisse
-        office = router_test_client(db, sr_router, role="office")
+        office = router_test_client(db, sr_router, role="buero_auftrag")
         full = office.get(f"/api/orders/{current.id}/property-service-reports").json()[0]
         assert full["description"] == "Frühjahrswartung -- Beschreibungstext"
         assert "inspection_items" not in full and "status" in full
@@ -651,7 +680,7 @@ class TestObjectFilteringForFieldTeilB:
         assert {r["id"] for r in admin.get(f"/api/time-entries?order_id={order.id}").json()} == {mine.id, theirs.id}
         # Büro sieht die Buchungen aller (seit 1.3.56, Betreiberentscheidung) -- es rechnet sie ab;
         # auch ein Büro-Konto ohne Mitarbeiterverknüpfung, das vorher 403 bekam.
-        office = router_test_client(db, tt_router, role="office")
+        office = router_test_client(db, tt_router, role="buero_auftrag")
         assert {r["id"] for r in office.get(f"/api/time-entries?order_id={order.id}").json()} == {mine.id, theirs.id}
         unlinked = router_test_client(db, tt_router, role="field")
         assert unlinked.get("/api/time-entries").status_code == 403
@@ -758,15 +787,16 @@ class TestPageRouteClassification:
     def test_office_and_admin_reach_the_buero_pages_field_is_blocked_from(self, router_test_client, threaded_db_session):
         from app.routers.pages import router as pages_router
         db = threaded_db_session
-        for role in ("office", "admin"):
+        for role in ("buero_finanzen", "buero_auftrag", "admin"):
             client = router_test_client(db, pages_router, role=role)
             assert client.get("/", follow_redirects=False).status_code == 200, role
             assert client.get("/tasks", follow_redirects=False).status_code == 200, role
             assert client.get("/customers/1", follow_redirects=False).status_code == 200, role
-        # admin- statt require_role(...)-gated (unverändert seit vor dem Rechtekonzept)
+        # admin- statt require_role(...)-gated (unverändert seit vor dem Rechtekonzept) -- Etappe
+        # 1 verschiebt time-backoffice/address-import noch nicht, das ist Etappe 2 (siehe CLAUDE.md).
         admin = router_test_client(db, pages_router, role="admin")
         assert admin.get("/address-import", follow_redirects=False).status_code == 200
-        office = router_test_client(db, pages_router, role="office")
+        office = router_test_client(db, pages_router, role="buero_auftrag")
         assert office.get("/address-import", follow_redirects=False).status_code == 403
 
     def test_users_page_is_bootstrap_exempt_then_buero_only(self, router_test_client, threaded_db_session):
@@ -787,7 +817,7 @@ class TestPageRouteClassification:
         db.commit()
         field = router_test_client(db, pages_router, role="field")
         assert field.get("/users", follow_redirects=False).status_code == 403
-        office = router_test_client(db, pages_router, role="office")
+        office = router_test_client(db, pages_router, role="buero_auftrag")
         assert office.get("/users", follow_redirects=False).status_code == 200
 
 

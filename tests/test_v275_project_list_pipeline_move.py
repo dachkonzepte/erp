@@ -43,7 +43,7 @@ def test_list_projects_includes_pipeline_column_id(threaded_db_session, router_t
     db = threaded_db_session
     project = _project(db)
     db.commit()
-    client = router_test_client(db, projects_router, role="office")
+    client = router_test_client(db, projects_router, role="buero_auftrag")
     resp = client.get("/api/projects")
     assert resp.status_code == 200
     body = resp.json()
@@ -55,7 +55,7 @@ def test_create_project_response_includes_pipeline_column_id(threaded_db_session
     db = threaded_db_session
     customer = _customer(db)
     db.commit()
-    client = router_test_client(db, projects_router, role="office")
+    client = router_test_client(db, projects_router, role="buero_auftrag")
     resp = client.post("/api/projects", json={"customer_id": customer.id, "name": "Neu"})
     assert resp.status_code == 200
     assert resp.json()["pipeline_column_id"] == default_pipeline_column_id(db)
@@ -65,7 +65,7 @@ def test_project_detail_response_includes_pipeline_column_id(threaded_db_session
     db = threaded_db_session
     project = _project(db)
     db.commit()
-    client = router_test_client(db, projects_router, role="office")
+    client = router_test_client(db, projects_router, role="buero_auftrag")
     resp = client.get(f"/api/projects/{project.id}")
     assert resp.status_code == 200
     assert resp.json()["pipeline_column_id"] == project.pipeline_column_id
@@ -80,7 +80,7 @@ def test_move_pipeline_column_changes_only_the_column_never_status(threaded_db_s
     db.commit()
     original_status = project.status
 
-    client = router_test_client(db, projects_router, role="office")
+    client = router_test_client(db, projects_router, role="buero_auftrag")
     resp = client.put(f"/api/projects/{project.id}/pipeline-column", json={"pipeline_column_id": target["id"]})
     assert resp.status_code == 200
     body = resp.json()
@@ -96,7 +96,7 @@ def test_move_pipeline_column_unknown_project_is_404(threaded_db_session, router
     db = threaded_db_session
     column_id = list_columns(db)[0]["id"]
     db.commit()
-    client = router_test_client(db, projects_router, role="office")
+    client = router_test_client(db, projects_router, role="buero_auftrag")
     resp = client.put("/api/projects/999999/pipeline-column", json={"pipeline_column_id": column_id})
     assert resp.status_code == 404
 
@@ -105,7 +105,7 @@ def test_move_pipeline_column_unknown_column_is_404(threaded_db_session, router_
     db = threaded_db_session
     project = _project(db)
     db.commit()
-    client = router_test_client(db, projects_router, role="office")
+    client = router_test_client(db, projects_router, role="buero_auftrag")
     resp = client.put(f"/api/projects/{project.id}/pipeline-column", json={"pipeline_column_id": 999999})
     assert resp.status_code == 404
     db.refresh(project)

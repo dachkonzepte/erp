@@ -16,14 +16,14 @@ from ..customer_documents import can_preview_type, document_path, is_image_type
 from ..database import get_db
 from ..document_categories import resolve_category_id
 from ..models import AppUser, CustomerDocument
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import CustomerDocumentOut, CustomerDocumentUpdate
 
 router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Kundendokumente sind Büro-/Admin-Bereich -- kein
 # Endpunkt dieser Datei wird von einer Monteur-Vorlage aufgerufen.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 def _customer_document_out(doc: CustomerDocument) -> CustomerDocumentOut:
     return CustomerDocumentOut(

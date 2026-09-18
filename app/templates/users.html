@@ -14,18 +14,20 @@
 <main>
 <a class="back" href="#" onclick="history.back();return false">← Einstellungen</a>
 <div class="card"><h2>ERP-Benutzer</h2><p class="muted">Administratoren können Benutzerkonten bearbeiten, Passwörter zurücksetzen, aktivieren/deaktivieren und löschen. Änderungen werden im Audit-Log protokolliert.</p><div id="authInfo" class="muted"></div><div id="soleAdminWarning" class="hidden" style="background:var(--danger-soft);color:var(--danger);padding:10px 12px;margin:10px 0;font-size:13px">Es gibt aktuell nur einen einzigen aktiven Administrator. Der Weg "Zweiten Faktor zurücksetzen" über diese Seite steht deshalb praktisch nicht zur Verfügung -- die eigenen, ausgedruckten Wiederherstellungscodes und das Notfallskript auf dem Server (siehe CLAUDE.md) sind die einzige Absicherung, falls das Telefon mit der Authenticator-App verloren geht.</div><div style="overflow:auto"><table><thead><tr><th>Benutzer</th><th>Anzeigename</th><th>Mitarbeiter</th><th>Rolle</th><th>Status</th><th>2FA</th><th>Letzte Anmeldung</th><th></th></tr></thead><tbody id="rows"></tbody></table></div></div>
-<div class="card" id="editorCard"><h2 id="editorTitle">Benutzer hinzufügen</h2><div class="grid"><div class="field"><label>Benutzername *</label><input id="username"></div><div class="field"><label>Anzeigename *</label><input id="displayName"></div><div class="field"><label>Mitarbeiter</label><select id="employee"><option value="">— keine Verknüpfung —</option></select></div><div class="field"><label>Rolle</label><select id="role" onchange="onRoleFieldChange()"><option value="field">Monteur</option><option value="office">Büro</option><option value="admin">Administrator</option></select></div><div class="field"><label id="passwordLabel">Passwort *</label><input id="password" type="password" placeholder="mindestens 8 Zeichen"></div><div class="field"><label>Status</label><select id="active"><option value="true">Aktiv</option><option value="false">Inaktiv</option></select></div></div><div style="margin-top:12px"><button id="saveBtn" onclick="saveUser()">Benutzer anlegen</button> <button id="cancelBtn" class="secondary hidden" onclick="cancelEdit()">Abbrechen</button> <span id="msg" class="muted"></span></div><p class="muted" id="hint">Der erste angelegte Benutzer wird automatisch Administrator. Danach ist für die Benutzerverwaltung eine Anmeldung als Administrator erforderlich.</p></div>
+<div class="card" id="editorCard"><h2 id="editorTitle">Benutzer hinzufügen</h2><div class="grid"><div class="field"><label>Benutzername *</label><input id="username"></div><div class="field"><label>Anzeigename *</label><input id="displayName"></div><div class="field"><label>Mitarbeiter</label><select id="employee"><option value="">— keine Verknüpfung —</option></select></div><div class="field"><label>Rolle</label><select id="role" onchange="onRoleFieldChange()"><option value="field">Monteur</option><option value="buero_auftrag">Büro – Auftrag</option><option value="buero_finanzen">Büro – Finanzen</option><option value="admin">Administrator</option></select></div><div class="field"><label id="passwordLabel">Passwort *</label><input id="password" type="password" placeholder="mindestens 8 Zeichen"></div><div class="field"><label>Status</label><select id="active"><option value="true">Aktiv</option><option value="false">Inaktiv</option></select></div></div><div style="margin-top:12px"><button id="saveBtn" onclick="saveUser()">Benutzer anlegen</button> <button id="cancelBtn" class="secondary hidden" onclick="cancelEdit()">Abbrechen</button> <span id="msg" class="muted"></span></div><p class="muted" id="hint">Der erste angelegte Benutzer wird automatisch Administrator. Danach ist für die Benutzerverwaltung eine Anmeldung als Administrator erforderlich.</p></div>
 </main>
 </div>
 </div>
 <script>
 let users=[],employees=[],status={},editingId=null,roleTouched=false;
-// Seit "Rechtekonzept" (siehe CLAUDE.md): drei Rollen statt zwei, "Monteur" ist absichtlich die
-// am wenigsten privilegierte und deshalb die voreingestellte Option -- wer sie beim Anlegen
-// eines NEUEN Kontos nicht ausdrücklich ändert, bekommt trotzdem noch die Warnung unten, damit
-// eine Rolle nie unbemerkt "einfach passiert", auch wenn ein versehentlicher Administrator
-// durch diese Voreinstellung strukturell schon ausgeschlossen ist.
-const ROLE_LABELS={admin:'Administrator',office:'Büro',field:'Monteur'};
+// Seit "Rechtekonzept" (siehe CLAUDE.md "Rechtekonzept" -> "Vier Rollen"): vier Rollen statt
+// drei -- "Büro" ist in "Büro – Finanzen"/"Büro – Auftrag" aufgeteilt. "Monteur" bleibt
+// absichtlich die am wenigsten privilegierte und deshalb die voreingestellte Option -- wer sie
+// beim Anlegen eines NEUEN Kontos nicht ausdrücklich ändert, bekommt trotzdem noch die Warnung
+// unten, damit eine Rolle nie unbemerkt "einfach passiert", auch wenn ein versehentlicher
+// Administrator ODER ein versehentliches Büro-Finanzen-Konto durch diese Voreinstellung
+// strukturell schon ausgeschlossen ist.
+const ROLE_LABELS={admin:'Administrator',buero_finanzen:'Büro – Finanzen',buero_auftrag:'Büro – Auftrag',field:'Monteur'};
 function roleLabel(role){return ROLE_LABELS[role]||role}
 function onRoleFieldChange(){roleTouched=true}
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

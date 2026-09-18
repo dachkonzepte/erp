@@ -20,7 +20,7 @@ from ..document_layout_background import (
 from ..document_page_margins import PAGE_TYPES, get_margins, reset_margins_to_default, update_margins
 from ..document_type_fallback import SHARED_DOCUMENT_TYPE
 from ..models import AppUser, DocumentLayoutBlock
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import (
     DocumentLayoutBackgroundOut, DocumentLayoutBlockOut, DocumentLayoutBlockUpdate,
     DocumentPageMarginsOut, DocumentPageMarginsUpdate,
@@ -30,7 +30,7 @@ router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): ausschließlich von settings.html genutzt (geprüft),
 # Büro-/Admin-Konfiguration, für keinen Monteur relevant.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 # Nur dieser eine document_type-Wert darf tatsächlich BESCHRIEBEN werden -- SHARED_DOCUMENT_TYPE
 # ("default", der geteilte Satz für jeden Dokumenttyp, siehe app/document_type_fallback.py). Ein

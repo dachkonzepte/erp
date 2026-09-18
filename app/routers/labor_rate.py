@@ -13,14 +13,14 @@ from ..calculation import get_or_create_settings
 from ..database import get_db
 from ..labor_rate import calculate_labor_rate, get_or_create_labor_rate_settings, get_or_create_overhead_settings, labor_rate_settings_dict
 from ..models import AppUser
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import CalculationSettingsOut, LaborRateCalculationOut, LaborRateSettingsOut, LaborRateSettingsUpdate
 
 router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Kalkulationsgrundlage aus den Mitarbeiter-
 # Stundenlöhnen -- Büro/Admin, für keinen Monteur relevant.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 @router.get("/api/labor-rate-settings", response_model=LaborRateSettingsOut)
 def get_labor_rate_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):

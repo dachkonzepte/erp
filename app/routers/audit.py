@@ -12,14 +12,14 @@ from sqlalchemy.orm import Session
 from ..audit import audit_rows
 from ..database import get_db
 from ..models import AppUser
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import AuditLogOut
 
 router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): die Änderungshistorie zeigt Vorher-/Nachher-Werte
 # über alle Entitäten hinweg (auch Mitarbeiter/Preise) -- Büro/Admin, nicht für einen Monteur.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 @router.get("/api/audit-logs", response_model=list[AuditLogOut])

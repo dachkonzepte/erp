@@ -131,7 +131,7 @@ class TestReportOwnershipRead:
         from app.routers.service_reports import router as sr_router
         db = threaded_db_session
         order, monteur_a, monteur_b, report_b = _shared_order_with_two_reports(db)
-        for role in ("office", "admin"):
+        for role in ("buero_auftrag", "admin"):
             client = router_test_client(db, sr_router, role=role)
             resp = client.get(f"/api/orders/{order.id}/service-reports")
             assert resp.status_code == 200
@@ -270,7 +270,7 @@ class TestReportOwnershipWrite:
         from app.routers.service_reports import router as sr_router
         db = threaded_db_session
         order, monteur_a, monteur_b, report_b = _shared_order_with_two_reports(db)
-        client = router_test_client(db, sr_router, role="office")
+        client = router_test_client(db, sr_router, role="buero_auftrag")
         resp = client.put(f"/api/service-reports/{report_b['id']}", json={
             "report_type": "rapport", "description": "vom Buero geaendert", "performed_at": "2026-09-16",
         })
@@ -328,7 +328,7 @@ class TestPerformMaintenanceObjectScope:
         _order, customer, prop = _order_with_property(db, "AUF-263-0004", "P-263-0004")
         contract = create_contract(db, customer_id=customer.id, property_id=prop.id, title="Vertrag",
                                    interval_months=12, next_due_date=date.today())
-        for role in ("office", "admin"):
+        for role in ("buero_auftrag", "admin"):
             client = router_test_client(db, mc_router, role=role)
             resp = client.post(f"/api/maintenance-contracts/{contract['id']}/perform-maintenance")
             assert resp.status_code == 200, (role, resp.text)

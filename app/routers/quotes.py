@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..database import get_db
 from ..models import AppUser, Employee, EmployeeRoleSettings, Order, Project, Quote, QuoteEmployeeAssignment, QuoteItem, QuoteItemCalculation, QuoteItemLayout
 from ..orders import create_order_from_quote, load_order, order_to_dict
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..projects import add_service_to_quote, auto_number_quote, build_quote_item_calculation, create_free_quote_item, create_quote_section, delete_quote_section, duplicate_quote_item, ensure_quote_item_calculation, load_quote, quote_to_dict, reorder_quote, send_quote_email, set_item_layout, update_quote_section, update_quote_tax_key
 from ..quote_framed_pdf import build_quote_framed_pdf
 from ..schemas import OrderCreateFromQuote, OrderOut, QuoteDocumentMetaUpdate, QuoteEmailSend, QuoteFreeItemCreate, QuoteItemCalculationOut, QuoteItemCalculationUpdate, QuoteItemCreate, QuoteItemLayoutUpdate, QuoteItemUpdate, QuoteOut, QuoteReorderRequest, QuoteSectionCreate, QuoteSectionUpdate, QuoteUpdate, TaxKeySelection
@@ -25,7 +25,7 @@ router = APIRouter()
 # (siehe CLAUDE.md "Rechtekonzept" → Teil A des Rest-Etappe-Durchgangs), kein einziger Endpunkt
 # dieser Datei wird von einer Monteur-Vorlage (service_reports.html/mobil.html/
 # _mobile_header.html) aufgerufen.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 @router.get("/api/quotes/{quote_id}/order", response_model=OrderOut)
 def get_order_for_quote(quote_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):

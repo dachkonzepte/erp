@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import AppUser
 from ..modules import is_module_enabled
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..quick_service_orders import create_quick_service_order
 from ..schemas import QuickServiceOrderCreate, QuickServiceOrderOut
 
@@ -19,7 +19,7 @@ MODULE_KEY = "wartungen"
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Schnellauftrag ist Büro-/Admin-Bereich (Formular auf
 # maintenance_contracts.html) -- kein Endpunkt dieser Datei wird von einer Monteur-Vorlage
 # aufgerufen.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 def _require_module_enabled(db: Session):

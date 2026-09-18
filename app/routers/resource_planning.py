@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
 from ..models import AppUser, Employee, OperationalResource, Supplier, Team, TeamEmployee, TeamResource, WorkPreparationDeliveryNote, WorkPreparationMaterialSupplier, WorkPreparationTeamAssignment, WorkPreparationTeamResource
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import OperationalResourceCreate, OperationalResourceOut, OperationalResourceUpdate, SupplierCreate, SupplierOut, SupplierUpdate, TeamCreate, TeamOut, TeamUpdate
 
 router = APIRouter()
@@ -20,7 +20,7 @@ router = APIRouter()
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Teams/Ressourcen/Lieferanten sind Stammdaten-
 # Verwaltung, Büro-/Admin-Bereich -- geprüft, kein Endpunkt dieser Datei wird von einer
 # Monteur-Vorlage aufgerufen.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 def _supplier_dict(x: Supplier):
     return {k: getattr(x, k) for k in (

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_pipeline_columns import create_column, delete_column, list_columns, reorder_columns, update_column
 from ..schemas import (
     ProjectPipelineColumnCreate,
@@ -26,7 +26,7 @@ from ..schemas import (
 
 router = APIRouter()
 
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 @router.get("/api/project-pipeline-columns", response_model=list[ProjectPipelineColumnOut])

@@ -23,7 +23,7 @@ from ..invoices import (
 )
 from ..models import AppUser, Order
 from ..payment_terms import ensure_default_payment_terms
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..service_reports import list_materials_for_invoicing
 from ..time_tracking import list_entries
 from ..schemas import (
@@ -36,7 +36,7 @@ router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Rechnungen sind Büro-/Admin-Bereich, für einen
 # Monteur an keiner Stelle vorgesehen -- keine Objekt-Filterung nötig, reiner Rollen-Block.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, message="Rechnungen sind nur für Büro und Administratoren verfügbar."))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Rechnungen sind nur für Büro und Administratoren verfügbar."))
 
 
 def _get_order_or_404(db: Session, order_id: int) -> Order:

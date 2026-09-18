@@ -133,12 +133,12 @@ def test_get_property_for_order_endpoint_does_not_leak_internal_notes_or_custome
 
 
 # ---------------------------------------------------------------------------
-# AppUserCreate/-Update: drei Rollen, sicherer Vorgabewert
+# AppUserCreate/-Update: vier Rollen (seit CLAUDE.md "Rechtekonzept" -> "Vier Rollen"), Vorgabewert
 # ---------------------------------------------------------------------------
 
-def test_app_user_create_accepts_all_three_roles_and_defaults_to_field():
-    assert AppUserCreate(username="test1", password="Passwort123", display_name="Test").role == "field"
-    for role in ("admin", "office", "field"):
+def test_app_user_create_accepts_all_four_roles_and_defaults_to_buero_auftrag():
+    assert AppUserCreate(username="test1", password="Passwort123", display_name="Test").role == "buero_auftrag"
+    for role in ("admin", "buero_finanzen", "buero_auftrag", "field"):
         assert AppUserCreate(username="test1", password="Passwort123", display_name="Test", role=role).role == role
 
 

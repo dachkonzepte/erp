@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..invoices import get_invoice
 from ..models import AppUser, Reminder, ReminderLevel
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..reminder_pdf import build_reminder_pdf
 from ..reminders import (
     auto_create_due_reminder_drafts, compute_reminder_status, create_reminder, delete_reminder_draft,
@@ -26,7 +26,7 @@ router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Mahnwesen ist Büro-/Admin-Bereich, für einen Monteur
 # an keiner Stelle vorgesehen -- keine Objekt-Filterung nötig, reiner Rollen-Block.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, message="Mahnwesen ist nur für Büro und Administratoren verfügbar."))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Mahnwesen ist nur für Büro und Administratoren verfügbar."))
 
 
 def _get_invoice_or_404(db: Session, invoice_id: int):

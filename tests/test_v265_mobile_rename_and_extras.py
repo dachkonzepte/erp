@@ -99,7 +99,7 @@ class TestVorOrtRenamedToMobil:
         erreichbar (_any_role_dep), das ändert die Umbenennung nicht."""
         from app.routers.pages import router as pages_router
         db = threaded_db_session
-        for role in ("office", "admin", "field"):
+        for role in ("buero_auftrag", "admin", "field"):
             client = router_test_client(db, pages_router, role=role)
             assert client.get("/mobil").status_code == 200, role
 
@@ -135,7 +135,7 @@ class TestStartseiteFuerMonteure:
     def test_root_shows_dashboard_for_office_and_admin_unchanged(self, router_test_client, threaded_db_session):
         from app.routers.pages import router as pages_router
         db = threaded_db_session
-        for role in ("office", "admin"):
+        for role in ("buero_auftrag", "admin"):
             client = router_test_client(db, pages_router, role=role)
             resp = client.get("/", follow_redirects=False)
             assert resp.status_code == 200, role

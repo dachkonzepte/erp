@@ -106,7 +106,7 @@
 <div class="app-topbar">
   <button type="button" class="app-topbar-menu-btn" id="appTopbarMenuBtn" aria-label="Navigation öffnen" aria-controls="appSidebar" aria-expanded="false"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
   <div class="app-topbar-search-slot">
-    {% if current_user and current_user.role in ("admin", "office") %}
+    {% if current_user and current_user.role in ("admin", "buero_finanzen", "buero_auftrag") %}
     <div class="app-topbar-search">
       <input type="search" id="appTopbarSearchInput" placeholder="Suchen (Kunden, Aufträge, Rechnungen, …) …" autocomplete="off" aria-label="Suche">
       <div class="app-topbar-search-results" id="appTopbarSearchResults" hidden></div>

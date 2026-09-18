@@ -18,7 +18,7 @@ from ..work_preparation import planned_hours
 from ..models import AppUser, Customer, Order, Project, ProjectDocument, ProjectPipelineColumn, ProjectProfile, Property, Quote
 from ..option_settings import default_option_value, ensure_default_option_groups
 from ..orders import load_order, order_to_dict
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_documents import MAX_UPLOAD_BYTES, make_stored_filename, project_directory
 from ..project_pipeline_columns import default_pipeline_column_id
 from ..projects import delete_project, duplicate_project, load_project, load_quote, next_project_number, next_quote_number, quote_to_dict, set_project_archived
@@ -32,7 +32,7 @@ router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Projekte/Mustervorgänge sind Büro-/Admin-Bereich --
 # geprüft, kein Endpunkt dieser Datei wird von einer Monteur-Vorlage aufgerufen.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 def _ensure_project_profile(db: Session, project_id: int, category: str | None = None) -> ProjectProfile:
     ensure_default_option_groups(db)

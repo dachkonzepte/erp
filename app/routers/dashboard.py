@@ -9,14 +9,14 @@ from sqlalchemy.orm import Session
 from ..dashboard import get_widget_layout, save_widget_layout
 from ..database import get_db
 from ..models import AppUser
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
+from ..permissions import ROLE_FIELD, require_min_role
 from ..schemas import DashboardWidgetLayoutUpdate, DashboardWidgetOut
 
 router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): das eigene Dashboard-Layout ist Selbstbedienung für
 # JEDE Rolle -- rein per user.id isoliert, keine büro-spezifischen Daten.
-_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+_any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
 def _require_login(request: Request):

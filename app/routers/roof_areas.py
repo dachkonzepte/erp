@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AppUser, RoofArea
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..roof_area_sketches import MAX_UPLOAD_BYTES, sketch_path
 from ..roof_areas import (
     clear_roof_area_sketch, create_component_type, create_layer_type,
@@ -35,7 +35,7 @@ SKETCH_CONTENT_TYPES = ("image/png", "image/jpeg", "image/webp")
 # ist Büro-/Admin-Bereich -- geprüft, kein Endpunkt dieser Datei wird von einer Monteur-Vorlage
 # aufgerufen (die im Einsatzbericht angezeigte Dachflächenliste kommt über den unabhängigen
 # GET /api/orders/{order_id}/roof-areas in routers/service_reports.py, nicht von hier).
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 @router.get("/api/roof-areas", response_model=list[RoofAreaOut])

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends
 
 from ..changelog import read_changelog_entries
 from ..models import AppUser
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import ChangelogEntryOut
 
 router = APIRouter()
@@ -17,7 +17,7 @@ router = APIRouter()
 # Seit "Rechtekonzept" (siehe CLAUDE.md): nur aus den Einstellungen erreichbar, Büro/Admin --
 # keine sensiblen Daten (reine Software-Versionshistorie), aber ohne fachlichen Grund, sie
 # einem Monteur zu zeigen.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 @router.get("/api/changelog", response_model=list[ChangelogEntryOut])

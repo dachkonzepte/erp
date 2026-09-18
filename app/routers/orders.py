@@ -26,13 +26,13 @@ from ..invoices import invoice_summary_for_order
 from ..models import AppUser, Order, ServiceReport
 from ..order_pdf import build_order_pdf
 from ..orders import create_order_revision, field_may_access_order, list_order_revisions, load_order, order_to_dict, send_order_email, sync_order_from_source_quote, update_order_header, update_order_item, update_order_section, update_order_tax_key
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import OrderEmailSend, OrderFieldAccessOut, OrderItemUpdate, OrderListOut, OrderOut, OrderRevisionCreate, OrderRevisionOut, OrderSectionUpdate, OrderSyncRequest, OrderUpdate, TaxKeySelection
 
 router = APIRouter()
 
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
-_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
+_any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 FIELD_ORDER_DENIED = "Dieser Auftrag ist Ihnen nicht zugeordnet."
 

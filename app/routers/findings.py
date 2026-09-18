@@ -14,7 +14,7 @@ from ..findings import (
 )
 from ..models import AppUser, Finding
 from ..modules import is_module_enabled
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import FindingCreate, FindingFollowupUpdate, FindingOut
 from .orders import require_field_report_ownership
 from .service_reports import _employee_for_request
@@ -38,8 +38,8 @@ MODULE_KEY = "wartungen"
 # lesen/anlegen, Nachverfolgung ändern) -- vom Monteur selbst bedient (service_reports.html). Für
 # `field` zusätzlich require_field_report_ownership() -- ein Mangel gehört zu genau einem
 # Bericht, dessen Ersteller muss man sein, nicht nur irgendwer mit Zugriff auf den Auftrag.
-_office_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
-_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+_office_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
+_any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
 def _require_module_enabled(db: Session):

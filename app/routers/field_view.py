@@ -46,7 +46,7 @@ from ..mobile_manifest import build_icon_png, build_manifest
 from ..mobile_settings import get_or_create_mobile_settings, is_past_shift_end, mobile_settings_to_dict, update_mobile_settings
 from ..models import AppUser, DocumentCategory, Order, Property
 from ..modules import is_module_enabled
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
+from ..permissions import ROLE_FIELD, require_min_role
 from ..planning import list_field_bookable_order_ids, list_todays_assignments_for_employee, list_upcoming_assignments_for_employee
 from ..property_documents import (
     MAX_UPLOAD_BYTES, can_preview_type, create_property_document, is_image_type,
@@ -67,7 +67,7 @@ router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): reiner Lesezugriff auf eine nicht-sensible
 # Konfigurationszeile (Feierabend-Uhrzeit) -- für jede Rolle offen, Muster wie GET /api/modules.
-_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+_any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
 def _now() -> datetime:

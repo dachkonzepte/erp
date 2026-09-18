@@ -175,7 +175,7 @@
     {# Seit "Rechtekonzept": Aufgaben bleiben für Monteure gesperrt (siehe CLAUDE.md
        "Rechtekonzept" → "Aufgaben" -- heute wird in der echten Datenbank keine einzige
        Aufgabe an einen Monteur zugewiesen, kein Anwendungsfall dafür). #}
-    {% if is_module_enabled('aufgabenmanagement') and can(current_user, 'admin', 'office') %}
+    {% if is_module_enabled('aufgabenmanagement') and can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
     <a class="app-sidebar-link{{ ' active' if path == '/tasks' }}" href="/tasks"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="4.5" y="3.5" width="15" height="17" rx="0"/><polyline points="8,9 9.3,10.3 12,7.6"/><line x1="14" y1="9" x2="16.5" y2="9"/><polyline points="8,15 9.3,16.3 12,13.6"/><line x1="14" y1="15" x2="16.5" y2="15"/></svg></span><span class="app-sidebar-label">Aufgaben</span></a>
     {% endif %}
     {% if is_module_enabled('wartungen') %}
@@ -195,7 +195,7 @@
        "erst die riskanten Router, dann die übrigen") -- ein verstecktes, aber noch nicht
        serverseitig gesperrtes Ziel ist kein neues Risiko (die direkte URL war vorher genauso
        erreichbar), nur noch keine vollständige Absicherung. #}
-    {% if can(current_user, 'admin', 'office') %}
+    {% if can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
     <a class="app-sidebar-link{{ ' active' if path == '/finanzen' }}" href="/finanzen"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M16.5 7.2a5.8 5.8 0 1 0 0 9.6"/><line x1="6" y1="10.5" x2="14" y2="10.5"/><line x1="6" y1="13.5" x2="13" y2="13.5"/></svg></span><span class="app-sidebar-label">Finanzen</span></a>
     <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/mahnwesen' }}" href="/mahnwesen"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13"/><polyline points="3.7,6 12,13 20.3,6"/></svg></span><span class="app-sidebar-label">Mahnwesen</span></a>
     <div class="app-sidebar-group">Stammdaten</div>

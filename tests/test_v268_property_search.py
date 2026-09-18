@@ -231,7 +231,7 @@ def test_field_view_search_endpoint_registered_before_property_id_route(router_t
 
 def test_field_view_search_endpoint_unreachable_without_login(router_test_client, threaded_db_session):
     """Standardverweigerung (Regel 11): der Endpunkt braucht eine Rollenpruefung, ist ueber
-    require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD) markiert -- der Audit-Test
+    require_min_role(ROLE_FIELD) markiert -- der Audit-Test
     (test_v260_role_audit.py) deckt das bereits ab; hier nur die positive Bestätigung, dass field
     tatsächlich durchkommt (kein 403)."""
     from app.routers.field_view import router as field_router

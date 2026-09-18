@@ -184,7 +184,7 @@ def test_resource_linked_asset_is_findable_via_office_search_by_resource_fields(
     db.commit()
     asset = create_asset(db, {"resource_id": resource.id})
 
-    groups = {g["key"]: g for g in search_office(db, "office", "Böcker")}
+    groups = {g["key"]: g for g in search_office(db, "buero_auftrag", "Böcker")}
     assert "operational_assets" in groups
     hit = groups["operational_assets"]["hits"][0]
     assert hit["id"] == asset["id"]
@@ -195,7 +195,7 @@ def test_resource_linked_asset_is_findable_via_office_search_by_resource_fields(
 def test_standalone_asset_is_findable_via_office_search_by_own_fields():
     db = db_session()
     create_asset(db, {"name": "Leiter Alu 8m", "manufacturer": "Zarges"})
-    groups = {g["key"]: g for g in search_office(db, "office", "Zarges")}
+    groups = {g["key"]: g for g in search_office(db, "buero_auftrag", "Zarges")}
     assert "operational_assets" in groups
     assert groups["operational_assets"]["hits"][0]["title"] == "Leiter Alu 8m"
 
@@ -213,7 +213,7 @@ def test_office_can_upload_document_router_returns_asset_document(threaded_db_se
     from app.routers.operational_assets import router as assets_router
 
     db = threaded_db_session
-    office = router_test_client(db, assets_router, role="office")
+    office = router_test_client(db, assets_router, role="buero_auftrag")
     asset = office.post("/api/operational-assets", json={"name": "Kran"}).json()
 
     r = office.post(
@@ -263,7 +263,7 @@ def test_field_can_never_reach_an_operational_asset_document_via_any_path(thread
     from app.routers.operational_assets import router as assets_router
 
     db = threaded_db_session
-    office = router_test_client(db, assets_router, role="office")
+    office = router_test_client(db, assets_router, role="buero_auftrag")
     asset = office.post("/api/operational-assets", json={"name": "Kran"}).json()
     uploaded = office.post(
         f"/api/operational-assets/{asset['id']}/documents",
@@ -293,7 +293,7 @@ def test_office_search_endpoint_never_returns_an_operational_asset_to_field_role
     from app.routers.search import router as search_router
 
     db = threaded_db_session
-    office = router_test_client(db, assets_router, role="office")
+    office = router_test_client(db, assets_router, role="buero_auftrag")
     office.post("/api/operational-assets", json={"name": "Kran Böcker AHK36"})
 
     field = router_test_client(db, search_router, role="field")

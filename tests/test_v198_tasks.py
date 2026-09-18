@@ -85,7 +85,7 @@ def test_non_admin_locked_to_own_tasks_regardless_of_param():
     emp1, emp2 = make_employees(db)
     create_task(db, title="Für Erika", assigned_employee_id=emp1.id)
     create_task(db, title="Für Otto", assigned_employee_id=emp2.id)
-    user = AppUser(username="u1", display_name="U1", role="office", employee_id=emp1.id, active=True, password_hash=hash_password("Passwort123"))
+    user = AppUser(username="u1", display_name="U1", role="buero_auftrag", employee_id=emp1.id, active=True, password_hash=hash_password("Passwort123"))
     db.add(user); db.commit()
     rows = get_tasks(employee_id=emp2.id, status=None, project_id=None, db=db, _role=user)
     assert [r["title"] for r in rows] == ["Für Erika"]
@@ -93,7 +93,7 @@ def test_non_admin_locked_to_own_tasks_regardless_of_param():
 
 def test_non_admin_without_employee_link_gets_403():
     db = db_session()
-    user = AppUser(username="u2", display_name="U2", role="office", employee_id=None, active=True, password_hash=hash_password("Passwort123"))
+    user = AppUser(username="u2", display_name="U2", role="buero_auftrag", employee_id=None, active=True, password_hash=hash_password("Passwort123"))
     db.add(user); db.commit()
     try:
         get_tasks(employee_id=None, status=None, project_id=None, db=db, _role=user)

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..maintenance_contracts import (
     check_due_contracts_and_create_reminders, create_contract, create_contract_item,
     create_maintenance_contract_from_project, create_maintenance_visit, create_project_from_contract,
@@ -39,7 +39,7 @@ MODULE_KEY = "wartungen"
 # "Wartung durchführen"-Kette läuft über service_reports.html/den erzeugten Auftrag, nicht über
 # diese Verwaltungsendpunkte selbst). Einige Endpunkte hier tragen bereits eine eigene,
 # strengere require_admin()-Prüfung (Wartungsfenster/-einstellungen ändern) -- unverändert.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 # Einzige Ausnahme (seit 1.3.56, Rechtekonzept Teil B, Nachtrag): "Wartung durchführen" -- ein
 # Monteur muss vor Ort eine ungeplante Wartung starten können. Der Bericht wird dabei auf ihn
 # als Ersteller gesetzt, sonst hätte er auf den neu erzeugten Auftrag keinen Zugriff (siehe
@@ -48,7 +48,7 @@ _role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
 # über field_may_perform_maintenance() auf ein Objekt beschränkt, an dem der Monteur tatsächlich
 # zugeordnet ist -- dieselbe Grenze wie list_field_relevant_property_ids() auf /vor-ort. Büro/
 # Admin bleiben unbeschränkt. Vertragsdaten selbst (Liste, Detail, Bearbeitung) bleiben Büro.
-_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+_any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
 def _require_module_enabled(db: Session):

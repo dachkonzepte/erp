@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AppUser, DocumentCategory, Property, PropertyDocument
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..property_documents import (
     MAX_UPLOAD_BYTES, can_preview_type, create_property_document, delete_property_document,
     document_path, is_image_type, list_merged_documents_for_property,
@@ -30,7 +30,7 @@ router = APIRouter()
 # Seit "Rechtekonzept" (siehe CLAUDE.md): die Objekt-Dokumentverwaltung selbst ist Büro-/
 # Admin-Bereich -- der feldsichere, stark eingeschränkte Lesezugriff eines Monteurs läuft über
 # eigene, unabhängige Endpunkte (app/routers/field_view.py).
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 def _property_document_out(doc: PropertyDocument) -> PropertyDocumentOut:

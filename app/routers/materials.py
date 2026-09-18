@@ -18,7 +18,7 @@ from ..material_groups import (
 )
 from ..materials import create_manual_material, get_material, list_materials, update_material
 from ..models import AppUser, Material, MaterialGroup
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import (
     MaterialCatalogCreate, MaterialCatalogOut, MaterialCatalogUpdate,
     MaterialGroupCreate, MaterialGroupOut, MaterialMoveOrCopy, MaterialSearchOut,
@@ -34,8 +34,8 @@ router = APIRouter()
 # sondern das feldsichere MaterialSearchOut mit exakt den vier Feldern, die die Suchmaske
 # tatsächlich liest -- master_data.html (Büro/Admin-Katalogverwaltung, braucht die Preise für
 # die Tabelle) ruft denselben Endpunkt weiterhin mit voller Antwort.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
-_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
+_any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
 @router.get("/api/materials", response_model=list[MaterialCatalogOut] | list[MaterialSearchOut])

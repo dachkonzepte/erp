@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AppUser, Customer, Property
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import PropertyCreate, PropertyOut, PropertyUpdate
 
 router = APIRouter()
@@ -20,7 +20,7 @@ router = APIRouter()
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Objektverwaltung ist Büro-/Admin-Bereich -- der
 # feldsichere Lesezugriff für den Einsatzbericht läuft über einen eigenen, unabhängigen
 # Endpunkt (GET /api/orders/{order_id}/property in routers/service_reports.py, PropertyAccessOut).
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 @router.get("/api/properties", response_model=list[PropertyOut])
 def list_properties(customer_id: int | None = None, db: Session = Depends(get_db), _role: AppUser = _role_dep):

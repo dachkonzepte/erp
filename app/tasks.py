@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .email_sending import send_plain_email
 from .models import AppUser, Employee, Task, TaskChecklistItem, TaskColumn, TaskSettings
-from .permissions import ROLE_ADMIN, ROLE_OFFICE, has_role
+from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, has_min_role, has_role
 from .task_columns import ensure_default_columns
 
 PRIORITIES = ("niedrig", "normal", "hoch", "dringend")
@@ -128,7 +128,7 @@ def list_tasks_for_user(db: Session, user: AppUser, *, status: str | None = None
     search wird unverändert an list_tasks() durchgereicht (Titel-ILIKE) -- genutzt von
     app/search.py::_search_tasks() (Büro-Suche), damit die Sichtbarkeitsregel dort NICHT ein
     zweites Mal nachgebaut wird, siehe dort."""
-    if not has_role(user, ROLE_ADMIN, ROLE_OFFICE):
+    if not has_min_role(user, ROLE_OFFICE_AUFTRAG):
         return []
     if unassigned_only:
         effective_employee_id = None

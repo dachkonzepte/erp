@@ -1049,11 +1049,16 @@ class AppUserCreate(BaseModel):
     password: str = Field(min_length=8, max_length=200)
     display_name: str = Field(min_length=1, max_length=160)
     employee_id: int | None = None
-    # Seit "Rechtekonzept" (siehe CLAUDE.md): drei statt zwei Rollen -- Standardwert ist
-    # bewusst die am wenigsten privilegierte Rolle "field" (Monteur), nicht mehr "user"/"admin".
-    # Wer beim Anlegen die Rolle vergisst, bekommt dadurch nie versehentlich einen
-    # Administrator, sondern das am wenigsten weit reichende Konto.
-    role: str = Field(default="field", pattern="^(admin|office|field)$")
+    # Seit "Rechtekonzept" (siehe CLAUDE.md "Rechtekonzept" -> "Vier Rollen"): vier statt zwei
+    # Rollen -- "office" ist in buero_finanzen/buero_auftrag aufgeteilt. Der SCHEMA-Standardwert
+    # (greift nur, wenn ein Aufruf "role" ganz weglässt -- users.html schickt immer einen
+    # ausdrücklich gewählten Wert, dieser Default betrifft also praktisch nur einen künftigen
+    # API-/Skript-Aufrufer ohne eigene Rollenwahl) ist bewusst "buero_auftrag", die restriktivere
+    # der beiden Bürorollen -- niemand soll allein durch Weglassen des Feldes Zugriff auf
+    # Kalkulationsgrundlagen/Betriebskosten/Vergütung (buero_finanzen) erben. Die Sidebar-
+    # Voreinstellung in users.html bleibt davon unabhängig weiterhin "field" (Monteur), die am
+    # wenigsten privilegierte Rolle über ALLE vier hinweg -- siehe dort für die Begründung.
+    role: str = Field(default="buero_auftrag", pattern="^(admin|buero_finanzen|buero_auftrag|field)$")
     active: bool = True
 
 
@@ -1061,7 +1066,7 @@ class AppUserUpdate(BaseModel):
     username: str = Field(min_length=3, max_length=80)
     display_name: str = Field(min_length=1, max_length=160)
     employee_id: int | None = None
-    role: str = Field(default="field", pattern="^(admin|office|field)$")
+    role: str = Field(default="buero_auftrag", pattern="^(admin|buero_finanzen|buero_auftrag|field)$")
     active: bool = True
     new_password: str | None = Field(default=None, min_length=8, max_length=200)
 

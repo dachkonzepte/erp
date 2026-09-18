@@ -147,7 +147,7 @@ def test_topbar_appears_right_after_app_content_before_main():
 def test_search_slot_carries_the_office_search_for_admin_and_office():
     """Schritt 3 (Suche) ist seit 1.3.67 gebaut (siehe CLAUDE.md "Büro-Suche") -- der seit 1.3.45
     reservierte Platz ist jetzt gefüllt, für admin/office."""
-    for role in ("admin", "office"):
+    for role in ("admin", "buero_auftrag"):
         class _RoleUser:
             pass
         user = _RoleUser()

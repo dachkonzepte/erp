@@ -27,7 +27,7 @@ from app.models import (
     MaintenanceContract, Material, OperationalAsset, Order, Project, Property, Quote, Reminder, RoofArea,
     Service, ServiceReport, Supplier, Task,
 )
-from app.permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE
+from app.permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.search import OFFICE_SEARCH_SOURCES, search_office
 from tests.test_v153_mahnwesen import db_session  # noqa: F401 -- re-exportiert db_session als Fixture
@@ -63,7 +63,7 @@ def test_registry_allowed_roles_never_empty_and_never_include_field():
     for source in OFFICE_SEARCH_SOURCES:
         assert source.allowed_roles, f"{source.key}: allowed_roles ist leer"
         assert ROLE_FIELD not in source.allowed_roles, f"{source.key}: ROLE_FIELD darf nie enthalten sein"
-        assert source.allowed_roles <= {ROLE_ADMIN, ROLE_OFFICE}, f"{source.key}: unerwartete Rolle"
+        assert source.allowed_roles <= {ROLE_ADMIN, ROLE_OFFICE_FINANZEN, ROLE_OFFICE_AUFTRAG}, f"{source.key}: unerwartete Rolle"
 
 
 def test_registry_module_keys_are_known_or_none():
@@ -222,7 +222,7 @@ def test_office_search_router_field_role_always_gets_403(router_test_client, thr
     1.3.65): ein Monteur, der GET /api/search aufruft -- plain UND mit manipulierten Parametern
     (types=invoices, ein absurd hohes limit) -- bekommt 403, NIE irgendeine Zeile, geschweige
     denn eine Rechnung oder ein Preisfeld. Die primäre Sicherung ist der Router selbst
-    (require_role(ROLE_ADMIN, ROLE_OFFICE) schließt ROLE_FIELD aus) -- 403 fällt, bevor
+    (require_role(ROLE_ADMIN, ROLE_OFFICE_FINANZEN, ROLE_OFFICE_AUFTRAG) schließt ROLE_FIELD aus) -- 403 fällt, bevor
     search_office() auch nur eine Zeile liest."""
     from app.routers.search import router as search_router
     db = threaded_db_session
@@ -246,12 +246,14 @@ def test_office_search_router_field_role_always_gets_403(router_test_client, thr
 def test_office_search_router_office_and_admin_get_200_with_invoices_group(router_test_client, threaded_db_session):
     """Belegt Entscheidung 1 (Büro sieht die volle Gruppe A inkl. Rechnungen -- die Grenze
     verläuft zwischen Büro und Monteur, nicht zwischen Admin und Büro) über den tatsächlichen
-    Router-Weg, nicht nur die Kernfunktion direkt."""
+    Router-Weg, nicht nur die Kernfunktion direkt -- UND belegt die Hierarchie (CLAUDE.md
+    "Rechtekonzept" -> "Vier Rollen"): buero_finanzen und buero_auftrag verhalten sich hier
+    identisch, beides sind "Büro"-Ränge oberhalb von field."""
     from app.routers.search import router as search_router
     db = threaded_db_session
     data = _build_full_dataset(db, "Bueroweg")
 
-    for role in ("office", "admin"):
+    for role in ("buero_finanzen", "buero_auftrag", "admin"):
         client = router_test_client(db, search_router, role=role, employee_id=None)
         resp = client.get("/api/search", params={"q": "Bueroweg"})
         assert resp.status_code == 200, resp.text
@@ -271,7 +273,7 @@ def test_office_search_router_limit_is_clamped_between_one_and_hundred(router_te
     from app.routers.search import router as search_router
     db = threaded_db_session
     _build_full_dataset(db, "Limittest")
-    office = router_test_client(db, search_router, role="office", employee_id=None)
+    office = router_test_client(db, search_router, role="buero_auftrag", employee_id=None)
 
     resp_high = office.get("/api/search", params={"q": "Limittest", "limit": 99999})
     assert resp_high.status_code == 200
@@ -284,7 +286,7 @@ def test_office_search_router_types_filter_narrows_groups(router_test_client, th
     from app.routers.search import router as search_router
     db = threaded_db_session
     _build_full_dataset(db, "Typfilter")
-    office = router_test_client(db, search_router, role="office", employee_id=None)
+    office = router_test_client(db, search_router, role="buero_auftrag", employee_id=None)
 
     resp = office.get("/api/search", params={"q": "Typfilter", "types": "customers,invoices"})
     assert resp.status_code == 200
@@ -332,7 +334,7 @@ def test_office_search_finds_own_and_unassigned_tasks_never_a_colleagues(db_sess
     unassigned = Task(title=f"{marker} Offene Aufgabe")
     db.add_all([own, colleague, unassigned]); db.commit()
 
-    groups = search_office(db, ROLE_OFFICE, marker, employee_id=emp1.id)
+    groups = search_office(db, ROLE_OFFICE_AUFTRAG, marker, employee_id=emp1.id)
     by_key = {g["key"]: g for g in groups}
     assert "tasks" in by_key, "keine Treffer -- eigene/empfängerlose Aufgabe wurde nicht gefunden"
     found_ids = {h["id"] for h in by_key["tasks"]["hits"]}
@@ -352,7 +354,7 @@ def test_office_search_without_employee_link_still_finds_the_shared_inbox(db_ses
     unassigned = Task(title=f"{marker} Offen")
     db.add_all([assigned, unassigned]); db.commit()
 
-    groups = search_office(db, ROLE_OFFICE, marker, employee_id=None)
+    groups = search_office(db, ROLE_OFFICE_AUFTRAG, marker, employee_id=None)
     by_key = {g["key"]: g for g in groups}
     assert {h["id"] for h in by_key["tasks"]["hits"]} == {unassigned.id}
 
@@ -386,7 +388,7 @@ def test_office_search_router_finds_own_and_unassigned_but_not_colleagues_task(r
     unassigned = Task(title=f"{marker} Offene Aufgabe")
     db.add_all([own, colleague, unassigned]); db.commit()
 
-    client = router_test_client(db, search_router, role="office", employee_id=emp1.id)
+    client = router_test_client(db, search_router, role="buero_auftrag", employee_id=emp1.id)
     resp = client.get("/api/search", params={"q": marker})
     assert resp.status_code == 200, resp.text
     by_key = {g["key"]: g for g in resp.json()}

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..database import get_db
 from ..document_categories import resolve_category_id
 from ..models import AppUser, Employee, Order, PlanningSlot, ProjectDocument, Supplier, Team, TeamEmployee, TeamResource, WorkPreparation, WorkPreparationDeliveryNote, WorkPreparationEmployee, WorkPreparationMaterial, WorkPreparationMaterialDeliveryNote, WorkPreparationMaterialSupplier, WorkPreparationTask, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_documents import MAX_UPLOAD_BYTES, document_path, make_stored_filename, project_directory
 from ..schemas import WorkPreparationEmployeeCreate, WorkPreparationEmployeeUpdate, WorkPreparationMaterialBulkAssign, WorkPreparationMaterialUpdateV082, WorkPreparationOut, WorkPreparationTaskCreate, WorkPreparationTaskUpdate, WorkPreparationTeamAssign, WorkPreparationUpdate
 from ..work_preparation import ensure_preparation, list_open_tasks, load_preparation, preparation_to_dict
@@ -27,8 +27,8 @@ router = APIRouter()
 # "Meine Aufgaben" ist Selbstbedienung für jede Rolle, analog zu absence_requests.py -- die
 # bereits bestehende Eigentümerschafts-Filterung sorgt dafür, dass ein Nicht-Admin nur seine
 # eigenen Aufgaben sieht.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
-_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
+_any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
 @router.get("/api/work-preparation/tasks")

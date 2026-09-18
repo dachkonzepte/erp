@@ -6,7 +6,7 @@ funktionsfähig, damit Etappe 2 nur noch eine Oberfläche darauf bauen muss.
 **Separater Endpunkt von der Monteurs-Suche** (app/routers/field_view.py::
 get_field_view_property_search()) -- niemals ein gemeinsamer, rollenverzweigender Endpunkt
 (Prinzip seit 1.3.64, siehe CLAUDE.md "Suche als Einstieg"). Das macht die Router-Dependency
-`require_role(ROLE_ADMIN, ROLE_OFFICE)` (ROLE_FIELD ausdrücklich NICHT dabei) zur PRIMÄREN
+`require_min_role(ROLE_OFFICE_AUFTRAG)` (ROLE_FIELD ausdrücklich NICHT dabei) zur PRIMÄREN
 Sicherung: ein Monteur bekommt 403, BEVOR search_office() auch nur eine Zeile liest -- die
 rolleninterne Filterung in search_office() selbst (jede Quelle prüft role gegen
 source.allowed_roles) ist eine zweite, unabhängige Absicherung, kein Ersatz für diese hier.
@@ -18,13 +18,13 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AppUser
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role, require_role
 from ..schemas import OfficeSearchGroupOut
 from ..search import OFFICE_SEARCH_RESULT_LIMIT, search_office
 
 router = APIRouter()
 
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, message="Die Suche ist nur für Büro und Administratoren verfügbar."))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Die Suche ist nur für Büro und Administratoren verfügbar."))
 
 
 @router.get("/api/search", response_model=list[OfficeSearchGroupOut])

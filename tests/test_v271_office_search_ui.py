@@ -1,9 +1,10 @@
 """Büro-Suche, Etappe 2 (seit 1.3.67) -- siehe CLAUDE.md "Büro-Suche" für Etappe 1. Deckt die
 Oberfläche ab:
 
-1. Die Ergebnisseite `/suche` liegt HINTER `require_role(ROLE_ADMIN, ROLE_OFFICE)` als eigene
-   Seiten-Absicherung -- nicht nur der API-Endpunkt (`GET /api/search`) dahinter. Ein Monteur,
-   der die Seite über die Adresse aufruft, bekommt 403, bevor irgendetwas gerendert wird.
+1. Die Ergebnisseite `/suche` liegt HINTER `require_role(ROLE_ADMIN, ROLE_OFFICE_FINANZEN,
+   ROLE_OFFICE_AUFTRAG)` als eigene Seiten-Absicherung -- nicht nur der API-Endpunkt
+   (`GET /api/search`) dahinter. Ein Monteur, der die Seite über die Adresse aufruft, bekommt
+   403, bevor irgendetwas gerendert wird.
 2. Die (seit 1.4.2: 18) im Client (`search_results.html`) hartcodierten Filter-Schlüssel bleiben synchron mit
    der Registry (`app/search.py::OFFICE_SEARCH_SOURCES`) -- ein Regressionstest, der bei einer
    künftigen Registry-Änderung auffällt, wenn die Kopie im Template nicht mitgezogen wurde.
@@ -38,7 +39,7 @@ def test_search_results_page_requires_office_or_admin_role(router_test_client, t
 def test_search_results_page_reachable_for_office_and_admin(router_test_client, threaded_db_session):
     from app.routers import pages
     db = threaded_db_session
-    for role in ("office", "admin"):
+    for role in ("buero_finanzen", "buero_auftrag", "admin"):
         client = router_test_client(db, pages.router, role=role, employee_id=None)
         resp = client.get("/suche")
         assert resp.status_code == 200, resp.text
@@ -123,4 +124,4 @@ def test_topbar_search_input_hidden_from_markup_when_role_is_field():
     _topbar.html überhaupt auf einer für field erreichbaren Seite eingebunden wird -- kein
     kaputtes, nie funktionierendes Eingabefeld."""
     topbar = _read("_topbar.html")
-    assert 'current_user.role in ("admin", "office")' in topbar
+    assert 'current_user.role in ("admin", "buero_finanzen", "buero_auftrag")' in topbar

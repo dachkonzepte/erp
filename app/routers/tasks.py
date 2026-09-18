@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import require_admin
 from ..modules import is_module_enabled
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import (
     TaskChecklistItemCreate, TaskChecklistItemOut, TaskChecklistItemUpdate,
     TaskCreate, TaskOut, TaskSettingsOut, TaskSettingsUpdate, TaskUpdate,
@@ -39,7 +39,7 @@ MODULE_KEY = "aufgabenmanagement"
 # unten (die weiterhin unverändert für jeden Nicht-Admin greift, der `office` erreicht). Siehe
 # CLAUDE.md für die dabei gefundene, noch offene Lücke (PUT/DELETE/archive prüfen heute KEINE
 # Eigentümerschaft) -- Grund, warum eine Öffnung für `field` nicht ohne Weiteres möglich ist.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 def _require_module_enabled(db: Session):

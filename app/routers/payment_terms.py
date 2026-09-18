@@ -13,14 +13,14 @@ from ..payment_terms import (
     create_payment_term, ensure_default_payment_terms, list_payment_terms,
     set_default_payment_term, set_payment_term_archived, update_payment_term,
 )
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import PaymentTermCreate, PaymentTermOut, PaymentTermUpdate
 
 router = APIRouter()
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Zahlungsbedingungen sind Büro-/Admin-Konfiguration,
 # nur von quote_editor.html (Angebotseditor, kein Monteurs-Werkzeug) genutzt.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 @router.get("/api/payment-terms", response_model=list[PaymentTermOut])

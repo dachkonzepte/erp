@@ -218,7 +218,7 @@ def test_module_disabled_returns_403_even_for_office_role(threaded_db_session, r
 
     threaded_db_session.add(EnabledModule(module_key="betriebsmittel", enabled=False))
     threaded_db_session.commit()
-    client = router_test_client(threaded_db_session, assets_router, role="office")
+    client = router_test_client(threaded_db_session, assets_router, role="buero_auftrag")
     r = client.get("/api/operational-assets")
     assert r.status_code == 403
     assert "Betriebsmittelverwaltung" in r.json()["detail"]
@@ -227,7 +227,7 @@ def test_module_disabled_returns_403_even_for_office_role(threaded_db_session, r
 def test_office_role_full_crud_flow_via_router(threaded_db_session, router_test_client):
     from app.routers.operational_assets import router as assets_router
 
-    client = router_test_client(threaded_db_session, assets_router, role="office")
+    client = router_test_client(threaded_db_session, assets_router, role="buero_auftrag")
     created = client.post("/api/operational-assets", json={"name": "Leiter Alu 6m", "asset_type": "Sonstiges"}).json()
     assert created["id"]
     # Ohne Intervall bleibt next_due_date manuell (seit 1.4.2, siehe
@@ -252,6 +252,6 @@ def test_office_role_full_crud_flow_via_router(threaded_db_session, router_test_
 def test_creating_asset_without_name_or_resource_fails_with_422(threaded_db_session, router_test_client):
     from app.routers.operational_assets import router as assets_router
 
-    client = router_test_client(threaded_db_session, assets_router, role="office")
+    client = router_test_client(threaded_db_session, assets_router, role="buero_auftrag")
     r = client.post("/api/operational-assets", json={})
     assert r.status_code == 422

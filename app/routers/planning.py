@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
 from ..models import AppUser, Employee, EmployeeAbsence, PlanningHoliday
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..planning import GERMAN_STATES, create_slot, delete_slot, get_or_create_planning_settings, get_or_create_region_settings, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest
 
@@ -23,7 +23,7 @@ router = APIRouter()
 # Abwesenheiten, Slots) ist Büro-/Admin-Bereich -- geprüft, kein Endpunkt dieser Datei wird von
 # einer Monteur-Vorlage aufgerufen (die Monteursansicht liest ihre eigenen Einsätze über den
 # unabhängigen, bereits ausgenommenen GET /api/field-view/today).
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 @router.get("/api/planning/settings", response_model=PlanningSettingsOut)
 def get_planning_capacity_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):

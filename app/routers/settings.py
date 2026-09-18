@@ -28,7 +28,7 @@ from ..database import get_db
 from ..employees import ensure_default_employee_functions
 from ..models import AppUser, Employee, EmployeeFunction, EmployeeProfile, SettingOption
 from ..option_settings import ensure_default_option_groups, get_option_group, option_group_to_dict
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import AppearanceSettingsOut, AppearanceSettingsUpdate, CalculationSettingsOut, CalculationSettingsUpdate, EmployeeFunctionCreate, EmployeeFunctionOut, EmployeeFunctionUpdate, GeneralSettingsOut, GeneralSettingsUpdate, NumberPreviewOut, NumberSequenceOut, NumberSequenceUpdate, SettingOptionCreate, SettingOptionGroupOut, SettingOptionOut, SettingOptionUpdate
 from ..settings import ensure_default_sequences, get_accent_color, get_or_create_general_settings, preview_number, set_accent_color, update_sequence
 
@@ -43,8 +43,8 @@ router = APIRouter()
 # settings.html genutzt) bleibt dagegen Büro/Admin. (2) das Firmen-/Sidebar-Logo ANZEIGEN
 # (nicht hochladen/entfernen) -- keine sensiblen Daten, wird von jeder Seite mit Sidebar
 # unabhängig von der Rolle geladen.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, message="Nur für Büro und Administratoren verfügbar."))
-_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Nur für Büro und Administratoren verfügbar."))
+_any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
 @router.get("/api/calculation-settings", response_model=CalculationSettingsOut)

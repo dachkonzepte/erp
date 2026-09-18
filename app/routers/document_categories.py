@@ -13,12 +13,12 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..document_categories import create_category, list_categories, set_category_active, update_category
 from ..models import AppUser
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE, require_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import DocumentCategoryCreate, DocumentCategoryOut, DocumentCategoryUpdate
 
 router = APIRouter()
 
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 @router.get("/api/document-categories", response_model=list[DocumentCategoryOut])

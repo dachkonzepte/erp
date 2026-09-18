@@ -13,7 +13,7 @@ from ..inspection_templates import (
 )
 from ..models import AppUser
 from ..modules import is_module_enabled
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import (
     InspectionTemplateCopy, InspectionTemplateCreate, InspectionTemplateItemCreate, InspectionTemplateItemOut,
     InspectionTemplateItemUpdate, InspectionTemplateOut, InspectionTemplateUpdate, RoofTypeTemplateDefaultOut,
@@ -30,8 +30,8 @@ MODULE_KEY = "wartungen"
 # (GET /api/inspection-templates) -- service_reports.html lädt sie für die Vorlagenauswahl beim
 # Anlegen eines Berichts vor Ort; sie enthält Bezeichnung/Dachtyp/Prüfpunkttexte, keine Preise,
 # Kunden- oder Personendaten.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
-_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
+_any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
 def _require_module_enabled(db: Session):

@@ -105,14 +105,19 @@ from .models import (
     RoofArea, Service, ServiceReport, Supplier,
 )
 from .operational_assets import resolve_asset_identity
-from .permissions import ROLE_ADMIN, ROLE_OFFICE
+from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN
 from .tasks import list_tasks_for_user
 
 MIN_QUERY_LENGTH = 2
 SEARCH_RESULT_LIMIT = 10
 OFFICE_SEARCH_RESULT_LIMIT = 20
 
-OFFICE_ROLES = frozenset({ROLE_ADMIN, ROLE_OFFICE})
+# Seit der Aufteilung von "office" in buero_finanzen/buero_auftrag (CLAUDE.md "Rechtekonzept" ->
+# "Vier Rollen"): beide Bürorollen bleiben hier gleichberechtigt -- keine der 18 Suchquellen
+# betrifft Kalkulationsgrundlagen/Betriebskosten/Mitarbeitervergütung (das sind keine
+# durchsuchbaren Datensatzarten), die Verengung auf buero_finanzen betrifft ausschließlich die
+# dedizierten Einstellungs-/Vergütungsendpunkte, nicht die Suche.
+OFFICE_ROLES = frozenset({ROLE_ADMIN, ROLE_OFFICE_FINANZEN, ROLE_OFFICE_AUFTRAG})
 
 
 def _property_search_base_stmt(term: str):

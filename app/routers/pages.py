@@ -22,7 +22,7 @@ from ..database import SessionLocal, get_db
 from ..deps import require_admin
 from ..modules import is_module_enabled
 from ..models import AppUser
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, default_home_page_for_role, has_role, require_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, default_home_page_for_role, has_min_role, has_role, require_min_role
 from ..settings import get_accent_color
 from ..version import APP_VERSION
 
@@ -148,7 +148,7 @@ def _can(current_user, *roles: str) -> bool:
     unterschiedlich geschrieben werden, exakt das Muster, das bei
     build_din5008_header_block()s Vorgängern (drei divergierende Varianten, siehe CLAUDE.md
     "Kopfbereich") bereits einmal zum Problem wurde. Verwendung:
-    {% if can(current_user, 'admin', 'office') %}...{% endif %}. current_user ist
+    {% if can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}...{% endif %}. current_user ist
     request.state.erp_user (None, falls nicht angemeldet) -- wie bei account_display() von der
     aufrufenden Vorlage bereits als current_user gesetzt, kein DB-Zugriff nötig, deshalb auch
     keine try/except-Absicherung wie bei den DB-gestützten Globals oben. Delegiert seit der
@@ -176,8 +176,8 @@ templates.env.globals["can"] = _can
 # selbst leitet ihn sofort auf default_home_page_for_role() weiter (siehe dashboard_page() unten).
 # Das ist bewusst kein drittes Verhalten neben "gesperrt"/"offen", sondern dieselbe Weiche wie
 # login_page()/der 403-Exception-Handler: die Rolle entscheidet das Ziel, nicht der aufgerufene Weg.
-_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
-_any_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE, ROLE_FIELD))
+_role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
+_any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
 def _require_users_page_access(request: Request, db: Session = Depends(get_db)) -> AppUser | None:
@@ -188,7 +188,7 @@ def _require_users_page_access(request: Request, db: Session = Depends(get_db)) 
     if not users_exist(db):
         return None
     user = getattr(request.state, "erp_user", None)
-    if user is None or user.role not in (ROLE_ADMIN, ROLE_OFFICE):
+    if not has_min_role(user, ROLE_OFFICE_AUFTRAG):
         raise HTTPException(status_code=403, detail="Die Benutzerverwaltung ist nur für Büro und Administratoren verfügbar.")
     return user
 
