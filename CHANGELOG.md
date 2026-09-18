@@ -4,6 +4,63 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.4.5 – Betriebsmittelverwaltung, Stufe 3: eingesetzte Betriebsmittel im Einsatzbericht
+
+Reine Dokumentation -- kein Preis, keine Menge, keine Betriebsstunden in dieser Version. Erst
+Befund (Aufbau des Einsatzberichts, Vorbild `ServiceReportMaterial`, wo im PDF), dann drei
+Entscheidungen des Betreibers, dann in einer Runde gebaut.
+
+**`ServiceReportAsset`, so geschnitten, dass die Kostenerweiterung später sauber andockt.**
+`service_report_id` + `asset_id` (Pflicht -- ein Betriebsmittel wird immer aus dem Katalog
+gewählt, nie frei eingetippt, anders als `ServiceReportMaterial.material_id`) +
+`asset_name_snapshot` (Pflicht, physisch eingefroren bei der Erfassung -- dasselbe Muster wie die
+Bauteil-/Dachflächennamen seit 1.3.12) + `notes` (das einzige Zusatzfeld dieser Stufe, bleibt
+intern) + `sort_order`/`created_by_employee_id`/`client_uuid`. Beides wie verlangt: `asset_id` als
+echter Verweis für eine spätere Kostenauswertung, UND der eingefrorene Name für die Anzeige --
+wird das Betriebsmittel später umbenannt oder gelöscht, zeigt ein unterschriebener Bericht
+weiterhin, was damals eingesetzt wurde. Bewusst KEIN `roof_area_id` (anders als Material) -- ein
+Kran/Hubsteiger gehört üblicherweise zum ganzen Einsatz. Diese Tabelle ist die vorgesehene Stelle
+für die spätere Kosten-/Abrechnungserweiterung (Betriebsstunden, Mietdauer, abrechenbare Menge) --
+nullable `ALTER TABLE ADD COLUMN`-Ergänzungen auf genau dieser Zeile, keine Strukturänderung.
+
+**Das Flag "im Bericht auswählbar"** (`OperationalAsset.selectable_in_reports`, Standard AUS,
+Muster `DocumentCategory.is_field_visible`): das Büro gibt bewusst frei, was in einen Bericht
+darf, sonst wächst die Auswahlliste mit jedem Kleingerät zu. Gilt für JEDEN Aufrufer gleich, auch
+Büro/Admin -- keine Rollenausnahme, zugleich die serverseitige Absicherung gegen eine geratene
+`asset_id`. Die 5 Bestandsressourcen wurden bei der Migration auf "nicht auswählbar" gesetzt,
+ohne zu raten, welche gemeint sein könnten -- das Büro gibt sie gezielt frei.
+
+**Bedienung wie Material, ein vierter Panel-Umschalter** "Betriebsmittel" auf der Berichtskarte,
+aber ein einfaches `<select>` statt einer Debounce-Suche (die freigegebene Liste bleibt in der
+Praxis kurz). Neuer, für jede Rolle erreichbarer Endpunkt `GET /api/operational-assets/
+selectable-for-report` liefert immer das bereits aus Stufe 2 bekannte, feldsichere
+`OperationalAssetFieldOut`-Schema, gefiltert auf freigegeben+aktiv. Einfrieren nach der
+Unterschrift wie Material/Fotos/Prüfpunkte, keine neue Pflichtprüfung in `sign_report()`.
+
+**`delete_asset()` blockiert jetzt**, solange ein Bericht (Entwurf ODER unterschrieben) das Asset
+referenziert -- strenger als `delete_roof_component()` (das nur bei unterschriebenen Berichten
+blockiert), weil `ServiceReportAsset.asset_id` NICHT NULL ist und ein Löschen die
+Fremdschlüsselbeziehung sonst immer verletzen würde. Archivieren (`active=False`) bleibt frei.
+
+**QR-Scan im Bericht geprüft, nicht gebaut.** Der bestehende QR-Code öffnet beim Scannen eine neue
+Seite und verlässt damit den gerade bearbeiteten Bericht -- kein natürlicher Andock-Punkt. Ein
+echter In-Bericht-Scanner bräuchte Kamera-Zugriff im Browser plus eine neue Dekodier-Bibliothek,
+mit Cross-Browser-Risiko. Zurückgestellt, bis sich im Betrieb zeigt, dass die Auswahlliste zu
+umständlich ist -- für jetzt: Auswahl aus der Liste.
+
+**Im Kundenbericht**: neuer Abschnitt "Eingesetzte Betriebsmittel", direkt nach "Verbrauchtes
+Material", nur wenn tatsächlich welche erfasst wurden -- eine schlichte, komma-getrennte
+Namensliste aus den eingefrorenen Namen, über den gemeinsamen Rahmen mit `KeepTogether`. `notes`
+erscheint nie im PDF. Auch im reduzierten Feld-PDF vorhanden -- keine fremden Personendaten.
+
+**Angriffstest**: die neue Auswahlliste liefert für jede Rolle (Monteur, Büro, Admin) ausschließlich
+die fünf feldsicheren Felder, nie Kosten/Fristen/Artikelnummer (rekursiver Schlüssel-Scan). Ein
+Monteur kann über eine nicht freigegebene oder geratene `asset_id` kein Betriebsmittel in einen
+Bericht zwingen (400, keine stille Erfolgsmeldung) und keinem fremden Bericht ein Betriebsmittel
+hinzufügen. Migration `b2226e22b9f0` (neue Tabelle `service_report_assets`, neue Spalte
+`operational_assets.selectable_in_reports`), 26 neue Tests
+(`tests/test_v280_operational_assets_stufe3.py`), volle Suite: 1492 Tests grün.
+
 ## 1.4.4 – Nachtrag zu 1.4.3: Büro-Suche findet Aufgaben über dieselbe Sichtbarkeitsregel
 
 Der bei 1.4.3 transparent gemeldete, offene Punkt wurde behoben, solange der Zusammenhang noch

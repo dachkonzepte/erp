@@ -47,7 +47,7 @@ from .date_utils import add_months
 from .modules import is_module_enabled
 from .models import (
     OperationalAsset, OperationalAssetDocument, OperationalAssetInspection, OperationalAssetSettings,
-    OperationalResource,
+    OperationalResource, ServiceReportAsset,
 )
 from .operational_asset_documents import delete_document_file
 from .tasks import create_task
@@ -199,6 +199,7 @@ def asset_to_dict(asset: OperationalAsset, lead_days: int, *, today: date | None
         "recurring_cost_per_month": asset.recurring_cost_per_month,
         "cost_notes": asset.cost_notes,
         "active": asset.active,
+        "selectable_in_reports": asset.selectable_in_reports,
         "is_due": is_due,
         "is_overdue": is_overdue,
         "next_due_date": next_due_date,
@@ -249,6 +250,23 @@ def list_due_assets(db: Session) -> list[dict]:
     return [a for a in list_assets(db, include_inactive=False) if a["is_due"] or a["is_overdue"]]
 
 
+def list_selectable_assets(db: Session) -> list[dict]:
+    """Für die Betriebsmittel-Auswahl im Einsatzbericht (Stufe 3, seit 1.4.5) -- ausschließlich
+    freigegebene, aktive Assets (selectable_in_reports UND active), im reduzierten Schema
+    (asset_field_dict()) für JEDE Rolle, die einen Bericht ausfüllt (Büro/Admin/Monteur
+    gleichermaßen): ein Bericht braucht nie Kosten-/Fristendaten, unabhängig davon, wer ihn
+    ausfüllt -- dieselbe Reduktion, die field_asset_dict() für die Rolle `field` schon leistet,
+    hier bewusst für alle Rollen angewendet (siehe app/routers/operational_assets.py). Sortiert
+    nach dem LIVE aufgelösten Namen (nicht der DB-Spalte OperationalAsset.name, die bei
+    ressourcenverknüpften Assets NULL bleibt, siehe resolve_asset_identity())."""
+    query = _asset_query().where(
+        OperationalAsset.selectable_in_reports == True, OperationalAsset.active == True,  # noqa: E712
+    )
+    rows = [asset_field_dict(a) for a in db.scalars(query).all()]
+    rows.sort(key=lambda r: (r["name"] or "").lower())
+    return rows
+
+
 def _validate_resource_not_taken(db: Session, resource_id: int | None, *, exclude_asset_id: int | None = None) -> None:
     if resource_id is None:
         return
@@ -278,6 +296,7 @@ def create_asset(db: Session, payload: dict) -> dict:
         recurring_cost_per_month=payload.get("recurring_cost_per_month"),
         cost_notes=payload.get("cost_notes"),
         active=payload.get("active", True),
+        selectable_in_reports=payload.get("selectable_in_reports", False),
         **{k: (None if resource_id is not None else payload.get(k)) for k in own_fields},
     )
     db.add(asset)
@@ -309,6 +328,7 @@ def update_asset(db: Session, asset_id: int, payload: dict) -> dict | None:
     asset.recurring_cost_per_month = payload.get("recurring_cost_per_month")
     asset.cost_notes = payload.get("cost_notes")
     asset.active = payload.get("active", True)
+    asset.selectable_in_reports = payload.get("selectable_in_reports", False)
     db.commit()
     lead_days = get_or_create_operational_asset_settings(db).reminder_lead_days
     return asset_to_dict(_load(db, asset.id), lead_days)
@@ -318,10 +338,24 @@ def delete_asset(db: Session, asset_id: int) -> bool:
     """Löscht das Betriebsmittel samt seiner Prüffristen (ORM-Cascade) UND deren
     Dokumenten von der Festplatte. Die verknüpfte OperationalResource selbst bleibt davon
     unberührt -- ein Betriebsmittel löschen darf nie die zugrunde liegende Ressource
-    (und damit deren Planungshistorie) mitreißen."""
+    (und damit deren Planungshistorie) mitreißen.
+
+    Blockiert (seit 1.4.5), solange mindestens ein Einsatzbericht dieses Asset über
+    ServiceReportAsset.asset_id referenziert -- unabhängig davon, ob der jeweilige Bericht noch
+    Entwurf oder bereits unterschrieben ist (bewusst strenger als delete_roof_component(), das
+    nur bei bereits unterschriebenen Berichten blockiert: ServiceReportAsset.asset_id ist NICHT
+    NULL, ein Löschen würde die Fremdschlüsselbeziehung sonst in JEDEM Fall verletzen, nicht nur
+    bei einem Nachweisdokument). Archivieren (active=False) bleibt dafür uneingeschränkt
+    möglich -- der übliche Weg, ein nicht mehr genutztes Betriebsmittel auszublenden, ohne seine
+    Verwendung in Berichten zu gefährden."""
     asset = db.get(OperationalAsset, asset_id)
     if asset is None:
         return False
+    if db.scalar(select(ServiceReportAsset.id).where(ServiceReportAsset.asset_id == asset_id).limit(1)) is not None:
+        raise ValueError(
+            "Dieses Betriebsmittel ist in mindestens einem Einsatzbericht erfasst und kann nicht "
+            "gelöscht werden -- archivieren Sie es stattdessen (Status auf Inaktiv)."
+        )
     for inspection in list(asset.inspections):
         delete_document_file(inspection.document_filename)
     db.delete(asset)

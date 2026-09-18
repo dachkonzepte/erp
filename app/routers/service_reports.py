@@ -32,24 +32,24 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import AppUser, InspectionItem, ServiceReportMaterial, ServiceReportPhoto
+from ..models import AppUser, InspectionItem, ServiceReportAsset, ServiceReportMaterial, ServiceReportPhoto
 from ..modules import is_module_enabled
 from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
 from ..schemas import (
     InspectionItemCreate, InspectionItemOut, InspectionItemResultUpdate, InspectionItemsSyncResult,
-    PropertyAccessOut, RoofAreaOut, ServiceReportCreate, ServiceReportHistoryOut, ServiceReportMaterialCreate,
-    ServiceReportMaterialOut, ServiceReportMaterialUpdate, ServiceReportOut, ServiceReportPhotoOut, ServiceReportSign,
-    ServiceReportUpdate,
+    PropertyAccessOut, RoofAreaOut, ServiceReportAssetCreate, ServiceReportAssetOut, ServiceReportAssetUpdate,
+    ServiceReportCreate, ServiceReportHistoryOut, ServiceReportMaterialCreate, ServiceReportMaterialOut,
+    ServiceReportMaterialUpdate, ServiceReportOut, ServiceReportPhotoOut, ServiceReportSign, ServiceReportUpdate,
 )
 from ..service_report_pdf import build_service_report_pdf
 from ..service_report_photos import MAX_UPLOAD_BYTES, photo_path
 from ..service_reports import (
-    add_inspection_item, add_material, add_photo, create_report, delete_inspection_item, delete_material,
-    delete_photo, delete_report, get_property_context_for_order, get_report_row, list_inspection_items,
-    list_materials_for_invoicing, list_materials_for_report, list_photos, list_property_history,
-    list_property_history_for_field, list_reports, list_reports_for_field, list_roof_areas_for_order,
-    material_to_dict, regenerate_inspection_items, sign_report, sync_inspection_items, update_inspection_item,
-    update_material, update_report,
+    add_asset_usage, add_inspection_item, add_material, add_photo, create_report, delete_asset_usage,
+    delete_inspection_item, delete_material, delete_photo, delete_report, get_property_context_for_order,
+    get_report_row, list_assets_for_report, list_inspection_items, list_materials_for_invoicing,
+    list_materials_for_report, list_photos, list_property_history, list_property_history_for_field, list_reports,
+    list_reports_for_field, list_roof_areas_for_order, material_to_dict, regenerate_inspection_items, sign_report,
+    sync_inspection_items, update_asset_usage, update_inspection_item, update_material, update_report,
 )
 from .orders import require_field_order_access, require_field_report_ownership
 
@@ -65,6 +65,16 @@ _office_role_dep = Depends(require_role(ROLE_ADMIN, ROLE_OFFICE))
 def _require_module_enabled(db: Session):
     if not is_module_enabled(db, MODULE_KEY):
         raise HTTPException(status_code=403, detail="Das Modul Wartungen & Reparaturen ist deaktiviert.")
+
+
+def _require_operational_assets_module_enabled(db: Session):
+    """Zusätzlich zu _require_module_enabled() (wartungen) für die drei Betriebsmittel-Endpunkte
+    unten (seit 1.4.5) -- ein Einsatzbericht kann Betriebsmittel nur dokumentieren, wenn BEIDE
+    Module aktiv sind, sonst bliebe die Betriebsmittelverwaltung über diesen Umweg nutzbar,
+    obwohl sie deaktiviert ist (dieselbe Regel wie bei jedem anderen modulgegateten Endpunkt,
+    siehe CLAUDE.md "Modul-Umschalter")."""
+    if not is_module_enabled(db, "betriebsmittel"):
+        raise HTTPException(status_code=403, detail="Das Modul Betriebsmittelverwaltung ist deaktiviert.")
 
 
 def _employee_for_request(request: Request, requested_employee_id: int | None) -> int | None:
@@ -436,4 +446,57 @@ def delete_service_report_material(material_id: int, db: Session = Depends(get_d
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not deleted:
         raise HTTPException(status_code=404, detail="Material nicht gefunden.")
+    return {"ok": True}
+
+
+# --- Eingesetzte Betriebsmittel (seit 1.4.5, Betriebsmittelverwaltung Stufe 3) -- eigener
+# Pfad-Präfix "service-report-assets" für die Einzelzeilen-Endpunkte, gleiches Muster wie bei
+# Material oben. Jeder Endpunkt prüft ZUSÄTZLICH zu _require_module_enabled() (wartungen) auch
+# _require_operational_assets_module_enabled() (betriebsmittel) -- siehe dort. ---
+
+@router.get("/api/service-reports/{report_id}/assets", response_model=list[ServiceReportAssetOut])
+def get_service_report_assets(report_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    _require_module_enabled(db)
+    _require_operational_assets_module_enabled(db)
+    require_field_report_ownership(db, _role, report_id)
+    return list_assets_for_report(db, report_id)
+
+
+@router.post("/api/service-reports/{report_id}/assets", response_model=ServiceReportAssetOut)
+def post_service_report_asset(
+    report_id: int, payload: ServiceReportAssetCreate, request: Request, db: Session = Depends(get_db),
+    _role: AppUser = _any_role_dep,
+):
+    _require_module_enabled(db)
+    _require_operational_assets_module_enabled(db)
+    require_field_report_ownership(db, _role, report_id)
+    employee_id = _employee_for_request(request, payload.created_by_employee_id)
+    try:
+        return add_asset_usage(
+            db, report_id, asset_id=payload.asset_id, notes=payload.notes,
+            created_by_employee_id=employee_id, client_uuid=payload.client_uuid,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.put("/api/service-report-assets/{asset_row_id}", response_model=ServiceReportAssetOut)
+def put_service_report_asset(asset_row_id: int, payload: ServiceReportAssetUpdate, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    _require_module_enabled(db)
+    _require_operational_assets_module_enabled(db)
+    require_field_report_ownership(db, _role, _report_id_for_child(db, ServiceReportAsset, asset_row_id, "Betriebsmittel-Eintrag nicht gefunden."))
+    fields = payload.model_dump(exclude_unset=True)
+    result = update_asset_usage(db, asset_row_id, fields)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Betriebsmittel-Eintrag nicht gefunden.")
+    return result
+
+
+@router.delete("/api/service-report-assets/{asset_row_id}")
+def delete_service_report_asset(asset_row_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    _require_module_enabled(db)
+    _require_operational_assets_module_enabled(db)
+    require_field_report_ownership(db, _role, _report_id_for_child(db, ServiceReportAsset, asset_row_id, "Betriebsmittel-Eintrag nicht gefunden."))
+    if not delete_asset_usage(db, asset_row_id):
+        raise HTTPException(status_code=404, detail="Betriebsmittel-Eintrag nicht gefunden.")
     return {"ok": True}

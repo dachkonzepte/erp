@@ -11,7 +11,13 @@ volle Büro-URL) aufgerufen wurde: die Rollenprüfung sitzt serverseitig im Rout
 Jeder andere Endpunkt dieser Datei bleibt Büro-/Admin-only wie bisher -- ausdrücklich
 eingeschlossen die drei Dokumentenablage-Endpunkte (seit 1.4.2, Punkt 4): eine
 Betriebsmittel-Rechnung ist auch über eine geratene document_id nie für `field` erreichbar,
-require_role() lehnt vor jedem Handler ab."""
+require_role() lehnt vor jedem Handler ab.
+
+Seit Stufe 3 (1.4.5, siehe CLAUDE.md "Betriebsmittelverwaltung" -> Stufe 3) eine zweite
+Ausnahme: GET /api/operational-assets/selectable-for-report ist ebenfalls für JEDE Rolle
+erreichbar (die Betriebsmittel-Auswahl am Einsatzbericht) -- liefert aber strukturell immer nur
+OperationalAssetFieldOut (fünf feldsichere Felder), gefiltert auf selectable_in_reports UND
+active, nie mehr, unabhängig von der Rolle."""
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
@@ -27,8 +33,8 @@ from ..operational_assets import (
     MODULE_KEY, asset_qr_target_url, check_due_asset_inspections_and_create_reminders, create_asset,
     create_asset_document, create_inspection, delete_asset, delete_asset_document, delete_inspection, get_asset,
     get_asset_field, get_or_create_operational_asset_settings, list_assets, list_due_assets,
-    operational_asset_settings_to_dict, remove_inspection_document, set_inspection_document, update_asset,
-    update_inspection, update_operational_asset_settings,
+    list_selectable_assets, operational_asset_settings_to_dict, remove_inspection_document, set_inspection_document,
+    update_asset, update_inspection, update_operational_asset_settings,
 )
 from ..models import OperationalAsset, OperationalAssetDocument, OperationalAssetInspection
 from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE, require_role
@@ -90,6 +96,17 @@ def get_operational_assets(include_inactive: bool = True, db: Session = Depends(
     return list_assets(db, include_inactive=include_inactive)
 
 
+@router.get("/api/operational-assets/selectable-for-report", response_model=list[OperationalAssetFieldOut])
+def get_selectable_operational_assets(db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    """Für die Betriebsmittel-Auswahl am Einsatzbericht (service_reports.py) -- bewusst als
+    literaler Pfad VOR /{asset_id} deklariert (Muster /due, /check-due oben). Für JEDE Rolle
+    erreichbar (auch `field`, der QR-Code-Ausnahmefall dieser Datei) -- liefert aber
+    strukturell IMMER nur OperationalAssetFieldOut, nie mehr als die fünf feldsicheren Felder,
+    unabhängig von der Rolle: ein Bericht braucht nie Kosten-/Fristendaten, egal wer ihn füllt."""
+    _require_module_enabled(db)
+    return list_selectable_assets(db)
+
+
 @router.get("/api/operational-assets/{asset_id}", response_model=OperationalAssetOut | OperationalAssetFieldOut)
 def get_operational_asset(asset_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     """Für `field` (seit Stufe 2, siehe Moduldocstring): liefert ausschließlich
@@ -145,7 +162,11 @@ def put_operational_asset(asset_id: int, payload: OperationalAssetUpdate, db: Se
 @router.delete("/api/operational-assets/{asset_id}")
 def delete_operational_asset(asset_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
-    if not delete_asset(db, asset_id):
+    try:
+        deleted = delete_asset(db, asset_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not deleted:
         raise HTTPException(status_code=404, detail="Betriebsmittel nicht gefunden.")
     return {"deleted": True}
 

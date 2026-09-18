@@ -3242,6 +3242,31 @@ class ServiceReportMaterialUpdate(BaseModel):
     notes: str | None = None
 
 
+# --- Version 1.4.5: Eingesetzte Betriebsmittel am Einsatzbericht (Betriebsmittelverwaltung Stufe 3) ---
+class ServiceReportAssetOut(BaseModel):
+    id: int
+    service_report_id: int
+    asset_id: int
+    asset_name_snapshot: str
+    notes: str | None = None
+    sort_order: int
+    created_at: datetime
+    updated_at: datetime
+    created_by_employee_id: int | None = None
+    client_uuid: str | None = None
+
+
+class ServiceReportAssetCreate(BaseModel):
+    asset_id: int
+    notes: str | None = None
+    created_by_employee_id: int | None = None
+    client_uuid: str | None = None
+
+
+class ServiceReportAssetUpdate(BaseModel):
+    notes: str | None = None
+
+
 # --- Version 1.4.0: Betriebsmittelverwaltung (Modul "betriebsmittel") ---
 
 class OperationalAssetInspectionOut(BaseModel):
@@ -3306,6 +3331,7 @@ class OperationalAssetOut(BaseModel):
     recurring_cost_per_month: Decimal | None = None
     cost_notes: str | None = None
     active: bool
+    selectable_in_reports: bool
     is_due: bool
     is_overdue: bool
     next_due_date: date | None = None
@@ -3340,6 +3366,7 @@ class OperationalAssetListOut(BaseModel):
     name: str
     asset_type: str | None = None
     active: bool
+    selectable_in_reports: bool
     is_due: bool
     is_overdue: bool
     next_due_date: date | None = None
@@ -3362,6 +3389,7 @@ class OperationalAssetCreate(BaseModel):
     recurring_cost_per_month: Decimal | None = None
     cost_notes: str | None = None
     active: bool = True
+    selectable_in_reports: bool = False
 
     @field_validator("product_url")
     @classmethod

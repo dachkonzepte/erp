@@ -81,6 +81,9 @@ tr:last-child td{border-bottom:none}
     <div class="field" id="identifierFieldWrap"><label>Kennzeichen / Seriennummer</label><input id="editIdentifier"></div>
     <div class="field"><label>Betriebsmittelnummer <span class="muted small">(optional)</span></label><input id="editAssetNumber"></div>
     <div class="field"><label>Status</label><select id="editActive"><option value="1">Aktiv</option><option value="0">Inaktiv</option></select></div>
+    <div class="field"><label>Im Einsatzbericht auswählbar</label><select id="editSelectableInReports"><option value="0">Nein</option><option value="1">Ja</option></select>
+      <div class="muted small" style="margin-top:4px">Nur freigegebene Betriebsmittel erscheinen in der Auswahlliste am Einsatzbericht -- Vorgabe „Nein", damit die Liste nicht mit jedem Kleingerät zuwächst.</div>
+    </div>
     <div class="field full"><label>Notizen</label><textarea id="editNotes"></textarea></div>
     <div class="field full"><label>Bedienungshinweise <span class="muted small">(für Monteure sichtbar, z. B. Kurzanleitung, Sicherheitshinweise)</span></label><textarea id="editUsageNotes"></textarea></div>
   </div>
@@ -195,6 +198,7 @@ function renderHero(){
   const badges=[];
   badges.push(asset.resource_id?'<span class="badge linked">Mit Ressourcenbezug</span>':'<span class="badge standalone">Eigenständig</span>');
   if(!asset.active)badges.push('<span class="badge inactive">Inaktiv</span>');
+  if(asset.selectable_in_reports)badges.push('<span class="badge">Im Bericht auswählbar</span>');
   if(asset.is_overdue)badges.push('<span class="badge overdue">⚠ Prüfung überfällig</span>');
   else if(asset.is_due)badges.push('<span class="badge due">Prüfung fällig</span>');
   document.getElementById('assetMeta').innerHTML=[asset.asset_type,badges.join(' ')].filter(Boolean).join(' · ');
@@ -217,6 +221,7 @@ function fillEditor(){
   document.getElementById('editIdentifier').value=asset.resource_id?'':(asset.identifier||'');
   document.getElementById('editAssetNumber').value=asset.asset_number||'';
   document.getElementById('editActive').value=asset.active?'1':'0';
+  document.getElementById('editSelectableInReports').value=asset.selectable_in_reports?'1':'0';
   document.getElementById('editNotes').value=asset.notes||'';
   document.getElementById('editUsageNotes').value=asset.usage_notes||'';
   document.getElementById('editArticleNumber').value=asset.article_number||'';
@@ -273,6 +278,7 @@ async function saveAsset(){
     recurring_cost_per_month:document.getElementById('editRecurringCost').value||null,
     cost_notes:document.getElementById('editCostNotes').value.trim()||null,
     active:document.getElementById('editActive').value==='1',
+    selectable_in_reports:document.getElementById('editSelectableInReports').value==='1',
   };
   const st1=document.getElementById('editorStatus'),st2=document.getElementById('costStatus');
   try{

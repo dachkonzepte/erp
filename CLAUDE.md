@@ -20,10 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.4.4** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `ed896599a211` ("operational assets erweiterungen faelligkeit
+- Version: **1.4.5** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `b2226e22b9f0` ("service_report_assets_und_selectable_in_reports",
+  siehe Abschnitt "Betriebsmittelverwaltung" -> "Stufe 3 (seit 1.4.5)" unten) -- vorher
+  `ed896599a211` ("operational assets erweiterungen faelligkeit
   dokumente", siehe Abschnitt "Betriebsmittelverwaltung" -> "Vier Ergänzungen (seit 1.4.2)"
-  unten) -- vorher `ccb5c4c0915b` ("operational assets stufe 2 qr and public base url", Stufe
+  unten), davor `ccb5c4c0915b` ("operational assets stufe 2 qr and public base url", Stufe
   2), davor `5917bb099776`
   ("operational assets betriebsmittel", Stufe 1), davor `da9d9425e257` ("project pipeline
   columns", siehe Abschnitt "Umbau der Projektliste" unten), davor `f803985ebc2f` ("property
@@ -35,11 +37,11 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1466 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1492 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 18.09.2026 (1.4.4, Büro-Suche findet Aufgaben jetzt über dieselbe
-  Sichtbarkeitsregel wie `GET /api/tasks` -- Nachtrag zu 1.4.3, siehe Abschnitt "Büro-Suche"
-  unten) mit `pytest` in Tobias'
+  dort), zuletzt am 18.09.2026 (1.4.5, Betriebsmittelverwaltung Stufe 3 -- eingesetzte
+  Betriebsmittel im Einsatzbericht, siehe Abschnitt "Betriebsmittelverwaltung" unten) mit
+  `pytest` in Tobias'
   `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
   1.2.15, Testabhängigkeit `httpx`) für die tatsächliche URL-Auflösung, nicht nur Aufrufe der
@@ -1180,6 +1182,30 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   weiterhin nichts (bereits über die Registry-Rollenprüfung abgedeckt). Siehe Abschnitt
   "Büro-Suche" -> "Nachtrag (seit 1.4.4)" unten für die volle Herleitung. Volle Suite: 1466
   Tests grün.
+- Neu seit 1.4.5: **Betriebsmittelverwaltung, Stufe 3 -- eingesetzte Betriebsmittel im
+  Einsatzbericht.** Reine Dokumentation (kein Preis, keine Menge, keine Betriebsstunden), erst
+  Befund dann Vorschlag dann in einer Runde gebaut. Neue Tabelle `ServiceReportAsset` (Vorbild
+  `ServiceReportMaterial`, nicht Fotos) -- `asset_id` als Pflicht-Verweis für eine spätere
+  Kostenauswertung UND ein physisch eingefrorener `asset_name_snapshot` (Muster Bauteil-/
+  Dachflächennamen seit 1.3.12), bewusst so geschnitten, dass eine künftige Kosten-/
+  Abrechnungserweiterung (Betriebsstunden, Mietdauer, abrechenbare Menge) als nullable
+  `ALTER TABLE ADD COLUMN` auf genau dieser Zeile andockt, keine Strukturänderung. Neues Flag
+  `OperationalAsset.selectable_in_reports` (Standard AUS, Muster `DocumentCategory.
+  is_field_visible`) bestimmt die Auswahlliste am Bericht -- gilt für JEDEN Aufrufer gleich,
+  auch Büro/Admin, keine Rollenausnahme (das ist zugleich die Absicherung gegen eine geratene
+  `asset_id`). Vierter, gleichrangiger Panel-Umschalter "Betriebsmittel" auf der Berichtskarte
+  (Bedienung wie Material, aber `<select>` statt Debounce-Suche -- die freigegebene Liste bleibt
+  kurz). `delete_asset()` blockiert jetzt, solange ein Bericht (Entwurf ODER unterschrieben) das
+  Asset referenziert (strenger als `delete_roof_component()`, da `asset_id` NICHT NULL ist) --
+  Archivieren bleibt frei. Neuer Abschnitt "Eingesetzte Betriebsmittel" im Kundenbericht (nur
+  wenn erfasst, schlichte Namensliste ohne `notes`, auch im reduzierten Feld-PDF). QR-Scan im
+  Bericht **geprüft, nicht gebaut** -- der bestehende QR-Code würde den Bericht beim Scannen
+  verlassen, ein In-Bericht-Scanner bräuchte Kamera-Zugriff im Browser plus eine neue
+  Dekodier-Bibliothek, zurückgestellt bis sich im Betrieb zeigt, dass die Auswahlliste zu
+  umständlich ist. Angriffstest bestätigt: die neue Auswahlliste liefert für jede Rolle nur die
+  fünf feldsicheren Felder (rekursiver Schlüssel-Scan), eine nicht freigegebene/geratene
+  `asset_id` liefert 400 statt stillem Erfolg. Migration `b2226e22b9f0`, 26 neue Tests, volle
+  Suite: 1492 Tests grün.
 
 ### Headless-Chrome-Verifikation über CDP (seit 1.3.73)
 
@@ -8386,6 +8412,110 @@ Docstring-Verweis wurden auf 18 aktualisiert. Migration `ed896599a211` (neue Tab
 da weder eine NOT-NULL-Spalte auf einer bestehenden Tabelle noch Bestandsdaten für die neue
 Tabelle existieren) erfolgreich gegen die echte, lokale `dachkonzepte_erp.db` angewendet. Volle
 Suite: 1441 Tests grün.
+
+### Stufe 3 (seit 1.4.5): Eingesetzte Betriebsmittel im Einsatzbericht
+
+Reine Dokumentation -- kein Preis, keine Menge, keine Betriebsstunden in dieser Version. Erst
+Befund (Aufbau des Einsatzberichts, welches Vorbild passt, wo im PDF), dann drei vom Betreiber
+entschiedene Punkte, dann in einer Runde gebaut.
+
+**Vorbild war `ServiceReportMaterial`, nicht `ServiceReportPhoto`**: Material ist strukturell
+ein reiner Datenbezug (FK + Zusatzfelder), ein Betriebsmitteleinsatz ist keine Datei. Die
+Bedienung ist bewusst dieselbe wie bei Material -- ein vierter, gleichrangiger Panel-Umschalter
+"Betriebsmittel" auf der Berichtskarte (neben Prüfpunkte/Mängel/Material), Tabelle + Erfassungszeile,
+solange der Bericht Entwurf ist. **Ein Unterschied zu Material**: statt einer debounced
+Katalogsuche ein einfaches `<select>` -- die freigegebene Liste bleibt in der Praxis kurz (Kran,
+Hubsteiger, …), eine Suche wäre hier unnötiger Aufwand.
+
+**Das Flag "im Bericht auswählbar"** (`OperationalAsset.selectable_in_reports`, Standard AUS,
+`server_default='0'`) -- dasselbe restriktive Vorgabemuster wie `DocumentCategory.is_field_visible`
+(1.3.62): das Büro gibt bewusst frei, was in einen Bericht darf, sonst wächst die Liste mit jedem
+Kleingerät zu. Nur über die Betriebsmittel-Bearbeitungsseite änderbar (neues Feld neben "Status").
+**Die 5 Bestandsressourcen** wurden bei der Migration (`b2226e22b9f0`) auf "nicht auswählbar"
+gesetzt -- keine Vermutung, welche gemeint sein könnten, das Büro gibt sie gezielt frei.
+
+**Die Freigabeprüfung gilt für JEDEN Aufrufer gleich, auch Büro/Admin** -- bewusst keine
+Rollenausnahme: wer ein nicht freigegebenes Betriebsmittel einsetzen will, gibt es zuerst in der
+Betriebsmittelverwaltung frei (ein Klick), statt dass die Business-Logik zwei unterschiedliche
+Regeln für Büro und Monteur führen müsste. Das ist zugleich die serverseitige Absicherung gegen
+eine geratene `asset_id` über den Endpunkt (`add_asset_usage()` in `app/service_reports.py`),
+unabhängig davon, was die Auswahlliste selbst anzeigt.
+
+**`ServiceReportAsset` -- die Tabelle, so geschnitten, dass die Kostenerweiterung später
+sauber andockt** (siehe Klassendocstring in `app/models.py` für die volle Begründung, hier die
+Kurzfassung): `service_report_id` + `asset_id` (Pflicht -- ein Betriebsmittel wird immer aus dem
+Katalog gewählt, nie frei eingetippt, anders als `ServiceReportMaterial.material_id`) +
+`asset_name_snapshot` (Pflicht, physisch eingefroren bei der Erfassung) + `notes` (das einzige
+Zusatzfeld dieser Stufe, bleibt intern) + `sort_order`/`created_by_employee_id`/`client_uuid`
+(letzteres dasselbe "vorbereiten, nicht vorbauen"-Muster wie bei Fotos/Material). **Beides, wie
+verlangt**: `asset_id` bleibt als echter Verweis für eine spätere Kostenauswertung erhalten, UND
+`asset_name_snapshot` zeigt unabhängig davon, was zum Zeitpunkt der Erfassung eingesetzt wurde --
+dasselbe Muster wie die Bauteil-/Dachflächennamen seit 1.3.12. Bewusst KEIN `roof_area_id` (anders
+als Material) -- ein Kran/Hubsteiger gehört üblicherweise zum ganzen Einsatz, nicht einer
+einzelnen Dachfläche. **Diese Tabelle ist die vorgesehene Stelle für die spätere Kosten-/
+Abrechnungserweiterung** (Betriebsstunden, Mietdauer, abrechenbare Menge, die in eine Rechnung
+fließen) -- ein Datensatz je Einsatz, kein Name in einer Liste. Kommt diese Erweiterung, sind es
+nullable `ALTER TABLE ADD COLUMN`-Ergänzungen auf genau dieser Zeile, keine Strukturänderung --
+der nächste Durchgang soll das hier vorfinden, nicht neu herleiten müssen.
+
+**`delete_asset()` blockiert jetzt, solange ein Bericht (Entwurf ODER unterschrieben) das Asset
+referenziert** -- bewusst strenger als `delete_roof_component()` (das nur bei bereits
+unterschriebenen Berichten blockiert): `ServiceReportAsset.asset_id` ist NICHT NULL, ein Löschen
+würde die Fremdschlüsselbeziehung sonst in JEDEM Fall verletzen, nicht nur bei einem bereits
+abgeschlossenen Nachweisdokument. Archivieren (`active=False`) bleibt dafür uneingeschränkt
+möglich -- der übliche Weg, ein nicht mehr genutztes Betriebsmittel auszublenden, ohne seine
+Verwendung in Berichten zu gefährden.
+
+**QR-Scan im Bericht -- geprüft, nicht gebaut, wie verlangt.** Der bestehende QR-Code kodiert die
+volle Ziel-URL `/betriebsmittel/{id}` für die Kamera-App des Telefons -- ein Scan öffnet eine neue
+Seite und verlässt damit den gerade bearbeiteten Bericht vollständig, kein natürlicher Andock-Punkt
+für "während der Erfassung kurz scannen". Ein echter In-Bericht-Scanner bräuchte Kamera-Zugriff im
+Browser (`getUserMedia`) plus eine Dekodier-Bibliothek -- nichts davon existiert im Projekt, ein
+eigener, spürbarer Aufwand mit Cross-Browser-Risiko (keine zuverlässige native `BarcodeDetector`-
+Unterstützung auf allen Zielgeräten). Zurückgestellt, bis sich im Betrieb zeigt, dass die
+Auswahlliste zu umständlich ist -- für jetzt: Auswahl aus der freigegebenen Liste.
+
+**Einfrieren nach der Unterschrift** wie Material/Fotos/Prüfpunkte -- `add_asset_usage()`/
+`update_asset_usage()`/`delete_asset_usage()` nutzen dieselbe `_require_draft_report()`-Sperre,
+kein neuer Mechanismus. `sign_report()` bekommt dafür KEINE neue Pflichtprüfung (Muster Material:
+ein Einsatz ohne Betriebsmittel ist normal).
+
+**Im Kundenbericht**: neuer Abschnitt "Eingesetzte Betriebsmittel" (`app/service_report_pdf.py`),
+direkt nach "Verbrauchtes Material", nur wenn tatsächlich welche erfasst wurden (Muster Material/
+Mängel). Bewusst KEINE Tabelle (keine Menge/Einheit wie bei Material) und KEINE Gruppierung nach
+Dachfläche (ServiceReportAsset kennt kein `roof_area_id`) -- eine schlichte, komma-getrennte
+Namensliste aus den eingefrorenen `asset_name_snapshot`-Werten, über den gemeinsamen Rahmen, mit
+`KeepTogether` wie die anderen Abschnitte. `notes` erscheint NIE im PDF -- bleibt der interne
+Vermerk, wie `OperationalAsset.cost_notes` auch nie in einem Dokument auftaucht. Erscheint
+unbedingt auch im reduzierten Feld-PDF (`build_service_report_pdf_for_field()`,
+`include_time_entries=False`) -- anders als Zeitbuchungen sind eingesetzte Betriebsmittel keine
+fremden Personendaten.
+
+**Neuer, für jede Rolle erreichbarer Endpunkt** `GET /api/operational-assets/selectable-for-report`
+(bewusst literal VOR `/{asset_id}` deklariert, Muster `/due`/`/check-due`) -- liefert IMMER
+`OperationalAssetFieldOut` (die fünf bereits aus Stufe 2 bekannten feldsicheren Felder), gefiltert
+auf `selectable_in_reports UND active`, unabhängig von der Rolle: ein Bericht braucht nie Kosten-/
+Fristendaten, egal wer ihn füllt. Rekursiver Schlüssel-Scan bestätigt: kein Kosten-/Fristen-/
+Artikelnummernfeld in der Antwort, für `field`/`office`/`admin` gleichermaßen.
+
+**Modul-Doppelgate**: `POST/GET/PUT/DELETE .../service-reports/{id}/assets*` prüfen zusätzlich zu
+`is_module_enabled(db, "wartungen")` auch `is_module_enabled(db, "betriebsmittel")` -- ein
+Einsatzbericht kann Betriebsmittel nur dokumentieren, wenn BEIDE Module aktiv sind, sonst bliebe
+die Betriebsmittelverwaltung über diesen Umweg nutzbar, obwohl sie deaktiviert ist.
+
+**Verifiziert**: 26 neue Tests (`tests/test_v280_operational_assets_stufe3.py`) -- Namens-Snapshot
+(bleibt bei Umbenennung/Archivierung des Assets unverändert), Freigabe-Flag (Standard aus, gilt für
+jeden Aufrufer gleich, unbekannte/nicht freigegebene `asset_id` abgelehnt), `list_selectable_assets()`
+(gefiltert auf freigegeben+aktiv, live aufgelöster Name bei ressourcenverknüpften Assets, sortiert),
+`delete_asset()`-Blockade (Entwurf UND unterschrieben, Archivieren bleibt frei), Einfrieren nach
+Unterschrift, PDF (Abschnitt erscheint/verschwindet korrekt, Name bleibt nach späterer Umbenennung
+eingefroren, `notes` nie im PDF, auch im Feld-PDF vorhanden), Router-CRUD, der verlangte rekursive
+Schlüssel-Scan über alle drei Rollen, und die beiden Angriffstests (nicht freigegebene/geratene
+`asset_id` liefert 400 statt stillem Erfolg; ein Monteur kann keinem fremden Bericht ein
+Betriebsmittel hinzufügen). Migration `b2226e22b9f0` (neue Tabelle `service_report_assets`, neue
+NOT-NULL-Spalte `operational_assets.selectable_in_reports` mit `server_default='0'`, Regel 1
+befolgt) erfolgreich gegen die echte, lokale `dachkonzepte_erp.db` angewendet, Bestandsdaten
+geprüft (alle 5 Assets korrekt auf `False`). Volle Suite: 1492 Tests grün.
 
 ## Migrations-Workflow
 

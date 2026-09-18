@@ -210,6 +210,11 @@ a{color:var(--accent)}
 </div>
 <script>
 const orderId={{ order_id }};
+// Seit 1.4.5 (Betriebsmittelverwaltung Stufe 3) -- "wartungen" (diese ganze Seite) und
+// "betriebsmittel" sind zwei unabhängige Module; Muster maintenanceModuleEnabled in
+// project_folder.html: seiteneigene JS-Konstante, per Jinja-Global gesetzt, blendet den
+// Betriebsmittel-Panel-Umschalter aus, statt einen Knopf zu zeigen, der ohnehin nur 403 liefert.
+const assetsModuleEnabled={{ 'true' if is_module_enabled('betriebsmittel') else 'false' }};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
 function fmtDateTime(s){if(!s)return'';return new Date(s).toLocaleString('de-DE')}
@@ -230,6 +235,14 @@ let activeFindingForm=null; // {reportId, inspectionItemId}
 // Katalogbezug wieder entfernt wird.
 const materialsCache={},expandedMaterialsReportIds=new Set();
 const pendingMaterialFindingId={},selectedMaterialCatalogId={},materialSearchResults={};
+// Seit 1.4.5 (Betriebsmittelverwaltung Stufe 3): assetsCache je Bericht, vierter,
+// gleichrangiger Panel-Umschalter neben Prüfpunkte/Mängel/Material. selectableAssets wird
+// einmalig in init() geladen (kurze, freigegebene Liste -- kein Debounce-Suchfeld wie bei
+// Material nötig, siehe CLAUDE.md "Betriebsmittelverwaltung" -> Stufe 3), selectedAssetId je
+// Bericht hält die aktuell im Auswahlfeld gewählte asset_id fest.
+const assetsCache={},expandedAssetsReportIds=new Set();
+let selectableAssets=[];
+const selectedAssetId={};
 // Seit 1.2.22 (kompakte Berichtsseite): expandedAreaKeys -- welche Dachflächen-Blöcke
 // aufgeklappt sind (Anwesenheit = offen, Default zu). closedGroupKeys -- welche group_name-
 // Gruppen INNERHALB einer aufgeklappten Fläche zugeklappt sind (Anwesenheit = zu, Default
@@ -266,6 +279,7 @@ async function loadReportExtras(reportId){
   findingsCache[reportId]=await api(`/api/service-reports/${reportId}/findings`).catch(()=>[]);
   photosCache[reportId]=await api(`/api/service-reports/${reportId}/photos`).catch(()=>[]);
   materialsCache[reportId]=await api(`/api/service-reports/${reportId}/materials`).catch(()=>[]);
+  if(assetsModuleEnabled)assetsCache[reportId]=await api(`/api/service-reports/${reportId}/assets`).catch(()=>[]);
 }
 
 function employeeOptionsHtml(selected){
@@ -500,6 +514,10 @@ function reportCard(r){
   actions.push(`<button class="secondary" onclick="toggleReportFindings(${r.id})">Mängel ohne Prüfpunkt${findingCount?' ('+findingCount+')':''}</button>`);
   const materialCount=(materialsCache[r.id]||[]).length;
   actions.push(`<button class="secondary" onclick="toggleReportMaterials(${r.id})">Material${materialCount?' ('+materialCount+')':''}</button>`);
+  if(assetsModuleEnabled){
+    const assetCount=(assetsCache[r.id]||[]).length;
+    actions.push(`<button class="secondary" onclick="toggleReportAssets(${r.id})">Betriebsmittel${assetCount?' ('+assetCount+')':''}</button>`);
+  }
   const signedInfo=r.status==='unterschrieben'?`<div class="muted small" style="margin-top:6px">${r.installer_signature_name?'Monteur: '+esc(r.installer_signature_name)+' · ':''}Kunde: ${esc(r.signature_name)} (${fmtDateTime(r.signed_at)})</div>`:'';
   const isOpen=expandedReportIds.has(r.id);
   const panel=hasInspectionSection(r)&&isOpen?`<div class="inspection-panel">${inspectionItemsPanelHtml(r)}</div>`:'';
@@ -507,6 +525,8 @@ function reportCard(r){
   const findingsPanel=findingsOpen?`<div class="inspection-panel">${findingsPanelHtml(r)}</div>`:'';
   const materialsOpen=expandedMaterialsReportIds.has(r.id);
   const materialsPanel=materialsOpen?`<div class="inspection-panel">${materialsPanelHtml(r)}</div>`:'';
+  const assetsOpen=assetsModuleEnabled&&expandedAssetsReportIds.has(r.id);
+  const assetsPanel=assetsOpen?`<div class="inspection-panel">${assetsPanelHtml(r)}</div>`:'';
   return `<div class="report-card">
     <div class="report-head">
       <div>${badges.join(' ')} <span class="muted small">${fmtDate(r.performed_at)}${r.created_by_employee_name?' · '+esc(r.created_by_employee_name):''}</span></div>
@@ -517,12 +537,19 @@ function reportCard(r){
     ${panel}
     ${findingsPanel}
     ${materialsPanel}
+    ${assetsPanel}
   </div>`;
 }
 
 function toggleReportMaterials(reportId){
   if(expandedMaterialsReportIds.has(reportId)){expandedMaterialsReportIds.delete(reportId)}
   else{expandedMaterialsReportIds.add(reportId)}
+  renderReportList();
+}
+
+function toggleReportAssets(reportId){
+  if(expandedAssetsReportIds.has(reportId)){expandedAssetsReportIds.delete(reportId)}
+  else{expandedAssetsReportIds.add(reportId)}
   renderReportList();
 }
 
@@ -887,6 +914,74 @@ function materialsPanelHtml(r){
     <button type="button" onclick="saveMaterialRow(${r.id})">+ Material</button>
   </div>
   <span id="matStatus-${r.id}" class="status"></span>`;
+}
+
+// Seit 1.4.5 (Betriebsmittelverwaltung Stufe 3) -- Bedienung bewusst wie Material (derselbe
+// Panel-Umschalter, dieselbe Tabelle+Erfassungszeile-Struktur), aber ein einfaches <select>
+// statt einer Debounce-Suche: die freigegebene Liste (selectable_in_reports) bleibt in der
+// Praxis kurz (Kran, Hubsteiger, …), eine Suche wäre hier unnötiger Aufwand.
+async function saveAssetRow(reportId){
+  const st=document.getElementById('astStatus-'+reportId);
+  const select=document.getElementById('astPick-'+reportId);
+  const assetId=select&&select.value?Number(select.value):null;
+  if(!assetId){st.className='status err';st.textContent='Bitte ein Betriebsmittel wählen.';return}
+  const notesInput=document.getElementById('astNotes-'+reportId);
+  const notes=(notesInput&&notesInput.value||'').trim();
+  try{
+    await api(`/api/service-reports/${reportId}/assets`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({asset_id:assetId,notes:notes||null})});
+    assetsCache[reportId]=await api(`/api/service-reports/${reportId}/assets`);
+    st.textContent='';
+    renderReportList();
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function saveAssetNotesField(rowId,reportId,value){
+  try{
+    await api(`/api/service-report-assets/${rowId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({notes:value.trim()||null})});
+    assetsCache[reportId]=await api(`/api/service-reports/${reportId}/assets`);
+    renderReportList();
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+async function deleteAssetUI(rowId,reportId){
+  if(!confirm('Dieses Betriebsmittel wirklich aus dem Bericht entfernen?'))return;
+  try{
+    await api(`/api/service-report-assets/${rowId}`,{method:'DELETE'});
+    assetsCache[reportId]=await api(`/api/service-reports/${reportId}/assets`);
+    renderReportList();
+  }catch(e){alert('Fehler: '+e.message)}
+}
+
+function assetsPanelHtml(r){
+  const rows=assetsCache[r.id]||[];
+  const isDraft=r.status==='entwurf';
+  const rowsHtml=rows.length?`<div class="table-scroll"><table><thead><tr><th>Betriebsmittel</th><th>Notiz</th><th></th></tr></thead><tbody>${rows.map(a=>`
+    <tr>
+      <td data-label="Betriebsmittel">${esc(a.asset_name_snapshot)}</td>
+      <td data-label="Notiz">${isDraft?`<input value="${esc(a.notes||'')}" onchange="saveAssetNotesField(${a.id},${r.id},this.value)" style="min-width:160px">`:esc(a.notes||'')}</td>
+      <td data-label="">${isDraft?`<button type="button" class="danger" onclick="deleteAssetUI(${a.id},${r.id})">×</button>`:''}</td>
+    </tr>`).join('')}</tbody></table></div>`:'<div class="muted small">Noch kein Betriebsmittel erfasst.</div>';
+
+  if(!isDraft)return rowsHtml;
+
+  // Bereits erfasste Betriebsmittel aus der Auswahl entfernen -- verhindert versehentliche
+  // Doppelerfassung desselben Betriebsmittels in einem Bericht.
+  const usedIds=new Set(rows.map(a=>a.asset_id));
+  const available=selectableAssets.filter(a=>!usedIds.has(a.id));
+  const pickerHtml=available.length?`
+    <select id="astPick-${r.id}" style="min-width:200px">
+      <option value="">— Betriebsmittel wählen —</option>
+      ${available.map(a=>`<option value="${a.id}">${esc(a.name)}${a.asset_type?' · '+esc(a.asset_type):''}</option>`).join('')}
+    </select>
+    <input id="astNotes-${r.id}" placeholder="Notiz (optional)" style="flex:1;min-width:160px">
+    <button type="button" onclick="saveAssetRow(${r.id})">+ Betriebsmittel</button>`
+    :'<div class="muted small">Kein weiteres freigegebenes Betriebsmittel verfügbar -- die Freigabe erfolgt in der Betriebsmittelverwaltung.</div>';
+
+  return `${rowsHtml}
+  <div class="inspection-row" style="margin-top:10px;flex-wrap:wrap">
+    ${pickerHtml}
+  </div>
+  <span id="astStatus-${r.id}" class="status"></span>`;
 }
 
 async function toggleReportInspectionItems(reportId){
@@ -1275,6 +1370,7 @@ async function init(){
   roofAreasForOrder=await api(`/api/orders/${orderId}/roof-areas`).catch(()=>[]);
   renderPropertyCard(await api(`/api/orders/${orderId}/property`).catch(()=>null));
   inspectionTemplates=await api('/api/inspection-templates').catch(()=>[]);
+  if(assetsModuleEnabled)selectableAssets=await api('/api/operational-assets/selectable-for-report').catch(()=>[]);
   const [typesGroup,activitiesGroup]=await Promise.all([
     safeOptionGroup('time_entry_types'), safeOptionGroup('time_entry_activities'),
   ]);

@@ -2597,6 +2597,9 @@ class ServiceReport(Base):
     materials: Mapped[list["ServiceReportMaterial"]] = relationship(
         cascade="all, delete-orphan", order_by="ServiceReportMaterial.sort_order, ServiceReportMaterial.id"
     )
+    assets: Mapped[list["ServiceReportAsset"]] = relationship(
+        cascade="all, delete-orphan", order_by="ServiceReportAsset.sort_order, ServiceReportAsset.id"
+    )
 
 
 class ServiceReportRoofArea(Base):
@@ -3268,6 +3271,56 @@ class ServiceReportMaterial(Base):
     created_by_employee: Mapped["Employee | None"] = relationship()
 
 
+class ServiceReportAsset(Base):
+    """Eingesetztes Betriebsmittel an einem Einsatzbericht (seit 1.4.5, Betriebsmittelverwaltung
+    Stufe 3) -- reine Dokumentation: KEINE Menge, KEINE Kosten, KEINE Betriebsstunden in dieser
+    Version (siehe CLAUDE.md "Betriebsmittelverwaltung" -> Stufe 3).
+
+    asset_id ist Pflicht (anders als ServiceReportMaterial.material_id) -- ein Betriebsmittel
+    wird immer aus dem Katalog der freigegebenen Assets gewählt, nie frei eingetippt (siehe
+    operational_assets.py::list_selectable_assets()). Trotzdem zusätzlich ein physischer
+    Namens-Schnappschuss (asset_name_snapshot), dasselbe Muster wie
+    Finding.roof_component_name_snapshot/ServiceReportRoofArea.roof_area_name_snapshot (seit
+    1.3.12): ein unterschriebener Bericht ist ein Nachweis -- wird das Betriebsmittel (oder die
+    zugrunde liegende, live aufgelöste OperationalResource) später umbenannt, darf sich die
+    Anzeige eines bereits unterschriebenen Berichts nicht rückwirkend ändern. asset_id bleibt
+    zusätzlich als echter Verweis erhalten (für eine spätere Kostenauswertung über den
+    Katalogeintrag) -- delete_asset() (app/operational_assets.py) blockiert deshalb das Löschen
+    eines Betriebsmittels, das noch in mindestens einem Einsatzbericht referenziert wird (Muster
+    delete_roof_component()), damit asset_id nie ins Leere zeigt; Archivieren (active=False)
+    bleibt dafür uneingeschränkt möglich.
+
+    VORBEREITET FÜR SPÄTER, NICHT VORGEBAUT (dasselbe Muster wie client_uuid bei den Fotos,
+    cost_notes am Betriebsmittel selbst): diese Tabelle ist die vorgesehene Stelle für die
+    spätere Kosten-/Abrechnungserweiterung (Betriebsstunden, Mietdauer, abrechenbare Menge, die
+    in eine Rechnung fließen) -- ein Datensatz je Einsatz, kein Name in einer Liste. Kommt diese
+    Erweiterung, sind es nullable ALTER TABLE ADD COLUMN-Ergänzungen auf genau dieser Zeile,
+    keine Strukturänderung. notes ist bewusst das einzige Zusatzfeld dieser Stufe und bleibt rein
+    intern -- erscheint NIE im Kundenbericht (siehe app/service_report_pdf.py).
+
+    Unveränderlich nach der Unterschrift (status="unterschrieben"), wie Material/Fotos/
+    Prüfpunkte -- _require_draft_report() (app/service_reports.py) ist dieselbe Sperre."""
+
+    __tablename__ = "service_report_assets"
+    __table_args__ = (
+        UniqueConstraint("service_report_id", "client_uuid", name="uq_service_report_asset_client_uuid"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    service_report_id: Mapped[int] = mapped_column(ForeignKey("service_reports.id"), index=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("operational_assets.id"), index=True)
+    asset_name_snapshot: Mapped[str] = mapped_column(String(255))
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(default=100, server_default="100")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True)
+    client_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+
+    asset: Mapped["OperationalAsset"] = relationship()
+    created_by_employee: Mapped["Employee | None"] = relationship()
+
+
 class RoofLayerType(Base):
     """Schichttyp im Dachaufbau (seit 1.2.18) -- welche Schichten bei einer Dachfläche
     abgefragt werden, hängt vom Dachtyp ab (roof_type, NULL = gilt für jeden Dachtyp).
@@ -3366,7 +3419,14 @@ class OperationalAsset(Base):
 
     recurring_cost_per_month ist absichtlich EIN monatsnormalisierter Wert (nicht
     Intervall+Betrag) -- eine künftige Gesamtkostenübersicht kann dadurch trivial über alle
-    Assets summieren, ohne Intervalle vorher umzurechnen."""
+    Assets summieren, ohne Intervalle vorher umzurechnen.
+
+    selectable_in_reports (seit 1.4.5, Betriebsmittelverwaltung Stufe 3): steuert, ob dieses
+    Betriebsmittel in der Auswahlliste eines Einsatzberichts erscheint (list_selectable_assets()
+    in app/operational_assets.py) -- Standard AUS (server_default='0'), dasselbe restriktive
+    Vorgabemuster wie DocumentCategory.is_field_visible: das Büro gibt bewusst frei, was in einen
+    Bericht darf, statt dass jedes Kleingerät die Liste zuwachsen lässt. Nur über die
+    Betriebsmittel-Bearbeitungsseite (Büro/Admin) änderbar."""
 
     __tablename__ = "operational_assets"
     __table_args__ = (UniqueConstraint("resource_id", name="uq_operational_asset_resource"),)
@@ -3400,6 +3460,7 @@ class OperationalAsset(Base):
     cost_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    selectable_in_reports: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

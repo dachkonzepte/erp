@@ -10,7 +10,14 @@ build_company_header_block(). Die zweite Unterschrift (Muster aus quote_layout_p
 drawImage auf einem rohen Canvas -- hier als platypus.Image-Flowable, weil dieses PDF wie
 invoice_pdf.py auf einer Flowable-story aufbaut) sowie alle KeepTogether-Blöcke aus 1.2.21/1.3.0
 bleiben inhaltlich unverändert, nur ihre Tabellenbreiten folgen jetzt frame_content_width() statt
-hart codierter mm-Werte (siehe CLAUDE.md "Positionstabelle: Menge/Einheit/Breite", 1.3.9)."""
+hart codierter mm-Werte (siehe CLAUDE.md "Positionstabelle: Menge/Einheit/Breite", 1.3.9).
+
+Seit 1.4.5 (Betriebsmittelverwaltung Stufe 3): neuer Abschnitt "Eingesetzte Betriebsmittel"
+direkt nach "Verbrauchtes Material", nur wenn tatsächlich welche erfasst wurden -- schlichte,
+komma-getrennte Namensliste aus den eingefrorenen asset_name_snapshot-Werten, keine Tabelle, da
+ServiceReportAsset keine Menge/Einheit kennt. Erscheint unbedingt, auch im reduzierten Feld-PDF
+(include_time_entries=False) -- anders als Zeitbuchungen sind eingesetzte Betriebsmittel keine
+fremden Personendaten."""
 
 from PIL import Image as PILImage
 from reportlab.lib import colors
@@ -284,6 +291,20 @@ def build_service_report_pdf(db, report, *, include_time_entries: bool = True) -
             else:
                 story.append(_material_rows(materials))
                 story.append(Spacer(1, 4 * mm))
+
+        # Eingesetzte Betriebsmittel (seit 1.4.5, Betriebsmittelverwaltung Stufe 3) -- reine
+        # Dokumentation, KEIN Preis/KEINE Betriebsstunden (siehe ServiceReportAsset-Klassendocstring
+        # in app/models.py). Bewusst KEINE Tabelle wie bei Material (keine Menge/Einheit) und KEINE
+        # Gruppierung nach Dachfläche (ServiceReportAsset kennt kein roof_area_id -- ein Kran/
+        # Hubsteiger gehört üblicherweise zum ganzen Einsatz, nicht einer einzelnen Fläche) -- eine
+        # schlichte, komma-getrennte Namensliste aus den eingefrorenen Namen reicht. Erscheint auch
+        # im reduzierten Feld-PDF (build_service_report_pdf_for_field()): anders als "Erfasste
+        # Zeiten" enthält dieser Abschnitt keine fremden Personendaten, nur was eingesetzt wurde.
+        assets = report.assets
+        if assets:
+            names = ", ".join(a.asset_name_snapshot for a in assets)
+            story.append(KeepTogether([Paragraph("Eingesetzte Betriebsmittel", h2), Paragraph(ptext(names), body)]))
+            story.append(Spacer(1, 5 * mm))
 
         # Prüfpunkt-Fotos OHNE Mangel -- eigener Abschnitt statt Einbettung direkt in die
         # Prüfpunkte-Tabelle: ein platypus.Table mit unterschiedlich großen Bildern je Zeile

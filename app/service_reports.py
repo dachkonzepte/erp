@@ -28,9 +28,11 @@ from .modules import is_module_enabled
 from .paths import data_dir
 from .models import (
     Finding, InspectionItem, InspectionTemplate, InspectionTemplateItem, MaintenanceContract,
-    MaintenanceContractItem, Material, Order, Project, Property, RoofArea, RoofTypeInspectionTemplateDefault,
-    ServiceReport, ServiceReportMaterial, ServiceReportPhoto, ServiceReportRoofArea, Task,
+    MaintenanceContractItem, Material, OperationalAsset, Order, Project, Property, RoofArea,
+    RoofTypeInspectionTemplateDefault, ServiceReport, ServiceReportAsset, ServiceReportMaterial,
+    ServiceReportPhoto, ServiceReportRoofArea, Task,
 )
+from .operational_assets import resolve_asset_identity
 from .roof_areas import list_roof_areas
 from .service_report_photos import delete_photo_file, resize_and_store_photo
 from .tasks import create_task
@@ -149,6 +151,7 @@ def _load(db: Session, report_id: int) -> ServiceReport | None:
             selectinload(ServiceReport.report_roof_areas).selectinload(ServiceReportRoofArea.inspection_template),
             selectinload(ServiceReport.inspection_items).selectinload(InspectionItem.roof_area),
             selectinload(ServiceReport.materials),
+            selectinload(ServiceReport.assets),
         )
         .where(ServiceReport.id == report_id)
     )
@@ -1089,6 +1092,97 @@ def list_materials_for_invoicing(db: Session, order_id: int) -> list[ServiceRepo
         .order_by(ServiceReportMaterial.id)
     )
     return list(db.scalars(query).all())
+
+
+# --- Eingesetzte Betriebsmittel (seit 1.4.5, Betriebsmittelverwaltung Stufe 3) -- eigener
+# Pfad-Präfix "service-report-assets" für die Einzelzeilen-Endpunkte, gleiches Muster wie bei
+# Material/Fotos. Reine Dokumentation (siehe ServiceReportAsset-Klassendocstring): kein Preis,
+# keine Menge, keine Betriebsstunden in dieser Version. ---
+
+def asset_row_to_dict(row: ServiceReportAsset) -> dict:
+    return {
+        "id": row.id,
+        "service_report_id": row.service_report_id,
+        "asset_id": row.asset_id,
+        "asset_name_snapshot": row.asset_name_snapshot,
+        "notes": row.notes,
+        "sort_order": row.sort_order,
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+        "created_by_employee_id": row.created_by_employee_id,
+        "client_uuid": row.client_uuid,
+    }
+
+
+def list_assets_for_report(db: Session, report_id: int) -> list[dict]:
+    report = db.get(ServiceReport, report_id)
+    if report is None:
+        return []
+    return [asset_row_to_dict(a) for a in sorted(report.assets, key=lambda a: (a.sort_order, a.id))]
+
+
+def add_asset_usage(
+    db: Session, service_report_id: int, *, asset_id: int, notes: str | None = None,
+    created_by_employee_id: int | None = None, client_uuid: str | None = None,
+) -> dict:
+    """Fügt ein Betriebsmittel zum Bericht hinzu -- IMMER aus der freigegebenen Auswahlliste
+    (list_selectable_assets() in app/operational_assets.py), nie frei eingetippt (anders als
+    Material). Die Freigabeprüfung (selectable_in_reports) gilt für JEDEN Aufrufer gleich, auch
+    Büro/Admin -- keine Rollenausnahme: wer ein nicht freigegebenes Betriebsmittel einsetzen
+    will, gibt es zuerst in der Betriebsmittelverwaltung frei (ein Klick), statt dass die
+    Business-Logik zwei unterschiedliche Regeln für Büro und Monteur führen müsste. Das ist
+    zugleich die serverseitige Absicherung gegen eine geratene asset_id über den Endpunkt --
+    unabhängig von dem, was die Auswahlliste selbst anzeigt.
+
+    Der Name wird bei der Erfassung physisch eingefroren (asset_name_snapshot) -- dasselbe
+    Muster wie bei den Bauteil-/Dachflächennamen seit 1.3.12, siehe Klassendocstring von
+    ServiceReportAsset."""
+    report = _require_draft_report(db, service_report_id)
+    asset = db.get(OperationalAsset, asset_id)
+    if asset is None:
+        raise ValueError("Betriebsmittel nicht gefunden.")
+    if not asset.selectable_in_reports:
+        raise ValueError("Dieses Betriebsmittel ist im Bericht nicht auswählbar.")
+    name, *_rest = resolve_asset_identity(asset)
+    max_sort = max((a.sort_order for a in report.assets), default=0)
+    row = ServiceReportAsset(
+        service_report_id=service_report_id, asset_id=asset_id, asset_name_snapshot=name,
+        notes=(notes or None), sort_order=max_sort + 10, created_by_employee_id=created_by_employee_id,
+        client_uuid=(client_uuid or None),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return asset_row_to_dict(row)
+
+
+_ASSET_USAGE_UPDATE_FIELDS = {"notes"}
+
+
+def update_asset_usage(db: Session, row_id: int, fields: dict) -> dict | None:
+    """exclude_unset-Muster wie update_material() -- notes ist das einzige änderbare Feld, ein
+    falsch gewähltes Betriebsmittel wird gelöscht und neu hinzugefügt statt umgehängt (anders
+    als Material.material_id, das bewusst wechselbar bleibt)."""
+    row = db.get(ServiceReportAsset, row_id)
+    if row is None:
+        return None
+    _require_draft_report(db, row.service_report_id)
+    for key, value in fields.items():
+        if key not in _ASSET_USAGE_UPDATE_FIELDS:
+            continue
+        setattr(row, key, value or None)
+    db.commit()
+    return asset_row_to_dict(row)
+
+
+def delete_asset_usage(db: Session, row_id: int) -> bool:
+    row = db.get(ServiceReportAsset, row_id)
+    if row is None:
+        return False
+    _require_draft_report(db, row.service_report_id)
+    db.delete(row)
+    db.commit()
+    return True
 
 
 def sign_report(
