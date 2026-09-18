@@ -61,6 +61,12 @@ tr:last-child td{border-bottom:none}
     <div class="metric"><div class="label">Kostenposten</div><div class="value" id="mCount">–</div></div>
     <div class="metric"><div class="label">Betriebsmittel-Notizen ohne Posten</div><div class="value" id="mAssetCount">–</div></div>
   </div>
+  <div class="muted small" style="margin:10px 0 4px">Nach kalkulatorischer Einordnung (vorläufige Bezeichnung, siehe Bericht zu Punkt 1) -- jeweils Jahresbetrag:</div>
+  <div class="metric-row">
+    <div class="metric"><div class="label">Feste Gemeinkosten</div><div class="value" id="mFixed">–</div></div>
+    <div class="metric"><div class="label">Auslastungsabhängige Kosten</div><div class="value" id="mUsageDependent">–</div></div>
+    <div class="metric"><div class="label">Ohne Einordnung</div><div class="value" id="mNone">–</div></div>
+  </div>
   <div id="cancellationsOverview" style="margin-top:10px"></div>
 </div>
 
@@ -69,6 +75,11 @@ tr:last-child td{border-bottom:none}
   <div class="fields-2col">
     <div class="field full"><label>Bezeichnung *</label><input id="editLabel" placeholder="z. B. Bürolokal Übach-Palenberg"></div>
     <div class="field"><label>Kategorie</label><select id="editCategory"></select></div>
+    <div class="field"><label>Kalkulatorische Einordnung <span class="muted small">(vorläufige Bezeichnung, siehe Bericht zu Punkt 1)</span></label><select id="editClassification">
+      <option value="keine">Keine Gemeinkosten</option>
+      <option value="fix">Feste Gemeinkosten</option>
+      <option value="auslastungsabhaengig">Auslastungsabhängige Kosten (z. B. Kraftstoff, Verschleiß, Entsorgung)</option>
+    </select></div>
     <div class="field"><label>Vertragspartner</label><input id="editVendor"></div>
     <div class="field"><label>Betrag (EUR) *</label><input id="editAmount" type="number" step="0.01" min="0"></div>
     <div class="field"><label>Rhythmus *</label><select id="editInterval">
@@ -107,7 +118,7 @@ tr:last-child td{border-bottom:none}
 
 <div class="card">
   <div class="table-scroll"><table>
-    <thead><tr><th>Bezeichnung</th><th>Kategorie</th><th>Betrag / Rhythmus</th><th>Jahresbetrag</th><th>Kündigungsfrist</th><th>Betriebsmittel</th><th>Status</th><th></th></tr></thead>
+    <thead><tr><th>Bezeichnung</th><th>Kategorie</th><th>Gemeinkosten</th><th>Betrag / Rhythmus</th><th>Jahresbetrag</th><th>Kündigungsfrist</th><th>Betriebsmittel</th><th>Status</th><th></th></tr></thead>
     <tbody id="costRows"></tbody>
   </table></div>
 </div>
@@ -126,6 +137,9 @@ async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.j
 async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
 
 const BILLING_LABELS={monatlich:'Monatlich',vierteljaehrlich:'Vierteljährlich',halbjaehrlich:'Halbjährlich',jaehrlich:'Jährlich',einmalig:'Einmalig'};
+// Vorläufige Bezeichnung -- entspricht dem Punkt-1-Vorschlag, siehe Bericht. Werte vermeiden
+// bewusst das Wort "variabel" (Begriffskonflikt mit variable_overhead_value).
+const CLASSIFICATION_LABELS={keine:'—',fix:'Fest',auslastungsabhaengig:'Auslastungsabhängig'};
 
 let costs=[],categories=[],documentTypes=[],assets=[],currentEditId=null;
 
@@ -149,6 +163,7 @@ function openCreateEditor(){
   document.getElementById('editorTitle').textContent='Kostenposten anlegen';
   document.getElementById('editLabel').value='';
   document.getElementById('editCategory').innerHTML=categoryOptionsHtml(null);
+  document.getElementById('editClassification').value='keine';
   document.getElementById('editVendor').value='';
   document.getElementById('editAmount').value='';
   document.getElementById('editInterval').value='monatlich';
@@ -171,6 +186,7 @@ function openEditEditor(id){
   document.getElementById('editorTitle').textContent='Kostenposten bearbeiten';
   document.getElementById('editLabel').value=c.label;
   document.getElementById('editCategory').innerHTML=categoryOptionsHtml(c.category);
+  document.getElementById('editClassification').value=c.overhead_classification||'keine';
   document.getElementById('editVendor').value=c.vendor||'';
   document.getElementById('editAmount').value=c.amount;
   document.getElementById('editInterval').value=c.billing_interval;
@@ -202,6 +218,7 @@ async function saveCost(){
   const payload={
     label,
     category:document.getElementById('editCategory').value||null,
+    overhead_classification:document.getElementById('editClassification').value,
     amount:Number(amount),
     billing_interval:document.getElementById('editInterval').value,
     vendor:document.getElementById('editVendor').value.trim()||null,
@@ -227,7 +244,8 @@ async function toggleActive(id){
   const c=costs.find(x=>x.id===id);
   if(!c)return;
   const payload={
-    label:c.label,category:c.category,amount:c.amount,billing_interval:c.billing_interval,
+    label:c.label,category:c.category,overhead_classification:c.overhead_classification,
+    amount:c.amount,billing_interval:c.billing_interval,
     vendor:c.vendor,contract_end_date:c.contract_end_date,notice_period_months:c.notice_period_months,
     asset_id:c.asset_id,active:!c.active,notes:c.notes,
   };
@@ -305,6 +323,7 @@ function row(c){
   return `<tr${!c.active?' class="row-archived"':''}${c.is_cancellation_overdue?' class="row-overdue"':''}>
     <td>${esc(c.label)}${c.vendor?`<div class="muted small">${esc(c.vendor)}</div>`:''}</td>
     <td>${esc(c.category||'—')}</td>
+    <td>${esc(CLASSIFICATION_LABELS[c.overhead_classification]||c.overhead_classification||'—')}</td>
     <td>${fmtMoney(c.amount)} / ${esc(BILLING_LABELS[c.billing_interval]||c.billing_interval)}</td>
     <td>${fmtMoney(c.annual_amount)}</td>
     <td>${cancellation}</td>
@@ -321,7 +340,7 @@ function row(c){
 function renderRows(){
   const showInactive=document.getElementById('showInactive').checked;
   const visible=costs.filter(c=>showInactive||c.active);
-  document.getElementById('costRows').innerHTML=visible.map(row).join('')||'<tr><td colspan="8" class="empty">Noch keine Kostenposten angelegt.</td></tr>';
+  document.getElementById('costRows').innerHTML=visible.map(row).join('')||'<tr><td colspan="9" class="empty">Noch keine Kostenposten angelegt.</td></tr>';
 }
 
 function cancellationRow(c){
@@ -341,6 +360,9 @@ async function renderOverview(){
     document.getElementById('mAnnual').textContent=fmtMoney(summary.annual_total);
     document.getElementById('mCount').textContent=summary.cost_count;
     document.getElementById('mAssetCount').textContent=summary.asset_quick_cost_count;
+    document.getElementById('mFixed').textContent=fmtMoney(summary.annual_fixed_from_costs);
+    document.getElementById('mUsageDependent').textContent=fmtMoney(summary.annual_usage_dependent_from_costs);
+    document.getElementById('mNone').textContent=fmtMoney(summary.annual_none_from_costs);
     const rows=[...summary.cancellations_overdue,...summary.cancellations_due];
     if(!rows.length){container.innerHTML='<div class="empty">Keine fälligen oder überfälligen Kündigungsfristen.</div>';return}
     container.innerHTML=`<div class="table-scroll"><table><thead><tr><th>Kostenposten</th><th>Kategorie</th><th>Kündigungsfrist</th><th>Status</th></tr></thead><tbody>${rows.map(cancellationRow).join('')}</tbody></table></div>`;

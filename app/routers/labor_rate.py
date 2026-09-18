@@ -14,7 +14,15 @@ from ..database import get_db
 from ..labor_rate import calculate_labor_rate, get_or_create_labor_rate_settings, get_or_create_overhead_settings, labor_rate_settings_dict
 from ..models import AppUser
 from ..permissions import ROLE_OFFICE_FINANZEN, require_min_role
-from ..schemas import CalculationSettingsOut, LaborRateCalculationOut, LaborRateSettingsOut, LaborRateSettingsUpdate
+from ..productive_hours import apply_productive_hours_to_labor_rate, productive_hours_settings_dict, update_productive_hours_settings
+from ..schemas import (
+    CalculationSettingsOut,
+    LaborRateCalculationOut,
+    LaborRateSettingsOut,
+    LaborRateSettingsUpdate,
+    ProductiveHoursCalculationOut,
+    ProductiveHoursSettingsUpdate,
+)
 
 router = APIRouter()
 
@@ -76,3 +84,22 @@ def apply_labor_rate_calculation(db: Session = Depends(get_db), _role: AppUser =
     db.commit()
     db.refresh(calc_settings)
     return CalculationSettingsOut.model_validate(calc_settings, from_attributes=True)
+
+
+# Produktivstunden-Rechner (Schicht 3, seit 1.5.1, siehe CLAUDE.md "Betriebskosten-Übersicht") --
+# co-located mit der übrigen Kalkulationsgrundlage, dieselbe Rollen-Schwelle. Schreibt nur nach
+# einem bewussten "Übernehmen"-Klick in LaborRateSettings.productive_time_pct
+# (apply_productive_hours_to_labor_rate()), calculate_labor_rate() bleibt unverändert.
+@router.get("/api/productive-hours-settings", response_model=ProductiveHoursCalculationOut)
+def get_productive_hours_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    return ProductiveHoursCalculationOut.model_validate(productive_hours_settings_dict(db))
+
+
+@router.put("/api/productive-hours-settings", response_model=ProductiveHoursCalculationOut)
+def put_productive_hours_settings(payload: ProductiveHoursSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    return ProductiveHoursCalculationOut.model_validate(update_productive_hours_settings(db, payload.model_dump()))
+
+
+@router.post("/api/productive-hours-settings/apply", response_model=ProductiveHoursCalculationOut)
+def post_apply_productive_hours_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    return ProductiveHoursCalculationOut.model_validate(apply_productive_hours_to_labor_rate(db))

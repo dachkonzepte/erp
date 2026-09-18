@@ -51,6 +51,24 @@ MODULE_KEY = "betriebskosten"
 # NICHT Teil von Schicht 1, siehe CLAUDE.md.
 BILLING_INTERVALS = ("monatlich", "vierteljaehrlich", "halbjaehrlich", "jaehrlich", "einmalig")
 
+# Kalkulatorische Einordnung für den Verrechnungssatz-Kreislauf (Schicht 3, seit 1.5.1) -- fester
+# Code-Wert wie BILLING_INTERVALS, keine Optionsgruppe: die Einordnung bestimmt später eine
+# Rechenregel (welche der beiden Gemeinkosten-Summen ein Posten speist), keine reine
+# Anzeigeliste. "keine" ist der restriktive Default -- ein Posten fließt erst nach bewusster
+# Einordnung in eine Summe ein. Werte vermeiden bewusst das Wort "variabel" (siehe CLAUDE.md
+# "Betriebskosten-Übersicht" -> "Terminologie 'variabel'"): der Code-Bucket
+# LaborRateOverheadSettings.variable_overhead_value mischt bereits automatisch addierte
+# Verwaltungslöhne hinein (variable_employee_costs) -- "auslastungsabhaengig" markiert einen
+# fachlich anderen Begriff von "variabel" (steigt mit der Auslastung), ohne die beiden im Namen
+# zu verwechseln.
+OVERHEAD_CLASSIFICATIONS = ("keine", "fix", "auslastungsabhaengig")
+
+OVERHEAD_CLASSIFICATION_LABELS = {
+    "keine": "Keine Gemeinkosten",
+    "fix": "Feste Gemeinkosten",
+    "auslastungsabhaengig": "Auslastungsabhängige Kosten (z. B. Kraftstoff, Verschleiß, Entsorgung)",
+}
+
 _ANNUAL_MULTIPLIER = {
     "monatlich": Decimal(12),
     "vierteljaehrlich": Decimal(4),
@@ -148,6 +166,7 @@ def cost_to_dict(cost: RecurringCost, lead_days: int, *, today: date | None = No
         "id": cost.id,
         "label": cost.label,
         "category": cost.category,
+        "overhead_classification": cost.overhead_classification,
         "amount": cost.amount,
         "billing_interval": cost.billing_interval,
         "annual_amount": cost.annual_amount,
@@ -200,9 +219,13 @@ def _payload_fields(payload: dict) -> dict:
     billing_interval = payload["billing_interval"]
     if billing_interval not in BILLING_INTERVALS:
         raise ValueError(f"Unbekannter Rhythmus: {billing_interval}")
+    overhead_classification = payload.get("overhead_classification") or "keine"
+    if overhead_classification not in OVERHEAD_CLASSIFICATIONS:
+        raise ValueError(f"Unbekannte Gemeinkosten-Einordnung: {overhead_classification}")
     return {
         "label": payload["label"].strip(),
         "category": payload.get("category"),
+        "overhead_classification": overhead_classification,
         "amount": amount,
         "billing_interval": billing_interval,
         "annual_amount": normalize_to_annual(amount, billing_interval),
@@ -293,6 +316,20 @@ def overview_summary(db: Session) -> dict:
     linked_asset_ids = {c.asset_id for c in costs if c.asset_id is not None}
     annual_from_costs = sum((c.annual_amount for c in costs), Decimal("0"))
 
+    # Drei getrennte Summen nach kalkulatorischer Einordnung (Schicht 3, seit 1.5.1) --
+    # annual_total bleibt unverändert die Summe ALLER Posten (auch "keine"), für die
+    # bestehende Anzeige; die drei Gruppen sind zusätzlich, nicht ersetzend.
+    annual_fixed_from_costs = sum(
+        (c.annual_amount for c in costs if c.overhead_classification == "fix"), Decimal("0")
+    )
+    annual_usage_dependent_from_costs = sum(
+        (c.annual_amount for c in costs if c.overhead_classification == "auslastungsabhaengig"),
+        Decimal("0"),
+    )
+    annual_none_from_costs = sum(
+        (c.annual_amount for c in costs if c.overhead_classification == "keine"), Decimal("0")
+    )
+
     assets_with_quick_cost = db.scalars(
         select(OperationalAsset).where(
             OperationalAsset.recurring_cost_per_month.is_not(None),
@@ -313,6 +350,9 @@ def overview_summary(db: Session) -> dict:
     return {
         "monthly_total": monthly_total.quantize(Decimal("0.01")),
         "annual_total": annual_total.quantize(Decimal("0.01")),
+        "annual_fixed_from_costs": annual_fixed_from_costs.quantize(Decimal("0.01")),
+        "annual_usage_dependent_from_costs": annual_usage_dependent_from_costs.quantize(Decimal("0.01")),
+        "annual_none_from_costs": annual_none_from_costs.quantize(Decimal("0.01")),
         "cost_count": len(costs),
         "asset_quick_cost_count": sum(1 for a in assets_with_quick_cost if a.id not in linked_asset_ids),
         "cancellations_due": due,

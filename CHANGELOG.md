@@ -4,6 +4,51 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.5.1 – Verrechnungssatz-Kreislauf Schicht 3, die beiden begriffskonflikt-unabhängigen Teile
+
+Vor dem Bauen ein reiner Befund zu Punkt 1 der Schicht-3-Anfrage (wie `labor_rate.py` den
+Stundenverrechnungssatz heute bildet, ob `variable_overhead_value` mit den automatisch addierten
+Verwaltungslöhnen fachlich sauber gemischt wird), danach vom Betreiber sechs Entscheidungen --
+zwei davon (Produktivstunden-Rechner, `overview_summary()`-Erweiterung) ausdrücklich als
+unabhängig vom offenen Begriffskonflikt "variabel" markiert und deshalb schon jetzt gebaut. Die
+eigentliche "Einspeisung" in `LaborRateOverheadSettings` (Modus-Zwang mit Warnhinweis, Schritt-1-
+Knopf, dreistufige Vergleichsansicht) sowie die endgültigen Labels der Betriebskosten-Einordnung
+bleiben bewusst offen, bis der Punkt-1-Vorschlag bestätigt ist -- siehe CLAUDE.md
+"Betriebskosten-Übersicht" -> "Verrechnungssatz-Kreislauf Schicht 3" für die volle Herleitung.
+
+**Produktivstunden-Rechner** (`app/productive_hours.py`, neue Singleton-Tabelle
+`ProductiveHoursSettings`): leitet `LaborRateSettings.productive_time_pct` nachvollziehbar aus
+Wochen-/Tagesstunden, Urlaubstagen, Feiertagen, Ø Krankheitstagen, Schlechtwettertagen und einer
+geschätzten unproduktiven Zeit ab, statt den Wert (real in der Datenbank: pauschal 95 %) zu
+raten. `weeks_per_year` kommt bewusst aus `LaborRateSettings`, kein zweites, eigenes Feld für
+dieselbe Zahl -- die im Punkt-6 der Anfrage selbst gezogene Lehre aus
+`build_customer_and_meta_block()`s drei divergierenden Kopien. Schreibt erst nach einem
+bewussten "Übernehmen"-Klick (`apply_productive_hours_to_labor_rate()`, Muster
+`apply_labor_rate_calculation()`) in `productive_time_pct` -- `calculate_labor_rate()` selbst
+bleibt vollständig unverändert, kein zweiter, paralleler Berechnungsweg für dieselbe Zahl.
+Neue Endpunkte `GET/PUT /api/productive-hours-settings` + `POST .../apply`, co-located im
+bestehenden `labor_rate`-Router (`require_min_role(ROLE_OFFICE_FINANZEN)`, dieselbe
+Rollen-Schwelle wie der übrige Stundensatz-Rechner). Oberfläche direkt unterhalb des
+bestehenden Stundenverrechnungssatz-Rechners in Einstellungen → Kalkulationsgrundlagen.
+
+**`overview_summary()`-Erweiterung**: neue, indizierte Spalte `RecurringCost.
+overhead_classification` (Migration, `server_default='keine'` nach Regel 1) -- fester Code-Wert
+wie `billing_interval`, keine Optionsgruppe, drei Werte `keine`/`fix`/`auslastungsabhaengig`.
+**Werte vermeiden bewusst das Wort "variabel"**: der bestehende Code-Bucket
+`LaborRateOverheadSettings.variable_overhead_value` mischt bereits automatisch addierte
+Verwaltungslöhne hinein (`variable_employee_costs`) -- "auslastungsabhaengig" markiert den davon
+fachlich verschiedenen BWL-Begriff (steigt mit der Auslastung: Diesel, Verschleiß, Entsorgung),
+ohne beide im Namen zu verwechseln. **Ausdrücklich als vorläufig gekennzeichnet** (Oberfläche
+und CHANGELOG-Text), bis der Punkt-1-Vorschlag bestätigt ist. `overview_summary()` liefert
+zusätzlich zur unveränderten `annual_total` drei getrennte Jahressummen
+(`annual_fixed_from_costs`/`annual_usage_dependent_from_costs`/`annual_none_from_costs`) --
+`recurring_costs.html` zeigt sie als zusätzliche Kennzahlen-Kacheln, das Anlegen-/Bearbeiten-
+Formular bekommt ein neues Auswahlfeld, die Kostenliste eine neue Spalte.
+
+**Bewusst NICHT Teil dieser Version**: jede Änderung an `app/labor_rate.py`/
+`LaborRateOverheadSettings` selbst, der Modus-Zwang beim Übernehmen, der neue Schritt-1-Knopf
+und die dreistufige Vergleichsansicht -- alle warten auf die Bestätigung des Punkt-1-Vorschlags.
+
 ## 1.5.0 – Betriebskosten-Übersicht, Schicht 1 (Kostenerfassung)
 
 Neues Modul (`module_key "betriebskosten"`, buero_finanzen/admin-only) -- erst Befund zu den

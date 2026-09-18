@@ -3481,6 +3481,9 @@ class RecurringCostOut(BaseModel):
     id: int
     label: str
     category: str | None = None
+    # Kalkulatorische Einordnung für den Verrechnungssatz-Kreislauf (Schicht 3, seit 1.5.1) --
+    # siehe app/recurring_costs.py::OVERHEAD_CLASSIFICATIONS.
+    overhead_classification: str = "keine"
     amount: Decimal
     billing_interval: str
     annual_amount: Decimal
@@ -3504,6 +3507,7 @@ class RecurringCostOut(BaseModel):
 class RecurringCostCreate(BaseModel):
     label: str = Field(min_length=1, max_length=255)
     category: str | None = None
+    overhead_classification: str = Field(default="keine", pattern="^(keine|fix|auslastungsabhaengig)$")
     amount: Decimal = Field(ge=0)
     billing_interval: str = Field(pattern="^(monatlich|vierteljaehrlich|halbjaehrlich|jaehrlich|einmalig)$")
     vendor: str | None = Field(default=None, max_length=255)
@@ -3529,7 +3533,44 @@ class RecurringCostSettingsUpdate(BaseModel):
 class RecurringCostOverviewOut(BaseModel):
     monthly_total: Decimal
     annual_total: Decimal
+    # Drei getrennte Summen nach kalkulatorischer Einordnung (Schicht 3, seit 1.5.1) --
+    # annual_total bleibt die unveränderte Summe ALLER Posten, siehe
+    # app/recurring_costs.py::overview_summary().
+    annual_fixed_from_costs: Decimal = Decimal("0")
+    annual_usage_dependent_from_costs: Decimal = Decimal("0")
+    annual_none_from_costs: Decimal = Decimal("0")
     cost_count: int
     asset_quick_cost_count: int
     cancellations_due: list[RecurringCostOut] = Field(default_factory=list)
     cancellations_overdue: list[RecurringCostOut] = Field(default_factory=list)
+
+
+class ProductiveHoursSettingsUpdate(BaseModel):
+    weekly_hours: Decimal = Field(gt=0, le=80)
+    daily_hours: Decimal = Field(gt=0, le=24)
+    vacation_days: Decimal = Field(ge=0, le=366)
+    public_holidays: Decimal = Field(ge=0, le=366)
+    average_sick_days: Decimal = Field(ge=0, le=366)
+    weather_loss_days: Decimal = Field(ge=0, le=366)
+    unproductive_time_pct: Decimal = Field(ge=0, le=100)
+
+
+class ProductiveHoursCalculationOut(BaseModel):
+    weekly_hours: Decimal
+    daily_hours: Decimal
+    vacation_days: Decimal
+    public_holidays: Decimal
+    average_sick_days: Decimal
+    weather_loss_days: Decimal
+    unproductive_time_pct: Decimal
+    weeks_per_year: Decimal
+    annual_gross_hours: Decimal
+    vacation_hours: Decimal
+    holiday_hours: Decimal
+    sick_hours: Decimal
+    weather_hours: Decimal
+    hours_after_absences: Decimal
+    unproductive_hours: Decimal
+    productive_hours: Decimal
+    productive_time_pct_result: Decimal
+    current_productive_time_pct: Decimal

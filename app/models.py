@@ -2138,6 +2138,35 @@ class LaborRateOverheadSettings(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class ProductiveHoursSettings(Base):
+    """Herleitung von LaborRateSettings.productive_time_pct aus einzelnen Annahmen (seit 1.5.1,
+    Verrechnungssatz-Kreislauf Schicht 3, siehe CLAUDE.md "Betriebskosten-Übersicht") -- ersetzt
+    keinen bestehenden Mechanismus, calculate_labor_rate() (app/labor_rate.py) liest weiterhin
+    ausschließlich LaborRateSettings.productive_time_pct selbst, unverändert.
+
+    weeks_per_year kommt bewusst NICHT hierher, sondern bleibt bei LaborRateSettings -- eine
+    Quelle für dieselbe Zahl, kein zweites, eigenes Feld dafür (siehe CLAUDE.md-Lehre aus
+    build_customer_and_meta_block()'s drei divergierenden Kopien).
+
+    Schreibt das Ergebnis erst nach einem bewussten Klick
+    (app/productive_hours.py::apply_productive_hours_to_labor_rate(), Muster
+    apply_labor_rate_calculation()) in productive_time_pct -- kein Automatismus. Ein späterer
+    Ist-Wert aus TimeEntry.counts_as_productive ist in CLAUDE.md als künftiger Punkt vorgemerkt,
+    hier bewusst nicht gebaut."""
+
+    __tablename__ = "productive_hours_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    weekly_hours: Mapped[Decimal] = mapped_column(Numeric(9, 4), default=Decimal("40.00"))
+    daily_hours: Mapped[Decimal] = mapped_column(Numeric(9, 4), default=Decimal("8.00"))
+    vacation_days: Mapped[Decimal] = mapped_column(Numeric(9, 4), default=Decimal("30.00"))
+    public_holidays: Mapped[Decimal] = mapped_column(Numeric(9, 4), default=Decimal("10.00"))
+    average_sick_days: Mapped[Decimal] = mapped_column(Numeric(9, 4), default=Decimal("10.00"))
+    weather_loss_days: Mapped[Decimal] = mapped_column(Numeric(9, 4), default=Decimal("5.00"))
+    unproductive_time_pct: Mapped[Decimal] = mapped_column(Numeric(9, 4), default=Decimal("15.00"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class SettingOptionGroup(Base):
     """Generische, zentral pflegbare Auswahlliste für ERP-Dropdowns."""
 
@@ -3611,6 +3640,16 @@ class RecurringCost(Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     billing_interval: Mapped[str] = mapped_column(String(20))
     annual_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    # Kalkulatorische Einordnung für den Verrechnungssatz-Kreislauf (Schicht 3, seit 1.5.1) --
+    # fester Code-Wert (OVERHEAD_CLASSIFICATIONS in recurring_costs.py, keine Optionsgruppe --
+    # dieselbe Rechenregel-vs-freie-Auswahl-Unterscheidung wie bei billing_interval). "keine"
+    # ist der restriktive Default: ein Posten fließt erst nach bewusster Einordnung in eine der
+    # beiden Gemeinkosten-Summen ein. Werte vermeiden bewusst das Wort "variabel" (siehe
+    # CLAUDE.md "Betriebskosten-Übersicht" -> "Terminologie 'variabel'") -- "fix"/
+    # "auslastungsabhaengig"/"keine".
+    overhead_classification: Mapped[str] = mapped_column(
+        String(20), default="keine", server_default="keine", index=True
+    )
     vendor: Mapped[str | None] = mapped_column(String(255), nullable=True)
     contract_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     notice_period_months: Mapped[int | None] = mapped_column(nullable=True)

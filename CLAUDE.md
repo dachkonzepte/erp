@@ -20,11 +20,15 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.5.0** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `fc79aa5629d0` ("recurring costs betriebskosten uebersicht",
+- Version: **1.5.1** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `57062a31dba7` ("productive hours settings and recurring cost
+  overhead classification", neue Tabelle `productive_hours_settings` PLUS die neue, indizierte
+  Spalte `recurring_costs.overhead_classification` (`server_default='keine'`) -- siehe Abschnitt
+  "Betriebskosten-Übersicht" -> "Verrechnungssatz-Kreislauf Schicht 3" unten) -- vorher
+  `fc79aa5629d0` ("recurring costs betriebskosten uebersicht",
   neue Tabellen `recurring_costs`/`recurring_cost_documents`/`recurring_cost_settings` PLUS die
   neue, nullable Spalte `tasks.min_visible_role` -- siehe Abschnitt "Betriebskosten-Übersicht"
-  unten) -- vorher `7677d9d878ba` ("app user role office split finanzen auftrag",
+  unten) -- davor `7677d9d878ba` ("app user role office split finanzen auftrag",
   reine Daten-Migration für die Aufteilung der Rolle "office" in `buero_finanzen`/`buero_auftrag`,
   siehe Abschnitt "Rechtekonzept" -> "Vier Rollen" unten) -- vorher `b2226e22b9f0`
   ("service_report_assets_und_selectable_in_reports", siehe Abschnitt "Betriebsmittelverwaltung"
@@ -45,12 +49,13 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1558 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1573 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 18.09.2026 (1.5.0, Betriebskosten-Übersicht Schicht 1, siehe Abschnitt
-  "Betriebskosten-Übersicht" unten; davor 1.4.8, Rechtekonzept "Vier Rollen" Etappe 2 -- die
-  Verengungen, siehe Abschnitt "Rechtekonzept" -> "Vier Rollen" unten; davor 1.4.7, Etappe 1 --
-  reine Rollen-Erweiterung) mit
+  dort), zuletzt am 18.09.2026 (1.5.1, Verrechnungssatz-Kreislauf Schicht 3 -- Produktivstunden-
+  Rechner + `overview_summary()`-Erweiterung, siehe Abschnitt "Betriebskosten-Übersicht" unten;
+  davor 1.5.0, Betriebskosten-Übersicht Schicht 1; davor 1.4.8, Rechtekonzept "Vier Rollen"
+  Etappe 2 -- die Verengungen, siehe Abschnitt "Rechtekonzept" -> "Vier Rollen" unten; davor
+  1.4.7, Etappe 1 -- reine Rollen-Erweiterung) mit
   `pytest` in Tobias'
   `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -1231,6 +1236,31 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   des Aufgabenmodells: `Task.min_visible_role` (siehe Abschnitt "Aufgabe" unten) grenzt eine
   empfängerlose Aufgabe optional auf eine Ziel-Mindestrolle ein. Migration `fc79aa5629d0`, 26
   neue Tests, volle Suite: 1558 Tests grün.
+- Neu seit 1.5.1: **Verrechnungssatz-Kreislauf Schicht 3 -- die beiden begriffskonflikt-
+  unabhängigen Teile.** Vor dem Bauen ein reiner Befund zu Punkt 1 (wie `labor_rate.py` den
+  Satz heute bildet, ob die Vermischung mit den automatisch addierten Verwaltungslöhnen in
+  `variable_overhead_value` fachlich sauber ist), danach sechs Betreiberentscheidungen -- zwei
+  davon ausdrücklich unabhängig vom offenen Begriffskonflikt "variabel" und deshalb schon jetzt
+  gebaut, die eigentliche "Einspeisung" bleibt offen. **Produktivstunden-Rechner**
+  (`app/productive_hours.py`, neue Singleton-Tabelle `ProductiveHoursSettings`) leitet
+  `LaborRateSettings.productive_time_pct` nachvollziehbar aus Wochen-/Tagesstunden, Urlaub,
+  Feiertagen, Ø Krankheitstagen, Schlechtwetter und geschätzter unproduktiver Zeit ab, statt den
+  Wert (real: pauschal 95 %) zu raten -- `weeks_per_year` kommt bewusst aus `LaborRateSettings`
+  (eine Quelle, kein zweites Feld), schreibt erst nach bewusstem "Übernehmen"-Klick
+  (`apply_productive_hours_to_labor_rate()`, Muster `apply_labor_rate_calculation()`) in
+  `productive_time_pct`, `calculate_labor_rate()` bleibt dabei vollständig unverändert. Neue
+  Endpunkte `GET/PUT /api/productive-hours-settings` + `.../apply`, co-located im
+  `labor_rate`-Router, Oberfläche direkt unter dem bestehenden Stundensatz-Rechner in
+  Einstellungen → Kalkulationsgrundlagen. **`overview_summary()`-Erweiterung**: neue, indizierte
+  Spalte `RecurringCost.overhead_classification` (`keine`/`fix`/`auslastungsabhaengig`, fester
+  Code-Wert wie `billing_interval`, `server_default='keine'`) -- Werte vermeiden bewusst das
+  Wort "variabel" (siehe unten "Terminologie 'variabel'"), **ausdrücklich als vorläufig
+  gekennzeichnet**, bis der Punkt-1-Vorschlag bestätigt ist. Drei zusätzliche, getrennte
+  Jahressummen (`annual_fixed_from_costs`/`annual_usage_dependent_from_costs`/
+  `annual_none_from_costs`) neben der unveränderten `annual_total`. **Bewusst NICHT Teil dieser
+  Version**: jede Änderung an `app/labor_rate.py`/`LaborRateOverheadSettings`, der Modus-Zwang
+  beim Übernehmen, der Schritt-1-Knopf und die dreistufige Vergleichsansicht. Migration
+  `57062a31dba7`, 15 neue Tests, volle Suite: 1573 Tests grün.
 
 ### Headless-Chrome-Verifikation über CDP (seit 1.3.73)
 
@@ -8906,6 +8936,148 @@ ID nicht übernehmbar -- 403 statt 400/200). Null durchgelassen. Migration `fc79
 (`recurring_costs`/`recurring_cost_documents`/`recurring_cost_settings` neu, `tasks.
 min_visible_role` als neue, nullable Spalte auf der bestehenden Tabelle), 26 neue Tests, volle
 Suite: 1558 Tests grün.
+
+### Verrechnungssatz-Kreislauf Schicht 3 (seit 1.5.1)
+
+Vorbereitet durch einen reinen Befund (Punkt 1 der Anfrage: wie `labor_rate.py` den Satz heute
+bildet, Prozent-oder-Betrag, fix/variabel getrennt oder nicht, die Umrechnungsformel), danach
+sechs Betreiberentscheidungen -- die wichtigste davon (der Begriffskonflikt bei "variabel")
+ausdrücklich VOR jedem Bauen der Einordnung/Einspeisung zu klären. Diese Version liefert
+ausschließlich die beiden Teile, die der Betreiber selbst als unabhängig vom Konflikt markiert
+hat (Produktivstunden-Rechner, `overview_summary()`-Erweiterung); die Einspeisung selbst (Schreiben
+in `LaborRateOverheadSettings`, Modus-Zwang, Vergleichsansicht) und die endgültigen Einordnungs-
+Labels warten auf die Bestätigung des folgenden Vorschlags.
+
+#### Punkt 1 -- Befund: wie `calculate_labor_rate()` den Satz heute bildet
+
+Vier Kostenblöcke, alle im Rückgabe-Dict von `calculate_labor_rate()` (`app/labor_rate.py`)
+wiederzufinden: `gross_wages` (Bruttolöhne der direkt zugeordneten Mitarbeiter),
+`employer_costs` (`gross_wages * employer_cost_pct/100`), `total_overhead` (=
+`fixed_overhead` + `variable_overhead`) und `target_profit_pct` (Aufschlag auf die
+Selbstkosten). **Fix/variabel sind bereits heute getrennte Felder**, keine neue Unterscheidung
+nötig: `LaborRateOverheadSettings.fixed_overhead_mode/fixed_overhead_value` und
+`.variable_overhead_mode/variable_overhead_value`, jedes Feld unabhängig als `"eur"` (absoluter
+Jahresbetrag) oder `"pct"` (Prozent der direkten Lohnkosten inkl. AG-Nebenkosten) pflegbar --
+reale Werte in der Datenbank: `fixed_overhead_value=73500` (Modus `"eur"`),
+`variable_overhead_value=150000` (Modus `"eur"`).
+
+**Die zentrale Zusammensetzung, die den Begriffskonflikt auslöst**: `variable_overhead` wird
+NICHT nur aus dem gepflegten `variable_overhead_value` gebildet, sondern als
+`manual_variable_overhead + variable_employee_costs` -- `variable_employee_costs` ist die Summe
+aus Jahresbrutto + AG-Nebenkosten aller Mitarbeiter mit der Kosten-Zuordnung
+`allocation_type="variable_overhead"` (`EmployeeCostAllocationSettings`, siehe
+`effective_cost_allocation()` in `app/employees.py`) -- in der Praxis die Verwaltungslöhne
+(Büro, Geschäftsführung), automatisch zum manuell gepflegten Betrag addiert.
+
+**Produktive Jahresstunden** (`annual_productive_hours`) = `paid_hours * productive_time_pct /
+100`, wobei `paid_hours` bereits die AGGREGIERTE Summe über alle direkt zugeordneten Mitarbeiter
+ist (Wochenstunden × `weeks_per_year`, summiert). **Keine detaillierte Herleitung existiert
+heute** -- `productive_time_pct` ist ein einzelner, pauschal gepflegter Prozentsatz (realer
+Wert in der Datenbank: 95 %, eine reine Schätzung ohne Bezug zu Urlaub/Krankheit/Feiertagen) --
+genau die Lücke, die der neue Produktivstunden-Rechner schließt.
+
+#### Punkt 1 -- die Frage des Betreibers: ist die Vermischung fachlich richtig oder falsch?
+
+Wörtlich: "Wenn ein Betriebskostenposten als 'variabel' (im Auslastungs-Sinn) eingeordnet wird
+und in `variable_overhead_value` fließt, vermischt er sich dort mit den automatisch addierten
+Verwaltungslöhnen (`variable_employee_costs`). Ist das fachlich richtig oder falsch?"
+
+**Antwort**: rechnerisch harmlos, terminologisch riskant. Rechnerisch, weil Addition vor der
+abschließenden Division durch die produktiven Stunden assoziativ ist -- ob ein Auslastungs-
+Posten in `variable_overhead_value` oder in einem dritten, separaten Feld steht, ändert am
+Ergebnis (`suggested_labor_rate`) nichts, solange am Ende alles in `total_overhead` zusammenläuft
+(was ohnehin passiert). Terminologisch riskant, weil zwei fachlich verschiedene Bedeutungen von
+"variabel" denselben Codenamen tragen: BWL-Sinn (steigt mit der Auslastung -- Diesel,
+Verschleiß, Entsorgung) vs. Code-Sinn (Verwaltungslöhne, die nichts mit Auslastung zu tun haben,
+nur mit einer Kosten-Zuordnungsentscheidung je Mitarbeiter). Verschärft dadurch, dass in DIESEM
+System kein einziger Kostenposten -- fix oder variabel im BWL-Sinn -- tatsächlich dynamisch mit
+der realisierten Auslastung mitläuft: jeder `RecurringCost` ist ein statischer Jahresbetrag,
+unabhängig von der Klassifikation. Der Betreiber (und jeder spätere Bediener) könnte deshalb
+leicht annehmen, "Auslastungsabhängige Kosten" würden sich im Verrechnungssatz automatisch nach
+der tatsächlichen Auslastung richten -- das tun sie nicht, sie werden nur einmalig addiert.
+
+#### Vorschlag zur Auflösung (noch nicht bestätigt)
+
+1. **Die Betriebskosten-Einordnung vermeidet das Wort "variabel" bewusst** -- Werte `"fix"`/
+   `"auslastungsabhaengig"`/`"keine"` statt `"fix"`/`"variabel"`/`"keine"`. Label
+   "Auslastungsabhängige Kosten (z. B. Kraftstoff, Verschleiß, Entsorgung)" macht die
+   BWL-Bedeutung explizit, ohne den Code-Bucket-Namen zu wiederholen.
+2. **Die Kern-Felder `variable_overhead_mode`/`variable_overhead_value`
+   (`LaborRateOverheadSettings`) werden NICHT umbenannt** -- eine minimale, risikoarme Änderung:
+   Umbenennen würde jeden bestehenden Aufrufer/Test/jede Spalte anfassen, für einen Bucket, der
+   inhaltlich unverändert bleibt (weiterhin manuelle Kosten + automatisch addierte
+   Verwaltungslöhne).
+3. **Transparenz statt Umbenennung**: beim Einspeisen (Schicht 3, noch nicht gebaut) zeigt die
+   Vergleichsansicht einen Hinweis, dass die Summe der "auslastungsabhaengig" klassifizierten
+   Posten mit den automatisch berechneten Verwaltungslöhnen zusammen in `variable_overhead_value`
+   einfließt -- der Bediener sieht die Vermischung, statt dass sie stillschweigend passiert.
+4. **CLAUDE.md dokumentiert die Begriffsunterscheidung** (dieser Abschnitt) als dauerhafte
+   Referenz, damit ein künftiger Bearbeiter nicht erneut über dieselbe Verwechslung stolpert.
+
+**Diese vier Punkte sind noch NICHT umgesetzt** -- die Klassifikationswerte `keine`/`fix`/
+`auslastungsabhaengig` sind zwar bereits im Code angelegt (siehe unten, für die
+`overview_summary()`-Erweiterung), aber ausdrücklich als vorläufig gekennzeichnet. Punkt 3 (die
+Einspeisung mit Warnhinweis) ist Teil der noch ausstehenden Schicht-3-Fortsetzung.
+
+#### Produktivstunden-Rechner (`app/productive_hours.py`)
+
+Neue Singleton-Tabelle `ProductiveHoursSettings` (`weekly_hours`/`daily_hours`/`vacation_days`/
+`public_holidays`/`average_sick_days`/`weather_loss_days`/`unproductive_time_pct`, alle mit
+Standardwerten für einen typischen Dachdeckerbetrieb: 40h/8h/30/10/10/5/15 %, ergibt bei 52
+Wochen/Jahr rund 67 % statt der bisherigen, pauschal geschätzten 95 %). `calculate_productive_hours()`
+ist eine reine Funktion (Settings + `weeks_per_year` → Dict mit jedem Zwischenschritt): Bruttojahres-
+stunden (`weekly_hours * weeks_per_year`) minus Urlaub/Feiertage/Ø Krankheit/Schlechtwetter (je in
+Tagen × `daily_hours`) minus unproduktive Zeit (Prozentsatz der verbleibenden Stunden) = produktive
+Jahresstunden, daraus ein Prozentsatz der Bruttojahresstunden.
+
+**`weeks_per_year` kommt bewusst aus `LaborRateSettings`, kein eigenes Feld** -- exakt die vom
+Betreiber selbst gezogene Lehre aus den drei divergierenden `build_customer_and_meta_block()`-
+Kopien ("eine Quelle, ein Wert"): ändert sich `weeks_per_year` im Stundensatz-Rechner, zieht der
+Produktivstunden-Rechner beim nächsten Lesezugriff automatisch nach, keine zweite, potenziell
+abweichende Zahl.
+
+**Schreibt nur nach bewusstem Klick**: `apply_productive_hours_to_labor_rate()` (Muster
+`apply_labor_rate_calculation()`, Router `app/routers/labor_rate.py`) überschreibt
+AUSSCHLIESSLICH `LaborRateSettings.productive_time_pct` -- kein anderes Feld, kein Automatismus.
+`calculate_labor_rate()` selbst ist an keiner Stelle geändert; es liest weiterhin nur
+`productive_time_pct`, ohne zu wissen, wie dieser Wert entstanden ist -- **keine zweite,
+parallele Formel für dieselbe Zahl** (die andere, vom Betreiber selbst benannte Lehre aus den
+drei `build_customer_and_meta_block()`-Kopien).
+
+Neue Endpunkte `GET/PUT /api/productive-hours-settings` + `POST .../apply` (`app/routers/
+labor_rate.py`, co-located mit dem bestehenden Stundensatz-Rechner, dieselbe
+`require_min_role(ROLE_OFFICE_FINANZEN)`-Schwelle). Oberfläche: neuer Block direkt unterhalb des
+bestehenden Stundenverrechnungssatz-Rechners in Einstellungen → Kalkulationsgrundlagen (`settings.html`,
+`settings-labor-rate`-Sektion) -- sieben Eingabefelder, ein Rechenweg-Ergebnis (Muster
+`renderLaborRate()`) und ein "Übernehmen"-Knopf, der zusätzlich das Feld "Produktive Zeit %" oben
+UND die Stundensatz-Berechnung selbst aktualisiert (`refreshLaborRate()`).
+
+Die spätere, in der Anfrage bereits vorgemerkte Ist-Wert-Verfeinerung aus
+`TimeEntry.counts_as_productive` (echte Buchungen statt Annahmen) ist bewusst NICHT Teil dieser
+Version -- nur hier als künftiger Punkt vermerkt, wie verlangt.
+
+#### `overview_summary()`-Erweiterung (`app/recurring_costs.py`)
+
+Neue, indizierte Spalte `RecurringCost.overhead_classification` (String, `server_default='keine'`
+nach Regel 1) -- fester Code-Wert (`OVERHEAD_CLASSIFICATIONS = ("keine", "fix",
+"auslastungsabhaengig")`) wie `billing_interval`, keine Optionsgruppe: die Einordnung bestimmt
+eine künftige Rechenregel (welcher Gemeinkosten-Bucket gespeist wird), keine freie Anzeigeliste.
+"keine" ist der restriktive Default -- ein Posten fließt erst nach bewusster Einordnung in eine
+der beiden Summen ein.
+
+`overview_summary()` liefert zusätzlich zur unveränderten `annual_total` (weiterhin die Summe
+ALLER aktiven Posten, für die bestehende Anzeige) drei getrennte Jahressummen:
+`annual_fixed_from_costs`, `annual_usage_dependent_from_costs`, `annual_none_from_costs` --
+Summe der drei Gruppen ergibt exakt `annual_total`. `recurring_costs.html` zeigt sie als
+zusätzliche Kennzahlen-Kacheln unterhalb der bestehenden Summenkarte, das Anlegen-/Bearbeiten-
+Formular bekommt ein neues Auswahlfeld ("Kalkulatorische Einordnung"), die Kostenliste eine neue
+Spalte -- **jede dieser drei Stellen trägt einen sichtbaren Hinweis "vorläufige Bezeichnung,
+siehe Bericht zu Punkt 1"**, damit niemand die Werte für final hält, bevor der Vorschlag oben
+bestätigt ist.
+
+Migration `57062a31dba7` (neue Spalte `recurring_costs.overhead_classification` PLUS neue Tabelle
+`productive_hours_settings`), 15 neue Tests (`tests/test_v284_productive_hours_and_overhead_classification.py`),
+volle Suite: 1573 Tests grün.
 
 ## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
 

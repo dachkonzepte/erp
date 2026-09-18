@@ -489,6 +489,23 @@
     <div class="formula"><b>Rechenweg:</b> Nur Mitarbeiter mit Kosten-Zuordnung <b>„Stundenkostenverrechnungssatz“</b> bilden Mittellohn und produktive Stunden. Mitarbeiter mit Zuordnung <b>„Variable Gemeinkosten“</b> werden mit Jahresbrutto + AG-Lohnnebenkosten dem variablen Gemeinkostenblock zugeschlagen. Fixe und zusätzliche variable Gemeinkosten können als Jahresbetrag in Euro oder als Prozent der direkten Jahreslohnkosten inkl. AG-Lohnnebenkosten gepflegt werden. Anschließend werden alle Gemeinkosten auf die produktiven Stunden verteilt und Wagnis & Gewinn aufgeschlagen.</div>
     <div id="laborRateResult" class="rate-result"></div>
     <div id="laborRateApply" class="big-rate"></div>
+
+    <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+    <h3 style="margin-bottom:4px">Produktivstunden-Rechner</h3>
+    <div class="hint">Leitet die <b>„Produktive Zeit %“ oben nachvollziehbar aus einzelnen Annahmen ab</b>, statt sie zu schätzen -- Bruttojahresstunden abzüglich Urlaub, Feiertagen, durchschnittlichen Krankheitstagen, Schlechtwetter und geschätzter unproduktiver Zeit (Rüstzeit, Fahrten, Werkstatt). Schreibt das Ergebnis <b>erst nach Klick auf „Übernehmen“</b> in das Feld oben -- keine automatische Änderung.</div>
+    <div class="rate-grid" style="margin-top:14px">
+      <div class="field"><label>Wochenstunden</label><input id="phWeeklyHours" type="number" step="0.01"></div>
+      <div class="field"><label>Tagesstunden</label><input id="phDailyHours" type="number" step="0.01"></div>
+      <div class="field"><label>Urlaubstage / Jahr</label><input id="phVacationDays" type="number" step="0.01"></div>
+      <div class="field"><label>Feiertage / Jahr</label><input id="phPublicHolidays" type="number" step="0.01"></div>
+      <div class="field"><label>Ø Krankheitstage / Jahr</label><input id="phSickDays" type="number" step="0.01"></div>
+      <div class="field"><label>Schlechtwettertage / Jahr</label><input id="phWeatherDays" type="number" step="0.01"></div>
+      <div class="field"><label>Unproduktive Zeit %</label><input id="phUnproductivePct" type="number" step="0.01"><div class="muted small">Rüstzeit, Fahrten, Werkstatt u. Ä. -- Anteil der nach Abwesenheiten verbleibenden Zeit.</div></div>
+    </div>
+    <button onclick="saveProductiveHoursSettings()">Speichern & neu berechnen</button><span id="phStatus" class="status"></span>
+    <div class="formula"><b>Rechenweg:</b> Wochenstunden × Wochen/Jahr (aus der Kalkulationsgrundlage oben) = Bruttojahresstunden. Davon Urlaub, Feiertage, Ø Krankheitstage und Schlechtwetter (je in Tagen × Tagesstunden) abziehen, danach die unproduktive Zeit als Prozentsatz der verbleibenden Stunden. Das Ergebnis geteilt durch die Bruttojahresstunden ergibt den Vorschlag für „Produktive Zeit %“.</div>
+    <div id="phResult" class="rate-result"></div>
+    <div id="phApply" class="big-rate"></div>
   </section>
 
   <section class="card settings-section" id="settings-calculation">
@@ -723,6 +740,7 @@ async function load(){
   if(canSeeCalculationSettings){
     setv('laborRate',c.labor_rate);setv('materialMarkup',c.material_markup_pct);setv('overhead',c.overhead_pct);setv('riskProfit',c.risk_profit_pct);document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
     setv('employerCostPct',lr.employer_cost_pct);setv('productiveTimePct',lr.productive_time_pct);setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',lr.fixed_overhead_value||0);setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',lr.variable_overhead_value||0);setv('targetProfitPct',lr.target_profit_pct);setv('weeksPerYear',lr.weeks_per_year);syncOverheadLabels();renderLaborRate(lrc);
+    loadProductiveHoursSection();
     loadRecurringCostsSettingsSection();
   }
   sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();document.getElementById('autoCreateDraftsCheckbox').checked=!!rs.auto_create_drafts;moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadDocumentCategoriesSection();loadMobileSection();loadDocumentLayoutSection();loadProjectPipelineSection();}
@@ -1684,6 +1702,34 @@ function renderLaborRate(r){const el=document.getElementById('laborRateResult');
 async function refreshLaborRate(){renderLaborRate(await api('/api/labor-rate-calculation'))}
 async function saveLaborRateSettings(){const s=document.getElementById('laborRateStatus');try{await api('/api/labor-rate-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({employer_cost_pct:Number(v('employerCostPct')||0),productive_time_pct:Number(v('productiveTimePct')||0),fixed_overhead_mode:v('fixedOverheadMode')||'eur',fixed_overhead_value:Number(v('fixedOverheadValue')||0),variable_overhead_mode:v('variableOverheadMode')||'eur',variable_overhead_value:Number(v('variableOverheadValue')||0),target_profit_pct:Number(v('targetProfitPct')||0),weeks_per_year:Number(v('weeksPerYear')||52)})});s.textContent='Rechengrundlagen gespeichert.';await refreshLaborRate()}catch(e){s.textContent='Fehler: '+e.message}}
 async function applyLaborRate(){const s=document.getElementById('laborRateStatus');try{const c=await api('/api/labor-rate-calculation/apply',{method:'POST'});setv('laborRate',c.labor_rate);s.textContent=`${money(c.labor_rate)}/h als aktueller Stundenkostenverrechnungssatz übernommen.`;await refreshLaborRate()}catch(e){s.textContent='Fehler: '+e.message}}
+
+// Produktivstunden-Rechner (Schicht 3, seit 1.5.1) -- co-located mit dem Stundensatz-Rechner
+// oben, da sein Ergebnis nur productive_time_pct dort speist (kein eigener Abschnitt).
+function renderProductiveHours(r){
+  setv('phWeeklyHours',r.weekly_hours);setv('phDailyHours',r.daily_hours);setv('phVacationDays',r.vacation_days);setv('phPublicHolidays',r.public_holidays);setv('phSickDays',r.average_sick_days);setv('phWeatherDays',r.weather_loss_days);setv('phUnproductivePct',r.unproductive_time_pct);
+  const vals=[['Wochen/Jahr (aus Kalkulationsgrundlage)',num(r.weeks_per_year)],['Bruttojahresstunden',num(r.annual_gross_hours)+' h'],['− Urlaub',num(r.vacation_hours)+' h'],['− Feiertage',num(r.holiday_hours)+' h'],['− Ø Krankheit',num(r.sick_hours)+' h'],['− Schlechtwetter',num(r.weather_hours)+' h'],['= Nach Abwesenheiten',num(r.hours_after_absences)+' h'],['− Unproduktive Zeit',num(r.unproductive_hours)+' h'],['= Produktive Jahresstunden',num(r.productive_hours)+' h']];
+  document.getElementById('phResult').innerHTML=vals.map(([k,x])=>`<div class="metric"><div class="k">${k}</div><div class="val">${x}</div></div>`).join('');
+  document.getElementById('phApply').innerHTML=`<div class="muted small">Vorschlag „Produktive Zeit %“ (aktuell im Stundensatz: ${num(r.current_productive_time_pct)}%)</div><div style="font-size:28px;font-weight:900;margin:3px 0 10px">${num(r.productive_time_pct_result)} %</div><button onclick="applyProductiveHours()">Übernehmen</button>`;
+}
+async function loadProductiveHoursSection(){try{renderProductiveHours(await api('/api/productive-hours-settings'))}catch(e){document.getElementById('phStatus').textContent='Fehler: '+e.message}}
+async function saveProductiveHoursSettings(){
+  const s=document.getElementById('phStatus');
+  try{
+    const payload={weekly_hours:Number(v('phWeeklyHours')||0),daily_hours:Number(v('phDailyHours')||0),vacation_days:Number(v('phVacationDays')||0),public_holidays:Number(v('phPublicHolidays')||0),average_sick_days:Number(v('phSickDays')||0),weather_loss_days:Number(v('phWeatherDays')||0),unproductive_time_pct:Number(v('phUnproductivePct')||0)};
+    renderProductiveHours(await api('/api/productive-hours-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
+    s.textContent='Gespeichert.';
+  }catch(e){s.textContent='Fehler: '+e.message}
+}
+async function applyProductiveHours(){
+  const s=document.getElementById('phStatus');
+  try{
+    renderProductiveHours(await api('/api/productive-hours-settings/apply',{method:'POST'}));
+    const lrs=await api('/api/labor-rate-settings');
+    setv('productiveTimePct',lrs.productive_time_pct);
+    s.textContent=`${num(lrs.productive_time_pct)}% als „Produktive Zeit %“ oben übernommen.`;
+    await refreshLaborRate();
+  }catch(e){s.textContent='Fehler: '+e.message}
+}
 async function saveCalculation(){const s=document.getElementById('calcStatus');try{await api('/api/calculation-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({labor_rate:Number(v('laborRate')||0),material_markup_pct:Number(v('materialMarkup')||0),overhead_pct:Number(v('overhead')||0),risk_profit_pct:Number(v('riskProfit')||0),use_source_time_as_minutes:document.getElementById('sourceMinutes').checked})});s.textContent='Kalkulationsgrundlagen gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
 function isHexColor(x){return /^#[0-9a-fA-F]{6}$/.test(x)}
 function whiteContrastRatio(hex){const r=parseInt(hex.slice(1,3),16)/255,g=parseInt(hex.slice(3,5),16)/255,b=parseInt(hex.slice(5,7),16)/255;const lin=c=>c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4);const L=0.2126*lin(r)+0.7152*lin(g)+0.0722*lin(b);return 1.05/(L+0.05)}
