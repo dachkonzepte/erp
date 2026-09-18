@@ -8517,6 +8517,38 @@ NOT-NULL-Spalte `operational_assets.selectable_in_reports` mit `server_default='
 befolgt) erfolgreich gegen die echte, lokale `dachkonzepte_erp.db` angewendet, Bestandsdaten
 geprüft (alle 5 Assets korrekt auf `False`). Volle Suite: 1492 Tests grün.
 
+## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
+
+Das durchgängige `ensure_default_*()`-Muster dieses Projekts (siehe z. B. "Betriebsmittelverwaltung",
+"Umbau der Projektliste", "Aufgabe" -- eine Tabelle wird lazy, beim ersten Lesezugriff, mit
+Standardwerten befüllt, damit eine per `Base.metadata.create_all()` erzeugte Testdatenbank ohne
+Alembic-Migration trotzdem sinnvolle Defaults bekommt) hatte eine reale Race Condition: zwei
+gleichzeitige ERSTE Zugriffe auf eine frische, noch nie geseedete Tabelle lesen beide "leer",
+versuchen beide dieselben Standardzeilen einzufügen -- der zweite kollidiert mit einer unabgefangenen
+`sqlalchemy.exc.IntegrityError` (UNIQUE-Verletzung), die als 500 durchschlägt. Gefunden als
+transparenter Nebenbefund während der 1.4.5-Browserverifikation
+(`app/option_settings.py::ensure_default_option_groups()`, `group_key='units'`), in 1.4.6 behoben
+-- Details, Abwägung Locking vs. Abfangen und der vollständige Sweep über alle `ensure_default_*()`-
+Fundstellen stehen in CHANGELOG.md 1.4.6.
+
+**Die Regel für jede künftige `ensure_default_*()`-Funktion, deren Tabelle einen UNIQUE-Constraint
+trägt**: der Anlegeversuch (ob eine einzelne Zeile oder ein ganzer Satz -- je nachdem, ob die
+Vorbedingung "dieser eine Schlüssel fehlt" oder "die Tabelle ist komplett leer" lautet) läuft in
+einem `with db.begin_nested():`-Block (SAVEPOINT); eine dabei auftretende `IntegrityError` wird
+abgefangen und als "ein anderer Prozess war schneller, schon gesät" behandelt, nicht als Fehler
+weitergereicht. **Kein bloßes `db.rollback()`** auf der ganzen Session -- das würde auch bereits
+zuvor in derselben Schleife erfolgreich angelegte, aber noch nicht committete Zeilen mit verwerfen;
+das SAVEPOINT begrenzt den Rollback exakt auf den einen kollidierenden Versuch. **Kein
+Sperrmechanismus** -- ein Advisory-Lock wäre PostgreSQL-spezifisch und hätte unter SQLite (dem
+zweiten, gleichberechtigt unterstützten Dialekt dieses Projekts) keine Entsprechung.
+
+**Trägt die Tabelle KEINEN UNIQUE-Constraint**, ist die Funktion nicht von dieser Race-Condition-
+Klasse betroffen (kein Crash), sondern von einer anderen, leiseren: ein Wettlauf würde stille
+doppelte Zeilen anlegen. Das Abfangen einer nie geworfenen `IntegrityError` bewirkt dort nichts --
+eine echte Behebung bräuchte zuerst eine Migration, die den fehlenden Constraint ergänzt (bekannte,
+noch offene Fälle: `app/document_layout.py`, `app/payment_terms.py`, `app/tax_keys.py`,
+`app/reminders.py`, siehe CHANGELOG.md 1.4.6).
+
 ## Migrations-Workflow
 
 Bisher: Claude erstellt/ändert Modelle → Tobias führt lokal `alembic revision --autogenerate`
@@ -8663,6 +8695,19 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 
 ## Bekannte, bewusst offene Punkte
 
+- **Vier `ensure_default_*()`-Self-Seeding-Funktionen ohne UNIQUE-Constraint, dadurch weiterhin
+  anfällig für stille Dopplung bei gleichzeitigem erstem Zugriff** (gefunden beim 1.4.6-Sweep,
+  siehe Abschnitt "Self-Seeding gegen gleichzeitigen ersten Zugriff absichern" oben):
+  `app/document_layout.py::ensure_default_layout()`, `app/payment_terms.py::ensure_default_payment_terms()`,
+  `app/tax_keys.py::ensure_default_tax_keys()`, `app/reminders.py::ensure_default_reminder_levels()`.
+  Andere Fehlerklasse als die acht in 1.4.6 behobenen Fundstellen -- kein Crash (keine
+  UNIQUE-Verletzung zum Abfangen vorhanden), sondern im seltenen Kollisionsfall zwei identische
+  Standardzeilen. Nicht behoben, da eine echte Behebung zuerst eine neue Migration bräuchte
+  (fehlenden Constraint ergänzen) -- ein größerer, separat zu entscheidender Schritt, kein reiner
+  Code-Fix wie bei den acht anderen. **Ebenfalls bewusst außerhalb**: das strukturell verwandte,
+  aber deutlich umfangreichere "get_or_create_settings(id=1)"-Singleton-Muster (`GeneralSettings`,
+  `TaskSettings`, `MaintenanceSettings` u. v. a., über zehn Tabellen) -- dort kollidiert ein
+  PRIMARY KEY statt eines Business-Keys, ein eigener, größerer Sweep, nicht Teil der 1.4.6-Anfrage.
 - **Kolonnenführer-Rolle für Gruppenbuchungen -- bewusst offen, wie vom Betreiber vorgegeben**
   (seit 1.3.60, siehe Abschnitt "Zeiterfassung für Monteure" oben): die reduzierte
   `time_tracking_field.html` kennt keine Gruppenbuchung mehr, ein Monteur bucht nur für sich

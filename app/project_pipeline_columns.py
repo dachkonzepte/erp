@@ -19,6 +19,7 @@ Eine Abstraktion für nur diese zwei, sich in diesem Punkt unterscheidenden Nutz
 import re
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .models import Project, ProjectPipelineColumn
@@ -37,11 +38,20 @@ def ensure_default_columns(db: Session) -> None:
     """Selbstheilung für Datenbanken ohne eine einzige Spalte -- vor allem Testdatenbanken,
     die nur per Base.metadata.create_all() statt per Alembic-Migration entstehen (die
     Migration selbst seedet dieselben vier Start-Spalten bereits für echte Installationen,
-    siehe deren Revision). Greift nie in eine bereits vorhandene Konfiguration ein."""
+    siehe deren Revision). Greift nie in eine bereits vorhandene Konfiguration ein.
+
+    Gegen einen gleichzeitigen ersten Zugriff abgesichert (siehe CLAUDE.md "Self-Seeding gegen
+    gleichzeitigen Zugriff absichern") -- eine UNIQUE-Verletzung auf key (ein anderer Prozess
+    war schneller) wird als "schon gesät" behandelt, kein Fehler."""
     if db.scalar(select(ProjectPipelineColumn.id).limit(1)) is not None:
         return
-    for c in DEFAULT_COLUMNS:
-        db.add(ProjectPipelineColumn(**c))
+    try:
+        with db.begin_nested():
+            for c in DEFAULT_COLUMNS:
+                db.add(ProjectPipelineColumn(**c))
+            db.flush()
+    except IntegrityError:
+        return
     db.commit()
 
 

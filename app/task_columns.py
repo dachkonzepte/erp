@@ -10,6 +10,7 @@ verwaisen.
 import re
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .models import Task, TaskColumn
@@ -27,11 +28,20 @@ def ensure_default_columns(db: Session) -> None:
     """Selbstheilung für Datenbanken ohne eine einzige Spalte -- vor allem Testdatenbanken, die
     nur per Base.metadata.create_all() statt per Alembic-Migration entstehen (die Migration
     selbst seedet dieselben drei Start-Spalten bereits für echte Installationen, siehe
-    6ed174efcf4a_...py). Greift nie in eine bereits vorhandene Konfiguration ein."""
+    6ed174efcf4a_...py). Greift nie in eine bereits vorhandene Konfiguration ein.
+
+    Gegen einen gleichzeitigen ersten Zugriff abgesichert (siehe CLAUDE.md "Self-Seeding gegen
+    gleichzeitigen Zugriff absichern") -- eine UNIQUE-Verletzung auf key (ein anderer Prozess
+    war schneller) wird als "schon gesät" behandelt, kein Fehler."""
     if db.scalar(select(TaskColumn.id).limit(1)) is not None:
         return
-    for c in DEFAULT_COLUMNS:
-        db.add(TaskColumn(**c))
+    try:
+        with db.begin_nested():
+            for c in DEFAULT_COLUMNS:
+                db.add(TaskColumn(**c))
+            db.flush()
+    except IntegrityError:
+        return
     db.commit()
 
 

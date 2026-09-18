@@ -9,6 +9,7 @@ Einstellung.
 from decimal import Decimal
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .document_type_fallback import resolve_shared_document_type
@@ -75,7 +76,13 @@ def ensure_default_margins(db: Session, document_type: str, page_type: str) -> D
     (SHARED_DOCUMENT_TYPE) gelesen bzw. bei Bedarf dort neu angelegt -- siehe
     app/document_type_fallback.py. update_margins()/reset_margins_to_default() nutzen das
     bewusst NICHT (siehe dort), damit ein Schreibzugriff nie versehentlich die geteilte Zeile
-    statt einer eigenen trifft."""
+    statt einer eigenen trifft.
+
+    Gegen einen gleichzeitigen ersten Zugriff abgesichert (siehe CLAUDE.md "Self-Seeding gegen
+    gleichzeitigen Zugriff absichern"): kollidiert der INSERT mit der UNIQUE-Verletzung auf
+    (document_type, page_type) (ein anderer Prozess war zwischen dem obigen SELECT und hier
+    schneller), wird die inzwischen von ihm angelegte Zeile erneut gelesen und zurückgegeben,
+    statt einen Fehler zu werfen."""
     _validate_page_type(page_type)
     effective_type = resolve_shared_document_type(db, DocumentPageMargins, document_type, DocumentPageMargins.page_type == page_type)
     row = db.scalar(
@@ -85,11 +92,21 @@ def ensure_default_margins(db: Session, document_type: str, page_type: str) -> D
     if row is not None:
         return row
     defaults = _default_margin_values(effective_type, page_type)
-    row = DocumentPageMargins(
-        document_type=effective_type, page_type=page_type,
-        top_mm=defaults["top"], bottom_mm=defaults["bottom"], left_mm=defaults["left"], right_mm=defaults["right"],
-    )
-    db.add(row)
+    try:
+        with db.begin_nested():
+            row = DocumentPageMargins(
+                document_type=effective_type, page_type=page_type,
+                top_mm=defaults["top"], bottom_mm=defaults["bottom"], left_mm=defaults["left"], right_mm=defaults["right"],
+            )
+            db.add(row)
+            db.flush()
+    except IntegrityError:
+        row = db.scalar(
+            select(DocumentPageMargins)
+            .where(DocumentPageMargins.document_type == effective_type, DocumentPageMargins.page_type == page_type)
+        )
+        assert row is not None  # der andere Prozess muss die Zeile inzwischen committet haben
+        return row
     db.commit()
     db.refresh(row)
     return row

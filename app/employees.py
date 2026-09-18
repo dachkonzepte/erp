@@ -1,5 +1,6 @@
 from decimal import Decimal
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .models import (
@@ -27,14 +28,24 @@ DEFAULT_EMPLOYEE_FUNCTIONS = [
 
 
 def ensure_default_employee_functions(db: Session) -> list[EmployeeFunction]:
+    """Gegen einen gleichzeitigen ersten Zugriff abgesichert (siehe CLAUDE.md "Self-Seeding
+    gegen gleichzeitigen Zugriff absichern"): jede fehlende Funktion wird einzeln in einem
+    SAVEPOINT angelegt -- eine UNIQUE-Verletzung auf name (ein anderer Prozess war schneller)
+    wird als "schon gesät" behandelt, nicht als Fehler."""
     existing = {f.name: f for f in db.scalars(select(EmployeeFunction)).all()}
     changed = False
     for sort_order, name, group in DEFAULT_EMPLOYEE_FUNCTIONS:
-        if name not in existing:
-            fn = EmployeeFunction(name=name, employee_group=group, sort_order=sort_order, active=True)
-            db.add(fn)
-            existing[name] = fn
-            changed = True
+        if name in existing:
+            continue
+        try:
+            with db.begin_nested():
+                fn = EmployeeFunction(name=name, employee_group=group, sort_order=sort_order, active=True)
+                db.add(fn)
+                db.flush()
+        except IntegrityError:
+            continue
+        existing[name] = fn
+        changed = True
     if changed:
         db.commit()
     return db.scalars(

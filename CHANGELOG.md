@@ -4,6 +4,70 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.4.6 – Self-Seeding gegen gleichzeitigen ersten Zugriff abgesichert
+
+Nachgezogener Fund aus der 1.4.5-Verifikation (Betriebsmittelverwaltung Stufe 3): ein
+CDP-gesteuerter Browsertest hatte transparent, als unabhängigen Nebenbefund, eine Race Condition
+in `app/option_settings.py::ensure_default_option_groups()` gemeldet -- zwei gleichzeitige erste
+Zugriffe auf eine frische, noch nie geseedete Datenbank (zwei Arbeitsprozesse, oder -- realistischer
+für diese Installation, die produktiv mit einem einzigen `gunicorn`-Worker läuft, siehe CLAUDE.md
+"Produktivbetrieb" -- zwei von Starlettes Threadpool gleichzeitig bediente Requests innerhalb
+desselben Prozesses) konnten beide "keine Gruppen vorhanden" lesen und beide dieselben
+Standardzeilen einzufügen versuchen -- der zweite Versuch kollidierte mit einer unabgefangenen
+`sqlalchemy.exc.IntegrityError` (UNIQUE-Verletzung auf `group_key`, real beobachtet bei
+`group_key='units'`, dem ersten Eintrag in `DEFAULT_OPTION_GROUPS`), die als 500 durchschlug.
+
+**Abwägung, wie verlangt, vor dem Bauen**: Locking (z. B. ein PostgreSQL-Advisory-Lock) versus
+Abfangen der UNIQUE-Kollision und Behandeln als "schon gesät". Für Letzteres entschieden --
+weniger fragil, da (a) kein neues, plattformabhängiges Locking-Primitiv nötig ist (ein
+Advisory-Lock hat unter SQLite, dem zweiten von diesem Projekt gleichberechtigt unterstützten
+Dialekt, siehe CLAUDE.md "PostgreSQL-Umstieg", keine Entsprechung), (b) die Absicherung nur im
+tatsächlichen Kollisionsfall aktiv wird, der Erfolgspfad bleibt unverändert, (c) keine neue
+Infrastruktur/Abhängigkeit eingeführt wird. Jeder Anlegeversuch läuft seither in einem eigenen
+SAVEPOINT (`db.begin_nested()`) -- eine dabei auftretende `IntegrityError` wird abgefangen und als
+"ein anderer Prozess war schneller" behandelt, nicht als Fehler weitergereicht; ein `db.rollback()`
+auf der GANZEN Session hätte dagegen auch bereits erfolgreich vorher angelegte, aber noch nicht
+committete Zeilen derselben Schleife mit verworfen -- das SAVEPOINT begrenzt den Rollback exakt
+auf den einen kollidierenden Versuch.
+
+**Sweep**: dasselbe Self-Seeding-Muster (`ensure_default_*()`, "leg beim ersten Lesezugriff die
+Standardwerte an") existiert an zwölf weiteren Stellen im Projekt -- geprüft, ob deren jeweilige
+Tabelle einen UNIQUE-Constraint trägt (dann dieselbe Race-Condition-Klasse, sonst nur eine andere,
+leisere Fehlerklasse: stille doppelte Zeilen statt eines Crashes). Acht Fundstellen betroffen und
+nach demselben Muster abgesichert: `app/document_categories.py::ensure_default_categories()`
+("Dokumentkategorien", vom Nutzer benannt), `app/project_pipeline_columns.py::ensure_default_columns()`
+("Pipeline-Spalten", vom Nutzer benannt -- "Betriebsmittel-Dokumenttypen" ist bereits über
+`option_settings.py` mit abgedeckt, da `operational_asset_document_types` nur ein weiterer Eintrag
+in `DEFAULT_OPTION_GROUPS` ist, kein eigener Code-Pfad), `app/task_columns.py::ensure_default_columns()`
+(das Vorbild, nach dem die Pipeline-Spalten gebaut wurden), `app/employees.py::ensure_default_employee_functions()`,
+`app/document_page_margins.py::ensure_default_margins()` (Einzelzeilen-Variante -- kollidierte
+Zeile wird nach dem Abfangen erneut gelesen und die des anderen Prozesses zurückgegeben, statt nur
+übersprungen), `app/settings.py::get_or_create_sequence()` (dieselbe Einzelzeilen-Behandlung, höhere
+Tragweite, da jede Dokumentnummer-Vergabe darüber läuft, aber nur der allererste Aufruf je
+`sequence_key` betroffen ist), `app/work_time_models.py::ensure_default_work_time_models()` (die
+komplexeste Fundstelle -- zwei Modelle samt Gültigkeits-/Pausenregeln laufen als eine Einheit in
+einem einzigen SAVEPOINT). Vier weitere `ensure_default_*()`-Funktionen (`document_layout.py`,
+`payment_terms.py`, `tax_keys.py`, `reminders.py`) folgen demselben Muster, ihre Tabellen tragen
+aber keinen UNIQUE-Constraint -- ein Wettlauf würde dort nicht crashen, sondern nur stille doppelte
+Zeilen anlegen; das Abfangen einer nie geworfenen `IntegrityError` würde dort nichts bewirken. Eine
+Behebung bräuchte zuerst eine eigene Migration (fehlende Constraints ergänzen) und ist damit ein
+größerer, separat zu entscheidender Schritt -- gemeldet, nicht Teil dieser Runde. Ebenfalls bewusst
+außerhalb: das strukturell verwandte, aber deutlich umfangreichere "get_or_create_settings(id=1)"-
+Singleton-Muster (`GeneralSettings`, `TaskSettings`, `MaintenanceSettings` u. v. a., über zehn
+Tabellen) -- dort kollidiert ein PRIMARY KEY statt eines Business-Keys, ein eigener, größerer Sweep.
+
+**Test, wie gefordert, mit vorhandenen Mitteln erreichbar**: `tests/test_v281_self_seeding_race_safety.py`
+simuliert den gleichzeitigen ersten Zugriff deterministisch statt zeitbasiert -- zwei unabhängige
+`Session`-Objekte auf dieselbe echte, temporäre SQLite-DATEI (nicht `:memory:`, das wäre pro
+Connection isoliert), ein `event.listens_for(session1, "before_flush")`-Hook lässt beim ersten
+eigenen Flush-Versuch eine zweite Session denselben Aufruf vollständig (inklusive Commit)
+durchlaufen, bevor die erste fortfährt -- garantiert kollidierend, ganz ohne echtes
+Threading/Timing. Gegen den unveränderten Code (`git stash` auf `option_settings.py`) verifiziert,
+dass der Test die real gemeldete `IntegrityError` bei `group_key='units'` tatsächlich reproduziert,
+bevor er gegen den Fix grün lief -- kein vorschnell grüner Test. Acht Tests (einer je Fundstelle),
+zusätzlich ein Regressionstest für den unkollidierten Normalfall. `pytest` vollständig grün
+(1501/1501).
+
 ## 1.4.5 – Betriebsmittelverwaltung, Stufe 3: eingesetzte Betriebsmittel im Einsatzbericht
 
 Reine Dokumentation -- kein Preis, keine Menge, keine Betriebsstunden in dieser Version. Erst

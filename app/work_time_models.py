@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .models import (
@@ -65,21 +66,30 @@ def ensure_default_work_time_models(db: Session) -> None:
                 settings.default_work_time_model_id = first.id
         db.commit()
         return
-    summer = WorkTimeModel(name="Sommermodell", code="summer", daily_target_hours=Decimal("8.00"), description="Arbeitszeitmodell für die Sommerperiode.", sort_order=10)
-    winter = WorkTimeModel(name="Wintermodell", code="winter", daily_target_hours=Decimal("8.00"), description="Arbeitszeitmodell für die Winterperiode.", sort_order=20)
-    db.add_all([summer, winter]); db.flush()
-    db.add_all([
-        WorkTimeModelValidity(model_id=summer.id, valid_from_week=13, valid_to_week=43),
-        WorkTimeModelValidity(model_id=winter.id, valid_from_week=44, valid_to_week=12),
-    ])
-    # Konfigurierbare Startwerte. Sie können im Backoffice vollständig verändert/gelöscht werden.
-    for model in (summer, winter):
-        db.add_all([
-            WorkTimeBreakRule(model_id=model.id, threshold_hours=Decimal("6.00"), break_minutes=30, sort_order=10),
-            WorkTimeBreakRule(model_id=model.id, threshold_hours=Decimal("9.00"), break_minutes=45, sort_order=20),
-        ])
-    settings = get_or_create_advanced_settings(db)
-    settings.default_work_time_model_id = summer.id
+    # Gegen einen gleichzeitigen ersten Zugriff abgesichert (siehe CLAUDE.md "Self-Seeding
+    # gegen gleichzeitigen Zugriff absichern"): der komplette Satz (beide Modelle samt
+    # Gültigkeit/Pausenregeln) wird in einem SAVEPOINT eingefügt -- kollidiert er mit der
+    # UNIQUE-Verletzung auf name (ein anderer Prozess war zwischen dem obigen SELECT und hier
+    # schneller), gilt das als "schon gesät", kein Fehler.
+    try:
+        with db.begin_nested():
+            summer = WorkTimeModel(name="Sommermodell", code="summer", daily_target_hours=Decimal("8.00"), description="Arbeitszeitmodell für die Sommerperiode.", sort_order=10)
+            winter = WorkTimeModel(name="Wintermodell", code="winter", daily_target_hours=Decimal("8.00"), description="Arbeitszeitmodell für die Winterperiode.", sort_order=20)
+            db.add_all([summer, winter]); db.flush()
+            db.add_all([
+                WorkTimeModelValidity(model_id=summer.id, valid_from_week=13, valid_to_week=43),
+                WorkTimeModelValidity(model_id=winter.id, valid_from_week=44, valid_to_week=12),
+            ])
+            # Konfigurierbare Startwerte. Sie können im Backoffice vollständig verändert/gelöscht werden.
+            for model in (summer, winter):
+                db.add_all([
+                    WorkTimeBreakRule(model_id=model.id, threshold_hours=Decimal("6.00"), break_minutes=30, sort_order=10),
+                    WorkTimeBreakRule(model_id=model.id, threshold_hours=Decimal("9.00"), break_minutes=45, sort_order=20),
+                ])
+            settings = get_or_create_advanced_settings(db)
+            settings.default_work_time_model_id = summer.id
+    except IntegrityError:
+        return
     db.commit()
 
 

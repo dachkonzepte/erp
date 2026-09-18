@@ -1,4 +1,5 @@
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .models import GeneralSettings, SettingOption, SettingOptionGroup
@@ -322,31 +323,44 @@ DEFAULT_OPTION_GROUPS = {
 
 
 def ensure_default_option_groups(db: Session) -> list[SettingOptionGroup]:
-    """Initialisiert Gruppen genau einmal. Existierende Gruppen werden nicht wieder mit Defaults aufgefüllt."""
+    """Initialisiert Gruppen genau einmal. Existierende Gruppen werden nicht wieder mit Defaults aufgefüllt.
+
+    Gegen einen gleichzeitigen allerersten Zugriff zweier Request-Threads/Prozesse abgesichert
+    (siehe CLAUDE.md "Self-Seeding gegen gleichzeitigen Zugriff absichern"): jede Gruppe wird in
+    einem eigenen SAVEPOINT angelegt (db.begin_nested()) -- kollidiert der INSERT mit der
+    UNIQUE-Verletzung auf group_key (ein anderer Prozess hat dieselbe Gruppe zwischen dem obigen
+    SELECT und diesem INSERT bereits angelegt), wird NUR dieser eine Versuch zurückgerollt und
+    als "schon gesät" behandelt, kein Fehler -- bereits erfolgreich angelegte frühere Gruppen in
+    derselben Schleife bleiben davon unberührt. Kein Sperrmechanismus: ein Locking-Ansatz (z. B.
+    PostgreSQL-Advisory-Lock) wäre plattformabhängig und unter SQLite gar nicht verfügbar."""
     existing = {g.group_key: g for g in db.scalars(select(SettingOptionGroup)).all()}
     changed = False
     for key, cfg in DEFAULT_OPTION_GROUPS.items():
-        group = existing.get(key)
-        if group is None:
-            group = SettingOptionGroup(
-                group_key=key, label=cfg["label"], description=cfg["description"], sort_order=cfg["sort_order"]
-            )
-            db.add(group)
-            db.flush()
-            option_rows = list(cfg["options"])
-            # Bereits in älteren Versionen gepflegte Standardtexte beim ersten Upgrade übernehmen.
-            general = db.get(GeneralSettings, 1)
-            if key == "quote_intro_texts" and general and general.default_quote_intro:
-                option_rows = [(10, "Bisheriger Standard", general.default_quote_intro, True)]
-            elif key == "quote_outro_texts" and general and general.default_quote_outro:
-                option_rows = [(10, "Bisheriger Standard", general.default_quote_outro, True)]
-            for sort_order, label, value, is_default in option_rows:
-                db.add(SettingOption(
-                    group_id=group.id, label=label, value=value, sort_order=sort_order,
-                    active=True, is_default=is_default,
-                ))
-            existing[key] = group
-            changed = True
+        if key in existing:
+            continue
+        try:
+            with db.begin_nested():
+                group = SettingOptionGroup(
+                    group_key=key, label=cfg["label"], description=cfg["description"], sort_order=cfg["sort_order"]
+                )
+                db.add(group)
+                db.flush()
+                option_rows = list(cfg["options"])
+                # Bereits in älteren Versionen gepflegte Standardtexte beim ersten Upgrade übernehmen.
+                general = db.get(GeneralSettings, 1)
+                if key == "quote_intro_texts" and general and general.default_quote_intro:
+                    option_rows = [(10, "Bisheriger Standard", general.default_quote_intro, True)]
+                elif key == "quote_outro_texts" and general and general.default_quote_outro:
+                    option_rows = [(10, "Bisheriger Standard", general.default_quote_outro, True)]
+                for sort_order, label, value, is_default in option_rows:
+                    db.add(SettingOption(
+                        group_id=group.id, label=label, value=value, sort_order=sort_order,
+                        active=True, is_default=is_default,
+                    ))
+        except IntegrityError:
+            continue  # ein anderer Prozess hat diese Gruppe zwischen SELECT und INSERT bereits angelegt
+        existing[key] = group
+        changed = True
     if changed:
         db.commit()
     return db.scalars(

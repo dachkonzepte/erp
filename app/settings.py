@@ -2,6 +2,7 @@ from datetime import datetime
 import re
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .models import (
@@ -92,24 +93,37 @@ def _sync_from_existing(db: Session, sequence: NumberSequence) -> None:
 
 
 def get_or_create_sequence(db: Session, sequence_key: str) -> NumberSequence:
+    """Gegen einen gleichzeitigen ersten Zugriff abgesichert (siehe CLAUDE.md "Self-Seeding
+    gegen gleichzeitigen Zugriff absichern"): der Anlegeversuch läuft in einem SAVEPOINT --
+    kollidiert er mit der UNIQUE-Verletzung auf sequence_key (ein anderer Prozess war
+    zwischen dem obigen SELECT und hier schneller), wird die inzwischen von ihm angelegte
+    Zeile erneut gelesen und wie ein bereits bestehender Nummernkreis behandelt (inkl.
+    _sync_from_existing())."""
     sequence = db.scalar(select(NumberSequence).where(NumberSequence.sequence_key == sequence_key))
-    if sequence is None:
-        default = DEFAULT_SEQUENCES.get(sequence_key)
-        if default is None:
-            raise KeyError(f"Unbekannter Nummernkreis: {sequence_key}")
-        year = datetime.now().year
-        sequence = NumberSequence(
-            sequence_key=sequence_key,
-            label=default["label"],
-            format_pattern=default["format"],
-            start_value=default["start"],
-            next_value=default["start"],
-            reset_yearly=default["reset_yearly"],
-            last_year=year,
-        )
-        db.add(sequence)
-        db.flush()
-        _sync_from_existing(db, sequence)
+    if sequence is not None:
+        return sequence
+    default = DEFAULT_SEQUENCES.get(sequence_key)
+    if default is None:
+        raise KeyError(f"Unbekannter Nummernkreis: {sequence_key}")
+    year = datetime.now().year
+    try:
+        with db.begin_nested():
+            sequence = NumberSequence(
+                sequence_key=sequence_key,
+                label=default["label"],
+                format_pattern=default["format"],
+                start_value=default["start"],
+                next_value=default["start"],
+                reset_yearly=default["reset_yearly"],
+                last_year=year,
+            )
+            db.add(sequence)
+            db.flush()
+    except IntegrityError:
+        sequence = db.scalar(select(NumberSequence).where(NumberSequence.sequence_key == sequence_key))
+        assert sequence is not None  # der andere Prozess muss die Zeile inzwischen committet haben
+        return sequence
+    _sync_from_existing(db, sequence)
     return sequence
 
 

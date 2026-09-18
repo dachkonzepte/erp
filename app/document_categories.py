@@ -17,6 +17,7 @@ Zwei unabhängige Schlösser gegen "sensible Kategorie für Monteure sichtbar":
    Schlüssel mit dem ersten."""
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .models import DocumentCategory
@@ -145,11 +146,21 @@ def ensure_default_categories(db: Session) -> None:
     """Selbst-Seeding wie bei den SettingOptionGroups/RoofComponentType -- greift nur, wenn die
     Tabelle noch komplett leer ist (z. B. eine per Base.metadata.create_all() erzeugte
     Testdatenbank ohne die eigentliche Migration). Rührt eine bereits gesäte Zeile nie wieder
-    an, exakt das etablierte Muster dieses Projekts."""
+    an, exakt das etablierte Muster dieses Projekts.
+
+    Gegen einen gleichzeitigen ersten Zugriff abgesichert (siehe CLAUDE.md "Self-Seeding gegen
+    gleichzeitigen Zugriff absichern"): der komplette Satz wird in einem SAVEPOINT eingefügt --
+    kollidiert er mit der UNIQUE-Verletzung auf key (ein anderer Prozess war zwischen dem obigen
+    SELECT und hier schneller), gilt das als "schon gesät", kein Fehler."""
     if db.scalar(select(DocumentCategory.id).limit(1)) is not None:
         return
-    for sort_order, key, label, is_sensitive, is_field_visible in DEFAULT_CATEGORIES:
-        db.add(DocumentCategory(key=key, label=label, is_sensitive=is_sensitive, is_field_visible=is_field_visible, sort_order=sort_order))
+    try:
+        with db.begin_nested():
+            for sort_order, key, label, is_sensitive, is_field_visible in DEFAULT_CATEGORIES:
+                db.add(DocumentCategory(key=key, label=label, is_sensitive=is_sensitive, is_field_visible=is_field_visible, sort_order=sort_order))
+            db.flush()
+    except IntegrityError:
+        return
     db.commit()
 
 
