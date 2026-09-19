@@ -20,8 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.5.4** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf unverändert `cf4fdf4905cd` ("schlechtwetter zeitarten und
+- Version: **1.5.6** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `9b3600be64af` ("recurring cost netto brutto steuersatz" -- echte
+  Spalten-Umbenennung `recurring_costs.amount` -> `net_amount` PLUS die neue, NOT-NULL-Spalte
+  `tax_rate_pct` (`server_default='19.00'`) -- siehe Abschnitt "Netto und Brutto bei den
+  Betriebskosten" unten; 1.5.6 selbst brauchte keine eigene Migration, reine Frontend-Änderung)
+  -- vorher `cf4fdf4905cd` ("schlechtwetter zeitarten und
   abwesenheitskategorie" -- 1.5.4 selbst brauchte keine eigene Migration, reine Code-/Schema-
   Änderung an bestehenden Spalten, neue, indizierte Spalte `absence_category`
   (`server_default='unbekannt'`) auf `employee_absences`/`employee_absence_requests` PLUS zwei
@@ -60,11 +64,14 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1620 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1631 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 19.09.2026 (1.5.4, Krankheitssichtbarkeit -- buero_auftrag sieht nur noch
-  "abwesend", siehe Abschnitt "Krankheitssichtbarkeit: buero_auftrag sieht nur noch 'abwesend'"
-  unten; davor 1.5.3, Grundlage für Ist-Werte -- Schlechtwetter-Zeitarten und
+  dort), zuletzt am 19.09.2026 (1.5.6, Dokument-Upload schon beim Erstellen des Betriebsmittels
+  -- reine Frontend-Änderung, keine neuen Tests, siehe Abschnitt "Betriebsmittelverwaltung"
+  unten; davor 1.5.5, Netto und Brutto bei den Betriebskosten, siehe Abschnitt "Netto und Brutto
+  bei den Betriebskosten" unten; davor 1.5.4, Krankheitssichtbarkeit -- buero_auftrag sieht nur
+  noch "abwesend", siehe Abschnitt "Krankheitssichtbarkeit: buero_auftrag sieht nur noch
+  'abwesend'" unten; davor 1.5.3, Grundlage für Ist-Werte -- Schlechtwetter-Zeitarten und
   Abwesenheitskategorie, siehe Abschnitt "Schlechtwetter-Zeitarten und Abwesenheitskategorie"
   unten; davor 1.5.2, Verrechnungssatz-Kreislauf Schicht 3 -- die Einspeisung
   des Betriebskosten-Vorschlags in die Gemeinkosten-Felder, siehe Abschnitt
@@ -1331,6 +1338,22 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   bisher blind jedes Feld -- neues `EmployeeAbsenceUpdate` mit `exclude_unset=True` schützt vor
   stillem Datenverlust, unabhängig von dieser Änderung. Keine Migration nötig. 18 neue Tests,
   volle Suite: 1620 Tests grün.
+- Neu seit 1.5.5: **Netto und Brutto bei den Betriebskosten.** `RecurringCost.amount` (ohne
+  jede Steuersemantik) per echter Spalten-Umbenennung zu `net_amount`, neue Spalte
+  `tax_rate_pct` (Vorgabe 19 %, wählbar auf 7 %/0 %, Feld je Posten). `gross_amount` ist eine
+  reine, nicht gespeicherte Anzeige-Ableitung. `overview_summary()`/die Gemeinkosten-Einspeisung
+  aus Schicht 3 mussten nicht geändert werden -- beide lesen ohnehin nur das bereits
+  gespeicherte `annual_amount`, das jetzt automatisch netto-basiert ist. Siehe Abschnitt "Netto
+  und Brutto bei den Betriebskosten" unten. Migration `9b3600be64af`, 11 neue Tests, volle
+  Suite: 1631 Tests grün.
+- Neu seit 1.5.6: **Dokument-Upload schon beim Erstellen des Betriebsmittels.** Der Upload-
+  Endpunkt verlangte zwingend eine bereits existierende `asset_id` -- beim ersten Anlegen gab es
+  dafür bisher gar kein Formularfeld. Neue, rein clientseitige Warteschlange in
+  `master_data_form.html::assetForm()`: Dokumente werden vorgemerkt, nach erfolgreichem Anlegen
+  des Betriebsmittels automatisch angehängt, vor der Navigation zur Detailseite. Scheitert das
+  Anlegen selbst, wird die Upload-Schleife nie erreicht -- kein verwaistes Betriebsmittel, die
+  vorgemerkten Dateien bleiben erhalten. Reine Frontend-Änderung, kein Endpunkt/Schema geändert,
+  siehe Abschnitt "Betriebsmittelverwaltung" unten.
 
 ### Headless-Chrome-Verifikation über CDP (seit 1.3.73)
 
@@ -8860,6 +8883,65 @@ NOT-NULL-Spalte `operational_assets.selectable_in_reports` mit `server_default='
 befolgt) erfolgreich gegen die echte, lokale `dachkonzepte_erp.db` angewendet, Bestandsdaten
 geprüft (alle 5 Assets korrekt auf `False`). Volle Suite: 1492 Tests grün.
 
+### Dokument-Upload schon beim Erstellen des Betriebsmittels (seit 1.5.6)
+
+Nachbesserung, unabhängig von den Stufen 1-3 oben. Bis dahin ließ sich ein Dokument
+(Anschaffungsrechnung, Leasingvertrag) erst nach dem Speichern -- im Bearbeiten-Modus -- an ein
+Betriebsmittel hängen; das Anlegen-Formular (`master_data_form.html::assetForm()`) hatte keinen
+Upload. **Ursache, wie vermutet und bestätigt**: `POST /api/operational-assets/{asset_id}/documents`
+(1.4.2, siehe "Vier Ergänzungen" oben) verlangt zwingend eine bereits existierende `asset_id` als
+Pfadparameter (`if db.get(OperationalAsset, asset_id) is None: raise HTTPException(404, ...)`) --
+beim Anlegen gibt es diesen Datensatz naturgemäß noch nicht. Der Endpunkt selbst war korrekt und
+brauchte keine Änderung.
+
+**Gewählter Weg (Option a: erst speichern, dann anhängen) statt Option b (Dateien
+zwischenhalten, nach dem Anlegen automatisch anhängen)**: `File`-Objekte lassen sich in
+Vanilla-JS nicht über einen echten Seitenwechsel hinweg persistieren, und das Anlegen-Formular
+und die Betriebsmittel-Detailseite sind zwei getrennte Templates/URLs (`master_data_form.html`
+vs. `operational_asset.html`) -- Option b hätte entweder einen echten Navigations-Umweg
+gebraucht (der das Problem gar nicht löst) oder eine Persistenz über `sessionStorage`/IndexedDB
+nur für diesen einen Formularschritt, unverhältnismäßig für ein einziges Feld. Option a bleibt
+für den Nutzer EIN Vorgang (ein Klick auf "Speichern"), intern zwei Schritte: das Betriebsmittel
+zuerst per `POST /api/operational-assets` anlegen, danach die vorgemerkten Dateien sequenziell
+an die zurückgegebene `id` hängen -- beides innerhalb derselben `save()`-Ausführung, kein
+Seitenwechsel dazwischen.
+
+**Mechanismus**: eine Client-seitige Warteschlange `pendingAssetDocuments` (Array aus
+`{file, document_type, notes}`) -- "+ Vormerken" fügt eine Datei samt Art/Notiz hinzu, ohne
+etwas zu senden; erst `save()` lädt jede vorgemerkte Datei nacheinander per
+`fetch(...,{method:'POST',body:FormData})` an `/api/operational-assets/{saved.id}/documents`
+hoch, NACHDEM der `POST` für das Betriebsmittel selbst erfolgreich war.
+
+**Fehlerfall, wie ausdrücklich verlangt geprüft**: die Datei-Upload-Schleife steht im Code
+zwingend NACH `const saved=await api(url,{method,...})` (der eigentlichen Anlage). Schlägt dieser
+Aufruf fehl (Pflichtfeld fehlt, 422-Validierung), wirft er eine Ausnahme -- die Ausführung springt
+direkt in den umschließenden `catch(e){el('msg').textContent='Fehler: '+e.message}`-Block, die
+Upload-Schleife wird nie erreicht. Damit gilt zugleich: **kein verwaistes Betriebsmittel**
+(es wurde ja gar nicht erst angelegt) und **keine verlorenen Dateien** (`pendingAssetDocuments`
+und die Datei-Auswahl im Formular bleiben unverändert stehen, ein erneuter Speichern-Versuch nach
+Korrektur des fehlenden Felds braucht keine erneute Dateiauswahl). Schlägt dagegen NUR ein
+einzelner Dokument-Upload NACH erfolgreicher Anlage fehl (z. B. ein zu großes Dokument), bleibt
+das Betriebsmittel bestehen (kein Rollback der Anlage selbst, die bereits abgeschlossen ist) --
+`save()` sammelt fehlgeschlagene Uploads in einer Liste und zeigt sie nach der Navigation zur
+neuen Detailseite per `alert()` an ("... bitte auf der Betriebsmittelseite erneut versuchen"),
+statt sie stillschweigend zu verschlucken.
+
+**Bewusst nur an dieser einen Stelle** -- die Anfrage stellte ausdrücklich klar, dass das Muster
+laut Betreiber nicht verallgemeinert werden soll ("gilt nur beim Betriebsmittel, nicht
+anderswo"), deshalb keine geteilte Hilfsfunktion/kein neuer, allgemeiner Mechanismus, nur die
+eine Formular-Datei (`master_data_form.html`) geändert. `app/routers/operational_assets.py`
+selbst wurde nicht angefasst.
+
+**Verifikation**: `node --check` gegen den extrahierten `<script>`-Block (nach Neutralisierung der
+beiden Jinja-Platzhalter `{{ data_type }}`/`{{ record_id|default('null') }}`, Projektkonvention
+für Jinja-templatetes JS) -- keine Syntaxfehler. Kein Backend-Verhaltensänderung, deshalb keine
+neuen `pytest`-Tests; die Absicherung dieser Version stützt sich ausschließlich auf sorgfältige
+Kontrollfluss-Lektüre (`save()`s try/catch-Struktur) und `node --check`, **kein echter
+Browser-Klicktest** in dieser Runde (bekannte, wiederholt dokumentierte Werkzeug-Einschränkung
+dieser Sitzung war für diesen einen Punkt nicht aktiviert) -- sollte bei Gelegenheit im Browser
+nachgeprüft werden (Anlegen mit zwei vorgemerkten Dokumenten, Anlegen mit absichtlich fehlendem
+Pflichtfeld -- Dateien müssen erhalten bleiben).
+
 ## Betriebskosten-Übersicht (seit 1.5.0, Modul "betriebskosten")
 
 Erstes neues Modul seit der Betriebsmittelverwaltung (`module_key "betriebskosten"`,
@@ -8914,6 +8996,11 @@ händisch gepflegter Betrag) -- die Summe aller aktiven `RecurringCost.annual_am
 Betriebsmittel-Notizen) ist exakt der Wert, den ein künftiger, automatischer Kreislauf dort
 einsetzen wird, statt ihn weiterhin von Hand einzutragen. Diese Version baut den Kreislauf
 selbst NICHT (Schicht 3, separat) -- nur das Feld, auf dem er andocken wird.
+
+**Seit 1.5.5 präzisiert**: `amount` hieß damals noch so und trug keine Steuersemantik -- seit
+1.5.5 heißt das Feld `net_amount`, `annual_amount` wird ausschließlich daraus berechnet, nie aus
+einem Bruttobetrag. Siehe Abschnitt "Netto und Brutto bei den Betriebskosten" unten für die
+vollständige Herleitung.
 
 ### Rhythmus als fester Code-Wert, "einmalig" bereits vorbereitet
 
@@ -9520,6 +9607,59 @@ Bestand. Ein bestehender Test aus 1.5.3
 wurde auf `buero_finanzen` umgestellt -- er prüft das Kategorie-Feld/den Filter selbst, nicht die
 Rollenreduktion, die jetzt separat und ausführlicher in der neuen Testdatei steht. Volle Suite:
 1620 Tests grün.
+
+## Netto und Brutto bei den Betriebskosten (seit 1.5.5)
+
+Nachbesserung an der Betriebskosten-Übersicht (Schicht 1, siehe "Betriebskosten-Übersicht" oben)
+-- unabhängig von der Krankheitssichtbarkeit dieser Version, ein eigener, kleiner Auftrag.
+
+**Befund vor dem Bauen**: das bestehende `RecurringCost.amount`-Feld trug keine Steuersemantik --
+weder das Modell noch `normalize_to_annual()` kannten einen Steuersatz, der Betrag war einfach
+"der Betrag". 0 Bestandszeilen in der echten Datenbank (erneut frisch geprüft) -- eine Migration
+war damit für Bestandsdaten folgenlos, aber die Frage "ist der alte Wert netto oder brutto
+gemeint" musste trotzdem inhaltlich entschieden werden: `annual_amount` speist direkt in den
+Verrechnungssatz-Kreislauf (Schicht 3), und ein Aufwand für die Kalkulation ist wirtschaftlich
+immer der Netto-Betrag -- die Vorsteuer ist ein durchlaufender Posten, kein Aufwand. Der
+Altbestand wird deshalb rückwirkend als "war schon immer netto gemeint" behandelt, die einzig
+konsistente Lesart.
+
+**Umsetzung**: echte Spalten-Umbenennung `amount` -> `net_amount` (kein Drop+Add -- ein
+add/drop hätte für eine Installation MIT Bestandsdaten den alten Betrag ersatzlos verworfen, ein
+`alter_column()` bewahrt ihn, hier folgenlos bei 0 Zeilen, aber die korrekte Wahl unabhängig
+davon). Neue Spalte `tax_rate_pct` (`Numeric(5,2)`, `server_default='19.00'`, Regel 1 beachtet)
+-- fester Code-Wert wie `billing_interval`/`overhead_classification` (`TAX_RATES = (19.00, 7.00,
+0.00)` in `app/recurring_costs.py`, keine Optionsgruppe: der Satz bestimmt eine Rechenregel für
+`gross_amount`, keine freie Anzeigeliste), **je Posten, kein globaler Wert** -- eine
+Versicherung mit 0 % und ein Steuerberater-Honorar mit 19 % stehen nebeneinander. Neue Funktion
+`gross_amount(net_amount, tax_rate_pct)` -- reine Anzeige-Ableitung wie
+`cancellation_deadline()` (selbe Datei), **nie gespeichert, nie Rechenbasis für
+`annual_amount`**.
+
+**`overview_summary()` und die Gemeinkosten-Einspeisung aus Schicht 3 (`app/labor_rate.py::
+recurring_cost_overhead_proposal()`) mussten NICHT geändert werden** -- beide lesen
+ausschließlich das bereits gespeicherte `annual_amount` (über `RecurringCost`-ORM-Objekte bzw.
+`cost_to_dict()`s `"annual_amount"`-Schlüssel), niemals `net_amount`/`amount` direkt. Da
+`_payload_fields()` `annual_amount` jetzt ausschließlich aus `net_amount` berechnet
+(`normalize_to_annual(net_amount, billing_interval)`, Parameter umbenannt, Formel unverändert),
+ist die gesamte nachgelagerte Kette automatisch netto-basiert, ohne einen einzigen weiteren
+Codepfad anzufassen -- exakt das erwartete Ergebnis einer bereits vorher etablierten "eine
+Quelle, keine zweite Berechnung"-Architektur. Ein Korrektheitstest belegt das explizit
+(`test_annual_amount_is_computed_from_net_not_gross`): zwei identische Netto-Beträge mit
+unterschiedlichem Steuersatz (0 % und 19 %) ergeben denselben `annual_amount` -- wäre die
+Rechnung brutto, kämen 1200 vs. 1428 EUR/Jahr heraus statt beide Male 1200.
+
+**Oberfläche** (`recurring_costs.html`): "Netto-Betrag"-Feld ersetzt "Betrag", neues
+Steuersatz-Dropdown (19 %/7 %/0 %, Vorgabe 19 %), ein `readonly`-Feld "Brutto-Betrag" wird
+client-seitig live nachgerechnet (`updateGrossPreview()`, rein informativ -- der Server
+berechnet `gross_amount` beim Speichern ohnehin selbst erneut, es wird nie mitgesendet). Die
+Kostenliste zeigt beide Beträge in einer Zelle (netto, brutto nur als kleiner Zusatz, wenn der
+Steuersatz > 0 % ist).
+
+Migration `9b3600be64af`, 11 neue Tests
+(`tests/test_v288_recurring_cost_netto_brutto.py`), drei bestehende Testdateien
+(`test_v283_recurring_costs.py`, `test_v284_productive_hours_and_overhead_classification.py`,
+`test_v285_recurring_cost_overhead_proposal.py`) auf `net_amount` umgestellt (reine
+Umbenennung ihrer Testdaten, keine inhaltliche Änderung). Volle Suite: 1631 Tests grün.
 
 ## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
 

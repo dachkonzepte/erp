@@ -4,6 +4,70 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.5.6 – Dokument-Upload schon beim Erstellen des Betriebsmittels
+
+Zweite, unabhängige Nachbesserung derselben Runde. Ursache geprüft: `POST
+/api/operational-assets/{asset_id}/documents` verlangt zwingend eine bereits existierende
+`asset_id` -- beim ersten Anlegen (`master_data_form.html::assetForm()`) gibt es die noch nicht,
+das Formular bot dafür bisher auch keine Upload-Felder an. Der Nutzer musste erst speichern, auf
+`/betriebsmittel/{id}` navigieren und dort ein zweites Mal aktiv werden.
+
+Gewählter Weg (von zwei vorgegebenen): das Betriebsmittel wird beim Absenden zuerst gespeichert,
+danach werden vorgemerkte Dokumente automatisch angehängt -- ein Vorgang für den Nutzer, zwei
+Schritte intern. Die Alternative (Dateien zwischenhalten, nach einer Seitennavigation
+automatisch anhängen) wäre technisch ungleich aufwendiger gewesen: ein `File`-Objekt überlebt
+keinen echten Seitenwechsel, `assetForm()` und die Detailseite `operational_asset.html` sind
+zwei getrennte Templates/URLs.
+
+Neue, rein clientseitige Warteschlange (`pendingAssetDocuments`, kein Backend geändert) im
+Anlegen-Formular: Art + Datei + optionale Bemerkung werden vorgemerkt (Muster der bestehenden
+Dokumenttabelle auf der Detailseite, nur im Speicher statt bereits hochgeladen), beim Speichern
+zuerst `POST /api/operational-assets`, danach je vorgemerktem Dokument ein `POST .../documents`
+mit der neuen `id`.
+
+**Fehlerfall geprüft, wie verlangt**: scheitert das Anlegen selbst (Pflichtfeld fehlt,
+Validierung), wird die Upload-Schleife nie erreicht (sie steht hinter dem erfolgreichen
+`await api(...)`-Aufruf) -- kein Upload-Versuch, kein verwaistes Betriebsmittel, die vorgemerkten
+Dateien bleiben unverändert in `pendingAssetDocuments` und im `<input>` stehen, da nichts im
+Fehlerfall zurückgesetzt wird; der Nutzer kann sofort erneut speichern, ohne Dateien neu
+auszuwählen. Scheitert dagegen NUR ein einzelner Dokument-Upload NACH erfolgreichem Anlegen, ist
+das kein Waisen-Datensatz mehr (das Betriebsmittel existiert bereits gültig) -- die Navigation
+zur Detailseite erfolgt trotzdem, mit einer Meldung, welche Datei(en) dort erneut hochgeladen
+werden müssen.
+
+Reine Frontend-Änderung (`app/templates/master_data_form.html`), kein Endpunkt/Schema geändert --
+der bestehende Upload-Endpunkt war bereits korrekt, ihm fehlte nur ein früherer Aufrufer. Keine
+neuen automatisierten Tests (kein Backend-Verhalten geändert); die Reihenfolge/Fehlerbehandlung
+wurde durch Code-Lektüre nachvollzogen und per `node --check` auf Syntaxfehler geprüft, kein
+Live-Browser-Test in dieser Runde.
+
+## 1.5.5 – Netto und Brutto bei den Betriebskosten
+
+Nachbesserung an der Betriebskosten-Übersicht (Schicht 1): `RecurringCost` hatte bisher ein
+einziges Betragsfeld ohne jede Steuersemantik -- weder das Modell noch `normalize_to_annual()`
+kannten einen Steuersatz. Geprüft vor dem Bauen: 0 Bestandszeilen in der echten Datenbank, die
+Umbenennung war damit für Bestandsdaten folgenlos, inhaltlich aber die einzig konsistente Lesart
+-- `annual_amount` speist direkt in den Verrechnungssatz-Kreislauf, und ein Aufwand für die
+Kalkulation ist immer der Netto-Betrag, nie inklusive der abzugsfähigen Vorsteuer.
+
+Das alte `amount`-Feld wurde per echter Spalten-Umbenennung (nicht Drop+Add) zu `net_amount`,
+eine neue Spalte `tax_rate_pct` (Vorgabe 19 %, wählbar auf 7 % oder 0 % -- fester Code-Wert wie
+`billing_interval`, kein globaler Wert: eine Versicherung mit 0 % und ein Steuerberater-Honorar
+mit 19 % stehen nebeneinander) ergänzt. `gross_amount` ist eine reine Anzeige-Ableitung (Muster
+`cancellation_deadline()`) -- nie gespeichert, nie Rechenbasis für `annual_amount`.
+
+**`overview_summary()` und die Gemeinkosten-Einspeisung aus Schicht 3 mussten NICHT geändert
+werden** -- beide lesen bereits ausschließlich das gespeicherte `annual_amount`, das jetzt
+automatisch netto-basiert ist, weil `_payload_fields()` es nur noch aus `net_amount` berechnet.
+Ein Korrektheitstest belegt das explizit: zwei identische Netto-Beträge mit unterschiedlichem
+Steuersatz (0 % und 19 %) ergeben denselben `annual_amount` -- wäre die Rechnung brutto, kämen
+unterschiedliche Werte heraus.
+
+Migration `9b3600be64af` (Regel 1 beachtet: `tax_rate_pct` trägt `server_default='19.00'`), 11
+neue Tests (`tests/test_v288_recurring_cost_netto_brutto.py`), drei bestehende Testdateien auf
+das neue Feld umgestellt, volle Suite: 1631 Tests grün (inkl. Punkt 2 dieser Runde, siehe
+1.5.6).
+
 ## 1.5.4 – Krankheitssichtbarkeit: buero_auftrag sieht nur noch "abwesend"
 
 Kurskorrektur zu 1.5.3, nach erneuter Betreiberentscheidung: personenbezogene Krankheit soll für
