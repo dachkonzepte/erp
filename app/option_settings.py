@@ -205,13 +205,18 @@ DEFAULT_OPTION_GROUPS = {
     },
     "time_entry_types": {
         "label": "Zeiterfassung · Zeitarten",
-        "description": "Zentrale Zeitarten für mobile und manuelle Zeitbuchungen. Fahrzeit wird getrennt von produktiven Soll-/Ist-Stunden ausgewertet.",
+        "description": "Zentrale Zeitarten für mobile und manuelle Zeitbuchungen. Fahrzeit und die beiden Schlechtwetter-Zeitarten werden getrennt von produktiven Soll-/Ist-Stunden ausgewertet.",
         "sort_order": 69,
         "options": [
             (10, "Baustellenzeit", "site", True),
             (20, "Fahrzeit", "travel", False),
             (30, "Werkstattzeit", "workshop", False),
             (40, "Sonstige Arbeitszeit", "other", False),
+            # Gesetzliche Schlechtwetterzeit im Dachdeckerhandwerk (1.12.-31.3.) vs. tarifliches
+            # Ausfallgeld (April-November) -- siehe app/time_tracking.py::NON_PRODUCTIVE_ENTRY_TYPES
+            # und app/time_backoffice.py::_wage_type() (eigene DATEV-Lohnarten je Saison).
+            (50, "Schlechtwetter Winter", "weather_winter", False),
+            (60, "Schlechtwetter Sommer", "weather_summer", False),
         ],
     },
     "time_entry_activities": {

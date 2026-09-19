@@ -20,11 +20,18 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.5.2** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `57062a31dba7` ("productive hours settings and recurring cost
-  overhead classification", neue Tabelle `productive_hours_settings` PLUS die neue, indizierte
-  Spalte `recurring_costs.overhead_classification` (`server_default='keine'`) -- siehe Abschnitt
-  "Betriebskosten-Übersicht" -> "Verrechnungssatz-Kreislauf Schicht 3" unten) -- vorher
+- Version: **1.5.3** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `cf4fdf4905cd` ("schlechtwetter zeitarten und
+  abwesenheitskategorie", neue, indizierte Spalte `absence_category`
+  (`server_default='unbekannt'`) auf `employee_absences`/`employee_absence_requests` PLUS zwei
+  neue, nullable DATEV-Lohnart-Spalten auf `time_tracking_settings` PLUS ein Daten-Seed, der die
+  beiden neuen Zeitarten `weather_winter`/`weather_summer` in eine bereits gesäte
+  `time_entry_types`-Optionsgruppe nachträgt -- siehe Abschnitt "Schlechtwetter-Zeitarten und
+  Abwesenheitskategorie" unten) -- vorher `57062a31dba7` ("productive hours settings and
+  recurring cost overhead classification", neue Tabelle `productive_hours_settings` PLUS die
+  neue, indizierte Spalte `recurring_costs.overhead_classification` (`server_default='keine'`)
+  -- siehe Abschnitt "Betriebskosten-Übersicht" -> "Verrechnungssatz-Kreislauf Schicht 3" unten)
+  -- vorher
   `fc79aa5629d0` ("recurring costs betriebskosten uebersicht",
   neue Tabellen `recurring_costs`/`recurring_cost_documents`/`recurring_cost_settings` PLUS die
   neue, nullable Spalte `tasks.min_visible_role` -- siehe Abschnitt "Betriebskosten-Übersicht"
@@ -52,9 +59,11 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1582 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1602 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 19.09.2026 (1.5.2, Verrechnungssatz-Kreislauf Schicht 3 -- die Einspeisung
+  dort), zuletzt am 19.09.2026 (1.5.3, Grundlage für Ist-Werte -- Schlechtwetter-Zeitarten und
+  Abwesenheitskategorie, siehe Abschnitt "Schlechtwetter-Zeitarten und Abwesenheitskategorie"
+  unten; davor 1.5.2, Verrechnungssatz-Kreislauf Schicht 3 -- die Einspeisung
   des Betriebskosten-Vorschlags in die Gemeinkosten-Felder, siehe Abschnitt
   "Betriebskosten-Übersicht" unten; davor 1.5.1, dieselbe Schicht 3 -- Produktivstunden-Rechner +
   `overview_summary()`-Erweiterung; davor 1.5.0, Betriebskosten-Übersicht Schicht 1; davor 1.4.8,
@@ -1293,6 +1302,20 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   an die Vergleichsansicht, noch an den Übernehmen-Knopf, noch an den Produktivstunden-Rechner,
   per rekursivem Schlüssel-Scan mit einem Testkonto je Rolle bestätigt. 9 neue Tests, volle
   Suite: 1582 Tests grün.
+- Neu seit 1.5.3: **Grundlage für Ist-Werte -- Schlechtwetter-Zeitarten und Abwesenheitskategorie.**
+  Vorbereitung für die spätere Ist-Wert-Auswertung im Produktivstunden-Rechner (eigene, noch
+  folgende Runde), erst nach zwei Befund-Runden gebaut (siehe Abschnitt
+  "Schlechtwetter-Zeitarten und Abwesenheitskategorie" unten für die volle Herleitung). Zwei neue
+  Zeitarten `weather_winter`/`weather_summer` in der Optionsgruppe `time_entry_types`, beide
+  `counts_as_productive=False` (`entry_type_is_productive()` erweitert -- ohne diese Änderung
+  wären beide fälschlich als produktiv gezählt worden), von der DATEV-Lohnart-Zuordnung und von
+  "Rechnung aus Zeitbuchungen" ausgeschlossen (sonst würde witterungsbedingter Ausfall dem Kunden
+  in Rechnung gestellt, da `TimeEntry.order_id` NOT NULL ist). Neue, feste Abwesenheitskategorie
+  `absence_category` (urlaub/krankheit/fortbildung/unbezahlt, Rückfallwert `unbekannt` nur für
+  Altbestand -- 0 Bestandszeilen real geprüft) neben dem unveränderten, freien `absence_type`.
+  Krankheitssichtbarkeit für `buero_auftrag` bewusst UNVERÄNDERT gelassen -- ein Redaktions-
+  Vorschlag (Muster `redact_wage_snapshot()`) wurde vorgelegt und vom Betreiber ausdrücklich
+  abgelehnt. Migration `cf4fdf4905cd`, 20 neue Tests, volle Suite: 1602 Tests grün.
 
 ### Headless-Chrome-Verifikation über CDP (seit 1.3.73)
 
@@ -1923,6 +1946,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   `time_entry_activities`. `TimeEntryGroup`/`TimeEntryGroupMember` bilden Gruppen-Zeitbuchungen
   mehrerer Mitarbeiter gleichzeitig ab (bisher hier nicht dokumentiert). Details, inkl. wie
   Zeitbuchungen zu einem Auftrag aufgelöst werden: `docs/bestandsaufnahme.md` Abschnitt 6.
+  `entry_type` ist entgegen einer früheren Beschreibung KEIN hart geschlossener Satz (nur weich
+  gegen `app/time_tracking.py::ENTRY_TYPES` geprüft) -- seit 1.5.3 kommen `weather_winter`/
+  `weather_summer` (Schlechtwetter Winter/Sommer) dazu, beide `counts_as_productive=False`
+  (`entry_type_is_productive()`), siehe Abschnitt "Schlechtwetter-Zeitarten und
+  Abwesenheitskategorie" unten.
 - **Plantafel**: verplant wird ein Zeitabschnitt (`PlanningSlot`) je Auftrag **×** Team, nicht
   eine einzelne LV-Position und nicht direkt ein einzelner Mitarbeiter. `Team`/`TeamEmployee`
   ist eine dauerhafte, zeitlose n:m-Mitgliedschaft; beim Zuweisen eines Teams zu einer
@@ -9212,6 +9240,134 @@ Testkonto je Rolle (`router_test_client(db, ..., role=...)`, `ALL_ROLES = ("fiel
 
 9 neue Tests (`tests/test_v285_recurring_cost_overhead_proposal.py`), volle Suite: 1582 Tests
 grün.
+
+## Schlechtwetter-Zeitarten und Abwesenheitskategorie (seit 1.5.3)
+
+Vorbereitung für die spätere Ist-Wert-Auswertung im Produktivstunden-Rechner ("Grundlage für die
+späteren Ist-Werte" -- die Ist-Werte selbst sind eine eigene, noch folgende Runde, diese Version
+liefert ausschließlich die saubere Erfassung). Erst zwei Befund-Runden (welche Zeitarten/
+Abwesenheitsarten heute existieren, ob Krankheit schon von Urlaub getrennt ist, wie viele
+Bestandseinträge zu migrieren wären), dann vier vom Betreiber entschiedene Punkte gebaut.
+
+**Punkt 1 -- Prämisse korrigiert: Krankheit/Urlaub waren schon getrennt.** Der Befund zeigte:
+`EmployeeAbsence.absence_type`/`EmployeeAbsenceRequest.absence_type` sind freie `String(80)`-
+Spalten, gespeist aus der Optionsgruppe `absence_types`, die bereits sechs unterschiedliche Werte
+trägt (Urlaub, **Krankheit**, Weiterbildung, Berufsschule, Freizeitausgleich, Sonstiges) --
+durchgängig verdrahtet von `create_request()` über `review_request()` bis zur Plantafel-Anzeige.
+Der Betreiber verlangte trotzdem eine ZUSÄTZLICHE, feste Kategorie (Urlaub/Krankheit/Fortbildung/
+Unbezahlt) für die spätere Ist-Wert-Zählung -- ein fester Code-Wert wie `RecurringCost.
+overhead_classification` (`app/absence_requests.py::ABSENCE_CATEGORIES`), KEINE Optionsgruppe:
+eine spätere Auswertung muss wissen, welche Werte existieren, ein Admin dürfte sie nicht frei
+erweitern können. Das bestehende freie `absence_type`-Feld bleibt UNVERÄNDERT als Ergänzung
+daneben (z. B. "Berufsschule" als Unterfall von "fortbildung") -- keine Ablösung.
+
+**Migration ohne Ratewerte**: 0 Bestandszeilen in `employee_absences` UND
+`employee_absence_requests` der echten Datenbank (frisch geprüft, nicht angenommen) -- es gab
+nichts zu migrieren. Die neue Spalte `absence_category` bekommt trotzdem
+`server_default='unbekannt'` (Regel 1) -- für jede andere Installation und gegen einen zwischen
+Migrationserstellung und -ausführung eingefügten Datensatz. `"unbekannt"` ist beim Neu-/
+Bearbeiten-Schreiben über die Schemas (`EmployeeAbsenceCreate`/`EmployeeAbsenceRequestCreate`,
+`Field(pattern="^(urlaub|krankheit|fortbildung|unbezahlt)$")`) bewusst NICHT erlaubt -- entsteht
+ausschließlich als Migrations-Rückfallwert, eine spätere Ist-Wert-Auswertung zählt ihn bewusst
+nicht mit (verhindert, dass ein geratener/unbekannter Status den Durchschnitt verfälscht).
+
+**Bedienung**: wer eine Abwesenheit anlegt, wählt auch die Kategorie -- dieselbe Person wie beim
+bereits bestehenden freien `absence_type`. Ein Monteur/Büro-Mitarbeiter, der über
+`POST /api/absence-requests` (Selbstbedienung) einen eigenen Antrag stellt, wählt beide Felder
+selbst; das Büro, das über `POST /api/planning/absences` (Plantafel) direkt eine Abwesenheit für
+jemand anderen anlegt, ebenso. Keine neue Zuständigkeit.
+
+**Punkt 3 -- Krankheitssichtbarkeit, Vorschlag geprüft und vom Betreiber abgelehnt.** Vorgelegter
+Vorschlag (Muster `app/audit.py::redact_wage_snapshot()`, das Lohnfelder bereits heute für
+`buero_auftrag` aus der Änderungshistorie entfernt, siehe "Rechtekonzept" -> "Vier Rollen"):
+`buero_auftrag` sieht bei Urlaub/Fortbildung/Unbezahlt weiterhin die echte Kategorie (für die
+Plantafel-Kapazitätsplanung nötig), bei Krankheit dagegen nur ein neutrales Label ohne Notiz;
+`buero_finanzen`/`admin` sehen alles unverändert. **Der Betreiber hat diesen Vorschlag nach
+Rückfrage ausdrücklich abgelehnt** ("Unverändert lassen") -- `buero_auftrag` sieht weiterhin JEDE
+Kategorie inkl. Krankheit ungefiltert, exakt wie vor dieser Version. Keine Codeänderung an dieser
+Stelle, bewusst dokumentiert, damit ein künftiger Durchgang diese Entscheidung nicht erneut
+aufwirft, ohne den vorherigen Befund zu kennen. Für die spätere Ist-Wert-Runde festgehalten: der
+Produktivstunden-Rechner selbst zeigt UNABHÄNGIG von dieser Entscheidung nur einen aggregierten
+Zähler/Durchschnitt, nie eine Zeile "Mitarbeiter X war Y Tage krank" -- dieselbe Trennung wie bei
+den Löhnen (aggregiert ja, personenbezogen nein), unabhängig von der Rolle, die den Rechner öffnet.
+
+**Punkt 2 -- Schlechtwetter Winter/Sommer, drei bestehende Auswertungen mussten angefasst
+werden.** Grenze wie vorgegeben: 1.12.–31.3. Winter (gesetzliche Schlechtwetterzeit im
+Dachdeckerhandwerk, Saison-Kurzarbeitergeld), sonst Sommer (tarifliches Ausfallgeld) -- die
+feineren Wintergeld-Zeiträume (15.12.–Ende Februar) sind bewusst NICHT in die Zeitart eingebaut,
+das ist laut Vorgabe eine Abrechnungsfrage, keine Zeitart-Frage. Zwei neue Werte
+`weather_winter`/`weather_summer` in der bereits bestehenden Optionsgruppe `time_entry_types`
+(vier bisherige Werte: Baustellenzeit/Fahrzeit/Werkstattzeit/Sonstige Arbeitszeit) --
+**Migration ergänzt sie explizit in einer bereits gesäten Installation**
+(`ensure_default_option_groups()` füllt eine bereits existierende Gruppe nie nachträglich mit
+neuen Defaults auf, "Existierende Gruppen werden nicht wieder mit Defaults aufgefüllt", siehe
+`app/option_settings.py` -- Muster `257fb2967c93`, der vierte Rahmen-Baustein für einen bereits
+gesäten Satz). `DEFAULT_OPTION_GROUPS` selbst ist ebenfalls erweitert, für jede künftige, frische
+Installation ohne vorherigen Zugriff.
+
+Erst beim genauen Hinsehen zeigte sich: `entry_type` ist entgegen einer früheren, zu groben
+Beschreibung KEIN hart geschlossener Satz -- `app/time_tracking.py::ENTRY_TYPES` (die vier
+bekannten Werte) wird nur weich geprüft (`create_manual_entry()`: ein unbekannter Wert wird nicht
+abgelehnt, nur ein leerer auf "other" normalisiert), `start_timer()` prüft gar nicht. Die beiden
+neuen Zeitarten funktionieren dadurch strukturell bereits ohne Codeänderung -- **aber drei
+bestehende Auswertungen hätten sie falsch behandelt, wenn sie unangetastet geblieben wären**:
+
+1. **Produktivität**: `entry_type_is_productive()` lautete `entry_type != "travel"` -- ein
+   Einzeiler, keine Liste (die daneben liegende `PRODUCTIVE_TYPES`-Konstante war tot, nirgends
+   referenziert, jetzt entfernt). Ohne Anpassung wären beide neuen Zeitarten fälschlich als
+   produktiv gezählt worden. Jetzt `entry_type not in NON_PRODUCTIVE_ENTRY_TYPES`
+   (`{"travel", "weather_winter", "weather_summer"}`) -- **eine Quelle für `counts_as_productive`**
+   (bei Anlage/Änderung eines `TimeEntry` gesetzt), jede nachgelagerte, bereits bestehende
+   Auswertung, die dieses Feld liest (Dashboard, Projektmappe, Backoffice-Summen,
+   Produktivstunden-Rechner künftig), funktioniert dadurch korrekt, ohne selbst geändert werden
+   zu müssen.
+2. **DATEV-Export**: `_wage_type()` (`app/time_backoffice.py`) kannte nur vier feste Lohnarten
+   (eigene `TimeTrackingSettings`-Spalten je Zeitart) und wäre für einen unbekannten `entry_type`
+   stillschweigend auf die Lohnart "Sonstige Arbeitszeit" zurückgefallen -- tariflich falsch,
+   Saison-Kurzarbeitergeld und Ausfallgeld sind eigene Lohnarten. Zwei neue Spalten
+   `datev_wage_type_weather_winter`/`_weather_summer` plus zwei neue Felder in der
+   Backoffice-Oberfläche (Einstellungen → Zeiterfassungs-Backoffice → DATEV/Lohnarten) --
+   **bewusst KEIN Rückfall auf "Sonstige"** für diese beiden Zeitarten: fehlt die Lohnart, bricht
+   der Export mit einer Warnung ab ("Zeitart weather_winter: DATEV-Lohnart fehlt"), statt falsch
+   zu buchen. Der Stundenzettel-PDF/CSV-Export zeigte bisher ohnehin den rohen `entry_type`-Wert
+   statt der Optionsgruppen-Bezeichnung (`_entry_type_label()`, neu) -- sonst stünde dort
+   "weather_winter" statt "Schlechtwetter Winter".
+3. **Abrechnungsschutz**: `create_invoice_from_time_entries()` (`app/invoices.py`, "Rechnung aus
+   Zeitbuchungen") holt alle gebuchten Zeiten eines Auftrags ungefiltert nach Zeitart. Da
+   `TimeEntry.order_id` NOT NULL ist, muss ein Monteur auch witterungsbedingten Ausfall
+   zwangsläufig einem Kundenauftrag zuordnen (Schlechtwetter hat keinen natürlichen "eigenen"
+   Auftrag) -- ohne Ausschluss hätte die Funktion diese Stunden als Position "Ausgeführt von …"
+   dem Kunden in Rechnung gestellt. Die beiden neuen Zeitarten sind jetzt explizit ausgeschlossen
+   (`booked = [... if e.entry_type not in ("weather_winter", "weather_summer")]`). **Fahrzeit
+   bleibt davon bewusst unberührt** (bereits bestehendes, nicht Teil dieser Anfrage geändertes
+   Verhalten -- Fahrzeit wird heute schon ungefiltert mit abgerechnet, wenn sie über diesen Weg
+   läuft).
+
+**Vorschlag statt Zwang beim Buchen**: die Grenze ist eine reine Kalenderregel, deshalb wird beim
+Öffnen der mobilen Zeiterfassung (Schnellstart UND Nachtrag) die zum Buchungsdatum passende der
+beiden Kacheln optisch hervorgehoben (`weatherSeasonFor(dateStr)`, `time_tracking_field.html`,
+CSS-Klasse `.suggested`) -- **übersteuerbar**, keine der beiden Kacheln ist gesperrt oder
+automatisch vorausgewählt; bei Nachtrag aktualisiert sich die Hervorhebung, wenn das Datum
+geändert wird. Auf der Desktop-Seite (`time_tracking.html`) bleiben Quick-Start-Kacheln bewusst
+hart codiert (4 feste Buttons, unverändert seit jeher, keine Weiche für die beiden neuen Werte) --
+die beiden neuen Zeitarten sind dort trotzdem sofort über die bereits bestehenden, dynamisch aus
+der Optionsgruppe befüllten Dropdown-Felder ("Manuell buchen"/"Gruppenbuchung") erreichbar, ohne
+Codeänderung nötig; die Season-Hervorhebung wurde für Desktop bewusst nicht gebaut (primäres Ziel
+laut Auftrag: die mobile Ansicht des Monteurs).
+
+**Angriffstest/Regressionstest**: 20 neue Tests
+(`tests/test_v286_schlechtwetter_und_abwesenheitskategorie.py`) -- Produktivitäts-Klassifikation
+pur und über eine echte `TimeEntry`-Anlage, Abrechnungsschutz (Schlechtwetter wird nie zur
+Rechnungsposition, eine Rechnung aus nur Schlechtwetter-Zeit schlägt fehl statt eine leere
+Rechnung zu erzeugen), DATEV-Lohnart ohne Rückfall für die beiden neuen Zeitarten, Kategorie-
+Validierung (jede der vier echten Kategorien wird akzeptiert, ein unbekannter Wert UND
+"unbekannt" selbst werden beim Neuanlegen abgelehnt), Genehmigung kopiert die Kategorie korrekt
+auf die entstehende `EmployeeAbsence`, Router-Ebene (`POST /api/absence-requests` verlangt das
+neue Pflichtfeld, 422 ohne/mit ungültigem Wert), `GET /api/planning/absences` liefert das neue
+Feld und unterstützt einen Filter darauf, sowie die Migrations-Seed-Funktion isoliert
+(idempotent, No-op ohne bereits existierende Gruppe). Ein bestehender Test
+(`test_v260_role_audit.py::test_absence_requests_stay_open_to_field_as_self_service`) musste um
+das neue Pflichtfeld ergänzt werden. Volle Suite: 1602 Tests grün.
 
 ## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
 

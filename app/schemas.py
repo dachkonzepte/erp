@@ -1972,6 +1972,9 @@ class PlanningHolidayOut(PlanningHolidayCreate):
 class EmployeeAbsenceCreate(BaseModel):
     employee_id: int
     absence_type: str = Field(default="Urlaub", min_length=1, max_length=80)
+    # Feste Kategorie (urlaub/krankheit/fortbildung/unbezahlt) -- "unbekannt" ist beim
+    # Neuanlegen/Ändern bewusst NICHT erlaubt, siehe app/absence_requests.py::ABSENCE_CATEGORIES.
+    absence_category: str = Field(pattern="^(urlaub|krankheit|fortbildung|unbezahlt)$")
     start_date: date
     end_date: date
     notes: str | None = None
@@ -1993,6 +1996,7 @@ class EmployeeAbsenceOut(EmployeeAbsenceCreate):
 class EmployeeAbsenceRequestCreate(BaseModel):
     employee_id: int
     absence_type: str = Field(default="Urlaub", min_length=1, max_length=80)
+    absence_category: str = Field(pattern="^(urlaub|krankheit|fortbildung|unbezahlt)$")
     start_date: date
     end_date: date
     notes: str | None = None
@@ -2014,6 +2018,7 @@ class EmployeeAbsenceRequestOut(BaseModel):
     employee_id: int
     employee_name: str | None = None
     absence_type: str
+    absence_category: str
     start_date: date
     end_date: date
     notes: str | None = None
@@ -2155,6 +2160,8 @@ class TimeTrackingSettingsOut(BaseModel):
     datev_wage_type_travel: str | None = None
     datev_wage_type_workshop: str | None = None
     datev_wage_type_other: str | None = None
+    datev_wage_type_weather_winter: str | None = None
+    datev_wage_type_weather_summer: str | None = None
     datev_personnel_equals_erp_number: bool = False
     default_work_time_model_id: int | None = None
 

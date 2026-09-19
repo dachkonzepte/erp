@@ -1644,12 +1644,25 @@ class PlanningHoliday(Base):
 
 
 class EmployeeAbsence(Base):
-    """Ganztägige Abwesenheit eines Mitarbeiters für Urlaub, Krankheit usw."""
+    """Ganztägige Abwesenheit eines Mitarbeiters für Urlaub, Krankheit usw.
+
+    absence_category (seit "Schlechtwetter/Krankheit-Trennung") ist die feste, vier Werte
+    umfassende Klassifikation (urlaub/krankheit/fortbildung/unbezahlt, siehe
+    app/absence_requests.py::ABSENCE_CATEGORIES) -- ein fester Code-Wert wie
+    RecurringCost.overhead_classification, KEINE Optionsgruppe, da eine spätere Ist-Wert-
+    Auswertung wissen muss, welche Werte existieren. absence_type bleibt UNVERÄNDERT das
+    freie, über die Optionsgruppe absence_types gepflegte Ergänzungsfeld daneben (z. B.
+    "Berufsschule" als Unterfall von "fortbildung") -- keine Ablösung. "unbekannt" ist der
+    Migrations-Rückfallwert für Altbestand ohne Kategorie und beim Neuanlegen NICHT wählbar
+    (Schema-Pattern lässt nur die vier echten Werte zu) -- eine spätere Ist-Wert-Auswertung
+    zählt "unbekannt" bewusst nicht mit.
+    """
     __tablename__ = "employee_absences"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
     absence_type: Mapped[str] = mapped_column(String(80), default="Urlaub", index=True)
+    absence_category: Mapped[str] = mapped_column(String(20), default="unbekannt", server_default="unbekannt", index=True)
     start_date: Mapped[date] = mapped_column(Date, index=True)
     end_date: Mapped[date] = mapped_column(Date, index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -1670,6 +1683,7 @@ class EmployeeAbsenceRequest(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
     absence_type: Mapped[str] = mapped_column(String(80), default="Urlaub", index=True)
+    absence_category: Mapped[str] = mapped_column(String(20), default="unbekannt", server_default="unbekannt", index=True)
     start_date: Mapped[date] = mapped_column(Date, index=True)
     end_date: Mapped[date] = mapped_column(Date, index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -1758,6 +1772,11 @@ class TimeTrackingSettings(Base):
     datev_wage_type_travel: Mapped[str | None] = mapped_column(String(30), nullable=True)
     datev_wage_type_workshop: Mapped[str | None] = mapped_column(String(30), nullable=True)
     datev_wage_type_other: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # Schlechtwetter Winter/Sommer sind tariflich unterschiedliche Lohnarten (Saison-
+    # Kurzarbeitergeld gegen Ausfallgeld) -- fallen ohne eigene Spalte auf datev_wage_type_other
+    # zurueck (siehe app/time_backoffice.py::_wage_type()), was fachlich falsch waere.
+    datev_wage_type_weather_winter: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    datev_wage_type_weather_summer: Mapped[str | None] = mapped_column(String(30), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 

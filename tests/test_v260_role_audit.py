@@ -362,7 +362,8 @@ class TestRoleGateOnTheRemainingBueroOnlyFiles:
         client = router_test_client(threaded_db_session, absence_router, role="field", employee_id=emp.id)
         assert client.get("/api/absence-requests").status_code == 200
         created = client.post("/api/absence-requests", json={
-            "employee_id": emp.id, "absence_type": "urlaub", "start_date": "2026-10-01", "end_date": "2026-10-02",
+            "employee_id": emp.id, "absence_type": "urlaub", "absence_category": "urlaub",
+            "start_date": "2026-10-01", "end_date": "2026-10-02",
         })
         assert created.status_code == 200, created.text
         assert client.post(f"/api/absence-requests/{created.json()['id']}/review", json={"decision": "genehmigt"}).status_code == 403

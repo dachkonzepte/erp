@@ -46,6 +46,7 @@
     .tiles button{background:var(--soft);color:var(--ink);border:1px solid var(--line);min-height:52px;font-weight:700}
     .tiles button.travel{border-color:var(--travel-btn)}
     .tiles button.workshop{border-color:var(--workshop-btn)}
+    .tiles button.suggested{box-shadow:inset 0 0 0 2px var(--success)}
     .tiles button.selected{background:var(--accent);color:#fff;border-color:var(--accent)}
     .timer-time{font-size:30px;font-weight:900;letter-spacing:.02em;margin:6px 0 2px}
     .timer-context{font-weight:700}
@@ -124,7 +125,7 @@
   <div class="modal-body">
     <h2 id="manualTitle">Buchung nachtragen</h2>
     <div class="field"><label>Auftrag</label><select id="manualOrder"></select></div>
-    <div class="field"><label>Datum</label><input id="manualDate" type="date"></div>
+    <div class="field"><label>Datum</label><input id="manualDate" type="date" onchange="renderManualTiles()"></div>
     <div class="mode-toggle">
       <button type="button" id="modeRangeBtn">Von / Bis</button>
       <button type="button" id="modeDurationBtn">Dauer</button>
@@ -153,7 +154,13 @@
 <dialog id="absenceDialog" class="modal">
   <div class="modal-body">
     <h2>Abwesenheit beantragen</h2>
-    <div class="field"><label>Art</label><select id="absenceType"></select></div>
+    <div class="field"><label>Kategorie</label><select id="absenceCategory">
+      <option value="urlaub">Urlaub</option>
+      <option value="krankheit">Krankheit</option>
+      <option value="fortbildung">Fortbildung</option>
+      <option value="unbezahlt">Unbezahlt</option>
+    </select></div>
+    <div class="field"><label>Art (optional, genauer)</label><select id="absenceType"></select></div>
     <div class="range-fields">
       <div class="field"><label>Von</label><input id="absenceStart" type="date"></div>
       <div class="field"><label>Bis</label><input id="absenceEnd" type="date"></div>
@@ -186,14 +193,26 @@ const manualDialog=$('manualDialog'),absenceDialog=$('absenceDialog');
 
 function typeLabel(v){return types.find(x=>x.value===v)?.label||({site:'Baustellenzeit',travel:'Fahrzeit',workshop:'Werkstattzeit',other:'Sonstige'}[v]||v)}
 function typeCssClass(v){return v==='travel'?'travel':v==='workshop'?'workshop':''}
+const WEATHER_TYPES=['weather_winter','weather_summer'];
+// Gesetzliche Schlechtwetterzeit im Dachdeckerhandwerk: 1.12.-31.3. Winter, sonst Sommer --
+// reiner Vorschlag anhand des Buchungsdatums, beide Kacheln bleiben unabhaengig davon anklickbar.
+function weatherSeasonFor(dateStr){const d=dateStr?new Date(dateStr+'T12:00:00'):new Date();const m=d.getMonth()+1;return (m===12||m<=3)?'weather_winter':'weather_summer'}
 function orderOptions(selected){return '<option value="">— Auftrag wählen —</option>'+orders.map(o=>`<option value="${o.id}" ${String(o.id)===String(selected)?'selected':''}>${esc(o.order_number)}${o.customer_name?' · '+esc(o.customer_name):''}${o.property_address?' · '+esc(o.property_address.replace(/\n/g,', ')):''}</option>`).join('')}
 
 function renderQuickTiles(){
-  $('quickTiles').innerHTML=types.map(t=>`<button type="button" class="${typeCssClass(t.value)}" data-value="${esc(t.value)}">▶ ${esc(t.label)}</button>`).join('');
+  const suggested=weatherSeasonFor(today());
+  $('quickTiles').innerHTML=types.map(t=>{
+    const isSuggested=WEATHER_TYPES.includes(t.value)&&t.value===suggested;
+    return `<button type="button" class="${typeCssClass(t.value)}${isSuggested?' suggested':''}" data-value="${esc(t.value)}">▶ ${esc(t.label)}${isSuggested?' ✓':''}</button>`;
+  }).join('');
   $('quickTiles').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>startQuick(b.dataset.value)));
 }
 function renderManualTiles(){
-  $('manualTiles').innerHTML=types.map(t=>`<button type="button" class="${typeCssClass(t.value)}${t.value===manualType?' selected':''}" data-value="${esc(t.value)}">${esc(t.label)}</button>`).join('');
+  const suggested=weatherSeasonFor($('manualDate').value||today());
+  $('manualTiles').innerHTML=types.map(t=>{
+    const isSuggested=WEATHER_TYPES.includes(t.value)&&t.value===suggested;
+    return `<button type="button" class="${typeCssClass(t.value)}${t.value===manualType?' selected':''}${isSuggested?' suggested':''}" data-value="${esc(t.value)}">${esc(t.label)}${isSuggested?' ✓':''}</button>`;
+  }).join('');
   $('manualTiles').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{manualType=b.dataset.value;renderManualTiles()}));
 }
 
@@ -299,13 +318,15 @@ async function deleteEntry(id){
 }
 
 function absenceStatusLabel(s){return ({pending:'Offen',approved:'Genehmigt',rejected:'Abgelehnt',cancelled:'Zurückgezogen'}[s]||s)}
+const ABSENCE_CATEGORY_LABELS={urlaub:'Urlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',unbekannt:'Unbekannt'};
 async function loadAbsenceRows(){
   try{
     const rows=await api('/api/absence-requests');
-    $('absenceListRows').innerHTML=rows.length?rows.map(r=>`<div class="request-row"><div class="request-head"><div><b>${esc(r.absence_type)}</b><div class="small muted">${fmtDate(r.start_date)}–${fmtDate(r.end_date)}</div></div><span class="pill">${esc(absenceStatusLabel(r.status))}</span></div>${r.notes?`<div class="small muted" style="margin-top:5px">${esc(r.notes)}</div>`:''}${r.review_notes?`<div class="small" style="margin-top:5px">Freigabe: ${esc(r.review_notes)}</div>`:''}${r.status==='pending'?`<div style="margin-top:7px"><button class="danger" onclick="cancelAbsence(${r.id})">Zurückziehen</button></div>`:''}</div>`).join(''):'<div class="empty">Keine Abwesenheitsanträge vorhanden.</div>';
+    $('absenceListRows').innerHTML=rows.length?rows.map(r=>`<div class="request-row"><div class="request-head"><div><b>${esc(ABSENCE_CATEGORY_LABELS[r.absence_category]||r.absence_category)}</b><div class="small muted">${esc(r.absence_type)} · ${fmtDate(r.start_date)}–${fmtDate(r.end_date)}</div></div><span class="pill">${esc(absenceStatusLabel(r.status))}</span></div>${r.notes?`<div class="small muted" style="margin-top:5px">${esc(r.notes)}</div>`:''}${r.review_notes?`<div class="small" style="margin-top:5px">Freigabe: ${esc(r.review_notes)}</div>`:''}${r.status==='pending'?`<div style="margin-top:7px"><button class="danger" onclick="cancelAbsence(${r.id})">Zurückziehen</button></div>`:''}</div>`).join(''):'<div class="empty">Keine Abwesenheitsanträge vorhanden.</div>';
   }catch(e){$('absenceListRows').innerHTML=`<div class="empty">${esc(e.message)}</div>`}
 }
 function openAbsence(){
+  $('absenceCategory').value='urlaub';
   $('absenceType').innerHTML=absenceTypes.map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('');
   $('absenceStart').value=today();$('absenceEnd').value=today();$('absenceNotes').value='';$('absenceStatus').textContent='';
   loadAbsenceRows();
@@ -313,7 +334,7 @@ function openAbsence(){
 }
 async function submitAbsence(){
   try{
-    const body={employee_id:myEmployeeId,absence_type:$('absenceType').value,start_date:$('absenceStart').value,end_date:$('absenceEnd').value,notes:$('absenceNotes').value.trim()||null};
+    const body={employee_id:myEmployeeId,absence_category:$('absenceCategory').value,absence_type:$('absenceType').value,start_date:$('absenceStart').value,end_date:$('absenceEnd').value,notes:$('absenceNotes').value.trim()||null};
     await api('/api/absence-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     $('absenceStatus').textContent='Antrag wurde gesendet.';await loadAbsenceRows();
   }catch(e){$('absenceStatus').textContent='Fehler: '+e.message}

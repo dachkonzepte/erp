@@ -45,7 +45,7 @@ def post_absence_request(payload: EmployeeAbsenceRequestCreate, request: Request
     employee_id=_time_entry_employee_for_request(request,payload.employee_id,db)
     user=getattr(request.state,"erp_user",None)
     try:
-        row=create_absence_request_row(db,employee_id=employee_id,absence_type=payload.absence_type,start_date=payload.start_date,end_date=payload.end_date,notes=payload.notes,requested_by_user_id=getattr(user,"id",None))
+        row=create_absence_request_row(db,employee_id=employee_id,absence_type=payload.absence_type,absence_category=payload.absence_category,start_date=payload.start_date,end_date=payload.end_date,notes=payload.notes,requested_by_user_id=getattr(user,"id",None))
     except ValueError as exc:
         raise HTTPException(status_code=422,detail=str(exc)) from exc
     return EmployeeAbsenceRequestOut.model_validate(absence_request_to_dict(db,row))

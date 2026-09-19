@@ -75,13 +75,14 @@ def delete_planning_holiday(holiday_id:int, db:Session=Depends(get_db),_role:App
 
 
 @router.get("/api/planning/absences", response_model=list[EmployeeAbsenceOut])
-def list_employee_absences(start:date|None=None,end:date|None=None,employee_id:int|None=None,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def list_employee_absences(start:date|None=None,end:date|None=None,employee_id:int|None=None,absence_category:str|None=None,db:Session=Depends(get_db),_role:AppUser=_role_dep):
     stmt=select(EmployeeAbsence).options(selectinload(EmployeeAbsence.employee)).order_by(EmployeeAbsence.start_date.desc(),EmployeeAbsence.id.desc())
     if start is not None: stmt=stmt.where(EmployeeAbsence.end_date>=start)
     if end is not None: stmt=stmt.where(EmployeeAbsence.start_date<=end)
     if employee_id is not None: stmt=stmt.where(EmployeeAbsence.employee_id==employee_id)
+    if absence_category is not None: stmt=stmt.where(EmployeeAbsence.absence_category==absence_category)
     rows=db.scalars(stmt).all()
-    return [EmployeeAbsenceOut(id=x.id,employee_id=x.employee_id,employee_name=f"{x.employee.first_name} {x.employee.last_name}".strip() if x.employee else None,absence_type=x.absence_type,start_date=x.start_date,end_date=x.end_date,notes=x.notes) for x in rows]
+    return [EmployeeAbsenceOut(id=x.id,employee_id=x.employee_id,employee_name=f"{x.employee.first_name} {x.employee.last_name}".strip() if x.employee else None,absence_type=x.absence_type,absence_category=x.absence_category,start_date=x.start_date,end_date=x.end_date,notes=x.notes) for x in rows]
 
 
 @router.post("/api/planning/absences", response_model=EmployeeAbsenceOut)
@@ -89,7 +90,7 @@ def create_employee_absence(payload:EmployeeAbsenceCreate,db:Session=Depends(get
     emp=db.get(Employee,payload.employee_id)
     if emp is None: raise HTTPException(status_code=404,detail="Mitarbeiter nicht gefunden.")
     row=EmployeeAbsence(**payload.model_dump()); db.add(row); db.commit(); db.refresh(row)
-    return EmployeeAbsenceOut(id=row.id,employee_id=row.employee_id,employee_name=f"{emp.first_name} {emp.last_name}".strip(),absence_type=row.absence_type,start_date=row.start_date,end_date=row.end_date,notes=row.notes)
+    return EmployeeAbsenceOut(id=row.id,employee_id=row.employee_id,employee_name=f"{emp.first_name} {emp.last_name}".strip(),absence_type=row.absence_type,absence_category=row.absence_category,start_date=row.start_date,end_date=row.end_date,notes=row.notes)
 
 
 @router.put("/api/planning/absences/{absence_id}", response_model=EmployeeAbsenceOut)
@@ -100,7 +101,7 @@ def update_employee_absence(absence_id:int,payload:EmployeeAbsenceCreate,db:Sess
     if emp is None: raise HTTPException(status_code=404,detail="Mitarbeiter nicht gefunden.")
     for k,v in payload.model_dump().items(): setattr(row,k,v)
     db.commit(); db.refresh(row)
-    return EmployeeAbsenceOut(id=row.id,employee_id=row.employee_id,employee_name=f"{emp.first_name} {emp.last_name}".strip(),absence_type=row.absence_type,start_date=row.start_date,end_date=row.end_date,notes=row.notes)
+    return EmployeeAbsenceOut(id=row.id,employee_id=row.employee_id,employee_name=f"{emp.first_name} {emp.last_name}".strip(),absence_type=row.absence_type,absence_category=row.absence_category,start_date=row.start_date,end_date=row.end_date,notes=row.notes)
 
 
 @router.delete("/api/planning/absences/{absence_id}")

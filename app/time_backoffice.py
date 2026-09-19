@@ -45,6 +45,8 @@ def time_settings_dict(row: TimeTrackingSettings, db: Session | None = None) -> 
         "datev_wage_type_travel": row.datev_wage_type_travel,
         "datev_wage_type_workshop": row.datev_wage_type_workshop,
         "datev_wage_type_other": row.datev_wage_type_other,
+        "datev_wage_type_weather_winter": row.datev_wage_type_weather_winter,
+        "datev_wage_type_weather_summer": row.datev_wage_type_weather_summer,
         "datev_personnel_equals_erp_number": bool(advanced.datev_personnel_equals_erp_number) if advanced else False,
         "default_work_time_model_id": advanced.default_work_time_model_id if advanced else None,
     }
@@ -57,6 +59,7 @@ def update_time_settings(db: Session, payload) -> TimeTrackingSettings:
         "allow_group_bookings", "require_order_item", "require_activity",
         "datev_target", "datev_wage_type_site", "datev_wage_type_travel",
         "datev_wage_type_workshop", "datev_wage_type_other",
+        "datev_wage_type_weather_winter", "datev_wage_type_weather_summer",
     ):
         setattr(row, key, getattr(payload, key))
     advanced = get_or_create_advanced_settings(db)
@@ -192,7 +195,7 @@ def build_timesheet_pdf(db: Session, start_date: date, end_date: date, employee_
         total=Decimal("0")
         for r in sorted(entries,key=lambda x:(x.work_date,x.started_at or x.created_at,x.id)):
             d=entry_to_dict(r); total+=Decimal(r.hours or 0)
-            data.append([r.work_date.strftime("%d.%m.%Y"),Paragraph(escape(f"{d.get('project_number') or ''} / {d.get('order_number') or ''}"),small),Paragraph(escape((d.get('order_item_oz') or '')+' '+(d.get('order_item_text') or '')),small),r.entry_type,Paragraph(escape(r.activity or ''),small),r.started_at.strftime("%H:%M") if r.started_at else "",r.ended_at.strftime("%H:%M") if r.ended_at else "",str(r.break_minutes or 0),_fmt_h(r.hours)])
+            data.append([r.work_date.strftime("%d.%m.%Y"),Paragraph(escape(f"{d.get('project_number') or ''} / {d.get('order_number') or ''}"),small),Paragraph(escape((d.get('order_item_oz') or '')+' '+(d.get('order_item_text') or '')),small),_entry_type_label(db,r.entry_type),Paragraph(escape(r.activity or ''),small),r.started_at.strftime("%H:%M") if r.started_at else "",r.ended_at.strftime("%H:%M") if r.ended_at else "",str(r.break_minutes or 0),_fmt_h(r.hours)])
         data.append(["","","","","","","","Summe",_fmt_h(total)])
         t=Table(data,colWidths=[21*mm,42*mm,55*mm,24*mm,42*mm,17*mm,17*mm,17*mm,20*mm],repeatRows=1)
         t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#e8eee9")),("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),("FONTSIZE",(0,0),(-1,-1),7.5),("GRID",(0,0),(-1,-1),.25,colors.HexColor("#cccccc")),("VALIGN",(0,0),(-1,-1),"TOP"),("ALIGN",(-1,1),(-1,-1),"RIGHT"),("FONTNAME",(-2,-1),(-1,-1),"Helvetica-Bold")]))
@@ -207,13 +210,37 @@ def build_time_csv(db: Session, start_date: date, end_date: date, employee_id: i
     w.writerow(["Mitarbeiternummer","Mitarbeiter","Datum","Projekt","Auftrag","LV-OZ","Zeitart","Tätigkeit","von","bis","Pause_Min","Stunden","Notiz"])
     for r in list_entries(db,employee_id=employee_id,start_date=start_date,end_date=end_date,limit=2000):
         d=entry_to_dict(r); emp=r.employee
-        w.writerow([emp.employee_number or "",d["employee_name"],r.work_date.strftime("%d.%m.%Y"),d.get("project_number") or "",d.get("order_number") or "",d.get("order_item_oz") or "",r.entry_type,r.activity or "",r.started_at.strftime("%H:%M") if r.started_at else "",r.ended_at.strftime("%H:%M") if r.ended_at else "",r.break_minutes,_fmt_h(r.hours),r.notes or ""])
+        w.writerow([emp.employee_number or "",d["employee_name"],r.work_date.strftime("%d.%m.%Y"),d.get("project_number") or "",d.get("order_number") or "",d.get("order_item_oz") or "",_entry_type_label(db,r.entry_type),r.activity or "",r.started_at.strftime("%H:%M") if r.started_at else "",r.ended_at.strftime("%H:%M") if r.ended_at else "",r.break_minutes,_fmt_h(r.hours),r.notes or ""])
     return ("\ufeff"+out.getvalue()).encode("utf-8")
 
 
 def _wage_type(settings: TimeTrackingSettings, entry_type: str) -> str | None:
-    mapping={"site":settings.datev_wage_type_site,"travel":settings.datev_wage_type_travel,"workshop":settings.datev_wage_type_workshop,"other":settings.datev_wage_type_other}
+    mapping={"site":settings.datev_wage_type_site,"travel":settings.datev_wage_type_travel,"workshop":settings.datev_wage_type_workshop,"other":settings.datev_wage_type_other,"weather_winter":settings.datev_wage_type_weather_winter,"weather_summer":settings.datev_wage_type_weather_summer}
+    # Bewusst KEIN Rueckfall auf "other" fuer die beiden Schlechtwetter-Zeitarten: Saison-
+    # Kurzarbeitergeld (Winter) und tarifliches Ausfallgeld (Sommer) sind eigene Lohnarten,
+    # eine stillschweigende Buchung unter "Sonstige Arbeitszeit" waere tariflich falsch --
+    # fehlt die Lohnart, soll build_datev_export() stattdessen warnen (siehe dort).
+    if entry_type in ("weather_winter", "weather_summer"):
+        return mapping.get(entry_type)
     return mapping.get(entry_type) or settings.datev_wage_type_other
+
+
+_ENTRY_TYPE_FALLBACK_LABELS = {
+    "site": "Baustellenzeit", "travel": "Fahrzeit", "workshop": "Werkstattzeit",
+    "other": "Sonstige Arbeitszeit", "weather_winter": "Schlechtwetter Winter",
+    "weather_summer": "Schlechtwetter Sommer",
+}
+
+
+def _entry_type_label(db: Session, entry_type: str) -> str:
+    """Übersetzt eine Zeitart für den Stundenzettel/CSV-Export -- ohne diese Auflösung stünde
+    dort z. B. der rohe interne Wert "weather_winter" statt "Schlechtwetter Winter"."""
+    from .option_settings import get_option_group
+    group = get_option_group(db, "time_entry_types")
+    for option in (group.options if group else []):
+        if option.value == entry_type:
+            return option.label
+    return _ENTRY_TYPE_FALLBACK_LABELS.get(entry_type, entry_type)
 
 
 def build_datev_export(db: Session, start_date: date, end_date: date) -> tuple[bytes,str,list[str]]:

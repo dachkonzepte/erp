@@ -48,18 +48,18 @@ def employees_and_team(db):
 
 def test_absence_request_only_affects_planning_after_approval():
     db=db_session();emps,team,_=employees_and_team(db);emp=emps[0]
-    req=create_request(db,employee_id=emp.id,absence_type="Urlaub",start_date=date(2026,9,14),end_date=date(2026,9,18),notes="Familienurlaub")
+    req=create_request(db,employee_id=emp.id,absence_type="Urlaub",absence_category="urlaub",start_date=date(2026,9,14),end_date=date(2026,9,18),notes="Familienurlaub")
     assert req.status=="pending"
     assert db.scalar(select(EmployeeAbsence).where(EmployeeAbsence.employee_id==emp.id)) is None
     approved=review_request(db,req.id,decision="approved",reviewed_by_user_id=None,review_notes="Freigegeben")
     assert approved.status=="approved" and approved.approved_absence_id
     absence=db.get(EmployeeAbsence,approved.approved_absence_id)
-    assert absence.start_date==date(2026,9,14) and absence.absence_type=="Urlaub"
+    assert absence.start_date==date(2026,9,14) and absence.absence_type=="Urlaub" and absence.absence_category=="urlaub"
 
 
 def test_rejected_absence_request_creates_no_absence():
     db=db_session();emps,_,_=employees_and_team(db);emp=emps[0]
-    req=create_request(db,employee_id=emp.id,absence_type="Freizeitausgleich",start_date=date(2026,9,21),end_date=date(2026,9,21))
+    req=create_request(db,employee_id=emp.id,absence_type="Freizeitausgleich",absence_category="unbezahlt",start_date=date(2026,9,21),end_date=date(2026,9,21))
     result=review_request(db,req.id,decision="rejected",reviewed_by_user_id=None,review_notes="Baustelle")
     assert result.status=="rejected"
     assert db.scalar(select(EmployeeAbsence).where(EmployeeAbsence.employee_id==emp.id)) is None

@@ -335,7 +335,15 @@ def create_invoice_from_time_entries(
 
     Ergebnis ist wie jede andere Rechnung nur ein Entwurf, die Positionen bleiben vor dem
     Versenden vollständig prüf-/änderbar."""
-    booked = [e for e in time_entries if e.status == "booked" and e.hours]
+    # Schlechtwetter-Zeitarten (weather_winter/weather_summer, siehe app/time_tracking.py::
+    # NON_PRODUCTIVE_ENTRY_TYPES) sind witterungsbedingter Ausfall, nie ausgeführte Leistung --
+    # TimeEntry.order_id ist NOT NULL, ein Monteur muss sie also zwangsläufig einem Auftrag
+    # zuordnen, obwohl sie fachlich nichts mit dessen Leistungserbringung zu tun haben. Ohne
+    # diesen Ausschluss würde "Rechnung aus Zeitbuchungen" sie dem Kunden in Rechnung stellen.
+    booked = [
+        e for e in time_entries
+        if e.status == "booked" and e.hours and e.entry_type not in ("weather_winter", "weather_summer")
+    ]
     if not booked and not materials:
         raise ValueError("Weder abrechenbare Zeitbuchungen noch Material für diesen Auftrag vorhanden.")
 

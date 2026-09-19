@@ -14,7 +14,12 @@ from .work_time_models import automatic_break_minutes_for_timer
 
 HOUR = Decimal("0.01")
 ENTRY_TYPES = {"site", "workshop", "travel", "other"}
-PRODUCTIVE_TYPES = {"site", "workshop", "other"}
+# Zeitarten, die NIE als produktiv gelten -- travel (Fahrzeit) sowie die beiden Schlechtwetter-
+# Zeitarten (Winter/Sommer, siehe app/option_settings.py::DEFAULT_OPTION_GROUPS["time_entry_types"]):
+# an einem Schlechtwettertag wird nicht gearbeitet, unabhängig davon, ob er einem Kundenauftrag
+# zugeordnet werden musste (TimeEntry.order_id ist NOT NULL). Eine spätere, frei gepflegte
+# Zeitart (nicht in ENTRY_TYPES) gilt dagegen standardmäßig als produktiv, wie bisher.
+NON_PRODUCTIVE_ENTRY_TYPES = {"travel", "weather_winter", "weather_summer"}
 
 
 def _d(v) -> Decimal:
@@ -26,7 +31,7 @@ def employee_name(emp: Employee | None) -> str | None:
 
 
 def entry_type_is_productive(entry_type: str) -> bool:
-    return entry_type != "travel"
+    return entry_type not in NON_PRODUCTIVE_ENTRY_TYPES
 
 
 def compute_hours(started_at: datetime, ended_at: datetime, break_minutes: int = 0) -> Decimal:
