@@ -3473,9 +3473,13 @@ class OperationalAsset(Base):
     würde diese Fremdschlüssel brechen oder eine Migration alter IDs erfordern -- genau das
     Risiko, vor dem diese getrennte Tabelle bewusst schützt.
 
-    recurring_cost_per_month ist absichtlich EIN monatsnormalisierter Wert (nicht
-    Intervall+Betrag) -- eine künftige Gesamtkostenübersicht kann dadurch trivial über alle
-    Assets summieren, ohne Intervalle vorher umzurechnen.
+    recurring_cost_per_month (Spalte entfernt, seit "Betriebsmittel-Kosten fest als
+    Kostenposten"): die frühere, monatsnormalisierte Schnellnotiz ist einer echten Verknüpfung
+    zu RecurringCost gewichen -- ein hier eingetragener Betrag erzeugt/ändert/entfernt seither
+    einen vollwertigen RecurringCost mit RecurringCost.is_asset_quick_entry=True (siehe dort),
+    statt nur eine Zahl auf dieser Zeile zu speichern. asset_to_dict() (app/operational_assets.py)
+    liefert recurring_cost_per_month als API-Feld unverändert weiter, jetzt aber LIVE aus dem
+    verknüpften Kostenposten gelesen, nicht mehr aus einer eigenen Spalte.
 
     selectable_in_reports (seit 1.4.5, Betriebsmittelverwaltung Stufe 3): steuert, ob dieses
     Betriebsmittel in der Auswahlliste eines Einsatzberichts erscheint (list_selectable_assets()
@@ -3512,7 +3516,6 @@ class OperationalAsset(Base):
 
     acquisition_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     acquisition_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
-    recurring_cost_per_month: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     cost_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
@@ -3643,14 +3646,23 @@ class RecurringCost(Base):
     Netto-Betrag, nie inklusive der abzugsfähigen Vorsteuer. gross_amount wird NIE gespeichert,
     NIE in annual_amount verrechnet -- reine Anzeige-Ableitung wie cancellation_deadline() unten.
 
-    asset_id ist OPTIONAL: zeigt ein Kostenposten auf ein Betriebsmittel, ERSETZT er dessen
-    monthly_cost in der Betriebskosten-Summe (overview_summary() schließt
-    OperationalAsset.recurring_cost_per_month für jedes Asset mit mindestens einem aktiven,
-    verknüpften RecurringCost aus der Summe aus) -- kein Doppelzählen derselben Leasingrate.
-    Absichtlich KEIN Unique-Constraint auf asset_id: ein Betriebsmittel kann mehrere
-    unabhängige Kostenposten tragen (z. B. Leasingrate UND Versicherung für denselben
-    Transporter), die Ersetzungsregel greift bereits, sobald IRGENDEIN verknüpfter Posten
-    existiert.
+    asset_id ist OPTIONAL: ein Betriebsmittel kann mehrere unabhängige Kostenposten tragen
+    (z. B. Leasingrate UND Versicherung für denselben Transporter) -- deshalb absichtlich KEIN
+    Unique-Constraint auf asset_id selbst.
+
+    is_asset_quick_entry (seit "Betriebsmittel-Kosten fest als Kostenposten") markiert den
+    EINEN Kostenposten je Betriebsmittel, der von dessen eigenem "Laufende Kosten je Monat"-Feld
+    (operational_asset.html) automatisch erzeugt/geändert/entfernt wird -- siehe
+    app/operational_assets.py::sync_asset_recurring_cost(). Jeder andere, über die allgemeine
+    Betriebskosten-Oberfläche verknüpfte Posten für dasselbe asset_id bleibt is_asset_quick_entry=
+    False und damit vom Betriebsmittel-Formular unberührt (die Leasingrate-UND-Versicherung-
+    Kombination bleibt dadurch möglich). "Höchstens ein is_asset_quick_entry=True-Posten je
+    asset_id" ist eine reine ANWENDUNGS-Invariante (sync_asset_recurring_cost() sucht immer
+    zuerst den bestehenden, bevor ein neuer angelegt wird) -- bewusst KEIN DB-Constraint dafür,
+    dieselbe Zurückhaltung wie beim fehlenden Unique-Constraint auf asset_id selbst oben. Die
+    frühere Doppelzählungs-Sonderbehandlung aus 1.5.0 (OperationalAsset.recurring_cost_per_month
+    als zweite, parallele Kostenquelle neben RecurringCost) ist mit dieser Version ersatzlos
+    entfallen -- RecurringCost ist seither die EINZIGE Quelle für Betriebsmittel-Kosten.
 
     billing_interval ist ein fester Code-Wert (BILLING_INTERVALS in recurring_costs.py, keine
     Optionsgruppe -- wie SEVERITIES/ACTIONS/STATUSES bei Finding). "einmalig" ist bereits ein
@@ -3691,6 +3703,7 @@ class RecurringCost(Base):
     contract_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     notice_period_months: Mapped[int | None] = mapped_column(nullable=True)
     asset_id: Mapped[int | None] = mapped_column(ForeignKey("operational_assets.id"), nullable=True, index=True)
+    is_asset_quick_entry: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", index=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_reminder_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)

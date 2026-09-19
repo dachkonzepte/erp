@@ -80,13 +80,22 @@ def test_create_and_update_asset_persist_procurement_and_usage_fields():
 # --- Reduzierte Ansicht (Punkt 3: "Ein Monteur sieht die reduzierte Ansicht") ---
 
 def _make_full_asset(db) -> dict:
-    return create_asset(db, {
+    """Seit "Betriebsmittel-Kosten fest als Kostenposten" erzeugt eine laufende Rate nur noch
+    über sync_asset_recurring_cost() einen verknüpften RecurringCost, nicht mehr über
+    create_asset() selbst -- siehe tests/test_v289_asset_recurring_cost_link.py."""
+    from app.models import OperationalAsset
+    from app.operational_assets import sync_asset_recurring_cost
+    from decimal import Decimal
+
+    created = create_asset(db, {
         "name": "Kran", "asset_type": "Kran", "manufacturer": "Böcker", "model": "AHK36",
         "identifier": "X-123", "asset_number": "BM-001", "notes": "interne Beschaffungsnotiz",
         "usage_notes": "Vor Gebrauch Standfestigkeit prüfen.", "article_number": "ART-1",
         "product_url": "https://shop.example.test/kran",
-        "acquisition_cost": "5000.00", "recurring_cost_per_month": "50.00",
+        "acquisition_cost": "5000.00",
     })
+    sync_asset_recurring_cost(db, db.get(OperationalAsset, created["id"]), Decimal("50.00"))
+    return created
 
 
 def test_asset_field_dict_contains_only_the_five_allowed_keys():
@@ -101,8 +110,8 @@ def test_asset_field_dict_contains_only_the_five_allowed_keys():
 
 _FORBIDDEN_KEYS = {
     "cost", "cost_notes", "acquisition_date", "acquisition_cost", "recurring_cost_per_month",
-    "article_number", "product_url", "resource_id", "resource_number", "identifier",
-    "asset_number", "notes", "inspections", "is_due", "is_overdue", "next_due_date",
+    "recurring_cost_id", "article_number", "product_url", "resource_id", "resource_number",
+    "identifier", "asset_number", "notes", "inspections", "is_due", "is_overdue", "next_due_date",
 }
 
 
@@ -120,8 +129,10 @@ def test_field_role_gets_reduced_schema_via_router_never_full_asset_data(threade
         "identifier": "X-123", "asset_number": "BM-001", "notes": "interne Beschaffungsnotiz",
         "usage_notes": "Vor Gebrauch Standfestigkeit prüfen.", "article_number": "ART-1",
         "product_url": "https://shop.example.test/kran",
-        "acquisition_cost": "5000.00", "recurring_cost_per_month": "50.00",
+        "acquisition_cost": "5000.00",
     }).json()
+    finanzen = router_test_client(db, assets_router, role="buero_finanzen")
+    finanzen.put(f"/api/operational-assets/{created['id']}/recurring-cost", json={"net_amount": "50.00"})
 
     field = router_test_client(db, assets_router, role="field")
     r = field.get(f"/api/operational-assets/{created['id']}")

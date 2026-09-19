@@ -17,7 +17,18 @@ Seit Stufe 3 (1.4.5, siehe CLAUDE.md "Betriebsmittelverwaltung" -> Stufe 3) eine
 Ausnahme: GET /api/operational-assets/selectable-for-report ist ebenfalls für JEDE Rolle
 erreichbar (die Betriebsmittel-Auswahl am Einsatzbericht) -- liefert aber strukturell immer nur
 OperationalAssetFieldOut (fünf feldsichere Felder), gefiltert auf selectable_in_reports UND
-active, nie mehr, unabhängig von der Rolle."""
+active, nie mehr, unabhängig von der Rolle.
+
+Seit "Betriebsmittel-Kosten fest als Kostenposten" eine dritte Ausnahme, in die andere
+Richtung verengt statt geöffnet: PUT .../{asset_id}/recurring-cost ist NICHT über den
+allgemeinen _role_dep (ROLE_OFFICE_AUFTRAG) erreichbar, sondern über einen eigenen
+require_min_role(ROLE_OFFICE_FINANZEN)-Dependency -- die laufende Rate am Betriebsmittel
+erzeugt/ändert/entfernt einen echten RecurringCost, und Betriebskosten sind seit Etappe 2 des
+Rechtekonzepts ausschließlich Finanzen/Admin vorbehalten. buero_auftrag bleibt am allgemeinen
+PUT auf das Betriebsmittel selbst unverändert zugelassen (Name, Notizen, Prüffristen usw.),
+kann darüber aber die laufende Rate nicht mehr setzen/ändern -- das Feld ist dafür clientseitig
+in operational_asset.html deaktiviert, serverseitig ausschließlich über den neuen, engeren
+Endpunkt erreichbar."""
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
@@ -30,19 +41,21 @@ from ..operational_asset_documents import (
     ALLOWED_CONTENT_TYPES, MAX_UPLOAD_BYTES, document_path, replace_document, save_document,
 )
 from ..operational_assets import (
-    MODULE_KEY, asset_qr_target_url, check_due_asset_inspections_and_create_reminders, create_asset,
-    create_asset_document, create_inspection, delete_asset, delete_asset_document, delete_inspection, get_asset,
-    get_asset_field, get_or_create_operational_asset_settings, list_assets, list_due_assets,
-    list_selectable_assets, operational_asset_settings_to_dict, remove_inspection_document, set_inspection_document,
-    update_asset, update_inspection, update_operational_asset_settings,
+    MODULE_KEY, LinkedRecurringCostHasDataError, asset_qr_target_url,
+    check_due_asset_inspections_and_create_reminders, create_asset, create_asset_document, create_inspection,
+    delete_asset, delete_asset_document, delete_inspection, get_asset, get_asset_field,
+    get_or_create_operational_asset_settings, list_assets, list_due_assets, list_selectable_assets,
+    operational_asset_settings_to_dict, remove_inspection_document, set_inspection_document,
+    sync_asset_recurring_cost, update_asset, update_inspection, update_operational_asset_settings,
 )
 from ..models import OperationalAsset, OperationalAssetDocument, OperationalAssetInspection
-from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role, require_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, require_min_role, require_role
 from ..qr_codes import qr_code_png_bytes
 from ..schemas import (
     OperationalAssetCreate, OperationalAssetDocumentOut, OperationalAssetFieldOut, OperationalAssetInspectionCreate,
     OperationalAssetInspectionOut, OperationalAssetInspectionUpdate, OperationalAssetListOut, OperationalAssetOut,
-    OperationalAssetSettingsOut, OperationalAssetSettingsUpdate, OperationalAssetUpdate,
+    OperationalAssetRecurringCostUpdate, OperationalAssetSettingsOut, OperationalAssetSettingsUpdate,
+    OperationalAssetUpdate,
 )
 from ..settings import get_or_create_general_settings
 
@@ -53,6 +66,9 @@ router = APIRouter()
 # Monteur-Vorlage aufgerufen.
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 _any_role_dep = Depends(require_min_role(ROLE_FIELD))
+# Die laufende Rate erzeugt einen echten RecurringCost -- seit Etappe 2 des Rechtekonzepts
+# enger als der Rest dieser Datei, siehe Moduldocstring.
+_finanzen_dep = Depends(require_min_role(ROLE_OFFICE_FINANZEN))
 
 
 def _resolve_public_base_url(request: Request, db: Session) -> str:
@@ -157,6 +173,34 @@ def put_operational_asset(asset_id: int, payload: OperationalAssetUpdate, db: Se
     if result is None:
         raise HTTPException(status_code=404, detail="Betriebsmittel nicht gefunden.")
     return result
+
+
+@router.put("/api/operational-assets/{asset_id}/recurring-cost", response_model=OperationalAssetOut)
+def put_operational_asset_recurring_cost(
+    asset_id: int, payload: OperationalAssetRecurringCostUpdate,
+    db: Session = Depends(get_db), _role: AppUser = _finanzen_dep,
+):
+    """Eigener, engerer Endpunkt für die laufende Rate (siehe Moduldocstring) -- buero_auftrag
+    bleibt am allgemeinen PUT auf das Betriebsmittel unverändert zugelassen, erreicht diesen
+    hier aber nicht (403, bevor irgendeine Geschäftslogik läuft)."""
+    _require_module_enabled(db)
+    asset = db.get(OperationalAsset, asset_id)
+    if asset is None:
+        raise HTTPException(status_code=404, detail="Betriebsmittel nicht gefunden.")
+    try:
+        sync_asset_recurring_cost(db, asset, payload.net_amount, force=payload.force_remove)
+    except LinkedRecurringCostHasDataError as exc:
+        vendor_part = f" und den Vertragspartner \"{exc.vendor}\"" if exc.vendor else ""
+        raise HTTPException(status_code=409, detail={
+            "message": (
+                f"Der verknüpfte Kostenposten trägt {exc.document_count} Dokument(e){vendor_part} "
+                "-- diese gingen beim Entfernen verloren. Zum Bestätigen erneut mit "
+                "force_remove=true senden."
+            ),
+            "document_count": exc.document_count,
+            "vendor": exc.vendor,
+        }) from exc
+    return get_asset(db, asset_id)
 
 
 @router.delete("/api/operational-assets/{asset_id}")

@@ -36,9 +36,20 @@ manuell.
 Erinnerungs-Aufgabe (check_due_asset_inspections_and_create_reminders()): On-Demand wie
 check_due_contracts_and_create_reminders() (app/maintenance_contracts.py) -- läuft nur beim
 Aufruf der Stammdaten-Betriebsmittelliste, kein Hintergrundjob. last_reminder_due_date ist
-derselbe Idempotenz-Stempel wie bei MaintenanceContract."""
+derselbe Idempotenz-Stempel wie bei MaintenanceContract.
+
+Laufende Kosten als fester Kostenposten (seit "Betriebsmittel-Kosten fest als Kostenposten",
+löst die 1.5.0-Doppelzählungs-Sonderbehandlung ab): sync_asset_recurring_cost() ist die einzige
+Stelle, die den EINEN "quick entry"-RecurringCost eines Betriebsmittels
+(RecurringCost.is_asset_quick_entry=True, siehe dort) erzeugt/ändert/entfernt -- getrennt vom
+allgemeinen PUT /api/operational-assets/{id} und require_min_role(ROLE_OFFICE_FINANZEN)-gated
+(app/routers/operational_assets.py), da ein echter RecurringCost seit Etappe 2 des
+Rechtekonzepts ausschließlich Finanzen/Admin vorbehalten ist -- buero_auftrag darf diesen
+Bereich an keiner Stelle indirekt über das (für buero_auftrag offene) Betriebsmittel-Formular
+erreichen."""
 
 from datetime import date, timedelta
+from decimal import Decimal
 
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session, selectinload
@@ -50,9 +61,24 @@ from .models import (
     OperationalResource, RecurringCost, ServiceReportAsset,
 )
 from .operational_asset_documents import delete_document_file
+from .recurring_costs import normalize_to_annual
 from .tasks import create_task
 
 MODULE_KEY = "betriebsmittel"
+
+
+class LinkedRecurringCostHasDataError(Exception):
+    """Der quick-entry-Kostenposten trägt Dokumente/einen Vertragspartner/weitere über die
+    allgemeine Betriebskosten-Oberfläche nachgetragene Angaben -- ein Nullsetzen der
+    Betriebsmittel-Rate würde das beim Entfernen ersatzlos mit sich reißen.
+    sync_asset_recurring_cost() lehnt die Entfernung deshalb ab, solange nicht force=True
+    ausdrücklich bestätigt wurde (siehe app/routers/operational_assets.py, das daraus ein 409
+    mit den Details macht, die die Oberfläche in einer confirm()-Nachfrage zeigt)."""
+
+    def __init__(self, cost: RecurringCost):
+        self.document_count = len(cost.documents)
+        self.vendor = cost.vendor
+        super().__init__("linked recurring cost carries data beyond the asset's own quick entry")
 
 
 @event.listens_for(OperationalAssetDocument, "before_delete")
@@ -174,20 +200,25 @@ def asset_to_dict(asset: OperationalAsset, lead_days: int, *, today: date | None
     kennt dieses Feld an keiner Stelle, ein Monteur bekommt es dadurch strukturell nie, auch
     nicht über den QR-Code (siehe Klassendocstring von OperationalAssetDocument).
 
-    has_linked_recurring_cost (seit 1.5.0, Betriebskosten-Übersicht): true, wenn mindestens ein
-    aktiver RecurringCost (app/recurring_costs.py) auf dieses Betriebsmittel zeigt -- der
-    Transparenz-Hinweis auf DIESER Seite der Doppelzählungsfrage (das Gegenstück ist
-    asset_quick_cost_hint auf RecurringCostOut). Nur berechnet, wenn eine db-Session übergeben
-    wird (Muster: optionaler Parameter statt einer Pflichtabhängigkeit, da asset_to_dict() auch
-    ohne DB-Zugriff aufgerufen werden könnte) -- ohne db bleibt es konservativ False."""
+    recurring_cost_per_month/recurring_cost_id (seit "Betriebsmittel-Kosten fest als
+    Kostenposten"): recurring_cost_per_month ist keine eigene Spalte mehr, sondern LIVE aus dem
+    verknüpften quick-entry-RecurringCost gelesen (siehe sync_asset_recurring_cost()) --
+    recurring_cost_id liefert dessen id mit, damit Finanzen/Admin direkt in die
+    Betriebskosten-Übersicht springen können. Nur berechnet, wenn eine db-Session übergeben wird
+    (Muster: optionaler Parameter statt einer Pflichtabhängigkeit, da asset_to_dict() auch ohne
+    DB-Zugriff aufgerufen werden könnte) -- ohne db bleiben beide Felder konservativ None."""
     name, asset_type, manufacturer, model, identifier, resource_number = resolve_asset_identity(asset)
-    has_linked_recurring_cost = False
+    recurring_cost_id = None
+    recurring_cost_per_month = None
     if db is not None:
-        has_linked_recurring_cost = db.scalar(
-            select(RecurringCost.id)
-            .where(RecurringCost.asset_id == asset.id, RecurringCost.active == True)  # noqa: E712
-            .limit(1)
-        ) is not None
+        quick_entry = db.scalar(
+            select(RecurringCost).where(
+                RecurringCost.asset_id == asset.id, RecurringCost.is_asset_quick_entry == True  # noqa: E712
+            )
+        )
+        if quick_entry is not None:
+            recurring_cost_id = quick_entry.id
+            recurring_cost_per_month = quick_entry.net_amount
 
     inspections = [_inspection_to_dict(i, lead_days, today=today) for i in asset.inspections]
     due_dates = [i["next_due_date"] for i in inspections if i["next_due_date"] is not None]
@@ -211,11 +242,11 @@ def asset_to_dict(asset: OperationalAsset, lead_days: int, *, today: date | None
         "usage_notes": asset.usage_notes,
         "acquisition_date": asset.acquisition_date,
         "acquisition_cost": asset.acquisition_cost,
-        "recurring_cost_per_month": asset.recurring_cost_per_month,
+        "recurring_cost_per_month": recurring_cost_per_month,
+        "recurring_cost_id": recurring_cost_id,
         "cost_notes": asset.cost_notes,
         "active": asset.active,
         "selectable_in_reports": asset.selectable_in_reports,
-        "has_linked_recurring_cost": has_linked_recurring_cost,
         "is_due": is_due,
         "is_overdue": is_overdue,
         "next_due_date": next_due_date,
@@ -309,7 +340,6 @@ def create_asset(db: Session, payload: dict) -> dict:
         usage_notes=payload.get("usage_notes"),
         acquisition_date=payload.get("acquisition_date"),
         acquisition_cost=payload.get("acquisition_cost"),
-        recurring_cost_per_month=payload.get("recurring_cost_per_month"),
         cost_notes=payload.get("cost_notes"),
         active=payload.get("active", True),
         selectable_in_reports=payload.get("selectable_in_reports", False),
@@ -341,7 +371,6 @@ def update_asset(db: Session, asset_id: int, payload: dict) -> dict | None:
     asset.usage_notes = payload.get("usage_notes")
     asset.acquisition_date = payload.get("acquisition_date")
     asset.acquisition_cost = payload.get("acquisition_cost")
-    asset.recurring_cost_per_month = payload.get("recurring_cost_per_month")
     asset.cost_notes = payload.get("cost_notes")
     asset.active = payload.get("active", True)
     asset.selectable_in_reports = payload.get("selectable_in_reports", False)
@@ -363,7 +392,20 @@ def delete_asset(db: Session, asset_id: int) -> bool:
     NULL, ein Löschen würde die Fremdschlüsselbeziehung sonst in JEDEM Fall verletzen, nicht nur
     bei einem Nachweisdokument). Archivieren (active=False) bleibt dafür uneingeschränkt
     möglich -- der übliche Weg, ein nicht mehr genutztes Betriebsmittel auszublenden, ohne seine
-    Verwendung in Berichten zu gefährden."""
+    Verwendung in Berichten zu gefährden.
+
+    Verknüpfte RecurringCost-Zeilen (seit "Betriebsmittel-Kosten fest als Kostenposten"), fest
+    gebunden vs. eigenständig: der EINE quick-entry-Posten (is_asset_quick_entry=True) geht mit
+    -- db.delete() statt eines bloßen Nullens, damit das bestehende before_delete-Event
+    (app/recurring_costs.py) über den ORM-Löschweg feuert und die RecurringCostDocument-Zeilen
+    samt Dateien mit aufräumt (RecurringCost.documents trägt bereits cascade="all,
+    delete-orphan"). JEDER ANDERE, über die allgemeine Betriebskosten-Oberfläche unabhängig
+    verlinkte Posten (z. B. eine separat gebuchte Versicherung) bleibt dagegen bestehen -- nur
+    sein asset_id wird auf NULL gesetzt, kein stilles Mitlöschen einer bewusst eigenständig
+    angelegten Kostenzeile, UND die einzige Möglichkeit, eine sonst unvermeidliche
+    Fremdschlüsselverletzung beim anschließenden Löschen des Assets zu vermeiden (asset_id ist
+    nullable, aber ohne dieses Entkoppeln würde die Zeile weiterhin auf die gleich gelöschte
+    asset_id zeigen)."""
     asset = db.get(OperationalAsset, asset_id)
     if asset is None:
         return False
@@ -374,9 +416,86 @@ def delete_asset(db: Session, asset_id: int) -> bool:
         )
     for inspection in list(asset.inspections):
         delete_document_file(inspection.document_filename)
+    for cost in db.scalars(select(RecurringCost).where(RecurringCost.asset_id == asset_id)).all():
+        if cost.is_asset_quick_entry:
+            db.delete(cost)
+        else:
+            cost.asset_id = None
     db.delete(asset)
     db.commit()
     return True
+
+
+def _quick_entry_cost(db: Session, asset_id: int) -> RecurringCost | None:
+    return db.scalar(
+        select(RecurringCost).where(
+            RecurringCost.asset_id == asset_id, RecurringCost.is_asset_quick_entry == True  # noqa: E712
+        )
+    )
+
+
+def _quick_entry_carries_extra_data(cost: RecurringCost) -> bool:
+    """Alles, was die Betriebsmittel-Rate selbst NIE setzt -- sync_asset_recurring_cost()
+    schreibt ausschließlich label/net_amount/annual_amount (billing_interval/tax_rate_pct/
+    overhead_classification bleiben je Vorgabe fix). Ist eines dieser Felder trotzdem befüllt,
+    kam das nur über die allgemeine Betriebskosten-Oberfläche nachgetragen -- genau der Fall, den
+    ein Nullsetzen der Rate nicht stillschweigend mit sich reißen darf."""
+    return bool(cost.documents) or bool(cost.vendor) or bool(cost.notes) or bool(cost.category) \
+        or cost.contract_end_date is not None or cost.notice_period_months is not None
+
+
+def sync_asset_recurring_cost(
+    db: Session, asset: OperationalAsset, net_amount: Decimal | None, *, force: bool = False,
+) -> None:
+    """Hält den EINEN quick-entry-Kostenposten (RecurringCost.is_asset_quick_entry=True)
+    synchron zur laufenden Rate am Betriebsmittel-Formular -- die einzige Stelle, die diesen
+    Posten anlegt/ändert/entfernt (siehe app/routers/operational_assets.py, dort
+    require_min_role(ROLE_OFFICE_FINANZEN)-gated, GETRENNT vom allgemeinen, für buero_auftrag
+    offenen PUT auf das Betriebsmittel selbst).
+
+    net_amount None/0 -> der Posten entfällt (Nutzerentscheidung: "ein Posten, der nichts
+    zählt, ist ein Widerspruch -- läuft der Leasingvertrag aus, soll kein Posten mehr da sein").
+    Trägt der zu entfernende Posten Dokumente/einen Vertragspartner/weitere über die allgemeine
+    Betriebskosten-Oberfläche nachgetragene Angaben (_quick_entry_carries_extra_data()), wird
+    NICHT stillschweigend gelöscht -- LinkedRecurringCostHasDataError, solange nicht force=True
+    ausdrücklich bestätigt wurde.
+
+    net_amount > 0 legt, falls noch keiner existiert, einen neuen Posten mit den in der
+    Nachbesserung festgelegten Vorgaben an: 19 % Steuersatz, Einordnung "keine Gemeinkosten"
+    (restriktiv -- fließt nicht ungefragt in den Verrechnungssatz-Kreislauf, der Betreiber
+    ordnet später bewusst zu, was in die Gemeinkosten gehört) und billing_interval "monatlich"
+    (dieselbe Normierung wie die abgelöste recurring_cost_per_month-Spalte). Trägt eine spätere
+    Änderung eine neue Rate ein, wird NUR der bestehende Posten aktualisiert -- Steuersatz/
+    Einordnung/Vertragspartner/Dokumente, die zwischenzeitlich über /betriebskosten ergänzt
+    wurden, bleiben davon unberührt."""
+    existing = _quick_entry_cost(db, asset.id)
+    if net_amount is None or net_amount == 0:
+        if existing is not None:
+            if not force and _quick_entry_carries_extra_data(existing):
+                raise LinkedRecurringCostHasDataError(existing)
+            db.delete(existing)
+            db.commit()
+        return
+
+    if existing is None:
+        name, *_rest = resolve_asset_identity(asset)
+        label = f"Laufende Kosten -- {name or asset.asset_number or f'Betriebsmittel #{asset.id}'}"
+        cost = RecurringCost(
+            label=label,
+            net_amount=net_amount,
+            tax_rate_pct=Decimal("19.00"),
+            billing_interval="monatlich",
+            annual_amount=normalize_to_annual(net_amount, "monatlich"),
+            overhead_classification="keine",
+            asset_id=asset.id,
+            is_asset_quick_entry=True,
+            active=True,
+        )
+        db.add(cost)
+    else:
+        existing.net_amount = net_amount
+        existing.annual_amount = normalize_to_annual(net_amount, "monatlich")
+    db.commit()
 
 
 def _compute_next_due_date(

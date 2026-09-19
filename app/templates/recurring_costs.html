@@ -59,7 +59,6 @@ tr:last-child td{border-bottom:none}
     <div class="metric"><div class="label">Monatlich</div><div class="value" id="mMonthly">–</div></div>
     <div class="metric"><div class="label">Jährlich</div><div class="value" id="mAnnual">–</div></div>
     <div class="metric"><div class="label">Kostenposten</div><div class="value" id="mCount">–</div></div>
-    <div class="metric"><div class="label">Betriebsmittel-Notizen ohne Posten</div><div class="value" id="mAssetCount">–</div></div>
   </div>
   <div class="muted small" style="margin:10px 0 4px">Nach kalkulatorischer Einordnung -- jeweils Jahresbetrag. Fließt über Einstellungen → Kalkulationsgrundlagen (Betriebskosten-Vorschlag) in die Gemeinkosten-Felder ein:</div>
   <div class="metric-row">
@@ -97,7 +96,7 @@ tr:last-child td{border-bottom:none}
     </select></div>
     <div class="field"><label>Vertragsende <span class="muted small">(optional)</span></label><input id="editContractEnd" type="date"></div>
     <div class="field"><label>Kündigungsfrist (Monate) <span class="muted small">(optional)</span></label><input id="editNoticePeriod" type="number" min="1" max="24"></div>
-    <div class="field"><label>Betriebsmittel <span class="muted small">(optional -- ersetzt dessen monatliche Kosten-Notiz in der Summe)</span></label><select id="editAsset"></select></div>
+    <div class="field"><label>Betriebsmittel <span class="muted small">(optional -- ein Betriebsmittel kann mehrere Kostenposten tragen)</span></label><select id="editAsset"></select></div>
     <div class="field" id="editActiveWrap"><label>Status</label><select id="editActive"><option value="1">Aktiv</option><option value="0">Inaktiv</option></select></div>
     <div class="field full"><label>Notizen</label><textarea id="editNotes"></textarea></div>
   </div>
@@ -338,7 +337,7 @@ function row(c){
   else if(c.is_cancellation_due)badges.push('<span class="badge due">Frist läuft ab</span>');
   const cancellation=c.cancellation_deadline?fmtDate(c.cancellation_deadline):'—';
   const assetCell=c.asset_id
-    ? `${esc(assetName(c.asset_id))} ${c.asset_quick_cost_hint?`<span class="hint-icon" title="${esc(c.asset_quick_cost_hint)}">ⓘ</span>`:''}`
+    ? `${esc(assetName(c.asset_id))} ${c.is_asset_quick_entry?`<span class="hint-icon" title="Automatisch aus der laufenden Rate am Betriebsmittel erzeugt -- Steuersatz/Einordnung/Vertragspartner bleiben hier änderbar.">ⓘ</span>`:''}`
     : '—';
   return `<tr${!c.active?' class="row-archived"':''}${c.is_cancellation_overdue?' class="row-overdue"':''}>
     <td>${esc(c.label)}${c.vendor?`<div class="muted small">${esc(c.vendor)}</div>`:''}</td>
@@ -379,7 +378,6 @@ async function renderOverview(){
     document.getElementById('mMonthly').textContent=fmtMoney(summary.monthly_total);
     document.getElementById('mAnnual').textContent=fmtMoney(summary.annual_total);
     document.getElementById('mCount').textContent=summary.cost_count;
-    document.getElementById('mAssetCount').textContent=summary.asset_quick_cost_count;
     document.getElementById('mFixed').textContent=fmtMoney(summary.annual_fixed_from_costs);
     document.getElementById('mUsageDependent').textContent=fmtMoney(summary.annual_usage_dependent_from_costs);
     document.getElementById('mNone').textContent=fmtMoney(summary.annual_none_from_costs);

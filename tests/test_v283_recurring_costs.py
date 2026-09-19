@@ -2,13 +2,17 @@
 "Betriebskosten-Übersicht" für die volle Herleitung). Deckt ab: normalize_to_annual() für alle
 Rhythmen inkl. "einmalig" (Punkt 4 der Anfrage -- das Modell nimmt einmalige Kosten bereits auf,
 ohne Umbau), die Kündigungsfrist-Ableitung, den vollständigen CRUD-Zyklus samt Dokumentenablage,
-die Doppelzählungs-Exklusion in overview_summary() samt Transparenz-Hinweisen
-(has_linked_recurring_cost/asset_quick_cost_hint), die allgemeine Task.min_visible_role-
-Erweiterung (Sichtbarkeit UND das claim()-Rollen-Gate), die On-Demand-Erinnerung mit
-min_visible_role=ROLE_OFFICE_FINANZEN (nicht unassigned -- eine Kündigungsfrist geht nur
-Finanzen/Admin etwas an), und den abschließend verlangten Angriffstest: buero_auftrag und field
-kommen über KEINEN Weg an die Betriebskosten -- Liste, Endpunkte, Summen, Dokumente, die
-finanz-adressierten Aufgaben. Rekursiver Schlüssel-Scan, je ein Testkonto pro Rolle."""
+die allgemeine Task.min_visible_role-Erweiterung (Sichtbarkeit UND das claim()-Rollen-Gate), die
+On-Demand-Erinnerung mit min_visible_role=ROLE_OFFICE_FINANZEN (nicht unassigned -- eine
+Kündigungsfrist geht nur Finanzen/Admin etwas an), und den abschließend verlangten Angriffstest:
+buero_auftrag und field kommen über KEINEN Weg an die Betriebskosten -- Liste, Endpunkte,
+Summen, Dokumente, die finanz-adressierten Aufgaben. Rekursiver Schlüssel-Scan, je ein
+Testkonto pro Rolle.
+
+Die ursprüngliche Doppelzählungs-Exklusion (OperationalAsset.recurring_cost_per_month als
+zweite, parallele Kostenquelle) ist mit der Nachbesserung "Betriebsmittel-Kosten fest als
+Kostenposten" ersatzlos entfallen -- siehe tests/test_v289_asset_recurring_cost_link.py für die
+seither einzige Quelle (RecurringCost.is_asset_quick_entry)."""
 
 import json
 from datetime import date, timedelta
@@ -148,47 +152,31 @@ def test_create_cost_rejects_unknown_asset_id():
         create_cost(db, _base_payload(asset_id=99999))
 
 
-# --- Doppelzählungs-Exklusion (das Kernstück der ersten Nutzerentscheidung) ---
+# --- Eine Quelle statt Doppelzählungs-Exklusion (seit "Betriebsmittel-Kosten fest als
+# Kostenposten") -- volle Coverage von sync_asset_recurring_cost() selbst lebt in
+# tests/test_v289_asset_recurring_cost_link.py, hier nur die overview_summary()-Regression:
+# ein über ein Betriebsmittel verknüpfter Posten zählt genau einmal, kein zweiter Bucket mehr.
 
-def test_overview_summary_excludes_asset_quick_cost_when_a_recurring_cost_is_linked():
+def test_overview_summary_counts_an_asset_linked_cost_exactly_once():
     db = db_session()
-    asset = create_asset(db, {"name": "Transporter", "recurring_cost_per_month": "300.00"})
+    asset = create_asset(db, {"name": "Transporter"})
+    asset_row = db.get(OperationalAsset, asset["id"])
+    from app.operational_assets import sync_asset_recurring_cost
+    sync_asset_recurring_cost(db, asset_row, Decimal("300.00"))
 
-    # Ohne verknüpften Kostenposten fließt die monatliche Notiz der Ressource ein.
     summary = overview_summary(db)
     assert summary["annual_total"] == Decimal("3600.00")
-    assert summary["asset_quick_cost_count"] == 1
-    assert summary["cost_count"] == 0
+    assert summary["cost_count"] == 1
 
-    # Ein verknüpfter Kostenposten ERSETZT die Notiz, statt sie zu ergänzen -- keine Doppelzählung.
-    cost = create_cost(db, _base_payload(
-        label="Leasingrate Transporter", category="Leasing", net_amount="450.00",
+    # Ein zusätzlicher, eigenständig verknüpfter Posten (z. B. Versicherung) für dasselbe
+    # Betriebsmittel zählt normal dazu -- kein Ausschluss, keine Sonderbehandlung mehr.
+    create_cost(db, _base_payload(
+        label="Versicherung Transporter", category="Versicherung", net_amount="450.00",
         billing_interval="monatlich", asset_id=asset["id"],
     ))
     summary = overview_summary(db)
-    assert summary["annual_total"] == Decimal("5400.00")  # NUR die Leasingrate, nicht 3600+5400
-    assert summary["asset_quick_cost_count"] == 0
-    assert summary["cost_count"] == 1
-
-    # Transparenz-Hinweise auf beiden Seiten der Frage.
-    fetched_cost = get_cost(db, cost["id"])
-    assert fetched_cost["asset_quick_cost_hint"] is not None
-    assert "Transporter" in fetched_cost["asset_quick_cost_hint"]
-
-    from app.operational_assets import get_asset
-    fetched_asset = get_asset(db, asset["id"])
-    assert fetched_asset["has_linked_recurring_cost"] is True
-
-    # Deaktiviert man den Kostenposten, greift die Ersetzung nicht mehr -- die Notiz zählt wieder.
-    update_cost(db, cost["id"], _base_payload(
-        label="Leasingrate Transporter", net_amount="450.00", billing_interval="monatlich",
-        asset_id=asset["id"], active=False,
-    ))
-    summary = overview_summary(db)
-    assert summary["annual_total"] == Decimal("3600.00")
-    assert summary["asset_quick_cost_count"] == 1
-    fetched_asset = get_asset(db, asset["id"])
-    assert fetched_asset["has_linked_recurring_cost"] is False
+    assert summary["annual_total"] == Decimal("3600.00") + Decimal("5400.00")
+    assert summary["cost_count"] == 2
 
 
 def test_overview_summary_sums_multiple_active_costs():

@@ -3408,14 +3408,15 @@ class OperationalAssetOut(BaseModel):
     usage_notes: str | None = None
     acquisition_date: date | None = None
     acquisition_cost: Decimal | None = None
+    # Seit "Betriebsmittel-Kosten fest als Kostenposten" keine eigene Spalte mehr -- LIVE aus
+    # dem verknüpften quick-entry-RecurringCost gelesen (app/operational_assets.py::
+    # asset_to_dict()). recurring_cost_id verweist auf diesen Posten (nur wenn vorhanden),
+    # damit Finanzen/Admin direkt in die Betriebskosten-Übersicht springen können.
     recurring_cost_per_month: Decimal | None = None
+    recurring_cost_id: int | None = None
     cost_notes: str | None = None
     active: bool
     selectable_in_reports: bool
-    # Transparenz-Hinweis (seit 1.5.0, Betriebskosten-Übersicht) -- true, wenn ein aktiver
-    # RecurringCost auf dieses Betriebsmittel zeigt; dessen annual_amount ersetzt dann
-    # recurring_cost_per_month in der Betriebskosten-Summe, siehe app/recurring_costs.py.
-    has_linked_recurring_cost: bool = False
     is_due: bool
     is_overdue: bool
     next_due_date: date | None = None
@@ -3470,7 +3471,6 @@ class OperationalAssetCreate(BaseModel):
     usage_notes: str | None = None
     acquisition_date: date | None = None
     acquisition_cost: Decimal | None = None
-    recurring_cost_per_month: Decimal | None = None
     cost_notes: str | None = None
     active: bool = True
     selectable_in_reports: bool = False
@@ -3494,6 +3494,20 @@ class OperationalAssetCreate(BaseModel):
 
 class OperationalAssetUpdate(OperationalAssetCreate):
     pass
+
+
+class OperationalAssetRecurringCostUpdate(BaseModel):
+    """Payload für PUT /api/operational-assets/{asset_id}/recurring-cost (seit "Betriebsmittel-
+    Kosten fest als Kostenposten") -- ein eigener, require_min_role(ROLE_OFFICE_FINANZEN)-gateter
+    Endpunkt, GETRENNT vom allgemeinen OperationalAssetUpdate: ein Betriebsmittel bleibt für
+    buero_auftrag editierbar, die laufende Rate erzeugt aber einen echten RecurringCost, und
+    Betriebskosten sind seit Etappe 2 des Rechtekonzepts ausschließlich Finanzen/Admin
+    vorbehalten. net_amount None oder 0 entfernt den verknüpften Posten (siehe
+    app/operational_assets.py::sync_asset_recurring_cost()); force_remove bestätigt das
+    Entfernen ausdrücklich, wenn der Posten bereits Dokumente/einen Vertragspartner trägt (409
+    ohne diese Bestätigung)."""
+    net_amount: Decimal | None = Field(default=None, ge=0)
+    force_remove: bool = False
 
 
 class OperationalAssetSettingsOut(BaseModel):
@@ -3535,9 +3549,10 @@ class RecurringCostOut(BaseModel):
     is_cancellation_due: bool
     is_cancellation_overdue: bool
     asset_id: int | None = None
-    # Transparenz-Hinweis (Muster material_markup_hint) -- nicht persistiert, siehe
-    # app/recurring_costs.py::cost_to_dict().
-    asset_quick_cost_hint: str | None = None
+    # Seit "Betriebsmittel-Kosten fest als Kostenposten": true, wenn dieser Posten vom
+    # "Laufende Kosten je Monat"-Feld des Betriebsmittel-Formulars selbst verwaltet wird (siehe
+    # app/operational_assets.py::sync_asset_recurring_cost()) -- löst asset_quick_cost_hint ab.
+    is_asset_quick_entry: bool = False
     active: bool
     notes: str | None = None
     documents: list[RecurringCostDocumentOut] = Field(default_factory=list)
@@ -3592,7 +3607,6 @@ class RecurringCostOverviewOut(BaseModel):
     annual_usage_dependent_from_costs: Decimal = Decimal("0")
     annual_none_from_costs: Decimal = Decimal("0")
     cost_count: int
-    asset_quick_cost_count: int
     cancellations_due: list[RecurringCostOut] = Field(default_factory=list)
     cancellations_overdue: list[RecurringCostOut] = Field(default_factory=list)
 

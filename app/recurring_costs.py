@@ -1,13 +1,15 @@
 """Betriebskosten-Übersicht, Schicht 1 -- die Kostenerfassung (seit 1.5.0, Modul
 "betriebskosten").
 
-Zwei Kostenquellen bestehen bewusst NEBENEINANDER, keine Migration der einen in die andere
-(Nutzerentscheidung, siehe CLAUDE.md "Betriebskosten-Übersicht"): RecurringCost ist der
-detaillierte Vertrag (Partner, Kündigungsfrist, Dokument), OperationalAsset.
-recurring_cost_per_month (seit 1.4.0) bleibt die schnelle Notiz beim Anlegen eines
-Betriebsmittels. overview_summary() unten führt beide in der Summe zusammen und verhindert
-dabei die Doppelzählung: zeigt ein RecurringCost auf ein Betriebsmittel, ERSETZT er dessen
-monthly_cost in der Summe, statt sie zu ergänzen.
+RecurringCost ist seit "Betriebsmittel-Kosten fest als Kostenposten" die EINZIGE Quelle für
+Betriebsmittel-Kosten -- die ursprüngliche, bis dahin parallel bestehende Schnellnotiz
+OperationalAsset.recurring_cost_per_month (seit 1.4.0) ist ersatzlos entfallen (0
+Bestandszeilen trugen real einen Wert, die Migration brauchte deshalb keinen Datenbackfill).
+Trägt ein Betriebsmittel laufende Kosten, entsteht dafür automatisch ein vollwertiger
+RecurringCost mit RecurringCost.is_asset_quick_entry=True (app/operational_assets.py::
+sync_asset_recurring_cost()) -- overview_summary() unten braucht deshalb KEINE
+Doppelzählungs-Sonderbehandlung mehr, jeder aktive RecurringCost (quick-entry oder über die
+allgemeine Oberfläche eigenständig angelegt) fließt genau einmal in annual_total ein.
 
 annual_amount ist ein GESPEICHERTES Feld (RecurringCost.annual_amount, app/models.py) --
 normalize_to_annual() berechnet es bei jedem Anlegen/Ändern, nie bei der Summierung selbst neu.
@@ -167,21 +169,12 @@ def _document_to_dict(document: RecurringCostDocument) -> dict:
 
 
 def cost_to_dict(cost: RecurringCost, lead_days: int, *, today: date | None = None) -> dict:
-    """asset_quick_cost_hint (nur wenn asset_id gesetzt) ist der Transparenz-Hinweis, den der
-    Nutzer für die Doppelzählungsfrage verlangt hat -- Muster material_markup_hint
-    (app/invoices.py, seit 1.2.23): kein persistiertes Feld, nur ein erklärender Satz in der
-    Antwort, damit sichtbar wird, dass die monthly_cost des verknüpften Betriebsmittels wegen
-    dieses Postens NICHT zusätzlich in die Summe einfließt."""
+    """is_asset_quick_entry (seit "Betriebsmittel-Kosten fest als Kostenposten") ist der
+    Transparenz-Hinweis, welcher Posten vom Betriebsmittel-Formular selbst verwaltet wird --
+    siehe RecurringCost-Klassendocstring (app/models.py). Löst den früheren, für die
+    Doppelzählungsfrage konstruierten asset_quick_cost_hint ab (die Sonderbehandlung selbst ist
+    seit dieser Version entfallen, siehe Moduldocstring)."""
     deadline = cancellation_deadline(cost.contract_end_date, cost.notice_period_months)
-    asset_hint = None
-    if cost.asset_id is not None:
-        name = cost.asset.name if cost.asset and cost.asset.resource_id is None else (
-            cost.asset.resource.name if cost.asset and cost.asset.resource else None
-        )
-        asset_hint = (
-            f"Ersetzt die monatliche Kosten-Notiz am verknüpften Betriebsmittel"
-            f"{f' ({name})' if name else ''} in der Betriebskosten-Summe -- keine Doppelzählung."
-        )
     return {
         "id": cost.id,
         "label": cost.label,
@@ -199,7 +192,7 @@ def cost_to_dict(cost: RecurringCost, lead_days: int, *, today: date | None = No
         "is_cancellation_due": is_cancellation_due(deadline, lead_days, today=today),
         "is_cancellation_overdue": is_cancellation_overdue(deadline, today=today),
         "asset_id": cost.asset_id,
-        "asset_quick_cost_hint": asset_hint,
+        "is_asset_quick_entry": cost.is_asset_quick_entry,
         "active": cost.active,
         "notes": cost.notes,
         "documents": [_document_to_dict(d) for d in cost.documents],
@@ -329,18 +322,18 @@ def delete_cost_document(db: Session, document_id: int) -> bool:
 
 
 def overview_summary(db: Session) -> dict:
-    """Führt beide Kostenquellen zusammen (Nutzervorgabe, siehe Moduldocstring) und verhindert
-    dabei die Doppelzählung: ein Betriebsmittel, das über mindestens einen aktiven RecurringCost
-    verknüpft ist, liefert seine eigene recurring_cost_per_month NICHT zusätzlich in die Summe --
-    der Kostenposten ersetzt sie, ergänzt sie nicht. Monats- und Jahressumme, Kündigungsfristen
-    hervorgehoben (fällig/überfällig getrennt ausgewiesen) -- der eigentliche Schritt zum
-    Verrechnungssatz bleibt Schicht 3, hier nur die reine Erfassungs-Übersicht."""
+    """Monats- und Jahressumme über alle aktiven RecurringCost-Zeilen (quick-entry-Posten und
+    eigenständig angelegte gleichermaßen -- seit "Betriebsmittel-Kosten fest als Kostenposten"
+    gibt es nur noch diese eine Quelle, siehe Moduldocstring, keine Doppelzählungs-Sonder-
+    behandlung mehr nötig), Kündigungsfristen hervorgehoben (fällig/überfällig getrennt
+    ausgewiesen) -- der eigentliche Schritt zum Verrechnungssatz bleibt Schicht 3, hier nur die
+    reine Erfassungs-Übersicht."""
     lead_days = get_or_create_recurring_cost_settings(db).reminder_lead_days
     costs = [c for c in db.scalars(_cost_query().where(RecurringCost.active == True)).all()]  # noqa: E712
     cost_dicts = [cost_to_dict(c, lead_days) for c in costs]
 
-    linked_asset_ids = {c.asset_id for c in costs if c.asset_id is not None}
-    annual_from_costs = sum((c.annual_amount for c in costs), Decimal("0"))
+    annual_total = sum((c.annual_amount for c in costs), Decimal("0"))
+    monthly_total = (annual_total / Decimal(12)).quantize(Decimal("0.01"))
 
     # Drei getrennte Summen nach kalkulatorischer Einordnung (Schicht 3, seit 1.5.1) --
     # annual_total bleibt unverändert die Summe ALLER Posten (auch "keine"), für die
@@ -356,20 +349,6 @@ def overview_summary(db: Session) -> dict:
         (c.annual_amount for c in costs if c.overhead_classification == "keine"), Decimal("0")
     )
 
-    assets_with_quick_cost = db.scalars(
-        select(OperationalAsset).where(
-            OperationalAsset.recurring_cost_per_month.is_not(None),
-            OperationalAsset.active == True,  # noqa: E712
-        )
-    ).all()
-    annual_from_asset_quick_costs = sum(
-        (a.recurring_cost_per_month * Decimal(12) for a in assets_with_quick_cost if a.id not in linked_asset_ids),
-        Decimal("0"),
-    )
-
-    annual_total = annual_from_costs + annual_from_asset_quick_costs
-    monthly_total = (annual_total / Decimal(12)).quantize(Decimal("0.01"))
-
     due = [c for c in cost_dicts if c["is_cancellation_due"] and not c["is_cancellation_overdue"]]
     overdue = [c for c in cost_dicts if c["is_cancellation_overdue"]]
 
@@ -380,7 +359,6 @@ def overview_summary(db: Session) -> dict:
         "annual_usage_dependent_from_costs": annual_usage_dependent_from_costs.quantize(Decimal("0.01")),
         "annual_none_from_costs": annual_none_from_costs.quantize(Decimal("0.01")),
         "cost_count": len(costs),
-        "asset_quick_cost_count": sum(1 for a in assets_with_quick_cost if a.id not in linked_asset_ids),
         "cancellations_due": due,
         "cancellations_overdue": overdue,
     }

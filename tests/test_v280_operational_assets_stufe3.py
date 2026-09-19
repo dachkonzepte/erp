@@ -169,7 +169,7 @@ def test_list_selectable_assets_response_never_carries_a_locked_field():
     asset = create_asset(db, {
         "name": "Kran", "selectable_in_reports": True, "article_number": "ART-1",
         "product_url": "https://example.com/kran", "acquisition_cost": "50000.00",
-        "recurring_cost_per_month": "120.00", "cost_notes": "geleast",
+        "cost_notes": "geleast",
     })
     rows = list_selectable_assets(db)
     row = next(r for r in rows if r["id"] == asset["id"])

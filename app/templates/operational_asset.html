@@ -101,8 +101,9 @@ tr:last-child td{border-bottom:none}
     <div class="field full hidden" id="productUrlPreviewWrap"><a id="productUrlPreview" href="#" target="_blank" rel="noopener" style="color:var(--accent)">Produktlink öffnen →</a></div>
     <div class="field"><label>Anschaffungsdatum</label><input id="editAcqDate" type="date"></div>
     <div class="field"><label>Anschaffungskosten (EUR)</label><input id="editAcqCost" type="number" step="0.01" min="0"></div>
-    <div class="field"><label>Laufende Kosten je Monat (EUR) <span class="muted small">(z. B. Leasing/Versicherung, monatsnormalisiert)</span></label><input id="editRecurringCost" type="number" step="0.01" min="0"></div>
-    <div class="field full hidden" id="linkedRecurringCostHintWrap"><div class="status" style="color:var(--warning)">Ein Kostenposten in der <a href="/betriebskosten" style="color:var(--accent)">Betriebskosten-Übersicht</a> ist mit diesem Betriebsmittel verknüpft -- er ersetzt diese Notiz in der Betriebskosten-Summe, zählt also nicht doppelt.</div></div>
+    <div class="field"><label>Laufende Kosten je Monat (Netto, EUR) <span class="muted small">(erzeugt/ändert einen echten Kostenposten in der Betriebskosten-Übersicht -- 19&nbsp;% Steuersatz, ohne Gemeinkosten-Einordnung als Vorgabe, dort anpassbar)</span></label><input id="editRecurringCost" type="number" step="0.01" min="0"></div>
+    <div class="field full hidden" id="recurringCostFinanceOnlyHint"><div class="status">Nur Finanzen/Admin können diesen Wert ändern.</div></div>
+    <div class="field full hidden" id="recurringCostLinkWrap"><a id="recurringCostLink" href="/betriebskosten" style="color:var(--accent)">→ Kostenposten in der Betriebskosten-Übersicht ansehen/bearbeiten</a></div>
     <div class="field full"><label>Kosten-Notizen</label><textarea id="editCostNotes"></textarea></div>
   </div>
   <div class="editor-actions">
@@ -165,7 +166,7 @@ async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.j
 async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
 
 const assetId={{ asset_id }};
-let asset=null,resources=[],assetTypes=[],editingInspectionId=null;
+let asset=null,resources=[],assetTypes=[],editingInspectionId=null,canManageRecurringCost=false;
 
 function resourceOptionsHtml(selected){
   const available=resources.filter(r=>r.active&&(!r.taken||r.id===Number(selected)));
@@ -230,8 +231,11 @@ function fillEditor(){
   document.getElementById('editAcqDate').value=asset.acquisition_date||'';
   document.getElementById('editAcqCost').value=asset.acquisition_cost??'';
   document.getElementById('editRecurringCost').value=asset.recurring_cost_per_month??'';
+  document.getElementById('editRecurringCost').disabled=!canManageRecurringCost;
   document.getElementById('editCostNotes').value=asset.cost_notes||'';
-  document.getElementById('linkedRecurringCostHintWrap').classList.toggle('hidden',!asset.has_linked_recurring_cost);
+  document.getElementById('recurringCostFinanceOnlyHint').classList.toggle('hidden',canManageRecurringCost);
+  const costLinkWrap=document.getElementById('recurringCostLinkWrap');
+  costLinkWrap.classList.toggle('hidden',!(canManageRecurringCost&&asset.recurring_cost_id));
   const productPreview=document.getElementById('productUrlPreviewWrap');
   if(asset.product_url){
     document.getElementById('productUrlPreview').href=asset.product_url;
@@ -277,7 +281,6 @@ async function saveAsset(){
     product_url:document.getElementById('editProductUrl').value.trim()||null,
     acquisition_date:document.getElementById('editAcqDate').value||null,
     acquisition_cost:document.getElementById('editAcqCost').value||null,
-    recurring_cost_per_month:document.getElementById('editRecurringCost').value||null,
     cost_notes:document.getElementById('editCostNotes').value.trim()||null,
     active:document.getElementById('editActive').value==='1',
     selectable_in_reports:document.getElementById('editSelectableInReports').value==='1',
@@ -285,10 +288,30 @@ async function saveAsset(){
   const st1=document.getElementById('editorStatus'),st2=document.getElementById('costStatus');
   try{
     asset=await api(`/api/operational-assets/${assetId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(canManageRecurringCost){
+      asset=await saveRecurringCost(document.getElementById('editRecurringCost').value||null,false);
+    }
     render();
     st1.className='status';st1.textContent='Gespeichert.';
     st2.className='status';st2.textContent='Gespeichert.';
   }catch(e){st1.className='status err';st1.textContent='Fehler: '+e.message;st2.className='status err';st2.textContent='Fehler: '+e.message}
+}
+
+async function saveRecurringCost(netAmount,forceRemove){
+  const resp=await fetch(`/api/operational-assets/${assetId}/recurring-cost`,{
+    method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({net_amount:netAmount,force_remove:forceRemove}),
+  });
+  if(resp.status===409){
+    const body=await resp.json().catch(()=>({}));
+    const msg=(body.detail&&body.detail.message)||'Der verknüpfte Kostenposten trägt weitere Angaben.';
+    if(confirm(msg+'\n\nTrotzdem entfernen?')){
+      return saveRecurringCost(netAmount,true);
+    }
+    throw Error('Laufende Kosten unverändert gelassen -- Entfernen abgebrochen.');
+  }
+  if(!resp.ok)throw Error((await resp.json().catch(()=>({detail:resp.statusText}))).detail||resp.statusText);
+  return resp.json();
 }
 
 async function deleteAssetNow(){
@@ -491,17 +514,21 @@ async function init(){
     document.getElementById('breadcrumb').textContent='Fehler: '+e.message;
     return;
   }
-  const [resourceList,typeGroup,inspectionTypeGroup,documentTypeGroup]=await Promise.all([
+  const [resourceList,typeGroup,inspectionTypeGroup,documentTypeGroup,authStatus]=await Promise.all([
     api('/api/resources').catch(()=>[]),
     safeOptionGroup('resource_types'),
     safeOptionGroup('operational_asset_inspection_types'),
     safeOptionGroup('operational_asset_document_types'),
+    api('/api/auth/status').catch(()=>({authenticated:false,user:null})),
   ]);
   const takenIds=new Set((await api('/api/operational-assets').catch(()=>[])).filter(a=>a.id!==assetId&&a.resource_id).map(a=>a.resource_id));
   resources=resourceList.map(r=>({...r,taken:takenIds.has(r.id)}));
   assetTypes=typeGroup.options||[];
   assetInspectionTypes=inspectionTypeGroup.options||[];
   assetDocumentTypes=documentTypeGroup.options||[];
+  // Die laufende Rate erzeugt einen echten RecurringCost -- seit Etappe 2 des Rechtekonzepts
+  // ausschließlich Finanzen/Admin vorbehalten (siehe app/routers/operational_assets.py).
+  canManageRecurringCost=['admin','buero_finanzen'].includes(authStatus.user?.role);
   render();
 }
 init();

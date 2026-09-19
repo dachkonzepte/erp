@@ -20,10 +20,14 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.5.6** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `9b3600be64af` ("recurring cost netto brutto steuersatz" -- echte
-  Spalten-Umbenennung `recurring_costs.amount` -> `net_amount` PLUS die neue, NOT-NULL-Spalte
-  `tax_rate_pct` (`server_default='19.00'`) -- siehe Abschnitt "Netto und Brutto bei den
+- Version: **1.5.7** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `eda89bb8082a` ("asset recurring cost quick entry link" --
+  `operational_assets.recurring_cost_per_month` entfernt, neue Spalte
+  `recurring_costs.is_asset_quick_entry` (`server_default='0'`) -- siehe Abschnitt
+  "Betriebsmittel-Kosten fest als Kostenposten" unten; löst die 1.5.0-Doppelzählungs-
+  Sonderbehandlung ab) -- vorher `9b3600be64af` ("recurring cost netto brutto steuersatz" --
+  echte Spalten-Umbenennung `recurring_costs.amount` -> `net_amount` PLUS die neue, NOT-NULL-
+  Spalte `tax_rate_pct` (`server_default='19.00'`) -- siehe Abschnitt "Netto und Brutto bei den
   Betriebskosten" unten; 1.5.6 selbst brauchte keine eigene Migration, reine Frontend-Änderung)
   -- vorher `cf4fdf4905cd` ("schlechtwetter zeitarten und
   abwesenheitskategorie" -- 1.5.4 selbst brauchte keine eigene Migration, reine Code-/Schema-
@@ -64,11 +68,13 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1631 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1649 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 19.09.2026 (1.5.6, Dokument-Upload schon beim Erstellen des Betriebsmittels
-  -- reine Frontend-Änderung, keine neuen Tests, siehe Abschnitt "Betriebsmittelverwaltung"
-  unten; davor 1.5.5, Netto und Brutto bei den Betriebskosten, siehe Abschnitt "Netto und Brutto
+  dort), zuletzt am 19.09.2026 (1.5.7, Betriebsmittel-Kosten fest als Kostenposten -- löst die
+  1.5.0-Doppelzählungs-Sonderbehandlung ab, siehe Abschnitt "Betriebsmittel-Kosten fest als
+  Kostenposten" unten; davor 1.5.6, Dokument-Upload schon beim Erstellen des Betriebsmittels --
+  reine Frontend-Änderung, keine neuen Tests, siehe Abschnitt "Betriebsmittelverwaltung" unten;
+  davor 1.5.5, Netto und Brutto bei den Betriebskosten, siehe Abschnitt "Netto und Brutto
   bei den Betriebskosten" unten; davor 1.5.4, Krankheitssichtbarkeit -- buero_auftrag sieht nur
   noch "abwesend", siehe Abschnitt "Krankheitssichtbarkeit: buero_auftrag sieht nur noch
   'abwesend'" unten; davor 1.5.3, Grundlage für Ist-Werte -- Schlechtwetter-Zeitarten und
@@ -1354,6 +1360,20 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Anlegen selbst, wird die Upload-Schleife nie erreicht -- kein verwaistes Betriebsmittel, die
   vorgemerkten Dateien bleiben erhalten. Reine Frontend-Änderung, kein Endpunkt/Schema geändert,
   siehe Abschnitt "Betriebsmittelverwaltung" unten.
+- Neu seit 1.5.7: **Betriebsmittel-Kosten fest als Kostenposten.** Löst die
+  1.5.0-Doppelzählungs-Sonderbehandlung ab -- 0 Bestandszeilen betroffen (real geprüft), aber
+  eine echte Vereinfachung: `OperationalAsset.recurring_cost_per_month` entfällt als Spalte,
+  eine laufende Rate am Betriebsmittel-Formular erzeugt/ändert/entfernt seither einen echten
+  `RecurringCost` (`RecurringCost.is_asset_quick_entry`), `overview_summary()` braucht dadurch
+  keine Doppelzählungs-Ausnahme mehr. Nullsetzen der Rate entfernt den Posten (statt ihn bei 0
+  stehen zu lassen), außer er trägt bereits Dokumente/einen Vertragspartner -- dann 409 statt
+  stillem Löschen, `force_remove=true` bestätigt. Fest gebunden beim Löschen des Betriebsmittels
+  über den bestehenden `before_delete`-Weg, ein davon unabhängig verlinkter Posten wird dabei
+  nur entkoppelt, nicht mitgelöscht. Neuer, `require_min_role(ROLE_OFFICE_FINANZEN)`-gateter
+  Endpunkt für die Rate, getrennt vom allgemeinen (für `buero_auftrag` offenen)
+  Betriebsmittel-Endpunkt -- schließt eine sonst entstandene Rechte-Lücke. Migration
+  `eda89bb8082a`, 18 neue Tests, volle Suite: 1649 Tests grün, siehe Abschnitt
+  "Betriebsmittel-Kosten fest als Kostenposten" unten.
 
 ### Headless-Chrome-Verifikation über CDP (seit 1.3.73)
 
@@ -9660,6 +9680,148 @@ Migration `9b3600be64af`, 11 neue Tests
 (`test_v283_recurring_costs.py`, `test_v284_productive_hours_and_overhead_classification.py`,
 `test_v285_recurring_cost_overhead_proposal.py`) auf `net_amount` umgestellt (reine
 Umbenennung ihrer Testdaten, keine inhaltliche Änderung). Volle Suite: 1631 Tests grün.
+
+## Betriebsmittel-Kosten fest als Kostenposten (seit 1.5.7)
+
+Nachbesserung an der Betriebskosten-Übersicht (1.5.0) und der Betriebsmittelverwaltung (1.4.0)
+-- löst die 1.5.0-Doppelzählungs-Sonderbehandlung vollständig ab. Erst ein reiner Befund
+(berichtet, bevor gebaut wurde, siehe Chatverlauf für die vollständige Herleitung), dann nach
+Bestätigung der Bau.
+
+### Befund, in Kurzform
+
+`recurring_cost_per_month` war die einzige Betriebsmittel-Kostenquelle, die ANLEGEN nirgends
+kannte -- `master_data_form.html::assetForm()` hatte nie ein Feld dafür, nur die Edit-Seite
+(`operational_asset.html`). Per direkter, lesender SQLite-Abfrage gegen die echte, lokale
+Datenbank bestätigt: **0** `OperationalAsset`-Zeilen trugen einen Wert, **0** `RecurringCost`-
+Zeilen existierten überhaupt -- die Migration war für echte Daten damit folgenlos, blieb aber
+inhaltlich nötig (jede andere Installation, der künftige Betrieb). Die Doppelzählungs-Logik aus
+1.5.0 (`overview_summary()`s `linked_asset_ids`/`assets_with_quick_cost`/
+`annual_from_asset_quick_costs`/`asset_quick_cost_count`, `RecurringCostOut.
+asset_quick_cost_hint`, `OperationalAssetOut.has_linked_recurring_cost`) wurde damit zu totem
+Code, sobald `recurring_cost_per_month` als zweite Quelle verschwindet -- bestätigt und
+ersatzlos entfernt.
+
+### Eine Quelle statt zwei
+
+`OperationalAsset.recurring_cost_per_month` entfällt als eigene Spalte (Migration
+`eda89bb8082a`). Eine laufende Rate am Betriebsmittel-Formular erzeugt/ändert/entfernt seither
+einen echten `RecurringCost` mit dem neuen Flag `RecurringCost.is_asset_quick_entry=True`
+(`app/operational_assets.py::sync_asset_recurring_cost()`, die EINE Stelle, die diesen einen
+Posten je Betriebsmittel anfasst). `asset_to_dict()` liefert `recurring_cost_per_month` als
+API-Feld unverändert weiter -- jetzt aber LIVE aus dem verknüpften quick-entry-Posten gelesen
+(zusätzlich `recurring_cost_id`, damit Finanzen/Admin direkt in die Betriebskosten-Übersicht
+springen können).
+
+**Mehrere Postens je Betriebsmittel bleiben möglich, ohne Verwechslungsgefahr.**
+`RecurringCost.asset_id` trägt weiterhin bewusst KEIN Unique-Constraint (Leasingrate UND
+Versicherung für denselben Transporter bleiben zwei unabhängige, über die allgemeine
+Betriebskosten-Oberfläche verknüpfte Zeilen) -- `is_asset_quick_entry` markiert ausschließlich
+DEN EINEN Posten, den das Betriebsmittel-Formular selbst verwaltet. "Höchstens ein
+`is_asset_quick_entry=True`-Posten je `asset_id`" ist eine reine ANWENDUNGS-Invariante
+(`sync_asset_recurring_cost()` sucht immer zuerst den bestehenden, bevor ein neuer angelegt
+wird) -- bewusst KEIN DB-Constraint dafür, dieselbe Zurückhaltung wie beim ebenfalls fehlenden
+Unique-Constraint auf `asset_id` selbst. `overview_summary()` braucht dadurch keine
+Doppelzählungs-Ausnahme mehr: jeder aktive Posten (quick-entry oder eigenständig) fließt genau
+einmal in `annual_total` ein.
+
+### Nullsetzen der Rate entfernt den Posten -- mit einer geprüften Ausnahme
+
+Betreiberentscheidung: "ein Posten, der nichts zählt, ist ein Widerspruch -- läuft der
+Leasingvertrag aus, soll kein Posten mehr da sein. Trägt man später wieder eine Rate ein,
+entsteht ein neuer." `sync_asset_recurring_cost(db, asset, net_amount=None)` löscht den
+verknüpften Posten deshalb, statt ihn mit `net_amount=0` stehen zu lassen.
+
+**Die verlangte Prüfung, ob dabei Dokumente/ein Vertragspartner verloren gehen könnten**: ein
+frisch aus der Betriebsmittel-Rate erzeugter Posten trägt tatsächlich keine -- ABER er ist ein
+vollwertiger `RecurringCost` und über die allgemeine Betriebskosten-Oberfläche (`/betriebskosten`)
+später frei nachbearbeitbar (Vertragspartner, Notizen, Kategorie, Vertragsende/Kündigungsfrist,
+Dokumente). Genau das kann passieren: jemand trägt nachträglich einen Vertragspartner ein oder
+lädt die Leasingrechnung hoch, und Monate später wird die Rate am Betriebsmittel auf null
+gesetzt. `_quick_entry_carries_extra_data()` prüft deshalb bei jedem Entfernen, ob der Posten
+etwas trägt, das die Betriebsmittel-Rate selbst NIE setzt (`vendor`/`notes`/`category`/
+`contract_end_date`/`notice_period_months`/Dokumente) -- ist das der Fall, wird NICHT
+stillschweigend gelöscht: `LinkedRecurringCostHasDataError` (statt eines gewöhnlichen
+`ValueError`, damit der Router es von Geschäftsregelfehlern unterscheiden kann). Der neue
+Endpunkt macht daraus **409** mit `document_count`/`vendor` im Detail -- die Oberfläche
+(`operational_asset.html::saveRecurringCost()`) zeigt eine `confirm()`-Nachfrage mit genau
+diesen Angaben (Regel 4: kein `prompt()`, `confirm()` für Ja/Nein ist etabliert) und sendet bei
+Bestätigung erneut mit `force_remove=true`. Wird die Rate nur GEÄNDERT (nicht auf null
+gesetzt), greift die Prüfung nie -- sie betrifft ausschließlich das Entfernen, Steuersatz/
+Einordnung/Vertragspartner, die zwischenzeitlich über `/betriebskosten` ergänzt wurden, bleiben
+bei einer reinen Betragsänderung unberührt.
+
+### Fest gebunden beim Löschen -- über den bestehenden `before_delete`-Weg, nicht mehr
+
+`delete_asset()` (`app/operational_assets.py`) behandelt verknüpfte `RecurringCost`-Zeilen jetzt
+zweigleisig: der EINE quick-entry-Posten wird per `db.delete()` entfernt -- NICHT per
+Cascade-Relationship (eine `OperationalAsset.recurring_costs`-Relationship mit
+`cascade="all, delete-orphan"` hätte, ohne einen einschränkenden `primaryjoin`, versehentlich
+auch jeden eigenständig verlinkten Posten mitgerissen; ein zusätzlicher, auf
+`is_asset_quick_entry=True` beschränkter `primaryjoin` wäre nötig gewesen, um das zu vermeiden
+-- stattdessen eine einfache, explizite Vorab-Schleife in `delete_asset()` selbst, die dieselbe
+Absicherung ohne die Overlap-Komplexität zweier Relationships auf demselben Fremdschlüssel
+erreicht). `db.delete()` löst dabei zuverlässig das bereits bestehende `before_delete`-Event auf
+`RecurringCostDocument` (1.5.0) aus, das dessen Dateien von der Festplatte entfernt --
+`RecurringCost.documents` trägt bereits `cascade="all, delete-orphan"`, kein neuer Mechanismus
+nötig. JEDER ANDERE, über `/betriebskosten` eigenständig verlinkte Posten (z. B. die
+Versicherung desselben Fahrzeugs) bleibt dagegen bestehen -- nur sein `asset_id` wird auf
+`NULL` gesetzt (`RecurringCost.asset_id` ist nullable). Ohne dieses Entkoppeln hätte das
+anschließende `db.delete(asset)` unter PostgreSQL (das Fremdschlüssel im Gegensatz zur hier
+ungeprüften lokalen SQLite-Entwicklungsdatenbank immer durchsetzt) mit einer
+Integritätsverletzung abgebrochen -- geprüft, ob SQLite in diesem Projekt `PRAGMA
+foreign_keys` überhaupt setzt: nein, `app/database.py` tut das nicht, das Problem wäre lokal
+also unbemerkt geblieben, bis es in Produktion aufgetreten wäre.
+
+### Vorgaben für neu erzeugte Posten
+
+Wie vom Betreiber vorgegeben: **19 % Steuersatz, Einordnung "keine Gemeinkosten"** -- restriktiv,
+fließt nicht ungefragt in den Verrechnungssatz-Kreislauf (Schicht 3, siehe oben), der Betreiber
+ordnet später bewusst zu, was tatsächlich in die Gemeinkosten gehört. `billing_interval` ist
+immer `"monatlich"` (dieselbe Normierung wie die abgelöste Spalte). Diese drei Felder sind im
+Betriebsmittel-Formular selbst NICHT editierbar -- wer sie ändern will, tut das über die
+allgemeine Betriebskosten-Oberfläche, wo der Posten als ganz normale Zeile erscheint (mit einem
+kleinen ⓘ-Hinweis, dass er vom Betriebsmittel-Formular verwaltet wird).
+
+### Rechte-Lücke geschlossen, bevor sie entstehen konnte
+
+Die laufende Rate erzeugt einen echten `RecurringCost` -- Betriebskosten sind seit Etappe 2 des
+Rechtekonzepts (1.4.8) ausschließlich `buero_finanzen`/`admin` vorbehalten
+(`require_min_role(ROLE_OFFICE_FINANZEN)`, `app/routers/recurring_costs.py`). Das
+Betriebsmittel-Formular selbst bleibt aber für `buero_auftrag` offen
+(`require_min_role(ROLE_OFFICE_AUFTRAG)`, `app/routers/operational_assets.py`) -- Fuhrpark/
+Maschinen-Bestand ist ein Auftrags-, kein Finanz-Datensatz. Ohne Gegenmaßnahme hätte
+`buero_auftrag` über das für sie offene Betriebsmittel-Formular indirekt einen `RecurringCost`
+erzeugen/ändern/löschen können, obwohl der gesamte `/betriebskosten`-Bereich für sie gesperrt
+ist -- exakt die Art Lücke, die der abschließend verlangte Angriffstest aufdecken sollte.
+
+Behoben durch einen **eigenen, engeren Endpunkt**: `PUT /api/operational-assets/{asset_id}/
+recurring-cost` (`require_min_role(ROLE_OFFICE_FINANZEN)`, GETRENNT vom allgemeinen `PUT
+/api/operational-assets/{asset_id}`) ist die einzige Stelle, die `sync_asset_recurring_cost()`
+aufruft. `recurring_cost_per_month` ist aus `OperationalAssetCreate`/`-Update` vollständig
+entfernt -- ein über den allgemeinen Endpunkt untergeschobener Wert wird von Pydantic schlicht
+ignoriert, bewirkt nichts (per Test belegt: `buero_auftrag` sendet ihn, die Antwort zeigt
+`recurring_cost_per_month: null`, kein `RecurringCost` entsteht). Clientseitig
+(`operational_asset.html`) liest `init()` `GET /api/auth/status` und deaktiviert das Eingabefeld
+für jede Rolle unterhalb `buero_finanzen` (`canManageRecurringCost`), mit dem Hinweis "Nur
+Finanzen/Admin können diesen Wert ändern." -- `buero_auftrag` sieht die aktuelle Rate weiterhin
+(reine Information, unverändert seit jeher öffentlich für Büro-Rollen), kann sie aber nicht mehr
+ändern, weder über die Oberfläche noch über einen direkten API-Aufruf.
+
+### Angriffstest
+
+`buero_auftrag` und `field` kommen an keinen Teil der Betriebskosten, auch nicht an den neu
+verknüpften Posten (`tests/test_v289_asset_recurring_cost_link.py`) -- geprüft: der neue,
+engere Endpunkt liefert für beide Rollen 403; der allgemeine Betriebsmittel-Endpunkt lässt sich
+mit einem untergeschobenen Kosten-Feld aufrufen, ohne dass sich am verknüpften `RecurringCost`
+etwas ändert; der komplette `/betriebskosten`-Router bleibt gesperrt, auch mit der bekannten
+`cost_id` (kein 404-vs-403-Unterschied, der die Existenz verraten würde). Rekursiver
+Schlüssel-Scan, ein Testkonto pro Rolle, null durchgelassen.
+
+Migration `eda89bb8082a` (Spalte entfernt, `is_asset_quick_entry` neu mit `server_default='0'`
+-- Regel 1), 18 neue Tests, drei bestehende Testdateien (`test_v277_operational_assets_stufe2.py`,
+`test_v280_operational_assets_stufe3.py`, `test_v283_recurring_costs.py`) auf die neue Quelle
+umgestellt. Volle Suite: 1649 Tests grün.
 
 ## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
 
