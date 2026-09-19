@@ -64,6 +64,13 @@ BILLING_INTERVALS = ("monatlich", "vierteljaehrlich", "halbjaehrlich", "jaehrlic
 # zu verwechseln.
 OVERHEAD_CLASSIFICATIONS = ("keine", "fix", "auslastungsabhaengig")
 
+# Fester Code-Wert je Posten, keine Optionsgruppe -- die deutsche Umsatzsteuer kennt für diese
+# Art Kosten praktisch nur diese drei Sätze (Regel-/ermäßigter Satz/steuerfrei, z. B.
+# Versicherungen). "Netto und Brutto bei den Betriebskosten": der Satz ist ein Feld JE POSTEN,
+# kein globaler Wert -- ein Steuerberater-Honorar mit 19 % und eine Versicherung mit 0 % stehen
+# nebeneinander.
+TAX_RATES = (Decimal("19.00"), Decimal("7.00"), Decimal("0.00"))
+
 OVERHEAD_CLASSIFICATION_LABELS = {
     "keine": "Keine Gemeinkosten",
     "fix": "Feste Gemeinkosten",
@@ -82,11 +89,20 @@ _ANNUAL_MULTIPLIER = {
 }
 
 
-def normalize_to_annual(amount: Decimal, billing_interval: str) -> Decimal:
-    """Der zentrale, gespeicherte Wert (RecurringCost.annual_amount) -- "einmalig" liefert
-    bewusst 0 (kein laufender Jahresbetrag, fließt nicht in die wiederkehrende Summe ein), der
-    Posten selbst bleibt trotzdem in der Liste sichtbar."""
-    return (amount * _ANNUAL_MULTIPLIER[billing_interval]).quantize(Decimal("0.01"))
+def normalize_to_annual(net_amount: Decimal, billing_interval: str) -> Decimal:
+    """Der zentrale, gespeicherte Wert (RecurringCost.annual_amount) -- IMMER aus dem
+    Netto-Betrag, nie aus brutto (die Vorsteuer ist ein durchlaufender Posten, kein Aufwand für
+    den Verrechnungssatz-Kreislauf, siehe app/labor_rate.py). "einmalig" liefert bewusst 0 (kein
+    laufender Jahresbetrag, fließt nicht in die wiederkehrende Summe ein), der Posten selbst
+    bleibt trotzdem in der Liste sichtbar."""
+    return (net_amount * _ANNUAL_MULTIPLIER[billing_interval]).quantize(Decimal("0.01"))
+
+
+def gross_amount(net_amount: Decimal, tax_rate_pct: Decimal) -> Decimal:
+    """Reine Anzeige-Ableitung, NIE gespeichert und NIE Rechenbasis für annual_amount -- Muster
+    cancellation_deadline() oben. Was tatsächlich vom Konto abgeht, nicht was in den
+    Verrechnungssatz einfließt."""
+    return (net_amount * (Decimal("1") + tax_rate_pct / Decimal("100"))).quantize(Decimal("0.01"))
 
 
 @event.listens_for(RecurringCostDocument, "before_delete")
@@ -171,7 +187,9 @@ def cost_to_dict(cost: RecurringCost, lead_days: int, *, today: date | None = No
         "label": cost.label,
         "category": cost.category,
         "overhead_classification": cost.overhead_classification,
-        "amount": cost.amount,
+        "net_amount": cost.net_amount,
+        "tax_rate_pct": cost.tax_rate_pct,
+        "gross_amount": gross_amount(cost.net_amount, cost.tax_rate_pct),
         "billing_interval": cost.billing_interval,
         "annual_amount": cost.annual_amount,
         "vendor": cost.vendor,
@@ -219,7 +237,10 @@ def list_costs(db: Session, *, include_inactive: bool = True) -> list[dict]:
 
 
 def _payload_fields(payload: dict) -> dict:
-    amount = Decimal(str(payload["amount"]))
+    net_amount = Decimal(str(payload["net_amount"]))
+    tax_rate_pct = Decimal(str(payload.get("tax_rate_pct", "19.00")))
+    if tax_rate_pct not in TAX_RATES:
+        raise ValueError(f"Unbekannter Steuersatz: {tax_rate_pct}")
     billing_interval = payload["billing_interval"]
     if billing_interval not in BILLING_INTERVALS:
         raise ValueError(f"Unbekannter Rhythmus: {billing_interval}")
@@ -230,9 +251,10 @@ def _payload_fields(payload: dict) -> dict:
         "label": payload["label"].strip(),
         "category": payload.get("category"),
         "overhead_classification": overhead_classification,
-        "amount": amount,
+        "net_amount": net_amount,
+        "tax_rate_pct": tax_rate_pct,
         "billing_interval": billing_interval,
-        "annual_amount": normalize_to_annual(amount, billing_interval),
+        "annual_amount": normalize_to_annual(net_amount, billing_interval),
         "vendor": payload.get("vendor"),
         "contract_end_date": payload.get("contract_end_date"),
         "notice_period_months": payload.get("notice_period_months"),

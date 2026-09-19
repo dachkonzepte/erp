@@ -3634,6 +3634,15 @@ class RecurringCost(Base):
     der Wert, den ein künftiger automatischer Kreislauf dort einsetzen wird -- keine neue
     Stelle nötig, nur diese eine Summe.
 
+    net_amount/tax_rate_pct/gross_amount (seit "Netto und Brutto bei den Betriebskosten"): das
+    ursprüngliche, einzelne Feld hieß "amount" und wurde OHNE jede Steuersemantik geführt --
+    weder das Modell noch normalize_to_annual() kannten einen Steuersatz. Da 0 Bestandszeilen
+    existierten (real geprüft), war die Umbenennung auf net_amount folgenlos für Bestandsdaten,
+    aber inhaltlich die einzig konsistente Lesart: annual_amount speiste (und speist weiterhin)
+    direkt in den Verrechnungssatz-Kreislauf, und ein Aufwand für die Kalkulation ist immer der
+    Netto-Betrag, nie inklusive der abzugsfähigen Vorsteuer. gross_amount wird NIE gespeichert,
+    NIE in annual_amount verrechnet -- reine Anzeige-Ableitung wie cancellation_deadline() unten.
+
     asset_id ist OPTIONAL: zeigt ein Kostenposten auf ein Betriebsmittel, ERSETZT er dessen
     monthly_cost in der Betriebskosten-Summe (overview_summary() schließt
     OperationalAsset.recurring_cost_per_month für jedes Asset mit mindestens einem aktiven,
@@ -3656,7 +3665,16 @@ class RecurringCost(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     label: Mapped[str] = mapped_column(String(255))
     category: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
-    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    # net_amount ist die Eingabe (seit "Netto und Brutto bei den Betriebskosten") -- annual_amount
+    # (unten) wird ausschließlich daraus berechnet, NIE aus einem Bruttobetrag: die Vorsteuer ist
+    # ein durchlaufender Posten, kein Aufwand, der in den Verrechnungssatz-Kreislauf einfließen
+    # darf. tax_rate_pct ist bewusst ein Feld JE POSTEN, kein globaler Wert -- ein
+    # Steuerberater-Honorar mit 19 % und eine Versicherung mit 0 % stehen nebeneinander (siehe
+    # TAX_RATES in recurring_costs.py). gross_amount ist eine reine, nicht gespeicherte Anzeige-
+    # Ableitung aus net_amount/tax_rate_pct (Muster cancellation_deadline() unten -- was
+    # tatsächlich vom Konto abgeht, aber nie Rechenbasis für annual_amount).
+    net_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    tax_rate_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("19.00"), server_default="19.00")
     billing_interval: Mapped[str] = mapped_column(String(20))
     annual_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     # Kalkulatorische Einordnung für den Verrechnungssatz-Kreislauf (Schicht 3, seit 1.5.1) --

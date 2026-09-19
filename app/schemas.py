@@ -3521,7 +3521,11 @@ class RecurringCostOut(BaseModel):
     # Kalkulatorische Einordnung für den Verrechnungssatz-Kreislauf (Schicht 3, seit 1.5.1) --
     # siehe app/recurring_costs.py::OVERHEAD_CLASSIFICATIONS.
     overhead_classification: str = "keine"
-    amount: Decimal
+    net_amount: Decimal
+    tax_rate_pct: Decimal = Decimal("19.00")
+    # Reine Anzeige-Ableitung (siehe app/recurring_costs.py::gross_amount()) -- nie gespeichert,
+    # nie Rechenbasis für annual_amount.
+    gross_amount: Decimal = Decimal("0")
     billing_interval: str
     annual_amount: Decimal
     vendor: str | None = None
@@ -3545,8 +3549,19 @@ class RecurringCostCreate(BaseModel):
     label: str = Field(min_length=1, max_length=255)
     category: str | None = None
     overhead_classification: str = Field(default="keine", pattern="^(keine|fix|auslastungsabhaengig)$")
-    amount: Decimal = Field(ge=0)
+    net_amount: Decimal = Field(ge=0)
+    tax_rate_pct: Decimal = Decimal("19.00")
     billing_interval: str = Field(pattern="^(monatlich|vierteljaehrlich|halbjaehrlich|jaehrlich|einmalig)$")
+
+    @field_validator("tax_rate_pct")
+    @classmethod
+    def validate_tax_rate(cls, v):
+        # Feste Werte statt Pattern (Decimal, kein String) -- siehe
+        # app/recurring_costs.py::TAX_RATES für die Begründung (nur diese drei Sätze real
+        # relevant für diese Art Kosten).
+        if v not in (Decimal("19.00"), Decimal("7.00"), Decimal("0.00")):
+            raise ValueError("Steuersatz muss 19, 7 oder 0 Prozent sein.")
+        return v
     vendor: str | None = Field(default=None, max_length=255)
     contract_end_date: date | None = None
     notice_period_months: int | None = Field(default=None, ge=1)

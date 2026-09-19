@@ -33,7 +33,7 @@ from app.routers.tasks import router as tasks_router
 from app.tasks import claim_task, create_task, list_tasks_for_user
 
 ALL_ROLES = ("field", "buero_auftrag", "buero_finanzen", "admin")
-FORBIDDEN_KEYS = {"label", "amount", "billing_interval", "annual_amount", "vendor"}
+FORBIDDEN_KEYS = {"label", "net_amount", "billing_interval", "annual_amount", "vendor"}
 
 
 def db_session():
@@ -65,7 +65,7 @@ def _recursive_keys(value, keys=None):
 
 def _base_payload(**overrides):
     payload = {
-        "label": "Bürolokal Übach-Palenberg", "category": "Miete", "amount": "1200.00",
+        "label": "Bürolokal Übach-Palenberg", "category": "Miete", "net_amount": "1200.00",
         "billing_interval": "monatlich", "vendor": None, "contract_end_date": None,
         "notice_period_months": None, "asset_id": None, "active": True, "notes": None,
     }
@@ -89,7 +89,7 @@ def test_normalize_to_annual_einmalig_is_zero_but_model_accepts_the_value():
     assert "einmalig" in BILLING_INTERVALS
     assert normalize_to_annual(Decimal("500"), "einmalig") == Decimal("0.00")
     db = db_session()
-    cost = create_cost(db, _base_payload(label="Einmalige Anschlusskosten", amount="500", billing_interval="einmalig"))
+    cost = create_cost(db, _base_payload(label="Einmalige Anschlusskosten", net_amount="500", billing_interval="einmalig"))
     assert cost["annual_amount"] == Decimal("0.00")
     assert cost["billing_interval"] == "einmalig"
     # Bleibt in der normalen Liste sichtbar -- kein Sonderfall, der ihn ausblendet.
@@ -127,7 +127,7 @@ def test_create_get_update_delete_cost():
     fetched = get_cost(db, created["id"])
     assert fetched["id"] == created["id"]
 
-    updated = update_cost(db, created["id"], _base_payload(label="Bürolokal (neu)", amount="1300.00"))
+    updated = update_cost(db, created["id"], _base_payload(label="Bürolokal (neu)", net_amount="1300.00"))
     assert updated["label"] == "Bürolokal (neu)"
     assert updated["annual_amount"] == Decimal("15600.00")
 
@@ -162,7 +162,7 @@ def test_overview_summary_excludes_asset_quick_cost_when_a_recurring_cost_is_lin
 
     # Ein verknüpfter Kostenposten ERSETZT die Notiz, statt sie zu ergänzen -- keine Doppelzählung.
     cost = create_cost(db, _base_payload(
-        label="Leasingrate Transporter", category="Leasing", amount="450.00",
+        label="Leasingrate Transporter", category="Leasing", net_amount="450.00",
         billing_interval="monatlich", asset_id=asset["id"],
     ))
     summary = overview_summary(db)
@@ -181,7 +181,7 @@ def test_overview_summary_excludes_asset_quick_cost_when_a_recurring_cost_is_lin
 
     # Deaktiviert man den Kostenposten, greift die Ersetzung nicht mehr -- die Notiz zählt wieder.
     update_cost(db, cost["id"], _base_payload(
-        label="Leasingrate Transporter", amount="450.00", billing_interval="monatlich",
+        label="Leasingrate Transporter", net_amount="450.00", billing_interval="monatlich",
         asset_id=asset["id"], active=False,
     ))
     summary = overview_summary(db)
@@ -193,8 +193,8 @@ def test_overview_summary_excludes_asset_quick_cost_when_a_recurring_cost_is_lin
 
 def test_overview_summary_sums_multiple_active_costs():
     db = db_session()
-    create_cost(db, _base_payload(label="Miete", amount="1000", billing_interval="monatlich"))
-    create_cost(db, _base_payload(label="Versicherung", amount="600", billing_interval="jaehrlich"))
+    create_cost(db, _base_payload(label="Miete", net_amount="1000", billing_interval="monatlich"))
+    create_cost(db, _base_payload(label="Versicherung", net_amount="600", billing_interval="jaehrlich"))
     summary = overview_summary(db)
     assert summary["annual_total"] == Decimal("12600.00")
     assert summary["cost_count"] == 2

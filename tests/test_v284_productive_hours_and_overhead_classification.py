@@ -43,7 +43,7 @@ def db_session():
 
 def _base_payload(**overrides):
     payload = {
-        "label": "Kostenposten", "category": None, "amount": "100.00",
+        "label": "Kostenposten", "category": None, "net_amount": "100.00",
         "billing_interval": "monatlich", "vendor": None, "contract_end_date": None,
         "notice_period_months": None, "asset_id": None, "active": True, "notes": None,
     }
@@ -266,9 +266,9 @@ def test_overhead_classification_can_be_changed_via_update_cost():
 
 def test_overview_summary_splits_annual_sums_by_classification_but_keeps_total_unchanged():
     db = db_session()
-    create_cost(db, _base_payload(label="Miete", amount="1000.00", billing_interval="monatlich", overhead_classification="fix"))
-    create_cost(db, _base_payload(label="Diesel", amount="50.00", billing_interval="monatlich", overhead_classification="auslastungsabhaengig"))
-    create_cost(db, _base_payload(label="Unklassifiziert", amount="20.00", billing_interval="monatlich", overhead_classification="keine"))
+    create_cost(db, _base_payload(label="Miete", net_amount="1000.00", billing_interval="monatlich", overhead_classification="fix"))
+    create_cost(db, _base_payload(label="Diesel", net_amount="50.00", billing_interval="monatlich", overhead_classification="auslastungsabhaengig"))
+    create_cost(db, _base_payload(label="Unklassifiziert", net_amount="20.00", billing_interval="monatlich", overhead_classification="keine"))
 
     summary = overview_summary(db)
 
@@ -282,8 +282,8 @@ def test_overview_summary_splits_annual_sums_by_classification_but_keeps_total_u
 
 def test_overview_summary_excludes_inactive_costs_from_all_three_groups():
     db = db_session()
-    create_cost(db, _base_payload(label="Aktiv fix", amount="100.00", overhead_classification="fix", active=True))
-    create_cost(db, _base_payload(label="Inaktiv fix", amount="999.00", overhead_classification="fix", active=False))
+    create_cost(db, _base_payload(label="Aktiv fix", net_amount="100.00", overhead_classification="fix", active=True))
+    create_cost(db, _base_payload(label="Inaktiv fix", net_amount="999.00", overhead_classification="fix", active=False))
 
     summary = overview_summary(db)
 

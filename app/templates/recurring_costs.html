@@ -81,7 +81,13 @@ tr:last-child td{border-bottom:none}
       <option value="auslastungsabhaengig">Auslastungsabhängige Kosten (z. B. Kraftstoff, Verschleiß, Entsorgung -- fließt zusammen mit den Verwaltungslöhnen in den variablen Gemeinkosten-Bucket)</option>
     </select></div>
     <div class="field"><label>Vertragspartner</label><input id="editVendor"></div>
-    <div class="field"><label>Betrag (EUR) *</label><input id="editAmount" type="number" step="0.01" min="0"></div>
+    <div class="field"><label>Netto-Betrag (EUR) *</label><input id="editNetAmount" type="number" step="0.01" min="0" oninput="updateGrossPreview()"></div>
+    <div class="field"><label>Steuersatz</label><select id="editTaxRate" onchange="updateGrossPreview()">
+      <option value="19.00">19 %</option>
+      <option value="7.00">7 %</option>
+      <option value="0.00">0 % (z. B. Versicherungen)</option>
+    </select></div>
+    <div class="field"><label>Brutto-Betrag <span class="muted small">(berechnet -- was tatsächlich vom Konto abgeht)</span></label><input id="editGrossAmount" type="text" readonly disabled></div>
     <div class="field"><label>Rhythmus *</label><select id="editInterval">
       <option value="monatlich">Monatlich</option>
       <option value="vierteljaehrlich">Vierteljährlich</option>
@@ -158,6 +164,15 @@ function assetName(id){
   return a?(a.name||('#'+a.id)):('#'+id);
 }
 
+function updateGrossPreview(){
+  // Reine Anzeige-Ableitung im Formular selbst (Muster app/recurring_costs.py::gross_amount())
+  // -- nie gesendet, der Server berechnet sie beim Speichern selbst erneut aus net_amount/
+  // tax_rate_pct und liefert sie in der Antwort mit.
+  const net=Number(document.getElementById('editNetAmount').value||0);
+  const rate=Number(document.getElementById('editTaxRate').value||0);
+  document.getElementById('editGrossAmount').value=fmtMoney(net*(1+rate/100));
+}
+
 function openCreateEditor(){
   currentEditId=null;
   document.getElementById('editorTitle').textContent='Kostenposten anlegen';
@@ -165,7 +180,9 @@ function openCreateEditor(){
   document.getElementById('editCategory').innerHTML=categoryOptionsHtml(null);
   document.getElementById('editClassification').value='keine';
   document.getElementById('editVendor').value='';
-  document.getElementById('editAmount').value='';
+  document.getElementById('editNetAmount').value='';
+  document.getElementById('editTaxRate').value='19.00';
+  updateGrossPreview();
   document.getElementById('editInterval').value='monatlich';
   document.getElementById('editContractEnd').value='';
   document.getElementById('editNoticePeriod').value='';
@@ -188,7 +205,9 @@ function openEditEditor(id){
   document.getElementById('editCategory').innerHTML=categoryOptionsHtml(c.category);
   document.getElementById('editClassification').value=c.overhead_classification||'keine';
   document.getElementById('editVendor').value=c.vendor||'';
-  document.getElementById('editAmount').value=c.amount;
+  document.getElementById('editNetAmount').value=c.net_amount;
+  document.getElementById('editTaxRate').value=Number(c.tax_rate_pct).toFixed(2);
+  updateGrossPreview();
   document.getElementById('editInterval').value=c.billing_interval;
   document.getElementById('editContractEnd').value=c.contract_end_date||'';
   document.getElementById('editNoticePeriod').value=c.notice_period_months??'';
@@ -213,13 +232,14 @@ function closeEditor(){
 async function saveCost(){
   const st=document.getElementById('editorStatus');
   const label=document.getElementById('editLabel').value.trim();
-  const amount=document.getElementById('editAmount').value;
-  if(!label||!amount){st.className='status err';st.textContent='Bitte Bezeichnung und Betrag angeben.';return}
+  const netAmount=document.getElementById('editNetAmount').value;
+  if(!label||!netAmount){st.className='status err';st.textContent='Bitte Bezeichnung und Netto-Betrag angeben.';return}
   const payload={
     label,
     category:document.getElementById('editCategory').value||null,
     overhead_classification:document.getElementById('editClassification').value,
-    amount:Number(amount),
+    net_amount:Number(netAmount),
+    tax_rate_pct:Number(document.getElementById('editTaxRate').value),
     billing_interval:document.getElementById('editInterval').value,
     vendor:document.getElementById('editVendor').value.trim()||null,
     contract_end_date:document.getElementById('editContractEnd').value||null,
@@ -245,7 +265,7 @@ async function toggleActive(id){
   if(!c)return;
   const payload={
     label:c.label,category:c.category,overhead_classification:c.overhead_classification,
-    amount:c.amount,billing_interval:c.billing_interval,
+    net_amount:c.net_amount,tax_rate_pct:c.tax_rate_pct,billing_interval:c.billing_interval,
     vendor:c.vendor,contract_end_date:c.contract_end_date,notice_period_months:c.notice_period_months,
     asset_id:c.asset_id,active:!c.active,notes:c.notes,
   };
@@ -324,7 +344,7 @@ function row(c){
     <td>${esc(c.label)}${c.vendor?`<div class="muted small">${esc(c.vendor)}</div>`:''}</td>
     <td>${esc(c.category||'—')}</td>
     <td>${esc(CLASSIFICATION_LABELS[c.overhead_classification]||c.overhead_classification||'—')}</td>
-    <td>${fmtMoney(c.amount)} / ${esc(BILLING_LABELS[c.billing_interval]||c.billing_interval)}</td>
+    <td>${fmtMoney(c.net_amount)} netto${Number(c.tax_rate_pct)>0?` <span class="muted small">(${fmtMoney(c.gross_amount)} brutto)</span>`:''} / ${esc(BILLING_LABELS[c.billing_interval]||c.billing_interval)}</td>
     <td>${fmtMoney(c.annual_amount)}</td>
     <td>${cancellation}</td>
     <td>${assetCell}</td>

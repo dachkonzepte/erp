@@ -53,7 +53,7 @@ def db_session():
 
 def _cost_payload(**overrides):
     payload = {
-        "label": "Kostenposten", "category": None, "amount": "100.00",
+        "label": "Kostenposten", "category": None, "net_amount": "100.00",
         "billing_interval": "monatlich", "vendor": None, "contract_end_date": None,
         "notice_period_months": None, "asset_id": None, "active": True, "notes": None,
     }
@@ -179,10 +179,10 @@ def test_proposal_reuses_calculate_labor_rate_for_current_and_proposed():
     overhead.variable_overhead_value = Decimal("3000")
     db.commit()
 
-    create_cost(db, _cost_payload(label="Miete", amount="1000.00", overhead_classification="fix"))
-    create_cost(db, _cost_payload(label="Diesel", amount="200.00", overhead_classification="auslastungsabhaengig"))
-    create_cost(db, _cost_payload(label="Unklassifiziert", amount="50.00", overhead_classification="keine"))
-    create_cost(db, _cost_payload(label="Archivierte Miete", amount="9999.00", overhead_classification="fix", active=False))
+    create_cost(db, _cost_payload(label="Miete", net_amount="1000.00", overhead_classification="fix"))
+    create_cost(db, _cost_payload(label="Diesel", net_amount="200.00", overhead_classification="auslastungsabhaengig"))
+    create_cost(db, _cost_payload(label="Unklassifiziert", net_amount="50.00", overhead_classification="keine"))
+    create_cost(db, _cost_payload(label="Archivierte Miete", net_amount="9999.00", overhead_classification="fix", active=False))
 
     proposal = recurring_cost_overhead_proposal(db, calc_settings)
 
@@ -240,10 +240,10 @@ def test_proposal_lists_individual_items_excluding_keine_and_inactive():
     einzelnen, aufklappbaren Posten -- "keine"-klassifizierte und inaktive Posten fehlen."""
     db = db_session()
     calc_settings = get_or_create_settings(db)
-    miete = create_cost(db, _cost_payload(label="Miete", amount="1000.00", overhead_classification="fix"))
-    diesel = create_cost(db, _cost_payload(label="Diesel", amount="200.00", overhead_classification="auslastungsabhaengig"))
-    create_cost(db, _cost_payload(label="Unklassifiziert", amount="50.00", overhead_classification="keine"))
-    create_cost(db, _cost_payload(label="Archiviert", amount="9999.00", overhead_classification="fix", active=False))
+    miete = create_cost(db, _cost_payload(label="Miete", net_amount="1000.00", overhead_classification="fix"))
+    diesel = create_cost(db, _cost_payload(label="Diesel", net_amount="200.00", overhead_classification="auslastungsabhaengig"))
+    create_cost(db, _cost_payload(label="Unklassifiziert", net_amount="50.00", overhead_classification="keine"))
+    create_cost(db, _cost_payload(label="Archiviert", net_amount="9999.00", overhead_classification="fix", active=False))
 
     proposal = recurring_cost_overhead_proposal(db, calc_settings)
 
@@ -258,7 +258,7 @@ def test_proposal_is_read_only_and_never_writes_anything():
     overhead.fixed_overhead_mode = "pct"
     overhead.fixed_overhead_value = Decimal("12")
     db.commit()
-    create_cost(db, _cost_payload(label="Miete", amount="1000.00", overhead_classification="fix"))
+    create_cost(db, _cost_payload(label="Miete", net_amount="1000.00", overhead_classification="fix"))
 
     recurring_cost_overhead_proposal(db, calc_settings)
 
@@ -277,8 +277,8 @@ def test_apply_forces_eur_mode_on_both_fields_regardless_of_previous_mode():
     overhead.variable_overhead_mode = "pct"
     overhead.variable_overhead_value = Decimal("8")
     db.commit()
-    create_cost(db, _cost_payload(label="Miete", amount="1000.00", overhead_classification="fix"))
-    create_cost(db, _cost_payload(label="Diesel", amount="200.00", overhead_classification="auslastungsabhaengig"))
+    create_cost(db, _cost_payload(label="Miete", net_amount="1000.00", overhead_classification="fix"))
+    create_cost(db, _cost_payload(label="Diesel", net_amount="200.00", overhead_classification="auslastungsabhaengig"))
 
     apply_recurring_cost_overhead_proposal(db)
 
@@ -300,7 +300,7 @@ def test_apply_syncs_legacy_annual_overhead_field_but_touches_nothing_else():
     calc_settings = get_or_create_settings(db)
     calc_settings.labor_rate = Decimal("77.00")
     db.commit()
-    create_cost(db, _cost_payload(label="Miete", amount="1000.00", overhead_classification="fix"))
+    create_cost(db, _cost_payload(label="Miete", net_amount="1000.00", overhead_classification="fix"))
 
     apply_recurring_cost_overhead_proposal(db)
 
@@ -316,9 +316,9 @@ def test_apply_syncs_legacy_annual_overhead_field_but_touches_nothing_else():
 
 def test_apply_excludes_keine_and_inactive_costs_from_the_written_sums():
     db = db_session()
-    create_cost(db, _cost_payload(label="Miete", amount="1000.00", overhead_classification="fix"))
-    create_cost(db, _cost_payload(label="Unklassifiziert", amount="500.00", overhead_classification="keine"))
-    create_cost(db, _cost_payload(label="Archiviert", amount="9999.00", overhead_classification="fix", active=False))
+    create_cost(db, _cost_payload(label="Miete", net_amount="1000.00", overhead_classification="fix"))
+    create_cost(db, _cost_payload(label="Unklassifiziert", net_amount="500.00", overhead_classification="keine"))
+    create_cost(db, _cost_payload(label="Archiviert", net_amount="9999.00", overhead_classification="fix", active=False))
 
     apply_recurring_cost_overhead_proposal(db)
 
