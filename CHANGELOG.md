@@ -4,6 +4,62 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.5.8 – Ist-Werte im Produktivstunden-Rechner
+
+Nachbesserung am Produktivstunden-Rechner (1.5.1): drei der fünf Annahmen bekommen einen aus
+echten Daten hergeleiteten Vergleichswert -- als reine Orientierung neben der gepflegten Zahl,
+nichts wird automatisch übernommen. Erst ein Befund (berichtet, bevor gebaut wurde), dann drei
+vom Betreiber vorgegebene Entscheidungen umgesetzt.
+
+**Feiertage -- errechnet, aber übersteuerbar.** `count_workday_holidays()` (neu, `app/planning.py`)
+zählt `PlanningHoliday`-Zeilen im laufenden Kalenderjahr, die auf einen laut `PlanningSettings`
+konfigurierten Arbeitstag fallen (ein Feiertag am Wochenende zieht keine Arbeitsstunden ab) --
+wiederverwendet dieselbe Arbeitstage-Definition wie die Kapazitätsplanung, keine zweite,
+abweichende "Wochenende"-Annahme. `PlanningHoliday` trägt entgegen der ursprünglichen Annahme
+**kein** Bundesland-Feld (eine einzige, unternehmensweite Liste) -- regionale Feiertage wie
+Fronleichnam/Allerheiligen werden einfach als normale Zeilen eingetragen und dadurch genauso
+gezählt wie jeder andere Feiertag. Der Vorschlag füllt `public_holidays` nur vor (mit
+"übernehmen"-Link in der Oberfläche), schreibt ihn nie selbst.
+
+**Schlechtwetter/Krankheit -- Ist-Wert als Orientierung, rollierende 12 Monate.** Durchschnitt
+über die Monteure mit `effective_cost_allocation()=="labor_rate"` -- **nicht** `AppUser.role`:
+real geprüft, 0 AppUser-Konten mit `role='field'`, aber 7 aktive Mitarbeiter mit dieser
+Kosten-Zuordnung heute. Ein Filter auf die Rolle hätte den Nenner auf 0 gesetzt und jeden
+Durchschnitt undefiniert gemacht. Schlechtwetter summiert `TimeEntry.hours` über beide
+Zeitarten und rechnet über `ProductiveHoursSettings.daily_hours` in Tage um -- **dieselbe**
+Größe, die `calculate_productive_hours()` bereits zur Umrechnung der Annahme
+(`weather_loss_days`) in Stunden nutzt, damit Annahme und Ist-Wert vergleichbar bleiben, statt
+zwei unterschiedliche Definitionen von "ein Tag" gegenüberzustellen (geprüft: `WorkTimeModel.
+daily_target_hours`/`PlanningSettings.daily_work_hours` sind reale, gepflegte Alternativen an
+anderer Stelle im Projekt, aber ein Wechsel dorthin hätte die Vergleichbarkeit innerhalb dieses
+einen Rechners gebrochen). Krankheit zählt Kalendertage aus `EmployeeAbsence` mit
+`absence_category=="krankheit"`, auf das Fenster zugeschnitten -- dieselbe Wochenende-inklusiv-
+Konvention wie die Annahme selbst.
+
+**Anonymitäts-Untergrenze bei Krankheit (die wichtige Entscheidung).** Bei wenigen Monteuren
+verrät der Durchschnitt eine einzelne Krankheit (drei Monteure, Durchschnitt "8 Tage", zwei
+gesund -- jeder kann auf 24 Tage rückrechnen). `sick_days_actual()` liefert deshalb unter
+`MIN_EMPLOYEES_FOR_SICK_DAYS_AVERAGE` (fest im Code, 5, wie vom Betreiber vorgeschlagen) **weder
+average_days noch total_days** -- total_days allein würde den Durchschnitt für jeden trivial
+zurückrechenbar machen, der die (nicht geheime) Monteurzahl kennt. Nur `employee_count`
+(Organisationsgröße) bleibt sichtbar. Schlechtwetter braucht dieselbe Schwelle nicht -- keine
+Personalinformation. Rekursiver Schlüssel-Scan auf dem Endpunkt bestätigt: keine
+personenbezogenen Bezeichner in der Antwort, unter der Schwelle weder Durchschnitt noch Summe.
+
+**Datengrundlage-Anzeige, Pflicht.** "Beruht auf N von 12 Monaten" -- ein Monat zählt als
+"mit Daten", wenn mindestens eine gebuchte `TimeEntry` (Schlechtwetter) bzw. eine
+`EmployeeAbsence` beliebiger Kategorie (Krankheit) für einen der gezählten Monteure existiert;
+bewusst datengetrieben statt eines hart codierten Einführungsdatums der neuen Zeitarten. Zeigt
+heute ehrlich "0 von 12" (real geprüft: 0 `EmployeeAbsence`-Zeilen, 0 Schlechtwetter-Buchungen
+in der lokalen Datenbank) -- kurz nach Einführung der Zeitarten ist kaum Aussagekraft da, und
+die Anzeige darf das nicht beschönigen.
+
+Keine Doppelzählung: `calculate_productive_hours()`/`calculate_labor_rate()` bleiben unangetastet,
+lesen weiterhin ausschließlich die gepflegten Settings-Felder. Migration nicht nötig (nur neue,
+abgeleitete Funktionen, keine neuen Spalten). 19 neue Tests
+(`tests/test_v291_produktivstunden_ist_werte.py`), Angriffstest bestätigt: `buero_auftrag`/`field`
+kommen an keinen Teil des Ist-Wert-Endpunkts. Volle Suite: 1668 Tests grün.
+
 ## 1.5.7 – Betriebsmittel-Kosten fest als Kostenposten
 
 Nachbesserung an der Betriebskosten-Übersicht (1.5.0) und der Betriebsmittelverwaltung (1.4.0):

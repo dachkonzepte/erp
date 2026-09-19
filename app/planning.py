@@ -253,6 +253,18 @@ def _holiday_rows(db: Session, start: date, end: date) -> list[PlanningHoliday]:
     ).all()
 
 
+def count_workday_holidays(db: Session, start: date, end: date) -> int:
+    """Feiertage im Zeitraum, die auf einen laut PlanningSettings konfigurierten Arbeitstag
+    fallen -- ein Feiertag am Wochenende zieht keine Arbeitsstunden ab. Wiederverwendet dieselbe
+    Arbeitstage-Definition wie die Kapazitätsplanung (_working_weekdays()), keine zweite,
+    abweichende "Wochenende"-Annahme -- genutzt vom Produktivstunden-Rechner
+    (app/productive_hours.py) für den Feiertage-Vorschlag. Zählt genau die hinterlegten Zeilen,
+    unabhängig davon, für welches Bundesland sie gedacht sind -- PlanningHoliday kennt keine
+    Bundesland-Spalte, es ist eine einzige, unternehmensweite Liste."""
+    working_days = _working_weekdays(get_or_create_planning_settings(db))
+    return sum(1 for h in _holiday_rows(db, start, end) if h.holiday_date.weekday() in working_days)
+
+
 def _absence_rows(db: Session, start: date, end: date, employee_ids: set[int] | None = None) -> list[EmployeeAbsence]:
     stmt = (
         select(EmployeeAbsence)

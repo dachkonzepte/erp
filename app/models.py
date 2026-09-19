@@ -2169,9 +2169,15 @@ class ProductiveHoursSettings(Base):
 
     Schreibt das Ergebnis erst nach einem bewussten Klick
     (app/productive_hours.py::apply_productive_hours_to_labor_rate(), Muster
-    apply_labor_rate_calculation()) in productive_time_pct -- kein Automatismus. Ein späterer
-    Ist-Wert aus TimeEntry.counts_as_productive ist in CLAUDE.md als künftiger Punkt vorgemerkt,
-    hier bewusst nicht gebaut."""
+    apply_labor_rate_calculation()) in productive_time_pct -- kein Automatismus.
+
+    Ist-Werte als Orientierung (seit der Nachbesserung "Ist-Werte im Produktivstunden-Rechner",
+    siehe CLAUDE.md): public_holidays bekommt einen errechneten, aber übersteuerbaren Vorschlag
+    aus PlanningHoliday; average_sick_days/weather_loss_days bekommen einen aus TimeEntry/
+    EmployeeAbsence hergeleiteten Vergleichswert daneben, der NIE geschrieben wird -- keine
+    dieser drei Spalten wird durch die Ist-Werte selbst verändert, nur update_productive_hours_
+    settings() (der bewusste Speichern-Klick) schreibt sie weiterhin. Siehe
+    app/productive_hours.py::weather_days_actual()/sick_days_actual()/public_holidays_suggestion()."""
 
     __tablename__ = "productive_hours_settings"
 

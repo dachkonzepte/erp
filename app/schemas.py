@@ -3621,6 +3621,32 @@ class ProductiveHoursSettingsUpdate(BaseModel):
     unproductive_time_pct: Decimal = Field(ge=0, le=100)
 
 
+class WeatherDaysActualOut(BaseModel):
+    """Ist-Wert Schlechtwetter (siehe app/productive_hours.py::weather_days_actual()) -- reine
+    Orientierung neben weather_loss_days, nie automatisch übernommen. Keine Anonymitäts-
+    Untergrenze (anders als SickDaysActualOut unten): Schlechtwetter ist keine Personalinformation."""
+    employee_count: int
+    window_months: int = 12
+    data_basis_months: int
+    total_hours: Decimal | None = None
+    daily_hours_used: Decimal
+    average_days: Decimal | None = None
+
+
+class SickDaysActualOut(BaseModel):
+    """Ist-Wert Krankheit (siehe app/productive_hours.py::sick_days_actual()) -- reine
+    Orientierung neben average_sick_days, nie automatisch übernommen. suppressed=true unter
+    MIN_EMPLOYEES_FOR_SICK_DAYS_AVERAGE (5): weder average_days noch total_days werden dann
+    ausgeliefert (total_days allein ließe den Durchschnitt trivial zurückrechnen) -- nur
+    employee_count (Organisationsgröße, keine Gesundheitsinformation) bleibt sichtbar."""
+    employee_count: int
+    window_months: int = 12
+    data_basis_months: int
+    total_days: int | None = None
+    average_days: Decimal | None = None
+    suppressed: bool = False
+
+
 class ProductiveHoursCalculationOut(BaseModel):
     weekly_hours: Decimal
     daily_hours: Decimal
@@ -3640,6 +3666,12 @@ class ProductiveHoursCalculationOut(BaseModel):
     productive_hours: Decimal
     productive_time_pct_result: Decimal
     current_productive_time_pct: Decimal
+    # Ist-Werte als Orientierung (siehe app/productive_hours.py-Moduldocstring) -- errechnet,
+    # aber übersteuerbar (Feiertage) bzw. reine Vergleichswerte, die nie in die Rechnung
+    # einfließen (Schlechtwetter/Krankheit).
+    public_holidays_suggested: Decimal
+    weather_days_actual: WeatherDaysActualOut
+    sick_days_actual: SickDaysActualOut
 
 
 # Einspeisung des Betriebskosten-Vorschlags in die Gemeinkosten-Felder (Schicht 3, Fortsetzung,
