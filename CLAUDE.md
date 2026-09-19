@@ -20,7 +20,7 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.5.1** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.5.2** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
 - Migrationskette Kopf jetzt `57062a31dba7` ("productive hours settings and recurring cost
   overhead classification", neue Tabelle `productive_hours_settings` PLUS die neue, indizierte
   Spalte `recurring_costs.overhead_classification` (`server_default='keine'`) -- siehe Abschnitt
@@ -41,21 +41,25 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   columns", siehe Abschnitt "Umbau der Projektliste" unten), davor `f803985ebc2f` ("property
   documents table", siehe
   Abschnitt "Dateiablage je Objekt" unten), davor `9137945e8785` ("document categories
-  foundation"): keine der Versionen 1.3.52 bis 1.3.61 UND auch 1.4.8 selbst brauchte eine eigene
-  Migration (1.4.8: reine Rollen-Gate-/Response-Schema-/Audit-Redaction-Umstellungen auf bereits
+  foundation"): keine der Versionen 1.3.52 bis 1.3.61 UND auch 1.4.8 UND auch 1.5.2 selbst
+  brauchte eine eigene Migration (1.5.2: die Einspeisung des Betriebskosten-Vorschlags schreibt
+  ausschließlich in bereits bestehende `LaborRateOverheadSettings`-Spalten, siehe Abschnitt
+  "Betriebskosten-Übersicht" -> "Verrechnungssatz-Kreislauf Schicht 3" unten; 1.4.8: reine
+  Rollen-Gate-/Response-Schema-/Audit-Redaction-Umstellungen auf bereits
   bestehenden Endpunkten und Tabellen, kein neues/geändertes Modell; 1.3.52-1.3.61: reine
   Rollen-Gate-/Response-Schema-/Objekt-Filterungs-Umstellungen auf bereits bestehenden
   Endpunkten und Tabellen; 1.3.61s neuer PDF-Dokumenttyp "field_timesheet" fällt ohne eigene
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1573 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1582 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 18.09.2026 (1.5.1, Verrechnungssatz-Kreislauf Schicht 3 -- Produktivstunden-
-  Rechner + `overview_summary()`-Erweiterung, siehe Abschnitt "Betriebskosten-Übersicht" unten;
-  davor 1.5.0, Betriebskosten-Übersicht Schicht 1; davor 1.4.8, Rechtekonzept "Vier Rollen"
-  Etappe 2 -- die Verengungen, siehe Abschnitt "Rechtekonzept" -> "Vier Rollen" unten; davor
-  1.4.7, Etappe 1 -- reine Rollen-Erweiterung) mit
+  dort), zuletzt am 19.09.2026 (1.5.2, Verrechnungssatz-Kreislauf Schicht 3 -- die Einspeisung
+  des Betriebskosten-Vorschlags in die Gemeinkosten-Felder, siehe Abschnitt
+  "Betriebskosten-Übersicht" unten; davor 1.5.1, dieselbe Schicht 3 -- Produktivstunden-Rechner +
+  `overview_summary()`-Erweiterung; davor 1.5.0, Betriebskosten-Übersicht Schicht 1; davor 1.4.8,
+  Rechtekonzept "Vier Rollen" Etappe 2 -- die Verengungen, siehe Abschnitt "Rechtekonzept" ->
+  "Vier Rollen" unten; davor 1.4.7, Etappe 1 -- reine Rollen-Erweiterung) mit
   `pytest` in Tobias'
   `.venv` unter Windows
   ausgeführt – darunter echte, über einen FastAPI-`TestClient` laufende Routen-Tests (seit
@@ -1261,6 +1265,34 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Version**: jede Änderung an `app/labor_rate.py`/`LaborRateOverheadSettings`, der Modus-Zwang
   beim Übernehmen, der Schritt-1-Knopf und die dreistufige Vergleichsansicht. Migration
   `57062a31dba7`, 15 neue Tests, volle Suite: 1573 Tests grün.
+- Neu seit 1.5.2: **Verrechnungssatz-Kreislauf Schicht 3 -- die Einspeisung.** Fortsetzung von
+  1.5.1, nach Bestätigung des Punkt-1-Vorschlags: die Einordnungswerte `keine`/`fix`/
+  `auslastungsabhaengig` sind jetzt final (kein "vorläufig" mehr, Erklärtext bei
+  "auslastungsabhaengig" ergänzt), die Code-Felder `variable_overhead_*` bleiben bewusst
+  unangetastet. `calculate_labor_rate()` (`app/labor_rate.py`) bekommt einen neuen, optionalen,
+  keyword-only Parameter `overhead_override: dict | None = None` -- lässt die Formel MIT
+  hypothetischen Gemeinkosten-Werten rechnen, rein in-memory, ohne die Datenbank anzufassen;
+  `recurring_cost_overhead_proposal()` ruft die Funktion deshalb ZWEIMAL auf (unverändert für
+  "aktuell", mit Override für "Vorschlag") statt eine zweite Berechnung zu pflegen -- eine
+  Quelle für `annual_productive_hours` und jede andere Größe in beiden Zuständen. Die
+  Vergleichsansicht zeigt den Punkt-1-Hinweis jetzt als Pflichtangabe: "Auslastungsabhängige
+  Betriebskosten: X. Plus automatisch berechnete Verwaltungslöhne: Y. Ergibt variable
+  Gemeinkosten: X+Y.", dreistufig aufgeschlüsselt (Summe / fix+auslastungsabhängig / einzelne
+  Posten aufklappbar über `<details>`), Gegenüberstellung aktuell/Vorschlag für beide Buckets
+  getrennt. **Zweistufig**: neuer Knopf "Betriebskosten-Vorschlag übernehmen" (Schritt 1,
+  `apply_recurring_cost_overhead_proposal()`, `POST /api/recurring-cost-overhead-proposal/apply`)
+  schreibt ausschließlich die beiden Gemeinkosten-Felder und erzwingt dabei immer den Modus
+  "eur" auf beiden -- mit `confirm()`-Warnung im Frontend, falls das den bisherigen
+  Prozent-Modus überschreibt (keine stille Semantikänderung). Der bestehende "Als aktuellen
+  Verrechnungssatz übernehmen"-Knopf (Schritt 2, `apply_labor_rate_calculation()`) bleibt
+  unverändert der davon getrennte, zweite Schritt. Neuer Endpunkt
+  `GET /api/recurring-cost-overhead-proposal` (reine Vorschau, schreibt nichts), co-located im
+  `labor_rate`-Router, dieselbe `require_min_role(ROLE_OFFICE_FINANZEN)`-Schwelle. Kein neues
+  Datenmodell, keine Migration. Abschließender Angriffstest (Betreibervorgabe):
+  `buero_auftrag`/`field` kommen an keinen Teil des Kreislaufs -- weder an die Einordnung, noch
+  an die Vergleichsansicht, noch an den Übernehmen-Knopf, noch an den Produktivstunden-Rechner,
+  per rekursivem Schlüssel-Scan mit einem Testkonto je Rolle bestätigt. 9 neue Tests, volle
+  Suite: 1582 Tests grün.
 
 ### Headless-Chrome-Verifikation über CDP (seit 1.3.73)
 
@@ -9014,10 +9046,11 @@ der tatsächlichen Auslastung richten -- das tun sie nicht, sie werden nur einma
 4. **CLAUDE.md dokumentiert die Begriffsunterscheidung** (dieser Abschnitt) als dauerhafte
    Referenz, damit ein künftiger Bearbeiter nicht erneut über dieselbe Verwechslung stolpert.
 
-**Diese vier Punkte sind noch NICHT umgesetzt** -- die Klassifikationswerte `keine`/`fix`/
-`auslastungsabhaengig` sind zwar bereits im Code angelegt (siehe unten, für die
-`overview_summary()`-Erweiterung), aber ausdrücklich als vorläufig gekennzeichnet. Punkt 3 (die
-Einspeisung mit Warnhinweis) ist Teil der noch ausstehenden Schicht-3-Fortsetzung.
+**Zum Zeitpunkt von 1.5.1 waren diese vier Punkte noch NICHT umgesetzt** -- die Klassifikations-
+werte `keine`/`fix`/`auslastungsabhaengig` waren zwar bereits im Code angelegt (siehe unten, für
+die `overview_summary()`-Erweiterung), aber ausdrücklich als vorläufig gekennzeichnet. **Seit
+1.5.2 bestätigt und vollständig umgesetzt** -- siehe Unterabschnitt "Die Einspeisung (seit
+1.5.2)" unten für alle vier Punkte inkl. Punkt 3 (Vergleichsansicht mit Pflicht-Hinweis).
 
 #### Produktivstunden-Rechner (`app/productive_hours.py`)
 
@@ -9071,13 +9104,114 @@ ALLER aktiven Posten, für die bestehende Anzeige) drei getrennte Jahressummen:
 Summe der drei Gruppen ergibt exakt `annual_total`. `recurring_costs.html` zeigt sie als
 zusätzliche Kennzahlen-Kacheln unterhalb der bestehenden Summenkarte, das Anlegen-/Bearbeiten-
 Formular bekommt ein neues Auswahlfeld ("Kalkulatorische Einordnung"), die Kostenliste eine neue
-Spalte -- **jede dieser drei Stellen trägt einen sichtbaren Hinweis "vorläufige Bezeichnung,
-siehe Bericht zu Punkt 1"**, damit niemand die Werte für final hält, bevor der Vorschlag oben
-bestätigt ist.
+Spalte -- zum Zeitpunkt von 1.5.1 trug jede dieser drei Stellen einen sichtbaren Hinweis
+"vorläufige Bezeichnung, siehe Bericht zu Punkt 1", damit niemand die Werte für final hielt,
+bevor der Vorschlag oben bestätigt war. **Seit 1.5.2 entfernt** -- die Einordnung ist bestätigt,
+siehe unten.
 
 Migration `57062a31dba7` (neue Spalte `recurring_costs.overhead_classification` PLUS neue Tabelle
 `productive_hours_settings`), 15 neue Tests (`tests/test_v284_productive_hours_and_overhead_classification.py`),
 volle Suite: 1573 Tests grün.
+
+#### Die Einspeisung (seit 1.5.2)
+
+Fortsetzung von 1.5.1, nach der Betreiber-Bestätigung des oben stehenden Vorschlags zu Punkt 1 --
+wörtlich: "Der Vorschlag zu Punkt 1 ist richtig, bau ihn so. [...] Die Code-Felder
+`variable_overhead_*` bleiben unangetastet, wie du sagst -- kein Umbenennen eines inhaltlich
+unveränderten Buckets." Damit sind die vier Vorschlagspunkte oben final:
+
+- `OVERHEAD_CLASSIFICATIONS`/`OVERHEAD_CLASSIFICATION_LABELS` (`app/recurring_costs.py`) sind
+  nicht mehr "vorläufig" -- der Erklärtext bei `"auslastungsabhaengig"` lautet jetzt "z. B.
+  Kraftstoff, Verschleiß, Entsorgung -- fließt zusammen mit den Verwaltungslöhnen in den
+  variablen Gemeinkosten-Bucket", exakt wie vom Betreiber vorgegeben. Alle "vorläufig"/
+  "siehe Bericht zu Punkt 1"-Marker sind aus `recurring_costs.html` entfernt (Metrik-Zeile,
+  `editClassification`-Feldlabel, das `auslastungsabhaengig`-`<option>`).
+- `LaborRateOverheadSettings.variable_overhead_mode`/`.variable_overhead_value` bleiben
+  wortwörtlich unverändert -- kein Umbenennen, keine Migration.
+
+Danach die Einspeisung selbst, nach fünf vom Betreiber vorgegebenen Punkten:
+
+**Punkt 1 -- der Pflicht-Hinweis in der Vergleichsansicht.** `recurring_cost_overhead_proposal()`
+(neu, `app/labor_rate.py`) baut eine reine Vorschau -- schreibt nichts -- und zeigt getrennt:
+"Auslastungsabhängige Betriebskosten: X. Plus automatisch berechnete Verwaltungslöhne: Y. Ergibt
+variable Gemeinkosten: X+Y.", sowohl für "aktuell" (die tatsächlich hinterlegten
+`LaborRateOverheadSettings`-Werte) als auch für "Vorschlag" (die Summen aus
+`overview_summary()["annual_fixed_from_costs"]`/`["annual_usage_dependent_from_costs"]`). Ohne
+diesen Hinweis würde ein Betreiber sich wundern, warum der "variable" Gemeinkostenwert höher ist
+als die Summe seiner auslastungsabhängigen Posten -- X, Y und X+Y stehen jetzt einzeln da.
+
+**Punkt 2 -- Modus-Zwang, keine stille Semantikänderung.** `apply_recurring_cost_overhead_proposal()`
+(neu, `app/labor_rate.py`) setzt `fixed_overhead_mode`/`variable_overhead_mode` IMMER auf `"eur"`
+-- unabhängig davon, welcher Modus vorher galt. Das ist eine echte Bedeutungsänderung eines
+Feldes (Prozent der Lohnkosten vs. absoluter Jahresbetrag), nicht nur ein neuer Wert -- die
+Warnung dafür sitzt bewusst im FRONTEND, vor dem Aufruf (`settings.html::
+applyOverheadProposal()`, `confirm()`-Dialog, Regel 4: kein `prompt()`, `confirm()` für
+Ja/Nein-Bestätigungen ist etabliert), nicht in der Business-Funktion selbst -- die schreibt
+unbedingt, sobald sie aufgerufen wird. Der Dialogtext benennt explizit, welches der beiden Felder
+(falls überhaupt eines) vom bisherigen Prozent-Modus betroffen wäre.
+
+**Punkt 3 -- die dreistufige Aufschlüsselung.** Summe (die beiden Kennzahlen-Kacheln oben) → fix/
+auslastungsabhängig getrennt (zwei `.metric`-Kacheln, `renderOverheadProposal()` in
+`settings.html`) → einzelne Posten aufklappbar (natives HTML `<details>`/`<summary>`, `ocpItemsHtml()`,
+gespeist aus `proposal["fixed_costs"]`/`["usage_dependent_costs"]` -- denselben Listen, die
+`recurring_cost_overhead_proposal()` über `list_costs(db, include_inactive=False)` gefiltert nach
+Klassifikation liefert, "keine" und inaktive Posten bleiben draußen). Gegenüberstellung Vorschlag
+gegen aktuell für beide Buckets getrennt, wie oben in Punkt 1 beschrieben.
+
+**Punkt 4 -- eine Formel, eine Quelle.** `calculate_labor_rate()` bekommt einen neuen,
+KEYWORD-ONLY-Parameter `overhead_override: dict | None = None` (Default bewahrt exakt das
+bisherige Verhalten für jeden bestehenden Aufrufer, keine Signaturänderung an bestehenden
+Aufrufstellen nötig). Ist er gesetzt, ersetzt er `fixed_overhead_mode`/`fixed_overhead_value`/
+`variable_overhead_mode`/`variable_overhead_value` rein IN-MEMORY für genau diesen einen Aufruf --
+die Datenbank wird nicht gelesen verändert, `get_or_create_overhead_settings()` liefert danach
+unverändert den alten Stand. `recurring_cost_overhead_proposal()` ruft `calculate_labor_rate()`
+deshalb ZWEIMAL auf (einmal unverändert für "aktuell", einmal mit dem Vorschlag als Override für
+"Vorschlag") statt selbst eine zweite Kopie der Formel zu pflegen -- `annual_productive_hours`
+UND jede andere im Ergebnis-Dict stehende Größe kommen für beide Zustände aus exakt demselben
+Code, kein zweiter, hier nachgebauter Rechenweg (das ist die im Punkt-1-Befund selbst gezogene
+Lehre, hier konkret angewendet).
+
+**Punkt 5 -- zweistufig, zwei getrennte Knöpfe.** Der neue Knopf "Betriebskosten-Vorschlag
+übernehmen" (Schritt 1, `settings.html::applyOverheadProposal()`,
+`POST /api/recurring-cost-overhead-proposal/apply`) speist AUSSCHLIESSLICH die beiden
+Gemeinkosten-Felder (`fixed_overhead_mode`/`fixed_overhead_value`/`variable_overhead_mode`/
+`variable_overhead_value`, plus das Legacy-Spiegelfeld `LaborRateSettings.annual_overhead` im
+Gleichschritt mit `fixed_overhead_value` -- dasselbe Muster wie beim bestehenden
+`PUT /api/labor-rate-settings`). Er rührt `CalculationSettings.labor_rate` NICHT an. Der
+bestehende Knopf "Als aktuellen Verrechnungssatz übernehmen" (Schritt 2,
+`apply_labor_rate_calculation()`, unverändert) bleibt der davon getrennte zweite Schritt -- kein
+Knopf erledigt beide Schritte in einem.
+
+**Router**: `GET /api/recurring-cost-overhead-proposal` (reine Vorschau) und
+`POST /api/recurring-cost-overhead-proposal/apply` (Schritt 1, gibt danach dieselbe Vorschau-
+Struktur mit dem neuen Stand zurück), beide co-located im bestehenden `labor_rate`-Router,
+dieselbe `require_min_role(ROLE_OFFICE_FINANZEN)`-Schwelle wie der übrige Stundensatz-Rechner
+und der Produktivstunden-Rechner. Neue Schemas `OverheadProposalStateOut`/
+`RecurringCostOverheadProposalItemOut`/`RecurringCostOverheadProposalOut` (`app/schemas.py`).
+
+**Kein neues Datenmodell, keine Migration** -- die Einspeisung schreibt ausschließlich in bereits
+bestehende `LaborRateOverheadSettings`-Spalten, `overhead_override` ist ein reiner
+Funktionsparameter ohne Persistenz.
+
+**Oberfläche**: neuer Block "Betriebskosten-Vorschlag für die Gemeinkosten" direkt unterhalb des
+Produktivstunden-Rechners in Einstellungen → Kalkulationsgrundlagen (`settings.html`,
+`settings-labor-rate`-Sektion) -- `loadOverheadProposalSection()` lädt beim Öffnen der Seite,
+`renderOverheadProposal()` baut die beiden Bucket-Kacheln inkl. der aufklappbaren Postenlisten
+und der Vorschau, wie sich `suggested_labor_rate` durch die Übernahme ändern würde (rein
+informativ, ändert nichts, solange Schritt 2 nicht separat ausgeführt wird).
+
+**Abschließender Angriffstest, wie vom Betreiber verlangt**: `buero_auftrag` und `field` kommen
+über KEINEN Teil des Kreislaufs -- weder an die Einordnung (`POST /api/recurring-costs` mit
+`overhead_classification`), noch an die Vergleichsansicht (`GET .../recurring-cost-overhead-proposal`),
+noch an den Übernehmen-Knopf (`POST .../apply`), noch an den Produktivstunden-Rechner
+(`GET/POST /api/productive-hours-settings*`) -- alles ausschließlich `buero_finanzen`/`admin`.
+Per rekursivem Schlüssel-Scan bestätigt (kein Kalkulationsfeld wie `suggested_labor_rate`/
+`fixed_overhead_annual`/`variable_employee_costs` taucht in einer 403-Antwort auf), ein
+Testkonto je Rolle (`router_test_client(db, ..., role=...)`, `ALL_ROLES = ("field",
+"buero_auftrag", "buero_finanzen", "admin")`). Null "durchgelassen".
+
+9 neue Tests (`tests/test_v285_recurring_cost_overhead_proposal.py`), volle Suite: 1582 Tests
+grün.
 
 ## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
 

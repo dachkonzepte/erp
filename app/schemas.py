@@ -3574,3 +3574,33 @@ class ProductiveHoursCalculationOut(BaseModel):
     productive_hours: Decimal
     productive_time_pct_result: Decimal
     current_productive_time_pct: Decimal
+
+
+# Einspeisung des Betriebskosten-Vorschlags in die Gemeinkosten-Felder (Schicht 3, Fortsetzung,
+# seit 1.5.2) -- siehe app/labor_rate.py::recurring_cost_overhead_proposal().
+class OverheadProposalStateOut(BaseModel):
+    fixed_mode: str
+    fixed_value: Decimal
+    fixed_overhead_annual: Decimal
+    variable_mode: str
+    variable_value: Decimal
+    manual_variable_overhead_annual: Decimal
+    variable_employee_costs: Decimal
+    variable_overhead_annual: Decimal
+    suggested_labor_rate: Decimal | None = None
+    can_calculate: bool = True
+
+
+class RecurringCostOverheadProposalItemOut(BaseModel):
+    id: int
+    label: str
+    annual_amount: Decimal
+
+
+class RecurringCostOverheadProposalOut(BaseModel):
+    current: OverheadProposalStateOut
+    proposed: OverheadProposalStateOut
+    annual_fixed_from_costs: Decimal
+    annual_usage_dependent_from_costs: Decimal
+    fixed_costs: list[RecurringCostOverheadProposalItemOut] = Field(default_factory=list)
+    usage_dependent_costs: list[RecurringCostOverheadProposalItemOut] = Field(default_factory=list)

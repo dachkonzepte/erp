@@ -61,7 +61,7 @@ tr:last-child td{border-bottom:none}
     <div class="metric"><div class="label">Kostenposten</div><div class="value" id="mCount">–</div></div>
     <div class="metric"><div class="label">Betriebsmittel-Notizen ohne Posten</div><div class="value" id="mAssetCount">–</div></div>
   </div>
-  <div class="muted small" style="margin:10px 0 4px">Nach kalkulatorischer Einordnung (vorläufige Bezeichnung, siehe Bericht zu Punkt 1) -- jeweils Jahresbetrag:</div>
+  <div class="muted small" style="margin:10px 0 4px">Nach kalkulatorischer Einordnung -- jeweils Jahresbetrag. Fließt über Einstellungen → Kalkulationsgrundlagen (Betriebskosten-Vorschlag) in die Gemeinkosten-Felder ein:</div>
   <div class="metric-row">
     <div class="metric"><div class="label">Feste Gemeinkosten</div><div class="value" id="mFixed">–</div></div>
     <div class="metric"><div class="label">Auslastungsabhängige Kosten</div><div class="value" id="mUsageDependent">–</div></div>
@@ -75,10 +75,10 @@ tr:last-child td{border-bottom:none}
   <div class="fields-2col">
     <div class="field full"><label>Bezeichnung *</label><input id="editLabel" placeholder="z. B. Bürolokal Übach-Palenberg"></div>
     <div class="field"><label>Kategorie</label><select id="editCategory"></select></div>
-    <div class="field"><label>Kalkulatorische Einordnung <span class="muted small">(vorläufige Bezeichnung, siehe Bericht zu Punkt 1)</span></label><select id="editClassification">
+    <div class="field"><label>Kalkulatorische Einordnung</label><select id="editClassification">
       <option value="keine">Keine Gemeinkosten</option>
       <option value="fix">Feste Gemeinkosten</option>
-      <option value="auslastungsabhaengig">Auslastungsabhängige Kosten (z. B. Kraftstoff, Verschleiß, Entsorgung)</option>
+      <option value="auslastungsabhaengig">Auslastungsabhängige Kosten (z. B. Kraftstoff, Verschleiß, Entsorgung -- fließt zusammen mit den Verwaltungslöhnen in den variablen Gemeinkosten-Bucket)</option>
     </select></div>
     <div class="field"><label>Vertragspartner</label><input id="editVendor"></div>
     <div class="field"><label>Betrag (EUR) *</label><input id="editAmount" type="number" step="0.01" min="0"></div>
@@ -137,8 +137,8 @@ async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.j
 async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
 
 const BILLING_LABELS={monatlich:'Monatlich',vierteljaehrlich:'Vierteljährlich',halbjaehrlich:'Halbjährlich',jaehrlich:'Jährlich',einmalig:'Einmalig'};
-// Vorläufige Bezeichnung -- entspricht dem Punkt-1-Vorschlag, siehe Bericht. Werte vermeiden
-// bewusst das Wort "variabel" (Begriffskonflikt mit variable_overhead_value).
+// Werte vermeiden bewusst das Wort "variabel" (Begriffskonflikt mit variable_overhead_value,
+// siehe CLAUDE.md "Betriebskosten-Übersicht" -> "Verrechnungssatz-Kreislauf Schicht 3").
 const CLASSIFICATION_LABELS={keine:'—',fix:'Fest',auslastungsabhaengig:'Auslastungsabhängig'};
 
 let costs=[],categories=[],documentTypes=[],assets=[],currentEditId=null;

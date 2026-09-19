@@ -506,6 +506,12 @@
     <div class="formula"><b>Rechenweg:</b> Wochenstunden × Wochen/Jahr (aus der Kalkulationsgrundlage oben) = Bruttojahresstunden. Davon Urlaub, Feiertage, Ø Krankheitstage und Schlechtwetter (je in Tagen × Tagesstunden) abziehen, danach die unproduktive Zeit als Prozentsatz der verbleibenden Stunden. Das Ergebnis geteilt durch die Bruttojahresstunden ergibt den Vorschlag für „Produktive Zeit %“.</div>
     <div id="phResult" class="rate-result"></div>
     <div id="phApply" class="big-rate"></div>
+
+    <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+    <h3 style="margin-bottom:4px">Betriebskosten-Vorschlag für die Gemeinkosten</h3>
+    <div class="hint">Speist die <b>Betriebskosten-Übersicht</b> (Modul „Betriebskosten“, kalkulatorische Einordnung je Kostenposten) in die beiden Gemeinkosten-Felder oben ein -- in zwei getrennten Schritten: dieser Vorschlag übernimmt nur „Fixe Gemeinkosten“ / „Variable Gemeinkosten“ (Schritt 1); der bestehende Knopf <b>„Als aktuellen Verrechnungssatz übernehmen“ oben bleibt Schritt 2</b> und muss danach eigens geklickt werden. <b>Übernehmen erzwingt bei beiden Feldern die Eingabeart „Euro / Jahr“</b> -- steht eine der beiden aktuell auf „Prozent“, wird dieser Modus dabei überschrieben, mit deutlichem Hinweis vor dem Klick.</div>
+    <div id="ocpBuckets" style="margin-top:14px"></div>
+    <div id="ocpApply" class="big-rate"></div>
   </section>
 
   <section class="card settings-section" id="settings-calculation">
@@ -741,6 +747,7 @@ async function load(){
     setv('laborRate',c.labor_rate);setv('materialMarkup',c.material_markup_pct);setv('overhead',c.overhead_pct);setv('riskProfit',c.risk_profit_pct);document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
     setv('employerCostPct',lr.employer_cost_pct);setv('productiveTimePct',lr.productive_time_pct);setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',lr.fixed_overhead_value||0);setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',lr.variable_overhead_value||0);setv('targetProfitPct',lr.target_profit_pct);setv('weeksPerYear',lr.weeks_per_year);syncOverheadLabels();renderLaborRate(lrc);
     loadProductiveHoursSection();
+    loadOverheadProposalSection();
     loadRecurringCostsSettingsSection();
   }
   sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();document.getElementById('autoCreateDraftsCheckbox').checked=!!rs.auto_create_drafts;moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadDocumentCategoriesSection();loadMobileSection();loadDocumentLayoutSection();loadProjectPipelineSection();}
@@ -1730,6 +1737,72 @@ async function applyProductiveHours(){
     await refreshLaborRate();
   }catch(e){s.textContent='Fehler: '+e.message}
 }
+
+// Einspeisung des Betriebskosten-Vorschlags (Schicht 3, Fortsetzung, seit 1.5.2) -- reine
+// Vergleichsansicht, dreistufige Aufschlüsselung (Summe / fix+auslastungsabhängig / einzelne
+// Posten aufklappbar), Gegenüberstellung aktuell/Vorschlag für beide Buckets getrennt.
+let lastOverheadProposal=null;
+function ocpItemsHtml(items){
+  if(!items.length)return '<div class="muted small">Keine Posten mit dieser Einordnung.</div>';
+  return '<table style="width:100%;font-size:12.5px;margin-top:6px"><tbody>'+items.map(i=>`<tr><td>${esc(i.label)}</td><td style="text-align:right;white-space:nowrap">${money(i.annual_amount)}</td></tr>`).join('')+'</tbody></table>';
+}
+function ocpValueText(mode,value){return mode==='pct'?num(value)+' %':money(value)}
+function renderOverheadProposal(p){
+  const cur=p.current,prop=p.proposed;
+  const fixedBucket=`<div class="metric" style="grid-column:1/-1;text-align:left">
+    <div class="k">Feste Gemeinkosten</div>
+    <div style="display:flex;gap:22px;flex-wrap:wrap;margin:6px 0 8px">
+      <div><div class="muted small">Aktuell hinterlegt (${cur.fixed_mode==='pct'?'% der Lohnkosten':'€/Jahr'})</div><div style="font-size:16px;font-weight:800">${ocpValueText(cur.fixed_mode,cur.fixed_value)} <span class="muted small">(= ${money(cur.fixed_overhead_annual)}/Jahr)</span></div></div>
+      <div><div class="muted small">Vorschlag aus Betriebskosten</div><div style="font-size:16px;font-weight:800">${money(prop.fixed_overhead_annual)}/Jahr</div></div>
+    </div>
+    <details><summary class="muted small" style="cursor:pointer">${p.fixed_costs.length} Posten „Feste Gemeinkosten“ einzeln anzeigen</summary>${ocpItemsHtml(p.fixed_costs)}</details>
+  </div>`;
+  const variableBucket=`<div class="metric" style="grid-column:1/-1;text-align:left">
+    <div class="k">Variable Gemeinkosten (auslastungsabhängige Betriebskosten + Verwaltungslöhne)</div>
+    <div style="display:flex;gap:22px;flex-wrap:wrap;margin:6px 0 8px">
+      <div><div class="muted small">Aktuell -- auslastungsabh. Anteil (${cur.variable_mode==='pct'?'% der Lohnkosten':'€/Jahr'})</div><div style="font-size:16px;font-weight:800">${ocpValueText(cur.variable_mode,cur.variable_value)} <span class="muted small">(= ${money(cur.manual_variable_overhead_annual)}/Jahr)</span></div></div>
+      <div><div class="muted small">Vorschlag -- auslastungsabh. Betriebskosten</div><div style="font-size:16px;font-weight:800">${money(prop.manual_variable_overhead_annual)}/Jahr</div></div>
+    </div>
+    <div class="formula" style="margin:0 0 8px">
+      Auslastungsabhängige Betriebskosten: <b>${money(prop.manual_variable_overhead_annual)}</b>. Plus automatisch berechnete Verwaltungslöhne: <b>${money(prop.variable_employee_costs)}</b>. Ergibt variable Gemeinkosten: <b>${money(prop.variable_overhead_annual)}</b>.
+      <div class="muted small" style="margin-top:4px">Zum Vergleich, aktuell hinterlegt: ${money(cur.manual_variable_overhead_annual)} + ${money(cur.variable_employee_costs)} = ${money(cur.variable_overhead_annual)}.</div>
+    </div>
+    <details><summary class="muted small" style="cursor:pointer">${p.usage_dependent_costs.length} Posten „Auslastungsabhängig“ einzeln anzeigen</summary>${ocpItemsHtml(p.usage_dependent_costs)}</details>
+  </div>`;
+  document.getElementById('ocpBuckets').innerHTML=`<div class="rate-grid">${fixedBucket}${variableBucket}</div>`;
+  const rateNote=(cur.can_calculate&&prop.can_calculate)
+    ?`<div class="muted small" style="margin-top:8px">Vorschau: der Verrechnungssatz würde sich von ${money(cur.suggested_labor_rate)}/h auf ${money(prop.suggested_labor_rate)}/h ändern, sofern danach auch Schritt 2 („Als aktuellen Verrechnungssatz übernehmen“ oben) ausgeführt wird.</div>`
+    :'<div class="muted small" style="margin-top:8px">Verrechnungssatz noch nicht berechenbar (siehe Hinweis oben) -- der Vorschlag lässt sich trotzdem übernehmen.</div>';
+  document.getElementById('ocpApply').innerHTML=`<div class="muted small">Betriebskosten-Vorschlag übernehmen (Schritt 1) -- Eingabeart wird auf „Euro / Jahr“ erzwungen</div><button onclick="applyOverheadProposal()">Betriebskosten-Vorschlag übernehmen</button>${rateNote}`;
+}
+async function loadOverheadProposalSection(){
+  try{
+    lastOverheadProposal=await api('/api/recurring-cost-overhead-proposal');
+    renderOverheadProposal(lastOverheadProposal);
+  }catch(e){document.getElementById('ocpBuckets').innerHTML='<div class="status err">Fehler: '+esc(e.message)+'</div>'}
+}
+async function applyOverheadProposal(){
+  const p=lastOverheadProposal;
+  const modeChanges=[];
+  if(p){
+    if(p.current.fixed_mode!=='eur')modeChanges.push('„Fixe Gemeinkosten“ (aktuell: Prozent der Lohnkosten)');
+    if(p.current.variable_mode!=='eur')modeChanges.push('„Variable Gemeinkosten“ (aktuell: Prozent der Lohnkosten)');
+  }
+  const warning=modeChanges.length
+    ?`Achtung: ${modeChanges.join(' und ')} werden dabei zwingend auf die Eingabeart „Euro / Jahr“ umgestellt -- das ändert die Bedeutung des Feldes, nicht nur den Wert. Trotzdem übernehmen?`
+    :'Betriebskosten-Vorschlag als „Fixe Gemeinkosten“ / „Variable Gemeinkosten“ übernehmen? Beide Eingabearten werden dabei auf „Euro / Jahr“ gesetzt.';
+  if(!confirm(warning))return;
+  try{
+    lastOverheadProposal=await api('/api/recurring-cost-overhead-proposal/apply',{method:'POST'});
+    renderOverheadProposal(lastOverheadProposal);
+    setv('fixedOverheadMode','eur');setv('fixedOverheadValue',lastOverheadProposal.current.fixed_value);
+    setv('variableOverheadMode','eur');setv('variableOverheadValue',lastOverheadProposal.current.variable_value);
+    syncOverheadLabels();
+    await refreshLaborRate();
+    document.getElementById('laborRateStatus').textContent='Betriebskosten-Vorschlag übernommen -- Schritt 2 („Als aktuellen Verrechnungssatz übernehmen“ oben) steht weiterhin separat bereit.';
+  }catch(e){document.getElementById('laborRateStatus').textContent='Fehler: '+e.message}
+}
+
 async function saveCalculation(){const s=document.getElementById('calcStatus');try{await api('/api/calculation-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({labor_rate:Number(v('laborRate')||0),material_markup_pct:Number(v('materialMarkup')||0),overhead_pct:Number(v('overhead')||0),risk_profit_pct:Number(v('riskProfit')||0),use_source_time_as_minutes:document.getElementById('sourceMinutes').checked})});s.textContent='Kalkulationsgrundlagen gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
 function isHexColor(x){return /^#[0-9a-fA-F]{6}$/.test(x)}
 function whiteContrastRatio(hex){const r=parseInt(hex.slice(1,3),16)/255,g=parseInt(hex.slice(3,5),16)/255,b=parseInt(hex.slice(5,7),16)/255;const lin=c=>c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4);const L=0.2126*lin(r)+0.7152*lin(g)+0.0722*lin(b);return 1.05/(L+0.05)}

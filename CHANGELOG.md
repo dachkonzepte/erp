@@ -4,6 +4,54 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.5.2 – Verrechnungssatz-Kreislauf Schicht 3, die Einspeisung
+
+Fortsetzung von 1.5.1, nach Bestätigung des Punkt-1-Vorschlags durch den Betreiber: die
+Einordnungswerte `keine`/`fix`/`auslastungsabhaengig` sind jetzt final (kein "vorläufig" mehr,
+Erklärtext bei "auslastungsabhaengig" ergänzt: "z. B. Kraftstoff, Verschleiß, Entsorgung -- fließt
+zusammen mit den Verwaltungslöhnen in den variablen Gemeinkosten-Bucket"), die Code-Felder
+`variable_overhead_*` bleiben bewusst unangetastet (kein Umbenennen eines inhaltlich
+unveränderten Buckets). Die eigentliche Einspeisung des Betriebskosten-Vorschlags in die beiden
+Gemeinkosten-Felder von `LaborRateOverheadSettings` ist jetzt gebaut, nach fünf Vorgaben:
+
+1. **Pflicht-Hinweis in der Vergleichsansicht**: `recurring_cost_overhead_proposal()`
+   (`app/labor_rate.py`) zeigt getrennt "Auslastungsabhängige Betriebskosten: X. Plus
+   automatisch berechnete Verwaltungslöhne: Y. Ergibt variable Gemeinkosten: X+Y." -- für
+   "aktuell" UND "Vorschlag", damit die Zahl nachvollziehbar bleibt und niemand sich wundert,
+   warum der variable Gemeinkostenwert höher ist als die Summe seiner auslastungsabhängigen
+   Posten.
+2. **Modus-Zwang mit Warnhinweis**: `apply_recurring_cost_overhead_proposal()` erzwingt auf
+   beiden Feldern immer den Modus "eur" -- die Oberfläche (`settings.html::
+   applyOverheadProposal()`) zeigt vorher eine `confirm()`-Bestätigung mit deutlichem Hinweis,
+   wenn dadurch der bisherige Prozent-Modus überschrieben würde, keine stille
+   Semantikänderung.
+3. **Dreistufige Aufschlüsselung**: Summe / fix + auslastungsabhängig / einzelne Posten
+   aufklappbar (`<details>`), Gegenüberstellung Vorschlag gegen aktuell für beide Buckets
+   getrennt.
+4. **Eine Formel, eine Quelle**: `calculate_labor_rate()` bekommt einen neuen, optionalen,
+   keyword-only Parameter `overhead_override: dict | None = None` -- lässt die Formel MIT den
+   Vorschlagswerten rechnen, ohne die Datenbank anzufassen (reine In-Memory-Substitution).
+   `recurring_cost_overhead_proposal()` ruft die Funktion deshalb zweimal auf (unverändert für
+   "aktuell", mit Override für "Vorschlag") statt eine zweite, hier nachgebaute Berechnung zu
+   pflegen -- `annual_productive_hours` und jede andere Größe kommen für beide Zustände aus
+   exakt derselben Quelle.
+5. **Zweistufig getrennt**: neuer Knopf "Betriebskosten-Vorschlag übernehmen" (Schritt 1,
+   `POST /api/recurring-cost-overhead-proposal/apply`) schreibt ausschließlich die beiden
+   Gemeinkosten-Felder -- der bestehende "Als aktuellen Verrechnungssatz übernehmen"-Knopf
+   (Schritt 2, `apply_labor_rate_calculation()`) bleibt unverändert der davon getrennte,
+   zweite Schritt.
+
+Zwei neue Endpunkte `GET /api/recurring-cost-overhead-proposal` +
+`POST .../apply`, co-located im bestehenden `labor_rate`-Router, dieselbe
+`require_min_role(ROLE_OFFICE_FINANZEN)`-Schwelle wie der übrige Stundensatz-Rechner. Oberfläche
+direkt unterhalb des Produktivstunden-Rechners in Einstellungen → Kalkulationsgrundlagen. Kein
+neues Datenmodell, keine Migration -- nur neue Geschäftslogik-Funktionen und ein
+In-Memory-Parameter, geschrieben wird ausschließlich in bereits bestehende Spalten. Abschließender
+Angriffstest (Betreibervorgabe): `buero_auftrag`/`field` kommen an keinen Teil des Kreislaufs --
+weder an die Einordnung, noch an die Vergleichsansicht, noch an den Übernehmen-Knopf, noch an den
+Produktivstunden-Rechner, per rekursivem Schlüssel-Scan mit einem Testkonto je Rolle bestätigt.
+9 neue Tests, volle Suite: 1582 Tests grün.
+
 ## 1.5.1 – Verrechnungssatz-Kreislauf Schicht 3, die beiden begriffskonflikt-unabhängigen Teile
 
 Vor dem Bauen ein reiner Befund zu Punkt 1 der Schicht-3-Anfrage (wie `labor_rate.py` den

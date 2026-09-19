@@ -7,6 +7,7 @@ from .models import (
     LaborRateOverheadSettings, LaborRateSettings,
 )
 from .employees import annual_gross_wage, effective_cost_allocation
+from .recurring_costs import list_costs, overview_summary
 
 ZERO = Decimal("0")
 HUNDRED = Decimal("100")
@@ -82,7 +83,9 @@ def _overhead_amount(mode: str, value: Decimal, direct_labor_annual_cost: Decima
     return value
 
 
-def calculate_labor_rate(db: Session, calc_settings: CalculationSettings) -> dict:
+def calculate_labor_rate(
+    db: Session, calc_settings: CalculationSettings, *, overhead_override: dict | None = None,
+) -> dict:
     params = get_or_create_labor_rate_settings(db)
     overhead_settings = get_or_create_overhead_settings(db, params)
     weeks = Decimal(params.weeks_per_year or Decimal("52"))
@@ -165,12 +168,23 @@ def calculate_labor_rate(db: Session, calc_settings: CalculationSettings) -> dic
             "note": "Die produktive Zeit muss größer als 0 % sein.",
         }
 
-    fixed_value = Decimal(overhead_settings.fixed_overhead_value or ZERO)
-    variable_value = Decimal(overhead_settings.variable_overhead_value or ZERO)
-    fixed_overhead = _overhead_amount(overhead_settings.fixed_overhead_mode, fixed_value, direct_labor_annual_cost)
-    manual_variable_overhead = _overhead_amount(
-        overhead_settings.variable_overhead_mode, variable_value, direct_labor_annual_cost
-    )
+    # overhead_override (Schicht 3, Einspeisung seit 1.5.2) laesst eine Vorschau MIT den
+    # Betriebskosten-Vorschlagswerten rechnen, OHNE die persistierten Einstellungen anzufassen --
+    # rein in-memory, keine DB-Schreibung. Damit kommt annual_productive_hours (und jede andere
+    # Groesse dieser Funktion) fuer "aktuell" und "Vorschlag" aus GENAU DERSELBEN Formel, keine
+    # zweite Berechnung an anderer Stelle (siehe recurring_cost_overhead_proposal() unten).
+    if overhead_override is not None:
+        fixed_mode = overhead_override.get("fixed_overhead_mode", overhead_settings.fixed_overhead_mode)
+        fixed_value = Decimal(overhead_override.get("fixed_overhead_value", overhead_settings.fixed_overhead_value) or ZERO)
+        variable_mode = overhead_override.get("variable_overhead_mode", overhead_settings.variable_overhead_mode)
+        variable_value = Decimal(overhead_override.get("variable_overhead_value", overhead_settings.variable_overhead_value) or ZERO)
+    else:
+        fixed_mode = overhead_settings.fixed_overhead_mode
+        fixed_value = Decimal(overhead_settings.fixed_overhead_value or ZERO)
+        variable_mode = overhead_settings.variable_overhead_mode
+        variable_value = Decimal(overhead_settings.variable_overhead_value or ZERO)
+    fixed_overhead = _overhead_amount(fixed_mode, fixed_value, direct_labor_annual_cost)
+    manual_variable_overhead = _overhead_amount(variable_mode, variable_value, direct_labor_annual_cost)
     variable_overhead = manual_variable_overhead + variable_employee_costs
     total_overhead = fixed_overhead + variable_overhead
 
@@ -211,3 +225,92 @@ def calculate_labor_rate(db: Session, calc_settings: CalculationSettings) -> dic
         "can_calculate": True,
         "note": None,
     }
+
+
+def _overhead_proposal_state(fixed_mode: str, fixed_value: Decimal, variable_mode: str, variable_value: Decimal, result: dict) -> dict:
+    """Ein Zustand (aktuell ODER Vorschlag) der Vergleichsansicht -- fixed_overhead_annual/
+    manual_variable_overhead_annual/variable_employee_costs/variable_overhead_annual/
+    suggested_labor_rate kommen ALLE aus dem calculate_labor_rate()-Ergebnis (result), nie neu
+    berechnet. fixed_mode/fixed_value/variable_mode/variable_value sind die rohen, gepflegten
+    bzw. vorgeschlagenen Werte (fuer die Anzeige "aktuell: 12 % vom Lohnkostenanteil")."""
+    return {
+        "fixed_mode": fixed_mode,
+        "fixed_value": q(fixed_value),
+        "fixed_overhead_annual": result["fixed_overhead_annual"],
+        "variable_mode": variable_mode,
+        "variable_value": q(variable_value),
+        "manual_variable_overhead_annual": result["manual_variable_overhead_annual"],
+        "variable_employee_costs": result["variable_employee_costs"],
+        "variable_overhead_annual": result["variable_overhead_annual"],
+        "suggested_labor_rate": result["suggested_labor_rate"],
+        "can_calculate": result["can_calculate"],
+    }
+
+
+def recurring_cost_overhead_proposal(db: Session, calc_settings: CalculationSettings) -> dict:
+    """Vergleichsansicht für die Einspeisung des Betriebskosten-Vorschlags in die beiden
+    Gemeinkosten-Felder (Fortsetzung von Schicht 3, seit 1.5.2, siehe CLAUDE.md
+    "Betriebskosten-Übersicht"). Reine Vorschau, schreibt nichts.
+
+    Ruft calculate_labor_rate() ZWEIMAL auf -- unveraendert ("current") und mit den
+    Betriebskosten-Vorschlagswerten temporaer als overhead_override eingesetzt ("proposed") --
+    damit annual_productive_hours und die Verrechnungssatz-Formel selbst aus EINER Quelle
+    kommen, keine zweite, hier nachgebaute Berechnung (Befund zu Punkt 1). Da
+    variable_employee_costs unabhaengig von den Gemeinkosten-Feldern ist (nur von den
+    Mitarbeitern mit Kosten-Zuordnung "Variable Gemeinkosten" abhaengt), ist dieser Wert in
+    current UND proposed automatisch identisch, ohne dass das hier gesondert sichergestellt
+    werden muesste."""
+    summary = overview_summary(db)
+    overhead = get_or_create_overhead_settings(db)
+    proposed_fixed_value = Decimal(summary["annual_fixed_from_costs"])
+    proposed_variable_value = Decimal(summary["annual_usage_dependent_from_costs"])
+
+    current_result = calculate_labor_rate(db, calc_settings)
+    proposed_result = calculate_labor_rate(
+        db, calc_settings,
+        overhead_override={
+            "fixed_overhead_mode": "eur", "fixed_overhead_value": proposed_fixed_value,
+            "variable_overhead_mode": "eur", "variable_overhead_value": proposed_variable_value,
+        },
+    )
+
+    costs = list_costs(db, include_inactive=False)
+    fixed_costs = [
+        {"id": c["id"], "label": c["label"], "annual_amount": c["annual_amount"]}
+        for c in costs if c["overhead_classification"] == "fix"
+    ]
+    usage_dependent_costs = [
+        {"id": c["id"], "label": c["label"], "annual_amount": c["annual_amount"]}
+        for c in costs if c["overhead_classification"] == "auslastungsabhaengig"
+    ]
+
+    return {
+        "current": _overhead_proposal_state(
+            overhead.fixed_overhead_mode, Decimal(overhead.fixed_overhead_value or ZERO),
+            overhead.variable_overhead_mode, Decimal(overhead.variable_overhead_value or ZERO),
+            current_result,
+        ),
+        "proposed": _overhead_proposal_state("eur", proposed_fixed_value, "eur", proposed_variable_value, proposed_result),
+        "annual_fixed_from_costs": proposed_fixed_value,
+        "annual_usage_dependent_from_costs": proposed_variable_value,
+        "fixed_costs": fixed_costs,
+        "usage_dependent_costs": usage_dependent_costs,
+    }
+
+
+def apply_recurring_cost_overhead_proposal(db: Session) -> None:
+    """Schritt 1 der Einspeisung (Muster apply_labor_rate_calculation() als bewusst getrennter
+    Schritt 2, unveraendert) -- schreibt AUSSCHLIESSLICH die beiden Gemeinkosten-Felder.
+    Erzwingt dabei IMMER Modus "eur" auf beiden (Nutzervorgabe: keine stille Semantikaenderung --
+    die Warnung dafuer sitzt im Frontend, vor diesem Aufruf, nicht hier)."""
+    summary = overview_summary(db)
+    overhead = get_or_create_overhead_settings(db)
+    params = get_or_create_labor_rate_settings(db)
+    overhead.fixed_overhead_mode = "eur"
+    overhead.fixed_overhead_value = Decimal(summary["annual_fixed_from_costs"])
+    overhead.variable_overhead_mode = "eur"
+    overhead.variable_overhead_value = Decimal(summary["annual_usage_dependent_from_costs"])
+    # Legacy-Feld bleibt im Modus "eur" im Gleichschritt mit fixed_overhead_value -- dasselbe
+    # Muster wie beim bestehenden PUT /api/labor-rate-settings (app/routers/labor_rate.py).
+    params.annual_overhead = overhead.fixed_overhead_value
+    db.commit()

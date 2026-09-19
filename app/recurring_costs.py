@@ -51,12 +51,13 @@ MODULE_KEY = "betriebskosten"
 # NICHT Teil von Schicht 1, siehe CLAUDE.md.
 BILLING_INTERVALS = ("monatlich", "vierteljaehrlich", "halbjaehrlich", "jaehrlich", "einmalig")
 
-# Kalkulatorische Einordnung für den Verrechnungssatz-Kreislauf (Schicht 3, seit 1.5.1) -- fester
-# Code-Wert wie BILLING_INTERVALS, keine Optionsgruppe: die Einordnung bestimmt später eine
-# Rechenregel (welche der beiden Gemeinkosten-Summen ein Posten speist), keine reine
+# Kalkulatorische Einordnung für den Verrechnungssatz-Kreislauf (Schicht 3, seit 1.5.1, vom
+# Betreiber bestätigt seit 1.5.2 -- siehe CLAUDE.md "Betriebskosten-Übersicht" ->
+# "Verrechnungssatz-Kreislauf Schicht 3") -- fester Code-Wert wie BILLING_INTERVALS, keine
+# Optionsgruppe: die Einordnung bestimmt eine Rechenregel (welche der beiden Gemeinkosten-Summen
+# ein Posten speist, siehe app/labor_rate.py::recurring_cost_overhead_proposal()), keine reine
 # Anzeigeliste. "keine" ist der restriktive Default -- ein Posten fließt erst nach bewusster
-# Einordnung in eine Summe ein. Werte vermeiden bewusst das Wort "variabel" (siehe CLAUDE.md
-# "Betriebskosten-Übersicht" -> "Terminologie 'variabel'"): der Code-Bucket
+# Einordnung in eine Summe ein. Werte vermeiden bewusst das Wort "variabel": der Code-Bucket
 # LaborRateOverheadSettings.variable_overhead_value mischt bereits automatisch addierte
 # Verwaltungslöhne hinein (variable_employee_costs) -- "auslastungsabhaengig" markiert einen
 # fachlich anderen Begriff von "variabel" (steigt mit der Auslastung), ohne die beiden im Namen
@@ -66,7 +67,10 @@ OVERHEAD_CLASSIFICATIONS = ("keine", "fix", "auslastungsabhaengig")
 OVERHEAD_CLASSIFICATION_LABELS = {
     "keine": "Keine Gemeinkosten",
     "fix": "Feste Gemeinkosten",
-    "auslastungsabhaengig": "Auslastungsabhängige Kosten (z. B. Kraftstoff, Verschleiß, Entsorgung)",
+    "auslastungsabhaengig": (
+        "Auslastungsabhängige Kosten (z. B. Kraftstoff, Verschleiß, Entsorgung -- fließt "
+        "zusammen mit den Verwaltungslöhnen in den variablen Gemeinkosten-Bucket)"
+    ),
 }
 
 _ANNUAL_MULTIPLIER = {

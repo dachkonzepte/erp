@@ -11,7 +11,10 @@ from sqlalchemy.orm import Session
 
 from ..calculation import get_or_create_settings
 from ..database import get_db
-from ..labor_rate import calculate_labor_rate, get_or_create_labor_rate_settings, get_or_create_overhead_settings, labor_rate_settings_dict
+from ..labor_rate import (
+    apply_recurring_cost_overhead_proposal, calculate_labor_rate, get_or_create_labor_rate_settings,
+    get_or_create_overhead_settings, labor_rate_settings_dict, recurring_cost_overhead_proposal,
+)
 from ..models import AppUser
 from ..permissions import ROLE_OFFICE_FINANZEN, require_min_role
 from ..productive_hours import apply_productive_hours_to_labor_rate, productive_hours_settings_dict, update_productive_hours_settings
@@ -22,6 +25,7 @@ from ..schemas import (
     LaborRateSettingsUpdate,
     ProductiveHoursCalculationOut,
     ProductiveHoursSettingsUpdate,
+    RecurringCostOverheadProposalOut,
 )
 
 router = APIRouter()
@@ -103,3 +107,23 @@ def put_productive_hours_settings(payload: ProductiveHoursSettingsUpdate, db: Se
 @router.post("/api/productive-hours-settings/apply", response_model=ProductiveHoursCalculationOut)
 def post_apply_productive_hours_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return ProductiveHoursCalculationOut.model_validate(apply_productive_hours_to_labor_rate(db))
+
+
+# Einspeisung des Betriebskosten-Vorschlags (Schicht 3, Fortsetzung, seit 1.5.2, siehe CLAUDE.md
+# "Betriebskosten-Übersicht") -- co-located wie der Produktivstunden-Rechner, dieselbe
+# Rollen-Schwelle. Die Vergleichsansicht schreibt nichts; nur .../apply speist die beiden
+# Gemeinkosten-Felder (Schritt 1) -- der bestehende "Verrechnungssatz übernehmen"-Knopf oben
+# bleibt der davon getrennte Schritt 2.
+@router.get("/api/recurring-cost-overhead-proposal", response_model=RecurringCostOverheadProposalOut)
+def get_recurring_cost_overhead_proposal(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    return RecurringCostOverheadProposalOut.model_validate(
+        recurring_cost_overhead_proposal(db, get_or_create_settings(db))
+    )
+
+
+@router.post("/api/recurring-cost-overhead-proposal/apply", response_model=RecurringCostOverheadProposalOut)
+def post_apply_recurring_cost_overhead_proposal(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    apply_recurring_cost_overhead_proposal(db)
+    return RecurringCostOverheadProposalOut.model_validate(
+        recurring_cost_overhead_proposal(db, get_or_create_settings(db))
+    )
