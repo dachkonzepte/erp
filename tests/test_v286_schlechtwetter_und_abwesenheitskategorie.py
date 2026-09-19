@@ -223,9 +223,13 @@ def test_absence_request_endpoint_accepts_valid_category(threaded_db_session, ro
 
 
 def test_planning_absences_list_returns_category_and_supports_filter(threaded_db_session, router_test_client):
+    # buero_finanzen, nicht buero_auftrag: seit "Krankheitssichtbarkeit" (siehe CLAUDE.md)
+    # bekommt buero_auftrag hier absichtlich ein feldsicheres, kategorieloses Schema zurück --
+    # das ist Gegenstand von tests/test_v287_absence_visibility.py, nicht dieser Datei, die nur
+    # das Kategorie-Feld selbst und seinen Filter prüft.
     db = threaded_db_session
     emp = make_employee(db)
-    client = router_test_client(db, planning_router, role="buero_auftrag")
+    client = router_test_client(db, planning_router, role="buero_finanzen")
     resp = client.post("/api/planning/absences", json={
         "employee_id": emp.id, "absence_type": "Urlaub", "absence_category": "urlaub",
         "start_date": "2026-09-01", "end_date": "2026-09-02",

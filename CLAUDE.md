@@ -20,9 +20,10 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.5.3** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `cf4fdf4905cd` ("schlechtwetter zeitarten und
-  abwesenheitskategorie", neue, indizierte Spalte `absence_category`
+- Version: **1.5.4** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf unverändert `cf4fdf4905cd` ("schlechtwetter zeitarten und
+  abwesenheitskategorie" -- 1.5.4 selbst brauchte keine eigene Migration, reine Code-/Schema-
+  Änderung an bestehenden Spalten, neue, indizierte Spalte `absence_category`
   (`server_default='unbekannt'`) auf `employee_absences`/`employee_absence_requests` PLUS zwei
   neue, nullable DATEV-Lohnart-Spalten auf `time_tracking_settings` PLUS ein Daten-Seed, der die
   beiden neuen Zeitarten `weather_winter`/`weather_summer` in eine bereits gesäte
@@ -59,9 +60,11 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1602 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1620 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 19.09.2026 (1.5.3, Grundlage für Ist-Werte -- Schlechtwetter-Zeitarten und
+  dort), zuletzt am 19.09.2026 (1.5.4, Krankheitssichtbarkeit -- buero_auftrag sieht nur noch
+  "abwesend", siehe Abschnitt "Krankheitssichtbarkeit: buero_auftrag sieht nur noch 'abwesend'"
+  unten; davor 1.5.3, Grundlage für Ist-Werte -- Schlechtwetter-Zeitarten und
   Abwesenheitskategorie, siehe Abschnitt "Schlechtwetter-Zeitarten und Abwesenheitskategorie"
   unten; davor 1.5.2, Verrechnungssatz-Kreislauf Schicht 3 -- die Einspeisung
   des Betriebskosten-Vorschlags in die Gemeinkosten-Felder, siehe Abschnitt
@@ -1316,6 +1319,18 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Krankheitssichtbarkeit für `buero_auftrag` bewusst UNVERÄNDERT gelassen -- ein Redaktions-
   Vorschlag (Muster `redact_wage_snapshot()`) wurde vorgelegt und vom Betreiber ausdrücklich
   abgelehnt. Migration `cf4fdf4905cd`, 20 neue Tests, volle Suite: 1602 Tests grün.
+- Neu seit 1.5.4: **Krankheitssichtbarkeit -- buero_auftrag sieht nur noch "abwesend".**
+  Kurskorrektur zu 1.5.3: derselbe Redaktions-Vorschlag, den der Betreiber dort noch abgelehnt
+  hatte, wurde in dieser Runde erneut aufgegriffen und umgesetzt (siehe Abschnitt
+  "Krankheitssichtbarkeit: buero_auftrag sieht nur noch 'abwesend'" unten). Sechs Fundstellen
+  redigiert (Plantafel-Konflikte, Planungsvorschlag, Team-/Mitarbeiter-Tageskapazität,
+  Backoffice-Abwesenheitsliste, Änderungshistorie), Betreiberentscheidung "einmal eintragen, nie
+  wieder lesen" für das Anlegen/Bearbeiten-Problem (`buero_auftrag` darf die Art weiterhin
+  eintippen, sieht sie danach aber nie wieder, auch nicht im eigenen Antwort-Payload). Dabei
+  einen echten, unabhängigen Nebenbefund behoben: `PUT /api/planning/absences/{id}` überschrieb
+  bisher blind jedes Feld -- neues `EmployeeAbsenceUpdate` mit `exclude_unset=True` schützt vor
+  stillem Datenverlust, unabhängig von dieser Änderung. Keine Migration nötig. 18 neue Tests,
+  volle Suite: 1620 Tests grün.
 
 ### Headless-Chrome-Verifikation über CDP (seit 1.3.73)
 
@@ -9282,11 +9297,14 @@ Vorschlag (Muster `app/audit.py::redact_wage_snapshot()`, das Lohnfelder bereits
 `buero_auftrag` aus der Änderungshistorie entfernt, siehe "Rechtekonzept" -> "Vier Rollen"):
 `buero_auftrag` sieht bei Urlaub/Fortbildung/Unbezahlt weiterhin die echte Kategorie (für die
 Plantafel-Kapazitätsplanung nötig), bei Krankheit dagegen nur ein neutrales Label ohne Notiz;
-`buero_finanzen`/`admin` sehen alles unverändert. **Der Betreiber hat diesen Vorschlag nach
-Rückfrage ausdrücklich abgelehnt** ("Unverändert lassen") -- `buero_auftrag` sieht weiterhin JEDE
-Kategorie inkl. Krankheit ungefiltert, exakt wie vor dieser Version. Keine Codeänderung an dieser
-Stelle, bewusst dokumentiert, damit ein künftiger Durchgang diese Entscheidung nicht erneut
-aufwirft, ohne den vorherigen Befund zu kennen. Für die spätere Ist-Wert-Runde festgehalten: der
+`buero_finanzen`/`admin` sehen alles unverändert. **Der Betreiber hat diesen Vorschlag zunächst
+nach Rückfrage ausdrücklich abgelehnt** ("Unverändert lassen") -- `buero_auftrag` sollte demnach
+weiterhin JEDE Kategorie inkl. Krankheit ungefiltert sehen, exakt wie vor dieser Version. **Seit
+1.5.4 revidiert**: derselbe Vorschlag wurde in der Folgerunde erneut aufgegriffen und diesmal
+umgesetzt -- siehe Abschnitt "Krankheitssichtbarkeit: buero_auftrag sieht nur noch 'abwesend'
+(seit 1.5.4)" unten für die vollständige Umsetzung inkl. der dabei gelösten Anlegen/Bearbeiten-
+Frage. Diese Zeile bleibt bewusst stehen, um die Entscheidungsgeschichte nachvollziehbar zu
+halten, statt sie rückwirkend zu überschreiben. Für die spätere Ist-Wert-Runde festgehalten: der
 Produktivstunden-Rechner selbst zeigt UNABHÄNGIG von dieser Entscheidung nur einen aggregierten
 Zähler/Durchschnitt, nie eine Zeile "Mitarbeiter X war Y Tage krank" -- dieselbe Trennung wie bei
 den Löhnen (aggregiert ja, personenbezogen nein), unabhängig von der Rolle, die den Rechner öffnet.
@@ -9368,6 +9386,140 @@ Feld und unterstützt einen Filter darauf, sowie die Migrations-Seed-Funktion is
 (idempotent, No-op ohne bereits existierende Gruppe). Ein bestehender Test
 (`test_v260_role_audit.py::test_absence_requests_stay_open_to_field_as_self_service`) musste um
 das neue Pflichtfeld ergänzt werden. Volle Suite: 1602 Tests grün.
+
+## Krankheitssichtbarkeit: buero_auftrag sieht nur noch "abwesend" (seit 1.5.4)
+
+Kurskorrektur zu 1.5.3, wo der Betreiber einen ersten Redaktions-Vorschlag noch abgelehnt hatte
+("Unverändert lassen") -- in dieser Runde ausdrücklich erneut aufgegriffen: personenbezogene
+Krankheit soll für `buero_auftrag` nicht mehr sichtbar sein, weder Art (Urlaub/Krankheit/
+Fortbildung/Unbezahlt) noch der Freitext-Grund. Für die Kapazitätsplanung reicht "abwesend" mit
+Zeitraum. `buero_finanzen`/`admin` sehen unverändert alles. Erst ein vollständiger Befund über
+jede Stelle, an der Abwesenheiten erscheinen, dann die Klärung der Anlegen/Bearbeiten-Frage
+("Backoffice liegt bei buero_auftrag -- wie geht das zusammen, wenn es die Art nicht mehr sehen
+darf?"), dann gebaut -- exakt das erst-Befund-dann-Vorschlag-Vorgehen dieses Projekts.
+
+### Sechs Fundstellen
+
+1. **Plantafel-Konflikte** (`_conflicts()`, `app/planning.py`): das Konflikt-Label je Slot
+   embeddete `f"{Name} · {absence_type}"` als fertigen Text.
+2. **Planungsvorschlag** (`planning_suggestion()`): `absent_employees: [{name, type}]` je Tag.
+3. **Team-Tageskapazität** (`planning_board()`, `team_capacity`): `absences: [{employee_id,
+   name, type}]` je Team/Tag.
+4. **Mitarbeiter-Tageskapazität** (`planning_board()`, `employee_capacity`): `absence:
+   absence_type` je Mitarbeiter/Tag.
+5. **Die Backoffice-Abwesenheitsliste selbst** -- der eigentliche Fund: **nicht** der separate
+   `GET /api/planning/absences`-Endpunkt (den liest aktuell kein Template, nur `POST`/`DELETE`
+   werden von `planning.html` genutzt), sondern `GET /api/planning`s Top-Level-Feld `absences`
+   -- das ist die tatsächliche Datenquelle von `planning.html::renderAbsences()`. Der separate
+   Endpunkt wurde trotzdem mitkorrigiert, für den Fall, dass er künftig doch gelesen wird.
+6. **Änderungshistorie** (`GET /api/audit-logs`): doppelter Fund. Die GESPEICHERTE
+   `entity_label`-Zeile ("Mitarbeiter-Abwesenheit") trug `absence_type` fest im Text -- anders
+   als der `details`-Schnappschuss (JSON, redigierbar) ist ein Label bereits beim Schreiben in
+   die Datenbank "gebrannt", eine nachträgliche Redaktion könnte den Text nicht zuverlässig
+   wieder in Name/Typ zerlegen. UND der `details`-Schnappschuss selbst enthielt
+   `absence_type`/`absence_category`/`notes` wie jedes andere Feld -- `redact_wage_snapshot()`
+   (Rechtekonzept "Vier Rollen" Etappe 2) kennt nur Lohnfelder, keine Abwesenheitsfelder.
+
+**Kein Fund**: Dashboard (das "Freigabe"-Widget ruft `GET /api/absence-requests?status=pending`
+ohnehin nur für `admin` ab, `isAdmin?...:Promise.resolve([])` -- `buero_auftrag`/`buero_finanzen`
+bekommen dort heute schon ein leeres Array, unabhängig von dieser Änderung) und Mitarbeiterseite
+(`master_data.html`/`master_data_form.html` zeigen aktuell überhaupt keine Abwesenheiten, nichts
+zu redigieren). Monteur (`field`) war bereits vor dieser Version durchgängig sicher: alle sechs
+Fundstellen hängen an Endpunkten mit `require_min_role(ROLE_OFFICE_AUFTRAG)`, ein Monteur bekommt
+403, bevor irgendeine Geschäftslogik läuft -- geprüft, nicht nur angenommen.
+
+### Die Anlegen/Bearbeiten-Frage: "einmal eintragen, nie wieder lesen"
+
+Drei Varianten wurden dem Betreiber vorgelegt, bevor gebaut wurde:
+- **(A) Immer "unbekannt"**: `buero_auftrag` kann beim Anlegen nichts an Art eintragen, der Wert
+  wird serverseitig immer auf den Migrations-Rückfallwert "unbekannt" gezwungen, `buero_finanzen`
+  muss die echte Art in einem zweiten Schritt nachtragen.
+- **(B) Einmal eintragen, nie wieder lesen** -- **gewählt**: `buero_auftrag` darf beim Anlegen
+  weiterhin die echte Art eintippen (z. B. nach einem Telefonanruf "Mitarbeiter X ist krank"),
+  sieht sie danach aber bei JEDEM Lesen -- auch der eigenen, soeben abgeschickten Anfrage -- nur
+  noch als "abwesend". Kein Zusatzschritt für `buero_finanzen`, keine Warteschlange
+  unzugeordneter Einträge.
+- **(C) Anlegen/Bearbeiten komplett zu `buero_finanzen`**: wie beim Mitarbeiter-Bestand ohne
+  Vergütung (Rechtekonzept Etappe 2) -- `buero_auftrag` verliert die Schreibrechte vollständig.
+
+**Der Betreiber wählte (B)** -- keine Ausnahme "aber ich habe es doch gerade selbst getippt": die
+Antwort auf den eigenen `POST`/`PUT` ist für `buero_auftrag` ebenso redigiert wie jede spätere
+`GET`-Abfrage, konsequent durchgezogen in `_absence_out_for_role()`
+(`app/routers/planning.py`).
+
+**Nebenbefund, unabhängig vom eigentlichen Auftrag, aber notwendig für (B)**: `PUT
+/api/planning/absences/{id}` überschrieb bisher jedes Feld blind
+(`for k,v in payload.model_dump().items(): setattr(row,k,v)`). Ein Formular, das Art/Kategorie/
+Notiz gar nicht mehr anzeigt (weil `buero_auftrag` sie nicht lesen kann), hätte sie beim
+Speichern stillschweigend auf einen Leerwert zurückgesetzt -- dieselbe Gefahrenklasse wie bei
+`upsert_roof_layer()` vor 1.2.19, dort behoben durch `exclude_unset`. Neues
+`EmployeeAbsenceUpdate`-Schema (alle Felder optional, kein erzwungener Wert wie bei
+`EmployeeAbsenceCreate`) + `payload.model_dump(exclude_unset=True)` -- ein Feld, das der Aufrufer
+nicht mitsendet, bleibt unangetastet, unabhängig von der Rolle. Die Datums-Reihenfolge-Prüfung
+(`end_date >= start_date`) läuft deshalb NICHT mehr im Pydantic-Validator (der kennt bei einem
+Teil-Update nur die gesendeten Felder, nicht den gespeicherten Bestand), sondern im Router NACH
+dem Zusammenführen mit den bereits gespeicherten Werten. `planning.html` selbst bietet aktuell
+gar keine Bearbeiten-Funktion für Abwesenheiten an (nur Anlegen/Löschen) -- der Fund betraf also
+noch keine akute Regression, war aber eine Falle für die nächste UI-Erweiterung.
+
+### Umsetzung: rollenblinde Business-Logik, Redaktion im Router
+
+Durchgängiges Prinzip, wie beim Rechtekonzept schon etabliert: `app/planning.py` kennt keine
+Rollen, `app/routers/planning.py` entscheidet.
+
+- **`EmployeeAbsencePlanningOut`** (neues Schema, Muster `EmployeeRosterOut`/`PropertyAccessOut`):
+  `id`/`employee_id`/`employee_name`/`start_date`/`end_date` -- fehlt bewusst: `absence_type`,
+  `absence_category`, `notes`. `_absence_out_for_role(role, data)` ist die EINE Stelle, die
+  entscheidet (`has_min_role(role, ROLE_OFFICE_FINANZEN)` → `EmployeeAbsenceOut`, sonst
+  `EmployeeAbsencePlanningOut`) -- verwendet von `list_employee_absences()`,
+  `create_employee_absence()` UND `update_employee_absence()` gleichermaßen, Union-Response-Model
+  auf allen drei Endpunkten.
+- **`_conflicts()`** (`app/planning.py`) liefert für jede Abwesenheits-Konfliktzeile zusätzlich
+  ein `label_redacted`-Feld ("… · abwesend" statt "… · Krankheit") -- **bewusst KEINE
+  Zeichenketten-Zerlegung** eines bereits zusammengesetzten `"{Name} · {Art}"`-Textstrings im
+  Router (fragil, falls ein Name selbst " · " enthält); die Funktion liefert beide fertigen
+  Varianten, der Router (`_redact_board_absences()`) wählt nur noch aus.
+- **`_redact_board_absences(board, role)`**/**`_redact_suggestion_absences(suggestion, role)`**
+  (`app/routers/planning.py`, neu): reine Nachbearbeitung des von `planning_board()`/
+  `planning_suggestion()` zurückgegebenen Dicts -- entfernt `"type"` aus `team_capacity`-
+  Einträgen, ersetzt `employee_capacity`-Einträge durch die feste Zeichenkette `"abwesend"`,
+  reduziert die Top-Level-`absences`-Liste auf die fünf feldsicheren Schlüssel, wählt je Slot das
+  passende Konflikt-Label. Für `buero_finanzen`/`admin` unverändert (nur die internen
+  `label_redacted`-Hilfsfelder werden aufgeräumt, damit sie nicht versehentlich mit ausgeliefert
+  werden).
+- **`planning.html::renderAbsences()`**: prüft `'absence_category' in x`, um zwischen dem vollen
+  und dem reduzierten Schema zu unterscheiden -- zeigt "Abwesend" statt einer leeren
+  " · "-Lücke, wenn die Felder fehlen. Kein Eingriff in die Kachel-/Konflikt-/Kapazitäts-Anzeige
+  nötig: `renderBoard()`/`cellHtml()` lesen `c.absences.length` (unverändert korrekt, da nur die
+  Länge zählt) bzw. `c.absence` (zeigt jetzt "abwesend" statt der echten Art, ohne Codeänderung,
+  da der Router bereits die passende Zeichenkette einsetzt) bzw. `s.conflicts[].label`
+  (unverändert korrekt, da der Router bereits das passende Label auswählt).
+- **Änderungshistorie**: `app/audit.py::_normalize()`s `EmployeeAbsence`/
+  `EmployeeAbsenceRequest`-Zweige nennen im gespeicherten Label künftig nur noch Name + Zeitraum,
+  nie die Art -- 0 Bestandszeilen in der echten Datenbank (erneut frisch geprüft), also kein
+  historischer Datenverlust durch diese Änderung. Neues
+  `ABSENCE_ENTITY_TYPES`/`ABSENCE_FIELD_NAMES`/`redact_absence_snapshot()` (Gegenstück zu
+  `WAGE_FIELD_NAMES`/`redact_wage_snapshot()`, aber entitätstyp-GEBUNDEN statt global -- `notes`
+  ist nur bei diesen beiden Entitätstypen sensibel, bei jeder anderen Entität bleibt eine Notiz
+  für `buero_auftrag` unverändert sichtbar). `app/routers/audit.py` überspringt zusätzlich
+  Feldänderungs-Zeilen, deren `field_name` eines dieser drei Felder ist -- exakt das bereits für
+  `WAGE_FIELD_NAMES` etablierte Muster, nur um eine zweite Feldmenge ergänzt.
+
+### Angriffstest
+
+`tests/test_v287_absence_visibility.py` (18 Tests) -- rekursiver Schlüssel-Scan (Fehlerklasse
+`purchase_price`) über `GET/POST/PUT /api/planning/absences`, `GET /api/planning`,
+`POST /api/planning/suggestion` und `GET /api/audit-logs`: `buero_auftrag` bekommt in KEINER
+Antwort `absence_type`/`absence_category`/`notes`, auch nicht im Ergebnis der eigenen, soeben
+abgeschickten Anfrage; `buero_finanzen`/`admin` sehen alles unverändert; `field` bekommt
+durchgängig 403. Zusätzlich: das Teil-Update lässt Kategorie/Notiz tatsächlich unverändert, wenn
+`buero_auftrag` sie nicht mitsendet (verifiziert über einen anschließenden `buero_finanzen`-Read);
+die Datums-Validierung greift auch bei einem Teil-Update korrekt gegen den gespeicherten
+Bestand. Ein bestehender Test aus 1.5.3
+(`test_v286_schlechtwetter_und_abwesenheitskategorie.py::test_planning_absences_list_returns_category_and_supports_filter`)
+wurde auf `buero_finanzen` umgestellt -- er prüft das Kategorie-Feld/den Filter selbst, nicht die
+Rollenreduktion, die jetzt separat und ausführlicher in der neuen Testdatei steht. Volle Suite:
+1620 Tests grün.
 
 ## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
 

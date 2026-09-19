@@ -9,7 +9,7 @@ from fastapi import APIRouter
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from ..audit import WAGE_FIELD_NAMES, audit_rows, redact_wage_snapshot
+from ..audit import ABSENCE_ENTITY_TYPES, ABSENCE_FIELD_NAMES, WAGE_FIELD_NAMES, audit_rows, redact_absence_snapshot, redact_wage_snapshot
 from ..database import get_db
 from ..models import AppUser
 from ..permissions import ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, require_min_role
@@ -30,11 +30,17 @@ def list_audit_logs(project_id: int | None = None, entity_type: str | None = Non
     # Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8): buero_auftrag sieht denselben Endpunkt,
     # aber ohne Vergütung ("jede Auswertung, die Löhne zeigt") -- geänderte Lohnfelder entfallen
     # ganz (nie old/new_value zeigen), angelegt/gelöscht-Schnappschüsse werden bereinigt.
+    # Krankheitssichtbarkeit (siehe CLAUDE.md): dieselbe Behandlung für Art/Kategorie/Notiz einer
+    # Abwesenheit -- entitätstyp-gebunden (redact_absence_snapshot()), da "notes" bei jeder
+    # anderen Entität weiterhin unredigiert bleiben soll.
     result = []
     for row in rows:
         if row.field_name in WAGE_FIELD_NAMES:
             continue
+        if row.entity_type in ABSENCE_ENTITY_TYPES and row.field_name in ABSENCE_FIELD_NAMES:
+            continue
         out = AuditLogOut.model_validate(row)
         out.details = redact_wage_snapshot(out.details)
+        out.details = redact_absence_snapshot(row.entity_type, out.details)
         result.append(out)
     return result

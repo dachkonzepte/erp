@@ -878,7 +878,11 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
                 absence = absences.get((member.employee_id, day))
                 if absence and absence.id not in seen_absence:
                     seen_absence.add(absence.id)
-                    result[slot.id].append({"type":"absence", "label":f"{member.employee_name_snapshot} · {absence.absence_type}", "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
+                    # label_redacted ist das buero_auftrag-sichere Gegenstück (siehe CLAUDE.md
+                    # "Krankheitssichtbarkeit") -- der Router entscheidet anhand der Rolle, welche
+                    # der beiden Label-Varianten in der Antwort landet, diese Funktion bleibt
+                    # rollenblind.
+                    result[slot.id].append({"type":"absence", "label":f"{member.employee_name_snapshot} · {absence.absence_type}", "label_redacted":f"{member.employee_name_snapshot} · abwesend", "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
         if shortfall > 0:
             result[slot.id].append({"type":"capacity", "label":f"Kapazität reicht um {shortfall} h nicht aus", "shortfall_hours":shortfall, "other_slot_id":None, "other_project":None, "other_project_name":None})
     return result, distributions

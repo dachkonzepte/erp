@@ -127,11 +127,15 @@ def _normalize(session, obj):
         order = session.get(Order, prep.order_id) if prep else None
         return "Plantafel-Kapazität", str(obj.slot_id), _entity_label(slot), order.project_id if order else None
     if isinstance(obj, EmployeeAbsence):
+        # Kein absence_type im Label (siehe CLAUDE.md "Krankheitssichtbarkeit") -- die Art landet
+        # ausschließlich im details-Schnappschuss, wo sie für buero_auftrag gezielt redigierbar
+        # ist (redact_absence_snapshot() unten). Der Zeitraum bleibt im Label, Daten sind nicht
+        # die sensible Information.
         emp = session.get(Employee, obj.employee_id)
-        return "Mitarbeiter-Abwesenheit", str(obj.id), f"{_entity_label(emp) or 'Mitarbeiter'} · {obj.absence_type}", None
+        return "Mitarbeiter-Abwesenheit", str(obj.id), f"{_entity_label(emp) or 'Mitarbeiter'} · {obj.start_date}–{obj.end_date}", None
     if isinstance(obj, EmployeeAbsenceRequest):
         emp = session.get(Employee, obj.employee_id)
-        return "Abwesenheitsantrag", str(obj.id), f"{_entity_label(emp) or 'Mitarbeiter'} · {obj.absence_type} · {obj.start_date}–{obj.end_date}", None
+        return "Abwesenheitsantrag", str(obj.id), f"{_entity_label(emp) or 'Mitarbeiter'} · {obj.start_date}–{obj.end_date}", None
     if isinstance(obj, TimeEntryGroup):
         order = session.get(Order, obj.order_id)
         return "Gruppen-Zeitbuchung", str(obj.id), f"{_entity_label(order) or 'Auftrag'} · {obj.work_date} · {obj.entry_type}", order.project_id if order else obj.project_id
@@ -273,6 +277,32 @@ def redact_wage_snapshot(details_json):
     if not isinstance(data, dict):
         return details_json
     redacted = {k: v for k, v in data.items() if k not in WAGE_FIELD_NAMES}
+    if len(redacted) == len(data):
+        return details_json
+    return json.dumps(redacted, ensure_ascii=False)
+
+
+# Krankheitssichtbarkeit (siehe CLAUDE.md): buero_auftrag sieht bei einer Abwesenheit nur, DASS
+# jemand abwesend war, nicht die Art (absence_type/absence_category) oder den Freitext-Grund
+# (notes). "notes" ist bewusst NUR für diese beiden Entitätstypen redigiert -- bei jeder anderen
+# Entität (Wartungsvertrag, Projekt, ...) bleibt eine Notiz für buero_auftrag sichtbar, das Feld
+# ist dort nicht sensibel; ein Blanket-Filter über ABSENCE_FIELD_NAMES hinweg wäre deshalb falsch.
+ABSENCE_ENTITY_TYPES = {"Mitarbeiter-Abwesenheit", "Abwesenheitsantrag"}
+ABSENCE_FIELD_NAMES = {"absence_type", "absence_category", "notes"}
+
+
+def redact_absence_snapshot(entity_type, details_json):
+    """Entfernt Art/Kategorie/Notiz aus einem angelegt/gelöscht-Schnappschuss einer Abwesenheit --
+    Gegenstück zu redact_wage_snapshot(), aber entitätstyp-gebunden statt global, siehe oben."""
+    if entity_type not in ABSENCE_ENTITY_TYPES or not details_json:
+        return details_json
+    try:
+        data = json.loads(details_json)
+    except (TypeError, ValueError):
+        return details_json
+    if not isinstance(data, dict):
+        return details_json
+    redacted = {k: v for k, v in data.items() if k not in ABSENCE_FIELD_NAMES}
     if len(redacted) == len(data):
         return details_json
     return json.dumps(redacted, ensure_ascii=False)

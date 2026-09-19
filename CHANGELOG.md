@@ -4,6 +4,61 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.5.4 – Krankheitssichtbarkeit: buero_auftrag sieht nur noch "abwesend"
+
+Kurskorrektur zu 1.5.3, nach erneuter Betreiberentscheidung: personenbezogene Krankheit soll für
+`buero_auftrag` **nicht mehr** sichtbar sein, weder Art (Urlaub/Krankheit/Fortbildung/Unbezahlt)
+noch der Freitext-Grund -- für die Kapazitätsplanung reicht "abwesend" mit Zeitraum. Erst ein
+vollständiger Befund über alle Stellen, an denen Abwesenheiten erscheinen, dann die Klärung der
+Anlegen/Bearbeiten-Frage ("Backoffice liegt bei buero_auftrag, aber die Art darf es nicht mehr
+sehen -- wie geht das zusammen?"), dann gebaut.
+
+**Sechs Fundstellen, alle angefasst**: die Konflikt-Labels je Plantafel-Slot, der
+Planungsvorschlag (`absent_employees`), Team- und Mitarbeiter-Tageskapazität, die
+Backoffice-Abwesenheitsliste (tatsächlich `GET /api/planning`s `absences`-Feld, nicht der davon
+unabhängige, von keinem Template gelesene `GET /api/planning/absences`-Endpunkt -- der wurde
+trotzdem mitkorrigiert) und die Änderungshistorie (`GET /api/audit-logs`) -- dort ein doppelter
+Fund: die gespeicherte `entity_label`-Zeile trug `absence_type` fest im Text (nicht redigierbar,
+da schon beim Schreiben in die Datenbank gebrannt), UND der `details`-Schnappschuss enthielt die
+Felder wie jedes andere. Dashboard und Mitarbeiterseite waren dagegen **kein Fund**: das
+Dashboard-Widget ruft den Abwesenheitsantrag-Endpunkt ohnehin nur für `admin` ab, die
+Mitarbeiterseite zeigt heute überhaupt keine Abwesenheiten.
+
+**Anlegen/Bearbeiten-Frage, Betreiberentscheidung "einmal eintragen, nie wieder lesen"**:
+`buero_auftrag` darf eine Abwesenheit weiterhin mit echter Art/Grund anlegen (z. B. nach einem
+Telefonanruf) -- sieht das Ergebnis der eigenen Anfrage danach aber ebenso redigiert wie jede
+spätere Abfrage, keine Ausnahme für "gerade selbst eingetragen". Neues, feldsicheres
+`EmployeeAbsencePlanningOut` (Muster `EmployeeRosterOut`/`PropertyAccessOut`) neben dem
+unveränderten `EmployeeAbsenceOut`, Union-Response auf `GET/POST/PUT /api/planning/absences`.
+**Nebenbefund, unabhängig vom eigentlichen Auftrag behoben**: `PUT` überschrieb bisher blind
+jedes Feld (`for k,v in payload.model_dump().items()`) -- ein Formular, das Art/Grund gar nicht
+mehr zeigt, hätte sie beim Speichern stillschweigend gelöscht (dieselbe Gefahrenklasse wie bei
+`upsert_roof_layer()` vor 1.2.19). Neues `EmployeeAbsenceUpdate` (alle Felder optional) plus
+`exclude_unset=True` behebt das für jeden künftigen Aufrufer, nicht nur für diese Änderung.
+
+**Plantafel-Board/Planungsvorschlag** (`app/planning.py`/`app/routers/planning.py`): reine
+Business-Logik bleibt rollenblind, `_conflicts()` liefert für jede Abwesenheits-Konfliktzeile
+zusätzlich ein `label_redacted`-Feld ("… · abwesend" statt "… · Krankheit"), der Router
+entscheidet anhand der Rolle, welches der beiden Labels in der Antwort landet -- keine fragile
+Zeichenketten-Zerlegung eines bereits zusammengesetzten Textes. `team_capacity`/
+`employee_capacity`/die Top-Level-Abwesenheitsliste werden analog nachträglich bereinigt.
+
+**Änderungshistorie**: die Entitäts-Label-Erzeugung (`app/audit.py::_normalize()`) nennt für
+`EmployeeAbsence`/`EmployeeAbsenceRequest` künftig nur noch Name + Zeitraum, nie die Art -- 0
+Bestandszeilen in der echten Datenbank (frisch geprüft), also kein historischer Datenverlust.
+Neues `redact_absence_snapshot()` (Gegenstück zu `redact_wage_snapshot()`, aber
+entitätstyp-gebunden statt global -- `notes` bleibt bei jeder anderen Entität für `buero_auftrag`
+sichtbar, ist nur bei diesen beiden Entitätstypen sensibel).
+
+**Angriffstest**: rekursiver Schlüssel-Scan über `GET/POST/PUT /api/planning/absences`,
+`GET /api/planning`, `POST /api/planning/suggestion` und `GET /api/audit-logs`, je einmal für
+`buero_auftrag` (kein `absence_type`/`absence_category`/`notes` in irgendeiner Antwort,
+einschließlich der eigenen soeben angelegten Zeile) und `buero_finanzen` (sieht alles). `field`
+bleibt von jedem dieser Endpunkte vollständig ausgesperrt (unverändert, erneut bestätigt). 18
+neue Tests (`tests/test_v287_absence_visibility.py`), ein bestehender Test aus 1.5.3 auf
+`buero_finanzen` umgestellt (prüfte die Kategorie-Antwort selbst, nicht die Rollenreduktion),
+volle Suite: 1620 Tests grün.
+
 ## 1.5.3 – Grundlage für Ist-Werte: Schlechtwetter-Zeitarten und Abwesenheitskategorie
 
 Vorbereitung für die spätere Ist-Wert-Auswertung im Produktivstunden-Rechner (eigene, noch
