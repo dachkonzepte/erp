@@ -1412,6 +1412,25 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Formular-Submit). Bewusst unverändert: "Aktueller Stundenkostenverrechnungssatz €/h"
   (außerhalb der beiden benannten Rechner, Cent-Ebene bei einem Stundensatz weiterhin relevant).
   Reine HTML-/JS-Änderung, kein Endpunkt/Schema geändert, keine neuen Tests nötig.
+- Neu seit 1.5.10: **Neugestaltung der Seite Stundenverrechnungssatz.** Erst Befund + Vorschlag
+  (keine Codeänderung), dann nach Bestätigung gebaut -- siehe eigener Abschnitt
+  "Neugestaltung der Seite Stundenverrechnungssatz" unten für die vollständige Herleitung. Aus
+  19 gleich aussehenden Kacheln plus zwei separaten, weit unten stehenden Rechnern werden drei
+  Zonen: Eingaben, das eine Ergebnis prominent (Satz + Abweichung zum aktuellen zusammen), der
+  Rechenweg aufklappbar (13 verbleibende Kacheln, vollständig, nur zugeklappt). Der
+  Produktivstunden-Rechner und der Betriebskosten-Vorschlag sitzen jetzt als aufklappbare
+  Bereiche direkt an den Feldern, die sie speisen (CSS-Grid-Vollbreiten-Platzierung direkt nach
+  dem jeweiligen Feld), statt als eigenständige Blöcke weiter unten. Lange Erklärtexte sind aus
+  der immer sichtbaren Fläche entfernt -- in die Aufklapp-Bereiche verschoben oder (zwei reine
+  Text-ohne-Link-Fälle) als kleines Fragezeichen-Tooltip direkt am Feld. Dabei einen
+  unabhängigen, vorbestehenden Fehler gefunden und behoben (nicht durch diesen Umbau
+  verursacht): `loadRecurringCostsSettingsSection()` griff in `load()` auf `moduleStates` zu,
+  bevor diese Variable zum ersten Mal zugewiesen war (`ReferenceError`, unbemerkt geblieben, da
+  ohne `await`/`.catch()` aufgerufen). Rollen-Check unverändert (`buero_finanzen`/`admin`). Rein
+  clientseitig, kein Endpunkt/Schema geändert; verifiziert per vollständigem `pytest`-Lauf,
+  `node --check` und einem echten, CDP-gesteuerten Headless-Chrome-Durchlauf gegen eine
+  isolierte Testinstanz (Aufklappen, Euro/Prozent-Umschalter, beide Übernehmen-Knöpfe
+  Ende-zu-Ende, Browser-Konsole fehlerfrei).
 
 ### Headless-Chrome-Verifikation über CDP (seit 1.3.73)
 
@@ -9400,6 +9419,122 @@ Testkonto je Rolle (`router_test_client(db, ..., role=...)`, `ALL_ROLES = ("fiel
 
 9 neue Tests (`tests/test_v285_recurring_cost_overhead_proposal.py`), volle Suite: 1582 Tests
 grün.
+
+## Neugestaltung der Seite Stundenverrechnungssatz (seit 1.5.10)
+
+Umbau von Einstellungen → Kalkulationsgrundlagen → Stundenverrechnungssatz (`app/templates/
+settings.html`, `id="settings-labor-rate"`) -- erst ein reiner Befund + Vorschlag (keine
+Codeänderung, drei Berichtspunkte), dann nach Bestätigung des Betreibers mit drei präzisierenden
+Entscheidungen gebaut. Reine Oberflächenänderung -- kein Endpunkt, kein Schema, keine
+Business-Logik geändert.
+
+**Befund (Kurzfassung, vollständig als Text an den Betreiber geliefert)**: die Seite bündelte
+DREI eng verzahnte Blöcke (Stundenkostenverrechnungssatz mit 19 Kacheln, Produktivstunden-
+Rechner mit 9 Kacheln, Betriebskosten-Vorschlag) in einer Section, nur durch `<hr>` getrennt --
+nicht zwei, wie ursprünglich angenommen. Beide unteren Blöcke schreiben beim Klick auf ihren
+jeweiligen "Übernehmen"-Knopf sofort in die oberen Felder und lösen sofort ein sichtbares
+Neu-Rechnen aus (`refreshLaborRate()`) -- ein Argument für "eine Seite statt Reiter", da ein
+Reiterwechsel die gerade erzeugte Bestätigung verstecken würde. Vorschlag: eine Seite (kein
+Reiter), drei Zonen (Eingaben / prominentes Ergebnis / aufklappbarer Rechenweg), lange
+Fließtextblöcke aus der Fläche.
+
+**Die drei Entscheidungen des Betreibers, umgesetzt:**
+
+1. **Eine Seite, kein Reiter -- bestätigt.** Zusätzlich: der Produktivstunden-Rechner sitzt
+   nicht mehr als eigenständiger Block weiter unten, sondern als aufklappbarer Bereich
+   ("Produktive Zeit % herleiten (Produktivstunden-Rechner)") **direkt am Feld, das er speist**
+   -- räumlich gelöst über CSS-Grid-Platzierung: das `<details class="calc-subsection"
+   style="grid-column:1/-1">`-Element steht im DOM direkt nach dem Feld "Produktive Zeit %"
+   innerhalb derselben `.rate-grid` (`grid-template-columns:repeat(5,...)`) -- ein
+   vollbreites Grid-Item kann in der aktuellen Zeile nicht mehr Platz finden (Spalte 1 ist durch
+   das vorherige Feld bereits belegt) und bricht deshalb zuverlässig in eine eigene, volle Zeile
+   genau an dieser Stelle um, ohne dass eine feste `grid-row` nötig wäre -- funktioniert
+   identisch im schmalen Einspaltenlayout (`@media(max-width:1000px)`), da dort ohnehin jedes
+   Grid-Item in reiner DOM-Reihenfolge untereinandersteht. Derselbe Mechanismus für den
+   Betriebskosten-Vorschlag ("Betriebskosten-Vorschlag für die Gemeinkosten anzeigen"), platziert
+   direkt nach den beiden Gemeinkosten-Feldern (Fixe/Variable Gemeinkosten Wert), die er speist.
+   Beide Bereiche starten geschlossen (`<details>` ohne `open`-Attribut, "nur gelegentlich
+   gebraucht") -- laden ihre Daten aber unverändert unbedingt beim Seitenaufruf
+   (`loadProductiveHoursSection()`/`loadOverheadProposalSection()` bleiben Teil des ungeänderten
+   `load()`-Ablaufs, seit 1.5.1/1.5.2) -- nur die Sichtbarkeit ist neu, nicht der Ladezeitpunkt.
+2. **Drei-Zonen-Gliederung.** Neue `.zone-label`-Beschriftung ("Eingaben"/"Ergebnis") über den
+   jeweiligen Bereichen. Von den bisherigen 19 Kacheln des oberen Rechners (`renderLaborRate()`)
+   bleiben **vier** immer sichtbar (neuer Container `#laborRateBasics`, `.rate-result`-Grid):
+   Gewichteter Mittellohn, Produktive Jahresstunden, Selbstkosten/h, Ermittelter Satz. **Zwei**
+   (Aktueller Satz, Abweichung) wandern in die prominente Ergebnisanzeige (`#laborRateApply`)
+   direkt neben die große Satz-Zahl ("Aktuell hinterlegt: X €/h · Abweichung: Y €") -- bewusst
+   gebündelt, da eine Abweichung ohne ihren Bezugswert nicht lesbar ist. **Eine** (Direkte
+   Mitarbeiter) wird zur sichtbaren Zusatzangabe direkt in der Mittellohn-Kachel
+   (`<div class="muted small">N Mitarbeiter</div>`) statt einer eigenen Kachel -- die Zahl bleibt
+   damit ohne Hover sichtbar, nur ohne eigene Kachel. Die verbleibenden **13** (Mitarbeiter
+   variable GK, Direkte Jahresbruttolöhne, AG-Nebenkosten direkt, Direkte Lohnkosten gesamt,
+   Lohnkosten/produktive h, Fixe GK/Jahr, Fixe GK/produktive h, Variable MA-Kosten/Jahr,
+   Zusätzliche variable GK/Jahr, Variable GK gesamt/Jahr, Variable GK/produktive h, GK gesamt/
+   produktive h, Wagnis & Gewinn/h) stehen **vollständig**, nur zugeklappt, unter
+   `#laborRateDetailsPanel` ("Rechenweg im Detail") -- per echtem Browsertest nachgewiesen
+   (`document.querySelectorAll('#laborRateResult .metric').length === 13`, unverändert sowohl im
+   zugeklappten als auch im aufgeklappten Zustand -- `<details>` entfernt seinen Inhalt nie aus
+   dem DOM, blendet ihn nur aus). Der `!r.can_calculate`-Zustand ("Berechnung noch nicht
+   möglich") zeigt sich jetzt prominent in der Ergebniszone statt versteckt in den (dann leeren)
+   Detailkacheln.
+3. **Erklärtext aus der Fläche.** Die beiden langen `.hint`/`.formula`-Blöcke des oberen Rechners
+   (Mittellohn-Gewichtung inkl. Link zu Stammdaten → Mitarbeiter, vollständiger Rechenweg)
+   wandern unverändert in `#laborRateDetailsPanel`, vor die 13 Kacheln. Die beiden Erklärblöcke
+   der Unterrechner wandern mit diesen in deren jeweils eigenen Aufklapp-Bereich. **Geprüft, ob
+   ein Fragezeichen-Tooltip sauberer ist als ein Textblock**: ja, für zwei kurze, linkfreie
+   Erklärungen, die vorher GAR KEINE Erklärung hatten -- neue `.info-ico`-CSS-Klasse (kleines
+   rundes "?", reines `title`-Attribut, keine neue JS-Logik, `cursor:help`) an "Wochen pro Jahr"
+   (verweist auf dieselbe Quelle wie der Produktivstunden-Rechner -- "eine Quelle, kein zweites
+   Feld", das bereits mehrfach im Projekt etablierte Prinzip) und an "Gewichteter Mittellohn"
+   (Gewichtungserklärung). Ein natives `title`-Attribut kann jedoch **keine Links** tragen --
+   Erklärungen mit Link (Stammdaten-Verweis) bleiben deshalb bewusst ein echter `.hint`-Block,
+   wandern aber ebenfalls in den aufklappbaren Bereich statt in der Fläche zu stehen.
+
+**Nichts geht verloren, wie gefordert**: alle 19 Kacheln, alle 9 Produktivstunden-Kacheln, die
+komplette Betriebskosten-Vorschlags-Aufschlüsselung, alle Eingabefelder samt ihrer Schrittweiten
+(1.5.9, unverändert) und beide Übernehmen-Abläufe (Produktivstunden-Vorschlag übernehmen → Satz
+übernehmen, zwei bewusste Schritte) bleiben vollständig funktionsfähig -- nur ihre Anordnung/
+Sichtbarkeit hat sich geändert.
+
+**Alle Text-Referenzen auf "oben"/"unten" wurden an die neue räumliche Anordnung angepasst** --
+insbesondere der Betriebskosten-Vorschlag-Hinweistext (der Knopf "Als aktuellen
+Verrechnungssatz übernehmen" sitzt jetzt UNTERHALB der Eingaben-Zone, nicht mehr darüber) und die
+beiden zugehörigen JS-Statusmeldungen nach dessen Übernahme (`renderOverheadProposal()`/
+`applyOverheadProposal()`).
+
+**Unabhängiger, vorbestehender Fund, nicht nur gemeldet, sondern behoben**: beim ersten echten
+Browsertest (siehe unten) warf `loadRecurringCostsSettingsSection()` (Betriebskosten-**Modul**-
+Einstellungen unter Einstellungen → System -- ein komplett anderer Abschnitt, mit dem
+Verrechnungssatz-Umbau inhaltlich nicht verwandt) einen `ReferenceError: moduleStates is not
+defined` in der Browser-Konsole. Ursache, per `git diff` bestätigt UNABHÄNGIG von diesem Umbau
+bereits vorher so im Code: `load()` ruft `loadRecurringCostsSettingsSection()` innerhalb des
+`if(canSeeCalculationSettings){...}`-Blocks auf, an einer Stelle VOR der Zeile, die `moduleStates`
+zum allerersten Mal zuweist (`moduleStates=ms;` stand bisher erst später im selben `load()`, ohne
+vorheriges `let`/`var` -- die Variable existiert vorher als Binding schlicht nicht). Blieb
+unbemerkt, weil die Funktion ohne `await`/`.catch()` aufgerufen wird -- eine daraus resultierende
+Promise-Ablehnung ("Uncaught (in promise)") stört die übrige Seite nicht sichtbar, nur die
+Konsole. Behoben durch Vorziehen der `moduleStates=ms;`-Zuweisung vor den `if`-Block (ein
+zusätzliches `renderModuleStates()` an der alten Stelle bleibt bestehen, harmlos redundant).
+
+**Rollen-Check unverändert**: `{% if can(current_user, 'admin', 'buero_finanzen') %}`
+(`app/templates/settings.html`) umschließt die Section nach wie vor, unverändert an derselben
+Stelle -- per `git diff` UND per rekursivem Grep bestätigt, dass der Umbau daran nichts geändert
+hat.
+
+**Verifiziert**: vollständiger `pytest`-Lauf (1668 Tests) grün; `node --check` gegen den
+extrahierten Skriptblock (Jinja-Platzhalter `canSeeCalculationSettings` vorher neutralisiert,
+Muster aus früheren Sitzungen). Zusätzlich ein echter, CDP-gesteuerter Headless-Chrome-Durchlauf
+gegen eine isolierte, temporäre SQLite-Instanz (Bootstrap-Admin, Zwei-Faktor-Ersteinrichtung mit
+`pyotp`, ein Testmitarbeiter für einen berechenbaren Fall -- niemals gegen `dachkonzepte_erp.db`):
+beide `<details>`-Bereiche öffnen/schließen sich per Klick auf `<summary>` (`.open`-Property
+bestätigt), der Euro/Prozent-Umschalter der Gemeinkosten-Felder wechselt Label UND Schrittweite
+weiterhin korrekt (`syncOverheadLabels()` unverändert wiederverwendet, `100`↔`0.5` bestätigt),
+und der komplette Zwei-Schritt-Ablauf läuft Ende-zu-Ende durch: "Übernehmen" (Produktivstunden)
+setzt `productiveTimePct` sichtbar von 70,00 auf 67,02 %, die Satzanzeige aktualisiert sich sofort
+(44,64 → 46,63 €/h); "Als aktuellen Verrechnungssatz übernehmen" schreibt danach den Satz ins
+Kalkulationsgrundlagen-Feld und die Abweichungsanzeige geht auf 0,00 € zurück. Browser-Konsole
+nach der `moduleStates`-Behebung ohne jede Meldung, auch kein einziges JS-Fehler-Log während des
+gesamten Durchlaufs.
 
 ## Schlechtwetter-Zeitarten und Abwesenheitskategorie (seit 1.5.3)
 

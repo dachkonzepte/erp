@@ -4,6 +4,74 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.5.10 – Neugestaltung der Seite Stundenverrechnungssatz
+
+Umbau von Einstellungen → Kalkulationsgrundlagen → Stundenverrechnungssatz nach vorherigem
+Befund (siehe CLAUDE.md "Neugestaltung der Seite Stundenverrechnungssatz"): eine Wand aus 19
+gleich aussehenden Kennzahl-Kacheln plus zwei separaten Rechnern weiter unten wird zu drei klar
+getrennten Zonen -- Eingaben, das eine Ergebnis prominent, der Rechenweg aufklappbar. Reine
+HTML-/CSS-/JS-Umgestaltung, kein Endpunkt/Schema geändert, keine Zahl und kein Rechenweg
+entfernt.
+
+Der Produktivstunden-Rechner sitzt jetzt als aufklappbarer Bereich "Produktive Zeit % herleiten"
+direkt unter dem Feld, das er speist (CSS-Grid-Platzierung `grid-column:1/-1` direkt nach dem
+Feld "Produktive Zeit %" -- bricht bei jeder Fensterbreite zuverlässig in eine eigene, volle
+Zeile genau an dieser Stelle um, auch im mobilen Einspaltenlayout). Derselbe Mechanismus für den
+Betriebskosten-Vorschlag ("Betriebskosten-Vorschlag für die Gemeinkosten anzeigen"), direkt nach
+den beiden Gemeinkosten-Feldern, die er speist. Beide Bereiche starten zugeklappt (gelegentlich
+gebraucht), laden ihre Daten aber weiterhin unbedingt beim Seitenaufruf (unverändert seit 1.5.1/
+1.5.2) -- nur ihre Sichtbarkeit ist neu, nicht ihr Ladezeitpunkt.
+
+Von den bisherigen 19 Kacheln des oberen Rechners bleiben vier immer sichtbar (Gewichteter
+Mittellohn, Produktive Jahresstunden, Selbstkosten/h, Ermittelter Satz), zwei (Aktueller Satz,
+Abweichung) wandern in die prominente Ergebnisanzeige direkt neben die große Satz-Zahl ("Aktuell
+hinterlegt: X €/h · Abweichung: Y €"), eine (Direkte Mitarbeiter) wird zur sichtbaren
+Zusatzangabe an der Mittellohn-Kachel statt einer eigenen Kachel -- die verbleibenden 13 stehen
+vollständig, nur zugeklappt, unter "Rechenweg im Detail". Dieselbe 13er-Zahl wurde per echtem
+Browsertest nachgewiesen (`document.querySelectorAll('#laborRateResult .metric').length === 13`,
+sowohl zugeklappt als auch aufgeklappt -- die Kacheln bleiben im DOM, nur `<details>` blendet sie
+aus).
+
+Die langen `.hint`/`.formula`-Fließtextblöcke sind aus der immer sichtbaren Fläche entfernt --
+die beiden methodischen Erklärungen des oberen Rechners (Mittellohn-Gewichtung, kompletter
+Rechenweg) wandern in "Rechenweg im Detail"; die beiden Erklärungen der Unterrechner wandern mit
+ihnen in deren jeweils eigenen, aufklappbaren Bereich. Geprüft, ob ein Fragezeichen-Tooltip statt
+Textblock sauberer ist (wie angefragt): ja, für zwei reine Text-ohne-Link-Fälle, die bisher gar
+keine Erklärung hatten -- neue `.info-ico`-Klasse (kleines rundes "?", `title`-Attribut, keine
+neue JS-Logik) an "Wochen pro Jahr" (verweist auf die gemeinsame Quelle mit dem
+Produktivstunden-Rechner) und an "Gewichteter Mittellohn" (Gewichtungserklärung). Für Erklärungen
+MIT Link (Verweis auf Stammdaten → Mitarbeiter) bleibt es bei einem echten `.hint`-Block, da ein
+natives `title`-Attribut keine Links tragen kann -- dieser Block wandert komplett in "Rechenweg im
+Detail".
+
+Alle Text-Referenzen auf "oben"/"unten" wurden an die neue räumliche Anordnung angepasst (z. B.
+der Betriebskosten-Vorschlag-Hinweistext und die beiden JS-Statusmeldungen nach dessen
+Übernahme -- der Knopf "Als aktuellen Verrechnungssatz übernehmen" sitzt jetzt unterhalb der
+Eingaben-Zone, nicht mehr darüber).
+
+Dabei ein unabhängiger, vorbestehender Fehler gefunden und behoben, nicht nur gemeldet: beim
+ersten echten Browsertest gegen eine isolierte Testinstanz warf `loadRecurringCostsSettingsSection()`
+(Betriebskosten-Modul-Einstellungen, ein völlig anderer Einstellungen-Abschnitt) einen
+`ReferenceError: moduleStates is not defined` in der Konsole -- die Funktion wurde in `load()`
+aufgerufen, BEVOR die globale Variable `moduleStates` zum ersten Mal zugewiesen wurde. Betraf
+nicht diese Umgestaltung (bereits vorher so im Code, per `git diff` bestätigt unberührt), blieb
+aber bisher unbemerkt, da eine unbehandelte Promise-Ablehnung ohne `await`/`.catch()` die übrige
+Seite nicht sichtbar störte. Behoben durch Vorziehen der `moduleStates=ms`-Zuweisung vor den
+Aufruf.
+
+**Rollen-Check unverändert**: die Seite bleibt `require`-gated über
+`{% if can(current_user, 'admin', 'buero_finanzen') %}` (Jinja, unverändert an derselben Stelle)
+-- der Umbau ist reine Oberfläche, keine Rechteänderung.
+
+Verifiziert: vollständiger `pytest`-Lauf (1668 Tests) grün, `node --check` gegen den extrahierten
+Skriptblock, und ein echter, CDP-gesteuerter Headless-Chrome-Durchlauf gegen eine isolierte,
+temporäre SQLite-Instanz (niemals `dachkonzepte_erp.db`) -- beide `<details>`-Bereiche öffnen/
+schließen sich per Klick, der Euro/Prozent-Umschalter der Gemeinkosten-Felder wechselt Label UND
+Schrittweite weiterhin korrekt (`syncOverheadLabels()` unverändert wiederverwendet), und der
+komplette Zwei-Schritt-Ablauf (Produktivstunden-Vorschlag übernehmen → Satz übernehmen) läuft
+Ende-zu-Ende durch (Rate ändert sich sichtbar von 44,64 auf 46,63 €/h, danach Abweichung 0,00 €)
+-- Browser-Konsole nach der Fehlerbehebung ohne jede Meldung.
+
 ## 1.5.9 – Sinnvolle Pfeil-Schrittweiten auf den beiden Kalkulationsrechnern
 
 Kleine Korrektur, rein clientseitig: alle Zahlenfelder des Stundenkostenverrechnungssatz- und

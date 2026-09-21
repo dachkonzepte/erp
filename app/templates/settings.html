@@ -16,6 +16,18 @@
        eigene Regel und erschien deshalb als blau unterstrichener Browser-Standardlink statt im
        Design-System, siehe CLAUDE.md. */
     a{color:var(--accent)}
+    /* Seit 1.5.10: Neugestaltung Stundenverrechnungssatz -- Fragezeichen-Tooltip statt
+       Textblock am Feld, aufklappbare Unterrechner (Produktivstunden/Betriebskosten-Vorschlag)
+       direkt an den Feldern, die sie speisen, kleine Zonen-Beschriftung. Siehe CLAUDE.md. */
+    .info-ico{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--line);color:var(--muted);font-size:10px;font-weight:800;cursor:help;margin-left:4px;vertical-align:middle}
+    .info-ico:hover{background:var(--accent);color:#fff}
+    .zone-label{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:16px 0 2px}
+    details.calc-subsection{border:1px solid var(--line);background:var(--soft);padding:14px 16px;margin-top:14px}
+    details.calc-subsection>summary{cursor:pointer;font-weight:700;font-size:14px;color:var(--ink);list-style:none}
+    details.calc-subsection>summary::-webkit-details-marker{display:none}
+    details.calc-subsection>summary::before{content:'▸ ';color:var(--accent)}
+    details.calc-subsection[open]>summary::before{content:'▾ '}
+    details.calc-subsection[open]>summary{margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
   </style>
 </head>
 <body>
@@ -474,44 +486,57 @@
   {% if can(current_user, 'admin', 'buero_finanzen') %}
   <section class="card settings-section" id="settings-labor-rate">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Stundenkostenverrechnungssatz</h2><div class="muted small">Ermittlung aus den aktiven gewerblichen Mitarbeitern und den betrieblichen Kalkulationsparametern.</div></div></div>
-    <div class="hint">Der <b>Mittellohn wird automatisch gewichtet nach den vertraglichen Wochenstunden</b> aller aktiven gewerblichen Mitarbeiter. Vergütungsart, Stundenlohn bzw. Monatsfestgehalt und Wochenstunden pflegst du unter <a href="/master-data#employees">Stammdaten → Mitarbeiter</a>. Festgehälter werden automatisch auf einen kalkulatorischen Stundenwert heruntergerechnet.</div>
-    <div class="rate-grid" style="margin-top:14px">
+
+    <div class="zone-label">Eingaben</div>
+    <div class="rate-grid" style="margin-top:6px">
       <div class="field"><label>AG-Lohnnebenkosten %</label><input id="employerCostPct" type="number" step="0.5"><div class="muted small">z. B. Sozialabgaben, BG und weitere lohnbezogene Arbeitgeberkosten.</div></div>
       <div class="field"><label>Produktive Zeit %</label><input id="productiveTimePct" type="number" step="0.5"><div class="muted small">Anteil der bezahlten Arbeitszeit, der verrechenbar auf Baustellen anfällt.</div></div>
+
+      <details id="phDetailsPanel" class="calc-subsection" style="grid-column:1/-1">
+        <summary>Produktive Zeit % herleiten (Produktivstunden-Rechner)</summary>
+        <div class="hint">Leitet die <b>„Produktive Zeit %“ oben nachvollziehbar aus einzelnen Annahmen ab</b>, statt sie zu schätzen -- Bruttojahresstunden abzüglich Urlaub, Feiertagen, durchschnittlichen Krankheitstagen, Schlechtwetter und geschätzter unproduktiver Zeit (Rüstzeit, Fahrten, Werkstatt). Schreibt das Ergebnis <b>erst nach Klick auf „Übernehmen“</b> in das Feld oben -- keine automatische Änderung.</div>
+        <div class="rate-grid" style="margin-top:14px">
+          <div class="field"><label>Wochenstunden</label><input id="phWeeklyHours" type="number" step="1"></div>
+          <div class="field"><label>Tagesstunden</label><input id="phDailyHours" type="number" step="0.5"></div>
+          <div class="field"><label>Urlaubstage / Jahr</label><input id="phVacationDays" type="number" step="0.5"></div>
+          <div class="field"><label>Feiertage / Jahr</label><input id="phPublicHolidays" type="number" step="0.5"><div class="muted small" id="phHolidaySuggestionHint"></div></div>
+          <div class="field"><label>Ø Krankheitstage / Jahr</label><input id="phSickDays" type="number" step="0.5"><div class="muted small" id="phSickActualHint"></div></div>
+          <div class="field"><label>Schlechtwettertage / Jahr</label><input id="phWeatherDays" type="number" step="0.5"><div class="muted small" id="phWeatherActualHint"></div></div>
+          <div class="field"><label>Unproduktive Zeit %</label><input id="phUnproductivePct" type="number" step="0.5"><div class="muted small">Rüstzeit, Fahrten, Werkstatt u. Ä. -- Anteil der nach Abwesenheiten verbleibenden Zeit.</div></div>
+        </div>
+        <button onclick="saveProductiveHoursSettings()">Speichern & neu berechnen</button><span id="phStatus" class="status"></span>
+        <div class="formula"><b>Rechenweg:</b> Wochenstunden × Wochen/Jahr (aus der Kalkulationsgrundlage unten) = Bruttojahresstunden. Davon Urlaub, Feiertage, Ø Krankheitstage und Schlechtwetter (je in Tagen × Tagesstunden) abziehen, danach die unproduktive Zeit als Prozentsatz der verbleibenden Stunden. Das Ergebnis geteilt durch die Bruttojahresstunden ergibt den Vorschlag für „Produktive Zeit %“.</div>
+        <div id="phResult" class="rate-result"></div>
+        <div id="phApply" class="big-rate"></div>
+      </details>
+
       <div class="field"><label>Fixe Gemeinkosten · Eingabeart</label><select id="fixedOverheadMode" onchange="syncOverheadLabels()"><option value="eur">Euro / Jahr</option><option value="pct">Prozent der direkten Lohnkosten</option></select><div class="muted small">Fixe Kosten wie Miete, Software, Versicherungen, Abschreibungen etc.</div></div>
       <div class="field"><label id="fixedOverheadValueLabel">Fixe Gemeinkosten € / Jahr</label><input id="fixedOverheadValue" type="number" step="100" min="0"><div class="muted small" id="fixedOverheadHelp">Jährlicher Euro-Betrag.</div></div>
       <div class="field"><label>Variable Gemeinkosten · Eingabeart</label><select id="variableOverheadMode" onchange="syncOverheadLabels()"><option value="eur">Euro / Jahr</option><option value="pct">Prozent der direkten Lohnkosten</option></select><div class="muted small">Zusätzliche variable Gemeinkosten; Mitarbeiter mit Zuordnung „Variable Gemeinkosten“ werden automatisch addiert.</div></div>
       <div class="field"><label id="variableOverheadValueLabel">Variable Gemeinkosten € / Jahr</label><input id="variableOverheadValue" type="number" step="100" min="0"><div class="muted small" id="variableOverheadHelp">Zusätzlicher jährlicher Euro-Betrag ohne die zugeordneten Mitarbeiterkosten.</div></div>
+
+      <details id="ocpDetailsPanel" class="calc-subsection" style="grid-column:1/-1">
+        <summary>Betriebskosten-Vorschlag für die Gemeinkosten anzeigen</summary>
+        <div class="hint">Speist die <b>Betriebskosten-Übersicht</b> (Modul „Betriebskosten“, kalkulatorische Einordnung je Kostenposten) in die beiden Gemeinkosten-Felder oben ein -- in zwei getrennten Schritten: dieser Vorschlag übernimmt nur „Fixe Gemeinkosten“ / „Variable Gemeinkosten“ (Schritt 1); der bestehende Knopf <b>„Als aktuellen Verrechnungssatz übernehmen“ unten bleibt Schritt 2</b> und muss danach eigens geklickt werden. <b>Übernehmen erzwingt bei beiden Feldern die Eingabeart „Euro / Jahr“</b> -- steht eine der beiden aktuell auf „Prozent“, wird dieser Modus dabei überschrieben, mit deutlichem Hinweis vor dem Klick.</div>
+        <div id="ocpBuckets" style="margin-top:14px"></div>
+        <div id="ocpApply" class="big-rate"></div>
+      </details>
+
       <div class="field"><label>Ziel Wagnis & Gewinn %</label><input id="targetProfitPct" type="number" step="0.5"><div class="muted small">Aufschlag auf die Selbstkosten des Stundenverrechnungssatzes.</div></div>
-      <div class="field"><label>Wochen pro Jahr</label><input id="weeksPerYear" type="number" step="1"></div>
+      <div class="field"><label>Wochen pro Jahr <span class="info-ico" title="Dieselbe Wochenzahl, die auch der Produktivstunden-Rechner oben als Basis für die Bruttojahresstunden verwendet -- eine Quelle, kein zweites Feld.">?</span></label><input id="weeksPerYear" type="number" step="1"></div>
     </div>
     <button onclick="saveLaborRateSettings()">Rechengrundlagen speichern & neu berechnen</button><span id="laborRateStatus" class="status"></span>
-    <div class="formula"><b>Rechenweg:</b> Nur Mitarbeiter mit Kosten-Zuordnung <b>„Stundenkostenverrechnungssatz“</b> bilden Mittellohn und produktive Stunden. Mitarbeiter mit Zuordnung <b>„Variable Gemeinkosten“</b> werden mit Jahresbrutto + AG-Lohnnebenkosten dem variablen Gemeinkostenblock zugeschlagen. Fixe und zusätzliche variable Gemeinkosten können als Jahresbetrag in Euro oder als Prozent der direkten Jahreslohnkosten inkl. AG-Lohnnebenkosten gepflegt werden. Anschließend werden alle Gemeinkosten auf die produktiven Stunden verteilt und Wagnis & Gewinn aufgeschlagen.</div>
-    <div id="laborRateResult" class="rate-result"></div>
-    <div id="laborRateApply" class="big-rate"></div>
 
-    <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
-    <h3 style="margin-bottom:4px">Produktivstunden-Rechner</h3>
-    <div class="hint">Leitet die <b>„Produktive Zeit %“ oben nachvollziehbar aus einzelnen Annahmen ab</b>, statt sie zu schätzen -- Bruttojahresstunden abzüglich Urlaub, Feiertagen, durchschnittlichen Krankheitstagen, Schlechtwetter und geschätzter unproduktiver Zeit (Rüstzeit, Fahrten, Werkstatt). Schreibt das Ergebnis <b>erst nach Klick auf „Übernehmen“</b> in das Feld oben -- keine automatische Änderung.</div>
-    <div class="rate-grid" style="margin-top:14px">
-      <div class="field"><label>Wochenstunden</label><input id="phWeeklyHours" type="number" step="1"></div>
-      <div class="field"><label>Tagesstunden</label><input id="phDailyHours" type="number" step="0.5"></div>
-      <div class="field"><label>Urlaubstage / Jahr</label><input id="phVacationDays" type="number" step="0.5"></div>
-      <div class="field"><label>Feiertage / Jahr</label><input id="phPublicHolidays" type="number" step="0.5"><div class="muted small" id="phHolidaySuggestionHint"></div></div>
-      <div class="field"><label>Ø Krankheitstage / Jahr</label><input id="phSickDays" type="number" step="0.5"><div class="muted small" id="phSickActualHint"></div></div>
-      <div class="field"><label>Schlechtwettertage / Jahr</label><input id="phWeatherDays" type="number" step="0.5"><div class="muted small" id="phWeatherActualHint"></div></div>
-      <div class="field"><label>Unproduktive Zeit %</label><input id="phUnproductivePct" type="number" step="0.5"><div class="muted small">Rüstzeit, Fahrten, Werkstatt u. Ä. -- Anteil der nach Abwesenheiten verbleibenden Zeit.</div></div>
-    </div>
-    <button onclick="saveProductiveHoursSettings()">Speichern & neu berechnen</button><span id="phStatus" class="status"></span>
-    <div class="formula"><b>Rechenweg:</b> Wochenstunden × Wochen/Jahr (aus der Kalkulationsgrundlage oben) = Bruttojahresstunden. Davon Urlaub, Feiertage, Ø Krankheitstage und Schlechtwetter (je in Tagen × Tagesstunden) abziehen, danach die unproduktive Zeit als Prozentsatz der verbleibenden Stunden. Das Ergebnis geteilt durch die Bruttojahresstunden ergibt den Vorschlag für „Produktive Zeit %“.</div>
-    <div id="phResult" class="rate-result"></div>
-    <div id="phApply" class="big-rate"></div>
+    <div class="zone-label" style="margin-top:22px">Ergebnis</div>
+    <div id="laborRateApply" class="big-rate" style="margin-top:6px"></div>
+    <div id="laborRateBasics" class="rate-result" style="margin-top:0"></div>
 
-    <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
-    <h3 style="margin-bottom:4px">Betriebskosten-Vorschlag für die Gemeinkosten</h3>
-    <div class="hint">Speist die <b>Betriebskosten-Übersicht</b> (Modul „Betriebskosten“, kalkulatorische Einordnung je Kostenposten) in die beiden Gemeinkosten-Felder oben ein -- in zwei getrennten Schritten: dieser Vorschlag übernimmt nur „Fixe Gemeinkosten“ / „Variable Gemeinkosten“ (Schritt 1); der bestehende Knopf <b>„Als aktuellen Verrechnungssatz übernehmen“ oben bleibt Schritt 2</b> und muss danach eigens geklickt werden. <b>Übernehmen erzwingt bei beiden Feldern die Eingabeart „Euro / Jahr“</b> -- steht eine der beiden aktuell auf „Prozent“, wird dieser Modus dabei überschrieben, mit deutlichem Hinweis vor dem Klick.</div>
-    <div id="ocpBuckets" style="margin-top:14px"></div>
-    <div id="ocpApply" class="big-rate"></div>
+    <details id="laborRateDetailsPanel" class="calc-subsection" style="margin-top:14px">
+      <summary>Rechenweg im Detail</summary>
+      <div class="hint">Der <b>Mittellohn wird automatisch gewichtet nach den vertraglichen Wochenstunden</b> aller aktiven gewerblichen Mitarbeiter. Vergütungsart, Stundenlohn bzw. Monatsfestgehalt und Wochenstunden pflegst du unter <a href="/master-data#employees">Stammdaten → Mitarbeiter</a>. Festgehälter werden automatisch auf einen kalkulatorischen Stundenwert heruntergerechnet.</div>
+      <div class="formula"><b>Rechenweg:</b> Nur Mitarbeiter mit Kosten-Zuordnung <b>„Stundenkostenverrechnungssatz“</b> bilden Mittellohn und produktive Stunden. Mitarbeiter mit Zuordnung <b>„Variable Gemeinkosten“</b> werden mit Jahresbrutto + AG-Lohnnebenkosten dem variablen Gemeinkostenblock zugeschlagen. Fixe und zusätzliche variable Gemeinkosten können als Jahresbetrag in Euro oder als Prozent der direkten Jahreslohnkosten inkl. AG-Lohnnebenkosten gepflegt werden. Anschließend werden alle Gemeinkosten auf die produktiven Stunden verteilt und Wagnis & Gewinn aufgeschlagen.</div>
+      <div id="laborRateResult" class="rate-result" style="margin-top:14px"></div>
+    </details>
   </section>
 
   <section class="card settings-section" id="settings-calculation">
@@ -743,6 +768,12 @@ async function load(){
   }
   setv('companyName',g.company_name);setv('managingDirector',g.managing_director);setv('companyStreet',g.street);setv('companyZip',g.postal_code);setv('companyCity',g.city);setv('companyCountry',g.country);setv('companyPhone',g.phone);setv('companyEmail',g.email);setv('companyWebsite',g.website);setv('publicBaseUrl',g.public_base_url);setv('taxNumber',g.tax_number);setv('vatId',g.vat_id);setv('registerCourt',g.register_court);setv('registerNumber',g.register_number);setv('iban',g.iban);setv('bic',g.bic);setv('defaultVat',g.default_vat_rate);setv('quoteIntro',g.default_quote_intro);setv('quoteOutro',g.default_quote_outro);
   generalSettings=g;renderCompanyLogo();renderSidebarLogo();
+  // moduleStates muss vor loadRecurringCostsSettingsSection() im if-Block unten stehen --
+  // vorher (bis 1.5.10) wurde es erst danach (Zeile mit renderModuleStates()) zugewiesen,
+  // was dort ein "ReferenceError: moduleStates is not defined" auslöste (per echtem
+  // Browsertest gefunden, unabhaengig von der Stundenverrechnungssatz-Neugestaltung selbst --
+  // renderModuleStates() bleibt unten, die erneute Zuweisung dort ist redundant, aber harmlos).
+  moduleStates=ms;
   if(canSeeCalculationSettings){
     setv('laborRate',c.labor_rate);setv('materialMarkup',c.material_markup_pct);setv('overhead',c.overhead_pct);setv('riskProfit',c.risk_profit_pct);document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
     setv('employerCostPct',lr.employer_cost_pct);setv('productiveTimePct',lr.productive_time_pct);setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',lr.fixed_overhead_value||0);setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',lr.variable_overhead_value||0);setv('targetProfitPct',lr.target_profit_pct);setv('weeksPerYear',lr.weeks_per_year);syncOverheadLabels();renderLaborRate(lrc);
@@ -1704,8 +1735,27 @@ async function saveGeneral(){const s=document.getElementById('generalStatus');tr
 function money(x){return x==null?'—':Number(x).toLocaleString('de-DE',{style:'currency',currency:'EUR'})}
 function num(x){return x==null?'—':Number(x).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})}
 function syncOverheadLabels(){const fm=v('fixedOverheadMode')||'eur',vm=v('variableOverheadMode')||'eur';document.getElementById('fixedOverheadValueLabel').textContent=fm==='pct'?'Fixe Gemeinkosten %':'Fixe Gemeinkosten € / Jahr';document.getElementById('fixedOverheadHelp').textContent=fm==='pct'?'Prozent der direkten Jahreslohnkosten inkl. AG-Lohnnebenkosten.':'Jährlicher Euro-Betrag.';document.getElementById('fixedOverheadValue').step=fm==='pct'?'0.5':'100';document.getElementById('variableOverheadValueLabel').textContent=vm==='pct'?'Zusätzliche variable Gemeinkosten %':'Zusätzliche variable Gemeinkosten € / Jahr';document.getElementById('variableOverheadHelp').textContent=vm==='pct'?'Prozent der direkten Jahreslohnkosten inkl. AG-Lohnnebenkosten; Personalkosten der zugeordneten Mitarbeiter kommen zusätzlich hinzu.':'Zusätzlicher jährlicher Euro-Betrag; Personalkosten der zugeordneten Mitarbeiter kommen zusätzlich hinzu.';document.getElementById('variableOverheadValue').step=vm==='pct'?'0.5':'100'}
-function renderLaborRate(r){const el=document.getElementById('laborRateResult');if(!r.can_calculate){el.innerHTML=`<div class="metric" style="grid-column:1/-1"><div class="k">Berechnung noch nicht möglich</div><div class="val" style="font-size:14px">${esc(r.note||'Keine Daten')}</div></div>`;document.getElementById('laborRateApply').innerHTML='<b>Hinweis:</b> Lege mindestens einen aktiven Mitarbeiter an, der der Kosten-Zuordnung „Stundenkostenverrechnungssatz / direkte Lohnkosten“ zugeordnet ist.';return}
-  const vals=[['Direkte Mitarbeiter',r.direct_employee_count],['Mitarbeiter variable GK',r.variable_overhead_employee_count],['Gewichteter Mittellohn',money(r.weighted_mean_wage)+'/h'],['Produktive Jahresstunden',num(r.annual_productive_hours)+' h'],['Direkte Jahresbruttolöhne',money(r.annual_gross_wages)],['AG-Nebenkosten direkt',money(r.annual_employer_costs)],['Direkte Lohnkosten gesamt',money(r.direct_labor_annual_cost)],['Lohnkosten / produktive h',money(r.labor_cost_per_productive_hour)],['Fixe GK / Jahr',money(r.fixed_overhead_annual)],['Fixe GK / produktive h',money(r.fixed_overhead_per_productive_hour)],['Variable MA-Kosten / Jahr',money(r.variable_employee_costs)],['Zusätzliche variable GK / Jahr',money(r.manual_variable_overhead_annual)],['Variable GK gesamt / Jahr',money(r.variable_overhead_annual)],['Variable GK / produktive h',money(r.variable_overhead_per_productive_hour)],['GK gesamt / produktive h',money(r.overhead_per_productive_hour)],['Selbstkosten / h',money(r.self_cost_per_hour)],['Wagnis & Gewinn / h',money(r.target_profit_per_hour)],['Aktueller Satz',money(r.current_labor_rate)],['Abweichung',money(r.difference_to_current)]];el.innerHTML=vals.map(([k,x])=>`<div class="metric"><div class="k">${k}</div><div class="val">${x}</div></div>`).join('');document.getElementById('laborRateApply').innerHTML=`<div class="muted small">Ermittelter Stundenkostenverrechnungssatz</div><div style="font-size:28px;font-weight:900;margin:3px 0 10px">${money(r.suggested_labor_rate)} / h</div><button onclick="applyLaborRate()">Als aktuellen Verrechnungssatz übernehmen</button>`}
+function renderLaborRate(r){
+  const basics=document.getElementById('laborRateBasics'),detail=document.getElementById('laborRateResult');
+  if(!r.can_calculate){
+    document.getElementById('laborRateApply').innerHTML=`<div class="muted small">Berechnung noch nicht möglich</div><div style="font-size:16px;font-weight:700;margin:3px 0 4px">${esc(r.note||'Keine Daten')}</div><div class="muted small">Hinweis: Lege mindestens einen aktiven Mitarbeiter an, der der Kosten-Zuordnung „Stundenkostenverrechnungssatz / direkte Lohnkosten“ zugeordnet ist.</div>`;
+    basics.innerHTML='';detail.innerHTML='';
+    return;
+  }
+  // Vier Grundkennzahlen, immer sichtbar -- "Direkte Mitarbeiter" wird als Zahl direkt in der
+  // Mittellohn-Kachel mitgezeigt (nicht verloren, nur nicht mehr eine eigene Kachel), die
+  // ausführliche Gewichtungs-Erklärung sitzt im Tooltip statt im Fließtext.
+  basics.innerHTML=[
+    [`Gewichteter Mittellohn <span class="info-ico" title="${esc('Gewichtet nach den vertraglichen Wochenstunden aller aktiven, direkt zugeordneten Mitarbeiter. Vergütungsart/Stundenlohn/Wochenstunden pflegst du unter Stammdaten -> Mitarbeiter.')}">?</span>`,money(r.weighted_mean_wage)+'/h',`${r.direct_employee_count} Mitarbeiter`],
+    ['Produktive Jahresstunden',num(r.annual_productive_hours)+' h'],
+    ['Selbstkosten / h',money(r.self_cost_per_hour)],
+    ['Ermittelter Satz',money(r.suggested_labor_rate)+'/h'],
+  ].map(([k,x,sub])=>`<div class="metric"><div class="k">${k}</div><div class="val">${x}</div>${sub?`<div class="muted small" style="margin-top:2px">${sub}</div>`:''}</div>`).join('');
+  // Die verbleibenden dreizehn Zwischenkennzahlen -- vollständig, nur zugeklappt.
+  const detailVals=[['Mitarbeiter variable GK',r.variable_overhead_employee_count],['Direkte Jahresbruttolöhne',money(r.annual_gross_wages)],['AG-Nebenkosten direkt',money(r.annual_employer_costs)],['Direkte Lohnkosten gesamt',money(r.direct_labor_annual_cost)],['Lohnkosten / produktive h',money(r.labor_cost_per_productive_hour)],['Fixe GK / Jahr',money(r.fixed_overhead_annual)],['Fixe GK / produktive h',money(r.fixed_overhead_per_productive_hour)],['Variable MA-Kosten / Jahr',money(r.variable_employee_costs)],['Zusätzliche variable GK / Jahr',money(r.manual_variable_overhead_annual)],['Variable GK gesamt / Jahr',money(r.variable_overhead_annual)],['Variable GK / produktive h',money(r.variable_overhead_per_productive_hour)],['GK gesamt / produktive h',money(r.overhead_per_productive_hour)],['Wagnis & Gewinn / h',money(r.target_profit_per_hour)]];
+  detail.innerHTML=detailVals.map(([k,x])=>`<div class="metric"><div class="k">${k}</div><div class="val">${x}</div></div>`).join('');
+  document.getElementById('laborRateApply').innerHTML=`<div class="muted small">Ermittelter Stundenkostenverrechnungssatz</div><div style="font-size:32px;font-weight:900;margin:3px 0 8px">${money(r.suggested_labor_rate)} / h</div><div class="muted small" style="margin-bottom:12px">Aktuell hinterlegt: ${money(r.current_labor_rate)}/h · <span title="Differenz zum aktuell hinterlegten Stundenverrechnungssatz (Kalkulationsgrundlagen).">Abweichung: ${money(r.difference_to_current)}</span></div><button onclick="applyLaborRate()">Als aktuellen Verrechnungssatz übernehmen</button>`;
+}
 async function refreshLaborRate(){renderLaborRate(await api('/api/labor-rate-calculation'))}
 async function saveLaborRateSettings(){const s=document.getElementById('laborRateStatus');try{await api('/api/labor-rate-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({employer_cost_pct:Number(v('employerCostPct')||0),productive_time_pct:Number(v('productiveTimePct')||0),fixed_overhead_mode:v('fixedOverheadMode')||'eur',fixed_overhead_value:Number(v('fixedOverheadValue')||0),variable_overhead_mode:v('variableOverheadMode')||'eur',variable_overhead_value:Number(v('variableOverheadValue')||0),target_profit_pct:Number(v('targetProfitPct')||0),weeks_per_year:Number(v('weeksPerYear')||52)})});s.textContent='Rechengrundlagen gespeichert.';await refreshLaborRate()}catch(e){s.textContent='Fehler: '+e.message}}
 async function applyLaborRate(){const s=document.getElementById('laborRateStatus');try{const c=await api('/api/labor-rate-calculation/apply',{method:'POST'});setv('laborRate',c.labor_rate);s.textContent=`${money(c.labor_rate)}/h als aktueller Stundenkostenverrechnungssatz übernommen.`;await refreshLaborRate()}catch(e){s.textContent='Fehler: '+e.message}}
@@ -1799,7 +1849,7 @@ function renderOverheadProposal(p){
   </div>`;
   document.getElementById('ocpBuckets').innerHTML=`<div class="rate-grid">${fixedBucket}${variableBucket}</div>`;
   const rateNote=(cur.can_calculate&&prop.can_calculate)
-    ?`<div class="muted small" style="margin-top:8px">Vorschau: der Verrechnungssatz würde sich von ${money(cur.suggested_labor_rate)}/h auf ${money(prop.suggested_labor_rate)}/h ändern, sofern danach auch Schritt 2 („Als aktuellen Verrechnungssatz übernehmen“ oben) ausgeführt wird.</div>`
+    ?`<div class="muted small" style="margin-top:8px">Vorschau: der Verrechnungssatz würde sich von ${money(cur.suggested_labor_rate)}/h auf ${money(prop.suggested_labor_rate)}/h ändern, sofern danach auch Schritt 2 („Als aktuellen Verrechnungssatz übernehmen“ unten) ausgeführt wird.</div>`
     :'<div class="muted small" style="margin-top:8px">Verrechnungssatz noch nicht berechenbar (siehe Hinweis oben) -- der Vorschlag lässt sich trotzdem übernehmen.</div>';
   document.getElementById('ocpApply').innerHTML=`<div class="muted small">Betriebskosten-Vorschlag übernehmen (Schritt 1) -- Eingabeart wird auf „Euro / Jahr“ erzwungen</div><button onclick="applyOverheadProposal()">Betriebskosten-Vorschlag übernehmen</button>${rateNote}`;
 }
@@ -1827,7 +1877,7 @@ async function applyOverheadProposal(){
     setv('variableOverheadMode','eur');setv('variableOverheadValue',lastOverheadProposal.current.variable_value);
     syncOverheadLabels();
     await refreshLaborRate();
-    document.getElementById('laborRateStatus').textContent='Betriebskosten-Vorschlag übernommen -- Schritt 2 („Als aktuellen Verrechnungssatz übernehmen“ oben) steht weiterhin separat bereit.';
+    document.getElementById('laborRateStatus').textContent='Betriebskosten-Vorschlag übernommen -- Schritt 2 („Als aktuellen Verrechnungssatz übernehmen“ unten) steht weiterhin separat bereit.';
   }catch(e){document.getElementById('laborRateStatus').textContent='Fehler: '+e.message}
 }
 
