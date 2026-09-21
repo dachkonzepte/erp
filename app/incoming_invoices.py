@@ -17,7 +17,14 @@ Verrechnungssatz-Grenze (bestätigt, siehe CLAUDE.md "Buchhaltung"): eine Eingan
 ändert NIE RecurringCost.annual_amount/den Verrechnungssatz -- ein Plan-Ist-Abgleich (über
 recurring_cost_id) bliebe reine Anzeige ohne Rückwirkung, ist aber NICHT Teil dieser Version
 (nicht explizit beauftragt) -- die Verknüpfung selbst existiert bereits und würde eine solche
-Auswertung später ohne Umbau ermöglichen."""
+Auswertung später ohne Umbau ermöglichen.
+
+Vorkontierung (seit Buchhaltung Stufe 2, erster Teil, siehe app/accounts.py für den
+Kontenstamm): account_id (Header UND je Position) verweist optional auf ein Sachkonto --
+**das ist eine VORKONTIERUNG, kein finaler Buchungssatz**. Der Steuerberater prüft und bucht,
+das ERP nimmt an keiner Stelle eine steuerliche Bewertung vor. is_invoice_accounted() ist eine
+reine Anzeige-Ableitung (sichtbar in der Liste, welche Rechnungen noch offen sind), keine
+Voraussetzung zum Speichern -- eine unkontierte Rechnung bleibt vollständig gültig."""
 
 from datetime import date, timedelta
 from decimal import Decimal
@@ -27,8 +34,8 @@ from sqlalchemy.orm import Session, selectinload
 
 from .incoming_invoice_documents import delete_document_file
 from .models import (
-    IncomingInvoice, IncomingInvoiceItem, IncomingInvoiceSettings, OperationalAsset, Project,
-    RecurringCost, Supplier,
+    Account, IncomingInvoice, IncomingInvoiceItem, IncomingInvoiceSettings, OperationalAsset,
+    Project, RecurringCost, Supplier,
 )
 from .modules import is_module_enabled
 from .operational_assets import resolve_asset_identity
@@ -88,6 +95,15 @@ def is_skonto_overdue(skonto_deadline: date | None, payment_status: str, *, toda
     return skonto_deadline < today
 
 
+def is_invoice_accounted(invoice: IncomingInvoice) -> bool:
+    """Reine Anzeige-Ableitung (Liste: "kontiert"/"nicht kontiert") -- existieren Positionen,
+    muss JEDE davon ein Konto tragen (sonst bliebe ein Teil der Rechnung beim Export offen);
+    ohne Positionen entscheidet allein das Header-Konto."""
+    if invoice.items:
+        return all(i.account_id is not None for i in invoice.items)
+    return invoice.account_id is not None
+
+
 def get_or_create_incoming_invoice_settings(db: Session) -> IncomingInvoiceSettings:
     settings = db.get(IncomingInvoiceSettings, 1)
     if settings is None:
@@ -115,7 +131,9 @@ def _item_to_dict(item: IncomingInvoiceItem) -> dict:
         "net_amount": item.net_amount,
         "tax_rate_pct": item.tax_rate_pct,
         "gross_amount": gross_amount(item.net_amount, item.tax_rate_pct),
-        "account_code": item.account_code,
+        "account_id": item.account_id,
+        "account_number": item.account.account_number if item.account else None,
+        "account_label": item.account.label if item.account else None,
     }
 
 
@@ -152,7 +170,10 @@ def invoice_to_dict(invoice: IncomingInvoice, skonto_lead_days: int, *, today: d
         "asset_name": asset_name,
         "recurring_cost_id": invoice.recurring_cost_id,
         "recurring_cost_label": invoice.recurring_cost.label if invoice.recurring_cost else None,
-        "account_code": invoice.account_code,
+        "account_id": invoice.account_id,
+        "account_number": invoice.account.account_number if invoice.account else None,
+        "account_label": invoice.account.label if invoice.account else None,
+        "is_accounted": is_invoice_accounted(invoice),
         "notes": invoice.notes,
         "items": [_item_to_dict(i) for i in invoice.items],
         "created_at": invoice.created_at,
@@ -166,7 +187,8 @@ def _invoice_query():
         selectinload(IncomingInvoice.project),
         selectinload(IncomingInvoice.asset).selectinload(OperationalAsset.resource),
         selectinload(IncomingInvoice.recurring_cost),
-        selectinload(IncomingInvoice.items),
+        selectinload(IncomingInvoice.account),
+        selectinload(IncomingInvoice.items).selectinload(IncomingInvoiceItem.account),
     )
 
 
@@ -220,9 +242,11 @@ def _validate_referenced_entities(db: Session, fields: dict) -> None:
         raise ValueError(f"Betriebsmittel #{fields['asset_id']} wurde nicht gefunden.")
     if fields["recurring_cost_id"] is not None and db.get(RecurringCost, fields["recurring_cost_id"]) is None:
         raise ValueError(f"Kostenposten #{fields['recurring_cost_id']} wurde nicht gefunden.")
+    if fields["account_id"] is not None and db.get(Account, fields["account_id"]) is None:
+        raise ValueError(f"Konto #{fields['account_id']} wurde nicht gefunden.")
 
 
-def _validate_items_payload(items_payload: list[dict] | None) -> list[dict]:
+def _validate_items_payload(db: Session, items_payload: list[dict] | None) -> list[dict]:
     if not items_payload:
         return []
     result = []
@@ -234,9 +258,12 @@ def _validate_items_payload(items_payload: list[dict] | None) -> list[dict]:
         tax_rate_pct = Decimal(str(item.get("tax_rate_pct", "19.00")))
         if tax_rate_pct not in TAX_RATES:
             raise ValueError(f"Unbekannter Steuersatz: {tax_rate_pct}")
+        account_id = item.get("account_id")
+        if account_id is not None and db.get(Account, account_id) is None:
+            raise ValueError(f"Konto #{account_id} wurde nicht gefunden.")
         result.append({
             "description": description, "net_amount": net_amount, "tax_rate_pct": tax_rate_pct,
-            "account_code": item.get("account_code") or None,
+            "account_id": account_id,
         })
     return result
 
@@ -283,7 +310,7 @@ def _payload_fields(payload: dict) -> dict:
         "project_id": project_id,
         "asset_id": asset_id,
         "recurring_cost_id": recurring_cost_id,
-        "account_code": payload.get("account_code") or None,
+        "account_id": payload.get("account_id"),
         "notes": payload.get("notes") or None,
     }
 
@@ -293,7 +320,7 @@ def create_invoice(db: Session, payload: dict) -> dict:
         raise ValueError(f"Lieferant #{payload['supplier_id']} wurde nicht gefunden.")
     fields = _payload_fields(payload)
     _validate_referenced_entities(db, fields)
-    items = _validate_items_payload(payload.get("items"))
+    items = _validate_items_payload(db, payload.get("items"))
     _validate_item_sum(fields["net_amount"], items)
     invoice = IncomingInvoice(**fields)
     invoice.items = [IncomingInvoiceItem(**item) for item in items]
@@ -311,7 +338,7 @@ def update_invoice(db: Session, invoice_id: int, payload: dict) -> dict | None:
         raise ValueError(f"Lieferant #{payload['supplier_id']} wurde nicht gefunden.")
     fields = _payload_fields(payload)
     _validate_referenced_entities(db, fields)
-    items = _validate_items_payload(payload.get("items"))
+    items = _validate_items_payload(db, payload.get("items"))
     _validate_item_sum(fields["net_amount"], items)
     for field, value in fields.items():
         setattr(invoice, field, value)

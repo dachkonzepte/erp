@@ -3620,11 +3620,40 @@ class RecurringCostOverviewOut(BaseModel):
     cancellations_overdue: list[RecurringCostOut] = Field(default_factory=list)
 
 
+class AccountCreate(BaseModel):
+    account_number: str = Field(min_length=1, max_length=20)
+    label: str = Field(min_length=1, max_length=255)
+    # Nur ein Vorschlag beim Wählen (siehe Account-Klassendocstring, app/models.py) -- nie
+    # serverseitig auf tax_rate_pct einer Rechnung/Position übertragen.
+    default_tax_rate_pct: Decimal | None = None
+    active: bool = True
+
+    @field_validator("default_tax_rate_pct")
+    @classmethod
+    def validate_default_tax_rate(cls, v):
+        if v is not None and v not in (Decimal("19.00"), Decimal("7.00"), Decimal("0.00")):
+            raise ValueError("Steuersatz muss 19, 7 oder 0 Prozent sein.")
+        return v
+
+
+class AccountUpdate(AccountCreate):
+    pass
+
+
+class AccountOut(AccountCreate):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+
 class IncomingInvoiceItemIn(BaseModel):
     description: str = Field(min_length=1, max_length=255)
     net_amount: Decimal = Field(ge=0)
     tax_rate_pct: Decimal = Decimal("19.00")
-    account_code: str | None = Field(default=None, max_length=20)
+    # Vorkontierung (Buchhaltung Stufe 2) -- Verweis auf den Kontenstamm, siehe
+    # IncomingInvoice.account_id-Dokumentation (app/models.py).
+    account_id: int | None = None
 
     @field_validator("tax_rate_pct")
     @classmethod
@@ -3639,6 +3668,8 @@ class IncomingInvoiceItemIn(BaseModel):
 class IncomingInvoiceItemOut(IncomingInvoiceItemIn):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    account_number: str | None = None
+    account_label: str | None = None
     # Reine Anzeige-Ableitung (siehe app/incoming_invoices.py::gross_amount()) -- nie
     # gespeichert.
     gross_amount: Decimal = Decimal("0")
@@ -3661,8 +3692,8 @@ class IncomingInvoiceCreate(BaseModel):
     project_id: int | None = None
     asset_id: int | None = None
     recurring_cost_id: int | None = None
-    # Andockpunkt Stufe 2 (Kontierung) -- bleibt in Stufe 1 leer/optional.
-    account_code: str | None = Field(default=None, max_length=20)
+    # Vorkontierung (Buchhaltung Stufe 2) -- nur relevant, wenn KEINE Positionen existieren.
+    account_id: int | None = None
     notes: str | None = None
     # Positionen sind eine OPTIONALE Aufschlüsselung des Gesamtbetrags -- siehe
     # IncomingInvoice-Klassendocstring (app/models.py).
@@ -3708,7 +3739,12 @@ class IncomingInvoiceOut(BaseModel):
     asset_name: str | None = None
     recurring_cost_id: int | None = None
     recurring_cost_label: str | None = None
-    account_code: str | None = None
+    account_id: int | None = None
+    account_number: str | None = None
+    account_label: str | None = None
+    # Sichtbar in der Liste, ob die Rechnung bereits vollständig kontiert ist -- siehe
+    # app/incoming_invoices.py::is_invoice_accounted().
+    is_accounted: bool = False
     notes: str | None = None
     items: list[IncomingInvoiceItemOut] = Field(default_factory=list)
     created_at: datetime

@@ -4,6 +4,36 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.6.1 – Buchhaltung, Stufe 2 (erster Teil): Kontenstamm und Vorkontierung
+
+Fortsetzung von 1.6.0 -- ausdrücklich **nicht** Teil dieser Runde: der Import der
+Steuerberater-Kontendatei und der DATEV-Export (beide brauchen echte Beispieldateien, die noch
+nicht vorliegen). Erst ein vollständiger Befund (das `account_code`-Freitextfeld aus Stufe 1 war
+immer leer; kein bestehendes Konten-/Kontenrahmen-Konzept im Projekt, `TaxKey` nur strukturelles
+Vorbild; pflegbare Stammdaten mit mehr als einem Feld werden als echte Tabelle statt
+Optionsgruppe geführt), dann zwei Entscheidungen, dann gebaut.
+
+Neue Tabelle `Account` (Kontenstamm nach SKR 04: Kontonummer, Bezeichnung, optionaler
+Standard-Steuersatz, aktiv/archiviert -- nie löschen). **Bewusst kein Startbestand**: die harte
+Vorgabe "echte SKR-04-Nummern, keine erfundenen" ließ sich für die konkret gebrauchten
+Aufwandskonten nicht mit ausreichender Sicherheit ohne eine verifizierbare Quelle garantieren --
+die Tabelle bleibt leer, bis manuell angelegt oder später importiert wird (Andockpunkt: Upsert
+über `account_number`). `IncomingInvoice.account_code`/`IncomingInvoiceItem.account_code`
+(String, Stufe 1, immer leer) werden durch eine echte FK `account_id` ersetzt -- konsistent mit
+jeder anderen Relation im Projekt (Surrogat-ID statt Nummern-String), migrationssicher, da 0
+reale Zeilen betroffen waren. `is_invoice_accounted()`: je Rechnung ein Konto, wenn nicht
+aufgeschlüsselt, sonst je Position. Der hinterlegte Standard-Steuersatz eines Kontos ist ein
+reiner Client-Vorschlag beim Wählen, nie serverseitig übernommen -- die Rechnung entscheidet.
+**Vorkontierung, kein Buchungssatz** -- im Klassendocstring von `Account` und
+`IncomingInvoice.account_id` festgehalten, damit niemand später Buchungslogik daraufsetzt.
+Eingangsrechnungsliste zeigt jetzt, welche Rechnungen kontiert sind. Kontenstamm ist unter
+Einstellungen pflegbar (anlegen/bearbeiten/archivieren), dieselbe strenge
+`buero_finanzen`/`admin`-Gate wie der Rest des Moduls. Dabei ein SQLite-Migrations-Fallstrick
+gefunden und dokumentiert: `batch_alter_table()` verlangt unter SQLite einen explizit benannten
+`create_foreign_key()`-Aufruf, Autogenerates `None`-Name scheitert. Angriffstest bestätigt:
+`buero_auftrag`/`field` kommen an keinen Teil des Kontenstamms oder der Vorkontierung, auch nicht
+über eine kontierte Eingangsrechnung. 23 neue Tests, volle Suite: 1740 Tests grün.
+
 ## 1.6.0 – Buchhaltung, Stufe 1: Eingangsrechnungen erfassen und ablegen
 
 Erstes neues Modul seit der Betriebskosten-Übersicht (`module_key "buchhaltung"`,

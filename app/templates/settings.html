@@ -94,6 +94,7 @@
       <div class="settings-group">Buchhaltung</div>
       <div class="settings-menu">
         <button type="button" data-settings-section="incoming-invoices" onclick="showSettingsSection('incoming-invoices')">Eingangsrechnungen<span class="menu-sub">Vorlaufzeit für die Skonto-Warnung</span></button>
+        <button type="button" data-settings-section="accounts" onclick="showSettingsSection('accounts')">Kontenstamm<span class="menu-sub">Sachkonten für die Vorkontierung, SKR 04</span></button>
       </div>
       {% endif %}
       <div class="settings-group">Planung</div>
@@ -578,6 +579,31 @@
       <button onclick="saveIncomingInvoiceSettings()">Speichern</button><span id="incomingInvoiceSettingsStatus" class="status"></span>
     </div>
   </section>
+
+  <section class="card settings-section" id="settings-accounts">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Kontenstamm</h2><div class="muted small">Sachkonten (SKR 04) für die Vorkontierung von Eingangsrechnungen -- reine Vorbereitung, der Steuerberater prüft und bucht.</div></div></div>
+    <div id="accountsModuleDisabledNotice" class="hint" style="display:none">Das Modul Buchhaltung ist aktuell deaktiviert (siehe „Module" oben) -- der Kontenstamm wirkt erst, wenn es wieder aktiv ist.</div>
+    <div id="accountsModuleContent">
+      <div class="hint"><b>Kein Startbestand:</b> die Liste ist bewusst leer, bis Konten manuell angelegt oder aus der Steuerberater-Kontendatei importiert werden (Import folgt in einer späteren Version) -- damit keine ungeprüften Kontonummern in Umlauf kommen.</div>
+      <div class="list-narrow" style="margin-top:12px;display:flex;align-items:center;gap:10px"><button type="button" class="secondary" onclick="resetAccountForm();showAccountEditor()">+ Konto</button><span id="accountStatus" class="status"></span></div>
+      <div id="accountEditorPanel" class="option-editor-panel list-narrow" style="display:none">
+        <h3 style="margin-top:0" id="accountEditorHeading">Konto hinzufügen</h3>
+        <div class="fields">
+          <div class="field"><label>Kontonummer</label><input id="acNumber" placeholder="z. B. 4200"></div>
+          <div class="field full"><label>Bezeichnung</label><input id="acLabel" placeholder="z. B. Wareneinkauf"></div>
+          <div class="field"><label>Standard-Steuersatz <span class="muted small">(optional, nur ein Vorschlag)</span></label><select id="acTaxRate">
+            <option value="">— kein Vorschlag —</option>
+            <option value="19.00">19 %</option>
+            <option value="7.00">7 %</option>
+            <option value="0.00">0 %</option>
+          </select></div>
+          <div class="field" id="acActiveWrap" style="display:none"><label>Status</label><select id="acActive"><option value="1">Aktiv</option><option value="0">Archiviert</option></select></div>
+        </div>
+        <button id="accountSave" onclick="saveAccount()">Hinzufügen</button> <button class="secondary" onclick="hideAccountEditor()">Abbrechen</button>
+      </div>
+      <div class="list-narrow" style="overflow:auto;margin-top:14px"><table><thead><tr><th>Kontonummer</th><th>Bezeichnung</th><th>Standard-Steuersatz</th><th>Status</th><th></th></tr></thead><tbody id="accountRows"></tbody></table></div>
+    </div>
+  </section>
   {% endif %}
 
   <section class="card settings-section" id="settings-planning">
@@ -719,7 +745,7 @@
 </div>
 </div>
 <script>
-let sequences=[],employeeFunctions=[],editingFunctionId=null,optionGroups=[],currentOptionGroup=null,editingOptionId=null,planningSettings=null,planningHolidays=[],editingHolidayId=null,paymentTerms=[],editingPaymentTermId=null,taxKeys=[],editingTaxKeyId=null,reminderLevels=[],generalSettings=null;
+let sequences=[],employeeFunctions=[],editingFunctionId=null,optionGroups=[],currentOptionGroup=null,editingOptionId=null,planningSettings=null,planningHolidays=[],editingHolidayId=null,paymentTerms=[],editingPaymentTermId=null,taxKeys=[],editingTaxKeyId=null,reminderLevels=[],generalSettings=null,settingsAccounts=[],editingAccountId=null;
 // Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8): Kalkulationsgrundlagen/Stundenverrechnungssatz
 // sind buero_finanzen/admin-only -- die zugehoerigen <section>-Bloecke sind fuer buero_auftrag
 // bereits per Jinja aus dem Markup entfernt, load() darf ihre Endpunkte fuer diese Rolle deshalb
@@ -740,7 +766,7 @@ const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
   refreshStatusColors();
 })();
 const v=id=>document.getElementById(id).value.trim();const nv=id=>v(id)||null;const setv=(id,x)=>document.getElementById(id).value=x??'';
-const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','recurring-costs','incoming-invoices','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','operational-assets','mobile'];
+const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','recurring-costs','incoming-invoices','accounts','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','operational-assets','mobile'];
 function showSettingsSection(key,updateHash=true){
   if(!SETTINGS_SECTIONS.includes(key))key='general';
   document.querySelectorAll('.settings-section').forEach(x=>x.classList.toggle('active',x.id===`settings-${key}`));
@@ -798,11 +824,12 @@ async function load(){
     loadOverheadProposalSection();
     loadRecurringCostsSettingsSection();
     loadIncomingInvoiceSettingsSection();
+    loadAccountsSection();
   }
   sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();document.getElementById('autoCreateDraftsCheckbox').checked=!!rs.auto_create_drafts;moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadDocumentCategoriesSection();loadMobileSection();loadDocumentLayoutSection();loadProjectPipelineSection();}
 
 function renderModuleStates(){document.getElementById('moduleRows').innerHTML=moduleStates.length?moduleStates.map(m=>`<div class="field"><label style="display:flex;align-items:center;gap:10px;font-weight:650"><input type="checkbox" style="width:auto" ${m.enabled?'checked':''} onchange="toggleModule('${m.module_key}',this.checked)"> ${esc(m.label)}</label><span id="moduleStatus-${m.module_key}" class="status"></span></div>`).join(''):'<div class="muted small">Keine optionalen Module registriert.</div>'}
-async function toggleModule(key,checked){const st=document.getElementById('moduleStatus-'+key);try{await api(`/api/modules/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:checked})});moduleStates=await api('/api/modules');st.textContent=checked?'Aktiviert.':'Deaktiviert.';loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();if(canSeeCalculationSettings){loadRecurringCostsSettingsSection();loadIncomingInvoiceSettingsSection()}}catch(e){st.textContent='Fehler: '+e.message}}
+async function toggleModule(key,checked){const st=document.getElementById('moduleStatus-'+key);try{await api(`/api/modules/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:checked})});moduleStates=await api('/api/modules');st.textContent=checked?'Aktiviert.':'Deaktiviert.';loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();if(canSeeCalculationSettings){loadRecurringCostsSettingsSection();loadIncomingInvoiceSettingsSection();loadAccountsSection()}}catch(e){st.textContent='Fehler: '+e.message}}
 
 async function loadOperationalAssetSection(){
   const entry=moduleStates.find(m=>m.module_key==='betriebsmittel');
@@ -866,6 +893,43 @@ async function saveIncomingInvoiceSettings(){
   try{
     await api('/api/incoming-invoice-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({skonto_reminder_lead_days:leadDays})});
     st.className='status';st.textContent='Gespeichert.';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+// Kontenstamm (Buchhaltung Stufe 2, erster Teil) -- nur aufgerufen, wenn
+// canSeeCalculationSettings (buero_finanzen/admin), Muster loadIncomingInvoiceSettingsSection()
+// oben. KEIN ensure_default_*()-Seeding auf der API-Seite -- die Liste bleibt bewusst leer, bis
+// jemand ein Konto anlegt (siehe CLAUDE.md "Buchhaltung" -> "Kontenstamm").
+async function loadAccountsSection(){
+  const entry=moduleStates.find(m=>m.module_key==='buchhaltung');
+  const isEnabled=entry?entry.enabled:true;
+  document.getElementById('accountsModuleDisabledNotice').style.display=isEnabled?'none':'block';
+  document.getElementById('accountsModuleContent').style.display=isEnabled?'block':'none';
+  if(!isEnabled)return;
+  try{
+    settingsAccounts=await api('/api/accounts?include_inactive=true');
+    renderAccounts();
+  }catch(e){document.getElementById('accountStatus').textContent='Fehler: '+e.message}
+}
+function renderAccounts(){
+  document.getElementById('accountRows').innerHTML=settingsAccounts.length?settingsAccounts.map(a=>`<tr><td><b>${esc(a.account_number)}</b></td><td>${esc(a.label)}</td><td>${a.default_tax_rate_pct!=null?String(a.default_tax_rate_pct).replace('.',',')+' %':'—'}</td><td>${a.active?'Aktiv':'Archiviert'}</td><td><button class="secondary" onclick="editAccount(${a.id})">Bearbeiten</button></td></tr>`).join(''):'<tr><td colspan="5" class="muted">Noch kein Konto angelegt.</td></tr>';
+}
+function showAccountEditor(){document.getElementById('accountEditorPanel').style.display='block';document.getElementById('acNumber').focus()}
+function hideAccountEditor(){resetAccountForm();document.getElementById('accountEditorPanel').style.display='none'}
+function editAccount(id){const a=settingsAccounts.find(x=>x.id===id);if(!a)return;editingAccountId=id;setv('acNumber',a.account_number);setv('acLabel',a.label);setv('acTaxRate',a.default_tax_rate_pct!=null?String(a.default_tax_rate_pct):'');document.getElementById('acActiveWrap').style.display='block';document.getElementById('acActive').value=a.active?'1':'0';document.getElementById('accountEditorHeading').textContent='Konto bearbeiten';document.getElementById('accountSave').textContent='Änderungen speichern';document.getElementById('accountStatus').textContent='';showAccountEditor()}
+function resetAccountForm(){editingAccountId=null;setv('acNumber','');setv('acLabel','');setv('acTaxRate','');document.getElementById('acActiveWrap').style.display='none';document.getElementById('accountEditorHeading').textContent='Konto hinzufügen';document.getElementById('accountSave').textContent='Hinzufügen';document.getElementById('accountStatus').textContent=''}
+async function saveAccount(){
+  const st=document.getElementById('accountStatus');
+  try{
+    const accountNumber=v('acNumber');
+    const label=v('acLabel');
+    if(!accountNumber||!label)throw Error('Bitte Kontonummer und Bezeichnung angeben.');
+    const defaultTaxRatePct=v('acTaxRate')?Number(v('acTaxRate')):null;
+    const active=editingAccountId?document.getElementById('acActive').value==='1':true;
+    const url=editingAccountId?`/api/accounts/${editingAccountId}`:'/api/accounts';
+    await api(url,{method:editingAccountId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_number:accountNumber,label,default_tax_rate_pct:defaultTaxRatePct,active})});
+    hideAccountEditor();
+    await loadAccountsSection();
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 

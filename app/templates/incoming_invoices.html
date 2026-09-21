@@ -123,7 +123,7 @@ tr:last-child td{border-bottom:none}
       <option value="bezahlt">Bezahlt</option>
     </select></div>
     <div class="field" id="editPaymentDateWrap"><label>Zahlungsdatum</label><input id="editPaymentDate" type="date"></div>
-    <div class="field"><label>Konto <span class="muted small">(optional, für Stufe 2 -- Kontierung)</span></label><input id="editAccountCode" maxlength="20"></div>
+    <div class="field" id="editAccountWrap"><label>Konto <span class="muted small">(Vorkontierung, optional -- nur wenn keine Positionen erfasst sind)</span></label><select id="editAccount" onchange="applyAccountDefaultTaxRate(this,'editTaxRate')"></select></div>
   </div>
 
   <h3>Zuordnung <span class="muted small">(optional -- höchstens eine der drei)</span></h3>
@@ -138,6 +138,7 @@ tr:last-child td{border-bottom:none}
   <div id="itemRows"></div>
   <div class="editor-actions"><button type="button" class="secondary" onclick="addItemRow()">+ Position</button></div>
   <div id="itemsSumHint" class="item-sum-hint hidden"></div>
+  <div id="itemsAccountHint" class="muted small hidden" style="margin-top:6px">Bei Positionen entscheidet das Konto je Position -- das Konto oben am Kopf entfällt dann.</div>
 
   <div class="field full" style="margin-top:14px"><label>Notizen</label><textarea id="editNotes"></textarea></div>
 
@@ -161,7 +162,7 @@ tr:last-child td{border-bottom:none}
 
 <div class="card">
   <div class="table-scroll"><table>
-    <thead><tr><th>Lieferant</th><th>Rechnungsnr.</th><th>Datum</th><th>Betrag</th><th>Fälligkeit</th><th>Skonto</th><th>Status</th><th>Zuordnung</th><th></th></tr></thead>
+    <thead><tr><th>Lieferant</th><th>Rechnungsnr.</th><th>Datum</th><th>Betrag</th><th>Fälligkeit</th><th>Skonto</th><th>Status</th><th>Zuordnung</th><th>Kontierung</th><th></th></tr></thead>
     <tbody id="invoiceRows"></tbody>
   </table></div>
 </div>
@@ -180,7 +181,7 @@ async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.j
 
 const STATUS_BADGES={offen:'<span class="badge">Offen</span>',bezahlt:'<span class="badge paid">Bezahlt</span>',ueberfaellig:'<span class="badge overdue">⚠ Überfällig</span>'};
 
-let invoices=[],suppliers=[],projects=[],assets=[],recurringCosts=[],currentEditId=null,currentDocumentInfo=null;
+let invoices=[],suppliers=[],projects=[],assets=[],recurringCosts=[],accounts=[],currentEditId=null,currentDocumentInfo=null;
 
 function supplierOptionsHtml(selected){
   const opts=suppliers.filter(s=>s.active||Number(selected)===s.id).map(s=>`<option value="${s.id}" ${Number(selected)===s.id?'selected':''}>${esc(s.supplier_number?s.supplier_number+' · ':'')}${esc(s.name)}</option>`).join('');
@@ -197,6 +198,27 @@ function assetOptionsHtml(selected){
 function recurringCostOptionsHtml(selected){
   const opts=recurringCosts.map(c=>`<option value="${c.id}" ${Number(selected)===c.id?'selected':''}>${esc(c.label)}</option>`).join('');
   return '<option value="">— kein Kostenposten —</option>'+opts;
+}
+function accountOptionsHtml(selected){
+  // Muster supplierOptionsHtml() -- ein bereits gewähltes, inzwischen archiviertes Konto bleibt
+  // in der Auswahl sichtbar (sonst würde ein Bearbeiten-Aufruf es stillschweigend verlieren),
+  // neu wählbar sind nur aktive Konten.
+  const opts=accounts.filter(a=>a.active||Number(selected)===a.id).map(a=>`<option value="${a.id}" ${Number(selected)===a.id?'selected':''}>${esc(a.account_number)} · ${esc(a.label)}</option>`).join('');
+  return '<option value="">— kein Konto —</option>'+opts;
+}
+function applyAccountDefaultTaxRate(accountSelectEl,taxSelectId){
+  // Nur ein VORSCHLAG beim Wählen (Betreibervorgabe: "die Rechnung entscheidet, nicht das
+  // Konto") -- setzt das Steuersatz-Feld einmalig beim Auswählen, überschreibt es aber nicht
+  // erneut, wenn das Konto unverändert bleibt oder die Seite nur eine bestehende Rechnung lädt
+  // (dafür wird diese Funktion beim Laden nie aufgerufen, nur bei einem echten onchange).
+  // Leeres taxSelectId (Positionszeile): das Steuersatz-Feld ist das Geschwisterelement
+  // .item-tax innerhalb derselben .item-row, keine feste ID (mehrere Zeilen möglich).
+  const account=accounts.find(a=>a.id===Number(accountSelectEl.value));
+  if(!account||account.default_tax_rate_pct==null)return;
+  const taxEl=taxSelectId?document.getElementById(taxSelectId):accountSelectEl.closest('.item-row')?.querySelector('.item-tax');
+  if(!taxEl)return;
+  taxEl.value=Number(account.default_tax_rate_pct).toFixed(2);
+  if(taxSelectId==='editTaxRate')updateGrossPreview();
 }
 
 function clearOtherAssignments(kept){
@@ -249,7 +271,7 @@ function syncPaymentDateField(){
 }
 
 function itemRowHtml(item){
-  item=item||{description:'',net_amount:'',tax_rate_pct:'19.00',account_code:''};
+  item=item||{description:'',net_amount:'',tax_rate_pct:'19.00',account_id:null};
   return `<div class="item-row">
     <input class="item-description" placeholder="Beschreibung" value="${esc(item.description)}">
     <input class="item-net" type="number" step="0.01" min="0" value="${item.net_amount??''}" oninput="updateItemsSumHint()">
@@ -258,8 +280,8 @@ function itemRowHtml(item){
       <option value="7.00" ${Number(item.tax_rate_pct)===7?'selected':''}>7 %</option>
       <option value="0.00" ${Number(item.tax_rate_pct)===0?'selected':''}>0 %</option>
     </select>
-    <input class="item-account" placeholder="Konto" maxlength="20" value="${esc(item.account_code||'')}">
-    <button type="button" class="secondary" onclick="this.closest('.item-row').remove();updateItemsSumHint()">×</button>
+    <select class="item-account" onchange="applyAccountDefaultTaxRate(this,'')">${accountOptionsHtml(item.account_id)}</select>
+    <button type="button" class="secondary" onclick="this.closest('.item-row').remove();updateItemsSumHint();updateAccountFieldVisibility()">×</button>
   </div>`;
 }
 
@@ -267,6 +289,7 @@ function addItemRow(item){
   document.getElementById('itemRows').insertAdjacentHTML('beforeend',itemRowHtml(item));
   document.getElementById('itemRowsHead').classList.remove('hidden');
   updateItemsSumHint();
+  updateAccountFieldVisibility();
 }
 
 function readItemRows(){
@@ -274,8 +297,17 @@ function readItemRows(){
     description:row.querySelector('.item-description').value.trim(),
     net_amount:Number(row.querySelector('.item-net').value||0),
     tax_rate_pct:Number(row.querySelector('.item-tax').value),
-    account_code:row.querySelector('.item-account').value.trim()||null,
+    account_id:row.querySelector('.item-account').value?Number(row.querySelector('.item-account').value):null,
   })).filter(i=>i.description||i.net_amount);
+}
+
+function updateAccountFieldVisibility(){
+  // Das Kopf-Konto ist nur relevant, solange keine Positionen erfasst sind -- existieren
+  // Positionen, trägt jede ihr eigenes Konto (Betreibervorgabe).
+  const hasItems=document.querySelectorAll('#itemRows .item-row').length>0;
+  document.getElementById('editAccountWrap').classList.toggle('hidden',hasItems);
+  document.getElementById('itemsAccountHint').classList.toggle('hidden',!hasItems);
+  if(hasItems)document.getElementById('editAccount').value='';
 }
 
 function updateItemsSumHint(){
@@ -354,13 +386,14 @@ function openCreateEditor(){
   document.getElementById('editPaymentStatus').value='offen';
   document.getElementById('editPaymentDate').value='';
   syncPaymentDateField();
-  document.getElementById('editAccountCode').value='';
+  document.getElementById('editAccount').innerHTML=accountOptionsHtml(null);
   document.getElementById('editProject').innerHTML=projectOptionsHtml(null);
   document.getElementById('editAsset').innerHTML=assetOptionsHtml(null);
   document.getElementById('editRecurringCost').innerHTML=recurringCostOptionsHtml(null);
   document.getElementById('itemRows').innerHTML='';
   document.getElementById('itemRowsHead').classList.add('hidden');
   document.getElementById('itemsSumHint').classList.add('hidden');
+  updateAccountFieldVisibility();
   document.getElementById('editNotes').value='';
   document.getElementById('editorStatus').textContent='';
   document.getElementById('documentSection').classList.add('hidden');
@@ -386,13 +419,14 @@ function openEditEditor(id){
   document.getElementById('editPaymentStatus').value=inv.payment_status;
   document.getElementById('editPaymentDate').value=inv.payment_date||'';
   syncPaymentDateField();
-  document.getElementById('editAccountCode').value=inv.account_code||'';
+  document.getElementById('editAccount').innerHTML=accountOptionsHtml(inv.account_id);
   document.getElementById('editProject').innerHTML=projectOptionsHtml(inv.project_id);
   document.getElementById('editAsset').innerHTML=assetOptionsHtml(inv.asset_id);
   document.getElementById('editRecurringCost').innerHTML=recurringCostOptionsHtml(inv.recurring_cost_id);
   document.getElementById('itemRows').innerHTML='';
   (inv.items||[]).forEach(addItemRow);
   updateItemsSumHint();
+  updateAccountFieldVisibility();
   document.getElementById('editNotes').value=inv.notes||'';
   document.getElementById('editorStatus').textContent='';
   renderDocumentSection(inv);
@@ -420,7 +454,7 @@ function buildPayload(){
     project_id:document.getElementById('editProject').value?Number(document.getElementById('editProject').value):null,
     asset_id:document.getElementById('editAsset').value?Number(document.getElementById('editAsset').value):null,
     recurring_cost_id:document.getElementById('editRecurringCost').value?Number(document.getElementById('editRecurringCost').value):null,
-    account_code:document.getElementById('editAccountCode').value.trim()||null,
+    account_id:document.getElementById('editAccount').value?Number(document.getElementById('editAccount').value):null,
     notes:document.getElementById('editNotes').value.trim()||null,
     items:readItemRows(),
   };
@@ -455,8 +489,8 @@ async function markPaidNow(id){
     skonto_percent:inv.skonto_percent,skonto_deadline:inv.skonto_deadline,
     payment_status:'bezahlt',payment_date:new Date().toISOString().slice(0,10),
     project_id:inv.project_id,asset_id:inv.asset_id,recurring_cost_id:inv.recurring_cost_id,
-    account_code:inv.account_code,notes:inv.notes,
-    items:(inv.items||[]).map(i=>({description:i.description,net_amount:i.net_amount,tax_rate_pct:i.tax_rate_pct,account_code:i.account_code})),
+    account_id:inv.account_id,notes:inv.notes,
+    items:(inv.items||[]).map(i=>({description:i.description,net_amount:i.net_amount,tax_rate_pct:i.tax_rate_pct,account_id:i.account_id})),
   };
   try{
     await api(`/api/incoming-invoices/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
@@ -490,6 +524,7 @@ function row(inv){
     <td>${inv.skonto_deadline?fmtDate(inv.skonto_deadline)+skontoNote:'—'}</td>
     <td>${STATUS_BADGES[inv.display_status]||esc(inv.display_status)}</td>
     <td>${assignmentCell(inv)}</td>
+    <td>${inv.is_accounted?'<span class="badge paid">Kontiert</span>':'<span class="badge due">Nicht kontiert</span>'}</td>
     <td class="row-actions">
       <button class="secondary" onclick="openEditEditor(${inv.id})">Bearbeiten</button>
       ${inv.payment_status==='offen'?`<button class="secondary" onclick="markPaidNow(${inv.id})">Als bezahlt markieren</button>`:''}
@@ -499,7 +534,7 @@ function row(inv){
 }
 
 function renderRows(){
-  document.getElementById('invoiceRows').innerHTML=invoices.map(row).join('')||'<tr><td colspan="9" class="empty">Noch keine Eingangsrechnungen erfasst.</td></tr>';
+  document.getElementById('invoiceRows').innerHTML=invoices.map(row).join('')||'<tr><td colspan="10" class="empty">Noch keine Eingangsrechnungen erfasst.</td></tr>';
 }
 
 function skontoRow(inv){
@@ -558,13 +593,14 @@ async function init(){
     document.getElementById('listStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
     return;
   }
-  const [supplierList,projectList,assetList,recurringCostList]=await Promise.all([
+  const [supplierList,projectList,assetList,recurringCostList,accountList]=await Promise.all([
     api('/api/suppliers').catch(()=>[]),
     api('/api/projects').catch(()=>[]),
     api('/api/operational-assets').catch(()=>[]),
     api('/api/recurring-costs?include_inactive=true').catch(()=>[]),
+    api('/api/accounts?include_inactive=true').catch(()=>[]),
   ]);
-  suppliers=supplierList;projects=projectList;assets=assetList;recurringCosts=recurringCostList;
+  suppliers=supplierList;projects=projectList;assets=assetList;recurringCosts=recurringCostList;accounts=accountList;
   document.getElementById('filterSupplier').innerHTML='<option value="">Alle</option>'+suppliers.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
   await api('/api/incoming-invoices/check-due',{method:'POST'}).catch(()=>null);
   await loadAll();

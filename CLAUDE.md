@@ -10433,6 +10433,164 @@ Ersteinrichtung, Lieferant + Eingangsrechnung mit gemischten Positionen anlegen 
 je Position berechnet), Liste/Summen-Endpunkt liefern die erwarteten Werte, die gerenderte Seite
 enthält alle erwarteten Elemente (Supplier-Auswahl, Editor, Positionstabelle, Sidebar-Link).
 
+### Stufe 2, erster Teil: Kontenstamm mit manueller Pflege und Vorkontierung (seit 1.6.1)
+
+Fortsetzung von Stufe 1 -- ausdrücklich **nicht** Teil dieser Runde: der Import der
+Steuerberater-Kontendatei und der DATEV-Export (beide brauchen echte Beispieldateien vom
+Steuerberater, die noch nicht vorliegen). Erst ein vollständiger Befund zu drei Punkten
+(`account_code`-Feld, bestehende Konten/Kontenrahmen-Konzepte, Muster für pflegbare Stammdaten),
+dann zwei vom Betreiber angefragte Entscheidungen (Startbestand ja/nein, wie `account_code`
+umgestellt wird), dann in einer Runde gebaut. Alles ausschließlich `buero_finanzen`/`admin`, im
+bestehenden Modul `"buchhaltung"`.
+
+#### Befund
+
+- **`account_code`** war in Stufe 1 ein einfaches, immer leeres `String(20)`-Freitextfeld auf
+  `IncomingInvoice` UND `IncomingInvoiceItem` -- ausdrücklich als Andockpunkt für eine spätere
+  Kontierung angelegt (siehe CLAUDE.md-Fassung vor dieser Version), aber nie befüllt: 0 echte
+  Zeilen mit einem gesetzten Wert.
+- **Kein bestehendes Konten-/Kontenrahmen-Konzept im Projekt.** `TaxKey` (Steuerschlüssel,
+  `app/tax_keys.py`) ist eine pflegbare Stammdatentabelle für STEUERLICHE Kennzeichen (z. B.
+  "19% Vorsteuer abziehbar"), keine Kontonummer -- geprüft und bewusst getrennt gehalten: ein
+  Konto (WAS wurde gebucht) und ein Steuerschlüssel (WELCHE Steuerbehandlung) sind zwei
+  unabhängige Dimensionen, die sich auch beim Steuerberater nie zu einem Feld verschmelzen. Die
+  DATEV-Buchungscodes an den Zeitarten (`TimeTrackingSettings.datev_wage_type_*`,
+  siehe "Schlechtwetter-Zeitarten") sind Lohnarten für die Personalabrechnung -- eine dritte,
+  wiederum unabhängige Dimension, kein Sachkonto. Keine der drei bestehenden Konzepte war für den
+  Kontenstamm wiederverwendbar, aber `TaxKey` war das direkte Struktur-Vorbild (siehe unten).
+- **Pflegbare Stammdaten-Listen**: `SettingOptionGroup`/`SettingOption` (Optionsgruppen) für
+  reine Label-Listen ohne Zusatzfelder; eine echte Tabelle (`TaxKey`, `PaymentTerm`,
+  `RoofComponentType` u. v. a.), sobald mehr als ein Feld + eine Rechenregel/ein Zusatzattribut
+  dazukommt. Der Kontenstamm braucht Kontonummer + Bezeichnung + optionalen Standard-Steuersatz
+  -- eindeutig der zweite Fall, `Account` ist deshalb eine echte Tabelle nach dem `TaxKey`-Muster
+  (Kontonummer statt `key`, `active`-Flag statt eines zusätzlichen "ist Standard"-Zustands).
+
+#### Punkt 2: der Kontenstamm -- Startbestand: **nein**, bewusst leer
+
+Neue Tabelle `Account` (`app/models.py`): `account_number` (String(20), indiziert),
+`label`, `default_tax_rate_pct` (optional, `Numeric(5,2)`, gegen `ACCOUNT_TAX_RATES = (19.00,
+7.00, 0.00)` geprüft -- fester Code-Wert wie bei `RecurringCost.overhead_classification`, keine
+Optionsgruppe), `active` (Bool, Default an -- **nie Löschen**, nur Archivieren, auch für ein nie
+verwendetes Konto: dasselbe Muster wie `TaxKey.archived`). `UniqueConstraint` auf
+`account_number`.
+
+**Entscheidung, wie vom Betreiber ausdrücklich zur eigenen Einschätzung gestellt**: **kein**
+Startbestand mit vorbelegten SKR-04-Nummern, obwohl der Betreiber selbst zu einem kleinen,
+sinnvollen Startbestand neigte. Begründung: das harte Kriterium der Anfrage lautete wörtlich
+"echte SKR-04-Nummern, keine erfundenen". SKR 04 und SKR 03 sind zwei unterschiedliche
+Kontenrahmen mit unterschiedlichen Nummernkreisen für dieselben fachlichen Konten (z. B. steht
+eine Kontenklasse in SKR 03 an anderer Stelle als in SKR 04) -- eine Verwechslung der beiden
+Systeme ist ein bekanntes, reales Fehlerrisiko. Für die GRUNDSTRUKTUR (Kontenklassen-Aufbau, das
+Prozessgliederungsprinzip von SKR 04 allgemein) besteht ausreichende Sicherheit, aber für die
+KONKRETEN, einzelnen Kontonummern der tatsächlich gebrauchten Aufwandskonten (Wareneinkauf,
+Miete, Versicherung, Fremdleistungen) ließ sich diese Sicherheit nicht mit der vom Betreiber
+verlangten Garantie ("echte Nummern, keine erfundenen") herstellen, ohne eine verifizierbare
+Quelle (z. B. die tatsächliche SKR-04-Kontentabelle) einzusehen, die in dieser Sitzung nicht
+vorlag. Ein seed mit teilweise falschen Nummern wäre schlimmer als gar keiner -- ein Betreiber,
+der einem vorbelegten Konto vertraut, prüft es typischerweise nicht gegen den echten Kontenplan.
+Die Tabelle bleibt deshalb leer, bis der Betreiber Konten manuell anlegt (idealerweise nach
+Rücksprache mit dem Steuerberater) oder der spätere Datei-Import (Stufe 2, zweiter Teil, nicht
+Teil dieser Version) sie befüllt -- exakt dieselbe Zurückhaltung, die `TaxKey` bereits für
+denselben Risikotyp übt ("keine Rechtsberatung, bitte mit dem Steuerberater abgleichen").
+`Account`-Klassendocstring (`app/models.py`) hält diese Begründung fest, damit eine künftige
+Sitzung nicht versucht ist, "nachträglich doch ein paar Konten zu seeden".
+
+**Manuelle Pflege**: `app/accounts.py` (Muster `app/tax_keys.py`, aber ohne
+`ensure_default_*()`-Funktion) -- `create_account()`/`update_account()` validieren
+`account_number`-Eindeutigkeit (bei Update: schließt die eigene Zeile aus) und
+`default_tax_rate_pct` gegen `ACCOUNT_TAX_RATES`. `app/routers/accounts.py`
+(`GET/POST /api/accounts`, `GET/PUT /api/accounts/{id}`) -- ausnahmslos
+`require_min_role(ROLE_OFFICE_FINANZEN)` plus `is_module_enabled(db, "buchhaltung")`, Muster
+`app/routers/tax_keys.py`. Neuer Abschnitt "Kontenstamm" in Einstellungen (`settings.html`,
+gleiche strenge Gate wie das übrige Buchhaltungs-Menü) -- Liste, Anlegen/Bearbeiten-Panel,
+Archivieren/Aktivieren, ein sichtbarer Hinweistext, warum keine Konten vorbelegt sind.
+
+**Andockpunkt für den späteren Datei-Import (Stufe 2, zweiter Teil, NICHT Teil dieser
+Version)**: ein künftiger Import liest die Kontendatei des Steuerberaters zeilenweise und legt
+über `account_number` (der stabile, natürliche Schlüssel, `UniqueConstraint`) je Zeile ein Konto
+an oder aktualisiert es (Upsert) -- `create_account()`/`update_account()` validieren dafür
+bereits alles Nötige, **keine Änderung an der Tabelle oder an diesen Funktionen nötig**, wenn
+der Import gebaut wird. Der Andockpunkt für den DATEV-Export (ebenfalls nicht Teil dieser
+Version): ein künftiger Export liest `IncomingInvoice.account_id`/`IncomingInvoiceItem.
+account_id` und löst sie über `Account.account_number` auf -- beide Felder existieren bereits
+(siehe Punkt 3), keine weitere Vorbereitung nötig.
+
+#### Punkt 3: die Vorkontierung -- `account_code` wird zu `account_id` (echte FK), nicht zu einem
+Nummern-Verweis-String
+
+**Entscheidung**: der freie `account_code`-String aus Stufe 1 wird durch eine echte
+Fremdschlüssel-Spalte `account_id: int | None` (FK auf `accounts.id`) ersetzt, nicht durch einen
+weiterhin freien String, der die Kontonummer referenziert. Begründung: jede andere Relation in
+diesem Projekt (`project_id`, `asset_id`, `recurring_cost_id`, `supplier_id`, ...) ist eine
+FK-auf-Surrogat-ID, niemals ein natürlicher-Schlüssel-String -- eine Ausnahme nur hier hätte eine
+zweite, abweichende Konvention eingeführt, ohne einen Vorteil zu bieten (referentielle Integrität,
+Umbenennungssicherheit und die bereits bestehende Eager-Load-Infrastruktur sprechen für die FK).
+**Migration war sicher, weil 0 reale Zeilen betroffen waren**: direkt gegen die echte, lokale
+Datenbank geprüft, bevor die Spalte gedroppt wurde -- 0 Zeilen in `incoming_invoices` und
+`incoming_invoice_items` insgesamt (Stufe 1 war zu diesem Zeitpunkt noch nicht im echten Betrieb
+genutzt), ein destruktiver Spaltentausch (`DROP account_code` + `ADD account_id`) war deshalb
+verlustfrei, kein Backfill nötig.
+
+Migration `329725277349`: legt `accounts` an, tauscht auf `incoming_invoices`/
+`incoming_invoice_items` `account_code` gegen `account_id` (benannte FK-Constraints --
+SQLite-Batch-Modus verlangt unter Alembic einen echten Namen, `None` scheitert mit
+`ValueError: Constraint must have a name`, siehe unten). `Account.default_tax_rate_pct` wird
+beim Wählen eines Kontos **client-seitig** als Vorschlag übernommen
+(`incoming_invoices.html::applyAccountDefaultTaxRate()`), ist aber jederzeit übersteuerbar -- die
+Rechnung entscheidet den tatsächlichen Steuersatz, nicht das Konto. **Kein serverseitiger Zwang**:
+`create_invoice()`/`update_invoice()` übernehmen den Kontosatz nie automatisch beim Speichern,
+belegt durch `test_account_default_tax_rate_is_never_applied_server_side` (Konto mit 0 %,
+Rechnung explizit mit 19 % -- bleibt 19 %).
+
+**Je Rechnung ein Konto ODER je Position** -- `is_invoice_accounted()` (`app/incoming_invoices.py`)
+ist die eine Funktion, die "kontiert" definiert: **existieren Positionen, zählt ausschließlich
+deren eigener Kontobezug** (jede Position braucht ein Konto, das Header-`account_id` wird dann
+irrelevant, auch wenn es noch gesetzt ist); **existieren keine Positionen, zählt der
+Header-Kontobezug**. `invoice_to_dict()`/`_item_to_dict()` lösen `account_id` zu
+`account_number`/`account_label` auf (Eager-Load in `_invoice_query()`), plus das neue Feld
+`is_accounted: bool`.
+
+**Vorkontierung, keine Buchung -- Docstring-Warnung**: `IncomingInvoice.account_id`s Docstring
+(`app/models.py`) hält ausdrücklich fest, dass das ERP an keiner Stelle eine steuerliche
+Bewertung vornimmt und keinen finalen Buchungssatz erzeugt -- der Steuerberater prüft und bucht,
+diese Zuordnung ist nur ein Vorschlag/eine Vorbereitung für den späteren DATEV-Export. Dieselbe
+Warnung steht auf `Account` selbst (siehe oben) -- **zwei** Stellen, damit sie unabhängig vom
+Einstiegspunkt einer künftigen Sitzung gefunden wird.
+
+**Gefundener, projektrelevanter SQLite-Migrations-Fallstrick**: Alembics `batch_alter_table()`
+verlangt unter SQLite einen **explizit benannten** `create_foreign_key()`-Aufruf --
+Autogenerate erzeugt standardmäßig `create_foreign_key(None, ...)`, was beim internen
+Tabellen-Kopieren-und-Ersetzen mit `ValueError: Constraint must have a name` scheitert. Fix: dem
+Aufruf (und dem entsprechenden `drop_constraint()` in `downgrade()`) einen echten Namen geben
+(`f"fk_{table}_account_id_accounts"`). Gilt für jede künftige FK-Migration auf SQLite in diesem
+Projekt, nicht nur diese eine.
+
+#### Punkt 4: Ansicht -- Kontiert/Nicht kontiert sichtbar
+
+`incoming_invoices.html`: neue Tabellenspalte "Kontierung" mit einem Kontiert-/
+Nicht-kontiert-Badge (aus `is_accounted`) -- die unkontierten Zeilen fallen dadurch optisch auf,
+bevor ein späterer DATEV-Export eine übersieht. Header-Konto-Feld ist jetzt ein `<select>` aus
+dem Kontenstamm (blendet sich aus, sobald Positionen existieren -- dann entscheidet ausschließlich
+deren je eigener Kontobezug, `updateAccountFieldVisibility()`), jede Position hat ihr eigenes
+Konto-`<select>`. Die "Kontenübersicht" in Einstellungen (siehe Punkt 2) ist dieselbe pflegbare
+Liste, kein zweiter Anzeigeort.
+
+#### Tests, Migration, Verifikation
+
+`tests/test_v294_accounts_vorkontierung.py` (23 Tests) -- Kontenstamm (kein Startbestand,
+CRUD, Eindeutigkeit, Steuersatz-Validierung, kein Löschen, Archivieren/Aktivieren-Filter),
+Vorkontierung (`is_invoice_accounted()` für Header- und Positionsfall inkl. des
+"Header-Konto wird bei vorhandenen Positionen irrelevant"-Falls, Validierung unbekannter
+`account_id` auf Header UND Position, Steuersatz nie serverseitig übernommen, ein archiviertes
+Konto bleibt an einer bereits kontierten Rechnung gültig), und der geforderte Angriffstest:
+`buero_auftrag`/`field` bekommen 403 auf jeden `/api/accounts`-Endpunkt (Liste, Einzelabruf auch
+mit geratener ID, Anlegen, Ändern) UND auf eine Eingangsrechnung mit gesetztem Konto (rekursiver
+Schlüssel-Scan bestätigt: kein `account_number`/`label`/`default_tax_rate_pct` in einer
+403-Antwort), sowie bei deaktiviertem Modul für jede Rolle inkl. Finanzen/Admin. Volle Suite:
+1740 Tests grün. Migration erfolgreich gegen die echte, lokale `dachkonzepte_erp.db` angewendet
+und per direkter `PRAGMA table_info`-Abfrage nachgemessen (0 Datenverlust, Schema exakt wie
+erwartet).
+
 ## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
 
 Das durchgängige `ensure_default_*()`-Muster dieses Projekts (siehe z. B. "Betriebsmittelverwaltung",

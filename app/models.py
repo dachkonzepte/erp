@@ -3789,6 +3789,53 @@ class RecurringCostSettings(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class Account(Base):
+    """Sachkonto (Kontenstamm, Buchhaltung Stufe 2 -- erster Teil, Modul "buchhaltung") --
+    für die Vorkontierung von Eingangsrechnungen, Nummernkreis nach SKR 04. Reine
+    Verwaltungstabelle wie `TaxKey`/`PaymentTerm` (Kontonummer + Bezeichnung + optionaler
+    Standard-Steuersatz -- mehr als ein Label, deshalb echte Tabelle statt Optionsgruppe).
+
+    **Bewusst KEIN Startbestand mit vorbelegten SKR-04-Nummern** -- siehe CLAUDE.md
+    "Buchhaltung" -> "Kontenstamm" für die volle Begründung: bei den tatsächlich benötigten
+    Aufwandskonten (Wareneinkauf/Miete/Versicherung/Fremdleistungen usw.) ließ sich die vom
+    Auftrag geforderte Zahlengenauigkeit ("echte SKR-04-Nummern, keine erfundenen") ohne eine
+    verifizierbare Quelle nicht mit der nötigen Sicherheit garantieren -- die Tabelle bleibt
+    leer, bis der Betreiber Konten manuell anlegt (z. B. nach Rücksprache mit dem
+    Steuerberater) oder der spätere Datei-Import (Stufe 2, zweiter Teil, noch nicht gebaut)
+    sie befüllt.
+
+    default_tax_rate_pct ist NUR EIN VORSCHLAG (viele Konten haben einen typischen Satz -- ein
+    Wareneinkaufskonto 19 %, ein Versicherungskonto 0 %): beim Wählen eines Kontos an einer
+    Eingangsrechnung/-position wird er client-seitig vorbelegt, ist aber jederzeit
+    übersteuerbar -- DIE RECHNUNG entscheidet den tatsächlichen Steuersatz, nicht das Konto.
+    Kein serverseitiger Zwang, keine Ableitung aus dem Konto beim Speichern.
+
+    active statt Löschen -- kein Löschen vorgesehen (auch für ein nie verwendetes Konto), nur
+    Archivieren/Aktivieren (Muster `TaxKey.archived`, hier als einzelnes Bool statt eines
+    zusätzlichen "ist Standard"-Zustands, den es hier nicht gibt).
+
+    **ANDOCKPUNKT für den späteren Import der Steuerberater-Kontendatei** (Stufe 2, zweiter
+    Teil, NICHT Teil dieser Version): ein künftiger Import liest die Kontendatei und legt für
+    jede Zeile über `account_number` (Unique-Constraint, der stabile natürliche Schlüssel) ein
+    Konto an oder aktualisiert es (Upsert) -- `app/accounts.py::create_account()`/
+    `update_account()` validieren bereits alles Nötige, keine Änderung an der Tabelle oder an
+    diesen Funktionen nötig, wenn der Import gebaut wird.
+
+    **Vorkontierung, keine Buchung**: siehe `IncomingInvoice.account_id` unten -- das ERP nimmt
+    an keiner Stelle eine steuerliche Bewertung vor, der Steuerberater prüft und bucht."""
+
+    __tablename__ = "accounts"
+    __table_args__ = (UniqueConstraint("account_number", name="uq_account_number"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_number: Mapped[str] = mapped_column(String(20), index=True)
+    label: Mapped[str] = mapped_column(String(255))
+    default_tax_rate_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class IncomingInvoice(Base):
     """Eingangsrechnung (Buchhaltung Stufe 1, Modul "buchhaltung") -- vorbereitende Erfassung
     und Ablage empfangener Lieferantenrechnungen. Bewusst eine EIGENE Tabelle, getrennt von
@@ -3834,12 +3881,22 @@ class IncomingInvoice(Base):
     OperationalAssetDocument/RecurringCostDocument, da eine Eingangsrechnung fachlich genau
     einen Beleg hat.
 
-    **ANDOCKPUNKT Stufe 2 (Kontierung)**: account_code (hier UND auf IncomingInvoiceItem) ist
-    ein einfaches, optionales Freitextfeld statt einer FK auf einen Kontenrahmen, der noch nicht
-    existiert -- Stufe 2 entscheidet erst, wie ein Kontenrahmen aussieht. Bleibt in Stufe 1 immer
-    leer/optional. Ein Konto lässt sich später je Rechnung (kein Split nötig) ODER je Position
-    (Split nötig) eintragen -- beide Felder existieren bereits, keine Migration nötig, wenn
-    Stufe 2 kommt.
+    **Vorkontierung seit Buchhaltung Stufe 2 (erster Teil)**: account_id (hier UND auf
+    IncomingInvoiceItem) verweist optional auf ein Sachkonto (`Account`, Kontenstamm) --
+    GENAU EINES von beiden trägt das Konto, je nachdem ob die Rechnung aufgeschlüsselt ist
+    (siehe app/incoming_invoices.py::is_invoice_accounted()). War in Stufe 1 ein freies
+    Freitextfeld `account_code` (String) -- da zum Zeitpunkt der Umstellung 0 reale Zeilen
+    existierten, wurde die Spalte ersetzt (DROP + neue FK-Spalte), keine Backfill-Migration
+    nötig, siehe CLAUDE.md "Buchhaltung" -> "Kontenstamm" für die Begründung, warum eine echte
+    FK sauberer ist als ein Verweis per Kontonummer-String. **Das ist eine VORKONTIERUNG, kein
+    finaler Buchungssatz** -- der Steuerberater prüft und bucht, das ERP nimmt an keiner Stelle
+    eine steuerliche Bewertung vor. `Account.default_tax_rate_pct` liefert beim Wählen nur einen
+    Vorschlag für `tax_rate_pct` -- die Rechnung/Position entscheidet den tatsächlichen Satz,
+    nicht das Konto.
+
+    **ANDOCKPUNKT Stufe 2, zweiter Teil (DATEV-Export, NICHT Teil dieser Version)**: sobald
+    Vorkontierungen vorliegen, liest ein künftiger Export `account_id`/`Account.account_number`
+    -- keine weitere Vorbereitung an diesem Modell nötig.
 
     **ANDOCKPUNKT Stufe 3 (KI-Belegauswertung)**: supplier_id/supplier_invoice_number/
     invoice_date/net_amount/tax_rate_pct/due_date/skonto_percent/skonto_deadline sind exakt die
@@ -3864,8 +3921,9 @@ class IncomingInvoice(Base):
     project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
     asset_id: Mapped[int | None] = mapped_column(ForeignKey("operational_assets.id"), nullable=True, index=True)
     recurring_cost_id: Mapped[int | None] = mapped_column(ForeignKey("recurring_costs.id"), nullable=True, index=True)
-    # Andockpunkt Stufe 2 (Kontierung) -- siehe Klassendocstring oben. Bleibt in Stufe 1 leer.
-    account_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Vorkontierung (Stufe 2) -- siehe Klassendocstring oben. Nur relevant, wenn KEINE
+    # Positionen existieren (sonst trägt jede IncomingInvoiceItem ihr eigenes Konto).
+    account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True, index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Idempotenz-Stempel für check_due_skonto_and_create_reminders() (Muster
     # RecurringCost.last_reminder_due_date) -- OHNE expliziten Reset, siehe dort.
@@ -3877,6 +3935,7 @@ class IncomingInvoice(Base):
     project: Mapped["Project | None"] = relationship()
     asset: Mapped["OperationalAsset | None"] = relationship()
     recurring_cost: Mapped["RecurringCost | None"] = relationship()
+    account: Mapped["Account | None"] = relationship()
     items: Mapped[list["IncomingInvoiceItem"]] = relationship(
         back_populates="invoice", cascade="all, delete-orphan", order_by="IncomingInvoiceItem.id"
     )
@@ -3891,8 +3950,9 @@ class IncomingInvoiceItem(Base):
     werden alle Positionen vollständig ersetzt (kein Teil-Update einzelner Zeilen) -- Stufe 1
     kennt keine Positions-eigene Historie, das ist für die manuelle Erfassung ausreichend.
 
-    account_code: derselbe Stufe-2-Andockpunkt wie am Header, hier je Position -- eine
-    gemischte Rechnung kann später pro Position ein eigenes Konto tragen."""
+    account_id: dieselbe Vorkontierung wie am Header (Buchhaltung Stufe 2), hier je Position --
+    eine gemischte Rechnung trägt ihr Konto pro Position statt am Header (siehe
+    IncomingInvoice.account_id-Dokumentation oben)."""
 
     __tablename__ = "incoming_invoice_items"
 
@@ -3901,9 +3961,10 @@ class IncomingInvoiceItem(Base):
     description: Mapped[str] = mapped_column(String(255))
     net_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     tax_rate_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("19.00"), server_default="19.00")
-    account_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True, index=True)
 
     invoice: Mapped[IncomingInvoice] = relationship(back_populates="items")
+    account: Mapped["Account | None"] = relationship()
 
 
 class IncomingInvoiceSettings(Base):
