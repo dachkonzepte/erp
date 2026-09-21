@@ -50,8 +50,10 @@ async function login(){
   // zu /mobil") -- Python-Gegenstück app/permissions.py::default_home_page_for_role(), hier
   // bewusst als reiner JS-Zweig dupliziert statt geteilt (kein gemeinsames JS-Modul in diesem
   // Projekt) und mit dem hier etablierten Rückfall /projects, nicht dem server-seitig genutzten
-  // "/" (siehe dort).
-  location.href=d.two_factor_required?('/account'+location.search):(new URLSearchParams(location.search).get('next')||(d.role==='field'?'/mobil':'/projects'))
+  // "/" (siehe dort). Seit 1.5.11: d.otp_ok (von einem gültigen "Diesem Gerät vertrauen"-Cookie,
+  // app/device_trust.py) überspringt den /account-Zwischenstopp trotz two_factor_required --
+  // der zweite Faktor gilt für dieses Gerät bereits als erbracht.
+  location.href=(d.two_factor_required&&!d.otp_ok)?('/account'+location.search):(new URLSearchParams(location.search).get('next')||(d.role==='field'?'/mobil':'/projects'))
 }
 </script>
 </body>

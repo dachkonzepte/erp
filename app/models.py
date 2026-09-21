@@ -2297,6 +2297,7 @@ class AppUser(Base):
     totp_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     recovery_codes: Mapped[list["TwoFactorRecoveryCode"]] = relationship(cascade="all, delete-orphan")
+    trusted_devices: Mapped[list["TrustedDevice"]] = relationship(cascade="all, delete-orphan")
 
     @property
     def two_factor_configured(self) -> bool:
@@ -2321,6 +2322,37 @@ class TwoFactorRecoveryCode(Base):
     code_hash: Mapped[str] = mapped_column(Text)
     used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class TrustedDevice(Base):
+    """"Diesem Gerät für 30 Tage vertrauen" -- ein vertrautes Gerät muss den zweiten Faktor bis
+    zum Ablauf nicht bei jeder Anmeldung erneut vorzeigen (das Passwort bleibt davon unberührt,
+    wird weiterhin bei jeder Anmeldung verlangt). Der Token wird wie ein Wiederherstellungscode
+    NUR gehasht gespeichert (hash_password()/verify_password(), app/auth.py) -- er wird nie
+    zurückgelesen, nur beim Prüfen verglichen; das zugehörige, signierte Cookie (dk_erp_trust,
+    app/device_trust.py) trägt die Zeilen-ID plus das rohe Geheimnis.
+
+    Entsteht ausschließlich bei der ROUTINE-Bestätigung des zweiten Faktors
+    (POST /api/account/2fa/verify, Häkchen "Diesem Gerät vertrauen"), NIE bei der Ersteinrichtung
+    (POST /api/account/2fa/setup/confirm kennt dieses Feld nicht) -- in dem Moment, in dem der
+    Schutz gerade erst aufgebaut wird, ihn im selben Schritt für 30 Tage auszusetzen wäre
+    widersprüchlich, siehe CLAUDE.md.
+
+    ALLE Zeilen eines Kontos werden gelöscht (app/device_trust.py::revoke_all()), sobald sich der
+    zweite Faktor oder das Passwort ändern könnten -- ein zuvor vertrautes Gerät ist danach
+    wertlos, der Code wird wieder fällig: bei app/two_factor.py::reset() (Admin-Reset eines
+    ANDEREN Kontos UND das Notfallskript scripts/reset_admin_2fa.py, beide rufen dieselbe
+    Funktion), bei der eigenen Passwortänderung (app/routers/account.py::change_password()), beim
+    admin-gesetzten Passwort eines anderen Benutzers (app/routers/users.py::update_app_user()) und
+    beim expliziten Widerruf über "Alle vertrauten Geräte abmelden"."""
+
+    __tablename__ = "trusted_devices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("app_users.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
 
 
 class FailedLoginAttempt(Base):

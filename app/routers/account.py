@@ -4,8 +4,10 @@ Jeder angemeldete Benutzer kann hier sein eigenes Passwort ändern -- vorher gab
 keinen Weg, nur ein Administrator konnte das Passwort eines ANDEREN Kontos setzen
 (routers/users.py). Zusätzlich richten Administratoren hier ihren zweiten Faktor ein
 (Ersteinrichtung mit QR-Code + Bestätigungscode + einmalige Wiederherstellungscodes) und geben
-ihn bei jeder Anmeldung erneut ein (2fa/verify). Siehe CLAUDE.md "Zwei-Faktor-Authentifizierung
-für Administratoren" für den vollständigen Ablauf inkl. der beiden Sicherheitsfragen.
+ihn bei jeder Anmeldung erneut ein (2fa/verify) -- optional mit "Diesem Gerät vertrauen" (seit
+1.5.11, app/device_trust.py), das die Code-Abfrage für 30 Tage auf diesem Gerät erspart, ohne
+das Passwort zu betreffen. Siehe CLAUDE.md "Zwei-Faktor-Authentifizierung für Administratoren"
+für den vollständigen Ablauf inkl. der beiden Sicherheitsfragen.
 
 Die drei 2fa/*-Endpunkte sind bewusst NICHT über require_admin() geschützt (das würde bereits
 otp_ok voraussetzen, das hier gerade erst hergestellt wird) -- sie prüfen role=="admin" selbst
@@ -16,12 +18,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from .. import device_trust
 from .. import login_security
 from .. import two_factor
 from ..auth import COOKIE_MAX_AGE, COOKIE_SECURE, OTP_COOKIE_NAME, hash_password, make_otp_ok_cookie, verify_password
 from ..database import get_db
 from ..models import AppUser
-from ..schemas import ChangePasswordRequest, TwoFactorCodeRequest
+from ..schemas import ChangePasswordRequest, TwoFactorCodeRequest, TwoFactorVerifyRequest
 
 router = APIRouter()
 
@@ -48,6 +51,9 @@ def change_password(payload: ChangePasswordRequest, request: Request, db: Sessio
         raise HTTPException(status_code=401, detail="Aktuelles Passwort ist falsch.")
     user.password_hash = hash_password(payload.new_password)
     db.commit()
+    # Erst das Passwort ändern, dann alle vertrauten Geräte widerrufen -- ein zuvor vertrautes
+    # Gerät ist ab jetzt wertlos, siehe CLAUDE.md und TrustedDevice-Klassendocstring.
+    device_trust.revoke_all(db, user)
     return {"ok": True}
 
 
@@ -77,7 +83,7 @@ def confirm_two_factor_setup(payload: TwoFactorCodeRequest, request: Request, db
 
 
 @router.post("/api/account/2fa/verify")
-def verify_two_factor(payload: TwoFactorCodeRequest, request: Request, db: Session = Depends(get_db)):
+def verify_two_factor(payload: TwoFactorVerifyRequest, request: Request, db: Session = Depends(get_db)):
     user = _current_user(request, db)
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Der zweite Faktor ist nur für Administratoren vorgesehen.")
@@ -92,4 +98,25 @@ def verify_two_factor(payload: TwoFactorCodeRequest, request: Request, db: Sessi
     login_security.clear_failed_two_factor_attempts(db, user.username)
     response = JSONResponse({"ok": True})
     response.set_cookie(OTP_COOKIE_NAME, make_otp_ok_cookie(user.id), max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax", secure=COOKIE_SECURE)
+    # Nur bei der ROUTINE-Bestätigung wählbar (dieser Endpunkt) -- niemals bei der
+    # Ersteinrichtung (setup/confirm nutzt weiterhin TwoFactorCodeRequest ohne dieses Feld),
+    # siehe CLAUDE.md.
+    if payload.trust_device:
+        trust_cookie_value = device_trust.create_trust(db, user)
+        response.set_cookie(
+            device_trust.TRUST_COOKIE_NAME, trust_cookie_value, max_age=device_trust.TRUST_MAX_AGE,
+            httponly=True, samesite="lax", secure=COOKIE_SECURE,
+        )
+    return response
+
+
+@router.post("/api/account/trusted-devices/revoke-all")
+def revoke_all_trusted_devices(request: Request, db: Session = Depends(get_db)):
+    """"Alle vertrauten Geräte abmelden" -- Selbstbedienung wie change_password(), für jede Rolle
+    erreichbar (nur Administratoren haben heute je ein vertrautes Gerät, aber die Funktion ist
+    für den eigenen Account gedacht, keine gesonderte Rollenprüfung nötig, siehe CLAUDE.md)."""
+    user = _current_user(request, db)
+    device_trust.revoke_all(db, user)
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(device_trust.TRUST_COOKIE_NAME)
     return response

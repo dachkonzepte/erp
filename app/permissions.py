@@ -192,6 +192,11 @@ ROLE_AUDIT_EXEMPT = frozenset({
     # den Onlinebetrieb". Kein Positivliste-Versehen, sondern absichtlich rollenlos -- bleibt
     # trotzdem hier und nicht ungeprüft, damit das für jeden erkennbar dokumentiert ist.
     ("POST", "/api/account/change-password"),
+    # "Alle vertrauten Geräte abmelden" -- dieselbe Selbstbedienungs-Begründung wie
+    # change-password direkt darüber: für jede angemeldete Person gedacht (nur Administratoren
+    # haben heute je ein vertrautes Gerät, aber der Endpunkt wirkt ausschließlich auf das eigene
+    # Konto), siehe CLAUDE.md "Zwei-Faktor-Authentifizierung".
+    ("POST", "/api/account/trusted-devices/revoke-all"),
     # Heutige Einsätze der Monteursansicht -- prüft stattdessen, ob request.state.erp_user.
     # employee_id gesetzt ist (app/routers/field_view.py), eine feinere, personenbezogene
     # Prüfung als eine reine Rollenzugehörigkeit. Objekt-Filterung, nicht Rollen-Gate.

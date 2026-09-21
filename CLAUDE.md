@@ -20,12 +20,16 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.5.9** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf weiterhin `eda89bb8082a` (weder 1.5.8 noch 1.5.9 brauchten eine eigene
-  Migration -- 1.5.9 ist eine reine `step`-Attribut-Korrektur auf zwei Rechnern in
-  `settings.html`, kein Endpunkt/Schema/Modell geändert; 1.5.8 "Ist-Werte im Produktivstunden-
-  Rechner" sind ausschließlich neue, abgeleitete Funktionen, keine neuen Spalten, siehe
-  Abschnitt "Ist-Werte im Produktivstunden-Rechner" unten) -- davor
+- Version: **1.5.11** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `0f7bda3397f1` ("trusted devices for two factor auth", neue Tabelle
+  `trusted_devices` -- siehe Abschnitt "Diesem Gerät für 30 Tage vertrauen" unten) -- davor
+  `eda89bb8082a` (weder 1.5.8, 1.5.9 noch 1.5.10 brauchten eine eigene
+  Migration -- 1.5.10 ist eine reine HTML-/CSS-/JS-Umgestaltung der Seite
+  Stundenverrechnungssatz, kein Endpunkt/Schema/Modell geändert, siehe Abschnitt "Neugestaltung
+  der Seite Stundenverrechnungssatz" unten; 1.5.9 ist eine reine `step`-Attribut-Korrektur auf
+  zwei Rechnern in `settings.html`, kein Endpunkt/Schema/Modell geändert; 1.5.8 "Ist-Werte im
+  Produktivstunden-Rechner" sind ausschließlich neue, abgeleitete Funktionen, keine neuen
+  Spalten, siehe Abschnitt "Ist-Werte im Produktivstunden-Rechner" unten) -- davor
   "asset recurring cost quick entry link" --
   `operational_assets.recurring_cost_per_month` entfernt, neue Spalte
   `recurring_costs.is_asset_quick_entry` (`server_default='0'`) -- siehe Abschnitt
@@ -73,10 +77,13 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1668 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1688 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 21.09.2026 (1.5.9, sinnvolle Pfeil-Schrittweiten auf den beiden
-  Kalkulationsrechnern -- reine `step`-Attribut-Korrektur, keine neuen Tests, kein
+  dort), zuletzt am 21.09.2026 (1.5.11, "Diesem Gerät für 30 Tage vertrauen" -- 20 neue Tests
+  (`tests/test_v292_device_trust.py`), siehe Abschnitt "Diesem Gerät für 30 Tage vertrauen"
+  unten; davor 1.5.10, Neugestaltung der Seite Stundenverrechnungssatz -- reine
+  HTML-/CSS-/JS-Umgestaltung, keine neuen Tests; davor 1.5.9, sinnvolle Pfeil-Schrittweiten auf
+  den beiden Kalkulationsrechnern -- reine `step`-Attribut-Korrektur, keine neuen Tests, kein
   Backend-Verhalten geändert; davor 1.5.8, Ist-Werte im Produktivstunden-Rechner -- drei der fünf
   Annahmen bekommen einen aus TimeEntry/EmployeeAbsence/PlanningHoliday hergeleiteten
   Vergleichswert, siehe Abschnitt "Ist-Werte im Produktivstunden-Rechner" unten; davor 1.5.7,
@@ -5448,6 +5455,122 @@ normale Benutzer, nicht nur Administratoren), Seiteninhalt/Verdrahtung (Muster
 `test_v163_sidebar_login_status.py`), und `scripts/reset_admin_2fa.py`s `main()` direkt gegen
 eine isolierte Testdatenbank (niemals die echte `DATABASE_URL`) -- Bestätigung korrekt/falsch/
 `--yes`/unbekannter Benutzername.
+
+## Diesem Gerät für 30 Tage vertrauen (seit 1.5.11)
+
+Der zweite Faktor musste bis hierhin bei JEDER Anmeldung erneut eingegeben werden -- auf Wunsch
+prüfbar/optional machen, ohne die eigentliche Pflicht (1.3.34) aufzuweichen: das Passwort bleibt
+in jedem Fall bei jeder Anmeldung verlangt, nur die Code-Abfrage entfällt auf einem zuvor als
+vertraut markierten Gerät für 30 Tage. Auf ausdrückliche Vorgabe erst ein reiner Befund (wie 2FA
+und das Anmelde-Cookie heute funktionieren, ALLE Stellen im Code, die den zweiten Faktor oder das
+Passwort ändern), dann nach Bestätigung gebaut.
+
+### Befund: fünf Stellen ändern den zweiten Faktor oder das Passwort
+
+Ein projektweiter Grep auf `password_hash\s*=|totp_confirmed_at\s*=|totp_secret_encrypted\s*=`
+bestätigte Vollständigkeit über die reine Code-Lektüre hinaus. `two_factor.reset()`
+(`app/two_factor.py`) ist eine einzige, gemeinsam genutzte Funktion mit ZWEI unabhängigen
+Aufrufern (Admin-Reset eines ANDEREN Kontos, `POST /api/users/{id}/reset-two-factor`, UND das
+Notfallskript `scripts/reset_admin_2fa.py`) -- ein einziger Hook dort deckt beide automatisch ab.
+Dazu zwei Passwort-Stellen (`POST /api/account/change-password` für die eigene Änderung,
+`PUT /api/users/{id}` für ein von einem Administrator für ein ANDERES Konto gesetztes Passwort --
+letzteres der beim Befund gefundene, in der ursprünglichen Aufzählung nicht enthaltene fünfte
+Fall: ohne ihn bliebe die Lücke, dass ein Admin-Passwortwechsel für einen anderen Nutzer dessen
+vertraute Geräte stehen lässt). Der fünfte "Stellen"-Zähler zählt den ausdrücklichen Widerruf
+("Alle vertrauten Geräte abmelden") als eigene, dritte Bedingung neben "2FA neu eingerichtet/
+zurückgesetzt" und "Passwort geändert" mit -- macht rechnerisch: zwei Aufrufer von `reset()` +
+zwei Passwort-Stellen + ein expliziter Widerruf = fünf Stellen insgesamt.
+
+**Ersteinrichtung (`confirm_setup()`) ist bewusst KEINE der fünf Stellen** -- sie kann laut
+Betreiberentscheidung ohnehin nur einmal auf einem noch unkonfigurierten Konto laufen
+(`is_configured()`-Sperre in `start_two_factor_setup()`/`confirm_two_factor_setup()`); eine
+"Neueinrichtung" existiert im Code nur als "erst `reset()`, dann `confirm_setup()` auf dem dann
+wieder leeren Konto" -- bereits vollständig durch den `reset()`-Hook abgedeckt, kein eigener
+sechster Fall.
+
+### Server-seitig verwaltet, eigenständiges Cookie (`app/device_trust.py`)
+
+Ein Cookie allein würde keinen Widerruf erlauben -- deshalb eine neue Tabelle
+(`app/models.py::TrustedDevice`, `user_id`/`token_hash`/`expires_at`, `cascade="all,
+delete-orphan"`-Relationship auf `AppUser`, Muster `TwoFactorRecoveryCode`) plus ein
+DRITTES, von `dk_erp_auth`/`dk_erp_otp_ok` unabhängiges, signiertes Cookie (`dk_erp_trust`).
+Anders als bei den beiden bestehenden Cookies trägt es aber keine HMAC-Signatur über
+`secret_key()` -- unnötig, da der Cookie-Wert (Zeilen-ID + ein `secrets.token_urlsafe(32)`-
+Geheimnis mit 256 Bit Entropie) selbst schon unforgeable ist: der Server vergleicht das
+mitgeschickte Geheimnis gegen den in der Zeile gespeicherten Hash
+(`hash_password()`/`verify_password()`, dieselbe Technik wie bei Wiederherstellungscodes --
+das Geheimnis wird nie zurückgelesen, nur beim Prüfen verglichen). Migration `0f7bda3397f1`
+(neue Tabelle, kein Regel-1-Fall -- keine NOT-NULL-Spalte auf einer bestehenden Tabelle).
+
+`app/device_trust.py::create_trust(db, user)` legt eine neue Zeile an und liefert den fertigen
+Cookie-Wert; `check_trust(db, user, cookie_value)` prüft Ablauf UND -- entscheidend für die
+Konten-Isolation -- dass die geladene Zeile `user_id == user.id` trägt, bevor der Hash überhaupt
+verglichen wird: ein (echtes oder gefälschtes) Cookie, das auf ein fremdes Konto zeigt, scheitert
+so unabhängig vom Geheimnis; `revoke_all(db, user)` löscht alle Zeilen eines Kontos (aufgerufen
+an allen fünf oben genannten Stellen). Gültigkeit ist FEST 30 Tage ab dem Setzen des Häkchens,
+keine gleitende Verlängerung bei jeder erneuten Anmeldung.
+
+### Checkbox nur bei der Routine-Bestätigung, nie bei der Ersteinrichtung
+
+Auf ausdrückliche Betreiberentscheidung: die Checkbox "Diesem Gerät für 30 Tage vertrauen"
+erscheint AUSSCHLIESSLICH bei `POST /api/account/2fa/verify` (neues Schema
+`TwoFactorVerifyRequest(TwoFactorCodeRequest)` mit zusätzlichem `trust_device: bool = False`) --
+niemals bei `POST /api/account/2fa/setup/confirm` (bleibt bei `TwoFactorCodeRequest` ohne dieses
+Feld, ein untergeschobenes `trust_device` im JSON-Body wird von Pydantic stillschweigend
+ignoriert). Begründung: bei der Ersteinrichtung sieht der Nutzer gerade zum ersten Mal die
+Wiederherstellungscodes und baut den Schutz gerade erst auf -- ihn im selben Schritt für 30 Tage
+auszusetzen wäre widersprüchlich, und wäre zudem inkonsistent mit der dritten Bedingung oben
+(eine Neueinrichtung LÖSCHT alles Vertrauen über den `reset()`-Hook, direkt im selben Schritt
+wieder eins zu setzen wäre in sich widersprüchlich). Das Vertrauen greift dadurch erst ab der
+nächsten, zweiten Anmeldung.
+
+**Before/after-Reihenfolge geprüft, wie vom Betreiber verlangt**: ein Widerruf darf nie ein im
+selben Vorgang neu erzeugtes Vertrauen mittreffen. Bei den beiden Passwort-Stellen ist die
+Reihenfolge im Code fest verankert -- erst `db.commit()` für den neuen `password_hash`, dann
+erst `device_trust.revoke_all()` --, und da an keiner der beiden Stellen im selben Aufruf ein
+neues Vertrauen entstehen kann (keine der beiden Endpunkte kennt `trust_device`), gibt es dort
+grundsätzlich nichts, was kollidieren könnte. Bei `confirm_setup()` entsteht aus demselben Grund
+(kein Häkchen an dieser Stelle) ebenfalls nie ein neues Vertrauen, das ein `reset()`-Aufruf
+versehentlich mitlöschen könnte.
+
+### Login-Integration: das Passwort bleibt unberührt, nur die Code-Abfrage entfällt
+
+`POST /api/auth/login` (`app/routers/auth.py`) prüft weiterhin AUSSCHLIESSLICH Benutzername/
+Passwort und setzt das Anmelde-Cookie IMMER. Neu: bei einem Administrator mit bereits
+konfiguriertem zweiten Faktor wird zusätzlich ein mitgeschicktes `dk_erp_trust`-Cookie gegen
+GENAU dieses Konto geprüft (`device_trust.check_trust()`) -- ist es gültig, wird das
+`dk_erp_otp_ok`-Cookie direkt hier gesetzt statt (wie bisher unbedingt) gelöscht, und die
+Antwort trägt ein neues `otp_ok`-Feld. `login.html` nutzt dieses Feld, um den bisherigen
+Zwischenstopp auf `/account` zu überspringen (`(d.two_factor_required&&!d.otp_ok)?'/account':...`
+statt zuvor nur `d.two_factor_required?...`) -- ein vertrautes Gerät landet dadurch direkt am
+eigentlichen Ziel, nicht erst auf der Kontoseite.
+
+### "Alle vertrauten Geräte abmelden"
+
+Neuer, für jede angemeldete Person erreichbarer Endpunkt `POST
+/api/account/trusted-devices/revoke-all` (Selbstbedienungsmuster wie `change_password()` --
+`_current_user()`, keine feste Rollenprüfung, in `ROLE_AUDIT_EXEMPT` einzeln begründet wie
+`change-password` direkt daneben) -- ruft `revoke_all()` für das EIGENE Konto auf und löscht das
+eigene `dk_erp_trust`-Cookie. Button unter "Mein Konto" im 2FA-Statusbereich, mit `confirm()`
+(Regel 4: kein `prompt()`, `confirm()` für eine einfache Ja/Nein-Bestätigung ist etabliert).
+
+### Angriffstest
+
+`tests/test_v292_device_trust.py` (20 Tests): `app/device_trust.py` isoliert (Rundlauf, Ablauf,
+Kauderwelsch-/fehlendes Cookie, gefälschtes Geheimnis bei echter Zeilen-ID, Konten-Isolation,
+`revoke_all()` trifft nie ein fremdes Konto und löscht mehrere eigene Geräte vollständig). Sowie
+eine echte Ende-zu-Ende-Prüfung über einen eigens aufgebauten `TestClient` mit echten Cookies
+(Muster `test_v250_two_factor_auth.py`): **jede der fünf Stellen einzeln** -- nach jeder von
+ihnen ist ein zuvor vertrautes Gerät nachweislich wertlos, ein Login mit dem alten Cookie liefert
+`otp_ok: false`, der Code wird wieder verlangt (zusätzlich zur Verhaltensprüfung auch direkt per
+`device_trust.check_trust()` und einer leeren `TrustedDevice`-Abfrage bestätigt). Dazu eine
+Gegenprobe (eine Änderung OHNE `new_password` an `PUT /api/users/{id}` lässt das Vertrauen
+unangetastet -- die Revokation hängt am Passwort, nicht an jeder Änderung des Datensatzes), ein
+gefälschtes/manipuliertes Trust-Cookie wird beim Login abgelehnt, und das Trust-Cookie eines
+Kontos gewährt nachweislich nie Zugriff unter einem anderen Konto (inkl. der Umkehrprobe, dass
+dasselbe Cookie beim RICHTIGEN Konto weiterhin funktioniert). Die Checkbox erzeugt bei
+`confirm_setup()` in keinem Fall ein Vertrauen, selbst wenn das Feld im Request-Body
+untergeschoben wird. Volle Suite: 1688 Tests grün.
 
 ## Serverseitige Anmeldeschranke für Seiten (seit 1.3.47)
 

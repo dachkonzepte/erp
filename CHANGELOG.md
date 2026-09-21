@@ -4,6 +4,36 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.5.11 – "Diesem Gerät für 30 Tage vertrauen"
+
+Der zweite Faktor musste bisher bei JEDER Anmeldung erneut eingegeben werden. Erst ein Befund
+(wie 2FA/das Anmelde-Cookie heute funktionieren, alle Stellen im Code, die den zweiten Faktor
+oder das Passwort ändern), dann nach Bestätigung gebaut: eine Checkbox "Diesem Gerät für 30 Tage
+vertrauen" -- ausschließlich bei der ROUTINE-Bestätigung (`POST /api/account/2fa/verify`),
+niemals bei der Ersteinrichtung (dort wird der Schutz gerade erst aufgebaut, ihn im selben
+Schritt auszusetzen wäre widersprüchlich). Server-seitig verwaltet (neue Tabelle
+`TrustedDevice`, `app/device_trust.py`): ein separates, eigenständiges Cookie (`dk_erp_trust`,
+neben `dk_erp_auth`/`dk_erp_otp_ok`) trägt nur eine Zeilen-ID + ein rohes, hochentropisches
+Geheimnis -- der Server vergleicht es gegen den gespeicherten Hash (dieselbe Technik wie bei
+Wiederherstellungscodes), nur so ist ein serverseitiger Widerruf möglich. Das Passwort bleibt
+davon komplett unberührt -- es wird weiterhin bei jeder Anmeldung verlangt, unabhängig vom
+Gerätevertrauen.
+
+**Widerruf an allen fünf gefundenen Stellen**, die den zweiten Faktor oder das Passwort ändern
+können: (1) `two_factor.reset()` -- deckt sowohl den Admin-Reset-Endpunkt für ein ANDERES Konto
+als auch das Notfallskript `scripts/reset_admin_2fa.py` über dieselbe, gemeinsam genutzte
+Funktion ab --, (2) die eigene Passwortänderung (`POST /api/account/change-password`), (3) ein
+von einem Administrator für ein ANDERES Konto gesetztes Passwort (`PUT /api/users/{id}`) -- der
+fünfte, nicht in der ursprünglichen Aufzählung enthaltene, aber bei der Code-Prüfung gefundene
+Fall --, (4) der ausdrückliche Widerruf über einen neuen Knopf "Alle vertrauten Geräte abmelden"
+unter "Mein Konto". Ohne den dritten Fund hätte ein Admin-Passwortwechsel für einen anderen
+Nutzer dessen vertraute Geräte stehen lassen.
+
+Angriffstest, je einzeln für alle fünf Stellen: ein zuvor vertrautes Gerät ist danach nachweislich
+wertlos, der Code wird wieder verlangt. Zusätzlich: ein gefälschtes/manipuliertes Trust-Cookie
+wird abgelehnt, und das Trust-Cookie eines Kontos gewährt nie Zugriff unter einem anderen Konto
+(die Prüfung vergleicht die Konto-ID der Cookie-Zeile explizit gegen die anmeldende Person).
+
 ## 1.5.10 – Neugestaltung der Seite Stundenverrechnungssatz
 
 Umbau von Einstellungen → Kalkulationsgrundlagen → Stundenverrechnungssatz nach vorherigem

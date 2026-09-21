@@ -10,6 +10,7 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import device_trust
 from .. import two_factor
 from ..auth import hash_password, user_from_request, users_exist
 from ..database import get_db
@@ -65,7 +66,14 @@ def update_app_user(user_id: int, payload: AppUserUpdate, db: Session = Depends(
     user.active = payload.active
     if payload.new_password:
         user.password_hash = hash_password(payload.new_password)
-    db.commit(); db.refresh(user)
+    db.commit()
+    if payload.new_password:
+        # Erst das Passwort committen, dann alle vertrauten Geräte des BEARBEITETEN Kontos
+        # (user, nicht current) widerrufen -- ohne diesen Fund bliebe die Lücke, dass ein
+        # Admin-Passwortwechsel für einen anderen Nutzer dessen vertraute Geräte stehen lässt,
+        # siehe CLAUDE.md.
+        device_trust.revoke_all(db, user)
+    db.refresh(user)
     return user
 
 

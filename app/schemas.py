@@ -1130,6 +1130,15 @@ class TwoFactorCodeRequest(BaseModel):
     code: str = Field(min_length=1, max_length=64)
 
 
+class TwoFactorVerifyRequest(TwoFactorCodeRequest):
+    """Nur für die ROUTINE-Bestätigung (POST /api/account/2fa/verify) -- das zusätzliche
+    trust_device-Feld existiert bewusst NICHT auf TwoFactorCodeRequest selbst, damit die
+    Ersteinrichtung (setup/confirm, die weiterhin TwoFactorCodeRequest nutzt) es gar nicht erst
+    entgegennehmen kann, siehe CLAUDE.md."""
+
+    trust_device: bool = False
+
+
 class AuditLogOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int

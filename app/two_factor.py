@@ -28,6 +28,7 @@ import qrcode
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from . import device_trust
 from .auth import hash_password, verify_password
 from .crypto import decrypt_secret, encrypt_secret
 from .models import AppUser, TwoFactorRecoveryCode
@@ -123,9 +124,12 @@ def remaining_recovery_codes(db: Session, user: AppUser) -> int:
 def reset(db: Session, user: AppUser) -> None:
     """Setzt den zweiten Faktor vollständig zurück (Admin-Reset für ein ANDERES Konto, oder das
     Notfall-Kommandozeilenskript scripts/reset_admin_2fa.py) -- der Benutzer muss danach beim
-    nächsten Login komplett neu einrichten, wie beim allerersten Mal."""
+    nächsten Login komplett neu einrichten, wie beim allerersten Mal. Löscht dabei auch ALLE
+    vertrauten Geräte dieses Kontos (app/device_trust.py) -- ein zuvor vertrautes Gerät wäre
+    sonst weiterhin gültig, obwohl der zweite Faktor, den es ersetzt, gerade entfernt wurde."""
     user.totp_secret_encrypted = None
     user.totp_confirmed_at = None
     for row in db.scalars(select(TwoFactorRecoveryCode).where(TwoFactorRecoveryCode.user_id == user.id)).all():
         db.delete(row)
     db.commit()
+    device_trust.revoke_all(db, user)

@@ -72,6 +72,11 @@ a{color:var(--accent)}
   <h2>Zweiten Faktor bestätigen</h2>
   <p class="muted">Bitte den aktuellen Code aus der Authenticator-App eingeben. Geht das nicht mehr (Telefon verloren), kann stattdessen einer der ausgedruckten Wiederherstellungscodes verwendet werden.</p>
   <div class="field"><label>Code oder Wiederherstellungscode</label><input id="verifyCode" autocomplete="one-time-code" placeholder="6-stelliger Code oder xxxxxx-xxxxxx"></div>
+  <!-- Seit 1.5.11: nur an DIESER Stelle (Routine-Bestätigung), niemals bei der Ersteinrichtung
+       (twoFactorSetupCard/confirmSetup() oben) -- bei der Ersteinrichtung wird der Schutz gerade
+       erst aufgebaut, ihn im selben Schritt für 30 Tage auszusetzen wäre widersprüchlich, siehe
+       CLAUDE.md. Unchecked by default. -->
+  <label style="display:flex;align-items:center;gap:8px;margin:14px 0 6px;font-weight:normal;color:var(--ink)"><input type="checkbox" id="trustDevice" style="width:auto"> Diesem Gerät für 30 Tage vertrauen</label>
   <button onclick="verifyCode()">Bestätigen</button>
   <div id="verifyStatus" class="status"></div>
 </div>
@@ -89,6 +94,8 @@ a{color:var(--accent)}
     <h2>Zwei-Faktor-Authentifizierung</h2>
     <p>Status: <span class="pill" id="twoFactorStatusPill"></span></p>
     <p class="muted" id="recoveryCodesRemaining"></p>
+    <button class="secondary" onclick="revokeAllTrustedDevices()">Alle vertrauten Geräte abmelden</button>
+    <div id="trustedDevicesStatus" class="status"></div>
   </div>
 </div>
 
@@ -161,8 +168,19 @@ async function verifyCode(){
   // /account ist dort das tatsächliche Ziel, kein Zwischenschritt.
   const st=document.getElementById('verifyStatus');st.className='status';st.textContent='';
   try{
-    await api('/api/account/2fa/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:document.getElementById('verifyCode').value.trim()})});
+    await api('/api/account/2fa/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:document.getElementById('verifyCode').value.trim(),trust_device:document.getElementById('trustDevice').checked})});
     location.href=new URLSearchParams(location.search).get('next')||'/';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function revokeAllTrustedDevices(){
+  // Regel 4 (CLAUDE.md): kein prompt(), confirm() für eine einfache Ja/Nein-Bestätigung ist
+  // etabliert.
+  if(!confirm('Alle vertrauten Geräte abmelden? Bei der nächsten Anmeldung wird auf jedem Gerät wieder der Code verlangt.'))return;
+  const st=document.getElementById('trustedDevicesStatus');st.className='status';st.textContent='';
+  try{
+    await api('/api/account/trusted-devices/revoke-all',{method:'POST'});
+    st.className='status ok';st.textContent='Alle vertrauten Geräte wurden abgemeldet.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
