@@ -1857,6 +1857,27 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     dort dokumentierten Etappe 2/3 absichtlich rot (`xfail`, `strict=False`) -- ihre
     namentliche Liste ist die Checkliste für diese Etappe, kein Fehlerbefund.
 
+12. **Testprozesse nie pauschal über den Namen beenden (`Get-Process chrome | Stop-Process`
+    o. Ä.), sondern ausschließlich über die konkrete PID der selbst gestarteten Instanz.**
+    Bei einer CDP-gesteuerten Headless-Chrome-Verifikation (1.5.10) wurde versehentlich
+    `Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force
+    -ErrorAction SilentlyContinue` ausgeführt, um vermeintlich verwaiste Testprozesse
+    aufzuräumen -- das hat stattdessen JEDES `chrome.exe` auf der Maschine beendet,
+    einschließlich des regulären, parallel geöffneten Chrome-Fensters des Nutzers (mit
+    allen offenen Tabs). Tobias arbeitet auf demselben Rechner parallel mit seinem eigenen
+    Browser -- ein namensbasiertes Beenden trifft dessen Fenster genauso wie die eigene,
+    isolierte Testinstanz. Seither verbindlich: die PID des selbst per
+    `Start-Process -PassThru` gestarteten Prozesses merken und ausschließlich
+    `Stop-Process -Id <diese PID>` zum Aufräumen verwenden. Ist die PID nicht mehr bekannt
+    (z. B. nach einem Sitzungswechsel), vor jedem Beenden über
+    `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'"` die vollständige
+    Befehlszeile jedes einzelnen Treffers prüfen und ausschließlich Prozesse mit dem
+    eigenen, eindeutigen `--user-data-dir`-Scratchpad-Pfad treffen -- nie ein bloßer
+    Namensfilter ohne diese Prüfung, egal wie plausibel "das sind sicher meine
+    Testprozesse" erscheint. Gilt sinngemäß für jeden anderen, für Tests/Automatisierung
+    selbst gestarteten Prozess (nicht nur Chrome), auf dem der Nutzer möglicherweise
+    parallel arbeitet.
+
 ## Fachbegriffe & Domänenmodell
 
 - **"Vorgang"** (in normalem Gespräch) = **Projekt** (`Project`) – wurde in der Sitzung explizit
