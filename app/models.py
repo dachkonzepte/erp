@@ -3787,3 +3787,134 @@ class RecurringCostSettings(Base):
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
     reminder_lead_days: Mapped[int] = mapped_column(default=30, server_default="30")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class IncomingInvoice(Base):
+    """Eingangsrechnung (Buchhaltung Stufe 1, Modul "buchhaltung") -- vorbereitende Erfassung
+    und Ablage empfangener Lieferantenrechnungen. Bewusst eine EIGENE Tabelle, getrennt von
+    Invoice (Ausgangsrechnung): Ein- und Ausgang sind fachlich verschiedene Domänen -- eine
+    Eingangsrechnung ist ein empfangenes externes Dokument mit von Anfang an fixen Werten
+    (so wie der Lieferant sie geschrieben hat), keine selbst erzeugte, versendete
+    GoBD-Unveränderlichkeits-/Snapshot-Mechanik wie bei Invoice.
+
+    net_amount/tax_rate_pct sind der GESAMTBETRAG der Rechnung -- immer vorhanden, unabhängig
+    davon, ob Positionen (IncomingInvoiceItem) existieren. gross_amount wird NIE gespeichert
+    (Muster RecurringCost.gross_amount()) -- reine Anzeige-Ableitung, aus den Positionen
+    summiert, wenn vorhanden, sonst aus net_amount*(1+tax_rate_pct/100), siehe
+    app/incoming_invoices.py::invoice_gross_amount().
+
+    Positionen sind OPTIONAL (Betreiberentscheidung, siehe CLAUDE.md "Buchhaltung"): eine
+    einfache Rechnung bleibt ein Gesamtbetrag, eine mit gemischten Steuersätzen wird
+    aufgeschlüsselt. net_amount bleibt auch bei vorhandenen Positionen die maßgebliche Summe --
+    create_invoice()/update_invoice() (app/incoming_invoices.py) prüfen, dass die Netto-Summe
+    der Positionen zum Gesamtbetrag passt, und melden eine Abweichung (ValueError), statt sie
+    still zuzulassen.
+
+    payment_status trägt NUR "offen"/"bezahlt" -- "überfällig" wird NICHT gespeichert, sondern
+    bei jedem Lesezugriff berechnet (app/incoming_invoices.py::is_overdue()), exakt konsistent
+    mit Invoice (app/invoices.py: is_overdue = status=="versendet" and due_date < date.today()).
+    Ein gespeicherter dritter Statuswert würde veralten, sobald das Datum verstreicht, ohne dass
+    irgendetwas ihn nachzieht.
+
+    Zuordnung: project_id/asset_id/recurring_cost_id sind alle optional, höchstens EINE davon
+    darf gesetzt sein -- geprüft in der Business-Logik (Muster ServiceReportPhoto: "gehört immer
+    zu GENAU EINEM ... ODER ..., nie zu beidem/keinem", bewusst kein CheckConstraint). Eine
+    Rechnung kann auch unzugeordnet bleiben.
+
+    **ANDOCKPUNKT Verrechnungssatz-Kreislauf (bestätigte, dauerhafte architektonische Grenze,
+    siehe CLAUDE.md "Buchhaltung")**: recurring_cost_id verbindet eine Eingangsrechnung mit dem
+    geplanten Kostenposten, gegen den sie gebucht wird -- das ist AUSSCHLIESSLICH für Anzeige/
+    Plan-Ist-Vergleich gedacht. KEINE Funktion dieses Projekts darf darüber RecurringCost.
+    annual_amount/den Verrechnungssatz (Schicht 3) verändern -- der geplante Kostenposten
+    bleibt die alleinige Grundlage, die Eingangsrechnung ist ausschließlich der Beleg dagegen.
+
+    document_filename/document_original_name: EIN Beleg je Rechnung, 1:1-Muster wie
+    OperationalAssetInspection.document_filename (ersetzt die vorherige Datei beim erneuten
+    Hochladen, app/incoming_invoice_documents.py) -- keine Mehrfachablage wie bei
+    OperationalAssetDocument/RecurringCostDocument, da eine Eingangsrechnung fachlich genau
+    einen Beleg hat.
+
+    **ANDOCKPUNKT Stufe 2 (Kontierung)**: account_code (hier UND auf IncomingInvoiceItem) ist
+    ein einfaches, optionales Freitextfeld statt einer FK auf einen Kontenrahmen, der noch nicht
+    existiert -- Stufe 2 entscheidet erst, wie ein Kontenrahmen aussieht. Bleibt in Stufe 1 immer
+    leer/optional. Ein Konto lässt sich später je Rechnung (kein Split nötig) ODER je Position
+    (Split nötig) eintragen -- beide Felder existieren bereits, keine Migration nötig, wenn
+    Stufe 2 kommt.
+
+    **ANDOCKPUNKT Stufe 3 (KI-Belegauswertung)**: supplier_id/supplier_invoice_number/
+    invoice_date/net_amount/tax_rate_pct/due_date/skonto_percent/skonto_deadline sind exakt die
+    Felder, die eine künftige automatische Belegauswertung füllen würde -- 1:1, keine
+    Umstrukturierung nötig, wenn Stufe 3 kommt."""
+
+    __tablename__ = "incoming_invoices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.id"), index=True)
+    supplier_invoice_number: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    invoice_date: Mapped[date] = mapped_column(Date, index=True)
+    net_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    tax_rate_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("19.00"), server_default="19.00")
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    skonto_percent: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    skonto_deadline: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    payment_status: Mapped[str] = mapped_column(String(20), default="offen", server_default="offen", index=True)
+    payment_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    document_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    document_original_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
+    asset_id: Mapped[int | None] = mapped_column(ForeignKey("operational_assets.id"), nullable=True, index=True)
+    recurring_cost_id: Mapped[int | None] = mapped_column(ForeignKey("recurring_costs.id"), nullable=True, index=True)
+    # Andockpunkt Stufe 2 (Kontierung) -- siehe Klassendocstring oben. Bleibt in Stufe 1 leer.
+    account_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Idempotenz-Stempel für check_due_skonto_and_create_reminders() (Muster
+    # RecurringCost.last_reminder_due_date) -- OHNE expliziten Reset, siehe dort.
+    last_skonto_reminder_deadline: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    supplier: Mapped["Supplier"] = relationship()
+    project: Mapped["Project | None"] = relationship()
+    asset: Mapped["OperationalAsset | None"] = relationship()
+    recurring_cost: Mapped["RecurringCost | None"] = relationship()
+    items: Mapped[list["IncomingInvoiceItem"]] = relationship(
+        back_populates="invoice", cascade="all, delete-orphan", order_by="IncomingInvoiceItem.id"
+    )
+
+
+class IncomingInvoiceItem(Base):
+    """Optionale Positions-Aufschlüsselung einer Eingangsrechnung (Buchhaltung Stufe 1) -- nur
+    nötig, wenn die Rechnung mehrere Steuersätze mischt (z. B. Material 19 % + eine steuerfreie
+    Position). IncomingInvoice.net_amount bleibt auch bei vorhandenen Positionen die
+    maßgebliche Gesamtsumme -- die Positionen sind eine Aufschlüsselung, keine Ersetzung, ihre
+    Netto-Summe muss dazu passen (siehe app/incoming_invoices.py). Beim Speichern der Rechnung
+    werden alle Positionen vollständig ersetzt (kein Teil-Update einzelner Zeilen) -- Stufe 1
+    kennt keine Positions-eigene Historie, das ist für die manuelle Erfassung ausreichend.
+
+    account_code: derselbe Stufe-2-Andockpunkt wie am Header, hier je Position -- eine
+    gemischte Rechnung kann später pro Position ein eigenes Konto tragen."""
+
+    __tablename__ = "incoming_invoice_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    incoming_invoice_id: Mapped[int] = mapped_column(ForeignKey("incoming_invoices.id"), index=True)
+    description: Mapped[str] = mapped_column(String(255))
+    net_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    tax_rate_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("19.00"), server_default="19.00")
+    account_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    invoice: Mapped[IncomingInvoice] = relationship(back_populates="items")
+
+
+class IncomingInvoiceSettings(Base):
+    """Einstellungen für das Modul "buchhaltung" (Buchhaltung Stufe 1), Singleton wie
+    RecurringCostSettings/OperationalAssetSettings (immer genau eine Zeile mit id=1).
+    skonto_reminder_lead_days steuert, ab wie vielen Tagen VOR der Skontofrist eine Warnung
+    erscheint -- eigene, unabhängige Einstellung, kein gemeinsamer Datensatz mit einem anderen
+    Modul."""
+
+    __tablename__ = "incoming_invoice_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    skonto_reminder_lead_days: Mapped[int] = mapped_column(default=5, server_default="5")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

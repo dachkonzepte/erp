@@ -3620,6 +3620,116 @@ class RecurringCostOverviewOut(BaseModel):
     cancellations_overdue: list[RecurringCostOut] = Field(default_factory=list)
 
 
+class IncomingInvoiceItemIn(BaseModel):
+    description: str = Field(min_length=1, max_length=255)
+    net_amount: Decimal = Field(ge=0)
+    tax_rate_pct: Decimal = Decimal("19.00")
+    account_code: str | None = Field(default=None, max_length=20)
+
+    @field_validator("tax_rate_pct")
+    @classmethod
+    def validate_tax_rate(cls, v):
+        # Feste Werte statt Pattern (Decimal, kein String) -- siehe
+        # app/incoming_invoices.py::TAX_RATES.
+        if v not in (Decimal("19.00"), Decimal("7.00"), Decimal("0.00")):
+            raise ValueError("Steuersatz muss 19, 7 oder 0 Prozent sein.")
+        return v
+
+
+class IncomingInvoiceItemOut(IncomingInvoiceItemIn):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    # Reine Anzeige-Ableitung (siehe app/incoming_invoices.py::gross_amount()) -- nie
+    # gespeichert.
+    gross_amount: Decimal = Decimal("0")
+
+
+class IncomingInvoiceCreate(BaseModel):
+    supplier_id: int
+    supplier_invoice_number: str | None = Field(default=None, max_length=80)
+    invoice_date: date
+    net_amount: Decimal = Field(ge=0)
+    tax_rate_pct: Decimal = Decimal("19.00")
+    due_date: date | None = None
+    skonto_percent: Decimal | None = Field(default=None, ge=0, le=100)
+    skonto_deadline: date | None = None
+    payment_status: str = Field(default="offen", pattern="^(offen|bezahlt)$")
+    payment_date: date | None = None
+    # Zuordnung: höchstens EINE der drei darf gesetzt sein -- geprüft in
+    # app/incoming_invoices.py::_validate_single_assignment(), bewusst kein CheckConstraint
+    # (Muster ServiceReportPhoto).
+    project_id: int | None = None
+    asset_id: int | None = None
+    recurring_cost_id: int | None = None
+    # Andockpunkt Stufe 2 (Kontierung) -- bleibt in Stufe 1 leer/optional.
+    account_code: str | None = Field(default=None, max_length=20)
+    notes: str | None = None
+    # Positionen sind eine OPTIONALE Aufschlüsselung des Gesamtbetrags -- siehe
+    # IncomingInvoice-Klassendocstring (app/models.py).
+    items: list[IncomingInvoiceItemIn] = Field(default_factory=list)
+
+    @field_validator("tax_rate_pct")
+    @classmethod
+    def validate_tax_rate(cls, v):
+        if v not in (Decimal("19.00"), Decimal("7.00"), Decimal("0.00")):
+            raise ValueError("Steuersatz muss 19, 7 oder 0 Prozent sein.")
+        return v
+
+
+class IncomingInvoiceUpdate(IncomingInvoiceCreate):
+    pass
+
+
+class IncomingInvoiceOut(BaseModel):
+    id: int
+    supplier_id: int
+    supplier_name: str | None = None
+    supplier_invoice_number: str | None = None
+    invoice_date: date
+    net_amount: Decimal
+    tax_rate_pct: Decimal
+    gross_amount: Decimal = Decimal("0")
+    due_date: date | None = None
+    skonto_percent: Decimal | None = None
+    skonto_deadline: date | None = None
+    is_skonto_due: bool = False
+    is_skonto_overdue: bool = False
+    payment_status: str
+    is_overdue: bool = False
+    # "ueberfaellig" existiert ausschließlich hier -- payment_status selbst trägt nie diesen
+    # Wert, siehe app/incoming_invoices.py::is_overdue().
+    display_status: str
+    payment_date: date | None = None
+    has_document: bool = False
+    document_original_name: str | None = None
+    project_id: int | None = None
+    project_name: str | None = None
+    asset_id: int | None = None
+    asset_name: str | None = None
+    recurring_cost_id: int | None = None
+    recurring_cost_label: str | None = None
+    account_code: str | None = None
+    notes: str | None = None
+    items: list[IncomingInvoiceItemOut] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class IncomingInvoiceSettingsOut(BaseModel):
+    skonto_reminder_lead_days: int
+
+
+class IncomingInvoiceSettingsUpdate(BaseModel):
+    skonto_reminder_lead_days: int = Field(ge=0)
+
+
+class IncomingInvoiceOpenLiabilitiesOut(BaseModel):
+    open_gross_total: Decimal
+    open_count: int
+    overdue_count: int
+    skonto_due: list[IncomingInvoiceOut] = Field(default_factory=list)
+
+
 class ProductiveHoursSettingsUpdate(BaseModel):
     weekly_hours: Decimal = Field(gt=0, le=80)
     daily_hours: Decimal = Field(gt=0, le=24)

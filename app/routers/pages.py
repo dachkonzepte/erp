@@ -319,6 +319,16 @@ def recurring_costs_page(request: Request, _role: AppUser = _finanzen_role_dep):
     return templates.TemplateResponse(request=request, name="recurring_costs.html", context={})
 
 
+@router.get("/eingangsrechnungen", response_class=HTMLResponse)
+def incoming_invoices_page(request: Request, _role: AppUser = _finanzen_role_dep):
+    """Eingangsrechnungen (Buchhaltung Stufe 1) -- buero_finanzen-only (siehe
+    _finanzen_role_dep oben, dieselbe Finanzen-Achse wie Betriebskosten/Kalkulationsgrundlagen),
+    kein Modul-Check auf der Seitenroute selbst (etablierte Konvention, siehe
+    recurring_costs_page()), der API-Endpunkt dahinter prüft is_module_enabled() unabhängig
+    davon."""
+    return templates.TemplateResponse(request=request, name="incoming_invoices.html", context={})
+
+
 @router.get("/betriebsmittel/{asset_id}", response_class=HTMLResponse)
 def operational_asset_page(request: Request, asset_id: int, _role: AppUser = _any_role_dep):
     """Seit Betriebsmittelverwaltung Stufe 2 (siehe CLAUDE.md) rollenbewusst wie

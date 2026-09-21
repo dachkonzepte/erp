@@ -4,6 +4,46 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.6.0 – Buchhaltung, Stufe 1: Eingangsrechnungen erfassen und ablegen
+
+Erstes neues Modul seit der Betriebskosten-Übersicht (`module_key "buchhaltung"`,
+buero_finanzen/admin-only). Vorbereitende Buchhaltung, kein Ersatz für den Steuerberater --
+sammelt und ordnet Eingangsrechnungen mit Belegen für die spätere Kontierung (Stufe 2) und
+KI-Belegauswertung (Stufe 3, beide nicht Teil dieser Version). Erst ein vollständiger Befund
+(Supplier/Invoice/RecurringCost/Dokumentenablage-Muster), dann zwei vom Betreiber bestätigte
+Kernentscheidungen, dann gebaut.
+
+Neue, von `Invoice` getrennte Tabelle `IncomingInvoice` (Ein- und Ausgang sind fachlich
+verschiedene Domänen) -- Gesamtbetrag (Netto/Steuer/Brutto, letzteres nie gespeichert) bleibt
+immer maßgeblich, **Positionen (`IncomingInvoiceItem`) sind eine optionale Aufschlüsselung**:
+existieren sie, muss ihre Netto-Summe zum Gesamtbetrag passen -- eine Abweichung wird gemeldet
+(422), nicht still zugelassen. Lieferant: bestehenden wählen oder direkt aus dem Formular heraus
+neu anlegen (POST an den bereits bestehenden `/api/suppliers`-Endpunkt, kein neuer Endpunkt
+nötig). Zuordnung zu Projekt/Betriebsmittel/geplantem Kostenposten ist jeweils optional, aber
+höchstens eine der drei darf gesetzt sein (Business-Logik-Prüfung, bewusst kein
+CheckConstraint, Muster `ServiceReportPhoto`). Beleg als einzelne Datei je Rechnung (1:1-Muster
+wie `OperationalAssetInspection.document_filename`, ersetzt beim erneuten Hochladen).
+
+**Bestätigte, dauerhafte Grenze**: der geplante Kostenposten (`RecurringCost.annual_amount`)
+bleibt die alleinige Grundlage für den Verrechnungssatz -- eine Eingangsrechnung ändert ihn NIE,
+auch nicht über die Zuordnung `recurring_cost_id`. **Überfällig wird, konsistent mit `Invoice`,
+nie gespeichert** (`payment_status` trägt nur "offen"/"bezahlt"), sondern bei jedem Lesezugriff
+berechnet -- ein gespeicherter dritter Wert würde veralten, sobald das Fälligkeitsdatum verstreicht.
+
+Skonto-Warnung nach dem etablierten Betriebskosten-Muster: Hervorhebung in der Liste UND eine
+On-Demand erzeugte, idempotente Aufgabe mit `min_visible_role=ROLE_OFFICE_FINANZEN` -- kein
+Scheduler, ausgelöst beim Laden der Liste. Ansicht (`/eingangsrechnungen`) mit Filtern (Status,
+Lieferant, Zeitraum), Summe offener Verbindlichkeiten, Skonto-Warnungen.
+
+Andockpunkte für Stufe 2/3 explizit in CLAUDE.md festgehalten -- ein einfaches, optionales
+`account_code`-Feld (Rechnung UND je Position) für die spätere Kontierung, die übrigen Felder
+(Lieferant/Rechnungsnr./Datum/Beträge/Fristen) sind bereits exakt das, was eine künftige
+KI-Auswertung füllen würde.
+
+Angriffstest: `buero_auftrag`/`field` kommen über keinen Weg an die Eingangsrechnungen -- Liste,
+Einzelabruf (auch mit geratener ID), Beleg-Endpunkte, die Skonto-Aufgabe. 31 neue Tests, volle
+Suite: 1719 Tests grün.
+
 ## 1.5.11 – "Diesem Gerät für 30 Tage vertrauen"
 
 Der zweite Faktor musste bisher bei JEDER Anmeldung erneut eingegeben werden. Erst ein Befund

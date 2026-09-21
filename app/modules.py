@@ -18,6 +18,7 @@ OPTIONAL_MODULES = {
     "wartungen": "Wartungen & Reparaturen",
     "betriebsmittel": "Betriebsmittelverwaltung",
     "betriebskosten": "Betriebskosten-Übersicht",
+    "buchhaltung": "Buchhaltung (Eingangsrechnungen)",
 }
 
 

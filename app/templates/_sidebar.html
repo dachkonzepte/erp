@@ -206,6 +206,11 @@
     {% if is_module_enabled('betriebskosten') and can(current_user, 'admin', 'buero_finanzen') %}
     <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/betriebskosten' }}" href="/betriebskosten"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 5.5c0-1.8-2.2-2.8-5-2.8s-5 1.2-5 3c0 4 10 2 10 6.3 0 1.8-2.2 3-5 3s-5-1-5-2.8"/></svg></span><span class="app-sidebar-label">Betriebskosten</span></a>
     {% endif %}
+    {# Buchhaltung/Eingangsrechnungen (Stufe 1) -- dieselbe, strenger gegatete Finanzen-Achse
+       wie Betriebskosten oben (nur buero_finanzen/admin, kein buero_auftrag). #}
+    {% if is_module_enabled('buchhaltung') and can(current_user, 'admin', 'buero_finanzen') %}
+    <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/eingangsrechnungen' }}" href="/eingangsrechnungen"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="0.5"/><line x1="7.5" y1="8" x2="16.5" y2="8"/><line x1="7.5" y1="11.5" x2="16.5" y2="11.5"/><line x1="7.5" y1="15" x2="13" y2="15"/></svg></span><span class="app-sidebar-label">Eingangsrechnungen</span></a>
+    {% endif %}
     {% if can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
     <div class="app-sidebar-group">Stammdaten</div>
     <a class="app-sidebar-link{{ ' active' if path == '/master-data' }}" href="/master-data"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6.3" rx="8" ry="2.8"/><path d="M4 6.3v5.7c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8V6.3"/><path d="M4 12v5.7c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8V12"/></svg></span><span class="app-sidebar-label">Stammdaten</span></a>

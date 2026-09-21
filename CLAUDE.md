@@ -20,10 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.5.11** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `0f7bda3397f1` ("trusted devices for two factor auth", neue Tabelle
-  `trusted_devices` -- siehe Abschnitt "Diesem Gerät für 30 Tage vertrauen" unten) -- davor
-  `eda89bb8082a` (weder 1.5.8, 1.5.9 noch 1.5.10 brauchten eine eigene
+- Version: **1.6.0** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `fd1cc820d6b7` ("incoming invoices buchhaltung stufe 1", neue
+  Tabellen `incoming_invoices`/`incoming_invoice_items`/`incoming_invoice_settings` -- siehe
+  Abschnitt "Buchhaltung" unten) -- davor `0f7bda3397f1` ("trusted devices for two factor auth",
+  neue Tabelle `trusted_devices` -- siehe Abschnitt "Diesem Gerät für 30 Tage vertrauen" unten)
+  -- davor `eda89bb8082a` (weder 1.5.8, 1.5.9 noch 1.5.10 brauchten eine eigene
   Migration -- 1.5.10 ist eine reine HTML-/CSS-/JS-Umgestaltung der Seite
   Stundenverrechnungssatz, kein Endpunkt/Schema/Modell geändert, siehe Abschnitt "Neugestaltung
   der Seite Stundenverrechnungssatz" unten; 1.5.9 ist eine reine `step`-Attribut-Korrektur auf
@@ -77,9 +79,11 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1688 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1719 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 21.09.2026 (1.5.11, "Diesem Gerät für 30 Tage vertrauen" -- 20 neue Tests
+  dort), zuletzt am 21.09.2026 (1.6.0, Buchhaltung Stufe 1 -- Eingangsrechnungen erfassen und
+  ablegen, 31 neue Tests (`tests/test_v293_incoming_invoices.py`), siehe Abschnitt
+  "Buchhaltung" unten; davor 1.5.11, "Diesem Gerät für 30 Tage vertrauen" -- 20 neue Tests
   (`tests/test_v292_device_trust.py`), siehe Abschnitt "Diesem Gerät für 30 Tage vertrauen"
   unten; davor 1.5.10, Neugestaltung der Seite Stundenverrechnungssatz -- reine
   HTML-/CSS-/JS-Umgestaltung, keine neuen Tests; davor 1.5.9, sinnvolle Pfeil-Schrittweiten auf
@@ -1438,6 +1442,18 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   `node --check` und einem echten, CDP-gesteuerten Headless-Chrome-Durchlauf gegen eine
   isolierte Testinstanz (Aufklappen, Euro/Prozent-Umschalter, beide Übernehmen-Knöpfe
   Ende-zu-Ende, Browser-Konsole fehlerfrei).
+- Neu seit 1.5.11: **"Diesem Gerät für 30 Tage vertrauen"** -- siehe Abschnitt "Diesem Gerät für
+  30 Tage vertrauen" unten für die vollständige Herleitung (Checkbox nur bei der Routine-
+  Bestätigung des zweiten Faktors, niemals bei der Ersteinrichtung; neue Tabelle
+  `TrustedDevice`, eigenständiges Cookie `dk_erp_trust`; fünf Stellen widerrufen bestehendes
+  Vertrauen -- zweimal `two_factor.reset()`, zwei Passwortänderungen, der explizite Widerruf).
+- Neu seit 1.6.0: **Buchhaltung, Stufe 1 -- Eingangsrechnungen erfassen und ablegen**, erstes
+  neues Modul seit der Betriebskosten-Übersicht (`module_key "buchhaltung"`, buero_finanzen/
+  admin-only). Siehe eigener Abschnitt "Buchhaltung" unten für die vollständige Herleitung
+  (Befund zu Supplier/Invoice/RecurringCost/Dokumentenablage-Muster, die beiden bestätigten
+  Kernentscheidungen -- Positionen als optionale Aufschlüsselung mit Summen-Abgleich, Plan
+  bleibt Grundlage für den Verrechnungssatz -- und die expliziten Andockpunkte für Stufe 2
+  (Kontierung) und Stufe 3 (KI-Belegauswertung), die diese Version bewusst offen lässt).
 
 ### Headless-Chrome-Verifikation über CDP (seit 1.3.73)
 
@@ -10266,6 +10282,156 @@ vorher. Rekursiver Schlüssel-Scan auf der Antwort bestätigt: keine personenbez
 (kein `employee_id`/`employee_name`/`first_name`/`last_name`), unter der Anonymitäts-Untergrenze
 weder `average_days` noch `total_days` für Krankheit. 19 neue Tests
 (`tests/test_v291_produktivstunden_ist_werte.py`), volle Suite: 1668 Tests grün.
+
+## Buchhaltung (seit 1.6.0, Modul "buchhaltung")
+
+Stufe 1 -- Eingangsrechnungen erfassen und ablegen. Vorbereitende Buchhaltung, **kein Ersatz
+für den Steuerberater**: sammelt und ordnet empfangene Lieferantenrechnungen mit Beleg, damit
+sie später (Stufe 2) kontiert und für den Steuerberater exportiert werden können. KI-Belegauswertung
+ist Stufe 3. Diese Version ist ausschließlich manuelle Erfassung -- erst ein vollständiger
+Befund (Supplier/Invoice/RecurringCost/Dokumentenablage-Muster), dann zwei vom Betreiber
+bestätigte Kernentscheidungen, dann in einer Runde gebaut.
+
+### Befund, kurz zusammengefasst
+
+- **`Supplier`** trägt bereits alles Nötige (Name, Adresse, Kontakt, `supplier_number`) und
+  wird komplett über den bereits bestehenden `/api/suppliers`-Endpunkt verwaltet (liegt in
+  `app/routers/resource_planning.py`, kein eigenes Business-Logic-Modul) -- Rollen-Schwelle dort
+  `require_min_role(ROLE_OFFICE_AUFTRAG)`, buero_finanzen erfüllt diese Schwelle bereits über die
+  Hierarchie (`ROLE_RANK`), kein Endpunkt-Umbau nötig, um einen Lieferanten aus dem
+  Eingangsrechnungs-Formular heraus neu anzulegen.
+- **`Invoice`** (Ausgangsrechnung) ist strukturell verwandt (Netto/Steuer/Brutto, Status,
+  Skonto-Felder), aber fachlich eine andere Domäne (selbst erzeugtes, versendetes, GoBD-
+  pflichtiges Dokument mit Einfrier-Snapshot-Mechanik) -- bewusst **keine gemeinsame Tabelle**,
+  wie vom Betreiber vorgegeben. Übertragbar war das Prinzip fester Code-Werte für Felder mit
+  Rechenregel (Steuersatz, Status) statt Optionsgruppen.
+- **`RecurringCost.annual_amount`** ist bereits der gespeicherte, normierte Wert, der Schicht 3
+  (`app/labor_rate.py::calculate_labor_rate()`) speist -- `RecurringCost.asset_id` (nullable FK,
+  bewusst ohne Unique-Constraint) ist das bereits etablierte Muster "mehrere Fakten gegen einen
+  geplanten Posten", direkt übertragbar auf Eingangsrechnung↔RecurringCost.
+- **Dokumentenablage**: zwei etablierte Muster (mehrere unabhängige Dateien mit Dokumenttyp-
+  Katalog wie `OperationalAssetDocument`/`RecurringCostDocument`, ODER eine einzelne, beim
+  erneuten Hochladen ersetzte Datei wie `OperationalAssetInspection.document_filename`) --
+  gewählt wurde das zweite, da eine Eingangsrechnung fachlich genau einen Beleg hat.
+
+### Zwei Kernentscheidungen des Betreibers
+
+1. **Positionen als optionale Aufschlüsselung, kein Zwang.** `IncomingInvoice.net_amount`/
+   `tax_rate_pct` sind der immer vorhandene Gesamtbetrag -- eine einfache Rechnung bleibt ein
+   Gesamtbetrag, eine mit gemischten Steuersätzen wird über `IncomingInvoiceItem`-Zeilen
+   aufgeschlüsselt. **Existieren Positionen, muss ihre Netto-Summe zum Gesamtbetrag passen** --
+   `app/incoming_invoices.py::_validate_item_sum()` meldet eine Abweichung (`ValueError` -> 422),
+   statt sie still zuzulassen (Toleranz 0,01 € für Rundung). Beim Speichern werden alle
+   Positionen einer Rechnung vollständig ersetzt (kein Teil-Update einzelner Zeilen) -- für die
+   manuelle Erfassung in Stufe 1 ausreichend, keine eigene Positions-Historie.
+   `invoice_gross_amount()` summiert bei vorhandenen Positionen deren je EIGENE Bruttobeträge
+   (jede Position mit ihrem eigenen Steuersatz), nicht den Header-Satz -- eine Rechnung mit
+   19%-Material und einer steuerfreien Position hat keinen gemeinsamen Satz.
+2. **Plan bleibt Grundlage für den Verrechnungssatz, Ist ist der Beleg -- bestätigt, als
+   dauerhafte architektonische Grenze festgehalten.** `IncomingInvoice.recurring_cost_id`
+   verbindet eine Eingangsrechnung mit dem geplanten Kostenposten, gegen den sie gebucht wird --
+   **ausschließlich für Anzeige/Tracking**. Keine Funktion dieses Projekts darf darüber
+   `RecurringCost.annual_amount`/den Verrechnungssatz verändern (siehe `IncomingInvoice`-
+   Klassendocstring, `app/models.py` -- die Grenze steht dort ausdrücklich, damit eine künftige
+   Session sie nicht versehentlich verdrahtet, weil es naheliegend erscheint). Ein Plan-Ist-
+   Abgleich (Summe der verknüpften Eingangsrechnungen vs. `annual_amount`) wurde als Idee
+   geprüft -- er würde über `recurring_cost_id` tatsächlich fast kostenlos herausfallen, ist aber
+   **nicht Teil dieser Version** (nicht ausdrücklich beauftragt), die Verknüpfung selbst
+   ermöglicht ihn später ohne jeden Umbau.
+
+### Datenmodell
+
+Neue, von `Invoice` getrennte Tabelle `IncomingInvoice` (`app/models.py`) plus
+`IncomingInvoiceItem` (optionale Positionen, cascade `all, delete-orphan`) und
+`IncomingInvoiceSettings` (Singleton, `skonto_reminder_lead_days`, Default 5 Tage).
+
+- **`payment_status`** trägt nur `"offen"`/`"bezahlt"` -- **"überfällig" wird NIE gespeichert**,
+  sondern bei jedem Lesezugriff berechnet (`app/incoming_invoices.py::is_overdue()`), exakt
+  konsistent mit `Invoice` (`app/invoices.py`: `is_overdue = status=="versendet" and due_date is
+  not None and due_date < date.today()`). Geprüft, wie in der Anfrage verlangt, ob das bei
+  Ausgangsrechnungen gespeichert oder berechnet wird -- **berechnet**, kein dritter, gespeicherter
+  Statuswert, der veralten könnte. `invoice_to_dict()["display_status"]` liefert den fertigen
+  Wert (`"offen"`/`"bezahlt"`/`"ueberfaellig"`) für die Listenfilterung.
+- **`skonto_percent`/`skonto_deadline`**: Skontofrist als echtes `Date`-Feld (nicht als
+  Tageszahl relativ zum Rechnungsdatum wie bei `Invoice.skonto_days`) -- der Beleg des
+  Lieferanten nennt die Frist meist direkt als Datum, keine Zahlungsbedingungen-Textmaschinerie
+  nötig. `is_skonto_due()`/`is_skonto_overdue()` greifen nur, solange `payment_status=="offen"`
+  ist -- eine bereits bezahlte Rechnung braucht keine Skonto-Warnung mehr.
+- **Zuordnung**: `project_id`/`asset_id`/`recurring_cost_id` sind alle optional, aber
+  **höchstens eine** darf gesetzt sein -- geprüft in `_validate_single_assignment()`, bewusst
+  **kein CheckConstraint** (Muster `ServiceReportPhoto`: "gehört immer zu GENAU EINEM ... ODER
+  ..., nie zu beidem/keinem", ausschließlich in der Business-Logik geprüft). Eine Rechnung kann
+  auch unzugeordnet bleiben.
+- **`document_filename`/`document_original_name`**: ein Beleg je Rechnung, 1:1-Muster
+  (`app/incoming_invoice_documents.py::replace_document()`/`delete_document_file()`, Kopie des
+  ursprünglichen `OperationalAssetInspection`-Musters) -- eigener Ordner
+  `DACHKONZEPTE_INCOMING_INVOICE_FILE_ROOT` unter `ERP_DATA_DIR`.
+- **`last_skonto_reminder_deadline`**: Idempotenz-Stempel für die On-Demand-Erinnerung, ohne
+  expliziten Reset -- Muster `RecurringCost.last_reminder_due_date`.
+
+### Andockpunkte für Stufe 2 (Kontierung) und Stufe 3 (KI-Belegauswertung) -- explizit
+
+- **Stufe 2**: `account_code` (String(20), optional) existiert bereits **sowohl auf
+  `IncomingInvoice` als auch auf `IncomingInvoiceItem`** -- bleibt in Stufe 1 durchgängig leer.
+  Bewusst ein einfaches Freitextfeld statt einer FK auf einen Kontenrahmen, der noch nicht
+  existiert (Stufe 2 entscheidet erst, wie ein Kontenrahmen modelliert wird) -- ein Konto lässt
+  sich später je Rechnung (kein Split nötig, `IncomingInvoice.account_code` reicht) ODER je
+  Position (Split nötig, `IncomingInvoiceItem.account_code`) eintragen. Beide Felder existieren
+  bereits, keine Migration nötig, wenn Stufe 2 kommt -- höchstens eine spätere Ablösung des
+  Freitexts durch eine echte FK, falls ein Kontenrahmen als eigene Tabelle entsteht.
+- **Stufe 3**: `supplier_id`/`supplier_invoice_number`/`invoice_date`/`net_amount`/
+  `tax_rate_pct`/`due_date`/`skonto_percent`/`skonto_deadline` sind exakt die Felder, die eine
+  künftige automatische Belegauswertung füllen würde -- das Modell ist 1:1 darauf zugeschnitten,
+  keine Umstrukturierung nötig, wenn Stufe 3 kommt.
+
+### Lieferant inline anlegen
+
+Kein neuer Endpunkt -- das Formular (`incoming_invoices.html`) zeigt neben dem
+Lieferanten-Dropdown einen "+ Neuer Lieferant"-Umschalter mit einem kompakten Unterformular
+(Name Pflicht, Adresse/Kontakt optional). Beim Anlegen wird direkt `POST /api/suppliers`
+aufgerufen (bereits bestehender, unveränderter Endpunkt), der neue Lieferant erscheint sofort im
+Dropdown und wird automatisch ausgewählt -- kein Seitenwechsel, kein `prompt()` (Regel 4). Die
+volle Lieferantenpflege (Adresse im Detail, `supplier_number` u. Ä.) bleibt weiterhin
+ausschließlich über `/master-data#suppliers` erreichbar, Regel 10 gilt dafür unverändert -- das
+Inline-Formular ist ein Satellit, keine zweite Stammdatenpflege.
+
+### Skonto-Warnung, überfällige Hervorhebung, Ansicht
+
+`check_due_skonto_and_create_reminders()` (`app/incoming_invoices.py`) ist das On-Demand-Muster
+von `check_due_cancellations_and_create_reminders()` (`app/recurring_costs.py`) -- läuft nur
+beim Laden der Eingangsrechnungen-Liste, kein Scheduler. Erzeugt eine Aufgabe mit
+`min_visible_role=ROLE_OFFICE_FINANZEN` (wie bei der Betriebskosten-Kündigungsfrist: eine
+Skontofrist geht nur Finanzen/Admin etwas an). Die Liste (`GET /eingangsrechnungen`) zeigt
+zusätzlich eine visuelle Hervorhebung (überfällige Zeilen, Skonto-läuft-ab-/verpasst-Badges) --
+beides, wie beim Betriebskosten-Vorbild ("Hervorhebung UND Aufgabe"), nicht entweder-oder.
+
+Filter (Status/Lieferant/Zeitraum) laufen über `GET /api/incoming-invoices` -- `supplier_id`/
+`date_from`/`date_to` als echte SQL-`WHERE`-Bedingungen, `payment_status` dagegen in Python
+gegen den berechneten `display_status` gefiltert (kann keine SQL-Spalte sein, siehe oben).
+`GET /api/incoming-invoices/open-liabilities` liefert die Summe offener Verbindlichkeiten
+(brutto) plus die Skonto-Warnliste, Muster `RecurringCost.overview_summary()`.
+
+### Rollen und Modul
+
+Modul-Schlüssel **`"buchhaltung"`** (`"betriebskosten"` war bereits belegt). Ausnahmslos
+`require_min_role(ROLE_OFFICE_FINANZEN)` an jedem Endpunkt (`app/routers/incoming_invoices.py`)
+-- dieselbe Finanzen-Achse wie Betriebskosten-Übersicht/Kalkulationsgrundlagen, kein
+`_any_role_dep`. Sidebar-Link und Einstellungen-Abschnitt (Skonto-Vorlaufzeit) sind genauso
+strenger gegated als "Finanzen"/"Mahnwesen" selbst (nur buero_finanzen/admin, kein
+buero_auftrag) -- Muster `is_module_enabled('betriebskosten') and can(current_user, 'admin',
+'buero_finanzen')`.
+
+**Angriffstest bestätigt**: `buero_auftrag`/`field` kommen über keinen Weg an die
+Eingangsrechnungen -- Liste, Einzelabruf (auch mit geratener ID -- 403, nicht 404, bevor
+irgendeine Geschäftslogik läuft), Beleg-Upload/-Download/-Löschen (auch über eine geratene
+Rechnungs-ID), Einstellungen, `check-due`, und die finanz-adressierte Skonto-Aufgabe (weder in
+der Liste noch im gemeinsamen Eingang sichtbar, auch mit bekannter ID nicht übernehmbar). 31
+neue Tests (`tests/test_v293_incoming_invoices.py`), volle Suite: 1719 Tests grün. Zusätzlich
+end-to-end gegen eine isolierte Testinstanz (eigene, temporäre SQLite-Datenbank, niemals gegen
+die echte `dachkonzepte_erp.db`) über echtes HTTP verifiziert: Bootstrap-Admin, Zwei-Faktor-
+Ersteinrichtung, Lieferant + Eingangsrechnung mit gemischten Positionen anlegen (Brutto korrekt
+je Position berechnet), Liste/Summen-Endpunkt liefern die erwarteten Werte, die gerenderte Seite
+enthält alle erwarteten Elemente (Supplier-Auswahl, Editor, Positionstabelle, Sidebar-Link).
 
 ## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
 
