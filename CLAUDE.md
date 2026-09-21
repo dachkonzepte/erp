@@ -20,10 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.5.8** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf weiterhin `eda89bb8082a` (1.5.8 selbst brauchte keine eigene Migration --
-  "Ist-Werte im Produktivstunden-Rechner" sind ausschließlich neue, abgeleitete Funktionen, keine
-  neuen Spalten, siehe Abschnitt "Ist-Werte im Produktivstunden-Rechner" unten) -- davor
+- Version: **1.5.9** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf weiterhin `eda89bb8082a` (weder 1.5.8 noch 1.5.9 brauchten eine eigene
+  Migration -- 1.5.9 ist eine reine `step`-Attribut-Korrektur auf zwei Rechnern in
+  `settings.html`, kein Endpunkt/Schema/Modell geändert; 1.5.8 "Ist-Werte im Produktivstunden-
+  Rechner" sind ausschließlich neue, abgeleitete Funktionen, keine neuen Spalten, siehe
+  Abschnitt "Ist-Werte im Produktivstunden-Rechner" unten) -- davor
   "asset recurring cost quick entry link" --
   `operational_assets.recurring_cost_per_month` entfernt, neue Spalte
   `recurring_costs.is_asset_quick_entry` (`server_default='0'`) -- siehe Abschnitt
@@ -73,7 +75,9 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
 - Tests: **1668 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 19.09.2026 (1.5.8, Ist-Werte im Produktivstunden-Rechner -- drei der fünf
+  dort), zuletzt am 21.09.2026 (1.5.9, sinnvolle Pfeil-Schrittweiten auf den beiden
+  Kalkulationsrechnern -- reine `step`-Attribut-Korrektur, keine neuen Tests, kein
+  Backend-Verhalten geändert; davor 1.5.8, Ist-Werte im Produktivstunden-Rechner -- drei der fünf
   Annahmen bekommen einen aus TimeEntry/EmployeeAbsence/PlanningHoliday hergeleiteten
   Vergleichswert, siehe Abschnitt "Ist-Werte im Produktivstunden-Rechner" unten; davor 1.5.7,
   Betriebsmittel-Kosten fest als Kostenposten -- löst die 1.5.0-Doppelzählungs-Sonderbehandlung
@@ -1396,6 +1400,18 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Keine Doppelzählung, `calculate_productive_hours()`/`calculate_labor_rate()` unangetastet,
   keine Migration nötig. 19 neue Tests, volle Suite: 1668 Tests grün, siehe Abschnitt
   "Ist-Werte im Produktivstunden-Rechner" unten.
+- Neu seit 1.5.9: **Sinnvolle Pfeil-Schrittweiten auf den beiden Kalkulationsrechnern.** Alle
+  Zahlenfelder des Stundenkostenverrechnungssatz-/Produktivstunden-Rechners trugen `step="0.01"`
+  -- bei einem Tage-Feld fünfzig Klicks für einen halben Tag. Neue Schrittweiten je Feldart:
+  Tage `0,5`, Prozentwerte `0,5`, Tagesstunden `0,5`/Wochenstunden `1`, Wochen pro Jahr `1`, die
+  beiden Gemeinkosten-Beträge `100` (im Euro-Modus) bzw. `0,5` (im Prozent-Modus -- die
+  Eingabeart lässt sich per Umschalter wechseln, `syncOverheadLabels()` setzt die Schrittweite
+  seither im selben Zug wie die Beschriftung um). `step` steuert ausschließlich die Pfeile, nie
+  eine Eingabesperre -- Zwischenwerte (30,5 Urlaubstage) bleiben per Tastatur uneingeschränkt
+  eintippbar, diese Seite validiert nie nativ gegen `step` (sendet per `fetch()`, kein
+  Formular-Submit). Bewusst unverändert: "Aktueller Stundenkostenverrechnungssatz €/h"
+  (außerhalb der beiden benannten Rechner, Cent-Ebene bei einem Stundensatz weiterhin relevant).
+  Reine HTML-/JS-Änderung, kein Endpunkt/Schema geändert, keine neuen Tests nötig.
 
 ### Headless-Chrome-Verifikation über CDP (seit 1.3.73)
 

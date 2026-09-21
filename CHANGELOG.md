@@ -4,6 +4,33 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.5.9 – Sinnvolle Pfeil-Schrittweiten auf den beiden Kalkulationsrechnern
+
+Kleine Korrektur, rein clientseitig: alle Zahlenfelder des Stundenkostenverrechnungssatz- und
+des Produktivstunden-Rechners (Einstellungen → Kalkulationsgrundlagen) nutzten bisher
+`step="0.01"` -- bei einem Tage-Feld wie "Urlaubstage / Jahr" bedeutete das fünfzig Klicks auf
+den Hoch-Pfeil für einen halben Tag. `step` bestimmt ausschließlich das Verhalten der Pfeile/des
+Spinners, nie eine Eingabesperre -- Zwischenwerte (z. B. ein Urlaubswert von 30,5) bleiben über
+die Tastatur uneingeschränkt eintippbar, ungeprüft, da diese Seite ihre Werte per `fetch()`
+sendet und nie eine native Formular-Validierung gegen `step` durchläuft.
+
+Neue Schrittweiten je Feldart: Tage (Urlaub, Feiertage, Krankheit, Schlechtwetter) `0,5`;
+Prozentwerte (AG-Lohnnebenkosten, Produktive Zeit, Wagnis & Gewinn, unproduktive Zeit) `0,5`;
+Tagesstunden `0,5`, Wochenstunden `1`; Wochen pro Jahr `1`; die Gemeinkosten-Beträge (Fixe/
+Variable Gemeinkosten) `100`, da ein Cent-genaues Hochklicken bei sechsstelligen Jahresbeträgen
+sinnlos ist. Die beiden Gemeinkosten-Felder können wahlweise Euro ODER Prozent der direkten
+Lohnkosten sein (Umschalter "Eingabeart") -- `syncOverheadLabels()` (bereits bestehend, wechselt
+schon die Beschriftung) setzt die Schrittweite seither im selben Zug mit um: `100` im
+Euro-Modus, `0,5` im Prozent-Modus, nie fest verdrahtet auf eine der beiden Bedeutungen.
+
+Bewusst NICHT angefasst: "Aktueller Stundenkostenverrechnungssatz €/h" (Abschnitt "Weitere
+Kalkulationsgrundlagen", außerhalb der beiden benannten Rechner) -- bleibt bei `0,01`, da ein
+Stundensatz (anders als eine sechsstellige Jahressumme) auf Cent-Ebene tatsächlich relevant ist.
+
+Reine HTML-/JS-Änderung an `app/templates/settings.html`, kein Endpunkt/Schema geändert, keine
+neuen Tests (kein Backend-Verhalten geändert, `step` hat keinen serverseitigen Effekt) --
+`tests/test_v218_template_rendering.py` bestätigt, dass die Seite weiterhin fehlerfrei rendert.
+
 ## 1.5.8 – Ist-Werte im Produktivstunden-Rechner
 
 Nachbesserung am Produktivstunden-Rechner (1.5.1): drei der fünf Annahmen bekommen einen aus
