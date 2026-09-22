@@ -123,6 +123,16 @@
       <div class="settings-menu">
         <a href="/address-import" style="text-decoration:none"><button type="button">Adressimport (Altsystem)<span class="menu-sub">Kunden, Lieferanten und offene Adressen aus einer CSV-/Excel-Datei</span></button></a>
       </div>
+      {% if can(current_user, 'admin') %}
+      {# KI-Fundament (seit 1.6.2, siehe CLAUDE.md "KI-Fundament"): reine Systemkonfiguration,
+         ausschließlich Administratoren -- nicht einmal buero_finanzen, anders als z. B. die
+         Kalkulationsgrundlagen weiter oben (Betreibervorgabe). Solange nichts konfiguriert
+         ist, existiert keine KI-Funktion, das ERP läuft vollständig ohne. #}
+      <div class="settings-group">KI</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="ai-settings" onclick="showSettingsSection('ai-settings')">KI-Anbieter<span class="menu-sub">Anbieter, Zugangsdaten, Gesamtschalter (nur Administratoren)</span></button>
+      </div>
+      {% endif %}
     </aside>
     <div class="settings-content">
   <section class="card settings-section" id="settings-general">
@@ -370,6 +380,38 @@
     <div style="display:flex;gap:8px;margin-top:14px">
       <button onclick="testEmailSettings()">Verbindung testen</button>
       <span id="emailSettingsStatus" class="status"></span>
+    </div>
+  </section>
+
+  <section class="card settings-section" id="settings-ai-settings">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">KI-Anbieter</h2><div class="muted small">Fundament für künftige KI-Funktionen (z. B. Belegauswertung, Angebotstexte) -- in dieser Version wird noch KEINE KI-Funktion angeboten, nur die Konfiguration dafür vorbereitet.</div></div></div>
+
+    <div class="hint">Solange der Schalter unten aus ist, existiert keine KI-Funktion im ERP -- alles läuft vollständig ohne KI. Bei aktiver externer KI werden Daten an den gewählten Anbieter übermittelt -- dafür ist ein Auftragsverarbeitungsvertrag (AV-Vertrag) mit diesem Anbieter nötig. Bitte erst aktivieren, wenn dieser Vertrag steht.</div>
+
+    <div class="field" style="max-width:420px;margin-top:12px">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:650"><input id="aiEnabled" type="checkbox" style="width:auto"> KI-Funktionen insgesamt aktivieren</label>
+    </div>
+
+    <div class="fields-2col" style="margin-top:8px">
+      <div class="field"><label>Anbieter</label>
+        <select id="aiProvider">
+          <option value="">(keiner gewählt)</option>
+          <option value="anthropic">Anthropic</option>
+          <option value="openai">OpenAI</option>
+          <option value="azure_openai">Azure OpenAI</option>
+          <option value="google">Google</option>
+        </select>
+      </div>
+      <div class="field"><label>Modell</label><input id="aiModel" placeholder="z. B. claude-sonnet-5"></div>
+      <div class="field full"><label>API-Adresse <span class="muted small">(sichtbar, damit erkennbar ist, wohin Daten gehen)</span></label><input id="aiApiBaseUrl" type="url" placeholder="https://..."></div>
+      <div class="field full"><label>API-Schlüssel <span id="aiApiKeyHint" class="muted small"></span></label><input id="aiApiKey" type="password"></div>
+    </div>
+    <div class="hint">Für keinen der vier Anbieter ist in dieser Version bereits ein Adapter hinterlegt -- die Werte lassen sich schon jetzt eintragen, ein KI-Aufruf liefert aber weiterhin "keine KI konfiguriert", bis ein künftiger Adapter für den gewählten Anbieter gebaut ist.</div>
+
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button onclick="saveAiSettings()">Speichern</button>
+      <button type="button" class="secondary" onclick="testAiSettings()">Verbindung testen</button>
+      <span id="aiSettingsStatus" class="status"></span>
     </div>
   </section>
 
@@ -766,7 +808,7 @@ const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
   refreshStatusColors();
 })();
 const v=id=>document.getElementById(id).value.trim();const nv=id=>v(id)||null;const setv=(id,x)=>document.getElementById(id).value=x??'';
-const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','recurring-costs','incoming-invoices','accounts','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','operational-assets','mobile'];
+const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','recurring-costs','incoming-invoices','accounts','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','operational-assets','mobile','ai-settings'];
 function showSettingsSection(key,updateHash=true){
   if(!SETTINGS_SECTIONS.includes(key))key='general';
   document.querySelectorAll('.settings-section').forEach(x=>x.classList.toggle('active',x.id===`settings-${key}`));
@@ -1740,6 +1782,46 @@ async function testEmailSettings(){
   }catch(e){ st.textContent = 'Fehlgeschlagen: ' + e.message }
 }
 
+async function loadAiSettings(){
+  const section = document.getElementById('settings-ai-settings');
+  try{
+    const s = await api('/api/ai-settings');
+    document.getElementById('aiEnabled').checked = !!s.enabled;
+    document.getElementById('aiProvider').value = s.provider || '';
+    setv('aiModel', s.model);
+    setv('aiApiBaseUrl', s.api_base_url);
+    document.getElementById('aiApiKeyHint').textContent = s.has_api_key ? '(gespeichert – leer lassen für unverändert)' : '(noch keiner hinterlegt)';
+    document.getElementById('aiApiKey').placeholder = s.has_api_key ? 'unverändert lassen' : 'Schlüssel eingeben';
+  }catch(e){
+    section.innerHTML = '<div class="section-title"><h2>KI-Anbieter</h2></div><div class="hint">Diese Einstellung ist nur für Administratoren verfügbar.</div>';
+  }
+}
+async function saveAiSettings(){
+  const st = document.getElementById('aiSettingsStatus');
+  try{
+    st.textContent = 'Speichert …';
+    const payload = {
+      enabled: document.getElementById('aiEnabled').checked,
+      provider: document.getElementById('aiProvider').value || null,
+      api_base_url: v('aiApiBaseUrl') || null,
+      model: v('aiModel') || null,
+      api_key: v('aiApiKey') || null,
+    };
+    await api('/api/ai-settings', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    document.getElementById('aiApiKey').value = '';
+    st.textContent = 'Gespeichert.';
+    await loadAiSettings();
+  }catch(e){ st.textContent = 'Fehler: ' + e.message }
+}
+async function testAiSettings(){
+  const st = document.getElementById('aiSettingsStatus');
+  st.textContent = 'Teste Verbindung …';
+  try{
+    await api('/api/ai-settings/test', {method: 'POST'});
+    st.textContent = 'Verbindung erfolgreich.';
+  }catch(e){ st.textContent = 'Fehlgeschlagen: ' + e.message }
+}
+
 const EMAIL_TEMPLATE_PLACEHOLDER_HINTS = {
   invoice: 'Verfügbare Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {gesamtbetrag} {kundenname}',
   quote: 'Verfügbare Platzhalter: {angebotsnummer} {gesamtbetrag} {kundenname}',
@@ -1997,6 +2079,7 @@ document.getElementById('accentColorText').addEventListener('input',function(){i
 showSettingsSection(settingsSectionFromHash(),false);
 load().catch(e=>alert('Einstellungen konnten nicht geladen werden: '+e.message));
 loadEmailSettings();
+loadAiSettings();
 loadEmailTemplate();
 loadAppearance();
 </script>

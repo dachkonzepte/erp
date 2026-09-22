@@ -4,6 +4,67 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.6.2 – KI-Fundament: zentrale, anbieter-unabhängige Schnittstelle
+
+Fundament für künftige KI-Funktionen (Belegauswertung, Angebotstexte, Berichtszusammenfassung)
+-- in dieser Version bewusst **keine** konkrete KI-Funktion und **kein** Anbieter festgelegt,
+nur die Schnittstelle. Erst ein Befund (Zugangsdaten-Verschlüsselung über `app/crypto.py` bereits
+generisch nutzbar; `app/email_sending.py`/Microsoft Graph als übertragbares HTTP+Schlüssel-Muster,
+urllib statt httpx, feste Timeout-Konstanten; kein `OPTIONAL_MODULES`-Eintrag für reine
+Systemkonfiguration ohne Fachfunktion), dann drei Betreiberentscheidungen umgesetzt.
+
+Fünf neue, flache Module: `app/ai_types.py` (`AIRequest`/`AIResponse`/`AIAttachment` --
+Anhänge bereits vorgesehen für eine künftige Belegauswertung -- sowie die Fehlerhierarchie
+`AIProviderError`/`AIProviderNotConfigured`/`AIProviderUnavailable`), `app/ai_adapters.py`
+(`AIProviderAdapter`-Protokoll, `_ADAPTERS`-Registry), `app/ai_settings.py` (Singleton-Settings
+wie `SmtpSettings`), `app/ai_service.py` (`call_ai()`/`call_ai_async()` -- die zentrale
+Schnittstelle), `app/routers/ai_settings.py` (`GET/PUT /api/ai-settings` +
+`POST /api/ai-settings/test`, ausnahmslos `require_admin()` -- Systemkonfiguration, nicht
+einmal `buero_finanzen`). Ein Anbieterwechsel ändert dadurch nur eine Datenbankzeile, kein
+Code.
+
+**Mock statt echtem Anbieter** (Betreibervorgabe): `MockAIAdapter` liefert eine feste
+Testantwort ohne Netzwerkzugriff, macht die gesamte Testsuite unabhängig von externen
+Diensten. `"mock"` ist bewusst NICHT in `AI_PROVIDERS` enthalten und kann über die
+Admin-Oberfläche nie persistiert werden -- erreichbar nur über `call_ai()`s
+`adapter_override`-Parameter. Kein einziger echter Anbieter-Adapter in dieser Version; ein
+bereits eingetragener Anbieter liefert bis dahin weiterhin `AIProviderNotConfigured`.
+
+**Synchron mit hartem Zeitlimit (45s, fest im Code) für den Anfang** -- Belegauswertung
+rechtfertigt eine wartende Person wie bei einem Upload. Ein künftiger Hintergrund-Ablauf für
+lange KI-Funktionen (Minuten) würde dieselbe `call_ai()`-Signatur unverändert von einem
+anderen Ausführungskontext aus nutzen, siehe CLAUDE.md "KI-Fundament" für die Docking-Stelle.
+**Fallstrick gefunden und behoben**: ein `with ThreadPoolExecutor(...)` hätte bei einer
+Zeitüberschreitung trotzdem auf den hängenden Hintergrund-Thread gewartet
+(`shutdown(wait=True)` in `__exit__`) und das Zeitlimit dadurch wirkungslos gemacht -- behoben
+durch explizites `shutdown(wait=False)`, mit Regressionstest (misst die tatsächliche
+Rückkehrzeit gegen einen absichtlich hängenden Test-Adapter). **Untersucht, wie verlangt**: der
+Produktivserver läuft mit EINEM `gunicorn`-Arbeitsprozess, nicht zwei (Prämisse korrigiert) --
+Nebenläufigkeit entsteht über asyncio-Event-Loop und Starlettes Threadpool innerhalb dieses
+einen Prozesses. Synchron trägt, solange jede künftige Fachfunktion `call_ai_async()` aus einer
+`async def`-Route bzw. `call_ai()` nur aus einer gewöhnlichen `def`-Route aufruft -- die
+tatsächliche Gefahr ist ein vergessenes Thread-Abkoppeln, nicht die gewählte Zeitlimit-Zahl.
+`--timeout`/Worker-Klasse sind auf dem Server nicht im Repository dokumentiert, siehe CLAUDE.md
+für die Empfehlung, das beim nächsten Server-Zugriff zu verifizieren.
+
+**Kostenprotokoll**: `AICallLog` (Zeitpunkt, aufrufende Funktion, Erfolg/Fehler, Token/Kosten)
+-- strukturell kein Feld, das Prompt/Anhang/Antworttext aufnehmen könnte, `error_type` ist der
+reine Exception-Klassenname. Geprüft, wie ausdrücklich verlangt: die Anfrage wird an keiner
+Stelle gespeichert, auch nicht zwischenzeitlich in einem Cache oder Debug-Log. Anders als
+`FailedLoginAttempt` bewusst OHNE automatische Bereinigung -- soll dem Betreiber dauerhaft
+zeigen, was die KI kostet.
+
+**Datenschutz-Rahmen**: Anbieter/API-Adresse/Modell sichtbar in den Einstellungen, Schlüssel
+nur als `has_api_key`-Boolean; Gesamtschalter `AISettings.enabled` Default AUS; Hinweistext zu
+Datenübermittlung/AV-Vertrag. Nur Administratoren sehen/konfigurieren die KI-Einstellungen.
+
+Kein `OPTIONAL_MODULES`-Eintrag, kein echter Anbieter-Adapter, keine Fachfunktion nutzt das
+Fundament in dieser Version. Migration `d87d5bc04b69` (zwei neue Tabellen `ai_settings`/
+`ai_call_log`, keine Änderung an bestehenden Tabellen), 24 neue Tests
+(`tests/test_v295_ai_fundament.py`, inkl. des abschließend verlangten Angriffstests --
+`buero_finanzen`/`buero_auftrag`/`field` kommen an keinen Teil der KI-Einstellungen), volle
+Suite: 1764 Tests grün.
+
 ## 1.6.1 – Buchhaltung, Stufe 2 (erster Teil): Kontenstamm und Vorkontierung
 
 Fortsetzung von 1.6.0 -- ausdrücklich **nicht** Teil dieser Runde: der Import der

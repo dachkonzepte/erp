@@ -3979,3 +3979,67 @@ class IncomingInvoiceSettings(Base):
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
     skonto_reminder_lead_days: Mapped[int] = mapped_column(default=5, server_default="5")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AISettings(Base):
+    """Fundament für künftige KI-Funktionen (Belegauswertung, Angebotstexte,
+    Berichtszusammenfassung) -- reine Konfiguration für die zentrale Schnittstelle
+    app/ai_service.py::call_ai(). In DIESER Runde nutzt KEINE Fachfunktion das, nur das
+    Fundament selbst (siehe CLAUDE.md "KI-Fundament" für die volle Herleitung).
+
+    Singleton wie SmtpSettings (immer genau eine Zeile mit id=1). Nur für Administratoren --
+    Systemkonfiguration, nicht einmal buero_finanzen (Betreibervorgabe, app/routers/
+    ai_settings.py).
+
+    enabled ist der Gesamtschalter, Default AUS -- solange kein AV-Vertrag mit einem Anbieter
+    steht, bleibt jede KI-Funktion ausgeschaltet, unabhängig davon, ob bereits ein Anbieter/
+    Schlüssel eingetragen ist (call_ai() prüft ihn zuerst, vor jeder Netzwerkaktivität).
+
+    provider ist NULL im Normalzustand ("kein Anbieter konfiguriert") oder einer der vier Werte
+    aus AI_PROVIDERS (app/ai_types.py) -- fester Code-Wert wie RecurringCost.billing_interval,
+    keine Optionsgruppe, da die Auswahl bestimmt, welcher Adapter dispatcht wird. In dieser
+    Runde ist für KEINEN der vier ein echter Adapter hinterlegt (siehe app/ai_adapters.py) --
+    call_ai() liefert dann AIProviderNotConfigured, unabhängig vom gewählten Wert.
+
+    api_key_encrypted: wie SmtpSettings.password_encrypted, über app/crypto.py
+    (encrypt_secret/decrypt_secret), nie im Klartext zurückgegeben (siehe
+    AISettingsOut.has_api_key). api_base_url/model sind reiner Freitext, sichtbar in den
+    Einstellungen -- damit erkennbar ist, wohin Daten gehen würden (Datenschutz-Rahmen)."""
+
+    __tablename__ = "ai_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    provider: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    api_base_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    api_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AICallLog(Base):
+    """Protokoll jedes KI-Aufrufs (Zeitpunkt, aufrufende Funktion, Erfolg/Fehler, Token/Kosten
+    wenn geliefert) -- siehe app/ai_service.py::call_ai(), die einzige Stelle, die hier
+    schreibt. NIEMALS der Anfrage- oder Antwortinhalt selbst (kein Prompt, kein Beleg/Bild,
+    keine Antwort) -- das ist eine ausdrückliche Zusage, keine Bequemlichkeit: die KI-Anfrage
+    geht an den Adapter und ist danach vollständig weg, sie wird an KEINER Stelle im ERP
+    gespeichert, auch nicht zwischenzeitlich in einem Cache oder Debug-Log. error_type ist der
+    reine Exception-Klassenname, nie dessen Text (der könnte bei einem echten Anbieter-Adapter
+    Teile der Anfrage/Antwort enthalten).
+
+    ANDERS als FailedLoginAttempt (siehe dort) bewusst OHNE automatische Bereinigung -- der
+    Zweck ist hier nicht kurzlebige Sicherheits-Buchhaltung, sondern dass der Betreiber über
+    die Zeit sieht, was die KI kostet und ob sie funktioniert (Betreibervorgabe). Die Tabelle
+    bleibt wie AuditLog dauerhaft bestehen, kein Aufräumjob."""
+
+    __tablename__ = "ai_call_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    caller: Mapped[str] = mapped_column(String(80), index=True)
+    success: Mapped[bool] = mapped_column(Boolean)
+    error_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    input_tokens: Mapped[int | None] = mapped_column(nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(nullable=True)
+    cost_estimate: Mapped[Decimal | None] = mapped_column(Numeric(10, 4), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(nullable=True)

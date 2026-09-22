@@ -16,7 +16,7 @@ from .material_groups import backfill_existing_materials, ensure_import_material
 from .materials import backfill_existing_service_materials
 from .orders import ensure_existing_order_revisions
 from .routers import (
-    absence_requests, account, accounts, address_import, audit, auth, catalogs, changelog, customer_documents, customers,
+    absence_requests, account, accounts, address_import, ai_settings, audit, auth, catalogs, changelog, customer_documents, customers,
     dashboard, document_categories, document_email_templates, document_layout, email_settings, employees, field_view, findings, imports, incoming_invoices, inquiries, inspection_templates, invoices, labor_rate, maintenance_contracts, materials, modules, operational_assets, orders,
     pages, payment_terms, planning, project_documents, project_pipeline_columns, projects, properties, property_documents, quick_service_orders, quotes, recurring_costs, reminders,
     resource_planning, roof_areas, search, service_reports, services, settings, task_columns, tasks, tax_keys, time_backoffice, time_tracking, users,
@@ -140,6 +140,7 @@ app.include_router(operational_assets.router)
 app.include_router(recurring_costs.router)
 app.include_router(incoming_invoices.router)
 app.include_router(accounts.router)
+app.include_router(ai_settings.router)
 app.include_router(service_reports.router)
 app.include_router(quick_service_orders.router)
 app.include_router(roof_areas.router)

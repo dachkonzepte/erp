@@ -1465,6 +1465,22 @@ class SendMethodUpdate(BaseModel):
     send_method: str = Field(pattern="^(smtp|graph_oauth2)$")
 
 
+class AISettingsOut(BaseModel):
+    enabled: bool
+    provider: str | None
+    api_base_url: str | None
+    model: str | None
+    has_api_key: bool  # niemals der Schlüssel selbst
+
+
+class AISettingsUpdate(BaseModel):
+    enabled: bool
+    provider: str | None = None  # gegen AI_PROVIDERS geprüft in app/ai_settings.py::update_ai_settings()
+    api_base_url: str | None = Field(default=None, max_length=500)
+    model: str | None = Field(default=None, max_length=120)
+    api_key: str | None = None  # None = unverändert lassen
+
+
 class ReminderEmailSend(BaseModel):
     to_email: str | None = None  # None = automatisch aus Kundenstammdaten
 

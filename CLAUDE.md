@@ -10591,6 +10591,240 @@ Schlüssel-Scan bestätigt: kein `account_number`/`label`/`default_tax_rate_pct`
 und per direkter `PRAGMA table_info`-Abfrage nachgemessen (0 Datenverlust, Schema exakt wie
 erwartet).
 
+## KI-Fundament (seit 1.6.2)
+
+Fundament für künftige KI-Funktionen im ERP (Belegauswertung, Angebotstexte,
+Berichtszusammenfassung) -- eine zentrale, anbieter-unabhängige Schnittstelle. **In dieser
+Version wird keine konkrete KI-Funktion gebaut und kein Anbieter festgelegt** -- ausschließlich
+die Schnittstelle, an die sich künftige Funktionen anhängen. Erst ein vollständiger Befund
+(Zugangsdaten-Verschlüsselung, bestehendes HTTP+Schlüssel-Muster, Modul-/Einstellungssystem),
+dann nach Bestätigung des Adapter-Zuschnitts gebaut, mit drei vom Betreiber vorgegebenen
+Entscheidungen (Mock-Adapter statt echtem Anbieter, synchron mit hartem Zeitlimit für den
+Anfang, Kostenprotokoll ohne Inhalt).
+
+### Befund
+
+- **Zugangsdaten-Verschlüsselung**: `app/crypto.py::encrypt_secret()`/`decrypt_secret()`
+  (Fernet, Schlüssel abgeleitet von `secret_key()` aus `app/auth.py`) ist bereits generisch --
+  bisher genutzt für SMTP-Passwort und Microsoft-Graph-Client-Secret, beide als
+  `*_encrypted`-Spalten auf `SmtpSettings`. `AISettings.api_key_encrypted` nutzt denselben
+  Mechanismus unverändert, keine Erweiterung nötig.
+- **Übertragbares HTTP+Schlüssel-Muster**: `app/email_sending.py` (Microsoft Graph) ist die
+  einzige bestehende externe-HTTP-Dienst-mit-Schlüssel-Anbindung -- nutzt bewusst reines
+  `urllib` (Stdlib), nicht `httpx` (obwohl in `requirements.txt`), mit festen, im Code
+  verankerten Timeout-Konstanten (`GRAPH_TOKEN_TIMEOUT=15`, `GRAPH_SEND_TIMEOUT=30`) und
+  einheitlicher Übersetzung jeder technischen Ausnahme in eine klare `ValueError`. Genau dieses
+  Muster ist auf das KI-Fundament übertragen (siehe `AI_CALL_TIMEOUT_SECONDS`,
+  `AIProviderError`-Hierarchie unten).
+- **Modul-/Einstellungssystem**: `OPTIONAL_MODULES` (`app/modules.py`) ist für abschaltbare
+  FACHFUNKTIONEN gedacht, nicht für reine Systemkonfiguration ohne eigene Funktion --
+  **bewusst KEIN Eintrag dort für "KI"**, analog zu den E-Mail-Einstellungen, die ebenfalls
+  keinen Modul-Eintrag haben. Stattdessen `require_admin()` an jedem Endpunkt (Muster
+  `app/routers/email_settings.py`), und `AISettings.enabled` als der eigentliche
+  Gesamtschalter für KI-Funktionen (nicht der Modul-Umschalter).
+
+### Die zentrale Schnittstelle
+
+Fünf neue, flache Module (Projektkonvention: `app/*.py`, keine Unterpakete):
+
+- **`app/ai_types.py`**: `AIRequest` (`caller`/`prompt`/`attachments`/`system`),
+  `AIResponse` (`text`/`input_tokens`/`output_tokens`/`cost_estimate`), `AIAttachment`
+  (`mime_type`/`data`/`filename` -- vorgesehen für eine künftige Belegauswertung, in dieser
+  Version von keiner Fachfunktion befüllt), sowie die Fehlerhierarchie `AIProviderError` ->
+  `AIProviderNotConfigured`/`AIProviderUnavailable`. `AI_PROVIDERS = ("anthropic", "openai",
+  "azure_openai", "google")` -- fester Code-Wert wie `RecurringCost.billing_interval`, keine
+  Optionsgruppe (die Auswahl bestimmt, welcher Adapter dispatcht wird, eine Rechenregel).
+- **`app/ai_adapters.py`**: `AIProviderAdapter` (Protocol, eine Methode `complete(request, *,
+  timeout)`), `MockAIAdapter` (siehe unten), `_ADAPTERS`-Registry (`dict[str, Factory]`).
+- **`app/ai_settings.py`**: `get_or_create_ai_settings()`/`update_ai_settings()`/
+  `is_ai_available()` -- Muster `app/email_sending.py`, Singleton wie `SmtpSettings`.
+- **`app/ai_service.py`**: `call_ai()`/`call_ai_async()` -- die EINEN Stellen, durch die jeder
+  künftige KI-Aufruf laufen soll. Liest die Konfiguration, wählt über `_ADAPTERS` den Adapter,
+  ruft ihn mit Zeitlimit auf, protokolliert. Kein anderer Code importiert je eine
+  Adapter-Klasse direkt.
+- **`app/routers/ai_settings.py`**: `GET/PUT /api/ai-settings` + `POST /api/ai-settings/test`,
+  ausnahmslos `require_admin()` -- Systemkonfiguration, nicht einmal `buero_finanzen`
+  (Betreibervorgabe, anders als z. B. Kalkulationsgrundlagen). Antwortschema liefert nie den
+  Schlüssel selbst, nur `has_api_key: bool` (Muster `SmtpSettingsOut`).
+
+Ein Anbieterwechsel ändert dadurch tatsächlich nur eine Datenbankzeile (`AISettings.provider`)
+-- kein Code, der einen Anbieter kennt, wird dafür angefasst.
+
+### Mock-Adapter statt echtem Anbieter (Betreiberentscheidung)
+
+Kein einziger echter Anbieter-Adapter in dieser Version -- auch kein "minimaler, aber
+austauschbarer" für einen bestimmten Anbieter, wie ursprünglich als Option vorgeschlagen.
+Stattdessen `MockAIAdapter` (`app/ai_adapters.py`): liefert eine feste Testantwort ohne jeden
+Netzwerkzugriff, optional mit `raise_error=...` für gezielte Fehlerpfad-Tests. Macht die
+gesamte Testsuite unabhängig von externen Diensten (Betreibervorgabe: "eine Testsuite darf nie
+einen echten KI-Aufruf machen") -- alle 24 neuen Tests (`tests/test_v295_ai_fundament.py`)
+laufen ohne jede Netzwerkverbindung.
+
+**"mock" ist bewusst NICHT in `AI_PROVIDERS` enthalten** und kann über `update_ai_settings()`
+(den einzigen Schreibweg der Admin-Oberfläche) nie persistiert werden -- geprüft per
+`ValueError`. Erreichbar ist der Mock ausschließlich über `call_ai(..., adapter_override=...)`,
+ein Parameter, der ausdrücklich für Tests gedacht ist. Damit kann ein Admin "mock" niemals
+versehentlich als echten Anbieter wählen, aber die Testsuite deckt trotzdem die VOLLE
+Dispatch-/Zeitlimit-/Protokoll-Logik von `call_ai()` ab, nicht nur eine isolierte Attrappe.
+
+Ein künftiger, echter Anbieter ist ein neuer Eintrag in `_ADAPTERS` unter dem jeweiligen
+`AI_PROVIDERS`-Wert -- `call_ai()` selbst muss dafür nicht angefasst werden. Bis dahin liefert
+ein bereits eingetragener Anbieter (z. B. `provider="anthropic"`, `enabled=True`) bei jedem
+Aufruf weiterhin `AIProviderNotConfigured` ("kein Adapter hinterlegt") -- derselbe
+Normalzustand wie "gar kein Anbieter gewählt", nur mit spezifischerer Meldung.
+
+### Synchron mit hartem Zeitlimit -- die bewusste Wahl für den Anfang, und wo ein Hintergrund-Ablauf andocken würde
+
+**Betreibervorgabe**: für die künftige Belegauswertung ist ein wartender Nutzer beim Anlegen
+einer Rechnung vertretbar (wie bei einem Upload) -- deshalb synchron, mit
+`AI_CALL_TIMEOUT_SECONDS = 45.0` (fest im Code, NICHT in den Einstellungen editierbar, Muster
+`GRAPH_SEND_TIMEOUT`) als hartes Zeitlimit.
+
+**Wo ein späterer Hintergrund-Ablauf andocken würde, ohne die Schnittstelle umzubauen**: die
+Signatur `AIRequest` rein / `AIResponse` raus (oder eine der beiden `AIProviderError`-Klassen)
+bliebe unverändert. Eine künftige, lange laufende KI-Funktion (Minuten statt Sekunden, z. B.
+ein langer Bericht) würde `call_ai()` nicht anders aufrufen, sondern von einem ANDEREN
+Ausführungskontext aus (ein Hintergrund-Task/Worker statt direkt im Request-Response-Zyklus) --
+die aufrufende Fachfunktion würde sofort mit einem "wird verarbeitet"-Status antworten und der
+Hintergrund-Task würde `call_ai()` normal aufrufen, das Ergebnis in einer neuen, eigenen
+Job-Tabelle ablegen (NUR Status + `AIResponse`, niemals die Anfrage selbst -- die
+Datenschutz-Zusage unten gilt unverändert). `call_ai()`/`call_ai_async()` selbst bräuchten dafür
+keine Änderung, nur einen zweiten, später hinzukommenden Aufrufer.
+
+**Sicherheitsnetz-Timeout, unabhängig vom Adapter-Verhalten**: `_run_with_timeout()`
+(`app/ai_service.py`) führt `adapter.complete()` in einem eigenen `ThreadPoolExecutor`-Thread
+aus und erzwingt `AI_CALL_TIMEOUT_SECONDS` über `future.result(timeout=...)` -- unabhängig
+davon, ob der Adapter sein eigenes `timeout`-Argument tatsächlich beachtet. **Fallstrick, der
+beim Bauen gefunden und behoben wurde**: ein `with ThreadPoolExecutor(...) as executor:` ruft
+bei `__exit__` IMMER `shutdown(wait=True)` auf -- das hätte den rufenden Thread bei einer
+Zeitüberschreitung erneut blockiert, bis der (hängende) Hintergrund-Thread fertig ist, und den
+Zweck des Zeitlimits genau dann zunichtegemacht, wenn er am nötigsten ist. Behoben durch
+explizites `executor.shutdown(wait=False)` im `finally`-Block -- der rufende Thread kehrt
+garantiert spätestens nach 45s zurück, der verwaiste Hintergrund-Thread darf unabhängig davon
+zu Ende laufen. Als Regressionstest festgehalten
+(`test_call_ai_never_blocks_beyond_the_timeout_even_if_the_adapter_ignores_it`, misst die
+tatsächliche Rückkehrzeit gegen einen absichtlich hängenden Test-Adapter).
+
+**Aus async-Code ausschließlich `call_ai_async()` verwenden, nie `call_ai()` direkt** --
+`call_ai()` selbst blockiert den rufenden Thread bis zu 45s; direkt aus einer `async def`-Route
+aufgerufen würde das die Event-Loop blockieren (derselbe Fehlertyp, der in dieser Datei bereits
+für `post_service_report_photo()`/Bildverkleinerung dokumentiert ist). `call_ai_async()` reicht
+über `starlette.concurrency.run_in_threadpool()` an Starlettes Threadpool weiter. Aus einer
+gewöhnlichen `def`-Route (von Starlette automatisch threadgepoolt) `call_ai()` direkt
+verwenden.
+
+### Untersuchung: trägt synchron auf dem Produktivserver?
+
+**Korrigierte Prämisse, bereits im Befund vor dieser Runde und hier erneut bestätigt**: der
+Produktivserver läuft mit **einem** `gunicorn`-Arbeitsprozess, nicht zwei (siehe
+"Produktivbetrieb" oben, `Ein Arbeitsprozess (gunicorn, kein --workers 2+) ist bewusst so
+gewählt`). Der 1.4.6-Changelog-Eintrag zu dieser Datei präzisiert zusätzlich, WIE Nebenläufigkeit
+innerhalb dieses einen Prozesses tatsächlich entsteht: über die asyncio-Event-Loop
+(`async def`-Routen) UND Starlettes Threadpool (`def`-Routen bzw. `run_in_threadpool()`) --
+NICHT über mehrere Betriebssystemprozesse. Das bestätigt indirekt, dass der Prozess unter einem
+ASGI-Worker (z. B. `uvicorn.workers.UvicornWorker`) läuft, nicht unter gunicorns
+Standard-"sync"-Worker (der hätte weder Event-Loop noch Threadpool-Konzept).
+
+**Weder `--timeout` noch die genaue Worker-Klasse sind im Repository dokumentiert** -- eine
+Grep über das ganze Projekt findet keine `gunicorn`-Startzeile, keine `erp.service`-Datei,
+keine `gunicorn.conf.py`. Der tatsächliche Startbefehl liegt ausschließlich auf dem
+Ionos-VPS (systemd-Unit), außerhalb von Git und außerhalb der Reichweite dieser Sitzung -- das
+folgende Ergebnis ist deshalb eine begründete Architektur-Einschätzung, keine gegen den echten
+Server verifizierte Messung.
+
+**Ergebnis**: **Ja, synchron trägt** -- solange (und nur solange) `call_ai()`/`call_ai_async()`
+wie oben beschrieben korrekt thread-abgekoppelt aufgerufen werden. Begründung:
+
+- Ein einzelner KI-Aufruf belegt bei korrektem Aufruf EINEN Thread aus Starlettes Threadpool
+  (Standardkapazität mehrere Dutzend Threads) für bis zu 45s -- nicht den gesamten
+  Arbeitsprozess. Mehrere gleichzeitige KI-Aufrufe belegen entsprechend mehrere Threads, ohne
+  dass "beide Prozesse" (die es nicht gibt) blockiert würden -- bei der realistischen
+  Nutzerzahl dieses internen ERP (eine Handvoll gleichzeitiger Personen) bräuchte es sehr viele
+  gleichzeitige KI-Aufrufe, um den Threadpool tatsächlich zu erschöpfen.
+- Der tatsächlich gefährliche Fall ist NICHT "synchron vs. asynchron gebaut", sondern "wurde
+  der Aufruf vergessen thread-abzukoppeln": ein `async def`-Route-Handler, der `call_ai()`
+  direkt (ohne `run_in_threadpool`) aufruft, blockiert die Event-Loop -- währenddessen kann der
+  Prozess KEINE neue Arbeit mehr an den Threadpool übergeben (das Übergeben selbst läuft über
+  die Event-Loop), auch bereits laufende Threadpool-Arbeit wird davon aber nicht rückwirkend
+  gestoppt. Das ist der eigentliche Risikofall, nicht die Anzahl gleichzeitiger KI-Aufrufe.
+- Bezüglich `--timeout 120`: WENN der Worker tatsächlich ein ASGI-Worker ist (siehe oben) UND
+  die Event-Loop wie beschrieben frei bleibt, hält dessen eigener Heartbeat-Mechanismus
+  gegenüber dem gunicorn-Master unabhängig davon, wie lange eine EINZELNE Anfrage dauert --
+  ein `--timeout` von 120s wäre dann bequem ausreichend, aber wahrscheinlich auch ein
+  Standard-`--timeout` (30s) wäre unschädlich, weil der Heartbeat nicht an die Dauer der
+  langsamsten Anfrage gekoppelt ist. Wird die Event-Loop dagegen doch blockiert (der oben
+  genannte Fehlerfall), hilft kein `--timeout`-Wert -- im Gegenteil, ein zu knapper Wert würde
+  den Prozess dann sogar mitten im Request neu starten, was schlimmer ist als eine langsame
+  Antwort.
+- **Empfehlung, außerhalb dieser Sitzung zu prüfen**: beim nächsten Server-Zugriff den
+  tatsächlichen Startbefehl (`systemctl cat erp.service` oder gleichwertig) einsehen und einen
+  expliziten `--timeout` (z. B. 120, wie vorgeschlagen) UND die tatsächliche Worker-Klasse
+  bestätigen -- diese Sitzung kann das nicht selbst verifizieren.
+
+**Schlussfolgerung zur gestellten Frage**: synchron reicht für den Anfang, kein sofortiger
+Hintergrund-Ablauf nötig -- unter der Bedingung, dass jede künftige Fachfunktion `call_ai_async()`
+(nie `call_ai()` direkt) aus einer `async def`-Route aufruft, bzw. `call_ai()` direkt nur aus
+einer gewöhnlichen `def`-Route. Diese Bedingung ist wichtiger als die gewählte Zeitlimit-Zahl.
+
+### Kostenprotokoll -- niemals Inhalt
+
+`AICallLog` (`app/models.py`): `occurred_at`/`caller`/`success`/`error_type`/`input_tokens`/
+`output_tokens`/`cost_estimate`/`duration_ms` -- **strukturell** kein Feld, das Prompt, Anhang
+oder Antworttext aufnehmen könnte (nicht nur eine Verhaltenszusage, siehe
+`test_ai_call_log_table_has_no_column_that_could_hold_request_or_response_content()`, die
+exakt die Spaltenmenge prüft). `error_type` ist der reine Exception-Klassenname, nie dessen
+Text -- der könnte bei einem echten Anbieter-Adapter Teile der Anfrage enthalten.
+
+**Geprüft wie ausdrücklich verlangt**: die Anfrage selbst (Prompt, Bild/Dokument) wird an
+KEINER Stelle gespeichert -- nicht in `AICallLog`, nicht in einem Cache (es gibt keinen),
+nicht in einem Debug-Log (`_log_call()` protokolliert ausschließlich die oben genannten
+Metadaten-Parameter, niemals `request.prompt`/`request.attachments`). Ein eigener Test
+(`test_a_long_prompt_and_attachment_never_end_up_anywhere_in_the_logged_row`) ruft `call_ai()`
+mit einem bewusst vertraulich klingenden Prompt und Anhang auf und bestätigt, dass keine
+gespeicherte Spalte diesen Inhalt enthält.
+
+**Anders als `FailedLoginAttempt` bewusst OHNE automatische Bereinigung** -- der Zweck ist hier
+nicht kurzlebige Sicherheits-Buchhaltung, sondern dass der Betreiber über die Zeit sieht, was
+die KI kostet und ob sie funktioniert. Die Tabelle bleibt wie `AuditLog` dauerhaft bestehen.
+
+### Datenschutz-Rahmen
+
+- **Sichtbarkeit**: `provider`/`api_base_url`/`model` stehen als Klartext-Anzeigefelder in
+  Einstellungen → KI → KI-Anbieter (admin-only) -- der Schlüssel selbst bleibt wie beim
+  SMTP-Muster ausschließlich als `has_api_key`-Boolean sichtbar, nie im Klartext, auch nicht
+  beim Bearbeiten.
+- **Gesamtschalter**: `AISettings.enabled`, Default AUS (`server_default='0'`). `call_ai()`
+  prüft ihn als Erstes, vor jeder Netzwerkaktivität -- ist er aus, verhält es sich identisch zu
+  "kein Anbieter konfiguriert", unabhängig davon, ob bereits ein Anbieter/Schlüssel eingetragen
+  ist. Ein Anbieter lässt sich dadurch bereits vorbereiten, ohne dass Daten fließen, solange
+  kein AV-Vertrag steht.
+- **Hinweistext**: ein statischer Absatz direkt über dem Gesamtschalter in der Oberfläche, der
+  auf die Datenübermittlung bei aktiver externer KI und die AV-Vertrags-Pflicht hinweist.
+
+**Nur Administratoren** sehen/konfigurieren die KI-Einstellungen -- `require_admin()` an jedem
+Endpunkt, der Menüeintrag selbst ist serverseitig hinter `{% if can(current_user, 'admin') %}`
+verborgen (ausblenden, nicht ausgrauen, Muster der übrigen admin-only-Bereiche). Weder
+`buero_finanzen` noch `buero_auftrag` sehen den Menüpunkt oder erreichen die Endpunkte --
+Systemkonfiguration, keine Finanzfrage (Betreibervorgabe, abweichend von z. B.
+Kalkulationsgrundlagen).
+
+### Bewusst NICHT Teil dieser Version
+
+Kein `OPTIONAL_MODULES`-Eintrag (siehe Befund). Kein echter Anbieter-Adapter. Keine
+Fachfunktion nutzt `call_ai()`/`call_ai_async()` -- Belegauswertung/Angebotstexte/
+Berichtszusammenfassung bleiben eigene, spätere Runden. Kein Hintergrund-Ablauf (siehe oben,
+nur die Docking-Stelle ist vorbereitet).
+
+**Tests/Verifikation**: 24 neue Tests (`tests/test_v295_ai_fundament.py`) -- Typen, Mock-Adapter,
+Einstellungsverwaltung (inkl. "mock" nie persistierbar), `call_ai()`/`call_ai_async()` (Normalzustand,
+Dispatch ohne Adapter, Fehlerübersetzung, das Zeitlimit-Sicherheitsnetz mit Regressionstest gegen
+den `shutdown(wait=False)`-Fallstrick, Async-Offloading über die `threaded_db_session`-Fixture,
+da `call_ai_async()` tatsächlich in einem anderen Thread läuft), die strukturelle
+Kein-Inhalt-Garantie des Protokolls, und der abschließend verlangte Angriffstest
+(`buero_finanzen`/`buero_auftrag`/`field` kommen an keinen Teil der KI-Einstellungen, inkl. des
+Test-Endpunkts und ohne dass der Schlüssel je in einer 403-/200-Antwort auftaucht). Migration
+`d87d5bc04b69` (zwei neue Tabellen, keine Änderung an bestehenden), volle Suite: 1764 Tests grün.
+
 ## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
 
 Das durchgängige `ensure_default_*()`-Muster dieses Projekts (siehe z. B. "Betriebsmittelverwaltung",
