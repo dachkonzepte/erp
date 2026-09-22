@@ -38,14 +38,17 @@ anderen Ausführungskontext aus nutzen, siehe CLAUDE.md "KI-Fundament" für die 
 Zeitüberschreitung trotzdem auf den hängenden Hintergrund-Thread gewartet
 (`shutdown(wait=True)` in `__exit__`) und das Zeitlimit dadurch wirkungslos gemacht -- behoben
 durch explizites `shutdown(wait=False)`, mit Regressionstest (misst die tatsächliche
-Rückkehrzeit gegen einen absichtlich hängenden Test-Adapter). **Untersucht, wie verlangt**: der
-Produktivserver läuft mit EINEM `gunicorn`-Arbeitsprozess, nicht zwei (Prämisse korrigiert) --
-Nebenläufigkeit entsteht über asyncio-Event-Loop und Starlettes Threadpool innerhalb dieses
-einen Prozesses. Synchron trägt, solange jede künftige Fachfunktion `call_ai_async()` aus einer
-`async def`-Route bzw. `call_ai()` nur aus einer gewöhnlichen `def`-Route aufruft -- die
-tatsächliche Gefahr ist ein vergessenes Thread-Abkoppeln, nicht die gewählte Zeitlimit-Zahl.
-`--timeout`/Worker-Klasse sind auf dem Server nicht im Repository dokumentiert, siehe CLAUDE.md
-für die Empfehlung, das beim nächsten Server-Zugriff zu verifizieren.
+Rückkehrzeit gegen einen absichtlich hängenden Test-Adapter). **Untersucht, dabei zunächst auf
+einer falschen, andernorts in CLAUDE.md bereits fehlerhaft dokumentierten Prämisse aufgebaut
+und direkt im Anschluss korrigiert**: der Produktivserver läuft laut echtem `ExecStart`
+tatsächlich mit ZWEI `gunicorn`-Arbeitsprozessen (`-w 2 --timeout 120`), nicht einem.
+Nebenläufigkeit entsteht dadurch über zwei unabhängige asyncio-Event-Loops mit je eigenem
+Starlette-Threadpool -- mehr Gesamtkapazität als mit einem Prozess, aber eine versehentlich
+blockierte Event-Loop legt jetzt konkret die Hälfte davon lahm, nicht alles. Synchron trägt
+trotzdem, solange jede künftige Fachfunktion `call_ai_async()` aus einer `async def`-Route bzw.
+`call_ai()` nur aus einer gewöhnlichen `def`-Route aufruft -- diese Regel ist durch die
+Korrektur nicht schwächer geworden, siehe CLAUDE.md "KI-Fundament" -> "Untersuchung" für die
+vollständige Herleitung beider Fassungen.
 
 **Kostenprotokoll**: `AICallLog` (Zeitpunkt, aufrufende Funktion, Erfolg/Fehler, Token/Kosten)
 -- strukturell kein Feld, das Prompt/Anhang/Antworttext aufnehmen könnte, `error_type` ist der

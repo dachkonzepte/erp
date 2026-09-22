@@ -1541,13 +1541,24 @@ Stand, den `git log` nicht erklären kann), nicht nur ein theoretisches.
 | Datenordner (`ERP_DATA_DIR`, außerhalb von Git) | `/home/tobias/erp-data` |
 | Umgebung | `/home/tobias/erp/.env` |
 | Datenbank | `dachkonzepte` (produktiv), `spielwiese` (Probe, siehe unten) |
-| Dienst | `erp.service`, `gunicorn` mit einem Arbeitsprozess |
+| Dienst | `erp.service`, `gunicorn -w 2 --timeout 120` |
 | Sicherung | `/home/tobias/backup.sh`, täglich 2 Uhr UTC, 14 Tage Aufbewahrung |
 | Notfallskripte | `scripts/reset_admin_2fa.py`, `scripts/migrate_sqlite_to_postgres.py` |
 
-Ein Arbeitsprozess (`gunicorn`, kein `--workers 2+`) ist bewusst so gewählt, nicht versehentlich
-klein -- passend zum 4-GB-Speicherbudget oben; jeder zusätzliche Worker verdoppelt effektiv den
-Speicherbedarf der Anwendung selbst.
+**Korrigiert (KI-Fundament-Runde, seit 1.6.2)**: diese Datei behauptete hier bisher fälschlich
+"ein Arbeitsprozess, kein `--workers 2+`" -- am 22.09.2026 direkt gegen den echten `ExecStart`
+der systemd-Unit auf dem VPS verifiziert: **zwei** Arbeitsprozesse (`-w 2`), explizites
+`--timeout 120`. Woher die falsche Behauptung kam, lässt sich nicht mehr rekonstruieren (keine
+Quellenangabe in der ursprünglichen Fassung) -- sie wurde nie gegen den echten Server geprüft,
+bis zu diesem Zeitpunkt. Zwei Arbeitsprozesse bedeuten zwei unabhängige asyncio-Event-Loops mit
+je eigenem Starlette-Threadpool (kein gemeinsamer Speicher, keine gemeinsame Warteschlange) --
+die Gesamtkapazität ist dadurch GRÖSSER als bei einem Prozess, aber eine blockierte Event-Loop
+legt jetzt "nur" die Hälfte der Kapazität lahm, nicht alles (siehe "KI-Fundament" ->
+"Untersuchung" unten für die konkrete Auswirkung). Jede an dieser Stelle vorher gemachte
+Speicherbudget-Begründung ("ein Worker, weil jeder zusätzliche den Speicherbedarf verdoppelt")
+war demnach ebenfalls nicht (mehr) zutreffend für den tatsächlich laufenden Server -- ob das
+4-GB-Budget mit zwei Workern tatsächlich knapp ist, ist an dieser Stelle nicht neu untersucht
+worden, nur die Tatsachenbehauptung selbst korrigiert.
 
 ### Der Weg einer Änderung auf den Server
 
@@ -7483,8 +7494,9 @@ Projekt. `resize_and_store_photo()` (`app/service_report_photos.py`, 1.2.17) ver
 Pillow (`exif_transpose()` + `thumbnail()` auf 1600px + JPEG q82) -- dabei ein echter,
 architektonischer Fund: der Aufrufer (`post_service_report_photo`, eine `async def`-Route) ruft
 diese synchrone, CPU-gebundene Funktion direkt auf, ohne `run_in_threadpool()`/
-`asyncio.to_thread()` -- blockiert damit den EINEN gunicorn-Arbeitsprozess des 4-GB-Produktivservers
-für die Dauer jeder Verkleinerung. Für eine künftige, neue Foto-Upload-Route in der Objektablage
+`asyncio.to_thread()` -- blockiert damit einen der beiden gunicorn-Arbeitsprozesse des
+4-GB-Produktivservers (siehe "Produktivbetrieb" oben, `-w 2`) für die Dauer jeder Verkleinerung,
+die Hälfte der Gesamtkapazität. Für eine künftige, neue Foto-Upload-Route in der Objektablage
 NICHT verbatim kopieren -- entweder eine gewöhnliche `def`-Route (Starlette threadpoolt synchrone
 Routen automatisch) oder ein expliziter `run_in_threadpool()`-Aufruf.
 
@@ -10715,56 +10727,66 @@ verwenden.
 
 ### Untersuchung: trägt synchron auf dem Produktivserver?
 
-**Korrigierte Prämisse, bereits im Befund vor dieser Runde und hier erneut bestätigt**: der
-Produktivserver läuft mit **einem** `gunicorn`-Arbeitsprozess, nicht zwei (siehe
-"Produktivbetrieb" oben, `Ein Arbeitsprozess (gunicorn, kein --workers 2+) ist bewusst so
-gewählt`). Der 1.4.6-Changelog-Eintrag zu dieser Datei präzisiert zusätzlich, WIE Nebenläufigkeit
-innerhalb dieses einen Prozesses tatsächlich entsteht: über die asyncio-Event-Loop
-(`async def`-Routen) UND Starlettes Threadpool (`def`-Routen bzw. `run_in_threadpool()`) --
-NICHT über mehrere Betriebssystemprozesse. Das bestätigt indirekt, dass der Prozess unter einem
-ASGI-Worker (z. B. `uvicorn.workers.UvicornWorker`) läuft, nicht unter gunicorns
-Standard-"sync"-Worker (der hätte weder Event-Loop noch Threadpool-Konzept).
+**Korrektur (nach Server-Verifikation durch den Betreiber, direkt im Anschluss an diese
+Version)**: die vorherige Fassung dieses Abschnitts ging von "ein Arbeitsprozess" aus -- eine
+zu diesem Zeitpunkt bereits an anderer Stelle in dieser Datei falsch dokumentierte Prämisse
+(siehe die Korrektur unter "Produktivbetrieb" oben). Der Betreiber hat den tatsächlichen
+`ExecStart` der systemd-Unit auf dem VPS eingesehen: `gunicorn -w 2 --timeout 120` -- **zwei**
+Arbeitsprozesse, `--timeout` tatsächlich explizit gesetzt (nicht der gunicorn-Standardwert).
+Diese eigene Einschätzung stand ausschließlich auf der Ein-Prozess-Annahme, wo es um die
+KONSEQUENZ eines Fehlers ging (siehe unten) -- der Timeout-Mechanismus selbst, die
+`call_ai_async()`-Regel und das gesamte übrige Fundament (Mock-Adapter, Protokoll,
+Einstellungen) hängen an keiner Stelle von der Prozesszahl ab, siehe die Prüfung am Ende dieses
+Abschnitts.
 
-**Weder `--timeout` noch die genaue Worker-Klasse sind im Repository dokumentiert** -- eine
-Grep über das ganze Projekt findet keine `gunicorn`-Startzeile, keine `erp.service`-Datei,
-keine `gunicorn.conf.py`. Der tatsächliche Startbefehl liegt ausschließlich auf dem
-Ionos-VPS (systemd-Unit), außerhalb von Git und außerhalb der Reichweite dieser Sitzung -- das
-folgende Ergebnis ist deshalb eine begründete Architektur-Einschätzung, keine gegen den echten
-Server verifizierte Messung.
+**Zwei Prozesse bedeuten zwei unabhängige asyncio-Event-Loops mit je eigenem
+Starlette-Threadpool** -- kein gemeinsamer Speicher, keine gemeinsame Warteschlange zwischen
+beiden gunicorn-Arbeitsprozessen. Das ändert die Einschätzung an genau einer Stelle:
 
-**Ergebnis**: **Ja, synchron trägt** -- solange (und nur solange) `call_ai()`/`call_ai_async()`
-wie oben beschrieben korrekt thread-abgekoppelt aufgerufen werden. Begründung:
+- **Gesamtkapazität**: GRÖSSER als mit einem Prozess, nicht kleiner -- wie vom Betreiber
+  richtig eingeschätzt, unkritisch. Zwei Threadpools statt einem, mehr gleichzeitig lauffähige
+  KI-Aufrufe, bevor irgendein Engpass entsteht.
+- **Die `call_ai_async()`-Regel bleibt GENAUSO wichtig, nicht weniger** -- nur ihre Konsequenz
+  bei Verstoß ist jetzt genauer zu benennen: eine `async def`-Route, die `call_ai()` DIREKT
+  (ohne `run_in_threadpool`) aufruft, blockiert die Event-Loop GENAU DES EINEN
+  Arbeitsprozesses, der diese Anfrage bearbeitet -- also die Hälfte der Gesamtkapazität, nicht
+  alles und nicht nichts. Das ist exakt die ursprünglich (vor der fälschlichen "ein
+  Prozess"-Korrektur der letzten Runde) vom Betreiber selbst benannte Formulierung
+  ("die Hälfte der Kapazität") -- sie war die ganze Zeit richtig, die Korrektur der letzten
+  Runde war es nicht. Der andere Arbeitsprozess bleibt von einer blockierten Event-Loop des
+  ersten vollständig unberührt (kein gemeinsamer Zustand) und bedient währenddessen weiterhin
+  jede Anfrage, die gunicorn ihm zuteilt -- "die Hälfte der Kapazität" ist damit trotzdem ein
+  ernstzunehmender, kein vernachlässigbarer Ausfall: für die Dauer der Blockade (bis zu
+  `AI_CALL_TIMEOUT_SECONDS`) bekommt etwa jede zweite neue Anfrage keine Bearbeitung, real
+  spürbar für alle gerade angemeldeten Personen, nicht nur ein theoretisches Risiko.
+- **`--timeout 120` jetzt bestätigt statt nur vermutet**: mit `AI_CALL_TIMEOUT_SECONDS = 45`
+  deutlich darunter -- ein korrekt thread-abgekoppelter KI-Aufruf lässt die Event-Loop des
+  bearbeitenden Prozesses währenddessen frei, der gunicorn-Heartbeat bleibt unabhängig von der
+  Aufrufdauer unberührt. Selbst im Fehlerfall (Event-Loop direkt blockiert) würde ein einzelner
+  45s-Aufruf `--timeout 120` nicht auslösen -- ein Prozess-Neustart durch gunicorn selbst
+  bräuchte entweder einen deutlich längeren Hänger oder mehrere sich überlappende Blockaden. Das
+  ändert an der Schwere des "die Hälfte blockiert"-Falls nichts (der tritt schon bei einer
+  einzelnen falsch aufgerufenen Route ein), macht aber einen zusätzlichen, durch gunicorn selbst
+  ausgelösten Prozess-Abbruch mitten im Request unwahrscheinlich.
 
-- Ein einzelner KI-Aufruf belegt bei korrektem Aufruf EINEN Thread aus Starlettes Threadpool
-  (Standardkapazität mehrere Dutzend Threads) für bis zu 45s -- nicht den gesamten
-  Arbeitsprozess. Mehrere gleichzeitige KI-Aufrufe belegen entsprechend mehrere Threads, ohne
-  dass "beide Prozesse" (die es nicht gibt) blockiert würden -- bei der realistischen
-  Nutzerzahl dieses internen ERP (eine Handvoll gleichzeitiger Personen) bräuchte es sehr viele
-  gleichzeitige KI-Aufrufe, um den Threadpool tatsächlich zu erschöpfen.
-- Der tatsächlich gefährliche Fall ist NICHT "synchron vs. asynchron gebaut", sondern "wurde
-  der Aufruf vergessen thread-abzukoppeln": ein `async def`-Route-Handler, der `call_ai()`
-  direkt (ohne `run_in_threadpool`) aufruft, blockiert die Event-Loop -- währenddessen kann der
-  Prozess KEINE neue Arbeit mehr an den Threadpool übergeben (das Übergeben selbst läuft über
-  die Event-Loop), auch bereits laufende Threadpool-Arbeit wird davon aber nicht rückwirkend
-  gestoppt. Das ist der eigentliche Risikofall, nicht die Anzahl gleichzeitiger KI-Aufrufe.
-- Bezüglich `--timeout 120`: WENN der Worker tatsächlich ein ASGI-Worker ist (siehe oben) UND
-  die Event-Loop wie beschrieben frei bleibt, hält dessen eigener Heartbeat-Mechanismus
-  gegenüber dem gunicorn-Master unabhängig davon, wie lange eine EINZELNE Anfrage dauert --
-  ein `--timeout` von 120s wäre dann bequem ausreichend, aber wahrscheinlich auch ein
-  Standard-`--timeout` (30s) wäre unschädlich, weil der Heartbeat nicht an die Dauer der
-  langsamsten Anfrage gekoppelt ist. Wird die Event-Loop dagegen doch blockiert (der oben
-  genannte Fehlerfall), hilft kein `--timeout`-Wert -- im Gegenteil, ein zu knapper Wert würde
-  den Prozess dann sogar mitten im Request neu starten, was schlimmer ist als eine langsame
-  Antwort.
-- **Empfehlung, außerhalb dieser Sitzung zu prüfen**: beim nächsten Server-Zugriff den
-  tatsächlichen Startbefehl (`systemctl cat erp.service` oder gleichwertig) einsehen und einen
-  expliziten `--timeout` (z. B. 120, wie vorgeschlagen) UND die tatsächliche Worker-Klasse
-  bestätigen -- diese Sitzung kann das nicht selbst verifizieren.
+**Was sich NICHT ändert, ausdrücklich geprüft**: der Sicherheitsnetz-Timeout in
+`_run_with_timeout()` (`ThreadPoolExecutor` + `future.result(timeout=...)` +
+`shutdown(wait=False)`) operiert vollständig INNERHALB des einen Prozesses, der ihn ausführt --
+er kennt und braucht die Gesamtzahl der gunicorn-Arbeitsprozesse an keiner Stelle. Genauso
+unabhängig von der Prozesszahl: die `call_ai_async()`/`run_in_threadpool()`-Empfehlung selbst
+(korrektes Thread-Abkoppeln ist innerhalb JEDES einzelnen Prozesses nötig, unabhängig davon, wie
+viele es insgesamt gibt), das Mock-Adapter-Fundament, `AISettings`/`AICallLog` und die
+Datenschutz-Zusage (keine Inhalte im Protokoll). Kein Teil des tatsächlich gebauten Codes
+(`app/ai_service.py` u. a.) musste wegen dieser Korrektur geändert werden -- ausschließlich die
+Prosa-Einschätzung der Konsequenz in diesem Abschnitt war betroffen.
 
-**Schlussfolgerung zur gestellten Frage**: synchron reicht für den Anfang, kein sofortiger
-Hintergrund-Ablauf nötig -- unter der Bedingung, dass jede künftige Fachfunktion `call_ai_async()`
-(nie `call_ai()` direkt) aus einer `async def`-Route aufruft, bzw. `call_ai()` direkt nur aus
-einer gewöhnlichen `def`-Route. Diese Bedingung ist wichtiger als die gewählte Zeitlimit-Zahl.
+**Schlussfolgerung zur gestellten Frage, unverändert**: synchron reicht für den Anfang, kein
+sofortiger Hintergrund-Ablauf nötig -- unter der Bedingung, dass jede künftige Fachfunktion
+`call_ai_async()` (nie `call_ai()` direkt) aus einer `async def`-Route aufruft, bzw. `call_ai()`
+direkt nur aus einer gewöhnlichen `def`-Route. Diese Bedingung ist -- jetzt nachweislich, nicht
+nur vermutet -- wichtiger als die gewählte Zeitlimit-Zahl: sie entscheidet, ob ein KI-Aufruf
+eine Handvoll Threads bindet (unkritisch, siehe oben) oder die Hälfte des gesamten ERP für
+jeden anderen Nutzer für bis zu 45 Sekunden lahmlegt.
 
 ### Kostenprotokoll -- niemals Inhalt
 
