@@ -813,9 +813,17 @@ def delete_project(db: Session, project: Project) -> None:
     project_directory()) und müssen ebenfalls explizit mitgelöscht werden --
     erst NACH erfolgreichem db.commit(), damit bei einem Datenbankfehler
     keine Dateien verloren gehen, die noch von einem (dann nicht gelöschten)
-    Datenbankeintrag referenziert würden."""
+    Datenbankeintrag referenziert würden.
+
+    Seit dem Kalender-Modul (1.7.0) zusätzlich: unlink_calendar_events_for_project() hängt
+    referenzierende CalendarEvent-Zeilen aus (project_id/quote_id -> NULL), statt sie zu
+    löschen -- ein Termin (Besichtigung/Aufmaß) bleibt auch nach Löschen des Projekts als
+    eigenständige Historie sinnvoll. Muss VOR dem Löschen der Quotes (Kaskade unten) laufen,
+    sonst verletzt PostgreSQL die Fremdschlüssel-Bedingung auf CalendarEvent.quote_id."""
     if project.orders:
         raise ValueError("Projekte mit bestehendem Auftrag können nicht gelöscht werden, nur archiviert.")
+    from .calendar_events import unlink_calendar_events_for_project
+    unlink_calendar_events_for_project(db, project.id)
     directory = project_directory(project.id)
     for quote in project.quotes:
         db.execute(delete(QuoteSection).where(QuoteSection.quote_id == quote.id))

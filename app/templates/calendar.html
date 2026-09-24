@@ -1,0 +1,409 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Kalender</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}main{max-width:1500px;margin:0;padding:20px}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.toolbar h1{margin:0;font-size:20px}
+.nav{display:flex;gap:6px;align-items:center}
+.btn{border:1px solid var(--line);background:transparent;color:var(--ink);padding:8px 12px;font:inherit;font-weight:750;cursor:pointer;text-decoration:none;display:inline-block}
+.btn:hover{background:var(--soft)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary:hover{background:color-mix(in srgb,var(--accent) 85%,black)}
+.btn.danger{background:var(--danger-soft);color:var(--danger);border-color:transparent}
+.views{display:flex;gap:2px}
+.views .btn{border-radius:0}
+.views .btn.active{background:var(--soft);color:var(--accent);border-color:var(--accent)}
+.period-label{font-weight:800;font-size:15px;min-width:200px;text-align:center}
+.month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+.month-head{background:var(--soft);padding:6px 8px;font-size:11px;font-weight:800;text-transform:uppercase;color:var(--muted)}
+.month-cell{background:var(--card);min-height:100px;padding:6px;display:flex;flex-direction:column;gap:3px}
+.month-cell.other-month{background:color-mix(in srgb,var(--soft) 60%,var(--card));opacity:.65}
+.month-cell.today .day-num{background:var(--accent);color:#fff;border-radius:999px}
+.day-num{font-size:12px;font-weight:800;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
+.event-chip{font-size:11px;padding:3px 5px;background:var(--soft);color:var(--ink);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid var(--accent)}
+.event-chip:hover{background:color-mix(in srgb,var(--accent) 12%,var(--soft))}
+.event-chip.private-busy{border-left-color:var(--muted);color:var(--muted);font-style:italic}
+.event-chip .owner-tag{opacity:.7;margin-left:4px}
+.more-link{font-size:11px;color:var(--accent);cursor:pointer;font-weight:750}
+.week-grid,.day-grid{display:grid;gap:8px}
+.week-grid{grid-template-columns:repeat(7,minmax(0,1fr))}
+.day-grid{grid-template-columns:1fr}
+.day-col{border:1px solid var(--line);min-height:120px;padding:8px;background:var(--card)}
+.day-col.today{border-color:var(--accent)}
+.day-col-head{font-size:12px;font-weight:800;margin-bottom:8px;color:var(--muted)}
+.day-col-head b{color:var(--ink);font-size:13px}
+.event-row{border:1px solid var(--line);background:var(--soft);padding:7px 9px;margin-bottom:6px;cursor:pointer;font-size:12.5px}
+.event-row:hover{border-color:var(--accent)}
+.event-row.private-busy{background:transparent;border-style:dashed;color:var(--muted);font-style:italic}
+.event-row .time{font-weight:800;display:block}
+.event-row .loc{color:var(--muted);font-size:11.5px}
+.empty{padding:30px;text-align:center;color:var(--muted);border:1px dashed var(--line)}
+.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(10,15,13,.5);z-index:1000;padding:30px;align-items:center;justify-content:center}
+.modal-backdrop.open{display:flex}
+.modal{background:var(--card);color:var(--ink);border:1px solid var(--line);width:min(620px,100%);max-height:90vh;overflow:auto;box-shadow:0 20px 70px rgba(0,0,0,.35);padding:20px}
+.modal h2{margin:0 0 14px}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field label{display:block;font-size:11px;font-weight:750;color:var(--muted);margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%;padding:9px 10px;border:1px solid var(--field-border);font:inherit;background:var(--card);color:var(--ink)}
+.field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+.wide{grid-column:1/-1}
+.check{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:650}
+.check input{width:auto}
+.modal-actions{display:flex;justify-content:space-between;gap:8px;margin-top:16px}
+.modal-actions .right{display:flex;gap:8px}
+.hint{font-size:11px;color:var(--muted);margin-top:4px}
+.status{font-size:12px;color:var(--muted);min-height:16px;margin-top:6px}
+.suggest-list{position:relative}
+.suggest-box{position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--line);max-height:200px;overflow:auto;z-index:20;box-shadow:0 8px 20px rgba(0,0,0,.15)}
+.suggest-item{padding:8px 10px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--line)}
+.suggest-item:hover{background:var(--soft)}
+.link-tag{display:inline-flex;align-items:center;gap:6px;background:var(--soft);padding:5px 8px;font-size:12px;margin-top:6px}
+.link-tag button{border:0;background:none;color:var(--danger);cursor:pointer;font-weight:800;padding:0}
+@media(max-width:1000px){.week-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.month-cell{min-height:70px}}
+@media(max-width:650px){main{padding:10px}.modal-grid{grid-template-columns:1fr}.week-grid{grid-template-columns:1fr}}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+{% include "_topbar.html" %}
+{% include "_debounce.html" %}
+<main>
+<div class="toolbar">
+  <h1>Kalender</h1>
+  <div class="views">
+    <button type="button" class="btn" data-view="day" onclick="setView('day')">Tag</button>
+    <button type="button" class="btn" data-view="week" onclick="setView('week')">Woche</button>
+    <button type="button" class="btn" data-view="month" onclick="setView('month')">Monat</button>
+  </div>
+  <div class="nav">
+    <button type="button" class="btn" onclick="navigate(-1)">‹</button>
+    <button type="button" class="btn" onclick="goToday()">Heute</button>
+    <button type="button" class="btn" onclick="navigate(1)">›</button>
+    <span id="periodLabel" class="period-label">—</span>
+  </div>
+  <button type="button" class="btn primary" onclick="openCreate()">+ Termin</button>
+</div>
+
+<div id="calendarBody"></div>
+
+</main>
+</div>
+</div>
+
+<div id="eventModal" class="modal-backdrop">
+  <div class="modal">
+    <h2 id="modalHeading">Termin anlegen</h2>
+    <input type="hidden" id="eId">
+    <div class="modal-grid">
+      <div class="field wide"><label>Titel *</label><input id="eTitle" maxlength="255"></div>
+      <div class="field wide check"><label class="check"><input id="eAllDay" type="checkbox" onchange="toggleAllDayInputs()"> Ganztägig</label></div>
+      <div class="field"><label>Beginn *</label><input id="eStartDate" type="date"><input id="eStartTime" type="time" style="margin-top:6px"></div>
+      <div class="field"><label>Ende *</label><input id="eEndDate" type="date"><input id="eEndTime" type="time" style="margin-top:6px"></div>
+      <div class="field"><label>Ort</label><input id="eLocation" maxlength="255"></div>
+      <div class="field"><label>Besitzer</label><select id="eOwner"></select></div>
+      <div class="field wide check"><label class="check"><input id="ePrivate" type="checkbox"> Privat (für Kollegen nur „Belegt“ sichtbar)</label></div>
+      <div class="field wide"><label>Notiz</label><textarea id="eNotes" rows="3"></textarea></div>
+      <div class="field wide suggest-list">
+        <label>Projekt oder Angebot verknüpfen <span class="hint" style="margin:0">(optional, höchstens eines)</span></label>
+        <input id="eLinkSearch" placeholder="Projektnummer, Angebotsnummer oder Name eintippen …" oninput="debouncedLinkSearch()" onfocus="debouncedLinkSearch()">
+        <div id="eLinkSuggestBox" class="suggest-box" style="display:none"></div>
+        <div id="eLinkTag" style="display:none"></div>
+      </div>
+    </div>
+    <div id="modalStatus" class="status"></div>
+    <div class="modal-actions">
+      <button type="button" id="deleteBtn" class="btn danger" style="display:none" onclick="deleteCurrentEvent()">Löschen</button>
+      <div class="right">
+        <button type="button" class="btn" onclick="closeModal()">Abbrechen</button>
+        <button type="button" class="btn primary" onclick="saveEvent()">Speichern</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+async function api(u,o){const r=await fetch(u,o);if(!r.ok){let d={};try{d=await r.json()}catch{}throw Error(d.detail||r.statusText)}return r.headers.get('content-type')?.includes('json')?r.json():r}
+
+let view=localStorage.getItem('erp_calendar_view')||'month';
+let anchor=new Date();anchor.setHours(0,0,0,0);
+let owners=[];
+let events=[];
+let selectedLink=null; // {type:'project'|'quote', id, label}
+
+function pad(n){return String(n).padStart(2,'0')}
+function toDateStr(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
+function toLocalIso(dateStr,timeStr){return `${dateStr}T${timeStr||'00:00'}:00`}
+function startOfWeek(d){const x=new Date(d);const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);return x}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
+
+function setView(v){view=v;localStorage.setItem('erp_calendar_view',v);document.querySelectorAll('.views .btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));render()}
+function navigate(dir){
+  if(view==='day')anchor=addDays(anchor,dir);
+  else if(view==='week')anchor=addDays(anchor,dir*7);
+  else{anchor=new Date(anchor.getFullYear(),anchor.getMonth()+dir,1)}
+  render()
+}
+function goToday(){anchor=new Date();anchor.setHours(0,0,0,0);render()}
+
+function periodRange(){
+  if(view==='day')return{start:new Date(anchor),end:addDays(anchor,1)};
+  if(view==='week'){const s=startOfWeek(anchor);return{start:s,end:addDays(s,7)}}
+  const s=new Date(anchor.getFullYear(),anchor.getMonth(),1);
+  const e=new Date(anchor.getFullYear(),anchor.getMonth()+1,1);
+  return{start:s,end:e};
+}
+function gridRange(){
+  // Fürs Monatsraster wird ein größeres Fenster geladen (volle Wochen vor/nach Monatsanfang/-ende).
+  if(view!=='month')return periodRange();
+  const {start,end}=periodRange();
+  return{start:startOfWeek(start),end:addDays(startOfWeek(addDays(end,-1)),7)};
+}
+
+function periodLabelText(){
+  const opts={day:{day:'2-digit',month:'2-digit',year:'numeric'},week:{},month:{month:'long',year:'numeric'}};
+  if(view==='day')return anchor.toLocaleDateString('de-DE',opts.day);
+  if(view==='month')return anchor.toLocaleDateString('de-DE',opts.month);
+  const s=startOfWeek(anchor),e=addDays(s,6);
+  return `${s.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})} – ${e.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
+}
+
+async function loadOwners(){owners=await api('/api/calendar-events/owners')}
+
+async function loadEvents(){
+  const{start,end}=gridRange();
+  const qs=new URLSearchParams({start:start.toISOString(),end:end.toISOString()});
+  events=await api('/api/calendar-events?'+qs.toString());
+}
+
+function eventsForDay(dateStr){
+  return events.filter(e=>{
+    const s=new Date(e.start_at),en=new Date(e.end_at);
+    return toDateStr(s)<=dateStr && toDateStr(en)>=dateStr;
+  }).sort((a,b)=>new Date(a.start_at)-new Date(b.start_at));
+}
+
+function timeRangeLabel(e){
+  if(e.all_day)return 'Ganztägig';
+  const f=d=>new Date(d).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+  return `${f(e.start_at)} – ${f(e.end_at)}`;
+}
+
+function eventChipHtml(e,dense){
+  const busy=e.title==='Belegt'&&e.is_private;
+  const cls=dense?'event-chip':'event-row';
+  const busyCls=busy?(dense?' private-busy':' private-busy'):'';
+  if(busy)return `<div class="${cls}${busyCls}" onclick="event.stopPropagation()" title="Privater Termin von ${esc(e.owner_name||'?')}">🔒 ${dense?'':'<span class=\"time\">'+timeRangeLabel(e)+'</span>'}Belegt <span class="owner-tag">(${esc(e.owner_name||'')})</span></div>`;
+  const owner=e.owner_name?` <span class="owner-tag">· ${esc(e.owner_name)}</span>`:'';
+  if(dense)return `<div class="event-chip" onclick="openEdit(${e.id})" title="${esc(e.title)}">${esc(e.title)}${owner}</div>`;
+  return `<div class="event-row" onclick="openEdit(${e.id})"><span class="time">${timeRangeLabel(e)}</span>${esc(e.title)}${owner}${e.location?`<div class="loc">📍 ${esc(e.location)}</div>`:''}</div>`;
+}
+
+function render(){
+  document.getElementById('periodLabel').textContent=periodLabelText();
+  document.querySelectorAll('.views .btn').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+  loadEvents().then(()=>{
+    if(view==='month')renderMonth();
+    else if(view==='week')renderWeek();
+    else renderDay();
+  });
+}
+
+function renderMonth(){
+  const {start:gridStart}=gridRange();
+  const todayStr=toDateStr(new Date());
+  const monthIdx=anchor.getMonth();
+  let html='<div class="card"><div class="month-grid">';
+  ['Mo','Di','Mi','Do','Fr','Sa','So'].forEach(d=>html+=`<div class="month-head">${d}</div>`);
+  for(let i=0;i<42;i++){
+    const d=addDays(gridStart,i);
+    const dStr=toDateStr(d);
+    const dayEvents=eventsForDay(dStr);
+    const other=d.getMonth()!==monthIdx?' other-month':'';
+    const isToday=dStr===todayStr?' today':'';
+    html+=`<div class="month-cell${other}${isToday}"><div class="day-num">${d.getDate()}</div>`;
+    dayEvents.slice(0,3).forEach(e=>html+=eventChipHtml(e,true));
+    if(dayEvents.length>3)html+=`<span class="more-link" onclick="anchor=new Date(${d.getFullYear()},${d.getMonth()},${d.getDate()});setView('day')">+${dayEvents.length-3} weitere</span>`;
+    html+='</div>';
+  }
+  html+='</div></div>';
+  document.getElementById('calendarBody').innerHTML=html;
+}
+
+function renderWeek(){
+  const s=startOfWeek(anchor);
+  const todayStr=toDateStr(new Date());
+  let html='<div class="week-grid">';
+  for(let i=0;i<7;i++){
+    const d=addDays(s,i);
+    const dStr=toDateStr(d);
+    const dayEvents=eventsForDay(dStr);
+    html+=`<div class="day-col${dStr===todayStr?' today':''}"><div class="day-col-head">${d.toLocaleDateString('de-DE',{weekday:'short'})} <b>${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</b></div>`;
+    html+=dayEvents.length?dayEvents.map(e=>eventChipHtml(e,false)).join(''):'<div class="hint">Keine Termine.</div>';
+    html+='</div>';
+  }
+  html+='</div>';
+  document.getElementById('calendarBody').innerHTML=html;
+}
+
+function renderDay(){
+  const dStr=toDateStr(anchor);
+  const dayEvents=eventsForDay(dStr);
+  let html='<div class="day-grid"><div class="day-col today"><div class="day-col-head"><b>'+anchor.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})+'</b></div>';
+  html+=dayEvents.length?dayEvents.map(e=>eventChipHtml(e,false)).join(''):'<div class="empty">Keine Termine an diesem Tag.</div>';
+  html+='</div></div>';
+  document.getElementById('calendarBody').innerHTML=html;
+}
+
+function ownerOptionsHtml(selectedId){
+  return owners.map(o=>`<option value="${o.id}" ${o.id===selectedId?'selected':''}>${esc(o.display_name)}</option>`).join('');
+}
+
+function toggleAllDayInputs(){
+  const allDay=document.getElementById('eAllDay').checked;
+  document.getElementById('eStartTime').style.display=allDay?'none':'block';
+  document.getElementById('eEndTime').style.display=allDay?'none':'block';
+}
+
+function resetModal(){
+  document.getElementById('eId').value='';
+  document.getElementById('eTitle').value='';
+  document.getElementById('eAllDay').checked=false;
+  document.getElementById('eLocation').value='';
+  document.getElementById('ePrivate').checked=false;
+  document.getElementById('eNotes').value='';
+  document.getElementById('eLinkSearch').value='';
+  document.getElementById('eLinkTag').style.display='none';
+  document.getElementById('eLinkSuggestBox').style.display='none';
+  document.getElementById('modalStatus').textContent='';
+  document.getElementById('deleteBtn').style.display='none';
+  selectedLink=null;
+  const now=new Date();
+  document.getElementById('eStartDate').value=toDateStr(anchor.getFullYear&&view!=='month'?anchor:now);
+  document.getElementById('eEndDate').value=toDateStr(anchor.getFullYear&&view!=='month'?anchor:now);
+  document.getElementById('eStartTime').value='09:00';
+  document.getElementById('eEndTime').value='10:00';
+  toggleAllDayInputs();
+  document.getElementById('eOwner').innerHTML=ownerOptionsHtml(null);
+}
+
+function openCreate(prefill){
+  resetModal();
+  document.getElementById('modalHeading').textContent='Termin anlegen';
+  if(prefill&&prefill.type){
+    selectedLink=prefill;
+    document.getElementById('eLinkSearch').value=prefill.label;
+    showLinkTag();
+  }
+  document.getElementById('eventModal').classList.add('open');
+}
+
+function showLinkTag(){
+  const tag=document.getElementById('eLinkTag');
+  if(!selectedLink){tag.style.display='none';return}
+  const kind=selectedLink.type==='project'?'Projekt':'Angebot';
+  tag.style.display='inline-flex';
+  tag.innerHTML=`<span class="link-tag">${kind}: ${esc(selectedLink.label)} <button type="button" onclick="clearLink()">✕</button></span>`;
+}
+function clearLink(){selectedLink=null;document.getElementById('eLinkSearch').value='';showLinkTag()}
+
+const debouncedLinkSearch=debounce(async()=>{
+  const q=document.getElementById('eLinkSearch').value.trim();
+  const box=document.getElementById('eLinkSuggestBox');
+  if(q.length<2){box.style.display='none';return}
+  try{
+    const groups=await api('/api/search?q='+encodeURIComponent(q)+'&types=projects,quotes&limit=8');
+    const hits=[];
+    groups.forEach(g=>g.hits.forEach(h=>hits.push({type:g.key==='quotes'?'quote':'project',id:h.id,label:h.title})));
+    if(!hits.length){box.style.display='none';return}
+    box.innerHTML=hits.map(h=>`<div class="suggest-item" onclick='pickLink(${JSON.stringify(h).replace(/'/g,"&#39;")})'>${h.type==='quote'?'Angebot':'Projekt'}: ${esc(h.label)}</div>`).join('');
+    box.style.display='block';
+  }catch(e){box.style.display='none'}
+},300);
+
+function pickLink(h){
+  selectedLink=h;
+  document.getElementById('eLinkSuggestBox').style.display='none';
+  document.getElementById('eLinkSearch').value=h.label;
+  showLinkTag();
+}
+
+function openEdit(id){
+  const e=events.find(x=>x.id===id);
+  if(!e||e.title==='Belegt')return; // reduzierter Fremdtermin -- serverseitig ohnehin nicht bearbeitbar sinnvoll dargestellt
+  resetModal();
+  document.getElementById('modalHeading').textContent='Termin bearbeiten';
+  document.getElementById('eId').value=e.id;
+  document.getElementById('eTitle').value=e.title;
+  document.getElementById('eAllDay').checked=e.all_day;
+  const s=new Date(e.start_at),en=new Date(e.end_at);
+  document.getElementById('eStartDate').value=toDateStr(s);
+  document.getElementById('eStartTime').value=`${pad(s.getHours())}:${pad(s.getMinutes())}`;
+  document.getElementById('eEndDate').value=toDateStr(en);
+  document.getElementById('eEndTime').value=`${pad(en.getHours())}:${pad(en.getMinutes())}`;
+  toggleAllDayInputs();
+  document.getElementById('eLocation').value=e.location||'';
+  document.getElementById('eNotes').value=e.notes||'';
+  document.getElementById('ePrivate').checked=e.is_private;
+  document.getElementById('eOwner').innerHTML=ownerOptionsHtml(e.owner_user_id);
+  if(e.project_id){selectedLink={type:'project',id:e.project_id,label:e.project_name||('Projekt #'+e.project_id)};document.getElementById('eLinkSearch').value=selectedLink.label;showLinkTag()}
+  else if(e.quote_id){selectedLink={type:'quote',id:e.quote_id,label:e.quote_number||('Angebot #'+e.quote_id)};document.getElementById('eLinkSearch').value=selectedLink.label;showLinkTag()}
+  document.getElementById('deleteBtn').style.display='inline-block';
+  document.getElementById('eventModal').classList.add('open');
+}
+
+function closeModal(){document.getElementById('eventModal').classList.remove('open')}
+
+async function saveEvent(){
+  const title=document.getElementById('eTitle').value.trim();
+  if(!title){document.getElementById('modalStatus').textContent='Bitte einen Titel angeben.';return}
+  const allDay=document.getElementById('eAllDay').checked;
+  const sDate=document.getElementById('eStartDate').value,eDate=document.getElementById('eEndDate').value;
+  if(!sDate||!eDate){document.getElementById('modalStatus').textContent='Bitte Beginn und Ende angeben.';return}
+  const sTime=allDay?'00:00':document.getElementById('eStartTime').value||'00:00';
+  const eTime=allDay?'00:00':document.getElementById('eEndTime').value||'00:00';
+  const body={
+    title, all_day:allDay,
+    start_at:toLocalIso(sDate,sTime), end_at:toLocalIso(eDate,eTime),
+    location:document.getElementById('eLocation').value.trim()||null,
+    notes:document.getElementById('eNotes').value.trim()||null,
+    owner_user_id:Number(document.getElementById('eOwner').value)||null,
+    is_private:document.getElementById('ePrivate').checked,
+    project_id:selectedLink&&selectedLink.type==='project'?selectedLink.id:null,
+    quote_id:selectedLink&&selectedLink.type==='quote'?selectedLink.id:null,
+  };
+  const id=document.getElementById('eId').value;
+  try{
+    if(id)await api('/api/calendar-events/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    else await api('/api/calendar-events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    closeModal();render();
+  }catch(e){document.getElementById('modalStatus').textContent='Fehler: '+e.message}
+}
+
+async function deleteCurrentEvent(){
+  const id=document.getElementById('eId').value;
+  if(!id)return;
+  if(!confirm('Diesen Termin wirklich löschen?'))return;
+  try{await api('/api/calendar-events/'+id,{method:'DELETE'});closeModal();render()}
+  catch(e){document.getElementById('modalStatus').textContent='Fehler: '+e.message}
+}
+
+document.addEventListener('click',(ev)=>{
+  const box=document.getElementById('eLinkSuggestBox');
+  if(box&&!box.contains(ev.target)&&ev.target.id!=='eLinkSearch')box.style.display='none';
+});
+
+async function init(){
+  document.querySelectorAll('.views .btn').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+  await loadOwners();
+  const params=new URLSearchParams(location.search);
+  render();
+  if(params.get('new_project'))openCreate({type:'project',id:Number(params.get('new_project')),label:params.get('new_project_label')||('Projekt #'+params.get('new_project'))});
+  else if(params.get('new_quote'))openCreate({type:'quote',id:Number(params.get('new_quote')),label:params.get('new_quote_label')||('Angebot #'+params.get('new_quote'))});
+}
+init();
+</script>
+</body></html>

@@ -20,8 +20,10 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.6.3** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf weiterhin `d87d5bc04b69` ("ai fundament settings and call log", neue
+- Version: **1.7.0** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `7974647223ea` ("calendar events kalender modul", neue Tabelle
+  `calendar_events` -- siehe Abschnitt "Kalender-Modul" unten) -- davor `d87d5bc04b69` ("ai
+  fundament settings and call log", neue
   Tabellen `ai_settings`/`ai_call_log` -- siehe Abschnitt "KI-Fundament" unten; 1.6.3 selbst
   brauchte keine eigene Migration, reine Frontend-Änderung, siehe Abschnitt "Buchhaltung" ->
   "Beleg-Upload schon beim Anlegen" unten) -- davor `329725277349` ("accounts kontenstamm
@@ -86,9 +88,11 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1764 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1786 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 24.09.2026 (1.6.3, Beleg-Upload schon beim Anlegen einer Eingangsrechnung --
+  dort), zuletzt am 24.09.2026 (1.7.0, Kalender-Modul Stufe 1 -- Büro-Termine, bewusst getrennt
+  von der Plantafel, 22 neue Tests (`tests/test_v296_calendar_events.py`), siehe Abschnitt
+  "Kalender-Modul" unten; davor 1.6.3, Beleg-Upload schon beim Anlegen einer Eingangsrechnung --
   reine Frontend-Änderung nach dem 1.5.6-Muster (Betriebsmittel), keine neuen Tests, dafür ein
   echter CDP-Browsertest gegen eine isolierte Testinstanz, siehe Abschnitt "Buchhaltung" ->
   "Beleg-Upload schon beim Anlegen" unten; davor 1.6.2, KI-Fundament -- zentrale,
@@ -10972,6 +10976,133 @@ Kein-Inhalt-Garantie des Protokolls, und der abschließend verlangte Angriffstes
 (`buero_finanzen`/`buero_auftrag`/`field` kommen an keinen Teil der KI-Einstellungen, inkl. des
 Test-Endpunkts und ohne dass der Schlüssel je in einer 403-/200-Antwort auftaucht). Migration
 `d87d5bc04b69` (zwei neue Tabellen, keine Änderung an bestehenden), volle Suite: 1764 Tests grün.
+
+## Kalender-Modul (seit 1.7.0, Modul "kalender")
+
+Büro-Termine (Besichtigung/Aufmaß/Besprechung u. Ä.), erstes neues Modul seit dem KI-Fundament.
+**Bewusst GETRENNT von der Plantafel** -- `PlanningSlot` bleibt ausschließlich für Einsatz-/
+Feldplanung (Team × Auftrag × Zeitfenster), der Kalender ist ein reines Büro-Terminbuch ohne
+jeden Bezug zu Team/Ressource/Auftrag. Zugriff nur `buero_auftrag`/`buero_finanzen`/`admin`
+(`require_min_role(ROLE_OFFICE_AUFTRAG)`) -- Monteure sehen den Sidebar-Eintrag nicht und
+bekommen 403 auf Seite und API. Auftrag: erst ein Befund zu beiden angefragten Stufen berichten,
+dann ausschließlich Stufe 1 bauen -- Stufe 2 (Outlook-Synchronisation) ist bewusst reiner Befund
+geblieben, siehe eigener Unterabschnitt unten.
+
+### Datenmodell
+
+Neue Tabelle `CalendarEvent` (`app/models.py`): `title`/`start_at`/`end_at`/`all_day`/`location`/
+`notes`, `owner_user_id` (FK auf `app_users.id`, NOT NULL -- bewusst `AppUser`, nicht `Employee`,
+weil auch ein reines Systemkonto ohne Mitarbeiterverknüpfung Besitzer sein kann), `project_id`/
+`quote_id` (beide optional, **höchstens einer** gesetzt -- `app/calendar_events.py::
+_validate_single_assignment()`, Muster `IncomingInvoice`, bewusst kein `CheckConstraint`),
+`is_private`. Bereits jetzt zwei Felder für die spätere, NICHT gebaute Stufe 2:
+`outlook_event_id` (String, nullable) und `external_source` (fester Code-Wert "erp"/"outlook",
+`CALENDAR_EVENT_SOURCES` -- keine Optionsgruppe, da er eine künftige Verarbeitungsregel trägt,
+nicht frei erweiterbar sein soll). Für den späteren "letzte Änderung gewinnt"-Konfliktabgleich
+ist bewusst KEIN drittes Feld nötig -- das bereits vorhandene `updated_at`
+(`onupdate=datetime.utcnow`) ist exakt der Vergleichswert, den ein künftiger Sync gegen Graphs
+`lastModifiedDateTime` braucht. Migration `7974647223ea`, reine `CREATE TABLE` (kein `ALTER
+TABLE` auf einer bestehenden Tabelle, deshalb kein Regel-1-Fall).
+
+### Privatsphäre serverseitig, nicht nur in der Anzeige
+
+Jede Büro-/Admin-Person sieht grundsätzlich ALLE Termine (eigene + Kollegen) im angefragten
+Zeitraum. Ein Termin wird beim Lesen auf eine reine "Belegt"-Zusammenfassung reduziert, wenn
+`is_private=True` **und** der Betrachter nicht der Besitzer ist (`app/calendar_events.py::
+is_redacted_for_viewer()`) -- `redact_for_busy()` liefert dann `CalendarEventBusyOut` statt
+`CalendarEventOut`: `title` ist der feste Platzhalter `"Belegt"`, `location`/`notes`/`project_id`/
+`project_name`/`quote_id`/`quote_number` fehlen STRUKTURELL in der Antwort, nicht nur leer.
+`GET /api/calendar-events`/`GET /api/calendar-events/{id}` tragen deshalb bewusst KEIN
+`response_model` -- jede Zeile wird einzeln validiert (Muster `app/service_reports.py::
+list_reports_for_field()`: "ein `response_model=list[A] | list[B]` würde nicht zeilenweise,
+sondern nur für die GESAMTE Liste greifen").
+
+**Bewusst KEINE Eigentümerschafts-Prüfung beim Ändern/Löschen** -- jede Büro-/Admin-Rolle darf
+jeden Termin bearbeiten, unabhängig davon, wer ihn angelegt hat. Diese Entscheidung wurde
+transparent getroffen (nicht explizit angefragt): dasselbe, bereits im Projekt etablierte Muster
+wie bei `PUT`/`DELETE /api/tasks/{id}` ("keine isolierte Verschärfung nur hier", siehe CLAUDE.md
+"Aufgabe"). Privatsphäre wirkt ausschließlich beim LESEN fremder Termine, nicht als Schreibschranke
+-- ein Termin, der versehentlich mit `is_private=False` gespeichert wird, ist für Kollegen offen
+lesbar, das ist eine bewusste Policy-Frage eines geteilten Büro-Kalenders, keine technische Lücke.
+
+**Testbarkeit dieser Eigentümerschaftsfrage**: die gemeinsame `router_test_client`-Fixture
+(`tests/conftest.py`) baut einen NUR TRANSIENTEN `AppUser` (nie committet), dessen `.id` deshalb
+immer `None` bleibt -- für Rollen-Gates ausreichend, aber nicht für die "eigener vs. fremder
+Termin"-Prüfung, die eine echte `request.state.erp_user.id` braucht. `tests/
+test_v296_calendar_events.py` baut dafür lokal einen eigenen, kleinen Test-Client mit einer ECHTEN,
+committeten Identität (`_client_for_real_user()`) -- keine Änderung an der geteilten Fixture.
+
+### Oberfläche
+
+`app/templates/calendar.html` -- Tag-/Wochen-/Monatsansicht als framework-loses JavaScript (kein
+externes Kalender-Widget, konsistent mit dem Rest des Projekts), Anlegen/Bearbeiten über ein
+Modal (Muster `project_folder.html`), Projekt-/Angebot-Verknüpfung über eine debounced Suche
+gegen den bereits bestehenden, geteilten Endpunkt `GET /api/search?types=projects,quotes` (Büro-
+Suche, seit 1.3.66) statt einer eigenen, neuen Such-Implementierung. Besitzer-Dropdown über den
+neuen, literal VOR `/{event_id}` registrierten Endpunkt `GET /api/calendar-events/owners`
+(sonst Literal-vs-Platzhalter-Kollision, wie an mehreren Stellen dieses Projekts bereits
+dokumentiert) -- liefert nur aktive Konten der drei Rollen mit Zugriff auf dieses Modul.
+
+Sidebar-Eintrag direkt nach "Planung" (nicht in der strenger gegateten Finanzen-Achse von
+Betriebskosten/Eingangsrechnungen) -- `is_module_enabled('kalender') and can(current_user,
+'admin', 'buero_finanzen', 'buero_auftrag')`. Auf der Projektmappe (neuer Reiter "Termine",
+Jinja-gated) und im Angebotseditor (neuer Abschnitt unter "Angebot") werden die zugeordneten
+Termine angezeigt, mit einem Deep-Link `/kalender?new_project=<id>&new_project_label=<name>`
+bzw. `?new_quote=`, der beim Laden von `calendar.html` automatisch das Anlegen-Formular öffnet
+und die Zuordnung vorbefüllt (Muster: die bereits bestehenden `?task=`/`?report=`-Deep-Links des
+Dashboards).
+
+### Löschen eines Projekts entkoppelt, statt zu löschen
+
+`delete_project()` (`app/projects.py`) löscht per Kaskade auch die zugehörigen `Quote`-Zeilen.
+Ein Termin (Besichtigung/Aufmaß) bleibt aber auch nach Löschen des Projekts als eigenständige
+Historie sinnvoll -- `unlink_calendar_events_for_project()` (`app/calendar_events.py`) hängt
+referenzierende `CalendarEvent`-Zeilen deshalb VOR dem eigentlichen Löschen aus (`project_id`/
+`quote_id` -> `NULL`, nie ein `db.delete()` auf den Termin selbst), inklusive aller per Kaskade
+mitgelöschten Angebote dieses Projekts. Ohne diesen Schritt hätte PostgreSQL (anders als die
+lokale, ungeprüfte SQLite-Entwicklungsdatenbank) die Fremdschlüssel-Bedingung verletzt.
+
+### Befund Stufe 2 (beidseitige Outlook-Synchronisation über Microsoft Graph) -- NICHT gebaut
+
+Reine Zukunftsplanung, kein Code dieser Version:
+
+- **App-Berechtigung auf alle Postfächer einschränken**: Microsofts `Calendars.ReadWrite`
+  (App-Berechtigung) gilt tenant-weit, sofern keine **Application Access Policy** eingerichtet
+  ist (`New-ApplicationAccessPolicy`, Exchange Online PowerShell) -- eine Postfach-
+  Sicherheitsgruppe wird angelegt, die App-ID wird per Policy exakt auf diese Gruppe beschränkt.
+  Das ist eine Microsoft-365-Admin-Aufgabe außerhalb des ERP-Codes, das ERP kann das nicht
+  erzwingen.
+- **Verknüpfung ERP-Nutzer ↔ Outlook-Postfach**: ein neues Feld `AppUser.outlook_mailbox`
+  (E-Mail-Adresse) wäre der naheliegende Ort, analog zu `AppUser.employee_id`.
+- **Delta-Query statt Webhooks, ohne Hintergrunddienst**: Webhook-Abos laufen ab (max. ~4230
+  Minuten bei Kalenderereignissen) und bräuchten einen Dauerprozess für die Erneuerung -- passt
+  nicht zur bestehenden "kein echter Scheduler"-Philosophie dieses Projekts (siehe die
+  `check_due_*_and_create_reminders()`-Funktionen, die alle On-Demand beim Seitenaufruf laufen).
+  **Delta-Query** ist dagegen zustandslos zwischen Aufrufen (ein gespeicherter `deltaLink` je
+  Postfach) und ließe sich als echter, periodischer Cron-Job fahren -- exakt wie `backup.sh`
+  auf dem Produktivserver (siehe "Produktivbetrieb" oben), nicht als In-Process-Scheduler.
+- **Konfliktauflösung/Löschungen**: "letzte Änderung gewinnt" über den Vergleich von `updated_at`
+  (ERP) gegen `lastModifiedDateTime` (Graph) -- kein neues Feld nötig, siehe Datenmodell oben.
+  Löschungen zeigen sich in einer Delta-Query als `@removed`-Einträge; in die andere Richtung
+  bräuchte ein gelöschter ERP-Termin ein Soft-Delete-Signal, bis der nächste Sync-Lauf ihn auch
+  bei Outlook entfernt hat.
+- **Private Outlook-Termine**: Graph liefert `sensitivity: "private"` -- würde 1:1 auf
+  `is_private=True` gemappt, dieselbe Redaktion wie bei ERP-eigenen Terminen greift dann
+  automatisch mit, ohne dass die Redaktionslogik selbst etwas von Outlook wissen müsste.
+
+### Tests
+
+22 neue Tests (`tests/test_v296_calendar_events.py`) -- reine Geschäftslogik (Anlegen/Teil-
+Update/Löschen, Zeitraum-/Zuordnungsvalidierung, Überlappungsfilter, `list_owners()` nur für die
+drei Büro-/Admin-Rollen, das Entkoppeln beim Löschen eines Projekts inkl. der per Kaskade
+mitgelöschten Angebote), Router-Ebene (Rollen-/Modul-Gate, voller CRUD-Zyklus für alle drei
+Büro-/Admin-Rollen, die Seiten-Route), und die Privatsphäre-Redaktion mit einer echten,
+committeten Identität (eigener vs. fremder privater Termin, ein nicht-privater Termin bleibt für
+jeden voll sichtbar). Volle Suite: 1786 Tests grün. Zusätzlich ein echter, CDP-gesteuerter
+Headless-Chrome-Durchlauf gegen eine isolierte Testinstanz (niemals gegen `dachkonzepte_erp.db`):
+Seite rendert mit echtem Login-Cookie, Monatsansicht aktiv, "+ Termin" öffnet das Modal, ein
+Termin wird über das echte Formular angelegt und erscheint nach dem Speichern im DOM, keine
+JavaScript-Konsolenfehler während des gesamten Durchlaufs.
 
 ## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
 

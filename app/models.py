@@ -3836,6 +3836,62 @@ class Account(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class CalendarEvent(Base):
+    """Büro-Termin (Kalender-Modul "kalender", seit 1.7.0) -- Besichtigung/Aufmaß/Besprechung
+    u. Ä., bewusst GETRENNT von PlanningSlot: die Plantafel bleibt ausschließlich für Einsatz-/
+    Feldplanung (Team × Auftrag × Zeitfenster), dieser Kalender ist ein persönliches/geteiltes
+    Büro-Terminbuch ohne jeden Bezug zu Team/Ressource/Auftrag. Nur für buero_auftrag/
+    buero_finanzen/admin gedacht (siehe app/routers/calendar_events.py, require_min_role) --
+    Monteure haben keinen Zugriff.
+
+    Sichtbarkeit: jede Büro-/Admin-Person sieht grundsätzlich ALLE Termine (eigene + Kollegen)
+    im angefragten Zeitraum. Ist is_private=True gesetzt UND der Betrachter ist nicht der
+    Besitzer, liefert app/calendar_events.py::list_events_for_range() beim Lesen serverseitig
+    nur noch eine "belegt"-Zusammenfassung (title/location/notes sowie project_id/quote_id
+    fehlen strukturell in der Antwort, CalendarEventBusyOut statt CalendarEventOut) -- nicht nur
+    clientseitig ausgeblendet. Bearbeitungsrechte sind davon bewusst UNABHÄNGIG: es gibt keine
+    Eigentümerschafts-Prüfung beim Ändern/Löschen (jede Büro-/Admin-Rolle darf jeden Termin
+    bearbeiten) -- dasselbe, bereits im Projekt etablierte Muster wie bei PUT/DELETE
+    /api/tasks/{id} ("keine isolierte Verschärfung nur hier", siehe CLAUDE.md "Aufgabe").
+
+    project_id/quote_id sind beide optional, aber höchstens EINER darf gesetzt sein (Muster
+    IncomingInvoice._validate_single_assignment(), bewusst kein CheckConstraint).
+
+    outlook_event_id/external_source sind Vorbereitung für die spätere, noch NICHT gebaute
+    Synchronisation mit Microsoft Graph (Stufe 2, siehe CLAUDE.md "Kalender" -> "Befund Stufe 2")
+    -- external_source ist ein fester Code-Wert ("erp"/"outlook", CALENDAR_EVENT_SOURCES in
+    app/calendar_events.py), keine Optionsgruppe, da er eine künftige Verarbeitungsregel trägt.
+    Für den bei Stufe 2 vorgesehenen "letzte Änderung gewinnt"-Konfliktabgleich ist bewusst KEIN
+    eigenes drittes Feld nötig -- das bereits vorhandene updated_at (onupdate=datetime.utcnow)
+    ist exakt der Vergleichswert, den ein künftiger Sync gegen Graphs lastModifiedDateTime
+    braucht; ein zweites Feld dafür wäre eine überflüssige zweite Quelle."""
+
+    __tablename__ = "calendar_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(255))
+    start_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    end_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    all_day: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    owner_user_id: Mapped[int] = mapped_column(ForeignKey("app_users.id"), index=True)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
+    quote_id: Mapped[int | None] = mapped_column(ForeignKey("quotes.id"), nullable=True, index=True)
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+
+    # Stufe 2 (Outlook-Sync, noch nicht gebaut) -- siehe Klassendocstring.
+    outlook_event_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    external_source: Mapped[str] = mapped_column(String(20), default="erp", server_default="erp")
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    owner: Mapped["AppUser"] = relationship()
+    project: Mapped["Project | None"] = relationship()
+    quote: Mapped["Quote | None"] = relationship()
+
+
 class IncomingInvoice(Base):
     """Eingangsrechnung (Buchhaltung Stufe 1, Modul "buchhaltung") -- vorbereitende Erfassung
     und Ablage empfangener Lieferantenrechnungen. Bewusst eine EIGENE Tabelle, getrennt von

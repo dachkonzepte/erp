@@ -4,6 +4,58 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.7.0 – Kalender-Modul (Stufe 1): Büro-Termine, getrennt von der Plantafel
+
+Erstes neues Modul seit dem KI-Fundament (`module_key "kalender"`, buero_auftrag/buero_finanzen/
+admin -- Monteure haben keinen Zugriff). Erst ein Befund zu beiden angefragten Stufen berichtet,
+dann ausschließlich Stufe 1 gebaut, wie beauftragt.
+
+**Neue Tabelle `CalendarEvent`** (Titel, Beginn/Ende, ganztägig, Ort, Notiz, Besitzer als echte
+`AppUser`-Verknüpfung, optionale Zuordnung zu einem Projekt ODER einem Angebot -- höchstens
+eines, Muster `IncomingInvoice._validate_single_assignment()` --, Kennzeichen privat) --
+**bewusst eine eigene Tabelle, getrennt von `PlanningSlot`**: die Plantafel bleibt ausschließlich
+für Einsatz-/Feldplanung (Team × Auftrag × Zeitfenster), der Kalender ist ein reines Büro-
+Terminbuch ohne jeden Bezug zu Team/Ressource/Auftrag. Bereits jetzt zwei Felder für die spätere,
+noch nicht gebaute Outlook-Synchronisation (Stufe 2, siehe unten): `outlook_event_id` und
+`external_source` (fester Code-Wert "erp"/"outlook") -- für den späteren "letzte Änderung
+gewinnt"-Konfliktabgleich reicht das bereits bestehende `updated_at`, kein drittes Feld nötig.
+
+**Privatsphäre serverseitig, nicht nur in der Anzeige**: jede Büro-/Admin-Person sieht
+grundsätzlich alle Termine (eigene + Kollegen) im angefragten Zeitraum -- ein als privat markierter
+Termin eines ANDEREN Besitzers wird beim Lesen aber auf eine "Belegt"-Zusammenfassung reduziert
+(Titel/Ort/Notiz sowie die Projekt-/Angebotszuordnung fehlen strukturell in der Antwort,
+`CalendarEventBusyOut` statt `CalendarEventOut`, ausdrücklich ohne `response_model` und pro Zeile
+einzeln gewählt -- Muster `app/service_reports.py::list_reports_for_field()`). Bewusst **keine**
+Eigentümerschafts-Prüfung beim Ändern/Löschen (jede Büro-/Admin-Rolle darf jeden Termin
+bearbeiten) -- dasselbe, bereits im Projekt etablierte Muster wie bei `PUT`/`DELETE
+/api/tasks/{id}`, Privatsphäre wirkt nur beim Lesen fremder Termine.
+
+Tag-/Wochen-/Monatsansicht als eigenständiges, framework-loses JavaScript (`app/templates/
+calendar.html`) -- kein externes Kalender-Widget, konsistent mit dem Rest des Projekts. Auf der
+Projektmappe (neuer Reiter "Termine") und im Angebotseditor (neuer Abschnitt unter "Angebot")
+werden die zugeordneten Termine angezeigt, mit einem Deep-Link `/kalender?new_project=`/
+`?new_quote=`, der das Anlegen-Formular direkt mit der Zuordnung vorbefüllt öffnet. Löscht jemand
+ein Projekt, das noch referenzierte Termine trägt, werden diese NICHT mitgelöscht (eine
+Besichtigung/ein Aufmaß bleibt als Historie sinnvoll), sondern vorher entkoppelt
+(`unlink_calendar_events_for_project()`, in `delete_project()` verdrahtet, deckt auch die per
+Kaskade mitgelöschten Angebote ab).
+
+**Befund zur Stufe 2 (beidseitige Outlook-Synchronisation über Microsoft Graph), bewusst nicht
+gebaut** -- siehe CLAUDE.md "Kalender" für die volle Herleitung: Microsoft Application Access
+Policies zur Einschränkung der App-Berechtigung auf einzelne Postfächer, eine neue Verknüpfung
+ERP-Nutzer↔Postfach, Delta-Query statt Webhooks (letztere laufen ab und bräuchten einen
+Dauerprozess, den dieses Projekt bewusst vermeidet -- Delta-Query passt stattdessen zum
+bestehenden Cron-Muster von `backup.sh`), "letzte Änderung gewinnt" über `updated_at` gegen
+Graphs `lastModifiedDateTime`, private Outlook-Termine würden 1:1 auf `is_private=True` gemappt.
+
+Verifiziert: 22 neue Tests (`tests/test_v296_calendar_events.py`, inkl. eines lokalen, mit einer
+echten committeten Identität aufgebauten Test-Clients für die Privatsphäre-Prüfung -- die
+gemeinsame `router_test_client`-Fixture liefert dafür keine echte `AppUser.id`), volle Suite
+1786 Tests grün. Zusätzlich ein echter, CDP-gesteuerter Headless-Chrome-Durchlauf gegen eine
+isolierte Testinstanz (niemals gegen `dachkonzepte_erp.db`): Seite rendert, Termin anlegen über
+das echte Formular, Privatsphäre-Redaktion für ein Kollegenkonto bestätigt, `field`-Rolle bekommt
+403 auf Seite und API, keine JavaScript-Konsolenfehler.
+
 ## 1.6.3 – Beleg-Upload schon beim Anlegen einer Eingangsrechnung
 
 Bis dahin ließ sich ein Beleg erst im Bearbeiten-Modus hochladen, weil der Upload-Endpunkt eine

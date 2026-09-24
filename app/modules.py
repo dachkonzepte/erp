@@ -19,6 +19,7 @@ OPTIONAL_MODULES = {
     "betriebsmittel": "Betriebsmittelverwaltung",
     "betriebskosten": "Betriebskosten-Übersicht",
     "buchhaltung": "Buchhaltung (Eingangsrechnungen)",
+    "kalender": "Kalender (Büro-Termine)",
 }
 
 

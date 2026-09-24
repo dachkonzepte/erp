@@ -329,6 +329,16 @@ def incoming_invoices_page(request: Request, _role: AppUser = _finanzen_role_dep
     return templates.TemplateResponse(request=request, name="incoming_invoices.html", context={})
 
 
+@router.get("/kalender", response_class=HTMLResponse)
+def calendar_page(request: Request, _role: AppUser = _role_dep):
+    """Kalender (Büro-Termine, seit 1.7.0) -- buero_auftrag/buero_finanzen/admin (_role_dep
+    oben, dieselbe Schwelle wie Projekte/Angebote/Aufträge), GETRENNT von /planning (Plantafel,
+    bleibt für Einsatz-/Feldplanung). Kein Modul-Check auf der Seitenroute selbst (etablierte
+    Konvention, siehe recurring_costs_page()), der API-Endpunkt dahinter (app/routers/
+    calendar_events.py) prüft is_module_enabled() unabhängig davon."""
+    return templates.TemplateResponse(request=request, name="calendar.html", context={})
+
+
 @router.get("/betriebsmittel/{asset_id}", response_class=HTMLResponse)
 def operational_asset_page(request: Request, asset_id: int, _role: AppUser = _any_role_dep):
     """Seit Betriebsmittelverwaltung Stufe 2 (siehe CLAUDE.md) rollenbewusst wie

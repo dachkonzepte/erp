@@ -3873,3 +3873,80 @@ class RecurringCostOverheadProposalOut(BaseModel):
     annual_usage_dependent_from_costs: Decimal
     fixed_costs: list[RecurringCostOverheadProposalItemOut] = Field(default_factory=list)
     usage_dependent_costs: list[RecurringCostOverheadProposalItemOut] = Field(default_factory=list)
+
+
+# Kalender-Modul (Modul "kalender", seit 1.7.0) -- siehe app/calendar_events.py und CLAUDE.md
+# "Kalender" für die vollständige Herleitung (bewusst getrennt von der Plantafel).
+
+
+class CalendarEventCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    start_at: datetime
+    end_at: datetime
+    all_day: bool = False
+    location: str | None = Field(default=None, max_length=255)
+    notes: str | None = None
+    # None beim Anlegen bedeutet "der eigene Account" -- der Router füllt das über den
+    # angemeldeten Benutzer, siehe app/routers/calendar_events.py::post_calendar_event().
+    owner_user_id: int | None = None
+    # app/calendar_events.py::_validate_single_assignment() -- höchstens eines der beiden.
+    project_id: int | None = None
+    quote_id: int | None = None
+    is_private: bool = False
+
+
+class CalendarEventUpdate(BaseModel):
+    """Alle Felder optional -- echtes Teil-Update (exclude_unset auf Router-Seite, Muster
+    EmployeeAbsenceUpdate), ein nicht mitgeschicktes Feld bleibt unverändert."""
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    start_at: datetime | None = None
+    end_at: datetime | None = None
+    all_day: bool | None = None
+    location: str | None = Field(default=None, max_length=255)
+    notes: str | None = None
+    owner_user_id: int | None = None
+    project_id: int | None = None
+    quote_id: int | None = None
+    is_private: bool | None = None
+
+
+class CalendarEventOut(BaseModel):
+    """Volles Schema -- eigener Termin, oder ein fremder, nicht als privat gekennzeichneter
+    Termin. Siehe CalendarEventBusyOut für die serverseitig reduzierte Gegenvariante."""
+    id: int
+    title: str
+    start_at: datetime
+    end_at: datetime
+    all_day: bool
+    location: str | None = None
+    notes: str | None = None
+    owner_user_id: int
+    owner_name: str | None = None
+    project_id: int | None = None
+    project_name: str | None = None
+    quote_id: int | None = None
+    quote_number: str | None = None
+    is_private: bool
+    outlook_event_id: str | None = None
+    external_source: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class CalendarEventBusyOut(BaseModel):
+    """Reduziertes Schema für einen fremden, als privat gekennzeichneten Termin -- title ist
+    immer der feste Platzhalter "Belegt" (app/calendar_events.py::BUSY_PLACEHOLDER_TITLE), kein
+    location/notes/project_id/quote_id in der Antwort (strukturell fehlend, nicht nur leer)."""
+    id: int
+    start_at: datetime
+    end_at: datetime
+    all_day: bool
+    owner_user_id: int
+    owner_name: str | None = None
+    is_private: bool = True
+    title: str = "Belegt"
+
+
+class CalendarOwnerOut(BaseModel):
+    id: int
+    display_name: str
