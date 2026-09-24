@@ -89,6 +89,16 @@ tr:last-child td{border-bottom:none}
 <div id="editorCard" class="editor-card hidden">
   <h2 id="editorTitle">Eingangsrechnung anlegen</h2>
 
+  <div id="createDocumentSection" class="hidden" style="margin-bottom:14px;padding:12px;background:var(--soft);border:1px solid var(--line)">
+    <div class="field"><label>Beleg <span class="muted small">(optional -- kann auch später ergänzt werden)</span></label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="file" id="createDocFile" accept="application/pdf,image/png,image/jpeg,image/webp" onchange="setPendingInvoiceDocument()">
+        <button type="button" class="secondary" id="createDocClearBtn" style="display:none" onclick="clearPendingInvoiceDocument()">Entfernen</button>
+      </div>
+    </div>
+    <span id="createDocStatus" class="status"></span>
+  </div>
+
   <div class="supplier-row">
     <div class="field"><label>Lieferant *</label><select id="editSupplier"></select></div>
     <button type="button" class="secondary" onclick="toggleNewSupplierPanel()">+ Neuer Lieferant</button>
@@ -182,6 +192,30 @@ async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.j
 const STATUS_BADGES={offen:'<span class="badge">Offen</span>',bezahlt:'<span class="badge paid">Bezahlt</span>',ueberfaellig:'<span class="badge overdue">⚠ Überfällig</span>'};
 
 let invoices=[],suppliers=[],projects=[],assets=[],recurringCosts=[],accounts=[],currentEditId=null,currentDocumentInfo=null;
+
+// Beleg-Upload schon beim Anlegen: POST /api/incoming-invoices/{id}/document verlangt eine
+// bereits existierende invoice_id (Muster app/routers/operational_assets.py) -- die gewählte
+// Datei wird deshalb nur VORGEMERKT (ein einzelnes File-Objekt, kein Warteschlangen-Array wie
+// beim Betriebsmittel/1.5.6: eine Eingangsrechnung trägt fachlich immer nur EINEN Beleg, kein
+// document_type/keine Notiz je Datei) und in saveInvoice() erst nach erfolgreichem Anlegen
+// automatisch hochgeladen. Ein gescheitertes Anlegen (Pflichtfeld, Positions-Summenabgleich)
+// erreicht den Upload nie -- keine verwaiste Rechnung, die Auswahl bleibt für einen erneuten
+// Versuch erhalten. Bewusst oben im Formular platziert: hier dockt später die
+// KI-Belegauswertung an (Beleg zuerst hochladen, dann füllt die KI die restlichen Felder),
+// siehe CLAUDE.md "Buchhaltung".
+let pendingInvoiceDocument=null;
+function setPendingInvoiceDocument(){
+  const file=document.getElementById('createDocFile').files[0]||null;
+  pendingInvoiceDocument=file;
+  document.getElementById('createDocClearBtn').style.display=file?'inline-block':'none';
+  document.getElementById('createDocStatus').textContent=file?`Wird nach dem Speichern hochgeladen: ${file.name}`:'';
+}
+function clearPendingInvoiceDocument(){
+  pendingInvoiceDocument=null;
+  document.getElementById('createDocFile').value='';
+  document.getElementById('createDocClearBtn').style.display='none';
+  document.getElementById('createDocStatus').textContent='';
+}
 
 function supplierOptionsHtml(selected){
   const opts=suppliers.filter(s=>s.active||Number(selected)===s.id).map(s=>`<option value="${s.id}" ${Number(selected)===s.id?'selected':''}>${esc(s.supplier_number?s.supplier_number+' · ':'')}${esc(s.name)}</option>`).join('');
@@ -372,6 +406,8 @@ async function removeDocument(){
 
 function openCreateEditor(){
   currentEditId=null;
+  clearPendingInvoiceDocument();
+  document.getElementById('createDocumentSection').classList.remove('hidden');
   document.getElementById('editorTitle').textContent='Eingangsrechnung anlegen';
   document.getElementById('editSupplier').innerHTML=supplierOptionsHtml(null);
   document.getElementById('newSupplierPanel').classList.add('hidden');
@@ -405,6 +441,7 @@ function openEditEditor(id){
   const inv=invoices.find(x=>x.id===id);
   if(!inv)return;
   currentEditId=id;
+  document.getElementById('createDocumentSection').classList.add('hidden');
   document.getElementById('editorTitle').textContent='Eingangsrechnung bearbeiten';
   document.getElementById('editSupplier').innerHTML=supplierOptionsHtml(inv.supplier_id);
   document.getElementById('newSupplierPanel').classList.add('hidden');
@@ -466,6 +503,10 @@ async function saveInvoice(){
   if(!payload.supplier_id||!payload.invoice_date||!payload.net_amount){
     st.className='status err';st.textContent='Bitte Lieferant, Rechnungsdatum und Netto-Betrag angeben.';return;
   }
+  // Vor dem try-Block erfasst: schlägt das Anlegen selbst fehl (Pflichtfeld oben, oder
+  // serverseitig der Positions-Summenabgleich), wird der Upload weiter unten nie erreicht --
+  // pendingInvoiceDocument bleibt dabei unangetastet, keine Datei geht verloren.
+  const docToUpload=currentEditId?null:pendingInvoiceDocument;
   try{
     let saved;
     if(currentEditId){
@@ -473,10 +514,28 @@ async function saveInvoice(){
     }else{
       saved=await api('/api/incoming-invoices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     }
+    // Rechnung ist jetzt gespeichert -- ein danach fehlschlagender Upload macht das nicht
+    // rückgängig. openEditEditor() gleich unten zeigt denselben Bereich "Beleg" (bereits für den
+    // Bearbeiten-Modus vorhanden), in dem sich ein fehlgeschlagener Upload nachholen lässt --
+    // kein stilles Verschlucken, kein zweiter, eigener Retry-Mechanismus nötig.
     currentEditId=saved.id;
+    let uploadErrorMsg=null;
+    if(docToUpload){
+      const form=new FormData();form.append('file',docToUpload);
+      try{
+        const r=await fetch(`/api/incoming-invoices/${saved.id}/document`,{method:'POST',body:form});
+        if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
+      }catch(e){uploadErrorMsg=`Beleg "${docToUpload.name}" konnte nicht hochgeladen werden: ${e.message}`}
+      clearPendingInvoiceDocument();
+    }
     await loadAll();
     openEditEditor(saved.id);
-    st.className='status';st.textContent='Gespeichert.';
+    if(uploadErrorMsg){
+      st.className='status err';
+      st.textContent=`Rechnung gespeichert. ${uploadErrorMsg} -- bitte im Bereich "Beleg" weiter unten erneut hochladen.`;
+    }else{
+      st.className='status';st.textContent='Gespeichert.';
+    }
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
