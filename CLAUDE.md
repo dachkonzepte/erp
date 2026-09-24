@@ -20,8 +20,15 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.6.0** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `fd1cc820d6b7` ("incoming invoices buchhaltung stufe 1", neue
+- Version: **1.6.3** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf weiterhin `d87d5bc04b69` ("ai fundament settings and call log", neue
+  Tabellen `ai_settings`/`ai_call_log` -- siehe Abschnitt "KI-Fundament" unten; 1.6.3 selbst
+  brauchte keine eigene Migration, reine Frontend-Änderung, siehe Abschnitt "Buchhaltung" ->
+  "Beleg-Upload schon beim Anlegen" unten) -- davor `329725277349` ("accounts kontenstamm
+  vorkontierung", neue Tabelle `accounts` PLUS die neue Spalte `incoming_invoices.account_id`/
+  `incoming_invoice_items.account_id` (ersetzt das frühere Freitextfeld `account_code`) -- siehe
+  Abschnitt "Buchhaltung" -> "Stufe 2, erster Teil" unten) -- davor `fd1cc820d6b7` ("incoming
+  invoices buchhaltung stufe 1", neue
   Tabellen `incoming_invoices`/`incoming_invoice_items`/`incoming_invoice_settings` -- siehe
   Abschnitt "Buchhaltung" unten) -- davor `0f7bda3397f1` ("trusted devices for two factor auth",
   neue Tabelle `trusted_devices` -- siehe Abschnitt "Diesem Gerät für 30 Tage vertrauen" unten)
@@ -79,9 +86,17 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1719 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1764 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 21.09.2026 (1.6.0, Buchhaltung Stufe 1 -- Eingangsrechnungen erfassen und
+  dort), zuletzt am 24.09.2026 (1.6.3, Beleg-Upload schon beim Anlegen einer Eingangsrechnung --
+  reine Frontend-Änderung nach dem 1.5.6-Muster (Betriebsmittel), keine neuen Tests, dafür ein
+  echter CDP-Browsertest gegen eine isolierte Testinstanz, siehe Abschnitt "Buchhaltung" ->
+  "Beleg-Upload schon beim Anlegen" unten; davor 1.6.2, KI-Fundament -- zentrale,
+  anbieterunabhängige Schnittstelle für künftige KI-Funktionen, 24 neue Tests
+  (`tests/test_v295_ai_fundament.py`), siehe Abschnitt "KI-Fundament" unten; davor 1.6.1,
+  Buchhaltung Stufe 2 (erster Teil) -- Kontenstamm und Vorkontierung, 23 neue Tests
+  (`tests/test_v294_accounts_vorkontierung.py`), siehe Abschnitt "Buchhaltung" -> "Stufe 2,
+  erster Teil" unten; davor 1.6.0, Buchhaltung Stufe 1 -- Eingangsrechnungen erfassen und
   ablegen, 31 neue Tests (`tests/test_v293_incoming_invoices.py`), siehe Abschnitt
   "Buchhaltung" unten; davor 1.5.11, "Diesem Gerät für 30 Tage vertrauen" -- 20 neue Tests
   (`tests/test_v292_device_trust.py`), siehe Abschnitt "Diesem Gerät für 30 Tage vertrauen"
@@ -1911,6 +1926,21 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Testprozesse" erscheint. Gilt sinngemäß für jeden anderen, für Tests/Automatisierung
     selbst gestarteten Prozess (nicht nur Chrome), auf dem der Nutzer möglicherweise
     parallel arbeitet.
+
+13. **Nach jeder abgeschlossenen Runde wird committet, ohne dass Tobias das jedes Mal
+    einzeln freigeben muss -- gepusht wird ausschließlich durch den Betreiber.** Vorher
+    galt das nur als informelle, an einer einzelnen Stelle (Abschnitt "Produktivbetrieb")
+    notierte Praxis dieser Sitzungen ("Claude Code committet, aber pusht nie ohne
+    ausdrückliche Aufforderung") -- auf ausdrücklichen Wunsch jetzt als feste, durchgängige
+    Regel festgehalten, damit für jede abgeschlossene Version (Regel 8: neuer `VERSION`-Stand
+    + `CHANGELOG.md`-Eintrag) automatisch auch ein Commit entsteht, ohne dass jedes Mal erst
+    nachgefragt werden muss. Ein Commit fasst dabei genau eine inhaltlich zusammenhängende
+    Änderung, nicht mehrere unabhängige Themen gemeinsam (Vorbild: das eigene
+    1.3.71-Vorgehen, dort ausdrücklich "eigener Commit, wie verlangt" für einen von der
+    Hauptänderung unabhängigen Fund). `git push` bleibt davon ausgenommen und wird niemals
+    von selbst ausgeführt -- das Hochladen auf den gemeinsamen Verlauf (und damit potenziell
+    auf den Server, siehe "Produktivbetrieb") ist und bleibt ausschließlich eine Entscheidung
+    des Betreibers.
 
 ## Fachbegriffe & Domänenmodell
 
@@ -10602,6 +10632,102 @@ Schlüssel-Scan bestätigt: kein `account_number`/`label`/`default_tax_rate_pct`
 1740 Tests grün. Migration erfolgreich gegen die echte, lokale `dachkonzepte_erp.db` angewendet
 und per direkter `PRAGMA table_info`-Abfrage nachgemessen (0 Datenverlust, Schema exakt wie
 erwartet).
+
+### Beleg-Upload schon beim Anlegen (seit 1.6.3)
+
+Bis dahin ließ sich ein Beleg erst im Bearbeiten-Modus hochladen -- `POST /api/incoming-invoices/
+{invoice_id}/document` verlangt eine bereits existierende `invoice_id` (Muster
+`app/routers/operational_assets.py`), im Anlegen-Formular gab es dafür kein Feld. Auftrag: dasselbe
+Warteschlangen-Muster wie beim Betriebsmittel (1.5.6, `pendingAssetDocuments` in
+`master_data_form.html::assetForm()`) anwenden -- **kein Backend-Code geändert**, exakt wie beim
+Vorbild: kein neuer Endpunkt, kein neues Schema, keine neue Migration. Der bereits bestehende
+Upload-Endpunkt wird lediglich zu einem anderen Zeitpunkt (nach dem Anlegen, statt nur im
+Bearbeiten-Modus) aus demselben Formular heraus aufgerufen.
+
+**Punkt 1 -- geprüft, ob sich die Warteschlangen-Logik jetzt (zweites Vorkommen) als gemeinsamer
+JS-Baustein lohnt: nein, bewusst zwei eigenständige Umsetzungen.** Die beiden Fälle sind
+strukturell verschieden, nicht nur zufällig ähnlich benannt:
+- Ein Betriebsmittel kann **mehrere unabhängige** Dokumente tragen (`OperationalAssetDocument`,
+  eigene Tabelle), jedes mit eigenem `document_type` + optionaler `notes` -- die 1.5.6-Warteschlange
+  ist deshalb ein Array `{document_type, file, notes}[]`, mit einer eigenen "+ Vormerken"-Liste
+  samt Entfernen-Button je Zeile (`renderAssetDocQueue()`).
+- Eine Eingangsrechnung trägt fachlich **immer nur genau EINEN** Beleg (1:1-Ersetzungsmuster,
+  `IncomingInvoice.document_filename`/`document_original_name`, siehe `app/incoming_invoice_
+  documents.py`) -- kein `document_type`, keine `notes` je Datei, kein Mehrfach-Upload. Die
+  Warteschlange ist hier bestenfalls ein einzelnes, optionales `File`-Objekt (`pendingInvoiceDocument`),
+  keine Liste.
+
+Ein "gemeinsamer Baustein" hätte entweder die einfachere Eingangsrechnung-Variante künstlich auf
+das Array-mit-Metadaten-Schema des Betriebsmittels aufblasen müssen (ein Array mit immer nur einem
+Element, ein `document_type`-Feld, das dort nie existiert), oder umgekehrt eine generische
+Konfigurationsschicht (austauschbare `buildFormData()`/`renderItem()`-Callbacks je Aufrufer)
+gebraucht, deren Indirektion mehr Code wäre als die eigentliche Logik selbst (bei beiden
+Implementierungen zusammen keine 40 Zeilen). Das deckt sich mit der bereits im Projekt etablierten
+Konvention (siehe CLAUDE.md "Stack & Struktur": kein gemeinsames JS-Modul für kleine Schnipsel,
+`_debounce.html` ist die bewusste Ausnahme für eine tatsächlich nicht-triviale, mehrfach
+IDENTISCHE Timer-Logik) -- ein Baustein lohnt sich erst, wenn die Form wirklich dieselbe ist, nicht
+schon beim zweiten Vorkommen einer ähnlichen IDEE. Die zugrunde liegende Verhaltensregel (vorgemerkte
+Datei erst nach erfolgreichem Anlegen hochladen, ein Fehlschlag darf das Anlegen nicht rückgängig
+machen) ist als Kommentar an beiden Stellen im Code festgehalten, nicht nur hier.
+
+Kleiner, durch die Verschiedenheit der beiden Seiten bedingter Unterschied bei der Fehleranzeige:
+das Betriebsmittel-Formular navigiert nach dem Anlegen auf eine ANDERE Seite (`/betriebsmittel/
+{id}`) und zeigt einen Upload-Fehlschlag deshalb per `alert()` (die Statuszeile ginge beim
+Seitenwechsel sonst verloren). Der Eingangsrechnungen-Editor bleibt dagegen auf derselben Seite und
+wechselt nur in den Bearbeiten-Modus (`openEditEditor(saved.id)`, das war schon vor dieser Änderung
+so) -- ein Upload-Fehlschlag steht deshalb einfach als Text in der bereits sichtbaren
+`#editorStatus`-Zeile, kein Popup nötig.
+
+**Punkt 2 -- Fehlerfälle, per CDP-Browsertest gegen eine isolierte Testinstanz einzeln
+nachgewiesen** (siehe Verifikation unten):
+- **Anlegen scheitert** (fehlendes Pflichtfeld ODER, serverseitig, `_validate_item_sum()` lehnt
+  einen Positions-Summenabgleich ab -> 422): `docToUpload` wurde vor dem `try`-Block aus dem
+  globalen `pendingInvoiceDocument` gelesen, der eigentliche Upload-Aufruf steht aber ERST NACH
+  dem erfolgreichen Anlegen im selben `try` -- schlägt das Anlegen fehl, springt die Ausführung
+  direkt in den äußeren `catch`, der Upload-Code wird nie erreicht. `pendingInvoiceDocument`
+  bleibt dabei unverändert gesetzt, die Dateiauswahl im `<input>` bleibt erhalten -- kein
+  verwaister Datensatz (die Rechnung wurde ja nie angelegt), keine verlorene Datei (per Test
+  bestätigt: Rechnungszähler unverändert, `pendingInvoiceDocument`/`#createDocFile.files` nach
+  dem Fehlschlag weiterhin gesetzt).
+- **Anlegen gelingt, der Upload scheitert** (z. B. Datei über 10 MB): die Rechnung bleibt
+  bestehen (kein Rollback), `saveInvoice()` zeigt eine Statuszeile, die AUSDRÜCKLICH den
+  Dateinamen und den Grund nennt und auf den Bereich "Beleg" weiter unten verweist -- exakt
+  dorthin wechselt die Seite ohnehin schon (`openEditEditor(saved.id)`), wo derselbe, bereits
+  bestehende Bearbeiten-Modus-Upload (`uploadDocument()`) den erneuten Versuch entgegennimmt.
+  Kein stilles Verschlucken -- der Fehler steht so lange sichtbar, bis der Nutzer erneut speichert
+  oder die Seite verlässt.
+
+**Punkt 3 -- Upload-Feld bewusst OBEN im Anlegen-Formular, ANDOCKPUNKT für die künftige
+KI-Belegauswertung (Stufe 3, noch nicht gebaut).** `IncomingInvoice`s Klassendocstring
+(`app/models.py`) nennt bereits seit 1.6.0 die Felder, die eine künftige automatische
+Belegauswertung füllen würde (`supplier_id`/`supplier_invoice_number`/`invoice_date`/
+`net_amount`/`tax_rate_pct`/`due_date`/`skonto_percent`/`skonto_deadline`) -- in diesem
+künftigen Ablauf kommt der Beleg IMMER zuerst (Upload/Foto), erst danach füllt die KI die
+restlichen Felder. Das neue `#createDocumentSection` steht deshalb als ERSTES Element im
+Anlegen-Formular, noch vor der Lieferantenauswahl (`.supplier-row`) -- nicht aus rein optischen
+Gründen, sondern weil genau diese Stelle der Ort ist, an dem eine künftige Stufe-3-Funktion
+ansetzen wird: Beleg hochladen -> (künftig) automatisch ausgewertet -> Formularfelder darunter
+vorausgefüllt. Bis Stufe 3 gebaut ist, bleibt es bei reiner manueller Erfassung, das Feld tut
+nichts anderes als vormerken und nach dem Speichern hochladen.
+
+**Rechte unverändert** -- kein neuer Endpunkt, keine neue Rollenprüfung nötig: der bereits
+bestehende `POST /api/incoming-invoices/{invoice_id}/document` bleibt unter
+`require_min_role(ROLE_OFFICE_FINANZEN)` (`app/routers/incoming_invoices.py`), unverändert seit
+1.6.0 -- `buero_auftrag`/`field` erreichen diesen Bereich weiterhin an keiner Stelle.
+
+**Verifikation**: `node --check` gegen den extrahierten `<script>`-Block (keine JS-Syntaxfehler).
+Zusätzlich ein echter, CDP-gesteuerter Headless-Chrome-Durchlauf gegen eine isolierte, temporäre
+SQLite-Testinstanz (Bootstrap-Admin, Zwei-Faktor-Ersteinrichtung mit `pyotp`, ein Testlieferant --
+niemals gegen `dachkonzepte_erp.db`): das Beleg-Feld steht nachweislich (DOM-Reihenfolge,
+`compareDocumentPosition()`) vor der Lieferantenauswahl, per Screenshot zusätzlich visuell
+bestätigt; Szenario "Anlegen scheitert" (Positions-Summenabgleich, `50,00 €` gegen `100,00 €`)
+zeigt die erwartete Server-Fehlermeldung, lässt die vorgemerkte Datei unangetastet und legt
+keine Rechnung an (Zähler unverändert); Szenario "Anlegen gelingt, Upload scheitert" (>10 MB)
+legt die Rechnung nachweislich an (`has_document: false` direkt danach), zeigt Dateiname + Grund
+in der Statuszeile, und der anschließende Retry über das bestehende Bearbeiten-Modus-Beleg-Feld
+gelingt nachweislich (`has_document: true` danach); das Beleg-Feld blendet sich beim Wechsel in
+den Bearbeiten-Modus einer bereits bestehenden Rechnung korrekt wieder aus. Keine neuen
+`pytest`-Tests (reine Frontend-Änderung, Muster 1.5.6) -- volle Suite weiterhin 1764 Tests grün.
 
 ## KI-Fundament (seit 1.6.2)
 
