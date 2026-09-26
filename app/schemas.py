@@ -1093,6 +1093,8 @@ class AppUserCreate(BaseModel):
     # wenigsten privilegierte Rolle über ALLE vier hinweg -- siehe dort für die Begründung.
     role: str = Field(default="buero_auftrag", pattern="^(admin|buero_finanzen|buero_auftrag|field)$")
     active: bool = True
+    # Kalender-Modul, Stufe 2 (Outlook-Sync) -- siehe AppUser.outlook_mailbox, app/models.py.
+    outlook_mailbox: str | None = Field(default=None, max_length=255)
 
 
 class AppUserUpdate(BaseModel):
@@ -1102,6 +1104,7 @@ class AppUserUpdate(BaseModel):
     role: str = Field(default="buero_auftrag", pattern="^(admin|buero_finanzen|buero_auftrag|field)$")
     active: bool = True
     new_password: str | None = Field(default=None, min_length=8, max_length=200)
+    outlook_mailbox: str | None = Field(default=None, max_length=255)
 
 
 class AppUserOut(BaseModel):
@@ -1114,6 +1117,7 @@ class AppUserOut(BaseModel):
     created_at: datetime
     last_login_at: datetime | None = None
     two_factor_configured: bool = False
+    outlook_mailbox: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -1479,6 +1483,33 @@ class AISettingsUpdate(BaseModel):
     api_base_url: str | None = Field(default=None, max_length=500)
     model: str | None = Field(default=None, max_length=120)
     api_key: str | None = None  # None = unverändert lassen
+
+
+class OutlookSyncSettingsOut(BaseModel):
+    """Kalender-Modul, Stufe 2 -- reiner Gesamtschalter, siehe OutlookSyncSettings-Klassendocstring
+    (app/models.py). Trägt bewusst KEINE Graph-Zugangsdaten -- diese kommen aus SmtpSettings,
+    siehe app/routers/email_settings.py."""
+    enabled: bool
+    graph_configured: bool  # SmtpSettings.graph_* vollständig (siehe is_outlook_sync_available()) -- reine Anzeige
+
+
+class OutlookSyncSettingsUpdate(BaseModel):
+    enabled: bool
+
+
+class OutlookSyncResultOut(BaseModel):
+    """Rückgabe von POST /api/calendar-events/sync-outlook -- reine Zähler, nie Termininhalt
+    (siehe app/outlook_calendar_sync.py Punkt 6)."""
+    skipped: bool = False
+    error: bool = False
+    error_type: str | None = None
+    created: int = 0
+    updated: int = 0
+    deleted: int = 0
+    skipped_recurring: int = 0
+    skipped_invalid: int = 0
+    pushed_created: int = 0
+    pushed_updated: int = 0
 
 
 class ReminderEmailSend(BaseModel):

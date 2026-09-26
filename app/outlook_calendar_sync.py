@@ -1,0 +1,415 @@
+"""Outlook-Kalendersynchronisation (Kalender-Modul, Stufe 2, seit 1.7.1) -- gleicht die eigenen
+CalendarEvent-Zeilen einer Person mit ihrem Postfach (AppUser.outlook_mailbox) über Microsoft
+Graph ab. Siehe CLAUDE.md "Kalender" -> "Stufe 2" für die vollständige Herleitung der sieben
+Entscheidungspunkte, hier nur die Kurzfassung je Punkt als Modulkommentar.
+
+**Bewusst getrennt von app/calendar_events.py** -- die reine Geschäftslogik (create_event()/
+update_event()/delete_event(), Privatsphäre-Redaktion) bleibt vollständig frei von jeder
+Outlook-Kenntnis, genau wie in Stufe 1 dokumentiert. Die Orchestrierung (nach dem Speichern
+pushen, vor dem Löschen fernlöschen) sitzt in app/routers/calendar_events.py -- derselbe Ort, der
+auch sonst mehrere Fachmodule zusammenführt, keine Kopplung der beiden Business-Module
+untereinander (keine Zirkel-Import-Gefahr, siehe CLAUDE.md Regel 3).
+
+**Punkt 1 -- Zuordnung ERP-Nutzer zu Postfach:** AppUser.outlook_mailbox (app/models.py),
+admin-gepflegt über /users. Jede Synchronisation läuft ausschließlich für das EIGENE Postfach
+des jeweiligen AppUser -- nie für das eines Kollegen, auch wenn die Kalenderansicht selbst
+Kollegentermine anzeigt (Stufe 1).
+
+**Punkt 2 -- Projekt-/Angebotsbezug nie durch Outlook-Änderung überschreiben:** _apply_incoming_fields()
+unten baut das Update-Dict für update_event() IMMER nur aus den syncbaren Feldern
+(title/start_at/end_at/all_day/location/notes) -- project_id/quote_id/is_private/owner_user_id
+sind darin STRUKTURELL nie enthalten, unabhängig davon, was Graph liefert (Graph kennt dieses
+Konzept ohnehin nicht). Ein aus Outlook neu angelegtes CalendarEvent startet mit
+project_id=quote_id=None, is_private=False -- die Zuordnung bleibt danach ausschließlich
+Sache eines Menschen in der ERP-Oberfläche.
+
+**Punkt 3 -- Zeitzonen:** CalendarEvent.start_at/end_at sind naive Zeitstempel in
+EUROPE/BERLIN-Ortszeit (so, wie sie in der Kalenderoberfläche eingegeben werden, siehe
+CalendarEvent-Klassendocstring/calendar.html::toLocalIso() -- KEIN UTC, anders als
+created_at/updated_at). Graph erwartet/liefert dateTime-Werte mit einer expliziten timeZone;
+dieses Modul rechnet bewusst IMMER selbst in/aus UTC um (to_utc()/to_berlin() unten, per
+zoneinfo) und sendet/erwartet ausschließlich "timeZone": "UTC" -- vermeidet jede Mehrdeutigkeit
+zwischen Windows- und IANA-Zeitzonennamen, die Graphs timeZone-Feld sonst zulässt.
+
+**Punkt 4 -- Serientermine, nur ein Vorschlag, NICHT implementiert:** CalendarEvent kennt keine
+Wiederholungsregel. Ein wiederkehrender Outlook-Termin erscheint in der events/delta-Antwort als
+EIN einzelnes "seriesMaster"-Objekt (Graph expandiert Einzeltermine nur über calendarView mit
+Datumsfenster, nicht über die hier genutzte events/delta) -- _is_recurring() erkennt das und
+_apply_delta_change() überspringt solche Zeilen vollständig (gezählt, nie angelegt/geändert).
+Ein künftiger Ausbau müsste auf calendarView/delta mit einem festen Zeitfenster wechseln und
+jede Instanz als eigene, entkoppelte CalendarEvent-Zeile führen -- eine größere Modelländerung,
+hier bewusst nicht gebaut.
+
+**Punkt 5 -- Delta-Abfrage, Cron plus beim Öffnen, letzte Änderung gewinnt, Löschungen
+beidseitig:** sync_user_calendar() ist der vollständige Pull-dann-Push-Zyklus für eine Person,
+aufgerufen sowohl von scripts/sync_outlook_calendars.py (Cron, alle Postfächer) als auch von
+POST /api/calendar-events/sync-outlook (beim Öffnen von /kalender, nur das eigene Postfach).
+OutlookCalendarSyncState.delta_link erspart dabei jedem Lauf außer dem ersten die vollständige
+Kalenderabfrage. "Letzte Änderung gewinnt": _apply_delta_change() vergleicht Graphs
+lastModifiedDateTime gegen CalendarEvent.updated_at -- nur wenn Graph NEUER ist, werden die
+lokalen Felder überschrieben, sonst gewinnt die lokale Zeile (und wird in der anschließenden
+Push-Phase nach Outlook geschrieben). Löschungen beidseitig: ein "@removed"-Delta-Eintrag löscht
+die lokale Zeile hart (_apply_delta_change()); eine lokale Löschung stößt best-effort eine
+Graph-Löschung an (try_delete_remote_event(), aufgerufen vom Router VOR delete_event()).
+
+**Punkt 6 -- kein Termininhalt in Protokollen:** logger unten protokolliert ausschließlich
+Zähler (erstellt/aktualisiert/gelöscht/übersprungen), Zeitdauer und im Fehlerfall den reinen
+Exception-Klassennamen (nie str(exc)) -- dieselbe Zurückhaltung wie bei AICallLog.error_type,
+aus demselben Grund: eine Graph-Fehlermeldung kann Teile der fehlgeschlagenen Anfrage (Titel,
+Ort) im Klartext zurückspiegeln. Kein Log-Aufruf in diesem Modul reicht je title/location/notes/
+den rohen Graph-Response-Body weiter.
+
+**Punkt 7 -- Tests nur gegen Attrappe:** siehe tests/test_v297_outlook_calendar_sync.py -- jeder
+Test patcht urllib.request.urlopen an dieser Stelle (app.outlook_calendar_sync.urllib.request.urlopen),
+niemals ein echter Netzwerkaufruf.
+"""
+
+import json
+import logging
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from .email_sending import get_graph_access_token, get_or_create_smtp_settings
+from .models import AppUser, CalendarEvent, OutlookCalendarSyncState, OutlookSyncSettings
+
+logger = logging.getLogger("app.outlook_calendar_sync")
+
+BERLIN = ZoneInfo("Europe/Berlin")
+
+GRAPH_BASE = "https://graph.microsoft.com/v1.0"
+GRAPH_TIMEOUT = 30
+
+# Nur diese Felder wandern in beide Richtungen -- project_id/quote_id/is_private/owner_user_id
+# sind hier bewusst NICHT gelistet (Punkt 2, siehe Moduldocstring).
+_SYNCABLE_FIELDS = ("title", "start_at", "end_at", "all_day", "location", "notes")
+
+_EVENT_SELECT = "id,subject,start,end,isAllDay,location,body,lastModifiedDateTime,recurrence,type,sensitivity"
+
+
+class OutlookSyncError(Exception):
+    """Wird von den low-level Graph-Aufrufen unten geworfen -- str(exc) kann Teile der Anfrage
+    enthalten (siehe Punkt 6) und darf deshalb NIE geloggt werden, nur type(exc).__name__."""
+
+
+# ---------------------------------------------------------------------------
+# Zeitzonen (Punkt 3)
+# ---------------------------------------------------------------------------
+
+
+def to_utc(local_naive: datetime) -> datetime:
+    """CalendarEvent.start_at/end_at (naive Europe/Berlin-Ortszeit) -> naive UTC, für Graph."""
+    return local_naive.replace(tzinfo=BERLIN).astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def to_berlin(utc_naive: datetime) -> datetime:
+    """Umkehrung von to_utc() -- naive UTC (aus Graph) -> naive Europe/Berlin-Ortszeit, fürs
+    Speichern in CalendarEvent.start_at/end_at."""
+    return utc_naive.replace(tzinfo=timezone.utc).astimezone(BERLIN).replace(tzinfo=None)
+
+
+def _parse_graph_datetime(value: str) -> datetime:
+    """Graph liefert ISO-8601 mit Sekundenbruchteilen und optionalem 'Z'/Offset -- wir haben nie
+    einen anderen als UTC angefragt (siehe Moduldocstring Punkt 3), interpretieren aber auch ein
+    mitgeliefertes Offset korrekt, statt es zu ignorieren."""
+    text = value.replace("Z", "+00:00")
+    parsed = datetime.fromisoformat(text)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+# ---------------------------------------------------------------------------
+# Einstellungen (Singleton, Muster app/ai_settings.py)
+# ---------------------------------------------------------------------------
+
+
+def get_or_create_outlook_sync_settings(db: Session) -> OutlookSyncSettings:
+    settings = db.get(OutlookSyncSettings, 1)
+    if settings is None:
+        settings = OutlookSyncSettings(id=1)
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings
+
+
+def update_outlook_sync_settings(db: Session, *, enabled: bool) -> OutlookSyncSettings:
+    settings = get_or_create_outlook_sync_settings(db)
+    settings.enabled = enabled
+    db.commit()
+    db.refresh(settings)
+    return settings
+
+
+def is_outlook_sync_available(db: Session, user: AppUser | None = None) -> bool:
+    """Gesamtschalter an UND Graph-Zugangsdaten vorhanden (dieselben wie beim E-Mail-Versand,
+    siehe OutlookSyncSettings-Klassendocstring) -- prüft, wenn user übergeben wird, zusätzlich
+    dessen eigenes outlook_mailbox. Reicht als schnelle Vorprüfung (Muster
+    app/modules.py::is_module_enabled()), ohne selbst schon Netzwerkzugriff auszulösen."""
+    settings = get_or_create_outlook_sync_settings(db)
+    if not settings.enabled:
+        return False
+    smtp = get_or_create_smtp_settings(db)
+    if not (smtp.graph_tenant_id and smtp.graph_client_id and smtp.graph_client_secret_encrypted):
+        return False
+    if user is not None and not user.outlook_mailbox:
+        return False
+    return True
+
+
+def get_or_create_sync_state(db: Session, user: AppUser) -> OutlookCalendarSyncState:
+    state = db.scalar(select(OutlookCalendarSyncState).where(OutlookCalendarSyncState.app_user_id == user.id))
+    if state is None:
+        state = OutlookCalendarSyncState(app_user_id=user.id)
+        db.add(state)
+        db.commit()
+        db.refresh(state)
+    return state
+
+
+# ---------------------------------------------------------------------------
+# Low-level Graph-Zugriff
+# ---------------------------------------------------------------------------
+
+
+def _graph_call(token: str, url: str, *, method: str = "GET", payload: dict | None = None) -> dict | None:
+    """Ein einzelner Graph-Aufruf -- gibt das geparste JSON zurück (None bei 204 No Content, z.
+    B. nach DELETE). Wirft OutlookSyncError bei jedem Fehler; die Nachricht selbst wird NIE
+    geloggt (siehe Moduldocstring Punkt 6), nur an den Aufrufer zur Anzeige durchgereicht, falls
+    dieser sie einem Menschen zeigen will (z. B. "Verbindung testen")."""
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    req = urllib.request.Request(url, data=data, method=method, headers={
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=GRAPH_TIMEOUT) as resp:
+            body = resp.read()
+            if not body:
+                return None
+            return json.loads(body.decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")
+        hint = " Häufigste Ursache: das Postfach ist der Anwendung nicht über eine Exchange-RBAC-Zugriffsrichtlinie freigegeben (siehe CLAUDE.md \"Kalender\" -> \"Stufe 2\")." if e.code == 403 else ""
+        raise OutlookSyncError(f"Microsoft-Graph-Aufruf fehlgeschlagen ({e.code}): {detail}{hint}") from e
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise OutlookSyncError(f"Verbindung zu Microsoft Graph fehlgeschlagen: {e}") from e
+
+
+def _mailbox_events_url(mailbox: str) -> str:
+    return f"{GRAPH_BASE}/users/{urllib.parse.quote(mailbox)}/events"
+
+
+def _event_payload(event: CalendarEvent) -> dict:
+    body_text = event.notes or ""
+    return {
+        "subject": event.title,
+        "isAllDay": event.all_day,
+        "start": {"dateTime": to_utc(event.start_at).isoformat(), "timeZone": "UTC"},
+        "end": {"dateTime": to_utc(event.end_at).isoformat(), "timeZone": "UTC"},
+        "location": {"displayName": event.location or ""},
+        "body": {"contentType": "Text", "content": body_text},
+    }
+
+
+def _is_recurring(item: dict) -> bool:
+    return bool(item.get("recurrence")) or item.get("type") == "seriesMaster"
+
+
+def _plain_text_body(item: dict) -> str | None:
+    body = item.get("body") or {}
+    content = body.get("content")
+    return content.strip() or None if content else None
+
+
+# ---------------------------------------------------------------------------
+# Push: lokale Änderung -> Outlook
+# ---------------------------------------------------------------------------
+
+
+def push_event_best_effort(db: Session, event_id: int) -> None:
+    """Nach create_event()/update_event() in app/routers/calendar_events.py aufgerufen -- best
+    effort: ein Graph-Fehler darf den bereits erfolgreich gespeicherten lokalen Termin nicht
+    rückwirkend als Fehler erscheinen lassen (Muster app/tasks.py::notify_task_assignment()),
+    deshalb kein Reraise, nur Protokollierung (Klassenname, kein Text, Punkt 6)."""
+    event = db.get(CalendarEvent, event_id)
+    if event is None:
+        return
+    user = event.owner
+    if not is_outlook_sync_available(db, user):
+        return
+    try:
+        smtp = get_or_create_smtp_settings(db)
+        token = get_graph_access_token(smtp)
+        if event.outlook_event_id:
+            _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{event.outlook_event_id}", method="PATCH", payload=_event_payload(event))
+        else:
+            created = _graph_call(token, _mailbox_events_url(user.outlook_mailbox), method="POST", payload=_event_payload(event))
+            event.outlook_event_id = created["id"]
+            db.commit()
+    except Exception as exc:  # noqa: BLE001 -- best effort, siehe Docstring
+        logger.warning("Push nach Outlook fehlgeschlagen (event_id=%s, Fehlerart=%s).", event_id, type(exc).__name__)
+
+
+def try_delete_remote_event(db: Session, event: CalendarEvent) -> bool:
+    """Vor dem lokalen Löschen (app/routers/calendar_events.py) aufgerufen, wenn der Termin
+    bereits einen outlook_event_id trägt. Best effort (gibt True/False zurück, wirft nie) --
+    schlägt die Fernlöschung fehl (z. B. Graph kurzzeitig nicht erreichbar), wird trotzdem lokal
+    gelöscht (Nutzerabsicht hat Vorrang); ein bewusst akzeptiertes, seltenes Restrisiko bleibt
+    dabei bestehen, siehe CLAUDE.md "Kalender" -> "Stufe 2" -> "Bekannte, bewusst offene
+    Punkte": der Outlook-Termin kann dann bei einem späteren Sync-Lauf fälschlich als neu
+    erkannt und lokal wiederhergestellt werden."""
+    if not event.outlook_event_id:
+        return True
+    user = event.owner
+    if not is_outlook_sync_available(db, user):
+        return True
+    try:
+        smtp = get_or_create_smtp_settings(db)
+        token = get_graph_access_token(smtp)
+        _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{event.outlook_event_id}", method="DELETE")
+        return True
+    except Exception as exc:  # noqa: BLE001 -- best effort, siehe Docstring
+        logger.warning("Fernlöschen in Outlook fehlgeschlagen (event_id=%s, Fehlerart=%s).", event.id, type(exc).__name__)
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Pull: Outlook-Änderungen -> lokal (Delta-Abfrage)
+# ---------------------------------------------------------------------------
+
+
+def _fetch_delta_pages(token: str, start_url: str) -> tuple[list[dict], str]:
+    """Folgt @odata.nextLink, bis @odata.deltaLink kommt -- gibt alle gesammelten Zeilen plus
+    den neuen deltaLink zurück (zum Speichern in OutlookCalendarSyncState.delta_link)."""
+    items: list[dict] = []
+    url = start_url
+    while True:
+        page = _graph_call(token, url, method="GET")
+        items.extend(page.get("value", []))
+        next_link = page.get("@odata.nextLink")
+        delta_link = page.get("@odata.deltaLink")
+        if delta_link:
+            return items, delta_link
+        if not next_link:
+            # Sollte laut Graph-Vertrag nicht vorkommen (jede Seite trägt entweder nextLink oder
+            # deltaLink) -- Verteidigung in der Tiefe statt einer Endlosschleife.
+            raise OutlookSyncError("Graph-Delta-Antwort ohne @odata.nextLink/@odata.deltaLink.")
+        url = next_link
+
+
+def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) -> int | None:
+    """Verarbeitet EINE Delta-Zeile -- gibt die lokale CalendarEvent.id zurück, wenn eine
+    Änderung angewendet wurde (damit die Push-Phase diese Zeile im selben Lauf nicht erneut
+    anfasst), sonst None."""
+    if "@removed" in item:
+        row = db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_event_id == item["id"], CalendarEvent.owner_user_id == user.id))
+        if row is not None:
+            db.delete(row)
+            db.commit()
+            counters["deleted"] += 1
+        return None
+
+    if _is_recurring(item):
+        counters["skipped_recurring"] += 1
+        return None
+
+    start = item.get("start") or {}
+    end = item.get("end") or {}
+    if not start.get("dateTime") or not end.get("dateTime"):
+        # Ganztägige Termine tragen bei Graph ebenfalls start/end.dateTime (Mitternacht) -- ein
+        # gänzlich fehlendes Feld ist kein sinnvoll übernehmbares Ereignis.
+        counters["skipped_invalid"] += 1
+        return None
+
+    incoming_fields = {
+        "title": item.get("subject") or "(ohne Titel)",
+        "start_at": to_berlin(_parse_graph_datetime(start["dateTime"])),
+        "end_at": to_berlin(_parse_graph_datetime(end["dateTime"])),
+        "all_day": bool(item.get("isAllDay")),
+        "location": (item.get("location") or {}).get("displayName") or None,
+        "notes": _plain_text_body(item),
+    }
+    graph_modified = _parse_graph_datetime(item["lastModifiedDateTime"]) if item.get("lastModifiedDateTime") else None
+
+    existing = db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_event_id == item["id"], CalendarEvent.owner_user_id == user.id))
+    if existing is None:
+        row = CalendarEvent(
+            owner_user_id=user.id, outlook_event_id=item["id"], external_source="outlook",
+            project_id=None, quote_id=None, is_private=False, **incoming_fields,
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        counters["created"] += 1
+        return row.id
+
+    # "Letzte Änderung gewinnt" (Punkt 5): nur anwenden, wenn Graphs Stand nachweislich neuer ist
+    # als unser eigener updated_at -- sonst gewinnt die lokale Zeile und wird stattdessen in der
+    # anschließenden Push-Phase nach Outlook geschrieben.
+    if graph_modified is not None and graph_modified <= existing.updated_at:
+        return None
+    for key, value in incoming_fields.items():
+        setattr(existing, key, value)
+    db.commit()
+    counters["updated"] += 1
+    return existing.id
+
+
+def sync_user_calendar(db: Session, user: AppUser) -> dict:
+    """Vollständiger Pull-dann-Push-Zyklus für GENAU EIN Postfach (das eigene des übergebenen
+    AppUser). Gibt ein reines Zähler-Dict zurück (nie Termininhalt, Punkt 6) -- der Aufrufer
+    (Router bzw. scripts/sync_outlook_calendars.py) entscheidet, wie er das protokolliert/
+    anzeigt."""
+    counters = {"created": 0, "updated": 0, "deleted": 0, "skipped_recurring": 0, "skipped_invalid": 0, "pushed_created": 0, "pushed_updated": 0}
+    if not is_outlook_sync_available(db, user):
+        return {"skipped": True, **counters}
+
+    state = get_or_create_sync_state(db, user)
+    smtp = get_or_create_smtp_settings(db)
+    just_synced_ids: set[int] = set()
+
+    try:
+        token = get_graph_access_token(smtp)
+        start_url = state.delta_link or (
+            f"{_mailbox_events_url(user.outlook_mailbox)}/delta?$select={_EVENT_SELECT}"
+        )
+        items, new_delta_link = _fetch_delta_pages(token, start_url)
+        for item in items:
+            changed_id = _apply_delta_change(db, user, item, counters)
+            if changed_id is not None:
+                just_synced_ids.add(changed_id)
+
+        watermark = state.last_synced_at or datetime(1970, 1, 1)
+        local_rows = db.scalars(select(CalendarEvent).where(CalendarEvent.owner_user_id == user.id)).all()
+        for row in local_rows:
+            if row.id in just_synced_ids:
+                continue
+            if row.outlook_event_id is None:
+                created = _graph_call(token, _mailbox_events_url(user.outlook_mailbox), method="POST", payload=_event_payload(row))
+                row.outlook_event_id = created["id"]
+                counters["pushed_created"] += 1
+            elif row.updated_at > watermark:
+                _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{row.outlook_event_id}", method="PATCH", payload=_event_payload(row))
+                counters["pushed_updated"] += 1
+
+        state.delta_link = new_delta_link
+        state.last_synced_at = datetime.utcnow()
+        state.last_error_type = None
+        state.last_error_at = None
+        db.commit()
+        return counters
+    except Exception as exc:  # noqa: BLE001 -- ein fehlschlagendes Postfach darf den Cron-Lauf für andere nicht abbrechen
+        db.rollback()
+        state = get_or_create_sync_state(db, user)
+        state.last_error_type = type(exc).__name__
+        state.last_error_at = datetime.utcnow()
+        db.commit()
+        logger.warning("Outlook-Kalendersynchronisation fehlgeschlagen (app_user_id=%s, Fehlerart=%s).", user.id, type(exc).__name__)
+        return {"error": True, "error_type": type(exc).__name__, **counters}

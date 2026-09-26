@@ -401,6 +401,11 @@ async function init(){
   await loadOwners();
   const params=new URLSearchParams(location.search);
   render();
+  // "Beim Öffnen" (Kalender-Modul Stufe 2, siehe CLAUDE.md "Kalender" -> "Stufe 2" Punkt 5) --
+  // synchronisiert best effort das eigene Outlook-Postfach, dann die Ansicht neu laden, falls
+  // sich dadurch etwas geändert hat. Fire-and-forget: ein deaktivierter/nicht konfigurierter
+  // Sync liefert einfach {skipped:true}, kein Fehler, kein Blockieren der Seite.
+  api('/api/calendar-events/sync-outlook',{method:'POST'}).then(r=>{if(!r.skipped)render()}).catch(()=>{});
   if(params.get('new_project'))openCreate({type:'project',id:Number(params.get('new_project')),label:params.get('new_project_label')||('Projekt #'+params.get('new_project'))});
   else if(params.get('new_quote'))openCreate({type:'quote',id:Number(params.get('new_quote')),label:params.get('new_quote_label')||('Angebot #'+params.get('new_quote'))});
 }

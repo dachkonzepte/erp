@@ -159,12 +159,19 @@ def _connect_smtp(settings: SmtpSettings) -> smtplib.SMTP:
         raise ValueError(f"Verbindung zum Mailserver fehlgeschlagen: {e}") from e
 
 
-def _get_graph_access_token(settings: SmtpSettings) -> str:
+def get_graph_access_token(settings: SmtpSettings) -> str:
     """Holt ein neues Zugriffstoken per OAuth 2.0 Client-Credentials-Flow
     (App-only). Bewusst ohne Zwischenspeicherung/Cache: bei den hier zu
     erwartenden Versandmengen (einzelne Dokumente, kein Massenversand)
     überwiegt die Einfachheit eines frischen Tokens pro Versand den
-    geringen Zusatzaufwand einer weiteren Anfrage."""
+    geringen Zusatzaufwand einer weiteren Anfrage.
+
+    Bewusst öffentlich (kein führender Unterstrich mehr, seit Kalender-Modul Stufe 2) -- der
+    Client-Credentials-Flow fordert immer den Scope "https://graph.microsoft.com/.default", die
+    tatsächlich nutzbaren Berechtigungen (Mail.Send, seit Stufe 2 zusätzlich
+    Calendars.ReadWrite) ergeben sich ausschließlich aus dem, was der App in Azure AD erteilt
+    wurde -- ein und dasselbe Token trägt beide Rechte, app/outlook_calendar_sync.py ruft
+    deshalb GENAU diese Funktion erneut auf, statt eine zweite Token-Beschaffung zu bauen."""
     token_url = f"https://login.microsoftonline.com/{settings.graph_tenant_id}/oauth2/v2.0/token"
     data = urllib.parse.urlencode({
         "grant_type": "client_credentials",
@@ -198,7 +205,7 @@ def check_smtp_connection(db: Session) -> None:
     if missing:
         raise ValueError(f"E-Mail-Versand ist noch nicht vollständig konfiguriert. Es fehlt: {', '.join(missing)}.")
     if settings.send_method == "graph_oauth2":
-        _get_graph_access_token(settings)
+        get_graph_access_token(settings)
         return
     conn = _connect_smtp(settings)
     conn.quit()
@@ -247,7 +254,7 @@ def _graph_error_hint(detail: str) -> str:
 
 def _send_via_graph(settings: SmtpSettings, *, to_email: str, subject: str, body_text: str,
                      attachment_bytes: bytes | None = None, attachment_filename: str | None = None) -> None:
-    token = _get_graph_access_token(settings)
+    token = get_graph_access_token(settings)
     mailbox = urllib.parse.quote(settings.graph_sender_mailbox)
     url = f"https://graph.microsoft.com/v1.0/users/{mailbox}/sendMail"
     message: dict = {

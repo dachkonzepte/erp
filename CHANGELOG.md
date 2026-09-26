@@ -4,6 +4,41 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.7.1 – Kalender-Modul (Stufe 2): Outlook-Kalendersynchronisation über Microsoft Graph
+
+Fortsetzung von 1.7.0 -- der dort dokumentierte Stufe-2-Befund ist jetzt gebaut. Kurzer Befund zu
+sieben vom Betreiber vorgegebenen Punkten, dann in einer Runde umgesetzt: Zuordnung ERP-Nutzer zu
+Postfach (`AppUser.outlook_mailbox`, admin-gepflegt über /users), Projekt-/Angebotsbezug bleibt
+bei einer eingehenden Outlook-Änderung strukturell unangetastet, Zeitzonen (Europe/Berlin ↔ UTC,
+per `zoneinfo`, mit Tests über beide DST-Übergänge 2026), Serientermine bewusst nur als
+zurückgestellter Vorschlag (kein Recurrence-Feld im Modell, ein wiederkehrender Outlook-Termin
+wird beim Pull übersprungen statt angelegt), Delta-Abfrage (gespeicherter `delta_link` je
+Postfach) sowohl per Cron (`scripts/sync_outlook_calendars.py`, alle Postfächer) als auch beim
+Öffnen von `/kalender` (nur das eigene), "letzte Änderung gewinnt" über einen Vergleich von
+`CalendarEvent.updated_at` gegen Graphs `lastModifiedDateTime`, Löschungen beidseitig (ein
+`@removed`-Delta-Eintrag löscht lokal, eine lokale Löschung stößt best effort eine
+Graph-Löschung an), kein Termininhalt in Protokollen (nur Zähler und der reine
+Exception-Klassenname, nie `str(exc)` -- Muster `AICallLog.error_type`), und jeder Test läuft
+ausschließlich gegen eine Attrappe (`urllib.request.urlopen` wird nirgends real aufgerufen).
+
+Neues, eigenständiges Modul `app/outlook_calendar_sync.py` -- bewusst getrennt von
+`app/calendar_events.py` (dessen reine Geschäftslogik bleibt frei von jeder Outlook-Kenntnis,
+die Orchestrierung sitzt im Router). Nutzt dieselbe Azure-AD-App-Registrierung wie der
+bestehende Microsoft-365-E-Mail-Versand (`SmtpSettings.graph_tenant_id/graph_client_id/
+graph_client_secret_encrypted`, `app/email_sending.py::get_graph_access_token()`, dafür
+öffentlich gemacht) -- keine zweite Kopie derselben Zugangsdaten. Neue Tabellen
+`OutlookSyncSettings` (Gesamtschalter, admin-only) und `OutlookCalendarSyncState`
+(Pro-Postfach-Fortschritt: `delta_link`, `last_synced_at`, `last_error_type`). Neuer Router
+`app/routers/outlook_sync_settings.py`, neuer Endpunkt `POST /api/calendar-events/sync-outlook`.
+
+Das reale Setup läuft über Exchange "RBAC for Applications" (nicht über eine globale
+Admin-Zustimmung in Entra ID, die den Zugriff auf ALLE Postfächer öffnen würde) -- siehe
+Abschnitt "Kalender" -> "Stufe 2" in dieser Datei für die vollständige Einrichtungsanleitung.
+
+32 neue Tests (`tests/test_v297_outlook_calendar_sync.py`), ein bereits bestehender Test
+(`tests/test_v054_settings_sidebar.py`) musste um den neuen Einstellungen-Menüpunkt ergänzt
+werden. Volle Suite: 1818 Tests grün.
+
 ## 1.7.0 – Kalender-Modul (Stufe 1): Büro-Termine, getrennt von der Plantafel
 
 Erstes neues Modul seit dem KI-Fundament (`module_key "kalender"`, buero_auftrag/buero_finanzen/

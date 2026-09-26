@@ -132,6 +132,13 @@
       <div class="settings-menu">
         <button type="button" data-settings-section="ai-settings" onclick="showSettingsSection('ai-settings')">KI-Anbieter<span class="menu-sub">Anbieter, Zugangsdaten, Gesamtschalter (nur Administratoren)</span></button>
       </div>
+      {# Kalender-Modul, Stufe 2 (seit 1.7.1, siehe CLAUDE.md "Kalender" -> "Stufe 2"): reine
+         Systemkonfiguration, ausschließlich Administratoren -- Muster KI-Anbieter oben. Die
+         Graph-Zugangsdaten selbst bleiben unter E-Mail-Versand, hier nur der Gesamtschalter. #}
+      <div class="settings-group">Kalender</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="outlook-sync" onclick="showSettingsSection('outlook-sync')">Outlook-Synchronisation<span class="menu-sub">Gesamtschalter (nur Administratoren)</span></button>
+      </div>
       {% endif %}
     </aside>
     <div class="settings-content">
@@ -412,6 +419,22 @@
       <button onclick="saveAiSettings()">Speichern</button>
       <button type="button" class="secondary" onclick="testAiSettings()">Verbindung testen</button>
       <span id="aiSettingsStatus" class="status"></span>
+    </div>
+  </section>
+
+  <section class="card settings-section" id="settings-outlook-sync">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Outlook-Synchronisation</h2><div class="muted small">Kalender-Modul, Stufe 2 -- gleicht die eigenen Termine jeder Person mit ihrem in "Benutzer &amp; Zugriff" hinterlegten Outlook-Postfach ab.</div></div></div>
+
+    <div class="hint">Nutzt dieselbe Microsoft-365-App-Registrierung wie unter "E-Mail-Versand" (Mandanten-ID/Client-ID/Client-Secret) -- zusätzlich zu Mail.Send braucht diese App die Anwendungsberechtigung <code>Calendars.ReadWrite</code>, eingeschränkt über eine Exchange-RBAC-Zugriffsrichtlinie auf genau die Postfächer, die synchronisiert werden sollen (siehe CLAUDE.md "Kalender" -&gt; "Stufe 2" für die vollständige Einrichtungsanleitung). Solange der Schalter unten aus ist, ruft niemand Microsoft Graph für Kalenderdaten auf.</div>
+
+    <div class="field" style="max-width:420px;margin-top:12px">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:650"><input id="outlookSyncEnabled" type="checkbox" style="width:auto"> Outlook-Kalendersynchronisation aktivieren</label>
+    </div>
+    <div id="outlookGraphMissingHint" class="hint hidden" style="margin-top:8px">Unter "E-Mail-Versand" sind noch keine vollständigen Microsoft-365-Zugangsdaten hinterlegt -- der Schalter kann aktiviert werden, ein tatsächlicher Sync-Lauf schlägt aber fehl, bis Mandanten-ID/Client-ID/Client-Secret dort eingetragen sind.</div>
+
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button onclick="saveOutlookSyncSettings()">Speichern</button>
+      <span id="outlookSyncStatus" class="status"></span>
     </div>
   </section>
 
@@ -808,7 +831,7 @@ const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
   refreshStatusColors();
 })();
 const v=id=>document.getElementById(id).value.trim();const nv=id=>v(id)||null;const setv=(id,x)=>document.getElementById(id).value=x??'';
-const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','recurring-costs','incoming-invoices','accounts','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','operational-assets','mobile','ai-settings'];
+const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','recurring-costs','incoming-invoices','accounts','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','operational-assets','mobile','ai-settings','outlook-sync'];
 function showSettingsSection(key,updateHash=true){
   if(!SETTINGS_SECTIONS.includes(key))key='general';
   document.querySelectorAll('.settings-section').forEach(x=>x.classList.toggle('active',x.id===`settings-${key}`));
@@ -1822,6 +1845,26 @@ async function testAiSettings(){
   }catch(e){ st.textContent = 'Fehlgeschlagen: ' + e.message }
 }
 
+async function loadOutlookSyncSettings(){
+  const section = document.getElementById('settings-outlook-sync');
+  try{
+    const s = await api('/api/outlook-sync-settings');
+    document.getElementById('outlookSyncEnabled').checked = !!s.enabled;
+    document.getElementById('outlookGraphMissingHint').classList.toggle('hidden', !!s.graph_configured);
+  }catch(e){
+    section.innerHTML = '<div class="section-title"><h2>Outlook-Synchronisation</h2></div><div class="hint">Diese Einstellung ist nur für Administratoren verfügbar.</div>';
+  }
+}
+async function saveOutlookSyncSettings(){
+  const st = document.getElementById('outlookSyncStatus');
+  try{
+    st.textContent = 'Speichert …';
+    await api('/api/outlook-sync-settings', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({enabled: document.getElementById('outlookSyncEnabled').checked})});
+    st.textContent = 'Gespeichert.';
+    await loadOutlookSyncSettings();
+  }catch(e){ st.textContent = 'Fehler: ' + e.message }
+}
+
 const EMAIL_TEMPLATE_PLACEHOLDER_HINTS = {
   invoice: 'Verfügbare Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {gesamtbetrag} {kundenname}',
   quote: 'Verfügbare Platzhalter: {angebotsnummer} {gesamtbetrag} {kundenname}',
@@ -2080,6 +2123,7 @@ showSettingsSection(settingsSectionFromHash(),false);
 load().catch(e=>alert('Einstellungen konnten nicht geladen werden: '+e.message));
 loadEmailSettings();
 loadAiSettings();
+loadOutlookSyncSettings();
 loadEmailTemplate();
 loadAppearance();
 </script>

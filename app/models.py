@@ -2286,6 +2286,14 @@ class AppUser(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Outlook-Kalendersynchronisation (Kalender-Modul, Stufe 2, seit 1.7.1) -- das Postfach
+    # (O365-E-Mail-Adresse), dessen Kalender app/outlook_calendar_sync.py mit den eigenen
+    # CalendarEvent-Zeilen dieser Person abgleicht. NULL bedeutet "kein Sync für dieses Konto"
+    # -- weder Pull noch Push laufen dann, unabhängig vom globalen OutlookSyncSettings.enabled.
+    # Nur von einem Administrator pflegbar (app/routers/users.py), kein Format-Zwang (Muster
+    # Customer.email -- auch dort keine strikte E-Mail-Validierung).
+    outlook_mailbox: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     # Zwei-Faktor-Authentifizierung (TOTP, seit 1.3.34, siehe CLAUDE.md
     # "Zwei-Faktor-Authentifizierung für Administratoren") -- verschlüsselt
     # abgelegt wie das SMTP-Passwort (app/crypto.py::encrypt_secret()), da der
@@ -2298,6 +2306,7 @@ class AppUser(Base):
 
     recovery_codes: Mapped[list["TwoFactorRecoveryCode"]] = relationship(cascade="all, delete-orphan")
     trusted_devices: Mapped[list["TrustedDevice"]] = relationship(cascade="all, delete-orphan")
+    outlook_sync_state: Mapped["OutlookCalendarSyncState | None"] = relationship(cascade="all, delete-orphan", uselist=False, back_populates="owner")
 
     @property
     def two_factor_configured(self) -> bool:
@@ -3890,6 +3899,63 @@ class CalendarEvent(Base):
     owner: Mapped["AppUser"] = relationship()
     project: Mapped["Project | None"] = relationship()
     quote: Mapped["Quote | None"] = relationship()
+
+
+class OutlookSyncSettings(Base):
+    """Gesamtschalter für die Outlook-Kalendersynchronisation (Kalender-Modul, Stufe 2, seit
+    1.7.1) -- Singleton wie AISettings/SmtpSettings (immer genau eine Zeile mit id=1). Nur für
+    Administratoren (app/routers/outlook_sync_settings.py) -- Systemkonfiguration, nicht einmal
+    buero_finanzen (Muster AISettings, Betreibervorgabe).
+
+    Nutzt BEWUSST dieselbe Azure-AD-App-Registrierung wie der E-Mail-Versand
+    (SmtpSettings.graph_tenant_id/graph_client_id/graph_client_secret_encrypted, siehe
+    app/email_sending.py::get_graph_access_token()) -- KEINE zweite Kopie derselben
+    Zugangsdaten. Das reale Setup (siehe CLAUDE.md "Kalender" -> "Stufe 2") gibt derselben App
+    zusätzlich zu Mail.Send die Anwendungsberechtigung Calendars.ReadWrite, eingeschränkt über
+    Exchange "RBAC for Applications" auf eine Postfach-Sicherheitsgruppe (Scope "ERP-Zugriff")
+    -- eine zweite, unabhängige App-Registrierung nur für den Kalender wäre unnötige Komplexität
+    für dieselbe Vertrauensbeziehung.
+
+    enabled ist Default AUS, unabhängig davon, ob SmtpSettings bereits konfiguriert ist -- eine
+    E-Mail-Versand-Konfiguration bedeutet nicht automatisch, dass auch Kalender synchronisiert
+    werden sollen. Zusätzlich braucht jedes einzelne AppUser-Konto noch ein eigenes,
+    hinterlegtes outlook_mailbox (siehe dort) -- der Gesamtschalter allein synchronisiert
+    niemanden."""
+
+    __tablename__ = "outlook_sync_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OutlookCalendarSyncState(Base):
+    """Pro-Mitarbeiter-Fortschritt der Outlook-Kalendersynchronisation (Kalender-Modul, Stufe 2)
+    -- app/outlook_calendar_sync.py::sync_user_calendar() ist die einzige Stelle, die hier
+    schreibt, für genau EIN AppUser-Konto (das eigene Postfach, nicht das der Kollegen).
+
+    delta_link ist Microsoft Graphs eigener Fortschritts-Zeiger (siehe Graph-Dokumentation zu
+    "delta query" auf /events) -- ein gespeicherter Link erspart bei jedem weiteren Lauf die
+    erneute Abfrage des GESAMTEN Postfach-Kalenders, nur tatsächliche Änderungen seit dem
+    letzten Lauf kommen zurück. NULL bedeutet "noch nie erfolgreich synchronisiert" -- der
+    nächste Lauf beginnt dann mit einer vollständigen Erstabfrage.
+
+    last_error_type ist -- wie AICallLog.error_type -- bewusst NUR der Exception-Klassenname,
+    NIE dessen Text: eine Graph-Fehlermeldung kann Teile der fehlgeschlagenen Anfrage
+    (Termintitel/Ort) im Klartext enthalten (siehe CLAUDE.md "Kalender" -> "Stufe 2" -> Punkt 6,
+    "kein Termininhalt in Protokollen"). Dieselbe Zurückhaltung gilt für jedes Log dieses Moduls."""
+
+    __tablename__ = "outlook_calendar_sync_state"
+    __table_args__ = (UniqueConstraint("app_user_id", name="uq_outlook_sync_state_app_user_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    app_user_id: Mapped[int] = mapped_column(ForeignKey("app_users.id"), index=True)
+    delta_link: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    last_error_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    owner: Mapped["AppUser"] = relationship(back_populates="outlook_sync_state")
 
 
 class IncomingInvoice(Base):

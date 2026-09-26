@@ -20,8 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.7.0** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `7974647223ea` ("calendar events kalender modul", neue Tabelle
+- Version: **1.7.1** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `6573d677bc1d` ("outlook calendar sync stufe 2", neue Tabellen
+  `outlook_sync_settings`/`outlook_calendar_sync_state` PLUS die neue, nullable Spalte
+  `app_users.outlook_mailbox` -- siehe Abschnitt "Kalender-Modul" -> "Stufe 2" unten; 1.7.1 selbst
+  ist reine Anwendungslogik/Oberfläche zusätzlich zu dieser einen Migration, kein zweiter Kettenschritt
+  nötig) -- davor `7974647223ea` ("calendar events kalender modul", neue Tabelle
   `calendar_events` -- siehe Abschnitt "Kalender-Modul" unten) -- davor `d87d5bc04b69` ("ai
   fundament settings and call log", neue
   Tabellen `ai_settings`/`ai_call_log` -- siehe Abschnitt "KI-Fundament" unten; 1.6.3 selbst
@@ -88,11 +92,14 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1786 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1818 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 24.09.2026 (1.7.0, Kalender-Modul Stufe 1 -- Büro-Termine, bewusst getrennt
-  von der Plantafel, 22 neue Tests (`tests/test_v296_calendar_events.py`), siehe Abschnitt
-  "Kalender-Modul" unten; davor 1.6.3, Beleg-Upload schon beim Anlegen einer Eingangsrechnung --
+  dort), zuletzt am 26.09.2026 (1.7.1, Kalender-Modul Stufe 2 -- Outlook-Kalendersynchronisation
+  über Microsoft Graph, Einrichtung über Exchange "RBAC for Applications" statt globaler
+  Admin-Zustimmung, 32 neue Tests (`tests/test_v297_outlook_calendar_sync.py`), siehe Abschnitt
+  "Kalender-Modul" -> "Stufe 2" unten; davor 1.7.0, Kalender-Modul Stufe 1 -- Büro-Termine,
+  bewusst getrennt von der Plantafel, 22 neue Tests (`tests/test_v296_calendar_events.py`), siehe
+  Abschnitt "Kalender-Modul" unten; davor 1.6.3, Beleg-Upload schon beim Anlegen einer Eingangsrechnung --
   reine Frontend-Änderung nach dem 1.5.6-Muster (Betriebsmittel), keine neuen Tests, dafür ein
   echter CDP-Browsertest gegen eine isolierte Testinstanz, siehe Abschnitt "Buchhaltung" ->
   "Beleg-Upload schon beim Anlegen" unten; davor 1.6.2, KI-Fundament -- zentrale,
@@ -11062,9 +11069,13 @@ referenzierende `CalendarEvent`-Zeilen deshalb VOR dem eigentlichen Löschen aus
 mitgelöschten Angebote dieses Projekts. Ohne diesen Schritt hätte PostgreSQL (anders als die
 lokale, ungeprüfte SQLite-Entwicklungsdatenbank) die Fremdschlüssel-Bedingung verletzt.
 
-### Befund Stufe 2 (beidseitige Outlook-Synchronisation über Microsoft Graph) -- NICHT gebaut
+### Befund Stufe 2 (beidseitige Outlook-Synchronisation über Microsoft Graph) -- Ausgangslage vor
+dem Bau (1.7.0), inzwischen umgesetzt
 
-Reine Zukunftsplanung, kein Code dieser Version:
+Reine Zukunftsplanung zum Zeitpunkt von 1.7.0, damals bewusst kein Code -- seit 1.7.1 gebaut,
+siehe Abschnitt "Stufe 2 (seit 1.7.1)" weiter unten für den tatsächlichen Stand. Dieser
+Unterabschnitt bleibt unverändert stehen (Entscheidungsgeschichte, nicht rückwirkend
+überschrieben, Muster CLAUDE.md "Krankheitssichtbarkeit"):
 
 - **App-Berechtigung auf alle Postfächer einschränken**: Microsofts `Calendars.ReadWrite`
   (App-Berechtigung) gilt tenant-weit, sofern keine **Application Access Policy** eingerichtet
@@ -11103,6 +11114,199 @@ Headless-Chrome-Durchlauf gegen eine isolierte Testinstanz (niemals gegen `dachk
 Seite rendert mit echtem Login-Cookie, Monatsansicht aktiv, "+ Termin" öffnet das Modal, ein
 Termin wird über das echte Formular angelegt und erscheint nach dem Speichern im DOM, keine
 JavaScript-Konsolenfehler während des gesamten Durchlaufs.
+
+### Stufe 2 (seit 1.7.1): Outlook-Kalendersynchronisation über Microsoft Graph
+
+Fortsetzung des in 1.7.0 dokumentierten Befunds -- kurzer Befund zu sieben vom Betreiber
+vorgegebenen Punkten (Prämissen dabei gegen den echten Code geprüft, siehe unten), dann in einer
+Runde gebaut. Betrifft ausschließlich das Kalender-Modul selbst; kein anderer Modulteil dieses
+Projekts wurde dafür angefasst außer der Umbenennung eines internen Funktionsnamens in
+`app/email_sending.py` (siehe unten).
+
+#### Einrichtung: Exchange "RBAC for Applications", NICHT globale Admin-Zustimmung in Entra ID
+
+**Das ist die wichtigste, dauerhaft zu beachtende Regel dieses Abschnitts, deshalb vorangestellt.**
+Der bestehende Microsoft-365-E-Mail-Versand (seit 1.0.79, `app/email_sending.py`) erteilt seiner
+Azure-AD-App-Registrierung die Anwendungsberechtigung `Mail.Send` über die normale "Administrator-
+zustimmung erteilen"-Schaltfläche in Entra ID -- das gilt dort tenant-weit für jedes Postfach, war
+aber für den E-Mail-Versand (ein einzelnes, gemeinsames Firmenpostfach) unproblematisch.
+
+Für den Kalender-Zugriff (`Calendars.ReadWrite`) ist **derselbe Weg ausdrücklich NICHT
+zulässig** -- er würde der App Zugriff auf JEDES Postfach im Mandanten geben, nicht nur auf die
+Postfächer der Personen, die tatsächlich synchronisieren sollen. Die Einrichtung läuft
+stattdessen ausschließlich über **Exchange "RBAC for Applications"** (Exchange Online
+PowerShell), das den Zugriff auf eine explizit benannte Postfach-Gruppe beschränkt:
+
+1. Dieselbe App-Registrierung wie beim E-Mail-Versand bekommt zusätzlich zu `Mail.Send` die
+   Anwendungsberechtigung `Calendars.ReadWrite` -- **ohne** dafür "Administratorzustimmung
+   erteilen" zu klicken (das wäre wieder der zu weite, tenant-weite Weg).
+2. Eine E-Mail-aktivierte Sicherheitsgruppe wird angelegt, Scope-Name `ERP-Zugriff`
+   (`ERP-Zugriff@dachkonzepte.gmbh`) -- jedes Postfach, das synchronisiert werden soll, kommt in
+   diese Gruppe.
+3. Über Exchange Online PowerShell wird eine Rollenzuweisung erstellt, die die App-Rollen
+   `Mail.Send` und `Calendars.ReadWrite` **an diese eine Gruppe** bindet (`New-ServicePrincipal`/
+   `New-ManagementRoleAssignment -App <AppId> -Role "Mail.Send","Calendars.ReadWrite" -Scope
+   "ERP-Zugriff@dachkonzepte.gmbh"` -- exakter Befehlssatz je nach Exchange-Online-Modulversion,
+   siehe Microsofts "Role based access control (RBAC) for applications"-Dokumentation für den
+   aktuellen Befehl).
+4. **Ein neuer Sync-Nutzer wird ausschließlich durch Aufnahme in diese Gruppe freigeschaltet** --
+   kein erneuter Azure-AD-Eingriff nötig, kein erneutes "Zustimmung erteilen".
+
+**Zwei Konsequenzen, die dauerhaft zu beachten sind:**
+
+- **Das Zugriffstoken selbst enthält KEINE Information darüber, welche Rollen über RBAC for
+  Applications gelten** -- der Client-Credentials-Flow fordert immer denselben Scope
+  (`https://graph.microsoft.com/.default`), das Token ist für JEDEN Aufruf identisch, unabhängig
+  davon, ob das angefragte Postfach freigegeben ist. **Deshalb darf der Code an keiner Stelle
+  versuchen, aus dem Token selbst zu lesen, ob ein Zugriff erlaubt ist** -- die einzige
+  verlässliche Prüfung ist der tatsächliche API-Aufruf gegen das jeweilige Postfach.
+- **Ein `403 Forbidden` von Graph bedeutet in aller Regel "Postfach nicht freigegeben"**, nicht
+  "Zugangsdaten falsch" (das wäre `401`) -- `app/outlook_calendar_sync.py::_graph_call()` hängt
+  bei `403` deshalb einen erklärenden Hinweis an die Fehlermeldung an, der genau auf diese
+  RBAC-Gruppe verweist, statt den Betreiber bei den Zugangsdaten suchen zu lassen.
+
+#### Die sieben Punkte, mit den dabei geprüften/korrigierten Prämissen
+
+1. **Zuordnung ERP-Nutzer zu Postfach**: `AppUser.outlook_mailbox` (neue, nullable
+   `String(255)`-Spalte, `app/models.py`) -- admin-gepflegt über `/users` (neues Feld im
+   bestehenden Formular, `users.html`), kein Format-Zwang (Muster `Customer.email`, das ebenfalls
+   keine strikte E-Mail-Validierung hat). `NULL` bedeutet "kein Sync für dieses Konto".
+2. **Projekt-/Angebotsbezug nie durch Outlook-Änderung überschreiben**: `_apply_delta_change()`
+   (`app/outlook_calendar_sync.py`) baut das Update-Dict für eine eingehende Änderung IMMER nur
+   aus den syncbaren Feldern (`title`/`start_at`/`end_at`/`all_day`/`location`/`notes`) --
+   `project_id`/`quote_id`/`is_private`/`owner_user_id` sind darin strukturell nie enthalten,
+   unabhängig davon, was Graph liefert. Mit einem eigenen Test belegt
+   (`test_incoming_newer_change_updates_fields_but_never_touches_project_link`): ein Termin mit
+   Projektbezug bekommt einen neuen Titel aus Outlook, behält aber `project_id` unverändert.
+3. **Zeitzonen**: `CalendarEvent.start_at`/`end_at` sind naive Zeitstempel in **Europe/Berlin-
+   Ortszeit** (so, wie sie in `calendar.html` eingegeben werden, `toLocalIso()` -- KEIN UTC,
+   anders als `created_at`/`updated_at`). `to_utc()`/`to_berlin()` rechnen per `zoneinfo` um,
+   gesendet/erwartet wird gegenüber Graph ausschließlich `"timeZone": "UTC"` -- vermeidet jede
+   Mehrdeutigkeit zwischen Windows- und IANA-Zeitzonennamen, die Graphs `timeZone`-Feld sonst
+   zulässt. Getestet über beide DST-Übergänge 2026 (29. März, Sprung 02:00→03:00; 25. Oktober,
+   Rücksprung 03:00→02:00) -- je ein Zeitpunkt unmittelbar vor und nach der Umstellung, plus
+   Rundlauf-Tests (`to_berlin(to_utc(x)) == x`) für beide Jahreszeiten und beide Übergangstage.
+   `tzdata` (PyPI) neu in `requirements.txt` -- Windows liefert die IANA-Zeitzonendatenbank
+   anders als Linux nicht mit dem Betriebssystem mit, `ZoneInfo("Europe/Berlin")` bräche dort
+   sonst mit `ZoneInfoNotFoundError` ab (auf der lokalen Entwicklungsmaschine bereits transitiv
+   über `psycopg` vorhanden, jetzt aber eine eigene, bewusste Abhängigkeit statt eines Zufalls).
+4. **Serientermine -- nur ein Vorschlag, NICHT implementiert** (wie vorgegeben): `CalendarEvent`
+   kennt keine Wiederholungsregel. Ein wiederkehrender Outlook-Termin erscheint in der
+   `events/delta`-Antwort als EIN einzelnes `"seriesMaster"`-Objekt (Graph expandiert
+   Einzeltermine nur über `calendarView` mit Datumsfenster, nicht über die hier genutzte, DAFÜR
+   bewusst gewählte `events/delta` -- ein bewusster Kompromiss: `calendarView/delta` hätte jede
+   Instanz einzeln geliefert, aber ein festes Zeitfenster statt eines echten, unbegrenzten
+   Fortschritts-Zeigers gebraucht). `_is_recurring()` erkennt `type=="seriesMaster"` ODER ein
+   gesetztes `recurrence`-Feld, `_apply_delta_change()` überspringt solche Zeilen vollständig
+   (gezählt als `skipped_recurring`, nie angelegt/geändert). Ein künftiger Ausbau müsste auf
+   `calendarView/delta` mit festem Zeitfenster wechseln und jede Instanz als eigene, entkoppelte
+   `CalendarEvent`-Zeile führen -- eine größere Modelländerung (Recurrence-Feld), hier bewusst
+   nicht gebaut.
+5. **Delta-Abfrage, Cron plus beim Öffnen, letzte Änderung gewinnt, Löschungen beidseitig**:
+   `sync_user_calendar(db, user)` (`app/outlook_calendar_sync.py`) ist der vollständige
+   Pull-dann-Push-Zyklus für GENAU EIN Postfach -- aufgerufen sowohl von
+   `scripts/sync_outlook_calendars.py` (Cron, alle Postfächer mit hinterlegtem
+   `outlook_mailbox`, Muster `scripts/reset_admin_2fa.py`, Beispiel-Crontab-Zeile im
+   Skript-Kopfkommentar) als auch von `POST /api/calendar-events/sync-outlook` (beim Öffnen von
+   `/kalender`, **nur das eigene Postfach der angemeldeten Person**, nie das eines Kollegen --
+   Selbstbedienung, keine Admin-Anforderung). `OutlookCalendarSyncState.delta_link` (neue
+   Tabelle, ein Datensatz je `AppUser`) erspart jedem Lauf außer dem ersten die vollständige
+   Kalenderabfrage -- mit Pagination-Test belegt (`@odata.nextLink` wird gefolgt, bis
+   `@odata.deltaLink` kommt) UND mit einem Zwei-Läufe-Test, dass der zweite Lauf tatsächlich den
+   gespeicherten Link wiederverwendet statt erneut die volle `$select`-Abfrage zu stellen.
+   "Letzte Änderung gewinnt": Vergleich von Graphs `lastModifiedDateTime` gegen
+   `CalendarEvent.updated_at` -- nur wenn Graph NACHWEISLICH neuer ist, werden die lokalen Felder
+   überschrieben, sonst gewinnt die lokale Zeile UND wird in derselben Sync-Ausführung an Outlook
+   zurückgeschrieben (Push-Phase, mit eigenem Test belegt: lokale Änderung "gewinnt" gegen eine
+   ältere Outlook-Änderung, Graph bekommt danach ein PATCH). Löschungen beidseitig: ein
+   `"@removed"`-Delta-Eintrag löscht die lokale Zeile hart; eine lokale Löschung
+   (`DELETE /api/calendar-events/{id}`) stößt VOR dem eigentlichen `delete_event()` best effort
+   eine Graph-Löschung an (`try_delete_remote_event()`, siehe "Bekannte, bewusst offene Punkte"
+   unten für das dabei akzeptierte Restrisiko).
+6. **Kein Termininhalt in Protokollen**: `logger = logging.getLogger("app.outlook_calendar_sync")`
+   protokolliert ausschließlich Zähler (erstellt/aktualisiert/gelöscht/übersprungene
+   Serientermine/nach Outlook gepusht) und im Fehlerfall NUR den Exception-Klassennamen, NIE
+   `str(exc)` -- exakt dieselbe Zurückhaltung wie `AICallLog.error_type` (siehe CLAUDE.md
+   "KI-Fundament"), aus demselben Grund: eine Graph-Fehlermeldung kann Teile der fehlgeschlagenen
+   Anfrage (Titel, Ort) im Klartext zurückspiegeln. Mit einem eigenen Test belegt
+   (`test_no_event_content_ever_appears_in_a_log_record`, `caplog`-Fixture): ein Termin mit einem
+   bewusst markanten Titel/Ort wird gepusht und ein fehlschlagender Sync-Lauf ausgelöst, keine der
+   beiden Zeichenketten taucht in irgendeiner protokollierten Zeile auf.
+7. **Tests nur gegen Attrappe**: `tests/test_v297_outlook_calendar_sync.py` patcht in jedem Test
+   `app.outlook_calendar_sync.urllib.request.urlopen` (Muster der bestehenden Graph-E-Mail-Tests,
+   "am Verwendungsort", siehe CLAUDE.md "Testen") -- kein einziger Test ruft einen echten
+   Microsoft-Endpunkt auf.
+
+#### Architektur, bewusst getrennt von der reinen Geschäftslogik
+
+`app/outlook_calendar_sync.py` ist ein komplett eigenständiges Modul -- `app/calendar_events.py`
+(die Stufe-1-Geschäftslogik: `create_event()`/`update_event()`/`delete_event()`, Privatsphäre-
+Redaktion) bleibt UNVERÄNDERT und weiterhin frei von jeder Outlook-Kenntnis. Die Orchestrierung
+(nach erfolgreichem Anlegen/Ändern pushen, vor dem Löschen fernlöschen) sitzt in
+`app/routers/calendar_events.py` -- derselbe Ort, der auch sonst mehrere Fachmodule
+zusammenführt, keine gegenseitige Kopplung der beiden Business-Module (kein
+Zirkel-Import-Risiko, Regel 3). `push_event_best_effort()`/`try_delete_remote_event()` sind
+beide best effort -- ein Graph-Fehler darf ein bereits erfolgreich lokal gespeichertes Ergebnis
+nie rückwirkend als Fehlschlag erscheinen lassen (Muster `app/tasks.py::notify_task_assignment()`).
+
+**Graph-Zugangsdaten wiederverwendet, nicht dupliziert**: `OutlookSyncSettings` (neue
+Singleton-Tabelle, Muster `AISettings`) trägt ausschließlich den Gesamtschalter (`enabled`,
+Default aus) -- Mandanten-ID/Client-ID/Client-Secret bleiben unter `SmtpSettings` (Einstellungen
+→ E-Mail-Versand), dieselbe App-Registrierung bedient beide Zwecke (siehe Einrichtung oben).
+`app/email_sending.py::_get_graph_access_token()` wurde dafür in `get_graph_access_token()`
+umbenannt (kein führender Unterstrich mehr, zwei interne Aufrufstellen mitgezogen) -- der
+Client-Credentials-Flow liefert ohnehin immer dasselbe Token für `.default`, eine zweite
+Token-Beschaffung wäre eine überflüssige Kopie.
+
+Neue Endpunkte: `POST /api/calendar-events/sync-outlook` (Selbstbedienung, `require_min_role
+(ROLE_OFFICE_AUFTRAG)`, GENAUSO modulgated wie jeder andere Endpunkt dieser Datei -- bewusst
+KEINE Ausnahme, siehe Code-Kommentar dort für die kurz erwogene, dann verworfene
+Gegenposition), `GET/PUT /api/outlook-sync-settings` (neuer Router
+`app/routers/outlook_sync_settings.py`, `require_admin()` -- Systemkonfiguration, nicht einmal
+buero_finanzen, Muster KI-Anbieter). Neue Oberflächen: ein Postfach-Feld im
+Benutzer-Bearbeiten-Formular (`users.html`), ein neuer, admin-only Einstellungen-Abschnitt
+"Outlook-Synchronisation" (`settings.html`, Gruppe "Kalender" neben "KI"), und ein
+Fire-and-forget-Aufruf beim Öffnen von `/kalender` (`calendar.html::init()`, Muster der
+bestehenden `check-due`-Aufrufe an anderer Stelle im Projekt).
+
+Migration `6573d677bc1d` (neue Tabellen `outlook_sync_settings`/`outlook_calendar_sync_state`,
+neue, nullable Spalte `app_users.outlook_mailbox` -- Regel 1 greift bei keinem der drei, da
+weder eine NOT-NULL-Spalte auf einer bestehenden Tabelle noch Bestandsdaten für die beiden neuen
+Tabellen existieren).
+
+#### Bekannte, bewusst offene Punkte
+
+- **Resurrection-Risiko bei fehlgeschlagener Fernlöschung.** `try_delete_remote_event()` löscht
+  IMMER lokal, auch wenn die Graph-Löschung fehlschlägt (z. B. kurzzeitige Netzwerkstörung) --
+  Nutzerabsicht hat Vorrang vor einem perfekt konsistenten Zustand. Bleibt der Outlook-Termin
+  dadurch bestehen, erkennt ihn der NÄCHSTE Delta-Lauf als unbekannten `outlook_event_id` und
+  legt ihn lokal NEU an (er "kommt zurück"). Bewusst akzeptiert, kein Tombstone-Mechanismus
+  gebaut -- ein seltener, durch erneutes Löschen leicht behebbarer Fall, kein Datenverlust.
+- **Serientermine bleiben ausgeklammert** (siehe Punkt 4 oben) -- eine künftige Erweiterung
+  bräuchte ein Recurrence-Modell in `CalendarEvent` UND einen Wechsel auf `calendarView/delta`
+  mit festem Zeitfenster statt der hier genutzten, fensterlosen `events/delta`.
+- **Keine Auflösung von Outlooks `sensitivity`-Feld auf `CalendarEvent.is_private`** -- ein aus
+  Outlook gezogener Termin startet immer mit `is_private=False`, unabhängig davon, ob er in
+  Outlook als privat markiert ist. Nicht Teil der sieben Entscheidungspunkte, deshalb nicht
+  gebaut; ließe sich bei Bedarf als reine Ein-Zeilen-Ergänzung in `_apply_delta_change()`
+  nachrüsten.
+- **Kein Reverse-Proxy-Header-Problem hier** (anders als bei `public_base_url`,
+  Betriebsmittelverwaltung Stufe 2) -- die Kalender-Sync-URLs zeigen immer auf
+  `graph.microsoft.com`, nie auf die eigene ERP-Instanz, es gibt also keine analoge
+  Basis-URL-Frage zu lösen.
+
+#### Tests
+
+32 neue Tests (`tests/test_v297_outlook_calendar_sync.py`) -- alle sieben Punkte einzeln
+abgedeckt (siehe oben), dazu `is_outlook_sync_available()` (Gesamtschalter/Graph-Zugangsdaten/
+Postfach je einzeln geprüft), Push (Anlegen, Ändern, Fehlschlag ohne Exception, No-op ohne
+aktivierten Sync), Fernlöschen (Erfolg, Fehlschlag ohne Exception, No-op ohne `outlook_event_id`)
+und die Rollen-/Modul-Gates der beiden neuen Endpunkte (field bekommt 403 auf
+`sync-outlook`; buero_auftrag darf es aufrufen, bekommt ohne hinterlegtes Postfach `{"skipped":
+true}`; `outlook-sync-settings` ist ausnahmslos admin-only). Ein bereits bestehender Test
+(`tests/test_v054_settings_sidebar.py::test_every_sidebar_section_is_in_the_settings_sections_whitelist`)
+musste um den neuen `outlook-sync`-Menüpunkt in `SETTINGS_SECTIONS` ergänzt werden -- ein
+gemeldeter, sofort behobener Fund derselben Testrunde. Volle Suite: 1818 Tests grün.
 
 ## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
 

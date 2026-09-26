@@ -35,7 +35,7 @@ def create_app_user(payload: AppUserCreate, request: Request, db: Session = Depe
         raise HTTPException(status_code=409, detail="Benutzername ist bereits vergeben.")
     if payload.employee_id is not None and db.get(Employee, payload.employee_id) is None:
         raise HTTPException(status_code=422, detail="Mitarbeiter wurde nicht gefunden.")
-    user = AppUser(username=payload.username.strip(), password_hash=hash_password(payload.password), display_name=payload.display_name.strip(), employee_id=payload.employee_id, role=("admin" if not configured else payload.role), active=payload.active)
+    user = AppUser(username=payload.username.strip(), password_hash=hash_password(payload.password), display_name=payload.display_name.strip(), employee_id=payload.employee_id, role=("admin" if not configured else payload.role), active=payload.active, outlook_mailbox=(payload.outlook_mailbox or None))
     db.add(user); db.commit(); db.refresh(user)
     return user
 
@@ -64,6 +64,7 @@ def update_app_user(user_id: int, payload: AppUserUpdate, db: Session = Depends(
     user.employee_id = payload.employee_id
     user.role = payload.role
     user.active = payload.active
+    user.outlook_mailbox = payload.outlook_mailbox or None
     if payload.new_password:
         user.password_hash = hash_password(payload.new_password)
     db.commit()
