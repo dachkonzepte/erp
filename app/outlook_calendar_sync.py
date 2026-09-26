@@ -135,10 +135,53 @@ den rohen Graph-Response-Body weiter.
 **Punkt 7 -- Tests nur gegen Attrappe:** siehe tests/test_v297_outlook_calendar_sync.py -- jeder
 Test patcht urllib.request.urlopen an dieser Stelle (app.outlook_calendar_sync.urllib.request.urlopen),
 niemals ein echter Netzwerkaufruf.
+
+**Zweite Untersuchungsrunde -- der changeKey-Nachtrag (1.7.3) hat das gemeldete Schaukeln auf dem
+Produktivserver NICHT beendet, weiterhin dasselbe Wechselmuster.** Vier gezielt vorgegebene
+Prüfungen, siehe CLAUDE.md "Kalender" -> "Stufe 2" -> "Zweite Untersuchungsrunde (seit 1.7.4)" für
+die vollständige Herleitung, hier die Kurzfassung:
+
+1. **`updated_at`/`outlook_synced_at` werden ausschließlich Python-seitig gesetzt**
+   (`datetime.utcnow()`, NIE ein DB-`server_default`/Trigger), bleiben naiv-UTC durchgängig (nie
+   `to_utc()`/`to_berlin()`, die sind ausschließlich für `start_at`/`end_at` reserviert) und
+   round-trippen unter PostgreSQL (`TIMESTAMP WITHOUT TIME ZONE`, empirisch per psql-Tabellenbefehl
+   bestätigt -- keine Zeitzonen-Wandlung, da diese Spaltenart sie nicht kennt) nachweislich bis auf die
+   Mikrosekunde exakt, auch über einen frischen Session-/Prozess-Neustart hinweg. Kein
+  Postgres-spezifischer Unterschied an DIESER Stelle gefunden.
+2. **Der Schaukel-Test lief gegen die echte, lokale PostgreSQL-Instanz** (mit frischen Sessions je
+   Lauf, also einen eigenen Prozess je Cron-Tick simulierend) -- sowohl MIT als auch (testweise)
+   OHNE changeKey in der Graph-Antwort. Beide Varianten kommen nach dem einmaligen Echo-Zyklus
+   zur Ruhe, kein Unterschied zu SQLite. Die Ursache liegt damit NICHT in einem SQLite-vs-
+   PostgreSQL-Unterschied bei Datumswerten, den sich mit den hier verfügbaren Mitteln reproduzieren
+   ließe.
+3. **Ein real gefundener, unabhängiger Präzisions-Fehler in `_parse_graph_datetime()`**: Microsofts
+   `lastModifiedDateTime` trägt üblicherweise SIEBEN Nachkommastellen (100-Nanosekunden-"Ticks",
+   z. B. `"2026-09-26T09:37:34.6472860Z"`). `datetime.fromisoformat()` akzeptiert das nur ab
+   **Python 3.11** (vorher: ValueError bei jeder Bruchteilsekundenlänge außer 0/3/6 Ziffern) --
+   welcher Python auf dem Produktivserver tatsächlich läuft, ist hier nicht dokumentiert und nicht
+   geprüft worden. Bei einer ValueError wäre allerdings der GESAMTE Lauf mit `error: True`
+   markiert, nicht das gemeldete, unauffällige 1-zu-1-Wechselmuster -- deshalb vermutlich NICHT
+   die alleinige Ursache, aber ein eigenständiger, real gefundener Härtungsbedarf.
+4. **Ob Graphs Delta-Antwort `changeKey` tatsächlich mitliefert, ließ sich ohne Zugriff auf den
+   echten Tenant NICHT verifizieren.** Genau dafür die neue Diagnosezeile unten.
+
+**Abschaltbare Diagnosezeile (seit 1.7.4)**: `ERP_OUTLOOK_SYNC_DIAGNOSTICS=1` in der Umgebung
+(`.env`, vom Cron-Skript bei jedem Lauf neu geladen, siehe scripts/sync_outlook_calendars.py)
+schaltet je verarbeitetem Delta-Eintrag UND je Push-Versuch eine zusätzliche, strukturierte
+Protokollzeile frei -- ERP-ID, `updated_at`, `outlook_synced_at`, `lastModifiedDateTime` ROH (der
+unveränderte String aus der Graph-Antwort) UND umgerechnet (das Ergebnis von
+`_parse_graph_datetime()`), `outlook_change_key` gespeichert/eingehend, die getroffene
+Entscheidung. Bewusst NIE Titel/Ort/Notiz (Punkt 6 bleibt unverändert in Kraft) -- `changeKey`
+selbst ist ein bedeutungsloser, von Graph vergebener Versionsstempel, kein Termininhalt. Diese
+Diagnosezeile lief noch nie gegen einen echten Tenant -- sie ist das Werkzeug, mit dem der
+Betreiber das auf dem Produktivserver selbst nachvollziehen kann, siehe Moduldocstring-Abschnitt
+oben Punkt 3/4.
 """
 
 import json
 import logging
+import os
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -152,6 +195,10 @@ from .email_sending import get_graph_access_token, get_or_create_smtp_settings
 from .models import AppUser, CalendarEvent, OutlookCalendarSyncState, OutlookSyncSettings
 
 logger = logging.getLogger("app.outlook_calendar_sync")
+# Eigener Logger-Name für die abschaltbare Diagnosezeile (seit 1.7.4) -- getrennt vom
+# Warn-Logger oben, damit sie sich unabhängig davon per Logging-Konfiguration UND per
+# ERP_OUTLOOK_SYNC_DIAGNOSTICS gezielt ein-/ausschalten lässt.
+diag_logger = logging.getLogger("app.outlook_calendar_sync.diagnostics")
 
 BERLIN = ZoneInfo("Europe/Berlin")
 
@@ -159,6 +206,29 @@ GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 GRAPH_TIMEOUT = 30
 
 _EVENT_SELECT = "id,subject,start,end,isAllDay,location,body,lastModifiedDateTime,recurrence,type,sensitivity,changeKey"
+
+
+def diagnostics_enabled() -> bool:
+    """ERP_OUTLOOK_SYNC_DIAGNOSTICS=1 (o. ä.) in der Umgebung -- wird bei JEDEM Aufruf frisch
+    gelesen (kein Modul-Konstante-Caching), da scripts/sync_outlook_calendars.py bei jedem
+    Cron-Tick ohnehin ein komplett neuer Prozess ist, der .env neu lädt (siehe dortiger
+    Kopfkommentar) -- ein Umschalten in .env wirkt dadurch bereits beim nächsten Lauf, ohne den
+    laufenden Webserver neu starten zu müssen."""
+    return os.getenv("ERP_OUTLOOK_SYNC_DIAGNOSTICS", "").strip().lower() in ("1", "true", "yes")
+
+
+def _diag(event_id, *, updated_at, outlook_synced_at, graph_last_modified_raw, graph_last_modified_parsed,
+           change_key_gespeichert, change_key_eingehend, entscheidung: str) -> None:
+    """Die EINE Stelle, die die Diagnosezeile formatiert -- bewusst nie Titel/Ort/Notiz (Punkt 6
+    bleibt unverändert in Kraft), changeKey ist ein bedeutungsloser Versionsstempel, kein
+    Termininhalt. Aufrufer prüfen diagnostics_enabled() VORHER, damit im Normalbetrieb nicht
+    einmal die String-Formatierung anfällt."""
+    diag_logger.info(
+        "event_id=%s updated_at=%s outlook_synced_at=%s graph_last_modified_raw=%s "
+        "graph_last_modified_parsed=%s change_key_gespeichert=%s change_key_eingehend=%s entscheidung=%s",
+        event_id, updated_at, outlook_synced_at, graph_last_modified_raw, graph_last_modified_parsed,
+        change_key_gespeichert, change_key_eingehend, entscheidung,
+    )
 
 # Outlooks sensitivity-Werte, die als "privat" gelten (Muster Nachtrag Punkt 2 im Moduldocstring)
 # -- "personal" bleibt bewusst AUSSEN VOR: eine geringere Vertraulichkeitsstufe als
@@ -195,11 +265,28 @@ def to_berlin(utc_naive: datetime) -> datetime:
     return utc_naive.replace(tzinfo=timezone.utc).astimezone(BERLIN).replace(tzinfo=None)
 
 
+_OVERLONG_FRACTION_RE = re.compile(r"(\.\d{6})\d+")
+
+
 def _parse_graph_datetime(value: str) -> datetime:
     """Graph liefert ISO-8601 mit Sekundenbruchteilen und optionalem 'Z'/Offset -- wir haben nie
     einen anderen als UTC angefragt (siehe Moduldocstring Punkt 3), interpretieren aber auch ein
-    mitgeliefertes Offset korrekt, statt es zu ignorieren."""
-    text = value.replace("Z", "+00:00")
+    mitgeliefertes Offset korrekt, statt es zu ignorieren.
+
+    **Zweite Untersuchungsrunde (seit 1.7.4), real gefundener, unabhängiger Präzisions-Fehler**:
+    Microsofts lastModifiedDateTime/start/end tragen üblicherweise SIEBEN Nachkommastellen
+    (100-Nanosekunden-"Ticks", z. B. "2026-09-26T09:37:34.6472860Z") --
+    `datetime.fromisoformat()` akzeptiert das erst ab Python 3.11 (vorher: ValueError bei jeder
+    Bruchteilsekundenlänge außer 0/3/6 Ziffern -- ein sehr verbreiteter, dokumentierter Stolperstein
+    beim Arbeiten mit der Graph-API). Welcher Python auf dem Produktivserver tatsächlich läuft, war
+    hier nicht geprüft/dokumentiert -- statt uns auf eine Mindestversion zu verlassen, kürzen wir
+    Bruchteilsekunden VOR dem Parsen selbst auf maximal sechs Stellen (Mikrosekunden-Auflösung,
+    reine Kürzung wie Pythons eigener 3.11+-Parser es an dieser Stelle ebenfalls tut, siehe
+    tests/test_v297_outlook_calendar_sync.py) -- macht das Verhalten unabhängig von der
+    Python-Version. Nicht als bewiesene Ursache des gemeldeten Schaukelns behauptet (siehe
+    Moduldocstring "Zweite Untersuchungsrunde"), aber ein eigenständiger, real gefundener
+    Härtungsbedarf."""
+    text = _OVERLONG_FRACTION_RE.sub(r"\1", value.replace("Z", "+00:00"))
     parsed = datetime.fromisoformat(text)
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
@@ -361,10 +448,17 @@ def push_event_best_effort(db: Session, event_id: int) -> None:
     user = event.owner
     if not is_outlook_sync_available(db, user):
         return
+    diag = diagnostics_enabled()
+    old_change_key = event.outlook_change_key  # vor jeder Mutation erfasst, für die Diagnosezeile
     try:
         smtp = get_or_create_smtp_settings(db)
         token = get_graph_access_token(smtp)
         version_to_sync = event.updated_at  # VOR jeder eigenen Mutation erfasst, siehe _mark_synced()
+        if diag:
+            _diag(event.id, updated_at=version_to_sync, outlook_synced_at=event.outlook_synced_at,
+                  graph_last_modified_raw=None, graph_last_modified_parsed=None,
+                  change_key_gespeichert=old_change_key, change_key_eingehend=None,
+                  entscheidung="push versucht (best effort, nach create_event()/update_event())")
         if event.outlook_event_id:
             response = _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{event.outlook_event_id}", method="PATCH", payload=_event_payload(event))
         else:
@@ -373,13 +467,23 @@ def push_event_best_effort(db: Session, event_id: int) -> None:
         # Nachtrag (seit 1.7.3) -- Graph liefert bei einer erfolgreichen Schreiboperation den NEUEN
         # changeKey mit zurück; ohne ihn (z. B. ein PATCH ohne Body) bleibt outlook_change_key auf
         # dem alten Stand stehen und die Zeitstempel-Logik greift beim nächsten Pull als Rückfall.
-        if response is not None and response.get("changeKey"):
-            event.outlook_change_key = response["changeKey"]
+        new_change_key = response.get("changeKey") if response is not None else None
+        if new_change_key:
+            event.outlook_change_key = new_change_key
         _mark_synced(db, event, version_to_sync)
         db.commit()
+        if diag:
+            _diag(event.id, updated_at=version_to_sync, outlook_synced_at=version_to_sync,
+                  graph_last_modified_raw=None, graph_last_modified_parsed=None,
+                  change_key_gespeichert=old_change_key, change_key_eingehend=new_change_key,
+                  entscheidung="push erfolgreich")
     except Exception as exc:  # noqa: BLE001 -- best effort, siehe Docstring
         db.rollback()
         logger.warning("Push nach Outlook fehlgeschlagen (event_id=%s, Fehlerart=%s).", event_id, type(exc).__name__)
+        if diag:
+            _diag(event_id, updated_at=None, outlook_synced_at=None, graph_last_modified_raw=None,
+                  graph_last_modified_parsed=None, change_key_gespeichert=old_change_key, change_key_eingehend=None,
+                  entscheidung=f"push fehlgeschlagen ({type(exc).__name__})")
 
 
 def try_delete_remote_event(db: Session, event: CalendarEvent) -> bool:
@@ -433,16 +537,52 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
     """Verarbeitet EINE Delta-Zeile -- gibt die lokale CalendarEvent.id zurück, wenn eine
     Änderung angewendet wurde (damit die Push-Phase diese Zeile im selben Lauf nicht erneut
     anfasst), sonst None."""
+    diag = diagnostics_enabled()  # einmal je Zeile geprüft, siehe diagnostics_enabled()-Docstring
+    raw_last_modified = item.get("lastModifiedDateTime")
+    incoming_change_key = item.get("changeKey")
+    graph_modified = _parse_graph_datetime(raw_last_modified) if raw_last_modified else None
+    # Vorab, für die Diagnosezeile jeder Entscheidung nutzbar -- existiert die Zeile noch nicht
+    # (Neuanlage) ODER handelt es sich um @removed/Serientermin/ungültig, bleibt sie None bzw.
+    # wird gleich (Neuanlage-Zweig) ergänzt.
+    existing = db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_event_id == item["id"], CalendarEvent.owner_user_id == user.id))
+    # Fallstrick, beim Bauen selbst gefunden: NIE Attribute eines ORM-Objekts NACH einem
+    # db.delete()+db.commit() lesen (expire_on_commit löst dann einen Reload eines nicht mehr
+    # existierenden Datensatzes aus -> ObjectDeletedError). Deshalb werden die Werte HIER, VOR
+    # jeder Mutation, einmalig in reine Python-Variablen kopiert -- log() liest nur noch daraus.
+    diag_id = existing.id if existing is not None else None
+    diag_updated_at = existing.updated_at if existing is not None else None
+    diag_outlook_synced_at = existing.outlook_synced_at if existing is not None else None
+    diag_change_key_stored = existing.outlook_change_key if existing is not None else None
+
+    _unset = object()  # Sentinel, NICHT None -- ein Override auf explizit None (z. B. "der neue
+    # changeKey ist None") muss von "kein Override übergeben" unterscheidbar bleiben, sonst würde
+    # die Diagnosezeile in genau diesem Fall fälschlich den ALTEN, nicht mehr aktuellen Wert zeigen.
+
+    def log(entscheidung: str, *, event_id=_unset, updated_at=_unset, outlook_synced_at=_unset, change_key_gespeichert=_unset) -> None:
+        if not diag:
+            return
+        _diag(
+            event_id if event_id is not _unset else diag_id,
+            updated_at=updated_at if updated_at is not _unset else diag_updated_at,
+            outlook_synced_at=outlook_synced_at if outlook_synced_at is not _unset else diag_outlook_synced_at,
+            graph_last_modified_raw=raw_last_modified, graph_last_modified_parsed=graph_modified,
+            change_key_gespeichert=change_key_gespeichert if change_key_gespeichert is not _unset else diag_change_key_stored,
+            change_key_eingehend=incoming_change_key, entscheidung=entscheidung,
+        )
+
     if "@removed" in item:
-        row = db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_event_id == item["id"], CalendarEvent.owner_user_id == user.id))
-        if row is not None:
-            db.delete(row)
+        if existing is not None:
+            log("gelöscht (@removed)")  # VOR dem Löschen protokollieren, siehe Fallstrick oben
+            db.delete(existing)
             db.commit()
             counters["deleted"] += 1
+        else:
+            log("gelöscht (@removed), lokal bereits unbekannt")
         return None
 
     if _is_recurring(item):
         counters["skipped_recurring"] += 1
+        log("Serientermin übersprungen")
         return None
 
     start = item.get("start") or {}
@@ -451,6 +591,7 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
         # Ganztägige Termine tragen bei Graph ebenfalls start/end.dateTime (Mitternacht) -- ein
         # gänzlich fehlendes Feld ist kein sinnvoll übernehmbares Ereignis.
         counters["skipped_invalid"] += 1
+        log("ungültig übersprungen (start/end fehlt)")
         return None
 
     incoming_fields = {
@@ -464,10 +605,7 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
         # übernommen wird (Outlooks sensitivity ist ihr natives Äquivalent), siehe Moduldocstring.
         "is_private": _is_private_sensitivity(item.get("sensitivity")),
     }
-    graph_modified = _parse_graph_datetime(item["lastModifiedDateTime"]) if item.get("lastModifiedDateTime") else None
-    incoming_change_key = item.get("changeKey")
 
-    existing = db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_event_id == item["id"], CalendarEvent.owner_user_id == user.id))
     if existing is None:
         now = datetime.utcnow()
         row = CalendarEvent(
@@ -481,6 +619,7 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
         db.commit()
         db.refresh(row)
         counters["created"] += 1
+        log("neu angelegt", event_id=row.id, updated_at=now, outlook_synced_at=now, change_key_gespeichert=incoming_change_key)
         return row.id
 
     # Nachtrag (seit 1.7.3) -- EXAKTE Echo-Erkennung vor der Zeitstempel-Heuristik: ein
@@ -489,21 +628,29 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
     # Feldabgleich, kein _mark_synced()-Aufruf -- es gibt nichts zu synchronisieren, wir sind
     # bereits exakt auf diesem Stand. Siehe Moduldocstring "Nachtrag 'Schaukelnder Termin'".
     if incoming_change_key is not None and incoming_change_key == existing.outlook_change_key:
+        log("changeKey-Echo (übersprungen)")
         return None
 
     # "Letzte Änderung gewinnt" (Punkt 5): nur anwenden, wenn Graphs Stand nachweislich neuer ist
     # als unser eigener updated_at -- sonst gewinnt die lokale Zeile und wird stattdessen in der
     # anschließenden Push-Phase nach Outlook geschrieben.
     if graph_modified is not None and graph_modified <= existing.updated_at:
+        log("Graph nicht neuer (übersprungen)")
         return None
     for key, value in incoming_fields.items():
         setattr(existing, key, value)
     existing.outlook_change_key = incoming_change_key
     # Diese Zeile stimmt jetzt (wieder) mit Outlook überein -- _mark_synced() verhindert, dass
     # updated_at und outlook_synced_at durch getrennte onupdate-/Zuweisungszeitpunkte auseinanderlaufen.
-    _mark_synced(db, existing, datetime.utcnow())
+    new_synced_at = datetime.utcnow()
+    _mark_synced(db, existing, new_synced_at)
     db.commit()
     counters["updated"] += 1
+    # Werte NACH der Übernahme explizit übergeben (nicht existing.* nach db.commit() erneut
+    # lesen -- derselbe Fallstrick wie oben, hier zwar kein ObjectDeletedError, aber ein
+    # überflüssiger Reload; die Werte sind durch _mark_synced() ohnehin schon bekannt).
+    log("übernommen (Graph war neuer)", updated_at=new_synced_at, outlook_synced_at=new_synced_at,
+        change_key_gespeichert=incoming_change_key)
     return existing.id
 
 
@@ -519,6 +666,7 @@ def sync_user_calendar(db: Session, user: AppUser) -> dict:
     state = get_or_create_sync_state(db, user)
     smtp = get_or_create_smtp_settings(db)
     just_synced_ids: set[int] = set()
+    diag = diagnostics_enabled()
 
     try:
         token = get_graph_access_token(smtp)
@@ -541,6 +689,18 @@ def sync_user_calendar(db: Session, user: AppUser) -> dict:
         for row in local_rows:
             if row.id in just_synced_ids or not _needs_push(row):
                 continue
+            old_change_key = row.outlook_change_key  # vor jeder Mutation erfasst
+            if row.outlook_event_id is None:
+                push_reason = "outlook_event_id fehlt (Neuanlage)"
+            elif row.outlook_synced_at is None:
+                push_reason = "outlook_synced_at fehlt (noch nie synchronisiert)"
+            else:
+                push_reason = f"updated_at ({row.updated_at}) > outlook_synced_at ({row.outlook_synced_at})"
+            if diag:
+                _diag(row.id, updated_at=row.updated_at, outlook_synced_at=row.outlook_synced_at,
+                      graph_last_modified_raw=None, graph_last_modified_parsed=None,
+                      change_key_gespeichert=old_change_key, change_key_eingehend=None,
+                      entscheidung=f"push angestoßen ({push_reason})")
             try:
                 version_to_sync = row.updated_at  # VOR jeder eigenen Mutation erfasst, siehe _mark_synced()
                 if row.outlook_event_id is None:
@@ -551,14 +711,24 @@ def sync_user_calendar(db: Session, user: AppUser) -> dict:
                     response = _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{row.outlook_event_id}", method="PATCH", payload=_event_payload(row))
                     counters["pushed_updated"] += 1
                 # Nachtrag (seit 1.7.3) -- siehe push_event_best_effort() für dieselbe Begründung.
-                if response is not None and response.get("changeKey"):
-                    row.outlook_change_key = response["changeKey"]
+                new_change_key = response.get("changeKey") if response is not None else None
+                if new_change_key:
+                    row.outlook_change_key = new_change_key
                 _mark_synced(db, row, version_to_sync)
                 db.commit()
+                if diag:
+                    _diag(row.id, updated_at=version_to_sync, outlook_synced_at=version_to_sync,
+                          graph_last_modified_raw=None, graph_last_modified_parsed=None,
+                          change_key_gespeichert=old_change_key, change_key_eingehend=new_change_key,
+                          entscheidung="push erfolgreich")
             except Exception as exc:  # noqa: BLE001 -- ein Termin darf die übrigen nicht blockieren
                 db.rollback()
                 counters["push_failed"] += 1
                 logger.warning("Push nach Outlook fehlgeschlagen (event_id=%s, Fehlerart=%s).", row.id, type(exc).__name__)
+                if diag:
+                    _diag(row.id, updated_at=None, outlook_synced_at=None, graph_last_modified_raw=None,
+                          graph_last_modified_parsed=None, change_key_gespeichert=old_change_key, change_key_eingehend=None,
+                          entscheidung=f"push fehlgeschlagen ({type(exc).__name__})")
 
         state.delta_link = new_delta_link
         state.last_synced_at = datetime.utcnow()

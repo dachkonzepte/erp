@@ -13,13 +13,14 @@ Protokollen (Punkt 6) -- und jeder Netzwerkzugriff läuft ausschließlich gegen 
 import io
 import json
 import logging
+import os
 import urllib.error
 import urllib.parse
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import sessionmaker
 
 from app.auth import hash_password
@@ -28,9 +29,10 @@ from app.calendar_events import (
 )
 from app.database import Base
 from app.email_sending import update_graph_settings
-from app.models import AppUser, CalendarEvent, Customer, Project
+from app.models import AppUser, CalendarEvent, Customer, OutlookCalendarSyncState, Project
 from app.outlook_calendar_sync import (
-    _mark_synced, _needs_push, get_or_create_sync_state, is_outlook_sync_available,
+    _mark_synced, _needs_push, _parse_graph_datetime, diagnostics_enabled,
+    get_or_create_sync_state, is_outlook_sync_available,
     push_event_best_effort, to_berlin, to_utc, try_delete_remote_event,
     update_outlook_sync_settings, sync_user_calendar,
 )
@@ -52,6 +54,47 @@ def db_session():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
+
+
+# ---------------------------------------------------------------------------
+# Nachtrag "Zweite Untersuchungsrunde" (seit 1.7.4), Punkt 5 -- der Schaukel-Test soll auch gegen
+# eine ECHTE PostgreSQL-Instanz laufen können, nicht nur gegen SQLite. Bewusst OPT-IN (Standard-
+# Testlauf bleibt SQLite-only, kein externer Dienst wird vorausgesetzt): ERP_TEST_POSTGRES_URL
+# in der Umgebung setzen, z. B. gegen die lokale, portable Instanz aus CLAUDE.md
+# "PostgreSQL-Umstieg" (Datenbank "spielwiese", bereits per `alembic upgrade head` migriert):
+#   ERP_TEST_POSTGRES_URL=postgresql+psycopg://erp@127.0.0.1:5433/spielwiese
+# ---------------------------------------------------------------------------
+
+PG_TEST_DATABASE_URL = os.getenv("ERP_TEST_POSTGRES_URL")
+
+requires_postgres_opt_in = pytest.mark.skipif(
+    not PG_TEST_DATABASE_URL,
+    reason="ERP_TEST_POSTGRES_URL nicht gesetzt -- PostgreSQL-Testlauf ist bewusst opt-in.",
+)
+
+
+def pg_db_session():
+    """Verbindet gegen die in ERP_TEST_POSTGRES_URL angegebene, ECHTE PostgreSQL-Datenbank.
+    Base.metadata.create_all() ist idempotent (überspringt bereits vorhandene Tabellen) -- läuft
+    also unabhängig davon, ob das Ziel bereits per Alembic migriert ist (Regelfall für
+    "spielwiese", siehe CLAUDE.md) oder eine frische, leere Datenbank ist."""
+    engine = create_engine(PG_TEST_DATABASE_URL)
+    Base.metadata.create_all(engine)
+    return sessionmaker(bind=engine)(), engine
+
+
+def _cleanup_pg_test_data(db, *usernames: str) -> None:
+    """Räumt VOR und NACH jedem PostgreSQL-Testlauf ausschließlich die von DIESEM Testmodul unter
+    den übergebenen, eindeutigen Benutzernamen angelegten Zeilen auf -- rührt sonst nichts in
+    dieser (potenziell von anderen manuellen Prüfungen mitbenutzten, siehe CLAUDE.md
+    "Migrations-Workflow") Datenbank an."""
+    user_ids = db.scalars(select(AppUser.id).where(AppUser.username.in_(usernames))).all()
+    if not user_ids:
+        return
+    db.execute(delete(CalendarEvent).where(CalendarEvent.owner_user_id.in_(user_ids)))
+    db.execute(delete(OutlookCalendarSyncState).where(OutlookCalendarSyncState.app_user_id.in_(user_ids)))
+    db.execute(delete(AppUser).where(AppUser.id.in_(user_ids)))
+    db.commit()
 
 
 def _make_user(db, *, username="tobias", mailbox="tobias@dachkonzepte.gmbh", role="buero_auftrag"):
@@ -246,6 +289,29 @@ def test_event_payload_converts_to_utc_for_graph():
     # (seit 1.7.2) bewusst als "sensitivity" mitgeschickt, siehe test_push_maps_is_private_to_sensitivity.
     assert set(payload.keys()) == {"subject", "isAllDay", "start", "end", "location", "body", "sensitivity"}
     assert "project_id" not in payload and "quote_id" not in payload
+
+
+# ---------------------------------------------------------------------------
+# Nachtrag "Zweite Untersuchungsrunde" (seit 1.7.4), Punkt 1 -- real gefundener, unabhängiger
+# Präzisions-Fehler: Graphs typisches 7-stelliges lastModifiedDateTime-Format ("Ticks").
+# ---------------------------------------------------------------------------
+
+
+def test_parse_graph_datetime_handles_seven_digit_fraction_seconds_regardless_of_python_version():
+    """Microsofts lastModifiedDateTime/start/end tragen üblicherweise SIEBEN Nachkommastellen
+    (100-Nanosekunden-'Ticks'), z. B. '2026-09-26T09:37:34.6472860Z' -- datetime.fromisoformat()
+    akzeptiert das erst ab Python 3.11 (vorher: ValueError bei jeder Bruchteilsekundenlänge außer
+    0/3/6 Ziffern). _parse_graph_datetime() kürzt deshalb VOR dem Parsen selbst auf sechs Stellen
+    -- dieser Test läuft zwar auf JEDER Python-Version identisch grün (auch auf der 3.11+
+    verwendet hier), belegt aber, dass das reale Graph-Format tatsächlich korrekt (und mit
+    derselben Kürzungs-Konvention wie Pythons eigener 3.11+-Parser: die überzähligen Stellen
+    werden abgeschnitten, nicht gerundet) verarbeitet wird -- unabhängig davon, welche
+    Python-Version auf dem Produktivserver tatsächlich läuft."""
+    assert _parse_graph_datetime("2026-09-26T09:37:34.6472860Z") == datetime(2026, 9, 26, 9, 37, 34, 647286)
+    assert _parse_graph_datetime("2019-03-27T11:36:44.0466667Z") == datetime(2019, 3, 27, 11, 36, 44, 46666)
+    # Randfälle, die weiterhin funktionieren müssen: kein Bruchteil, exakt sechs Stellen.
+    assert _parse_graph_datetime("2026-09-26T09:37:34Z") == datetime(2026, 9, 26, 9, 37, 34)
+    assert _parse_graph_datetime("2026-09-26T09:37:34.123456Z") == datetime(2026, 9, 26, 9, 37, 34, 123456)
 
 
 # ---------------------------------------------------------------------------
@@ -996,20 +1062,18 @@ def test_a_single_stuck_row_is_still_retried_after_a_later_successful_run_advanc
     assert stuck.outlook_synced_at == stuck.updated_at
 
 
-def test_no_oscillation_all_counters_reach_zero_from_the_second_run_and_stay_zero_for_five_more_runs():
-    """Nachtrag 'Schaukelnder Termin' (seit 1.7.3), Punkt 4 der Anfrage -- der eigentliche
-    Regressionstest für das gemeldete Verhalten ('Lauf 1: 1 geändert/0 gepusht, Lauf 2: 0
-    geändert/1 gepusht, und so weiter im Wechsel'). Läuft gegen FakeGraphServer (echter Zustand,
-    siehe Modulkommentar oben) -- KEINE der bisherigen, handgebauten Antworten in dieser Datei
+def _check_no_oscillation(db, owner) -> None:
+    """Der eigentliche Regressionstest für das gemeldete Verhalten ('Lauf 1: 1 geändert/0
+    gepusht, Lauf 2: 0 geändert/1 gepusht, und so weiter im Wechsel') -- als eigene Funktion, damit
+    sie sowohl gegen SQLite (Standard) als auch gegen eine echte PostgreSQL-Instanz laufen kann
+    (Nachtrag "Zweite Untersuchungsrunde", Punkt 5 -- siehe die beiden Aufrufer unten UND
+    CLAUDE.md "Kalender" -> "Stufe 2"). Läuft gegen FakeGraphServer (echter Zustand, siehe
+    Modulkommentar oben) -- KEINE der ursprünglichen, handgebauten Antworten in dieser Datei
     bildete den entscheidenden Rundlauf ab (eigener Push kommt beim nächsten Delta-Abruf als
-    scheinbar fremde Änderung zurück), weshalb die bisherigen Tests den Fehler nicht gefunden
-    hätten. Ohne dass irgendjemand den Termin anfasst, muss ab dem ZWEITEN Lauf (der die
-    anfängliche Push-Bestätigung verarbeitet) für JEDEN weiteren Lauf gelten:
-    created=updated=deleted=pushed_created=pushed_updated=0 -- über mindestens fünf weitere
-    Läufe hinweg, nicht nur einmalig."""
-    db = db_session()
-    owner = _make_user(db)
-    _enable_sync(db)
+    scheinbar fremde Änderung zurück). Ohne dass irgendjemand den Termin anfasst, muss ab dem
+    ZWEITEN Lauf (der die anfängliche Push-Bestätigung verarbeitet) für JEDEN weiteren Lauf
+    gelten: created=updated=deleted=pushed_created=pushed_updated=0 -- über mindestens fünf
+    weitere Läufe hinweg, nicht nur einmalig."""
     event = _make_event(db, owner)
     server = FakeGraphServer()
 
@@ -1018,7 +1082,7 @@ def test_no_oscillation_all_counters_reach_zero_from_the_second_run_and_stay_zer
             return sync_user_calendar(db, owner)
 
     first = run()
-    assert first.get("error") is None
+    assert first.get("error") is None, f"Lauf 1: error={first.get('error_type')}"
     assert first["created"] == 0
     assert first["updated"] == 0
     assert first["pushed_created"] == 1  # der einzige Lauf, der überhaupt etwas zu tun hat
@@ -1036,14 +1100,40 @@ def test_no_oscillation_all_counters_reach_zero_from_the_second_run_and_stay_zer
     assert event.updated_at == event.outlook_synced_at
 
 
-def test_no_oscillation_holds_even_with_a_genuine_later_edit_from_outlook_in_between():
-    """Ergänzung zum Test oben -- prüft, dass die changeKey-Absicherung eine ECHTE, spätere
-    Änderung durch jemand anderen (direkt in Outlook) nicht verschluckt: die muss weiterhin ganz
-    normal als 'updated' absorbiert werden, und DANACH muss wieder Ruhe einkehren, unabhängig vom
-    neu gesetzten changeKey."""
+def test_no_oscillation_all_counters_reach_zero_from_the_second_run_and_stay_zero_for_five_more_runs():
+    """Nachtrag 'Schaukelnder Termin' (seit 1.7.3), Punkt 4 der ursprünglichen Anfrage -- siehe
+    _check_no_oscillation() für die volle Begründung. Läuft hier gegen SQLite (Standard, schnell,
+    keine externe Voraussetzung) -- die PostgreSQL-Variante steht direkt darunter."""
     db = db_session()
     owner = _make_user(db)
     _enable_sync(db)
+    _check_no_oscillation(db, owner)
+
+
+@requires_postgres_opt_in
+def test_no_oscillation_all_counters_reach_zero_from_the_second_run_and_stay_zero_for_five_more_runs_postgresql():
+    """Wie oben, aber gegen eine ECHTE, lokale PostgreSQL-Instanz -- Nachtrag "Zweite
+    Untersuchungsrunde" (seit 1.7.4), Punkt 5 der Anfrage: "Der Schaukel-Test soll künftig auch
+    gegen PostgreSQL laufen können." Nur aktiv, wenn ERP_TEST_POSTGRES_URL gesetzt ist (siehe
+    requires_postgres_opt_in oben) -- Standard-Testlauf bleibt SQLite-only, kein externer
+    Dienst wird dafür vorausgesetzt."""
+    db, engine = pg_db_session()
+    try:
+        _cleanup_pg_test_data(db, "pgtest_schaukel_1")
+        owner = _make_user(db, username="pgtest_schaukel_1", mailbox="pgtest_schaukel_1@dachkonzepte.gmbh")
+        _enable_sync(db)
+        _check_no_oscillation(db, owner)
+    finally:
+        _cleanup_pg_test_data(db, "pgtest_schaukel_1")
+        db.close()
+        engine.dispose()
+
+
+def _check_no_oscillation_with_genuine_edit(db, owner) -> None:
+    """Ergänzung zu _check_no_oscillation() -- prüft, dass die changeKey-Absicherung eine ECHTE,
+    spätere Änderung durch jemand anderen (direkt in Outlook) nicht verschluckt: die muss
+    weiterhin ganz normal als 'updated' absorbiert werden, und DANACH muss wieder Ruhe einkehren,
+    unabhängig vom neu gesetzten changeKey."""
     _make_event(db, owner)
     server = FakeGraphServer()
 
@@ -1064,7 +1154,15 @@ def test_no_oscillation_holds_even_with_a_genuine_later_edit_from_outlook_in_bet
 
     genuine_change_run = run()
     assert genuine_change_run["updated"] == 1
-    row = db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_event_id == graph_id))
+    # NACH owner_user_id mitfiltern, wie die echte sync-Logik es auch tut (outlook_event_id trägt
+    # bewusst KEINEN Unique-Constraint, siehe Klassendocstring in app/models.py) -- ohne diese
+    # Einschränkung könnte eine Zeile eines ANDEREN Postfachs mit zufällig demselben
+    # outlook_event_id (z. B. "graph-1", da FakeGraphServer je Testlauf wieder bei 1 beginnt)
+    # zurückgegeben werden. Genau das ist bei der Entwicklung dieses Tests gegen eine geteilte,
+    # nicht zwischen Testläufen bereinigte PostgreSQL-Instanz real passiert -- ein Testartefakt,
+    # kein Fund im Produktcode, siehe CLAUDE.md "Kalender" -> "Stufe 2" -> "Zweite
+    # Untersuchungsrunde" für die vollständige Herleitung.
+    row = db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_event_id == graph_id, CalendarEvent.owner_user_id == owner.id))
     assert row.title == "Von einem Kollegen direkt in Outlook geändert"
     assert row.location == "Neuer Ort aus Outlook"
 
@@ -1072,6 +1170,28 @@ def test_no_oscillation_holds_even_with_a_genuine_later_edit_from_outlook_in_bet
         result = run()
         for key in ("created", "updated", "deleted", "pushed_created", "pushed_updated", "push_failed"):
             assert result[key] == 0, f"Lauf nach der echten Änderung, +{lauf}: {key}={result[key]}"
+
+
+def test_no_oscillation_holds_even_with_a_genuine_later_edit_from_outlook_in_between():
+    db = db_session()
+    owner = _make_user(db)
+    _enable_sync(db)
+    _check_no_oscillation_with_genuine_edit(db, owner)
+
+
+@requires_postgres_opt_in
+def test_no_oscillation_holds_even_with_a_genuine_later_edit_from_outlook_in_between_postgresql():
+    """PostgreSQL-Variante, wie oben bei der reinen Schaukel-Prüfung."""
+    db, engine = pg_db_session()
+    try:
+        _cleanup_pg_test_data(db, "pgtest_schaukel_2")
+        owner = _make_user(db, username="pgtest_schaukel_2", mailbox="pgtest_schaukel_2@dachkonzepte.gmbh")
+        _enable_sync(db)
+        _check_no_oscillation_with_genuine_edit(db, owner)
+    finally:
+        _cleanup_pg_test_data(db, "pgtest_schaukel_2")
+        db.close()
+        engine.dispose()
 
 
 # ---------------------------------------------------------------------------
@@ -1101,6 +1221,107 @@ def test_no_event_content_ever_appears_in_a_log_record(caplog):
         message = record.getMessage()
         assert secret_marker not in message
         assert "Streng vertraulicher Ort" not in message
+
+
+# ---------------------------------------------------------------------------
+# Nachtrag "Zweite Untersuchungsrunde" (seit 1.7.4), Punkt 4 -- abschaltbare Diagnosezeile.
+# ---------------------------------------------------------------------------
+
+
+def test_diagnostics_enabled_reads_env_var(monkeypatch):
+    monkeypatch.delenv("ERP_OUTLOOK_SYNC_DIAGNOSTICS", raising=False)
+    assert diagnostics_enabled() is False
+    for value in ("1", "true", "True", "yes", "YES"):
+        monkeypatch.setenv("ERP_OUTLOOK_SYNC_DIAGNOSTICS", value)
+        assert diagnostics_enabled() is True
+    for value in ("0", "false", "", "nein"):
+        monkeypatch.setenv("ERP_OUTLOOK_SYNC_DIAGNOSTICS", value)
+        assert diagnostics_enabled() is False
+
+
+def test_diagnostic_logging_is_silent_by_default(monkeypatch, caplog):
+    """Ohne ERP_OUTLOOK_SYNC_DIAGNOSTICS entsteht keine einzige Zeile im dedizierten
+    Diagnose-Logger -- Standardzustand, kein zusätzlicher Protokollierungsaufwand im Normalbetrieb."""
+    monkeypatch.delenv("ERP_OUTLOOK_SYNC_DIAGNOSTICS", raising=False)
+    db = db_session()
+    owner = _make_user(db)
+    _enable_sync(db)
+    _make_event(db, owner)
+    server = FakeGraphServer()
+
+    with caplog.at_level(logging.DEBUG, logger="app.outlook_calendar_sync.diagnostics"):
+        with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=make_realistic_urlopen(server)):
+            sync_user_calendar(db, owner)
+
+    diag_records = [r for r in caplog.records if r.name == "app.outlook_calendar_sync.diagnostics"]
+    assert diag_records == []
+
+
+def test_diagnostic_log_line_contains_expected_fields_but_never_title_location_or_notes(monkeypatch, caplog):
+    """Punkt 4 der Anfrage wörtlich: ERP-ID, updated_at, outlook_synced_at,
+    lastModifiedDateTime roh UND umgerechnet, changeKey gespeichert/eingehend, die getroffene
+    Entscheidung -- und (Punkt 6 bleibt unverändert in Kraft) NIEMALS Titel/Ort/Notiz."""
+    monkeypatch.setenv("ERP_OUTLOOK_SYNC_DIAGNOSTICS", "1")
+    db = db_session()
+    owner = _make_user(db)
+    _enable_sync(db)
+    secret_marker = "GEHEIMER TITEL FÜR DIAGNOSE-TEST"
+    _make_event(db, owner, title=secret_marker, location="Streng vertraulicher Ort", notes="Geheime Notiz")
+    server = FakeGraphServer()
+
+    with caplog.at_level(logging.INFO, logger="app.outlook_calendar_sync.diagnostics"):
+        with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=make_realistic_urlopen(server)):
+            sync_user_calendar(db, owner)  # Lauf 1: Push -- erzeugt bereits eine Diagnosezeile
+        with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=make_realistic_urlopen(server)):
+            sync_user_calendar(db, owner)  # Lauf 2: changeKey-Echo -- die eigentlich interessante Zeile
+
+    diag_records = [r for r in caplog.records if r.name == "app.outlook_calendar_sync.diagnostics"]
+    assert len(diag_records) >= 2
+    full_text = "\n".join(r.getMessage() for r in diag_records)
+
+    # Nie Termininhalt, unabhängig davon, wie sehr sich das Feld verändert hat.
+    assert secret_marker not in full_text
+    assert "Streng vertraulicher Ort" not in full_text
+    assert "Geheime Notiz" not in full_text
+
+    # Die changeKey-Echo-Zeile (Lauf 2) trägt alle geforderten Felder.
+    echo_line = next(r.getMessage() for r in diag_records if "changeKey-Echo" in r.getMessage())
+    assert "event_id=" in echo_line
+    assert "updated_at=" in echo_line
+    assert "outlook_synced_at=" in echo_line
+    assert "graph_last_modified_raw=" in echo_line and "graph_last_modified_parsed=" in echo_line
+    assert "change_key_gespeichert=ckey-1" in echo_line
+    assert "change_key_eingehend=ckey-1" in echo_line
+    assert "entscheidung=changeKey-Echo" in echo_line
+
+
+def test_diagnostics_do_not_crash_on_removed_delta_entry(monkeypatch):
+    """Regressionstest für einen beim Bauen der Diagnosezeile SELBST gefundenen Fallstrick: das
+    Lesen von row.updated_at NACH einem db.delete()+db.commit() löst (expire_on_commit) einen
+    Reload eines nicht mehr existierenden Datensatzes aus -> ObjectDeletedError. Die Diagnosezeile
+    für den @removed-Zweig wird deshalb VOR dem Löschen aus bereits vorher kopierten, reinen
+    Python-Werten aufgebaut, nicht durch einen späteren Attributzugriff auf das gelöschte Objekt."""
+    monkeypatch.setenv("ERP_OUTLOOK_SYNC_DIAGNOSTICS", "1")
+    db = db_session()
+    owner = _make_user(db)
+    _enable_sync(db)
+    event = _make_event(db, owner)
+    event.outlook_event_id = "graph-to-be-removed-diag"
+    db.commit()
+    event_id = event.id
+
+    def fake(req, timeout=None):
+        if TOKEN_URL_MARKER in req.full_url:
+            return _FakeResponse({"access_token": "faketoken"})
+        return _FakeResponse(_delta_page([{"id": "graph-to-be-removed-diag", "@removed": {"reason": "deleted"}}],
+                                          delta_link="https://graph.microsoft.com/deltaDiagRemoved"))
+
+    with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=fake):
+        result = sync_user_calendar(db, owner)  # darf NICHT mit ObjectDeletedError abstürzen
+
+    assert result.get("error") is None
+    assert result["deleted"] == 1
+    assert db.get(CalendarEvent, event_id) is None
 
 
 # ---------------------------------------------------------------------------

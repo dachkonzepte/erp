@@ -98,17 +98,29 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1835 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
-  Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 26.09.2026 (1.7.3, Kalender-Modul Stufe 2, Nachtrag "Schaukelnder Termin" --
-  ein gemeldeter, über mehrere Sync-Läufe pendelnder Termin geprüft (Ursache mit den hier
-  verfügbaren Mitteln nicht abschließend reproduzierbar, `_mark_synced()` empirisch als korrekt
-  bestätigt), zusätzlich zur bestehenden Zeitstempel-Heuristik eine uhrzeitunabhängige, exakte
-  Echo-Erkennung über Graphs eigenen changeKey ergänzt -- neue Spalte
-  CalendarEvent.outlook_change_key --, dafür erstmals eine Graph-Attrappe mit echtem, über
-  mehrere Läufe fortgeschriebenem Zustand statt rein statischer Antworten, 6 neue Tests, siehe
-  Abschnitt "Kalender-Modul" -> "Stufe 2" -> "Nachtrag (seit 1.7.3)" unten; davor 1.7.2,
-  Kalender-Modul Stufe 2, Nachtrag -- Outlook-
+- Tests: **1840 passed, 2 skipped** (die beiden übersprungenen sind opt-in PostgreSQL-Varianten
+  des Schaukel-Tests, siehe unten -- übersprungen ohne gesetztes `ERP_TEST_POSTGRES_URL`; seit
+  1.3.55 sonst wieder vollständig grün ohne `xfail` -- der Audit-Test des Rechtekonzepts steht bei
+  null unklassifizierten Endpunkten und ist ein harter Test, siehe dort), zuletzt am 26.09.2026
+  (1.7.4, Kalender-Modul Stufe 2, Nachtrag "Zweite Untersuchungsrunde" -- das Schaukeln trat trotz
+  changeKey (1.7.3) auf dem Produktivserver weiterhin auf; vier gezielte Prüfungen (Datenbank/
+  Zeitzone/Präzision von updated_at/outlook_synced_at, der Schaukel-Test gegen die echte, lokale
+  PostgreSQL-Instanz -- MIT und OHNE changeKey --, ob Graphs Delta-Antwort changeKey überhaupt
+  mitliefert, eine abschaltbare Diagnosezeile je Termin) ergaben KEINEN reproduzierbaren
+  Postgres-spezifischen Fund -- ehrlich als "Ursache nicht abschließend bewiesen" festgehalten,
+  dafür ein unabhängiger, real gefundener Python-Versions-Härtungsbedarf in
+  `_parse_graph_datetime()` behoben (Microsofts 7-stellige Bruchteilsekunden wurden vor Python
+  3.11 nicht geparst) und die neue, abschaltbare Diagnosezeile (`ERP_OUTLOOK_SYNC_DIAGNOSTICS=1`)
+  als Werkzeug für den Betreiber übergeben, der Schaukel-Test läuft jetzt zusätzlich opt-in gegen
+  PostgreSQL, 7 neue Tests, siehe Abschnitt "Kalender-Modul" -> "Stufe 2" -> "Nachtrag (seit
+  1.7.4)" unten; davor 1.7.3, Kalender-Modul Stufe 2, Nachtrag "Schaukelnder Termin" -- ein
+  gemeldeter, über mehrere Sync-Läufe pendelnder Termin geprüft (Ursache mit den hier verfügbaren
+  Mitteln nicht abschließend reproduzierbar, `_mark_synced()` empirisch als korrekt bestätigt),
+  zusätzlich zur bestehenden Zeitstempel-Heuristik eine uhrzeitunabhängige, exakte Echo-Erkennung
+  über Graphs eigenen changeKey ergänzt -- neue Spalte CalendarEvent.outlook_change_key --, dafür
+  erstmals eine Graph-Attrappe mit echtem, über mehrere Läufe fortgeschriebenem Zustand statt rein
+  statischer Antworten, 6 neue Tests, siehe Abschnitt "Kalender-Modul" -> "Stufe 2" -> "Nachtrag
+  (seit 1.7.3)" unten; davor 1.7.2, Kalender-Modul Stufe 2, Nachtrag -- Outlook-
   Vertraulichkeit (sensitivity) auf is_private abgebildet, zwei echte Push-Wiederholungsfehler
   behoben (verlorene Zuordnung bei einem Nachbar-Fehlschlag, ein fälschlich als "aktuell"
   erkannter Termin wegen eines rein postfachweiten statt pro-Termin-Vergleichs -- neue Spalte
@@ -11470,6 +11482,138 @@ für JEDEN weiteren Lauf bei null stehen. Ein zweiter, ergänzender Test
 dass eine ECHTE, spätere Änderung durch jemand anderen direkt in Outlook davon unberührt
 weiterhin korrekt als "updated" absorbiert wird und danach erneut zur Ruhe kommt -- die neue
 changeKey-Prüfung verschluckt also keine echten externen Änderungen.
+
+#### Nachtrag "Zweite Untersuchungsrunde" (seit 1.7.4): Schaukeln trotz changeKey (1.7.3) weiter
+gemeldet -- vier gezielte Prüfungen, kein reproduzierter Fund, dafür Diagnose-Werkzeuge
+
+Der 1.7.3-Nachtrag hat das gemeldete Schaukeln auf dem Produktivserver NICHT beendet -- weiterhin
+dasselbe "1 geändert" / "1 nach Outlook aktualisiert"-Wechselmuster, obwohl `changeKey` seither
+abgefragt/gespeichert/verglichen wird. Vier vom Betreiber vorgegebene Prüfungen, in dieser
+Reihenfolge, jede VOR jeder weiteren Codeänderung durchgeführt:
+
+**1. `updated_at`/`outlook_synced_at`/der Vergleich mit `lastModifiedDateTime` -- Datenbank oder
+Python, UTC oder Berlin, welche Genauigkeit ("Hauptverdacht" des Betreibers).** Gegen die echte,
+lokale PostgreSQL-Instanz empirisch geprüft (nicht nur SQLite, das bisher einzige in dieser Datei
+verwendete Testbackend):
+
+- **Ausschließlich Python-seitig gesetzt** -- `default=datetime.utcnow`/`onupdate=datetime.utcnow`
+  auf der ORM-Spalte, KEIN `server_default`/Trigger auf der PostgreSQL-Seite (per `\d
+  calendar_events` bestätigt: keine Trigger). `to_utc()`/`to_berlin()` werden nirgends für
+  `updated_at`/`outlook_synced_at`/den `lastModifiedDateTime`-Vergleich aufgerufen -- diese beiden
+  Funktionen sind ausschließlich für `start_at`/`end_at` reserviert (Punkt 3 des ursprünglichen
+  Moduldocstrings), `updated_at`/`outlook_synced_at`/`graph_modified` bleiben durchgängig
+  naiv-UTC.
+- **Spaltentyp empirisch bestätigt**: `timestamp without time zone` (nicht `timestamptz`) -- diese
+  Spaltenart kennt gar keine Zeitzonen-Umwandlung, unabhängig von der PostgreSQL-Sessioneinstellung
+  `TimeZone` (die für `timestamptz`-Spalten relevant wäre, hier nicht). Kein Risiko einer
+  stillschweigenden Zeitzonen-Reinterpretation beim Lesen/Schreiben.
+- **Mikrosekunden-Präzision round-trippt exakt** -- ein per `datetime.utcnow()` erzeugter Wert
+  (volle Python-Mikrosekunden-Auflösung) wurde geschrieben, die Session geschlossen, in einer
+  KOMPLETT FRISCHEN Session neu geladen: identisch bis zur letzten Mikrosekunde, sowohl direkt
+  nach dem Schreiben als auch nach einem zweiten Reload nach `_mark_synced()`. Kein
+  Postgres-spezifischer Präzisionsverlust gefunden.
+- **`_mark_synced()`s Dirty-Tracking-Verhalten unter PostgreSQL identisch zu SQLite** -- direkt
+  geprüft: nach `setattr()` auf mehreren Feldern gefolgt von `_mark_synced()` zeigt
+  `sa_inspect(row).attrs[...].history` für `updated_at`/`outlook_synced_at` `unchanged`, nicht
+  `added` -- ein nachfolgender `db.commit()` löst deshalb KEINEN zweiten `onupdate`-Bump aus, exakt
+  wie unter SQLite bereits in 1.7.3 nachgewiesen.
+
+**Kein Postgres-vs-SQLite-Unterschied gefunden, der den "Hauptverdacht" bestätigen würde.**
+
+**2. Der Schaukel-Test gegen die lokale, portable PostgreSQL-Instanz (`spielwiese`,
+`postgresql+psycopg://erp@127.0.0.1:5433/spielwiese`, siehe CLAUDE.md "PostgreSQL-Umstieg").**
+Vollständige Migrationskette (bis `3e187156fa80`) lief dort erneut sauber durch -- zusätzlicher
+Beleg, dass die Kette insgesamt weiterhin gegen echtes PostgreSQL funktioniert. Zwei Varianten
+getestet, beide mit FRISCHEN Sessions je Lauf (simuliert einen neuen Cron-Prozess je Tick, nicht
+nur eine lange laufende Session):
+
+- MIT `changeKey` (realistische Attrappe wie in 1.7.3): kommt nach dem einmaligen Echo-Zyklus zur
+  Ruhe, kein Unterschied zu SQLite.
+- OHNE `changeKey` (simuliert den Fall, dass Graph ihn trotz `$select` nicht liefert -- reiner
+  Zeitstempel-Rückfallpfad): ebenfalls stabil nach einem Zyklus, auch unter PostgreSQL.
+
+**Die beiden Schaukel-Tests sind jetzt auch als echte, opt-in pytest-Tests verfügbar** (Punkt 5,
+`tests/test_v297_outlook_calendar_sync.py`,
+`test_no_oscillation_all_counters_reach_zero_from_the_second_run_and_stay_zero_for_five_more_runs_postgresql`/
+`test_no_oscillation_holds_even_with_a_genuine_later_edit_from_outlook_in_between_postgresql`,
+`@pytest.mark.skipif` auf die neue Umgebungsvariable `ERP_TEST_POSTGRES_URL`) -- der
+Standard-Testlauf bleibt unverändert SQLite-only, kein externer Dienst wird vorausgesetzt. Räumt
+vor UND nach jedem Lauf ausschließlich die unter eindeutigen Test-Benutzernamen angelegten Zeilen
+auf (`_cleanup_pg_test_data()`), rührt sonst nichts in der (potenziell von manuellen Prüfungen
+mitbenutzten) Datenbank an.
+
+**Dabei ein echter Fund -- allerdings im TEST, nicht im Produktcode**: die erste Fassung der
+Genuine-Edit-PostgreSQL-Variante schlug fehl, weil eine eigene, ÄLTERE manuelle Testsitzung
+(während dieser Untersuchung) Daten in `spielwiese` hinterlassen hatte UND die Test-Verifikationszeile
+`db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_event_id == graph_id))` -- anders als
+die ECHTE Produktionslogik in `_apply_delta_change()` -- nicht zusätzlich nach `owner_user_id`
+filterte. Da `FakeGraphServer` je Testlauf wieder bei `"graph-1"` beginnt UND
+`outlook_event_id` bewusst KEINEN Unique-Constraint trägt (siehe Klassendocstring), lieferte die
+ungefilterte Testabfrage die falsche, veraltete Zeile eines anderen (Test-)Postfachs zurück.
+Behoben: die Testzeile filtert jetzt zusätzlich nach `owner_user_id`, exakt wie die
+Produktionslogik es tut; `spielwiese` wurde vollständig bereinigt.
+
+**3. Liefert Graphs Delta-Antwort `changeKey` überhaupt mit? Ohne Zugriff auf den echten Tenant
+NICHT verifizierbar.** `_EVENT_SELECT` fragt es seit 1.7.3 ab, aber ob Microsoft Graph es für
+`/events/delta` tatsächlich zurückliefert (manche Graph-Endpunkte haben dokumentierte
+`$select`-Einschränkungen), lässt sich mit den hier verfügbaren Mitteln nicht klären -- genau
+dafür die neue Diagnosezeile (Punkt 4).
+
+**4. Abschaltbare Diagnosezeile** (`ERP_OUTLOOK_SYNC_DIAGNOSTICS=1` in `.env`, vom Cron-Skript bei
+JEDEM Lauf neu geladen -- ein Umschalten wirkt bereits beim nächsten Tick, kein Neustart des
+Webservers nötig): `app/outlook_calendar_sync.py::diagnostics_enabled()`/`_diag()` protokollieren
+je verarbeitetem Delta-Eintrag (`_apply_delta_change()`) UND je Push-Versuch
+(`push_event_best_effort()`, die Push-Schleife in `sync_user_calendar()`) eine strukturierte Zeile
+mit genau den angeforderten Feldern -- ERP-ID, `updated_at`, `outlook_synced_at`,
+`lastModifiedDateTime` ROH (der unveränderte String aus der Graph-Antwort) UND umgerechnet
+(`_parse_graph_datetime()`s Ergebnis), `outlook_change_key` gespeichert/eingehend, die getroffene
+Entscheidung (`"neu angelegt"`/`"changeKey-Echo (übersprungen)"`/`"Graph nicht neuer
+(übersprungen)"`/`"übernommen (Graph war neuer)"`/`"gelöscht (@removed)"`/`"push angestoßen
+(...)"`/`"push erfolgreich"`/`"push fehlgeschlagen (...)"` u. a.) -- NIE Titel/Ort/Notiz, Punkt 6
+bleibt unverändert in Kraft. Eigener Logger-Name (`app.outlook_calendar_sync.diagnostics`), damit
+sie sich unabhängig vom bestehenden Warn-Logger und rein über die Umgebungsvariable schalten
+lässt. Dies ist das Werkzeug, mit dem der Betreiber die auf dem Produktivserver tatsächlich
+eintreffenden Rohwerte selbst nachvollziehen kann -- ohne es hätte Punkt 3 nie beantwortet werden
+können.
+
+**Dabei ein Fallstrick beim Bauen der Diagnosezeile SELBST gefunden und behoben, bevor er
+ausgeliefert wurde**: ein naiver Versuch, `row.updated_at`/`row.outlook_synced_at` NACH einem
+`db.delete(row)` + `db.commit()` für die "gelöscht (@removed)"-Diagnosezeile zu lesen, hätte
+`ObjectDeletedError` ausgelöst (SQLAlchemys `expire_on_commit` markiert alle Session-Objekte nach
+jedem Commit als abgelaufen -- ein Zugriff auf ein bereits gelöschtes, abgelaufenes Objekt löst
+dann einen Reload-Versuch gegen eine nicht mehr existierende Zeile aus). Behoben: alle für die
+Diagnosezeile benötigten Werte werden VOR jeder Mutation in reine Python-Variablen kopiert, `log()`
+liest nur noch daraus, nie erneut vom (möglicherweise inzwischen gelöschten) ORM-Objekt. Mit einem
+gezielten Regressionstest belegt (`test_diagnostics_do_not_crash_on_removed_delta_entry`).
+
+**Unabhängiger, real gefundener Härtungsbedarf, nicht als bewiesene Ursache behauptet**:
+`_parse_graph_datetime()` verließ sich auf `datetime.fromisoformat()`, das SIEBEN-stellige
+Bruchteilsekunden (Microsofts übliches "Ticks"-Format, z. B. `"...634.6472860Z"`) erst ab **Python
+3.11** akzeptiert -- davor: `ValueError` bei jeder Bruchteilsekundenlänge außer 0/3/6 Ziffern, ein
+sehr verbreiteter, dokumentierter Stolperstein beim Arbeiten mit der Graph-API. Welche
+Python-Version auf dem Produktivserver tatsächlich läuft, war nicht dokumentiert/geprüft. Eine
+solche `ValueError` hätte allerdings den GESAMTEN Lauf mit `error: True` markiert, nicht das
+gemeldete, unauffällige 1-zu-1-Wechselmuster -- deshalb vermutlich NICHT die alleinige Ursache des
+gemeldeten Schaukelns, aber ein eigenständiger, tatsächlich vorhandener Fehler. Behoben,
+UNABHÄNGIG von der jeweiligen Python-Version: Bruchteilsekunden werden jetzt vor dem eigentlichen
+Parsen per Regex auf sechs Stellen gekürzt (`_OVERLONG_FRACTION_RE`, dieselbe
+Abschneide-statt-Rundungs-Konvention wie Pythons eigener 3.11+-Parser) -- macht das Verhalten
+strukturell unabhängig davon, welche Python-Version tatsächlich läuft.
+
+**Ergebnis, ehrlich festgehalten**: die gemeldete, tatsächliche Ursache des Schaukelns auf dem
+Produktivserver konnte mit den hier verfügbaren Mitteln (kein Zugriff auf den echten Tenant, echte
+Graph-Protokolle oder den Produktivserver selbst) NICHT abschließend bewiesen werden. Punkt 1
+(Datenbank/Zeitzone/Präzision) und Punkt 2 (PostgreSQL-Rundlauf) wurden geprüft und ergaben keinen
+Fund. Punkt 3 (liefert Graph tatsächlich changeKey mit) bleibt offen -- die neue Diagnosezeile
+(Punkt 4) ist das Werkzeug, mit dem der Betreiber das beim nächsten Produktiv-Cron-Lauf selbst
+nachvollziehen kann. Ein unabhängiger, real gefundener Präzisions-Fehler (Python-Versions-
+Abhängigkeit von `_parse_graph_datetime()`) wurde vorsorglich behoben, ohne als bewiesene Ursache
+behauptet zu werden.
+
+7 neue Tests (Zeitstempel-Präzisions-Parsing, drei Diagnosezeilen-Tests inkl. des
+Content-Ausschlusses, die @removed-Regression, plus die beiden opt-in PostgreSQL-Varianten der
+Schaukel-Tests), volle Suite: 1840 Tests grün, 2 davon opt-in und standardmäßig übersprungen ohne
+gesetztes `ERP_TEST_POSTGRES_URL`.
 
 #### Bekannte, bewusst offene Punkte
 

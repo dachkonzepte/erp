@@ -4,6 +4,33 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.7.4 – Kalender-Modul (Stufe 2), Nachtrag: zweite Untersuchungsrunde -- Schaukeln trotz changeKey weiter gemeldet
+
+Der 1.7.3-Nachtrag hat das gemeldete Schaukeln auf dem Produktivserver nicht beendet -- weiterhin
+dasselbe "1 geändert" / "1 nach Outlook aktualisiert"-Wechselmuster. Vier gezielt vorgegebene
+Prüfungen, jede vor jeder weiteren Codeänderung durchgeführt: (1) `updated_at`/`outlook_synced_at`
+werden ausschließlich Python-seitig gesetzt, bleiben naiv-UTC durchgängig und round-trippen unter
+PostgreSQL (`TIMESTAMP WITHOUT TIME ZONE`, empirisch bestätigt) bis auf die Mikrosekunde exakt,
+auch über einen simulierten Cron-Prozess-Neustart hinweg -- kein Fund. (2) Der Schaukel-Test lief
+gegen die echte, lokale PostgreSQL-Instanz, mit UND ohne changeKey in der Graph-Antwort -- beide
+Varianten kommen nach dem einmaligen Echo-Zyklus zur Ruhe, kein SQLite-vs-PostgreSQL-Unterschied
+gefunden. (3) Ob Graphs Delta-Antwort `changeKey` tatsächlich mitliefert, ließ sich ohne Zugriff
+auf den echten Tenant nicht verifizieren -- offen. (4) Neue, abschaltbare Diagnosezeile
+(`ERP_OUTLOOK_SYNC_DIAGNOSTICS=1`) protokolliert je Termin ERP-ID, `updated_at`,
+`outlook_synced_at`, `lastModifiedDateTime` roh und umgerechnet, `changeKey`
+gespeichert/eingehend und die getroffene Entscheidung -- nie Titel/Ort/Notiz. Dabei ein
+Fallstrick beim Bauen selbst gefunden und behoben (Zugriff auf ein Objekt nach `db.delete()` +
+`db.commit()` hätte `ObjectDeletedError` ausgelöst), sowie ein unabhängiger, real gefundener
+Härtungsbedarf: `_parse_graph_datetime()` konnte Microsofts übliche 7-stellige Bruchteilsekunden
+vor Python 3.11 nicht parsen (`ValueError`) -- jetzt python-versionsunabhängig behoben, ohne als
+bewiesene Ursache des Schaukelns behauptet zu werden. Der Schaukel-Test läuft jetzt zusätzlich
+opt-in gegen PostgreSQL (`ERP_TEST_POSTGRES_URL`). Ehrlich festgehalten: die tatsächliche Ursache
+ließ sich mit den verfügbaren Mitteln nicht abschließend beweisen -- die neue Diagnosezeile ist
+das Werkzeug für den Betreiber, das beim nächsten Produktiv-Cron-Lauf selbst nachzuvollziehen.
+
+7 neue Tests, volle Suite: 1840 Tests grün, 2 davon opt-in ohne gesetztes `ERP_TEST_POSTGRES_URL`
+übersprungen.
+
 ## 1.7.3 – Kalender-Modul (Stufe 2), Nachtrag: schaukelnder Termin -- Echo-Erkennung per changeKey
 
 Gemeldeter Fehler: ein Termin pendelte über mehrere Sync-Läufe hinweg zwischen "1 geändert"
