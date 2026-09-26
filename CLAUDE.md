@@ -20,8 +20,11 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.7.5** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `1375eeeea2fa` ("calendar event outlook etag rename", reine
+- Version: **1.7.6** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf weiterhin `1375eeeea2fa` (1.7.6 selbst brauchte keine eigene Migration --
+  reine Business-Logik-Umstellung in `app/outlook_calendar_sync.py`, siehe Abschnitt
+  "Kalender-Modul" -> "Stufe 2" -> "Nachtrag (seit 1.7.6)" unten; die Migration `1375eeeea2fa`
+  selbst ist weiterhin "calendar event outlook etag rename", reine
   Spalten-Umbenennung `calendar_events.outlook_change_key` -> `outlook_etag`, kein
   Datenverlust-Risiko -- die Spalte trug zu diesem Zeitpunkt bei keiner Zeile einen von Graph
   tatsächlich nutzbaren Wert, siehe Abschnitt "Kalender-Modul" -> "Stufe 2" -> "Nachtrag (seit
@@ -102,11 +105,30 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1842 passed, 2 skipped** (die beiden übersprungenen sind opt-in PostgreSQL-Varianten
+- Tests: **1844 passed, 2 skipped** (die beiden übersprungenen sind opt-in PostgreSQL-Varianten
   des Schaukel-Tests, siehe unten -- übersprungen ohne gesetztes `ERP_TEST_POSTGRES_URL`; seit
   1.3.55 sonst wieder vollständig grün ohne `xfail` -- der Audit-Test des Rechtekonzepts steht bei
   null unklassifizierten Endpunkten und ist ein harter Test, siehe dort), zuletzt am 26.09.2026
-  (1.7.5, Kalender-Modul Stufe 2, Nachtrag -- die tatsächliche Ursache des seit 1.7.3 gemeldeten
+  (1.7.6, Kalender-Modul Stufe 2, Nachtrag -- eine weitere Produktions-Diagnose zeigte trotz 1.7.5
+  weiterhin unnötige Pushes; empirisch (echte SQL-Mitschnitte gegen SQLite UND PostgreSQL)
+  nachgewiesen, dass `Column(..., onupdate=datetime.utcnow)` bei JEDER `UPDATE`-Anweisung gegen
+  `calendar_events` greift, sobald `updated_at` nicht explizit in `.values()` steht -- ein bloßes
+  Weglassen der Spalte (erster, verworfener Fix-Entwurf) reicht NICHT, ein bereits bestehender
+  Test widerlegte das sofort. Die tatsächlich wirksame Lösung: `updated_at` wird in jedem reinen
+  Sync-Buchhaltungs-Schreibvorgang IMMER explizit auf eine Selbstreferenz gesetzt
+  (`updated_at=CalendarEvent.updated_at`) -- unterdrückt `onupdate` zuverlässig, ohne den
+  aktuellen Wert vorher in Python kennen zu müssen. Neue Funktion `_write_sync_bookkeeping()`
+  (löst `_mark_synced()` ab) bricht zusätzlich sofort ab, wenn eine Zeile beim Aufruf noch eine
+  andere, über `setattr()` erzeugte Dirty-Markierung trägt (würde die Selbstreferenz über einen
+  vorangehenden Autoflush aushebeln, ebenfalls empirisch bestätigt). Ehrlich festgehalten: ein
+  exakter Nachbau der in der Diagnose gezeigten PERSISTIERTEN Werte gelang trotz umfangreicher
+  Versuche weiterhin nicht -- der jetzt gefundene und behobene `onupdate`-Mechanismus trat im
+  eigenen Reparaturversuch auf, nicht nachweisbar in der 1.7.1-1.7.5-Fassung, der neue
+  Mechanismus ist aber unabhängig davon nachweislich exakt (kein Drift). 2 neue Tests direkt gegen
+  `_write_sync_bookkeeping()`, der bestehende Sieben-Läufe-Schaukel-Test läuft seither mit einer
+  GENUINE NEUEN Session je Lauf statt einer wiederverwendeten. Siehe Abschnitt "Kalender-Modul" ->
+  "Stufe 2" -> "Nachtrag (seit 1.7.6)" unten; davor 1.7.5, Kalender-Modul Stufe 2, Nachtrag -- die
+  tatsächliche Ursache des seit 1.7.3 gemeldeten
   Schaukelns gefunden: `changeKey` kommt in Graphs Delta-Antworten strukturell NIE an (`$select`
   wird für Kalender-Delta-Abfragen laut Microsoft-Dokumentation ignoriert, jede von Microsoft
   selbst gezeigte Beispiel-Delta-Antwort trägt `@odata.etag`, nie `changeKey`) -- die 1.7.3/1.7.4-
@@ -11689,6 +11711,93 @@ ein Delta-Eintrag, der -- absichtlich zufällig passend, aber ohne `@odata.etag`
 ein Regressionsschutz, dass die alten Diagnose-Feldnamen nirgends mehr auftauchen. 2 neue Tests
 (netto, da drei bestehende nur umbenannt/angepasst wurden -- nicht ersetzt), volle Suite: **1842
 Tests grün, 2 davon weiterhin opt-in ohne gesetztes `ERP_TEST_POSTGRES_URL` übersprungen.**
+
+#### Nachtrag (seit 1.7.6): Dauer-Push trotz 1.7.5 -- die reine Sync-Buchhaltung selbst hatte
+`updated_at` verschoben, jetzt gefunden und behoben
+
+Eine weitere Produktions-Diagnose zeigte: trotz 1.7.5 (Echo-Erkennung per `@odata.etag`) blieb
+der unnötige Push bestehen. Für "etag-Echo (übersprungen)"/"Graph nicht neuer (übersprungen)"
+stand `updated_at` bereits VOR der eigentlichen Verarbeitung mehrere Sekunden nach
+`outlook_synced_at` (Beispiel: `updated_at=13:01:57.632772` gegen
+`outlook_synced_at=13:01:50.714899`, gefolgt von "push angestoßen"); an anderer Stelle lag
+`updated_at` 3,7 ms NACH `_mark_synced()` noch von `outlook_synced_at` entfernt. Drei geforderte
+Punkte: die Skip-Zweige dürfen die Zeile gar nicht verändern; jeder reine Sync-Buchhaltungs-
+Schreibvorgang (Etag, `outlook_synced_at`, der Graph-Zeitpunkt) muss über einen Weg laufen, der
+`updated_at` nie berührt; ein Test soll das beweisen.
+
+**Empirisch nachgebaut statt angenommen, mit zwei widerlegten eigenen Zwischenannahmen.** Ein
+Nachbau mit `echo=True` gegen SQLite UND eine echte, lokale PostgreSQL-Instanz (dieselbe
+portable Instanz aus "PostgreSQL-Umstieg", eigens dafür wieder gestartet) bestätigte zunächst die
+erste Vermutung: `session.execute()` autoflusht vor der eigenen Anweisung jede andere, noch
+offene Dirty-Markierung -- war die Zeile bereits über `setattr()` dirty (wie
+`push_event_best_effort()`/die Push-Schleife es bis dahin mit `outlook_event_id`/`outlook_etag`
+VOR dem alten `_mark_synced()`-Aufruf taten), erzeugte dieser Autoflush eine gewöhnliche
+ORM-`UPDATE`-Anweisung samt `onupdate=datetime.utcnow`-Bump. Ein erster Fix-Entwurf entfernte
+deshalb nur das vorherige `setattr()` (die Felder wandern direkt in `.values()`, `updated_at`
+bleibt einfach weg) -- **das reichte NICHT**: der bereits bestehende, seit 1.7.2 grüne Test
+`test_successful_push_does_not_let_updated_at_drift_and_prevents_a_redundant_second_push` schlug
+mit genau diesem "Fix" weiterhin fehl, per SQL-Mitschnitt bestätigt mit `UPDATE calendar_events
+SET outlook_event_id=?, outlook_synced_at=?, updated_at=?` -- `updated_at` erschien in der
+SET-Klausel, OBWOHL kein `updated_at`-Parameter in `.values()` übergeben wurde.
+
+**Die tatsächliche Ursache**: `Column(..., onupdate=datetime.utcnow)` ist eine COLUMN-, keine
+reine ORM-Mapper-Eigenschaft -- sie greift bei JEDER `UPDATE`-Anweisung gegen diese Tabelle, ob
+über die ORM-Klasse (`update(CalendarEvent)`) ODER das rohe Core-`Table`-Objekt
+(`update(CalendarEvent.__table__)`) abgesetzt (beides empirisch geprüft, beide Varianten zeigten
+denselben, unerwünschten Bump), SOBALD `updated_at` NICHT explizit in `.values()` auftaucht. Ein
+bloßes Weglassen der Spalte schützt sie also NICHT vor `onupdate`. **Die tatsächlich wirksame
+Lösung**: `updated_at` wird in JEDEM Sync-Buchhaltungs-Schreibvorgang IMMER explizit auf eine
+SELBSTREFERENZ gesetzt (`updated_at=CalendarEvent.updated_at`, kompiliert zu `SET updated_at =
+calendar_events.updated_at`) -- ein explizit gegebener Wert unterdrückt `onupdate` zuverlässig
+(das laut SQLAlchemy nur greift, wenn für die Spalte KEIN Wert übergeben wurde), ohne dass der
+aktuelle Wert vorher in Python bekannt sein müsste: die Datenbank liest ihn sich selbst aus
+derselben Zeile, atomar. Per direktem Vorher/Nachher-Vergleich bestätigt: `DRIFT = 0:00:00`,
+exakt, nicht nur "meist richtig".
+
+**Zweite, unabhängige Absicherung, ebenfalls empirisch gefunden**: die Selbstreferenz schützt nur
+VOR der EIGENEN Anweisung -- trägt die Zeile beim Aufruf bereits eine ANDERE, über `setattr()`
+erzeugte Dirty-Markierung, autoflusht `db.execute()` diese ZUERST über eine gewöhnliche
+ORM-`UPDATE`-Anweisung, die `onupdate` einbezieht, BEVOR die Selbstreferenz greifen kann (ein
+`event.title = "..."` unmittelbar vor dem Buchhaltungsaufruf erzeugte trotz Selbstreferenz einen
+echten, persistierten Millisekunden-Versatz). Die neue Funktion `_write_sync_bookkeeping()`
+(`app/outlook_calendar_sync.py`, löst `_mark_synced()` vollständig ab) prüft deshalb VORAB
+`db.is_modified(row)` und bricht mit einer klaren Fehlermeldung ab, statt den Fehler ein drittes
+Mal still zu wiederholen -- jeder der drei Aufrufer (`push_event_best_effort()`, die Push-Schleife
+in `sync_user_calendar()`, der "übernommen"-Zweig von `_apply_delta_change()`) flusht/committet
+eine echte inhaltliche Änderung deshalb IMMER VOR diesem Aufruf, nie danach. `outlook_event_id`/
+`outlook_etag` werden seither NICHT MEHR per `setattr()` vor dem Buchhaltungsaufruf gesetzt,
+sondern als Teil DERSELBEN Anweisung übergeben. `_apply_delta_change()`s "übernommen"-Zweig
+trennt ECHTE inhaltliche Änderungen (title/location/... -- die SOLLEN `updated_at` ganz normal
+über `onupdate` bumpen, das ist eine echte Änderung) von der reinen Buchhaltung: erst `db.flush()`
+der inhaltlichen Felder, dann wird der TATSÄCHLICH generierte `updated_at`-Wert ausgelesen und
+unverändert als `outlook_synced_at` in die separate Buchhaltungsanweisung übergeben -- kein
+separat erfasster `datetime.utcnow()` mehr, der vom tatsächlich gespeicherten Wert abweichen
+könnte.
+
+**Ehrlich festgehalten**: ein exakter, deterministischer Nachbau der in der Produktions-Diagnose
+gezeigten PERSISTIERTEN Zahlenwerte (mit mehreren Sekunden Abstand bzw. dem 3,7-ms-Versatz)
+gelang trotz umfangreicher Versuche (Einzelsession, Session-pro-Lauf nach dem Vorbild eines neuen
+Cron-Prozesses, SQLite UND PostgreSQL) NICHT -- die genaue Abfolge, die in Produktion zu einem
+beobachteten Versatz geführt hat, bleibt damit nicht abschließend bewiesen. Der jetzt gefundene
+und behobene `onupdate`-Mechanismus trat ausschließlich in einem ZWISCHENSCHRITT des eigenen
+Reparaturversuchs auf (dem ersten, verworfenen "Spalte weglassen"-Fix-Entwurf), nicht nachweisbar
+in der ursprünglich ausgelieferten 1.7.1–1.7.5-Fassung, deren `_mark_synced()` `updated_at=at`
+bereits explizit mitgab und `onupdate` damit für ihre eine Anweisung korrekt unterdrückte. Der
+jetzt gewählte, endgültige Mechanismus (explizite Selbstreferenz plus `is_modified()`-Wächter)
+ist unabhängig davon nachweislich korrekt und macht das gesamte Risiko strukturell unmöglich,
+statt sich auf eine bestimmte Zwischenzustands-Reihenfolge zu verlassen.
+
+**Tests**: zwei neue, direkt gegen `_write_sync_bookkeeping()` --
+`test_write_sync_bookkeeping_never_changes_updated_at` (saubere Zeile, exakte
+`updated_at`-Gleichheit) und `test_write_sync_bookkeeping_rejects_a_row_with_unrelated_dirty_state`
+(bricht sofort ab, wenn die Zeile noch dirty ist). Der bestehende Sieben-Läufe-Schaukel-Test
+(`_check_no_oscillation()`/`_check_no_oscillation_with_genuine_edit()`) läuft seither mit einer
+GENUINE NEUEN Session je Lauf (gebunden an dieselbe Engine, `db.get_bind()`) statt der zuvor über
+alle sieben Läufe wiederverwendeten -- simuliert einen neuen Cron-Prozess je Tick, wie
+ausdrücklich verlangt (`scripts/sync_outlook_calendars.py` startet tatsächlich als eigener
+Prozess bei jedem Tick). Volle Suite: **1844 Tests grün, 2 davon weiterhin opt-in ohne gesetztes
+`ERP_TEST_POSTGRES_URL` übersprungen** (beide PostgreSQL-Schaukel-Varianten mit gesetzter
+Variable zusätzlich verifiziert grün).
 
 #### Bekannte, bewusst offene Punkte
 

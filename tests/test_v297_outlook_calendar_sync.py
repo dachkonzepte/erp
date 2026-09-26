@@ -31,7 +31,7 @@ from app.database import Base
 from app.email_sending import update_graph_settings
 from app.models import AppUser, CalendarEvent, Customer, OutlookCalendarSyncState, Project
 from app.outlook_calendar_sync import (
-    _mark_synced, _needs_push, _parse_graph_datetime, diagnostics_enabled,
+    _write_sync_bookkeeping, _needs_push, _parse_graph_datetime, diagnostics_enabled,
     get_or_create_sync_state, is_outlook_sync_available,
     push_event_best_effort, to_berlin, to_utc, try_delete_remote_event,
     update_outlook_sync_settings, sync_user_calendar,
@@ -521,11 +521,11 @@ def test_push_maps_is_private_to_sensitivity(is_private, expected_sensitivity):
 
 
 def test_successful_push_does_not_let_updated_at_drift_and_prevents_a_redundant_second_push():
-    """Nachtrag (seit 1.7.2) -- _mark_synced() muss updated_at UND outlook_synced_at auf
-    DENSELBEN Wert setzen. Täte sie das nicht, würde SQLAlchemys onupdate=datetime.utcnow
-    updated_at bei dieser reinen Buchhaltungsschreiboperation unbeabsichtigt weiterschieben und
-    der Termin sähe sofort wieder wie "noch zu übertragen" aus -- eine Endlosschleife aus
-    unnötigen Pushes bei jedem weiteren Sync-Lauf, obwohl sich am Termin nichts geändert hat."""
+    """Nachtrag (seit 1.7.2, Mechanismus seit 1.7.6 auf _write_sync_bookkeeping() umgestellt) --
+    ein erfolgreicher Push darf updated_at nicht verschieben, outlook_synced_at muss danach exakt
+    dem (unveränderten) updated_at entsprechen. Täte er das nicht, würde der Termin sofort wieder
+    wie "noch zu übertragen" aussehen -- eine Endlosschleife aus unnötigen Pushes bei jedem
+    weiteren Sync-Lauf, obwohl sich am Termin nichts geändert hat."""
     db = db_session()
     owner = _make_user(db)
     _enable_sync(db)
@@ -554,6 +554,45 @@ def test_successful_push_does_not_let_updated_at_drift_and_prevents_a_redundant_
         result = sync_user_calendar(db, owner)
 
     assert result["pushed_created"] == 0 and result["pushed_updated"] == 0
+
+
+def test_write_sync_bookkeeping_never_changes_updated_at():
+    """Nachtrag (seit 1.7.6) -- der eigentliche, empirisch gefundene Mechanismus hinter dem
+    gemeldeten Dauer-Push: Column(..., onupdate=datetime.utcnow) greift bei JEDER UPDATE-Anweisung
+    gegen calendar_events, sobald updated_at nicht explizit in .values() steht -- ein bloßes
+    Weglassen der Spalte reicht NICHT, um sie zu schützen (siehe Moduldocstring "Nachtrag (seit
+    1.7.6)"). Auf einer sauberen Zeile (keine andere Dirty-Markierung, exakt die Voraussetzung
+    jedes der drei echten Aufrufer) muss die Selbstreferenz-Lösung updated_at exakt (nicht nur
+    "meist") unverändert lassen."""
+    db = db_session()
+    owner = _make_user(db)
+    event = _make_event(db, owner, title="Alt")
+    original_updated_at = event.updated_at
+    assert db.is_modified(event) is False  # Voraussetzung, wie bei jedem echten Aufrufer
+
+    _write_sync_bookkeeping(db, event, outlook_synced_at=original_updated_at, outlook_event_id="graph-bk-1", outlook_etag='W/"bookkeeping-1"')
+
+    db.refresh(event)
+    assert event.updated_at == original_updated_at
+    assert event.outlook_synced_at == original_updated_at
+    assert event.outlook_event_id == "graph-bk-1"
+    assert event.outlook_etag == 'W/"bookkeeping-1"'
+
+
+def test_write_sync_bookkeeping_rejects_a_row_with_unrelated_dirty_state():
+    """Zweite, unabhängige Absicherung (siehe _write_sync_bookkeeping()-Docstring) -- die
+    Selbstreferenz allein schützt NICHT vor einem vorangehenden Autoflush einer ANDEREN, über
+    gewöhnliches setattr() erzeugten Änderung (empirisch bestätigt: genau das erzeugte trotz
+    Selbstreferenz einen echten, persistierten Millisekunden-Versatz). Ein Aufrufer, der das
+    versehentlich täte, MUSS deshalb sofort und laut scheitern, statt den ursprünglich gemeldeten
+    Fehler ein drittes Mal still zu wiederholen."""
+    db = db_session()
+    owner = _make_user(db)
+    event = _make_event(db, owner, title="Alt")
+    event.title = "Versehentlich dirty gelassen"  # genau das Muster, das den Fehler auslöste
+
+    with pytest.raises(AssertionError):
+        _write_sync_bookkeeping(db, event, outlook_synced_at=event.updated_at)
 
 
 def test_push_failure_is_best_effort_and_does_not_raise():
@@ -793,7 +832,8 @@ def test_incoming_newer_change_updates_fields_but_never_touches_project_link():
     assert event.is_private is True
     # Punkt 2 -- das eigentliche Kernstück dieses Tests:
     assert event.project_id == project.id
-    # Nachtrag (seit 1.7.2) -- _mark_synced() hält beide Zeitstempel synchron, kein Push nötig.
+    # Nachtrag (seit 1.7.2, Mechanismus seit 1.7.6 auf _write_sync_bookkeeping() umgestellt) --
+    # outlook_synced_at übernimmt exakt den TATSÄCHLICH generierten updated_at-Wert, kein Push nötig.
     assert event.outlook_synced_at == event.updated_at
     assert _needs_push(event) is False
 
@@ -806,8 +846,9 @@ def test_delta_item_with_an_etag_we_already_know_is_recognized_as_our_own_echo_a
     test_incoming_newer_change_updates_fields_but_never_touches_project_link oben). Trägt der
     Eintrag aber EXAKT den @odata.etag, den wir selbst zuletzt gespeichert haben (aus einem
     eigenen Push oder einer bereits absorbierten Änderung), wird er als eigenes Echo erkannt und
-    komplett übersprungen -- kein Feld wird angefasst, kein _mark_synced()-Aufruf, updated_at/
-    outlook_synced_at bleiben unverändert."""
+    komplett übersprungen -- kein Feld wird angefasst, kein _write_sync_bookkeeping()-Aufruf,
+    updated_at/outlook_synced_at bleiben unverändert (seit 1.7.6 zusätzlich strukturell
+    abgesichert, siehe test_write_sync_bookkeeping_never_changes_updated_at unten)."""
     db = db_session()
     owner = _make_user(db)
     _enable_sync(db)
@@ -1166,13 +1207,30 @@ def _check_no_oscillation(db, owner) -> None:
     scheinbar fremde Änderung zurück). Ohne dass irgendjemand den Termin anfasst, muss ab dem
     ZWEITEN Lauf (der die anfängliche Push-Bestätigung verarbeitet) für JEDEN weiteren Lauf
     gelten: created=updated=deleted=pushed_created=pushed_updated=0 -- über mindestens fünf
-    weitere Läufe hinweg, nicht nur einmalig."""
+    weitere Läufe hinweg, nicht nur einmalig.
+
+    **Nachtrag (seit 1.7.6, auf ausdrücklichen Wunsch)**: jeder Lauf verwendet eine GENUINE NEUE
+    Session, gebunden an dieselbe Engine -- nicht mehr die über alle sieben Läufe wiederverwendete
+    Session der ursprünglichen Fassung. Simuliert einen neuen Cron-Prozess je Tick
+    (scripts/sync_outlook_calendars.py startet tatsächlich als eigener Prozess mit eigener
+    Session bei jedem Tick, siehe dortiger Kopfkommentar) -- eine über alle Läufe geteilte Session
+    hätte die Identity-Map/Dirty-Zustände zwischen den Läufen künstlich zusammenhalten können,
+    was in Produktion nie der Fall ist."""
     event = _make_event(db, owner)
+    event_id = event.id
+    owner_id = owner.id
+    engine = db.get_bind()
+    db.close()
     server = FakeGraphServer()
 
     def run():
-        with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=make_realistic_urlopen(server)):
-            return sync_user_calendar(db, owner)
+        fresh = sessionmaker(bind=engine)()
+        try:
+            fresh_owner = fresh.get(AppUser, owner_id)
+            with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=make_realistic_urlopen(server)):
+                return sync_user_calendar(fresh, fresh_owner)
+        finally:
+            fresh.close()
 
     first = run()
     assert first.get("error") is None, f"Lauf 1: error={first.get('error_type')}"
@@ -1187,10 +1245,14 @@ def _check_no_oscillation(db, owner) -> None:
         for key in ("created", "updated", "deleted", "pushed_created", "pushed_updated", "push_failed"):
             assert result[key] == 0, f"Lauf {lauf}: {key}={result[key]} (erwartet 0)"
 
-    db.refresh(event)
-    assert event.outlook_event_id is not None
-    assert event.outlook_etag is not None
-    assert event.updated_at == event.outlook_synced_at
+    final = sessionmaker(bind=engine)()
+    try:
+        event = final.get(CalendarEvent, event_id)
+        assert event.outlook_event_id is not None
+        assert event.outlook_etag is not None
+        assert event.updated_at == event.outlook_synced_at
+    finally:
+        final.close()
 
 
 def test_no_oscillation_all_counters_reach_zero_from_the_second_run_and_stay_zero_for_five_more_runs():
@@ -1226,13 +1288,24 @@ def _check_no_oscillation_with_genuine_edit(db, owner) -> None:
     """Ergänzung zu _check_no_oscillation() -- prüft, dass die etag-Absicherung (seit 1.7.5,
     davor fälschlich changeKey) eine ECHTE, spätere Änderung durch jemand anderen (direkt in
     Outlook) nicht verschluckt: die muss weiterhin ganz normal als 'updated' absorbiert werden,
-    und DANACH muss wieder Ruhe einkehren, unabhängig vom neu gesetzten etag."""
+    und DANACH muss wieder Ruhe einkehren, unabhängig vom neu gesetzten etag.
+
+    **Nachtrag (seit 1.7.6)**: wie _check_no_oscillation() -- jeder Lauf verwendet eine GENUINE
+    NEUE Session, gebunden an dieselbe Engine, statt der ursprünglich wiederverwendeten."""
     _make_event(db, owner)
+    owner_id = owner.id
+    engine = db.get_bind()
+    db.close()
     server = FakeGraphServer()
 
     def run():
-        with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=make_realistic_urlopen(server)):
-            return sync_user_calendar(db, owner)
+        fresh = sessionmaker(bind=engine)()
+        try:
+            fresh_owner = fresh.get(AppUser, owner_id)
+            with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=make_realistic_urlopen(server)):
+                return sync_user_calendar(fresh, fresh_owner)
+        finally:
+            fresh.close()
 
     run()  # Lauf 1: pusht die Neuanlage
     run()  # Lauf 2: absorbiert/erkennt das eigene Echo, kommt zur Ruhe
@@ -1255,9 +1328,13 @@ def _check_no_oscillation_with_genuine_edit(db, owner) -> None:
     # nicht zwischen Testläufen bereinigte PostgreSQL-Instanz real passiert -- ein Testartefakt,
     # kein Fund im Produktcode, siehe CLAUDE.md "Kalender" -> "Stufe 2" -> "Zweite
     # Untersuchungsrunde" für die vollständige Herleitung.
-    row = db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_event_id == graph_id, CalendarEvent.owner_user_id == owner.id))
-    assert row.title == "Von einem Kollegen direkt in Outlook geändert"
-    assert row.location == "Neuer Ort aus Outlook"
+    verify = sessionmaker(bind=engine)()
+    try:
+        row = verify.scalar(select(CalendarEvent).where(CalendarEvent.outlook_event_id == graph_id, CalendarEvent.owner_user_id == owner_id))
+        assert row.title == "Von einem Kollegen direkt in Outlook geändert"
+        assert row.location == "Neuer Ort aus Outlook"
+    finally:
+        verify.close()
 
     for lauf in range(1, 4):
         result = run()

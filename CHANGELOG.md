@@ -4,6 +4,52 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.7.6 – Kalender-Modul (Stufe 2), Nachtrag: Dauer-Push trotz 1.7.5 -- Sync-Buchhaltung selbst hatte updated_at verschoben
+
+Der Betreiber legte eine weitere Produktions-Diagnose vor: bei "etag-Echo (übersprungen)" und
+"Graph nicht neuer (übersprungen)" stand `updated_at` bereits VOR der eigentlichen Verarbeitung
+mehrere Sekunden nach `outlook_synced_at`, gefolgt von einem unnötigen "push angestoßen"; an
+anderer Stelle lag `updated_at` nach `_mark_synced()` noch 3,7 ms von `outlook_synced_at` entfernt.
+Drei geforderte Punkte -- die Skip-Zweige dürfen die Zeile gar nicht verändern (bereits vorher der
+Fall, per Test bestätigt), jeder reine Sync-Buchhaltungs-Schreibvorgang (Etag, `outlook_synced_at`,
+der Graph-Zeitpunkt) muss über einen Weg laufen, der `updated_at` nie berührt, und ein Test soll
+das beweisen.
+
+Ein empirischer Nachbau (echte SQL-Mitschnitte gegen SQLite UND eine lokale PostgreSQL-Instanz)
+widerlegte dabei zweimal die eigene Zwischenannahme, bevor die tatsächliche Ursache feststand: ein
+erster Fix-Entwurf ließ `updated_at` einfach aus der Buchhaltungs-`UPDATE`-Anweisung weg -- das
+reichte nicht, ein bereits bestehender Test schlug weiterhin fehl. Der eigentliche Grund:
+`Column(..., onupdate=datetime.utcnow)` ist eine Column-, keine reine ORM-Mapper-Eigenschaft --
+sie greift bei JEDER `UPDATE`-Anweisung gegen die Tabelle, egal ob über die ORM-Klasse oder das
+rohe Core-`Table`-Objekt abgesetzt, sobald die Spalte nicht explizit in `.values()` auftaucht.
+Die tatsächlich wirksame Lösung: `updated_at` wird in jedem Buchhaltungs-Schreibvorgang IMMER
+explizit auf eine Selbstreferenz gesetzt (`updated_at=CalendarEvent.updated_at`, kompiliert zu
+`SET updated_at = calendar_events.updated_at`) -- ein explizit gegebener Wert unterdrückt
+`onupdate` zuverlässig, ohne dass der aktuelle Wert vorher in Python bekannt sein müsste. Die neue
+Funktion `_write_sync_bookkeeping()` (`app/outlook_calendar_sync.py`) löst das bisherige
+`_mark_synced()` vollständig ab, bündelt jeden reinen Buchhaltungs-Schreibvorgang (Etag,
+`outlook_event_id`, `outlook_synced_at`) an einer Stelle und bricht zusätzlich mit einer klaren
+Fehlermeldung ab, wenn eine Zeile beim Aufruf noch eine andere, über `setattr()` erzeugte
+Dirty-Markierung trägt (das würde die Selbstreferenz-Absicherung über einen vorangehenden
+Autoflush aushebeln, empirisch bestätigt). `push_event_best_effort()`, die Push-Schleife in
+`sync_user_calendar()` und der "übernommen"-Zweig von `_apply_delta_change()` wurden entsprechend
+umgebaut -- echte inhaltliche Änderungen (Titel, Ort, …) bumpen `updated_at` weiterhin ganz normal
+über `onupdate`, reine Sync-Buchhaltung nie mehr.
+
+Ehrlich festgehalten: ein exakter, deterministischer Nachbau der in der Produktions-Diagnose
+gezeigten PERSISTIERTEN Zahlenwerte gelang trotz umfangreicher Versuche (Einzelsession,
+Session-pro-Lauf nach dem Vorbild eines neuen Cron-Prozesses, SQLite UND PostgreSQL) nicht -- die
+genaue Abfolge, die in Produktion zu einem beobachteten Versatz geführt hat, bleibt damit nicht
+abschließend bewiesen. Die jetzt gefundene und behobene `onupdate`-Falle trat im Zuge des eigenen
+Reparaturversuchs auf, nicht nachweisbar in der ursprünglich ausgelieferten Fassung -- der neue
+Mechanismus ist aber unabhängig davon nachweislich korrekt (`DRIFT = 0:00:00`, exakt) und macht
+das gesamte Risiko strukturell unmöglich. Zwei neue Tests bestätigen das direkt gegen
+`_write_sync_bookkeeping()` (unverändertes `updated_at` bei sauberer Zeile, sofortiger Abbruch bei
+einer versehentlich dirty gelassenen Zeile); der bestehende Sieben-Läufe-Schaukel-Test läuft
+seither zusätzlich mit einer GENUINE NEUEN Session je Lauf statt einer über alle Läufe
+wiederverwendeten -- simuliert einen neuen Cron-Prozess je Tick, wie ausdrücklich verlangt. Volle
+Suite weiterhin grün (SQLite und, opt-in, PostgreSQL).
+
 ## 1.7.5 – Kalender-Modul (Stufe 2), Nachtrag: Ursache des Schaukelns gefunden -- changeKey kommt im Delta nie an
 
 Der Betreiber meldete: das Schaukeln blieb aus (der einfache Fall wird nach dem 1.7.3/1.7.4-Stand

@@ -3940,10 +3940,11 @@ class CalendarEvent(Base):
     outlook_event_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     external_source: Mapped[str] = mapped_column(String(20), default="erp", server_default="erp")
     # Seit 1.7.2 (siehe Klassendocstring "Korrektur") -- der PRO-TERMIN-Zeitpunkt, zu dem dieser
-    # Termin zuletzt nachweislich mit Outlook übereinstimmte. NIE gemeinsam mit updated_at in
-    # derselben Schreiboperation bumpen, ohne beide explizit auf denselben Wert zu setzen --
-    # sonst bumpt onupdate=datetime.utcnow updated_at unbeabsichtigt mit, siehe
-    # app/outlook_calendar_sync.py für die Stellen, die das beachten müssen.
+    # Termin zuletzt nachweislich mit Outlook übereinstimmte. Seit 1.7.6 (siehe app/
+    # outlook_calendar_sync.py::_write_sync_bookkeeping()) wird diese Spalte NIE gemeinsam mit
+    # updated_at in DERSELBEN Schreiboperation gesetzt -- updated_at ist dort strukturell kein
+    # Parameter mehr, sie wird eigenständig auf den Wert gesetzt, den updated_at zu diesem
+    # Zeitpunkt bereits (durch eine echte inhaltliche Änderung) trägt.
     outlook_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Seit 1.7.3 (Nachtrag "Schaukelnder Termin", siehe CLAUDE.md "Kalender" -> "Stufe 2"), seit
     # 1.7.5 umbenannt von outlook_change_key zu outlook_etag (siehe Klassendocstring "Korrektur"):
