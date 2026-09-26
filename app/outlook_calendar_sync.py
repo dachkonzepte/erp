@@ -15,13 +15,23 @@ admin-gepflegt über /users. Jede Synchronisation läuft ausschließlich für da
 des jeweiligen AppUser -- nie für das eines Kollegen, auch wenn die Kalenderansicht selbst
 Kollegentermine anzeigt (Stufe 1).
 
-**Punkt 2 -- Projekt-/Angebotsbezug nie durch Outlook-Änderung überschreiben:** _apply_incoming_fields()
-unten baut das Update-Dict für update_event() IMMER nur aus den syncbaren Feldern
-(title/start_at/end_at/all_day/location/notes) -- project_id/quote_id/is_private/owner_user_id
-sind darin STRUKTURELL nie enthalten, unabhängig davon, was Graph liefert (Graph kennt dieses
-Konzept ohnehin nicht). Ein aus Outlook neu angelegtes CalendarEvent startet mit
-project_id=quote_id=None, is_private=False -- die Zuordnung bleibt danach ausschließlich
+**Punkt 2 -- Projekt-/Angebotsbezug nie durch Outlook-Änderung überschreiben:**
+_apply_delta_change() unten baut das Update-Dict für eine eingehende Änderung IMMER nur aus den
+syncbaren Feldern (title/start_at/end_at/all_day/location/notes/is_private) --
+project_id/quote_id/owner_user_id sind darin STRUKTURELL nie enthalten, unabhängig davon, was
+Graph liefert (Graph kennt dieses Konzept ohnehin nicht). Ein aus Outlook neu angelegtes
+CalendarEvent startet mit project_id=quote_id=None -- die Zuordnung bleibt danach ausschließlich
 Sache eines Menschen in der ERP-Oberfläche.
+
+**is_private ist seit 1.7.2 bewusst die EINE Ausnahme von "project_id/quote_id/is_private bleiben
+außen vor"** (Nachtrag, siehe CLAUDE.md "Kalender" -> "Stufe 2" -> "Nachtrag (seit 1.7.2)"): anders
+als project_id/quote_id hat Outlook mit `sensitivity` ein eigenes, natives Äquivalent --
+_is_private_sensitivity()/_outgoing_sensitivity() unten übersetzen bidirektional
+("private"/"confidential" <-> is_private=True). Ein aus Outlook gezogener Termin mit
+sensitivity="private" landet dadurch schon beim Import mit is_private=True in der ERP-Ansicht --
+Kollegen sehen ihn (über die bereits in Stufe 1 gebaute, hier unveränderte Redaktion,
+app/calendar_events.py::redact_for_busy()) nur als "Belegt", ohne dass dafür irgendetwas in der
+Privatsphäre-Logik selbst angefasst werden musste.
 
 **Punkt 3 -- Zeitzonen:** CalendarEvent.start_at/end_at sind naive Zeitstempel in
 EUROPE/BERLIN-Ortszeit (so, wie sie in der Kalenderoberfläche eingegeben werden, siehe
@@ -45,12 +55,42 @@ beidseitig:** sync_user_calendar() ist der vollständige Pull-dann-Push-Zyklus f
 aufgerufen sowohl von scripts/sync_outlook_calendars.py (Cron, alle Postfächer) als auch von
 POST /api/calendar-events/sync-outlook (beim Öffnen von /kalender, nur das eigene Postfach).
 OutlookCalendarSyncState.delta_link erspart dabei jedem Lauf außer dem ersten die vollständige
-Kalenderabfrage. "Letzte Änderung gewinnt": _apply_delta_change() vergleicht Graphs
+Kalenderabfrage. "Letzte Änderung gewinnt" beim PULL: _apply_delta_change() vergleicht Graphs
 lastModifiedDateTime gegen CalendarEvent.updated_at -- nur wenn Graph NEUER ist, werden die
 lokalen Felder überschrieben, sonst gewinnt die lokale Zeile (und wird in der anschließenden
 Push-Phase nach Outlook geschrieben). Löschungen beidseitig: ein "@removed"-Delta-Eintrag löscht
 die lokale Zeile hart (_apply_delta_change()); eine lokale Löschung stößt best-effort eine
 Graph-Löschung an (try_delete_remote_event(), aufgerufen vom Router VOR delete_event()).
+
+**Nachtrag (seit 1.7.2) -- Push-Wiederholung braucht einen PRO-TERMIN-Merker, nicht nur den
+globalen Postfach-Zeitstempel:** die ursprüngliche 1.7.1-Fassung entschied "braucht Outlook
+diesen Termin?" über CalendarEvent.updated_at > OutlookCalendarSyncState.last_synced_at (ein
+einzelner Zeitstempel PRO POSTFACH). Zwei damit zusammenhängende, beim Nachbau der
+Push-Wiederholung gefundene Fehler, beide behoben:
+
+1. Der Push-Abschnitt von sync_user_calendar() commitete `row.outlook_event_id` nach einem
+   erfolgreichen POST NICHT sofort -- schlug ein SPÄTERER Termin in DERSELBEN Schleife fehl, riss
+   das äußere except-db.rollback() die bereits erfolgreich anglegte Outlook-Zuordnung für den
+   FRÜHEREN Termin wieder ein. Der nächste Lauf hätte diesen Termin dadurch ein zweites Mal in
+   Outlook angelegt (Dublette). Behoben: jeder Termin committet jetzt EINZELN, ein
+   fehlschlagender Termin blockiert die übrigen nicht mehr (eigenes try/except je Zeile, Muster
+   "ein Postfach darf den Cron-Lauf für andere nicht abbrechen", hier eine Ebene tiefer
+   angewendet).
+2. Selbst mit sofortigem Commit hätte der GLOBALE last_synced_at-Vergleich einen genau EINEN
+   fehlgeschlagenen Termin beim NÄCHSTEN Lauf verloren, sobald dieser Lauf für ALLE ANDEREN
+   Termine erfolgreich war: last_synced_at rückt dann trotzdem vor, und
+   `updated_at > last_synced_at` wird für den einen liegen gebliebenen Termin FALSCH, weil sein
+   updated_at vor diesem neuen, vorgerückten last_synced_at liegt. CalendarEvent.outlook_synced_at
+   (neu, siehe Klassendocstring-Korrektur app/models.py) ersetzt diesen Vergleich durch einen
+   PRO-TERMIN-Merker -- Push ist fällig, wenn outlook_event_id fehlt ODER outlook_synced_at fehlt
+   ODER updated_at > outlook_synced_at, unabhängig vom Postfach-weiten last_synced_at (das bleibt
+   als reine Diagnose-/Anzeigeinformation bestehen, ist aber nicht mehr Teil der
+   Push-Entscheidung).
+
+_mark_synced() unten setzt updated_at UND outlook_synced_at explizit auf denselben Zeitpunkt --
+sonst würde SQLAlchemys onupdate=datetime.utcnow bei JEDER Schreiboperation (auch der reinen
+Sync-Buchhaltung selbst) updated_at unbeabsichtigt weiterschieben und dadurch einen frisch
+erfolgreich gepushten/gezogenen Termin sofort wieder als "noch zu übertragen" erscheinen lassen.
 
 **Punkt 6 -- kein Termininhalt in Protokollen:** logger unten protokolliert ausschließlich
 Zähler (erstellt/aktualisiert/gelöscht/übersprungen), Zeitdauer und im Fehlerfall den reinen
@@ -72,7 +112,7 @@ import urllib.request
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import select, update as sa_update
 from sqlalchemy.orm import Session
 
 from .email_sending import get_graph_access_token, get_or_create_smtp_settings
@@ -85,11 +125,20 @@ BERLIN = ZoneInfo("Europe/Berlin")
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 GRAPH_TIMEOUT = 30
 
-# Nur diese Felder wandern in beide Richtungen -- project_id/quote_id/is_private/owner_user_id
-# sind hier bewusst NICHT gelistet (Punkt 2, siehe Moduldocstring).
-_SYNCABLE_FIELDS = ("title", "start_at", "end_at", "all_day", "location", "notes")
-
 _EVENT_SELECT = "id,subject,start,end,isAllDay,location,body,lastModifiedDateTime,recurrence,type,sensitivity"
+
+# Outlooks sensitivity-Werte, die als "privat" gelten (Muster Nachtrag Punkt 2 im Moduldocstring)
+# -- "personal" bleibt bewusst AUSSEN VOR: eine geringere Vertraulichkeitsstufe als
+# "private"/"confidential", die Anfrage nannte ausdrücklich nur "privat"/"vertraulich".
+_PRIVATE_SENSITIVITIES = frozenset({"private", "confidential"})
+
+
+def _is_private_sensitivity(value: str | None) -> bool:
+    return value in _PRIVATE_SENSITIVITIES
+
+
+def _outgoing_sensitivity(is_private: bool) -> str:
+    return "private" if is_private else "normal"
 
 
 class OutlookSyncError(Exception):
@@ -215,7 +264,37 @@ def _event_payload(event: CalendarEvent) -> dict:
         "end": {"dateTime": to_utc(event.end_at).isoformat(), "timeZone": "UTC"},
         "location": {"displayName": event.location or ""},
         "body": {"contentType": "Text", "content": body_text},
+        "sensitivity": _outgoing_sensitivity(event.is_private),
     }
+
+
+def _mark_synced(db: Session, row: CalendarEvent, at: datetime) -> None:
+    """Setzt updated_at UND outlook_synced_at explizit auf DENSELBEN Zeitpunkt -- sonst würde
+    SQLAlchemys onupdate=datetime.utcnow bei dieser reinen Sync-Buchhaltung updated_at
+    unbeabsichtigt weiterschieben (siehe Moduldocstring "Nachtrag (seit 1.7.2)"), was den Termin
+    sofort wieder als "noch zu übertragen" erscheinen ließe.
+
+    **Fallstrick, real aufgetreten, deshalb per Core-UPDATE gelöst statt per ORM-Attribut:** ein
+    naives `row.updated_at = at` (mit `at == row.updated_at`, also scheinbar ein No-op) reicht
+    dafür NICHT -- SQLAlchemys Dirty-Tracking vergleicht den neuen gegen den bereits geladenen
+    Wert und verwirft eine Zuweisung ohne echte Änderung wieder aus dem "dirty"-Zustand; die
+    Spalte landet dann NICHT in der UPDATE-Anweisung, wodurch der onupdate-Callable trotzdem
+    greift (per Test nachgewiesen: ein paar Millisekunden Drift zwischen dem eigentlich
+    beabsichtigten Wert und dem tatsächlich gespeicherten). db.execute(update(...).values(...))
+    auf Core-Ebene schließt eine angegebene Spalte dagegen IMMER in die UPDATE-Anweisung ein,
+    unabhängig davon, ob sich ihr Wert ändert, und unterdrückt onupdate zuverlässig dafür. Muss
+    NACH allen anderen Änderungen an `row` in diesem Umlauf aufgerufen werden -- ein davor
+    ausgelöstes Autoflush holt einen etwaigen onupdate-Bump ab, dieser Aufruf überschreibt ihn
+    zuverlässig mit `at`."""
+    db.execute(sa_update(CalendarEvent).where(CalendarEvent.id == row.id).values(updated_at=at, outlook_synced_at=at))
+    row.updated_at = at
+    row.outlook_synced_at = at
+
+
+def _needs_push(row: CalendarEvent) -> bool:
+    if row.outlook_event_id is None:
+        return True
+    return row.outlook_synced_at is None or row.updated_at > row.outlook_synced_at
 
 
 def _is_recurring(item: dict) -> bool:
@@ -237,7 +316,12 @@ def push_event_best_effort(db: Session, event_id: int) -> None:
     """Nach create_event()/update_event() in app/routers/calendar_events.py aufgerufen -- best
     effort: ein Graph-Fehler darf den bereits erfolgreich gespeicherten lokalen Termin nicht
     rückwirkend als Fehler erscheinen lassen (Muster app/tasks.py::notify_task_assignment()),
-    deshalb kein Reraise, nur Protokollierung (Klassenname, kein Text, Punkt 6)."""
+    deshalb kein Reraise, nur Protokollierung (Klassenname, kein Text, Punkt 6).
+
+    Schlägt der Push fehl, bleibt outlook_synced_at unverändert (älter als updated_at bzw. ganz
+    NULL) -- der nächste sync_user_calendar()-Lauf (Cron ODER nächstes Öffnen von /kalender)
+    erkennt diesen Termin über _needs_push() dadurch zuverlässig erneut als "noch zu
+    übertragen", siehe Moduldocstring "Nachtrag (seit 1.7.2)"."""
     event = db.get(CalendarEvent, event_id)
     if event is None:
         return
@@ -247,13 +331,16 @@ def push_event_best_effort(db: Session, event_id: int) -> None:
     try:
         smtp = get_or_create_smtp_settings(db)
         token = get_graph_access_token(smtp)
+        version_to_sync = event.updated_at  # VOR jeder eigenen Mutation erfasst, siehe _mark_synced()
         if event.outlook_event_id:
             _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{event.outlook_event_id}", method="PATCH", payload=_event_payload(event))
         else:
             created = _graph_call(token, _mailbox_events_url(user.outlook_mailbox), method="POST", payload=_event_payload(event))
             event.outlook_event_id = created["id"]
-            db.commit()
+        _mark_synced(db, event, version_to_sync)
+        db.commit()
     except Exception as exc:  # noqa: BLE001 -- best effort, siehe Docstring
+        db.rollback()
         logger.warning("Push nach Outlook fehlgeschlagen (event_id=%s, Fehlerart=%s).", event_id, type(exc).__name__)
 
 
@@ -335,14 +422,20 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
         "all_day": bool(item.get("isAllDay")),
         "location": (item.get("location") or {}).get("displayName") or None,
         "notes": _plain_text_body(item),
+        # Punkt 2 -- Nachtrag (seit 1.7.2): is_private ist die EINE Ausnahme, die doch aus Graph
+        # übernommen wird (Outlooks sensitivity ist ihr natives Äquivalent), siehe Moduldocstring.
+        "is_private": _is_private_sensitivity(item.get("sensitivity")),
     }
     graph_modified = _parse_graph_datetime(item["lastModifiedDateTime"]) if item.get("lastModifiedDateTime") else None
 
     existing = db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_event_id == item["id"], CalendarEvent.owner_user_id == user.id))
     if existing is None:
+        now = datetime.utcnow()
         row = CalendarEvent(
             owner_user_id=user.id, outlook_event_id=item["id"], external_source="outlook",
-            project_id=None, quote_id=None, is_private=False, **incoming_fields,
+            project_id=None, quote_id=None,
+            created_at=now, updated_at=now, outlook_synced_at=now,
+            **incoming_fields,
         )
         db.add(row)
         db.commit()
@@ -357,6 +450,9 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
         return None
     for key, value in incoming_fields.items():
         setattr(existing, key, value)
+    # Diese Zeile stimmt jetzt (wieder) mit Outlook überein -- _mark_synced() verhindert, dass
+    # updated_at und outlook_synced_at durch getrennte onupdate-/Zuweisungszeitpunkte auseinanderlaufen.
+    _mark_synced(db, existing, datetime.utcnow())
     db.commit()
     counters["updated"] += 1
     return existing.id
@@ -367,7 +463,7 @@ def sync_user_calendar(db: Session, user: AppUser) -> dict:
     AppUser). Gibt ein reines Zähler-Dict zurück (nie Termininhalt, Punkt 6) -- der Aufrufer
     (Router bzw. scripts/sync_outlook_calendars.py) entscheidet, wie er das protokolliert/
     anzeigt."""
-    counters = {"created": 0, "updated": 0, "deleted": 0, "skipped_recurring": 0, "skipped_invalid": 0, "pushed_created": 0, "pushed_updated": 0}
+    counters = {"created": 0, "updated": 0, "deleted": 0, "skipped_recurring": 0, "skipped_invalid": 0, "pushed_created": 0, "pushed_updated": 0, "push_failed": 0}
     if not is_outlook_sync_available(db, user):
         return {"skipped": True, **counters}
 
@@ -386,18 +482,31 @@ def sync_user_calendar(db: Session, user: AppUser) -> dict:
             if changed_id is not None:
                 just_synced_ids.add(changed_id)
 
-        watermark = state.last_synced_at or datetime(1970, 1, 1)
+        # Nachtrag (seit 1.7.2): Push-Fälligkeit über _needs_push() (pro Termin,
+        # CalendarEvent.outlook_synced_at) statt eines einzelnen, postfachweiten Zeitstempels --
+        # siehe Moduldocstring für die beiden damit behobenen Fehler. Jeder Termin committet
+        # SOFORT nach einem erfolgreichen Push UND wird bei einem Fehlschlag EINZELN abgefangen
+        # (eigenes try/except je Zeile) -- ein kaputter Termin blockiert weder die übrigen Termine
+        # in dieser Schleife noch das Fortschreiben von delta_link/last_synced_at am Ende.
         local_rows = db.scalars(select(CalendarEvent).where(CalendarEvent.owner_user_id == user.id)).all()
         for row in local_rows:
-            if row.id in just_synced_ids:
+            if row.id in just_synced_ids or not _needs_push(row):
                 continue
-            if row.outlook_event_id is None:
-                created = _graph_call(token, _mailbox_events_url(user.outlook_mailbox), method="POST", payload=_event_payload(row))
-                row.outlook_event_id = created["id"]
-                counters["pushed_created"] += 1
-            elif row.updated_at > watermark:
-                _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{row.outlook_event_id}", method="PATCH", payload=_event_payload(row))
-                counters["pushed_updated"] += 1
+            try:
+                version_to_sync = row.updated_at  # VOR jeder eigenen Mutation erfasst, siehe _mark_synced()
+                if row.outlook_event_id is None:
+                    created = _graph_call(token, _mailbox_events_url(user.outlook_mailbox), method="POST", payload=_event_payload(row))
+                    row.outlook_event_id = created["id"]
+                    counters["pushed_created"] += 1
+                else:
+                    _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{row.outlook_event_id}", method="PATCH", payload=_event_payload(row))
+                    counters["pushed_updated"] += 1
+                _mark_synced(db, row, version_to_sync)
+                db.commit()
+            except Exception as exc:  # noqa: BLE001 -- ein Termin darf die übrigen nicht blockieren
+                db.rollback()
+                counters["push_failed"] += 1
+                logger.warning("Push nach Outlook fehlgeschlagen (event_id=%s, Fehlerart=%s).", row.id, type(exc).__name__)
 
         state.delta_link = new_delta_link
         state.last_synced_at = datetime.utcnow()

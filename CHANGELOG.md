@@ -4,6 +4,34 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.7.2 – Kalender-Modul (Stufe 2), Nachtrag: Vertraulichkeit, Push-Wiederholung, Serientermine-Vorschlag
+
+Vier Nachfragen zur 1.7.1-Fassung, zwei davon echte Funde. (1) Outlooks `sensitivity`-Feld wurde
+bereits abgefragt, aber nirgends ausgewertet -- ein aus Outlook gezogener Termin startete immer
+mit `is_private=False`. Behoben: `sensitivity` ("private"/"confidential") wird jetzt bidirektional
+auf `is_private` abgebildet (Pull UND Push) -- die eigentliche Anforderung ("Kollegen sehen nur
+'Belegt'") brauchte dafür keinen Sonderfall, die bereits in Stufe 1 gebaute Privatsphäre-Redaktion
+greift automatisch. (2) Zwei echte Fehler bei der Push-Wiederholung nach einem Fehlschlag: die
+Push-Phase committete `outlook_event_id` bisher erst am Ende der gesamten Schleife -- ein
+fehlschlagender Termin riss dadurch die bereits erfolgreiche Zuordnung eines FRÜHEREN Termins
+wieder ein (Dubletten-Risiko beim nächsten Lauf), behoben durch sofortigen Commit je Termin in
+einem eigenen try/except. Schwerwiegender: der ursprüngliche, rein POSTFACHWEITE
+"braucht-Push"-Vergleich (`updated_at` vs. einem einzelnen `last_synced_at` je Postfach) hätte
+einen einzelnen fehlgeschlagenen Termin für immer verloren, sobald ein SPÄTERER, für andere
+Termine erfolgreicher Lauf `last_synced_at` daran vorbeischiebt -- neue Spalte
+`CalendarEvent.outlook_synced_at` (pro Termin statt pro Postfach) behebt das, mit einem gezielten
+Regressionstest belegt, der das Szenario nachstellt. Dabei ein drittes, beim Beheben gefundenes
+SQLAlchemy-Detail: eine reine ORM-Attributzuweisung auf denselben Wert reicht nicht, um
+`onupdate=datetime.utcnow` zu unterdrücken (Dirty-Tracking verwirft No-op-Zuweisungen) -- ein
+explizites Core-Level-UPDATE war nötig. (3) Serientermine schreibgeschützt ins ERP: nur ein
+Vorschlag (zweiter `calendarView`-Durchlauf mit festem Zeitfenster, neuer `external_source`-Wert,
+Schreibschutz im Router), ausdrücklich NICHT gebaut. (4) Die exakte Cron-Zeile für
+`scripts/sync_outlook_calendars.py` inklusive `.env`-Laden ist jetzt in CLAUDE.md und im
+Skript-Kopfkommentar dokumentiert -- ohne das Laden würde der Sync lautlos gegen eine falsche
+Datenbank laufen (derselbe Fehlertyp wie beim historischen Vorfall 1.3.38–1.3.41).
+
+11 neue Tests, volle Suite: 1829 Tests grün.
+
 ## 1.7.1 – Kalender-Modul (Stufe 2): Outlook-Kalendersynchronisation über Microsoft Graph
 
 Fortsetzung von 1.7.0 -- der dort dokumentierte Stufe-2-Befund ist jetzt gebaut. Kurzer Befund zu

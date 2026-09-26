@@ -3866,14 +3866,24 @@ class CalendarEvent(Base):
     project_id/quote_id sind beide optional, aber höchstens EINER darf gesetzt sein (Muster
     IncomingInvoice._validate_single_assignment(), bewusst kein CheckConstraint).
 
-    outlook_event_id/external_source sind Vorbereitung für die spätere, noch NICHT gebaute
-    Synchronisation mit Microsoft Graph (Stufe 2, siehe CLAUDE.md "Kalender" -> "Befund Stufe 2")
-    -- external_source ist ein fester Code-Wert ("erp"/"outlook", CALENDAR_EVENT_SOURCES in
+    outlook_event_id/external_source sind Vorbereitung für die (seit 1.7.1 gebaute)
+    Synchronisation mit Microsoft Graph (Stufe 2, siehe CLAUDE.md "Kalender" -> "Stufe 2") --
+    external_source ist ein fester Code-Wert ("erp"/"outlook", CALENDAR_EVENT_SOURCES in
     app/calendar_events.py), keine Optionsgruppe, da er eine künftige Verarbeitungsregel trägt.
-    Für den bei Stufe 2 vorgesehenen "letzte Änderung gewinnt"-Konfliktabgleich ist bewusst KEIN
-    eigenes drittes Feld nötig -- das bereits vorhandene updated_at (onupdate=datetime.utcnow)
-    ist exakt der Vergleichswert, den ein künftiger Sync gegen Graphs lastModifiedDateTime
-    braucht; ein zweites Feld dafür wäre eine überflüssige zweite Quelle."""
+
+    **Korrektur (seit 1.7.2)**: diese Zeile behauptete hier ursprünglich, für "letzte Änderung
+    gewinnt" reiche updated_at allein, ein zweites Feld sei überflüssig -- das erwies sich beim
+    Nachbau der Push-Wiederholung als falsch (siehe CLAUDE.md "Kalender" -> "Stufe 2" ->
+    "Nachtrag (seit 1.7.2)" für die volle Herleitung): updated_at bewegt sich bei JEDER
+    Änderung, auch bei einer rein internen Sync-Bucherhaltung, und der einzige damals vorhandene
+    Vergleichspunkt (OutlookCalendarSyncState.last_synced_at, ein einzelner Zeitstempel PRO
+    POSTFACH, nicht pro Termin) rückt bei jedem erfolgreichen Lauf vorwärts -- ein einzelner,
+    fehlgeschlagener Push für GENAU DIESEN Termin würde dadurch beim nächsten Lauf nicht mehr
+    zuverlässig erkannt. outlook_synced_at (neu, seit 1.7.2) behebt das: der Zeitpunkt, zu dem
+    DIESER Termin zuletzt nachweislich mit Outlook übereinstimmte (nach einem erfolgreichen Push
+    ODER einer übernommenen eingehenden Änderung). Push ist fällig, wenn outlook_event_id fehlt
+    ODER outlook_synced_at fehlt ODER updated_at > outlook_synced_at -- unabhängig vom globalen
+    last_synced_at des Postfachs."""
 
     __tablename__ = "calendar_events"
 
@@ -3889,9 +3899,15 @@ class CalendarEvent(Base):
     quote_id: Mapped[int | None] = mapped_column(ForeignKey("quotes.id"), nullable=True, index=True)
     is_private: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
-    # Stufe 2 (Outlook-Sync, noch nicht gebaut) -- siehe Klassendocstring.
+    # Stufe 2 (Outlook-Sync, seit 1.7.1) -- siehe Klassendocstring.
     outlook_event_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     external_source: Mapped[str] = mapped_column(String(20), default="erp", server_default="erp")
+    # Seit 1.7.2 (siehe Klassendocstring "Korrektur") -- der PRO-TERMIN-Zeitpunkt, zu dem dieser
+    # Termin zuletzt nachweislich mit Outlook übereinstimmte. NIE gemeinsam mit updated_at in
+    # derselben Schreiboperation bumpen, ohne beide explizit auf denselben Wert zu setzen --
+    # sonst bumpt onupdate=datetime.utcnow updated_at unbeabsichtigt mit, siehe
+    # app/outlook_calendar_sync.py für die Stellen, die das beachten müssen.
+    outlook_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

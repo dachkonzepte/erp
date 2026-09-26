@@ -1,11 +1,14 @@
-"""Kalender-Modul, Stufe 2 (Outlook-Synchronisation über Microsoft Graph, seit 1.7.1). Siehe
-CLAUDE.md "Kalender" -> "Stufe 2" für die vollständige Herleitung der sieben Entscheidungspunkte
--- diese Datei deckt jeden davon ab: Zeitzonen inkl. beider DST-Übergänge (Punkt 3), Projekt-/
-Angebotsbezug bleibt bei einer eingehenden Änderung unangetastet (Punkt 2), Serientermine werden
-übersprungen statt angelegt (Punkt 4), Delta-Query mit Pagination/gespeichertem delta_link,
-"letzte Änderung gewinnt", Löschungen beidseitig (Punkt 5), kein Termininhalt in Protokollen
-(Punkt 6) -- und jeder Netzwerkzugriff läuft ausschließlich gegen eine Attrappe (Punkt 7,
-urllib.request.urlopen wird an keiner Stelle real aufgerufen)."""
+"""Kalender-Modul, Stufe 2 (Outlook-Synchronisation über Microsoft Graph, seit 1.7.1, mit
+Nachtrag seit 1.7.2). Siehe CLAUDE.md "Kalender" -> "Stufe 2" für die vollständige Herleitung der
+sieben Entscheidungspunkte -- diese Datei deckt jeden davon ab: Zeitzonen inkl. beider
+DST-Übergänge (Punkt 3), Projekt-/Angebotsbezug bleibt bei einer eingehenden Änderung
+unangetastet, is_private WIRD dagegen bewusst aus Outlooks sensitivity übernommen (Punkt 2 samt
+Nachtrag), Serientermine werden übersprungen statt angelegt (Punkt 4), Delta-Query mit
+Pagination/gespeichertem delta_link, "letzte Änderung gewinnt" über einen PRO-TERMIN-Merker
+(outlook_synced_at, Nachtrag seit 1.7.2 -- ersetzt den ursprünglichen, nachweislich fehlerhaften
+postfachweiten last_synced_at-Vergleich), Löschungen beidseitig (Punkt 5), kein Termininhalt in
+Protokollen (Punkt 6) -- und jeder Netzwerkzugriff läuft ausschließlich gegen eine Attrappe
+(Punkt 7, urllib.request.urlopen wird an keiner Stelle real aufgerufen)."""
 
 import io
 import json
@@ -20,13 +23,16 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app.auth import hash_password
-from app.calendar_events import create_event
+from app.calendar_events import (
+    create_event, is_redacted_for_viewer, list_events, redact_for_busy,
+)
 from app.database import Base
 from app.email_sending import update_graph_settings
 from app.models import AppUser, CalendarEvent, Customer, Project
 from app.outlook_calendar_sync import (
-    get_or_create_sync_state, is_outlook_sync_available, push_event_best_effort, to_berlin,
-    to_utc, try_delete_remote_event, update_outlook_sync_settings, sync_user_calendar,
+    _mark_synced, _needs_push, get_or_create_sync_state, is_outlook_sync_available,
+    push_event_best_effort, to_berlin, to_utc, try_delete_remote_event,
+    update_outlook_sync_settings, sync_user_calendar,
 )
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.routers.calendar_events import router as calendar_router
@@ -148,8 +154,10 @@ def test_event_payload_converts_to_utc_for_graph():
     payload = _event_payload(event)
     assert payload["start"] == {"dateTime": "2026-07-10T07:00:00", "timeZone": "UTC"}
     assert payload["end"] == {"dateTime": "2026-07-10T08:30:00", "timeZone": "UTC"}
-    # Punkt 2: Graph-Payload kennt project_id/quote_id/is_private strukturell nicht.
-    assert set(payload.keys()) == {"subject", "isAllDay", "start", "end", "location", "body"}
+    # Punkt 2: Graph-Payload kennt project_id/quote_id strukturell nicht -- is_private wird
+    # (seit 1.7.2) bewusst als "sensitivity" mitgeschickt, siehe test_push_maps_is_private_to_sensitivity.
+    assert set(payload.keys()) == {"subject", "isAllDay", "start", "end", "location", "body", "sensitivity"}
+    assert "project_id" not in payload and "quote_id" not in payload
 
 
 # ---------------------------------------------------------------------------
@@ -222,6 +230,65 @@ def test_push_updates_existing_event_via_patch():
 
     patch_calls = [c for c in captured if c[0] == "PATCH"]
     assert patch_calls == [("PATCH", _events_url(owner.outlook_mailbox, "/graph-existing"))]
+
+
+@pytest.mark.parametrize("is_private,expected_sensitivity", [(True, "private"), (False, "normal")])
+def test_push_maps_is_private_to_sensitivity(is_private, expected_sensitivity):
+    """Umkehrung von Punkt 1 (Nachtrag seit 1.7.2) -- is_private ist die einzige Ausnahme, die
+    ERP-seitig doch in die Graph-Anfrage einfließt, weil Outlook mit sensitivity ein natives
+    Äquivalent kennt."""
+    db = db_session()
+    owner = _make_user(db)
+    _enable_sync(db)
+    event = _make_event(db, owner, is_private=is_private)
+    captured_bodies = []
+
+    def fake(req, timeout=None):
+        if TOKEN_URL_MARKER in req.full_url:
+            return _FakeResponse({"access_token": "faketoken"})
+        captured_bodies.append(json.loads(req.data))
+        return _FakeResponse({"id": "graph-sensitivity-1"})
+
+    with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=fake):
+        push_event_best_effort(db, event.id)
+
+    assert captured_bodies[0]["sensitivity"] == expected_sensitivity
+
+
+def test_successful_push_does_not_let_updated_at_drift_and_prevents_a_redundant_second_push():
+    """Nachtrag (seit 1.7.2) -- _mark_synced() muss updated_at UND outlook_synced_at auf
+    DENSELBEN Wert setzen. Täte sie das nicht, würde SQLAlchemys onupdate=datetime.utcnow
+    updated_at bei dieser reinen Buchhaltungsschreiboperation unbeabsichtigt weiterschieben und
+    der Termin sähe sofort wieder wie "noch zu übertragen" aus -- eine Endlosschleife aus
+    unnötigen Pushes bei jedem weiteren Sync-Lauf, obwohl sich am Termin nichts geändert hat."""
+    db = db_session()
+    owner = _make_user(db)
+    _enable_sync(db)
+    event = _make_event(db, owner)
+    original_updated_at = event.updated_at
+
+    with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=lambda req, timeout=None: (
+        _FakeResponse({"access_token": "faketoken"}) if TOKEN_URL_MARKER in req.full_url else _FakeResponse({"id": "graph-nodrift-1"})
+    )):
+        push_event_best_effort(db, event.id)
+
+    db.refresh(event)
+    assert event.updated_at == original_updated_at
+    assert event.outlook_synced_at == original_updated_at
+    assert _needs_push(event) is False
+
+    with patch("app.outlook_calendar_sync.urllib.request.urlopen") as mocked:
+        # Ein erneuter Sync-Lauf darf für diesen unveränderten Termin gar nicht erst versuchen,
+        # ihn zu pushen -- sync_user_calendar() bräuchte sonst nur den Token-Aufruf, kein
+        # PATCH/POST für diesen einen Termin.
+        def fake(req, timeout=None):
+            if TOKEN_URL_MARKER in req.full_url:
+                return _FakeResponse({"access_token": "faketoken"})
+            return _FakeResponse(_delta_page([], delta_link="https://graph.microsoft.com/deltaNoop"))
+        mocked.side_effect = fake
+        result = sync_user_calendar(db, owner)
+
+    assert result["pushed_created"] == 0 and result["pushed_updated"] == 0
 
 
 def test_push_failure_is_best_effort_and_does_not_raise():
@@ -341,10 +408,77 @@ def test_sync_creates_local_event_from_outlook_without_project_or_quote_link():
     assert row.quote_id is None
     assert row.title == "Kundentermin"
     assert row.start_at == to_berlin(datetime(2026, 6, 1, 8, 0))
+    assert row.is_private is False  # keine sensitivity im Item -> nicht privat
 
     state = get_or_create_sync_state(db, owner)
     assert state.delta_link == "https://graph.microsoft.com/deltaFinal1"
     assert state.last_error_type is None
+
+
+@pytest.mark.parametrize("sensitivity,expected_is_private", [
+    ("private", True), ("confidential", True), ("personal", False), ("normal", False), (None, False),
+])
+def test_pull_maps_outlook_sensitivity_to_is_private_on_create(sensitivity, expected_is_private):
+    """Punkt 1 der Anfrage -- 'private'/'confidential' gelten als vertraulich, 'personal' bewusst
+    NICHT (geringere Stufe, in der Anfrage nicht genannt)."""
+    db = db_session()
+    owner = _make_user(db)
+    _enable_sync(db)
+    item = {
+        "id": "graph-sens-1", "subject": "Termin", "isAllDay": False,
+        "start": {"dateTime": "2026-06-01T08:00:00Z"}, "end": {"dateTime": "2026-06-01T09:00:00Z"},
+        "location": {}, "body": {"content": ""}, "lastModifiedDateTime": "2026-05-01T00:00:00Z",
+    }
+    if sensitivity is not None:
+        item["sensitivity"] = sensitivity
+
+    def fake(req, timeout=None):
+        if TOKEN_URL_MARKER in req.full_url:
+            return _FakeResponse({"access_token": "faketoken"})
+        return _FakeResponse(_delta_page([item], delta_link="https://graph.microsoft.com/deltaSens1"))
+
+    with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=fake):
+        sync_user_calendar(db, owner)
+
+    row = db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_event_id == "graph-sens-1"))
+    assert row.is_private is expected_is_private
+
+
+def test_a_private_synced_event_is_shown_as_busy_to_a_colleague_end_to_end():
+    """Punkt 1, Ende-zu-Ende: das eigentliche Ziel ('Kollegen dürfen solche Termine nur als
+    belegt sehen') über die bereits in Stufe 1 gebaute, hier unveränderte Privatsphäre-Redaktion
+    (app/calendar_events.py) -- kein Sonderfall für Outlook-Termine nötig, sobald is_private
+    korrekt gesetzt ist."""
+    db = db_session()
+    owner = _make_user(db, username="ownerprivate")
+    colleague = _make_user(db, username="colleague", mailbox=None, role="buero_finanzen")
+    _enable_sync(db)
+    item = {
+        "id": "graph-sens-2", "subject": "Vertrauliches Gespräch", "isAllDay": False,
+        "start": {"dateTime": "2026-06-01T08:00:00Z"}, "end": {"dateTime": "2026-06-01T09:00:00Z"},
+        "location": {"displayName": "Chefbüro"}, "body": {"content": ""}, "sensitivity": "confidential",
+        "lastModifiedDateTime": "2026-05-01T00:00:00Z",
+    }
+
+    def fake(req, timeout=None):
+        if TOKEN_URL_MARKER in req.full_url:
+            return _FakeResponse({"access_token": "faketoken"})
+        return _FakeResponse(_delta_page([item], delta_link="https://graph.microsoft.com/deltaSens2"))
+
+    with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=fake):
+        sync_user_calendar(db, owner)
+
+    rows = {row["outlook_event_id"]: row for row in list_events(db)}
+    data = rows["graph-sens-2"]
+    assert data["is_private"] is True
+
+    # Der Besitzer selbst sieht den Termin weiterhin voll (Muster test_privacy_redaction_own_vs_colleague).
+    assert is_redacted_for_viewer(data, owner.id) is False
+    # Ein Kollege sieht ihn nur als "Belegt", genau wie einen ERP-eigenen privaten Termin.
+    assert is_redacted_for_viewer(data, colleague.id) is True
+    reduced = redact_for_busy(data)
+    assert reduced["title"] == "Belegt"
+    assert "location" not in reduced and "notes" not in reduced
 
 
 def _seed_project(db):
@@ -373,7 +507,7 @@ def test_incoming_newer_change_updates_fields_but_never_touches_project_link():
     item = {
         "id": "graph-existing-2", "subject": "Neuer Titel aus Outlook", "isAllDay": False,
         "start": {"dateTime": "2026-06-02T08:00:00Z"}, "end": {"dateTime": "2026-06-02T09:00:00Z"},
-        "location": {"displayName": "Neuer Ort"}, "body": {"content": ""},
+        "location": {"displayName": "Neuer Ort"}, "body": {"content": ""}, "sensitivity": "confidential",
         "lastModifiedDateTime": "2026-06-01T12:00:00Z",
     }
 
@@ -389,8 +523,14 @@ def test_incoming_newer_change_updates_fields_but_never_touches_project_link():
     db.refresh(event)
     assert event.title == "Neuer Titel aus Outlook"
     assert event.location == "Neuer Ort"
+    # Punkt 1 (Nachtrag) -- sensitivity wird auch bei einer eingehenden ÄNDERUNG übernommen, nicht
+    # nur beim erstmaligen Anlegen.
+    assert event.is_private is True
     # Punkt 2 -- das eigentliche Kernstück dieses Tests:
     assert event.project_id == project.id
+    # Nachtrag (seit 1.7.2) -- _mark_synced() hält beide Zeitstempel synchron, kein Push nötig.
+    assert event.outlook_synced_at == event.updated_at
+    assert _needs_push(event) is False
 
 
 def test_local_change_wins_over_older_graph_change_and_gets_pushed_instead():
@@ -399,6 +539,10 @@ def test_local_change_wins_over_older_graph_change_and_gets_pushed_instead():
     _enable_sync(db)
     event = _make_event(db, owner, title="Lokal aktueller Titel")
     event.outlook_event_id = "graph-existing-3"
+    # Bewusst explizit auf "früher schon einmal synchronisiert" gesetzt (nicht NULL) -- sonst
+    # würde _needs_push() nur über den outlook_synced_at-is-None-Zweig True liefern, nicht über
+    # den hier eigentlich geprüften "updated_at > outlook_synced_at"-Vergleich.
+    event.outlook_synced_at = datetime(2020, 1, 1)
     event.updated_at = datetime.utcnow()  # frisch -- lokal soll gewinnen
     db.commit()
 
@@ -556,6 +700,96 @@ def test_sync_failure_is_recorded_on_state_without_raising():
     state = get_or_create_sync_state(db, owner)
     assert state.last_error_type == "OutlookSyncError"
     assert state.last_error_at is not None
+
+
+def test_one_failing_push_does_not_roll_back_a_sibling_rows_successful_push_in_the_same_run():
+    """Nachtrag (seit 1.7.2), Fund 1 -- vor der Behebung committete die Push-Phase erst am Ende
+    der gesamten Schleife: schlug EIN Termin fehl, riss das äußere except/db.rollback() eine
+    bereits erfolgreich zugewiesene outlook_event_id eines FRÜHEREN Termins in DERSELBEN Schleife
+    wieder ein -- der nächste Lauf hätte ihn dadurch ein zweites Mal in Outlook angelegt."""
+    db = db_session()
+    owner = _make_user(db)
+    _enable_sync(db)
+    ok_event = _make_event(db, owner, title="OK")
+    fails_event = _make_event(db, owner, title="FAILS")
+
+    def fake(req, timeout=None):
+        if TOKEN_URL_MARKER in req.full_url:
+            return _FakeResponse({"access_token": "faketoken"})
+        if req.get_method() == "POST":
+            body = json.loads(req.data)
+            if body["subject"] == "FAILS":
+                raise _http_error(400, "ungültiges Format")
+            return _FakeResponse({"id": "graph-ok-1"})
+        return _FakeResponse(_delta_page([], delta_link="https://graph.microsoft.com/deltaRetry1"))
+
+    with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=fake):
+        result = sync_user_calendar(db, owner)
+
+    assert result["pushed_created"] == 1
+    assert result["push_failed"] == 1
+    db.refresh(ok_event)
+    db.refresh(fails_event)
+    # Das eigentliche Kernstück: der erfolgreiche Nachbar-Termin bleibt gepusht, unabhängig davon,
+    # dass ein ANDERER Termin in derselben Schleife fehlschlug.
+    assert ok_event.outlook_event_id == "graph-ok-1"
+    assert fails_event.outlook_event_id is None
+
+
+def test_a_single_stuck_row_is_still_retried_after_a_later_successful_run_advances_the_mailbox_watermark():
+    """Nachtrag (seit 1.7.2), Fund 2 -- das eigentliche Kernstück der Anfrage ('wird ein
+    fehlgeschlagener Push beim nächsten Lauf wiederholt?'). Simuliert: ein Termin wurde früher
+    bereits erfolgreich synchronisiert (outlook_synced_at gesetzt), dann lokal bearbeitet, dann
+    schlägt sein Push in einem Lauf fehl, WÄHREND ein anderer Termin im selben Lauf erfolgreich
+    ist und dadurch OutlookCalendarSyncState.last_synced_at vorrückt. Unter der ursprünglichen,
+    rein postfachweiten last_synced_at-Prüfung wäre der hängengebliebene Termin damit für immer
+    verloren gegangen (sein updated_at liegt VOR dem neuen, vorgerückten last_synced_at) --
+    outlook_synced_at (pro Termin) behebt das nachweislich."""
+    db = db_session()
+    owner = _make_user(db)
+    _enable_sync(db)
+    stuck = _make_event(db, owner, title="STUCK")
+    stuck.outlook_event_id = "graph-stuck-1"
+    stuck.outlook_synced_at = datetime(2020, 1, 1)  # "früher schon einmal synchronisiert"
+    stuck.updated_at = datetime(2024, 6, 1)  # danach lokal bearbeitet
+    db.commit()
+    sibling = _make_event(db, owner, title="SIBLING")
+
+    def fake_run_1(req, timeout=None):
+        if TOKEN_URL_MARKER in req.full_url:
+            return _FakeResponse({"access_token": "faketoken"})
+        if req.get_method() == "PATCH":
+            raise _http_error(400, "vorübergehender Fehler")
+        if req.get_method() == "POST":
+            return _FakeResponse({"id": "graph-sibling-1"})
+        return _FakeResponse(_delta_page([], delta_link="https://graph.microsoft.com/deltaRetry2a"))
+
+    with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=fake_run_1):
+        result_1 = sync_user_calendar(db, owner)
+
+    assert result_1["push_failed"] == 1
+    assert result_1["pushed_created"] == 1
+    db.refresh(stuck)
+    state = get_or_create_sync_state(db, owner)
+    # Die eigentliche Falle: last_synced_at ist jetzt NEUER als stuck.updated_at.
+    assert state.last_synced_at > stuck.updated_at
+    # ... trotzdem bleibt _needs_push() für "stuck" wahr, weil es pro Termin, nicht postfachweit
+    # entscheidet:
+    assert _needs_push(stuck) is True
+
+    def fake_run_2(req, timeout=None):
+        if TOKEN_URL_MARKER in req.full_url:
+            return _FakeResponse({"access_token": "faketoken"})
+        if req.get_method() == "PATCH":
+            return _FakeResponse(None)  # klappt diesmal
+        return _FakeResponse(_delta_page([], delta_link="https://graph.microsoft.com/deltaRetry2b"))
+
+    with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=fake_run_2):
+        result_2 = sync_user_calendar(db, owner)
+
+    assert result_2["pushed_updated"] == 1
+    db.refresh(stuck)
+    assert stuck.outlook_synced_at == stuck.updated_at
 
 
 # ---------------------------------------------------------------------------

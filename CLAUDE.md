@@ -20,12 +20,14 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.7.1** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `6573d677bc1d` ("outlook calendar sync stufe 2", neue Tabellen
+- Version: **1.7.2** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `c137c16e9a5c` ("outlook calendar sync retry marker", neue, nullable
+  Spalte `calendar_events.outlook_synced_at` -- der pro-Termin-Merker für die 1.7.2-Push-
+  Wiederholung, siehe Abschnitt "Kalender-Modul" -> "Stufe 2" -> "Nachtrag (seit 1.7.2)" unten) --
+  davor `6573d677bc1d` ("outlook calendar sync stufe 2", neue Tabellen
   `outlook_sync_settings`/`outlook_calendar_sync_state` PLUS die neue, nullable Spalte
-  `app_users.outlook_mailbox` -- siehe Abschnitt "Kalender-Modul" -> "Stufe 2" unten; 1.7.1 selbst
-  ist reine Anwendungslogik/Oberfläche zusätzlich zu dieser einen Migration, kein zweiter Kettenschritt
-  nötig) -- davor `7974647223ea` ("calendar events kalender modul", neue Tabelle
+  `app_users.outlook_mailbox` -- siehe Abschnitt "Kalender-Modul" -> "Stufe 2" unten) -- davor
+  `7974647223ea` ("calendar events kalender modul", neue Tabelle
   `calendar_events` -- siehe Abschnitt "Kalender-Modul" unten) -- davor `d87d5bc04b69` ("ai
   fundament settings and call log", neue
   Tabellen `ai_settings`/`ai_call_log` -- siehe Abschnitt "KI-Fundament" unten; 1.6.3 selbst
@@ -92,9 +94,15 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1818 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1829 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 26.09.2026 (1.7.1, Kalender-Modul Stufe 2 -- Outlook-Kalendersynchronisation
+  dort), zuletzt am 26.09.2026 (1.7.2, Kalender-Modul Stufe 2, Nachtrag -- Outlook-
+  Vertraulichkeit (sensitivity) auf is_private abgebildet, zwei echte Push-Wiederholungsfehler
+  behoben (verlorene Zuordnung bei einem Nachbar-Fehlschlag, ein fälschlich als "aktuell"
+  erkannter Termin wegen eines rein postfachweiten statt pro-Termin-Vergleichs -- neue Spalte
+  CalendarEvent.outlook_synced_at), Serientermine-Vorschlag dokumentiert (nicht gebaut), exakte
+  Cron-Zeile inkl. .env-Laden, 11 neue Tests, siehe Abschnitt "Kalender-Modul" -> "Stufe 2" ->
+  "Nachtrag (seit 1.7.2)" unten; davor 1.7.1, Kalender-Modul Stufe 2 -- Outlook-Kalendersynchronisation
   über Microsoft Graph, Einrichtung über Exchange "RBAC for Applications" statt globaler
   Admin-Zustimmung, 32 neue Tests (`tests/test_v297_outlook_calendar_sync.py`), siehe Abschnitt
   "Kalender-Modul" -> "Stufe 2" unten; davor 1.7.0, Kalender-Modul Stufe 1 -- Büro-Termine,
@@ -11274,6 +11282,122 @@ neue, nullable Spalte `app_users.outlook_mailbox` -- Regel 1 greift bei keinem d
 weder eine NOT-NULL-Spalte auf einer bestehenden Tabelle noch Bestandsdaten für die beiden neuen
 Tabellen existieren).
 
+#### Nachtrag (seit 1.7.2): vier Nachfragen zu Stufe 2, zwei davon echte Funde
+
+Vier vom Betreiber gestellte Nachfragen zur 1.7.1-Fassung -- zwei bestätigten echte, in der
+1.7.1-Erstfassung offen gebliebene bzw. fehlerhafte Stellen, behoben; die dritte bleibt
+ausdrücklich ein Vorschlag (noch nicht gebaut); die vierte ist reine Dokumentation.
+
+**1. Outlook-Vertraulichkeit -> `is_private` -- fehlte, jetzt gebaut.** Die 1.7.1-Fassung fragte
+`sensitivity` im `$select` der Delta-Abfrage bereits mit ab, wertete es aber nirgends aus -- ein
+aus Outlook gezogener Termin startete immer mit `is_private=False`, unabhängig von seiner
+tatsächlichen Vertraulichkeitsstufe in Outlook. Behoben: `_is_private_sensitivity()`/
+`_outgoing_sensitivity()` (`app/outlook_calendar_sync.py`) übersetzen bidirektional zwischen
+Outlooks `sensitivity` (`"private"`/`"confidential"` -> `is_private=True`; `"personal"` bewusst
+NICHT -- eine geringere Vertraulichkeitsstufe, in der Anfrage nicht genannt) und `is_private`.
+`is_private` ist damit seit 1.7.2 die EINE bewusste Ausnahme von "project_id/quote_id bleiben bei
+einer eingehenden Änderung strukturell außen vor" (Punkt 2) -- anders als project_id/quote_id hat
+Outlook mit `sensitivity` ein natives Äquivalent, die Übernahme läuft über `incoming_fields`
+genauso wie title/location/etc., inklusive derselben "letzte Änderung gewinnt"-Logik (ändert ein
+Kollege die Vertraulichkeit in Outlook später, übernimmt ERP das, sobald diese Änderung neuer
+ist). Auf dem Push-Weg wird `is_private` ebenso als `sensitivity` mitgeschickt (`_event_payload()`)
+-- ein in ERP als privat markierter Termin erscheint dadurch auch in Outlook selbst als privat,
+nicht nur innerhalb des ERP. **Die eigentliche Anforderung ("Kollegen dürfen solche Termine nur
+als 'belegt' sehen") brauchte dafür KEINEN Sonderfall** -- die bereits in Stufe 1 gebaute
+Privatsphäre-Redaktion (`app/calendar_events.py::is_redacted_for_viewer()`/`redact_for_busy()`,
+unverändert) greift automatisch, sobald `is_private` korrekt gesetzt ist, für Outlook-Termine
+genau wie für ERP-eigene. Mit einem echten Ende-zu-Ende-Test belegt
+(`test_a_private_synced_event_is_shown_as_busy_to_a_colleague_end_to_end`): ein mit
+`sensitivity="confidential"` gezogener Termin zeigt sich einem Kollegen nur als "Belegt" ohne
+Titel/Ort.
+
+**2. Push-Wiederholung nach einem Fehlschlag -- zwei echte Funde, beide behoben.** Siehe
+`app/outlook_calendar_sync.py`-Moduldocstring "Nachtrag (seit 1.7.2)" für die technische
+Herleitung im Detail, hier die Kurzfassung:
+
+- **Fund 1**: die Push-Phase von `sync_user_calendar()` committete `outlook_event_id` nach einem
+  erfolgreichen POST NICHT sofort, sondern erst am Ende der GESAMTEN Schleife. Schlug ein
+  SPÄTERER Termin in derselben Schleife fehl, riss das äußere `except`/`db.rollback()` die
+  bereits erfolgreich zugewiesene `outlook_event_id` eines FRÜHEREN Termins wieder ein -- der
+  nächste Lauf hätte diesen Termin dadurch ein zweites Mal in Outlook angelegt (Dublette). Behoben:
+  jeder Termin committet jetzt EINZELN, in einem eigenen try/except -- ein fehlschlagender Termin
+  blockiert die übrigen nicht mehr (Muster "ein Postfach darf den Cron-Lauf für andere nicht
+  abbrechen", hier eine Ebene tiefer angewendet, neuer Zähler `push_failed`). Mit einem eigenen
+  Test belegt (`test_one_failing_push_does_not_roll_back_a_sibling_rows_successful_push_in_the_same_run`).
+- **Fund 2, der eigentliche Kern der Nachfrage**: selbst mit sofortigem Commit hätte der
+  ursprüngliche, rein POSTFACHWEITE Vergleich (`CalendarEvent.updated_at >
+  OutlookCalendarSyncState.last_synced_at`) einen genau EINEN fehlgeschlagenen Termin beim
+  NÄCHSTEN Lauf verloren, sobald dieser Lauf für ALLE ANDEREN Termine erfolgreich war:
+  `last_synced_at` rückt dann trotzdem vor, der liegen gebliebene Termin hätte danach
+  `updated_at < last_synced_at` gezeigt -- fälschlich "bereits aktuell". Neue Spalte
+  `CalendarEvent.outlook_synced_at` (nullable, Migration `c137c16e9a5c`) ersetzt diesen Vergleich
+  durch einen PRO-TERMIN-Merker: `_needs_push()` prüft `outlook_event_id fehlt ODER
+  outlook_synced_at fehlt ODER updated_at > outlook_synced_at`, unabhängig vom postfachweiten
+  `last_synced_at` (das bleibt als reine Diagnoseinformation bestehen). Mit einem gezielten
+  Regressionstest belegt, der GENAU dieses Szenario nachstellt
+  (`test_a_single_stuck_row_is_still_retried_after_a_later_successful_run_advances_the_mailbox_watermark`)
+  -- der Test schlägt nachweislich fehl, wenn man ihn gegen die alte, rein postfachweite Logik
+  laufen lässt (so beim Entwickeln verifiziert), und ist grün gegen die neue.
+
+  **Dabei ein drittes, beim Beheben selbst gefundenes Detail**: `_mark_synced()`s erster
+  Entwurf setzte `updated_at`/`outlook_synced_at` schlicht per ORM-Attributzuweisung
+  (`row.updated_at = at` mit `at == row.updated_at`, scheinbar ein No-op) -- das reichte NICHT.
+  SQLAlchemys Dirty-Tracking vergleicht den neuen gegen den bereits geladenen Wert und verwirft
+  eine Zuweisung ohne echte Änderung wieder aus dem "dirty"-Zustand; die Spalte landet dann NICHT
+  im UPDATE, wodurch `onupdate=datetime.utcnow` trotzdem greift (per Test aufgedeckt: einige
+  Millisekunden Drift zwischen beabsichtigtem und tatsächlich gespeichertem Wert -- ohne diesen
+  Test wäre das unbemerkt geblieben, da der Effekt zu klein ist, um im Betrieb aufzufallen, aber
+  groß genug, um `_needs_push()` gelegentlich falsch zu entscheiden). Behoben durch ein
+  explizites Core-Level-`db.execute(update(CalendarEvent).where(...).values(updated_at=at,
+  outlook_synced_at=at))` -- eine über `.values()` angegebene Spalte wird IMMER ins UPDATE
+  aufgenommen, unabhängig davon, ob sich ihr Wert ändert, und unterdrückt `onupdate` dadurch
+  zuverlässig. Mit `test_successful_push_does_not_let_updated_at_drift_and_prevents_a_redundant_second_push`
+  belegt.
+
+**3. Serientermine schreibgeschützt ins ERP -- VORSCHLAG, bewusst NICHT gebaut.** Wie
+ausdrücklich verlangt nur skizziert:
+
+- **Zweite, separate Abfrage statt eines Ausbaus der bestehenden `events/delta`**: ein neuer,
+  eigener Durchlauf ruft `GET /users/{mailbox}/calendarView?startDateTime=...&endDateTime=...`
+  auf (NICHT `events/delta`) -- `calendarView` expandiert wiederkehrende Serien automatisch in
+  einzelne Vorkommen, jedes mit eigener `id` und `seriesMasterId`, `type` `"occurrence"` bzw.
+  `"exception"` für ein individuell verschobenes/verändertes Vorkommen.
+- **Festes, bei jedem Lauf neu abgefragtes Zeitfenster statt eines rollierenden Delta-Tokens für
+  `calendarView`**: Graphs `calendarView/delta` existiert zwar, aber sein Zeitfenster lässt sich
+  nachträglich nicht verschieben, ohne den Delta-Token zu verwerfen -- für ein rollierendes
+  Fenster (z. B. "heute − 7 Tage bis heute + 90 Tage") wäre bei jeder Verschiebung ohnehin ein
+  Neustart nötig. Einfacher und für schreibgeschützte, nicht editierbare Einträge ausreichend:
+  ein normaler, nicht-inkrementeller `calendarView`-Aufruf für das aktuelle Fenster bei JEDEM
+  Lauf (ein Kalender über ein paar Monate ist klein genug, um das unbedenklich zu machen),
+  gefolgt von einem vollständigen Abgleich (bestehende Vorkommen im Fenster aktualisieren, neue
+  anlegen, nicht mehr gelieferte löschen) statt eines Delta-Tokens.
+- **Schreibschutz, ohne app/calendar_events.py anzufassen**: ein neuer `external_source`-Wert
+  (z. B. `"outlook_occurrence"`, Erweiterung von `CALENDAR_EVENT_SOURCES`) markiert diese Zeilen.
+  Die Business-Logik selbst bliebe unverändert (kein neues `if`); der Schreibschutz säße im
+  ROUTER (`app/routers/calendar_events.py`), der `PUT`/`DELETE` für diesen `external_source`-Wert
+  mit `409` ablehnt, BEVOR `update_event()`/`delete_event()` aufgerufen werden -- dieselbe
+  Orchestrierungs-Ebene, die schon jetzt Push/Fernlöschen um die reine Geschäftslogik herum baut.
+- **Kein Push, keine Projekt-/Angebot-Zuordnung nötig** -- rein lesende Vorschau der eigenen
+  wiederkehrenden Termine (Jour Fixe, wöchentliche Serviceslots) in der ERP-Kalenderansicht, ohne
+  Anspruch auf Bearbeitbarkeit.
+- Noch NICHT entschieden (Teil des Vorschlags, nicht der Umsetzung): die genaue Fenstergröße,
+  ob eine gelöschte/verschobene Instanz beim nächsten vollständigen Abgleich sauber erkannt wird
+  (Diff über `outlook_event_id` innerhalb des Fensters, ähnlich `@removed` bei der bestehenden
+  Delta-Abfrage, aber selbst gebaut statt von Graph geliefert).
+
+**4. Exakte Cron-Zeile inklusive .env-Laden** -- siehe `scripts/sync_outlook_calendars.py`
+(Kopfkommentar) für die vollständige Begründung, hier die Zeile selbst:
+
+    */15 * * * * cd /home/tobias/erp && bash -c 'set -a; source .env; set +a; .venv/bin/python scripts/sync_outlook_calendars.py' >> /home/tobias/erp-data/outlook_sync.log 2>&1
+
+`bash -c '...'` ist nötig, weil Cron Zeilen standardmäßig über `/bin/sh` ausführt, das `source`
+(eine Bash-Erweiterung) nicht kennt. Ohne das `.env`-Laden würde dieses Skript denselben Fehler
+wiederholen, der beim Ausliefern von 1.3.38–1.3.41 bereits real passiert ist (siehe
+"Produktivbetrieb" -> "Zwei Vorfälle..." Vorfall 1): `app/database.py` fällt ohne gesetztes
+`DATABASE_URL` STILL auf SQLite zurück (anders als `alembic/env.py`, das seit 1.3.42 hart
+abbricht) -- der Kalender-Sync liefe dann lautlos gegen eine falsche/leere Datenbank, ohne dass
+irgendetwas im Log darauf hinweist.
+
 #### Bekannte, bewusst offene Punkte
 
 - **Resurrection-Risiko bei fehlgeschlagener Fernlöschung.** `try_delete_remote_event()` löscht
@@ -11282,14 +11406,10 @@ Tabellen existieren).
   dadurch bestehen, erkennt ihn der NÄCHSTE Delta-Lauf als unbekannten `outlook_event_id` und
   legt ihn lokal NEU an (er "kommt zurück"). Bewusst akzeptiert, kein Tombstone-Mechanismus
   gebaut -- ein seltener, durch erneutes Löschen leicht behebbarer Fall, kein Datenverlust.
-- **Serientermine bleiben ausgeklammert** (siehe Punkt 4 oben) -- eine künftige Erweiterung
-  bräuchte ein Recurrence-Modell in `CalendarEvent` UND einen Wechsel auf `calendarView/delta`
-  mit festem Zeitfenster statt der hier genutzten, fensterlosen `events/delta`.
-- **Keine Auflösung von Outlooks `sensitivity`-Feld auf `CalendarEvent.is_private`** -- ein aus
-  Outlook gezogener Termin startet immer mit `is_private=False`, unabhängig davon, ob er in
-  Outlook als privat markiert ist. Nicht Teil der sieben Entscheidungspunkte, deshalb nicht
-  gebaut; ließe sich bei Bedarf als reine Ein-Zeilen-Ergänzung in `_apply_delta_change()`
-  nachrüsten.
+- **Serientermine bleiben ausgeklammert** (siehe Punkt 4 des Moduldocstrings sowie den Vorschlag
+  im Nachtrag oben) -- eine künftige Erweiterung bräuchte einen zweiten `calendarView`-Durchlauf
+  UND einen neuen, schreibgeschützten `external_source`-Wert -- eine größere Erweiterung, hier
+  bewusst nur skizziert, nicht gebaut.
 - **Kein Reverse-Proxy-Header-Problem hier** (anders als bei `public_base_url`,
   Betriebsmittelverwaltung Stufe 2) -- die Kalender-Sync-URLs zeigen immer auf
   `graph.microsoft.com`, nie auf die eigene ERP-Instanz, es gibt also keine analoge
@@ -11297,8 +11417,8 @@ Tabellen existieren).
 
 #### Tests
 
-32 neue Tests (`tests/test_v297_outlook_calendar_sync.py`) -- alle sieben Punkte einzeln
-abgedeckt (siehe oben), dazu `is_outlook_sync_available()` (Gesamtschalter/Graph-Zugangsdaten/
+32 neue Tests seit 1.7.1 (`tests/test_v297_outlook_calendar_sync.py`) -- alle sieben Punkte
+einzeln abgedeckt, dazu `is_outlook_sync_available()` (Gesamtschalter/Graph-Zugangsdaten/
 Postfach je einzeln geprüft), Push (Anlegen, Ändern, Fehlschlag ohne Exception, No-op ohne
 aktivierten Sync), Fernlöschen (Erfolg, Fehlschlag ohne Exception, No-op ohne `outlook_event_id`)
 und die Rollen-/Modul-Gates der beiden neuen Endpunkte (field bekommt 403 auf
@@ -11306,7 +11426,11 @@ und die Rollen-/Modul-Gates der beiden neuen Endpunkte (field bekommt 403 auf
 true}`; `outlook-sync-settings` ist ausnahmslos admin-only). Ein bereits bestehender Test
 (`tests/test_v054_settings_sidebar.py::test_every_sidebar_section_is_in_the_settings_sections_whitelist`)
 musste um den neuen `outlook-sync`-Menüpunkt in `SETTINGS_SECTIONS` ergänzt werden -- ein
-gemeldeter, sofort behobener Fund derselben Testrunde. Volle Suite: 1818 Tests grün.
+gemeldeter, sofort behobener Fund derselben Testrunde. **Seit 1.7.2 zusätzlich 11 weitere Tests**
+für die vier Nachfragen oben (Vertraulichkeits-Abbildung beim Anlegen UND bei einer eingehenden
+Änderung, die Ende-zu-Ende-Redaktion für einen Kollegen, die beiden Push-Wiederholungs-Regressionstests,
+und der Nachweis, dass ein erfolgreicher Push `updated_at` nicht driften lässt). Volle Suite:
+**1829 Tests grün.**
 
 ## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
 
