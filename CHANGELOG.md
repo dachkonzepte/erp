@@ -4,6 +4,39 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.7.3 – Kalender-Modul (Stufe 2), Nachtrag: schaukelnder Termin -- Echo-Erkennung per changeKey
+
+Gemeldeter Fehler: ein Termin pendelte über mehrere Sync-Läufe hinweg zwischen "1 geändert"
+(Pull) und "1 nach Outlook aktualisiert" (Push), ohne dass jemand ihn angefasst hat. Vor jeder
+Änderung geprüft, nicht angenommen: ein direkter Test gegen `_mark_synced()` (isoliert UND über
+einen kompletten Session-Neustart hinweg, der einen neuen Cron-Prozess simuliert) bestätigt, dass
+`updated_at`/`outlook_synced_at` korrekt synchron bleiben. Ein voller Rundlauf gegen eine
+Graph-Attrappe MIT ECHTEM ZUSTAND (PATCH/POST vergibt tatsächlich einen neuen
+`lastModifiedDateTime`, ein späterer Delta-Abruf liefert die eigene Änderung als scheinbar fremde
+zurück -- genau der Fall, den die bisherigen, rein statischen Testantworten dieser Datei nie
+abgebildet hatten) zeigt: der einfache Fall wird bereits einmalig korrekt absorbiert und kommt
+danach zur Ruhe -- ein tatsächliches, unbegrenztes Schaukeln ließ sich mit den hier verfügbaren
+Mitteln (kein Zugriff auf echte Graph-Protokolle) nicht reproduzieren.
+
+Die bestehende Zeitstempel-Logik (`graph_modified <= existing.updated_at`) bleibt aber eine reine
+"wer ist neuer"-Heuristik, die durch Uhrenabweichung zwischen den Servern oder eine beim
+Roundtrip abweichend formatierte Graph-Antwort getäuscht werden könnte -- beides mit den hier
+verfügbaren Mitteln weder aus- noch nachweisbar. Behoben durch eine zusätzliche, uhrzeit-
+unabhängige Absicherung: `CalendarEvent.outlook_change_key` (neu, Graphs eigener, bei jeder
+Schreiboperation neu vergebener Versionsstempel, wie ein ETag) wird jetzt zusätzlich abgefragt
+(`_EVENT_SELECT`), nach jedem erfolgreichen Push aus der Graph-Antwort gespeichert, und
+`_apply_delta_change()` erkennt einen eingehenden Delta-Eintrag mit exakt diesem changeKey als
+eigenes Echo -- unabhängig von jeder Uhr, ohne Feldübernahme. Bleibt eine ZUSÄTZLICHE, keine
+ersetzende Absicherung: liefert Graph auf ein PATCH keinen Body zurück, bleibt der alte changeKey
+stehen und die unveränderte Zeitstempel-Logik greift als Rückfall. Neuer, gezielter Test lässt
+eine Graph-Attrappe mit echtem Zustand über sieben aufeinanderfolgende Läufe ohne jede
+Nutzeränderung laufen und verlangt, dass ab dem zweiten Lauf jeder Zähler bei null steht und
+bleibt; ein zweiter Test bestätigt, dass eine echte, spätere Änderung durch jemand anderen direkt
+in Outlook davon unberührt weiterhin korrekt absorbiert wird. Migration `3e187156fa80` (neue,
+nullable Spalte `calendar_events.outlook_change_key`).
+
+6 neue Tests, volle Suite: 1835 Tests grün.
+
 ## 1.7.2 – Kalender-Modul (Stufe 2), Nachtrag: Vertraulichkeit, Push-Wiederholung, Serientermine-Vorschlag
 
 Vier Nachfragen zur 1.7.1-Fassung, zwei davon echte Funde. (1) Outlooks `sensitivity`-Feld wurde

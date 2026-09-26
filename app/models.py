@@ -3883,7 +3883,24 @@ class CalendarEvent(Base):
     DIESER Termin zuletzt nachweislich mit Outlook übereinstimmte (nach einem erfolgreichen Push
     ODER einer übernommenen eingehenden Änderung). Push ist fällig, wenn outlook_event_id fehlt
     ODER outlook_synced_at fehlt ODER updated_at > outlook_synced_at -- unabhängig vom globalen
-    last_synced_at des Postfachs."""
+    last_synced_at des Postfachs.
+
+    **Nachtrag "Schaukelnder Termin" (seit 1.7.3)**: outlook_synced_at allein reicht NICHT, um
+    ein eigenes Echo zuverlässig zu erkennen -- der Vergleich `graph_modified <= updated_at` ist
+    eine "wer ist neuer"-HEURISTIK, die auf einem Zeitstempelvergleich beruht. Ein echter Rundlauf
+    (mit einer Graph-Attrappe, die -- anders als die bisherigen Tests -- tatsächlich einen
+    Zustand führt: PATCH/POST vergibt einen neuen lastModifiedDateTime UND changeKey, ein
+    späterer Delta-Abruf liefert die eigene Änderung als scheinbar fremde zurück) bestätigt zwar,
+    dass die Zeitstempel-Logik den einfachen Fall korrekt einmalig absorbiert und danach zur Ruhe
+    kommt -- sie bleibt aber strukturell darauf angewiesen, dass Graphs Uhr niemals von unserer
+    abweicht und Graph niemals denselben Inhalt anders formatiert zurückgibt, als wir ihn gesendet
+    haben. outlook_change_key (neu) macht die Echo-Erkennung EXAKT statt heuristisch: ein Treffer
+    gegen den zuletzt selbst gespeicherten changeKey bedeutet zweifelsfrei "diese Version kenne
+    ich bereits", unabhängig von jeder Uhr. Siehe CLAUDE.md "Kalender" -> "Stufe 2" -> "Nachtrag
+    (seit 1.7.3)" für die vollständige Herleitung, inkl. der bewusst dokumentierten Grenze: wenn
+    Graph auf ein PATCH keinen Body mit changeKey zurückliefert, bleibt outlook_change_key auf dem
+    alten Wert stehen und die (weiterhin bestehende, unveränderte) Zeitstempel-Logik greift als
+    Rückfall -- outlook_change_key ist eine zusätzliche, keine ersetzende Absicherung."""
 
     __tablename__ = "calendar_events"
 
@@ -3908,6 +3925,16 @@ class CalendarEvent(Base):
     # sonst bumpt onupdate=datetime.utcnow updated_at unbeabsichtigt mit, siehe
     # app/outlook_calendar_sync.py für die Stellen, die das beachten müssen.
     outlook_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Seit 1.7.3 (Nachtrag "Schaukelnder Termin", siehe CLAUDE.md "Kalender" -> "Stufe 2") --
+    # Graphs eigener, serverseitig bei JEDER Schreiboperation neu vergebener Versionsstempel
+    # (ETag-Äquivalent für Outlook-Objekte). outlook_synced_at/updated_at beantworten "WANN
+    # zuletzt übereinstimmend", changeKey beantwortet "IST DAS EXAKT DIESELBE VERSION" -- eine
+    # uhrzeitunabhängige, exakte Identitätsaussage statt der bisherigen "wer ist neuer"-Heuristik.
+    # app/outlook_calendar_sync.py::_apply_delta_change() nutzt einen Treffer, um einen eingehenden
+    # Delta-Eintrag als eigenes Echo zu erkennen und OHNE jede Feldübernahme zu überspringen --
+    # robust auch dann, wenn Uhrenabweichung/Sub-Sekunden-Präzision einen reinen Zeitstempel-
+    # Vergleich täuschen könnten.
+    outlook_change_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -21,7 +21,11 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 ## Stand bei Übergabe
 
 - Version: **1.7.2** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `c137c16e9a5c` ("outlook calendar sync retry marker", neue, nullable
+- Migrationskette Kopf jetzt `3e187156fa80` ("calendar event outlook change key", neue, nullable
+  Spalte `calendar_events.outlook_change_key` -- der uhrzeitunabhängige Echo-Erkennungsmerker für
+  den 1.7.3-Nachtrag "Schaukelnder Termin", siehe Abschnitt "Kalender-Modul" -> "Stufe 2" ->
+  "Nachtrag (seit 1.7.3)" unten) -- davor `c137c16e9a5c` ("outlook calendar sync retry marker",
+  neue, nullable
   Spalte `calendar_events.outlook_synced_at` -- der pro-Termin-Merker für die 1.7.2-Push-
   Wiederholung, siehe Abschnitt "Kalender-Modul" -> "Stufe 2" -> "Nachtrag (seit 1.7.2)" unten) --
   davor `6573d677bc1d` ("outlook calendar sync stufe 2", neue Tabellen
@@ -94,9 +98,17 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1829 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
+- Tests: **1835 passed** (seit 1.3.55 wieder vollständig grün ohne `xfail` -- der Audit-Test des
   Rechtekonzepts steht bei null unklassifizierten Endpunkten und ist ein harter Test, siehe
-  dort), zuletzt am 26.09.2026 (1.7.2, Kalender-Modul Stufe 2, Nachtrag -- Outlook-
+  dort), zuletzt am 26.09.2026 (1.7.3, Kalender-Modul Stufe 2, Nachtrag "Schaukelnder Termin" --
+  ein gemeldeter, über mehrere Sync-Läufe pendelnder Termin geprüft (Ursache mit den hier
+  verfügbaren Mitteln nicht abschließend reproduzierbar, `_mark_synced()` empirisch als korrekt
+  bestätigt), zusätzlich zur bestehenden Zeitstempel-Heuristik eine uhrzeitunabhängige, exakte
+  Echo-Erkennung über Graphs eigenen changeKey ergänzt -- neue Spalte
+  CalendarEvent.outlook_change_key --, dafür erstmals eine Graph-Attrappe mit echtem, über
+  mehrere Läufe fortgeschriebenem Zustand statt rein statischer Antworten, 6 neue Tests, siehe
+  Abschnitt "Kalender-Modul" -> "Stufe 2" -> "Nachtrag (seit 1.7.3)" unten; davor 1.7.2,
+  Kalender-Modul Stufe 2, Nachtrag -- Outlook-
   Vertraulichkeit (sensitivity) auf is_private abgebildet, zwei echte Push-Wiederholungsfehler
   behoben (verlorene Zuordnung bei einem Nachbar-Fehlschlag, ein fälschlich als "aktuell"
   erkannter Termin wegen eines rein postfachweiten statt pro-Termin-Vergleichs -- neue Spalte
@@ -11398,6 +11410,67 @@ wiederholen, der beim Ausliefern von 1.3.38–1.3.41 bereits real passiert ist (
 abbricht) -- der Kalender-Sync liefe dann lautlos gegen eine falsche/leere Datenbank, ohne dass
 irgendetwas im Log darauf hinweist.
 
+#### Nachtrag (seit 1.7.3): schaukelnder Termin -- Echo-Erkennung per changeKey
+
+Gemeldet: ein Termin pendelte über mehrere Sync-Läufe hinweg zwischen "1 geändert" (Pull) und "1
+nach Outlook aktualisiert" (Push), ohne dass jemand ihn angefasst hat -- vermutet wurde, dass die
+Übernahme aus Outlook `updated_at` neu setzt, ohne `outlook_synced_at` nachzuziehen. Vor jeder
+Änderung geprüft, wie verlangt, nicht angenommen:
+
+- **`_mark_synced()` selbst empirisch bestätigt korrekt**, entgegen der ersten Vermutung: ein
+  isolierter Test (Attribute per `setattr` ändern, dann `_mark_synced()` aufrufen, DANACH prüfen,
+  ob `db.dirty`/die Attribut-History noch eine echte Änderung an `updated_at`/`outlook_synced_at`
+  zeigt) UND ein zweiter Test über einen KOMPLETTEN Session-Neustart hinweg (simuliert einen
+  neuen Cron-Prozess, der die Zeile frisch aus der DB lädt) bestätigen beide: die im 1.7.2-
+  Nachtrag beschriebene Core-Level-UPDATE-Lösung hält, kein erneuter Autoflush-Bump.
+- **Ein voller Rundlauf gegen eine Graph-Attrappe MIT ECHTEM ZUSTAND** -- der entscheidende
+  Unterschied zu jeder bisherigen Testantwort in dieser Datei, die ausnahmslos einzelne,
+  statische Momentaufnahmen waren: `FakeGraphServer` (neu, `tests/test_v297_outlook_calendar_sync.py`)
+  führt Buch über jedes Event, vergibt bei JEDEM PATCH/POST einen neuen `lastModifiedDateTime`
+  UND einen neuen `changeKey` (wie Microsoft Graph es tatsächlich tut) und liefert über `delta()`
+  alles zurück, was sich seit dem zuletzt zurückgegebenen Cursor geändert hat -- ausdrücklich
+  AUCH die eigene, gerade erst gepushte Änderung, denn Graph unterscheidet dabei nicht zwischen
+  "von uns" und "von jemand anderem". Mit dieser Attrappe über sieben aufeinanderfolgende Läufe
+  ohne jede Nutzeränderung getestet: der einfache Fall (ein Termin, ein Push, ein Echo-Pull einen
+  Lauf später) wird von der bereits bestehenden Zeitstempel-Logik korrekt EINMALIG absorbiert und
+  kommt danach zur Ruhe. **Ein tatsächliches, unbegrenztes Schaukeln ließ sich mit den hier
+  verfügbaren Mitteln (kein Zugriff auf echte Graph-Protokolle/den Produktivserver) nicht
+  reproduzieren** -- das wird hier transparent so festgehalten, statt einen unbelegten Fund zu
+  behaupten.
+
+Die bestehende Zeitstempel-Logik (`graph_modified <= existing.updated_at`) bleibt aber eine reine
+"wer ist neuer"-HEURISTIK, keine exakte Identitätsaussage -- sie könnte durch Uhrenabweichung
+zwischen dem ERP-Server und Microsofts eigenen Servern oder durch eine beim Roundtrip abweichend
+formatierte Graph-Antwort (z. B. für Event-Bodies dokumentiert) getäuscht werden, beides mit den
+hier verfügbaren Mitteln weder aus- noch nachweisbar. Deshalb, wie vom Betreiber vorgegeben, eine
+ZUSÄTZLICHE, uhrzeitunabhängige Absicherung statt nur eines erneuten Zeitstempel-Tests:
+
+- **`CalendarEvent.outlook_change_key`** (neu, nullable, Migration `3e187156fa80`) speichert
+  Graphs eigenen, bei JEDER Schreiboperation neu vergebenen Versionsstempel (funktional ein
+  ETag). Neu in `_EVENT_SELECT` abgefragt.
+- **Nach jedem erfolgreichen Push** (`push_event_best_effort()` UND die Push-Schleife in
+  `sync_user_calendar()`) wird der `changeKey` aus der POST-/PATCH-Antwort direkt übernommen --
+  vorher wurde die PATCH-Antwort überhaupt nicht ausgewertet.
+- **`_apply_delta_change()`** prüft VOR der Zeitstempel-Heuristik: trägt ein eingehender
+  Delta-Eintrag exakt den `changeKey`, den wir zuletzt selbst gespeichert haben, ist das
+  zweifelsfrei die eigene, bereits bekannte Version -- unabhängig von jeder Uhr, ohne
+  Feldübernahme, ohne `_mark_synced()`-Aufruf (nichts zu synchronisieren).
+- **Zusätzliche, keine ersetzende Absicherung**: liefert Graph auf ein PATCH keinen Body mit
+  `changeKey` zurück (bewusst offener Randfall, siehe Test
+  `test_push_patch_without_response_body_does_not_crash_and_leaves_change_key_unset`), bleibt der
+  alte Wert stehen -- die unveränderte Zeitstempel-Logik greift dann unverändert als Rückfall,
+  genau wie vor dieser Version.
+
+**Regressionstest, wie ausdrücklich verlangt**:
+`test_no_oscillation_all_counters_reach_zero_from_the_second_run_and_stay_zero_for_five_more_runs`
+lässt `FakeGraphServer` über sieben Läufe ohne jede Nutzeränderung laufen und verlangt, dass ab
+dem ZWEITEN Lauf `created`/`updated`/`deleted`/`pushed_created`/`pushed_updated`/`push_failed`
+für JEDEN weiteren Lauf bei null stehen. Ein zweiter, ergänzender Test
+(`test_no_oscillation_holds_even_with_a_genuine_later_edit_from_outlook_in_between`) bestätigt,
+dass eine ECHTE, spätere Änderung durch jemand anderen direkt in Outlook davon unberührt
+weiterhin korrekt als "updated" absorbiert wird und danach erneut zur Ruhe kommt -- die neue
+changeKey-Prüfung verschluckt also keine echten externen Änderungen.
+
 #### Bekannte, bewusst offene Punkte
 
 - **Resurrection-Risiko bei fehlgeschlagener Fernlöschung.** `try_delete_remote_event()` löscht
@@ -11429,8 +11502,11 @@ musste um den neuen `outlook-sync`-Menüpunkt in `SETTINGS_SECTIONS` ergänzt we
 gemeldeter, sofort behobener Fund derselben Testrunde. **Seit 1.7.2 zusätzlich 11 weitere Tests**
 für die vier Nachfragen oben (Vertraulichkeits-Abbildung beim Anlegen UND bei einer eingehenden
 Änderung, die Ende-zu-Ende-Redaktion für einen Kollegen, die beiden Push-Wiederholungs-Regressionstests,
-und der Nachweis, dass ein erfolgreicher Push `updated_at` nicht driften lässt). Volle Suite:
-**1829 Tests grün.**
+und der Nachweis, dass ein erfolgreicher Push `updated_at` nicht driften lässt). **Seit 1.7.3
+zusätzlich 6 weitere Tests** für den Nachtrag "schaukelnder Termin" oben (`changeKey`-Erfassung
+beim Push, inkl. des Randfalls ohne Antwort-Body; exakte Echo-Erkennung trotz einer scheinbar
+neueren Zeitstempel-Heuristik; die beiden Sieben-Läufe-Regressionstests gegen `FakeGraphServer`).
+Volle Suite: **1835 Tests grün.**
 
 ## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
 

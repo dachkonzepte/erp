@@ -92,6 +92,39 @@ sonst würde SQLAlchemys onupdate=datetime.utcnow bei JEDER Schreiboperation (au
 Sync-Buchhaltung selbst) updated_at unbeabsichtigt weiterschieben und dadurch einen frisch
 erfolgreich gepushten/gezogenen Termin sofort wieder als "noch zu übertragen" erscheinen lassen.
 
+**Nachtrag "Schaukelnder Termin" (seit 1.7.3) -- Echo-Erkennung exakt statt heuristisch, per
+changeKey:** gemeldet wurde ein Termin, der über mehrere Läufe hinweg abwechselnd als "1
+geändert" (Pull) und "1 nach Outlook aktualisiert" (Push) auftauchte, OHNE dass jemand ihn
+angefasst hat. Vor jeder Änderung wurde das geprüft, nicht angenommen: ein direkter Test gegen
+`_mark_synced()` (isoliert UND über einen kompletten Session-Neustart hinweg, der einen neuen
+Cron-Prozess simuliert) bestätigt, dass updated_at/outlook_synced_at korrekt synchron bleiben,
+auch nach dem in ihrem Docstring beschriebenen Autoflush-Fallstrick. Ein voller Rundlauf gegen
+eine Graph-Attrappe MIT ECHTEM ZUSTAND (PATCH/POST vergibt tatsächlich einen neuen
+lastModifiedDateTime, ein späterer Delta-Abruf liefert die eigene Änderung als scheinbar fremde
+zurück -- genau der Fall, den die bisherigen, rein statischen Testantworten dieser Datei nie
+abgebildet hatten) zeigt: der einfache Fall (ein Termin, ein Push, ein späterer Echo-Pull) wird
+von der Zeitstempel-Logik bereits korrekt EINMALIG absorbiert und kommt danach zur Ruhe -- ein
+tatsächliches, unbegrenztes Schaukeln ließ sich mit den hier verfügbaren Mitteln (kein Zugriff
+auf echte Graph-Protokolle) nicht reproduzieren.
+
+Die Zeitstempel-Logik (`graph_modified <= existing.updated_at`) bleibt aber eine reine
+HEURISTIK -- sie beantwortet "wer ist neuer", nicht "ist das exakt meine eigene, bereits bekannte
+Version". Sie kann durch Uhrenabweichung zwischen dem ERP-Server und Microsofts eigenen Servern
+oder durch eine von Graph beim Roundtrip abweichend formatierte Antwort (dokumentiert z. B. für
+Event-Bodies) getäuscht werden -- beides mit den hier verfügbaren Mitteln weder aus- noch
+nachweisbar. Deshalb: `changeKey` (Graphs eigener, bei JEDER Schreiboperation neu vergebener
+Versionsstempel, wie ein ETag) wird jetzt zusätzlich in `_EVENT_SELECT` abgefragt, nach jedem
+erfolgreichen Push aus der Graph-Antwort in `CalendarEvent.outlook_change_key` gespeichert, und
+`_apply_delta_change()` erkennt einen eingehenden Delta-Eintrag, dessen changeKey exakt mit dem
+zuletzt gespeicherten übereinstimmt, ALS EIGENES ECHO -- unabhängig von jeder Uhr, ohne
+Feldübernahme, ohne `_mark_synced()`-Aufruf, da nichts zu synchronisieren ist. Das ist eine
+ZUSÄTZLICHE, keine ERSETZENDE Absicherung: liefert Graph auf ein PATCH keinen Body mit changeKey
+zurück (bleibt dann als bewusst offener Randfall bestehen), greift die unveränderte
+Zeitstempel-Logik als Rückfall -- genau wie zuvor. Ein neuer, gezielter Test
+(tests/test_v297_outlook_calendar_sync.py) lässt eine Attrappe mit echtem Zustand über sieben
+aufeinanderfolgende Läufe ohne jede Nutzeränderung laufen und verlangt, dass ab dem zweiten Lauf
+JEDER Zähler bei null steht und bleibt.
+
 **Punkt 6 -- kein Termininhalt in Protokollen:** logger unten protokolliert ausschließlich
 Zähler (erstellt/aktualisiert/gelöscht/übersprungen), Zeitdauer und im Fehlerfall den reinen
 Exception-Klassennamen (nie str(exc)) -- dieselbe Zurückhaltung wie bei AICallLog.error_type,
@@ -125,7 +158,7 @@ BERLIN = ZoneInfo("Europe/Berlin")
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 GRAPH_TIMEOUT = 30
 
-_EVENT_SELECT = "id,subject,start,end,isAllDay,location,body,lastModifiedDateTime,recurrence,type,sensitivity"
+_EVENT_SELECT = "id,subject,start,end,isAllDay,location,body,lastModifiedDateTime,recurrence,type,sensitivity,changeKey"
 
 # Outlooks sensitivity-Werte, die als "privat" gelten (Muster Nachtrag Punkt 2 im Moduldocstring)
 # -- "personal" bleibt bewusst AUSSEN VOR: eine geringere Vertraulichkeitsstufe als
@@ -333,10 +366,15 @@ def push_event_best_effort(db: Session, event_id: int) -> None:
         token = get_graph_access_token(smtp)
         version_to_sync = event.updated_at  # VOR jeder eigenen Mutation erfasst, siehe _mark_synced()
         if event.outlook_event_id:
-            _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{event.outlook_event_id}", method="PATCH", payload=_event_payload(event))
+            response = _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{event.outlook_event_id}", method="PATCH", payload=_event_payload(event))
         else:
-            created = _graph_call(token, _mailbox_events_url(user.outlook_mailbox), method="POST", payload=_event_payload(event))
-            event.outlook_event_id = created["id"]
+            response = _graph_call(token, _mailbox_events_url(user.outlook_mailbox), method="POST", payload=_event_payload(event))
+            event.outlook_event_id = response["id"]
+        # Nachtrag (seit 1.7.3) -- Graph liefert bei einer erfolgreichen Schreiboperation den NEUEN
+        # changeKey mit zurück; ohne ihn (z. B. ein PATCH ohne Body) bleibt outlook_change_key auf
+        # dem alten Stand stehen und die Zeitstempel-Logik greift beim nächsten Pull als Rückfall.
+        if response is not None and response.get("changeKey"):
+            event.outlook_change_key = response["changeKey"]
         _mark_synced(db, event, version_to_sync)
         db.commit()
     except Exception as exc:  # noqa: BLE001 -- best effort, siehe Docstring
@@ -427,12 +465,14 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
         "is_private": _is_private_sensitivity(item.get("sensitivity")),
     }
     graph_modified = _parse_graph_datetime(item["lastModifiedDateTime"]) if item.get("lastModifiedDateTime") else None
+    incoming_change_key = item.get("changeKey")
 
     existing = db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_event_id == item["id"], CalendarEvent.owner_user_id == user.id))
     if existing is None:
         now = datetime.utcnow()
         row = CalendarEvent(
             owner_user_id=user.id, outlook_event_id=item["id"], external_source="outlook",
+            outlook_change_key=incoming_change_key,
             project_id=None, quote_id=None,
             created_at=now, updated_at=now, outlook_synced_at=now,
             **incoming_fields,
@@ -443,6 +483,14 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
         counters["created"] += 1
         return row.id
 
+    # Nachtrag (seit 1.7.3) -- EXAKTE Echo-Erkennung vor der Zeitstempel-Heuristik: ein
+    # changeKey-Treffer bedeutet zweifelsfrei "diese Version kenne ich bereits" (aus einem eigenen
+    # Push ODER einer bereits absorbierten Änderung), unabhängig von jeder Uhr. Kein
+    # Feldabgleich, kein _mark_synced()-Aufruf -- es gibt nichts zu synchronisieren, wir sind
+    # bereits exakt auf diesem Stand. Siehe Moduldocstring "Nachtrag 'Schaukelnder Termin'".
+    if incoming_change_key is not None and incoming_change_key == existing.outlook_change_key:
+        return None
+
     # "Letzte Änderung gewinnt" (Punkt 5): nur anwenden, wenn Graphs Stand nachweislich neuer ist
     # als unser eigener updated_at -- sonst gewinnt die lokale Zeile und wird stattdessen in der
     # anschließenden Push-Phase nach Outlook geschrieben.
@@ -450,6 +498,7 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
         return None
     for key, value in incoming_fields.items():
         setattr(existing, key, value)
+    existing.outlook_change_key = incoming_change_key
     # Diese Zeile stimmt jetzt (wieder) mit Outlook überein -- _mark_synced() verhindert, dass
     # updated_at und outlook_synced_at durch getrennte onupdate-/Zuweisungszeitpunkte auseinanderlaufen.
     _mark_synced(db, existing, datetime.utcnow())
@@ -495,12 +544,15 @@ def sync_user_calendar(db: Session, user: AppUser) -> dict:
             try:
                 version_to_sync = row.updated_at  # VOR jeder eigenen Mutation erfasst, siehe _mark_synced()
                 if row.outlook_event_id is None:
-                    created = _graph_call(token, _mailbox_events_url(user.outlook_mailbox), method="POST", payload=_event_payload(row))
-                    row.outlook_event_id = created["id"]
+                    response = _graph_call(token, _mailbox_events_url(user.outlook_mailbox), method="POST", payload=_event_payload(row))
+                    row.outlook_event_id = response["id"]
                     counters["pushed_created"] += 1
                 else:
-                    _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{row.outlook_event_id}", method="PATCH", payload=_event_payload(row))
+                    response = _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{row.outlook_event_id}", method="PATCH", payload=_event_payload(row))
                     counters["pushed_updated"] += 1
+                # Nachtrag (seit 1.7.3) -- siehe push_event_best_effort() für dieselbe Begründung.
+                if response is not None and response.get("changeKey"):
+                    row.outlook_change_key = response["changeKey"]
                 _mark_synced(db, row, version_to_sync)
                 db.commit()
             except Exception as exc:  # noqa: BLE001 -- ein Termin darf die übrigen nicht blockieren
