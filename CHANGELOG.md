@@ -4,6 +4,39 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.7.5 – Kalender-Modul (Stufe 2), Nachtrag: Ursache des Schaukelns gefunden -- changeKey kommt im Delta nie an
+
+Der Betreiber meldete: das Schaukeln blieb aus (der einfache Fall wird nach dem 1.7.3/1.7.4-Stand
+tatsächlich einmalig absorbiert und kommt danach zur Ruhe), aber in JEDER Diagnosezeile standen
+`change_key_gespeichert`/`change_key_eingehend` auf `None` -- auch direkt nach einem als "push
+erfolgreich" protokollierten Push. Drei vorgegebene Prüfungen, diesmal direkt anhand der
+Microsoft-Graph-Dokumentation (Microsoft Learn, nicht aus dem Gedächtnis) beantwortet: (1)
+`$select` wird für Kalender-Delta-Abfragen laut Microsoft ausdrücklich NICHT unterstützt --
+"You cannot use $select to get only a subset of those properties" (`event: delta`-
+Referenzseite) -- die `changeKey`-Anforderung in `_EVENT_SELECT` wurde also schlicht ignoriert.
+(2) Jede von Microsoft selbst gezeigte Beispiel-Delta-Antwort trägt ein `@odata.etag`-Feld, aber
+NIEMALS ein `changeKey`-Feld, obwohl andere, weniger zentrale Felder vollständig gezeigt werden --
+`changeKey` ist für Delta-Zeilen strukturell unerreichbar, kein Zufall dieser einen Installation.
+(3) Die Extraktion aus POST-/PATCH-Antworten war korrekt, aber ein zweiter, unabhängiger Fund: die
+"push erfolgreich"-Diagnosezeile protokollierte den Wert VOR dem Push statt des gerade frisch
+gespeicherten -- ein reiner Diagnose-Anzeigefehler, jetzt ebenfalls behoben.
+
+Der komplette Mechanismus wechselt von `changeKey` auf `@odata.etag` -- eine protokollweite OData-
+Annotation, die laut Microsofts eigener Dokumentation JEDE Entitätsdarstellung begleitet (GET,
+POST-/PATCH-Antwort UND jede Delta-Zeile gleichermaßen), unabhängig von `$select`. Die Spalte
+`CalendarEvent.outlook_change_key` heißt seither `outlook_etag` (echte Spalten-Umbenennung per
+Migration, kein Datenverlust-Risiko -- sie trug zu diesem Zeitpunkt bei keiner Zeile einen von
+Graph tatsächlich nutzbaren Wert). `_EVENT_SELECT` verzichtet seither auf `changeKey`, da es
+ohnehin nie ankam. `FakeGraphServer` (Testdatei) bildete bis dahin selbst den Fehler ab, den sie
+eigentlich aufdecken sollte -- `delta()` lieferte `changeKey` in jeder Zeile mit, ein Test dagegen
+konnte den echten Produktionsfehler dadurch strukturell nie finden. `delta()` liefert seither nur
+noch `@odata.etag` (kein `changeKey` mehr, genau wie die echten Microsoft-Beispielantworten),
+`create()`/`patch()` liefern weiterhin beide Felder (wie ein reales POST/PATCH). Zwei neue Tests
+ergänzt, die die Umkehrung gezielt abdecken (eine Push-Antwort mit `changeKey`, aber ohne
+`@odata.etag`, verändert `outlook_etag` nicht; ein Delta-Eintrag, der nur einen -- absichtlich
+zufällig passenden -- `changeKey` trägt, wird NICHT über einen etwaigen changeKey-Rückfall als
+Echo erkannt), plus ein Regressionsschutz gegen die alten, jetzt entfernten Diagnose-Feldnamen.
+
 ## 1.7.4 – Kalender-Modul (Stufe 2), Nachtrag: zweite Untersuchungsrunde -- Schaukeln trotz changeKey weiter gemeldet
 
 Der 1.7.3-Nachtrag hat das gemeldete Schaukeln auf dem Produktivserver nicht beendet -- weiterhin

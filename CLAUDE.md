@@ -20,8 +20,12 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
 
 ## Stand bei Übergabe
 
-- Version: **1.7.2** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
-- Migrationskette Kopf jetzt `3e187156fa80` ("calendar event outlook change key", neue, nullable
+- Version: **1.7.5** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Migrationskette Kopf jetzt `1375eeeea2fa` ("calendar event outlook etag rename", reine
+  Spalten-Umbenennung `calendar_events.outlook_change_key` -> `outlook_etag`, kein
+  Datenverlust-Risiko -- die Spalte trug zu diesem Zeitpunkt bei keiner Zeile einen von Graph
+  tatsächlich nutzbaren Wert, siehe Abschnitt "Kalender-Modul" -> "Stufe 2" -> "Nachtrag (seit
+  1.7.5)" unten) -- davor `3e187156fa80` ("calendar event outlook change key", neue, nullable
   Spalte `calendar_events.outlook_change_key` -- der uhrzeitunabhängige Echo-Erkennungsmerker für
   den 1.7.3-Nachtrag "Schaukelnder Termin", siehe Abschnitt "Kalender-Modul" -> "Stufe 2" ->
   "Nachtrag (seit 1.7.3)" unten) -- davor `c137c16e9a5c` ("outlook calendar sync retry marker",
@@ -98,12 +102,24 @@ unten zuerst in `docs/bestandsaufnahme.md` nachsehen, sonst wie bisher gegen den
   Zeile automatisch auf den bereits bestehenden, geteilten "default"-Satz zurück, siehe "Fünf
   weitere Anpassungen"), siehe Abschnitt "Rechtekonzept" unten; bei Bedarf per `alembic
   history`/`heads` prüfen statt sich auf eine hier aufgeschriebene Liste zu verlassen.
-- Tests: **1840 passed, 2 skipped** (die beiden übersprungenen sind opt-in PostgreSQL-Varianten
+- Tests: **1842 passed, 2 skipped** (die beiden übersprungenen sind opt-in PostgreSQL-Varianten
   des Schaukel-Tests, siehe unten -- übersprungen ohne gesetztes `ERP_TEST_POSTGRES_URL`; seit
   1.3.55 sonst wieder vollständig grün ohne `xfail` -- der Audit-Test des Rechtekonzepts steht bei
   null unklassifizierten Endpunkten und ist ein harter Test, siehe dort), zuletzt am 26.09.2026
-  (1.7.4, Kalender-Modul Stufe 2, Nachtrag "Zweite Untersuchungsrunde" -- das Schaukeln trat trotz
-  changeKey (1.7.3) auf dem Produktivserver weiterhin auf; vier gezielte Prüfungen (Datenbank/
+  (1.7.5, Kalender-Modul Stufe 2, Nachtrag -- die tatsächliche Ursache des seit 1.7.3 gemeldeten
+  Schaukelns gefunden: `changeKey` kommt in Graphs Delta-Antworten strukturell NIE an (`$select`
+  wird für Kalender-Delta-Abfragen laut Microsoft-Dokumentation ignoriert, jede von Microsoft
+  selbst gezeigte Beispiel-Delta-Antwort trägt `@odata.etag`, nie `changeKey`) -- die 1.7.3/1.7.4-
+  Fassung der Echo-Erkennung konnte für ihren eigentlichen Zweck deshalb nie einen Treffer
+  liefern. Kompletter Wechsel von `changeKey` auf `@odata.etag` (Spalte umbenannt zu
+  `CalendarEvent.outlook_etag`, Migration `1375eeeea2fa`, kein Datenverlust-Risiko), dabei ein
+  zweiter, unabhängiger Diagnose-Anzeigefehler behoben (die "push erfolgreich"-Zeile zeigte den
+  Wert vor statt nach dem Push). `FakeGraphServer` (Testdatei) bildete den Fehler bis dahin selbst
+  ab (lieferte `changeKey` auch im Delta) -- korrigiert, liefert seither realistisch nur noch
+  `@odata.etag` im Delta. 2 neue Tests, siehe Abschnitt "Kalender-Modul" -> "Stufe 2" -> "Nachtrag
+  (seit 1.7.5)" unten; davor 1.7.4, Kalender-Modul Stufe 2, Nachtrag "Zweite Untersuchungsrunde" --
+  das Schaukeln trat trotz changeKey (1.7.3) auf dem Produktivserver weiterhin auf; vier gezielte
+  Prüfungen (Datenbank/
   Zeitzone/Präzision von updated_at/outlook_synced_at, der Schaukel-Test gegen die echte, lokale
   PostgreSQL-Instanz -- MIT und OHNE changeKey --, ob Graphs Delta-Antwort changeKey überhaupt
   mitliefert, eine abschaltbare Diagnosezeile je Termin) ergaben KEINEN reproduzierbaren
@@ -11614,6 +11630,65 @@ behauptet zu werden.
 Content-Ausschlusses, die @removed-Regression, plus die beiden opt-in PostgreSQL-Varianten der
 Schaukel-Tests), volle Suite: 1840 Tests grün, 2 davon opt-in und standardmäßig übersprungen ohne
 gesetztes `ERP_TEST_POSTGRES_URL`.
+
+#### Nachtrag (seit 1.7.5): die tatsächliche Ursache -- changeKey kommt im Delta strukturell nie an
+
+Rückmeldung des Betreibers auf 1.7.4: das Schaukeln selbst blieb aus (der einfache Fall wird
+einmalig absorbiert und kommt zur Ruhe, wie in 1.7.3 bereits nachgewiesen), aber
+`change_key_gespeichert`/`change_key_eingehend` standen in JEDER Diagnosezeile auf `None` --
+auch direkt nach einem als "push erfolgreich" protokollierten Push. Drei vorgegebene Prüfungen,
+diesmal NICHT aus dem Gedächtnis, sondern direkt anhand der Microsoft-Graph-Dokumentation
+(Microsoft Learn, per WebFetch/WebSearch nachgeschlagen -- nicht angenommen):
+
+1. **Fordert der Delta-Aufruf `changeKey` per `$select` an?** Ja (`_EVENT_SELECT`) -- aber
+   Microsoft dokumentiert für Kalender-Delta-Abfragen ausdrücklich: *"Expect a delta function
+   call on a calendarView to return the same properties you'd normally get from a GET
+   /calendarView request. You cannot use $select to get only a subset of those properties."*
+   (`event: delta`-Referenzseite, `learn.microsoft.com/en-us/graph/api/event-delta`) --
+   **`$select` wird für Kalender-Delta-Abfragen komplett ignoriert**, unabhängig vom Inhalt.
+2. **Liefert Graph `changeKey` im Delta überhaupt, oder nur `@odata.etag`?** Jede von Microsoft
+   selbst gezeigte Beispiel-Delta-Antwort (mehrere Beispiele auf
+   `learn.microsoft.com/en-us/graph/delta-query-events`, sowohl geänderte als auch neu
+   hinzugekommene Einträge) zeigt durchgängig `@odata.etag`, aber **niemals** `changeKey` --
+   obwohl andere, weniger zentrale Felder (`subject`, `body`, `attendees`, `organizer`) jeweils
+   vollständig gezeigt werden. `changeKey` ist damit für Delta-Zeilen strukturell unerreichbar,
+   kein Zufall dieser einen Installation, wie der 1.7.4-Nachtrag noch offengelassen hatte.
+3. **Wird es aus der Antwort auf POST/PATCH übernommen?** Die Extraktion selbst
+   (`response.get("changeKey")`) war korrekt -- aber ein zweiter, unabhängiger, beim Nachprüfen
+   gefundener Fund: die "push erfolgreich"-Diagnosezeile protokollierte für
+   `change_key_gespeichert` den Wert VOR DEM Push (`old_change_key`), nicht den gerade frisch
+   gespeicherten -- ein reiner Diagnose-Anzeigefehler, unabhängig von der eigentlichen Ursache,
+   ebenfalls behoben.
+
+**Der komplette Mechanismus wechselt von `changeKey` auf `@odata.etag`.** `@odata.etag` ist eine
+protokollweite OData-Annotation, die laut Microsofts eigener Ressourcen-Dokumentation UND allen
+gezeigten Beispielantworten JEDE Entitätsdarstellung begleitet -- ein einfaches `GET /events/{id}`
+ebenso wie die Antwort auf `POST`/`PATCH` UND jede einzelne Delta-Zeile, unabhängig von `$select`,
+weil sie kein regulär selektierbares Entitäts-Property ist. Sie steht deshalb zuverlässig auf
+BEIDEN Seiten des Vergleichs zur Verfügung. `CalendarEvent.outlook_change_key` heißt seither
+`outlook_etag` (echte Spalten-Umbenennung, Migration `1375eeeea2fa`, `alter_column(...,
+new_column_name=...)` -- kein Drop+Add, kein Datenverlust-Risiko: die Spalte trug zu diesem
+Zeitpunkt bei keiner einzigen Zeile einen von Graph tatsächlich nutzbaren Wert, bestätigt per
+Produktions-Diagnose). `_EVENT_SELECT` verzichtet seither auf `changeKey` -- es kam über diesen
+Weg nachweislich nie an, ein Weglassen ändert am Verhalten nichts, macht die Anfrage aber ehrlich.
+Die diagnostischen Feldnamen `change_key_gespeichert`/`change_key_eingehend` heißen seither
+`etag_gespeichert`/`etag_eingehend` -- bewusst nicht rückwärtskompatibel gehalten: die alten Namen
+versprachen einen Wert, den die Delta-Antwort nie geliefert hat.
+
+**`FakeGraphServer` (`tests/test_v297_outlook_calendar_sync.py`) bildete bis dahin selbst den
+Fehler ab, den sie eigentlich aufdecken sollte** -- `delta()` lieferte `changeKey` in JEDER Zeile
+mit, ein Test dagegen konnte den echten Produktionsfehler dadurch strukturell nie finden,
+unabhängig davon, wie viele Läufe er simulierte hätte. `delta()` liefert seither NUR NOCH
+`@odata.etag` (kein `changeKey` mehr, genau wie die echten Microsoft-Beispielantworten),
+`create()`/`patch()` liefern weiterhin BEIDE Felder (wie ein reales POST/PATCH). Zwei neue Tests
+härten die Umkehrung ab: eine Push-Antwort mit `changeKey`, aber ohne `@odata.etag`, darf
+`outlook_etag` NICHT verändern (`test_push_response_with_changekey_but_no_etag_does_not_store_anything`);
+ein Delta-Eintrag, der -- absichtlich zufällig passend, aber ohne `@odata.etag` -- nur einen
+`changeKey` trägt, wird NICHT über einen (nicht existierenden) changeKey-Rückfall als Echo erkannt
+(`test_delta_item_carrying_only_changekey_is_not_recognized_as_echo_via_changekey_fallback`); dazu
+ein Regressionsschutz, dass die alten Diagnose-Feldnamen nirgends mehr auftauchen. 2 neue Tests
+(netto, da drei bestehende nur umbenannt/angepasst wurden -- nicht ersetzt), volle Suite: **1842
+Tests grün, 2 davon weiterhin opt-in ohne gesetztes `ERP_TEST_POSTGRES_URL` übersprungen.**
 
 #### Bekannte, bewusst offene Punkte
 

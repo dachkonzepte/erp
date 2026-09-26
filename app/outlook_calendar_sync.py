@@ -170,12 +170,64 @@ die vollständige Herleitung, hier die Kurzfassung:
 schaltet je verarbeitetem Delta-Eintrag UND je Push-Versuch eine zusätzliche, strukturierte
 Protokollzeile frei -- ERP-ID, `updated_at`, `outlook_synced_at`, `lastModifiedDateTime` ROH (der
 unveränderte String aus der Graph-Antwort) UND umgerechnet (das Ergebnis von
-`_parse_graph_datetime()`), `outlook_change_key` gespeichert/eingehend, die getroffene
-Entscheidung. Bewusst NIE Titel/Ort/Notiz (Punkt 6 bleibt unverändert in Kraft) -- `changeKey`
-selbst ist ein bedeutungsloser, von Graph vergebener Versionsstempel, kein Termininhalt. Diese
-Diagnosezeile lief noch nie gegen einen echten Tenant -- sie ist das Werkzeug, mit dem der
-Betreiber das auf dem Produktivserver selbst nachvollziehen kann, siehe Moduldocstring-Abschnitt
-oben Punkt 3/4.
+`_parse_graph_datetime()`), der Versionsstempel gespeichert/eingehend (seit 1.7.5: `@odata.etag`,
+siehe Nachtrag unten -- vorher fälschlich `changeKey`), die getroffene Entscheidung. Bewusst NIE
+Titel/Ort/Notiz (Punkt 6 bleibt unverändert in Kraft) -- der Versionsstempel selbst ist ein
+bedeutungsloser, von Graph vergebener Wert, kein Termininhalt. Diese Diagnosezeile lief noch nie
+gegen einen echten Tenant -- sie ist das Werkzeug, mit dem der Betreiber das auf dem
+Produktivserver selbst nachvollziehen kann, siehe Moduldocstring-Abschnitt oben Punkt 3/4.
+
+**Nachtrag (seit 1.7.5) -- die Diagnosezeile aus 1.7.4 hat funktioniert: `change_key_gespeichert`
+UND `change_key_eingehend` standen auf dem Produktivserver in JEDER Zeile auf `None`, auch direkt
+nach einem als "push erfolgreich" protokollierten Push.** Drei konkrete Prüfungen, wie vom
+Betreiber vorgegeben, diesmal NICHT nur im Gedächtnis nachgeschlagen, sondern direkt anhand der
+Microsoft-Graph-Dokumentation (Microsoft Learn, `event: delta`/`delta-query-events`/`event`-
+Ressourcenseite, WebFetch/WebSearch):
+
+1. **Fordert der Delta-Aufruf `changeKey` per `$select` an?** Ja, `_EVENT_SELECT` enthielt es
+   (Zeile weiter unten, bis 1.7.4) -- aber Microsoft dokumentiert für Kalender-Delta-Abfragen
+   ausdrücklich: *"Expect a delta function call on a calendarView to return the same properties
+   you'd normally get from a GET /calendarView request. You cannot use $select to get only a
+   subset of those properties."* -- **`$select` wird für Delta-Abfragen auf Kalenderdaten schlicht
+   ignoriert**, unabhängig davon, was in der URL steht.
+2. **Liefert Graph `changeKey` im Delta überhaupt, oder nur `@odata.etag`?** Jede von Microsoft
+   selbst in der Dokumentation gezeigte Beispiel-Delta-Antwort (mehrere Beispiele auf der Seite
+   "Get incremental changes to events in a calendar view", inkl. geänderter UND neu
+   hinzugekommener Einträge) zeigt durchgängig ein `@odata.etag`-Feld -- **niemals ein
+   `changeKey`-Feld**, obwohl andere, deutlich weniger zentrale Felder (`subject`, `body`,
+   `attendees`, `organizer`) jeweils vollständig gezeigt werden. `changeKey` ist damit für
+   Delta-Zeilen strukturell nicht erreichbar, kein Zufall dieser einen Installation.
+3. **Wird es aus der Antwort auf POST/PATCH übernommen?** Die Extraktion selbst
+   (`response.get("changeKey")`) war korrekt -- aber ein zweiter, unabhängiger Fund: die
+   "push erfolgreich"-Diagnosezeile protokollierte für `change_key_gespeichert` den WERT VOR DEM
+   PUSH (`old_change_key`), nicht den gerade frisch gespeicherten neuen Wert -- ein reiner
+   Diagnose-Anzeigefehler, der auf dem allerersten Push für einen Termin (kein vorheriger Wert)
+   zusätzlich zur eigentlichen Ursache "None" zeigte, unabhängig davon, ob der Push selbst
+   erfolgreich einen neuen Wert extrahiert hatte. Behoben, siehe unten.
+
+**Die Lösung wechselt den kompletten Mechanismus von `changeKey` auf `@odata.etag`** --
+`@odata.etag` ist eine protokollweite OData-Annotation, die laut Microsofts eigener
+Ressourcen-Dokumentation UND allen gezeigten Beispielantworten JEDE Entitätsdarstellung begleitet
+(ein einfaches `GET /events/{id}` ebenso wie die Antwort auf `POST`/`PATCH` UND jede einzelne
+Delta-Zeile) -- unabhängig von `$select`, weil sie kein regulär selektierbares
+Entitäts-Property ist, sondern ein Protokoll-Header-Äquivalent auf JSON-Ebene. Sie steht deshalb
+zuverlässig auf BEIDEN Seiten des Vergleichs zur Verfügung: beim Speichern nach einem eigenen
+Push (aus der POST-/PATCH-Antwort) UND beim Abgleich gegen einen eingehenden Delta-Eintrag. Die
+Spalte `CalendarEvent.outlook_change_key` heißt seither `outlook_etag` (Migration, siehe
+app/models.py-Klassendocstring "Korrektur" für die vollständige Begründung) -- die
+Echo-Erkennung selbst (exakter Wertevergleich, zusätzliche statt ersetzende Absicherung neben der
+unveränderten Zeitstempel-Heuristik) ist inhaltlich unverändert, nur das verglichene Feld hat
+sich geändert. `_EVENT_SELECT` verzichtet seither auf `changeKey` -- es wurde ohnehin nie
+geliefert, ein Weglassen ändert am Verhalten nichts, macht die Anfrage aber ehrlich.
+
+`FakeGraphServer` (`tests/test_v297_outlook_calendar_sync.py`) bildete bis 1.7.4 GENAU diesen
+falschen Zustand nach: `delta()` lieferte `changeKey` in JEDER Zeile mit, `create()`/`patch()`
+ebenfalls -- ein Test gegen diese Attrappe konnte den echten Fehler deshalb strukturell nie
+finden, unabhängig davon, wie viele Läufe er simulierte. Seit 1.7.5 liefert `delta()` NUR NOCH
+`@odata.etag` (kein `changeKey` mehr, genau wie die echten Microsoft-Beispielantworten),
+`create()`/`patch()` liefern weiterhin BEIDE Felder (wie ein reales POST/PATCH es tut) --
+`app/outlook_calendar_sync.py` darf sich für die Echo-Erkennung nur noch auf das verlassen, was
+tatsächlich auf beiden Seiten ankommt.
 """
 
 import json
@@ -205,7 +257,11 @@ BERLIN = ZoneInfo("Europe/Berlin")
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 GRAPH_TIMEOUT = 30
 
-_EVENT_SELECT = "id,subject,start,end,isAllDay,location,body,lastModifiedDateTime,recurrence,type,sensitivity,changeKey"
+# changeKey war bis 1.7.5 Teil dieser Liste -- $select wird von Graph für Kalender-Delta-Abfragen
+# nachweislich ignoriert (siehe Moduldocstring "Nachtrag seit 1.7.5"), changeKey kam über diesen
+# Weg nie an. Entfernt, damit die Anfrage nicht etwas verspricht, das sie nicht liefert -- die
+# Echo-Erkennung läuft seither über @odata.etag, das unabhängig von $select immer mitkommt.
+_EVENT_SELECT = "id,subject,start,end,isAllDay,location,body,lastModifiedDateTime,recurrence,type,sensitivity"
 
 
 def diagnostics_enabled() -> bool:
@@ -218,16 +274,22 @@ def diagnostics_enabled() -> bool:
 
 
 def _diag(event_id, *, updated_at, outlook_synced_at, graph_last_modified_raw, graph_last_modified_parsed,
-           change_key_gespeichert, change_key_eingehend, entscheidung: str) -> None:
+           etag_gespeichert, etag_eingehend, entscheidung: str) -> None:
     """Die EINE Stelle, die die Diagnosezeile formatiert -- bewusst nie Titel/Ort/Notiz (Punkt 6
-    bleibt unverändert in Kraft), changeKey ist ein bedeutungsloser Versionsstempel, kein
-    Termininhalt. Aufrufer prüfen diagnostics_enabled() VORHER, damit im Normalbetrieb nicht
-    einmal die String-Formatierung anfällt."""
+    bleibt unverändert in Kraft), der Versionsstempel ist ein bedeutungsloser, von Graph
+    vergebener Wert, kein Termininhalt. Aufrufer prüfen diagnostics_enabled() VORHER, damit im
+    Normalbetrieb nicht einmal die String-Formatierung anfällt.
+
+    **Feldname seit 1.7.5 geändert** (change_key_gespeichert/change_key_eingehend ->
+    etag_gespeichert/etag_eingehend, siehe Moduldocstring "Nachtrag seit 1.7.5") -- ein
+    Betreiber, der nach den alten Feldnamen filtert/grep't, findet sie nicht mehr, das ist
+    beabsichtigt: die alten Namen versprachen einen Wert (Graphs changeKey), den die Delta-
+    Antwort nachweislich nie geliefert hat."""
     diag_logger.info(
         "event_id=%s updated_at=%s outlook_synced_at=%s graph_last_modified_raw=%s "
-        "graph_last_modified_parsed=%s change_key_gespeichert=%s change_key_eingehend=%s entscheidung=%s",
+        "graph_last_modified_parsed=%s etag_gespeichert=%s etag_eingehend=%s entscheidung=%s",
         event_id, updated_at, outlook_synced_at, graph_last_modified_raw, graph_last_modified_parsed,
-        change_key_gespeichert, change_key_eingehend, entscheidung,
+        etag_gespeichert, etag_eingehend, entscheidung,
     )
 
 # Outlooks sensitivity-Werte, die als "privat" gelten (Muster Nachtrag Punkt 2 im Moduldocstring)
@@ -449,7 +511,7 @@ def push_event_best_effort(db: Session, event_id: int) -> None:
     if not is_outlook_sync_available(db, user):
         return
     diag = diagnostics_enabled()
-    old_change_key = event.outlook_change_key  # vor jeder Mutation erfasst, für die Diagnosezeile
+    old_etag = event.outlook_etag  # vor jeder Mutation erfasst, für die Diagnosezeile
     try:
         smtp = get_or_create_smtp_settings(db)
         token = get_graph_access_token(smtp)
@@ -457,32 +519,39 @@ def push_event_best_effort(db: Session, event_id: int) -> None:
         if diag:
             _diag(event.id, updated_at=version_to_sync, outlook_synced_at=event.outlook_synced_at,
                   graph_last_modified_raw=None, graph_last_modified_parsed=None,
-                  change_key_gespeichert=old_change_key, change_key_eingehend=None,
+                  etag_gespeichert=old_etag, etag_eingehend=None,
                   entscheidung="push versucht (best effort, nach create_event()/update_event())")
         if event.outlook_event_id:
             response = _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{event.outlook_event_id}", method="PATCH", payload=_event_payload(event))
         else:
             response = _graph_call(token, _mailbox_events_url(user.outlook_mailbox), method="POST", payload=_event_payload(event))
             event.outlook_event_id = response["id"]
-        # Nachtrag (seit 1.7.3) -- Graph liefert bei einer erfolgreichen Schreiboperation den NEUEN
-        # changeKey mit zurück; ohne ihn (z. B. ein PATCH ohne Body) bleibt outlook_change_key auf
-        # dem alten Stand stehen und die Zeitstempel-Logik greift beim nächsten Pull als Rückfall.
-        new_change_key = response.get("changeKey") if response is not None else None
-        if new_change_key:
-            event.outlook_change_key = new_change_key
+        # Seit 1.7.5 (siehe Moduldocstring "Nachtrag") -- @odata.etag statt changeKey: Graph liefert
+        # es bei JEDER erfolgreichen Schreiboperation mit zurück, anders als changeKey ist es
+        # außerdem dieselbe Annotation, die auch eine spätere Delta-Zeile trägt (dort KOMMT
+        # changeKey nachweislich nie an, $select wird für Kalender-Delta ignoriert). Ohne einen
+        # neuen Wert (z. B. ein PATCH ohne Body) bleibt outlook_etag auf dem alten Stand stehen und
+        # die Zeitstempel-Logik greift beim nächsten Pull als Rückfall.
+        new_etag = response.get("@odata.etag") if response is not None else None
+        if new_etag:
+            event.outlook_etag = new_etag
         _mark_synced(db, event, version_to_sync)
         db.commit()
         if diag:
+            # event.outlook_etag ist HIER der tatsächlich jetzt gespeicherte Wert (new_etag, falls
+            # gesetzt, sonst unverändert old_etag) -- NICHT old_etag: eine frühere Fassung
+            # protokollierte hier fälschlich den Wert VOR dem Push, siehe Moduldocstring
+            # "Nachtrag seit 1.7.5", Punkt 3.
             _diag(event.id, updated_at=version_to_sync, outlook_synced_at=version_to_sync,
                   graph_last_modified_raw=None, graph_last_modified_parsed=None,
-                  change_key_gespeichert=old_change_key, change_key_eingehend=new_change_key,
+                  etag_gespeichert=event.outlook_etag, etag_eingehend=None,
                   entscheidung="push erfolgreich")
     except Exception as exc:  # noqa: BLE001 -- best effort, siehe Docstring
         db.rollback()
         logger.warning("Push nach Outlook fehlgeschlagen (event_id=%s, Fehlerart=%s).", event_id, type(exc).__name__)
         if diag:
             _diag(event_id, updated_at=None, outlook_synced_at=None, graph_last_modified_raw=None,
-                  graph_last_modified_parsed=None, change_key_gespeichert=old_change_key, change_key_eingehend=None,
+                  graph_last_modified_parsed=None, etag_gespeichert=old_etag, etag_eingehend=None,
                   entscheidung=f"push fehlgeschlagen ({type(exc).__name__})")
 
 
@@ -539,7 +608,10 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
     anfasst), sonst None."""
     diag = diagnostics_enabled()  # einmal je Zeile geprüft, siehe diagnostics_enabled()-Docstring
     raw_last_modified = item.get("lastModifiedDateTime")
-    incoming_change_key = item.get("changeKey")
+    # Seit 1.7.5 (siehe Moduldocstring "Nachtrag"): @odata.etag statt changeKey -- Graph liefert
+    # changeKey in Delta-Zeilen nachweislich NIE (auch nicht über $select, das für Kalender-Delta
+    # dokumentiert ignoriert wird), @odata.etag begleitet dagegen JEDE Entitätsdarstellung.
+    incoming_etag = item.get("@odata.etag")
     graph_modified = _parse_graph_datetime(raw_last_modified) if raw_last_modified else None
     # Vorab, für die Diagnosezeile jeder Entscheidung nutzbar -- existiert die Zeile noch nicht
     # (Neuanlage) ODER handelt es sich um @removed/Serientermin/ungültig, bleibt sie None bzw.
@@ -552,13 +624,13 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
     diag_id = existing.id if existing is not None else None
     diag_updated_at = existing.updated_at if existing is not None else None
     diag_outlook_synced_at = existing.outlook_synced_at if existing is not None else None
-    diag_change_key_stored = existing.outlook_change_key if existing is not None else None
+    diag_etag_stored = existing.outlook_etag if existing is not None else None
 
     _unset = object()  # Sentinel, NICHT None -- ein Override auf explizit None (z. B. "der neue
-    # changeKey ist None") muss von "kein Override übergeben" unterscheidbar bleiben, sonst würde
-    # die Diagnosezeile in genau diesem Fall fälschlich den ALTEN, nicht mehr aktuellen Wert zeigen.
+    # etag ist None") muss von "kein Override übergeben" unterscheidbar bleiben, sonst würde die
+    # Diagnosezeile in genau diesem Fall fälschlich den ALTEN, nicht mehr aktuellen Wert zeigen.
 
-    def log(entscheidung: str, *, event_id=_unset, updated_at=_unset, outlook_synced_at=_unset, change_key_gespeichert=_unset) -> None:
+    def log(entscheidung: str, *, event_id=_unset, updated_at=_unset, outlook_synced_at=_unset, etag_gespeichert=_unset) -> None:
         if not diag:
             return
         _diag(
@@ -566,8 +638,8 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
             updated_at=updated_at if updated_at is not _unset else diag_updated_at,
             outlook_synced_at=outlook_synced_at if outlook_synced_at is not _unset else diag_outlook_synced_at,
             graph_last_modified_raw=raw_last_modified, graph_last_modified_parsed=graph_modified,
-            change_key_gespeichert=change_key_gespeichert if change_key_gespeichert is not _unset else diag_change_key_stored,
-            change_key_eingehend=incoming_change_key, entscheidung=entscheidung,
+            etag_gespeichert=etag_gespeichert if etag_gespeichert is not _unset else diag_etag_stored,
+            etag_eingehend=incoming_etag, entscheidung=entscheidung,
         )
 
     if "@removed" in item:
@@ -610,7 +682,7 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
         now = datetime.utcnow()
         row = CalendarEvent(
             owner_user_id=user.id, outlook_event_id=item["id"], external_source="outlook",
-            outlook_change_key=incoming_change_key,
+            outlook_etag=incoming_etag,
             project_id=None, quote_id=None,
             created_at=now, updated_at=now, outlook_synced_at=now,
             **incoming_fields,
@@ -619,16 +691,17 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
         db.commit()
         db.refresh(row)
         counters["created"] += 1
-        log("neu angelegt", event_id=row.id, updated_at=now, outlook_synced_at=now, change_key_gespeichert=incoming_change_key)
+        log("neu angelegt", event_id=row.id, updated_at=now, outlook_synced_at=now, etag_gespeichert=incoming_etag)
         return row.id
 
-    # Nachtrag (seit 1.7.3) -- EXAKTE Echo-Erkennung vor der Zeitstempel-Heuristik: ein
-    # changeKey-Treffer bedeutet zweifelsfrei "diese Version kenne ich bereits" (aus einem eigenen
-    # Push ODER einer bereits absorbierten Änderung), unabhängig von jeder Uhr. Kein
-    # Feldabgleich, kein _mark_synced()-Aufruf -- es gibt nichts zu synchronisieren, wir sind
-    # bereits exakt auf diesem Stand. Siehe Moduldocstring "Nachtrag 'Schaukelnder Termin'".
-    if incoming_change_key is not None and incoming_change_key == existing.outlook_change_key:
-        log("changeKey-Echo (übersprungen)")
+    # Nachtrag (seit 1.7.3, Feld seit 1.7.5 auf @odata.etag umgestellt) -- EXAKTE Echo-Erkennung
+    # vor der Zeitstempel-Heuristik: ein etag-Treffer bedeutet zweifelsfrei "diese Version kenne
+    # ich bereits" (aus einem eigenen Push ODER einer bereits absorbierten Änderung), unabhängig
+    # von jeder Uhr. Kein Feldabgleich, kein _mark_synced()-Aufruf -- es gibt nichts zu
+    # synchronisieren, wir sind bereits exakt auf diesem Stand. Siehe Moduldocstring "Nachtrag
+    # 'Schaukelnder Termin'" bzw. "Nachtrag seit 1.7.5" für die Umstellung von changeKey auf etag.
+    if incoming_etag is not None and incoming_etag == existing.outlook_etag:
+        log("etag-Echo (übersprungen)")
         return None
 
     # "Letzte Änderung gewinnt" (Punkt 5): nur anwenden, wenn Graphs Stand nachweislich neuer ist
@@ -639,7 +712,7 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
         return None
     for key, value in incoming_fields.items():
         setattr(existing, key, value)
-    existing.outlook_change_key = incoming_change_key
+    existing.outlook_etag = incoming_etag
     # Diese Zeile stimmt jetzt (wieder) mit Outlook überein -- _mark_synced() verhindert, dass
     # updated_at und outlook_synced_at durch getrennte onupdate-/Zuweisungszeitpunkte auseinanderlaufen.
     new_synced_at = datetime.utcnow()
@@ -650,7 +723,7 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
     # lesen -- derselbe Fallstrick wie oben, hier zwar kein ObjectDeletedError, aber ein
     # überflüssiger Reload; die Werte sind durch _mark_synced() ohnehin schon bekannt).
     log("übernommen (Graph war neuer)", updated_at=new_synced_at, outlook_synced_at=new_synced_at,
-        change_key_gespeichert=incoming_change_key)
+        etag_gespeichert=incoming_etag)
     return existing.id
 
 
@@ -689,7 +762,7 @@ def sync_user_calendar(db: Session, user: AppUser) -> dict:
         for row in local_rows:
             if row.id in just_synced_ids or not _needs_push(row):
                 continue
-            old_change_key = row.outlook_change_key  # vor jeder Mutation erfasst
+            old_etag = row.outlook_etag  # vor jeder Mutation erfasst
             if row.outlook_event_id is None:
                 push_reason = "outlook_event_id fehlt (Neuanlage)"
             elif row.outlook_synced_at is None:
@@ -699,7 +772,7 @@ def sync_user_calendar(db: Session, user: AppUser) -> dict:
             if diag:
                 _diag(row.id, updated_at=row.updated_at, outlook_synced_at=row.outlook_synced_at,
                       graph_last_modified_raw=None, graph_last_modified_parsed=None,
-                      change_key_gespeichert=old_change_key, change_key_eingehend=None,
+                      etag_gespeichert=old_etag, etag_eingehend=None,
                       entscheidung=f"push angestoßen ({push_reason})")
             try:
                 version_to_sync = row.updated_at  # VOR jeder eigenen Mutation erfasst, siehe _mark_synced()
@@ -710,16 +783,20 @@ def sync_user_calendar(db: Session, user: AppUser) -> dict:
                 else:
                     response = _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{row.outlook_event_id}", method="PATCH", payload=_event_payload(row))
                     counters["pushed_updated"] += 1
-                # Nachtrag (seit 1.7.3) -- siehe push_event_best_effort() für dieselbe Begründung.
-                new_change_key = response.get("changeKey") if response is not None else None
-                if new_change_key:
-                    row.outlook_change_key = new_change_key
+                # Seit 1.7.5 (siehe push_event_best_effort() für dieselbe Begründung) -- @odata.etag
+                # statt changeKey, das in einer späteren Delta-Zeile nachweislich nie ankommt.
+                new_etag = response.get("@odata.etag") if response is not None else None
+                if new_etag:
+                    row.outlook_etag = new_etag
                 _mark_synced(db, row, version_to_sync)
                 db.commit()
                 if diag:
+                    # row.outlook_etag ist der tatsächlich jetzt gespeicherte Wert -- NICHT
+                    # old_etag, siehe push_event_best_effort() für denselben, dort zuerst
+                    # gefundenen Diagnose-Anzeigefehler (Moduldocstring "Nachtrag seit 1.7.5").
                     _diag(row.id, updated_at=version_to_sync, outlook_synced_at=version_to_sync,
                           graph_last_modified_raw=None, graph_last_modified_parsed=None,
-                          change_key_gespeichert=old_change_key, change_key_eingehend=new_change_key,
+                          etag_gespeichert=row.outlook_etag, etag_eingehend=None,
                           entscheidung="push erfolgreich")
             except Exception as exc:  # noqa: BLE001 -- ein Termin darf die übrigen nicht blockieren
                 db.rollback()
@@ -727,7 +804,7 @@ def sync_user_calendar(db: Session, user: AppUser) -> dict:
                 logger.warning("Push nach Outlook fehlgeschlagen (event_id=%s, Fehlerart=%s).", row.id, type(exc).__name__)
                 if diag:
                     _diag(row.id, updated_at=None, outlook_synced_at=None, graph_last_modified_raw=None,
-                          graph_last_modified_parsed=None, change_key_gespeichert=old_change_key, change_key_eingehend=None,
+                          graph_last_modified_parsed=None, etag_gespeichert=old_etag, etag_eingehend=None,
                           entscheidung=f"push fehlgeschlagen ({type(exc).__name__})")
 
         state.delta_link = new_delta_link

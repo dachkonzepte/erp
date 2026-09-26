@@ -3894,13 +3894,33 @@ class CalendarEvent(Base):
     dass die Zeitstempel-Logik den einfachen Fall korrekt einmalig absorbiert und danach zur Ruhe
     kommt -- sie bleibt aber strukturell darauf angewiesen, dass Graphs Uhr niemals von unserer
     abweicht und Graph niemals denselben Inhalt anders formatiert zurückgibt, als wir ihn gesendet
-    haben. outlook_change_key (neu) macht die Echo-Erkennung EXAKT statt heuristisch: ein Treffer
-    gegen den zuletzt selbst gespeicherten changeKey bedeutet zweifelsfrei "diese Version kenne
-    ich bereits", unabhängig von jeder Uhr. Siehe CLAUDE.md "Kalender" -> "Stufe 2" -> "Nachtrag
-    (seit 1.7.3)" für die vollständige Herleitung, inkl. der bewusst dokumentierten Grenze: wenn
-    Graph auf ein PATCH keinen Body mit changeKey zurückliefert, bleibt outlook_change_key auf dem
-    alten Wert stehen und die (weiterhin bestehende, unveränderte) Zeitstempel-Logik greift als
-    Rückfall -- outlook_change_key ist eine zusätzliche, keine ersetzende Absicherung."""
+    haben. Diese Spalte (ursprünglich `outlook_change_key` genannt, siehe Korrektur unten) macht
+    die Echo-Erkennung EXAKT statt heuristisch: ein Treffer gegen den zuletzt selbst gespeicherten
+    Versionsstempel bedeutet zweifelsfrei "diese Version kenne ich bereits", unabhängig von jeder
+    Uhr. Siehe CLAUDE.md "Kalender" -> "Stufe 2" -> "Nachtrag (seit 1.7.3)" für die vollständige
+    Herleitung.
+
+    **Korrektur (seit 1.7.5) -- Feld umbenannt von `outlook_change_key` zu `outlook_etag`, weil
+    Graphs `changeKey`-Eigenschaft für genau den hier gebrauchten Zweck (Delta-Antworten) nicht
+    verlässlich verfügbar ist.** Die 1.7.3-Fassung ging davon aus, dass `$select=...,changeKey`
+    in der Delta-Anfrage (app/outlook_calendar_sync.py::_EVENT_SELECT) Graphs `changeKey`-Feld
+    tatsächlich in jeder Delta-Zeile mitliefert -- auf dem Produktivserver blieb der gespeicherte
+    UND der eingehende Wert stattdessen in JEDER Diagnosezeile `None`. Direkt anhand der
+    Microsoft-Graph-Dokumentation (nicht aus dem Gedächtnis) geprüft: `$select` ist für
+    Kalender-Delta-Abfragen ausdrücklich NICHT unterstützt ("You cannot use $select to get only a
+    subset of those properties", `event: delta`-Referenzseite) -- eine Delta-Zeile liefert einen
+    festen, kleinen Satz an Standardfeldern, unabhängig vom angeforderten `$select`. Sämtliche in
+    Microsofts eigener Dokumentation gezeigten Beispiel-Delta-Antworten (sowohl geänderte
+    Einträge als auch die Beispielseite "Get incremental changes to events in a calendar view")
+    zeigen dabei durchgängig ein `@odata.etag`-Feld, aber KEIN `changeKey`-Feld -- `changeKey`
+    ist demnach für Delta-Zeilen strukturell nicht erreichbar, nicht nur ein Sonderfall dieser
+    einen Installation. `@odata.etag` dagegen ist eine protokollweite OData-Annotation, die JEDE
+    Entitätsdarstellung begleitet (GET, die Antwort auf POST/PATCH, UND jede Delta-Zeile
+    gleichermaßen) -- sie ist deshalb sowohl beim Speichern nach einem eigenen Push als auch beim
+    Vergleich gegen einen eingehenden Delta-Eintrag verlässlich vorhanden. Dieses Feld speichert
+    seither `@odata.etag` statt `changeKey` -- der Name wurde entsprechend angepasst (Migration
+    `1375eeeea2fa`), die Echo-Erkennung selbst (Vergleich auf exakte Übereinstimmung,
+    zusätzliche statt ersetzende Absicherung neben der Zeitstempel-Heuristik) ist unverändert."""
 
     __tablename__ = "calendar_events"
 
@@ -3925,16 +3945,20 @@ class CalendarEvent(Base):
     # sonst bumpt onupdate=datetime.utcnow updated_at unbeabsichtigt mit, siehe
     # app/outlook_calendar_sync.py für die Stellen, die das beachten müssen.
     outlook_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    # Seit 1.7.3 (Nachtrag "Schaukelnder Termin", siehe CLAUDE.md "Kalender" -> "Stufe 2") --
-    # Graphs eigener, serverseitig bei JEDER Schreiboperation neu vergebener Versionsstempel
-    # (ETag-Äquivalent für Outlook-Objekte). outlook_synced_at/updated_at beantworten "WANN
-    # zuletzt übereinstimmend", changeKey beantwortet "IST DAS EXAKT DIESELBE VERSION" -- eine
-    # uhrzeitunabhängige, exakte Identitätsaussage statt der bisherigen "wer ist neuer"-Heuristik.
+    # Seit 1.7.3 (Nachtrag "Schaukelnder Termin", siehe CLAUDE.md "Kalender" -> "Stufe 2"), seit
+    # 1.7.5 umbenannt von outlook_change_key zu outlook_etag (siehe Klassendocstring "Korrektur"):
+    # speichert Graphs @odata.etag -- eine protokollweite OData-Annotation, die JEDE
+    # Entitätsdarstellung begleitet (GET, POST-/PATCH-Antwort UND jede Delta-Zeile), anders als
+    # Graphs changeKey-Eigenschaft, die in Delta-Antworten strukturell nicht mitgeliefert wird
+    # ($select ist für Kalender-Delta-Abfragen laut Microsoft-Dokumentation nicht unterstützt).
+    # outlook_synced_at/updated_at beantworten "WANN zuletzt übereinstimmend", outlook_etag
+    # beantwortet "IST DAS EXAKT DIESELBE VERSION" -- eine uhrzeitunabhängige, exakte
+    # Identitätsaussage statt der bisherigen "wer ist neuer"-Heuristik.
     # app/outlook_calendar_sync.py::_apply_delta_change() nutzt einen Treffer, um einen eingehenden
     # Delta-Eintrag als eigenes Echo zu erkennen und OHNE jede Feldübernahme zu überspringen --
     # robust auch dann, wenn Uhrenabweichung/Sub-Sekunden-Präzision einen reinen Zeitstempel-
     # Vergleich täuschen könnten.
-    outlook_change_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    outlook_etag: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

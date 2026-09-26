@@ -162,9 +162,18 @@ def _token_only(calls: list | None = None):
 # geschriebene Änderung bei einem SPÄTEREN Delta-Abruf als scheinbar FREMDE Änderung
 # zurückkommt (Graph unterscheidet dabei nicht zwischen "von uns" und "von jemand anderem" --
 # das ist Sache dieses Moduls). FakeGraphServer führt deshalb echten Zustand: jedes PATCH/POST
-# vergibt einen NEUEN lastModifiedDateTime UND einen NEUEN changeKey (wie Microsoft Graph es
-# tatsächlich tut, changeKey ist Graphs ETag-Äquivalent), delta() liefert alles zurück, was sich
-# seit dem zuletzt zurückgegebenen Cursor geändert hat -- ausdrücklich AUCH die eigenen Echos.
+# vergibt einen NEUEN lastModifiedDateTime UND einen NEUEN Versionsstempel.
+#
+# **Korrigiert (seit 1.7.5) -- die Attrappe bildete bis dahin selbst den Fehler ab, den sie
+# eigentlich aufdecken sollte.** Sie lieferte `changeKey` in JEDER Zeile mit, auch in delta() --
+# die Produktions-Diagnose (Punkt 4 der Anfrage) zeigte aber, dass Microsoft Graph das für
+# Delta-Antworten nachweislich NIE tut ($select wird für Kalender-Delta-Abfragen laut Microsoft-
+# Dokumentation ignoriert; jede von Microsoft selbst gezeigte Beispiel-Delta-Antwort trägt
+# `@odata.etag`, nie `changeKey`). `create()`/`patch()` liefern deshalb weiterhin BEIDE Felder
+# (wie ein reales POST/PATCH -- changeKey UND @odata.etag), aber `delta()` liefert NUR NOCH
+# `@odata.etag`, kein `changeKey` mehr -- ein Test gegen die alte, zu großzügige Attrappe hätte
+# den 1.7.4-Fund (change_key_gespeichert/change_key_eingehend immer None) strukturell nie finden
+# können, unabhängig davon, wie viele Läufe er simuliert hätte.
 # ---------------------------------------------------------------------------
 
 
@@ -190,30 +199,35 @@ class FakeGraphServer:
         self._seq = 0
         self._clock = datetime.utcnow()
 
-    def _advance(self) -> tuple[str, str]:
+    def _advance(self) -> tuple[str, str, str]:
         self._seq += 1
         self._clock += timedelta(seconds=1)
-        return self._clock.isoformat() + "Z", f"ckey-{self._seq}"
+        return self._clock.isoformat() + "Z", f"ckey-{self._seq}", f'W/"etag-{self._seq}"'
 
     def create(self, payload: dict) -> dict:
         new_id = f"graph-{self._next_id}"
         self._next_id += 1
-        last_modified, change_key = self._advance()
+        last_modified, change_key, etag = self._advance()
         self.events[new_id] = {
             "id": new_id, **_fields_from_payload(payload),
-            "lastModifiedDateTime": last_modified, "changeKey": change_key, "_seq": self._seq,
+            "lastModifiedDateTime": last_modified, "changeKey": change_key,
+            "@odata.etag": etag, "_seq": self._seq,
         }
         return dict(self.events[new_id])
 
     def patch(self, event_id: str, payload: dict) -> dict:
-        last_modified, change_key = self._advance()
+        last_modified, change_key, etag = self._advance()
         row = self.events[event_id]
         row.update({**_fields_from_payload(payload), "lastModifiedDateTime": last_modified,
-                    "changeKey": change_key, "_seq": self._seq})
+                    "changeKey": change_key, "@odata.etag": etag, "_seq": self._seq})
         return dict(row)
 
     def delta(self, since_seq: int) -> tuple[list[dict], int]:
-        items = [{k: v for k, v in ev.items() if k != "_seq"} for ev in self.events.values() if ev["_seq"] > since_seq]
+        # Realistisch (seit 1.7.5, siehe Modulkommentar oben): eine Delta-Zeile trägt niemals
+        # changeKey, nur @odata.etag -- genau das musste erst korrigiert werden, damit ein Test
+        # gegen diese Attrappe den echten Produktionsfehler überhaupt hätte finden können.
+        items = [{k: v for k, v in ev.items() if k not in ("_seq", "changeKey")}
+                 for ev in self.events.values() if ev["_seq"] > since_seq]
         max_seq = max((ev["_seq"] for ev in self.events.values()), default=since_seq)
         return items, max_seq
 
@@ -386,9 +400,12 @@ def test_push_updates_existing_event_via_patch():
     assert patch_calls == [("PATCH", _events_url(owner.outlook_mailbox, "/graph-existing"))]
 
 
-def test_push_create_stores_change_key_from_graph_response():
-    """Nachtrag (seit 1.7.3) -- der changeKey aus der Graph-Antwort wird zusammen mit
-    outlook_event_id gespeichert, damit ein späterer Echo-Pull ihn exakt wiedererkennen kann."""
+def test_push_create_stores_etag_from_graph_response():
+    """Seit 1.7.5 (davor fälschlich changeKey, siehe Moduldocstring 'Nachtrag seit 1.7.5') --
+    @odata.etag aus der Graph-Antwort wird zusammen mit outlook_event_id gespeichert, damit ein
+    späterer Echo-Pull ihn exakt wiedererkennen kann. Die Antwort trägt bewusst BEIDES (wie ein
+    echtes Graph-POST es tut) -- gespeichert wird ausschließlich @odata.etag, changeKey wird
+    ignoriert."""
     db = db_session()
     owner = _make_user(db)
     _enable_sync(db)
@@ -397,50 +414,75 @@ def test_push_create_stores_change_key_from_graph_response():
     def fake(req, timeout=None):
         if TOKEN_URL_MARKER in req.full_url:
             return _FakeResponse({"access_token": "faketoken"})
-        return _FakeResponse({"id": "graph-ck-1", "changeKey": "ckey-erster-push"})
+        return _FakeResponse({"id": "graph-ck-1", "changeKey": "ckey-erster-push", "@odata.etag": 'W/"etag-erster-push"'})
 
     with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=fake):
         push_event_best_effort(db, event.id)
 
     db.refresh(event)
-    assert event.outlook_change_key == "ckey-erster-push"
+    assert event.outlook_etag == 'W/"etag-erster-push"'
 
 
-def test_push_patch_stores_change_key_from_graph_response_when_present():
+def test_push_patch_stores_etag_from_graph_response_when_present():
     """Wie oben, aber für den Update-Weg (PATCH) -- Graph liefert bei einem erfolgreichen PATCH
-    normalerweise die aktualisierte Ressource inkl. neuem changeKey zurück."""
+    normalerweise die aktualisierte Ressource inkl. neuem @odata.etag zurück."""
     db = db_session()
     owner = _make_user(db)
     _enable_sync(db)
     event = _make_event(db, owner)
     event.outlook_event_id = "graph-existing-ck"
-    event.outlook_change_key = "ckey-alt"
+    event.outlook_etag = 'W/"etag-alt"'
     db.commit()
 
     def fake(req, timeout=None):
         if TOKEN_URL_MARKER in req.full_url:
             return _FakeResponse({"access_token": "faketoken"})
-        return _FakeResponse({"id": "graph-existing-ck", "changeKey": "ckey-neu-nach-patch"})
+        return _FakeResponse({"id": "graph-existing-ck", "changeKey": "ckey-neu-nach-patch", "@odata.etag": 'W/"etag-neu-nach-patch"'})
 
     with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=fake):
         push_event_best_effort(db, event.id)
 
     db.refresh(event)
-    assert event.outlook_change_key == "ckey-neu-nach-patch"
+    assert event.outlook_etag == 'W/"etag-neu-nach-patch"'
 
 
-def test_push_patch_without_response_body_does_not_crash_and_leaves_change_key_unset():
+def test_push_response_with_changekey_but_no_etag_does_not_store_anything():
+    """Nachtrag (seit 1.7.5) -- das eigentliche, real gefundene Problem: Graphs Delta-Antworten
+    liefern NIE changeKey, nur @odata.etag (siehe Moduldocstring). Diese Zeile härtet die
+    Umkehrung ab, damit ein künftiger Rückfall in die alte, falsche Annahme sofort auffällt --
+    eine Push-Antwort, die (unrealistisch, aber zur Absicherung) NUR changeKey ohne @odata.etag
+    trägt, darf outlook_etag NICHT verändern, auch nicht mit dem changeKey-Wert als Rückfall."""
+    db = db_session()
+    owner = _make_user(db)
+    _enable_sync(db)
+    event = _make_event(db, owner)
+    event.outlook_event_id = "graph-only-changekey"
+    event.outlook_etag = 'W/"etag-bleibt-stehen"'
+    db.commit()
+
+    def fake(req, timeout=None):
+        if TOKEN_URL_MARKER in req.full_url:
+            return _FakeResponse({"access_token": "faketoken"})
+        return _FakeResponse({"id": "graph-only-changekey", "changeKey": "ckey-ohne-etag"})
+
+    with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=fake):
+        push_event_best_effort(db, event.id)
+
+    db.refresh(event)
+    assert event.outlook_etag == 'W/"etag-bleibt-stehen"'
+
+
+def test_push_patch_without_response_body_does_not_crash_and_leaves_etag_unset():
     """Randfall, bewusst offen gehalten (siehe Moduldocstring 'Nachtrag Schaukelnder Termin'):
     liefert Graph auf ein PATCH keinen Body (204-artig, wie im bestehenden
-    test_push_updates_existing_event_via_patch simuliert), bleibt outlook_change_key auf dem
-    alten Stand stehen -- kein Absturz, die Zeitstempel-Logik greift beim nächsten Pull als
-    Rückfall."""
+    test_push_updates_existing_event_via_patch simuliert), bleibt outlook_etag auf dem alten
+    Stand stehen -- kein Absturz, die Zeitstempel-Logik greift beim nächsten Pull als Rückfall."""
     db = db_session()
     owner = _make_user(db)
     _enable_sync(db)
     event = _make_event(db, owner)
     event.outlook_event_id = "graph-no-body"
-    event.outlook_change_key = "ckey-bleibt-stehen"
+    event.outlook_etag = 'W/"etag-bleibt-stehen"'
     db.commit()
 
     def fake(req, timeout=None):
@@ -452,7 +494,7 @@ def test_push_patch_without_response_body_does_not_crash_and_leaves_change_key_u
         push_event_best_effort(db, event.id)  # darf nicht werfen
 
     db.refresh(event)
-    assert event.outlook_change_key == "ckey-bleibt-stehen"
+    assert event.outlook_etag == 'W/"etag-bleibt-stehen"'
 
 
 @pytest.mark.parametrize("is_private,expected_sensitivity", [(True, "private"), (False, "normal")])
@@ -756,32 +798,36 @@ def test_incoming_newer_change_updates_fields_but_never_touches_project_link():
     assert _needs_push(event) is False
 
 
-def test_delta_item_with_a_changekey_we_already_know_is_recognized_as_our_own_echo_and_skipped():
-    """Nachtrag 'Schaukelnder Termin' (seit 1.7.3), Punkt 2 der Anfrage -- der eigentliche,
-    uhrzeitUNABHÄNGIGE Echo-Test: der Delta-Eintrag trägt bewusst einen lastModifiedDateTime, der
-    NACH existing.updated_at liegt (genau der Fall, der die reine Zeitstempel-Heuristik allein
-    zum Absorbieren bewegen würde -- siehe test_incoming_newer_change_updates_fields_but_never_
-    touches_project_link oben). Trägt der Eintrag aber EXAKT den changeKey, den wir selbst
-    zuletzt gespeichert haben (aus einem eigenen Push oder einer bereits absorbierten Änderung),
-    wird er als eigenes Echo erkannt und komplett übersprungen -- kein Feld wird angefasst, kein
-    _mark_synced()-Aufruf, updated_at/outlook_synced_at bleiben unverändert."""
+def test_delta_item_with_an_etag_we_already_know_is_recognized_as_our_own_echo_and_skipped():
+    """Nachtrag 'Schaukelnder Termin' (seit 1.7.3, Feld seit 1.7.5 auf @odata.etag umgestellt),
+    Punkt 2 der Anfrage -- der eigentliche, uhrzeitUNABHÄNGIGE Echo-Test: der Delta-Eintrag trägt
+    bewusst einen lastModifiedDateTime, der NACH existing.updated_at liegt (genau der Fall, der
+    die reine Zeitstempel-Heuristik allein zum Absorbieren bewegen würde -- siehe
+    test_incoming_newer_change_updates_fields_but_never_touches_project_link oben). Trägt der
+    Eintrag aber EXAKT den @odata.etag, den wir selbst zuletzt gespeichert haben (aus einem
+    eigenen Push oder einer bereits absorbierten Änderung), wird er als eigenes Echo erkannt und
+    komplett übersprungen -- kein Feld wird angefasst, kein _mark_synced()-Aufruf, updated_at/
+    outlook_synced_at bleiben unverändert."""
     db = db_session()
     owner = _make_user(db)
     _enable_sync(db)
     event = _make_event(db, owner, title="Unverändert", location="Ursprünglicher Ort")
     event.outlook_event_id = "graph-echo-1"
-    event.outlook_change_key = "ckey-bereits-bekannt"
+    event.outlook_etag = 'W/"etag-bereits-bekannt"'
     original_updated_at = datetime.utcnow()
     event.updated_at = original_updated_at
     event.outlook_synced_at = original_updated_at
     db.commit()
 
     item = {
-        "id": "graph-echo-1", "changeKey": "ckey-bereits-bekannt", "subject": "GEÄNDERT?!",
+        # Bewusst KEIN changeKey-Feld -- eine echte Delta-Zeile trägt es nie (siehe
+        # Moduldocstring "Nachtrag seit 1.7.5"), ein Test, der es trotzdem mitgäbe, würde eine
+        # realistischere Attrappe wieder vortäuschen.
+        "id": "graph-echo-1", "@odata.etag": 'W/"etag-bereits-bekannt"', "subject": "GEÄNDERT?!",
         "isAllDay": False,
         "start": {"dateTime": "2026-06-01T08:00:00Z"}, "end": {"dateTime": "2026-06-01T09:00:00Z"},
         "location": {"displayName": "Anderer Ort"}, "body": {"content": ""},
-        # Bewusst NEUER als existing.updated_at -- ohne die changeKey-Prüfung würde bereits die
+        # Bewusst NEUER als existing.updated_at -- ohne die etag-Prüfung würde bereits die
         # bestehende Zeitstempel-Heuristik allein diesen Eintrag absorbieren.
         "lastModifiedDateTime": (original_updated_at + timedelta(hours=1)).isoformat() + "Z",
     }
@@ -801,6 +847,53 @@ def test_delta_item_with_a_changekey_we_already_know_is_recognized_as_our_own_ec
     assert event.updated_at == original_updated_at
     assert event.outlook_synced_at == original_updated_at
     assert _needs_push(event) is False
+
+
+def test_delta_item_carrying_only_changekey_is_not_recognized_as_echo_via_changekey_fallback():
+    """Nachtrag (seit 1.7.5) -- die direkte Gegenprobe zum eigentlichen Produktionsfund: eine
+    Delta-Zeile, die (unrealistisch, aber zur Absicherung) NUR changeKey trägt und KEIN
+    @odata.etag, darf NICHT über einen etwaigen changeKey-Rückfall als Echo erkannt werden --
+    der Mechanismus vergleicht ausschließlich @odata.etag, es gibt keinen zweiten,
+    changeKey-basierten Vergleichspfad mehr. Ohne @odata.etag greift stattdessen unverändert die
+    Zeitstempel-Heuristik; hier bewusst mit einem ÄLTEREN lastModifiedDateTime, damit der Eintrag
+    aus einem anderen, unabhängigen Grund (nicht neuer als updated_at) übersprungen wird -- das
+    beweist, dass changeKey an dieser Stelle wirkungslos ist, ohne einen dritten, hier nicht
+    interessierenden Effekt (eine echte Feldübernahme) ins Spiel zu bringen."""
+    db = db_session()
+    owner = _make_user(db)
+    _enable_sync(db)
+    event = _make_event(db, owner, title="Unverändert")
+    event.outlook_event_id = "graph-changekey-only"
+    event.outlook_etag = 'W/"etag-bereits-bekannt"'
+    original_updated_at = datetime.utcnow()
+    event.updated_at = original_updated_at
+    event.outlook_synced_at = original_updated_at
+    db.commit()
+
+    item = {
+        # changeKey trifft absichtlich exakt das, was frühere (1.7.3) Code-Fassungen verglichen
+        # hätten -- kein @odata.etag. Der neue Mechanismus darf das nicht als Echo lesen.
+        "id": "graph-changekey-only", "changeKey": "irrelevant-fuer-die-echo-erkennung",
+        "subject": "GEÄNDERT?!", "isAllDay": False,
+        "start": {"dateTime": "2026-06-01T08:00:00Z"}, "end": {"dateTime": "2026-06-01T09:00:00Z"},
+        "location": {"displayName": "Anderer Ort"}, "body": {"content": ""},
+        "lastModifiedDateTime": (original_updated_at - timedelta(hours=1)).isoformat() + "Z",
+    }
+
+    def fake(req, timeout=None):
+        if TOKEN_URL_MARKER in req.full_url:
+            return _FakeResponse({"access_token": "faketoken"})
+        return _FakeResponse(_delta_page([item], delta_link="https://graph.microsoft.com/deltaChangeKeyOnly"))
+
+    with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=fake):
+        result = sync_user_calendar(db, owner)
+
+    # Übersprungen, aber über den Zeitstempel-Rückfall ("Graph nicht neuer"), NICHT über ein
+    # (nicht existierendes) changeKey-Echo -- die Zeile bleibt in jedem Fall unverändert.
+    assert result["updated"] == 0
+    db.refresh(event)
+    assert event.title == "Unverändert"
+    assert event.outlook_etag == 'W/"etag-bereits-bekannt"'
 
 
 def test_local_change_wins_over_older_graph_change_and_gets_pushed_instead():
@@ -1096,7 +1189,7 @@ def _check_no_oscillation(db, owner) -> None:
 
     db.refresh(event)
     assert event.outlook_event_id is not None
-    assert event.outlook_change_key is not None
+    assert event.outlook_etag is not None
     assert event.updated_at == event.outlook_synced_at
 
 
@@ -1130,10 +1223,10 @@ def test_no_oscillation_all_counters_reach_zero_from_the_second_run_and_stay_zer
 
 
 def _check_no_oscillation_with_genuine_edit(db, owner) -> None:
-    """Ergänzung zu _check_no_oscillation() -- prüft, dass die changeKey-Absicherung eine ECHTE,
-    spätere Änderung durch jemand anderen (direkt in Outlook) nicht verschluckt: die muss
-    weiterhin ganz normal als 'updated' absorbiert werden, und DANACH muss wieder Ruhe einkehren,
-    unabhängig vom neu gesetzten changeKey."""
+    """Ergänzung zu _check_no_oscillation() -- prüft, dass die etag-Absicherung (seit 1.7.5,
+    davor fälschlich changeKey) eine ECHTE, spätere Änderung durch jemand anderen (direkt in
+    Outlook) nicht verschluckt: die muss weiterhin ganz normal als 'updated' absorbiert werden,
+    und DANACH muss wieder Ruhe einkehren, unabhängig vom neu gesetzten etag."""
     _make_event(db, owner)
     server = FakeGraphServer()
 
@@ -1259,8 +1352,9 @@ def test_diagnostic_logging_is_silent_by_default(monkeypatch, caplog):
 
 def test_diagnostic_log_line_contains_expected_fields_but_never_title_location_or_notes(monkeypatch, caplog):
     """Punkt 4 der Anfrage wörtlich: ERP-ID, updated_at, outlook_synced_at,
-    lastModifiedDateTime roh UND umgerechnet, changeKey gespeichert/eingehend, die getroffene
-    Entscheidung -- und (Punkt 6 bleibt unverändert in Kraft) NIEMALS Titel/Ort/Notiz."""
+    lastModifiedDateTime roh UND umgerechnet, der Versionsstempel gespeichert/eingehend (seit
+    1.7.5: @odata.etag statt changeKey, siehe Moduldocstring 'Nachtrag seit 1.7.5'), die
+    getroffene Entscheidung -- und (Punkt 6 bleibt unverändert in Kraft) NIEMALS Titel/Ort/Notiz."""
     monkeypatch.setenv("ERP_OUTLOOK_SYNC_DIAGNOSTICS", "1")
     db = db_session()
     owner = _make_user(db)
@@ -1273,7 +1367,7 @@ def test_diagnostic_log_line_contains_expected_fields_but_never_title_location_o
         with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=make_realistic_urlopen(server)):
             sync_user_calendar(db, owner)  # Lauf 1: Push -- erzeugt bereits eine Diagnosezeile
         with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=make_realistic_urlopen(server)):
-            sync_user_calendar(db, owner)  # Lauf 2: changeKey-Echo -- die eigentlich interessante Zeile
+            sync_user_calendar(db, owner)  # Lauf 2: etag-Echo -- die eigentlich interessante Zeile
 
     diag_records = [r for r in caplog.records if r.name == "app.outlook_calendar_sync.diagnostics"]
     assert len(diag_records) >= 2
@@ -1284,15 +1378,20 @@ def test_diagnostic_log_line_contains_expected_fields_but_never_title_location_o
     assert "Streng vertraulicher Ort" not in full_text
     assert "Geheime Notiz" not in full_text
 
-    # Die changeKey-Echo-Zeile (Lauf 2) trägt alle geforderten Felder.
-    echo_line = next(r.getMessage() for r in diag_records if "changeKey-Echo" in r.getMessage())
+    # Die etag-Echo-Zeile (Lauf 2) trägt alle geforderten Felder. FakeGraphServer vergibt bei
+    # diesem einzigen Termin/Push seq=1 -> etag='W/"etag-1"' (siehe _advance()).
+    echo_line = next(r.getMessage() for r in diag_records if "etag-Echo" in r.getMessage())
     assert "event_id=" in echo_line
     assert "updated_at=" in echo_line
     assert "outlook_synced_at=" in echo_line
     assert "graph_last_modified_raw=" in echo_line and "graph_last_modified_parsed=" in echo_line
-    assert "change_key_gespeichert=ckey-1" in echo_line
-    assert "change_key_eingehend=ckey-1" in echo_line
-    assert "entscheidung=changeKey-Echo" in echo_line
+    assert 'etag_gespeichert=W/"etag-1"' in echo_line
+    assert 'etag_eingehend=W/"etag-1"' in echo_line
+    assert "entscheidung=etag-Echo" in echo_line
+    # Der frühere, falsche Feldname darf nirgends mehr auftauchen (Regressionsschutz gegen ein
+    # Zurückfallen in die 1.7.3/1.7.4-Fassung, siehe Moduldocstring "Nachtrag seit 1.7.5").
+    assert "change_key_gespeichert" not in full_text
+    assert "change_key_eingehend" not in full_text
 
 
 def test_diagnostics_do_not_crash_on_removed_delta_entry(monkeypatch):
