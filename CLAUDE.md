@@ -497,6 +497,48 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     `DeprecationWarning` ist in `pytest.ini` bereits gezielt ausgeblendet (siehe "Bekannte,
     bewusst offene Punkte" unten für die geplante, noch nicht umgesetzte Umstellung).
 
+16. **Jede Verifikation -- CDP-Browsertest, Sicherheits-/Angriffstest, Datenumzugs-/
+    Reparaturskript -- läuft gegen eine isolierte, temporäre Test- oder Probe-Instanz
+    (SQLite/PostgreSQL), NIEMALS gegen die echte, produktive Datenbank (`dachkonzepte_erp.db`
+    lokal bzw. `dachkonzepte` auf dem Server).** Gilt unabhängig davon, wie harmlos ein Schreib-
+    zugriff erscheint -- ein Migrationsskript öffnet den Bestand bestenfalls "ausschließlich
+    lesend" und kopiert in eine neue Zieldatenbank (Muster
+    `scripts/migrate_sqlite_to_postgres.py`), ein Browser-/Angriffstest baut sich eine eigene,
+    kurzlebige Datenbank auf einem separaten Port auf und räumt sie danach vollständig ab.
+    Schema-Änderungen laufen bei Bedarf zusätzlich einmal gegen die Probe-Datenbank
+    `spielwiese` (siehe "Produktivbetrieb" → "Der Weg einer Änderung auf den Server"), ebenfalls
+    nicht gegen `dachkonzepte`. Diese Regel gilt themenübergreifend -- unabhängig davon, welches
+    Modul gerade getestet wird (real wiederholt angewendet u. a. bei Kalender-Sync,
+    Buchhaltung, Projektliste, Betriebsmittelverwaltung; Details siehe jeweilige Archivdatei).
+
+17. **Ein neues Microsoft-Graph-Recht (App-Berechtigung) wird NIE über die tenant-weite
+    "Administratorzustimmung erteilen"-Schaltfläche in Entra ID erteilt, sondern ausschließlich
+    über Exchange "RBAC for Applications"** (Exchange Online PowerShell), gebunden an eine
+    eigens angelegte, E-Mail-aktivierte Sicherheitsgruppe (`ERP-Zugriff@dachkonzepte.gmbh`) --
+    ein neuer Nutzer/ein neues Postfach wird ausschließlich durch Aufnahme in diese Gruppe
+    freigeschaltet, kein erneuter Azure-AD-Eingriff. Grund: die tenant-weite Zustimmung gilt
+    für JEDES Postfach im Mandanten, nicht nur für die tatsächlich vorgesehenen. Die bestehende
+    `Mail.Send`-Berechtigung (E-Mail-Versand, ein einzelnes, gemeinsames Firmenpostfach) ist die
+    einzige, historisch gewachsene Ausnahme -- **jedes** künftige, zusätzliche Graph-Recht
+    (Calendars, Contacts, OneDrive, Teams, …) folgt diesem RBAC-Weg, unabhängig vom Modul, das
+    es braucht. Zwei Konsequenzen, ebenfalls dauerhaft zu beachten: das Zugriffstoken selbst
+    verrät nie, welche Postfächer freigegeben sind (immer derselbe `.default`-Scope) -- die
+    einzige verlässliche Prüfung ist der tatsächliche API-Aufruf; ein `403` von Graph bedeutet
+    "Postfach nicht freigegeben", nicht "Zugangsdaten falsch" (das wäre `401`). Details:
+    `docs/archiv/modul-kalender-und-outlook-sync.md`.
+
+18. **Ein Protokoll/Log, das eine Funktion über ihre eigenen Aufrufe führt, enthält NIE den
+    eigentlichen Inhalt (Titel, Adresse, Notiz, Prompt, Anhang, Antworttext) -- nur Metadaten**
+    (IDs, Zähler, Zeitstempel, Erfolg/Fehlschlag, der reine Exception-Klassenname statt dessen
+    Text). Unabhängig voneinander an zwei Stellen so gebaut: `AICallLog`
+    (`app/ai_service.py`, siehe `docs/archiv/ki-fundament.md`) hat strukturell keine Spalte, die
+    Prompt/Antwort aufnehmen könnte; die Outlook-Sync-Diagnosezeile
+    (`app/outlook_calendar_sync.py`, siehe `docs/archiv/modul-kalender-und-outlook-sync.md`)
+    protokolliert bewusst nie Titel/Ort/Notiz eines Termins. Gilt für jedes künftige Protokoll
+    mit Zugriff auf Kunden-/Personendaten oder externe Anfrageinhalte -- am besten strukturell
+    absichern (keine passende Spalte/kein passendes Feld anlegen), nicht nur als Verhaltenszusage
+    im Code.
+
 ## Fachbegriffe & Domänenmodell
 
 - **"Vorgang"** (in normalem Gespräch) = **Projekt** (`Project`) – wurde in der Sitzung explizit

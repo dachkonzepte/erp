@@ -6,6 +6,36 @@ unter `docs/archiv/`. Jede Zeile ist ein ursprünglicher `##`-Abschnitt (bzw. be
 "Stand bei Übergabe" und "Fachbegriffe & Domänenmodell" die einzelnen Unter-Bullets, da diese
 beiden Abschnitte gemischt behandelt wurden -- ein Teil bleibt, ein Teil wandert ins Archiv).
 
+**Nachtrag (zweiter Durchgang, direkt im Anschluss)**: die erste Kategorisierung erfolgte je
+Abschnitt, nicht je Regelzeile -- der Grep-Vollständigkeitsnachweis belegt, dass nichts verloren
+ging, aber nicht, dass modulübergreifende Vorgaben innerhalb eines als (c) eingestuften
+Abschnitts auch außerhalb ihres Moduls sichtbar bleiben. Alle 33 (c)-Abschnitte wurden deshalb
+gezielt nach Signalwort-Zeilen durchsucht, die über das eigene Modul hinaus gelten (Sicherheit,
+Deploy, Microsoft-Konfiguration, Datenbank, Rechte, Testmethodik). Drei echte Funde wurden als
+neue Regeln 16-18 in "Kritische, nicht verhandelbare Regeln" aufgenommen:
+
+- **Regel 16** (Testmethodik, gefunden in `modul-kalender-und-outlook-sync.md`,
+  `modul-buchhaltung.md`, `projektliste-und-mappe.md`, echo in `chronik-1.1-1.6.md`): jede
+  Verifikation läuft gegen eine isolierte, temporäre Instanz, niemals gegen die echte
+  Produktivdatenbank -- unabhängig vom Modul, bisher an vier unabhängigen Stellen wiederholt
+  dieselbe Praxis, aber nirgends als eigene, allgemeine Regel festgehalten.
+- **Regel 17** (Microsoft-Konfiguration, gefunden in `modul-kalender-und-outlook-sync.md`, exakt
+  das vom Nutzer genannte Beispiel): ein neues Graph-Recht wird nie über die tenant-weite
+  Administratorzustimmung erteilt, sondern ausschließlich über Exchange "RBAC for
+  Applications" -- betrifft jedes künftige Graph-Recht (Calendars, Contacts, OneDrive, Teams,
+  …), nicht nur den Kalender, für den es ursprünglich dokumentiert wurde; die bestehende
+  `Mail.Send`-Berechtigung ist die einzige historische Ausnahme.
+- **Regel 18** (Sicherheit/Datenschutz, gefunden in `modul-kalender-und-outlook-sync.md`,
+  unabhängig bestätigt durch dieselbe Praxis im (b)-Abschnitt `ki-fundament.md`): ein Protokoll
+  über eigene Funktionsaufrufe enthält nie den eigentlichen Inhalt, nur Metadaten -- zweimal
+  unabhängig voneinander so gebaut (Kalender-Diagnose, KI-Kostenprotokoll), aber bisher nirgends
+  als eigene, für jedes künftige Protokoll geltende Regel benannt.
+
+Geprüfte, aber NICHT als neue Regel übernommene Kandidaten (bereits durch eine bestehende Regel
+abgedeckt, keine Duplizierung nötig): `data/.erp_secret`-Löschverbot (bereits in "Produktivbetrieb",
+kept verbatim), `Backup\`-Ordnerdisziplin (bereits Regel 9), Chrome-Prozess-Sicherheit (bereits
+Regel 12), `OrderFieldAccessOut`-Union-Response-Muster (bereits in "Rechtekonzept (kurz)").
+
 **Kategorien** (wie vom Nutzer vorgegeben):
 - **(a)** durable Regel/Fakt, muss in der neuen, schlanken Datei stehen
 - **(b)** bereits durch eine allgemeinere, bestehende Regel an anderer Stelle abgedeckt -- keine
