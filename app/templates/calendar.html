@@ -41,6 +41,12 @@
 .event-row .time{font-weight:800;display:block}
 .event-row .loc{color:var(--muted);font-size:11.5px}
 .empty{padding:30px;text-align:center;color:var(--muted);border:1px dashed var(--line)}
+.event-chip.series{border-left-style:dashed}
+.event-row.series{border-left:3px dashed var(--accent)}
+.series-mark{color:var(--accent);font-weight:800;margin-right:3px}
+.series-details{display:grid;grid-template-columns:110px 1fr;gap:8px 12px;font-size:13px;margin-top:12px}
+.series-details dt{color:var(--muted);font-weight:750;font-size:11.5px}
+.series-details dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
 .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(10,15,13,.5);z-index:1000;padding:30px;align-items:center;justify-content:center}
 .modal-backdrop.open{display:flex}
 .modal{background:var(--card);color:var(--ink);border:1px solid var(--line);width:min(620px,100%);max-height:90vh;overflow:auto;box-shadow:0 20px 70px rgba(0,0,0,.35);padding:20px}
@@ -124,6 +130,15 @@
   </div>
 </div>
 
+<div id="seriesModal" class="modal-backdrop">
+  <div class="modal">
+    <h2><span class="series-mark">↻</span>Serientermin aus Outlook</h2>
+    <div class="hint">Gehört zu einer Terminserie in Outlook und wird hier nur angezeigt. Ändern oder löschen lässt er sich ausschließlich in Outlook.</div>
+    <dl id="seriesDetails" class="series-details"></dl>
+    <div class="modal-actions"><span></span><div class="right"><button type="button" class="btn" onclick="closeSeries()">Schließen</button></div></div>
+  </div>
+</div>
+
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 async function api(u,o){const r=await fetch(u,o);if(!r.ok){let d={};try{d=await r.json()}catch{}throw Error(d.detail||r.statusText)}return r.headers.get('content-type')?.includes('json')?r.json():r}
@@ -175,8 +190,9 @@ async function loadOwners(){owners=await api('/api/calendar-events/owners')}
 
 async function loadEvents(){
   const{start,end}=gridRange();
-  const qs=new URLSearchParams({start:start.toISOString(),end:end.toISOString()});
-  events=await api('/api/calendar-events?'+qs.toString());
+  const qs=new URLSearchParams({start:start.toISOString(),end:end.toISOString()}).toString();
+  const [single,series]=await Promise.all([api('/api/calendar-events?'+qs),api('/api/calendar-series-occurrences?'+qs)]);
+  events=single.concat(series);
 }
 
 function eventsForDay(dateStr){
@@ -198,8 +214,11 @@ function eventChipHtml(e,dense){
   const busyCls=busy?(dense?' private-busy':' private-busy'):'';
   if(busy)return `<div class="${cls}${busyCls}" onclick="event.stopPropagation()" title="Privater Termin von ${esc(e.owner_name||'?')}">🔒 ${dense?'':'<span class=\"time\">'+timeRangeLabel(e)+'</span>'}Belegt <span class="owner-tag">(${esc(e.owner_name||'')})</span></div>`;
   const owner=e.owner_name?` <span class="owner-tag">· ${esc(e.owner_name)}</span>`:'';
-  if(dense)return `<div class="event-chip" onclick="openEdit(${e.id})" title="${esc(e.title)}">${esc(e.title)}${owner}</div>`;
-  return `<div class="event-row" onclick="openEdit(${e.id})"><span class="time">${timeRangeLabel(e)}</span>${esc(e.title)}${owner}${e.location?`<div class="loc">📍 ${esc(e.location)}</div>`:''}</div>`;
+  const click=e.series?`openSeries(${e.id})`:`openEdit(${e.id})`;
+  const seriesCls=e.series?' series':'';
+  const mark=e.series?'<span class="series-mark" title="Serientermin aus Outlook (nur lesen)">↻</span>':'';
+  if(dense)return `<div class="event-chip${seriesCls}" onclick="${click}" title="${esc(e.title)}">${mark}${esc(e.title)}${owner}</div>`;
+  return `<div class="event-row${seriesCls}" onclick="${click}"><span class="time">${timeRangeLabel(e)}</span>${mark}${esc(e.title)}${owner}${e.location?`<div class="loc">📍 ${esc(e.location)}</div>`:''}</div>`;
 }
 
 function render(){
@@ -331,8 +350,22 @@ function pickLink(h){
   showLinkTag();
 }
 
+function openSeries(id){
+  const e=events.find(x=>x.series&&x.id===id);
+  if(!e||e.title==='Belegt')return;
+  const row=(label,value)=>value?`<dt>${label}</dt><dd>${esc(value)}</dd>`:'';
+  const when=e.all_day?new Date(e.start_at).toLocaleDateString('de-DE')+' (ganztägig)'
+    :`${new Date(e.start_at).toLocaleDateString('de-DE')} ${timeRangeLabel(e)}`;
+  document.getElementById('seriesDetails').innerHTML=
+    row('Titel',e.title)+row('Wann',when)+row('Ort',e.location)+row('Besitzer',e.owner_name)
+    +row('Art',e.occurrence_type==='exception'?'Einzeln verschobenes Vorkommen':'Vorkommen der Serie')
+    +row('Notiz',e.notes)+(e.is_private?'<dt>Privat</dt><dd>Ja (für Kollegen nur „Belegt“)</dd>':'');
+  document.getElementById('seriesModal').classList.add('open');
+}
+function closeSeries(){document.getElementById('seriesModal').classList.remove('open')}
+
 function openEdit(id){
-  const e=events.find(x=>x.id===id);
+  const e=events.find(x=>!x.series&&x.id===id);
   if(!e||e.title==='Belegt')return; // reduzierter Fremdtermin -- serverseitig ohnehin nicht bearbeitbar sinnvoll dargestellt
   resetModal();
   document.getElementById('modalHeading').textContent='Termin bearbeiten';

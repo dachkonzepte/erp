@@ -79,10 +79,12 @@ def main() -> int:
                 logger.warning("Postfach app_user_id=%s: Fehler (%s).", user.id, result.get("error_type"))
                 continue
             logger.info(
-                "Postfach app_user_id=%s: %s neu, %s geändert, %s gelöscht, %s Serientermine übersprungen, "
-                "%s nach Outlook neu angelegt, %s nach Outlook aktualisiert.",
+                "Postfach app_user_id=%s: %s neu, %s geändert, %s gelöscht, %s Serien-Master übersprungen, "
+                "%s nach Outlook neu angelegt, %s nach Outlook aktualisiert; Serienvorkommen: %s neu, "
+                "%s geändert, %s entfernt, Abgleich fehlgeschlagen=%s.",
                 user.id, result["created"], result["updated"], result["deleted"],
                 result["skipped_recurring"], result["pushed_created"], result["pushed_updated"],
+                result["series_created"], result["series_updated"], result["series_deleted"], result["series_failed"],
             )
         return 0
     finally:

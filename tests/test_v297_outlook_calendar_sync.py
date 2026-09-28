@@ -29,11 +29,11 @@ from app.calendar_events import (
 )
 from app.database import Base
 from app.email_sending import update_graph_settings
-from app.models import AppUser, CalendarEvent, Customer, OutlookCalendarSyncState, Project
+from app.models import AppUser, CalendarEvent, Customer, OutlookCalendarSyncState, OutlookSeriesOccurrence, Project
 from app.outlook_calendar_sync import (
-    _write_sync_bookkeeping, _needs_push, _parse_graph_datetime, diagnostics_enabled,
-    get_or_create_sync_state, is_outlook_sync_available,
-    push_event_best_effort, to_berlin, to_utc, try_delete_remote_event,
+    _add_months, _write_sync_bookkeeping, _needs_push, _parse_graph_datetime, diagnostics_enabled,
+    get_or_create_sync_state, is_outlook_sync_available, list_series_occurrences,
+    push_event_best_effort, series_window, to_berlin, to_utc, try_delete_remote_event,
     update_outlook_sync_settings, sync_user_calendar,
 )
 from app.project_pipeline_columns import default_pipeline_column_id
@@ -92,6 +92,7 @@ def _cleanup_pg_test_data(db, *usernames: str) -> None:
     if not user_ids:
         return
     db.execute(delete(CalendarEvent).where(CalendarEvent.owner_user_id.in_(user_ids)))
+    db.execute(delete(OutlookSeriesOccurrence).where(OutlookSeriesOccurrence.owner_user_id.in_(user_ids)))
     db.execute(delete(OutlookCalendarSyncState).where(OutlookCalendarSyncState.app_user_id.in_(user_ids)))
     db.execute(delete(AppUser).where(AppUser.id.in_(user_ids)))
     db.commit()
@@ -177,6 +178,10 @@ def _token_only(calls: list | None = None):
 # ---------------------------------------------------------------------------
 
 
+def _graph_dt(value: datetime) -> dict:
+    return {"dateTime": value.strftime("%Y-%m-%dT%H:%M:%S") + ".0000000", "timeZone": "UTC"}
+
+
 def _fields_from_payload(payload: dict) -> dict:
     return {
         "subject": payload["subject"], "isAllDay": payload["isAllDay"],
@@ -198,6 +203,12 @@ class FakeGraphServer:
         self._next_id = 1
         self._seq = 0
         self._clock = datetime.utcnow()
+        # Seit 1.7.8 -- Serien, siehe add_series()/calendar_view(). write_requests protokolliert
+        # JEDEN schreibenden Aufruf (POST/PATCH/DELETE), damit ein Test "kein einziger Push"
+        # direkt am Server-Protokoll prüfen kann, nicht nur an den ERP-Zählern.
+        self.series: dict[str, dict] = {}
+        self.write_requests: list[tuple[str, str]] = []
+        self.calendar_view_requests: list[dict] = []
 
     def _advance(self) -> tuple[str, str, str]:
         self._seq += 1
@@ -209,11 +220,114 @@ class FakeGraphServer:
         self._next_id += 1
         last_modified, change_key, etag = self._advance()
         self.events[new_id] = {
-            "id": new_id, **_fields_from_payload(payload),
+            "id": new_id, **_fields_from_payload(payload), "type": "singleInstance", "seriesMasterId": None,
             "lastModifiedDateTime": last_modified, "changeKey": change_key,
             "@odata.etag": etag, "_seq": self._seq,
         }
         return dict(self.events[new_id])
+
+    # --- Serien (seit 1.7.8), nachgebildet nach Microsofts v1.0-Dokumentation ------------------
+    # * events/delta liefert eine Serie nur als EIN seriesMaster-Objekt (mit recurrence) -- der
+    #   Master liegt deshalb in self.events und kommt über delta() wie jedes andere Event.
+    # * calendarView liefert singleInstance, occurrence und exception, NIE den seriesMaster; jedes
+    #   Vorkommen trägt eigene id, seriesMasterId, originalStart und @odata.etag.
+    # * Ein aus der Serie gelöschtes Vorkommen fehlt einfach ("instances ... doesn't include
+    #   occurrences canceled from the series"); eine vom Organisator abgesagte Besprechung kann
+    #   dagegen mit isCancelled=true erscheinen.
+    # * Zeiten kommen mit sieben Nachkommastellen und timeZone "UTC" (ohne 'Z').
+
+    def add_series(self, subject: str, first_start_utc: datetime, *, count: int, every_days: int = 7,
+                   duration: timedelta = timedelta(hours=1), sensitivity: str = "normal",
+                   location: str = "", body: str = "") -> str:
+        master_id = f"series-{self._next_id}"
+        self._next_id += 1
+        last_modified, change_key, etag = self._advance()
+        self.series[master_id] = {
+            "subject": subject, "first": first_start_utc, "count": count, "every": timedelta(days=every_days),
+            "duration": duration, "sensitivity": sensitivity, "location": location, "body": body,
+            "master_seq": self._seq, "exceptions": {}, "deleted": set(), "cancelled_meetings": set(),
+        }
+        self.events[master_id] = {
+            "id": master_id, "type": "seriesMaster", "seriesMasterId": None, "subject": subject,
+            "isAllDay": False, "start": _graph_dt(first_start_utc), "end": _graph_dt(first_start_utc + duration),
+            "location": {"displayName": location}, "body": {"contentType": "text", "content": body},
+            "sensitivity": sensitivity,
+            "recurrence": {"pattern": {"type": "daily", "interval": every_days}, "range": {"type": "numbered", "numberOfOccurrences": count}},
+            "lastModifiedDateTime": last_modified, "changeKey": change_key, "@odata.etag": etag, "_seq": self._seq,
+        }
+        return master_id
+
+    def _touch_master(self, master_id: str) -> None:
+        last_modified, change_key, etag = self._advance()
+        self.series[master_id]["master_seq"] = self._seq
+        self.events[master_id].update({"lastModifiedDateTime": last_modified, "changeKey": change_key,
+                                       "@odata.etag": etag, "_seq": self._seq})
+
+    def edit_series(self, master_id: str, **changes) -> None:
+        """Serie als Ganzes in Outlook ändern (z. B. Betreff) -- alle Vorkommen bekommen neue etags."""
+        self.series[master_id].update(changes)
+        if "subject" in changes:
+            self.events[master_id]["subject"] = changes["subject"]
+        self._touch_master(master_id)
+
+    def move_occurrence(self, master_id: str, original_start_utc: datetime, new_start_utc: datetime) -> None:
+        """Ein Vorkommen einzeln verschieben -- wird zur exception mit eigenem etag."""
+        _, _, etag = self._advance()
+        self.series[master_id]["exceptions"][original_start_utc] = {"start": new_start_utc, "etag": etag}
+        self._touch_master(master_id)
+
+    def delete_occurrence(self, master_id: str, original_start_utc: datetime) -> None:
+        self.series[master_id]["deleted"].add(original_start_utc)
+        self._touch_master(master_id)
+
+    def cancel_meeting_occurrence(self, master_id: str, original_start_utc: datetime) -> None:
+        self.series[master_id]["cancelled_meetings"].add(original_start_utc)
+        self._touch_master(master_id)
+
+    def _instances(self, master_id: str) -> list[dict]:
+        s = self.series[master_id]
+        result = []
+        for k in range(s["count"]):
+            original = s["first"] + k * s["every"]
+            if original in s["deleted"]:
+                continue
+            exception = s["exceptions"].get(original)
+            start = exception["start"] if exception else original
+            result.append({
+                "@odata.etag": exception["etag"] if exception else f'W/"etag-{s["master_seq"]}-{original:%Y%m%d%H%M}"',
+                "id": f"{master_id}-occ-{original:%Y%m%d%H%M}",
+                "type": "exception" if exception else "occurrence",
+                "seriesMasterId": master_id,
+                "originalStart": original.isoformat() + "Z",
+                "subject": s["subject"], "isAllDay": False,
+                "start": _graph_dt(start), "end": _graph_dt(start + s["duration"]),
+                "location": {"displayName": s["location"]},
+                "body": {"contentType": "text", "content": s["body"]},
+                "sensitivity": s["sensitivity"],
+                "isCancelled": original in s["cancelled_meetings"],
+                "_start": start, "_end": start + s["duration"],
+            })
+        return result
+
+    def calendar_view(self, window_start: datetime, window_end: datetime) -> list[dict]:
+        rows = []
+        for ev in self.events.values():
+            if ev["type"] != "singleInstance":
+                continue
+            s, e = _parse_graph_datetime(ev["start"]["dateTime"]), _parse_graph_datetime(ev["end"]["dateTime"])
+            if s < window_end and e > window_start:
+                rows.append({k: v for k, v in ev.items() if k not in ("_seq",)} | {"_start": s})
+        for master_id in self.series:
+            for inst in self._instances(master_id):
+                if inst["_start"] < window_end and inst["_end"] > window_start:
+                    rows.append(inst)
+        rows.sort(key=lambda r: r["_start"])
+        return [{k: v for k, v in r.items() if not k.startswith("_")} for r in rows]
+
+    def occurrence_ids_in(self, window_start: datetime, window_end: datetime) -> set[str]:
+        """Unabhängig vom ERP-Code berechnete Erwartung: welche Vorkommen-IDs MÜSSEN im ERP stehen."""
+        return {r["id"] for r in self.calendar_view(window_start, window_end)
+                if r.get("type") in ("occurrence", "exception") and not r.get("isCancelled")}
 
     def patch(self, event_id: str, payload: dict) -> dict:
         last_modified, change_key, etag = self._advance()
@@ -241,11 +355,29 @@ def make_realistic_urlopen(server: FakeGraphServer):
         if TOKEN_URL_MARKER in url:
             return _FakeResponse({"access_token": "faketoken"})
         method = req.get_method()
+        if method in ("POST", "PATCH", "DELETE"):
+            server.write_requests.append((method, url))
+            target = url.rsplit("/", 1)[-1]
+            if target in server.series or "-occ-" in target:
+                raise AssertionError(f"Schreibzugriff auf eine Serie/ein Vorkommen: {method} {url}")
         if method == "POST" and "/delta" not in url:
             return _FakeResponse(server.create(json.loads(req.data)))
         if method == "PATCH":
             event_id = url.rsplit("/", 1)[-1]
             return _FakeResponse(server.patch(event_id, json.loads(req.data)))
+        if method == "GET" and "/calendarView" in url:
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+            window_start = _parse_graph_datetime(query["startDateTime"][0])
+            window_end = _parse_graph_datetime(query["endDateTime"][0])
+            page_size = int(query["$top"][0])
+            offset = int(query.get("skip", ["0"])[0])
+            server.calendar_view_requests.append({"url": url, "prefer": req.get_header("Prefer")})
+            rows = server.calendar_view(window_start, window_end)
+            page = {"value": rows[offset:offset + page_size]}
+            if offset + page_size < len(rows):
+                base = url.split("&skip=")[0]
+                page["@odata.nextLink"] = f"{base}&skip={offset + page_size}"
+            return _FakeResponse(page)
         if method == "GET":
             since = int(url.split("seq=")[1].split("&")[0]) if "seq=" in url else 0
             items, max_seq = server.delta(since)
@@ -1196,7 +1328,7 @@ def test_a_single_stuck_row_is_still_retried_after_a_later_successful_run_advanc
     assert stuck.outlook_synced_at == stuck.updated_at
 
 
-def _check_no_oscillation(db, owner) -> None:
+def _check_no_oscillation(db, owner, server: "FakeGraphServer | None" = None) -> None:
     """Der eigentliche Regressionstest für das gemeldete Verhalten ('Lauf 1: 1 geändert/0
     gepusht, Lauf 2: 0 geändert/1 gepusht, und so weiter im Wechsel') -- als eigene Funktion, damit
     sie sowohl gegen SQLite (Standard) als auch gegen eine echte PostgreSQL-Instanz laufen kann
@@ -1215,13 +1347,19 @@ def _check_no_oscillation(db, owner) -> None:
     (scripts/sync_outlook_calendars.py startet tatsächlich als eigener Prozess mit eigener
     Session bei jedem Tick, siehe dortiger Kopfkommentar) -- eine über alle Läufe geteilte Session
     hätte die Identity-Map/Dirty-Zustände zwischen den Läufen künstlich zusammenhalten können,
-    was in Produktion nie der Fall ist."""
+    was in Produktion nie der Fall ist.
+
+    **Seit 1.7.8**: optional mit einem vorbelegten server (Serien, siehe
+    test_no_oscillation_with_series_...) -- die Serienzähler müssen ab Lauf 2 ebenfalls bei 0
+    stehen, und der Server darf über alle sieben Läufe genau EINEN Schreibzugriff sehen (den
+    POST des einen Einzeltermins aus Lauf 1)."""
     event = _make_event(db, owner)
     event_id = event.id
     owner_id = owner.id
     engine = db.get_bind()
     db.close()
-    server = FakeGraphServer()
+    server = server or FakeGraphServer()
+    has_series = bool(server.series)
 
     def run():
         fresh = sessionmaker(bind=engine)()
@@ -1238,12 +1376,18 @@ def _check_no_oscillation(db, owner) -> None:
     assert first["updated"] == 0
     assert first["pushed_created"] == 1  # der einzige Lauf, der überhaupt etwas zu tun hat
     assert first["pushed_updated"] == 0
+    assert first["series_failed"] == 0
+    if has_series:
+        assert first["series_created"] > 0
 
     for lauf in range(2, 8):  # fünf weitere Läufe (2 bis 7 inklusive) -- wie ausdrücklich verlangt
         result = run()
         assert result.get("error") is None, f"Lauf {lauf}: error={result.get('error_type')}"
-        for key in ("created", "updated", "deleted", "pushed_created", "pushed_updated", "push_failed"):
+        for key in ("created", "updated", "deleted", "pushed_created", "pushed_updated", "push_failed",
+                    "series_created", "series_updated", "series_deleted", "series_failed"):
             assert result[key] == 0, f"Lauf {lauf}: {key}={result[key]} (erwartet 0)"
+
+    assert [m for m, _ in server.write_requests] == ["POST"], server.write_requests
 
     final = sessionmaker(bind=engine)()
     try:
@@ -1529,3 +1673,354 @@ def test_only_admin_can_read_or_change_outlook_sync_settings(threaded_db_session
     assert put_resp.status_code == 200
     assert put_resp.json()["enabled"] is True
     assert put_resp.json()["graph_configured"] is False  # noch keine Graph-Zugangsdaten hinterlegt
+
+
+# ---------------------------------------------------------------------------
+# Serientermine (seit 1.7.8) -- Outlook -> ERP, schreibgeschützt, eigene Tabelle
+# ---------------------------------------------------------------------------
+
+
+def _utc_0800(offset_days: int = 0, base: datetime | None = None) -> datetime:
+    b = (base or datetime.utcnow()).replace(hour=8, minute=0, second=0, microsecond=0)
+    return b + timedelta(days=offset_days)
+
+
+def _sync_fresh(engine, owner_id: int, server: FakeGraphServer, now_utc: datetime | None = None, urlopen=None) -> dict:
+    fresh = sessionmaker(bind=engine)()
+    try:
+        with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=urlopen or make_realistic_urlopen(server)):
+            return sync_user_calendar(fresh, fresh.get(AppUser, owner_id), now_utc=now_utc)
+    finally:
+        fresh.close()
+
+
+def _local_occurrences(engine, owner_id: int) -> list[OutlookSeriesOccurrence]:
+    s = sessionmaker(bind=engine, expire_on_commit=False)()
+    try:
+        return s.scalars(select(OutlookSeriesOccurrence).where(OutlookSeriesOccurrence.owner_user_id == owner_id)).all()
+    finally:
+        s.close()
+
+
+def _prepare(db):
+    owner = _make_user(db)
+    _enable_sync(db)
+    owner_id = owner.id
+    engine = db.get_bind()
+    db.close()
+    return engine, owner_id
+
+
+def test_series_window_is_30_days_back_and_12_months_ahead_anchored_at_berlin_midnight():
+    start, end = series_window(datetime(2026, 9, 28, 10, 0))
+    assert start == datetime(2026, 8, 28, 22, 0)  # 29.08.2026 00:00 Berlin (Sommerzeit)
+    assert end == datetime(2027, 9, 27, 22, 0)    # 28.09.2027 00:00 Berlin
+    from datetime import date
+    assert _add_months(date(2028, 2, 29), 12) == date(2029, 2, 28)
+    assert _add_months(date(2026, 1, 31), 1) == date(2026, 2, 28)
+
+
+def test_series_occurrences_are_never_pushed_over_seven_runs():
+    """Pflicht 1: sieben Läufe mit Serie (inkl. verschobener Ausnahme, aus der Serie gelöschtem
+    Vorkommen und abgesagter Besprechung) -- kein einziger Schreibzugriff am Server, kein
+    Push-Zähler, keine CalendarEvent-Zeile. Zusätzlich: eine lokale Änderung an einem Vorkommen
+    (direkt in der Datenbank, einen anderen Weg gibt es nicht) löst ebenfalls keinen Push aus,
+    sondern wird beim nächsten Lauf auf den Outlook-Stand zurückgesetzt."""
+    engine, owner_id = _prepare(db_session())
+    server = FakeGraphServer()
+    master = server.add_series("Jour Fixe", _utc_0800(-70), count=70, every_days=7, location="Büro")
+    server.move_occurrence(master, _utc_0800(-70) + timedelta(days=77), _utc_0800(-70) + timedelta(days=78))
+    server.delete_occurrence(master, _utc_0800(-70) + timedelta(days=84))
+    server.cancel_meeting_occurrence(master, _utc_0800(-70) + timedelta(days=91))
+
+    for lauf in range(1, 8):
+        if lauf == 4:
+            s = sessionmaker(bind=engine)()
+            row = s.scalars(select(OutlookSeriesOccurrence)).first()
+            row.title = "Lokal verändert"
+            s.commit()
+            s.close()
+        result = _sync_fresh(engine, owner_id, server)
+        assert result.get("error") is None
+        assert result["series_failed"] == 0
+        for key in ("pushed_created", "pushed_updated", "push_failed"):
+            assert result[key] == 0, f"Lauf {lauf}: {key}={result[key]}"
+        if lauf == 4:
+            assert result["series_updated"] == 1  # Outlook gewinnt, lokal zurückgesetzt
+
+    assert server.write_requests == []
+    s = sessionmaker(bind=engine)()
+    try:
+        assert s.scalar(select(CalendarEvent)) is None
+    finally:
+        s.close()
+    assert "Lokal verändert" not in {r.title for r in _local_occurrences(engine, owner_id)}
+    assert {r.outlook_event_id for r in _local_occurrences(engine, owner_id)} == server.occurrence_ids_in(*series_window())
+
+
+def test_calendar_event_api_and_push_cannot_address_a_series_occurrence(threaded_db_session, router_test_client):
+    """Pflicht 1, strukturell: PUT/DELETE /api/calendar-events/{id} und push_event_best_effort()
+    arbeiten nur auf CalendarEvent -- die ID eines Vorkommens läuft dort ins Leere, und für
+    /api/calendar-series-occurrences existiert überhaupt nur GET."""
+    db = threaded_db_session
+    owner = _make_user(db)
+    _enable_sync(db)
+    occ = OutlookSeriesOccurrence(owner_user_id=owner.id, outlook_event_id="series-1-occ-x", series_master_id="series-1",
+                                  occurrence_type="occurrence", title="Jour Fixe",
+                                  start_at=datetime(2026, 10, 1, 10), end_at=datetime(2026, 10, 1, 11))
+    db.add(occ)
+    db.commit()
+    client = router_test_client(db, calendar_router, role="admin")
+    assert client.put(f"/api/calendar-events/{occ.id}", json={"title": "x"}).status_code == 404
+    assert client.delete(f"/api/calendar-events/{occ.id}").status_code == 404
+    methods = {m for r in calendar_router.routes if r.path.startswith("/api/calendar-series-occurrences") for m in r.methods}
+    assert methods == {"GET"}
+    with patch("app.outlook_calendar_sync.urllib.request.urlopen") as mocked:
+        push_event_best_effort(db, occ.id)
+        mocked.assert_not_called()
+    db.refresh(occ)
+    assert occ.title == "Jour Fixe"
+
+
+def test_no_oscillation_with_series_all_counters_reach_zero_from_the_second_run():
+    """Pflicht 2: der Schaukel-Test aus 1.7.6, zusätzlich mit einer Serie im Postfach."""
+    db = db_session()
+    owner = _make_user(db)
+    _enable_sync(db)
+    server = FakeGraphServer()
+    master = server.add_series("Jour Fixe", _utc_0800(-40), count=80, every_days=7)
+    server.move_occurrence(master, _utc_0800(-40) + timedelta(days=49), _utc_0800(-40) + timedelta(days=50))
+    _check_no_oscillation(db, owner, server)
+
+
+@requires_postgres_opt_in
+def test_no_oscillation_with_series_all_counters_reach_zero_from_the_second_run_postgresql():
+    db, engine = pg_db_session()
+    try:
+        _cleanup_pg_test_data(db, "pgtest_schaukel_serie")
+        owner = _make_user(db, username="pgtest_schaukel_serie", mailbox="pgtest_schaukel_serie@dachkonzepte.gmbh")
+        _enable_sync(db)
+        server = FakeGraphServer()
+        server.add_series("Jour Fixe", _utc_0800(-40), count=80, every_days=7)
+        _check_no_oscillation(db, owner, server)
+    finally:
+        _cleanup_pg_test_data(db, "pgtest_schaukel_serie")
+        db.close()
+        engine.dispose()
+
+
+def test_moving_window_neither_duplicates_nor_loses_occurrences():
+    """Pflicht 3: das Fenster wandert mit der Zeit. Tägliche Serie, deutlich länger als das
+    Fenster; Lauf bei t0, dann bei t0+45 Tagen. Die lokale Menge muss jeweils EXAKT der
+    unabhängig berechneten Erwartung des Servers entsprechen -- vorn herausgefallene Vorkommen
+    entfernt, hinten neu hereingekommene angelegt, keine Dublette (auch über Seitengrenzen,
+    $top=100, hinweg)."""
+    engine, owner_id = _prepare(db_session())
+    t0 = datetime.utcnow()
+    server = FakeGraphServer()
+    server.add_series("Täglicher Check", _utc_0800(-100, t0), count=700, every_days=1)
+
+    first = _sync_fresh(engine, owner_id, server, now_utc=t0)
+    expected_0 = server.occurrence_ids_in(*series_window(t0))
+    ids_0 = [r.outlook_event_id for r in _local_occurrences(engine, owner_id)]
+    assert first["series_created"] == len(expected_0) > 300
+    assert len(ids_0) == len(set(ids_0)) and set(ids_0) == expected_0
+    assert any("skip=" in r["url"] for r in server.calendar_view_requests)  # Paging wurde tatsächlich gebraucht
+
+    t1 = t0 + timedelta(days=45)
+    moved = _sync_fresh(engine, owner_id, server, now_utc=t1)
+    expected_1 = server.occurrence_ids_in(*series_window(t1))
+    ids_1 = [r.outlook_event_id for r in _local_occurrences(engine, owner_id)]
+    assert len(ids_1) == len(set(ids_1)) and set(ids_1) == expected_1
+    assert moved["series_deleted"] == len(expected_0 - expected_1) > 0
+    assert moved["series_created"] == len(expected_1 - expected_0) > 0
+    assert moved["series_updated"] == 0
+
+    again = _sync_fresh(engine, owner_id, server, now_utc=t1)
+    for key in ("series_created", "series_updated", "series_deleted", "series_failed"):
+        assert again[key] == 0
+
+
+def test_exceptions_moves_and_cancellations_are_reflected():
+    engine, owner_id = _prepare(db_session())
+    server = FakeGraphServer()
+    first = _utc_0800(-14)
+    master = server.add_series("Jour Fixe", first, count=10, every_days=7)
+    moved_from, moved_to = first + timedelta(days=21), first + timedelta(days=22, hours=2)
+    server.move_occurrence(master, moved_from, moved_to)
+    server.delete_occurrence(master, first + timedelta(days=28))
+    server.cancel_meeting_occurrence(master, first + timedelta(days=35))
+    _sync_fresh(engine, owner_id, server)
+
+    rows = {r.outlook_event_id: r for r in _local_occurrences(engine, owner_id)}
+    assert len(rows) == 8
+    exception_row = rows[f"{master}-occ-{moved_from:%Y%m%d%H%M}"]
+    assert exception_row.occurrence_type == "exception"
+    assert exception_row.start_at == to_berlin(moved_to)
+    assert f"{master}-occ-{first + timedelta(days=28):%Y%m%d%H%M}" not in rows
+    assert f"{master}-occ-{first + timedelta(days=35):%Y%m%d%H%M}" not in rows
+
+    # Später in Outlook: ein weiteres Vorkommen gelöscht, ein anderes verschoben.
+    server.delete_occurrence(master, first + timedelta(days=42))
+    server.move_occurrence(master, first + timedelta(days=49), first + timedelta(days=49, hours=3))
+    result = _sync_fresh(engine, owner_id, server)
+    assert result["series_deleted"] == 1
+    assert result["series_updated"] == 1
+    assert result["series_created"] == 0
+
+
+def test_series_edit_in_outlook_updates_every_local_occurrence():
+    engine, owner_id = _prepare(db_session())
+    server = FakeGraphServer()
+    master = server.add_series("Jour Fixe", _utc_0800(-7), count=5, every_days=7)
+    _sync_fresh(engine, owner_id, server)
+    server.edit_series(master, subject="Jour Fixe (neu)")
+    result = _sync_fresh(engine, owner_id, server)
+    assert result["series_updated"] == 5
+    assert {r.title for r in _local_occurrences(engine, owner_id)} == {"Jour Fixe (neu)"}
+
+
+def test_series_fetch_failure_changes_nothing_locally():
+    """Ein Fehler auf Seite 2 des calendarView-Abrufs: nichts wird lokal angelegt, geändert oder
+    entfernt (der Abgleich schreibt erst nach dem vollständigen Abruf), der Einzeltermin-Sync
+    davor bleibt unberührt."""
+    engine, owner_id = _prepare(db_session())
+    server = FakeGraphServer()
+    master = server.add_series("Täglich", _utc_0800(-10), count=200, every_days=1)
+    _sync_fresh(engine, owner_id, server)
+    before = {r.outlook_event_id for r in _local_occurrences(engine, owner_id)}
+    server.delete_occurrence(master, _utc_0800(-10) + timedelta(days=12))
+
+    realistic = make_realistic_urlopen(server)
+
+    def failing_page_two(req, timeout=None):
+        if "/calendarView" in req.full_url and "skip=" in req.full_url:
+            raise _http_error(503, "vorübergehend")
+        return realistic(req, timeout)
+
+    result = _sync_fresh(engine, owner_id, server, urlopen=failing_page_two)
+    assert result.get("error") is None
+    assert result["series_failed"] == 1
+    assert result["series_created"] == result["series_updated"] == result["series_deleted"] == 0
+    assert {r.outlook_event_id for r in _local_occurrences(engine, owner_id)} == before
+
+
+def test_series_request_asks_for_text_body_and_selects_series_fields():
+    engine, owner_id = _prepare(db_session())
+    server = FakeGraphServer()
+    server.add_series("Jour Fixe", _utc_0800(-7), count=3, every_days=7, body="Agenda")
+    _sync_fresh(engine, owner_id, server)
+    req = server.calendar_view_requests[0]
+    assert req["prefer"] == 'outlook.body-content-type="text"'
+    assert "seriesMasterId" in req["url"] and "isCancelled" in req["url"]
+    assert {r.notes for r in _local_occurrences(engine, owner_id)} == {"Agenda"}
+
+
+def test_delta_path_rejects_occurrences_and_removes_a_single_event_that_became_a_series():
+    """Jede Outlook-ID gehört genau einem Weg: ein Vorkommen/eine Ausnahme im Delta wird nie als
+    CalendarEvent angelegt; wird ein bekannter Einzeltermin in Outlook zur Serie, verschwindet
+    die lokale Kopie, statt dass eine spätere ERP-Bearbeitung die ganze Serie per PATCH ändert."""
+    db = db_session()
+    owner = _make_user(db)
+    _enable_sync(db)
+    converted = _make_event(db, owner, title="Wird zur Serie")
+    converted.outlook_event_id = "graph-converted"
+    db.commit()
+    converted_id = converted.id
+    delta_items = [
+        {"id": "graph-converted", "type": "seriesMaster", "recurrence": {"pattern": {"type": "weekly"}},
+         "start": {"dateTime": "2026-10-01T08:00:00.0000000"}, "end": {"dateTime": "2026-10-01T09:00:00.0000000"}},
+        {"id": "graph-occ-1", "type": "occurrence", "seriesMasterId": "graph-converted",
+         "start": {"dateTime": "2026-10-08T08:00:00.0000000"}, "end": {"dateTime": "2026-10-08T09:00:00.0000000"}},
+        {"id": "graph-exc-1", "type": "exception", "seriesMasterId": "graph-converted",
+         "start": {"dateTime": "2026-10-15T09:00:00.0000000"}, "end": {"dateTime": "2026-10-15T10:00:00.0000000"}},
+    ]
+    writes = []
+
+    def fake(req, timeout=None):
+        if TOKEN_URL_MARKER in req.full_url:
+            return _FakeResponse({"access_token": "faketoken"})
+        if req.get_method() != "GET":
+            writes.append(req.get_method())
+        if "/calendarView" in req.full_url:
+            return _FakeResponse({"value": []})
+        return _FakeResponse(_delta_page(delta_items, delta_link="https://graph.microsoft.com/deltaSeries"))
+
+    with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=fake):
+        result = sync_user_calendar(db, owner)
+
+    assert result["deleted"] == 1
+    assert result["skipped_recurring"] == 2
+    assert result["created"] == 0
+    assert writes == []
+    assert db.get(CalendarEvent, converted_id) is None
+    assert db.scalar(select(CalendarEvent)) is None
+
+
+def test_private_series_occurrence_is_busy_for_colleagues_and_full_for_owner():
+    db = db_session()
+    owner = _make_user(db)
+    colleague = _make_user(db, username="kollege", mailbox="kollege@dachkonzepte.gmbh")
+    _enable_sync(db)
+    server = FakeGraphServer()
+    server.add_series("Arzttermin", _utc_0800(-7), count=3, every_days=7, sensitivity="private", location="Praxis")
+    with patch("app.outlook_calendar_sync.urllib.request.urlopen", side_effect=make_realistic_urlopen(server)):
+        sync_user_calendar(db, owner)
+
+    rows = list_series_occurrences(db)
+    assert len(rows) == 3 and all(r["is_private"] for r in rows)
+    assert not is_redacted_for_viewer(rows[0], owner.id)
+    assert is_redacted_for_viewer(rows[0], colleague.id)
+    busy = redact_for_busy(rows[0])
+    assert busy["title"] == "Belegt" and "location" not in busy and "notes" not in busy
+
+
+def test_series_endpoint_redacts_private_occurrences_and_is_role_and_module_gated(threaded_db_session, router_test_client):
+    db = threaded_db_session
+    owner = _make_user(db)
+    for idx, private in enumerate((True, False)):
+        db.add(OutlookSeriesOccurrence(owner_user_id=owner.id, outlook_event_id=f"occ-{idx}", series_master_id="m",
+                                       occurrence_type="occurrence", title="Geheim" if private else "Offen",
+                                       location="Ort", notes="Notiz", is_private=private,
+                                       start_at=datetime(2026, 10, 1 + idx, 10), end_at=datetime(2026, 10, 1 + idx, 11)))
+    db.commit()
+
+    assert router_test_client(db, calendar_router, role="field").get("/api/calendar-series-occurrences").status_code == 403
+
+    client = router_test_client(db, calendar_router, role="buero_auftrag")  # nicht der Besitzer
+    data = client.get("/api/calendar-series-occurrences?start=2026-09-30T00:00:00&end=2026-10-05T00:00:00").json()
+    by_title = {row["title"]: row for row in data}
+    assert set(by_title) == {"Belegt", "Offen"}
+    assert "location" not in by_title["Belegt"] and "notes" not in by_title["Belegt"]
+    assert all(row["series"] is True for row in data)
+
+    from app.modules import set_module_enabled
+    set_module_enabled(db, "kalender", False)
+    assert client.get("/api/calendar-series-occurrences").status_code == 403
+
+
+def test_series_diagnostic_lines_cover_decisions_but_never_content(monkeypatch, caplog):
+    """Pflicht 5: jede Serienentscheidung (neu, unverändert, aktualisiert, entfernt) erscheint
+    als Diagnosezeile -- nie Titel/Ort/Notiz (Punkt 6)."""
+    monkeypatch.setenv("ERP_OUTLOOK_SYNC_DIAGNOSTICS", "1")
+    engine, owner_id = _prepare(db_session())
+    server = FakeGraphServer()
+    first = _utc_0800(-7)
+    master = server.add_series("GEHEIMER-TITEL-XY", first, count=4, every_days=7,
+                               location="GEHEIMER-ORT-XY", body="GEHEIME-NOTIZ-XY")
+    caplog.set_level(logging.INFO, logger="app.outlook_calendar_sync.diagnostics")
+    _sync_fresh(engine, owner_id, server)
+    _sync_fresh(engine, owner_id, server)
+    server.move_occurrence(master, first + timedelta(days=7), first + timedelta(days=8))
+    server.delete_occurrence(master, first + timedelta(days=14))
+    server.cancel_meeting_occurrence(master, first + timedelta(days=21))
+    _sync_fresh(engine, owner_id, server)
+
+    series_lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("serie ")]
+    for entscheidung in ("neu übernommen", "unverändert", "aktualisiert (in Outlook geändert)",
+                         "abgesagt (isCancelled) -> nicht geführt",
+                         "nicht mehr im Fenster oder in Outlook entfernt/abgesagt -> entfernt"):
+        assert any(f"entscheidung={entscheidung}" in line for line in series_lines), entscheidung
+    all_text = " ".join(r.getMessage() for r in caplog.records)
+    for secret in ("GEHEIMER-TITEL-XY", "GEHEIMER-ORT-XY", "GEHEIME-NOTIZ-XY"):
+        assert secret not in all_text

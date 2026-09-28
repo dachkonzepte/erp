@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.7.8 – Kalender: Serientermine aus Outlook, schreibgeschützt
+
+Wiederkehrende Outlook-Termine erscheinen jetzt im ERP-Kalender, als einzelne Vorkommen
+einschließlich Ausnahmen, im Fenster 30 Tage zurück bis 12 Monate voraus. Nur Outlook -> ERP: im
+ERP lassen sie sich weder anlegen noch bearbeiten noch löschen, ein Klick zeigt eine reine
+Leseansicht. Private Serien erscheinen Kollegen wie private Einzeltermine nur als "Belegt". Die
+Vorkommen liegen in einer eigenen Tabelle `outlook_series_occurrences` (Migration `ea1034dc38e7`)
+ohne jedes Push-Feld -- Push-Schleife und `PUT`/`DELETE /api/calendar-events/{id}` können sie
+strukturell nicht erreichen, gelesen wird über den neuen `GET /api/calendar-series-occurrences`.
+
+Für Serien bewusst kein Delta: bei `calendarView/delta` ist das Fenster im Token eingefroren, und
+Vorkommen, die nur durch das Vorrücken der Zeit herausfallen, meldet Delta nicht als entfernt. Jeder
+Lauf holt deshalb den vollständigen `calendarView`-Schnappschuss und gleicht exakt ab, in einer
+Transaktion und erst nach dem vollständigen Abruf. Ein bekannter Einzeltermin, der in Outlook zur
+Serie wird, wird lokal entfernt, damit keine ERP-Bearbeitung die ganze Serie ändert. Die
+Graph-Attrappe bildet Serien jetzt so ab, wie Microsoft sie dokumentiert. 13 neue Tests, darunter
+sieben Läufe ohne einen einzigen Schreibzugriff, der Schaukel-Test mit Serie (auch gegen
+PostgreSQL) und das wandernde Fenster. Nebenbefund, nicht geändert: der Einzeltermin-Sync nutzt
+`events/delta`, das Microsoft nur in Beta dokumentiert (Details im Kalender-Archiv).
+
 ## 1.7.7 – Microsoft 365: Mail.Send läuft über RBAC, nicht über Entra -- Dokumentation und Fehlerhinweis korrigiert
 
 Der Betreiber hat den tatsächlichen Stand auf dem Server verifiziert: `Mail.Send` ist in Entra ID

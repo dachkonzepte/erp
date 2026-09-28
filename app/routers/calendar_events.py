@@ -31,7 +31,9 @@ from ..calendar_events import (
 from ..database import get_db
 from ..modules import is_module_enabled
 from ..models import AppUser, CalendarEvent
-from ..outlook_calendar_sync import push_event_best_effort, sync_user_calendar, try_delete_remote_event
+from ..outlook_calendar_sync import (
+    list_series_occurrences, push_event_best_effort, sync_user_calendar, try_delete_remote_event,
+)
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, require_min_role
 from ..schemas import CalendarEventCreate, CalendarEventUpdate, CalendarOwnerOut, OutlookSyncResultOut
 
@@ -87,6 +89,19 @@ def get_calendar_events(
     _require_module_enabled(db)
     rows = list_events(db, start=start, end=end, project_id=project_id, quote_id=quote_id)
     return [_out(row, _role.id) for row in rows]
+
+
+@router.get("/api/calendar-series-occurrences")
+def get_calendar_series_occurrences(
+    start: datetime | None = None, end: datetime | None = None,
+    db: Session = Depends(get_db), _role: AppUser = _role_dep,
+):
+    """Serienvorkommen aus Outlook (seit 1.7.8), ausschließlich lesend -- es gibt bewusst KEINEN
+    PUT/DELETE-Endpunkt dafür, und /api/calendar-events/{id} adressiert nur CalendarEvent. Dieselbe
+    Privatsphäre-Redaktion wie bei Einzelterminen; ohne response_model aus demselben Grund."""
+    _require_module_enabled(db)
+    rows = list_series_occurrences(db, start=start, end=end)
+    return [{**_out(row, _role.id), "series": True} for row in rows]
 
 
 @router.get("/api/calendar-events/{event_id}")

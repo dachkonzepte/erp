@@ -41,14 +41,12 @@ dieses Modul rechnet bewusst IMMER selbst in/aus UTC um (to_utc()/to_berlin() un
 zoneinfo) und sendet/erwartet ausschließlich "timeZone": "UTC" -- vermeidet jede Mehrdeutigkeit
 zwischen Windows- und IANA-Zeitzonennamen, die Graphs timeZone-Feld sonst zulässt.
 
-**Punkt 4 -- Serientermine, nur ein Vorschlag, NICHT implementiert:** CalendarEvent kennt keine
-Wiederholungsregel. Ein wiederkehrender Outlook-Termin erscheint in der events/delta-Antwort als
-EIN einzelnes "seriesMaster"-Objekt (Graph expandiert Einzeltermine nur über calendarView mit
-Datumsfenster, nicht über die hier genutzte events/delta) -- _is_recurring() erkennt das und
-_apply_delta_change() überspringt solche Zeilen vollständig (gezählt, nie angelegt/geändert).
-Ein künftiger Ausbau müsste auf calendarView/delta mit einem festen Zeitfenster wechseln und
-jede Instanz als eigene, entkoppelte CalendarEvent-Zeile führen -- eine größere Modelländerung,
-hier bewusst nicht gebaut.
+**Punkt 4 -- Serientermine (seit 1.7.8 schreibgeschützt übernommen, siehe Abschnitt
+"Serientermine" direkt vor sync_series_occurrences()):** der Delta-Weg (events/delta) liefert eine
+Serie nur als EIN "seriesMaster"-Objekt -- _apply_delta_change() überspringt Master, Vorkommen und
+Ausnahmen weiterhin vollständig. Die einzelnen Vorkommen kommen ausschließlich über einen
+separaten calendarView-Schnappschuss in die eigene Tabelle OutlookSeriesOccurrence, nie als
+CalendarEvent -- jede Outlook-ID gehört damit genau einem der beiden Wege.
 
 **Punkt 5 -- Delta-Abfrage, Cron plus beim Öffnen, letzte Änderung gewinnt, Löschungen
 beidseitig:** sync_user_calendar() ist der vollständige Pull-dann-Push-Zyklus für eine Person,
@@ -317,14 +315,15 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, update as sa_update
 from sqlalchemy.orm import Session
 
+from .auth import resolve_account_display
 from .email_sending import get_graph_access_token, get_or_create_smtp_settings
-from .models import AppUser, CalendarEvent, OutlookCalendarSyncState, OutlookSyncSettings
+from .models import AppUser, CalendarEvent, OutlookCalendarSyncState, OutlookSeriesOccurrence, OutlookSyncSettings
 
 logger = logging.getLogger("app.outlook_calendar_sync")
 # Eigener Logger-Name für die abschaltbare Diagnosezeile (seit 1.7.4) -- getrennt vom
@@ -489,7 +488,8 @@ def get_or_create_sync_state(db: Session, user: AppUser) -> OutlookCalendarSyncS
 # ---------------------------------------------------------------------------
 
 
-def _graph_call(token: str, url: str, *, method: str = "GET", payload: dict | None = None) -> dict | None:
+def _graph_call(token: str, url: str, *, method: str = "GET", payload: dict | None = None,
+                extra_headers: dict | None = None) -> dict | None:
     """Ein einzelner Graph-Aufruf -- gibt das geparste JSON zurück (None bei 204 No Content, z.
     B. nach DELETE). Wirft OutlookSyncError bei jedem Fehler; die Nachricht selbst wird NIE
     geloggt (siehe Moduldocstring Punkt 6), nur an den Aufrufer zur Anzeige durchgereicht, falls
@@ -498,6 +498,7 @@ def _graph_call(token: str, url: str, *, method: str = "GET", payload: dict | No
     req = urllib.request.Request(url, data=data, method=method, headers={
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
+        **(extra_headers or {}),
     })
     try:
         with urllib.request.urlopen(req, timeout=GRAPH_TIMEOUT) as resp:
@@ -593,6 +594,12 @@ def _needs_push(row: CalendarEvent) -> bool:
 
 def _is_recurring(item: dict) -> bool:
     return bool(item.get("recurrence")) or item.get("type") == "seriesMaster"
+
+
+def _is_series_instance(item: dict) -> bool:
+    """Vorkommen oder Ausnahme einer Serie -- gehört ausschließlich dem calendarView-Weg
+    (sync_series_occurrences()), nie dem Delta-Weg."""
+    return item.get("type") in ("occurrence", "exception") or bool(item.get("seriesMasterId"))
 
 
 def _plain_text_body(item: dict) -> str | None:
@@ -768,9 +775,18 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
             log("gelöscht (@removed), lokal bereits unbekannt")
         return None
 
-    if _is_recurring(item):
+    if _is_recurring(item) or _is_series_instance(item):
+        if existing is not None:
+            # Ein bekannter Einzeltermin wurde in Outlook zur Serie gemacht -- die lokale Kopie
+            # muss weg, sonst würde eine spätere ERP-Bearbeitung per PATCH die GANZE Serie ändern.
+            # Die Vorkommen kommen danach über sync_series_occurrences() (schreibgeschützt).
+            log("Einzeltermin in Outlook zur Serie geworden -> lokale Kopie entfernt")
+            db.delete(existing)
+            db.commit()
+            counters["deleted"] += 1
+            return None
         counters["skipped_recurring"] += 1
-        log("Serientermin übersprungen")
+        log("Serientermin übersprungen (läuft über den Serien-Abgleich)")
         return None
 
     start = item.get("start") or {}
@@ -846,12 +862,188 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
     return existing.id
 
 
-def sync_user_calendar(db: Session, user: AppUser) -> dict:
+# ---------------------------------------------------------------------------
+# Serientermine (seit 1.7.8): Outlook -> ERP, ausschließlich lesend
+# ---------------------------------------------------------------------------
+#
+# Bewusst KEIN Delta für Serien: bei calendarView/delta werden startDateTime/endDateTime in den
+# Delta-Token kodiert und sind danach eingefroren -- ein mit der Zeit wanderndes Fenster erzwingt
+# regelmäßig eine neue Runde (voller Neuabzug), und für Vorkommen, die nur durch das Vorrücken
+# der Zeit aus dem Fenster fallen, liefert Delta kein @removed (das gibt es laut Microsoft nur für
+# Änderungen). Stattdessen holt jeder Lauf den VOLLSTÄNDIGEN calendarView-Schnappschuss des
+# aktuellen Fensters und gleicht OutlookSeriesOccurrence exakt dagegen ab: anlegen, ändern,
+# entfernen, in EINER Transaktion und erst nachdem alle Seiten vollständig geholt sind -- ein
+# Abruffehler ändert lokal nichts. Schlüssel (owner_user_id, outlook_event_id) mit
+# UNIQUE-Constraint: kein Vorkommen doppelt, keines fehlt.
+#
+# Graph-Verhalten (Microsoft-Dokumentation, "List calendarView"/"event"-Ressource, v1.0):
+# calendarView liefert singleInstance, occurrence und exception, nie den seriesMaster; aus der
+# Serie gelöschte Vorkommen fehlen einfach ("instances ... doesn't include occurrences canceled
+# from the series"); abgesagte Besprechungen können mit isCancelled=true erscheinen und werden
+# hier wie fehlende behandelt. Der Body kommt ohne Prefer-Header als HTML.
+
+SERIES_WINDOW_PAST_DAYS = 30
+SERIES_WINDOW_FUTURE_MONTHS = 12
+_SERIES_SELECT = "id,subject,start,end,isAllDay,location,body,sensitivity,type,seriesMasterId,isCancelled"
+_SERIES_PAGE_SIZE = 100
+
+
+def _add_months(d: date, months: int) -> date:
+    month_index = d.month - 1 + months
+    year, month = d.year + month_index // 12, month_index % 12 + 1
+    for day in (d.day, 30, 29, 28):
+        try:
+            return date(year, month, day)
+        except ValueError:
+            continue
+    raise ValueError(d)
+
+
+def series_window(now_utc: datetime | None = None) -> tuple[datetime, datetime]:
+    """Fenster als naive UTC-Zeitpunkte, verankert an Mitternacht Europe/Berlin des heutigen
+    Tages -- innerhalb eines Tages bleibt es dadurch stabil, statt sich bei jedem Lauf minimal zu
+    verschieben."""
+    today = to_berlin(now_utc or datetime.utcnow()).date()
+    start_local = datetime.combine(today - timedelta(days=SERIES_WINDOW_PAST_DAYS), datetime.min.time())
+    end_local = datetime.combine(_add_months(today, SERIES_WINDOW_FUTURE_MONTHS), datetime.min.time())
+    return to_utc(start_local), to_utc(end_local)
+
+
+def _series_fields(item: dict) -> dict:
+    return {
+        "title": item.get("subject") or "(ohne Titel)",
+        "start_at": to_berlin(_parse_graph_datetime(item["start"]["dateTime"])),
+        "end_at": to_berlin(_parse_graph_datetime(item["end"]["dateTime"])),
+        "all_day": bool(item.get("isAllDay")),
+        "location": (item.get("location") or {}).get("displayName") or None,
+        "notes": _plain_text_body(item),
+        "is_private": _is_private_sensitivity(item.get("sensitivity")),
+        "occurrence_type": item.get("type") or "occurrence",
+        "series_master_id": item.get("seriesMasterId"),
+    }
+
+
+def _diag_series(occurrence_id, *, typ, etag_gespeichert, etag_eingehend, entscheidung: str) -> None:
+    """Diagnosezeile für Serienentscheidungen -- wie _diag() nie Titel/Ort/Notiz (Punkt 6)."""
+    diag_logger.info(
+        "serie occurrence_id=%s typ=%s etag_gespeichert=%s etag_eingehend=%s entscheidung=%s",
+        occurrence_id, typ, etag_gespeichert, etag_eingehend, entscheidung,
+    )
+
+
+def _fetch_all_pages(token: str, url: str, extra_headers: dict) -> list[dict]:
+    items: list[dict] = []
+    while url:
+        page = _graph_call(token, url, extra_headers=extra_headers)
+        items.extend(page.get("value", []))
+        url = page.get("@odata.nextLink")
+    return items
+
+
+def sync_series_occurrences(db: Session, user: AppUser, token: str, counters: dict, *,
+                            now_utc: datetime | None = None) -> None:
+    """Vollständiger Abgleich der Serienvorkommen EINES Postfachs gegen das aktuelle Fenster,
+    siehe Abschnittskommentar oben. Wirft bei einem Abruffehler, BEVOR irgendetwas geschrieben
+    wurde; der Aufrufer rollt zurück."""
+    diag = diagnostics_enabled()
+    window_start, window_end = series_window(now_utc)
+    query = urllib.parse.urlencode({
+        "startDateTime": window_start.isoformat() + "Z",
+        "endDateTime": window_end.isoformat() + "Z",
+        "$select": _SERIES_SELECT,
+        "$top": _SERIES_PAGE_SIZE,
+    }, safe="$,:")
+    url = f"{GRAPH_BASE}/users/{urllib.parse.quote(user.outlook_mailbox)}/calendarView?{query}"
+    items = _fetch_all_pages(token, url, {"Prefer": 'outlook.body-content-type="text"'})
+
+    existing = {
+        row.outlook_event_id: row
+        for row in db.scalars(select(OutlookSeriesOccurrence).where(OutlookSeriesOccurrence.owner_user_id == user.id)).all()
+    }
+    seen: set[str] = set()
+    for item in items:
+        if not _is_series_instance(item):
+            continue  # Einzeltermin -- gehört ausschließlich dem Delta-Weg
+        outlook_id = item.get("id")
+        if not outlook_id or outlook_id in seen:
+            continue
+        row = existing.get(outlook_id)
+        incoming_etag = item.get("@odata.etag")
+        stored_etag = row.outlook_etag if row is not None else None
+
+        def log(entscheidung: str, occurrence_id=None) -> None:
+            if diag:
+                _diag_series(occurrence_id if occurrence_id is not None else (row.id if row is not None else None),
+                             typ=item.get("type"), etag_gespeichert=stored_etag,
+                             etag_eingehend=incoming_etag, entscheidung=entscheidung)
+
+        if item.get("isCancelled"):
+            log("abgesagt (isCancelled) -> nicht geführt")
+            continue
+        if not (item.get("start") or {}).get("dateTime") or not (item.get("end") or {}).get("dateTime"):
+            log("ungültig (start/end fehlt) -> nicht geführt")
+            continue
+        seen.add(outlook_id)
+        fields = _series_fields(item)
+        if row is None:
+            new_row = OutlookSeriesOccurrence(owner_user_id=user.id, outlook_event_id=outlook_id,
+                                              outlook_etag=incoming_etag, **fields)
+            db.add(new_row)
+            db.flush()
+            counters["series_created"] += 1
+            log("neu übernommen", occurrence_id=new_row.id)
+        elif any(getattr(row, key) != value for key, value in fields.items()):
+            for key, value in fields.items():
+                setattr(row, key, value)
+            row.outlook_etag = incoming_etag
+            counters["series_updated"] += 1
+            log("aktualisiert (in Outlook geändert)")
+        else:
+            if incoming_etag and incoming_etag != row.outlook_etag:
+                row.outlook_etag = incoming_etag
+            log("unverändert")
+
+    for outlook_id, row in existing.items():
+        if outlook_id in seen:
+            continue
+        if diag:
+            _diag_series(row.id, typ=row.occurrence_type, etag_gespeichert=row.outlook_etag, etag_eingehend=None,
+                         entscheidung="nicht mehr im Fenster oder in Outlook entfernt/abgesagt -> entfernt")
+        db.delete(row)
+        counters["series_deleted"] += 1
+    db.commit()
+
+
+def list_series_occurrences(db: Session, *, start: datetime | None = None, end: datetime | None = None) -> list[dict]:
+    """Reine Datenbeschaffung wie app/calendar_events.py::list_events() -- die
+    Privatsphäre-Redaktion entscheidet der Router je Zeile mit denselben Funktionen."""
+    stmt = select(OutlookSeriesOccurrence).order_by(OutlookSeriesOccurrence.start_at)
+    if start is not None:
+        stmt = stmt.where(OutlookSeriesOccurrence.end_at >= start)
+    if end is not None:
+        stmt = stmt.where(OutlookSeriesOccurrence.start_at <= end)
+    owner_names: dict[int, str | None] = {}
+    result = []
+    for row in db.scalars(stmt).all():
+        if row.owner_user_id not in owner_names:
+            owner_names[row.owner_user_id] = resolve_account_display(db, row.owner)["full_name"] if row.owner else None
+        result.append({
+            "id": row.id, "title": row.title, "start_at": row.start_at, "end_at": row.end_at,
+            "all_day": row.all_day, "location": row.location, "notes": row.notes,
+            "owner_user_id": row.owner_user_id, "owner_name": owner_names[row.owner_user_id],
+            "is_private": row.is_private, "occurrence_type": row.occurrence_type,
+        })
+    return result
+
+
+def sync_user_calendar(db: Session, user: AppUser, *, now_utc: datetime | None = None) -> dict:
     """Vollständiger Pull-dann-Push-Zyklus für GENAU EIN Postfach (das eigene des übergebenen
-    AppUser). Gibt ein reines Zähler-Dict zurück (nie Termininhalt, Punkt 6) -- der Aufrufer
-    (Router bzw. scripts/sync_outlook_calendars.py) entscheidet, wie er das protokolliert/
-    anzeigt."""
-    counters = {"created": 0, "updated": 0, "deleted": 0, "skipped_recurring": 0, "skipped_invalid": 0, "pushed_created": 0, "pushed_updated": 0, "push_failed": 0}
+    AppUser), danach der Serien-Abgleich (seit 1.7.8). Gibt ein reines Zähler-Dict zurück (nie
+    Termininhalt, Punkt 6) -- der Aufrufer (Router bzw. scripts/sync_outlook_calendars.py)
+    entscheidet, wie er das protokolliert/anzeigt. now_utc nur für Tests (wanderndes Fenster)."""
+    counters = {"created": 0, "updated": 0, "deleted": 0, "skipped_recurring": 0, "skipped_invalid": 0,
+                "pushed_created": 0, "pushed_updated": 0, "push_failed": 0,
+                "series_created": 0, "series_updated": 0, "series_deleted": 0, "series_failed": 0}
     if not is_outlook_sync_available(db, user):
         return {"skipped": True, **counters}
 
@@ -935,6 +1127,20 @@ def sync_user_calendar(db: Session, user: AppUser) -> dict:
         state.last_error_type = None
         state.last_error_at = None
         db.commit()
+
+        # Eigener Fehlerbereich: ein fehlschlagender Serien-Abgleich darf den bereits
+        # abgeschlossenen Einzeltermin-Sync (inkl. delta_link) nicht zurückrollen.
+        try:
+            sync_series_occurrences(db, user, token, counters, now_utc=now_utc)
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            for key in ("series_created", "series_updated", "series_deleted"):
+                counters[key] = 0
+            counters["series_failed"] = 1
+            logger.warning("Serien-Abgleich fehlgeschlagen (app_user_id=%s, Fehlerart=%s).", user.id, type(exc).__name__)
+            if diagnostics_enabled():
+                _diag_series(None, typ=None, etag_gespeichert=None, etag_eingehend=None,
+                             entscheidung=f"Serien-Abgleich fehlgeschlagen ({type(exc).__name__}) -> nichts verändert")
         return counters
     except Exception as exc:  # noqa: BLE001 -- ein fehlschlagendes Postfach darf den Cron-Lauf für andere nicht abbrechen
         db.rollback()

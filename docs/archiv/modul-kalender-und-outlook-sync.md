@@ -766,6 +766,65 @@ Prozess bei jedem Tick). Volle Suite: **1844 Tests grün, 2 davon weiterhin opt-
 `ERP_TEST_POSTGRES_URL` übersprungen** (beide PostgreSQL-Schaukel-Varianten mit gesetzter
 Variable zusätzlich verifiziert grün).
 
+#### Nachtrag (seit 1.7.8): Serientermine aus Outlook, schreibgeschützt
+
+Betreibervorgaben: nur Outlook -> ERP, Serien im ERP weder anlegen noch bearbeiten noch löschen;
+Fenster 30 Tage zurück, 12 Monate voraus; einzelne Vorkommen inklusive Ausnahmen (verschobene
+oder abgesagte Einzeltermine); Privat/"Belegt" wie bei Einzelterminen. Pflichtpunkte: nie ein
+Push (strukturell), Schaukel-Test weiter bei 0, Befund zum wandernden Fenster, Attrappe wie echtes
+Graph, Diagnosezeile auch für Serien.
+
+**Graph-Verhalten, anhand der Microsoft-Doku geprüft (nicht aus dem Gedächtnis):** `calendarView`
+(v1.0) liefert `singleInstance`, `occurrence` und `exception`, nie den `seriesMaster`; jedes
+Vorkommen trägt eigene `id`, `seriesMasterId`, `originalStart`, `@odata.etag`. Aus der Serie
+gelöschte Vorkommen fehlen ("instances ... doesn't include occurrences canceled from the
+series"); eine vom Organisator abgesagte Besprechung kann mit `isCancelled=true` erscheinen. Ohne
+`Prefer: outlook.body-content-type="text"` kommt der Body als HTML.
+
+**Wanderndes Fenster und Delta (Pflicht 3) -- deshalb kein Delta für Serien:** bei
+`calendarView/delta` werden `startDateTime`/`endDateTime` in den Token kodiert und sind danach
+eingefroren. Ein mitwanderndes Fenster erzwingt regelmäßig eine neue Runde (voller Neuabzug), und
+für Vorkommen, die nur durch das Vorrücken der Zeit aus dem Fenster fallen, liefert Delta kein
+`@removed` (das gibt es nur für Änderungen) -- sie blieben verwaist, neue am vorderen Rand kämen
+nie. Stattdessen holt jeder Lauf den VOLLSTÄNDIGEN `calendarView`-Schnappschuss des aktuellen
+Fensters (verankert an Mitternacht Europe/Berlin, innerhalb eines Tages stabil) und gleicht
+`OutlookSeriesOccurrence` exakt ab: anlegen/ändern/entfernen in EINER Transaktion, erst nachdem
+alle Seiten (`@odata.nextLink`, `$top=100`) geholt sind -- ein Abruffehler ändert lokal nichts
+(`series_failed=1`, der Einzeltermin-Sync davor bleibt unberührt). Schlüssel (Besitzer,
+Outlook-ID) mit UNIQUE-Constraint: nichts doppelt, nichts fehlt. Aufwand je Lauf und Postfach:
+ein vollständiger Abruf über 13 Monate, bei `$select` auf die nötigen Felder und wenigen Serien
+unkritisch fürs 4-GB-Budget.
+
+**Strukturelle Push-Sperre (Pflicht 1):** eigene Tabelle `outlook_series_occurrences`
+(`OutlookSeriesOccurrence`, Migration `ea1034dc38e7`, reine `CREATE TABLE`) ohne Push-,
+Projekt- oder Angebotsfelder. Push-Schleife, `push_event_best_effort()` und PUT/DELETE
+`/api/calendar-events/{id}` arbeiten ausschließlich auf `CalendarEvent` -- ein Vorkommen ist dort
+nicht adressierbar. Lesen über den neuen `GET /api/calendar-series-occurrences` (kein PUT/DELETE,
+dieselbe Redaktion über `is_redacted_for_viewer()`/`redact_for_busy()`, rollen- und
+modulgesperrt wie alle Kalender-Endpunkte). Jede Outlook-ID gehört genau einem Weg:
+`_apply_delta_change()` lehnt Master, Vorkommen und Ausnahmen ab; der Serien-Abgleich ignoriert
+Einzeltermine. Wird ein bekannter Einzeltermin in Outlook zur Serie, entfernt der Delta-Weg die
+lokale Kopie (sonst könnte eine ERP-Bearbeitung per PATCH die ganze Serie ändern).
+
+**Oberfläche:** `calendar.html` lädt beide Endpunkte, zeigt Vorkommen mit ↻ und gestrichelter
+Kante; ein Klick öffnet eine reine Leseansicht (kein Formular, kein Löschen), getrennt nach
+`series`-Merker -- ein Einzeltermin und ein Vorkommen mit derselben numerischen ID werden nicht
+verwechselt (per CDP-Klicktest gegen eine isolierte Instanz belegt).
+
+**Diagnose (Pflicht 5):** eigene Zeile `serie occurrence_id=… typ=… etag_gespeichert=…
+etag_eingehend=… entscheidung=…` für "neu übernommen", "unverändert", "aktualisiert (in Outlook
+geändert)", "abgesagt (isCancelled) -> nicht geführt", "ungültig", "nicht mehr im Fenster oder in
+Outlook entfernt/abgesagt -> entfernt" und "Serien-Abgleich fehlgeschlagen"; nie Titel/Ort/Notiz.
+
+**Tests:** `FakeGraphServer` bildet Serien wie dokumentiert ab (Master nur im Delta, Vorkommen/
+Ausnahmen nur in `calendarView`, gelöschte fehlen, abgesagte mit `isCancelled`, sieben
+Nachkommastellen, Paging) und protokolliert jeden Schreibzugriff. 13 neue Tests, u. a.: sieben
+Läufe mit Serie ohne einen einzigen Schreibzugriff am Server; der Schaukel-Test aus 1.7.6 mit
+Serie (SQLite und opt-in PostgreSQL gegen `spielwiese`, beide grün); wanderndes Fenster
+(t0 -> t0+45 Tage, lokale Menge exakt gleich der unabhängig berechneten Erwartung, über
+Seitengrenzen); Abbruch auf Seite 2 ändert nichts. Gegenproben: mit abgeschaltetem Entfernen bzw.
+mit fälschlich gezählten Änderungen werden die jeweiligen Tests rot.
+
 #### Bekannte, bewusst offene Punkte
 
 - **Resurrection-Risiko bei fehlgeschlagener Fernlöschung.** `try_delete_remote_event()` löscht
@@ -774,10 +833,21 @@ Variable zusätzlich verifiziert grün).
   dadurch bestehen, erkennt ihn der NÄCHSTE Delta-Lauf als unbekannten `outlook_event_id` und
   legt ihn lokal NEU an (er "kommt zurück"). Bewusst akzeptiert, kein Tombstone-Mechanismus
   gebaut -- ein seltener, durch erneutes Löschen leicht behebbarer Fall, kein Datenverlust.
-- **Serientermine bleiben ausgeklammert** (siehe Punkt 4 des Moduldocstrings sowie den Vorschlag
-  im Nachtrag oben) -- eine künftige Erweiterung bräuchte einen zweiten `calendarView`-Durchlauf
-  UND einen neuen, schreibgeschützten `external_source`-Wert -- eine größere Erweiterung, hier
-  bewusst nur skizziert, nicht gebaut.
+- ~~Serientermine bleiben ausgeklammert~~ -- seit 1.7.8 schreibgeschützt übernommen, siehe
+  "Nachtrag (seit 1.7.8)" unten (umgesetzt mit eigener Tabelle statt des hier ursprünglich
+  skizzierten `external_source`-Werts).
+- **Der Einzeltermin-Sync nutzt `/users/{x}/events/delta`, laut Microsoft-Doku nur in Beta
+  dokumentiert** (gefunden 28.09.2026 bei der Serien-Recherche): v1.0 dokumentiert Delta nur auf
+  `calendarView/delta` (mit festem Fenster). In Beta liefert `events/delta` Einzeltermine und
+  Serien-Master, "Each event in the response contains only the id, type, start, and end
+  properties". Auf dem Produktivserver funktioniert der Sync nachweislich (Diagnosezeilen aus
+  1.7.4–1.7.6 zeigen `lastModifiedDateTime`/`@odata.etag`), das Verhalten ist aber
+  undokumentiert und könnte sich ändern. Bewusst nicht angefasst -- ein Wechsel auf
+  `calendarView/delta` wäre eine eigene, sorgfältig zu planende Runde (festes Fenster, Neuabzug).
+- **Ein Einzeltermin, der in Outlook zur Serie wird, verliert im ERP seine Projekt-/
+  Angebotszuordnung** (seit 1.7.8): die lokale `CalendarEvent`-Zeile wird entfernt, damit eine
+  ERP-Bearbeitung nie per PATCH die ganze Serie ändert; die Vorkommen erscheinen danach
+  schreibgeschützt ohne Zuordnung. Selten, bewusst in Kauf genommen.
 - **Kein Reverse-Proxy-Header-Problem hier** (anders als bei `public_base_url`,
   Betriebsmittelverwaltung Stufe 2) -- die Kalender-Sync-URLs zeigen immer auf
   `graph.microsoft.com`, nie auf die eigene ERP-Instanz, es gibt also keine analoge

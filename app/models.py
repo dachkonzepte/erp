@@ -3970,6 +3970,40 @@ class CalendarEvent(Base):
     quote: Mapped["Quote | None"] = relationship()
 
 
+class OutlookSeriesOccurrence(Base):
+    """Einzelnes Vorkommen (oder Ausnahme) einer Outlook-Terminserie, schreibgeschützt ins ERP
+    übernommen (seit 1.7.8). Bewusst eine EIGENE Tabelle statt CalendarEvent-Zeilen mit einem
+    Merker: die Push-Schleife, push_event_best_effort() und PUT/DELETE /api/calendar-events/{id}
+    arbeiten ausschließlich auf CalendarEvent -- ein Vorkommen kann dadurch strukturell nie nach
+    Outlook übertragen, im ERP bearbeitet oder gelöscht werden, nicht nur per Bedingung.
+    Deshalb auch keine Spalten outlook_synced_at/project_id/quote_id.
+
+    Gepflegt ausschließlich von app/outlook_calendar_sync.py::sync_series_occurrences() als
+    vollständiger Abgleich gegen einen calendarView-Schnappschuss des aktuellen Fensters (30 Tage
+    zurück, 12 Monate voraus) -- der UNIQUE-Constraint verhindert Dubletten auch strukturell."""
+
+    __tablename__ = "outlook_series_occurrences"
+    __table_args__ = (UniqueConstraint("owner_user_id", "outlook_event_id", name="uq_outlook_series_occurrence_owner_event"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_user_id: Mapped[int] = mapped_column(ForeignKey("app_users.id"), index=True)
+    outlook_event_id: Mapped[str] = mapped_column(String(255))
+    series_master_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    occurrence_type: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(255))
+    start_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    end_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    all_day: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    outlook_etag: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    owner: Mapped["AppUser"] = relationship()
+
+
 class OutlookSyncSettings(Base):
     """Gesamtschalter für die Outlook-Kalendersynchronisation (Kalender-Modul, Stufe 2, seit
     1.7.1) -- Singleton wie AISettings/SmtpSettings (immer genau eine Zeile mit id=1). Nur für

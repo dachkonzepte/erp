@@ -1510,6 +1510,10 @@ class OutlookSyncResultOut(BaseModel):
     skipped_invalid: int = 0
     pushed_created: int = 0
     pushed_updated: int = 0
+    series_created: int = 0
+    series_updated: int = 0
+    series_deleted: int = 0
+    series_failed: int = 0
 
 
 class ReminderEmailSend(BaseModel):
