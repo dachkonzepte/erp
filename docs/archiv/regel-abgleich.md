@@ -24,7 +24,9 @@ neue Regeln 16-18 in "Kritische, nicht verhandelbare Regeln" aufgenommen:
   Administratorzustimmung erteilt, sondern ausschließlich über Exchange "RBAC for
   Applications" -- betrifft jedes künftige Graph-Recht (Calendars, Contacts, OneDrive, Teams,
   …), nicht nur den Kalender, für den es ursprünglich dokumentiert wurde; die bestehende
-  `Mail.Send`-Berechtigung ist die einzige historische Ausnahme.
+  `Mail.Send`-Berechtigung ist die einzige historische Ausnahme. *(Korrigiert 28.09.2026: diese
+  Ausnahme gibt es nicht -- `Mail.Send` läuft ebenfalls über RBAC, in Entra ist keine
+  Graph-Anwendungsberechtigung mehr erteilt; siehe Regel 17 in CLAUDE.md.)*
 - **Regel 18** (Sicherheit/Datenschutz, gefunden in `modul-kalender-und-outlook-sync.md`,
   unabhängig bestätigt durch dieselbe Praxis im (b)-Abschnitt `ki-fundament.md`): ein Protokoll
   über eigene Funktionsaufrufe enthält nie den eigentlichen Inhalt, nur Metadaten -- zweimal

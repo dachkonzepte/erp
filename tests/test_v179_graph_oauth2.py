@@ -168,9 +168,9 @@ def test_check_connection_graph_wraps_http_error(mock_urlopen):
 def test_send_email_access_denied_gets_actionable_hint(mock_urlopen):
     """Nachstellung des tatsächlich aufgetretenen Falls: Graph liefert
     ErrorAccessDenied beim eigentlichen sendMail-Aufruf (Token-Abruf war
-    erfolgreich, nur die Mail.Send-Berechtigung griff nicht) -- die
-    Fehlermeldung muss einen konkreten, umsetzbaren Hinweis enthalten,
-    nicht nur Microsofts rohe, wenig aussagekräftige Meldung."""
+    erfolgreich, Absender-Postfach nicht in der RBAC-Gruppe ERP-Zugriff) --
+    die Fehlermeldung muss auf die Gruppe verweisen, nicht auf eine
+    Entra-Zustimmung, die es seit der RBAC-Umstellung nicht mehr gibt."""
     import urllib.error
     db = db_session()
     _configure_graph(db)
@@ -184,7 +184,9 @@ def test_send_email_access_denied_gets_actionable_hint(mock_urlopen):
         assert False, "hätte ValueError werfen müssen"
     except ValueError as e:
         assert "ErrorAccessDenied" in str(e)  # Microsofts Originalmeldung bleibt erhalten
-        assert "Administratorzustimmung" in str(e)  # zusätzlicher, konkreter Hinweis
+        assert "ERP-Zugriff" in str(e)  # zusätzlicher, konkreter Hinweis
+        assert "Administratorzustimmung" not in str(e)
+        assert "ApplicationAccessPolicy" not in str(e)
 
 
 @patch("app.email_sending.urllib.request.urlopen")

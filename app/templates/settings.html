@@ -368,10 +368,11 @@
         <b>Einmalige Einrichtung in Azure AD/Entra ID nötig (nur durch eine Administratorin/einen Administrator des Microsoft-365-Mandanten):</b>
         <ol style="margin:8px 0 0 18px;padding:0">
           <li>Azure Portal → Entra ID → App-Registrierungen → Neue Registrierung</li>
-          <li>Unter "API-Berechtigungen" hinzufügen: Microsoft Graph → <b>Anwendungsberechtigungen</b> (nicht "Delegierte Berechtigungen") → <code>Mail.Send</code></li>
-          <li>Dort auf "Administratorzustimmung erteilen" klicken (nur als globaler Administrator möglich)</li>
+          <li><b>Keine</b> Graph-Anwendungsberechtigung in Entra ID hinzufügen und <b>nicht</b> "Administratorzustimmung erteilen" klicken -- das gäbe der App Sendezugriff im Namen <b>jedes</b> Postfachs im Mandanten</li>
           <li>Unter "Zertifikate & Geheimnisse" einen neuen Clientschlüssel erstellen, Wert sofort kopieren (wird nur einmal angezeigt)</li>
           <li>Mandanten-ID und Anwendungs-ID (Client-ID) von der Übersichtsseite der App-Registrierung übernehmen</li>
+          <li><code>Mail.Send</code> per Exchange Online PowerShell über "RBAC for Applications" vergeben: <code>Enable-OrganizationCustomization</code>, <code>New-ServicePrincipal</code> (ObjectId der Unternehmensanwendung), <code>New-ManagementScope</code> mit <code>MemberOfGroup</code>-Filter auf die Gruppe <code>ERP-Zugriff@dachkonzepte.gmbh</code>, <code>New-ManagementRoleAssignment -CustomResourceScope "ERP-Zugriff"</code></li>
+          <li>Das unten eingetragene <b>Absender-Postfach muss Mitglied der Gruppe ERP-Zugriff sein</b> -- sonst lehnt Microsoft den Versand mit <code>ErrorAccessDenied</code> ab</li>
           <li>Empfehlung: ein gemeinsames Firmenpostfach (z.B. buero@firma.de) statt eines persönlichen Postfachs als Absender verwenden</li>
         </ol>
       </div>
@@ -425,7 +426,7 @@
   <section class="card settings-section" id="settings-outlook-sync">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Outlook-Synchronisation</h2><div class="muted small">Kalender-Modul, Stufe 2 -- gleicht die eigenen Termine jeder Person mit ihrem in "Benutzer &amp; Zugriff" hinterlegten Outlook-Postfach ab.</div></div></div>
 
-    <div class="hint">Nutzt dieselbe Microsoft-365-App-Registrierung wie unter "E-Mail-Versand" (Mandanten-ID/Client-ID/Client-Secret) -- zusätzlich zu Mail.Send braucht diese App die Anwendungsberechtigung <code>Calendars.ReadWrite</code>, eingeschränkt über eine Exchange-RBAC-Zugriffsrichtlinie auf genau die Postfächer, die synchronisiert werden sollen (siehe CLAUDE.md "Kalender" -&gt; "Stufe 2" für die vollständige Einrichtungsanleitung). Solange der Schalter unten aus ist, ruft niemand Microsoft Graph für Kalenderdaten auf.</div>
+    <div class="hint">Nutzt dieselbe Microsoft-365-App-Registrierung wie unter "E-Mail-Versand" (Mandanten-ID/Client-ID/Client-Secret) -- die Rolle <code>Calendars.ReadWrite</code> wird wie <code>Mail.Send</code> ausschließlich über Exchange "RBAC for Applications" (Scope "ERP-Zugriff") vergeben, nie in Entra ID -- jedes zu synchronisierende Postfach muss Mitglied der Gruppe <code>ERP-Zugriff@dachkonzepte.gmbh</code> sein (vollständige Anleitung: docs/archiv/modul-kalender-und-outlook-sync.md). Solange der Schalter unten aus ist, ruft niemand Microsoft Graph für Kalenderdaten auf.</div>
 
     <div class="field" style="max-width:420px;margin-top:12px">
       <label style="display:flex;align-items:center;gap:8px;font-weight:650"><input id="outlookSyncEnabled" type="checkbox" style="width:auto"> Outlook-Kalendersynchronisation aktivieren</label>

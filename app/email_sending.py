@@ -17,7 +17,9 @@ SmtpSettings.send_method (Klärung: "zusätzlich als wählbare Alternative"):
   Passwort-Hashing über hashlib statt einer externen Bibliothek).
 
 - 'graph_oauth2': Microsoft Graph API mit OAuth 2.0
-  Client-Credentials-Flow (App-only, Application-Berechtigung Mail.Send).
+  Client-Credentials-Flow (App-only). Mail.Send ist NICHT in Entra ID erteilt,
+  sondern über Exchange "RBAC for Applications" auf die Gruppe ERP-Zugriff
+  beschränkt -- das Absender-Postfach muss Mitglied dieser Gruppe sein.
   Für Microsoft 365/Exchange Online, wo SMTP AUTH zunehmend deaktiviert
   ist -- kein SMTP-Protokoll mehr, reiner REST-Aufruf über HTTPS. Bewusst
   über die Standardbibliothek (urllib) umgesetzt statt einer zusätzlichen
@@ -168,9 +170,9 @@ def get_graph_access_token(settings: SmtpSettings) -> str:
 
     Bewusst öffentlich (kein führender Unterstrich mehr, seit Kalender-Modul Stufe 2) -- der
     Client-Credentials-Flow fordert immer den Scope "https://graph.microsoft.com/.default", die
-    tatsächlich nutzbaren Berechtigungen (Mail.Send, seit Stufe 2 zusätzlich
-    Calendars.ReadWrite) ergeben sich ausschließlich aus dem, was der App in Azure AD erteilt
-    wurde -- ein und dasselbe Token trägt beide Rechte, app/outlook_calendar_sync.py ruft
+    tatsächlich nutzbaren Berechtigungen (Mail.Send, Calendars.ReadWrite) ergeben sich
+    ausschließlich aus der Exchange-RBAC-Rollenzuweisung (Scope ERP-Zugriff), nicht aus dem Token
+    und nicht aus Entra ID -- ein und dasselbe Token gilt für beide Zwecke, app/outlook_calendar_sync.py ruft
     deshalb GENAU diese Funktion erneut auf, statt eine zweite Token-Beschaffung zu bauen."""
     token_url = f"https://login.microsoftonline.com/{settings.graph_tenant_id}/oauth2/v2.0/token"
     data = urllib.parse.urlencode({
@@ -197,9 +199,9 @@ def check_smtp_connection(db: Session) -> None:
     testen"-Knopf in den Einstellungen, damit eine falsche Konfiguration
     nicht erst beim ersten echten Versand auffällt.
 
-    Bei Microsoft 365 bestätigt das nur Mandant/App/Secret, NICHT, ob die
-    Mail.Send-Berechtigung tatsächlich erteilt (und Admin-genehmigt)
-    wurde -- das zeigt sich erst beim echten Versand."""
+    Bei Microsoft 365 bestätigt das nur Mandant/App/Secret, NICHT, ob das
+    Absender-Postfach in der RBAC-Gruppe ERP-Zugriff ist -- das zeigt sich
+    erst beim echten Versand."""
     settings = get_or_create_smtp_settings(db)
     missing = _missing_config_fields(settings)
     if missing:
@@ -240,12 +242,10 @@ def _graph_error_hint(detail: str) -> str:
     weitere Fehlercodes, sobald sich neue Praxisfälle zeigen."""
     if "ErrorAccessDenied" in detail:
         return (
-            " Häufigste Ursache: Die Anwendungsberechtigung 'Mail.Send' (nicht die gleichnamige "
-            "Delegierte Berechtigung) hat keine wirksame Administratorzustimmung -- in Azure AD/Entra ID "
-            "unter API-Berechtigungen prüfen, ob dort ein grüner Haken bei 'Erteilt für [Mandant]' steht, "
-            "nicht nur 'Hinzugefügt'. Falls das bereits stimmt: eine Exchange-Anwendungszugriffsrichtlinie "
-            "könnte den Zugriff auf dieses Postfach einschränken (per PowerShell prüfbar: "
-            "Get-ApplicationAccessPolicy)."
+            " Häufigste Ursache: das hinterlegte Absender-Postfach ist nicht Mitglied der Gruppe "
+            "ERP-Zugriff (ERP-Zugriff@dachkonzepte.gmbh) -- Mail.Send ist ausschließlich über Exchange "
+            "\"RBAC for Applications\" auf die Mitglieder dieser Gruppe freigegeben, nicht über Entra ID. "
+            "Postfach in die Gruppe aufnehmen; die Änderung kann einige Minuten bis zur Wirksamkeit brauchen."
         )
     if "ErrorInvalidUser" in detail or "ErrorInvalidRecipients" in detail or "does not exist" in detail:
         return " Häufigste Ursache: das hinterlegte Absender-Postfach existiert nicht oder ist falsch geschrieben."

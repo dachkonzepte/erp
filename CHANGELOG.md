@@ -4,6 +4,32 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.7.7 – Microsoft 365: Mail.Send läuft über RBAC, nicht über Entra -- Dokumentation und Fehlerhinweis korrigiert
+
+Der Betreiber hat den tatsächlichen Stand auf dem Server verifiziert: `Mail.Send` ist in Entra ID
+entfernt (App-Registrierung und Unternehmensanwendung tragen nur noch `User.Read`, delegiert),
+`Mail.Send` und `Calendars.ReadWrite` laufen beide über Exchange "RBAC for Applications", Scope
+`ERP-Zugriff` = Mitglieder der Gruppe `ERP-Zugriff@dachkonzepte.gmbh`. Die bisherige Doku
+(CLAUDE.md Regel 17, Kalender-Archiv, `regel-abgleich.md`, Docstrings in `app/models.py`/
+`app/email_sending.py`) behauptete dagegen, `Mail.Send` sei als "unproblematische historische
+Ausnahme" per tenant-weiter Administratorzustimmung erteilt -- das war falsch, tenant-weites
+`Mail.Send` erlaubte Senden im Namen jedes Postfachs. Die Einrichtungsanleitung unter
+Einstellungen → E-Mail-Versand forderte sogar ausdrücklich zum Klick auf "Administratorzustimmung
+erteilen" auf; sie beschreibt jetzt den RBAC-Weg (`Enable-OrganizationCustomization`,
+`New-ServicePrincipal`, `New-ManagementScope` mit `MemberOfGroup`-Filter,
+`New-ManagementRoleAssignment -CustomResourceScope "ERP-Zugriff"`) und warnt vor der
+Entra-Berechtigung.
+
+Der Zusatzhinweis bei `ErrorAccessDenied` im Graph-Mailversand (`_graph_error_hint()`) verwies
+bisher auf eine fehlende Entra-Zustimmung und `Get-ApplicationAccessPolicy` -- beides führt beim
+heutigen Aufbau in die Irre. Er nennt jetzt als erste Ursache "Absender-Postfach nicht in der
+Gruppe ERP-Zugriff", genau der real aufgetretene Fall; der Test prüft zusätzlich, dass die alten
+Hinweise nicht mehr auftauchen. Geprüft, ob das ERP von anderen Adressen sendet: nein -- alle
+fünf Versandstellen (Mahnung, Angebot, Auftrag, Rechnung, Aufgaben-Benachrichtigung) laufen über
+`send_email_with_attachment()`/`send_plain_email()`, der Graph-Weg ruft ausschließlich
+`/users/{graph_sender_mailbox}/sendMail` ohne `from`-Überschreibung auf; der Kalender-Sync
+schreibt nur `/events` ohne Teilnehmer, löst also keine Einladungs-Mails aus.
+
 ## 1.7.6 – Kalender-Modul (Stufe 2), Nachtrag: Dauer-Push trotz 1.7.5 -- Sync-Buchhaltung selbst hatte updated_at verschoben
 
 Der Betreiber legte eine weitere Produktions-Diagnose vor: bei "etag-Echo (übersprungen)" und

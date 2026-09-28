@@ -507,7 +507,7 @@ def _graph_call(token: str, url: str, *, method: str = "GET", payload: dict | No
             return json.loads(body.decode("utf-8"))
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace")
-        hint = " Häufigste Ursache: das Postfach ist der Anwendung nicht über eine Exchange-RBAC-Zugriffsrichtlinie freigegeben (siehe CLAUDE.md \"Kalender\" -> \"Stufe 2\")." if e.code == 403 else ""
+        hint = " Häufigste Ursache: das Postfach ist der Anwendung nicht über eine Exchange-RBAC-Zugriffsrichtlinie freigegeben (Postfach nicht in der Gruppe ERP-Zugriff, siehe docs/archiv/modul-kalender-und-outlook-sync.md)." if e.code == 403 else ""
         raise OutlookSyncError(f"Microsoft-Graph-Aufruf fehlgeschlagen ({e.code}): {detail}{hint}") from e
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         raise OutlookSyncError(f"Verbindung zu Microsoft Graph fehlgeschlagen: {e}") from e

@@ -102,7 +102,9 @@ siehe Abschnitt "Stufe 2 (seit 1.7.1)" weiter unten für den tatsächlichen Stan
 Unterabschnitt bleibt unverändert stehen (Entscheidungsgeschichte, nicht rückwirkend
 überschrieben, Muster CLAUDE.md "Krankheitssichtbarkeit"):
 
-- **App-Berechtigung auf alle Postfächer einschränken**: Microsofts `Calendars.ReadWrite`
+- *(Überholt: umgesetzt wurde nicht die hier skizzierte Application Access Policy, sondern
+  Exchange "RBAC for Applications", siehe "Einrichtung" unten.)*
+  **App-Berechtigung auf alle Postfächer einschränken**: Microsofts `Calendars.ReadWrite`
   (App-Berechtigung) gilt tenant-weit, sofern keine **Application Access Policy** eingerichtet
   ist (`New-ApplicationAccessPolicy`, Exchange Online PowerShell) -- eine Postfach-
   Sicherheitsgruppe wird angelegt, die App-ID wird per Policy exakt auf diese Gruppe beschränkt.
@@ -148,36 +150,46 @@ Runde gebaut. Betrifft ausschließlich das Kalender-Modul selbst; kein anderer M
 Projekts wurde dafür angefasst außer der Umbenennung eines internen Funktionsnamens in
 `app/email_sending.py` (siehe unten).
 
-#### Einrichtung: Exchange "RBAC for Applications", NICHT globale Admin-Zustimmung in Entra ID
+#### Einrichtung: Exchange "RBAC for Applications", KEINE Graph-Berechtigung in Entra ID
 
 **Das ist die wichtigste, dauerhaft zu beachtende Regel dieses Abschnitts, deshalb vorangestellt.**
-Der bestehende Microsoft-365-E-Mail-Versand (seit 1.0.79, `app/email_sending.py`) erteilt seiner
-Azure-AD-App-Registrierung die Anwendungsberechtigung `Mail.Send` über die normale "Administrator-
-zustimmung erteilen"-Schaltfläche in Entra ID -- das gilt dort tenant-weit für jedes Postfach, war
-aber für den E-Mail-Versand (ein einzelnes, gemeinsames Firmenpostfach) unproblematisch.
+**Korrigiert am 28.09.2026 (auf dem Server verifizierter Stand, Betreiberangabe)** -- die
+ursprüngliche Fassung dieses Abschnitts beschrieb zweierlei falsch: (a) `Mail.Send` sei über die
+tenant-weite "Administratorzustimmung erteilen"-Schaltfläche in Entra erteilt und das sei "für
+den E-Mail-Versand unproblematisch"; (b) `Calendars.ReadWrite` werde zusätzlich in Entra
+hinzugefügt, nur ohne Zustimmung. Tatsächlicher Stand:
 
-Für den Kalender-Zugriff (`Calendars.ReadWrite`) ist **derselbe Weg ausdrücklich NICHT
-zulässig** -- er würde der App Zugriff auf JEDES Postfach im Mandanten geben, nicht nur auf die
-Postfächer der Personen, die tatsächlich synchronisieren sollen. Die Einrichtung läuft
-stattdessen ausschließlich über **Exchange "RBAC for Applications"** (Exchange Online
-PowerShell), das den Zugriff auf eine explizit benannte Postfach-Gruppe beschränkt:
+- **In Entra ID trägt die App (App-Registrierung UND Unternehmensanwendung) keine einzige
+  Graph-Anwendungsberechtigung**, auch nicht "hinzugefügt ohne Zustimmung" -- nur `User.Read`
+  (delegiert). `Mail.Send` wurde dort entfernt.
+- **`Mail.Send` UND `Calendars.ReadWrite` laufen beide ausschließlich über Exchange "RBAC for
+  Applications"**, Scope `ERP-Zugriff` = Mitglieder der E-Mail-aktivierten Sicherheitsgruppe
+  `ERP-Zugriff@dachkonzepte.gmbh`.
+- Tenant-weites `Mail.Send` war **nicht** unproblematisch: es erlaubte Senden im Namen JEDES
+  Postfachs im Mandanten, nicht nur des Firmenpostfachs. Eine Wiedererteilung in Entra ist
+  ausschließlich ein Notfall-Rückweg (z. B. wenn RBAC ausfällt), nie der Einrichtungsweg.
 
-1. Dieselbe App-Registrierung wie beim E-Mail-Versand bekommt zusätzlich zu `Mail.Send` die
-   Anwendungsberechtigung `Calendars.ReadWrite` -- **ohne** dafür "Administratorzustimmung
-   erteilen" zu klicken (das wäre wieder der zu weite, tenant-weite Weg).
-2. Eine E-Mail-aktivierte Sicherheitsgruppe wird angelegt, Scope-Name `ERP-Zugriff`
-   (`ERP-Zugriff@dachkonzepte.gmbh`) -- jedes Postfach, das synchronisiert werden soll, kommt in
-   diese Gruppe.
-3. Über Exchange Online PowerShell wird eine Rollenzuweisung erstellt, die die App-Rollen
-   `Mail.Send` und `Calendars.ReadWrite` **an diese eine Gruppe** bindet (`New-ServicePrincipal`/
-   `New-ManagementRoleAssignment -App <AppId> -Role "Mail.Send","Calendars.ReadWrite" -Scope
-   "ERP-Zugriff@dachkonzepte.gmbh"` -- exakter Befehlssatz je nach Exchange-Online-Modulversion,
-   siehe Microsofts "Role based access control (RBAC) for applications"-Dokumentation für den
-   aktuellen Befehl).
-4. **Ein neuer Sync-Nutzer wird ausschließlich durch Aufnahme in diese Gruppe freigeschaltet** --
-   kein erneuter Azure-AD-Eingriff nötig, kein erneutes "Zustimmung erteilen".
+Einrichtung (Exchange Online PowerShell):
 
-**Zwei Konsequenzen, die dauerhaft zu beachten sind:**
+1. `Enable-OrganizationCustomization` (einmalig je Mandant, Voraussetzung für eigene
+   Management-Scopes).
+2. `New-ServicePrincipal` -- mit der **ObjectId der Unternehmensanwendung** (nicht der
+   App-Registrierung) und der AppId.
+3. Die E-Mail-aktivierte Sicherheitsgruppe `ERP-Zugriff@dachkonzepte.gmbh` anlegen;
+   `New-ManagementScope -Name "ERP-Zugriff"` mit einem `MemberOfGroup`-Filter
+   (`RecipientRestrictionFilter`) auf diese Gruppe.
+4. `New-ManagementRoleAssignment` für die App-Rollen `Application Mail.Send` und
+   `Application Calendars.ReadWrite` mit `-CustomResourceScope "ERP-Zugriff"`.
+5. **Jedes Postfach, das das ERP nutzen soll, kommt in die Gruppe** -- das Absenderpostfach aus
+   Einstellungen → E-Mail-Versand (`SmtpSettings.graph_sender_mailbox`) EBENSO wie jedes
+   `AppUser.outlook_mailbox` für den Kalender-Sync. Fehlt das Absenderpostfach in der Gruppe,
+   lehnt Graph `sendMail` mit `ErrorAccessDenied` ab (real so aufgetreten). Kein erneuter
+   Entra-Eingriff nötig, keine Zustimmung.
+
+**Drei Konsequenzen, die dauerhaft zu beachten sind** (die dritte: das Absenderpostfach muss in
+der Gruppe sein, siehe Schritt 5 -- `app/email_sending.py::_graph_error_hint()` weist bei
+`ErrorAccessDenied` seit 1.7.7 genau darauf hin, statt wie zuvor auf eine Entra-Zustimmung bzw.
+`Get-ApplicationAccessPolicy`):
 
 - **Das Zugriffstoken selbst enthält KEINE Information darüber, welche Rollen über RBAC for
   Applications gelten** -- der Client-Credentials-Flow fordert immer denselben Scope

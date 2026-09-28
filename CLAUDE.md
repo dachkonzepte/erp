@@ -511,20 +511,27 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Modul gerade getestet wird (real wiederholt angewendet u. a. bei Kalender-Sync,
     Buchhaltung, Projektliste, Betriebsmittelverwaltung; Details siehe jeweilige Archivdatei).
 
-17. **Ein neues Microsoft-Graph-Recht (App-Berechtigung) wird NIE über die tenant-weite
-    "Administratorzustimmung erteilen"-Schaltfläche in Entra ID erteilt, sondern ausschließlich
-    über Exchange "RBAC for Applications"** (Exchange Online PowerShell), gebunden an eine
-    eigens angelegte, E-Mail-aktivierte Sicherheitsgruppe (`ERP-Zugriff@dachkonzepte.gmbh`) --
-    ein neuer Nutzer/ein neues Postfach wird ausschließlich durch Aufnahme in diese Gruppe
-    freigeschaltet, kein erneuter Azure-AD-Eingriff. Grund: die tenant-weite Zustimmung gilt
-    für JEDES Postfach im Mandanten, nicht nur für die tatsächlich vorgesehenen. Die bestehende
-    `Mail.Send`-Berechtigung (E-Mail-Versand, ein einzelnes, gemeinsames Firmenpostfach) ist die
-    einzige, historisch gewachsene Ausnahme -- **jedes** künftige, zusätzliche Graph-Recht
-    (Calendars, Contacts, OneDrive, Teams, …) folgt diesem RBAC-Weg, unabhängig vom Modul, das
-    es braucht. Zwei Konsequenzen, ebenfalls dauerhaft zu beachten: das Zugriffstoken selbst
-    verrät nie, welche Postfächer freigegeben sind (immer derselbe `.default`-Scope) -- die
-    einzige verlässliche Prüfung ist der tatsächliche API-Aufruf; ein `403` von Graph bedeutet
-    "Postfach nicht freigegeben", nicht "Zugangsdaten falsch" (das wäre `401`). Details:
+17. **Ein Microsoft-Graph-Recht (App-Berechtigung) wird NIE in Entra ID erteilt -- weder per
+    "Administratorzustimmung erteilen" noch als bloß hinzugefügte Berechtigung ohne Zustimmung
+    --, sondern ausschließlich über Exchange "RBAC for Applications"** (Exchange Online
+    PowerShell), Scope `ERP-Zugriff` = Mitglieder der E-Mail-aktivierten Sicherheitsgruppe
+    `ERP-Zugriff@dachkonzepte.gmbh`. Gilt ausnahmslos, auch für `Mail.Send`: auf dem Server
+    verifizierter Stand (28.09.2026) -- App-Registrierung und Unternehmensanwendung tragen in
+    Entra nur noch `User.Read` (delegiert), KEINE Graph-Anwendungsberechtigung; `Mail.Send` UND
+    `Calendars.ReadWrite` laufen beide über die RBAC-Rollenzuweisung. Einrichtung:
+    `Enable-OrganizationCustomization`, `New-ServicePrincipal` (ObjectId der
+    Unternehmensanwendung), `New-ManagementScope` mit `MemberOfGroup`-Filter,
+    `New-ManagementRoleAssignment -CustomResourceScope "ERP-Zugriff"`. Ein neues Postfach wird
+    ausschließlich durch Aufnahme in die Gruppe freigeschaltet. Grund: eine Entra-Berechtigung
+    gilt für JEDES Postfach im Mandanten -- bei `Mail.Send` hieß das Senden im Namen jedes
+    Postfachs, also ausdrücklich NICHT unproblematisch (eine frühere Fassung dieser Regel
+    behauptete das fälschlich). Wiedererteilung in Entra nur als Notfall-Rückweg, nie als
+    Einrichtungsweg. Drei Konsequenzen: **das Absenderpostfach aus Einstellungen →
+    E-Mail-Versand MUSS Mitglied der Gruppe sein**, sonst `ErrorAccessDenied` (real so
+    aufgetreten); das Zugriffstoken verrät nie, welche Postfächer freigegeben sind (immer
+    derselbe `.default`-Scope) -- einzige verlässliche Prüfung ist der tatsächliche API-Aufruf;
+    ein `403`/`ErrorAccessDenied` von Graph bedeutet "Postfach nicht in der Gruppe", nicht
+    "Zugangsdaten falsch" (das wäre `401`). Details:
     `docs/archiv/modul-kalender-und-outlook-sync.md`.
 
 18. **Ein Protokoll/Log, das eine Funktion über ihre eigenen Aufrufe führt, enthält NIE den
@@ -609,7 +616,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   reproduzierbar, keine Codeänderung. Wahrscheinlichste Erklärung: der Auftrag entstand durch
   einen eigenen, nicht mehr erinnerten Klick auf "Beauftragen" beim Testen des neuen Angebots.
 - **E-Mail-Versand**: gemeinsame Infrastruktur in `app/email_sending.py` (SMTP oder Microsoft 365
-  OAuth2/Graph API, umschaltbar). Betrifft/Auftrag/Angebot/Rechnung teilen sich eine Textvorlagen-
+  OAuth2/Graph API, umschaltbar). Im Graph-Weg wird ausschließlich vom einen hinterlegten
+  `SmtpSettings.graph_sender_mailbox` gesendet (kein `from`-Überschreiben, geprüft 28.09.2026);
+  dieses Postfach muss Mitglied der RBAC-Gruppe `ERP-Zugriff` sein (Regel 17). Betrifft/Auftrag/
+  Angebot/Rechnung teilen sich eine Textvorlagen-
   Tabelle (`app/document_email_templates.py`), Mahnungen haben eigene Vorlagen pro Stufe direkt
   auf `ReminderLevel` (historisch zuerst gebaut, nie migriert).
 - **Modul-Umschalter** (seit 1.1.0): Tabelle `EnabledModule` (`module_key`, `enabled`), Registry

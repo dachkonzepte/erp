@@ -2905,9 +2905,10 @@ class SmtpSettings(Base):
       password_encrypted/encryption/sender_email/sender_name)
     - 'graph_oauth2': Microsoft Graph API mit OAuth 2.0 Client-Credentials-Flow
       (graph_*-Felder) -- für Microsoft 365/Exchange Online, wo SMTP AUTH
-      zunehmend deaktiviert ist. Nutzt eine App-Registrierung in Azure AD mit
-      Mail.Send als Application-Berechtigung (nicht Delegated), damit ohne
-      interaktive Anmeldung im Hintergrund versendet werden kann.
+      zunehmend deaktiviert ist. App-only (ohne interaktive Anmeldung); Mail.Send
+      ist NICHT in Entra ID erteilt, sondern über Exchange "RBAC for Applications"
+      auf die Gruppe ERP-Zugriff beschränkt -- graph_sender_mailbox muss Mitglied
+      dieser Gruppe sein.
 
     password_encrypted/graph_client_secret_encrypted liegen NIE im Klartext
     in der Datenbank -- siehe app/crypto.py (encrypt_secret/decrypt_secret),
@@ -3978,9 +3979,9 @@ class OutlookSyncSettings(Base):
     Nutzt BEWUSST dieselbe Azure-AD-App-Registrierung wie der E-Mail-Versand
     (SmtpSettings.graph_tenant_id/graph_client_id/graph_client_secret_encrypted, siehe
     app/email_sending.py::get_graph_access_token()) -- KEINE zweite Kopie derselben
-    Zugangsdaten. Das reale Setup (siehe CLAUDE.md "Kalender" -> "Stufe 2") gibt derselben App
-    zusätzlich zu Mail.Send die Anwendungsberechtigung Calendars.ReadWrite, eingeschränkt über
-    Exchange "RBAC for Applications" auf eine Postfach-Sicherheitsgruppe (Scope "ERP-Zugriff")
+    Zugangsdaten. Das reale Setup (siehe docs/archiv/modul-kalender-und-outlook-sync.md) vergibt
+    Mail.Send UND Calendars.ReadWrite ausschließlich über Exchange "RBAC for Applications" an
+    dieselbe App, beschränkt auf die Mitglieder der Gruppe ERP-Zugriff (keine Entra-Berechtigung)
     -- eine zweite, unabhängige App-Registrierung nur für den Kalender wäre unnötige Komplexität
     für dieselbe Vertrauensbeziehung.
 
