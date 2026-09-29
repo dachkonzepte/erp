@@ -921,12 +921,19 @@ zusätzlich Platz braucht, den ein echter Mausrad-Scroll durch Scroll-Chaining a
 mitnimmt, ein reines `.wrap.scrollTop=...` aber nicht -- `window.scrollTo(0,
 document.body.scrollHeight)` musste ergänzt werden, sonst wurde ein tatsächlich unsichtbarer,
 außerhalb des Ansichtsfensters liegender Knopf angeklickt, was kein reales Nutzerszenario
-abbildet). **Kein dauerhaft installiertes Werkzeug, kein neuer Projektbestandteil** -- das
-Skript lag nur temporär im Scratchpad dieser Sitzung, für eine künftige Sitzung ist diese
-Fähigkeit (Chrome+CDP über PowerShell) neu zu bauen, aber jetzt als grundsätzlich funktionierender
-Weg bekannt, bevor eine künftige Anfrage wieder pauschal auf "kein Browser verfügbar" verweist --
-mindestens für gezielte, einzelne Verifikationen wie diese, nicht notwendigerweise praktikabel für
-eine große Zahl laufender UI-Tests (deutlich aufwendiger als ein fertiges Test-Framework).
+abbildet).
+
+**Seit Runde 0e (29.09.2026) liegt das Werkzeug im Projekt, statt je Runde im Scratchpad neu
+gebaut zu werden:** `scripts/cdp_klicktest.py` startet eine isolierte Instanz (Wegwerf-SQLite,
+eigener `ERP_DATA_DIR` und `ERP_SECRET_KEY` in einem Temp-Ordner, Regel 16), Chrome headless mit
+eigenem Profil, und beendet beide nur über die eigene PID (Regel 12); die beiden Fallen oben
+(`exceptionDetails`, Bereitschaftsbedingung) sind dort abgefangen. Je Prüfung ein
+`scripts/klicktest_*.py` mit `befuellen()` und `pruefen()`, Anleitung und Optionen im Dateikopf,
+Aufruf `.venv\Scripts\python.exe scripts\klicktest_<name>.py` (Rückgabecode 0 = alles wie
+erwartet). Vorhanden: `klicktest_zeitbuchungen_liste.py` (1.8.9, acht Seiten, Daten relativ zum
+heutigen Datum) und `klicktest_dashboard_monatswechsel.py` (1.8.10, festgehaltene Browser-Uhr und
+-Zeitzone). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
+Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 
 ## Arbeitsweise, die sich bewährt hat
 
