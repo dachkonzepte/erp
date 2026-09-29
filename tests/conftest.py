@@ -17,7 +17,23 @@ nicht betroffen: ein Name, der in einer Testdatei selbst definiert wird,
 hat dort Vorrang vor dieser Fixture.
 """
 
-import pytest
+import os
+import tempfile
+from pathlib import Path
+
+# Regel 16 (CLAUDE.md): kein Testlauf berührt die echte Datenbank oder den echten Datenordner.
+# Ohne diese Zeilen fiele app.database beim Import still auf ./dachkonzepte_erp.db zurück --
+# jeder Test, der app.main importiert (create_all()) oder eine Seite rendert (Jinja-Globals mit
+# eigener SessionLocal()), schriebe dann in die lokale Arbeitsdatenbank. Gesetzt VOR dem ersten
+# Import aus app.*, bewusst unbedingt: auch ein in der Shell gesetztes DATABASE_URL (z. B. die
+# lokale Postgres-Instanz) wird für den Testlauf ersetzt. Die Wegwerf-Dateien liegen im
+# Temp-Verzeichnis und werden nie wiederverwendet.
+_TEST_SCRATCH = Path(tempfile.mkdtemp(prefix="erp_pytest_"))
+os.environ["DATABASE_URL"] = f"sqlite:///{(_TEST_SCRATCH / 'wegwerf.db').as_posix()}"
+os.environ["ERP_DATA_DIR"] = str(_TEST_SCRATCH / "data")
+os.environ.pop("ERP_ENV", None)
+
+import pytest  # noqa: E402 -- erst nach dem Umlenken der Datenbank
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
