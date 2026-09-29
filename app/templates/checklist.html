@@ -1,0 +1,343 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Checkliste</title>
+{#
+  checklist.html -- eine Checkliste ausfüllen bzw. ansehen (seit 1.8.1, Modul "checklisten", siehe
+  docs/archiv/modul-checklisten.md). EINE Vorlage für jede Rolle: für `field` mit der schlanken
+  _mobile_header.html, sonst mit Sidebar/Topbar -- die Weiche hängt an der Rolle, nicht am Weg
+  (Muster time_tracking_page()). Was sichtbar und änderbar ist, entscheidet ausschließlich der
+  Server (GET /api/checklists/{id}: 403 für fremde, nicht lesbare Checklisten; can_edit).
+
+  Jede Änderung speichert sofort (Ja/Nein/Auswahl) bzw. 700 ms nach der letzten Eingabe
+  (Text/Zahl/Datum), jede mit eigener client_uuid und client_recorded_at -- Vorbereitung für den
+  Offline-Betrieb (Stufe 3), der Server nimmt Wiederholungen idempotent an. Vor dem Abschließen
+  werden noch ausstehende Speichervorgänge abgewartet. Bedienelemente mindestens 44px.
+#}
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--success:#1f8a5f;--success-soft:#eaf5ef;--warning:#9a6b00;--warning-soft:#fdf3dc;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--success:#4ade95;--success-soft:#173226;--warning:#f0c05a;--warning-soft:#3a2f14;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+.cl-main{max-width:760px;margin:0;padding:16px 14px 80px}
+body.field .cl-main{margin:0 auto}
+.back{display:inline-block;color:var(--accent);text-decoration:none;font-size:13.5px;margin-bottom:8px;min-height:32px}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:12px}
+h1{margin:0 0 4px;font-size:21px}
+.muted{color:var(--muted)}.small{font-size:12.5px}
+.badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:3px 8px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.badge.draft{background:var(--warning-soft);color:var(--warning)}
+.badge.done{background:var(--success-soft);color:var(--success)}
+.group-title{font-size:12.5px;text-transform:uppercase;font-weight:800;color:var(--muted);margin:18px 0 8px}
+.q{background:var(--card);border:1px solid var(--line);padding:14px;margin-bottom:10px}
+.q.missing{border-left:3px solid var(--warning)}
+.q-label{font-weight:650;font-size:15px}
+.q-label .req{color:var(--danger);margin-left:3px}
+.q-help{font-size:13px;color:var(--muted);margin-top:4px;white-space:pre-wrap}
+.q-body{margin-top:10px}
+.q-status{font-size:12px;color:var(--muted);margin-top:6px;min-height:14px}
+.q-status.err{color:var(--danger)}
+.hint{background:var(--soft);border-left:3px solid var(--accent);padding:12px 14px;margin-bottom:10px}
+.hint .q-help{color:var(--ink)}
+.tiles{display:flex;gap:8px;flex-wrap:wrap}
+.tile{flex:1;min-width:92px;min-height:48px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-weight:650;font-size:15px;cursor:pointer;padding:8px 12px}
+.tile.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.tile:disabled{cursor:default;opacity:.85}
+input,textarea{padding:11px 12px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:16px;width:100%;min-height:44px}
+input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+input:disabled,textarea:disabled{background:var(--soft);color:var(--ink)}
+textarea{min-height:90px;resize:vertical}
+.num-row{display:flex;gap:8px;align-items:center}.num-row input{max-width:220px}
+.btn{min-height:44px;border:1px solid var(--accent);background:var(--accent);color:#fff;font:inherit;font-weight:650;font-size:14px;padding:10px 14px;cursor:pointer}
+.btn.secondary{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn.danger{background:var(--danger-soft);color:var(--danger);border-color:transparent}
+.btn:disabled{opacity:.6;cursor:default}
+.thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.thumb{position:relative;width:110px;height:110px;border:1px solid var(--line);background:var(--soft)}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb button{position:absolute;top:2px;right:2px;min-height:32px;min-width:32px;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:16px;cursor:pointer}
+.sig-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.sig{display:flex;align-items:center;gap:10px;border:1px solid var(--line);padding:6px 8px;background:#fff}
+.sig img{height:60px;max-width:220px;object-fit:contain}
+.sig .name{color:#182420;font-weight:650;flex:1}
+.sig button{min-height:36px;border:none;background:var(--danger-soft);color:var(--danger);cursor:pointer;padding:4px 10px}
+.pad-wrap{border:1px dashed var(--field-border);background:#fff;touch-action:none}
+.pad-wrap canvas{display:block;width:100%;height:170px}
+.pad-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.pad-actions input{flex:1;min-width:180px}
+.footer-card{position:sticky;bottom:0;background:var(--card);border:1px solid var(--line);padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 -4px 14px rgba(0,0,0,.06)}
+.footer-card .missing-text{flex:1;min-width:200px;font-size:13px;color:var(--muted)}
+.error-box{color:var(--danger)}
+.value-ro{font-size:15px;white-space:pre-wrap}
+</style></head>
+<body class="{{ 'field' if is_field else 'office' }}">
+{% if is_field %}
+{% include "_mobile_header.html" %}
+<main class="cl-main" id="clMain"><div class="card muted">Lädt …</div></main>
+{% else %}
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+{% include "_topbar.html" %}
+<main class="cl-main" id="clMain"><div class="card muted">Lädt …</div></main>
+</div>
+</div>
+{% endif %}
+<script>
+const checklistId={{ checklist_id }};
+const IS_FIELD={{ 'true' if is_field else 'false' }};
+const MY_NAME={{ (request.state.erp_user.display_name or '')|tojson }};
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+function uuid(){if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();const b=new Uint8Array(16);crypto.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`}
+async function api(u,o){const r=await fetch(u,o);const d=await r.json().catch(()=>({detail:r.statusText}));if(!r.ok){const e=new Error(d.detail||r.statusText);e.status=r.status;throw e}return d}
+const fmtDateTime=s=>{if(!s)return '';const d=new Date(s+(String(s).endsWith('Z')?'':'Z'));return isNaN(d)?s:d.toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'})};
+
+let cl=null;
+const timers={};          // Feld-ID -> ausstehender, verzögerter Speichervorgang
+const inflight=new Set(); // laufende Speichervorgänge (Promise)
+
+function backLink(){
+  if(cl.context_type==='auftrag')return IS_FIELD?`/checklisten/auftrag/${cl.order_id}`:`/orders/${cl.order_id}`;
+  if(cl.context_type==='objekt')return IS_FIELD?`/mobil/objekt/${cl.property_id}`:`/properties/${cl.property_id}`;
+  if(cl.context_type==='betriebsmittel')return `/betriebsmittel/${cl.operational_asset_id}`;
+  return '/checklisten';
+}
+
+function answerOf(f){return (cl.answers[String(f.id)]||{}).value}
+function attachmentsOf(f){return cl.attachments.filter(a=>a.field_id===f.id)}
+
+// --- Rendern ---------------------------------------------------------------------------
+
+function renderHeader(){
+  const badge=cl.status==='entwurf'?'<span class="badge draft">Entwurf</span>':'<span class="badge done">Abgeschlossen</span>';
+  const meta=[cl.context_label,cl.context_detail].filter(Boolean).map(esc).join(' – ');
+  const who=[cl.created_by_name?`angelegt von ${esc(cl.created_by_name)}`:null,`am ${esc(fmtDateTime(cl.created_at))}`,cl.completed_at?`abgeschlossen ${esc(fmtDateTime(cl.completed_at))}`:null].filter(Boolean).join(' · ');
+  return `<a class="back" href="${backLink()}">← zurück</a>
+    <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap">
+      <div><h1>${esc(cl.template_label)}</h1><div class="muted">${meta}</div><div class="muted small" style="margin-top:4px">${who} · Fassung ${cl.version_no}</div></div>${badge}</div>
+      ${!cl.can_edit&&cl.status==='entwurf'?'<div class="muted small" style="margin-top:8px">Nur lesen – diese Checkliste hat eine andere Person angelegt.</div>':''}
+    </div>`;
+}
+
+function valueText(f,v){
+  if(v==null||v===''||(Array.isArray(v)&&!v.length))return '<span class="muted">—</span>';
+  if(f.field_type==='ja_nein')return {ja:'Ja',nein:'Nein',entfaellt:'Entfällt'}[v]||esc(v);
+  if(f.field_type==='auswahl'){const lbl=k=>(f.options.find(o=>o.option_key===k)||{label:k}).label;return esc((Array.isArray(v)?v:[v]).map(lbl).join(', '))}
+  if(f.field_type==='zahl')return esc(Number(v).toLocaleString('de-DE',{maximumFractionDigits:4}))+(f.unit?' '+esc(f.unit):'');
+  if(f.field_type==='datum')return esc(new Date(v+'T00:00:00').toLocaleDateString('de-DE'));
+  if(f.field_type==='datum_uhrzeit')return esc(new Date(v).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}));
+  return esc(v);
+}
+
+function fieldBody(f){
+  const v=answerOf(f);
+  const ro=!cl.can_edit;
+  const t=f.field_type;
+  if(t==='ja_nein'){
+    const opts=[['ja','Ja'],['nein','Nein']].concat(f.allow_na?[['entfaellt','Entfällt']]:[]);
+    return `<div class="tiles">${opts.map(([k,l])=>`<button type="button" class="tile${v===k?' on':''}" ${ro?'disabled':''} onclick="setChoice(${f.id},'${k}')">${l}</button>`).join('')}</div>`;
+  }
+  if(t==='auswahl'){
+    const chosen=Array.isArray(v)?v:(v?[v]:[]);
+    return `<div class="tiles">${f.options.map(o=>`<button type="button" class="tile${chosen.includes(o.option_key)?' on':''}" ${ro?'disabled':''} onclick="toggleOption(${f.id},'${esc(o.option_key)}')">${esc(o.label)}</button>`).join('')}</div>`;
+  }
+  if(ro&&['text','zahl','datum','uhrzeit','datum_uhrzeit'].includes(t))return `<div class="value-ro">${valueText(f,v)}</div>`;
+  if(t==='text')return f.multiline
+    ?`<textarea oninput="queueSave(${f.id},this.value)" onblur="flushSave(${f.id})">${esc(v)}</textarea>`
+    :`<input value="${esc(v)}" oninput="queueSave(${f.id},this.value)" onblur="flushSave(${f.id})">`;
+  if(t==='zahl'){
+    const range=[f.min_value!=null?`min ${Number(f.min_value).toLocaleString('de-DE')}`:null,f.max_value!=null?`max ${Number(f.max_value).toLocaleString('de-DE')}`:null].filter(Boolean).join(', ');
+    return `<div class="num-row"><input type="text" inputmode="decimal" value="${v!=null?esc(String(v).replace('.',',')):''}" oninput="queueSave(${f.id},this.value)" onblur="flushSave(${f.id})">${f.unit?`<span>${esc(f.unit)}</span>`:''}</div>${range?`<div class="muted small" style="margin-top:4px">${esc(range)}</div>`:''}`;
+  }
+  if(t==='datum')return `<input type="date" value="${esc(v)}" onchange="queueSave(${f.id},this.value,0)">`;
+  if(t==='uhrzeit')return `<input type="time" value="${esc(v)}" onchange="queueSave(${f.id},this.value,0)">`;
+  if(t==='datum_uhrzeit')return `<input type="datetime-local" value="${esc(v)}" onchange="queueSave(${f.id},this.value,0)">`;
+  if(t==='foto'){
+    const list=attachmentsOf(f);
+    const max=f.max_count||20;
+    return `<div class="thumbs">${list.map(a=>`<div class="thumb"><a href="${a.url}" target="_blank" rel="noopener"><img src="${a.url}" alt="Foto"></a>${ro?'':`<button type="button" title="Foto entfernen" onclick="removeAttachment(${a.id})">×</button>`}</div>`).join('')||(ro?'<span class="muted">Keine Fotos.</span>':'')}</div>
+      ${ro||list.length>=max?'':`<label class="btn secondary" style="display:inline-flex;align-items:center">Foto aufnehmen / wählen<input type="file" accept="image/*" capture="environment" multiple style="display:none" onchange="uploadPhotos(${f.id},this)"></label>`}
+      <div class="muted small" style="margin-top:4px">${list.length} von höchstens ${max}${f.min_count?`, mindestens ${f.min_count}`:''}</div>`;
+  }
+  if(t==='unterschrift'){
+    const list=attachmentsOf(f);
+    const canAdd=!ro&&(f.multiple?list.length<(f.max_count||20):true);
+    const prefill=(!f.multiple&&/monteur|ausführend|fahrer/i.test(f.signer_label||f.label))?MY_NAME:'';
+    return `<div class="sig-list">${list.map(a=>`<div class="sig"><img src="${a.url}" alt="Unterschrift"><span class="name">${esc(a.signer_name)}</span>${ro?'':`<button type="button" onclick="removeAttachment(${a.id})">Entfernen</button>`}</div>`).join('')||(ro?'<span class="muted">Keine Unterschrift.</span>':'')}</div>
+      ${canAdd?`<div class="pad-wrap"><canvas id="pad_${f.id}"></canvas></div>
+      <div class="pad-actions"><input id="padName_${f.id}" placeholder="Name ${esc(f.signer_label||'')}" value="${esc(prefill)}">
+        <button type="button" class="btn secondary" onclick="clearPad(${f.id})">Leeren</button>
+        <button type="button" class="btn" onclick="saveSignature(${f.id})">${!f.multiple&&list.length?'Neu unterschreiben':'Unterschrift übernehmen'}</button></div>`:''}`;
+  }
+  return '';
+}
+
+function render(){
+  const main=document.getElementById('clMain');
+  let html=renderHeader();
+  let group=null;
+  const missing=new Set(cl.missing_required||[]);
+  for(const f of cl.fields){
+    if(f.group_name&&f.group_name!==group){html+=`<div class="group-title">${esc(f.group_name)}</div>`}
+    group=f.group_name||group;
+    if(f.field_type==='hinweis'){
+      html+=`<div class="hint"><div class="q-label">${esc(f.label)}</div>${f.help_text?`<div class="q-help">${esc(f.help_text)}</div>`:''}</div>`;
+      continue;
+    }
+    const isMissing=cl.can_edit&&[...missing].some(m=>m===f.label||m.startsWith(f.label+' (mindestens'));
+    const label=`${esc(f.label)}${f.required||f.min_count?'<span class="req">*</span>':''}${f.signer_label?` <span class="muted small">(${esc(f.signer_label)})</span>`:''}`;
+    html+=`<div class="q${isMissing?' missing':''}" id="q_${f.id}"><div class="q-label">${label}</div>${f.help_text?`<div class="q-help">${esc(f.help_text)}</div>`:''}
+      <div class="q-body">${fieldBody(f)}</div><div class="q-status" id="st_${f.id}"></div></div>`;
+  }
+  if(cl.can_edit){
+    const m=cl.missing_required||[];
+    html+=`<div class="footer-card"><div class="missing-text" id="missingText">${m.length?'Noch offen: '+esc(m.join(', ')):'Alle Pflichtangaben sind ausgefüllt.'}</div>
+      <button type="button" class="btn danger" onclick="deleteDraft()">Entwurf löschen</button>
+      <button type="button" class="btn" id="completeBtn" onclick="completeChecklist()">Abschließen</button></div>
+      <div id="pageError" class="error-box small" style="margin-top:8px"></div>`;
+  }
+  main.innerHTML=html;
+  for(const f of cl.fields)if(f.field_type==='unterschrift')setupPad(f.id);
+}
+
+function setStatus(fieldId,text,err){const el=document.getElementById('st_'+fieldId);if(el){el.textContent=text||'';el.className='q-status'+(err?' err':'')}}
+function updateMissing(){
+  const el=document.getElementById('missingText');if(!el)return;
+  const m=cl.missing_required||[];
+  el.textContent=m.length?'Noch offen: '+m.join(', '):'Alle Pflichtangaben sind ausgefüllt.';
+  const err=document.getElementById('pageError');if(err&&!m.length)err.textContent='';  // alte Abschluss-Meldung nicht stehen lassen
+  for(const f of cl.fields){const q=document.getElementById('q_'+f.id);if(q)q.classList.toggle('missing',m.some(x=>x===f.label||x.startsWith(f.label+' (mindestens')))}
+}
+
+// --- Speichern -------------------------------------------------------------------------
+
+async function sendAnswer(fieldId,value){
+  setStatus(fieldId,'Speichert …');
+  const p=api(`/api/checklists/${checklistId}/answers/${fieldId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({value,client_uuid:uuid(),client_recorded_at:new Date().toISOString()})});
+  inflight.add(p);
+  try{
+    const data=await p;
+    cl.answers=data.answers;cl.missing_required=data.missing_required;
+    setStatus(fieldId,'Gespeichert');updateMissing();
+    return true;
+  }catch(e){
+    setStatus(fieldId,'Nicht gespeichert: '+e.message,true);
+    if(e.status===409)await reload();
+    return false;
+  }finally{inflight.delete(p)}
+}
+
+function queueSave(fieldId,value,delay=700){
+  clearTimeout((timers[fieldId]||{}).t);
+  timers[fieldId]={value,t:setTimeout(()=>{delete timers[fieldId];sendAnswer(fieldId,value)},delay)};
+  setStatus(fieldId,'…');
+}
+function flushSave(fieldId){const p=timers[fieldId];if(!p)return;clearTimeout(p.t);delete timers[fieldId];return sendAnswer(fieldId,p.value)}
+async function flushAll(){await Promise.all(Object.keys(timers).map(id=>flushSave(Number(id))));await Promise.all([...inflight])}
+
+async function setChoice(fieldId,key){
+  const f=cl.fields.find(x=>x.id===fieldId);
+  const next=answerOf(f)===key?null:key;   // erneutes Tippen hebt die Wahl auf
+  if(await sendAnswer(fieldId,next))rerenderField(f);
+}
+async function toggleOption(fieldId,key){
+  const f=cl.fields.find(x=>x.id===fieldId);
+  const v=answerOf(f);
+  let next;
+  if(f.multiple){const cur=Array.isArray(v)?v:[];next=cur.includes(key)?cur.filter(k=>k!==key):cur.concat([key])}
+  else next=v===key?null:key;
+  if(await sendAnswer(fieldId,next))rerenderField(f);
+}
+function rerenderField(f){const q=document.getElementById('q_'+f.id);if(q)q.querySelector('.q-body').innerHTML=fieldBody(f);if(f.field_type==='unterschrift')setupPad(f.id)}
+
+async function uploadFile(fieldId,blob,filename,extra={}){
+  const fd=new FormData();
+  fd.append('field_id',fieldId);fd.append('file',blob,filename);fd.append('client_uuid',uuid());
+  for(const [k,v] of Object.entries(extra))fd.append(k,v);
+  const data=await api(`/api/checklists/${checklistId}/attachments`,{method:'POST',body:fd});
+  cl.attachments=data.attachments;cl.missing_required=data.missing_required;
+}
+async function uploadPhotos(fieldId,input){
+  const files=[...input.files];input.value='';
+  const f=cl.fields.find(x=>x.id===fieldId);
+  for(let i=0;i<files.length;i++){
+    setStatus(fieldId,`Lädt Foto ${i+1} von ${files.length} hoch …`);
+    try{await uploadFile(fieldId,files[i],files[i].name||'foto.jpg')}
+    catch(e){setStatus(fieldId,'Foto nicht gespeichert: '+e.message,true);rerenderField(f);updateMissing();return}
+  }
+  rerenderField(f);updateMissing();setStatus(fieldId,'Gespeichert');
+}
+async function removeAttachment(attachmentId){
+  if(!confirm('Wirklich entfernen?'))return;
+  const a=cl.attachments.find(x=>x.id===attachmentId);
+  try{const data=await api(`/api/checklist-attachments/${attachmentId}`,{method:'DELETE'});cl.attachments=data.attachments;cl.missing_required=data.missing_required;rerenderField(cl.fields.find(x=>x.id===a.field_id));updateMissing()}
+  catch(e){alert('Fehler: '+e.message)}
+}
+
+// --- Unterschrift ------------------------------------------------------------------------
+
+const pads={};
+function setupPad(fieldId){
+  const canvas=document.getElementById('pad_'+fieldId);
+  if(!canvas)return;
+  const rect=canvas.getBoundingClientRect();
+  const ratio=window.devicePixelRatio||1;
+  canvas.width=Math.max(1,Math.round(rect.width*ratio));canvas.height=Math.round(170*ratio);
+  const ctx=canvas.getContext('2d');ctx.scale(ratio,ratio);ctx.lineWidth=2.2;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#111';
+  const pad={canvas,ctx,drawing:false,dirty:false};pads[fieldId]=pad;
+  const pos=e=>{const r=canvas.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]};
+  canvas.addEventListener('pointerdown',e=>{pad.drawing=true;canvas.setPointerCapture(e.pointerId);const [x,y]=pos(e);ctx.beginPath();ctx.moveTo(x,y)});
+  canvas.addEventListener('pointermove',e=>{if(!pad.drawing)return;const [x,y]=pos(e);ctx.lineTo(x,y);ctx.stroke();pad.dirty=true});
+  const end=()=>{pad.drawing=false};
+  canvas.addEventListener('pointerup',end);canvas.addEventListener('pointercancel',end);
+}
+function clearPad(fieldId){const p=pads[fieldId];if(!p)return;p.ctx.clearRect(0,0,p.canvas.width,p.canvas.height);p.dirty=false}
+async function saveSignature(fieldId){
+  const p=pads[fieldId];const nameEl=document.getElementById('padName_'+fieldId);
+  const name=(nameEl.value||'').trim();
+  if(!p||!p.dirty){setStatus(fieldId,'Bitte zuerst im Feld unterschreiben.',true);return}
+  if(!name){setStatus(fieldId,'Bitte den Namen der unterschreibenden Person eintragen.',true);nameEl.focus();return}
+  setStatus(fieldId,'Speichert …');
+  const blob=await new Promise(res=>p.canvas.toBlob(res,'image/png'));
+  try{await uploadFile(fieldId,blob,'unterschrift.png',{signer_name:name});rerenderField(cl.fields.find(x=>x.id===fieldId));updateMissing();setStatus(fieldId,'Gespeichert')}
+  catch(e){setStatus(fieldId,'Nicht gespeichert: '+e.message,true)}
+}
+
+// --- Abschließen, Löschen ---------------------------------------------------------------
+
+async function completeChecklist(){
+  const btn=document.getElementById('completeBtn');btn.disabled=true;
+  const err=document.getElementById('pageError');err.textContent='';
+  await flushAll();
+  if((cl.missing_required||[]).length){err.textContent='Noch nicht ausgefüllt: '+cl.missing_required.join(', ');btn.disabled=false;return}
+  if(!confirm('Checkliste abschließen? Danach ist sie nicht mehr änderbar.')){btn.disabled=false;return}
+  try{cl=await api(`/api/checklists/${checklistId}/complete`,{method:'POST'});render();window.scrollTo(0,0)}
+  catch(e){err.textContent=e.message;btn.disabled=false}
+}
+async function deleteDraft(){
+  if(!confirm('Diesen Entwurf mit allen Angaben und Fotos löschen?'))return;
+  const target=backLink();
+  try{await api(`/api/checklists/${checklistId}`,{method:'DELETE'});location.href=target}
+  catch(e){document.getElementById('pageError').textContent=e.message}
+}
+
+// "mit jetzt vorbelegen": ein noch leeres Datums-/Zeitfeld bekommt beim ersten Öffnen die
+// aktuelle Zeit (lokal) und wird gespeichert -- sichtbar und jederzeit änderbar.
+async function prefillNow(){
+  if(!cl.can_edit)return;
+  const pad=n=>String(n).padStart(2,'0');const d=new Date();
+  const day=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,tm=`${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  for(const f of cl.fields){
+    if(!f.prefill_now||answerOf(f))continue;
+    const v={datum:day,uhrzeit:tm,datum_uhrzeit:`${day}T${tm}`}[f.field_type];
+    if(v&&await sendAnswer(f.id,v))rerenderField(f);
+  }
+}
+
+async function reload(){cl=await api(`/api/checklists/${checklistId}`);render()}
+
+(async function init(){
+  try{await reload();await prefillNow()}
+  catch(e){document.getElementById('clMain').innerHTML=`<div class="card error-box">${esc(e.message)}</div>`}
+})();
+window.addEventListener('beforeunload',e=>{if(Object.keys(timers).length||inflight.size){flushAll();e.preventDefault();e.returnValue=''}});
+</script>
+</body></html>

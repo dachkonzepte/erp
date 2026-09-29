@@ -38,6 +38,7 @@
     .contract-row .contract-title{font-size:13.5px;font-weight:650}
     .perform-btn{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:8px 11px;font-weight:650;font-size:13px;white-space:nowrap}
     .perform-btn:disabled{opacity:.6}
+    .checklist-link{display:flex;align-items:center;min-height:44px;margin:-10px 0 10px;padding:0 16px;border:1px solid var(--line);border-top:none;background:var(--card);color:var(--accent);font-weight:650;font-size:13.5px;text-decoration:none}
   </style>
 </head>
 <body>
@@ -47,12 +48,17 @@
   <div id="assignmentsList" class="loading">Lädt…</div>
   <h1>Offene Berichte</h1>
   <div id="draftReportsList" class="loading">Lädt…</div>
+  {% if is_module_enabled('checklisten') %}
+  <h1>Offene Checklisten</h1>
+  <div id="draftChecklistsList" class="loading">Lädt…</div>
+  {% endif %}
   <h1>Meine kommenden Termine</h1>
   <div id="upcomingList" class="loading">Lädt…</div>
   <h1>Wartungen an meinen Objekten</h1>
   <div id="maintenanceList" class="loading">Lädt…</div>
 </main>
 <script>
+var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false' }};
 (function(){
   function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
   function fmtDate(s){
@@ -73,7 +79,8 @@
         +(a.property_address?'<div class="addr">'+esc(a.property_address)+'</div>':'')
         +'<div class="meta"><span>Auftrag '+esc(a.order_number)+' · '+period+'</span>'
         +'<span class="status-pill'+(hasReport?' has-report':'')+'">'+(hasReport?a.report_count+' Bericht(e)':'Kein Bericht')+'</span></div>'
-        +'</a>';
+        +'</a>'
+        +(CHECKLISTS_ENABLED?'<a class="checklist-link" href="/checklisten/auftrag/'+a.order_id+'">Checklisten zu diesem Auftrag →</a>':'');
     }).join('');
   }
   function renderDrafts(list){
@@ -160,6 +167,21 @@
   }).catch(function(err){
     if(err.message!=='nicht angemeldet') showError(err.message||'Fehler beim Laden.');
   });
+  if(CHECKLISTS_ENABLED){
+    fetch('/api/checklists/mine').then(function(r){return r.ok?r.json():[]}).then(function(list){
+      var el=document.getElementById('draftChecklistsList');
+      if(!list.length){el.className='empty';el.textContent='Keine offenen Checklisten.';return}
+      el.className='';
+      el.innerHTML=list.map(function(c){
+        return '<a class="assign-card" href="/checklisten/'+c.id+'">'
+          +'<div class="obj">'+esc(c.template_label)+'</div>'
+          +'<div class="addr">'+esc(c.context_label||'')+'</div>'
+          +'</a>';
+      }).join('');
+    }).catch(function(){
+      var el=document.getElementById('draftChecklistsList');el.className='empty';el.textContent='Keine offenen Checklisten.';
+    });
+  }
   fetch('/api/field-view/upcoming').then(function(r){
     if(!r.ok) return [];
     return r.json();

@@ -535,6 +535,34 @@ def checklist_template_page(request: Request, template_id: int, _role: AppUser =
     return templates.TemplateResponse(request=request, name="checklist_template.html", context={"template_id": template_id})
 
 
+@router.get("/checklisten", response_class=HTMLResponse)
+def checklists_page(request: Request, _role: AppUser = _role_dep):
+    """Büro-Übersicht aller Checklisten (seit 1.8.1) plus Starten im Kontext "Betrieb" --
+    buero_auftrag aufwärts. Monteure erreichen Checklisten nur über /mobil und die Kontextseiten."""
+    return templates.TemplateResponse(request=request, name="checklists.html", context={})
+
+
+@router.get("/checklisten/{checklist_id:int}", response_class=HTMLResponse)
+def checklist_page(request: Request, checklist_id: int, _role: AppUser = _any_role_dep):
+    """Eine Checkliste ausfüllen/ansehen (seit 1.8.1) -- für jede Rolle dieselbe URL, die Vorlage
+    bindet für `field` die mobile Kopfzeile statt der Sidebar ein (Weiche an der Rolle, Muster
+    time_tracking_page()). Der `:int`-Konverter hält /checklisten/vorlagen frei. Was sichtbar
+    ist, entscheidet GET /api/checklists/{id} (403 für fremde, nicht lesbare Checklisten)."""
+    return templates.TemplateResponse(request=request, name="checklist.html", context={
+        "checklist_id": checklist_id, "is_field": _role.role == ROLE_FIELD,
+    })
+
+
+@router.get("/checklisten/auftrag/{order_id:int}", response_class=HTMLResponse)
+def checklist_order_page(request: Request, order_id: int, _role: AppUser = _any_role_dep):
+    """Checklisten eines Auftrags (seit 1.8.1), Einstieg für Monteure aus /mobil. Der
+    Auftragszugriff wird von der API geprüft (require_field_order_access()), die Seite rendert
+    nur das Gerüst."""
+    return templates.TemplateResponse(request=request, name="checklist_order.html", context={
+        "order_id": order_id, "is_field": _role.role == ROLE_FIELD,
+    })
+
+
 @router.get("/inquiries", response_class=HTMLResponse)
 def inquiries_page(request: Request, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="inquiries.html", context={})

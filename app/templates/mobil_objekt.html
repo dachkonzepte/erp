@@ -82,6 +82,12 @@
     </form>
   </div>
 
+  {% if is_module_enabled('checklisten') %}
+  {% include "_checklists_section.html" %}
+  <h1>Checklisten</h1>
+  <div class="card"><div id="checklistSection"></div></div>
+  {% endif %}
+
   <h1>Frühere Wartungsberichte</h1>
   <div id="historyList" class="loading">Lädt…</div>
 </main>
@@ -245,6 +251,7 @@
     });
   });
 })();
+if(window.renderChecklistSection)renderChecklistSection('checklistSection','objekt',{{ property_id }});
 </script>
 </body>
 </html>

@@ -1,0 +1,78 @@
+{# _checklists_section.html -- Abschnitt "Checklisten" für einen Kontext (seit 1.8.1, Modul
+   "checklisten", siehe docs/archiv/modul-checklisten.md). EINE Implementierung für Büro- UND
+   Monteursseiten (Auftrag, Objekt, Betriebsmittel, Betrieb) statt je Seite nachgebaut. Nur
+   einbinden, wenn is_module_enabled('checklisten') -- das entscheidet die einbindende Seite.
+
+   Aufruf: renderChecklistSection('containerId', 'objekt', 17). Erwartet die Design-Token der
+   einbindenden Seite (--accent/--card/--ink/--muted/--line/--soft). Was ein Monteur sieht,
+   entscheidet ausschließlich der Server (GET /api/checklists liefert für fremde Checklisten nur
+   Titel/Datum/Ersteller, can_open steuert den Link) -- hier ist keine Rollenlogik. Bedienelemente
+   mindestens 44px hoch (Tablet, Handschuhe). #}
+<style>
+.cl-list{display:flex;flex-direction:column;gap:6px}
+.cl-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);background:var(--card);min-height:44px;color:var(--ink);text-decoration:none}
+a.cl-row:hover{background:var(--soft)}
+.cl-row .cl-title{font-weight:650;font-size:14px}
+.cl-row .cl-meta{font-size:12.5px;color:var(--muted);margin-top:2px}
+.cl-badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:3px 8px;white-space:nowrap;border:1px solid var(--line);color:var(--muted)}
+.cl-badge.draft{color:var(--accent);border-color:var(--accent)}
+.cl-start{margin-top:12px}
+.cl-start-title{font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+.cl-start-buttons{display:flex;flex-wrap:wrap;gap:6px}
+.cl-start-buttons button{min-height:44px;border:1px solid var(--accent);background:transparent;color:var(--accent);font:inherit;font-weight:650;font-size:13.5px;padding:8px 12px;cursor:pointer}
+.cl-start-buttons button:hover{background:var(--accent);color:#fff}
+.cl-empty{color:var(--muted);font-size:13.5px;padding:6px 0}
+.cl-error{color:var(--danger,#c0362c);font-size:13.5px;padding:6px 0}
+</style>
+<script>
+if(!window.renderChecklistSection){
+  window.newClientUuid=window.newClientUuid||function(){
+    if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
+    var b=new Uint8Array(16);crypto.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;
+    var h=Array.from(b,function(x){return x.toString(16).padStart(2,'0')}).join('');
+    return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);
+  };
+  window.renderChecklistSection=function(containerId,context,contextId){
+    var el=document.getElementById(containerId);
+    if(!el)return;
+    var esc=function(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})};
+    var param={auftrag:'order_id',objekt:'property_id',betriebsmittel:'operational_asset_id'}[context];
+    var listUrl='/api/checklists?'+(param?param+'='+encodeURIComponent(contextId):'context='+encodeURIComponent(context));
+    var fmt=function(s){if(!s)return '';var d=new Date(s+(String(s).endsWith('Z')?'':'Z'));return isNaN(d)?s:d.toLocaleDateString('de-DE')};
+    var get=function(url){return fetch(url).then(function(r){if(!r.ok)return r.json().catch(function(){return {}}).then(function(d){throw new Error(d.detail||r.statusText)});return r.json()})};
+    el.innerHTML='<div class="cl-empty">Lädt …</div>';
+    Promise.all([get(listUrl),get('/api/checklists/startable-templates?context='+encodeURIComponent(context))]).then(function(res){
+      var rows=res[0],templates=res[1];
+      var html='';
+      if(rows.length){
+        html+='<div class="cl-list">'+rows.map(function(c){
+          var badge=c.status==='entwurf'?'<span class="cl-badge draft">Entwurf</span>':'<span class="cl-badge">Abgeschlossen</span>';
+          var meta=[fmt(c.completed_at||c.created_at),c.created_by_name,c.is_own?'eigene':null].filter(Boolean).join(' · ');
+          var inner='<div><div class="cl-title">'+esc(c.template_label)+'</div><div class="cl-meta">'+esc(meta)+'</div></div>'+badge;
+          return c.can_open?'<a class="cl-row" href="/checklisten/'+c.id+'">'+inner+'</a>':'<div class="cl-row" title="Nur Titel, Datum und Ersteller sichtbar">'+inner+'</div>';
+        }).join('')+'</div>';
+      }else{
+        html+='<div class="cl-empty">Noch keine Checklisten.</div>';
+      }
+      html+='<div class="cl-start"><div class="cl-start-title">Checkliste starten</div>';
+      html+=templates.length
+        ?'<div class="cl-start-buttons">'+templates.map(function(t){return '<button type="button" data-template-id="'+t.id+'" title="'+esc(t.description||'')+'">'+esc(t.label)+'</button>'}).join('')+'</div>'
+        :'<div class="cl-empty">Für diesen Bereich ist keine Vorlage veröffentlicht.</div>';
+      html+='<div class="cl-error" style="display:none"></div></div>';
+      el.innerHTML=html;
+      el.querySelectorAll('button[data-template-id]').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          btn.disabled=true;
+          var body={template_id:Number(btn.dataset.templateId),context_type:context,client_uuid:window.newClientUuid()};
+          if(param)body[param]=contextId;
+          fetch('/api/checklists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){
+            return r.json().catch(function(){return {}}).then(function(d){if(!r.ok)throw new Error(d.detail||r.statusText);return d});
+          }).then(function(c){location.href='/checklisten/'+c.id}).catch(function(err){
+            btn.disabled=false;var e=el.querySelector('.cl-error');e.style.display='';e.textContent='Fehler: '+err.message;
+          });
+        });
+      });
+    }).catch(function(err){el.innerHTML='<div class="cl-error">'+esc(err.message)+'</div>'});
+  };
+}
+</script>

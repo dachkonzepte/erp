@@ -29,6 +29,9 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
 .section-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
 .section-title h2{margin:0;font-size:16px}
+.readiness-banner{background:var(--danger-soft);border-left:4px solid var(--danger);color:var(--ink);padding:12px 14px;margin:10px 0 14px}
+.readiness-banner b{color:var(--danger)}
+.readiness-banner a{color:var(--accent)}
 .table-scroll{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
@@ -66,6 +69,7 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 <span id="assetStatus" class="status"></span>
+<div id="readinessBanner" class="readiness-banner" style="display:none"></div>
 
 <div class="editor-card">
   <h2>Stammdaten</h2>
@@ -151,7 +155,10 @@ tr:last-child td{border-bottom:none}
     <span id="docStatus" class="status"></span>
   </div>
 </div>
-
+{% if is_module_enabled('checklisten') %}
+{% include "_checklists_section.html" %}
+<div class="card"><div class="section-title"><h2>Checklisten</h2></div><div id="checklistSection"></div></div>
+{% endif %}
 </main>
 </div>
 </div>
@@ -532,5 +539,16 @@ async function init(){
   render();
 }
 init();
+
+// Einsatzbereitschaft aus Checklisten (seit 1.8.1) -- dieselbe Angabe wie auf der Monteursseite.
+if(window.renderChecklistSection){
+  renderChecklistSection('checklistSection','betriebsmittel',assetId);
+  fetch(`/api/checklists/asset-readiness/${assetId}`).then(r=>r.ok?r.json():null).then(s=>{
+    if(!s||s.ready!==false)return;
+    const el=document.getElementById('readinessBanner');
+    el.innerHTML=`<b>Nicht einsatzbereit</b> – gemeldet ${esc(fmtDate(s.completed_at))}${s.created_by_name?' von '+esc(s.created_by_name):''} (${esc(s.template_label)}). <a href="/checklisten/${s.checklist_id}">Meldung ansehen</a>`;
+    el.style.display='';
+  });
+}
 </script>
 </body></html>

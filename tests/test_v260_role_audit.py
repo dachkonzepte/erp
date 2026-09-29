@@ -753,7 +753,7 @@ class TestPageRouteClassification:
     _dk_roles tragen und trotzdem die falsche Rollenmenge haben, das würde der Audit-Test
     allein nicht auffangen)."""
 
-    def test_field_reaches_only_the_seven_pages_it_needs(self, router_test_client, threaded_db_session):
+    def test_field_reaches_only_the_pages_it_needs(self, router_test_client, threaded_db_session):
         """Seit 1.3.61: /vor-ort ist zu /mobil geworden (die alte URL entfällt ersatzlos, siehe
         CLAUDE.md "Monteursansicht: Umbenennung zu /mobil"), dazu die fünfte Seite
         /mobil/stundenzettel (Punkt 4 "Stundenzettel"). Seit "Dateiablage je Objekt" eine sechste:
@@ -762,11 +762,15 @@ class TestPageRouteClassification:
         nur Büro/Admin (die Seite rendert für `field` aber die reduzierte
         operational_asset_field.html, siehe operational_asset_page()). "/" ist für field seit
         Punkt 2 ("Startseite für Monteure") kein 403 mehr, sondern ein 302 auf /mobil -- die Rolle
-        entscheidet das Ziel, nicht ob der Weg gesperrt ist."""
+        entscheidet das Ziel, nicht ob der Weg gesperrt ist. Seit 1.8.1 (Checklisten) zwei weitere:
+        /checklisten/{id} (Ausfüllen) und /checklisten/auftrag/{order_id} (Einstieg aus /mobil) --
+        die Zugriffsprüfung je Checkliste/Auftrag sitzt in der API, die Seiten rendern nur das
+        Gerüst. Die Büro-Übersicht /checklisten und die Vorlagen bleiben gesperrt."""
         from app.routers.pages import router as pages_router
         db = threaded_db_session
         field = router_test_client(db, pages_router, role="field")
-        for path in ("/account", "/mobil", "/mobil/stundenzettel", "/mobil/objekt/1", "/time-tracking", "/orders/1/service-reports", "/betriebsmittel/1"):
+        for path in ("/account", "/mobil", "/mobil/stundenzettel", "/mobil/objekt/1", "/time-tracking", "/orders/1/service-reports", "/betriebsmittel/1",
+                     "/checklisten/1", "/checklisten/auftrag/1"):
             assert field.get(path, follow_redirects=False).status_code == 200, path
         # /vor-ort entfällt ersatzlos -- keine Route mehr registriert, 404 statt 403/200.
         assert field.get("/vor-ort", follow_redirects=False).status_code == 404
@@ -781,7 +785,7 @@ class TestPageRouteClassification:
             "/quotes/1/edit", "/orders/1", "/invoices/1", "/finanzen", "/mahnwesen", "/changelog",
             "/orders/1/work-preparation", "/roof-areas/1", "/properties/1", "/findings",
             "/inspection-templates", "/inspection-templates/1", "/inquiries", "/customers/1", "/settings",
-            "/history",
+            "/history", "/checklisten", "/checklisten/vorlagen", "/checklisten/vorlagen/1",
         ):
             assert field.get(path, follow_redirects=False).status_code == 403, path
 

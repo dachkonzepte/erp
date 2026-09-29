@@ -331,7 +331,7 @@ Zwischen den Versionen darf der Betreiber `/clear` machen -- dann diese Datei le
 |---|---|---|
 | — | Befund, Entscheidungen, Etappenplan (diese Datei), Verweis in CLAUDE.md | erledigt |
 | **1.8.0** | Modul `checklisten`, alle Tabellen + Migration, Vorlagenverwaltung (Liste `/checklisten/vorlagen`, eigene Editorseite `/checklisten/vorlagen/{id}`: Felder, Optionen, Regeln, Fassungen, Veröffentlichen), API, Tests | erledigt |
-| **1.8.1** | Ausfüllen: Anlegen in allen vier Kontexten, Antworten/Fotos/Unterschriften idempotent, Abschließen, Entwurf löschen, Einstiege in `/mobil` (Auftrag, Objektansicht, Geräteseite mit Einsatzbereitschafts-Hinweis), Büro-Übersicht `/checklisten`, Rechte + Angriffstest. **Danach anhalten und berichten** (Betreibervorgabe) | offen |
+| **1.8.1** | Ausfüllen: Anlegen in allen vier Kontexten, Antworten/Fotos/Unterschriften idempotent, Abschließen, Entwurf löschen, Einstiege in `/mobil` (Auftrag, Objektansicht, Geräteseite mit Einsatzbereitschafts-Hinweis), Büro-Übersicht `/checklisten`, Rechte + Angriffstest. **Danach anhalten und berichten** (Betreibervorgabe) | erledigt, Bericht an den Betreiber offen |
 | **1.8.2** | Regeln → Aufgaben, `ChecklistRuleExecution`, "Aufgaben nachholen" | offen |
 | **1.8.3** | PDF über den gemeinsamen Rahmen | offen |
 | **1.8.4** | 13 Startvorlagen per Daten-Migration (Entwurf) | offen |
@@ -382,3 +382,51 @@ Nach jeder Version hier die Spalte "Stand" nachziehen und unten einen kurzen Abs
   Klicktest per CDP gegen eine isolierte Instanz (Temp-SQLite, Konto `buero_auftrag`): Liste,
   Anlegen, Felder, Optionen, Typwechsel, Reihenfolge, Regel, Veröffentlichen, neuer Entwurf --
   keine JS-Ausnahme. Die Klicktest-Skripte (Seed, CDP-Treiber) lagen nur im Scratchpad.
+
+---
+
+## Umsetzung 1.8.1 (29.09.2026)
+
+- **Dateien**: `app/checklists.py` (Geschäftslogik, rollenlos), `app/routers/checklists.py`
+  (Rechte, siehe Moduldocstring), `app/image_storage.py` (gemeinsamer Bildhelfer; 
+  `service_report_photos.resize_and_store_photo()` delegiert seither dorthin, gleiches Verhalten;
+  `property_documents.py` bewusst unverändert), Vorlagen `checklist.html` (Ausfüllen, eine Datei
+  für alle Rollen: `field` mit `_mobile_header.html`, sonst Sidebar), `checklist_order.html`
+  (`/checklisten/auftrag/{order_id}`, Einstieg aus `/mobil`), `checklists.html` (Büro-Übersicht
+  `/checklisten` inkl. Bereich Betrieb), Include `_checklists_section.html` (Liste + "Checkliste
+  starten", eingebunden in `mobil_objekt.html`, `operational_asset_field.html`, `order.html`,
+  `property.html`, `operational_asset.html`). `/mobil`: Link je Einsatz, Abschnitt "Offene
+  Checklisten". Sidebar "Checklisten" → `/checklisten`. Tests `tests/test_v305_checklist_filling.py`,
+  Stichprobe der Seitenklassifizierung in `test_v260_role_audit.py` erweitert.
+- **API**: `GET /api/checklists/startable-templates?context=`, `GET /api/checklists` (Büro frei
+  filterbar; Monteur genau ein Bezug), `GET /api/checklists/mine`, `GET /api/checklists/
+  asset-readiness/{asset_id}`, `POST /api/checklists`, `GET /api/checklists/{id}`,
+  `PUT /api/checklists/{id}/answers/{field_id}` (`value`, `client_uuid`, `client_recorded_at`),
+  `POST /api/checklists/{id}/attachments` (multipart, gewöhnliche `def`-Route),
+  `GET|DELETE /api/checklist-attachments/{id}[/file]`, `POST /api/checklists/{id}/complete`,
+  `DELETE /api/checklists/{id}`. Fehler: 400 fachlich, 403 Rechte, 404 fehlt, 409 abgeschlossen.
+- **Festlegung (im Bericht an den Betreiber benannt)**: die EIGENE Checkliste bleibt für den
+  Monteur erreichbar, auch wenn er nicht mehr dem Auftrag zugeordnet ist (Überlegung wie Weg 2
+  beim Einsatzbericht). Das öffnet nur diese Checkliste, nie den Auftrag; eine neue Checkliste am
+  Auftrag verlangt weiterhin den Auftragszugriff.
+- **Weitere Einzelheiten**: eine `client_uuid` beim Anlegen liefert den vorhandenen Datensatz nur
+  an dieselbe Person (Konto UND Mitarbeiter), sonst 400. Einzelunterschrift: neu unterschreiben
+  ersetzt die alte. Fotofeld ohne `max_count`: höchstens 20. Unterschrift verlangt einen Namen
+  (bei Einzelunterschriften mit Rollenbeschriftung "Monteur/Ausführender/Fahrer" mit dem eigenen
+  Namen vorbelegt). `prefill_now` belegt ein leeres Datums-/Zeitfeld beim ersten Öffnen mit
+  "jetzt" und speichert es. Mehrfachauswahl wird abgeglichen statt ersetzt (Unique-Constraint).
+  Einsatzbereitschaft: Feldschlüssel `einsatzbereit`, nur abgeschlossene Checklisten, bewusst
+  unabhängig von `field_readable` (Sicherheitsangabe).
+- **Verifikation**: 26 Tests inkl. Angriffstest (Monteur ohne Zuordnung probiert Checklisten-,
+  Anhang- und Listen-Endpunkte mit erratenen IDs, 0 durchgelassen; Gegenprobe mit abgeschalteter
+  Eigentümer-/Kontextprüfung rot). Volle Suite 1945 grün. Klicktest per CDP gegen isolierte
+  Instanzen (Temp-SQLite): Monteur auf 412 px Breite startet am Auftrag, Kacheln, Zahl mit
+  Grenzwert und Komma, verzögerter Text, Abschließen verweigert, Foto über
+  `DOM.setFileInputFiles`, Unterschrift über echte Zeigerereignisse, Abschluss, `/mobil`,
+  Gerät "nicht einsatzbereit" → Hinweis oben; Büro: Übersicht, Filter, Ausfüllseite mit Sidebar,
+  Geräte-/Objekt-/Auftragsseite. Gefunden und behoben: stehen gebliebene Abschluss-Meldung,
+  Kontrast des roten Hinweises im Dunkelmodus. Klicktest-Fallstrick: `confirm()` blockiert in
+  Headless-Chrome jede weitere Auswertung -- per `Page.addScriptToEvaluateOnNewDocument` auf jeder
+  Seite bestätigen.
+- **Noch nicht gebaut (1.8.2 ff.)**: Regeln → Aufgaben (Tabelle `checklist_rule_executions` steht
+  bereit, `complete_checklist()` ist die Andockstelle NACH dem Commit), PDF, Startvorlagen.

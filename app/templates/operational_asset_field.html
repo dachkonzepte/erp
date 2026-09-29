@@ -28,6 +28,10 @@
     .field-block{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
     .field-block h2{margin:0 0 6px;font-size:13px;color:var(--muted);text-transform:uppercase;font-weight:650}
     .field-block .text{font-size:15px;white-space:pre-wrap}
+    .readiness-banner{background:#b3261e;color:#fff;padding:14px 16px;margin-bottom:12px;font-size:14.5px}
+    .readiness-banner b{display:block;font-size:17px;margin-bottom:4px}
+    .readiness-banner a{color:#fff;font-weight:700;display:inline-block;margin-top:8px;min-height:32px}
+    .section-h{margin:18px 0 8px;font-size:13px;color:var(--muted);text-transform:uppercase;font-weight:650}
     .empty{padding:22px;text-align:center;color:var(--muted);font-size:13.5px}
     .error{color:var(--danger)}
   </style>
@@ -35,9 +39,15 @@
 <body>
 {% include "_mobile_header.html" %}
 <main>
+  <div id="readinessBanner" class="readiness-banner" style="display:none"></div>
   <div class="card" id="assetCard">
     <div class="muted">Lädt …</div>
   </div>
+  {% if is_module_enabled('checklisten') %}
+  {% include "_checklists_section.html" %}
+  <h2 class="section-h">Checklisten</h2>
+  <div class="card"><div id="checklistSection"></div></div>
+  {% endif %}
 </main>
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -53,7 +63,22 @@ function render(asset){
   `;
 }
 
+// Einsatzbereitschaft (seit 1.8.1, Checklisten-Entscheidung B): die letzte abgeschlossene
+// Meldung "nicht einsatzbereit" steht deutlich OBEN -- unabhängig davon, ob die Antworten der
+// Checkliste selbst für Monteure lesbar sind (Sicherheitsangabe). Ohne Modul/ohne Meldung: nichts.
+async function loadReadiness(){
+  const r=await fetch(`/api/checklists/asset-readiness/${assetId}`).catch(()=>null);
+  if(!r||!r.ok)return;
+  const s=await r.json();
+  if(s.ready!==false)return;
+  const when=s.completed_at?new Date(s.completed_at+'Z').toLocaleDateString('de-DE'):'';
+  const el=document.getElementById('readinessBanner');
+  el.innerHTML=`<b>Nicht einsatzbereit</b><div>Gemeldet ${esc(when)}${s.created_by_name?' von '+esc(s.created_by_name):''} (${esc(s.template_label)}). Erst wieder benutzen, wenn eine neue Prüfung „einsatzbereit“ ergibt.</div>${s.checklist_id?`<a href="/checklisten/${s.checklist_id}">Meldung ansehen</a>`:''}`;
+  el.style.display='';
+}
+
 async function init(){
+  if(window.renderChecklistSection){loadReadiness();renderChecklistSection('checklistSection','betriebsmittel',assetId)}
   const card=document.getElementById('assetCard');
   try{
     const r=await fetch(`/api/operational-assets/${assetId}`);

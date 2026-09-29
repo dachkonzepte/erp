@@ -127,6 +127,10 @@ tr:last-child td{border-bottom:none}
     </table>
   </div>
 </div>
+{% if is_module_enabled('checklisten') %}
+{% include "_checklists_section.html" %}
+<div class="card"><h2>Checklisten</h2><div id="checklistSection"></div></div>
+{% endif %}
 </main>
 </div>
 </div>
@@ -325,5 +329,7 @@ async function init(){
   await loadMaintenanceContracts();
 }
 init();
+
+if(window.renderChecklistSection)renderChecklistSection('checklistSection','objekt',propertyId);
 </script>
 </body></html>

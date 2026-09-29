@@ -7,23 +7,14 @@ resize_and_store_photo() nutzt sie erstmals explizit, um jedes Foto serverseitig
 handhabbare Größe zu verkleinern, unabhängig davon, was der Client tatsächlich hochlädt."""
 
 import os
-import uuid
-from io import BytesIO
 from pathlib import Path
 
-from PIL import Image, ImageOps
-
+from .image_storage import resize_and_store_jpeg
 from .paths import data_dir
 
 PHOTO_ROOT = Path(os.getenv("DACHKONZEPTE_SERVICE_REPORT_PHOTO_ROOT", data_dir() / "service_report_photos"))
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024  # Rohdatei vor der Verkleinerung -- Handyfotos sind groß
 MAX_DIMENSION = 1600  # längste Kante nach der Verkleinerung
-JPEG_QUALITY = 82
-
-
-def _photo_directory() -> Path:
-    PHOTO_ROOT.mkdir(parents=True, exist_ok=True)
-    return PHOTO_ROOT
 
 
 def photo_path(stored_filename: str) -> Path:
@@ -34,16 +25,10 @@ def resize_and_store_photo(original_filename: str, data: bytes) -> str:
     """Öffnet mit Pillow, wendet die EXIF-Rotation an (Handyfotos tragen die Drehung sonst nur
     im Metadaten-Tag, nicht in den Pixeln), verkleinert auf MAX_DIMENSION und speichert
     einheitlich als JPEG -- unabhängig vom Ursprungsformat, damit die Größe eines Berichts mit
-    vielen Fotos handhabbar bleibt. Gibt den neuen, gespeicherten Dateinamen zurück (immer .jpg)."""
-    image = Image.open(BytesIO(data))
-    image = ImageOps.exif_transpose(image)
-    if image.mode not in ("RGB", "L"):
-        image = image.convert("RGB")
-    image.thumbnail((MAX_DIMENSION, MAX_DIMENSION))
-    stored = f"{uuid.uuid4().hex}.jpg"
-    _photo_directory()
-    image.save(photo_path(stored), format="JPEG", quality=JPEG_QUALITY)
-    return stored
+    vielen Fotos handhabbar bleibt. Gibt den neuen, gespeicherten Dateinamen zurück (immer .jpg).
+    Seit 1.8.1 eine Weiterleitung auf den gemeinsamen Helfer app/image_storage.py (gleiches
+    Verhalten, keine eigene Kopie mehr)."""
+    return resize_and_store_jpeg(PHOTO_ROOT, data, max_dimension=MAX_DIMENSION)
 
 
 def delete_photo_file(stored_filename: str | None) -> None:

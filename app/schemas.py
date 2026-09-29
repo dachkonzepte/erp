@@ -4206,3 +4206,85 @@ class ChecklistTemplateOut(BaseModel):
     draft_version_id: int | None = None
     versions: list[ChecklistTemplateVersionSummaryOut] = []
     editable_version: ChecklistTemplateVersionOut | None = None
+
+
+class ChecklistCreate(BaseModel):
+    template_id: int
+    context_type: str = Field(pattern="^(auftrag|objekt|betriebsmittel|betrieb)$")
+    order_id: int | None = None
+    property_id: int | None = None
+    operational_asset_id: int | None = None
+    client_uuid: str | None = Field(default=None, max_length=36)
+
+
+class ChecklistAnswerWrite(BaseModel):
+    """value je Feldtyp: "ja"/"nein"/"entfaellt", Text, Zahl, option_key bzw. Liste von
+    option_keys, "JJJJ-MM-TT", "HH:MM", "JJJJ-MM-TTTHH:MM"; null/""/[] leert die Antwort."""
+    value: str | int | float | list[str] | None = None
+    client_uuid: str | None = Field(default=None, max_length=36)
+    client_recorded_at: datetime | None = None
+
+
+class ChecklistStartableTemplateOut(BaseModel):
+    id: int
+    label: str
+    description: str | None = None
+    version_no: int
+
+
+class ChecklistSummaryOut(BaseModel):
+    """Für JEDE Rolle dasselbe Schema (Liste) -- enthält nie Antworten. Ein Monteur sieht fremde
+    Checklisten nur so (Betreiberentscheidung B), die Antworten nur über den Einzelabruf und nur
+    bei field_readable."""
+    id: int
+    template_id: int
+    template_label: str
+    context_type: str
+    order_id: int | None = None
+    property_id: int | None = None
+    operational_asset_id: int | None = None
+    context_label: str | None = None
+    context_detail: str | None = None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None = None
+    created_by_employee_id: int | None = None
+    created_by_name: str | None = None
+    field_readable: bool
+    is_own: bool = False
+    can_open: bool = True
+
+
+class ChecklistAnswerOut(BaseModel):
+    value: str | Decimal | list[str] | None = None
+    recorded_at: datetime | None = None
+    client_recorded_at: datetime | None = None
+
+
+class ChecklistAttachmentOut(BaseModel):
+    id: int
+    field_id: int
+    kind: str
+    signer_name: str | None = None
+    created_at: datetime
+    url: str
+
+
+class ChecklistOut(ChecklistSummaryOut):
+    template_version_id: int
+    version_no: int
+    fields: list[ChecklistTemplateFieldOut] = []
+    answers: dict[str, ChecklistAnswerOut] = {}
+    attachments: list[ChecklistAttachmentOut] = []
+    missing_required: list[str] = []
+    can_edit: bool = False
+
+
+class ChecklistAssetReadinessOut(BaseModel):
+    asset_id: int
+    ready: bool | None = None
+    checklist_id: int | None = None
+    template_label: str | None = None
+    completed_at: datetime | None = None
+    created_by_name: str | None = None

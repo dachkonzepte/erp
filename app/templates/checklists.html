@@ -1,0 +1,95 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Checklisten</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--success:#1f8a5f;--success-soft:#eaf5ef;--warning:#9a6b00;--warning-soft:#fdf3dc;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--success:#4ade95;--success-soft:#173226;--warning:#f0c05a;--warning-soft:#3a2f14;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:1100px;margin:0;padding:20px}
+.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.hero h1{margin:0 0 4px;font-size:22px}.muted{color:var(--muted)}.small{font-size:12.5px}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.card h2{margin:0 0 12px;font-size:16px}
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.filters label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+select{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit}
+a.btnlink{border:1px solid var(--line);color:var(--ink);padding:9px 13px;font-weight:650;font-size:13.5px;text-decoration:none}
+a.btnlink:hover{background:var(--soft)}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:650}
+tr:last-child td{border-bottom:none}
+td a{color:var(--accent);text-decoration:none;font-weight:650}
+.badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.badge.draft{background:var(--warning-soft);color:var(--warning)}
+.badge.done{background:var(--success-soft);color:var(--success)}
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+{% include "_topbar.html" %}
+<main>
+{% if is_module_enabled('checklisten') %}
+{% include "_checklists_section.html" %}
+<div class="hero">
+  <div><h1>Checklisten</h1><div class="muted small">Alle ausgefüllten und begonnenen Checklisten. Neue Checklisten startet man am Auftrag, am Objekt oder am Betriebsmittel -- oder hier im Bereich Betrieb.</div></div>
+  <a class="btnlink" href="/checklisten/vorlagen">Vorlagen verwalten</a>
+</div>
+<div class="card">
+  <div class="filters">
+    <div><label>Status</label><select id="fStatus" onchange="load()"><option value="">alle</option><option value="entwurf">Entwurf</option><option value="abgeschlossen">Abgeschlossen</option></select></div>
+    <div><label>Bereich</label><select id="fContext" onchange="load()"><option value="">alle</option><option value="auftrag">Auftrag</option><option value="objekt">Objekt</option><option value="betriebsmittel">Betriebsmittel</option><option value="betrieb">Betrieb</option></select></div>
+    <div><label>Vorlage</label><select id="fTemplate" onchange="load()"><option value="">alle</option></select></div>
+    <span id="listStatus" class="status"></span>
+  </div>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Checkliste</th><th>Bezug</th><th>Angelegt</th><th>Von</th><th>Status</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+  <div class="muted small" style="margin-top:8px">Es werden höchstens die 200 jüngsten Treffer angezeigt.</div>
+</div>
+<div class="card">
+  <h2>Betrieb <span class="muted small">(z. B. Sicherheitsunterweisung, ohne Auftrag)</span></h2>
+  <div id="companySection"></div>
+</div>
+{% else %}
+<div class="card"><h2>Checklisten</h2><div class="muted">Das Modul Checklisten &amp; Formulare ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+{% endif %}
+</main>
+</div>
+</div>
+<script>
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+const CONTEXT_LABELS={auftrag:'Auftrag',objekt:'Objekt',betriebsmittel:'Betriebsmittel',betrieb:'Betrieb'};
+const fmt=s=>s?new Date(s+'Z').toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}):'';
+
+async function load(){
+  const st=document.getElementById('listStatus');
+  const q=new URLSearchParams();
+  for(const [k,id] of [['status','fStatus'],['context','fContext'],['template_id','fTemplate']]){const v=document.getElementById(id).value;if(v)q.set(k,v)}
+  st.textContent='Lädt …';st.className='status';
+  try{
+    const rows=await api('/api/checklists?'+q);
+    document.getElementById('rows').innerHTML=rows.map(c=>`<tr>
+      <td><a href="/checklisten/${c.id}">${esc(c.template_label)}</a></td>
+      <td>${esc(CONTEXT_LABELS[c.context_type]||c.context_type)}: ${esc(c.context_label)}<div class="muted small">${esc(c.context_detail)}</div></td>
+      <td>${esc(fmt(c.created_at))}</td><td>${esc(c.created_by_name)}</td>
+      <td>${c.status==='entwurf'?'<span class="badge draft">Entwurf</span>':'<span class="badge done">Abgeschlossen</span>'}</td></tr>`).join('')
+      ||'<tr><td colspan="5" class="empty">Keine Checklisten gefunden.</td></tr>';
+    st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+async function init(){
+  if(!document.getElementById('rows'))return;
+  const templates=await api('/api/checklist-templates?include_archived=true').catch(()=>[]);
+  document.getElementById('fTemplate').insertAdjacentHTML('beforeend',templates.map(t=>`<option value="${t.id}">${esc(t.label)}</option>`).join(''));
+  await load();
+  renderChecklistSection('companySection','betrieb',null);
+}
+init();
+</script>
+</body></html>

@@ -4,6 +4,35 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.1 – Checklisten: ausfüllen am Auftrag, am Objekt, am Gerät und im Betrieb
+
+Monteure und Büro füllen jetzt Checklisten aus. Monteure starten sie in `/mobil`: je Einsatz
+über "Checklisten zu diesem Auftrag", auf der Objektseite und auf der Geräteseite, die der
+QR-Code öffnet. Offene eigene Checklisten stehen auf der Startseite. Das Büro findet sie unter
+"Checklisten" (Übersicht mit Filtern, dort auch der Bereich "Betrieb", z. B. für eine
+Unterweisung) sowie auf den Seiten von Auftrag, Objekt und Betriebsmittel. Die Ausfüllseite ist
+fürs Tablet gebaut: große Ja/Nein- und Auswahl-Kacheln, Fotos direkt aus der Kamera (serverseitig
+auf 1600 px verkleinert), Unterschrift auf dem Gerät, auch mehrere nacheinander. Jede Eingabe
+speichert sofort. "Abschließen" prüft die Pflichtangaben und friert die Checkliste ein.
+
+Rechte: Monteure nur an Aufträgen, denen sie zugeordnet sind, an Objekten und Geräten über deren
+Seite, im Bereich Betrieb gar nicht. Ändern darf nur, wer die Checkliste angelegt hat (Büro
+alles). Von Checklisten der Kollegen sehen Monteure nur Titel, Datum und Ersteller, außer die
+Vorlage ist "für Monteure lesbar". Die eigene Checkliste bleibt erreichbar, auch wenn man
+inzwischen aus dem Auftrag genommen wurde. Den Auftrag selbst öffnet das nicht. Neu auf der
+Geräteseite (Monteur und Büro): Hat die letzte abgeschlossene Prüfung "einsatzbereit: nein"
+ergeben, steht das deutlich rot ganz oben, bis eine neue Prüfung "ja" ergibt.
+
+Vorbereitung für den späteren Offline-Betrieb: Anlegen, Antworten, Fotos und Unterschriften
+tragen eine Kennung; eine wiederholte Übertragung ergibt denselben Stand statt eines Fehlers oder
+eines Duplikats, und eine ältere Antwort überschreibt keine neuere. Die Fotoverkleinerung ist
+dafür in einen gemeinsamen Helfer gewandert, den der Einsatzbericht mit unverändertem Verhalten
+mitbenutzt. Neuer Datenordner `DACHKONZEPTE_CHECKLIST_FILE_ROOT` (in `.env.example`). Keine
+Migration. 26 neue Tests inklusive Angriffstest mit erratenen IDs (Gegenprobe ohne Rechteprüfung
+rot), volle Suite 1945 grün. Klicktest im Browser gegen eine isolierte Instanz (Monteur auf
+Handybreite, Büro am Desktop); die zwei dabei gefundenen Schönheitsfehler (stehen gebliebene
+Fehlermeldung, schwacher Kontrast des Hinweises im Dunkelmodus) sind behoben.
+
 ## 1.8.0 – Checklisten: neues Modul, Vorlagenverwaltung
 
 Erste Version des neuen Moduls "Checklisten & Formulare" (Stufe 1 von 4, Plan und Entscheidungen
