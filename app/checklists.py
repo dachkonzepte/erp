@@ -271,8 +271,10 @@ def get_checklist(db: Session, checklist_id: int) -> dict | None:
 def list_checklists(db: Session, *, context_type: str | None = None, order_id: int | None = None,
                     property_id: int | None = None, asset_id: int | None = None, status: str | None = None,
                     template_id: int | None = None, created_by_employee_id: int | None = None,
-                    limit: int = 200) -> list[dict]:
+                    ids: list[int] | None = None, limit: int = 200) -> list[dict]:
     query = select(Checklist).options(selectinload(Checklist.template), selectinload(Checklist.created_by_employee))
+    if ids is not None:
+        query = query.where(Checklist.id.in_(ids))
     if context_type:
         query = query.where(Checklist.context_type == context_type)
     if order_id is not None:
@@ -584,7 +586,9 @@ def missing_required_labels(checklist: Checklist) -> list[str]:
 
 def complete_checklist(db: Session, checklist_id: int, *, completed_by_employee_id: int | None = None) -> dict:
     """Friert ein. Zweiter Aufruf auf einer bereits abgeschlossenen Checkliste: aktueller Stand,
-    kein Fehler (idempotent). Die Regeln (Aufgaben) laufen ab 1.8.2 NACH diesem Commit."""
+    kein Fehler (idempotent). Die Regeln (Aufgaben, seit 1.8.3) laufen NACH diesem Commit
+    (Fund 4: create_task() committet selbst) -- ein Fehler dort macht den Abschluss nicht
+    rückgängig, die Aufgabe bleibt im Büro nachholbar."""
     checklist = _load(db, checklist_id)
     if checklist is None:
         raise LookupError("Checkliste nicht gefunden.")
@@ -597,6 +601,8 @@ def complete_checklist(db: Session, checklist_id: int, *, completed_by_employee_
     checklist.completed_at = datetime.utcnow()
     checklist.completed_by_employee_id = completed_by_employee_id
     db.commit()
+    from .checklist_rules import run_rules_after_completion  # lokal, Muster Regel 3
+    run_rules_after_completion(db, checklist_id)
     db.expire_all()
     return checklist_to_dict(_load(db, checklist_id))
 

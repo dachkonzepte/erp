@@ -4,6 +4,29 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.3 – Checklisten: Regeln legen Aufgaben fürs Büro an
+
+Die Regeln einer Vorlage ("Antwort X legt eine Aufgabe an") greifen jetzt. Beim Abschließen einer
+Checkliste prüft das System jede Regel der Fassung, mit der die Checkliste ausgefüllt wurde,
+gegen die eingefrorenen Antworten, und legt für jede zutreffende Regel eine Aufgabe an: mit
+eingesetzten Platzhaltern ({vorlage}, {kontext}, {ersteller}), Priorität, Fälligkeit ab dem
+Abschlussdatum und einem Vermerk, welche Checkliste mit welcher Bedingung sie ausgelöst hat. Die
+Aufgabe geht an den Sachbearbeiter des Auftrags; fehlt er (oder ist die Regel auf eine Rolle
+gestellt), landet sie im gemeinsamen Büro-Eingang der gewählten Rolle. Der Link in der Aufgabe
+führt zurück zur Checkliste. Auf der Checkliste sieht das Büro unter "Ausgelöste Aufgaben", was
+entstanden ist; Monteure sehen davon nichts.
+
+War das Aufgabenmodul beim Abschluss ausgeschaltet oder brach das Anlegen ab, geht nichts
+verloren: die Regel steht als "nicht angelegt" auf der Checkliste, die Übersicht "Checklisten"
+zeigt oben die Zahl solcher Checklisten mit "Anzeigen" und "Alle nachholen". Nachholen legt nur
+an, was fehlt – ein zweiter Abschluss, ein Doppelklick oder zwei gleichzeitige Nachhol-Klicks
+erzeugen keine doppelten Aufgaben. Keine Migration (die Tabelle stand seit 1.8.0 bereit). 8 neue
+Tests, darunter alle Bedingungsarten, Modul aus mit Nachholen, ein simulierter Abbruch beim
+Anlegen und zwei Gegenproben (ausgehebelte Sperre bzw. Belegung ohne Versionsstempel: rot). Der
+Klicktest fand zwei Fehler im eigenen Entwurf, vor dem Commit behoben: noch nicht angelegte
+Regeln zeigten ihre Platzhalter roh an, und "Nachholen" bei weiterhin ausgeschaltetem Modul
+meldete nicht, woran es liegt.
+
 ## 1.8.2 – Checklisten: Gerät als repariert markieren
 
 Die Warnung "nicht einsatzbereit" auf der Geräteseite verschwindet jetzt auf zwei Wegen: wie

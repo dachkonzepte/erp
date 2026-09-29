@@ -12,8 +12,10 @@ main{max-width:1100px;margin:0;padding:20px}
 .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
 .filters label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
 select{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit}
-a.btnlink{border:1px solid var(--line);color:var(--ink);padding:9px 13px;font-weight:650;font-size:13.5px;text-decoration:none}
-a.btnlink:hover{background:var(--soft)}
+.btnlink{border:1px solid var(--line);background:transparent;color:var(--ink);padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;text-decoration:none;cursor:pointer}
+.btnlink:hover{background:var(--soft)}
+.btnlink.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btnlink:disabled{opacity:.6;cursor:default}
 .table-scroll{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
@@ -36,6 +38,13 @@ td a{color:var(--accent);text-decoration:none;font-weight:650}
 <div class="hero">
   <div><h1>Checklisten</h1><div class="muted small">Alle ausgefüllten und begonnenen Checklisten. Neue Checklisten startet man am Auftrag, am Objekt oder am Betriebsmittel -- oder hier im Bereich Betrieb.</div></div>
   <a class="btnlink" href="/checklisten/vorlagen">Vorlagen verwalten</a>
+</div>
+<div class="card" id="openRulesCard" style="display:none;border-left:4px solid var(--warning)">
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:240px"><b id="openRulesText"></b>
+    <div class="muted small">Beim Abschluss ausgelöste Regeln, deren Aufgabe nicht angelegt wurde (z. B. weil das Aufgabenmodul ausgeschaltet war).</div></div>
+    <a class="btnlink" href="#" onclick="showOpenRules();return false">Anzeigen</a>
+    <button type="button" class="btnlink primary" id="openRulesBtn" onclick="runOpenRules()">Alle nachholen</button>
+    <span id="openRulesStatus" class="status"></span></div>
 </div>
 <div class="card">
   <div class="filters">
@@ -69,6 +78,7 @@ const fmt=s=>s?new Date(s+'Z').toLocaleString('de-DE',{dateStyle:'short',timeSty
 async function load(){
   const st=document.getElementById('listStatus');
   const q=new URLSearchParams();
+  if(onlyOpenRules)q.set('open_rules','true');
   for(const [k,id] of [['status','fStatus'],['context','fContext'],['template_id','fTemplate']]){const v=document.getElementById(id).value;if(v)q.set(k,v)}
   st.textContent='Lädt …';st.className='status';
   try{
@@ -79,12 +89,35 @@ async function load(){
       <td>${esc(fmt(c.created_at))}</td><td>${esc(c.created_by_name)}</td>
       <td>${c.status==='entwurf'?'<span class="badge draft">Entwurf</span>':'<span class="badge done">Abgeschlossen</span>'}</td></tr>`).join('')
       ||'<tr><td colspan="5" class="empty">Keine Checklisten gefunden.</td></tr>';
-    st.textContent='';
+    st.innerHTML=onlyOpenRules?'Nur mit nicht angelegten Aufgaben · <a href="#" style="color:var(--accent)" onclick="onlyOpenRules=false;load();return false">alle zeigen</a>':'';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+// Regeln → Aufgaben (seit 1.8.3): Checklisten mit nicht angelegten Aufgaben (Betreiber-
+// entscheidung C) sind hier sichtbar und lassen sich gesammelt nachholen.
+let onlyOpenRules=false;
+async function loadOpenRules(){
+  const rows=await api('/api/checklists?open_rules=true').catch(()=>[]);
+  const card=document.getElementById('openRulesCard');
+  card.style.display=rows.length?'':'none';
+  document.getElementById('openRulesText').textContent=`${rows.length} ${rows.length===1?'Checkliste':'Checklisten'} mit nicht angelegten Aufgaben`;
+  if(!rows.length&&onlyOpenRules){onlyOpenRules=false;load()}
+}
+function showOpenRules(){onlyOpenRules=true;load()}
+async function runOpenRules(){
+  const btn=document.getElementById('openRulesBtn'),st=document.getElementById('openRulesStatus');
+  btn.disabled=true;st.className='status';st.textContent='Legt an …';
+  try{
+    const r=await api('/api/checklists/run-open-rules',{method:'POST'});
+    st.textContent=r.module_off?'Das Aufgabenmodul ist ausgeschaltet – bitte zuerst in den Einstellungen aktivieren.':`${r.created} ${r.created===1?'Aufgabe':'Aufgaben'} angelegt.`;
+    await loadOpenRules();
+  }catch(e){st.className='status err';st.textContent=e.message}
+  btn.disabled=false;
 }
 
 async function init(){
   if(!document.getElementById('rows'))return;
+  loadOpenRules();
   const templates=await api('/api/checklist-templates?include_archived=true').catch(()=>[]);
   document.getElementById('fTemplate').insertAdjacentHTML('beforeend',templates.map(t=>`<option value="${t.id}">${esc(t.label)}</option>`).join(''));
   await load();

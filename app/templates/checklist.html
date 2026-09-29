@@ -66,6 +66,11 @@ textarea{min-height:90px;resize:vertical}
 .footer-card .missing-text{flex:1;min-width:200px;font-size:13px;color:var(--muted)}
 .error-box{color:var(--danger)}
 .value-ro{font-size:15px;white-space:pre-wrap}
+.rules h2{margin:0 0 10px;font-size:16px}
+.rule-row{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.rule-row:last-of-type{border-bottom:none}
+.rule-row a{color:var(--accent);font-weight:650;text-decoration:none}
+.badge.open{background:var(--warning-soft);color:var(--warning)}
 </style></head>
 <body class="{{ 'field' if is_field else 'office' }}">
 {% if is_field %}
@@ -193,8 +198,34 @@ function render(){
       <button type="button" class="btn" id="completeBtn" onclick="completeChecklist()">Abschließen</button></div>
       <div id="pageError" class="error-box small" style="margin-top:8px"></div>`;
   }
+  if(!IS_FIELD&&cl.status==='abgeschlossen')html+='<div class="card rules" id="rulesCard"><h2>Ausgelöste Aufgaben</h2><div class="muted small">Lädt …</div></div>';
   main.innerHTML=html;
   for(const f of cl.fields)if(f.field_type==='unterschrift')setupPad(f.id);
+  if(!IS_FIELD&&cl.status==='abgeschlossen')loadRules();
+}
+
+// Regeln → Aufgaben (seit 1.8.3), nur Büro: welche Regeln beim Abschluss ausgelöst haben und
+// welche Aufgabe daraus entstand. War das Aufgabenmodul aus (oder brach das Anlegen ab), steht
+// die Regel als "nicht angelegt" da und lässt sich per Knopf nachholen -- idempotent.
+async function loadRules(){
+  const card=document.getElementById('rulesCard');if(!card)return;
+  let rows;
+  try{rows=await api(`/api/checklists/${checklistId}/rule-executions`)}
+  catch(e){card.innerHTML=`<h2>Ausgelöste Aufgaben</h2><div class="error-box small">${esc(e.message)}</div>`;return}
+  const open=rows.some(r=>r.status!=='aufgabe_angelegt');
+  card.innerHTML=`<h2>Ausgelöste Aufgaben</h2>${rows.length?rows.map(r=>`<div class="rule-row"><div>${r.task_id?`<a href="/tasks?task=${r.task_id}">${esc(r.task_title||r.rule_title)}</a>`:esc(r.rule_title)}<div class="muted small">Priorität ${esc(r.priority)} · ${esc(fmtDateTime(r.executed_at))}</div></div>
+      <span class="badge ${r.status==='aufgabe_angelegt'?'done':'open'}">${esc(r.status_label)}</span></div>`).join(''):'<div class="muted small">Keine Regel dieser Vorlage hat ausgelöst.</div>'}
+    ${open?`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px"><button type="button" class="btn" id="rulesRetryBtn" onclick="retryRules()">Aufgaben nachholen</button><span class="muted small" id="rulesStatus"></span></div>`:''}`;
+}
+async function retryRules(){
+  const btn=document.getElementById('rulesRetryBtn'),st=document.getElementById('rulesStatus');
+  btn.disabled=true;st.textContent='Legt an …';
+  try{
+    const r=await api(`/api/checklists/${checklistId}/run-rules`,{method:'POST'});
+    await loadRules();
+    const st2=document.getElementById('rulesStatus');
+    if(st2)st2.textContent=r.module_off?'Das Aufgabenmodul ist ausgeschaltet – bitte zuerst in den Einstellungen aktivieren.':'';
+  }catch(e){st.textContent=e.message;btn.disabled=false}
 }
 
 function setStatus(fieldId,text,err){const el=document.getElementById('st_'+fieldId);if(el){el.textContent=text||'';el.className='q-status'+(err?' err':'')}}

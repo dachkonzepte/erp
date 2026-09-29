@@ -28,6 +28,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from ..checklist_rules import list_checklists_with_open_rules, list_rule_executions, run_checklist_rules
 from ..checklists import (
     ChecklistLocked, add_attachment, asset_readiness, attachment_path, complete_checklist, create_checklist,
     delete_attachment, delete_checklist, get_attachment, get_checklist, get_checklist_row, list_checklists,
@@ -38,7 +39,8 @@ from ..models import AppUser, Checklist
 from ..modules import is_module_enabled
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, has_min_role, require_min_role
 from ..schemas import (
-    ChecklistAnswerWrite, ChecklistAssetReadinessOut, ChecklistAssetReleaseWrite, ChecklistCreate, ChecklistOut, ChecklistStartableTemplateOut,
+    ChecklistAnswerWrite, ChecklistAssetReadinessOut, ChecklistAssetReleaseWrite, ChecklistCreate,
+    ChecklistRuleExecutionOut, ChecklistRulesRunOut, ChecklistOut, ChecklistStartableTemplateOut,
     ChecklistSummaryOut,
 )
 from .orders import require_field_order_access
@@ -151,7 +153,7 @@ def get_startable_templates(context: str, db: Session = Depends(get_db), _role: 
 @router.get("/api/checklists", response_model=list[ChecklistSummaryOut])
 def get_checklists(context: str | None = None, order_id: int | None = None, property_id: int | None = None,
                    operational_asset_id: int | None = None, status: str | None = None, template_id: int | None = None,
-                   db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+                   open_rules: bool = False, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     """Büro: frei filterbar. Monteur: genau EIN Bezug (Auftrag, Objekt oder Betriebsmittel) mit
     Zugriffsprüfung -- keine auftragsübergreifende Liste."""
     _require_module_enabled(db)
@@ -163,8 +165,13 @@ def get_checklists(context: str | None = None, order_id: int | None = None, prop
         context_type, _ = given[0]
         _require_context_access(db, _role, context_type, order_id=order_id, asset_id=operational_asset_id)
         context = context_type
+    ids = None
+    if open_rules:  # Büro: nur Checklisten mit nicht angelegten Aufgaben (seit 1.8.3)
+        if not _is_office(_role):
+            raise HTTPException(status_code=403, detail="Nur für das Büro.")
+        ids = list_checklists_with_open_rules(db)
     rows = list_checklists(db, context_type=context, order_id=order_id, property_id=property_id,
-                           asset_id=operational_asset_id, status=status, template_id=template_id)
+                           asset_id=operational_asset_id, status=status, template_id=template_id, ids=ids)
     office = _is_office(_role)
     for row in rows:
         row["is_own"] = _role.employee_id is not None and row["created_by_employee_id"] == _role.employee_id
@@ -296,3 +303,34 @@ def delete_checklist_endpoint(checklist_id: int, db: Session = Depends(get_db), 
     _checklist_for(db, _role, checklist_id, write=True)
     _call(delete_checklist, db, checklist_id)
     return {"ok": True}
+
+
+# --- Regeln → Aufgaben (seit 1.8.3, nur Büro) ------------------------------------------------
+
+@router.get("/api/checklists/{checklist_id}/rule-executions", response_model=list[ChecklistRuleExecutionOut])
+def get_rule_executions(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
+    """Ausgelöste Regeln und angelegte Aufgaben -- Büro-intern, Monteure sehen das nie."""
+    _require_module_enabled(db)
+    _checklist_for(db, _role, checklist_id)
+    return list_rule_executions(db, checklist_id)
+
+
+@router.post("/api/checklists/{checklist_id}/run-rules", response_model=ChecklistRulesRunOut)
+def post_run_rules(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
+    """"Aufgaben nachholen" für eine Checkliste -- idempotent, legt nur Fehlendes an."""
+    _require_module_enabled(db)
+    _checklist_for(db, _role, checklist_id)
+    return _call(run_checklist_rules, db, checklist_id)
+
+
+@router.post("/api/checklists/run-open-rules", response_model=ChecklistRulesRunOut)
+def post_run_open_rules(db: Session = Depends(get_db), _role: AppUser = _office_dep):
+    """"Alle nachholen": jede Checkliste mit nicht angelegten Aufgaben erneut auswerten."""
+    _require_module_enabled(db)
+    total = {"created": 0, "module_off": 0}
+    for checklist_id in list_checklists_with_open_rules(db):
+        result = _call(run_checklist_rules, db, checklist_id)
+        for key in total:
+            total[key] += result[key]
+    return total
+

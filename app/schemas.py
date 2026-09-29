@@ -4296,3 +4296,22 @@ class ChecklistAssetReadinessOut(BaseModel):
 
 class ChecklistAssetReleaseWrite(BaseModel):
     note: str | None = None
+
+
+class ChecklistRuleExecutionOut(BaseModel):
+    id: int
+    rule_id: int
+    status: str
+    status_label: str
+    executed_at: datetime
+    task_id: int | None = None
+    task_title: str | None = None
+    task_status: str | None = None
+    rule_title: str
+    priority: str
+
+
+class ChecklistRulesRunOut(BaseModel):
+    created: int = 0
+    module_off: int = 0
+

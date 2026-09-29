@@ -335,7 +335,7 @@ Zwischen den Versionen darf der Betreiber `/clear` machen -- dann diese Datei le
 | **1.8.0** | Modul `checklisten`, alle Tabellen + Migration, Vorlagenverwaltung (Liste `/checklisten/vorlagen`, eigene Editorseite `/checklisten/vorlagen/{id}`: Felder, Optionen, Regeln, Fassungen, Veröffentlichen), API, Tests | erledigt |
 | **1.8.1** | Ausfüllen: Anlegen in allen vier Kontexten, Antworten/Fotos/Unterschriften idempotent, Abschließen, Entwurf löschen, Einstiege in `/mobil` (Auftrag, Objektansicht, Geräteseite mit Einsatzbereitschafts-Hinweis), Büro-Übersicht `/checklisten`, Rechte + Angriffstest. **Danach anhalten und berichten** (Betreibervorgabe) | erledigt, vom Betreiber freigegeben (29.09.2026) |
 | **1.8.2** | Nachtrag nach der 1.8.1-Freigabe (Betreibervorgabe): "nicht einsatzbereit" verschwindet wieder -- spätere Checkliste mit "ja" ODER Büro markiert als repariert (Wer/Wann), Tests für beide Wege | erledigt |
-| **1.8.3** | Regeln → Aufgaben, `ChecklistRuleExecution`, "Aufgaben nachholen" (ursprünglich als 1.8.2 geplant) | offen |
+| **1.8.3** | Regeln → Aufgaben, `ChecklistRuleExecution`, "Aufgaben nachholen" (ursprünglich als 1.8.2 geplant) | erledigt |
 | **1.8.4** | PDF über den gemeinsamen Rahmen (ursprünglich 1.8.3) | offen |
 | **1.8.5** | 13 Startvorlagen per Daten-Migration (Entwurf) (ursprünglich 1.8.4). **Danach berichten** (Betreibervorgabe: nach Abschluss der geplanten Etappen) | offen |
 
@@ -473,4 +473,48 @@ Umplanung erreichbar.
   Monteur sieht roten Hinweis ohne Knopf, Büro gibt Notiz ein und markiert, neutrale Zeile mit
   Wer/Wann/Notiz auch nach Neuladen und im Dunkelmodus, Monteur danach ohne Hinweis. Keine
   JS-Ausnahme.
+
+---
+
+## Umsetzung 1.8.3 (29.09.2026)
+
+- **Dateien**: `app/checklist_rules.py` (neu, rollenlos), Andockstelle in
+  `app/checklists.py::complete_checklist()` NACH dessen Commit (lokaler Import), Endpunkte am Ende
+  von `app/routers/checklists.py`, Anzeige in `checklist.html` (Karte "Ausgelöste Aufgaben", nur
+  Büro und nur bei abgeschlossener Checkliste) und `checklists.html` (Hinweiskarte + Filter +
+  "Alle nachholen"). Tests `tests/test_v307_checklist_rules.py`. Keine Migration.
+- **API** (alle `buero_auftrag` aufwärts + Modulprüfung): `GET /api/checklists/{id}/rule-executions`,
+  `POST /api/checklists/{id}/run-rules` (nachholen, 400 bei Entwurf), `POST /api/checklists/
+  run-open-rules` (alle), `GET /api/checklists?open_rules=true` (Monteur 403).
+- **Ablauf**: je zutreffender Regel zuerst `ChecklistRuleExecution` belegen (Unique + SAVEPOINT,
+  eigener Commit), dann `create_task()` (committet selbst, Fund 4), dann Status
+  `aufgabe_angelegt` + `task_id`. Dritter Status **`ausstehend`** (belegt, Anlegen nicht bestätigt)
+  zusätzlich zu `modul_aus` -- beide gelten als offen und sind nachholbar. Nachholen belegt eine
+  offene Zeile per bedingtem UPDATE auf (`id`, `status`, `executed_at`); nur einer gewinnt.
+  Bewusst benanntes Restrisiko: Abbruch GENAU zwischen `create_task()` und dem Vermerk der
+  `task_id` → späteres Nachholen legt eine zweite Aufgabe an. Ein Fehler in der Auswertung wird
+  in `run_rules_after_completion()` abgefangen und protokolliert (nur ID, Regel 18) -- der
+  Abschluss selbst bleibt gültig.
+- **Aufgabenwerte**: Titel/Beschreibung mit Platzhaltern per `replace` (keine `format()`-
+  Fehler durch fremde Klammern), Fußzeile "Ausgelöst durch … Bedingung: …", `priority`,
+  `due_date` = Abschlussdatum + `due_in_days`, `project_id` des Auftrags, Empfänger
+  `Order.caseworker_employee_id` bei `sachbearbeiter` (sonst empfängerlos), `min_visible_role`
+  immer aus der Regel, `source_module="checklisten"`, `source_url="/checklisten/{id}"`,
+  `created_by_user_id` = Ersteller der Checkliste.
+- **Bedingungen**: `ausgefuellt` bei Foto/Unterschrift = mindestens ein Anhang; `enthaelt` bei
+  Einfachauswahl = gewählte Option; Zahlvergleiche gegen `value_number`; fehlende Antwort trifft
+  nie zu (außer `immer`).
+- **Klicktest-Funde, vor dem Commit behoben**: (1) noch nicht angelegte Regeln zeigten den rohen
+  Titel mit Platzhaltern -- `list_rule_executions()` setzt sie jetzt ein; (2) "Nachholen" bei
+  weiterhin ausgeschaltetem Modul zählte die übersprungenen `modul_aus`-Zeilen nicht, die Seite
+  zeigte deshalb keinen Grund -- jetzt `module_off` = Zahl der weiterhin offenen Regeln;
+  (3) "Alle nachholen" war niedriger als "Anzeigen" (Stil galt nur für `a.btnlink`).
+- **Verifikation**: 8 Tests, zwei Gegenproben rot (ausgehebelte Idempotenzsperre; Belegung ohne
+  Stempel -- dafür musste der Test auf eine `ausstehend`→`ausstehend`-Belegung verschärft werden,
+  die erste Fassung wäre schon am Statuswechsel gescheitert und hätte den Stempel nie geprüft).
+  Logik direkt gegen PostgreSQL (`checklisten_probe`): Modul aus → `modul_aus`, Belegung
+  frisch/veraltet True/False, Nachholen 2 → 0. Volle Suite 1960 grün. Klicktest per CDP gegen
+  isolierte Instanz: Büro sieht zwei nicht angelegte Regeln, Nachholen bei Modul aus meldet den
+  Grund, Übersicht mit Hinweis und Filter, "Alle nachholen" legt 2 an, Links zu `/tasks?task=`,
+  Monteur ohne Aufgabenbereich.
 

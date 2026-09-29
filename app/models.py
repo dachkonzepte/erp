@@ -4417,7 +4417,7 @@ class ChecklistTemplateFieldOption(Base):
 
 class ChecklistTemplateRule(Base):
     """Regel "Antwort X löst Aufgabe aus" einer Vorlagenfassung (seit 1.8.0, ausgewertet erst
-    ab 1.8.2 beim Abschluss). field_key NULL nur bei operator "immer". min_visible_role nur
+    seit 1.8.3 beim Abschluss, app/checklist_rules.py). field_key NULL nur bei operator "immer". min_visible_role nur
     buero_auftrag/buero_finanzen/admin -- Monteure haben keinen Aufgabenzugriff.
     assignee_mode "sachbearbeiter" = Order.caseworker_employee_id im Kontext Auftrag; fehlt er
     (oder anderer Kontext), wird die Aufgabe empfängerlos mit min_visible_role."""
@@ -4555,9 +4555,10 @@ class ChecklistAttachment(Base):
 
 
 class ChecklistRuleExecution(Base):
-    """Idempotenzsperre der Regeln (seit 1.8.0, beschrieben ab 1.8.2) -- genau eine Zeile je
-    (Checkliste, Regel). status aufgabe_angelegt|modul_aus; bei "modul_aus" (Aufgabenmodul
-    deaktiviert, Betreiberentscheidung C) bleibt task_id leer und die Aufgabe ist nachholbar."""
+    """Idempotenzsperre der Regeln (seit 1.8.0, beschrieben ab 1.8.3, app/checklist_rules.py) --
+    genau eine Zeile je (Checkliste, Regel). status aufgabe_angelegt|modul_aus|ausstehend; bei
+    "modul_aus" (Aufgabenmodul deaktiviert, Betreiberentscheidung C) und "ausstehend" (belegt,
+    Anlegen nicht bestätigt) bleibt task_id leer und die Aufgabe ist nachholbar."""
 
     __tablename__ = "checklist_rule_executions"
     __table_args__ = (UniqueConstraint("checklist_id", "rule_id", name="uq_checklist_rule_execution"),)
