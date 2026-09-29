@@ -11,6 +11,7 @@ from fastapi import Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from ..berlin_time import berlin_today
 from ..database import get_db
 from ..models import AppUser, Employee, EmployeeAbsence, PlanningHoliday
 from ..permissions import ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, require_min_role
@@ -94,7 +95,7 @@ def put_planning_capacity_settings(payload: PlanningSettingsUpdate, db: Session 
 @router.post("/api/planning/school-holidays/sync")
 def sync_planning_school_holidays(start_year: int | None = None, years: int = 3, force: bool = False, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     region = get_or_create_region_settings(db)
-    start_year = start_year or date.today().year
+    start_year = start_year or berlin_today().year
     years = max(1, min(int(years), 6))
     results = [sync_school_holidays(db, region.federal_state_code, year, force=force) for year in range(start_year, start_year + years)]
     return {"state_code": region.federal_state_code, "state_name": GERMAN_STATES.get(region.federal_state_code), "results": results}

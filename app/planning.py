@@ -11,6 +11,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from .berlin_time import berlin_today
 from .models import (
     Employee, EmployeeAbsence, EmployeePlanningSettings, EmployeeProfile, OperationalResource, Order, PlanningHoliday,
     PlanningSettings, PlanningRegionSettings, PlanningSchoolHoliday, PlanningSchoolHolidaySync, PlanningSlot, PlanningSlotCapacity, Project, Property, ServiceReport, Team, TeamEmployee,
@@ -648,7 +649,7 @@ def list_todays_assignments_for_employee(db: Session, employee_id: int, day: dat
     """Für die Monteursansicht (/mobil, seit 1.3.0, bis 1.3.60 unter /vor-ort) -- alle
     PlanningSlot-Zeilen, die einen Mitarbeiter für den angegebenen Tag betreffen, über beide
     Zuordnungswege (siehe _employee_assignment_slot_condition())."""
-    day = day or date.today()
+    day = day or berlin_today()
     query = (
         _slot_query_with_order_options()
         .where(PlanningSlot.start_date <= day, PlanningSlot.end_date >= day, _employee_assignment_slot_condition(employee_id))
@@ -678,7 +679,7 @@ def list_upcoming_assignments_for_employee(db: Session, employee_id: int, *, tod
     Zukunft liegenden, noch unsicheren Terminen überladen wird -- kein neues Datenmodell, dieselben
     beiden Zuordnungstabellen (WorkPreparationEmployee/WorkPreparationTeamAssignment) wie überall
     sonst in diesem Abschnitt."""
-    today = today or date.today()
+    today = today or berlin_today()
     window_end = today + timedelta(days=days_ahead)
     query = (
         _slot_query_with_order_options()
@@ -773,7 +774,7 @@ def list_field_relevant_property_ids(db: Session, employee_id: int, *, window_da
     IS NULL) zusätzlich die Hauptadresse-Property-ID des Kunden (is_primary_address), damit ein
     Wartungsvertrag mit property_id IS NULL (bedeutet "Hauptadresse", siehe contract_to_dict() in
     app/maintenance_contracts.py) über denselben Abgleich gefunden werden kann."""
-    today = today or date.today()
+    today = today or berlin_today()
     relevant_prep_ids = _relevant_preparation_ids_for_employee(db, employee_id, window_days=window_days, today=today)
     if not relevant_prep_ids:
         return set()
@@ -834,7 +835,7 @@ def list_field_bookable_order_ids(db: Session, employee_id: int, *, window_days:
     field_may_access_order() an anderer Stelle bereits ausdrücklich vermeidet ("ein Monteur soll
     nie Zeit auf einen Auftrag buchen können, dessen Bericht er nicht öffnen darf, oder
     umgekehrt")."""
-    today = today or date.today()
+    today = today or berlin_today()
     relevant_prep_ids = _relevant_preparation_ids_for_employee(db, employee_id, window_days=window_days, today=today)
 
     order_ids: set[int] = set()

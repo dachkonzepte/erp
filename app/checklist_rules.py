@@ -27,6 +27,7 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from .berlin_time import berlin_now, to_berlin
 from .models import (
     Checklist, ChecklistAnswer, ChecklistRuleExecution, ChecklistTemplateField, ChecklistTemplateRule,
     ChecklistTemplateVersion, Order, Task,
@@ -130,7 +131,8 @@ def _condition_text(checklist: Checklist, rule: ChecklistTemplateRule) -> str:
 
 
 def _task_values(db: Session, checklist: Checklist, rule: ChecklistTemplateRule) -> dict:
-    completed = checklist.completed_at or datetime.utcnow()
+    # completed_at ist UTC; Text und Fälligkeit brauchen das Datum in Ortszeit
+    completed = to_berlin(checklist.completed_at) if checklist.completed_at else berlin_now()
     footer = (f"Ausgelöst durch die Checkliste „{checklist.template_label_snapshot}“ "
               f"({checklist.context_label_snapshot or 'Betrieb'}), abgeschlossen am "
               f"{completed.strftime('%d.%m.%Y')} von {_creator_name(checklist)}. "

@@ -4,6 +4,42 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.12 – Geschäftsdatum und Uhrzeiten in Europe/Berlin
+
+Der Server läuft in UTC (`timedatectl`: Etc/UTC), der Entwicklungsrechner in deutscher Zeit.
+`date.today()` und `datetime.now()` liefern die Zeit des Rechners, auf dem Server also bis 1 Uhr
+(Winter) bzw. 2 Uhr (Sommer) noch den Vortag und in der Silvesternacht das alte Jahr; lokal fällt
+das nicht auf. Neu ist `app/berlin_time.py` mit `berlin_now()`, `berlin_today()` und `to_berlin()`.
+Alle 60 Aufrufe von `date.today()`/`datetime.now()` unter `app/` laufen jetzt darüber:
+Buchungsdatum, Beginn und Ende von Timer und Gruppen-Timer, Sperrprüfung beim Timerstart,
+Feierabend-Abmeldung, Vorgabemonat des Monteur-Stundenzettels, Arbeitszeitmodell und automatische
+Pause, Plantafel, Fristen und Überfälligkeit (Rechnung, Mahnung, Eingangsrechnung und Skonto,
+Wartungsvertrag, Betriebsmittel, laufende Kosten, Mängel-Wiedervorlage), Datumsvorgaben (Bezahlt-,
+Angebots-, Auftrags- und Ausführungsdatum) und das Jahr der Nummernkreise. Zeitbuchungen speichern
+wie bisher Ortszeit, so wie man sie von Hand eintippt; lokal ändert sich nichts, auf dem Server
+stimmen Datum und Uhrzeit jetzt.
+
+Gespeicherte Zeitstempel (`created_at`, `signed_at`, `completed_at` aus `datetime.utcnow()`)
+bleiben UTC, `utcnow()` und die Kalender-Synchronisation sind unverändert. Wo sie gedruckt werden,
+rechnet `to_berlin()` sie um: Unterschriftszeitpunkt von Monteur und Kunde im Einsatzbericht-PDF,
+Abschluss und Unterschriften im Checklisten-PDF (bisher im Sommer 2 Std., im Winter 1 Std. zu früh,
+auch lokal) und das Angebotsdatum neuer Angebote aus `created_at`. Dazu zwei Stellen, die nicht in
+der Liste von 1.8.10 standen: Text und Fälligkeit einer Aufgabe aus einer Checklistenregel (aus
+`completed_at`) und das Vorgabejahr beim Abruf der Schulferien. Offen, weil im Browser: die
+`today()`-Stellen aus 1.8.10 und Anzeigen, die einen naiven UTC-Zeitstempel ohne `'Z'` an
+`new Date()` geben (etwa die E-Mail-Versandzeit bei Rechnung, Auftrag und Angebot); Liste in
+`docs/archiv/zeiterfassung-und-abwesenheit.md`.
+
+Keine Migration. 11 neue Tests in `tests/test_v316_berlin_time.py`: ein Suchtest, der `app/` per
+AST nach `date.today()`, `datetime.today()` und `datetime.now()` ohne Zeitzone durchsucht (auch
+über Aliasse) samt Selbsttest der Suche; die Helfer; eine Unterschrift um 12:00 UTC im Sommer steht
+im Einsatzbericht- und im Checklisten-PDF als 14:00; bei fester Uhr auf 31.12. 23:30 UTC vergibt
+der Nummernkreis R-2027-0001 und der Timer bucht auf den 01.01.2027; Feierabend und Angebotsdatum.
+Die Fixture stellt einen Server in UTC nach, unabhängig von der Zeitzone des Rechners. Gegenprobe
+(alter Code unter `app/`): 8 rot, darunter der Suchtest mit allen 60 Fundstellen und der
+Nummernkreis mit R-2026-0057, die drei Helfer- und Selbsttests grün. `test_v307_checklist_rules`
+erwartet die Fälligkeit jetzt aus dem Ortsdatum. Volle Suite mit PostgreSQL: 2043 grün, 0 übersprungen.
+
 ## 1.8.11 – Kaufmännisches Runden überall
 
 Geld und Stunden runden jetzt überall kaufmännisch (`ROUND_HALF_UP`, 0,125 → 0,13). Bisher rundeten

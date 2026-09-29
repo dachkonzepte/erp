@@ -21,6 +21,7 @@ from pathlib import Path
 from sqlalchemy import event, func, select
 from sqlalchemy.orm import Session, selectinload
 
+from .berlin_time import berlin_today
 from .date_utils import add_months
 from .document_storage import make_stored_filename
 from .inspection_templates import ITEM_TYPES
@@ -508,7 +509,7 @@ def create_report(db: Session, order_id: int, report_type: str, description: str
         raise ValueError("Auftrag nicht gefunden.")
     report = ServiceReport(
         order_id=order_id, report_type=report_type, description=(description or None),
-        created_by_employee_id=created_by_employee_id, performed_at=performed_at or date.today(),
+        created_by_employee_id=created_by_employee_id, performed_at=performed_at or berlin_today(),
         advance_due_date_on_sign=advance_due_date_on_sign,
     )
     # Vertragsbezug als einmaliger Schnappschuss übernehmen (seit 1.2.15) -- sofern der Auftrag

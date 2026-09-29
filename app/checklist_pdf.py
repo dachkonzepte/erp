@@ -18,6 +18,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import Image, KeepTogether, Paragraph, Spacer, Table, TableStyle
 
+from .berlin_time import to_berlin
 from .checklists import _answer_value, attachment_path
 from .document_frame import frame_content_width, render_framed_pdf
 from .document_page_margins import get_margins
@@ -99,7 +100,7 @@ def build_checklist_pdf(db, checklist: Checklist) -> bytes:
         sender_line = " - ".join(x for x in sender_parts if x)
         recipient_lines = [order.customer_name] + (order.customer_address.split(", ", 1) if order.customer_address else [])
 
-    completed = checklist.completed_at
+    completed = to_berlin(checklist.completed_at)  # Zeitstempel sind UTC, gedruckt wird Ortszeit
     creator = _employee_name(checklist.created_by_employee)
     completer = _employee_name(checklist.completed_by_employee)
     context_label = CONTEXT_LABELS.get(checklist.context_type, checklist.context_type)
@@ -185,7 +186,7 @@ def build_checklist_pdf(db, checklist: Checklist) -> bytes:
                 for sig in signatures:  # je Unterschrift Bild + Name zusammen, nie getrennt
                     story.append(KeepTogether([
                         _image(attachment_path(sig), SIGNATURE_WIDTH_MM, max_height_mm=SIGNATURE_HEIGHT_MM),
-                        Paragraph(ptext(f"{sig.signer_name or ''}, {sig.created_at.strftime('%d.%m.%Y %H:%M')} Uhr"), small),
+                        Paragraph(ptext(f"{sig.signer_name or ''}, {to_berlin(sig.created_at).strftime('%d.%m.%Y %H:%M')} Uhr"), small),
                         Spacer(1, 3 * mm),
                     ]))
                 story.append(Spacer(1, 2 * mm))

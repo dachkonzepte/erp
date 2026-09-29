@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.11** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.12** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -98,6 +98,7 @@ Stand, den `git log` nicht erklären kann), nicht nur ein theoretisches.
 | Dienst | `erp.service`, `gunicorn -w 2 --timeout 120` |
 | Sicherung | `/home/tobias/backup.sh`, täglich 2 Uhr UTC, 14 Tage Aufbewahrung |
 | Notfallskripte | `scripts/reset_admin_2fa.py`, `scripts/migrate_sqlite_to_postgres.py` |
+| Zeitzone | `Etc/UTC` (`timedatectl`) -- Datum und Uhrzeit deshalb nur über `app/berlin_time.py`, Regel 20 |
 
 **Korrigiert (KI-Fundament-Runde, seit 1.6.2)**: diese Datei behauptete hier bisher fälschlich
 "ein Arbeitsprozess, kein `--workers 2+`" -- am 22.09.2026 direkt gegen den echten `ExecStart`
@@ -556,6 +557,16 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Rechnung ihre Regel (`Invoice.rounding_rule`): leer = vor 1.8.11 versendet, rechnet unverändert
     wie damals (Regel 5). Storno und Mahnung folgen der Regel ihrer Rechnung. Liste aller
     Geldstellen und was sich wo geändert hat: `docs/archiv/kaufmaennisches-runden.md`.
+
+20. **"Heute" und "jetzt" kommen auf dem Server nur aus `app/berlin_time.py` (`berlin_today()`,
+    `berlin_now()`), seit 1.8.12.** Der VPS läuft in UTC, `date.today()`/`datetime.now()` liefern
+    dort bis 1–2 Uhr nachts den Vortag und an Silvester das alte Jahr -- lokal unter deutscher
+    Windows-Zeit unsichtbar. Beide sind unter `app/` verboten, `tests/test_v316_berlin_time.py`
+    sucht sie per AST. Gespeicherte Zeitstempel aus `datetime.utcnow()` bleiben naive UTC; wer sie
+    druckt oder ein Datum daraus ableitet, rechnet mit `to_berlin()` um. Beginn/Ende einer
+    Zeitbuchung sind dagegen naive Ortszeit. Browser-Seite: `_berlin_date.html`. Details und die
+    offenen Browser-Stellen: `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Kalenderdatum in
+    Europe/Berlin statt UTC".
 
 ## Fachbegriffe & Domänenmodell
 
@@ -1162,11 +1173,9 @@ vollständig aufgelöst: `_search_tasks()` (`app/search.py`) nutzt seither `list
   `onupdate`) neu durchdenken, nicht nur `datetime.utcnow()` durch `datetime.now(UTC)` ersetzen.
   Bewusst NICHT jetzt umgebaut -- eigene, spätere, sorgfältig zu planende Runde, kein Teil der
   CLAUDE.md-Aufräumung.
-- **Kalenderdatum an weiteren Stellen aus UTC abgeleitet** (Suche vom 29.09.2026, nur das
-  Dashboard ist seit 1.8.10 behoben): im Browser `toISOString().slice(0,10)` (u. a. `today()` der
-  Büro- und der Monteur-Zeiterfassung, Bezahltdatum Eingangsrechnung), auf dem Server
-  `utcnow()`-Zeitstempel als Ortszeit gedruckt (Unterschriftszeitpunkt im Einsatzbericht- und
-  Checklisten-PDF, Angebotsdatum) und -- nur falls der VPS in UTC läuft, nicht dokumentiert --
-  jedes `date.today()`/`datetime.now()` (Buchungsdatum der Timer, Sperrprüfung, Feierabend,
-  Fristen, Nummernkreis-Jahr). Liste mit Zeilen: `docs/archiv/zeiterfassung-und-abwesenheit.md`,
-  "Kalenderdatum in Europe/Berlin statt UTC". Für den Browser steht `_berlin_date.html` bereit.
+- **Kalenderdatum im Browser noch an weiteren Stellen aus UTC abgeleitet** (Dashboard seit
+  1.8.10 und alle Server-Stellen seit 1.8.12 behoben, Regel 20): `toISOString().slice(0,10)`
+  (u. a. `today()` der Büro- und der Monteur-Zeiterfassung, Bezahltdatum Eingangsrechnung) und
+  naive UTC-Zeitstempel ohne `'Z'` an `new Date()` (u. a. E-Mail-Versandzeit bei Rechnung, Auftrag,
+  Angebot). Liste mit Zeilen: `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Kalenderdatum in
+  Europe/Berlin statt UTC". Für den Browser steht `_berlin_date.html` bereit.

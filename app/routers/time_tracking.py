@@ -20,11 +20,12 @@ require_admin().
 """
 
 from fastapi import APIRouter
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from fastapi import Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
+from ..berlin_time import berlin_now, berlin_today
 from ..database import get_db
 from ..models import AppUser, TimeEntry, TimeEntryGroup
 from ..permissions import ROLE_FIELD, require_min_role
@@ -187,7 +188,7 @@ def start_time_group(payload:TimeGroupTimerStart,request:Request,db:Session=Depe
     actor,is_admin,user_id=_group_actor(request)
     _require_crew_leader(request,db,payload.team_id)
     _require_bookable_order(request,db,payload.order_id)
-    _require_open_period(request,db,(payload.started_at or datetime.now()).date())
+    _require_open_period(request,db,(payload.started_at or berlin_now()).date())
     try:
         group=start_group_timer(db,employee_ids=payload.employee_ids,team_id=payload.team_id,actor_employee_id=actor,is_admin=is_admin,order_id=payload.order_id,order_item_id=payload.order_item_id,entry_type=payload.entry_type,activity=payload.activity,notes=payload.notes,started_at=payload.started_at,created_by_user_id=user_id)
     except ValueError as exc:
@@ -210,7 +211,7 @@ def get_my_time_groups(request:Request,days:int=14,db:Session=Depends(get_db), _
     user=getattr(request.state,"erp_user",None)
     if user is None or user.employee_id is None:
         return []
-    start=date.today()-timedelta(days=max(1,min(days,62)))
+    start=berlin_today()-timedelta(days=max(1,min(days,62)))
     return [CrewGroupSummaryOut.model_validate(x) for x in list_groups_initiated_by(db,user.employee_id,start_date=start)]
 
 
@@ -259,7 +260,7 @@ def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:S
         raise HTTPException(status_code=403,detail="Nur der Initiator der Gruppenbuchung oder ein Administrator darf die gesamte Gruppe stoppen.")
     _require_open_period(request,db,group.work_date)
     try:
-        end=payload.ended_at or datetime.now().replace(microsecond=0)
+        end=payload.ended_at or berlin_now()
         member_breaks={eid:automatic_break_minutes_for_timer(db,eid,group.started_at,end) for eid in group_member_ids(db,group.id)} if group.started_at else {}
         group=stop_group_timer(db,group_id,ended_at=end,break_minutes=payload.break_minutes,break_minutes_by_employee=member_breaks)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
@@ -323,7 +324,7 @@ def start_time_entry(payload: TimeTimerStart, request: Request, db: Session = De
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity)
     employee_id = _time_entry_employee_for_request(request, payload.employee_id, db)
     _require_bookable_order(request, db, payload.order_id)
-    _require_open_period(request, db, (payload.started_at or datetime.now()).date())
+    _require_open_period(request, db, (payload.started_at or berlin_now()).date())
     user = getattr(request.state, "erp_user", None)
     try:
         row = start_timer(db, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, entry_type=payload.entry_type, activity=payload.activity, notes=payload.notes, started_at=payload.started_at, created_by_user_id=getattr(user, "id", None))
@@ -344,12 +345,12 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
         group = group_for_entry(db, entry_id)
         user = getattr(request.state, "erp_user", None)
         if group is not None and group.status == "running" and (user is None or user.role == "admin" or user.employee_id == group.initiated_by_employee_id):
-            end=payload.ended_at or datetime.now().replace(microsecond=0)
+            end=payload.ended_at or berlin_now()
             member_breaks={eid:automatic_break_minutes_for_timer(db,eid,group.started_at,end) for eid in group_member_ids(db,group.id)} if group.started_at else {}
             stop_group_timer(db, group.id, ended_at=end, break_minutes=payload.break_minutes, break_minutes_by_employee=member_breaks)
             row = db.get(TimeEntry, entry_id)
         else:
-            end=payload.ended_at or datetime.now().replace(microsecond=0)
+            end=payload.ended_at or berlin_now()
             auto_break=automatic_break_minutes_for_timer(db,current.employee_id,current.started_at,end) if current.started_at else 0
             row = stop_timer(db, entry_id, ended_at=end, break_minutes=max(int(payload.break_minutes or 0),int(auto_break or 0)))
     except ValueError as exc:

@@ -32,6 +32,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from .berlin_time import berlin_today
 from .incoming_invoice_documents import delete_document_file
 from .models import (
     Account, IncomingInvoice, IncomingInvoiceItem, IncomingInvoiceSettings, OperationalAsset,
@@ -75,24 +76,24 @@ def invoice_gross_amount(invoice: IncomingInvoice) -> Decimal:
 
 def is_overdue(payment_status: str, due_date: date | None, *, today: date | None = None) -> bool:
     """Reine Ableitung, NIE gespeichert -- konsistent mit Invoice (app/invoices.py:
-    is_overdue = status=="versendet" and due_date is not None and due_date < date.today())."""
+    is_overdue = status=="versendet" and due_date is not None and due_date < berlin_today())."""
     if payment_status != "offen" or due_date is None:
         return False
-    today = today or date.today()
+    today = today or berlin_today()
     return due_date < today
 
 
 def is_skonto_due(skonto_deadline: date | None, payment_status: str, lead_days: int, *, today: date | None = None) -> bool:
     if skonto_deadline is None or payment_status != "offen":
         return False
-    today = today or date.today()
+    today = today or berlin_today()
     return skonto_deadline <= today + timedelta(days=lead_days)
 
 
 def is_skonto_overdue(skonto_deadline: date | None, payment_status: str, *, today: date | None = None) -> bool:
     if skonto_deadline is None or payment_status != "offen":
         return False
-    today = today or date.today()
+    today = today or berlin_today()
     return skonto_deadline < today
 
 
@@ -416,7 +417,7 @@ def check_due_skonto_and_create_reminders(db: Session) -> list[int]:
     if not is_module_enabled(db, "aufgabenmanagement"):
         return []
     settings = get_or_create_incoming_invoice_settings(db)
-    threshold = date.today() + timedelta(days=settings.skonto_reminder_lead_days)
+    threshold = berlin_today() + timedelta(days=settings.skonto_reminder_lead_days)
     candidates = db.scalars(
         select(IncomingInvoice).options(selectinload(IncomingInvoice.supplier)).where(
             IncomingInvoice.payment_status == "offen",

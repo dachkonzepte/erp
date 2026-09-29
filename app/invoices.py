@@ -24,6 +24,7 @@ from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .berlin_time import berlin_today
 from .calculation import effective_material_sale_price, get_or_create_settings
 from .models import Invoice, InvoiceItem, Material, Order, OrderItem, PaymentTerm, ServiceReportMaterial, TaxKey, TimeEntry
 from .option_settings import default_option_value
@@ -124,7 +125,7 @@ def _default_invoice_header_fields(db: Session, order: Order, *, due_date: date 
     return {
         **_snapshot_order_fields(db, order),
         "payment_terms": label,
-        "due_date": due_date or (date.today() + timedelta(days=days)),
+        "due_date": due_date or (berlin_today() + timedelta(days=days)),
         "skonto_percent": skonto_percent,
         "skonto_days": skonto_days,
         "payment_terms_text_template": text_template,
@@ -556,7 +557,7 @@ def mark_invoice_paid(db: Session, invoice: Invoice, *, paid_date: date | None =
     if invoice.status != "versendet":
         raise ValueError("Nur versendete Rechnungen können als bezahlt markiert werden.")
     invoice.status = "bezahlt"
-    invoice.paid_date = paid_date or date.today()
+    invoice.paid_date = paid_date or berlin_today()
     db.commit()
     db.refresh(invoice)
     return invoice
@@ -766,7 +767,7 @@ def invoice_to_dict(invoice: Invoice) -> dict:
         "payment_terms_sentence": format_payment_terms_sentence(invoice),
         "is_editable": is_invoice_editable(invoice),
         "is_overdue": (
-            invoice.status == "versendet" and invoice.due_date is not None and invoice.due_date < date.today()
+            invoice.status == "versendet" and invoice.due_date is not None and invoice.due_date < berlin_today()
         ),
         "items": [
             {
@@ -861,7 +862,7 @@ def invoice_overview_row(invoice: Invoice) -> dict:
         "invoice_date": invoice.invoice_date,
         "due_date": invoice.due_date,
         "is_overdue": (
-            invoice.status == "versendet" and invoice.due_date is not None and invoice.due_date < date.today()
+            invoice.status == "versendet" and invoice.due_date is not None and invoice.due_date < berlin_today()
         ),
         "customer_name": invoice.customer_name,
         "order_id": invoice.order_id,

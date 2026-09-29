@@ -1,10 +1,10 @@
-from datetime import datetime
 import re
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from .berlin_time import berlin_now
 from .models import (
     CustomerProfile, GeneralSettings, Inquiry, NumberSequence, Project, Quote, Order,
 )
@@ -50,7 +50,7 @@ def validate_number_pattern(pattern: str) -> None:
 
 def format_sequence_number(pattern: str, value: int, year: int | None = None) -> str:
     validate_number_pattern(pattern)
-    year = year or datetime.now().year
+    year = year or berlin_now().year
     result = pattern.replace("{YYYY}", str(year)).replace("{YY}", str(year)[-2:])
     match = re.search(r"\{(N+)\}", result)
     width = len(match.group(1)) if match else 1
@@ -81,7 +81,7 @@ def _sync_from_existing(db: Session, sequence: NumberSequence) -> None:
     column = _existing_column(sequence.sequence_key)
     if column is None:
         return
-    year = datetime.now().year
+    year = berlin_now().year
     regex = _pattern_regex(sequence.format_pattern, year)
     highest = 0
     for value in db.scalars(select(column)).all():
@@ -105,7 +105,7 @@ def get_or_create_sequence(db: Session, sequence_key: str) -> NumberSequence:
     default = DEFAULT_SEQUENCES.get(sequence_key)
     if default is None:
         raise KeyError(f"Unbekannter Nummernkreis: {sequence_key}")
-    year = datetime.now().year
+    year = berlin_now().year
     try:
         with db.begin_nested():
             sequence = NumberSequence(
@@ -132,7 +132,7 @@ def ensure_default_sequences(db: Session) -> list[NumberSequence]:
 
 
 def _apply_year_reset(sequence: NumberSequence) -> None:
-    year = datetime.now().year
+    year = berlin_now().year
     if sequence.reset_yearly and sequence.last_year is not None and sequence.last_year != year:
         sequence.next_value = sequence.start_value
     sequence.last_year = year
@@ -168,7 +168,7 @@ def update_sequence(
     sequence.start_value = start_value
     sequence.next_value = next_value
     sequence.reset_yearly = reset_yearly
-    sequence.last_year = datetime.now().year
+    sequence.last_year = berlin_now().year
     db.commit()
     db.refresh(sequence)
     return sequence

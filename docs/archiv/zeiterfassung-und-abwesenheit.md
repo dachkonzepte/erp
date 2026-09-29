@@ -256,6 +256,30 @@ aus, an Monats- und Jahreswechseln, mit vier Zeitzonen des Prozesses (übersprun
   `app/service_reports.py` Z. 511, `app/quick_service_orders.py` Z. 58, `app/projects.py` Z. 653;
   Nummernkreise `app/settings.py` Z. 53/84/108/135/171 (Jahr in der Silvesternacht).
 
+**Nachtrag (1.8.12): Server-Teil behoben.** Der VPS läuft tatsächlich in UTC (`timedatectl`:
+Etc/UTC). `app/berlin_time.py` ist seither die eine Stelle für "jetzt" und "heute":
+`berlin_now()` (naive Ortszeit), `berlin_today()` (Geschäftsdatum), `to_berlin()` (gespeicherten
+Zeitstempel für die Anzeige umrechnen, naive Werte gelten als UTC). Die Uhr steckt in
+`_utc_now()`, Tests setzen dort eine feste Zeit ein. Alle Stellen der beiden Server-Absätze oben
+sind umgestellt, dazu zwei weitere: `app/checklist_rules.py::_task_values()` (Text "abgeschlossen
+am" und Fälligkeit der Aufgabe aus `completed_at`) und `app/routers/planning.py` (Vorgabejahr beim
+Abruf der Schulferien). `tests/test_v316_berlin_time.py` sucht `app/` nach `date.today()`,
+`datetime.today()` und `datetime.now()` ohne Zeitzone ab.
+
+Zwei Arten gespeicherter Zeit, nicht verwechseln: Zeitstempel aus `datetime.utcnow()` sind naive
+UTC und bleiben es (`utcnow()` und die Kalender-Synchronisation bewusst unangetastet); Beginn und
+Ende einer Zeitbuchung sind naive Ortszeit, weil man sie von Hand so eintippt und
+`time_backoffice.py` sie so druckt. Der Timer schreibt deshalb `berlin_now()`, nicht UTC.
+
+Weiter offen, alle im Browser (unabhängig von der Serverzeitzone):
+- die `today()`-Stellen aus dem ersten Absatz oben;
+- naive UTC-Zeitstempel ohne `'Z'` an `new Date()` übergeben, der Browser liest sie als Ortszeit
+  (Anzeige 1–2 Std. zu früh): `invoice_detail.html` Z. 159, `order.html` Z. 58 (E-Mail-Versandzeit)
+  und Z. 77, `quote_editor.html` Z. 260, `customer.html` Z. 207 und `project_folder.html` Z. 180
+  (Hochladezeit), `mahnwesen.html` Z. 127 (Datum per `slice(0,10)`, 0–2 Uhr Vortag). Richtig mit
+  `+'Z'`: `address_import.html` Z. 208, `operational_asset_field.html` Z. 75. Suche vom 29.09.2026
+  nur über diese Muster, nicht vollständig.
+
 ## Krankheitssichtbarkeit: buero_auftrag sieht nur noch "abwesend" (seit 1.5.4)
 
 Kurskorrektur zu 1.5.3, wo der Betreiber einen ersten Redaktions-Vorschlag noch abgelehnt hatte

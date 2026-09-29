@@ -28,7 +28,7 @@ hier auch den Bericht eines längst ausgeschiedenen Kollegen lesen, solange er z
 gehört und bereits unterschrieben ist. Reines Lesen -- kein PUT/DELETE/sign existiert unter
 diesem Pfad, siehe resolve_property_history_report_for_field() (app/service_reports.py)."""
 
-from datetime import date, datetime
+from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
@@ -36,6 +36,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from ..berlin_time import berlin_now, berlin_today
 from ..auth import COOKIE_NAME
 from ..database import get_db
 from ..deps import require_admin
@@ -84,7 +85,7 @@ def _now() -> datetime:
     ohnehin schon direkt als Funktion auf (nicht über HTTP), monkeypatchen hier `_now` genauso,
     wie sie `db=`/`request=` bereits direkt statt über FastAPIs Depends()-Mechanismus setzen --
     kein Weg, der über eine echte HTTP-Anfrage erreichbar wäre."""
-    return datetime.now()
+    return berlin_now()
 
 
 @router.get("/api/field-view/today")
@@ -192,7 +193,7 @@ def get_field_view_timesheet_pdf(
     user = getattr(request.state, "erp_user", None)
     if user is None or user.employee_id is None:
         raise HTTPException(status_code=422, detail="Ihr ERP-Benutzerkonto ist keinem Mitarbeiter zugeordnet.")
-    today = date.today()
+    today = berlin_today()
     year = year or today.year
     month = month or today.month
     if not (1 <= month <= 12):

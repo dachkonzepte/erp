@@ -29,6 +29,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import case, select
 from sqlalchemy.orm import Session, selectinload
 
+from .berlin_time import berlin_today
 from .models import Employee, Finding, InspectionItem, Order, Project, RoofComponent, ServiceReport
 from .modules import is_module_enabled
 from .quick_service_orders import create_quick_service_order
@@ -139,7 +140,7 @@ def list_findings(
     if overdue_only:
         query = query.where(
             Finding.action == "zurueckgestellt", Finding.resubmission_date.is_not(None),
-            Finding.resubmission_date <= date.today(), Finding.status != "erledigt",
+            Finding.resubmission_date <= berlin_today(), Finding.status != "erledigt",
         )
     severity_rank = case(
         (Finding.severity == "akute_gefahr", 4), (Finding.severity == "dringend", 3),
@@ -244,7 +245,7 @@ def create_follow_up_project_for_task(db: Session, task_id: int) -> dict:
         title=f"Folgeauftrag: {title}",
         description=(
             f"{finding.description}\n\nErstellt aus Mangel im Einsatzbericht {report.id} "
-            f"(Auftrag {order.order_number}) am {date.today():%d.%m.%Y}."
+            f"(Auftrag {order.order_number}) am {berlin_today():%d.%m.%Y}."
         ),
         caseworker_employee_id=order.caseworker_employee_id,
     )

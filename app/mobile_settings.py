@@ -6,6 +6,7 @@ from datetime import datetime, time as dt_time
 
 from sqlalchemy.orm import Session
 
+from .berlin_time import berlin_now
 from .models import MobileSettings
 
 
@@ -35,5 +36,5 @@ def is_past_shift_end(settings: MobileSettings, now: datetime | None = None) -> 
     """Geprüft nur an den beiden mobilen Einstiegspunkten (GET /mobil, GET
     /api/field-view/today -- /mobil hieß bis 1.3.60 /vor-ort), NICHT in der globalen Middleware --
     siehe MobileSettings-Docstring in app/models.py."""
-    now = now or datetime.now()
+    now = now or berlin_now()
     return now.time() >= settings.shift_end_time

@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import timedelta
 from decimal import Decimal
 import re
 import shutil
@@ -6,6 +6,7 @@ import shutil
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, object_session, selectinload
 
+from .berlin_time import berlin_today, to_berlin
 from .calculation import build_calculation, get_settings_for_catalog, get_service_for_calculation
 from .models import (
     Customer, Project, ProjectProfile, Property, Quote, QuoteItem, QuoteItemCalculation,
@@ -60,7 +61,8 @@ def ensure_quote_structure(db: Session, quote: Quote) -> tuple[QuoteDocumentMeta
     changed = False
     meta = db.scalar(select(QuoteDocumentMeta).where(QuoteDocumentMeta.quote_id == quote.id))
     if meta is None:
-        qdate = quote.created_at.date() if quote.created_at else date.today()
+        # created_at ist UTC: ein Angebot von 0:30 Uhr trägt sonst das Datum des Vortags
+        qdate = to_berlin(quote.created_at).date() if quote.created_at else berlin_today()
         default_term = get_default_payment_term(db)
         meta = QuoteDocumentMeta(
             quote_id=quote.id,
@@ -649,7 +651,7 @@ def _copy_quote_into_project(db: Session, source_quote: Quote, target_project: P
     source_meta = db.scalar(select(QuoteDocumentMeta).where(QuoteDocumentMeta.quote_id == source_quote.id))
     if source_meta is not None:
         db.add(QuoteDocumentMeta(
-            quote_id=new_quote.id, quote_date=date.today(), valid_until=None,
+            quote_id=new_quote.id, quote_date=berlin_today(), valid_until=None,
             contact_person=source_meta.contact_person, payment_terms=source_meta.payment_terms,
             execution_period=source_meta.execution_period, internal_note=source_meta.internal_note,
         ))

@@ -4107,7 +4107,7 @@ class IncomingInvoice(Base):
 
     payment_status trägt NUR "offen"/"bezahlt" -- "überfällig" wird NICHT gespeichert, sondern
     bei jedem Lesezugriff berechnet (app/incoming_invoices.py::is_overdue()), exakt konsistent
-    mit Invoice (app/invoices.py: is_overdue = status=="versendet" and due_date < date.today()).
+    mit Invoice (app/invoices.py: is_overdue = status=="versendet" and due_date < berlin_today()).
     Ein gespeicherter dritter Statuswert würde veralten, sobald das Datum verstreicht, ohne dass
     irgendetwas ihn nachzieht.
 

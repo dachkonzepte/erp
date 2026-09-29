@@ -5,6 +5,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import and_, case, select, func, or_
 from sqlalchemy.orm import Session, selectinload
 
+from .berlin_time import berlin_now
 from .models import (
     Employee, Order, OrderItem, Project, TimeEntry, Team, TeamEmployee,
     TimeEntryGroup, TimeEntryGroupMember,
@@ -121,7 +122,7 @@ def start_timer(
     if order is None:
         raise ValueError("Auftrag wurde nicht gefunden.")
     validate_order_item(db, order_id, order_item_id)
-    start = started_at or datetime.now().replace(microsecond=0)
+    start = started_at or berlin_now()
     row = TimeEntry(
         employee_id=employee.id, project_id=order.project_id, order_id=order.id,
         order_item_id=order_item_id, work_date=start.date(), entry_type=entry_type,
@@ -139,7 +140,7 @@ def stop_timer(db: Session, entry_id: int, *, ended_at: datetime | None = None, 
         raise ValueError("Laufende Zeiterfassung wurde nicht gefunden.")
     if row.status != "running" or row.started_at is None:
         raise ValueError("Diese Zeiterfassung läuft nicht mehr.")
-    end = ended_at or datetime.now().replace(microsecond=0)
+    end = ended_at or berlin_now()
     row.ended_at = end
     auto_break = automatic_break_minutes_for_timer(db, row.employee_id, row.started_at, end)
     row.break_minutes = max(0, int(break_minutes or 0), int(auto_break or 0))
@@ -450,7 +451,7 @@ def start_group_timer(db: Session, *, employee_ids: list[int], team_id: int | No
     validate_order_item(db,order_id,order_item_id)
     busy=[employee_name(e) for e in employees if active_entry(db,e.id) is not None]
     if busy: raise ValueError("Für folgende Mitarbeiter läuft bereits eine Zeiterfassung: "+", ".join(busy))
-    start=started_at or datetime.now().replace(microsecond=0)
+    start=started_at or berlin_now()
     group=_create_group_header(db,initiated_by_employee_id=actor_employee_id,team_id=team_id,order=order,order_item_id=order_item_id,mode='timer',entry_type=entry_type,activity=activity,work_date=start.date(),started_at=start,hours=Decimal('0'),break_minutes=0,notes=notes,status='running',created_by_user_id=created_by_user_id)
     for emp in employees:
         entry=TimeEntry(employee_id=emp.id,project_id=order.project_id,order_id=order.id,order_item_id=order_item_id,work_date=start.date(),entry_type=entry_type,counts_as_productive=entry_type_is_productive(entry_type),activity=activity or None,started_at=start,ended_at=None,break_minutes=0,hours=Decimal('0'),notes=notes or None,source='group_timer',status='running',created_by_user_id=created_by_user_id)
@@ -462,7 +463,7 @@ def stop_group_timer(db: Session, group_id: int, *, ended_at: datetime | None=No
     group=db.get(TimeEntryGroup,group_id)
     if group is None: raise ValueError("Gruppenbuchung wurde nicht gefunden.")
     if group.status!='running' or group.started_at is None: raise ValueError("Diese Gruppenbuchung läuft nicht mehr.")
-    end=ended_at or datetime.now().replace(microsecond=0)
+    end=ended_at or berlin_now()
     links=db.scalars(select(TimeEntryGroupMember).where(TimeEntryGroupMember.group_id==group.id)).all()
     amounts=[]; applied_breaks=[]
     for link in links:

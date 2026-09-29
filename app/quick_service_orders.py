@@ -15,6 +15,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from .berlin_time import berlin_today
 from .models import Project, Quote
 from .orders import create_order_from_quote
 from .project_pipeline_columns import default_pipeline_column_id
@@ -55,7 +56,7 @@ def create_quick_service_order(
     )
 
     order = create_order_from_quote(
-        db, quote.id, order_date=date.today(), execution_start=execution_start, execution_end=None,
+        db, quote.id, order_date=berlin_today(), execution_start=execution_start, execution_end=None,
         caseworker_employee_id=caseworker_employee_id, project_manager_employee_id=None,
         payment_terms=None, remarks=None,
     )

@@ -32,6 +32,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .berlin_time import berlin_today
 from .date_utils import add_months
 from .employees import effective_cost_allocation
 from .labor_rate import active_employees, get_or_create_labor_rate_settings
@@ -122,7 +123,7 @@ def _rolling_window(today: date | None = None) -> tuple[date, date, list[tuple[i
     12 Monaten" nie mit einer je nach Tagesdatum schwankenden Fensterbreite verwechselt wird
     (ein einfaches "heute minus 365 Tage" hätte je nach Monatslängen mal 12, mal 13 Kalendermonate
     berührt)."""
-    today = today or date.today()
+    today = today or berlin_today()
     current_month_start = date(today.year, today.month, 1)
     start = add_months(current_month_start, -(ROLLING_WINDOW_MONTHS - 1))
     months = []
@@ -284,7 +285,7 @@ def public_holidays_suggestion(db: Session, *, today: date | None = None) -> Dec
     laufende Kalenderjahr, arbeitstägliche Feiertage aus PlanningHoliday (siehe
     app/planning.py::count_workday_holidays()). Füllt public_holidays beim Laden nur vor,
     schreibt es nie selbst -- update_productive_hours_settings() bleibt der einzige Schreibweg."""
-    year = (today or date.today()).year
+    year = (today or berlin_today()).year
     return Decimal(count_workday_holidays(db, date(year, 1, 1), date(year, 12, 31)))
 
 

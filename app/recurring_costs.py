@@ -37,6 +37,7 @@ from decimal import Decimal
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session, selectinload
 
+from .berlin_time import berlin_today
 from .date_utils import add_months
 from .modules import is_module_enabled
 from .models import OperationalAsset, RecurringCost, RecurringCostDocument, RecurringCostSettings
@@ -127,14 +128,14 @@ def cancellation_deadline(contract_end_date: date | None, notice_period_months: 
 def is_cancellation_due(deadline: date | None, lead_days: int, *, today: date | None = None) -> bool:
     if deadline is None:
         return False
-    today = today or date.today()
+    today = today or berlin_today()
     return deadline <= today + timedelta(days=lead_days)
 
 
 def is_cancellation_overdue(deadline: date | None, *, today: date | None = None) -> bool:
     if deadline is None:
         return False
-    today = today or date.today()
+    today = today or berlin_today()
     return deadline < today
 
 
@@ -378,7 +379,7 @@ def check_due_cancellations_and_create_reminders(db: Session) -> list[int]:
     if not is_module_enabled(db, "aufgabenmanagement"):
         return []
     settings = get_or_create_recurring_cost_settings(db)
-    threshold = date.today() + timedelta(days=settings.reminder_lead_days)
+    threshold = berlin_today() + timedelta(days=settings.reminder_lead_days)
     active_costs = db.scalars(
         select(RecurringCost).where(
             RecurringCost.active == True,  # noqa: E712

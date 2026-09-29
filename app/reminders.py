@@ -21,6 +21,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .berlin_time import berlin_today
 from .invoices import compute_invoice_totals, get_invoice, invoice_rounding
 from .models import Invoice, Reminder, ReminderLevel
 from .rounding import CENT
@@ -131,7 +132,7 @@ def compute_reminder_status(db: Session, invoice: Invoice) -> dict:
     if next_level is not None:
         cfg = active_levels[next_level]
         next_due_on = reference_date + timedelta(days=cfg.days_after_previous_step)
-        is_due_now = date.today() >= next_due_on
+        is_due_now = berlin_today() >= next_due_on
 
     draft = next((r for r in invoice.reminders if r.status == "entwurf"), None)
 
@@ -181,7 +182,7 @@ def create_reminder(db: Session, invoice: Invoice, level: int) -> Reminder:
     cfg = db.scalar(select(ReminderLevel).where(ReminderLevel.level == level, ReminderLevel.active == True))  # noqa: E712
     if cfg is None:
         raise ValueError(f"Mahnstufe {level} ist nicht aktiv oder existiert nicht.")
-    today = date.today()
+    today = berlin_today()
     reminder = Reminder(
         invoice_id=invoice.id, level=level, status="entwurf", reminder_date=today,
         new_due_date=today + timedelta(days=cfg.days_after_previous_step),
@@ -397,7 +398,7 @@ def list_invoices_needing_attention(db: Session) -> list[dict]:
     heute erreicht ist (is_due_now zeigt das pro Zeile an, die Sortierung
     legt die dringendsten Fälle nach oben)."""
     overdue = db.scalars(
-        select(Invoice).where(Invoice.status == "versendet", Invoice.due_date < date.today())
+        select(Invoice).where(Invoice.status == "versendet", Invoice.due_date < berlin_today())
     ).all()
     rows = []
     for invoice in overdue:

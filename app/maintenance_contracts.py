@@ -23,6 +23,7 @@ from datetime import date, timedelta
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from .berlin_time import berlin_today
 from .date_utils import add_months
 from .models import (
     MaintenanceContract, MaintenanceContractItem, MaintenanceSettings, MaintenanceWindow,
@@ -101,11 +102,11 @@ def update_maintenance_settings(db: Session, reminder_lead_days: int, use_roof_a
 
 
 def _is_item_due(item: "MaintenanceContractItem", lead_days: int) -> bool:
-    return not item.archived and item.next_due_date <= date.today() + timedelta(days=lead_days)
+    return not item.archived and item.next_due_date <= berlin_today() + timedelta(days=lead_days)
 
 
 def _is_item_overdue(item: "MaintenanceContractItem") -> bool:
-    return not item.archived and date.today() > _window_close_date(item.maintenance_window, item.next_due_date)
+    return not item.archived and berlin_today() > _window_close_date(item.maintenance_window, item.next_due_date)
 
 
 def _is_due(contract: MaintenanceContract, lead_days: int, use_roof_area_items: bool) -> bool:
@@ -120,7 +121,7 @@ def _is_due(contract: MaintenanceContract, lead_days: int, use_roof_area_items: 
         active_items = [i for i in contract.items if not i.archived]
         if active_items:
             return any(_is_item_due(i, lead_days) for i in active_items)
-    return contract.next_due_date <= date.today() + timedelta(days=lead_days)
+    return contract.next_due_date <= berlin_today() + timedelta(days=lead_days)
 
 
 def item_to_dict(item: "MaintenanceContractItem", lead_days: int) -> dict:
@@ -465,7 +466,7 @@ def check_due_contracts_and_create_reminders(db: Session) -> list[dict]:
     if not is_module_enabled(db, "aufgabenmanagement"):
         return []
     settings = get_or_create_maintenance_settings(db)
-    threshold = date.today() + timedelta(days=settings.reminder_lead_days)
+    threshold = berlin_today() + timedelta(days=settings.reminder_lead_days)
     due = db.scalars(
         select(MaintenanceContract)
         .options(selectinload(MaintenanceContract.items))
@@ -559,7 +560,7 @@ def create_project_from_contract(db: Session, contract_id: int, item_id: int | N
         new_project = duplicate_project(db, template, as_template=False)
         new_project.description = (
             f"{new_project.description}\n\n" if new_project.description else ""
-        ) + f"Erstellt aus Wartungsvertrag \"{contract.title}\" am {date.today().strftime('%d.%m.%Y')}."
+        ) + f"Erstellt aus Wartungsvertrag \"{contract.title}\" am {berlin_today().strftime('%d.%m.%Y')}."
         contract.next_due_date = add_months(contract.next_due_date, contract.interval_months)
         contract.last_reminder_due_date = None
     else:
@@ -577,7 +578,7 @@ def create_project_from_contract(db: Session, contract_id: int, item_id: int | N
             f"{new_project.description}\n\n" if new_project.description else ""
         ) + (
             f"Erstellt aus Wartungsvertrag \"{contract.title}\", Position \"{item.roof_area.name}\" "
-            f"am {date.today().strftime('%d.%m.%Y')}."
+            f"am {berlin_today().strftime('%d.%m.%Y')}."
         )
         item.next_due_date = _next_window_opening(item.maintenance_window, after=item.next_due_date)
         item.last_reminder_due_date = None
@@ -660,7 +661,7 @@ def create_maintenance_visit(db: Session, contract_id: int, created_by_employee_
     if use_roof_area_items and any(not i.archived for i in contract.items):
         raise ValueError("Dieser Wartungsvertrag hat aktive Positionen -- bitte den Vorgang je Position anlegen.")
 
-    title = f"Wartung {contract.title} vom {date.today().strftime('%d.%m.%Y')}"
+    title = f"Wartung {contract.title} vom {berlin_today().strftime('%d.%m.%Y')}"
     result = create_quick_service_order(
         db, customer_id=contract.customer_id, property_id=contract.property_id,
         order_type="wartung", title=title, caseworker_employee_id=contract.responsible_employee_id,
@@ -727,7 +728,7 @@ def create_contract_item(db: Session, contract_id: int, roof_area_id: int, maint
         contract_id=contract_id, roof_area_id=roof_area_id, maintenance_window_id=maintenance_window_id,
         template_project_id=template_project_id, inspection_template_id=inspection_template_id,
         description=(description or None), duration_minutes=duration_minutes,
-        next_due_date=_next_window_opening(window, after=date.today()),
+        next_due_date=_next_window_opening(window, after=berlin_today()),
     )
     db.add(item)
     db.commit()

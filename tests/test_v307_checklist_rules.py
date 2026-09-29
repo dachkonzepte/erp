@@ -10,6 +10,7 @@ from datetime import timedelta
 import pytest
 
 import app.tasks as tasks_module
+from app.berlin_time import to_berlin
 from app.checklist_rules import _claim_open, run_checklist_rules
 from app.checklist_templates import add_field, add_option, add_rule, create_template, publish_draft, start_draft
 from app.models import ChecklistRuleExecution, EnabledModule, Task
@@ -93,7 +94,7 @@ def test_completion_creates_tasks_for_matching_rules(rules, router_test_client):
     assert always.description.startswith("Bitte Regeltest prüfen {nicht}")  # fremde Klammer bleibt stehen
     assert "Bedingung: immer beim Abschluss" in always.description
     checklist_row = rules["db"].query(ChecklistRuleExecution).filter_by(task_id=always.id).one().checklist
-    assert always.due_date == checklist_row.completed_at.date() + timedelta(days=3)
+    assert always.due_date == to_berlin(checklist_row.completed_at).date() + timedelta(days=3)  # Ortsdatum, seit 1.8.12
     assert tasks["finanzen"].assigned_employee_id is None and tasks["finanzen"].min_visible_role == "buero_finanzen"
     assert tasks["nein-frei"].min_visible_role == "buero_auftrag" and tasks["nein-frei"].priority == "normal"
     assert "„Frei“ ist nein" in tasks["nein-frei"].description

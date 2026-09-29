@@ -24,6 +24,7 @@ from reportlab.lib import colors
 from reportlab.lib.units import mm
 from reportlab.platypus import Image, KeepTogether, Paragraph, Spacer, Table, TableStyle
 
+from .berlin_time import to_berlin
 from .document_frame import frame_content_width, render_framed_pdf
 from .document_page_margins import get_margins
 from .document_pdf import build_din5008_header_block, build_object_address_block, build_styles, ptext
@@ -385,7 +386,7 @@ def build_service_report_pdf(db, report, *, include_time_entries: bool = True) -
             if data.get("installer_signature_name"):
                 installer_col.append(Paragraph(
                     f"Bestätigt von: {data['installer_signature_name']} am "
-                    f"{data['installer_signed_at'].strftime('%d.%m.%Y %H:%M')} Uhr", small,
+                    f"{to_berlin(data['installer_signed_at']).strftime('%d.%m.%Y %H:%M')} Uhr", small,
                 ))
                 installer_col.append(Spacer(1, 2 * mm))
             installer_col.append(Image(str(signature_path(report.installer_signature_path)), width=60*mm, height=30*mm))
@@ -393,7 +394,7 @@ def build_service_report_pdf(db, report, *, include_time_entries: bool = True) -
             customer_col = [Paragraph("Kunde", h3)]
             if data.get("signature_name"):
                 customer_col.append(Paragraph(
-                    f"Bestätigt von: {data['signature_name']} am {data['signed_at'].strftime('%d.%m.%Y %H:%M')} Uhr", small,
+                    f"Bestätigt von: {data['signature_name']} am {to_berlin(data['signed_at']).strftime('%d.%m.%Y %H:%M')} Uhr", small,
                 ))
                 customer_col.append(Spacer(1, 2 * mm))
             if report.signature_path:
@@ -405,7 +406,7 @@ def build_service_report_pdf(db, report, *, include_time_entries: bool = True) -
         else:
             signature_block = [Paragraph("Unterschrift", h2)]
             if data.get("signature_name"):
-                signature_block.append(Paragraph(f"Bestätigt von: {data['signature_name']} am {data['signed_at'].strftime('%d.%m.%Y %H:%M')} Uhr", small))
+                signature_block.append(Paragraph(f"Bestätigt von: {data['signature_name']} am {to_berlin(data['signed_at']).strftime('%d.%m.%Y %H:%M')} Uhr", small))
             if report.signature_path:
                 signature_block.append(Spacer(1, 2 * mm))
                 signature_block.append(Image(str(signature_path(report.signature_path)), width=60*mm, height=30*mm))

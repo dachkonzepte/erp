@@ -54,6 +54,7 @@ from decimal import Decimal
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session, selectinload
 
+from .berlin_time import berlin_today
 from .date_utils import add_months
 from .modules import is_module_enabled
 from .models import (
@@ -92,14 +93,14 @@ def _delete_operational_asset_document_file(mapper, connection, target: Operatio
 def is_inspection_due(next_due_date: date | None, lead_days: int, *, today: date | None = None) -> bool:
     if next_due_date is None:
         return False
-    today = today or date.today()
+    today = today or berlin_today()
     return next_due_date <= today + timedelta(days=lead_days)
 
 
 def is_inspection_overdue(next_due_date: date | None, *, today: date | None = None) -> bool:
     if next_due_date is None:
         return False
-    today = today or date.today()
+    today = today or berlin_today()
     return next_due_date < today
 
 
@@ -655,7 +656,7 @@ def check_due_asset_inspections_and_create_reminders(db: Session) -> list[int]:
     if not is_module_enabled(db, "aufgabenmanagement"):
         return []
     settings = get_or_create_operational_asset_settings(db)
-    threshold = date.today() + timedelta(days=settings.reminder_lead_days)
+    threshold = berlin_today() + timedelta(days=settings.reminder_lead_days)
     due = db.scalars(
         select(OperationalAssetInspection)
         .options(selectinload(OperationalAssetInspection.asset).selectinload(OperationalAsset.resource))

@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from .berlin_time import berlin_today
 from .models import (
     Employee, EmployeeWorkTimeModel, TimeBackofficeAdvancedSettings,
     WorkTimeBreakRule, WorkTimeModel, WorkTimeModelValidity,
@@ -33,7 +34,7 @@ def model_validity(db: Session, model_id: int) -> tuple[int, int]:
 
 
 def model_is_valid_on(db: Session, model_id: int, on_date: date | None = None) -> bool:
-    week = int((on_date or date.today()).isocalendar().week)
+    week = int((on_date or berlin_today()).isocalendar().week)
     start, end = model_validity(db, model_id)
     return week_in_range(week, start, end)
 
@@ -199,7 +200,7 @@ def employee_model(db: Session, employee_id: int, on_date: date | None = None) -
     das erste aktive, für die Kalenderwoche gültige Modell verwendet.
     """
     ensure_default_work_time_models(db)
-    on_date = on_date or date.today()
+    on_date = on_date or berlin_today()
     assigned_id = employee_model_id(db, employee_id)
     assigned = db.scalar(select(WorkTimeModel).options(selectinload(WorkTimeModel.break_rules)).where(WorkTimeModel.id == assigned_id)) if assigned_id else None
     if assigned is not None and assigned.active and model_is_valid_on(db, assigned.id, on_date):
@@ -240,14 +241,14 @@ def employee_model_rows(db: Session) -> list[dict]:
     for emp in employees:
         assigned_id=employee_model_id(db, emp.id)
         assigned=db.get(WorkTimeModel, assigned_id) if assigned_id else None
-        effective=employee_model(db, emp.id, date.today())
+        effective=employee_model(db, emp.id, berlin_today())
         function_name = emp.profile.function.name if emp.profile and emp.profile.function else emp.job_title
         result.append({"employee_id":emp.id,"employee_name":f"{emp.first_name} {emp.last_name}".strip(),"employee_number":emp.employee_number,"employee_group":emp.employee_group,"function_name":function_name,"active":emp.active,"model_id":assigned.id if assigned else None,"model_name":assigned.name if assigned else None,"effective_model_id":effective.id if effective else None,"effective_model_name":effective.name if effective else None})
     return result
 
 
 def automatic_break_minutes_for_duration(db: Session, employee_id: int, gross_hours: Decimal, on_date: date | None = None) -> int:
-    model = employee_model(db, employee_id, on_date or date.today())
+    model = employee_model(db, employee_id, on_date or berlin_today())
     if model is None:
         return 0
     gross = Decimal(str(gross_hours or 0))
