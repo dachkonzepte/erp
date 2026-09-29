@@ -485,6 +485,17 @@ Adresszeile eintippt oder ein altes Lesezeichen (aus der Zeit vor 1.3.60) öffne
 serverseitig immer `time_tracking_field.html` -- der im vorherigen Screenshot gezeigte Zustand
 (volle Sidebar) ist danach für `field` nicht mehr erreichbar, unabhängig vom Weg dorthin.
 
+**Nachtrag (seit 1.7.9): Auftragsauswahl war nur in der Oberfläche eingeschränkt.** Befund bei der
+Kolonnenführer-Planung: `POST /api/time-entries`, `/start`, `PUT /api/time-entries/{id}` und beide
+Gruppen-Endpunkte nahmen für `field` jede existierende Auftrags-ID an -- die reduzierte Maske bot
+zwar nur `list_field_bookable_order_ids()` an, ein direkter Aufruf konnte aber beliebige Aufträge
+bebuchen, und die Antwort (`TimeEntryOut`) lieferte Auftragsnummer, Titel und Projektname zurück
+(Auftragsnummern sind fortlaufend, also durchprobierbar). Geschlossen über die bereits bestehende
+`require_field_order_access()` (`app/routers/orders.py`, 403 statt 404) --
+`field_may_access_order()` als Maßstab, bewusst OHNE das ±14-Tage-Fenster der Auswahlliste, damit
+ein Nachtrag für einen älteren Einsatz weiter möglich bleibt. Büro/Admin unverändert.
+`tests/test_v299_time_booking_order_scope.py`.
+
 ### Fünf weitere Anpassungen an der Monteursansicht (seit 1.3.61)
 
 Fünf rollenbezogene Punkte, alle ohne neues Datenmodell außer Punkt 4 (siehe dort -- am Ende doch

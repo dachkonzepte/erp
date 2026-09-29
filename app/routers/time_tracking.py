@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import AppUser, TimeEntry, TimeEntryGroup
 from ..permissions import ROLE_FIELD, require_min_role
+from .orders import require_field_order_access
 from ..schemas import TimeEntryManualCreate, TimeEntryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..time_backoffice import get_or_create_time_settings, rounded_hours, time_settings_dict
 from ..time_tracking import active_group_for_employee, active_entry as active_time_entry, create_group_manual_entry, create_manual_entry, delete_entry as delete_time_entry_row, entry_to_dict, group_for_entry, group_member_ids, group_to_dict, list_entries as list_time_entries, start_group_timer, start_timer, stop_group_timer, stop_timer, time_tracking_context, update_entry as update_time_entry_row
@@ -78,6 +79,16 @@ def _apply_time_rounding(db: Session, entry: TimeEntry):
     return entry
 
 
+def _require_bookable_order(request: Request, db: Session, order_id: int) -> None:
+    """Seit 1.7.9: ein Monteur bucht nur auf Aufträge, die field_may_access_order() ihm zuordnet
+    (Planungsbezug oder eigener Bericht, ohne Zeitfenster) -- vorher nahm der Server jede
+    existierende Auftrags-ID an und lieferte Auftragsnummer/Projektname in der Antwort zurück.
+    Büro/Admin unverändert."""
+    user = getattr(request.state, "erp_user", None)
+    if user is not None:
+        require_field_order_access(db, user, order_id)
+
+
 def _group_actor(request: Request) -> tuple[int | None, bool, int | None]:
     user=getattr(request.state,"erp_user",None)
     is_admin=bool(user is None or user.role=="admin")
@@ -111,6 +122,7 @@ def get_time_tracking_context(request: Request, employee_id: int | None = None, 
 def create_time_group_manual(payload:TimeGroupManualCreate,request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,manual=True,group=True)
     actor,is_admin,user_id=_group_actor(request)
+    _require_bookable_order(request,db,payload.order_id)
     try:
         group=create_group_manual_entry(db,employee_ids=payload.employee_ids,team_id=payload.team_id,actor_employee_id=actor,is_admin=is_admin,order_id=payload.order_id,order_item_id=payload.order_item_id,work_date=payload.work_date,entry_type=payload.entry_type,activity=payload.activity,hours=payload.hours,break_minutes=payload.break_minutes,notes=payload.notes,created_by_user_id=user_id)
     except ValueError as exc:
@@ -122,6 +134,7 @@ def create_time_group_manual(payload:TimeGroupManualCreate,request:Request,db:Se
 def start_time_group(payload:TimeGroupTimerStart,request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,group=True)
     actor,is_admin,user_id=_group_actor(request)
+    _require_bookable_order(request,db,payload.order_id)
     try:
         group=start_group_timer(db,employee_ids=payload.employee_ids,team_id=payload.team_id,actor_employee_id=actor,is_admin=is_admin,order_id=payload.order_id,order_item_id=payload.order_item_id,entry_type=payload.entry_type,activity=payload.activity,notes=payload.notes,started_at=payload.started_at,created_by_user_id=user_id)
     except ValueError as exc:
@@ -177,6 +190,7 @@ def get_active_time_entry(request: Request, employee_id: int | None = None, db: 
 def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     settings=_validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,manual=True)
     employee_id = _time_entry_employee_for_request(request, payload.employee_id, db)
+    _require_bookable_order(request, db, payload.order_id)
     user = getattr(request.state, "erp_user", None)
     try:
         row = create_manual_entry(db, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, work_date=payload.work_date, entry_type=payload.entry_type, activity=payload.activity, hours=rounded_hours(Decimal(payload.hours),settings.rounding_minutes), break_minutes=payload.break_minutes, notes=payload.notes, created_by_user_id=getattr(user, "id", None))
@@ -189,6 +203,7 @@ def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Sess
 def start_time_entry(payload: TimeTimerStart, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity)
     employee_id = _time_entry_employee_for_request(request, payload.employee_id, db)
+    _require_bookable_order(request, db, payload.order_id)
     user = getattr(request.state, "erp_user", None)
     try:
         row = start_timer(db, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, entry_type=payload.entry_type, activity=payload.activity, notes=payload.notes, started_at=payload.started_at, created_by_user_id=getattr(user, "id", None))
@@ -234,6 +249,7 @@ def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db
     if not _time_entry_can_edit(request, current):
         raise HTTPException(status_code=403, detail="Sie dürfen diese Zeitbuchung nicht ändern.")
     employee_id = _time_entry_employee_for_request(request, payload.employee_id, db)
+    _require_bookable_order(request, db, payload.order_id)
     try:
         row = update_time_entry_row(db, entry_id, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, work_date=payload.work_date, entry_type=payload.entry_type, activity=payload.activity, hours=payload.hours, break_minutes=payload.break_minutes, notes=payload.notes)
     except ValueError as exc:
