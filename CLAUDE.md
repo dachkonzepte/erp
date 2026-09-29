@@ -671,6 +671,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   `docs/archiv/ki-fundament.md`
 - **Kalender-Modul & Outlook-Synchronisation** (Modul `kalender`, `CalendarEvent`, Graph-Sync,
   Echo-Erkennung) -- `docs/archiv/modul-kalender-und-outlook-sync.md`
+- **Checklisten & Formulare** (Modul `checklisten`, Vorlagenfassungen, Kontexte Auftrag/Objekt/
+  Betriebsmittel/Betrieb, Regeln → Aufgaben, Etappenplan 1.8.0–1.8.4 und Stufen 2–4) --
+  `docs/archiv/modul-checklisten.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit
@@ -959,6 +962,14 @@ eine große Zahl laufender UI-Tests (deutlich aufwendiger als ein fertiges Test-
 
 ## Bekannte, bewusst offene Punkte
 
+- **`client_uuid` am Einsatzbericht ist nicht idempotent -- Pflicht vor Checklisten-Stufe 3
+  (offline)** (gefunden beim Checklisten-Befund, 29.09.2026): `InspectionItem`/`Finding`/
+  `ServiceReportPhoto`/`ServiceReportMaterial`/`ServiceReportAsset` tragen nur den
+  Unique-Constraint `(service_report_id, client_uuid)`; eine wiederholte Anfrage mit derselben
+  `client_uuid` endet als unbehandelte `IntegrityError` (500) statt 200 mit dem vorhandenen
+  Datensatz. `tests/test_v213_inspection_items.py`/`test_v223_service_report_materials.py`
+  erwarten die `IntegrityError` derzeit ausdrücklich. Vorbild für die Behebung: das
+  Idempotenzmuster des Checklisten-Moduls, siehe `docs/archiv/modul-checklisten.md`.
 - **Vier `ensure_default_*()`-Self-Seeding-Funktionen ohne UNIQUE-Constraint, dadurch weiterhin
   anfällig für stille Dopplung bei gleichzeitigem erstem Zugriff** (gefunden beim 1.4.6-Sweep,
   siehe Abschnitt "Self-Seeding gegen gleichzeitigen ersten Zugriff absichern" oben):
