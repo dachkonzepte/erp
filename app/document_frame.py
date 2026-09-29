@@ -76,6 +76,9 @@ RENDERERS_USING_SHARED_FRAME: dict[str, str] = {
     # Briefkopf" war Betreibervorgabe, kein eigenes Briefpapier/keine eigenen Ränder nötig, fällt
     # ohne eigene Zeile automatisch auf den geteilten "default"-Satz zurück (siehe dort).
     "field_timesheet": "Stundenzettel (Monteur)",
+    # Seit 1.8.4: abgeschlossene Checkliste (app/checklist_pdf.py, Modul "checklisten") -- wie der
+    # Stundenzettel ohne eigenes Briefpapier/eigene Ränder, Rückfall auf "default".
+    "checklist": "Checkliste",
 }
 
 

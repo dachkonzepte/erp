@@ -25,9 +25,10 @@ Foto-/Unterschrift-Upload ist bewusst eine gewöhnliche `def`-Route: die Pillow-
 CPU-gebunden und liefe in einer `async def`-Route auf der Event-Loop (Befund 1.3.62)."""
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
+from ..checklist_pdf import build_checklist_pdf
 from ..checklist_rules import list_checklists_with_open_rules, list_rule_executions, run_checklist_rules
 from ..checklists import (
     ChecklistLocked, add_attachment, asset_readiness, attachment_path, complete_checklist, create_checklist,
@@ -295,6 +296,19 @@ def post_complete_checklist(checklist_id: int, db: Session = Depends(get_db), _r
     _checklist_for(db, _role, checklist_id, write=True)
     _call(complete_checklist, db, checklist_id, completed_by_employee_id=_role.employee_id)
     return _detail(db, _role, checklist_id)
+
+
+@router.get("/api/checklists/{checklist_id}/pdf")
+def get_checklist_pdf(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    """PDF einer abgeschlossenen Checkliste (seit 1.8.4) -- dieselbe Leseprüfung wie der
+    Einzelabruf: Büro alles, Monteur die eigene und fremde nur bei field_readable, Betrieb nie.
+    Gewöhnliche def-Route: das Rendern ist CPU-gebunden (Befund 1.3.62)."""
+    _require_module_enabled(db)
+    checklist = _checklist_for(db, _role, checklist_id)
+    pdf = _call(build_checklist_pdf, db, checklist)
+    filename = f"Checkliste-{checklist.id}.pdf"
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{filename}"', "Cache-Control": "private, no-store"})
 
 
 @router.delete("/api/checklists/{checklist_id}")

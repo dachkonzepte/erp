@@ -4,6 +4,27 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.4 – Checklisten: PDF
+
+Abgeschlossene Checklisten gibt es jetzt als PDF, über den Knopf "PDF" oben auf der Checkliste
+(Büro und Monteur). Das PDF nutzt denselben Briefbogen, dieselben Ränder und dieselbe Fußzeile
+wie Rechnung, Auftrag und Einsatzbericht, ohne eigene Einstellung. Im Kontext Auftrag steht oben
+die Kundenanschrift aus dem Auftrag samt Ausführungsort, bei Objekt, Gerät und Betrieb nur der
+Bezug, ohne Anschriftenfeld. Darunter folgen die Antworten als Tabelle (Frage | Antwort) nach
+Abschnitten gegliedert, Hinweistexte, Fotos und jede Unterschrift mit Name und Zeitpunkt. Alles
+kommt aus eingefrorenen Daten: Wird das Gerät später umbenannt, bleibt das PDF gleich. Ein PDF
+bekommt nur, wer die Checkliste auch öffnen darf – Monteure die eigene und fremde nur bei
+"für Monteure lesbar", Betrieb-Checklisten nur das Büro.
+
+Neuer Dokumenttyp `checklist` im gemeinsamen Rahmen, keine Migration. 6 neue Tests (Inhalt,
+eingefrorener Kontext, Entwurf ohne PDF, Rechte mit Gegenprobe). Sichtprüfung eines neunseitigen
+Beispiels mit 20 Fotos und 6 Unterschriften, Seite für Seite gerastert: Die erste Fassung ließ
+eine Abschnittsüberschrift allein am Seitenende stehen, zentrierte Bilder unter
+linksbündigen Beschriftungen und schob alle Unterschriften als einen Block auf eine neue Seite.
+Alles vor dem Commit behoben: Überschriften bleiben beim Folgenden, Bilder stehen links, jede
+Unterschrift wird einzeln zusammengehalten. Speicher beim Rendern dieses Beispiels: etwa 80 MB
+Spitze, 3 Sekunden.
+
 ## 1.8.3 – Checklisten: Regeln legen Aufgaben fürs Büro an
 
 Die Regeln einer Vorlage ("Antwort X legt eine Aufgabe an") greifen jetzt. Beim Abschließen einer

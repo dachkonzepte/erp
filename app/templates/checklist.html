@@ -116,7 +116,8 @@ function renderHeader(){
   const who=[cl.created_by_name?`angelegt von ${esc(cl.created_by_name)}`:null,`am ${esc(fmtDateTime(cl.created_at))}`,cl.completed_at?`abgeschlossen ${esc(fmtDateTime(cl.completed_at))}`:null].filter(Boolean).join(' · ');
   return `<a class="back" href="${backLink()}">← zurück</a>
     <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap">
-      <div><h1>${esc(cl.template_label)}</h1><div class="muted">${meta}</div><div class="muted small" style="margin-top:4px">${who} · Fassung ${cl.version_no}</div></div>${badge}</div>
+      <div><h1>${esc(cl.template_label)}</h1><div class="muted">${meta}</div><div class="muted small" style="margin-top:4px">${who} · Fassung ${cl.version_no}</div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${cl.status==='abgeschlossen'?`<a class="btn secondary" id="pdfLink" href="/api/checklists/${cl.id}/pdf" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center">PDF</a>`:''}${badge}</div></div>
       ${!cl.can_edit&&cl.status==='entwurf'?'<div class="muted small" style="margin-top:8px">Nur lesen – diese Checkliste hat eine andere Person angelegt.</div>':''}
     </div>`;
 }

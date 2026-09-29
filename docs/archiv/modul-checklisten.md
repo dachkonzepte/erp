@@ -336,7 +336,7 @@ Zwischen den Versionen darf der Betreiber `/clear` machen -- dann diese Datei le
 | **1.8.1** | Ausfüllen: Anlegen in allen vier Kontexten, Antworten/Fotos/Unterschriften idempotent, Abschließen, Entwurf löschen, Einstiege in `/mobil` (Auftrag, Objektansicht, Geräteseite mit Einsatzbereitschafts-Hinweis), Büro-Übersicht `/checklisten`, Rechte + Angriffstest. **Danach anhalten und berichten** (Betreibervorgabe) | erledigt, vom Betreiber freigegeben (29.09.2026) |
 | **1.8.2** | Nachtrag nach der 1.8.1-Freigabe (Betreibervorgabe): "nicht einsatzbereit" verschwindet wieder -- spätere Checkliste mit "ja" ODER Büro markiert als repariert (Wer/Wann), Tests für beide Wege | erledigt |
 | **1.8.3** | Regeln → Aufgaben, `ChecklistRuleExecution`, "Aufgaben nachholen" (ursprünglich als 1.8.2 geplant) | erledigt |
-| **1.8.4** | PDF über den gemeinsamen Rahmen (ursprünglich 1.8.3) | offen |
+| **1.8.4** | PDF über den gemeinsamen Rahmen (ursprünglich 1.8.3) | erledigt |
 | **1.8.5** | 13 Startvorlagen per Daten-Migration (Entwurf) (ursprünglich 1.8.4). **Danach berichten** (Betreibervorgabe: nach Abschluss der geplanten Etappen) | offen |
 
 Nach jeder Version hier die Spalte "Stand" nachziehen und unten einen kurzen Abschnitt
@@ -517,4 +517,37 @@ Umplanung erreichbar.
   isolierte Instanz: Büro sieht zwei nicht angelegte Regeln, Nachholen bei Modul aus meldet den
   Grund, Übersicht mit Hinweis und Filter, "Alle nachholen" legt 2 an, Links zu `/tasks?task=`,
   Monteur ohne Aufgabenbereich.
+
+---
+
+## Umsetzung 1.8.4 (29.09.2026)
+
+- **Dateien**: `app/checklist_pdf.py` (`build_checklist_pdf()`, `format_answer()`), Eintrag
+  `"checklist"` in `RENDERERS_USING_SHARED_FRAME` (`app/document_frame.py`) UND `DOCUMENT_TYPES`
+  (`app/document_layout.py`), Endpunkt `GET /api/checklists/{id}/pdf` (gewöhnliche `def`-Route,
+  dieselbe Leseprüfung `_checklist_for()` wie der Einzelabruf, 400 bei Entwurf), Knopf "PDF" in
+  `checklist.html`. Tests `tests/test_v308_checklist_pdf.py`; `test_v229`s festgeschriebene
+  Liste der Rahmen-Nutzer um `checklist` ergänzt. Keine Migration, kein eigenes Briefpapier (fällt
+  auf `default` zurück wie der Stundenzettel).
+- **Aufbau**: Kopfbereich `build_din5008_header_block()` -- Absender + Anschrift nur im Kontext
+  Auftrag (aus dem Auftrags-Schnappschuss, dazu `build_object_address_block()`), sonst leer;
+  Meta: Checkliste Nr., Bereich, Auftragsnr./Kunden-Nr. (Auftrag), Abschlussdatum, Seite 1/N.
+  Wiederholungszeile auf Folgeseiten: Checkliste Nr., Auftragsnr., Abgeschlossen. Danach Titel
+  (Schnappschuss), Bezug (Schnappschuss), Angelegt/abgeschlossen/Fassung; Felder in
+  Vorlagenreihenfolge, `group_name` als Abschnittsüberschrift, Antworten als zweispaltige Tabelle
+  (Antwortspalte 70 mm, Frage nimmt den Rest des tatsächlichen Satzspiegels), `hinweis` als
+  kleiner Absatz, Fotos 70 mm (höchstens Satzspiegelbreite), Unterschriften 60×25 mm mit Name und
+  Zeitpunkt.
+- **Seitenumbruch** (Sichtprüfung, erste Fassung korrigiert): eigene Überschriftenstile mit
+  `keepWithNext` (Abschnitts- und Feldüberschrift nie allein am Seitenende; die Feldüberschrift
+  ohne den 4-mm-Einzug von `styles["h3"]`, der für Tabellenzellen des Einsatzberichts gedacht
+  ist), Bilder `hAlign="LEFT"`, je Unterschrift Bild + Name als `KeepTogether` statt eines Blocks
+  über alle (zehn Unterschriften hätten eine Seite gesprengt).
+- **Speicher**: gemessen in einem eigenen Prozess nur für das Rendern (Windows
+  `GetProcessMemoryInfo`), Beispiel mit 20 Fotos (Rauschbilder 4000×3000, auf 1600 px verkleinert,
+  also eher große Dateien) und 6 Unterschriften: Arbeitsspeicher-Spitze +82 MB, 3,1 s, 12,8 MB
+  PDF, 9 Seiten. Der doppelte Durchlauf für "Seite 1/N" ist darin enthalten.
+- **Verifikation**: 6 Tests, Gegenprobe (PDF-Endpunkt ohne Leseprüfung) rot; volle Suite 1966
+  grün; CDP-Klicktest: Knopf erscheint für Büro (Desktop) und Monteur (412 px) auf der
+  abgeschlossenen Checkliste, Abruf liefert `application/pdf`.
 
