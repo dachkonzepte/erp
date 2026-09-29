@@ -4,6 +4,25 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.8 – Stundenzettel und CSV-Export: Bezeichnungen der Zeitarten einmal je Lauf
+
+Stundenzettel und CSV-Export im Backoffice laden die Bezeichnungen der Zeitarten jetzt einmal je
+Lauf statt je Zeile. Bisher lud `_entry_type_label()` für jede Buchung die Optionsgruppe
+`time_entry_types` neu, über `get_option_group()` samt `ensure_default_option_groups()` fünf
+Abfragen je Zeile; seit 1.8.7 ohne Kappung wuchs das mit dem Zeitraum (Nebenbefund dort). Jetzt
+baut `_entry_type_labels()` die Zuordnung einmal vorab, `ensure_default_option_groups()` läuft je
+Lauf genau einmal. Bei 2001 Buchungen braucht der Stundenzettel 0,9 statt etwa 5 Sekunden, der
+CSV-Export 0,05. Die Bezeichnungen selbst bleiben gleich: Optionsgruppe vor Rückfallwert, bei
+doppeltem Wert gilt wie bisher die erste Option. Der Aufruf steht bewusst vor `list_entries()`:
+Legt `ensure_default_option_groups()` eine fehlende Standardgruppe an, committet es, und schon
+geladene Buchungen würden danach einzeln nachgeladen (gemessen: 2234 statt 229 Abfragen bei 2001
+Buchungen).
+
+Keine Migration. 3 neue Tests auf zwei sonst gleichen Datenbanken mit 10 und 2001 Buchungen: Die
+Zahl der Abfragen ist bei beiden gleich (Stundenzettel 11, CSV 10), `ensure_default_option_groups()`
+läuft höchstens einmal, die Bezeichnungen kommen aus der Optionsgruppe. Gegenprobe mit dem alten
+Code: beide Zähltests rot (56 gegen 10011 bzw. 55 gegen 10010 Abfragen).
+
 ## 1.8.7 – Zeitbuchungen: kein stilles Abschneiden mehr in PDFs und Backoffice
 
 Das Einsatzbericht-PDF zeigt unter "Erfasste Zeiten" jetzt alle Buchungen des Auftrags statt nur

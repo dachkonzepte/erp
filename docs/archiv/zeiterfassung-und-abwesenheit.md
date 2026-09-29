@@ -102,7 +102,8 @@ bestehende Auswertungen hätten sie falsch behandelt, wenn sie unangetastet gebl
    der Export mit einer Warnung ab ("Zeitart weather_winter: DATEV-Lohnart fehlt"), statt falsch
    zu buchen. Der Stundenzettel-PDF/CSV-Export zeigte bisher ohnehin den rohen `entry_type`-Wert
    statt der Optionsgruppen-Bezeichnung (`_entry_type_label()`, neu) -- sonst stünde dort
-   "weather_winter" statt "Schlechtwetter Winter".
+   "weather_winter" statt "Schlechtwetter Winter". **Seit 1.8.8** einmal je Lauf geladen
+   (`_entry_type_labels()`, vor `list_entries()`), nicht mehr je Zeile, siehe CHANGELOG.md 1.8.8.
 3. **Abrechnungsschutz**: `create_invoice_from_time_entries()` (`app/invoices.py`, "Rechnung aus
    Zeitbuchungen") holt alle gebuchten Zeiten eines Auftrags ungefiltert nach Zeitart. Da
    `TimeEntry.order_id` NOT NULL ist, muss ein Monteur auch witterungsbedingten Ausfall

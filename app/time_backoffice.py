@@ -202,6 +202,7 @@ def _fmt_h(value) -> str:
 
 
 def build_timesheet_pdf(db: Session, start_date: date, end_date: date, employee_id: int | None = None) -> bytes:
+    type_labels=_entry_type_labels(db)
     rows=list_entries(db, employee_id=employee_id, start_date=start_date, end_date=end_date, limit=None)
     general=get_or_create_general_settings(db)
     grouped=defaultdict(list)
@@ -220,7 +221,7 @@ def build_timesheet_pdf(db: Session, start_date: date, end_date: date, employee_
         total=Decimal("0")
         for r in sorted(entries,key=lambda x:(x.work_date,x.started_at or x.created_at,x.id)):
             d=entry_to_dict(r); total+=Decimal(r.hours or 0)
-            data.append([r.work_date.strftime("%d.%m.%Y"),Paragraph(escape(f"{d.get('project_number') or ''} / {d.get('order_number') or ''}"),small),Paragraph(escape((d.get('order_item_oz') or '')+' '+(d.get('order_item_text') or '')),small),_entry_type_label(db,r.entry_type),Paragraph(escape(r.activity or ''),small),r.started_at.strftime("%H:%M") if r.started_at else "",r.ended_at.strftime("%H:%M") if r.ended_at else "",str(r.break_minutes or 0),_fmt_h(r.hours)])
+            data.append([r.work_date.strftime("%d.%m.%Y"),Paragraph(escape(f"{d.get('project_number') or ''} / {d.get('order_number') or ''}"),small),Paragraph(escape((d.get('order_item_oz') or '')+' '+(d.get('order_item_text') or '')),small),type_labels.get(r.entry_type,r.entry_type),Paragraph(escape(r.activity or ''),small),r.started_at.strftime("%H:%M") if r.started_at else "",r.ended_at.strftime("%H:%M") if r.ended_at else "",str(r.break_minutes or 0),_fmt_h(r.hours)])
         data.append(["","","","","","","","Summe",_fmt_h(total)])
         t=Table(data,colWidths=[21*mm,42*mm,55*mm,24*mm,42*mm,17*mm,17*mm,17*mm,20*mm],repeatRows=1)
         t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#e8eee9")),("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),("FONTSIZE",(0,0),(-1,-1),7.5),("GRID",(0,0),(-1,-1),.25,colors.HexColor("#cccccc")),("VALIGN",(0,0),(-1,-1),"TOP"),("ALIGN",(-1,1),(-1,-1),"RIGHT"),("FONTNAME",(-2,-1),(-1,-1),"Helvetica-Bold")]))
@@ -231,11 +232,12 @@ def build_timesheet_pdf(db: Session, start_date: date, end_date: date, employee_
 
 
 def build_time_csv(db: Session, start_date: date, end_date: date, employee_id: int | None = None) -> bytes:
+    type_labels=_entry_type_labels(db)
     out=StringIO(newline=""); w=csv.writer(out,delimiter=";",lineterminator="\r\n")
     w.writerow(["Mitarbeiternummer","Mitarbeiter","Datum","Projekt","Auftrag","LV-OZ","Zeitart","Tätigkeit","von","bis","Pause_Min","Stunden","Notiz"])
     for r in list_entries(db,employee_id=employee_id,start_date=start_date,end_date=end_date,limit=None):
         d=entry_to_dict(r); emp=r.employee
-        w.writerow([emp.employee_number or "",d["employee_name"],r.work_date.strftime("%d.%m.%Y"),d.get("project_number") or "",d.get("order_number") or "",d.get("order_item_oz") or "",_entry_type_label(db,r.entry_type),r.activity or "",r.started_at.strftime("%H:%M") if r.started_at else "",r.ended_at.strftime("%H:%M") if r.ended_at else "",r.break_minutes,_fmt_h(r.hours),r.notes or ""])
+        w.writerow([emp.employee_number or "",d["employee_name"],r.work_date.strftime("%d.%m.%Y"),d.get("project_number") or "",d.get("order_number") or "",d.get("order_item_oz") or "",type_labels.get(r.entry_type,r.entry_type),r.activity or "",r.started_at.strftime("%H:%M") if r.started_at else "",r.ended_at.strftime("%H:%M") if r.ended_at else "",r.break_minutes,_fmt_h(r.hours),r.notes or ""])
     return ("\ufeff"+out.getvalue()).encode("utf-8")
 
 
@@ -257,15 +259,20 @@ _ENTRY_TYPE_FALLBACK_LABELS = {
 }
 
 
-def _entry_type_label(db: Session, entry_type: str) -> str:
-    """Übersetzt eine Zeitart für den Stundenzettel/CSV-Export -- ohne diese Auflösung stünde
-    dort z. B. der rohe interne Wert "weather_winter" statt "Schlechtwetter Winter"."""
+def _entry_type_labels(db: Session) -> dict[str, str]:
+    """Bezeichnung je Zeitart für den Stundenzettel/CSV-Export -- ohne diese Auflösung stünde
+    dort z. B. der rohe interne Wert "weather_winter" statt "Schlechtwetter Winter".
+
+    Seit 1.8.8 einmal je Lauf statt je Zeile: get_option_group() läuft jedes Mal durch
+    ensure_default_option_groups(), zusammen fünf Abfragen. Vor list_entries() aufrufen -- legt
+    ensure_default_option_groups() eine fehlende Standardgruppe an, committet es und ließe sonst
+    die bereits geladenen Buchungen verfallen (jede lädt sich dann einzeln nach)."""
     from .option_settings import get_option_group
     group = get_option_group(db, "time_entry_types")
+    configured = {}
     for option in (group.options if group else []):
-        if option.value == entry_type:
-            return option.label
-    return _ENTRY_TYPE_FALLBACK_LABELS.get(entry_type, entry_type)
+        configured.setdefault(option.value, option.label)  # doppelter Wert: wie bisher gilt die erste Option
+    return {**_ENTRY_TYPE_FALLBACK_LABELS, **configured}
 
 
 def build_datev_export(db: Session, start_date: date, end_date: date) -> tuple[bytes,str,list[str]]:
