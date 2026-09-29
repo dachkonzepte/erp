@@ -32,6 +32,9 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .readiness-banner{background:var(--danger-soft);border-left:4px solid var(--danger);color:var(--ink);padding:12px 14px;margin:10px 0 14px}
 .readiness-banner b{color:var(--danger)}
 .readiness-banner a{color:var(--accent)}
+.readiness-banner .release-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.readiness-banner .release-row input{flex:1 1 260px;min-width:0}
+.readiness-info{background:var(--soft);border-left:4px solid var(--line);padding:10px 14px;margin:10px 0 14px}
 .table-scroll{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
@@ -541,14 +544,37 @@ async function init(){
 init();
 
 // Einsatzbereitschaft aus Checklisten (seit 1.8.1) -- dieselbe Angabe wie auf der Monteursseite.
+// Seit 1.8.2: das Büro kann eine Meldung "nicht einsatzbereit" direkt hier als repariert
+// markieren (Notiz optional, als sichtbares Feld -- kein Popup, Regel 4); danach steht statt des
+// roten Hinweises eine neutrale Zeile mit Wer und Wann.
+function renderReadiness(s){
+  const el=document.getElementById('readinessBanner');
+  el.style.display='none';el.className='readiness-banner';el.innerHTML='';
+  if(!s||s.ready===null||s.ready===undefined)return;
+  const source=`${esc(s.template_label)}, ${esc(fmtDate(s.completed_at))}${s.created_by_name?' von '+esc(s.created_by_name):''}`;
+  if(s.ready===false){
+    el.innerHTML=`<b>Nicht einsatzbereit</b> – gemeldet ${esc(fmtDate(s.completed_at))}${s.created_by_name?' von '+esc(s.created_by_name):''} (${esc(s.template_label)}). <a href="/checklisten/${s.checklist_id}">Meldung ansehen</a>
+      <div class="release-row"><input id="releaseNote" maxlength="2000" placeholder="Notiz zur Reparatur (optional), z. B. Kabel getauscht"><button class="secondary" id="releaseBtn" onclick="markRepaired()">Als repariert markieren</button><span id="releaseStatus" class="status"></span></div>`;
+    el.style.display='';
+  }else if(s.released_at){
+    el.className='readiness-info';
+    el.innerHTML=`Wieder einsatzbereit – als repariert markiert ${esc(fmtDate(s.released_at))}${s.released_by_name?' von '+esc(s.released_by_name):''}${s.release_note?': '+esc(s.release_note):''}. <span class="muted small">Meldung „nicht einsatzbereit“: ${source}, <a href="/checklisten/${s.checklist_id}" style="color:var(--accent)">ansehen</a></span>`;
+    el.style.display='';
+  }
+}
+async function markRepaired(){
+  const btn=document.getElementById('releaseBtn'),st=document.getElementById('releaseStatus');
+  btn.disabled=true;st.textContent='Speichert …';
+  try{
+    const r=await fetch(`/api/checklists/asset-readiness/${assetId}/repaired`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:document.getElementById('releaseNote').value})});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok){st.textContent=data.detail||'Fehler beim Speichern.';btn.disabled=false;return}
+    renderReadiness(data);
+  }catch(e){st.textContent='Fehler: '+e.message;btn.disabled=false}
+}
 if(window.renderChecklistSection){
   renderChecklistSection('checklistSection','betriebsmittel',assetId);
-  fetch(`/api/checklists/asset-readiness/${assetId}`).then(r=>r.ok?r.json():null).then(s=>{
-    if(!s||s.ready!==false)return;
-    const el=document.getElementById('readinessBanner');
-    el.innerHTML=`<b>Nicht einsatzbereit</b> – gemeldet ${esc(fmtDate(s.completed_at))}${s.created_by_name?' von '+esc(s.created_by_name):''} (${esc(s.template_label)}). <a href="/checklisten/${s.checklist_id}">Meldung ansehen</a>`;
-    el.style.display='';
-  });
+  fetch(`/api/checklists/asset-readiness/${assetId}`).then(r=>r.ok?r.json():null).then(renderReadiness);
 }
 </script>
 </body></html>

@@ -31,8 +31,8 @@ from sqlalchemy.orm import Session, selectinload
 from .checklist_templates import CONTEXT_COLUMNS, CONTEXT_TYPES, MAX_ATTACHMENTS_PER_FIELD, field_to_dict
 from .image_storage import resize_and_store_jpeg, store_png
 from .models import (
-    Checklist, ChecklistAnswer, ChecklistAnswerSelection, ChecklistAttachment, ChecklistTemplate,
-    ChecklistTemplateField, ChecklistTemplateVersion, Employee, OperationalAsset, Order, Property,
+    Checklist, ChecklistAnswer, ChecklistAnswerSelection, ChecklistAssetRelease, ChecklistAttachment,
+    ChecklistTemplate, ChecklistTemplateField, ChecklistTemplateVersion, Employee, OperationalAsset, Order, Property,
 )
 from .operational_assets import resolve_asset_identity
 from .paths import data_dir
@@ -291,11 +291,8 @@ def list_checklists(db: Session, *, context_type: str | None = None, order_id: i
     return [checklist_summary(c) for c in db.scalars(query).all()]
 
 
-def asset_readiness(db: Session, asset_id: int) -> dict:
-    """Entscheidung B, Zusatz: die jüngste ABGESCHLOSSENE Checkliste am Betriebsmittel mit einer
-    Antwort auf das Feld "einsatzbereit" entscheidet. "nein" → deutlicher Hinweis auf der
-    Geräteseite, eine spätere Checkliste mit "ja" hebt ihn auf."""
-    row = db.execute(
+def _latest_readiness_answer(db: Session, asset_id: int):
+    return db.execute(
         select(Checklist, ChecklistAnswer.value_text)
         .join(ChecklistAnswer, ChecklistAnswer.checklist_id == Checklist.id)
         .where(Checklist.operational_asset_id == asset_id, Checklist.status == "abgeschlossen",
@@ -303,14 +300,57 @@ def asset_readiness(db: Session, asset_id: int) -> dict:
         .order_by(Checklist.completed_at.desc(), Checklist.id.desc())
         .limit(1)
     ).first()
+
+
+def asset_readiness(db: Session, asset_id: int) -> dict:
+    """Entscheidung B, Zusatz: die jüngste ABGESCHLOSSENE Checkliste am Betriebsmittel mit einer
+    Antwort auf das Feld "einsatzbereit" entscheidet. "nein" → deutlicher Hinweis auf der
+    Geräteseite. Aufgehoben wird er auf zwei Wegen (seit 1.8.2): eine spätere Checkliste mit "ja"
+    ODER das Büro markiert das Gerät als repariert (ChecklistAssetRelease an genau dieser
+    "nein"-Checkliste). Eine danach erneut abgeschlossene Checkliste mit "nein" gilt wieder."""
+    row = _latest_readiness_answer(db, asset_id)
     if row is None:
         return {"asset_id": asset_id, "ready": None}
     checklist, value = row
-    return {
+    data = {
         "asset_id": asset_id, "ready": value == "ja", "checklist_id": checklist.id,
         "template_label": checklist.template_label_snapshot, "completed_at": checklist.completed_at,
         "created_by_name": _employee_name(checklist.created_by_employee),
+        "reported_ready": value == "ja",
     }
+    if value == "nein":
+        release = db.scalar(select(ChecklistAssetRelease).where(ChecklistAssetRelease.checklist_id == checklist.id))
+        if release is not None:
+            data.update({"ready": True, "released_at": release.released_at,
+                         "released_by_name": release.released_by_name, "release_note": release.note})
+    return data
+
+
+def mark_asset_repaired(db: Session, asset_id: int, *, note: str | None = None, user_id: int | None = None,
+                        employee_id: int | None = None, by_name: str | None = None) -> dict:
+    """Hebt die aktuell wirksame Meldung "nicht einsatzbereit" auf (seit 1.8.2, nur Büro --
+    entscheidet der Router). Die Checkliste selbst bleibt unverändert. Wiederholt (schon
+    aufgehoben) → aktueller Stand, kein Fehler. Kein wirksames "nein" → ValueError."""
+    if db.get(OperationalAsset, asset_id) is None:
+        raise LookupError("Betriebsmittel nicht gefunden.")
+    row = _latest_readiness_answer(db, asset_id)
+    if row is None or row[1] != "nein":
+        raise ValueError("Für dieses Gerät liegt keine Meldung „nicht einsatzbereit“ vor.")
+    checklist = row[0]
+    if db.scalar(select(ChecklistAssetRelease.id).where(ChecklistAssetRelease.checklist_id == checklist.id)) is None:
+        release = ChecklistAssetRelease(
+            operational_asset_id=asset_id, checklist_id=checklist.id, released_by_user_id=user_id,
+            released_by_employee_id=employee_id, released_by_name=(by_name or "").strip()[:160] or None,
+            note=(note or "").strip()[:MAX_TEXT_LENGTH] or None,
+        )
+        try:
+            with db.begin_nested():
+                db.add(release)
+                db.flush()
+        except IntegrityError:
+            pass  # gleichzeitiger zweiter Klick -- der andere war schneller, Ergebnis dasselbe
+        db.commit()
+    return asset_readiness(db, asset_id)
 
 
 # --- Antworten ------------------------------------------------------------------------------

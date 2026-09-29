@@ -672,7 +672,7 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
 - **Kalender-Modul & Outlook-Synchronisation** (Modul `kalender`, `CalendarEvent`, Graph-Sync,
   Echo-Erkennung) -- `docs/archiv/modul-kalender-und-outlook-sync.md`
 - **Checklisten & Formulare** (Modul `checklisten`, Vorlagenfassungen, Kontexte Auftrag/Objekt/
-  Betriebsmittel/Betrieb, Regeln → Aufgaben, Etappenplan 1.8.0–1.8.4 und Stufen 2–4) --
+  Betriebsmittel/Betrieb, Regeln → Aufgaben, Etappenplan 1.8.0–1.8.5 und Stufen 2–4) --
   `docs/archiv/modul-checklisten.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`

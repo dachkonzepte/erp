@@ -31,14 +31,14 @@ from sqlalchemy.orm import Session
 from ..checklists import (
     ChecklistLocked, add_attachment, asset_readiness, attachment_path, complete_checklist, create_checklist,
     delete_attachment, delete_checklist, get_attachment, get_checklist, get_checklist_row, list_checklists,
-    list_startable_templates, save_answer, MAX_PHOTO_UPLOAD_BYTES,
+    list_startable_templates, mark_asset_repaired, save_answer, MAX_PHOTO_UPLOAD_BYTES,
 )
 from ..database import get_db
 from ..models import AppUser, Checklist
 from ..modules import is_module_enabled
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, has_min_role, require_min_role
 from ..schemas import (
-    ChecklistAnswerWrite, ChecklistAssetReadinessOut, ChecklistCreate, ChecklistOut, ChecklistStartableTemplateOut,
+    ChecklistAnswerWrite, ChecklistAssetReadinessOut, ChecklistAssetReleaseWrite, ChecklistCreate, ChecklistOut, ChecklistStartableTemplateOut,
     ChecklistSummaryOut,
 )
 from .orders import require_field_order_access
@@ -47,6 +47,7 @@ router = APIRouter()
 
 MODULE_KEY = "checklisten"
 _any_role_dep = Depends(require_min_role(ROLE_FIELD))
+_office_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 NOT_OWNER = "Diese Checkliste hat eine andere Person angelegt."
 ANSWERS_HIDDEN = "Von dieser Checkliste sind für Sie nur Titel, Datum und Ersteller sichtbar."
@@ -194,6 +195,20 @@ def get_asset_readiness(asset_id: int, db: Session = Depends(get_db), _role: App
     _require_module_enabled(db)
     _require_context_access(db, _role, "betriebsmittel", asset_id=asset_id)
     return asset_readiness(db, asset_id)
+
+
+@router.post("/api/checklists/asset-readiness/{asset_id}/repaired", response_model=ChecklistAssetReadinessOut)
+def post_asset_repaired(asset_id: int, payload: ChecklistAssetReleaseWrite, db: Session = Depends(get_db),
+                        _role: AppUser = _office_dep):
+    """Büro markiert ein als "nicht einsatzbereit" gemeldetes Gerät als repariert (seit 1.8.2) --
+    mit Wer (Anzeigename des Kontos) und Wann. Monteure heben eine Meldung nur über eine neue
+    Checkliste mit "einsatzbereit: ja" auf."""
+    _require_module_enabled(db)
+    if not is_module_enabled(db, "betriebsmittel"):
+        raise HTTPException(status_code=403, detail="Das Modul Betriebsmittelverwaltung ist deaktiviert.")
+    by_name = getattr(_role, "display_name", None) or getattr(_role, "username", None)
+    return _call(mark_asset_repaired, db, asset_id, note=payload.note, user_id=getattr(_role, "id", None),
+                 employee_id=_role.employee_id, by_name=by_name)
 
 
 # --- Anlegen, Lesen, Ausfüllen --------------------------------------------------------------

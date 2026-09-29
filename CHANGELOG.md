@@ -4,6 +4,28 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.2 – Checklisten: Gerät als repariert markieren
+
+Die Warnung "nicht einsatzbereit" auf der Geräteseite verschwindet jetzt auf zwei Wegen: wie
+bisher durch eine spätere, abgeschlossene Checkliste am selben Gerät mit "einsatzbereit: ja", und
+neu, indem das Büro das Gerät auf seiner Betriebsmittelseite als repariert markiert. Dafür steht
+im roten Hinweis ein sichtbares Notizfeld (optional, z. B. "Kabel getauscht") und der Knopf "Als
+repariert markieren". Danach zeigt die Büro-Seite statt des roten Hinweises eine neutrale Zeile
+mit Wer, Wann und Notiz; auf der Monteursseite ist der Hinweis weg. Die Checkliste mit dem "nein"
+bleibt unverändert, sie ist ein abgeschlossener Nachweis. Die Markierung hängt an genau dieser
+Meldung: meldet später jemand erneut "nicht einsatzbereit", gilt die neue Meldung wieder. Monteure
+können nicht als repariert markieren, sie heben eine Meldung nur mit einer neuen Prüfung auf.
+
+Neue Tabelle `checklist_asset_releases` (Migration `144a46fc5a97`, ändert keine bestehende
+Tabelle; gegen frische SQLite und frische PostgreSQL hin, zurück, hin). Nebenbefund aus 1.8.1,
+mitbehoben: ein Betriebsmittel mit Checklisten ließ sich löschen; unter PostgreSQL wäre das am
+Fremdschlüssel mit 500 gescheitert, unter SQLite wären verwaiste Nachweise geblieben. Jetzt
+antwortet das Löschen mit einem Hinweis, das Gerät stattdessen zu archivieren. 7 neue Tests
+(beide Wege, erneutes "nein", Wer/Wann, doppelter Klick, Monteur 403 mit Gegenprobe, Modul aus,
+Löschsperre). Außerdem ohne eigene Version vorab committet: der Testlauf nutzt jetzt immer eine
+Wegwerf-Datenbank statt `dachkonzepte_erp.db` (Regel 16). Volle Suite grün, Klicktest im Browser
+gegen eine isolierte Instanz (Büro am Desktop, hell und dunkel; Monteur auf Handybreite).
+
 ## 1.8.1 – Checklisten: ausfüllen am Auftrag, am Objekt, am Gerät und im Betrieb
 
 Monteure und Büro füllen jetzt Checklisten aus. Monteure starten sie in `/mobil`: je Einsatz

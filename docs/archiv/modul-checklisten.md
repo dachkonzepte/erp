@@ -5,7 +5,8 @@ den Bau -- eine neue Sitzung (auch nach `/clear` zwischen zwei Versionen) liest 
 (Regel 14), dann den Abschnitt "Etappenplan" unten, um zu sehen, welche Version als nächste dran
 ist, und prüft den tatsächlichen Stand gegen `VERSION`/`CHANGELOG.md`/`git log`.
 
-- **Stufe 1** (dieses Dokument, Versionen 1.8.0–1.8.4): allgemeiner Checklisten-Baukasten. Büro legt
+- **Stufe 1** (dieses Dokument, Versionen 1.8.0–1.8.5; ursprünglich bis 1.8.4 geplant, "repariert"
+  kam als 1.8.2 dazu): allgemeiner Checklisten-Baukasten. Büro legt
   Vorlagen an, Monteur füllt sie aus -- am Auftrag, am Objekt, am Betriebsmittel (QR-Code) oder
   (Betreiberentscheidung D) im Kontext "Betrieb". Abgeschlossen = unveränderlich, PDF über den
   gemeinsamen Rahmen.
@@ -205,7 +206,8 @@ eintragen), Auslieferung über einen dedizierten, rollengeprüften Endpunkt.
 Generisch über den festen Feldschlüssel **`einsatzbereit`** (ja_nein): die jüngste
 ABGESCHLOSSENE Checkliste am Betriebsmittel, die eine Antwort auf `einsatzbereit` trägt,
 entscheidet. `nein` → deutlicher Hinweis oben auf `operational_asset_field.html` (Datum, Vorlage,
-Ersteller); eine spätere Checkliste mit `ja` hebt ihn auf. Die Startvorlagen Geräte-Sichtprüfung
+Ersteller); eine spätere Checkliste mit `ja` hebt ihn auf, seit 1.8.2 alternativ die Büro-
+Markierung "repariert" (`ChecklistAssetRelease`, siehe "Umsetzung 1.8.2"). Die Startvorlagen Geräte-Sichtprüfung
 und Schadensmeldung Gerät tragen genau diesen Schlüssel. Sinnvoll auch auf der Büro-Geräteseite.
 
 ### Rechte
@@ -331,10 +333,11 @@ Zwischen den Versionen darf der Betreiber `/clear` machen -- dann diese Datei le
 |---|---|---|
 | — | Befund, Entscheidungen, Etappenplan (diese Datei), Verweis in CLAUDE.md | erledigt |
 | **1.8.0** | Modul `checklisten`, alle Tabellen + Migration, Vorlagenverwaltung (Liste `/checklisten/vorlagen`, eigene Editorseite `/checklisten/vorlagen/{id}`: Felder, Optionen, Regeln, Fassungen, Veröffentlichen), API, Tests | erledigt |
-| **1.8.1** | Ausfüllen: Anlegen in allen vier Kontexten, Antworten/Fotos/Unterschriften idempotent, Abschließen, Entwurf löschen, Einstiege in `/mobil` (Auftrag, Objektansicht, Geräteseite mit Einsatzbereitschafts-Hinweis), Büro-Übersicht `/checklisten`, Rechte + Angriffstest. **Danach anhalten und berichten** (Betreibervorgabe) | erledigt, Bericht an den Betreiber offen |
-| **1.8.2** | Regeln → Aufgaben, `ChecklistRuleExecution`, "Aufgaben nachholen" | offen |
-| **1.8.3** | PDF über den gemeinsamen Rahmen | offen |
-| **1.8.4** | 13 Startvorlagen per Daten-Migration (Entwurf) | offen |
+| **1.8.1** | Ausfüllen: Anlegen in allen vier Kontexten, Antworten/Fotos/Unterschriften idempotent, Abschließen, Entwurf löschen, Einstiege in `/mobil` (Auftrag, Objektansicht, Geräteseite mit Einsatzbereitschafts-Hinweis), Büro-Übersicht `/checklisten`, Rechte + Angriffstest. **Danach anhalten und berichten** (Betreibervorgabe) | erledigt, vom Betreiber freigegeben (29.09.2026) |
+| **1.8.2** | Nachtrag nach der 1.8.1-Freigabe (Betreibervorgabe): "nicht einsatzbereit" verschwindet wieder -- spätere Checkliste mit "ja" ODER Büro markiert als repariert (Wer/Wann), Tests für beide Wege | erledigt |
+| **1.8.3** | Regeln → Aufgaben, `ChecklistRuleExecution`, "Aufgaben nachholen" (ursprünglich als 1.8.2 geplant) | offen |
+| **1.8.4** | PDF über den gemeinsamen Rahmen (ursprünglich 1.8.3) | offen |
+| **1.8.5** | 13 Startvorlagen per Daten-Migration (Entwurf) (ursprünglich 1.8.4). **Danach berichten** (Betreibervorgabe: nach Abschluss der geplanten Etappen) | offen |
 
 Nach jeder Version hier die Spalte "Stand" nachziehen und unten einen kurzen Abschnitt
 "Umsetzung 1.8.x" mit Abweichungen/Funden ergänzen.
@@ -430,3 +433,44 @@ Nach jeder Version hier die Spalte "Stand" nachziehen und unten einen kurzen Abs
   Seite bestätigen.
 - **Noch nicht gebaut (1.8.2 ff.)**: Regeln → Aufgaben (Tabelle `checklist_rule_executions` steht
   bereit, `complete_checklist()` ist die Andockstelle NACH dem Commit), PDF, Startvorlagen.
+
+---
+
+## Umsetzung 1.8.2 (29.09.2026)
+
+Betreibervorgaben bei der Freigabe von 1.8.1: (1) "nicht einsatzbereit" muss wieder verschwinden,
+eine spätere Checkliste mit "ja" hebt die Warnung auf, zusätzlich markiert das Büro als
+"repariert" mit Wer und Wann, Test für beide Wege; (2) volle Suite; (3) Import-Checks und Prüfungen
+nie gegen `dachkonzepte_erp.db` (Regel 16). Bestätigt: die eigene Checkliste bleibt nach einer
+Umplanung erreichbar.
+
+- **Neue Tabelle `ChecklistAssetRelease`** (`checklist_asset_releases`, Migration `144a46fc5a97`):
+  `operational_asset_id`, `checklist_id` (unique, GENAU die "nein"-Checkliste, die aufgehoben
+  wird), `released_at`, `released_by_user_id`/`released_by_employee_id`, `released_by_name`
+  (Schnappschuss des Anzeigenamens), `note`. Die Checkliste selbst bleibt eingefroren.
+- **`asset_readiness()`**: wirksam ist weiterhin die jüngste abgeschlossene Checkliste mit Antwort
+  auf `einsatzbereit`. Ist sie "nein" und hat eine Freigabe → `ready=true` plus `released_*`;
+  `reported_ready` trägt, was die Checkliste selbst ergab. Eine neuere "nein"-Checkliste hat keine
+  Freigabe und gilt damit wieder -- kein Zeitvergleich nötig.
+- **`mark_asset_repaired()`** / `POST /api/checklists/asset-readiness/{asset_id}/repaired`
+  (`buero_auftrag` aufwärts, Module `checklisten` UND `betriebsmittel`): ohne wirksames "nein"
+  400, zweiter Klick liefert den vorhandenen Stand (Unique + SAVEPOINT). Monteure: 403, sie heben
+  nur über eine neue Checkliste auf.
+- **Oberfläche**: `operational_asset.html` -- Notizfeld + Knopf im roten Hinweis (sichtbares Feld,
+  kein Popup, Regel 4), danach neutrale Zeile `.readiness-info`. `operational_asset_field.html`
+  nennt im Hinweistext beide Wege.
+- **Nebenbefund, mitbehoben**: `delete_asset()` prüfte keine Checklisten -- jetzt `ValueError`
+  (Router 400, "archivieren statt löschen"), Muster der bestehenden Einsatzbericht-Sperre.
+- **Regel 16 strukturell**: `tests/conftest.py` setzt `DATABASE_URL`/`ERP_DATA_DIR` vor dem ersten
+  `app.*`-Import auf ein frisches Temp-Verzeichnis (eigener Commit ohne Versionssprung). Vorher
+  griff jeder Testlauf über `create_all()` und die Jinja-Globals auf `dachkonzepte_erp.db` zu;
+  nachgewiesen unberührt (Zeitstempel/Größe vor und nach der vollen Suite gleich). Import-Checks,
+  Migrationsprüfungen und Klicktests laufen ausschließlich gegen Wegwerf-Datenbanken im Scratchpad
+  bzw. die Probe-DB `checklisten_probe` der portablen PostgreSQL-Instanz.
+- **Verifikation**: Migration SQLite + PostgreSQL hin/zurück/hin, `alembic check` sauber; Logik
+  direkt gegen PostgreSQL durchgespielt; 7 neue Tests (`tests/test_v306_checklist_asset_release.py`),
+  Gegenprobe (Endpunkt für jede Rolle offen) rot. Klicktest per CDP gegen isolierte Instanz:
+  Monteur sieht roten Hinweis ohne Knopf, Büro gibt Notiz ein und markiert, neutrale Zeile mit
+  Wer/Wann/Notiz auch nach Neuladen und im Dunkelmodus, Monteur danach ohne Hinweis. Keine
+  JS-Ausnahme.
+

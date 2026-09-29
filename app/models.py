@@ -4570,3 +4570,24 @@ class ChecklistRuleExecution(Base):
     executed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     checklist: Mapped["Checklist"] = relationship(back_populates="rule_executions")
+
+
+class ChecklistAssetRelease(Base):
+    """"Als repariert markiert" (seit 1.8.2): das Büro hebt eine Meldung "nicht einsatzbereit"
+    einer abgeschlossenen Geräte-Checkliste auf, ohne dass dafür eine neue Checkliste nötig ist.
+    Hängt an GENAU der Checkliste, deren "nein" aufgehoben wird (unique checklist_id, dadurch
+    idempotent) -- eine spätere, erneute Meldung "nein" ist eine neue Checkliste und damit wieder
+    wirksam. released_by_name ist ein Schnappschuss (wer), released_at das Wann; die Checkliste
+    selbst bleibt unverändert (abgeschlossen = eingefroren)."""
+
+    __tablename__ = "checklist_asset_releases"
+    __table_args__ = (UniqueConstraint("checklist_id", name="uq_checklist_asset_release_checklist"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    operational_asset_id: Mapped[int] = mapped_column(ForeignKey("operational_assets.id"), index=True)
+    checklist_id: Mapped[int] = mapped_column(ForeignKey("checklists.id"))
+    released_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    released_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
+    released_by_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True)
+    released_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)

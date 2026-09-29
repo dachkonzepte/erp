@@ -4288,3 +4288,11 @@ class ChecklistAssetReadinessOut(BaseModel):
     template_label: str | None = None
     completed_at: datetime | None = None
     created_by_name: str | None = None
+    reported_ready: bool | None = None  # was die Checkliste selbst ergab (ready kann per "repariert" abweichen)
+    released_at: datetime | None = None
+    released_by_name: str | None = None
+    release_note: str | None = None
+
+
+class ChecklistAssetReleaseWrite(BaseModel):
+    note: str | None = None

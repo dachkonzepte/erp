@@ -57,7 +57,7 @@ from sqlalchemy.orm import Session, selectinload
 from .date_utils import add_months
 from .modules import is_module_enabled
 from .models import (
-    OperationalAsset, OperationalAssetDocument, OperationalAssetInspection, OperationalAssetSettings,
+    Checklist, OperationalAsset, OperationalAssetDocument, OperationalAssetInspection, OperationalAssetSettings,
     OperationalResource, RecurringCost, ServiceReportAsset,
 )
 from .operational_asset_documents import delete_document_file
@@ -413,6 +413,14 @@ def delete_asset(db: Session, asset_id: int) -> bool:
         raise ValueError(
             "Dieses Betriebsmittel ist in mindestens einem Einsatzbericht erfasst und kann nicht "
             "gelöscht werden -- archivieren Sie es stattdessen (Status auf Inaktiv)."
+        )
+    if db.scalar(select(Checklist.id).where(Checklist.operational_asset_id == asset_id).limit(1)) is not None:
+        # Seit 1.8.2: Checklisten am Gerät sind Nachweise (abgeschlossen = unveränderlich) --
+        # vorher schlug das Löschen unter PostgreSQL am Fremdschlüssel fehl (500), unter SQLite
+        # blieben verwaiste Checklisten zurück.
+        raise ValueError(
+            "Zu diesem Betriebsmittel gibt es Checklisten -- es kann nicht gelöscht werden. "
+            "Archivieren Sie es stattdessen (Status auf Inaktiv)."
         )
     for inspection in list(asset.inspections):
         delete_document_file(inspection.document_filename)
