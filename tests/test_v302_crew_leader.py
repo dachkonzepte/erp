@@ -9,6 +9,7 @@ Buchungen. Läuft mit ECHTEN, gespeicherten AppUser-Identitäten (nicht der tran
 router_test_client), weil die Nachvollziehbarkeit an AppUser.id hängt."""
 
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from fastapi import FastAPI
@@ -20,6 +21,7 @@ from app.models import AppUser, Team, TeamEmployee, TimeEntry, TimeEntryGroup
 from app.routers.resource_planning import router as teams_router
 from app.routers.time_tracking import router as time_router
 from app.time_backoffice import set_time_lock
+from app.time_tracking import create_manual_entry
 from tests.test_v264_field_time_tracking import _assign_via_team, _employee, _order
 
 TODAY = date.today()
@@ -238,3 +240,43 @@ def test_team_form_round_trip_keeps_the_flag_and_field_cannot_set_it(world):
     got = {m["employee_id"]: m for m in office.get(f"/api/teams/{crew.id}").json()["employees"]}
     assert got[e["lea"].id]["is_crew_leader"] is True and got[e["max"].id]["is_crew_leader"] is False
     assert _client(db, world["users"]["max"], teams_router).put(f"/api/teams/{crew.id}", json=payload).status_code == 403
+
+
+# --- /api/time-entries/summary: die Kolonnenführerin summiert nur eigene Buchungen -----------
+
+
+def _summary(client, query=""):
+    resp = client.get(f"/api/time-entries/summary?{query}")
+    assert resp.status_code == 200, (query, resp.text)
+    return {k: Decimal(str(v)) if k.endswith("_hours") else v for k, v in resp.json().items()}
+
+
+def test_crew_leader_summary_and_list_contain_only_own_bookings(world):
+    """Seit Runde 0e dauerhaft (vorher nur mit der transienten Identität aus router_test_client
+    und einem Monteur ohne Kolonne geprüft, tests/test_v313_*): Lea ist echte Kolonnenführerin mit
+    gespeichertem AppUser. Sie bucht für sich und Max (je 4 Std.), Vera für sich und Max (je 3),
+    Pia in Kolonne Süd für sich und Lea (je 1), Max trägt 2 Std. selbst nach. Summen, Liste und
+    Gesamtzahl zeigen Lea nur ihre eigenen zwei Buchungen (5 Std., eine davon von Pia gebucht) --
+    mit Max, Vera oder Pia im Filter, mit Auftrag oder Projekt. Gegenstück: das Büro sieht alle."""
+    e, crew, other, order, db = world["emp"], world["crew"], world["other"], world["order"], world["db"]
+    for booker, team, members, hours in (("lea", crew, ("lea", "max"), "4"), ("vera", crew, ("vera", "max"), "3"),
+                                         ("pia", other, ("pia", "lea"), "1")):
+        resp = _as(world, booker).post("/api/time-entry-groups", json=_manual(team.id, [e[m].id for m in members], order.id, hours=hours))
+        assert resp.status_code == 200, (booker, resp.text)
+    create_manual_entry(db, employee_id=e["max"].id, order_id=order.id, work_date=TODAY, hours=Decimal("2"))
+
+    own = {"entry_count": 2, "booked_count": 2, "employee_count": 1, "total_hours": Decimal("5.00"),
+           "productive_hours": Decimal("5.00"), "travel_hours": Decimal("0.00")}
+    lea = _as(world, "lea")
+    for query in ("", f"order_id={order.id}", f"project_id={order.project_id}", f"employee_id={e['max'].id}",
+                  f"employee_id={e['vera'].id}&order_id={order.id}", f"employee_id={e['pia'].id}",
+                  f"start_date={TODAY.isoformat()}&end_date={TODAY.isoformat()}"):
+        assert _summary(lea, query) == own, query
+        resp = lea.get(f"/api/time-entries?{query}")
+        assert resp.status_code == 200 and resp.headers["X-Total-Count"] == "2", (query, resp.headers.get("X-Total-Count"))
+        assert {x["employee_id"] for x in resp.json()} == {e["lea"].id}, query
+
+    office = _client(db, _user(db, "buero", None, role="buero_auftrag"))
+    assert _summary(office, f"order_id={order.id}") == {
+        "entry_count": 7, "booked_count": 7, "employee_count": 4, "total_hours": Decimal("18.00"),
+        "productive_hours": Decimal("18.00"), "travel_hours": Decimal("0.00")}

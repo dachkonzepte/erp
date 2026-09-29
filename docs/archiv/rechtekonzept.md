@@ -561,6 +561,15 @@ gezählt und summiert, auch bei `?order_id=<fremd>` oder `?employee_id=<Kollege>
 Mitarbeiterverknüpfung 403. `tests/test_v313_time_entries_total_count_and_sums.py` (Angriffstest,
 Gegenprobe mit abgeschalteter Prüfung rot).
 
+**Nachtrag (Runde 0e, 29.09.2026): Dauertest mit echter Kolonnenführerin.** Der Test aus 1.8.9
+lief mit der transienten Identität aus `router_test_client` und einem Monteur ohne Kolonne.
+`test_crew_leader_summary_and_list_contain_only_own_bookings` in `tests/test_v302_crew_leader.py`
+nimmt die gespeicherten AppUser aus 1.7.12: Lea bucht als Kolonnenführerin für Max, Vera für
+Max, Pia (andere Kolonne) für Lea, Max bucht selbst. `/summary`, Liste und `X-Total-Count` zeigen
+Lea in sieben Filterkombinationen (Auftrag, Projekt, Zeitraum, Kollege im Filter) nur ihre eigenen
+zwei Buchungen, eine davon von Pia gebucht; das Büro sieht alle sieben. Gegenprobe mit
+`_visible_employee_id()` ohne Eingrenzung: rot.
+
 ### Fünf weitere Anpassungen an der Monteursansicht (seit 1.3.61)
 
 Fünf rollenbezogene Punkte, alle ohne neues Datenmodell außer Punkt 4 (siehe dort -- am Ende doch
