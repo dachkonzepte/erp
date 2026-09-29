@@ -4053,3 +4053,156 @@ class CalendarEventBusyOut(BaseModel):
 class CalendarOwnerOut(BaseModel):
     id: int
     display_name: str
+
+
+# --- Checklisten-Baukasten (seit 1.8.0, siehe docs/archiv/modul-checklisten.md) --------------
+
+class ChecklistTemplateCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=160)
+    description: str | None = None
+    contexts: list[str] = []
+    field_readable: bool = False
+
+
+class ChecklistTemplateUpdate(ChecklistTemplateCreate):
+    pass
+
+
+class ChecklistTemplateCopy(BaseModel):
+    label: str = Field(min_length=1, max_length=160)
+
+
+class ChecklistTemplateFieldWrite(BaseModel):
+    """Anlegen UND Ändern eines Felds -- alles optional, der Router reicht nur die tatsächlich
+    gesendeten Schlüssel weiter (exclude_unset-Muster, siehe update_inspection_item())."""
+    field_key: str | None = Field(default=None, max_length=80)
+    sort_order: int | None = None
+    group_name: str | None = Field(default=None, max_length=120)
+    field_type: str | None = Field(default=None, max_length=30)
+    label: str | None = Field(default=None, max_length=500)
+    help_text: str | None = None
+    required: bool | None = None
+    allow_na: bool | None = None
+    multiline: bool | None = None
+    multiple: bool | None = None
+    unit: str | None = Field(default=None, max_length=20)
+    min_value: Decimal | None = None
+    max_value: Decimal | None = None
+    decimals: int | None = None
+    min_count: int | None = None
+    max_count: int | None = None
+    prefill_now: bool | None = None
+    signer_label: str | None = Field(default=None, max_length=80)
+
+
+class ChecklistTemplateFieldReorder(BaseModel):
+    field_ids: list[int]
+
+
+class ChecklistTemplateOptionCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=160)
+    option_key: str | None = Field(default=None, max_length=80)
+
+
+class ChecklistTemplateOptionUpdate(BaseModel):
+    label: str | None = Field(default=None, max_length=160)
+    sort_order: int | None = None
+
+
+class ChecklistTemplateRuleWrite(BaseModel):
+    field_key: str | None = Field(default=None, max_length=80)
+    operator: str | None = Field(default=None, max_length=20)
+    operand: str | None = Field(default=None, max_length=160)
+    task_title: str | None = Field(default=None, max_length=255)
+    task_description: str | None = None
+    task_priority: str | None = Field(default=None, max_length=30)
+    due_in_days: int | None = None
+    assignee_mode: str | None = Field(default=None, max_length=30)
+    min_visible_role: str | None = Field(default=None, max_length=30)
+    sort_order: int | None = None
+
+
+class ChecklistTemplateFieldOptionOut(BaseModel):
+    id: int
+    field_id: int
+    option_key: str
+    label: str
+    sort_order: int
+
+
+class ChecklistTemplateFieldOut(BaseModel):
+    id: int
+    version_id: int
+    field_key: str
+    sort_order: int
+    group_name: str | None = None
+    field_type: str
+    label: str
+    help_text: str | None = None
+    required: bool
+    allow_na: bool
+    multiline: bool
+    multiple: bool
+    unit: str | None = None
+    min_value: Decimal | None = None
+    max_value: Decimal | None = None
+    decimals: int | None = None
+    min_count: int | None = None
+    max_count: int | None = None
+    prefill_now: bool
+    signer_label: str | None = None
+    is_system: bool
+    options: list[ChecklistTemplateFieldOptionOut] = []
+
+
+class ChecklistTemplateRuleOut(BaseModel):
+    id: int
+    version_id: int
+    field_key: str | None = None
+    operator: str
+    operand: str | None = None
+    task_title: str
+    task_description: str | None = None
+    task_priority: str
+    due_in_days: int | None = None
+    assignee_mode: str
+    min_visible_role: str
+    sort_order: int
+
+
+class ChecklistTemplateVersionOut(BaseModel):
+    id: int
+    template_id: int
+    version_no: int
+    status: str
+    published_at: datetime | None = None
+    created_at: datetime
+    fields: list[ChecklistTemplateFieldOut] = []
+    rules: list[ChecklistTemplateRuleOut] = []
+
+
+class ChecklistTemplateVersionSummaryOut(BaseModel):
+    id: int
+    version_no: int
+    status: str
+    published_at: datetime | None = None
+    field_count: int
+
+
+class ChecklistTemplateOut(BaseModel):
+    id: int
+    label: str
+    description: str | None = None
+    purpose: str
+    contexts: list[str]
+    field_readable: bool
+    sort_order: int
+    archived: bool
+    created_at: datetime
+    updated_at: datetime
+    published_version_no: int | None = None
+    published_version_id: int | None = None
+    draft_version_no: int | None = None
+    draft_version_id: int | None = None
+    versions: list[ChecklistTemplateVersionSummaryOut] = []
+    editable_version: ChecklistTemplateVersionOut | None = None

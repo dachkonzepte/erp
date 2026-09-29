@@ -521,6 +521,20 @@ def inspection_template_page(request: Request, template_id: int, _role: AppUser 
     return templates.TemplateResponse(request=request, name="inspection_template.html", context={"template_id": template_id})
 
 
+@router.get("/checklisten/vorlagen", response_class=HTMLResponse)
+def checklist_templates_page(request: Request, _role: AppUser = _role_dep):
+    """Checklisten-Vorlagen (seit 1.8.0, Modul "checklisten") -- Liste zuerst, Bearbeiten auf
+    eigener Seite (Regel 10). buero_auftrag aufwärts (_role_dep). Kein Modul-Check auf der
+    Seitenroute selbst (etablierte Konvention, siehe calendar_page()), die API dahinter prüft
+    is_module_enabled() unabhängig davon."""
+    return templates.TemplateResponse(request=request, name="checklist_templates.html", context={})
+
+
+@router.get("/checklisten/vorlagen/{template_id}", response_class=HTMLResponse)
+def checklist_template_page(request: Request, template_id: int, _role: AppUser = _role_dep):
+    return templates.TemplateResponse(request=request, name="checklist_template.html", context={"template_id": template_id})
+
+
 @router.get("/inquiries", response_class=HTMLResponse)
 def inquiries_page(request: Request, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="inquiries.html", context={})

@@ -1,0 +1,105 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Checklisten-Vorlagen</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--success:#1f8a5f;--success-soft:#eaf5ef;--warning:#9a6b00;--warning-soft:#fdf3dc;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--success:#4ade95;--success-soft:#173226;--warning:#f0c05a;--warning-soft:#3a2f14;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:1100px;margin:0;padding:20px}
+.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.hero h1{margin:0 0 4px;font-size:22px}.muted{color:var(--muted)}.small{font-size:12.5px}
+input{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit}
+button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
+.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
+.card{background:var(--card);border:1px solid var(--line);padding:0}
+.editor-card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:650}
+tr:last-child td{border-bottom:none}
+.badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.badge.ok{background:var(--success-soft);color:var(--success)}
+.badge.draft{background:var(--warning-soft);color:var(--warning)}
+.row-archived{opacity:.6}
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+@media(max-width:700px){table{font-size:12.5px}th,td{padding:8px}}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+{% include "_topbar.html" %}
+<main>
+{% if is_module_enabled('checklisten') %}
+<div class="hero">
+  <div><h1>Checklisten-Vorlagen</h1><div class="muted small">Vorlagen, die Monteure am Auftrag, am Objekt, am Betriebsmittel oder im Betrieb ausfüllen. Monteure sehen nur veröffentlichte Fassungen; eine Änderung wirkt erst nach erneutem Veröffentlichen und nie auf bereits ausgefüllte Checklisten.</div></div>
+  <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650"><input type="checkbox" id="showArchived" onchange="renderRows()"> Archivierte anzeigen</label>
+    <button onclick="createTemplate()">+ Neue Vorlage</button>
+  </div>
+</div>
+<div class="card">
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Bezeichnung</th><th>Kontexte</th><th>Gültige Fassung</th><th>Entwurf</th><th></th></tr></thead>
+    <tbody id="templateRows"></tbody>
+  </table>
+  </div>
+</div>
+<span id="listStatus" class="status"></span>
+{% else %}
+<div class="editor-card"><h2>Checklisten-Vorlagen</h2><div class="muted">Das Modul Checklisten &amp; Formulare ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+{% endif %}
+</main>
+</div>
+</div>
+<script>
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+const CONTEXT_LABELS={auftrag:'Auftrag',objekt:'Objekt',betriebsmittel:'Betriebsmittel',betrieb:'Betrieb'};
+
+let templates=[];
+
+async function createTemplate(){
+  // Legt sofort einen Entwurf an und springt in den Editor -- kein unter der Liste
+  // eingeblendetes Formular (Regel 10), Beschriftung wird im Editor vergeben.
+  const st=document.getElementById('listStatus');
+  try{
+    const t=await api('/api/checklist-templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:'Neue Vorlage'})});
+    location.href='/checklisten/vorlagen/'+t.id;
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+function row(t){
+  const contexts=t.contexts.map(c=>CONTEXT_LABELS[c]||c).join(', ')||'<span class="muted">—</span>';
+  const published=t.published_version_no?`<span class="badge ok">Fassung ${t.published_version_no}</span>`:'<span class="muted small">noch nicht veröffentlicht</span>';
+  const draft=t.draft_version_no?`<span class="badge draft">Entwurf ${t.draft_version_no}</span>`:'';
+  return `<tr${t.archived?' class="row-archived"':''}>
+    <td><a href="/checklisten/vorlagen/${t.id}" style="color:var(--accent);font-weight:650;text-decoration:none">${esc(t.label)}</a> ${t.archived?'<span class="badge">Archiviert</span>':''}</td>
+    <td>${contexts}</td>
+    <td>${published}</td>
+    <td>${draft}</td>
+    <td><a href="/checklisten/vorlagen/${t.id}" style="color:var(--accent)">Öffnen</a></td>
+  </tr>`;
+}
+
+function renderRows(){
+  const showArchived=document.getElementById('showArchived').checked;
+  const visible=templates.filter(t=>showArchived||!t.archived);
+  document.getElementById('templateRows').innerHTML=visible.map(row).join('')||'<tr><td colspan="5" class="empty">Noch keine Vorlagen angelegt.</td></tr>';
+}
+
+async function init(){
+  const st=document.getElementById('listStatus');
+  if(!st)return;
+  st.textContent='Lädt …';
+  try{
+    templates=await api('/api/checklist-templates?include_archived=true');
+    renderRows();
+    st.textContent='';
+  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+init();
+</script>
+</body></html>

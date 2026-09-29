@@ -4,6 +4,32 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.0 – Checklisten: neues Modul, Vorlagenverwaltung
+
+Erste Version des neuen Moduls "Checklisten & Formulare" (Stufe 1 von 4, Plan und Entscheidungen
+in `docs/archiv/modul-checklisten.md`). Diese Version bringt das Datenmodell und die Verwaltung der
+Vorlagen; Monteure füllen noch nichts aus, das kommt mit 1.8.1. Unter "Checklisten" in der
+Sidebar (nur Büro) legt man Vorlagen mit Feldern an: Ja/Nein (optional mit "entfällt"), Text,
+Zahl, Auswahl (auch mehrfach), Datum, Uhrzeit, Foto, Unterschrift (auch mehrere, z. B. für
+Teilnehmer einer Unterweisung) und reinen Hinweistext, jeweils mit Pflicht-Häkchen. Dazu Regeln
+der Art "Antwort X legt eine Aufgabe fürs Büro an"; sie werden ab 1.8.2 ausgewertet und dürfen
+sich nur an Büro- oder Admin-Rollen richten, weil Monteure keine Aufgaben sehen.
+
+Vorlagen haben nummerierte Fassungen. Geändert wird immer ein Entwurf, Monteure bekommen erst
+die veröffentlichte Fassung, und eine veröffentlichte Fassung ist eingefroren. So behält eine
+ausgefüllte Checkliste später immer genau die Fassung, mit der sie ausgefüllt wurde. Eine
+Vorlage, die schon verwendet wurde, lässt sich nur noch archivieren. Beim Veröffentlichen werden
+Regeln erneut geprüft, weil sich ein Feld nach dem Anlegen der Regel geändert haben kann.
+
+Neues Modul `checklisten` im Modulschalter, zehn neue Tabellen (Migration `9d6f31f78b88`, ändert
+keine bestehende Tabelle). Die Migration lief gegen eine frische SQLite- und eine frische
+PostgreSQL-Datenbank vollständig hin, zurück und wieder hin. 28 neue Tests, darunter Monteur
+403 auf jedem Endpunkt und deaktiviertes Modul 403 auch für Admins. Der Klicktest im Browser
+(isolierte Instanz, Konto "Büro – Auftrag") fand im eigenen Entwurf einen Fehler, vor dem Commit
+behoben: eine neue Regel bot nur die Bedingung "immer" an, weil die Bedingungsliste nach dem noch
+leeren Feld gefiltert wurde. Jetzt sind alle Bedingungen wählbar, und die Feldauswahl zeigt nur
+die dazu passenden Felder.
+
 ## 1.7.13 – Kolonnenführer: Gruppenkorrektur überschreibt keine Einzeländerung mehr
 
 Nachbesserung zu 1.7.12, lohnrelevant. Bisher überschrieb eine Gruppenkorrektur des

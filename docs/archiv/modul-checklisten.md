@@ -330,7 +330,7 @@ Zwischen den Versionen darf der Betreiber `/clear` machen -- dann diese Datei le
 | Version | Inhalt | Stand |
 |---|---|---|
 | — | Befund, Entscheidungen, Etappenplan (diese Datei), Verweis in CLAUDE.md | erledigt |
-| **1.8.0** | Modul `checklisten`, alle Tabellen + Migration, Vorlagenverwaltung (Liste `/checklisten/vorlagen`, eigene Editorseite `/checklisten/vorlagen/{id}`: Felder, Optionen, Regeln, Fassungen, Veröffentlichen), API, Tests | offen |
+| **1.8.0** | Modul `checklisten`, alle Tabellen + Migration, Vorlagenverwaltung (Liste `/checklisten/vorlagen`, eigene Editorseite `/checklisten/vorlagen/{id}`: Felder, Optionen, Regeln, Fassungen, Veröffentlichen), API, Tests | erledigt |
 | **1.8.1** | Ausfüllen: Anlegen in allen vier Kontexten, Antworten/Fotos/Unterschriften idempotent, Abschließen, Entwurf löschen, Einstiege in `/mobil` (Auftrag, Objektansicht, Geräteseite mit Einsatzbereitschafts-Hinweis), Büro-Übersicht `/checklisten`, Rechte + Angriffstest. **Danach anhalten und berichten** (Betreibervorgabe) | offen |
 | **1.8.2** | Regeln → Aufgaben, `ChecklistRuleExecution`, "Aufgaben nachholen" | offen |
 | **1.8.3** | PDF über den gemeinsamen Rahmen | offen |
@@ -338,3 +338,47 @@ Zwischen den Versionen darf der Betreiber `/clear` machen -- dann diese Datei le
 
 Nach jeder Version hier die Spalte "Stand" nachziehen und unten einen kurzen Abschnitt
 "Umsetzung 1.8.x" mit Abweichungen/Funden ergänzen.
+
+---
+
+## Umsetzung 1.8.0 (29.09.2026)
+
+- **Dateien**: `app/checklist_templates.py` (Geschäftslogik, rollenlos), `app/routers/
+  checklist_templates.py` (alle Endpunkte `require_min_role(ROLE_OFFICE_AUFTRAG)` + Modulprüfung),
+  Schemas am Ende von `app/schemas.py`, Modelle am Ende von `app/models.py`, Seiten
+  `checklist_templates.html` (Liste) und `checklist_template.html` (Editor), Seitenrouten in
+  `app/routers/pages.py`, Sidebar-Eintrag "Checklisten" (bis 1.8.1 direkt auf die Vorlagen),
+  Migration `9d6f31f78b88`, Tests `tests/test_v304_checklist_templates.py`.
+- **API** (Auszug): `/api/checklist-templates` (Liste/Anlegen), `…/{id}` (GET/PUT/DELETE),
+  `…/{id}/draft` (POST neuer Entwurf, idempotent / DELETE verwerfen), `…/{id}/publish`,
+  `…/{id}/copy`, `…/{id}/archive|unarchive`, `/api/checklist-template-versions/{id}` (GET) mit
+  `/fields`, `/fields/reorder`, `/rules`; `/api/checklist-template-fields/{id}` (PUT/DELETE,
+  `exclude_unset`) mit `/options`; `/api/checklist-template-field-options/{id}`,
+  `/api/checklist-template-rules/{id}`. Fehler: `ValueError` → 400, `LookupError`/fehlend → 404.
+- **Abweichungen/Ergänzungen zum Plan**:
+  - "+ Neue Vorlage" legt sofort eine Vorlage "Neue Vorlage" mit Entwurf 1 an und springt in den
+    Editor -- kein unter der Liste eingeblendetes Formular (Regel 10).
+  - Ein Entwurf lässt sich nur verwerfen, wenn schon einmal veröffentlicht wurde (sonst bliebe
+    keine Fassung übrig -- dafür "Vorlage löschen").
+  - `field_key` wird aus der Beschriftung erzeugt (Umlaute ausgeschrieben, `_` statt Leerzeichen),
+    eindeutig je Fassung; Umbenennen zieht die Regeln derselben Fassung mit. Ein Feld/eine Option,
+    auf die eine Regel verweist, ist nicht löschbar. Der `option_key` ist nach dem Anlegen fest.
+  - Typwechsel setzt typfremde Eigenschaften zurück (`_normalize_field()`), ein Wechsel weg von
+    "auswahl" löscht die Optionen. Einzel-Unterschrift erzwingt `max_count=1`.
+  - Veröffentlichen prüft: mindestens ein Kontext, mindestens ein ausfüllbares Feld, jedes
+    Auswahlfeld hat Optionen, jede Regel ist (noch) gültig.
+  - Regelprioritäten = `app/tasks.py::PRIORITIES`.
+- **Klicktest-Fund, vor dem Commit behoben**: das Regelformular filterte die Bedingungen nach dem
+  noch leeren Feld -- eine neue Regel bot nur "immer" an. Jetzt: alle Bedingungen wählbar, die
+  Feldauswahl zeigt die passenden Felder.
+- **Nebenbefund, nicht behoben**: ein reiner Import-Check (`python -c "import app.main"`) legt über
+  `create_all()` die neuen Tabellen in der lokalen `dachkonzepte_erp.db` an. Die Datei steht
+  ohnehin auf dem alten Migrationsstand `1375eeeea2fa` und wird über `create_all()` (auch bei
+  jedem Testlauf) nachgezogen, nicht über Alembic -- die zehn leeren Tabellen ändern daran
+  nichts. Die Migration war zu dem Zeitpunkt bereits erzeugt und ist vollständig.
+- **Verifikation**: Migration gegen frische SQLite UND frische PostgreSQL (portable Instanz,
+  eigene Probe-DB `checklisten_probe`, danach gelöscht) hin/zurück/hin, `alembic check` ohne
+  Abweichung, Vorlagenlogik direkt gegen PostgreSQL durchgespielt. Volle Suite 1919 grün.
+  Klicktest per CDP gegen eine isolierte Instanz (Temp-SQLite, Konto `buero_auftrag`): Liste,
+  Anlegen, Felder, Optionen, Typwechsel, Reihenfolge, Regel, Veröffentlichen, neuer Entwurf --
+  keine JS-Ausnahme. Die Klicktest-Skripte (Seed, CDP-Treiber) lagen nur im Scratchpad.

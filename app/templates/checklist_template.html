@@ -1,0 +1,498 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Checklisten-Vorlage</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--success:#1f8a5f;--success-soft:#eaf5ef;--warning:#9a6b00;--warning-soft:#fdf3dc;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--success:#4ade95;--success-soft:#173226;--warning:#f0c05a;--warning-soft:#3a2f14;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:1100px;margin:0;padding:20px}
+.breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:6px}
+.breadcrumb a{color:var(--accent);text-decoration:none}
+.hero{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.hero h1{margin:0 0 6px;font-size:22px}.muted{color:var(--muted)}.small{font-size:12.5px}
+.field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
+input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
+input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+input:disabled,select:disabled,textarea:disabled{background:var(--soft);color:var(--muted)}
+input[type=checkbox]{width:auto}
+textarea{min-height:60px;resize:vertical}
+button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+button.small-btn{padding:5px 9px;font-size:12.5px}
+.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
+.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
+.hidden{display:none!important}
+.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}.status.ok{color:var(--success)}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.card h2{margin:0 0 12px;font-size:16px}
+.fields-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fields-4col{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.full{grid-column:1/-1}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.chk-row{display:flex;gap:16px;flex-wrap:wrap}
+.chk-row label{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--ink);font-weight:500;margin:0}
+.badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.badge.ok{background:var(--success-soft);color:var(--success)}
+.badge.draft{background:var(--warning-soft);color:var(--warning)}
+.notice{padding:10px 12px;border-left:3px solid var(--warning);background:var(--warning-soft);font-size:13.5px;margin-bottom:14px}
+.notice.info{border-left-color:var(--accent);background:var(--soft)}
+.frow{border:1px solid var(--line);margin-bottom:6px}
+.frow-head{display:flex;gap:10px;align-items:center;padding:8px 10px;flex-wrap:wrap}
+.frow-head .lbl{flex:1;min-width:200px}
+.frow-head .key{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--muted)}
+.frow-body{border-top:1px solid var(--line);padding:12px;background:color-mix(in srgb,var(--soft) 45%,var(--card))}
+.group-title{font-size:12px;text-transform:uppercase;font-weight:800;color:var(--muted);margin:14px 0 6px}
+.opt-row{display:flex;gap:6px;margin-bottom:6px;align-items:center}
+.opt-row .key{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--muted);min-width:120px}
+.rule-row{border:1px solid var(--line);padding:10px;margin-bottom:6px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:650}
+tr:last-child td{border-bottom:none}
+.empty{padding:18px;text-align:center;color:var(--muted);font-size:13px}
+@media(max-width:700px){.fields-2col,.fields-4col{grid-template-columns:1fr}}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+{% include "_topbar.html" %}
+<main>
+{% if is_module_enabled('checklisten') %}
+<div class="breadcrumb"><a href="/checklisten/vorlagen">Checklisten-Vorlagen</a> / <span id="breadcrumbLabel">…</span></div>
+<div class="hero">
+  <div><h1 id="pageTitle">Vorlage</h1><div id="versionBadges"></div></div>
+  <div class="actions" style="margin-top:0" id="heroActions"></div>
+</div>
+<div id="pageStatus" class="status"></div>
+
+<div class="card">
+  <h2>Allgemein</h2>
+  <div class="fields-2col">
+    <div class="field full"><label>Bezeichnung *</label><input id="metaLabel"></div>
+    <div class="field full"><label>Beschreibung</label><textarea id="metaDescription"></textarea></div>
+    <div class="field full"><label>Wo darf sie ausgefüllt werden? *</label>
+      <div class="chk-row">
+        <label><input type="checkbox" id="ctx_auftrag"> Auftrag</label>
+        <label><input type="checkbox" id="ctx_objekt"> Objekt</label>
+        <label><input type="checkbox" id="ctx_betriebsmittel"> Betriebsmittel</label>
+        <label><input type="checkbox" id="ctx_betrieb"> Betrieb <span class="muted small">(z. B. Unterweisung, nur Büro legt an)</span></label>
+      </div>
+    </div>
+    <div class="field full"><div class="chk-row"><label><input type="checkbox" id="metaFieldReadable"> Für Monteure lesbar <span class="muted small">(Monteure sehen die Antworten fremder Checklisten dieser Vorlage, sonst nur Titel, Datum und Ersteller)</span></label></div></div>
+  </div>
+  <div class="actions"><button onclick="saveMeta()">Speichern</button><span id="metaStatus" class="status"></span></div>
+  <div class="muted small" style="margin-top:8px">Diese Angaben gehören nicht zur Fassung und gelten sofort. Bereits ausgefüllte Checklisten behalten ihre damalige Bezeichnung.</div>
+</div>
+
+<div id="versionNotice"></div>
+
+<div class="card">
+  <h2>Felder</h2>
+  <div id="fieldList"></div>
+  <div class="actions" id="addFieldActions">
+    <select id="newFieldType" style="width:auto"></select>
+    <button onclick="addField()">+ Feld</button>
+    <span id="fieldStatus" class="status"></span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Regeln</h2>
+  <div class="muted small" style="margin-bottom:10px">Eine Regel legt beim Abschluss einer Checkliste eine Aufgabe fürs Büro an (Aufgabenmodul). Monteure sehen keine Aufgaben, deshalb richtet sich jede Regel an eine Büro- oder Admin-Rolle.</div>
+  <div id="ruleList"></div>
+  <div class="actions" id="addRuleActions"><button onclick="addRule()">+ Regel</button><span id="ruleStatus" class="status"></span></div>
+</div>
+
+<div class="card">
+  <h2>Fassungen</h2>
+  <table><thead><tr><th>Fassung</th><th>Status</th><th>Veröffentlicht</th><th>Felder</th><th></th></tr></thead><tbody id="versionRows"></tbody></table>
+  <div id="versionView"></div>
+</div>
+{% else %}
+<div class="card"><h2>Checklisten-Vorlage</h2><div class="muted">Das Modul Checklisten &amp; Formulare ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+{% endif %}
+</main>
+</div>
+</div>
+<script>
+const templateId={{ template_id }};
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+const json=(method,body)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+
+const FIELD_TYPES=[['ja_nein','Ja/Nein'],['text','Text'],['zahl','Zahl'],['auswahl','Auswahl'],['datum','Datum'],['uhrzeit','Uhrzeit'],['datum_uhrzeit','Datum und Uhrzeit'],['foto','Foto'],['unterschrift','Unterschrift'],['hinweis','Hinweistext']];
+const TYPE_LABEL=Object.fromEntries(FIELD_TYPES);
+const OPERATORS=[['immer','immer (bei jedem Abschluss)',null],['ist_ja','ist „Ja“',['ja_nein']],['ist_nein','ist „Nein“',['ja_nein']],['enthaelt','enthält Option',['auswahl']],['kleiner','kleiner als',['zahl']],['groesser','größer als',['zahl']],['gleich','gleich',['zahl']],['ausgefuellt','ist ausgefüllt','*']];
+const PRIORITIES=[['niedrig','niedrig'],['normal','normal'],['hoch','hoch'],['dringend','dringend']];
+const ROLES=[['buero_auftrag','Büro – Auftrag (und höher)'],['buero_finanzen','Büro – Finanzen (und höher)'],['admin','nur Administrator']];
+const CONTEXTS=['auftrag','objekt','betriebsmittel','betrieb'];
+
+let template=null,version=null,openFieldId=null,openRuleId=null;
+const editable=()=>version&&version.status==='entwurf';
+const dis=()=>editable()?'':'disabled';
+
+function setStatus(id,text,cls){const el=document.getElementById(id);if(!el)return;el.className='status'+(cls?' '+cls:'');el.textContent=text||''}
+
+// --- Kopf, Allgemein, Fassungshinweis --------------------------------------------------
+
+function renderHead(){
+  document.getElementById('pageTitle').textContent=template.label;
+  document.getElementById('breadcrumbLabel').textContent=template.label;
+  const b=[];
+  b.push(template.published_version_no?`<span class="badge ok">Gültig: Fassung ${template.published_version_no}</span>`:'<span class="badge">noch nicht veröffentlicht</span>');
+  if(template.draft_version_no)b.push(`<span class="badge draft">Entwurf: Fassung ${template.draft_version_no}</span>`);
+  if(template.archived)b.push('<span class="badge">Archiviert</span>');
+  document.getElementById('versionBadges').innerHTML=b.join(' ');
+  const a=[];
+  if(template.draft_version_id){
+    a.push('<button onclick="publish()">Entwurf veröffentlichen</button>');
+    if(template.published_version_no)a.push('<button class="secondary" onclick="discardDraft()">Entwurf verwerfen</button>');
+  }else{
+    a.push('<button onclick="startDraft()">Neuen Entwurf anlegen</button>');
+  }
+  a.push('<input id="copyLabel" placeholder="Name der Kopie …" style="width:200px">','<button class="secondary" onclick="copyTemplate()">Kopieren</button>');
+  a.push(`<button class="secondary" onclick="toggleArchived()">${template.archived?'Entarchivieren':'Archivieren'}</button>`);
+  a.push('<button class="danger" onclick="deleteTemplate()">Löschen</button>');
+  document.getElementById('heroActions').innerHTML=a.join('');
+}
+
+function renderMeta(){
+  document.getElementById('metaLabel').value=template.label;
+  document.getElementById('metaDescription').value=template.description||'';
+  for(const c of CONTEXTS)document.getElementById('ctx_'+c).checked=template.contexts.includes(c);
+  document.getElementById('metaFieldReadable').checked=template.field_readable;
+}
+
+function renderVersionNotice(){
+  const el=document.getElementById('versionNotice');
+  if(!version){el.innerHTML='';return}
+  el.innerHTML=editable()
+    ?`<div class="notice">Sie bearbeiten den <b>Entwurf (Fassung ${version.version_no})</b>. Monteure sehen ihn erst nach dem Veröffentlichen; bereits ausgefüllte Checklisten behalten ihre Fassung.</div>`
+    :`<div class="notice info">Sie sehen die <b>gültige Fassung ${version.version_no}</b> (nur lesen). Zum Ändern „Neuen Entwurf anlegen“.</div>`;
+  document.getElementById('addFieldActions').classList.toggle('hidden',!editable());
+  document.getElementById('addRuleActions').classList.toggle('hidden',!editable());
+}
+
+function renderVersions(){
+  document.getElementById('versionRows').innerHTML=template.versions.slice().reverse().map(v=>{
+    const st={entwurf:'<span class="badge draft">Entwurf</span>',veroeffentlicht:'<span class="badge ok">gültig</span>',abgeloest:'<span class="badge">abgelöst</span>'}[v.status]||esc(v.status);
+    const pub=v.published_at?new Date(v.published_at+'Z').toLocaleString('de-DE'):'—';
+    return `<tr><td>${v.version_no}</td><td>${st}</td><td>${pub}</td><td>${v.field_count}</td><td><button class="secondary small-btn" onclick="viewVersion(${v.id})">Ansehen</button></td></tr>`;
+  }).join('')||'<tr><td colspan="5" class="empty">Keine Fassungen.</td></tr>';
+}
+
+async function viewVersion(versionId){
+  const v=await api(`/api/checklist-template-versions/${versionId}`);
+  const rows=v.fields.map(f=>`<tr><td>${esc(f.group_name||'')}</td><td>${esc(f.label)}</td><td>${esc(TYPE_LABEL[f.field_type]||f.field_type)}</td><td>${f.required?'Pflicht':''}</td><td class="key">${esc(f.field_key)}</td></tr>`).join('');
+  document.getElementById('versionView').innerHTML=`<div class="group-title">Fassung ${v.version_no} – Felder</div><table><thead><tr><th>Abschnitt</th><th>Beschriftung</th><th>Typ</th><th></th><th>Schlüssel</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">Keine Felder.</td></tr>'}</tbody></table><div class="actions"><button class="secondary small-btn" onclick="document.getElementById('versionView').innerHTML=''">Schließen</button></div>`;
+}
+
+// --- Felder ------------------------------------------------------------------------------
+
+function typeOptions(selected){return FIELD_TYPES.map(([v,l])=>`<option value="${v}" ${v===selected?'selected':''}>${l}</option>`).join('')}
+
+function fieldSummary(f){
+  const bits=[];
+  if(f.required)bits.push('Pflicht');
+  if(f.field_type==='ja_nein'&&f.allow_na)bits.push('mit „entfällt“');
+  if(f.field_type==='auswahl')bits.push((f.multiple?'mehrfach, ':'')+f.options.length+' Optionen');
+  if(f.field_type==='zahl'&&f.unit)bits.push(f.unit);
+  if(f.field_type==='foto'||f.field_type==='unterschrift'){
+    const range=[f.min_count?`min ${f.min_count}`:null,f.max_count?`max ${f.max_count}`:null].filter(Boolean).join(', ');
+    if(range)bits.push(range);
+  }
+  if(f.is_system)bits.push('Systemfeld');
+  return bits.join(' · ');
+}
+
+function fieldBody(f){
+  const d=dis();
+  const t=f.field_type;
+  let html=`<div class="fields-2col">
+    <div class="field full"><label>Beschriftung *</label><input data-k="label" value="${esc(f.label)}" ${d}></div>
+    <div class="field"><label>Typ</label><select data-k="field_type" ${d} ${f.is_system?'disabled':''} onchange="changeType(${f.id},this.value)">${typeOptions(t)}</select></div>
+    <div class="field"><label>Schlüssel <span class="muted small">(für Regeln/Auswertungen)</span></label><input data-k="field_key" value="${esc(f.field_key)}" ${d} ${f.is_system?'disabled':''}></div>
+    <div class="field"><label>Abschnitt</label><input data-k="group_name" value="${esc(f.group_name)}" ${d} placeholder="optional"></div>
+    <div class="field"><label>&nbsp;</label><div class="chk-row">${t!=='hinweis'?`<label><input type="checkbox" data-k="required" ${f.required?'checked':''} ${d}> Pflichtfeld</label>`:''}</div></div>
+    <div class="field full"><label>${t==='hinweis'?'Hinweistext':'Hilfetext'}</label><textarea data-k="help_text" ${d}>${esc(f.help_text)}</textarea></div>`;
+  if(t==='ja_nein')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="allow_na" ${f.allow_na?'checked':''} ${d}> dritte Wahl „entfällt“</label></div></div>`;
+  if(t==='text')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="multiline" ${f.multiline?'checked':''} ${d}> mehrzeilig</label></div></div>`;
+  if(t==='zahl')html+=`<div class="field full"><div class="fields-4col">
+      <div class="field"><label>Einheit</label><input data-k="unit" value="${esc(f.unit)}" ${d}></div>
+      <div class="field"><label>Mindestwert</label><input type="number" step="any" data-k="min_value" value="${f.min_value??''}" ${d}></div>
+      <div class="field"><label>Höchstwert</label><input type="number" step="any" data-k="max_value" value="${f.max_value??''}" ${d}></div>
+      <div class="field"><label>Nachkommastellen</label><input type="number" min="0" max="4" data-k="decimals" value="${f.decimals??''}" ${d}></div></div></div>`;
+  if(t==='datum'||t==='uhrzeit'||t==='datum_uhrzeit')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="prefill_now" ${f.prefill_now?'checked':''} ${d}> mit „jetzt“ vorbelegen</label></div></div>`;
+  if(t==='unterschrift')html+=`<div class="field"><label>Wer unterschreibt?</label><input data-k="signer_label" value="${esc(f.signer_label)}" placeholder="z. B. Monteur, Kunde, Brandwache" ${d}></div>
+      <div class="field"><label>&nbsp;</label><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${d}> mehrere Unterschriften (z. B. Teilnehmer)</label></div></div>`;
+  if(t==='auswahl')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${d}> Mehrfachauswahl</label></div></div>`;
+  if(t==='foto'||(t==='unterschrift'&&f.multiple))html+=`<div class="field"><label>Mindestanzahl</label><input type="number" min="0" data-k="min_count" value="${f.min_count??''}" ${d}></div>
+      <div class="field"><label>Höchstanzahl</label><input type="number" min="1" max="20" data-k="max_count" value="${f.max_count??''}" ${d}></div>`;
+  html+='</div>';
+  if(t==='auswahl'){
+    html+=`<div class="group-title">Optionen</div>`+f.options.map(o=>`<div class="opt-row">
+      <span class="key">${esc(o.option_key)}</span>
+      <input value="${esc(o.label)}" ${d} onchange="renameOption(${o.id},this.value)">
+      ${editable()?`<button class="danger small-btn" onclick="deleteOption(${o.id})">×</button>`:''}</div>`).join('')
+      +(f.options.length?'':'<div class="muted small">Noch keine Optionen.</div>');
+    if(editable())html+=`<div class="opt-row"><input id="newOpt_${f.id}" placeholder="Neue Option …" onkeydown="if(event.key==='Enter')addOption(${f.id})"><button class="secondary small-btn" onclick="addOption(${f.id})">+ Option</button></div>`;
+  }
+  if(editable())html+=`<div class="actions"><button onclick="saveField(${f.id})">Feld speichern</button>${f.is_system?'':`<button class="danger" onclick="deleteField(${f.id})">Feld löschen</button>`}<span id="fst_${f.id}" class="status"></span></div>`;
+  return html;
+}
+
+function renderFields(){
+  const el=document.getElementById('fieldList');
+  if(!version){el.innerHTML='<div class="empty">Keine Fassung vorhanden.</div>';return}
+  let html='',lastGroup=undefined;
+  version.fields.forEach((f,i)=>{
+    if((f.group_name||'')!==(lastGroup??'')&&f.group_name){html+=`<div class="group-title">${esc(f.group_name)}</div>`}
+    lastGroup=f.group_name||'';
+    const move=editable()?`<button class="secondary small-btn" ${i===0?'disabled':''} onclick="moveField(${i},-1)" title="nach oben">↑</button><button class="secondary small-btn" ${i===version.fields.length-1?'disabled':''} onclick="moveField(${i},1)" title="nach unten">↓</button>`:'';
+    html+=`<div class="frow" id="frow_${f.id}"><div class="frow-head">${move}
+      <span class="badge">${esc(TYPE_LABEL[f.field_type]||f.field_type)}</span>
+      <span class="lbl">${esc(f.label)} <span class="muted small">${esc(fieldSummary(f))}</span></span>
+      <span class="key">${esc(f.field_key)}</span>
+      <button class="secondary small-btn" onclick="toggleField(${f.id})">${openFieldId===f.id?'Schließen':(editable()?'Bearbeiten':'Details')}</button></div>
+      ${openFieldId===f.id?`<div class="frow-body">${fieldBody(f)}</div>`:''}</div>`;
+  });
+  el.innerHTML=html||'<div class="empty">Noch keine Felder. Unten einen Typ wählen und „+ Feld“.</div>';
+}
+
+function toggleField(id){openFieldId=openFieldId===id?null:id;renderFields()}
+
+function readFieldForm(id){
+  const body=document.querySelector(`#frow_${id} .frow-body`);
+  const out={};
+  body.querySelectorAll('[data-k]').forEach(el=>{
+    const k=el.dataset.k;
+    if(el.disabled)return;
+    if(el.type==='checkbox')out[k]=el.checked;
+    else if(el.type==='number')out[k]=el.value===''?null:Number(el.value);
+    else out[k]=el.value;
+  });
+  return out;
+}
+
+async function saveField(id){
+  try{
+    version=await api(`/api/checklist-template-fields/${id}`,json('PUT',readFieldForm(id)));
+    await reloadTemplate(false);
+    renderFields();renderRules();
+    setStatus('fst_'+id,'Gespeichert.','ok');
+  }catch(e){setStatus('fst_'+id,'Fehler: '+e.message,'err')}
+}
+
+async function changeType(id,type){
+  // Typwechsel sofort speichern -- die typabhängigen Einstellungen im Formular ändern sich damit.
+  try{
+    version=await api(`/api/checklist-template-fields/${id}`,json('PUT',{...readFieldForm(id),field_type:type}));
+    await reloadTemplate(false);renderFields();renderRules();
+  }catch(e){setStatus('fst_'+id,'Fehler: '+e.message,'err')}
+}
+
+async function addField(){
+  const type=document.getElementById('newFieldType').value;
+  try{
+    version=await api(`/api/checklist-template-versions/${version.id}/fields`,json('POST',{field_type:type,label:'Neues Feld: '+TYPE_LABEL[type]}));
+    openFieldId=version.fields[version.fields.length-1]?.id??null;
+    await reloadTemplate(false);renderFields();
+    setStatus('fieldStatus','');
+    document.getElementById('frow_'+openFieldId)?.scrollIntoView({behavior:'smooth',block:'center'});
+  }catch(e){setStatus('fieldStatus','Fehler: '+e.message,'err')}
+}
+
+async function deleteField(id){
+  if(!confirm('Dieses Feld wirklich löschen?'))return;
+  try{
+    version=await api(`/api/checklist-template-fields/${id}`,{method:'DELETE'});
+    openFieldId=null;await reloadTemplate(false);renderFields();
+  }catch(e){setStatus('fst_'+id,'Fehler: '+e.message,'err')}
+}
+
+async function moveField(index,delta){
+  const ids=version.fields.map(f=>f.id);
+  const j=index+delta;
+  [ids[index],ids[j]]=[ids[j],ids[index]];
+  try{version=await api(`/api/checklist-template-versions/${version.id}/fields/reorder`,json('POST',{field_ids:ids}));renderFields()}
+  catch(e){setStatus('fieldStatus','Fehler: '+e.message,'err')}
+}
+
+async function addOption(fieldId){
+  const input=document.getElementById('newOpt_'+fieldId);
+  const label=input.value.trim();
+  if(!label)return;
+  try{version=await api(`/api/checklist-template-fields/${fieldId}/options`,json('POST',{label}));renderFields();renderRules();document.getElementById('newOpt_'+fieldId)?.focus()}
+  catch(e){setStatus('fst_'+fieldId,'Fehler: '+e.message,'err')}
+}
+async function renameOption(optionId,label){
+  try{version=await api(`/api/checklist-template-field-options/${optionId}`,json('PUT',{label}));renderRules()}
+  catch(e){alert('Fehler: '+e.message)}
+}
+async function deleteOption(optionId){
+  try{version=await api(`/api/checklist-template-field-options/${optionId}`,{method:'DELETE'});renderFields();renderRules()}
+  catch(e){alert('Fehler: '+e.message)}
+}
+
+// --- Regeln ------------------------------------------------------------------------------
+
+function operatorAllowed(op,field){
+  const types=(OPERATORS.find(o=>o[0]===op)||[])[2];
+  if(types===null)return !field;
+  if(!field)return false;
+  if(types==='*')return field.field_type!=='hinweis';
+  return types.includes(field.field_type);
+}
+
+function describeRule(r){
+  const f=version.fields.find(x=>x.field_key===r.field_key);
+  const opLabel=(OPERATORS.find(o=>o[0]===r.operator)||[])[1]||r.operator;
+  let cond=r.operator==='immer'?'Immer':`„${esc(f?f.label:r.field_key)}“ ${esc(opLabel)}`;
+  if(r.operator==='enthaelt'){const o=f?.options.find(x=>x.option_key===r.operand);cond+=` „${esc(o?o.label:r.operand)}“`}
+  if(['kleiner','groesser','gleich'].includes(r.operator))cond+=` ${esc(r.operand)}${f&&f.unit?' '+esc(f.unit):''}`;
+  const to=r.assignee_mode==='sachbearbeiter'?'Sachbearbeiter des Auftrags':(ROLES.find(x=>x[0]===r.min_visible_role)||[,r.min_visible_role])[1];
+  return `<b>${cond}</b> → Aufgabe „${esc(r.task_title)}“ <span class="muted small">(${esc(r.task_priority)}, an ${esc(to)}${r.due_in_days!=null?`, fällig in ${r.due_in_days} Tagen`:''})</span>`;
+}
+
+function ruleForm(r){
+  const d=dis();
+  // Erst die Bedingung, dann nur die dazu passenden Felder -- so ist jede Bedingung jederzeit
+  // wählbar (vorher bot eine neue "immer"-Regel gar keine andere Bedingung an).
+  const fitting=version.fields.filter(f=>r.operator!=='immer'&&operatorAllowed(r.operator,f));
+  const fieldOpts='<option value="">— Feld wählen —</option>'+fitting.map(f=>`<option value="${esc(f.field_key)}" ${f.field_key===r.field_key?'selected':''}>${esc(f.label)} (${esc(TYPE_LABEL[f.field_type])})</option>`).join('');
+  const field=fitting.find(f=>f.field_key===r.field_key);
+  const ops=OPERATORS.map(([v,l])=>`<option value="${v}" ${v===r.operator?'selected':''}>${esc(l)}</option>`).join('');
+  let operand='';
+  if(r.operator==='enthaelt'&&field)operand=`<div class="field"><label>Option</label><select data-r="operand" ${d}>${field.options.map(o=>`<option value="${esc(o.option_key)}" ${o.option_key===r.operand?'selected':''}>${esc(o.label)}</option>`).join('')}</select></div>`;
+  if(['kleiner','groesser','gleich'].includes(r.operator))operand=`<div class="field"><label>Vergleichswert</label><input type="number" step="any" data-r="operand" value="${esc(r.operand)}" ${d}></div>`;
+  return `<div class="fields-2col">
+    <div class="field"><label>Bedingung</label><select data-r="operator" ${d} onchange="ruleDraftChange(${r.id??'null'})">${ops}</select></div>
+    ${r.operator==='immer'?'<div></div>':`<div class="field"><label>Feld</label><select data-r="field_key" ${d} onchange="ruleDraftChange(${r.id??'null'})">${fieldOpts}</select>${fitting.length?'':'<div class="muted small">Kein Feld dieser Fassung passt zu dieser Bedingung.</div>'}</div>`}
+    ${operand}
+    <div class="field full"><label>Aufgabentitel * <span class="muted small">(Platzhalter: {vorlage}, {kontext}, {ersteller})</span></label><input data-r="task_title" value="${esc(r.task_title)}" ${d}></div>
+    <div class="field full"><label>Beschreibung der Aufgabe</label><textarea data-r="task_description" ${d}>${esc(r.task_description)}</textarea></div>
+    <div class="field"><label>Priorität</label><select data-r="task_priority" ${d}>${PRIORITIES.map(([v,l])=>`<option value="${v}" ${v===r.task_priority?'selected':''}>${l}</option>`).join('')}</select></div>
+    <div class="field"><label>Fällig in (Tagen)</label><input type="number" min="0" max="365" data-r="due_in_days" value="${r.due_in_days??''}" ${d} placeholder="ohne Fälligkeit"></div>
+    <div class="field"><label>Empfänger</label><select data-r="assignee_mode" ${d}><option value="rolle" ${r.assignee_mode==='rolle'?'selected':''}>Büro nach Rolle (übernehmen)</option><option value="sachbearbeiter" ${r.assignee_mode==='sachbearbeiter'?'selected':''}>Sachbearbeiter des Auftrags</option></select></div>
+    <div class="field"><label>Sichtbar für <span class="muted small">(ohne Sachbearbeiter)</span></label><select data-r="min_visible_role" ${d}>${ROLES.map(([v,l])=>`<option value="${v}" ${v===r.min_visible_role?'selected':''}>${l}</option>`).join('')}</select></div>
+  </div>`;
+}
+
+let ruleDraft=null;  // ungespeicherter Zwischenstand der gerade offenen Regel
+
+function readRuleForm(){
+  const box=document.getElementById('ruleForm');
+  const out={};
+  box.querySelectorAll('[data-r]').forEach(el=>{
+    const k=el.dataset.r;
+    if(k==='due_in_days')out[k]=el.value===''?null:Number(el.value);
+    else out[k]=el.value===''&&(k==='field_key'||k==='operand'||k==='task_description')?null:el.value;
+  });
+  return out;
+}
+
+function ruleDraftChange(){ruleDraft={...ruleDraft,...readRuleForm()};renderRules()}
+
+function renderRules(){
+  const el=document.getElementById('ruleList');
+  if(!version){el.innerHTML='';return}
+  let html=version.rules.map(r=>{
+    const open=openRuleId===r.id;
+    const shown=open&&ruleDraft?ruleDraft:r;
+    return `<div class="rule-row"><div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap"><div>${describeRule(r)}</div>
+      <button class="secondary small-btn" onclick="toggleRule(${r.id})">${open?'Schließen':(editable()?'Bearbeiten':'Details')}</button></div>
+      ${open?`<div id="ruleForm" style="margin-top:10px">${ruleForm(shown)}</div>${editable()?`<div class="actions"><button onclick="saveRule(${r.id})">Regel speichern</button><button class="danger" onclick="deleteRule(${r.id})">Regel löschen</button><span id="rst" class="status"></span></div>`:''}`:''}</div>`;
+  }).join('');
+  if(openRuleId==='new'&&ruleDraft){
+    html+=`<div class="rule-row"><b>Neue Regel</b><div id="ruleForm" style="margin-top:10px">${ruleForm(ruleDraft)}</div><div class="actions"><button onclick="saveRule(null)">Regel anlegen</button><button class="secondary" onclick="openRuleId=null;ruleDraft=null;renderRules()">Abbrechen</button><span id="rst" class="status"></span></div></div>`;
+  }
+  el.innerHTML=html||'<div class="empty">Keine Regeln.</div>';
+}
+
+function toggleRule(id){
+  if(openRuleId===id){openRuleId=null;ruleDraft=null}
+  else{openRuleId=id;ruleDraft={...version.rules.find(r=>r.id===id)}}
+  renderRules();
+}
+
+function addRule(){
+  openRuleId='new';
+  ruleDraft={id:null,operator:'immer',field_key:null,operand:null,task_title:'{vorlage}: {kontext}',task_description:null,task_priority:'normal',due_in_days:null,assignee_mode:'rolle',min_visible_role:'buero_auftrag'};
+  renderRules();
+}
+
+async function saveRule(id){
+  const payload={...ruleDraft,...readRuleForm()};
+  delete payload.id;delete payload.version_id;delete payload.sort_order;
+  if(payload.operator==='immer'){payload.field_key=null;payload.operand=null}
+  try{
+    version=id?await api(`/api/checklist-template-rules/${id}`,json('PUT',payload))
+              :await api(`/api/checklist-template-versions/${version.id}/rules`,json('POST',payload));
+    openRuleId=null;ruleDraft=null;renderRules();
+    setStatus('ruleStatus','Gespeichert.','ok');
+  }catch(e){setStatus('rst','Fehler: '+e.message,'err')}
+}
+
+async function deleteRule(id){
+  if(!confirm('Diese Regel wirklich löschen?'))return;
+  try{version=await api(`/api/checklist-template-rules/${id}`,{method:'DELETE'});openRuleId=null;ruleDraft=null;renderRules()}
+  catch(e){setStatus('rst','Fehler: '+e.message,'err')}
+}
+
+// --- Aktionen am Kopf --------------------------------------------------------------------
+
+async function saveMeta(){
+  const payload={
+    label:document.getElementById('metaLabel').value.trim(),
+    description:document.getElementById('metaDescription').value.trim()||null,
+    contexts:CONTEXTS.filter(c=>document.getElementById('ctx_'+c).checked),
+    field_readable:document.getElementById('metaFieldReadable').checked,
+  };
+  if(!payload.label){setStatus('metaStatus','Bitte eine Bezeichnung angeben.','err');return}
+  try{template=await api(`/api/checklist-templates/${templateId}`,json('PUT',payload));renderHead();setStatus('metaStatus','Gespeichert.','ok')}
+  catch(e){setStatus('metaStatus','Fehler: '+e.message,'err')}
+}
+
+async function templateAction(url,method,confirmText){
+  if(confirmText&&!confirm(confirmText))return;
+  try{
+    template=await api(url,{method});
+    version=template.editable_version;openFieldId=null;openRuleId=null;ruleDraft=null;
+    renderAll();setStatus('pageStatus','');
+  }catch(e){setStatus('pageStatus','Fehler: '+e.message,'err');window.scrollTo(0,0)}
+}
+const startDraft=()=>templateAction(`/api/checklist-templates/${templateId}/draft`,'POST');
+const discardDraft=()=>templateAction(`/api/checklist-templates/${templateId}/draft`,'DELETE','Den Entwurf mit allen Änderungen verwerfen?');
+const publish=()=>templateAction(`/api/checklist-templates/${templateId}/publish`,'POST','Entwurf veröffentlichen? Monteure füllen ab dann diese Fassung aus.');
+const toggleArchived=()=>templateAction(`/api/checklist-templates/${templateId}/${template.archived?'unarchive':'archive'}`,'POST');
+
+async function copyTemplate(){
+  const label=document.getElementById('copyLabel').value.trim();
+  if(!label){setStatus('pageStatus','Bitte einen Namen für die Kopie angeben.','err');return}
+  try{const c=await api(`/api/checklist-templates/${templateId}/copy`,json('POST',{label}));location.href='/checklisten/vorlagen/'+c.id}
+  catch(e){setStatus('pageStatus','Fehler: '+e.message,'err')}
+}
+
+async function deleteTemplate(){
+  if(!confirm('Diese Vorlage mit allen Fassungen wirklich löschen?'))return;
+  try{await api(`/api/checklist-templates/${templateId}`,{method:'DELETE'});location.href='/checklisten/vorlagen'}
+  catch(e){setStatus('pageStatus','Fehler: '+e.message,'err');window.scrollTo(0,0)}
+}
+
+async function reloadTemplate(resetVersion=true){
+  template=await api(`/api/checklist-templates/${templateId}`);
+  if(resetVersion)version=template.editable_version;
+  renderHead();renderVersions();renderVersionNotice();
+}
+
+function renderAll(){renderHead();renderMeta();renderVersionNotice();renderFields();renderRules();renderVersions()}
+
+async function init(){
+  if(!document.getElementById('fieldList'))return;
+  document.getElementById('newFieldType').innerHTML=typeOptions('ja_nein');
+  try{await reloadTemplate(true);renderAll()}
+  catch(e){setStatus('pageStatus','Fehler: '+e.message,'err')}
+}
+init();
+</script>
+</body></html>

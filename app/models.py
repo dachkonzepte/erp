@@ -4286,3 +4286,287 @@ class AICallLog(Base):
     output_tokens: Mapped[int | None] = mapped_column(nullable=True)
     cost_estimate: Mapped[Decimal | None] = mapped_column(Numeric(10, 4), nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(nullable=True)
+
+
+# --- Checklisten-Baukasten (seit 1.8.0, Modul "checklisten") -------------------------------------
+# Verbindliche Herleitung und Etappenplan: docs/archiv/modul-checklisten.md. Kurzfassung: eine
+# Vorlage (ChecklistTemplate) hat nummerierte Fassungen (ChecklistTemplateVersion); nur eine
+# Entwurfsfassung ist änderbar, eine veröffentlichte ist eingefroren und damit selbst der
+# Schnappschuss, auf den eine ausgefüllte Checkliste verweist -- keine Feldkopie in jede Antwort
+# wie bei InspectionItem. Bewusst ein eigenes Modell statt einer Verallgemeinerung von
+# InspectionTemplate (dort Dachtyp-/Bauteil-Multiplikation und Wartungslogik, siehe Archiv).
+
+
+class ChecklistTemplate(Base):
+    """Identität und veränderliche Verwaltungsdaten einer Checklisten-Vorlage (seit 1.8.0).
+    label/description/Kontexte/field_readable dürfen sich jederzeit ändern: eine ausgefüllte
+    Checkliste friert ihr Label beim Anlegen ein (Checklist.template_label_snapshot), die vier
+    context_*-Schalter wirken nur auf das Anlegen NEUER Checklisten. Der eigentliche Inhalt
+    (Felder, Optionen, Regeln) hängt an ChecklistTemplateVersion, nicht hier.
+
+    purpose ist in Stufe 1 immer "allgemein" -- Andockpunkt für Stufe 2 (Regiebericht, Abnahme,
+    Behinderungs-/Bedenkenanzeige mit eigener Folge). field_readable (Betreiberentscheidung B):
+    ein Monteur sieht die ANTWORTEN fremder Checklisten dieser Vorlage nur, wenn es gesetzt ist,
+    sonst nur Titel/Datum/Ersteller/Status."""
+
+    __tablename__ = "checklist_templates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    label: Mapped[str] = mapped_column(String(160))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    purpose: Mapped[str] = mapped_column(String(40), default="allgemein", server_default="allgemein")
+    context_order: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    context_property: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    context_asset: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    context_company: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    field_readable: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    sort_order: Mapped[int] = mapped_column(default=100, server_default="100")
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    versions: Mapped[list["ChecklistTemplateVersion"]] = relationship(
+        back_populates="template", cascade="all, delete-orphan", order_by="ChecklistTemplateVersion.version_no",
+    )
+
+
+class ChecklistTemplateVersion(Base):
+    """Fassung einer Vorlage (seit 1.8.0) -- status entwurf|veroeffentlicht|abgeloest.
+    Höchstens EINE Entwurfsfassung je Vorlage (Geschäftslogik, app/checklist_templates.py);
+    nur deren Felder/Optionen/Regeln sind änderbar. Veröffentlichen macht den Entwurf zur
+    gültigen Fassung und die bisher gültige zu "abgeloest". Eine Fassung, auf die eine
+    Checkliste verweist, ist nie löschbar."""
+
+    __tablename__ = "checklist_template_versions"
+    __table_args__ = (UniqueConstraint("template_id", "version_no", name="uq_checklist_template_version_no"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    template_id: Mapped[int] = mapped_column(ForeignKey("checklist_templates.id"), index=True)
+    version_no: Mapped[int] = mapped_column()
+    status: Mapped[str] = mapped_column(String(20), default="entwurf", server_default="entwurf", index=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    published_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    template: Mapped["ChecklistTemplate"] = relationship(back_populates="versions")
+    fields: Mapped[list["ChecklistTemplateField"]] = relationship(
+        back_populates="version", cascade="all, delete-orphan",
+        order_by="ChecklistTemplateField.sort_order, ChecklistTemplateField.id",
+    )
+    rules: Mapped[list["ChecklistTemplateRule"]] = relationship(
+        back_populates="version", cascade="all, delete-orphan",
+        order_by="ChecklistTemplateRule.sort_order, ChecklistTemplateRule.id",
+    )
+
+
+class ChecklistTemplateField(Base):
+    """Feld einer Vorlagenfassung (seit 1.8.0). field_type ist ein Code-Tupel
+    (FIELD_TYPES in app/checklist_templates.py), keine Optionsgruppe. field_key ist je Fassung
+    eindeutig und bleibt beim Kopieren in eine neue Fassung erhalten -- darüber finden
+    Auswertungen, Regeln, die Einsatzbereitschaft eines Geräts (field_key "einsatzbereit") und
+    künftig die Stufe-2-Folgelogik ein Feld wieder, nie über die Beschriftung. is_system
+    (Stufe 2): umbenennbar, aber nicht löschbar und Schlüssel/Typ nicht änderbar."""
+
+    __tablename__ = "checklist_template_fields"
+    __table_args__ = (UniqueConstraint("version_id", "field_key", name="uq_checklist_template_field_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    version_id: Mapped[int] = mapped_column(ForeignKey("checklist_template_versions.id"), index=True)
+    field_key: Mapped[str] = mapped_column(String(80))
+    sort_order: Mapped[int] = mapped_column(default=100, server_default="100")
+    group_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    field_type: Mapped[str] = mapped_column(String(30))
+    label: Mapped[str] = mapped_column(String(500))
+    help_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    required: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    allow_na: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    multiline: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    multiple: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    min_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    max_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    decimals: Mapped[int | None] = mapped_column(nullable=True)
+    min_count: Mapped[int | None] = mapped_column(nullable=True)
+    max_count: Mapped[int | None] = mapped_column(nullable=True)
+    prefill_now: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    signer_label: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+
+    version: Mapped["ChecklistTemplateVersion"] = relationship(back_populates="fields")
+    options: Mapped[list["ChecklistTemplateFieldOption"]] = relationship(
+        back_populates="field", cascade="all, delete-orphan",
+        order_by="ChecklistTemplateFieldOption.sort_order, ChecklistTemplateFieldOption.id",
+    )
+
+
+class ChecklistTemplateFieldOption(Base):
+    """Auswahloption eines Felds vom Typ "auswahl" (seit 1.8.0). option_key ist der stabile
+    Wert, den eine Antwort speichert und eine Regel ("enthaelt") vergleicht."""
+
+    __tablename__ = "checklist_template_field_options"
+    __table_args__ = (UniqueConstraint("field_id", "option_key", name="uq_checklist_field_option_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    field_id: Mapped[int] = mapped_column(ForeignKey("checklist_template_fields.id"), index=True)
+    option_key: Mapped[str] = mapped_column(String(80))
+    label: Mapped[str] = mapped_column(String(160))
+    sort_order: Mapped[int] = mapped_column(default=100, server_default="100")
+
+    field: Mapped["ChecklistTemplateField"] = relationship(back_populates="options")
+
+
+class ChecklistTemplateRule(Base):
+    """Regel "Antwort X löst Aufgabe aus" einer Vorlagenfassung (seit 1.8.0, ausgewertet erst
+    ab 1.8.2 beim Abschluss). field_key NULL nur bei operator "immer". min_visible_role nur
+    buero_auftrag/buero_finanzen/admin -- Monteure haben keinen Aufgabenzugriff.
+    assignee_mode "sachbearbeiter" = Order.caseworker_employee_id im Kontext Auftrag; fehlt er
+    (oder anderer Kontext), wird die Aufgabe empfängerlos mit min_visible_role."""
+
+    __tablename__ = "checklist_template_rules"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    version_id: Mapped[int] = mapped_column(ForeignKey("checklist_template_versions.id"), index=True)
+    field_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    operator: Mapped[str] = mapped_column(String(20))
+    operand: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    task_title: Mapped[str] = mapped_column(String(255))
+    task_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    task_priority: Mapped[str] = mapped_column(String(30), default="normal", server_default="normal")
+    due_in_days: Mapped[int | None] = mapped_column(nullable=True)
+    assignee_mode: Mapped[str] = mapped_column(String(30), default="rolle", server_default="rolle")
+    min_visible_role: Mapped[str] = mapped_column(String(30), default="buero_auftrag", server_default="buero_auftrag")
+    sort_order: Mapped[int] = mapped_column(default=100, server_default="100")
+
+    version: Mapped["ChecklistTemplateVersion"] = relationship(back_populates="rules")
+
+
+class Checklist(Base):
+    """Ausgefüllte (oder in Arbeit befindliche) Checkliste (seit 1.8.0, Ausfüllen ab 1.8.1).
+    context_type auftrag|objekt|betriebsmittel|betrieb -- genau die passende der drei
+    FK-Spalten ist gesetzt, bei "betrieb" keine (Geschäftslogik, kein CheckConstraint --
+    Projektkonvention). Label und Kontextangaben werden beim Anlegen eingefroren
+    (*_snapshot), damit ein abgeschlossenes Dokument sich nie rückwirkend ändert.
+    client_uuid ist global eindeutig (Stufe 3, offline angelegte Checklisten); NULL beliebig
+    oft erlaubt."""
+
+    __tablename__ = "checklists"
+    __table_args__ = (UniqueConstraint("client_uuid", name="uq_checklist_client_uuid"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    template_id: Mapped[int] = mapped_column(ForeignKey("checklist_templates.id"), index=True)
+    template_version_id: Mapped[int] = mapped_column(ForeignKey("checklist_template_versions.id"), index=True)
+    template_label_snapshot: Mapped[str] = mapped_column(String(160))
+    context_type: Mapped[str] = mapped_column(String(20), index=True)
+    order_id: Mapped[int | None] = mapped_column(ForeignKey("orders.id"), nullable=True, index=True)
+    property_id: Mapped[int | None] = mapped_column(ForeignKey("properties.id"), nullable=True, index=True)
+    operational_asset_id: Mapped[int | None] = mapped_column(ForeignKey("operational_assets.id"), nullable=True, index=True)
+    context_label_snapshot: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    context_detail_snapshot: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="entwurf", server_default="entwurf", index=True)
+    created_by_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True, index=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_by_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True)
+    client_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    template: Mapped["ChecklistTemplate"] = relationship()
+    template_version: Mapped["ChecklistTemplateVersion"] = relationship()
+    created_by_employee: Mapped["Employee | None"] = relationship(foreign_keys=[created_by_employee_id])
+    completed_by_employee: Mapped["Employee | None"] = relationship(foreign_keys=[completed_by_employee_id])
+    answers: Mapped[list["ChecklistAnswer"]] = relationship(back_populates="checklist", cascade="all, delete-orphan")
+    attachments: Mapped[list["ChecklistAttachment"]] = relationship(
+        back_populates="checklist", cascade="all, delete-orphan",
+        order_by="ChecklistAttachment.sort_order, ChecklistAttachment.id",
+    )
+    rule_executions: Mapped[list["ChecklistRuleExecution"]] = relationship(
+        back_populates="checklist", cascade="all, delete-orphan",
+    )
+
+
+class ChecklistAnswer(Base):
+    """Antwort auf genau ein Feld (seit 1.8.0) -- unique (checklist_id, template_field_id),
+    Speichern ist damit ein Upsert und von Natur aus idempotent. value_text trägt bei ja_nein
+    "ja"|"nein"|"entfaellt" und bei Einfachauswahl den option_key; Mehrfachauswahl liegt in
+    ChecklistAnswerSelection. client_recorded_at (Stufe 3): eine ältere Antwort überschreibt
+    keine neuere."""
+
+    __tablename__ = "checklist_answers"
+    __table_args__ = (
+        UniqueConstraint("checklist_id", "template_field_id", name="uq_checklist_answer_field"),
+        UniqueConstraint("checklist_id", "client_uuid", name="uq_checklist_answer_client_uuid"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    checklist_id: Mapped[int] = mapped_column(ForeignKey("checklists.id"), index=True)
+    template_field_id: Mapped[int] = mapped_column(ForeignKey("checklist_template_fields.id"), index=True)
+    field_key: Mapped[str] = mapped_column(String(80), index=True)
+    value_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    value_number: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    value_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    value_time: Mapped[dt_time | None] = mapped_column(Time, nullable=True)
+    value_datetime: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    recorded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    recorded_by_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True)
+    client_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    client_recorded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    checklist: Mapped["Checklist"] = relationship(back_populates="answers")
+    template_field: Mapped["ChecklistTemplateField"] = relationship()
+    selections: Mapped[list["ChecklistAnswerSelection"]] = relationship(
+        back_populates="answer", cascade="all, delete-orphan",
+    )
+
+
+class ChecklistAnswerSelection(Base):
+    """Eine gewählte Option einer Mehrfachauswahl (seit 1.8.0)."""
+
+    __tablename__ = "checklist_answer_selections"
+    __table_args__ = (UniqueConstraint("answer_id", "option_key", name="uq_checklist_answer_selection"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    answer_id: Mapped[int] = mapped_column(ForeignKey("checklist_answers.id"), index=True)
+    option_key: Mapped[str] = mapped_column(String(80))
+
+    answer: Mapped["ChecklistAnswer"] = relationship(back_populates="selections")
+
+
+class ChecklistAttachment(Base):
+    """Foto oder Unterschrift zu einem Feld einer Checkliste (seit 1.8.0, Upload ab 1.8.1).
+    kind foto|unterschrift; signer_name nur bei Unterschriften (mehrere je Feld möglich,
+    z. B. Teilnehmer einer Unterweisung)."""
+
+    __tablename__ = "checklist_attachments"
+    __table_args__ = (UniqueConstraint("checklist_id", "client_uuid", name="uq_checklist_attachment_client_uuid"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    checklist_id: Mapped[int] = mapped_column(ForeignKey("checklists.id"), index=True)
+    template_field_id: Mapped[int] = mapped_column(ForeignKey("checklist_template_fields.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    stored_filename: Mapped[str] = mapped_column(String(255))
+    signer_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    sort_order: Mapped[int] = mapped_column(default=100, server_default="100")
+    created_by_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    client_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
+    checklist: Mapped["Checklist"] = relationship(back_populates="attachments")
+
+
+class ChecklistRuleExecution(Base):
+    """Idempotenzsperre der Regeln (seit 1.8.0, beschrieben ab 1.8.2) -- genau eine Zeile je
+    (Checkliste, Regel). status aufgabe_angelegt|modul_aus; bei "modul_aus" (Aufgabenmodul
+    deaktiviert, Betreiberentscheidung C) bleibt task_id leer und die Aufgabe ist nachholbar."""
+
+    __tablename__ = "checklist_rule_executions"
+    __table_args__ = (UniqueConstraint("checklist_id", "rule_id", name="uq_checklist_rule_execution"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    checklist_id: Mapped[int] = mapped_column(ForeignKey("checklists.id"), index=True)
+    rule_id: Mapped[int] = mapped_column(ForeignKey("checklist_template_rules.id"), index=True)
+    task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(30))
+    executed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    checklist: Mapped["Checklist"] = relationship(back_populates="rule_executions")
