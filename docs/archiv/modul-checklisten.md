@@ -337,7 +337,7 @@ Zwischen den Versionen darf der Betreiber `/clear` machen -- dann diese Datei le
 | **1.8.2** | Nachtrag nach der 1.8.1-Freigabe (Betreibervorgabe): "nicht einsatzbereit" verschwindet wieder -- spätere Checkliste mit "ja" ODER Büro markiert als repariert (Wer/Wann), Tests für beide Wege | erledigt |
 | **1.8.3** | Regeln → Aufgaben, `ChecklistRuleExecution`, "Aufgaben nachholen" (ursprünglich als 1.8.2 geplant) | erledigt |
 | **1.8.4** | PDF über den gemeinsamen Rahmen (ursprünglich 1.8.3) | erledigt |
-| **1.8.5** | 13 Startvorlagen per Daten-Migration (Entwurf) (ursprünglich 1.8.4). **Danach berichten** (Betreibervorgabe: nach Abschluss der geplanten Etappen) | offen |
+| **1.8.5** | 13 Startvorlagen per Daten-Migration (Entwurf) (ursprünglich 1.8.4). **Danach berichten** (Betreibervorgabe: nach Abschluss der geplanten Etappen) | erledigt, Bericht an den Betreiber offen |
 
 Nach jeder Version hier die Spalte "Stand" nachziehen und unten einen kurzen Abschnitt
 "Umsetzung 1.8.x" mit Abweichungen/Funden ergänzen.
@@ -550,4 +550,46 @@ Umplanung erreichbar.
 - **Verifikation**: 6 Tests, Gegenprobe (PDF-Endpunkt ohne Leseprüfung) rot; volle Suite 1966
   grün; CDP-Klicktest: Knopf erscheint für Büro (Desktop) und Monteur (412 px) auf der
   abgeschlossenen Checkliste, Abruf liefert `application/pdf`.
+
+---
+
+## Umsetzung 1.8.5 (29.09.2026) -- Stufe 1 abgeschlossen
+
+- **Migration `349704eab07d`** (`alembic/versions/349704eab07d_checklisten_startvorlagen.py`):
+  Daten auf Modulebene (`STARTER_TEMPLATES`, Hilfen `_f()`/`_sig()`/`_r()`), Einfügen und
+  Entfernen als eigene Funktionen `insert_starter_templates(bind)` / `remove_starter_templates(bind)`
+  mit eigenen `sa.Table`-Definitionen (Primärschlüssel angegeben -- mit `sa.table()` ohne PK
+  lieferte `inserted_primary_key` nichts; im ersten Testlauf gefunden). Kein Import aus
+  `app.models`.
+- **Verhalten**: Vorlage + Fassung 1 (`entwurf`) + Felder/Optionen/Regeln; eine schon vorhandene
+  gleichnamige Vorlage wird übersprungen. `downgrade()` entfernt nur Startvorlagen, deren
+  Fassungen alle `entwurf` sind und die keine Checkliste haben -- ein bearbeiteter, aber nie
+  veröffentlichter Entwurf geht dabei mit (keine Spalte weist "unverändert" nach), bewusst so
+  dokumentiert. Einzelunterschrift wie `_normalize_field()` mit `max_count=1`.
+- **Inhalt gegenüber der Liste oben, Festlegungen im Detail**: erstes Feld `hinweis_pruefung`
+  (FaSi-Satz, Hilfetext "nach der Prüfung löschen"); Gefahrstoff-Verdacht und Nachtragsmeldung
+  mit einem zweiten Hinweisfeld (einstellen bzw. keine Zusagen). Fotofelder ohne Mengenangabe im
+  Plan: 0–5, "Fotos (0–10)" wie angegeben. Unterschriften ohne "P" im Plan sind nicht Pflicht
+  (so steht es dort; bei Heißarbeiten ggf. vor Veröffentlichung auf Pflicht stellen). Entsorgung:
+  neun Abfallarten mit AVV-Nummer (gefährliche mit *), Hilfetext "mit dem Entsorger abgleichen";
+  zusätzlich ein Bemerkungsfeld (die Option "Sonstiges" verweist darauf). Heißarbeiten: Hilfetext
+  am Feld "Nachkontrolle bis", dass der Betrieb die Mindestdauer festlegt. Geräte-Sichtprüfung:
+  Beschreibung "Keine Prüfung nach DGUV/UVV -- Prüffristen bleiben unverändert". Regeln ohne
+  Prioritätsangabe im Plan: `normal`; Zielrolle aller Regeln `buero_auftrag`; "Aufgabe" ohne
+  Empfängerangabe → Rolle, "an Sachbearbeiter" → `sachbearbeiter` (bei Tagesbericht und
+  verdeckten Arbeiten ebenfalls Sachbearbeiter, weil auftragsbezogen). 13 Vorlagen, 132 Felder,
+  11 Regeln.
+- **Verifikation**: `tests/test_v309_checklist_starter_templates.py` (6 Tests: 13 Entwürfe mit
+  Hinweis, echte Veröffentlichungsprüfung + Feldnormalisierung ohne stille Änderung -- Gegenprobe
+  mit `max_count=30` rot --, veröffentlichen und anlegen, Kontexte/`field_readable`/
+  `einsatzbereit`/Regelrollen, keine Dublette und Wiederholung ohne Wirkung, Downgrade lässt
+  veröffentlichte/benutzte stehen). Alembic hin/zurück/hin gegen frische SQLite und gegen die
+  Postgres-Probe `checklisten_probe` (mit Bestand aus den früheren Probe-Skripten: der Downgrade
+  ließ genau die zwei fremden Vorlagen stehen), `alembic check` sauber, Veröffentlichungsprüfung
+  aller 13 direkt auf PostgreSQL ohne Befund. Probe-DB danach gelöscht, portable Instanz wieder
+  gestoppt. Volle Suite 1972 grün. Klicktest: Liste zeigt 13 Entwürfe, Editor von
+  Sicherheitscheck (15 Felder, Regel) und Entsorgungsnachweis ohne JS-Ausnahme.
+- **Stufe 1 damit fertig.** Nächste Schritte laut Plan: Stufe 2 (Regiebericht, Abnahme,
+  Behinderungs-/Bedenkenanzeige über `purpose` + Folge-Registry), Stufe 3 (offline; Pflicht davor:
+  `client_uuid`-Idempotenz am Einsatzbericht, siehe CLAUDE.md "Bekannte, bewusst offene Punkte").
 

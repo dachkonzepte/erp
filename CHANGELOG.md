@@ -4,6 +4,30 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.5 – Checklisten: 13 Startvorlagen
+
+Unter Checklisten → Vorlagen stehen jetzt 13 fertig vorbereitete Vorlagen, alle als Entwurf:
+Sicherheitscheck vor Arbeitsbeginn, Heißarbeiten mit Brandwache, Sicherheitsunterweisung,
+Gefahrstoff-Verdacht, Tagesbericht, Pflichtfotos verdeckte Arbeiten, Vorher/Nachher,
+Entsorgungsnachweis, Aufmaß einfach, Geräte-Sichtprüfung, Schadensmeldung Gerät,
+Abfahrtkontrolle und Nachtragsmeldung – mit Feldern, Pflichtangaben und den Regeln aus dem
+Plan (z. B. "Arbeitsbeginn nicht freigegeben" → Aufgabe mit Priorität hoch an den
+Sachbearbeiter). Monteure sehen davon nichts, bis das Büro eine Vorlage veröffentlicht. Jede
+Vorlage beginnt mit dem Hinweis "Vor Veröffentlichung durch eine Fachkraft für
+Arbeitssicherheit prüfen." (auch in der Beschreibung); nach der Prüfung den Hinweis löschen und
+veröffentlichen. Zwei Stellen verlangen vorher eine eigene Festlegung: die Mindestdauer der
+Nachkontrolle bei Heißarbeiten und die AVV-Schlüssel im Entsorgungsnachweis (Abgleich mit dem
+Entsorger).
+
+Einmalige Daten-Migration `349704eab07d`, kein automatisches Nachlegen: Eine vom Büro gelöschte
+Vorlage kommt nicht wieder, und eine gleichnamige, schon vorhandene Vorlage wird nicht
+verdoppelt. Das Zurücknehmen der Migration entfernt nur Vorlagen, die nie veröffentlicht und nie
+benutzt wurden. Gegen frische SQLite und PostgreSQL hin, zurück, hin geprüft. 6 neue Tests,
+darunter: jede der 13 Vorlagen besteht die echte Veröffentlichungsprüfung, und kein Feld würde
+beim ersten Bearbeiten still verändert (Gegenprobe mit einem ungültigen Feld rot). Klicktest
+der Vorlagenliste und des Editors gegen eine isolierte, per Migration aufgebaute Instanz. Damit
+ist Stufe 1 des Checklisten-Moduls abgeschlossen.
+
 ## 1.8.4 – Checklisten: PDF
 
 Abgeschlossene Checklisten gibt es jetzt als PDF, über den Knopf "PDF" oben auf der Checkliste
