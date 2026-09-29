@@ -4,6 +4,20 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.7.10 – Zeiterfassung: Abschluss mit Sperrdatum
+
+Bisher gab es keinen Abschluss der Zeiterfassung: Jeder Monteur konnte eigene Zeiten jederzeit
+ändern oder löschen, auch nachdem sie in die Lohnabrechnung eingegangen waren. Im
+Zeiterfassungs-Backoffice (DATEV-Reiter) lässt sich jetzt ein Zeitraum "abgeschlossen bis
+einschließlich" festlegen, mit Wer und Wann. Buchungen bis zu diesem Tag kann danach nur noch
+ein Administrator anlegen, ändern, stoppen oder löschen. Vorrücken darf das Backoffice, das
+Wiederöffnen eines abgeschlossenen Zeitraums bleibt dem Admin vorbehalten.
+
+Das Sperrdatum hat einen eigenen Endpunkt statt eines Felds im allgemeinen Einstellungsformular,
+weil dessen Speichern alle Felder überschreibt und den Abschluss sonst bei jeder anderen Änderung
+zurückgesetzt hätte. Die Monteur-Zeiterfassung zeigt gesperrte Buchungen als "abgeschlossen" und
+lässt keinen Nachtrag in den gesperrten Zeitraum zu. Migration `fa2105afb89a`, 7 neue Tests.
+
 ## 1.7.9 – Zeiterfassung: Monteure buchen nur noch auf eigene Aufträge, auch serverseitig
 
 Gefunden bei der Befundrunde zum Kolonnenführer: Die reduzierte Zeiterfassung eines Monteurs bot

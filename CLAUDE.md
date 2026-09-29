@@ -662,7 +662,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   `betriebskosten`, Verrechnungssatz-Kreislauf, Produktivstunden-Rechner) --
   `docs/archiv/modul-betriebsmittel-und-betriebskosten.md`
 - **Zeiterfassung & Abwesenheit** (Schlechtwetter-Zeitarten, Krankheitssichtbarkeit für
-  `buero_auftrag`) -- `docs/archiv/zeiterfassung-und-abwesenheit.md`
+  `buero_auftrag`, Abschluss/Sperrdatum seit 1.7.10) -- `docs/archiv/zeiterfassung-und-abwesenheit.md`
+  (die Monteur-Zeiterfassung selbst und ihre Zugriffsregeln stehen im Rechtekonzept-Archiv,
+  Abschnitt "Zeiterfassung für Monteure")
 - **Buchhaltung** (Modul `buchhaltung`, Eingangsrechnungen, Kontenstamm/Vorkontierung) --
   `docs/archiv/modul-buchhaltung.md`
 - **KI-Fundament** (anbieterunabhängige Schnittstelle `call_ai()`, noch keine Fachfunktion) --

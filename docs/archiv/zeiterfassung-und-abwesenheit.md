@@ -140,6 +140,42 @@ Feld und unterstützt einen Filter darauf, sowie die Migrations-Seed-Funktion is
 (`test_v260_role_audit.py::test_absence_requests_stay_open_to_field_as_self_service`) musste um
 das neue Pflichtfeld ergänzt werden. Volle Suite: 1602 Tests grün.
 
+## Abschluss der Zeiterfassung / Sperrdatum (seit 1.7.10)
+
+Befund aus der Kolonnenführer-Runde: Es gab keinerlei Abschluss. `TimeEntry.status` kennt nur
+`running`/`booked`, `build_datev_export()` liest nur und setzt keinen Stempel -- jeder Monteur
+konnte eigene, bereits in die Lohnabrechnung eingegangene Zeiten jederzeit ändern oder löschen.
+Betreiberentscheidung: ein Sperrdatum statt eines Status je Buchung.
+
+- **Datenmodell:** `TimeTrackingSettings.locked_until` (Date) plus `locked_at`/`locked_by_user_id`
+  (Wer/Wann), Migration `fa2105afb89a`, alle drei nullable (kein Regel-1-Fall). Fremdschlüssel mit
+  festem Namen `fk_time_tracking_settings_locked_by_user_id` -- Autogenerate hatte ihn namenlos
+  erzeugt, `downgrade()` hätte dann nicht funktioniert.
+- **Eigener Endpunkt statt Formularfeld:** `PUT /api/time-backoffice/lock`. Das allgemeine
+  Einstellungsformular (`PUT /api/time-backoffice/settings`) überschreibt alle Felder auf einmal --
+  läge das Sperrdatum darin, würde jedes normale Speichern es zurücksetzen.
+  `update_time_settings()` übernimmt die drei Felder deshalb bewusst nicht; in
+  `TimeTrackingSettingsOut` stehen sie nur lesend (Monteur-Ansicht braucht sie). Mit Test belegt.
+- **Wer darf was:** vorrücken das Backoffice (`buero_auftrag`+); zurücknehmen oder aufheben öffnet
+  bereits abgerechnete Zeiträume wieder und bleibt dem Admin vorbehalten (403 sonst). Die
+  Backoffice-Seite selbst lässt ohnehin nur Admins hinein (`init()`), die API ab `buero_auftrag`.
+- **Wirkung:** `app/routers/time_tracking.py::_require_open_period()` -- jeder Nicht-Admin bekommt
+  403 für Anlegen, Ändern (alter UND neuer `work_date`), Löschen, Stoppen, Timer-Start und
+  Gruppenbuchung/-stopp mit `work_date <= locked_until` (einschließlich). Gilt auch für die
+  eigenen Buchungen eines Monteurs und für Büro-Konten auf ihren eigenen Zeiten. Ein über den
+  Abschluss hinweg laufender Timer lässt sich danach nur vom Admin stoppen -- bewusst, denn Stoppen
+  schreibt Stunden in einen abgerechneten Zeitraum.
+- **Oberfläche:** Karte "Abschluss der Zeiterfassung" im DATEV-Reiter des Backoffice (Stand mit
+  Wer/Wann, Rückfrage beim Wiederöffnen). `time_tracking_field.html` zeigt gesperrte Buchungen
+  mit "abgeschlossen" statt Ändern/Löschen und setzt das Mindestdatum des Nachtrags. Die volle
+  `time_tracking.html` (Büro) blendet die Knöpfe NICHT aus -- dort meldet der Server den Abschluss
+  als verständlichen Fehler.
+- **Nebenbefund, nicht geändert:** `build_datev_export()` holt die Buchungen über
+  `list_entries(..., limit=2000)` -- ein Zeitraum mit mehr als 2000 Buchungen würde still
+  abgeschnitten. Bei der heutigen Größe (wenige Monteure) nicht erreichbar, für später notiert.
+
+`tests/test_v300_time_tracking_lock.py` (7 Tests, Gegenprobe mit abgeschalteter Prüfung rot).
+
 ## Krankheitssichtbarkeit: buero_auftrag sieht nur noch "abwesend" (seit 1.5.4)
 
 Kurskorrektur zu 1.5.3, wo der Betreiber einen ersten Redaktions-Vorschlag noch abgelehnt hatte

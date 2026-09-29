@@ -2254,6 +2254,11 @@ class TimeTrackingSettingsOut(BaseModel):
     datev_wage_type_weather_summer: str | None = None
     datev_personnel_equals_erp_number: bool = False
     default_work_time_model_id: int | None = None
+    # Seit 1.7.10 nur lesend hier -- gesetzt ausschließlich über PUT /api/time-backoffice/lock;
+    # update_time_settings() übernimmt diese drei Felder bewusst nicht.
+    locked_until: date | None = None
+    locked_at: datetime | None = None
+    locked_by_name: str | None = None
 
 
 class TimeTrackingSettingsUpdate(TimeTrackingSettingsOut):
@@ -2266,6 +2271,10 @@ class TimeTrackingSettingsUpdate(TimeTrackingSettingsOut):
         if self.datev_target not in {"lohn_gehalt", "lodas"}:
             raise ValueError("DATEV-Ziel muss Lohn und Gehalt oder LODAS sein.")
         return self
+
+
+class TimeTrackingLockUpdate(BaseModel):
+    locked_until: date | None = None
 
 
 class EmployeePayrollSettingsUpdate(BaseModel):

@@ -30,7 +30,7 @@ from ..models import AppUser, TimeEntry, TimeEntryGroup
 from ..permissions import ROLE_FIELD, require_min_role
 from .orders import require_field_order_access
 from ..schemas import TimeEntryManualCreate, TimeEntryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
-from ..time_backoffice import get_or_create_time_settings, rounded_hours, time_settings_dict
+from ..time_backoffice import get_or_create_time_settings, locked_until, rounded_hours, time_settings_dict
 from ..time_tracking import active_group_for_employee, active_entry as active_time_entry, create_group_manual_entry, create_manual_entry, delete_entry as delete_time_entry_row, entry_to_dict, group_for_entry, group_member_ids, group_to_dict, list_entries as list_time_entries, start_group_timer, start_timer, stop_group_timer, stop_timer, time_tracking_context, update_entry as update_time_entry_row
 from ..work_time_models import automatic_break_minutes_for_timer
 
@@ -89,6 +89,18 @@ def _require_bookable_order(request: Request, db: Session, order_id: int) -> Non
         require_field_order_access(db, user, order_id)
 
 
+def _require_open_period(request: Request, db: Session, *work_dates: date) -> None:
+    """Seit 1.7.10: Buchungen im abgeschlossenen Zeitraum (work_date <= locked_until) legt nur noch
+    ein Admin an, ändert, stoppt oder löscht -- auch die eigenen eines Monteurs, denn sie sind
+    dann bereits in die Lohnabrechnung eingegangen."""
+    user = getattr(request.state, "erp_user", None)
+    if user is None or user.role == "admin":
+        return
+    lock = locked_until(db)
+    if lock is not None and any(d is not None and d <= lock for d in work_dates):
+        raise HTTPException(status_code=403, detail=f"Die Zeiterfassung ist bis {lock:%d.%m.%Y} abgeschlossen. Änderungen in diesem Zeitraum nur durch einen Administrator.")
+
+
 def _group_actor(request: Request) -> tuple[int | None, bool, int | None]:
     user=getattr(request.state,"erp_user",None)
     is_admin=bool(user is None or user.role=="admin")
@@ -123,6 +135,7 @@ def create_time_group_manual(payload:TimeGroupManualCreate,request:Request,db:Se
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,manual=True,group=True)
     actor,is_admin,user_id=_group_actor(request)
     _require_bookable_order(request,db,payload.order_id)
+    _require_open_period(request,db,payload.work_date)
     try:
         group=create_group_manual_entry(db,employee_ids=payload.employee_ids,team_id=payload.team_id,actor_employee_id=actor,is_admin=is_admin,order_id=payload.order_id,order_item_id=payload.order_item_id,work_date=payload.work_date,entry_type=payload.entry_type,activity=payload.activity,hours=payload.hours,break_minutes=payload.break_minutes,notes=payload.notes,created_by_user_id=user_id)
     except ValueError as exc:
@@ -135,6 +148,7 @@ def start_time_group(payload:TimeGroupTimerStart,request:Request,db:Session=Depe
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,group=True)
     actor,is_admin,user_id=_group_actor(request)
     _require_bookable_order(request,db,payload.order_id)
+    _require_open_period(request,db,(payload.started_at or datetime.now()).date())
     try:
         group=start_group_timer(db,employee_ids=payload.employee_ids,team_id=payload.team_id,actor_employee_id=actor,is_admin=is_admin,order_id=payload.order_id,order_item_id=payload.order_item_id,entry_type=payload.entry_type,activity=payload.activity,notes=payload.notes,started_at=payload.started_at,created_by_user_id=user_id)
     except ValueError as exc:
@@ -157,6 +171,7 @@ def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:S
     user=getattr(request.state,"erp_user",None)
     if user is not None and user.role!="admin" and user.employee_id!=group.initiated_by_employee_id:
         raise HTTPException(status_code=403,detail="Nur der Initiator der Gruppenbuchung oder ein Administrator darf die gesamte Gruppe stoppen.")
+    _require_open_period(request,db,group.work_date)
     try:
         end=payload.ended_at or datetime.now().replace(microsecond=0)
         member_breaks={eid:automatic_break_minutes_for_timer(db,eid,group.started_at,end) for eid in group_member_ids(db,group.id)} if group.started_at else {}
@@ -191,6 +206,7 @@ def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Sess
     settings=_validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,manual=True)
     employee_id = _time_entry_employee_for_request(request, payload.employee_id, db)
     _require_bookable_order(request, db, payload.order_id)
+    _require_open_period(request, db, payload.work_date)
     user = getattr(request.state, "erp_user", None)
     try:
         row = create_manual_entry(db, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, work_date=payload.work_date, entry_type=payload.entry_type, activity=payload.activity, hours=rounded_hours(Decimal(payload.hours),settings.rounding_minutes), break_minutes=payload.break_minutes, notes=payload.notes, created_by_user_id=getattr(user, "id", None))
@@ -204,6 +220,7 @@ def start_time_entry(payload: TimeTimerStart, request: Request, db: Session = De
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity)
     employee_id = _time_entry_employee_for_request(request, payload.employee_id, db)
     _require_bookable_order(request, db, payload.order_id)
+    _require_open_period(request, db, (payload.started_at or datetime.now()).date())
     user = getattr(request.state, "erp_user", None)
     try:
         row = start_timer(db, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, entry_type=payload.entry_type, activity=payload.activity, notes=payload.notes, started_at=payload.started_at, created_by_user_id=getattr(user, "id", None))
@@ -219,6 +236,7 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
         raise HTTPException(status_code=404, detail="Zeiterfassung nicht gefunden.")
     if not _time_entry_can_edit(request, current):
         raise HTTPException(status_code=403, detail="Sie dürfen diese Zeiterfassung nicht ändern.")
+    _require_open_period(request, db, current.work_date)
     try:
         group = group_for_entry(db, entry_id)
         user = getattr(request.state, "erp_user", None)
@@ -250,6 +268,7 @@ def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db
         raise HTTPException(status_code=403, detail="Sie dürfen diese Zeitbuchung nicht ändern.")
     employee_id = _time_entry_employee_for_request(request, payload.employee_id, db)
     _require_bookable_order(request, db, payload.order_id)
+    _require_open_period(request, db, current.work_date, payload.work_date)
     try:
         row = update_time_entry_row(db, entry_id, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, work_date=payload.work_date, entry_type=payload.entry_type, activity=payload.activity, hours=payload.hours, break_minutes=payload.break_minutes, notes=payload.notes)
     except ValueError as exc:
@@ -264,6 +283,7 @@ def remove_time_entry(entry_id: int, request: Request, db: Session = Depends(get
         raise HTTPException(status_code=404, detail="Zeitbuchung nicht gefunden.")
     if not _time_entry_can_edit(request, current):
         raise HTTPException(status_code=403, detail="Sie dürfen diese Zeitbuchung nicht löschen.")
+    _require_open_period(request, db, current.work_date)
     try:
         delete_time_entry_row(db, entry_id)
     except ValueError as exc:

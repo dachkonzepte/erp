@@ -24,9 +24,9 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
-from ..schemas import EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
-from ..time_backoffice import backoffice_summary, build_datev_export, build_time_csv, build_timesheet_pdf, get_or_create_time_settings, payroll_rows, set_employee_payroll, time_settings_dict, update_time_settings
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_min_role
+from ..schemas import EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
+from ..time_backoffice import backoffice_summary, build_datev_export, build_time_csv, build_timesheet_pdf, get_or_create_time_settings, payroll_rows, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
 from ..work_time_models import bulk_set_employee_model, delete_model as delete_work_time_model, employee_model_rows, list_models as list_work_time_models, save_model as save_work_time_model, set_employee_model
 
 router = APIRouter()
@@ -45,6 +45,19 @@ def put_time_backoffice_settings(payload: TimeTrackingSettingsUpdate, db: Sessio
         row = update_time_settings(db, payload)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return TimeTrackingSettingsOut.model_validate(time_settings_dict(row, db))
+
+
+@router.put("/api/time-backoffice/lock", response_model=TimeTrackingSettingsOut)
+def put_time_lock(payload: TimeTrackingLockUpdate, db: Session = Depends(get_db), _role=_role_dep):
+    """Abschluss der Zeiterfassung (seit 1.7.10). Vorrücken darf das Backoffice; zurücknehmen
+    oder aufheben öffnet bereits abgerechnete Zeiträume wieder und bleibt deshalb dem Admin
+    vorbehalten."""
+    current = get_or_create_time_settings(db).locked_until
+    reopens = current is not None and (payload.locked_until is None or payload.locked_until < current)
+    if reopens and _role.role != ROLE_ADMIN:
+        raise HTTPException(status_code=403, detail="Einen abgeschlossenen Zeitraum wieder öffnen darf nur ein Administrator.")
+    row = set_time_lock(db, payload.locked_until, user_id=_role.id)
     return TimeTrackingSettingsOut.model_validate(time_settings_dict(row, db))
 
 

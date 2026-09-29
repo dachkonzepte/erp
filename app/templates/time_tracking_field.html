@@ -249,8 +249,11 @@ async function stopCurrent(){
   }catch(e){alert(e.message)}
 }
 
+function isLocked(workDate){return !!(timeSettings.locked_until&&workDate<=timeSettings.locked_until)}
 function renderEntry(e){
-  return `<div class="entry"><div><div class="entry-type">${esc(typeLabel(e.entry_type))}</div><div class="small muted">${fmtDate(e.work_date)} · ${esc(e.order_number||'')}</div>${e.notes?`<div class="small muted">${esc(e.notes)}</div>`:''}</div><div style="text-align:right"><div class="entry-hours">${num(e.hours)} h</div><div class="entry-actions" style="margin-top:6px">${timeSettings.allow_manual_entries?`<button class="secondary" onclick="editEntry(${e.id})">Ändern</button><button class="danger" onclick="deleteEntry(${e.id})">×</button>`:''}</div></div></div>`;
+  const actions=isLocked(e.work_date)?'<span class="small muted">abgeschlossen</span>'
+    :(timeSettings.allow_manual_entries?`<button class="secondary" onclick="editEntry(${e.id})">Ändern</button><button class="danger" onclick="deleteEntry(${e.id})">×</button>`:'');
+  return `<div class="entry"><div><div class="entry-type">${esc(typeLabel(e.entry_type))}</div><div class="small muted">${fmtDate(e.work_date)} · ${esc(e.order_number||'')}</div>${e.notes?`<div class="small muted">${esc(e.notes)}</div>`:''}</div><div style="text-align:right"><div class="entry-hours">${num(e.hours)} h</div><div class="entry-actions" style="margin-top:6px">${actions}</div></div></div>`;
 }
 let allEntries=[];
 async function loadEntries(){
@@ -355,6 +358,7 @@ async function init(){
   myEmployeeId=auth.user.employee_id;
   try{timeSettings=await api('/api/time-tracking/settings')}catch(e){console.warn('Zeiterfassungs-Einstellungen konnten nicht geladen werden',e)}
   $('openManualBtn').hidden=!timeSettings.allow_manual_entries;
+if(timeSettings.locked_until){const d=new Date(timeSettings.locked_until+'T12:00:00');d.setDate(d.getDate()+1);$('manualDate').min=d.toISOString().slice(0,10)}
   try{orders=await api('/api/field-view/time-tracking/orders')}catch(e){orders=[]}
   const defaultTypes=[{label:'Baustellenzeit',value:'site',active:true,is_default:true},{label:'Fahrzeit',value:'travel',active:true},{label:'Werkstattzeit',value:'workshop',active:true},{label:'Sonstige Arbeitszeit',value:'other',active:true}];
   const tg=await safeOptionGroup('time_entry_types',defaultTypes);

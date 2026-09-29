@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO, StringIO
 from html import escape
@@ -15,7 +15,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 
-from .models import Employee, EmployeePayrollSettings, TimeEntry, TimeTrackingSettings, WorkTimeModel
+from .models import AppUser, Employee, EmployeePayrollSettings, TimeEntry, TimeTrackingSettings, WorkTimeModel
 from .time_tracking import list_entries, entry_to_dict
 from .settings import get_or_create_general_settings
 from .work_time_models import get_or_create_advanced_settings
@@ -49,7 +49,32 @@ def time_settings_dict(row: TimeTrackingSettings, db: Session | None = None) -> 
         "datev_wage_type_weather_summer": row.datev_wage_type_weather_summer,
         "datev_personnel_equals_erp_number": bool(advanced.datev_personnel_equals_erp_number) if advanced else False,
         "default_work_time_model_id": advanced.default_work_time_model_id if advanced else None,
+        "locked_until": row.locked_until,
+        "locked_at": row.locked_at,
+        "locked_by_name": _locked_by_name(db, row) if db is not None else None,
     }
+
+
+def _locked_by_name(db: Session, row: TimeTrackingSettings) -> str | None:
+    if row.locked_by_user_id is None:
+        return None
+    user = db.get(AppUser, row.locked_by_user_id)
+    return user.display_name if user else None
+
+
+def locked_until(db: Session) -> date | None:
+    return get_or_create_time_settings(db).locked_until
+
+
+def set_time_lock(db: Session, new_locked_until: date | None, *, user_id: int | None) -> TimeTrackingSettings:
+    """Setzt den Abschluss (None = alles offen). Wer zurücknehmen darf, entscheidet der Router --
+    diese Funktion kennt keine Rollen."""
+    row = get_or_create_time_settings(db)
+    row.locked_until = new_locked_until
+    row.locked_at = datetime.utcnow()
+    row.locked_by_user_id = user_id
+    db.commit(); db.refresh(row)
+    return row
 
 
 def update_time_settings(db: Session, payload) -> TimeTrackingSettings:
