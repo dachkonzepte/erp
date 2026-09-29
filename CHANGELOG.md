@@ -4,6 +4,23 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.6 – Rechnung aus Aufwand: alle Zeitbuchungen des Auftrags
+
+"Rechnung aus Aufwand" holte die Zeitbuchungen bisher über `list_entries()` ohne Mengenangabe,
+und deren Vorgabe von 500 Zeilen (neueste zuerst) griff still: Bei einem Auftrag mit mehr als
+500 Buchungen fielen die ältesten aus der Rechnung, die Stunden waren zu niedrig, ohne Meldung.
+Jetzt kommen alle Buchungen des Auftrags in die Rechnung. `list_entries()` kennt dafür
+`limit=None` (keine Obergrenze, auch nicht die sonstige Kappung bei 2000); alle anderen Aufrufer
+verhalten sich unverändert. Die Abfrage bleibt auf den einen Auftrag begrenzt.
+
+Keine Migration. 1 neuer Test: Auftrag mit 501 Buchungen, die Rechnung enthält alle 501 Stunden
+(Gegenprobe mit dem alten Aufruf rot). Die übrigen Aufrufer wurden auf dieselbe Falle geprüft und
+bewusst nicht geändert: Das Einsatzbericht-PDF ("Erfasste Zeiten") zeigt ab 501 Buchungen am
+Auftrag nur die neuesten 500, ebenso die Zeitentabelle samt Summe auf der Einsatzbericht-Seite;
+die Kennzahlen der Projektmappe rechnen mit höchstens 1000 Buchungen je Projekt. Stundenübersicht,
+Stundenzettel, CSV- und DATEV-Export im Backoffice kappen bei 2000 Buchungen im gewählten
+Zeitraum – monatsweise heute nicht erreichbar, über ein Jahr und alle Mitarbeiter möglich.
+
 ## 1.8.5 – Checklisten: 13 Startvorlagen
 
 Unter Checklisten → Vorlagen stehen jetzt 13 fertig vorbereitete Vorlagen, alle als Entwurf:

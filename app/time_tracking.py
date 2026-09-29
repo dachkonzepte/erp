@@ -234,12 +234,15 @@ def entry_to_dict(row: TimeEntry) -> dict:
 def list_entries(
     db: Session, *, employee_id: int | None = None, project_id: int | None = None,
     order_id: int | None = None, start_date: date | None = None, end_date: date | None = None,
-    limit: int = 500,
+    limit: int | None = 500,
 ) -> list[TimeEntry]:
+    # limit=None (seit 1.8.6): ohne Obergrenze, für Aufrufer, die fachlich jede Zeile brauchen
+    # (Rechnung aus Aufwand). Sonst schneiden der Vorgabewert 500 bzw. die Kappung bei 2000 still ab.
     stmt = select(TimeEntry).options(
         selectinload(TimeEntry.employee), selectinload(TimeEntry.project),
         selectinload(TimeEntry.order), selectinload(TimeEntry.order_item), selectinload(TimeEntry.created_by),
-    ).order_by(TimeEntry.work_date.desc(), TimeEntry.started_at.desc(), TimeEntry.id.desc()).limit(min(max(limit,1),2000))
+    ).order_by(TimeEntry.work_date.desc(), TimeEntry.started_at.desc(), TimeEntry.id.desc())
+    if limit is not None: stmt=stmt.limit(min(max(limit,1),2000))
     if employee_id is not None: stmt=stmt.where(TimeEntry.employee_id==employee_id)
     if project_id is not None: stmt=stmt.where(TimeEntry.project_id==project_id)
     if order_id is not None: stmt=stmt.where(TimeEntry.order_id==order_id)

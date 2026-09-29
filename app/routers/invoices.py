@@ -103,7 +103,9 @@ def post_schlussrechnung(order_id: int, payload: InvoiceCreateFromOrder, db: Ses
 def post_invoice_from_time_entries(order_id: int, payload: InvoiceCreateFromOrder, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     order = _get_order_or_404(db, order_id)
     ensure_default_payment_terms(db)
-    entries = list_entries(db, order_id=order_id)
+    # Alle Buchungen des Auftrags -- ohne limit=None schnitt der Vorgabewert 500 die ältesten
+    # still ab (bis 1.8.5).
+    entries = list_entries(db, order_id=order_id, limit=None)
     materials = list_materials_for_invoicing(db, order_id)
     try:
         invoice = create_invoice_from_time_entries(db, order, entries, materials, due_date=payload.due_date)
