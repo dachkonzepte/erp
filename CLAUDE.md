@@ -972,14 +972,9 @@ eine große Zahl laufender UI-Tests (deutlich aufwendiger als ein fertiges Test-
   aber deutlich umfangreichere "get_or_create_settings(id=1)"-Singleton-Muster (`GeneralSettings`,
   `TaskSettings`, `MaintenanceSettings` u. v. a., über zehn Tabellen) -- dort kollidiert ein
   PRIMARY KEY statt eines Business-Keys, ein eigener, größerer Sweep, nicht Teil der 1.4.6-Anfrage.
-- **Kolonnenführer-Rolle für Gruppenbuchungen -- bewusst offen, wie vom Betreiber vorgegeben**
-  (seit 1.3.60, siehe Abschnitt "Zeiterfassung für Monteure" oben): die reduzierte
-  `time_tracking_field.html` kennt keine Gruppenbuchung mehr, ein Monteur bucht nur für sich
-  selbst. In der Praxis bucht eine Kolonne aber oft gemeinsam -- dafür bleibt vorerst nur die
-  volle `time_tracking.html` (Büro/Admin) erreichbar. Ob und wie ein einzelner Monteur (z. B. der
-  Kolonnenführer) künftig selbst gruppenbuchen darf -- eine vierte Rollenausprägung, ein
-  Team-Attribut "Kolonnenführer", oder eine andere Lösung -- ist eine eigene, spätere
-  Entscheidung, ausdrücklich noch nicht getroffen.
+- ~~Kolonnenführer-Rolle für Gruppenbuchungen~~ -- seit 1.7.12 gelöst über das Kennzeichen
+  `TeamEmployee.is_crew_leader` (keine eigene Rolle), siehe `docs/archiv/rechtekonzept.md`,
+  "Zeiterfassung für Monteure" -> "Nachtrag (seit 1.7.12)".
 - **`service_reports.html`s "Auftrag"-Link zeigt für `field` auf eine jetzt gesperrte Seite**
   (seit 1.3.57, Seiten-Klassifizierung): `/orders/{id}` ist Büro/Admin -- ein Monteur, der auf
   diesen Link klickt, landet auf `access_denied.html` statt auf der Auftragsseite. Kein

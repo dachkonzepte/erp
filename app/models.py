@@ -1485,7 +1485,12 @@ class TeamEmployee(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
+    # role ist reiner Anzeigetext ("Rolle im Team, z. B. Vorarbeiter") und wird als Schnappschuss
+    # in die Arbeitsvorbereitung kopiert -- bewusst KEINE Rechtegrundlage. Dafür seit 1.7.12
+    # is_crew_leader: ein Monteur mit diesem Kennzeichen darf für die Kolonne gruppenbuchen
+    # (app/routers/time_tracking.py::_require_crew_leader()). Mehrere je Team erlaubt (Vertretung).
     role: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    is_crew_leader: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
     team: Mapped[Team] = relationship(back_populates="employees")
     employee: Mapped["Employee"] = relationship()
@@ -1904,6 +1909,7 @@ class TimeEntry(Base):
     project: Mapped[Project] = relationship()
     order: Mapped[Order] = relationship()
     order_item: Mapped[OrderItem | None] = relationship()
+    created_by: Mapped["AppUser | None"] = relationship()
 
 
 

@@ -74,6 +74,9 @@
     .request-row{border:1px solid var(--line);padding:9px;margin-top:8px}
     .request-head{display:flex;justify-content:space-between;gap:8px;align-items:start}
     .pill{display:inline-block;background:var(--soft);border:1px solid var(--line);padding:2px 7px;font-size:10.5px;font-weight:700}
+    .crew-member{display:flex;gap:9px;align-items:center;padding:9px;border:1px solid var(--line);margin-bottom:6px;font-weight:650;font-size:14px}
+    .crew-member input{width:auto;min-height:0;margin:0}
+    .crew-running{border-left:4px solid var(--accent);background:var(--soft);padding:10px;font-size:13px;margin-bottom:10px}
     [hidden]{display:none!important}
   </style>
 </head>
@@ -99,6 +102,24 @@
     <div class="field"><label>Tätigkeit</label><select id="quickActivity"></select></div>
     <div id="quickTiles" class="tiles" style="margin-top:4px"></div>
     <div id="quickStatus" class="status"></div>
+  </div>
+
+  <div id="crewCard" class="card" hidden>
+    <h2>Kolonne</h2>
+    <div class="muted small" style="margin-bottom:10px">Als Kolonnenführer buchen Sie hier für die ausgewählten Kollegen mit. Jede Buchung zeigt, dass Sie sie angelegt haben.</div>
+    <div id="crewRunning" class="crew-running" hidden></div>
+    <div class="field"><label>Kolonne</label><select id="crewTeam"></select></div>
+    <div class="field"><label>Wer ist dabei?</label><div id="crewMembers"></div></div>
+    <div class="field"><label>Auftrag</label><select id="crewOrder"></select></div>
+    <div class="field"><label>Zeitart</label><select id="crewType"></select></div>
+    <div class="field"><label>Tätigkeit</label><select id="crewActivity"></select></div>
+    <div id="crewStartRow" style="display:flex;gap:8px">
+      <button id="crewStartBtn" style="flex:1">▶ Kolonne starten</button>
+      <button class="secondary" id="crewManualBtn" style="flex:1">+ Nachtrag für Kolonne</button>
+    </div>
+    <div id="crewStatus" class="status"></div>
+    <h2 style="margin-top:14px">Meine Kolonnenbuchungen</h2>
+    <div id="crewGroups" class="entries"></div>
   </div>
 
   <div class="card">
@@ -147,6 +168,24 @@
     <div class="modal-actions">
       <button class="secondary" id="manualCancelBtn">Abbrechen</button>
       <button id="manualSaveBtn">Speichern</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="crewDialog" class="modal">
+  <div class="modal-body">
+    <h2 id="crewDialogTitle">Nachtrag für Kolonne</h2>
+    <div class="small muted" id="crewDialogMembers" style="margin-bottom:10px"></div>
+    <div class="field"><label>Auftrag</label><select id="crewDialogOrder"></select></div>
+    <div class="field"><label>Datum</label><input id="crewDialogDate" type="date"></div>
+    <div class="field"><label>Stunden je Person</label><input id="crewDialogHours" type="number" min="0.25" max="24" step="0.25" value="8"></div>
+    <div class="field"><label>Zeitart</label><select id="crewDialogType"></select></div>
+    <div class="field"><label>Tätigkeit</label><select id="crewDialogActivity"></select></div>
+    <div class="field"><label>Notiz</label><input id="crewDialogNotes" placeholder="optional"></div>
+    <div id="crewDialogStatus" class="status"></div>
+    <div class="modal-actions">
+      <button class="secondary" id="crewDialogCancelBtn">Abbrechen</button>
+      <button id="crewDialogSaveBtn">Speichern</button>
     </div>
   </div>
 </dialog>
@@ -238,22 +277,107 @@ async function startQuick(type){
     // (_time_entry_employee_for_request()), das Feld muss aber im Request stehen, sonst lehnt
     // Pydantic die Anfrage schon vor dem Router mit 422 ab.
     await api('/api/time-entries/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({employee_id:myEmployeeId,order_id:order,entry_type:type,activity:$('quickActivity').value||null})});
-    await loadActive();
+    await loadActive();await loadCrewState();
   }catch(e){$('quickStatus').textContent='Fehler: '+e.message}
 }
 async function stopCurrent(){
   if(!active)return;
   try{
     await api(`/api/time-entries/${active.id}/stop`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({break_minutes:Number($('stopBreak').value||0)})});
-    $('stopBreak').value=0;await loadActive();await loadEntries();
+    $('stopBreak').value=0;await loadActive();await loadEntries();await loadCrewState();
   }catch(e){alert(e.message)}
+}
+
+// --- Kolonnenführer (seit 1.7.12) -----------------------------------------------------------
+// Der Abschnitt erscheint nur, wenn /api/time-tracking/crews mindestens eine Kolonne liefert. Eine
+// laufende Kolonnenzeit ist zugleich die eigene laufende Zeit (activeCard oben) -- deren
+// "Zeit stoppen" beendet die Gruppe für alle (Initiator-Regel im Server), kein zweiter Stopp-Knopf.
+let crews=[],crewGroups=[],crewActive=null,crewEditingId=null;
+const crewDialog=$('crewDialog');
+function crewTeam(){return crews.find(c=>String(c.team_id)===$('crewTeam').value)}
+function renderCrewMembers(){
+  const c=crewTeam();
+  $('crewMembers').innerHTML=(c?.members||[]).map(m=>{const me=m.employee_id===myEmployeeId;return `<label class="crew-member"><input type="checkbox" class="crew-member-check" value="${m.employee_id}" checked ${me?'disabled':''}> ${esc(m.name)}${me?' (ich)':''}</label>`}).join('');
+}
+function crewSelectedIds(){return [...document.querySelectorAll('.crew-member-check')].filter(x=>x.checked).map(x=>Number(x.value))}
+function crewSelectedNames(){const c=crewTeam();const ids=new Set(crewSelectedIds());return (c?.members||[]).filter(m=>ids.has(m.employee_id)).map(m=>m.name)}
+function typeOptions(selected){return types.map(t=>`<option value="${esc(t.value)}" ${(selected?t.value===selected:t.is_default)?'selected':''}>${esc(t.label)}</option>`).join('')}
+function activityOptions(selected){return '<option value="">— optional —</option>'+activities.map(x=>`<option value="${esc(x.value)}" ${x.value===selected?'selected':''}>${esc(x.label)}</option>`).join('')}
+async function loadCrews(){
+  try{crews=await api('/api/time-tracking/crews')}catch(e){crews=[]}
+  $('crewCard').hidden=!crews.length;
+  if(!crews.length)return;
+  $('crewTeam').innerHTML=crews.map(c=>`<option value="${c.team_id}">${esc(c.name)}</option>`).join('');
+  $('crewOrder').innerHTML=orderOptions(initialOrderId||null);
+  $('crewType').innerHTML=typeOptions(null);
+  $('crewActivity').innerHTML=activityOptions(null);
+  renderCrewMembers();
+  await loadCrewState();
+}
+function renderCrewGroup(g){
+  const actions=g.status!=='booked'?'<span class="small muted">läuft</span>'
+    :isLocked(g.work_date)?'<span class="small muted">abgeschlossen</span>'
+    :`<button class="secondary" onclick="openCrewDialog(${g.id})">Ändern</button><button class="danger" onclick="deleteCrewGroup(${g.id})">×</button>`;
+  return `<div class="entry"><div><div class="entry-type">${esc(typeLabel(g.entry_type))} · ${esc(g.team_name||'')}</div><div class="small muted">${fmtDate(g.work_date)} · ${esc(g.order_number||'')}</div><div class="small muted">${g.members.map(m=>esc(m.name)).join(', ')}</div>${g.notes?`<div class="small muted">${esc(g.notes)}</div>`:''}</div><div style="text-align:right"><div class="entry-hours">${g.mode==='timer'?'Ø ':''}${num(g.hours)} h</div><div class="small muted">je Person</div><div class="entry-actions" style="margin-top:6px">${actions}</div></div></div>`;
+}
+async function loadCrewState(){
+  if(!crews.length)return;
+  crewActive=await api('/api/time-entry-groups/active');
+  $('crewRunning').hidden=!crewActive;
+  $('crewStartRow').hidden=!!crewActive;
+  $('crewStartBtn').hidden=!!active;
+  if(crewActive){
+    const since=crewActive.started_at?new Date(crewActive.started_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'';
+    $('crewRunning').innerHTML=`<b>Kolonnenzeit läuft</b>${since?' seit '+since:''} für ${crewActive.member_entries.map(m=>esc(m.employee_name)).join(', ')}.<br>„Zeit stoppen" oben beendet sie für alle.`;
+  }
+  crewGroups=await api('/api/time-entry-groups/mine');
+  $('crewGroups').innerHTML=crewGroups.length?crewGroups.map(renderCrewGroup).join(''):'<div class="empty">Noch keine Kolonnenbuchungen in den letzten 14 Tagen.</div>';
+}
+async function startCrew(){
+  const order=Number($('crewOrder').value||0);
+  if(!order){$('crewStatus').textContent='Bitte Auftrag auswählen.';return}
+  $('crewStatus').textContent='';
+  try{
+    await api('/api/time-entry-groups/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({employee_ids:crewSelectedIds(),team_id:Number($('crewTeam').value),order_id:order,entry_type:$('crewType').value,activity:$('crewActivity').value||null})});
+    await loadActive();await loadCrewState();
+  }catch(e){$('crewStatus').textContent='Fehler: '+e.message}
+}
+function openCrewDialog(groupId=null){
+  const g=groupId?crewGroups.find(x=>x.id===groupId):null;
+  crewEditingId=g?g.id:null;
+  $('crewDialogTitle').textContent=g?'Kolonnenbuchung ändern':'Nachtrag für Kolonne';
+  $('crewDialogMembers').textContent=(g?g.members.map(m=>m.name):crewSelectedNames()).join(', ');
+  $('crewDialogOrder').innerHTML=orderOptions(g?g.order_id:($('crewOrder').value||null));
+  $('crewDialogDate').value=g?g.work_date:today();
+  $('crewDialogHours').value=g?Number(g.hours):8;
+  $('crewDialogType').innerHTML=typeOptions(g?g.entry_type:$('crewType').value);
+  $('crewDialogActivity').innerHTML=activityOptions(g?g.activity:$('crewActivity').value);
+  $('crewDialogNotes').value=g?.notes||'';
+  $('crewDialogStatus').textContent='';
+  crewDialog.showModal();
+}
+async function saveCrewDialog(){
+  const orderId=Number($('crewDialogOrder').value||0),hours=Number($('crewDialogHours').value||0);
+  if(!orderId){$('crewDialogStatus').textContent='Bitte Auftrag auswählen.';return}
+  if(!(hours>0)){$('crewDialogStatus').textContent='Bitte Stunden größer als 0 angeben.';return}
+  const body={order_id:orderId,work_date:$('crewDialogDate').value,entry_type:$('crewDialogType').value,activity:$('crewDialogActivity').value||null,hours,break_minutes:timeSettings.default_break_minutes||0,notes:$('crewDialogNotes').value.trim()||null};
+  try{
+    if(crewEditingId)await api(`/api/time-entry-groups/${crewEditingId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    else await api('/api/time-entry-groups',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,employee_ids:crewSelectedIds(),team_id:Number($('crewTeam').value)})});
+    crewDialog.close();await loadEntries();await loadCrewState();
+  }catch(e){$('crewDialogStatus').textContent='Fehler: '+e.message}
+}
+async function deleteCrewGroup(id){
+  if(!confirm('Diese Kolonnenbuchung für alle Beteiligten löschen?'))return;
+  try{await api(`/api/time-entry-groups/${id}`,{method:'DELETE'});await loadEntries();await loadCrewState()}catch(e){alert(e.message)}
 }
 
 function isLocked(workDate){return !!(timeSettings.locked_until&&workDate<=timeSettings.locked_until)}
 function renderEntry(e){
   const actions=isLocked(e.work_date)?'<span class="small muted">abgeschlossen</span>'
     :(timeSettings.allow_manual_entries?`<button class="secondary" onclick="editEntry(${e.id})">Ändern</button><button class="danger" onclick="deleteEntry(${e.id})">×</button>`:'');
-  return `<div class="entry"><div><div class="entry-type">${esc(typeLabel(e.entry_type))}</div><div class="small muted">${fmtDate(e.work_date)} · ${esc(e.order_number||'')}</div>${e.notes?`<div class="small muted">${esc(e.notes)}</div>`:''}</div><div style="text-align:right"><div class="entry-hours">${num(e.hours)} h</div><div class="entry-actions" style="margin-top:6px">${actions}</div></div></div>`;
+  const bookedBy=e.booked_by_name&&e.booked_by_employee_id&&e.booked_by_employee_id!==myEmployeeId?`<div class="small muted">gebucht von ${esc(e.booked_by_name)}</div>`:'';
+  return `<div class="entry"><div><div class="entry-type">${esc(typeLabel(e.entry_type))}</div><div class="small muted">${fmtDate(e.work_date)} · ${esc(e.order_number||'')}</div>${bookedBy}${e.notes?`<div class="small muted">${esc(e.notes)}</div>`:''}</div><div style="text-align:right"><div class="entry-hours">${num(e.hours)} h</div><div class="entry-actions" style="margin-top:6px">${actions}</div></div></div>`;
 }
 let allEntries=[];
 async function loadEntries(){
@@ -358,7 +482,7 @@ async function init(){
   myEmployeeId=auth.user.employee_id;
   try{timeSettings=await api('/api/time-tracking/settings')}catch(e){console.warn('Zeiterfassungs-Einstellungen konnten nicht geladen werden',e)}
   $('openManualBtn').hidden=!timeSettings.allow_manual_entries;
-if(timeSettings.locked_until){const d=new Date(timeSettings.locked_until+'T12:00:00');d.setDate(d.getDate()+1);$('manualDate').min=d.toISOString().slice(0,10)}
+  if(timeSettings.locked_until){const d=new Date(timeSettings.locked_until+'T12:00:00');d.setDate(d.getDate()+1);$('manualDate').min=$('crewDialogDate').min=d.toISOString().slice(0,10)}
   try{orders=await api('/api/field-view/time-tracking/orders')}catch(e){orders=[]}
   const defaultTypes=[{label:'Baustellenzeit',value:'site',active:true,is_default:true},{label:'Fahrzeit',value:'travel',active:true},{label:'Werkstattzeit',value:'workshop',active:true},{label:'Sonstige Arbeitszeit',value:'other',active:true}];
   const tg=await safeOptionGroup('time_entry_types',defaultTypes);
@@ -383,9 +507,15 @@ if(timeSettings.locked_until){const d=new Date(timeSettings.locked_until+'T12:00
   $('openAbsenceBtn').addEventListener('click',openAbsence);
   $('absenceCancelBtn').addEventListener('click',()=>absenceDialog.close());
   $('absenceSubmitBtn').addEventListener('click',submitAbsence);
+  $('crewTeam').addEventListener('change',renderCrewMembers);
+  $('crewStartBtn').addEventListener('click',startCrew);
+  $('crewManualBtn').addEventListener('click',()=>openCrewDialog());
+  $('crewDialogCancelBtn').addEventListener('click',()=>crewDialog.close());
+  $('crewDialogSaveBtn').addEventListener('click',saveCrewDialog);
 
   await loadActive();
   await loadEntries();
+  await loadCrews();
 }
 init().catch(e=>{
   if(String(e.message||'').includes('401')){location.href='/login?next='+encodeURIComponent(location.pathname);return}

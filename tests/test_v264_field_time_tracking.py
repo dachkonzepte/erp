@@ -199,8 +199,11 @@ class TestFieldTimeTrackingPageRouting:
         body = resp.text
         assert "quickTiles" in body  # eindeutiger Marker aus time_tracking_field.html
         assert "app-sidebar" not in body  # keine volle Sidebar (_sidebar.html)
-        assert "groupDialog" not in body  # keine Gruppenbuchung
-        assert "time-entry-groups" not in body
+        assert "groupDialog" not in body  # keine Büro-Gruppenbuchung
+        # Seit 1.7.12 gibt es einen Kolonnen-Abschnitt -- standardmäßig verborgen, eingeblendet nur
+        # für Kolonnenführer (GET /api/time-tracking/crews), und serverseitig ebenso gesperrt
+        # (tests/test_v302_crew_leader.py). Löst die 1.3.60-Entscheidung "keine Gruppenbuchung" ab.
+        assert 'id="crewCard" class="card" hidden' in body
         assert "manualEmployeeWrap" not in body  # kein Mitarbeiterfeld
 
     def test_field_gets_reduced_template_even_with_order_id_query_param(self, router_test_client, threaded_db_session):

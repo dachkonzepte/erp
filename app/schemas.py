@@ -1889,6 +1889,9 @@ class OperationalResourceOut(OperationalResourceCreate):
 class TeamEmployeeInput(BaseModel):
     employee_id: int
     role: str | None = Field(default=None, max_length=120)
+    # Seit 1.7.12. Achtung: _apply_team_payload() legt alle Mitgliedszeilen bei jedem Speichern
+    # neu an -- ein Client, der das Feld nicht mitschickt, setzt es damit auf False zurück.
+    is_crew_leader: bool = False
 
 class TeamResourceInput(BaseModel):
     resource_id: int
@@ -1909,6 +1912,7 @@ class TeamEmployeeOut(BaseModel):
     employee_id: int
     employee_name: str
     role: str | None = None
+    is_crew_leader: bool = False
 
 class TeamResourceOut(BaseModel):
     resource_id: int
@@ -2237,6 +2241,56 @@ class TimeEntryOut(BaseModel):
     source: str
     status: str
     created_at: datetime
+    # Seit 1.7.12 (Nachvollziehbarkeit Kolonnenführer): wer die Buchung angelegt hat -- bei einer
+    # Gruppenbuchung ist das der Kolonnenführer, nicht der Mitarbeiter, dem sie gehört.
+    booked_by_name: str | None = None
+    booked_by_employee_id: int | None = None
+
+
+class TimeGroupUpdate(BaseModel):
+    """Korrektur einer abgeschlossenen Gruppenbuchung (seit 1.7.12) -- gilt für alle noch
+    verknüpften Mitgliedsbuchungen gleichermaßen. Die Besetzung selbst ist nicht änderbar
+    (dafür löschen und neu buchen)."""
+    order_id: int
+    order_item_id: int | None = None
+    work_date: date
+    entry_type: str = Field(default="site", max_length=40)
+    activity: str | None = Field(default=None, max_length=180)
+    hours: Decimal = Field(gt=0, le=24)
+    break_minutes: int = Field(default=0, ge=0, le=720)
+    notes: str | None = None
+
+
+class CrewMemberOut(BaseModel):
+    employee_id: int
+    name: str
+
+
+class CrewOut(BaseModel):
+    team_id: int
+    name: str
+    members: list[CrewMemberOut] = Field(default_factory=list)
+
+
+class CrewGroupSummaryOut(BaseModel):
+    """Eigene Gruppenbuchung des Kolonnenführers in der Übersicht -- bewusst nur Namen und
+    Stunden je Mitglied, keine vollständigen Buchungen der Kollegen (keine Sicht auf fremde Zeiten)."""
+    id: int
+    team_id: int | None = None
+    team_name: str | None = None
+    order_id: int
+    order_number: str | None = None
+    order_item_id: int | None = None
+    mode: str
+    entry_type: str
+    activity: str | None = None
+    work_date: date
+    hours: Decimal
+    break_minutes: int
+    notes: str | None = None
+    status: str
+    members: list[CrewMemberOut] = Field(default_factory=list)
+
 
 class TimeTrackingSettingsOut(BaseModel):
     rounding_minutes: int = 0

@@ -20,7 +20,7 @@ require_admin().
 """
 
 from fastapi import APIRouter
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -29,9 +29,9 @@ from ..database import get_db
 from ..models import AppUser, TimeEntry, TimeEntryGroup
 from ..permissions import ROLE_FIELD, require_min_role
 from .orders import require_field_order_access
-from ..schemas import TimeEntryManualCreate, TimeEntryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
+from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..time_backoffice import get_or_create_time_settings, locked_until, rounded_hours, time_settings_dict
-from ..time_tracking import active_group_for_employee, active_entry as active_time_entry, create_group_manual_entry, create_manual_entry, delete_entry as delete_time_entry_row, entry_to_dict, group_for_entry, group_member_ids, group_to_dict, list_entries as list_time_entries, start_group_timer, start_timer, stop_group_timer, stop_timer, time_tracking_context, update_entry as update_time_entry_row
+from ..time_tracking import active_group_for_employee, active_entry as active_time_entry, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, entry_to_dict, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, time_tracking_context, update_entry as update_time_entry_row, update_group
 from ..work_time_models import automatic_break_minutes_for_timer
 
 router = APIRouter()
@@ -101,6 +101,43 @@ def _require_open_period(request: Request, db: Session, *work_dates: date) -> No
         raise HTTPException(status_code=403, detail=f"Die Zeiterfassung ist bis {lock:%d.%m.%Y} abgeschlossen. Änderungen in diesem Zeitraum nur durch einen Administrator.")
 
 
+CREW_LEADER_ONLY = "Gruppenbuchungen sind für Monteure dem Kolonnenführer des Teams vorbehalten."
+
+
+def _require_crew_leader(request: Request, db: Session, team_id: int | None) -> None:
+    """Seit 1.7.12: bis dahin war die Gruppenbuchung für `field` nur in der Oberfläche
+    ausgeblendet, serverseitig konnte jeder Monteur für seine Teamkollegen buchen. Jetzt nur noch,
+    wer im gewählten (aktiven) Team als Kolonnenführer eingetragen ist. Büro/Admin unverändert."""
+    user = getattr(request.state, "erp_user", None)
+    if user is None or user.role != ROLE_FIELD:
+        return
+    if team_id is None or team_id not in crew_leader_team_ids(db, user.employee_id):
+        raise HTTPException(status_code=403, detail=CREW_LEADER_ONLY)
+
+
+def _require_group_owner(request: Request, db: Session, group: TimeEntryGroup) -> None:
+    """Ändern/Löschen einer Gruppenbuchung: Admin, oder wer sie angelegt hat -- ein Monteur
+    zusätzlich nur, solange er im Team der Buchung noch Kolonnenführer ist."""
+    user = getattr(request.state, "erp_user", None)
+    if user is None or user.role == "admin":
+        return
+    if user.employee_id is None or user.employee_id != group.initiated_by_employee_id:
+        raise HTTPException(status_code=403, detail="Nur wer die Gruppenbuchung angelegt hat, darf sie ändern oder löschen.")
+    if user.role == ROLE_FIELD and group.team_id not in crew_leader_team_ids(db, user.employee_id):
+        raise HTTPException(status_code=403, detail=CREW_LEADER_ONLY)
+
+
+def _group_out(request: Request, db: Session, group: TimeEntryGroup) -> TimeGroupOut:
+    """Für Monteure ohne die vollständigen Buchungen der Kollegen (keine Sicht auf fremde Zeiten)
+    -- nur Name, Stunden und Status je Mitglied."""
+    data = group_to_dict(db, group)
+    user = getattr(request.state, "erp_user", None)
+    if user is not None and user.role == ROLE_FIELD:
+        data["member_entries"] = [{"employee_id": e["employee_id"], "employee_name": e["employee_name"],
+                                   "hours": e["hours"], "status": e["status"]} for e in data["member_entries"]]
+    return TimeGroupOut.model_validate(data)
+
+
 def _group_actor(request: Request) -> tuple[int | None, bool, int | None]:
     user=getattr(request.state,"erp_user",None)
     is_admin=bool(user is None or user.role=="admin")
@@ -134,26 +171,28 @@ def get_time_tracking_context(request: Request, employee_id: int | None = None, 
 def create_time_group_manual(payload:TimeGroupManualCreate,request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,manual=True,group=True)
     actor,is_admin,user_id=_group_actor(request)
+    _require_crew_leader(request,db,payload.team_id)
     _require_bookable_order(request,db,payload.order_id)
     _require_open_period(request,db,payload.work_date)
     try:
         group=create_group_manual_entry(db,employee_ids=payload.employee_ids,team_id=payload.team_id,actor_employee_id=actor,is_admin=is_admin,order_id=payload.order_id,order_item_id=payload.order_item_id,work_date=payload.work_date,entry_type=payload.entry_type,activity=payload.activity,hours=payload.hours,break_minutes=payload.break_minutes,notes=payload.notes,created_by_user_id=user_id)
     except ValueError as exc:
         raise HTTPException(status_code=409 if "läuft bereits" in str(exc) else 422,detail=str(exc)) from exc
-    return TimeGroupOut.model_validate(group_to_dict(db,group))
+    return _group_out(request,db,group)
 
 
 @router.post("/api/time-entry-groups/start", response_model=TimeGroupOut)
 def start_time_group(payload:TimeGroupTimerStart,request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,group=True)
     actor,is_admin,user_id=_group_actor(request)
+    _require_crew_leader(request,db,payload.team_id)
     _require_bookable_order(request,db,payload.order_id)
     _require_open_period(request,db,(payload.started_at or datetime.now()).date())
     try:
         group=start_group_timer(db,employee_ids=payload.employee_ids,team_id=payload.team_id,actor_employee_id=actor,is_admin=is_admin,order_id=payload.order_id,order_item_id=payload.order_item_id,entry_type=payload.entry_type,activity=payload.activity,notes=payload.notes,started_at=payload.started_at,created_by_user_id=user_id)
     except ValueError as exc:
         raise HTTPException(status_code=409 if "läuft bereits" in str(exc) else 422,detail=str(exc)) from exc
-    return TimeGroupOut.model_validate(group_to_dict(db,group))
+    return _group_out(request,db,group)
 
 
 @router.get("/api/time-entry-groups/active", response_model=TimeGroupOut | None)
@@ -161,7 +200,52 @@ def get_active_time_group(request:Request,employee_id:int|None=None,db:Session=D
     resolved=_time_entry_employee_for_request(request,employee_id,db)
     user=getattr(request.state,"erp_user",None)
     row=active_group_for_employee(db,resolved,initiated_only=bool(user is not None and user.role!="admin"))
-    return TimeGroupOut.model_validate(group_to_dict(db,row)) if row else None
+    return _group_out(request,db,row) if row else None
+
+
+@router.get("/api/time-entry-groups/mine", response_model=list[CrewGroupSummaryOut])
+def get_my_time_groups(request:Request,days:int=14,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
+    """Seit 1.7.12: die selbst angelegten Gruppenbuchungen (zum Korrigieren) -- nur Namen und
+    Stunden je Mitglied, keine vollständigen Buchungen der Kollegen."""
+    user=getattr(request.state,"erp_user",None)
+    if user is None or user.employee_id is None:
+        return []
+    start=date.today()-timedelta(days=max(1,min(days,62)))
+    return [CrewGroupSummaryOut.model_validate(x) for x in list_groups_initiated_by(db,user.employee_id,start_date=start)]
+
+
+@router.get("/api/time-tracking/crews", response_model=list[CrewOut])
+def get_my_crews(request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
+    """Seit 1.7.12: die Kolonnen, für die der angemeldete Mitarbeiter als Kolonnenführer buchen
+    darf -- leer für jeden anderen (die mobile Ansicht blendet den Abschnitt dann aus)."""
+    user=getattr(request.state,"erp_user",None)
+    return [CrewOut.model_validate(x) for x in list_crews_for_leader(db,getattr(user,"employee_id",None))]
+
+
+@router.put("/api/time-entry-groups/{group_id}", response_model=TimeGroupOut)
+def put_time_group(group_id:int,payload:TimeGroupUpdate,request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
+    group=db.get(TimeEntryGroup,group_id)
+    if group is None: raise HTTPException(status_code=404,detail="Gruppenbuchung wurde nicht gefunden.")
+    _require_group_owner(request,db,group)
+    _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,manual=True,group=True)
+    _require_bookable_order(request,db,payload.order_id)
+    _require_open_period(request,db,group.work_date,payload.work_date)
+    try:
+        group=update_group(db,group_id,order_id=payload.order_id,order_item_id=payload.order_item_id,work_date=payload.work_date,entry_type=payload.entry_type,activity=payload.activity,hours=payload.hours,break_minutes=payload.break_minutes,notes=payload.notes)
+    except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
+    return _group_out(request,db,group)
+
+
+@router.delete("/api/time-entry-groups/{group_id}")
+def remove_time_group(group_id:int,request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
+    group=db.get(TimeEntryGroup,group_id)
+    if group is None: raise HTTPException(status_code=404,detail="Gruppenbuchung wurde nicht gefunden.")
+    _require_group_owner(request,db,group)
+    _require_open_period(request,db,group.work_date)
+    try:
+        delete_group(db,group_id)
+    except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
+    return {"deleted": True}
 
 
 @router.post("/api/time-entry-groups/{group_id}/stop", response_model=TimeGroupOut)
@@ -177,7 +261,7 @@ def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:S
         member_breaks={eid:automatic_break_minutes_for_timer(db,eid,group.started_at,end) for eid in group_member_ids(db,group.id)} if group.started_at else {}
         group=stop_group_timer(db,group_id,ended_at=end,break_minutes=payload.break_minutes,break_minutes_by_employee=member_breaks)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
-    return TimeGroupOut.model_validate(group_to_dict(db,group))
+    return _group_out(request,db,group)
 
 
 @router.get("/api/time-entries", response_model=list[TimeEntryOut])

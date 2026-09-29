@@ -49,6 +49,7 @@ def _team_dict(db: Session, team: Team):
             "employee_id": r.employee_id,
             "employee_name": f"{r.employee.first_name} {r.employee.last_name}".strip() if r.employee else f"#{r.employee_id}",
             "role": r.role,
+            "is_crew_leader": bool(r.is_crew_leader),
         } for r in team.employees],
         "resources": [{
             "resource_id": r.resource_id,
@@ -69,7 +70,7 @@ def _apply_team_payload(db:Session,team:Team,payload:TeamCreate|TeamUpdate):
         if x.employee_id in seen: continue
         e=db.get(Employee,x.employee_id)
         if e is None: raise HTTPException(status_code=422,detail=f"Mitarbeiter #{x.employee_id} wurde nicht gefunden.")
-        db.add(TeamEmployee(team_id=team.id,employee_id=x.employee_id,role=x.role)); seen.add(x.employee_id)
+        db.add(TeamEmployee(team_id=team.id,employee_id=x.employee_id,role=x.role,is_crew_leader=x.is_crew_leader)); seen.add(x.employee_id)
     seen=set()
     for x in payload.resources:
         if x.resource_id in seen: continue

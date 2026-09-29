@@ -496,6 +496,50 @@ bebuchen, und die Antwort (`TimeEntryOut`) lieferte Auftragsnummer, Titel und Pr
 ein Nachtrag für einen älteren Einsatz weiter möglich bleibt. Büro/Admin unverändert.
 `tests/test_v299_time_booking_order_scope.py`.
 
+**Nachtrag (seit 1.7.12): Kolonnenführer -- löst den offenen Punkt aus Punkt 3 oben.** Befund
+vorab: die Gruppenbuchung war für `field` seit 1.3.60 nur in der Oberfläche entfernt, die vier
+`/api/time-entry-groups*`-Endpunkte standen serverseitig jedem Monteur offen
+(`require_min_role(ROLE_FIELD)`, `validate_group_members()` prüfte nur Teamzugehörigkeit) --
+jeder Monteur konnte per direktem Aufruf für seine Teamkollegen buchen. Betreiberentscheidungen:
+
+- **Keine fünfte Rolle, sondern ein Kennzeichen an der Teamzuordnung:**
+  `TeamEmployee.is_crew_leader` (Boolean, `server_default='0'`, Migration `2f5de21f11b8`). Das
+  vorhandene `TeamEmployee.role` taugt dafür NICHT: Freitext ("Rolle im Team, z. B.
+  Vorarbeiter"), als Anzeige-Schnappschuss in die Arbeitsvorbereitung kopiert -- eine
+  Rechteentscheidung hinge an Schreibweisen. Bestehende "Vorarbeiter"-Texte werden bewusst NICHT
+  automatisch zum Kennzeichen; das Büro setzt es nach dem Einspielen selbst. Mehrere je Team
+  erlaubt (Vertretung). Gesetzt in der Team-Maske (`master_data_form.html`) von wem Teams pflegt
+  (`buero_auftrag`+). **Fallstrick:** `_apply_team_payload()` legt alle Mitgliedszeilen bei jedem
+  Speichern neu an -- ein Client, der `is_crew_leader` nicht mitschickt, setzt es zurück.
+- **Gate:** `_require_crew_leader()` (`app/routers/time_tracking.py`) -- ein Monteur gruppenbucht
+  (manuell oder Timer) nur für ein aktives Team, in dem er Kolonnenführer ist. Bestehende Regeln
+  gelten weiter: er selbst muss dabei sein, alle Gebuchten müssen Mitglieder sein, der Auftrag
+  muss ihm zugeordnet sein (1.7.9), der Zeitraum offen (1.7.10). Büro/Admin unverändert.
+- **Korrektur:** neu `PUT`/`DELETE /api/time-entry-groups/{id}` (`update_group()`/
+  `delete_group()`) -- Admin, oder wer die Gruppe angelegt hat; ein Monteur zusätzlich nur,
+  solange er im Team der Buchung noch Kolonnenführer ist; nur bis zum Abschluss. Die Korrektur
+  gilt für alle Mitgliedsbuchungen gleich und überschreibt eine zwischenzeitliche Einzeländerung
+  eines Mitglieds. Die Besetzung ist nicht änderbar (löschen und neu buchen). Einzelbuchungen der
+  Kollegen bleiben für ihn unerreichbar (`_time_entry_can_edit()` unverändert).
+- **Keine Sicht auf fremde Zeiten:** Gruppenantworten enthalten für `field` je Mitglied nur Name,
+  Stunden, Status (`_group_out()`); `GET /api/time-entry-groups/mine` (eigene Gruppenbuchungen,
+  14 Tage) ebenso nur Namen. `GET /api/time-entries` bleibt self-scoped.
+- **Nachvollziehbar:** `TimeEntryOut.booked_by_name`/`booked_by_employee_id` (aus
+  `TimeEntry.created_by_user_id`, neue Relationship `TimeEntry.created_by`, keine Migration);
+  Mitglied und Backoffice sehen "gebucht von …". Die Gruppe selbst trägt
+  `initiated_by_employee_id`, die Änderungshistorie schreibt Zeitbuchungen und Teamänderungen
+  mit.
+- **Oberfläche:** Abschnitt "Kolonne" in `time_tracking_field.html`, nur sichtbar, wenn
+  `GET /api/time-tracking/crews` etwas liefert. Eine laufende Kolonnenzeit ist zugleich die eigene
+  laufende Zeit -- deren "Zeit stoppen" beendet die Gruppe für alle (bestehende Initiator-Regel),
+  bewusst kein zweiter Stopp-Knopf.
+- **Nebenbefund, eigene Version 1.7.11:** `delete_entry()` scheiterte unter PostgreSQL an der
+  Gruppen-Verknüpfung (Fremdschlüssel ohne Kaskade).
+
+`tests/test_v302_crew_leader.py` (14 Tests, inkl. Angriffstest; Gegenprobe mit abgeschaltetem Gate
+rot), Klicktest per CDP gegen eine isolierte Instanz (Start/Stopp/Nachtrag/Ändern/Löschen als
+Kolonnenführerin, "gebucht von" beim Mitglied, Team-Maske, Abschluss-Karte).
+
 ### Fünf weitere Anpassungen an der Monteursansicht (seit 1.3.61)
 
 Fünf rollenbezogene Punkte, alle ohne neues Datenmodell außer Punkt 4 (siehe dort -- am Ende doch

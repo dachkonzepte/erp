@@ -50,6 +50,7 @@ def load_entry(db: Session, entry_id: int) -> TimeEntry | None:
         .options(
             selectinload(TimeEntry.employee), selectinload(TimeEntry.order),
             selectinload(TimeEntry.project), selectinload(TimeEntry.order_item),
+            selectinload(TimeEntry.created_by),
         )
         .where(TimeEntry.id == entry_id)
     )
@@ -206,6 +207,8 @@ def entry_to_dict(row: TimeEntry) -> dict:
         "started_at": row.started_at, "ended_at": row.ended_at, "break_minutes": row.break_minutes,
         "hours": row.hours, "notes": row.notes, "source": row.source, "status": row.status,
         "created_at": row.created_at,
+        "booked_by_name": row.created_by.display_name if row.created_by else None,
+        "booked_by_employee_id": row.created_by.employee_id if row.created_by else None,
     }
 
 
@@ -216,7 +219,7 @@ def list_entries(
 ) -> list[TimeEntry]:
     stmt = select(TimeEntry).options(
         selectinload(TimeEntry.employee), selectinload(TimeEntry.project),
-        selectinload(TimeEntry.order), selectinload(TimeEntry.order_item),
+        selectinload(TimeEntry.order), selectinload(TimeEntry.order_item), selectinload(TimeEntry.created_by),
     ).order_by(TimeEntry.work_date.desc(), TimeEntry.started_at.desc(), TimeEntry.id.desc()).limit(min(max(limit,1),2000))
     if employee_id is not None: stmt=stmt.where(TimeEntry.employee_id==employee_id)
     if project_id is not None: stmt=stmt.where(TimeEntry.project_id==project_id)
@@ -407,6 +410,101 @@ def group_to_dict(db: Session, group: TimeEntryGroup) -> dict:
         entry=load_entry(db,link.time_entry_id)
         if entry: member_entries.append(entry_to_dict(entry))
     return {"id":group.id,"initiated_by_employee_id":group.initiated_by_employee_id,"team_id":group.team_id,"order_id":group.order_id,"project_id":group.project_id,"order_item_id":group.order_item_id,"mode":group.mode,"entry_type":group.entry_type,"activity":group.activity,"work_date":group.work_date,"started_at":group.started_at,"ended_at":group.ended_at,"break_minutes":group.break_minutes,"hours":group.hours,"notes":group.notes,"status":group.status,"member_entries":member_entries}
+
+
+# --- Version 1.7.12: Kolonnenführer ---
+def crew_leader_team_ids(db: Session, employee_id: int | None) -> set[int]:
+    """Aktive Teams, in denen der Mitarbeiter als Kolonnenführer eingetragen ist."""
+    if employee_id is None:
+        return set()
+    return set(db.scalars(
+        select(TeamEmployee.team_id).join(Team, Team.id == TeamEmployee.team_id)
+        .where(TeamEmployee.employee_id == employee_id, TeamEmployee.is_crew_leader == True, Team.active == True)  # noqa: E712
+    ).all())
+
+
+def list_crews_for_leader(db: Session, employee_id: int | None) -> list[dict]:
+    team_ids = crew_leader_team_ids(db, employee_id)
+    if not team_ids:
+        return []
+    teams = db.scalars(
+        select(Team).options(selectinload(Team.employees).selectinload(TeamEmployee.employee))
+        .where(Team.id.in_(team_ids)).order_by(Team.name)
+    ).unique().all()
+    return [{
+        "team_id": t.id, "name": t.name,
+        "members": [{"employee_id": m.employee_id, "name": employee_name(m.employee)}
+                    for m in t.employees if m.employee and m.employee.active],
+    } for t in teams]
+
+
+def _group_links(db: Session, group_id: int) -> list[TimeEntryGroupMember]:
+    return list(db.scalars(select(TimeEntryGroupMember).where(TimeEntryGroupMember.group_id == group_id).order_by(TimeEntryGroupMember.id)).all())
+
+
+def update_group(db: Session, group_id: int, *, order_id: int, work_date: date, hours: Decimal, entry_type: str,
+                 order_item_id: int | None = None, activity: str | None = None, notes: str | None = None,
+                 break_minutes: int = 0) -> TimeEntryGroup:
+    """Korrigiert eine abgeschlossene Gruppenbuchung und jede noch verknüpfte Mitgliedsbuchung
+    gleichermaßen. Hat ein Mitglied seinen Eintrag inzwischen selbst geändert, wird das hier
+    überschrieben -- die Gruppenkorrektur ist die führende."""
+    group = db.get(TimeEntryGroup, group_id)
+    if group is None: raise ValueError("Gruppenbuchung wurde nicht gefunden.")
+    if group.status != "booked": raise ValueError("Eine laufende Gruppenbuchung zuerst stoppen.")
+    order = db.get(Order, order_id)
+    if order is None: raise ValueError("Auftrag wurde nicht gefunden.")
+    validate_order_item(db, order_id, order_item_id)
+    amount = _d(hours)
+    if amount <= 0: raise ValueError("Die Stunden müssen größer als 0 sein.")
+    for link in _group_links(db, group.id):
+        entry = db.get(TimeEntry, link.time_entry_id)
+        if entry is None:
+            continue
+        entry.order_id = order.id; entry.project_id = order.project_id; entry.order_item_id = order_item_id
+        entry.work_date = work_date; entry.hours = amount; entry.entry_type = entry_type
+        entry.counts_as_productive = entry_type_is_productive(entry_type)
+        entry.activity = activity or None; entry.notes = notes or None; entry.break_minutes = max(0, int(break_minutes or 0))
+    group.order_id = order.id; group.project_id = order.project_id; group.order_item_id = order_item_id
+    group.work_date = work_date; group.hours = amount; group.entry_type = entry_type
+    group.activity = activity or None; group.notes = notes or None; group.break_minutes = max(0, int(break_minutes or 0))
+    db.commit()
+    return db.get(TimeEntryGroup, group.id)
+
+
+def delete_group(db: Session, group_id: int) -> None:
+    group = db.get(TimeEntryGroup, group_id)
+    if group is None: raise ValueError("Gruppenbuchung wurde nicht gefunden.")
+    if group.status != "booked": raise ValueError("Eine laufende Gruppenbuchung zuerst stoppen.")
+    for link in _group_links(db, group.id):
+        entry = db.get(TimeEntry, link.time_entry_id)
+        db.delete(link); db.flush()
+        if entry is not None:
+            db.delete(entry)
+    db.flush()
+    db.delete(group); db.commit()
+
+
+def list_groups_initiated_by(db: Session, employee_id: int, *, start_date: date) -> list[dict]:
+    groups = db.scalars(
+        select(TimeEntryGroup).where(TimeEntryGroup.initiated_by_employee_id == employee_id, TimeEntryGroup.work_date >= start_date)
+        .order_by(TimeEntryGroup.work_date.desc(), TimeEntryGroup.id.desc())
+    ).all()
+    result = []
+    for g in groups:
+        team = db.get(Team, g.team_id) if g.team_id else None
+        order = db.get(Order, g.order_id)
+        members = []
+        for link in _group_links(db, g.id):
+            emp = db.get(Employee, link.employee_id)
+            members.append({"employee_id": link.employee_id, "name": employee_name(emp) or f"#{link.employee_id}"})
+        result.append({
+            "id": g.id, "team_id": g.team_id, "team_name": team.name if team else None,
+            "order_id": g.order_id, "order_number": order.order_number if order else None,
+            "order_item_id": g.order_item_id, "mode": g.mode, "entry_type": g.entry_type, "activity": g.activity,
+            "work_date": g.work_date, "hours": g.hours, "break_minutes": g.break_minutes, "notes": g.notes,
+            "status": g.status, "members": members,
+        })
+    return result
 
 
 def active_group_for_employee(db: Session, employee_id: int, *, initiated_only: bool = False) -> TimeEntryGroup | None:

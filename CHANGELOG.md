@@ -4,6 +4,24 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.7.12 – Zeiterfassung: Kolonnenführer bucht für seine Kolonne
+
+Löst den seit 1.3.60 offenen Punkt. Statt einer fünften Rolle trägt die Teamzuordnung jetzt ein
+Kennzeichen "Kolonnenführer" (Häkchen in der Team-Maske, mehrere je Team für die Vertretung).
+Ein Monteur mit diesem Kennzeichen sieht in seiner mobilen Zeiterfassung einen Abschnitt
+"Kolonne": Mitglieder wählen, gemeinsam starten und stoppen, für die Kolonne nachtragen, und
+eigene Kolonnenbuchungen bis zum Abschluss (1.7.10) ändern oder löschen. Er sieht dabei von den
+Kollegen nur Namen und Stunden, keine vollständigen Buchungen, und kann ihre Einzelbuchungen
+nicht ändern. Jede so angelegte Buchung zeigt beim Mitglied und im Backoffice "gebucht von …".
+Das vorhandene Freitextfeld "Rolle im Team" wurde bewusst nicht dafür verwendet, weil eine
+Rechteentscheidung sonst an der Schreibweise hinge.
+
+Der Befund vorab: Die Gruppenbuchung war für Monteure seit 1.3.60 nur in der Oberfläche
+ausgeblendet, serverseitig konnte jeder Monteur per direktem Aufruf für seine Teamkollegen buchen.
+Das ist jetzt auf dem Server gesperrt, außer für Kolonnenführer des gewählten Teams. Migration
+`2f5de21f11b8` (neue Spalte mit `server_default`, bestehende Teamzeilen bekommen "kein
+Kolonnenführer"). 14 neue Tests inklusive Angriffstest.
+
 ## 1.7.11 – Zeiterfassung: per Gruppe gebuchte Einträge ließen sich unter PostgreSQL nicht löschen
 
 Gefunden bei der Planung des Kolonnenführers: Löschte jemand einen Eintrag, der aus einer
