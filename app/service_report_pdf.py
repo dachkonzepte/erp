@@ -29,6 +29,7 @@ from .document_page_margins import get_margins
 from .document_pdf import build_din5008_header_block, build_object_address_block, build_styles, ptext
 from .findings import ACTION_LABELS, SEVERITY_LABELS, STATUS_LABELS
 from .service_report_photos import photo_path
+from .rounding import round_hours
 from .service_reports import REPORT_TYPE_LABELS, report_to_dict, signature_path
 from .settings import get_or_create_general_settings
 from .time_tracking import entry_to_dict, list_entries
@@ -351,7 +352,7 @@ def build_service_report_pdf(db, report, *, include_time_entries: bool = True) -
                 d = entry_to_dict(e)
                 rows.append([
                     d["work_date"].strftime("%d.%m.%Y"), d["employee_name"] or "",
-                    d["activity"] or "", f"{d['hours']:.2f}".replace(".", ","),
+                    d["activity"] or "", f"{round_hours(d['hours']):.2f}".replace(".", ","),  # kaufmännisch, seit 1.8.11
                 ])
             fixed_width = sum(TIME_ENTRY_FIXED_COLS_MM.values()) * mm
             taetigkeit_width = content_width - fixed_width

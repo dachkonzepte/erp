@@ -21,11 +21,19 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .invoices import compute_invoice_totals, get_invoice
+from .invoices import compute_invoice_totals, get_invoice, invoice_rounding
 from .models import Invoice, Reminder, ReminderLevel
+from .rounding import CENT
 from .settings import get_or_create_general_settings, issue_number
 
-HOUR = Decimal("0.01")  # für Geldbeträge wiederverwendet, siehe quantize-Aufrufe unten
+
+def reminder_total(reminder: Reminder) -> Decimal:
+    """Offener Betrag + Mahngebühr, auf den Cent nach der Rundungsregel der Rechnung (seit
+    1.8.11, app/invoices.py::invoice_rounding()): kaufmännisch bei Rechnungen ab 1.8.11,
+    halb-gerade wie bisher bei vorher versendeten -- deren offener Betrag ist ungerundet
+    gespeichert, und eine versendete Mahnung soll beim Nachdruck denselben Gesamtbetrag zeigen."""
+    return (reminder.outstanding_amount + reminder.fee_amount).quantize(CENT, rounding=invoice_rounding(reminder.invoice))
+
 
 DEFAULT_REMINDER_LEVELS = [
     # (level, label, days_after_previous_step, fee_amount, text_template)
@@ -138,7 +146,7 @@ def _reminder_placeholders(reminder: Reminder) -> dict:
     """Gemeinsame Platzhalter-Werte für PDF-Text UND E-Mail-Betreff/-Text
     (seit 1.0.74, vorher nur für format_reminder_text() intern)."""
     invoice = reminder.invoice
-    total = (reminder.outstanding_amount + reminder.fee_amount).quantize(HOUR)
+    total = reminder_total(reminder)
     money = lambda x: f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " €"  # noqa: E731
     previous = [r for r in invoice.reminders if r.status == "versendet" and r.level == reminder.level - 1]
     previous_date = previous[0].reminder_date.strftime("%d.%m.%Y") if previous else ""
@@ -372,7 +380,7 @@ def reminder_to_dict(reminder: Reminder) -> dict:
         "new_due_date": reminder.new_due_date,
         "outstanding_amount": reminder.outstanding_amount,
         "fee_amount": reminder.fee_amount,
-        "total_amount": (reminder.outstanding_amount + reminder.fee_amount).quantize(HOUR),
+        "total_amount": reminder_total(reminder),
         "text": reminder.text,
         "formatted_text": format_reminder_text(reminder),
         "customer_name": invoice.customer_name,

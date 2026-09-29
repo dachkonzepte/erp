@@ -19,7 +19,7 @@ unveränderlich; Korrekturen laufen ausschließlich über eine Stornorechnung.
 """
 
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -28,6 +28,7 @@ from .calculation import effective_material_sale_price, get_or_create_settings
 from .models import Invoice, InvoiceItem, Material, Order, OrderItem, PaymentTerm, ServiceReportMaterial, TaxKey, TimeEntry
 from .option_settings import default_option_value
 from .payment_terms import get_default_payment_term
+from .rounding import CENT, INVOICE_ROUNDING_HALF_UP, round_money
 from .settings import issue_number
 
 INVOICE_TYPES = {"abschlag_pauschal", "abschlag_leistungsstand", "schluss", "aufwand", "storno"}
@@ -181,16 +182,45 @@ def compute_billed_quantity_and_total(
     return billed_quantity, billed_quantity * unit_price
 
 
+def invoice_rounding(invoice: Invoice) -> str:
+    """Rundungsart dieser Rechnung (seit 1.8.11, Invoice.rounding_rule): ROUND_HALF_UP
+    (kaufmännisch) für jede Rechnung ab 1.8.11, ROUND_HALF_EVEN für eine vorher versendete -- so
+    hat deren PDF die Beträge beim Formatieren gerundet (f"{x:.2f}" rundet halb-gerade)."""
+    return ROUND_HALF_UP if invoice.rounding_rule == INVOICE_ROUNDING_HALF_UP else ROUND_HALF_EVEN
+
+
+def invoice_line_total(invoice: Invoice, item: InvoiceItem) -> Decimal:
+    """Positionsbetrag, wie er auf der Rechnung steht. billed_total ist mit sechs
+    Nachkommastellen gespeichert (Menge x Preis) und bleibt so; ab 1.8.11 zählt der
+    kaufmännisch auf den Cent gerundete Betrag, vorher der ungerundete."""
+    if invoice.rounding_rule == INVOICE_ROUNDING_HALF_UP:
+        return round_money(item.billed_total)
+    return item.billed_total
+
+
 def compute_invoice_totals(invoice: Invoice) -> dict:
     """net/vat/gross wie bei Order nicht gespeichert, sondern immer frisch
     berechnet -- für abschlag_pauschal aus lump_sum_net, sonst aus der Summe
-    von billed_total über alle Positionen (unabhängig von der Ist=0-
-    Anzeigeregel, die nur die Darstellung betrifft, nicht die Summe)."""
+    der Positionsbeträge (unabhängig von der Ist=0-Anzeigeregel, die nur die
+    Darstellung betrifft, nicht die Summe).
+
+    Seit 1.8.11 (rounding_rule "half_up") wie bei Angebot und Auftrag kaufmännisch:
+    Positionsbeträge und Pauschalbetrag auf den Cent, Netto als deren Summe, USt auf den Cent,
+    Brutto = Netto + USt. Eine vorher versendete Rechnung (rounding_rule leer) rechnet
+    unverändert ungerundet, gerundet wird dort erst beim Formatieren -- sonst ergäbe ihr
+    Nachdruck bei einem halben Cent einen anderen Betrag als das versendete Dokument."""
+    if invoice.rounding_rule != INVOICE_ROUNDING_HALF_UP:
+        if invoice.invoice_type == "abschlag_pauschal":
+            net = invoice.lump_sum_net or Decimal("0")
+        else:
+            net = sum((item.billed_total for item in invoice.items), Decimal("0"))
+        vat = net * invoice.vat_rate / Decimal("100")
+        return {"net_total": net, "vat_total": vat, "gross_total": net + vat}
     if invoice.invoice_type == "abschlag_pauschal":
-        net = invoice.lump_sum_net or Decimal("0")
+        net = round_money(invoice.lump_sum_net)
     else:
-        net = sum((item.billed_total for item in invoice.items), Decimal("0"))
-    vat = net * invoice.vat_rate / Decimal("100")
+        net = sum((invoice_line_total(invoice, item) for item in invoice.items), Decimal("0"))
+    vat = round_money(net * invoice.vat_rate / Decimal("100"))
     return {"net_total": net, "vat_total": vat, "gross_total": net + vat}
 
 
@@ -568,6 +598,9 @@ def create_storno_draft(db: Session, original: Invoice) -> Invoice:
     )
     db.add(storno)
     db.flush()
+    # Seit 1.8.11: dieselbe Rundungsregel wie das Original, damit sich beide auf den Cent aufheben.
+    # Erst nach dem flush: ein None im Konstruktor ersetzt SQLAlchemy durch den Vorgabewert "half_up".
+    storno.rounding_rule = original.rounding_rule
     for item in original.items:
         db.add(InvoiceItem(
             invoice_id=storno.id, source_order_item_id=item.source_order_item_id,
@@ -668,7 +701,7 @@ def format_payment_terms_sentence(invoice: Invoice) -> str:
     if has_skonto:
         skonto_date = invoice.invoice_date + timedelta(days=invoice.skonto_days)
         totals = compute_invoice_totals(invoice)
-        skonto_amount = (totals["gross_total"] * invoice.skonto_percent / Decimal("100")).quantize(Decimal("0.01"))
+        skonto_amount = (totals["gross_total"] * invoice.skonto_percent / Decimal("100")).quantize(CENT, rounding=invoice_rounding(invoice))
         skonto_date_str = skonto_date.strftime("%d.%m.%Y")
         percent_text = f"{invoice.skonto_percent:.2f}".rstrip("0").rstrip(".").replace(".", ",")
         amount_text = f"{skonto_amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -741,7 +774,7 @@ def invoice_to_dict(invoice: Invoice) -> dict:
                 "position_number": i.position_number, "gaeb_oz": i.gaeb_oz, "short_text": i.short_text,
                 "long_text": i.long_text, "unit": i.unit, "unit_price": i.unit_price,
                 "soll_quantity": i.soll_quantity, "ist_quantity": i.ist_quantity,
-                "billed_quantity": i.billed_quantity, "billed_total": i.billed_total,
+                "billed_quantity": i.billed_quantity, "billed_total": invoice_line_total(invoice, i),
             }
             for i in items
         ],

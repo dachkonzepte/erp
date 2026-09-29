@@ -1,4 +1,4 @@
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -8,14 +8,12 @@ from .models import (
 )
 from .employees import annual_gross_wage, effective_cost_allocation
 from .recurring_costs import list_costs, overview_summary
+from .rounding import round_money
 
 ZERO = Decimal("0")
 HUNDRED = Decimal("100")
-CENT = Decimal("0.01")
-
-
 def q(value: Decimal | int | float | str) -> Decimal:
-    return Decimal(value).quantize(CENT, rounding=ROUND_HALF_UP)
+    return round_money(value)
 
 
 def get_or_create_labor_rate_settings(db: Session) -> LaborRateSettings:

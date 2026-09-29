@@ -9,10 +9,10 @@ from .models import (
     WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationDeliveryNote,
     WorkPreparationMaterialDeliveryNote,
 )
+from .rounding import round_hours
 from .time_tracking import order_actual_hours, order_item_actual_hours
 
 QTY = Decimal("0.001")
-HOUR = Decimal("0.01")
 
 
 def _d(v):
@@ -92,13 +92,13 @@ def planned_hours(order: Order) -> Decimal:
         calc = item.calculation_snapshot
         if calc:
             total += ((_d(calc.site_time_minutes) + _d(calc.workshop_time_minutes)) / Decimal("60")) * _d(item.quantity)
-    return total.quantize(HOUR, rounding=ROUND_HALF_UP)
+    return round_hours(total)
 
 
 def preparation_to_dict(db: Session, prep: WorkPreparation) -> dict:
     order = _load_order_full(db, prep.order_id)
     hours = planned_hours(order)
-    employee_hours = sum((_d(x.planned_hours) for x in prep.employees), Decimal("0")).quantize(HOUR)
+    employee_hours = round_hours(sum((_d(x.planned_hours) for x in prep.employees), Decimal("0")))
     open_tasks = sum(1 for t in prep.tasks if t.status != "erledigt")
     supplier_links = {x.material_id: x for x in db.scalars(
         select(WorkPreparationMaterialSupplier).options(selectinload(WorkPreparationMaterialSupplier.supplier))
@@ -202,7 +202,7 @@ def preparation_to_dict(db: Session, prep: WorkPreparation) -> dict:
         "actual_total_hours": productive_actual,
         "actual_travel_hours": actual["travel_hours"],
         "actual_all_hours": actual["total_hours"],
-        "hours_variance": (productive_actual - planned).quantize(HOUR),
+        "hours_variance": round_hours(productive_actual - planned),
         "time_by_type": actual["by_type"],
         "order_item_actual_hours": {str(k): v for k, v in item_actual.items()},
         "assigned_planned_hours": employee_hours,

@@ -16,6 +16,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 
 from .models import AppUser, Employee, EmployeePayrollSettings, TimeEntry, TimeTrackingSettings, WorkTimeModel
+from .rounding import round_hours
 from .time_tracking import list_entries, entry_to_dict
 from .settings import get_or_create_general_settings
 from .work_time_models import get_or_create_advanced_settings
@@ -162,10 +163,10 @@ def set_employee_payroll(db: Session, employee_id: int, payload) -> dict:
 def rounded_hours(hours: Decimal, rounding_minutes: int) -> Decimal:
     h=Decimal(hours or 0)
     if not rounding_minutes:
-        return h.quantize(Decimal("0.01"))
+        return round_hours(h)
     step=Decimal(rounding_minutes)/Decimal(60)
-    if step <= 0: return h.quantize(Decimal("0.01"))
-    return ((h/step).quantize(Decimal("1"), rounding=ROUND_HALF_UP)*step).quantize(Decimal("0.01"))
+    if step <= 0: return round_hours(h)
+    return round_hours((h/step).quantize(Decimal("1"), rounding=ROUND_HALF_UP)*step)
 
 
 def backoffice_summary(db: Session, start_date: date, end_date: date, employee_id: int | None = None) -> dict:
@@ -185,20 +186,20 @@ def backoffice_summary(db: Session, start_date: date, end_date: date, employee_i
         emp=db.get(Employee,emp_id)
         employees.append({
             "employee_id":emp_id,"employee_name":f"{emp.first_name} {emp.last_name}" if emp else str(emp_id),
-            "hours":vals["hours"].quantize(Decimal("0.01")),"productive_hours":vals["productive"].quantize(Decimal("0.01")),
-            "travel_hours":vals["travel"].quantize(Decimal("0.01")),"days":len(vals["days"]),
+            "hours":round_hours(vals["hours"]),"productive_hours":round_hours(vals["productive"]),
+            "travel_hours":round_hours(vals["travel"]),"days":len(vals["days"]),
         })
     employees.sort(key=lambda x:x["employee_name"].casefold())
     return {
         "start_date":start_date,"end_date":end_date,"entry_count":len(rows),
-        "total_hours":total.quantize(Decimal("0.01")),"productive_hours":productive.quantize(Decimal("0.01")),
-        "travel_hours":travel.quantize(Decimal("0.01")),"employee_count":len(by_employee),
-        "by_type":{k:v.quantize(Decimal("0.01")) for k,v in by_type.items()},"employees":employees,
+        "total_hours":round_hours(total),"productive_hours":round_hours(productive),
+        "travel_hours":round_hours(travel),"employee_count":len(by_employee),
+        "by_type":{k:round_hours(v) for k,v in by_type.items()},"employees":employees,
     }
 
 
 def _fmt_h(value) -> str:
-    return f"{Decimal(value or 0):.2f}".replace(".",",")
+    return f"{round_hours(value):.2f}".replace(".",",")
 
 
 def build_timesheet_pdf(db: Session, start_date: date, end_date: date, employee_id: int | None = None) -> bytes:

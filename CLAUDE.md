@@ -36,7 +36,8 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.7.6** (siehe `CHANGELOG.md` für die vollständige Versionshistorie)
+- Version: **1.8.11** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+  bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
   Eingabefelder, einfarbige Sidebar-Icons) ist auf **alle** Templates ausgerollt (1.0.97–1.0.100,
@@ -546,6 +547,16 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     absichern (keine passende Spalte/kein passendes Feld anlegen), nicht nur als Verhaltenszusage
     im Code.
 
+19. **Geld und Stunden werden kaufmännisch gerundet (`ROUND_HALF_UP`), immer über `app/rounding.py`
+    (`round_money()`, `round_hours()`, `round_half_up()`), seit 1.8.11.** `Decimal.quantize()` ohne
+    `rounding=` rundet halb-gerade (0,125 -> 0,12) und ist unter `app/` verboten --
+    `tests/test_v315_commercial_rounding.py` sucht jeden solchen Aufruf per AST und nennt Datei und
+    Zeile. Dasselbe halb-gerade Runden steckt in `f"{x:.2f}"`: Beträge vor dem Formatieren runden.
+    Rechnungsbeträge werden live gerechnet, auch für versendete Rechnungen; deshalb trägt jede
+    Rechnung ihre Regel (`Invoice.rounding_rule`): leer = vor 1.8.11 versendet, rechnet unverändert
+    wie damals (Regel 5). Storno und Mahnung folgen der Regel ihrer Rechnung. Liste aller
+    Geldstellen und was sich wo geändert hat: `docs/archiv/kaufmaennisches-runden.md`.
+
 ## Fachbegriffe & Domänenmodell
 
 - **"Vorgang"** (in normalem Gespräch) = **Projekt** (`Project`) – wurde in der Sitzung explizit
@@ -674,6 +685,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
 - **Checklisten & Formulare** (Modul `checklisten`, Vorlagenfassungen, Kontexte Auftrag/Objekt/
   Betriebsmittel/Betrieb, Regeln → Aufgaben, Etappenplan 1.8.0–1.8.5 und Stufen 2–4) --
   `docs/archiv/modul-checklisten.md`
+- **Kaufmännisches Runden** (Helfer `app/rounding.py`, Rundungsregel je Rechnung, Liste der
+  Geldstellen, bewusst nicht geänderte Formatierer) -- `docs/archiv/kaufmaennisches-runden.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit
@@ -931,8 +944,9 @@ eigenem Profil, und beendet beide nur über die eigene PID (Regel 12); die beide
 `scripts/klicktest_*.py` mit `befuellen()` und `pruefen()`, Anleitung und Optionen im Dateikopf,
 Aufruf `.venv\Scripts\python.exe scripts\klicktest_<name>.py` (Rückgabecode 0 = alles wie
 erwartet). Vorhanden: `klicktest_zeitbuchungen_liste.py` (1.8.9, acht Seiten, Daten relativ zum
-heutigen Datum) und `klicktest_dashboard_monatswechsel.py` (1.8.10, festgehaltene Browser-Uhr und
--Zeitzone). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
+heutigen Datum), `klicktest_dashboard_monatswechsel.py` (1.8.10, festgehaltene Browser-Uhr und
+-Zeitzone) und `klicktest_rechnung_rundung.py` (1.8.11, Rechnungsseite: USt, Positionsbetrag,
+Skonto, dazu die vom Server gelieferten Beträge). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 
 ## Arbeitsweise, die sich bewährt hat

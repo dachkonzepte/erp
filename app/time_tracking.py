@@ -10,9 +10,9 @@ from .models import (
     TimeEntryGroup, TimeEntryGroupMember,
 )
 
+from .rounding import round_half_up, round_hours
 from .work_time_models import automatic_break_minutes_for_timer
 
-HOUR = Decimal("0.01")
 ENTRY_TYPES = {"site", "workshop", "travel", "other"}
 # Zeitarten, die NIE als produktiv gelten -- travel (Fahrzeit) sowie die beiden Schlechtwetter-
 # Zeitarten (Winter/Sommer, siehe app/option_settings.py::DEFAULT_OPTION_GROUPS["time_entry_types"]):
@@ -303,8 +303,8 @@ def summarize_entries(
     ).where(*filters)).one()
     return {
         "entry_count": int(entry_count or 0), "booked_count": int(booked_count or 0),
-        "total_hours": _d(total).quantize(HOUR), "productive_hours": _d(productive).quantize(HOUR),
-        "travel_hours": _d(travel).quantize(HOUR), "employee_count": int(employees or 0),
+        "total_hours": round_hours(_d(total)), "productive_hours": round_hours(_d(productive)),
+        "travel_hours": round_hours(_d(travel)), "employee_count": int(employees or 0),
     }
 
 
@@ -317,10 +317,10 @@ def order_actual_hours(db: Session, order_id: int) -> dict:
     productive=Decimal("0"); travel=Decimal("0"); total=Decimal("0")
     by_type={}
     for productive_flag, entry_type, hours in rows:
-        h=_d(hours); total+=h; by_type[entry_type]=h.quantize(HOUR)
+        h=_d(hours); total+=h; by_type[entry_type]=round_hours(h)
         if productive_flag: productive+=h
         if entry_type=="travel": travel+=h
-    return {"productive_hours":productive.quantize(HOUR),"travel_hours":travel.quantize(HOUR),"total_hours":total.quantize(HOUR),"by_type":by_type}
+    return {"productive_hours":round_hours(productive),"travel_hours":round_hours(travel),"total_hours":round_hours(total),"by_type":by_type}
 
 
 def order_item_actual_hours(db: Session, order_id: int) -> dict[int, Decimal]:
@@ -329,7 +329,7 @@ def order_item_actual_hours(db: Session, order_id: int) -> dict[int, Decimal]:
         .where(TimeEntry.order_id==order_id, TimeEntry.status=="booked", TimeEntry.counts_as_productive==True, TimeEntry.order_item_id.is_not(None))
         .group_by(TimeEntry.order_item_id)
     ).all()
-    return {int(item_id):_d(hours).quantize(HOUR) for item_id,hours in rows}
+    return {int(item_id):round_hours(_d(hours)) for item_id,hours in rows}
 
 
 def employee_assigned_order_ids(db: Session, employee_id: int) -> set[int]:
@@ -477,7 +477,7 @@ def stop_group_timer(db: Session, group_id: int, *, ended_at: datetime | None=No
             amounts.append(amount);applied_breaks.append(applied)
     group.ended_at=end
     group.break_minutes=max(applied_breaks or [max(0,int(break_minutes or 0))])
-    group.hours=(sum(amounts,Decimal('0'))/Decimal(len(amounts))).quantize(Decimal('0.0001')) if amounts else Decimal('0')
+    group.hours=round_half_up(sum(amounts,Decimal('0'))/Decimal(len(amounts)),Decimal('0.0001')) if amounts else Decimal('0')
     group.status='booked'
     db.commit();return db.get(TimeEntryGroup,group.id)
 

@@ -27,7 +27,7 @@ weiterhin ausschließlich die gepflegten Settings-Felder, keine Doppelzählung.
   geplant, nicht gemessen; unproduktive Zeit ist keine für sich buchbare Größe)."""
 
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -37,6 +37,7 @@ from .employees import effective_cost_allocation
 from .labor_rate import active_employees, get_or_create_labor_rate_settings
 from .models import Employee, EmployeeAbsence, ProductiveHoursSettings, TimeEntry
 from .planning import count_workday_holidays
+from .rounding import round_half_up
 
 ZERO = Decimal("0")
 HUNDRED = Decimal("100")
@@ -58,7 +59,7 @@ ROLLING_WINDOW_MONTHS = 12
 
 
 def _q(value: Decimal) -> Decimal:
-    return value.quantize(_Q2, rounding=ROUND_HALF_UP)
+    return round_half_up(value, _Q2)
 
 
 def get_or_create_productive_hours_settings(db: Session) -> ProductiveHoursSettings:

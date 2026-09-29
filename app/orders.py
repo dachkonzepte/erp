@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 import hashlib
 import json
 
@@ -14,13 +14,12 @@ from .models import (
 )
 from .invoices import compute_order_billing_progress
 from .projects import ensure_quote_structure, load_quote
+from .rounding import round_money
 from .settings import issue_number
-
-CENT = Decimal("0.01")
 
 
 def money_q(value) -> Decimal:
-    return Decimal(value or 0).quantize(CENT, rounding=ROUND_HALF_UP)
+    return round_money(value)
 
 
 def employee_name(employee: Employee | None) -> str | None:

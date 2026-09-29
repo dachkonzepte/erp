@@ -21,8 +21,8 @@ from .orders import employee_assigned_order_ids, load_order
 from .service_reports import count_reports_for_order
 from .work_preparation import ensure_preparation, planned_hours
 from .version import APP_VERSION
+from .rounding import round_half_up, round_hours
 
-HOUR = Decimal("0.01")
 
 GERMAN_STATES = {
     "BW": "Baden-Württemberg", "BY": "Bayern", "BE": "Berlin", "BB": "Brandenburg",
@@ -323,7 +323,7 @@ def _day_capacity(
             continue
         available.append(emp)
         total += _employee_net_capacity(emp, settings, travel_hours)
-    return total.quantize(HOUR), available, absent
+    return round_hours(total), available, absent
 
 
 def _load_team(db: Session, team_id: int) -> Team | None:
@@ -434,7 +434,7 @@ def _infer_slot_hours(db: Session, slot: PlanningSlot) -> Decimal:
         return total
     weights = {x.id: max(1, (x.end_date - x.start_date).days + 1) for x in slots}
     denom = Decimal(sum(weights.values()))
-    return (total * Decimal(weights[slot.id]) / denom).quantize(HOUR) if denom else Decimal("0")
+    return round_hours(total * Decimal(weights[slot.id]) / denom) if denom else Decimal("0")
 
 
 def _remaining_order_hours(db: Session, prep: WorkPreparation) -> Decimal:
@@ -444,7 +444,7 @@ def _remaining_order_hours(db: Session, prep: WorkPreparation) -> Decimal:
         select(PlanningSlot).options(selectinload(PlanningSlot.capacity)).where(PlanningSlot.preparation_id == prep.id)
     ).all()
     assigned = sum((_stored_slot_hours(x) or Decimal("0") for x in existing), Decimal("0"))
-    return max(Decimal("0"), total - assigned).quantize(HOUR)
+    return round_hours(max(Decimal("0"), total - assigned))
 
 
 def create_slot(
@@ -551,11 +551,11 @@ def _slot_distribution(
         load = min(remaining, capacity)
         remaining -= load
         distribution[day] = {
-            "capacity": capacity, "planned": load.quantize(HOUR),
+            "capacity": capacity, "planned": round_hours(load),
             "available_employee_ids": [e.id for e in available],
             "absent_employee_ids": [a.employee_id for a in absent],
         }
-    return distribution, max(Decimal("0"), remaining).quantize(HOUR)
+    return distribution, round_hours(max(Decimal("0"), remaining))
 
 
 def slot_to_dict(slot: PlanningSlot, conflicts: list[dict] | None = None, db: Session | None = None) -> dict:
@@ -941,7 +941,7 @@ def planning_suggestion(
         if cap > 0:
             assigned=min(remaining,cap); remaining-=assigned; workdays_used+=1; last=current
             day_rows.append({
-                "date":current, "capacity_hours":cap, "assigned_hours":assigned.quantize(HOUR),
+                "date":current, "capacity_hours":cap, "assigned_hours":round_hours(assigned),
                 "available_employee_count":len(available), "available_employees":[_employee_name(x) for x in available],
                 "absent_employees":[{"name":_employee_name(a.employee),"type":a.absence_type} for a in absent],
                 "holiday":None,
@@ -1011,8 +1011,8 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
         for day in dates:
             cap,available,absent=_day_capacity(members,day,settings,_d(settings.default_travel_hours_per_employee_day),holiday_dates,absences)
             planned=sum((distributions.get(slot.id,{}).get(day,{}).get("planned",Decimal("0")) for slot in visible if slot.team_assignment.team_id==team.id),Decimal("0"))
-            util=(planned/cap*100 if cap>0 else (Decimal("100") if planned>0 else Decimal("0"))).quantize(Decimal("0.1"))
-            rows[day.isoformat()]={"capacity_hours":cap,"planned_hours":planned.quantize(HOUR),"utilization_pct":util,"available_employee_count":len(available),"absences":[{"employee_id":a.employee_id,"name":_employee_name(a.employee),"type":a.absence_type} for a in absent],"holiday":holiday_names.get(day),"school_holidays":school_by_day.get(day,[])}
+            util=round_half_up(planned/cap*100 if cap>0 else (Decimal("100") if planned>0 else Decimal("0")),Decimal("0.1"))
+            rows[day.isoformat()]={"capacity_hours":cap,"planned_hours":round_hours(planned),"utilization_pct":util,"available_employee_count":len(available),"absences":[{"employee_id":a.employee_id,"name":_employee_name(a.employee),"type":a.absence_type} for a in absent],"holiday":holiday_names.get(day),"school_holidays":school_by_day.get(day,[])}
         team_capacity[str(team.id)]=rows
     employee_capacity={}
     for emp in employees:
@@ -1028,9 +1028,9 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
                 total_cap=dist.get("capacity",Decimal("0"))
                 if total_cap>0:
                     planned += dist.get("planned",Decimal("0"))*_employee_net_capacity(emp,settings,_slot_travel(slot,settings))/total_cap
-            util=(planned/cap*100 if cap>0 else (Decimal("100") if planned>0 else Decimal("0"))).quantize(Decimal("0.1"))
+            util=round_half_up(planned/cap*100 if cap>0 else (Decimal("100") if planned>0 else Decimal("0")),Decimal("0.1"))
             a=absences.get((emp.id,day))
-            rows[day.isoformat()]={"capacity_hours":cap.quantize(HOUR),"planned_hours":planned.quantize(HOUR),"utilization_pct":util,"absence":a.absence_type if a else None,"holiday":holiday_names.get(day),"school_holidays":school_by_day.get(day,[])}
+            rows[day.isoformat()]={"capacity_hours":round_hours(cap),"planned_hours":round_hours(planned),"utilization_pct":util,"absence":a.absence_type if a else None,"holiday":holiday_names.get(day),"school_holidays":school_by_day.get(day,[])}
         employee_capacity[str(emp.id)]=rows
     resource_load={}
     for res in resources:

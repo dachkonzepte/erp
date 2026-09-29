@@ -4,6 +4,45 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.11 – Kaufmännisches Runden überall
+
+Geld und Stunden runden jetzt überall kaufmännisch (`ROUND_HALF_UP`, 0,125 → 0,13). Bisher rundeten
+Rechnung, Skonto, Mahnung, Eingangsrechnung, Betriebskosten und alle Stundensummen halb-gerade
+(0,125 → 0,12), weil `Decimal.quantize()` ohne `rounding=` und die Formatierung `:.2f` die
+Rundungsart des Decimal-Kontexts nehmen; nur Angebot, Auftrag, Kalkulation und Verrechnungssatz
+rundeten schon kaufmännisch. Neu ist `app/rounding.py` mit `round_money()`, `round_hours()` und
+`round_half_up()`; alle 39 `quantize()`-Aufrufe ohne Rundungsart laufen darüber, die fünf lokalen
+Helfer, die schon kaufmännisch rundeten, rufen ihn auf. Rechnungen rechnen jetzt wie Angebot und
+Auftrag: Positionsbetrag auf den Cent, Netto als Summe der Positionen, USt auf den Cent, Brutto =
+Netto + USt. Vorher rundete die Rechnung gar nicht und erst das PDF beim Formatieren, sodass etwa
+Netto 2,12 + USt 0,40 neben Brutto 2,53 stand. Die Stunden im Einsatzbericht-PDF und im
+Stundenzettel des Monteurs runden ebenfalls kaufmännisch. Wo sich dadurch ein Betrag ändert
+(jeweils nur bei einem exakt halben Cent), steht mit Beispielen in
+`docs/archiv/kaufmaennisches-runden.md`: USt, Positionsbetrag, Rechnung aus Aufwand, Skonto,
+Mahnung, Brutto von Eingangsrechnungen und Betriebskosten, Monatssumme der Betriebskosten, dazu die
+Stunden im DATEV-Export.
+
+Gespeicherte Beträge werden nicht neu berechnet. Weil Rechnungsbeträge aber bei jedem Aufruf neu
+gerechnet werden, auch im PDF einer längst versendeten Rechnung, trägt jede Rechnung jetzt ihre
+Rundungsregel (`Invoice.rounding_rule`, Migration `7e3c1b9a5d24`). Die Migration setzt nur offene
+Entwürfe auf "half_up"; versendete, bezahlte und stornierte Rechnungen rechnen weiter genau wie
+bisher, ihr Nachdruck bleibt dasselbe Dokument (GoBD, Regel 5). Eine Stornorechnung übernimmt die
+Regel des Originals, eine Mahnung rundet ihren Gesamtbetrag nach der Regel ihrer Rechnung. Beim
+Bauen aufgefallen: Ein `None` im Konstruktor ersetzt SQLAlchemy durch den Vorgabewert der Spalte,
+der Storno setzt die Regel deshalb nach dem `flush()`. Bewusst unverändert: die Formatierer in
+`app/document_pdf.py` (alte Rechnungen brauchen sie so) und die Formatierung in der Oberfläche,
+die für alte Rechnungen 0,29 € USt zeigt, wo das PDF 0,28 EUR druckt (war schon so).
+
+27 neue Tests in `tests/test_v315_commercial_rounding.py`: ein Suchtest, der `app/` per AST nach
+`quantize()` ohne Rundungsart durchsucht (auch über mehrere Zeilen) samt Selbsttest der Suche; die
+Helfer; je Geldstelle ein Halbcent-Fall, bei Rechnungen bis ins PDF; alte Rechnungen samt Storno,
+Skonto und Mahnung unverändert; die Migration markiert nur offene Entwürfe ohne Storno. Gegenproben
+je Stelle (alter Code rein): jeweils genau die zugehörigen Tests rot, beim Suchtest mit Datei und
+Zeile. Die Migration lief unter SQLite und in einem Wegwerf-Schema der lokalen PostgreSQL-Instanz
+die ganze Kette hoch und mit Rechnungen in allen Zuständen zweimal zurück und wieder hin,
+`alembic check` ohne Abweichung. Klicktest der Rechnungsseite (`scripts/klicktest_rechnung_rundung.py`)
+10 von 10, gegen den alten Code 3 rot. Volle Suite mit PostgreSQL: 2031 grün, 0 übersprungen.
+
 ## 1.8.10 – Dashboard „Meine Stunden (Monat)": Monatsgrenzen in Europe/Berlin
 
 Die Kachel „Meine Stunden (Monat)" im Dashboard bildete den Monat über

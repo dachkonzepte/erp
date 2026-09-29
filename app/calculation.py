@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -10,15 +10,13 @@ from .models import (
     Service,
     ServiceCalculation,
 )
+from .rounding import round_money
 
 ZERO = Decimal("0")
 HUNDRED = Decimal("100")
 SIXTY = Decimal("60")
-CENT = Decimal("0.01")
-
-
 def q(value: Decimal) -> Decimal:
-    return value.quantize(CENT, rounding=ROUND_HALF_UP)
+    return round_money(value)
 
 
 def effective_material_sale_price(purchase_price: Decimal, price_basis: Decimal, material_markup_pct: Decimal) -> Decimal:

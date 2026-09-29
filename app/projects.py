@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 import re
 import shutil
 
@@ -16,12 +16,11 @@ from .project_documents import project_directory
 from .project_pipeline_columns import default_pipeline_column_id
 from .settings import preview_number
 from .payment_terms import get_default_payment_term
-
-CENT = Decimal("0.01")
+from .rounding import round_money
 
 
 def money_q(value: Decimal) -> Decimal:
-    return Decimal(value).quantize(CENT, rounding=ROUND_HALF_UP)
+    return round_money(value)
 
 
 def next_project_number(db: Session) -> str:

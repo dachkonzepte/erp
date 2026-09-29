@@ -28,6 +28,7 @@ from .document_page_margins import get_margins
 from .document_pdf import build_din5008_header_block, build_styles
 from .models import Employee
 from .option_settings import get_option_group, option_group_to_dict
+from .rounding import round_hours
 from .settings import get_or_create_general_settings
 from .time_tracking import entry_to_dict, list_entries
 
@@ -45,7 +46,8 @@ _VARIABLE_SPLIT = (0.55, 0.45)  # Auftrag : Tätigkeit
 
 
 def _fmt_h(value) -> str:
-    return f"{Decimal(value or 0):.2f}".replace(".", ",")
+    # Seit 1.8.11 kaufmännisch gerundet -- ":.2f" allein rundet halb-gerade (1,125 -> "1,12").
+    return f"{round_hours(value):.2f}".replace(".", ",")
 
 
 def month_date_range(year: int, month: int) -> tuple[date, date]:

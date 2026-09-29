@@ -1102,6 +1102,11 @@ class Invoice(Base):
     # zeigen koennen -- siehe InvoiceItem-Docstring, diese Zeile bleibt die massgebliche Zahl.
     lump_sum_net: Mapped[Decimal | None] = mapped_column(Numeric(18, 6), nullable=True)
     progress_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Seit 1.8.11: "half_up" = Positionsbeträge, USt und Skonto werden kaufmännisch auf den Cent
+    # gerundet (app/invoices.py::compute_invoice_totals()). Leer = vor 1.8.11 versendet: rechnet
+    # unverändert wie damals, damit der Nachdruck dasselbe Dokument ergibt (Regel 5). Eine
+    # Stornorechnung übernimmt die Regel des Originals. Migration 7e3c1b9a5d24.
+    rounding_rule: Mapped[str | None] = mapped_column(String(20), nullable=True, default="half_up")
 
     intro_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     outro_text: Mapped[str | None] = mapped_column(Text, nullable=True)

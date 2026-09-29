@@ -40,6 +40,7 @@ from .models import (
 from .modules import is_module_enabled
 from .operational_assets import resolve_asset_identity
 from .permissions import ROLE_OFFICE_FINANZEN
+from .rounding import round_money
 from .tasks import create_task
 
 MODULE_KEY = "buchhaltung"
@@ -57,7 +58,7 @@ _ITEM_SUM_TOLERANCE = Decimal("0.01")
 
 def gross_amount(net_amount: Decimal, tax_rate_pct: Decimal) -> Decimal:
     """Reine Anzeige-Ableitung, NIE gespeichert -- Muster RecurringCost.gross_amount()."""
-    return (net_amount * (Decimal("1") + tax_rate_pct / Decimal("100"))).quantize(Decimal("0.01"))
+    return round_money(net_amount * (Decimal("1") + tax_rate_pct / Decimal("100")))
 
 
 def invoice_gross_amount(invoice: IncomingInvoice) -> Decimal:
@@ -66,9 +67,9 @@ def invoice_gross_amount(invoice: IncomingInvoice) -> Decimal:
     Gesamtbetrag*Steuersatz -- Muster RecurringCost.gross_amount(), hier zusätzlich
     Positions-bewusst."""
     if invoice.items:
-        return sum(
+        return round_money(sum(
             (gross_amount(i.net_amount, i.tax_rate_pct) for i in invoice.items), Decimal("0")
-        ).quantize(Decimal("0.01"))
+        ))
     return gross_amount(invoice.net_amount, invoice.tax_rate_pct)
 
 
@@ -392,7 +393,7 @@ def open_liabilities_summary(db: Session, *, today: date | None = None) -> dict:
     Überfälligkeits-Kennzeichnung."""
     settings = get_or_create_incoming_invoice_settings(db)
     open_invoices = db.scalars(_invoice_query().where(IncomingInvoice.payment_status == "offen")).all()
-    total_gross = sum((invoice_gross_amount(i) for i in open_invoices), Decimal("0")).quantize(Decimal("0.01"))
+    total_gross = round_money(sum((invoice_gross_amount(i) for i in open_invoices), Decimal("0")))
     dicts = [invoice_to_dict(i, settings.skonto_reminder_lead_days, today=today) for i in open_invoices]
     overdue = [d for d in dicts if d["is_overdue"]]
     skonto_due = [d for d in dicts if d["is_skonto_due"]]

@@ -42,6 +42,7 @@ from .modules import is_module_enabled
 from .models import OperationalAsset, RecurringCost, RecurringCostDocument, RecurringCostSettings
 from .permissions import ROLE_OFFICE_FINANZEN
 from .recurring_cost_documents import delete_document_file
+from .rounding import round_money
 from .tasks import create_task
 
 MODULE_KEY = "betriebskosten"
@@ -97,14 +98,14 @@ def normalize_to_annual(net_amount: Decimal, billing_interval: str) -> Decimal:
     den Verrechnungssatz-Kreislauf, siehe app/labor_rate.py). "einmalig" liefert bewusst 0 (kein
     laufender Jahresbetrag, fließt nicht in die wiederkehrende Summe ein), der Posten selbst
     bleibt trotzdem in der Liste sichtbar."""
-    return (net_amount * _ANNUAL_MULTIPLIER[billing_interval]).quantize(Decimal("0.01"))
+    return round_money(net_amount * _ANNUAL_MULTIPLIER[billing_interval])
 
 
 def gross_amount(net_amount: Decimal, tax_rate_pct: Decimal) -> Decimal:
     """Reine Anzeige-Ableitung, NIE gespeichert und NIE Rechenbasis für annual_amount -- Muster
     cancellation_deadline() oben. Was tatsächlich vom Konto abgeht, nicht was in den
     Verrechnungssatz einfließt."""
-    return (net_amount * (Decimal("1") + tax_rate_pct / Decimal("100"))).quantize(Decimal("0.01"))
+    return round_money(net_amount * (Decimal("1") + tax_rate_pct / Decimal("100")))
 
 
 @event.listens_for(RecurringCostDocument, "before_delete")
@@ -333,7 +334,7 @@ def overview_summary(db: Session) -> dict:
     cost_dicts = [cost_to_dict(c, lead_days) for c in costs]
 
     annual_total = sum((c.annual_amount for c in costs), Decimal("0"))
-    monthly_total = (annual_total / Decimal(12)).quantize(Decimal("0.01"))
+    monthly_total = round_money(annual_total / Decimal(12))
 
     # Drei getrennte Summen nach kalkulatorischer Einordnung (Schicht 3, seit 1.5.1) --
     # annual_total bleibt unverändert die Summe ALLER Posten (auch "keine"), für die
@@ -353,11 +354,11 @@ def overview_summary(db: Session) -> dict:
     overdue = [c for c in cost_dicts if c["is_cancellation_overdue"]]
 
     return {
-        "monthly_total": monthly_total.quantize(Decimal("0.01")),
-        "annual_total": annual_total.quantize(Decimal("0.01")),
-        "annual_fixed_from_costs": annual_fixed_from_costs.quantize(Decimal("0.01")),
-        "annual_usage_dependent_from_costs": annual_usage_dependent_from_costs.quantize(Decimal("0.01")),
-        "annual_none_from_costs": annual_none_from_costs.quantize(Decimal("0.01")),
+        "monthly_total": monthly_total,
+        "annual_total": round_money(annual_total),
+        "annual_fixed_from_costs": round_money(annual_fixed_from_costs),
+        "annual_usage_dependent_from_costs": round_money(annual_usage_dependent_from_costs),
+        "annual_none_from_costs": round_money(annual_none_from_costs),
         "cost_count": len(costs),
         "cancellations_due": due,
         "cancellations_overdue": overdue,

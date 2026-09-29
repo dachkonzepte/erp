@@ -210,7 +210,8 @@ Abschluss der Runden 1.8.6–1.8.9 gegen stilles Abschneiden von Zeitbuchungen:
   Mitarbeiter zählen jetzt zweifach), und `quantize()` ohne Rundungsart rundet `ROUND_HALF_EVEN`
   (wie `order_actual_hours()` und die Backoffice-Summen), die alte Oberfläche per `toLocaleString`
   kaufmännisch -- sichtbar nur bei exakt halben Hundertstel (1,1250 Std.: alt 1,13, neu 1,12).
-  Nicht geändert.
+  Nicht geändert. **Behoben seit 1.8.11:** Alle Stundensummen runden kaufmännisch über
+  `app/rounding.py`, 1,1250 Std. ergibt wieder 1,13 -- siehe `docs/archiv/kaufmaennisches-runden.md`.
 
 ## Kalenderdatum in Europe/Berlin statt UTC (seit 1.8.10)
 
