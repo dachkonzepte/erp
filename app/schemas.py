@@ -2250,6 +2250,18 @@ class TimeEntryOut(BaseModel):
     booked_by_employee_id: int | None = None
 
 
+class TimeEntrySummaryOut(BaseModel):
+    """Seit 1.8.9: Summen zu GET /api/time-entries -- dieselben Filter und dieselbe Sichtbarkeit
+    wie die Liste, aber per SUM in der Datenbank über alle Treffer. entry_count entspricht der
+    Kopfzeile X-Total-Count der Liste; die Stunden zählen nur gebuchte Zeiten."""
+    entry_count: int
+    booked_count: int
+    total_hours: Decimal
+    productive_hours: Decimal
+    travel_hours: Decimal
+    employee_count: int
+
+
 class TimeGroupUpdate(BaseModel):
     """Korrektur einer abgeschlossenen Gruppenbuchung (seit 1.7.12) -- gilt für alle noch
     verknüpften Mitgliedsbuchungen gleichermaßen. Die Besetzung selbst ist nicht änderbar

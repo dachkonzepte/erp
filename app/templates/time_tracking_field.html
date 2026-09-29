@@ -27,8 +27,8 @@
   #}
   <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
   <style>
-    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--success:#1f8a5f;--success-soft:#eaf5ef;--travel-btn:#3d6a8c;--workshop-btn:#7a5a34;--other-btn:#5c6660;color:var(--ink);background:var(--bg)}
-    :root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--success:#4ade95;--success-soft:#173226}
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--success:#1f8a5f;--success-soft:#eaf5ef;--warning:#9b6a12;--warning-soft:#fdf3dc;--travel-btn:#3d6a8c;--workshop-btn:#7a5a34;--other-btn:#5c6660;color:var(--ink);background:var(--bg)}
+    :root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--success:#4ade95;--success-soft:#173226;--warning:#e0a94a;--warning-soft:#3a2f14}
     *{box-sizing:border-box}body{margin:0}
     main{max-width:720px;margin:0 auto;padding:16px 14px 60px}
     h2{font-size:15px;margin:0 0 10px;color:var(--ink)}
@@ -216,6 +216,7 @@
   </div>
 </dialog>
 
+{% include "_time_entries_list.html" %}
 <script>
 const $=id=>document.getElementById(id);
 const params=new URLSearchParams(location.search),initialOrderId=Number(params.get('order_id')||0);
@@ -389,14 +390,14 @@ function renderEntry(e){
 let allEntries=[];
 async function loadEntries(){
   const from=new Date();from.setDate(from.getDate()-14);
-  const rows=await api(`/api/time-entries?start_date=${from.toISOString().slice(0,10)}&end_date=${today()}`);
-  allEntries=rows.filter(e=>e.status==='booked');
+  const list=await fetchTimeEntries(`/api/time-entries?start_date=${from.toISOString().slice(0,10)}&end_date=${today()}`);
+  allEntries=list.rows.filter(e=>e.status==='booked');
   const todayRows=allEntries.filter(e=>e.work_date===today());
   const prod=todayRows.filter(e=>e.counts_as_productive).reduce((a,b)=>a+Number(b.hours),0);
   const travel=todayRows.filter(e=>e.entry_type==='travel').reduce((a,b)=>a+Number(b.hours),0);
   const total=todayRows.reduce((a,b)=>a+Number(b.hours),0);
   $('todayProductive').textContent=num(prod)+' h';$('todayTravel').textContent=num(travel)+' h';$('todayTotal').textContent=num(total)+' h';
-  $('entriesList').innerHTML=allEntries.length?allEntries.map(renderEntry).join(''):'<div class="empty">Noch keine Buchungen in den letzten 14 Tagen.</div>';
+  $('entriesList').innerHTML=timeEntriesTruncatedNotice(list)+(allEntries.length?allEntries.map(renderEntry).join(''):'<div class="empty">Noch keine Buchungen in den letzten 14 Tagen.</div>');
 }
 
 function setMode(mode){

@@ -113,6 +113,7 @@ a{color:var(--accent)}
 <div class="app-layout">
 {% include "_sidebar.html" %}
 {% include "_debounce.html" %}
+{% include "_time_entries_list.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
@@ -1298,11 +1299,13 @@ async function loadPropertyHistory(){
 
 async function loadTimeEntries(){
   try{
-    const entries=await api(`/api/time-entries?order_id=${orderId}`);
-    const rows=entries.map(e=>`<tr><td data-label="Datum">${fmtDate(e.work_date)}</td><td data-label="Mitarbeiter">${esc(e.employee_name||'')}</td><td data-label="Tätigkeit">${esc(e.activity||'')}</td><td data-label="Stunden">${Number(e.hours).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} h</td></tr>`).join('');
+    // Seit 1.8.9: die Gesamtsumme kommt per SUM aus der Datenbank (alle Buchungen des Auftrags,
+    // für einen Monteur nur die eigenen), nicht mehr aus der auf 500 Zeilen gekürzten Liste.
+    const [list,summary]=await Promise.all([fetchTimeEntries(`/api/time-entries?order_id=${orderId}`),api(`/api/time-entries/summary?order_id=${orderId}`)]);
+    const rows=list.rows.map(e=>`<tr><td data-label="Datum">${fmtDate(e.work_date)}</td><td data-label="Mitarbeiter">${esc(e.employee_name||'')}</td><td data-label="Tätigkeit">${esc(e.activity||'')}</td><td data-label="Stunden">${Number(e.hours).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} h</td></tr>`).join('');
     if(!rows){document.getElementById('timeEntriesTable').innerHTML='<div class="empty">Noch keine Zeitbuchungen zu diesem Auftrag.</div>';return}
-    const total=entries.reduce((sum,e)=>sum+Number(e.hours||0),0);
-    document.getElementById('timeEntriesTable').innerHTML=`<div class="table-scroll"><table><thead><tr><th>Datum</th><th>Mitarbeiter</th><th>Tätigkeit</th><th>Stunden</th></tr></thead><tbody>${rows}<tr><td colspan="3" data-label="" style="text-align:right"><b>Gesamt</b></td><td data-label="Gesamtstunden"><b>${total.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} h</b></td></tr></tbody></table></div>`;
+    const total=Number(summary.total_hours);
+    document.getElementById('timeEntriesTable').innerHTML=`${timeEntriesTruncatedNotice(list,'Die Gesamtsumme enthält alle Buchungen.')}<div class="table-scroll"><table><thead><tr><th>Datum</th><th>Mitarbeiter</th><th>Tätigkeit</th><th>Stunden</th></tr></thead><tbody>${rows}<tr><td colspan="3" data-label="" style="text-align:right"><b>Gesamt</b></td><td data-label="Gesamtstunden"><b>${total.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} h</b></td></tr></tbody></table></div>`;
   }catch(e){document.getElementById('timeEntriesTable').innerHTML=`<div class="status err">Fehler: ${esc(e.message)}</div>`}
 }
 

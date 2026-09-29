@@ -141,8 +141,9 @@ async function renderKpisWidget(container){
     const d=new Date();
     const from=new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10);
     const to=new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().slice(0,10);
-    const entries=await api(`/api/time-entries?employee_id=${authStatus.user.employee_id}&start_date=${from}&end_date=${to}&limit=1000`).catch(()=>[]);
-    const hours=entries.filter(e=>e.counts_as_productive&&e.status==='booked').reduce((s,e)=>s+Number(e.hours||0),0);
+    // Seit 1.8.9 per SUM aus der Datenbank statt aus einer auf 1000 Zeilen gekürzten Liste.
+    const totals=await api(`/api/time-entries/summary?employee_id=${authStatus.user.employee_id}&start_date=${from}&end_date=${to}`).catch(()=>null);
+    const hours=Number(totals?.productive_hours||0);
     hoursHtml=`<div class="metric"><small>Meine Stunden (Monat)</small><b>${hours.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} h</b></div>`;
   }
   container.innerHTML=`<div class="metrics">

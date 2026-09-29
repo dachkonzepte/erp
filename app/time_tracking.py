@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time
 from decimal import Decimal, ROUND_HALF_UP
-from sqlalchemy import select, func, or_
+from sqlalchemy import and_, case, select, func, or_
 from sqlalchemy.orm import Session, selectinload
 
 from .models import (
@@ -231,6 +231,24 @@ def entry_to_dict(row: TimeEntry) -> dict:
     }
 
 
+# Höchste Zeilenzahl je Abruf von list_entries() mit einer Zahl als limit, damit auch von
+# GET /api/time-entries (seit 1.8.9 dort als Obergrenze des Parameters geprüft).
+MAX_LIST_LIMIT = 2000
+
+
+def _entry_filters(*, employee_id: int | None, project_id: int | None, order_id: int | None,
+                   start_date: date | None, end_date: date | None) -> list:
+    """Die Filter von list_entries(), count_entries() und summarize_entries() an einer Stelle --
+    Liste, Gesamtzahl und Summen meinen dadurch immer dieselben Zeilen."""
+    conds = []
+    if employee_id is not None: conds.append(TimeEntry.employee_id==employee_id)
+    if project_id is not None: conds.append(TimeEntry.project_id==project_id)
+    if order_id is not None: conds.append(TimeEntry.order_id==order_id)
+    if start_date is not None: conds.append(TimeEntry.work_date>=start_date)
+    if end_date is not None: conds.append(TimeEntry.work_date<=end_date)
+    return conds
+
+
 def list_entries(
     db: Session, *, employee_id: int | None = None, project_id: int | None = None,
     order_id: int | None = None, start_date: date | None = None, end_date: date | None = None,
@@ -238,18 +256,56 @@ def list_entries(
 ) -> list[TimeEntry]:
     # limit ist seit 1.8.7 Pflicht: der frühere Vorgabewert 500 und die Kappung bei 2000 schnitten
     # Rechnung aus Aufwand, Einsatzbericht-PDF und Backoffice still ab. limit=None = ohne
-    # Obergrenze, für Aufrufer, die fachlich jede Zeile brauchen; eine Zahl wird bei 2000 gekappt.
+    # Obergrenze, für Aufrufer, die fachlich jede Zeile brauchen. Seit 1.8.9 wird eine Zahl
+    # außerhalb von 1..MAX_LIST_LIMIT abgelehnt, statt still auf 2000 gekappt zu werden.
+    if limit is not None and not 1 <= limit <= MAX_LIST_LIMIT:
+        raise ValueError(f"limit muss zwischen 1 und {MAX_LIST_LIMIT} liegen.")
     stmt = select(TimeEntry).options(
         selectinload(TimeEntry.employee), selectinload(TimeEntry.project),
         selectinload(TimeEntry.order), selectinload(TimeEntry.order_item), selectinload(TimeEntry.created_by),
+    ).where(*_entry_filters(employee_id=employee_id, project_id=project_id, order_id=order_id, start_date=start_date, end_date=end_date)
     ).order_by(TimeEntry.work_date.desc(), TimeEntry.started_at.desc(), TimeEntry.id.desc())
-    if limit is not None: stmt=stmt.limit(min(max(limit,1),2000))
-    if employee_id is not None: stmt=stmt.where(TimeEntry.employee_id==employee_id)
-    if project_id is not None: stmt=stmt.where(TimeEntry.project_id==project_id)
-    if order_id is not None: stmt=stmt.where(TimeEntry.order_id==order_id)
-    if start_date is not None: stmt=stmt.where(TimeEntry.work_date>=start_date)
-    if end_date is not None: stmt=stmt.where(TimeEntry.work_date<=end_date)
+    if limit is not None: stmt=stmt.limit(limit)
     return db.scalars(stmt).all()
+
+
+def count_entries(
+    db: Session, *, employee_id: int | None = None, project_id: int | None = None,
+    order_id: int | None = None, start_date: date | None = None, end_date: date | None = None,
+) -> int:
+    """Seit 1.8.9: Gesamtzahl der Treffer von list_entries() mit denselben Filtern, ohne limit --
+    GET /api/time-entries meldet sie in der Kopfzeile X-Total-Count."""
+    filters = _entry_filters(employee_id=employee_id, project_id=project_id, order_id=order_id, start_date=start_date, end_date=end_date)
+    return int(db.scalar(select(func.count(TimeEntry.id)).where(*filters)) or 0)
+
+
+def summarize_entries(
+    db: Session, *, employee_id: int | None = None, project_id: int | None = None,
+    order_id: int | None = None, start_date: date | None = None, end_date: date | None = None,
+) -> dict:
+    """Seit 1.8.9: Summen über ALLE Treffer von list_entries() mit denselben Filtern, per SUM in
+    der Datenbank -- vorher bildeten Einsatzbericht-Seite und Projektmappe sie in der Oberfläche
+    aus einer auf 500 bzw. 1000 Zeilen gekürzten Liste. Stunden wie order_actual_hours() nur aus
+    gebuchten Zeiten (ein laufender Timer trägt 0 Stunden)."""
+    filters = _entry_filters(employee_id=employee_id, project_id=project_id, order_id=order_id, start_date=start_date, end_date=end_date)
+    booked = TimeEntry.status=="booked"
+
+    def booked_hours(*conds):
+        return func.coalesce(func.sum(case((and_(booked, *conds), TimeEntry.hours), else_=0)), 0)
+
+    entry_count, booked_count, total, productive, travel, employees = db.execute(select(
+        func.count(TimeEntry.id),
+        func.count(case((booked, TimeEntry.id))),
+        booked_hours(),
+        booked_hours(TimeEntry.counts_as_productive==True),
+        booked_hours(TimeEntry.entry_type=="travel"),
+        func.count(case((booked, TimeEntry.employee_id)).distinct()),
+    ).where(*filters)).one()
+    return {
+        "entry_count": int(entry_count or 0), "booked_count": int(booked_count or 0),
+        "total_hours": _d(total).quantize(HOUR), "productive_hours": _d(productive).quantize(HOUR),
+        "travel_hours": _d(travel).quantize(HOUR), "employee_count": int(employees or 0),
+    }
 
 
 def order_actual_hours(db: Session, order_id: int) -> dict:

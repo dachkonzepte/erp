@@ -15,8 +15,8 @@
   #}
   <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
   <style>
-    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--soft:#eef5f3;--danger:#c0362c;color:var(--ink);background:var(--bg)}
-    :root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--soft:#1e2b26;--danger:#f2837a}
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--soft:#eef5f3;--danger:#c0362c;--warning:#9b6a12;--warning-soft:#fdf3dc;color:var(--ink);background:var(--bg)}
+    :root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--soft:#1e2b26;--danger:#f2837a;--warning:#e0a94a;--warning-soft:#3a2f14}
     *{box-sizing:border-box}body{margin:0}
     main{max-width:720px;margin:0 auto;padding:16px 14px 60px}
     h2{font-size:15px;margin:0 0 10px;color:var(--ink)}
@@ -58,6 +58,7 @@
     <div id="monthTotalRow" class="month-total" hidden><span>Monatssumme</span><span id="monthTotal">0,00 h</span></div>
   </div>
 </main>
+{% include "_time_entries_list.html" %}
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -80,14 +81,14 @@ async function loadMonth(ym){
   const area=$('entriesArea');
   area.className='loading';area.textContent='Lädt…';
   $('monthTotalRow').hidden=true;
-  let rows;
+  let list;
   try{
-    rows=await api(`/api/time-entries?start_date=${start}&end_date=${end}&limit=2000`);
+    list=await fetchTimeEntries(`/api/time-entries?start_date=${start}&end_date=${end}&limit=2000`);
   }catch(e){
     area.className='error';area.textContent='Fehler beim Laden: '+e.message;
     return;
   }
-  rows=(rows||[]).filter(r=>r.status==='booked');
+  const rows=list.rows.filter(r=>r.status==='booked');
   if(!rows.length){
     area.className='empty';area.textContent='Keine Zeitbuchungen in diesem Monat.';
     return;
@@ -97,7 +98,7 @@ async function loadMonth(ym){
   const days=Object.keys(byDay).sort();
   let monthTotal=0;
   area.className='';
-  area.innerHTML=days.map(day=>{
+  area.innerHTML=timeEntriesTruncatedNotice(list)+days.map(day=>{
     const dayRows=byDay[day].slice().sort((a,b)=>String(a.started_at||'').localeCompare(String(b.started_at||'')));
     let dayTotal=0;
     const rowsHtml=dayRows.map(r=>{

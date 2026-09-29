@@ -4,6 +4,46 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.9 – Zeitbuchungen: Liste meldet ihre Gesamtzahl, Summen kommen aus der Datenbank
+
+`GET /api/time-entries` meldet jetzt in der Kopfzeile `X-Total-Count`, wie viele Buchungen es zu
+den gewählten Filtern insgesamt gibt. Liefert die Liste weniger (Vorgabe 500, neueste zuerst),
+zeigt jede Seite mit einer solchen Liste den Hinweis "Liste gekürzt: 500 von 501 Buchungen
+angezeigt, die ältesten fehlen." – Einsatzbericht-Seite, Projektmappe (Reiter Zeiten),
+Backoffice, Büro-Zeiterfassung, Monteur-Zeiterfassung und Monteur-Stundenzettel, alle über den
+gemeinsamen Helfer `_time_entries_list.html`. Summen bildet die Oberfläche dort nicht mehr aus der
+Liste: Die Gesamtsumme der Einsatzbericht-Seite und die Kennzahlen der Projektmappe (Ist-Stunden,
+Fahrzeit, Gesamt, Mitarbeiter mit Buchung, Zahl am Reiter) kommen über das neue
+`GET /api/time-entries/summary` per SUM aus der Datenbank. Dieselbe Abfrage nutzen jetzt auch
+"Meine Stunden (Monat)" im Dashboard und die Auftragsseite (Auswahl "Rechnung aus Aufwand"), die
+die Liste bisher nur für eine Summe bzw. eine Ja/Nein-Prüfung luden. Summen und Gesamtzahl folgen
+derselben Sichtbarkeit wie die Liste (`_visible_employee_id()`): Ein Monteur bekommt immer nur die
+eigenen Buchungen, auch mit fremdem Auftrag oder einem Kollegen im Filter.
+
+Ein `limit` über 2000 lehnt die API jetzt mit 422 ab, statt still zu kappen, `list_entries()` mit
+einem `ValueError`. Das Backoffice fordert deshalb 2000 statt 3000 an und zeigt darüber hinaus den
+Hinweis; Stundenübersicht, Stundenzettel und Exporte zählen seit 1.8.7 ohnehin alle Buchungen.
+Nebenbefund beim Klicktest, mitbehoben: Die Büro-Zeiterfassung (`time_tracking.html`) hat ihre
+Listen "Heutige Buchungen" und "Auswertung" seit dem ersten Commit nie geladen. `urls.map(api)`
+reichte den Array-Index als zweites Argument an `fetch()` weiter, das mit einem TypeError abbrach;
+die neu geschriebene Ladezeile ruft den Helfer direkt auf. Bewusst unverändert: Die Tagessummen
+der beiden Zeiterfassungsseiten und Tages- und Monatssumme des Monteur-Stundenzettels rechnen
+weiter aus der angezeigten Liste (ein Mitarbeiter, ein Tag bzw. Monat, bei Kürzung steht der
+Hinweis darüber). Nebenbefund, nicht geändert: Das Dashboard bildet den Monat über
+`toISOString()` in UTC und nimmt dadurch in Deutschland den letzten Tag des Vormonats mit, den
+letzten Tag des laufenden Monats nicht.
+
+Keine Migration. 12 neue Tests auf einem gemeinsamen Datensatz, jeweils Grenze+1 (501 Buchungen am
+Auftrag, 1001 im Projekt, 2001 insgesamt): Gesamtzahl, 422 über 2000, Summen über alle Zeilen,
+Angriffstest Monteur (fremder Auftrag, Kollege, fremdes Projekt) mit dem Büro als Gegenstück,
+rekursiver Schlüssel-Scan ohne Lohnfelder für alle vier Rollen, dazu ein Strukturtest, dass jede
+Vorlage mit einer solchen Liste den Helfer nutzt. 20 Gegenproben, jede Stelle einzeln
+zurückgesetzt oder die Prüfung abgeschaltet: jeweils genau die zugehörigen Tests rot. Klicktest
+per CDP gegen eine isolierte Instanz auf allen acht Seiten, 24 Prüfungen grün, Hinweis in hellem
+und dunklem Theme; dieselben Prüfungen gegen die alten Vorlagen: 12 rot (kein Hinweis,
+Einsatzbericht 499,00 statt 501,50 Std., Dashboard 999,00 statt 1.498,00 Std.). Summen und
+Gesamtzahl zusätzlich gegen PostgreSQL geprüft, in einem Wegwerf-Schema der Probe-Datenbank.
+
 ## 1.8.8 – Stundenzettel und CSV-Export: Bezeichnungen der Zeitarten einmal je Lauf
 
 Stundenzettel und CSV-Export im Backoffice laden die Bezeichnungen der Zeitarten jetzt einmal je

@@ -554,6 +554,13 @@ jeder Monteur konnte per direktem Aufruf für seine Teamkollegen buchen. Betreib
 rot), Klicktest per CDP gegen eine isolierte Instanz (Start/Stopp/Nachtrag/Ändern/Löschen als
 Kolonnenführerin, "gebucht von" beim Mitglied, Team-Maske, Abschluss-Karte).
 
+**Nachtrag (seit 1.8.9): Summen und Gesamtzahl.** `GET /api/time-entries/summary` (Summen per SUM)
+und die Kopfzeile `X-Total-Count` der Liste nutzen dieselbe Eingrenzung wie die Liste selbst,
+`_visible_employee_id()` (`app/routers/time_tracking.py`): ein Monteur bekommt nur eigene Buchungen
+gezählt und summiert, auch bei `?order_id=<fremd>` oder `?employee_id=<Kollege>`; ohne
+Mitarbeiterverknüpfung 403. `tests/test_v313_time_entries_total_count_and_sums.py` (Angriffstest,
+Gegenprobe mit abgeschalteter Prüfung rot).
+
 ### Fünf weitere Anpassungen an der Monteursansicht (seit 1.3.61)
 
 Fünf rollenbezogene Punkte, alle ohne neues Datenmodell außer Punkt 4 (siehe dort -- am Ende doch

@@ -179,6 +179,29 @@ Betreiberentscheidung: ein Sperrdatum statt eines Status je Buchung.
 
 `tests/test_v300_time_tracking_lock.py` (7 Tests, Gegenprobe mit abgeschalteter Prüfung rot).
 
+## Liste, Gesamtzahl und Summen (seit 1.8.9)
+
+Abschluss der Runden 1.8.6–1.8.9 gegen stilles Abschneiden von Zeitbuchungen:
+
+- `GET /api/time-entries` liefert höchstens `limit` Buchungen (Vorgabe 500, neueste zuerst) und
+  meldet die Gesamtzahl in der Kopfzeile `X-Total-Count`. Ein `limit` außerhalb von 1–2000 ergibt
+  422, `list_entries()` wirft dann `ValueError` (vorher still auf 2000 gekappt).
+- **Jede Seite, die diese Liste lädt, nimmt `fetchTimeEntries()` und zeigt
+  `timeEntriesTruncatedNotice()` ("Liste gekürzt")** -- beide aus
+  `app/templates/_time_entries_list.html`. Ein Strukturtest in
+  `tests/test_v313_time_entries_total_count_and_sums.py` schlägt fehl, sobald eine Vorlage
+  `/api/time-entries?` an diesem Helfer vorbei abruft.
+- **Summen nie aus der Liste bilden**, sondern über `GET /api/time-entries/summary`
+  (`summarize_entries()`, dieselben Filter über `_entry_filters()`): `entry_count`,
+  `booked_count`, `total_hours`, `productive_hours`, `travel_hours`, `employee_count`, Stunden nur
+  aus gebuchten Zeiten. Genutzt von Einsatzbericht-Seite, Projektmappe, Auftragsseite und Dashboard.
+- Liste, Gesamtzahl und Summen teilen eine Sichtbarkeitsregel, `_visible_employee_id()`: ein
+  Monteur sieht und summiert nur eigene Buchungen.
+- Bewusst noch aus der angezeigten Liste gerechnet: die Tagessummen von `time_tracking.html` und
+  `time_tracking_field.html` sowie Tages- und Monatssumme von `field_timesheet.html` (ein
+  Mitarbeiter, Grenze praktisch nicht erreichbar, bei Kürzung steht der Hinweis darüber). Das
+  Stundenzettel-PDF des Monteurs (`app/field_timesheet_pdf.py`) kappt weiterhin bei 2000.
+
 ## Krankheitssichtbarkeit: buero_auftrag sieht nur noch "abwesend" (seit 1.5.4)
 
 Kurskorrektur zu 1.5.3, wo der Betreiber einen ersten Redaktions-Vorschlag noch abgelehnt hatte

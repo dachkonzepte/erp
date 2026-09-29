@@ -9,10 +9,10 @@ JEDE Rolle -- ein Monteur bucht eigene Zeiten und sieht eigene. Die eigentliche 
 die eigene Person sitzt bereits seit jeher in den Endpunkten selbst, nicht im Rollen-Gate:
 _time_entry_employee_for_request() (nur die eigene employee_id darf angegeben werden),
 _time_entry_can_edit() (aendern/loeschen nur eigene Zeilen), _group_actor() (Gruppenbuchung nur
-mit eigener Mitarbeiterverknuepfung) und get_time_entries() (ein Monteur bekommt IMMER
-employee_id = eigene, auch bei ?order_id=... -- list_entries() verknuepft beide Filter mit UND,
-siehe app/time_tracking.py; die Zeitbuchungen der Kollegen zum selben Auftrag bleiben also
-unsichtbar). Seit 1.3.56 gilt diese Lese-Eingrenzung nur noch fuer ROLE_FIELD, nicht mehr fuer
+mit eigener Mitarbeiterverknuepfung) und _visible_employee_id() fuer Liste und Summen (ein
+Monteur bekommt IMMER employee_id = eigene, auch bei ?order_id=... -- list_entries() verknuepft
+beide Filter mit UND, siehe app/time_tracking.py; die Zeitbuchungen der Kollegen zum selben
+Auftrag bleiben also unsichtbar). Seit 1.3.56 gilt diese Lese-Eingrenzung nur noch fuer ROLE_FIELD, nicht mehr fuer
 jeden Nicht-Admin: das Buero sieht die Buchungen aller (es rechnet sie ab, order.html/
 project_folder.html lesen "alle Buchungen des Auftrags/Projekts"). Der Backoffice-Bereich
 (app/routers/time_backoffice.py) ist davon getrennt und bleibt wie bisher admin-only ueber
@@ -22,16 +22,16 @@ require_admin().
 from fastapi import APIRouter
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AppUser, TimeEntry, TimeEntryGroup
 from ..permissions import ROLE_FIELD, require_min_role
 from .orders import require_field_order_access
-from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
+from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..time_backoffice import get_or_create_time_settings, locked_until, rounded_hours, time_settings_dict
-from ..time_tracking import active_group_for_employee, active_entry as active_time_entry, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, entry_to_dict, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, time_tracking_context, update_entry as update_time_entry_row, update_group
+from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, entry_to_dict, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
 from ..work_time_models import automatic_break_minutes_for_timer
 
 router = APIRouter()
@@ -266,18 +266,35 @@ def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:S
     return _group_out(request,db,group)
 
 
-@router.get("/api/time-entries", response_model=list[TimeEntryOut])
-def get_time_entries(request: Request, employee_id: int | None = None, project_id: int | None = None, order_id: int | None = None, start_date: date | None = None, end_date: date | None = None, limit: int = 500, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def _visible_employee_id(request: Request, employee_id: int | None) -> int | None:
+    """Die eine Sichtbarkeitsregel für Liste UND Summen (GET /api/time-entries und
+    /api/time-entries/summary). Seit 1.3.56 nur noch für Monteure (vorher: jeder Nicht-Admin): ein
+    Monteur sieht ausschließlich eigene Buchungen, auch bei ?order_id=... oder
+    ?employee_id=<Kollege>; Büro/Admin sehen alle -- das Büro rechnet sie ab (Einsatzbericht-Seite
+    und Projektmappe lesen darüber "alle Buchungen des Auftrags/Projekts")."""
     user = getattr(request.state, "erp_user", None)
-    # Seit 1.3.56 nur noch für Monteure (vorher: jeder Nicht-Admin): ein Monteur sieht
-    # ausschließlich eigene Buchungen, auch bei ?order_id=...; Büro/Admin sehen alle -- das Büro
-    # rechnet sie ab (order.html/project_folder.html lesen darüber "alle Buchungen des Auftrags").
     if user is not None and user.role == ROLE_FIELD:
         if user.employee_id is None:
             raise HTTPException(status_code=403, detail="Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet.")
-        employee_id = user.employee_id
-    rows = list_time_entries(db, employee_id=employee_id, project_id=project_id, order_id=order_id, start_date=start_date, end_date=end_date, limit=limit)
-    return [TimeEntryOut.model_validate(entry_to_dict(x)) for x in rows]
+        return user.employee_id
+    return employee_id
+
+
+@router.get("/api/time-entries", response_model=list[TimeEntryOut])
+def get_time_entries(request: Request, response: Response, employee_id: int | None = None, project_id: int | None = None, order_id: int | None = None, start_date: date | None = None, end_date: date | None = None, limit: int = Query(500, ge=1, le=MAX_LIST_LIMIT), db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    # Seit 1.8.9: X-Total-Count meldet die Gesamtzahl der Treffer. Liefert die Liste weniger
+    # (höchstens limit, neueste zuerst), zeigt die Oberfläche "Liste gekürzt". Ein limit über
+    # 2000 wird mit 422 abgelehnt, statt still gekappt zu werden.
+    filters = dict(employee_id=_visible_employee_id(request, employee_id), project_id=project_id, order_id=order_id, start_date=start_date, end_date=end_date)
+    response.headers["X-Total-Count"] = str(count_entries(db, **filters))
+    return [TimeEntryOut.model_validate(entry_to_dict(x)) for x in list_time_entries(db, **filters, limit=limit)]
+
+
+@router.get("/api/time-entries/summary", response_model=TimeEntrySummaryOut)
+def get_time_entries_summary(request: Request, employee_id: int | None = None, project_id: int | None = None, order_id: int | None = None, start_date: date | None = None, end_date: date | None = None, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    """Seit 1.8.9: Summen zu GET /api/time-entries per SUM in der Datenbank, statt sie in der
+    Oberfläche aus der gekürzten Liste zu bilden -- dieselben Filter, dieselbe Sichtbarkeit."""
+    return TimeEntrySummaryOut.model_validate(summarize_entries(db, employee_id=_visible_employee_id(request, employee_id), project_id=project_id, order_id=order_id, start_date=start_date, end_date=end_date))
 
 
 @router.get("/api/time-entries/active", response_model=TimeEntryOut | None)

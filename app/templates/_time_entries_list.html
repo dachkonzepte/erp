@@ -1,0 +1,25 @@
+
+<script>
+/* Geteilter Helfer (seit 1.8.9) für jede Seite, die eine Liste über GET /api/time-entries lädt.
+   Die API liefert höchstens `limit` Buchungen (Vorgabe 500, höchstens 2000, neueste zuerst) und
+   meldet die Gesamtzahl der Treffer in der Kopfzeile X-Total-Count. fetchTimeEntries() gibt
+   beides zurück ({rows, total}); timeEntriesTruncatedNotice() liefert den sichtbaren Hinweis
+   "Liste gekürzt", sobald weniger Buchungen kamen als vorhanden sind -- nie still abschneiden.
+   Summen nicht aus dieser Liste bilden, sondern über GET /api/time-entries/summary holen.
+   tests/test_v313_time_entries_total_count_and_sums.py prüft, dass jede Seite mit einer
+   solchen Liste diesen Weg nimmt. */
+async function fetchTimeEntries(url) {
+  const r = await fetch(url);
+  let data = null;
+  try { data = await r.json(); } catch {}
+  if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
+  const rows = Array.isArray(data) ? data : [];
+  const total = Number(r.headers.get('X-Total-Count'));
+  return { rows, total: Number.isFinite(total) && total > rows.length ? total : rows.length };
+}
+function timeEntriesTruncatedNotice(list, extra) {
+  if (!list || list.total <= list.rows.length) return '';
+  const n = x => x.toLocaleString('de-DE');
+  return `<div class="time-entries-truncated" role="status" style="margin:8px 0;padding:8px 10px;background:var(--warning-soft);border:1px solid color-mix(in srgb,var(--warning) 35%,transparent);color:var(--ink);font-size:13px"><b>Liste gekürzt:</b> ${n(list.rows.length)} von ${n(list.total)} Buchungen angezeigt, die ältesten fehlen.${extra ? ' ' + extra : ''}</div>`;
+}
+</script>
