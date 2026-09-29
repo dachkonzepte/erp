@@ -2214,6 +2214,9 @@ class TimeGroupOut(BaseModel):
     notes: str | None = None
     status: str
     member_entries: list[dict] = Field(default_factory=list)
+    # Seit 1.7.13, nur in der Antwort auf eine Gruppenkorrektur: Mitglieder, deren einzeln
+    # geänderte Buchung unangetastet blieb.
+    skipped_members: list[str] = Field(default_factory=list)
 
 
 class TimeEntryOut(BaseModel):
@@ -2264,6 +2267,8 @@ class TimeGroupUpdate(BaseModel):
 class CrewMemberOut(BaseModel):
     employee_id: int
     name: str
+    # Seit 1.7.13: nach der Gruppenbuchung einzeln geändert -- eine Gruppenkorrektur lässt ihn aus.
+    individually_changed: bool = False
 
 
 class CrewOut(BaseModel):

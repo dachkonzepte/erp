@@ -1953,6 +1953,10 @@ class TimeEntryGroupMember(Base):
     group_id: Mapped[int] = mapped_column(ForeignKey("time_entry_groups.id"), index=True)
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
     time_entry_id: Mapped[int] = mapped_column(ForeignKey("time_entries.id"), index=True)
+    # Seit 1.7.13: gesetzt, sobald diese Mitgliedsbuchung nach der Gruppenbuchung einzeln geändert
+    # oder vorzeitig einzeln gestoppt wurde (app/time_tracking.py::_mark_individual_change()).
+    # Eine spätere Gruppenkorrektur/-löschung lässt sie dann unangetastet -- lohnrelevant.
+    individually_changed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

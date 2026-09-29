@@ -231,9 +231,11 @@ def put_time_group(group_id:int,payload:TimeGroupUpdate,request:Request,db:Sessi
     _require_bookable_order(request,db,payload.order_id)
     _require_open_period(request,db,group.work_date,payload.work_date)
     try:
-        group=update_group(db,group_id,order_id=payload.order_id,order_item_id=payload.order_item_id,work_date=payload.work_date,entry_type=payload.entry_type,activity=payload.activity,hours=payload.hours,break_minutes=payload.break_minutes,notes=payload.notes)
+        group,skipped=update_group(db,group_id,order_id=payload.order_id,order_item_id=payload.order_item_id,work_date=payload.work_date,entry_type=payload.entry_type,activity=payload.activity,hours=payload.hours,break_minutes=payload.break_minutes,notes=payload.notes)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
-    return _group_out(request,db,group)
+    out=_group_out(request,db,group)
+    out.skipped_members=skipped
+    return out
 
 
 @router.delete("/api/time-entry-groups/{group_id}")
@@ -243,9 +245,9 @@ def remove_time_group(group_id:int,request:Request,db:Session=Depends(get_db), _
     _require_group_owner(request,db,group)
     _require_open_period(request,db,group.work_date)
     try:
-        delete_group(db,group_id)
+        kept=delete_group(db,group_id)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
-    return {"deleted": True}
+    return {"deleted": True, "kept_members": kept}
 
 
 @router.post("/api/time-entry-groups/{group_id}/stop", response_model=TimeGroupOut)

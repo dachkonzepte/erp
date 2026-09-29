@@ -518,8 +518,22 @@ jeder Monteur konnte per direktem Aufruf für seine Teamkollegen buchen. Betreib
 - **Korrektur:** neu `PUT`/`DELETE /api/time-entry-groups/{id}` (`update_group()`/
   `delete_group()`) -- Admin, oder wer die Gruppe angelegt hat; ein Monteur zusätzlich nur,
   solange er im Team der Buchung noch Kolonnenführer ist; nur bis zum Abschluss. Die Korrektur
-  gilt für alle Mitgliedsbuchungen gleich und überschreibt eine zwischenzeitliche Einzeländerung
-  eines Mitglieds. Die Besetzung ist nicht änderbar (löschen und neu buchen). Einzelbuchungen der
+  gilt für alle Mitgliedsbuchungen gleich -- **seit 1.7.13 außer für einzeln geänderte**, siehe
+  nächster Punkt. Die Besetzung ist nicht änderbar (löschen und neu buchen).
+- **Einzeländerung hat Vorrang (seit 1.7.13, lohnrelevant):** 1.7.12 ließ die Gruppenkorrektur
+  eine Einzelkorrektur des Mitglieds überschreiben (Beispiel des Betreibers: Gruppe 7-16, Mitglied
+  korrigiert sich auf 7-14, Kolonnenführer verschiebt danach den Beginn auf 7:30 -- das Mitglied
+  stünde wieder bis 16 Uhr in der Abrechnung). Jetzt: `TimeEntryGroupMember.individually_changed_at`
+  (Migration `cecb35eb85f8`), gesetzt von `update_entry()` (jede Einzeländerung, auch durch einen
+  Admin) und von `stop_timer()`, wenn ein Mitglied vorzeitig einzeln stoppt, während die Gruppe
+  weiterläuft. `update_group()` lässt markierte Einträge aus und meldet die Namen
+  (`skipped_members`), `delete_group()` lässt sie als eigenständige Buchung stehen
+  (`kept_members`); die mobile Ansicht zeigt beides nach dem Speichern und markiert in der Liste
+  "(selbst geändert)". Bewusst ein ausdrücklicher Merker statt Wertevergleich (Timer-Mitglieder
+  haben durch eigene Pausen ohnehin unterschiedliche Stunden) und statt `updated_at`-Vergleich
+  (onupdate-Fallstrick, siehe Kalender-Archiv). Die Migration markiert Bestandsgruppen nach, deren
+  Mitgliedsbuchung bei Datum/Auftrag/Zeitart vom Gruppenkopf abweicht, bei manuellen Gruppen
+  zusätzlich bei den Stunden. `tests/test_v303_group_correction_keeps_individual_changes.py`. Einzelbuchungen der
   Kollegen bleiben für ihn unerreichbar (`_time_entry_can_edit()` unverändert).
 - **Keine Sicht auf fremde Zeiten:** Gruppenantworten enthalten für `field` je Mitglied nur Name,
   Stunden, Status (`_group_out()`); `GET /api/time-entry-groups/mine` (eigene Gruppenbuchungen,

@@ -318,7 +318,7 @@ function renderCrewGroup(g){
   const actions=g.status!=='booked'?'<span class="small muted">läuft</span>'
     :isLocked(g.work_date)?'<span class="small muted">abgeschlossen</span>'
     :`<button class="secondary" onclick="openCrewDialog(${g.id})">Ändern</button><button class="danger" onclick="deleteCrewGroup(${g.id})">×</button>`;
-  return `<div class="entry"><div><div class="entry-type">${esc(typeLabel(g.entry_type))} · ${esc(g.team_name||'')}</div><div class="small muted">${fmtDate(g.work_date)} · ${esc(g.order_number||'')}</div><div class="small muted">${g.members.map(m=>esc(m.name)).join(', ')}</div>${g.notes?`<div class="small muted">${esc(g.notes)}</div>`:''}</div><div style="text-align:right"><div class="entry-hours">${g.mode==='timer'?'Ø ':''}${num(g.hours)} h</div><div class="small muted">je Person</div><div class="entry-actions" style="margin-top:6px">${actions}</div></div></div>`;
+  return `<div class="entry"><div><div class="entry-type">${esc(typeLabel(g.entry_type))} · ${esc(g.team_name||'')}</div><div class="small muted">${fmtDate(g.work_date)} · ${esc(g.order_number||'')}</div><div class="small muted">${g.members.map(m=>esc(m.name)+(m.individually_changed?' <b>(selbst geändert)</b>':'')).join(', ')}</div>${g.notes?`<div class="small muted">${esc(g.notes)}</div>`:''}</div><div style="text-align:right"><div class="entry-hours">${g.mode==='timer'?'Ø ':''}${num(g.hours)} h</div><div class="small muted">je Person</div><div class="entry-actions" style="margin-top:6px">${actions}</div></div></div>`;
 }
 async function loadCrewState(){
   if(!crews.length)return;
@@ -362,14 +362,21 @@ async function saveCrewDialog(){
   if(!(hours>0)){$('crewDialogStatus').textContent='Bitte Stunden größer als 0 angeben.';return}
   const body={order_id:orderId,work_date:$('crewDialogDate').value,entry_type:$('crewDialogType').value,activity:$('crewDialogActivity').value||null,hours,break_minutes:timeSettings.default_break_minutes||0,notes:$('crewDialogNotes').value.trim()||null};
   try{
-    if(crewEditingId)await api(`/api/time-entry-groups/${crewEditingId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    else await api('/api/time-entry-groups',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,employee_ids:crewSelectedIds(),team_id:Number($('crewTeam').value)})});
+    let saved;
+    if(crewEditingId)saved=await api(`/api/time-entry-groups/${crewEditingId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    else saved=await api('/api/time-entry-groups',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,employee_ids:crewSelectedIds(),team_id:Number($('crewTeam').value)})});
     crewDialog.close();await loadEntries();await loadCrewState();
+    const skipped=saved?.skipped_members||[];
+    $('crewStatus').innerHTML=skipped.length?`<span class="error">Nicht übernommen bei: ${skipped.map(esc).join(', ')}</span> – hat die eigene Buchung nach der Gruppenbuchung selbst geändert. Deren Buchung bleibt, wie sie ist.`:(crewEditingId?'Korrektur gespeichert.':'');
   }catch(e){$('crewDialogStatus').textContent='Fehler: '+e.message}
 }
 async function deleteCrewGroup(id){
-  if(!confirm('Diese Kolonnenbuchung für alle Beteiligten löschen?'))return;
-  try{await api(`/api/time-entry-groups/${id}`,{method:'DELETE'});await loadEntries();await loadCrewState()}catch(e){alert(e.message)}
+  if(!confirm('Diese Kolonnenbuchung löschen? Selbst geänderte Buchungen einzelner Mitglieder bleiben bestehen.'))return;
+  try{
+    const r=await api(`/api/time-entry-groups/${id}`,{method:'DELETE'});await loadEntries();await loadCrewState();
+    const kept=r?.kept_members||[];
+    $('crewStatus').innerHTML=kept.length?`Gelöscht. <span class="error">Bestehen geblieben bei: ${kept.map(esc).join(', ')}</span> – selbst geänderte Buchung.`:'Gelöscht.';
+  }catch(e){alert(e.message)}
 }
 
 function isLocked(workDate){return !!(timeSettings.locked_until&&workDate<=timeSettings.locked_until)}

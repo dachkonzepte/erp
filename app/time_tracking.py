@@ -145,8 +145,24 @@ def stop_timer(db: Session, entry_id: int, *, ended_at: datetime | None = None, 
     row.break_minutes = max(0, int(break_minutes or 0), int(auto_break or 0))
     row.hours = compute_hours(row.started_at, end, row.break_minutes)
     row.status = "booked"
+    link = _group_link_for_entry(db, row.id)
+    if link is not None:
+        group = db.get(TimeEntryGroup, link.group_id)
+        if group is not None and group.status == "running":
+            _mark_individual_change(link)  # vorzeitig einzeln gestoppt, die Gruppe läuft weiter
     db.commit()
     return load_entry(db, row.id)
+
+
+def _group_link_for_entry(db: Session, entry_id: int) -> TimeEntryGroupMember | None:
+    return db.scalar(select(TimeEntryGroupMember).where(TimeEntryGroupMember.time_entry_id == entry_id))
+
+
+def _mark_individual_change(link: TimeEntryGroupMember) -> None:
+    """Seit 1.7.13: Merker "nach der Gruppenbuchung einzeln geändert" -- der erste Zeitpunkt bleibt
+    stehen. Rollenlos: gilt für eine Änderung durch das Mitglied selbst wie durch einen Admin."""
+    if link.individually_changed_at is None:
+        link.individually_changed_at = datetime.utcnow()
 
 
 def update_entry(
@@ -170,6 +186,9 @@ def update_entry(
     row.entry_type=entry_type; row.counts_as_productive=entry_type_is_productive(entry_type)
     row.activity=activity or None; row.notes=notes or None; row.break_minutes=max(0,int(break_minutes or 0))
     # Bei manueller Korrektur zählt der Stundenwert als führend; alte Timer-Zeitstempel bleiben Nachweis.
+    link = _group_link_for_entry(db, row.id)
+    if link is not None:
+        _mark_individual_change(link)
     db.commit()
     return load_entry(db, row.id)
 
@@ -444,10 +463,11 @@ def _group_links(db: Session, group_id: int) -> list[TimeEntryGroupMember]:
 
 def update_group(db: Session, group_id: int, *, order_id: int, work_date: date, hours: Decimal, entry_type: str,
                  order_item_id: int | None = None, activity: str | None = None, notes: str | None = None,
-                 break_minutes: int = 0) -> TimeEntryGroup:
-    """Korrigiert eine abgeschlossene Gruppenbuchung und jede noch verknüpfte Mitgliedsbuchung
-    gleichermaßen. Hat ein Mitglied seinen Eintrag inzwischen selbst geändert, wird das hier
-    überschrieben -- die Gruppenkorrektur ist die führende."""
+                 break_minutes: int = 0) -> tuple[TimeEntryGroup, list[str]]:
+    """Korrigiert eine abgeschlossene Gruppenbuchung und jede Mitgliedsbuchung, die seit der
+    Gruppenbuchung NICHT einzeln geändert wurde (seit 1.7.13, lohnrelevant -- vorher überschrieb
+    die Gruppenkorrektur auch eine Einzelkorrektur des Mitglieds). Gibt zusätzlich die Namen der
+    unangetastet gebliebenen Mitglieder zurück."""
     group = db.get(TimeEntryGroup, group_id)
     if group is None: raise ValueError("Gruppenbuchung wurde nicht gefunden.")
     if group.status != "booked": raise ValueError("Eine laufende Gruppenbuchung zuerst stoppen.")
@@ -456,9 +476,13 @@ def update_group(db: Session, group_id: int, *, order_id: int, work_date: date, 
     validate_order_item(db, order_id, order_item_id)
     amount = _d(hours)
     if amount <= 0: raise ValueError("Die Stunden müssen größer als 0 sein.")
+    skipped: list[str] = []
     for link in _group_links(db, group.id):
         entry = db.get(TimeEntry, link.time_entry_id)
         if entry is None:
+            continue
+        if link.individually_changed_at is not None:
+            skipped.append(employee_name(db.get(Employee, link.employee_id)) or f"#{link.employee_id}")
             continue
         entry.order_id = order.id; entry.project_id = order.project_id; entry.order_item_id = order_item_id
         entry.work_date = work_date; entry.hours = amount; entry.entry_type = entry_type
@@ -468,20 +492,28 @@ def update_group(db: Session, group_id: int, *, order_id: int, work_date: date, 
     group.work_date = work_date; group.hours = amount; group.entry_type = entry_type
     group.activity = activity or None; group.notes = notes or None; group.break_minutes = max(0, int(break_minutes or 0))
     db.commit()
-    return db.get(TimeEntryGroup, group.id)
+    return db.get(TimeEntryGroup, group.id), skipped
 
 
-def delete_group(db: Session, group_id: int) -> None:
+def delete_group(db: Session, group_id: int) -> list[str]:
+    """Löscht die Gruppenbuchung samt ihrer Mitgliedsbuchungen -- außer denen, die seit der
+    Gruppenbuchung einzeln geändert wurden (seit 1.7.13): die bleiben als eigenständige Buchung
+    des Mitglieds stehen (nur die Gruppen-Verknüpfung entfällt). Gibt deren Namen zurück."""
     group = db.get(TimeEntryGroup, group_id)
     if group is None: raise ValueError("Gruppenbuchung wurde nicht gefunden.")
     if group.status != "booked": raise ValueError("Eine laufende Gruppenbuchung zuerst stoppen.")
+    kept: list[str] = []
     for link in _group_links(db, group.id):
         entry = db.get(TimeEntry, link.time_entry_id)
+        changed = link.individually_changed_at is not None
+        if changed:
+            kept.append(employee_name(db.get(Employee, link.employee_id)) or f"#{link.employee_id}")
         db.delete(link); db.flush()
-        if entry is not None:
+        if entry is not None and not changed:
             db.delete(entry)
     db.flush()
     db.delete(group); db.commit()
+    return kept
 
 
 def list_groups_initiated_by(db: Session, employee_id: int, *, start_date: date) -> list[dict]:
@@ -496,7 +528,8 @@ def list_groups_initiated_by(db: Session, employee_id: int, *, start_date: date)
         members = []
         for link in _group_links(db, g.id):
             emp = db.get(Employee, link.employee_id)
-            members.append({"employee_id": link.employee_id, "name": employee_name(emp) or f"#{link.employee_id}"})
+            members.append({"employee_id": link.employee_id, "name": employee_name(emp) or f"#{link.employee_id}",
+                            "individually_changed": link.individually_changed_at is not None})
         result.append({
             "id": g.id, "team_id": g.team_id, "team_name": team.name if team else None,
             "order_id": g.order_id, "order_number": order.order_number if order else None,
