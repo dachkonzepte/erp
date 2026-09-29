@@ -1,0 +1,20 @@
+
+<script>
+/* Geteilter Helfer (seit 1.8.10) für Kalenderdaten in Europe/Berlin, unabhängig von der Zeitzone
+   des Browsers. Ein Datum nie über toISOString() bilden: das rechnet in UTC um und liefert für
+   Mitternacht Ortszeit (new Date(jahr, monat, 1)) immer den Vortag, für "jetzt" zwischen 0 Uhr und
+   1 Uhr (Winterzeit) bzw. 2 Uhr (Sommerzeit) ebenfalls noch den Vortag. Ergebnisse als 'JJJJ-MM-TT',
+   wie die API sie erwartet. tests/test_v314_dashboard_month_berlin.py prüft Monats- und
+   Jahreswechsel, jeweils mit mehreren Zeitzonen des Browsers. */
+function berlinDateParts(now = new Date()) {
+  const parts = {};
+  for (const p of new Intl.DateTimeFormat('en-US', {timeZone: 'Europe/Berlin', year: 'numeric', month: 'numeric', day: 'numeric'}).formatToParts(now)) parts[p.type] = Number(p.value);
+  return {year: parts.year, month: parts.month, day: parts.day};
+}
+function berlinMonthRange(now = new Date()) {
+  const {year, month} = berlinDateParts(now);
+  const ym = `${year}-${String(month).padStart(2, '0')}`;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();  // Tag 0 des Folgemonats
+  return [`${ym}-01`, `${ym}-${String(lastDay).padStart(2, '0')}`];
+}
+</script>

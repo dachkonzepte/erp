@@ -63,6 +63,7 @@ a.link{color:var(--accent);font-weight:650;text-decoration:none}
 </main>
 </div>
 </div>
+{% include "_berlin_date.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const money=x=>Number(x||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
@@ -138,9 +139,9 @@ async function renderKpisWidget(container){
   const active=projects.filter(p=>!p.archived&&['planung','beauftragt','ausfuehrung'].includes(p.status));
   let hoursHtml='';
   if(authStatus.user.employee_id){
-    const d=new Date();
-    const from=new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10);
-    const to=new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().slice(0,10);
+    // Monatsgrenzen seit 1.8.10 in Europe/Berlin (_berlin_date.html) -- vorher über toISOString()
+    // in UTC: der letzte Tag des Vormonats zählte mit, der letzte Tag des Monats fehlte.
+    const [from,to]=berlinMonthRange();
     // Seit 1.8.9 per SUM aus der Datenbank statt aus einer auf 1000 Zeilen gekürzten Liste.
     const totals=await api(`/api/time-entries/summary?employee_id=${authStatus.user.employee_id}&start_date=${from}&end_date=${to}`).catch(()=>null);
     const hours=Number(totals?.productive_hours||0);

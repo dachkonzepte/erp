@@ -201,6 +201,59 @@ Abschluss der Runden 1.8.6–1.8.9 gegen stilles Abschneiden von Zeitbuchungen:
   `time_tracking_field.html` sowie Tages- und Monatssumme von `field_timesheet.html` (ein
   Mitarbeiter, Grenze praktisch nicht erreichbar, bei Kürzung steht der Hinweis darüber). Das
   Stundenzettel-PDF des Monteurs (`app/field_timesheet_pdf.py`) kappt weiterhin bei 2000.
+- **Nachtrag (1.8.10): Abgleich mit den alten Oberflächensummen.** Unterhalb der Grenzen liefern
+  die Serversummen dieselben Werte wie die bis 1.8.8 in der Oberfläche gebildeten, auch mit
+  Schlechtwetter, frei gepflegten Zeitarten und laufenden Timern (die tragen immer 0 Std.:
+  `start_timer()`/`start_group_timer()` setzen 0, `update_entry()` lehnt laufende ab). Einmal per
+  Wegwerfprüfung verglichen (alte und neue Formeln in node), kein Dauertest. Zwei Abweichungen:
+  "Mitarbeiter mit Buchung" zählt nach `employee_id` statt nach Namen (zwei gleichnamige
+  Mitarbeiter zählen jetzt zweifach), und `quantize()` ohne Rundungsart rundet `ROUND_HALF_EVEN`
+  (wie `order_actual_hours()` und die Backoffice-Summen), die alte Oberfläche per `toLocaleString`
+  kaufmännisch -- sichtbar nur bei exakt halben Hundertstel (1,1250 Std.: alt 1,13, neu 1,12).
+  Nicht geändert.
+
+## Kalenderdatum in Europe/Berlin statt UTC (seit 1.8.10)
+
+`toISOString().slice(0, 10)` liefert das Datum in UTC: für Mitternacht Ortszeit
+(`new Date(jahr, monat, 1)`) immer den Vortag, für "jetzt" zwischen 0 und 1 Uhr (Winterzeit) bzw.
+2 Uhr (Sommerzeit) ebenfalls. Das Dashboard ("Meine Stunden (Monat)") zählte dadurch jeden Tag den
+letzten Tag des Vormonats mit und den letzten Tag des Monats nicht. Seit 1.8.10 nimmt es
+`berlinMonthRange()` aus dem geteilten Helfer `app/templates/_berlin_date.html`
+(`Intl.DateTimeFormat` mit `timeZone: 'Europe/Berlin'`, unabhängig von der Zeitzone des
+Browsers). `tests/test_v314_dashboard_month_berlin.py` führt Helfer und Dashboard-Funktion in node
+aus, an Monats- und Jahreswechseln, mit vier Zeitzonen des Prozesses (übersprungen ohne node).
+
+**Offen, nur aufgelistet (Suche vom 29.09.2026) -- dasselbe Muster an weiteren Stellen:**
+
+- *Im Browser, aus UTC abgeleitet (unabhängig vom Server):* `time_tracking.html` `today()` (Z. 29:
+  "Heute"-Liste und -Summen, Vorgabedatum Nachtrag und Auswertung); `time_tracking_field.html`
+  `today()` (Z. 223: "Heute"-Summen, Liste endet bei `end_date=today()`, Vorgabedatum Nachtrag),
+  dort auch Z. 393 (Beginn 14-Tage-Fenster, harmlos); `service_reports.html` Z. 1386 (Datum der
+  Zeitbuchung am Einsatzbericht) und Z. 331 (Ausführungsdatum); `incoming_invoices.html` Z. 549
+  (Bezahltdatum beim Markieren als bezahlt); `project_folder.html` Z. 151 (nächste Fälligkeit beim
+  Wartungsvertrag aus dem Projekt); `planning.html` Z. 41 (`today=iso(new Date())`,
+  Heute-Markierung der Plantafel; `iso()` sonst nur mit 12-Uhr-Daten, korrekt).
+  Geprüft, korrekt: `time_backoffice.html` `dateISO()` (Ortsdatum, auch Monatsgrenzen und
+  Export-Zeiträume), `quote_editor.html` `localToday()`, `time_tracking_field.html` Z. 493.
+- *Auf dem Server, `utcnow()`-Zeitstempel als Ortszeit gedruckt (unabhängig von der
+  Serverzeitzone):* `app/service_report_pdf.py` Z. 387/395/407 (Unterschriftszeitpunkt Monteur
+  und Kunde), `app/checklist_pdf.py` Z. 130/143/201 (`completed_at`) und Z. 188 (Unterschrift),
+  `app/projects.py` Z. 64 (Angebotsdatum und Bindefrist neuer Angebote aus `created_at`).
+- *Auf dem Server über `date.today()`/`datetime.now()` -- nur falsch, wenn der VPS in UTC läuft
+  (nicht dokumentiert, `timedatectl` klärt es):* Zeiterfassung `app/time_tracking.py`
+  Z. 124/142/453/465 (Buchungsdatum von Timer und Gruppen-Timer), `app/routers/time_tracking.py`
+  Z. 190/326 (Sperrprüfung beim Timerstart mit dem Datum des Vortags), Z. 213,
+  `app/work_time_models.py` Z. 36/202/243/250 (Arbeitszeitmodell, automatische Pause),
+  `app/mobile_settings.py` Z. 38 mit `app/routers/field_view.py` Z. 87 (Feierabend-Abmeldung 1–2
+  Std. zu spät), `app/routers/field_view.py` Z. 195 (Vorgabemonat Monteur-Stundenzettel),
+  `app/planning.py` Z. 651/681/776/837
+  (Einsätze heute, buchbare Aufträge), `app/productive_hours.py` Z. 124/286; Fristen
+  `app/invoices.py` Z. 126/529/736/831, `app/reminders.py` Z. 126/176/392,
+  `app/incoming_invoices.py` Z. 80/87/94/418 (Skonto), `app/maintenance_contracts.py`
+  Z. 104/108/123/468/730 (Texte 562/580/663), `app/operational_assets.py` Z. 95/102/658,
+  `app/recurring_costs.py` Z. 129/136/380, `app/findings.py` Z. 142/247,
+  `app/service_reports.py` Z. 511, `app/quick_service_orders.py` Z. 58, `app/projects.py` Z. 653;
+  Nummernkreise `app/settings.py` Z. 53/84/108/135/171 (Jahr in der Silvesternacht).
 
 ## Krankheitssichtbarkeit: buero_auftrag sieht nur noch "abwesend" (seit 1.5.4)
 

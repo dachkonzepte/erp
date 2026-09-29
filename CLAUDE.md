@@ -1141,3 +1141,11 @@ vollständig aufgelöst: `_search_tasks()` (`app/search.py`) nutzt seither `list
   `onupdate`) neu durchdenken, nicht nur `datetime.utcnow()` durch `datetime.now(UTC)` ersetzen.
   Bewusst NICHT jetzt umgebaut -- eigene, spätere, sorgfältig zu planende Runde, kein Teil der
   CLAUDE.md-Aufräumung.
+- **Kalenderdatum an weiteren Stellen aus UTC abgeleitet** (Suche vom 29.09.2026, nur das
+  Dashboard ist seit 1.8.10 behoben): im Browser `toISOString().slice(0,10)` (u. a. `today()` der
+  Büro- und der Monteur-Zeiterfassung, Bezahltdatum Eingangsrechnung), auf dem Server
+  `utcnow()`-Zeitstempel als Ortszeit gedruckt (Unterschriftszeitpunkt im Einsatzbericht- und
+  Checklisten-PDF, Angebotsdatum) und -- nur falls der VPS in UTC läuft, nicht dokumentiert --
+  jedes `date.today()`/`datetime.now()` (Buchungsdatum der Timer, Sperrprüfung, Feierabend,
+  Fristen, Nummernkreis-Jahr). Liste mit Zeilen: `docs/archiv/zeiterfassung-und-abwesenheit.md`,
+  "Kalenderdatum in Europe/Berlin statt UTC". Für den Browser steht `_berlin_date.html` bereit.

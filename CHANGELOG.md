@@ -4,6 +4,32 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.10 – Dashboard „Meine Stunden (Monat)": Monatsgrenzen in Europe/Berlin
+
+Die Kachel „Meine Stunden (Monat)" im Dashboard bildete den Monat über
+`new Date(jahr, monat, 1).toISOString()`. Das ist Mitternacht Ortszeit in UTC umgerechnet, in
+Deutschland also der Vortag: An jedem Tag des Monats zählte der letzte Tag des Vormonats mit, der
+letzte Tag des laufenden Monats fehlte (in 1.8.9 als Nebenbefund notiert). Jetzt bestimmt
+`berlinMonthRange()` aus dem neuen geteilten Helfer `_berlin_date.html` den Monat ausdrücklich in
+Europe/Berlin (`Intl.DateTimeFormat` mit `timeZone`), unabhängig von der Zeitzone des Browsers.
+Die Suche nach demselben Muster im übrigen Code hat weitere Stellen ergeben, die bewusst nicht in
+dieser Version geändert sind, darunter `today()` der Büro- und der Monteur-Zeiterfassung, der
+Unterschriftszeitpunkt im Einsatzbericht-PDF und, falls der Server in UTC läuft, das
+Buchungsdatum der Timer. Die Liste mit Zeilen steht in `docs/archiv/zeiterfassung-und-abwesenheit.md`,
+der Helfer steht für den Browser-Teil bereit.
+
+Keine Migration. 8 neue Tests in `tests/test_v314_dashboard_month_berlin.py`, die den
+JavaScript-Code der Vorlagen in node ausführen: den Helfer an den Sekunden vor und nach
+Mitternacht Berliner Zeit an vier Monatswechseln (Sommer- und Winterzeit, Jahreswechsel) und im
+Schaltjahr, dazu die Dashboard-Funktion selbst mit festgehaltener Uhr, jeweils mit vier
+Zeitzonen des Prozesses (Berlin, UTC, New York, Tokio). Ohne node werden sie übersprungen.
+Gegenproben: alte Dashboard-Vorlage 4 rot, alte Rechnung bei vorhandenem Include 4 rot, Helfer
+mit der alten Rechnung 8 rot, Helfer ohne `timeZone` 6 rot (nur die Läufe in Berliner Zeit grün).
+Klicktest per CDP gegen eine isolierte Instanz mit festgesetzter Uhr und umgestellter
+Browser-Zeitzone: 5 Prüfungen grün, um 0:30 Uhr am 1. Oktober (in UTC noch der 30. September)
+zeigt die Kachel die Oktoberstunden; mit der alten Vorlage 0 von 5 (dort 6,00 statt 5,00 Std. aus
+der Abfrage 30.09.–30.10.). Volle Suite: 2001 grün, 3 übersprungen.
+
 ## 1.8.9 – Zeitbuchungen: Liste meldet ihre Gesamtzahl, Summen kommen aus der Datenbank
 
 `GET /api/time-entries` meldet jetzt in der Kopfzeile `X-Total-Count`, wie viele Buchungen es zu
