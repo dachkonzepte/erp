@@ -4,6 +4,16 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.7.11 – Zeiterfassung: per Gruppe gebuchte Einträge ließen sich unter PostgreSQL nicht löschen
+
+Gefunden bei der Planung des Kolonnenführers: Löschte jemand einen Eintrag, der aus einer
+Gruppenbuchung stammt, blieb die Verknüpfungszeile in `time_entry_group_members` mit ihrem
+Fremdschlüssel auf den Eintrag stehen. PostgreSQL lehnt das ab, der Server hätte mit 500
+geantwortet. Unter SQLite fiel es nicht auf, weil SQLite Fremdschlüssel standardmäßig nicht prüft.
+`delete_entry()` entfernt jetzt zuerst die Verknüpfung und, falls danach kein Mitglied mehr übrig
+ist, auch den Kopf der Gruppenbuchung. Die zwei neuen Tests schalten die Fremdschlüsselprüfung
+von SQLite ausdrücklich ein, gegen den alten Code sind beide rot.
+
 ## 1.7.10 – Zeiterfassung: Abschluss mit Sperrdatum
 
 Bisher gab es keinen Abschluss der Zeiterfassung: Jeder Monteur konnte eigene Zeiten jederzeit

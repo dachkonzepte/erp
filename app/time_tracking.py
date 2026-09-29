@@ -174,9 +174,19 @@ def update_entry(
 
 
 def delete_entry(db: Session, entry_id: int) -> None:
+    """Seit 1.7.11: entfernt vorher die Gruppen-Verknüpfung (TimeEntryGroupMember.time_entry_id ist
+    ein Fremdschlüssel ohne Kaskade) -- sonst scheitert das Löschen eines per Gruppe gebuchten
+    Eintrags unter PostgreSQL mit IntegrityError. Bleibt die Gruppe danach ohne Mitglied, wird auch
+    ihr Kopf entfernt."""
     row = db.get(TimeEntry, entry_id)
     if row is None: raise ValueError("Zeitbuchung wurde nicht gefunden.")
     if row.status == "running": raise ValueError("Laufende Zeiterfassung zuerst stoppen.")
+    link = db.scalar(select(TimeEntryGroupMember).where(TimeEntryGroupMember.time_entry_id == entry_id))
+    if link is not None:
+        group_id = link.group_id
+        db.delete(link); db.flush()
+        if db.scalar(select(TimeEntryGroupMember.id).where(TimeEntryGroupMember.group_id == group_id).limit(1)) is None:
+            db.delete(db.get(TimeEntryGroup, group_id)); db.flush()
     db.delete(row); db.commit()
 
 
