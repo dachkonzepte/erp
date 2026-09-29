@@ -173,6 +173,8 @@ Betreiberentscheidung: ein Sperrdatum statt eines Status je Buchung.
 - **Nebenbefund, nicht geändert:** `build_datev_export()` holt die Buchungen über
   `list_entries(..., limit=2000)` -- ein Zeitraum mit mehr als 2000 Buchungen würde still
   abgeschnitten. Bei der heutigen Größe (wenige Monteure) nicht erreichbar, für später notiert.
+  **Behoben seit 1.8.7:** DATEV-Export, Stundenübersicht, Stundenzettel und CSV-Export holen mit
+  `limit=None` alle Buchungen des Zeitraums; `limit` ist in `list_entries()` jetzt Pflicht.
 
 `tests/test_v300_time_tracking_lock.py` (7 Tests, Gegenprobe mit abgeschalteter Prüfung rot).
 

@@ -169,7 +169,7 @@ def rounded_hours(hours: Decimal, rounding_minutes: int) -> Decimal:
 
 
 def backoffice_summary(db: Session, start_date: date, end_date: date, employee_id: int | None = None) -> dict:
-    rows=list_entries(db, employee_id=employee_id, start_date=start_date, end_date=end_date, limit=2000)
+    rows=list_entries(db, employee_id=employee_id, start_date=start_date, end_date=end_date, limit=None)
     total=Decimal("0"); productive=Decimal("0"); travel=Decimal("0")
     by_employee=defaultdict(lambda:{"hours":Decimal("0"),"productive":Decimal("0"),"travel":Decimal("0"),"days":set()})
     by_type=defaultdict(Decimal)
@@ -202,7 +202,7 @@ def _fmt_h(value) -> str:
 
 
 def build_timesheet_pdf(db: Session, start_date: date, end_date: date, employee_id: int | None = None) -> bytes:
-    rows=list_entries(db, employee_id=employee_id, start_date=start_date, end_date=end_date, limit=2000)
+    rows=list_entries(db, employee_id=employee_id, start_date=start_date, end_date=end_date, limit=None)
     general=get_or_create_general_settings(db)
     grouped=defaultdict(list)
     for r in rows: grouped[r.employee_id].append(r)
@@ -233,7 +233,7 @@ def build_timesheet_pdf(db: Session, start_date: date, end_date: date, employee_
 def build_time_csv(db: Session, start_date: date, end_date: date, employee_id: int | None = None) -> bytes:
     out=StringIO(newline=""); w=csv.writer(out,delimiter=";",lineterminator="\r\n")
     w.writerow(["Mitarbeiternummer","Mitarbeiter","Datum","Projekt","Auftrag","LV-OZ","Zeitart","Tätigkeit","von","bis","Pause_Min","Stunden","Notiz"])
-    for r in list_entries(db,employee_id=employee_id,start_date=start_date,end_date=end_date,limit=2000):
+    for r in list_entries(db,employee_id=employee_id,start_date=start_date,end_date=end_date,limit=None):
         d=entry_to_dict(r); emp=r.employee
         w.writerow([emp.employee_number or "",d["employee_name"],r.work_date.strftime("%d.%m.%Y"),d.get("project_number") or "",d.get("order_number") or "",d.get("order_item_oz") or "",_entry_type_label(db,r.entry_type),r.activity or "",r.started_at.strftime("%H:%M") if r.started_at else "",r.ended_at.strftime("%H:%M") if r.ended_at else "",r.break_minutes,_fmt_h(r.hours),r.notes or ""])
     return ("\ufeff"+out.getvalue()).encode("utf-8")
@@ -270,7 +270,7 @@ def _entry_type_label(db: Session, entry_type: str) -> str:
 
 def build_datev_export(db: Session, start_date: date, end_date: date) -> tuple[bytes,str,list[str]]:
     settings=get_or_create_time_settings(db)
-    rows=list_entries(db,start_date=start_date,end_date=end_date,limit=2000)
+    rows=list_entries(db,start_date=start_date,end_date=end_date,limit=None)
     aggregated=defaultdict(Decimal); warnings=[]
     payroll={x.employee_id:x for x in db.scalars(select(EmployeePayrollSettings)).all()}
     for r in rows:

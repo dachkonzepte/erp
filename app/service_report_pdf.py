@@ -344,7 +344,7 @@ def build_service_report_pdf(db, report, *, include_time_entries: bool = True) -
                 story.append(KeepTogether(block))
                 story.append(Spacer(1, 2 * mm))
 
-        entries = list_entries(db, order_id=order.id) if include_time_entries else []
+        entries = list_entries(db, order_id=order.id, limit=None) if include_time_entries else []
         if entries:
             rows = [["Datum", "Mitarbeiter", "Tätigkeit", "Stunden"]]
             for e in entries:

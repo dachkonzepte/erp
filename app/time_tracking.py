@@ -234,10 +234,11 @@ def entry_to_dict(row: TimeEntry) -> dict:
 def list_entries(
     db: Session, *, employee_id: int | None = None, project_id: int | None = None,
     order_id: int | None = None, start_date: date | None = None, end_date: date | None = None,
-    limit: int | None = 500,
+    limit: int | None,
 ) -> list[TimeEntry]:
-    # limit=None (seit 1.8.6): ohne Obergrenze, für Aufrufer, die fachlich jede Zeile brauchen
-    # (Rechnung aus Aufwand). Sonst schneiden der Vorgabewert 500 bzw. die Kappung bei 2000 still ab.
+    # limit ist seit 1.8.7 Pflicht: der frühere Vorgabewert 500 und die Kappung bei 2000 schnitten
+    # Rechnung aus Aufwand, Einsatzbericht-PDF und Backoffice still ab. limit=None = ohne
+    # Obergrenze, für Aufrufer, die fachlich jede Zeile brauchen; eine Zahl wird bei 2000 gekappt.
     stmt = select(TimeEntry).options(
         selectinload(TimeEntry.employee), selectinload(TimeEntry.project),
         selectinload(TimeEntry.order), selectinload(TimeEntry.order_item), selectinload(TimeEntry.created_by),
