@@ -197,9 +197,10 @@ eintragen), Auslieferung über einen dedizierten, rollengeprüften Endpunkt.
 - **Seit 1.8.13 sperrt eine Unterschrift** Antworten und Fotos (siehe "Umsetzung 1.8.13"), **seit
   1.8.14 nur die Felder oberhalb von ihr** (siehe "Umsetzung 1.8.14"); weitere Unterschriften und
   Abschließen bleiben möglich, keine Unterschrift wird ersetzt oder gelöscht, Entsperren nur über
-  "Unterschriften verwerfen" (Büro, Begründung).
-- Abschließen prüft Pflichtfelder (inkl. `min_count` bei Foto/Unterschrift) und friert ein. Danach
-  kein Ändern, kein Löschen. Ein Entwurf darf vom Ersteller bzw. Büro gelöscht werden (Anhänge
+  "Unterschrift verwerfen" (Büro, Begründung; **seit 1.8.15 je gewählter Unterschrift**, die in
+  Feldern darunter fallen mit, siehe "Umsetzung 1.8.15").
+- Abschließen prüft Pflichtfelder (inkl. `min_count` bei Foto/Unterschrift) und friert ein, **seit
+  1.8.15 mit fester Kopie aller Felder und Prüfsumme**. Danach kein Ändern, kein Löschen. Ein Entwurf darf vom Ersteller bzw. Büro gelöscht werden (Anhänge
   samt Dateien werden mit entfernt -- `before_delete`-Event wie `roof_areas.py`).
 - Regeln laufen NACH dem Commit des Abschlusses (Fund 4), nur auf eingefrorenen Antworten. Je
   ausgelöster Regel eine `ChecklistRuleExecution`-Zeile; Aufgabenmodul aus → Status `modul_aus`,
@@ -344,6 +345,7 @@ Zwischen den Versionen darf der Betreiber `/clear` machen -- dann diese Datei le
 | **1.8.5** | 13 Startvorlagen per Daten-Migration (Entwurf) (ursprünglich 1.8.4). **Danach berichten** (Betreibervorgabe: nach Abschluss der geplanten Etappen) | erledigt, Bericht an den Betreiber offen |
 | **1.8.13** | Stufe 2, Runde 2a-1: Unterschrift bindet den Inhalt (Sperre, Prüfsumme, "Unterschriften verwerfen", Historie, Notiz-Pflicht bei "repariert") | erledigt |
 | **1.8.14** | Stufe 2, Runde 2a-1b: Unterschrift versiegelt abschnittsweise (feste Kopie, Prüfung je Unterschrift auf Seite und PDF, Fotos verworfener Unterschriften nie gelöscht, Heißarbeiten in zwei Abschnitten) | erledigt |
+| **1.8.15** | Stufe 2, Runde 2a-1c: Verwerfen je Unterschrift (die darunter fallen mit), Abschluss mit fester Kopie und Prüfsumme, Nachtragsmeldung und Entsorgungsnachweis in zwei Abschnitten | erledigt |
 
 Nach jeder Version hier die Spalte "Stand" nachziehen und unten einen kurzen Abschnitt
 "Umsetzung 1.8.x" mit Abweichungen/Funden ergänzen.
@@ -783,10 +785,95 @@ Entsorgungsnachweis, Tagesbericht nur Vorschläge; (5) Angriffstests mit Gegenpr
   würde alles darüber sperren -- passt nicht zu einem Bericht, der über den Tag wächst.
 
 ### Offene Punkte (nur gemeldet)
-- **Verwerfen wirft alle gültigen Unterschriften**, nicht nur ab einem Abschnitt: muss bei
-  Heißarbeiten nach der Unterschrift der Brandwache etwas an der Nachkontrolle korrigiert werden,
-  fällt auch die Freigabe-Unterschrift und muss neu geleistet werden. Ein abschnittsweises Verwerfen
-  (nur die Unterschriften ab dem betroffenen Feld) wäre eine eigene Entscheidung.
+- ~~**Verwerfen wirft alle gültigen Unterschriften**~~ -- seit 1.8.15 je gewählter Unterschrift, siehe
+  "Umsetzung 1.8.15".
 - **Ein Entwurf mit verworfenen Unterschriften ist nicht mehr löschbar**: er bleibt als Entwurf
   stehen, bis er abgeschlossen wird (Folge aus Punkt 2 der Vorgabe).
+
+---
+
+## Umsetzung 1.8.15 (30.09.2026) -- Stufe 2, Runde 2a-1c: Verwerfen je Unterschrift, Abschluss mit Prüfsumme
+
+Betreibervorgabe: (1) Verwerfen wählt eine Unterschrift, verworfen werden sie und alle Unterschriften
+in Feldern, die in der Vorlage nach ihrem Feld stehen, Unterschriften im selben Feld bleiben,
+Begründung weiter Pflicht; (2) Abschließen legt wie eine Unterschrift eine feste Kopie aller Felder mit
+Prüfsumme an, Seite und PDF zeigen "Inhalt unverändert" oder "weicht ab", Bestand ohne Kopie bleibt
+ohne Prüfsumme; (3) Nachtragsmeldung und Entsorgungsnachweis wie Heißarbeiten nur als unveränderter
+Entwurf umbauen; (4) Angriffstests mit Gegenprobe (Brandwache verwerfen → Nachkontrolle änderbar,
+Freigabe gesperrt; Freigabe verwerfen → Brandwache fällt mit; ein Teilnehmer der Unterweisung → die
+anderen bleiben).
+
+- **Verwerfen** (`discard_signatures(…, signature_id=…)`, `signatures_discarded_with()`): die gewählte
+  gültige Unterschrift plus jede gültige Unterschrift in einem Feld mit höherer Position in der
+  Fassung. Begründung: die Kopie einer unteren Unterschrift enthält den Inhalt, den die obere gesperrt
+  hat -- nach einer Korrektur passte sie nicht mehr. Prüfreihenfolge: Entwurf (409), Begründung (400),
+  überhaupt eine gültige Unterschrift (400), Auswahl vorhanden (400), Unterschrift gehört zu DIESER
+  Checkliste und ist eine Unterschrift (404, auch für ein Foto), nicht schon verworfen (400). Was danach
+  gesperrt bleibt, ergibt sich wie bisher aus `sealed_field_ids()` der verbleibenden Unterschriften.
+  Eine Unterschrift ohne Kopie (vor 1.8.14) versiegelt weiterhin alles -- liegt sie oberhalb der
+  verworfenen, bleibt die Checkliste gesperrt, bis auch sie verworfen ist.
+- **API/Seite**: `ChecklistDiscardSignaturesWrite.signature_id` (Pflicht, in der Geschäftslogik geprüft,
+  400 mit Text statt 422); je gültige Unterschrift `discards_with` (IDs, die mitfallen). Karte
+  "Unterschrieben": Auswahlfeld "Unterschrift verwerfen" (Vorlagenreihenfolge, "Feld: Name
+  (Zeitpunkt)"), darunter sofort "Mit verworfen werden (Felder darunter): …" bzw. "Nur diese
+  Unterschrift.", Begründung, Knopf; `confirm()` wiederholt beides (Regel 4: Eingaben sichtbar, kein
+  Popup).
+- **Abschluss mit Kopie** (Migration `af9cd6b4e543`, `checklists.sealed_content` Text +
+  `content_sha256` String 64, beide nullable): `completion_content()` = derselbe Kopf wie eine
+  Unterschrift (`_content_head()`, `"v": 2`) mit `"sealed_by": "abschluss"` und ALLEN Feldern außer
+  Hinweisen, **einschließlich der Unterschriftsfelder** (je gültige Unterschrift ID, Name, Zeitpunkt,
+  ihre Prüfsumme, SHA-256 der Bilddatei) -- "aller Felder" wörtlich genommen; damit fällt auch ein
+  geänderter Name oder ein ausgetauschtes Unterschriftsbild auf, was keine Unterschrift selbst abdeckt.
+  Die Unterschriften-Kopien sind unverändert byte-gleich (`seal_content()` nur in Kopf und Feldeinträge
+  zerlegt). Spalten an `checklists` statt einer 1:1-Zusatztabelle: die "keine neuen Spalten"-Regel aus
+  "Zuschnitt für Stufe 2" gilt für Fachdaten einzelner `purpose`s, der Abschluss ist Kern jeder
+  Checkliste. `sealed_content` ist wie an der Unterschrift aus der Änderungshistorie ausgenommen
+  (`EXCLUDED_FIELDS` gilt je Spaltenname), die Prüfsumme steht darin.
+- **Prüfung** (`check_completion()`, gleiche Vergleichslogik `_compare()` wie `check_signature()`):
+  `unveraendert` | `abweichend` (Felder) | `kopie_veraendert` | `ohne_pruefsumme` ("Ohne Prüfsumme
+  abgeschlossen (älterer Stand) – nicht prüfbar."). API `completion_seal`/`completion_sha256`, Seite
+  im Kopf ("Abschluss: …", Prüfsumme gekürzt, voll im `title`), PDF am Ende ein Block "Abschluss" mit
+  voller Prüfsumme und Urteil (Abweichung fett). Ein Entwurf hat keinen. Fotos und Unterschriftsbilder
+  werden je Abruf höchstens einmal gelesen (gemeinsamer Cache mit den Unterschriften).
+- **Startvorlagen** (Daten-Migration `803d94127c12`, Muster `05a080705f2c`, nur wenn noch genau so wie
+  1.8.5 angelegt: eine Fassung, Entwurf, gleiche Felder in gleicher Reihenfolge):
+  - Nachtragsmeldung: Hinweise oben ohne Abschnitt; "Anordnung" (Art, Beschreibung, Menge, Einheit,
+    angeordnet durch) → Unterschrift Kunde; "Ausführung" (geschätzter Zeitaufwand, Material, bereits
+    ausgeführt, Fotos) → neue Unterschrift Monteur. Zeitaufwand und Material stehen wie im Vorschlag
+    aus 1.8.14 unter "Ausführung" -- der Kunde bestätigt nur die Anordnung, keine Schätzung (passt zum
+    Hinweis "keine Preis- oder Terminzusage").
+  - Entsorgungsnachweis: "Übergabe" (Abfallart, Menge, Einheit, Entsorger, Übergabe) → Unterschrift
+    Monteur; "Beleg" (Wiege-/Lieferschein-Nr., Foto des Belegs, Bemerkung) → neue Unterschrift "Beleg
+    erfasst" (Rollenbeschriftung "Monteur/Büro", der Name wird wie bei "Monteur" mit dem angemeldeten
+    Konto vorbelegt). Die Bemerkung bleibt wie im Vorschlag unter "Beleg" -- Folge: bei Abfallart
+    "Sonstiges (in der Bemerkung angeben)" ist die Abfallart mit der Übergabe versiegelt, die Erklärung
+    kommt erst im Abschnitt Beleg. Vor der Veröffentlichung ggf. Bemerkung nach oben ziehen.
+  - Beide neuen Unterschriften ohne Pflicht (wie alle Startvorlagen-Unterschriften, Entscheidung vor der
+    Veröffentlichung), mit Hilfetexten an beiden Unterschriften jeder Vorlage.
+  - `downgrade()` nur, solange die Vorlage genau der neuen Form entspricht und keine Regel die neue
+    Unterschrift verwendet; entfernt dann die neue Unterschrift und die gesetzten Abschnitte/Hilfetexte.
+- **Verifikation**: `tests/test_v319_checklist_discard_and_completion.py` (14 Tests, mit den echten
+  Startvorlagen Heißarbeiten und Sicherheitsunterweisung). Gegenproben (Schutz im Code ausgehebelt,
+  Test rot, Datei danach byte-genau zurück): Verwerfen trifft alle (Brandwache-Test rot -- am Angriff
+  selbst, die Monteurin ändert die Freigabe mit 200; Teilnehmer-Test rot), nur die gewählte (Freigabe-
+  und Teilnehmer-Test rot), selbes Feld fällt mit (Teilnehmer-Test rot), fremde Unterschrift über
+  `db.get` statt aus der Checkliste (rot), Abschluss gegen die eigene Kopie statt den aktuellen Stand
+  (rot), Abschluss ohne Unterschriften (rot). `test_v317`/`test_v318`: Verwerfen mit `signature_id`,
+  PDF-Zählungen um die Abschluss-Zeile erhöht. Checklisten-Tests (128) zusätzlich gegen PostgreSQL grün
+  (Wegwerf-Schema je Test in `spielwiese`, danach entfernt). Migrationen SQLite + PostgreSQL
+  hin/zurück/hin mit Bestand (veröffentlichter Entsorgungsnachweis blieb unangetastet, abgeschlossene
+  Checkliste ohne Prüfsumme), `alembic check` sauber. Klicktest `scripts/klicktest_checkliste_verwerfen.py`
+  23/23 (u. a. Name der Brandwache direkt in der Wegwerf-SQLite geändert → Abschluss "weicht ab:
+  Unterschrift Brandwache", beide Unterschriften unverändert; Warnfarbe hell und dunkel); die beiden
+  älteren Klicktests auf die Auswahl umgestellt, 24/24 und 25/25. Volle Suite mit PostgreSQL 2090 grün.
+
+### Nebenbefunde (nur gemeldet)
+- **Klicktests laufen im Farbschema des Rechners**: `scripts/cdp_klicktest.py` emuliert kein
+  `prefers-color-scheme`, Headless-Chrome übernimmt die Windows-Einstellung (hier dunkel). Ohne
+  ausdrücklich gesetztes `erp_theme` prüfen die Klicktests also nur einen der beiden Modi, je nach
+  Rechner. Der neue Klicktest setzt beide ausdrücklich.
+- **Kein wiederverwendbarer PostgreSQL-Schalter für die Suite**: jede Runde baut die PG-Probe der
+  Checklisten-Tests neu (diesmal ein Scratchpad-Plugin, das `sqlite:///:memory:` durch ein
+  Wegwerf-Schema ersetzt und `orders.source_quote_id` wegen des `world`-Aufbaus ohne FK anlegt). Ein
+  fester Schalter in `tests/conftest.py` würde das vereinheitlichen.
 

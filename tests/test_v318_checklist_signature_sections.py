@@ -201,7 +201,8 @@ def test_attack_photo_of_a_discarded_signature_is_never_deleted(hot, router_test
     cid = body["id"]
     photo = next(x for x in body["attachments"] if x["kind"] == "foto")
     path = checklists_module.attachment_path(hot["db"].get(ChecklistAttachment, photo["id"]))
-    after = office.post(f"/api/checklists/{cid}/discard-signatures", json={"reason": "Bereich falsch"}).json()
+    after = office.post(f"/api/checklists/{cid}/discard-signatures",
+                        json={"reason": "Bereich falsch", "signature_id": _signature(body, "sig1")["id"]}).json()
     assert after["sealed_field_ids"] == [] and after["can_edit"] and not after["can_delete"]
     assert [x["bound_by_signature"] for x in after["attachments"]] == [True]  # die Seite zeigt kein ×
 
@@ -240,7 +241,7 @@ def test_attack_answer_changed_in_the_database_shows_as_deviation(hot, router_te
     done = a.post(f"/api/checklists/{cid}/complete").json()
     assert [_signature(done, k)["seal"]["status"] for k in ("sig1", "sig2")] == ["unveraendert", "unveraendert"]
     text = _pdf_text(db, cid)
-    assert text.count(b"Inhalt unver") == 2 and b"weicht" not in text
+    assert text.count(b"Inhalt unver") == 3 and b"weicht" not in text  # zwei Unterschriften + Abschluss (seit 1.8.15)
 
     # An der Sperre vorbei: Antwort in Abschnitt 2 direkt in der Datenbank geändert.
     answer = db.scalar(select(ChecklistAnswer).where(ChecklistAnswer.checklist_id == cid, ChecklistAnswer.field_key == "ende"))
@@ -252,7 +253,7 @@ def test_attack_answer_changed_in_the_database_shows_as_deviation(hot, router_te
     assert sig2["status"] == "abweichend" and sig2["changed_fields"] == ["Ende"]
     assert sig2["text"] == "Inhalt weicht von der Prüfsumme ab: Ende."
     text = _pdf_text(db, cid)
-    assert text.count(b"weicht von der Pr") == 1 and b"ab: Ende." in text
+    assert text.count(b"weicht von der Pr") == 2 and b"ab: Ende." in text  # sig2 + Abschluss
 
     # Und in Abschnitt 1: beide Unterschriften zeigen es.
     answer = db.scalar(select(ChecklistAnswer).where(ChecklistAnswer.checklist_id == cid, ChecklistAnswer.field_key == "bereich"))
@@ -260,7 +261,7 @@ def test_attack_answer_changed_in_the_database_shows_as_deviation(hot, router_te
     db.commit()
     seen = a.get(f"/api/checklists/{cid}").json()
     assert [_signature(seen, k)["seal"]["changed_fields"] for k in ("sig1", "sig2")] == [["Arbeitsbereich"], ["Arbeitsbereich", "Ende"]]
-    assert _pdf_text(db, cid).count(b"weicht von der Pr") == 2
+    assert _pdf_text(db, cid).count(b"weicht von der Pr") == 3  # beide Unterschriften + Abschluss
 
 
 def test_photo_file_changed_on_disk_shows_as_deviation(hot, router_test_client):
@@ -286,7 +287,8 @@ def test_tampered_copy_is_reported_and_still_protects_photos(hot, router_test_cl
     hot["db"].commit()
     seen = a.get(f"/api/checklists/{body['id']}").json()
     assert _signature(seen, "sig1")["seal"]["status"] == "kopie_veraendert"
-    office.post(f"/api/checklists/{body['id']}/discard-signatures", json={"reason": "Test"})
+    office.post(f"/api/checklists/{body['id']}/discard-signatures",
+                json={"reason": "Test", "signature_id": _signature(body, "sig1")["id"]})
     photo = next(x for x in body["attachments"] if x["kind"] == "foto")
     assert a.delete(f"/api/checklist-attachments/{photo['id']}").status_code == 409
 

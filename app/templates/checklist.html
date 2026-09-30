@@ -17,9 +17,12 @@
   bleiben möglich (can_sign). Keine Unterschrift wird ersetzt oder entfernt. Bevor eine Unterschrift
   neue Felder sperrt, werden offene Eingaben gespeichert und ein Hinweis nennt die Angaben, die
   danach nicht mehr ergänzbar sind. Jede Unterschrift zeigt, ob der aktuelle Inhalt noch zu ihrer
-  Prüfsumme passt (att.seal, vom Server). Das Büro kann die Unterschriften mit Begründung verwerfen
-  (can_discard_signatures, sichtbares Eingabefeld statt Popup, Regel 4); verworfene stehen danach
-  unten als Nachweis. "Entwurf löschen" nur ohne jede, auch verworfene, Unterschrift (can_delete).
+  Prüfsumme passt (att.seal, vom Server). Das Büro kann eine Unterschrift mit Begründung verwerfen
+  (can_discard_signatures, Auswahl und sichtbares Eingabefeld statt Popup, Regel 4) -- seit 1.8.15
+  fallen die Unterschriften in Feldern darunter mit (att.discards_with, vom Server), die im selben
+  Feld bleiben; verworfene stehen danach unten als Nachweis. "Entwurf löschen" nur ohne jede, auch
+  verworfene, Unterschrift (can_delete). Seit 1.8.15 zeigt eine abgeschlossene Checkliste, ob der
+  Inhalt noch zur Prüfsumme des Abschlusses passt (cl.completion_seal).
 #}
 <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 <style>
@@ -74,8 +77,15 @@ textarea{min-height:90px;resize:vertical}
 .lock-card{border-left:3px solid var(--accent)}
 .lock-card .lock-title{font-weight:700}
 .lock-card .warn{color:var(--warning);margin-top:6px;font-size:13.5px}
-.discard-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;margin-top:10px}
+.discard-box{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.discard-box label{display:block;font-weight:650;font-size:13.5px;margin-bottom:6px}
+.discard-box select{padding:10px 12px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:15px;width:100%;min-height:44px}
+.discard-with{font-size:13px;margin-top:6px;min-height:16px}
+.discard-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;margin-top:8px}
 .discard-row textarea{flex:1 1 260px;min-height:60px}
+.done-seal{margin-top:8px;font-size:13px}
+.done-seal .seal{font-weight:600}.done-seal .seal.ok{color:var(--success)}.done-seal .seal.bad{color:var(--danger)}.done-seal .seal.none{color:var(--muted);font-weight:400}
+.done-seal .sig-meta{color:var(--muted);word-break:break-all}
 .discarded-row{padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
 .discarded-row:last-of-type{border-bottom:none}
 .pad-wrap{border:1px dashed var(--field-border);background:#fff;touch-action:none}
@@ -144,7 +154,15 @@ function renderHeader(){
       <div><h1>${esc(cl.template_label)}</h1><div class="muted">${meta}</div><div class="muted small" style="margin-top:4px">${who} · Fassung ${cl.version_no}</div></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${cl.status==='abgeschlossen'?`<a class="btn secondary" id="pdfLink" href="/api/checklists/${cl.id}/pdf" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center">PDF</a>`:''}${badge}</div></div>
       ${!cl.can_sign&&cl.status==='entwurf'?'<div class="muted small" style="margin-top:8px">Nur lesen – diese Checkliste hat eine andere Person angelegt.</div>':''}
+      ${renderCompletionSeal()}
     </div>${renderLockCard()}`;
+}
+
+// Seit 1.8.15 versiegelt das Abschließen alle Angaben samt Unterschriften; Urteil vom Server.
+function renderCompletionSeal(){
+  if(!cl.completion_seal)return '';
+  const hash=cl.completion_sha256?` <span class="sig-meta" title="SHA-256 des abgeschlossenen Inhalts: ${esc(cl.completion_sha256)}">· Prüfsumme ${esc(cl.completion_sha256.slice(0,12))}…</span>`:'';
+  return `<div class="done-seal" id="completionSeal">Abschluss: ${sealLine({seal:cl.completion_seal})}${hash}</div>`;
 }
 
 // Fehlende Pflichtangaben in den Feldern `list` -- gesperrt lassen sie sich nicht mehr ergänzen.
@@ -156,11 +174,31 @@ function renderLockCard(){
   const open=cl.fields.filter(f=>CONTENT_TYPES(f)&&!isSealed(f));
   const missing=missingIn(sealed);
   return `<div class="card lock-card" id="lockCard"><div class="lock-title">Unterschrieben – ${open.length?'die Angaben oberhalb der Unterschrift sind gesperrt':'Antworten und Fotos sind gesperrt'}</div>
-    <div class="muted small" style="margin-top:4px">${open.length?`Die Angaben darunter (${open.length}) bleiben bis zur nächsten Unterschrift offen. `:''}Weitere Unterschriften und Abschließen sind möglich.${IS_FIELD?' Muss noch etwas Gesperrtes geändert werden, kann das Büro die Unterschriften mit Begründung verwerfen.':''}</div>
-    ${missing.length?`<div class="warn">Es fehlen Pflichtangaben, die sich nicht mehr ergänzen lassen: ${esc(missing.join(', '))}. Zum Abschließen muss das Büro die Unterschriften verwerfen.</div>`:''}
-    ${cl.can_discard_signatures?`<div class="discard-row"><textarea id="discardReason" maxlength="2000" placeholder="Begründung (Pflicht), z. B. Windangabe falsch eingetragen"></textarea>
-      <button type="button" class="btn danger" id="discardBtn" onclick="discardSignatures()">Unterschriften verwerfen</button></div>
-      <div class="small error-box" id="discardStatus" style="margin-top:6px"></div>`:''}</div>`;
+    <div class="muted small" style="margin-top:4px">${open.length?`Die Angaben darunter (${open.length}) bleiben bis zur nächsten Unterschrift offen. `:''}Weitere Unterschriften und Abschließen sind möglich.${IS_FIELD?' Muss noch etwas Gesperrtes geändert werden, kann das Büro die sperrende Unterschrift mit Begründung verwerfen.':''}</div>
+    ${missing.length?`<div class="warn">Es fehlen Pflichtangaben, die sich nicht mehr ergänzen lassen: ${esc(missing.join(', '))}. Zum Abschließen muss das Büro die sperrende Unterschrift verwerfen.</div>`:''}
+    ${cl.can_discard_signatures?`<div class="discard-box"><label for="discardSig">Unterschrift verwerfen</label>
+      <select id="discardSig" onchange="showDiscardWith()"><option value="">– Unterschrift wählen –</option>${activeSignatures().map(a=>`<option value="${a.id}">${esc(signatureName(a))}</option>`).join('')}</select>
+      <div class="discard-with muted" id="discardWith"></div>
+      <div class="discard-row"><textarea id="discardReason" maxlength="2000" placeholder="Begründung (Pflicht), z. B. Windangabe falsch eingetragen"></textarea>
+      <button type="button" class="btn danger" id="discardBtn" onclick="discardSignature()">Unterschrift verwerfen</button></div>
+      <div class="small error-box" id="discardStatus" style="margin-top:6px"></div></div>`:''}</div>`;
+}
+
+// Gültige Unterschriften in Reihenfolge der Vorlage; Beschriftung "Feld: Name (Zeitpunkt)".
+function activeSignatures(){return cl.fields.filter(f=>f.field_type==='unterschrift').flatMap(attachmentsOf)}
+function signatureName(a){
+  const f=cl.fields.find(x=>x.id===a.field_id)||{label:'Unterschrift'};
+  return `${f.label}: ${a.signer_name||''}${a.created_at_local?' ('+a.created_at_local+' Uhr)':''}`;
+}
+// Seit 1.8.15: welche Unterschriften mitfallen, sagt der Server (discards_with).
+function discardWithText(a){
+  const others=(a.discards_with||[]).map(id=>cl.attachments.find(x=>x.id===id)).filter(Boolean);
+  return others.length?'Mit verworfen werden (Felder darunter): '+others.map(signatureName).join('; '):'Nur diese Unterschrift.';
+}
+function showDiscardWith(){
+  const id=Number(document.getElementById('discardSig').value);
+  const a=cl.attachments.find(x=>x.id===id);
+  document.getElementById('discardWith').textContent=a?discardWithText(a):'';
 }
 
 function renderDiscarded(){
@@ -412,13 +450,15 @@ async function saveSignature(fieldId){
   catch(e){setStatus(fieldId,'Nicht gespeichert: '+e.message,true);if(e.status===409)await reload()}
 }
 
-async function discardSignatures(){
-  const input=document.getElementById('discardReason'),st=document.getElementById('discardStatus'),btn=document.getElementById('discardBtn');
+async function discardSignature(){
+  const sel=document.getElementById('discardSig'),input=document.getElementById('discardReason'),st=document.getElementById('discardStatus'),btn=document.getElementById('discardBtn');
+  const a=cl.attachments.find(x=>x.id===Number(sel.value));
+  if(!a){st.textContent='Bitte die Unterschrift wählen.';sel.focus();return}
   const reason=(input.value||'').trim();
   if(!reason){st.textContent='Bitte eine Begründung eintragen.';input.focus();return}
-  if(!confirm('Alle Unterschriften dieser Checkliste verwerfen? Sie bleiben als verworfen sichtbar, die Checkliste ist danach wieder bearbeitbar.'))return;
+  if(!confirm(`Unterschrift verwerfen?\n\n${signatureName(a)}\n${discardWithText(a)}\n\nVerworfene bleiben als Nachweis sichtbar. Was keine verbleibende Unterschrift mehr sperrt, ist danach wieder bearbeitbar.`))return;
   btn.disabled=true;st.textContent='';
-  try{cl=await api(`/api/checklists/${checklistId}/discard-signatures`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});render();window.scrollTo(0,0)}
+  try{cl=await api(`/api/checklists/${checklistId}/discard-signatures`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signature_id:a.id,reason})});render();window.scrollTo(0,0)}
   catch(e){st.textContent=e.message;btn.disabled=false}
 }
 

@@ -4,7 +4,8 @@ andere Dokument, siehe docs/archiv/pdf-architektur.md).
 
 Unter jeder Unterschrift steht, was sie versiegelt, ihre Prüfsumme und (seit 1.8.14) ob der
 aktuelle Inhalt noch dazu passt -- eine Änderung an der Sperre vorbei, etwa direkt in der
-Datenbank, erscheint dort samt der betroffenen Felder.
+Datenbank, erscheint dort samt der betroffenen Felder. Dasselbe am Ende für den Abschluss, der
+seit 1.8.15 alle Angaben samt Unterschriften versiegelt.
 
 Nur abgeschlossene Checklisten, bei jedem Abruf neu erzeugt (Muster Einsatzbericht). Alles, was
 im Dokument steht, stammt aus eingefrorenen Daten: Vorlagenfassung (unveränderlich),
@@ -23,7 +24,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Image, KeepTogether, Paragraph, Spacer, Table, TableStyle
 
 from .berlin_time import to_berlin
-from .checklists import _answer_value, active_attachments, attachment_path, check_signature
+from .checklists import _answer_value, active_attachments, attachment_path, check_completion, check_signature
 from .document_frame import frame_content_width, render_framed_pdf
 from .document_page_margins import get_margins
 from .document_pdf import build_din5008_header_block, build_object_address_block, build_styles, ptext
@@ -117,6 +118,11 @@ def build_checklist_pdf(db, checklist: Checklist) -> bytes:
     photo_hashes: dict = {}
     seals = {a.id: check_signature(checklist, a, photo_hashes)
              for items in attachments.values() for a in items if a.kind == "unterschrift"}
+    completion = check_completion(checklist, photo_hashes)
+
+    def seal_paragraph(check: dict) -> Paragraph:
+        text = ptext(check["text"])  # eine Abweichung fett
+        return Paragraph(f"<b>{text}</b>" if check["status"] in ("abweichend", "kopie_veraendert") else text, small)
 
     def answer_table(rows: list[list]) -> Table:
         question_width = content_width - ANSWER_COL_MM * mm
@@ -199,15 +205,19 @@ def build_checklist_pdf(db, checklist: Checklist) -> bytes:
                     if sig.content_sha256:  # seit 1.8.13; ältere Unterschriften haben keine
                         scope = "die Angaben oberhalb dieser Unterschrift" if sig.sealed_content is not None else "die ganze Checkliste"
                         block.append(Paragraph(ptext(f"Versiegelt {scope}. Prüfsumme (SHA-256): {sig.content_sha256}"), small))
-                    # Prüfung gegen den aktuellen Inhalt (seit 1.8.14) -- eine Abweichung fett.
-                    check = seals[sig.id]
-                    text = ptext(check["text"])
-                    block.append(Paragraph(f"<b>{text}</b>" if check["status"] in ("abweichend", "kopie_veraendert") else text, small))
+                    block.append(seal_paragraph(seals[sig.id]))  # gegen den aktuellen Inhalt (seit 1.8.14)
                     story.append(KeepTogether(block + [Spacer(1, 3 * mm)]))
                 story.append(Spacer(1, 2 * mm))
             else:
                 rows.append([Paragraph(ptext(field.label), body), Paragraph(ptext(format_answer(field, answers.get(field.id))), body)])
         flush_rows()
+        # Abschluss (seit 1.8.15): versiegelt alle Angaben samt Unterschriften.
+        block = [Paragraph("Abschluss", h3)]
+        if checklist.content_sha256:
+            block.append(Paragraph(ptext("Versiegelt alle Angaben samt Unterschriften. "
+                                         f"Prüfsumme (SHA-256): {checklist.content_sha256}"), small))
+        block.append(seal_paragraph(completion))
+        story.append(KeepTogether(block))
         return story
 
     continuation = [("Checkliste", f"Nr. {checklist.id}")]

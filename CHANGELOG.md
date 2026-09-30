@@ -4,6 +4,36 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.15 – Checklisten: Verwerfen je Unterschrift, Abschluss mit Prüfsumme
+
+Stufe 2 des Checklisten-Moduls, Runde 2a-1c. "Unterschriften verwerfen" warf bisher alle gültigen
+Unterschriften -- musste bei Heißarbeiten nach der Brandwache etwas an der Nachkontrolle korrigiert
+werden, fiel auch die Freigabe-Unterschrift. Jetzt wählt das Büro eine Unterschrift; verworfen werden
+sie und jede Unterschrift in einem Feld, das in der Vorlage nach ihrem steht (deren Kopie enthält den
+Inhalt, den sie gesperrt hat), Unterschriften im selben Feld bleiben (`signatures_discarded_with()`).
+Begründung weiter Pflicht, die Auswahl ist Pflicht (`signature_id`, 400 ohne, 404 für eine Unterschrift
+einer anderen Checkliste). Die Seite zeigt beim Wählen, welche Unterschriften mitfallen, die Angabe kommt
+vom Server (`discards_with`). Abschließen legt jetzt wie eine Unterschrift eine feste Kopie ab, hier
+aller Felder samt der Unterschriften (Name, Zeitpunkt, Prüfsumme, SHA-256 der Bilddatei), mit
+Prüfsumme an der Checkliste (`completion_content()`, zwei neue Spalten `checklists.sealed_content`/
+`content_sha256`, Migration `af9cd6b4e543`). Seite und PDF zeigen am Abschluss "Inhalt unverändert"
+oder "weicht ab" samt Feld (`check_completion()`); so fällt auch ein nachträglich geänderter Name einer
+Unterschrift auf, den keine Unterschrift selbst abdeckt. Vorher abgeschlossene Checklisten bleiben
+ohne Prüfsumme und sagen das.
+
+Die Startvorlagen "Nachtragsmeldung" und "Entsorgungsnachweis" bekommen wie Heißarbeiten zwei
+Abschnitte, nur als unveränderter Entwurf (Daten-Migration `803d94127c12`): Anordnung → Unterschrift
+Kunde, Ausführung (Zeitaufwand, Material, bereits ausgeführt, Fotos) → neue Unterschrift Monteur;
+Übergabe → Unterschrift Monteur, Beleg (Wiege-/Lieferschein-Nr., Foto des Belegs, Bemerkung) → neue
+Unterschrift "Beleg erfasst". 14 neue Tests in `tests/test_v319_checklist_discard_and_completion.py`,
+die Angriffstests mit Gegenprobe rot (Verwerfen trifft alle, nur die gewählte, auch das selbe Feld,
+fremde Unterschrift, Abschluss gegen die eigene Kopie geprüft, Abschluss ohne Unterschriften);
+`test_v317`/`test_v318` auf die Pflichtauswahl und die zusätzliche Abschluss-Zeile im PDF umgestellt.
+Checklisten-Tests (128) zusätzlich gegen PostgreSQL grün, Migrationen hin/zurück/hin mit Bestand auf
+SQLite und PostgreSQL. Neuer Klicktest `scripts/klicktest_checkliste_verwerfen.py` (23/23), die
+beiden bisherigen auf die Auswahl umgestellt (24/24, 25/25). Volle Suite mit PostgreSQL: 2090
+grün, 0 übersprungen.
+
 ## 1.8.14 – Checklisten: Unterschrift versiegelt abschnittsweise
 
 Stufe 2 des Checklisten-Moduls, Runde 2a-1b. Seit 1.8.13 sperrte schon die erste Unterschrift die

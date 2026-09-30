@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.14** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.15** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -960,7 +960,9 @@ heutigen Datum), `klicktest_dashboard_monatswechsel.py` (1.8.10, festgehaltene B
 Skonto, dazu die vom Server gelieferten Beträge) und `klicktest_checkliste_unterschrift.py` (1.8.13,
 Unterschrift sperrt die Checkliste, Büro verwirft mit Begründung, "repariert" mit Notiz) und
 `klicktest_checkliste_abschnitte.py` (1.8.14, Unterschrift versiegelt nur den Abschnitt darüber,
-direkt in der Wegwerf-Datenbank geänderte Antwort erscheint als Abweichung). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
+direkt in der Wegwerf-Datenbank geänderte Antwort erscheint als Abweichung) und
+`klicktest_checkliste_verwerfen.py` (1.8.15, Verwerfen je Unterschrift, Abschluss mit Prüfsumme, hell
+und dunkel). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 
 ## Arbeitsweise, die sich bewährt hat

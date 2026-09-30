@@ -32,6 +32,12 @@ check_signature() vergleicht bei jedem Abruf den aktuellen Inhalt damit. Ein Fot
 Unterschrift verweist -- auch eine verworfene --, wird nie gelöscht. Unterschriften von vor 1.8.14
 (ohne Kopie) versiegeln weiterhin die ganze Checkliste, so galt es beim Unterschreiben.
 
+Seit 1.8.15: Verwerfen trifft eine gewählte Unterschrift und jede gültige Unterschrift in einem
+Feld, das in der Vorlage nach ihrem steht (signatures_discarded_with()); weitere Unterschriften im
+selben Feld bleiben. Abschließen legt wie eine Unterschrift eine feste Kopie ab, hier aller Felder
+samt der Unterschriften (completion_content(), an der Checkliste), check_completion() prüft sie bei
+jedem Abruf. Vorher abgeschlossene Checklisten bleiben ohne Prüfsumme.
+
 Rollenlos wie jede Geschäftslogik dieses Projekts -- wer was sehen/ändern darf, entscheidet
 app/routers/checklists.py."""
 
@@ -72,13 +78,14 @@ class ChecklistLocked(Exception):
     antwortet 409."""
 
 
-DISCARD_HINT = "Das Büro kann die Unterschriften mit Begründung verwerfen."
+DISCARD_HINT = "Das Büro kann die Unterschrift mit Begründung verwerfen."
 SEAL_TEXTS = {
     "unveraendert": "Inhalt unverändert – passt zur Prüfsumme.",
     "abweichend": "Inhalt weicht von der Prüfsumme ab",
     "kopie_veraendert": "Inhalt passt zur Prüfsumme, die gespeicherte Kopie wurde aber verändert.",
     "ohne_pruefsumme": "Ältere Unterschrift ohne Prüfsumme – nicht prüfbar.",
 }
+COMPLETION_TEXTS = {**SEAL_TEXTS, "ohne_pruefsumme": "Ohne Prüfsumme abgeschlossen (älterer Stand) – nicht prüfbar."}
 
 
 # --- Hilfen ---------------------------------------------------------------------------------
@@ -207,56 +214,81 @@ def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _photo_sha256(photo: ChecklistAttachment, cache: dict | None) -> str | None:
-    """Prüfsumme der Fotodatei, je Aufruf höchstens einmal gelesen (mehrere Unterschriften
-    versiegeln oft dieselben Fotos)."""
+def _attachment_sha256(attachment: ChecklistAttachment, cache: dict | None) -> str | None:
+    """Prüfsumme der Bilddatei (Foto oder Unterschrift), je Aufruf höchstens einmal gelesen
+    (mehrere Unterschriften und der Abschluss versiegeln oft dieselben Fotos)."""
     if cache is None:
-        return _file_sha256(attachment_path(photo))
-    if photo.id not in cache:
-        cache[photo.id] = _file_sha256(attachment_path(photo))
-    return cache[photo.id]
+        return _file_sha256(attachment_path(attachment))
+    if attachment.id not in cache:
+        cache[attachment.id] = _file_sha256(attachment_path(attachment))
+    return cache[attachment.id]
 
 
 def _dump(content: dict) -> str:
     return json.dumps(content, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
+def _content_head(checklist: Checklist) -> dict:
+    """Kopf jeder Kopie ("v": 2): Checkliste, Vorlage und Fassung, eingefrorene Bezeichnungen."""
+    return {
+        "v": 2, "checklist_id": checklist.id, "template_id": checklist.template_id,
+        "template_version_id": checklist.template_version_id, "version_no": checklist.template_version.version_no,
+        "template_label": checklist.template_label_snapshot, "context_type": checklist.context_type,
+        "context_label": checklist.context_label_snapshot, "context_detail": checklist.context_detail_snapshot,
+    }
+
+
+def _content_entries(checklist: Checklist, fields: list[ChecklistTemplateField], photo_hashes: dict | None, *,
+                     with_signatures: bool = False) -> list[dict]:
+    """Je Feld Schlüssel und Wert -- auch leere, damit ein später ergänztes Feld auffällt --, bei
+    Fotofeldern jedes gültige Foto mit der SHA-256 seiner Datei. Hinweise nie; Unterschriften nur
+    mit with_signatures (Abschluss, seit 1.8.15): je gültige Unterschrift Name, Zeitpunkt, ihre
+    Prüfsumme und die SHA-256 der Bilddatei."""
+    answers = {a.template_field_id: a for a in checklist.answers}
+    attached: dict[int, list[ChecklistAttachment]] = {}
+    for a in active_attachments(checklist):  # schon nach sort_order, id geordnet
+        attached.setdefault(a.template_field_id, []).append(a)
+    entries = []
+    for field in fields:
+        if field.field_type == "hinweis" or (field.field_type == "unterschrift" and not with_signatures):
+            continue
+        items = attached.get(field.id, [])
+        if field.field_type == "unterschrift":
+            entries.append({"field_key": field.field_key, "signatures": [{
+                "id": s.id, "signer_name": s.signer_name, "signed_at": s.created_at.isoformat() if s.created_at else None,
+                "content_sha256": s.content_sha256, "sha256": _attachment_sha256(s, photo_hashes)} for s in items]})
+        elif field.field_type == "foto":
+            entries.append({"field_key": field.field_key, "photos": [
+                {"id": p.id, "sha256": _attachment_sha256(p, photo_hashes)} for p in items]})
+        else:
+            answer = answers.get(field.id)
+            value = _answer_value(answer, field) if answer is not None else None
+            entries.append({"field_key": field.field_key, "value": _canonical(value) if _is_filled(value) else None})
+    return entries
+
+
 def seal_content(checklist: Checklist, signature_field: ChecklistTemplateField,
                  photo_hashes: dict | None = None) -> str:
     """Der Inhalt, den eine Unterschrift in diesem Feld versiegelt, als kanonisches JSON (seit
-    1.8.14, Format "v": 2): Checkliste, Vorlage und Fassung, die eingefrorenen Bezeichnungen, das
-    Unterschriftsfeld und JEDES Feld, das in der Vorlage vor ihm steht (außer Hinweisen und
-    Unterschriften) mit seinem Schlüssel und seinem Wert -- auch leere, damit ein später
-    ergänztes Feld auffällt --, bei Fotofeldern jedes gültige Foto mit der SHA-256 seiner Datei.
-    Beim Unterschreiben als Kopie abgelegt; zum Prüfen wird dieselbe Funktion auf den aktuellen
-    Stand angewandt. Andere Unterschriften gehören nicht dazu: bei unverändertem Inhalt tragen
-    zwei Unterschriften im selben Feld dieselbe Summe."""
+    1.8.14, Format "v": 2): Kopf (_content_head()), das Unterschriftsfeld und JEDES Feld, das in
+    der Vorlage vor ihm steht, außer Hinweisen und Unterschriften (_content_entries()). Beim
+    Unterschreiben als Kopie abgelegt; zum Prüfen wird dieselbe Funktion auf den aktuellen Stand
+    angewandt. Andere Unterschriften gehören nicht dazu: bei unverändertem Inhalt tragen zwei
+    Unterschriften im selben Feld dieselbe Summe."""
     fields = checklist.template_version.fields
     index = next(i for i, f in enumerate(fields) if f.id == signature_field.id)
-    answers = {a.template_field_id: a for a in checklist.answers}
-    photos: dict[int, list[ChecklistAttachment]] = {}
-    for a in active_attachments(checklist):  # schon nach sort_order, id geordnet
-        if a.kind == "foto":
-            photos.setdefault(a.template_field_id, []).append(a)
-    entries = []
-    for field in fields[:index]:
-        if field.field_type in _NOT_SEALED_TYPES:
-            continue
-        if field.field_type == "foto":
-            entries.append({"field_key": field.field_key, "photos": [
-                {"id": p.id, "sha256": _photo_sha256(p, photo_hashes)} for p in photos.get(field.id, [])]})
-            continue
-        answer = answers.get(field.id)
-        value = _answer_value(answer, field) if answer is not None else None
-        entries.append({"field_key": field.field_key, "value": _canonical(value) if _is_filled(value) else None})
-    version = checklist.template_version
-    return _dump({
-        "v": 2, "checklist_id": checklist.id, "template_id": checklist.template_id,
-        "template_version_id": checklist.template_version_id, "version_no": version.version_no,
-        "template_label": checklist.template_label_snapshot, "context_type": checklist.context_type,
-        "context_label": checklist.context_label_snapshot, "context_detail": checklist.context_detail_snapshot,
-        "signature_field_key": signature_field.field_key, "fields": entries,
-    })
+    return _dump({**_content_head(checklist), "signature_field_key": signature_field.field_key,
+                  "fields": _content_entries(checklist, fields[:index], photo_hashes)})
+
+
+def completion_content(checklist: Checklist, photo_hashes: dict | None = None) -> str:
+    """Der Inhalt, den das Abschließen versiegelt (seit 1.8.15): wie bei einer Unterschrift, aber
+    ALLE Felder, die Unterschriften eingeschlossen -- so fällt auch ein nachträglich geänderter
+    Name, Zeitpunkt oder ein ausgetauschtes Unterschriftsbild auf. Beim Abschließen als Kopie an
+    der Checkliste abgelegt, geprüft von check_completion()."""
+    return _dump({**_content_head(checklist), "sealed_by": "abschluss",
+                  "fields": _content_entries(checklist, checklist.template_version.fields, photo_hashes,
+                                             with_signatures=True)})
 
 
 def _legacy_content_sha256(checklist: Checklist, photo_hashes: dict | None = None) -> str:
@@ -283,7 +315,7 @@ def _legacy_content_sha256(checklist: Checklist, photo_hashes: dict | None = Non
         "context_label": checklist.context_label_snapshot, "context_detail": checklist.context_detail_snapshot,
         "answers": answers,
         "photos": [{"field_key": keys.get(a.template_field_id), "id": a.id,
-                    "sha256": _photo_sha256(a, photo_hashes)} for a in photos],
+                    "sha256": _attachment_sha256(a, photo_hashes)} for a in photos],
     }))
 
 
@@ -302,6 +334,20 @@ def _changed_fields(checklist: Checklist, sealed: str, current: str) -> list[str
                       if old_fields.get(k) != new_fields.get(k)]
 
 
+def _compare(checklist: Checklist, sealed: str | None, content_sha256: str, current: str) -> tuple[str, list[str]]:
+    """Aktueller Inhalt gegen Prüfsumme und abgelegte Kopie: unveraendert | abweichend (mit den
+    betroffenen Feldern, soweit die Kopie selbst intakt ist) | kopie_veraendert."""
+    intact = sealed is not None and _sha256_text(sealed) == content_sha256
+    if _sha256_text(current) == content_sha256:
+        return ("unveraendert" if intact else "kopie_veraendert"), []
+    return "abweichend", (_changed_fields(checklist, sealed, current) if intact else [])
+
+
+def _seal_result(status: str, changed: list[str], texts: dict) -> dict:
+    text = texts[status] + ((": " + ", ".join(changed) + ".") if changed else ("." if status == "abweichend" else ""))
+    return {"status": status, "changed_fields": changed, "text": text}
+
+
 def check_signature(checklist: Checklist, signature: ChecklistAttachment, photo_hashes: dict | None = None) -> dict:
     """Passt der aktuelle Inhalt noch zur Prüfsumme dieser Unterschrift? (seit 1.8.14, bei jedem
     Abruf neu). Eine Änderung an der Sperre vorbei -- direkt in der Datenbank oder an einer
@@ -314,15 +360,32 @@ def check_signature(checklist: Checklist, signature: ChecklistAttachment, photo_
         status, changed = ("unveraendert" if same else "abweichend"), []
     else:
         field = next(f for f in checklist.template_version.fields if f.id == signature.template_field_id)
-        current = seal_content(checklist, field, photo_hashes)
-        same = _sha256_text(current) == signature.content_sha256
-        intact = _copy_intact(signature)
-        if same:
-            status, changed = ("unveraendert" if intact else "kopie_veraendert"), []
-        else:
-            status, changed = "abweichend", (_changed_fields(checklist, signature.sealed_content, current) if intact else [])
-    text = SEAL_TEXTS[status] + ((": " + ", ".join(changed) + ".") if changed else ("." if status == "abweichend" else ""))
-    return {"status": status, "changed_fields": changed, "text": text}
+        status, changed = _compare(checklist, signature.sealed_content, signature.content_sha256,
+                                   seal_content(checklist, field, photo_hashes))
+    return _seal_result(status, changed, SEAL_TEXTS)
+
+
+def check_completion(checklist: Checklist, photo_hashes: dict | None = None) -> dict | None:
+    """Wie check_signature(), für die Kopie des Abschlusses (seit 1.8.15). None bei einem
+    Entwurf; vor 1.8.15 abgeschlossene Checklisten haben keine Kopie: ohne_pruefsumme."""
+    if checklist.status != "abgeschlossen":
+        return None
+    if not checklist.content_sha256:
+        return _seal_result("ohne_pruefsumme", [], COMPLETION_TEXTS)
+    status, changed = _compare(checklist, checklist.sealed_content, checklist.content_sha256,
+                               completion_content(checklist, photo_hashes))
+    return _seal_result(status, changed, COMPLETION_TEXTS)
+
+
+def signatures_discarded_with(checklist: Checklist, signature: ChecklistAttachment) -> list[ChecklistAttachment]:
+    """Was das Verwerfen dieser Unterschrift trifft (seit 1.8.15): sie selbst und jede gültige
+    Unterschrift in einem Feld, das in der Vorlage NACH ihrem Feld steht -- deren Kopie enthält
+    den Inhalt, den sie gesperrt hat, und würde nach einer Korrektur nicht mehr passen. Weitere
+    Unterschriften im selben Feld (Teilnehmer einer Unterweisung) bleiben."""
+    position = {f.id: i for i, f in enumerate(checklist.template_version.fields)}
+    own = position[signature.template_field_id]
+    return [signature] + [a for a in active_attachments(checklist)
+                          if a.kind == "unterschrift" and position[a.template_field_id] > own]
 
 
 def _photo_bound_by_signature(checklist: Checklist, photo: ChecklistAttachment) -> bool:
@@ -384,6 +447,7 @@ def checklist_to_dict(checklist: Checklist) -> dict:
         item = _attachment_dict(a)
         if a.kind == "unterschrift":  # je Unterschrift: passt der Inhalt noch? (seit 1.8.14)
             item["seal"] = check_signature(checklist, a, photo_hashes)
+            item["discards_with"] = [s.id for s in signatures_discarded_with(checklist, a)[1:]]  # seit 1.8.15
         else:  # Foto, das zu einer (auch verworfenen) Unterschrift gehört: nie löschbar
             item["bound_by_signature"] = _photo_bound_by_signature(checklist, a)
         attachments.append(item)
@@ -402,6 +466,8 @@ def checklist_to_dict(checklist: Checklist) -> dict:
         } for a in checklist.attachments if a.discarded_at is not None],
         "signed": is_signed(checklist),
         "missing_required": missing_required_labels(checklist),
+        "completion_sha256": checklist.content_sha256,
+        "completion_seal": check_completion(checklist, photo_hashes),
     })
     return data
 
@@ -834,25 +900,33 @@ def delete_attachment(db: Session, attachment_id: int) -> dict | None:
     return checklist_to_dict(_load(db, checklist_id))
 
 
-def discard_signatures(db: Session, checklist_id: int, *, reason: str | None, user_id: int | None = None,
-                       by_name: str | None = None) -> dict:
-    """"Unterschriften verwerfen" (seit 1.8.13, nur Büro -- entscheidet der Router): alle
-    gültigen Unterschriften eines Entwurfs werden mit Begründung, Wer und Wann als verworfen
-    markiert, die Checkliste ist danach wieder offen. Gelöscht wird nichts -- Bild, Name,
-    Zeitpunkt und Prüfsumme bleiben als Nachweis stehen, die Änderungshistorie hält den Vorgang
-    fest. Eine abgeschlossene Checkliste bleibt eingefroren (409)."""
+def discard_signatures(db: Session, checklist_id: int, *, signature_id: int | None, reason: str | None,
+                       user_id: int | None = None, by_name: str | None = None) -> dict:
+    """"Unterschrift verwerfen" (seit 1.8.13, nur Büro -- entscheidet der Router). Seit 1.8.15
+    wählt das Büro EINE Unterschrift; verworfen werden sie und jede gültige Unterschrift in einem
+    Feld weiter unten (signatures_discarded_with()), Unterschriften im selben Feld bleiben. Mit
+    Begründung, Wer und Wann markiert; was keine verbleibende Unterschrift mehr sperrt, ist danach
+    wieder offen. Gelöscht wird nichts -- Bild, Name, Zeitpunkt und Prüfsumme bleiben als
+    Nachweis stehen, die Änderungshistorie hält den Vorgang fest. Eine abgeschlossene Checkliste
+    bleibt eingefroren (409)."""
     checklist = _load(db, checklist_id, for_update=True)
     if checklist is None:
         raise LookupError("Checkliste nicht gefunden.")
     _require_draft(checklist)
     reason = (reason or "").strip()[:MAX_TEXT_LENGTH]
     if not reason:
-        raise ValueError("Bitte begründen, warum die Unterschriften verworfen werden.")
-    signatures = [a for a in active_attachments(checklist) if a.kind == "unterschrift"]
-    if not signatures:
+        raise ValueError("Bitte begründen, warum die Unterschrift verworfen wird.")
+    if not is_signed(checklist):
         raise ValueError("Diese Checkliste trägt keine Unterschrift.")
+    if signature_id is None:
+        raise ValueError("Bitte die Unterschrift wählen, die verworfen wird.")
+    chosen = next((a for a in checklist.attachments if a.id == signature_id and a.kind == "unterschrift"), None)
+    if chosen is None:  # auch: Unterschrift einer anderen Checkliste
+        raise LookupError("Diese Unterschrift gehört nicht zu dieser Checkliste.")
+    if chosen.discarded_at is not None:
+        raise ValueError("Diese Unterschrift ist bereits verworfen.")
     now = datetime.utcnow()
-    for signature in signatures:
+    for signature in signatures_discarded_with(checklist, chosen):
         signature.discarded_at = now
         signature.discarded_by_user_id = user_id
         signature.discarded_by_name = (by_name or "").strip()[:160] or None
@@ -902,6 +976,10 @@ def complete_checklist(db: Session, checklist_id: int, *, completed_by_employee_
     missing = missing_required_labels(checklist)
     if missing:
         raise ValueError("Noch nicht ausgefüllt: " + ", ".join(missing) + ".")
+    # Feste Kopie aller Felder samt Unterschriften (seit 1.8.15), unter der Zeilensperre -- die
+    # Prüfsumme ist die SHA-256 genau dieser Kopie, wie bei einer Unterschrift.
+    checklist.sealed_content = completion_content(checklist)
+    checklist.content_sha256 = _sha256_text(checklist.sealed_content)
     checklist.status = "abgeschlossen"
     checklist.completed_at = datetime.utcnow()
     checklist.completed_by_employee_id = completed_by_employee_id

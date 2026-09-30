@@ -4452,7 +4452,12 @@ class Checklist(Base):
     Projektkonvention). Label und Kontextangaben werden beim Anlegen eingefroren
     (*_snapshot), damit ein abgeschlossenes Dokument sich nie rückwirkend ändert.
     client_uuid ist global eindeutig (Stufe 3, offline angelegte Checklisten); NULL beliebig
-    oft erlaubt."""
+    oft erlaubt.
+
+    Seit 1.8.15 legt das Abschließen wie eine Unterschrift eine feste Kopie ab: sealed_content
+    (kanonisches JSON aller Felder samt Unterschriften, app/checklists.py::completion_content()),
+    content_sha256 die SHA-256 genau dieser Zeichenkette. NULL bei Entwürfen und bei Checklisten,
+    die vor 1.8.15 abgeschlossen wurden."""
 
     __tablename__ = "checklists"
     __table_args__ = (UniqueConstraint("client_uuid", name="uq_checklist_client_uuid"),)
@@ -4475,6 +4480,8 @@ class Checklist(Base):
     client_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    content_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    sealed_content: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     template: Mapped["ChecklistTemplate"] = relationship()
     template_version: Mapped["ChecklistTemplateVersion"] = relationship()

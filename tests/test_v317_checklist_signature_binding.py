@@ -55,6 +55,11 @@ def _signed_order_checklist(world, client):
     return resp.json()
 
 
+def _sig_id(body):
+    """Die (einzige) gültige Unterschrift -- seit 1.8.15 wählt das Verwerfen eine Unterschrift."""
+    return next(x["id"] for x in body["attachments"] if x["kind"] == "unterschrift")
+
+
 def _recomputed(world, checklist_id, field_key="sig"):
     """SHA-256 des aktuellen Inhalts, so wie ihn eine Unterschrift im Feld field_key versiegelt."""
     world["db"].expire_all()
@@ -150,7 +155,8 @@ def test_office_discards_signatures_with_reason_and_unlocks(world, router_test_c
     old = next(x for x in body["attachments"] if x["kind"] == "unterschrift")
     old_path = checklists_module.attachment_path(world["db"].get(ChecklistAttachment, old["id"]))
 
-    resp = office.post(f"/api/checklists/{cid}/discard-signatures", json={"reason": "  Windangabe falsch  "})
+    resp = office.post(f"/api/checklists/{cid}/discard-signatures",
+                       json={"reason": "  Windangabe falsch  ", "signature_id": old["id"]})
     assert resp.status_code == 200, resp.text
     after = resp.json()
     assert not after["signed"] and after["can_edit"] and not after["can_discard_signatures"]
@@ -192,8 +198,8 @@ def test_pdf_shows_valid_signature_with_hash_and_omits_discarded(world, router_t
     c = _start_order(world, a)
     a.put(f"/api/checklists/{c['id']}/answers/{_fields(c)['frei']}", json={"value": "ja"})
     _photo(a, c)
-    _sign(a, c, "Wrong Person")
-    office.post(f"/api/checklists/{c['id']}/discard-signatures", json={"reason": "falsche Person"})
+    wrong = _sign(a, c, "Wrong Person").json()
+    office.post(f"/api/checklists/{c['id']}/discard-signatures", json={"reason": "falsche Person", "signature_id": _sig_id(wrong)})
     new = next(x for x in _sign(a, c, "Anna Alpha").json()["attachments"] if x["kind"] == "unterschrift")
     a.post(f"/api/checklists/{c['id']}/complete")
     text = _extract_pdf_text(build_checklist_pdf(world["db"], get_checklist_row(world["db"], c["id"])))
@@ -220,7 +226,7 @@ def test_history_records_sign_discard_complete_and_repair(world, router_test_cli
     assert signed[0].project_id == project_id  # auch in der Historie der Projektmappe
     assert json.loads(signed[0].details)["content_sha256"] == next(x for x in body["attachments"] if x["kind"] == "unterschrift")["content_sha256"]
 
-    office.post(f"/api/checklists/{cid}/discard-signatures", json={"reason": "Windangabe falsch"})
+    office.post(f"/api/checklists/{cid}/discard-signatures", json={"reason": "Windangabe falsch", "signature_id": _sig_id(body)})
     reasons = _audit(world, entity_type="Checklisten-Unterschrift", field_name="discard_reason")
     assert [(r.action, r.new_value, r.field_label) for r in reasons] == [
         ("geändert", "Windangabe falsch", "Begründung (Verwerfen)")]

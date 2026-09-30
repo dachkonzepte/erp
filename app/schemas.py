@@ -4291,6 +4291,7 @@ class ChecklistAttachmentOut(BaseModel):
     created_at_local: str | None = None  # Europe/Berlin, "TT.MM.JJJJ HH:MM" (seit 1.8.13)
     content_sha256: str | None = None    # nur Unterschriften ab 1.8.13
     seal: ChecklistSealCheckOut | None = None  # nur gültige Unterschriften (seit 1.8.14)
+    discards_with: list[int] = []  # Unterschriften, die beim Verwerfen dieser mitfallen (seit 1.8.15)
     bound_by_signature: bool = False  # Foto gehört zu einer (auch verworfenen) Unterschrift, nie löschbar (seit 1.8.14)
     url: str
 
@@ -4307,7 +4308,8 @@ class ChecklistOut(ChecklistSummaryOut):
     ersten Unterschrift. can_edit: dazu mindestens ein Feld noch offen; gesperrt sind genau die
     Felder in sealed_field_ids (seit 1.8.14 abschnittsweise: alles oberhalb der untersten gültigen
     Unterschrift). can_delete: Entwurf ohne jede, auch verworfene, Unterschrift (seit 1.8.14).
-    can_discard_signatures: nur Büro, nur unterschriebener Entwurf (seit 1.8.13)."""
+    can_discard_signatures: nur Büro, nur unterschriebener Entwurf (seit 1.8.13). completion_seal:
+    Prüfung der Abschluss-Kopie, nur bei abgeschlossenen Checklisten (seit 1.8.15)."""
     template_version_id: int
     version_no: int
     fields: list[ChecklistTemplateFieldOut] = []
@@ -4318,6 +4320,8 @@ class ChecklistOut(ChecklistSummaryOut):
     sealed_field_ids: list[int] = []
     has_signatures: bool = False
     missing_required: list[str] = []
+    completion_sha256: str | None = None
+    completion_seal: ChecklistSealCheckOut | None = None
     can_edit: bool = False
     can_sign: bool = False
     can_delete: bool = False
@@ -4343,6 +4347,7 @@ class ChecklistAssetReleaseWrite(BaseModel):
 
 class ChecklistDiscardSignaturesWrite(BaseModel):
     reason: str | None = None  # Pflicht -- geprüft in der Geschäftslogik (400 mit Text statt 422)
+    signature_id: int | None = None  # Pflicht seit 1.8.15: ab welcher Unterschrift verworfen wird (ebenso 400)
 
 
 class ChecklistRuleExecutionOut(BaseModel):

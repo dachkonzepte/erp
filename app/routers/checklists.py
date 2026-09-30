@@ -314,13 +314,14 @@ def post_complete_checklist(checklist_id: int, db: Session = Depends(get_db), _r
 @router.post("/api/checklists/{checklist_id}/discard-signatures", response_model=ChecklistOut)
 def post_discard_signatures(checklist_id: int, payload: ChecklistDiscardSignaturesWrite,
                             db: Session = Depends(get_db), _role: AppUser = _office_dep):
-    """"Unterschriften verwerfen" (seit 1.8.13): nur Büro, Begründung Pflicht, entsperrt den
-    Entwurf. Die Unterschriften bleiben als verworfen markiert stehen (Nachweis)."""
+    """"Unterschrift verwerfen" (seit 1.8.13): nur Büro, Begründung Pflicht. Seit 1.8.15 mit
+    gewählter Unterschrift (signature_id): sie und die Unterschriften in Feldern darunter fallen,
+    die übrigen bleiben. Verworfene bleiben als markiert stehen (Nachweis)."""
     _require_module_enabled(db)
     _checklist_for(db, _role, checklist_id, write=True)
     by_name = getattr(_role, "display_name", None) or getattr(_role, "username", None)
-    _call(discard_signatures, db, checklist_id, reason=payload.reason, user_id=getattr(_role, "id", None),
-          by_name=by_name)
+    _call(discard_signatures, db, checklist_id, signature_id=payload.signature_id, reason=payload.reason,
+          user_id=getattr(_role, "id", None), by_name=by_name)
     return _detail(db, _role, checklist_id)
 
 

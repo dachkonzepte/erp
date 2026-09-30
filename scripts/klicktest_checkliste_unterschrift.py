@@ -143,6 +143,12 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen(f"/checklisten/{cid}", "document.getElementById('discardBtn')")
     await tab.js("document.getElementById('discardBtn').click()")
     await asyncio.sleep(0.4)
+    p.pruefe("Verwerfen ohne Auswahl: Meldung", await tab.js("document.getElementById('discardStatus').textContent"),
+             "Bitte die Unterschrift wählen.")
+    # Seit 1.8.15 wählt das Büro die Unterschrift (hier die einzige).
+    await tab.js("(()=>{const s=document.getElementById('discardSig');s.selectedIndex=1;s.dispatchEvent(new Event('change'))})()")
+    await tab.js("document.getElementById('discardBtn').click()")
+    await asyncio.sleep(0.4)
     p.pruefe("Verwerfen ohne Begründung: Meldung", await tab.js("document.getElementById('discardStatus').textContent"),
              "Bitte eine Begründung eintragen.")
     p.pruefe("Verwerfen ohne Begründung: weiter unterschrieben", await tab.js(f"fetch('{api}').then(r=>r.json()).then(d=>d.signed)"), True)

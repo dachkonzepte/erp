@@ -21,8 +21,9 @@ _actor_name = contextvars.ContextVar("audit_actor_name", default="System")
 _request_path = contextvars.ContextVar("audit_request_path", default=None)
 _request_method = contextvars.ContextVar("audit_request_method", default=None)
 
-# sealed_content (Checklisten-Unterschrift, seit 1.8.14): die versiegelte Kopie steht an der
-# Unterschrift selbst; die Historie trägt ihre Prüfsumme (content_sha256), nicht noch eine Kopie.
+# sealed_content (Checklisten-Unterschrift seit 1.8.14, Checklisten-Abschluss seit 1.8.15): die
+# versiegelte Kopie steht an der Unterschrift bzw. Checkliste selbst; die Historie trägt ihre
+# Prüfsumme (content_sha256), nicht noch eine Kopie.
 EXCLUDED_FIELDS = {"created_at", "updated_at", "last_login_at", "password_hash", "sealed_content"}
 TYPE_LABELS = {
     Customer: "Kunde", Property: "Objekt", Project: "Projekt", ProjectDocument: "Projektdatei",

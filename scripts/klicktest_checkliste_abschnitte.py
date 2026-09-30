@@ -156,6 +156,7 @@ async def pruefen(tab, seed, p):
     await tab.fenster(1400, 1000)
     await tab.oeffnen(f"/checklisten/{cid}", "document.getElementById('discardBtn')")
     p.pruefe("Büro sieht die Abweichung", await tab.js(seal("sig1")), "abweichend")
+    await tab.js("(()=>{const s=document.getElementById('discardSig');s.selectedIndex=1;s.dispatchEvent(new Event('change'))})()")
     await tab.js("document.getElementById('discardReason').value='Arbeitsbereich wurde nachträglich geändert'")
     await tab.js("document.getElementById('discardBtn').click()")
     await tab.warten("!document.getElementById('lockCard')", 10)
