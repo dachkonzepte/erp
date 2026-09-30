@@ -21,6 +21,7 @@ from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from ..contract_basis import change_order_contract_basis, list_order_contract_basis_changes
 from ..database import get_db
 from ..email_dispatch import DispatchConflict
 from ..invoices import invoice_summary_for_order
@@ -28,7 +29,7 @@ from ..models import AppUser, Order, ServiceReport
 from ..order_pdf import build_order_pdf
 from ..orders import create_order_revision, field_may_access_order, list_order_revisions, load_order, order_to_dict, send_order_email, sync_order_from_source_quote, update_order_header, update_order_item, update_order_section, update_order_tax_key
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
-from ..schemas import OrderEmailSend, OrderFieldAccessOut, OrderItemUpdate, OrderListOut, OrderOut, OrderRevisionCreate, OrderRevisionOut, OrderSectionUpdate, OrderSyncRequest, OrderUpdate, TaxKeySelection
+from ..schemas import OrderContractBasisChangeOut, OrderContractBasisUpdate, OrderEmailSend, OrderFieldAccessOut, OrderItemUpdate, OrderListOut, OrderOut, OrderRevisionCreate, OrderRevisionOut, OrderSectionUpdate, OrderSyncRequest, OrderUpdate, TaxKeySelection
 
 router = APIRouter()
 
@@ -146,6 +147,29 @@ def put_order_tax_key(order_id: int, payload: TaxKeySelection, db: Session = Dep
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return OrderOut.model_validate(order_to_dict(order, db))
+
+
+@router.put("/api/orders/{order_id}/contract-basis", response_model=OrderOut)
+def put_order_contract_basis(order_id: int, payload: OrderContractBasisUpdate, request: Request, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Vertragsgrundlage am Auftrag ändern (seit 1.8.21) -- nur mit Begründung, mit Historie; danach
+    überschreibt der Abgleich mit dem Angebot sie nicht mehr. Bewusst NICHT Teil von PUT
+    /api/orders/{id} (OrderUpdate), sonst ginge es ohne Begründung."""
+    order = load_order(db, order_id)
+    if order is None: raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
+    actor = getattr(request.state, "erp_user", None)
+    actor_name = getattr(actor, "display_name", None) or getattr(actor, "username", None) or "System"
+    try:
+        change_order_contract_basis(db, order, contract_basis=payload.contract_basis, reason=payload.reason, actor_name=actor_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return OrderOut.model_validate(order_to_dict(load_order(db, order_id), db))
+
+
+@router.get("/api/orders/{order_id}/contract-basis-changes", response_model=list[OrderContractBasisChangeOut])
+def get_order_contract_basis_changes(order_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    if db.get(Order, order_id) is None:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
+    return list_order_contract_basis_changes(db, order_id)
 
 
 @router.put("/api/orders/{order_id}/items/{item_id}", response_model=OrderOut)

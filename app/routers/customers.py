@@ -71,8 +71,10 @@ def update_customer(customer_id: int, payload: CustomerUpdate, db: Session = Dep
     if customer is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
 
-    for key, value in payload.model_dump(exclude={"category", "customer_number", "default_payment_term_id"}).items():
+    for key, value in payload.model_dump(exclude={"category", "customer_number", "default_payment_term_id", "is_consumer"}).items():
         setattr(customer, key, value)
+    if payload.is_consumer is not None:
+        customer.is_consumer = payload.is_consumer
     customer.name = compose_customer_name(customer.salutation, customer.title, customer.first_name, customer.last_name)
     try:
         ensure_customer_profile(

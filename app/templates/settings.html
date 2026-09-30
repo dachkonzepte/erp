@@ -67,6 +67,7 @@
         <button type="button" data-settings-section="document-layout" onclick="showSettingsSection('document-layout')">Dokumente &amp; Layout<span class="menu-sub">Briefpapier, Ränder, Logo/Firmenkopf/Fußzeile -- für alle Dokumente</span></button>
         <button type="button" data-settings-section="document-categories" onclick="showSettingsSection('document-categories')">Dokumentkategorien<span class="menu-sub">Fundament der Dateiablage je Objekt -- Sichtbarkeit für Monteure</span></button>
         <button type="button" data-settings-section="email-templates" onclick="showSettingsSection('email-templates')">E-Mail-Vorlagen<span class="menu-sub">Betreff/Text je Dokumenttyp</span></button>
+        <button type="button" data-settings-section="contract-bases" onclick="showSettingsSection('contract-bases')">Vertragsgrundlagen<span class="menu-sub">Klauseltext je Grundlage, rechtliche Prüfung</span></button>
       </div>
       <div class="settings-group">Personal</div>
       <div class="settings-menu">
@@ -462,6 +463,12 @@
     <span id="emailTemplateStatus" class="status"></span>
   </section>
 
+  <section class="card settings-section" id="settings-contract-bases">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Vertragsgrundlagen</h2><div class="muted small">Klauseltext je Vertragsgrundlage für Angebot und Auftrag. Gedruckt wird er nur, wenn „rechtlich geprüft am“ und „durch“ ausgefüllt sind – sonst warnen Angebots-Editor und Auftragsseite, und das PDF enthält nichts dazu.</div></div></div>
+    <div class="hint"><b>Wichtig:</b> Hier stehen bewusst keine vorgegebenen Texte. Die Klauseln bitte von einer Rechtsberatung formulieren oder prüfen lassen. Wird der Text später geändert, ohne die Prüfangaben neu einzutragen, gilt er wieder als ungeprüft.</div>
+    <div id="contractBasisClauseRows"></div>
+  </section>
+
   <section class="card settings-section" id="settings-option-lists">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Zentrale Auswahllisten</h2><div class="muted small">Wiederverwendbare ERP-Dropdownwerte an einer Stelle pflegen. Zeitarten, Tätigkeiten und Abwesenheitsarten werden im Zeiterfassungs-Backoffice verwaltet.</div></div></div>
     <div class="hint"><b>Prinzip:</b> Ein Eintrag kann aktiv/inaktiv sein, eine Sortierung besitzen und als Standard markiert werden. Bei Textbausteinen ist die Bezeichnung kurz, der Wert enthält den vollständigen Text.</div>
@@ -818,6 +825,13 @@ let sequences=[],employeeFunctions=[],editingFunctionId=null,optionGroups=[],cur
 // bereits per Jinja aus dem Markup entfernt, load() darf ihre Endpunkte fuer diese Rolle deshalb
 // weder abrufen (403) noch ihre DOM-Elemente beschreiben (waeren nicht vorhanden).
 const canSeeCalculationSettings={{ 'true' if can(current_user, 'admin', 'buero_finanzen') else 'false' }};
+// Vertragsgrundlagen (seit 1.8.21): lesen dürfen Büro und Admin, speichern nur Administratoren --
+// die Prüfangabe entscheidet, ob ein Vertragstext gedruckt wird (PUT ist serverseitig admin-only).
+const canEditContractClauses={{ 'true' if can(current_user, 'admin') else 'false' }};
+let contractBasisClauses=[];
+async function loadContractBasisClauses(){const box=document.getElementById('contractBasisClauseRows');try{contractBasisClauses=await api('/api/settings/contract-basis-clauses');renderContractBasisClauses()}catch(e){box.innerHTML=`<div class="status err">Fehler: ${esc(e.message)}</div>`}}
+function renderContractBasisClauses(){const ro=canEditContractClauses?'':'disabled';document.getElementById('contractBasisClauseRows').innerHTML=(canEditContractClauses?'':'<div class="hint">Nur Administratoren können Klauseltexte und Prüfangaben ändern.</div>')+contractBasisClauses.map(c=>`<div class="list-narrow" data-basis="${esc(c.basis_key)}" style="border-top:1px solid var(--line);padding-top:14px;margin-top:14px"><h3 style="margin:0 0 4px">${esc(c.label)}</h3><div class="small ${c.reviewed?'':'muted'}" style="margin-bottom:8px">${c.reviewed?'Rechtlich geprüft – wird auf Angebot und Auftrag gedruckt.':'Nicht geprüft – wird nicht gedruckt.'}${c.updated_by_name?` · zuletzt gespeichert von ${esc(c.updated_by_name)}`:''}</div><div class="field"><label>Klauseltext</label><textarea class="cbText" rows="5" ${ro}>${esc(c.clause_text||'')}</textarea></div><div class="fields-2col"><div class="field"><label>Rechtlich geprüft am</label><input class="cbReviewedOn" type="date" value="${esc(c.reviewed_on||'')}" ${ro}></div><div class="field"><label>durch</label><input class="cbReviewedBy" value="${esc(c.reviewed_by||'')}" placeholder="z. B. Kanzlei Muster, RA Beispiel" ${ro}></div></div>${canEditContractClauses?`<button onclick="saveContractBasisClause('${esc(c.basis_key)}')">Speichern</button>`:''}<span class="status cbStatus"></span></div>`).join('')}
+async function saveContractBasisClause(key){const row=document.querySelector(`[data-basis="${key}"]`),st=row.querySelector('.cbStatus');st.className='status cbStatus';try{const d=await api(`/api/settings/contract-basis-clauses/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({clause_text:row.querySelector('.cbText').value.trim()||null,reviewed_on:row.querySelector('.cbReviewedOn').value||null,reviewed_by:row.querySelector('.cbReviewedBy').value.trim()||null})});contractBasisClauses=contractBasisClauses.map(c=>c.basis_key===key?d:c);renderContractBasisClauses();const st2=document.querySelector(`[data-basis="${key}"] .cbStatus`);st2.classList.add('ok');st2.textContent=d.review_reset?'Gespeichert. Der Text wurde geändert – die bisherige Prüfangabe gilt nicht mehr, bitte nach erneuter Prüfung neu eintragen.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
 async function api(url,options={}){const r=await fetch(url,options);let d=null;try{d=await r.json()}catch(_){ }if(!r.ok)throw new Error(d?.detail||r.statusText||'Fehler');return d}
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 (function(){
@@ -833,7 +847,7 @@ const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
   refreshStatusColors();
 })();
 const v=id=>document.getElementById(id).value.trim();const nv=id=>v(id)||null;const setv=(id,x)=>document.getElementById(id).value=x??'';
-const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','recurring-costs','incoming-invoices','accounts','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','operational-assets','mobile','ai-settings','outlook-sync'];
+const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','contract-bases','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','recurring-costs','incoming-invoices','accounts','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','operational-assets','mobile','ai-settings','outlook-sync'];
 function showSettingsSection(key,updateHash=true){
   if(!SETTINGS_SECTIONS.includes(key))key='general';
   document.querySelectorAll('.settings-section').forEach(x=>x.classList.toggle('active',x.id===`settings-${key}`));
@@ -2129,6 +2143,7 @@ loadAiSettings();
 loadOutlookSyncSettings();
 loadEmailTemplate();
 loadAppearance();
+loadContractBasisClauses();
 </script>
 </body>
 </html>

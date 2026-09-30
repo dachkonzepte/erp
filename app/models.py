@@ -259,6 +259,12 @@ class Customer(Base):
     mobile: Mapped[str | None] = mapped_column(String(80), nullable=True)
     fax: Mapped[str | None] = mapped_column(String(80), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Verbraucher im Sinne von § 13 BGB (seit 1.8.21) -- steuert die Vorgabe der
+    # Vertragsgrundlage neuer Angebote (app/contract_basis.py). Vorgabe ja; die Migration hat
+    # Bestandskunden der Kategorien Gewerbekunde, Öffentlicher Auftraggeber, Architekt/Planer
+    # und Versicherung auf nein gesetzt. Bewusst ein festes Feld und nicht aus der Kategorie
+    # abgeleitet: die Kategorie ist eine frei umbenennbare Auswahlliste.
+    is_consumer: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     # Adressnummer aus dem Altsystem (Spalte "Adresse" im Quellexport) -- dient beim
     # erneuten Import derselben Datei der Wiedererkennung bereits übernommener Zeilen.
     # Bewusst direkt auf Customer/Supplier statt über CustomerProfile geführt: Supplier
@@ -868,6 +874,10 @@ class QuoteDocumentMeta(Base):
     payment_terms: Mapped[str | None] = mapped_column(Text, nullable=True)
     execution_period: Mapped[str | None] = mapped_column(String(255), nullable=True)
     internal_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Vertragsgrundlage (seit 1.8.21): fester Schlüssel aus app/contract_basis.py
+    # (vob_b / bgb_vob_c_4_5 / bgb). Neue Angebote bekommen die Vorgabe aus dem Kunden
+    # (ensure_quote_structure()), Bestand und server_default: bgb.
+    contract_basis: Mapped[str] = mapped_column(String(30), default="bgb", server_default="bgb")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -942,6 +952,11 @@ class Order(Base):
     # Versand-Nachweis (seit 1.0.90) -- analog zu Invoice/Quote/Reminder.
     email_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     email_sent_to: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Vertragsgrundlage (seit 1.8.21): beim Beauftragen aus dem Angebot übernommen, beim Abgleich
+    # nachgezogen -- außer sie wurde am Auftrag mit Begründung geändert (contract_basis_manual,
+    # Historie in OrderContractBasisChange). Bestand: bgb.
+    contract_basis: Mapped[str] = mapped_column(String(30), default="bgb", server_default="bgb")
+    contract_basis_manual: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -953,6 +968,44 @@ class Order(Base):
     invoices: Mapped[list["Invoice"]] = relationship(back_populates="order", cascade="all, delete-orphan")
     caseworker: Mapped["Employee | None"] = relationship(foreign_keys=[caseworker_employee_id])
     project_manager: Mapped["Employee | None"] = relationship(foreign_keys=[project_manager_employee_id])
+    contract_basis_changes: Mapped[list["OrderContractBasisChange"]] = relationship(
+        back_populates="order", cascade="all, delete-orphan", order_by="OrderContractBasisChange.id"
+    )
+
+
+class OrderContractBasisChange(Base):
+    """Historie der am Auftrag geänderten Vertragsgrundlage (seit 1.8.21). Jede Änderung mit
+    Pflicht-Begründung, wird nie geändert oder gelöscht (außer mit dem Auftrag selbst)."""
+
+    __tablename__ = "order_contract_basis_changes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
+    old_basis: Mapped[str] = mapped_column(String(30))
+    new_basis: Mapped[str] = mapped_column(String(30))
+    reason: Mapped[str] = mapped_column(Text)
+    changed_by_name: Mapped[str] = mapped_column(String(160), default="System")
+    changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    order: Mapped[Order] = relationship(back_populates="contract_basis_changes")
+
+
+class ContractBasisClause(Base):
+    """Klauseltext je Vertragsgrundlage (seit 1.8.21, Einstellungen -> Vertragsgrundlagen).
+    Angebots- und Auftrags-PDF drucken ihn nur, wenn Text, "rechtlich geprüft am" und "durch"
+    gesetzt sind (app/contract_basis.py::printable_clause_text()). Ändert sich der Text ohne neue
+    Prüfangaben, fällt die Prüfung weg. Zeilen entstehen beim ersten Speichern, kein Seeding."""
+
+    __tablename__ = "contract_basis_clauses"
+    __table_args__ = (UniqueConstraint("basis_key", name="uq_contract_basis_clause_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    basis_key: Mapped[str] = mapped_column(String(30))
+    clause_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    updated_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class OrderRevision(Base):

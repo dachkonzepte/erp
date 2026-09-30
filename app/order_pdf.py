@@ -14,6 +14,7 @@ from reportlab.lib import colors
 from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
 
+from .contract_basis import printable_clause_text
 from .document_frame import frame_content_width, render_framed_pdf
 from .document_page_margins import get_margins
 from .document_pdf import (
@@ -179,6 +180,7 @@ def build_order_pdf(db, order) -> bytes:
         story += build_payment_tax_closing_block(
             styles, payment_terms=data.get('payment_terms'), tax_notice_text=data.get('tax_notice_text'),
             outro_text=data.get('outro_text'), outro_text_2=data.get('outro_text_2'),
+            contract_clause_text=printable_clause_text(db, data.get('contract_basis')),
         )
         return story
 

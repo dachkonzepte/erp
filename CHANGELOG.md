@@ -4,6 +4,34 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.21 – Verbraucher-Merkmal und Vertragsgrundlage
+
+Stufe 2b, Runde 2b-1a (Kern, kein Modul); der Etappenplan für 2b-1a bis 2b-4 (Vertrag, Beteiligte,
+Behinderungs- und Bedenkenanzeige) steht in der neuen Archivdatei
+`docs/archiv/vertragsgrundlage-und-vertrag.md`. Kunden tragen jetzt das Merkmal "Verbraucher (§ 13 BGB)",
+Vorgabe ja; die Migration setzt Bestandskunden der Kategorien Gewerbekunde, Öffentlicher Auftraggeber,
+Architekt/Planer und Versicherung auf nein. Angebote haben eine Vertragsgrundlage (VOB/B, BGB mit VOB/C
+Abschnitt 4 und 5, BGB), neue Angebote mit der Vorgabe aus dem Kunden, bestehende Angebote und Aufträge
+mit BGB; der Editor zeigt sie unter dem Steuerschlüssel. Beauftragen übernimmt sie in den Auftrag, der
+Abgleich zieht sie nach -- außer sie wurde am Auftrag geändert, was nur mit Begründung geht und in einer
+Historie steht. In den Einstellungen (Vertragsgrundlagen) pflegen Administratoren je Grundlage einen
+Klauseltext mit "rechtlich geprüft am, durch"; Angebots- und Auftrags-PDF drucken ihn nur geprüft, sonst
+warnen Editor und Auftragsseite. Ändert sich der Text ohne neue Prüfangaben, gilt er wieder als ungeprüft.
+Vorgegebene Klauseltexte gibt es bewusst nicht.
+
+Dabei behoben: Beauftragen und Abgleich kopierten `tax_key_id` und `outro_text_2` nicht, ein Auftrag
+verlor still den Steuerschlüssel (samt Hinweistext im PDF) und den zweiten Schlusstext; beide stehen jetzt
+auch im Vergleich mit dem Angebot. Aufträge, deren Angebot dort abweicht, zeigen nach dem Update
+"Quellangebot geändert" -- die Migration zieht die Werte bewusst nicht nach. Neuer Test
+`tests/test_v325_quote_order_copy_fields.py` ordnet jede Spalte der 13 Angebots- und Auftragstabellen ein
+(übernommen oder mit Begründung nicht) und prüft das Übernehmen beim Beauftragen und Abgleich; ein neues
+Feld ohne Eintrag ist rot. Migration `8af8137cc57c` (gegen SQLite und PostgreSQL mit Bestandsdaten
+geprüft, `downgrade()` bricht ab, sobald etwas verloren ginge), 21 neue Tests, 24 Gegenproben rot, Suite
+2243 grün, neuer Klicktest `scripts/klicktest_vertragsgrundlage.py` 30/30. Nebenbefunde (nur gemeldet,
+Details im Archiv): Singleton-Wettlauf auf der Einstellungsseite bei frischer Datenbank, `internal_note`
+des Angebots wird beim Speichern geleert, Freitext-Ausführungszeitraum geht beim Beauftragen verloren,
+neue und importierte Kunden sind unabhängig von der Kategorie Verbraucher.
+
 ## 1.8.20 – Versandverlauf am Dokument, Checkliste per E-Mail, Zustellung nachtragen
 
 Stufe 2, Runde 2a-3b, zweiter Teil (Punkte 5–8). Angebot, Auftrag, Rechnung, Mahnung und Checkliste

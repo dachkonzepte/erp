@@ -7,11 +7,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from .models import (
-    Employee, Order, OrderItem, OrderSection, OrderRevision,
+    ContractBasisClause, Employee, Order, OrderItem, OrderSection, OrderRevision,
     OrderItemCalculationSnapshot, OrderItemMaterialSnapshot,
     Project, QuoteEmployeeAssignment, ServiceReport, TaxKey,
     WorkPreparation, WorkPreparationEmployee, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee,
 )
+from .contract_basis import clause_is_reviewed, contract_basis_label
 from .invoices import compute_order_billing_progress
 from .projects import ensure_quote_structure, load_quote
 from .rounding import round_money
@@ -57,11 +58,15 @@ def load_order(db: Session, order_id: int) -> Order | None:
     )
 
 
+# Seit 1.8.21 vergleicht der Abgleich auch tax_key_id, outro_text_2 und die Vertragsgrundlage --
+# vorher kopierte ihn weder die Beauftragung noch der Abgleich, und ein Angebot, das sich NUR darin
+# änderte, galt als unverändert. Welche Felder kopiert werden und welche bewusst nicht, hält
+# tests/test_v325_quote_order_copy_fields.py fest (ein neues Feld ohne Eintrag dort ist rot).
 def _quote_scope_payload(db: Session, quote_id: int) -> dict | None:
     quote = load_quote(db, quote_id)
     if quote is None:
         return None
-    _, sections, layouts = ensure_quote_structure(db, quote)
+    meta, sections, layouts = ensure_quote_structure(db, quote)
     sec_rows = sorted(sections, key=lambda s: (s.sort_order, s.id))
     item_rows = sorted(
         quote.items,
@@ -70,8 +75,11 @@ def _quote_scope_payload(db: Session, quote_id: int) -> dict | None:
     return {
         "title": quote.title,
         "vat_rate": format(Decimal(quote.vat_rate or 0), "f"),
+        "tax_key_id": quote.tax_key_id,
         "intro_text": quote.intro_text or "",
         "outro_text": quote.outro_text or "",
+        "outro_text_2": quote.outro_text_2 or "",
+        "contract_basis": meta.contract_basis,
         "sections": [
             {
                 "source_id": s.id,
@@ -112,8 +120,11 @@ def _order_scope_payload(order: Order) -> dict:
     return {
         "title": order.title,
         "vat_rate": format(Decimal(order.vat_rate or 0), "f"),
+        "tax_key_id": order.tax_key_id,
         "intro_text": order.intro_text or "",
         "outro_text": order.outro_text or "",
+        "outro_text_2": order.outro_text_2 or "",
+        "contract_basis": order.contract_basis,
         "sections": [
             {
                 "source_id": s.source_quote_section_id,
@@ -154,7 +165,15 @@ def _signature(payload: dict | None) -> str | None:
 
 
 def order_matches_source_quote(db: Session, order: Order) -> bool:
-    return _signature(_quote_scope_payload(db, order.source_quote_id)) == _signature(_order_scope_payload(order))
+    quote_payload = _quote_scope_payload(db, order.source_quote_id)
+    order_payload = _order_scope_payload(order)
+    if order.contract_basis_manual:
+        # Am Auftrag mit Begründung geändert -- der Abgleich überschreibt sie nicht, also zählt sie
+        # auch nicht als Abweichung.
+        order_payload.pop("contract_basis", None)
+        if quote_payload is not None:
+            quote_payload.pop("contract_basis", None)
+    return _signature(quote_payload) == _signature(order_payload)
 
 
 def _order_snapshot_payload(order: Order) -> dict:
@@ -343,6 +362,13 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
         "outro_text_2": order.outro_text_2,
         "tax_key_id": order.tax_key_id,
         "tax_notice_text": tax_key.notice_text if tax_key else None,
+        "contract_basis": order.contract_basis,
+        "contract_basis_label": contract_basis_label(order.contract_basis),
+        "contract_basis_manual": bool(order.contract_basis_manual),
+        "contract_basis_clause_reviewed": (
+            clause_is_reviewed(db.scalar(select(ContractBasisClause).where(ContractBasisClause.basis_key == order.contract_basis)))
+            if db is not None else None
+        ),
         "customer_id": order.project.customer_id if order.project else None,
         "customer_name": order.customer_name,
         "customer_number": order.customer_number,
@@ -506,8 +532,12 @@ def _copy_quote_scope_to_order(db: Session, order: Order, quote) -> None:
 
     order.title = quote.title
     order.vat_rate = quote.vat_rate
+    order.tax_key_id = quote.tax_key_id
     order.intro_text = quote.intro_text
     order.outro_text = quote.outro_text
+    order.outro_text_2 = quote.outro_text_2
+    if not order.contract_basis_manual:
+        order.contract_basis = meta.contract_basis
     order.customer_name = customer.name
     order.customer_number = customer.customer_number
     order.customer_address = _address(customer.street, customer_city)
@@ -634,8 +664,12 @@ def create_order_from_quote(
         title=quote.title,
         status=status or "beauftragt",
         vat_rate=quote.vat_rate,
+        tax_key_id=quote.tax_key_id,
         intro_text=quote.intro_text,
         outro_text=quote.outro_text,
+        outro_text_2=quote.outro_text_2,
+        contract_basis=meta.contract_basis,
+        contract_basis_manual=False,
         customer_name=project.customer.name,
         customer_number=project.customer.customer_number,
         customer_address=None,

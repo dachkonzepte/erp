@@ -267,6 +267,7 @@ def build_object_address_block(property_name: str | None, address_lines: list[st
 def build_payment_tax_closing_block(
     styles: dict, *, payment_terms: str | None = None, payment_terms_sentence: str | None = None,
     tax_notice_text: str | None = None, outro_text: str | None = None, outro_text_2: str | None = None,
+    contract_clause_text: str | None = None,
 ) -> list:
     """Zahlungsbedingungen (mit automatischem Fälligkeitssatz, sofern
     payment_terms_sentence mitgegeben wird -- nur bei Rechnungen der Fall),
@@ -278,7 +279,11 @@ def build_payment_tax_closing_block(
     trägt outro_text_2 GENAU denselben Text wie outro_text (Datenpflege-Versehen, kein
     Renderfehler), erschien der Satz zweimal hintereinander. outro_text_2 wird deshalb
     unterdrückt, wenn er (nach Trimmen) exakt outro_text entspricht -- betrifft jeden Aufrufer
-    dieser gemeinsamen Funktion (Angebot, Auftrag), nicht nur den, an dem es gefunden wurde."""
+    dieser gemeinsamen Funktion (Angebot, Auftrag), nicht nur den, an dem es gefunden wurde.
+
+    contract_clause_text (seit 1.8.21): der Klauseltext zur Vertragsgrundlage, vor dem Schlusstext.
+    Der Aufrufer reicht ihn nur durch, wenn er rechtlich geprüft ist
+    (app/contract_basis.py::printable_clause_text()) -- sonst None, und es erscheint nichts."""
     body = styles["body"]
     if outro_text_2 and outro_text and outro_text_2.strip() == outro_text.strip():
         outro_text_2 = None
@@ -289,6 +294,8 @@ def build_payment_tax_closing_block(
         story += [Paragraph(label_line + sentence_line, body), Spacer(1, 3 * mm)]
     if tax_notice_text:
         story += [Paragraph(f"<b>Hinweis zur Umsatzsteuer:</b><br/>{ptext(tax_notice_text)}", body), Spacer(1, 3 * mm)]
+    if contract_clause_text:
+        story += [Paragraph(f"<b>Vertragsgrundlage:</b><br/>{ptext(contract_clause_text)}", body), Spacer(1, 3 * mm)]
     if outro_text:
         story.append(Paragraph(ptext(outro_text), body))
     if outro_text_2:

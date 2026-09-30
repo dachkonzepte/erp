@@ -352,6 +352,7 @@ Zwischen den Versionen darf der Betreiber `/clear` machen -- dann diese Datei le
 | **1.8.17** | Stufe 2, Runde 2a-3a: Ablage versendeter Dokumente und Versandprotokoll, Sperre gegen Doppelversand, mehrere Empfänger/CC, 3-MB-Grenze; Regel 18 im Regel-Protokoll. Eigene Archivdatei `docs/archiv/versandprotokoll-und-ablage.md` | erledigt |
 | **1.8.19** | Stufe 2, Runde 2a-3b, Teil 1: Sperre "läuft gerade" in der Datenbank, Adressprüfung und deutsche Graph-Meldungen, hängende Einträge klären, Rechnung/Storno/Mahnung aus der Ablage (Details in `docs/archiv/versandprotokoll-und-ablage.md`) | erledigt |
 | **1.8.20** | Stufe 2, Runde 2a-3b, Teil 2: Versandverlauf am Dokument, Checkliste per E-Mail mit verkleinerten Fotos (unter 3.000.000 Bytes), Zustellung auf anderem Weg nachtragen (Details in `docs/archiv/versandprotokoll-und-ablage.md`) | erledigt |
+| **1.8.21** | Stufe 2b, Runde 2b-1a: Verbraucher-Merkmal und Vertragsgrundlage an Angebot/Auftrag (Kern, kein Modul). **Stufe 2b hat einen eigenen Etappenplan** (2b-1a bis 2b-4, Vertrag, Beteiligte, Behinderungs- und Bedenkenanzeige) in `docs/archiv/vertragsgrundlage-und-vertrag.md` | erledigt |
 
 Nach jeder Version hier die Spalte "Stand" nachziehen und unten einen kurzen Abschnitt
 "Umsetzung 1.8.x" mit Abweichungen/Funden ergänzen.

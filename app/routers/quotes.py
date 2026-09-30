@@ -11,6 +11,7 @@ from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from ..contract_basis import validate_contract_basis
 from ..database import get_db
 from ..email_dispatch import DispatchConflict
 from ..models import AppUser, Employee, EmployeeRoleSettings, Order, Project, Quote, QuoteEmployeeAssignment, QuoteItem, QuoteItemCalculation, QuoteItemLayout
@@ -123,6 +124,12 @@ def update_quote_document_meta(quote_id: int, payload: QuoteDocumentMetaUpdate, 
     meta, _, _ = ensure_quote_structure(db, quote)
     data = payload.model_dump()
     employee_id = data.pop("contact_person_employee_id", None)
+    contract_basis = data.pop("contract_basis", None)
+    if contract_basis is not None:
+        try:
+            meta.contract_basis = validate_contract_basis(contract_basis)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     for key, value in data.items():
         setattr(meta, key, value)
     assignment = db.scalar(select(QuoteEmployeeAssignment).where(QuoteEmployeeAssignment.quote_id == quote.id))

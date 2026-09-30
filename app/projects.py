@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session, object_session, selectinload
 
 from .berlin_time import berlin_today, to_berlin
 from .calculation import build_calculation, get_settings_for_catalog, get_service_for_calculation
+from .contract_basis import clause_is_reviewed, contract_basis_label, default_contract_basis_for_customer
 from .models import (
-    Customer, Project, ProjectProfile, Property, Quote, QuoteItem, QuoteItemCalculation,
+    ContractBasisClause, Customer, Project, ProjectProfile, Property, Quote, QuoteItem, QuoteItemCalculation,
     QuoteItemMaterialCalculation, QuoteDocumentMeta, QuoteSection, QuoteItemLayout,
     QuoteEmployeeAssignment, TaxKey,
 )
@@ -70,6 +71,9 @@ def ensure_quote_structure(db: Session, quote: Quote) -> tuple[QuoteDocumentMeta
             valid_until=qdate + timedelta(days=30),
             contact_person=None,
             payment_terms=default_term.label if default_term else None,
+            # Neues Angebot (seit 1.8.21): Vorgabe aus dem Kunden. Bestandsangebote haben ihre
+            # Kopfzeile seit der Migration 8af8137cc57c alle (mit "bgb"), landen also nicht hier.
+            contract_basis=default_contract_basis_for_customer(quote.project.customer if quote.project else None),
         )
         db.add(meta)
         changed = True
@@ -522,6 +526,12 @@ def quote_to_dict(quote: Quote) -> dict:
             "contact_person_employee_id": assignment.caseworker_employee_id if assignment else None,
             "payment_terms": meta.payment_terms, "execution_period": meta.execution_period,
             "internal_note": meta.internal_note,
+            "contract_basis": meta.contract_basis,
+            "contract_basis_label": contract_basis_label(meta.contract_basis),
+            "contract_basis_clause_reviewed": (
+                clause_is_reviewed(db.scalar(select(ContractBasisClause).where(ContractBasisClause.basis_key == meta.contract_basis)))
+                if db is not None else None
+            ),
         }
     tax_key = db.get(TaxKey, quote.tax_key_id) if (db is not None and quote.tax_key_id) else None
     return {
@@ -657,6 +667,9 @@ def _copy_quote_into_project(db: Session, source_quote: Quote, target_project: P
             quote_id=new_quote.id, quote_date=berlin_today(), valid_until=None,
             contact_person=source_meta.contact_person, payment_terms=source_meta.payment_terms,
             execution_period=source_meta.execution_period, internal_note=source_meta.internal_note,
+            # Die Kopie ist ein neues Angebot, womöglich für einen anderen Kunden (Mustervorgang):
+            # Vorgabe aus dem Zielkunden, nicht die Wahl im Quellangebot (seit 1.8.21).
+            contract_basis=default_contract_basis_for_customer(target_project.customer),
         ))
 
     source_assignment = db.scalar(select(QuoteEmployeeAssignment).where(QuoteEmployeeAssignment.quote_id == source_quote.id))

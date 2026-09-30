@@ -213,6 +213,8 @@ class CustomerCreate(BaseModel):
     fax: str | None = None
     notes: str | None = None
     default_payment_term_id: int | None = None
+    # Verbraucher nach § 13 BGB (seit 1.8.21), Vorgabe ja -- steuert die Vertragsgrundlage neuer Angebote.
+    is_consumer: bool = True
     extra_infos: list[CustomerExtraInfoCreate] = Field(default_factory=list)
 
 
@@ -243,6 +245,8 @@ class CustomerUpdate(BaseModel):
     fax: str | None = None
     notes: str | None = None
     default_payment_term_id: int | None = None
+    # None = unverändert (seit 1.8.21) -- ein Aufrufer, der das Feld nicht kennt, setzt es nicht zurück.
+    is_consumer: bool | None = None
 
 
 class CustomerExtraInfoUpdate(CustomerExtraInfoCreate):
@@ -518,11 +522,15 @@ class QuoteDocumentMetaUpdate(BaseModel):
     payment_terms: str | None = None
     execution_period: str | None = Field(default=None, max_length=255)
     internal_note: str | None = None
+    # Seit 1.8.21: vob_b / bgb_vob_c_4_5 / bgb (app/contract_basis.py). None = unverändert.
+    contract_basis: str | None = Field(default=None, max_length=30)
 
 
 class QuoteDocumentMetaOut(QuoteDocumentMetaUpdate):
     id: int
     quote_id: int
+    contract_basis_label: str | None = None
+    contract_basis_clause_reviewed: bool | None = None
 
 
 class QuoteSectionCreate(BaseModel):
@@ -1268,6 +1276,10 @@ class OrderOut(BaseModel):
     outro_text_2: str | None = None
     tax_key_id: int | None = None
     tax_notice_text: str | None = None
+    contract_basis: str = "bgb"
+    contract_basis_label: str | None = None
+    contract_basis_manual: bool = False
+    contract_basis_clause_reviewed: bool | None = None
     customer_id: int | None = None
     customer_name: str
     customer_number: str | None
@@ -1327,6 +1339,48 @@ class OrderFieldAccessOut(BaseModel):
     order_number: str
     customer_name: str
     items: list[OrderFieldAccessItemOut] = Field(default_factory=list)
+
+
+class OrderContractBasisUpdate(BaseModel):
+    """Vertragsgrundlage am Auftrag ändern (seit 1.8.21) -- nur mit Begründung."""
+    contract_basis: str = Field(min_length=1, max_length=30)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class OrderContractBasisChangeOut(BaseModel):
+    id: int
+    order_id: int
+    old_basis: str
+    old_label: str | None = None
+    new_basis: str
+    new_label: str | None = None
+    reason: str
+    changed_by_name: str
+    changed_at: datetime
+
+
+class ContractBasisOptionOut(BaseModel):
+    key: str
+    label: str
+    clause_reviewed: bool
+
+
+class ContractBasisClauseOut(BaseModel):
+    basis_key: str
+    label: str
+    clause_text: str | None = None
+    reviewed_on: date | None = None
+    reviewed_by: str | None = None
+    reviewed: bool
+    updated_at: datetime | None = None
+    updated_by_name: str | None = None
+    review_reset: bool = False  # nur in der Antwort auf PUT: Text geändert, Prüfangaben gelöscht
+
+
+class ContractBasisClauseUpdate(BaseModel):
+    clause_text: str | None = Field(default=None, max_length=20000)
+    reviewed_on: date | None = None
+    reviewed_by: str | None = Field(default=None, max_length=160)
 
 
 class OrderEmailSend(BaseModel):

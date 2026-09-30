@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.20** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.21** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -714,6 +714,12 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
 - **Versandprotokoll und Ablage** (jede E-Mail über `dispatch_email()`, Schlüssel gegen
   Doppelversand, unveränderliche PDF-Ablage mit SHA-256, `/versandprotokoll`) --
   `docs/archiv/versandprotokoll-und-ablage.md`
+- **Vertragsgrundlage, Vertrag, Beteiligte, Anzeigen** (Stufe 2b mit eigenem Etappenplan;
+  `Customer.is_consumer`, Vertragsgrundlage `vob_b`/`bgb_vob_c_4_5`/`bgb` an Angebot und Auftrag,
+  Klausel nur rechtlich geprüft im PDF, Ändern am Auftrag nur mit Begründung; welche Felder
+  Beauftragen und Abgleich übernehmen, hält `tests/test_v325_quote_order_copy_fields.py` fest --
+  ein neues Feld an Angebot oder Auftrag braucht dort einen Eintrag) --
+  `docs/archiv/vertragsgrundlage-und-vertrag.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit
@@ -984,7 +990,10 @@ einen SMTP-Empfänger im Skript, Doppelklick, Protokollseite; seit 1.8.19 auch A
 aus der Ablage, Klären eines hängenden Eintrags) und `klicktest_versandverlauf.py` (1.8.20, Versandverlauf auf
 allen Dokumentseiten, Zustellung nachtragen mit Beleg-Upload, Checkliste mit 20 Fotos per E-Mail) und
 `klicktest_aufgaben_ohne_zustaendigkeit.py` (1.8.18, Abschnitt und Widget "Ohne Zuständigkeit" für vier Rollen,
-zweiter Klick nach fremdem Übernehmen, Historie nur für Admin). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
+zweiter Klick nach fremdem Übernehmen, Historie nur für Admin) und `klicktest_vertragsgrundlage.py` (1.8.21,
+Verbraucher-Häkchen, Vertragsgrundlage im Angebots-Editor und am Auftrag mit Begründung, Klauseln in den
+Einstellungen für Admin und Büro). Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
+im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten (Vorlage dort). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 
 ## Arbeitsweise, die sich bewährt hat
