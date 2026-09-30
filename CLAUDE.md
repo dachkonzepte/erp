@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.17** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.18** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -976,7 +976,9 @@ direkt in der Wegwerf-Datenbank geänderte Antwort erscheint als Abweichung) und
 `klicktest_checkliste_verwerfen.py` (1.8.15, Verwerfen je Unterschrift, Abschluss mit Prüfsumme, hell
 und dunkel) und `klicktest_checkliste_zweck.py` (1.8.16, Zweck und Systemfelder im Vorlagen-Editor,
 Start-Auswahl nach Zweck) und `klicktest_versandprotokoll.py` (1.8.17, Versand über alle vier Seiten an
-einen SMTP-Empfänger im Skript, Doppelklick, Protokollseite). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
+einen SMTP-Empfänger im Skript, Doppelklick, Protokollseite) und
+`klicktest_aufgaben_ohne_zustaendigkeit.py` (1.8.18, Abschnitt und Widget "Ohne Zuständigkeit" für vier Rollen,
+zweiter Klick nach fremdem Übernehmen, Historie nur für Admin). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 
 ## Arbeitsweise, die sich bewährt hat

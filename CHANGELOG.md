@@ -4,6 +4,31 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.18 – Aufgaben ohne Zuständigkeit
+
+Zwischenrunde. Aufgaben ohne Zuständigkeit sieht jetzt tatsächlich jedes Büro-Konto (buero_auftrag
+aufwärts): auf `/tasks` in einem eigenen Abschnitt "Ohne Zuständigkeit" über dem Board (das Board zeigt
+sie nicht noch einmal), im Dashboard im gleichnamigen Widget, das jetzt Standard ist und auch in
+bereits gespeicherten Layouts erscheint (`get_widget_layout()` hängt Standard-Widgets an, zu denen ein
+Layout gar keine Zeile hat; bewusst entfernt heißt ausgeblendete Zeile und bleibt entfernt). Dabei
+gefunden: das bisherige, nur per "+ Widget" erreichbare "Offene Büro-Aufgaben" prüfte noch die seit
+1.4.7 aufgeteilte Rolle `office` -- Büro-Konten bekamen nur "Nur für Büro und Admin verfügbar." zu
+sehen, praktisch sah den Eingang nur ein Admin. Monteure sehen nichts davon (Router 403, Seite gesperrt).
+Die Rollenbindung über den Ursprung gab es schon (`Task.min_visible_role`, gesetzt von Skonto,
+Kündigungsfrist und Checklisten-Regeln) und gilt unverändert in Liste, Dashboard, Suche und beim
+Übernehmen.
+
+"Übernehmen" (`claim_task()`) war Lesen-Prüfen-Schreiben: klickten zwei gleichzeitig, bestanden beide
+die Prüfung und der Spätere überschrieb den Ersten still. Jetzt ein bedingtes UPDATE ("nur wenn noch
+empfängerlos"); der Zweite bekommt "Diese Aufgabe hat bereits jemand anderes übernommen." (400), die
+Liste lädt neu. Nachgewiesen in SQLite über eine veraltete Session genau im Fenster zwischen Prüfen und
+Schreiben (die alte Logik überschreibt dort) und gegen PostgreSQL mit zwei gleichzeitigen Threads in
+einem Wegwerf-Schema (opt-in). Die Übernahme steht in der Änderungshistorie (Aufgabe, Feld "Zuständig
+(übernommen)", neuer Helfer `app/audit.py::record_audit_entry()`, gleiche Transaktion); sichtbar nur
+für Admin, weil der Eintrag den Titel nennt -- dieselbe Grenze wie bei den Aufgaben-Mails im
+Versandprotokoll. Tests `tests/test_v322_unassigned_tasks.py`, Klicktest
+`scripts/klicktest_aufgaben_ohne_zustaendigkeit.py` (24 Prüfungen, vier Rollen).
+
 ## 1.8.17 – Versandprotokoll und Ablage versendeter Dokumente
 
 Stufe 2, Runde 2a-3a. Jeder E-Mail-Versand geht jetzt durch `app/email_dispatch.py::dispatch_email()`:

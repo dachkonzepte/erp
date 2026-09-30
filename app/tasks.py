@@ -13,14 +13,16 @@ referenziert aber TaskColumn.key statt eines Literals."""
 
 from datetime import date, datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, selectinload
 
+from .audit import TASK_ENTITY_TYPE, record_audit_entry
 from .models import AppUser, Employee, Task, TaskChecklistItem, TaskColumn, TaskSettings
 from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLES, has_min_role, has_role
 from .task_columns import ensure_default_columns
 
 PRIORITIES = ("niedrig", "normal", "hoch", "dringend")
+TASK_ALREADY_TAKEN = "Diese Aufgabe hat bereits jemand anderes übernommen."
 
 
 def _employee_name(e: Employee | None) -> str | None:
@@ -168,7 +170,13 @@ def claim_task(db: Session, task_id: int, user: AppUser) -> dict | None:
     Exception-Typ als ValueError, damit der Router das als 403 (Rollenverstoß) statt 400
     (Geschäftsregel) beantworten kann. Geprüft VOR der "bereits vergeben"-Prüfung, damit eine
     geratene Aufgaben-ID einer fremden Rolle immer dasselbe 403 liefert, unabhängig vom
-    Zuweisungszustand."""
+    Zuweisungszustand.
+
+    Gleichzeitiges Übernehmen (seit 1.8.18): die Zuweisung ist ein bedingtes UPDATE ("nur wenn
+    noch empfängerlos"), kein Lesen-Prüfen-Schreiben. Klicken zwei gleichzeitig, trifft das
+    UPDATE nur beim ersten eine Zeile; der zweite bekommt TASK_ALREADY_TAKEN statt die Aufgabe
+    still zu überschreiben. Die Übernahme steht in der Änderungshistorie (Eintrag in derselben
+    Transaktion; sichtbar nur für Admin, siehe app/routers/audit.py)."""
     if user.employee_id is None:
         raise ValueError("Ihr Büro-Konto ist keinem Mitarbeiter zugeordnet.")
     task = db.get(Task, task_id)
@@ -177,10 +185,25 @@ def claim_task(db: Session, task_id: int, user: AppUser) -> dict | None:
     if task.min_visible_role is not None and not has_min_role(user, task.min_visible_role):
         raise PermissionError("Diese Aufgabe ist für Ihre Rolle nicht sichtbar.")
     if task.assigned_employee_id is not None:
-        raise ValueError("Diese Aufgabe ist bereits vergeben.")
-    task.assigned_employee_id = user.employee_id
+        raise ValueError(TASK_ALREADY_TAKEN)
+    claimed = db.execute(
+        update(Task)
+        .where(Task.id == task_id, Task.assigned_employee_id.is_(None))
+        .values(assigned_employee_id=user.employee_id)
+        .execution_options(synchronize_session=False)
+    ).rowcount
+    if claimed != 1:
+        db.rollback()
+        raise ValueError(TASK_ALREADY_TAKEN)
+    record_audit_entry(
+        db, action="geändert", entity_type=TASK_ENTITY_TYPE, entity_id=task.id,
+        entity_label=f"Nr. {task.id} · {task.title}", project_id=task.project_id,
+        field_name="assigned_employee_id", field_label="Zuständig (übernommen)",
+        old_value=None, new_value=_employee_name(db.get(Employee, user.employee_id)),
+        actor_user_id=user.id, actor_name=user.display_name or user.username,
+    )
     db.commit()
-    task = _load_task(db, task.id)
+    task = _load_task(db, task_id)
     notify_task_assignment(db, task)
     return task_to_dict(task, _columns_by_key(db))
 

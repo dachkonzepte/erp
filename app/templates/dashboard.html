@@ -71,7 +71,7 @@ function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
 
 const PROJECT_STATUS_LABELS={anfrage:'Anfrage',planung:'Planung',beauftragt:'Beauftragt',ausfuehrung:'Ausführung',abgeschlossen:'Abgeschlossen'};
-const DEFAULT_LAYOUT=[{widget_key:'my_tasks',sort_order:10,visible:true},{widget_key:'kpis',sort_order:20,visible:true},{widget_key:'active_projects',sort_order:30,visible:true}];
+const DEFAULT_LAYOUT=[{widget_key:'my_tasks',sort_order:10,visible:true},{widget_key:'open_office_tasks',sort_order:15,visible:true},{widget_key:'kpis',sort_order:20,visible:true},{widget_key:'active_projects',sort_order:30,visible:true}];
 
 let authStatus=null,layout=[],employees=[],selectedTaskEmployeeId='';
 
@@ -196,24 +196,31 @@ async function renderDueAssetsWidget(container){
   container.innerHTML=assets.length?`<div class="task-list">${assets.map(a=>`<a class="task-row urgent" href="/betriebsmittel/${a.id}"><span class="task-type">${a.is_overdue?'Überfällig':'Prüfung fällig'}</span><span class="task-main"><span class="task-title">${esc(a.name)}</span><span class="muted small">${esc(a.asset_type||'')}</span></span><span class="task-due">${fmtDate(a.next_due_date)}</span></a>`).join('')}</div>`:'<div class="status ok">Keine fälligen Prüffristen.</div>';
 }
 
+// "Ohne Zuständigkeit" (bis 1.8.17 "Offene Büro-Aufgaben", nur per "+ Widget"): seit 1.8.18
+// Standard-Widget. Die Rollenprüfung stand bis dahin auf der alten Rolle "office" -- Büro-Konten
+// (buero_auftrag/buero_finanzen) bekamen nur "Nur für Büro und Admin verfügbar." zu sehen.
 async function renderOpenOfficeTasksWidget(container){
   if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
-  if(!['admin','office'].includes(authStatus.user.role)){container.innerHTML='<div class="muted small">Nur für Büro und Admin verfügbar.</div>';return}
+  if(!['admin','buero_finanzen','buero_auftrag'].includes(authStatus.user.role)){container.innerHTML='<div class="muted small">Nur für Büro und Admin verfügbar.</div>';return}
   if(!await isModuleEnabled('aufgabenmanagement')){container.innerHTML='<div class="muted small">Das Modul Aufgabenmanagement ist deaktiviert.</div>';return}
   await loadAndRenderOpenOfficeTasks(container);
 }
 
-async function loadAndRenderOpenOfficeTasks(container){
+async function loadAndRenderOpenOfficeTasks(container,message){
   const rows=(await api('/api/tasks?unassigned_only=true').catch(()=>[])).filter(t=>!t.status_is_done&&!t.archived);
-  container.innerHTML=rows.length?`<div class="task-list">${rows.map(t=>`<div class="task-row"><span class="task-type">Aufgabe</span><span class="task-main"><span class="task-title">${esc(t.title)}</span><span class="muted small">${esc(t.project_number?`${t.project_number} · ${t.project_name}`:(t.source_label||''))}</span></span>${t.due_date?`<span class="task-due">${fmtDate(t.due_date)}</span>`:''}<button class="secondary" style="flex:0 0 auto" onclick="claimOpenTask(${t.id})">Übernehmen</button></div>`).join('')}</div>`:'<div class="status ok">Keine offenen Büro-Aufgaben.</div>';
+  const note=message?`<div class="status ${message.err?'err':'ok'}" style="margin-bottom:8px">${esc(message.text)}</div>`:'';
+  container.innerHTML=note+(rows.length?`<div class="task-list">${rows.map(t=>`<div class="task-row" data-unassigned-task="${t.id}"><span class="task-type">Aufgabe</span><a class="task-main" href="/tasks?task=${t.id}" style="color:inherit;text-decoration:none"><span class="task-title">${esc(t.title)}</span><span class="muted small">${esc(t.project_number?`${t.project_number} · ${t.project_name}`:(t.source_label||''))}</span></a>${t.due_date?`<span class="task-due">${fmtDate(t.due_date)}</span>`:''}<button class="secondary" style="flex:0 0 auto" onclick="claimOpenTask(${t.id})">Übernehmen</button></div>`).join('')}</div>`:'<div class="status ok">Keine Aufgaben ohne Zuständigkeit.</div>');
 }
 
 async function claimOpenTask(taskId){
+  const body=document.getElementById('widget-body-open_office_tasks');
+  let message={text:'Übernommen – die Aufgabe steht jetzt unter „Meine Aufgaben“.'};
   try{
     await api('/api/tasks/'+taskId+'/claim',{method:'POST'});
-  }catch(e){alert('Fehler: '+e.message);return}
-  const body=document.getElementById('widget-body-open_office_tasks');
-  if(body)loadAndRenderOpenOfficeTasks(body);
+    const myTasks=document.getElementById('widget-body-my_tasks');
+    if(myTasks)renderMyTasksWidget(myTasks);
+  }catch(e){message={err:true,text:e.message}}
+  if(body)loadAndRenderOpenOfficeTasks(body,message);
 }
 
 async function renderCriticalFindingsWidget(container){
@@ -231,7 +238,7 @@ const WIDGETS={
   due_maintenance:{label:'Fällige Wartungen',render:renderDueMaintenanceWidget},
   due_assets:{label:'Fällige Betriebsmittelfristen',render:renderDueAssetsWidget},
   critical_findings:{label:'Akute Mängel',render:renderCriticalFindingsWidget},
-  open_office_tasks:{label:'Offene Büro-Aufgaben',render:renderOpenOfficeTasksWidget},
+  open_office_tasks:{label:'Ohne Zuständigkeit',render:renderOpenOfficeTasksWidget},
 };
 
 function visibleWidgets(){return layout.filter(w=>w.visible).sort((a,b)=>a.sort_order-b.sort_order)}

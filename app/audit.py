@@ -96,6 +96,26 @@ def current_actor() -> tuple[int | None, str]:
     return _actor_id.get(), _actor_name.get()
 
 
+TASK_ENTITY_TYPE = "Aufgabe"
+
+
+def record_audit_entry(session, *, action, entity_type, entity_id, entity_label, project_id=None,
+                       field_name=None, field_label=None, old_value=None, new_value=None,
+                       actor_user_id=None, actor_name=None):
+    """Historienzeile für eine Änderung, die an before_flush vorbeiläuft (seit 1.8.18: bedingtes
+    UPDATE beim Übernehmen einer Aufgabe, app/tasks.py::claim_task()). Committet nicht -- die
+    Zeile gehört in dieselbe Transaktion wie die Änderung selbst. Auslöser aus den Argumenten,
+    sonst aus dem Anfragekontext."""
+    session.add(AuditLog(
+        actor_user_id=actor_user_id if actor_user_id is not None else _actor_id.get(),
+        actor_name=actor_name or _actor_name.get(), action=action, entity_type=entity_type,
+        entity_id=str(entity_id), entity_label=(entity_label or "")[:255] or None, project_id=project_id,
+        field_name=field_name, field_label=field_label or FIELD_LABELS.get(field_name, field_name),
+        old_value=_text(old_value), new_value=_text(new_value), request_method=_request_method.get(),
+        request_path=_request_path.get(),
+    ))
+
+
 def _text(value):
     if value is None: return None
     if isinstance(value, (datetime, date)): return value.isoformat()

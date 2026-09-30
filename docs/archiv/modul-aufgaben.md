@@ -147,3 +147,51 @@ jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
     keiner Stelle (weder in der Liste noch im gemeinsamen Eingang) und kann sie auch mit
     bekannter ID nicht übernehmen (403) -- `field` bleibt ohnehin über `require_role()` am
     Router vollständig ausgeschlossen, unverändert.
+
+  - **Aufgaben ohne Zuständigkeit (seit 1.8.18)**: Zwischenrunde, drei Änderungen am obigen
+    claim/release-Modell, die Regeln selbst bleiben.
+
+    **Sichtbar für jedes Büro-Konto, nicht nur im Prinzip.** Die API lieferte den gemeinsamen
+    Eingang seit 1.4.3 an jedes Büro-Konto, die Oberfläche aber nicht: `/tasks` lud für
+    Nicht-Admins nur eigene Aufgaben, und das Dashboard-Widget "Offene Büro-Aufgaben" war opt-in
+    und prüfte noch die alte Rolle `office` (seit 1.4.7 in `buero_finanzen`/`buero_auftrag`
+    aufgeteilt) -- Büro-Konten sahen dort nur "Nur für Büro und Admin verfügbar.". Jetzt:
+    `/tasks` hat über dem Board einen Abschnitt "Ohne Zuständigkeit" (offene, nicht archivierte
+    Aufgaben aus `GET /api/tasks?unassigned_only=true`, je Karte "Übernehmen", im Editor ebenso);
+    das Board blendet genau diese Aufgaben aus, damit keine doppelt steht. Das Widget heißt "Ohne
+    Zuständigkeit", steht in `DEFAULT_WIDGETS` (sort_order 15, direkt nach "Meine Aufgaben") und
+    erscheint auch in bereits gespeicherten Layouts: `app/dashboard.py::get_widget_layout()` hängt
+    jedes Standard-Widget an, zu dem das gespeicherte Layout keine Zeile hat. Entfernen speichert
+    eine ausgeblendete Zeile und bleibt deshalb wirksam.
+
+    **Übernehmen ist ein bedingtes UPDATE.** `claim_task()` war Lesen-Prüfen-Schreiben; zwei
+    gleichzeitige Klicks bestanden beide die Prüfung, der Spätere überschrieb den Ersten still.
+    Jetzt `UPDATE tasks SET assigned_employee_id=... WHERE id=... AND assigned_employee_id IS NULL`;
+    trifft es keine Zeile, `ValueError(TASK_ALREADY_TAKEN)` -> 400 "Diese Aufgabe hat bereits
+    jemand anderes übernommen." (bewusst ohne Namen: bei einer geratenen ID einer fremden,
+    zugewiesenen Aufgabe verriete er die Zuständige). PostgreSQL (READ COMMITTED): das zweite
+    UPDATE wartet auf die Zeilensperre und prüft die Bedingung danach neu. Die Vorprüfungen
+    (Rolle -> 403, bereits vergeben -> 400) bleiben davor. Test-Falle beim Nachstellen des
+    Fensters: die Session hält Objekte nur schwach -- ohne festgehaltene Referenz liest
+    `claim_task()` neu und scheitert schon an der Vorprüfung, der Test prüft dann das UPDATE gar
+    nicht (so im ersten Entwurf von `tests/test_v322_unassigned_tasks.py` passiert, per
+    Gegenprobe mit der alten Logik aufgefallen).
+
+    **Änderungshistorie.** `Task` ist kein `AUDITED_TYPES`-Typ, und ein Core-UPDATE läuft ohnehin
+    an `before_flush` vorbei. Deshalb schreibt `claim_task()` die Zeile selbst über
+    `app/audit.py::record_audit_entry()` in derselben Transaktion: Aufgabe, "Nr. <id> · <Titel>",
+    Feld "Zuständig (übernommen)", "—" -> Name. Sichtbar nur für Admin (`app/routers/audit.py`
+    filtert `entity_type == "Aufgabe"` für alle anderen): der Eintrag nennt den Titel, eine
+    zugewiesene Aufgabe sieht außer der Zuständigen nur Admin, eine finanz-gebundene nie
+    buero_auftrag -- dieselbe Grenze wie die Aufgaben-Mails im Versandprotokoll (1.8.17).
+    "Zurück in den Büro-Eingang" und andere Aufgabenänderungen stehen weiterhin nicht in der
+    Historie.
+
+    **Rollenbindung über den Ursprung** gab es schon (`min_visible_role`, 1.5.0) und greift
+    unverändert in Liste, Dashboard, Suche und Übernehmen. Setzen tun sie heute: Skonto
+    (`incoming_invoices.py`, buero_finanzen), Kündigungsfrist (`recurring_costs.py`,
+    buero_finanzen) und jede Checklisten-Regel (`rule.min_visible_role`, Vorgabe buero_auftrag).
+    Eine Lohn-Aufgabe gibt es nicht. Offen bleibt die bekannte Lücke der Einzel-Endpunkte
+    (PUT/DELETE/archive/unarchive/release ohne Eigentümer- und Rollenprüfung): wer die ID einer
+    finanz-gebundenen Aufgabe errät, kann sie als buero_auftrag ändern und bekommt dabei den
+    Titel zurück.

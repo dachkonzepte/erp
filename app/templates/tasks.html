@@ -18,7 +18,7 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
 .secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
 .danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
 .hidden{display:none!important}
-.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
+.status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}.status.ok{color:var(--success)}
 .editor-card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
 .editor-card h2{margin:0 0 12px;font-size:16px}
 .fields-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -50,6 +50,11 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
 .checklist-row button{padding:3px 8px;font-size:12px}
 .checklist-add{display:flex;gap:8px;margin-top:8px}
 .checklist-hint{color:var(--muted);font-size:13px}
+.unassigned-card{background:var(--card);border:1px solid var(--line);padding:12px;margin-bottom:14px}
+.unassigned-card .hint{color:var(--muted);font-size:12.5px;margin:-4px 0 8px}
+.unassigned-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+.unassigned-list .task-card{margin:0}
+.task-actions{margin-top:8px}.task-actions button{padding:5px 10px;font-size:12.5px}
 @media(max-width:900px){.board{grid-template-columns:1fr}.fields-2col{grid-template-columns:1fr}}
 </style></head><body>
 <div class="app-layout">
@@ -65,6 +70,13 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
   <div class="field" style="flex:1;min-width:220px"><label>Suche</label><input id="searchInput" placeholder="Titel durchsuchen …" oninput="renderBoard()"></div>
   <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650"><input type="checkbox" id="showArchived" style="width:auto" onchange="renderBoard()"> Archivierte anzeigen</label>
   <span id="loadStatus" class="status"></span>
+</div>
+
+<div id="unassignedCard" class="unassigned-card">
+  <div class="column-head"><span>Ohne Zuständigkeit</span><span class="count" id="count-unassigned">0</span></div>
+  <div class="hint">Für jedes Büro-Konto sichtbar. „Übernehmen“ macht die Aufgabe zu Ihrer eigenen.</div>
+  <div id="unassignedStatus" class="status" style="margin-bottom:8px"></div>
+  <div id="unassignedList" class="unassigned-list"></div>
 </div>
 
 <div id="editorCard" class="editor-card hidden">
@@ -95,6 +107,7 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
   <div class="editor-actions">
     <button onclick="saveTask()">Speichern</button>
     <button class="secondary" onclick="closeEditor()">Abbrechen</button>
+    <button id="claimTaskButton" class="secondary hidden" onclick="claimTaskNow(editingTaskId)">Übernehmen</button>
     <button id="releaseTaskButton" class="secondary hidden" onclick="releaseTaskNow()">Zurück in den Büro-Eingang</button>
     <button id="archiveTaskButton" class="secondary hidden" onclick="toggleArchiveTask()">Archivieren</button>
     <button id="deleteTaskButton" class="danger hidden" onclick="deleteTaskConfirm()">Löschen</button>
@@ -115,7 +128,11 @@ function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
 const PRIORITY_LABELS={niedrig:'Niedrig',normal:'Normal',hoch:'Hoch',dringend:'Dringend'};
 
-let authStatus=null,employees=[],projects=[],tasks=[],columns=[],editingTaskId=null,selectedEmployeeId='';
+let authStatus=null,employees=[],projects=[],tasks=[],unassignedTasks=[],columns=[],editingTaskId=null,selectedEmployeeId='';
+
+// Seit 1.8.18: offene Aufgaben ohne Zuständigkeit stehen in einem eigenen Abschnitt über dem Board
+// (GET /api/tasks?unassigned_only=true, für jedes Büro-Konto). Das Board zeigt sie nicht noch einmal.
+function findTask(id){return tasks.find(x=>x.id===id)||unassignedTasks.find(x=>x.id===id)}
 
 function isOverdue(t){return t.due_date&&!t.status_is_done&&new Date(t.due_date+'T00:00:00')<new Date(new Date().toDateString())}
 
@@ -143,13 +160,19 @@ async function loadTasks(){
     const isAdmin=authStatus.user&&authStatus.user.role==='admin';
     const empId=isAdmin?selectedEmployeeId:(authStatus.user?authStatus.user.employee_id:null);
     const qs=(empId?'employee_id='+empId+'&':'')+'include_archived=true';
-    tasks=await api('/api/tasks?'+qs);
-    st.textContent='';
+    // Getrennt geladen: ein Büro-Konto ohne Mitarbeiter-Verknüpfung bekommt für die eigene Liste
+    // einen Fehler, den Abschnitt "Ohne Zuständigkeit" sieht es trotzdem.
+    const [own,open]=await Promise.allSettled([api('/api/tasks?'+qs),api('/api/tasks?unassigned_only=true')]);
+    tasks=own.status==='fulfilled'?own.value:[];
+    unassignedTasks=open.status==='fulfilled'?open.value.filter(t=>!t.status_is_done):[];
+    const errors=[...new Set([own,open].filter(r=>r.status==='rejected').map(r=>r.reason.message))];
+    st.className=errors.length?'status err':'status';
+    st.textContent=errors.length?'Fehler: '+errors.join(' · '):'';
     renderBoard();
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
-function card(t){
+function card(t,withClaim){
   const overdue=isOverdue(t);
   const badges=[`<span class="badge ${t.priority}">${esc(PRIORITY_LABELS[t.priority]||t.priority)}</span>`];
   if(t.archived)badges.push('<span class="badge archived">Archiviert</span>');
@@ -163,13 +186,19 @@ function card(t){
     badges.push(t.source_url?`<a class="badge source" href="${t.source_url}" onclick="event.stopPropagation()">${inner}</a>`:`<span class="badge source">${inner}</span>`);
   }
   const sub=[t.assigned_employee_name,t.project_number?`${t.project_number} · ${t.project_name||''}`:null].filter(Boolean).join(' · ');
-  return `<div class="task-card ${overdue?'overdue':''} ${t.archived?'archived':''}" onclick="openEditor(${t.id})"><div class="task-title">${esc(t.title)}</div><div class="task-meta">${badges.join('')}</div>${sub?`<div class="task-sub">${esc(sub)}</div>`:''}</div>`;
+  const claim=withClaim?`<div class="task-actions"><button class="secondary" onclick="event.stopPropagation();claimTaskNow(${t.id})">Übernehmen</button></div>`:'';
+  return `<div class="task-card ${overdue?'overdue':''} ${t.archived?'archived':''}" data-task-id="${t.id}" onclick="openEditor(${t.id})"><div class="task-title">${esc(t.title)}</div><div class="task-meta">${badges.join('')}</div>${sub?`<div class="task-sub">${esc(sub)}</div>`:''}${claim}</div>`;
 }
 
 function renderBoard(){
   const q=(document.getElementById('searchInput').value||'').toLowerCase().trim();
   const showArchived=document.getElementById('showArchived').checked;
-  const filtered=tasks.filter(t=>(!q||t.title.toLowerCase().includes(q))&&(showArchived||!t.archived));
+  const matches=t=>!q||t.title.toLowerCase().includes(q);
+  const inbox=unassignedTasks.filter(matches);
+  document.getElementById('unassignedList').innerHTML=inbox.map(t=>card(t,true)).join('')||'<div class="empty">Keine Aufgaben ohne Zuständigkeit</div>';
+  document.getElementById('count-unassigned').textContent=inbox.length;
+  const inboxIds=new Set(unassignedTasks.map(t=>t.id));
+  const filtered=tasks.filter(t=>!inboxIds.has(t.id)&&matches(t)&&(showArchived||!t.archived));
   const byStatus={};
   columns.forEach(c=>{byStatus[c.key]=[]});
   filtered.forEach(t=>{(byStatus[t.status]||(byStatus[t.status]=[])).push(t)});
@@ -200,6 +229,7 @@ function openCreateEditor(){
   document.getElementById('editProject').innerHTML=projectOptionsHtml(null);
   document.getElementById('editorSourceInfo').classList.add('hidden');
   document.getElementById('createProjectFromTaskWrap').classList.add('hidden');
+  document.getElementById('claimTaskButton').classList.add('hidden');
   document.getElementById('releaseTaskButton').classList.add('hidden');
   document.getElementById('archiveTaskButton').classList.add('hidden');
   document.getElementById('deleteTaskButton').classList.add('hidden');
@@ -211,7 +241,7 @@ function openCreateEditor(){
 }
 
 function openEditor(id){
-  const t=tasks.find(x=>x.id===id);
+  const t=findTask(id);
   if(!t)return;
   editingTaskId=id;
   document.getElementById('editorHeading').textContent=`Aufgabe · ${t.title}`;
@@ -226,6 +256,7 @@ function openEditor(id){
   if(t.source_label){info.classList.remove('hidden');info.textContent='Automatisch angelegt: '+t.source_label}
   else{info.classList.add('hidden')}
   updateCreateProjectFromTaskButton(t);
+  document.getElementById('claimTaskButton').classList.toggle('hidden',!!t.assigned_employee_id);
   document.getElementById('releaseTaskButton').classList.toggle('hidden',!t.assigned_employee_id);
   const archiveBtn=document.getElementById('archiveTaskButton');
   archiveBtn.classList.remove('hidden');
@@ -269,7 +300,7 @@ function renderChecklist(items){
 async function refreshEditorTask(){
   if(!editingTaskId)return;
   await loadTasks();
-  const t=tasks.find(x=>x.id===editingTaskId);
+  const t=findTask(editingTaskId);
   if(t)renderChecklist(t.checklist_items||[]);
 }
 
@@ -334,6 +365,17 @@ async function deleteTaskConfirm(){
   }catch(e){document.getElementById('editorStatus').textContent='Fehler: '+e.message}
 }
 
+async function claimTaskNow(id){
+  if(!id)return;
+  const st=document.getElementById('unassignedStatus');
+  try{
+    await api(`/api/tasks/${id}/claim`,{method:'POST'});
+    st.className='status ok';st.textContent='Übernommen – die Aufgabe steht jetzt bei Ihren Aufgaben.';
+  }catch(e){st.className='status err';st.textContent=e.message}
+  if(editingTaskId===id)closeEditor();
+  await loadTasks();
+}
+
 async function releaseTaskNow(){
   if(!editingTaskId)return;
   try{
@@ -345,7 +387,7 @@ async function releaseTaskNow(){
 
 async function toggleArchiveTask(){
   if(!editingTaskId)return;
-  const t=tasks.find(x=>x.id===editingTaskId);
+  const t=findTask(editingTaskId);
   const archive=!(t&&t.archived);
   try{
     await api(`/api/tasks/${editingTaskId}/${archive?'archive':'unarchive'}`,{method:'POST'});
@@ -366,10 +408,11 @@ async function init(){
   await loadFilters();
   await loadTasks();
   // Direkteinstieg vom Dashboard-Widget "Meine Aufgaben" (?task=<id>, seit 1.3.24, Muster
-  // ?report= aus 1.2.22) -- fehlt die Aufgabe im aktuell geladenen Board (z. B. Admin-Filter auf
-  // eine andere Person), passiert nichts, kein Fehler.
+  // ?report= aus 1.2.22) und seit 1.8.18 von "Ohne Zuständigkeit" -- fehlt die Aufgabe im
+  // aktuell geladenen Board und im Abschnitt (z. B. Admin-Filter auf eine andere Person),
+  // passiert nichts, kein Fehler.
   const deepLinkTaskId=Number(new URLSearchParams(location.search).get('task'))||null;
-  if(deepLinkTaskId&&tasks.some(t=>t.id===deepLinkTaskId)){
+  if(deepLinkTaskId&&findTask(deepLinkTaskId)){
     openEditor(deepLinkTaskId);
   }
 }

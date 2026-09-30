@@ -9,10 +9,10 @@ from fastapi import APIRouter
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from ..audit import ABSENCE_ENTITY_TYPES, ABSENCE_FIELD_NAMES, WAGE_FIELD_NAMES, audit_rows, redact_absence_snapshot, redact_wage_snapshot
+from ..audit import ABSENCE_ENTITY_TYPES, ABSENCE_FIELD_NAMES, TASK_ENTITY_TYPE, WAGE_FIELD_NAMES, audit_rows, redact_absence_snapshot, redact_wage_snapshot
 from ..database import get_db
 from ..models import AppUser
-from ..permissions import ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, require_min_role
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, has_role, require_min_role
 from ..schemas import AuditLogOut
 
 router = APIRouter()
@@ -25,6 +25,12 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 @router.get("/api/audit-logs", response_model=list[AuditLogOut])
 def list_audit_logs(project_id: int | None = None, entity_type: str | None = None, entity_id: str | None = None, actor: str | None = None, limit: int = 250, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     rows = audit_rows(db, project_id=project_id, entity_type=entity_type, entity_id=entity_id, actor=actor, limit=limit)
+    if has_role(_role, ROLE_ADMIN):
+        return rows
+    # Aufgaben (seit 1.8.18, "Übernehmen"): der Eintrag nennt den Titel, und eine zugewiesene
+    # Aufgabe sieht außer dem Zuständigen nur Admin; eine finanz-gebundene nie buero_auftrag.
+    # Deshalb nur für Admin -- dieselbe Grenze wie beim Versandprotokoll (Aufgaben-Mails, 1.8.17).
+    rows = [row for row in rows if row.entity_type != TASK_ENTITY_TYPE]
     if has_min_role(_role, ROLE_OFFICE_FINANZEN):
         return rows
     # Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8): buero_auftrag sieht denselben Endpunkt,
