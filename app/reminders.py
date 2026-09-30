@@ -228,7 +228,10 @@ def get_reminder_recipient_email(reminder: Reminder) -> str | None:
     return (customer.email or None) if customer else None
 
 
-def send_reminder_email(db: Session, reminder: Reminder, *, to_email: str | None = None) -> Reminder:
+def send_reminder_email(
+    db: Session, reminder: Reminder, *, to_email: str | None = None, cc_email: str | None = None,
+    dispatch_key: str | None = None, user=None,
+) -> Reminder:
     """Versendet eine bereits finalisierte Mahnung tatsächlich per E-Mail
     (seit 1.0.74) -- bewusst getrennt von finalize_and_send_reminder()
     (das nur Nummer und Status setzt, siehe Klärung: PDF-Erzeugung soll
@@ -244,8 +247,11 @@ def send_reminder_email(db: Session, reminder: Reminder, *, to_email: str | None
     PDF-Erzeugung erfolgt hier lokal (nicht über einen Import aus
     app/reminder_pdf.py am Modulanfang), um einen Zirkel-Import zu
     vermeiden: reminder_pdf.py baut auf document_pdf.py auf, das seinerseits
-    nicht auf reminders.py zurückgreifen soll."""
-    from .email_sending import send_email_with_attachment
+    nicht auf reminders.py zurückgreifen soll.
+
+    Seit 1.8.17 über app/email_dispatch.py (Protokoll, Ablage, Doppelversand-Sperre, CC), siehe
+    send_invoice_email() in app/invoices.py."""
+    from .email_dispatch import actor_of, dispatch_email, mark_document_sent, new_dispatch_key
     from .reminder_pdf import build_reminder_pdf
 
     if reminder.status != "versendet":
@@ -265,15 +271,14 @@ def send_reminder_email(db: Session, reminder: Reminder, *, to_email: str | None
     body = _apply_placeholders(body_template, placeholders)
 
     pdf_bytes = build_reminder_pdf(db, reminder)
-    send_email_with_attachment(
-        db, to_email=recipient, subject=subject, body_text=body,
-        attachment_bytes=pdf_bytes, attachment_filename=f"{reminder.reminder_number}.pdf",
+    user_id, user_name = actor_of(user)
+    result = dispatch_email(
+        db, dispatch_key=dispatch_key or new_dispatch_key("mahnung"), document_type="mahnung",
+        document_id=reminder.id, document_number=reminder.reminder_number, to=recipient, cc=cc_email,
+        subject=subject, body_text=body, attachment_bytes=pdf_bytes,
+        attachment_filename=f"{reminder.reminder_number}.pdf", user_id=user_id, user_name=user_name,
     )
-
-    reminder.email_sent_at = datetime.utcnow()
-    reminder.email_sent_to = recipient
-    db.commit()
-    db.refresh(reminder)
+    mark_document_sent(db, reminder, result)
     return reminder
 
 

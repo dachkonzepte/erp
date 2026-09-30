@@ -2,11 +2,16 @@
 1.0.79 erweitert).
 
 Bewusst eigenständig und ohne jeden Bezug zu einem bestimmten
-Geschäftsobjekt -- soll künftig für alle Vorgänge (Angebot/Auftrag/
-Rechnung/Mahnung) dieselbe, einmal hinterlegte Konfiguration verwenden. Die
-konkrete Zusammenstellung von Betreff/Text/Anhang bleibt Aufgabe des
-jeweiligen Fachmoduls (aktuell app/reminders.py) -- hier lebt nur das
-"Wie", nicht das "Was" des Versands.
+Geschäftsobjekt -- alle Vorgänge (Angebot/Auftrag/Rechnung/Mahnung/Aufgabe)
+verwenden dieselbe, einmal hinterlegte Konfiguration. Die konkrete
+Zusammenstellung von Betreff/Text/Anhang bleibt Aufgabe des jeweiligen
+Fachmoduls -- hier lebt nur das "Wie", nicht das "Was" des Versands.
+
+Seit 1.8.17 geht jeder Versand über app/email_dispatch.py (Versandprotokoll,
+Ablage, Sperre gegen Doppelversand); send_message() hier ist nur noch der
+Transport und hat keinen anderen Aufrufer. Die früheren Einstiege
+send_email_with_attachment()/send_plain_email() sind entfallen, damit kein
+Versand am Protokoll vorbeigeht.
 
 Zwei grundsätzlich verschiedene Versandwege, wählbar über
 SmtpSettings.send_method (Klärung: "zusätzlich als wählbare Alternative"):
@@ -53,6 +58,10 @@ ENCRYPTION_MODES = {"starttls", "ssl", "none"}
 SEND_METHODS = {"smtp", "graph_oauth2"}
 GRAPH_TOKEN_TIMEOUT = 15
 GRAPH_SEND_TIMEOUT = 30
+# 3 MB (dezimal) Anhang: Base64 macht daraus 4,0 MB, mit Mailtext und JSON-Hülle bleibt die Anfrage
+# sicher unter der 4-MiB-Grenze einer Graph-Anfrage (4.194.304 Bytes). 3 MiB wären in Base64 schon
+# exakt 4 MiB -- ohne jeden Platz für den Rest der Nachricht.
+MAX_ATTACHMENT_BYTES = 3_000_000
 
 
 def get_or_create_smtp_settings(db: Session) -> SmtpSettings:
@@ -213,12 +222,17 @@ def check_smtp_connection(db: Session) -> None:
     conn.quit()
 
 
-def _send_via_smtp(settings: SmtpSettings, *, to_email: str, subject: str, body_text: str,
-                    attachment_bytes: bytes | None = None, attachment_filename: str | None = None) -> None:
+def _send_via_smtp(settings: SmtpSettings, *, to: list[str], cc: list[str], subject: str, body_text: str,
+                    attachment_bytes: bytes | None = None, attachment_filename: str | None = None,
+                    headers: dict[str, str] | None = None) -> None:
     msg = MIMEMultipart()
     msg["From"] = formataddr((settings.sender_name or settings.sender_email, settings.sender_email))
-    msg["To"] = to_email
+    msg["To"] = ", ".join(to)
+    if cc:
+        msg["Cc"] = ", ".join(cc)
     msg["Subject"] = subject
+    for name, value in (headers or {}).items():
+        msg[name] = value
     msg.attach(MIMEText(body_text, "plain", "utf-8"))
     if attachment_bytes is not None and attachment_filename is not None:
         part = MIMEApplication(attachment_bytes, _subtype="pdf")
@@ -227,7 +241,8 @@ def _send_via_smtp(settings: SmtpSettings, *, to_email: str, subject: str, body_
 
     conn = _connect_smtp(settings)
     try:
-        conn.sendmail(settings.sender_email, [to_email], msg.as_string())
+        # Umschlag-Empfänger = An + CC; eine Bcc-Kopfzeile gibt es bewusst nicht.
+        conn.sendmail(settings.sender_email, [*to, *cc], msg.as_string())
     except smtplib.SMTPException as e:
         raise ValueError(f"E-Mail-Versand fehlgeschlagen: {e}") from e
     finally:
@@ -252,20 +267,31 @@ def _graph_error_hint(detail: str) -> str:
     return ""
 
 
-def _send_via_graph(settings: SmtpSettings, *, to_email: str, subject: str, body_text: str,
-                     attachment_bytes: bytes | None = None, attachment_filename: str | None = None) -> None:
+def _send_via_graph(settings: SmtpSettings, *, to: list[str], cc: list[str], subject: str, body_text: str,
+                     attachment_bytes: bytes | None = None, attachment_filename: str | None = None,
+                     headers: dict[str, str] | None = None) -> None:
+    """sendMail mit Anhang inline (fileAttachment) -- der einzige Weg, der mit Mail.Send allein
+    auskommt (Regel 17). Größere Anhänge bräuchten eine Upload-Sitzung an einem Entwurf, also
+    Mail.ReadWrite; deshalb die Größengrenze in check_attachment_size(). Eigene Kopfzeilen gehen
+    über internetMessageHeaders (Graph verlangt das Präfix "X-"). Antwort bei Erfolg: 202 ohne
+    Inhalt -- es gibt nichts zu lesen außer dem leeren Körper."""
     token = get_graph_access_token(settings)
     mailbox = urllib.parse.quote(settings.graph_sender_mailbox)
     url = f"https://graph.microsoft.com/v1.0/users/{mailbox}/sendMail"
     message: dict = {
         "subject": subject,
         "body": {"contentType": "Text", "content": body_text},
-        "toRecipients": [{"emailAddress": {"address": to_email}}],
+        "toRecipients": [{"emailAddress": {"address": address}} for address in to],
     }
+    if cc:
+        message["ccRecipients"] = [{"emailAddress": {"address": address}} for address in cc]
+    if headers:
+        message["internetMessageHeaders"] = [{"name": name, "value": value} for name, value in headers.items()]
     if attachment_bytes is not None and attachment_filename is not None:
         message["attachments"] = [{
             "@odata.type": "#microsoft.graph.fileAttachment",
             "name": attachment_filename,
+            "contentType": "application/pdf",
             "contentBytes": base64.b64encode(attachment_bytes).decode("ascii"),
         }]
     payload = {"message": message, "saveToSentItems": "true"}
@@ -275,7 +301,8 @@ def _send_via_graph(settings: SmtpSettings, *, to_email: str, subject: str, body
         "Content-Type": "application/json",
     })
     try:
-        urllib.request.urlopen(req, timeout=GRAPH_SEND_TIMEOUT)
+        with urllib.request.urlopen(req, timeout=GRAPH_SEND_TIMEOUT) as resp:
+            resp.read()
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace")
         raise ValueError(f"E-Mail-Versand über Microsoft 365 fehlgeschlagen: {detail}{_graph_error_hint(detail)}") from e
@@ -283,35 +310,42 @@ def _send_via_graph(settings: SmtpSettings, *, to_email: str, subject: str, body
         raise ValueError(f"Verbindung zu Microsoft 365 fehlgeschlagen: {e}") from e
 
 
-def send_email_with_attachment(
-    db: Session, *, to_email: str, subject: str, body_text: str,
-    attachment_bytes: bytes, attachment_filename: str,
+def check_attachment_size(attachment_bytes: bytes | None, attachment_filename: str | None) -> None:
+    """Vor dem Senden: höchstens MAX_ATTACHMENT_BYTES (3 MB). Microsoft Graph nimmt mit sendMail
+    höchstens 4 MB je Anfrage an und antwortet darüber mit 413; größere Anhänge bräuchten eine
+    Upload-Sitzung und damit Mail.ReadWrite (Regel 17: nur Mail.Send). Gilt bewusst für BEIDE
+    Versandwege, damit ein Dokument nicht je nach eingestelltem Weg mal hinausgeht und mal nicht."""
+    if attachment_bytes is None or len(attachment_bytes) <= MAX_ATTACHMENT_BYTES:
+        return
+    size_mb = f"{len(attachment_bytes) / 1_000_000:.1f}".replace(".", ",")
+    raise ValueError(
+        f"Der Anhang „{attachment_filename}“ ist {size_mb} MB groß -- per E-Mail gehen höchstens 3 MB. "
+        "Grund ist die Grenze von Microsoft 365 für den Versand mit Anhang; sie gilt hier für beide "
+        "Versandwege. Es wurde nichts versendet. Bitte das PDF verkleinern (z. B. weniger oder "
+        "kleinere Fotos, kleineres Briefpapier) oder das Dokument auf anderem Weg zustellen."
+    )
+
+
+def send_message(
+    settings: SmtpSettings, *, to: list[str], cc: list[str], subject: str, body_text: str,
+    attachment_bytes: bytes | None = None, attachment_filename: str | None = None,
+    headers: dict[str, str] | None = None,
 ) -> None:
-    """Versendet eine E-Mail mit genau einem PDF-Anhang über die aktuell
-    gewählte Konfiguration (SmtpSettings.send_method). Wirft ValueError bei
-    fehlender Konfiguration oder Versandfehler -- der Aufrufer (z.B.
-    send_reminder_email() in app/reminders.py) entscheidet, wie das dem
-    Menschen angezeigt wird."""
-    settings = get_or_create_smtp_settings(db)
+    """Der eigentliche Versand über den eingestellten Weg (SmtpSettings.send_method). NUR aus
+    app/email_dispatch.py aufrufen -- jeder Versand geht durch Protokoll und Ablage
+    (tests/test_v321_email_dispatch.py prüft per AST, dass es keinen zweiten Aufrufer gibt).
+    Wirft ValueError bei Versandfehlern; Konfiguration und Größe prüft der Aufrufer vorher."""
+    kwargs = dict(
+        to=to, cc=cc, subject=subject, body_text=body_text, attachment_bytes=attachment_bytes,
+        attachment_filename=attachment_filename, headers=headers,
+    )
+    if settings.send_method == "graph_oauth2":
+        _send_via_graph(settings, **kwargs)
+    else:
+        _send_via_smtp(settings, **kwargs)
+
+
+def ensure_configured(settings: SmtpSettings) -> None:
     missing = _missing_config_fields(settings)
     if missing:
         raise ValueError(f"E-Mail-Versand ist noch nicht konfiguriert. Es fehlt: {', '.join(missing)} (Einstellungen → E-Mail-Versand).")
-    if settings.send_method == "graph_oauth2":
-        _send_via_graph(settings, to_email=to_email, subject=subject, body_text=body_text, attachment_bytes=attachment_bytes, attachment_filename=attachment_filename)
-    else:
-        _send_via_smtp(settings, to_email=to_email, subject=subject, body_text=body_text, attachment_bytes=attachment_bytes, attachment_filename=attachment_filename)
-
-
-def send_plain_email(db: Session, *, to_email: str, subject: str, body_text: str) -> None:
-    """Wie send_email_with_attachment(), aber ohne Anhang -- für reine System-
-    Benachrichtigungen (seit 1.1.3, z. B. Aufgaben-Zuweisung), die keinem Dokument
-    entsprechen. Wirft ValueError bei fehlender Konfiguration oder Versandfehler,
-    genau wie send_email_with_attachment()."""
-    settings = get_or_create_smtp_settings(db)
-    missing = _missing_config_fields(settings)
-    if missing:
-        raise ValueError(f"E-Mail-Versand ist noch nicht konfiguriert. Es fehlt: {', '.join(missing)} (Einstellungen → E-Mail-Versand).")
-    if settings.send_method == "graph_oauth2":
-        _send_via_graph(settings, to_email=to_email, subject=subject, body_text=body_text)
-    else:
-        _send_via_smtp(settings, to_email=to_email, subject=subject, body_text=body_text)

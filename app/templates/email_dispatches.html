@@ -1,0 +1,112 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP · Versandprotokoll</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--warning:#9b6a12;--warning-soft:#fdf3dc;--success:#1f8a5f;--success-soft:#eaf5ef;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}main{padding:18px;max-width:1400px;margin:0}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+h1{margin:0 0 4px;color:var(--ink)}h2{margin:0 0 4px;color:var(--ink)}.muted{color:var(--muted)}.small{font-size:12px}
+.card.stuck{background:var(--warning-soft);border-color:transparent;color:var(--ink)}
+.card.stuck b{color:var(--warning)}
+.filters{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.filters label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+select{font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);min-width:170px}
+select:hover{border-color:var(--field-border-hover)}
+table{width:100%;border-collapse:collapse}th{text-align:left;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800;padding:8px;border-bottom:2px solid var(--line)}
+td{padding:10px 8px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top}
+.pill{background:var(--soft);padding:4px 9px;font-size:11px;font-weight:800;display:inline-block;white-space:nowrap}
+.pill.gesendet{background:var(--success-soft);color:var(--success)}
+.pill.fehlgeschlagen{background:var(--danger-soft);color:var(--danger)}
+.pill.in_arbeit{background:var(--warning-soft);color:var(--warning)}
+.pill.haengt{background:var(--danger-soft);color:var(--danger)}
+a.link{color:var(--accent);font-weight:700;text-decoration:none}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;word-break:break-all}
+.check-ok{color:var(--success);font-weight:700}.check-bad{color:var(--danger);font-weight:700}
+button{font-family:inherit;cursor:pointer;padding:6px 11px;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button:hover{background:var(--soft)}
+.row-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px}
+</style></head><body>
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+{% include "_topbar.html" %}
+<main>
+<div class="card"><h1>Versandprotokoll</h1><div class="muted">Jeder E-Mail-Versand von Angeboten, Aufträgen, Rechnungen und Mahnungen – mit dem abgelegten PDF genau so, wie es hinausging. Einträge werden nie geändert oder gelöscht.</div></div>
+<div class="card stuck" id="stuckCard" style="display:none"></div>
+<div class="card">
+  <div class="filters">
+    <label>Status<select id="filterStatus" onchange="reload()"><option value="">Alle</option><option value="in_arbeit">In Arbeit</option><option value="gesendet">Gesendet</option><option value="fehlgeschlagen">Fehlgeschlagen</option><option value="haengt">Hängengeblieben</option></select></label>
+    <label>Art<select id="filterType" onchange="reload()"><option value="">Alle</option><option value="angebot">Angebot</option><option value="auftrag">Auftrag</option><option value="rechnung">Rechnung</option><option value="mahnung">Mahnung</option>{% if can(request.state.erp_user, 'admin') %}<option value="aufgabe">Aufgaben-Benachrichtigung</option>{% endif %}</select></label>
+    <span class="small muted" id="docFilter"></span>
+  </div>
+</div>
+<div class="card">
+  <div style="overflow:auto"><table><thead><tr><th>Zeitpunkt</th><th>Dokument</th><th>An / CC</th><th>Betreff</th><th>Weg · Benutzer</th><th>Status</th><th>Ablage</th></tr></thead><tbody id="rows"><tr><td colspan="7" class="empty">Lade …</td></tr></tbody></table></div>
+  <div class="small muted" style="margin-top:8px">Die Kennung je Versand geht als Kopfzeile <code>X-DK-Versand-ID</code> mit der Mail – damit lässt sich eine Nachricht im Postausgang eindeutig zuordnen.</div>
+</div>
+</main>
+</div>
+</div>
+<script>
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+// Der Server liefert *_local bereits in Berliner Zeit (naiv) -- nur umformatieren, nicht umrechnen.
+function fmtLocal(v){if(!v)return '';const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);return m?`${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}`:esc(v)}
+function fmtSize(n){return n>=1048576?(n/1048576).toFixed(1).replace('.',',')+' MB':Math.max(1,Math.round(n/1024))+' KB'}
+const params=new URLSearchParams(location.search);
+const docType=params.get('typ')||'', docId=params.get('id')||'';
+function docLink(d){
+  const label=`${esc(d.document_type_label)} ${esc(d.document_number||(d.document_id?'#'+d.document_id:''))}`;
+  const id=d.document_id;
+  const href={angebot:`/quotes/${id}/edit`,auftrag:`/orders/${id}`,rechnung:`/invoices/${id}`,mahnung:'/mahnwesen',aufgabe:`/tasks?task=${id}`}[d.document_type];
+  return id&&href?`<a class="link" href="${href}">${label}</a>`:label;
+}
+function statusCell(d){
+  if(d.stuck) return `<span class="pill haengt">Hängt</span><div class="small muted">seit ${fmtLocal(d.created_at_local)} in Arbeit – Ausgang unklar</div>`;
+  let html=`<span class="pill ${esc(d.status)}">${esc(d.status_label)}</span>`;
+  if(d.finished_at_local) html+=`<div class="small muted">${fmtLocal(d.finished_at_local)}</div>`;
+  if(d.status==='fehlgeschlagen'&&d.error_class) html+=`<div class="small muted">${esc(d.error_class)}${d.error_code?' · '+esc(d.error_code):''}</div>`;
+  return html;
+}
+function archiveCell(d){
+  const a=d.sent_document;
+  if(!a) return '<span class="small muted">ohne Anhang</span>';
+  return `<div class="small">${esc(a.filename)} · ${fmtSize(a.size_bytes)}</div><div class="mono muted" title="SHA-256 ${esc(a.sha256)}">SHA-256 ${esc(a.sha256.slice(0,16))}…</div>
+    <div class="row-actions"><button onclick="window.open('/api/sent-documents/${a.id}/file','_blank')">PDF</button><button onclick="checkArchive(${a.id},this)">Prüfen</button></div><div class="small" id="check${a.id}"></div>`;
+}
+async function checkArchive(id,btn){
+  const out=document.getElementById('check'+id);btn.disabled=true;out.textContent='prüfe …';out.className='small muted';
+  try{const r=await api(`/api/sent-documents/${id}/check`);out.textContent=r.check.text;out.className='small '+(r.check.status==='unveraendert'?'check-ok':'check-bad')}
+  catch(e){out.textContent='Fehler: '+e.message;out.className='small check-bad'}
+  finally{btn.disabled=false}
+}
+async function reload(){
+  const status=document.getElementById('filterStatus').value, type=document.getElementById('filterType').value||docType;
+  const q=new URLSearchParams();
+  if(status==='haengt') q.set('stuck','true'); else if(status) q.set('status',status);
+  if(type) q.set('document_type',type);
+  if(docId) q.set('document_id',docId);
+  const rows=document.getElementById('rows');
+  try{
+    const data=await api('/api/email-dispatches?'+q.toString());
+    const stuck=document.getElementById('stuckCard');
+    if(data.stuck_count){
+      stuck.style.display='';
+      stuck.innerHTML=`<b>${data.stuck_count===1?'Ein Versand hängt':data.stuck_count+' Versände hängen'}</b> seit mehr als ${data.stuck_after_minutes} Minuten in Arbeit. Ob die Mail hinausging, ist unklar – bitte im Postausgang (Gesendete Elemente) nach der Kennung suchen. Es wird nichts automatisch erneut gesendet; ein neuer Versand ist ein neuer Klick auf der Dokumentseite.`;
+    }else stuck.style.display='none';
+    rows.innerHTML=data.items.length?data.items.map(d=>`<tr>
+      <td>${fmtLocal(d.created_at_local)}<div class="mono muted" title="Kopfzeile X-DK-Versand-ID">${esc(d.message_ref)}</div></td>
+      <td>${docLink(d)}</td>
+      <td>${esc(d.to_recipients)}${d.cc_recipients?`<div class="small muted">CC: ${esc(d.cc_recipients)}</div>`:''}</td>
+      <td>${esc(d.subject)}</td>
+      <td>${esc(d.channel_label)}<div class="small muted">${esc(d.created_by_name)}</div></td>
+      <td>${statusCell(d)}</td>
+      <td>${archiveCell(d)}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">Keine Einträge.</td></tr>';
+  }catch(e){rows.innerHTML=`<tr><td colspan="7" class="empty">Fehler: ${esc(e.message)}</td></tr>`}
+}
+if(docType){document.getElementById('filterType').value=docType}
+if(docId){document.getElementById('docFilter').innerHTML=`Nur ein Dokument · <a class="link" href="/versandprotokoll">alle anzeigen</a>`}
+reload();
+</script>
+</body></html>

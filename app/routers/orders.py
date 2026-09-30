@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
+from ..email_dispatch import DispatchConflict
 from ..invoices import invoice_summary_for_order
 from ..models import AppUser, Order, ServiceReport
 from ..order_pdf import build_order_pdf
@@ -215,12 +216,17 @@ def order_pdf(order_id: int, db: Session = Depends(get_db), _role: AppUser = _ro
 
 
 @router.post("/api/orders/{order_id}/send-email", response_model=OrderOut)
-def post_send_order_email(order_id: int, payload: OrderEmailSend, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_send_order_email(order_id: int, payload: OrderEmailSend, db: Session = Depends(get_db), user: AppUser = _role_dep):
     order = load_order(db, order_id)
     if order is None:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
     try:
-        updated = send_order_email(db, order, to_email=payload.to_email)
+        updated = send_order_email(
+            db, order, to_email=payload.to_email, cc_email=payload.cc_email,
+            dispatch_key=payload.dispatch_key, user=user,
+        )
+    except DispatchConflict as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return order_to_dict(updated, db)

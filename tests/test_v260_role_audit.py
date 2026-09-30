@@ -785,7 +785,7 @@ class TestPageRouteClassification:
             "/quotes/1/edit", "/orders/1", "/invoices/1", "/finanzen", "/mahnwesen", "/changelog",
             "/orders/1/work-preparation", "/roof-areas/1", "/properties/1", "/findings",
             "/inspection-templates", "/inspection-templates/1", "/inquiries", "/customers/1", "/settings",
-            "/history", "/checklisten", "/checklisten/vorlagen", "/checklisten/vorlagen/1",
+            "/history", "/checklisten", "/checklisten/vorlagen", "/checklisten/vorlagen/1", "/versandprotokoll",
         ):
             assert field.get(path, follow_redirects=False).status_code == 403, path
 

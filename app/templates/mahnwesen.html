@@ -31,8 +31,9 @@ button.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
+{% include "_email_dispatch.html" %}
 <main>
-<div class="card"><h1>Mahnwesen</h1><div class="muted">Überfällige Rechnungen, offene Mahnungsentwürfe und die vollständige Mahnungshistorie.</div></div>
+<div class="card"><h1>Mahnwesen</h1><div class="muted">Überfällige Rechnungen, offene Mahnungsentwürfe und die vollständige Mahnungshistorie. Jeder E-Mail-Versand steht im <a class="link" href="/versandprotokoll?typ=mahnung">Versandprotokoll</a>.</div></div>
 <div class="card" id="autoCreateBanner" style="display:none;background:var(--success-soft);border-color:transparent;font-weight:700"></div>
 <div class="metrics" id="metrics"></div>
 <div class="card" id="editorCard" style="display:none">
@@ -128,7 +129,7 @@ function emailStatusLabel(r){
 }
 function renderAllRows(){
   document.getElementById('allRows').innerHTML=allReminders.length?allReminders.map(r=>{
-    const emailAction = r.status==='versendet' ? `<div style="display:flex;gap:5px;align-items:center"><input id="reminderEmailInput${r.id}" type="email" value="${esc(r.recipient_email||'')}" placeholder="E-Mail-Adresse" style="padding:5px 7px;border:1px solid var(--field-border);font-family:inherit;font-size:12px;width:150px;background:var(--card);color:var(--ink)"><button onclick="sendReminderEmail(${r.id})">✉️</button></div><div style="margin-top:3px">${emailStatusLabel(r)}</div>` : '<span class="small muted">erst nach Finalisieren</span>';
+    const emailAction = r.status==='versendet' ? `<div style="display:flex;gap:5px;align-items:center"><div style="display:flex;flex-direction:column;gap:4px"><input id="reminderEmailInput${r.id}" type="email" multiple value="${esc(r.recipient_email||'')}" placeholder="An – mehrere mit Komma" title="Empfänger, mehrere mit Komma trennen" style="padding:5px 7px;border:1px solid var(--field-border);font-family:inherit;font-size:12px;width:170px;background:var(--card);color:var(--ink)"><input id="reminderCcInput${r.id}" type="email" multiple placeholder="CC (optional)" title="CC, mehrere mit Komma trennen" style="padding:5px 7px;border:1px solid var(--field-border);font-family:inherit;font-size:12px;width:170px;background:var(--card);color:var(--ink)"></div><button onclick="sendReminderEmail(${r.id},this)" title="Per E-Mail senden">✉️</button></div><div style="margin-top:3px">${emailStatusLabel(r)}</div>` : '<span class="small muted">erst nach Finalisieren</span>';
     // Entwürfe sind hier -- anders als in "Benötigt Aufmerksamkeit" -- oft die einzige Stelle, an
     // der ein Betreiber die Mahnungshistorie insgesamt durchsieht; Versenden/Löschen fehlten hier
     // bisher komplett, obwohl ein Entwurf gerade in dieser Tabelle als solcher erkennbar ist.
@@ -141,12 +142,13 @@ function renderAllRows(){
     return `<tr><td><b>${esc(r.reminder_number||'(Entwurf)')}</b></td><td><a class="link" href="/invoices/${r.invoice_id}">${esc(r.invoice_number||'—')}</a></td><td>${esc(r.customer_name)}</td><td>${esc(levelLabel(r.level))}</td><td>${fmtDate(r.reminder_date)}</td><td class="number">${money(r.total_amount)}</td><td>${r.status==='entwurf'?'<span class="pill entwurf">Entwurf</span>':'<span class="pill">Versendet</span>'}</td><td>${actions}</td><td>${emailAction}</td></tr>`;
   }).join(''):'<tr><td colspan="9" class="empty">Noch keine Mahnungen erstellt.</td></tr>';
 }
-async function sendReminderEmail(id){
+async function sendReminderEmail(id, btn){
   const input = document.getElementById('reminderEmailInput'+id);
   const toEmail = input.value.trim();
+  const ccEmail = document.getElementById('reminderCcInput'+id).value.trim();
   if(!toEmail){ alert('Bitte eine E-Mail-Adresse angeben.'); return; }
   try{
-    await api(`/api/reminders/${id}/send-email`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({to_email: toEmail})});
+    await postEmailDispatch('mahnung-'+id, `/api/reminders/${id}/send-email`, {to_email: toEmail, cc_email: ccEmail || null}, btn);
     await reload();
   }catch(e){ alert('Fehler beim Versenden: ' + e.message) }
 }

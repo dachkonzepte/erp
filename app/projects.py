@@ -566,7 +566,10 @@ def get_quote_recipient_email(quote: Quote) -> str | None:
     return (customer.email or None) if customer else None
 
 
-def send_quote_email(db: Session, quote: Quote, *, to_email: str | None = None) -> Quote:
+def send_quote_email(
+    db: Session, quote: Quote, *, to_email: str | None = None, cc_email: str | None = None,
+    dispatch_key: str | None = None, user=None,
+) -> Quote:
     """Versendet ein Angebot tatsächlich per E-Mail (seit 1.0.87) -- analog
     zu send_invoice_email()/send_reminder_email(). Anders als bei Rechnung/
     Mahnung gibt es bei Angeboten keinen GoBD-artigen
@@ -589,11 +592,12 @@ def send_quote_email(db: Session, quote: Quote, *, to_email: str | None = None) 
     der tatsächlich an Kunden versendete Anhang soll dem produktiv genutzten Renderer
     entsprechen, das ist jetzt der neue. quote_layout_pdf.py bleibt vorerst über die
     Vergleichsansicht im Layout-Editor erreichbar (GET /api/quotes/{id}/pdf-layout-preview),
-    bekommt aber keine echten Versand-/Abruf-Aufrufe mehr."""
-    from datetime import datetime as _datetime
+    bekommt aber keine echten Versand-/Abruf-Aufrufe mehr.
 
+    Seit 1.8.17 über app/email_dispatch.py (Protokoll, Ablage, Doppelversand-Sperre, CC), siehe
+    send_invoice_email()."""
     from .document_email_templates import get_email_template
-    from .email_sending import send_email_with_attachment
+    from .email_dispatch import actor_of, dispatch_email, mark_document_sent, new_dispatch_key
     from .quote_framed_pdf import build_quote_framed_pdf
 
     if quote.status == "entwurf":
@@ -620,15 +624,14 @@ def send_quote_email(db: Session, quote: Quote, *, to_email: str | None = None) 
         body = body.replace(placeholder, value)
 
     pdf_bytes = build_quote_framed_pdf(db, quote)
-    send_email_with_attachment(
-        db, to_email=recipient, subject=subject, body_text=body,
-        attachment_bytes=pdf_bytes, attachment_filename=f"{quote.quote_number}.pdf",
+    user_id, user_name = actor_of(user)
+    result = dispatch_email(
+        db, dispatch_key=dispatch_key or new_dispatch_key("angebot"), document_type="angebot",
+        document_id=quote.id, document_number=quote.quote_number, to=recipient, cc=cc_email,
+        subject=subject, body_text=body, attachment_bytes=pdf_bytes,
+        attachment_filename=f"{quote.quote_number}.pdf", user_id=user_id, user_name=user_name,
     )
-
-    quote.email_sent_at = _datetime.utcnow()
-    quote.email_sent_to = recipient
-    db.commit()
-    db.refresh(quote)
+    mark_document_sent(db, quote, result)
     return quote
 
 

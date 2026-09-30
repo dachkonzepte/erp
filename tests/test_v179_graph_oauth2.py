@@ -6,12 +6,12 @@ from app.email_sending import (
     check_smtp_connection,
     get_or_create_smtp_settings,
     is_smtp_configured,
-    send_email_with_attachment,
     set_send_method,
     update_graph_settings,
     update_smtp_settings,
 )
 from tests.test_v153_mahnwesen import db_session
+from tests.test_v174_email_sending import send_email_with_attachment
 
 
 def _configure_graph(db, **overrides):
@@ -194,7 +194,7 @@ def test_send_email_dispatches_to_graph_when_active(mock_urlopen):
     db = db_session()
     _configure_graph(db)
     token_resp = _fake_token_response()
-    send_resp = MagicMock()  # kein __enter__ nötig -- sendMail-Aufruf nutzt urlopen() nicht als Context-Manager
+    send_resp = MagicMock()  # seit 1.8.17 als Context-Manager genutzt (Antwort wird geschlossen); MagicMock kann das
     mock_urlopen.side_effect = [token_resp, send_resp]  # erst Token, dann sendMail
 
     send_email_with_attachment(db, to_email="kunde@example.com", subject="Betreff", body_text="Text", attachment_bytes=b"%PDF-", attachment_filename="test.pdf")
@@ -212,7 +212,7 @@ def test_graph_send_payload_structure_and_attachment_roundtrip(mock_urlopen):
     db = db_session()
     _configure_graph(db)
     token_resp = _fake_token_response()
-    send_resp = MagicMock()  # kein __enter__ nötig -- sendMail-Aufruf nutzt urlopen() nicht als Context-Manager
+    send_resp = MagicMock()  # seit 1.8.17 als Context-Manager genutzt (Antwort wird geschlossen); MagicMock kann das
     mock_urlopen.side_effect = [token_resp, send_resp]
 
     send_email_with_attachment(db, to_email="kunde@example.com", subject="Mahnung", body_text="Bitte begleichen", attachment_bytes=b"%PDF-1.4 echt", attachment_filename="M-2026-0001.pdf")

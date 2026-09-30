@@ -414,7 +414,10 @@ def get_order_recipient_email(order: Order) -> str | None:
     return (customer.email or None) if customer else None
 
 
-def send_order_email(db: Session, order: Order, *, to_email: str | None = None) -> Order:
+def send_order_email(
+    db: Session, order: Order, *, to_email: str | None = None, cc_email: str | None = None,
+    dispatch_key: str | None = None, user=None,
+) -> Order:
     """Versendet eine Auftragsbestätigung tatsächlich per E-Mail (seit
     1.0.90) -- analog zu send_quote_email()/send_invoice_email(). Ein
     Auftrag hat (anders als Angebot/Rechnung/Mahnung) von Anfang an keinen
@@ -428,11 +431,12 @@ def send_order_email(db: Session, order: Order, *, to_email: str | None = None) 
 
     PDF-Erzeugung lokal importiert -- siehe Begründung bei
     send_quote_email()/send_invoice_email() zu Zirkel-Importen
-    (order_pdf.py importiert ebenfalls aus diesem Modul)."""
-    from datetime import datetime as _datetime
+    (order_pdf.py importiert ebenfalls aus diesem Modul).
 
+    Seit 1.8.17 über app/email_dispatch.py (Protokoll, Ablage, Doppelversand-Sperre, CC), siehe
+    send_invoice_email()."""
     from .document_email_templates import get_email_template
-    from .email_sending import send_email_with_attachment
+    from .email_dispatch import actor_of, dispatch_email, mark_document_sent, new_dispatch_key
     from .order_pdf import build_order_pdf
 
     if order.status == "storniert":
@@ -459,15 +463,14 @@ def send_order_email(db: Session, order: Order, *, to_email: str | None = None) 
         body = body.replace(placeholder, value)
 
     pdf_bytes = build_order_pdf(db, order)
-    send_email_with_attachment(
-        db, to_email=recipient, subject=subject, body_text=body,
-        attachment_bytes=pdf_bytes, attachment_filename=f"{order.order_number}.pdf",
+    user_id, user_name = actor_of(user)
+    result = dispatch_email(
+        db, dispatch_key=dispatch_key or new_dispatch_key("auftrag"), document_type="auftrag",
+        document_id=order.id, document_number=order.order_number, to=recipient, cc=cc_email,
+        subject=subject, body_text=body, attachment_bytes=pdf_bytes,
+        attachment_filename=f"{order.order_number}.pdf", user_id=user_id, user_name=user_name,
     )
-
-    order.email_sent_at = _datetime.utcnow()
-    order.email_sent_to = recipient
-    db.commit()
-    db.refresh(order)
+    mark_document_sent(db, order, result)
     return order
 
 

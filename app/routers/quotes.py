@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
+from ..email_dispatch import DispatchConflict
 from ..models import AppUser, Employee, EmployeeRoleSettings, Order, Project, Quote, QuoteEmployeeAssignment, QuoteItem, QuoteItemCalculation, QuoteItemLayout
 from ..orders import create_order_from_quote, load_order, order_to_dict
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
@@ -242,7 +243,7 @@ def quote_pdf_api(quote_id: int, db: Session = Depends(get_db), _role: AppUser =
 
 
 @router.post("/api/quotes/{quote_id}/send-email", response_model=QuoteOut)
-def post_send_quote_email(quote_id: int, payload: QuoteEmailSend, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_send_quote_email(quote_id: int, payload: QuoteEmailSend, db: Session = Depends(get_db), user: AppUser = _role_dep):
     """Tatsächlicher E-Mail-Versand -- verwendet den gemeinsamen PDF-Rahmen (build_quote_framed_pdf,
     intern in send_quote_email()), damit der tatsächlich an Kunden versendete Anhang dem
     produktiv genutzten Renderer entspricht."""
@@ -250,7 +251,12 @@ def post_send_quote_email(quote_id: int, payload: QuoteEmailSend, db: Session = 
     if quote is None:
         raise HTTPException(status_code=404, detail="Angebot nicht gefunden.")
     try:
-        updated = send_quote_email(db, quote, to_email=payload.to_email)
+        updated = send_quote_email(
+            db, quote, to_email=payload.to_email, cc_email=payload.cc_email,
+            dispatch_key=payload.dispatch_key, user=user,
+        )
+    except DispatchConflict as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return quote_to_dict(updated)

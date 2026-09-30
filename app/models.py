@@ -1,6 +1,6 @@
 from datetime import date, datetime, time as dt_time
 from decimal import Decimal
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, Time, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, Time, UniqueConstraint, event, inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
 
@@ -4656,3 +4656,103 @@ class ChecklistAssetRelease(Base):
     released_by_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True)
     released_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class SentDocument(Base):
+    """Ablage versendeter Dokumente (seit 1.8.17, app/sent_documents.py): genau die Bytes, die als
+    Anhang hinausgingen, als Datei unter SENT_DOCUMENT_ROOT, dazu SHA-256, Dokumentart/-ID, Zeitpunkt
+    und Benutzer. Unveränderlich: keine Änderung, kein Löschen (ORM-Sperre unten), die Datei wird
+    exklusiv angelegt und nie überschrieben. Bewusst ohne Fremdschlüssel auf Dokument und Benutzer
+    (Muster AuditLog) -- die Ablage muss ein gelöschtes Angebot und einen gelöschten Benutzer
+    überdauern; created_by_name ist der Schnappschuss des Namens."""
+
+    __tablename__ = "sent_documents"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_type: Mapped[str] = mapped_column(String(20), index=True)
+    document_id: Mapped[int] = mapped_column(index=True)
+    document_number: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    stored_filename: Mapped[str] = mapped_column(String(255), unique=True)
+    size_bytes: Mapped[int] = mapped_column()
+    sha256: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(160), server_default="System")
+
+
+class EmailDispatch(Base):
+    """Versandprotokoll (seit 1.8.17, app/email_dispatch.py): eine Zeile je Versandauftrag, angelegt
+    VOR dem Senden (status in_arbeit), danach gesendet oder fehlgeschlagen. dispatch_key ist der
+    Schlüssel des Versandauftrags (unique: derselbe Schlüssel wird nie zweimal verschickt),
+    message_ref die eigene Kennung, die als Kopfzeile X-DK-Versand-ID mit der Mail geht.
+    Regel 18: kein Mailtext, kein Anhang (der liegt in der Ablage), vom Fehler nur Klassenname und
+    Code. Empfänger und Betreff stehen darin, weil der Betreiber sie für den Nachweis verlangt.
+    Ohne Fremdschlüssel auf Dokument und Benutzer (wie SentDocument)."""
+
+    __tablename__ = "email_dispatches"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dispatch_key: Mapped[str] = mapped_column(String(80), unique=True)
+    message_ref: Mapped[str] = mapped_column(String(36), unique=True)
+    status: Mapped[str] = mapped_column(String(20), server_default="in_arbeit", index=True)
+    channel: Mapped[str] = mapped_column(String(20))
+    document_type: Mapped[str] = mapped_column(String(20), index=True)
+    document_id: Mapped[int | None] = mapped_column(nullable=True, index=True)
+    document_number: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    to_recipients: Mapped[str] = mapped_column(Text)
+    cc_recipients: Mapped[str | None] = mapped_column(Text, nullable=True)
+    subject: Mapped[str] = mapped_column(Text)
+    sent_document_id: Mapped[int | None] = mapped_column(ForeignKey("sent_documents.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(160), server_default="System")
+    error_class: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    sent_document: Mapped["SentDocument | None"] = relationship()
+
+
+class ArchiveImmutableError(Exception):
+    """Versuch, eine abgelegte Datei, ihren Ablage-Eintrag oder einen abgeschlossenen
+    Protokolleintrag zu ändern oder zu löschen (seit 1.8.17)."""
+
+
+# Nur diese Felder eines Protokolleintrags dürfen sich über das ORM ändern -- und nur, solange er
+# "in_arbeit" ist (Abschluss als gesendet/fehlgeschlagen). sent_document_id genau einmal von leer
+# auf die Ablage. Alles andere (Schlüssel, Empfänger, Betreff, Dokument, Benutzer) steht fest.
+_DISPATCH_MUTABLE_FIELDS = {"status", "finished_at", "error_class", "error_code", "sent_document_id"}
+
+
+@event.listens_for(SentDocument, "before_update")
+def _sent_document_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs):
+        raise ArchiveImmutableError("Ein abgelegtes Dokument ist unveränderlich.")
+
+
+@event.listens_for(SentDocument, "before_delete")
+def _sent_document_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Ein abgelegtes Dokument wird nie gelöscht.")
+
+
+@event.listens_for(EmailDispatch, "before_update")
+def _dispatch_limited_update(mapper, connection, target):
+    changed = {attr.key for attr in inspect(target).attrs if attr.history.has_changes()}
+    if changed - _DISPATCH_MUTABLE_FIELDS:
+        raise ArchiveImmutableError("Ein Protokolleintrag ist bis auf seinen Abschluss unveränderlich.")
+    # Den gespeicherten Stand aus der Datenbank lesen: die Attribut-Historie kennt den alten Wert nur,
+    # wenn er vor der Änderung geladen war.
+    table = EmailDispatch.__table__
+    stored = connection.execute(
+        table.select().with_only_columns(table.c.status, table.c.sent_document_id).where(table.c.id == target.id)
+    ).one()
+    if stored.status != "in_arbeit":
+        raise ArchiveImmutableError("Ein abgeschlossener Protokolleintrag ist unveränderlich.")
+    if "sent_document_id" in changed and stored.sent_document_id is not None:
+        raise ArchiveImmutableError("Die Ablage eines Protokolleintrags steht fest.")
+
+
+@event.listens_for(EmailDispatch, "before_delete")
+def _dispatch_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Ein Protokolleintrag wird nie gelöscht.")

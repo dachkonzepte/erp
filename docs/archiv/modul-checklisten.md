@@ -349,6 +349,7 @@ Zwischen den Versionen darf der Betreiber `/clear` machen -- dann diese Datei le
 | **1.8.14** | Stufe 2, Runde 2a-1b: Unterschrift versiegelt abschnittsweise (feste Kopie, Prüfung je Unterschrift auf Seite und PDF, Fotos verworfener Unterschriften nie gelöscht, Heißarbeiten in zwei Abschnitten) | erledigt |
 | **1.8.15** | Stufe 2, Runde 2a-1c: Verwerfen je Unterschrift (die darunter fallen mit), Abschluss mit fester Kopie und Prüfsumme, Nachtragsmeldung und Entsorgungsnachweis in zwei Abschnitten | erledigt |
 | **1.8.16** | Stufe 2, Runde 2a-2: Zweck-Registry (Kontexte, Systemfelder, Folgen), Zweck an der Fassung eingefroren, Systemfelder geschützt und beim Veröffentlichen geprüft, Folgetabelle mit Nachholen | erledigt |
+| **1.8.17** | Stufe 2, Runde 2a-3a: Ablage versendeter Dokumente und Versandprotokoll, Sperre gegen Doppelversand, mehrere Empfänger/CC, 3-MB-Grenze; Regel 18 im Regel-Protokoll. Eigene Archivdatei `docs/archiv/versandprotokoll-und-ablage.md` | erledigt |
 
 Nach jeder Version hier die Spalte "Stand" nachziehen und unten einen kurzen Abschnitt
 "Umsetzung 1.8.x" mit Abweichungen/Funden ergänzen.
@@ -961,11 +962,8 @@ eine Test-Folge; (6) Tests mit Gegenprobe.
   PostgreSQL 2106 grün.
 
 ### Nebenbefunde (nur gemeldet)
-- **Regel-Protokoll enthält Ausnahmetext**: `app/checklist_rules.py::run_rules_after_completion()`
-  protokolliert mit `logger.exception()`, also samt Meldung und Traceback. Bei einer
-  SQLAlchemy-Ausnahme steht darin die SQL mit Parametern, beim Anlegen der Aufgabe also Titel und
-  Beschreibung (Vorlage, Auftragsnummer, Ersteller). Regel 18 verlangt nur den Klassennamen. Die neuen
-  Folgen protokollieren nur Schlüssel, ID und Klassennamen. Nicht geändert.
+- ~~**Regel-Protokoll enthält Ausnahmetext**~~ -- seit 1.8.17 nur ID und Klassenname, mit Test (siehe
+  `docs/archiv/versandprotokoll-und-ablage.md`).
 - **Folgen sollten selbst idempotent sein**: wie bei den Regeln bleibt ein Restrisiko, wenn der
   Prozess GENAU zwischen Handler und Vermerk abbricht -- Nachholen führt ihn dann erneut aus. Für 2b/2c
   empfohlen: Fachdaten in 1:1-Zusatztabellen mit eindeutiger `checklist_id` (siehe "Zuschnitt für

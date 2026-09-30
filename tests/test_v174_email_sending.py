@@ -5,7 +5,6 @@ from app.email_sending import (
     check_smtp_connection,
     get_or_create_smtp_settings,
     is_smtp_configured,
-    send_email_with_attachment,
     update_smtp_settings,
 )
 from app.reminders import (
@@ -18,6 +17,17 @@ from app.reminders import (
     update_reminder_level,
 )
 from tests.test_v153_mahnwesen import db_session, make_sent_overdue_invoice
+
+
+def send_email_with_attachment(db, *, to_email, subject, body_text, attachment_bytes, attachment_filename):
+    """Seit 1.8.17 gibt es keinen Versand am Versandprotokoll vorbei (send_email_with_attachment()
+    ist entfallen) -- die Tests des Transports laufen deshalb über dispatch_email()."""
+    from app.email_dispatch import dispatch_email, new_dispatch_key
+    dispatch_email(
+        db, dispatch_key=new_dispatch_key("test"), document_type="mahnung", document_id=1,
+        document_number="M-TEST", to=to_email, cc=None, subject=subject, body_text=body_text,
+        attachment_bytes=attachment_bytes, attachment_filename=attachment_filename,
+    )
 
 
 def extract_plain_text(raw_message: str) -> str:

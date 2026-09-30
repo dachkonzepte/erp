@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from ..calculation import get_or_create_settings
 from ..database import get_db
+from ..email_dispatch import DispatchConflict
 from ..invoice_pdf import build_invoice_pdf
 from ..invoices import (
     add_invoice_item, create_abschlag_leistungsstand, create_abschlag_pauschal,
@@ -212,13 +213,19 @@ def post_send_invoice(invoice_id: int, db: Session = Depends(get_db), _role: App
 
 
 @router.post("/api/invoices/{invoice_id}/send-email", response_model=InvoiceOut)
-def post_send_invoice_email(invoice_id: int, payload: InvoiceEmailSend, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_send_invoice_email(invoice_id: int, payload: InvoiceEmailSend, db: Session = Depends(get_db), user: AppUser = _role_dep):
     """Tatsächlicher E-Mail-Versand -- getrennt vom Finalisieren oben
     (/send), das nur Nummer/Status setzt. Kann auf einer bereits
-    finalisierten Rechnung auch mehrfach aufgerufen werden."""
+    finalisierten Rechnung auch mehrfach aufgerufen werden -- je Versand mit neuem
+    dispatch_key (seit 1.8.17; derselbe Schlüssel wird nie zweimal gesendet, 409)."""
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
-        send_invoice_email(db, invoice, to_email=payload.to_email)
+        send_invoice_email(
+            db, invoice, to_email=payload.to_email, cc_email=payload.cc_email,
+            dispatch_key=payload.dispatch_key, user=user,
+        )
+    except DispatchConflict as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return invoice_to_dict(invoice)

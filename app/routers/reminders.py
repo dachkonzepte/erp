@@ -9,6 +9,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..email_dispatch import DispatchConflict
 from ..invoices import get_invoice
 from ..models import AppUser, Reminder, ReminderLevel
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
@@ -122,14 +123,19 @@ def post_send_reminder(reminder_id: int, db: Session = Depends(get_db), _role: A
 
 
 @router.post("/api/reminders/{reminder_id}/send-email", response_model=ReminderOut)
-def post_send_reminder_email(reminder_id: int, payload: ReminderEmailSend, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_send_reminder_email(reminder_id: int, payload: ReminderEmailSend, db: Session = Depends(get_db), user: AppUser = _role_dep):
     """Tatsächlicher E-Mail-Versand (seit 1.0.74) -- getrennt vom
     Finalisieren oben (/send), das nur Nummer/Status setzt. Kann auf einer
     bereits finalisierten Mahnung auch mehrfach aufgerufen werden (z.B.
     erneuter Versand)."""
     reminder = _get_reminder_or_404(db, reminder_id)
     try:
-        send_reminder_email(db, reminder, to_email=payload.to_email)
+        send_reminder_email(
+            db, reminder, to_email=payload.to_email, cc_email=payload.cc_email,
+            dispatch_key=payload.dispatch_key, user=user,
+        )
+    except DispatchConflict as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return reminder_to_dict(reminder)

@@ -1,0 +1,38 @@
+<script>
+/* Geteilter Helfer (seit 1.8.17) für den E-Mail-Versand von Angebot, Auftrag, Rechnung, Mahnung.
+   Jeder Versandauftrag trägt einen Schlüssel (dispatch_key); der Server sendet denselben Schlüssel
+   nie zweimal (app/email_dispatch.py). Ein Schlüssel je "Platz" (z. B. 'rechnung' oder 'mahnung-7'):
+   - Antwort 2xx oder 4xx: der Auftrag ist entschieden (gesendet, abgelehnt oder fehlgeschlagen),
+     der nächste Klick ist ein neuer Versandauftrag -> neuer Schlüssel.
+   - keine Antwort oder 5xx: ob die Mail hinausging, ist unklar -> Schlüssel bleibt. Ein erneuter
+     Klick fragt mit demselben Schlüssel nach; war er schon gesendet, sendet der Server nichts mehr.
+   crypto.randomUUID() gibt es nur in sicheren Kontexten (HTTPS, localhost), deshalb der Rückfall
+   auf getRandomValues(). */
+const _dispatchKeys = {};
+function newDispatchKey(slot) {
+  let id;
+  if (window.crypto && crypto.randomUUID) id = crypto.randomUUID().replace(/-/g, '');
+  else id = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+  return (String(slot).replace(/[^A-Za-z0-9_.:-]/g, '') || 'versand').slice(0, 40) + '-' + id;
+}
+function dispatchKeyFor(slot) { return _dispatchKeys[slot] || (_dispatchKeys[slot] = newDispatchKey(slot)); }
+async function postEmailDispatch(slot, url, payload, button) {
+  const key = dispatchKeyFor(slot);
+  if (button) button.disabled = true;
+  let r;
+  try {
+    r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...payload, dispatch_key: key})});
+  } catch (e) {
+    throw Error('Keine Antwort vom Server – ob die Mail hinausging, ist unklar. Erneut klicken fragt mit demselben Versandauftrag nach und sendet nicht doppelt.');
+  } finally {
+    if (button) button.disabled = false;
+  }
+  if (r.status < 500) _dispatchKeys[slot] = newDispatchKey(slot);
+  if (!r.ok) {
+    if (r.status >= 500) throw Error('Serverfehler – ob die Mail hinausging, ist unklar. Bitte im Versandprotokoll prüfen; erneut klicken sendet nicht doppelt.');
+    const d = await r.json().catch(() => ({detail: r.statusText}));
+    throw Error(typeof d.detail === 'string' ? d.detail : 'Eingabe unvollständig oder ungültig.');
+  }
+  return r.json();
+}
+</script>

@@ -4,6 +4,37 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.17 – Versandprotokoll und Ablage versendeter Dokumente
+
+Stufe 2, Runde 2a-3a. Jeder E-Mail-Versand geht jetzt durch `app/email_dispatch.py::dispatch_email()`:
+Angebot, Auftrag, Rechnung, Mahnung und die Aufgaben-Benachrichtigung schreiben ins neue
+Versandprotokoll (`email_dispatches`: Schlüssel, eigene Kennung, Status, Kanal, An, CC, Betreff,
+Benutzer, Verweis auf die Ablage, vom Fehler nur Klassenname und Code -- Regel 18), und jedes versendete
+PDF liegt genau so, wie es hinausging, in der Ablage (`sent_documents` mit SHA-256, Dokumentart/-ID,
+Zeitpunkt, Benutzer; Datei unter `DACHKONZEPTE_SENT_DOCUMENT_ROOT`, exklusiv angelegt,
+schreibgeschützt). Ablage und Protokoll sind unveränderlich: kein Code ändert oder löscht sie, eine
+ORM-Sperre lehnt es ab, eine veränderte oder fehlende Datei fällt beim Prüfen auf und wird nicht als
+"das versendete Dokument" ausgeliefert. Der Eintrag entsteht vor dem Senden ("in Arbeit"), danach
+"gesendet" oder "fehlgeschlagen"; bleibt er länger als 10 Minuten in Arbeit, zeigt ihn die neue Seite
+`/versandprotokoll` (Büro) als hängengeblieben, gesendet wird er nie automatisch erneut. Jeder
+Versandauftrag trägt einen Schlüssel (von der Seite je Klick erzeugt, die API verlangt ihn); derselbe
+Schlüssel wird nie zweimal verschickt (Unique-Schlüssel, Wiederholung liefert den gesendeten Stand,
+"in Arbeit"/"fehlgeschlagen" 409), ein zweiter Versand desselben Dokuments, solange einer läuft, ebenso.
+
+Versand über Graph und SMTP an mehrere Empfänger und CC (Felder "An" und "CC" auf allen vier Seiten),
+die Kennung geht als Kopfzeile `X-DK-Versand-ID` mit; bei Graph weiterhin nur `sendMail` (Regel 17),
+die Antwort 202 ohne Inhalt wird jetzt ordentlich geschlossen. Vor dem Senden prüft der Server die
+Anhanggröße gegen 3 MB (3.000.000 Bytes -- 3 MiB wären in Base64 schon genau die 4-MiB-Grenze einer
+Graph-Anfrage) mit klarer Meldung, für beide Wege gleich. Die alten Einstiege
+`send_email_with_attachment()`/`send_plain_email()` sind entfallen; ein AST-Test stellt sicher, dass
+nichts am Protokoll vorbei sendet. Nebenbei Regel 18 in `app/checklist_rules.py`: statt
+`logger.exception()` nur Checklisten-ID und Klassenname (die Folgen taten das schon), mit Test.
+Migration `b414df7c7744` (zwei neue Tabellen; `downgrade()` verweigert, sobald Einträge darin stehen).
+35 neue Tests in `tests/test_v321_email_dispatch.py`, Graph-Attrappe wie der echte Dienst (202 ohne
+Inhalt, 413 über 4 MiB, 404 für alles außer Token und sendMail); 25 Gegenproben rot -- nur die Vorabprüfung des Schlüssels auszuhebeln
+blieb grün, weil der Unique-Schlüssel den Doppelversand trotzdem abfängt; beides zusammen ist rot. Klicktest
+`scripts/klicktest_versandprotokoll.py` 33/33.
+
 ## 1.8.16 – Checklisten: Zweck, Systemfelder, Folgetabelle
 
 Stufe 2 des Checklisten-Moduls, Runde 2a-2. Eine Vorlage hat jetzt einen Zweck aus einer Registry im

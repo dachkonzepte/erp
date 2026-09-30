@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.16** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.17** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -568,6 +568,14 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     offenen Browser-Stellen: `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Kalenderdatum in
     Europe/Berlin statt UTC".
 
+21. **Jede E-Mail geht über `app/email_dispatch.py::dispatch_email()`, seit 1.8.17** -- nie direkt
+    über `app/email_sending.py::send_message()`, SMTP oder Graph. Nur so entsteht der
+    Protokolleintrag (vor dem Senden, mit Schlüssel gegen Doppelversand) und landet ein PDF in der
+    unveränderlichen Ablage. `tests/test_v321_email_dispatch.py` sucht jeden anderen Aufrufer per
+    AST. Eine neue Versandstelle von der Oberfläche schickt einen `dispatch_key` je Klick mit
+    (`_email_dispatch.html`). Ablage und Protokoll werden nie geändert oder gelöscht. Details:
+    `docs/archiv/versandprotokoll-und-ablage.md`.
+
 ## Fachbegriffe & Domänenmodell
 
 - **"Vorgang"** (in normalem Gespräch) = **Projekt** (`Project`) – wurde in der Sitzung explizit
@@ -643,7 +651,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   dieses Postfach muss Mitglied der RBAC-Gruppe `ERP-Zugriff` sein (Regel 17). Betrifft/Auftrag/
   Angebot/Rechnung teilen sich eine Textvorlagen-
   Tabelle (`app/document_email_templates.py`), Mahnungen haben eigene Vorlagen pro Stufe direkt
-  auf `ReminderLevel` (historisch zuerst gebaut, nie migriert).
+  auf `ReminderLevel` (historisch zuerst gebaut, nie migriert). Seit 1.8.17 läuft jeder Versand
+  über das Versandprotokoll mit Ablage (Regel 21), mehrere Empfänger und CC, Anhang höchstens 3 MB.
 - **Modul-Umschalter** (seit 1.1.0): Tabelle `EnabledModule` (`module_key`, `enabled`), Registry
   `OPTIONAL_MODULES` in `app/modules.py` ist die einzige Stelle, an der sich ein künftiges Modul
   eintragen muss. Opt-out-Default – fehlt eine Zeile für einen `module_key`, gilt das Modul als
@@ -698,6 +707,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   `docs/archiv/modul-checklisten.md`
 - **Kaufmännisches Runden** (Helfer `app/rounding.py`, Rundungsregel je Rechnung, Liste der
   Geldstellen, bewusst nicht geänderte Formatierer) -- `docs/archiv/kaufmaennisches-runden.md`
+- **Versandprotokoll und Ablage** (jede E-Mail über `dispatch_email()`, Schlüssel gegen
+  Doppelversand, unveränderliche PDF-Ablage mit SHA-256, `/versandprotokoll`) --
+  `docs/archiv/versandprotokoll-und-ablage.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit
@@ -963,7 +975,8 @@ Unterschrift sperrt die Checkliste, Büro verwirft mit Begründung, "repariert" 
 direkt in der Wegwerf-Datenbank geänderte Antwort erscheint als Abweichung) und
 `klicktest_checkliste_verwerfen.py` (1.8.15, Verwerfen je Unterschrift, Abschluss mit Prüfsumme, hell
 und dunkel) und `klicktest_checkliste_zweck.py` (1.8.16, Zweck und Systemfelder im Vorlagen-Editor,
-Start-Auswahl nach Zweck). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
+Start-Auswahl nach Zweck) und `klicktest_versandprotokoll.py` (1.8.17, Versand über alle vier Seiten an
+einen SMTP-Empfänger im Skript, Doppelklick, Protokollseite). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 
 ## Arbeitsweise, die sich bewährt hat

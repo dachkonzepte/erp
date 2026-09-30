@@ -481,6 +481,12 @@ def mahnwesen_page(request: Request, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="mahnwesen.html", context={})
 
 
+@router.get("/versandprotokoll", response_class=HTMLResponse)
+def email_dispatches_page(request: Request, _role: AppUser = _role_dep):
+    """Versandprotokoll mit Ablage (seit 1.8.17) -- buero_auftrag aufwärts, wie die API dahinter."""
+    return templates.TemplateResponse(request=request, name="email_dispatches.html", context={})
+
+
 @router.get("/changelog", response_class=HTMLResponse)
 def changelog_page(request: Request, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="changelog.html", context={})

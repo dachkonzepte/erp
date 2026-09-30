@@ -16,7 +16,6 @@ from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from .email_sending import send_plain_email
 from .models import AppUser, Employee, Task, TaskChecklistItem, TaskColumn, TaskSettings
 from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLES, has_min_role, has_role
 from .task_columns import ensure_default_columns
@@ -222,7 +221,14 @@ def notify_task_assignment(db: Session, task: Task) -> None:
     keine E-Mail-Adresse hinterlegt hat (EmployeeProfile.email ist optional). Ein Versandfehler
     (z. B. falsch konfigurierter Mailserver) wird hier abgefangen -- er darf das eigentliche
     Speichern der Aufgabe, das zu diesem Zeitpunkt bereits erfolgt ist, nicht rückwirkend als
-    Fehler erscheinen lassen."""
+    Fehler erscheinen lassen.
+
+    Seit 1.8.17 über app/email_dispatch.py: jede Benachrichtigung steht im Versandprotokoll
+    (Dokumentart "aufgabe", nur für Admins sichtbar -- der Betreff nennt den Aufgabentitel, und
+    eine zugewiesene Aufgabe sieht außer dem Empfänger nur Admin). Ein fehlgeschlagener Versand
+    ist dort jetzt sichtbar statt still verschluckt; die Aufgabe bleibt trotzdem gespeichert.
+    Kein Parallelversand-Block: jede Zuweisung ist ein eigener Anlass."""
+    from .email_dispatch import DispatchConflict, dispatch_email, new_dispatch_key
     settings = get_or_create_task_settings(db)
     if not settings.notify_on_assignment:
         return
@@ -238,8 +244,12 @@ def notify_task_assignment(db: Session, task: Task) -> None:
         f"Diese Nachricht wurde automatisch vom ERP versendet."
     )
     try:
-        send_plain_email(db, to_email=employee.profile.email, subject=f"Neue Aufgabe: {task.title}", body_text=body)
-    except ValueError:
+        dispatch_email(
+            db, dispatch_key=new_dispatch_key(f"aufgabe-{task.id}"), document_type="aufgabe",
+            document_id=task.id, document_number=None, to=employee.profile.email, cc=None,
+            subject=f"Neue Aufgabe: {task.title}", body_text=body, block_parallel=False,
+        )
+    except (ValueError, DispatchConflict):
         pass
 
 

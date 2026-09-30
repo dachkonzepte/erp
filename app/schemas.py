@@ -716,7 +716,9 @@ class QuoteOut(BaseModel):
 
 
 class QuoteEmailSend(BaseModel):
-    to_email: str | None = None  # None = automatisch aus Kundenstammdaten
+    to_email: str | None = None  # None = automatisch aus Kundenstammdaten; mehrere mit Komma
+    cc_email: str | None = None  # seit 1.8.17, mehrere mit Komma
+    dispatch_key: str = Field(min_length=8, max_length=80)  # seit 1.8.17: Schlüssel des Versandauftrags
 
 
 class QuoteListOut(BaseModel):
@@ -1328,7 +1330,9 @@ class OrderFieldAccessOut(BaseModel):
 
 
 class OrderEmailSend(BaseModel):
-    to_email: str | None = None  # None = automatisch aus Kundenstammdaten
+    to_email: str | None = None  # None = automatisch aus Kundenstammdaten; mehrere mit Komma
+    cc_email: str | None = None  # seit 1.8.17, mehrere mit Komma
+    dispatch_key: str = Field(min_length=8, max_length=80)  # seit 1.8.17: Schlüssel des Versandauftrags
 
 
 class TaxKeyOut(BaseModel):
@@ -1517,7 +1521,9 @@ class OutlookSyncResultOut(BaseModel):
 
 
 class ReminderEmailSend(BaseModel):
-    to_email: str | None = None  # None = automatisch aus Kundenstammdaten
+    to_email: str | None = None  # None = automatisch aus Kundenstammdaten; mehrere mit Komma
+    cc_email: str | None = None  # seit 1.8.17, mehrere mit Komma
+    dispatch_key: str = Field(min_length=8, max_length=80)  # seit 1.8.17: Schlüssel des Versandauftrags
 
 
 class TaxKeyCreate(BaseModel):
@@ -1624,7 +1630,9 @@ class InvoiceOut(BaseModel):
 
 
 class InvoiceEmailSend(BaseModel):
-    to_email: str | None = None  # None = automatisch aus Kundenstammdaten
+    to_email: str | None = None  # None = automatisch aus Kundenstammdaten; mehrere mit Komma
+    cc_email: str | None = None  # seit 1.8.17, mehrere mit Komma
+    dispatch_key: str = Field(min_length=8, max_length=80)  # seit 1.8.17: Schlüssel des Versandauftrags
 
 
 class DocumentEmailTemplateOut(BaseModel):

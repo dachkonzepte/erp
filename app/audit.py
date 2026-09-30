@@ -89,6 +89,13 @@ def reset_audit_context(tokens):
     _actor_id.reset(tokens[0]); _actor_name.reset(tokens[1]); _request_path.reset(tokens[2]); _request_method.reset(tokens[3])
 
 
+def current_actor() -> tuple[int | None, str]:
+    """(Benutzer-ID, Anzeigename) der laufenden Anfrage, außerhalb einer Anfrage (None, "System").
+    Für Protokolle, die den Auslöser nicht als Argument bekommen (seit 1.8.17: Versandprotokoll
+    einer Aufgaben-Mail)."""
+    return _actor_id.get(), _actor_name.get()
+
+
 def _text(value):
     if value is None: return None
     if isinstance(value, (datetime, date)): return value.isoformat()

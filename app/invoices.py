@@ -890,7 +890,10 @@ def get_invoice_recipient_email(invoice: Invoice) -> str | None:
     return (customer.email or None) if customer else None
 
 
-def send_invoice_email(db: Session, invoice: Invoice, *, to_email: str | None = None) -> Invoice:
+def send_invoice_email(
+    db: Session, invoice: Invoice, *, to_email: str | None = None, cc_email: str | None = None,
+    dispatch_key: str | None = None, user=None,
+) -> Invoice:
     """Versendet eine bereits finalisierte Rechnung tatsächlich per E-Mail
     (seit 1.0.82) -- analog zu send_reminder_email() in app/reminders.py.
     Kann auch mehrfach aufgerufen werden (z.B. erneuter Versand), aktualisiert
@@ -901,11 +904,13 @@ def send_invoice_email(db: Session, invoice: Invoice, *, to_email: str | None = 
 
     PDF-Erzeugung und E-Mail-Versand erfolgen hier lokal importiert (nicht
     am Modulanfang), um Zirkel-Importe zu vermeiden -- analog zur
-    Begründung bei send_reminder_email()."""
-    from datetime import datetime as _datetime
+    Begründung bei send_reminder_email().
 
+    Seit 1.8.17 über app/email_dispatch.py: Versandprotokoll, Ablage des PDFs, Sperre gegen
+    Doppelversand (dispatch_key; ohne Schlüssel wird einer erzeugt -- die API verlangt ihn),
+    mehrere Empfänger und CC. Ein schon gesendeter Schlüssel ändert nichts mehr."""
     from .document_email_templates import get_email_template
-    from .email_sending import send_email_with_attachment
+    from .email_dispatch import actor_of, dispatch_email, mark_document_sent, new_dispatch_key
     from .invoice_pdf import build_invoice_pdf
 
     if invoice.status == "entwurf":
@@ -934,13 +939,12 @@ def send_invoice_email(db: Session, invoice: Invoice, *, to_email: str | None = 
         body = body.replace(placeholder, value)
 
     pdf_bytes = build_invoice_pdf(db, invoice)
-    send_email_with_attachment(
-        db, to_email=recipient, subject=subject, body_text=body,
-        attachment_bytes=pdf_bytes, attachment_filename=f"{invoice.invoice_number}.pdf",
+    user_id, user_name = actor_of(user)
+    result = dispatch_email(
+        db, dispatch_key=dispatch_key or new_dispatch_key("rechnung"), document_type="rechnung",
+        document_id=invoice.id, document_number=invoice.invoice_number, to=recipient, cc=cc_email,
+        subject=subject, body_text=body, attachment_bytes=pdf_bytes,
+        attachment_filename=f"{invoice.invoice_number}.pdf", user_id=user_id, user_name=user_name,
     )
-
-    invoice.email_sent_at = _datetime.utcnow()
-    invoice.email_sent_to = recipient
-    db.commit()
-    db.refresh(invoice)
+    mark_document_sent(db, invoice, result)
     return invoice

@@ -10,6 +10,7 @@
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
+{% include "_email_dispatch.html" %}
 <main><div class="breadcrumb" id="breadcrumb">Lädt …</div><div class="top"><div class="grow"><b id="invTitle">Rechnung wird geladen …</b><div id="invContext" class="muted small"></div></div><div class="top-actions"><a id="backOrder" href="#">← Auftrag</a><button class="secondary" onclick="window.open('/api/invoices/'+invoiceId+'/pdf','_blank')">PDF herunterladen</button></div><span id="statusBadge" class="badge">—</span><div class="metrics"><div class="metric"><small>Netto</small><b id="mNet">—</b></div><div class="metric"><small>MwSt.</small><b id="mVat">—</b></div><div class="metric"><small>Brutto</small><b id="mGross">—</b></div></div></div>
 <div id="editLockNotice" class="notice warning" style="display:none">Diese Rechnung ist versendet und kann nicht mehr bearbeitet werden. Korrekturen laufen über eine Stornorechnung.</div>
 <div class="layout">
@@ -162,15 +163,17 @@ function renderStatusActions(){
 }
 
 function emailSendControlsHtml(){
-  return `<span style="display:inline-flex;gap:6px;align-items:center"><input id="invoiceEmailInput" type="email" value="${esc(invoice.recipient_email||'')}" placeholder="E-Mail-Adresse" style="padding:7px 10px;border:1px solid var(--field-border);font-family:inherit;font-size:13px;min-width:220px;background:var(--card);color:var(--ink)"><button onclick="sendInvoiceEmail()">✉️ Per E-Mail senden</button></span>`;
+  return `<span style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap"><input id="invoiceEmailInput" type="email" multiple value="${esc(invoice.recipient_email||'')}" placeholder="An – mehrere mit Komma" title="Empfänger, mehrere mit Komma trennen" style="padding:7px 10px;border:1px solid var(--field-border);font-family:inherit;font-size:13px;background:var(--card);color:var(--ink);min-width:220px"><input id="invoiceCcInput" type="email" multiple placeholder="CC (optional)" title="CC, mehrere mit Komma trennen" style="padding:7px 10px;border:1px solid var(--field-border);font-family:inherit;font-size:13px;background:var(--card);color:var(--ink);min-width:170px"><button onclick="sendInvoiceEmail(this)">✉️ Per E-Mail senden</button><a class="small" href="/versandprotokoll?typ=rechnung&id=${invoiceId}">Versandprotokoll</a></span>`;
 }
 
-async function sendInvoiceEmail(){
+async function sendInvoiceEmail(btn){
   const toEmail=document.getElementById('invoiceEmailInput').value.trim();
+  const ccEmail=document.getElementById('invoiceCcInput').value.trim();
   if(!toEmail){alert('Bitte eine E-Mail-Adresse angeben.');return}
   const st=document.getElementById('statusActionMsg');
+  st.textContent='Wird gesendet …';
   try{
-    invoice=await api(`/api/invoices/${invoiceId}/send-email`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to_email:toEmail})});
+    invoice=await postEmailDispatch('rechnung-'+invoiceId,`/api/invoices/${invoiceId}/send-email`,{to_email:toEmail,cc_email:ccEmail||null},btn);
     st.textContent='Per E-Mail versendet.';
     render();
   }catch(e){ st.textContent='Fehler: '+e.message }

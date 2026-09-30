@@ -235,9 +235,13 @@ def run_rules_after_completion(db: Session, checklist_id: int) -> None:
     "ausstehend" (bzw. fehlt) und ist im Büro nachholbar."""
     try:
         run_checklist_rules(db, checklist_id)
-    except Exception:  # noqa: BLE001 -- bewusst breit, siehe Docstring
+    except Exception as exc:  # noqa: BLE001 -- bewusst breit, siehe Docstring
         db.rollback()
-        logger.exception("Checklisten-Regeln für Checkliste %s konnten nicht ausgewertet werden", checklist_id)
+        # Regel 18 (seit 1.8.17): nur ID und Klassenname, kein logger.exception() -- dessen Meldung und
+        # Traceback enthalten bei einer SQLAlchemy-Ausnahme die SQL samt Parametern, beim Anlegen der
+        # Aufgabe also Titel und Beschreibung (Vorlage, Auftragsnummer, Ersteller).
+        logger.error("Checklisten-Regeln für Checkliste %s konnten nicht ausgewertet werden (%s)",
+                     checklist_id, type(exc).__name__)
 
 
 def list_rule_executions(db: Session, checklist_id: int) -> list[dict]:
