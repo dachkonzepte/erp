@@ -545,8 +545,9 @@ init();
 
 // Einsatzbereitschaft aus Checklisten (seit 1.8.1) -- dieselbe Angabe wie auf der Monteursseite.
 // Seit 1.8.2: das Büro kann eine Meldung "nicht einsatzbereit" direkt hier als repariert
-// markieren (Notiz optional, als sichtbares Feld -- kein Popup, Regel 4); danach steht statt des
-// roten Hinweises eine neutrale Zeile mit Wer und Wann.
+// markieren (als sichtbares Feld -- kein Popup, Regel 4; seit 1.8.13 ist die Notiz Pflicht, der
+// Server lehnt ohne sie mit 400 ab); danach steht statt des roten Hinweises eine neutrale Zeile
+// mit Wer und Wann.
 function renderReadiness(s){
   const el=document.getElementById('readinessBanner');
   el.style.display='none';el.className='readiness-banner';el.innerHTML='';
@@ -554,7 +555,7 @@ function renderReadiness(s){
   const source=`${esc(s.template_label)}, ${esc(fmtDate(s.completed_at))}${s.created_by_name?' von '+esc(s.created_by_name):''}`;
   if(s.ready===false){
     el.innerHTML=`<b>Nicht einsatzbereit</b> – gemeldet ${esc(fmtDate(s.completed_at))}${s.created_by_name?' von '+esc(s.created_by_name):''} (${esc(s.template_label)}). <a href="/checklisten/${s.checklist_id}">Meldung ansehen</a>
-      <div class="release-row"><input id="releaseNote" maxlength="2000" placeholder="Notiz zur Reparatur (optional), z. B. Kabel getauscht"><button class="secondary" id="releaseBtn" onclick="markRepaired()">Als repariert markieren</button><span id="releaseStatus" class="status"></span></div>`;
+      <div class="release-row"><input id="releaseNote" maxlength="2000" placeholder="Was wurde repariert? (Pflicht), z. B. Kabel getauscht"><button class="secondary" id="releaseBtn" onclick="markRepaired()">Als repariert markieren</button><span id="releaseStatus" class="status"></span></div>`;
     el.style.display='';
   }else if(s.released_at){
     el.className='readiness-info';
@@ -563,10 +564,11 @@ function renderReadiness(s){
   }
 }
 async function markRepaired(){
-  const btn=document.getElementById('releaseBtn'),st=document.getElementById('releaseStatus');
+  const btn=document.getElementById('releaseBtn'),st=document.getElementById('releaseStatus'),input=document.getElementById('releaseNote');
+  if(!input.value.trim()){st.textContent='Bitte eintragen, was repariert wurde.';input.focus();return}
   btn.disabled=true;st.textContent='Speichert …';
   try{
-    const r=await fetch(`/api/checklists/asset-readiness/${assetId}/repaired`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:document.getElementById('releaseNote').value})});
+    const r=await fetch(`/api/checklists/asset-readiness/${assetId}/repaired`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:input.value})});
     const data=await r.json().catch(()=>({}));
     if(!r.ok){st.textContent=data.detail||'Fehler beim Speichern.';btn.disabled=false;return}
     renderReadiness(data);

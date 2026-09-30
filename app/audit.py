@@ -13,6 +13,7 @@ from .models import (
     QuoteEmployeeAssignment, Order, OrderRevision, OrderSection, OrderItem, WorkPreparation, WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationMaterialSupplier, WorkPreparationDeliveryNote, WorkPreparationMaterialDeliveryNote, PlanningSlot, PlanningSettings, PlanningRegionSettings, PlanningHoliday, EmployeeAbsence, EmployeeAbsenceRequest, PlanningSlotCapacity, TimeEntry, TimeEntryGroup, TimeEntryGroupMember, TimeTrackingSettings, EmployeePayrollSettings, TimeBackofficeAdvancedSettings, WorkTimeModel, WorkTimeBreakRule, EmployeeWorkTimeModel, Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings,
     EmployeeFunction, GeneralSettings, CalculationSettings, LaborRateSettings, LaborRateOverheadSettings,
     NumberSequence, SettingOptionGroup, SettingOption, AppUser, ServiceCalculation, MaterialCalculationOverride,
+    Checklist, ChecklistAttachment, ChecklistAssetRelease, OperationalAsset,
 )
 
 _actor_id = contextvars.ContextVar("audit_actor_id", default=None)
@@ -31,6 +32,7 @@ TYPE_LABELS = {
     EmployeeCostAllocationSettings: "Mitarbeiter-Kostenzuordnung", NumberSequence: "Nummernkreis",
     SettingOption: "Auswahllistenwert", AppUser: "ERP-Benutzer", Inquiry: "Anfrage",
     ServiceCalculation: "Katalogleistung-Kalkulation", MaterialCalculationOverride: "Katalog-Materialkalkulation",
+    Checklist: "Checkliste", ChecklistAssetRelease: "Gerät als repariert markiert",
 }
 
 EXTENSION_TYPES = (CustomerProfile, ProjectProfile, EmployeeProfile, EmployeeRoleSettings, EmployeeCompensationSettings, EmployeeCostAllocationSettings, QuoteDocumentMeta, QuoteItemLayout, QuoteEmployeeAssignment)
@@ -41,6 +43,11 @@ AUDITED_TYPES = (
     QuoteItemLayout, QuoteEmployeeAssignment, Order, OrderRevision, WorkPreparation, WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationMaterialSupplier, WorkPreparationDeliveryNote, WorkPreparationMaterialDeliveryNote, PlanningSlot, PlanningSettings, PlanningRegionSettings, PlanningHoliday, EmployeeAbsence, EmployeeAbsenceRequest, PlanningSlotCapacity, TimeEntry, TimeEntryGroup, TimeEntryGroupMember, TimeTrackingSettings, EmployeePayrollSettings, TimeBackofficeAdvancedSettings, WorkTimeModel, WorkTimeBreakRule, EmployeeWorkTimeModel, Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings, EmployeeFunction,
     GeneralSettings, CalculationSettings, LaborRateSettings, LaborRateOverheadSettings, NumberSequence, SettingOptionGroup, SettingOption,
     AppUser, ServiceCalculation, MaterialCalculationOverride,
+    # Checklisten (seit 1.8.13): Anlegen, Abschließen, Löschen eines Entwurfs; jedes Foto und jede
+    # Unterschrift samt Verwerfen; "als repariert markieren". Antworten bewusst NICHT -- sie
+    # speichern beim Tippen (eine Zeile je 700-ms-Pause), verbindlich wird der Inhalt erst mit der
+    # Unterschrift, und die bindet ihn per Prüfsumme.
+    Checklist, ChecklistAttachment, ChecklistAssetRelease,
 )
 
 FIELD_LABELS = {
@@ -62,6 +69,7 @@ FIELD_LABELS = {
     "label":"Bezeichnung","value":"Wert","is_default":"Standardwert","employee_group":"Mitarbeitergruppe",
     "function_id":"Funktion / Tätigkeit","caseworker_employee_id":"Sachbearbeiter",
     "planned_start":"Geplanter Baustart","planned_end":"Geplante Fertigstellung","site_notes":"Baustellenhinweise","material_notes":"Materialhinweise","planned_hours":"Geplante Stunden","role":"Rolle","priority":"Priorität","due_date":"Fälligkeit","assigned_employee_id":"Zuständig","planned_quantity":"Planmenge","supplier":"Lieferant","supplier_id":"Lieferant","resource_type":"Ressourcentyp","identifier":"Kennzeichen / Seriennummer","team_number":"Teamnummer","resource_number":"Ressourcennummer","supplier_number":"Lieferantennummer","delivery_note_number":"Lieferscheinnummer","start_date":"Planungsbeginn","end_date":"Planungsende","team_assignment_id":"Kolonne / Team","daily_work_hours":"Tägliche Arbeitszeit","default_travel_hours_per_employee_day":"Standard-Anfahrtszeit","federal_state_code":"Bundesland","auto_public_holidays":"Feiertage automatisch","show_school_holidays":"Schulferien anzeigen","holiday_date":"Feiertag / betriebsfreier Tag","absence_type":"Abwesenheitsart","decision":"Entscheidung","review_notes":"Freigabe-Notiz","reviewed_by_user_id":"Geprüft von","approved_absence_id":"Genehmigte Abwesenheit","team_id":"Team","travel_hours_per_employee_day":"Anfahrtszeit pro MA/Tag","work_date":"Arbeitstag","entry_type":"Zeitart","hours":"Ist-Stunden","break_minutes":"Pause (Min.)","activity":"Tätigkeit","order_item_id":"LV-Position","counts_as_productive":"Produktive Zeit","datev_personnel_number":"DATEV-Personalnummer","payroll_export_enabled":"DATEV-Lohnexport aktiv","datev_personnel_equals_erp_number":"DATEV-Nr. entspricht ERP-Nr.","default_work_time_model_id":"Standard-Arbeitszeitmodell","daily_target_hours":"Soll-Arbeitszeit pro Tag","threshold_hours":"Pausenschwelle","model_id":"Arbeitszeitmodell",
+    "completed_at":"Abgeschlossen am","completed_by_employee_id":"Abgeschlossen von (Mitarbeiter)","signer_name":"Unterschrieben von","content_sha256":"Prüfsumme (SHA-256)","discarded_at":"Verworfen am","discarded_by_user_id":"Verworfen von (Konto)","discarded_by_name":"Verworfen von","discard_reason":"Begründung (Verwerfen)",
 }
 
 
@@ -159,6 +167,23 @@ def _normalize(session, obj):
     if isinstance(obj, (WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial, WorkPreparationTeamAssignment, WorkPreparationDeliveryNote)):
         prep = session.get(WorkPreparation, obj.preparation_id); o = session.get(Order, prep.order_id) if prep else None
         return TYPE_LABELS.get(type(obj), type(obj).__name__), str(obj.id), _entity_label(obj), o.project_id if o else None
+    if isinstance(obj, Checklist):
+        return "Checkliste", str(obj.id), _checklist_label(obj, obj.id), _checklist_project_id(session, obj)
+    if isinstance(obj, ChecklistAttachment):
+        # entity_id ist die Checkliste (Muster QuoteSection → Angebot); Unterschrift und Foto getrennt
+        # benannt, damit "Unterschreiben"/"Verwerfen" in der Historie als solches lesbar ist.
+        checklist = session.get(Checklist, obj.checklist_id)
+        signature = obj.kind == "unterschrift"
+        label = f"{_checklist_label(checklist, obj.checklist_id)} · {obj.signer_name if signature else 'Foto'}"
+        return ("Checklisten-Unterschrift" if signature else "Checklisten-Foto"), str(obj.checklist_id), label[:255], \
+            _checklist_project_id(session, checklist)
+    if isinstance(obj, ChecklistAssetRelease):
+        from .operational_assets import resolve_asset_identity  # lokal: nur hier gebraucht
+        asset = session.get(OperationalAsset, obj.operational_asset_id)
+        name = resolve_asset_identity(asset)[0] if asset else None
+        number = f" ({asset.asset_number})" if asset and asset.asset_number else ""
+        label = f"{name or 'Betriebsmittel'}{number} · Meldung aus Checkliste Nr. {obj.checklist_id}"
+        return "Gerät als repariert markiert", str(obj.checklist_id), label[:255], None
     if isinstance(obj, Order): return "Auftrag", str(obj.id), _entity_label(obj), obj.project_id
     if isinstance(obj, OrderRevision):
         o = session.get(Order, obj.order_id); return "Auftragsrevision", str(obj.id), f"Revision {obj.revision_number} · {_entity_label(o) or ''}".strip(), o.project_id if o else None
@@ -175,6 +200,21 @@ def _normalize(session, obj):
     elif isinstance(obj, Quote): pid = obj.project_id
     elif isinstance(obj, QuoteItem): pid = _project_for_quote_item(session, obj)
     return et, eid, _entity_label(obj), pid
+
+
+def _checklist_label(checklist, checklist_id):
+    if checklist is None:  # z. B. Anhang eines gerade gelöschten Entwurfs
+        return f"Checkliste Nr. {checklist_id}"
+    context = f" · {checklist.context_label_snapshot}" if checklist.context_label_snapshot else ""
+    return f"Nr. {checklist.id} {checklist.template_label_snapshot}{context}"[:255]
+
+
+def _checklist_project_id(session, checklist):
+    """Checklisten am Auftrag erscheinen auch in der Historie der Projektmappe."""
+    if checklist is None or not checklist.order_id:
+        return None
+    order = session.get(Order, checklist.order_id)
+    return order.project_id if order else None
 
 
 def _project_for_quote_item(session, qi):
@@ -237,6 +277,17 @@ def collect_audit(session, flush_context, instances):
     for obj in list(session.deleted):
         if isinstance(obj, AuditLog) or not isinstance(obj, AUDITED_TYPES): continue
         pending.append(_record("gelöscht", obj, details=json.dumps(_snapshot(obj), ensure_ascii=False)))
+
+
+@event.listens_for(Session, "after_soft_rollback")
+def drop_pending_audit(session, previous_transaction):
+    """Vorgemerkte Einträge eines gescheiterten Flushs verwerfen (seit 1.8.13). before_flush merkt
+    vor, erst after_flush_postexec schreibt -- scheitert der Flush dazwischen (typisch: Einfügen im
+    SAVEPOINT kollidiert mit einem Unique-Constraint, Muster "Self-Seeding"/client_uuid), blieb die
+    Vormerkung liegen und landete beim nächsten erfolgreichen Flush als Geisterzeile ("Nr. None …
+    angelegt") in der Historie. Jeder Rollback -- auch der interne des gescheiterten Flushs und der
+    eines SAVEPOINTs -- räumt deshalb auf; nach einem erfolgreichen Flush ist die Liste ohnehin leer."""
+    session.info.pop("_audit_pending", None)
 
 
 @event.listens_for(Session, "after_flush_postexec")

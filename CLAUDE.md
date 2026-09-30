@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.12** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.13** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -957,7 +957,8 @@ Aufruf `.venv\Scripts\python.exe scripts\klicktest_<name>.py` (Rückgabecode 0 =
 erwartet). Vorhanden: `klicktest_zeitbuchungen_liste.py` (1.8.9, acht Seiten, Daten relativ zum
 heutigen Datum), `klicktest_dashboard_monatswechsel.py` (1.8.10, festgehaltene Browser-Uhr und
 -Zeitzone) und `klicktest_rechnung_rundung.py` (1.8.11, Rechnungsseite: USt, Positionsbetrag,
-Skonto, dazu die vom Server gelieferten Beträge). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
+Skonto, dazu die vom Server gelieferten Beträge) und `klicktest_checkliste_unterschrift.py` (1.8.13,
+Unterschrift sperrt die Checkliste, Büro verwirft mit Begründung, "repariert" mit Notiz). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 
 ## Arbeitsweise, die sich bewährt hat
@@ -1002,6 +1003,11 @@ Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
   Datensatz. `tests/test_v213_inspection_items.py`/`test_v223_service_report_materials.py`
   erwarten die `IntegrityError` derzeit ausdrücklich. Vorbild für die Behebung: das
   Idempotenzmuster des Checklisten-Moduls, siehe `docs/archiv/modul-checklisten.md`.
+- **Benutzer löschen scheitert unter PostgreSQL mit 500, sobald der Benutzer per FK referenziert
+  ist** (gefunden 1.8.13, gegen PostgreSQL nachgestellt): 15 FKs auf `app_users` ohne `ON DELETE`,
+  z. B. `checklists.created_by_user_id`; SQLite erzwingt FKs hier nicht, deshalb lokal unsichtbar.
+  Nicht behoben (Deaktivieren statt Löschen oder FK-Regel wäre zu entscheiden). Details:
+  `docs/archiv/modul-checklisten.md`, "Umsetzung 1.8.13" -> "Nebenbefunde".
 - **Vier `ensure_default_*()`-Self-Seeding-Funktionen ohne UNIQUE-Constraint, dadurch weiterhin
   anfällig für stille Dopplung bei gleichzeitigem erstem Zugriff** (gefunden beim 1.4.6-Sweep,
   siehe Abschnitt "Self-Seeding gegen gleichzeitigen ersten Zugriff absichern" oben):

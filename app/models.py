@@ -4540,7 +4540,14 @@ class ChecklistAnswerSelection(Base):
 class ChecklistAttachment(Base):
     """Foto oder Unterschrift zu einem Feld einer Checkliste (seit 1.8.0, Upload ab 1.8.1).
     kind foto|unterschrift; signer_name nur bei Unterschriften (mehrere je Feld möglich,
-    z. B. Teilnehmer einer Unterweisung)."""
+    z. B. Teilnehmer einer Unterweisung).
+
+    Seit 1.8.13 bindet eine Unterschrift den Inhalt: created_at ist ihr Zeitpunkt (UTC),
+    content_sha256 die Prüfsumme der Antworten und Fotos im Moment der Unterschrift
+    (app/checklists.py::signed_content_sha256()); NULL bei Fotos und bei Unterschriften von vor
+    1.8.13. Ab der ersten Unterschrift sind Antworten und Fotos gesperrt, keine Unterschrift wird
+    ersetzt oder gelöscht. Nur das Büro kann Unterschriften mit Begründung verwerfen -- die Zeile
+    bleibt dann als Nachweis stehen (discarded_*), zählt aber nicht mehr."""
 
     __tablename__ = "checklist_attachments"
     __table_args__ = (UniqueConstraint("checklist_id", "client_uuid", name="uq_checklist_attachment_client_uuid"),)
@@ -4555,6 +4562,11 @@ class ChecklistAttachment(Base):
     created_by_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     client_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    content_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    discarded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    discarded_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
+    discarded_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    discard_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     checklist: Mapped["Checklist"] = relationship(back_populates="attachments")
 

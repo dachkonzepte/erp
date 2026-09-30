@@ -4,6 +4,43 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.13 – Checklisten: Unterschrift bindet den Inhalt
+
+Stufe 2 des Checklisten-Moduls, Runde 2a-1. Bisher ließ sich eine Checkliste nach der Unterschrift
+weiter ändern, eine Einzelunterschrift durch eine neue ersetzen und ein unterschriebener Entwurf
+löschen. Jetzt sperrt die erste Unterschrift Antworten und Fotos, für jede Rolle (409). Jede
+Unterschrift speichert ihren Zeitpunkt (`created_at`, UTC; Anzeige in Berliner Zeit über
+`app/berlin_time.py`) und in der neuen Spalte `content_sha256` eine SHA-256-Prüfsumme über
+Checkliste, Fassung, eingefrorene Bezeichnungen, alle ausgefüllten Antworten und den Dateiinhalt
+jedes Fotos (`signed_content_sha256()`). Weitere Unterschriften bleiben möglich und tragen bei
+unverändertem Inhalt dieselbe Summe; ersetzt oder gelöscht wird keine, auch nicht mit dem ganzen
+Entwurf. Abschließen geht wie bisher. Die Prüfsumme steht an der Unterschrift auf der Seite und im
+PDF. Schreibende Zugriffe auf eine Checkliste sperren ihre Zeile bis zum Commit (`FOR UPDATE`,
+PostgreSQL), damit keine Antwort zwischen Sperrprüfung und Unterschrift durchrutscht.
+
+Neu ist "Unterschriften verwerfen" (`POST /api/checklists/{id}/discard-signatures`): nur Büro,
+Begründung Pflicht, nur im Entwurf. Die Unterschriften werden nicht gelöscht, sondern mit Wer, Wann
+und Begründung als verworfen markiert (`discarded_*`), zählen nicht mehr (Pflichtangaben, Regeln,
+PDF) und stehen als "Verworfene Unterschriften" unter der Checkliste; die Checkliste ist wieder
+offen. "Als repariert markieren" verlangt jetzt eine Notiz. `Checklist`, `ChecklistAttachment` und
+`ChecklistAssetRelease` stehen in `AUDITED_TYPES`: Anlegen, Unterschreiben, Verwerfen (mit
+Begründung als eigene Zeile), Abschließen, Löschen eines Entwurfs und "repariert" erscheinen in der
+Änderungshistorie, bei Auftrags-Checklisten auch in der Projektmappe. Antworten bewusst nicht, sie
+speichern beim Tippen. Vor der ersten Unterschrift speichert die Seite alle noch offenen Eingaben und
+fragt nach, mit den Pflichtangaben, die danach nicht mehr ergänzt werden können.
+
+Dabei gefunden und behoben: die Änderungshistorie schrieb nach einem gescheiterten Einfügen im
+SAVEPOINT (gleichzeitige Wiederholung, Muster "Self-Seeding") den schon vorgemerkten Eintrag beim
+nächsten Speichern als Geisterzeile ("Nr. None … angelegt"); ein Rollback verwirft die Vormerkung
+jetzt. Migration `9e1377e27340`: fünf nullable Spalten an `checklist_attachments`. Bestehende
+Unterschriften bekommen keine Prüfsumme nachgetragen (NULL = vor 1.8.13), ein schon unterschriebener
+Entwurf ist ab dem Upgrade gesperrt; der Downgrade löscht verworfene Unterschriften, weil sie ohne
+die Spalten wieder als gültig zählten. 20 neue Tests in `tests/test_v317_checklist_signature_binding.py`
+inkl. Angriffstests, jede Schutzstelle mit Gegenprobe rot; zwei Tests in `test_v305` auf das neue
+Verhalten umgestellt. Die Checklisten-Tests laufen zusätzlich gegen PostgreSQL grün, die Migration
+hin/zurück/hin auf SQLite und PostgreSQL. Neuer Klicktest `scripts/klicktest_checkliste_unterschrift.py`
+(23/23). Volle Suite mit PostgreSQL: 2063 grün, 0 übersprungen.
+
 ## 1.8.12 – Geschäftsdatum und Uhrzeiten in Europe/Berlin
 
 Der Server läuft in UTC (`timedatectl`: Etc/UTC), der Entwicklungsrechner in deutscher Zeit.

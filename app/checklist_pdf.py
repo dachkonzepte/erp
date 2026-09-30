@@ -19,7 +19,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Image, KeepTogether, Paragraph, Spacer, Table, TableStyle
 
 from .berlin_time import to_berlin
-from .checklists import _answer_value, attachment_path
+from .checklists import _answer_value, active_attachments, attachment_path
 from .document_frame import frame_content_width, render_framed_pdf
 from .document_page_margins import get_margins
 from .document_pdf import build_din5008_header_block, build_object_address_block, build_styles, ptext
@@ -107,7 +107,7 @@ def build_checklist_pdf(db, checklist: Checklist) -> bytes:
     fields = checklist.template_version.fields
     answers = {a.template_field_id: a for a in checklist.answers}
     attachments: dict[int, list] = {}
-    for a in checklist.attachments:
+    for a in active_attachments(checklist):  # verworfene Unterschriften gehören nicht ins Dokument
         attachments.setdefault(a.template_field_id, []).append(a)
 
     def answer_table(rows: list[list]) -> Table:
@@ -184,11 +184,13 @@ def build_checklist_pdf(db, checklist: Checklist) -> bytes:
                 if not signatures:
                     story.append(Paragraph("Nicht unterschrieben.", small))
                 for sig in signatures:  # je Unterschrift Bild + Name zusammen, nie getrennt
-                    story.append(KeepTogether([
+                    block = [
                         _image(attachment_path(sig), SIGNATURE_WIDTH_MM, max_height_mm=SIGNATURE_HEIGHT_MM),
                         Paragraph(ptext(f"{sig.signer_name or ''}, {to_berlin(sig.created_at).strftime('%d.%m.%Y %H:%M')} Uhr"), small),
-                        Spacer(1, 3 * mm),
-                    ]))
+                    ]
+                    if sig.content_sha256:  # seit 1.8.13; ältere Unterschriften haben keine
+                        block.append(Paragraph(ptext(f"Prüfsumme (SHA-256) des unterschriebenen Inhalts: {sig.content_sha256}"), small))
+                    story.append(KeepTogether(block + [Spacer(1, 3 * mm)]))
                 story.append(Spacer(1, 2 * mm))
             else:
                 rows.append([Paragraph(ptext(field.label), body), Paragraph(ptext(format_answer(field, answers.get(field.id))), body)])

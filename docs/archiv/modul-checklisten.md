@@ -194,6 +194,9 @@ eintragen), Auslieferung über einen dedizierten, rollengeprüften Endpunkt.
   Muster "Self-Seeding"). Eine Wiederholung einer bereits gespeicherten `client_uuid` nach dem
   Abschluss liefert ebenfalls 200; eine NEUE Änderung an einer abgeschlossenen Checkliste 409.
   Der Abschluss selbst ist idempotent (zweiter Aufruf = aktueller Stand).
+- **Seit 1.8.13 sperrt schon die erste Unterschrift** Antworten und Fotos (siehe "Umsetzung
+  1.8.13"); weitere Unterschriften und Abschließen bleiben möglich, keine Unterschrift wird
+  ersetzt oder gelöscht, Entsperren nur über "Unterschriften verwerfen" (Büro, Begründung).
 - Abschließen prüft Pflichtfelder (inkl. `min_count` bei Foto/Unterschrift) und friert ein. Danach
   kein Ändern, kein Löschen. Ein Entwurf darf vom Ersteller bzw. Büro gelöscht werden (Anhänge
   samt Dateien werden mit entfernt -- `before_delete`-Event wie `roof_areas.py`).
@@ -338,6 +341,7 @@ Zwischen den Versionen darf der Betreiber `/clear` machen -- dann diese Datei le
 | **1.8.3** | Regeln → Aufgaben, `ChecklistRuleExecution`, "Aufgaben nachholen" (ursprünglich als 1.8.2 geplant) | erledigt |
 | **1.8.4** | PDF über den gemeinsamen Rahmen (ursprünglich 1.8.3) | erledigt |
 | **1.8.5** | 13 Startvorlagen per Daten-Migration (Entwurf) (ursprünglich 1.8.4). **Danach berichten** (Betreibervorgabe: nach Abschluss der geplanten Etappen) | erledigt, Bericht an den Betreiber offen |
+| **1.8.13** | Stufe 2, Runde 2a-1: Unterschrift bindet den Inhalt (Sperre, Prüfsumme, "Unterschriften verwerfen", Historie, Notiz-Pflicht bei "repariert") | erledigt |
 
 Nach jeder Version hier die Spalte "Stand" nachziehen und unten einen kurzen Abschnitt
 "Umsetzung 1.8.x" mit Abweichungen/Funden ergänzen.
@@ -592,4 +596,108 @@ Umplanung erreichbar.
 - **Stufe 1 damit fertig.** Nächste Schritte laut Plan: Stufe 2 (Regiebericht, Abnahme,
   Behinderungs-/Bedenkenanzeige über `purpose` + Folge-Registry), Stufe 3 (offline; Pflicht davor:
   `client_uuid`-Idempotenz am Einsatzbericht, siehe CLAUDE.md "Bekannte, bewusst offene Punkte").
+
+---
+
+## Umsetzung 1.8.13 (30.09.2026) -- Stufe 2, Runde 2a-1: Unterschrift bindet den Inhalt
+
+Betreibervorgabe: (1) erste Unterschrift sperrt Antworten und Anhänge, jede Unterschrift mit
+eigenem Zeitpunkt (UTC, Anzeige über `app/berlin_time.py`) und SHA-256 des unterschriebenen
+Inhalts, weitere Unterschriften möglich, Ersetzen/Löschen nicht; (2) "Unterschriften verwerfen" nur
+Büro, Begründung Pflicht, entsperrt; (3) Checklisten in `AUDITED_TYPES`, Unterschreiben/Verwerfen/
+Abschließen/"repariert" in der Änderungshistorie; (4) "repariert" mit Pflicht-Notiz; (5)
+Angriffstests mit Gegenprobe. Nur melden: Startvorlagen mit Feldern nach der ersten Unterschrift,
+Migration bestehender unterschriebener Entwürfe, Nebenbefunde.
+
+- **Datenmodell** (Migration `9e1377e27340`, fünf nullable Spalten an `checklist_attachments`):
+  `content_sha256`, `discarded_at`, `discarded_by_user_id` (FK `app_users`), `discarded_by_name`,
+  `discard_reason`. Zeitpunkt der Unterschrift = das schon vorhandene `created_at` (UTC, je
+  Unterschrift); die API liefert zusätzlich `created_at_local` (Berliner Zeit, vom Server).
+- **Sperre** hängt am Vorhandensein einer nicht verworfenen Unterschrift (`is_signed()`), nicht an
+  einer Statusspalte. Gilt für jede Rolle, auch fürs Büro. `save_answer()`, Foto-Upload,
+  `delete_attachment()` (Foto wie Unterschrift) und `delete_checklist()` → `ChecklistLocked` (409).
+  Einzelunterschrift mit vorhandener Unterschrift → 409 (früher: ersetzt). Mehrfachunterschrift
+  bis `max_count` und weitere Unterschriftsfelder bleiben offen, Abschließen auch. Eine
+  Wiederholung derselben `client_uuid` bleibt 200 (Stufe-3-Vorbereitung unverändert).
+- **Prüfsumme** (`signed_content_sha256()`): kanonisches JSON (`"v": 1`, sortierte Schlüssel) über
+  Checklisten-ID, Fassung, Bezeichnungs-/Kontext-Schnappschüsse, jede ausgefüllte Antwort nach
+  `field_key` (Zahlen normalisiert: 12.5000 aus der DB = 12.5) und jedes nicht verworfene Foto mit
+  der SHA-256 seiner gespeicherten Datei (blockweise gelesen). Andere Unterschriften gehören nicht
+  dazu: bei unverändertem Inhalt tragen alle Unterschriften dieselbe Summe. Berechnet VOR dem
+  Einfügen der Unterschrift. Anzeige: gekürzt an der Unterschrift (voll im `title`), voll im PDF.
+  Eine laufende Nachprüfung in der Oberfläche gibt es bewusst noch nicht; der Test
+  `test_hash_covers_answers_and_photo_files` zeigt, dass eine Änderung an Datenbank oder Fotodatei
+  an der Sperre vorbei die Summe verändert.
+- **Zeilensperre**: schreibende Funktionen laden die Checkliste mit `with_for_update(of=Checklist)`
+  + `populate_existing` (PostgreSQL; SQLite ignoriert es) -- sonst könnte eine Antwort zwischen
+  Sperrprüfung und Unterschrift durchrutschen.
+- **Verwerfen** (`discard_signatures()`, `POST /api/checklists/{id}/discard-signatures`,
+  `require_min_role(ROLE_OFFICE_AUFTRAG)`): nur Entwurf (abgeschlossen → 409), Begründung Pflicht
+  (400), ohne Unterschrift 400. Markiert statt löscht -- Bild, Name, Zeitpunkt, Prüfsumme bleiben;
+  `active_attachments()` blendet verworfene überall aus (Pflichtangaben, Regel `ausgefuellt`, PDF,
+  Anzeige). Eine verworfene Unterschrift ist nie löschbar. Seite: sichtbares Begründungsfeld in der
+  Karte "Unterschrieben" (Regel 4), danach Karte "Verworfene Unterschriften".
+- **Änderungshistorie**: `Checklist`, `ChecklistAttachment`, `ChecklistAssetRelease` in
+  `AUDITED_TYPES`, eigene Bezeichnungen in `_normalize()` ("Checkliste", "Checklisten-Unterschrift",
+  "Checklisten-Foto", "Gerät als repariert markiert"), `entity_id` = Checkliste, `project_id` über
+  den Auftrag (erscheint in der Projektmappe). Verwerfen erscheint je Unterschrift als geänderte
+  Felder, darunter "Begründung (Verwerfen)"; Abschließen als Status entwurf → abgeschlossen; die
+  Notiz bei "repariert" steht im Schnappschuss (`details`). `ChecklistAnswer` bewusst NICHT (Tippen
+  erzeugt alle 700 ms eine Zeile; verbindlich macht den Inhalt die Prüfsumme).
+- **Oberfläche** (`checklist.html`): `can_edit` (Antworten/Fotos) getrennt von `can_sign`
+  (Unterschreiben, Abschließen) und `can_discard_signatures`. Vor der ersten Unterschrift werden
+  ausstehende Eingaben gespeichert (`flushAll()`, sonst käme ein verzögerter Text nach der
+  Unterschrift an und würde abgewiesen) und `confirm()` nennt die Pflichtangaben, die danach nicht
+  mehr ergänzbar sind; dieselben stehen danach als Warnung in der Karte "Unterschrieben".
+  `operational_asset.html`: Notiz-Pflicht auch clientseitig.
+- **Verifikation**: `tests/test_v317_checklist_signature_binding.py` (20 Tests), Gegenproben je
+  Schutzstelle rot (Sperre aus 3 rot, Einzelunterschrift ersetzbar 1, Verwerfen für jede Rolle 1,
+  ohne Begründung 4, repariert ohne Notiz 4); `test_v305` zwei Tests umgestellt. Checklisten-Tests
+  v305-v308 + v317 (67) zusätzlich gegen PostgreSQL (Wegwerf-Schema in `spielwiese`) grün. Migration
+  SQLite + PostgreSQL hin/zurück/hin mit Bestand, `alembic check` sauber. Klicktest
+  `scripts/klicktest_checkliste_unterschrift.py` 23/23. Volle Suite mit PostgreSQL 2063 grün.
+
+### Befund: Startvorlagen mit Feldern nach der ersten Unterschrift (nur gemeldet)
+In allen 13 Startvorlagen stehen die Unterschriftsfelder am Ende; das Problem ist der Ablauf, nicht
+die Reihenfolge. Konflikt, wenn die erste Unterschrift fällt, bevor alles erfasst ist:
+- **Heißarbeiten mit Brandwache** (deutlich): Ende, Nachkontrolle bis, Nachkontrolle ohne Befund
+  (alle Pflicht) entstehen erst nach der Arbeit; wird der Erlaubnisschein vor Beginn unterschrieben
+  (üblicher Ablauf), ist die Checkliste bis zum Verwerfen durch das Büro nicht abschließbar.
+- **Nachtragsmeldung**: unterschreibt der Kunde bei der Anordnung, fehlen oft noch Fotos (Pflicht,
+  min. 1) und "bereits ausgeführt".
+- **Entsorgungsnachweis**: Beleg-Foto (Pflicht) und Wiegeschein-Nr. kommen oft erst von der
+  Annahmestelle, nach der Übergabe.
+- **Sicherheitsunterweisung**: Dauer (nicht Pflicht) steht erst am Ende; Teilnehmer, die später
+  unterschreiben, gehen weiterhin.
+- **Tagesbericht**: nur, wenn vor Feierabend unterschrieben wird.
+Ohne Konflikt: Sicherheitscheck, Gefahrstoff-Verdacht, verdeckte Arbeiten, Geräte-Sichtprüfung,
+Schadensmeldung Gerät, Abfahrtkontrolle. Vorher/Nachher und Aufmaß haben keine Unterschrift, werden
+also nie gesperrt und tragen keine Prüfsumme.
+
+### Befund: Migration bestehender unterschriebener, nicht abgeschlossener Checklisten
+Keine Datenänderung. Die Sperre gilt ab dem Upgrade sofort (sie hängt an der vorhandenen
+Unterschrift), die Prüfsumme bleibt NULL = "vor 1.8.13 unterschrieben" (der damals unterschriebene
+Inhalt ist nicht mehr bekannt, eine nachgerechnete Summe würde ihn falsch bescheinigen). Abschließen
+geht, Ändern nur nach "Unterschriften verwerfen". Betroffene auf dem Server finden:
+`SELECT c.id, c.template_label_snapshot FROM checklists c WHERE c.status = 'entwurf' AND EXISTS
+(SELECT 1 FROM checklist_attachments a WHERE a.checklist_id = c.id AND a.kind = 'unterschrift');`
+
+### Nebenbefunde
+- **Geisterzeilen in der Änderungshistorie (mitbehoben, weil Punkt 3 sie sonst auf Checklisten
+  ausgedehnt hätte)**: `collect_audit()` merkt in `before_flush` vor, `write_audit()` schreibt in
+  `after_flush_postexec`. Scheiterte der Flush dazwischen (Unique-Kollision im SAVEPOINT), blieb die
+  Vormerkung liegen und wurde beim nächsten Flush als "angelegt" mit `entity_id` "None"
+  geschrieben. Betraf jeden protokollierten Typ mit SAVEPOINT-Muster (z. B. `SettingOptionGroup`
+  beim gleichzeitigen ersten Seeding). Jetzt räumt `after_soft_rollback` die Vormerkung ab;
+  Test `test_failed_flush_leaves_no_stale_history_entry`, vorher rot.
+- **Benutzer löschen scheitert unter PostgreSQL**, sobald der Benutzer irgendwo per FK steht
+  (15 FKs auf `app_users`, ohne `ON DELETE`; SQLite erzwingt FKs hier nicht): gegen PostgreSQL
+  nachgestellt, `DELETE /api/users/{id}` für einen Benutzer mit angelegter Checkliste → 500
+  (`checklists_created_by_user_id_fkey`). `discarded_by_user_id` ist ein weiterer solcher FK.
+  Nicht behoben.
+- **Testaufbau `world` (test_v305) läuft nur unter SQLite**: Aufträge mit erfundener
+  `source_quote_id`, unter PostgreSQL FK-Verletzung. Für die PG-Probe im Wegwerf-Schema die eine
+  FK entfernt. Nicht geändert.
+- Vorbestehend: bei einer Einzelunterschrift mit Rollenbeschriftung "Monteur" belegt die Seite
+  den Namen mit dem angemeldeten Konto vor -- auch wenn das Büro die Seite offen hat.
 

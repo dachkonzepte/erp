@@ -308,10 +308,11 @@ def test_photos_and_signatures(world, router_test_client):
     assert client.post(url, data={"field_id": f["fotos"]}, files={"file": ("x.jpg", b"kein bild", "image/jpeg")}).status_code == 400
     assert client.post(url, data={"field_id": f["sig"]}, files={"file": ("s.png", _png(), "image/png")}).status_code == 400
     client.post(url, data={"field_id": f["sig"], "signer_name": "Anna"}, files={"file": ("s.png", _png(), "image/png")})
-    body = client.post(url, data={"field_id": f["sig"], "signer_name": "Anna Alpha"},
-                       files={"file": ("s.png", _png((0, 0, 0)), "image/png")}).json()
-    sigs = [a for a in body["attachments"] if a["kind"] == "unterschrift"]
-    assert [s["signer_name"] for s in sigs] == ["Anna Alpha"]  # Einzelunterschrift ersetzt
+    again = client.post(url, data={"field_id": f["sig"], "signer_name": "Anna Alpha"},
+                        files={"file": ("s.png", _png((0, 0, 0)), "image/png")})
+    assert again.status_code == 409  # seit 1.8.13 ersetzt keine Unterschrift die andere (test_v317)
+    sigs = [a for a in client.get(f"/api/checklists/{c['id']}").json()["attachments"] if a["kind"] == "unterschrift"]
+    assert [s["signer_name"] for s in sigs] == ["Anna"]
     assert client.post(url, data={"field_id": f["frei"]}, files={"file": ("s.png", _png(), "image/png")}).status_code == 400
 
 
@@ -361,9 +362,14 @@ def test_replay_after_completion_is_still_success(world, router_test_client):
 
 
 def test_deleting_draft_removes_files(world, router_test_client):
+    """Nur ein UNunterschriebener Entwurf -- einen unterschriebenen löscht seit 1.8.13 niemand
+    (test_v317)."""
     client = _client(world, router_test_client, "a")
     c = _start_order(world, client)
-    body = _fill_order_checklist(client, c)
+    f = _fields(c)
+    for name in ("f.jpg", "g.jpg"):
+        body = client.post(f"/api/checklists/{c['id']}/attachments", data={"field_id": f["fotos"]},
+                           files={"file": (name, _jpeg(), "image/jpeg")}).json()
     paths = [checklists_module.attachment_path(world["db"].get(ChecklistAttachment, a["id"])) for a in body["attachments"]]
     assert all(p.exists() for p in paths)
     assert client.delete(f"/api/checklists/{c['id']}").status_code == 200

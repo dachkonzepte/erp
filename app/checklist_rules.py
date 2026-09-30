@@ -28,6 +28,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .berlin_time import berlin_now, to_berlin
+from .checklists import active_attachments
 from .models import (
     Checklist, ChecklistAnswer, ChecklistRuleExecution, ChecklistTemplateField, ChecklistTemplateRule,
     ChecklistTemplateVersion, Order, Task,
@@ -79,7 +80,7 @@ def rule_matches(checklist: Checklist, rule: ChecklistTemplateRule) -> bool:
     if field is None:
         return False
     if rule.operator == "ausgefuellt" and field.field_type in ("foto", "unterschrift"):
-        return any(a.template_field_id == field.id for a in checklist.attachments)
+        return any(a.template_field_id == field.id for a in active_attachments(checklist))  # ohne verworfene
     answer = next((a for a in checklist.answers if a.template_field_id == field.id), None)
     if answer is None:
         return False

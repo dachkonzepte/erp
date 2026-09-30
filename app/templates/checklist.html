@@ -10,6 +10,13 @@
   (Text/Zahl/Datum), jede mit eigener client_uuid und client_recorded_at -- Vorbereitung für den
   Offline-Betrieb (Stufe 3), der Server nimmt Wiederholungen idempotent an. Vor dem Abschließen
   werden noch ausstehende Speichervorgänge abgewartet. Bedienelemente mindestens 44px.
+
+  Seit 1.8.13 bindet die Unterschrift den Inhalt: ab der ersten Unterschrift (cl.signed) sind
+  Antworten und Fotos gesperrt (can_edit=false), weitere Unterschriften und Abschließen bleiben
+  möglich (can_sign). Keine Unterschrift wird ersetzt oder entfernt. Vor der ERSTEN Unterschrift
+  werden offene Eingaben gespeichert und es erscheint ein Hinweis mit den noch offenen Angaben.
+  Das Büro kann die Unterschriften mit Begründung verwerfen (can_discard_signatures, sichtbares
+  Eingabefeld statt Popup, Regel 4); verworfene stehen danach unten als Nachweis.
 #}
 <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 <style>
@@ -54,10 +61,17 @@ textarea{min-height:90px;resize:vertical}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .thumb button{position:absolute;top:2px;right:2px;min-height:32px;min-width:32px;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:16px;cursor:pointer}
 .sig-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
-.sig{display:flex;align-items:center;gap:10px;border:1px solid var(--line);padding:6px 8px;background:#fff}
+.sig{display:flex;align-items:center;gap:10px;border:1px solid var(--line);padding:6px 8px;background:#fff;flex-wrap:wrap}
 .sig img{height:60px;max-width:220px;object-fit:contain}
-.sig .name{color:#182420;font-weight:650;flex:1}
-.sig button{min-height:36px;border:none;background:var(--danger-soft);color:var(--danger);cursor:pointer;padding:4px 10px}
+.sig .name{color:#182420;font-weight:650;flex:1;min-width:140px}
+.sig .sig-meta{display:block;font-weight:400;font-size:12px;color:#5c6f68;margin-top:2px;word-break:break-all}
+.lock-card{border-left:3px solid var(--accent)}
+.lock-card .lock-title{font-weight:700}
+.lock-card .warn{color:var(--warning);margin-top:6px;font-size:13.5px}
+.discard-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;margin-top:10px}
+.discard-row textarea{flex:1 1 260px;min-height:60px}
+.discarded-row{padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.discarded-row:last-of-type{border-bottom:none}
 .pad-wrap{border:1px dashed var(--field-border);background:#fff;touch-action:none}
 .pad-wrap canvas{display:block;width:100%;height:170px}
 .pad-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
@@ -118,8 +132,34 @@ function renderHeader(){
     <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap">
       <div><h1>${esc(cl.template_label)}</h1><div class="muted">${meta}</div><div class="muted small" style="margin-top:4px">${who} · Fassung ${cl.version_no}</div></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${cl.status==='abgeschlossen'?`<a class="btn secondary" id="pdfLink" href="/api/checklists/${cl.id}/pdf" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center">PDF</a>`:''}${badge}</div></div>
-      ${!cl.can_edit&&cl.status==='entwurf'?'<div class="muted small" style="margin-top:8px">Nur lesen – diese Checkliste hat eine andere Person angelegt.</div>':''}
-    </div>`;
+      ${!cl.can_sign&&cl.status==='entwurf'?'<div class="muted small" style="margin-top:8px">Nur lesen – diese Checkliste hat eine andere Person angelegt.</div>':''}
+    </div>${renderLockCard()}`;
+}
+
+// Pflichtangaben außer Unterschriften, die noch fehlen -- nach der ersten Unterschrift lassen sie
+// sich nicht mehr ergänzen.
+function missingContentLabels(){
+  const sigLabels=cl.fields.filter(f=>f.field_type==='unterschrift').map(f=>f.label);
+  return (cl.missing_required||[]).filter(m=>!sigLabels.some(l=>m===l||m.startsWith(l+' (mindestens')));
+}
+
+function renderLockCard(){
+  if(!cl.signed||cl.status!=='entwurf')return '';
+  const open=missingContentLabels();
+  return `<div class="card lock-card" id="lockCard"><div class="lock-title">Unterschrieben – Antworten und Fotos sind gesperrt</div>
+    <div class="muted small" style="margin-top:4px">Weitere Unterschriften und Abschließen sind möglich.${IS_FIELD?' Muss noch etwas geändert werden, kann das Büro die Unterschriften mit Begründung verwerfen.':''}</div>
+    ${open.length?`<div class="warn">Es fehlen Pflichtangaben, die sich nicht mehr ergänzen lassen: ${esc(open.join(', '))}. Zum Abschließen muss das Büro die Unterschriften verwerfen.</div>`:''}
+    ${cl.can_discard_signatures?`<div class="discard-row"><textarea id="discardReason" maxlength="2000" placeholder="Begründung (Pflicht), z. B. Windangabe falsch eingetragen"></textarea>
+      <button type="button" class="btn danger" id="discardBtn" onclick="discardSignatures()">Unterschriften verwerfen</button></div>
+      <div class="small error-box" id="discardStatus" style="margin-top:6px"></div>`:''}</div>`;
+}
+
+function renderDiscarded(){
+  const list=cl.discarded_signatures||[];
+  if(!list.length)return '';
+  const label=id=>(cl.fields.find(f=>f.id===id)||{label:'Unterschrift'}).label;
+  return `<div class="card"><h2 style="margin:0 0 8px;font-size:16px">Verworfene Unterschriften</h2>${list.map(d=>`<div class="discarded-row"><b>${esc(d.signer_name)}</b> <span class="muted">(${esc(label(d.field_id))}, unterschrieben ${esc(d.created_at_local)})</span>
+    <div class="small">Verworfen ${esc(d.discarded_at_local)}${d.discarded_by_name?' von '+esc(d.discarded_by_name):''}: ${esc(d.discard_reason)}</div></div>`).join('')}</div>`;
 }
 
 function valueText(f,v){
@@ -163,14 +203,17 @@ function fieldBody(f){
       <div class="muted small" style="margin-top:4px">${list.length} von höchstens ${max}${f.min_count?`, mindestens ${f.min_count}`:''}</div>`;
   }
   if(t==='unterschrift'){
+    // Seit 1.8.13: keine Unterschrift wird ersetzt oder entfernt -- eine Einzelunterschrift
+    // nimmt genau eine auf, eine Mehrfachunterschrift bis max_count, auch nach der ersten.
     const list=attachmentsOf(f);
-    const canAdd=!ro&&(f.multiple?list.length<(f.max_count||20):true);
+    const canAdd=cl.can_sign&&(f.multiple?list.length<(f.max_count||20):!list.length);
     const prefill=(!f.multiple&&/monteur|ausführend|fahrer/i.test(f.signer_label||f.label))?MY_NAME:'';
-    return `<div class="sig-list">${list.map(a=>`<div class="sig"><img src="${a.url}" alt="Unterschrift"><span class="name">${esc(a.signer_name)}</span>${ro?'':`<button type="button" onclick="removeAttachment(${a.id})">Entfernen</button>`}</div>`).join('')||(ro?'<span class="muted">Keine Unterschrift.</span>':'')}</div>
+    const meta=a=>[a.created_at_local?a.created_at_local+' Uhr':null,a.content_sha256?'Prüfsumme '+a.content_sha256.slice(0,12)+'…':null].filter(Boolean).join(' · ');
+    return `<div class="sig-list">${list.map(a=>`<div class="sig"><img src="${a.url}" alt="Unterschrift"><span class="name">${esc(a.signer_name)}<span class="sig-meta"${a.content_sha256?` title="SHA-256 des unterschriebenen Inhalts: ${esc(a.content_sha256)}"`:''}>${esc(meta(a))}</span></span></div>`).join('')||(canAdd?'':'<span class="muted">Keine Unterschrift.</span>')}</div>
       ${canAdd?`<div class="pad-wrap"><canvas id="pad_${f.id}"></canvas></div>
       <div class="pad-actions"><input id="padName_${f.id}" placeholder="Name ${esc(f.signer_label||'')}" value="${esc(prefill)}">
         <button type="button" class="btn secondary" onclick="clearPad(${f.id})">Leeren</button>
-        <button type="button" class="btn" onclick="saveSignature(${f.id})">${!f.multiple&&list.length?'Neu unterschreiben':'Unterschrift übernehmen'}</button></div>`:''}`;
+        <button type="button" class="btn" onclick="saveSignature(${f.id})">Unterschrift übernehmen</button></div>`:''}`;
   }
   return '';
 }
@@ -187,15 +230,16 @@ function render(){
       html+=`<div class="hint"><div class="q-label">${esc(f.label)}</div>${f.help_text?`<div class="q-help">${esc(f.help_text)}</div>`:''}</div>`;
       continue;
     }
-    const isMissing=cl.can_edit&&[...missing].some(m=>m===f.label||m.startsWith(f.label+' (mindestens'));
+    const isMissing=cl.can_sign&&[...missing].some(m=>m===f.label||m.startsWith(f.label+' (mindestens'));
     const label=`${esc(f.label)}${f.required||f.min_count?'<span class="req">*</span>':''}${f.signer_label?` <span class="muted small">(${esc(f.signer_label)})</span>`:''}`;
     html+=`<div class="q${isMissing?' missing':''}" id="q_${f.id}"><div class="q-label">${label}</div>${f.help_text?`<div class="q-help">${esc(f.help_text)}</div>`:''}
       <div class="q-body">${fieldBody(f)}</div><div class="q-status" id="st_${f.id}"></div></div>`;
   }
-  if(cl.can_edit){
+  html+=renderDiscarded();
+  if(cl.can_sign){
     const m=cl.missing_required||[];
     html+=`<div class="footer-card"><div class="missing-text" id="missingText">${m.length?'Noch offen: '+esc(m.join(', ')):'Alle Pflichtangaben sind ausgefüllt.'}</div>
-      <button type="button" class="btn danger" onclick="deleteDraft()">Entwurf löschen</button>
+      ${cl.can_edit?'<button type="button" class="btn danger" onclick="deleteDraft()">Entwurf löschen</button>':''}
       <button type="button" class="btn" id="completeBtn" onclick="completeChecklist()">Abschließen</button></div>
       <div id="pageError" class="error-box small" style="margin-top:8px"></div>`;
   }
@@ -286,6 +330,7 @@ async function uploadFile(fieldId,blob,filename,extra={}){
   for(const [k,v] of Object.entries(extra))fd.append(k,v);
   const data=await api(`/api/checklists/${checklistId}/attachments`,{method:'POST',body:fd});
   cl.attachments=data.attachments;cl.missing_required=data.missing_required;
+  return data;
 }
 async function uploadPhotos(fieldId,input){
   const files=[...input.files];input.value='';
@@ -327,10 +372,31 @@ async function saveSignature(fieldId){
   const name=(nameEl.value||'').trim();
   if(!p||!p.dirty){setStatus(fieldId,'Bitte zuerst im Feld unterschreiben.',true);return}
   if(!name){setStatus(fieldId,'Bitte den Namen der unterschreibenden Person eintragen.',true);nameEl.focus();return}
+  if(!cl.signed){
+    // Erste Unterschrift sperrt Antworten und Fotos: zuerst alles Getippte speichern (sonst käme
+    // es nach der Unterschrift an und würde abgewiesen), dann bewusst bestätigen lassen.
+    setStatus(fieldId,'Speichert Eingaben …');
+    await flushAll();
+    const open=missingContentLabels();
+    const text='Nach der Unterschrift sind Antworten und Fotos gesperrt und lassen sich nicht mehr ändern.'
+      +(open.length?'\n\nNoch nicht ausgefüllt: '+open.join(', ')+'\nDiese Angaben lassen sich danach nicht mehr ergänzen.':'')
+      +'\n\nJetzt unterschreiben?';
+    if(!confirm(text)){setStatus(fieldId,'');return}
+  }
   setStatus(fieldId,'Speichert …');
   const blob=await new Promise(res=>p.canvas.toBlob(res,'image/png'));
-  try{await uploadFile(fieldId,blob,'unterschrift.png',{signer_name:name});rerenderField(cl.fields.find(x=>x.id===fieldId));updateMissing();setStatus(fieldId,'Gespeichert')}
-  catch(e){setStatus(fieldId,'Nicht gespeichert: '+e.message,true)}
+  try{cl=await uploadFile(fieldId,blob,'unterschrift.png',{signer_name:name});render();setStatus(fieldId,'Gespeichert')}
+  catch(e){setStatus(fieldId,'Nicht gespeichert: '+e.message,true);if(e.status===409)await reload()}
+}
+
+async function discardSignatures(){
+  const input=document.getElementById('discardReason'),st=document.getElementById('discardStatus'),btn=document.getElementById('discardBtn');
+  const reason=(input.value||'').trim();
+  if(!reason){st.textContent='Bitte eine Begründung eintragen.';input.focus();return}
+  if(!confirm('Alle Unterschriften dieser Checkliste verwerfen? Sie bleiben als verworfen sichtbar, die Checkliste ist danach wieder bearbeitbar.'))return;
+  btn.disabled=true;st.textContent='';
+  try{cl=await api(`/api/checklists/${checklistId}/discard-signatures`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});render();window.scrollTo(0,0)}
+  catch(e){st.textContent=e.message;btn.disabled=false}
 }
 
 // --- Abschließen, Löschen ---------------------------------------------------------------

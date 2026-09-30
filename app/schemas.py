@@ -4280,17 +4280,33 @@ class ChecklistAttachmentOut(BaseModel):
     kind: str
     signer_name: str | None = None
     created_at: datetime
+    created_at_local: str | None = None  # Europe/Berlin, "TT.MM.JJJJ HH:MM" (seit 1.8.13)
+    content_sha256: str | None = None    # nur Unterschriften ab 1.8.13
     url: str
 
 
+class ChecklistDiscardedSignatureOut(ChecklistAttachmentOut):
+    discarded_at: datetime
+    discarded_at_local: str | None = None
+    discarded_by_name: str | None = None
+    discard_reason: str | None = None
+
+
 class ChecklistOut(ChecklistSummaryOut):
+    """can_edit: Antworten und Fotos änderbar (Entwurf, nicht unterschrieben, eigene bzw. Büro).
+    can_sign: Unterschreiben und Abschließen (Entwurf, eigene bzw. Büro) -- auch nach der ersten
+    Unterschrift. can_discard_signatures: nur Büro, nur unterschriebener Entwurf (seit 1.8.13)."""
     template_version_id: int
     version_no: int
     fields: list[ChecklistTemplateFieldOut] = []
     answers: dict[str, ChecklistAnswerOut] = {}
     attachments: list[ChecklistAttachmentOut] = []
+    discarded_signatures: list[ChecklistDiscardedSignatureOut] = []
+    signed: bool = False
     missing_required: list[str] = []
     can_edit: bool = False
+    can_sign: bool = False
+    can_discard_signatures: bool = False
 
 
 class ChecklistAssetReadinessOut(BaseModel):
@@ -4307,7 +4323,11 @@ class ChecklistAssetReadinessOut(BaseModel):
 
 
 class ChecklistAssetReleaseWrite(BaseModel):
-    note: str | None = None
+    note: str | None = None  # Pflicht seit 1.8.13 -- geprüft in der Geschäftslogik (400 mit Text statt 422)
+
+
+class ChecklistDiscardSignaturesWrite(BaseModel):
+    reason: str | None = None  # Pflicht -- geprüft in der Geschäftslogik (400 mit Text statt 422)
 
 
 class ChecklistRuleExecutionOut(BaseModel):
