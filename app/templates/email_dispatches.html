@@ -26,13 +26,19 @@ a.link{color:var(--accent);font-weight:700;text-decoration:none}
 button{font-family:inherit;cursor:pointer;padding:6px 11px;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--ink)}
 button:hover{background:var(--soft)}
 .row-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px}
+button.danger{color:var(--danger);border-color:var(--danger)}button.danger:hover{background:var(--danger-soft)}
+button:disabled{opacity:.55;cursor:default}
+textarea{font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);width:100%;min-width:220px;resize:vertical}
+textarea:hover{border-color:var(--field-border-hover)}
+.resolve{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+.resolved-note{margin-top:4px;padding:6px 8px;background:var(--soft);font-size:12px}
 </style></head><body>
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
-<div class="card"><h1>Versandprotokoll</h1><div class="muted">Jeder E-Mail-Versand von Angeboten, Aufträgen, Rechnungen und Mahnungen – mit dem abgelegten PDF genau so, wie es hinausging. Einträge werden nie geändert oder gelöscht.</div></div>
+<div class="card"><h1>Versandprotokoll</h1><div class="muted">Jeder E-Mail-Versand von Angeboten, Aufträgen, Rechnungen und Mahnungen – mit dem abgelegten PDF genau so, wie es hinausging. Einträge werden nie gelöscht; einen hängengebliebenen klärt das Büro einmal mit Notiz.</div></div>
 <div class="card stuck" id="stuckCard" style="display:none"></div>
 <div class="card">
   <div class="filters">
@@ -63,11 +69,27 @@ function docLink(d){
   return id&&href?`<a class="link" href="${href}">${label}</a>`:label;
 }
 function statusCell(d){
-  if(d.stuck) return `<span class="pill haengt">Hängt</span><div class="small muted">seit ${fmtLocal(d.created_at_local)} in Arbeit – Ausgang unklar</div>`;
+  // Hängengeblieben (seit 1.8.19): klären statt nur anzeigen -- sichtbares Notizfeld, kein prompt() (Regel 4).
+  if(d.stuck) return `<span class="pill haengt">Hängt</span><div class="small muted">seit ${fmtLocal(d.created_at_local)} in Arbeit – Ausgang unklar</div>
+    <div class="resolve"><label class="small muted" for="resolveNote${d.id}">Nach Blick in den Postausgang klären (Notiz Pflicht)</label>
+      <textarea id="resolveNote${d.id}" rows="2" maxlength="1000" placeholder="z. B. „In Gesendete Elemente gefunden, 14:02 Uhr“"></textarea>
+      <div class="row-actions"><button onclick="resolveDispatch(${d.id},'gesendet',this)">Als gesendet bestätigen</button><button class="danger" onclick="resolveDispatch(${d.id},'fehlgeschlagen',this)">Als fehlgeschlagen markieren</button></div>
+      <div class="small" id="resolveMsg${d.id}"></div></div>`;
   let html=`<span class="pill ${esc(d.status)}">${esc(d.status_label)}</span>`;
   if(d.finished_at_local) html+=`<div class="small muted">${fmtLocal(d.finished_at_local)}</div>`;
   if(d.status==='fehlgeschlagen'&&d.error_class) html+=`<div class="small muted">${esc(d.error_class)}${d.error_code?' · '+esc(d.error_code):''}</div>`;
+  if(d.resolved) html+=`<div class="resolved-note"><b>Von Hand geklärt</b> · ${esc(d.resolved_by_name)}, ${fmtLocal(d.resolved_at_local)}<div>${esc(d.resolution_note)}</div></div>`;
   return html;
+}
+async function resolveDispatch(id,outcome,btn){
+  const note=document.getElementById('resolveNote'+id).value.trim(), out=document.getElementById('resolveMsg'+id);
+  out.className='small check-bad';
+  if(!note){out.textContent='Bitte zuerst in der Notiz festhalten, wie geklärt wurde.';return}
+  btn.disabled=true;out.className='small muted';out.textContent='speichere …';
+  try{
+    await api(`/api/email-dispatches/${id}/resolve`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({outcome,note})});
+    await reload();
+  }catch(e){out.className='small check-bad';out.textContent='Fehler: '+e.message;btn.disabled=false}
 }
 function archiveCell(d){
   const a=d.sent_document;
@@ -93,7 +115,7 @@ async function reload(){
     const stuck=document.getElementById('stuckCard');
     if(data.stuck_count){
       stuck.style.display='';
-      stuck.innerHTML=`<b>${data.stuck_count===1?'Ein Versand hängt':data.stuck_count+' Versände hängen'}</b> seit mehr als ${data.stuck_after_minutes} Minuten in Arbeit. Ob die Mail hinausging, ist unklar – bitte im Postausgang (Gesendete Elemente) nach der Kennung suchen. Es wird nichts automatisch erneut gesendet; ein neuer Versand ist ein neuer Klick auf der Dokumentseite.`;
+      stuck.innerHTML=`<b>${data.stuck_count===1?'Ein Versand hängt':data.stuck_count+' Versände hängen'}</b> seit mehr als ${data.stuck_after_minutes} Minuten in Arbeit. Ob die Mail hinausging, ist unklar – bitte im Postausgang (Gesendete Elemente) nach der Kennung suchen und den Eintrag hier als gesendet oder fehlgeschlagen klären. Es wird nichts automatisch erneut gesendet; ein neuer Versand ist ein neuer Klick auf der Dokumentseite.`;
     }else stuck.style.display='none';
     rows.innerHTML=data.items.length?data.items.map(d=>`<tr>
       <td>${fmtLocal(d.created_at_local)}<div class="mono muted" title="Kopfzeile X-DK-Versand-ID">${esc(d.message_ref)}</div></td>

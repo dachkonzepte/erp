@@ -1,4 +1,5 @@
-"""Versandprotokoll und Sperre gegen Doppelversand (seit 1.8.17, Stufe 2, Runde 2a-3a).
+"""Versandprotokoll und Sperre gegen Doppelversand (seit 1.8.17, Stufe 2, Runde 2a-3a; Sperre je
+Dokument, Klärung hängender Einträge und Versand der abgelegten Fassung seit 1.8.19, Runde 2a-3b).
 
 dispatch_email() ist der einzige Weg, eine E-Mail zu versenden (app/email_sending.py::
 send_message() hat keinen anderen Aufrufer, per Test erzwungen). Ablauf je Versandauftrag:
@@ -8,23 +9,30 @@ send_message() hat keinen anderen Aufrufer, per Test erzwungen). Ablauf je Versa
    vorhandenen Eintrag zurück (eine wiederholte Anfrage bekommt dieselbe Antwort), "in_arbeit"
    und "fehlgeschlagen" werden mit DispatchConflict (409) abgelehnt -- ein neuer Versuch ist ein
    neuer Klick mit neuem Schlüssel.
-2. Vorab prüfen, ohne etwas zu schreiben: Empfänger, Konfiguration, Anhanggröße (3 MB). Dazu:
-   läuft für dasselbe Dokument gerade ein anderer Versand (in_arbeit, jünger als STUCK_AFTER),
-   409 -- fängt "Seite neu geladen, noch einmal geklickt" ab, während der erste noch sendet.
-3. Eintrag "in_arbeit" anlegen (Unique-Schlüssel im SAVEPOINT, bei gleichzeitigem Doppelklick
-   gewinnt genau einer) und committen -- VOR dem Senden. Bricht der Prozess danach ab, bleibt der
-   Eintrag "in_arbeit" stehen und erscheint nach STUCK_AFTER als hängengeblieben. Er wird nie
-   automatisch erneut gesendet: ob die Mail hinausging, weiß nur der Postausgang.
+2. Vorab prüfen, ohne etwas zu schreiben: Empfänger (jede Adresse einzeln, parse_recipients()),
+   Konfiguration, Anhanggröße (3 MB), und ob für dasselbe Dokument gerade ein anderer Versand läuft
+   (in_arbeit, jünger als STUCK_AFTER) -- das ergibt die verständliche Meldung im Normalfall.
+3. Eintrag "in_arbeit" anlegen und committen -- VOR dem Senden. Zwei Unique-Schlüssel entscheiden
+   dabei in der Datenbank, nicht im Code: dispatch_key (derselbe Klick zweimal) und lock_key
+   ("<art>:<id>" -- zwei Tabs, die dasselbe Dokument in derselben Sekunde senden; beide bestehen
+   die Vorabprüfung, die Datenbank legt genau einen an, der andere bekommt 409). Bricht der Prozess
+   danach ab, bleibt der Eintrag "in_arbeit" stehen und erscheint nach STUCK_AFTER als
+   hängengeblieben; seine Sperre gilt dann nicht mehr (ein neuer Versand gibt sie frei). Er wird
+   nie automatisch erneut gesendet: ob die Mail hinausging, weiß nur der Postausgang -- das Büro
+   klärt ihn mit Notiz (resolve_stuck_dispatch()).
 4. PDF in die Ablage (app/sent_documents.py), Verweis am Eintrag, commit. Scheitert das Ablegen,
-   wird nicht gesendet.
+   wird nicht gesendet. Ist das PDF schon die abgelegte Fassung (Rechnung/Storno/Mahnung nach dem
+   ersten Versand, archived_document), wird nur verwiesen, nicht noch einmal abgelegt.
 5. Senden mit der eigenen Kennung als Kopfzeile X-DK-Versand-ID, danach "gesendet" bzw.
-   "fehlgeschlagen" per bedingtem UPDATE (nur aus "in_arbeit").
+   "fehlgeschlagen" per bedingtem UPDATE (nur aus "in_arbeit"), Sperre frei.
 
 Regel 18: im Protokoll stehen Empfänger und Betreff (vom Betreiber für den Nachweis verlangt), nie
 der Mailtext und nie der Fehlertext -- vom Fehler nur Klassenname und Code (HTTP-Status bzw.
-SMTP-Antwortcode). Der Fehlertext geht wie bisher nur an den Menschen, der gerade sendet.
+SMTP-Antwortcode). Der Fehlertext geht wie bisher nur an den Menschen, der gerade sendet. Die
+Notiz einer Klärung schreibt das Büro selbst, sie ist Nachweis, kein Mitschnitt.
 """
 
+import hashlib
 import re
 import uuid
 from dataclasses import dataclass
@@ -35,18 +43,35 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .email_sending import check_attachment_size, ensure_configured, get_or_create_smtp_settings, send_message
-from .models import EmailDispatch
+from .models import EmailDispatch, SentDocument
 from .sent_documents import DOCUMENT_TYPES, store_sent_document
 
 HEADER_NAME = "X-DK-Versand-ID"
 STUCK_AFTER = timedelta(minutes=10)
 MAX_RECIPIENTS = 20
 STATUSES = {"in_arbeit": "In Arbeit", "gesendet": "Gesendet", "fehlgeschlagen": "Fehlgeschlagen"}
+RESOLUTION_OUTCOMES = ("gesendet", "fehlgeschlagen")
+RESOLUTION_NOTE_MAX = 1000
 CHANNELS = {"smtp": "SMTP", "graph_oauth2": "Microsoft 365"}
 DISPATCH_TYPES = {**DOCUMENT_TYPES, "aufgabe": "Aufgaben-Benachrichtigung"}
+DISPATCH_ENTITY_TYPE = "Versand"  # Änderungshistorie (app/audit.py) für die Klärung eines Eintrags
+
+RUNNING_TEXT = (
+    "Für dieses Dokument läuft gerade ein anderer Versand. Bitte das Ergebnis abwarten und im "
+    "Versandprotokoll prüfen, bevor erneut gesendet wird."
+)
 
 _KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{7,79}$")
-_ADDRESS_RE = re.compile(r"^[^@\s,;<>\"]+@[^@\s,;<>\"]+\.[^@\s,;<>\"]+$")
+# Adressprüfung (seit 1.8.19 strenger): Teil vor dem @ als "dot-atom" (keine Punkte am Rand oder
+# doppelt), Teil nach dem @ aus Labels mit Buchstaben/Ziffern/Bindestrich (nicht am Rand), Endung aus
+# Buchstaben (oder IDN "xn--"). Bis 1.8.18 ging z. B. "kunde@firma..de" durch und erst Microsoft 365
+# lehnte ab (ErrorInvalidRecipients) -- nach Protokolleintrag und Ablage.
+_LOCAL_CHAR = r"[\w!#$%&'*+/=?^`{|}~-]"
+_LOCAL_RE = re.compile(rf"^{_LOCAL_CHAR}+(?:\.{_LOCAL_CHAR}+)*$")
+_LABEL_RE = re.compile(r"^(?!-)(?:[^\W_]|-){1,63}(?<!-)$")
+_TLD_RE = re.compile(r"^(?:[^\W\d_]{2,63}|xn--[a-z0-9-]{1,59})$", re.IGNORECASE)
+_NAMED_RE = re.compile(r"^[^<>]*<([^<>]*)>$")
+_SEPARATOR_HINT = "mehrere Adressen bitte mit Komma oder Semikolon trennen"
 
 
 class DispatchConflict(Exception):
@@ -64,17 +89,47 @@ def new_dispatch_key(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex}"
 
 
+def address_problem(address: str) -> str | None:
+    """Warum `address` keine gültige E-Mail-Adresse ist (für die Meldung), sonst None."""
+    if any(c.isspace() for c in address):
+        return f"sie enthält ein Leerzeichen ({_SEPARATOR_HINT})"
+    if "@" not in address:
+        return "es fehlt das @"
+    if address.count("@") > 1:
+        return f"sie enthält mehr als ein @ ({_SEPARATOR_HINT})"
+    local, domain = address.split("@")
+    if len(address) > 254 or len(local) > 64:
+        return "sie ist zu lang"
+    if not _LOCAL_RE.match(local):
+        return ("der Teil vor dem @ ist ungültig (z. B. ein Punkt am Anfang oder Ende, zwei Punkte "
+                "hintereinander oder ein Sonderzeichen)")
+    labels = domain.split(".")
+    if len(labels) < 2:
+        return "nach dem @ fehlt die Endung (z. B. .de)"
+    if not all(_LABEL_RE.match(label) for label in labels):
+        return ("der Teil nach dem @ ist ungültig (z. B. zwei Punkte hintereinander, ein Punkt am Ende, "
+                "ein Bindestrich am Rand oder ein Sonderzeichen)")
+    if not _TLD_RE.match(labels[-1]):
+        return f"die Endung „.{labels[-1]}“ gibt es nicht"
+    return None
+
+
 def parse_recipients(text: str | None, *, label: str) -> list[str]:
-    """Mehrere Adressen, getrennt durch Komma, Semikolon oder Zeilenumbruch. Doppelte (ohne
-    Rücksicht auf Groß-/Kleinschreibung) fallen weg, die erste Schreibweise bleibt."""
+    """Mehrere Adressen, getrennt durch Komma, Semikolon oder Zeilenumbruch; "Name <adresse>" wird
+    auf die Adresse gekürzt. Jede Adresse wird geprüft, die erste ungültige mit Grund gemeldet.
+    Doppelte (ohne Rücksicht auf Groß-/Kleinschreibung) fallen weg, die erste Schreibweise bleibt."""
     result: list[str] = []
     seen: set[str] = set()
     for part in re.split(r"[,;\n\r]+", text or ""):
         address = part.strip()
         if not address:
             continue
-        if not _ADDRESS_RE.match(address):
-            raise ValueError(f"{label}: „{address}“ ist keine gültige E-Mail-Adresse.")
+        named = _NAMED_RE.match(address)
+        if named:
+            address = named.group(1).strip()
+        problem = address_problem(address)
+        if problem:
+            raise ValueError(f"{label}: „{address}“ ist keine gültige E-Mail-Adresse – {problem}.")
         if address.lower() not in seen:
             seen.add(address.lower())
             result.append(address)
@@ -97,7 +152,8 @@ def _finish(db: Session, dispatch_id: int, status: str, exc: BaseException | Non
     db.execute(
         update(EmailDispatch)
         .where(EmailDispatch.id == dispatch_id, EmailDispatch.status == "in_arbeit")
-        .values(status=status, finished_at=datetime.utcnow(), error_class=error_class, error_code=error_code)
+        .values(status=status, finished_at=datetime.utcnow(), error_class=error_class, error_code=error_code,
+                lock_key=None)
         .execution_options(synchronize_session=False)
     )
     db.commit()
@@ -107,6 +163,34 @@ def _key_taken(db: Session, key: str) -> bool:
     """Vorabprüfung; die eigentliche Sperre ist der Unique-Schlüssel beim Anlegen (gleichzeitige
     Anfragen sehen hier beide "frei")."""
     return db.scalar(select(EmailDispatch.id).where(EmailDispatch.dispatch_key == key)) is not None
+
+
+def _lock_key(document_type: str, document_id: int) -> str:
+    return f"{document_type}:{document_id}"
+
+
+def _running_dispatch(db: Session, document_type: str, document_id: int) -> EmailDispatch | None:
+    """Vorabprüfung "läuft gerade" (für die Meldung im Normalfall); zwei gleichzeitige Anfragen
+    sehen hier beide nichts -- dann entscheidet lock_key beim Anlegen."""
+    return db.scalar(
+        select(EmailDispatch).where(
+            EmailDispatch.document_type == document_type, EmailDispatch.document_id == document_id,
+            EmailDispatch.status == "in_arbeit", EmailDispatch.created_at >= datetime.utcnow() - STUCK_AFTER,
+        ).limit(1)
+    )
+
+
+def _release_stale_lock(db: Session, lock_key: str, now: datetime) -> None:
+    """Ein hängengebliebener Versand (älter als STUCK_AFTER) hält die Sperre nicht mehr: er bleibt
+    "in Arbeit" und im Protokoll als hängend sichtbar, blockiert aber keinen neuen Versand des
+    Dokuments (wie seit 1.8.17). Committet nicht -- gehört in die Transaktion des neuen Eintrags."""
+    db.execute(
+        update(EmailDispatch)
+        .where(EmailDispatch.lock_key == lock_key, EmailDispatch.status == "in_arbeit",
+               EmailDispatch.created_at < now - STUCK_AFTER)
+        .values(lock_key=None)
+        .execution_options(synchronize_session=False)
+    )
 
 
 def _existing(db: Session, key: str, document_type: str, document_id: int | None) -> DispatchResult:
@@ -130,10 +214,14 @@ def dispatch_email(
     db: Session, *, dispatch_key: str, document_type: str, document_id: int | None,
     document_number: str | None, to: str | None, cc: str | None, subject: str, body_text: str,
     attachment_bytes: bytes | None = None, attachment_filename: str | None = None,
+    archived_document: SentDocument | None = None,
     user_id: int | None = None, user_name: str | None = None, block_parallel: bool = True,
 ) -> DispatchResult:
     """Siehe Moduldocstring. Wirft ValueError (Eingabe/Konfiguration/Versandfehler, Router 400)
-    und DispatchConflict (Router 409). Committet selbst."""
+    und DispatchConflict (Router 409). Committet selbst.
+
+    archived_document: der Anhang IST diese abgelegte Fassung (app/sent_documents.py::
+    frozen_or_fresh_pdf()) -- dann wird nur auf sie verwiesen, nicht noch einmal abgelegt."""
     if document_type not in DISPATCH_TYPES:
         raise ValueError(f"Unbekannte Versandart: {document_type}")
     key = (dispatch_key or "").strip()
@@ -143,6 +231,12 @@ def dispatch_email(
         raise ValueError("Anhang und Dateiname gehören zusammen.")
     if attachment_bytes is not None and document_type not in DOCUMENT_TYPES:
         raise ValueError("Nur Dokumente werden mit Anhang versendet.")
+    if archived_document is not None and (
+        attachment_bytes is None
+        or (archived_document.document_type, archived_document.document_id) != (document_type, document_id)
+        or hashlib.sha256(attachment_bytes).hexdigest() != archived_document.sha256
+    ):
+        raise ValueError("Der Anhang ist nicht die abgelegte Fassung dieses Dokuments -- es wurde nichts versendet.")
     if _key_taken(db, key):
         return _existing(db, key, document_type, document_id)
 
@@ -155,39 +249,38 @@ def dispatch_email(
     settings = get_or_create_smtp_settings(db)
     ensure_configured(settings)
     check_attachment_size(attachment_bytes, attachment_filename)
-    if block_parallel and document_id is not None:
-        running = db.scalar(
-            select(EmailDispatch).where(
-                EmailDispatch.document_type == document_type, EmailDispatch.document_id == document_id,
-                EmailDispatch.status == "in_arbeit", EmailDispatch.created_at >= datetime.utcnow() - STUCK_AFTER,
-            ).limit(1)
-        )
-        if running is not None:
-            raise DispatchConflict(
-                "Für dieses Dokument läuft gerade ein anderer Versand. Bitte das Ergebnis abwarten und im "
-                "Versandprotokoll prüfen, bevor erneut gesendet wird."
-            )
+    lock_key = _lock_key(document_type, document_id) if block_parallel and document_id is not None else None
+    if lock_key is not None and _running_dispatch(db, document_type, document_id) is not None:
+        raise DispatchConflict(RUNNING_TEXT)
 
     if user_id is None and user_name is None:
         from .audit import current_actor
         user_id, user_name = current_actor()
+    now = datetime.utcnow()
+    if lock_key is not None:
+        _release_stale_lock(db, lock_key, now)
     dispatch = EmailDispatch(
         dispatch_key=key, message_ref=str(uuid.uuid4()), status="in_arbeit", channel=settings.send_method,
         document_type=document_type, document_id=document_id, document_number=document_number,
         to_recipients=", ".join(to_list), cc_recipients=", ".join(cc_list) or None, subject=subject,
-        created_at=datetime.utcnow(), created_by_user_id=user_id, created_by_name=user_name or "System",
+        sent_document_id=archived_document.id if archived_document is not None else None,
+        created_at=now, created_by_user_id=user_id, created_by_name=user_name or "System", lock_key=lock_key,
     )
     try:
         with db.begin_nested():
             db.add(dispatch)
             db.flush()
     except IntegrityError:
-        # Gleichzeitige Anfrage mit demselben Schlüssel war schneller.
-        return _existing(db, key, document_type, document_id)
+        # Welcher Unique-Schlüssel hat gegriffen? (Bewusst nicht _key_taken(): das ist die
+        # Vorabprüfung, dies hier die Entscheidung.)
+        if db.scalar(select(EmailDispatch.id).where(EmailDispatch.dispatch_key == key)) is not None:
+            return _existing(db, key, document_type, document_id)  # derselbe Klick war schneller
+        db.rollback()  # lock_key: ein anderer Versand desselben Dokuments ist gerade angelegt worden
+        raise DispatchConflict(RUNNING_TEXT)
     db.commit()
     dispatch_id = dispatch.id
 
-    if attachment_bytes is not None:
+    if attachment_bytes is not None and archived_document is None:
         try:
             archived = store_sent_document(
                 db, document_type=document_type, document_id=document_id, document_number=document_number,
@@ -237,6 +330,86 @@ def is_stuck(dispatch: EmailDispatch, now: datetime | None = None) -> bool:
     return dispatch.status == "in_arbeit" and dispatch.created_at < (now or datetime.utcnow()) - STUCK_AFTER
 
 
+def _dispatch_label(dispatch: EmailDispatch) -> str:
+    """Bezeichnung für die Änderungshistorie -- Art, Nummer, Kennung; nie Betreff oder Empfänger."""
+    kind = DISPATCH_TYPES.get(dispatch.document_type, dispatch.document_type)
+    number = dispatch.document_number or (f"#{dispatch.document_id}" if dispatch.document_id else None)
+    return " ".join(x for x in (kind, number, f"· Kennung {dispatch.message_ref}") if x)
+
+
+def _project_id_of(db: Session, dispatch: EmailDispatch) -> int | None:
+    """Projekt des Dokuments, damit die Klärung auch in der Historie des Projekts erscheint."""
+    from .models import Invoice, Order, Quote, Reminder
+
+    if dispatch.document_id is None:
+        return None
+    document = {"angebot": Quote, "auftrag": Order, "rechnung": Invoice, "mahnung": Reminder}.get(dispatch.document_type)
+    row = db.get(document, dispatch.document_id) if document is not None else None
+    if row is None:
+        return None
+    if isinstance(row, Reminder):
+        row = row.invoice
+    if isinstance(row, Invoice):
+        row = row.order
+    return getattr(row, "project_id", None)
+
+
+def resolve_stuck_dispatch(
+    db: Session, dispatch_id: int, *, outcome: str, note: str, user_id: int | None, user_name: str | None,
+) -> EmailDispatch:
+    """Das Büro klärt einen hängengebliebenen Eintrag (seit 1.8.19): nach Blick in den Postausgang
+    als "gesendet" oder "fehlgeschlagen", mit Pflicht-Notiz. Nur aus "in_arbeit" und erst nach
+    STUCK_AFTER (vorher läuft der Versand womöglich noch) -- bedingtes UPDATE, zwei gleichzeitige
+    Klärungen: genau eine gewinnt. Gesendet wird dabei nichts. Die Klärung steht am Eintrag (wer,
+    wann, Notiz) und in der Änderungshistorie. Wirft LookupError (404), ValueError (400),
+    DispatchConflict (409)."""
+    if outcome not in RESOLUTION_OUTCOMES:
+        raise ValueError("Bitte „gesendet“ oder „fehlgeschlagen“ wählen.")
+    note = (note or "").strip()
+    if len(note) < 3:
+        raise ValueError("Bitte in der Notiz festhalten, wie geklärt wurde (z. B. „in Gesendete Elemente gefunden“).")
+    if len(note) > RESOLUTION_NOTE_MAX:
+        raise ValueError(f"Die Notiz ist zu lang (höchstens {RESOLUTION_NOTE_MAX} Zeichen).")
+    dispatch = db.get(EmailDispatch, dispatch_id)
+    if dispatch is None:
+        raise LookupError("Protokolleintrag nicht gefunden.")
+    now = datetime.utcnow()
+    if dispatch.status != "in_arbeit":
+        raise DispatchConflict(f"Dieser Eintrag ist bereits abgeschlossen ({STATUSES.get(dispatch.status, dispatch.status)}).")
+    if not is_stuck(dispatch, now):
+        raise DispatchConflict(
+            f"Dieser Versand läuft womöglich noch (seit weniger als {int(STUCK_AFTER.total_seconds() // 60)} Minuten). "
+            "Bitte das Ergebnis abwarten."
+        )
+    claimed = db.execute(
+        update(EmailDispatch)
+        .where(EmailDispatch.id == dispatch_id, EmailDispatch.status == "in_arbeit",
+               EmailDispatch.created_at < now - STUCK_AFTER)
+        .values(status=outcome, resolved_at=now, resolved_by_user_id=user_id,
+                resolved_by_name=user_name or "System", resolution_note=note, lock_key=None)
+        .execution_options(synchronize_session=False)
+    ).rowcount
+    if claimed != 1:
+        db.rollback()
+        raise DispatchConflict("Diesen Eintrag hat inzwischen jemand anderes geklärt.")
+    from .audit import TASK_ENTITY_TYPE, record_audit_entry
+
+    if dispatch.document_type == "aufgabe":
+        # Wie das Übernehmen einer Aufgabe (1.8.18): an der Aufgabe, damit nur Admin es sieht.
+        entity = dict(entity_type=TASK_ENTITY_TYPE, entity_id=dispatch.document_id,
+                      entity_label=f"Nr. {dispatch.document_id} · Benachrichtigung {dispatch.message_ref}")
+    else:
+        entity = dict(entity_type=DISPATCH_ENTITY_TYPE, entity_id=dispatch.id, entity_label=_dispatch_label(dispatch))
+    record_audit_entry(
+        db, action="geändert", **entity, project_id=_project_id_of(db, dispatch), field_name="status",
+        field_label="Versandstatus (hängenden Versand geklärt)", old_value="Hängengeblieben (in Arbeit)",
+        new_value=f"{STATUSES[outcome]} – Notiz: {note}", actor_user_id=user_id, actor_name=user_name or "System",
+    )
+    db.commit()
+    db.refresh(dispatch)
+    return dispatch
+
+
 def dispatch_to_dict(dispatch: EmailDispatch, now: datetime | None = None) -> dict:
     from .berlin_time import to_berlin
     from .sent_documents import sent_document_to_dict
@@ -254,6 +427,8 @@ def dispatch_to_dict(dispatch: EmailDispatch, now: datetime | None = None) -> di
         "created_at_local": to_berlin(dispatch.created_at), "finished_at": dispatch.finished_at,
         "finished_at_local": to_berlin(dispatch.finished_at), "created_by_name": dispatch.created_by_name,
         "error_class": dispatch.error_class, "error_code": dispatch.error_code,
+        "resolved": dispatch.resolved_at is not None, "resolved_at_local": to_berlin(dispatch.resolved_at),
+        "resolved_by_name": dispatch.resolved_by_name, "resolution_note": dispatch.resolution_note,
         "sent_document": sent_document_to_dict(dispatch.sent_document) if dispatch.sent_document else None,
     }
 

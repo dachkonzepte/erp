@@ -4,6 +4,40 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.19 – Versand: Sperre je Dokument, Adressen, hängende Einträge klären, Nachdruck aus der Ablage
+
+Stufe 2, Runde 2a-3b, erster Teil (Punkte 1–4; der Rest folgt als eigene Version). Zwei Tabs, die
+dasselbe Dokument in derselben Sekunde senden, bestanden bisher beide die Vorabprüfung "läuft gerade"
+und schickten beide. Jetzt entscheidet die Datenbank: jeder laufende Versand trägt eine Sperre
+`<art>:<id>` in der neuen, eindeutigen Spalte `email_dispatches.lock_key` (Migration `304d6a607767`),
+der zweite bekommt 409 und schreibt nichts. Die Sperre fällt beim Abschluss weg; ein hängender Versand
+(älter als 10 Minuten) gibt sie an einen neuen ab, wie bisher. Nachgewiesen mit zwei Verbindungen genau
+im Fenster zwischen Prüfen und Schreiben (SQLite) und mit zwei echten Threads gegen PostgreSQL.
+
+Adressen: An und CC sind jetzt Textfelder (bei `type="email"` ging nur das Komma als Trenner), Komma,
+Semikolon und Zeilenumbruch trennen, "Name <adresse>" wird auf die Adresse gekürzt. Jede Adresse wird
+genauer geprüft als bisher und mit Grund gemeldet ("zwei Punkte hintereinander", "es fehlt das @", …),
+schon im Browser und maßgeblich auf dem Server -- bis 1.8.18 gingen etwa `kunde@firma..de` oder
+`kunde.@firma.de` durch und scheiterten erst bei Microsoft 365, nach Protokolleintrag und Ablage.
+Fehlercodes von Microsoft Graph (`ErrorInvalidRecipients`, `ErrorAccessDenied`, Drosselung, Störung,
+volles Postfach, unbekanntes Absender-Postfach u. a.) und der Anmeldung (`AADSTS7000215` falsches bzw.
+`AADSTS7000222` abgelaufenes Client-Secret, unbekannte Mandanten-/Anwendungs-ID) kommen als deutsche
+Meldung statt roher JSON-Antwort, der Code bleibt in Klammern; dabei korrigiert: `ErrorInvalidRecipients`
+wurde bisher als "Absender-Postfach existiert nicht" erklärt. Ein vom SMTP-Server abgelehnter Empfänger
+wird ebenfalls verständlich gemeldet.
+
+Hängengebliebene Einträge klärt das Büro auf `/versandprotokoll` als gesendet oder fehlgeschlagen, mit
+Pflicht-Notiz (sichtbares Feld in der Zeile); wer, wann und die Notiz stehen am Eintrag und in der
+Änderungshistorie (am Projekt des Dokuments; eine Aufgaben-Benachrichtigung nur für Admin). Nur aus "in
+Arbeit" und erst nach 10 Minuten, bedingtes UPDATE -- zwei gleichzeitige Klärungen: eine gewinnt.
+Rechnung, Storno und Mahnung kommen ab dem ersten Versand beim Nachdruck, Download und erneuten Versand
+aus der Ablage, byte-gleich mit dem, was der Kunde bekam, auch nach geändertem Briefkopf
+(`app/sent_documents.py::frozen_or_fresh_pdf()`). Maßgeblich ist die zuerst abgelegte Fassung, deren
+Versand nicht fehlgeschlagen ist; ein erneuter Versand verweist auf sie statt noch einmal abzulegen. Ist
+die abgelegte Datei verändert oder fehlt sie, wird nicht still neu erzeugt (409/410, Versand
+verweigert). 49 neue Tests (`tests/test_v323_dispatch_completion.py`), 16 Gegenproben rot; Klicktest
+`scripts/klicktest_versandprotokoll.py` um die neuen Punkte erweitert, 45/45.
+
 ## 1.8.18 – Aufgaben ohne Zuständigkeit
 
 Zwischenrunde. Aufgaben ohne Zuständigkeit sieht jetzt tatsächlich jedes Büro-Konto (buero_auftrag

@@ -4691,6 +4691,7 @@ class EmailDispatch(Base):
     Ohne Fremdschlüssel auf Dokument und Benutzer (wie SentDocument)."""
 
     __tablename__ = "email_dispatches"
+    __table_args__ = (UniqueConstraint("lock_key", name="uq_email_dispatches_lock_key"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     dispatch_key: Mapped[str] = mapped_column(String(80), unique=True)
@@ -4710,6 +4711,16 @@ class EmailDispatch(Base):
     created_by_name: Mapped[str] = mapped_column(String(160), server_default="System")
     error_class: Mapped[str | None] = mapped_column(String(120), nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Sperre "läuft gerade" je Dokument (seit 1.8.19): "<art>:<id>", solange der Versand in Arbeit
+    # ist, danach leer. Unique: von zwei gleichzeitigen Versänden desselben Dokuments legt die
+    # Datenbank genau einen an. Leere Werte dürfen mehrfach vorkommen (SQLite und PostgreSQL).
+    lock_key: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # Klärung eines hängengebliebenen Eintrags durch das Büro (seit 1.8.19): das Ergebnis steht in
+    # status (gesendet/fehlgeschlagen), dazu wer, wann und die Pflicht-Notiz.
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    resolved_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    resolved_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     sent_document: Mapped["SentDocument | None"] = relationship()
 

@@ -1,4 +1,4 @@
-"""Klicktest: Versand mit Protokoll und Ablage (1.8.17, Stufe 2, Runde 2a-3a).
+"""Klicktest: Versand mit Protokoll und Ablage (1.8.17, Stufe 2, Runde 2a-3a; erweitert 1.8.19).
 
 Sendet über die echten Seiten Rechnung, Auftrag, Angebot und Mahnung per E-Mail -- mit mehreren
 Empfängern und CC -- an einen kleinen SMTP-Empfänger, der in diesem Skript läuft (Port im Seed,
@@ -13,6 +13,11 @@ nichts verlässt den Rechner). Prüft dann:
   Filter auf ein Dokument, hell und dunkel, 412 px ohne seitliches Scrollen.
 - Monteur: Seite und API gesperrt.
 
+Seit 1.8.19 (Runde 2a-3b) zusätzlich: An/CC sind Textfelder (Semikolon als Trenner), eine ungültige
+Adresse meldet die Seite vor der Anfrage mit Grund (keine Mail, kein Protokolleintrag); der Nachdruck
+der versendeten Rechnung kommt byte-gleich aus der Ablage; der hängende Eintrag wird auf
+/versandprotokoll mit Notiz als gesendet geklärt (ohne Notiz: Hinweis, nichts gespeichert).
+
 AUFRUF (aus dem Projektordner):
 
     .venv\\Scripts\\python.exe scripts\\klicktest_versandprotokoll.py [--app-port N] [--cdp-port N]
@@ -23,6 +28,7 @@ eigene PID beenden): siehe scripts/cdp_klicktest.py.
 """
 
 import email
+import hashlib
 import socket
 import socketserver
 import sys
@@ -72,14 +78,15 @@ def befuellen(db, k):
     buero = AppUser(username="bea", display_name="Bea Büro", role="buero_auftrag", password_hash=k.passwort())
     monteur = AppUser(username="max", display_name="Max Monteur", role="field", password_hash=k.passwort())
     db.add_all([buero, monteur]); db.flush()
-    db.add(EmailDispatch(
+    haengt = EmailDispatch(
         dispatch_key="angebot-haengt-00000001", message_ref="00000000-0000-0000-0000-00000000beef", status="in_arbeit",
         channel="smtp", document_type="angebot", document_id=angebot.id, document_number="A-KT-1",
         to_recipients="kunde@klicktest.example", subject="Angebot A-KT-1 (hängt)",
         created_at=datetime.utcnow() - timedelta(minutes=30), created_by_name="Bea Büro",
-    ))
+    )
+    db.add(haengt)
     db.commit()
-    return {"smtp_port": smtp_port, "rechnung": rechnung.id, "auftrag": auftrag.id, "angebot": angebot.id, "mahnung": mahnung.id,
+    return {"smtp_port": smtp_port, "haengt": haengt.id, "rechnung": rechnung.id, "auftrag": auftrag.id, "angebot": angebot.id, "mahnung": mahnung.id,
             "cookies": {"buero": k.cookies(buero), "monteur": k.cookies(monteur)}}
 
 
@@ -149,8 +156,20 @@ async def _pruefen(tab, seed, p):
     # --- Rechnung: vorbelegt, CC, Doppelklick = eine Mail
     await tab.oeffnen(f"/invoices/{seed['rechnung']}", "document.getElementById('invoiceCcInput')")
     p.pruefe("Rechnung: An vorbelegt", await tab.js("document.getElementById('invoiceEmailInput').value"), "kunde@klicktest.example")
-    p.pruefe("Rechnung: Feldtyp", await tab.js("[document.getElementById('invoiceEmailInput').type, document.getElementById('invoiceEmailInput').multiple]"), ["email", True])
-    await tab.js("document.getElementById('invoiceEmailInput').value='kunde@klicktest.example, zweite@klicktest.example';"
+    p.pruefe("Rechnung: Feldtyp (Text, Semikolon erlaubt)", await tab.js("[document.getElementById('invoiceEmailInput').type, document.getElementById('invoiceEmailInput').inputMode]"), ["text", "email"])
+
+    # --- ungültige Adresse: Grund auf der Seite, keine Anfrage (1.8.19)
+    await tab.js("document.getElementById('invoiceEmailInput').value='kunde@klicktest..example';"
+                 "document.querySelector('button[onclick^=\"sendInvoiceEmail\"]').click(); true")
+    await tab.warten("document.getElementById('statusActionMsg').textContent.startsWith('Fehler')")
+    p.pruefe("Rechnung ungültige Adresse: Grund auf der Seite", await tab.js("document.getElementById('statusActionMsg').textContent"),
+             "Fehler: Empfänger: „kunde@klicktest..example“ ist keine gültige E-Mail-Adresse – der Teil nach dem @ ist ungültig "
+             "(z. B. zwei Punkte hintereinander, ein Punkt am Ende, ein Bindestrich am Rand oder ein Sonderzeichen).")
+    p.pruefe("Rechnung ungültige Adresse: kein Protokolleintrag", await tab.js(
+        f"fetch('/api/email-dispatches?document_type=rechnung&document_id={seed['rechnung']}').then(r=>r.json()).then(d=>d.items.length)"), 0)
+    p.pruefe("Rechnung ungültige Adresse: keine Mail", len(POSTFACH), 0)
+
+    await tab.js("document.getElementById('invoiceEmailInput').value='kunde@klicktest.example; zweite@klicktest.example';"
                  "document.getElementById('invoiceCcInput').value='chef@klicktest.example';"
                  "const b=document.querySelector('button[onclick^=\"sendInvoiceEmail\"]'); b.click(); b.click(); true")
     await tab.warten("document.getElementById('statusActionMsg').textContent.includes('versendet')")
@@ -163,12 +182,26 @@ async def _pruefen(tab, seed, p):
     p.pruefe("Rechnung: X-DK-Versand-ID vorhanden", bool(kennung and len(kennung) == 36), True)
     p.pruefe("Rechnung: JS-Fehler", tab.fehler, [])
 
+    # --- Nachdruck aus der Ablage: genau die versendeten Bytes (1.8.19)
+    anhang = None
+    for part in (POSTFACH[0]["message"].walk() if POSTFACH else []):
+        if part.get_content_disposition() == "attachment":
+            anhang = part.get_payload(decode=True)
+    nachdruck = await tab.js(f"(async()=>{{const r=await fetch('/api/invoices/{seed['rechnung']}/pdf');"
+                             "const h=await crypto.subtle.digest('SHA-256',await r.arrayBuffer());"
+                             "return [r.status,r.headers.get('X-DK-Ablage')!==null,[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('')]})()")
+    p.pruefe("Rechnung: Nachdruck aus der Ablage, byte-gleich mit dem Anhang", nachdruck,
+             [200, True, hashlib.sha256(anhang).hexdigest() if anhang else None])
+    p.pruefe("Rechnung: Nachdruck JS-Fehler", tab.fehler, [])
+
     # --- abgelehnter Empfänger: Fehler sichtbar, nichts gesendet
     await tab.js("document.getElementById('invoiceEmailInput').value='abgelehnt@klicktest.example';"
                  "document.querySelector('button[onclick^=\"sendInvoiceEmail\"]').click(); true")
     await tab.warten("document.getElementById('statusActionMsg').textContent.startsWith('Fehler')")
     fehler = await tab.js("document.getElementById('statusActionMsg').textContent")
-    p.pruefe("Rechnung abgelehnt: Fehler auf der Seite", (fehler or "").startswith("Fehler: E-Mail-Versand fehlgeschlagen"), True)
+    p.pruefe("Rechnung abgelehnt: Fehler auf der Seite (seit 1.8.19 auf Deutsch)", fehler,
+             "Fehler: Der Mailserver hat die Empfänger abgelehnt: abgelehnt@klicktest.example (550). "
+             "Bitte die Adressen prüfen. Es wurde nichts versendet.")
     p.pruefe("Rechnung abgelehnt: keine weitere Mail", len(POSTFACH), 1)
     await tab.bild("rechnung_versand")
 
@@ -224,6 +257,29 @@ async def _pruefen(tab, seed, p):
     p.pruefe("Protokoll dunkel: Warnkarte nicht weiß", await tab.js("getComputedStyle(document.getElementById('stuckCard')).backgroundColor"), "rgb(58, 47, 20)")
     await tab.bild("protokoll_dunkel")
     await tab.js("localStorage.setItem('erp_theme','light'); true")
+
+    # --- hängenden Eintrag klären (1.8.19): Notiz Pflicht, danach "Von Hand geklärt", Warnkarte weg
+    await tab.oeffnen("/versandprotokoll", FERTIG)
+    hid = seed["haengt"]
+    p.pruefe("Klären: Notizfeld sichtbar", await tab.js(f"!!document.getElementById('resolveNote{hid}') && document.getElementById('resolveNote{hid}').offsetParent!==null"), True)
+    await tab.js(f"document.getElementById('resolveNote{hid}').scrollIntoView({{block:'center'}}); true")
+    await tab.bild("protokoll_klaeren")
+    klick_gesendet = "[...document.querySelectorAll('#rows button')].find(b=>b.textContent==='Als gesendet bestätigen').click(); true"
+    await tab.js(klick_gesendet)
+    p.pruefe("Klären ohne Notiz: Hinweis", await tab.js(f"document.getElementById('resolveMsg{hid}').textContent"),
+             "Bitte zuerst in der Notiz festhalten, wie geklärt wurde.")
+    p.pruefe("Klären ohne Notiz: nichts gespeichert", await tab.js(
+        "fetch('/api/email-dispatches?stuck=true').then(r=>r.json()).then(d=>d.stuck_count)"), 1)
+    await tab.js(f"document.getElementById('resolveNote{hid}').value='In Gesendete Elemente gefunden, 14:02';" + klick_gesendet)
+    await tab.warten("!document.querySelector('#rows textarea') && document.getElementById('rows').textContent.includes('Von Hand geklärt')")
+    zeilen = await tab.js("document.getElementById('rows').textContent") or ""
+    p.pruefe("Klären: Notiz und Name in der Zeile", "In Gesendete Elemente gefunden, 14:02" in zeilen and "Bea Büro" in zeilen, True)
+    p.pruefe("Klären: Warnkarte weg", await tab.js("getComputedStyle(document.getElementById('stuckCard')).display"), "none")
+    pillen = await tab.js("[...document.querySelectorAll('#rows .pill')].map(e=>e.textContent)")
+    p.pruefe("Klären: Status danach", sorted(pillen or []), ["Fehlgeschlagen", "Gesendet", "Gesendet", "Gesendet", "Gesendet", "Gesendet"])
+    p.pruefe("Klären: JS-Fehler", tab.fehler, [])
+    await tab.js("[...document.querySelectorAll('#rows .resolved-note')].pop()?.scrollIntoView({block:'center'}); true")
+    await tab.bild("protokoll_geklaert")
 
     await tab.oeffnen(f"/versandprotokoll?typ=rechnung&id={seed['rechnung']}", FERTIG)
     p.pruefe("Filter auf eine Rechnung: zwei Einträge", await tab.js("document.querySelectorAll('#rows tr').length"), 2)

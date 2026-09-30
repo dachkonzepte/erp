@@ -7,7 +7,10 @@
    - keine Antwort oder 5xx: ob die Mail hinausging, ist unklar -> Schlüssel bleibt. Ein erneuter
      Klick fragt mit demselben Schlüssel nach; war er schon gesendet, sendet der Server nichts mehr.
    crypto.randomUUID() gibt es nur in sicheren Kontexten (HTTPS, localhost), deshalb der Rückfall
-   auf getRandomValues(). */
+   auf getRandomValues().
+   Seit 1.8.19: die Felder "An"/"CC" sind Textfelder (type="email" multiple ließ nur Kommas zu), die
+   Adressen werden vor der Anfrage geprüft -- dieselben Regeln wie app/email_dispatch.py::
+   address_problem(); maßgeblich bleibt der Server. */
 const _dispatchKeys = {};
 function newDispatchKey(slot) {
   let id;
@@ -16,7 +19,37 @@ function newDispatchKey(slot) {
   return (String(slot).replace(/[^A-Za-z0-9_.:-]/g, '') || 'versand').slice(0, 40) + '-' + id;
 }
 function dispatchKeyFor(slot) { return _dispatchKeys[slot] || (_dispatchKeys[slot] = newDispatchKey(slot)); }
+const _EMAIL_LOCAL = /^[\p{L}\p{N}_!#$%&'*+/=?^`{|}~-]+(?:\.[\p{L}\p{N}_!#$%&'*+/=?^`{|}~-]+)*$/u;
+const _EMAIL_LABEL = /^(?!-)[\p{L}\p{N}-]{1,63}(?<!-)$/u;
+const _EMAIL_TLD = /^(?:\p{L}{2,63}|xn--[a-z0-9-]{1,59})$/iu;
+const _EMAIL_SEPARATOR_HINT = 'mehrere Adressen bitte mit Komma oder Semikolon trennen';
+function emailAddressProblem(a) {
+  if (/\s/.test(a)) return `sie enthält ein Leerzeichen (${_EMAIL_SEPARATOR_HINT})`;
+  if (!a.includes('@')) return 'es fehlt das @';
+  if (a.split('@').length > 2) return `sie enthält mehr als ein @ (${_EMAIL_SEPARATOR_HINT})`;
+  const [local, domain] = a.split('@');
+  if (a.length > 254 || local.length > 64) return 'sie ist zu lang';
+  if (!_EMAIL_LOCAL.test(local)) return 'der Teil vor dem @ ist ungültig (z. B. ein Punkt am Anfang oder Ende, zwei Punkte hintereinander oder ein Sonderzeichen)';
+  const labels = domain.split('.');
+  if (labels.length < 2) return 'nach dem @ fehlt die Endung (z. B. .de)';
+  if (!labels.every(l => _EMAIL_LABEL.test(l))) return 'der Teil nach dem @ ist ungültig (z. B. zwei Punkte hintereinander, ein Punkt am Ende, ein Bindestrich am Rand oder ein Sonderzeichen)';
+  if (!_EMAIL_TLD.test(labels[labels.length - 1])) return `die Endung „.${labels[labels.length - 1]}“ gibt es nicht`;
+  return null;
+}
+/* Wirft Error mit Grund für die erste ungültige Adresse; getrennt durch Komma, Semikolon, Zeilenumbruch. */
+function checkEmailAddresses(text, label) {
+  for (let part of String(text || '').split(/[,;\n\r]+/)) {
+    part = part.trim();
+    if (!part) continue;
+    const named = part.match(/^[^<>]*<([^<>]*)>$/);
+    if (named) part = named[1].trim();
+    const problem = emailAddressProblem(part);
+    if (problem) throw Error(`${label}: „${part}“ ist keine gültige E-Mail-Adresse – ${problem}.`);
+  }
+}
 async function postEmailDispatch(slot, url, payload, button) {
+  checkEmailAddresses(payload.to_email, 'Empfänger');
+  checkEmailAddresses(payload.cc_email, 'CC');
   const key = dispatchKeyFor(slot);
   if (button) button.disabled = true;
   let r;

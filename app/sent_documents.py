@@ -14,6 +14,15 @@ Benutzer (Modell SentDocument). Abgelegte Dateien werden nie überschrieben oder
   Prüfsumme stimmt. Gegen jemanden mit Zugriff auf Server und Datenbank zugleich schützt das
   nicht -- es macht Veränderungen sichtbar, verhindert sie nicht.
 
+Maßgebliche Fassung (seit 1.8.19): Rechnung (auch Storno -- eine Rechnung mit invoice_type
+"storno") und Mahnung kommen ab dem ersten Versand aus der Ablage, beim Nachdruck, beim Download und
+beim erneuten Versand (frozen_or_fresh_pdf()). Neu erzeugt würde das PDF mit dem Briefkopf und
+Briefpapier von heute -- der Kunde hat aber das von damals. Maßgeblich ist die zuerst abgelegte
+Fassung, deren Versand nicht fehlgeschlagen ist (gesendet oder womöglich gesendet, also in Arbeit/
+hängend); eine fehlgeschlagene zählt nicht, dann wird beim nächsten Versand neu erzeugt und
+abgelegt. Rechnungen, die vor 1.8.17 oder nie per E-Mail hinausgingen, haben keine abgelegte
+Fassung und werden wie bisher neu erzeugt.
+
 Rollenlos wie jede Geschäftslogik; wer lesen darf, entscheidet app/routers/email_dispatches.py.
 """
 
@@ -24,9 +33,12 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+from typing import Callable, NamedTuple
+
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import SentDocument
+from .models import EmailDispatch, SentDocument
 from .paths import data_dir
 
 SENT_DOCUMENT_ROOT = Path(os.getenv("DACHKONZEPTE_SENT_DOCUMENT_ROOT", data_dir() / "sent_documents"))
@@ -46,6 +58,16 @@ class ArchiveFileError(Exception):
     def __init__(self, status: str):
         super().__init__(VERIFY_TEXTS[status])
         self.status = status
+
+
+class DocumentPdf(NamedTuple):
+    content: bytes
+    filename: str
+    archived: SentDocument | None  # gesetzt: die abgelegte Fassung, nicht neu erzeugt
+
+
+# Diese Dokumentarten kommen ab dem ersten Versand aus der Ablage (siehe Moduldocstring).
+FROZEN_AFTER_FIRST_DISPATCH = {"rechnung", "mahnung"}
 
 
 def _path_for(stored_filename: str) -> Path:
@@ -114,6 +136,33 @@ def read_sent_document(doc: SentDocument) -> bytes:
     if hashlib.sha256(content).hexdigest() != doc.sha256:
         raise ArchiveFileError("abweichend")
     return content
+
+
+def frozen_version(db: Session, document_type: str, document_id: int) -> SentDocument | None:
+    """Die maßgebliche Fassung: die zuerst abgelegte, deren Versand nicht fehlgeschlagen ist."""
+    if document_type not in FROZEN_AFTER_FIRST_DISPATCH:
+        return None
+    not_failed = select(EmailDispatch.id).where(
+        EmailDispatch.sent_document_id == SentDocument.id, EmailDispatch.status != "fehlgeschlagen",
+    ).exists()
+    return db.scalar(
+        select(SentDocument)
+        .where(SentDocument.document_type == document_type, SentDocument.document_id == document_id, not_failed)
+        .order_by(SentDocument.created_at, SentDocument.id)
+        .limit(1)
+    )
+
+
+def frozen_or_fresh_pdf(
+    db: Session, document_type: str, document_id: int, *, build: Callable[[], bytes], filename: str,
+) -> DocumentPdf:
+    """Das PDF für Nachdruck, Download und Versand: die maßgebliche Fassung aus der Ablage, wenn es
+    eine gibt (nur mit stimmender Prüfsumme, sonst ArchiveFileError -- nie still neu erzeugt), sonst
+    neu erzeugt über `build`."""
+    archived = frozen_version(db, document_type, document_id)
+    if archived is None:
+        return DocumentPdf(build(), filename, None)
+    return DocumentPdf(read_sent_document(archived), archived.filename, archived)
 
 
 def sent_document_to_dict(doc: SentDocument) -> dict:

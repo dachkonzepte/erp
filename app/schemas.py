@@ -4416,3 +4416,10 @@ class ChecklistFollowUpsRunOut(BaseModel):
     module_off: int = 0
     failed: int = 0
 
+
+
+class EmailDispatchResolve(BaseModel):
+    """Klärung eines hängengebliebenen Versands durch das Büro (seit 1.8.19,
+    app/email_dispatch.py::resolve_stuck_dispatch()). Die Notiz ist Pflicht."""
+    outcome: str = Field(pattern="^(gesendet|fehlgeschlagen)$")
+    note: str = Field(min_length=1, max_length=1000)

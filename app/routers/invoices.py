@@ -7,12 +7,12 @@ versendeten Rechnung) in aussagekräftige 400-Antworten.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from ..calculation import get_or_create_settings
 from ..database import get_db
 from ..email_dispatch import DispatchConflict
+from .email_dispatches import document_pdf_response
 from ..invoice_pdf import build_invoice_pdf
 from ..invoices import (
     add_invoice_item, create_abschlag_leistungsstand, create_abschlag_pauschal,
@@ -263,8 +263,10 @@ def delete_invoice(invoice_id: int, db: Session = Depends(get_db), _role: AppUse
 
 @router.get("/api/invoices/{invoice_id}/pdf")
 def get_invoice_pdf(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Seit 1.8.19 ab dem ersten Versand die abgelegte Fassung (Nachdruck = genau das, was der Kunde
+    bekam, auch nach geändertem Briefkopf), sonst neu erzeugt -- siehe document_pdf_response()."""
     invoice = _get_invoice_or_404(db, invoice_id)
-    pdf = build_invoice_pdf(db, invoice)
     name_part = invoice.invoice_number or f"Entwurf-{invoice.id}"
     filename = f"Rechnung_{name_part}.pdf".replace("/", "-")
-    return Response(content=pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{filename}"'})
+    return document_pdf_response(db, "rechnung", invoice.id, build=lambda: build_invoice_pdf(db, invoice),
+                                 filename=filename)

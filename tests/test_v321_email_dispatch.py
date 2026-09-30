@@ -3,7 +3,9 @@
 Die Graph-Attrappe verhält sich wie der echte Dienst, nicht wie ein nachgiebiges MagicMock: Token
 als JSON, sendMail mit 202 und leerem Körper (wer ihn als JSON lesen will, scheitert), 413 bei
 einer Anfrage über 4 MiB, 404 für jeden anderen Pfad -- auch für die, die mehr als Mail.Send
-bräuchten (Entwürfe, Upload-Sitzung).
+bräuchten (Entwürfe, Upload-Sitzung). Seit 1.8.19 außerdem: formal ungültige Empfänger lehnt sie wie
+Exchange mit 400 ErrorInvalidRecipients ab (eigene Prüfung, unabhängig vom Code unter app/),
+Fehlercode und Anmeldefehler (AADSTS) sind einstellbar.
 """
 
 import ast
@@ -73,15 +75,39 @@ def _http_error(url, code, msg, payload):
     return urllib.error.HTTPError(url, code, msg, Message(), io.BytesIO(json.dumps(payload).encode("utf-8")))
 
 
+_ATEXT = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$%&'*+-/=?^_`{|}~")
+
+
+def graph_accepts_address(address: str) -> bool:
+    """Was Exchange als SMTP-Adresse annimmt (dot-atom vor dem @, Labels ohne Bindestrich am Rand,
+    Endung aus Buchstaben) -- bewusst hier eigenständig nachgebaut, nicht aus app/ übernommen."""
+    if address.count("@") != 1:
+        return False
+    local, domain = address.split("@")
+    if not local or local.startswith(".") or local.endswith(".") or ".." in local:
+        return False
+    if not all(c in _ATEXT or c == "." or ord(c) > 127 for c in local):
+        return False
+    labels = domain.split(".")
+    if len(labels) < 2:
+        return False
+    for label in labels:
+        if not label or label.startswith("-") or label.endswith("-") or not all(c.isalnum() or c == "-" for c in label):
+            return False
+    return labels[-1].isalpha() and len(labels[-1]) >= 2
+
+
 class FakeGraph:
     """Microsoft 365 wie der echte Dienst (so weit er ohne Mandanten nachstellbar ist)."""
 
-    def __init__(self, fail_status=None, fail_detail=""):
+    def __init__(self, fail_status=None, fail_detail="", fail_code="ErrorAccessDenied", token_error=None):
         self.urls = []
         self.messages = []
         self.request_sizes = []
         self.fail_status = fail_status
         self.fail_detail = fail_detail
+        self.fail_code = fail_code
+        self.token_error = token_error  # error_description der Anmeldung, z. B. "AADSTS7000215: ..."
 
     def __call__(self, req, timeout=None):
         url = req.full_url
@@ -91,6 +117,9 @@ class FakeGraph:
             form = urllib.parse.parse_qs(body.decode("utf-8"))
             assert form["grant_type"] == ["client_credentials"]
             assert form["scope"] == ["https://graph.microsoft.com/.default"]
+            if self.token_error:
+                raise _http_error(url, 401, "Unauthorized", {"error": "invalid_client", "error_description": self.token_error,
+                                                             "error_codes": [7000215], "trace_id": "t"})
             return _Response(200, json.dumps({"token_type": "Bearer", "expires_in": 3599, "access_token": "TOKEN"}).encode())
         if url.startswith("https://graph.microsoft.com/v1.0/users/") and url.endswith("/sendMail"):
             assert req.get_method() == "POST"
@@ -102,14 +131,20 @@ class FakeGraph:
             message = json.loads(body)["message"]
             assert message["toRecipients"], "Graph verlangt mindestens einen Empfänger"
             for recipient in message["toRecipients"] + message.get("ccRecipients", []):
-                assert recipient["emailAddress"]["address"]
+                address = recipient["emailAddress"]["address"]
+                assert address
+                if not graph_accepts_address(address):
+                    raise _http_error(url, 400, "Bad Request", {"error": {
+                        "code": "ErrorInvalidRecipients",
+                        "message": f"At least one recipient isn't valid., Recipient '{address}' isn't resolved. "
+                                   "All recipients must be resolved before a message can be submitted."}})
             for header in message.get("internetMessageHeaders", []):
                 assert header["name"].lower().startswith("x-"), "Graph nimmt nur X-Kopfzeilen an"
             for attachment in message.get("attachments", []):
                 assert attachment["@odata.type"] == "#microsoft.graph.fileAttachment"
                 base64.b64decode(attachment["contentBytes"], validate=True)
             if self.fail_status:
-                raise _http_error(url, self.fail_status, "Error", {"error": {"code": "ErrorAccessDenied", "message": self.fail_detail}})
+                raise _http_error(url, self.fail_status, "Error", {"error": {"code": self.fail_code, "message": self.fail_detail}})
             self.messages.append(message)
             return _Response(202, b"")  # 202 Accepted, kein Inhalt
         raise _http_error(url, 404, "Not Found", {"error": {"code": "ResourceNotFound", "message": "Unbekannter Pfad"}})

@@ -908,10 +908,14 @@ def send_invoice_email(
 
     Seit 1.8.17 über app/email_dispatch.py: Versandprotokoll, Ablage des PDFs, Sperre gegen
     Doppelversand (dispatch_key; ohne Schlüssel wird einer erzeugt -- die API verlangt ihn),
-    mehrere Empfänger und CC. Ein schon gesendeter Schlüssel ändert nichts mehr."""
+    mehrere Empfänger und CC. Ein schon gesendeter Schlüssel ändert nichts mehr.
+
+    Seit 1.8.19 geht ab dem ersten Versand die abgelegte Fassung hinaus, nicht ein neu erzeugtes
+    PDF (app/sent_documents.py::frozen_or_fresh_pdf()) -- auch bei einer Stornorechnung."""
     from .document_email_templates import get_email_template
     from .email_dispatch import actor_of, dispatch_email, mark_document_sent, new_dispatch_key
     from .invoice_pdf import build_invoice_pdf
+    from .sent_documents import ArchiveFileError, frozen_or_fresh_pdf
 
     if invoice.status == "entwurf":
         raise ValueError("Nur bereits versendete Rechnungen können per E-Mail versendet werden.")
@@ -938,13 +942,18 @@ def send_invoice_email(
         subject = subject.replace(placeholder, value)
         body = body.replace(placeholder, value)
 
-    pdf_bytes = build_invoice_pdf(db, invoice)
+    try:
+        pdf = frozen_or_fresh_pdf(db, "rechnung", invoice.id, build=lambda: build_invoice_pdf(db, invoice),
+                                  filename=f"{invoice.invoice_number}.pdf")
+    except ArchiveFileError as e:
+        raise ValueError(f"Die versendete Fassung dieser Rechnung in der Ablage ist nicht mehr unversehrt: {e} "
+                         "Es wurde nichts versendet -- bitte im Versandprotokoll prüfen.") from e
     user_id, user_name = actor_of(user)
     result = dispatch_email(
         db, dispatch_key=dispatch_key or new_dispatch_key("rechnung"), document_type="rechnung",
         document_id=invoice.id, document_number=invoice.invoice_number, to=recipient, cc=cc_email,
-        subject=subject, body_text=body, attachment_bytes=pdf_bytes,
-        attachment_filename=f"{invoice.invoice_number}.pdf", user_id=user_id, user_name=user_name,
+        subject=subject, body_text=body, attachment_bytes=pdf.content, attachment_filename=pdf.filename,
+        archived_document=pdf.archived, user_id=user_id, user_name=user_name,
     )
     mark_document_sent(db, invoice, result)
     return invoice

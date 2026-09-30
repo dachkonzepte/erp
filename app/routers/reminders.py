@@ -5,11 +5,11 @@ app/reminders.py, hier nur die HTTP-Anbindung, analog zu app/routers/invoices.py
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..email_dispatch import DispatchConflict
+from .email_dispatches import document_pdf_response
 from ..invoices import get_invoice
 from ..models import AppUser, Reminder, ReminderLevel
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
@@ -165,8 +165,10 @@ def delete_reminder(reminder_id: int, db: Session = Depends(get_db), _role: AppU
 
 @router.get("/api/reminders/{reminder_id}/pdf")
 def get_reminder_pdf(reminder_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Seit 1.8.19 ab dem ersten Versand die abgelegte Fassung, sonst neu erzeugt (siehe
+    document_pdf_response())."""
     reminder = _get_reminder_or_404(db, reminder_id)
-    pdf = build_reminder_pdf(db, reminder)
     name_part = reminder.reminder_number or f"Entwurf-{reminder.id}"
     filename = f"Mahnung_{name_part}.pdf".replace("/", "-")
-    return Response(content=pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{filename}"'})
+    return document_pdf_response(db, "mahnung", reminder.id, build=lambda: build_reminder_pdf(db, reminder),
+                                 filename=filename)

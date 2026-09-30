@@ -250,9 +250,11 @@ def send_reminder_email(
     nicht auf reminders.py zurückgreifen soll.
 
     Seit 1.8.17 über app/email_dispatch.py (Protokoll, Ablage, Doppelversand-Sperre, CC), siehe
-    send_invoice_email() in app/invoices.py."""
+    send_invoice_email() in app/invoices.py; seit 1.8.19 ab dem ersten Versand die abgelegte
+    Fassung (app/sent_documents.py::frozen_or_fresh_pdf())."""
     from .email_dispatch import actor_of, dispatch_email, mark_document_sent, new_dispatch_key
     from .reminder_pdf import build_reminder_pdf
+    from .sent_documents import ArchiveFileError, frozen_or_fresh_pdf
 
     if reminder.status != "versendet":
         raise ValueError("Nur bereits finalisierte Mahnungen können per E-Mail versendet werden.")
@@ -270,13 +272,18 @@ def send_reminder_email(
     subject = _apply_placeholders(subject_template, placeholders)
     body = _apply_placeholders(body_template, placeholders)
 
-    pdf_bytes = build_reminder_pdf(db, reminder)
+    try:
+        pdf = frozen_or_fresh_pdf(db, "mahnung", reminder.id, build=lambda: build_reminder_pdf(db, reminder),
+                                  filename=f"{reminder.reminder_number}.pdf")
+    except ArchiveFileError as e:
+        raise ValueError(f"Die versendete Fassung dieser Mahnung in der Ablage ist nicht mehr unversehrt: {e} "
+                         "Es wurde nichts versendet -- bitte im Versandprotokoll prüfen.") from e
     user_id, user_name = actor_of(user)
     result = dispatch_email(
         db, dispatch_key=dispatch_key or new_dispatch_key("mahnung"), document_type="mahnung",
         document_id=reminder.id, document_number=reminder.reminder_number, to=recipient, cc=cc_email,
-        subject=subject, body_text=body, attachment_bytes=pdf_bytes,
-        attachment_filename=f"{reminder.reminder_number}.pdf", user_id=user_id, user_name=user_name,
+        subject=subject, body_text=body, attachment_bytes=pdf.content, attachment_filename=pdf.filename,
+        archived_document=pdf.archived, user_id=user_id, user_name=user_name,
     )
     mark_document_sent(db, reminder, result)
     return reminder

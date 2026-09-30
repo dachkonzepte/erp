@@ -197,9 +197,45 @@ def get_graph_access_token(settings: SmtpSettings) -> str:
         return payload["access_token"]
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace")
-        raise ValueError(f"Anmeldung bei Microsoft 365 fehlgeschlagen: {detail}") from e
+        raise ValueError(f"Anmeldung bei Microsoft 365 fehlgeschlagen: {graph_token_error_text(detail)}") from e
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         raise ValueError(f"Verbindung zu Microsoft 365 fehlgeschlagen: {e}") from e
+
+
+# Anmeldefehler (Token-Endpunkt): Entra ID antwortet mit {"error": "invalid_client",
+# "error_description": "AADSTS7000215: Invalid client secret provided. ..."}. Die häufigsten
+# AADSTS-Codes auf Deutsch (seit 1.8.19), der Code bleibt in Klammern für Rückfragen.
+_TOKEN_ERRORS = {
+    "AADSTS7000215": "Das Client-Secret ist falsch. In Einstellungen → E-Mail-Versand den Wert des Secrets "
+                     "eintragen, nicht die Secret-ID.",
+    "AADSTS7000222": "Das Client-Secret ist abgelaufen. In Entra ID ein neues Secret anlegen und in "
+                     "Einstellungen → E-Mail-Versand eintragen.",
+    "AADSTS700016": "Die Anwendungs-ID (Client-ID) ist in diesem Mandanten unbekannt.",
+    "AADSTS90002": "Die Mandanten-ID ist unbekannt.",
+    "AADSTS900023": "Die Mandanten-ID ist falsch geschrieben.",
+    "AADSTS90013": "Die Mandanten-ID ist falsch geschrieben.",
+    "AADSTS7000112": "Die Anwendung ist in Entra ID deaktiviert.",
+    "AADSTS53003": "Eine Richtlinie für bedingten Zugriff blockiert die Anmeldung der Anwendung.",
+}
+
+
+def graph_token_error_text(detail: str) -> str:
+    """Deutsche Meldung zu einer abgelehnten Anmeldung am Token-Endpunkt (für den Menschen, der
+    gerade sendet -- nie ins Protokoll, Regel 18)."""
+    try:
+        payload = json.loads(detail)
+    except ValueError:
+        payload = None
+    description = str(payload.get("error_description") or "") if isinstance(payload, dict) else ""
+    error = str(payload.get("error") or "") if isinstance(payload, dict) else ""
+    for code, text in _TOKEN_ERRORS.items():
+        if description.startswith(code + ":") or f" {code}:" in description:
+            return f"{text} ({code})"
+    raw = (description or detail).strip()
+    first_line = raw.splitlines()[0][:300] if raw else ""
+    if error and first_line:
+        return f"{first_line} ({error})"
+    return first_line or error or "unbekannter Fehler"
 
 
 def check_smtp_connection(db: Session) -> None:
@@ -243,28 +279,92 @@ def _send_via_smtp(settings: SmtpSettings, *, to: list[str], cc: list[str], subj
     try:
         # Umschlag-Empfänger = An + CC; eine Bcc-Kopfzeile gibt es bewusst nicht.
         conn.sendmail(settings.sender_email, [*to, *cc], msg.as_string())
+    except smtplib.SMTPRecipientsRefused as e:  # nur, wenn der Server ALLE Empfänger ablehnt
+        refused = ", ".join(f"{address} ({code})" for address, (code, _msg) in e.recipients.items())
+        raise ValueError(
+            f"Der Mailserver hat die Empfänger abgelehnt: {refused}. Bitte die Adressen prüfen. Es wurde nichts versendet."
+        ) from e
+    except smtplib.SMTPSenderRefused as e:
+        raise ValueError(
+            f"Der Mailserver hat die Absenderadresse {e.sender} abgelehnt ({e.smtp_code}). "
+            "Bitte Einstellungen → E-Mail-Versand prüfen. Es wurde nichts versendet."
+        ) from e
     except smtplib.SMTPException as e:
         raise ValueError(f"E-Mail-Versand fehlgeschlagen: {e}") from e
     finally:
         conn.quit()
 
 
-def _graph_error_hint(detail: str) -> str:
-    """Konkrete, umsetzbare Hinweise zu den häufigsten Graph-API-Fehlern
-    (seit 1.0.84) -- ergänzt Microsofts eigene, oft wenig aussagekräftige
-    Fehlermeldung ("Access is denied. Check credentials and try again."
-    sagt z.B. nicht, WELCHE Zugangsdaten gemeint sind). Erweiterbar um
-    weitere Fehlercodes, sobald sich neue Praxisfälle zeigen."""
-    if "ErrorAccessDenied" in detail:
-        return (
-            " Häufigste Ursache: das hinterlegte Absender-Postfach ist nicht Mitglied der Gruppe "
-            "ERP-Zugriff (ERP-Zugriff@dachkonzepte.gmbh) -- Mail.Send ist ausschließlich über Exchange "
-            "\"RBAC for Applications\" auf die Mitglieder dieser Gruppe freigegeben, nicht über Entra ID. "
-            "Postfach in die Gruppe aufnehmen; die Änderung kann einige Minuten bis zur Wirksamkeit brauchen."
-        )
-    if "ErrorInvalidUser" in detail or "ErrorInvalidRecipients" in detail or "does not exist" in detail:
-        return " Häufigste Ursache: das hinterlegte Absender-Postfach existiert nicht oder ist falsch geschrieben."
-    return ""
+_RBAC_HINT = (
+    "Häufigste Ursache: das hinterlegte Absender-Postfach ist nicht Mitglied der Gruppe ERP-Zugriff "
+    "(ERP-Zugriff@dachkonzepte.gmbh) -- Mail.Send ist ausschließlich über Exchange \"RBAC for Applications\" "
+    "auf die Mitglieder dieser Gruppe freigegeben, nicht über Entra ID. Postfach in die Gruppe aufnehmen; "
+    "die Änderung kann einige Minuten bis zur Wirksamkeit brauchen."
+)
+_SENDER_MISSING = ("Das hinterlegte Absender-Postfach gibt es in Microsoft 365 nicht, oder es ist falsch geschrieben "
+                   "(Einstellungen → E-Mail-Versand).")
+_INVALID_RECIPIENTS = ("Microsoft 365 hat mindestens eine Empfängeradresse als ungültig abgelehnt. Bitte die Adressen "
+                       "in „An“ und „CC“ prüfen.")
+_THROTTLED = "Microsoft 365 bremst gerade, weil zu viele Anfragen eingehen. Bitte in einigen Minuten erneut senden."
+_UNAVAILABLE = "Microsoft 365 ist gerade gestört oder überlastet. Bitte später erneut senden."
+_TOO_LARGE = "Die Nachricht ist für Microsoft 365 zu groß (höchstens 4 MB je Nachricht samt Anhang)."
+_TOKEN_REJECTED = ("Microsoft 365 hat die Anmeldung des ERP nicht angenommen. Bitte Mandanten-ID und Anwendungs-ID "
+                   "prüfen.")
+
+# Fehlercodes von sendMail ({"error": {"code": ..., "message": ...}}) auf Deutsch (seit 1.8.19; bis
+# dahin stand die rohe JSON-Antwort in der Meldung, und ErrorInvalidRecipients wurde fälschlich als
+# falsches Absender-Postfach erklärt). Der Code bleibt in Klammern stehen, für Rückfragen bei Microsoft.
+_GRAPH_SEND_ERRORS = {
+    "ErrorInvalidRecipients": _INVALID_RECIPIENTS,
+    "ErrorInvalidRecipientsException": _INVALID_RECIPIENTS,
+    "ErrorAccessDenied": "Microsoft 365 verweigert dem ERP das Senden aus dem Absender-Postfach. " + _RBAC_HINT,
+    "ErrorSendAsDenied": "Microsoft 365 erlaubt dem Absender-Postfach nicht, in diesem Namen zu senden.",
+    "ErrorInvalidUser": _SENDER_MISSING,
+    "ErrorNonExistentMailbox": _SENDER_MISSING,
+    "ResourceNotFound": _SENDER_MISSING,
+    "MailboxNotEnabledForRESTAPI": ("Das Absender-Postfach ist kein (fertig eingerichtetes) Exchange-Online-Postfach, "
+                                    "Microsoft 365 kann daraus nicht senden."),
+    "ErrorMessageSizeExceeded": _TOO_LARGE,
+    "RequestEntityTooLarge": _TOO_LARGE,
+    "ErrorQuotaExceeded": ("Das Absender-Postfach ist voll. Bitte Platz schaffen (z. B. Gesendete Elemente) oder den "
+                           "Microsoft-365-Administrator fragen."),
+    "ErrorExceededMessageLimit": "Das Absender-Postfach hat sein Versandlimit erreicht. Bitte später erneut senden.",
+    "ErrorMessageSubmissionBlocked": ("Microsoft 365 hat das Senden aus diesem Postfach gesperrt (z. B. als "
+                                      "Spam-Verdacht). Bitte den Microsoft-365-Administrator fragen."),
+    "ErrorInvalidInternetMessageHeader": "Microsoft 365 hat eine Kopfzeile der Nachricht abgelehnt – ein Fehler im ERP, bitte melden.",
+    "ApplicationThrottled": _THROTTLED,
+    "TooManyRequests": _THROTTLED,
+    "MailboxConcurrency": _THROTTLED,
+    "ErrorTooManyObjectsOpened": _THROTTLED,
+    "InvalidAuthenticationToken": _TOKEN_REJECTED,
+    "ErrorServerBusy": _UNAVAILABLE,
+    "ServiceUnavailable": _UNAVAILABLE,
+    "ErrorInternalServerError": _UNAVAILABLE,
+    "ErrorMailboxStoreUnavailable": _UNAVAILABLE,
+    "ErrorTimeoutExpired": _UNAVAILABLE,
+    "generalException": _UNAVAILABLE,
+}
+_GRAPH_STATUS_ERRORS = {401: _TOKEN_REJECTED, 403: _GRAPH_SEND_ERRORS["ErrorAccessDenied"], 404: _SENDER_MISSING,
+                        413: _TOO_LARGE, 429: _THROTTLED}
+
+
+def graph_send_error_text(status: int, detail: str) -> str:
+    """Deutsche Meldung zu einer abgelehnten sendMail-Anfrage (für den Menschen, der gerade sendet --
+    nie ins Protokoll, Regel 18). Unbekannte Codes mit Microsofts eigener Meldung."""
+    try:
+        error = json.loads(detail).get("error") or {}
+    except (ValueError, AttributeError):
+        error = {}
+    if not isinstance(error, dict):
+        error = {}
+    code = str(error.get("code") or "")
+    text = _GRAPH_SEND_ERRORS.get(code) or _GRAPH_STATUS_ERRORS.get(status)
+    if text is None and status >= 500:
+        text = _UNAVAILABLE
+    if text is None:
+        message = str(error.get("message") or detail).strip()[:300]
+        text = f"Microsoft 365 hat den Versand abgelehnt. Meldung von Microsoft: {message}"
+    return f"{text} Es wurde nichts versendet. ({code + ', ' if code else ''}HTTP {status})"
 
 
 def _send_via_graph(settings: SmtpSettings, *, to: list[str], cc: list[str], subject: str, body_text: str,
@@ -305,7 +405,7 @@ def _send_via_graph(settings: SmtpSettings, *, to: list[str], cc: list[str], sub
             resp.read()
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace")
-        raise ValueError(f"E-Mail-Versand über Microsoft 365 fehlgeschlagen: {detail}{_graph_error_hint(detail)}") from e
+        raise ValueError(f"E-Mail-Versand über Microsoft 365 fehlgeschlagen: {graph_send_error_text(e.code, detail)}") from e
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         raise ValueError(f"Verbindung zu Microsoft 365 fehlgeschlagen: {e}") from e
 

@@ -42,8 +42,8 @@ dialog{border:1px solid var(--line);padding:0;max-width:720px;width:calc(100% - 
 <div id="quoteEmailSection" class="card" style="margin-bottom:10px;display:none">
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <b style="margin-right:4px">Per E-Mail senden:</b>
-    <input id="quoteEmailInput" type="email" multiple placeholder="An – mehrere mit Komma" title="Empfänger, mehrere mit Komma trennen" style="padding:7px 10px;border:1px solid var(--field-border);font-family:inherit;font-size:13px;background:var(--card);color:var(--ink);min-width:220px">
-    <input id="quoteCcInput" type="email" multiple placeholder="CC (optional)" title="CC, mehrere mit Komma trennen" style="padding:7px 10px;border:1px solid var(--field-border);font-family:inherit;font-size:13px;background:var(--card);color:var(--ink);min-width:170px">
+    <input id="quoteEmailInput" type="text" inputmode="email" autocomplete="off" placeholder="An – mehrere mit Komma oder Semikolon" title="Empfänger, mehrere mit Komma oder Semikolon trennen" style="padding:7px 10px;border:1px solid var(--field-border);font-family:inherit;font-size:13px;background:var(--card);color:var(--ink);min-width:220px">
+    <input id="quoteCcInput" type="text" inputmode="email" autocomplete="off" placeholder="CC (optional)" title="CC, mehrere mit Komma oder Semikolon trennen" style="padding:7px 10px;border:1px solid var(--field-border);font-family:inherit;font-size:13px;background:var(--card);color:var(--ink);min-width:170px">
     <button onclick="sendQuoteEmail(this)">✉️ Senden</button>
     <a class="small" id="quoteDispatchLink" href="/versandprotokoll">Versandprotokoll</a>
     <span id="quoteEmailStatus" class="small muted"></span>

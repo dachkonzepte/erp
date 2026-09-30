@@ -222,7 +222,8 @@ def test_invoice_detail_page_uses_visible_input_not_popup_prompt():
     bereits sichtbares, vorausgefülltes Eingabefeld direkt auf der Seite."""
     html = (Path(__file__).parents[1] / "app" / "templates" / "invoice_detail.html").read_text(encoding="utf-8")
     assert "prompt(" not in html
-    assert 'type="email"' in html
+    # seit 1.8.19 Textfeld mit E-Mail-Tastatur statt type="email" (das ließ nur Kommas als Trenner zu)
+    assert 'type="text" inputmode="email"' in html
     assert "invoiceEmailInput" in html
 
 
