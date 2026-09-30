@@ -8,8 +8,13 @@ markieren" stehen in der Änderungshistorie. Dazu die Angriffstests aus der Vorg
 
 Nutzt den Aufbau aus tests/test_v305_checklist_filling.py (Monteur A ist dem Auftrag zugeordnet,
 Vorlage "Sicherheitscheck" mit Einzelunterschrift "sig", Vorlage "Unterweisung" (Betrieb) mit
-Mehrfachunterschrift "tn")."""
+Mehrfachunterschrift "tn").
 
+Seit 1.8.14 versiegelt eine Unterschrift nur die Felder oberhalb von ihr (tests/test_v318_*). Beide
+Vorlagen hier haben ihre Unterschrift am Ende -- diese Tests belegen damit zugleich, dass sich
+solche Vorlagen wie in 1.8.13 verhalten."""
+
+import hashlib
 import json
 import re
 
@@ -20,7 +25,7 @@ import app.audit  # noqa: F401 -- registriert die Historien-Listener, wie in Pro
 import app.checklists as checklists_module
 from app.berlin_time import to_berlin
 from app.checklist_pdf import build_checklist_pdf
-from app.checklists import get_checklist_row, signed_content_sha256
+from app.checklists import get_checklist_row, seal_content
 from app.models import AuditLog, Checklist, ChecklistAssetRelease, ChecklistAttachment, Customer
 from tests.test_v213_inspection_items import _extract_pdf_text
 from tests.test_v305_checklist_filling import _client, _fields, _jpeg, _png, _start_order, world  # noqa: F401
@@ -50,9 +55,12 @@ def _signed_order_checklist(world, client):
     return resp.json()
 
 
-def _recomputed(world, checklist_id):
+def _recomputed(world, checklist_id, field_key="sig"):
+    """SHA-256 des aktuellen Inhalts, so wie ihn eine Unterschrift im Feld field_key versiegelt."""
     world["db"].expire_all()
-    return signed_content_sha256(get_checklist_row(world["db"], checklist_id))
+    checklist = get_checklist_row(world["db"], checklist_id)
+    field = next(f for f in checklist.template_version.fields if f.field_key == field_key)
+    return hashlib.sha256(seal_content(checklist, field).encode("utf-8")).hexdigest()
 
 
 # --- Sperre und Prüfsumme -------------------------------------------------------------------

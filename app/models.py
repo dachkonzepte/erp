@@ -4543,11 +4543,16 @@ class ChecklistAttachment(Base):
     z. B. Teilnehmer einer Unterweisung).
 
     Seit 1.8.13 bindet eine Unterschrift den Inhalt: created_at ist ihr Zeitpunkt (UTC),
-    content_sha256 die Prüfsumme der Antworten und Fotos im Moment der Unterschrift
-    (app/checklists.py::signed_content_sha256()); NULL bei Fotos und bei Unterschriften von vor
-    1.8.13. Ab der ersten Unterschrift sind Antworten und Fotos gesperrt, keine Unterschrift wird
-    ersetzt oder gelöscht. Nur das Büro kann Unterschriften mit Begründung verwerfen -- die Zeile
-    bleibt dann als Nachweis stehen (discarded_*), zählt aber nicht mehr."""
+    content_sha256 die Prüfsumme des unterschriebenen Inhalts; NULL bei Fotos und bei
+    Unterschriften von vor 1.8.13. Keine Unterschrift wird ersetzt oder gelöscht. Nur das Büro kann
+    Unterschriften mit Begründung verwerfen -- die Zeile bleibt dann als Nachweis stehen
+    (discarded_*), zählt aber nicht mehr.
+
+    Seit 1.8.14 versiegelt eine Unterschrift nur die Felder, die in der Vorlage VOR ihr stehen.
+    sealed_content ist die feste Kopie dieses Inhalts (kanonisches JSON: Fassung, Feldschlüssel,
+    Antworten, Prüfsummen der Fotos, app/checklists.py::seal_content()), content_sha256 die
+    SHA-256 genau dieser Zeichenkette. NULL bei Unterschriften von vor 1.8.14 -- die versiegeln
+    weiterhin die ganze Checkliste (so wurden sie geleistet)."""
 
     __tablename__ = "checklist_attachments"
     __table_args__ = (UniqueConstraint("checklist_id", "client_uuid", name="uq_checklist_attachment_client_uuid"),)
@@ -4567,6 +4572,7 @@ class ChecklistAttachment(Base):
     discarded_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
     discarded_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     discard_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sealed_content: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     checklist: Mapped["Checklist"] = relationship(back_populates="attachments")
 

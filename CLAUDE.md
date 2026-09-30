@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.13** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.14** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -958,7 +958,9 @@ erwartet). Vorhanden: `klicktest_zeitbuchungen_liste.py` (1.8.9, acht Seiten, Da
 heutigen Datum), `klicktest_dashboard_monatswechsel.py` (1.8.10, festgehaltene Browser-Uhr und
 -Zeitzone) und `klicktest_rechnung_rundung.py` (1.8.11, Rechnungsseite: USt, Positionsbetrag,
 Skonto, dazu die vom Server gelieferten Beträge) und `klicktest_checkliste_unterschrift.py` (1.8.13,
-Unterschrift sperrt die Checkliste, Büro verwirft mit Begründung, "repariert" mit Notiz). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
+Unterschrift sperrt die Checkliste, Büro verwirft mit Begründung, "repariert" mit Notiz) und
+`klicktest_checkliste_abschnitte.py` (1.8.14, Unterschrift versiegelt nur den Abschnitt darüber,
+direkt in der Wegwerf-Datenbank geänderte Antwort erscheint als Abweichung). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 
 ## Arbeitsweise, die sich bewährt hat

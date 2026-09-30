@@ -14,9 +14,9 @@ Entscheidung fällt je Kontext und je Checkliste hier im Router, die Geschäftsl
     aktivem Modul "betriebsmittel".
   - Kontext Betrieb: kein Zugriff.
   - Schreiben (Antworten, Anhänge, Abschließen, Löschen): nur die eigene Checkliste.
-  - Ab der ersten Unterschrift (seit 1.8.13) sperrt die Geschäftslogik Antworten und Fotos für
-    JEDE Rolle, auch fürs Büro; "Unterschriften verwerfen" mit Begründung ist dem Büro
-    vorbehalten.
+  - Eine Unterschrift sperrt die Antworten und Fotos oberhalb von ihr (seit 1.8.13, seit 1.8.14
+    abschnittsweise) für JEDE Rolle, auch fürs Büro; "Unterschriften verwerfen" mit Begründung
+    ist dem Büro vorbehalten.
   - Fremde Checklisten: in der Liste nur Titel/Datum/Ersteller/Status; Einzelabruf und Anhänge
     nur, wenn die Vorlage field_readable trägt (Betreiberentscheidung B).
   - Die EIGENE Checkliste bleibt erreichbar, auch wenn der Monteur inzwischen nicht mehr dem
@@ -120,11 +120,17 @@ def _checklist_for(db: Session, role: AppUser, checklist_id: int, *, write: bool
 
 
 def _with_flags(data: dict, role: AppUser, checklist: Checklist) -> dict:
+    """can_edit: mindestens ein Feld ist noch offen (seit 1.8.14 abschnittsweise, welche genau
+    gesperrt sind, steht in sealed_field_ids). can_delete: Entwurf ohne jede Unterschrift, auch
+    ohne verworfene."""
     own = _is_own(role, checklist)
     draft = checklist.status == "entwurf"
     data["is_own"] = own
     data["can_sign"] = draft and (_is_office(role) or own)
-    data["can_edit"] = data["can_sign"] and not data["signed"]
+    sealed = set(data["sealed_field_ids"])
+    data["can_edit"] = data["can_sign"] and any(
+        f["field_type"] not in ("hinweis", "unterschrift") and f["id"] not in sealed for f in data["fields"])
+    data["can_delete"] = data["can_sign"] and not data["has_signatures"]
     data["can_discard_signatures"] = draft and data["signed"] and _is_office(role)
     return data
 

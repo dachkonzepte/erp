@@ -11,12 +11,15 @@
   Offline-Betrieb (Stufe 3), der Server nimmt Wiederholungen idempotent an. Vor dem Abschließen
   werden noch ausstehende Speichervorgänge abgewartet. Bedienelemente mindestens 44px.
 
-  Seit 1.8.13 bindet die Unterschrift den Inhalt: ab der ersten Unterschrift (cl.signed) sind
-  Antworten und Fotos gesperrt (can_edit=false), weitere Unterschriften und Abschließen bleiben
-  möglich (can_sign). Keine Unterschrift wird ersetzt oder entfernt. Vor der ERSTEN Unterschrift
-  werden offene Eingaben gespeichert und es erscheint ein Hinweis mit den noch offenen Angaben.
-  Das Büro kann die Unterschriften mit Begründung verwerfen (can_discard_signatures, sichtbares
-  Eingabefeld statt Popup, Regel 4); verworfene stehen danach unten als Nachweis.
+  Seit 1.8.13 bindet die Unterschrift den Inhalt, seit 1.8.14 abschnittsweise: gesperrt sind genau
+  die Felder in cl.sealed_field_ids (alles oberhalb der untersten gültigen Unterschrift), Felder
+  darunter bleiben bis zur nächsten Unterschrift offen. Weitere Unterschriften und Abschließen
+  bleiben möglich (can_sign). Keine Unterschrift wird ersetzt oder entfernt. Bevor eine Unterschrift
+  neue Felder sperrt, werden offene Eingaben gespeichert und ein Hinweis nennt die Angaben, die
+  danach nicht mehr ergänzbar sind. Jede Unterschrift zeigt, ob der aktuelle Inhalt noch zu ihrer
+  Prüfsumme passt (att.seal, vom Server). Das Büro kann die Unterschriften mit Begründung verwerfen
+  (can_discard_signatures, sichtbares Eingabefeld statt Popup, Regel 4); verworfene stehen danach
+  unten als Nachweis. "Entwurf löschen" nur ohne jede, auch verworfene, Unterschrift (can_delete).
 #}
 <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 <style>
@@ -65,6 +68,9 @@ textarea{min-height:90px;resize:vertical}
 .sig img{height:60px;max-width:220px;object-fit:contain}
 .sig .name{color:#182420;font-weight:650;flex:1;min-width:140px}
 .sig .sig-meta{display:block;font-weight:400;font-size:12px;color:#5c6f68;margin-top:2px;word-break:break-all}
+.sig .seal{display:block;font-size:12.5px;margin-top:3px;font-weight:600}
+.sig .seal.ok{color:#1f7a52}.sig .seal.bad{color:#b3261e}.sig .seal.none{color:#5c6f68;font-weight:400}
+.q-label .sealed-tag{font-size:11.5px;font-weight:600;color:var(--muted);margin-left:6px;white-space:nowrap}
 .lock-card{border-left:3px solid var(--accent)}
 .lock-card .lock-title{font-weight:700}
 .lock-card .warn{color:var(--warning);margin-top:6px;font-size:13.5px}
@@ -121,6 +127,11 @@ function backLink(){
 
 function answerOf(f){return (cl.answers[String(f.id)]||{}).value}
 function attachmentsOf(f){return cl.attachments.filter(a=>a.field_id===f.id)}
+// Seit 1.8.14 abschnittsweise: gesperrt ist, was der Server in sealed_field_ids nennt.
+const CONTENT_TYPES=f=>!['hinweis','unterschrift'].includes(f.field_type);
+function isSealed(f){return (cl.sealed_field_ids||[]).includes(f.id)}
+function editable(f){return cl.can_sign&&!isSealed(f)}
+function missingOf(f){return (cl.missing_required||[]).filter(m=>m===f.label||m.startsWith(f.label+' (mindestens'))}
 
 // --- Rendern ---------------------------------------------------------------------------
 
@@ -136,19 +147,17 @@ function renderHeader(){
     </div>${renderLockCard()}`;
 }
 
-// Pflichtangaben außer Unterschriften, die noch fehlen -- nach der ersten Unterschrift lassen sie
-// sich nicht mehr ergänzen.
-function missingContentLabels(){
-  const sigLabels=cl.fields.filter(f=>f.field_type==='unterschrift').map(f=>f.label);
-  return (cl.missing_required||[]).filter(m=>!sigLabels.some(l=>m===l||m.startsWith(l+' (mindestens')));
-}
+// Fehlende Pflichtangaben in den Feldern `list` -- gesperrt lassen sie sich nicht mehr ergänzen.
+function missingIn(list){return list.flatMap(missingOf)}
 
 function renderLockCard(){
   if(!cl.signed||cl.status!=='entwurf')return '';
-  const open=missingContentLabels();
-  return `<div class="card lock-card" id="lockCard"><div class="lock-title">Unterschrieben – Antworten und Fotos sind gesperrt</div>
-    <div class="muted small" style="margin-top:4px">Weitere Unterschriften und Abschließen sind möglich.${IS_FIELD?' Muss noch etwas geändert werden, kann das Büro die Unterschriften mit Begründung verwerfen.':''}</div>
-    ${open.length?`<div class="warn">Es fehlen Pflichtangaben, die sich nicht mehr ergänzen lassen: ${esc(open.join(', '))}. Zum Abschließen muss das Büro die Unterschriften verwerfen.</div>`:''}
+  const sealed=cl.fields.filter(isSealed);
+  const open=cl.fields.filter(f=>CONTENT_TYPES(f)&&!isSealed(f));
+  const missing=missingIn(sealed);
+  return `<div class="card lock-card" id="lockCard"><div class="lock-title">Unterschrieben – ${open.length?'die Angaben oberhalb der Unterschrift sind gesperrt':'Antworten und Fotos sind gesperrt'}</div>
+    <div class="muted small" style="margin-top:4px">${open.length?`Die Angaben darunter (${open.length}) bleiben bis zur nächsten Unterschrift offen. `:''}Weitere Unterschriften und Abschließen sind möglich.${IS_FIELD?' Muss noch etwas Gesperrtes geändert werden, kann das Büro die Unterschriften mit Begründung verwerfen.':''}</div>
+    ${missing.length?`<div class="warn">Es fehlen Pflichtangaben, die sich nicht mehr ergänzen lassen: ${esc(missing.join(', '))}. Zum Abschließen muss das Büro die Unterschriften verwerfen.</div>`:''}
     ${cl.can_discard_signatures?`<div class="discard-row"><textarea id="discardReason" maxlength="2000" placeholder="Begründung (Pflicht), z. B. Windangabe falsch eingetragen"></textarea>
       <button type="button" class="btn danger" id="discardBtn" onclick="discardSignatures()">Unterschriften verwerfen</button></div>
       <div class="small error-box" id="discardStatus" style="margin-top:6px"></div>`:''}</div>`;
@@ -160,6 +169,13 @@ function renderDiscarded(){
   const label=id=>(cl.fields.find(f=>f.id===id)||{label:'Unterschrift'}).label;
   return `<div class="card"><h2 style="margin:0 0 8px;font-size:16px">Verworfene Unterschriften</h2>${list.map(d=>`<div class="discarded-row"><b>${esc(d.signer_name)}</b> <span class="muted">(${esc(label(d.field_id))}, unterschrieben ${esc(d.created_at_local)})</span>
     <div class="small">Verworfen ${esc(d.discarded_at_local)}${d.discarded_by_name?' von '+esc(d.discarded_by_name):''}: ${esc(d.discard_reason)}</div></div>`).join('')}</div>`;
+}
+
+// Passt der aktuelle Inhalt noch zur Prüfsumme der Unterschrift? Text und Urteil vom Server.
+function sealLine(a){
+  if(!a.seal)return '';
+  const cls={unveraendert:'ok',abweichend:'bad',kopie_veraendert:'bad'}[a.seal.status]||'none';
+  return `<span class="seal ${cls}" data-seal="${esc(a.seal.status)}">${cls==='ok'?'✓ ':''}${esc(a.seal.text)}</span>`;
 }
 
 function valueText(f,v){
@@ -174,7 +190,7 @@ function valueText(f,v){
 
 function fieldBody(f){
   const v=answerOf(f);
-  const ro=!cl.can_edit;
+  const ro=!editable(f);
   const t=f.field_type;
   if(t==='ja_nein'){
     const opts=[['ja','Ja'],['nein','Nein']].concat(f.allow_na?[['entfaellt','Entfällt']]:[]);
@@ -198,7 +214,8 @@ function fieldBody(f){
   if(t==='foto'){
     const list=attachmentsOf(f);
     const max=f.max_count||20;
-    return `<div class="thumbs">${list.map(a=>`<div class="thumb"><a href="${a.url}" target="_blank" rel="noopener"><img src="${a.url}" alt="Foto"></a>${ro?'':`<button type="button" title="Foto entfernen" onclick="removeAttachment(${a.id})">×</button>`}</div>`).join('')||(ro?'<span class="muted">Keine Fotos.</span>':'')}</div>
+    // Ein Foto, das zu einer (auch verworfenen) Unterschrift gehört, bleibt als Nachweis -- kein ×.
+    return `<div class="thumbs">${list.map(a=>`<div class="thumb"${a.bound_by_signature&&!ro?' title="Gehört zu einer Unterschrift und bleibt als Nachweis erhalten."':''}><a href="${a.url}" target="_blank" rel="noopener"><img src="${a.url}" alt="Foto"></a>${ro||a.bound_by_signature?'':`<button type="button" title="Foto entfernen" onclick="removeAttachment(${a.id})">×</button>`}</div>`).join('')||(ro?'<span class="muted">Keine Fotos.</span>':'')}</div>
       ${ro||list.length>=max?'':`<label class="btn secondary" style="display:inline-flex;align-items:center">Foto aufnehmen / wählen<input type="file" accept="image/*" capture="environment" multiple style="display:none" onchange="uploadPhotos(${f.id},this)"></label>`}
       <div class="muted small" style="margin-top:4px">${list.length} von höchstens ${max}${f.min_count?`, mindestens ${f.min_count}`:''}</div>`;
   }
@@ -209,7 +226,7 @@ function fieldBody(f){
     const canAdd=cl.can_sign&&(f.multiple?list.length<(f.max_count||20):!list.length);
     const prefill=(!f.multiple&&/monteur|ausführend|fahrer/i.test(f.signer_label||f.label))?MY_NAME:'';
     const meta=a=>[a.created_at_local?a.created_at_local+' Uhr':null,a.content_sha256?'Prüfsumme '+a.content_sha256.slice(0,12)+'…':null].filter(Boolean).join(' · ');
-    return `<div class="sig-list">${list.map(a=>`<div class="sig"><img src="${a.url}" alt="Unterschrift"><span class="name">${esc(a.signer_name)}<span class="sig-meta"${a.content_sha256?` title="SHA-256 des unterschriebenen Inhalts: ${esc(a.content_sha256)}"`:''}>${esc(meta(a))}</span></span></div>`).join('')||(canAdd?'':'<span class="muted">Keine Unterschrift.</span>')}</div>
+    return `<div class="sig-list">${list.map(a=>`<div class="sig"><img src="${a.url}" alt="Unterschrift"><span class="name">${esc(a.signer_name)}<span class="sig-meta"${a.content_sha256?` title="SHA-256 des unterschriebenen Inhalts: ${esc(a.content_sha256)}"`:''}>${esc(meta(a))}</span>${sealLine(a)}</span></div>`).join('')||(canAdd?'':'<span class="muted">Keine Unterschrift.</span>')}</div>
       ${canAdd?`<div class="pad-wrap"><canvas id="pad_${f.id}"></canvas></div>
       <div class="pad-actions"><input id="padName_${f.id}" placeholder="Name ${esc(f.signer_label||'')}" value="${esc(prefill)}">
         <button type="button" class="btn secondary" onclick="clearPad(${f.id})">Leeren</button>
@@ -223,6 +240,8 @@ function render(){
   let html=renderHeader();
   let group=null;
   const missing=new Set(cl.missing_required||[]);
+  // Nur wenn ein Teil gesperrt und ein Teil offen ist, markiert jedes gesperrte Feld sich selbst.
+  const partly=cl.status==='entwurf'&&cl.fields.some(isSealed)&&cl.fields.some(f=>CONTENT_TYPES(f)&&!isSealed(f));
   for(const f of cl.fields){
     if(f.group_name&&f.group_name!==group){html+=`<div class="group-title">${esc(f.group_name)}</div>`}
     group=f.group_name||group;
@@ -231,7 +250,7 @@ function render(){
       continue;
     }
     const isMissing=cl.can_sign&&[...missing].some(m=>m===f.label||m.startsWith(f.label+' (mindestens'));
-    const label=`${esc(f.label)}${f.required||f.min_count?'<span class="req">*</span>':''}${f.signer_label?` <span class="muted small">(${esc(f.signer_label)})</span>`:''}`;
+    const label=`${esc(f.label)}${f.required||f.min_count?'<span class="req">*</span>':''}${f.signer_label?` <span class="muted small">(${esc(f.signer_label)})</span>`:''}${partly&&isSealed(f)?'<span class="sealed-tag">· gesperrt</span>':''}`;
     html+=`<div class="q${isMissing?' missing':''}" id="q_${f.id}"><div class="q-label">${label}</div>${f.help_text?`<div class="q-help">${esc(f.help_text)}</div>`:''}
       <div class="q-body">${fieldBody(f)}</div><div class="q-status" id="st_${f.id}"></div></div>`;
   }
@@ -239,7 +258,7 @@ function render(){
   if(cl.can_sign){
     const m=cl.missing_required||[];
     html+=`<div class="footer-card"><div class="missing-text" id="missingText">${m.length?'Noch offen: '+esc(m.join(', ')):'Alle Pflichtangaben sind ausgefüllt.'}</div>
-      ${cl.can_edit?'<button type="button" class="btn danger" onclick="deleteDraft()">Entwurf löschen</button>':''}
+      ${cl.can_delete?'<button type="button" class="btn danger" onclick="deleteDraft()">Entwurf löschen</button>':''}
       <button type="button" class="btn" id="completeBtn" onclick="completeChecklist()">Abschließen</button></div>
       <div id="pageError" class="error-box small" style="margin-top:8px"></div>`;
   }
@@ -372,13 +391,17 @@ async function saveSignature(fieldId){
   const name=(nameEl.value||'').trim();
   if(!p||!p.dirty){setStatus(fieldId,'Bitte zuerst im Feld unterschreiben.',true);return}
   if(!name){setStatus(fieldId,'Bitte den Namen der unterschreibenden Person eintragen.',true);nameEl.focus();return}
-  if(!cl.signed){
-    // Erste Unterschrift sperrt Antworten und Fotos: zuerst alles Getippte speichern (sonst käme
-    // es nach der Unterschrift an und würde abgewiesen), dann bewusst bestätigen lassen.
+  const idx=cl.fields.findIndex(x=>x.id===fieldId);
+  const newly=cl.fields.slice(0,idx).filter(f=>CONTENT_TYPES(f)&&!isSealed(f));
+  if(newly.length){
+    // Die Unterschrift sperrt die noch offenen Angaben oberhalb: zuerst alles Getippte speichern
+    // (sonst käme es nach der Unterschrift an und würde abgewiesen), dann bewusst bestätigen lassen.
     setStatus(fieldId,'Speichert Eingaben …');
     await flushAll();
-    const open=missingContentLabels();
-    const text='Nach der Unterschrift sind Antworten und Fotos gesperrt und lassen sich nicht mehr ändern.'
+    const open=missingIn(newly);
+    const below=cl.fields.slice(idx+1).some(CONTENT_TYPES);
+    const text='Nach der Unterschrift sind die Angaben oberhalb gesperrt und lassen sich nicht mehr ändern.'
+      +(below?' Die Angaben darunter bleiben bis zur nächsten Unterschrift offen.':'')
       +(open.length?'\n\nNoch nicht ausgefüllt: '+open.join(', ')+'\nDiese Angaben lassen sich danach nicht mehr ergänzen.':'')
       +'\n\nJetzt unterschreiben?';
     if(!confirm(text)){setStatus(fieldId,'');return}
@@ -424,7 +447,7 @@ async function prefillNow(){
   const pad=n=>String(n).padStart(2,'0');const d=new Date();
   const day=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,tm=`${pad(d.getHours())}:${pad(d.getMinutes())}`;
   for(const f of cl.fields){
-    if(!f.prefill_now||answerOf(f))continue;
+    if(!f.prefill_now||answerOf(f)||!editable(f))continue;
     const v={datum:day,uhrzeit:tm,datum_uhrzeit:`${day}T${tm}`}[f.field_type];
     if(v&&await sendAnswer(f.id,v))rerenderField(f);
   }

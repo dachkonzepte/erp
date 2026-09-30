@@ -4,6 +4,36 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.14 – Checklisten: Unterschrift versiegelt abschnittsweise
+
+Stufe 2 des Checklisten-Moduls, Runde 2a-1b. Seit 1.8.13 sperrte schon die erste Unterschrift die
+ganze Checkliste -- ein Erlaubnisschein für Heißarbeiten, wie üblich vor Arbeitsbeginn unterschrieben,
+ließ sich danach nicht mehr um Ende und Nachkontrolle ergänzen. Jetzt versiegelt eine Unterschrift nur
+die Antworten und Fotos der Felder, die in der Vorlage vor ihr stehen; Felder danach bleiben bis zur
+nächsten Unterschrift offen (`sealed_field_ids()`). Vorlagen mit der Unterschrift am Ende verhalten sich
+wie bisher. Beim Unterschreiben wird der versiegelte Inhalt als feste Kopie an der Unterschrift abgelegt
+(neue Spalte `sealed_content`: kanonisches JSON mit Fassung, Feldschlüsseln, Antworten und der SHA-256
+jeder Fotodatei), `content_sha256` ist die Prüfsumme genau dieser Kopie. Seite und PDF zeigen je
+Unterschrift, ob der aktuelle Inhalt noch dazu passt, bei einer Abweichung mit den betroffenen Feldern
+(`check_signature()`) -- etwa nach einer Änderung direkt in der Datenbank oder an einer Fotodatei.
+Unterschriften von vor 1.8.14 haben keine Kopie und versiegeln weiter die ganze Checkliste, wie es beim
+Unterschreiben galt.
+
+Ein Foto, auf das eine Unterschrift verweist, wird nie gelöscht, auch wenn die Unterschrift verworfen
+wurde; die Seite zeigt dafür keinen Entfernen-Knopf. Dabei eine Lücke aus 1.8.13 geschlossen: ein
+Entwurf, dessen Unterschriften alle verworfen waren, ließ sich löschen, samt verworfener Unterschriften
+und Fotodateien. Jetzt nicht mehr, sobald er irgendeine Unterschrift trägt ("Entwurf löschen" erscheint
+nur noch ohne, `can_delete`). Die Startvorlage "Heißarbeiten mit Brandwache" bekommt zwei Abschnitte:
+Unterschrift Ausführender nach der Freigabe vor Arbeitsbeginn, Unterschrift Brandwache nach der
+Nachkontrolle (Daten-Migration `05a080705f2c`, nur wenn die Vorlage noch unveränderter Entwurf ist).
+Vorschläge für Nachtragsmeldung, Entsorgungsnachweis und Tagesbericht stehen in
+`docs/archiv/modul-checklisten.md`, ebenso der offene Punkt, dass "Verwerfen" weiterhin alle
+Unterschriften verwirft. Migration `8f73789cdd66` (eine nullable Spalte). 13 neue Tests in
+`tests/test_v318_checklist_signature_sections.py`, die Angriffstests mit Gegenprobe rot; Checklisten-Tests
+zusätzlich gegen PostgreSQL grün, Migrationen hin/zurück/hin auf SQLite und PostgreSQL. Neuer Klicktest
+`scripts/klicktest_checkliste_abschnitte.py` (25/25), der aus 1.8.13 weiter 23/23. Volle Suite mit
+PostgreSQL: 2076 grün, 0 übersprungen.
+
 ## 1.8.13 – Checklisten: Unterschrift bindet den Inhalt
 
 Stufe 2 des Checklisten-Moduls, Runde 2a-1. Bisher ließ sich eine Checkliste nach der Unterschrift

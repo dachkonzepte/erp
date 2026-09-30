@@ -4274,6 +4274,14 @@ class ChecklistAnswerOut(BaseModel):
     client_recorded_at: datetime | None = None
 
 
+class ChecklistSealCheckOut(BaseModel):
+    """Prüfung einer Unterschrift gegen den aktuellen Inhalt (seit 1.8.14, app/checklists.py::
+    check_signature()): status unveraendert|abweichend|kopie_veraendert|ohne_pruefsumme."""
+    status: str
+    changed_fields: list[str] = []
+    text: str
+
+
 class ChecklistAttachmentOut(BaseModel):
     id: int
     field_id: int
@@ -4282,6 +4290,8 @@ class ChecklistAttachmentOut(BaseModel):
     created_at: datetime
     created_at_local: str | None = None  # Europe/Berlin, "TT.MM.JJJJ HH:MM" (seit 1.8.13)
     content_sha256: str | None = None    # nur Unterschriften ab 1.8.13
+    seal: ChecklistSealCheckOut | None = None  # nur gültige Unterschriften (seit 1.8.14)
+    bound_by_signature: bool = False  # Foto gehört zu einer (auch verworfenen) Unterschrift, nie löschbar (seit 1.8.14)
     url: str
 
 
@@ -4293,9 +4303,11 @@ class ChecklistDiscardedSignatureOut(ChecklistAttachmentOut):
 
 
 class ChecklistOut(ChecklistSummaryOut):
-    """can_edit: Antworten und Fotos änderbar (Entwurf, nicht unterschrieben, eigene bzw. Büro).
-    can_sign: Unterschreiben und Abschließen (Entwurf, eigene bzw. Büro) -- auch nach der ersten
-    Unterschrift. can_discard_signatures: nur Büro, nur unterschriebener Entwurf (seit 1.8.13)."""
+    """can_sign: Unterschreiben und Abschließen (Entwurf, eigene bzw. Büro) -- auch nach der
+    ersten Unterschrift. can_edit: dazu mindestens ein Feld noch offen; gesperrt sind genau die
+    Felder in sealed_field_ids (seit 1.8.14 abschnittsweise: alles oberhalb der untersten gültigen
+    Unterschrift). can_delete: Entwurf ohne jede, auch verworfene, Unterschrift (seit 1.8.14).
+    can_discard_signatures: nur Büro, nur unterschriebener Entwurf (seit 1.8.13)."""
     template_version_id: int
     version_no: int
     fields: list[ChecklistTemplateFieldOut] = []
@@ -4303,9 +4315,12 @@ class ChecklistOut(ChecklistSummaryOut):
     attachments: list[ChecklistAttachmentOut] = []
     discarded_signatures: list[ChecklistDiscardedSignatureOut] = []
     signed: bool = False
+    sealed_field_ids: list[int] = []
+    has_signatures: bool = False
     missing_required: list[str] = []
     can_edit: bool = False
     can_sign: bool = False
+    can_delete: bool = False
     can_discard_signatures: bool = False
 
 

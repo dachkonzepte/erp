@@ -194,9 +194,10 @@ eintragen), Auslieferung über einen dedizierten, rollengeprüften Endpunkt.
   Muster "Self-Seeding"). Eine Wiederholung einer bereits gespeicherten `client_uuid` nach dem
   Abschluss liefert ebenfalls 200; eine NEUE Änderung an einer abgeschlossenen Checkliste 409.
   Der Abschluss selbst ist idempotent (zweiter Aufruf = aktueller Stand).
-- **Seit 1.8.13 sperrt schon die erste Unterschrift** Antworten und Fotos (siehe "Umsetzung
-  1.8.13"); weitere Unterschriften und Abschließen bleiben möglich, keine Unterschrift wird
-  ersetzt oder gelöscht, Entsperren nur über "Unterschriften verwerfen" (Büro, Begründung).
+- **Seit 1.8.13 sperrt eine Unterschrift** Antworten und Fotos (siehe "Umsetzung 1.8.13"), **seit
+  1.8.14 nur die Felder oberhalb von ihr** (siehe "Umsetzung 1.8.14"); weitere Unterschriften und
+  Abschließen bleiben möglich, keine Unterschrift wird ersetzt oder gelöscht, Entsperren nur über
+  "Unterschriften verwerfen" (Büro, Begründung).
 - Abschließen prüft Pflichtfelder (inkl. `min_count` bei Foto/Unterschrift) und friert ein. Danach
   kein Ändern, kein Löschen. Ein Entwurf darf vom Ersteller bzw. Büro gelöscht werden (Anhänge
   samt Dateien werden mit entfernt -- `before_delete`-Event wie `roof_areas.py`).
@@ -342,6 +343,7 @@ Zwischen den Versionen darf der Betreiber `/clear` machen -- dann diese Datei le
 | **1.8.4** | PDF über den gemeinsamen Rahmen (ursprünglich 1.8.3) | erledigt |
 | **1.8.5** | 13 Startvorlagen per Daten-Migration (Entwurf) (ursprünglich 1.8.4). **Danach berichten** (Betreibervorgabe: nach Abschluss der geplanten Etappen) | erledigt, Bericht an den Betreiber offen |
 | **1.8.13** | Stufe 2, Runde 2a-1: Unterschrift bindet den Inhalt (Sperre, Prüfsumme, "Unterschriften verwerfen", Historie, Notiz-Pflicht bei "repariert") | erledigt |
+| **1.8.14** | Stufe 2, Runde 2a-1b: Unterschrift versiegelt abschnittsweise (feste Kopie, Prüfung je Unterschrift auf Seite und PDF, Fotos verworfener Unterschriften nie gelöscht, Heißarbeiten in zwei Abschnitten) | erledigt |
 
 Nach jeder Version hier die Spalte "Stand" nachziehen und unten einen kurzen Abschnitt
 "Umsetzung 1.8.x" mit Abweichungen/Funden ergänzen.
@@ -700,4 +702,91 @@ geht, Ändern nur nach "Unterschriften verwerfen". Betroffene auf dem Server fin
   FK entfernt. Nicht geändert.
 - Vorbestehend: bei einer Einzelunterschrift mit Rollenbeschriftung "Monteur" belegt die Seite
   den Namen mit dem angemeldeten Konto vor -- auch wenn das Büro die Seite offen hat.
+
+---
+
+## Umsetzung 1.8.14 (30.09.2026) -- Stufe 2, Runde 2a-1b: Unterschrift versiegelt abschnittsweise
+
+Betreibervorgabe: (1) eine Unterschrift versiegelt nur die Felder vor ihr, Felder danach bleiben bis
+zur nächsten Unterschrift offen, Vorlagen mit einer Unterschrift am Ende wie bisher; (2) beim
+Unterschreiben den versiegelten Inhalt als feste Kopie ablegen (Fassung, Feldschlüssel, Antworten,
+Prüfsummen der Fotos), `content_sha256` = Prüfsumme genau dieser Kopie, Fotos einer Unterschrift --
+auch einer verworfenen -- nie physisch löschen; (3) Seite und PDF zeigen je Unterschrift, ob der
+aktuelle Inhalt noch passt; (4) Heißarbeiten in zwei Abschnitte, für Nachtragsmeldung,
+Entsorgungsnachweis, Tagesbericht nur Vorschläge; (5) Angriffstests mit Gegenprobe.
+
+- **Regel** (`sealed_field_ids()`): gesperrt sind Antworten und Fotos aller Felder oberhalb der
+  untersten gültigen Unterschrift ("oberhalb" = Reihenfolge der Vorlagenfassung). Hinweise und
+  Unterschriftsfelder sperren sich nicht gegenseitig: eine obere Unterschrift bleibt möglich, auch
+  wenn schon eine untere geleistet ist (Teilnehmer einer Unterweisung unterschreiben weiter nach
+  dem Unterweisenden). Felder nach der letzten Unterschrift werden nur durch das Abschließen
+  eingefroren, ohne Prüfsumme.
+- **Unterschriften von vor 1.8.14** (ohne Kopie, also 1.8.13 mit Prüfsumme über die ganze Checkliste
+  oder noch ältere ohne) versiegeln weiterhin die ganze Checkliste -- so galt es beim
+  Unterschreiben, und die 1.8.13-Summe bleibt nur so nachprüfbar (`_legacy_content_sha256()`).
+- **Feste Kopie** (Migration `8f73789cdd66`, Spalte `checklist_attachments.sealed_content`, Text,
+  nullable): `seal_content()` erzeugt kanonisches JSON (`"v": 2`, sortierte Schlüssel) mit
+  Checkliste, Vorlage, Fassung (ID und Nummer), eingefrorenen Bezeichnungen, Schlüssel des
+  Unterschriftsfelds und JEDEM versiegelten Feld mit Schlüssel und Wert -- auch leere, damit ein
+  später ergänztes Feld auffällt --, bei Fotofeldern jedes Foto mit ID und SHA-256 der Datei.
+  `content_sha256 = sha256(sealed_content)`. Bewusst eine Zeichenkette statt Zeilen (sonst gilt im
+  Modul "Zeilen statt JSON"): die Prüfsumme soll über genau die abgelegten Bytes gehen, ohne dass
+  sie zum Nachprüfen erst wieder serialisiert werden müssen. Nicht in der Änderungshistorie
+  (`EXCLUDED_FIELDS`), dort steht die Prüfsumme.
+- **Prüfung** (`check_signature()`, bei jedem Abruf, je gültige Unterschrift unter `seal`):
+  `unveraendert`, `abweichend` (mit den betroffenen Feldern aus dem Vergleich Kopie ↔ aktueller
+  Stand), `kopie_veraendert` (Inhalt passt, die abgelegte Kopie selbst nicht) oder
+  `ohne_pruefsumme`. Den Text liefert der Server, Seite und PDF zeigen denselben. Jede Fotodatei
+  wird je Abruf höchstens einmal gelesen.
+- **Fotos als Nachweis** (`_photo_bound_by_signature()`): ein Foto, das in der Kopie irgendeiner
+  Unterschrift steht -- auch einer verworfenen --, ist nicht löschbar (409); die Seite zeigt dafür
+  kein ×. Fehlt die Kopie oder passt sie nicht zu ihrer Prüfsumme, gilt jedes Foto als gebunden,
+  das beim Unterschreiben schon da war. **Lücke aus 1.8.13 mitgeschlossen**: ein Entwurf, dessen
+  Unterschriften alle verworfen waren, ließ sich löschen -- samt verworfener Unterschriften und
+  Fotodateien (Kaskade + `before_delete`). Jetzt 409, sobald irgendeine Unterschrift existiert.
+- **API/Seite**: `sealed_field_ids`, `has_signatures`, `can_delete` (neu, "Entwurf löschen" nur
+  ohne jede Unterschrift), `can_edit` = mindestens ein Feld noch offen. Die Seite sperrt je Feld,
+  markiert bei teilweiser Sperre die gesperrten Felder ("· gesperrt"), der Hinweis vor dem
+  Unterschreiben erscheint immer, wenn die Unterschrift neue Felder sperrt, und nennt, ob darunter
+  etwas offen bleibt.
+- **Startvorlage Heißarbeiten** (Daten-Migration `05a080705f2c`): Unterschrift Ausführender direkt
+  nach "Beginn" (Abschnitt "Freigabe vor Arbeitsbeginn"), Ende/Nachkontrolle/Fotos darunter bis zur
+  Unterschrift Brandwache (Abschnitt "Nachkontrolle"), Hilfetexte an beiden Unterschriften. Nur,
+  wenn die Vorlage noch genau so ist, wie 1.8.5 sie angelegt hat (eine Fassung, Entwurf, gleiche
+  Felder in gleicher Reihenfolge) -- eine veröffentlichte oder umsortierte bleibt unangetastet, dann
+  im Editor umsortieren. Die Unterschriften bleiben wie in 1.8.5 ohne Pflicht (dort als
+  Betreiberentscheidung vor der Veröffentlichung vermerkt).
+- **Verifikation**: `tests/test_v318_checklist_signature_sections.py` (13 Tests). Angriffstests mit
+  Gegenprobe (Schutz im Code ausgehebelt, Test rot, Datei danach byte-genau zurück): Feld oberhalb
+  ändern (Sperre aus → rot), Feld darunter ändern (ganze Liste gesperrt wie 1.8.13 → rot), Foto einer
+  verworfenen Unterschrift löschen (Bindung aus → rot; Entwurfslöschung ohne Sperre → rot), direkt in
+  der Datenbank geänderte Antwort (Prüfung gegen die Kopie statt den aktuellen Stand → rot).
+  `test_v317` unverändert grün bis auf den Hilfsaufruf der Prüfsumme -- belegt, dass Vorlagen mit
+  der Unterschrift am Ende sich wie in 1.8.13 verhalten. Checklisten-Tests (80) zusätzlich gegen
+  PostgreSQL (Wegwerf-Schemas in `spielwiese`) grün; Migrationen SQLite + PostgreSQL hin/zurück/hin
+  mit Bestand (eine 1.8.13-Unterschrift), `alembic check` sauber. Klicktest
+  `scripts/klicktest_checkliste_abschnitte.py` 25/25 (u. a. Antwort direkt in der Wegwerf-SQLite
+  geändert → Unterschrift zeigt "weicht ab: Arbeitsbereich"), `klicktest_checkliste_unterschrift.py`
+  weiter 23/23.
+
+### Vorschläge: Nachtragsmeldung, Entsorgungsnachweis, Tagesbericht (nur gemeldet, nicht umgesetzt)
+- **Nachtragsmeldung**: Abschnitt "Anordnung" (Art, Beschreibung, Menge/Einheit, angeordnet durch)
+  → Unterschrift Kunde; Abschnitt "Ausführung" (geschätzter Zeitaufwand, Material, bereits
+  ausgeführt, Fotos) → neue Unterschrift Monteur. Der Kunde bestätigt nur die Anordnung, Fotos und
+  "bereits ausgeführt" bleiben danach ergänzbar.
+- **Entsorgungsnachweis**: Abschnitt "Übergabe" (Abfallart, Menge/Einheit, Entsorger, Übergabe) →
+  Unterschrift Monteur; Abschnitt "Beleg" (Wiege-/Lieferschein-Nr., Beleg-Foto, Bemerkung) → zweite
+  Unterschrift ("Beleg erfasst", Monteur oder Büro). Einfachere Variante: Beleg-Felder ohne zweite
+  Unterschrift unter die erste -- dann friert erst das Abschließen sie ein, ohne Prüfsumme.
+- **Tagesbericht**: so lassen (eine Unterschrift am Ende, geleistet bei Feierabend). Eine
+  Gegenzeichnung der Anordnungen durch den Auftraggeber bräuchte die Anordnungen ganz oben und
+  würde alles darüber sperren -- passt nicht zu einem Bericht, der über den Tag wächst.
+
+### Offene Punkte (nur gemeldet)
+- **Verwerfen wirft alle gültigen Unterschriften**, nicht nur ab einem Abschnitt: muss bei
+  Heißarbeiten nach der Unterschrift der Brandwache etwas an der Nachkontrolle korrigiert werden,
+  fällt auch die Freigabe-Unterschrift und muss neu geleistet werden. Ein abschnittsweises Verwerfen
+  (nur die Unterschriften ab dem betroffenen Feld) wäre eine eigene Entscheidung.
+- **Ein Entwurf mit verworfenen Unterschriften ist nicht mehr löschbar**: er bleibt als Entwurf
+  stehen, bis er abgeschlossen wird (Folge aus Punkt 2 der Vorgabe).
 
