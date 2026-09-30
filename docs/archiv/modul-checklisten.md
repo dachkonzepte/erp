@@ -351,6 +351,7 @@ Zwischen den Versionen darf der Betreiber `/clear` machen -- dann diese Datei le
 | **1.8.16** | Stufe 2, Runde 2a-2: Zweck-Registry (Kontexte, Systemfelder, Folgen), Zweck an der Fassung eingefroren, Systemfelder geschützt und beim Veröffentlichen geprüft, Folgetabelle mit Nachholen | erledigt |
 | **1.8.17** | Stufe 2, Runde 2a-3a: Ablage versendeter Dokumente und Versandprotokoll, Sperre gegen Doppelversand, mehrere Empfänger/CC, 3-MB-Grenze; Regel 18 im Regel-Protokoll. Eigene Archivdatei `docs/archiv/versandprotokoll-und-ablage.md` | erledigt |
 | **1.8.19** | Stufe 2, Runde 2a-3b, Teil 1: Sperre "läuft gerade" in der Datenbank, Adressprüfung und deutsche Graph-Meldungen, hängende Einträge klären, Rechnung/Storno/Mahnung aus der Ablage (Details in `docs/archiv/versandprotokoll-und-ablage.md`) | erledigt |
+| **1.8.20** | Stufe 2, Runde 2a-3b, Teil 2: Versandverlauf am Dokument, Checkliste per E-Mail mit verkleinerten Fotos (unter 3.000.000 Bytes), Zustellung auf anderem Weg nachtragen (Details in `docs/archiv/versandprotokoll-und-ablage.md`) | erledigt |
 
 Nach jeder Version hier die Spalte "Stand" nachziehen und unten einen kurzen Abschnitt
 "Umsetzung 1.8.x" mit Abweichungen/Funden ergänzen.

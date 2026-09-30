@@ -4,6 +4,33 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.20 – Versandverlauf am Dokument, Checkliste per E-Mail, Zustellung nachtragen
+
+Stufe 2, Runde 2a-3b, zweiter Teil (Punkte 5–8). Angebot, Auftrag, Rechnung, Mahnung und Checkliste
+zeigen jetzt ihren Versandverlauf aus dem Protokoll statt nur "zuletzt versendet an": jede Mail mit
+An/CC, Status, Benutzer und dem abgelegten PDF, jede nachgetragene Zustellung mit Datum, Notiz und
+Beleg, bei Rechnung und Mahnung dazu der Hinweis, welche abgelegte Fassung Nachdruck und erneuter
+Versand verwenden (Mahnwesen: je Mahnung aufklappbar). Neu ist "Zustellung nachtragen": Einschreiben,
+persönliche Übergabe, Bote oder Fax mit Datum (nicht in der Zukunft), Pflicht-Notiz, optional Empfänger
+und Beleg (Foto oder Scan, am Inhalt als JPEG/PNG/WebP/PDF erkannt, höchstens 15 MB). Der Eintrag steht
+im Versandprotokoll, das PDF des Dokuments und der Beleg liegen in der unveränderlichen Ablage
+(`sent_documents.content_type`, Beleg mit `nosniff` ausgeliefert); bei Rechnung und Mahnung ist es die
+maßgebliche Fassung bzw. wird es ab jetzt. Gesendet wird dabei nichts. Welche Dokumente zugestellt werden
+dürfen und welches PDF dazugehört, steht an einer Stelle (`app/dispatch_documents.py`).
+
+Checklisten lassen sich (Büro, abgeschlossen) per E-Mail versenden, über dasselbe Protokoll und dieselbe
+Ablage wie alle anderen Dokumente (`app/checklist_email.py`, E-Mail-Vorlage "Checkliste" in den
+Einstellungen, Empfänger vorbelegt aus dem Kunden von Auftrag bzw. Objekt). Das Versand-PDF verkleinert
+die Fotos nur im Speicher und stufenweise, bis es unter 3.000.000 Bytes liegt (eine Stufe wird nur
+gerendert, wenn ihre Fotos überhaupt passen können); die Originale werden nur gelesen, das Dokument sagt,
+dass die Prüfsummen sich auf sie beziehen, und der PDF-Knopf liefert weiter volle Auflösung. Gemessen mit
+20 fotoähnlichen Bildern: 9,9 MB voll, 2,8 MB für den Versand, ein Renderlauf, 2,6 s. Passt es auch
+verkleinert nicht, sagt die Meldung, dass es auf anderem Weg zugestellt und nachgetragen werden kann.
+Nebenbei korrigiert: der Docstring von `check_due_asset_inspections_and_create_reminders()` behauptete
+noch, nur Admins sähen Aufgaben ohne Zuständigkeit (seit 1.8.18 überholt). Migration `d1c4a7252554`,
+21 neue Tests (`tests/test_v324_dispatch_history_and_delivery.py`), 14 Gegenproben rot; neuer Klicktest
+`scripts/klicktest_versandverlauf.py` 32/32, `klicktest_versandprotokoll.py` weiter 45/45.
+
 ## 1.8.19 – Versand: Sperre je Dokument, Adressen, hängende Einträge klären, Nachdruck aus der Ablage
 
 Stufe 2, Runde 2a-3b, erster Teil (Punkte 1–4; der Rest folgt als eigene Version). Zwei Tabs, die

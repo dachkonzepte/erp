@@ -26,17 +26,25 @@ send_message() hat keinen anderen Aufrufer, per Test erzwungen). Ablauf je Versa
 5. Senden mit der eigenen Kennung als Kopfzeile X-DK-Versand-ID, danach "gesendet" bzw.
    "fehlgeschlagen" per bedingtem UPDATE (nur aus "in_arbeit"), Sperre frei.
 
+Zustellung auf anderem Weg (seit 1.8.20, record_manual_delivery()): Einschreiben, persönliche
+Übergabe, Bote oder Fax trägt das Büro mit Datum, Notiz und optional einem Beleg (Foto/Scan) nach.
+Das ist ein Eintrag im selben Protokoll (channel = Weg, sofort "gesendet"), das PDF des Dokuments und
+der Beleg liegen in der Ablage. Gesendet wird dabei nichts.
+
 Regel 18: im Protokoll stehen Empfänger und Betreff (vom Betreiber für den Nachweis verlangt), nie
 der Mailtext und nie der Fehlertext -- vom Fehler nur Klassenname und Code (HTTP-Status bzw.
 SMTP-Antwortcode). Der Fehlertext geht wie bisher nur an den Menschen, der gerade sendet. Die
-Notiz einer Klärung schreibt das Büro selbst, sie ist Nachweis, kein Mitschnitt.
+Notizen einer Klärung und einer nachgetragenen Zustellung schreibt das Büro selbst, sie sind
+Nachweis, kein Mitschnitt.
 """
 
 import hashlib
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+
+from io import BytesIO
 
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
@@ -52,7 +60,10 @@ MAX_RECIPIENTS = 20
 STATUSES = {"in_arbeit": "In Arbeit", "gesendet": "Gesendet", "fehlgeschlagen": "Fehlgeschlagen"}
 RESOLUTION_OUTCOMES = ("gesendet", "fehlgeschlagen")
 RESOLUTION_NOTE_MAX = 1000
-CHANNELS = {"smtp": "SMTP", "graph_oauth2": "Microsoft 365"}
+MANUAL_CHANNELS = {"einschreiben": "Einschreiben", "persoenlich": "Persönliche Übergabe", "bote": "Bote", "fax": "Fax"}
+CHANNELS = {"smtp": "SMTP", "graph_oauth2": "Microsoft 365", **MANUAL_CHANNELS}
+MAX_RECEIPT_BYTES = 15_000_000  # Beleg einer nachgetragenen Zustellung (Foto vom Handy, Scan)
+DELIVERY_NOTE_MAX = 1000
 DISPATCH_TYPES = {**DOCUMENT_TYPES, "aufgabe": "Aufgaben-Benachrichtigung"}
 DISPATCH_ENTITY_TYPE = "Versand"  # Änderungshistorie (app/audit.py) für die Klärung eines Eintrags
 
@@ -337,23 +348,6 @@ def _dispatch_label(dispatch: EmailDispatch) -> str:
     return " ".join(x for x in (kind, number, f"· Kennung {dispatch.message_ref}") if x)
 
 
-def _project_id_of(db: Session, dispatch: EmailDispatch) -> int | None:
-    """Projekt des Dokuments, damit die Klärung auch in der Historie des Projekts erscheint."""
-    from .models import Invoice, Order, Quote, Reminder
-
-    if dispatch.document_id is None:
-        return None
-    document = {"angebot": Quote, "auftrag": Order, "rechnung": Invoice, "mahnung": Reminder}.get(dispatch.document_type)
-    row = db.get(document, dispatch.document_id) if document is not None else None
-    if row is None:
-        return None
-    if isinstance(row, Reminder):
-        row = row.invoice
-    if isinstance(row, Invoice):
-        row = row.order
-    return getattr(row, "project_id", None)
-
-
 def resolve_stuck_dispatch(
     db: Session, dispatch_id: int, *, outcome: str, note: str, user_id: int | None, user_name: str | None,
 ) -> EmailDispatch:
@@ -393,6 +387,7 @@ def resolve_stuck_dispatch(
         db.rollback()
         raise DispatchConflict("Diesen Eintrag hat inzwischen jemand anderes geklärt.")
     from .audit import TASK_ENTITY_TYPE, record_audit_entry
+    from .dispatch_documents import project_id_of
 
     if dispatch.document_type == "aufgabe":
         # Wie das Übernehmen einer Aufgabe (1.8.18): an der Aufgabe, damit nur Admin es sieht.
@@ -401,13 +396,122 @@ def resolve_stuck_dispatch(
     else:
         entity = dict(entity_type=DISPATCH_ENTITY_TYPE, entity_id=dispatch.id, entity_label=_dispatch_label(dispatch))
     record_audit_entry(
-        db, action="geändert", **entity, project_id=_project_id_of(db, dispatch), field_name="status",
+        db, action="geändert", **entity, project_id=project_id_of(db, dispatch.document_type, dispatch.document_id),
+        field_name="status",
         field_label="Versandstatus (hängenden Versand geklärt)", old_value="Hängengeblieben (in Arbeit)",
         new_value=f"{STATUSES[outcome]} – Notiz: {note}", actor_user_id=user_id, actor_name=user_name or "System",
     )
     db.commit()
     db.refresh(dispatch)
     return dispatch
+
+
+def _receipt_content_type(content: bytes) -> str:
+    """Beleg am Inhalt erkennen, nicht am Dateinamen oder an der Angabe des Browsers: JPEG, PNG,
+    WebP (von Pillow vollständig gelesen) oder PDF. Alles andere (auch SVG/HTML) wird abgelehnt."""
+    if content.startswith(b"%PDF-"):
+        return "application/pdf"
+    from PIL import Image, UnidentifiedImageError
+
+    try:
+        with Image.open(BytesIO(content)) as im:
+            fmt = im.format
+            im.load()
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
+        fmt = None
+    types = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}
+    if fmt not in types:
+        raise ValueError("Der Beleg muss ein Foto (JPEG, PNG, WebP) oder ein PDF sein.")
+    return types[fmt]
+
+
+def _safe_filename(name: str | None, content_type: str) -> str:
+    from .sent_documents import CONTENT_TYPE_SUFFIXES
+
+    stem = re.sub(r"[^A-Za-z0-9._ -]+", "_", (name or "").rsplit("/", 1)[-1].rsplit("\\", 1)[-1]).strip(" ._")[:100]
+    suffix = CONTENT_TYPE_SUFFIXES[content_type]
+    stem = stem[: -len(suffix)] if stem.lower().endswith(suffix) else stem
+    return f"{stem or 'Beleg'}{suffix}"
+
+
+def record_manual_delivery(
+    db: Session, *, dispatch_key: str, document_type: str, document_id: int, channel: str, delivered_on: date,
+    note: str, recipient: str | None = None, receipt_bytes: bytes | None = None, receipt_filename: str | None = None,
+    user_id: int | None = None, user_name: str | None = None,
+) -> DispatchResult:
+    """Zustellung auf anderem Weg nachtragen (seit 1.8.20): Eintrag im Protokoll (Weg, Datum, Notiz,
+    optional Empfänger), das PDF des Dokuments und der Beleg in die Ablage -- in einer Transaktion.
+    Derselbe Schlüssel wird nie zweimal eingetragen (Wiederholung liefert den Eintrag zurück).
+    Wirft LookupError (404), ValueError (400)."""
+    from .berlin_time import berlin_today
+    from .dispatch_documents import dispatch_document
+    from .sent_documents import ArchiveFileError
+
+    if channel not in MANUAL_CHANNELS:
+        raise ValueError("Bitte den Weg wählen: Einschreiben, persönliche Übergabe, Bote oder Fax.")
+    key = (dispatch_key or "").strip()
+    if not _KEY_RE.match(key):
+        raise ValueError("Ungültiger Versandschlüssel. Bitte die Seite neu laden.")
+    note = (note or "").strip()
+    if len(note) < 3:
+        raise ValueError("Bitte in der Notiz festhalten, wie zugestellt wurde (z. B. Sendungsnummer, an wen übergeben).")
+    if len(note) > DELIVERY_NOTE_MAX:
+        raise ValueError(f"Die Notiz ist zu lang (höchstens {DELIVERY_NOTE_MAX} Zeichen).")
+    recipient = (recipient or "").strip()
+    if len(recipient) > 300:
+        raise ValueError("Die Empfängerangabe ist zu lang (höchstens 300 Zeichen).")
+    if delivered_on > berlin_today():
+        raise ValueError("Das Zustelldatum liegt in der Zukunft.")
+    if _key_taken(db, key):
+        return _existing(db, key, document_type, document_id)
+    document = dispatch_document(db, document_type, document_id)
+    receipt_type = None
+    if receipt_bytes:
+        if len(receipt_bytes) > MAX_RECEIPT_BYTES:
+            raise ValueError(f"Der Beleg ist größer als {MAX_RECEIPT_BYTES // 1_000_000} MB.")
+        receipt_type = _receipt_content_type(receipt_bytes)
+    try:
+        pdf = document.pdf()
+    except ArchiveFileError as e:
+        raise ValueError(f"Die versendete Fassung in der Ablage ist nicht mehr unversehrt: {e} "
+                         "Bitte im Versandprotokoll prüfen.") from e
+
+    if user_id is None and user_name is None:
+        from .audit import current_actor
+        user_id, user_name = current_actor()
+    user_name = user_name or "System"
+    archived = pdf.archived or store_sent_document(
+        db, document_type=document_type, document_id=document_id, document_number=document.number,
+        filename=pdf.filename, content=pdf.content, user_id=user_id, user_name=user_name,
+    )
+    receipt = None
+    if receipt_type is not None:
+        receipt = store_sent_document(
+            db, document_type=document_type, document_id=document_id, document_number=document.number,
+            filename=_safe_filename(receipt_filename, receipt_type), content=receipt_bytes, user_id=user_id,
+            user_name=user_name, content_type=receipt_type,
+        )
+    now = datetime.utcnow()
+    dispatch = EmailDispatch(
+        dispatch_key=key, message_ref=str(uuid.uuid4()), status="gesendet", channel=channel,
+        document_type=document_type, document_id=document_id, document_number=document.number,
+        to_recipients=recipient, subject=f"{MANUAL_CHANNELS[channel]} – {document.label}",
+        sent_document_id=archived.id, receipt_document_id=receipt.id if receipt else None,
+        created_at=now, finished_at=now, created_by_user_id=user_id, created_by_name=user_name,
+        delivered_on=delivered_on, delivery_note=note,
+    )
+    try:
+        with db.begin_nested():
+            db.add(dispatch)
+            db.flush()
+    except IntegrityError:
+        # Gleichzeitige Anfrage mit demselben Schlüssel: alles zurück (die abgelegten Dateien bleiben
+        # ohne Eintrag liegen -- die Ablage löscht nie), der andere Eintrag gilt.
+        db.rollback()
+        return _existing(db, key, document_type, document_id)
+    db.commit()
+    db.refresh(dispatch)
+    return DispatchResult(dispatch, True)
 
 
 def dispatch_to_dict(dispatch: EmailDispatch, now: datetime | None = None) -> dict:
@@ -429,7 +533,10 @@ def dispatch_to_dict(dispatch: EmailDispatch, now: datetime | None = None) -> di
         "error_class": dispatch.error_class, "error_code": dispatch.error_code,
         "resolved": dispatch.resolved_at is not None, "resolved_at_local": to_berlin(dispatch.resolved_at),
         "resolved_by_name": dispatch.resolved_by_name, "resolution_note": dispatch.resolution_note,
+        "manual": dispatch.channel in MANUAL_CHANNELS, "delivered_on": dispatch.delivered_on,
+        "delivery_note": dispatch.delivery_note,
         "sent_document": sent_document_to_dict(dispatch.sent_document) if dispatch.sent_document else None,
+        "receipt_document": sent_document_to_dict(dispatch.receipt_document) if dispatch.receipt_document else None,
     }
 
 

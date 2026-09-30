@@ -5,22 +5,26 @@ ob sie hinausgingen. Monteure: 403 an jedem Endpunkt. Aufgaben-Benachrichtigunge
 Aufgabentitel) nur für Admins: eine zugewiesene Aufgabe sieht außer ihrem Empfänger nur Admin
 (app/tasks.py::list_tasks_for_user()).
 
-Schreiben (seit 1.8.19) nur an genau einer Stelle: einen hängengebliebenen Eintrag als gesendet
-oder fehlgeschlagen klären, mit Notiz (ab buero_auftrag; eine Aufgaben-Benachrichtigung nur Admin,
-für alle anderen gibt es sie nicht -- 404). Gesendet, geändert oder gelöscht wird dabei nichts
-sonst; Einträge entstehen nur beim Versand.
+Schreiben an genau zwei Stellen, beide ab buero_auftrag: einen hängengebliebenen Eintrag als
+gesendet oder fehlgeschlagen klären, mit Notiz (seit 1.8.19; eine Aufgaben-Benachrichtigung nur
+Admin, für alle anderen gibt es sie nicht -- 404), und eine Zustellung auf anderem Weg nachtragen
+(seit 1.8.20; Einschreiben, persönliche Übergabe, Bote, Fax mit Datum, Notiz, optional Beleg).
+Gesendet, geändert oder gelöscht wird dabei nichts.
 """
 
+from datetime import date
 from typing import Callable
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..email_dispatch import (
-    DISPATCH_TYPES, STATUSES, DispatchConflict, actor_of, dispatch_to_dict, list_dispatches, resolve_stuck_dispatch,
+    DISPATCH_TYPES, MAX_RECEIPT_BYTES, STATUSES, DispatchConflict, actor_of, dispatch_to_dict, list_dispatches,
+    record_manual_delivery, resolve_stuck_dispatch,
 )
+from ..modules import is_module_enabled
 from ..models import AppUser, EmailDispatch, SentDocument
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, has_role, require_min_role
 from ..schemas import EmailDispatchResolve
@@ -93,6 +97,36 @@ def post_resolve_email_dispatch(dispatch_id: int, payload: EmailDispatchResolve,
     return dispatch_to_dict(resolved)
 
 
+@router.post("/api/email-dispatches/manual")
+def post_manual_delivery(
+    document_type: str = Form(...), document_id: int = Form(...), channel: str = Form(...),
+    delivered_on: date = Form(...), note: str = Form(""), recipient: str = Form(""),
+    dispatch_key: str = Form(...), receipt: UploadFile | None = File(None),
+    db: Session = Depends(get_db), user: AppUser = _role_dep,
+):
+    """Zustellung auf anderem Weg nachtragen (seit 1.8.20): Eintrag im Protokoll, PDF des Dokuments
+    und optional der Beleg in der Ablage. Gewöhnliche def-Route (PDF-Erzeugung, Bildprüfung)."""
+    if document_type == "checkliste" and not is_module_enabled(db, "checklisten"):
+        raise HTTPException(status_code=403, detail="Das Modul Checklisten & Formulare ist deaktiviert.")
+    receipt_bytes = None
+    if receipt is not None and receipt.filename:
+        receipt_bytes = receipt.file.read(MAX_RECEIPT_BYTES + 1)
+    user_id, user_name = actor_of(user)
+    try:
+        result = record_manual_delivery(
+            db, dispatch_key=dispatch_key, document_type=document_type, document_id=document_id, channel=channel,
+            delivered_on=delivered_on, note=note, recipient=recipient, receipt_bytes=receipt_bytes or None,
+            receipt_filename=receipt.filename if receipt is not None else None, user_id=user_id, user_name=user_name,
+        )
+    except DispatchConflict as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return dispatch_to_dict(result.dispatch)
+
+
 def _sent_document_or_404(db: Session, sent_document_id: int) -> SentDocument:
     doc = db.get(SentDocument, sent_document_id)
     if doc is None:
@@ -117,6 +151,8 @@ def get_sent_document_file(sent_document_id: int, db: Session = Depends(get_db),
         content = read_sent_document(doc)
     except ArchiveFileError as e:
         raise _archive_http_error(e)
-    filename = doc.filename.replace('"', "").replace("/", "-")
-    return Response(content=content, media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="{filename}"'})
+    filename = doc.filename.replace('"', "").replace("/", "-").replace("\\", "-")
+    # seit 1.8.20 auch Belege (Bild/PDF, beim Hochladen am Inhalt erkannt, nie SVG/HTML); nosniff,
+    # damit der Browser nichts anderes daraus macht.
+    return Response(content=content, media_type=doc.content_type or "application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{filename}"', "X-Content-Type-Options": "nosniff"})

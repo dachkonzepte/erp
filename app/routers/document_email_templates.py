@@ -1,6 +1,6 @@
 """Router: document_email_templates (seit 1.0.82).
 
-E-Mail-Betreff/-Text-Vorlagen je Dokumenttyp (Angebot/Auftrag/Rechnung) --
+E-Mail-Betreff/-Text-Vorlagen je Dokumenttyp (Angebot/Auftrag/Rechnung, seit 1.8.20 Checkliste) --
 siehe app/document_email_templates.py für die Geschäftslogik.
 """
 

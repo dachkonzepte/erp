@@ -138,9 +138,18 @@ function renderAllRows(){
         <button onclick="editReminder(${r.id})">Bearbeiten</button>
         <button onclick="window.open('/api/reminders/${r.id}/pdf','_blank')">PDF</button>
         <button class="danger" onclick="deleteReminder(${r.id})">Löschen</button></div>`
-      : `<button onclick="window.open('/api/reminders/${r.id}/pdf','_blank')">PDF</button>`;
-    return `<tr><td><b>${esc(r.reminder_number||'(Entwurf)')}</b></td><td><a class="link" href="/invoices/${r.invoice_id}">${esc(r.invoice_number||'—')}</a></td><td>${esc(r.customer_name)}</td><td>${esc(levelLabel(r.level))}</td><td>${fmtDate(r.reminder_date)}</td><td class="number">${money(r.total_amount)}</td><td>${r.status==='entwurf'?'<span class="pill entwurf">Entwurf</span>':'<span class="pill">Versendet</span>'}</td><td>${actions}</td><td>${emailAction}</td></tr>`;
+      : `<div class="row-actions"><button onclick="window.open('/api/reminders/${r.id}/pdf','_blank')">PDF</button>
+        <button onclick="toggleReminderHistory(${r.id})">Verlauf</button></div>`;
+    // Versandverlauf (seit 1.8.20) in einer eigenen, zunächst verborgenen Zeile darunter.
+    const historyRow = r.status==='entwurf' ? '' : `<tr id="dhRow${r.id}" style="display:none"><td colspan="9"><div id="dh${r.id}"></div></td></tr>`;
+    return `<tr><td><b>${esc(r.reminder_number||'(Entwurf)')}</b></td><td><a class="link" href="/invoices/${r.invoice_id}">${esc(r.invoice_number||'—')}</a></td><td>${esc(r.customer_name)}</td><td>${esc(levelLabel(r.level))}</td><td>${fmtDate(r.reminder_date)}</td><td class="number">${money(r.total_amount)}</td><td>${r.status==='entwurf'?'<span class="pill entwurf">Entwurf</span>':'<span class="pill">Versendet</span>'}</td><td>${actions}</td><td>${emailAction}</td></tr>${historyRow}`;
   }).join(''):'<tr><td colspan="9" class="empty">Noch keine Mahnungen erstellt.</td></tr>';
+}
+function toggleReminderHistory(id){
+  const row = document.getElementById('dhRow'+id);
+  const open = row.style.display === 'none';
+  row.style.display = open ? '' : 'none';
+  if(open) renderDispatchHistory('dh'+id, 'mahnung', id, {});
 }
 async function sendReminderEmail(id, btn){
   const input = document.getElementById('reminderEmailInput'+id);

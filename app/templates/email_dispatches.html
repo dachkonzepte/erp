@@ -38,12 +38,12 @@ textarea:hover{border-color:var(--field-border-hover)}
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
-<div class="card"><h1>Versandprotokoll</h1><div class="muted">Jeder E-Mail-Versand von Angeboten, Aufträgen, Rechnungen und Mahnungen – mit dem abgelegten PDF genau so, wie es hinausging. Einträge werden nie gelöscht; einen hängengebliebenen klärt das Büro einmal mit Notiz.</div></div>
+<div class="card"><h1>Versandprotokoll</h1><div class="muted">Jeder E-Mail-Versand von Angeboten, Aufträgen, Rechnungen, Mahnungen und Checklisten – mit dem abgelegten PDF genau so, wie es hinausging – und jede nachgetragene Zustellung auf anderem Weg (Einschreiben, persönliche Übergabe, Bote, Fax) mit Beleg. Einträge werden nie gelöscht; einen hängengebliebenen klärt das Büro einmal mit Notiz.</div></div>
 <div class="card stuck" id="stuckCard" style="display:none"></div>
 <div class="card">
   <div class="filters">
     <label>Status<select id="filterStatus" onchange="reload()"><option value="">Alle</option><option value="in_arbeit">In Arbeit</option><option value="gesendet">Gesendet</option><option value="fehlgeschlagen">Fehlgeschlagen</option><option value="haengt">Hängengeblieben</option></select></label>
-    <label>Art<select id="filterType" onchange="reload()"><option value="">Alle</option><option value="angebot">Angebot</option><option value="auftrag">Auftrag</option><option value="rechnung">Rechnung</option><option value="mahnung">Mahnung</option>{% if can(request.state.erp_user, 'admin') %}<option value="aufgabe">Aufgaben-Benachrichtigung</option>{% endif %}</select></label>
+    <label>Art<select id="filterType" onchange="reload()"><option value="">Alle</option><option value="angebot">Angebot</option><option value="auftrag">Auftrag</option><option value="rechnung">Rechnung</option><option value="mahnung">Mahnung</option><option value="checkliste">Checkliste</option>{% if can(request.state.erp_user, 'admin') %}<option value="aufgabe">Aufgaben-Benachrichtigung</option>{% endif %}</select></label>
     <span class="small muted" id="docFilter"></span>
   </div>
 </div>
@@ -65,7 +65,7 @@ const docType=params.get('typ')||'', docId=params.get('id')||'';
 function docLink(d){
   const label=`${esc(d.document_type_label)} ${esc(d.document_number||(d.document_id?'#'+d.document_id:''))}`;
   const id=d.document_id;
-  const href={angebot:`/quotes/${id}/edit`,auftrag:`/orders/${id}`,rechnung:`/invoices/${id}`,mahnung:'/mahnwesen',aufgabe:`/tasks?task=${id}`}[d.document_type];
+  const href={angebot:`/quotes/${id}/edit`,auftrag:`/orders/${id}`,rechnung:`/invoices/${id}`,mahnung:'/mahnwesen',checkliste:`/checklisten/${id}`,aufgabe:`/tasks?task=${id}`}[d.document_type];
   return id&&href?`<a class="link" href="${href}">${label}</a>`:label;
 }
 function statusCell(d){
@@ -79,7 +79,17 @@ function statusCell(d){
   if(d.finished_at_local) html+=`<div class="small muted">${fmtLocal(d.finished_at_local)}</div>`;
   if(d.status==='fehlgeschlagen'&&d.error_class) html+=`<div class="small muted">${esc(d.error_class)}${d.error_code?' · '+esc(d.error_code):''}</div>`;
   if(d.resolved) html+=`<div class="resolved-note"><b>Von Hand geklärt</b> · ${esc(d.resolved_by_name)}, ${fmtLocal(d.resolved_at_local)}<div>${esc(d.resolution_note)}</div></div>`;
+  if(d.manual&&d.delivery_note) html+=`<div class="resolved-note"><b>Notiz</b><div>${esc(d.delivery_note)}</div></div>`;
   return html;
+}
+function whenCell(d){
+  // Nachgetragene Zustellung (seit 1.8.20): das Zustelldatum zählt, eingetragen wurde später.
+  if(d.manual) return `Zugestellt am ${fmtLocal(d.delivered_on)}<div class="small muted">nachgetragen ${fmtLocal(d.created_at_local)}</div>`;
+  return `${fmtLocal(d.created_at_local)}<div class="mono muted" title="Kopfzeile X-DK-Versand-ID">${esc(d.message_ref)}</div>`;
+}
+function fileButtons(a,label){
+  return `<div class="small">${label?`<b>${label}:</b> `:''}${esc(a.filename)} · ${fmtSize(a.size_bytes)}</div><div class="mono muted" title="SHA-256 ${esc(a.sha256)}">SHA-256 ${esc(a.sha256.slice(0,16))}…</div>
+    <div class="row-actions"><button onclick="window.open('/api/sent-documents/${a.id}/file','_blank')">${a.content_type==='application/pdf'?'PDF':'Öffnen'}</button><button onclick="checkArchive(${a.id},this)">Prüfen</button></div><div class="small" id="check${a.id}"></div>`;
 }
 async function resolveDispatch(id,outcome,btn){
   const note=document.getElementById('resolveNote'+id).value.trim(), out=document.getElementById('resolveMsg'+id);
@@ -92,10 +102,9 @@ async function resolveDispatch(id,outcome,btn){
   }catch(e){out.className='small check-bad';out.textContent='Fehler: '+e.message;btn.disabled=false}
 }
 function archiveCell(d){
-  const a=d.sent_document;
-  if(!a) return '<span class="small muted">ohne Anhang</span>';
-  return `<div class="small">${esc(a.filename)} · ${fmtSize(a.size_bytes)}</div><div class="mono muted" title="SHA-256 ${esc(a.sha256)}">SHA-256 ${esc(a.sha256.slice(0,16))}…</div>
-    <div class="row-actions"><button onclick="window.open('/api/sent-documents/${a.id}/file','_blank')">PDF</button><button onclick="checkArchive(${a.id},this)">Prüfen</button></div><div class="small" id="check${a.id}"></div>`;
+  const a=d.sent_document, r=d.receipt_document;
+  if(!a&&!r) return '<span class="small muted">ohne Anhang</span>';
+  return (a?fileButtons(a,r?'Dokument':''):'')+(r?`<div style="margin-top:8px">${fileButtons(r,'Beleg')}</div>`:'');
 }
 async function checkArchive(id,btn){
   const out=document.getElementById('check'+id);btn.disabled=true;out.textContent='prüfe …';out.className='small muted';
@@ -118,9 +127,9 @@ async function reload(){
       stuck.innerHTML=`<b>${data.stuck_count===1?'Ein Versand hängt':data.stuck_count+' Versände hängen'}</b> seit mehr als ${data.stuck_after_minutes} Minuten in Arbeit. Ob die Mail hinausging, ist unklar – bitte im Postausgang (Gesendete Elemente) nach der Kennung suchen und den Eintrag hier als gesendet oder fehlgeschlagen klären. Es wird nichts automatisch erneut gesendet; ein neuer Versand ist ein neuer Klick auf der Dokumentseite.`;
     }else stuck.style.display='none';
     rows.innerHTML=data.items.length?data.items.map(d=>`<tr>
-      <td>${fmtLocal(d.created_at_local)}<div class="mono muted" title="Kopfzeile X-DK-Versand-ID">${esc(d.message_ref)}</div></td>
+      <td>${whenCell(d)}</td>
       <td>${docLink(d)}</td>
-      <td>${esc(d.to_recipients)}${d.cc_recipients?`<div class="small muted">CC: ${esc(d.cc_recipients)}</div>`:''}</td>
+      <td>${d.to_recipients?esc(d.to_recipients):'<span class="small muted">—</span>'}${d.cc_recipients?`<div class="small muted">CC: ${esc(d.cc_recipients)}</div>`:''}</td>
       <td>${esc(d.subject)}</td>
       <td>${esc(d.channel_label)}<div class="small muted">${esc(d.created_by_name)}</div></td>
       <td>${statusCell(d)}</td>

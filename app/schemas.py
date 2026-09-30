@@ -4423,3 +4423,10 @@ class EmailDispatchResolve(BaseModel):
     app/email_dispatch.py::resolve_stuck_dispatch()). Die Notiz ist Pflicht."""
     outcome: str = Field(pattern="^(gesendet|fehlgeschlagen)$")
     note: str = Field(min_length=1, max_length=1000)
+
+
+class ChecklistEmailSend(BaseModel):
+    """Checkliste per E-Mail (seit 1.8.20, app/checklist_email.py) -- wie die übrigen *EmailSend."""
+    to_email: str | None = None  # None = aus dem Kunden des Auftrags/Objekts; mehrere mit Komma/Semikolon
+    cc_email: str | None = None
+    dispatch_key: str = Field(min_length=8, max_length=80)

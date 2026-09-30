@@ -205,3 +205,77 @@ committen. 1.8.19 = Punkte 1–4, der Rest folgt als eigene Version.
   bei formal ungültigen Adressen; ein nicht existierendes Postfach bei einem fremden Anbieter ergibt
   später eine Unzustellbarkeitsnachricht im Absender-Postfach, das Protokoll bleibt "gesendet". Das ERP
   liest den Posteingang nicht (nur Mail.Send, Regel 17).
+
+## Umsetzung 1.8.20 (30.09.2026) -- Runde 2a-3b, Teil 2 (Punkte 5–8)
+
+- **5. Versandverlauf am Dokument**: `_email_dispatch.html` bringt `renderDispatchHistory(container,
+  art, id)` mit (Liste aus `GET /api/email-dispatches?document_type=…&document_id=…`, ab
+  `buero_auftrag`): Zeitpunkt bzw. "Zugestellt am", Weg, An/CC, Benutzer, Status, PDF und Beleg, Notizen
+  von Zustellung und Klärung, Fehlerklasse; bei Rechnung/Mahnung der Hinweis auf die maßgebliche
+  Fassung. Eingebaut auf Rechnung (Karte "Status"), Auftrag, Angebot (ersetzt jeweils "Zuletzt per
+  E-Mail versendet …"), Mahnwesen (Knopf "Verlauf" je versendeter Mahnung, eigene Zeile) und Checkliste.
+  Geladen einmal je Seitenaufruf und nach jedem Versand, nicht bei jedem Neuzeichnen der Seite (der
+  Angebotseditor zeichnet bei jeder Eingabe neu). `email_sent_at`/`email_sent_to` bleiben am Dokument
+  (Mahnwesen-Tabelle, API), sind aber nicht mehr die Anzeige des Verlaufs.
+- **6. Checkliste per E-Mail**: `app/checklist_email.py::send_checklist_email()` über
+  `dispatch_email()` (Art `checkliste`, neu in `DOCUMENT_TYPES` der Ablage), Router
+  `POST /api/checklists/{id}/send-email` und `GET /api/checklists/{id}/email-recipient` (beide nur
+  Büro, Modul muss an sein, Leseprüfung wie der Einzelabruf). E-Mail-Vorlage `checklist`
+  (`app/document_email_templates.py`, Einstellungen → E-Mail-Vorlagen; Platzhalter `{checkliste}`,
+  `{checklistennummer}`, `{bezug}`, `{kundenname}`). Versand-PDF:
+  `app/checklist_pdf.py::build_checklist_email_pdf()` -- `EMAIL_PHOTO_STEPS` von 1600 px/Q80 bis
+  360 px/Q50; je Stufe werden die Fotos im Speicher neu kodiert (`_reduced_photo()`, liest die Datei
+  nur), gerendert wird eine Stufe erst, wenn ihre Fotos mal 1,25 (reportlab bettet Bilder ASCII85-kodiert
+  ein) unter die Grenze passen. Unter der Abschluss-Prüfsumme steht "Fotos für den Versand per E-Mail
+  verkleinert. Die Originale liegen unverändert im ERP; die Prüfsummen oben beziehen sich auf sie."
+  Messung (20 fotoähnliche Bilder, je einige hundert KB nach der Verkleinerung auf 1600 px): volles PDF
+  9.909.812 Bytes, Versand-PDF 2.832.711 Bytes bei Stufe 800 px/Q65, ein Renderlauf, 2,6 s; die
+  Stufen davor kosten nur das Neukodieren (0,3–0,6 s je Stufe für 20 Fotos). Speicher: je Stufe liegen
+  nur deren Fotos im Speicher (hier 2,3 MB), Python-Spitze beim Rendern rund 75 MB (tracemalloc).
+- **7. Zustellung nachtragen**: `record_manual_delivery()` (`app/email_dispatch.py`),
+  `POST /api/email-dispatches/manual` (Formular mit Datei, ab `buero_auftrag`, gewöhnliche def-Route).
+  `MANUAL_CHANNELS` einschreiben/persoenlich/bote/fax; Datum nicht in der Zukunft (Berliner Datum),
+  Notiz 3–1000 Zeichen Pflicht, Empfänger optional (höchstens 300). Welches Dokument und welches PDF:
+  `app/dispatch_documents.py` (Rechnung/Mahnung über `frozen_or_fresh_pdf()`, Angebot/Auftrag neu
+  erzeugt, Checkliste in voller Auflösung; dieselben Statusbedingungen wie beim E-Mail-Versand).
+  Beleg: am Inhalt erkannt (PDF-Kopf oder von Pillow vollständig geladenes JPEG/PNG/WebP, sonst 400 --
+  SVG/HTML kommen nie in die Ablage), Dateiname auf ASCII bereinigt, höchstens `MAX_RECEIPT_BYTES`
+  (15 MB), unverändert abgelegt (Nachweis). Ablage: `sent_documents.content_type` (Bestand
+  `application/pdf`), Endung nach Typ, Auslieferung mit dem gespeicherten Typ und
+  `X-Content-Type-Options: nosniff`. Protokoll: neue Spalten `delivered_on`, `delivery_note`,
+  `receipt_document_id`; der Eintrag entsteht direkt als "gesendet" (Kanal = Weg, Betreff "Weg –
+  Dokument"), dieselbe Schlüssel-Logik wie beim Versand. PDF, Beleg und Eintrag in einer Transaktion.
+  `/versandprotokoll`: Art "Checkliste", "Zugestellt am … / nachgetragen …", Notiz, Beleg mit "Öffnen"
+  und "Prüfen".
+- **8.** Docstring `app/operational_assets.py::check_due_asset_inspections_and_create_reminders()`
+  auf den Stand seit 1.8.18 gebracht (Aufgaben ohne Zuständigkeit sieht jedes Büro-Konto).
+- **Migration `d1c4a7252554`**: drei Spalten an `email_dispatches` (mit benanntem Fremdschlüssel
+  `fk_email_dispatches_receipt_document_id_sent_documents`), `sent_documents.content_type` NOT NULL mit
+  `server_default`. `downgrade()` verweigert, sobald eine Zustellung nachgetragen oder ein Beleg abgelegt
+  ist. SQLite und PostgreSQL hin/zurück/hin, Bestandszeile bekommt `application/pdf`, `alembic check`
+  sauber, Downgrade mit Bestand verweigert.
+- **Verifikation**: `tests/test_v324_dispatch_history_and_delivery.py` (21 Tests; 20 Fotos unter der
+  Grenze mit Prüfsummen der Originale vorher/nachher, Versand über die API mit Ablage = Anhang, zu groß
+  auch verkleinert, Rechte, Zustellung mit Beleg, maßgebliche Fassung, SVG/HTML als Beleg, Datum in der
+  Zukunft, Verlauf je Dokument, jede Seite zeigt den Verlauf). Gegenproben 14 rot: Versand-PDF ohne
+  Verkleinerung, Verkleinerung überschreibt die Originale, Checkliste senden bzw. Empfänger lesen als
+  Monteur, Zustellung ohne PDF bzw. ohne Beleg in der Ablage, Beleg am Namen statt am Inhalt, Datum in
+  der Zukunft, ohne Notiz, maßgebliche Fassung ignoriert, Entwurf zustellbar, Monteur darf nachtragen,
+  Beleg ohne Typ/nosniff, Seite zeigt nur "zuletzt versendet". Volle Suite 2222 grün. Klicktest
+  `scripts/klicktest_versandverlauf.py` 32/32 (Datei-Upload des Belegs über CDP `DOM.setFileInputFiles`,
+  Checkliste mit 20 Fotos bis zur Mail im SMTP-Empfänger, hell/dunkel, Monteur ohne Versandbereich,
+  412 px). Im Klicktest selbst gefunden: das Theme ließ sich vor dem ersten Seitenaufruf nicht setzen
+  (localStorage von about:blank), das "helle" Bild war dunkel -- korrigiert, hell wird jetzt geprüft.
+
+### Nebenbefunde 1.8.20 (nur gemeldet)
+
+- **Dateien ohne Eintrag in der Ablage möglich**: Scheitert nach dem Ablegen das Eintragen (z. B. zwei
+  gleichzeitige Anfragen mit demselben Schlüssel beim Nachtragen, oder ein Datenbankfehler), bleiben die
+  schon geschriebenen Dateien ohne Zeile liegen -- die Ablage löscht bewusst nie. Harmlos (keine
+  Zuordnung, kein Abruf), aber ein Aufräumen bräuchte eine eigene Regel.
+- **reportlab bettet Bilder ASCII85-kodiert ein** (`rl_config.useA85`): jedes PDF mit Fotos oder
+  Briefpapier ist dadurch rund 25 % größer als nötig. Global abzuschalten wäre eine Änderung an allen
+  Dokumenten -- nicht gemacht.
+- **Mahnungen auf der Rechnungsseite ohne Verlauf**: der Verlauf je Mahnung steht im Mahnwesen; die
+  Mahnungsliste auf der Rechnungsseite zeigt ihn nicht.
+- **Checklisten im Kontext Betriebsmittel/Betrieb** haben keinen vorbelegten Empfänger (kein Kunde).

@@ -21,7 +21,7 @@
     <a class="small" id="orderDispatchLink" href="/versandprotokoll">Versandprotokoll</a>
     <span id="orderEmailStatus" class="small muted"></span>
   </div>
-  <div id="orderEmailSentInfo" class="small muted" style="margin-top:4px"></div>
+  <div id="orderDispatchHistory"></div>
 </div>
 <div class="layout"><section><div class="card"><div class="notice"><b>Prozesslogik:</b> Der Auftrag ist der aktuelle Ausführungsstand und darf bearbeitet werden. Jede Änderung wird im Audit-Log dokumentiert. Das Quellangebot bleibt separat editierbar; Änderungen werden nur auf ausdrücklichen Befehl in den Auftrag übernommen.</div><h2>Leistungsverzeichnis</h2><div class="lv-head"><span>OZ</span><span>Leistung</span><span class="num">Menge</span><span>EH</span><span class="num">EP</span><span class="num">GP</span><span></span></div><div id="lv"></div></div></section>
 <aside class="sticky"><div id="syncCard" class="card"></div><div class="card"><h3>Auftragsdaten</h3><div class="fields"><div class="field full"><label>Bezeichnung</label><input id="title"></div><div class="field"><label>Status</label><select id="status"><option value="beauftragt">Beauftragt</option><option value="arbeitsvorbereitung">Arbeitsvorbereitung</option><option value="in_ausfuehrung">In Ausführung</option><option value="pausiert">Pausiert</option><option value="abgeschlossen">Abgeschlossen</option><option value="storniert">Storniert</option></select></div><div class="field"><label>Auftragsdatum</label><input id="orderDate" type="date"></div><div class="field"><label>Ausführungsbeginn</label><input id="start" type="date"></div><div class="field"><label>Geplantes Ende</label><input id="end" type="date"></div><div class="field"><label>Sachbearbeiter</label><select id="caseworker"></select></div><div class="field"><label>Projektleiter / Vorarbeiter</label><select id="manager"></select></div><div class="field full"><label>Zahlungsbedingungen</label><select id="payment"></select></div><div class="field full"><label>Steuerschlüssel</label><select id="taxKey" onchange="changeOrderTaxKey()"></select></div><div class="field full"><label>Vortext</label><select id="orderIntroTemplate" onchange="applyOrderTextTemplate('introText','orderIntroTemplate')" style="margin-bottom:6px"></select><textarea id="introText"></textarea></div><div class="field full"><label>Schlusstext</label><select id="orderOutroTemplate" onchange="applyOrderTextTemplate('outroText','orderOutroTemplate')" style="margin-bottom:6px"></select><textarea id="outroText"></textarea></div><div class="field full"><label>Schlusstext 2 <span class="small muted">(optional, zweiter, unabhängiger Textblock)</span></label><select id="orderOutro2Template" onchange="applyOrderTextTemplate('outroText2','orderOutro2Template')" style="margin-bottom:6px"></select><textarea id="outroText2"></textarea></div><div class="field full"><label>Bemerkungen</label><textarea id="remarks"></textarea></div></div><button onclick="saveOrder()">Auftragsdaten speichern</button><div id="saveStatus" class="status"></div></div>
@@ -59,7 +59,7 @@ function renderOrderEmailSection(){
   section.style.display='block';
   document.getElementById('orderEmailInput').value=order.recipient_email||'';
   document.getElementById('orderDispatchLink').href=`/versandprotokoll?typ=auftrag&id=${orderId}`;
-  document.getElementById('orderEmailSentInfo').textContent=order.email_sent_at?`Zuletzt per E-Mail versendet am ${new Date(order.email_sent_at).toLocaleDateString('de-DE')} an ${order.email_sent_to}.`:'';
+  if(!_dhOpts.orderDispatchHistory) renderDispatchHistory('orderDispatchHistory','auftrag',orderId,{});  // seit 1.8.20
 }
 async function sendOrderEmail(btn){
   const toEmail=document.getElementById('orderEmailInput').value.trim();
@@ -72,6 +72,7 @@ async function sendOrderEmail(btn){
     document.getElementById('orderCcInput').value='';
     st.textContent='Versendet.';
     renderHeader();
+    renderDispatchHistory('orderDispatchHistory','auftrag',orderId);
   }catch(e){ st.textContent='Fehler: '+e.message }
 }
 function renderSync(){const c=document.getElementById('syncCard');if(order.source_quote_in_sync===false){c.innerHTML=`<h3>Quellangebot geändert</h3><div class="notice warning">Der aktuelle Auftragsstand weicht vom Quellangebot <b>${esc(order.quote_number_snapshot)}</b> ab. Das kann durch Änderungen am Angebot oder direkte Änderungen im Auftrag entstanden sein.</div><div class="sync-actions"><button onclick="syncSource()">Quellangebot in Auftrag übernehmen</button><a class="secondary" style="padding:9px 12px;text-decoration:none" href="/quotes/${order.source_quote_id}/edit">Quellangebot prüfen</a></div>`}else{c.innerHTML=`<h3>Quellangebot</h3><div class="notice success">Auftrag und Quellangebot haben aktuell denselben LV-Stand.</div><a href="/quotes/${order.source_quote_id}/edit">Quellangebot öffnen</a>`}}

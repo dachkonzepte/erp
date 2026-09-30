@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.19** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.20** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -576,7 +576,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     (`_email_dispatch.html`). Ablage und Protokoll werden nie geändert oder gelöscht (einzige
     Ausnahme seit 1.8.19: ein hängender Eintrag wird einmal mit Notiz geklärt). Rechnung, Storno und
     Mahnung kommen ab dem ersten Versand aus der Ablage (`frozen_or_fresh_pdf()`), nie neu erzeugt.
-    Details: `docs/archiv/versandprotokoll-und-ablage.md`.
+    Eine Zustellung auf anderem Weg (Einschreiben, Übergabe, Bote, Fax) wird seit 1.8.20 im selben
+    Protokoll nachgetragen (`record_manual_delivery()`); eine neue Dokumentart braucht einen Eintrag
+    in `app/dispatch_documents.py`. Details: `docs/archiv/versandprotokoll-und-ablage.md`.
 
 ## Fachbegriffe & Domänenmodell
 
@@ -979,7 +981,8 @@ direkt in der Wegwerf-Datenbank geänderte Antwort erscheint als Abweichung) und
 und dunkel) und `klicktest_checkliste_zweck.py` (1.8.16, Zweck und Systemfelder im Vorlagen-Editor,
 Start-Auswahl nach Zweck) und `klicktest_versandprotokoll.py` (1.8.17, Versand über alle vier Seiten an
 einen SMTP-Empfänger im Skript, Doppelklick, Protokollseite; seit 1.8.19 auch Adressprüfung, Nachdruck
-aus der Ablage, Klären eines hängenden Eintrags) und
+aus der Ablage, Klären eines hängenden Eintrags) und `klicktest_versandverlauf.py` (1.8.20, Versandverlauf auf
+allen Dokumentseiten, Zustellung nachtragen mit Beleg-Upload, Checkliste mit 20 Fotos per E-Mail) und
 `klicktest_aufgaben_ohne_zustaendigkeit.py` (1.8.18, Abschnitt und Widget "Ohne Zuständigkeit" für vier Rollen,
 zweiter Klick nach fremdem Übernehmen, Historie nur für Admin). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.

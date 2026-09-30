@@ -101,6 +101,8 @@ textarea{min-height:90px;resize:vertical}
 .rule-row:last-of-type{border-bottom:none}
 .rule-row a{color:var(--accent);font-weight:650;text-decoration:none}
 .badge.open{background:var(--warning-soft);color:var(--warning)}
+.send-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+.send-row input{flex:1 1 220px;width:auto}
 </style></head>
 <body class="{{ 'field' if is_field else 'office' }}">
 {% if is_field %}
@@ -115,6 +117,7 @@ textarea{min-height:90px;resize:vertical}
 </div>
 </div>
 {% endif %}
+{% if not is_field %}{% include "_email_dispatch.html" %}{% endif %}
 <script>
 const checklistId={{ checklist_id }};
 const IS_FIELD={{ 'true' if is_field else 'false' }};
@@ -273,9 +276,43 @@ function fieldBody(f){
   return '';
 }
 
+// Versand per E-Mail und Versandverlauf (seit 1.8.20), nur Büro und nur abgeschlossen. Das Versand-PDF
+// verkleinert die Fotos (unter 3 MB), die Originale bleiben, wie sie sind.
+function renderSendCard(){
+  if(IS_FIELD||cl.status!=='abgeschlossen')return '';
+  return `<div class="card" id="sendCard"><h2>Versand</h2>
+    <div class="send-row"><input id="clEmailTo" type="text" inputmode="email" autocomplete="off" placeholder="An – mehrere mit Komma oder Semikolon" title="Empfänger, mehrere mit Komma oder Semikolon trennen">
+      <input id="clEmailCc" type="text" inputmode="email" autocomplete="off" placeholder="CC (optional)" title="CC, mehrere mit Komma oder Semikolon trennen">
+      <button type="button" class="btn" id="clSendBtn" onclick="sendChecklistEmail(this)">Per E-Mail senden</button></div>
+    <div class="muted small" id="clSendStatus">Für den Versand werden die Fotos verkleinert (höchstens 3 MB), die Originale bleiben unverändert.</div>
+    <div id="clDispatchHistory"></div></div>`;
+}
+let clRecipient=null;
+async function afterRenderSendCard(){
+  if(!document.getElementById('sendCard'))return;
+  if(clRecipient===null){
+    try{clRecipient=(await api(`/api/checklists/${checklistId}/email-recipient`)).recipient_email||''}catch(e){clRecipient=''}
+  }
+  const to=document.getElementById('clEmailTo');
+  if(to&&!to.value)to.value=clRecipient;
+  renderDispatchHistory('clDispatchHistory','checkliste',checklistId,{});
+}
+async function sendChecklistEmail(btn){
+  const to=document.getElementById('clEmailTo').value.trim(),cc=document.getElementById('clEmailCc').value.trim();
+  const st=document.getElementById('clSendStatus');
+  if(!to){st.textContent='Bitte eine E-Mail-Adresse angeben.';return}
+  st.textContent='Wird gesendet … (Fotos werden verkleinert)';
+  try{
+    await postEmailDispatch('checkliste-'+checklistId,`/api/checklists/${checklistId}/send-email`,{to_email:to,cc_email:cc||null},btn);
+    document.getElementById('clEmailCc').value='';
+    st.textContent='Versendet.';
+    renderDispatchHistory('clDispatchHistory','checkliste',checklistId);
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+
 function render(){
   const main=document.getElementById('clMain');
-  let html=renderHeader();
+  let html=renderHeader()+renderSendCard();
   let group=null;
   const missing=new Set(cl.missing_required||[]);
   // Nur wenn ein Teil gesperrt und ein Teil offen ist, markiert jedes gesperrte Feld sich selbst.
@@ -303,7 +340,7 @@ function render(){
   if(!IS_FIELD&&cl.status==='abgeschlossen')html+='<div class="card rules" id="rulesCard"><h2>Ausgelöste Aufgaben</h2><div class="muted small">Lädt …</div></div>';
   main.innerHTML=html;
   for(const f of cl.fields)if(f.field_type==='unterschrift')setupPad(f.id);
-  if(!IS_FIELD&&cl.status==='abgeschlossen')loadRules();
+  if(!IS_FIELD&&cl.status==='abgeschlossen'){loadRules();afterRenderSendCard()}
 }
 
 // Regeln → Aufgaben (seit 1.8.3), nur Büro: welche Regeln beim Abschluss ausgelöst haben und

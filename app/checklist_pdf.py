@@ -16,7 +16,15 @@ und Betrieb ohne Anschriftenfeld.
 
 Speicherbudget (Server 4 GB, CLAUDE.md "Produktivbetrieb"): Fotos liegen bereits auf 1600 px
 verkleinert vor (app/image_storage.py), je Feld höchstens max_count bzw. 20; reportlab liest die
-Datei erst beim Zeichnen, jeweils einzeln."""
+Datei erst beim Zeichnen, jeweils einzeln.
+
+Versand per E-Mail (seit 1.8.20, build_checklist_email_pdf()): dasselbe Dokument, die Fotos aber im
+Speicher neu verkleinert, bis das PDF unter der Anhanggrenze von 3.000.000 Bytes liegt
+(app/email_sending.py::MAX_ATTACHMENT_BYTES). Die Originale bleiben unverändert -- sie werden nur
+gelesen, nie geschrieben; die Prüfsummen der Unterschriften und des Abschlusses beziehen sich auf sie,
+und das Dokument sagt das. Der Download (PDF-Knopf) bleibt in voller Auflösung."""
+
+from io import BytesIO
 
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
@@ -35,6 +43,13 @@ DOCUMENT_TYPE = "checklist"
 CONTEXT_LABELS = {"auftrag": "Auftrag", "objekt": "Objekt", "betriebsmittel": "Betriebsmittel", "betrieb": "Betrieb"}
 YES_NO_LABELS = {"ja": "Ja", "nein": "Nein", "entfaellt": "Entfällt"}
 PHOTO_WIDTH_MM = 70
+# Stufen für das Versand-PDF: längste Kante (px), JPEG-Qualität. Eine Stufe wird nur gerendert, wenn
+# ihre Fotos zusammen überhaupt noch unter die Grenze passen können; reportlab bettet Bilder
+# ASCII85-kodiert ein (4 Bytes werden 5 Zeichen), daher der Faktor.
+EMAIL_PHOTO_STEPS = ((1600, 80), (1280, 75), (1024, 70), (800, 65), (640, 60), (480, 55), (360, 50))
+_EMBED_FACTOR = 1.25
+EMAIL_PHOTO_NOTE = ("Fotos für den Versand per E-Mail verkleinert. Die Originale liegen unverändert im ERP; "
+                    "die Prüfsummen oben beziehen sich auf sie.")
 SIGNATURE_WIDTH_MM, SIGNATURE_HEIGHT_MM = 60, 25
 ANSWER_COL_MM = 70  # Antwortspalte; die Frage nimmt den Rest des Satzspiegels
 _ZERO_OUTER_TABLE_PADDING = [("LEFTPADDING", (0, 0), (0, -1), 0), ("RIGHTPADDING", (-1, 0), (-1, -1), 0)]
@@ -67,24 +82,59 @@ def format_answer(field, answer) -> str:
     return str(value)
 
 
-def _image(path, width_mm: float, *, max_height_mm: float | None = None):
+def _image(source, width_mm: float, *, max_height_mm: float | None = None):
     """Verzerrungsfrei mit fester Breite (Seitenverhältnis aus der Datei); optional in der Höhe
-    begrenzt (Unterschriften)."""
+    begrenzt (Unterschriften). source: Pfad oder (seit 1.8.20) die Bytes eines verkleinerten Fotos."""
     from PIL import Image as PILImage  # lokal: nur hier gebraucht
 
-    with PILImage.open(path) as im:
+    with PILImage.open(BytesIO(source) if isinstance(source, bytes) else source) as im:
         ratio = (im.height / im.width) if im.width else 1
     width = width_mm * mm
     height = width * ratio
     if max_height_mm is not None and height > max_height_mm * mm:
         height = max_height_mm * mm
         width = height / ratio if ratio else width
-    image = Image(str(path), width=width, height=height)
+    image = Image(BytesIO(source) if isinstance(source, bytes) else str(source), width=width, height=height)
     image.hAlign = "LEFT"  # bündig mit Überschrift und Beschriftung (Standard wäre zentriert)
     return image
 
 
-def build_checklist_pdf(db, checklist: Checklist) -> bytes:
+def _reduced_photo(path, max_px: int, quality: int) -> bytes:
+    """Das Foto neu verkleinert, nur im Speicher -- die Datei selbst wird nur gelesen."""
+    from PIL import Image as PILImage
+
+    with PILImage.open(path) as im:
+        im = im.convert("RGB")
+        im.thumbnail((max_px, max_px))
+        buf = BytesIO()
+        im.save(buf, format="JPEG", quality=quality, optimize=True)
+    return buf.getvalue()
+
+
+def build_checklist_email_pdf(db, checklist: Checklist) -> bytes:
+    """Das PDF für den Versand per E-Mail: höchstens MAX_ATTACHMENT_BYTES, Fotos stufenweise
+    kleiner (EMAIL_PHOTO_STEPS). Je Stufe liegen nur deren Fotos im Speicher. Passt es auch mit der
+    kleinsten Stufe nicht, ValueError mit dem Hinweis auf einen anderen Zustellweg."""
+    from .email_sending import MAX_ATTACHMENT_BYTES
+
+    photos = [a for a in active_attachments(checklist) if a.kind == "foto"]
+    for max_px, quality in EMAIL_PHOTO_STEPS:
+        reduced = {a.id: _reduced_photo(attachment_path(a), max_px, quality) for a in photos}
+        if sum(len(b) for b in reduced.values()) * _EMBED_FACTOR > MAX_ATTACHMENT_BYTES:
+            continue
+        pdf = build_checklist_pdf(db, checklist, photo_bytes=reduced)
+        if len(pdf) <= MAX_ATTACHMENT_BYTES:
+            return pdf
+    raise ValueError(
+        "Die Checkliste ist auch mit stark verkleinerten Fotos größer als 3 MB und kann nicht per E-Mail "
+        "versendet werden. Bitte als PDF herunterladen und auf anderem Weg zustellen (danach unter "
+        "„Zustellung nachtragen“ festhalten)."
+    )
+
+
+def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, bytes] | None = None) -> bytes:
+    """photo_bytes (seit 1.8.20, nur build_checklist_email_pdf()): je Foto-ID die verkleinerten
+    Bytes statt der Datei, dazu ein Hinweis im Dokument."""
     if checklist.status != "abgeschlossen":
         raise ValueError("Nur abgeschlossene Checklisten können als PDF erzeugt werden.")
     general = get_or_create_general_settings(db)
@@ -188,7 +238,8 @@ def build_checklist_pdf(db, checklist: Checklist) -> bytes:
                     story.append(Paragraph("Keine Fotos.", small))
                 width = min(PHOTO_WIDTH_MM, content_width_mm)
                 for photo in photos:
-                    story.append(_image(attachment_path(photo), width))
+                    source = photo_bytes[photo.id] if photo_bytes is not None else attachment_path(photo)
+                    story.append(_image(source, width))
                     story.append(Spacer(1, 2 * mm))
                 story.append(Spacer(1, 2 * mm))
             elif field.field_type == "unterschrift":
@@ -217,6 +268,8 @@ def build_checklist_pdf(db, checklist: Checklist) -> bytes:
             block.append(Paragraph(ptext("Versiegelt alle Angaben samt Unterschriften. "
                                          f"Prüfsumme (SHA-256): {checklist.content_sha256}"), small))
         block.append(seal_paragraph(completion))
+        if photo_bytes:
+            block.append(Paragraph(ptext(EMAIL_PHOTO_NOTE), small))
         story.append(KeepTogether(block))
         return story
 

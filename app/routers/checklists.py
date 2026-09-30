@@ -31,6 +31,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
+from ..checklist_email import get_checklist_recipient_email, send_checklist_email
 from ..checklist_follow_ups import list_checklists_with_open_follow_ups, list_follow_ups, run_checklist_follow_ups
 from ..checklist_pdf import build_checklist_pdf
 from ..checklist_rules import list_checklists_with_open_rules, list_rule_executions, run_checklist_rules
@@ -40,12 +41,13 @@ from ..checklists import (
     list_checklists, list_startable_templates, mark_asset_repaired, save_answer, MAX_PHOTO_UPLOAD_BYTES,
 )
 from ..database import get_db
+from ..email_dispatch import DispatchConflict, dispatch_to_dict
 from ..models import AppUser, Checklist
 from ..modules import is_module_enabled
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, has_min_role, require_min_role
 from ..schemas import (
     ChecklistAnswerWrite, ChecklistAssetReadinessOut, ChecklistAssetReleaseWrite, ChecklistCreate,
-    ChecklistDiscardSignaturesWrite, ChecklistFollowUpOut, ChecklistFollowUpsRunOut,
+    ChecklistDiscardSignaturesWrite, ChecklistEmailSend, ChecklistFollowUpOut, ChecklistFollowUpsRunOut,
     ChecklistRuleExecutionOut, ChecklistRulesRunOut, ChecklistOut, ChecklistStartableTemplateOut,
     ChecklistSummaryOut,
 )
@@ -337,6 +339,33 @@ def get_checklist_pdf(checklist_id: int, db: Session = Depends(get_db), _role: A
     filename = f"Checkliste-{checklist.id}.pdf"
     return Response(content=pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{filename}"', "Cache-Control": "private, no-store"})
+
+
+@router.get("/api/checklists/{checklist_id}/email-recipient")
+def get_checklist_email_recipient(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
+    """Vorbelegung für das Feld "An" (seit 1.8.20) -- nur fürs Büro, der Monteur sieht keine
+    Kundenadresse über die Checkliste."""
+    _require_module_enabled(db)
+    checklist = _checklist_for(db, _role, checklist_id)
+    return {"recipient_email": get_checklist_recipient_email(db, checklist)}
+
+
+@router.post("/api/checklists/{checklist_id}/send-email")
+def post_send_checklist_email(checklist_id: int, payload: ChecklistEmailSend, db: Session = Depends(get_db),
+                              _role: AppUser = _office_dep):
+    """Abgeschlossene Checkliste per E-Mail (seit 1.8.20) -- nur Büro/Admin, Versand-PDF mit
+    verkleinerten Fotos unter 3 MB, über Protokoll und Ablage. Gewöhnliche def-Route: das Rendern
+    (ggf. mehrere Stufen) ist CPU-gebunden (Befund 1.3.62)."""
+    _require_module_enabled(db)
+    checklist = _checklist_for(db, _role, checklist_id)
+    try:
+        result = send_checklist_email(db, checklist, to_email=payload.to_email, cc_email=payload.cc_email,
+                                      dispatch_key=payload.dispatch_key, user=_role)
+    except DispatchConflict as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return dispatch_to_dict(result.dispatch)
 
 
 @router.delete("/api/checklists/{checklist_id}")

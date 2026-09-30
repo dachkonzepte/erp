@@ -647,12 +647,13 @@ def check_due_asset_inspections_and_create_reminders(db: Session) -> list[int]:
 
     Die Aufgabe geht bewusst UNASSIGNED ("allgemein ans Büro") statt an einen konkreten
     Mitarbeiter -- es gibt (anders als bei MaintenanceContract.responsible_employee_id) kein
-    Feld für einen Zuständigen je Betriebsmittel oder Modul-Einstellung. Für die reale, aktuell
-    ausschließlich aus Admin-Konten bestehende Installation ist das folgenlos; sobald echte
-    Büro-Konten ohne Admin-Rolle existieren, sehen NUR Admins eine unassigned Aufgabe
-    (GET /api/tasks filtert für jeden Nicht-Admin auf assigned_employee_id==eigene_id,
-    siehe app/routers/tasks.py) -- ein bereits bestehendes, allgemeines Verhalten des
-    Aufgabenmoduls, keine für dieses Feature neu eingeführte Lücke."""
+    Feld für einen Zuständigen je Betriebsmittel oder Modul-Einstellung. Seit 1.8.18 sieht jedes
+    Büro-Konto (buero_auftrag aufwärts) eine Aufgabe ohne Zuständigkeit: auf /tasks im Abschnitt
+    "Ohne Zuständigkeit" und im gleichnamigen Dashboard-Widget, wo sie jemand übernimmt
+    (app/tasks.py::list_tasks_for_user() mit unassigned_only, claim_task()). Ohne min_visible_role
+    -- eine Prüffrist ist keine Finanzsache, buero_auftrag soll sie sehen. Bis 1.8.18 stand hier,
+    nur Admins sähen sie; das galt, solange GET /api/tasks jeden Nicht-Admin auf die eigene
+    Zuständigkeit festlegte."""
     if not is_module_enabled(db, "aufgabenmanagement"):
         return []
     settings = get_or_create_operational_asset_settings(db)

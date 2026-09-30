@@ -447,6 +447,7 @@
         <option value="invoice">Rechnung</option>
         <option value="quote">Angebot</option>
         <option value="order">Auftrag</option>
+        <option value="checklist">Checkliste</option>
       </select>
     </div>
     <div class="fields-2col" style="margin-top:12px">
@@ -1870,6 +1871,7 @@ const EMAIL_TEMPLATE_PLACEHOLDER_HINTS = {
   invoice: 'Verfügbare Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {gesamtbetrag} {kundenname}',
   quote: 'Verfügbare Platzhalter: {angebotsnummer} {gesamtbetrag} {kundenname}',
   order: 'Verfügbare Platzhalter: {auftragsnummer} {gesamtbetrag} {kundenname}',
+  checklist: 'Verfügbare Platzhalter: {checkliste} {checklistennummer} {bezug} {kundenname}',
   reminder: 'Verfügbare Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {offener_betrag} {mahngebuehr} {gesamtbetrag} {neue_frist} {vorheriges_mahndatum} {mahnstufe}',
 };
 function populateReminderLevelEmailOptions(){

@@ -20,7 +20,7 @@
 </section>
 <aside class="sticky">
 <div class="card"><h3>Rechnungsdaten</h3><div class="fields"><div class="field"><label>Rechnungsdatum</label><input id="iDate" type="date" disabled></div><div class="field"><label>Zahlungsbedingung</label><select id="iPaymentTermSelect" onchange="changePaymentTerm()"></select></div><div class="field"><label>Fällig bis</label><input id="iDue" type="date" disabled></div><div class="field"><label>Steuerschlüssel</label><select id="iTaxKeySelect" onchange="changeTaxKey()"></select></div><div class="field full"><label>Automatischer Fälligkeits-/Skontohinweis <span class="small muted">(wird mit dem Schlusstext auf der Rechnung angezeigt)</span></label><div id="paymentTermsSentence" class="small muted" style="border:1px solid var(--field-border);padding:8px;background:var(--soft)"></div></div><div class="field full"><label>Einleitungstext</label><select id="iIntroTemplate" onchange="applyTextTemplate('iIntro','iIntroTemplate')" style="margin-bottom:6px"></select><textarea id="iIntro"></textarea></div><div class="field full"><label>Schlusstext</label><select id="iOutroTemplate" onchange="applyTextTemplate('iOutro','iOutroTemplate')" style="margin-bottom:6px"></select><textarea id="iOutro"></textarea></div><div class="field full"><label>Schlusstext 2 <span class="small muted">(optional, zweiter, unabhängiger Textblock)</span></label><select id="iOutro2Template" onchange="applyTextTemplate('iOutro2','iOutro2Template')" style="margin-bottom:6px"></select><textarea id="iOutro2"></textarea></div></div><button onclick="saveHeader()" style="margin-top:8px">Kopfdaten speichern</button><div id="headerStatus" class="status"></div></div>
-<div class="card"><h3>Status</h3><div id="statusInfo" class="small muted" style="margin-bottom:10px"></div><div class="actions-row" id="statusActions"></div><div id="statusActionMsg" class="status"></div></div>
+<div class="card"><h3>Status</h3><div id="statusInfo" class="small muted" style="margin-bottom:10px"></div><div class="actions-row" id="statusActions"></div><div id="statusActionMsg" class="status"></div><div id="invoiceDispatchHistory"></div></div>
 <div class="card" id="remindersCard" style="display:none"><h3>Mahnwesen</h3><div id="reminderStatusInfo" class="small muted" style="margin-bottom:10px"></div><div id="reminderList"></div><div class="actions-row" id="reminderActions"></div><div id="reminderStatusMsg" class="status"></div>
   <div id="reminderEditor" style="display:none;border:1px solid var(--line);padding:10px;margin-top:10px">
     <div class="small muted" id="reminderEditorSubtitle" style="margin-bottom:6px"></div>
@@ -156,10 +156,10 @@ function renderStatusActions(){
   }else if(invoice.status==='storniert'){
     info.textContent='Diese Rechnung wurde storniert.';
   }
-  if(invoice.email_sent_at){
-    html+=`<div class="small muted" style="width:100%;margin-top:4px">Zuletzt per E-Mail versendet am ${new Date(invoice.email_sent_at).toLocaleDateString('de-DE')} an ${esc(invoice.email_sent_to)}.</div>`;
-  }
   el.innerHTML=html;
+  // Versandverlauf statt "zuletzt versendet" (seit 1.8.20); einmal je Seitenaufruf, danach nach jedem Versand.
+  if(invoice.status==='entwurf') document.getElementById('invoiceDispatchHistory').innerHTML='';
+  else if(!_dhOpts.invoiceDispatchHistory) renderDispatchHistory('invoiceDispatchHistory','rechnung',invoiceId,{});
 }
 
 function emailSendControlsHtml(){
@@ -176,6 +176,7 @@ async function sendInvoiceEmail(btn){
     invoice=await postEmailDispatch('rechnung-'+invoiceId,`/api/invoices/${invoiceId}/send-email`,{to_email:toEmail,cc_email:ccEmail||null},btn);
     st.textContent='Per E-Mail versendet.';
     render();
+    renderDispatchHistory('invoiceDispatchHistory','rechnung',invoiceId);
   }catch(e){ st.textContent='Fehler: '+e.message }
 }
 

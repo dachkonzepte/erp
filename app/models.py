@@ -2978,7 +2978,7 @@ class DocumentEmailTemplate(Base):
     __table_args__ = (UniqueConstraint("document_type", name="uq_document_email_template_type"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    document_type: Mapped[str] = mapped_column(String(20), index=True)  # 'quote' | 'order' | 'invoice'
+    document_type: Mapped[str] = mapped_column(String(20), index=True)  # 'quote' | 'order' | 'invoice' | 'checklist' (seit 1.8.20)
     subject_template: Mapped[str | None] = mapped_column(String(255), nullable=True)
     body_template: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -4679,6 +4679,8 @@ class SentDocument(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
     created_by_name: Mapped[str] = mapped_column(String(160), server_default="System")
+    # seit 1.8.20: neben dem PDF auch der Beleg einer nachgetragenen Zustellung (Foto oder Scan)
+    content_type: Mapped[str] = mapped_column(String(100), server_default="application/pdf")
 
 
 class EmailDispatch(Base):
@@ -4721,8 +4723,14 @@ class EmailDispatch(Base):
     resolved_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
     resolved_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Nachgetragene Zustellung auf anderem Weg (seit 1.8.20, channel einschreiben/persoenlich/bote/
+    # fax): Datum der Zustellung, Notiz des Büros, optional Beleg (Foto/Scan) in der Ablage.
+    delivered_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    delivery_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    receipt_document_id: Mapped[int | None] = mapped_column(ForeignKey("sent_documents.id"), nullable=True)
 
-    sent_document: Mapped["SentDocument | None"] = relationship()
+    sent_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[sent_document_id])
+    receipt_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[receipt_document_id])
 
 
 class ArchiveImmutableError(Exception):

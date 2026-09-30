@@ -43,7 +43,11 @@ from .paths import data_dir
 
 SENT_DOCUMENT_ROOT = Path(os.getenv("DACHKONZEPTE_SENT_DOCUMENT_ROOT", data_dir() / "sent_documents"))
 
-DOCUMENT_TYPES = {"angebot": "Angebot", "auftrag": "Auftrag", "rechnung": "Rechnung", "mahnung": "Mahnung"}
+DOCUMENT_TYPES = {"angebot": "Angebot", "auftrag": "Auftrag", "rechnung": "Rechnung", "mahnung": "Mahnung",
+                  "checkliste": "Checkliste"}
+# Was die Ablage aufnimmt (seit 1.8.20 neben PDFs auch Belege nachgetragener Zustellungen) und mit
+# welcher Endung die Datei abgelegt wird.
+CONTENT_TYPE_SUFFIXES = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 
 VERIFY_TEXTS = {
     "unveraendert": "Datei unverändert (Prüfsumme stimmt).",
@@ -89,15 +93,17 @@ def _file_sha256(path: Path) -> str:
 
 def store_sent_document(
     db: Session, *, document_type: str, document_id: int, document_number: str | None,
-    filename: str, content: bytes, user_id: int | None, user_name: str,
+    filename: str, content: bytes, user_id: int | None, user_name: str, content_type: str = "application/pdf",
 ) -> SentDocument:
     """Legt `content` als neue, schreibgeschützte Datei ab und trägt sie ein (flush, kein Commit --
     der Aufrufer committet zusammen mit dem Verweis im Versandprotokoll)."""
     if document_type not in DOCUMENT_TYPES:
         raise ValueError(f"Unbekannte Dokumentart für die Ablage: {document_type}")
+    if content_type not in CONTENT_TYPE_SUFFIXES:
+        raise ValueError(f"Dateityp {content_type} wird nicht abgelegt.")
     sha256 = hashlib.sha256(content).hexdigest()
     now = datetime.utcnow()
-    stored_filename = f"{now:%Y}/{now:%m}/{uuid.uuid4().hex}_{sha256[:16]}.pdf"
+    stored_filename = f"{now:%Y}/{now:%m}/{uuid.uuid4().hex}_{sha256[:16]}{CONTENT_TYPE_SUFFIXES[content_type]}"
     path = SENT_DOCUMENT_ROOT / stored_filename
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "xb") as fh:
@@ -110,7 +116,7 @@ def store_sent_document(
     row = SentDocument(
         document_type=document_type, document_id=document_id, document_number=document_number,
         filename=filename, stored_filename=stored_filename, size_bytes=len(content), sha256=sha256,
-        created_at=now, created_by_user_id=user_id, created_by_name=user_name or "System",
+        created_at=now, created_by_user_id=user_id, created_by_name=user_name or "System", content_type=content_type,
     )
     db.add(row)
     db.flush()
@@ -172,7 +178,7 @@ def sent_document_to_dict(doc: SentDocument) -> dict:
         "id": doc.id, "document_type": doc.document_type,
         "document_type_label": DOCUMENT_TYPES.get(doc.document_type, doc.document_type),
         "document_id": doc.document_id, "document_number": doc.document_number,
-        "filename": doc.filename, "size_bytes": doc.size_bytes, "sha256": doc.sha256,
+        "filename": doc.filename, "size_bytes": doc.size_bytes, "sha256": doc.sha256, "content_type": doc.content_type,
         "created_at": doc.created_at, "created_at_local": to_berlin(doc.created_at),
         "created_by_name": doc.created_by_name,
     }

@@ -69,3 +69,144 @@ async function postEmailDispatch(slot, url, payload, button) {
   return r.json();
 }
 </script>
+<style>
+/* Versandverlauf am Dokument (seit 1.8.20): E-Mail-Versände und nachgetragene Zustellungen aus dem
+   Versandprotokoll, dazu "Zustellung nachtragen". Nutzt die Farb-Tokens der jeweiligen Seite. */
+.dh{margin-top:10px;border-top:1px solid var(--line);padding-top:8px;width:100%;font-size:13px;color:var(--ink)}
+.dh-head{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.dh-head a{color:var(--accent);font-weight:700;text-decoration:none;font-size:12px}
+.dh-row{display:grid;grid-template-columns:minmax(130px,auto) 1fr auto;gap:4px 12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px;align-items:start}
+.dh-row:last-child{border-bottom:none}
+@media (max-width:640px){.dh-row{grid-template-columns:1fr}.dh-row .dh-end{text-align:left}}
+.dh-end{text-align:right}
+.dh-muted{color:var(--muted);font-size:12px}
+.dh-pill{display:inline-block;padding:2px 7px;font-size:11px;font-weight:800;white-space:nowrap;background:var(--soft);color:var(--ink)}
+.dh-pill.gesendet{background:var(--success-soft,#eaf5ef);color:var(--success,#1f8a5f)}
+.dh-pill.fehlgeschlagen,.dh-pill.haengt{background:var(--danger-soft);color:var(--danger)}
+.dh-pill.in_arbeit{background:var(--warning-soft,#fdf3dc);color:var(--warning,#9b6a12)}
+.dh-note{margin-top:4px;padding:5px 7px;background:var(--soft);font-size:12px;white-space:pre-wrap}
+.dh-links a{color:var(--accent);font-weight:700;text-decoration:none;margin-left:8px;font-size:12px}
+.dh-hint{margin-top:6px;font-size:12px;color:var(--muted)}
+.dh-form{margin-top:8px;padding:10px;border:1px solid var(--line);display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;align-items:end}
+.dh-form label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);font-weight:600}
+.dh-form input,.dh-form select,.dh-form textarea{font-family:inherit;font-size:13px;padding:6px 8px;min-height:34px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);width:100%}
+.dh-form textarea{min-height:56px;resize:vertical}
+.dh-form .dh-wide{grid-column:1/-1}
+.dh-btn{font-family:inherit;cursor:pointer;padding:6px 11px;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--ink);min-height:0;width:auto}
+.dh-btn:hover{background:var(--soft)}.dh-btn:disabled{opacity:.55;cursor:default}
+</style>
+<script>
+/* Versandverlauf und "Zustellung nachtragen" (seit 1.8.20). renderDispatchHistory(containerId, art, id)
+   füllt einen Container; Art wie im Protokoll (angebot, auftrag, rechnung, mahnung, checkliste).
+   Die Zustellung auf anderem Weg (Einschreiben, persönliche Übergabe, Bote, Fax) trägt ein sichtbares
+   Formular nach -- Datum, Notiz (Pflicht), optional Empfänger und Beleg (Foto/Scan); auch hier ein
+   Schlüssel je Klick wie beim E-Mail-Versand. */
+const DISPATCH_MANUAL_CHANNELS = {einschreiben: 'Einschreiben', persoenlich: 'Persönliche Übergabe', bote: 'Bote', fax: 'Fax'};
+const _dhOpts = {};
+const _dhEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+function _dhLocal(v) {  // *_local kommt schon in Berliner Zeit (naiv) -- nur umformatieren
+  const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  return m ? `${m[3]}.${m[2]}.${m[1]}${m[4] ? ` ${m[4]}:${m[5]}` : ''}` : '';
+}
+function berlinTodayIso() {
+  const p = {};
+  for (const x of new Intl.DateTimeFormat('en-US', {timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit'}).formatToParts(new Date())) p[x.type] = x.value;
+  return `${p.year}-${p.month}-${p.day}`;
+}
+function _dhRow(d) {
+  const when = d.manual
+    ? `Zugestellt am ${_dhLocal(d.delivered_on)}<div class="dh-muted">nachgetragen ${_dhLocal(d.created_at_local)}</div>`
+    : _dhLocal(d.created_at_local);
+  const to = d.manual
+    ? (d.to_recipients ? ` · An: ${_dhEsc(d.to_recipients)}` : '')
+    : ` · An: ${_dhEsc(d.to_recipients)}${d.cc_recipients ? ` · CC: ${_dhEsc(d.cc_recipients)}` : ''}`;
+  const pill = d.stuck ? '<span class="dh-pill haengt">Hängt</span>' : `<span class="dh-pill ${_dhEsc(d.status)}">${_dhEsc(d.status_label)}</span>`;
+  const links = (d.sent_document ? `<a href="/api/sent-documents/${d.sent_document.id}/file" target="_blank" rel="noopener">PDF</a>` : '')
+    + (d.receipt_document ? `<a href="/api/sent-documents/${d.receipt_document.id}/file" target="_blank" rel="noopener">Beleg</a>` : '');
+  let extra = '';
+  if (d.delivery_note) extra += `<div class="dh-note">${_dhEsc(d.delivery_note)}</div>`;
+  if (d.resolved) extra += `<div class="dh-note">Von Hand geklärt · ${_dhEsc(d.resolved_by_name)}, ${_dhLocal(d.resolved_at_local)}: ${_dhEsc(d.resolution_note)}</div>`;
+  if (d.status === 'fehlgeschlagen' && d.error_class) extra += `<div class="dh-muted">${_dhEsc(d.error_class)}${d.error_code ? ' · ' + _dhEsc(d.error_code) : ''}</div>`;
+  if (d.stuck) extra += '<div class="dh-muted">Ausgang unklar – im Versandprotokoll klären.</div>';
+  return `<div class="dh-row"><div>${when}</div><div><b>${_dhEsc(d.channel_label)}</b>${to}<div class="dh-muted">${_dhEsc(d.created_by_name)}</div>${extra}</div>`
+    + `<div class="dh-end">${pill}<div class="dh-links">${links}</div></div></div>`;
+}
+async function renderDispatchHistory(containerId, type, id, opts) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (opts) _dhOpts[containerId] = opts;
+  const o = _dhOpts[containerId] || {};
+  el.classList.add('dh');
+  let data;
+  try {
+    const r = await fetch(`/api/email-dispatches?document_type=${encodeURIComponent(type)}&document_id=${id}&limit=100`);
+    if (!r.ok) throw Error((await r.json().catch(() => ({}))).detail || r.statusText);
+    data = await r.json();
+  } catch (e) {
+    el.innerHTML = `<div class="dh-muted">Versandverlauf nicht geladen: ${_dhEsc(e.message)}</div>`;
+    return;
+  }
+  const items = data.items;
+  let hint = '';
+  if (type === 'rechnung' || type === 'mahnung') {
+    const frozen = items.filter(d => d.sent_document && d.status !== 'fehlgeschlagen').sort((a, b) => a.sent_document.id - b.sent_document.id)[0];
+    if (frozen) hint = `<div class="dh-hint">Nachdruck, Download und erneuter Versand verwenden die abgelegte Fassung vom ${_dhLocal(frozen.sent_document.created_at_local)}.</div>`;
+  }
+  const canRecord = o.manual !== false;
+  const options = Object.entries(DISPATCH_MANUAL_CHANNELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  const today = berlinTodayIso();
+  el.innerHTML = `<div class="dh-head"><b>Versandverlauf</b><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">`
+    + `<a href="/versandprotokoll?typ=${encodeURIComponent(type)}&id=${id}">Versandprotokoll</a>`
+    + (canRecord ? `<button type="button" class="dh-btn" id="${containerId}-toggle" onclick="toggleManualDelivery('${containerId}')">Zustellung nachtragen</button>` : '')
+    + `</span></div>`
+    + (items.length ? items.map(_dhRow).join('') : '<div class="dh-muted" style="padding:6px 0">Noch nicht versendet oder zugestellt.</div>')
+    + hint
+    + (canRecord ? `<div class="dh-form" id="${containerId}-form" style="display:none">
+        <label>Weg<select id="${containerId}-channel">${options}</select></label>
+        <label>Zugestellt am<input type="date" id="${containerId}-date" value="${today}" max="${today}"></label>
+        <label>Empfänger (optional)<input id="${containerId}-recipient" maxlength="300" placeholder="Name, Anschrift oder Faxnummer"></label>
+        <label>Beleg (optional)<input type="file" id="${containerId}-file" accept="image/jpeg,image/png,image/webp,application/pdf"></label>
+        <label class="dh-wide">Notiz (Pflicht)<textarea id="${containerId}-note" rows="2" maxlength="1000" placeholder="z. B. Sendungsnummer, an wen übergeben, Faxbericht OK"></textarea></label>
+        <div class="dh-wide" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="dh-btn" id="${containerId}-save" onclick="saveManualDelivery('${containerId}','${_dhEsc(type)}',${Number(id)})">Zustellung speichern</button><span class="dh-muted" id="${containerId}-msg"></span></div>
+      </div>` : '');
+}
+function toggleManualDelivery(containerId) {
+  const form = document.getElementById(containerId + '-form');
+  if (form) form.style.display = form.style.display === 'none' ? 'grid' : 'none';
+}
+async function saveManualDelivery(containerId, type, id) {
+  const $ = s => document.getElementById(`${containerId}-${s}`);
+  const msg = $('msg'), button = $('save');
+  const note = $('note').value.trim();
+  if (!note) { msg.textContent = 'Bitte in der Notiz festhalten, wie zugestellt wurde.'; return; }
+  if (!$('date').value) { msg.textContent = 'Bitte das Datum der Zustellung angeben.'; return; }
+  const slot = `manuell-${type}-${id}`;
+  const form = new FormData();
+  form.append('document_type', type);
+  form.append('document_id', String(id));
+  form.append('channel', $('channel').value);
+  form.append('delivered_on', $('date').value);
+  form.append('note', note);
+  form.append('recipient', $('recipient').value.trim());
+  if ($('file').files[0]) form.append('receipt', $('file').files[0]);
+  form.append('dispatch_key', dispatchKeyFor(slot));
+  button.disabled = true;
+  msg.textContent = 'speichere …';
+  let r;
+  try {
+    r = await fetch('/api/email-dispatches/manual', {method: 'POST', body: form});
+  } catch (e) {
+    msg.textContent = 'Keine Antwort vom Server – erneut klicken trägt nicht doppelt ein.';
+    button.disabled = false;
+    return;
+  }
+  if (r.status < 500) _dispatchKeys[slot] = newDispatchKey(slot);
+  if (!r.ok) {
+    const d = r.status < 500 ? await r.json().catch(() => ({})) : {};
+    msg.textContent = 'Fehler: ' + (typeof d.detail === 'string' ? d.detail : (r.status >= 500 ? 'Serverfehler – bitte im Versandprotokoll prüfen; erneut klicken trägt nicht doppelt ein.' : 'Eingabe unvollständig oder ungültig.'));
+    button.disabled = false;
+    return;
+  }
+  await renderDispatchHistory(containerId, type, id);
+}
+</script>

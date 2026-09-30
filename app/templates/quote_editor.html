@@ -48,7 +48,7 @@ dialog{border:1px solid var(--line);padding:0;max-width:720px;width:calc(100% - 
     <a class="small" id="quoteDispatchLink" href="/versandprotokoll">Versandprotokoll</a>
     <span id="quoteEmailStatus" class="small muted"></span>
   </div>
-  <div id="quoteEmailSentInfo" class="small muted" style="margin-top:4px"></div>
+  <div id="quoteDispatchHistory"></div>
 </div>
 <div id="orderSyncBanner" class="notice hidden" style="margin-bottom:10px"></div>
 <div class="layout">
@@ -261,7 +261,7 @@ function renderQuoteEmailSection(){
   section.style.display='block';
   document.getElementById('quoteEmailInput').value=quote.recipient_email||'';
   document.getElementById('quoteDispatchLink').href=`/versandprotokoll?typ=angebot&id=${quoteId}`;
-  document.getElementById('quoteEmailSentInfo').textContent=quote.email_sent_at?`Zuletzt per E-Mail versendet am ${new Date(quote.email_sent_at).toLocaleDateString('de-DE')} an ${quote.email_sent_to}.`:'';
+  if(!_dhOpts.quoteDispatchHistory) renderDispatchHistory('quoteDispatchHistory','angebot',quoteId,{});  // seit 1.8.20, nicht bei jedem renderAll()
 }
 async function sendQuoteEmail(btn){
   const toEmail=document.getElementById('quoteEmailInput').value.trim();
@@ -274,6 +274,7 @@ async function sendQuoteEmail(btn){
     document.getElementById('quoteCcInput').value='';
     st.textContent='Versendet.';
     renderAll();
+    renderDispatchHistory('quoteDispatchHistory','angebot',quoteId);
   }catch(e){ st.textContent='Fehler: '+e.message }
 }
 
