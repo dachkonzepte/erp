@@ -14,6 +14,13 @@ Regeln -- hängt an einer nummerierten Fassung (ChecklistTemplateVersion):
 - "Bearbeiten" einer Vorlage ohne Entwurf legt eine neue Entwurfsfassung als vollständige Kopie
   der gültigen an (start_draft()); field_key bleibt dabei erhalten.
 
+Zweck (seit 1.8.16, Registry app/checklist_purposes.py): steht an der Vorlage und ist nur bis zur
+ersten Veröffentlichung änderbar; Veröffentlichen friert ihn an der Fassung ein. Der Zweck
+beschränkt die Kontexte und verlangt seine Systemfelder -- das Setzen des Zwecks legt sie im
+Entwurf an (sync_system_fields()), ein neuer Entwurf und eine Kopie gleichen sie an, das
+Veröffentlichen PRÜFT nur (fehlt eines oder weicht es ab, wird nicht veröffentlicht). Eine Vorlage
+mit Zweck ist nur archivierbar, nicht löschbar.
+
 Rollenlos wie jede Geschäftslogik dieses Projekts -- die Rollenentscheidung sitzt im Router."""
 
 import re
@@ -23,6 +30,7 @@ from decimal import Decimal, InvalidOperation
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from .checklist_purposes import DEFAULT_PURPOSE, get_purpose, purpose_label
 from .models import (
     Checklist, ChecklistTemplate, ChecklistTemplateField, ChecklistTemplateFieldOption, ChecklistTemplateRule,
     ChecklistTemplateVersion,
@@ -68,6 +76,13 @@ _RULE_UPDATE_KEYS = {
     "field_key", "operator", "operand", "task_title", "task_description", "task_priority", "due_in_days",
     "assignee_mode", "min_visible_role", "sort_order",
 }
+# An einem Systemfeld fest (Betreibervorgabe 1.8.16) -- dazu die Optionen. Frei bleiben
+# Beschriftung, Hilfetext, Abschnitt, Reihenfolge und die übrigen Eigenschaften.
+SYSTEM_LOCKED_ATTRIBUTES = {
+    "field_key": "Schlüssel", "field_type": "Typ", "required": "Pflichtfeld", "allow_na": "Wahl „entfällt“",
+    "multiple": "Mehrfach", "min_count": "Mindestanzahl",
+}
+_PUBLISHED_STATUSES = ("veroeffentlicht", "abgeloest")
 
 
 # --- Serialisierung -------------------------------------------------------------------------
@@ -103,7 +118,8 @@ def rule_to_dict(rule: ChecklistTemplateRule) -> dict:
 def version_to_dict(version: ChecklistTemplateVersion) -> dict:
     return {
         "id": version.id, "template_id": version.template_id, "version_no": version.version_no,
-        "status": version.status, "published_at": version.published_at, "created_at": version.created_at,
+        "status": version.status, "purpose": version.purpose,
+        "published_at": version.published_at, "created_at": version.created_at,
         "fields": [field_to_dict(f) for f in version.fields],
         "rules": [rule_to_dict(r) for r in version.rules],
     }
@@ -126,12 +142,17 @@ def _draft(template: ChecklistTemplate) -> ChecklistTemplateVersion | None:
     return next((v for v in template.versions if v.status == "entwurf"), None)
 
 
+def _ever_published(template: ChecklistTemplate) -> bool:
+    return any(v.status in _PUBLISHED_STATUSES for v in template.versions)
+
+
 def template_to_dict(template: ChecklistTemplate, *, with_editable_version: bool = False) -> dict:
     published = _published(template)
     draft = _draft(template)
     data = {
         "id": template.id, "label": template.label, "description": template.description,
-        "purpose": template.purpose, "contexts": template_contexts(template),
+        "purpose": template.purpose, "purpose_label": purpose_label(template.purpose),
+        "purpose_locked": _ever_published(template), "contexts": template_contexts(template),
         "field_readable": template.field_readable, "sort_order": template.sort_order,
         "archived": template.archived, "created_at": template.created_at, "updated_at": template.updated_at,
         "published_version_no": published.version_no if published else None,
@@ -144,6 +165,9 @@ def template_to_dict(template: ChecklistTemplate, *, with_editable_version: bool
         # Im Editor zeigt sich der Entwurf, falls vorhanden, sonst die gültige Fassung (nur lesend).
         shown = draft or published
         data["editable_version"] = version_to_dict(shown) if shown else None
+        # Was am Entwurf den Systemfeldern des Zwecks widerspricht -- der Editor bietet dafür
+        # "Systemfelder angleichen" an, Veröffentlichen würde es ablehnen.
+        data["system_field_problems"] = system_field_problems(template.purpose, draft) if draft else []
     return data
 
 
@@ -203,6 +227,23 @@ def get_version(db: Session, version_id: int) -> dict | None:
     return version_to_dict(version) if version else None
 
 
+CONTEXT_LABELS = {"auftrag": "Auftrag", "objekt": "Objekt", "betriebsmittel": "Betriebsmittel", "betrieb": "Betrieb"}
+
+
+def _check_purpose_contexts(purpose_key: str, contexts: list[str]) -> None:
+    """Die Kontexte einer Vorlage müssen zu ihrem Zweck passen. Ein unbekannter Zweck (aus der
+    Registry entfernt) sperrt die Verwaltungsdaten nicht -- neue Checklisten lehnt dann
+    create_checklist() ab."""
+    purpose = get_purpose(purpose_key)
+    if purpose is None:
+        return
+    foreign = [c for c in contexts if c not in purpose.contexts]
+    if foreign:
+        allowed = ", ".join(CONTEXT_LABELS[c] for c in purpose.contexts)
+        raise ValueError(f"Der Zweck {purpose.label} ist nur im Kontext {allowed} möglich -- bitte "
+                         f"{', '.join(CONTEXT_LABELS.get(c, c) for c in foreign)} abwählen.")
+
+
 def _apply_template_meta(template: ChecklistTemplate, *, label: str, description: str | None,
                          contexts: list[str], field_readable: bool) -> None:
     label = (label or "").strip()
@@ -211,6 +252,7 @@ def _apply_template_meta(template: ChecklistTemplate, *, label: str, description
     unknown = [c for c in contexts if c not in CONTEXT_TYPES]
     if unknown:
         raise ValueError(f"Unbekannter Kontext: {', '.join(unknown)}")
+    _check_purpose_contexts(template.purpose or DEFAULT_PURPOSE, contexts)
     template.label = label
     template.description = (description or "").strip() or None
     for context, column in CONTEXT_COLUMNS.items():
@@ -218,30 +260,57 @@ def _apply_template_meta(template: ChecklistTemplate, *, label: str, description
     template.field_readable = bool(field_readable)
 
 
+def _checked_purpose(purpose_key: str) -> str:
+    if get_purpose(purpose_key) is None:
+        raise ValueError(f"Unbekannter Zweck: {purpose_key}")
+    return purpose_key
+
+
 def create_template(db: Session, *, label: str, description: str | None = None, contexts: list[str] | None = None,
-                    field_readable: bool = False) -> dict:
-    """Legt eine Vorlage mit einer leeren Entwurfsfassung 1 an."""
-    template = ChecklistTemplate()
+                    field_readable: bool = False, purpose: str | None = None) -> dict:
+    """Legt eine Vorlage mit einer Entwurfsfassung 1 an -- leer, bzw. mit den Systemfeldern des
+    Zwecks."""
+    template = ChecklistTemplate(purpose=_checked_purpose(purpose or DEFAULT_PURPOSE))
     _apply_template_meta(template, label=label, description=description, contexts=contexts or [],
                          field_readable=field_readable)
     template.sort_order = (db.scalar(select(func.max(ChecklistTemplate.sort_order))) or 0) + 10
     db.add(template)
     db.flush()
-    db.add(ChecklistTemplateVersion(template_id=template.id, version_no=1, status="entwurf"))
+    draft = ChecklistTemplateVersion(template_id=template.id, version_no=1, status="entwurf", purpose=template.purpose)
+    db.add(draft)
+    db.flush()
+    _sync_system_fields(db, draft, template.purpose)
     db.commit()
     return _template_detail(db, template.id)
 
 
 def update_template(db: Session, template_id: int, *, label: str, description: str | None, contexts: list[str],
-                    field_readable: bool) -> dict | None:
+                    field_readable: bool, purpose: str | None = None) -> dict | None:
     """Verwaltungsdaten sind KEIN Fassungsinhalt -- ändern sich ohne neue Fassung. Eine bereits
     ausgefüllte Checkliste bleibt davon unberührt (Label eingefroren, Kontexte wirken nur aufs
-    Anlegen)."""
-    template = db.get(ChecklistTemplate, template_id)
+    Anlegen). purpose None = unverändert. Der Zweck selbst ist nur änderbar, solange die Vorlage
+    nie veröffentlicht wurde (danach ist er an ihren Fassungen eingefroren); ein neuer Zweck legt
+    seine Systemfelder im Entwurf an, die des alten werden gewöhnliche Felder."""
+    template = _load_template(db, template_id)
     if template is None:
         return None
-    _apply_template_meta(template, label=label, description=description, contexts=contexts,
-                         field_readable=field_readable)
+    new_purpose = purpose if purpose is not None else template.purpose
+    changed = new_purpose != template.purpose
+    try:
+        if changed:
+            if _ever_published(template):
+                raise ValueError("Der Zweck ist seit der ersten Veröffentlichung festgelegt. Für einen anderen Zweck "
+                                 "die Vorlage kopieren.")
+            template.purpose = _checked_purpose(new_purpose)
+        _apply_template_meta(template, label=label, description=description, contexts=contexts,
+                             field_readable=field_readable)
+        draft = _draft(template)
+        if changed and draft is not None:
+            draft.purpose = template.purpose
+            _sync_system_fields(db, draft, template.purpose)
+    except ValueError:
+        db.rollback()  # sonst nähme der nächste Commit derselben Session den halben Stand mit
+        raise
     db.commit()
     return _template_detail(db, template_id)
 
@@ -257,10 +326,13 @@ def set_template_archived(db: Session, template_id: int, archived: bool) -> dict
 
 def delete_template(db: Session, template_id: int) -> bool:
     """Nur solange keine Checkliste die Vorlage verwendet -- sonst archivieren (die Fassungen
-    sind der Schnappschuss ausgefüllter Checklisten und dürfen nie verschwinden)."""
-    template = db.get(ChecklistTemplate, template_id)
+    sind der Schnappschuss ausgefüllter Checklisten und dürfen nie verschwinden). Eine Vorlage mit
+    Zweck nie (seit 1.8.16, Betreibervorgabe): nur archivieren."""
+    template = _load_template(db, template_id)
     if template is None:
         return False
+    if template.purpose != DEFAULT_PURPOSE or any(v.purpose != DEFAULT_PURPOSE for v in template.versions):
+        raise ValueError(f"Eine Vorlage mit Zweck ({purpose_label(template.purpose)}) kann nur archiviert werden.")
     used = db.scalar(select(func.count(Checklist.id)).where(Checklist.template_id == template_id)) or 0
     if used:
         raise ValueError(f"Die Vorlage wird von {used} Checkliste(n) verwendet und kann nur archiviert werden.")
@@ -304,11 +376,13 @@ def start_draft(db: Session, template_id: int) -> dict | None:
     if _draft(template) is None:
         source = _published(template) or (template.versions[-1] if template.versions else None)
         next_no = max((v.version_no for v in template.versions), default=0) + 1
-        draft = ChecklistTemplateVersion(template_id=template.id, version_no=next_no, status="entwurf")
+        draft = ChecklistTemplateVersion(template_id=template.id, version_no=next_no, status="entwurf",
+                                         purpose=template.purpose)
         db.add(draft)
         db.flush()
         if source is not None:
             _copy_version_content(db, source, draft)
+        _try_sync_system_fields(db, draft, template.purpose)
         db.commit()
     return _template_detail(db, template_id)
 
@@ -331,23 +405,24 @@ def discard_draft(db: Session, template_id: int) -> dict | None:
 
 def copy_template(db: Session, template_id: int, new_label: str) -> dict:
     """Neue, eigenständige Vorlage mit einer Entwurfsfassung 1 aus dem aktuellen Stand (Entwurf
-    vor gültiger Fassung) der Quelle."""
+    vor gültiger Fassung) der Quelle. Erbt den Zweck und die Systemfelder (seit 1.8.16); da die
+    Kopie noch nie veröffentlicht wurde, ist ihr Zweck wieder änderbar."""
     source = _load_template(db, template_id)
     if source is None:
         raise LookupError("Vorlage nicht gefunden.")
-    copy = ChecklistTemplate()
+    copy = ChecklistTemplate(purpose=source.purpose)
     _apply_template_meta(copy, label=new_label, description=source.description,
                          contexts=template_contexts(source), field_readable=source.field_readable)
-    copy.purpose = source.purpose
     copy.sort_order = (db.scalar(select(func.max(ChecklistTemplate.sort_order))) or 0) + 10
     db.add(copy)
     db.flush()
-    draft = ChecklistTemplateVersion(template_id=copy.id, version_no=1, status="entwurf")
+    draft = ChecklistTemplateVersion(template_id=copy.id, version_no=1, status="entwurf", purpose=copy.purpose)
     db.add(draft)
     db.flush()
     source_version = _draft(source) or _published(source)
     if source_version is not None:
         _copy_version_content(db, source_version, draft)
+    _try_sync_system_fields(db, draft, copy.purpose)
     db.commit()
     return _template_detail(db, copy.id)
 
@@ -361,6 +436,11 @@ def validate_version_for_publish(template: ChecklistTemplate, version: Checklist
     problems: list[str] = []
     if not template_contexts(template):
         problems.append("Mindestens ein Kontext (Auftrag, Objekt, Betriebsmittel, Betrieb) muss gewählt sein.")
+    try:
+        _check_purpose_contexts(template.purpose, template_contexts(template))
+    except ValueError as exc:
+        problems.append(str(exc))
+    problems.extend(system_field_problems(template.purpose, version))
     answerable = [f for f in version.fields if f.field_type != "hinweis"]
     if not answerable:
         problems.append("Die Vorlage braucht mindestens ein Feld, das ausgefüllt wird.")
@@ -391,6 +471,7 @@ def publish_draft(db: Session, template_id: int, published_by_user_id: int | Non
     if previous is not None:
         previous.status = "abgeloest"
     draft.status = "veroeffentlicht"
+    draft.purpose = template.purpose  # eingefroren: jede Checkliste dieser Fassung nutzt diesen Zweck
     draft.published_at = datetime.utcnow()
     draft.published_by_user_id = published_by_user_id
     db.commit()
@@ -508,10 +589,7 @@ def update_field(db: Session, field_id: int, fields: dict) -> dict | None:
     version = _require_draft(_load_version(db, field.version_id))
     values = _field_values_from(fields)
     if field.is_system:
-        if "field_key" in values and values["field_key"] != field.field_key:
-            raise ValueError("Der Schlüssel eines Systemfelds kann nicht geändert werden.")
-        if "field_type" in values and values["field_type"] != field.field_type:
-            raise ValueError("Der Typ eines Systemfelds kann nicht geändert werden.")
+        _check_system_field_update(field, values)
     old_key = field.field_key
     if "field_key" in values:
         new_key = (values["field_key"] or "").strip()
@@ -562,6 +640,122 @@ def reorder_fields(db: Session, version_id: int, field_ids: list[int]) -> dict:
     return get_version(db, version.id)
 
 
+# --- Systemfelder (seit 1.8.16) -------------------------------------------------------------
+
+def _normalized_locked(attribute: str, value):
+    if attribute == "field_key":
+        return (value or "").strip()
+    if attribute in ("required", "allow_na", "multiple"):
+        return bool(value)
+    return value
+
+
+def _check_system_field_update(field: ChecklistTemplateField, values: dict) -> None:
+    """Die festen Eigenschaften eines Systemfelds dürfen mitgeschickt werden, aber nur mit dem
+    vorhandenen Wert (der Editor schickt ganze Formulare)."""
+    for attribute, label in SYSTEM_LOCKED_ATTRIBUTES.items():
+        if attribute in values and _normalized_locked(attribute, values[attribute]) != _normalized_locked(
+                attribute, getattr(field, attribute)):
+            raise ValueError(f"{label} eines Systemfelds kann nicht geändert werden.")
+
+
+def _require_not_system(field: ChecklistTemplateField) -> None:
+    if field.is_system:
+        raise ValueError("Die Optionen eines Systemfelds sind fest vorgegeben.")
+
+
+def system_field_problems(purpose_key: str, version: ChecklistTemplateVersion) -> list[str]:
+    """Was einer Fassung an den Systemfeldern ihres Zwecks fehlt oder davon abweicht (leer = in
+    Ordnung). Veröffentlichen lehnt ab, solange etwas übrig ist."""
+    purpose = get_purpose(purpose_key)
+    if purpose is None:
+        return [f"Unbekannter Zweck: {purpose_key}"]
+    by_key = {f.field_key: f for f in version.fields}
+    problems = []
+    for spec in purpose.system_fields:
+        field = by_key.get(spec.key)
+        if field is None or not field.is_system:
+            problems.append(f"Das Systemfeld „{spec.label}“ ({spec.key}) fehlt.")
+            continue
+        wanted = {"field_type": spec.field_type, "required": spec.required, "allow_na": spec.allow_na,
+                  "multiple": spec.multiple, "min_count": spec.min_count}
+        differs = [SYSTEM_LOCKED_ATTRIBUTES[a] for a, v in wanted.items() if getattr(field, a) != v]
+        if {o.option_key for o in field.options} != {key for key, _label in spec.options}:
+            differs.append("Optionen")
+        if differs:
+            problems.append(f"Das Systemfeld „{field.label}“ ({spec.key}) weicht von der Vorgabe ab: {', '.join(differs)}.")
+    return problems
+
+
+def _sync_system_fields(db: Session, version: ChecklistTemplateVersion, purpose_key: str) -> None:
+    """Gleicht die Systemfelder einer Entwurfsfassung an ihren Zweck an: fehlende anlegen (am
+    Ende), feste Eigenschaften und Optionen auf die Vorgabe setzen, ein gleichnamiges gewöhnliches
+    Feld desselben Typs übernehmen. Systemfelder, die der Zweck nicht (mehr) kennt, werden
+    gewöhnliche Felder. Kein Commit. ValueError, bevor sich etwas ändert, wenn ein Feld mit dem
+    Schlüssel eines Systemfelds einen anderen Typ hat."""
+    purpose = get_purpose(purpose_key)
+    if purpose is None:
+        raise ValueError(f"Unbekannter Zweck: {purpose_key}")
+    db.flush()
+    db.expire(version, ["fields"])  # frisch kopierte Felder sind nur per version_id angehängt
+    by_key = {f.field_key: f for f in version.fields}
+    for spec in purpose.system_fields:
+        field = by_key.get(spec.key)
+        if field is not None and field.field_type != spec.field_type:
+            raise ValueError(f"Das Feld „{field.label}“ trägt den Schlüssel {spec.key} des Systemfelds „{spec.label}“, "
+                             f"hat aber einen anderen Typ. Bitte zuerst seinen Schlüssel ändern.")
+    wanted_keys = {spec.key for spec in purpose.system_fields}
+    for field in version.fields:
+        if field.is_system and field.field_key not in wanted_keys:
+            field.is_system = False
+    next_sort = max((f.sort_order for f in version.fields), default=0) + 10
+    for spec in purpose.system_fields:
+        field = by_key.get(spec.key)
+        if field is None:
+            field = ChecklistTemplateField(field_key=spec.key, field_type=spec.field_type, label=spec.label,
+                                           sort_order=next_sort)
+            version.fields.append(field)
+            next_sort += 10
+        field.is_system = True
+        field.required, field.allow_na, field.multiple = spec.required, spec.allow_na, spec.multiple
+        field.min_count = spec.min_count
+        _normalize_field(field)
+        spec_keys = {key for key, _label in spec.options}
+        for option in list(field.options):
+            if option.option_key not in spec_keys:
+                field.options.remove(option)
+        present = {o.option_key for o in field.options}
+        for index, (key, label) in enumerate(spec.options):
+            if key not in present:
+                field.options.append(ChecklistTemplateFieldOption(option_key=key, label=label, sort_order=(index + 1) * 10))
+
+
+def _try_sync_system_fields(db: Session, version: ChecklistTemplateVersion, purpose_key: str) -> None:
+    """Beim Anlegen eines Entwurfs bzw. einer Kopie: angleichen, soweit es ohne Rückfrage geht.
+    Scheitert es (Schlüsselkonflikt, unbekannter Zweck), bleibt der Entwurf eine reine Kopie --
+    Editor und Veröffentlichen nennen dann, was fehlt."""
+    try:
+        with db.begin_nested():
+            _sync_system_fields(db, version, purpose_key)
+            db.flush()
+    except ValueError:
+        pass
+
+
+def sync_system_fields(db: Session, version_id: int) -> dict:
+    """"Systemfelder angleichen" im Editor -- z. B. wenn der Zweck nach dem Anlegen des Entwurfs
+    ein weiteres Systemfeld bekommen hat."""
+    version = _require_draft(_load_version(db, version_id))
+    try:
+        _sync_system_fields(db, version, version.template.purpose)
+    except ValueError:
+        db.rollback()
+        raise
+    version.purpose = version.template.purpose
+    db.commit()
+    return get_version(db, version_id)
+
+
 # --- Auswahloptionen ------------------------------------------------------------------------
 
 def add_option(db: Session, field_id: int, label: str, option_key: str | None = None) -> dict:
@@ -569,6 +763,7 @@ def add_option(db: Session, field_id: int, label: str, option_key: str | None = 
     if field is None:
         raise LookupError("Feld nicht gefunden.")
     _require_draft(field.version)
+    _require_not_system(field)
     if field.field_type != "auswahl":
         raise ValueError("Optionen gibt es nur bei Auswahlfeldern.")
     label = (label or "").strip()
@@ -595,6 +790,7 @@ def update_option(db: Session, option_id: int, *, label: str | None = None, sort
     if option is None:
         return None
     _require_draft(option.field.version)
+    _require_not_system(option.field)
     if label is not None:
         label = label.strip()
         if not label:
@@ -612,6 +808,7 @@ def delete_option(db: Session, option_id: int) -> dict | None:
         return None
     field = option.field
     version = _require_draft(field.version)
+    _require_not_system(field)
     for rule in version.rules:
         if rule.field_key == field.field_key and rule.operator == "enthaelt" and rule.operand == option.option_key:
             raise ValueError(f"Die Option wird von einer Regel verwendet ({rule.task_title}).")

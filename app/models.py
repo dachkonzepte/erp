@@ -4309,8 +4309,11 @@ class ChecklistTemplate(Base):
     context_*-Schalter wirken nur auf das Anlegen NEUER Checklisten. Der eigentliche Inhalt
     (Felder, Optionen, Regeln) hängt an ChecklistTemplateVersion, nicht hier.
 
-    purpose ist in Stufe 1 immer "allgemein" -- Andockpunkt für Stufe 2 (Regiebericht, Abnahme,
-    Behinderungs-/Bedenkenanzeige mit eigener Folge). field_readable (Betreiberentscheidung B):
+    purpose (seit 1.8.16, Registry app/checklist_purposes.py): Zweck der Vorlage, änderbar nur bis
+    zur ersten Veröffentlichung, beim Veröffentlichen an der Fassung eingefroren
+    (ChecklistTemplateVersion.purpose) -- eine Checkliste liest den Zweck ihrer Fassung, nie diesen
+    hier. Eine Vorlage mit einem anderen Zweck als "allgemein" ist nur archivierbar, nicht
+    löschbar. field_readable (Betreiberentscheidung B):
     ein Monteur sieht die ANTWORTEN fremder Checklisten dieser Vorlage nur, wenn es gesetzt ist,
     sonst nur Titel/Datum/Ersteller/Status."""
 
@@ -4340,7 +4343,11 @@ class ChecklistTemplateVersion(Base):
     Höchstens EINE Entwurfsfassung je Vorlage (Geschäftslogik, app/checklist_templates.py);
     nur deren Felder/Optionen/Regeln sind änderbar. Veröffentlichen macht den Entwurf zur
     gültigen Fassung und die bisher gültige zu "abgeloest". Eine Fassung, auf die eine
-    Checkliste verweist, ist nie löschbar."""
+    Checkliste verweist, ist nie löschbar.
+
+    purpose (seit 1.8.16): beim Veröffentlichen eingefrorener Zweck der Vorlage -- maßgeblich für
+    jede Checkliste dieser Fassung (erlaubte Kontexte, Folgen). Bei einem Entwurf eine Kopie von
+    ChecklistTemplate.purpose."""
 
     __tablename__ = "checklist_template_versions"
     __table_args__ = (UniqueConstraint("template_id", "version_no", name="uq_checklist_template_version_no"),)
@@ -4349,6 +4356,7 @@ class ChecklistTemplateVersion(Base):
     template_id: Mapped[int] = mapped_column(ForeignKey("checklist_templates.id"), index=True)
     version_no: Mapped[int] = mapped_column()
     status: Mapped[str] = mapped_column(String(20), default="entwurf", server_default="entwurf", index=True)
+    purpose: Mapped[str] = mapped_column(String(40), default="allgemein", server_default="allgemein")
     published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     published_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -4370,7 +4378,9 @@ class ChecklistTemplateField(Base):
     eindeutig und bleibt beim Kopieren in eine neue Fassung erhalten -- darüber finden
     Auswertungen, Regeln, die Einsatzbereitschaft eines Geräts (field_key "einsatzbereit") und
     künftig die Stufe-2-Folgelogik ein Feld wieder, nie über die Beschriftung. is_system
-    (Stufe 2): umbenennbar, aber nicht löschbar und Schlüssel/Typ nicht änderbar."""
+    (seit 1.8.16, Vorgabe aus dem Zweck, app/checklist_purposes.py): umbenennbar und verschiebbar,
+    aber nicht löschbar; Schlüssel, Typ, Pflicht, "entfällt", Mehrfach, Mindestanzahl und Optionen
+    nicht änderbar."""
 
     __tablename__ = "checklist_template_fields"
     __table_args__ = (UniqueConstraint("version_id", "field_key", name="uq_checklist_template_field_key"),)
@@ -4495,6 +4505,9 @@ class Checklist(Base):
     rule_executions: Mapped[list["ChecklistRuleExecution"]] = relationship(
         back_populates="checklist", cascade="all, delete-orphan",
     )
+    follow_ups: Mapped[list["ChecklistFollowUp"]] = relationship(
+        back_populates="checklist", cascade="all, delete-orphan",
+    )
 
 
 class ChecklistAnswer(Base):
@@ -4601,6 +4614,27 @@ class ChecklistRuleExecution(Base):
     executed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     checklist: Mapped["Checklist"] = relationship(back_populates="rule_executions")
+
+
+class ChecklistFollowUp(Base):
+    """Folge des Abschlusses nach dem Zweck der Fassung (seit 1.8.16, app/checklist_follow_ups.py)
+    -- zugleich die Idempotenzsperre wie ChecklistRuleExecution: genau eine Zeile je (Checkliste,
+    Folgeschlüssel). target_type/target_id ist das Ziel, also was die Folge angelegt hat; leer,
+    solange sie nicht erledigt ist oder wenn sie nichts anzulegen hatte. status
+    erledigt|modul_aus|ausstehend; modul_aus und ausstehend sind nachholbar."""
+
+    __tablename__ = "checklist_follow_ups"
+    __table_args__ = (UniqueConstraint("checklist_id", "follow_up_key", name="uq_checklist_follow_up_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    checklist_id: Mapped[int] = mapped_column(ForeignKey("checklists.id"), index=True)
+    follow_up_key: Mapped[str] = mapped_column(String(80))
+    target_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    target_id: Mapped[int | None] = mapped_column(nullable=True)
+    status: Mapped[str] = mapped_column(String(30), server_default="ausstehend")
+    executed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    checklist: Mapped["Checklist"] = relationship(back_populates="follow_ups")
 
 
 class ChecklistAssetRelease(Base):

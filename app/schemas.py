@@ -4074,6 +4074,7 @@ class ChecklistTemplateCreate(BaseModel):
     description: str | None = None
     contexts: list[str] = []
     field_readable: bool = False
+    purpose: str | None = Field(default=None, max_length=40)  # seit 1.8.16; None = "allgemein" bzw. unverändert
 
 
 class ChecklistTemplateUpdate(ChecklistTemplateCreate):
@@ -4187,6 +4188,7 @@ class ChecklistTemplateVersionOut(BaseModel):
     template_id: int
     version_no: int
     status: str
+    purpose: str = "allgemein"  # seit 1.8.16, beim Veröffentlichen eingefroren
     published_at: datetime | None = None
     created_at: datetime
     fields: list[ChecklistTemplateFieldOut] = []
@@ -4206,6 +4208,9 @@ class ChecklistTemplateOut(BaseModel):
     label: str
     description: str | None = None
     purpose: str
+    purpose_label: str = ""
+    purpose_locked: bool = False  # seit der ersten Veröffentlichung festgelegt (1.8.16)
+    system_field_problems: list[str] = []  # Entwurf gegen die Systemfelder des Zwecks (1.8.16)
     contexts: list[str]
     field_readable: bool
     sort_order: int
@@ -4218,6 +4223,20 @@ class ChecklistTemplateOut(BaseModel):
     draft_version_id: int | None = None
     versions: list[ChecklistTemplateVersionSummaryOut] = []
     editable_version: ChecklistTemplateVersionOut | None = None
+
+
+class ChecklistPurposeSystemFieldOut(BaseModel):
+    key: str
+    field_type: str
+    label: str
+
+
+class ChecklistPurposeOut(BaseModel):
+    """Zweck aus der Registry (app/checklist_purposes.py, seit 1.8.16) -- ohne Folgen."""
+    key: str
+    label: str
+    contexts: list[str]
+    system_fields: list[ChecklistPurposeSystemFieldOut] = []
 
 
 class ChecklistCreate(BaseModel):
@@ -4242,6 +4261,8 @@ class ChecklistStartableTemplateOut(BaseModel):
     label: str
     description: str | None = None
     version_no: int
+    purpose: str = "allgemein"
+    purpose_label: str = ""
 
 
 class ChecklistSummaryOut(BaseModel):
@@ -4264,6 +4285,8 @@ class ChecklistSummaryOut(BaseModel):
     created_by_employee_id: int | None = None
     created_by_name: str | None = None
     field_readable: bool
+    purpose: str = "allgemein"  # Zweck der Fassung (seit 1.8.16)
+    purpose_label: str = ""
     is_own: bool = False
     can_open: bool = True
 
@@ -4366,4 +4389,22 @@ class ChecklistRuleExecutionOut(BaseModel):
 class ChecklistRulesRunOut(BaseModel):
     created: int = 0
     module_off: int = 0
+
+
+class ChecklistFollowUpOut(BaseModel):
+    """Folge des Abschlusses (seit 1.8.16, app/checklist_follow_ups.py) -- nur fürs Büro."""
+    id: int
+    follow_up_key: str
+    label: str
+    status: str
+    status_label: str
+    target_type: str | None = None
+    target_id: int | None = None
+    executed_at: datetime
+
+
+class ChecklistFollowUpsRunOut(BaseModel):
+    done: int = 0
+    module_off: int = 0
+    failed: int = 0
 

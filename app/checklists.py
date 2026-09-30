@@ -38,6 +38,10 @@ selben Feld bleiben. Abschließen legt wie eine Unterschrift eine feste Kopie ab
 samt der Unterschriften (completion_content(), an der Checkliste), check_completion() prüft sie bei
 jedem Abruf. Vorher abgeschlossene Checklisten bleiben ohne Prüfsumme.
 
+Seit 1.8.16 nutzt eine Checkliste den Zweck ihrer Fassung (app/checklist_purposes.py): er
+beschränkt die Kontexte beim Anlegen und bestimmt die Folgen des Abschlusses
+(app/checklist_follow_ups.py).
+
 Rollenlos wie jede Geschäftslogik dieses Projekts -- wer was sehen/ändern darf, entscheidet
 app/routers/checklists.py."""
 
@@ -53,7 +57,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .berlin_time import to_berlin
-from .checklist_templates import CONTEXT_COLUMNS, CONTEXT_TYPES, MAX_ATTACHMENTS_PER_FIELD, field_to_dict
+from .checklist_purposes import get_purpose, purpose_label
+from .checklist_templates import (
+    CONTEXT_COLUMNS, CONTEXT_LABELS, CONTEXT_TYPES, MAX_ATTACHMENTS_PER_FIELD, field_to_dict,
+)
 from .image_storage import resize_and_store_jpeg, store_png
 from .models import (
     Checklist, ChecklistAnswer, ChecklistAnswerSelection, ChecklistAssetRelease, ChecklistAttachment,
@@ -424,6 +431,8 @@ def checklist_summary(checklist: Checklist) -> dict:
         "completed_at": checklist.completed_at, "created_by_employee_id": checklist.created_by_employee_id,
         "created_by_name": _employee_name(checklist.created_by_employee),
         "field_readable": bool(checklist.template and checklist.template.field_readable),
+        # Zweck der FASSUNG (seit 1.8.16) -- nie der der Vorlage, die kann einen späteren Stand tragen
+        "purpose": checklist.template_version.purpose, "purpose_label": purpose_label(checklist.template_version.purpose),
     }
 
 
@@ -480,20 +489,29 @@ def published_version(db: Session, template_id: int) -> ChecklistTemplateVersion
     ))
 
 
+def _purpose_allows(purpose_key: str, context_type: str) -> bool:
+    """Zweck der Fassung erlaubt den Kontext (seit 1.8.16). Ein unbekannter Zweck erlaubt nichts."""
+    purpose = get_purpose(purpose_key)
+    return purpose is not None and context_type in purpose.contexts
+
+
 def list_startable_templates(db: Session, context_type: str) -> list[dict]:
     """Vorlagen, die in diesem Kontext gestartet werden können: nicht archiviert, veröffentlicht,
-    Kontext erlaubt. Nur Bezeichnung/Beschreibung -- keine Regeln, keine Entwürfe."""
+    Kontext an der Vorlage erlaubt UND vom Zweck der veröffentlichten Fassung erlaubt (seit
+    1.8.16). Nur Bezeichnung/Beschreibung/Zweck -- keine Regeln, keine Entwürfe."""
     if context_type not in CONTEXT_TYPES:
         raise ValueError(f"Unbekannter Kontext: {context_type}")
     column = getattr(ChecklistTemplate, CONTEXT_COLUMNS[context_type])
     rows = db.execute(
-        select(ChecklistTemplate, ChecklistTemplateVersion.version_no)
+        select(ChecklistTemplate, ChecklistTemplateVersion.version_no, ChecklistTemplateVersion.purpose)
         .join(ChecklistTemplateVersion, ChecklistTemplateVersion.template_id == ChecklistTemplate.id)
         .where(ChecklistTemplate.archived == False, column == True,  # noqa: E712 -- SQLAlchemy-Vergleich
                ChecklistTemplateVersion.status == "veroeffentlicht")
         .order_by(ChecklistTemplate.sort_order, ChecklistTemplate.label)
     ).all()
-    return [{"id": t.id, "label": t.label, "description": t.description, "version_no": no} for t, no in rows]
+    return [{"id": t.id, "label": t.label, "description": t.description, "version_no": no,
+             "purpose": purpose, "purpose_label": purpose_label(purpose)}
+            for t, no, purpose in rows if _purpose_allows(purpose, context_type)]
 
 
 def _context_snapshot(db: Session, context_type: str, *, order_id, property_id, asset_id) -> tuple[str, str | None]:
@@ -550,6 +568,12 @@ def create_checklist(db: Session, *, template_id: int, context_type: str, order_
     version = published_version(db, template_id)
     if version is None:
         raise ValueError("Diese Vorlage ist noch nicht veröffentlicht.")
+    if not _purpose_allows(version.purpose, context_type):
+        purpose = get_purpose(version.purpose)
+        if purpose is None:
+            raise ValueError(f"Der Zweck dieser Vorlage ({version.purpose}) ist unbekannt.")
+        raise ValueError(f"Eine Checkliste mit Zweck {purpose.label} ist nur im Kontext "
+                         f"{', '.join(CONTEXT_LABELS[c] for c in purpose.contexts)} möglich.")
     ids = {"auftrag": order_id, "objekt": property_id, "betriebsmittel": asset_id}
     label, detail = _context_snapshot(db, context_type, order_id=order_id, property_id=property_id, asset_id=asset_id)
     checklist = Checklist(
@@ -587,7 +611,8 @@ def list_checklists(db: Session, *, context_type: str | None = None, order_id: i
                     property_id: int | None = None, asset_id: int | None = None, status: str | None = None,
                     template_id: int | None = None, created_by_employee_id: int | None = None,
                     ids: list[int] | None = None, limit: int = 200) -> list[dict]:
-    query = select(Checklist).options(selectinload(Checklist.template), selectinload(Checklist.created_by_employee))
+    query = select(Checklist).options(selectinload(Checklist.template), selectinload(Checklist.template_version),
+                                      selectinload(Checklist.created_by_employee))
     if ids is not None:
         query = query.where(Checklist.id.in_(ids))
     if context_type:
@@ -965,9 +990,9 @@ def missing_required_labels(checklist: Checklist) -> list[str]:
 
 def complete_checklist(db: Session, checklist_id: int, *, completed_by_employee_id: int | None = None) -> dict:
     """Friert ein. Zweiter Aufruf auf einer bereits abgeschlossenen Checkliste: aktueller Stand,
-    kein Fehler (idempotent). Die Regeln (Aufgaben, seit 1.8.3) laufen NACH diesem Commit
-    (Fund 4: create_task() committet selbst) -- ein Fehler dort macht den Abschluss nicht
-    rückgängig, die Aufgabe bleibt im Büro nachholbar."""
+    kein Fehler (idempotent). Die Regeln (Aufgaben, seit 1.8.3) und die Folgen des Zwecks (seit
+    1.8.16) laufen NACH diesem Commit (Fund 4: create_task() committet selbst) -- ein Fehler dort
+    macht den Abschluss nicht rückgängig, beides bleibt im Büro nachholbar."""
     checklist = _load(db, checklist_id, for_update=True)
     if checklist is None:
         raise LookupError("Checkliste nicht gefunden.")
@@ -984,8 +1009,10 @@ def complete_checklist(db: Session, checklist_id: int, *, completed_by_employee_
     checklist.completed_at = datetime.utcnow()
     checklist.completed_by_employee_id = completed_by_employee_id
     db.commit()
-    from .checklist_rules import run_rules_after_completion  # lokal, Muster Regel 3
+    from .checklist_follow_ups import run_follow_ups_after_completion  # lokal, Muster Regel 3
+    from .checklist_rules import run_rules_after_completion
     run_rules_after_completion(db, checklist_id)
+    run_follow_ups_after_completion(db, checklist_id)
     db.expire_all()
     return checklist_to_dict(_load(db, checklist_id))
 

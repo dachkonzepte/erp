@@ -31,6 +31,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
+from ..checklist_follow_ups import list_checklists_with_open_follow_ups, list_follow_ups, run_checklist_follow_ups
 from ..checklist_pdf import build_checklist_pdf
 from ..checklist_rules import list_checklists_with_open_rules, list_rule_executions, run_checklist_rules
 from ..checklists import (
@@ -44,7 +45,7 @@ from ..modules import is_module_enabled
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, has_min_role, require_min_role
 from ..schemas import (
     ChecklistAnswerWrite, ChecklistAssetReadinessOut, ChecklistAssetReleaseWrite, ChecklistCreate,
-    ChecklistDiscardSignaturesWrite,
+    ChecklistDiscardSignaturesWrite, ChecklistFollowUpOut, ChecklistFollowUpsRunOut,
     ChecklistRuleExecutionOut, ChecklistRulesRunOut, ChecklistOut, ChecklistStartableTemplateOut,
     ChecklistSummaryOut,
 )
@@ -375,3 +376,32 @@ def post_run_open_rules(db: Session = Depends(get_db), _role: AppUser = _office_
             total[key] += result[key]
     return total
 
+
+# --- Folgen des Zwecks (seit 1.8.16, nur Büro) -----------------------------------------------
+
+@router.get("/api/checklists/{checklist_id}/follow-ups", response_model=list[ChecklistFollowUpOut])
+def get_follow_ups(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
+    """Folgen des Abschlusses mit ihrem Ziel -- Büro-intern wie die Regeln, Monteure sehen das nie."""
+    _require_module_enabled(db)
+    _checklist_for(db, _role, checklist_id)
+    return list_follow_ups(db, checklist_id)
+
+
+@router.post("/api/checklists/{checklist_id}/run-follow-ups", response_model=ChecklistFollowUpsRunOut)
+def post_run_follow_ups(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
+    """"Folgen nachholen" für eine Checkliste -- idempotent, führt nur Offenes aus."""
+    _require_module_enabled(db)
+    _checklist_for(db, _role, checklist_id)
+    return _call(run_checklist_follow_ups, db, checklist_id)
+
+
+@router.post("/api/checklists/run-open-follow-ups", response_model=ChecklistFollowUpsRunOut)
+def post_run_open_follow_ups(db: Session = Depends(get_db), _role: AppUser = _office_dep):
+    """"Alle nachholen" für Folgen: jede Checkliste mit offenen Folgen erneut auswerten."""
+    _require_module_enabled(db)
+    total = {"done": 0, "module_off": 0, "failed": 0}
+    for checklist_id in list_checklists_with_open_follow_ups(db):
+        result = _call(run_checklist_follow_ups, db, checklist_id)
+        for key in total:
+            total[key] += result[key]
+    return total

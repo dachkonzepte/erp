@@ -70,6 +70,8 @@ tr:last-child td{border-bottom:none}
   <div class="fields-2col">
     <div class="field full"><label>Bezeichnung *</label><input id="metaLabel"></div>
     <div class="field full"><label>Beschreibung</label><textarea id="metaDescription"></textarea></div>
+    <div class="field"><label>Zweck</label><select id="metaPurpose" onchange="applyPurposeContexts()"></select></div>
+    <div class="field"><label>&nbsp;</label><div class="muted small" id="purposeHint"></div></div>
     <div class="field full"><label>Wo darf sie ausgefüllt werden? *</label>
       <div class="chk-row">
         <label><input type="checkbox" id="ctx_auftrag"> Auftrag</label>
@@ -127,7 +129,8 @@ const PRIORITIES=[['niedrig','niedrig'],['normal','normal'],['hoch','hoch'],['dr
 const ROLES=[['buero_auftrag','Büro – Auftrag (und höher)'],['buero_finanzen','Büro – Finanzen (und höher)'],['admin','nur Administrator']];
 const CONTEXTS=['auftrag','objekt','betriebsmittel','betrieb'];
 
-let template=null,version=null,openFieldId=null,openRuleId=null;
+let template=null,version=null,openFieldId=null,openRuleId=null,purposes=[];
+const CONTEXT_LABEL={auftrag:'Auftrag',objekt:'Objekt',betriebsmittel:'Betriebsmittel',betrieb:'Betrieb'};
 const editable=()=>version&&version.status==='entwurf';
 const dis=()=>editable()?'':'disabled';
 
@@ -141,6 +144,7 @@ function renderHead(){
   const b=[];
   b.push(template.published_version_no?`<span class="badge ok">Gültig: Fassung ${template.published_version_no}</span>`:'<span class="badge">noch nicht veröffentlicht</span>');
   if(template.draft_version_no)b.push(`<span class="badge draft">Entwurf: Fassung ${template.draft_version_no}</span>`);
+  if(template.purpose!=='allgemein')b.push(`<span class="badge">Zweck: ${esc(template.purpose_label)}</span>`);
   if(template.archived)b.push('<span class="badge">Archiviert</span>');
   document.getElementById('versionBadges').innerHTML=b.join(' ');
   const a=[];
@@ -152,7 +156,8 @@ function renderHead(){
   }
   a.push('<input id="copyLabel" placeholder="Name der Kopie …" style="width:200px">','<button class="secondary" onclick="copyTemplate()">Kopieren</button>');
   a.push(`<button class="secondary" onclick="toggleArchived()">${template.archived?'Entarchivieren':'Archivieren'}</button>`);
-  a.push('<button class="danger" onclick="deleteTemplate()">Löschen</button>');
+  // Vorlagen mit Zweck sind nur archivierbar (seit 1.8.16) -- der Server lehnt Löschen ohnehin ab.
+  if(template.purpose==='allgemein')a.push('<button class="danger" onclick="deleteTemplate()">Löschen</button>');
   document.getElementById('heroActions').innerHTML=a.join('');
 }
 
@@ -161,6 +166,29 @@ function renderMeta(){
   document.getElementById('metaDescription').value=template.description||'';
   for(const c of CONTEXTS)document.getElementById('ctx_'+c).checked=template.contexts.includes(c);
   document.getElementById('metaFieldReadable').checked=template.field_readable;
+  const sel=document.getElementById('metaPurpose');
+  sel.innerHTML=purposes.map(p=>`<option value="${esc(p.key)}" ${p.key===template.purpose?'selected':''}>${esc(p.label)}</option>`).join('')
+    +(purposes.some(p=>p.key===template.purpose)?'':`<option value="${esc(template.purpose)}" selected>${esc(template.purpose)} (unbekannt)</option>`);
+  sel.disabled=template.purpose_locked;
+  applyPurposeContexts();
+}
+
+// Zweck (seit 1.8.16): bestimmt die erlaubten Kontexte und die Systemfelder. Änderbar nur, solange
+// die Vorlage nie veröffentlicht wurde -- danach ist er an den Fassungen eingefroren.
+function applyPurposeContexts(){
+  const key=document.getElementById('metaPurpose').value;
+  const p=purposes.find(x=>x.key===key);
+  for(const c of CONTEXTS){
+    const box=document.getElementById('ctx_'+c);
+    const allowed=!p||p.contexts.includes(c);
+    box.disabled=!allowed;
+    if(!allowed)box.checked=false;
+  }
+  const bits=[];
+  if(p&&p.contexts.length<CONTEXTS.length)bits.push('nur '+p.contexts.map(c=>CONTEXT_LABEL[c]).join(', '));
+  if(p&&p.system_fields.length)bits.push(p.system_fields.length+' Systemfeld'+(p.system_fields.length===1?'':'er')+' (fester Schlüssel und Typ, nicht löschbar)');
+  bits.push(template.purpose_locked?'seit der ersten Veröffentlichung festgelegt – für einen anderen Zweck die Vorlage kopieren':'nach der ersten Veröffentlichung nicht mehr änderbar');
+  document.getElementById('purposeHint').textContent=bits.join(' · ');
 }
 
 function renderVersionNotice(){
@@ -169,6 +197,9 @@ function renderVersionNotice(){
   el.innerHTML=editable()
     ?`<div class="notice">Sie bearbeiten den <b>Entwurf (Fassung ${version.version_no})</b>. Monteure sehen ihn erst nach dem Veröffentlichen; bereits ausgefüllte Checklisten behalten ihre Fassung.</div>`
     :`<div class="notice info">Sie sehen die <b>gültige Fassung ${version.version_no}</b> (nur lesen). Zum Ändern „Neuen Entwurf anlegen“.</div>`;
+  const probs=editable()?(template.system_field_problems||[]):[];
+  if(probs.length)el.innerHTML+=`<div class="notice"><b>Systemfelder des Zwecks „${esc(template.purpose_label)}“:</b><ul style="margin:6px 0 8px 18px;padding:0">${probs.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>
+    <button class="small-btn" onclick="syncSystemFields()">Systemfelder angleichen</button> <span id="syncStatus" class="status"></span></div>`;
   document.getElementById('addFieldActions').classList.toggle('hidden',!editable());
   document.getElementById('addRuleActions').classList.toggle('hidden',!editable());
 }
@@ -208,14 +239,15 @@ function fieldSummary(f){
 function fieldBody(f){
   const d=dis();
   const t=f.field_type;
+  const ds=f.is_system?'disabled':d;  // an Systemfeldern fest: Pflicht, „entfällt“, Mehrfach, Mindestanzahl, Optionen
   let html=`<div class="fields-2col">
     <div class="field full"><label>Beschriftung *</label><input data-k="label" value="${esc(f.label)}" ${d}></div>
     <div class="field"><label>Typ</label><select data-k="field_type" ${d} ${f.is_system?'disabled':''} onchange="changeType(${f.id},this.value)">${typeOptions(t)}</select></div>
     <div class="field"><label>Schlüssel <span class="muted small">(für Regeln/Auswertungen)</span></label><input data-k="field_key" value="${esc(f.field_key)}" ${d} ${f.is_system?'disabled':''}></div>
     <div class="field"><label>Abschnitt</label><input data-k="group_name" value="${esc(f.group_name)}" ${d} placeholder="optional"></div>
-    <div class="field"><label>&nbsp;</label><div class="chk-row">${t!=='hinweis'?`<label><input type="checkbox" data-k="required" ${f.required?'checked':''} ${d}> Pflichtfeld</label>`:''}</div></div>
+    <div class="field"><label>&nbsp;</label><div class="chk-row">${t!=='hinweis'?`<label><input type="checkbox" data-k="required" ${f.required?'checked':''} ${ds}> Pflichtfeld</label>`:''}</div></div>
     <div class="field full"><label>${t==='hinweis'?'Hinweistext':'Hilfetext'}</label><textarea data-k="help_text" ${d}>${esc(f.help_text)}</textarea></div>`;
-  if(t==='ja_nein')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="allow_na" ${f.allow_na?'checked':''} ${d}> dritte Wahl „entfällt“</label></div></div>`;
+  if(t==='ja_nein')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="allow_na" ${f.allow_na?'checked':''} ${ds}> dritte Wahl „entfällt“</label></div></div>`;
   if(t==='text')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="multiline" ${f.multiline?'checked':''} ${d}> mehrzeilig</label></div></div>`;
   if(t==='zahl')html+=`<div class="field full"><div class="fields-4col">
       <div class="field"><label>Einheit</label><input data-k="unit" value="${esc(f.unit)}" ${d}></div>
@@ -224,18 +256,19 @@ function fieldBody(f){
       <div class="field"><label>Nachkommastellen</label><input type="number" min="0" max="4" data-k="decimals" value="${f.decimals??''}" ${d}></div></div></div>`;
   if(t==='datum'||t==='uhrzeit'||t==='datum_uhrzeit')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="prefill_now" ${f.prefill_now?'checked':''} ${d}> mit „jetzt“ vorbelegen</label></div></div>`;
   if(t==='unterschrift')html+=`<div class="field"><label>Wer unterschreibt?</label><input data-k="signer_label" value="${esc(f.signer_label)}" placeholder="z. B. Monteur, Kunde, Brandwache" ${d}></div>
-      <div class="field"><label>&nbsp;</label><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${d}> mehrere Unterschriften (z. B. Teilnehmer)</label></div></div>`;
-  if(t==='auswahl')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${d}> Mehrfachauswahl</label></div></div>`;
-  if(t==='foto'||(t==='unterschrift'&&f.multiple))html+=`<div class="field"><label>Mindestanzahl</label><input type="number" min="0" data-k="min_count" value="${f.min_count??''}" ${d}></div>
+      <div class="field"><label>&nbsp;</label><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${ds}> mehrere Unterschriften (z. B. Teilnehmer)</label></div></div>`;
+  if(t==='auswahl')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${ds}> Mehrfachauswahl</label></div></div>`;
+  if(t==='foto'||(t==='unterschrift'&&f.multiple))html+=`<div class="field"><label>Mindestanzahl</label><input type="number" min="0" data-k="min_count" value="${f.min_count??''}" ${ds}></div>
       <div class="field"><label>Höchstanzahl</label><input type="number" min="1" max="20" data-k="max_count" value="${f.max_count??''}" ${d}></div>`;
   html+='</div>';
+  if(f.is_system)html+='<div class="muted small" style="margin-top:8px">Systemfeld des Zwecks: Beschriftung, Hilfetext, Abschnitt und Reihenfolge sind frei; Schlüssel, Typ, Pflicht, „entfällt“, Mehrfach, Mindestanzahl und Optionen sind fest, löschen geht nicht.</div>';
   if(t==='auswahl'){
-    html+=`<div class="group-title">Optionen</div>`+f.options.map(o=>`<div class="opt-row">
+    html+=`<div class="group-title">Optionen${f.is_system?' <span class="muted small">(vom Zweck vorgegeben)</span>':''}</div>`+f.options.map(o=>`<div class="opt-row">
       <span class="key">${esc(o.option_key)}</span>
-      <input value="${esc(o.label)}" ${d} onchange="renameOption(${o.id},this.value)">
-      ${editable()?`<button class="danger small-btn" onclick="deleteOption(${o.id})">×</button>`:''}</div>`).join('')
+      <input value="${esc(o.label)}" ${ds} onchange="renameOption(${o.id},this.value)">
+      ${editable()&&!f.is_system?`<button class="danger small-btn" onclick="deleteOption(${o.id})">×</button>`:''}</div>`).join('')
       +(f.options.length?'':'<div class="muted small">Noch keine Optionen.</div>');
-    if(editable())html+=`<div class="opt-row"><input id="newOpt_${f.id}" placeholder="Neue Option …" onkeydown="if(event.key==='Enter')addOption(${f.id})"><button class="secondary small-btn" onclick="addOption(${f.id})">+ Option</button></div>`;
+    if(editable()&&!f.is_system)html+=`<div class="opt-row"><input id="newOpt_${f.id}" placeholder="Neue Option …" onkeydown="if(event.key==='Enter')addOption(${f.id})"><button class="secondary small-btn" onclick="addOption(${f.id})">+ Option</button></div>`;
   }
   if(editable())html+=`<div class="actions"><button onclick="saveField(${f.id})">Feld speichern</button>${f.is_system?'':`<button class="danger" onclick="deleteField(${f.id})">Feld löschen</button>`}<span id="fst_${f.id}" class="status"></span></div>`;
   return html;
@@ -448,9 +481,16 @@ async function saveMeta(){
     contexts:CONTEXTS.filter(c=>document.getElementById('ctx_'+c).checked),
     field_readable:document.getElementById('metaFieldReadable').checked,
   };
+  if(!template.purpose_locked)payload.purpose=document.getElementById('metaPurpose').value;
   if(!payload.label){setStatus('metaStatus','Bitte eine Bezeichnung angeben.','err');return}
-  try{template=await api(`/api/checklist-templates/${templateId}`,json('PUT',payload));renderHead();setStatus('metaStatus','Gespeichert.','ok')}
-  catch(e){setStatus('metaStatus','Fehler: '+e.message,'err')}
+  const purposeChanged=payload.purpose!==undefined&&payload.purpose!==template.purpose;
+  if(purposeChanged&&!confirm('Zweck ändern? Die Systemfelder des neuen Zwecks werden im Entwurf angelegt, die des bisherigen werden gewöhnliche Felder.'))return;
+  try{
+    template=await api(`/api/checklist-templates/${templateId}`,json('PUT',payload));
+    if(purposeChanged){version=template.editable_version;openFieldId=null;renderAll()}else renderHead();
+    renderVersionNotice();
+    setStatus('metaStatus','Gespeichert.','ok');
+  }catch(e){setStatus('metaStatus','Fehler: '+e.message,'err')}
 }
 
 async function templateAction(url,method,confirmText){
@@ -479,6 +519,13 @@ async function deleteTemplate(){
   catch(e){setStatus('pageStatus','Fehler: '+e.message,'err');window.scrollTo(0,0)}
 }
 
+async function syncSystemFields(){
+  try{
+    version=await api(`/api/checklist-template-versions/${version.id}/system-fields`,{method:'POST'});
+    await reloadTemplate(false);renderFields();renderRules();
+  }catch(e){setStatus('syncStatus','Fehler: '+e.message,'err')}
+}
+
 async function reloadTemplate(resetVersion=true){
   template=await api(`/api/checklist-templates/${templateId}`);
   if(resetVersion)version=template.editable_version;
@@ -490,7 +537,7 @@ function renderAll(){renderHead();renderMeta();renderVersionNotice();renderField
 async function init(){
   if(!document.getElementById('fieldList'))return;
   document.getElementById('newFieldType').innerHTML=typeOptions('ja_nein');
-  try{await reloadTemplate(true);renderAll()}
+  try{purposes=await api('/api/checklist-purposes');await reloadTemplate(true);renderAll()}
   catch(e){setStatus('pageStatus','Fehler: '+e.message,'err')}
 }
 init();

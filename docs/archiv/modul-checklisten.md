@@ -242,7 +242,9 @@ nur bei `field_readable`.
 
 ### Zuschnitt für Stufe 2
 - `purpose` an der Vorlage (Stufe 1 immer `allgemein`; Stufe 2: `regiebericht`, `abnahme`,
-  `behinderung`, `bedenken`).
+  `behinderung`, `bedenken`). **Seit 1.8.16 umgesetzt, mit den Schlüsseln der Betreibervorgabe:**
+  `abnahme`, `behinderungsanzeige`, `bedenkenanzeige` -- ein `regiebericht` steht (noch) nicht in der
+  Registry, siehe "Umsetzung 1.8.16".
 - Folge-Registry nach `purpose`, beim Abschluss neben den Regeln aufgerufen, gleiche
   Idempotenzsperre.
 - `is_system`-Felder mit festen `field_key`s (z. B. `abnahme.vorbehalt_maengel`) -- Folgelogik
@@ -346,6 +348,7 @@ Zwischen den Versionen darf der Betreiber `/clear` machen -- dann diese Datei le
 | **1.8.13** | Stufe 2, Runde 2a-1: Unterschrift bindet den Inhalt (Sperre, Prüfsumme, "Unterschriften verwerfen", Historie, Notiz-Pflicht bei "repariert") | erledigt |
 | **1.8.14** | Stufe 2, Runde 2a-1b: Unterschrift versiegelt abschnittsweise (feste Kopie, Prüfung je Unterschrift auf Seite und PDF, Fotos verworfener Unterschriften nie gelöscht, Heißarbeiten in zwei Abschnitten) | erledigt |
 | **1.8.15** | Stufe 2, Runde 2a-1c: Verwerfen je Unterschrift (die darunter fallen mit), Abschluss mit fester Kopie und Prüfsumme, Nachtragsmeldung und Entsorgungsnachweis in zwei Abschnitten | erledigt |
+| **1.8.16** | Stufe 2, Runde 2a-2: Zweck-Registry (Kontexte, Systemfelder, Folgen), Zweck an der Fassung eingefroren, Systemfelder geschützt und beim Veröffentlichen geprüft, Folgetabelle mit Nachholen | erledigt |
 
 Nach jeder Version hier die Spalte "Stand" nachziehen und unten einen kurzen Abschnitt
 "Umsetzung 1.8.x" mit Abweichungen/Funden ergänzen.
@@ -877,3 +880,102 @@ anderen bleiben).
   Wegwerf-Schema ersetzt und `orders.source_quote_id` wegen des `world`-Aufbaus ohne FK anlegt). Ein
   fester Schalter in `tests/conftest.py` würde das vereinheitlichen.
 
+---
+
+## Umsetzung 1.8.16 (30.09.2026) -- Stufe 2, Runde 2a-2: Zweck, Systemfelder, Folgetabelle
+
+Betreibervorgabe: (1) Zweck-Registry im Code -- allgemein, abnahme, behinderungsanzeige,
+bedenkenanzeige; je Zweck erlaubte Kontexte (die drei nur am Auftrag) und Systemfelder (Schlüssel,
+Typ), die drei vorerst ohne Systemfelder, für die Tests ein Test-Zweck mit Systemfeldern; (2) Zweck
+im Editor setzbar, beim Veröffentlichen an der Fassung eingefroren, Checklisten nutzen den Zweck ihrer
+Fassung; (3) Veröffentlichen prüft die Systemfelder; an Systemfeldern Schlüssel, Typ, required,
+allow_na, multiple, min_count und Optionen nicht änderbar, nicht löschbar; Kopie erbt Zweck und
+Systemfelder; Vorlagen mit Zweck nur archivieren; (4) Start-Auswahl beachtet Zweck und Kontext;
+(5) Folgetabelle (Checkliste, Folgeschlüssel, Ziel), eindeutig, mit Nachholen wie bei den Regeln, nur
+eine Test-Folge; (6) Tests mit Gegenprobe.
+
+- **Registry** (`app/checklist_purposes.py`): `ChecklistPurpose(key, label, contexts, system_fields,
+  follow_ups)`, `SystemField(key, field_type, label, required, allow_na, multiple, min_count,
+  options)`, `FollowUp(key, label, handler, module)`. `PURPOSES` ist ein gewöhnliches Dict -- Tests
+  tragen ihren Zweck per `monkeypatch.setitem` ein. Kein Import aus `checklist_templates` (das
+  importiert von hier). Der Test `test_every_registered_purpose_is_consistent` prüft jede Vorgabe
+  (Typ, Schlüsselmuster, Optionen genau bei Auswahl, feste Eigenschaften überstehen
+  `_normalize_field()`) -- Wächter für 2b/2c.
+- **Festlegung: Zweck an der Vorlage, ab der ersten Veröffentlichung fest.** `ChecklistTemplate.purpose`
+  (seit 1.8.0 vorhanden) ist der Wert im Editor; neue Spalte `checklist_template_versions.purpose`
+  (Migration `b3a6e4cb70fc`, übernimmt beim Upgrade den Zweck der Vorlage in jede Fassung) wird beim
+  Veröffentlichen gesetzt und bei Entwürfen mitgeführt. Geändert werden kann der Zweck nur, solange die
+  Vorlage nie veröffentlicht wurde (`purpose_locked`); danach 400 mit dem Hinweis, die Vorlage zu
+  kopieren. Abgewogen gegen "Zweck je Entwurf frei": dann könnte Fassung 2 einer Abnahme still
+  "allgemein" werden und keine Folgen mehr auslösen, und Systemfelder müssten beim Wechsel mitten in
+  einer Fassungskette umgedeutet werden. Eine Kopie ist nie veröffentlicht, dort ist der Zweck wieder
+  frei -- das ist der Weg für einen falsch gewählten Zweck.
+- **Kontexte**: `_apply_template_meta()` lehnt Kontexte ab, die der Zweck nicht erlaubt (auch beim
+  Wechsel des Zwecks im selben Speichern); Veröffentlichen prüft es erneut. Ein unbekannter Zweck (aus
+  der Registry entfernt) sperrt die Verwaltungsdaten nicht, ist aber nicht startbar.
+- **Systemfelder** (`_sync_system_fields()`): legt fehlende am Ende an, setzt feste Eigenschaften und
+  Optionen auf die Vorgabe, übernimmt ein gleichnamiges gewöhnliches Feld desselben Typs; ein Feld mit
+  dem Schlüssel, aber anderem Typ → Fehler, bevor sich etwas ändert. Systemfelder, die der Zweck nicht
+  (mehr) kennt, werden gewöhnliche Felder (Wechsel zurück auf "allgemein"). Aufgerufen beim Setzen des
+  Zwecks, beim Anlegen einer Vorlage mit Zweck, beim neuen Entwurf und bei der Kopie (dort im SAVEPOINT;
+  scheitert es, bleibt die reine Kopie und der Editor nennt das Problem) und über "Systemfelder
+  angleichen" (`POST /api/checklist-template-versions/{id}/system-fields`). Veröffentlichen gleicht
+  bewusst NICHT an, es prüft nur (`system_field_problems()`: fehlt / weicht ab: Eigenschaft, Optionen)
+  -- sonst gäbe es die geforderte Ablehnung nie.
+- **Schutz**: `update_field()` lehnt eine Änderung an `SYSTEM_LOCKED_ATTRIBUTES` ab, der unveränderte
+  Wert darf mitkommen (der Editor schickt ganze Formulare, gesperrte Eingaben aber gar nicht).
+  Optionen eines Systemfelds: kein Anlegen, Umbenennen, Löschen ("Optionen nicht änderbar" wörtlich,
+  auch die Beschriftung). `delete_template()`: Zweck ungleich "allgemein" an Vorlage oder einer
+  Fassung → nur archivieren.
+- **Checklisten**: `list_startable_templates()` filtert zusätzlich nach dem Zweck der veröffentlichten
+  Fassung, `create_checklist()` prüft ihn (Gegenprobe: mit dem Zweck der Vorlage statt der Fassung rot).
+  Liste und Einzelabruf tragen `purpose`/`purpose_label` der Fassung.
+- **Folgetabelle** `checklist_follow_ups` (`checklist_id`, `follow_up_key`, `target_type`/`target_id`
+  = Ziel, `status`, `executed_at`, unique `(checklist_id, follow_up_key)`), Ablauf in
+  `app/checklist_follow_ups.py` nach dem Muster der Regeln (Belegen per Unique + SAVEPOINT, Nachholen
+  per bedingtem UPDATE, `modul_aus`, wenn die Folge ein ausgeschaltetes Modul braucht). Abweichung zu
+  den Regeln: ein Fehler im Handler wird je Folge abgefangen (Rollback, Protokoll nur Schlüssel, ID,
+  Klassenname -- Regel 18), die Folge bleibt `ausstehend`, die übrigen laufen weiter. Aufruf in
+  `complete_checklist()` nach den Regeln. Büro-Endpunkte `GET /api/checklists/{id}/follow-ups`,
+  `POST …/run-follow-ups`, `POST /api/checklists/run-open-follow-ups`; Monteure 403, im
+  Checklisten-Abruf nie enthalten.
+- **Oberfläche**: Editor mit Zweck-Auswahl (sperrt unpassende Kontexte, Rückfrage beim Wechsel, nach der
+  ersten Veröffentlichung gesperrt), Kennzeichen im Kopf, "Löschen" nur ohne Zweck, an Systemfeldern die
+  festen Eingaben gesperrt, Optionen ohne ×/+, Hinweis mit "Systemfelder angleichen". Vorlagenliste mit
+  Zweck-Kennzeichen. Für Folgen noch keine Anzeige -- kommt mit der ersten echten Folge (2b/2c), deren
+  Ziel fachlich dargestellt werden will.
+- **Verifikation**: `tests/test_v320_checklist_purposes.py` (16 Tests). Gegenproben (Schutz im Code
+  ausgehebelt, Test rot, Datei byte-genau zurück), alle 12 rot: feste Eigenschaft änderbar, Systemfeld
+  löschbar, Optionen änderbar, Veröffentlichen ohne Systemfeld-Prüfung, Zweck nach Veröffentlichen
+  änderbar, Start-Auswahl nach dem Zweck der Vorlage, Anlegen ohne Kontextprüfung, Vorlage mit Zweck
+  löschbar, erledigte Folge erneut ausgeführt, Belegung ohne Unique-Schutz, Unique-Constraint fehlt,
+  Folgen im Monteur-Abruf. Die letzte blieb zuerst grün: nur das Dict zu erweitern reicht nicht, das
+  Antwortschema `ChecklistOut` filtert unbekannte Schlüssel -- ein echtes Leck bräuchte beides, die
+  Gegenprobe erweitert deshalb Dict UND Schema (dann rot). Der Monteur-Test scannt die Antworten von
+  Abschluss, Einzelabruf, Start-Auswahl, Liste und "meine" rekursiv auf Büro-Schlüssel und auf den
+  Text der Folge- und Regel-Aufgabe. Checklisten-Tests (144) zusätzlich gegen PostgreSQL grün
+  (Wegwerf-Schema je Test in `spielwiese`); Migration SQLite + PostgreSQL hin/zurück/hin mit Bestand
+  (13 Startvorlagen, eine davon vorher auf Zweck `abnahme` gesetzt -- Übernahme belegt), `alembic
+  check` sauber. Klicktest `scripts/klicktest_checkliste_zweck.py` 28/28 (Systemfelder dort im Befüllen
+  direkt markiert, die Instanz läuft in einem eigenen Prozess ohne Test-Zweck). Volle Suite mit
+  PostgreSQL 2106 grün.
+
+### Nebenbefunde (nur gemeldet)
+- **Regel-Protokoll enthält Ausnahmetext**: `app/checklist_rules.py::run_rules_after_completion()`
+  protokolliert mit `logger.exception()`, also samt Meldung und Traceback. Bei einer
+  SQLAlchemy-Ausnahme steht darin die SQL mit Parametern, beim Anlegen der Aufgabe also Titel und
+  Beschreibung (Vorlage, Auftragsnummer, Ersteller). Regel 18 verlangt nur den Klassennamen. Die neuen
+  Folgen protokollieren nur Schlüssel, ID und Klassennamen. Nicht geändert.
+- **Folgen sollten selbst idempotent sein**: wie bei den Regeln bleibt ein Restrisiko, wenn der
+  Prozess GENAU zwischen Handler und Vermerk abbricht -- Nachholen führt ihn dann erneut aus. Für 2b/2c
+  empfohlen: Fachdaten in 1:1-Zusatztabellen mit eindeutiger `checklist_id` (siehe "Zuschnitt für
+  Stufe 2"), der Handler findet dann seinen eigenen früheren Datensatz.
+- **Regiebericht** stand im ursprünglichen Zuschnitt, nicht in der Vorgabe dieser Runde -- nicht in der
+  Registry.
+- **Klicktest-Falle**: `localStorage.setItem('erp_theme', …)` vor dem ersten `tab.oeffnen()` läuft auf
+  `about:blank` ins Leere, und der Fehler geht verloren, weil `oeffnen()` `tab.fehler` zurücksetzt --
+  der erste Screenshot war dadurch still im Farbschema des Rechners. Im neuen Klicktest nach dem ersten
+  Laden gesetzt und ausdrücklich geprüft.
+- **Selbst verursacht, vor dem Commit behoben**: die Patch-Skripte dieser Runde schrieben unter Windows
+  im Textmodus und stellten fünf Dateien auf CRLF um; wieder auf LF gebracht (Git hätte es beim Commit
+  wegen `core.autocrlf` ohnehin normalisiert, die Arbeitskopie wäre aber abgewichen).

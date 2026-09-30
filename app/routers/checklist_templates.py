@@ -10,18 +10,20 @@ Verwaltungs-Endpunkte, die auch Entwürfe und Regeln zeigen."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from ..checklist_purposes import list_purposes
 from ..checklist_templates import (
     add_field, add_option, add_rule, copy_template, create_template, delete_field, delete_option, delete_rule,
     delete_template, discard_draft, get_template, get_version, list_templates, publish_draft, reorder_fields,
-    set_template_archived, start_draft, update_field, update_option, update_rule, update_template,
+    set_template_archived, start_draft, sync_system_fields, update_field, update_option, update_rule,
+    update_template,
 )
 from ..database import get_db
 from ..models import AppUser
 from ..modules import is_module_enabled
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import (
-    ChecklistTemplateCopy, ChecklistTemplateCreate, ChecklistTemplateFieldReorder, ChecklistTemplateFieldWrite,
-    ChecklistTemplateOptionCreate, ChecklistTemplateOptionUpdate, ChecklistTemplateOut, ChecklistTemplateRuleWrite,
+    ChecklistPurposeOut, ChecklistTemplateCopy, ChecklistTemplateCreate, ChecklistTemplateFieldReorder,
+    ChecklistTemplateFieldWrite, ChecklistTemplateOptionCreate, ChecklistTemplateOptionUpdate, ChecklistTemplateOut, ChecklistTemplateRuleWrite,
     ChecklistTemplateUpdate, ChecklistTemplateVersionOut,
 )
 
@@ -50,6 +52,13 @@ def _call(fn, *args, not_found: str = "Nicht gefunden.", **kwargs):
     return result
 
 
+@router.get("/api/checklist-purposes", response_model=list[ChecklistPurposeOut])
+def get_checklist_purposes(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Zwecke mit erlaubten Kontexten und Systemfeldern (seit 1.8.16) -- für die Auswahl im Editor."""
+    _require_module_enabled(db)
+    return list_purposes()
+
+
 @router.get("/api/checklist-templates", response_model=list[ChecklistTemplateOut])
 def get_checklist_templates(include_archived: bool = False, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
@@ -60,7 +69,7 @@ def get_checklist_templates(include_archived: bool = False, db: Session = Depend
 def post_checklist_template(payload: ChecklistTemplateCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return _call(create_template, db, label=payload.label, description=payload.description,
-                 contexts=payload.contexts, field_readable=payload.field_readable)
+                 contexts=payload.contexts, field_readable=payload.field_readable, purpose=payload.purpose)
 
 
 @router.get("/api/checklist-templates/{template_id}", response_model=ChecklistTemplateOut)
@@ -74,7 +83,8 @@ def put_checklist_template(template_id: int, payload: ChecklistTemplateUpdate, d
                            _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return _call(update_template, db, template_id, label=payload.label, description=payload.description,
-                 contexts=payload.contexts, field_readable=payload.field_readable, not_found="Vorlage nicht gefunden.")
+                 contexts=payload.contexts, field_readable=payload.field_readable, purpose=payload.purpose,
+                 not_found="Vorlage nicht gefunden.")
 
 
 @router.delete("/api/checklist-templates/{template_id}")
@@ -134,6 +144,14 @@ def post_checklist_template_field(version_id: int, payload: ChecklistTemplateFie
                                   _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return _call(add_field, db, version_id, payload.model_dump(exclude_unset=True))
+
+
+@router.post("/api/checklist-template-versions/{version_id}/system-fields", response_model=ChecklistTemplateVersionOut)
+def post_checklist_template_system_fields(version_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """"Systemfelder angleichen" (seit 1.8.16): fehlende Systemfelder des Zwecks im Entwurf
+    anlegen, feste Eigenschaften auf die Vorgabe setzen."""
+    _require_module_enabled(db)
+    return _call(sync_system_fields, db, version_id)
 
 
 @router.post("/api/checklist-template-versions/{version_id}/fields/reorder", response_model=ChecklistTemplateVersionOut)

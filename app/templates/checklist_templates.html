@@ -76,7 +76,7 @@ function row(t){
   const published=t.published_version_no?`<span class="badge ok">Fassung ${t.published_version_no}</span>`:'<span class="muted small">noch nicht veröffentlicht</span>';
   const draft=t.draft_version_no?`<span class="badge draft">Entwurf ${t.draft_version_no}</span>`:'';
   return `<tr${t.archived?' class="row-archived"':''}>
-    <td><a href="/checklisten/vorlagen/${t.id}" style="color:var(--accent);font-weight:650;text-decoration:none">${esc(t.label)}</a> ${t.archived?'<span class="badge">Archiviert</span>':''}</td>
+    <td><a href="/checklisten/vorlagen/${t.id}" style="color:var(--accent);font-weight:650;text-decoration:none">${esc(t.label)}</a> ${t.purpose!=='allgemein'?`<span class="badge">${esc(t.purpose_label)}</span>`:''} ${t.archived?'<span class="badge">Archiviert</span>':''}</td>
     <td>${contexts}</td>
     <td>${published}</td>
     <td>${draft}</td>

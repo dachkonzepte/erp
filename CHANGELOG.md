@@ -4,6 +4,38 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.16 – Checklisten: Zweck, Systemfelder, Folgetabelle
+
+Stufe 2 des Checklisten-Moduls, Runde 2a-2. Eine Vorlage hat jetzt einen Zweck aus einer Registry im
+Code (`app/checklist_purposes.py`): allgemein, Abnahme, Behinderungsanzeige, Bedenkenanzeige. Je Zweck
+stehen dort die erlaubten Kontexte (die drei fachlichen nur am Auftrag), die Systemfelder (fester
+Schlüssel und Typ, dazu fest: Pflicht, "entfällt", Mehrfach, Mindestanzahl, Optionen) und die Folgen
+des Abschlusses. Abnahme, Behinderungs- und Bedenkenanzeige tragen noch keine Systemfelder und Folgen,
+die kommen in 2b/2c. Der Zweck wird im Editor gewählt, legt dabei seine Systemfelder im Entwurf an und
+ist nur bis zur ersten Veröffentlichung änderbar; Veröffentlichen friert ihn an der Fassung ein (neue
+Spalte `checklist_template_versions.purpose`, Migration `b3a6e4cb70fc` übernimmt den Zweck der Vorlage
+in jede vorhandene Fassung) und prüft, ob alle Systemfelder wie vorgegeben da sind. Checklisten lesen
+immer den Zweck ihrer Fassung: Start-Auswahl und Anlegen lassen nur die Kontexte des Zwecks zu, ein
+unbekannter Zweck ist nicht startbar. An Systemfeldern sind nur Beschriftung, Hilfetext, Abschnitt und
+Reihenfolge frei, löschen geht nicht; eine Kopie erbt Zweck und Systemfelder; eine Vorlage mit Zweck
+ist nur archivierbar. Fehlt einem Entwurf später ein Systemfeld (Registry erweitert), zeigt der Editor
+das mit "Systemfelder angleichen"; ein neuer Entwurf gleicht von selbst an.
+
+Neue Tabelle `checklist_follow_ups` (Checkliste, Folgeschlüssel, Ziel als `target_type`/`target_id`),
+eindeutig je Checkliste und Folgeschlüssel. Die Folgen laufen nach dem Abschluss neben den Regeln, mit
+derselben Belegung und demselben Nachholen (`erledigt`/`modul_aus`/`ausstehend`, ein Fehler im Handler
+lässt die Folge offen statt den Abschluss scheitern zu lassen); Lesen und Nachholen nur fürs Büro
+(`/api/checklists/{id}/follow-ups`, `run-follow-ups`, `run-open-follow-ups`), im Checklisten-Abruf
+nie. Noch keine echte Folge, noch keine Anzeige auf der Seite. 16 neue Tests in
+`tests/test_v320_checklist_purposes.py` mit einem Test-Zweck, 12 Gegenproben rot (feste Eigenschaft
+änderbar, Systemfeld löschbar, Optionen änderbar, Veröffentlichen ohne Systemfeld-Prüfung, Zweck nach
+Veröffentlichen änderbar, Start-Auswahl nach dem Zweck der Vorlage, Anlegen ohne Kontextprüfung,
+Vorlage mit Zweck löschbar, erledigte Folge erneut ausgeführt, Belegung ohne Unique-Schutz, fehlender
+Unique-Constraint, Folgen im Monteur-Abruf). Checklisten-Tests (144) zusätzlich gegen PostgreSQL grün,
+Migration hin/zurück/hin mit Bestand auf SQLite und PostgreSQL, `alembic check` sauber. Neuer
+Klicktest `scripts/klicktest_checkliste_zweck.py` (28/28). Volle Suite mit PostgreSQL: 2106 grün,
+0 übersprungen.
+
 ## 1.8.15 – Checklisten: Verwerfen je Unterschrift, Abschluss mit Prüfsumme
 
 Stufe 2 des Checklisten-Moduls, Runde 2a-1c. "Unterschriften verwerfen" warf bisher alle gültigen
