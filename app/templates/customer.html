@@ -20,6 +20,7 @@
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
+{% include "_auswahl.html" %}
 <main>
   <div class="section-title" style="margin-bottom:14px"><div><h1 id="pageTitle" style="margin:0 0 3px">Kundenakte</h1><div id="pageSub" class="muted"></div></div><span id="customerIdBadge" class="badge"></span></div>
   <div class="summary"><div class="metric"><div class="k">Objekte</div><div id="metricProperties" class="v">–</div></div><div class="metric"><div class="k">Anfragen</div><div id="metricInquiries" class="v">–</div></div><div class="metric"><div class="k">Projekte</div><div id="metricProjects" class="v">–</div></div><div class="metric"><div class="k">Angebote</div><div id="metricQuotes" class="v">–</div></div><div class="metric"><div class="k">Angebotssumme netto</div><div id="metricNet" class="v">–</div></div></div>
@@ -127,10 +128,12 @@ const v=id=>document.getElementById(id).value; const nv=id=>v(id).trim()||null; 
 const money=x=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(Number(x||0));
 async function api(url,opt={}){const r=await fetch(url,opt);if(!r.ok){let m=`HTTP ${r.status}`;try{const j=await r.json();m=j.detail||m}catch{}throw new Error(m)}if(r.status===204)return null;return r.json()}
 function renderCategorySelect(current){const rows=(customerCategoryGroup.options||[]).filter(o=>o.active).sort((a,b)=>a.sort_order-b.sort_order),sel=document.getElementById('category');let html=rows.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}${o.is_default?' · Standard':''}</option>`).join('');if(current&&!rows.some(o=>o.value===current))html+=`<option value="${esc(current)}">${esc(current)} · bisher</option>`;sel.innerHTML=html;sel.value=current||rows.find(o=>o.is_default)?.value||rows[0]?.value||'Privatkunde'}
-function renderPaymentTermSelect(current){const sel=document.getElementById('defaultPaymentTerm');sel.innerHTML='<option value="">— Systemstandard verwenden —</option>'+paymentTerms.map(t=>`<option value="${t.id}">${esc(t.label)} (${t.days} Tage)</option>`).join('');sel.value=current||''}
+// Seit 1.8.30 über auswahlOptionen() (_auswahl.html): eine archivierte Zahlungsbedingung bleibt vorgewählt und
+// gekennzeichnet -- vorher fehlte sie, und das nächste Speichern setzte den Kunden auf den Systemstandard.
+function renderPaymentTermSelect(current){document.getElementById('defaultPaymentTerm').innerHTML=auswahlOptionen(paymentTerms,current,t=>`${t.label} (${t.days} Tage)`,{leer:'— Systemstandard verwenden —',aktiv:t=>!t.archived})}
 function renderSalutationSelect(current){const rows=(customerSalutationGroup.options||[]).filter(o=>o.active).sort((a,b)=>a.sort_order-b.sort_order),sel=document.getElementById('salutation');let html='<option value="">—</option>'+rows.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');if(current&&!rows.some(o=>o.value===current))html+=`<option value="${esc(current)}">${esc(current)} · bisher</option>`;sel.innerHTML=html;sel.value=current||''}
 async function load(){
-  [customer,properties,inquiries,allProjects,customerCategoryGroup,customerSalutationGroup,paymentTerms,customerDocuments,docCategoryGroup]=await Promise.all([api(`/api/customers/${customerId}`),api(`/api/properties?customer_id=${customerId}`),api(`/api/inquiries?customer_id=${customerId}`),api('/api/projects'),api('/api/settings/option-groups/customer_categories'),api('/api/settings/option-groups/customer_salutations'),api('/api/payment-terms'),api(`/api/customers/${customerId}/documents`),api('/api/settings/option-groups/project_document_categories').catch(()=>({options:[]}))]);
+  [customer,properties,inquiries,allProjects,customerCategoryGroup,customerSalutationGroup,paymentTerms,customerDocuments,docCategoryGroup]=await Promise.all([api(`/api/customers/${customerId}`),api(`/api/properties?customer_id=${customerId}`),api(`/api/inquiries?customer_id=${customerId}`),api('/api/projects'),api('/api/settings/option-groups/customer_categories'),api('/api/settings/option-groups/customer_salutations'),api('/api/payment-terms?include_archived=true'),api(`/api/customers/${customerId}/documents`),api('/api/settings/option-groups/project_document_categories').catch(()=>({options:[]}))]);
   projects=allProjects.filter(p=>p.customer_id===customerId);
   projectQuotes.clear();
   await Promise.all(projects.map(async p=>{projectQuotes.set(p.id,await api(`/api/projects/${p.id}/quotes`))}));
@@ -246,7 +249,7 @@ function editDocRow(id){
   document.getElementById('docEditDescription').value=d.description||'';
   const cats=docCategoryGroup.options||[];const all=[...cats];
   if(d.category&&!all.some(x=>x.value===d.category))all.push({value:d.category,label:d.category,active:true});
-  document.getElementById('docEditCategory').innerHTML=all.filter(x=>x.active||x.value===d.category).map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('');
+  document.getElementById('docEditCategory').innerHTML=auswahlOptionen(all,d.category,x=>x.label,{wert:x=>x.value,aktiv:x=>x.active});
   document.getElementById('docEditCategory').value=d.category;
   document.getElementById('docEditStatus').textContent='';
   document.getElementById('docEditor').classList.remove('hidden');

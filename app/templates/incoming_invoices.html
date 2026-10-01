@@ -58,6 +58,7 @@ tr:last-child td{border-bottom:none}
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
+{% include "_auswahl.html" %}
 <main>
 {% if is_module_enabled('buchhaltung') %}
 <div class="hero"><div><h1>Eingangsrechnungen</h1><div class="muted small">Vorbereitende Buchhaltung -- Lieferantenrechnungen mit Beleg erfassen und ablegen, für die spätere Kontierung und den Steuerberater.</div></div><button onclick="openCreateEditor()">+ Eingangsrechnung</button></div>
@@ -218,12 +219,12 @@ function clearPendingInvoiceDocument(){
 }
 
 function supplierOptionsHtml(selected){
-  const opts=suppliers.filter(s=>s.active||Number(selected)===s.id).map(s=>`<option value="${s.id}" ${Number(selected)===s.id?'selected':''}>${esc(s.supplier_number?s.supplier_number+' · ':'')}${esc(s.name)}</option>`).join('');
-  return '<option value="">— bitte wählen —</option>'+opts;
+  return auswahlOptionen(suppliers,selected,s=>(s.supplier_number?s.supplier_number+' · ':'')+s.name,{leer:'— bitte wählen —'});
 }
 function projectOptionsHtml(selected){
-  const opts=projects.map(p=>`<option value="${p.id}" ${Number(selected)===p.id?'selected':''}>${esc(p.project_number)} · ${esc(p.name)}</option>`).join('');
-  return '<option value="">— kein Projekt —</option>'+opts;
+  // Seit 1.8.30 mit archivierten Projekten geladen: ein archiviertes bleibt vorgewählt und gekennzeichnet, statt
+  // beim Speichern geleert zu werden; neu wählbar sind nur nicht archivierte.
+  return auswahlOptionen(projects,selected,p=>p.project_number+' · '+p.name,{leer:'— kein Projekt —',aktiv:p=>!p.archived});
 }
 function assetOptionsHtml(selected){
   const opts=assets.map(a=>`<option value="${a.id}" ${Number(selected)===a.id?'selected':''}>${esc(a.name||('#'+a.id))}</option>`).join('');
@@ -237,8 +238,7 @@ function accountOptionsHtml(selected){
   // Muster supplierOptionsHtml() -- ein bereits gewähltes, inzwischen archiviertes Konto bleibt
   // in der Auswahl sichtbar (sonst würde ein Bearbeiten-Aufruf es stillschweigend verlieren),
   // neu wählbar sind nur aktive Konten.
-  const opts=accounts.filter(a=>a.active||Number(selected)===a.id).map(a=>`<option value="${a.id}" ${Number(selected)===a.id?'selected':''}>${esc(a.account_number)} · ${esc(a.label)}</option>`).join('');
-  return '<option value="">— kein Konto —</option>'+opts;
+  return auswahlOptionen(accounts,selected,a=>a.account_number+' · '+a.label,{leer:'— kein Konto —'});
 }
 function applyAccountDefaultTaxRate(accountSelectEl,taxSelectId){
   // Nur ein VORSCHLAG beim Wählen (Betreibervorgabe: "die Rechnung entscheidet, nicht das
@@ -654,7 +654,7 @@ async function init(){
   }
   const [supplierList,projectList,assetList,recurringCostList,accountList]=await Promise.all([
     api('/api/suppliers').catch(()=>[]),
-    api('/api/projects').catch(()=>[]),
+    api('/api/projects?include_archived=true').catch(()=>[]),
     api('/api/operational-assets').catch(()=>[]),
     api('/api/recurring-costs?include_inactive=true').catch(()=>[]),
     api('/api/accounts?include_inactive=true').catch(()=>[]),

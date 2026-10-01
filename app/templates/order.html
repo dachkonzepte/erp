@@ -33,11 +33,15 @@
 <dialog id="sectionDialog"><div class="dialog"><div class="dialog-head"><h3>LV-Titel bearbeiten</h3><button class="secondary" onclick="document.getElementById('sectionDialog').close()">✕</button></div><div class="field"><label>Titel</label><input id="secTitle"></div><div class="field" style="margin-top:8px"><label>Beschreibung</label><textarea id="secDesc"></textarea></div><div class="dialog-actions"><button class="secondary" onclick="document.getElementById('sectionDialog').close()">Abbrechen</button><button onclick="saveSectionDialog()">Speichern</button></div><div id="secStatus" class="status"></div></div></dialog>
 </div>
 </div>
+{% include "_auswahl.html" %}
 <script>
 const orderId={{ order_id }};let order=null,employees=[],caseworkers=[],paymentOptions=[],taxKeys=[],introTemplates=[],outroTemplates=[],units=[],revisions=[],invoices=[],timeTotals=null,orderMaterials=[],editItemId=null,editSectionId=null;const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));const money=x=>Number(x||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});const qty=x=>Number(x||0).toLocaleString('de-DE',{maximumFractionDigits:3});const INVOICE_TYPE_LABELS={abschlag_pauschal:'Abschlag (Pauschal)',abschlag_leistungsstand:'Abschlag (Leistungsstand)',schluss:'Schlussrechnung',aufwand:'Aufwand',storno:'Storno'};const INVOICE_STATUS_LABELS={entwurf:'Entwurf',versendet:'Versendet',bezahlt:'Bezahlt',storniert:'Storniert'};
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
-function employeeOptions(list,selected){return '<option value="">— nicht zugeordnet —</option>'+list.filter(x=>x.active).map(x=>`<option value="${x.id}" ${Number(selected)===x.id?'selected':''}>${esc(x.first_name+' '+x.last_name)}${x.function_name?' · '+esc(x.function_name):''}</option>`).join('')}
-function unitOptions(selected){let vals=units.filter(x=>x.active).map(x=>x.value);if(selected&&!vals.includes(selected))vals.push(selected);return vals.map(x=>`<option value="${esc(x)}" ${x===selected?'selected':''}>${esc(x)}</option>`).join('')}
+// Seit 1.8.30 über auswahlOptionen() (_auswahl.html): ein inaktiver oder nicht mehr freigegebener Sachbearbeiter
+// bzw. Projektleiter bleibt vorgewählt und gekennzeichnet, statt beim nächsten Speichern geleert zu werden.
+function employeeOptions(list,selected){return auswahlOptionen(list,selected,x=>x.first_name+' '+x.last_name+(x.function_name?' · '+x.function_name:''),{leer:'— nicht zugeordnet —',fehlt:bisherigerMitarbeiter})}
+function bisherigerMitarbeiter(id){const x=employees.find(e=>String(e.id)===id);return x?`${x.first_name} ${x.last_name} (${x.active?'nicht mehr als Sachbearbeiter freigegeben':'inaktiv'})`:'Bisheriger Mitarbeiter (nicht mehr verfügbar)'}
+function unitOptions(selected){return auswahlOptionen(units,selected,x=>x.value,{wert:x=>x.value,aktiv:x=>x.active,fehlt:w=>w})}
 function renderBreadcrumb(){
   const customerLink=order.customer_id?`<a href="/customers/${order.customer_id}">${esc(order.customer_name)}</a>`:esc(order.customer_name);
   const projectLink=`<a href="/projects/${order.project_id}">${esc(order.project_number)}</a>`;

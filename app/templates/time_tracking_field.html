@@ -82,6 +82,7 @@
 </head>
 <body>
 {% include "_mobile_header.html" %}
+{% include "_auswahl.html" %}
 <main>
   <div id="loadWarning" class="card error" hidden></div>
 
@@ -227,7 +228,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 async function api(url,opt={}){const r=await fetch(url,opt);let data=null;try{data=await r.json()}catch{}if(!r.ok)throw new Error(data?.detail||`HTTP ${r.status}`);return data}
 async function safeOptionGroup(key,fallback){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:fallback}}}
 
-let orders=[],types=[],activities=[],absenceTypes=[],timeSettings={default_break_minutes:0,allow_manual_entries:true};
+let orders=[],types=[],activities=[],allTypes=[],allActivities=[],absenceTypes=[],timeSettings={default_break_minutes:0,allow_manual_entries:true};
 let active=null,tick=null,editingId=null,manualType='site',manualMode='range',myEmployeeId=null;
 const manualDialog=$('manualDialog'),absenceDialog=$('absenceDialog');
 
@@ -302,8 +303,10 @@ function renderCrewMembers(){
 }
 function crewSelectedIds(){return [...document.querySelectorAll('.crew-member-check')].filter(x=>x.checked).map(x=>Number(x.value))}
 function crewSelectedNames(){const c=crewTeam();const ids=new Set(crewSelectedIds());return (c?.members||[]).filter(m=>ids.has(m.employee_id)).map(m=>m.name)}
-function typeOptions(selected){return types.map(t=>`<option value="${esc(t.value)}" ${(selected?t.value===selected:t.is_default)?'selected':''}>${esc(t.label)}</option>`).join('')}
-function activityOptions(selected){return '<option value="">— optional —</option>'+activities.map(x=>`<option value="${esc(x.value)}" ${x.value===selected?'selected':''}>${esc(x.label)}</option>`).join('')}
+// Seit 1.8.30 über auswahlOptionen() (_auswahl.html): eine abgeschaltete gespeicherte Zeitart bzw. Tätigkeit bleibt
+// vorgewählt und gekennzeichnet -- vorher wurde sie beim Ändern zur ersten Zeitart bzw. geleert.
+function typeOptions(selected){return auswahlOptionen(allTypes,selected||types.find(t=>t.is_default)?.value,t=>t.label,{wert:t=>t.value,aktiv:t=>t.active!==false})}
+function activityOptions(selected){return auswahlOptionen(allActivities,selected,x=>x.label,{wert:x=>x.value,aktiv:x=>x.active!==false,leer:'— optional —'})}
 async function loadCrews(){
   try{crews=await api('/api/time-tracking/crews')}catch(e){crews=[]}
   $('crewCard').hidden=!crews.length;
@@ -418,7 +421,7 @@ function openManual(row=null){
   setMode('duration');
   $('manualDuration').value=row?.hours||1;
   $('manualFrom').value='';$('manualTo').value='';
-  $('manualActivity').value=row?.activity||'';
+  $('manualActivity').innerHTML=activityOptions(row?.activity);
   $('manualNotes').value=row?.notes||'';
   $('manualStatus').textContent='';
   manualDialog.showModal();
@@ -497,15 +500,15 @@ async function init(){
   try{orders=await api('/api/field-view/time-tracking/orders')}catch(e){orders=[]}
   const defaultTypes=[{label:'Baustellenzeit',value:'site',active:true,is_default:true},{label:'Fahrzeit',value:'travel',active:true},{label:'Werkstattzeit',value:'workshop',active:true},{label:'Sonstige Arbeitszeit',value:'other',active:true}];
   const tg=await safeOptionGroup('time_entry_types',defaultTypes);
-  types=(tg.options||defaultTypes).filter(x=>x.active!==false);
+  allTypes=tg.options||defaultTypes;types=allTypes.filter(x=>x.active!==false);
   const defaultActivities=[{label:'Allgemeine Baustellenarbeiten',value:'Allgemeine Baustellenarbeiten',active:true,is_default:true}];
   const ag=await safeOptionGroup('time_entry_activities',defaultActivities);
-  activities=(ag.options||defaultActivities).filter(x=>x.active!==false);
+  allActivities=ag.options||defaultActivities;activities=allActivities.filter(x=>x.active!==false);
   const abg=await safeOptionGroup('absence_types',[{label:'Urlaub',value:'Urlaub',active:true,is_default:true},{label:'Krankheit',value:'Krankheit',active:true}]);
   absenceTypes=(abg.options||[]).filter(x=>x.active!==false);
 
   $('quickActivity').innerHTML='<option value="">— optional —</option>'+activities.map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('');
-  $('manualActivity').innerHTML='<option value="">— optional —</option>'+activities.map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('');
+  $('manualActivity').innerHTML=activityOptions(null);
   $('quickOrder').innerHTML=orderOptions(initialOrderId||null);
   if(!orders.length)showLoadWarning('Keine eigenen Aufträge im Zeitraum gefunden. Ist ein Einsatz nicht dabei, wenden Sie sich an das Büro.');
   renderQuickTiles();

@@ -62,6 +62,7 @@ tr:last-child td{border-bottom:none}
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
+{% include "_auswahl.html" %}
 <main>
 <div class="breadcrumb" id="breadcrumb">Lädt …</div>
 <div class="hero">
@@ -178,10 +179,10 @@ async function safeOptionGroup(key){try{return await api(`/api/settings/option-g
 const assetId={{ asset_id }};
 let asset=null,resources=[],assetTypes=[],editingInspectionId=null,canManageRecurringCost=false;
 
+// Seit 1.8.30 über auswahlOptionen() (_auswahl.html): eine inzwischen inaktive verknüpfte Ressource bleibt
+// vorgewählt und gekennzeichnet, statt zu fehlen (dann blockierte die Prüfung "Bitte eine Ressource wählen").
 function resourceOptionsHtml(selected){
-  const available=resources.filter(r=>r.active&&(!r.taken||r.id===Number(selected)));
-  const opts=available.map(r=>`<option value="${r.id}" ${Number(selected)===r.id?'selected':''}>${esc(r.resource_type+' · '+r.name)}</option>`).join('');
-  return '<option value="">— bitte wählen —</option>'+opts;
+  return auswahlOptionen(resources,selected,r=>r.resource_type+' · '+r.name,{leer:'— bitte wählen —',aktiv:r=>r.active&&(!r.taken||r.id===Number(selected))});
 }
 function typeOptionsHtml(selected){
   return assetTypes.map(o=>`<option value="${esc(o.value)}" ${o.value===selected?'selected':''}>${esc(o.label)}</option>`).join('');

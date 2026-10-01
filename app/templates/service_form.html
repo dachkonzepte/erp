@@ -119,6 +119,7 @@ h1{color:var(--ink)}
   </div>
 </div>
 
+{% include "_auswahl.html" %}
 <script>
 const serviceId = {{ service_id|default('null') }};
 const editing = serviceId !== null;
@@ -130,6 +131,7 @@ let materialSearchResults = [];
 let globalSettings = { labor_rate: 82, material_markup_pct: 0, overhead_pct: 0, risk_profit_pct: 0 };
 let currentService = null;
 let searchDebounce = null;
+let serviceTypes = [];
 
 const el = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -141,6 +143,12 @@ async function api(u, o) {
   return d;
 }
 function money(n) { return new Intl.NumberFormat('de-DE', {style:'currency', currency:'EUR'}).format(Number(n||0)); }
+// Seit 1.8.30 über auswahlOptionen() (_auswahl.html): eine abgeschaltete Leistungsart bleibt vorgewählt und
+// gekennzeichnet -- vorher fehlte sie, und das nächste Speichern machte die Leistung "nicht klassifiziert".
+function renderServiceType(selected) {
+  el('serviceType').innerHTML = auswahlOptionen(serviceTypes, selected, x => x.label,
+    {wert: x => x.value, aktiv: x => x.active, leer: '— nicht klassifiziert —'});
+}
 
 async function init() {
   const [settings, serviceTypeGroup] = await Promise.all([
@@ -148,12 +156,12 @@ async function init() {
     api('/api/settings/option-groups/service_types'),
   ]);
   globalSettings = settings;
+  serviceTypes = serviceTypeGroup.options;
   el('laborRateDefault').textContent = `(Standard: ${money(globalSettings.labor_rate)}/h)`;
   el('markupDefault').textContent = `(Standard: ${globalSettings.material_markup_pct}%)`;
   el('overheadDefault').textContent = `(Standard: ${globalSettings.overhead_pct}%)`;
   el('riskDefault').textContent = `(Standard: ${globalSettings.risk_profit_pct}%)`;
-  el('serviceType').innerHTML = '<option value="">— nicht klassifiziert —</option>'
-    + serviceTypeGroup.options.filter(x => x.active).map(x => `<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('');
+  renderServiceType(null);
 
   if (editing) {
     const [service, calc] = await Promise.all([
@@ -192,7 +200,7 @@ async function init() {
       unit: m.unit, wastePct: Number(m.waste_raw || 0), purchasePrice: Number(m.purchase_price), priceBasis: Number(m.price_basis || 1),
     }));
     // service_type steht nicht im Kalkulations-Endpunkt, sondern direkt an der Leistung.
-    if (service.service_type) el('serviceType').value = service.service_type;
+    renderServiceType(service.service_type);
     renderMaterialRows();
   } else {
     el('heading').textContent = 'Leistung anlegen';

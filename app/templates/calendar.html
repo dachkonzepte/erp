@@ -75,6 +75,7 @@
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
+{% include "_auswahl.html" %}
 {% include "_debounce.html" %}
 <main>
 <div class="toolbar">
@@ -277,8 +278,10 @@ function renderDay(){
   document.getElementById('calendarBody').innerHTML=html;
 }
 
-function ownerOptionsHtml(selectedId){
-  return owners.map(o=>`<option value="${o.id}" ${o.id===selectedId?'selected':''}>${esc(o.display_name)}</option>`).join('');
+// Seit 1.8.30 über auswahlOptionen() (_auswahl.html): die Besitzerliste enthält nur aktive Büro-Konten. Gehört ein
+// Termin einem inzwischen deaktivierten Konto, bleibt es vorgewählt -- vorher wurde still das erste Konto Besitzer.
+function ownerOptionsHtml(selectedId,ownerName){
+  return auswahlOptionen(owners,selectedId,o=>o.display_name,{fehlt:()=>`${ownerName||'Bisheriges Konto'} (nicht mehr verfügbar)`});
 }
 
 function toggleAllDayInputs(){
@@ -381,7 +384,7 @@ function openEdit(id){
   document.getElementById('eLocation').value=e.location||'';
   document.getElementById('eNotes').value=e.notes||'';
   document.getElementById('ePrivate').checked=e.is_private;
-  document.getElementById('eOwner').innerHTML=ownerOptionsHtml(e.owner_user_id);
+  document.getElementById('eOwner').innerHTML=ownerOptionsHtml(e.owner_user_id,e.owner_name);
   if(e.project_id){selectedLink={type:'project',id:e.project_id,label:e.project_name||('Projekt #'+e.project_id)};document.getElementById('eLinkSearch').value=selectedLink.label;showLinkTag()}
   else if(e.quote_id){selectedLink={type:'quote',id:e.quote_id,label:e.quote_number||('Angebot #'+e.quote_id)};document.getElementById('eLinkSearch').value=selectedLink.label;showLinkTag()}
   document.getElementById('deleteBtn').style.display='inline-block';

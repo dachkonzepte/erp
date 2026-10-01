@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.30 – Auswahllisten behalten einen inaktiven gespeicherten Wert
+
+Nebenbefund aus 1.8.25 behoben. Viele Auswahllisten boten nur aktive Einträge an. War der gespeicherte
+Eintrag inzwischen inaktiv, etwa eine ausgeschiedene Mitarbeiterin, ein abgeschalteter Auswahl-Eintrag oder
+eine archivierte Zahlungsbedingung, fehlte er: das Feld stand leer oder auf dem ersten Eintrag, und das
+nächste Speichern schrieb das. Am Auftrag lehnte der Server einen inaktiven Sachbearbeiter außerdem auch
+unverändert ab, in der Arbeitsvorbereitung ließ sich eine Materialzeile mit inaktivem Lieferanten gar nicht
+mehr speichern. Jetzt baut ein gemeinsamer Helfer `auswahlOptionen()` (`app/templates/_auswahl.html`) diese
+Listen auf 18 Seiten: der gespeicherte Wert bleibt vorgewählt, ein inaktiver mit „(inaktiv)“; neu angeboten
+werden nur aktive. Vier Server-Prüfungen auf „aktiv“ gelten nur noch für einen neu gewählten Wert (Auftrag,
+Angebot, Mitarbeiter-Funktion, Arbeitsvorbereitung). Zusätzlich gefunden: Aufgaben-Editor und
+Eingangsrechnungen verloren beim Speichern ein archiviertes Projekt. Die Liste aller Felder steht in
+`docs/archiv/teil-updates.md`.
+
+`tests/test_v333_auswahl_inaktiv.py` führt den Helfer und die Auftragsseite in node aus: Sachbearbeiter und
+Projektleiter bleiben vorgewählt und gekennzeichnet, Speichern mit den Schlüsseln der Vorlage behält sie,
+ein neu gewählter inaktiver ist weiter 422. Dazu Arbeitsvorbereitung, Angebot, Mitarbeiter-Funktion und ein
+Dauertest, dass jede Seite mit `auswahlOptionen(` den Helfer einbindet. Gegenprobe mit dem Stand von 1.8.29:
+10 von 10 rot. Klicktest `scripts/klicktest_auswahl_inaktiv.py` 13/13, mit altem Stand 3/13. 10 neue Tests.
+
 ## 1.8.29 – Arbeitsvorbereitung: Speichern schickt keine fest verdrahteten Werte mehr
 
 Nebenbefund aus 1.8.25 behoben. Die Arbeitsvorbereitung schickte beim Speichern Werte mit, die niemand

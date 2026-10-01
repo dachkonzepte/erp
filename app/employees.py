@@ -280,7 +280,10 @@ def apply_employee_payload(db: Session, employee: Employee, payload) -> Employee
     function = get_employee_function(db, payload.function_id)
     if payload.function_id is not None and function is None:
         raise ValueError("Ausgewählte Funktion/Tätigkeit wurde nicht gefunden.")
-    if function and not function.active:
+    # Seit 1.8.30 nur eine neu gewählte Funktion muss aktiv sein; vorher ließ sich ein Mitarbeiter mit
+    # inzwischen inaktiver Funktion nicht mehr speichern, ohne sie zu ändern (die Oberfläche zeigt sie "(inaktiv)").
+    bisherige_funktion_id = employee.profile.function_id if employee.profile is not None else None
+    if function and not function.active and function.id != bisherige_funktion_id:
         raise ValueError("Die ausgewählte Funktion/Tätigkeit ist inaktiv.")
 
     group = function.employee_group if function else payload.employee_group

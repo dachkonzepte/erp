@@ -114,7 +114,8 @@ def update_work_preparation_task(task_id: int, payload: WorkPreparationTaskUpdat
     row=db.get(WorkPreparationTask,task_id)
     if row is None: raise HTTPException(status_code=404,detail="Aufgabe nicht gefunden.")
     changes=payload.model_dump(exclude_unset=True)
-    if changes.get("assigned_employee_id") is not None:
+    # Seit 1.8.30 nur ein neu gewählter Zuständiger muss aktiv sein; ein inzwischen inaktiver bleibt beim Speichern.
+    if changes.get("assigned_employee_id") not in (None,row.assigned_employee_id):
         e=db.get(Employee,changes["assigned_employee_id"])
         if e is None or not e.active: raise HTTPException(status_code=422,detail="Zugeordneter Mitarbeiter ist nicht aktiv.")
     order_id=row.preparation.order_id
@@ -194,7 +195,10 @@ def update_work_preparation_material(material_id: int, payload: WorkPreparationM
     link=db.scalar(select(WorkPreparationMaterialSupplier).where(WorkPreparationMaterialSupplier.material_id==row.id))
     if supplier_id is not None:
         supplier=db.get(Supplier,supplier_id)
-        if supplier is None or not supplier.active: raise HTTPException(status_code=422,detail="Lieferant wurde nicht gefunden oder ist inaktiv.")
+        # Seit 1.8.30 nur ein neu gewählter Lieferant muss aktiv sein; vorher ließ sich eine Zeile mit inzwischen
+        # inaktivem Lieferanten gar nicht mehr speichern (auch nicht Menge oder Status).
+        unveraendert=link is not None and link.supplier_id==supplier_id
+        if supplier is None or (not supplier.active and not unveraendert): raise HTTPException(status_code=422,detail="Lieferant wurde nicht gefunden oder ist inaktiv.")
         row.supplier=supplier.name
         if link is None: db.add(WorkPreparationMaterialSupplier(material_id=row.id,supplier_id=supplier.id))
         else: link.supplier_id=supplier.id

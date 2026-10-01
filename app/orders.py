@@ -514,9 +514,14 @@ def update_order_tax_key(db: Session, order: Order, tax_key_id: int) -> Order:
     return order
 
 
-def _validate_employees(db: Session, caseworker_employee_id: int | None, project_manager_employee_id: int | None):
-    for employee_id, label in ((caseworker_employee_id, "Sachbearbeiter"), (project_manager_employee_id, "Projektleiter / Vorarbeiter")):
-        if employee_id is not None:
+def _validate_employees(db: Session, caseworker_employee_id: int | None, project_manager_employee_id: int | None,
+                        *, bisher: Order | None = None):
+    """Neu gewählte Mitarbeiter müssen aktiv sein. Seit 1.8.30 wird ein unverändert gespeicherter nicht
+    erneut geprüft (bisher = der Auftrag vor dem Speichern): sonst ließ sich ein Auftrag, dessen
+    Sachbearbeiter inzwischen inaktiv ist, nicht mehr speichern, ohne ihn zu ändern."""
+    for employee_id, label, feld in ((caseworker_employee_id, "Sachbearbeiter", "caseworker_employee_id"),
+                                     (project_manager_employee_id, "Projektleiter / Vorarbeiter", "project_manager_employee_id")):
+        if employee_id is not None and (bisher is None or getattr(bisher, feld) != employee_id):
             employee = db.get(Employee, employee_id)
             if employee is None or not employee.active:
                 raise ValueError(f"{label} wurde nicht gefunden oder ist inaktiv.")
@@ -732,7 +737,7 @@ def sync_order_from_source_quote(db: Session, order: Order, *, actor_name: str =
 
 
 def update_order_header(db: Session, order: Order, **values) -> Order:
-    _validate_employees(db, values.get("caseworker_employee_id"), values.get("project_manager_employee_id"))
+    _validate_employees(db, values.get("caseworker_employee_id"), values.get("project_manager_employee_id"), bisher=order)
     for key, value in values.items():
         setattr(order, key, value)
     db.commit()

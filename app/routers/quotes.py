@@ -142,7 +142,10 @@ def update_quote_document_meta(quote_id: int, payload: QuoteDocumentMetaUpdate, 
         if employee is None:
             raise HTTPException(status_code=422, detail="Sachbearbeiter wurde nicht gefunden.")
         role = db.scalar(select(EmployeeRoleSettings).where(EmployeeRoleSettings.employee_id == employee.id))
-        if not employee.active or role is None or not role.available_as_caseworker:
+        # Seit 1.8.30 nur ein neu gewählter Sachbearbeiter muss freigegeben und aktiv sein. Vorher ließ sich der
+        # Angebotskopf nicht mehr speichern, sobald der eingetragene ausgeschieden war (der Editor zeigt ihn weiter an).
+        unveraendert = assignment is not None and assignment.caseworker_employee_id == employee.id
+        if not unveraendert and (not employee.active or role is None or not role.available_as_caseworker):
             raise HTTPException(status_code=422, detail="Mitarbeiter ist nicht als Sachbearbeiter freigegeben.")
         if assignment is None:
             assignment = QuoteEmployeeAssignment(quote_id=quote.id)

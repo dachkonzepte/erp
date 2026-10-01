@@ -42,6 +42,7 @@ td input,td select{padding:6px 7px;font-size:12.5px}
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
+{% include "_auswahl.html" %}
 <main>
 <div class="breadcrumb"><a href="/inspection-templates">Prüfvorlagen</a> / <span id="breadcrumbLabel">…</span></div>
 <div class="hero">
@@ -100,8 +101,10 @@ let authStatus=null,template=null,roofTypes=[],componentTypes=[];
 function roofTypeOptionsHtml(selected){
   return '<option value="">— jeder Dachtyp —</option>'+roofTypes.map(o=>`<option value="${esc(o.value)}" ${selected===o.value?'selected':''}>${esc(o.label)}</option>`).join('');
 }
+// Seit 1.8.30 über auswahlOptionen() (_auswahl.html), mit inaktiven Bauteiltypen geladen: ein abgeschalteter
+// gespeicherter Bauteiltyp bleibt vorgewählt und gekennzeichnet -- vorher leerte ihn jedes Verlassen der Zeile.
 function componentTypeOptionsHtml(selected){
-  return '<option value="">— kein Bauteiltyp —</option>'+componentTypes.map(o=>`<option value="${esc(o.value)}" ${selected===o.value?'selected':''}>${esc(o.label)}</option>`).join('');
+  return auswahlOptionen(componentTypes,selected,o=>o.label,{wert:o=>o.value,leer:'— kein Bauteiltyp —'});
 }
 function itemTypeOptionsHtml(selected){
   return ITEM_TYPES.map(([v,l])=>`<option value="${v}" ${selected===v?'selected':''}>${esc(l)}</option>`).join('');
@@ -237,8 +240,8 @@ async function init(){
   // Bauteilarten sind seit 1.2.19 eine echte Tabelle (RoofComponentType), keine SettingOptionGroup
   // mehr -- key bleibt textidentisch zum bisherigen Options-Wert, deshalb hier nur auf die von
   // componentTypeOptionsHtml() erwartete {value,label}-Form abgebildet.
-  const componentTypeRows=await api('/api/roof-component-types').catch(()=>[]);
-  componentTypes=componentTypeRows.map(t=>({value:t.key,label:t.label}));
+  const componentTypeRows=await api('/api/roof-component-types?include_inactive=true').catch(()=>[]);
+  componentTypes=componentTypeRows.map(t=>({value:t.key,label:t.label,active:t.active}));
   template=await api(`/api/inspection-templates/${templateId}`);
   fillMetaForm();
   renderItems();

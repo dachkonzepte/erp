@@ -61,6 +61,7 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
+{% include "_auswahl.html" %}
 <main>
 {% if is_module_enabled('aufgabenmanagement') %}
 <div class="hero"><div><h1>Aufgaben</h1><div class="muted small">Eigene und zugewiesene Aufgaben, optional mit einem Projekt verknüpft.</div></div><button onclick="openCreateEditor()">+ Aufgabe</button></div>
@@ -210,11 +211,13 @@ function renderBoard(){
   });
 }
 
+// Seit 1.8.30 über auswahlOptionen() (_auswahl.html): ein inaktiver Zuständiger bzw. archiviertes Projekt bleibt
+// vorgewählt und gekennzeichnet -- vorher landete die Aufgabe beim Speichern in "Ohne Zuständigkeit" bzw. ohne Projekt.
 function employeeOptionsHtml(selected){
-  return '<option value="">— nicht zugeordnet —</option>'+employees.filter(e=>e.active).map(e=>`<option value="${e.id}" ${Number(selected)===e.id?'selected':''}>${esc(e.first_name+' '+e.last_name)}</option>`).join('');
+  return auswahlOptionen(employees,selected,e=>e.first_name+' '+e.last_name,{leer:'— nicht zugeordnet —'});
 }
 function projectOptionsHtml(selected){
-  return '<option value="">— kein Projekt —</option>'+projects.map(p=>`<option value="${p.id}" ${Number(selected)===p.id?'selected':''}>${esc(p.project_number+' · '+p.name)}</option>`).join('');
+  return auswahlOptionen(projects,selected,p=>p.project_number+' · '+p.name,{leer:'— kein Projekt —',aktiv:p=>!p.archived});
 }
 
 function openCreateEditor(){
@@ -403,7 +406,7 @@ async function init(){
     document.getElementById('loadStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
     return;
   }
-  [employees,projects]=await Promise.all([api('/api/employees').catch(()=>[]),api('/api/projects').catch(()=>[])]);
+  [employees,projects]=await Promise.all([api('/api/employees').catch(()=>[]),api('/api/projects?include_archived=true').catch(()=>[])]);
   await loadColumns();
   await loadFilters();
   await loadTasks();

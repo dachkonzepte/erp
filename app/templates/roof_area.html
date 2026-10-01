@@ -56,6 +56,7 @@ tr:last-child td{border-bottom:none}
 {% include "_debounce.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
+{% include "_auswahl.html" %}
 <main>
 <div class="breadcrumb" id="breadcrumb">Lädt …</div>
 <div class="hero">
@@ -160,7 +161,9 @@ const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
 async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
-function optionsHtml(list,selected){return '<option value="">— keine Auswahl —</option>'+(list||[]).filter(o=>o.active!==false).map(o=>`<option value="${esc(o.value)}" ${o.value===selected?'selected':''}>${esc(o.label)}</option>`).join('')}
+// Seit 1.8.30 über auswahlOptionen() (_auswahl.html): ein abgeschalteter gespeicherter Eintrag (Dachtyp, Eindeckung,
+// Bauteiltyp, Einheit, Ausführung) bleibt vorgewählt und gekennzeichnet, statt beim Speichern geleert zu werden.
+function optionsHtml(list,selected){return auswahlOptionen(list,selected,o=>o.label,{wert:o=>o.value,aktiv:o=>o.active!==false,leer:'— keine Auswahl —'})}
 
 let area=null,components=[],roofTypes=[],coverings=[],componentTypes=[],units=[],placingComponentId=null,editingComponentId=null;
 let findingsModuleEnabled=false;

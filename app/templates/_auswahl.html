@@ -1,0 +1,34 @@
+<script>
+/* Geteilter Helfer (seit 1.8.30) für Auswahllisten aus Stammdaten, die nur aktive Einträge anbieten
+   (Mitarbeiter, Lieferanten, Ressourcen, Einträge einer Auswahlliste, Zahlungsbedingungen ...).
+   Der gespeicherte Wert bleibt auswählbar und vorgewählt, auch wenn sein Eintrag inaktiv oder
+   archiviert ist -- dann mit " (inaktiv)" gekennzeichnet. Bis 1.8.29 fehlte er in der Liste: das Feld
+   stand leer oder auf dem ersten Eintrag, und das nächste Speichern schrieb das.
+   Steht der gespeicherte Wert gar nicht in der Liste (die Quelle liefert ihn nicht), erscheint er
+   trotzdem, beschriftet über opt.fehlt(wert) oder als "<wert> (nicht mehr verfügbar)".
+
+   auswahlOptionen(eintraege, gespeichert, beschriftung, opt) -> HTML der <option>-Elemente
+     beschriftung(x)  Text der Option (wird hier maskiert, also kein HTML übergeben)
+     opt.wert(x)      Wert der Option, Vorgabe x.id
+     opt.aktiv(x)     wird neu angeboten, Vorgabe x.active !== false
+     opt.leer         Text einer Leer-Option ("— keine —"), weglassen = keine Leer-Option
+     opt.fehlt(wert)  Beschriftung, falls der gespeicherte Wert nicht in eintraege steht
+   tests/test_v333_auswahl_inaktiv.py führt den Helfer in node aus. */
+function auswahlOptionen(eintraege, gespeichert, beschriftung, opt = {}) {
+  const wert = opt.wert || (x => x.id);
+  const aktiv = opt.aktiv || (x => x.active !== false);
+  const m = s => String(s ?? '').replace(/[&<>'"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[c]));
+  const g = gespeichert === null || gespeichert === undefined ? '' : String(gespeichert);
+  let gefunden = false;
+  const zeilen = (eintraege || []).filter(x => aktiv(x) || (g !== '' && String(wert(x)) === g)).map(x => {
+    const v = String(wert(x)), gewaehlt = g !== '' && v === g;
+    if (gewaehlt) gefunden = true;
+    return `<option value="${m(v)}"${gewaehlt ? ' selected' : ''}>${m(beschriftung(x))}${aktiv(x) ? '' : ' (inaktiv)'}</option>`;
+  });
+  if (g !== '' && !gefunden) {
+    zeilen.unshift(`<option value="${m(g)}" selected>${m(opt.fehlt ? opt.fehlt(g) : g + ' (nicht mehr verfügbar)')}</option>`);
+  }
+  const leer = opt.leer === undefined ? '' : `<option value=""${g === '' ? ' selected' : ''}>${m(opt.leer)}</option>`;
+  return leer + zeilen.join('');
+}
+</script>

@@ -89,7 +89,8 @@ Keine Weglassung, aber die Oberfläche schickt einen Wert, den niemand bearbeite
    Freitext und löst eine Verknüpfung, wie bisher. `tests/test_v332_arbeitsvorbereitung_teil_updates.py`
    (Schlüssel aus der Vorlage, Gegenprobe: alter Stand 7 von 13 rot, neuer Server mit alter Oberfläche
    5 von 13), `scripts/klicktest_arbeitsvorbereitung.py` 6/6, mit altem Stand 2/6.
-2. Auswahllisten, die den gespeicherten Wert nicht anzeigen können -- Speichern schreibt dann leer
+2. **Behoben seit 1.8.30**, siehe "Auswahllisten mit inaktivem gespeichertem Wert" unten.
+   Auswahllisten, die den gespeicherten Wert nicht anzeigen können -- Speichern schreibt dann leer
    oder einen Vorgabewert: `order.html` Sachbearbeiter/Projektleiter (nur aktive Mitarbeiter),
    `maintenance_contract.html` Verantwortlicher (Server prüft nicht auf aktiv), Einstellungen
    Wartungen Standard-Verantwortlicher, `work_preparation.html` Aufgaben-Zuständiger,
@@ -101,6 +102,59 @@ Keine Weglassung, aber die Oberfläche schickt einen Wert, den niemand bearbeite
    Drag-and-drop-Layout und `saveCalc` (price_basis), `planning.html` `dropSlot`, `settings.html`
    `toggleDocumentLayoutBlock`/`saveContinuationHeaderPosition`/`saveEmailTemplate` (Mahnstufe),
    `incoming_invoices.html` `markPaidNow`, `recurring_costs.html` `toggleActive`.
+
+## Auswahllisten mit inaktivem gespeichertem Wert (seit 1.8.30)
+
+Nebenbefund 2 oben, behoben. Ein Agent hat alle Auswahllisten der Vorlagen durchgesehen (01.10.2026).
+Gemeinsame Stelle: `auswahlOptionen(eintraege, gespeichert, beschriftung, opt)` in
+`app/templates/_auswahl.html` (per `{% include %}` eingebunden). Neu angeboten werden nur aktive Einträge,
+der gespeicherte bleibt vorgewählt, ein inaktiver mit " (inaktiv)". Liefert die Quelle ihn gar nicht,
+erscheint er trotzdem (`opt.fehlt` oder "(nicht mehr verfügbar)"). Wo die Quelle inaktive Einträge
+wegließ, lädt die Seite sie jetzt mit (`include_archived`/`include_inactive`).
+
+Umgestellt, mit dem, was vorher beim Speichern geschah:
+
+| Seite | Feld | vorher |
+|---|---|---|
+| Auftrag | Sachbearbeiter, Projektleiter | leer gespeichert; Server lehnte inaktiv auch unverändert ab (422) |
+| Auftrag | Einheit der Position | behalten, jetzt gekennzeichnet |
+| Wartungsvertrag | Verantwortlicher; Mustervorgang (archiviert) | leer gespeichert |
+| Einstellungen | Wartungen: Standard-Verantwortlicher | leer gespeichert |
+| Einstellungen | Schichttyp: Dachtyp | wurde "gilt für jeden Dachtyp" |
+| Aufgaben-Editor | Zuständig; Projekt (archiviert) | Aufgabe landete in "Ohne Zuständigkeit" bzw. ohne Projekt |
+| Arbeitsvorbereitung | Aufgabe: Zuständig | leer gespeichert (Server lehnte inaktiv ab) |
+| Arbeitsvorbereitung | Material: Lieferant | Server 422, die Zeile ließ sich gar nicht mehr speichern |
+| Stammdaten-Formular | Ressource: Ressourcenart | wurde der erste Eintrag |
+| Betriebsmittel | Ressourcenbezug | fehlte, Speichern blockiert |
+| Kunde | Standard-Zahlungsbedingung (archiviert) | wurde Systemstandard |
+| Kunde, Projektmappe | Dokument- und Projektkategorie | behalten, jetzt gekennzeichnet |
+| Leistungsformular | Leistungsart | wurde "nicht klassifiziert" |
+| Dachfläche | Dachtyp, Eindeckung, Bauteiltyp, Einheit, Ausführung einer Schicht | leer gespeichert |
+| Prüfvorlage | Bauteiltyp | jedes Verlassen der Zeile leerte ihn |
+| Zeiterfassung Büro, Backoffice | Zeitart, Tätigkeit beim Bearbeiten | Zeitart leer, Tätigkeit null |
+| Zeiterfassung mobil | Tätigkeit; Kolonnenbuchung: Zeitart, Tätigkeit | Tätigkeit null, Zeitart wurde die erste |
+| Zeiterfassung Backoffice | Standard-Arbeitszeitmodell; Modell je Mitarbeiter (Anzeige) | leer bzw. erstes Modell angezeigt |
+| Kalender | Besitzer eines Termins (deaktiviertes Konto) | wurde still das erste Konto, danach Outlook-Push |
+| Eingangsrechnungen | Lieferant, Konto; Projekt (archiviert) | behalten bzw. Projekt leer gespeichert |
+| Plantafel | Team | behalten, jetzt gekennzeichnet |
+
+Server, nur ein neu gewählter Wert muss aktiv sein: `app/orders.py::_validate_employees()` (Sachbearbeiter,
+Projektleiter), `app/routers/quotes.py` (Sachbearbeiter am Angebot -- der Editor zeigte ihn schon
+"nicht mehr verfügbar", das Speichern scheiterte), `app/employees.py::apply_employee_payload()` (Funktion,
+steht in `EmployeeProfile.function_id`), `app/routers/work_preparation.py` (Zuständiger, Lieferant).
+
+Bewusst nicht geändert: Angebots-Editor `fillTextSelect`/`fillUnitSelect` und Kunden-Kategorie (wählen bei
+leerem Wert die Vorgabe vor -- andere Fehlerklasse); archivierter Steuerschlüssel erscheint in Auftrag,
+Angebot und Rechnung leer (nur Anzeige, gespeichert wird nur bei Änderung); Teambesetzung im
+Stammdaten-Formular (Häkchenliste, behält schon); mobile Zeitart-Kacheln (Wert bleibt, keine Kachel
+markiert); Einsatzbericht "Durchgeführt von" (nur Anzeige); Dachfläche lädt Schichttypen ohne inaktive
+(vorhandene Schichten eines inaktiven Typs sind unsichtbar).
+
+Tests: `tests/test_v333_auswahl_inaktiv.py` -- der Helfer in node, die Auftragsseite in node
+(Sachbearbeiter und Projektleiter vorgewählt, "(inaktiv)"), Speichern des Auftrags mit den Schlüsseln der
+Vorlage (unverändert inaktiv 200, neu inaktiv 422), dazu Arbeitsvorbereitung, Angebot, Mitarbeiter-Funktion,
+und ein Dauertest: jede Seite, die `auswahlOptionen(` aufruft, bindet `_auswahl.html` ein. Gegenprobe mit
+dem Stand von 1.8.29: 10 von 10 rot. `scripts/klicktest_auswahl_inaktiv.py` 13/13, alter Stand 3/13.
 4. `app/document_layout.py::update_layout_block()` nimmt `content` an, schreibt ihn aber nie.
 5. `EmployeeAbsenceUpdate` (1.5.4) erlaubt `null` für `start_date`/`end_date`/`employee_id`, die Spalten
    sind NOT NULL -- ein ausdrückliches `null` endet als 500 statt 422 (heute ruft keine Oberfläche den

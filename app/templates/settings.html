@@ -40,6 +40,7 @@
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
+{% include "_auswahl.html" %}
 <main>
   <div class="settings-shell">
     <aside class="settings-sidebar" aria-label="Einstellungsbereiche">
@@ -1028,7 +1029,7 @@ async function loadMaintenanceSection(){
     const [ms2,emps]=[await api('/api/maintenance-settings'),await api('/api/employees').catch(()=>[])];
     document.getElementById('maintenanceLeadDays').value=ms2.reminder_lead_days;
     document.getElementById('maintenanceUseRoofAreaItems').checked=!!ms2.use_roof_area_items;
-    document.getElementById('maintenanceDefaultEmployee').innerHTML='<option value="">— keiner —</option>'+emps.filter(e=>e.active).map(e=>`<option value="${e.id}" ${Number(ms2.default_responsible_employee_id)===e.id?'selected':''}>${esc(e.first_name+' '+e.last_name)}</option>`).join('');
+    document.getElementById('maintenanceDefaultEmployee').innerHTML=auswahlOptionen(emps,ms2.default_responsible_employee_id,e=>e.first_name+' '+e.last_name,{leer:'— keiner —'});
     maintenanceWindows=await api('/api/maintenance-windows');renderMaintenanceWindows();
   }catch(e){document.getElementById('maintenanceSettingsStatus').textContent='Fehler: '+e.message}
 }
@@ -1089,10 +1090,14 @@ function optionGroupLabel(key){
   return g?g.label:key;
 }
 
-function populateRoofLayerTypeSelects(){
+// Seit 1.8.30 je Schichttyp neu gebaut (auswahlOptionen(), _auswahl.html): ein inzwischen abgeschalteter
+// Dachtyp bleibt vorgewählt und gekennzeichnet -- vorher wurde er beim Speichern zu "gilt für jeden Dachtyp".
+function renderRoofLayerTypeRoofType(selected){
   const roofTypeGroup=optionGroups.find(g=>g.group_key==='roof_types');
-  const roofTypeOptions=(roofTypeGroup?.options||[]).filter(o=>o.active);
-  document.getElementById('roofLayerTypeRoofType').innerHTML='<option value="">— gilt für jeden Dachtyp —</option>'+roofTypeOptions.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+  document.getElementById('roofLayerTypeRoofType').innerHTML=auswahlOptionen(roofTypeGroup?.options,selected,o=>o.label,{wert:o=>o.value,aktiv:o=>o.active,leer:'— gilt für jeden Dachtyp —'});
+}
+function populateRoofLayerTypeSelects(){
+  renderRoofLayerTypeRoofType(null);
   const layerGroups=optionGroups.filter(g=>g.group_key.startsWith('layer_'));
   document.getElementById('roofLayerTypeOptionGroup').innerHTML='<option value="">— keine —</option>'+layerGroups.map(g=>`<option value="${esc(g.group_key)}">${esc(g.label)}</option>`).join('');
 }
@@ -1159,7 +1164,7 @@ function resetRoofLayerTypeEditor(){
   document.getElementById('roofLayerTypeKey').value='';
   document.getElementById('roofLayerTypeKey').disabled=false;
   document.getElementById('roofLayerTypeLabel').value='';
-  document.getElementById('roofLayerTypeRoofType').value='';
+  renderRoofLayerTypeRoofType(null);
   document.getElementById('roofLayerTypeOptionGroup').value='';
   document.getElementById('roofLayerTypeHasExecution').value='true';
   document.getElementById('roofLayerTypeHasThickness').value='false';
@@ -1178,7 +1183,7 @@ function editRoofLayerType(id){
   document.getElementById('roofLayerTypeKey').value=t.key;
   document.getElementById('roofLayerTypeKey').disabled=true;
   document.getElementById('roofLayerTypeLabel').value=t.label;
-  document.getElementById('roofLayerTypeRoofType').value=t.roof_type||'';
+  renderRoofLayerTypeRoofType(t.roof_type);
   document.getElementById('roofLayerTypeOptionGroup').value=t.option_group||'';
   document.getElementById('roofLayerTypeHasExecution').value=t.has_execution?'true':'false';
   document.getElementById('roofLayerTypeHasThickness').value=t.has_thickness?'true':'false';
