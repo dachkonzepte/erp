@@ -1554,7 +1554,8 @@ async function saveLogoHeight(){
   const height=Number(input.value);
   if(!Number.isInteger(height)||height<24||height>120){st.textContent='Bitte einen Wert zwischen 24 und 120 eingeben.';return}
   try{
-    generalSettings=await api('/api/settings/general',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...generalSettings,sidebar_logo_height_px:height})});
+    // Nur die Höhe (seit 1.8.25) -- vorher der beim Laden gemerkte Stand aller Stammdaten.
+    generalSettings=await api('/api/settings/general',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({sidebar_logo_height_px:height})});
     st.textContent='Gespeichert.';renderSidebarLogo();
   }catch(e){st.textContent='Fehler: '+e.message}
 }

@@ -92,12 +92,7 @@ def post_task(payload: TaskCreate, request: Request, db: Session = Depends(get_d
 def put_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
-        result = update_task(
-            db, task_id, title=payload.title, description=payload.description, status=payload.status,
-            priority=payload.priority, due_date=payload.due_date,
-            assigned_employee_id=payload.assigned_employee_id, project_id=payload.project_id,
-            min_visible_role=payload.min_visible_role,
-        )
+        result = update_task(db, task_id, **payload.model_dump(exclude_unset=True))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if result is None:

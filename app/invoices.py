@@ -622,22 +622,24 @@ def visible_items(invoice: Invoice) -> list[InvoiceItem]:
     return [item for item in invoice.items if item.ist_quantity != 0]
 
 
-def update_invoice_header(
-    db: Session, invoice: Invoice, *, due_date: date | None, progress_description: str | None,
-    lump_sum_net: Decimal | None, intro_text: str | None, outro_text: str | None,
-    outro_text_2: str | None, payment_terms: str | None,
-) -> Invoice:
+INVOICE_HEADER_FIELDS = ("due_date", "progress_description", "lump_sum_net", "intro_text", "outro_text",
+                         "outro_text_2", "payment_terms")
+
+
+def update_invoice_header(db: Session, invoice: Invoice, **changes) -> Invoice:
+    """Teil-Update (seit 1.8.25): nur die übergebenen Felder ändern sich -- "Pauschale speichern"
+    leerte vorher den Schlusstext 2, den es nicht mitschickte."""
+    unknown = set(changes) - set(INVOICE_HEADER_FIELDS)
+    if unknown:
+        raise TypeError(f"Unbekannte Felder: {sorted(unknown)}")
     if not is_invoice_editable(invoice):
         raise ValueError("Nur Rechnungen im Entwurf können bearbeitet werden.")
-    invoice.due_date = due_date
-    invoice.progress_description = progress_description
+    if invoice.invoice_type != "abschlag_pauschal":
+        changes.pop("lump_sum_net", None)
+    for key, value in changes.items():
+        setattr(invoice, key, value)
     if invoice.invoice_type == "abschlag_pauschal":
-        invoice.lump_sum_net = lump_sum_net
         _sync_lump_sum_pauschal_item(db, invoice)
-    invoice.intro_text = intro_text
-    invoice.outro_text = outro_text
-    invoice.outro_text_2 = outro_text_2
-    invoice.payment_terms = payment_terms
     db.commit()
     db.refresh(invoice)
     return invoice

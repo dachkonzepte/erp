@@ -43,7 +43,9 @@ def update_property(property_id: int, payload: PropertyUpdate, db: Session = Dep
     property_obj = db.get(Property, property_id)
     if property_obj is None:
         raise HTTPException(status_code=404, detail="Objekt nicht gefunden.")
-    values = payload.model_dump()
+    # Nur gesendete Felder (seit 1.8.25): die Kundenseite schickt Zugang und Ansprechpartner vor
+    # Ort nicht mit -- bis dahin wurden sie dabei geleert.
+    values = payload.model_dump(exclude_unset=True)
     customer_id = values.pop("customer_id", None)
     if customer_id is not None:
         if db.get(Customer, customer_id) is None:

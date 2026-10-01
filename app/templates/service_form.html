@@ -365,7 +365,6 @@ async function save() {
           overhead_pct_override: v('overheadOverride') !== '' ? v('overheadOverride').replace(',', '.') : null,
           risk_profit_pct_override: v('riskOverride') !== '' ? v('riskOverride').replace(',', '.') : null,
           manual_sale_price: manualPrice,
-          material_overrides: [],
         }),
       });
       location.href = `/leistungskatalog?catalog_id=${currentService.catalog_id ?? ''}`;

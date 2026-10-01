@@ -104,6 +104,20 @@ def _require_open_period(request: Request, db: Session, *work_dates: date) -> No
 
 CREW_LEADER_ONLY = "Gruppenbuchungen sind für Monteure dem Kolonnenführer des Teams vorbehalten."
 
+_TIME_FIELDS = ("order_id", "order_item_id", "work_date", "entry_type", "activity", "hours", "break_minutes", "notes")
+
+
+def _merge_time_changes(stored, changes: dict) -> dict:
+    """Teil-Update einer Zeit- oder Gruppenbuchung (seit 1.8.25): die gespeicherten Werte, darüber
+    die gesendeten. Die mobile Zeiterfassung schickt beim Ändern weder Pause noch LV-Position --
+    bis dahin ersetzte der Server die Pause durch den Standard und leerte die LV-Position.
+    Wechselt der Auftrag ohne neue LV-Position, entfällt die alte: sie gehört zum alten Auftrag."""
+    merged = {key: getattr(stored, key) for key in _TIME_FIELDS}
+    if "order_id" in changes and changes["order_id"] != stored.order_id and "order_item_id" not in changes:
+        merged["order_item_id"] = None
+    merged.update((key, value) for key, value in changes.items() if key in _TIME_FIELDS)
+    return merged
+
 
 def _require_crew_leader(request: Request, db: Session, team_id: int | None) -> None:
     """Seit 1.7.12: bis dahin war die Gruppenbuchung für `field` nur in der Oberfläche
@@ -233,11 +247,12 @@ def put_time_group(group_id:int,payload:TimeGroupUpdate,request:Request,db:Sessi
     group=db.get(TimeEntryGroup,group_id)
     if group is None: raise HTTPException(status_code=404,detail="Gruppenbuchung wurde nicht gefunden.")
     _require_group_owner(request,db,group)
-    _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,manual=True,group=True)
-    _require_bookable_order(request,db,payload.order_id)
-    _require_open_period(request,db,group.work_date,payload.work_date)
+    values=_merge_time_changes(group,payload.model_dump(exclude_unset=True))
+    _validate_time_rules(db,order_item_id=values["order_item_id"],activity=values["activity"],manual=True,group=True)
+    _require_bookable_order(request,db,values["order_id"])
+    _require_open_period(request,db,group.work_date,values["work_date"])
     try:
-        group,skipped=update_group(db,group_id,order_id=payload.order_id,order_item_id=payload.order_item_id,work_date=payload.work_date,entry_type=payload.entry_type,activity=payload.activity,hours=payload.hours,break_minutes=payload.break_minutes,notes=payload.notes)
+        group,skipped=update_group(db,group_id,**values)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
     out=_group_out(request,db,group)
     out.skipped_members=skipped
@@ -369,17 +384,20 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
 
 @router.put("/api/time-entries/{entry_id}", response_model=TimeEntryOut)
 def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
-    _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity)
     current = db.get(TimeEntry, entry_id)
     if current is None:
         raise HTTPException(status_code=404, detail="Zeitbuchung nicht gefunden.")
     if not _time_entry_can_edit(request, current):
         raise HTTPException(status_code=403, detail="Sie dürfen diese Zeitbuchung nicht ändern.")
-    employee_id = _time_entry_employee_for_request(request, payload.employee_id, db)
-    _require_bookable_order(request, db, payload.order_id)
-    _require_open_period(request, db, current.work_date, payload.work_date)
+    changes = payload.model_dump(exclude_unset=True)
+    values = _merge_time_changes(current, changes)
+    _validate_time_rules(db, order_item_id=values["order_item_id"], activity=values["activity"])
+    employee_id = (_time_entry_employee_for_request(request, changes["employee_id"], db)
+                   if "employee_id" in changes else current.employee_id)
+    _require_bookable_order(request, db, values["order_id"])
+    _require_open_period(request, db, current.work_date, values["work_date"])
     try:
-        row = update_time_entry_row(db, entry_id, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, work_date=payload.work_date, entry_type=payload.entry_type, activity=payload.activity, hours=payload.hours, break_minutes=payload.break_minutes, notes=payload.notes)
+        row = update_time_entry_row(db, entry_id, employee_id=employee_id, **values)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TimeEntryOut.model_validate(entry_to_dict(row))

@@ -311,34 +311,42 @@ def create_task(db: Session, title: str, description: str | None = None, priorit
     return task_to_dict(task, columns_by_key)
 
 
-def update_task(db: Session, task_id: int, title: str, description: str | None, status: str,
-                 priority: str, due_date: date | None, assigned_employee_id: int | None,
-                 project_id: int | None, min_visible_role: str | None = None) -> dict | None:
+TASK_UPDATE_FIELDS = ("title", "description", "status", "priority", "due_date", "assigned_employee_id",
+                      "project_id", "min_visible_role")
+
+
+def update_task(db: Session, task_id: int, **changes) -> dict | None:
+    """Teil-Update (seit 1.8.25): nur die übergebenen Felder ändern sich. Der Editor auf /tasks
+    schickt min_visible_role nicht mit -- vorher setzte jedes Speichern es auf None zurück, eine
+    Finanz-Aufgabe wurde dadurch für jedes Büro-Konto sichtbar."""
+    unknown = set(changes) - set(TASK_UPDATE_FIELDS)
+    if unknown:
+        raise TypeError(f"Unbekannte Felder: {sorted(unknown)}")
     task = db.get(Task, task_id)
     if task is None:
         return None
+    min_visible_role = changes.get("min_visible_role")
     if min_visible_role is not None and min_visible_role not in ROLES:
         raise ValueError(f"Unbekannte Rolle: {min_visible_role}")
     columns_by_key = _columns_by_key(db)
-    _validate_status(status, columns_by_key)
+    if "status" in changes:
+        _validate_status(changes["status"], columns_by_key)
     was_done = columns_by_key[task.status].is_done if task.status in columns_by_key else False
     previous_employee_id = task.assigned_employee_id
-    task.title = title.strip()
-    task.description = description or None
-    task.status = status
-    task.priority = priority
-    task.due_date = due_date
-    task.assigned_employee_id = assigned_employee_id
-    task.project_id = project_id
-    task.min_visible_role = min_visible_role
-    now_done = columns_by_key[status].is_done
+    if "title" in changes:
+        changes["title"] = changes["title"].strip()
+    if "description" in changes:
+        changes["description"] = changes["description"] or None
+    for key, value in changes.items():
+        setattr(task, key, value)
+    now_done = columns_by_key[task.status].is_done if task.status in columns_by_key else False
     if now_done and not was_done:
         task.completed_at = datetime.utcnow()
     elif not now_done and was_done:
         task.completed_at = None
     db.commit()
     task = _load_task(db, task.id)
-    if assigned_employee_id is not None and assigned_employee_id != previous_employee_id:
+    if task.assigned_employee_id is not None and task.assigned_employee_id != previous_employee_id:
         notify_task_assignment(db, task)
     return task_to_dict(task, columns_by_key)
 

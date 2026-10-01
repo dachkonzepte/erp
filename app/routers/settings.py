@@ -197,7 +197,8 @@ def get_general_settings(db: Session = Depends(get_db), _role: AppUser = _role_d
 @router.put("/api/settings/general", response_model=GeneralSettingsOut)
 def put_general_settings(payload: GeneralSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     settings = get_or_create_general_settings(db)
-    for key, value in payload.model_dump().items():
+    # Nur gesendete Felder (seit 1.8.25) -- Stammdaten und Logohöhe speichern getrennt.
+    for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(settings, key, value)
     db.commit()
     db.refresh(settings)

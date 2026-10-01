@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.24** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.25** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -580,6 +580,16 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Protokoll nachgetragen (`record_manual_delivery()`); eine neue Dokumentart braucht einen Eintrag
     in `app/dispatch_documents.py`. Details: `docs/archiv/versandprotokoll-und-ablage.md`.
 
+22. **Ein Update-Endpunkt übernimmt nur gesendete Felder, seit 1.8.25.** Hat ein PUT-Schema Felder
+    mit Vorgabewert, setzt Pydantic für ein weggelassenes Feld den Vorgabewert ein -- liest der Handler
+    `payload.feld` oder `model_dump()`, ist der gespeicherte Wert still weg (so Zugangshinweise, Pause,
+    Schlusstext 2, Sichtbarkeitsgrenze einer Aufgabe). Neues Teil-Update: Schema von `PartialUpdate`
+    (`app/schemas.py`, `NOT_NULL` für Pflichtspalten), Handler mit `model_dump(exclude_unset=True)`;
+    oder alle Felder ohne Vorgabewert (fehlt eins, 422). Die Oberfläche schickt nur, was sie bearbeitet,
+    nie einen beim Laden gemerkten Stand. `tests/test_v329_update_handler_struktur.py` prüft jeden
+    PUT/PATCH-Handler per AST; die 77 Altfälle stehen dort als Liste, die nur kürzer werden darf.
+    Details: `docs/archiv/teil-updates.md`.
+
 ## Fachbegriffe & Domänenmodell
 
 - **"Vorgang"** (in normalem Gespräch) = **Projekt** (`Project`) – wurde in der Sitzung explizit
@@ -720,6 +730,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Beauftragen und Abgleich übernehmen, hält `tests/test_v325_quote_order_copy_fields.py` fest --
   ein neues Feld an Angebot oder Auftrag braucht dort einen Eintrag) --
   `docs/archiv/vertragsgrundlage-und-vertrag.md`
+- **Speichern nur gesendeter Felder** (`PartialUpdate`, Strukturtest über alle PUT-Handler, Liste der
+  Altfälle, Nebenbefunde der Durchsicht aller Speichern-Aufrufer) -- `docs/archiv/teil-updates.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit
@@ -1006,7 +1018,9 @@ Verbraucher-Häkchen, Vertragsgrundlage im Angebots-Editor und am Auftrag mit Be
 Einstellungen für Admin und Büro) und `klicktest_monteur_dachflaechen.py` (1.8.22, Dachflächen-Auswahl im
 Einsatzbericht als Monteur mit dem reduzierten Schema, Bericht mit Fläche anlegen) und
 `klicktest_angebot_interne_notiz.py` (1.8.23, Angebotskopf speichern lässt die interne Notiz stehen) und
-`klicktest_monteur_navigation.py` (1.8.24, sichtbare Links in Seitenleiste und Kopfzeile je Rolle ohne 403). Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
+`klicktest_monteur_navigation.py` (1.8.24, sichtbare Links in Seitenleiste und Kopfzeile je Rolle ohne 403) und
+`klicktest_teil_updates.py` (1.8.25, Speichern in mobiler Zeiterfassung, Einstellungen, Rechnung und Leistung lässt
+nicht bearbeitete Felder stehen). Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
 im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten (Vorlage dort). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 
@@ -1085,15 +1099,11 @@ Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
   `scripts/klicktest_monteur_navigation.py` beides als HINWEIS aus. Weitere sichtbare Links auf
   gesperrte Seiten (Adressimport für Büro, Modul-Hinweis auf der Berichtsseite): `BEKANNT_OFFEN`
   in `tests/test_v328_navigation_ohne_sperrseiten.py`.
-- **Update-Endpunkte, die nicht gesendete Felder überschreiben** (Sweep 1.8.24, nur gemeldet --
-  dasselbe Muster wie `internal_note` in 1.8.23: `model_dump()`/Feldzuweisung ohne
-  `model_fields_set`, ein Aufrufer schickt das Feld nicht). `PUT /api/properties/{id}` leert
-  Zugangshinweise/Ansprechpartner vor Ort beim Bearbeiten über die Kundenseite; `PUT /api/tasks/{id}`
-  setzt `min_visible_role` zurück (Finanz-Aufgaben werden für alle sichtbar); mobile Zeiterfassung
-  (`PUT /api/time-entries/{id}`, `/api/time-entry-groups/{id}`) ersetzt die Pause durch den Standard
-  und leert die LV-Position; `PUT /api/settings/general` setzt die Logohöhe zurück und
-  `saveLogoHeight()` schickt einen veralteten Stand; `PUT /api/invoices/{id}` (pauschale
-  Abschlagsrechnung) leert Schlusstext 2; `PUT /api/services/{id}/calculation` leert die Notiz.
+- **69 Update-Handler übernehmen weiterhin nicht gesendete Felder** (die sechs mit Datenverlust seit
+  1.8.25 behoben, Regel 22): jede Oberfläche schickt dort heute alle Felder, kein akuter Datenverlust.
+  Eingefroren in `BEKANNT` (`tests/test_v329_update_handler_struktur.py`), Abbau bei Gelegenheit; dazu
+  Speichern-Aufrufe, die nicht bearbeitete oder gemerkte Werte schicken: `docs/archiv/teil-updates.md`,
+  "Nebenbefunde der Durchsicht".
 - **Bewusst keine Erkennungsspalte für manuell bearbeiteten Mahntext -- nur ein Hinweis beim
   Speichern** (seit 1.3.21, siehe Abschnitt "Mahnwesen: Löschen/Versenden/Bearbeiten" oben für die
   volle Untersuchung/Begründung). `update_reminder_draft()` erlaubt das unabhängige Ändern von

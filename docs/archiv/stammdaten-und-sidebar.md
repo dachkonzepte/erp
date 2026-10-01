@@ -527,6 +527,12 @@ kein zweiter Upload gebaut, `sidebar_logo_filename()` bleibt bei genau einer Stu
 (Firmenlogo → Schriftzug). **Diese Diagnose war falsch -- seit 1.3.43 korrigiert, siehe
 "Korrektur: doch ein Schriftzug" am Ende dieses Abschnitts.**
 
+**Nachtrag (seit 1.8.25):** "Unternehmensstammdaten speichern" schickte die Höhe nicht mit, der
+Server setzte sie dabei auf den Vorgabewert 64 zurück; "Übernehmen" (`saveLogoHeight()`) schickte den
+beim Laden der Seite gemerkten Stand aller Stammdaten mit und machte eine zwischenzeitlich gespeicherte
+Änderung rückgängig. `PUT /api/settings/general` übernimmt jetzt nur gesendete Felder,
+`saveLogoHeight()` schickt nur die Höhe -- siehe `docs/archiv/teil-updates.md`.
+
 ### Anzeige-Rendition (seit 1.3.40)
 
 Die echte, hochgeladene Datei war 8000×5295px/252KB -- in der Sidebar auf 24-80px Höhe

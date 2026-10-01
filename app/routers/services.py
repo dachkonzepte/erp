@@ -222,17 +222,13 @@ def update_service_calculation(
         db.add(calc)
         service.calculation = calc
 
-    calc.site_time_minutes = payload.site_time_minutes
-    calc.workshop_time_minutes = payload.workshop_time_minutes
-    calc.labor_rate_override = payload.labor_rate_override
-    calc.material_markup_pct_override = payload.material_markup_pct_override
-    calc.equipment_cost = payload.equipment_cost
-    calc.subcontractor_cost = payload.subcontractor_cost
-    calc.other_cost = payload.other_cost
-    calc.overhead_pct_override = payload.overhead_pct_override
-    calc.risk_profit_pct_override = payload.risk_profit_pct_override
-    calc.manual_sale_price = payload.manual_sale_price
-    calc.notes = payload.notes
+    # Nur gesendete Felder (seit 1.8.25): das Leistungsformular schickt keine Notiz -- bis dahin
+    # wurde sie dabei geleert.
+    changes = payload.model_dump(exclude_unset=True)
+    material_overrides = payload.material_overrides if "material_overrides" in changes else []
+    changes.pop("material_overrides", None)
+    for key, value in changes.items():
+        setattr(calc, key, value)
 
     material_by_id = {material.id: material for material in service.materials}
     existing_overrides = {
@@ -240,7 +236,7 @@ def update_service_calculation(
         for override in service.material_overrides
     }
 
-    for item in payload.material_overrides:
+    for item in material_overrides:
         material = material_by_id.get(item.material_id)
         if material is None:
             raise HTTPException(

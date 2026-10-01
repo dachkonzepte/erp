@@ -4,6 +4,33 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.25 – Speichern übernimmt nur noch gesendete Felder
+
+Nebenbefund aus 1.8.24 behoben: sechs Update-Endpunkte übernahmen Felder, die ihr Aufrufer gar nicht
+schickte. Pydantic setzt dann den Vorgabewert ein, und der Handler speicherte ihn. Die Kundenseite
+leerte beim Bearbeiten eines Objekts Zugangshinweise und Ansprechpartner vor Ort. Der Aufgaben-Editor
+setzte die Sichtbarkeitsgrenze zurück, eine Finanz-Aufgabe wurde dadurch für jedes Büro-Konto sichtbar.
+Die mobile Zeiterfassung ersetzte beim Ändern einer Buchung oder Kolonnenbuchung die Pause durch den
+Standard und leerte die LV-Position. „Unternehmensstammdaten speichern“ setzte die Logohöhe zurück,
+„Logohöhe übernehmen“ schickte den beim Laden der Seite gemerkten Stand aller Stammdaten mit.
+„Pauschale speichern“ leerte den Schlusstext 2, das Leistungsformular die interne Kalkulationsnotiz.
+Jetzt übernimmt der Server nur gesendete Felder: neue Basisklasse `PartialUpdate` in `app/schemas.py`,
+`model_dump(exclude_unset=True)`, Felder einer NOT-NULL-Spalte dürfen fehlen, aber nicht null sein.
+Die Oberflächen schicken nur noch, was sie bearbeiten. Wechselt eine Zeitbuchung den Auftrag ohne neue
+LV-Position, entfällt die alte.
+
+`tests/test_v329_teil_updates.py` liest je Oberfläche die geschickten Schlüssel aus der Vorlage und
+schickt genau diese. Gegenproben: mit dem alten Server 13 von 18 rot, mit der alten Oberfläche 7 von 18;
+die alte Oberfläche verliert auch beim neuen Server Pause und Stammdaten. Neuer Dauertest
+`tests/test_v329_update_handler_struktur.py` (Regel 22) liest jeden PUT/PATCH-Handler per AST und meldet
+jedes Lesen eines Feldes mit Vorgabewert ohne `exclude_unset`, mit Selbsttest. Gegen den alten Code meldet
+er genau die sieben Routen. Er findet 77 weitere Handler: 69 übernehmen nicht gesendete Felder, aber laut
+Durchsicht aller Aufrufer schickt dort heute jede Oberfläche alle Felder (6 davon leeren absichtlich beim
+Weglassen); 8 behandeln None als unverändert, was die Suche nicht sieht. Sie stehen als Liste mit Grund im
+Test und dürfen nur weniger werden. Klicktest `scripts/klicktest_teil_updates.py` 9/9, mit altem Code 2/9.
+23 neue Tests, Suite 2308 grün. Nebenbefunde der Durchsicht (fest verdrahtete Werte, Auswahllisten ohne
+den gespeicherten Wert, gemerkte Werte) nur gemeldet: `docs/archiv/teil-updates.md`.
+
 ## 1.8.24 – Monteur-Datengrenze nachgeschärft: Zeiterfassungs-Kontext, Personaldaten, Seitenleiste
 
 Folgerunde zu 1.8.22. `GET /api/time-tracking/context` gab dem Monteur dasselbe wie dem Büro: alle

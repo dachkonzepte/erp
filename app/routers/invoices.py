@@ -129,11 +129,7 @@ def post_invoice_from_time_entries(order_id: int, payload: InvoiceCreateFromOrde
 def put_invoice_header(invoice_id: int, payload: InvoiceHeaderUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
-        update_invoice_header(
-            db, invoice, due_date=payload.due_date, progress_description=payload.progress_description,
-            lump_sum_net=payload.lump_sum_net, intro_text=payload.intro_text,
-            outro_text=payload.outro_text, outro_text_2=payload.outro_text_2, payment_terms=payload.payment_terms,
-        )
+        update_invoice_header(db, invoice, **payload.model_dump(exclude_unset=True))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return invoice_to_dict(invoice)

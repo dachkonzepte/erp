@@ -1,7 +1,24 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import ClassVar
 from urllib.parse import urlparse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class PartialUpdate(BaseModel):
+    """Teil-Update (seit 1.8.25): jedes Feld darf fehlen, der Handler übernimmt nur die gesendeten
+    (model_dump(exclude_unset=True)). Ein Aufrufer, der ein Feld nicht kennt, lässt es damit stehen,
+    statt dass Pydantic den Vorgabewert einsetzt und der Handler ihn speichert -- so gingen
+    Zugangshinweise, Pause, Schlusstext 2 u. a. verloren (siehe CHANGELOG.md 1.8.25).
+    Felder in NOT_NULL dürfen fehlen, aber nicht ausdrücklich null sein (NOT-NULL-Spalte)."""
+    NOT_NULL: ClassVar[frozenset[str]] = frozenset()
+
+    @model_validator(mode="after")
+    def _keine_null_in_pflichtfeldern(self):
+        leer = sorted(f for f in self.NOT_NULL if f in self.model_fields_set and getattr(self, f) is None)
+        if leer:
+            raise ValueError("Darf nicht leer sein: " + ", ".join(leer))
+        return self
 
 
 def _require_http_url(value: str) -> str:
@@ -101,7 +118,9 @@ class MaterialOverrideIn(BaseModel):
     price_basis_override: Decimal | None = Field(default=None, gt=0)
 
 
-class ServiceCalculationUpdate(BaseModel):
+class ServiceCalculationUpdate(PartialUpdate):
+    """Teil-Update: das Leistungsformular hat kein Notizfeld und schickt notes nicht mit (bis
+    1.8.24 dadurch beim Speichern geleert). material_overrides fehlt = Überschreibungen bleiben."""
     site_time_minutes: Decimal | None = Field(default=None, ge=0)
     workshop_time_minutes: Decimal | None = Field(default=None, ge=0)
     labor_rate_override: Decimal | None = Field(default=None, ge=0)
@@ -296,9 +315,12 @@ class PropertyAccessOut(BaseModel):
     site_contact_phone: str | None
 
 
-class PropertyUpdate(BaseModel):
+class PropertyUpdate(PartialUpdate):
+    """Teil-Update: die Kundenseite bearbeitet Zugang und Ansprechpartner vor Ort nicht und schickt
+    sie nicht mit (bis 1.8.24 dadurch beim Speichern geleert)."""
+    NOT_NULL = frozenset({"customer_id", "name"})
     customer_id: int | None = None
-    name: str = Field(min_length=1, max_length=255)
+    name: str | None = Field(default=None, min_length=1, max_length=255)
     street: str | None = None
     postal_code: str | None = None
     city: str | None = None
@@ -821,8 +843,12 @@ class GeneralSettingsOut(BaseModel):
     public_base_url: str | None
 
 
-class GeneralSettingsUpdate(BaseModel):
-    company_name: str = Field(min_length=1, max_length=255)
+class GeneralSettingsUpdate(PartialUpdate):
+    """Teil-Update: "Unternehmensstammdaten speichern" schickt die Logohöhe nicht mit, "Logohöhe
+    übernehmen" nur sie (bis 1.8.24 setzte das eine die Höhe zurück, das andere schickte einen beim
+    Laden der Seite gemerkten, veralteten Stand der Stammdaten)."""
+    NOT_NULL = frozenset({"company_name"})
+    company_name: str | None = Field(default=None, min_length=1, max_length=255)
     managing_director: str | None = None
     street: str | None = None
     postal_code: str | None = None
@@ -1737,7 +1763,9 @@ class InvoiceCreateFromOrder(BaseModel):
     due_date: date | None = None
 
 
-class InvoiceHeaderUpdate(BaseModel):
+class InvoiceHeaderUpdate(PartialUpdate):
+    """Teil-Update: "Pauschale speichern" schickt nur Bezeichnung und Betrag, "Texte speichern" nur
+    die drei Texte (bis 1.8.24 leerte die Pauschale den Schlusstext 2)."""
     due_date: date | None = None
     progress_description: str | None = None
     lump_sum_net: Decimal | None = Field(default=None, gt=0)
@@ -2213,8 +2241,20 @@ class TimeEntryManualCreate(BaseModel):
     break_minutes: int = Field(default=0, ge=0, le=720)
     notes: str | None = None
 
-class TimeEntryUpdate(TimeEntryManualCreate):
-    pass
+class TimeEntryUpdate(PartialUpdate):
+    """Teil-Update: die mobile Zeiterfassung bearbeitet weder Pause noch LV-Position (bis 1.8.24
+    ersetzte "Ändern" die Pause durch den Standard und leerte die LV-Position). Wechselt der
+    Auftrag ohne neue LV-Position, entfällt die alte -- sie gehört zum alten Auftrag."""
+    NOT_NULL = frozenset({"employee_id", "order_id", "work_date", "entry_type", "hours", "break_minutes"})
+    employee_id: int | None = None
+    order_id: int | None = None
+    order_item_id: int | None = None
+    work_date: date | None = None
+    entry_type: str | None = Field(default=None, max_length=40)
+    activity: str | None = Field(default=None, max_length=180)
+    hours: Decimal | None = Field(default=None, gt=0, le=24)
+    break_minutes: int | None = Field(default=None, ge=0, le=720)
+    notes: str | None = None
 
 class TimeTimerStart(BaseModel):
     employee_id: int
@@ -2324,17 +2364,18 @@ class TimeEntrySummaryOut(BaseModel):
     employee_count: int
 
 
-class TimeGroupUpdate(BaseModel):
+class TimeGroupUpdate(PartialUpdate):
     """Korrektur einer abgeschlossenen Gruppenbuchung (seit 1.7.12) -- gilt für alle noch
     verknüpften Mitgliedsbuchungen gleichermaßen. Die Besetzung selbst ist nicht änderbar
-    (dafür löschen und neu buchen)."""
-    order_id: int
+    (dafür löschen und neu buchen). Teil-Update seit 1.8.25, wie TimeEntryUpdate."""
+    NOT_NULL = frozenset({"order_id", "work_date", "entry_type", "hours", "break_minutes"})
+    order_id: int | None = None
     order_item_id: int | None = None
-    work_date: date
-    entry_type: str = Field(default="site", max_length=40)
+    work_date: date | None = None
+    entry_type: str | None = Field(default=None, max_length=40)
     activity: str | None = Field(default=None, max_length=180)
-    hours: Decimal = Field(gt=0, le=24)
-    break_minutes: int = Field(default=0, ge=0, le=720)
+    hours: Decimal | None = Field(default=None, gt=0, le=24)
+    break_minutes: int | None = Field(default=None, ge=0, le=720)
     notes: str | None = None
 
 
@@ -2926,11 +2967,14 @@ class TaskCreate(BaseModel):
     min_visible_role: str | None = Field(default=None, pattern="^(admin|buero_finanzen|buero_auftrag|field)$")
 
 
-class TaskUpdate(BaseModel):
-    title: str = Field(min_length=1, max_length=255)
+class TaskUpdate(PartialUpdate):
+    """Teil-Update: der Editor auf /tasks schickt min_visible_role nicht mit (bis 1.8.24 dadurch
+    auf None zurückgesetzt -- eine Finanz-Aufgabe wurde für jedes Büro-Konto sichtbar)."""
+    NOT_NULL = frozenset({"title", "status", "priority"})
+    title: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
-    status: str
-    priority: str
+    status: str | None = None
+    priority: str | None = None
     due_date: date | None = None
     assigned_employee_id: int | None = None
     project_id: int | None = None

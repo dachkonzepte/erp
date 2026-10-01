@@ -413,3 +413,14 @@ Bestand. Ein bestehender Test aus 1.5.3
 wurde auf `buero_finanzen` umgestellt -- er prüft das Kategorie-Feld/den Filter selbst, nicht die
 Rollenreduktion, die jetzt separat und ausführlicher in der neuen Testdatei steht. Volle Suite:
 1620 Tests grün.
+
+## Ändern einer Buchung ist ein Teil-Update (seit 1.8.25)
+
+`PUT /api/time-entries/{id}` und `PUT /api/time-entry-groups/{id}` übernehmen nur gesendete Felder
+(`_merge_time_changes()` in `app/routers/time_tracking.py`). Die mobile Zeiterfassung schickte beim
+Ändern die Standardpause und keine LV-Position mit -- jede Korrektur ersetzte die gebuchte Pause und
+leerte die LV-Position, bei Kolonnenbuchungen für alle nicht einzeln geänderten Mitglieder. Jetzt
+schickt sie beim Ändern nur, was der Dialog zeigt (Auftrag, Datum, Zeitart, Tätigkeit, Stunden, Notiz),
+beim Anlegen weiter die Standardpause. Die Backoffice-Korrektur schickt weder Pause noch Mitarbeiter.
+Wechselt der Auftrag ohne neue LV-Position, entfällt die alte. Fehlt `employee_id`, bleibt der
+Mitarbeiter der Buchung. Details und Tests: `docs/archiv/teil-updates.md`.

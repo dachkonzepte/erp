@@ -361,11 +361,12 @@ async function saveCrewDialog(){
   const orderId=Number($('crewDialogOrder').value||0),hours=Number($('crewDialogHours').value||0);
   if(!orderId){$('crewDialogStatus').textContent='Bitte Auftrag auswählen.';return}
   if(!(hours>0)){$('crewDialogStatus').textContent='Bitte Stunden größer als 0 angeben.';return}
-  const body={order_id:orderId,work_date:$('crewDialogDate').value,entry_type:$('crewDialogType').value,activity:$('crewDialogActivity').value||null,hours,break_minutes:timeSettings.default_break_minutes||0,notes:$('crewDialogNotes').value.trim()||null};
+  // Ändern schickt nur, was der Dialog zeigt -- Pause und LV-Position bleiben (seit 1.8.25).
+  const body={order_id:orderId,work_date:$('crewDialogDate').value,entry_type:$('crewDialogType').value,activity:$('crewDialogActivity').value||null,hours,notes:$('crewDialogNotes').value.trim()||null};
   try{
     let saved;
     if(crewEditingId)saved=await api(`/api/time-entry-groups/${crewEditingId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    else saved=await api('/api/time-entry-groups',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,employee_ids:crewSelectedIds(),team_id:Number($('crewTeam').value)})});
+    else saved=await api('/api/time-entry-groups',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,break_minutes:timeSettings.default_break_minutes||0,employee_ids:crewSelectedIds(),team_id:Number($('crewTeam').value)})});
     crewDialog.close();await loadEntries();await loadCrewState();
     const skipped=saved?.skipped_members||[];
     $('crewStatus').innerHTML=skipped.length?`<span class="error">Nicht übernommen bei: ${skipped.map(esc).join(', ')}</span> – hat die eigene Buchung nach der Gruppenbuchung selbst geändert. Deren Buchung bleibt, wie sie ist.`:(crewEditingId?'Korrektur gespeichert.':'');
@@ -441,9 +442,11 @@ async function saveManual(){
     hours=Number($('manualDuration').value||0);
     if(!(hours>0)){$('manualStatus').textContent='Bitte eine Dauer größer als 0 angeben.';return}
   }
-  const body={employee_id:myEmployeeId,order_id:orderId,work_date:$('manualDate').value,entry_type:manualType,activity:$('manualActivity').value||null,hours,break_minutes:timeSettings.default_break_minutes||0,notes:$('manualNotes').value.trim()||null};
+  // Ändern schickt nur, was der Dialog zeigt -- Pause und LV-Position bleiben (seit 1.8.25).
+  const body={order_id:orderId,work_date:$('manualDate').value,entry_type:manualType,activity:$('manualActivity').value||null,hours,notes:$('manualNotes').value.trim()||null};
   try{
-    await api(editingId?`/api/time-entries/${editingId}`:'/api/time-entries',{method:editingId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(editingId)await api(`/api/time-entries/${editingId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    else await api('/api/time-entries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,employee_id:myEmployeeId,break_minutes:timeSettings.default_break_minutes||0})});
     manualDialog.close();await loadEntries();
   }catch(e){$('manualStatus').textContent='Fehler: '+e.message}
 }
