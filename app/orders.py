@@ -12,7 +12,7 @@ from .models import (
     Project, QuoteEmployeeAssignment, ServiceReport, TaxKey,
     WorkPreparation, WorkPreparationEmployee, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee,
 )
-from .contract_basis import clause_is_reviewed, contract_basis_label
+from .contract_basis import clause_is_reviewed, contract_basis_label, ensure_contract_not_signed
 from .invoices import compute_order_billing_progress
 from .placeholders import apply_placeholders
 from .projects import ensure_quote_structure, load_quote
@@ -719,6 +719,8 @@ def create_order_from_quote(
 
 
 def sync_order_from_source_quote(db: Session, order: Order, *, actor_name: str = "System", reason: str | None = None) -> Order:
+    # Seit 1.8.34: nach der Unterschrift unter dem Vertrag gesperrt (ContractSignedError, Router 409).
+    ensure_contract_not_signed(db, order.id, "der Abgleich mit dem Angebot")
     quote = load_quote(db, order.source_quote_id)
     if quote is None:
         raise ValueError("Quellangebot nicht gefunden.")

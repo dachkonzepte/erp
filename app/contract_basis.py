@@ -19,7 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .berlin_time import berlin_today
-from .models import ContractBasisClause, Customer, Order, OrderContractBasisChange
+from .models import ContractBasisClause, Customer, Order, OrderContract, OrderContractBasisChange
 
 CONTRACT_BASES: dict[str, str] = {
     "vob_b": "VOB/B",
@@ -31,6 +31,25 @@ CONSUMER_DEFAULT_BASIS = "bgb_vob_c_4_5"
 BUSINESS_DEFAULT_BASIS = "vob_b"
 
 MAX_REASON_LENGTH = 2000
+
+
+class ContractSignedError(ValueError):
+    """Der Vertrag zum Auftrag ist unterschrieben, die Aktion ist danach gesperrt (seit 1.8.34) -- Router: 409."""
+
+
+def ensure_contract_not_signed(db: Session, order_id: int, action: str) -> None:
+    """Sperrt die Vertragszeile des Auftrags (PostgreSQL; SQLite ignoriert es) und wirft
+    ContractSignedError, wenn der Vertrag unterschrieben ist. Die Sperre gilt bis zum Commit: eine
+    gleichzeitige Unterschrift (app/contract_signatures.py, gleiche Zeilensperre) wartet und sieht danach die
+    Änderung am Auftrag -- oder diese Aktion wartet und sieht die Unterschrift."""
+    status = db.scalar(
+        select(OrderContract.status).where(OrderContract.order_id == order_id).with_for_update()
+    )
+    if status == "unterschrieben":
+        raise ContractSignedError(
+            f"Der Vertrag zu diesem Auftrag ist unterschrieben – {action} ist danach gesperrt. Spätere Änderungen "
+            "(z. B. Nachträge) direkt am Auftrag erfassen; der unterschriebene Vertrag bleibt gültig."
+        )
 
 
 def contract_basis_label(key: str | None) -> str | None:
@@ -155,13 +174,15 @@ def change_order_contract_basis(
     db: Session, order: Order, *, contract_basis: str, reason: str, actor_name: str = "System",
 ) -> OrderContractBasisChange:
     """Ändert die Vertragsgrundlage am Auftrag -- nur mit Begründung, mit Historie. Danach gilt sie
-    als am Auftrag festgelegt: der Abgleich mit dem Angebot überschreibt sie nicht mehr."""
+    als am Auftrag festgelegt: der Abgleich mit dem Angebot überschreibt sie nicht mehr. Seit 1.8.34
+    gesperrt, sobald der Vertrag unterschrieben ist (ContractSignedError)."""
     new_basis = validate_contract_basis(contract_basis)
     text = (reason or "").strip()
     if not text:
         raise ValueError("Bitte eine Begründung für die Änderung angeben.")
     if len(text) > MAX_REASON_LENGTH:
         raise ValueError(f"Die Begründung darf höchstens {MAX_REASON_LENGTH} Zeichen lang sein.")
+    ensure_contract_not_signed(db, order.id, "das Ändern der Vertragsgrundlage")
     if new_basis == order.contract_basis:
         raise ValueError("Der Auftrag hat bereits diese Vertragsgrundlage.")
     change = OrderContractBasisChange(

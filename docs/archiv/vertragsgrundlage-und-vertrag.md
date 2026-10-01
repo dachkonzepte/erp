@@ -16,7 +16,7 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | **2b-1a** | 1.8.21 | Vertragsgrundlage: Verbraucher-Merkmal am Kunden, Vertragsgrundlage an Angebot und Auftrag, Klauseltext je Grundlage mit rechtlicher Prüfung, Übernahme/Abgleich, Fehler `tax_key_id`/`outro_text_2`, Feldliste Angebot/Auftrag | erledigt |
 | **2b-1b Teil 1** | 1.8.32 | Vertragsvorlagen (Abschnitte, Platzhalter, nur bei Verbrauchern, Prüfung), Vertragsentwurf beim Beauftragen mit Fallfeldern, Ausführungszeitraum aus dem Angebot, PDF `contract` mit Angebot als Anlage und Wasserzeichen | erledigt |
 | **2b-1b Teil 2a** | 1.8.33 | Vertrag festschreiben (Fassungen), Anlage aus der Ablage mit bewusster Wahl, Versand; Schnellauftrag ohne automatischen Entwurf | erledigt |
-| **2b-1b Teil 2b** | — | Gemeinsame Unterschriftsvorlage, Unterschrift auf dem Gerät (Kunde und Betrieb, Ankreuzfelder, Unterschriftsblatt) oder Papier-Scan, Sperren nach der Unterschrift | offen, siehe "Offen für Teil 2b" |
+| **2b-1b Teil 2b** | 1.8.34 | Gemeinsame Unterschriftsvorlage, Unterschrift auf dem Gerät (Kunde und Betrieb, Ankreuzfelder, Unterschriftsblatt) oder Papier-Scan, Sperren nach der Unterschrift, Widerrufsfrist | erledigt |
 | **2b-2** | — | Beteiligte mit Adressbuch | offen |
 | **2b-3** | — | Behinderungsanzeige | offen |
 | **2b-4** | — | Bedenkenanzeige | offen |
@@ -371,7 +371,7 @@ an derselben Stelle wie der Entwurf), Punkte 4–6 und deren Tests siehe "Offen 
   412 px; Monteur 403). `klicktest_vertragsvorlagen.py` (Knopf heißt im Entwurf "Entwurf als PDF") 36/36,
   `klicktest_versandprotokoll.py` 45/45, `klicktest_versandverlauf.py` 32/32.
 
-### Offen für Teil 2b (Punkte 4–6 und ihre Tests aus Punkt 8)
+### Offen für Teil 2b (Punkte 4–6 und ihre Tests aus Punkt 8) -- erledigt in 1.8.34, siehe unten
 
 1. **Gemeinsame Unterschriftsvorlage** (Punkt 4): Zeichenfeld heute zweimal -- `checklist.html` (`setupPad()`, je
    Feld, mit `devicePixelRatio`, weißer Hintergrund, Datei-Upload) und `service_reports.html` (`initSignaturePad()`,
@@ -403,3 +403,120 @@ an derselben Stelle wie der Entwurf), Punkte 4–6 und deren Tests siehe "Offen 
    PostgreSQL).
 4. Bekannt und unverändert: Textfelder der Auftragsseite in Festbreitenschrift (1.8.32 Nr. 3), "GP" der
    LV-Kopfzeile ragt bei 1400 px in die rechte Spalte (1.8.21 Nr. 5) -- beide auf den Klicktest-Bildern sichtbar.
+
+---
+
+## Umsetzung 1.8.34 (01.10.2026) -- Runde 2b-1b Teil 2b: Unterschrift unter dem Vertrag
+
+Betreibervorgabe: (1) gemeinsame Unterschriftsvorlage für Checkliste, Einsatzbericht und Vertrag, Zeichenfläche in
+beiden Themes hell mit dunklem Strich; (2) Unterschrift auf dem Gerät, Kunde und Betrieb, bindet die Prüfsumme der
+festgeschriebenen Fassung, Ankreuzfelder setzt der Kunde und sie gehören zum unterschriebenen Inhalt, Ergebnis ein
+Unterschriftsblatt in der Ablage; alternativ Papier-Scan mit Datum und vom Büro übertragenen Ankreuzfeldern; (3) danach
+Vertragsgrundlage und Abgleich gesperrt, spätere Änderungen am Auftrag nur als Hinweis; (4) bei Verbrauchern
+voraussichtliches Ende der Widerrufsfrist (14 Tage ab Unterschrift) mit Vermerk zum vorzeitigen Beginn; (5) Tests mit
+Gegenprobe, Monteur 403, gleichzeitiges Festschreiben und Unterschreiben mit echten parallelen Anfragen gegen
+PostgreSQL.
+
+- **Gemeinsame Vorlage** (`app/templates/_unterschrift.html`): Regel `canvas.dk-unterschrift` (weiß, gestrichelter
+  Rand in fester Farbe, `touch-action:none`, Höhe 170 px, die Seite darf sie überschreiben) und
+  `unterschriftsfeld(canvas)` → `{leer(), leeren(), alsBlob(), alsDataUrl()}`: Zeigerereignisse mit
+  `setPointerCapture`, Geräteauflösung (`devicePixelRatio`), Strich `#111`, PNG mit durchsichtigem Hintergrund wie
+  bisher (auf dem PDF liegt es über dem Briefpapier). Checkliste (`setupPad()`/`clearPad()` sind nur noch Hüllen, IDs
+  `pad_…`/`padName_…` unverändert, damit die Klicktests weiterlaufen), Einsatzbericht (`initSignaturePad()`,
+  `#sigCanvas` 220 px, Monteur und Kunde nacheinander) und Vertragsdialog nutzen sie. Der Einsatzbericht zeichnet
+  dadurch jetzt in Geräteauflösung (vorher CSS-Pixel) -- das PNG ist auf einem Tablet entsprechend größer.
+- **Unterschrift auf dem Gerät** (`app/contract_signatures.py::sign_contract_on_device()`,
+  `POST /api/orders/{id}/contract/sign`, JSON mit `version_id`, `pdf_sha256`, `checkboxes`, zwei Namen und zwei PNG
+  als Base64): Sperre der Vertragszeile, danach alles frisch gelesen (`expire_all()`); abgelehnt (409), wenn der
+  Vertrag nicht festgeschrieben oder schon unterschrieben ist, `version_id` nicht die gültige Fassung ist, die
+  Prüfsumme nicht die ihres PDFs ist, das PDF in der Ablage nicht mehr unversehrt ist oder die Fassung nicht mehr zum
+  Auftrag passt (`version_differences()`). Eingaben (400): Namen Pflicht, PNG am Inhalt erkannt, höchstens 2 MB, nicht
+  leer (sichtbares Pixel bzw. bei deckendem Hintergrund ein dunkles). Ankreuzfelder = Abschnitte mit Ankreuzfeld aus
+  dem eingefrorenen Inhalt (`checkbox_sections()`, Schlüssel `abschnitt-N`); jedes muss als true/false kommen
+  (`StrictBool`, fehlend oder unbekannt 400). Ablage: beide PNG und das Unterschriftsblatt (Art `vertrag`, Dokument-ID
+  = Vertrag, Nummer wie die Fassung). Unterschriftsblatt (`app/contract_pdf.py::render_signature_sheet_pdf()`, Rahmen
+  `contract`): Kopf wie der Vertrag, Fassung mit Datum und Vertragsgrundlage, PDF-Prüfsumme der Fassung, Ankreuzfelder
+  mit gezeichnetem Kreuz und "(angekreuzt)"/"(nicht angekreuzt)", zwei Unterschriften mit Namen, Zeitpunkt, erfasst von,
+  Prüfsumme des unterschriebenen Inhalts.
+- **Unterschriebener Inhalt** (`order_contract_signatures.signed_content`, kanonisches JSON wie die Fassung,
+  `content_sha256`): Vertrag, Auftrag, Fassung (ID, Nummer, Inhalts- und PDF-Prüfsumme), Grundlage,
+  Verbraucher-Merkmal der Fassung, Weg, Datum, je Ankreuzfeld Schlüssel/Überschrift/Text/Kennzeichen/Stand, Namen und
+  SHA-256 der Bilder bzw. des Scans, erfasst wann und von wem. Die Karte prüft bei jedem Abruf die Prüfsumme und die
+  Datei in der Ablage.
+- **Papier** (`record_paper_signature()`, `POST /api/orders/{id}/contract/sign-paper`, multipart): Scan PDF/JPEG/PNG/WebP
+  am Inhalt erkannt (`app/email_dispatch.py::receipt_content_type()`, bisher `_receipt_content_type`), höchstens 15 MB,
+  Datum nicht in der Zukunft und nicht vor dem Festschreiben der Fassung, Ankreuzfelder als JSON wie oben, dieselbe
+  Fassungsbindung. **Festlegung (bitte bestätigen): eine Abweichung vom Auftrag sperrt das Eintragen des Papiers nicht**
+  -- der Kunde hat womöglich vor der Änderung unterschrieben; die Karte zeigt die Abweichung danach als Hinweis. Die
+  Seite bietet die Ankreuzfelder als "angekreuzt"/"nicht angekreuzt" ohne Vorauswahl an (Regel 4).
+- **Status "unterschrieben"** (`OrderContract.status`, `FROZEN_STATUSES` in `app/contract_versions.py`): keine neue
+  Fassung, kein Festschreiben, kein zweites Unterschreiben (bedingtes UPDATE auf `festgeschrieben` plus Unique
+  `contract_id`). `app/contract_basis.py::ensure_contract_not_signed()` sperrt die Vertragszeile und wirft
+  `ContractSignedError` (409) in `change_order_contract_basis()` und `sync_order_from_source_quote()`. Seite: Karte
+  "Quellangebot" ohne Übernehmen-Knopf mit Erklärung, Karte "Vertragsgrundlage" ohne Änderungsteil. Abweichungen der
+  unterschriebenen Fassung erscheinen als Hinweis "der unterschriebene Vertrag bleibt gültig". **Festlegung (bitte
+  bestätigen): die unterschriebene Fassung bleibt versendbar und zustellbar, auch bei späteren Abweichungen**
+  (`deliverable_version()`), als Abschrift für den Kunden. Unterschriften sind unveränderlich (ORM-Sperre).
+- **Widerrufsfrist** (`withdrawal_info()`): nur wenn die Fassung als Verbrauchervertrag festgeschrieben wurde.
+  Tag der Unterschrift + 14 Tage; **Festlegung: fällt das Ende auf Samstag oder Sonntag, der Montag** (§ 193 BGB),
+  Feiertage kennt das ERP nicht (die Karte sagt es, ebenso "gilt nur bei ordnungsgemäßer Widerrufsbelehrung").
+  Vermerk zum vorzeitigen Beginn aus dem gekennzeichneten Ankreuzfeld. **Festlegung: neues Kennzeichen
+  `contract_template_sections.early_start`** ("= Verlangen des vorzeitigen Beginns" im Vorlagen-Editor) statt einer
+  Ableitung aus "nur bei Verbrauchern" + Ankreuzfeld -- eine Vorlage kann mehrere solche Ankreuzfelder haben (z. B.
+  "Belehrung erhalten"). Nur an einem Ankreuzfeld "nur bei Verbrauchern", höchstens eins je Vorlage, **setzt die
+  Prüfung nicht zurück** (ändert keinen Text im Vertrag). Eingefroren in der Fassung; Fassungen von vor 1.8.34 haben
+  es nicht, dann sagt die Karte, dass kein Ankreuzfeld gekennzeichnet ist.
+- **Gleichzeitigkeit**: Unterschreiben, Festschreiben, neue Fassung, Grundlage ändern und Abgleich sperren dieselbe
+  Zeile (`SELECT … FOR UPDATE`); Statuswechsel zusätzlich bedingt; Unique an Fassung und Unterschrift. Getestet mit
+  echten parallelen HTTP-Anfragen gegen PostgreSQL (eigene Verbindung je Anfrage, die ersten Sperren warten an einer
+  Schranke aufeinander): zweimal Festschreiben → eine Fassung (schließt 1.8.33 Nebenbefund 3), dreimal
+  Unterschreiben → eine Unterschrift, Unterschrift gegen "Neue Fassung" + Festschreiben → nie beides (beide Ausgänge
+  kamen in fünf Runden vor), Unterschrift gegen Grundlage ändern → nie beides.
+- **Rechte**: beide neuen Endpunkte ab `buero_auftrag`, Monteure 403; keine neue GET-Route (die Unterschrift steht im
+  Vertragsstand, Blatt/Scan/Bilder über `/api/sent-documents/{id}/file`).
+- **Migration `65e3431d5bb6`**: Tabelle `order_contract_signatures`, Spalte `early_start` (server_default falsch).
+  `downgrade()` verweigert bei einer Unterschrift, einem unterschriebenen Vertrag oder einem gekennzeichneten
+  Abschnitt.
+- **Verifikation**: `tests/test_v337_vertrag_unterschrift.py` (17 Tests: Bindung an Fassung und PDF, Ankreuzfeld im
+  Inhalt und auf dem Blatt, falsche/abgelöste/entworfene/abweichende/beschädigte Fassung abgelehnt, leere und
+  ungültige Bilder, Papier mit Datum und übertragenen Ankreuzfeldern, Sperren nach der Unterschrift mit Gegenprobe am
+  nicht unterschriebenen Auftrag, Nachtrag bleibt möglich und Abschrift versendbar, Widerrufsfrist und Wochenende,
+  Kennzeichen-Regeln, Monteur 403, Unveränderlichkeit, gemeinsame Zeichenfläche in den drei Seiten, Migration, vier
+  PostgreSQL-Paralleltests). Gegenproben (Schutz im Code ausgehebelt, Test rot, Datei byte-genau zurück, Skript im
+  Scratchpad): 27 rot -- falsche Prüfsumme angenommen, Fassungsbindung ganz weg, abweichende Fassung unterschreibbar,
+  beschädigte Ablage nicht erkannt, Ankreuzfelder nicht im Inhalt, fehlendes Ankreuzfeld still "nicht angekreuzt",
+  leere Unterschrift, Blatt ohne Ankreuzfelder, Grundlage bzw. Abgleich nach der Unterschrift möglich, neue Fassung
+  danach (Statusprüfung UND bedingtes UPDATE ausgehebelt -- jede allein hält), Papier vor dem Festschreiben datiert,
+  Scan ohne Inhaltserkennung, Monteur darf, Unterschrift änderbar/löschbar, Widerrufsfrist ohne Wochenende, Vermerk
+  fehlt, Kennzeichen ohne Ankreuzfeld, Kennzeichen nicht eingefroren, Downgrade ohne Schutz, Einsatzbericht ohne
+  gemeinsame Vorlage, Fläche dunkel; gegen PostgreSQL: Unterschrift ohne Sperre und mit unbedingtem Statuswechsel
+  ([200, 500, 500] statt [200, 409, 409]), Festschreiben ebenso (zwei Fassungen), Unterschrift gewinnt gegen eine neue
+  Fassung, Grundlage ändern ohne Sperre (Unterschrift und Änderung gehen beide durch). Migration SQLite (Kommandozeile hin/zurück/hin, `alembic check`) und
+  PostgreSQL 17 (Wegwerf-Schema: Kette bis `091e7f52649b`, Bestand mit Ankreuzfeld, upgrade, Constraints, Unterschrift
+  über den App-Code, Sperren, drei Downgrade-Abbrüche, downgrade, upgrade, `alembic check`). Volle Suite 2440 grün (mit den opt-in-Tests gegen PostgreSQL).
+  Klicktest `scripts/klicktest_vertrag_unterschrift.py` 43/43 (Dialog dunkel: Fläche weiß, Strich dunkel, ohne
+  Zeichnung abgewiesen; Unterschrift mit Ankreuzfeld, Karte, Widerrufsfrist, Blatt-Prüfsumme, Sperren; Papier mit
+  Datei über `DOM.setFileInputFiles`, 412 px; Checkliste und Einsatzbericht über die gemeinsame Fläche; hell;
+  Kennzeichen im Vorlagen-Editor als Administratorin; Monteur 403). Unverändert grün:
+  `klicktest_checkliste_unterschrift.py` 24/24, `klicktest_checkliste_abschnitte.py` 25/25,
+  `klicktest_checkliste_verwerfen.py` 23/23, `klicktest_vertrag_festschreiben.py` 40/40,
+  `klicktest_vertragsvorlagen.py` 36/36.
+
+### Nebenbefunde 1.8.34 (nur gemeldet)
+
+1. **Das Unterschriftsblatt geht nicht per E-Mail hinaus**: der Versand schickt die Fassung (ein Anhang), das Blatt
+   liegt in der Ablage und ist an der Karte abrufbar. Eine Abschrift mit Unterschrift für den Kunden (bei
+   Verbrauchern womöglich Pflicht, Bestätigung des Vertrags auf einem dauerhaften Datenträger) bräuchte einen Versand
+   mit zwei Anhängen oder ein zusammengeführtes, eigens abgelegtes PDF -- fachlich zu entscheiden.
+2. **Die Berichtsunterschrift hat serverseitig keine Größengrenze** (`app/routers/service_reports.py::
+   _decode_signature_png()`), anders als Checkliste und Vertrag (2 MB). Mit der Geräteauflösung werden die PNG auf
+   einem Tablet größer (typisch einige zehn KB), kein akutes Problem.
+3. **422-Fehler der Auftragsseite erscheinen als "[object Object]"**: `api()` in `order.html` reicht die Feldliste
+   einer Pydantic-Ablehnung unverändert an `Error()` weiter (vorbestehend, betrifft alle Formulare der Seite).
+4. Bekannt und unverändert: "GP" der LV-Kopfzeile ragt bei 1280–1400 px in die rechte Spalte (1.8.21 Nr. 5), dazu ein
+   waagrechter Scrollbalken der Auftragsseite bei 1280 px -- auf den Klicktest-Bildern sichtbar.
+5. **Ein PostgreSQL-Test, der mit offener Sitzung scheitert, hängt beim Aufräumen**: `DROP SCHEMA` wartet auf die
+   Sperren der Sitzung ("idle in transaction"). Im ersten Gegenprobenlauf so passiert (eigenen pytest-Prozess über
+   die PID beendet, Restschema entfernt); die neue Fixture schließt deshalb alle Sitzungen und beendet die eigenen
+   Verbindungen über `application_name`. Die älteren opt-in-PostgreSQL-Tests (`test_v297`, `test_v322`, `test_v323`)
+   räumen nicht so auf -- solange sie grün sind, unschädlich.

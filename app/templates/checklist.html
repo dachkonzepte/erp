@@ -88,8 +88,6 @@ textarea{min-height:90px;resize:vertical}
 .done-seal .sig-meta{color:var(--muted);word-break:break-all}
 .discarded-row{padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
 .discarded-row:last-of-type{border-bottom:none}
-.pad-wrap{border:1px dashed var(--field-border);background:#fff;touch-action:none}
-.pad-wrap canvas{display:block;width:100%;height:170px}
 .pad-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
 .pad-actions input{flex:1;min-width:180px}
 .footer-card{position:sticky;bottom:0;background:var(--card);border:1px solid var(--line);padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 -4px 14px rgba(0,0,0,.06)}
@@ -118,6 +116,7 @@ textarea{min-height:90px;resize:vertical}
 </div>
 {% endif %}
 {% if not is_field %}{% include "_email_dispatch.html" %}{% endif %}
+{% include "_unterschrift.html" %}
 <script>
 const checklistId={{ checklist_id }};
 const IS_FIELD={{ 'true' if is_field else 'false' }};
@@ -268,7 +267,7 @@ function fieldBody(f){
     const prefill=(!f.multiple&&/monteur|ausführend|fahrer/i.test(f.signer_label||f.label))?MY_NAME:'';
     const meta=a=>[a.created_at_local?a.created_at_local+' Uhr':null,a.content_sha256?'Prüfsumme '+a.content_sha256.slice(0,12)+'…':null].filter(Boolean).join(' · ');
     return `<div class="sig-list">${list.map(a=>`<div class="sig"><img src="${a.url}" alt="Unterschrift"><span class="name">${esc(a.signer_name)}<span class="sig-meta"${a.content_sha256?` title="SHA-256 des unterschriebenen Inhalts: ${esc(a.content_sha256)}"`:''}>${esc(meta(a))}</span>${sealLine(a)}</span></div>`).join('')||(canAdd?'':'<span class="muted">Keine Unterschrift.</span>')}</div>
-      ${canAdd?`<div class="pad-wrap"><canvas id="pad_${f.id}"></canvas></div>
+      ${canAdd?`<canvas id="pad_${f.id}" class="dk-unterschrift"></canvas>
       <div class="pad-actions"><input id="padName_${f.id}" placeholder="Name ${esc(f.signer_label||'')}" value="${esc(prefill)}">
         <button type="button" class="btn secondary" onclick="clearPad(${f.id})">Leeren</button>
         <button type="button" class="btn" onclick="saveSignature(${f.id})">Unterschrift übernehmen</button></div>`:''}`;
@@ -445,26 +444,17 @@ async function removeAttachment(attachmentId){
 
 // --- Unterschrift ------------------------------------------------------------------------
 
+// Zeichenfläche aus der gemeinsamen Vorlage _unterschrift.html (seit 1.8.34), je Unterschriftsfeld eine.
 const pads={};
 function setupPad(fieldId){
   const canvas=document.getElementById('pad_'+fieldId);
-  if(!canvas)return;
-  const rect=canvas.getBoundingClientRect();
-  const ratio=window.devicePixelRatio||1;
-  canvas.width=Math.max(1,Math.round(rect.width*ratio));canvas.height=Math.round(170*ratio);
-  const ctx=canvas.getContext('2d');ctx.scale(ratio,ratio);ctx.lineWidth=2.2;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#111';
-  const pad={canvas,ctx,drawing:false,dirty:false};pads[fieldId]=pad;
-  const pos=e=>{const r=canvas.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]};
-  canvas.addEventListener('pointerdown',e=>{pad.drawing=true;canvas.setPointerCapture(e.pointerId);const [x,y]=pos(e);ctx.beginPath();ctx.moveTo(x,y)});
-  canvas.addEventListener('pointermove',e=>{if(!pad.drawing)return;const [x,y]=pos(e);ctx.lineTo(x,y);ctx.stroke();pad.dirty=true});
-  const end=()=>{pad.drawing=false};
-  canvas.addEventListener('pointerup',end);canvas.addEventListener('pointercancel',end);
+  if(canvas)pads[fieldId]=unterschriftsfeld(canvas);
 }
-function clearPad(fieldId){const p=pads[fieldId];if(!p)return;p.ctx.clearRect(0,0,p.canvas.width,p.canvas.height);p.dirty=false}
+function clearPad(fieldId){const p=pads[fieldId];if(p)p.leeren()}
 async function saveSignature(fieldId){
   const p=pads[fieldId];const nameEl=document.getElementById('padName_'+fieldId);
   const name=(nameEl.value||'').trim();
-  if(!p||!p.dirty){setStatus(fieldId,'Bitte zuerst im Feld unterschreiben.',true);return}
+  if(!p||p.leer()){setStatus(fieldId,'Bitte zuerst im Feld unterschreiben.',true);return}
   if(!name){setStatus(fieldId,'Bitte den Namen der unterschreibenden Person eintragen.',true);nameEl.focus();return}
   const idx=cl.fields.findIndex(x=>x.id===fieldId);
   const newly=cl.fields.slice(0,idx).filter(f=>CONTENT_TYPES(f)&&!isSealed(f));
@@ -482,7 +472,7 @@ async function saveSignature(fieldId){
     if(!confirm(text)){setStatus(fieldId,'');return}
   }
   setStatus(fieldId,'Speichert …');
-  const blob=await new Promise(res=>p.canvas.toBlob(res,'image/png'));
+  const blob=await p.alsBlob();
   try{cl=await uploadFile(fieldId,blob,'unterschrift.png',{signer_name:name});render();setStatus(fieldId,'Gespeichert')}
   catch(e){setStatus(fieldId,'Nicht gespeichert: '+e.message,true);if(e.status===409)await reload()}
 }

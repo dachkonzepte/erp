@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.33** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.34** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -576,7 +576,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     (`_email_dispatch.html`). Ablage und Protokoll werden nie geändert oder gelöscht (einzige
     Ausnahme seit 1.8.19: ein hängender Eintrag wird einmal mit Notiz geklärt). Rechnung, Storno und
     Mahnung kommen ab dem ersten Versand aus der Ablage (`frozen_or_fresh_pdf()`), nie neu erzeugt; der Vertrag
-    liegt seit 1.8.33 schon ab dem Festschreiben dort (Fassung, `app/contract_versions.py`).
+    liegt seit 1.8.33 schon ab dem Festschreiben dort (Fassung, `app/contract_versions.py`), seit 1.8.34 auch
+    Unterschriftsblatt, Unterschriftsbilder und Papier-Scan (`app/contract_signatures.py`).
     Eine Zustellung auf anderem Weg (Einschreiben, Übergabe, Bote, Fax) wird seit 1.8.20 im selben
     Protokoll nachgetragen (`record_manual_delivery()`); eine neue Dokumentart braucht einen Eintrag
     in `app/dispatch_documents.py`. Details: `docs/archiv/versandprotokoll-und-ablage.md`.
@@ -736,7 +737,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   ein neues Feld an Angebot oder Auftrag braucht dort einen Eintrag; seit 1.8.32 Vertragsvorlagen je
   Grundlage und Vertragsentwurf am Auftrag, Dokumenttyp `contract`; seit 1.8.33 Festschreiben als Fassung mit
   eingefrorenem Inhalt und PDF in der Ablage, Anlage = zuletzt versendete Fassung des Angebots oder bewusst
-  gewählt, Versand nur einer zum Auftrag passenden Fassung; Unterschrift folgt) --
+  gewählt, Versand nur einer zum Auftrag passenden Fassung; seit 1.8.34 Unterschrift auf dem Gerät (Kunde und
+  Betrieb, gebunden an Fassung und PDF-Prüfsumme, Ankreuzfelder im unterschriebenen Inhalt, Unterschriftsblatt) oder
+  Papier-Scan, danach keine neue Fassung und Vertragsgrundlage/Abgleich gesperrt, Widerrufsfrist bei Verbrauchern) --
   `docs/archiv/vertragsgrundlage-und-vertrag.md`
 - **Speichern nur gesendeter Felder** (`PartialUpdate`, Strukturtest über alle PUT-Handler, Liste der
   Altfälle, Nebenbefunde der Durchsicht aller Speichern-Aufrufer) -- `docs/archiv/teil-updates.md`
@@ -781,6 +784,10 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   vorher je Versender eine eigene Schleife): ersetzt in einem Durchgang, ein eingesetzter Wert wird nie
   erneut ersetzt; Mahnung, E-Mail-Vorlagen und Vertragsvorlagen nutzen es. Eine neue Vorlage mit
   Platzhaltern zeigt ihre Liste in der Oberfläche und warnt vor unbekannten (`unknown_placeholders()`).
+- **Unterschriften zeichnen über `app/templates/_unterschrift.html`** (seit 1.8.34, `unterschriftsfeld(canvas)`
+  auf einem `<canvas class="dk-unterschrift">`): Checkliste, Einsatzbericht und Vertrag teilen sich die Fläche
+  (weiß mit dunklem Strich in beiden Themes, Geräteauflösung) -- eine neue Unterschrift baut keine eigene
+  Zeichenlogik. `tests/test_v337_vertrag_unterschrift.py` prüft, dass die drei Seiten keine eigene haben.
 - **KI-Aufrufe ausschließlich über `call_ai()`/`call_ai_async()`** (`app/ai_service.py`) --
   nie einen Adapter (`app/ai_adapters.py`) direkt importieren/aufrufen. `call_ai_async()` aus
   `async def`-Routen, `call_ai()` nur aus gewöhnlichen `def`-Routen (Starlette-Threadpool) --
@@ -1043,7 +1050,9 @@ Steuerschlüssel, inaktiver Schichttyp, leerer Schlusstext 2 und leere Einheit i
 und `klicktest_vertragsvorlagen.py` (1.8.32, Vertragsvorlagen in den Einstellungen für Admin und Büro, Ausführungszeitraum
 und Karte "Vertrag" auf der Auftragsseite, Entwurf von Hand anlegen) und
 `klicktest_vertrag_festschreiben.py` (1.8.33, Anlage bewusst wählen, Fassung festschreiben, Versand an einen
-SMTP-Empfänger im Skript mit Anhang = Fassung, neue Fassung, versendete Fassung ohne Rückfrage, Monteur 403).
+SMTP-Empfänger im Skript mit Anhang = Fassung, neue Fassung, versendete Fassung ohne Rückfrage, Monteur 403) und
+`klicktest_vertrag_unterschrift.py` (1.8.34, Zeichnen über CDP-Mausereignisse: Vertrag auf dem Gerät mit Ankreuzfeld,
+Sperren danach, Widerrufsfrist, Papier-Scan, Checkliste und Einsatzbericht über die gemeinsame Fläche, dunkel und hell).
 Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
 im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten (Vorlage dort). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.

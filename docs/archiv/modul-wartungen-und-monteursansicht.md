@@ -890,3 +890,16 @@ jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
     `theme-color`/Apple-Touch-Icon-Tags sitzen AUSSCHLIESSLICH in `mobil.html`s `<head>` – das
     ist die einzige Seite, die als Startadresse installiert werden soll. Kein Service Worker,
     keine Offline-Logik (bewusst außerhalb dieser Iteration).
+
+---
+
+## Nachtrag 1.8.34 (01.10.2026) -- gemeinsame Zeichenfläche im Einsatzbericht
+
+Die Unterschriftskarte des Einsatzberichts (`service_reports.html`, Monteur und Kunde nacheinander auf derselben
+Fläche) zeichnet seit 1.8.34 über `app/templates/_unterschrift.html` (`unterschriftsfeld()`), gemeinsam mit
+Checkliste und Vertrag (siehe `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.34"). Behoben dabei:
+die Fläche hatte `background:var(--card)` und Strich `#182420` -- im dunklen Theme war die Unterschrift beim
+Zeichnen kaum zu sehen; jetzt in beiden Themes weiß mit dunklem Strich. Neu: Zeichnen in Geräteauflösung
+(`devicePixelRatio`, vorher CSS-Pixel) -- das PNG ist auf einem Tablet entsprechend größer, das PDF zeigt es
+weiterhin in 60×30 mm. Ablauf, API (`installer_/customer_signature_png_base64`) und `sign_report()` unverändert.
+Nebenbefund: `_decode_signature_png()` begrenzt die Größe nicht (Checkliste und Vertrag: 2 MB).

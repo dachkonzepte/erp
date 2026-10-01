@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import ClassVar, Literal
 from urllib.parse import urlparse
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 
 
 class PartialUpdate(BaseModel):
@@ -1395,6 +1395,7 @@ class ContractTemplateSectionIn(BaseModel):
     body_text: str | None = Field(default=None, max_length=50000)
     consumer_only: bool = False
     with_checkbox: bool = False
+    early_start: bool = False  # seit 1.8.34: Ankreuzfeld = Verlangen des vorzeitigen Beginns
 
 
 class ContractTemplateSectionOut(BaseModel):
@@ -1404,6 +1405,7 @@ class ContractTemplateSectionOut(BaseModel):
     body_text: str | None = None
     consumer_only: bool
     with_checkbox: bool
+    early_start: bool = False
 
 
 class ContractTemplateUpdate(BaseModel):
@@ -1466,12 +1468,35 @@ class OrderContractVersionOut(BaseModel):
     superseded_at_local: datetime | None = None
     current: bool
     too_large: bool
+    # seit 1.8.34: die Ankreuzfelder der Fassung (Abschnitte mit with_checkbox aus dem eingefrorenen Inhalt)
+    checkboxes: list[dict] = []
+
+
+class OrderContractSignatureOut(BaseModel):
+    """Unterschrift unter dem Vertrag (seit 1.8.34). document: Unterschriftsblatt bzw. Scan in der Ablage;
+    checkboxes: Stand der Ankreuzfelder beim Unterschreiben; withdrawal: nur bei einem Verbrauchervertrag."""
+    id: int
+    method: str
+    method_label: str
+    version_id: int
+    version_no: int
+    signed_on: date
+    customer_signer_name: str | None = None
+    company_signer_name: str | None = None
+    checkboxes: list[dict]
+    content_sha256: str
+    content_intact: bool
+    document: dict
+    document_check: dict
+    recorded_at_local: datetime | None = None
+    recorded_by_name: str
+    withdrawal: dict | None = None
 
 
 class OrderContractOut(BaseModel):
     id: int
     order_id: int
-    status: str  # entwurf | festgeschrieben (seit 1.8.33)
+    status: str  # entwurf | festgeschrieben (seit 1.8.33) | unterschrieben (seit 1.8.34)
     execution_period: str | None = None
     payment_plan: str | None = None
     special_terms: str | None = None
@@ -1483,6 +1508,7 @@ class OrderContractOut(BaseModel):
     versions: list[OrderContractVersionOut] = []
     differences: list[str] = []
     recipient_email: str | None = None
+    signature: OrderContractSignatureOut | None = None  # seit 1.8.34
 
 
 class OrderContractStateOut(BaseModel):
@@ -1531,6 +1557,19 @@ class OrderContractFreeze(BaseModel):
     Fassung (attachment_document_id) oder "aktuell"."""
     attachment: Literal["versendet", "aktuell"] | None = None
     attachment_document_id: int | None = None
+
+
+class OrderContractSignOnDevice(BaseModel):
+    """Unterschrift auf dem Gerät (seit 1.8.34): gebunden an die Fassung und die PDF-Prüfsumme, die der
+    Kunde gesehen hat; checkboxes enthält JEDES Ankreuzfeld der Fassung mit true/false (fehlt eins: 400);
+    die Unterschriften als PNG (Base64, auch als data:-URL) wie beim Einsatzbericht."""
+    version_id: int
+    pdf_sha256: str = Field(max_length=64)
+    checkboxes: dict[str, StrictBool]
+    customer_name: str = Field(max_length=160)
+    customer_signature_png_base64: str = Field(max_length=4_000_000)
+    company_name: str = Field(max_length=160)
+    company_signature_png_base64: str = Field(max_length=4_000_000)
 
 
 class ContractBasisOptionOut(BaseModel):

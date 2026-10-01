@@ -1056,6 +1056,9 @@ class ContractTemplateSection(Base):
     body_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     consumer_only: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     with_checkbox: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    # Seit 1.8.34: dieses Ankreuzfeld ist das Verlangen des vorzeitigen Beginns (nur mit Ankreuzfeld und
+    # "nur bei Verbrauchern", höchstens eins je Vorlage) -- daraus der Vermerk bei der Widerrufsfrist.
+    early_start: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
     template: Mapped[ContractTemplate] = relationship(back_populates="sections")
 
@@ -1066,7 +1069,9 @@ class OrderContract(Base):
     Fallfelder; Vorlagentext, Kunde, Summen und die Vertragsgrundlage werden beim Erzeugen des
     Entwurfs-PDFs live gelesen. Seit 1.8.33 status "entwurf" | "festgeschrieben": Festschreiben legt
     eine Fassung (OrderContractVersion) mit eingefrorenem Inhalt und PDF in der Ablage an und sperrt
-    die Fallfelder; "neue Fassung" macht wieder einen Entwurf daraus, die alten Fassungen bleiben."""
+    die Fallfelder; "neue Fassung" macht wieder einen Entwurf daraus, die alten Fassungen bleiben.
+    Seit 1.8.34 zusätzlich "unterschrieben" (OrderContractSignature): danach keine neue Fassung mehr,
+    Vertragsgrundlage und Abgleich mit dem Angebot am Auftrag gesperrt."""
 
     __tablename__ = "order_contracts"
     __table_args__ = (UniqueConstraint("order_id", name="uq_order_contract_order"),)
@@ -1088,6 +1093,8 @@ class OrderContract(Base):
     versions: Mapped[list["OrderContractVersion"]] = relationship(
         back_populates="contract", cascade="all, delete-orphan", order_by="OrderContractVersion.version_no"
     )
+    # Seit 1.8.34: höchstens eine Unterschrift je Vertrag, unveränderlich (ORM-Sperre am Ende der Datei).
+    signature: Mapped["OrderContractSignature | None"] = relationship(back_populates="contract", uselist=False)
 
 
 class OrderContractVersion(Base):
@@ -1124,6 +1131,43 @@ class OrderContractVersion(Base):
     contract: Mapped[OrderContract] = relationship(back_populates="versions")
     sent_document: Mapped["SentDocument"] = relationship(foreign_keys=[sent_document_id])
     attachment_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[attachment_document_id])
+
+
+class OrderContractSignature(Base):
+    """Unterschrift unter dem Vertrag (seit 1.8.34, Stufe 2b, Runde 2b-1b Teil 2b,
+    app/contract_signatures.py): auf dem Gerät (Kunde und Betrieb, method "geraet") oder als Scan des
+    unterschriebenen Papiers (method "papier"). Gebunden an genau eine festgeschriebene Fassung
+    (version_id) und deren PDF-Prüfsumme; signed_content ist der unterschriebene Inhalt als kanonisches
+    JSON (Fassung, PDF-Prüfsumme, Ankreuzfelder mit ihrem Stand, Namen, Prüfsummen der Unterschriftsbilder
+    bzw. des Scans, Datum), content_sha256 seine Prüfsumme -- wie die Fassung bewusst eine Zeichenkette.
+    document_id: das Unterschriftsblatt (PDF) bzw. der Scan in der Ablage; die beiden Unterschriftsbilder
+    liegen ebenfalls dort. Höchstens eine je Vertrag (unique), nie geändert oder gelöscht. Ohne
+    Fremdschlüssel auf den Benutzer (Muster SentDocument)."""
+
+    __tablename__ = "order_contract_signatures"
+    __table_args__ = (UniqueConstraint("contract_id", name="uq_order_contract_signature_contract"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("order_contracts.id"), index=True)
+    version_id: Mapped[int] = mapped_column(ForeignKey("order_contract_versions.id"))
+    method: Mapped[str] = mapped_column(String(20))  # geraet | papier
+    signed_on: Mapped[date] = mapped_column(Date)  # Tag der Unterschrift (Europe/Berlin)
+    customer_signer_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    company_signer_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    signed_content: Mapped[str] = mapped_column(Text)
+    content_sha256: Mapped[str] = mapped_column(String(64))
+    document_id: Mapped[int] = mapped_column(ForeignKey("sent_documents.id"))
+    customer_image_document_id: Mapped[int | None] = mapped_column(ForeignKey("sent_documents.id"), nullable=True)
+    company_image_document_id: Mapped[int | None] = mapped_column(ForeignKey("sent_documents.id"), nullable=True)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    recorded_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    recorded_by_name: Mapped[str] = mapped_column(String(160), server_default="System")
+
+    contract: Mapped[OrderContract] = relationship(back_populates="signature")
+    version: Mapped[OrderContractVersion] = relationship()
+    document: Mapped["SentDocument"] = relationship(foreign_keys=[document_id])
+    customer_image_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[customer_image_document_id])
+    company_image_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[company_image_document_id])
 
 
 class OrderRevision(Base):
@@ -4966,3 +5010,15 @@ def _contract_version_limited_update(mapper, connection, target):
 @event.listens_for(OrderContractVersion, "before_delete")
 def _contract_version_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Eine festgeschriebene Vertragsfassung wird nie gelöscht.")
+
+
+# Unterschrift unter dem Vertrag (seit 1.8.34): unveränderlich, nie gelöscht.
+@event.listens_for(OrderContractSignature, "before_update")
+def _contract_signature_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs if attr.key not in {"contract", "version"}):
+        raise ArchiveImmutableError("Eine Unterschrift unter dem Vertrag ist unveränderlich.")
+
+
+@event.listens_for(OrderContractSignature, "before_delete")
+def _contract_signature_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Eine Unterschrift unter dem Vertrag wird nie gelöscht.")

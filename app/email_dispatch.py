@@ -406,9 +406,10 @@ def resolve_stuck_dispatch(
     return dispatch
 
 
-def _receipt_content_type(content: bytes) -> str:
+def receipt_content_type(content: bytes) -> str:
     """Beleg am Inhalt erkennen, nicht am Dateinamen oder an der Angabe des Browsers: JPEG, PNG,
-    WebP (von Pillow vollständig gelesen) oder PDF. Alles andere (auch SVG/HTML) wird abgelehnt."""
+    WebP (von Pillow vollständig gelesen) oder PDF. Alles andere (auch SVG/HTML) wird abgelehnt.
+    Seit 1.8.34 auch für den Scan eines unterschriebenen Vertrags (app/contract_signatures.py)."""
     if content.startswith(b"%PDF-"):
         return "application/pdf"
     from PIL import Image, UnidentifiedImageError
@@ -469,7 +470,7 @@ def record_manual_delivery(
     if receipt_bytes:
         if len(receipt_bytes) > MAX_RECEIPT_BYTES:
             raise ValueError(f"Der Beleg ist größer als {MAX_RECEIPT_BYTES // 1_000_000} MB.")
-        receipt_type = _receipt_content_type(receipt_bytes)
+        receipt_type = receipt_content_type(receipt_bytes)
     try:
         pdf = document.pdf()
     except ArchiveFileError as e:

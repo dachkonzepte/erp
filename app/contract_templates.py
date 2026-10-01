@@ -2,7 +2,9 @@
 
 Vorlage: eine je Vertragsgrundlage (app/contract_basis.py), Titel und Abschnitte mit Text und
 Platzhaltern (app/placeholders.py). Ein Abschnitt kann "nur bei Verbrauchern" sein (Widerrufsbelehrung,
-Muster-Widerrufsformular, Verlangen des vorzeitigen Beginns) und ein Ankreuzfeld tragen. Wie bei den
+Muster-Widerrufsformular, Verlangen des vorzeitigen Beginns) und ein Ankreuzfeld tragen; seit 1.8.34 lässt
+sich genau ein solches Ankreuzfeld als "Verlangen des vorzeitigen Beginns" kennzeichnen (early_start) --
+daraus der Vermerk bei der Widerrufsfrist nach der Unterschrift (app/contract_signatures.py). Wie bei den
 Klauseln (1.8.21) bewusst keine vorgegebenen Texte und eine rechtliche Prüfung mit Datum und Name;
 ohne sie trägt jede Seite des Vertrags-PDFs das Wasserzeichen CONTRACT_WATERMARK_TEXT.
 
@@ -119,7 +121,7 @@ def section_to_dict(section: ContractTemplateSection) -> dict:
     return {
         "id": section.id, "sort_order": section.sort_order, "heading": section.heading,
         "body_text": section.body_text, "consumer_only": bool(section.consumer_only),
-        "with_checkbox": bool(section.with_checkbox),
+        "with_checkbox": bool(section.with_checkbox), "early_start": bool(section.early_start),
     }
 
 
@@ -155,7 +157,8 @@ def placeholder_list() -> list[dict]:
 
 
 def _normalize_sections(sections: list[dict]) -> list[dict]:
-    """Leere Abschnitte (weder Überschrift noch Text) fallen weg; Reihenfolge wie übergeben."""
+    """Leere Abschnitte (weder Überschrift noch Text) fallen weg; Reihenfolge wie übergeben. "Vorzeitiger
+    Beginn" (seit 1.8.34) nur an einem Ankreuzfeld "nur bei Verbrauchern", höchstens einmal."""
     result = []
     for raw in sections:
         heading = _clean(raw.get("heading"))
@@ -166,16 +169,28 @@ def _normalize_sections(sections: list[dict]) -> list[dict]:
             raise ValueError(f"Eine Abschnittsüberschrift darf höchstens {MAX_HEADING_LENGTH} Zeichen lang sein.")
         if body is not None and len(body) > MAX_BODY_LENGTH:
             raise ValueError(f"Ein Abschnittstext darf höchstens {MAX_BODY_LENGTH} Zeichen lang sein.")
+        early_start = bool(raw.get("early_start"))
+        if early_start and not (raw.get("with_checkbox") and raw.get("consumer_only")):
+            raise ValueError(
+                "„Verlangen des vorzeitigen Beginns“ geht nur an einem Abschnitt mit Ankreuzfeld und "
+                "„nur bei Verbrauchern“."
+            )
         result.append({
             "heading": heading, "body_text": body,
             "consumer_only": bool(raw.get("consumer_only")), "with_checkbox": bool(raw.get("with_checkbox")),
+            "early_start": early_start,
         })
     if len(result) > MAX_SECTIONS:
         raise ValueError(f"Eine Vorlage darf höchstens {MAX_SECTIONS} Abschnitte haben.")
+    if sum(s["early_start"] for s in result) > 1:
+        raise ValueError("Nur ein Ankreuzfeld kann das Verlangen des vorzeitigen Beginns sein.")
     return result
 
 
 def _content_signature(title: str | None, sections: list[dict]) -> tuple:
+    """Was den Vertrag verändert. Das Kennzeichen "vorzeitiger Beginn" (seit 1.8.34) bewusst nicht: es
+    ändert keinen Text im Vertrag, nur den Vermerk bei der Widerrufsfrist -- eine geprüfte Vorlage lässt
+    sich ohne neue Prüfung kennzeichnen."""
     return (title or None, tuple(
         (s["heading"], s["body_text"], bool(s["consumer_only"]), bool(s["with_checkbox"])) for s in sections
     ))
@@ -423,6 +438,7 @@ def contract_content(db: Session, order: Order, contract: OrderContract | None) 
                 "text": fill(s.body_text, values).strip("\n").rstrip(),
                 "consumer_only": bool(s.consumer_only),
                 "with_checkbox": bool(s.with_checkbox),
+                "early_start": bool(s.early_start),  # seit 1.8.34; ältere Fassungen haben den Schlüssel nicht
             }
             for i, s in enumerate(sections, start=1)
         ],

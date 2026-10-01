@@ -24,6 +24,10 @@ Datei). Eine Fassung, die nicht mehr zum Auftrag passt (version_differences(): V
 Verbraucher-Merkmal oder der Wert eines Platzhalters, den die Vorlage nutzt, hat sich seit dem
 Festschreiben geändert), wird weder versendet noch zugestellt -- dann eine neue Fassung festschreiben.
 
+Unterschrift (seit 1.8.34, app/contract_signatures.py): status "unterschrieben". Danach keine neue Fassung
+mehr; die unterschriebene Fassung bleibt abrufbar und versendbar (Abschrift für den Kunden), auch wenn sich
+der Auftrag später ändert -- die Abweichungen zeigt die Karte nur noch als Hinweis.
+
 Rollenlos wie jede Geschäftslogik; wer was darf, entscheidet app/routers/contract_templates.py.
 """
 
@@ -46,6 +50,8 @@ from .models import EmailDispatch, Order, OrderContract, OrderContractVersion, S
 from .sent_documents import ArchiveFileError, read_sent_document, sent_document_to_dict, store_sent_document
 
 CONTRACT_ENTITY_TYPE = "Vertrag"  # Änderungshistorie (app/audit.py)
+# Status mit einer gültigen Fassung: festgeschrieben oder (seit 1.8.34) unterschrieben.
+FROZEN_STATUSES = ("festgeschrieben", "unterschrieben")
 
 DEFAULT_CONTRACT_EMAIL_SUBJECT = "Vertrag zu Auftrag {auftragsnummer}"
 DEFAULT_CONTRACT_EMAIL_BODY = (
@@ -252,6 +258,8 @@ def freeze_contract(
     contract = _locked_contract(db, order.id)
     if contract is None:
         raise LookupError("Zu diesem Auftrag gibt es keinen Vertragsentwurf.")
+    if contract.status == "unterschrieben":
+        raise ContractStateError("Der Vertrag ist unterschrieben – es gibt keine neue Fassung mehr.")
     if contract.status != "entwurf":
         raise ContractStateError("Der Vertrag ist bereits festgeschrieben – Änderungen nur als neue Fassung.")
     try:
@@ -343,6 +351,11 @@ def start_new_version(db: Session, order: Order, *, user_id: int | None = None, 
     contract = _locked_contract(db, order.id)
     if contract is None:
         raise LookupError("Zu diesem Auftrag gibt es keinen Vertrag.")
+    if contract.status == "unterschrieben":
+        raise ContractStateError(
+            "Der Vertrag ist unterschrieben – eine neue Fassung gibt es danach nicht. Änderungen am Auftrag "
+            "(z. B. Nachträge) lassen den unterschriebenen Vertrag gültig."
+        )
     if contract.status != "festgeschrieben":
         raise ContractStateError("Eine neue Fassung gibt es nur zu einem festgeschriebenen Vertrag.")
     claimed = db.execute(
@@ -421,12 +434,26 @@ def version_to_dict(version: OrderContractVersion) -> dict:
         "created_at_local": to_berlin(version.created_at), "created_by_name": version.created_by_name,
         "superseded_at_local": to_berlin(version.superseded_at), "current": version.superseded_at is None,
         "too_large": version.sent_document.size_bytes > MAX_ATTACHMENT_BYTES,
+        "checkboxes": checkbox_sections(content),
     }
+
+
+def checkbox_sections(content: dict) -> list[dict]:
+    """Die Ankreuzfelder einer Fassung (seit 1.8.34): Abschnitte mit Ankreuzfeld aus dem eingefrorenen
+    Inhalt, mit Schlüssel, Überschrift, Text und dem Kennzeichen "vorzeitiger Beginn" (Fassungen von vor
+    1.8.34 haben es nicht: dann falsch)."""
+    return [
+        {"key": s["key"], "heading": s["heading"], "text": s["text"], "consumer_only": bool(s.get("consumer_only")),
+         "early_start": bool(s.get("early_start"))}
+        for s in content.get("sections", []) if s.get("with_checkbox")
+    ]
 
 
 def contract_state(db: Session, order: Order) -> dict:
     """Die Karte "Vertrag" der Auftragsseite: Entwurfsstand (app/contract_templates.py) plus Fassungen,
-    bei einem festgeschriebenen Vertrag die Abweichungen der gültigen Fassung und der Empfänger."""
+    bei einem festgeschriebenen oder unterschriebenen Vertrag die Abweichungen der gültigen Fassung, der
+    Empfänger und (seit 1.8.34) die Unterschrift samt Widerrufsfrist."""
+    from .contract_signatures import signature_to_dict
     from .orders import get_order_recipient_email
 
     state = draft_state(db, order)
@@ -436,27 +463,31 @@ def contract_state(db: Session, order: Order) -> dict:
         latest = versions[0] if versions else None
         state["contract"]["versions"] = [version_to_dict(v) for v in versions]
         state["contract"]["differences"] = (
-            version_differences(db, order, latest) if contract.status == "festgeschrieben" and latest else []
+            version_differences(db, order, latest) if contract.status in FROZEN_STATUSES and latest else []
         )
         state["contract"]["recipient_email"] = get_order_recipient_email(order)
+        state["contract"]["signature"] = signature_to_dict(contract.signature) if contract.signature else None
     return state
 
 
 def frozen_pdf(contract: OrderContract) -> tuple[bytes, OrderContractVersion]:
     """Die abgelegten Bytes der gültigen Fassung -- nur mit stimmender Prüfsumme (ArchiveFileError)."""
     version = current_version(contract)
-    if contract.status != "festgeschrieben" or version is None:
+    if contract.status not in FROZEN_STATUSES or version is None:
         raise ContractStateError("Der Vertrag ist nicht festgeschrieben.")
     return read_sent_document(version.sent_document), version
 
 
 def deliverable_version(db: Session, order: Order, contract: OrderContract | None) -> OrderContractVersion:
-    """Die Fassung, die versendet oder zugestellt werden darf: festgeschrieben und passend zum Auftrag."""
+    """Die Fassung, die versendet oder zugestellt werden darf: festgeschrieben und passend zum Auftrag --
+    oder (seit 1.8.34) unterschrieben: dann gilt sie, auch wenn sich der Auftrag seither geändert hat."""
     if contract is None:
         raise ContractStateError("Zu diesem Auftrag gibt es keinen Vertrag.")
     version = current_version(contract)
-    if contract.status != "festgeschrieben" or version is None:
+    if contract.status not in FROZEN_STATUSES or version is None:
         raise ContractStateError("Versendet wird nur ein festgeschriebener Vertrag – bitte zuerst festschreiben.")
+    if contract.status == "unterschrieben":
+        return version
     differences = version_differences(db, order, version)
     if differences:
         raise ContractStateError(

@@ -4,6 +4,35 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.34 – Unterschrift unter dem Vertrag
+
+Stufe 2b, Runde 2b-1b Teil 2b. Checkliste, Einsatzbericht und Vertrag zeichnen Unterschriften jetzt über eine
+gemeinsame Vorlage (`_unterschrift.html`, `unterschriftsfeld()`) statt über eigene Kopien: die Fläche ist in beiden
+Themes weiß mit dunklem Strich, in Geräteauflösung. Vorher setzte der Einsatzbericht den Kartenhintergrund ein – im
+dunklen Theme war die Unterschrift beim Zeichnen kaum zu sehen. Auf der Karte „Vertrag“ unterschreiben Kunde und
+Betrieb die gültige Fassung in einem Dialog auf dem Gerät; die Anfrage trägt Fassung und PDF-Prüfsumme, eine
+falsche, abgelöste oder nicht mehr zum Auftrag passende Fassung wird abgelehnt. Die Ankreuzfelder der Fassung (etwa
+der vorzeitige Beginn) setzt der Kunde dabei, jedes wird ausdrücklich übertragen und gehört zum unterschriebenen
+Inhalt (kanonisches JSON mit Prüfsumme). Ergebnis: ein Unterschriftsblatt (PDF) und beide Unterschriftsbilder in der
+Ablage. Alternativ lädt das Büro den Scan des unterschriebenen Papiers hoch, mit Datum und den vom Papier
+übertragenen Ankreuzfeldern (am Inhalt erkannt wie der Beleg einer Zustellung).
+
+Danach steht der Vertrag auf „unterschrieben“: keine neue Fassung mehr, Vertragsgrundlage ändern und Abgleich mit
+dem Angebot sind gesperrt (409, auf der Seite ausgeblendet). Spätere Änderungen am Auftrag lassen den Vertrag gültig,
+die Karte zeigt sie nur als Hinweis; die unterschriebene Fassung bleibt versendbar. Bei Verbrauchern zeigt die Karte
+das voraussichtliche Ende der Widerrufsfrist (14 Tage ab Unterschrift, Wochenende auf Montag) mit Vermerk, ob der
+vorzeitige Beginn verlangt wurde – dafür lässt sich in der Vertragsvorlage genau ein Ankreuzfeld als „Verlangen des
+vorzeitigen Beginns“ kennzeichnen (setzt die Prüfung nicht zurück). Unterschreiben, Festschreiben, neue Fassung,
+Grundlage ändern und Abgleich sperren dieselbe Vertragszeile; der Statuswechsel ist ein bedingtes UPDATE, je Vertrag
+höchstens eine Unterschrift. Monteure 403. Migration `65e3431d5bb6` (Tabelle `order_contract_signatures`, Spalte
+`contract_template_sections.early_start`, Downgrade nur ohne Unterschrift und Kennzeichen), SQLite und PostgreSQL
+hin/zurück/hin mit Bestand, `alembic check` sauber. `tests/test_v337_vertrag_unterschrift.py` (17 Tests, davon 4 mit
+echten parallelen Anfragen gegen PostgreSQL: zweimal Festschreiben, dreimal Unterschreiben, Unterschrift gegen neue
+Fassung, Unterschrift gegen Grundlage ändern), 27 Gegenproben rot (davon 4 gegen PostgreSQL), volle Suite 2440 grün (mit den PostgreSQL-Tests).
+Klicktest `scripts/klicktest_vertrag_unterschrift.py` 43/43 (Zeichnen über CDP-Mausereignisse, dunkel und hell,
+412 px, Kennzeichen im Vorlagen-Editor); die Klicktests der Checkliste, des Festschreibens und der Vorlagen laufen
+unverändert grün.
+
 ## 1.8.33 – Vertrag festschreiben und versenden
 
 Stufe 2b, Runde 2b-1b Teil 2, Punkte 1–3 und 7 (Unterschrift folgt als eigene Version). Auf der Karte „Vertrag“

@@ -980,3 +980,14 @@ eine Test-Folge; (6) Tests mit Gegenprobe.
 - **Selbst verursacht, vor dem Commit behoben**: die Patch-Skripte dieser Runde schrieben unter Windows
   im Textmodus und stellten fünf Dateien auf CRLF um; wieder auf LF gebracht (Git hätte es beim Commit
   wegen `core.autocrlf` ohnehin normalisiert, die Arbeitskopie wäre aber abgewichen).
+
+---
+
+## Nachtrag 1.8.34 (01.10.2026) -- gemeinsame Zeichenfläche
+
+Die Unterschrift der Checkliste zeichnet seit 1.8.34 über `app/templates/_unterschrift.html`
+(`unterschriftsfeld()`), gemeinsam mit Einsatzbericht und Vertrag (Stufe 2b, siehe
+`docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.34"). `setupPad()`/`clearPad()` in
+`checklist.html` sind nur noch Hüllen; IDs `pad_…`/`padName_…` und die Knöpfe sind unverändert, die drei
+Checklisten-Klicktests laufen ohne Änderung. Verhalten wie bisher (Fläche weiß, Strich #111, Geräteauflösung,
+PNG mit durchsichtigem Hintergrund); Serverseite unverändert.

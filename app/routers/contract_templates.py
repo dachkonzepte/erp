@@ -16,17 +16,26 @@ Versand seit 1.8.33).
 - POST /api/orders/{order_id}/contract/new-version: festgeschriebenen Vertrag wieder zum Entwurf machen,
   die Fassungen bleiben (seit 1.8.33).
 - POST /api/orders/{order_id}/contract/send-email: die gültige Fassung versenden (seit 1.8.33, Regel 21).
-Ältere Fassungen liefert /api/sent-documents/{id}/file (Ablage, nur mit stimmender Prüfsumme).
+- POST /api/orders/{order_id}/contract/sign: Unterschrift von Kunde und Betrieb auf dem Gerät (seit 1.8.34).
+- POST /api/orders/{order_id}/contract/sign-paper: Scan des unterschriebenen Papiers (seit 1.8.34).
+Ältere Fassungen, Unterschriftsblatt und Scan liefert /api/sent-documents/{id}/file (Ablage, nur mit
+stimmender Prüfsumme).
 
 Monteure: kein Zugriff (403), wie auf Auftrag und Angebot als kaufmännische Dokumente.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+import base64
+import binascii
+import json
+from datetime import date
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from ..contract_basis import CONTRACT_BASES
 from ..contract_pdf import build_contract_pdf
+from ..contract_signatures import MAX_SCAN_BYTES, record_paper_signature, sign_contract_on_device
 from ..contract_templates import (
     create_contract_draft, get_order_contract, list_templates, placeholder_list, save_template, update_contract_draft,
 )
@@ -41,7 +50,7 @@ from ..orders import load_order
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import (
     ContractAttachmentOptionsOut, ContractTemplateOut, ContractTemplatesOverviewOut, ContractTemplateUpdate,
-    OrderContractFreeze, OrderContractStateOut, OrderContractUpdate, OrderEmailSend,
+    OrderContractFreeze, OrderContractSignOnDevice, OrderContractStateOut, OrderContractUpdate, OrderEmailSend,
 )
 from ..sent_documents import ArchiveFileError
 
@@ -192,4 +201,64 @@ def post_send_contract_email(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return contract_state(db, _order_or_404(db, order_id))
+
+
+def _png_from_base64(raw: str) -> bytes:
+    raw = (raw or "").strip()
+    if raw.lower().startswith("data:") and "," in raw:
+        raw = raw.split(",", 1)[1]
+    try:
+        return base64.b64decode(raw, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Ungültige Unterschrift (kein gültiges Base64-PNG).") from exc
+
+
+def _signature_errors(call):
+    try:
+        return call()
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ContractStateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/api/orders/{order_id}/contract/sign", response_model=OrderContractStateOut)
+def post_sign_contract(
+    order_id: int, payload: OrderContractSignOnDevice, db: Session = Depends(get_db), user: AppUser = _role_dep,
+):
+    """Gewöhnliche def-Route: prüft die Bilder und rendert das Unterschriftsblatt (Threadpool)."""
+    order = _order_or_404(db, order_id)
+    customer_png = _png_from_base64(payload.customer_signature_png_base64)
+    company_png = _png_from_base64(payload.company_signature_png_base64)
+    user_id, user_name = actor_of(user)
+    _signature_errors(lambda: sign_contract_on_device(
+        db, order, version_id=payload.version_id, pdf_sha256=payload.pdf_sha256, checkboxes=payload.checkboxes,
+        customer_name=payload.customer_name, customer_png=customer_png, company_name=payload.company_name,
+        company_png=company_png, user_id=user_id, user_name=user_name,
+    ))
+    return contract_state(db, _order_or_404(db, order_id))
+
+
+@router.post("/api/orders/{order_id}/contract/sign-paper", response_model=OrderContractStateOut)
+def post_sign_contract_paper(
+    order_id: int, version_id: int = Form(...), pdf_sha256: str = Form(...), signed_on: date = Form(...),
+    checkboxes: str = Form("{}"), scan: UploadFile = File(...), db: Session = Depends(get_db), user: AppUser = _role_dep,
+):
+    """Scan des unterschriebenen Papiers; checkboxes als JSON-Objekt {Schlüssel: true/false}."""
+    order = _order_or_404(db, order_id)
+    try:
+        values = json.loads(checkboxes or "{}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Die Ankreuzfelder sind kein gültiges JSON.") from exc
+    if not isinstance(values, dict):
+        raise HTTPException(status_code=400, detail="Die Ankreuzfelder müssen ein Objekt {Schlüssel: true/false} sein.")
+    scan_bytes = scan.file.read(MAX_SCAN_BYTES + 1)
+    user_id, user_name = actor_of(user)
+    _signature_errors(lambda: record_paper_signature(
+        db, order, version_id=version_id, pdf_sha256=pdf_sha256, signed_on=signed_on, checkboxes=values,
+        scan_bytes=scan_bytes, user_id=user_id, user_name=user_name,
+    ))
     return contract_state(db, _order_or_404(db, order_id))

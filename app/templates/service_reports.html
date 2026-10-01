@@ -39,7 +39,7 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
 .report-actions a{border:1px solid var(--line);color:var(--ink);text-decoration:none;display:inline-flex;align-items:center}
 .report-actions a:hover{background:var(--soft)}
 .empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
-.sig-canvas{width:100%;height:220px;border:2px dashed var(--field-border);background:var(--card);touch-action:none;display:block}
+canvas#sigCanvas{height:220px}
 .sig-hint{color:var(--muted);font-size:12.5px;margin-top:6px}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
@@ -119,6 +119,7 @@ a{color:var(--accent)}
 <div class="app-layout">
 {% include "_sidebar.html" %}
 {% include "_debounce.html" %}
+{% include "_unterschrift.html" %}
 {% include "_time_entries_list.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
@@ -164,7 +165,7 @@ a{color:var(--accent)}
 <div id="signCard" class="card hidden">
   <h2 id="signHeading">Unterschrift Monteur</h2>
   <div class="muted small" id="signHint" style="margin-bottom:8px">Bitte selbst unterschreiben, danach das Gerät an den Kunden weitergeben.</div>
-  <canvas id="sigCanvas" class="sig-canvas"></canvas>
+  <canvas id="sigCanvas" class="dk-unterschrift"></canvas>
   <div class="sig-hint">Mit Finger oder Stift direkt auf dem Feld unterschreiben.</div>
   <div class="fields-2col" style="margin-top:12px">
     <div class="field full"><label id="signNameLabel">Name des Monteurs</label><input id="signatureName" placeholder="Vor- und Nachname"></div>
@@ -410,25 +411,11 @@ async function deleteReportConfirm(id){
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
-let sigCtx=null,sigDrawing=false,sigLast=null,sigHasContent=false;
-function sigPos(e){const c=document.getElementById('sigCanvas');const r=c.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top}}
-function initSignaturePad(){
-  const canvas=document.getElementById('sigCanvas');
-  canvas.width=canvas.clientWidth;
-  canvas.height=canvas.clientHeight;
-  sigCtx=canvas.getContext('2d');
-  sigCtx.lineWidth=2.5;sigCtx.lineCap='round';sigCtx.strokeStyle='#182420';
-  sigHasContent=false;
-  canvas.onpointerdown=e=>{sigDrawing=true;sigLast=sigPos(e);canvas.setPointerCapture(e.pointerId);e.preventDefault()};
-  canvas.onpointermove=e=>{if(!sigDrawing)return;const p=sigPos(e);sigCtx.beginPath();sigCtx.moveTo(sigLast.x,sigLast.y);sigCtx.lineTo(p.x,p.y);sigCtx.stroke();sigLast=p;sigHasContent=true;e.preventDefault()};
-  canvas.onpointerup=()=>{sigDrawing=false};
-  canvas.onpointercancel=()=>{sigDrawing=false};
-}
-function clearSignature(){
-  const canvas=document.getElementById('sigCanvas');
-  sigCtx.clearRect(0,0,canvas.width,canvas.height);
-  sigHasContent=false;
-}
+// Zeichenfläche aus der gemeinsamen Vorlage _unterschrift.html (seit 1.8.34; vorher eigene Kopie ohne
+// devicePixelRatio und mit var(--card) als Hintergrund -- im dunklen Theme kaum zu sehen).
+let sigPad=null;
+function initSignaturePad(){sigPad=unterschriftsfeld(document.getElementById('sigCanvas'))}
+function clearSignature(){if(sigPad)sigPad.leeren()}
 
 // Seit 1.3.0: zwei Unterschriften nacheinander auf derselben Karte -- sigStep steuert, welcher
 // Schritt gerade läuft. Schritt 1 (Monteur) merkt seine PNG-Daten zwischen (installerSigDataUrl/
@@ -476,8 +463,8 @@ async function confirmSignatureStep(){
   const st=document.getElementById('signStatus');
   const name=document.getElementById('signatureName').value.trim();
   if(!name){st.textContent='Bitte den Namen der unterschreibenden Person angeben.';return}
-  if(!sigHasContent){st.textContent='Bitte zuerst unterschreiben.';return}
-  const dataUrl=document.getElementById('sigCanvas').toDataURL('image/png');
+  if(!sigPad||sigPad.leer()){st.textContent='Bitte zuerst unterschreiben.';return}
+  const dataUrl=sigPad.alsDataUrl();
   if(sigStep==='monteur'){
     installerSigDataUrl=dataUrl;
     installerSigName=name;
