@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.28** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.29** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -587,7 +587,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     (`app/schemas.py`, `NOT_NULL` für Pflichtspalten), Handler mit `model_dump(exclude_unset=True)`;
     oder alle Felder ohne Vorgabewert (fehlt eins, 422). Die Oberfläche schickt nur, was sie bearbeitet,
     nie einen beim Laden gemerkten Stand. `tests/test_v329_update_handler_struktur.py` prüft jeden
-    PUT/PATCH-Handler per AST; die 77 Altfälle stehen dort als Liste, die nur kürzer werden darf.
+    PUT/PATCH-Handler per AST; die 74 Altfälle stehen dort als Liste, die nur kürzer werden darf.
     Details: `docs/archiv/teil-updates.md`.
 
 ## Fachbegriffe & Domänenmodell
@@ -1023,7 +1023,8 @@ Einsatzbericht als Monteur mit dem reduzierten Schema, Bericht mit Fläche anleg
 `klicktest_monteur_navigation.py` (1.8.24, sichtbare Links in Seitenleiste und Kopfzeile je Rolle ohne 403, seit 1.8.27 auch
 im Seiteninhalt und der Adressimport-Knopf) und
 `klicktest_teil_updates.py` (1.8.25, Speichern in mobiler Zeiterfassung, Einstellungen, Rechnung und Leistung lässt
-nicht bearbeitete Felder stehen). Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
+nicht bearbeitete Felder stehen) und `klicktest_arbeitsvorbereitung.py` (1.8.29, Freitext-Lieferant, Planstunden und
+Reihenfolge bleiben beim Speichern). Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
 im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten (Vorlage dort). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 
@@ -1090,8 +1091,8 @@ Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 - ~~Kolonnenführer-Rolle für Gruppenbuchungen~~ -- seit 1.7.12 gelöst über das Kennzeichen
   `TeamEmployee.is_crew_leader` (keine eigene Rolle), siehe `docs/archiv/rechtekonzept.md`,
   "Zeiterfassung für Monteure" -> "Nachtrag (seit 1.7.12)".
-- **69 Update-Handler übernehmen weiterhin nicht gesendete Felder** (die sechs mit Datenverlust seit
-  1.8.25 behoben, Regel 22): jede Oberfläche schickt dort heute alle Felder, kein akuter Datenverlust.
+- **66 Update-Handler übernehmen weiterhin nicht gesendete Felder** (die sechs mit Datenverlust seit
+  1.8.25 behoben, die drei der Arbeitsvorbereitung seit 1.8.29, Regel 22): jede Oberfläche schickt dort heute alle Felder, kein akuter Datenverlust.
   Eingefroren in `BEKANNT` (`tests/test_v329_update_handler_struktur.py`), Abbau bei Gelegenheit; dazu
   Speichern-Aufrufe, die nicht bearbeitete oder gemerkte Werte schicken: `docs/archiv/teil-updates.md`,
   "Nebenbefunde der Durchsicht".

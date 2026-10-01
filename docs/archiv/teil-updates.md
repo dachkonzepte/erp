@@ -58,10 +58,11 @@ Der Sweep 1.8.24 fand sechs weitere, je mit einer Oberfläche, die das Feld wegl
 
 ## Die eingefrorene Liste (BEKANNT im Strukturtest)
 
-Beim Einführen fand der Test 77 weitere Handler. Ein Agent hat alle 117 PUT/PATCH-Routen samt
+Beim Einführen fand der Test 77 weitere Handler (seit 1.8.29 noch 74, siehe unten). Ein Agent hat alle 117 PUT/PATCH-Routen samt
 Geschäftsfunktion und jedem Aufrufer in den Vorlagen durchgesehen (01.10.2026):
 
-- **69 übernehmen nicht gesendete Felder**, aber jede Oberfläche schickt dort heute alle Felder -- kein
+- **69 übernehmen nicht gesendete Felder** (seit 1.8.29 noch 66: die drei der Arbeitsvorbereitung sind
+  Teil-Updates, siehe Nebenbefund 1), aber jede Oberfläche schickt dort heute alle Felder -- kein
   Datenverlust, solange kein neuer Aufrufer ein Feld weglässt. Davon 6 absichtlich ("Weglassen heißt
   leeren"): Checklisten-Antwort, Dashboard-Layout, Standard-Prüfvorlage je Dachtyp, Betriebskosten des
   Betriebsmittels, Position in der Dachskizze, Sperrdatum der Zeiterfassung. `PUT
@@ -79,7 +80,15 @@ Keine Weglassung, aber die Oberfläche schickt einen Wert, den niemand bearbeite
 
 1. Fest verdrahtet in `work_preparation.html`: `saveEmployee` schickt immer `planned_hours:null`,
    `saveMaterial` immer `supplier:null` (leert bei Altzeilen ohne Lieferanten-Datensatz den
-   Freitext-Lieferanten), `saveTask` immer `sort_order:100`.
+   Freitext-Lieferanten), `saveTask` immer `sort_order:100`. **Behoben seit 1.8.29**: die Seite schickt
+   nur, was sie bearbeitet (auch beim Anlegen keine Vorgabewerte mehr), die drei PUT-Endpunkte
+   (`/api/work-preparation/employees|materials|tasks/{id}`) sind Teil-Updates und aus `BEKANNT` gestrichen.
+   Die Lieferanten-Auswahl zeigt einen Freitext-Lieferanten als vorgewählte Option "<Name> (Freitext)";
+   bleibt sie gewählt, geht kein `supplier_id` mit und der Freitext bleibt. "— kein Lieferant —" schickt
+   `supplier_id: null` und leert Verknüpfung und Freitext; nur `supplier` (ohne `supplier_id`) setzt den
+   Freitext und löst eine Verknüpfung, wie bisher. `tests/test_v332_arbeitsvorbereitung_teil_updates.py`
+   (Schlüssel aus der Vorlage, Gegenprobe: alter Stand 7 von 13 rot, neuer Server mit alter Oberfläche
+   5 von 13), `scripts/klicktest_arbeitsvorbereitung.py` 6/6, mit altem Stand 2/6.
 2. Auswahllisten, die den gespeicherten Wert nicht anzeigen können -- Speichern schreibt dann leer
    oder einen Vorgabewert: `order.html` Sachbearbeiter/Projektleiter (nur aktive Mitarbeiter),
    `maintenance_contract.html` Verantwortlicher (Server prüft nicht auf aktiv), Einstellungen

@@ -264,9 +264,6 @@ BEKANNT = {
     "PUT /api/time-backoffice/settings": _VOLLES_FORMULAR,
     "PUT /api/time-backoffice/work-time-models/{model_id}": _VOLLES_FORMULAR,
     "PUT /api/users/{user_id}": _VOLLES_FORMULAR,
-    "PUT /api/work-preparation/employees/{assignment_id}": _VOLLES_FORMULAR,
-    "PUT /api/work-preparation/materials/{material_id}": _VOLLES_FORMULAR,
-    "PUT /api/work-preparation/tasks/{task_id}": _VOLLES_FORMULAR,
 }
 
 # Die sieben Routen der Runde 1.8.25 -- hier darf nie wieder ein Fund stehen.

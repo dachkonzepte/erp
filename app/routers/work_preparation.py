@@ -86,7 +86,7 @@ def update_work_preparation_employee(assignment_id: int, payload: WorkPreparatio
     if row is None:
         raise HTTPException(status_code=404, detail="Mitarbeiterzuordnung nicht gefunden.")
     order_id = row.preparation.order_id
-    for key, value in payload.model_dump().items(): setattr(row, key, value)
+    for key, value in payload.model_dump(exclude_unset=True).items(): setattr(row, key, value)
     db.commit()
     return preparation_to_dict(db, load_preparation(db, order_id))
 
@@ -113,11 +113,12 @@ def add_work_preparation_task(order_id: int, payload: WorkPreparationTaskCreate,
 def update_work_preparation_task(task_id: int, payload: WorkPreparationTaskUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     row=db.get(WorkPreparationTask,task_id)
     if row is None: raise HTTPException(status_code=404,detail="Aufgabe nicht gefunden.")
-    if payload.assigned_employee_id is not None:
-        e=db.get(Employee,payload.assigned_employee_id)
+    changes=payload.model_dump(exclude_unset=True)
+    if changes.get("assigned_employee_id") is not None:
+        e=db.get(Employee,changes["assigned_employee_id"])
         if e is None or not e.active: raise HTTPException(status_code=422,detail="Zugeordneter Mitarbeiter ist nicht aktiv.")
     order_id=row.preparation.order_id
-    for key,value in payload.model_dump().items(): setattr(row,key,value)
+    for key,value in changes.items(): setattr(row,key,value)
     db.commit(); return preparation_to_dict(db,load_preparation(db,order_id))
 
 
@@ -185,16 +186,20 @@ def update_work_preparation_material(material_id: int, payload: WorkPreparationM
     row=db.get(WorkPreparationMaterial,material_id)
     if row is None: raise HTTPException(status_code=404,detail="Materialbedarf nicht gefunden.")
     order_id=row.preparation.order_id
-    row.planned_quantity=payload.planned_quantity; row.status=payload.status; row.notes=payload.notes
+    # Seit 1.8.29 Teil-Update: ohne supplier_id und supplier bleibt der Lieferant, auch ein Freitext.
+    changes=payload.model_dump(exclude_unset=True)
+    lieferant_geschickt="supplier_id" in changes or "supplier" in changes
+    supplier_id=changes.pop("supplier_id",None); supplier_text=changes.pop("supplier",None)
+    for key,value in changes.items(): setattr(row,key,value)
     link=db.scalar(select(WorkPreparationMaterialSupplier).where(WorkPreparationMaterialSupplier.material_id==row.id))
-    if payload.supplier_id is not None:
-        supplier=db.get(Supplier,payload.supplier_id)
+    if supplier_id is not None:
+        supplier=db.get(Supplier,supplier_id)
         if supplier is None or not supplier.active: raise HTTPException(status_code=422,detail="Lieferant wurde nicht gefunden oder ist inaktiv.")
         row.supplier=supplier.name
         if link is None: db.add(WorkPreparationMaterialSupplier(material_id=row.id,supplier_id=supplier.id))
         else: link.supplier_id=supplier.id
-    else:
-        row.supplier=payload.supplier
+    elif lieferant_geschickt:
+        row.supplier=supplier_text
         if link is not None: db.delete(link)
     db.commit(); return preparation_to_dict(db,load_preparation(db,order_id))
 

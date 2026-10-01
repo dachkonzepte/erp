@@ -4,6 +4,24 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.29 – Arbeitsvorbereitung: Speichern schickt keine fest verdrahteten Werte mehr
+
+Nebenbefund aus 1.8.25 behoben. Die Arbeitsvorbereitung schickte beim Speichern Werte mit, die niemand
+bearbeitet hatte: eine Materialzeile immer `supplier:null`, ein Einzelmitarbeiter `planned_hours:null`, eine
+Aufgabe `sort_order:100`. Der Server übernahm jedes Feld. So verlor eine ältere Materialzeile ihren
+eingetippten Lieferanten (Freitext ohne Lieferanten-Datensatz), sobald jemand Menge oder Status speicherte.
+Jetzt schickt die Seite nur, was sie bearbeitet, auch beim Anlegen keine Vorgabewerte mehr. Die drei
+PUT-Endpunkte sind Teil-Updates (`PartialUpdate`, Regel 22) und aus der eingefrorenen Liste des
+Strukturtests gestrichen. Die Lieferanten-Auswahl zeigt einen Freitext-Lieferanten jetzt als vorgewählte
+Option „… (Freitext)“, vorher stand dort „— kein Lieferant —“. Bleibt sie gewählt, bleibt der Freitext;
+„— kein Lieferant —“ leert ihn.
+
+`tests/test_v332_arbeitsvorbereitung_teil_updates.py` liest die geschickten Schlüssel aus der Vorlage und
+schickt genau diese: Freitext-Lieferant, Planstunden und Reihenfolge bleiben stehen; dazu Lieferant wählen
+und leeren, `null` in Pflichtfeldern 422. Gegenproben: alter Stand 7 von 13 rot, neuer Server mit alter
+Oberfläche 5 von 13. Klicktest `scripts/klicktest_arbeitsvorbereitung.py` 6/6, mit altem Stand 2/6.
+13 neue Tests.
+
 ## 1.8.28 – Mangel zur Aufgabe und „Vorgang erstellen“ prüfen die Aufgaben-Sichtbarkeit
 
 Nebenbefund aus 1.8.26 behoben. `GET /api/tasks/{id}/finding` und `POST /api/tasks/{id}/create-follow-up-project`

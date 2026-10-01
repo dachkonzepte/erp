@@ -1841,7 +1841,9 @@ class WorkPreparationEmployeeCreate(BaseModel):
     notes: str | None = None
 
 
-class WorkPreparationEmployeeUpdate(BaseModel):
+class WorkPreparationEmployeeUpdate(PartialUpdate):
+    """Teil-Update (seit 1.8.29): die Arbeitsvorbereitung bearbeitet nur Rolle und Notiz; bis 1.8.28
+    schickte sie immer planned_hours:null mit und leerte damit die Planstunden."""
     role: str | None = Field(default=None, max_length=120)
     planned_hours: Decimal | None = Field(default=None, ge=0)
     notes: str | None = None
@@ -1857,8 +1859,16 @@ class WorkPreparationTaskCreate(BaseModel):
     sort_order: int = 100
 
 
-class WorkPreparationTaskUpdate(WorkPreparationTaskCreate):
-    pass
+class WorkPreparationTaskUpdate(PartialUpdate):
+    """Teil-Update (seit 1.8.29): bis 1.8.28 schickte die Arbeitsvorbereitung immer sort_order:100 mit."""
+    NOT_NULL = frozenset({"title", "status", "priority", "sort_order"})
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    status: str | None = Field(default=None, max_length=40)
+    priority: str | None = Field(default=None, max_length=30)
+    due_date: date | None = None
+    assigned_employee_id: int | None = None
+    notes: str | None = None
+    sort_order: int | None = None
 
 
 class WorkPreparationMaterialUpdate(BaseModel):
@@ -2024,9 +2034,14 @@ class WorkPreparationTeamAssign(BaseModel):
     team_id: int
     notes: str | None = None
 
-class WorkPreparationMaterialUpdateV082(BaseModel):
-    planned_quantity: Decimal = Field(ge=0)
-    status: str = Field(default="bedarf", max_length=40)
+class WorkPreparationMaterialUpdateV082(PartialUpdate):
+    """Teil-Update (seit 1.8.29). supplier_id fehlt: der Lieferant bleibt, auch ein eingetippter
+    Freitext-Lieferant einer älteren Zeile ohne Lieferanten-Datensatz. supplier_id null: kein
+    Lieferant, Verknüpfung und Freitext werden geleert (oder auf supplier gesetzt, falls mitgeschickt).
+    Bis 1.8.28 schickte die Arbeitsvorbereitung immer supplier:null mit und leerte so den Freitext."""
+    NOT_NULL = frozenset({"planned_quantity", "status"})
+    planned_quantity: Decimal | None = Field(default=None, ge=0)
+    status: str | None = Field(default=None, max_length=40)
     supplier_id: int | None = None
     supplier: str | None = Field(default=None, max_length=255)
     notes: str | None = None
