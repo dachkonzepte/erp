@@ -2440,6 +2440,21 @@ class RoofAreaOut(BaseModel):
     updated_at: datetime
 
 
+class RoofAreaFieldOut(BaseModel):
+    """Dachfläche für den Monteur (seit 1.8.22, GET /api/orders/{order_id}/roof-areas): die
+    Berichtsseite braucht id/name für die Flächenauswahl, dazu die technischen Angaben zur Fläche.
+    Bewusst OHNE notes (Büro-Freitext), contractor/warranty_until/last_renovation (Gewährleistung
+    und ausführende Fremdfirma), customer_id/customer_name/property_* (Kundenkontext, den der
+    Bericht schon über PropertyAccessOut zeigt). Muster OrderFieldAccessOut."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    roof_type: str | None = None
+    covering: str | None = None
+    pitch_degrees: Decimal | None = None
+    area_sqm: Decimal | None = None
+
+
 class RoofAreaCreate(BaseModel):
     # Seit 1.2.18 OHNE build_up/insulation -- siehe RoofAreaOut/app/models.py::RoofArea für die
     # Begründung (Schichtenliste RoofLayer hat das Freitextfeld abgelöst).

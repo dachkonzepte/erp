@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.21** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.22** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -788,6 +788,12 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
 - **Rollenlose Business-Logik, Redaktion im Router**: `app/*.py`-Geschäftslogik kennt keine
   Rollen; die Rollenentscheidung (volles vs. reduziertes Schema, z. B.
   `OrderOut | OrderFieldAccessOut`) sitzt ausschließlich in `app/routers/*.py`.
+- **Datengrenze dauerhaft geprüft** (seit 1.8.22): `tests/test_v326_monteur_datengrenze.py` ruft
+  jeden GET-Endpunkt unter `/api/` als Monteur auf und prüft jede JSON-Antwort rekursiv auf
+  verbotene Schlüssel (Preise, Kosten, Löhne, Sätze, interne Notizen, Kundenkontakt,
+  Gewährleistung). Ein neuer Endpunkt für `field` braucht Testdaten, die ihn mit Inhalt füllen;
+  ein Feld, das der Monteur trotz verbotenem Namen sehen soll, eine begründete Ausnahme in
+  `ERLAUBT_JE_ROUTE`.
 
 ## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
 
@@ -992,7 +998,8 @@ allen Dokumentseiten, Zustellung nachtragen mit Beleg-Upload, Checkliste mit 20 
 `klicktest_aufgaben_ohne_zustaendigkeit.py` (1.8.18, Abschnitt und Widget "Ohne Zuständigkeit" für vier Rollen,
 zweiter Klick nach fremdem Übernehmen, Historie nur für Admin) und `klicktest_vertragsgrundlage.py` (1.8.21,
 Verbraucher-Häkchen, Vertragsgrundlage im Angebots-Editor und am Auftrag mit Begründung, Klauseln in den
-Einstellungen für Admin und Büro). Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
+Einstellungen für Admin und Büro) und `klicktest_monteur_dachflaechen.py` (1.8.22, Dachflächen-Auswahl im
+Einsatzbericht als Monteur mit dem reduzierten Schema, Bericht mit Fläche anlegen). Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
 im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten (Vorlage dort). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 

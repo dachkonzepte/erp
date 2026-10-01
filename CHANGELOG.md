@@ -4,6 +4,29 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.22 – Datengrenze für Monteure
+
+Zwischenrunde. `GET /api/orders/{order_id}/roof-areas` (Dachflächen-Auswahl im Einsatzbericht) gab dem
+Monteur die volle Dachfläche: Kunden-ID, Büro-Notiz, ausführende Fremdfirma, Gewährleistung bis, letzte
+Sanierung, Kunden- und Objektname. Die Berichtsseite braucht davon nur ID und Bezeichnung. Der Monteur
+bekommt jetzt `RoofAreaFieldOut` (ID, Bezeichnung, Dachtyp, Deckung, Neigung, Fläche), das Büro
+unverändert alles. Kein bisheriger Test hätte das gefunden: der Rollen-Audit prüft, ob ein Endpunkt eine
+Rolle verlangt, nicht, was er ihr zurückgibt.
+
+Neuer Dauertest `tests/test_v326_monteur_datengrenze.py`: legt einen Monteur mit Einsatz, Berichten,
+Zeiten, Checklisten und Objektdokument an, füllt überall Preise, Löhne, Kosten, Kundenkontakt, interne
+Notizen und Gewährleistung, ruft jeden der 213 GET-Endpunkte unter `/api/` als Monteur auf (Routen aus
+`app.main`, keine Liste im Test) und prüft jede JSON-Antwort rekursiv auf verbotene Schlüsselnamen. Wo ein
+solcher Name beim Monteur richtig ist (Bemerkung am Prüfpunkt, Notiz an der eigenen Zeitbuchung,
+Bedienungshinweis am Gerät), steht er je Route mit Begründung in einer Ausnahmeliste. Ein neuer Endpunkt
+läuft automatisch mit; rot ist auch ein Parameter ohne Testwert, ein Monteur-Endpunkt ohne 200 oder mit
+leerer Antwort und ein Büro-Endpunkt, der dem Monteur nicht 403 gibt. Gegenprobe im Test: eine
+zusätzliche Route mit dem alten Dachflächen-Schema wird gefunden; vor der Korrektur meldete der
+Durchlauf an der echten Route genau die vier Felder und sonst nichts. 6 neue Tests, Suite 2252 grün
+(zusammen mit 1.8.23 gelaufen), neuer Klicktest `scripts/klicktest_monteur_dachflaechen.py` 6/6. Nebenbefunde (nur gemeldet, Details in
+`docs/archiv/rechtekonzept.md`): die Seitenleiste zeigt Monteuren fünf Büro-Links, der
+Zeiterfassungs-Kontext liefert ihnen die Personalnummern aller Kollegen.
+
 ## 1.8.21 – Verbraucher-Merkmal und Vertragsgrundlage
 
 Stufe 2b, Runde 2b-1a (Kern, kein Modul); der Etappenplan für 2b-1a bis 2b-4 (Vertrag, Beteiligte,

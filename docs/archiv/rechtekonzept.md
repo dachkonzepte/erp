@@ -1105,6 +1105,63 @@ hindurch); `buero_auftrag` erreicht das Zeiterfassungs-Backoffice (erlaubt), abe
 Lohndaten; `buero_finanzen` sieht alles davon (erlaubt); `field` bleibt überall gesperrt, wie
 zuvor. Null durchgelassen. Volle Suite: 1532 Tests grün.
 
+### Datengrenze für Monteure: ein Durchlauf über alle GET-Endpunkte (seit 1.8.22)
+
+**Fund**: `GET /api/orders/{order_id}/roof-areas` (Dachflächen-Auswahl in `service_reports.html`) gab
+dem Monteur seit jeher das volle `RoofAreaOut` -- `customer_id`, `notes` (Büro-Freitext),
+`contractor` (ausführende Fremdfirma), `warranty_until`, dazu `last_renovation`, Kunden- und
+Objektname. Die Seite liest davon nur `id` und `name`. Der Rollen-Audit-Test
+(`test_v260_role_audit.py`) konnte das nicht sehen: er prüft, OB ein Endpunkt eine Rolle verlangt,
+nicht, WAS er der erlaubten Rolle zurückgibt. Die bisherigen Schlüssel-Scans (Wartungshistorie,
+Objektansicht, Suche) deckten jeweils nur die Endpunkte ihrer eigenen Runde ab.
+
+**Behoben**: neues Schema `RoofAreaFieldOut` (`id`/`name`/`roof_type`/`covering`/`pitch_degrees`/
+`area_sqm` -- was die Seite braucht plus die technischen Angaben zur Fläche), Router wählt nach
+Rolle und gibt bereits validiert zurück (Muster `GET /api/orders/{order_id}`). Büro unverändert.
+
+**Der Dauertest** (`tests/test_v326_monteur_datengrenze.py`): legt einen Monteur mit allem an, was
+er erreichen kann (Kolonne mit Termin heute, eigener unterschriebener Bericht mit Prüfpunkt, Mangel,
+Foto, Material, Gerät; eigener Entwurf; Bericht des Kollegen; Wartungshistorie auf einem früheren
+Auftrag; Zeitbuchungen, laufende Kolonnenbuchung, Abwesenheitsantrag, Wartungsvertrag, Objektdokument,
+abgeschlossene und offene Checkliste) und füllt überall Werte, die er nicht sehen darf (Einkaufs- und
+Verkaufspreise, Lohn, Anschaffungskosten, Kundenkontakt, interne Notizen, Gewährleistung). Dann ruft
+er JEDEN GET-Endpunkt unter `/api/` als dieser Monteur auf -- die Routen kommen aus `app.main`
+(`_IncludedRouter.original_router`, Reihenfolge wie im Betrieb), keine Liste im Test -- und prüft
+jede JSON-Antwort mit 200 rekursiv auf verbotene Schlüsselnamen:
+
+- **verboten nach Namen**, egal ob der Wert gefüllt ist: ganze Wortteile (`notes`, `rate`, `net`,
+  `gross`, `amount`, `fee`, `vat`, `contact`, ...) und Teilzeichenfolgen (`price`, `purchase`,
+  `cost`, `wage`, `lohn`, `salary`, `satz`, `intern`, `email`, `phone`, `warranty`, `contractor`,
+  ...); jeder `customer_*`-Schlüssel außer `customer_name`;
+- **überall erlaubt**: `access_notes`, `site_contact_name`, `site_contact_phone` (eigens für den
+  Einsatz, `PropertyAccessOut`) und `customer_name`;
+- **je Route erlaubt, mit Begründung** (`ERLAUBT_JE_ROUTE`): Bemerkung am Prüfpunkt (steht auf dem
+  Kunden-PDF), Notizen an eigenen Zeitbuchungen, Kolonnenbuchungen, Material- und Geräteeinträgen
+  des eigenen Berichts, eigener Abwesenheitsantrag samt Antwort des Büros, DATEV-Lohnart
+  (Buchungsschlüssel, kein Betrag), Reparaturvermerk zur Einsatzbereitschaft, Bedienungshinweise
+  am Gerät (`usage_notes`). Eine Ausnahme, die nicht mehr greift, ist ebenfalls rot.
+
+Damit ein neuer Endpunkt nicht still durchrutscht: ein Pfad- oder Pflicht-Query-Parameter ohne
+Testwert ist rot; ein für `field` freigegebener Endpunkt muss 200 liefern (Ausnahme nur die beiden
+Logo-Dateien ohne hochgeladenes Logo), jeder andere 403; eine leere JSON-Antwort an den Monteur ist
+rot, weil sie nichts prüft. Die Gegenprobe hängt `.../roof-areas-alt` mit dem alten Schema als
+zusätzliche Route in denselben Durchlauf -- er meldet `customer_id`, `notes`, `contractor`,
+`warranty_until`, ohne die Route zu kennen. Vor der Korrektur meldete er an der echten Route genau
+diese vier, sonst nichts. Stand 1.8.22: 213 GET-Endpunkte, 55 davon für Monteure; 44 liefern JSON
+und werden mit Inhalt geprüft, 9 liefern PDF oder Datei (nur der Status wird geprüft, nicht der
+Inhalt), 2 sind die Logo-Dateien.
+
+Klicktest `scripts/klicktest_monteur_dachflaechen.py`: Monteur öffnet die Berichtsseite, die
+Dachfläche kommt nur mit den sechs Feldern an, steht in der Auswahl, ein Wartungsbericht mit ihr
+entsteht samt Prüfpunkten aus der Dachtyp-Vorlage.
+
+**Nebenbefunde (nur gemeldet)**:
+1. `_sidebar.html` zeigt dem Monteur auf der Berichtsseite "Wartungen", "Mängel", "Anfragen",
+   "Projekte", "Planung" -- diese Links tragen keine Rollenbedingung und führen auf
+   `access_denied.html`. Kein Datenleck, widerspricht aber "ausblenden statt ausgrauen".
+2. `GET /api/time-tracking/context` liefert dem Monteur alle aktiven Mitarbeiter mit
+   Personalnummer (`employees[].employee_number`); die reduzierte Zeiterfassung braucht das nicht.
+
 ## Dateiablage je Objekt ("Runde 2" der Monteurs-Erweiterung, seit 1.3.62)
 
 Ziel (Betreibervorgabe): jeder Mitarbeiter -- auch Monteure -- kann Bilder und Dokumente zu einem

@@ -37,7 +37,7 @@ from ..modules import is_module_enabled
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import (
     InspectionItemCreate, InspectionItemOut, InspectionItemResultUpdate, InspectionItemsSyncResult,
-    PropertyAccessOut, RoofAreaOut, ServiceReportAssetCreate, ServiceReportAssetOut, ServiceReportAssetUpdate,
+    PropertyAccessOut, RoofAreaFieldOut, RoofAreaOut, ServiceReportAssetCreate, ServiceReportAssetOut, ServiceReportAssetUpdate,
     ServiceReportCreate, ServiceReportHistoryOut, ServiceReportMaterialCreate, ServiceReportMaterialOut,
     ServiceReportMaterialUpdate, ServiceReportOut, ServiceReportPhotoOut, ServiceReportSign, ServiceReportUpdate,
 )
@@ -107,11 +107,18 @@ def _report_id_for_child(db: Session, model, row_id: int, not_found: str) -> int
     return row.service_report_id
 
 
-@router.get("/api/orders/{order_id}/roof-areas", response_model=list[RoofAreaOut])
+@router.get("/api/orders/{order_id}/roof-areas", response_model=list[RoofAreaOut] | list[RoofAreaFieldOut])
 def get_roof_areas_for_order(order_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    """Seit 1.8.22 bekommt `field` RoofAreaFieldOut -- bis dahin die volle Dachfläche samt
+    customer_id, notes, contractor und warranty_until (Fund, siehe CLAUDE.md "Rechtekonzept").
+    Bereits validiert zurückgegeben, wie GET /api/orders/{order_id}, damit die Union-Deklaration
+    nie das jeweils andere Schema wählt."""
     _require_module_enabled(db)
     require_field_order_access(db, _role, order_id)
-    return list_roof_areas_for_order(db, order_id)
+    rows = list_roof_areas_for_order(db, order_id)
+    if _role.role == ROLE_FIELD:
+        return [RoofAreaFieldOut.model_validate(row) for row in rows]
+    return rows
 
 
 @router.get("/api/orders/{order_id}/property", response_model=PropertyAccessOut | None)
