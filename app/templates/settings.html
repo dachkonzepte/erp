@@ -120,10 +120,14 @@
         <a href="/time-backoffice" style="text-decoration:none"><button type="button">Zeiterfassungs-Backoffice<span class="menu-sub">Zeitregeln, Stundenzettel & DATEV</span></button></a>
         <button type="button" data-settings-section="email-settings" onclick="showSettingsSection('email-settings')">E-Mail-Versand<span class="menu-sub">SMTP-Zugangsdaten (nur Administratoren)</span></button>
       </div>
+      {% if can(current_user, 'admin') %}
+      {# Seit 1.8.27 nur für Admin: /address-import ist admin-only (Rechtekonzept, Vier Rollen,
+         Etappe 2 Punkt 4) -- vorher führte der Knopf beide Bürorollen auf "Zugriff verweigert". #}
       <div class="settings-group">Importe</div>
       <div class="settings-menu">
         <a href="/address-import" style="text-decoration:none"><button type="button">Adressimport (Altsystem)<span class="menu-sub">Kunden, Lieferanten und offene Adressen aus einer CSV-/Excel-Datei</span></button></a>
       </div>
+      {% endif %}
       {% if can(current_user, 'admin') %}
       {# KI-Fundament (seit 1.6.2, siehe CLAUDE.md "KI-Fundament"): reine Systemkonfiguration,
          ausschließlich Administratoren -- nicht einmal buero_finanzen, anders als z. B. die

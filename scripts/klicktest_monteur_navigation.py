@@ -10,8 +10,9 @@ Büro/Admin. Geprüft wird im echten Browser, nach dem Laden der Seite:
     Monteur            Seitenleiste nur noch "Start" und "Zeiterfassung"
     Büro               die fünf Links unverändert da
 
-Links im Seiteninhalt, die erst das JavaScript aus geladenen Daten baut (z. B. "← Auftrag"), werden
-zusätzlich aufgerufen und nur als HINWEIS ausgegeben -- sie sind nicht Teil dieser Runde.
+Seit 1.8.27 auch die Links im Seiteninhalt, die erst das JavaScript aus geladenen Daten baut
+(Breadcrumb mit Kunde und Auftragsnummer, "← Auftrag"): kein 403, der Monteur sieht Kunde und
+Auftragsnummer als Text. Dazu die Einstellungen: "Adressimport (Altsystem)" nur für Admin.
 
 AUFRUF (aus dem Projektordner):
 
@@ -92,9 +93,11 @@ async def pruefen(tab, seed, p):
             p.pruefe(f"{rolle} {pfad}: Navigation ohne 403 ({len(links)} Links)",
                      sorted(h for h, s in status.items() if s == 403), [])
             inhalt = await tab.js(f"{_STATUS}({_INHALT})")
-            for h, s in sorted(inhalt.items()):
-                if s == 403:
-                    print(f"HINWEIS  {rolle} {pfad}: Link im Seiteninhalt {h} -> 403")
+            p.pruefe(f"{rolle} {pfad}: Links im Seiteninhalt ohne 403 ({len(inhalt)} Links)",
+                     sorted(h for h, s in inhalt.items() if s == 403), [])
+            if pfad == berichtsseite:
+                p.pruefe(f"{rolle}: Auftragsnummer in der Breadcrumb verlinkt",
+                         await tab.js("!!document.querySelector('#breadcrumb a[href^=\"/orders/\"]')"), rolle != "field")
             beschriftung = await tab.js("[...document.querySelectorAll('#appSidebar .app-sidebar-link .app-sidebar-label')]"
                                         ".map(x=>x.textContent.trim())")
             if rolle == "field":
@@ -103,6 +106,10 @@ async def pruefen(tab, seed, p):
                 p.pruefe(f"{rolle}: die fünf Links da", [x for x in beschriftung if x in FUENF], FUENF)
             p.pruefe(f"{rolle} {pfad}: JS-Fehler", tab.fehler, [])
             await tab.bild(f"{rolle}_{pfad.strip('/').replace('/', '_')}")
+        if rolle != "field":
+            await tab.oeffnen("/settings", "document.querySelector('.settings-menu')")
+            knopf = await tab.js(f"[...document.querySelectorAll('a[href=\"/address-import\"]')].filter({_SICHTBAR}).length")
+            p.pruefe(f"{rolle} /settings: Adressimport-Knopf", knopf, 1 if rolle == "admin" else 0)
 
 
 if __name__ == "__main__":

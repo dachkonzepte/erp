@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.27 – Keine Links mehr auf gesperrte Seiten, „Wichtige Infos“ in der Datengrenze
+
+Die drei bekannten Ausnahmen aus 1.8.24 behoben, `BEKANNT_OFFEN` in
+`tests/test_v328_navigation_ohne_sperrseiten.py` ist leer. „Adressimport (Altsystem)“ steht in den
+Einstellungen nur noch für Admin, vorher führte er beide Bürorollen auf „Zugriff verweigert“. Ist das Modul
+Wartungen abgeschaltet, verlinkt der Hinweis auf der Berichtsseite die Einstellungen nur noch für Büro und
+Admin. Auf der Berichtsseite sieht der Monteur kein „← Auftrag“ mehr, und die Breadcrumb zeigt ihm Kunde
+und Auftragsnummer als Text statt als Link. Ebenso entfällt beim Mangel „Folgeauftrag ansehen“, der auch
+auf die gesperrte Auftragsseite führte. Diese Links baut erst das JavaScript, deshalb bekommt die Seite vom
+Server, ob die Rolle Büro-Seiten öffnen darf.
+
+Der Dauertest `tests/test_v326_monteur_datengrenze.py` verbietet zusätzlich „Wichtige Infos“ am
+Mitarbeiter (`important_info`, Freitext für Gesundheitliches); kein Monteur-Endpunkt liefert es heute. Die
+Gegenprobe mit dem Mitarbeiterbestand im Büro-Schema findet es jetzt. Neue Gegenprobe in test_v328: ohne
+Rollenbedingung meldet der Durchlauf genau die drei früheren Ausnahmen. Ein neuer Test prüft, dass die
+Berichtsseite die Auftrags- und Kundenlinks nur für das Büro baut. Gegenproben: alte Vorlagen 5 von 8 rot
+in test_v328; ohne die neuen Wortteile 3 Tests rot in test_v326. Der Klicktest
+`scripts/klicktest_monteur_navigation.py` prüft jetzt auch die Links im Seiteninhalt (vorher nur HINWEIS)
+und den Adressimport-Knopf: 27/27, mit den alten Vorlagen 23/27. 6 neue Tests, Suite 2334 grün.
+
 ## 1.8.26 – Aufgaben: Ändern prüft dieselbe Sichtbarkeit wie Lesen
 
 Bekannte Lücke seit 1.4.3 geschlossen. Bearbeiten, Löschen, Archivieren, Reaktivieren und „Zurück in den

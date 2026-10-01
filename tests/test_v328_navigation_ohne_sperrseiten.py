@@ -29,17 +29,10 @@ from tests.test_v326_monteur_datengrenze import _monteur_client as _client_als, 
 ROLLEN = (ROLE_ADMIN, ROLE_OFFICE_FINANZEN, ROLE_OFFICE_AUFTRAG, ROLE_FIELD)
 
 # (Rolle, Seite, Link) -> warum der Link trotz 403 noch da ist. Ein Eintrag, der nicht mehr greift,
-# ist rot -- dann hier streichen.
-_ADRESSIMPORT = ("Einstellungen -> Importe -> 'Adressimport (Altsystem)' für jede Rolle, die /settings "
-                 "öffnet; /address-import ist admin-only (Rechtekonzept, Vier Rollen, Etappe 2 Punkt 4). "
-                 "Nebenbefund 1.8.24, gemeldet, nicht behoben")
-BEKANNT_OFFEN = {
-    (ROLE_FIELD, "/orders/1/service-reports", "/settings#modules"): (
-        "Hinweis 'Modul Wartungen deaktiviert' auf der Berichtsseite verlinkt die Einstellungen, auch "
-        "für den Monteur -- erscheint nur bei abgeschaltetem Modul; Nebenbefund 1.8.24, gemeldet, nicht behoben"),
-    (ROLE_OFFICE_AUFTRAG, "/settings", "/address-import"): _ADRESSIMPORT,
-    (ROLE_OFFICE_FINANZEN, "/settings", "/address-import"): _ADRESSIMPORT,
-}
+# ist rot -- dann hier streichen. Seit 1.8.27 leer: der Adressimport-Knopf in den Einstellungen und
+# der Einstellungs-Link im Modul-Hinweis der Berichtsseite erscheinen nur noch, wer die Seite öffnen
+# darf (Gegenprobe unten).
+BEKANNT_OFFEN: dict[tuple[str, str, str], str] = {}
 
 _LEERE_ELEMENTE = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
 
@@ -152,9 +145,35 @@ def test_seitenleiste_des_monteurs_auf_der_berichtsseite(welt, monkeypatch):
 
 def test_gegenprobe_links_ohne_rollenbedingung_fallen_auf(welt, monkeypatch):
     """Alle Rollenbedingungen in den Vorlagen aufgehoben (can() immer wahr) -- der Durchlauf muss die
-    fünf Links dieser Runde beim Monteur als gesperrt melden."""
+    fünf Links aus 1.8.24 beim Monteur als gesperrt melden."""
     monkeypatch.setitem(templates.env.globals, "is_module_enabled", lambda key: True)
     monkeypatch.setitem(templates.env.globals, "can", lambda user, *roles: True)
     ergebnis = _durchlauf(welt, ROLE_FIELD)
     links = {link for _, seite, link in ergebnis["gesperrt"] if seite == "/orders/1/service-reports"}
     assert {"/maintenance-contracts", "/findings", "/inquiries", "/projects", "/planning"} <= links
+
+
+def test_gegenprobe_die_frueheren_ausnahmen_fallen_auf(welt, monkeypatch):
+    """1.8.27: dieselbe Gegenprobe für die drei bis dahin bekannten Ausnahmen -- ohne Rollenbedingung
+    meldet der Durchlauf den Adressimport-Knopf bei beiden Bürorollen und, bei abgeschaltetem Modul,
+    den Einstellungs-Link der Berichtsseite beim Monteur."""
+    monkeypatch.setitem(templates.env.globals, "is_module_enabled", lambda key: False)
+    monkeypatch.setitem(templates.env.globals, "can", lambda user, *roles: True)
+    gesperrt = set()
+    for rolle in (ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN):
+        gesperrt |= _durchlauf(welt, rolle)["gesperrt"]
+    assert {(ROLE_OFFICE_AUFTRAG, "/settings", "/address-import"),
+            (ROLE_OFFICE_FINANZEN, "/settings", "/address-import"),
+            (ROLE_FIELD, "/orders/1/service-reports", "/settings#modules")} <= gesperrt
+
+
+@pytest.mark.parametrize("rolle,erwartet", [(ROLE_FIELD, False), (ROLE_OFFICE_AUFTRAG, True), (ROLE_ADMIN, True)])
+def test_berichtsseite_baut_auftrags_und_kundenlinks_nur_fuers_buero(welt, monkeypatch, rolle, erwartet):
+    """Die Breadcrumb (Kunde, Auftragsnummer), "← Auftrag" und "Folgeauftrag ansehen" baut erst das
+    JavaScript -- der Durchlauf oben sieht sie nicht. Die Seite bekommt deshalb vom Server, ob die Rolle
+    Büro-Seiten öffnen darf; "← Auftrag" fehlt für den Monteur schon im Markup. Im Browser prüft das
+    scripts/klicktest_monteur_navigation.py."""
+    monkeypatch.setitem(templates.env.globals, "is_module_enabled", lambda key: True)
+    html = _client_als(welt["db"], [pages_router], welt["user_ids"][rolle]).get("/orders/1/service-reports").text
+    assert f"const darfBueroSeiten={'true' if erwartet else 'false'};" in html
+    assert ('id="orderLink"' in html) is erwartet

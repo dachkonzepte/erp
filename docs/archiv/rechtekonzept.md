@@ -1218,6 +1218,16 @@ entsteht samt Prüfpunkten aus der Dachtyp-Vorlage.
 4. `EmployeeProfile.important_info` (Freitext, im Test "Allergie gegen Bitumen") fällt unter keinen
    der verbotenen Namen; kein Monteur-Endpunkt liefert es heute.
 
+**Nachtrag (seit 1.8.27): alle vier behoben.** (1) Die Gruppe "Importe" in `settings.html` steht unter
+`can(current_user, 'admin')`. (2) und (3) `service_reports.html` setzt `darf_buero_seiten`
+(Büro/Admin) und gibt es dem JavaScript als `darfBueroSeiten`: der Modul-Hinweis verlinkt die
+Einstellungen nur dafür, "← Auftrag" fehlt dem Monteur schon im Markup, die Breadcrumb zeigt Kunde und
+Auftragsnummer als Text; dasselbe für "Folgeauftrag ansehen" am Mangel (`/orders/{id}`, bisher nicht
+gemeldet). (4) `important`/`wichtig` sind verbotene Wortteile; die Gegenprobe mit `EmployeeRosterOut`
+findet `important_info`. `BEKANNT_OFFEN` ist leer; neue Gegenprobe: ohne Rollenbedingung (`can()` immer
+wahr, Module aus) meldet der Durchlauf genau die drei früheren Fälle. Der Klicktest prüft die Links im
+Seiteninhalt jetzt als Prüfung statt HINWEIS, dazu den Adressimport-Knopf je Rolle.
+
 ## Dateiablage je Objekt ("Runde 2" der Monteurs-Erweiterung, seit 1.3.62)
 
 Ziel (Betreibervorgabe): jeder Mitarbeiter -- auch Monteure -- kann Bilder und Dokumente zu einem

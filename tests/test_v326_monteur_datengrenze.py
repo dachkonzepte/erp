@@ -83,6 +83,9 @@ VERBOTENE_WORTTEILE = (
     "bank", "account_holder", "kontoinhaber", "sepa",
     "tax", "steuer", "social_security", "sozialvers", "insurance", "versicherung", "krankenkasse",
     "pension", "religion", "konfession", "church", "kirche",
+    # "Wichtige Infos" am Mitarbeiter (EmployeeProfile.important_info, seit 1.8.27): Freitext, im
+    # Formular für Gesundheitliches gedacht (Allergien, Einschränkungen) -- nie an den Monteur.
+    "important", "wichtig",
 )
 # Überall richtig: Objektzugang und Ansprechpartner vor Ort (PropertyAccessOut, seit 1.3.53 eigens
 # für den Einsatz gebaut) und der Kundenname (OrderFieldAccessOut, Objektsuche seit 1.3.65).
@@ -629,14 +632,14 @@ def test_gegenprobe_alter_kontext_und_mitarbeiterbestand_fallen_auf(threaded_db_
     assert set(je_route) == {"/api/time-tracking/context-alt", "/api/employees-alt"}
     assert je_route["/api/time-tracking/context-alt"] == {"$.employees[].employee_number"}
     assert {"$[].employee_number", "$[].birthday", "$[].street", "$[].postal_code", "$[].city",
-            "$[].country"} <= je_route["/api/employees-alt"]
+            "$[].country", "$[].important_info"} <= je_route["/api/employees-alt"]
 
 
 @pytest.mark.parametrize("key", [
     "employee_number", "datev_personnel_number", "personalnummer", "birthday", "date_of_birth", "geburtsdatum",
     "iban", "bic", "bank_name", "account_holder", "tax_id", "tax_class", "steuerklasse", "steuer_id",
     "social_security_number", "sozialversicherungsnummer", "sv_nummer", "health_insurance", "krankenkasse",
-    "church_tax", "konfession",
+    "church_tax", "konfession", "important_info", "wichtige_infos",
 ])
 def test_personaldaten_schluessel_sind_verboten(key):
     assert _verboten(key)

@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.26** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.27** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -803,14 +803,16 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
 - **Datengrenze dauerhaft geprüft** (seit 1.8.22): `tests/test_v326_monteur_datengrenze.py` ruft
   jeden GET-Endpunkt unter `/api/` als Monteur auf und prüft jede JSON-Antwort rekursiv auf
   verbotene Schlüssel (Preise, Kosten, Löhne, Sätze, interne Notizen, Kundenkontakt,
-  Gewährleistung, seit 1.8.24 Personaldaten samt Privatadresse an Personen). Ein neuer Endpunkt für
+  Gewährleistung, seit 1.8.24 Personaldaten samt Privatadresse an Personen, seit 1.8.27 "Wichtige
+  Infos" am Mitarbeiter). Ein neuer Endpunkt für
   `field` braucht Testdaten, die ihn mit Inhalt füllen; ein Feld, das der Monteur trotz verbotenem
   Namen sehen soll, eine begründete Ausnahme in `ERLAUBT_JE_ROUTE`.
 - **Kein sichtbarer Link auf eine gesperrte Seite** (seit 1.8.24):
   `tests/test_v328_navigation_ohne_sperrseiten.py` rendert je Rolle jede erlaubte Seite und ruft
-  jeden beim Laden sichtbaren Link als dieselbe Rolle auf -- kein 403 außer den begründeten
-  `BEKANNT_OFFEN`. Links, die erst das JavaScript baut, prüft nur der Klicktest
-  `scripts/klicktest_monteur_navigation.py`.
+  jeden beim Laden sichtbaren Link als dieselbe Rolle auf -- kein 403; `BEKANNT_OFFEN` ist seit
+  1.8.27 leer. Links, die erst das JavaScript baut (Breadcrumb der Berichtsseite), prüft der
+  Klicktest `scripts/klicktest_monteur_navigation.py`; die Seite bekommt dafür vom Server, ob die
+  Rolle Büro-Seiten öffnen darf (`darfBueroSeiten`).
 
 ## Self-Seeding gegen gleichzeitigen ersten Zugriff absichern (seit 1.4.6)
 
@@ -1018,7 +1020,8 @@ Verbraucher-Häkchen, Vertragsgrundlage im Angebots-Editor und am Auftrag mit Be
 Einstellungen für Admin und Büro) und `klicktest_monteur_dachflaechen.py` (1.8.22, Dachflächen-Auswahl im
 Einsatzbericht als Monteur mit dem reduzierten Schema, Bericht mit Fläche anlegen) und
 `klicktest_angebot_interne_notiz.py` (1.8.23, Angebotskopf speichern lässt die interne Notiz stehen) und
-`klicktest_monteur_navigation.py` (1.8.24, sichtbare Links in Seitenleiste und Kopfzeile je Rolle ohne 403) und
+`klicktest_monteur_navigation.py` (1.8.24, sichtbare Links in Seitenleiste und Kopfzeile je Rolle ohne 403, seit 1.8.27 auch
+im Seiteninhalt und der Adressimport-Knopf) und
 `klicktest_teil_updates.py` (1.8.25, Speichern in mobiler Zeiterfassung, Einstellungen, Rechnung und Leistung lässt
 nicht bearbeitete Felder stehen). Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
 im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten (Vorlage dort). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
@@ -1087,18 +1090,6 @@ Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 - ~~Kolonnenführer-Rolle für Gruppenbuchungen~~ -- seit 1.7.12 gelöst über das Kennzeichen
   `TeamEmployee.is_crew_leader` (keine eigene Rolle), siehe `docs/archiv/rechtekonzept.md`,
   "Zeiterfassung für Monteure" -> "Nachtrag (seit 1.7.12)".
-- **`service_reports.html`s "Auftrag"-Link zeigt für `field` auf eine jetzt gesperrte Seite**
-  (seit 1.3.57, Seiten-Klassifizierung): `/orders/{id}` ist Büro/Admin -- ein Monteur, der auf
-  diesen Link klickt, landet auf `access_denied.html` statt auf der Auftragsseite. Kein
-  Datenleck (die API dahinter war für `field` nie erreichbar), aber ein unnötiger Zwischenstopp.
-  Nicht mitgefixt, da außerhalb des angefragten Umfangs (Seiten-Klassifizierung, nicht
-  Template-Aufräumen) -- saubere spätere Lösung: den Link clientseitig ausblenden, wenn
-  `authStatus.user.role==='field'` (Muster `can()`, aber ohne Server-Rendering-Kontext auf
-  dieser Seite verfügbar, siehe `_sidebar.html`s `can(current_user, ...)` für das Gegenstück
-  mit Server-Rendering). Gilt ebenso für die Auftragsnummer in der Breadcrumb; seit 1.8.24 gibt
-  `scripts/klicktest_monteur_navigation.py` beides als HINWEIS aus. Weitere sichtbare Links auf
-  gesperrte Seiten (Adressimport für Büro, Modul-Hinweis auf der Berichtsseite): `BEKANNT_OFFEN`
-  in `tests/test_v328_navigation_ohne_sperrseiten.py`.
 - **69 Update-Handler übernehmen weiterhin nicht gesendete Felder** (die sechs mit Datenverlust seit
   1.8.25 behoben, Regel 22): jede Oberfläche schickt dort heute alle Felder, kein akuter Datenverlust.
   Eingefroren in `BEKANNT` (`tests/test_v329_update_handler_struktur.py`), Abbau bei Gelegenheit; dazu

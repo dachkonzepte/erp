@@ -110,6 +110,12 @@ tr:last-child td{border-bottom:none}
    spezifischer gestylten Links (.report-actions a, .top-links a) bleiben davon unberührt. */
 a{color:var(--accent)}
 </style></head><body>
+{# current_user hier setzen, nicht nur in _sidebar.html/_topbar.html: ein {% set %} in einem
+   {% include %} wirkt nicht in dieser Vorlage nach (siehe settings.html). Seit 1.8.27: Auftrag,
+   Kunde und Einstellungen öffnet nur das Büro -- der Monteur bekommt keine Links dorthin
+   (vorher "Zugriff verweigert", Rechtekonzept "ausblenden statt ausgrauen"). #}
+{% set current_user = request.state.erp_user %}
+{% set darf_buero_seiten = can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
 <div class="app-layout">
 {% include "_sidebar.html" %}
 {% include "_debounce.html" %}
@@ -121,7 +127,7 @@ a{color:var(--accent)}
 <div class="breadcrumb" id="breadcrumb">Lädt …</div>
 <div class="hero">
   <div><h1>Einsatzbericht</h1><div class="muted small" id="orderContext">Auftrag wird geladen …</div></div>
-  <div class="top-links"><a id="orderLink" href="#">← Auftrag</a><a id="timeLink" href="#">Zeiterfassung (Auftrag)</a></div>
+  <div class="top-links">{% if darf_buero_seiten %}<a id="orderLink" href="#">← Auftrag</a>{% endif %}<a id="timeLink" href="#">Zeiterfassung (Auftrag)</a></div>
 </div>
 
 <!-- Seit "Rechtekonzept" (siehe CLAUDE.md): Objektname/Anschrift/Zugang/Ansprechpartner vor Ort
@@ -204,7 +210,7 @@ a{color:var(--accent)}
   <div id="timeEntriesTable"></div>
 </div>
 {% else %}
-<div class="card"><h2>Wartungen & Reparaturen</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+<div class="card"><h2>Wartungen & Reparaturen</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den {% if darf_buero_seiten %}<a href="/settings#modules" style="color:var(--accent)">Einstellungen</a>{% else %}Einstellungen{% endif %} wieder aktivieren.</div></div>
 {% endif %}
 </main>
 </div>
@@ -216,6 +222,8 @@ const orderId={{ order_id }};
 // project_folder.html: seiteneigene JS-Konstante, per Jinja-Global gesetzt, blendet den
 // Betriebsmittel-Panel-Umschalter aus, statt einen Knopf zu zeigen, der ohnehin nur 403 liefert.
 const assetsModuleEnabled={{ 'true' if is_module_enabled('betriebsmittel') else 'false' }};
+// Seit 1.8.27: Auftrag, Kunde, Folgeauftrag sind Büro-Seiten -- für den Monteur Text statt Link.
+const darfBueroSeiten={{ 'true' if darf_buero_seiten else 'false' }};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
 function fmtDateTime(s){if(!s)return'';return new Date(s).toLocaleString('de-DE')}
@@ -713,7 +721,7 @@ function findingCard(f,r){
   const isDraft=r.status==='entwurf';
   const photoThumbs=photos.map(p=>photoThumbHtml(p,r.id,isDraft)).join('');
   const uploadControl=isDraft?`<input type="file" accept="image/png,image/jpeg,image/webp" capture="environment" class="hidden" id="findingPhoto-${f.id}" onchange="uploadFindingPhoto(${f.id},${r.id})"><button type="button" class="secondary" onclick="document.getElementById('findingPhoto-${f.id}').click()">+ Foto</button>`:'';
-  const followUpLink=f.follow_up_order_id?`<a href="/orders/${f.follow_up_order_id}" style="color:var(--accent)">Folgeauftrag ansehen</a>`:'';
+  const followUpLink=f.follow_up_order_id&&darfBueroSeiten?`<a href="/orders/${f.follow_up_order_id}" style="color:var(--accent)">Folgeauftrag ansehen</a>`:'';
   // Sperre auf BEIDE Artefakte geprüft, nicht nur follow_up_task_id -- ein per Migration auf
   // buero_pruefen umgeschriebener, ehemals "folgeauftrag"-Mangel trägt nur follow_up_order_id.
   const lockedAction=(action)=>action==='buero_pruefen'&&(f.follow_up_task_id||f.follow_up_order_id)&&f.action!==action;
@@ -1359,13 +1367,14 @@ async function init(){
     document.getElementById('listStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
     return;
   }
-  document.getElementById('orderLink').href='/orders/'+orderId;
+  const orderLinkEl=document.getElementById('orderLink');
+  if(orderLinkEl)orderLinkEl.href='/orders/'+orderId;
   document.getElementById('timeLink').href='/time-tracking?order_id='+orderId;
   api(`/api/orders/${orderId}`).then(o=>{
     orderData=o;
     document.getElementById('orderContext').textContent=`${o.order_number} · ${o.customer_name}`;
-    const customerLink=o.customer_id?`<a href="/customers/${o.customer_id}">${esc(o.customer_name)}</a>`:esc(o.customer_name);
-    const orderLink=`<a href="/orders/${orderId}">${esc(o.order_number)}</a>`;
+    const customerLink=o.customer_id&&darfBueroSeiten?`<a href="/customers/${o.customer_id}">${esc(o.customer_name)}</a>`:esc(o.customer_name);
+    const orderLink=darfBueroSeiten?`<a href="/orders/${orderId}">${esc(o.order_number)}</a>`:esc(o.order_number);
     document.getElementById('breadcrumb').innerHTML=[customerLink,orderLink,'Einsatzberichte'].join(' · ');
     refreshTimeEntryOrderItemOptions();
   }).catch(()=>{});
