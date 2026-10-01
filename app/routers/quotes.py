@@ -123,6 +123,10 @@ def update_quote_document_meta(quote_id: int, payload: QuoteDocumentMetaUpdate, 
     from ..projects import ensure_quote_structure
     meta, _, _ = ensure_quote_structure(db, quote)
     data = payload.model_dump()
+    # Der Angebots-Editor hat kein Feld für die interne Notiz -- nicht mitgeschickt heißt
+    # unverändert, nicht leeren (bis 1.8.21 leerte jedes Speichern des Angebotskopfs sie).
+    if "internal_note" not in payload.model_fields_set:
+        data.pop("internal_note")
     employee_id = data.pop("contact_person_employee_id", None)
     contract_basis = data.pop("contract_basis", None)
     if contract_basis is not None:

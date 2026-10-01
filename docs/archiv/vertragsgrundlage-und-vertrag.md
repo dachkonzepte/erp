@@ -144,6 +144,11 @@ mit Liste aller Felder. (6) Tests mit Gegenprobe.
 2. **`QuoteDocumentMeta.internal_note` wird bei jedem Speichern der Angebotsdetails geleert**:
    `saveHeader()` in `quote_editor.html` schickt fest `internal_note:null`, ein Eingabefeld gibt es
    nicht. Nur über die API oder eine Projektkopie gesetzte Notizen gehen dadurch verloren.
+   **Behoben in 1.8.23**: der Editor schickt die Notiz nicht mehr mit, `PUT .../document-meta` lässt
+   sie stehen, wenn sie im Aufruf fehlt (ausdrückliches `null` leert weiterhin).
+   `tests/test_v327_quote_internal_note.py` schickt genau die Schlüssel, die `saveHeader()` im
+   Template übergibt; Klicktest `scripts/klicktest_angebot_interne_notiz.py`. Ein Eingabefeld gibt
+   es weiterhin nicht -- die Notiz ist im Editor weder sichtbar noch bearbeitbar.
 3. **Beim Beauftragen geht der Freitext "Ausführungszeitraum" des Angebots verloren**: der Auftrag
    führt nur Beginn/Ende als Datum aus dem Dialog; das Auftrags-PDF zeigt den Zeitraum nur, wenn dort
    Daten eingetragen wurden. Ebenso ein alter Freitext-Ansprechpartner ohne Mitarbeiterbezug.

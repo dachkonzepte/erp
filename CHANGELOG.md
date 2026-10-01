@@ -4,6 +4,20 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.23 – Interne Notiz am Angebot bleibt beim Speichern erhalten
+
+Nebenbefund aus 1.8.21 behoben: Speichern des Angebotskopfs im Editor leerte `internal_note`.
+`saveHeader()` schickte das Feld fest als `null` mit (der Editor hat kein Eingabefeld dafür), und
+`PUT /api/quotes/{id}/document-meta` übernahm jedes Feld, auch ein weggelassenes. Jetzt schickt der
+Editor die Notiz nicht mehr mit, und der Server lässt sie stehen, wenn sie im Aufruf fehlt; ein
+ausdrückliches `null` über die API leert sie weiterhin. Sichtbar oder bearbeitbar ist die Notiz im Editor
+weiterhin nicht.
+
+Neuer Test `tests/test_v327_quote_internal_note.py` liest die Schlüssel, die `saveHeader()` wirklich
+schickt, aus dem Template und schickt genau diese an den Endpunkt. Gegenproben (Server leert ein
+fehlendes Feld wieder, Editor schickt wieder `null`) beide rot. 3 neue Tests, Suite 2252 grün, neuer
+Klicktest `scripts/klicktest_angebot_interne_notiz.py` 7/7, mit dem alten Editor-Code 5/7.
+
 ## 1.8.22 – Datengrenze für Monteure
 
 Zwischenrunde. `GET /api/orders/{order_id}/roof-areas` (Dachflächen-Auswahl im Einsatzbericht) gab dem

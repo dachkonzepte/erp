@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.22** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.23** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -999,7 +999,8 @@ allen Dokumentseiten, Zustellung nachtragen mit Beleg-Upload, Checkliste mit 20 
 zweiter Klick nach fremdem Übernehmen, Historie nur für Admin) und `klicktest_vertragsgrundlage.py` (1.8.21,
 Verbraucher-Häkchen, Vertragsgrundlage im Angebots-Editor und am Auftrag mit Begründung, Klauseln in den
 Einstellungen für Admin und Büro) und `klicktest_monteur_dachflaechen.py` (1.8.22, Dachflächen-Auswahl im
-Einsatzbericht als Monteur mit dem reduzierten Schema, Bericht mit Fläche anlegen). Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
+Einsatzbericht als Monteur mit dem reduzierten Schema, Bericht mit Fläche anlegen) und
+`klicktest_angebot_interne_notiz.py` (1.8.23, Angebotskopf speichern lässt die interne Notiz stehen). Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
 im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten (Vorlage dort). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 
