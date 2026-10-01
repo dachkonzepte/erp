@@ -1159,8 +1159,61 @@ entsteht samt Prüfpunkten aus der Dachtyp-Vorlage.
 1. `_sidebar.html` zeigt dem Monteur auf der Berichtsseite "Wartungen", "Mängel", "Anfragen",
    "Projekte", "Planung" -- diese Links tragen keine Rollenbedingung und führen auf
    `access_denied.html`. Kein Datenleck, widerspricht aber "ausblenden statt ausgrauen".
+   **Behoben in 1.8.24**, siehe Nachtrag unten.
 2. `GET /api/time-tracking/context` liefert dem Monteur alle aktiven Mitarbeiter mit
    Personalnummer (`employees[].employee_number`); die reduzierte Zeiterfassung braucht das nicht.
+   **Behoben in 1.8.24**, siehe Nachtrag unten.
+
+**Nachtrag (seit 1.8.24): Kontext, Personaldaten, Navigation.**
+
+- **`GET /api/time-tracking/context` für Monteure.** Befund: keine Monteur-Seite ruft den
+  Endpunkt auf -- `time_tracking_field.html` holt Aufträge aus `GET /api/field-view/time-tracking/orders`
+  und Kolonnen aus `GET /api/time-tracking/crews`, `time_tracking.html` (der einzige Aufrufer neben
+  dem Backoffice) wird für `field` nie gerendert. Der Monteur bekam trotzdem dasselbe wie das Büro:
+  alle aktiven Mitarbeiter mit Personalnummer, jedes Team, in dem er Mitglied ist, samt Mitgliedern
+  und Freitext-Rolle,
+  Aufträge mit Projekt und LV-Positionen -- und ohne einen einzigen geplanten Auftrag sogar alle
+  offenen Aufträge des Betriebs (`time_tracking_context()` filtert nur, wenn es Zuordnungen gibt).
+  Jetzt `field_time_tracking_context()` (`app/time_tracking.py`): er selbst, als Kolonnenführer
+  zusätzlich die Mitglieder seiner Kolonne(n) (`list_crews_for_leader()`), nur ID und Name; Aufträge
+  aus `list_field_bookable_orders()` (`app/planning.py`, aus `field_view.py` herausgezogen, eine
+  Definition für beide Endpunkte). Form der Antwort unverändert (`employees`/`teams`/`orders`/
+  `current_employee_id`/`is_admin`). Büro unverändert.
+- **Personaldaten im Dauertest** (`tests/test_v326_monteur_datengrenze.py`): verboten nach Namen
+  zusätzlich Personalnummer (`employee_number`, `personnel`, auch DATEV), Geburtsdatum (`birth`,
+  `geburt`), Bankverbindung (`iban`, `bic`, `bank`, `account_holder`, `sepa`), Steuer- und
+  Sozialversicherungsdaten (`tax`, `steuer`, `sv`, `svnr`, `ssn`, `idnr`, `social_security`,
+  `sozialvers`, `insurance`, `krankenkasse`, `pension`, Kirchensteuermerkmal). Die Privatadresse hat
+  keinen eigenen Schlüsselnamen (`street`/`city` wie am Objekt) -- `_privatadresse()` verbietet
+  Adressfelder unter einem Personen-Knoten oder auf einer Personen-Route (`employee`, `member`,
+  `user`, `crew`, ...). Die Testdaten tragen jetzt `EmployeeProfile` (Privatadresse, Geburtstag,
+  `important_info`) und `EmployeePayrollSettings` (DATEV-Personalnummer). Gegenprobe: der alte
+  Kontext und der Mitarbeiterbestand im Büro-Schema (`EmployeeRosterOut`) als zusätzliche Routen --
+  gefunden werden `employee_number` bzw. Personalnummer, Geburtstag, Straße, PLZ, Ort, Land. Gegen
+  den alten Code meldete der erweiterte Durchlauf genau die Personalnummer in `/context`, sonst nur
+  den Backoffice-Schalter `datev_personnel_equals_erp_number` in `GET /api/time-tracking/settings`
+  (ein Wahrheitswert, keine Nummer -- begründete Ausnahme wie die DATEV-Lohnart).
+- **Navigation**: Wartungen/Mängel und Anfragen/Projekte/Planung in `_sidebar.html` nur noch für
+  Büro/Admin. Neuer Test `tests/test_v328_navigation_ohne_sperrseiten.py`: rendert je Rolle jede
+  Seite, die sie öffnen darf (Routen aus `pages.py`), sammelt die beim Laden sichtbaren Links im
+  Server-Markup (nicht in `<script>`, nicht unter `hidden`/`display:none` -- die blendet erst das
+  JavaScript ein) und ruft jeden als dieselbe Rolle mit allen Routern auf; einmal mit allen Modulen
+  an, einmal aus. Kein 403, außer den einzeln begründeten `BEKANNT_OFFEN`. Gegenprobe mit der alten
+  Seitenleiste: genau die fünf Links beim Monteur, auf `/account` und der Berichtsseite. Klicktest
+  `scripts/klicktest_monteur_navigation.py` prüft dasselbe im Browser nach dem Laden (Kontomenü
+  aufgeklappt) und gibt Links im Seiteninhalt, die erst das JavaScript baut, als HINWEIS aus.
+  Fallstrick dabei: `router_test_client()` berechnet je Anfrage einen Passwort-Hash (PBKDF2) -- bei
+  ~300 Anfragen 25 s statt 2 s; der Test nutzt gespeicherte Konten.
+
+**Nebenbefunde 1.8.24 (nur gemeldet, nicht behoben)**:
+1. Einstellungen -> Importe -> "Adressimport (Altsystem)" erscheint für `buero_auftrag` und
+   `buero_finanzen`, `/address-import` ist admin-only -> "Zugriff verweigert".
+2. Berichtsseite bei abgeschaltetem Modul Wartungen: der Hinweis verlinkt `/settings#modules`, auch
+   für den Monteur.
+3. Berichtsseite: "← Auftrag" und die Auftragsnummer in der Breadcrumb führen den Monteur auf
+   `/orders/{id}` (403) -- bekannter offener Punkt seit 1.3.57, vom Klicktest als HINWEIS bestätigt.
+4. `EmployeeProfile.important_info` (Freitext, im Test "Allergie gegen Bitumen") fällt unter keinen
+   der verbotenen Namen; kein Monteur-Endpunkt liefert es heute.
 
 ## Dateiablage je Objekt ("Runde 2" der Monteurs-Erweiterung, seit 1.3.62)
 

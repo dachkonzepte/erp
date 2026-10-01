@@ -518,6 +518,31 @@ def list_crews_for_leader(db: Session, employee_id: int | None) -> list[dict]:
     } for t in teams]
 
 
+def field_time_tracking_context(db: Session, employee_id: int) -> dict:
+    """GET /api/time-tracking/context für Monteure (seit 1.8.24). Vorher bekam der Monteur dasselbe
+    wie das Büro: alle aktiven Mitarbeiter mit Personalnummer, alle Teams mit Mitgliedern, Aufträge
+    mit Projekt und LV-Positionen -- und ohne einen einzigen geplanten Auftrag sogar alle offenen
+    Aufträge des Betriebs (time_tracking_context() filtert nur, wenn es Zuordnungen gibt).
+
+    Die mobile Zeiterfassung ruft diesen Endpunkt nicht auf: Aufträge kommen aus
+    GET /api/field-view/time-tracking/orders, Kolonnen aus GET /api/time-tracking/crews. Der Monteur
+    bekommt hier deshalb genau diese Daten aus denselben Funktionen, nichts darüber hinaus -- sich
+    selbst, als Kolonnenführer zusätzlich seine Kolonne(n), nur Name und ID, keine Personalnummer."""
+    from .planning import list_field_bookable_orders  # lokal: planning -> work_preparation -> dieses Modul
+    crews = list_crews_for_leader(db, employee_id)
+    me = db.get(Employee, employee_id)
+    names = {employee_id: employee_name(me)} if me is not None else {}
+    for crew in crews:
+        for member in crew["members"]:
+            names.setdefault(member["employee_id"], member["name"])
+    return {
+        "employees": [{"id": emp_id, "name": name} for emp_id, name in names.items()],
+        "teams": [{"id": c["team_id"], "name": c["name"],
+                   "employees": [{"id": m["employee_id"], "name": m["name"]} for m in c["members"]]} for c in crews],
+        "orders": list_field_bookable_orders(db, employee_id),
+    }
+
+
 def _group_links(db: Session, group_id: int) -> list[TimeEntryGroupMember]:
     return list(db.scalars(select(TimeEntryGroupMember).where(TimeEntryGroupMember.group_id == group_id).order_by(TimeEntryGroupMember.id)).all())
 

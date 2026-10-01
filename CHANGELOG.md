@@ -4,6 +4,38 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.24 – Monteur-Datengrenze nachgeschärft: Zeiterfassungs-Kontext, Personaldaten, Seitenleiste
+
+Folgerunde zu 1.8.22. `GET /api/time-tracking/context` gab dem Monteur dasselbe wie dem Büro: alle
+aktiven Mitarbeiter mit Personalnummer, jedes Team mit Mitgliedern, Aufträge mit Projekt und
+LV-Positionen; ohne einen einzigen geplanten Auftrag sogar alle offenen Aufträge des Betriebs. Keine
+Monteur-Seite ruft den Endpunkt auf. Die mobile Zeiterfassung holt Aufträge und Kolonnen über eigene
+Endpunkte. Der Monteur bekommt hier jetzt genau diese Daten: sich selbst, als Kolonnenführer die
+Mitglieder seiner Kolonne, nur ID und Name, dazu dieselben buchbaren Aufträge wie die mobile
+Auswahl. Personalnummern enthält die Antwort nicht mehr. Das Büro bekommt unverändert dieselbe
+Antwort wie bisher.
+
+Der Dauertest `tests/test_v326_monteur_datengrenze.py` verbietet zusätzlich Personaldaten:
+Personalnummer (auch die DATEV-Nummer), Geburtsdatum, Bankverbindung sowie Steuer- und
+Sozialversicherungsdaten. Die Privatadresse heißt im Code wie die Adresse eines Objekts, deshalb sind
+Adressfelder nur an Personen verboten. Die Testdaten enthalten dafür Mitarbeiterprofile mit Wohnadresse und
+Geburtstag und eine DATEV-Personalnummer. Gegen den alten Code meldete der Durchlauf die
+Personalnummer in `/context` und den Backoffice-Schalter `datev_personnel_equals_erp_number`. Der Schalter
+ist ein Wahrheitswert, keine Nummer, und steht deshalb mit Begründung in der Ausnahmeliste. Die
+Gegenprobe hängt den alten Kontext und den Mitarbeiterbestand im Büro-Schema als zusätzliche Routen an.
+Der Durchlauf findet dort die Personalnummer sowie Geburtstag, Straße, PLZ, Ort und Land.
+
+Die Seitenleiste zeigt Wartungen, Mängel, Anfragen, Projekte und Planung nur noch Büro und Admin. Der neue Test
+`tests/test_v328_navigation_ohne_sperrseiten.py` rendert je Rolle jede Seite, die sie öffnen darf.
+Jeden beim Laden sichtbaren Link ruft er als dieselbe Rolle auf, einmal mit allen Modulen an und einmal mit allen aus.
+Kein Link darf 403 liefern, außer den einzeln begründeten bekannten Fällen. Mit der alten Seitenleiste
+meldet er genau die fünf Links beim Monteur, auf `/account` und der Berichtsseite. Neuer Klicktest
+`scripts/klicktest_monteur_navigation.py` 15/15. 33 neue Tests, Suite 2285 grün.
+Nebenbefunde, nur gemeldet (Details in `docs/archiv/rechtekonzept.md`): Der Adressimport-Knopf in den Einstellungen
+führt beide Bürorollen auf eine admin-only-Seite. Ist das Modul Wartungen abgeschaltet, verlinkt der Hinweis auf der
+Berichtsseite die Einstellungen auch für den Monteur. Sechs Update-Endpunkte überschreiben Felder, die
+ihr Aufrufer nicht schickt; die Liste steht in CLAUDE.md unter „Bekannte, bewusst offene Punkte“.
+
 ## 1.8.23 – Interne Notiz am Angebot bleibt beim Speichern erhalten
 
 Nebenbefund aus 1.8.21 behoben: Speichern des Angebotskopfs im Editor leerte `internal_note`.

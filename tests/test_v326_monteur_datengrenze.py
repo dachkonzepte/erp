@@ -42,18 +42,18 @@ from app.auth import hash_password
 from app.berlin_time import berlin_today
 from app.database import Base, get_db
 from app.models import (
-    AppUser, Customer, CustomerProfile, Employee, Material, OperationalAsset, Order, OrderItem, PlanningSlot,
+    AppUser, Customer, CustomerProfile, Employee, EmployeePayrollSettings, EmployeeProfile, Material, OperationalAsset, Order, OrderItem, PlanningSlot,
     Project, Property, RoofArea, RoofComponent, ServiceReport, Team, TeamEmployee, WorkPreparationTask,
     WorkPreparationTeamAssignment, WorkPreparationTeamEmployee,
 )
 from app.permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from app.project_pipeline_columns import default_pipeline_column_id
-from app.schemas import RoofAreaOut
+from app.schemas import EmployeeRosterOut, RoofAreaOut
 from tests.test_v260_role_audit import _iter_role_marked_dependants
 
 # ---------------------------------------------------------------------------
 # Was ein Monteur nie sehen darf: Preise, Kosten, Löhne, Sätze, interne Notizen,
-# Kundenkontakt, Gewährleistung.
+# Kundenkontakt, Gewährleistung, Personaldaten (seit 1.8.24).
 # ---------------------------------------------------------------------------
 
 # Ganze Wortteile eines Schlüssels (an "_" getrennt): "notes" trifft "notes" und "review_notes",
@@ -62,7 +62,9 @@ VERBOTENE_WOERTER = {
     "note", "notes", "remark", "remarks", "comment", "comments",          # interne Notizen
     "rate", "rates",                                                     # Sätze
     "net", "gross", "amount", "fee", "fees", "vat", "margin", "markup", "discount",  # Preise
-    "contact", "fax", "iban", "bic",                                     # Kundenkontakt
+    "contact", "fax",                                                    # Kundenkontakt
+    "iban", "bic",                                                       # Bankverbindung
+    "sv", "svnr", "ssn", "idnr",                                         # Sozialversicherungs-, Steuer-ID
 }
 # Teilzeichenfolgen, auch mitten im Schlüssel (deutsche Zusammensetzungen, "purchase_price").
 VERBOTENE_WORTTEILE = (
@@ -73,6 +75,14 @@ VERBOTENE_WORTTEILE = (
     "intern", "notiz", "vermerk", "bemerkung",
     "email", "phone", "mobile", "telefon",
     "warranty", "gewaehrleistung", "contractor",
+    # Personaldaten (seit 1.8.24): Personalnummer (auch die DATEV-Personalnummer), Geburtsdatum,
+    # Bankverbindung, Steuer- und Sozialversicherungsdaten. Die Privatadresse trägt keinen eigenen
+    # Namen (street/city wie am Objekt) -- siehe _privatadresse().
+    "employee_number", "personnel", "personal", "staff_number",
+    "birth", "geburt",
+    "bank", "account_holder", "kontoinhaber", "sepa",
+    "tax", "steuer", "social_security", "sozialvers", "insurance", "versicherung", "krankenkasse",
+    "pension", "religion", "konfession", "church", "kirche",
 )
 # Überall richtig: Objektzugang und Ansprechpartner vor Ort (PropertyAccessOut, seit 1.3.53 eigens
 # für den Einsatz gebaut) und der Kundenname (OrderFieldAccessOut, Objektsuche seit 1.3.65).
@@ -97,6 +107,9 @@ ERLAUBT_JE_ROUTE = {
     ("/api/absence-requests", "$[].review_notes"): "Antwort des Büros auf seinen eigenen Antrag",
     ("/api/time-tracking/settings", "$.datev_wage_type_*"): ("DATEV-Lohnart: Buchungsschlüssel, kein Betrag "
                                                              "(rechtekonzept.md, Vier Rollen, Etappe 2 Punkt 4)"),
+    ("/api/time-tracking/settings", "$.datev_personnel_equals_erp_number"): ("Schalter des Backoffice (DATEV- gleich "
+                                                                             "ERP-Personalnummer), ein Wahrheitswert, "
+                                                                             "keine Nummer"),
     ("/api/checklists/asset-readiness/{asset_id}", "$.release_note"): ("Reparaturvermerk zur Einsatzbereitschaft "
                                                                        "des Geräts (modul-checklisten.md, 1.8.2)"),
     ("/api/operational-assets/{asset_id}", "$.usage_notes"): _BEDIENHINWEIS,
@@ -123,6 +136,21 @@ def _verboten(key: str) -> bool:
     return any(teil in k for teil in VERBOTENE_WORTTEILE)
 
 
+# Privatadresse (seit 1.8.24): Adressfelder heißen am Mitarbeiter wie am Objekt (EmployeeProfile:
+# street/postal_code/city/country). Am Objekt braucht der Monteur sie, an einer Person nie --
+# verboten deshalb jedes Adressfeld unter einem Personen-Knoten (Pfad) oder einer Personen-Route.
+ADRESS_WOERTER = {"street", "strasse", "postal", "zip", "plz", "city", "ort", "country", "land",
+                  "address", "adresse", "wohnort", "house", "hausnummer"}
+PERSONEN_WORTTEILE = ("employee", "member", "mitarbeiter", "kollege", "colleague", "user", "person",
+                      "crew", "leader", "staff")
+
+
+def _privatadresse(route: str, path: str, key: str) -> bool:
+    if not set(re.split(r"[^a-z0-9]+", key.lower())) & ADRESS_WOERTER:
+        return False
+    return any(teil in f"{route} {path}".lower() for teil in PERSONEN_WORTTEILE)
+
+
 def _passt(full: str, muster: str) -> bool:
     """Wie fnmatch, aber nur mit * -- fnmatch läse das [] der Listenpfade als Zeichenklasse."""
     return re.fullmatch(".*".join(map(re.escape, muster.split("*"))), full) is not None
@@ -146,7 +174,7 @@ def _verstoesse(antworten: list[dict]) -> tuple[list[str], set]:
         if antwort["body"] is None:
             continue
         for path, key in _schluessel(antwort["body"]):
-            if not _verboten(key):
+            if not (_verboten(key) or _privatadresse(antwort["route"], path, key)):
                 continue
             full = f"{path}.{key}"
             erlaubt = [e for e in ERLAUBT_JE_ROUTE if e[0] == antwort["route"] and _passt(full, e[1])]
@@ -209,6 +237,11 @@ def _monteur_welt(db: Session) -> dict:
                        employee_group="angestellt", hourly_wage=Decimal("29.00"), weekly_hours=Decimal("40"), active=True)
     db.add_all([monteur, kollege])
     db.flush()
+    for nr, emp in enumerate((monteur, kollege), start=1):
+        db.add(EmployeeProfile(employee_id=emp.id, street=f"Wohnweg {nr}", postal_code="33333", city="Wohnort",
+                               phone="0555 1", mobile="0171 2", email=f"privat{nr}@example.org",
+                               birthday=date(1990, 1, nr), important_info="Allergie gegen Bitumen"))
+        db.add(EmployeePayrollSettings(employee_id=emp.id, datev_personnel_number=f"D-{nr}"))
     user = AppUser(username="max", password_hash=hash_password("Passwort123"), display_name="Max Monteur",
                    employee_id=monteur.id, role=ROLE_FIELD, active=True)
     db.add(user)
@@ -331,7 +364,7 @@ def _monteur_welt(db: Session) -> dict:
         "document_id": document.id, "checklist_id": checklist["id"],
         "attachment_id": checklist["attachments"][0]["id"], "customer_id": customer.id,
         "project_id": order.project_id, "material_id": material.id, "item_id": inspection["id"],
-        "team_id": team.id,
+        "team_id": team.id, "kollege_id": kollege.id,
     }
 
 
@@ -523,3 +556,99 @@ def test_gegenprobe_altes_dachflaechen_schema_faellt_auf(threaded_db_session):
     alt = {eintrag.split("  ")[1] for eintrag in gefunden if eintrag.startswith("/api/orders/{order_id}/roof-areas-alt")}
     assert {"$[].customer_id", "$[].notes", "$[].contractor", "$[].warranty_until"} <= alt
     assert all(eintrag.startswith("/api/orders/{order_id}/roof-areas-alt") for eintrag in gefunden)
+
+
+def test_zeiterfassungs_kontext_monteur_nur_eigenes_buero_unveraendert(durchlauf, router_test_client):
+    """1.8.24, Punkt 1: GET /api/time-tracking/context gibt dem Monteur nur sich selbst, als
+    Kolonnenführer seine Kolonne, und seine buchbaren Aufträge -- dieselben wie die Auftragsauswahl
+    der mobilen Zeiterfassung, die /context selbst nicht aufruft. Keine Personalnummer. Das Büro
+    bekommt unverändert, was time_tracking_context() liefert."""
+    from app.routers.time_tracking import router as time_tracking_router
+    from app.time_tracking import time_tracking_context
+    db, welt = durchlauf["db"], durchlauf["welt"]
+    antworten = {a["route"]: a["body"] for a in durchlauf["antworten"]}
+    max_, karl = welt["employee_id"], welt["kollege_id"]
+
+    # Max ist Kolonnenführer der Kolonne Süd (mit Karl).
+    ctx = antworten["/api/time-tracking/context"]
+    assert set(ctx) == {"employees", "teams", "orders", "current_employee_id", "is_admin"}
+    assert sorted(ctx["employees"], key=lambda e: e["id"]) == [{"id": max_, "name": "Max Monteur"},
+                                                             {"id": karl, "name": "Karl Kollege"}]
+    assert [(t["id"], t["name"], set(t)) for t in ctx["teams"]] == [(welt["team_id"], "Kolonne Süd", {"id", "name", "employees"})]
+    assert sorted(m["id"] for m in ctx["teams"][0]["employees"]) == sorted([max_, karl])
+    assert ctx["orders"] == antworten["/api/field-view/time-tracking/orders"]
+    assert {o["order_number"] for o in ctx["orders"]} == {"AU-2026-0901"}
+    assert (ctx["current_employee_id"], ctx["is_admin"]) == (max_, False)
+
+    # Karl ist in derselben Kolonne, aber nicht Kolonnenführer: nur er selbst, keine Teams.
+    karl_ctx = router_test_client(db, time_tracking_router, role=ROLE_FIELD, employee_id=karl).get("/api/time-tracking/context").json()
+    assert karl_ctx["employees"] == [{"id": karl, "name": "Karl Kollege"}]
+    assert karl_ctx["teams"] == []
+    assert {o["order_number"] for o in karl_ctx["orders"]} == {"AU-2026-0901", "AU-2026-0902"}
+
+    # Ohne jeden Einsatz: vorher alle offenen Aufträge des Betriebs (time_tracking_context() filtert
+    # nur, wenn es Zuordnungen gibt), jetzt keine.
+    neu = Employee(employee_number="M-3", first_name="Nina", last_name="Neu", employee_group="gewerblich", active=True)
+    db.add(neu)
+    db.commit()
+    assert len(time_tracking_context(db, employee_id=neu.id)["orders"]) == 2
+    neu_ctx = router_test_client(db, time_tracking_router, role=ROLE_FIELD, employee_id=neu.id).get("/api/time-tracking/context").json()
+    assert (neu_ctx["employees"], neu_ctx["teams"], neu_ctx["orders"]) == ([{"id": neu.id, "name": "Nina Neu"}], [], [])
+
+    # Büro unverändert, mit Personalnummer und LV-Positionen.
+    office = router_test_client(db, time_tracking_router, role=ROLE_OFFICE_AUFTRAG, employee_id=karl).get("/api/time-tracking/context").json()
+    assert office == {**time_tracking_context(db, employee_id=karl), "current_employee_id": karl, "is_admin": False}
+    assert {"M-1", "M-2", "M-3"} <= {e["employee_number"] for e in office["employees"]}
+    assert all("items" in o for o in office["orders"])
+
+
+def test_gegenprobe_alter_kontext_und_mitarbeiterbestand_fallen_auf(threaded_db_session):
+    """1.8.24, Punkt 2: der alte Zeiterfassungs-Kontext (Büro-Fassung, wie bis 1.8.23 an den Monteur)
+    und der Mitarbeiterbestand im Büro-Schema, als neue Endpunkte in denselben Durchlauf gehängt.
+    Er muss Personalnummer, Geburtsdatum und Privatadresse finden, ohne die Routen zu kennen."""
+    from app.employees import employee_to_dict, ensure_employee_profiles
+    from app.time_tracking import time_tracking_context
+    db = threaded_db_session
+    welt = _monteur_welt(db)
+    alt = APIRouter()
+
+    @alt.get("/api/time-tracking/context-alt")
+    def _kontext_alt(db: Session = Depends(get_db), _role: AppUser = Depends(require_min_role(ROLE_FIELD))):
+        return time_tracking_context(db, employee_id=_role.employee_id)
+
+    @alt.get("/api/employees-alt", response_model=list[EmployeeRosterOut])
+    def _bestand_alt(db: Session = Depends(get_db), _role: AppUser = Depends(require_min_role(ROLE_FIELD))):
+        return [EmployeeRosterOut.model_validate(employee_to_dict(e, db)) for e in ensure_employee_profiles(db)]
+
+    ergebnis = _durchlauf(db, welt, [*_routers_in_betriebsreihenfolge(), alt])
+    gefunden, _ = _verstoesse(ergebnis["antworten"])
+    je_route: dict[str, set] = {}
+    for eintrag in gefunden:
+        route, pfad = eintrag.split("  ")
+        je_route.setdefault(route, set()).add(pfad)
+    assert set(je_route) == {"/api/time-tracking/context-alt", "/api/employees-alt"}
+    assert je_route["/api/time-tracking/context-alt"] == {"$.employees[].employee_number"}
+    assert {"$[].employee_number", "$[].birthday", "$[].street", "$[].postal_code", "$[].city",
+            "$[].country"} <= je_route["/api/employees-alt"]
+
+
+@pytest.mark.parametrize("key", [
+    "employee_number", "datev_personnel_number", "personalnummer", "birthday", "date_of_birth", "geburtsdatum",
+    "iban", "bic", "bank_name", "account_holder", "tax_id", "tax_class", "steuerklasse", "steuer_id",
+    "social_security_number", "sozialversicherungsnummer", "sv_nummer", "health_insurance", "krankenkasse",
+    "church_tax", "konfession",
+])
+def test_personaldaten_schluessel_sind_verboten(key):
+    assert _verboten(key)
+
+
+@pytest.mark.parametrize("route,path,key,erwartet", [
+    ("/api/employees-alt", "$[]", "street", True),
+    ("/api/time-tracking/context", "$.employees[]", "city", True),
+    ("/api/time-tracking/crews", "$[].members[]", "postal_code", True),
+    ("/api/field-view/properties/{property_id}", "$", "street", False),
+    ("/api/time-tracking/context", "$.orders[]", "property_address", False),
+    ("/api/employees", "$[]", "first_name", False),
+])
+def test_privatadresse_nur_an_personen(route, path, key, erwartet):
+    assert _privatadresse(route, path, key) is erwartet

@@ -8,7 +8,7 @@ from urllib.error import URLError, HTTPError
 from zoneinfo import ZoneInfo
 from decimal import Decimal, ROUND_HALF_UP
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from .berlin_time import berlin_today
@@ -847,6 +847,28 @@ def list_field_bookable_order_ids(db: Session, employee_id: int, *, window_days:
         select(ServiceReport.order_id).where(ServiceReport.created_by_employee_id == employee_id).distinct()
     ).all())
     return order_ids
+
+
+def list_field_bookable_orders(db: Session, employee_id: int) -> list[dict]:
+    """Die offenen Aufträge aus list_field_bookable_order_ids() als Anzeige-Dict (ID,
+    Auftragsnummer, Kundenname, Objektadresse) -- die Auftragsauswahl der reduzierten
+    Zeiterfassung. Eine Definition für GET /api/field-view/time-tracking/orders und den
+    Monteur-Zweig von GET /api/time-tracking/context (seit 1.8.24)."""
+    order_ids = list_field_bookable_order_ids(db, employee_id)
+    if not order_ids:
+        return []
+    rows = db.scalars(
+        select(Order)
+        .where(
+            Order.id.in_(order_ids),
+            or_(Order.status.is_(None), func.lower(func.coalesce(Order.status, "")).not_in(["abgeschlossen", "storniert"])),
+        )
+        .order_by(Order.order_number.desc())
+    ).all()
+    return [
+        {"id": o.id, "order_number": o.order_number, "customer_name": o.customer_name, "property_address": o.property_address}
+        for o in rows
+    ]
 
 
 def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSettings) -> tuple[dict[int, list[dict]], dict[int, dict[date, dict]]]:

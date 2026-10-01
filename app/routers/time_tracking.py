@@ -32,7 +32,7 @@ from ..permissions import ROLE_FIELD, require_min_role
 from .orders import require_field_order_access
 from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..time_backoffice import get_or_create_time_settings, locked_until, rounded_hours, time_settings_dict
-from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, entry_to_dict, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
+from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, entry_to_dict, field_time_tracking_context, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
 from ..work_time_models import automatic_break_minutes_for_timer
 
 router = APIRouter()
@@ -155,6 +155,8 @@ def get_mobile_time_settings(db:Session=Depends(get_db), _role: AppUser = _any_r
 
 @router.get("/api/time-tracking/context")
 def get_time_tracking_context(request: Request, employee_id: int | None = None, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    """Seit 1.8.24 bekommt ein Monteur nur sich selbst, als Kolonnenführer seine Kolonne, und seine
+    buchbaren Aufträge -- ohne Personalnummern (field_time_tracking_context()). Büro unverändert."""
     user = getattr(request.state, "erp_user", None)
     resolved = employee_id
     include_all = bool(user and user.role == "admin")
@@ -162,7 +164,10 @@ def get_time_tracking_context(request: Request, employee_id: int | None = None, 
         if user.employee_id is None:
             raise HTTPException(status_code=403, detail="Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet.")
         resolved = user.employee_id
-    result = time_tracking_context(db, employee_id=resolved, include_all_orders=include_all)
+    if user is not None and user.role == ROLE_FIELD:
+        result = field_time_tracking_context(db, resolved)
+    else:
+        result = time_tracking_context(db, employee_id=resolved, include_all_orders=include_all)
     result["current_employee_id"] = resolved
     result["is_admin"] = bool(user is None or user.role == "admin")
     return result
