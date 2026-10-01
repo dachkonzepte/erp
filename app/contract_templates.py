@@ -7,9 +7,11 @@ Klauseln (1.8.21) bewusst keine vorgegebenen Texte und eine rechtliche Prüfung 
 ohne sie trägt jede Seite des Vertrags-PDFs das Wasserzeichen CONTRACT_WATERMARK_TEXT.
 
 Entwurf: entsteht beim Beauftragen, wenn es für die Vertragsgrundlage des Auftrags eine Vorlage mit
-Inhalt gibt (create_contract_draft_if_template(), aus app/orders.py::create_order_from_quote()), sonst
-von Hand auf der Auftragsseite. Er trägt nur die Fallfelder; Vorlagentext, Kunde, Summen und die
-Vertragsgrundlage liest das PDF live (Festschreiben folgt in Teil 2).
+Inhalt gibt (create_contract_draft_if_template(), aus app/orders.py::create_order_from_quote(); seit
+1.8.33 nicht beim Schnellauftrag), sonst von Hand auf der Auftragsseite. Er trägt nur die Fallfelder;
+Vorlagentext, Kunde, Summen und die Vertragsgrundlage liest das Entwurfs-PDF live -- über
+contract_content(), denselben Inhalt, den das Festschreiben (seit 1.8.33, app/contract_versions.py)
+einfriert. Ein Entwurf folgt damit bis zum Festschreiben jeder Änderung der Vertragsgrundlage.
 
 Rollenlos wie jede Geschäftslogik -- wer was darf, entscheidet app/routers/contract_templates.py.
 """
@@ -291,9 +293,10 @@ def create_contract_draft_if_template(db: Session, order: Order, *, actor_name: 
 
 
 def update_contract_draft(db: Session, contract: OrderContract, values: dict, *, actor_name: str = "System") -> OrderContract:
-    """Ändert die Fallfelder -- nur die übergebenen (Regel 22), nur solange der Vertrag ein Entwurf ist."""
+    """Ändert die Fallfelder -- nur die übergebenen (Regel 22), nur solange der Vertrag ein Entwurf ist
+    (seit 1.8.33: festgeschrieben ist er gesperrt, Änderungen nur als neue Fassung)."""
     if contract.status != "entwurf":
-        raise ValueError("Nur ein Vertragsentwurf kann geändert werden.")
+        raise ValueError("Nur ein Vertragsentwurf kann geändert werden – ein festgeschriebener Vertrag nur als neue Fassung.")
     for field, value in values.items():
         if field not in CASE_FIELDS:
             raise ValueError(f"Unbekanntes Feld: {field}")
@@ -370,3 +373,65 @@ def contract_placeholder_values(db: Session, order: Order, contract: OrderContra
 
 def fill(text: str | None, values: dict[str, str]) -> str:
     return apply_placeholders(text or "", values)
+
+
+def contract_content(db: Session, order: Order, contract: OrderContract | None) -> dict:
+    """Alles, was im Vertrags-PDF steht (außer Briefpapier und Layout), als einfache Datenstruktur:
+    Titel und sichtbare Abschnitte mit eingesetzten Platzhaltern, Kopf- und Anschriftenangaben,
+    Vertragsgrundlage, Verbraucher-Merkmal, Fallfelder, die Werte aller Platzhalter und welche davon
+    die Vorlage nutzt. Das Entwurfs-PDF rendert daraus live, das Festschreiben friert genau diese
+    Struktur ein (app/contract_versions.py). Wirft ValueError ohne Vorlage für die (heutige)
+    Vertragsgrundlage."""
+    template = get_template_row(db, order.contract_basis)
+    if not template_has_content(template):
+        raise ValueError(
+            f"Für die Vertragsgrundlage „{contract_basis_label(order.contract_basis)}“ gibt es keine "
+            "Vertragsvorlage (Einstellungen → Vertragsvorlagen)."
+        )
+    is_consumer = order_customer_is_consumer(order)
+    data = order_to_dict(order, db, include_sync_state=False)
+    values = contract_placeholder_values(db, order, contract, data=data)
+    sections = visible_sections(template, is_consumer=is_consumer)
+    general = get_or_create_general_settings(db)
+    raw_texts = [template.title or ""] + [t for s in sections for t in (s.heading or "", s.body_text or "")]
+    used = [p for p in KNOWN_PLACEHOLDERS if any(p in t for t in raw_texts)]
+    sender_parts = [general.company_name, general.street, " ".join(x for x in [general.postal_code, general.city] if x)]
+    return {
+        "v": 1,
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "order_date": order.order_date.isoformat() if order.order_date else None,
+        "quote_id": order.source_quote_id,
+        "quote_number": order.quote_number_snapshot,
+        "quote_date": values["{angebotsdatum}"],
+        "project_number": data.get("project_number"),
+        "customer_number": order.customer_number,
+        "basis_key": order.contract_basis,
+        "basis_label": contract_basis_label(order.contract_basis),
+        "is_consumer": is_consumer,
+        "template": {
+            "title": template.title,
+            "reviewed_on": template.reviewed_on.isoformat() if template.reviewed_on else None,
+            "reviewed_by": template.reviewed_by,
+            "reviewed": template_is_reviewed(template),
+        },
+        "title": fill(template.title, values).strip() or DEFAULT_CONTRACT_TITLE,
+        "sections": [
+            {
+                "key": f"abschnitt-{i}",
+                "heading": fill(s.heading, values).strip(),
+                "text": fill(s.body_text, values).strip("\n").rstrip(),
+                "consumer_only": bool(s.consumer_only),
+                "with_checkbox": bool(s.with_checkbox),
+            }
+            for i, s in enumerate(sections, start=1)
+        ],
+        "case_fields": {field: getattr(contract, field, None) if contract else None for field in CASE_FIELDS},
+        "placeholders": values,
+        "used_placeholders": used,
+        "sender_line": " - ".join(x for x in sender_parts if x),
+        # Schnappschuss am Auftrag "Straße, PLZ Ort" -- wie order_pdf.py an der bekannten Fuge geteilt.
+        "recipient_lines": [order.customer_name] + (order.customer_address.split(", ", 1) if order.customer_address else []),
+        "property_name": order.property_name,
+        "property_lines": [x for x in str(order.property_address or "").splitlines() if x],
+    }

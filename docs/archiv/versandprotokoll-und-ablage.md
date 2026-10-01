@@ -279,3 +279,15 @@ committen. 1.8.19 = Punkte 1–4, der Rest folgt als eigene Version.
 - **Mahnungen auf der Rechnungsseite ohne Verlauf**: der Verlauf je Mahnung steht im Mahnwesen; die
   Mahnungsliste auf der Rechnungsseite zeigt ihn nicht.
 - **Checklisten im Kontext Betriebsmittel/Betrieb** haben keinen vorbelegten Empfänger (kein Kunde).
+
+## Nachtrag 1.8.33 -- Dokumentart "vertrag"
+
+Der Vertrag zum Auftrag (`docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.33") liegt als erste
+Dokumentart schon VOR dem ersten Versand in der Ablage: das Festschreiben legt das PDF der Fassung ab
+(`document_type="vertrag"`, Dokument-ID = `order_contracts.id`, Nummer "AUF-… · Fassung N"). Der Versand
+(`app/contract_versions.py::send_contract_email()`) und die nachgetragene Zustellung (`app/dispatch_documents.py`,
+Eintrag `vertrag`) verweisen per `archived_document` auf diesen Eintrag -- keine zweite Datei, `dispatch_email()`
+prüft die Prüfsumme. Nie neu erzeugt; eine Fassung, die nicht mehr zum Auftrag passt, wird weder versendet noch
+zugestellt. `list_dispatches()` liefert für Vertragszeilen `order_id`, `/versandprotokoll` verlinkt damit auf den
+Auftrag; der Versandverlauf nennt je Versand die Fassung. `FROZEN_AFTER_FIRST_DISPATCH` bleibt unverändert
+(Rechnung, Mahnung) -- beim Vertrag ist die Fassung schon vorher eingefroren.

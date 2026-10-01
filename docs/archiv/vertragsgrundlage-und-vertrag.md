@@ -15,7 +15,8 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 |---|---|---|---|
 | **2b-1a** | 1.8.21 | Vertragsgrundlage: Verbraucher-Merkmal am Kunden, Vertragsgrundlage an Angebot und Auftrag, Klauseltext je Grundlage mit rechtlicher Prüfung, Übernahme/Abgleich, Fehler `tax_key_id`/`outro_text_2`, Feldliste Angebot/Auftrag | erledigt |
 | **2b-1b Teil 1** | 1.8.32 | Vertragsvorlagen (Abschnitte, Platzhalter, nur bei Verbrauchern, Prüfung), Vertragsentwurf beim Beauftragen mit Fallfeldern, Ausführungszeitraum aus dem Angebot, PDF `contract` mit Angebot als Anlage und Wasserzeichen | erledigt |
-| **2b-1b Teil 2** | — | Vertrag festschreiben, versenden, unterschreiben | offen |
+| **2b-1b Teil 2a** | 1.8.33 | Vertrag festschreiben (Fassungen), Anlage aus der Ablage mit bewusster Wahl, Versand; Schnellauftrag ohne automatischen Entwurf | erledigt |
+| **2b-1b Teil 2b** | — | Gemeinsame Unterschriftsvorlage, Unterschrift auf dem Gerät (Kunde und Betrieb, Ankreuzfelder, Unterschriftsblatt) oder Papier-Scan, Sperren nach der Unterschrift | offen, siehe "Offen für Teil 2b" |
 | **2b-2** | — | Beteiligte mit Adressbuch | offen |
 | **2b-3** | — | Behinderungsanzeige | offen |
 | **2b-4** | — | Bedenkenanzeige | offen |
@@ -251,13 +252,154 @@ Festschreiben, Versand und Unterschrift: Teil 2.
 
 1. **Die Anlage ist der heutige Stand des Angebots**, nicht die versendete Fassung aus der Ablage. Wurde das
    Angebot nach der Beauftragung geändert, weicht die Anlage vom Auftrag ab (die Karte sagt es). Für Teil 2
-   zu entscheiden: welche Fassung beim Festschreiben angehängt wird.
+   zu entscheiden: welche Fassung beim Festschreiben angehängt wird. **Entschieden in 1.8.33** (Betreibervorgabe:
+   die zuletzt versendete, bei Abweichung bewusste Wahl); das Entwurfs-PDF zeigt weiter den heutigen Stand.
 2. **Briefpapier zweimal eingebettet**: Vertrag und Anlage sind zwei PDFs, jedes bettet den Hintergrund ein.
-   Für die 3-MB-Grenze beim Versand (Teil 2) mit echtem Briefpapier nachmessen.
+   Für die 3-MB-Grenze beim Versand (Teil 2) mit echtem Briefpapier nachmessen. **Gemessen in 1.8.33**: unkritisch.
 3. **Textfelder der Auftragsseite in Festbreitenschrift**: `order.html` setzt für `textarea` keine Schrift,
    alle Textfelder der Seite (Vortext, Schlusstexte, Bemerkungen, jetzt auch die Fallfelder) erscheinen in
    der Browser-Vorgabe. Kosmetisch, bestand schon.
 4. **Schnellauftrag**: läuft über `create_order_from_quote()` und bekommt damit ebenfalls einen Entwurf,
    sobald es für seine Grundlage eine Vorlage gibt. Folgerichtig, aber bei Wartungs-Schnellaufträgen
-   vermutlich nicht gebraucht.
+   vermutlich nicht gebraucht. **Seit 1.8.33 kein automatischer Entwurf mehr** (Betreibervorgabe Punkt 7).
 
+---
+
+## Umsetzung 1.8.33 (01.10.2026) -- Runde 2b-1b Teil 2a: Festschreiben, Anlage, Versand
+
+Betreibervorgabe Teil 2 (acht Punkte): (1) Festschreiben: Vertrags-PDF mit Vorlagentext, Verbraucher-Merkmal,
+Fallfeldern und Anlage einfrieren und mit Prüfsumme ablegen; danach Entwurf gesperrt, Änderungen nur als neue
+Fassung, die alte bleibt sichtbar; vor dem Festschreiben folgt der Entwurf einer geänderten Vertragsgrundlage.
+(2) Anlage: die zuletzt versendete Fassung des Angebots aus der Ablage; weicht der aktuelle Stand ab oder gibt es
+keine, wählt das Büro bewusst, nie still. (3) Versand über `dispatch_email` (An vorbelegt mit dem Auftraggeber),
+immer die festgeschriebene Fassung; Größe mit dem echten Briefpapier messen, bei Enge Vertrag und Anlage in einem
+Durchgang rendern. (4) Gemeinsame Unterschriftsvorlage für Checkliste, Einsatzbericht und Vertrag. (5) Unterschrift
+auf dem Gerät (Kunde und Betrieb, bindet die Prüfsumme des PDFs, Ankreuzfelder setzt der Kunde, Unterschriftsblatt in
+der Ablage) oder Papier-Scan mit Datum und übertragenen Ankreuzfeldern. (6) Nach der Unterschrift Vertragsgrundlage
+und Abgleich gesperrt. (7) Schnellaufträge ohne automatischen Entwurf. (8) Tests mit Gegenprobe. Bei zu großem
+Umfang nach Punkt 3 committen und den Rest auflisten -- so geschehen: **1.8.33 = Punkte 1–3 und 7** (Punkt 7 hing
+an derselben Stelle wie der Entwurf), Punkte 4–6 und deren Tests siehe "Offen für Teil 2b".
+
+- **Inhalt** (`app/contract_templates.py::contract_content()`): alles, was im Vertrags-PDF steht, außer Briefpapier
+  und Layout -- Titel und sichtbare Abschnitte mit eingesetzten Platzhaltern (je Abschnitt ein Schlüssel
+  `abschnitt-N`, `with_checkbox`, `consumer_only`), Kopf- und Anschriftenangaben, Vertragsgrundlage,
+  Verbraucher-Merkmal, Prüfangaben der Vorlage, Fallfelder, die Werte aller 22 Platzhalter und welche davon die
+  Vorlage nutzt. Das Entwurfs-PDF rendert daraus live (`app/contract_pdf.py::build_contract_pdf()`), das
+  Festschreiben friert genau diese Struktur ein und rendert einmal (`render_contract_pdf()`); eine Fassung wird
+  danach nie neu gerendert. Kopf neu mit "Fassung" (Entwurf bzw. Nummer), auch in der Wiederholungszeile.
+- **Fassungen** (`order_contract_versions`, `app/contract_versions.py`): `version_no` (eindeutig je Vertrag),
+  `basis_key`, `is_consumer`, `frozen_content` (kanonisches JSON, sortierte Schlüssel) mit `content_sha256`,
+  `sent_document_id` (das PDF in der Ablage, Art `vertrag`, Dokument-ID = Vertrag, Nummer "AUF-… · Fassung N"),
+  `attachment_kind` (`versendet`/`aktuell`) und `attachment_document_id`, wer/wann, `superseded_at`.
+  `OrderContract.status` jetzt `entwurf` | `festgeschrieben`. Festschreiben belegt zuerst den Entwurf per
+  bedingtem UPDATE (Zeilensperre unter PostgreSQL, dazu der Unique-Schlüssel), rendert, legt ab, markiert die
+  vorige Fassung als abgelöst, schreibt eine Zeile in die Änderungshistorie ("Vertrag festgeschrieben", Fassung und
+  PDF-Prüfsumme, Projekt des Auftrags) und committet; scheitert etwas nach dem Ablegen, bleibt die Datei ohne
+  Eintrag liegen (die Ablage löscht nie, wie 1.8.20). "Neue Fassung anlegen" macht wieder einen Entwurf (Fallfelder
+  der letzten Fassung, Historie "Neue Fassung begonnen"). ORM-Sperre in `app/models.py`: nur `superseded_at`,
+  einmal von leer; kein Löschen -- ein Auftrag mit festgeschriebenem Vertrag ist dadurch nicht mehr löschbar.
+- **Festlegung (bitte bestätigen): festgeschrieben wird nur eine rechtlich geprüfte Vorlage.** Eine Fassung geht
+  an den Kunden und wird unterschrieben; "Entwurf – Vertragstext nicht geprüft" auf jeder Seite passt dazu nicht.
+  Der Knopf ist dann gesperrt, die Karte sagt warum.
+- **Anlage** (`attachment_situation()`/`attachment_options()`, `GET /api/orders/{id}/contract/attachment-options`):
+  "zuletzt versendet" = das jüngste abgelegte PDF des Angebots, auf das ein Versand mit Status "gesendet" verweist
+  -- E-Mail oder nachgetragene Zustellung; Belege zählen nicht. **Festlegung: hängende und fehlgeschlagene Versände
+  zählen nicht** (ob ein hängender hinausging, klärt das Büro im Versandprotokoll). Ob der heutige Stand abweicht,
+  entscheidet der Text beider PDFs (`pdf_plain_text()`, Leerraum vereinheitlicht): das Angebot wird dafür neu
+  gerendert. Die Bytes zu vergleichen ginge nicht (Zeitstempel und Kennungen im PDF). **Folge: auch ein geänderter
+  Briefkopf-Text, eine geänderte Klausel der Vertragsgrundlage oder Zahlungsbedingung gilt als Abweichung** -- der
+  Kunde sähe heute etwas anderes als damals; das Briefpapier-Bild dagegen nicht (kein Text). Gleich: Anlage ohne
+  Rückfrage, die Karte sagt es. Sonst wählt das Büro über sichtbare Optionen ohne Vorauswahl (Regel 4); die API
+  verlangt dann `attachment` = `versendet` mit der ID genau dieser Fassung (eine inzwischen neuere → 409) oder
+  `aktuell`. Eine beschädigte Fassung in der Ablage wird nie angehängt. Im Vertragstext: "Anlage: Angebot … vom …, in
+  der am … versendeten Fassung" bzw. "…, Stand …".
+- **Passt die Fassung noch?** (`version_differences()`): Vertragsgrundlage am Auftrag, Verbraucher-Merkmal des
+  Kunden und der Wert jedes Platzhalters, den die Vorlage nutzt (z. B. Auftragssumme nach einer Änderung im LV),
+  verglichen mit dem eingefrorenen Wert. Eine Änderung an der Vorlage selbst zählt bewusst nicht -- vereinbart ist
+  der festgeschriebene Text. **Festlegung (bitte bestätigen): eine abweichende Fassung wird weder per E-Mail
+  versendet noch als zugestellt nachgetragen** (409 bzw. 400 mit der Liste); die Karte zeigt die Abweichungen und
+  "Neue Fassung anlegen". Ebenso kein Versand, solange eine neue Fassung im Entwurf ist.
+- **Versand** (`send_contract_email()`, `POST /api/orders/{id}/contract/send-email`): Regel 21, Art `vertrag`,
+  `archived_document` = die Fassung (keine zweite Datei, `dispatch_email()` prüft die Prüfsumme), An = aktuelle
+  Kunden-E-Mail wie bei Angebot und Auftrag. E-Mail-Vorlage `contract` (Einstellungen → E-Mail-Vorlagen).
+  `app/dispatch_documents.py` kennt `vertrag` (Zustellung nachtragen mit der abgelegten Fassung, dieselben
+  Bedingungen). Versandverlauf an der Karte nennt die Fassung je Versand; `/versandprotokoll` mit Art "Vertrag",
+  Link auf den Auftrag (`order_id` je Zeile aus `list_dispatches()`). `GET /api/orders/{id}/contract/pdf` liefert
+  festgeschrieben die abgelegten Bytes (Kopfzeile `X-DK-Ablage`, 409/410 bei beschädigter Datei), im Entwurf das
+  Entwurfs-PDF; ältere Fassungen über `/api/sent-documents/{id}/file`.
+- **Größe (Punkt 3)**: gemessen mit dem echten Briefpapier aus dem lokalen Datenordner (JPEG 1655×2340, 104 KB,
+  hochgeladen am 11.09.) in einer Wegwerf-Datenbank: Vertrag mit 13 Abschnitten (darunter Widerrufsbelehrung und
+  Muster-Formular) plus Angebot mit 30 Positionen 236.758 Bytes, 11 Seiten, 0,16 s; dasselbe Briefpapier als PNG
+  656.203 Bytes. Weit unter 3.000.000 -- **kein gemeinsamer Renderdurchgang gebaut** (er ginge ohnehin nur für den
+  heutigen Stand, nicht für die versendete Fassung aus der Ablage). Ob das Briefpapier auf dem Server dasselbe ist,
+  ist von hier nicht prüfbar. Die Karte warnt, wenn eine Fassung über 3 MB liegt (dann auf anderem Weg zustellen).
+- **Punkt 7**: `create_order_from_quote(..., contract_draft=False)` aus `app/quick_service_orders.py`; von Hand
+  bleibt der Entwurf über die Karte möglich.
+- **Oberfläche** (`order.html`, Karte "Vertrag"): Entwurf mit Fallfeldern, "Entwurf als PDF", Block "Festschreiben"
+  (Erklärung, Anlage, Knopf "Fassung N festschreiben" mit `confirm()`); festgeschrieben: Kopf mit Fassung, Datum,
+  Wer, Grundlage, Verbraucher, Anlage, gekürzte PDF-Prüfsumme (voll im `title`), Größe, "PDF öffnen"; Fallfelder nur
+  lesbar; Abweichungen; Versand An/CC; Versandverlauf; "Neue Fassung anlegen"; Liste "Fassungen" (gültig / zuletzt
+  festgeschrieben / abgelöst am …).
+- **Rechte**: alle neuen Endpunkte ab `buero_auftrag`, Monteure 403 (`test_v326`: Durchlauf um
+  `/contract/attachment-options` erweitert).
+- **Migration `091e7f52649b`**: eine Tabelle. `downgrade()` verweigert, sobald es eine Fassung oder einen nicht mehr
+  im Entwurf befindlichen Vertrag gibt.
+- **Verifikation**: `tests/test_v336_vertrag_festschreiben.py` (19 Tests: Festschreiben friert Inhalt und PDF ein
+  und sperrt; Vorlage danach geändert → PDF byte-gleich, Gegenprobe Entwurf der neuen Fassung liest den neuen Text;
+  ungeprüft nicht festschreibbar; Entwurf folgt der geänderten Grundlage, danach ist die Fassung abweichend und der
+  Versand gesperrt; geänderte Auftragssumme; neue Fassung und Ablösen; Anlage ohne versendete Fassung, unverändert
+  versendet (angehängte Seiten = versendete Fassung), nach dem Versand geändert, fehlgeschlagener Versand,
+  beschädigte Ablage; Versand = abgelegte Bytes ohne neue Datei, derselbe Schlüssel nicht zweimal, Link im
+  Protokoll; E-Mail-Vorlage; Zustellung nachtragen; Monteur 403; Schnellauftrag; Unveränderlichkeit; Migration).
+  `test_v324` (Verlauf an der Karte) und `test_v326` angepasst. Gegenproben (Schutz ausgehebelt, Test rot, Datei
+  byte-genau zurück, Skript im Scratchpad): 23 rot -- PDF festgeschrieben neu gerendert, Fallfelder änderbar,
+  ungeprüfte Vorlage, Anlage ohne Vergleich, ohne versendete Fassung still der heutige Stand, überholte Fassung des
+  Angebots angenommen, fehlgeschlagener Versand zählt, Textvergleich immer gleich, beschädigte Ablage nicht erkannt,
+  Versand rendert neu, Versand im Entwurf, Versand einer abweichenden Fassung, Platzhalterwerte nicht verglichen,
+  Monteur darf, Schnellauftrag mit Entwurf, Fassung änderbar, Fassung löschbar, Ablösen fehlt, Downgrade ohne Schutz,
+  kein Historieneintrag, E-Mail-Vorlage ignoriert, Protokoll ohne Link, Zustellung im Entwurf. "Versand im Entwurf"
+  blieb zuerst grün: der Test schickte erst nach einer Änderung am Fallfeld, die 409 kam aus der Abweichungsprüfung --
+  Test umgestellt (Versand direkt nach "Neue Fassung"), danach rot. Die neuen Tests und die von 1.8.32 zusätzlich
+  gegen PostgreSQL 17 (Wegwerf-Schema je Test in `spielwiese`, Scratchpad-Plugin): 44 grün. Migration: SQLite
+  (Wegwerf-Datei, Kommandozeile hin/zurück/hin, `alembic check`) und PostgreSQL (Wegwerf-Schema: Kette bis
+  `8caedec524b4`, Bestand mit Vertragsentwurf über den App-Code, upgrade, `alembic current`, Constraints, zweimal
+  Festschreiben über den App-Code mit Zeilensperre und ORM-Sperre, Downgrade-Abbruch mit Fassungen und mit Status,
+  downgrade, upgrade, `alembic check`). Volle Suite 2423 grün. Klicktest `scripts/klicktest_vertrag_festschreiben.py`
+  40/40 (nie versendet → Wahl, ohne Wahl abgewiesen; Fassung 1, PDF-SHA wie die Fassung, Versand an SMTP-Empfänger im
+  Skript, Anhang = Fassung, Verlauf nennt die Fassung; neue Fassung, Fassung 2 gültig, 1 abgelöst; versendet und
+  unverändert ohne Rückfrage; geändert → zwei Optionen ohne Vorauswahl; Protokoll-Link; E-Mail-Vorlage; hell, dunkel,
+  412 px; Monteur 403). `klicktest_vertragsvorlagen.py` (Knopf heißt im Entwurf "Entwurf als PDF") 36/36,
+  `klicktest_versandprotokoll.py` 45/45, `klicktest_versandverlauf.py` 32/32.
+
+### Offen für Teil 2b (Punkte 4–6 und ihre Tests aus Punkt 8)
+
+1. **Gemeinsame Unterschriftsvorlage** (Punkt 4): Zeichenfeld heute zweimal -- `checklist.html` (`setupPad()`, je
+   Feld, mit `devicePixelRatio`, weißer Hintergrund, Datei-Upload) und `service_reports.html` (`initSignaturePad()`,
+   ein Feld für Monteur und Kunde nacheinander, Base64 im JSON, ohne `devicePixelRatio`). Vorschlag:
+   `_unterschrift.html` mit Stil und einer Funktion, die ein Zeichenfeld liefert (leer?, leeren, als PNG); beide
+   Seiten und der Vertrag nutzen sie. Dabei aufgefallen: das Feld im Einsatzbericht hat `background:var(--card)` und
+   Strichfarbe `#182420` -- im dunklen Theme ist die Unterschrift beim Zeichnen kaum zu sehen (die Checkliste setzt
+   Weiß fest).
+2. **Unterschrift auf dem Gerät** (Punkt 5): Kunde und Betrieb; die Anfrage trägt die PDF-Prüfsumme der Fassung, die
+   der Kunde gesehen hat (abweichend → 409); Ankreuzfelder = Abschnitte mit `with_checkbox` aus `frozen_content`
+   (Schlüssel `abschnitt-N`), alle ausdrücklich gesetzt, Teil des unterschriebenen Inhalts (kanonisches JSON mit
+   Prüfsumme); Ergebnis: Unterschriftsblatt (PDF) in der Ablage. Alternativ Papier-Scan (am Inhalt erkannt wie der
+   Beleg in 1.8.20) mit Datum und vom Büro übertragenen Ankreuzfeldern. Nur eine gültige, nicht abweichende Fassung
+   (`deliverable_version()`). Status `unterschrieben`; danach keine neue Fassung.
+3. **Nach der Unterschrift gesperrt** (Punkt 6): `change_order_contract_basis()` und `sync_order_from_source_quote()`
+   (409), Karte "Quellangebot" ohne Übernehmen-Knopf, Karte "Vertragsgrundlage" ohne Ändern.
+4. **Tests** (Punkt 8): Unterschrift gegen falsche Prüfsumme abgelehnt, Ankreuzfeld im unterschriebenen Inhalt,
+   Sperren nach Unterschrift, Monteur 403; Klicktest mit Zeichnen über CDP-Zeigerereignisse.
+
+### Nebenbefunde 1.8.33 (nur gemeldet)
+
+1. **Lokaler Datenordner enthält 843 Briefpapier-Dateien aus alten Testläufen** (`data/document_layout_backgrounds`,
+   11.–26.09., 69-Byte-PNGs und 23-KB-JPEGs): aus der Zeit vor der Test-Umlenkung in `tests/conftest.py` (Runde 0e).
+   Harmlos, nur lokal; die beiden echten Dateien (104 KB, 11.09.) sind identisch.
+2. **Der Anlage-Vergleich rendert das Angebot bei jedem Laden der Karte im Entwurf** (0,1–0,3 s gemessen) --
+   bewusst, damit die Auswahl dem Stand beim Festschreiben entspricht; das Festschreiben prüft ohnehin erneut.
+3. **Gleichzeitiges Festschreiben** ist über bedingtes UPDATE, Zeilensperre (PostgreSQL) und Unique-Schlüssel
+   abgesichert, aber nicht mit zwei echten gleichzeitigen Anfragen getestet (nur nacheinander, auch gegen
+   PostgreSQL).
+4. Bekannt und unverändert: Textfelder der Auftragsseite in Festbreitenschrift (1.8.32 Nr. 3), "GP" der
+   LV-Kopfzeile ragt bei 1400 px in die rechte Spalte (1.8.21 Nr. 5) -- beide auf den Klicktest-Bildern sichtbar.

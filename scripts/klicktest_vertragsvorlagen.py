@@ -142,7 +142,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Vertrag: Fallfelder gespeichert", gespeichert, "30 % bei Auftrag, Rest nach Abnahme|KW 42–44, witterungsabhängig")
     pdf = await tab.js(f"fetch('/api/orders/{seed['privat']}/contract/pdf').then(r=>r.status+' '+r.headers.get('content-type'))")
     p.pruefe("Vertrag: PDF", pdf, "200 application/pdf")
-    p.pruefe("Vertrag: PDF-Knopf", "Vertrag als PDF" in (await tab.js(karte) or ""), True)
+    p.pruefe("Vertrag: PDF-Knopf", "Entwurf als PDF" in (await tab.js(karte) or ""), True)
 
     # Auftragsdaten speichern: Zeitraum ändern, die übrigen Felder bleiben.
     await tab.js("document.getElementById('executionPeriod').value='KW 45';saveOrder()")

@@ -325,6 +325,7 @@ def test_history_of_a_document_shows_email_and_manual_deliveries(invoice_world, 
     ("quote_editor.html", "renderDispatchHistory('quoteDispatchHistory','angebot'"),
     ("mahnwesen.html", "renderDispatchHistory('dh'+id, 'mahnung'"),
     ("checklist.html", "renderDispatchHistory('clDispatchHistory','checkliste'"),
+    ("order.html", "renderDispatchHistory('contractDispatchHistory','vertrag'"),  # seit 1.8.33
 ])
 def test_every_document_page_shows_the_history_instead_of_last_sent(template, call):
     html = (APP / "templates" / template).read_text(encoding="utf-8")

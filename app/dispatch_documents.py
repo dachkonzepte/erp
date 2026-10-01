@@ -11,6 +11,9 @@ gehört und welches PDF in die Ablage kommt:
 - Angebot, Auftrag: neu erzeugt, wie beim E-Mail-Versand.
 - Checkliste: das PDF in voller Auflösung (so wie es über den PDF-Knopf gedruckt wird), nicht das
   verkleinerte Versand-PDF.
+- Vertrag (seit 1.8.33): die gültige festgeschriebene Fassung aus der Ablage -- nie neu erzeugt, und nur,
+  solange sie zum Auftrag passt (dieselbe Bedingung wie beim E-Mail-Versand,
+  app/contract_versions.py::deliverable_version()).
 
 Rollenlos; wer zustellen darf, entscheidet der Router. PDF-Renderer werden lokal importiert (Regel 3).
 """
@@ -20,7 +23,7 @@ from typing import Callable
 
 from sqlalchemy.orm import Session
 
-from .models import Checklist, Invoice, Order, Quote, Reminder
+from .models import Checklist, Invoice, Order, OrderContract, Quote, Reminder
 from .sent_documents import DOCUMENT_TYPES, DocumentPdf, frozen_or_fresh_pdf
 
 
@@ -97,8 +100,26 @@ def _checklist(db: Session, checklist: Checklist) -> DispatchDocument:
     )
 
 
+def _contract(db: Session, contract: OrderContract) -> DispatchDocument:
+    from .contract_versions import ContractStateError, deliverable_version
+    from .sent_documents import read_sent_document
+
+    order = contract.order
+    try:
+        version = deliverable_version(db, order, contract)
+    except ContractStateError as e:
+        raise ValueError(str(e)) from e
+    document = version.sent_document
+    return DispatchDocument(
+        "vertrag", contract.id, document.document_number,
+        f"Vertrag zu Auftrag {order.order_number}, Fassung {version.version_no}", order.project_id,
+        lambda: DocumentPdf(read_sent_document(document), document.filename, document),
+    )
+
+
 _REGISTRY = {"angebot": (Quote, _quote), "auftrag": (Order, _order), "rechnung": (Invoice, _invoice),
-             "mahnung": (Reminder, _reminder), "checkliste": (Checklist, _checklist)}
+             "mahnung": (Reminder, _reminder), "checkliste": (Checklist, _checklist),
+             "vertrag": (OrderContract, _contract)}
 assert set(_REGISTRY) == set(DOCUMENT_TYPES), "jede Dokumentart der Ablage braucht einen Eintrag hier"
 
 
@@ -122,4 +143,6 @@ def project_id_of(db: Session, document_type: str, document_id: int | None) -> i
         row = row.order
     if isinstance(row, Checklist):
         row = db.get(Order, row.order_id) if row.order_id else None
+    if isinstance(row, OrderContract):
+        row = row.order
     return getattr(row, "project_id", None)

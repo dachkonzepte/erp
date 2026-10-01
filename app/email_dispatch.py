@@ -565,5 +565,13 @@ def list_dispatches(
         query = query.where(EmailDispatch.status == "in_arbeit", EmailDispatch.created_at < now - STUCK_AFTER)
     rows = db.scalars(query.order_by(EmailDispatch.created_at.desc(), EmailDispatch.id.desc()).limit(limit)).all()
     stuck_count = db.scalar(stuck_query) or 0
-    return {"items": [dispatch_to_dict(r, now) for r in rows], "stuck_count": stuck_count,
-            "stuck_after_minutes": int(STUCK_AFTER.total_seconds() // 60)}
+    items = [dispatch_to_dict(r, now) for r in rows]
+    # Seit 1.8.33: ein Vertrag hat keine eigene Seite, die Liste verlinkt auf seinen Auftrag.
+    contract_ids = {r.document_id for r in rows if r.document_type == "vertrag" and r.document_id is not None}
+    if contract_ids:
+        from .models import OrderContract
+        orders_of = dict(db.execute(select(OrderContract.id, OrderContract.order_id).where(OrderContract.id.in_(contract_ids))).all())
+        for item in items:
+            if item["document_type"] == "vertrag":
+                item["order_id"] = orders_of.get(item["document_id"])
+    return {"items": items, "stuck_count": stuck_count, "stuck_after_minutes": int(STUCK_AFTER.total_seconds() // 60)}

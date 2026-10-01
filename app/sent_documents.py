@@ -23,6 +23,10 @@ hängend); eine fehlgeschlagene zählt nicht, dann wird beim nächsten Versand n
 abgelegt. Rechnungen, die vor 1.8.17 oder nie per E-Mail hinausgingen, haben keine abgelegte
 Fassung und werden wie bisher neu erzeugt.
 
+Vertrag (seit 1.8.33): die Ablage nimmt die festgeschriebene Fassung beim Festschreiben auf, also
+vor jedem Versand -- sie IST ab dann das Dokument (app/contract_versions.py). Versand und
+nachgetragene Zustellung verweisen auf diesen Eintrag, legen nichts erneut ab.
+
 Rollenlos wie jede Geschäftslogik; wer lesen darf, entscheidet app/routers/email_dispatches.py.
 """
 
@@ -43,8 +47,10 @@ from .paths import data_dir
 
 SENT_DOCUMENT_ROOT = Path(os.getenv("DACHKONZEPTE_SENT_DOCUMENT_ROOT", data_dir() / "sent_documents"))
 
+# "vertrag" seit 1.8.33: die festgeschriebene Fassung liegt schon vor dem ersten Versand hier
+# (app/contract_versions.py), Dokument-ID ist die des Vertrags (OrderContract), nicht der Fassung.
 DOCUMENT_TYPES = {"angebot": "Angebot", "auftrag": "Auftrag", "rechnung": "Rechnung", "mahnung": "Mahnung",
-                  "checkliste": "Checkliste"}
+                  "checkliste": "Checkliste", "vertrag": "Vertrag"}
 # Was die Ablage aufnimmt (seit 1.8.20 neben PDFs auch Belege nachgetragener Zustellungen) und mit
 # welcher Endung die Datei abgelegt wird.
 CONTENT_TYPE_SUFFIXES = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}

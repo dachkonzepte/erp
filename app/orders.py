@@ -651,7 +651,10 @@ def create_order_from_quote(
     execution_end: date | None, caseworker_employee_id: int | None,
     project_manager_employee_id: int | None, payment_terms: str | None,
     remarks: str | None, status: str = "beauftragt", actor_name: str = "System",
+    contract_draft: bool = True,
 ) -> Order:
+    """contract_draft (seit 1.8.33): False beim Schnellauftrag (app/quick_service_orders.py) -- dort
+    entsteht kein automatischer Vertragsentwurf; von Hand bleibt er auf der Auftragsseite möglich."""
     existing = db.scalar(select(Order).where(Order.source_quote_id == quote_id))
     if existing is not None:
         raise ValueError(f"Aus diesem Angebot existiert bereits Auftrag {existing.order_number}. Änderungen können in diesen Auftrag übernommen werden.")
@@ -703,8 +706,9 @@ def create_order_from_quote(
     _copy_quote_scope_to_order(db, order, quote)
     # Seit 1.8.32: Vertragsentwurf, wenn es für die Vertragsgrundlage eine Vorlage gibt -- in derselben
     # Transaktion. Lokal importiert: app/contract_templates.py importiert aus diesem Modul.
-    from .contract_templates import create_contract_draft_if_template
-    create_contract_draft_if_template(db, order, actor_name=actor_name)
+    if contract_draft:
+        from .contract_templates import create_contract_draft_if_template
+        create_contract_draft_if_template(db, order, actor_name=actor_name)
 
     quote.status = "beauftragt"
     project.status = "beauftragt"

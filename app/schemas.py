@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import ClassVar
+from typing import ClassVar, Literal
 from urllib.parse import urlparse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -1448,10 +1448,30 @@ class ContractTemplatesOverviewOut(BaseModel):
     templates: list[ContractTemplateOut]
 
 
+class OrderContractVersionOut(BaseModel):
+    """Festgeschriebene Fassung (seit 1.8.33). document: der Ablage-Eintrag des PDFs (Vertrag samt
+    Anlage) wie im Versandprotokoll, abrufbar über /api/sent-documents/{id}/file."""
+    id: int
+    version_no: int
+    basis_key: str
+    basis_label: str | None = None
+    is_consumer: bool
+    content_sha256: str
+    document: dict
+    attachment_kind: str
+    attachment_label: str
+    case_fields: dict[str, str | None]
+    created_at_local: datetime | None = None
+    created_by_name: str
+    superseded_at_local: datetime | None = None
+    current: bool
+    too_large: bool
+
+
 class OrderContractOut(BaseModel):
     id: int
     order_id: int
-    status: str
+    status: str  # entwurf | festgeschrieben (seit 1.8.33)
     execution_period: str | None = None
     payment_plan: str | None = None
     special_terms: str | None = None
@@ -1459,6 +1479,10 @@ class OrderContractOut(BaseModel):
     created_at: datetime
     updated_by_name: str | None = None
     updated_at: datetime | None = None
+    # seit 1.8.33: Fassungen (neueste zuerst), Abweichungen der gültigen Fassung vom Auftrag, Empfänger
+    versions: list[OrderContractVersionOut] = []
+    differences: list[str] = []
+    recipient_email: str | None = None
 
 
 class OrderContractStateOut(BaseModel):
@@ -1477,6 +1501,36 @@ class OrderContractUpdate(PartialUpdate):
     execution_period: str | None = Field(default=None, max_length=20000)
     payment_plan: str | None = Field(default=None, max_length=20000)
     special_terms: str | None = Field(default=None, max_length=20000)
+
+
+class ContractLastSentQuoteOut(BaseModel):
+    sent_document_id: int
+    filename: str
+    sha256: str
+    size_bytes: int
+    sent_on: date
+    how: str
+    intact: bool
+    problem: str | None = None
+
+
+class ContractAttachmentOptionsOut(BaseModel):
+    """Anlage beim Festschreiben (seit 1.8.33): die zuletzt versendete Fassung des Angebots, ob der
+    heutige Stand davon abweicht und ob das Büro wählen muss."""
+    quote_number: str | None = None
+    quote_available: bool
+    last_sent: ContractLastSentQuoteOut | None = None
+    matches_current: bool | None = None
+    choice_required: bool
+    default: str | None = None
+
+
+class OrderContractFreeze(BaseModel):
+    """Festschreiben (seit 1.8.33). Ohne attachment nur, wenn die zuletzt versendete Fassung des
+    Angebots seinem heutigen Stand entspricht -- sonst wählt das Büro: "versendet" mit der ID dieser
+    Fassung (attachment_document_id) oder "aktuell"."""
+    attachment: Literal["versendet", "aktuell"] | None = None
+    attachment_document_id: int | None = None
 
 
 class ContractBasisOptionOut(BaseModel):

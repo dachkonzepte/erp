@@ -1061,10 +1061,12 @@ class ContractTemplateSection(Base):
 
 
 class OrderContract(Base):
-    """Vertrag zum Auftrag (seit 1.8.32, Stufe 2b, Runde 2b-1b Teil 1: nur der Entwurf). Entsteht beim
+    """Vertrag zum Auftrag (seit 1.8.32, Stufe 2b, Runde 2b-1b Teil 1: der Entwurf). Entsteht beim
     Beauftragen, wenn es für die Vertragsgrundlage des Auftrags eine Vorlage gibt. Trägt nur die
-    Fallfelder; Vorlagentext, Kunde, Summen und die Vertragsgrundlage werden beim Erzeugen des PDFs
-    live gelesen. Festschreiben, Versand und Unterschrift folgen in Teil 2."""
+    Fallfelder; Vorlagentext, Kunde, Summen und die Vertragsgrundlage werden beim Erzeugen des
+    Entwurfs-PDFs live gelesen. Seit 1.8.33 status "entwurf" | "festgeschrieben": Festschreiben legt
+    eine Fassung (OrderContractVersion) mit eingefrorenem Inhalt und PDF in der Ablage an und sperrt
+    die Fallfelder; "neue Fassung" macht wieder einen Entwurf daraus, die alten Fassungen bleiben."""
 
     __tablename__ = "order_contracts"
     __table_args__ = (UniqueConstraint("order_id", name="uq_order_contract_order"),)
@@ -1081,6 +1083,47 @@ class OrderContract(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     order: Mapped[Order] = relationship(back_populates="contract")
+    # Seit 1.8.33: festgeschriebene Fassungen, nie geändert oder gelöscht (ORM-Sperre am Ende der
+    # Datei) -- ein Auftrag mit festgeschriebenem Vertrag lässt sich deshalb nicht mehr löschen.
+    versions: Mapped[list["OrderContractVersion"]] = relationship(
+        back_populates="contract", cascade="all, delete-orphan", order_by="OrderContractVersion.version_no"
+    )
+
+
+class OrderContractVersion(Base):
+    """Festgeschriebene Fassung eines Vertrags (seit 1.8.33, Stufe 2b, Runde 2b-1b Teil 2,
+    app/contract_versions.py). frozen_content ist der eingefrorene Inhalt als kanonisches JSON
+    (Vorlagentext mit eingesetzten Platzhaltern, Verbraucher-Merkmal, Fallfelder, Werte aller
+    Platzhalter, Anlage), content_sha256 seine Prüfsumme; das PDF (Vertrag samt Anlage) liegt
+    unveränderlich in der Ablage (sent_document_id, SentDocument mit eigener SHA-256). Bewusst eine
+    Zeichenkette statt Zeilen, wie die feste Kopie einer Checklisten-Unterschrift (1.8.14): die
+    Prüfsumme geht über genau die abgelegten Bytes. Unveränderlich bis auf superseded_at (einmal, wenn
+    eine neuere Fassung festgeschrieben wird); nie gelöscht. Ohne Fremdschlüssel auf den Benutzer
+    (Muster SentDocument)."""
+
+    __tablename__ = "order_contract_versions"
+    __table_args__ = (UniqueConstraint("contract_id", "version_no", name="uq_order_contract_version_no"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("order_contracts.id"), index=True)
+    version_no: Mapped[int] = mapped_column()
+    basis_key: Mapped[str] = mapped_column(String(30))
+    is_consumer: Mapped[bool] = mapped_column(Boolean)
+    frozen_content: Mapped[str] = mapped_column(Text)
+    content_sha256: Mapped[str] = mapped_column(String(64))
+    sent_document_id: Mapped[int] = mapped_column(ForeignKey("sent_documents.id"))
+    # Anlage: "versendet" = die zuletzt versendete Fassung des Angebots aus der Ablage
+    # (attachment_document_id), "aktuell" = beim Festschreiben neu erzeugt (bewusst gewählt).
+    attachment_kind: Mapped[str] = mapped_column(String(20))
+    attachment_document_id: Mapped[int | None] = mapped_column(ForeignKey("sent_documents.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(160), server_default="System")
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    contract: Mapped[OrderContract] = relationship(back_populates="versions")
+    sent_document: Mapped["SentDocument"] = relationship(foreign_keys=[sent_document_id])
+    attachment_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[attachment_document_id])
 
 
 class OrderRevision(Base):
@@ -3106,7 +3149,7 @@ class DocumentEmailTemplate(Base):
     __table_args__ = (UniqueConstraint("document_type", name="uq_document_email_template_type"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    document_type: Mapped[str] = mapped_column(String(20), index=True)  # 'quote' | 'order' | 'invoice' | 'checklist' (seit 1.8.20)
+    document_type: Mapped[str] = mapped_column(String(20), index=True)  # 'quote' | 'order' | 'invoice' | 'checklist' (seit 1.8.20) | 'contract' (seit 1.8.33)
     subject_template: Mapped[str | None] = mapped_column(String(255), nullable=True)
     body_template: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -4903,3 +4946,23 @@ def _dispatch_limited_update(mapper, connection, target):
 @event.listens_for(EmailDispatch, "before_delete")
 def _dispatch_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Ein Protokolleintrag wird nie gelöscht.")
+
+
+# Festgeschriebene Vertragsfassung (seit 1.8.33): nur superseded_at darf sich ändern, und nur einmal
+# von leer auf einen Zeitpunkt (eine neuere Fassung wurde festgeschrieben).
+@event.listens_for(OrderContractVersion, "before_update")
+def _contract_version_limited_update(mapper, connection, target):
+    changed = {attr.key for attr in inspect(target).attrs if attr.history.has_changes()}
+    if changed - {"superseded_at", "contract"}:
+        raise ArchiveImmutableError("Eine festgeschriebene Vertragsfassung ist unveränderlich.")
+    table = OrderContractVersion.__table__
+    stored = connection.execute(
+        table.select().with_only_columns(table.c.superseded_at, table.c.contract_id).where(table.c.id == target.id)
+    ).one()
+    if stored.superseded_at is not None or stored.contract_id != target.contract_id:
+        raise ArchiveImmutableError("Eine festgeschriebene Vertragsfassung ist unveränderlich.")
+
+
+@event.listens_for(OrderContractVersion, "before_delete")
+def _contract_version_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Eine festgeschriebene Vertragsfassung wird nie gelöscht.")

@@ -55,9 +55,11 @@ def create_quick_service_order(
         section_id=None,
     )
 
+    # Seit 1.8.33 ohne automatischen Vertragsentwurf (Wartung/Reparatur nach Aufwand); von Hand bleibt
+    # er auf der Auftragsseite möglich.
     order = create_order_from_quote(
         db, quote.id, order_date=berlin_today(), execution_start=execution_start, execution_end=None,
         caseworker_employee_id=caseworker_employee_id, project_manager_employee_id=None,
-        payment_terms=None, remarks=None,
+        payment_terms=None, remarks=None, contract_draft=False,
     )
     return {"project_id": project.id, "order_id": order.id, "order_number": order.order_number}

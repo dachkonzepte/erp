@@ -1,13 +1,22 @@
-"""Router: Vertragsvorlagen und Vertragsentwurf am Auftrag (seit 1.8.32, Stufe 2b, Runde 2b-1b Teil 1).
+"""Router: Vertragsvorlagen und Vertrag am Auftrag (seit 1.8.32, Stufe 2b, Runde 2b-1b; Festschreiben und
+Versand seit 1.8.33).
 
 - GET /api/settings/contract-templates: Vorlagen je Vertragsgrundlage samt Platzhalterliste (Büro/Admin).
 - PUT /api/settings/contract-templates/{basis_key}: Vorlage speichern -- nur Administratoren, wie die
   Klauseln: die Prüfangabe entscheidet, ob der Vertrag ohne Wasserzeichen gedruckt wird.
-- GET /api/orders/{order_id}/contract: Stand des Vertrags am Auftrag (Büro/Admin).
-- POST /api/orders/{order_id}/contract: Entwurf von Hand anlegen, etwa für einen Auftrag von vor 1.8.32
-  oder nach einer geänderten Vertragsgrundlage (Büro/Admin).
-- PUT /api/orders/{order_id}/contract: Fallfelder ändern, Teil-Update (Büro/Admin).
-- GET /api/orders/{order_id}/contract/pdf: Vertrags-PDF mit dem Angebot als Anlage (Büro/Admin).
+- GET /api/orders/{order_id}/contract: Stand des Vertrags am Auftrag samt Fassungen (Büro/Admin).
+- POST /api/orders/{order_id}/contract: Entwurf von Hand anlegen, etwa für einen Auftrag von vor 1.8.32,
+  einen Schnellauftrag oder nach einer geänderten Vertragsgrundlage (Büro/Admin).
+- PUT /api/orders/{order_id}/contract: Fallfelder ändern, Teil-Update, nur im Entwurf (Büro/Admin).
+- GET /api/orders/{order_id}/contract/pdf: im Entwurf das Entwurfs-PDF (live, mit Wasserzeichen bei
+  ungeprüfter Vorlage), festgeschrieben die gültige Fassung aus der Ablage (Büro/Admin).
+- GET /api/orders/{order_id}/contract/attachment-options: welche Fassung des Angebots angehängt würde
+  und ob das Büro wählen muss (seit 1.8.33).
+- POST /api/orders/{order_id}/contract/freeze: festschreiben (seit 1.8.33).
+- POST /api/orders/{order_id}/contract/new-version: festgeschriebenen Vertrag wieder zum Entwurf machen,
+  die Fassungen bleiben (seit 1.8.33).
+- POST /api/orders/{order_id}/contract/send-email: die gültige Fassung versenden (seit 1.8.33, Regel 21).
+Ältere Fassungen liefert /api/sent-documents/{id}/file (Ablage, nur mit stimmender Prüfsumme).
 
 Monteure: kein Zugriff (403), wie auf Auftrag und Angebot als kaufmännische Dokumente.
 """
@@ -19,17 +28,22 @@ from sqlalchemy.orm import Session
 from ..contract_basis import CONTRACT_BASES
 from ..contract_pdf import build_contract_pdf
 from ..contract_templates import (
-    contract_state, create_contract_draft, get_order_contract, list_templates, placeholder_list, save_template,
-    update_contract_draft,
+    create_contract_draft, get_order_contract, list_templates, placeholder_list, save_template, update_contract_draft,
+)
+from ..contract_versions import (
+    ContractStateError, attachment_options, contract_state, freeze_contract, frozen_pdf, send_contract_email,
+    start_new_version,
 )
 from ..database import get_db
+from ..email_dispatch import DispatchConflict, actor_of
 from ..models import AppUser
 from ..orders import load_order
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import (
-    ContractTemplateOut, ContractTemplatesOverviewOut, ContractTemplateUpdate, OrderContractStateOut,
-    OrderContractUpdate,
+    ContractAttachmentOptionsOut, ContractTemplateOut, ContractTemplatesOverviewOut, ContractTemplateUpdate,
+    OrderContractFreeze, OrderContractStateOut, OrderContractUpdate, OrderEmailSend,
 )
+from ..sent_documents import ArchiveFileError
 
 router = APIRouter()
 
@@ -108,9 +122,74 @@ def get_order_contract_pdf(order_id: int, db: Session = Depends(get_db), _role: 
     contract = get_order_contract(db, order.id)
     if contract is None:
         raise HTTPException(status_code=404, detail="Zu diesem Auftrag gibt es keinen Vertragsentwurf.")
+    headers = {}
+    if contract.status == "entwurf":
+        try:
+            pdf = build_contract_pdf(db, order, contract)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        filename = f"Vertrag_{order.order_number}_Entwurf.pdf".replace("/", "-")
+    else:
+        # Festgeschrieben: die abgelegten Bytes, nie neu gerendert; beschädigt -> 409/410 wie die Ablage.
+        try:
+            pdf, version = frozen_pdf(contract)
+        except ArchiveFileError as exc:
+            raise HTTPException(status_code=410 if exc.status == "fehlt" else 409,
+                                detail=f"Die festgeschriebene Fassung in der Ablage ist nicht mehr unversehrt: {exc}") from exc
+        filename = version.sent_document.filename
+        headers["X-DK-Ablage"] = str(version.sent_document_id)
+    headers["Content-Disposition"] = f'inline; filename="{filename}"'
+    return Response(content=pdf, media_type="application/pdf", headers=headers)
+
+
+@router.get("/api/orders/{order_id}/contract/attachment-options", response_model=ContractAttachmentOptionsOut)
+def get_contract_attachment_options(order_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Gewöhnliche def-Route: rendert das Angebot zum Vergleich (Threadpool, nicht die Event-Loop)."""
+    order = _order_or_404(db, order_id)
+    if get_order_contract(db, order.id) is None:
+        raise HTTPException(status_code=404, detail="Zu diesem Auftrag gibt es keinen Vertragsentwurf.")
+    return attachment_options(db, order)
+
+
+@router.post("/api/orders/{order_id}/contract/freeze", response_model=OrderContractStateOut)
+def post_freeze_contract(
+    order_id: int, payload: OrderContractFreeze, db: Session = Depends(get_db), user: AppUser = _role_dep,
+):
+    order = _order_or_404(db, order_id)
+    user_id, user_name = actor_of(user)
     try:
-        pdf = build_contract_pdf(db, order, contract)
-    except ValueError as exc:
+        freeze_contract(db, order, attachment=payload.attachment, attachment_document_id=payload.attachment_document_id,
+                        user_id=user_id, user_name=user_name)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ContractStateError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    filename = f"Vertrag_{order.order_number}.pdf".replace("/", "-")
-    return Response(content=pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{filename}"'})
+    return contract_state(db, _order_or_404(db, order_id))
+
+
+@router.post("/api/orders/{order_id}/contract/new-version", response_model=OrderContractStateOut)
+def post_contract_new_version(order_id: int, db: Session = Depends(get_db), user: AppUser = _role_dep):
+    order = _order_or_404(db, order_id)
+    user_id, user_name = actor_of(user)
+    try:
+        start_new_version(db, order, user_id=user_id, user_name=user_name)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ContractStateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return contract_state(db, _order_or_404(db, order_id))
+
+
+@router.post("/api/orders/{order_id}/contract/send-email", response_model=OrderContractStateOut)
+def post_send_contract_email(
+    order_id: int, payload: OrderEmailSend, db: Session = Depends(get_db), user: AppUser = _role_dep,
+):
+    order = _order_or_404(db, order_id)
+    try:
+        send_contract_email(db, order, to_email=payload.to_email, cc_email=payload.cc_email,
+                            dispatch_key=payload.dispatch_key, user=user)
+    except (ContractStateError, DispatchConflict) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return contract_state(db, _order_or_404(db, order_id))

@@ -4,6 +4,34 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.33 – Vertrag festschreiben und versenden
+
+Stufe 2b, Runde 2b-1b Teil 2, Punkte 1–3 und 7 (Unterschrift folgt als eigene Version). Auf der Karte „Vertrag“
+der Auftragsseite schreibt das Büro den Entwurf als Fassung fest: Vorlagentext mit eingesetzten Platzhaltern,
+Verbraucher-Merkmal, Fallfelder, die Werte aller Platzhalter und die Anlage werden als JSON mit Prüfsumme an der
+Fassung eingefroren (`order_contract_versions`), das PDF samt Anlage einmal gerendert und in der Ablage abgelegt
+(neue Dokumentart „vertrag“, SHA-256). Danach sind die Fallfelder gesperrt; „Neue Fassung anlegen“ macht wieder
+einen Entwurf daraus, die alten Fassungen bleiben mit PDF sichtbar und werden beim nächsten Festschreiben als
+abgelöst markiert. Bis zum Festschreiben folgt der Entwurf jeder Änderung der Vertragsgrundlage. Festgeschrieben
+wird nur eine rechtlich geprüfte Vorlage. Anlage ist die zuletzt versendete Fassung des Angebots aus der Ablage;
+ob der heutige Stand abweicht, entscheidet der Text beider PDFs. Weicht er ab, gibt es keine versendete Fassung
+oder ist sie beschädigt, wählt das Büro sichtbar zwischen „versendete Fassung“ und „heutiger Stand“ – ohne Wahl
+wird nicht festgeschrieben.
+
+Versand über `dispatch_email()` mit „An“ vorbelegt (Kunde des Auftrags), immer die abgelegte Fassung, keine
+zweite Datei; neue E-Mail-Vorlage „Vertrag“ (Platzhalter `{auftragsnummer}`, `{kundenname}`, `{fassung}`,
+`{vertragsgrundlage}`). Versandverlauf und „Zustellung nachtragen“ an der Karte, das Versandprotokoll verlinkt den
+Vertrag auf seinen Auftrag. Passt die gültige Fassung nicht mehr zum Auftrag (Vertragsgrundlage,
+Verbraucher-Merkmal oder der Wert eines genutzten Platzhalters, etwa die Auftragssumme, hat sich geändert), zeigt die
+Karte die Abweichungen und Versand wie Zustellung sind gesperrt, bis eine neue Fassung festgeschrieben ist.
+Fassungen sind unveränderlich (ORM-Sperre), ein Auftrag mit festgeschriebenem Vertrag ist nicht mehr löschbar.
+Schnellaufträge bekommen keinen automatischen Vertragsentwurf mehr, von Hand bleibt er möglich. Größe mit dem
+echten Briefpapier gemessen: Vertrag mit 13 Abschnitten und Angebot mit 30 Positionen 237 KB (als PNG-Briefpapier
+656 KB) – kein gemeinsamer Renderdurchgang nötig. Monteure 403 an allen neuen Endpunkten. Migration
+`091e7f52649b` (eine Tabelle, Downgrade nur ohne Fassungen), SQLite und PostgreSQL hin/zurück/hin mit Bestand,
+`alembic check` sauber. `tests/test_v336_vertrag_festschreiben.py` (19 Tests, zusätzlich gegen PostgreSQL), 23
+Gegenproben rot, volle Suite 2423 grün. Klicktest `scripts/klicktest_vertrag_festschreiben.py` 40/40.
+
 ## 1.8.32 – Vertragsvorlagen und Vertragsentwurf am Auftrag
 
 Stufe 2b, Runde 2b-1b Teil 1. Neu unter Einstellungen → Vertragsvorlagen: je Vertragsgrundlage eine Vorlage aus

@@ -455,6 +455,7 @@
         <option value="quote">Angebot</option>
         <option value="order">Auftrag</option>
         <option value="checklist">Checkliste</option>
+        <option value="contract">Vertrag</option>
       </select>
     </div>
     <div class="fields-2col" style="margin-top:12px">
@@ -1917,6 +1918,7 @@ const EMAIL_TEMPLATE_PLACEHOLDER_HINTS = {
   quote: 'Verfügbare Platzhalter: {angebotsnummer} {gesamtbetrag} {kundenname}',
   order: 'Verfügbare Platzhalter: {auftragsnummer} {gesamtbetrag} {kundenname}',
   checklist: 'Verfügbare Platzhalter: {checkliste} {checklistennummer} {bezug} {kundenname}',
+  contract: 'Verfügbare Platzhalter: {auftragsnummer} {kundenname} {fassung} {vertragsgrundlage} – angehängt wird immer die festgeschriebene Fassung samt Anlage',
   reminder: 'Verfügbare Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {offener_betrag} {mahngebuehr} {gesamtbetrag} {neue_frist} {vorheriges_mahndatum} {mahnstufe}',
 };
 function populateReminderLevelEmailOptions(){

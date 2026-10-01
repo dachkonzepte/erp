@@ -524,13 +524,16 @@ def test_keine_verbotenen_schluessel_in_monteur_antworten(durchlauf):
 
 def test_vertragsrouten_im_durchlauf_fuer_monteure_gesperrt(durchlauf):
     """Seit 1.8.32: Vertrag am Auftrag und Vertragsvorlagen sind kaufmännisch -- der Durchlauf ruft
-    jede GET-Route davon auf, und jede antwortet dem Monteur mit 403."""
+    jede GET-Route davon auf, und jede antwortet dem Monteur mit 403. Seit 1.8.33 auch die Auswahl der
+    Anlage beim Festschreiben."""
     vertrag = {a["route"]: a["status"] for a in durchlauf["antworten"]
-               if a["route"].endswith(("/contract", "/contract/pdf")) or a["route"].endswith("/contract-templates")}
+               if "/contract" in a["route"] and "contract-bases" not in a["route"]
+               and "contract-basis" not in a["route"]}
     assert vertrag == {
         "/api/settings/contract-templates": 403,
         "/api/orders/{order_id}/contract": 403,
         "/api/orders/{order_id}/contract/pdf": 403,
+        "/api/orders/{order_id}/contract/attachment-options": 403,
     }
 
 

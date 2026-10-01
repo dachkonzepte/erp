@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.32** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.33** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -575,7 +575,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     AST. Eine neue Versandstelle von der Oberfläche schickt einen `dispatch_key` je Klick mit
     (`_email_dispatch.html`). Ablage und Protokoll werden nie geändert oder gelöscht (einzige
     Ausnahme seit 1.8.19: ein hängender Eintrag wird einmal mit Notiz geklärt). Rechnung, Storno und
-    Mahnung kommen ab dem ersten Versand aus der Ablage (`frozen_or_fresh_pdf()`), nie neu erzeugt.
+    Mahnung kommen ab dem ersten Versand aus der Ablage (`frozen_or_fresh_pdf()`), nie neu erzeugt; der Vertrag
+    liegt seit 1.8.33 schon ab dem Festschreiben dort (Fassung, `app/contract_versions.py`).
     Eine Zustellung auf anderem Weg (Einschreiben, Übergabe, Bote, Fax) wird seit 1.8.20 im selben
     Protokoll nachgetragen (`record_manual_delivery()`); eine neue Dokumentart braucht einen Eintrag
     in `app/dispatch_documents.py`. Details: `docs/archiv/versandprotokoll-und-ablage.md`.
@@ -733,7 +734,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Klausel nur rechtlich geprüft im PDF, Ändern am Auftrag nur mit Begründung; welche Felder
   Beauftragen und Abgleich übernehmen, hält `tests/test_v325_quote_order_copy_fields.py` fest --
   ein neues Feld an Angebot oder Auftrag braucht dort einen Eintrag; seit 1.8.32 Vertragsvorlagen je
-  Grundlage und Vertragsentwurf am Auftrag, Dokumenttyp `contract`, Festschreiben/Versand folgen) --
+  Grundlage und Vertragsentwurf am Auftrag, Dokumenttyp `contract`; seit 1.8.33 Festschreiben als Fassung mit
+  eingefrorenem Inhalt und PDF in der Ablage, Anlage = zuletzt versendete Fassung des Angebots oder bewusst
+  gewählt, Versand nur einer zum Auftrag passenden Fassung; Unterschrift folgt) --
   `docs/archiv/vertragsgrundlage-und-vertrag.md`
 - **Speichern nur gesendeter Felder** (`PartialUpdate`, Strukturtest über alle PUT-Handler, Liste der
   Altfälle, Nebenbefunde der Durchsicht aller Speichern-Aufrufer) -- `docs/archiv/teil-updates.md`
@@ -1038,7 +1041,9 @@ Lieferant und archiviertes Projekt bleiben in Auftrag, Aufgaben-Editor und Arbei
 und `klicktest_auswahl_restfaelle.py` (1.8.31, abgeschlossener Auftrag in der Backoffice-Korrektur, archivierter
 Steuerschlüssel, inaktiver Schichttyp, leerer Schlusstext 2 und leere Einheit im Angebot, Kunden-Kategorie)
 und `klicktest_vertragsvorlagen.py` (1.8.32, Vertragsvorlagen in den Einstellungen für Admin und Büro, Ausführungszeitraum
-und Karte "Vertrag" auf der Auftragsseite, Entwurf von Hand anlegen).
+und Karte "Vertrag" auf der Auftragsseite, Entwurf von Hand anlegen) und
+`klicktest_vertrag_festschreiben.py` (1.8.33, Anlage bewusst wählen, Fassung festschreiben, Versand an einen
+SMTP-Empfänger im Skript mit Anhang = Fassung, neue Fassung, versendete Fassung ohne Rückfrage, Monteur 403).
 Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
 im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten (Vorlage dort). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
