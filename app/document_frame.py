@@ -79,6 +79,8 @@ RENDERERS_USING_SHARED_FRAME: dict[str, str] = {
     # Seit 1.8.4: abgeschlossene Checkliste (app/checklist_pdf.py, Modul "checklisten") -- wie der
     # Stundenzettel ohne eigenes Briefpapier/eigene Ränder, Rückfall auf "default".
     "checklist": "Checkliste",
+    # Seit 1.8.32: Vertrag zum Auftrag (app/contract_pdf.py) -- Rückfall auf "default" wie die übrigen.
+    "contract": "Vertrag",
 }
 
 
@@ -102,10 +104,12 @@ class _NumberedCanvas(canvas_module.Canvas):
     hochgeladener Briefbogen kann seine Dekorfläche an einer anderen Stelle haben als der
     ursprünglich angenommene Standardwert (8mm), siehe dortiger Fund gegen die echte Datenbank."""
 
-    def __init__(self, *args, footer_enabled: bool, continuation_header: dict | None = None, **kwargs):
+    def __init__(self, *args, footer_enabled: bool, continuation_header: dict | None = None,
+                 watermark_text: str | None = None, **kwargs):
         canvas_module.Canvas.__init__(self, *args, **kwargs)
         self._saved_page_states: list[dict] = []
         self._footer_enabled = footer_enabled
+        self._watermark_text = watermark_text
         # {"rows": list[(label,value)], "margins": DocumentPageMargins, "y_mm": Decimal} oder
         # None (nicht sichtbar/keine Zeilen übergeben) -- siehe render_framed_pdf().
         self._continuation_header = continuation_header
@@ -137,8 +141,24 @@ class _NumberedCanvas(canvas_module.Canvas):
                 self.drawString(left_x, y, label_text)
                 self.drawRightString(right_x, y, f"Seite {self._pageNumber} von {total}")
                 self.restoreState()
+            if self._watermark_text:
+                self._draw_watermark()
             canvas_module.Canvas.showPage(self)
         canvas_module.Canvas.save(self)
+
+    def _draw_watermark(self) -> None:
+        """Seit 1.8.32: quer über die Seitendiagonale, halbtransparent ÜBER dem Inhalt (unter dem
+        Inhalt verschwände es hinter Briefpapier und Tabellenhintergründen). Hier statt im
+        onPage-Callback, damit es zuletzt gezeichnet wird."""
+        width, height = float(PAGE_WIDTH_MM) * mm, float(PAGE_HEIGHT_MM) * mm
+        self.saveState()
+        self.setFillColor(colors.HexColor("#c0362c"))
+        self.setFillAlpha(0.22)
+        self.setFont("Helvetica-Bold", 34)
+        self.translate(width / 2, height / 2)
+        self.rotate(54.7)  # Diagonale von A4: atan(297/210)
+        self.drawCentredString(0, -12, self._watermark_text)
+        self.restoreState()
 
 
 def _build_frame(margins: DocumentPageMargins, *, frame_id: str) -> Frame:
@@ -229,6 +249,7 @@ def _build_once(
     *, document_type: str, title: str, story: list, footer_enabled: bool, general, styles: dict,
     blocks: dict[str, DocumentLayoutBlock], first_margins: DocumentPageMargins,
     continuation_margins: DocumentPageMargins, db, continuation_header_rows: list[tuple[str, str]] | None,
+    watermark_text: str | None = None,
 ) -> BaseDocTemplate:
     """Baut EIN vollständiges PDF (frischer Buffer, frische PageTemplates/Frames -- die werden
     beim Bauen verbraucht, nicht wiederverwendbar). Gibt das BaseDocTemplate zurück, nicht nur die
@@ -255,7 +276,8 @@ def _build_once(
         }
     doc.build(
         [NextPageTemplate("later"), *story],
-        canvasmaker=partial(_NumberedCanvas, footer_enabled=footer_enabled, continuation_header=continuation_header),
+        canvasmaker=partial(_NumberedCanvas, footer_enabled=footer_enabled, continuation_header=continuation_header,
+                            watermark_text=watermark_text),
     )
     doc._pdf_bytes = buf.getvalue()
     return doc
@@ -263,6 +285,7 @@ def _build_once(
 
 def render_framed_pdf(
     db, *, document_type: str, title: str, content_story, continuation_header_rows: list[tuple[str, str]] | None = None,
+    watermark_text: str | None = None,
 ) -> bytes:
     """Baut ein vollständiges PDF: gemeinsamer Rahmen (Hintergrund/Ränder/optionale Bausteine) +
     fließender Inhalt. content_story ist entweder (wie bisher) eine fertige Flowable-Liste, oder --
@@ -297,7 +320,10 @@ def render_framed_pdf(
     den vollen Kopfbereich bereits als Inhalt). Die vertikale Position kommt seit 1.3.12 aus dem
     Block selbst (`continuation_header_block.y_mm`, über Einstellungen → Dokumente & Layout
     editierbar) statt einer festen Konstante -- siehe CLAUDE.md, Abschnitt "Einstellbare Position
-    der Wiederholungszeile"."""
+    der Wiederholungszeile".
+
+    watermark_text (seit 1.8.32): steht, wenn gesetzt, quer auf JEDER Seite -- der Vertrag mit
+    ungeprüfter Vorlage (app/contract_pdf.py) samt angehängtem Angebot."""
     if document_type not in RENDERERS_USING_SHARED_FRAME:
         raise ValueError(
             f"Unbekannter Dokumenttyp für den gemeinsamen PDF-Rahmen: {document_type!r}. "
@@ -317,6 +343,7 @@ def render_framed_pdf(
             document_type=document_type, title=title, story=story, footer_enabled=footer_enabled,
             general=general, styles=styles, blocks=blocks, first_margins=first_margins,
             continuation_margins=continuation_margins, db=db, continuation_header_rows=continuation_header_rows,
+            watermark_text=watermark_text,
         )
 
     if callable(content_story):

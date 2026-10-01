@@ -349,7 +349,9 @@ def _build_items_table(
     )
 
 
-def build_quote_framed_pdf(db, quote) -> bytes:
+def build_quote_framed_pdf(db, quote, *, watermark_text: str | None = None) -> bytes:
+    """watermark_text (seit 1.8.32): nur für das Angebot als Anlage eines Vertrags mit ungeprüfter
+    Vorlage (app/contract_pdf.py) -- das Wasserzeichen steht dort auf jeder Seite."""
     data = quote_to_dict(quote)
     general = get_or_create_general_settings(db)
     customer = quote.project.customer
@@ -461,4 +463,5 @@ def build_quote_framed_pdf(db, quote) -> bytes:
     return render_framed_pdf(
         db, document_type="quote", title=f"{data['quote_number']} - {data['title']}",
         content_story=build_story, continuation_header_rows=continuation_header_rows,
+        watermark_text=watermark_text,
     )

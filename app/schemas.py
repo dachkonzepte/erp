@@ -1210,12 +1210,16 @@ class OrderCreateFromQuote(BaseModel):
     status: str = Field(default="beauftragt", max_length=50)
 
 
-class OrderUpdate(BaseModel):
-    title: str = Field(min_length=1, max_length=255)
-    status: str = Field(default="beauftragt", max_length=50)
-    order_date: date
+class OrderUpdate(PartialUpdate):
+    """Teil-Update seit 1.8.32 (Regel 22): mit dem neuen Feld execution_period hätte jeder Aufrufer,
+    der es nicht kennt, den Ausführungszeitraum beim Speichern geleert."""
+    NOT_NULL = frozenset({"title", "status", "order_date"})
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    status: str | None = Field(default=None, max_length=50)
+    order_date: date | None = None
     execution_start: date | None = None
     execution_end: date | None = None
+    execution_period: str | None = Field(default=None, max_length=255)  # Freitext aus dem Angebot, seit 1.8.32
     caseworker_employee_id: int | None = None
     project_manager_employee_id: int | None = None
     payment_terms: str | None = None
@@ -1315,6 +1319,7 @@ class OrderOut(BaseModel):
     order_date: date
     execution_start: date | None
     execution_end: date | None
+    execution_period: str | None = None
     payment_terms: str | None
     remarks: str | None
     caseworker_employee_id: int | None
@@ -1383,6 +1388,95 @@ class OrderContractBasisChangeOut(BaseModel):
     reason: str
     changed_by_name: str
     changed_at: datetime
+
+
+class ContractTemplateSectionIn(BaseModel):
+    heading: str | None = Field(default=None, max_length=255)
+    body_text: str | None = Field(default=None, max_length=50000)
+    consumer_only: bool = False
+    with_checkbox: bool = False
+
+
+class ContractTemplateSectionOut(BaseModel):
+    id: int
+    sort_order: int
+    heading: str | None = None
+    body_text: str | None = None
+    consumer_only: bool
+    with_checkbox: bool
+
+
+class ContractTemplateUpdate(BaseModel):
+    """Seit 1.8.32: die ganze Vorlage auf einmal (Titel, Abschnitte in Reihenfolge, Prüfangaben) --
+    alle Felder Pflicht (ohne Vorgabewert, fehlt eins: 422), damit ein Aufrufer nie still Abschnitte
+    oder die Prüfung leert (Regel 22). Abschnitte ohne Überschrift und Text fallen weg."""
+    title: str | None = Field(max_length=255)
+    sections: list[ContractTemplateSectionIn] = Field(max_length=100)
+    reviewed_on: date | None
+    reviewed_by: str | None = Field(max_length=160)
+
+
+class ContractCaseFieldOut(BaseModel):
+    field: str
+    label: str
+    placeholder: str
+
+
+class ContractTemplateOut(BaseModel):
+    basis_key: str
+    label: str
+    title: str | None = None
+    sections: list[ContractTemplateSectionOut]
+    reviewed_on: date | None = None
+    reviewed_by: str | None = None
+    reviewed: bool
+    has_content: bool
+    unknown_placeholders: list[str]
+    unused_case_fields: list[ContractCaseFieldOut]
+    updated_at: datetime | None = None
+    updated_by_name: str | None = None
+    review_reset: bool = False  # nur in der Antwort auf PUT: Inhalt geändert, Prüfangaben gelöscht
+
+
+class ContractPlaceholderOut(BaseModel):
+    placeholder: str
+    description: str
+
+
+class ContractTemplatesOverviewOut(BaseModel):
+    placeholders: list[ContractPlaceholderOut]
+    templates: list[ContractTemplateOut]
+
+
+class OrderContractOut(BaseModel):
+    id: int
+    order_id: int
+    status: str
+    execution_period: str | None = None
+    payment_plan: str | None = None
+    special_terms: str | None = None
+    created_by_name: str
+    created_at: datetime
+    updated_by_name: str | None = None
+    updated_at: datetime | None = None
+
+
+class OrderContractStateOut(BaseModel):
+    order_id: int
+    basis_key: str
+    basis_label: str | None = None
+    template_available: bool
+    template_reviewed: bool
+    unused_case_fields: list[ContractCaseFieldOut]
+    is_consumer: bool
+    contract: OrderContractOut | None = None
+
+
+class OrderContractUpdate(PartialUpdate):
+    """Fallfelder des Vertragsentwurfs (seit 1.8.32) -- Teil-Update, nur gesendete Felder (Regel 22)."""
+    execution_period: str | None = Field(default=None, max_length=20000)
+    payment_plan: str | None = Field(default=None, max_length=20000)
+    special_terms: str | None = Field(default=None, max_length=20000)
 
 
 class ContractBasisOptionOut(BaseModel):

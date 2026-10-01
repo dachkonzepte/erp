@@ -522,6 +522,18 @@ def test_keine_verbotenen_schluessel_in_monteur_antworten(durchlauf):
     assert set(ERLAUBT_JE_ROUTE) - genutzt == set(), "Ausnahme greift nicht mehr -- aus ERLAUBT_JE_ROUTE streichen"
 
 
+def test_vertragsrouten_im_durchlauf_fuer_monteure_gesperrt(durchlauf):
+    """Seit 1.8.32: Vertrag am Auftrag und Vertragsvorlagen sind kaufmännisch -- der Durchlauf ruft
+    jede GET-Route davon auf, und jede antwortet dem Monteur mit 403."""
+    vertrag = {a["route"]: a["status"] for a in durchlauf["antworten"]
+               if a["route"].endswith(("/contract", "/contract/pdf")) or a["route"].endswith("/contract-templates")}
+    assert vertrag == {
+        "/api/settings/contract-templates": 403,
+        "/api/orders/{order_id}/contract": 403,
+        "/api/orders/{order_id}/contract/pdf": 403,
+    }
+
+
 def test_dachflaechen_monteur_reduziert_buero_voll(durchlauf, router_test_client):
     """Punkt 1 dieser Runde: der Monteur bekommt nur, was die Berichtsseite braucht, plus die
     technischen Angaben zur Fläche; das Büro unverändert alles."""

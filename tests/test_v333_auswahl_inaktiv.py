@@ -185,7 +185,7 @@ def test_auftrag_speichern_mit_unveraendertem_inaktivem_sachbearbeiter(threaded_
     keys = ui_keys("order.html", "saveOrder", "body:JSON.stringify(")
     assert {"caseworker_employee_id", "project_manager_employee_id"} <= set(keys)
     werte = {"title": "Dach neu", "status": order.status, "order_date": order.order_date.isoformat(),
-             "execution_start": None, "execution_end": None, "caseworker_employee_id": erika.id,
+             "execution_start": None, "execution_end": None, "execution_period": None, "caseworker_employee_id": erika.id,
              "project_manager_employee_id": erika.id, "payment_terms": None, "remarks": "geprüft",
              "intro_text": None, "outro_text": None, "outro_text_2": None}
     client = router_test_client(db, orders_router)

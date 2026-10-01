@@ -13,6 +13,7 @@ E-Mail-Vorlagen), sonst der eingebaute Standard. Rollenlos; wer senden darf, ent
 from sqlalchemy.orm import Session
 
 from .models import Checklist, Customer, Order, Property
+from .placeholders import apply_placeholders
 
 DEFAULT_CHECKLIST_EMAIL_SUBJECT = "{checkliste} – Checkliste Nr. {checklistennummer}"
 DEFAULT_CHECKLIST_EMAIL_BODY = (
@@ -74,9 +75,9 @@ def send_checklist_email(
     template = get_email_template(db, "checklist")
     subject = (template.subject_template if template else None) or DEFAULT_CHECKLIST_EMAIL_SUBJECT
     body = (template.body_template if template else None) or DEFAULT_CHECKLIST_EMAIL_BODY
-    for placeholder, value in _placeholders(db, checklist).items():
-        subject = subject.replace(placeholder, value)
-        body = body.replace(placeholder, value)
+    placeholders = _placeholders(db, checklist)
+    subject = apply_placeholders(subject, placeholders)
+    body = apply_placeholders(body, placeholders)
 
     pdf_bytes = build_checklist_email_pdf(db, checklist)
     user_id, user_name = actor_of(user)

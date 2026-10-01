@@ -21,7 +21,7 @@ from .document_pdf import (
     build_din5008_header_block, build_object_address_block, build_payment_tax_closing_block,
     build_styles, money, money_bare, ptext, qty,
 )
-from .orders import order_to_dict
+from .orders import execution_period_text, order_to_dict
 from .settings import get_or_create_general_settings
 
 # Feste Spaltenbreiten der Positionstabelle -- alle außer "Leistung" (siehe build_order_pdf():
@@ -169,9 +169,10 @@ def build_order_pdf(db, order) -> bytes:
         if data['optional_total']: totals.insert(1, ["Optionale Positionen (nicht enthalten)", money(data['optional_total'])])
         story += [_totals_table(totals, content_width), Spacer(1, 7*mm)]
 
-        if data.get('execution_start') or data.get('execution_end'):
-            span = ' bis '.join(x.strftime('%d.%m.%Y') for x in [data.get('execution_start'), data.get('execution_end')] if x)
-            story += [Paragraph(f"<b>Ausführungszeitraum:</b> {span}", body), Spacer(1, 2*mm)]
+        # Seit 1.8.32 auch der Freitext aus dem Angebot (execution_period_text()).
+        period = execution_period_text(order)
+        if period:
+            story += [Paragraph(f"<b>Ausführungszeitraum:</b> {ptext(period)}", body), Spacer(1, 2*mm)]
         if data.get('remarks'):
             story += [Paragraph(f"<b>Bemerkungen:</b><br/>{ptext(data['remarks'])}", body), Spacer(1, 3*mm)]
         # Auftrag zeigt die Zahlungsbedingung nur als Bezeichnung, ohne den

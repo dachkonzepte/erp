@@ -29,6 +29,7 @@ from .calculation import effective_material_sale_price, get_or_create_settings
 from .models import Invoice, InvoiceItem, Material, Order, OrderItem, PaymentTerm, ServiceReportMaterial, TaxKey, TimeEntry
 from .option_settings import default_option_value
 from .payment_terms import get_default_payment_term
+from .placeholders import apply_placeholders
 from .rounding import CENT, INVOICE_ROUNDING_HALF_UP, round_money
 from .settings import issue_number
 
@@ -939,10 +940,8 @@ def send_invoice_email(
     template = get_email_template(db, "invoice")
     subject_template = (template.subject_template if template else None) or DEFAULT_INVOICE_EMAIL_SUBJECT
     body_template = (template.body_template if template else None) or DEFAULT_INVOICE_EMAIL_BODY
-    subject, body = subject_template, body_template
-    for placeholder, value in placeholders.items():
-        subject = subject.replace(placeholder, value)
-        body = body.replace(placeholder, value)
+    subject = apply_placeholders(subject_template, placeholders)
+    body = apply_placeholders(body_template, placeholders)
 
     try:
         pdf = frozen_or_fresh_pdf(db, "rechnung", invoice.id, build=lambda: build_invoice_pdf(db, invoice),

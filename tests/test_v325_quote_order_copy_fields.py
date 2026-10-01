@@ -64,6 +64,8 @@ ORDER_FIELDS: dict[type, dict[str, tuple]] = {
         "order_date": eigen("im Beauftragen-Dialog eingegeben"),
         "execution_start": eigen("im Beauftragen-Dialog eingegeben"),
         "execution_end": eigen("im Beauftragen-Dialog eingegeben"),
+        # Seit 1.8.32 (vorher ging der Freitext verloren, Nebenbefund 1.8.21); danach am Auftrag änderbar.
+        "execution_period": von("QuoteDocumentMeta.execution_period", NUR_BEAUFTRAGEN),
         "payment_terms": von("QuoteDocumentMeta.payment_terms", NUR_BEAUFTRAGEN),  # Vorbelegung, wenn der Dialog nichts angibt
         "remarks": eigen("im Beauftragen-Dialog eingegeben"),
         "caseworker_employee_id": von("QuoteEmployeeAssignment.caseworker_employee_id", NUR_BEAUFTRAGEN),  # Vorbelegung
@@ -142,8 +144,6 @@ QUOTE_NOT_COPIED: dict[str, str] = {
     "QuoteDocumentMeta.valid_until": "Bindefrist des Angebots, mit der Beauftragung erledigt",
     "QuoteDocumentMeta.contact_person": "Anzeigename; der Auftrag übernimmt die Person selbst (QuoteEmployeeAssignment). "
                                         "Ein alter Freitext-Name ohne Mitarbeiter geht dabei nicht mit (Nebenbefund 1.8.21)",
-    "QuoteDocumentMeta.execution_period": "Freitext; der Auftrag führt Beginn/Ende als Datum aus dem Beauftragen-Dialog "
-                                          "(Nebenbefund 1.8.21: der Freitext geht dabei verloren)",
     "QuoteDocumentMeta.internal_note": "interne Notiz zum Angebot",
     "QuoteEmployeeAssignment.id": "technisch",
     "QuoteEmployeeAssignment.quote_id": "Zugehörigkeit zum Angebot",
@@ -216,6 +216,7 @@ def _build(db):
     quote.intro_text, quote.outro_text, quote.outro_text_2 = "Vortext", "Schlusstext", "Zweiter Schlusstext"
     meta, _, _ = ensure_quote_structure(db, quote)
     meta.payment_terms, meta.contract_basis = "14 Tage netto", "bgb"
+    meta.execution_period = "KW 42 bis 44, witterungsabhängig"
     db.add(QuoteEmployeeAssignment(quote_id=quote.id, caseworker_employee_id=staff[0].id))
     parent = QuoteSection(quote_id=quote.id, title="Dach", description="Beschreibung", sort_order=20, section_number="01")
     db.add(parent); db.flush()
@@ -248,6 +249,7 @@ def _change_everything(db, quote, keys, staff, sections):
     quote.intro_text, quote.outro_text, quote.outro_text_2 = "Vortext neu", "Schlusstext neu", "Zweiter neu"
     meta, _, layouts = ensure_quote_structure(db, quote)
     meta.contract_basis, meta.payment_terms = "vob_b", "30 Tage netto"
+    meta.execution_period = "KW 50"
     assignment = db.query(QuoteEmployeeAssignment).filter_by(quote_id=quote.id).one()
     assignment.caseworker_employee_id = staff[1].id
     for section, suffix in ((parent, "P"), (child, "K"), (other, "O")):

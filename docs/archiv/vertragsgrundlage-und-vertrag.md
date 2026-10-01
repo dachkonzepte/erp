@@ -14,7 +14,8 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | Runde | Version | Inhalt | Stand |
 |---|---|---|---|
 | **2b-1a** | 1.8.21 | Vertragsgrundlage: Verbraucher-Merkmal am Kunden, Vertragsgrundlage an Angebot und Auftrag, Klauseltext je Grundlage mit rechtlicher Prüfung, Übernahme/Abgleich, Fehler `tax_key_id`/`outro_text_2`, Feldliste Angebot/Auftrag | erledigt |
-| **2b-1b** | — | Vertragsvorlagen und Vertrag | offen |
+| **2b-1b Teil 1** | 1.8.32 | Vertragsvorlagen (Abschnitte, Platzhalter, nur bei Verbrauchern, Prüfung), Vertragsentwurf beim Beauftragen mit Fallfeldern, Ausführungszeitraum aus dem Angebot, PDF `contract` mit Angebot als Anlage und Wasserzeichen | erledigt |
+| **2b-1b Teil 2** | — | Vertrag festschreiben, versenden, unterschreiben | offen |
 | **2b-2** | — | Beteiligte mit Adressbuch | offen |
 | **2b-3** | — | Behinderungsanzeige | offen |
 | **2b-4** | — | Bedenkenanzeige | offen |
@@ -153,6 +154,7 @@ mit Liste aller Felder. (6) Tests mit Gegenprobe.
    führt nur Beginn/Ende als Datum aus dem Dialog; das Auftrags-PDF zeigt den Zeitraum nur, wenn dort
    Daten eingetragen wurden. Ebenso ein alter Freitext-Ansprechpartner ohne Mitarbeiterbezug.
    Beides steht begründet in `QUOTE_NOT_COPIED`, fachlich zu entscheiden.
+   **Ausführungszeitraum behoben in 1.8.32** (siehe unten); der Freitext-Ansprechpartner bleibt offen.
 4. **Neue und importierte Kunden sind Verbraucher, unabhängig von der Kategorie** (Vorgabe ja): ein
    neu angelegter oder per Adressimport übernommener Gewerbekunde bekommt dadurch bei neuen
    Angeboten `bgb_vob_c_4_5`, bis jemand das Häkchen entfernt. Denkbar: Häkchen beim Wählen einer der
@@ -160,3 +162,102 @@ mit Liste aller Felder. (6) Tests mit Gegenprobe.
 5. **LV-Kopfzeile ragt bei 1400 px Breite in die rechte Spalte** (Angebots-Editor "GESAMTPREIS"
    über "Angebotstitel", Auftragsseite "GP" über der Karte) -- auf den Klicktest-Bildern sichtbar,
    unabhängig von dieser Runde.
+
+---
+
+## Umsetzung 1.8.32 (01.10.2026) -- Runde 2b-1b Teil 1: Vertragsvorlagen und Vertragsentwurf
+
+Betreibervorgabe: (1) Einstellungen → Vertragsvorlagen: je Vertragsgrundlage eine Vorlage aus Abschnitten
+mit Text und Platzhaltern (gemeinsames Platzhalter-Modul auf Basis von `_apply_placeholders`), Liste der
+Platzhalter in der Oberfläche; ein Abschnitt kann "nur bei Verbrauchern" sein (Widerrufsbelehrung,
+Muster-Widerrufsformular, Ankreuzfeld vorzeitiger Beginn); Prüfangaben wie bei den Klauseln, Textänderung
+setzt sie zurück, speichern nur Admin, keine vorgegebenen Texte. (2) Beim Beauftragen ein Vertragsentwurf am
+Auftrag, wenn es für dessen Grundlage eine Vorlage gibt; Fallfelder Ausführungszeitraum, Abschlagsplan,
+Besonderheiten. (3) Fehler: der freie Ausführungszeitraum des Angebots ging beim Beauftragen verloren -- in
+den Auftrag übernehmen, Vorgabe im Entwurf, Feldlisten-Test. (4) Dokumenttyp `vertrag` im gemeinsamen
+Rahmen, Angebot als Anlage, bei ungeprüfter Vorlage "Entwurf – Vertragstext nicht geprüft" quer auf jeder
+Seite. (5) Monteure kein Zugriff, Datengrenze-Test deckt die neuen Routen ab. (6) Tests mit Gegenprobe.
+Festschreiben, Versand und Unterschrift: Teil 2.
+
+- **Platzhalter** (`app/placeholders.py`): `apply_placeholders()` aus `reminders.py::_apply_placeholders()`
+  hervorgegangen, ersetzt jetzt in EINEM Durchgang (vorher je Schlüssel ein `str.replace()` über den ganzen
+  Text: ein eingesetzter Wert, der wie ein Platzhalter aussieht, wurde von einem späteren Schlüssel noch
+  einmal ersetzt -- bei Beträgen nie, bei Freitext im Vertrag schon). `None` als Wert ergibt "" statt
+  `TypeError`. Mahnung (Text und Mail) und die E-Mails von Angebot, Auftrag, Rechnung und Checkliste nutzen
+  es statt eigener Schleifen. `placeholders_in()`/`unknown_placeholders()` für die Warnung in der Vorlage.
+- **Vorlagen** (`app/contract_templates.py`, rollenlos): Tabellen `contract_templates` (`basis_key`
+  eindeutig, `title`, `reviewed_on`, `reviewed_by`, wer/wann) und `contract_template_sections`
+  (`sort_order`, `heading`, `body_text`, `consumer_only`, `with_checkbox`). 22 Platzhalter
+  (`CONTRACT_PLACEHOLDERS`: Betrieb, Kunde/Objekt als Schnappschuss am Auftrag, Auftrag, Angebot, Vorgang,
+  Vertragsgrundlage, Summen, Zahlungsbedingungen, die drei Fallfelder). Gespeichert wird immer die ganze
+  Vorlage (`PUT /api/settings/contract-templates/{key}`, alle Felder Pflicht, Admin); leere Abschnitte
+  fallen weg. Regeln wie `update_clause()`. **Festlegung (bitte bestätigen): jede inhaltliche Änderung
+  setzt die Prüfung zurück** -- Titel, Überschrift, Text, Reihenfolge, "nur bei Verbrauchern",
+  Ankreuzfeld --, nicht nur der Text; alles davon verändert den Vertrag. Die Seite meldet unbekannte
+  Platzhalter und Fallfelder, deren Platzhalter die Vorlage nicht nutzt (ihr Inhalt käme sonst still
+  nicht in den Vertrag). Eine Vorlage "existiert", sobald ein Abschnitt Inhalt hat; auch eine ungeprüfte
+  erzeugt Entwürfe (mit Wasserzeichen). Kein Seeding.
+- **Ankreuzfeld**: Schalter je Abschnitt statt eines Zeichens im Text -- Helvetica hat kein Kästchen, ein
+  "☐" erschiene als fehlendes Zeichen. Gezeichnetes Kästchen (`_Checkbox` in `app/contract_pdf.py`) links
+  neben dem Text.
+- **Entwurf** (`order_contracts`, höchstens einer je Auftrag, Kaskade am Auftrag): Status `entwurf`,
+  `execution_period`, `payment_plan`, `special_terms`, wer/wann. `create_order_from_quote()` legt ihn in
+  derselben Transaktion an, wenn es für die Grundlage eine Vorlage gibt (lokaler Import, Regel 3) -- damit
+  auch beim Schnellauftrag. **Festlegung: Entwurf auch von Hand** (`POST /api/orders/{id}/contract`, Karte
+  "Vertrag" auf der Auftragsseite) -- sonst bekämen Aufträge von vor 1.8.32 und Aufträge, deren Vorlage erst
+  später entsteht oder deren Grundlage geändert wurde, nie einen. Fallfelder per Teil-Update
+  (`PUT /api/orders/{id}/contract`, `OrderContractUpdate(PartialUpdate)`), nur im Status `entwurf`. Der
+  Ausführungszeitraum ist beim Anlegen aus dem Auftrag vorbelegt (`execution_period_text()`: Beginn/Ende und
+  Freitext) und folgt späteren Änderungen am Auftrag nicht.
+- **Live gelesen** (Teil 2 muss das beim Festschreiben einfrieren): Vorlage der HEUTIGEN Grundlage des
+  Auftrags (nach einer Änderung der Grundlage ohne passende Vorlage: PDF 409, Karte sagt es), das
+  Verbraucher-Merkmal vom Kunden des Vorgangs (der Auftrag hat keinen Schnappschuss davon), Summen und
+  Angebot. Der Kopf zeigt "Stand" = heutiges Datum.
+- **Ausführungszeitraum (Punkt 3)**: `orders.execution_period` (String(255)), beim Beauftragen aus
+  `QuoteDocumentMeta.execution_period`; **nur beim Beauftragen**, der Abgleich lässt ihn stehen (am Auftrag
+  änderbar, wie die Zahlungsbedingungen). Feldliste: `von("QuoteDocumentMeta.execution_period",
+  NUR_BEAUFTRAGEN)`, aus `QUOTE_NOT_COPIED` gestrichen, beide Verhaltenstests setzen bzw. ändern ihn.
+  Auftrags-PDF: "Ausführungszeitraum: 12.10.2026 – KW 42–44" (Daten und Freitext). Bestandsaufträge bleiben
+  leer (wie `tax_key_id` 1.8.21: ein Nachdruck eines versendeten Auftrags sähe sonst anders aus); am Auftrag
+  nachtragbar. `PUT /api/orders/{id}` dafür zum Teil-Update umgebaut (siehe `docs/archiv/teil-updates.md`).
+- **PDF** (`app/contract_pdf.py`): Dokumenttyp `contract` in `RENDERERS_USING_SHARED_FRAME` und
+  `DOCUMENT_TYPES` (Rückfall auf "default" wie alle). Kopf wie der Auftrag (Auftragsnr., Auftragsdatum, Ihr
+  Angebot, Projekt, Kunden-Nr., Stand, Seite), Objektanschrift, Titel (Vorgabe "Vertrag"), Abschnitte,
+  "Anlage: Angebot … vom …". Danach das Angebot aus `build_quote_framed_pdf()`, angehängt mit pypdfium2
+  (`import_pages`). Wasserzeichen: neuer Parameter `watermark_text` an `render_framed_pdf()`, gezeichnet in
+  `_NumberedCanvas.save()` halbtransparent über dem Inhalt, 54,7° (A4-Diagonale); `build_quote_framed_pdf()`
+  reicht ihn durch, damit auch die Seiten der Anlage ihn tragen.
+- **Rechte**: Vorlagen lesen ab `buero_auftrag`, speichern Admin; Vertrag lesen/anlegen/ändern/PDF ab
+  `buero_auftrag`; Monteure 403 überall. `test_v326_monteur_datengrenze.py` ruft die drei neuen GET-Routen
+  im Durchlauf auf und verlangt 403 (`test_vertragsrouten_im_durchlauf_fuer_monteure_gesperrt`).
+- **Migration `8caedec524b4`**: drei Tabellen, eine Spalte. `downgrade()` verweigert, sobald eine Vorlage,
+  ein Entwurf oder ein Ausführungszeitraum am Auftrag verloren ginge.
+- **Verifikation**: `tests/test_v335_vertragsvorlagen.py` (27, darunter `downgrade()`/`upgrade()` der
+  Migration), Feldliste (`test_v325_quote_order_copy_fields.py`), Datengrenze (`test_v326`), Strukturtest
+  Teil-Updates (`test_v329`), Rollout-Status (`test_v229`) und `test_v333` (schickt jetzt auch den Zeitraum,
+  den `saveOrder()` sendet) angepasst. 24 Gegenproben rot (Skript im Scratchpad, Datei byte-genau zurück):
+  Verbraucher-Filter weg, Wasserzeichen nie/immer/nicht auf der Anlage/nicht gezeichnet, Anlage fehlt,
+  Prüfung bleibt nach Textänderung, nur Text zählt als Änderung, Prüfangaben einzeln, Datum in der Zukunft,
+  Büro speichert Vorlagen, Monteur darf Vertrag, Entwurf ohne Vorlage, kein Entwurf beim Beauftragen,
+  Zeitraum nicht übernommen, Entwurf ohne Vorgabe, Auftrags-PDF ohne Freitext, Abgleich überschreibt
+  Zeitraum, Auftrags-PUT und Fallfelder als volles Formular, abgeschlossener Vertrag änderbar, Platzhalter
+  wieder nacheinander, Downgrade ohne Schutz, leere Vorlage zählt. Migration gegen SQLite (Wegwerf-Datei,
+  Kommandozeile) und PostgreSQL 17 (Wegwerf-Schema in `spielwiese`: Kette bis `8af8137cc57c`, Bestand,
+  upgrade, Unique-Schlüssel, Downgrade-Abbruch mit Vorlage und mit Zeitraum, downgrade, upgrade,
+  `alembic check`). Klicktest `scripts/klicktest_vertragsvorlagen.py` 36/36 (Einstellungen als Admin und
+  Büro, 412 px, Auftragsseite hell/dunkel, Entwurf von Hand).
+
+### Nebenbefunde 1.8.32 (nur gemeldet)
+
+1. **Die Anlage ist der heutige Stand des Angebots**, nicht die versendete Fassung aus der Ablage. Wurde das
+   Angebot nach der Beauftragung geändert, weicht die Anlage vom Auftrag ab (die Karte sagt es). Für Teil 2
+   zu entscheiden: welche Fassung beim Festschreiben angehängt wird.
+2. **Briefpapier zweimal eingebettet**: Vertrag und Anlage sind zwei PDFs, jedes bettet den Hintergrund ein.
+   Für die 3-MB-Grenze beim Versand (Teil 2) mit echtem Briefpapier nachmessen.
+3. **Textfelder der Auftragsseite in Festbreitenschrift**: `order.html` setzt für `textarea` keine Schrift,
+   alle Textfelder der Seite (Vortext, Schlusstexte, Bemerkungen, jetzt auch die Fallfelder) erscheinen in
+   der Browser-Vorgabe. Kosmetisch, bestand schon.
+4. **Schnellauftrag**: läuft über `create_order_from_quote()` und bekommt damit ebenfalls einen Entwurf,
+   sobald es für seine Grundlage eine Vorlage gibt. Folgerichtig, aber bei Wartungs-Schnellaufträgen
+   vermutlich nicht gebraucht.
+

@@ -4,6 +4,30 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.32 – Vertragsvorlagen und Vertragsentwurf am Auftrag
+
+Stufe 2b, Runde 2b-1b Teil 1. Neu unter Einstellungen → Vertragsvorlagen: je Vertragsgrundlage eine Vorlage aus
+Titel und Abschnitten mit Text und Platzhaltern (Liste der 22 Platzhalter auf der Seite, Warnung bei unbekannten
+und bei Fallfeldern, die die Vorlage nicht nutzt). Ein Abschnitt kann „nur bei Verbrauchern“ sein und ein
+gezeichnetes Ankreuzfeld tragen (Widerrufsbelehrung, Muster-Widerrufsformular, vorzeitiger Beginn). Wie bei den
+Klauseln keine vorgegebenen Texte, Prüfangaben „rechtlich geprüft am, durch“, speichern nur Administratoren; jede
+inhaltliche Änderung (Text, Titel, Reihenfolge, Schalter) ohne neue Prüfangaben setzt die Prüfung zurück. Beim
+Beauftragen legt das ERP am Auftrag einen Vertragsentwurf an, wenn es für dessen Grundlage eine Vorlage gibt,
+sonst über die neue Karte „Vertrag“ auf der Auftragsseite von Hand. Fallfelder: Ausführungszeitraum (aus dem
+Auftrag vorbelegt), Abschlagsplan, Besonderheiten. Das PDF (Dokumenttyp `contract` im gemeinsamen Rahmen) hängt
+das Angebot als Anlage an; bei ungeprüfter Vorlage steht „Entwurf – Vertragstext nicht geprüft“ quer auf jeder
+Seite, auch der Anlage. Monteure haben keinen Zugriff. Festschreiben, Versand und Unterschrift folgen in Teil 2.
+
+Fehler behoben: der freie Ausführungszeitraum des Angebots ging beim Beauftragen verloren. Er steht jetzt am
+Auftrag (`orders.execution_period`, nur beim Beauftragen übernommen, am Auftrag änderbar) und im Auftrags-PDF
+neben Beginn/Ende; Bestandsaufträge bleiben leer. `PUT /api/orders/{id}` ist dafür ein Teil-Update (Regel 22),
+die Liste der Altfälle ist um einen kürzer. Platzhalter ersetzt jetzt ein gemeinsames Modul
+(`app/placeholders.py`, aus `_apply_placeholders` der Mahnung) in einem Durchgang; Mahnung und die E-Mails von
+Angebot, Auftrag, Rechnung und Checkliste nutzen es. Migration `8caedec524b4` (drei Tabellen, eine Spalte,
+Downgrade nur ohne Datenverlust), gegen SQLite und PostgreSQL hin/zurück/hin, `alembic check` sauber.
+`tests/test_v335_vertragsvorlagen.py` (27 Tests), Feldlisten- und Datengrenze-Test erweitert; 24 Gegenproben
+rot. Klicktest `scripts/klicktest_vertragsvorlagen.py` 36/36.
+
 ## 1.8.31 – Restfälle der Auswahllisten: abgeschlossener Auftrag, Steuerschlüssel, leere Werte
 
 Restfälle aus 1.8.30 behoben. In der Backoffice-Korrektur einer Zeitbuchung fehlte ein abgeschlossener Auftrag in

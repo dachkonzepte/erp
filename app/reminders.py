@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 from .berlin_time import berlin_today
 from .invoices import compute_invoice_totals, get_invoice, invoice_rounding
 from .models import Invoice, Reminder, ReminderLevel
+from .placeholders import apply_placeholders
 from .rounding import CENT
 from .settings import get_or_create_general_settings, issue_number
 
@@ -163,17 +164,11 @@ def _reminder_placeholders(reminder: Reminder) -> dict:
     }
 
 
-def _apply_placeholders(text: str, replacements: dict) -> str:
-    for placeholder, value in replacements.items():
-        text = text.replace(placeholder, value)
-    return text
-
-
 def format_reminder_text(reminder: Reminder) -> str:
     """Ersetzt Platzhalter in reminder.text mit den echten Werten -- analog
     zu format_payment_terms_sentence() in app/invoices.py. Ein unbekannter
     Platzhalter bleibt einfach stehen, kein Fehler."""
-    return _apply_placeholders(reminder.text or "", _reminder_placeholders(reminder))
+    return apply_placeholders(reminder.text or "", _reminder_placeholders(reminder))
 
 
 def create_reminder(db: Session, invoice: Invoice, level: int) -> Reminder:
@@ -269,8 +264,8 @@ def send_reminder_email(
 
     subject_template = (level_cfg.email_subject_template if level_cfg else None) or DEFAULT_REMINDER_EMAIL_SUBJECT
     body_template = (level_cfg.email_body_template if level_cfg else None) or DEFAULT_REMINDER_EMAIL_BODY
-    subject = _apply_placeholders(subject_template, placeholders)
-    body = _apply_placeholders(body_template, placeholders)
+    subject = apply_placeholders(subject_template, placeholders)
+    body = apply_placeholders(body_template, placeholders)
 
     try:
         pdf = frozen_or_fresh_pdf(db, "mahnung", reminder.id, build=lambda: build_reminder_pdf(db, reminder),

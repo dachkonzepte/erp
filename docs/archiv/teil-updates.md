@@ -58,11 +58,11 @@ Der Sweep 1.8.24 fand sechs weitere, je mit einer Oberfläche, die das Feld wegl
 
 ## Die eingefrorene Liste (BEKANNT im Strukturtest)
 
-Beim Einführen fand der Test 77 weitere Handler (seit 1.8.29 noch 74, siehe unten). Ein Agent hat alle 117 PUT/PATCH-Routen samt
+Beim Einführen fand der Test 77 weitere Handler (seit 1.8.29 noch 74, seit 1.8.32 noch 73, siehe unten). Ein Agent hat alle 117 PUT/PATCH-Routen samt
 Geschäftsfunktion und jedem Aufrufer in den Vorlagen durchgesehen (01.10.2026):
 
 - **69 übernehmen nicht gesendete Felder** (seit 1.8.29 noch 66: die drei der Arbeitsvorbereitung sind
-  Teil-Updates, siehe Nebenbefund 1), aber jede Oberfläche schickt dort heute alle Felder -- kein
+  Teil-Updates, siehe Nebenbefund 1; seit 1.8.32 noch 65: der Auftragskopf, siehe unten), aber jede Oberfläche schickt dort heute alle Felder -- kein
   Datenverlust, solange kein neuer Aufrufer ein Feld weglässt. Davon 6 absichtlich ("Weglassen heißt
   leeren"): Checklisten-Antwort, Dashboard-Layout, Standard-Prüfvorlage je Dachtyp, Betriebskosten des
   Betriebsmittels, Position in der Dachskizze, Sperrdatum der Zeiterfassung. `PUT
@@ -185,3 +185,14 @@ Tests: `tests/test_v334_auswahl_restfaelle.py` -- die Oberflächen in node mit e
 `saveEntryEdit()` laufen echt, der geschickte Body geht an den Server. Angebots-Texte: die vier
 `fillTextSelect()`-Aufrufe aus `renderAll()` wörtlich. Gegenprobe mit dem Stand von 1.8.30: 10 von 10 rot.
 `scripts/klicktest_auswahl_restfaelle.py` 19/19, alter Stand 6/19 (nur die Prüfungen "keine JS-Fehler" grün).
+
+## Auftragskopf als Teil-Update (seit 1.8.32)
+
+`PUT /api/orders/{order_id}` bekam mit dem Freitext-Ausführungszeitraum (`execution_period`, Stufe 2b,
+Runde 2b-1b Teil 1, siehe `docs/archiv/vertragsgrundlage-und-vertrag.md`) ein neues Feld. Im alten
+Volles-Formular-Handler hätte jeder Aufrufer, der es nicht kennt, den Zeitraum beim Speichern geleert --
+deshalb jetzt `OrderUpdate(PartialUpdate)` mit `NOT_NULL = {title, status, order_date}` und
+`model_dump(exclude_unset=True)`. Aus `BEKANNT` gestrichen, in `REPARIERT_SPAETER` des Strukturtests
+festgehalten (darf nie wieder einen Fund haben). Die Auftragsseite schickt weiter alle Felder ihres
+Formulars, jetzt einschließlich des Zeitraums. Test: `tests/test_v335_vertragsvorlagen.py::
+test_order_put_without_execution_period_keeps_it`.

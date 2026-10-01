@@ -220,7 +220,6 @@ BEKANNT = {
     "PUT /api/operational-asset-inspections/{inspection_id}": _VOLLES_FORMULAR,
     "PUT /api/operational-assets/{asset_id}": _VOLLES_FORMULAR,
     "PUT /api/operational-assets/{asset_id}/recurring-cost": _LEEREN_GEWOLLT,
-    "PUT /api/orders/{order_id}": _VOLLES_FORMULAR,
     "PUT /api/orders/{order_id}/items/{item_id}": _VOLLES_FORMULAR,
     "PUT /api/orders/{order_id}/sections/{section_id}": _VOLLES_FORMULAR,
     "PUT /api/orders/{order_id}/work-preparation": _VOLLES_FORMULAR,
@@ -272,6 +271,10 @@ REPARIERT_1_8_25 = {
     "PUT /api/time-entry-groups/{group_id}", "PUT /api/settings/general", "PUT /api/invoices/{invoice_id}",
     "PUT /api/services/{service_id}/calculation",
 }
+# Seither einzeln zum Teil-Update umgebaut und aus BEKANNT gestrichen -- ebenso nie wieder ein Fund.
+REPARIERT_SPAETER = {
+    "PUT /api/orders/{order_id}",  # 1.8.32: neues Feld execution_period, ein Aufrufer ohne es hätte es geleert
+}
 
 
 def test_kein_update_handler_uebernimmt_nicht_gesendete_felder():
@@ -288,5 +291,6 @@ def test_kein_update_handler_uebernimmt_nicht_gesendete_felder():
 
 def test_die_reparierten_routen_bleiben_ohne_fund():
     funde, _ = update_handler_funde()
-    assert REPARIERT_1_8_25.isdisjoint(funde), {r: funde[r] for r in REPARIERT_1_8_25 & set(funde)}
-    assert REPARIERT_1_8_25.isdisjoint(BEKANNT)
+    repariert = REPARIERT_1_8_25 | REPARIERT_SPAETER
+    assert repariert.isdisjoint(funde), {r: funde[r] for r in repariert & set(funde)}
+    assert repariert.isdisjoint(BEKANNT)

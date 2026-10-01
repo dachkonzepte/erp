@@ -14,6 +14,7 @@ from .models import (
 )
 from .contract_basis import clause_is_reviewed, contract_basis_label
 from .invoices import compute_order_billing_progress
+from .placeholders import apply_placeholders
 from .projects import ensure_quote_structure, load_quote
 from .rounding import round_money
 from .settings import issue_number
@@ -40,6 +41,14 @@ def _json_default(value):
     if isinstance(value, (date, datetime)):
         return value.isoformat()
     raise TypeError(type(value).__name__)
+
+
+def execution_period_text(order: Order) -> str | None:
+    """Ausführungszeitraum für Auftrags-PDF und Vertragsentwurf (seit 1.8.32): Beginn/Ende aus dem
+    Beauftragen-Dialog und der Freitext aus dem Angebot, beides wenn vorhanden."""
+    span = " bis ".join(d.strftime("%d.%m.%Y") for d in (order.execution_start, order.execution_end) if d)
+    parts = [x for x in (span, (order.execution_period or "").strip()) if x]
+    return " – ".join(parts) or None
 
 
 def load_order(db: Session, order_id: int) -> Order | None:
@@ -378,6 +387,7 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
         "order_date": order.order_date,
         "execution_start": order.execution_start,
         "execution_end": order.execution_end,
+        "execution_period": order.execution_period,
         "payment_terms": order.payment_terms,
         "remarks": order.remarks,
         "caseworker_employee_id": order.caseworker_employee_id,
@@ -483,10 +493,8 @@ def send_order_email(
     template = get_email_template(db, "order")
     subject_template = (template.subject_template if template else None) or DEFAULT_ORDER_EMAIL_SUBJECT
     body_template = (template.body_template if template else None) or DEFAULT_ORDER_EMAIL_BODY
-    subject, body = subject_template, body_template
-    for placeholder, value in placeholders.items():
-        subject = subject.replace(placeholder, value)
-        body = body.replace(placeholder, value)
+    subject = apply_placeholders(subject_template, placeholders)
+    body = apply_placeholders(body_template, placeholders)
 
     pdf_bytes = build_order_pdf(db, order)
     user_id, user_name = actor_of(user)
@@ -683,6 +691,8 @@ def create_order_from_quote(
         order_date=order_date,
         execution_start=execution_start,
         execution_end=execution_end,
+        # Seit 1.8.32 übernommen -- vorher ging der Freitext des Angebots hier verloren.
+        execution_period=meta.execution_period,
         payment_terms=payment_terms if payment_terms is not None else meta.payment_terms,
         remarks=remarks,
         caseworker_employee_id=caseworker_employee_id,
@@ -691,6 +701,10 @@ def create_order_from_quote(
     db.add(order)
     db.flush()
     _copy_quote_scope_to_order(db, order, quote)
+    # Seit 1.8.32: Vertragsentwurf, wenn es für die Vertragsgrundlage eine Vorlage gibt -- in derselben
+    # Transaktion. Lokal importiert: app/contract_templates.py importiert aus diesem Modul.
+    from .contract_templates import create_contract_draft_if_template
+    create_contract_draft_if_template(db, order, actor_name=actor_name)
 
     quote.status = "beauftragt"
     project.status = "beauftragt"

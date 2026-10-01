@@ -185,7 +185,7 @@ def test_rollout_status_lists_reminder_as_using_shared_settings(threaded_db_sess
     1.3.13 -- dort zunächst nur der NEUE, parallele Renderer app/quote_framed_pdf.py, der
     produktive Vorschau-/Versand-Pfad läuft bis zur Umstellung weiterhin über den alten
     quote_layout_pdf.py -- der Monteurs-Stundenzettel seit 1.3.61, app/field_timesheet_pdf.py, und
-    die Checkliste seit 1.8.4, app/checklist_pdf.py),
+    die Checkliste seit 1.8.4, app/checklist_pdf.py, und der Vertrag seit 1.8.32, app/contract_pdf.py),
     nicht mehr nur die Mahnung."""
     from app.routers.document_layout import router as document_layout_router
 
@@ -197,7 +197,7 @@ def test_rollout_status_lists_reminder_as_using_shared_settings(threaded_db_sess
     using = {row["document_type"] for row in body["using_shared_settings"]}
     pending = {row["document_type"] for row in body["not_yet_migrated"]}
     excluded = {row["document_type"] for row in body["excluded"]}
-    assert using == {"reminder", "invoice", "order", "service_report", "quote", "field_timesheet", "checklist"}
+    assert using == {"reminder", "invoice", "order", "service_report", "quote", "field_timesheet", "checklist", "contract"}
     assert pending == set()
     # "excluded" war bis 1.3.13 hartkodiert {"quote"} -- seit der neue, parallele
     # Angebots-Renderer "quote" selbst registriert, wäre das ein Widerspruch zu "using". Aktuell

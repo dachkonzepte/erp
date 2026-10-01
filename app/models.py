@@ -945,6 +945,10 @@ class Order(Base):
     order_date: Mapped[date] = mapped_column(Date, default=date.today)
     execution_start: Mapped[date | None] = mapped_column(Date, nullable=True)
     execution_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Freitext-Ausführungszeitraum (seit 1.8.32): beim Beauftragen aus dem Angebot übernommen
+    # (QuoteDocumentMeta.execution_period), danach am Auftrag änderbar; der Abgleich lässt ihn stehen.
+    # Vorher ging er beim Beauftragen verloren (Nebenbefund 1.8.21).
+    execution_period: Mapped[str | None] = mapped_column(String(255), nullable=True)
     payment_terms: Mapped[str | None] = mapped_column(Text, nullable=True)
     remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
     caseworker_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True, index=True)
@@ -970,6 +974,11 @@ class Order(Base):
     project_manager: Mapped["Employee | None"] = relationship(foreign_keys=[project_manager_employee_id])
     contract_basis_changes: Mapped[list["OrderContractBasisChange"]] = relationship(
         back_populates="order", cascade="all, delete-orphan", order_by="OrderContractBasisChange.id"
+    )
+    # Vertrag zum Auftrag (seit 1.8.32): höchstens einer, entsteht beim Beauftragen, wenn es für die
+    # Vertragsgrundlage eine Vorlage gibt (app/contract_templates.py).
+    contract: Mapped["OrderContract | None"] = relationship(
+        back_populates="order", cascade="all, delete-orphan", uselist=False
     )
 
 
@@ -1006,6 +1015,72 @@ class ContractBasisClause(Base):
     reviewed_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
     updated_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ContractTemplate(Base):
+    """Vertragsvorlage je Vertragsgrundlage (seit 1.8.32, Einstellungen -> Vertragsvorlagen): Titel und
+    Abschnitte mit Text und Platzhaltern. Wie bei der Klausel keine vorgegebenen Texte und eine
+    rechtliche Prüfung (Datum und Name); ohne sie trägt jede Seite des Vertrags-PDFs das Wasserzeichen
+    "Entwurf – Vertragstext nicht geprüft". Ändert sich der Text ohne neue Prüfangaben, fällt die
+    Prüfung weg (app/contract_templates.py::save_template()). Zeilen entstehen beim ersten Speichern."""
+
+    __tablename__ = "contract_templates"
+    __table_args__ = (UniqueConstraint("basis_key", name="uq_contract_template_basis_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    basis_key: Mapped[str] = mapped_column(String(30))
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reviewed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    updated_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    sections: Mapped[list["ContractTemplateSection"]] = relationship(
+        back_populates="template", cascade="all, delete-orphan",
+        order_by="ContractTemplateSection.sort_order",
+    )
+
+
+class ContractTemplateSection(Base):
+    """Abschnitt einer Vertragsvorlage (seit 1.8.32). consumer_only: nur im Vertrag, wenn der Kunde
+    Verbraucher ist (Widerrufsbelehrung, Muster-Widerrufsformular, Verlangen des vorzeitigen Beginns).
+    with_checkbox: vor dem Text steht ein leeres Ankreuzfeld (die Standardschrift des PDFs kennt kein
+    Kästchen-Zeichen, deshalb gezeichnet)."""
+
+    __tablename__ = "contract_template_sections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    template_id: Mapped[int] = mapped_column(ForeignKey("contract_templates.id"), index=True)
+    sort_order: Mapped[int] = mapped_column(default=10)
+    heading: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    body_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    consumer_only: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    with_checkbox: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+
+    template: Mapped[ContractTemplate] = relationship(back_populates="sections")
+
+
+class OrderContract(Base):
+    """Vertrag zum Auftrag (seit 1.8.32, Stufe 2b, Runde 2b-1b Teil 1: nur der Entwurf). Entsteht beim
+    Beauftragen, wenn es für die Vertragsgrundlage des Auftrags eine Vorlage gibt. Trägt nur die
+    Fallfelder; Vorlagentext, Kunde, Summen und die Vertragsgrundlage werden beim Erzeugen des PDFs
+    live gelesen. Festschreiben, Versand und Unterschrift folgen in Teil 2."""
+
+    __tablename__ = "order_contracts"
+    __table_args__ = (UniqueConstraint("order_id", name="uq_order_contract_order"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="entwurf", server_default="entwurf")
+    execution_period: Mapped[str | None] = mapped_column(Text, nullable=True)
+    payment_plan: Mapped[str | None] = mapped_column(Text, nullable=True)
+    special_terms: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(160), default="System")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    order: Mapped[Order] = relationship(back_populates="contract")
 
 
 class OrderRevision(Base):

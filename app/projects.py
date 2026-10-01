@@ -18,6 +18,7 @@ from .project_documents import project_directory
 from .project_pipeline_columns import default_pipeline_column_id
 from .settings import preview_number
 from .payment_terms import get_default_payment_term
+from .placeholders import apply_placeholders
 from .rounding import round_money
 
 
@@ -628,10 +629,8 @@ def send_quote_email(
     template = get_email_template(db, "quote")
     subject_template = (template.subject_template if template else None) or DEFAULT_QUOTE_EMAIL_SUBJECT
     body_template = (template.body_template if template else None) or DEFAULT_QUOTE_EMAIL_BODY
-    subject, body = subject_template, body_template
-    for placeholder, value in placeholders.items():
-        subject = subject.replace(placeholder, value)
-        body = body.replace(placeholder, value)
+    subject = apply_placeholders(subject_template, placeholders)
+    body = apply_placeholders(body_template, placeholders)
 
     pdf_bytes = build_quote_framed_pdf(db, quote)
     user_id, user_name = actor_of(user)

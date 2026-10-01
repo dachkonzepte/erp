@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.31** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.32** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -591,7 +591,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     und gekennzeichnet; der Server prüft "aktiv" nur bei einem neu gewählten Wert. Ein leerer gespeicherter
     Wert bleibt leer -- eine Vorgabe aus den Einstellungen gilt nur beim Anlegen (seit 1.8.31).
     `tests/test_v329_update_handler_struktur.py` prüft jeden
-    PUT/PATCH-Handler per AST; die 74 Altfälle stehen dort als Liste, die nur kürzer werden darf.
+    PUT/PATCH-Handler per AST; die 73 Altfälle stehen dort als Liste, die nur kürzer werden darf.
     Details: `docs/archiv/teil-updates.md`.
 
 ## Fachbegriffe & Domänenmodell
@@ -732,7 +732,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   `Customer.is_consumer`, Vertragsgrundlage `vob_b`/`bgb_vob_c_4_5`/`bgb` an Angebot und Auftrag,
   Klausel nur rechtlich geprüft im PDF, Ändern am Auftrag nur mit Begründung; welche Felder
   Beauftragen und Abgleich übernehmen, hält `tests/test_v325_quote_order_copy_fields.py` fest --
-  ein neues Feld an Angebot oder Auftrag braucht dort einen Eintrag) --
+  ein neues Feld an Angebot oder Auftrag braucht dort einen Eintrag; seit 1.8.32 Vertragsvorlagen je
+  Grundlage und Vertragsentwurf am Auftrag, Dokumenttyp `contract`, Festschreiben/Versand folgen) --
   `docs/archiv/vertragsgrundlage-und-vertrag.md`
 - **Speichern nur gesendeter Felder** (`PartialUpdate`, Strukturtest über alle PUT-Handler, Liste der
   Altfälle, Nebenbefunde der Durchsicht aller Speichern-Aufrufer) -- `docs/archiv/teil-updates.md`
@@ -773,6 +774,10 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
 - **Self-Seeding mit SAVEPOINT-Absicherung**: siehe eigener Abschnitt "Self-Seeding gegen
   gleichzeitigen ersten Zugriff absichern" unten -- gilt für jede künftige
   `ensure_default_*()`-Funktion mit UNIQUE-Constraint.
+- **Platzhalter in Textvorlagen über `app/placeholders.py::apply_placeholders()`** (seit 1.8.32,
+  vorher je Versender eine eigene Schleife): ersetzt in einem Durchgang, ein eingesetzter Wert wird nie
+  erneut ersetzt; Mahnung, E-Mail-Vorlagen und Vertragsvorlagen nutzen es. Eine neue Vorlage mit
+  Platzhaltern zeigt ihre Liste in der Oberfläche und warnt vor unbekannten (`unknown_placeholders()`).
 - **KI-Aufrufe ausschließlich über `call_ai()`/`call_ai_async()`** (`app/ai_service.py`) --
   nie einen Adapter (`app/ai_adapters.py`) direkt importieren/aufrufen. `call_ai_async()` aus
   `async def`-Routen, `call_ai()` nur aus gewöhnlichen `def`-Routen (Starlette-Threadpool) --
@@ -1031,7 +1036,9 @@ nicht bearbeitete Felder stehen) und `klicktest_arbeitsvorbereitung.py` (1.8.29,
 Reihenfolge bleiben beim Speichern) und `klicktest_auswahl_inaktiv.py` (1.8.30, inaktive Mitarbeiterin, inaktiver
 Lieferant und archiviertes Projekt bleiben in Auftrag, Aufgaben-Editor und Arbeitsvorbereitung vorgewählt und gespeichert)
 und `klicktest_auswahl_restfaelle.py` (1.8.31, abgeschlossener Auftrag in der Backoffice-Korrektur, archivierter
-Steuerschlüssel, inaktiver Schichttyp, leerer Schlusstext 2 und leere Einheit im Angebot, Kunden-Kategorie).
+Steuerschlüssel, inaktiver Schichttyp, leerer Schlusstext 2 und leere Einheit im Angebot, Kunden-Kategorie)
+und `klicktest_vertragsvorlagen.py` (1.8.32, Vertragsvorlagen in den Einstellungen für Admin und Büro, Ausführungszeitraum
+und Karte "Vertrag" auf der Auftragsseite, Entwurf von Hand anlegen).
 Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
 im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten (Vorlage dort). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
@@ -1099,8 +1106,8 @@ Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 - ~~Kolonnenführer-Rolle für Gruppenbuchungen~~ -- seit 1.7.12 gelöst über das Kennzeichen
   `TeamEmployee.is_crew_leader` (keine eigene Rolle), siehe `docs/archiv/rechtekonzept.md`,
   "Zeiterfassung für Monteure" -> "Nachtrag (seit 1.7.12)".
-- **66 Update-Handler übernehmen weiterhin nicht gesendete Felder** (die sechs mit Datenverlust seit
-  1.8.25 behoben, die drei der Arbeitsvorbereitung seit 1.8.29, Regel 22): jede Oberfläche schickt dort heute alle Felder, kein akuter Datenverlust.
+- **65 Update-Handler übernehmen weiterhin nicht gesendete Felder** (die sechs mit Datenverlust seit
+  1.8.25 behoben, die drei der Arbeitsvorbereitung seit 1.8.29, der Auftragskopf seit 1.8.32, Regel 22): jede Oberfläche schickt dort heute alle Felder, kein akuter Datenverlust.
   Eingefroren in `BEKANNT` (`tests/test_v329_update_handler_struktur.py`), Abbau bei Gelegenheit; dazu
   Speichern-Aufrufe, die nicht bearbeitete oder gemerkte Werte schicken: `docs/archiv/teil-updates.md`,
   "Nebenbefunde der Durchsicht".
