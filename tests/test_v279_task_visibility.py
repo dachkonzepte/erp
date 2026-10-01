@@ -14,8 +14,8 @@ Drei Dinge werden hier belegt:
    gemeinsamen Eingang, niemals auf Kollegen-Aufgaben.
 2. claim_task()/release_task() -- "Übernehmen" weist fest zu (kein dritter Zustand), lehnt
    bereits vergebene Aufgaben ab, verlangt eine employee_id-Verknüpfung; "Zurück in den
-   Büro-Eingang" hat bewusst KEINE Eigentümerschafts-Prüfung (Konsistenz mit der bereits
-   bestehenden Lücke bei PUT/DELETE/archive, siehe CLAUDE.md "Aufgabe").
+   Büro-Eingang" ist in der Geschäftsfunktion rollenblind -- seit 1.8.26 prüft der Router dieselbe
+   Sichtbarkeit wie das Lesen (tests/test_v330_aufgaben_sichtbarkeit_aendern.py).
 3. Der verlangte Angriffstest: ein Monteur kommt über KEINEN Weg an eine empfängerlose
    Büro-Aufgabe -- auch nicht über den Übernehmen-Endpunkt mit einer geratenen ID --, und ein
    Büro-Konto sieht die empfängerlosen, aber nicht die persönlich zugewiesenen Aufgaben der
@@ -180,8 +180,8 @@ def test_claim_unknown_task_returns_none():
 
 
 def test_release_clears_assignment_without_ownership_check():
-    """Bewusst OHNE Eigentümerschafts-Prüfung -- konsistent mit der bereits bestehenden Lücke
-    bei PUT/DELETE/archive (siehe CLAUDE.md "Aufgabe")."""
+    """Die Geschäftsfunktion prüft keine Eigentümerschaft -- das tut seit 1.8.26 der Router
+    (task_visible_for_user(), siehe tests/test_v330_aufgaben_sichtbarkeit_aendern.py)."""
     db = db_session()
     emp1, _ = make_employees(db)
     t = create_task(db, title="Für Erika", assigned_employee_id=emp1.id)

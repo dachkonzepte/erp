@@ -843,7 +843,10 @@ dokumentiert, wie verlangt) -- geprüft direkt am Code, nicht nur vermutet:
    Rechtekonzept -- fiele beim Öffnen von Aufgaben für `field` sofort auf, weil dann zum ersten
    Mal jemand mit einer wirklich anderen Interessenlage als "Büro" darauf träfe. Vor einer
    Öffnung für `field` müsste dieselbe `_require_task_access()`-Prüfung auch auf diese drei/vier
-   Endpunkte ausgedehnt werden.
+   Endpunkte ausgedehnt werden. **Behoben seit 1.8.26**: jeder Endpunkt auf eine einzelne Aufgabe
+   (PUT, DELETE, archive, unarchive, release, Checkliste) prüft `task_visible_for_user()`, dieselbe
+   Regel wie das Lesen -- siehe `docs/archiv/modul-aufgaben.md`, "Ändern prüft dieselbe Sichtbarkeit
+   wie Lesen".
 2. **Eine belastbare Zuweisung an den AppUser, nicht nur an den Employee.** Der bestehende
    Filter (Punkt 1) funktioniert nur, weil er `request.state.erp_user.employee_id` gegen
    `Task.assigned_employee_id` vergleicht -- verlässt sich also auf eine verlässliche

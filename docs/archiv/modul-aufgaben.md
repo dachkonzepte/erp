@@ -194,4 +194,38 @@ jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
     Eine Lohn-Aufgabe gibt es nicht. Offen bleibt die bekannte Lücke der Einzel-Endpunkte
     (PUT/DELETE/archive/unarchive/release ohne Eigentümer- und Rollenprüfung): wer die ID einer
     finanz-gebundenen Aufgabe errät, kann sie als buero_auftrag ändern und bekommt dabei den
-    Titel zurück.
+    Titel zurück. **Geschlossen seit 1.8.26**, siehe unten.
+
+  - **Bearbeiten lässt die Sichtbarkeitsgrenze stehen (seit 1.8.25)**: der Editor schickt
+    `min_visible_role` nicht mit, `PUT /api/tasks/{id}` setzte es bis dahin auf None zurück -- jede
+    gespeicherte Finanz-Aufgabe wurde für alle Büro-Konten sichtbar. `TaskUpdate` ist ein
+    Teil-Update, `update_task(db, id, **changes)` ändert nur übergebene Felder
+    (`docs/archiv/teil-updates.md`).
+
+  - **Ändern prüft dieselbe Sichtbarkeit wie Lesen (seit 1.8.26)**: `app/tasks.py::
+    task_visible_for_user(user, assigned_employee_id, min_visible_role)` ist die eine Regel --
+    Büro ab buero_auftrag, Ziel-Mindestrolle erfüllt, dann Admin alles, jedes andere Büro-Konto
+    eigene und empfängerlose Aufgaben. `list_tasks_for_user()` filtert damit, und
+    `app/routers/tasks.py::_require_visible_task()` prüft damit PUT, DELETE, archive, unarchive,
+    release und die drei Checklisten-Endpunkte: 403 "Diese Aufgabe ist für Sie nicht sichtbar."
+    ohne Titel, unbekannte ID weiter 404. Die Checkliste prüfte vorher "eigene Aufgabe" -- strenger
+    als das Lesen, eine empfängerlose Aufgabe ließ sich im Editor öffnen, ihre Checkliste aber nicht
+    abhaken; jetzt gilt auch dort dieselbe Regel. Übernehmen (claim) bleibt bei seinen eigenen
+    Prüfungen (Rolle 403, vergeben 400). Die Geschäftsfunktionen `release_task()`,
+    `set_task_archived()`, `delete_task()` bleiben rollenblind.
+
+    **Sichtbarkeitsgrenze nicht über Bearbeiten**: `TaskUpdate` lehnt `min_visible_role` mit 422 ab
+    ("Die Sichtbarkeitsgrenze einer Aufgabe lässt sich über Bearbeiten nicht ändern."), auch für
+    Admin; `update_task()` kennt das Feld nicht mehr (TypeError). Gesetzt wird sie nur beim Anlegen
+    (`create_task()`, heute Skonto, Kündigungsfrist, Checklisten-Regeln).
+
+    `tests/test_v330_aufgaben_sichtbarkeit_aendern.py`: für vier Konten (Admin, buero_finanzen,
+    buero_auftrag mit und ohne Mitarbeiter) ist die Menge der lesbaren Aufgaben-IDs gleich der der
+    änderbaren; Angriffstest buero_auftrag gegen eine Finanz-Aufgabe über alle sechs Wege (403, kein
+    Titel in der Antwort, Aufgabe unverändert), dazu die persönliche Aufgabe des Kollegen. Gegenprobe
+    mit Router und Schema von 1.8.25: 16 von 20 rot (die Checkliste war schon vorher gesperrt).
+
+    **Nebenbefund (nur gemeldet)**: `GET /api/tasks/{id}/finding` und `POST /api/tasks/{id}/
+    create-follow-up-project` (`app/routers/findings.py`) prüfen die Aufgaben-Sichtbarkeit nicht --
+    ein Büro-Konto liest per geratener ID den Mangel zur Aufgabe eines Kollegen bzw. legt daraus den
+    Vorgang an. Mängel sind für das Büro ohnehin über `/findings` lesbar.

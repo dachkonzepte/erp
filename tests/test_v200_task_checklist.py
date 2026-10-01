@@ -1,6 +1,5 @@
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
-from starlette.requests import Request
 
 from app.auth import hash_password
 from app.database import Base
@@ -12,13 +11,6 @@ def db_session():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
-
-
-def request_with_user(user):
-    req = Request({"type": "http", "method": "GET", "path": "/api/tasks", "headers": [],
-                   "query_string": b"", "server": ("test", 80), "client": ("test", 1234), "scheme": "http"})
-    req.state.erp_user = user
-    return req
 
 
 def make_employee(db):
@@ -93,6 +85,8 @@ def test_deleting_task_cascades_checklist_items():
 
 
 def test_non_admin_cannot_mutate_checklist_of_a_foreign_task():
+    """Seit 1.8.26 über dieselbe Sichtbarkeitsregel wie das Lesen (_require_visible_task()): die
+    persönliche Aufgabe eines Kollegen bleibt für ein Büro-Konto tabu."""
     from app.routers.tasks import post_checklist_item
     from app.schemas import TaskChecklistItemCreate
 
@@ -101,10 +95,10 @@ def test_non_admin_cannot_mutate_checklist_of_a_foreign_task():
     emp2 = Employee(employee_number="T-2", first_name="Otto", last_name="Zwei", employee_group="angestellt", hourly_wage="30", weekly_hours="40", active=True)
     db.add(emp2); db.commit()
     task = create_task(db, title="Für Erika", assigned_employee_id=emp1.id)
-    user2 = AppUser(username="u2", display_name="U2", role="user", employee_id=emp2.id, active=True, password_hash=hash_password("Passwort123"))
+    user2 = AppUser(username="u2", display_name="U2", role="buero_auftrag", employee_id=emp2.id, active=True, password_hash=hash_password("Passwort123"))
     db.add(user2); db.commit()
     try:
-        post_checklist_item(task["id"], TaskChecklistItemCreate(title="x"), request_with_user(user2), db=db)
+        post_checklist_item(task["id"], TaskChecklistItemCreate(title="x"), db=db, _role=user2)
         assert False, "sollte HTTPException auslösen"
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 403

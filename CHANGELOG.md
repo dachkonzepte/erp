@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.26 – Aufgaben: Ändern prüft dieselbe Sichtbarkeit wie Lesen
+
+Bekannte Lücke seit 1.4.3 geschlossen. Bearbeiten, Löschen, Archivieren, Reaktivieren und „Zurück in den
+Büro-Eingang“ prüften nur die Rolle, nicht die Sichtbarkeit. Wer die ID einer Finanz-Aufgabe oder der
+persönlichen Aufgabe eines Kollegen erriet, konnte sie als buero_auftrag ändern und bekam beim Ändern den
+Titel zurück. Jetzt ist `task_visible_for_user()` in `app/tasks.py` die eine Regel. Das Lesen
+(`list_tasks_for_user()`) filtert damit, und jeder Endpunkt auf eine einzelne Aufgabe prüft damit, auch die
+Checkliste. Sonst antwortet er mit 403 ohne Titel. Die Checkliste prüfte vorher „eigene Aufgabe“, strenger
+als das Lesen: eine empfängerlose Aufgabe ließ sich im Editor öffnen, ihre Checkliste aber nicht abhaken.
+Die Sichtbarkeitsgrenze lässt sich über Bearbeiten nicht mehr ändern, auch nicht als Admin (422); gesetzt
+wird sie nur beim Anlegen.
+
+`tests/test_v330_aufgaben_sichtbarkeit_aendern.py`: für vier Konten ist die Menge der lesbaren Aufgaben
+gleich der der änderbaren. Dazu der Angriffstest: buero_auftrag gegen eine Finanz-Aufgabe über alle sechs
+Wege, jeweils 403 ohne Titel, die Aufgabe bleibt unverändert. Gegenprobe mit Router und Schema von 1.8.25:
+16 von 20 rot. `tests/test_v200_task_checklist.py` ruft die Endpunkt-Funktion jetzt mit dem Konto statt
+eines Request-Objekts auf, mit einer echten Büro-Rolle statt der alten Rolle „user“. 20 neue Tests, Suite
+2328 grün. Nebenbefund, nur gemeldet: `GET /api/tasks/{id}/finding` und „Vorgang erstellen“ aus einer
+Aufgabe prüfen die Aufgaben-Sichtbarkeit nicht (`docs/archiv/modul-aufgaben.md`).
+
 ## 1.8.25 – Speichern übernimmt nur noch gesendete Felder
 
 Nebenbefund aus 1.8.24 behoben: sechs Update-Endpunkte übernahmen Felder, die ihr Aufrufer gar nicht

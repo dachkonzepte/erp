@@ -25,7 +25,7 @@ from ..schemas import (
 from ..tasks import (
     add_checklist_item, claim_task, create_task, delete_checklist_item, delete_task,
     get_or_create_task_settings, list_tasks_for_user, release_task, set_task_archived,
-    update_checklist_item, update_task, update_task_settings,
+    task_visible_for_user, update_checklist_item, update_task, update_task_settings,
 )
 from ..models import AppUser, Task
 
@@ -35,10 +35,8 @@ MODULE_KEY = "aufgabenmanagement"
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md → "Aufgaben"): heute wird in der echten Datenbank keine
 # einzige Aufgabe an einen Monteur zugewiesen -- Aufgaben bleiben deshalb für `field` vorerst
-# vollständig gesperrt, unabhängig von der bereits bestehenden Employee-Eigentümer-Filterung
-# unten (die weiterhin unverändert für jeden Nicht-Admin greift, der `office` erreicht). Siehe
-# CLAUDE.md für die dabei gefundene, noch offene Lücke (PUT/DELETE/archive prüfen heute KEINE
-# Eigentümerschaft) -- Grund, warum eine Öffnung für `field` nicht ohne Weiteres möglich ist.
+# vollständig gesperrt. Jeder Endpunkt auf eine einzelne Aufgabe prüft seit 1.8.26 zusätzlich
+# dieselbe Sichtbarkeit wie das Lesen (_require_visible_task()).
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
@@ -47,14 +45,17 @@ def _require_module_enabled(db: Session):
         raise HTTPException(status_code=403, detail="Das Modul Aufgabenmanagement ist deaktiviert.")
 
 
-def _require_task_access(db: Session, request: Request, task_id: int) -> Task:
+def _require_visible_task(db: Session, user: AppUser, task_id: int) -> Task:
+    """Ändern, Löschen, Archivieren, Zurück in den Büro-Eingang, Checkliste: nur an einer Aufgabe, die
+    die Person auch lesen darf (task_visible_for_user(), dieselbe Regel wie GET /api/tasks, seit
+    1.8.26). 403 ohne Titel -- bei einer geratenen ID verriete er sonst den Inhalt. Vorher prüften
+    diese Endpunkte nur die Rolle; die Checkliste prüfte "eigene Aufgabe", strenger als das Lesen
+    (eine empfängerlose Aufgabe ließ sich im Editor öffnen, ihre Checkliste aber nicht abhaken)."""
     task = db.get(Task, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Aufgabe nicht gefunden.")
-    user = getattr(request.state, "erp_user", None)
-    if user is not None and user.role != "admin":
-        if user.employee_id is None or task.assigned_employee_id != user.employee_id:
-            raise HTTPException(status_code=403, detail="Sie dürfen nur eigene Aufgaben bearbeiten.")
+    if not task_visible_for_user(user, task.assigned_employee_id, task.min_visible_role):
+        raise HTTPException(status_code=403, detail="Diese Aufgabe ist für Sie nicht sichtbar.")
     return task
 
 
@@ -91,6 +92,7 @@ def post_task(payload: TaskCreate, request: Request, db: Session = Depends(get_d
 @router.put("/api/tasks/{task_id}", response_model=TaskOut)
 def put_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
+    _require_visible_task(db, _role, task_id)
     try:
         result = update_task(db, task_id, **payload.model_dump(exclude_unset=True))
     except ValueError as exc:
@@ -103,6 +105,7 @@ def put_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db), _
 @router.delete("/api/tasks/{task_id}")
 def delete_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
+    _require_visible_task(db, _role, task_id)
     if not delete_task(db, task_id):
         raise HTTPException(status_code=404, detail="Aufgabe nicht gefunden.")
     return {"ok": True}
@@ -111,6 +114,7 @@ def delete_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: App
 @router.post("/api/tasks/{task_id}/archive", response_model=TaskOut)
 def archive_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
+    _require_visible_task(db, _role, task_id)
     result = set_task_archived(db, task_id, True)
     if result is None:
         raise HTTPException(status_code=404, detail="Aufgabe nicht gefunden.")
@@ -120,6 +124,7 @@ def archive_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: Ap
 @router.post("/api/tasks/{task_id}/unarchive", response_model=TaskOut)
 def unarchive_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
+    _require_visible_task(db, _role, task_id)
     result = set_task_archived(db, task_id, False)
     if result is None:
         raise HTTPException(status_code=404, detail="Aufgabe nicht gefunden.")
@@ -149,9 +154,11 @@ def claim_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppU
 
 @router.post("/api/tasks/{task_id}/release", response_model=TaskOut)
 def release_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    """"Zurück in den Büro-Eingang" -- macht eine Aufgabe wieder empfängerlos. Bewusst ohne
-    Eigentümerschafts-Prüfung, siehe app/tasks.py::release_task()."""
+    """"Zurück in den Büro-Eingang" -- macht eine Aufgabe wieder empfängerlos. Seit 1.8.26 nur an
+    einer Aufgabe, die die Person lesen darf (eigene, empfängerlose; Admin alle) -- die
+    Geschäftsfunktion app/tasks.py::release_task() bleibt rollenblind."""
     _require_module_enabled(db)
+    _require_visible_task(db, _role, task_id)
     result = release_task(db, task_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Aufgabe nicht gefunden.")
@@ -159,9 +166,9 @@ def release_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: Ap
 
 
 @router.post("/api/tasks/{task_id}/checklist-items", response_model=TaskChecklistItemOut)
-def post_checklist_item(task_id: int, payload: TaskChecklistItemCreate, request: Request, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_checklist_item(task_id: int, payload: TaskChecklistItemCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
-    _require_task_access(db, request, task_id)
+    _require_visible_task(db, _role, task_id)
     try:
         item = add_checklist_item(db, task_id, payload.title)
     except ValueError as exc:
@@ -172,9 +179,9 @@ def post_checklist_item(task_id: int, payload: TaskChecklistItemCreate, request:
 
 
 @router.put("/api/tasks/{task_id}/checklist-items/{item_id}", response_model=TaskChecklistItemOut)
-def put_checklist_item(task_id: int, item_id: int, payload: TaskChecklistItemUpdate, request: Request, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_checklist_item(task_id: int, item_id: int, payload: TaskChecklistItemUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
-    _require_task_access(db, request, task_id)
+    _require_visible_task(db, _role, task_id)
     try:
         item = update_checklist_item(db, task_id, item_id, title=payload.title, done=payload.done)
     except ValueError as exc:
@@ -185,9 +192,9 @@ def put_checklist_item(task_id: int, item_id: int, payload: TaskChecklistItemUpd
 
 
 @router.delete("/api/tasks/{task_id}/checklist-items/{item_id}")
-def delete_checklist_item_endpoint(task_id: int, item_id: int, request: Request, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_checklist_item_endpoint(task_id: int, item_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
-    _require_task_access(db, request, task_id)
+    _require_visible_task(db, _role, task_id)
     if not delete_checklist_item(db, task_id, item_id):
         raise HTTPException(status_code=404, detail="Checklisten-Punkt nicht gefunden.")
     return {"ok": True}

@@ -2969,8 +2969,19 @@ class TaskCreate(BaseModel):
 
 class TaskUpdate(PartialUpdate):
     """Teil-Update: der Editor auf /tasks schickt min_visible_role nicht mit (bis 1.8.24 dadurch
-    auf None zurückgesetzt -- eine Finanz-Aufgabe wurde für jedes Büro-Konto sichtbar)."""
+    auf None zurückgesetzt -- eine Finanz-Aufgabe wurde für jedes Büro-Konto sichtbar). Seit 1.8.26
+    lässt sich die Sichtbarkeitsgrenze über Bearbeiten gar nicht ändern: wer sie mitschickt, bekommt
+    422, auch als Admin -- sonst könnte jedes Büro-Konto eine sichtbare Aufgabe für sich unsichtbar
+    oder eine Finanz-Aufgabe allgemein sichtbar machen."""
     NOT_NULL = frozenset({"title", "status", "priority"})
+
+    @model_validator(mode="before")
+    @classmethod
+    def _sichtbarkeitsgrenze_nicht_aenderbar(cls, data):
+        if isinstance(data, dict) and "min_visible_role" in data:
+            raise ValueError("Die Sichtbarkeitsgrenze einer Aufgabe lässt sich über Bearbeiten nicht ändern.")
+        return data
+
     title: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
     status: str | None = None
@@ -2978,7 +2989,6 @@ class TaskUpdate(PartialUpdate):
     due_date: date | None = None
     assigned_employee_id: int | None = None
     project_id: int | None = None
-    min_visible_role: str | None = Field(default=None, pattern="^(admin|buero_finanzen|buero_auftrag|field)$")
 
 
 # --- Version 1.1.1: Konfigurierbare Aufgaben-Spalten ---

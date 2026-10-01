@@ -108,6 +108,22 @@ def list_tasks(db: Session, employee_id: int | None = None, status: str | None =
     return [task_to_dict(t, columns_by_key) for t in db.scalars(query).all()]
 
 
+def task_visible_for_user(user: AppUser, assigned_employee_id: int | None, min_visible_role: str | None) -> bool:
+    """DIE Sichtbarkeitsregel einer Aufgabe (seit 1.8.26): Lesen (list_tasks_for_user()) und jede
+    Änderung an einer einzelnen Aufgabe (Bearbeiten, Löschen, Archivieren, Zurück in den Büro-Eingang,
+    Checkliste -- app/routers/tasks.py::_require_visible_task()) prüfen dieselbe. Büro ab
+    buero_auftrag; eine Ziel-Mindestrolle muss erfüllt sein; Admin sieht dann alles, jedes andere
+    Büro-Konto die eigenen und die empfängerlosen Aufgaben. Bis 1.8.25 prüften die Einzel-Endpunkte nur
+    die Rolle -- wer eine ID erriet, konnte eine Finanz-Aufgabe als buero_auftrag ändern."""
+    if not has_min_role(user, ROLE_OFFICE_AUFTRAG):
+        return False
+    if min_visible_role is not None and not has_min_role(user, min_visible_role):
+        return False
+    if has_role(user, ROLE_ADMIN):
+        return True
+    return assigned_employee_id is None or (user.employee_id is not None and assigned_employee_id == user.employee_id)
+
+
 def list_tasks_for_user(db: Session, user: AppUser, *, status: str | None = None,
                          project_id: int | None = None, include_archived: bool = False,
                          employee_id: int | None = None, unassigned_only: bool = False,
@@ -152,7 +168,7 @@ def list_tasks_for_user(db: Session, user: AppUser, *, status: str | None = None
         effective_employee_id = user.employee_id
     rows = list_tasks(db, employee_id=effective_employee_id, status=status, project_id=project_id,
                        include_archived=include_archived, unassigned_only=unassigned_only, search=search)
-    return [r for r in rows if r["min_visible_role"] is None or has_min_role(user, r["min_visible_role"])]
+    return [r for r in rows if task_visible_for_user(user, r["assigned_employee_id"], r["min_visible_role"])]
 
 
 def claim_task(db: Session, task_id: int, user: AppUser) -> dict | None:
@@ -209,10 +225,9 @@ def claim_task(db: Session, task_id: int, user: AppUser) -> dict | None:
 
 
 def release_task(db: Session, task_id: int) -> dict | None:
-    """"Zurück in den Büro-Eingang" -- macht eine Aufgabe wieder empfängerlos. Bewusst OHNE
-    Eigentümerschafts-Prüfung (wer released, muss nicht der aktuelle Inhaber sein) -- konsistent
-    mit der bereits bestehenden, dokumentierten Lücke bei PUT/DELETE/archive/unarchive auf
-    Aufgaben (siehe CLAUDE.md "Aufgabe"), keine isolierte, inkonsistente Verschärfung nur hier."""
+    """"Zurück in den Büro-Eingang" -- macht eine Aufgabe wieder empfängerlos. Rollenblind; wer das
+    darf, entscheidet seit 1.8.26 der Router über task_visible_for_user() (dieselbe Regel wie das
+    Lesen: eigene und empfängerlose Aufgaben, Admin alle)."""
     task = db.get(Task, task_id)
     if task is None:
         return None
@@ -311,23 +326,22 @@ def create_task(db: Session, title: str, description: str | None = None, priorit
     return task_to_dict(task, columns_by_key)
 
 
+# Ohne min_visible_role (seit 1.8.26): die Sichtbarkeitsgrenze setzt nur, wer die Aufgabe anlegt.
 TASK_UPDATE_FIELDS = ("title", "description", "status", "priority", "due_date", "assigned_employee_id",
-                      "project_id", "min_visible_role")
+                      "project_id")
 
 
 def update_task(db: Session, task_id: int, **changes) -> dict | None:
     """Teil-Update (seit 1.8.25): nur die übergebenen Felder ändern sich. Der Editor auf /tasks
     schickt min_visible_role nicht mit -- vorher setzte jedes Speichern es auf None zurück, eine
-    Finanz-Aufgabe wurde dadurch für jedes Büro-Konto sichtbar."""
+    Finanz-Aufgabe wurde dadurch für jedes Büro-Konto sichtbar. Seit 1.8.26 ist die
+    Sichtbarkeitsgrenze hier gar nicht mehr änderbar (TASK_UPDATE_FIELDS)."""
     unknown = set(changes) - set(TASK_UPDATE_FIELDS)
     if unknown:
         raise TypeError(f"Unbekannte Felder: {sorted(unknown)}")
     task = db.get(Task, task_id)
     if task is None:
         return None
-    min_visible_role = changes.get("min_visible_role")
-    if min_visible_role is not None and min_visible_role not in ROLES:
-        raise ValueError(f"Unbekannte Rolle: {min_visible_role}")
     columns_by_key = _columns_by_key(db)
     if "status" in changes:
         _validate_status(changes["status"], columns_by_key)
