@@ -1491,6 +1491,11 @@ class OrderContractSignatureOut(BaseModel):
     recorded_at_local: datetime | None = None
     recorded_by_name: str
     withdrawal: dict | None = None
+    # Seit 1.8.35: die unterschriebene Abschrift (Fassung + Unterschriftsblatt bzw. Scan) in der Ablage;
+    # None bei einer Unterschrift von vor 1.8.35, bis der erste Versand sie nachholt.
+    copy_document: dict | None = None
+    copy_check: dict | None = None
+    copy_too_large: bool = False
 
 
 class OrderContractOut(BaseModel):

@@ -1142,7 +1142,13 @@ class OrderContractSignature(Base):
     bzw. des Scans, Datum), content_sha256 seine Prüfsumme -- wie die Fassung bewusst eine Zeichenkette.
     document_id: das Unterschriftsblatt (PDF) bzw. der Scan in der Ablage; die beiden Unterschriftsbilder
     liegen ebenfalls dort. Höchstens eine je Vertrag (unique), nie geändert oder gelöscht. Ohne
-    Fremdschlüssel auf den Benutzer (Muster SentDocument)."""
+    Fremdschlüssel auf den Benutzer (Muster SentDocument).
+
+    Seit 1.8.35 copy_document_id: die unterschriebene Abschrift (ein PDF aus Fassung und
+    Unterschriftsblatt bzw. Scan, eigene Prüfsumme in der Ablage), die Versand und Zustellung nach der
+    Unterschrift verwenden. Entsteht mit der Unterschrift; leer nur bei Unterschriften von vor 1.8.35, bis
+    sie beim ersten Versand nachgeholt wird -- einmal, über ein bedingtes UPDATE von leer
+    (app/contract_signatures.py::ensure_signed_copy()), die einzige Änderung an einer Unterschrift."""
 
     __tablename__ = "order_contract_signatures"
     __table_args__ = (UniqueConstraint("contract_id", name="uq_order_contract_signature_contract"),)
@@ -1162,12 +1168,14 @@ class OrderContractSignature(Base):
     recorded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     recorded_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
     recorded_by_name: Mapped[str] = mapped_column(String(160), server_default="System")
+    copy_document_id: Mapped[int | None] = mapped_column(ForeignKey("sent_documents.id"), nullable=True)
 
     contract: Mapped[OrderContract] = relationship(back_populates="signature")
     version: Mapped[OrderContractVersion] = relationship()
     document: Mapped["SentDocument"] = relationship(foreign_keys=[document_id])
     customer_image_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[customer_image_document_id])
     company_image_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[company_image_document_id])
+    copy_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[copy_document_id])
 
 
 class OrderRevision(Base):
@@ -5012,7 +5020,9 @@ def _contract_version_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Eine festgeschriebene Vertragsfassung wird nie gelöscht.")
 
 
-# Unterschrift unter dem Vertrag (seit 1.8.34): unveränderlich, nie gelöscht.
+# Unterschrift unter dem Vertrag (seit 1.8.34): unveränderlich, nie gelöscht. Einzige Ausnahme seit 1.8.35:
+# copy_document_id einer älteren Unterschrift wird einmal von leer gesetzt -- als bedingtes UPDATE in
+# app/contract_signatures.py::ensure_signed_copy(), nicht über das ORM; hier bleibt jede Änderung gesperrt.
 @event.listens_for(OrderContractSignature, "before_update")
 def _contract_signature_no_update(mapper, connection, target):
     if any(attr.history.has_changes() for attr in inspect(target).attrs if attr.key not in {"contract", "version"}):

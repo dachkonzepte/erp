@@ -4,6 +4,27 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.35 – Vertrag abrunden: unterschriebene Abschrift, Grenze im Einsatzbericht, lesbare Fehler
+
+Mit der Unterschrift entsteht jetzt eine unterschriebene Abschrift: ein PDF aus der Fassung (samt Anlage) und dem
+Unterschriftsblatt, auf Papier aus der Fassung und dem Scan (ein Foto als eigene A4-Seite, nach EXIF gedreht), mit
+eigener Prüfsumme in der Ablage. Versand und nachgetragene Zustellung nach der Unterschrift geben diese Abschrift
+hinaus, nicht mehr die Fassung allein (§ 312f BGB: Abschrift des unterzeichneten Vertrags bei Verbrauchern außerhalb
+von Geschäftsräumen); der Versandverlauf nennt „Fassung 1 · unterschrieben“, die Karte zeigt die Abschrift mit
+Prüfsumme und Link. Eine Unterschrift von vor 1.8.35 bekommt ihre Abschrift beim ersten Versand, genau einmal (unter
+der Vertragssperre, bedingtes UPDATE von leer, Historieneintrag „nachgeholt“); ist dafür eine Datei der Ablage nicht
+mehr unversehrt, wird nichts versendet. Ein Scan als PDF muss sich jetzt öffnen lassen – vorher genügte der Anfang
+`%PDF-`. Migration `71460718a43e` (Spalte `order_contract_signatures.copy_document_id`, Downgrade nur ohne Abschrift).
+
+Die Unterschrift im Einsatzbericht hat serverseitig dieselbe Grenze wie Checkliste und Vertrag (2 MB je Bild,
+geprüft, bevor etwas geschrieben wird); vorher gab es keine. Die Auftragsseite zeigt abgelehnte Eingaben lesbar:
+eine 422 der Schemaprüfung erschien als „[object Object]“, jetzt etwa „Bitte die Eingabe prüfen – Auftragsdatum ist
+kein gültiges Datum.“ (neue gemeinsame Hilfe `_fehlertext.html`, `fehlerText()`, mit den Feldnamen der Seite); die
+Texte einer 409 kommen unverändert durch. `tests/test_v338_vertrag_abschrift.py` (10 Tests, einer mit echten
+parallelen Anfragen gegen PostgreSQL, einer führt `api()` der Auftragsseite in node mit echten 422-/409-Antworten
+aus), 19 Gegenproben rot, die Vertragstests von 1.8.33–1.8.35 zusätzlich gegen PostgreSQL 17 grün; Migration SQLite
+und PostgreSQL hin/zurück/hin mit Bestand. Volle Suite 2448 grün, 2 rot – beide uhrzeitabhängig und auf dem unveränderten Stand 1.8.34 ebenso rot (nach 19 Uhr meldet `/api/field-view/today` „Feierabend“, siehe Archiv, Nebenbefund 3). Klicktest `scripts/klicktest_vertrag_abschrift.py` 26/26.
+
 ## 1.8.34 – Unterschrift unter dem Vertrag
 
 Stufe 2b, Runde 2b-1b Teil 2b. Checkliste, Einsatzbericht und Vertrag zeichnen Unterschriften jetzt über eine

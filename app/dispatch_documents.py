@@ -13,7 +13,8 @@ gehört und welches PDF in die Ablage kommt:
   verkleinerte Versand-PDF.
 - Vertrag (seit 1.8.33): die gültige festgeschriebene Fassung aus der Ablage -- nie neu erzeugt, und nur,
   solange sie zum Auftrag passt (dieselbe Bedingung wie beim E-Mail-Versand,
-  app/contract_versions.py::deliverable_version()).
+  app/contract_versions.py::deliverable_version()). Nach der Unterschrift (seit 1.8.35) die unterschriebene
+  Abschrift (deliverable_document(); bei einer Unterschrift von vor 1.8.35 hier einmal nachgeholt).
 
 Rollenlos; wer zustellen darf, entscheidet der Router. PDF-Renderer werden lokal importiert (Regel 3).
 """
@@ -101,18 +102,18 @@ def _checklist(db: Session, checklist: Checklist) -> DispatchDocument:
 
 
 def _contract(db: Session, contract: OrderContract) -> DispatchDocument:
-    from .contract_versions import ContractStateError, deliverable_version
+    from .contract_versions import ContractStateError, deliverable_document
     from .sent_documents import read_sent_document
 
     order = contract.order
     try:
-        version = deliverable_version(db, order, contract)
+        version, document = deliverable_document(db, order, contract)
     except ContractStateError as e:
         raise ValueError(str(e)) from e
-    document = version.sent_document
+    signed = ", unterschrieben" if document.id != version.sent_document_id else ""
     return DispatchDocument(
         "vertrag", contract.id, document.document_number,
-        f"Vertrag zu Auftrag {order.order_number}, Fassung {version.version_no}", order.project_id,
+        f"Vertrag zu Auftrag {order.order_number}, Fassung {version.version_no}{signed}", order.project_id,
         lambda: DocumentPdf(read_sent_document(document), document.filename, document),
     )
 

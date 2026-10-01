@@ -1,0 +1,47 @@
+<script>
+/* Geteilter Helfer (seit 1.8.35, zuerst auf der Auftragsseite): lesbare Meldung aus einer abgelehnten
+   API-Antwort. FastAPI liefert "detail" als Text (die Meldungen der Router, 400/404/409), als Liste je
+   Feld (422 aus der Schemaprüfung, z. B. ein leeres Datum) oder selten als Objekt. Bis 1.8.34 reichte die
+   Seite detail unverändert an Error() weiter -- eine Liste erschien als "[object Object]".
+
+   fehlerText(body, status, felder) -> Text
+     body    die gelesene JSON-Antwort (null, wenn sie kein JSON war)
+     status  HTTP-Status, für die Meldung ohne verwertbares detail
+     felder  {API-Feldname: Beschriftung auf der Seite}; ohne Eintrag erscheint der API-Name */
+const _FEHLERARTEN={
+  missing:'fehlt',string_too_long:'ist zu lang',string_too_short:'ist zu kurz',string_type:'muss ein Text sein',
+  int_parsing:'muss eine ganze Zahl sein',int_type:'muss eine ganze Zahl sein',int_from_float:'muss eine ganze Zahl sein',
+  float_parsing:'muss eine Zahl sein',float_type:'muss eine Zahl sein',decimal_parsing:'muss eine Zahl sein (ohne Tausenderpunkt)',
+  decimal_type:'muss eine Zahl sein',bool_parsing:'muss ja oder nein sein',bool_type:'muss ja oder nein sein',
+  date_parsing:'ist kein gültiges Datum',date_from_datetime_parsing:'ist kein gültiges Datum',date_type:'ist kein gültiges Datum',
+  datetime_parsing:'ist kein gültiger Zeitpunkt',datetime_from_date_parsing:'ist kein gültiger Zeitpunkt',
+  literal_error:'hat einen nicht vorgesehenen Wert',enum:'hat einen nicht vorgesehenen Wert',
+  greater_than:'ist zu klein',greater_than_equal:'ist zu klein',less_than:'ist zu groß',less_than_equal:'ist zu groß',
+  too_long:'hat zu viele Einträge',too_short:'hat zu wenige Einträge',json_invalid:'ist kein gültiges JSON',
+  dict_type:'hat das falsche Format',list_type:'hat das falsche Format'
+};
+function fehlerText(body,status,felder){
+  const d=body&&typeof body==='object'?body.detail:undefined;
+  if(typeof d==='string'&&d.trim())return d;
+  if(Array.isArray(d)&&d.length){
+    const teile=d.map(e=>{
+      e=e&&typeof e==='object'?e:{};
+      const pfad=(Array.isArray(e.loc)?e.loc:[]).filter(x=>!['body','query','path','header'].includes(x));
+      const name=pfad.length?String(pfad[pfad.length-1]):'';
+      const feld=(felder&&felder[name])||name;
+      const art=_FEHLERARTEN[e.type];
+      if(art)return feld?`${feld} ${art}`:`Die Eingabe ${art}`;
+      const text=typeof e.msg==='string'&&e.msg.trim()?e.msg.replace(/^Value error,\s*/,''):'ist ungültig';
+      return feld?`${feld}: ${text}`:text;
+    });
+    return 'Bitte die Eingabe prüfen – '+[...new Set(teile)].join('; ')+'.';
+  }
+  if(d&&typeof d==='object'&&typeof d.message==='string'&&d.message.trim())return d.message;
+  if(status===409)return 'Der Stand hat sich inzwischen geändert. Bitte die Seite neu laden und es erneut versuchen.';
+  if(status===422)return 'Eingabe unvollständig oder ungültig.';
+  if(status===401)return 'Nicht angemeldet – bitte neu anmelden.';
+  if(status===403)return 'Keine Berechtigung für diese Aktion.';
+  if(status>=500)return `Serverfehler (${status}) – bitte später erneut versuchen.`;
+  return `Fehler ${status}`;
+}
+</script>

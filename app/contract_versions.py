@@ -25,8 +25,10 @@ Verbraucher-Merkmal oder der Wert eines Platzhalters, den die Vorlage nutzt, hat
 Festschreiben geändert), wird weder versendet noch zugestellt -- dann eine neue Fassung festschreiben.
 
 Unterschrift (seit 1.8.34, app/contract_signatures.py): status "unterschrieben". Danach keine neue Fassung
-mehr; die unterschriebene Fassung bleibt abrufbar und versendbar (Abschrift für den Kunden), auch wenn sich
-der Auftrag später ändert -- die Abweichungen zeigt die Karte nur noch als Hinweis.
+mehr; die unterschriebene Fassung bleibt abrufbar und versendbar, auch wenn sich der Auftrag später ändert --
+die Abweichungen zeigt die Karte nur noch als Hinweis. Seit 1.8.35 gehen Versand und Zustellung dann mit der
+unterschriebenen Abschrift hinaus (Fassung + Unterschriftsblatt bzw. Scan, deliverable_document()), nicht
+mehr mit der Fassung allein.
 
 Rollenlos wie jede Geschäftslogik; wer was darf, entscheidet app/routers/contract_templates.py.
 """
@@ -497,31 +499,48 @@ def deliverable_version(db: Session, order: Order, contract: OrderContract | Non
     return version
 
 
+def deliverable_document(
+    db: Session, order: Order, contract: OrderContract | None, *, user_id: int | None = None, user_name: str | None = None,
+) -> tuple[OrderContractVersion, SentDocument]:
+    """Was Versand und Zustellung hinausgeben: die festgeschriebene Fassung -- nach der Unterschrift (seit
+    1.8.35) die unterschriebene Abschrift (bei einer Unterschrift von vor 1.8.35 hier einmal nachgeholt,
+    committet). Wirft ContractStateError."""
+    version = deliverable_version(db, order, contract)
+    if contract.status != "unterschrieben":
+        return version, version.sent_document
+    from .contract_signatures import ensure_signed_copy
+
+    return version, ensure_signed_copy(db, order, contract, user_id=user_id, user_name=user_name)
+
+
 # --- Versand (Punkt 3) ------------------------------------------------------------------------------
 
 def send_contract_email(
     db: Session, order: Order, *, to_email: str | None = None, cc_email: str | None = None,
     dispatch_key: str | None = None, user=None,
 ):
-    """Versendet die gültige festgeschriebene Fassung (Regel 21: über dispatch_email(), die Fassung
-    liegt schon in der Ablage und wird nur verwiesen). An: vorbelegt mit dem Auftraggeber (aktuelle
-    Kunden-E-Mail wie bei Angebot und Auftrag). Wirft ContractStateError (Zustand, Router 409),
-    ValueError (Eingabe/Versand, 400), DispatchConflict (409)."""
+    """Versendet die gültige festgeschriebene Fassung, nach der Unterschrift die unterschriebene Abschrift
+    (Regel 21: über dispatch_email(), das PDF liegt schon in der Ablage und wird nur verwiesen). An:
+    vorbelegt mit dem Auftraggeber (aktuelle Kunden-E-Mail wie bei Angebot und Auftrag). Wirft
+    ContractStateError (Zustand, Router 409), ValueError (Eingabe/Versand, 400), DispatchConflict (409)."""
     from .document_email_templates import get_email_template
     from .email_dispatch import actor_of, dispatch_email, new_dispatch_key
     from .orders import get_order_recipient_email
     from .placeholders import apply_placeholders
 
+    user_id, user_name = actor_of(user)
     contract = get_order_contract(db, order.id)
-    version = deliverable_version(db, order, contract)
+    deliverable_version(db, order, contract)  # Zustand zuerst (409), vor dem Empfänger und dem Nachholen der Abschrift
     recipient = (to_email or "").strip() or get_order_recipient_email(order)
     if not recipient:
         raise ValueError("Keine E-Mail-Adresse hinterlegt und keine wurde manuell angegeben.")
+    version, document = deliverable_document(db, order, contract, user_id=user_id, user_name=user_name)
     try:
-        pdf = read_sent_document(version.sent_document)
+        pdf = read_sent_document(document)
     except ArchiveFileError as e:
+        what = "unterschriebene Abschrift" if document.id != version.sent_document_id else "festgeschriebene Fassung"
         raise ContractStateError(
-            f"Die festgeschriebene Fassung in der Ablage ist nicht mehr unversehrt: {e} Es wurde nichts versendet."
+            f"Die {what} in der Ablage ist nicht mehr unversehrt: {e} Es wurde nichts versendet."
         ) from e
     placeholders = {
         "{auftragsnummer}": order.order_number, "{kundenname}": order.customer_name,
@@ -530,10 +549,9 @@ def send_contract_email(
     template = get_email_template(db, "contract")
     subject = apply_placeholders((template.subject_template if template else None) or DEFAULT_CONTRACT_EMAIL_SUBJECT, placeholders)
     body = apply_placeholders((template.body_template if template else None) or DEFAULT_CONTRACT_EMAIL_BODY, placeholders)
-    user_id, user_name = actor_of(user)
     return dispatch_email(
         db, dispatch_key=dispatch_key or new_dispatch_key("vertrag"), document_type="vertrag",
-        document_id=contract.id, document_number=version.sent_document.document_number, to=recipient, cc=cc_email,
-        subject=subject, body_text=body, attachment_bytes=pdf, attachment_filename=version.sent_document.filename,
-        archived_document=version.sent_document, user_id=user_id, user_name=user_name,
+        document_id=contract.id, document_number=document.document_number, to=recipient, cc=cc_email,
+        subject=subject, body_text=body, attachment_bytes=pdf, attachment_filename=document.filename,
+        archived_document=document, user_id=user_id, user_name=user_name,
     )

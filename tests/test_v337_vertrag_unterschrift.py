@@ -94,7 +94,23 @@ def _sign(client, order, version, **overrides):
     return client.post(f"/api/orders/{order.id}/contract/sign", json=_sign_payload(version, **overrides))
 
 
-def _paper(client, order, version, *, signed_on=None, checkboxes=None, scan=b"%PDF-1.4 unterschriebener Scan", sha=None):
+def _scan_pdf(text_line="Unterschriebener Vertrag (Scan)") -> bytes:
+    """Ein echtes, einseitiges PDF als Scan (seit 1.8.35: der Scan muss sich öffnen lassen, er wird Teil der
+    unterschriebenen Abschrift)."""
+    from reportlab.pdfgen import canvas
+
+    buf = BytesIO()
+    pdf = canvas.Canvas(buf)
+    pdf.drawString(72, 720, text_line)
+    pdf.showPage()
+    pdf.save()
+    return buf.getvalue()
+
+
+SCAN = _scan_pdf()
+
+
+def _paper(client, order, version, *, signed_on=None, checkboxes=None, scan=SCAN, sha=None):
     data = {"version_id": str(version.id), "pdf_sha256": sha or version.sent_document.sha256,
             "signed_on": (signed_on or berlin_today()).isoformat(),
             "checkboxes": json.dumps({CHECKBOX: False} if checkboxes is None else checkboxes)}
@@ -247,9 +263,9 @@ def test_paper_scan_with_date_and_transferred_checkboxes(world, router_test_clie
     signature = _signature(db, order)
     signed = json.loads(signature.signed_content)
     assert signed["method"] == "papier" and signed["checkboxes"][0]["checked"] is True
-    assert signed["scan"]["sha256"] == signature.document.sha256 == hashlib.sha256(b"%PDF-1.4 unterschriebener Scan").hexdigest()
+    assert signed["scan"]["sha256"] == signature.document.sha256 == hashlib.sha256(SCAN).hexdigest()
     assert signature.customer_image_document_id is None and signature.signed_on == berlin_today()
-    assert read_sent_document(signature.document) == b"%PDF-1.4 unterschriebener Scan"
+    assert read_sent_document(signature.document) == SCAN
 
 
 # --- Punkt 3: Sperren nach der Unterschrift --------------------------------------------------------

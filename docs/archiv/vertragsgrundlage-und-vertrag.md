@@ -17,6 +17,7 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | **2b-1b Teil 1** | 1.8.32 | Vertragsvorlagen (Abschnitte, Platzhalter, nur bei Verbrauchern, Prüfung), Vertragsentwurf beim Beauftragen mit Fallfeldern, Ausführungszeitraum aus dem Angebot, PDF `contract` mit Angebot als Anlage und Wasserzeichen | erledigt |
 | **2b-1b Teil 2a** | 1.8.33 | Vertrag festschreiben (Fassungen), Anlage aus der Ablage mit bewusster Wahl, Versand; Schnellauftrag ohne automatischen Entwurf | erledigt |
 | **2b-1b Teil 2b** | 1.8.34 | Gemeinsame Unterschriftsvorlage, Unterschrift auf dem Gerät (Kunde und Betrieb, Ankreuzfelder, Unterschriftsblatt) oder Papier-Scan, Sperren nach der Unterschrift, Widerrufsfrist | erledigt |
+| **2b-1b Abrundung** | 1.8.35 | Unterschriebene Abschrift (Fassung + Blatt bzw. Scan) für Versand und Zustellung, Größengrenze der Berichtsunterschrift, lesbare Fehler der Auftragsseite | erledigt |
 | **2b-2** | — | Beteiligte mit Adressbuch | offen |
 | **2b-3** | — | Behinderungsanzeige | offen |
 | **2b-4** | — | Bedenkenanzeige | offen |
@@ -504,14 +505,14 @@ PostgreSQL.
 
 ### Nebenbefunde 1.8.34 (nur gemeldet)
 
-1. **Das Unterschriftsblatt geht nicht per E-Mail hinaus**: der Versand schickt die Fassung (ein Anhang), das Blatt
+1. *(Erledigt in 1.8.35: unterschriebene Abschrift, siehe unten.)* **Das Unterschriftsblatt geht nicht per E-Mail hinaus**: der Versand schickt die Fassung (ein Anhang), das Blatt
    liegt in der Ablage und ist an der Karte abrufbar. Eine Abschrift mit Unterschrift für den Kunden (bei
    Verbrauchern womöglich Pflicht, Bestätigung des Vertrags auf einem dauerhaften Datenträger) bräuchte einen Versand
    mit zwei Anhängen oder ein zusammengeführtes, eigens abgelegtes PDF -- fachlich zu entscheiden.
-2. **Die Berichtsunterschrift hat serverseitig keine Größengrenze** (`app/routers/service_reports.py::
+2. *(Erledigt in 1.8.35.)* **Die Berichtsunterschrift hat serverseitig keine Größengrenze** (`app/routers/service_reports.py::
    _decode_signature_png()`), anders als Checkliste und Vertrag (2 MB). Mit der Geräteauflösung werden die PNG auf
    einem Tablet größer (typisch einige zehn KB), kein akutes Problem.
-3. **422-Fehler der Auftragsseite erscheinen als "[object Object]"**: `api()` in `order.html` reicht die Feldliste
+3. *(Erledigt in 1.8.35 für die Auftragsseite.)* **422-Fehler der Auftragsseite erscheinen als "[object Object]"**: `api()` in `order.html` reicht die Feldliste
    einer Pydantic-Ablehnung unverändert an `Error()` weiter (vorbestehend, betrifft alle Formulare der Seite).
 4. Bekannt und unverändert: "GP" der LV-Kopfzeile ragt bei 1280–1400 px in die rechte Spalte (1.8.21 Nr. 5), dazu ein
    waagrechter Scrollbalken der Auftragsseite bei 1280 px -- auf den Klicktest-Bildern sichtbar.
@@ -520,3 +521,99 @@ PostgreSQL.
    die PID beendet, Restschema entfernt); die neue Fixture schließt deshalb alle Sitzungen und beendet die eigenen
    Verbindungen über `application_name`. Die älteren opt-in-PostgreSQL-Tests (`test_v297`, `test_v322`, `test_v323`)
    räumen nicht so auf -- solange sie grün sind, unschädlich.
+
+---
+
+## Umsetzung 1.8.35 (01.10.2026) -- Abrundung: unterschriebene Abschrift, Grenze im Einsatzbericht, Fehler
+
+Betreibervorgabe: (1) nach der Unterschrift ein PDF aus Fassung und Unterschriftsblatt mit eigener Prüfsumme in der
+Ablage, der Versand nach der Unterschrift verschickt diese Abschrift (§ 312f BGB: Abschrift des unterzeichneten
+Vertrags bei Verbrauchern außerhalb von Geschäftsräumen); (2) Unterschrift im Einsatzbericht serverseitig höchstens
+2 MB wie Checkliste und Vertrag, Test mit Gegenprobe; (3) Auftragsseite: Fehlermeldungen (422, 409) lesbar statt
+"[object Object]". Erledigt damit die Nebenbefunde 1–3 aus 1.8.34.
+
+- **Abschrift** (`app/contract_signatures.py`, `OrderContractSignature.copy_document_id`): in derselben Transaktion
+  wie die Unterschrift `merge_pdfs([Fassung, Unterschriftsblatt])` (pypdfium2, Seiten unverändert übernommen) als
+  neues PDF in der Ablage, Art `vertrag`, Dokument-ID = Vertrag, Nummer "AUF-… · Fassung N · unterschrieben", Datei
+  `Vertrag_…_Fassung_N_unterschrieben.pdf`. Die Historienzeile "Vertrag unterschrieben" nennt ihre Prüfsumme.
+  **Festlegung (bitte bestätigen): auf Papier = Fassung + Scan** -- ein Scan-PDF mit allen Seiten, ein Foto als eigene
+  A4-Seite (hoch oder quer wie das Bild, 10 mm Rand, nach EXIF gedreht, ein JPEG ohne Drehung ohne Neukodierung
+  eingebettet, sonst JPEG mit Durchsichtigem auf Weiß). Enthält der Scan schon den ganzen Vertrag, steht der Text zweimal darin;
+  dafür ist die Abschrift auch dann vollständig, wenn nur die Unterschriftsseite gescannt wurde. **Folge: ein
+  Scan-PDF muss sich öffnen lassen** (`scan_pages()`, vorher genügte der Anfang `%PDF-`), sonst 400 ohne Ablage.
+  Gemessen: ein JPEG von 1,39 MB ergibt eine Seite von 1,74 MB (reportlab schreibt die Bilddaten ASCII85-kodiert,
+  rund ein Viertel mehr). Ein Handyfoto von einigen MB hebt die Abschrift damit leicht über 3 MB -- dann warnt die
+  Karte wie bei der Fassung (`copy_too_large`), Zustellung auf anderem Weg (siehe Nebenbefund 5).
+- **Versand und Zustellung** (`app/contract_versions.py::deliverable_document()`): festgeschrieben die Fassung, nach
+  der Unterschrift die Abschrift -- für `send_contract_email()` und die nachgetragene Zustellung
+  (`app/dispatch_documents.py`, Bezeichnung "…, Fassung N, unterschrieben"). Verwiesen, nicht noch einmal abgelegt.
+  Der Zustand wird weiter zuerst geprüft (409), bevor Empfänger und Abschrift drankommen. `GET …/contract/pdf` liefert
+  weiter die Fassung (sie liest der Kunde vor dem Unterschreiben); die Abschrift über ihren Link
+  (`/api/sent-documents/{id}/file`). Die E-Mail-Vorlage `contract` ist unverändert ("anbei erhalten Sie den Vertrag …
+  (Fassung N) mit unserem Angebot als Anlage") -- passt weiterhin, nennt die Unterschrift aber nicht.
+- **Unterschriften von vor 1.8.35** (`ensure_signed_copy()`): ohne Abschrift, bis der erste Versand oder die erste
+  nachgetragene Zustellung sie erzeugt -- aus Fassung und Blatt bzw. Scan in der Ablage (beide nur mit stimmender
+  Prüfsumme, sonst 409 bzw. 400 und nichts versendet). Unter der Vertragssperre, eingetragen als bedingtes UPDATE von
+  leer; Historie "Unterschriebene Abschrift nachgeholt". Die ORM-Sperre der Unterschrift bleibt unverändert streng
+  (auch `copy_document_id` über das ORM: ArchiveImmutableError). **Festlegung: kein Nachholen beim bloßen Anzeigen**
+  (GET bleibt lesend) und keins in der Migration (sie liest keine Dateien der Ablage); die Karte sagt "noch nicht
+  erzeugt – entsteht beim ersten Versand".
+- **Karte** (`order.html`): Zeile "Unterschriebene Abschrift: Prüfsumme … · Größe · Abschrift öffnen" im Block der
+  Unterschrift, Prüfung der Datei bei jedem Abruf wie beim Blatt; Versandblock "Unterschriebene Abschrift (Fassung N)
+  per E-Mail senden", Knopf "Abschrift senden"; Größenwarnung nach der Unterschrift für die Abschrift.
+  Versandverlauf (`_email_dispatch.html`): alles nach der Auftragsnummer, also "Fassung N · unterschrieben".
+- **Einsatzbericht** (`app/service_reports.py::sign_report()`): je Bild höchstens 2 MB (`MAX_SIGNATURE_PNG_BYTES`),
+  geprüft direkt nach dem Status, vor allen Vollständigkeitsprüfungen und bevor eine Datei geschrieben wird
+  (400 "Die Unterschrift des Monteurs/des Kunden ist zu groß").
+- **Fehlermeldungen** (`app/templates/_fehlertext.html`, `fehlerText(body, status, felder)`): `detail` als Text
+  unverändert; als Liste (422) "Bitte die Eingabe prüfen – <Feld> <Art>." mit deutscher Art je Pydantic-Fehlertyp
+  (fehlt, ist kein gültiges Datum, muss eine Zahl sein (ohne Tausenderpunkt), ist zu kurz …), unbekannter Typ mit der
+  Originalmeldung, Feld über `FELDNAMEN` der Seite (sonst der API-Name); als Objekt dessen `message`; ohne
+  verwertbares `detail` ein Text je Status (409 "Der Stand hat sich inzwischen geändert …", 5xx "Serverfehler").
+  Eingebunden nur in `order.html` (`api()`); alle Aufrufe der Seite laufen darüber, außer dem E-Mail-Versand
+  (`postEmailDispatch()` hatte schon eigene Texte).
+- **Migration `71460718a43e`**: eine Spalte mit benanntem Fremdschlüssel. `downgrade()` verweigert, solange eine
+  Abschrift zugeordnet ist, und entfernt die Spalte ohne `drop_constraint` (PostgreSQL entfernt den Fremdschlüssel mit
+  der Spalte, SQLite baut neu) -- so läuft er auch gegen ein Schema aus `create_all()`.
+- **Verifikation**: `tests/test_v338_vertrag_abschrift.py` (10 Tests: Abschrift = Fassung + Blatt, Text und
+  Seitenzahl; Versand und Zustellung danach mit der Abschrift, vorher mit der Fassung, nichts neu abgelegt; Papier mit
+  zweiseitigem PDF, gedrehtem Foto, durchsichtigem PNG, kaputtem PDF; Nachholen genau einmal und nicht aus beschädigter
+  Ablage; ORM-Sperre; Migration; gleichzeitiges Nachholen gegen PostgreSQL; Berichtsunterschrift an und über der
+  Grenze; `api()` der Auftragsseite in node mit echten 422-/409-Antworten der App; Einbindung). `test_v337` nutzt
+  jetzt ein echtes Scan-PDF. Gegenproben (Schutz im Code ausgehebelt, Test rot, Datei byte-genau zurück, Skript im
+  Scratchpad): 19 rot -- Abschrift nur aus der Fassung, Versand bzw. Zustellung mit der Fassung, Foto ohne Drehung,
+  Durchsichtiges auf Schwarz, Scan-PDF ungeprüft, kein Nachholen, Nachholen aus beschädigter Ablage, ohne Zeilensperre
+  bzw. ohne Sperre und unbedingt (PostgreSQL), ORM-Sperre gelockert, Downgrade ohne Schutz, Schema ohne Abschrift,
+  Historie ohne Prüfsumme, Bericht ohne Grenze, altes `api()`, ohne Feldnamen, Objekt-`detail` ignoriert, ohne
+  Einbindung. `test_v336`–`test_v338` zusätzlich gegen PostgreSQL 17 (Wegwerf-Schema je Test, Scratchpad-Plugin):
+  46 grün. Migration: SQLite (Kommandozeile hin/zurück/hin, Fremdschlüssel, `alembic check`) und PostgreSQL
+  (Wegwerf-Schema: Kette bis `65e3431d5bb6`, upgrade, Fremdschlüssel mit Namen, Unterschrift mit Abschrift über den
+  App-Code, Downgrade-Abbruch, downgrade mit Bestand, upgrade auf Bestand, Nachholen über den App-Code,
+  `alembic check`). Volle Suite 2448 grün, 2 rot -- `test_v321::test_field_responses_carry_nothing_from_the_dispatch` und `test_v326::test_monteur_endpunkte_liefern_200_und_alle_anderen_403`, beide nach 19 Uhr (Feierabend, 401 an `/api/field-view/today`), auf dem unveränderten Stand 1.8.34 in einem eigenen Worktree um 19:39 ebenso rot. Klicktest `scripts/klicktest_vertrag_abschrift.py` 26/26 (Abschrift auf
+  der Karte mit Prüfsumme wie in der Ablage, Versand an SMTP-Empfänger im Skript mit Anhang = Abschrift, Verlauf
+  "Fassung 1 · unterschrieben"; ältere Unterschrift nachgeholt; Papier-Foto dunkel 412 px; 422 Auftragsdatum und
+  Abschlag, 409 auf veralteter Seite; Monteur 403). `klicktest_vertrag_unterschrift.py` 43/43 (echtes Scan-PDF, neue
+  Überschrift, Feierabend-Grenze im Bestand), `klicktest_versandverlauf.py` 32/32, `klicktest_vertrag_festschreiben.py`
+  39/40 (Monteur-Prüfung abends 401, siehe Nebenbefund 3).
+
+### Nebenbefunde 1.8.35 (nur gemeldet)
+
+1. **36 weitere Vorlagen reichen `detail` roh an `Error()` weiter** (Muster `….detail||r.statusText`), darunter
+   `_checklists_section.html`, das auch auf der Auftragsseite steckt ("Checkliste starten"): eine 422 erscheint dort
+   weiter als "[object Object]". `fehlerText()` steht bereit; Umstellung je Seite mit ihren `FELDNAMEN`.
+2. **`make_order_with_item()` (`tests/test_v133_invoices.py`) legt einen Auftrag mit `source_quote_id=1` ohne
+   Angebot an** -- unter PostgreSQL scheitert das am Fremdschlüssel; die 39 Testdateien, die den Helfer nutzen, laufen
+   so nur unter SQLite. Aufgefallen beim PostgreSQL-Lauf der neuen Tests (dort jetzt echte Beauftragung).
+3. **Klicktests mit Monteur über `/mobil` hängen von der Uhrzeit ab**: nach `MobileSettings.shift_end_time` (Vorgabe
+   19:00) meldet `/mobil` den Monteur ab, die folgende 403-Prüfung sieht 401. In `klicktest_vertrag_unterschrift.py`
+   und dem neuen Klicktest steht die Grenze im Bestand jetzt auf 23:59; `klicktest_vertrag_festschreiben.py` hat es
+   noch (abends 39/40). **Dasselbe in pytest**: `test_v321::test_field_responses_carry_nothing_from_the_dispatch` und
+   `test_v326::test_monteur_endpunkte_liefern_200_und_alle_anderen_403` rufen `/api/field-view/today` als Monteur auf
+   und sind nach 19 Uhr (Europe/Berlin) rot (401 "Feierabend") -- eine volle Suite am Abend ist deshalb nie ganz grün.
+   Abhilfe: in beiden Tests `shift_end_time` setzen oder die Uhr festhalten.
+4. Bekannt und unverändert: "GP" der LV-Kopfzeile ragt bei 1280 px in die rechte Spalte, waagrechter Scrollbalken der
+   Auftragsseite bei 1280 px (1.8.21 Nr. 5, 1.8.34 Nr. 4).
+5. **Ein Papier-Scan als Handyfoto macht die Abschrift oft zu groß für die E-Mail**: der Scan darf 15 MB haben, die
+   Versandgrenze ist 3 MB, und die Bildseite ist durch ASCII85 ein Viertel größer als das Foto. Abhilfe wäre, das
+   Foto für die Abschrift zu verkleinern (z. B. auf 150 dpi bei A4) oder ohne ASCII85 einzubetten -- fachlich zu
+   entscheiden, ob die Abschrift dann noch "das Papier" ist; der Scan selbst bleibt ohnehin unverändert in der Ablage.

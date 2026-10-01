@@ -56,6 +56,12 @@ def befuellen(db, k):
     max_ = AppUser(username="max", display_name="Max Monteur", role="field", password_hash=k.passwort())
     ada = AppUser(username="ada", display_name="Ada Admin", role="admin", password_hash=k.passwort())
     db.add_all([bert, max_, ada]); db.flush()
+    # Seit 1.8.35: /mobil meldet den Monteur nach Feierabend ab (Vorgabe 19:00) -- abends lieferte die letzte
+    # Prüfung sonst 401 statt 403.
+    from datetime import time as dt_time
+
+    from app.mobile_settings import update_mobile_settings
+    update_mobile_settings(db, dt_time(23, 59))
     save_template(db, "bgb_vob_c_4_5", title="Bauvertrag {auftragsnummer}", sections=[
         {"heading": "§ 1 Parteien", "body_text": "Zwischen {firmenname} und {kundenname}."},
         {"heading": "§ 2 Vergütung", "body_text": "Auftragssumme {auftragssumme_brutto}."},
@@ -99,8 +105,14 @@ def befuellen(db, k):
                           created_by_employee_id=karl.id, created_by_user_id=bert.id)
     bericht = create_report(db, klara.id, "rapport", description="Sturmschaden repariert", created_by_employee_id=karl.id)
 
+    # Seit 1.8.35 ein echtes PDF: der Scan muss sich öffnen lassen, er wird Teil der unterschriebenen Abschrift.
+    from reportlab.pdfgen import canvas
+
     scan = Path(tempfile.mkdtemp(prefix="klicktest-scan-")) / "Vertrag_unterschrieben.pdf"
-    scan.write_bytes(b"%PDF-1.4\n% unterschriebener Vertrag (Klicktest)\n%%EOF\n")
+    pdf = canvas.Canvas(str(scan))
+    pdf.drawString(72, 720, "Unterschriebener Vertrag (Klicktest)")
+    pdf.showPage()
+    pdf.save()
     return {"klara": klara.id, "paul": paul.id, "checklist": cl["id"],
             "fields": {f["field_key"]: f["id"] for f in cl["fields"]}, "report": bericht["id"], "scan": str(scan),
             "cookies": {"bert": k.cookies(bert), "max": k.cookies(max_), "ada": k.cookies(ada)}}
@@ -190,7 +202,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Danach: Vertragsgrundlage nicht änderbar",
              await tab.js("getComputedStyle(document.getElementById('contractBasisEdit')).display==='none' && document.getElementById('contractBasisLocked').textContent.includes('unterschrieben')"), True)
     p.pruefe("Danach: keine neue Fassung, Abschrift versendbar",
-             ["Neue Fassung anlegen" in karte, "Unterschriebenen Vertrag (Fassung 1) per E-Mail senden" in karte], [False, True])
+             ["Neue Fassung anlegen" in karte, "Unterschriebene Abschrift (Fassung 1) per E-Mail senden" in karte], [False, True])
     vertrag = await tab.js(api)
     sig = vertrag["signature"]
     blatt = await tab.js(_sha_js(f"/api/sent-documents/{sig['document']['id']}/file"))

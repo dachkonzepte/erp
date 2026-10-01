@@ -128,8 +128,9 @@ function _dhRow(d) {
   if (d.resolved) extra += `<div class="dh-note">Von Hand geklärt · ${_dhEsc(d.resolved_by_name)}, ${_dhLocal(d.resolved_at_local)}: ${_dhEsc(d.resolution_note)}</div>`;
   if (d.status === 'fehlgeschlagen' && d.error_class) extra += `<div class="dh-muted">${_dhEsc(d.error_class)}${d.error_code ? ' · ' + _dhEsc(d.error_code) : ''}</div>`;
   if (d.stuck) extra += '<div class="dh-muted">Ausgang unklar – im Versandprotokoll klären.</div>';
-  // Vertrag (seit 1.8.33): welche Fassung hinausging -- document_number endet auf "· Fassung N".
-  const version = d.document_type === 'vertrag' && d.document_number ? ` · ${_dhEsc(d.document_number.split(' · ').pop())}` : '';
+  // Vertrag (seit 1.8.33): welche Fassung hinausging -- document_number "AUF-… · Fassung N", seit 1.8.35 bei der
+  // unterschriebenen Abschrift "AUF-… · Fassung N · unterschrieben": alles nach der Auftragsnummer.
+  const version = d.document_type === 'vertrag' && d.document_number ? ` · ${_dhEsc(d.document_number.split(' · ').slice(1).join(' · '))}` : '';
   return `<div class="dh-row"><div>${when}</div><div><b>${_dhEsc(d.channel_label)}</b>${version}${to}<div class="dh-muted">${_dhEsc(d.created_by_name)}</div>${extra}</div>`
     + `<div class="dh-end">${pill}<div class="dh-links">${links}</div></div></div>`;
 }

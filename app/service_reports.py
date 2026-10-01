@@ -57,6 +57,8 @@ REPORT_TYPE_LABELS = {"rapport": "Rapportbericht", "wartung": "Wartungsbericht"}
 COMPONENT_SORT_SPAN = 1_000_000
 
 SIGNATURE_ROOT = Path(os.getenv("DACHKONZEPTE_SIGNATURE_FILE_ROOT", data_dir() / "service_report_signatures"))
+# Seit 1.8.35 wie Checkliste und Vertrag (app/checklists.py, app/contract_signatures.py); vorher ohne Grenze.
+MAX_SIGNATURE_PNG_BYTES = 2 * 1024 * 1024
 
 
 def _signature_directory() -> Path:
@@ -1216,12 +1218,18 @@ def sign_report(
     den Kunden weitergereicht), dann erst das Einfrieren. Die bestehenden
     Vollständigkeitsprüfungen oben bleiben unverändert davor. signature_path/-name/signed_at
     bleiben unverändert die Felder des KUNDEN; installer_signature_* sind die neuen, parallelen
-    Felder des Monteurs."""
+    Felder des Monteurs.
+
+    Seit 1.8.35: jedes Unterschriftsbild höchstens 2 MB (MAX_SIGNATURE_PNG_BYTES, wie Checkliste und
+    Vertrag), geprüft gleich nach dem Status und bevor etwas auf die Festplatte geschrieben wird."""
     report = db.get(ServiceReport, report_id)
     if report is None:
         return None
     if report.status == "unterschrieben":
         raise ValueError("Dieser Bericht ist bereits unterschrieben.")
+    for png, who in ((installer_signature_png_bytes, "des Monteurs"), (customer_signature_png_bytes, "des Kunden")):
+        if len(png) > MAX_SIGNATURE_PNG_BYTES:
+            raise ValueError(f"Die Unterschrift {who} ist zu groß (höchstens {MAX_SIGNATURE_PNG_BYTES // (1024 * 1024)} MB).")
     open_required = [i for i in report.inspection_items if i.required and not _is_item_answered(i)]
     if open_required:
         raise ValueError(f"{len(open_required)} Pflichtpunkt(e) sind noch nicht beantwortet.")
