@@ -177,7 +177,10 @@ def update_entry(
     if row.status == "running":
         raise ValueError("Eine laufende Zeiterfassung kann erst nach dem Stoppen bearbeitet werden.")
     employee = db.get(Employee, employee_id); order = db.get(Order, order_id)
-    if employee is None or not employee.active: raise ValueError("Mitarbeiter wurde nicht gefunden oder ist inaktiv.")
+    # Seit 1.8.31 muss nur ein neu eingetragener Mitarbeiter aktiv sein: die Buchung einer inzwischen
+    # ausgeschiedenen Person ließ sich sonst nicht mehr korrigieren (422), auch ohne Personenwechsel.
+    if employee is None or (employee_id != row.employee_id and not employee.active):
+        raise ValueError("Mitarbeiter wurde nicht gefunden oder ist inaktiv.")
     if order is None: raise ValueError("Auftrag wurde nicht gefunden.")
     validate_order_item(db, order_id, order_item_id)
     amount = _d(hours)

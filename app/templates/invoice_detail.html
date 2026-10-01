@@ -11,6 +11,7 @@
 <div class="app-content">
 {% include "_topbar.html" %}
 {% include "_email_dispatch.html" %}
+{% include "_auswahl.html" %}
 <main><div class="breadcrumb" id="breadcrumb">Lädt …</div><div class="top"><div class="grow"><b id="invTitle">Rechnung wird geladen …</b><div id="invContext" class="muted small"></div></div><div class="top-actions"><a id="backOrder" href="#">← Auftrag</a><button class="secondary" onclick="window.open('/api/invoices/'+invoiceId+'/pdf','_blank')">PDF herunterladen</button></div><span id="statusBadge" class="badge">—</span><div class="metrics"><div class="metric"><small>Netto</small><b id="mNet">—</b></div><div class="metric"><small>MwSt.</small><b id="mVat">—</b></div><div class="metric"><small>Brutto</small><b id="mGross">—</b></div></div></div>
 <div id="editLockNotice" class="notice warning" style="display:none">Diese Rechnung ist versendet und kann nicht mehr bearbeitet werden. Korrekturen laufen über eine Stornorechnung.</div>
 <div class="layout">
@@ -99,7 +100,8 @@ function render(){
 }
 
 function renderPaymentTermSelect(){const sel=document.getElementById('iPaymentTermSelect');let html=paymentTerms.map(t=>`<option value="${t.id}">${esc(t.label)} (${t.days} Tage${t.skonto_percent?`, ${String(t.skonto_percent).replace('.',',')} % Skonto bei ${t.skonto_days} Tagen`:''})</option>`).join('')||'<option value="">Keine Zahlungsbedingung hinterlegt</option>';const current=paymentTerms.find(t=>t.label.trim().toLowerCase()===String(invoice.payment_terms||'').trim().toLowerCase());if(invoice.payment_terms&&!current)html+=`<option value="" selected>${esc(invoice.payment_terms)} · bisher (keine passende Zahlungsbedingung mehr, Fälligkeit ggf. geschätzt)</option>`;sel.innerHTML=html;if(current)sel.value=current.id}
-function renderTaxKeySelect(){const sel=document.getElementById('iTaxKeySelect');sel.innerHTML=taxKeys.map(t=>`<option value="${t.id}">${esc(t.label)} (${String(t.vat_rate).replace('.',',')} %)</option>`).join('')||'<option value="">Kein Steuerschlüssel hinterlegt</option>';if(invoice.tax_key_id)sel.value=invoice.tax_key_id}
+// Seit 1.8.31 mit archivierten geladen, siehe steuerschluesselOptionen() in _auswahl.html.
+function renderTaxKeySelect(){document.getElementById('iTaxKeySelect').innerHTML=steuerschluesselOptionen(taxKeys,invoice.tax_key_id)}
 function renderTextTemplateSelect(selectId,templates){const sel=document.getElementById(selectId);sel.innerHTML='<option value="">— Vorlage wählen … —</option>'+templates.map(t=>`<option value="${esc(t.value)}">${esc(t.label)}</option>`).join('')}
 function applyTextTemplate(textareaId,selectId){const val=document.getElementById(selectId).value;if(val)document.getElementById(textareaId).value=val}
 async function changePaymentTerm(){const id=document.getElementById('iPaymentTermSelect').value;if(!id)return;const st=document.getElementById('headerStatus');try{invoice=await api(`/api/invoices/${invoiceId}/payment-term`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({payment_term_id:Number(id)})});st.textContent='Zahlungsbedingung aktualisiert.';render()}catch(e){st.textContent='Fehler: '+e.message}}
@@ -231,6 +233,6 @@ async function saveReminderEditNow(){
 }
 
 async function reload(){invoice=await api('/api/invoices/'+invoiceId);render()}
-async function load(){[invoice,paymentTerms,introTemplates,outroTemplates,taxKeys]=await Promise.all([api('/api/invoices/'+invoiceId),api('/api/payment-terms'),api('/api/settings/option-groups/invoice_intro_texts').then(g=>g.options||[]).catch(()=>[]),api('/api/settings/option-groups/invoice_outro_texts').then(g=>g.options||[]).catch(()=>[]),api('/api/tax-keys').catch(()=>[])]);render()}
+async function load(){[invoice,paymentTerms,introTemplates,outroTemplates,taxKeys]=await Promise.all([api('/api/invoices/'+invoiceId),api('/api/payment-terms'),api('/api/settings/option-groups/invoice_intro_texts').then(g=>g.options||[]).catch(()=>[]),api('/api/settings/option-groups/invoice_outro_texts').then(g=>g.options||[]).catch(()=>[]),api('/api/tax-keys?include_archived=true').catch(()=>[])]);render()}
 load().catch(e=>document.querySelector('main').innerHTML='<div class="card">Fehler: '+esc(e.message)+'</div>');
 </script></body></html>

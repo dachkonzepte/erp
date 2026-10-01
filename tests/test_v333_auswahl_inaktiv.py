@@ -303,11 +303,14 @@ def test_mitarbeiter_mit_inzwischen_inaktiver_funktion_laesst_sich_speichern():
 
 
 def test_jede_seite_mit_auswahloptionen_bindet_den_helfer_ein():
-    """Ohne {% include "_auswahl.html" %} bricht die Seite erst im Browser mit ReferenceError ab."""
+    """Ohne {% include "_auswahl.html" %} bricht die Seite erst im Browser mit ReferenceError ab. Seit 1.8.31 für
+    jede Funktion des Helfers (auswahlEintraege, steuerschluesselOptionen kamen dazu)."""
+    namen = re.findall(r"^function (\w+)\(", (TEMPLATES / "_auswahl.html").read_text(encoding="utf-8"), flags=re.M)
+    assert {"auswahlOptionen", "auswahlEintraege", "steuerschluesselOptionen"} <= set(namen)
     nutzer = []
     for vorlage in sorted(TEMPLATES.glob("*.html")):
         text = vorlage.read_text(encoding="utf-8")
-        if vorlage.name != "_auswahl.html" and "auswahlOptionen(" in text:
+        if vorlage.name != "_auswahl.html" and any(f"{name}(" in text for name in namen):
             nutzer.append(vorlage.name)
             assert '{% include "_auswahl.html" %}' in text, vorlage.name
-    assert len(nutzer) >= 18
+    assert len(nutzer) >= 20

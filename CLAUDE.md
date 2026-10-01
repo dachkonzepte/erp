@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.30** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.31** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -588,7 +588,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     oder alle Felder ohne Vorgabewert (fehlt eins, 422). Die Oberfläche schickt nur, was sie bearbeitet,
     nie einen beim Laden gemerkten Stand. Eine Auswahlliste aus Stammdaten baut ihre Optionen über
     `auswahlOptionen()` (`_auswahl.html`, seit 1.8.30): ein inaktiver gespeicherter Wert bleibt vorgewählt
-    und gekennzeichnet; der Server prüft "aktiv" nur bei einem neu gewählten Wert.
+    und gekennzeichnet; der Server prüft "aktiv" nur bei einem neu gewählten Wert. Ein leerer gespeicherter
+    Wert bleibt leer -- eine Vorgabe aus den Einstellungen gilt nur beim Anlegen (seit 1.8.31).
     `tests/test_v329_update_handler_struktur.py` prüft jeden
     PUT/PATCH-Handler per AST; die 74 Altfälle stehen dort als Liste, die nur kürzer werden darf.
     Details: `docs/archiv/teil-updates.md`.
@@ -1028,7 +1029,9 @@ im Seiteninhalt und der Adressimport-Knopf) und
 `klicktest_teil_updates.py` (1.8.25, Speichern in mobiler Zeiterfassung, Einstellungen, Rechnung und Leistung lässt
 nicht bearbeitete Felder stehen) und `klicktest_arbeitsvorbereitung.py` (1.8.29, Freitext-Lieferant, Planstunden und
 Reihenfolge bleiben beim Speichern) und `klicktest_auswahl_inaktiv.py` (1.8.30, inaktive Mitarbeiterin, inaktiver
-Lieferant und archiviertes Projekt bleiben in Auftrag, Aufgaben-Editor und Arbeitsvorbereitung vorgewählt und gespeichert).
+Lieferant und archiviertes Projekt bleiben in Auftrag, Aufgaben-Editor und Arbeitsvorbereitung vorgewählt und gespeichert)
+und `klicktest_auswahl_restfaelle.py` (1.8.31, abgeschlossener Auftrag in der Backoffice-Korrektur, archivierter
+Steuerschlüssel, inaktiver Schichttyp, leerer Schlusstext 2 und leere Einheit im Angebot, Kunden-Kategorie).
 Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
 im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten (Vorlage dort). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.

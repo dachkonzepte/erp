@@ -247,12 +247,15 @@ async function loadLayers(){
   }
   hint.classList.add('hidden');
   const [types,layers]=await Promise.all([
-    api(`/api/roof-layer-types?roof_type=${encodeURIComponent(roofType)}`),
+    api(`/api/roof-layer-types?roof_type=${encodeURIComponent(roofType)}&include_inactive=true`),
     api(`/api/roof-areas/${roofAreaId}/layers`),
   ]);
-  layerTypesForRoofType=types;
+  // Seit 1.8.31: ein inaktiver Schichttyp erscheint, wenn die Dachfläche eine Schicht dazu hat (gekennzeichnet),
+  // neu angeboten werden nur aktive. Bis 1.8.30 fehlten inaktive ganz; ihre vorhandene Schicht landete unter
+  // "Passt nicht zum aktuellen Dachtyp".
+  layerTypesForRoofType=auswahlEintraege(types,layers.map(l=>l.layer_type_id));
   existingLayers=layers;
-  const groupKeys=[...new Set([...types.map(t=>t.option_group),...layers.map(l=>l.layer_type_option_group)].filter(Boolean))];
+  const groupKeys=[...new Set([...layerTypesForRoofType.map(t=>t.option_group),...layers.map(l=>l.layer_type_option_group)].filter(Boolean))];
   await Promise.all(groupKeys.map(async k=>{layerOptionGroupsCache[k]=await safeOptionGroup(k)}));
   renderLayerRows();
 }
@@ -361,7 +364,7 @@ function layerRowHtml(type){
   const notesHtml=type.has_notes!==false
     ?`<input placeholder="Bemerkung" value="${esc(notes||'')}" ${present?'':'disabled'} style="width:150px" onchange="onLayerFieldChange(${type.id},'notes',this.value.trim()||null)" oninput="debouncedOnLayerFieldChange(${type.id},'notes',this.value.trim()||null)">`:'';
   return `<div class="layer-row" style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
-    <div style="flex:1;min-width:150px;font-size:13.5px">${esc(type.label)}</div>
+    <div style="flex:1;min-width:150px;font-size:13.5px">${esc(type.label)}${type.active===false?' <span class="muted">(inaktiv)</span>':''}</div>
     <button type="button" class="${present?'':'secondary'}" style="padding:6px 10px;font-size:12.5px" onclick="setLayerPresent(${type.id},true)">Ja</button>
     <button type="button" class="${!present?'':'secondary'}" style="padding:6px 10px;font-size:12.5px" onclick="setLayerPresent(${type.id},false)">Nein</button>
     ${execHtml}

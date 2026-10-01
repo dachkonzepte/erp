@@ -102,6 +102,10 @@ Keine Weglassung, aber die Oberfläche schickt einen Wert, den niemand bearbeite
    Drag-and-drop-Layout und `saveCalc` (price_basis), `planning.html` `dropSlot`, `settings.html`
    `toggleDocumentLayoutBlock`/`saveContinuationHeaderPosition`/`saveEmailTemplate` (Mahnstufe),
    `incoming_invoices.html` `markPaidNow`, `recurring_costs.html` `toggleActive`.
+4. `app/document_layout.py::update_layout_block()` nimmt `content` an, schreibt ihn aber nie.
+5. `EmployeeAbsenceUpdate` (1.5.4) erlaubt `null` für `start_date`/`end_date`/`employee_id`, die Spalten
+   sind NOT NULL -- ein ausdrückliches `null` endet als 500 statt 422 (heute ruft keine Oberfläche den
+   Endpunkt auf).
 
 ## Auswahllisten mit inaktivem gespeichertem Wert (seit 1.8.30)
 
@@ -143,19 +147,41 @@ Projektleiter), `app/routers/quotes.py` (Sachbearbeiter am Angebot -- der Editor
 "nicht mehr verfügbar", das Speichern scheiterte), `app/employees.py::apply_employee_payload()` (Funktion,
 steht in `EmployeeProfile.function_id`), `app/routers/work_preparation.py` (Zuständiger, Lieferant).
 
-Bewusst nicht geändert: Angebots-Editor `fillTextSelect`/`fillUnitSelect` und Kunden-Kategorie (wählen bei
-leerem Wert die Vorgabe vor -- andere Fehlerklasse); archivierter Steuerschlüssel erscheint in Auftrag,
-Angebot und Rechnung leer (nur Anzeige, gespeichert wird nur bei Änderung); Teambesetzung im
-Stammdaten-Formular (Häkchenliste, behält schon); mobile Zeitart-Kacheln (Wert bleibt, keine Kachel
-markiert); Einsatzbericht "Durchgeführt von" (nur Anzeige); Dachfläche lädt Schichttypen ohne inaktive
-(vorhandene Schichten eines inaktiven Typs sind unsichtbar).
+Bewusst nicht geändert: Teambesetzung im Stammdaten-Formular (Häkchenliste, behält schon); mobile
+Zeitart-Kacheln (Wert bleibt, keine Kachel markiert); Einsatzbericht "Durchgeführt von" (nur Anzeige). Die
+übrigen hier zuerst zurückgestellten Fälle sind seit 1.8.31 behoben, siehe nächster Abschnitt.
 
 Tests: `tests/test_v333_auswahl_inaktiv.py` -- der Helfer in node, die Auftragsseite in node
 (Sachbearbeiter und Projektleiter vorgewählt, "(inaktiv)"), Speichern des Auftrags mit den Schlüsseln der
 Vorlage (unverändert inaktiv 200, neu inaktiv 422), dazu Arbeitsvorbereitung, Angebot, Mitarbeiter-Funktion,
 und ein Dauertest: jede Seite, die `auswahlOptionen(` aufruft, bindet `_auswahl.html` ein. Gegenprobe mit
 dem Stand von 1.8.29: 10 von 10 rot. `scripts/klicktest_auswahl_inaktiv.py` 13/13, alter Stand 3/13.
-4. `app/document_layout.py::update_layout_block()` nimmt `content` an, schreibt ihn aber nie.
-5. `EmployeeAbsenceUpdate` (1.5.4) erlaubt `null` für `start_date`/`end_date`/`employee_id`, die Spalten
-   sind NOT NULL -- ein ausdrückliches `null` endet als 500 statt 422 (heute ruft keine Oberfläche den
-   Endpunkt auf).
+
+## Restfälle (seit 1.8.31)
+
+| Seite | Feld | vorher | jetzt |
+|---|---|---|---|
+| Zeiterfassung Backoffice, Korrektur | Auftrag einer Buchung auf einem abgeschlossenen oder stornierten Auftrag | fehlte (der Kontext liefert nur offene); vorgewählt war der erste offene Auftrag des Projekts, Speichern buchte still um | `openEdit()` lädt ihn nach (`GET /api/orders/{id}`), vorgewählt mit "(abgeschlossen)"/"(storniert)", Speichern behält ihn |
+| Server | Zeitbuchung einer inaktiven Person | `update_entry()` lehnte jede Änderung ab (422), auch ohne Personenwechsel | "aktiv" nur bei neu eingetragener Person, wie die vier Prüfungen aus 1.8.30 |
+| Angebot, Auftrag, Rechnung | archivierter Steuerschlüssel | Auswahl leer (nur Anzeige, gespeichert wird nur über `onchange`) | geladen mit `?include_archived=true`, `steuerschluesselOptionen()` in `_auswahl.html` |
+| Dachfläche | Schicht eines inaktiven Schichttyps | stand unter "Passt nicht zum aktuellen Dachtyp" (die Archivdatei sagte bis hier fälschlich "unsichtbar") | in der Liste, " (inaktiv)"; inaktive Typen ohne Schicht werden nicht angeboten (`auswahlEintraege()`) |
+| Angebots-Editor | Vortext, Zahlungsbedingung, Schlusstext, Schlusstext 2 | leerer Text wählte die Vorgabe vor, das nächste Speichern des Kopfs schrieb sie -- so bekam jeder leere Schlusstext 2 den Standard-Schlusstext | leer bleibt "— keine Auswahl —"; ein neues Angebot erhält die Vorgaben beim Anlegen vom Server (`create_quote`, `ensure_quote_structure()`), Schlusstext 2 hat keine |
+| Angebots-Editor | Einheit einer Position | leere Einheit wurde "Stück" (fest, nicht die Vorgabe aus den Einstellungen) | "— keine Einheit —", Speichern verlangt eine Wahl (der Server lehnt "" ohnehin ab); eine neue Position bekommt die Vorgabe aus den Einstellungen wie bisher |
+| Kunde | Kategorie | Rückfall `customer.category\|\|'Privatkunde'`, dann Standard-Kategorie; abgeschaltete hieß "· bisher" | über `auswahlOptionen()`, abgeschaltete "(inaktiv)"; ein leerer Wert bliebe leer und Speichern verlangte eine Wahl -- erreicht die Seite heute aber nicht (siehe unten) |
+| Server | `GET /api/tasks/{id}/finding` | prüfte nur das Modul "wartungen" | zusätzlich "aufgabenmanagement" |
+
+Helfer: `auswahlOptionen()` hat `opt.vermerk(x)` (Text in Klammern hinter einem nicht aktiven Eintrag, Vorgabe
+"inaktiv"); `auswahlEintraege()` ist dieselbe Regel für Listen, die kein `<select>` sind. Der Dauertest in
+`tests/test_v333_auswahl_inaktiv.py` prüft die Einbindung jetzt für jede Funktion des Helfers.
+
+Kunden-Kategorie: ein leerer Wert ist heute nicht erreichbar. `ensure_customer_profile()` (`app/crm.py`) setzt
+"Privatkunde", das Schema lehnt "" ab, und ein direkt in der Datenbank geleerter Wert lässt `GET
+/api/customers/{id}` mit 500 scheitern (`CustomerOut.category` mit `min_length=1`), die Kundenakte lädt dann gar
+nicht. Nicht behoben, nur gemeldet.
+
+Tests: `tests/test_v334_auswahl_restfaelle.py` -- die Oberflächen in node mit einer kleinen Attrappe für DOM und
+`fetch` (`FAKE_DOM`: eine Auswahl wählt wie der Browser die letzte Option mit `selected`, sonst die erste; ein
+`value` ohne passende Option leert sie), die Antworten vom echten Server. Backoffice: `openEdit()` und
+`saveEntryEdit()` laufen echt, der geschickte Body geht an den Server. Angebots-Texte: die vier
+`fillTextSelect()`-Aufrufe aus `renderAll()` wörtlich. Gegenprobe mit dem Stand von 1.8.30: 10 von 10 rot.
+`scripts/klicktest_auswahl_restfaelle.py` 19/19, alter Stand 6/19 (nur die Prüfungen "keine JS-Fehler" grün).

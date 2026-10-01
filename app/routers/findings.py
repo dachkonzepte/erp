@@ -18,7 +18,7 @@ from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import FindingCreate, FindingFollowupUpdate, FindingOut
 from .orders import require_field_report_ownership
 from .service_reports import _employee_for_request
-from .tasks import _require_visible_task
+from .tasks import _require_module_enabled as _require_tasks_module_enabled, _require_visible_task
 
 router = APIRouter()
 
@@ -127,8 +127,10 @@ def get_task_finding(task_id: int, db: Session = Depends(get_db), _role: AppUser
     "Vorgang erstellen"-Schaltfläche im Aufgaben-Editor. URL-Präfix richtet sich nach dem
     Task-Kontext, aus dem der Endpunkt aufgerufen wird; die Business-Logik bleibt in
     app/findings.py (Muster wie GET /api/orders/{order_id}/roof-areas). Seit 1.8.28 nur für eine
-    Aufgabe, die die Person auch lesen darf: 403 ohne Inhalt, unbekannte ID 404."""
+    Aufgabe, die die Person auch lesen darf: 403 ohne Inhalt, unbekannte ID 404. Seit 1.8.31 auch
+    403, wenn das Modul Aufgabenmanagement aus ist -- vorher prüfte der Endpunkt nur "wartungen"."""
     _require_module_enabled(db)
+    _require_tasks_module_enabled(db)
     _require_visible_task(db, _role, task_id)
     return get_finding_for_task(db, task_id)
 

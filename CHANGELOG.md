@@ -4,6 +4,24 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.31 – Restfälle der Auswahllisten: abgeschlossener Auftrag, Steuerschlüssel, leere Werte
+
+Restfälle aus 1.8.30 behoben. In der Backoffice-Korrektur einer Zeitbuchung fehlte ein abgeschlossener Auftrag in
+der Auswahl, vorgewählt war der erste offene des Projekts, und Speichern buchte still um; jetzt lädt der Dialog ihn
+nach und zeigt ihn mit „(abgeschlossen)“. Die Buchung einer ausgeschiedenen Person ließ sich gar nicht mehr ändern,
+jetzt muss nur eine neu eingetragene Person aktiv sein. Ein archivierter Steuerschlüssel in Angebot, Auftrag und
+Rechnung erscheint vorgewählt mit „(inaktiv)“ statt leer, ebenso die Schicht eines abgeschalteten Schichttyps an der
+Dachfläche (bisher unter „Passt nicht zum aktuellen Dachtyp“). Der Angebots-Editor wählte bei leerem Text die
+Vorgabe vor, und das nächste Speichern des Kopfs schrieb sie: so bekam jeder leere Schlusstext 2 den
+Standard-Schlusstext. Leere Texte und eine leere Einheit bleiben jetzt leer; die Vorgaben setzt der Server beim
+Anlegen. Die Kunden-Kategorie geht über denselben Helfer; ein leerer Wert erreicht die Seite heute nicht.
+`GET /api/tasks/{id}/finding` prüft zusätzlich das Modul Aufgabenmanagement.
+
+`tests/test_v334_auswahl_restfaelle.py` führt die Seiten in node aus, mit einer kleinen Attrappe für DOM und
+`fetch` und Antworten vom echten Server; im Backoffice laufen Öffnen und Speichern echt, der geschickte Body geht an
+den Server. Gegenprobe mit dem Stand von 1.8.30: 10 von 10 rot. Klicktest `scripts/klicktest_auswahl_restfaelle.py`
+19/19, mit altem Stand 6/19. 10 neue Tests.
+
 ## 1.8.30 – Auswahllisten behalten einen inaktiven gespeicherten Wert
 
 Nebenbefund aus 1.8.25 behoben. Viele Auswahllisten boten nur aktive Einträge an. War der gespeicherte

@@ -11,24 +11,44 @@
      beschriftung(x)  Text der Option (wird hier maskiert, also kein HTML übergeben)
      opt.wert(x)      Wert der Option, Vorgabe x.id
      opt.aktiv(x)     wird neu angeboten, Vorgabe x.active !== false
+     opt.vermerk(x)   Text in Klammern hinter einem nicht aktiven Eintrag, Vorgabe "inaktiv" (seit 1.8.31)
      opt.leer         Text einer Leer-Option ("— keine —"), weglassen = keine Leer-Option
      opt.fehlt(wert)  Beschriftung, falls der gespeicherte Wert nicht in eintraege steht
    tests/test_v333_auswahl_inaktiv.py führt den Helfer in node aus. */
 function auswahlOptionen(eintraege, gespeichert, beschriftung, opt = {}) {
   const wert = opt.wert || (x => x.id);
   const aktiv = opt.aktiv || (x => x.active !== false);
+  const vermerk = opt.vermerk || (() => 'inaktiv');
   const m = s => String(s ?? '').replace(/[&<>'"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[c]));
   const g = gespeichert === null || gespeichert === undefined ? '' : String(gespeichert);
   let gefunden = false;
-  const zeilen = (eintraege || []).filter(x => aktiv(x) || (g !== '' && String(wert(x)) === g)).map(x => {
+  const zeilen = auswahlEintraege(eintraege, g, opt).map(x => {
     const v = String(wert(x)), gewaehlt = g !== '' && v === g;
     if (gewaehlt) gefunden = true;
-    return `<option value="${m(v)}"${gewaehlt ? ' selected' : ''}>${m(beschriftung(x))}${aktiv(x) ? '' : ' (inaktiv)'}</option>`;
+    return `<option value="${m(v)}"${gewaehlt ? ' selected' : ''}>${m(beschriftung(x))}${aktiv(x) ? '' : m(` (${vermerk(x)})`)}</option>`;
   });
   if (g !== '' && !gefunden) {
     zeilen.unshift(`<option value="${m(g)}" selected>${m(opt.fehlt ? opt.fehlt(g) : g + ' (nicht mehr verfügbar)')}</option>`);
   }
   const leer = opt.leer === undefined ? '' : `<option value=""${g === '' ? ' selected' : ''}>${m(opt.leer)}</option>`;
   return leer + zeilen.join('');
+}
+
+/* Dieselbe Regel für Listen, die kein <select> sind (seit 1.8.31, Schichten der Dachfläche): alle aktiven
+   Einträge und jeder gespeicherte, in der Reihenfolge der Quelle. gespeichert: ein Wert oder eine Liste.
+   opt.wert/opt.aktiv wie bei auswahlOptionen(). */
+function auswahlEintraege(eintraege, gespeichert, opt = {}) {
+  const wert = opt.wert || (x => x.id);
+  const aktiv = opt.aktiv || (x => x.active !== false);
+  const g = new Set([].concat(gespeichert ?? []).filter(x => x !== null && x !== undefined && x !== '').map(String));
+  return (eintraege || []).filter(x => aktiv(x) || g.has(String(wert(x))));
+}
+
+/* Steuerschlüssel in Angebot, Auftrag und Rechnung (seit 1.8.31): die Seiten laden sie mit
+   ?include_archived=true, ein archivierter gespeicherter bleibt so sichtbar und vorgewählt. Gewechselt wird
+   nur über das onchange der Auswahl. */
+function steuerschluesselOptionen(steuerschluessel, gespeichert) {
+  return auswahlOptionen(steuerschluessel, gespeichert, t => `${t.label} (${String(t.vat_rate).replace('.', ',')} %)`,
+    {aktiv: t => !t.archived}) || '<option value="">Kein Steuerschlüssel hinterlegt</option>';
 }
 </script>
