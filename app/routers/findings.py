@@ -18,6 +18,7 @@ from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import FindingCreate, FindingFollowupUpdate, FindingOut
 from .orders import require_field_report_ownership
 from .service_reports import _employee_for_request
+from .tasks import _require_visible_task
 
 router = APIRouter()
 
@@ -30,7 +31,10 @@ MODULE_KEY = "wartungen"
 # Objekt-/Kundenkontext über mehrere Aufträge hinweg, den ein Monteur nicht braucht. Dazu die
 # beiden /api/tasks/{task_id}/...-Endpunkte: gehören zur Aufgaben-Sperre für `field` (dieselbe
 # Entscheidung wie in app/routers/tasks.py), auch wenn sie aus historischen Gründen hier liegen
-# -- "Vorgang erstellen" aus einer Aufgabe heraus ist eine Büro-Aktion am Schreibtisch.
+# -- "Vorgang erstellen" aus einer Aufgabe heraus ist eine Büro-Aktion am Schreibtisch. Seit 1.8.28
+# prüfen beide zusätzlich die Aufgaben-Sichtbarkeit (_require_visible_task(), dieselbe Regel wie
+# GET /api/tasks) -- vorher las ein Büro-Konto per geratener ID den Mangel zur Aufgabe eines Kollegen
+# oder zu einer Finanz-Aufgabe und legte daraus den Vorgang an.
 #
 # Jede Rolle, mit Eigentümerschaft (Teil B, seit dem Fund "fremde Berichte lesen und schreiben
 # auf einem gemeinsamen Auftrag" -- siehe CLAUDE.md "Rechtekonzept" -> "Berichts-
@@ -122,14 +126,17 @@ def get_task_finding(task_id: int, db: Session = Depends(get_db), _role: AppUser
     """Rückrichtung von einer Aufgabe zum Mangel, der sie erzeugt hat (seit 1.2.21) -- für die
     "Vorgang erstellen"-Schaltfläche im Aufgaben-Editor. URL-Präfix richtet sich nach dem
     Task-Kontext, aus dem der Endpunkt aufgerufen wird; die Business-Logik bleibt in
-    app/findings.py (Muster wie GET /api/orders/{order_id}/roof-areas)."""
+    app/findings.py (Muster wie GET /api/orders/{order_id}/roof-areas). Seit 1.8.28 nur für eine
+    Aufgabe, die die Person auch lesen darf: 403 ohne Inhalt, unbekannte ID 404."""
     _require_module_enabled(db)
+    _require_visible_task(db, _role, task_id)
     return get_finding_for_task(db, task_id)
 
 
 @router.post("/api/tasks/{task_id}/create-follow-up-project")
 def post_task_create_follow_up_project(task_id: int, db: Session = Depends(get_db), _role: AppUser = _office_role_dep):
     _require_module_enabled(db)
+    _require_visible_task(db, _role, task_id)
     try:
         return create_follow_up_project_for_task(db, task_id)
     except ValueError as exc:

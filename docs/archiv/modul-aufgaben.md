@@ -228,4 +228,8 @@ jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
     **Nebenbefund (nur gemeldet)**: `GET /api/tasks/{id}/finding` und `POST /api/tasks/{id}/
     create-follow-up-project` (`app/routers/findings.py`) prüfen die Aufgaben-Sichtbarkeit nicht --
     ein Büro-Konto liest per geratener ID den Mangel zur Aufgabe eines Kollegen bzw. legt daraus den
-    Vorgang an. Mängel sind für das Büro ohnehin über `/findings` lesbar.
+    Vorgang an. Mängel sind für das Büro ohnehin über `/findings` lesbar. **Behoben seit 1.8.28**:
+    beide prüfen `_require_visible_task()` (aus `app/routers/tasks.py`), 403 ohne Inhalt, unbekannte ID
+    404. `tests/test_v331_aufgabe_mangel_sichtbarkeit.py`: lesbare Aufgaben = Mangel lesbar = Vorgang
+    erstellbar für vier Konten, Angriffstest gegen Kollegen- und Finanz-Aufgabe; Gegenprobe mit dem alten
+    Router 6 von 8 rot.

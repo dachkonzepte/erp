@@ -4,6 +4,20 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.28 – Mangel zur Aufgabe und „Vorgang erstellen“ prüfen die Aufgaben-Sichtbarkeit
+
+Nebenbefund aus 1.8.26 behoben. `GET /api/tasks/{id}/finding` und `POST /api/tasks/{id}/create-follow-up-project`
+(`app/routers/findings.py`) prüften nur die Rolle. Wer die ID der Aufgabe eines Kollegen oder einer
+Finanz-Aufgabe erriet, las als buero_auftrag den Mangel dazu und legte daraus den Vorgang an. Beide prüfen
+jetzt `task_visible_for_user()` über denselben Helfer wie die übrigen Aufgaben-Endpunkte: 403 ohne Inhalt,
+eine unbekannte ID 404 (vorher lieferte das Lesen dann `null`). Der Aufgaben-Editor blendet „Vorgang
+erstellen“ bei einem Fehler ohnehin aus.
+
+`tests/test_v331_aufgabe_mangel_sichtbarkeit.py`: für vier Konten ist die Menge der lesbaren Aufgaben gleich
+der, deren Mangel lesbar ist, und gleich der, aus der sich ein Vorgang erstellen lässt. Angriffstest
+buero_auftrag gegen die Aufgabe des Kollegen und eine Finanz-Aufgabe: 403 ohne Mangeltext, kein Projekt
+entsteht, der Mangel bleibt unverändert. Gegenprobe mit dem Router von 1.8.27: 6 von 8 rot. 8 neue Tests.
+
 ## 1.8.27 – Keine Links mehr auf gesperrte Seiten, „Wichtige Infos“ in der Datengrenze
 
 Die drei bekannten Ausnahmen aus 1.8.24 behoben, `BEKANNT_OFFEN` in
