@@ -39,6 +39,7 @@ from sqlalchemy.orm import Session
 from ..berlin_time import berlin_now, berlin_today
 from ..auth import COOKIE_NAME
 from ..database import get_db
+from ..concern_notices import OPEN_CONCERNS_TEXT, open_concerns
 from ..deps import require_admin
 from ..document_categories import field_may_see_category
 from ..field_timesheet_pdf import build_field_timesheet_pdf
@@ -109,9 +110,18 @@ def get_field_view_today(request: Request, db: Session = Depends(get_db)):
         )
     draft_reports = list_draft_reports_for_employee(db, user.employee_id) if is_module_enabled(db, "wartungen") else []
     return {
-        "assignments": list_todays_assignments_for_employee(db, user.employee_id),
+        "assignments": _with_open_concerns(db, list_todays_assignments_for_employee(db, user.employee_id)),
         "draft_reports": draft_reports,
+        "open_concerns_text": OPEN_CONCERNS_TEXT,
     }
+
+
+def _with_open_concerns(db: Session, assignments: list[dict]) -> list[dict]:
+    """Seit 1.8.43: je Einsatz die offenen Bedenken des Auftrags (app/concern_notices.py) -- /mobil zeigt dann den
+    Hinweis "Offene Bedenken …". Nur Nummer, Vorlage und "Entscheidung erbeten bis", keine Inhalte. Ohne Modul
+    "checklisten" leer."""
+    concerns = open_concerns(db, sorted({a["order_id"] for a in assignments})) if is_module_enabled(db, "checklisten") else {}
+    return [{**a, "open_concerns": concerns.get(a["order_id"], [])} for a in assignments]
 
 
 @router.get("/api/field-view/maintenance-contracts", response_model=list[FieldMaintenancePropertyGroupOut])
@@ -162,7 +172,7 @@ def get_field_view_upcoming(request: Request, db: Session = Depends(get_db), _ro
     user = getattr(request.state, "erp_user", None)
     if user is None or user.employee_id is None:
         return []
-    return list_upcoming_assignments_for_employee(db, user.employee_id)
+    return _with_open_concerns(db, list_upcoming_assignments_for_employee(db, user.employee_id))
 
 
 @router.get("/api/field-view/timesheet.pdf")

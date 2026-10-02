@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import resolve_account_display, users_exist
 from ..checklist_purposes import DEFAULT_PURPOSE, PURPOSES
+from ..concern_notices import OPEN_CONCERNS_TEXT
 from ..company_logo import DEFAULT_SIDEBAR_LOGO_HEIGHT_PX, sidebar_logo_filename
 from ..company_logo import sidebar_logo_height_px as _sidebar_logo_height_px_lookup
 from ..database import SessionLocal, get_db
@@ -276,8 +277,10 @@ def field_view_page(request: Request, _role: AppUser = _any_role_dep):
     Feierabend-Prüfung sitzt bewusst NUR in GET /api/field-view/today (einzige Quelle der
     Wahrheit statt zweier Prüfstellen), dessen 401 das Frontend (mobil.html) zu /login
     weiterleitet. Ein serverseitiger Redirect hier hätte denselben Effekt gehabt, wäre aber
-    zusätzlich wanduhrzeit-abhängig und damit gegen den generischen Seiten-Rendertest geflackert."""
-    return templates.TemplateResponse(request=request, name="mobil.html", context={})
+    zusätzlich wanduhrzeit-abhängig und damit gegen den generischen Seiten-Rendertest geflackert. Seit 1.8.43 mit
+    dem Text des Hinweises "Offene Bedenken" (app/concern_notices.py, eine Quelle für Seite und Auftrag)."""
+    return templates.TemplateResponse(request=request, name="mobil.html",
+                                      context={"open_concerns_text": OPEN_CONCERNS_TEXT})
 
 
 @router.get("/mobil/stundenzettel", response_class=HTMLResponse)

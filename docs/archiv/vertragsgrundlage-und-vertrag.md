@@ -23,7 +23,8 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | **2b-2 Nachtrag** | 1.8.39 | Beteiligte aus den Stammdaten: Dialog durchsucht Adressbuch, Kunden und Lieferanten (nach Herkunft, Rollenprüfung der Büro-Suche), Adressbuch-Eintrag mit Verweis ohne Kopie, Kunde des Projekts nie Beteiligter | erledigt |
 | **2b-3 Teil 2** | 1.8.40 | Behinderungsanzeige: Brief-PDF (zwei Briefarten), Vorbehalt je Briefart und Grundlage mit Prüfung, Versand an den Auftraggeber mit Vollmacht in der Ablage, Aufgabe erledigt (Punkte 1–3) | erledigt |
 | **2b-3 Teil 3** | 1.8.41 | Versandprotokoll "Empfang bestätigt"/"unzustellbar" für alle Dokumente, "Zustellung nachtragen" mit Empfängerauswahl und Vollmacht, Wiederaufnahme "i. A." Büro-Konto, Zeitstrahl an der Anzeige, "als gegenstandslos abschließen" (Behinderungs- und Bedenkenanzeige), Kundenwechsel prüft Beteiligte | erledigt |
-| **2b-4** | — | Bedenkenanzeige | offen |
+| **2b-4 Teil 1** | 1.8.43 | Bedenkenanzeige erfassen: Systemfelder in drei Abschnitten (Meldung, Anzeige nur Büro, Entscheidung des Auftraggebers nur Büro), Startvorlage, Folgen versenden / Antwort prüfen / erledigt, Hinweis "Offene Bedenken" an Auftrag und /mobil | erledigt |
+| **2b-4 Teil 2** | 1.8.44 | Bedenkenanzeige als Brief und Versand (Briefarten je Zweck), Kundenwechsel-Sperre bei festgeschriebenem Vertrag, Warnung bei abweichendem Kunden | offen |
 
 Nach jeder Runde die Spalten "Version"/"Stand" nachziehen und unten einen Abschnitt
 "Umsetzung 1.8.x" ergänzen.
@@ -1261,3 +1262,100 @@ Gegenprobe zu 1 bis 6, Monteur 403.
    nachgetragene Zustellung). Fachlich zu entscheiden, ob das nötig ist.
 5. **Nach einem Kundenwechsel**: Briefe gehen an den Kunden des Projekts von heute (Festlegung 2 von 1.8.40), der Auftrag nennt
    im Schnappschuss weiter den alten -- Anschrift im Brief und Kunde im Auftrag können dann auseinanderlaufen.
+
+---
+
+## Umsetzung 1.8.43 (02.10.2026) -- Runde 2b-4 Teil 1: Bedenkenanzeige erfassen
+
+Betreibervorgabe (sechs Punkte): (1) Zweck `bedenkenanzeige` mit Systemfeldern in drei Abschnitten -- Meldung (bekannt seit,
+Beschreibung, Fotos, Unterschrift des Meldenden), Anzeige nur Büro (Bedenken gegen: vorgesehene Art der Ausführung, vom
+Auftraggeber gelieferte Stoffe oder Bauteile, Leistungen anderer Unternehmer; Begründung, mögliche Folgen, Vorschlag zur Abhilfe
+optional, Entscheidung erbeten bis, Unterschrift Büro), Entscheidung des Auftraggebers nur Büro (eingegangen am, Entscheidung:
+Bedenken gefolgt / Ausführung trotz Bedenken angeordnet / keine Antwort / Sonstiges, Antwort als Beleg, Notiz, Unterschrift).
+(2) Startvorlage als Entwurf; Folgen nach der Meldung "Bedenkenanzeige versenden", nach dem Versand "Antwort des Auftraggebers
+prüfen", fällig am "Entscheidung erbeten bis". (3) Solange eine Bedenkenanzeige ohne Entscheidung offen ist, zeigen Auftrag und
+`/mobil` "Offene Bedenken – vor Ausführung der betroffenen Leistung Entscheidung des Auftraggebers abwarten oder mit dem Büro
+klären." (4) Brief "Bedenkenanzeige" mit Versand, Vorbehalt je Vertragsgrundlage, Kopie an Beteiligte, Vollmacht, Zustellung,
+Empfang und "gegenstandslos" wie bei der Behinderungsanzeige. (5) Kundenwechsel im Projekt gesperrt, sobald ein Auftrag einen
+festgeschriebenen Vertrag hat; sonst warnt der Versand beider Anzeigen bei abweichendem Kunden und verlangt eine Bestätigung.
+(6) Tests mit Gegenprobe. Bei zu großem Umfang nach Punkt 3 committen -- so geschehen: **1.8.43 = Punkte 1–3 und ihre Tests aus
+Punkt 6**, Punkte 4–5 siehe "Offen für Teil 2" unten.
+
+- **Registry** (`app/checklist_purposes.py`): `CONCERN_SYSTEM_FIELDS`, Schlüssel `bedenkenanzeige.<name>` (`bekannt_seit`,
+  `beschreibung`, `fotos`, `unterschrift_meldung`, `bedenken_gegen` mit `art_der_ausfuehrung`/`stoffe_bauteile`/
+  `leistungen_anderer`, `begruendung`, `moegliche_folgen`, `vorschlag_abhilfe`, `entscheidung_bis`, `unterschrift_buero`,
+  `eingegangen_am`, `entscheidung` mit `bedenken_gefolgt`/`trotz_bedenken`/`keine_antwort`/`sonstiges`, `antwort_beleg`, `notiz`,
+  `unterschrift_entscheidung`) -- die Schlüssel stehen in der Datenbank und werden nie umbenannt. Abschnittsreihenfolge, feste
+  Eigenschaften, "nur Büro" und das Verwerfen von Unterschriften kommen unverändert aus 1.8.38 (generisch je Zweck).
+- **Neuer Auslöser `FollowUp.after_letter`** (`app/checklist_follow_ups.py`): fällig, sobald der Brief dieser Art beim
+  Auftraggeber angekommen ist (`letter_was_sent()`, also ohne Unzustellbare und reine Kopien); `follow_up_due()` braucht dafür die
+  Session. Aufgerufen wird er ab 1.8.44 nach Versand und nachgetragener Zustellung (`run_follow_ups_after_letter()`); bis dahin
+  nur über "Nachholen". `trigger_label()` "nach dem Versand „Bedenkenanzeige“".
+- **Folgen** (`app/concern_notices.py`): `bedenkenanzeige.versenden` nach der Unterschrift der Meldung (Aufgabe "Bedenkenanzeige
+  versenden" -- dieselbe Funktion wie die Behinderungsanzeige, `app/obstruction_notices.py::create_notice_send_task()`, dorthin
+  verallgemeinert); `bedenkenanzeige.antwort_pruefen` nach dem Versand (Aufgabe "Antwort des Auftraggebers prüfen", fällig am
+  "Entscheidung erbeten bis", fehlt es: heute; keine Aufgabe, wenn die Entscheidung schon unterschrieben ist);
+  `bedenkenanzeige.entscheidung` nach der Unterschrift der Entscheidung: diese Aufgabe erledigt (legt nichts an, Zeile ohne Ziel).
+  Alle drei mit Modul `aufgabenmanagement` ("modul_aus", nachholbar), idempotent über `checklist_follow_ups`.
+- **Offene Bedenken** (`open_concerns()`): Checklisten mit Zweck der Fassung `bedenkenanzeige` im Entwurf (nicht abgeschlossen,
+  nicht gegenstandslos) ohne gültige (nicht verworfene) Unterschrift im Feld `bedenkenanzeige.unterschrift_entscheidung` -- drei
+  Abfragen für beliebig viele Aufträge. `GET /api/orders/{id}/open-concerns` (Büro, ohne Modul leer) liefert Text und Liste; die
+  Auftragsseite zeigt oben einen roten Kasten mit Text und Link je Anzeige ("– Entscheidung erbeten bis …"). `/mobil`: `GET
+  /api/field-view/today` und `/upcoming` tragen je Einsatz `open_concerns` (nur Nummer, Vorlage, Datum), die Seite setzt den
+  Kasten unter den Einsatz; der Text kommt aus einer Quelle (`OPEN_CONCERNS_TEXT`, auf `/mobil` über die Seite).
+- **Migration `0816ece7159b`**: Startvorlage "Bedenkenanzeige" (Entwurf, nur Auftrag, `field_readable` aus, Hinweise "Vor
+  Veröffentlichung prüfen" und "Bedenken sofort melden"); kein Schema. `downgrade()` entfernt sie nur unveröffentlicht und
+  unbenutzt. **Auf dem Server**: die Startvorlage im Editor prüfen und veröffentlichen. Eine eigene Vorlage mit Zweck
+  Bedenkenanzeige von vor 1.8.43 bekommt die Systemfelder im Entwurf über "Systemfelder angleichen".
+- **Festlegungen (nicht vorgegeben, bitte bestätigen)**:
+  1. "Bedenken gegen" ist eine Mehrfachauswahl (Bedenken können Ausführung und gelieferten Stoff zugleich betreffen).
+  2. Pflicht: bekannt seit, Beschreibung, Unterschrift der Meldung, Bedenken gegen, Begründung, mögliche Folgen, Entscheidung
+     erbeten bis, Unterschrift Büro, Entscheidung, Unterschrift der Entscheidung. Ohne Pflicht: Fotos, Vorschlag zur Abhilfe,
+     eingegangen am (leer bei "keine Antwort"), Antwort als Beleg, Notiz.
+  3. "Antwort als Beleg" ist ein Fotofeld (Foto oder Scan, höchstens 10) -- Checklisten kennen keinen Dateityp, ein PDF der
+     Antwort geht hier nicht.
+  4. Der Monteur sieht Anzeige und Entscheidung lesend ("füllt das Büro aus"), wie die Anzeige der Behinderungsanzeige.
+  5. Der Hinweis gilt ab dem Anlegen (auch ein leerer Entwurf) bis zur gültigen Unterschrift der Entscheidung -- auch bei "keine
+     Antwort": das Büro hat dann entschieden, wie es weitergeht. Verworfene Unterschrift: der Hinweis ist wieder da.
+     Gegenstandslos oder abgeschlossen: weg.
+  6. Hinweis auf der Auftragsseite (Büro) und in `/mobil` unter dem heutigen Einsatz und unter "Meine kommenden Termine"; nicht
+     auf der Einsatzbericht- und der Checklisten-Seite des Auftrags.
+  7. "Antwort prüfen": Priorität normal, an den Sachbearbeiter, sonst ohne Zuständigkeit für das Büro; mit der Unterschrift der
+     Entscheidung erledigt.
+- **Verifikation**: `tests/test_v346_bedenkenanzeige.py` (16 Tests: Registry, Startvorlage durch die echte
+  Veröffentlichungsprüfung, Migration entfernt nur unbenutzte Entwürfe, startbar im Büro und in `/mobil`, Systemfelder und
+  Abschnittsreihenfolge geschützt, jede Folge genau einmal samt Nachholen und zweitem Versand, keine Antwort-Aufgabe nach schon
+  unterschriebener Entscheidung, ohne Datum heute fällig, Modul aus nachgeholt, gegenstandslos ohne Folgen, Hinweis erscheint und
+  verschwindet (auch nach Verwerfen wieder da, gegenstandslos weg, ohne Modul leer, andere Zwecke nie), `/mobil` je Einsatz,
+  Auftragsseite, Monteur 403 an Anzeige/Entscheidung/Beleg/Hinweis-Endpunkt mit Schlüssel-Scan). Den Versand stellt der Test bis
+  1.8.44 als gesendeten Protokolleintrag nach. `test_v320` nachgezogen (Bedenkenanzeige mit Systemfeldern, ein Auslöser je
+  Folge). Gegenproben (Skript im Scratchpad, Dateien byte-genau zurück): 17 von 17 rot -- Anzeige bzw. Entscheidung nicht nur
+  Büro, "versenden" nach dem Abschluss, "Antwort prüfen" ohne Versand bzw. nie, Fälligkeit heute, Antwort-Aufgabe trotz
+  Entscheidung, Entscheidung erledigt nichts, Hinweis bleibt nach der Entscheidung, verworfene Unterschrift zählt, Hinweis auch
+  gegenstandslos, für jeden Zweck, ohne Modulprüfung, Endpunkt für Monteure, `/mobil` ohne Hinweis, Startvorlage mit einfacher
+  Auswahl bzw. ohne Pflicht-Unterschrift. Migration SQLite und PostgreSQL (Wegwerf-Datei bzw. -Schema, ganze Kette): hin
+  (Vorlage mit 17 Feldern), zurück (weg), hin, `alembic current`, `alembic check`. Klicktest `scripts/klicktest_bedenkenanzeige.py`
+  22/22 (Monteurin 412 px hell: `/mobil` ohne Hinweis, starten, drei Abschnitte, elf Felder "füllt das Büro aus", Meldung
+  unterschreiben, Hinweis unter dem Einsatz mit Link, kein waagrechter Scrollbalken; Büro 1400 px dunkel: Hinweis oben auf dem
+  Auftrag lesbar, Folge erledigt, zwei Bedenken gewählt, Anzeige unterschrieben, Hinweis mit Datum, Entscheidung unterschrieben,
+  Hinweis weg; Monteurin dunkel ohne Hinweis). Unverändert grün: `klicktest_behinderungsanzeige.py` 35/35,
+  `klicktest_behinderungsanzeige_abschluss.py` 43/43.
+
+### Offen für Teil 2 (Punkte 4–5 und ihre Tests aus Punkt 6)
+
+4. **Brief "Bedenkenanzeige"**: `app/notice_letters.py` von "Briefarten der Behinderungsanzeige" auf "Briefarten je Zweck"
+   verallgemeinern (Briefart `bedenkenanzeige` nach der Unterschrift Büro, Inhalt Meldung + Anzeige, Fotos verkleinert), Vorbehalt
+   je Vertragsgrundlage (`notice_reservations`, zwei weitere Bausteine), E-Mail-Vorlage, Ablage, Versandprotokoll-Filter,
+   Zustellung nachtragen, Versandergebnis, Vollmacht, Zeitstrahl, Karte "Anzeige an den Auftraggeber" auf der Ausfüllseite;
+   Aufgabe "versenden" erledigt bzw. nach "unzustellbar" wieder offen; "Antwort prüfen" nach Versand und Zustellung.
+5. **Empfänger**: Kundenwechsel im Projekt ablehnen, sobald ein Auftrag einen festgeschriebenen Vertrag hat; sonst beim Versand
+   und beim Erstellen des Briefs beider Anzeigen warnen, wenn Kunde des Projekts und Kunde laut Auftrag (Schnappschuss)
+   auseinanderfallen, und eine ausdrückliche Bestätigung verlangen.
+
+### Nebenbefunde 1.8.43 (nur gemeldet)
+
+1. **Eigene Vorlagen mit Zweck Bedenkenanzeige von vor 1.8.43**: ein Entwurf bekommt die Systemfelder erst über "Systemfelder
+   angleichen"; eine schon veröffentlichte Fassung bleibt ohne -- ihre Checklisten haben keine Unterschrift der Entscheidung und
+   zeigen den Hinweis "Offene Bedenken", bis sie abgeschlossen oder als gegenstandslos abgeschlossen sind.
+2. **Der Hinweis fehlt dort, wo der Monteur am Auftrag arbeitet**: Einsatzbericht-Seite (`/orders/{id}/service-reports`) und
+   Checklisten-Seite des Auftrags zeigen ihn nicht -- nur `/mobil` (Vorgabe: "Auftrag und /mobil").

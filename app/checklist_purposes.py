@@ -30,8 +30,12 @@ docs/archiv/vertragsgrundlage-und-vertrag.md, "Umsetzung 1.8.38". Dazu kamen:
 - SystemField.option_hints: ein Hinweis, der beim Wählen einer Option erscheint.
 - FollowUp.after_signature: die Folge läuft nach der Unterschrift in diesem Systemfeld statt
   nach dem Abschluss.
-Abnahme und Bedenkenanzeige tragen noch keine Systemfelder und Folgen. Seit 1.8.41 lassen sich Behinderungs- und
-Bedenkenanzeige "als gegenstandslos abschließen" (ChecklistPurpose.voidable).
+Seit 1.8.41 lassen sich Behinderungs- und Bedenkenanzeige "als gegenstandslos abschließen"
+(ChecklistPurpose.voidable). Seit 1.8.43 (Runde 2b-4) trägt die Bedenkenanzeige Systemfelder nach dem Muster der
+Behinderungsanzeige -- Meldung, Anzeige (Büro), Entscheidung des Auftraggebers (Büro) -- und drei Folgen: nach der
+Meldung "versenden", nach dem Versand (FollowUp.after_letter) "Antwort prüfen", nach der Unterschrift der
+Entscheidung diese Aufgabe erledigen. Herleitung in docs/archiv/vertragsgrundlage-und-vertrag.md, "Umsetzung
+1.8.43". Die Abnahme trägt noch keine Systemfelder.
 
 Bewusst ohne Import aus app.checklist_templates (das importiert von hier); die Handler der Folgen
 importieren ihre Module erst beim Aufruf."""
@@ -73,12 +77,14 @@ class FollowUp:
     Folge ausmacht, und liefert das Ziel als (target_type, target_id) oder None (nichts
     anzulegen). Er darf selbst committen (wie app/tasks.py::create_task()). module: ohne dieses
     Modul bleibt die Folge "modul_aus" und ist nachholbar (wie Betreiberentscheidung C bei den
-    Regeln)."""
+    Regeln). after_letter (seit 1.8.43): die Folge läuft, sobald der Brief dieser Art beim Auftraggeber
+    angekommen ist (app/notice_letters.py::letter_was_sent()) -- nach der Bedenkenanzeige "Antwort prüfen"."""
     key: str
     label: str
     handler: Callable
     module: str | None = None
     after_signature: str | None = None
+    after_letter: str | None = None
 
 
 @dataclass(frozen=True)
@@ -138,6 +144,70 @@ OBSTRUCTION_SYSTEM_FIELDS = (
 )
 
 
+# --- Bedenkenanzeige (seit 1.8.43) -------------------------------------------------------------
+
+CONCERN_PURPOSE = "bedenkenanzeige"
+_K = CONCERN_PURPOSE + "."
+CONCERN_REPORT_SIGNATURE = _K + "unterschrift_meldung"
+CONCERN_DECISION_SIGNATURE = _K + "unterschrift_entscheidung"
+CONCERN_DEADLINE = _K + "entscheidung_bis"
+
+
+def _concern_send_task(db, checklist):
+    from .concern_notices import create_send_task  # erst beim Aufruf, siehe Moduldocstring
+    return create_send_task(db, checklist)
+
+
+def _concern_answer_task(db, checklist):
+    from .concern_notices import create_answer_task
+    return create_answer_task(db, checklist)
+
+
+def _concern_answer_done(db, checklist):
+    from .concern_notices import complete_answer_tasks
+    return complete_answer_tasks(db, checklist)
+
+
+CONCERN_SYSTEM_FIELDS = (
+    # Meldung -- wer die Bedenken hat (meist der Monteur).
+    SystemField(_K + "bekannt_seit", "datum_uhrzeit", "Bekannt seit", required=True, section="Meldung"),
+    SystemField(_K + "beschreibung", "text", "Beschreibung", required=True, section="Meldung", multiline=True),
+    SystemField(_K + "fotos", "foto", "Fotos", section="Meldung"),
+    SystemField(CONCERN_REPORT_SIGNATURE, "unterschrift", "Unterschrift des Meldenden", required=True,
+                section="Meldung", signer_label="Meldender"),
+    # Anzeige -- das Büro.
+    SystemField(_K + "bedenken_gegen", "auswahl", "Bedenken gegen", required=True, multiple=True, section="Anzeige",
+                office_only=True, options=(
+                    ("art_der_ausfuehrung", "vorgesehene Art der Ausführung"),
+                    ("stoffe_bauteile", "vom Auftraggeber gelieferte Stoffe oder Bauteile"),
+                    ("leistungen_anderer", "Leistungen anderer Unternehmer"),
+                )),
+    SystemField(_K + "begruendung", "text", "Begründung", required=True, section="Anzeige", office_only=True,
+                multiline=True),
+    SystemField(_K + "moegliche_folgen", "text", "Mögliche Folgen", required=True, section="Anzeige",
+                office_only=True, multiline=True),
+    SystemField(_K + "vorschlag_abhilfe", "text", "Vorschlag zur Abhilfe", section="Anzeige", office_only=True,
+                multiline=True),
+    SystemField(CONCERN_DEADLINE, "datum", "Entscheidung erbeten bis", required=True, section="Anzeige",
+                office_only=True),
+    SystemField(_K + "unterschrift_buero", "unterschrift", "Unterschrift Büro", required=True, section="Anzeige",
+                office_only=True, signer_label="Büro"),
+    # Entscheidung des Auftraggebers -- das Büro.
+    SystemField(_K + "eingegangen_am", "datum", "Eingegangen am", section="Entscheidung", office_only=True),
+    SystemField(_K + "entscheidung", "auswahl", "Entscheidung", required=True, section="Entscheidung",
+                office_only=True, options=(
+                    ("bedenken_gefolgt", "Bedenken gefolgt"),
+                    ("trotz_bedenken", "Ausführung trotz Bedenken angeordnet"),
+                    ("keine_antwort", "keine Antwort"),
+                    ("sonstiges", "Sonstiges"),
+                )),
+    SystemField(_K + "antwort_beleg", "foto", "Antwort als Beleg", section="Entscheidung", office_only=True),
+    SystemField(_K + "notiz", "text", "Notiz", section="Entscheidung", office_only=True, multiline=True),
+    SystemField(CONCERN_DECISION_SIGNATURE, "unterschrift", "Unterschrift", required=True, section="Entscheidung",
+                office_only=True, signer_label="Büro"),
+)
+
+
 PURPOSES: dict[str, ChecklistPurpose] = {p.key: p for p in (
     ChecklistPurpose(DEFAULT_PURPOSE, "Allgemein", ALL_CONTEXTS),
     ChecklistPurpose("abnahme", "Abnahme", ("auftrag",)),
@@ -145,7 +215,14 @@ PURPOSES: dict[str, ChecklistPurpose] = {p.key: p for p in (
         FollowUp(_B + "versenden", "Aufgabe „Behinderungsanzeige versenden“", _obstruction_send_task,
                  module="aufgabenmanagement", after_signature=OBSTRUCTION_REPORT_SIGNATURE),
     ), voidable=True),
-    ChecklistPurpose("bedenkenanzeige", "Bedenkenanzeige", ("auftrag",), voidable=True),
+    ChecklistPurpose(CONCERN_PURPOSE, "Bedenkenanzeige", ("auftrag",), CONCERN_SYSTEM_FIELDS, (
+        FollowUp(_K + "versenden", "Aufgabe „Bedenkenanzeige versenden“", _concern_send_task,
+                 module="aufgabenmanagement", after_signature=CONCERN_REPORT_SIGNATURE),
+        FollowUp(_K + "antwort_pruefen", "Aufgabe „Antwort des Auftraggebers prüfen“", _concern_answer_task,
+                 module="aufgabenmanagement", after_letter=CONCERN_PURPOSE),
+        FollowUp(_K + "entscheidung", "Aufgabe „Antwort des Auftraggebers prüfen“ erledigen", _concern_answer_done,
+                 module="aufgabenmanagement", after_signature=CONCERN_DECISION_SIGNATURE),
+    ), voidable=True),
 )}
 
 

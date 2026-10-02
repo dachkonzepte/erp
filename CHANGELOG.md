@@ -4,6 +4,27 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.43 – Bedenkenanzeige erfassen
+
+Stufe 2b, Runde 2b-4 Teil 1 (Punkte 1–3 der Vorgabe, Brief und Kundenwechsel folgen in 1.8.44). Die Bedenkenanzeige ist eine
+Checkliste mit Zweck „bedenkenanzeige“ nach dem Muster der Behinderungsanzeige: Systemfelder in drei Abschnitten – Meldung
+(bekannt seit, Beschreibung, Fotos, Unterschrift des Meldenden), Anzeige nur Büro (Bedenken gegen: vorgesehene Art der
+Ausführung, vom Auftraggeber gelieferte Stoffe oder Bauteile, Leistungen anderer Unternehmer; Begründung, mögliche Folgen,
+Vorschlag zur Abhilfe, „Entscheidung erbeten bis“, Unterschrift Büro) und Entscheidung des Auftraggebers nur Büro (eingegangen
+am, Entscheidung, Antwort als Beleg, Notiz, Unterschrift). Startvorlage als Entwurf (Migration `0816ece7159b`). Drei Folgen,
+je genau einmal und nachholbar: nach der Meldung „Bedenkenanzeige versenden“, nach dem Versand „Antwort des Auftraggebers
+prüfen“ (fällig am „Entscheidung erbeten bis“; neuer Auslöser `FollowUp.after_letter`), nach der Unterschrift der Entscheidung
+diese Aufgabe erledigt. Solange eine Bedenkenanzeige ohne unterschriebene Entscheidung offen ist, zeigen die Auftragsseite und
+`/mobil` (unter dem Einsatz) den roten Hinweis „Offene Bedenken – vor Ausführung der betroffenen Leistung Entscheidung des
+Auftraggebers abwarten oder mit dem Büro klären.“ mit Link; gegenstandslos oder abgeschlossen ist er weg. Monteure melden und
+unterschreiben die Meldung, Anzeige und Entscheidung 403.
+
+Festlegungen (Mehrfachauswahl bei „Bedenken gegen“, Pflichtfelder, Beleg als Fotofeld, Hinweis ab dem Anlegen bis zur
+Unterschrift der Entscheidung) und zwei Nebenbefunde in `docs/archiv/vertragsgrundlage-und-vertrag.md`, „Umsetzung 1.8.43“.
+`tests/test_v346_bedenkenanzeige.py` (16 Tests), `test_v320` nachgezogen; 17 von 17 Gegenproben rot. Migration SQLite und
+PostgreSQL: hin, zurück, hin, `alembic check`. Volle Suite 2578 Tests: 2577 grün, einer rot (Konstanten-Import innerhalb einer Funktion in drei Routern, vom Wächter `test_v109` erkannt) – auf Modulebene verschoben, betroffene Dateien danach grün. Klicktest `scripts/klicktest_bedenkenanzeige.py`
+22/22, die Klicktests der Behinderungsanzeige unverändert grün.
+
 ## 1.8.42 – Grunddaten beim Start statt beim ersten Lesen
 
 Pflege-Runde. Einstellungen und Standardsätze legt kein Lesepfad mehr beim ersten Zugriff an, sondern

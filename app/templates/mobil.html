@@ -38,6 +38,8 @@
     .contract-row .contract-title{font-size:13.5px;font-weight:650}
     .perform-btn{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:8px 11px;font-weight:650;font-size:13px;white-space:nowrap}
     .perform-btn:disabled{opacity:.6}
+    .concern-alert{margin:-10px 0 10px;padding:10px 14px;border:2px solid var(--danger);border-top:none;background:var(--card);color:var(--danger);font-weight:700;font-size:14px;line-height:1.35;overflow-wrap:anywhere}
+    .concern-alert a{display:block;margin-top:6px;color:var(--danger);font-weight:650;font-size:13.5px}
     .checklist-link{display:flex;align-items:center;min-height:44px;margin:-10px 0 10px;padding:0 16px;border:1px solid var(--line);border-top:none;background:var(--card);color:var(--accent);font-weight:650;font-size:13.5px;text-decoration:none}
   </style>
 </head>
@@ -59,6 +61,7 @@
 </main>
 <script>
 var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false' }};
+var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
 (function(){
   function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
   function fmtDate(s){
@@ -66,6 +69,16 @@ var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false
     var d=new Date(s+'T00:00:00');
     if(isNaN(d))return s;
     return d.toLocaleDateString('de-DE');
+  }
+  // Seit 1.8.43: offene Bedenkenanzeige am Auftrag (ohne Entscheidung des Auftraggebers) -- deutlicher Hinweis
+  // direkt unter dem Einsatz, mit Link zur Anzeige.
+  function concernAlert(a){
+    var list=a.open_concerns||[];
+    if(!list.length)return'';
+    return '<div class="concern-alert" role="alert" data-concerns="'+a.order_id+'">'+esc(OPEN_CONCERNS_TEXT)
+      +list.map(function(c){return '<a href="/checklisten/'+c.checklist_id+'">'+esc(c.template_label||'Bedenkenanzeige')
+        +' Nr. '+c.checklist_id+(c.decision_due?' – Entscheidung erbeten bis '+fmtDate(c.decision_due):'')+' →</a>'}).join('')
+      +'</div>';
   }
   function renderAssignments(list){
     var el=document.getElementById('assignmentsList');
@@ -80,6 +93,7 @@ var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false
         +'<div class="meta"><span>Auftrag '+esc(a.order_number)+' · '+period+'</span>'
         +'<span class="status-pill'+(hasReport?' has-report':'')+'">'+(hasReport?a.report_count+' Bericht(e)':'Kein Bericht')+'</span></div>'
         +'</a>'
+        +concernAlert(a)
         +(CHECKLISTS_ENABLED?'<a class="checklist-link" href="/checklisten/auftrag/'+a.order_id+'">Checklisten zu diesem Auftrag →</a>':'');
     }).join('');
   }
@@ -104,7 +118,8 @@ var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false
         +'<div class="obj">'+esc(a.property_name||a.customer_name)+'</div>'
         +(a.property_address?'<div class="addr">'+esc(a.property_address)+'</div>':'')
         +'<div class="meta"><span>Auftrag '+esc(a.order_number)+'</span><span>'+esc(period)+'</span></div>'
-        +'</div>';
+        +'</div>'
+        +concernAlert(a);
     }).join('');
   }
   function renderMaintenance(groups){

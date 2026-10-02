@@ -106,11 +106,15 @@ def triggering_signature(checklist: Checklist, field_key: str) -> ChecklistAttac
                  if a.kind == "unterschrift" and a.template_field_id in field_ids), None)
 
 
-def follow_up_due(checklist: Checklist, spec: FollowUp) -> bool:
+def follow_up_due(checklist: Checklist, spec: FollowUp, db: Session | None = None) -> bool:
     """Seit 1.8.38: nach einer Unterschrift (after_signature) oder -- Standard -- nach dem Abschluss. Seit 1.8.41
-    nie an einer als gegenstandslos abgeschlossenen Checkliste (auch nicht beim Nachholen)."""
+    nie an einer als gegenstandslos abgeschlossenen Checkliste (auch nicht beim Nachholen). Seit 1.8.43 nach dem
+    Versand eines Briefs (after_letter: beim Auftraggeber angekommen) -- dafür braucht es db."""
     if checklist.status == VOID_STATUS:
         return False
+    if spec.after_letter:
+        from .notice_letters import letter_was_sent  # lokal: das Briefmodul importiert von hier
+        return db is not None and letter_was_sent(db, spec.after_letter, checklist.id)
     if spec.after_signature:
         return triggering_signature(checklist, spec.after_signature) is not None
     return checklist.status == "abgeschlossen"
@@ -119,6 +123,9 @@ def follow_up_due(checklist: Checklist, spec: FollowUp) -> bool:
 def trigger_label(checklist: Checklist | None, spec: FollowUp | None) -> str:
     if spec is None:
         return ""
+    if spec.after_letter:
+        purpose = get_purpose(spec.after_letter)
+        return f"nach dem Versand „{purpose.label if purpose else spec.after_letter}“"
     if not spec.after_signature:
         return "nach dem Abschluss"
     fields = checklist.template_version.fields if checklist is not None else []
@@ -137,7 +144,7 @@ def run_checklist_follow_ups(db: Session, checklist_id: int) -> dict:
     purpose = get_purpose(checklist.template_version.purpose)
     if purpose is None or not purpose.follow_ups:
         return counts
-    due = [spec for spec in purpose.follow_ups if follow_up_due(checklist, spec)]
+    due = [spec for spec in purpose.follow_ups if follow_up_due(checklist, spec, db)]
     if not due:
         return counts
     existing = _existing_rows(db, checklist_id)
@@ -196,6 +203,17 @@ def run_follow_ups_after_signature(db: Session, checklist_id: int) -> None:
     except Exception as exc:  # noqa: BLE001 -- bewusst breit, siehe Docstring
         db.rollback()
         logger.warning("Folgen der Checkliste %s nach einer Unterschrift nicht ausgewertet (%s)", checklist_id,
+                       type(exc).__name__)
+
+
+def run_follow_ups_after_letter(db: Session, checklist_id: int) -> None:
+    """Aufruf NACH dem Commit eines Versands bzw. einer nachgetragenen Zustellung (seit 1.8.43, Folgen mit
+    after_letter) -- dieselbe Absicherung: der Versand gilt, offene Folgen sind nachholbar."""
+    try:
+        run_checklist_follow_ups(db, checklist_id)
+    except Exception as exc:  # noqa: BLE001 -- bewusst breit, siehe Docstring
+        db.rollback()
+        logger.warning("Folgen der Checkliste %s nach dem Versand nicht ausgewertet (%s)", checklist_id,
                        type(exc).__name__)
 
 

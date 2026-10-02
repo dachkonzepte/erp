@@ -104,8 +104,8 @@ def test_registry_has_the_four_purposes_and_the_three_only_at_orders():
     assert PURPOSES["allgemein"].contexts == ("auftrag", "objekt", "betriebsmittel", "betrieb")
     for key in ("abnahme", "behinderungsanzeige", "bedenkenanzeige"):
         assert PURPOSES[key].contexts == ("auftrag",)
-    for key in ("abnahme", "bedenkenanzeige"):  # die Behinderungsanzeige hat sie seit 1.8.38 (test_v341)
-        assert PURPOSES[key].system_fields == () and PURPOSES[key].follow_ups == ()  # kommen in 2b/2c
+    # die Behinderungsanzeige hat sie seit 1.8.38 (test_v341), die Bedenkenanzeige seit 1.8.43 (test_v346)
+    assert PURPOSES["abnahme"].system_fields == () and PURPOSES["abnahme"].follow_ups == ()  # kommt in 2c
 
 
 def test_every_registered_purpose_is_consistent(testzweck):
@@ -119,6 +119,8 @@ def test_every_registered_purpose_is_consistent(testzweck):
         signatures = {s.key for s in purpose.system_fields if s.field_type == "unterschrift"}
         for follow_up in purpose.follow_ups:  # seit 1.8.38: Auslöser ist ein Unterschrifts-Systemfeld
             assert follow_up.after_signature is None or follow_up.after_signature in signatures, follow_up.key
+            # seit 1.8.43: oder der Versand eines Briefs -- höchstens ein Auslöser je Folge
+            assert not (follow_up.after_signature and follow_up.after_letter), follow_up.key
         # Abschnitte (seit 1.8.38): entweder alle Systemfelder mit Abschnitt oder keines, und die
         # Vorgabe selbst steht in einer Reihenfolge, die das Veröffentlichen annimmt.
         sections = [s.section for s in purpose.system_fields]

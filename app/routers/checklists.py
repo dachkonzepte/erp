@@ -38,6 +38,7 @@ from sqlalchemy.orm import Session
 from ..checklist_email import get_checklist_recipient_email, send_checklist_email
 from ..checklist_follow_ups import list_checklists_with_open_follow_ups, list_follow_ups, run_checklist_follow_ups
 from ..checklist_pdf import build_checklist_pdf
+from ..concern_notices import OPEN_CONCERNS_TEXT, open_concerns
 from ..checklist_rules import list_checklists_with_open_rules, list_rule_executions, run_checklist_rules
 from ..checklists import (
     ChecklistLocked, add_attachment, asset_readiness, attachment_path, complete_checklist, create_checklist,
@@ -231,6 +232,16 @@ def get_my_checklists(status: str | None = "entwurf", db: Session = Depends(get_
         row["is_own"] = True
         row["can_open"] = True
     return rows
+
+
+@router.get("/api/orders/{order_id}/open-concerns")
+def get_open_concerns(order_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
+    """Offene Bedenken am Auftrag (seit 1.8.43, app/concern_notices.py): Bedenkenanzeigen ohne Entscheidung -- für
+    den Hinweis auf der Auftragsseite (Büro). Der Monteur bekommt dieselbe Angabe je Einsatz über /mobil
+    (GET /api/field-view/today). Ohne Modul eine leere Liste, kein Fehler (der Hinweis fehlt dann)."""
+    if not is_module_enabled(db, MODULE_KEY):
+        return {"text": OPEN_CONCERNS_TEXT, "concerns": []}
+    return {"text": OPEN_CONCERNS_TEXT, "concerns": open_concerns(db, [order_id]).get(order_id, [])}
 
 
 @router.get("/api/checklists/asset-readiness/{asset_id}", response_model=ChecklistAssetReadinessOut)
