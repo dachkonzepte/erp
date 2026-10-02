@@ -4,6 +4,27 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.36 – Tests und Klicktests unabhängig von der Tageszeit
+
+Stufe 2b, Runde 2b-2, Punkt 0 (behebt Nebenbefund 3 aus 1.8.35). Ab der Feierabend-Grenze
+(`MobileSettings.shift_end_time`, Vorgabe 19:00) meldet `/api/field-view/today` den Monteur ab (401).
+`test_v321::test_field_responses_carry_nothing_from_the_dispatch` und der Datengrenze-Durchlauf in `test_v326` rufen den
+Endpunkt als Monteur auf – eine volle Suite am Abend war deshalb nie ganz grün, und
+`klicktest_vertrag_festschreiben.py` endete abends mit 39/40. Jetzt halten sie die Uhr der App fest:
+`tests/uhr.py::uhr_festhalten()` setzt `app.berlin_time._utc_now` auf eine laufende Uhr ab heute 10:00 Europe/Berlin
+(Fixture `feste_uhr`, in der Modul-Fixture von `test_v326` als Kontext). Klicktests bekommen dasselbe über
+`klicktest_main(..., uhr="10:00")`: die Uhr gilt beim Befüllen und im Server der Instanz, beide rechnen von derselben
+Marke weiter. Die drei Vertrags-Klicktests mit Monteur auf `/mobil` nutzen das; der Notbehelf „Grenze im Bestand auf
+23:59“ entfällt.
+
+Gegenprobe ohne Warten auf den Abend: `pytest --wanduhr 19:30` lässt die Suite laufen, als wäre es 19:30, ebenso
+`--wanduhr` am Klicktest. Vorher damit genau die beiden Tests rot, danach grün; Klicktest Vertrag festschreiben bei
+19:30 mit fester Uhr 40/40, ohne 39/40 (Monteur 401 statt 403). `tests/test_v339_feste_uhr.py` (6 Tests: abends 401
+und mit fester Uhr 200 am echten Endpunkt, Datum der vorherigen Uhr, Uhr im Klicktest-Prozess, ohne Angabe die
+echte Uhr, jeder Klicktest mit `/mobil` hält die Uhr fest – Gegenprobe: `uhr=` entfernt, rot). Volle Suite 2456 grün.
+Klicktests `klicktest_vertrag_festschreiben.py` 40/40, `klicktest_vertrag_unterschrift.py` 43/43,
+`klicktest_vertrag_abschrift.py` 26/26.
+
 ## 1.8.35 – Vertrag abrunden: unterschriebene Abschrift, Grenze im Einsatzbericht, lesbare Fehler
 
 Mit der Unterschrift entsteht jetzt eine unterschriebene Abschrift: ein PDF aus der Fassung (samt Anlage) und dem

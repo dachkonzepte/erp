@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.35** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.36** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -983,6 +983,11 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   etablierte Content-Stream-Textextraktion (`_extract_pdf_text()`, seit 1.2.16 in
   `tests/test_v213_inspection_items.py`, hier wiederverwendet statt dupliziert).
 
+- **Feste Uhr statt Tageszeit** (seit 1.8.36): ein Test, dessen Ergebnis von der Uhrzeit abhängt (z. B. Monteur
+  an `/api/field-view/today`, ab 19:00 "Feierabend" 401), nimmt die Fixture `feste_uhr` bzw. in einer Modul-Fixture
+  `with uhr_festhalten():` (`tests/uhr.py`, laufende Uhr ab heute 10:00 Europe/Berlin über `app.berlin_time._utc_now`).
+  `pytest --wanduhr 19:30` lässt die Suite laufen, als wäre es 19:30 -- die Gegenprobe ohne Warten auf den Abend.
+
 - **`pytest -q` als Standard-Aufruf** (Regel 15 oben) -- bei über 1800 Tests erzeugt die volle
   Ausgabe (inkl. `DeprecationWarning`-Sammlung) allein schon zehntausende Zeilen, ohne bei einem
   grünen Lauf zusätzliche Information zu liefern. `pytest.ini` blendet die
@@ -1060,9 +1065,10 @@ SMTP-Empfänger im Skript mit Anhang = Fassung, neue Fassung, versendete Fassung
 `klicktest_vertrag_unterschrift.py` (1.8.34, Zeichnen über CDP-Mausereignisse: Vertrag auf dem Gerät mit Ankreuzfeld,
 Sperren danach, Widerrufsfrist, Papier-Scan, Checkliste und Einsatzbericht über die gemeinsame Fläche, dunkel und hell)
 und `klicktest_vertrag_abschrift.py` (1.8.35, unterschriebene Abschrift auf der Karte und als Anhang, nachgeholt für eine
-ältere Unterschrift, Papier-Foto; lesbare 422/409 der Auftragsseite). Ein Monteur, der `/mobil` öffnet, wird nach
-`MobileSettings.shift_end_time` (Vorgabe 19:00) abgemeldet -- im Bestand eines Klicktests die Grenze auf 23:59 setzen,
-sonst sieht eine 403-Prüfung abends 401. Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
+ältere Unterschrift, Papier-Foto; lesbare 422/409 der Auftragsseite). Ein Klicktest, der als Monteur `/mobil` öffnet,
+hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)
+meldet `/mobil` ab, eine 403-Prüfung sähe abends 401; `--wanduhr HH:MM` täuscht eine andere Uhrzeit vor (Gegenprobe),
+`tests/test_v339_feste_uhr.py` prüft, dass jeder solche Klicktest `uhr=` setzt. Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
 im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten (Vorlage dort). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 

@@ -18,7 +18,7 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | **2b-1b Teil 2a** | 1.8.33 | Vertrag festschreiben (Fassungen), Anlage aus der Ablage mit bewusster Wahl, Versand; Schnellauftrag ohne automatischen Entwurf | erledigt |
 | **2b-1b Teil 2b** | 1.8.34 | Gemeinsame Unterschriftsvorlage, Unterschrift auf dem Gerät (Kunde und Betrieb, Ankreuzfelder, Unterschriftsblatt) oder Papier-Scan, Sperren nach der Unterschrift, Widerrufsfrist | erledigt |
 | **2b-1b Abrundung** | 1.8.35 | Unterschriebene Abschrift (Fassung + Blatt bzw. Scan) für Versand und Zustellung, Größengrenze der Berichtsunterschrift, lesbare Fehler der Auftragsseite | erledigt |
-| **2b-2** | — | Beteiligte mit Adressbuch | offen |
+| **2b-2** | 1.8.36, 1.8.37 | Vorab feste Uhr für uhrzeitabhängige Tests (1.8.36); Adressbuch als Stammdatenbereich, Beteiligte am Projekt mit fester Rolle, Kopie bei Anzeigen, Empfangsvollmacht mit Beleg, Reiter in der Projektmappe (1.8.37) | erledigt |
 | **2b-3** | — | Behinderungsanzeige | offen |
 | **2b-4** | — | Bedenkenanzeige | offen |
 
@@ -610,10 +610,50 @@ Vertrags bei Verbrauchern außerhalb von Geschäftsräumen); (2) Unterschrift im
    noch (abends 39/40). **Dasselbe in pytest**: `test_v321::test_field_responses_carry_nothing_from_the_dispatch` und
    `test_v326::test_monteur_endpunkte_liefern_200_und_alle_anderen_403` rufen `/api/field-view/today` als Monteur auf
    und sind nach 19 Uhr (Europe/Berlin) rot (401 "Feierabend") -- eine volle Suite am Abend ist deshalb nie ganz grün.
-   Abhilfe: in beiden Tests `shift_end_time` setzen oder die Uhr festhalten.
+   Abhilfe: in beiden Tests `shift_end_time` setzen oder die Uhr festhalten. **Behoben in 1.8.36** (feste Uhr in
+   pytest und Klicktests, siehe "Umsetzung 1.8.36").
 4. Bekannt und unverändert: "GP" der LV-Kopfzeile ragt bei 1280 px in die rechte Spalte, waagrechter Scrollbalken der
    Auftragsseite bei 1280 px (1.8.21 Nr. 5, 1.8.34 Nr. 4).
 5. **Ein Papier-Scan als Handyfoto macht die Abschrift oft zu groß für die E-Mail**: der Scan darf 15 MB haben, die
    Versandgrenze ist 3 MB, und die Bildseite ist durch ASCII85 ein Viertel größer als das Foto. Abhilfe wäre, das
    Foto für die Abschrift zu verkleinern (z. B. auf 150 dpi bei A4) oder ohne ASCII85 einzubetten -- fachlich zu
    entscheiden, ob die Abschrift dann noch "das Papier" ist; der Scan selbst bleibt ohnehin unverändert in der Ablage.
+
+---
+
+## Umsetzung 1.8.36 (02.10.2026) -- Runde 2b-2, Punkt 0: feste Uhr für uhrzeitabhängige Tests
+
+Betreibervorgabe: die uhrzeitabhängigen Tests (`test_v321`, `test_v326` und die Klicktests mit Feierabend-Grenze)
+laufen mit fester Uhr über `berlin_time`, unabhängig von der Tageszeit; Gegenprobe Uhr auf 19:30 → weiter grün.
+Behebt Nebenbefund 3 aus 1.8.35.
+
+- **pytest** (`tests/uhr.py::uhr_festhalten(uhrzeit=10:00)`): ersetzt `app.berlin_time._utc_now` (die eine Uhr der
+  App, Regel 20) durch eine laufende Uhr ab heute 10:00 Europe/Berlin; "heute" kommt von der Uhr davor. Laufend
+  statt stehend, damit Dauer und Reihenfolge innerhalb eines Tests stimmen. Fixture `feste_uhr` (conftest) für
+  einen Test; `test_v326` setzt sie in der Modul-Fixture `durchlauf` als Kontext (eine Modul-Fixture kann keine
+  Funktions-Fixture nutzen). `test_v321::test_field_responses_carry_nothing_from_the_dispatch` nimmt die Fixture.
+  Gespeicherte Zeitstempel (`datetime.utcnow()`) laufen weiter mit der echten Zeit.
+- **Gegenprobe ohne Warten auf den Abend**: `pytest --wanduhr HH:MM` (conftest, sitzungsweite Autouse-Fixture) lässt
+  die Suite laufen, als wäre es heute HH:MM -- eine feste Uhr setzt sich darüber. Vor der Umstellung mit
+  `--wanduhr 19:30` genau die beiden bekannten Tests rot (401 "Feierabend"), mit `--wanduhr 10:00` grün; danach
+  beide grün.
+- **Klicktests** (`scripts/cdp_klicktest.py`): `klicktest_main(..., uhr="10:00")` -- die Uhr gilt im Befüllen-Prozess
+  und im Server der Instanz. Der Server startet dafür als `cdp_klicktest.py --server-mit-uhr` (uvicorn im selben
+  Prozess wie die gesetzte Uhr; `python -m uvicorn` hätte sie nicht). Beide Prozesse rechnen von derselben Marke
+  (Startzeit in UTC + echte Zeit des Augenblicks, Umgebungsvariable `KLICKTEST_UHR`) weiter, die Uhr springt
+  zwischen ihnen nicht zurück. `--wanduhr HH:MM` täuscht wie bei pytest eine Uhrzeit vor; ein Skript mit `uhr=`
+  bleibt bei seiner. Ohne beides unverändert `python -m uvicorn`. Die Uhr des Browsers bleibt echt.
+- **Die drei Vertrags-Klicktests** (`festschreiben`, `unterschrift`, `abschrift`) öffnen `/mobil` als Monteur und
+  setzen `uhr="10:00"`; der Notbehelf "Grenze im Bestand auf 23:59" entfällt. Nur `mobil.html` ruft
+  `/api/field-view/today` auf -- `/mobil/stundenzettel` (`klicktest_zeitbuchungen_liste.py`) ist nicht betroffen.
+- **Tests** (`tests/test_v339_feste_uhr.py`, 6): am echten Endpunkt abends (vorgetäuscht 19:30) 401, mit fester Uhr
+  darüber 200, danach wieder 401; feste Uhr nimmt das Datum der Uhr davor; Klicktest-Marke setzt die Uhr der App,
+  ohne Marke bleibt die echte; jeder `scripts/klicktest_*.py`, der `/mobil` öffnet, setzt `uhr=` und keiner setzt
+  die Feierabend-Grenze im Bestand (Gegenprobe: `uhr=` in `klicktest_vertrag_festschreiben.py` entfernt → rot).
+- **Verifikation**: volle Suite 2456 grün (vormittags). Gegenprobe mit `--wanduhr 19:30`: vor der Umstellung
+  `test_v321::test_field_responses_carry_nothing_from_the_dispatch` und
+  `test_v326::test_monteur_endpunkte_liefern_200_und_alle_anderen_403` rot, danach `test_v321`, `test_v326`, `test_v339`
+  79 grün. Klicktests mit fester Uhr: `klicktest_vertrag_festschreiben.py` 40/40, `klicktest_vertrag_unterschrift.py`
+  43/43, `klicktest_vertrag_abschrift.py` 26/26; Festschreiben mit `--wanduhr 19:30` 40/40, derselbe Klicktest ohne
+  feste Uhr (Wrapper im Scratchpad) bei 19:30 39/40 -- "Monteur: Vertrag per API gesperrt" 401 statt 403, genau der
+  alte Abendfehler.

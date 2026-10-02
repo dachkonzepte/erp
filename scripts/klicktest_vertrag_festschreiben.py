@@ -251,4 +251,5 @@ async def _pruefen(tab, seed, p):
 
 
 if __name__ == "__main__":
-    sys.exit(klicktest_main(befuellen, pruefen, beschreibung=__doc__))
+    # Feste Uhr (seit 1.8.36): /mobil meldet den Monteur ab 19 Uhr ab, die 403-Prüfung sähe abends 401.
+    sys.exit(klicktest_main(befuellen, pruefen, beschreibung=__doc__, uhr="10:00"))

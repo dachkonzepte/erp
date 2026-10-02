@@ -50,6 +50,7 @@ from app.permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.schemas import EmployeeRosterOut, RoofAreaOut
 from tests.test_v260_role_audit import _iter_role_marked_dependants
+from tests.uhr import uhr_festhalten
 
 # ---------------------------------------------------------------------------
 # Was ein Monteur nie sehen darf: Preise, Kosten, Löhne, Sätze, interne Notizen,
@@ -471,13 +472,17 @@ def _durchlauf(db: Session, welt: dict, routers) -> dict:
 @pytest.fixture(scope="module")
 def durchlauf():
     """Einmal Testdaten anlegen und einmal durchlaufen -- alle Prüfungen unten lesen dasselbe
-    Ergebnis. Eigene Datenbank wie threaded_db_session (die ist je Test, das hier je Modul)."""
+    Ergebnis. Eigene Datenbank wie threaded_db_session (die ist je Test, das hier je Modul).
+
+    Feste Uhr (seit 1.8.36, tests/uhr.py): /api/field-view/today meldet den Monteur ab 19 Uhr ab
+    (401 "Feierabend") -- ohne sie war der Durchlauf abends rot."""
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
     try:
-        welt = _monteur_welt(db)
-        yield {"db": db, "welt": welt, **_durchlauf(db, welt, _routers_in_betriebsreihenfolge())}
+        with uhr_festhalten():
+            welt = _monteur_welt(db)
+            yield {"db": db, "welt": welt, **_durchlauf(db, welt, _routers_in_betriebsreihenfolge())}
     finally:
         db.close()
         engine.dispose()

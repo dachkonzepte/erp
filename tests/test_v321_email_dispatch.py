@@ -743,7 +743,8 @@ def _scan(value, keys, texts):
     return keys, texts
 
 
-def test_field_responses_carry_nothing_from_the_dispatch(router_test_client, threaded_db_session, monkeypatch):
+def test_field_responses_carry_nothing_from_the_dispatch(router_test_client, threaded_db_session, monkeypatch, feste_uhr):
+    # feste_uhr (seit 1.8.36): /api/field-view/today meldet ab 19 Uhr ab -- sonst abends rot.
     from app.routers.field_view import router as field_view_router
     from app.routers.orders import router as orders_router
     from app.routers.service_reports import router as reports_router

@@ -59,12 +59,10 @@ def _foto() -> bytes:
 
 
 def befuellen(db, k):
-    from datetime import date, time as dt_time
+    from datetime import date
     from decimal import Decimal
 
     from sqlalchemy import update
-
-    from app.mobile_settings import update_mobile_settings
 
     from app.berlin_time import berlin_today
     from app.contract_signatures import record_paper_signature, sign_contract_on_device
@@ -83,8 +81,6 @@ def befuellen(db, k):
     bert = AppUser(username="bert", display_name="Bert Büro", role="buero_auftrag", password_hash=k.passwort())
     max_ = AppUser(username="max", display_name="Max Monteur", role="field", password_hash=k.passwort())
     db.add_all([bert, max_]); db.flush()
-    # /mobil meldet den Monteur nach Feierabend ab (Vorgabe 19:00) -- sonst hinge das Ergebnis von der Uhrzeit ab.
-    update_mobile_settings(db, dt_time(23, 59))
     save_template(db, "bgb_vob_c_4_5", title="Bauvertrag {auftragsnummer}", sections=[
         {"heading": "§ 1 Parteien", "body_text": "Zwischen {firmenname} und {kundenname}."},
         {"heading": "§ 2 Vergütung", "body_text": "Auftragssumme {auftragssumme_brutto}."},
@@ -272,4 +268,5 @@ async def _pruefen(tab, seed, p):
 
 
 if __name__ == "__main__":
-    sys.exit(klicktest_main(befuellen, pruefen, beschreibung="Unterschriebene Abschrift und Fehlermeldungen (1.8.35)"))
+    # Feste Uhr (seit 1.8.36): /mobil meldet den Monteur ab 19 Uhr ab, die 403-Prüfung sähe abends 401.
+    sys.exit(klicktest_main(befuellen, pruefen, beschreibung="Unterschriebene Abschrift und Fehlermeldungen (1.8.35)", uhr="10:00"))

@@ -56,12 +56,6 @@ def befuellen(db, k):
     max_ = AppUser(username="max", display_name="Max Monteur", role="field", password_hash=k.passwort())
     ada = AppUser(username="ada", display_name="Ada Admin", role="admin", password_hash=k.passwort())
     db.add_all([bert, max_, ada]); db.flush()
-    # Seit 1.8.35: /mobil meldet den Monteur nach Feierabend ab (Vorgabe 19:00) -- abends lieferte die letzte
-    # Prüfung sonst 401 statt 403.
-    from datetime import time as dt_time
-
-    from app.mobile_settings import update_mobile_settings
-    update_mobile_settings(db, dt_time(23, 59))
     save_template(db, "bgb_vob_c_4_5", title="Bauvertrag {auftragsnummer}", sections=[
         {"heading": "§ 1 Parteien", "body_text": "Zwischen {firmenname} und {kundenname}."},
         {"heading": "§ 2 Vergütung", "body_text": "Auftragssumme {auftragssumme_brutto}."},
@@ -302,4 +296,5 @@ async def pruefen(tab, seed, p):
 
 
 if __name__ == "__main__":
-    sys.exit(klicktest_main(befuellen, pruefen, beschreibung="Unterschrift unter dem Vertrag (1.8.34)"))
+    # Feste Uhr (seit 1.8.36): /mobil meldet den Monteur ab 19 Uhr ab, die 403-Prüfung sähe abends 401.
+    sys.exit(klicktest_main(befuellen, pruefen, beschreibung="Unterschrift unter dem Vertrag (1.8.34)", uhr="10:00"))

@@ -20,6 +20,16 @@ AUFRUF (aus dem Projektordner, in der Projekt-venv):
     --offen-lassen      Instanz und Chrome nach den Prüfungen weiterlaufen lassen (z. B. um im
                         eigenen Browser nachzusehen); die PIDs stehen in <arbeitsordner>\\pids.txt
                         und werden über `taskkill /PID <pid> /T /F` beendet, nicht über den Namen
+    --wanduhr HH:MM     Instanz so starten, als wäre es heute HH:MM (Europe/Berlin) -- Gegenprobe für
+                        Prüfungen, die von der Tageszeit abhängen. Ein Skript mit fester Uhr
+                        (klicktest_main(..., uhr="10:00")) bleibt bei seiner Uhr.
+
+FESTE UHR (seit 1.8.36): `klicktest_main(befuellen, pruefen, uhr="10:00")` lässt die Uhr der Instanz
+(app.berlin_time._utc_now, beim Befüllen und im Server) heute ab 10:00 Europe/Berlin laufen, egal
+wann der Test startet. Pflicht für jeden Klicktest, der als Monteur /mobil öffnet: ab
+MobileSettings.shift_end_time (Vorgabe 19:00) meldet /api/field-view/today ab, eine 403-Prüfung
+danach sähe abends 401. Gespeicherte Zeitstempel (datetime.utcnow()) und die Uhr des Browsers
+laufen weiter mit der echten Zeit.
 
 Rückgabecode: 0 = alle Prüfungen wie erwartet, 1 = mindestens eine Abweichung,
 2 = Instanz oder Chrome ließ sich nicht starten.
@@ -116,6 +126,7 @@ def _befuellen_im_kindprozess(befuellen, ziel: Path) -> None:
     if db_file is None or not (db_file.parent / MARKER).exists():
         raise SystemExit(f"Abbruch (Regel 16): DATABASE_URL zeigt nicht in einen Klicktest-Arbeitsordner: {url!r}")
     sys.path.insert(0, str(ROOT))
+    _uhr_einsetzen()
     import app.main  # noqa: F401 -- create_all() auf der Wegwerf-Datenbank
     from app.database import SessionLocal
 
@@ -265,6 +276,48 @@ def beenden(pid: int) -> None:
             pass
 
 
+UHR_ENV = "KLICKTEST_UHR"
+
+
+def _uhr_marke(uhrzeit: str) -> str:
+    """Startpunkt der Uhr für die Kindprozesse: heute (Europe/Berlin) um uhrzeit, in UTC, dazu die
+    echte Zeit dieses Augenblicks. Befüllen und Server rechnen von derselben Marke weiter -- die Uhr
+    läuft in beiden gleich und springt zwischen ihnen nicht zurück."""
+    from datetime import datetime, time as uhr, timezone
+    from zoneinfo import ZoneInfo
+
+    berlin = ZoneInfo("Europe/Berlin")
+    echt = time.time()
+    heute = datetime.fromtimestamp(echt, berlin).date()
+    start = datetime.combine(heute, uhr.fromisoformat(uhrzeit), tzinfo=berlin).astimezone(timezone.utc)
+    return f"{start.isoformat()}|{echt}"
+
+
+def _uhr_einsetzen() -> None:
+    """Im Kindprozess, vor dem Import von app.main: die eine Uhr der App (app.berlin_time._utc_now)
+    auf die Marke aus KLICKTEST_UHR setzen. Ohne die Variable bleibt die echte Uhr."""
+    marke = os.environ.get(UHR_ENV)
+    if not marke:
+        return
+    from datetime import datetime, timedelta
+
+    start_text, echt_text = marke.split("|")
+    start, echt = datetime.fromisoformat(start_text), float(echt_text)
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from app import berlin_time
+
+    berlin_time._utc_now = lambda: start + timedelta(seconds=time.time() - echt)
+
+
+def _server_mit_uhr(host: str, port: int) -> None:
+    """uvicorn im selben Prozess wie die gesetzte Uhr -- `python -m uvicorn` hätte sie nicht."""
+    _uhr_einsetzen()
+    import uvicorn
+
+    uvicorn.run("app.main:app", host=host, port=port)
+
+
 def _isolierte_umgebung(ordner: Path) -> dict:
     env = {k: v for k, v in os.environ.items() if not k.startswith("ERP_") and k != "DATABASE_URL"}
     env.update({
@@ -281,13 +334,15 @@ def _isolierte_umgebung(ordner: Path) -> dict:
 # Einstieg
 # ---------------------------------------------------------------------------
 
-def klicktest_main(befuellen, pruefen, *, beschreibung: str = "") -> int:
+def klicktest_main(befuellen, pruefen, *, beschreibung: str = "", uhr: str | None = None) -> int:
+    """uhr: "HH:MM" -- die Instanz läuft heute ab dieser Uhrzeit (Europe/Berlin), siehe FESTE UHR oben."""
     parser = argparse.ArgumentParser(description=(beschreibung or "").strip().splitlines()[0] if beschreibung else None)
     parser.add_argument("--app-port", type=int, default=0)
     parser.add_argument("--cdp-port", type=int, default=0)
     parser.add_argument("--arbeitsordner", type=Path)
     parser.add_argument("--chrome")
     parser.add_argument("--offen-lassen", action="store_true")
+    parser.add_argument("--wanduhr", metavar="HH:MM")
     parser.add_argument("--nur-befuellen", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
 
@@ -304,7 +359,11 @@ def klicktest_main(befuellen, pruefen, *, beschreibung: str = "") -> int:
     app_port = args.app_port or _freier_port()
     cdp_port = args.cdp_port or _freier_port()
     env = _isolierte_umgebung(ordner)
-    print(f"Arbeitsordner {ordner}\nERP http://127.0.0.1:{app_port}  CDP {cdp_port}", flush=True)
+    uhrzeit = uhr or args.wanduhr
+    if uhrzeit:
+        env[UHR_ENV] = _uhr_marke(uhrzeit)
+    print(f"Arbeitsordner {ordner}\nERP http://127.0.0.1:{app_port}  CDP {cdp_port}"
+          + (f"\nUhr der Instanz: heute ab {uhrzeit} (Europe/Berlin)" if uhrzeit else ""), flush=True)
 
     skript = Path(sys.argv[0]).resolve()
     seed_datei = ordner / "seed.json"
@@ -317,8 +376,10 @@ def klicktest_main(befuellen, pruefen, *, beschreibung: str = "") -> int:
     server = chrome = None
     try:
         with open(ordner / "server.out.log", "wb") as out, open(ordner / "server.err.log", "wb") as err:
-            server = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1",
-                                       "--port", str(app_port)], env=env, cwd=ROOT, stdout=out, stderr=err)
+            befehl = ([sys.executable, str(Path(__file__).resolve()), "--server-mit-uhr", "127.0.0.1", str(app_port)]
+                      if uhrzeit else
+                      [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(app_port)])
+            server = subprocess.Popen(befehl, env=env, cwd=ROOT, stdout=out, stderr=err)
         if not _warte_auf(f"http://127.0.0.1:{app_port}/login", 60):
             print(f"ERP-Instanz antwortet nicht, siehe {ordner / 'server.err.log'}")
             return 2
@@ -358,3 +419,7 @@ async def _lauf(pruefen, seed, cdp_port: int, base_url: str, shots: Path) -> boo
     print(f"{p.ergebnisse.count(True)} von {len(p.ergebnisse)} Prüfungen wie erwartet"
           + ("" if not tab.nicht_geladen else f", nicht geladen: {tab.nicht_geladen}") + f". Screenshots: {shots}")
     return ok
+
+
+if __name__ == "__main__" and len(sys.argv) == 4 and sys.argv[1] == "--server-mit-uhr":
+    _server_mit_uhr(sys.argv[2], int(sys.argv[3]))

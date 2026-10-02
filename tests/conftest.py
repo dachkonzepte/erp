@@ -43,6 +43,36 @@ from sqlalchemy.pool import StaticPool
 from app.auth import hash_password
 from app.database import Base, get_db
 from app.models import AppUser
+from tests.uhr import uhr_festhalten
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--wanduhr", metavar="HH:MM", default=None,
+        help="Suite so laufen lassen, als wäre es heute HH:MM (Europe/Berlin) -- Gegenprobe für Tests, "
+             "die von der Tageszeit abhängen (seit 1.8.36, z. B. --wanduhr 19:30 nach der Feierabend-Grenze).",
+    )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _wanduhr(request):
+    """Ohne --wanduhr nichts. Mit: die Uhr der App läuft ab HH:MM heute. Sitzungsweit, damit sie auch
+    unter Modul-Fixtures liegt; feste_uhr/uhr_festhalten() setzen sich darüber."""
+    wert = request.config.getoption("--wanduhr")
+    if not wert:
+        yield
+        return
+    from datetime import time
+    with uhr_festhalten(time.fromisoformat(wert)):
+        yield
+
+
+@pytest.fixture
+def feste_uhr():
+    """Uhr der App (app.berlin_time) läuft ab heute 10:00 Europe/Berlin -- für Tests, die sonst von
+    der Tageszeit abhingen (Feierabend-Grenze an /api/field-view/today). Siehe tests/uhr.py."""
+    with uhr_festhalten() as start:
+        yield start
 
 
 @pytest.fixture
