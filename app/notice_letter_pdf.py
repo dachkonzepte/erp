@@ -1,4 +1,4 @@
-"""Brief an den Auftraggeber als PDF (seit 1.8.40, Stufe 2b, Runde 2b-3 Teil 2): Behinderungsanzeige und
+"""Brief an den Auftraggeber als PDF (seit 1.8.40, Stufe 2b, Runde 2b-3 Teil 2; seit 1.8.44 auch die Bedenkenanzeige): Behinderungsanzeige und
 Anzeige der Wiederaufnahme (app/notice_letters.py).
 
 Dokumenttyp "notice" im gemeinsamen Rahmen (app/document_frame.py, RENDERERS_USING_SHARED_FRAME): Briefpapier,
@@ -116,7 +116,8 @@ def render_notice_letter_pdf(db, content: dict, *, signature_png: bytes | None, 
         story.append(Spacer(1, 6 * mm))
         section = " (Abschnitt Wegfall)" if content.get("signoff") else ""
         story.append(Paragraph(ptext(
-            f"Erstellt aus der Behinderungsanzeige Nr. {content['checklist_id']} ({version}); unterschrieben{section} am "
+            f"Erstellt aus der {content.get('source_label', 'Behinderungsanzeige')} Nr. {content['checklist_id']} ({version}); "
+            f"unterschrieben{section} am "
             f"{signed_at} Uhr. Prüfsumme (SHA-256) des unterschriebenen Inhalts: {sig.get('content_sha256') or '—'}"
         ), small))
         if photos:

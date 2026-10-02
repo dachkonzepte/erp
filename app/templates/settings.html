@@ -70,7 +70,7 @@
         <button type="button" data-settings-section="email-templates" onclick="showSettingsSection('email-templates')">E-Mail-Vorlagen<span class="menu-sub">Betreff/Text je Dokumenttyp</span></button>
         <button type="button" data-settings-section="contract-bases" onclick="showSettingsSection('contract-bases')">Vertragsgrundlagen<span class="menu-sub">Klauseltext je Grundlage, rechtliche Prüfung</span></button>
         <button type="button" data-settings-section="contract-templates" onclick="showSettingsSection('contract-templates')">Vertragsvorlagen<span class="menu-sub">Vertragstext je Grundlage, Platzhalter, Prüfung</span></button>
-        <button type="button" data-settings-section="notice-reservations" onclick="showSettingsSection('notice-reservations')">Vorbehalte in Anzeigen<span class="menu-sub">Behinderungsanzeige, Wiederaufnahme – je VOB/B und BGB, Prüfung</span></button>
+        <button type="button" data-settings-section="notice-reservations" onclick="showSettingsSection('notice-reservations')">Vorbehalte in Anzeigen<span class="menu-sub">Behinderungs-, Wiederaufnahme-, Bedenkenanzeige – je VOB/B und BGB, Prüfung</span></button>
       </div>
       <div class="settings-group">Personal</div>
       <div class="settings-menu">
@@ -459,6 +459,7 @@
         <option value="contract">Vertrag</option>
         <option value="behinderungsanzeige">Behinderungsanzeige</option>
         <option value="wiederaufnahme">Anzeige der Wiederaufnahme</option>
+        <option value="bedenkenanzeige">Bedenkenanzeige</option>
       </select>
     </div>
     <div class="fields-2col" style="margin-top:12px">
@@ -487,7 +488,7 @@
   </section>
 
   <section class="card settings-section" id="settings-notice-reservations">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Vorbehalte in Anzeigen</h2><div class="muted small">Textbaustein für den Vorbehalt in Briefen an den Auftraggeber – je Briefart (Behinderungsanzeige, Anzeige der Wiederaufnahme) und Vertragsgrundlage des Auftrags (VOB/B oder BGB, auch mit VOB/C Abschnitt 4 und 5). Gedruckt wird er nur, wenn „rechtlich geprüft am“ und „durch“ ausgefüllt sind. Ungeprüft fehlt er im Brief; versendet werden kann trotzdem – eine Behinderung ist unverzüglich anzuzeigen –, die Behinderungsanzeige warnt dann deutlich.</div></div></div>
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Vorbehalte in Anzeigen</h2><div class="muted small">Textbaustein für den Vorbehalt in Briefen an den Auftraggeber – je Briefart (Behinderungsanzeige, Anzeige der Wiederaufnahme, Bedenkenanzeige) und Vertragsgrundlage des Auftrags (VOB/B oder BGB, auch mit VOB/C Abschnitt 4 und 5). Gedruckt wird er nur, wenn „rechtlich geprüft am“ und „durch“ ausgefüllt sind. Ungeprüft fehlt er im Brief; versendet werden kann trotzdem – Behinderung und Bedenken sind unverzüglich anzuzeigen –, die Anzeige warnt dann deutlich.</div></div></div>
     <div class="hint"><b>Wichtig:</b> Hier stehen bewusst keine vorgegebenen Texte. Die Vorbehalte bitte von einer Rechtsberatung formulieren oder prüfen lassen. Wird der Text später geändert, ohne die Prüfangaben neu einzutragen, gilt er wieder als ungeprüft. Ein schon erstellter Brief bleibt, wie er ist.</div>
     <div id="noticeReservationRows"></div>
   </section>
@@ -1936,6 +1937,7 @@ const EMAIL_TEMPLATE_PLACEHOLDER_HINTS = {
   contract: 'Verfügbare Platzhalter: {auftragsnummer} {kundenname} {fassung} {vertragsgrundlage} – angehängt wird immer die festgeschriebene Fassung samt Anlage',
   behinderungsanzeige: 'Verfügbare Platzhalter: {anrede} {auftragsnummer} {kundenname} {bauvorhaben} {checklistennummer} – An ist immer der Auftraggeber, angehängt wird der erstellte Brief',
   wiederaufnahme: 'Verfügbare Platzhalter: {anrede} {auftragsnummer} {kundenname} {bauvorhaben} {checklistennummer} – An ist immer der Auftraggeber, angehängt wird der erstellte Brief',
+  bedenkenanzeige: 'Verfügbare Platzhalter: {anrede} {auftragsnummer} {kundenname} {bauvorhaben} {checklistennummer} – An ist immer der Auftraggeber, angehängt wird der erstellte Brief',
   reminder: 'Verfügbare Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {offener_betrag} {mahngebuehr} {gesamtbetrag} {neue_frist} {vorheriges_mahndatum} {mahnstufe}',
 };
 function populateReminderLevelEmailOptions(){

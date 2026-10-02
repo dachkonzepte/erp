@@ -1,5 +1,5 @@
 """Router: Briefe an den Auftraggeber zur Behinderungsanzeige und Vorbehalte (seit 1.8.40, Stufe 2b, Runde 2b-3
-Teil 2; app/notice_letters.py, app/notice_reservations.py).
+Teil 2; seit 1.8.44 auch zur Bedenkenanzeige; app/notice_letters.py, app/notice_reservations.py).
 
 Alles nur fürs Büro (buero_auftrag aufwärts), Monteure 403 -- der Monteur meldet die Behinderung, versendet
 wird im Büro. Die Briefe hängen an Checklisten, das Modul "checklisten" muss an sein. Vorbehalte lesen Büro und
@@ -20,7 +20,7 @@ from ..modules import is_module_enabled
 from ..notice_letters import NoticeStateError, ensure_letter, notice_state, preview_pdf, send_notice_letter
 from ..notice_reservations import list_reservations, update_reservation
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_min_role
-from ..schemas import NoticeLetterSend, NoticeReservationOut, NoticeReservationUpdate
+from ..schemas import NoticeLetterFreeze, NoticeLetterSend, NoticeReservationOut, NoticeReservationUpdate
 
 router = APIRouter()
 
@@ -50,8 +50,8 @@ def _actor(user: AppUser) -> tuple[int | None, str]:
 
 @router.get("/api/checklists/{checklist_id}/notice-letters")
 def get_notice_letters(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
-    """Stand beider Briefe (Behinderungsanzeige, Anzeige der Wiederaufnahme) samt Empfänger, Vorbelegung CC,
-    Vorbehalt und Fassungen -- für die Karte auf der Ausfüllseite."""
+    """Stand der Briefe der Anzeige (Behinderungsanzeige und Anzeige der Wiederaufnahme bzw. Bedenkenanzeige) samt
+    Empfänger, Vorbelegung CC, Vorbehalt, Fassungen und -- seit 1.8.44 -- einer Abweichung Projekt-/Auftragskunde."""
     _require_module(db)
     return _call(notice_state, db, checklist_id)
 
@@ -67,22 +67,25 @@ def get_notice_letter_preview(checklist_id: int, kind: str, db: Session = Depend
 
 
 @router.post("/api/checklists/{checklist_id}/notice-letters/{kind}/freeze")
-def post_notice_letter_freeze(checklist_id: int, kind: str, db: Session = Depends(get_db), _role: AppUser = _office_dep):
+def post_notice_letter_freeze(checklist_id: int, kind: str, payload: NoticeLetterFreeze | None = None,
+                              db: Session = Depends(get_db), _role: AppUser = _office_dep):
     """Brief erstellen (für Post oder Fax): die Fassung zur aktuellen Unterschrift einfrieren und ablegen --
-    vorhanden bleibt vorhanden."""
+    vorhanden bleibt vorhanden. Bei abweichendem Kunden nur mit confirm_customer (seit 1.8.44, sonst 409)."""
     _require_module(db)
     user_id, user_name = _actor(_role)
-    _call(ensure_letter, db, checklist_id, kind, user_id=user_id, user_name=user_name)
+    _call(ensure_letter, db, checklist_id, kind, user_id=user_id, user_name=user_name,
+          confirm_customer=bool(payload and payload.confirm_customer))
     return _call(notice_state, db, checklist_id)
 
 
 @router.post("/api/checklists/{checklist_id}/notice-letters/{kind}/send-email")
 def post_notice_letter_send(checklist_id: int, kind: str, payload: NoticeLetterSend, db: Session = Depends(get_db),
                             _role: AppUser = _office_dep):
-    """Per E-Mail an den Auftraggeber (An fest, nicht wählbar), CC frei -- immer die abgelegte Fassung."""
+    """Per E-Mail an den Auftraggeber (An fest, nicht wählbar), CC frei -- immer die abgelegte Fassung. Bei
+    abweichendem Kunden nur mit confirm_customer (seit 1.8.44, sonst 409)."""
     _require_module(db)
     result = _call(send_notice_letter, db, checklist_id, kind, cc_email=payload.cc_email,
-                   dispatch_key=payload.dispatch_key, user=_role)
+                   dispatch_key=payload.dispatch_key, user=_role, confirm_customer=payload.confirm_customer)
     return dispatch_to_dict(result.dispatch)
 
 

@@ -29,6 +29,7 @@ from .models import NoticeReservation
 RESERVATION_LETTER_KINDS: dict[str, str] = {
     "behinderungsanzeige": "Behinderungsanzeige",
     "wiederaufnahme": "Anzeige der Wiederaufnahme",
+    "bedenkenanzeige": "Bedenkenanzeige",  # seit 1.8.44
 }
 BASIS_GROUPS: dict[str, str] = {
     "vob_b": "VOB/B",

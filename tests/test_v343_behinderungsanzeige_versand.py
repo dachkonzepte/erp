@@ -76,6 +76,8 @@ def nworld(bworld, monkeypatch):
     customer.email, customer.salutation, customer.title = AG_EMAIL, "Herr", "Dr."
     customer.first_name, customer.last_name, customer.name = "Max", "Muster", "Herr Dr. Max Muster"
     customer.street, customer.postal_code, customer.city = "Kundenweg 3", "50667", "Köln"
+    # Seit 1.8.44 verlangt ein abweichender Kunde laut Auftrag eine Bestätigung -- hier stimmen beide überein.
+    bworld["orders"]["mine"].customer_name = customer.name
     load_general_settings(bworld["db"]).company_name = "Dach GmbH"
     db.commit()
     return bworld
@@ -332,7 +334,8 @@ def test_reservation_rules_and_rights(nworld, router_test_client):
     assert admin.put(f"/api/settings/notice-reservations/{NOTICE}/vob_c", json=body).status_code == 404
     listed = office.get("/api/settings/notice-reservations").json()
     assert [(r["letter_kind"], r["basis_group"]) for r in listed] == [
-        (NOTICE, "vob_b"), (NOTICE, "bgb"), (RESUME, "vob_b"), (RESUME, "bgb")]
+        (NOTICE, "vob_b"), (NOTICE, "bgb"), (RESUME, "vob_b"), (RESUME, "bgb"),
+        ("bedenkenanzeige", "vob_b"), ("bedenkenanzeige", "bgb")]  # seit 1.8.44
 
 
 # --- Punkt 3: Versand -----------------------------------------------------------------------
@@ -401,7 +404,9 @@ def test_always_the_archived_letter(nworld, router_test_client):
     nworld["orders"]["mine"].project.customer.name = "Ganz anders"
     db.commit()
     _participant(db, nworld, name="Später dazu", email="spaet@example.com")
-    assert _send(office, c, cc_email="spaet@example.com").status_code == 200
+    # Seit 1.8.44: der umbenannte Kunde weicht vom Kunden laut Auftrag ab -- erst mit Bestätigung.
+    assert _send(office, c, cc_email="spaet@example.com").status_code == 409
+    assert _send(office, c, cc_email="spaet@example.com", confirm_customer=True).status_code == 200
     first, second = FakeSMTP.sent
     assert _attachment(first["message"]) == archived == _attachment(second["message"])
     assert db.scalar(select(func.count()).select_from(SentDocument)) == documents
@@ -412,7 +417,7 @@ def test_always_the_archived_letter(nworld, router_test_client):
     path = sent_documents_module.SENT_DOCUMENT_ROOT / letter.sent_document.stored_filename
     os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
     path.write_bytes(archived + b"x")
-    res = _send(office, c)
+    res = _send(office, c, confirm_customer=True)
     assert res.status_code == 409 and "nicht mehr unversehrt" in res.json()["detail"]
     assert len(FakeSMTP.sent) == 2 and [l.id for l in _letters(db)] == [letter.id]
 
@@ -610,7 +615,8 @@ def test_postgresql_two_simultaneous_letters_make_one_version(tmp_path, monkeypa
         setup = Session()
         quote = make_quote(setup)  # echtes Angebot: unter PostgreSQL hält der Fremdschlüssel source_quote_id
         order = Order(order_number="AU-2026-0001", project_id=quote.project_id, source_quote_id=quote.id,
-                      quote_number_snapshot=quote.quote_number, title="Auftrag", customer_name="Kunde",
+                      quote_number_snapshot=quote.quote_number, title="Auftrag",
+                      customer_name=setup.get(Project, quote.project_id).customer.name,  # wie beim Beauftragen
                       property_name="Halle", property_address="Weg 1")
         setup.add(order)
         setup.commit()

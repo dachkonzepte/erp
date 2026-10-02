@@ -11,7 +11,7 @@ Anzeigen", ohne E-Mail).
                               Unterschrift Büro; nach der Unterschrift bereit, deutliche Warnung "Ohne
                               Vorbehalt", An fest der Auftraggeber, CC vorbelegt, Hinweise (ohne E-Mail,
                               Vollmacht); Vorschau als PDF.
-    Admin                     Einstellungen → Vorbehalte in Anzeigen: vier Bausteine, VOB/B prüfen.
+    Admin                     Einstellungen → Vorbehalte in Anzeigen: sechs Bausteine, VOB/B prüfen.
     Büro                      Warnung weg; Versand an einen SMTP-Empfänger im Skript: Umschlag An + CC,
                               Anhang = abgelegter Brief (SHA-256), Text mit Vorbehalt, "Kopie an:", Anrede;
                               Karte "versendet", Versandverlauf mit festgehaltener Vollmacht; Aufgabe
@@ -213,9 +213,10 @@ async def _pruefen(tab, seed, p):
     zeile = "document.querySelector('[data-reservation=\"behinderungsanzeige/vob_b\"]')"
     await tab.oeffnen("/settings#notice-reservations", zeile)
     await tab.js("showSettingsSection('notice-reservations')")
-    p.pruefe("Einstellungen: vier Bausteine", await tab.js(
+    p.pruefe("Einstellungen: sechs Bausteine (seit 1.8.44 mit der Bedenkenanzeige)", await tab.js(
         "[...document.querySelectorAll('[data-reservation]')].map(e=>e.dataset.reservation)"),
-        ["behinderungsanzeige/vob_b", "behinderungsanzeige/bgb", "wiederaufnahme/vob_b", "wiederaufnahme/bgb"])
+        ["behinderungsanzeige/vob_b", "behinderungsanzeige/bgb", "wiederaufnahme/vob_b", "wiederaufnahme/bgb",
+         "bedenkenanzeige/vob_b", "bedenkenanzeige/bgb"])
     p.pruefe("Einstellungen: VOB/B noch ungeprüft", await tab.js(f"{zeile}.textContent.includes('Nicht geprüft')"), True)
     await tab.js(f"(()=>{{const r={zeile};r.querySelector('.nrReviewedOn').value=new Date().toISOString().slice(0,10);"
                  "r.querySelector('.nrReviewedBy').value='RA Beispiel'})()")

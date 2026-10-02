@@ -4781,9 +4781,17 @@ class EmailDispatchResolve(BaseModel):
 
 class NoticeLetterSend(BaseModel):
     """Brief an den Auftraggeber per E-Mail (seit 1.8.40, app/notice_letters.py): An ist immer der Auftraggeber
-    und deshalb kein Feld -- eine mitgeschickte An-Adresse wird nicht beachtet. CC frei (mehrere mit Komma)."""
+    und deshalb kein Feld -- eine mitgeschickte An-Adresse wird nicht beachtet. CC frei (mehrere mit Komma).
+    confirm_customer (seit 1.8.44): Kunde des Projekts und Kunde laut Auftrag fallen auseinander, das Büro hat es
+    geprüft -- ohne diese Bestätigung 409."""
     cc_email: str | None = None
     dispatch_key: str = Field(min_length=8, max_length=80)
+    confirm_customer: bool = False
+
+
+class NoticeLetterFreeze(BaseModel):
+    """"Brief erstellen" (seit 1.8.44 mit Körper): confirm_customer wie beim Versand."""
+    confirm_customer: bool = False
 
 
 class NoticeReservationOut(BaseModel):

@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.44 – Bedenkenanzeige als Brief und Versand
+
+Stufe 2b, Runde 2b-4 Teil 2 (Punkte 4–5). Die Briefe an den Auftraggeber gibt es jetzt je Zweck (`app/notice_letters.py`:
+`NOTICE_PURPOSES`, `LetterKind.purpose`): die Bedenkenanzeige bekommt den Brief „Bedenkenanzeige“ nach der Unterschrift Büro –
+Inhalt Meldung und Anzeige aus der versiegelten Kopie, Fotos verkleinert, Vorbehalt je Vertragsgrundlage (zwei neue Bausteine,
+nur geprüft gedruckt), Kopie an Beteiligte, Vollmacht beim Versand, Zustellung nachtragen, Versandergebnis, Zeitstrahl und
+„gegenstandslos“ wie bei der Behinderungsanzeige; E-Mail-Vorlage, Ablage, Versandprotokoll und Versandverlauf kennen die neue
+Art. Nach der Zustellung beim Auftraggeber ist „Bedenkenanzeige versenden“ erledigt und „Antwort des Auftraggebers prüfen“
+angelegt; „unzustellbar“ öffnet „versenden“ wieder. Fallen Kunde des Projekts und Kunde laut Auftrag auseinander (Kundennummer
+vor Name), entsteht und geht kein Brief beider Anzeigen ohne ausdrückliche Bestätigung (409, Warnung mit Kästchen auf der
+Karte, Bestätigung in der Historie). Der Kundenwechsel im Projekt ist gesperrt, sobald ein Auftrag einen festgeschriebenen
+Vertrag hat (ein Entwurf allein sperrt nicht). Keine Migration.
+
+Festlegungen und drei Nebenbefunde in `docs/archiv/vertragsgrundlage-und-vertrag.md`, „Umsetzung 1.8.44“.
+`tests/test_v347_bedenkenanzeige_versand.py` (12 Tests), `test_v343` nachgezogen (seine Testwelt hatte einen umbenannten Kunden);
+20 von 20 Gegenproben rot. Volle Suite 2590 grün (mit den opt-in-Tests gegen PostgreSQL). Klicktest `scripts/klicktest_bedenkenanzeige_versand.py` 20/20 (der erste
+Lauf fand das Bestätigungs-Kästchen unter seinem Text), `klicktest_behinderungsanzeige_versand.py` 41/41 (Erwartung
+sechs Vorbehalts-Bausteine nachgezogen), `klicktest_behinderungsanzeige_abschluss.py` 43/43, `klicktest_bedenkenanzeige.py`
+22/22, `klicktest_versandprotokoll.py` 45/45, `klicktest_versandverlauf.py` 32/32.
+
 ## 1.8.43 – Bedenkenanzeige erfassen
 
 Stufe 2b, Runde 2b-4 Teil 1 (Punkte 1–3 der Vorgabe, Brief und Kundenwechsel folgen in 1.8.44). Die Bedenkenanzeige ist eine

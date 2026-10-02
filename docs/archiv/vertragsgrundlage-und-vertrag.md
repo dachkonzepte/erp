@@ -24,7 +24,7 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | **2b-3 Teil 2** | 1.8.40 | Behinderungsanzeige: Brief-PDF (zwei Briefarten), Vorbehalt je Briefart und Grundlage mit Prüfung, Versand an den Auftraggeber mit Vollmacht in der Ablage, Aufgabe erledigt (Punkte 1–3) | erledigt |
 | **2b-3 Teil 3** | 1.8.41 | Versandprotokoll "Empfang bestätigt"/"unzustellbar" für alle Dokumente, "Zustellung nachtragen" mit Empfängerauswahl und Vollmacht, Wiederaufnahme "i. A." Büro-Konto, Zeitstrahl an der Anzeige, "als gegenstandslos abschließen" (Behinderungs- und Bedenkenanzeige), Kundenwechsel prüft Beteiligte | erledigt |
 | **2b-4 Teil 1** | 1.8.43 | Bedenkenanzeige erfassen: Systemfelder in drei Abschnitten (Meldung, Anzeige nur Büro, Entscheidung des Auftraggebers nur Büro), Startvorlage, Folgen versenden / Antwort prüfen / erledigt, Hinweis "Offene Bedenken" an Auftrag und /mobil | erledigt |
-| **2b-4 Teil 2** | 1.8.44 | Bedenkenanzeige als Brief und Versand (Briefarten je Zweck), Kundenwechsel-Sperre bei festgeschriebenem Vertrag, Warnung bei abweichendem Kunden | offen |
+| **2b-4 Teil 2** | 1.8.44 | Bedenkenanzeige als Brief und Versand (Briefarten je Zweck), Kundenwechsel-Sperre bei festgeschriebenem Vertrag, Warnung bei abweichendem Kunden | erledigt |
 
 Nach jeder Runde die Spalten "Version"/"Stand" nachziehen und unten einen Abschnitt
 "Umsetzung 1.8.x" ergänzen.
@@ -1341,7 +1341,7 @@ Punkt 6**, Punkte 4–5 siehe "Offen für Teil 2" unten.
   Hinweis weg; Monteurin dunkel ohne Hinweis). Unverändert grün: `klicktest_behinderungsanzeige.py` 35/35,
   `klicktest_behinderungsanzeige_abschluss.py` 43/43.
 
-### Offen für Teil 2 (Punkte 4–5 und ihre Tests aus Punkt 6)
+### Offen für Teil 2 (Punkte 4–5 und ihre Tests aus Punkt 6) -- erledigt in 1.8.44, siehe unten
 
 4. **Brief "Bedenkenanzeige"**: `app/notice_letters.py` von "Briefarten der Behinderungsanzeige" auf "Briefarten je Zweck"
    verallgemeinern (Briefart `bedenkenanzeige` nach der Unterschrift Büro, Inhalt Meldung + Anzeige, Fotos verkleinert), Vorbehalt
@@ -1359,3 +1359,82 @@ Punkt 6**, Punkte 4–5 siehe "Offen für Teil 2" unten.
    zeigen den Hinweis "Offene Bedenken", bis sie abgeschlossen oder als gegenstandslos abgeschlossen sind.
 2. **Der Hinweis fehlt dort, wo der Monteur am Auftrag arbeitet**: Einsatzbericht-Seite (`/orders/{id}/service-reports`) und
    Checklisten-Seite des Auftrags zeigen ihn nicht -- nur `/mobil` (Vorgabe: "Auftrag und /mobil").
+
+---
+
+## Umsetzung 1.8.44 (02.10.2026) -- Runde 2b-4 Teil 2: Bedenkenanzeige als Brief und Versand, Empfänger
+
+Betreibervorgabe: Punkte 4–5 der Runde 2b-4 (siehe "Umsetzung 1.8.43") und ihre Tests aus Punkt 6.
+
+- **Briefarten je Zweck** (`app/notice_letters.py`): `NOTICE_PURPOSES` (Behinderungs- und Bedenkenanzeige: Bezeichnung, Feld
+  "bekannt seit", Unterschrift der Meldung, Folge "versenden") und `LetterKind.purpose`/`file_prefix`; `is_main` = Hauptbrief
+  (Art = Zweck: Aufgabe "versenden", Zeitstrahl, Folgen nach dem Versand). Neue Briefart `bedenkenanzeige` nach der gültigen
+  "Unterschrift Büro" (Inhalt: alle Felder davor -- Meldung und Anzeige samt "Entscheidung erbeten bis", nie die Entscheidung).
+  `_checklist(..., spec=)` lehnt eine Briefart ab, die nicht zum Zweck der Checkliste gehört (404); `notice_state()` liefert nur
+  die Briefarten des Zwecks, dazu `purpose`, `purpose_label`, `customer_mismatch`; der Zeitstrahl liest die Felder des Zwecks.
+  Inhalt `source_label` (Fußzeile "Erstellt aus der Bedenkenanzeige Nr. …", ältere Fassungen ohne den Schlüssel bleiben
+  "Behinderungsanzeige"). Unverändert für beide: versiegelte Kopie als Quelle, Fassung je Unterschrift in der Ablage, Vorschau,
+  "Brief erstellen", An fest der Auftraggeber, CC "Kopie bei Anzeigen", Vollmacht beim Versand, Zustellung nachtragen mit
+  Empfängerauswahl, Versandergebnis, "gegenstandslos".
+- **Registriert**: `notice_reservations` (zwei weitere Bausteine "Bedenkenanzeige · VOB/B/BGB", die Einstellungsseite listet
+  vom Server), E-Mail-Vorlage `bedenkenanzeige` (Platzhalter wie die Behinderungsanzeige), Ablage (`sent_documents`),
+  Zustellung nachtragen (`dispatch_documents`, Nachlauf und Versandergebnis), Versandprotokoll (Filter, Link auf die
+  Checkliste, Modul `checklisten`), Versandverlauf (Fassung). Kein Schema, keine Migration.
+- **Nach dem Versand** (E-Mail, oder nachgetragen beim Auftraggeber bzw. einem Empfangsbevollmächtigten): Aufgabe "<Anzeige>
+  versenden" erledigt (`complete_send_tasks(db, id, purpose)`), dann `run_follow_ups_after_letter()` -- bei der Bedenkenanzeige
+  die Aufgabe "Antwort des Auftraggebers prüfen" (Folge aus 1.8.43, jetzt durch den echten Versand ausgelöst). Eine Kopie nur an
+  Beteiligte erledigt nichts; "unzustellbar" ohne andere Zustellung öffnet "versenden" wieder (`after_dispatch_outcome()` je
+  Hauptbrief), "Antwort prüfen" bleibt.
+- **Abweichender Kunde** (`customer_mismatch()`, 1.8.41 Nebenbefund 5): Kunde des Projekts (Empfänger) gegen den Schnappschuss
+  am Auftrag -- mit Kundennummer auf beiden Seiten zählt sie, sonst der Name (ohne Groß-/Kleinschreibung und Leerraum). Weicht er
+  ab, entsteht keine Fassung (`ensure_letter()`) und geht keine Mail (`send_notice_letter()`) ohne `confirm_customer`
+  (`CustomerMismatch`, 409 mit beiden Namen). Gilt für jede Briefart beider Anzeigen. Die Karte zeigt die Warnung mit Kästchen
+  "Abweichung geprüft – Brief und E-Mail an …"; "Brief erstellen" und Senden schicken die Bestätigung mit, ohne Häkchen sagt
+  die Karte es vorher. Historie: "als Brief erstellt" mit "… abweichend vom Kunden laut Auftrag (…) – bestätigt" bzw. "<Brief>:
+  abweichender Kunde bestätigt" beim Versand. Eine nachgetragene Zustellung erstellt bei Abweichung keine Fassung (400 mit
+  demselben Text) -- erst "Brief erstellen" mit Bestätigung.
+- **Kundenwechsel gesperrt** (`check_client_change()`, `PUT /api/projects/{id}`): hat ein Auftrag des Projekts einen
+  festgeschriebenen Vertrag (mindestens eine Fassung, auch unterschrieben oder mit neuer Fassung im Entwurf), 409 "Auftrag … hat
+  einen festgeschriebenen Vertrag (Fassung N) – der Kunde ist dort Vertragspartner …". Ein bloßer Vertragsentwurf sperrt nicht.
+  Danach die Prüfung der Beteiligten aus 1.8.41. Die Projektmappe zeigt den Text im Dialog (wie 1.8.41).
+- **Oberfläche** (`checklist.html`): Karte "Anzeige an den Auftraggeber" auch an der Bedenkenanzeige; Texte neutral ("die
+  Anzeige muss unverzüglich hinaus"); "Als gegenstandslos abschließen" mit Beispielen je Zweck. Einstellungen: Menütext und
+  Beschreibung der Vorbehalte, E-Mail-Vorlage "Bedenkenanzeige".
+- **Festlegungen (nicht vorgegeben, bitte bestätigen)**:
+  1. Der Brief enthält Meldung und Anzeige ("Entscheidung erbeten bis" als Angabe), Einleitung fest im Code ("hiermit melden wir
+     Ihnen Bedenken zur Ausführung unserer Leistungen … an und bitten um Ihre Entscheidung. Im Einzelnen:"), keine §-Angabe --
+     rechtliche Aussagen nur über den geprüften Vorbehalt. Unterschrift: "Unterschrift Büro".
+  2. Abweichender Kunde: Kundennummer vor Name; Bestätigung je Aktion (Erstellen, jeder Versand), nicht dauerhaft gespeichert --
+     sie steht in der Historie; gilt auch für die Anzeige der Wiederaufnahme.
+  3. Kundenwechsel: gesperrt ab der ersten festgeschriebenen Fassung irgendeines Auftrags des Projekts; ein Entwurf allein nicht.
+  4. "Antwort prüfen" entsteht mit der ersten Zustellung beim Auftraggeber; ein späteres "unzustellbar" lässt sie stehen.
+- **Verifikation**: `tests/test_v347_bedenkenanzeige_versand.py` (12 Tests: Brief aus Meldung und Anzeige mit Angaben, Betreff,
+  Anrede, Kopie an, Fußzeile, Dateiname, ohne Entscheidung; erst nach der Unterschrift Büro, fremde Briefarten 404, andere
+  Checklisten 404; Vorbehalt je Vertragsgrundlage nur geprüft gedruckt; Versand per Mail mit An/CC, Anhang = Ablage, Vollmacht,
+  "versenden" erledigt, "Antwort prüfen" am erbetenen Datum, zweiter Versand ohne zweite Aufgabe, Entscheidung erledigt sie;
+  Zustellung: Kopie zählt nicht, an den Auftraggeber zählt, eine Fassung, "unzustellbar" öffnet "versenden"; gegenstandslos ohne
+  Versand mit nachtragbarer Fassung; Bestätigung bei abweichendem Kunden für Erstellen und Versand beider Anzeigen samt Historie;
+  Kundennummer vor Name; Kundenwechsel-Sperre mit Fassung, ohne nur mit Entwurf; Monteur 403 und Schlüssel-Scan;
+  Registrierung). `test_v343` nachgezogen: seine Testwelt benannte den Kunden nach dem Beauftragen um (jetzt angeglichen), der
+  Versand nach der Umbenennung verlangt die Bestätigung, die Vorbehaltsliste hat sechs Bausteine. Gegenproben (Skript im
+  Scratchpad, Dateien byte-genau zurück): 20 von 20 rot -- Brief schon nach der Meldung, Briefart unabhängig vom Zweck,
+  Briefarten aller Zwecke auf der Karte, Zeitstrahl der Behinderungsanzeige, "versenden" bleibt offen, keine Antwort-Aufgabe nach
+  Mail bzw. Zustellung, Zustellung ohne Nachlauf, "unzustellbar" öffnet nichts, Vorbehalt fehlt, Fußzeile fest, abweichender
+  Kunde beim Erstellen bzw. Versand nicht geprüft, Bestätigung nicht in der Historie, Kundennummer bzw. Schreibweise zählt
+  falsch, Kundenwechsel trotz Fassung bzw. schon beim Entwurf gesperrt, Monteur erstellt, Ablage ohne die Art. Klicktest
+  `scripts/klicktest_bedenkenanzeige_versand.py` 20/20 (Büro dunkel: Karte nur mit dem Brief "Bedenkenanzeige", Zeitstrahl,
+  Warnungen Vorbehalt und abweichender Kunde lesbar, Senden ohne Bestätigung abgewiesen ohne Mail, mit Bestätigung an einen
+  SMTP-Empfänger im Skript: Umschlag nur an den Auftraggeber, Anhang = abgelegter Brief per SHA-256, Brieftext, Stand und
+  Zeitstrahl versendet, Aufgaben "versenden" erledigt und "Antwort prüfen" am 9.10.; Versandprotokoll mit Filter und Link; 412 px
+  hell ohne waagrechten Scrollbalken; Monteurin 403). Der erste Lauf fand das Bestätigungs-Kästchen unter seinem Text (globale
+  Mindesthöhe der Eingabefelder) -- eigene Regel `.notice-confirm`. Klicktests der Behinderungsanzeige, des Versandprotokolls und
+  des Versandverlaufs: siehe CHANGELOG 1.8.44.
+
+### Nebenbefunde 1.8.44 (nur gemeldet)
+
+1. **"Zustellung nachtragen" prüft das Modul weiter nur bei der Checkliste** (1.8.41 Nebenbefund 1) -- gilt jetzt auch für die
+   Briefart `bedenkenanzeige`.
+2. **Bestandsdaten mit abweichendem Kunden**: wo auf dem Server ein Projekt nach dem Beauftragen einen anderen oder umbenannten
+   Kunden bekam, verlangen Brief und Versand der Anzeigen ab jetzt die Bestätigung -- gewollt, aber für das Büro neu.
+3. **Klicktests mit fester Uhr: das Befüllen läuft mit der echten Uhr** -- eine im Befüllen geleistete Unterschrift trägt die
+   echte Uhrzeit, die Instanz läuft ab 10:00; der Zeitstrahl zeigt dann "wartet seit … vorher" (nur im Klicktest).

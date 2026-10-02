@@ -129,7 +129,7 @@ def _notice(kind: str):
 
         try:
             return dispatch_document_for(db, checklist, kind)
-        except LookupError as e:  # keine Behinderungsanzeige -- für die Zustellung "nicht zustellbar"
+        except LookupError as e:  # keine passende Anzeige -- für die Zustellung "nicht zustellbar"
             raise ValueError(str(e)) from e
     return build
 
@@ -137,7 +137,8 @@ def _notice(kind: str):
 _REGISTRY = {"angebot": (Quote, _quote), "auftrag": (Order, _order), "rechnung": (Invoice, _invoice),
              "mahnung": (Reminder, _reminder), "checkliste": (Checklist, _checklist),
              "vertrag": (OrderContract, _contract), "behinderungsanzeige": (Checklist, _notice("behinderungsanzeige")),
-             "wiederaufnahme": (Checklist, _notice("wiederaufnahme"))}
+             "wiederaufnahme": (Checklist, _notice("wiederaufnahme")),
+             "bedenkenanzeige": (Checklist, _notice("bedenkenanzeige"))}  # seit 1.8.44
 assert set(_REGISTRY) == set(DOCUMENT_TYPES), "jede Dokumentart der Ablage braucht einen Eintrag hier"
 
 
@@ -157,9 +158,9 @@ def dispatch_document(db: Session, document_type: str, document_id: int) -> Disp
 
 def after_outcome(db: Session, dispatch: EmailDispatch, outcome) -> None:
     """Nachlauf eines vermerkten Versandergebnisses je Dokumentart (seit 1.8.41, nach dem Commit des Vermerks):
-    Behinderungsanzeige "unzustellbar" -- kam sie auf keinem anderen Weg beim Auftraggeber an, ist die Aufgabe
-    "versenden" wieder offen (app/notice_letters.py). Sonst nichts."""
-    if dispatch.document_type == "behinderungsanzeige":
+    Behinderungs- bzw. seit 1.8.44 Bedenkenanzeige "unzustellbar" -- kam sie auf keinem anderen Weg beim
+    Auftraggeber an, ist die Aufgabe "versenden" wieder offen (app/notice_letters.py). Sonst nichts."""
+    if dispatch.document_type in ("behinderungsanzeige", "bedenkenanzeige"):
         from .notice_letters import after_dispatch_outcome
 
         after_dispatch_outcome(db, dispatch, outcome)

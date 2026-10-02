@@ -143,11 +143,25 @@ def check_client_change(db: Session, project: Project, new_customer_id: int) -> 
     """Kundenwechsel am Projekt (seit 1.8.41, 1.8.39 Nebenbefund 1): ist der neue Kunde über seinen Adressbuch-Eintrag
     schon Beteiligter, stünde der Auftraggeber doppelt da. Festlegung: ablehnen und nennen, wo er eingetragen ist --
     das Büro entfernt ihn im Reiter "Beteiligte" bewusst (Kopie bei Anzeigen, Vollmacht gingen sonst still verloren).
-    Wirft ClientChangeConflict."""
+    Seit 1.8.44 zuerst: hat ein Auftrag des Projekts einen festgeschriebenen Vertrag (mindestens eine Fassung), ist
+    der Kunde Vertragspartner -- kein Wechsel. Wirft ClientChangeConflict."""
     from .contacts import contact_display_name
+    from .models import Order, OrderContract, OrderContractVersion
 
     if new_customer_id == project.customer_id:
         return
+    frozen = db.execute(
+        select(Order.order_number, func.max(OrderContractVersion.version_no))
+        .join(OrderContract, OrderContract.order_id == Order.id)
+        .join(OrderContractVersion, OrderContractVersion.contract_id == OrderContract.id)
+        .where(Order.project_id == project.id)
+        .group_by(Order.order_number).order_by(Order.order_number)
+    ).first()
+    if frozen is not None:
+        raise ClientChangeConflict(
+            f"Auftrag {frozen[0]} hat einen festgeschriebenen Vertrag (Fassung {frozen[1]}) – der Kunde ist dort "
+            "Vertragspartner und lässt sich im Projekt nicht mehr wechseln."
+        )
     rows = db.scalars(
         select(ProjectParticipant).join(Contact, Contact.id == ProjectParticipant.contact_id)
         .where(ProjectParticipant.project_id == project.id, Contact.customer_id == new_customer_id)

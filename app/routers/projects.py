@@ -179,6 +179,7 @@ def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depend
             raise HTTPException(status_code=422, detail="Objekt gehört nicht zum ausgewählten Kunden.")
     try:
         # Seit 1.8.41: ist der neue Kunde hier schon Beteiligter, stünde der Auftraggeber doppelt da -- 409 mit Namen.
+        # Seit 1.8.44 zuerst: ein Auftrag mit festgeschriebenem Vertrag sperrt den Wechsel -- 409.
         check_client_change(db, project, payload.customer_id)
     except ClientChangeConflict as e:
         raise HTTPException(status_code=409, detail=str(e))

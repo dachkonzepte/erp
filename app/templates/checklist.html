@@ -38,6 +38,9 @@
 
   Seit 1.8.41: Zeitstrahl in der Anzeige-Karte (bekannt seit → Meldung unterschrieben → versendet, mit Abstand),
   Stand je Brief (versendet / unzustellbar / bereit / wartet), bei der Wiederaufnahme der Hinweis auf "i. A.".
+
+  Seit 1.8.44: dieselbe Karte an der Bedenkenanzeige (Brief "Bedenkenanzeige"); fallen Kunde des Projekts und
+  Kunde laut Auftrag auseinander, warnt die Karte und verlangt vor "Brief erstellen" und Senden eine Bestätigung.
   Behinderungs- und Bedenkenanzeige lassen sich im Büro "als gegenstandslos abschließen" (cl.can_void, sichtbares
   Begründungsfeld statt Popup, Regel 4); danach Badge "Gegenstandslos", Begründung für jede Rolle, PDF, keine
   Brief-Aktionen mehr (nur Verlauf und Nachtragen einer schon erstellten Fassung).
@@ -125,7 +128,7 @@ textarea{min-height:90px;resize:vertical}
 .notice-kind{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
 .notice-head{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
 .notice-head b{font-size:15px}
-.notice-warn{margin-top:8px;padding:9px 11px;border-left:3px solid var(--danger);background:var(--danger-soft);color:var(--ink);font-size:13.5px}
+.notice-confirm{display:flex;gap:8px;align-items:flex-start;margin-top:8px;font-size:13.5px;font-weight:650;text-transform:none;color:var(--ink)}.notice-confirm input{flex:0 0 auto;width:18px;min-width:0;max-width:none;height:18px;min-height:0;padding:0;margin:1px 0 0}.notice-warn{margin-top:8px;padding:9px 11px;border-left:3px solid var(--danger);background:var(--danger-soft);color:var(--ink);font-size:13.5px}
 .notice-info{margin-top:8px;padding:8px 10px;border-left:3px solid var(--warning);background:var(--warning-soft);color:var(--ink);font-size:13px}
 .notice-row{margin-top:8px;font-size:13.5px;overflow-wrap:anywhere}
 .notice-row .mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}
@@ -227,8 +230,8 @@ function renderVoidInfo(){
 function renderVoidCard(){
   if(!cl.can_void)return '';
   return `<div class="card void-card" id="voidCard"><h2>Als gegenstandslos abschließen</h2>
-    <div class="muted small">Liegt keine ${esc(cl.purpose_label)} vor (z. B. übliche Witterung), schließt das Büro sie hier mit Begründung ab – auch mit fehlenden Angaben. Sie bleibt als Beleg, verschwindet aus den offenen Listen, und die offene Aufgabe dazu ist danach erledigt.</div>
-    <textarea id="voidReason" maxlength="2000" placeholder="Begründung (Pflicht), z. B. übliche Witterung – keine Behinderung nach § 6 Abs. 2 VOB/B"></textarea>
+    <div class="muted small">Liegt keine ${esc(cl.purpose_label)} vor (${cl.purpose==='bedenkenanzeige'?'z. B. die Bedenken haben sich erledigt':'z. B. übliche Witterung'}), schließt das Büro sie hier mit Begründung ab – auch mit fehlenden Angaben. Sie bleibt als Beleg, verschwindet aus den offenen Listen, und die offene Aufgabe dazu ist danach erledigt.</div>
+    <textarea id="voidReason" maxlength="2000" placeholder="${cl.purpose==='bedenkenanzeige'?'Begründung (Pflicht), z. B. Material wurde vor dem Einbau getauscht':'Begründung (Pflicht), z. B. übliche Witterung – keine Behinderung nach § 6 Abs. 2 VOB/B'}"></textarea>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn danger" id="voidBtn" onclick="voidChecklist()">Als gegenstandslos abschließen</button><span class="small error-box" id="voidStatus"></span></div></div>`;
 }
 async function voidChecklist(){
@@ -394,9 +397,11 @@ async function sendChecklistEmail(btn){
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 
-// --- Anzeige an den Auftraggeber (seit 1.8.40, nur Büro, Zweck Behinderungsanzeige) ---------------------
+// --- Anzeige an den Auftraggeber (seit 1.8.40, nur Büro, Zweck Behinderungsanzeige; seit 1.8.44 auch Bedenkenanzeige) ---
 // Briefe aus der versiegelten Kopie der Abschnittsunterschrift; was möglich ist, sagt der Server.
+const NOTICE_PURPOSES=['behinderungsanzeige','bedenkenanzeige'];
 let notice=null;
+let noticeConfirmCustomer=false;  // seit 1.8.44: abweichender Kunde geprüft (bleibt beim Neuzeichnen stehen)
 const noticeCc={};  // eingegebene CC je Briefart -- bleibt beim Neuzeichnen stehen
 const fmtIsoDate=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}.${m[2]}.${m[1]}`:''};
 function noticeKindHtml(k){
@@ -416,7 +421,7 @@ function noticeKindHtml(k){
   if(k.blocked)html+=`<div class="notice-warn" data-notice-blocked><b>Der Brief wird nicht erstellt:</b> ${esc(k.seal.text)} Das Büro kann die Unterschrift mit Begründung verwerfen und neu unterschreiben lassen.</div>`;
   const r=k.reservation;
   const withoutReservation=current?!current.reservation_printed:!r.reviewed;
-  if(withoutReservation)html+=`<div class="notice-warn" data-reservation-warning><b>Ohne Vorbehalt:</b> ${current?'Dieser Brief wurde ohne Vorbehalt erstellt':`Für ${esc(k.label)} bei ${esc(r.basis_label)} gibt es keinen rechtlich geprüften Vorbehalt`} – ${current?'er':'der Brief'} enthält keinen. Versenden ist trotzdem möglich, die Behinderung ist unverzüglich anzuzeigen. Den Vorbehalt pflegt ein Administrator unter Einstellungen → Vorbehalte in Anzeigen.</div>`;
+  if(withoutReservation)html+=`<div class="notice-warn" data-reservation-warning><b>Ohne Vorbehalt:</b> ${current?'Dieser Brief wurde ohne Vorbehalt erstellt':`Für ${esc(k.label)} bei ${esc(r.basis_label)} gibt es keinen rechtlich geprüften Vorbehalt`} – ${current?'er':'der Brief'} enthält keinen. Versenden ist trotzdem möglich, die Anzeige muss unverzüglich hinaus. Den Vorbehalt pflegt ein Administrator unter Einstellungen → Vorbehalte in Anzeigen.</div>`;
   if(current){
     const doc=current.sent_document;
     html+=`<div class="notice-row" data-notice-letter>Brief vom ${fmtIsoDate(current.letter_date)} (Fassung ${current.version_no}), erstellt von ${esc(current.created_by_name)} · <span class="mono" title="SHA-256 ${esc(doc.sha256)}">Prüfsumme ${esc(doc.sha256.slice(0,12))}…</span> · <a href="/api/sent-documents/${doc.id}/file" target="_blank" rel="noopener">PDF öffnen</a></div>`
@@ -474,6 +479,7 @@ function timelineHtml(steps){
 function renderNoticeCard(){
   const card=document.getElementById('noticeCard');if(!card||!notice)return;
   card.innerHTML=`<h2>Anzeige an den Auftraggeber</h2><div class="muted small">Auftrag ${esc(notice.order_number)} · Vertragsgrundlage ${esc(notice.contract_basis_label||'')}. ${notice.voided?'Als gegenstandslos abgeschlossen – es wird nichts mehr versendet.':'Der Brief kommt aus dem unterschriebenen Inhalt; versendet wird immer der erstellte Brief.'}</div>`
+    +customerMismatchHtml()
     +timelineHtml(notice.timeline||[])
     +notice.kinds.map(noticeKindHtml).join('');
   for(const k of notice.kinds){
@@ -481,6 +487,22 @@ function renderNoticeCard(){
     // Nach "gegenstandslos" nur noch zu einer schon erstellten Fassung nachtragen (der Server lehnt sonst ab).
     renderDispatchHistory(`notice-${k.kind}-history`,k.kind,checklistId,{manual:!notice.voided||k.letters.length>0,onChange:loadNotice});
   }
+}
+// Seit 1.8.44: Kunde des Projekts (Empfänger) und Kunde laut Auftrag fallen auseinander -- sichtbare Warnung mit
+// Bestätigung; der Server lehnt Brief und Versand ohne sie ab (409).
+function customerMismatchHtml(){
+  const m=notice.customer_mismatch;
+  if(!m||notice.voided)return '';
+  return `<div class="notice-warn" data-customer-mismatch><b>Abweichender Kunde:</b> ${esc(m.text)}
+    <label class="notice-confirm"><input type="checkbox" id="noticeConfirmCustomer" ${noticeConfirmCustomer?'checked':''} onchange="noticeConfirmCustomer=this.checked"><span>Abweichung geprüft – Brief und E-Mail an ${esc(m.project_customer)}</span></label></div>`;
+}
+function needsCustomerConfirmation(kind){
+  if(!notice.customer_mismatch||noticeConfirmCustomer)return false;
+  const st=document.getElementById(`notice-${kind}-status`);
+  const text='Bitte zuerst oben die Abweichung des Kunden prüfen und bestätigen.';
+  if(st)st.textContent=text;else alert(text);
+  document.getElementById('noticeConfirmCustomer')?.focus();
+  return true;
 }
 async function loadNotice(){
   const card=document.getElementById('noticeCard');if(!card)return;
@@ -490,9 +512,10 @@ async function loadNotice(){
 async function freezeNoticeLetter(kind,btn){
   const k=notice.kinds.find(x=>x.kind===kind);
   const warn=!k.reservation.reviewed?'\n\nEin geprüfter Vorbehalt fehlt – der Brief enthält keinen.':'';
+  if(needsCustomerConfirmation(kind))return;
   if(!confirm(`${k.label} jetzt als Brief erstellen? Danach gilt genau dieser Brief für Versand und Zustellung.${warn}`))return;
   btn.disabled=true;
-  try{notice=await api(`/api/checklists/${checklistId}/notice-letters/${kind}/freeze`,{method:'POST'});renderNoticeCard()}
+  try{notice=await api(`/api/checklists/${checklistId}/notice-letters/${kind}/freeze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm_customer:noticeConfirmCustomer})});renderNoticeCard()}
   catch(e){btn.disabled=false;const st=document.getElementById(`notice-${kind}-status`);if(st)st.textContent='Fehler: '+e.message;else alert(e.message)}
 }
 async function sendNoticeLetter(kind,btn){
@@ -500,12 +523,13 @@ async function sendNoticeLetter(kind,btn){
   const st=document.getElementById(`notice-${kind}-status`);
   const cc=(document.getElementById(`notice-${kind}-cc`).value||'').trim();
   const current=k.letters.find(l=>l.current);
+  if(needsCustomerConfirmation(kind))return;
   if(current?!current.reservation_printed:!k.reservation.reviewed){
     if(!confirm(`${k.label} ohne Vorbehalt senden? Ein rechtlich geprüfter Vorbehalt fehlt.`))return;
   }
   st.textContent='Wird gesendet …';
   try{
-    await postEmailDispatch(`${kind}-${checklistId}`,`/api/checklists/${checklistId}/notice-letters/${kind}/send-email`,{cc_email:cc||null},btn);
+    await postEmailDispatch(`${kind}-${checklistId}`,`/api/checklists/${checklistId}/notice-letters/${kind}/send-email`,{cc_email:cc||null,confirm_customer:noticeConfirmCustomer},btn);
     delete noticeCc[kind];
     await loadNotice();
     const st2=document.getElementById(`notice-${kind}-status`);if(st2)st2.textContent='Versendet.';
@@ -516,7 +540,7 @@ async function sendNoticeLetter(kind,btn){
 function render(){
   const main=document.getElementById('clMain');
   let html=renderHeader()+renderSendCard();
-  if(!IS_FIELD&&cl.purpose==='behinderungsanzeige')html+='<div class="card notice-card" id="noticeCard"><h2>Anzeige an den Auftraggeber</h2><div class="muted small">Lädt …</div></div>';
+  if(!IS_FIELD&&NOTICE_PURPOSES.includes(cl.purpose))html+='<div class="card notice-card" id="noticeCard"><h2>Anzeige an den Auftraggeber</h2><div class="muted small">Lädt …</div></div>';
   let group=null;
   const missing=new Set(cl.missing_required||[]);
   // Nur wenn ein Teil gesperrt und ein Teil offen ist, markiert jedes gesperrte Feld sich selbst.
@@ -547,7 +571,7 @@ function render(){
   main.innerHTML=html;
   for(const f of cl.fields)if(f.field_type==='unterschrift')setupPad(f.id);
   if(!IS_FIELD)loadFollowUps();
-  if(!IS_FIELD&&cl.purpose==='behinderungsanzeige')loadNotice();
+  if(!IS_FIELD&&NOTICE_PURPOSES.includes(cl.purpose))loadNotice();
   if(!IS_FIELD&&cl.status==='abgeschlossen'){loadRules();afterRenderSendCard()}
 }
 

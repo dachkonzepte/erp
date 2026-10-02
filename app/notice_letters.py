@@ -38,6 +38,14 @@ Seit 1.8.41 (Runde 2b-3 Teil 3, Herleitung "Umsetzung 1.8.41"):
 - Als gegenstandslos abgeschlossen (app/checklists.py::void_checklist()): kein neuer Brief, kein Versand; eine
   schon erstellte Fassung bleibt und lässt sich als zugestellt nachtragen.
 
+Seit 1.8.44 (Runde 2b-4 Teil 2, Herleitung "Umsetzung 1.8.44"): Briefarten je Zweck (NOTICE_PURPOSES,
+LetterKind.purpose) -- dazu die Bedenkenanzeige mit einem Brief "bedenkenanzeige" nach der Unterschrift Büro (Inhalt
+Meldung und Anzeige), mit allem, was die Behinderungsanzeige kann (Vorbehalt, Kopie an, Vollmacht, Zustellung,
+Versandergebnis, Zeitstrahl, gegenstandslos). Nach dem Versand des Hauptbriefs (Art = Zweck) die Aufgabe
+"<Anzeige> versenden" erledigt und die Folgen nach dem Versand (run_follow_ups_after_letter(): "Antwort prüfen").
+Fallen Kunde des Projekts und Kunde laut Auftrag auseinander (customer_mismatch()), entsteht und geht kein Brief
+ohne ausdrückliche Bestätigung (CustomerMismatch, 409); die Bestätigung steht in der Historie.
+
 Rollenlos wie jede Geschäftslogik; nur das Büro (app/routers/notice_letters.py). Der PDF-Renderer
 (app/notice_letter_pdf.py) wird lokal importiert (Regel 3).
 """
@@ -54,8 +62,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .berlin_time import berlin_now, to_berlin
-from .checklist_follow_ups import complete_follow_up_tasks, reopen_follow_up_tasks, triggering_signature
-from .checklist_purposes import OBSTRUCTION_PURPOSE, OBSTRUCTION_REPORT_SIGNATURE
+from .checklist_follow_ups import (
+    complete_follow_up_tasks, reopen_follow_up_tasks, run_follow_ups_after_letter, triggering_signature,
+)
+from .checklist_purposes import (
+    CONCERN_PURPOSE, CONCERN_REPORT_SIGNATURE, OBSTRUCTION_PURPOSE, OBSTRUCTION_REPORT_SIGNATURE,
+)
 from .checklists import VOID_STATUS, _load as _load_checklist, attachment_path, check_signature
 from .models import (
     Checklist, ChecklistAttachment, Customer, DispatchAuthorization, DispatchOutcome, EmailDispatch, NoticeLetter, Order,
@@ -66,7 +78,7 @@ from .project_participants import participant_info, participant_rows
 logger = logging.getLogger(__name__)
 
 B = OBSTRUCTION_PURPOSE + "."
-SEND_FOLLOW_UP_KEY = B + "versenden"  # Folge der Meldung (app/checklist_purposes.py)
+K = CONCERN_PURPOSE + "."
 PREVIEW_WATERMARK = "Vorschau – nicht versendet"
 YES_NO = {"ja": "Ja", "nein": "Nein", "entfaellt": "Entfällt"}
 
@@ -74,6 +86,31 @@ YES_NO = {"ja": "Ja", "nein": "Nein", "entfaellt": "Entfällt"}
 class NoticeStateError(Exception):
     """Der Brief ist in diesem Zustand nicht möglich (Abschnitt nicht unterschrieben, Inhalt weicht von
     der Unterschrift ab, Ablage beschädigt) -- Router: 409."""
+
+
+class CustomerMismatch(NoticeStateError):
+    """Kunde des Projekts und Kunde laut Auftrag fallen auseinander, und das Büro hat das nicht ausdrücklich bestätigt
+    (seit 1.8.44) -- Router: 409, die Karte zeigt die Warnung mit Bestätigung."""
+
+
+@dataclass(frozen=True)
+class NoticePurpose:
+    """Eine Anzeige, aus der Briefe an den Auftraggeber entstehen (seit 1.8.44 je Zweck): ihr Hauptbrief (dieselbe
+    Art wie der Zweck -- daran hängen die Aufgabe "versenden" und der Zeitstrahl) und die Felder des Zeitstrahls."""
+    purpose: str
+    label: str
+    known_field: str  # "bekannt seit"
+    report_signature: str  # Unterschrift der Meldung
+
+    @property
+    def send_follow_up_key(self) -> str:
+        return self.purpose + ".versenden"
+
+
+NOTICE_PURPOSES: dict[str, NoticePurpose] = {p.purpose: p for p in (
+    NoticePurpose(OBSTRUCTION_PURPOSE, "Behinderungsanzeige", B + "bekannt_seit", OBSTRUCTION_REPORT_SIGNATURE),
+    NoticePurpose(CONCERN_PURPOSE, "Bedenkenanzeige", K + "bekannt_seit", CONCERN_REPORT_SIGNATURE),
+)}
 
 
 @dataclass(frozen=True)
@@ -85,14 +122,25 @@ class LetterKind:
     requires: tuple[str, ...]  # weitere Unterschriften, die gültig sein müssen
     reference_fields: tuple[str, ...]  # Angaben aus früheren Abschnitten, die der Brief als Bezug nennt
     waiting_text: str
+    purpose: str = OBSTRUCTION_PURPOSE  # seit 1.8.44: die Anzeige (Zweck der Checkliste), aus der der Brief entsteht
+    file_prefix: str = ""  # Dateiname in der Ablage
+
+    @property
+    def is_main(self) -> bool:
+        """Der Hauptbrief der Anzeige (Art = Zweck): Aufgabe "versenden", Zeitstrahl, Folgen nach dem Versand."""
+        return self.key == self.purpose
 
 
 LETTER_KINDS: dict[str, LetterKind] = {k.key: k for k in (
     LetterKind("behinderungsanzeige", "Behinderungsanzeige", B + "unterschrift_buero", None, (), (),
-               "Möglich nach der „Unterschrift Büro“ im Abschnitt „Anzeige“."),
+               "Möglich nach der „Unterschrift Büro“ im Abschnitt „Anzeige“.", file_prefix="Behinderungsanzeige"),
     LetterKind("wiederaufnahme", "Anzeige der Wiederaufnahme", B + "unterschrift_wegfall", B + "unterschrift_buero",
                (B + "unterschrift_buero",), (B + "beginn",),
-               "Möglich nach der Unterschrift im Abschnitt „Wegfall“ (und der „Unterschrift Büro“ im Abschnitt „Anzeige“)."),
+               "Möglich nach der Unterschrift im Abschnitt „Wegfall“ (und der „Unterschrift Büro“ im Abschnitt „Anzeige“).",
+               file_prefix="Wiederaufnahme"),
+    LetterKind("bedenkenanzeige", "Bedenkenanzeige", K + "unterschrift_buero", None, (), (),
+               "Möglich nach der „Unterschrift Büro“ im Abschnitt „Anzeige“.", purpose=CONCERN_PURPOSE,
+               file_prefix="Bedenkenanzeige"),
 )}
 
 INTRO = {
@@ -100,16 +148,21 @@ INTRO = {
                             "genannten Auftrag behindert sind. Im Einzelnen:"),
     "wiederaufnahme": ("die {bezug} Behinderung bei der Ausführung unserer Leistungen zum oben genannten Auftrag ist "
                        "weggefallen; wir haben die Arbeiten wieder aufgenommen. Im Einzelnen:"),
+    "bedenkenanzeige": ("hiermit melden wir Ihnen Bedenken zur Ausführung unserer Leistungen zum oben genannten Auftrag "
+                        "an und bitten um Ihre Entscheidung. Im Einzelnen:"),
 }
 DEFAULT_EMAIL_SUBJECT = {
     "behinderungsanzeige": "Behinderungsanzeige – Auftrag {auftragsnummer}",
     "wiederaufnahme": "Anzeige der Wiederaufnahme – Auftrag {auftragsnummer}",
+    "bedenkenanzeige": "Bedenkenanzeige – Auftrag {auftragsnummer}",
 }
 DEFAULT_EMAIL_BODY = {
     "behinderungsanzeige": ("{anrede}\n\nanbei erhalten Sie unsere Behinderungsanzeige zum Auftrag {auftragsnummer} "
                             "(Bauvorhaben {bauvorhaben}).\n\nMit freundlichen Grüßen"),
     "wiederaufnahme": ("{anrede}\n\nanbei erhalten Sie unsere Anzeige der Wiederaufnahme der Arbeiten zum Auftrag "
                        "{auftragsnummer} (Bauvorhaben {bauvorhaben}).\n\nMit freundlichen Grüßen"),
+    "bedenkenanzeige": ("{anrede}\n\nanbei erhalten Sie unsere Bedenkenanzeige zum Auftrag {auftragsnummer} "
+                        "(Bauvorhaben {bauvorhaben}) mit der Bitte um Ihre Entscheidung.\n\nMit freundlichen Grüßen"),
 }
 EMAIL_PLACEHOLDERS = ("{anrede}", "{auftragsnummer}", "{kundenname}", "{bauvorhaben}", "{checklistennummer}")
 
@@ -123,12 +176,16 @@ def letter_kind(key: str) -> LetterKind:
     return spec
 
 
-def _checklist(db: Session, checklist_id: int, *, for_update: bool = False) -> Checklist:
+def _checklist(db: Session, checklist_id: int, *, for_update: bool = False, spec: LetterKind | None = None) -> Checklist:
+    """Die Anzeige (Behinderungs- oder Bedenkenanzeige am Auftrag); mit spec gehört die Briefart zu ihrem Zweck."""
     checklist = _load_checklist(db, checklist_id, for_update=for_update)
     if checklist is None:
         raise LookupError("Checkliste nicht gefunden.")
-    if checklist.template_version.purpose != OBSTRUCTION_PURPOSE or checklist.order_id is None:
-        raise LookupError("Diese Checkliste ist keine Behinderungsanzeige am Auftrag.")
+    purpose = checklist.template_version.purpose
+    if purpose not in NOTICE_PURPOSES or checklist.order_id is None:
+        raise LookupError("Diese Checkliste ist keine Behinderungs- oder Bedenkenanzeige am Auftrag.")
+    if spec is not None and spec.purpose != purpose:
+        raise LookupError(f"Ein Brief „{spec.label}“ entsteht nicht aus einer {NOTICE_PURPOSES[purpose].label}.")
     return checklist
 
 
@@ -141,6 +198,38 @@ def _order(db: Session, checklist: Checklist) -> Order:
 
 def _customer(order: Order) -> Customer | None:
     return order.project.customer if order.project is not None else None
+
+
+def _normalized(text: str | None) -> str:
+    return " ".join((text or "").split()).casefold()
+
+
+def customer_mismatch(order: Order, customer: Customer | None) -> dict | None:
+    """Fallen Kunde des Projekts (an ihn geht der Brief) und Kunde laut Auftrag (Schnappschuss beim Beauftragen)
+    auseinander? (seit 1.8.44, 1.8.41 Nebenbefund 5) Mit Kundennummer auf beiden Seiten zählt sie, sonst der Name.
+    None = keine Abweichung (auch ohne Kunden am Projekt: dann gilt ohnehin der Schnappschuss)."""
+    if customer is None:
+        return None
+    order_no, project_no = (order.customer_number or "").strip(), (customer.customer_number or "").strip()
+    differs = order_no != project_no if order_no and project_no else (
+        _normalized(order.customer_name) != _normalized(customer.name))
+    if not differs:
+        return None
+    project = customer.name + (f" ({project_no})" if project_no else "")
+    ordered = order.customer_name + (f" ({order_no})" if order_no else "")
+    return {
+        "project_customer": project, "order_customer": ordered,
+        "text": (f"Der Kunde des Projekts – {project} – weicht vom Kunden laut Auftrag {order.order_number} – {ordered} – "
+                 f"ab. Brief und E-Mail gingen an {project}. Bitte prüfen und die Abweichung ausdrücklich bestätigen."),
+    }
+
+
+def _require_confirmed_customer(order: Order, customer: Customer | None, confirm_customer: bool) -> dict | None:
+    """CustomerMismatch, solange eine Abweichung nicht bestätigt ist; sonst die (bestätigte) Abweichung oder None."""
+    mismatch = customer_mismatch(order, customer)
+    if mismatch is not None and not confirm_customer:
+        raise CustomerMismatch(mismatch["text"])
+    return mismatch
 
 
 def section_signature(checklist: Checklist, spec: LetterKind) -> ChecklistAttachment | None:
@@ -333,6 +422,7 @@ def build_letter_content(db: Session, checklist: Checklist, spec: LetterKind, si
     return {
         "signoff": signoff,
         "v": 1, "kind": spec.key, "kind_label": spec.label, "checklist_id": checklist.id, "version_no": version_no,
+        "source_label": NOTICE_PURPOSES[spec.purpose].label,  # seit 1.8.44: Fußzeile "Erstellt aus der …"
         "order_id": order.id, "order_number": order.order_number,
         "customer_number": customer.customer_number if customer is not None else order.customer_number,
         "contract_basis": order.contract_basis, "letter_date": letter_date.isoformat(),
@@ -395,7 +485,7 @@ def preview_pdf(db: Session, checklist_id: int, kind: str, *, user_name: str | N
     from .berlin_time import berlin_today
 
     spec = letter_kind(kind)
-    checklist = _checklist(db, checklist_id)
+    checklist = _checklist(db, checklist_id, spec=spec)
     _require_not_void(checklist)
     signature = section_signature(checklist, spec)
     if signature is None:
@@ -412,24 +502,26 @@ def _next_version_no(db: Session, checklist_id: int, kind: str) -> int:
 
 
 def ensure_letter(db: Session, checklist_id: int, kind: str, *, user_id: int | None = None,
-                  user_name: str | None = None) -> NoticeLetter:
+                  user_name: str | None = None, confirm_customer: bool = False) -> NoticeLetter:
     """Die Fassung zur aktuellen Unterschrift des Abschnitts -- vorhanden oder jetzt erstellt (Inhalt
     einfrieren, PDF rendern und ablegen, Historie). Committet.
 
-    Zwei Schritte: Inhalt und PDF entstehen OHNE Sperre -- das Rendern legt beim allerersten Mal
-    Grundeinstellungen (Briefpapier-Bausteine, Ränder) an und committet dabei; unter einer Zeilensperre
-    verklemmten sich so zwei gleichzeitige Aufrufe (gegen PostgreSQL gefunden). Danach unter der Zeilensperre
+    Zwei Schritte: Inhalt und PDF entstehen OHNE Sperre -- bis 1.8.41 legte das Rendern beim allerersten Mal
+    Grundeinstellungen an und committete dabei; unter einer Zeilensperre verklemmten sich so zwei gleichzeitige
+    Aufrufe (gegen PostgreSQL gefunden; seit 1.8.42 legt der Start sie an). Danach unter der Zeilensperre
     der Checkliste: dieselbe Unterschrift noch gültig, noch keine Fassung dazu, dieselbe Nummer -- dann ablegen.
     Zwei gleichzeitige Aufrufe ergeben so eine Fassung (zusätzlich der Unique-Schlüssel je Unterschrift).
 
     Seit 1.8.41: an einer als gegenstandslos abgeschlossenen Anzeige nur noch die vorhandene Fassung (für eine
-    nachgetragene Zustellung), keine neue (NoticeStateError). Die Wiederaufnahme trägt "i. A." user_name."""
+    nachgetragene Zustellung), keine neue (NoticeStateError). Die Wiederaufnahme trägt "i. A." user_name.
+    Seit 1.8.44: eine neue Fassung nur mit confirm_customer, wenn Kunde des Projekts und Kunde laut Auftrag
+    auseinanderfallen (CustomerMismatch) -- die Bestätigung steht in der Historie."""
     from .audit import current_actor, record_audit_entry
     from .berlin_time import berlin_today
     from .sent_documents import store_sent_document
 
     spec = letter_kind(kind)
-    checklist = _checklist(db, checklist_id)
+    checklist = _checklist(db, checklist_id, spec=spec)
     signature = section_signature(checklist, spec)
     if signature is None:
         raise NoticeStateError(spec.waiting_text)
@@ -438,6 +530,8 @@ def ensure_letter(db: Session, checklist_id: int, kind: str, *, user_id: int | N
         return existing
     _require_not_void(checklist)
     _require_intact(checklist, signature)
+    order = _order(db, checklist)
+    mismatch = _require_confirmed_customer(order, _customer(order), confirm_customer)
     if user_id is None and user_name is None:
         user_id, user_name = current_actor()
     user_name = user_name or "System"
@@ -448,7 +542,7 @@ def ensure_letter(db: Session, checklist_id: int, kind: str, *, user_id: int | N
     canonical = _canonical(content)
     pdf = _render(db, checklist, content)
 
-    checklist = _checklist(db, checklist_id, for_update=True)
+    checklist = _checklist(db, checklist_id, for_update=True, spec=spec)
     signature = section_signature(checklist, spec)
     if signature is None or signature.id != signature_id:
         db.rollback()
@@ -464,8 +558,7 @@ def ensure_letter(db: Session, checklist_id: int, kind: str, *, user_id: int | N
         db.rollback()
         raise NoticeStateError("Inzwischen ist eine andere Fassung entstanden – bitte die Seite neu laden.")
     order = _order(db, checklist)
-    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", f"{'Behinderungsanzeige' if kind == 'behinderungsanzeige' else 'Wiederaufnahme'}_"
-                  f"{order.order_number}_Fassung_{version_no}")
+    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", f"{spec.file_prefix}_{order.order_number}_Fassung_{version_no}")
     document = store_sent_document(
         db, document_type=kind, document_id=checklist.id, document_number=f"{order.order_number} · Fassung {version_no}"[:80],
         filename=f"{stem}.pdf", content=pdf, user_id=user_id, user_name=user_name,
@@ -493,7 +586,9 @@ def ensure_letter(db: Session, checklist_id: int, kind: str, *, user_id: int | N
         entity_label=f"Nr. {checklist.id} {checklist.template_label_snapshot} · {checklist.context_label_snapshot or ''}",
         project_id=order.project_id, field_name="notice_letter", field_label=f"{spec.label} als Brief erstellt",
         new_value=f"Fassung {version_no} · PDF-Prüfsumme {document.sha256}"
-                  + ("" if content["reservation"]["printed"] else " · ohne Vorbehalt (nicht geprüft)"),
+                  + ("" if content["reservation"]["printed"] else " · ohne Vorbehalt (nicht geprüft)")
+                  + ("" if mismatch is None else f" · an {mismatch['project_customer']}, abweichend vom Kunden laut "
+                                                 f"Auftrag ({mismatch['order_customer']}) – bestätigt"),
         actor_user_id=user_id, actor_name=user_name,
     )
     db.commit()
@@ -547,24 +642,28 @@ def _email_texts(db: Session, kind: str, checklist: Checklist, order: Order) -> 
 
 
 def send_notice_letter(db: Session, checklist_id: int, kind: str, *, cc_email: str | None = None,
-                       dispatch_key: str | None = None, user=None):
+                       dispatch_key: str | None = None, user=None, confirm_customer: bool = False):
     """Versendet die Fassung zur aktuellen Unterschrift (erstellt sie beim ersten Mal) an den Auftraggeber.
-    Wirft NoticeStateError (Zustand, 409), ValueError (Eingabe/Versand, 400), DispatchConflict (409)."""
+    Wirft NoticeStateError (Zustand, 409; seit 1.8.44 auch CustomerMismatch ohne Bestätigung), ValueError
+    (Eingabe/Versand, 400), DispatchConflict (409). Nach dem Versand des Hauptbriefs: Aufgabe "versenden" erledigt,
+    Folgen nach dem Versand (seit 1.8.44, "Antwort prüfen" der Bedenkenanzeige)."""
     from .email_dispatch import actor_of, dispatch_email, new_dispatch_key
 
     spec = letter_kind(kind)
     user_id, user_name = actor_of(user)
-    checklist = _checklist(db, checklist_id)
+    checklist = _checklist(db, checklist_id, spec=spec)
     _require_not_void(checklist)  # seit 1.8.41: gegenstandslos -- nichts geht mehr hinaus
     if section_signature(checklist, spec) is None:
         raise NoticeStateError(spec.waiting_text)  # Zustand zuerst, vor Empfänger und Fassung
     order = _order(db, checklist)
     customer = _customer(order)
+    mismatch = _require_confirmed_customer(order, customer, confirm_customer)
     to = (customer.email or "").strip() if customer is not None else ""
     if not to:
         raise ValueError("Der Auftraggeber hat keine E-Mail-Adresse. Bitte im Kundenstamm ergänzen oder den Brief "
                          "auf anderem Weg zustellen und unter „Zustellung nachtragen“ festhalten.")
-    letter = ensure_letter(db, checklist_id, kind, user_id=user_id, user_name=user_name)
+    letter = ensure_letter(db, checklist_id, kind, user_id=user_id, user_name=user_name,
+                           confirm_customer=confirm_customer)
     pdf = letter_document(letter)
     subject, body = _email_texts(db, kind, checklist, order)
     project_id = order.project_id
@@ -579,28 +678,54 @@ def send_notice_letter(db: Session, checklist_id: int, kind: str, *, cc_email: s
         attachment_bytes=pdf, attachment_filename=letter.sent_document.filename, archived_document=letter.sent_document,
         user_id=user_id, user_name=user_name, before_send=freeze,
     )
-    if result.newly_sent and kind == "behinderungsanzeige":
-        complete_send_tasks(db, checklist_id)
+    if result.newly_sent and mismatch is not None:
+        _record_customer_confirmation(db, checklist, order, spec, mismatch, user_id=user_id, user_name=user_name)
+    if result.newly_sent and spec.is_main:
+        complete_send_tasks(db, checklist_id, spec.purpose)
+        run_follow_ups_after_letter(db, checklist_id)
     return result
 
 
-def complete_send_tasks(db: Session, checklist_id: int) -> int:
-    """Setzt die offene Aufgabe "Behinderungsanzeige versenden" der Checkliste auf die erste "erledigt"-Spalte
-    (seit 1.8.41 über app/checklist_follow_ups.py::complete_follow_up_tasks()). Ein Fehler dort macht den Versand
-    nicht ungeschehen. Liefert die Zahl der erledigten Aufgaben."""
-    return complete_follow_up_tasks(db, checklist_id, SEND_FOLLOW_UP_KEY)
+def _record_customer_confirmation(db: Session, checklist: Checklist, order: Order, spec: LetterKind, mismatch: dict, *,
+                                  user_id: int | None, user_name: str | None) -> None:
+    """Historie: versendet trotz abweichendem Kunden, bestätigt (seit 1.8.44). Ein Fehler hier macht den Versand
+    nicht ungeschehen."""
+    from .audit import record_audit_entry
+
+    try:
+        record_audit_entry(
+            db, action="geändert", entity_type="Checkliste", entity_id=checklist.id,
+            entity_label=f"Nr. {checklist.id} {checklist.template_label_snapshot} · {checklist.context_label_snapshot or ''}",
+            project_id=order.project_id, field_name="notice_customer", field_label=f"{spec.label}: abweichender Kunde bestätigt",
+            new_value=f"versendet an {mismatch['project_customer']}, Kunde laut Auftrag {mismatch['order_customer']}",
+            actor_user_id=user_id, actor_name=user_name or "System",
+        )
+        db.commit()
+    except Exception as exc:  # noqa: BLE001 -- der Versand ist geschehen
+        db.rollback()
+        logger.warning("Bestätigung des abweichenden Kunden an Checkliste %s nicht protokolliert (%s)", checklist.id,
+                       type(exc).__name__)
+
+
+def complete_send_tasks(db: Session, checklist_id: int, purpose: str = OBSTRUCTION_PURPOSE) -> int:
+    """Setzt die offene Aufgabe "<Anzeige> versenden" der Checkliste auf die erste "erledigt"-Spalte (seit 1.8.41
+    über app/checklist_follow_ups.py::complete_follow_up_tasks(), seit 1.8.44 je Zweck). Ein Fehler dort macht den
+    Versand nicht ungeschehen. Liefert die Zahl der erledigten Aufgaben."""
+    return complete_follow_up_tasks(db, checklist_id, NOTICE_PURPOSES[purpose].send_follow_up_key)
 
 
 def dispatch_document_for(db: Session, checklist: Checklist, kind: str):
     """Eintrag für app/dispatch_documents.py (Zustellung nachtragen): die Fassung zur aktuellen Unterschrift
-    (beim ersten Mal erstellt, nach "gegenstandslos" nur eine schon erstellte), nach dem Eintrag der
-    Behinderungsanzeige die Aufgabe erledigt -- seit 1.8.41 nur, wenn die Zustellung beim Auftraggeber ankam
-    (reached_client(): eine Kopie nur an Beteiligte erledigt sie nicht)."""
+    (beim ersten Mal erstellt, nach "gegenstandslos" nur eine schon erstellte), nach dem Eintrag des Hauptbriefs
+    die Aufgabe "versenden" erledigt -- seit 1.8.41 nur, wenn die Zustellung beim Auftraggeber ankam
+    (reached_client(): eine Kopie nur an Beteiligte erledigt sie nicht); seit 1.8.44 je Zweck, dazu die Folgen nach
+    dem Versand. Eine neue Fassung bei abweichendem Kunden entsteht hier nicht (ohne Bestätigung): erst "Brief
+    erstellen" mit Bestätigung, dann nachtragen."""
     from .dispatch_documents import DispatchDocument
     from .sent_documents import DocumentPdf
 
     spec = letter_kind(kind)
-    checklist = _checklist(db, checklist.id)
+    checklist = _checklist(db, checklist.id, spec=spec)
     if section_signature(checklist, spec) is None:
         raise ValueError(f"{spec.label}: {spec.waiting_text}")
     order = _order(db, checklist)
@@ -616,25 +741,27 @@ def dispatch_document_for(db: Session, checklist: Checklist, kind: str):
         authorized = db.scalar(select(DispatchAuthorization.id).where(DispatchAuthorization.dispatch_id == dispatch.id)
                                .limit(1)) is not None
         if reached_client(dispatch, None, authorized):
-            complete_send_tasks(db, checklist.id)
+            complete_send_tasks(db, checklist.id, spec.purpose)
+            run_follow_ups_after_letter(db, checklist.id)
 
     return DispatchDocument(kind, checklist.id, None, f"{spec.label} zu Auftrag {order.order_number}",
-                            order.project_id, pdf, after_delivery=after if kind == "behinderungsanzeige" else None)
+                            order.project_id, pdf, after_delivery=after if spec.is_main else None)
 
 
 def after_dispatch_outcome(db: Session, dispatch: EmailDispatch, outcome: DispatchOutcome) -> int:
-    """Nachlauf eines Versandergebnisses der Behinderungsanzeige (seit 1.8.41, app/dispatch_documents.py::
-    after_outcome()). Festlegung: "unzustellbar" und auf keinem anderen Weg beim Auftraggeber angekommen -- die
-    Aufgabe "Behinderungsanzeige versenden" ist wieder offen (die Anzeige muss noch hinaus). Nicht an einer
-    gegenstandslosen Anzeige. Liefert die Zahl der wieder geöffneten Aufgaben."""
-    if outcome.outcome != "unzustellbar" or dispatch.document_type != "behinderungsanzeige":
+    """Nachlauf eines Versandergebnisses des Hauptbriefs einer Anzeige (seit 1.8.41, app/dispatch_documents.py::
+    after_outcome(); seit 1.8.44 auch die Bedenkenanzeige). Festlegung: "unzustellbar" und auf keinem anderen Weg
+    beim Auftraggeber angekommen -- die Aufgabe "<Anzeige> versenden" ist wieder offen (die Anzeige muss noch
+    hinaus). Nicht an einer gegenstandslosen Anzeige. Liefert die Zahl der wieder geöffneten Aufgaben."""
+    spec = LETTER_KINDS.get(dispatch.document_type)
+    if outcome.outcome != "unzustellbar" or spec is None or not spec.is_main:
         return 0
     checklist = db.get(Checklist, dispatch.document_id)
     if checklist is None or checklist.status == VOID_STATUS:
         return 0
-    if letter_was_sent(db, "behinderungsanzeige", checklist.id):
+    if letter_was_sent(db, spec.key, checklist.id):
         return 0
-    return reopen_follow_up_tasks(db, checklist.id, SEND_FOLLOW_UP_KEY)
+    return reopen_follow_up_tasks(db, checklist.id, NOTICE_PURPOSES[spec.purpose].send_follow_up_key)
 
 
 # --- Zustand für die Seite --------------------------------------------------------------------
@@ -674,18 +801,19 @@ def gap_text(start: datetime, end: datetime, *, date_only: bool = False) -> dict
 
 
 def notice_timeline(db: Session, checklist: Checklist) -> list[dict]:
-    """Zeitstrahl der Behinderungsanzeige (seit 1.8.41): "Bekannt seit" (Antwort der Meldung, Ortszeit) → "Meldung
-    unterschrieben" (gültige Unterschrift des Meldenden) → "Versendet" (erste Zustellung beim Auftraggeber: E-Mail
-    mit Uhrzeit, nachgetragen nur mit Tag), je mit Abstand zum vorigen bekannten Schritt. Fehlt "versendet", steht
-    dort, seit wann die Meldung wartet (bis jetzt, Europe/Berlin)."""
+    """Zeitstrahl einer Anzeige (seit 1.8.41, seit 1.8.44 auch der Bedenkenanzeige): "Bekannt seit" (Antwort der
+    Meldung, Ortszeit) → "Meldung unterschrieben" (gültige Unterschrift des Meldenden) → "Versendet" (erste
+    Zustellung des Hauptbriefs beim Auftraggeber: E-Mail mit Uhrzeit, nachgetragen nur mit Tag), je mit Abstand zum
+    vorigen bekannten Schritt. Fehlt "versendet", steht dort, seit wann die Meldung wartet (bis jetzt, Europe/Berlin)."""
     from .email_dispatch import CHANNELS, MANUAL_CHANNELS
 
-    known_field = next((f for f in checklist.template_version.fields if f.field_key == B + "bekannt_seit"), None)
+    notice = NOTICE_PURPOSES[checklist.template_version.purpose]
+    known_field = next((f for f in checklist.template_version.fields if f.field_key == notice.known_field), None)
     answer = next((a for a in checklist.answers if known_field is not None and a.template_field_id == known_field.id), None)
     known_at = answer.value_datetime if answer is not None else None
-    report = triggering_signature(checklist, OBSTRUCTION_REPORT_SIGNATURE)
+    report = triggering_signature(checklist, notice.report_signature)
     report_at = to_berlin(report.created_at) if report is not None and report.created_at else None
-    delivered = delivered_dispatches(db, "behinderungsanzeige", checklist.id)
+    delivered = delivered_dispatches(db, notice.purpose, checklist.id)
     first = min(delivered, key=_delivered_on, default=None) if delivered else None
     sent_at, sent_date_only, channel = None, False, None
     if first is not None:
@@ -729,10 +857,12 @@ def _kind_status(db: Session, kind: str, checklist_id: int, ready: bool) -> str:
 
 
 def notice_state(db: Session, checklist_id: int) -> dict:
-    """Alles für die Karte "Anzeige an den Auftraggeber" der Ausfüllseite (nur Büro)."""
+    """Alles für die Karte "Anzeige an den Auftraggeber" der Ausfüllseite (nur Büro) -- seit 1.8.44 die Briefarten
+    des Zwecks der Checkliste (Behinderungs- oder Bedenkenanzeige) und eine Abweichung Projekt-/Auftragskunde."""
     from .contract_basis import contract_basis_label
 
     checklist = _checklist(db, checklist_id)
+    purpose = checklist.template_version.purpose
     order = _order(db, checklist)
     customer = _customer(order)
     participants = [participant_info(p) for p in participant_rows(db, order.project_id)]
@@ -745,7 +875,7 @@ def notice_state(db: Session, checklist_id: int) -> dict:
             cc.append(info["email"])
     letters = _letters(db, checklist_id)
     kinds = []
-    for spec in LETTER_KINDS.values():
+    for spec in (s for s in LETTER_KINDS.values() if s.purpose == purpose):
         signature = section_signature(checklist, spec)
         seal = check_signature(checklist, signature) if signature is not None else None
         own = [l for l in letters if l.kind == spec.key]
@@ -765,6 +895,8 @@ def notice_state(db: Session, checklist_id: int) -> dict:
         })
     return {
         "checklist_id": checklist_id, "order_id": order.id, "order_number": order.order_number,
+        "purpose": purpose, "purpose_label": NOTICE_PURPOSES[purpose].label,
+        "customer_mismatch": customer_mismatch(order, customer),  # seit 1.8.44: Bestätigung vor Brief und Versand
         "contract_basis": order.contract_basis, "contract_basis_label": contract_basis_label(order.contract_basis),
         "recipient": {"name": customer.name if customer is not None else order.customer_name, "email": ag_email,
                       "customer_id": customer.id if customer is not None else None},

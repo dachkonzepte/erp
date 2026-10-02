@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.43** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.44** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -579,7 +579,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     liegt seit 1.8.33 schon ab dem Festschreiben dort (Fassung, `app/contract_versions.py`), seit 1.8.34 auch
     Unterschriftsblatt, Unterschriftsbilder und Papier-Scan (`app/contract_signatures.py`), seit 1.8.35 die
     unterschriebene Abschrift (Fassung + Blatt bzw. Scan), die Versand und Zustellung danach hinausgeben; seit 1.8.40 ebenso die
-    Briefe zur Behinderungsanzeige ab dem Erstellen (`app/notice_letters.py`), dazu je Versand die Vollmacht eines
+    Briefe zur Behinderungsanzeige (seit 1.8.44 auch zur Bedenkenanzeige) ab dem Erstellen (`app/notice_letters.py`), dazu je Versand die Vollmacht eines
     empfangsbevollmächtigten Empfängers (`dispatch_email(before_send=…)`).
     Eine Zustellung auf anderem Weg (Einschreiben, Übergabe, Bote, Fax) wird seit 1.8.20 im selben
     Protokoll nachgetragen (`record_manual_delivery()`, seit 1.8.41 mit Empfängerauswahl aus Auftraggeber und
@@ -670,7 +670,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Anzeige (nur Büro, "Entscheidung erbeten bis") → Entscheidung des Auftraggebers (nur Büro), je mit Unterschrift. Folgen
   (`app/concern_notices.py`): nach der Meldung "Bedenkenanzeige versenden", nach dem Versand (`FollowUp.after_letter`)
   "Antwort des Auftraggebers prüfen", nach der Unterschrift der Entscheidung erledigt. Ohne gültige Unterschrift der
-  Entscheidung zeigen Auftragsseite und `/mobil` "Offene Bedenken …" (`open_concerns()`). Brief und Versand folgen in 1.8.44.
+  Entscheidung zeigen Auftragsseite und `/mobil` "Offene Bedenken …" (`open_concerns()`). Seit 1.8.44 Brief und Versand wie
+  die Behinderungsanzeige (Briefarten je Zweck in `app/notice_letters.py`: `NOTICE_PURPOSES`, `LetterKind.purpose`); weicht der
+  Kunde des Projekts vom Kunden laut Auftrag ab (`customer_mismatch()`), entstehen und gehen Briefe beider Anzeigen nur mit
+  Bestätigung; Kundenwechsel im Projekt gesperrt, sobald ein Auftrag einen festgeschriebenen Vertrag hat.
   Details: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.43".
 - **Weitere Fachbegriffe ausgelagert**: Dachflächen & Bauteile, Wartungsvertrag,
   Einsatzbericht, Rechnung aus Zeitbuchungen, Schnellauftrag, Wartungshistorie und
@@ -794,7 +797,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Vollmacht beim Versand in der Ablage, Aufgabe "versenden" danach erledigt); seit 1.8.41 Versandergebnis "Empfang
   bestätigt"/"unzustellbar" für alle Dokumente, Zustellung nachtragen mit Empfängerauswahl und Vollmacht, Wiederaufnahme
   "i. A." Büro-Konto, Zeitstrahl, "als gegenstandslos abschließen", Kundenwechsel prüft Beteiligte; seit 1.8.43
-  Bedenkenanzeige erfassen mit Folgen und Hinweis "Offene Bedenken"; offen 2b-4 Teil 2: Brief, Versand, Kundenwechsel-Sperre) --
+  Bedenkenanzeige erfassen mit Folgen und Hinweis "Offene Bedenken"; seit 1.8.44 Bedenkenanzeige als Brief und Versand,
+  Bestätigung bei abweichendem Kunden, Kundenwechsel-Sperre bei festgeschriebenem Vertrag) --
   `docs/archiv/vertragsgrundlage-und-vertrag.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
@@ -1148,7 +1152,9 @@ Einschreiben) und `klicktest_behinderungsanzeige_abschluss.py` (1.8.41, Zeitstra
 Beleg-Upload im Versandverlauf, Zustellung nachtragen mit Empfängerauswahl und Vollmacht ohne E-Mail, Wiederaufnahme "i. A.",
 "als gegenstandslos abschließen" für Büro und Monteurin, Kundenwechsel abgelehnt, dunkel 412 px) und
 `klicktest_bedenkenanzeige.py` (1.8.43, Monteurin startet und meldet, Hinweis "Offene Bedenken" in `/mobil` und auf dem
-Auftrag, Büro füllt Anzeige und Entscheidung, Hinweis weg, hell/dunkel, 412 px). Ein Klicktest, der als
+Auftrag, Büro füllt Anzeige und Entscheidung, Hinweis weg, hell/dunkel, 412 px) und `klicktest_bedenkenanzeige_versand.py`
+(1.8.44, Karte mit dem Brief "Bedenkenanzeige", Bestätigung bei abweichendem Kunden, Versand an einen SMTP-Empfänger im Skript,
+Aufgaben "versenden" und "Antwort prüfen", Versandprotokoll, 412 px). Ein Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)
 meldet `/mobil` ab, eine 403-Prüfung sähe abends 401; `--wanduhr HH:MM` täuscht eine andere Uhrzeit vor (Gegenprobe),

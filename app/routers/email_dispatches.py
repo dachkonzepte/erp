@@ -41,7 +41,7 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Das Versandpr
 
 # Dokumentarten, die an einer Checkliste hängen -- ohne das Modul "checklisten" gesperrt (seit 1.8.41 für die neuen
 # Endpunkte; "Zustellung nachtragen" prüft wie seit 1.8.20 nur "checkliste", siehe Nebenbefund 1.8.41).
-CHECKLIST_DOCUMENT_TYPES = ("checkliste", "behinderungsanzeige", "wiederaufnahme")
+CHECKLIST_DOCUMENT_TYPES = ("checkliste", "behinderungsanzeige", "wiederaufnahme", "bedenkenanzeige")
 
 
 def _require_module_for(db: Session, document_type: str) -> None:

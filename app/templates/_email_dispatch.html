@@ -219,7 +219,7 @@ function _dhRow(d, containerId, canRecord) {
   // Vertrag (seit 1.8.33): welche Fassung hinausging -- document_number "AUF-… · Fassung N", seit 1.8.35 bei der
   // unterschriebenen Abschrift "AUF-… · Fassung N · unterschrieben": alles nach der Auftragsnummer. Seit 1.8.40
   // ebenso die Briefe an den Auftraggeber ("AUF-… · Fassung N").
-  const versioned = ['vertrag', 'behinderungsanzeige', 'wiederaufnahme'].includes(d.document_type);
+  const versioned = ['vertrag', 'behinderungsanzeige', 'wiederaufnahme', 'bedenkenanzeige'].includes(d.document_type);
   const version = versioned && d.document_number ? ` · ${_dhEsc(d.document_number.split(' · ').slice(1).join(' · '))}` : '';
   extra += dispatchOutcomeHtml(d, containerId, canRecord);
   return `<div class="dh-row" data-dispatch-row="${d.id}"><div>${when}</div><div><b>${_dhEsc(d.channel_label)}</b>${version}${to}<div class="dh-muted">${_dhEsc(d.created_by_name)}</div>${extra}</div>`
