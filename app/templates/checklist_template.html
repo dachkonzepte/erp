@@ -129,7 +129,7 @@ const FELDNAMEN={label:'Bezeichnung',description:'Beschreibung',contexts:'Kontex
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,FELDNAMEN));return r.json()}
 const json=(method,body)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 
-const FIELD_TYPES=[['ja_nein','Ja/Nein'],['text','Text'],['zahl','Zahl'],['auswahl','Auswahl'],['datum','Datum'],['uhrzeit','Uhrzeit'],['datum_uhrzeit','Datum und Uhrzeit'],['foto','Foto'],['unterschrift','Unterschrift'],['hinweis','Hinweistext']];
+const FIELD_TYPES=[['ja_nein','Ja/Nein'],['text','Text'],['zahl','Zahl'],['auswahl','Auswahl'],['datum','Datum'],['uhrzeit','Uhrzeit'],['datum_uhrzeit','Datum und Uhrzeit'],['foto','Foto'],['beleg','Beleg (PDF oder Foto)'],['unterschrift','Unterschrift'],['hinweis','Hinweistext']];
 const TYPE_LABEL=Object.fromEntries(FIELD_TYPES);
 const OPERATORS=[['immer','immer (bei jedem Abschluss)',null],['ist_ja','ist „Ja“',['ja_nein']],['ist_nein','ist „Nein“',['ja_nein']],['enthaelt','enthält Option',['auswahl']],['kleiner','kleiner als',['zahl']],['groesser','größer als',['zahl']],['gleich','gleich',['zahl']],['ausgefuellt','ist ausgefüllt','*']];
 const PRIORITIES=[['niedrig','niedrig'],['normal','normal'],['hoch','hoch'],['dringend','dringend']];
@@ -207,6 +207,10 @@ function renderVersionNotice(){
   const probs=editable()?(template.system_field_problems||[]):[];
   if(probs.length)el.innerHTML+=`<div class="notice"><b>Systemfelder des Zwecks „${esc(template.purpose_label)}“:</b><ul style="margin:6px 0 8px 18px;padding:0">${probs.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>
     <button class="small-btn" onclick="syncSystemFields()">Systemfelder angleichen</button> <span id="syncStatus" class="status"></span></div>`;
+  // Seit 1.8.45: die gültige Fassung entspricht nicht mehr dem Zweck (z. B. "Antwort als Beleg" jetzt PDF oder Foto).
+  const pubProbs=!editable()?(template.published_system_field_problems||[]):[];
+  if(pubProbs.length)el.innerHTML+=`<div class="notice" id="publishedSystemHint"><b>Die gültige Fassung ${version.version_no} entspricht nicht mehr den Systemfeldern des Zwecks „${esc(template.purpose_label)}“:</b><ul style="margin:6px 0 8px 18px;padding:0">${pubProbs.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>
+    Neue Checklisten nutzen bis zur nächsten Veröffentlichung weiter diese Fassung. „Neuen Entwurf anlegen“ gleicht die Systemfelder an, danach veröffentlichen.</div>`;
   document.getElementById('addFieldActions').classList.toggle('hidden',!editable());
   document.getElementById('addRuleActions').classList.toggle('hidden',!editable());
 }
@@ -235,7 +239,7 @@ function fieldSummary(f){
   if(f.field_type==='ja_nein'&&f.allow_na)bits.push('mit „entfällt“');
   if(f.field_type==='auswahl')bits.push((f.multiple?'mehrfach, ':'')+f.options.length+' Optionen');
   if(f.field_type==='zahl'&&f.unit)bits.push(f.unit);
-  if(f.field_type==='foto'||f.field_type==='unterschrift'){
+  if(f.field_type==='foto'||f.field_type==='beleg'||f.field_type==='unterschrift'){
     const range=[f.min_count?`min ${f.min_count}`:null,f.max_count?`max ${f.max_count}`:null].filter(Boolean).join(', ');
     if(range)bits.push(range);
   }
@@ -266,7 +270,8 @@ function fieldBody(f){
   if(t==='unterschrift')html+=`<div class="field"><label>Wer unterschreibt?</label><input data-k="signer_label" value="${esc(f.signer_label)}" placeholder="z. B. Monteur, Kunde, Brandwache" ${d}></div>
       <div class="field"><label>&nbsp;</label><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${ds}> mehrere Unterschriften (z. B. Teilnehmer)</label></div></div>`;
   if(t==='auswahl')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${ds}> Mehrfachauswahl</label></div></div>`;
-  if(t==='foto'||(t==='unterschrift'&&f.multiple))html+=`<div class="field"><label>Mindestanzahl</label><input type="number" min="0" data-k="min_count" value="${f.min_count??''}" ${ds}></div>
+  if(t==='beleg')html+='<div class="field full muted small">PDF oder Foto (JPEG, PNG, WebP), bis 15 MB – am Inhalt erkannt, unverändert gespeichert.</div>';
+  if(t==='foto'||t==='beleg'||(t==='unterschrift'&&f.multiple))html+=`<div class="field"><label>Mindestanzahl</label><input type="number" min="0" data-k="min_count" value="${f.min_count??''}" ${ds}></div>
       <div class="field"><label>Höchstanzahl</label><input type="number" min="1" max="20" data-k="max_count" value="${f.max_count??''}" ${d}></div>`;
   html+='</div>';
   if(f.is_system)html+='<div class="muted small" style="margin-top:8px">Systemfeld des Zwecks: Beschriftung, Hilfetext, Abschnitt und Reihenfolge sind frei (gibt der Zweck Abschnitte vor, innerhalb ihrer Reihenfolge); Schlüssel, Typ, Pflicht, „entfällt“, Mehrfach, Mindestanzahl und Optionen sind fest, löschen geht nicht.'

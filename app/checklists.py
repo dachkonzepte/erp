@@ -44,12 +44,18 @@ beschränkt die Kontexte beim Anlegen und bestimmt die Folgen des Abschlusses
 bestimmten Systemfeld (add_attachment()), und die Felder tragen office_only/option_hints aus der
 Vorgabe ihres Systemfelds (wer "nur Büro" durchsetzt, entscheidet der Router).
 
+Seit 1.8.45 der Feldtyp "beleg": PDF oder Foto, am Inhalt erkannt wie der Beleg einer nachgetragenen
+Zustellung (app/email_dispatch.py::receipt_content_type(), dieselbe Größengrenze, nie SVG/HTML) und
+unverändert gespeichert -- die Prüfsumme in Kopie und Abschluss geht über genau die hochgeladenen Bytes.
+Ein Beleg wird versiegelt und gebunden wie ein Foto.
+
 Rollenlos wie jede Geschäftslogik dieses Projekts -- wer was sehen/ändern darf, entscheidet
 app/routers/checklists.py."""
 
 import hashlib
 import json
 import os
+import uuid
 from datetime import date, datetime, time as dt_time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -74,6 +80,8 @@ from .paths import data_dir
 CHECKLIST_ROOT = Path(os.getenv("DACHKONZEPTE_CHECKLIST_FILE_ROOT", data_dir() / "checklist_files"))
 MAX_PHOTO_UPLOAD_BYTES = 15 * 1024 * 1024  # Rohdatei vor der Verkleinerung -- Handyfotos sind groß
 MAX_SIGNATURE_UPLOAD_BYTES = 2 * 1024 * 1024
+MAX_BELEG_UPLOAD_BYTES = 15_000_000  # wie MAX_RECEIPT_BYTES der nachgetragenen Zustellung (seit 1.8.45)
+MAX_UPLOAD_BYTES = max(MAX_PHOTO_UPLOAD_BYTES, MAX_BELEG_UPLOAD_BYTES)  # so viel liest der Router höchstens
 MAX_TEXT_LENGTH = 10_000
 READINESS_FIELD_KEY = "einsatzbereit"  # Entscheidung B, Zusatz: fester Schlüssel für Geräte-Checklisten
 
@@ -82,9 +90,13 @@ CLOSED_STATUSES = ("abgeschlossen", VOID_STATUS)  # eingefroren, mit Abschluss-K
 VOID_REASON_MAX = 2000
 STATUS_LABELS = {"entwurf": "Entwurf", "abgeschlossen": "Abgeschlossen", VOID_STATUS: "Gegenstandslos"}
 
-ATTACHMENT_FIELD_TYPES = {"foto": "foto", "unterschrift": "unterschrift"}
-_NO_ANSWER_TYPES = {"hinweis", "foto", "unterschrift"}
-_NOT_SEALED_TYPES = {"hinweis", "unterschrift"}  # eine Unterschrift versiegelt Antworten und Fotos
+ATTACHMENT_FIELD_TYPES = {"foto": "foto", "beleg": "beleg", "unterschrift": "unterschrift"}
+_NO_ANSWER_TYPES = {"hinweis", "foto", "beleg", "unterschrift"}
+_NOT_SEALED_TYPES = {"hinweis", "unterschrift"}  # eine Unterschrift versiegelt Antworten, Fotos und Belege
+# Beleg (seit 1.8.45): Dateiendung je erkanntem Typ -- daraus liest die Auslieferung den Typ zurück.
+BELEG_SUFFIXES = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+_SUFFIX_TYPES = {".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+                 ".webp": "image/webp"}
 
 
 class ChecklistLocked(Exception):
@@ -114,8 +126,26 @@ def attachment_path(attachment: ChecklistAttachment) -> Path:
     return CHECKLIST_ROOT / str(attachment.checklist_id) / attachment.stored_filename
 
 
+def attachment_content_type(attachment: ChecklistAttachment) -> str:
+    """Typ der gespeicherten Datei: Fotos JPEG, Unterschriften PNG, ein Beleg wie beim Hochladen erkannt
+    (an der Endung, die store_beleg() vergeben hat)."""
+    return _SUFFIX_TYPES.get(Path(attachment.stored_filename).suffix.lower(), "image/jpeg")
+
+
+def store_beleg(directory: Path, data: bytes) -> str:
+    """Beleg unverändert speichern (seit 1.8.45). Erkennt den Typ am Inhalt -- PDF, JPEG, PNG, WebP, sonst
+    ValueError (auch SVG und HTML) -- und vergibt die passende Endung."""
+    from .email_dispatch import receipt_content_type  # lokal: email_dispatch zieht den Versand nach
+
+    content_type = receipt_content_type(data)
+    directory.mkdir(parents=True, exist_ok=True)
+    stored = f"{uuid.uuid4().hex}{BELEG_SUFFIXES[content_type]}"
+    (directory / stored).write_bytes(data)
+    return stored
+
+
 def active_attachments(checklist: Checklist) -> list[ChecklistAttachment]:
-    """Fotos und Unterschriften, die zählen -- ohne verworfene Unterschriften (seit 1.8.13).
+    """Fotos, Belege und Unterschriften, die zählen -- ohne verworfene Unterschriften (seit 1.8.13).
     Jede Auswertung (Pflichtangaben, Regeln, PDF, Anzeige) geht hierüber, nie direkt über
     checklist.attachments."""
     return [a for a in checklist.attachments if a.discarded_at is None]
@@ -131,7 +161,7 @@ def _has_any_signature(checklist: Checklist) -> bool:
 
 
 def sealed_field_ids(checklist: Checklist) -> set[int]:
-    """Felder, deren Antworten und Fotos durch eine gültige Unterschrift versiegelt sind (seit
+    """Felder, deren Antworten, Fotos und Belege durch eine gültige Unterschrift versiegelt sind (seit
     1.8.14): alle, die in der Vorlage vor der untersten Unterschrift stehen. Eine Unterschrift
     ohne Kopie (vor 1.8.14 geleistet) versiegelt die ganze Checkliste, wie es damals galt."""
     fields = checklist.template_version.fields
@@ -229,7 +259,7 @@ def _sha256_text(text: str) -> str:
 
 
 def _attachment_sha256(attachment: ChecklistAttachment, cache: dict | None) -> str | None:
-    """Prüfsumme der Bilddatei (Foto oder Unterschrift), je Aufruf höchstens einmal gelesen
+    """Prüfsumme der Datei (Foto, Beleg oder Unterschrift), je Aufruf höchstens einmal gelesen
     (mehrere Unterschriften und der Abschluss versiegeln oft dieselben Fotos)."""
     if cache is None:
         return _file_sha256(attachment_path(attachment))
@@ -255,7 +285,8 @@ def _content_head(checklist: Checklist) -> dict:
 def _content_entries(checklist: Checklist, fields: list[ChecklistTemplateField], photo_hashes: dict | None, *,
                      with_signatures: bool = False) -> list[dict]:
     """Je Feld Schlüssel und Wert -- auch leere, damit ein später ergänztes Feld auffällt --, bei
-    Fotofeldern jedes gültige Foto mit der SHA-256 seiner Datei. Hinweise nie; Unterschriften nur
+    Fotofeldern jedes gültige Foto mit der SHA-256 seiner Datei, bei Belegfeldern (seit 1.8.45) jeder
+    Beleg ebenso unter "files". Hinweise nie; Unterschriften nur
     mit with_signatures (Abschluss, seit 1.8.15): je gültige Unterschrift Name, Zeitpunkt, ihre
     Prüfsumme und die SHA-256 der Bilddatei."""
     answers = {a.template_field_id: a for a in checklist.answers}
@@ -274,6 +305,9 @@ def _content_entries(checklist: Checklist, fields: list[ChecklistTemplateField],
         elif field.field_type == "foto":
             entries.append({"field_key": field.field_key, "photos": [
                 {"id": p.id, "sha256": _attachment_sha256(p, photo_hashes)} for p in items]})
+        elif field.field_type == "beleg":
+            entries.append({"field_key": field.field_key, "files": [
+                {"id": b.id, "sha256": _attachment_sha256(b, photo_hashes)} for b in items]})
         else:
             answer = answers.get(field.id)
             value = _answer_value(answer, field) if answer is not None else None
@@ -408,16 +442,16 @@ def signatures_discarded_with(checklist: Checklist, signature: ChecklistAttachme
 
 
 def _photo_bound_by_signature(checklist: Checklist, photo: ChecklistAttachment) -> bool:
-    """Gehört das Foto zum Inhalt einer Unterschrift -- auch einer verworfenen? Dann wird es nie
-    gelöscht (seit 1.8.14). Maßgeblich ist die abgelegte Kopie; fehlt sie oder passt sie nicht
-    mehr zu ihrer Prüfsumme (vor 1.8.14 unterschrieben bzw. verändert), gilt jedes Foto als
-    gebunden, das es beim Unterschreiben schon gab."""
+    """Gehört das Foto (seit 1.8.45 ebenso ein Beleg) zum Inhalt einer Unterschrift -- auch einer
+    verworfenen? Dann wird es nie gelöscht (seit 1.8.14). Maßgeblich ist die abgelegte Kopie; fehlt sie
+    oder passt sie nicht mehr zu ihrer Prüfsumme (vor 1.8.14 unterschrieben bzw. verändert), gilt jedes
+    Foto als gebunden, das es beim Unterschreiben schon gab."""
     for sig in checklist.attachments:
         if sig.kind != "unterschrift":
             continue
         if _copy_intact(sig):
             content = json.loads(sig.sealed_content)
-            if any(p["id"] == photo.id for e in content["fields"] for p in e.get("photos", [])):
+            if any(p["id"] == photo.id for e in content["fields"] for p in e.get("photos", []) + e.get("files", [])):
                 return True
         elif photo.created_at is None or sig.created_at is None or photo.created_at <= sig.created_at:
             return True
@@ -429,6 +463,7 @@ def _attachment_dict(a: ChecklistAttachment) -> dict:
         "id": a.id, "field_id": a.template_field_id, "kind": a.kind, "signer_name": a.signer_name,
         "created_at": a.created_at, "created_at_local": _berlin_text(a.created_at),
         "content_sha256": a.content_sha256, "url": f"/api/checklist-attachments/{a.id}/file",
+        "content_type": attachment_content_type(a),  # seit 1.8.45: ein Beleg ist PDF oder Bild
     }
 
 
@@ -469,7 +504,7 @@ def checklist_to_dict(checklist: Checklist) -> dict:
         if a.kind == "unterschrift":  # je Unterschrift: passt der Inhalt noch? (seit 1.8.14)
             item["seal"] = check_signature(checklist, a, photo_hashes)
             item["discards_with"] = [s.id for s in signatures_discarded_with(checklist, a)[1:]]  # seit 1.8.15
-        else:  # Foto, das zu einer (auch verworfenen) Unterschrift gehört: nie löschbar
+        else:  # Foto oder Beleg, das zu einer (auch verworfenen) Unterschrift gehört: nie löschbar
             item["bound_by_signature"] = _photo_bound_by_signature(checklist, a)
         attachments.append(item)
     data = checklist_summary(checklist)
@@ -820,7 +855,7 @@ def save_answer(db: Session, checklist_id: int, field_id: int, value, *, recorde
     _require_draft(checklist)
     field = _field_of(checklist, field_id)
     if field.field_type in _NO_ANSWER_TYPES:
-        raise ValueError("Fotos und Unterschriften werden als Anhang gespeichert, Hinweistexte nicht beantwortet.")
+        raise ValueError("Fotos, Belege und Unterschriften werden als Anhang gespeichert, Hinweistexte nicht beantwortet.")
     _require_field_open(checklist, field)
     columns, selections = _parse_value(field, value)
     if client_recorded_at is not None:
@@ -866,7 +901,7 @@ def save_answer(db: Session, checklist_id: int, field_id: int, value, *, recorde
     return checklist_to_dict(_load(db, checklist_id))
 
 
-# --- Anhänge (Fotos, Unterschriften) --------------------------------------------------------
+# --- Anhänge (Fotos, Belege, Unterschriften) -----------------------------------------------
 
 def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *, signer_name: str | None = None,
                    created_by_employee_id: int | None = None, client_uuid: str | None = None) -> dict:
@@ -889,16 +924,18 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
     field = _field_of(checklist, field_id)
     kind = ATTACHMENT_FIELD_TYPES.get(field.field_type)
     if kind is None:
-        raise ValueError("Dieses Feld nimmt keine Fotos oder Unterschriften auf.")
+        raise ValueError("Dieses Feld nimmt keine Fotos, Belege oder Unterschriften auf.")
     existing = [a for a in active_attachments(checklist) if a.template_field_id == field.id]
     single_signature = kind == "unterschrift" and not field.multiple
-    if kind == "foto":
+    if kind in ("foto", "beleg"):
         _require_field_open(checklist, field)
     elif single_signature and existing:
         raise ChecklistLocked(f"\"{field.label}\" ist bereits unterschrieben – eine Unterschrift wird nicht ersetzt.")
     if not data:
         raise ValueError("Die Datei ist leer.")
-    limit = MAX_PHOTO_UPLOAD_BYTES if kind == "foto" else MAX_SIGNATURE_UPLOAD_BYTES
+    if kind == "beleg" and len(data) > MAX_BELEG_UPLOAD_BYTES:  # Wortlaut wie bei der nachgetragenen Zustellung
+        raise ValueError(f"Der Beleg ist größer als {MAX_BELEG_UPLOAD_BYTES // 1_000_000} MB.")
+    limit = MAX_SIGNATURE_UPLOAD_BYTES if kind == "unterschrift" else MAX_PHOTO_UPLOAD_BYTES
     if len(data) > limit:
         raise ValueError(f"Die Datei ist zu groß (höchstens {limit // (1024 * 1024)} MB).")
     signer_name = (signer_name or "").strip() or None
@@ -915,10 +952,13 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
     content_sha256 = _sha256_text(sealed_content) if sealed_content is not None else None
 
     directory = CHECKLIST_ROOT / str(checklist.id)
-    try:
-        stored = resize_and_store_jpeg(directory, data) if kind == "foto" else store_png(directory, data, max_dimension=1200)
-    except Exception as exc:  # Pillow wirft je nach Format unterschiedliche Ausnahmen
-        raise ValueError("Die Datei ist kein lesbares Bild.") from exc
+    if kind == "beleg":
+        stored = store_beleg(directory, data)  # ValueError, wenn weder PDF noch Foto
+    else:
+        try:
+            stored = resize_and_store_jpeg(directory, data) if kind == "foto" else store_png(directory, data, max_dimension=1200)
+        except Exception as exc:  # Pillow wirft je nach Format unterschiedliche Ausnahmen
+            raise ValueError("Die Datei ist kein lesbares Bild.") from exc
     attachment = ChecklistAttachment(
         checklist_id=checklist.id, template_field_id=field.id, kind=kind, stored_filename=stored,
         signer_name=signer_name if kind == "unterschrift" else None,
@@ -962,8 +1002,8 @@ def delete_attachment(db: Session, attachment_id: int) -> dict | None:
                               else f"Eine Unterschrift wird nicht gelöscht. {DISCARD_HINT}")
     _require_field_open(checklist, _field_of(checklist, attachment.template_field_id))
     if _photo_bound_by_signature(checklist, attachment):
-        raise ChecklistLocked("Dieses Foto gehört zum Inhalt einer – auch verworfenen – Unterschrift "
-                              "und bleibt als Nachweis erhalten.")
+        raise ChecklistLocked(f"{'Dieser Beleg' if attachment.kind == 'beleg' else 'Dieses Foto'} gehört zum Inhalt einer – "
+                              "auch verworfenen – Unterschrift und bleibt als Nachweis erhalten.")
     db.delete(attachment)
     checklist.updated_at = datetime.utcnow()
     db.commit()
@@ -1011,7 +1051,7 @@ def discard_signatures(db: Session, checklist_id: int, *, signature_id: int | No
 # --- Abschließen, Löschen -------------------------------------------------------------------
 
 def missing_required_labels(checklist: Checklist) -> list[str]:
-    """Beschriftungen aller noch fehlenden Pflichtangaben. Bei Foto/Unterschrift zählt die
+    """Beschriftungen aller noch fehlenden Pflichtangaben. Bei Foto/Beleg/Unterschrift zählt die
     Mindestanzahl (min_count, bei Pflicht mindestens 1) -- ein nicht als Pflicht markiertes
     Fotofeld mit Mindestanzahl gilt ebenfalls als Pflicht."""
     by_field = {a.template_field_id: a for a in checklist.answers}

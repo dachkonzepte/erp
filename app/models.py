@@ -4869,8 +4869,9 @@ class ChecklistAnswerSelection(Base):
 
 
 class ChecklistAttachment(Base):
-    """Foto oder Unterschrift zu einem Feld einer Checkliste (seit 1.8.0, Upload ab 1.8.1).
-    kind foto|unterschrift; signer_name nur bei Unterschriften (mehrere je Feld möglich,
+    """Foto, Beleg oder Unterschrift zu einem Feld einer Checkliste (seit 1.8.0, Upload ab 1.8.1).
+    kind foto|beleg|unterschrift (beleg seit 1.8.45: PDF oder Foto, unverändert gespeichert, der Typ steht
+    in der Endung von stored_filename); signer_name nur bei Unterschriften (mehrere je Feld möglich,
     z. B. Teilnehmer einer Unterweisung).
 
     Seit 1.8.13 bindet eine Unterschrift den Inhalt: created_at ist ihr Zeitpunkt (UTC),

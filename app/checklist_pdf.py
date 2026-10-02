@@ -22,7 +22,11 @@ Versand per E-Mail (seit 1.8.20, build_checklist_email_pdf()): dasselbe Dokument
 Speicher neu verkleinert, bis das PDF unter der Anhanggrenze von 3.000.000 Bytes liegt
 (app/email_sending.py::MAX_ATTACHMENT_BYTES). Die Originale bleiben unverändert -- sie werden nur
 gelesen, nie geschrieben; die Prüfsummen der Unterschriften und des Abschlusses beziehen sich auf sie,
-und das Dokument sagt das. Der Download (PDF-Knopf) bleibt in voller Auflösung."""
+und das Dokument sagt das. Der Download (PDF-Knopf) bleibt in voller Auflösung.
+
+Belege (seit 1.8.45, Feldtyp "beleg"): liegen unverändert vor, bis 15 MB. Ein Foto-Beleg erscheint im
+Dokument verkleinert (im Speicher, wie im Versand-PDF), ein PDF-Beleg als Zeile -- beide mit der Prüfsumme
+der Originaldatei, auf die sich auch Unterschriften und Abschluss beziehen."""
 
 from io import BytesIO
 
@@ -33,7 +37,8 @@ from reportlab.platypus import Image, KeepTogether, Paragraph, Spacer, Table, Ta
 
 from .berlin_time import to_berlin
 from .checklists import (
-    CLOSED_STATUSES, VOID_STATUS, _answer_value, active_attachments, attachment_path, check_completion, check_signature,
+    CLOSED_STATUSES, VOID_STATUS, _answer_value, _attachment_sha256, active_attachments, attachment_content_type,
+    attachment_path, check_completion, check_signature,
 )
 from .document_frame import frame_content_width, render_framed_pdf
 from .document_page_margins import get_margins
@@ -53,6 +58,7 @@ _EMBED_FACTOR = 1.25
 EMAIL_PHOTO_NOTE = ("Fotos für den Versand per E-Mail verkleinert. Die Originale liegen unverändert im ERP; "
                     "die Prüfsummen oben beziehen sich auf sie.")
 SIGNATURE_WIDTH_MM, SIGNATURE_HEIGHT_MM = 60, 25
+BELEG_PDF_PX, BELEG_PDF_QUALITY = 1600, 82  # Foto-Beleg im Dokument: wie ein Foto nach dem Hochladen
 ANSWER_COL_MM = 70  # Antwortspalte; die Frage nimmt den Rest des Satzspiegels
 _ZERO_OUTER_TABLE_PADDING = [("LEFTPADDING", (0, 0), (0, -1), 0), ("RIGHTPADDING", (-1, 0), (-1, -1), 0)]
 
@@ -113,13 +119,35 @@ def _reduced_photo(path, max_px: int, quality: int) -> bytes:
     return buf.getvalue()
 
 
+def _is_image_beleg(attachment) -> bool:
+    return attachment.kind == "beleg" and attachment_content_type(attachment) != "application/pdf"
+
+
+def _beleg_block(beleg, width_mm: float, photo_bytes: dict | None, photo_hashes: dict, small) -> list:
+    """Ein Beleg im Dokument (seit 1.8.45): ein Foto verkleinert, ein PDF als Zeile -- darunter Zeitpunkt und
+    Prüfsumme der Originaldatei. Eine fehlende Datei steht als solche da, statt das ganze PDF abzubrechen."""
+    path = attachment_path(beleg)
+    when = to_berlin(beleg.created_at).strftime("%d.%m.%Y %H:%M") if beleg.created_at else ""
+    sha = _attachment_sha256(beleg, photo_hashes)
+    if not path.exists():
+        return [Paragraph(ptext(f"Beleg vom {when} Uhr – Datei fehlt."), small)]
+    if _is_image_beleg(beleg):
+        source = photo_bytes[beleg.id] if photo_bytes and beleg.id in photo_bytes             else _reduced_photo(path, BELEG_PDF_PX, BELEG_PDF_QUALITY)
+        head = [_image(source, width_mm), Paragraph(ptext(f"Foto-Beleg vom {when} Uhr, hier verkleinert."), small)]
+    else:
+        size_kb = max(1, round(path.stat().st_size / 1024))
+        head = [Paragraph(ptext(f"PDF-Beleg vom {when} Uhr ({size_kb} KB) – die Datei liegt im ERP an der Checkliste."),
+                          small)]
+    return head + [Paragraph(ptext(f"Prüfsumme der Originaldatei (SHA-256): {sha}"), small)]
+
+
 def build_checklist_email_pdf(db, checklist: Checklist) -> bytes:
     """Das PDF für den Versand per E-Mail: höchstens MAX_ATTACHMENT_BYTES, Fotos stufenweise
     kleiner (EMAIL_PHOTO_STEPS). Je Stufe liegen nur deren Fotos im Speicher. Passt es auch mit der
     kleinsten Stufe nicht, ValueError mit dem Hinweis auf einen anderen Zustellweg."""
     from .email_sending import MAX_ATTACHMENT_BYTES
 
-    photos = [a for a in active_attachments(checklist) if a.kind == "foto"]
+    photos = [a for a in active_attachments(checklist) if a.kind == "foto" or _is_image_beleg(a)]  # Belege seit 1.8.45
     for max_px, quality in EMAIL_PHOTO_STEPS:
         reduced = {a.id: _reduced_photo(attachment_path(a), max_px, quality) for a in photos}
         if sum(len(b) for b in reduced.values()) * _EMBED_FACTOR > MAX_ATTACHMENT_BYTES:
@@ -250,6 +278,16 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
                     source = photo_bytes[photo.id] if photo_bytes is not None else attachment_path(photo)
                     story.append(_image(source, width))
                     story.append(Spacer(1, 2 * mm))
+                story.append(Spacer(1, 2 * mm))
+            elif field.field_type == "beleg":  # seit 1.8.45
+                flush_rows()
+                belege = attachments.get(field.id, [])
+                story.append(Paragraph(ptext(field.label), h3))
+                if not belege:
+                    story.append(Paragraph("Kein Beleg.", small))
+                for beleg in belege:
+                    story.append(KeepTogether(_beleg_block(beleg, min(PHOTO_WIDTH_MM, content_width_mm), photo_bytes,
+                                                           photo_hashes, small) + [Spacer(1, 2 * mm)]))
                 story.append(Spacer(1, 2 * mm))
             elif field.field_type == "unterschrift":
                 flush_rows()

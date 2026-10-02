@@ -29,10 +29,15 @@ Entscheidung fällt je Kontext und je Checkliste hier im Router, die Geschäftsl
     Checkliste, nicht den Auftrag.
 
 Foto-/Unterschrift-Upload ist bewusst eine gewöhnliche `def`-Route: die Pillow-Verkleinerung ist
-CPU-gebunden und liefe in einer `async def`-Route auf der Event-Loop (Befund 1.3.62)."""
+CPU-gebunden und liefe in einer `async def`-Route auf der Event-Loop (Befund 1.3.62).
+
+Seit 1.8.45: Belege (PDF oder Foto) liefert die Datei-Route mit dem beim Hochladen erkannten Typ und
+nosniff aus. "Offene Bedenken" am Auftrag bekommt auch der Monteur -- für die Einsatzbericht- und die
+Checklisten-Seite des Auftrags, mit derselben Auftragsprüfung wie jeder Auftragszugriff."""
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..checklist_email import get_checklist_recipient_email, send_checklist_email
@@ -42,13 +47,13 @@ from ..concern_notices import OPEN_CONCERNS_TEXT, open_concerns
 from ..checklist_rules import list_checklists_with_open_rules, list_rule_executions, run_checklist_rules
 from ..checklists import (
     ChecklistLocked, add_attachment, asset_readiness, attachment_path, complete_checklist, create_checklist,
-    delete_attachment, delete_checklist, discard_signatures, get_attachment, get_checklist, get_checklist_row,
-    is_office_only, list_checklists, list_startable_templates, mark_asset_repaired, save_answer, void_checklist,
-    MAX_PHOTO_UPLOAD_BYTES,
+    attachment_content_type, delete_attachment, delete_checklist, discard_signatures, get_attachment, get_checklist,
+    get_checklist_row, is_office_only, list_checklists, list_startable_templates, mark_asset_repaired, save_answer,
+    void_checklist, MAX_UPLOAD_BYTES,
 )
 from ..database import get_db
 from ..email_dispatch import DispatchConflict, dispatch_to_dict
-from ..models import AppUser, Checklist
+from ..models import AppUser, Checklist, ChecklistTemplate
 from ..modules import is_module_enabled
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, has_min_role, require_min_role
 from ..schemas import (
@@ -235,13 +240,24 @@ def get_my_checklists(status: str | None = "entwurf", db: Session = Depends(get_
 
 
 @router.get("/api/orders/{order_id}/open-concerns")
-def get_open_concerns(order_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
+def get_open_concerns(order_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     """Offene Bedenken am Auftrag (seit 1.8.43, app/concern_notices.py): Bedenkenanzeigen ohne Entscheidung -- für
-    den Hinweis auf der Auftragsseite (Büro). Der Monteur bekommt dieselbe Angabe je Einsatz über /mobil
-    (GET /api/field-view/today). Ohne Modul eine leere Liste, kein Fehler (der Hinweis fehlt dann)."""
+    den Hinweis auf der Auftragsseite (Büro), seit 1.8.45 auch auf der Einsatzbericht- und der Checklisten-Seite des
+    Auftrags, für Büro und Monteur. Der Monteur nur für einen Auftrag, den er sehen darf (require_field_order_access(),
+    sonst 403); je Anzeige can_open, ob er sie öffnen darf (eigene oder field_readable) -- sonst zeigt die Seite sie
+    ohne Link. Ohne Modul eine leere Liste, kein Fehler (der Hinweis fehlt dann)."""
+    office = _is_office(_role)
+    require_field_order_access(db, _role, order_id)  # Büro ungeprüft, Monteur nur mit Auftragsbezug
     if not is_module_enabled(db, MODULE_KEY):
         return {"text": OPEN_CONCERNS_TEXT, "concerns": []}
-    return {"text": OPEN_CONCERNS_TEXT, "concerns": open_concerns(db, [order_id]).get(order_id, [])}
+    concerns = open_concerns(db, [order_id]).get(order_id, [])
+    readable = set() if office or not concerns else set(db.scalars(
+        select(Checklist.id).join(ChecklistTemplate, ChecklistTemplate.id == Checklist.template_id)
+        .where(Checklist.id.in_([c["checklist_id"] for c in concerns]),
+               or_(Checklist.created_by_employee_id == _role.employee_id, ChecklistTemplate.field_readable.is_(True)))
+    ).all())
+    return {"text": OPEN_CONCERNS_TEXT,
+            "concerns": [{**c, "can_open": office or c["checklist_id"] in readable} for c in concerns]}
 
 
 @router.get("/api/checklists/asset-readiness/{asset_id}", response_model=ChecklistAssetReadinessOut)
@@ -308,7 +324,7 @@ def post_checklist_attachment(checklist_id: int, field_id: int = Form(...), file
     _require_module_enabled(db)
     checklist = _checklist_for(db, _role, checklist_id, write=True)
     _require_field_writable(_role, checklist, field_id)
-    data = file.file.read(MAX_PHOTO_UPLOAD_BYTES + 1)
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
     _call(add_attachment, db, checklist_id, field_id, data, signer_name=signer_name,
           created_by_employee_id=_role.employee_id, client_uuid=client_uuid)
     return _detail(db, _role, checklist_id)
@@ -324,8 +340,13 @@ def get_checklist_attachment_file(attachment_id: int, db: Session = Depends(get_
     path = attachment_path(attachment)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Datei nicht gefunden.")
-    media_type = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
-    return FileResponse(path, media_type=media_type, headers={"Cache-Control": "private, max-age=3600"})
+    # Seit 1.8.45 auch Belege (PDF oder Bild, beim Hochladen am Inhalt erkannt, nie SVG/HTML); nosniff, damit
+    # der Browser nichts anderes daraus macht (Muster GET /api/sent-documents/{id}/file).
+    media_type = attachment_content_type(attachment)
+    headers = {"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"}
+    if attachment.kind == "beleg":
+        headers["Content-Disposition"] = f'inline; filename="Beleg-{attachment.id}{path.suffix.lower()}"'
+    return FileResponse(path, media_type=media_type, headers=headers)
 
 
 @router.delete("/api/checklist-attachments/{attachment_id}", response_model=ChecklistOut)

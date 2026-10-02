@@ -24,17 +24,19 @@ Zeitbuchung), steht er mit Begründung in ERLAUBT_JE_ROUTE; ein Eintrag dort, de
 vorkommt, färbt den Test ebenfalls rot."""
 
 import importlib
+import importlib.util
 import re
 from datetime import date, timedelta
 from decimal import Decimal
 from io import BytesIO
+from pathlib import Path
 
 import pytest
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from PIL import Image
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -42,7 +44,8 @@ from app.auth import hash_password
 from app.berlin_time import berlin_today
 from app.database import Base, get_db
 from app.models import (
-    AppUser, Customer, CustomerProfile, Employee, EmployeePayrollSettings, EmployeeProfile, Material, OperationalAsset, Order, OrderItem, PlanningSlot,
+    AppUser, ChecklistTemplate, Customer, CustomerProfile, Employee, EmployeePayrollSettings, EmployeeProfile, Material,
+    OperationalAsset, Order, OrderItem, PlanningSlot,
     Project, Property, RoofArea, RoofComponent, ServiceReport, Team, TeamEmployee, WorkPreparationTask,
     WorkPreparationTeamAssignment, WorkPreparationTeamEmployee,
 )
@@ -209,6 +212,15 @@ def _verstoesse(antworten: list[dict]) -> tuple[list[str], set]:
 # Testdaten: ein Monteur mit Einsatz, Berichten, Zeiten, Checkliste, Dokument -- und
 # überall Werte, die er nicht sehen darf.
 # ---------------------------------------------------------------------------
+
+def _migration(name: str):
+    """Eine Daten-Migration als Modul (für ihre Funktionen, ohne alembic)."""
+    path = next(Path(__file__).resolve().parent.parent.joinpath("alembic", "versions").glob(f"*_{name}.py"))
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
 
 def _png() -> bytes:
     buf = BytesIO()
@@ -377,6 +389,15 @@ def _monteur_welt(db: Session) -> dict:
     offen = create_checklist(db, template_id=template["id"], context_type="objekt", property_id=prop.id,
                              created_by_employee_id=monteur.id, created_by_user_id=user.id)
     save_answer(db, offen["id"], field_ids["bem"], "Zugang frei", recorded_by_employee_id=monteur.id)
+    # Offene Bedenkenanzeige am Auftrag (seit 1.8.45 bekommt der Monteur den Hinweis auch über
+    # GET /api/orders/{id}/open-concerns): Startvorlage aus den Migrationen, vom Monteur angelegt.
+    _migration("bedenkenanzeige_startvorlage").insert_concern_template(db.connection())
+    _migration("bedenkenanzeige_antwort_als_beleg").answer_as_beleg(db.connection())
+    db.commit()
+    concern_tpl = db.scalar(select(ChecklistTemplate.id).where(ChecklistTemplate.label == "Bedenkenanzeige"))
+    publish_draft(db, concern_tpl)
+    create_checklist(db, template_id=concern_tpl, context_type="auftrag", order_id=order.id,
+                     created_by_employee_id=monteur.id, created_by_user_id=user.id)
 
     return {
         "user_id": user.id, "employee_id": monteur.id, "order_id": order.id, "report_id": report_id,

@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.45 – Bedenkenanzeige abrunden: Beleg als PDF, Hinweis auf weiteren Seiten
+
+Checklisten kennen den neuen Feldtyp „Beleg“: PDF oder Foto, am Inhalt erkannt wie der Beleg bei „Zustellung nachtragen“
+(SVG, HTML und vorgetäuschte Dateinamen werden abgelehnt), höchstens 15 MB, unverändert gespeichert. Ein Beleg zählt zur
+Prüfsumme von Unterschrift und Abschluss, wird von einer Unterschrift darunter gesperrt und bleibt als Nachweis; eine an der
+Sperre vorbei geänderte Datei erscheint als „weicht ab“. Das PDF der Checkliste zeigt Foto-Belege verkleinert und PDF-Belege
+als Zeile, beide mit der Prüfsumme der Originaldatei. „Antwort als Beleg“ der Bedenkenanzeige ist jetzt ein solches Feld; die
+Migration `2798ba2fb235` stellt nur eine unveränderte Startvorlage im Entwurf um, sonst zeigt der Editor einen Hinweis
+(„Systemfelder angleichen“ am Entwurf, „Neuen Entwurf anlegen“ an einer schon veröffentlichten Fassung). Der Hinweis „Offene
+Bedenken …“ steht jetzt auch auf der Einsatzbericht-Seite und der Checklisten-Seite des Auftrags, im Büro und für Monteure –
+der Monteur bekommt ihn nur für einen Auftrag, an dem er eingeplant ist, und einen Link nur auf eine Anzeige, die er öffnen
+darf.
+
+**Auf dem Server**: wurde die Startvorlage „Bedenkenanzeige“ schon veröffentlicht, im Editor „Neuen Entwurf anlegen“ und
+veröffentlichen. Festlegungen und drei Nebenbefunde in `docs/archiv/vertragsgrundlage-und-vertrag.md`, „Umsetzung 1.8.45“.
+`tests/test_v348_beleg_und_hinweis.py` (14 Tests), `test_v346` und `test_v326` nachgezogen; 20 von 20 Gegenproben rot. Migration
+SQLite und PostgreSQL hin/zurück/hin, `alembic check` sauber. Volle Suite 2604 grün (mit den opt-in-Tests gegen
+PostgreSQL). Klicktest `scripts/klicktest_beleg_und_hinweis.py` 24/24, `klicktest_bedenkenanzeige.py` 22/22,
+`klicktest_bedenkenanzeige_versand.py` 20/20, `klicktest_monteur_navigation.py` 27/27.
+
 ## 1.8.44 – Bedenkenanzeige als Brief und Versand
 
 Stufe 2b, Runde 2b-4 Teil 2 (Punkte 4–5). Die Briefe an den Auftraggeber gibt es jetzt je Zweck (`app/notice_letters.py`:

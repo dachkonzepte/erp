@@ -1313,13 +1313,13 @@ Punkt 6**, Punkte 4–5 siehe "Offen für Teil 2" unten.
      erbeten bis, Unterschrift Büro, Entscheidung, Unterschrift der Entscheidung. Ohne Pflicht: Fotos, Vorschlag zur Abhilfe,
      eingegangen am (leer bei "keine Antwort"), Antwort als Beleg, Notiz.
   3. "Antwort als Beleg" ist ein Fotofeld (Foto oder Scan, höchstens 10) -- Checklisten kennen keinen Dateityp, ein PDF der
-     Antwort geht hier nicht.
+     Antwort geht hier nicht. **Seit 1.8.45 überholt**: Feldtyp "beleg" (PDF oder Foto), siehe "Umsetzung 1.8.45".
   4. Der Monteur sieht Anzeige und Entscheidung lesend ("füllt das Büro aus"), wie die Anzeige der Behinderungsanzeige.
   5. Der Hinweis gilt ab dem Anlegen (auch ein leerer Entwurf) bis zur gültigen Unterschrift der Entscheidung -- auch bei "keine
      Antwort": das Büro hat dann entschieden, wie es weitergeht. Verworfene Unterschrift: der Hinweis ist wieder da.
      Gegenstandslos oder abgeschlossen: weg.
   6. Hinweis auf der Auftragsseite (Büro) und in `/mobil` unter dem heutigen Einsatz und unter "Meine kommenden Termine"; nicht
-     auf der Einsatzbericht- und der Checklisten-Seite des Auftrags.
+     auf der Einsatzbericht- und der Checklisten-Seite des Auftrags. **Seit 1.8.45 auch dort**, siehe "Umsetzung 1.8.45".
   7. "Antwort prüfen": Priorität normal, an den Sachbearbeiter, sonst ohne Zuständigkeit für das Büro; mit der Unterschrift der
      Entscheidung erledigt.
 - **Verifikation**: `tests/test_v346_bedenkenanzeige.py` (16 Tests: Registry, Startvorlage durch die echte
@@ -1357,8 +1357,7 @@ Punkt 6**, Punkte 4–5 siehe "Offen für Teil 2" unten.
 1. **Eigene Vorlagen mit Zweck Bedenkenanzeige von vor 1.8.43**: ein Entwurf bekommt die Systemfelder erst über "Systemfelder
    angleichen"; eine schon veröffentlichte Fassung bleibt ohne -- ihre Checklisten haben keine Unterschrift der Entscheidung und
    zeigen den Hinweis "Offene Bedenken", bis sie abgeschlossen oder als gegenstandslos abgeschlossen sind.
-2. **Der Hinweis fehlt dort, wo der Monteur am Auftrag arbeitet**: Einsatzbericht-Seite (`/orders/{id}/service-reports`) und
-   Checklisten-Seite des Auftrags zeigen ihn nicht -- nur `/mobil` (Vorgabe: "Auftrag und /mobil").
+2. ~~**Der Hinweis fehlt dort, wo der Monteur am Auftrag arbeitet**~~ -- seit 1.8.45 behoben, siehe "Umsetzung 1.8.45".
 
 ---
 
@@ -1438,3 +1437,81 @@ Betreibervorgabe: Punkte 4–5 der Runde 2b-4 (siehe "Umsetzung 1.8.43") und ihr
    Kunden bekam, verlangen Brief und Versand der Anzeigen ab jetzt die Bestätigung -- gewollt, aber für das Büro neu.
 3. **Klicktests mit fester Uhr: das Befüllen läuft mit der echten Uhr** -- eine im Befüllen geleistete Unterschrift trägt die
    echte Uhrzeit, die Instanz läuft ab 10:00; der Zeitstrahl zeigt dann "wartet seit … vorher" (nur im Klicktest).
+
+---
+
+## Umsetzung 1.8.45 (02.10.2026) -- Bedenkenanzeige abrunden: Feldtyp "Beleg", Hinweis auf weiteren Seiten
+
+Betreibervorgabe (kurze Runde): (1) neuer Feldtyp "Beleg" für Checklisten -- PDF oder Foto, am Inhalt erkannt wie bei
+"Zustellung nachtragen", gleiche Größengrenze, in Prüfsumme und Versiegelung eingeschlossen; das Systemfeld "Antwort als Beleg"
+der Bedenkenanzeige wird zu diesem Typ, Migration nur für unveränderte Entwürfe, sonst ein Hinweis; (2) der Hinweis "Offene
+Bedenken …" auch auf der Einsatzbericht-Seite und der Checklisten-Seite des Auftrags, im Büro und für Monteure; (3) Tests mit
+Gegenprobe (PDF angenommen, SVG und HTML abgelehnt, Beleg in der Prüfsumme, Hinweis auf beiden Seiten, Schlüssel-Scan für
+Monteure). Der Baukasten selbst: `docs/archiv/modul-checklisten.md`, "Nachtrag 1.8.45".
+
+- **Feldtyp "beleg"** (`app/checklists.py`): Erkennung über `receipt_content_type()` aus `app/email_dispatch.py` (PDF am
+  Kopf `%PDF-`, JPEG/PNG/WebP von Pillow vollständig gelesen, alles andere -- auch SVG, HTML, vorgetäuschter Name oder
+  Content-Type -- 400 "Der Beleg muss ein Foto (JPEG, PNG, WebP) oder ein PDF sein."), Grenze 15.000.000 Bytes wie
+  `MAX_RECEIPT_BYTES` ("Der Beleg ist größer als 15 MB."). Gespeichert **unverändert** (`store_beleg()`, Endung je erkanntem
+  Typ) -- die SHA-256 in Kopie und Abschluss geht über genau die hochgeladenen Bytes. In der Kopie je Belegfeld
+  `{"field_key", "files": [{"id", "sha256"}]}`; versiegelt, gebunden (nicht löschbar, auch nach verworfener Unterschrift)
+  und Pflicht/Mindestanzahl wie ein Foto. Auslieferung mit dem erkannten Typ, `nosniff`, `inline; filename="Beleg-<id>.pdf"`.
+- **Systemfeld** `bedenkenanzeige.antwort_beleg` jetzt Typ "beleg" (`app/checklist_purposes.py`). `_sync_system_fields()`
+  stellt ein **Systemfeld** mit anderem Typ im Entwurf um (ein Entwurf hat keine Antworten); ein gewöhnliches Feld mit dem
+  Schlüssel und anderem Typ bleibt ein Fehler wie bisher.
+- **Migration `2798ba2fb235`** (Daten, kein Schema): stellt "Antwort als Beleg" der Startvorlage nur um, wenn sie unverändert
+  ist -- genau eine Vorlage "Bedenkenanzeige" mit Zweck, genau eine Fassung, Entwurf, Felder mit Schlüssel, Reihenfolge und Typ
+  wie `0816ece7159b` sie anlegt; den Hilfetext nur, wenn er noch der ursprüngliche ist. Sonst der **Hinweis im Editor**: an
+  einem Entwurf "weicht von der Vorgabe ab: Typ" mit "Systemfelder angleichen"; an einer veröffentlichten Fassung ohne Entwurf
+  neu `published_system_field_problems` ("Die gültige Fassung N entspricht nicht mehr den Systemfeldern …", "Neuen Entwurf
+  anlegen" gleicht an). Schon ausgefüllte Checklisten behalten ihre Fassung und damit ihr Fotofeld. `downgrade()` nur für die
+  unverändert umgestellte Startvorlage. **Auf dem Server**: wurde die Startvorlage unter 1.8.43/1.8.44 schon veröffentlicht,
+  im Editor "Neuen Entwurf anlegen" und veröffentlichen.
+- **Hinweis "Offene Bedenken"** (`app/templates/_offene_bedenken.html`, Kasten `#concernAlert`): Einsatzbericht-Seite
+  (`/orders/{id}/service-reports`, oben vor den Berichten) und Checklisten-Seite des Auftrags (`/checklisten/auftrag/{id}`),
+  für jede Rolle, nur mit Modul `checklisten`. `GET /api/orders/{id}/open-concerns` jetzt für alle Rollen: der Monteur nur
+  an einem Auftrag mit Bezug (`require_field_order_access()`, sonst 403), je Anzeige `can_open` (eigene oder Vorlage
+  `field_readable`) -- eine Anzeige, die er nicht öffnen darf, steht ohne Link da.
+- **Festlegungen (nicht vorgegeben, bitte bestätigen)**:
+  1. Belege bleiben unverändert (kein Verkleinern); im PDF der Checkliste erscheint ein Foto-Beleg verkleinert, ein PDF-Beleg
+     als Zeile mit Zeitpunkt, Größe und SHA-256 der Originaldatei -- nicht eingebettet und nicht an die E-Mail der Checkliste
+     gehängt. Foto-Belege werden im Versand-PDF wie Fotos stufenweise verkleinert.
+  2. Kein Originaldateiname: angezeigt wird "PDF" bzw. die Vorschau mit Zeitpunkt, heruntergeladen als "Beleg-<id>.<endung>".
+  3. Höchstanzahl wie bei Fotos (Feld `max_count`, ohne Angabe 20; Startvorlage 10). Der Typ steht im Editor jeder Vorlage
+     zur Verfügung, auch für Monteure ausfüllbar, wo das Feld nicht "nur Büro" ist; die Regel "ausgefüllt" zählt Belege.
+  4. Der Hinweis zeigt dem Monteur alle offenen Bedenkenanzeigen des Auftrags, den Link aber nur zu denen, die er öffnen darf.
+  5. Auftragsseite und `/mobil` behalten ihre eigenen Fassungen des Kastens (nicht auf den neuen Baustein umgestellt).
+- **Verifikation**: `tests/test_v348_beleg_und_hinweis.py` (14 Tests: PDF und Foto angenommen und byte-gleich gespeichert,
+  Auslieferung mit Typ, nosniff und Dateiname; SVG, HTML und HTML mit PDF-Name/-Typ abgelehnt, nichts gespeichert; Grenze
+  15.000.000 Bytes; Monteur 403 am Büro-Feld; Beleg in der Kopie der Unterschrift und des Abschlusses, gesperrt und gebunden,
+  Datei geändert → beide "weicht ab: Antwort als Beleg"; PDF der Checkliste mit beiden Belegarten und Prüfsummen; Regel
+  "ausgefüllt"; Migration nur für den unveränderten Entwurf und zurück, eigener Hilfetext bleibt; veröffentlichte Fassung mit
+  Hinweis, neuer Entwurf gleicht an; veränderter Entwurf mit Hinweis, "angleichen" stellt um; gewöhnliches Feld mit dem
+  Schlüssel blockiert weiter; Hinweis-Endpunkt für den Monteur mit `can_open`, fremder Auftrag und Monteur ohne Einsatz 403;
+  Kasten auf beiden Seiten für Büro und Monteur; Schlüssel-Scan der Monteur-Antworten mit `_verstoesse()` aus `test_v326` und
+  den Büro-Schlüsseln aus `test_v346`). `test_v346` nachgezogen (Startvorlage durch beide Migrationen, Hinweis-Endpunkt für den
+  Monteur 200 statt 403, mit Scan), `test_v326` (Monteurswelt mit offener Bedenkenanzeige, damit der Rundgang den Endpunkt mit
+  Inhalt prüft). Gegenproben (Skript im Scratchpad, Dateien byte-genau zurück): 20 von 20 rot -- Erkennung aus, Beleg nicht in
+  der Kopie, keine Größengrenze, Auslieferung als JPEG, ohne nosniff, Beleg nicht gebunden, Endpunkt nur Büro, ohne
+  Auftragsprüfung, Link immer, Kundenmail im Hinweis (Scan), Kasten auf der Einsatzbericht-Seite bzw. Aufruf auf der
+  Checklisten-Seite fehlt, Migration auch für veröffentlichte bzw. veränderte Vorlagen, Angleichen ohne Typwechsel bzw. auch für
+  gewöhnliche Felder, kein Hinweis an der gültigen Fassung, PDF ohne Belege, Regel ohne Beleg, Systemfeld weiter Foto.
+  Migration SQLite und PostgreSQL (Wegwerf-Datei bzw. -Schema, ganze Kette): hin (Typ beleg, neuer Hilfetext), zurück (foto),
+  hin, `alembic current` = `2798ba2fb235 (head)`, `alembic check` sauber; veröffentlichte Startvorlage bleibt Foto. Klicktest
+  `scripts/klicktest_beleg_und_hinweis.py` 24/24 (Monteurin 412 px hell/dunkel: Hinweis auf beiden Seiten, eigene Anzeige mit
+  Link, die des Büros ohne, kein waagrechter Scrollbalken; Büro dunkel: beide mit Link, SVG mit Meldung abgelehnt, PDF als
+  Kachel und als application/pdf mit nosniff, Foto als Vorschau, nach der Unterschrift ohne × und ohne Hochladen, Hinweis danach
+  nur noch eine Anzeige; Editor hell: Typ "Beleg (PDF oder Foto)", kein Systemfeld-Hinweis). Unverändert grün:
+  `klicktest_bedenkenanzeige.py` 22/22, `klicktest_bedenkenanzeige_versand.py` 20/20 (Befüllen um die neue Migration
+  ergänzt), `klicktest_monteur_navigation.py` 27/27.
+
+### Nebenbefunde 1.8.45 (nur gemeldet)
+
+1. **`/mobil` verlinkt jede offene Bedenkenanzeige** (1.8.43), auch eine, die der Monteur nicht öffnen darf (nicht seine,
+   Vorlage nicht `field_readable`) -- der Link führt auf "Zugriff verweigert". Die neuen Seiten zeigen sie ohne Link
+   (`can_open`); `/mobil` (`_with_open_concerns()`) liefert das Kennzeichen nicht.
+2. **Ein Belegfeld im Abschnitt eines Briefs fehlt im Brief still**: `_letter_fields()` (`app/notice_letters.py`) kennt nur
+   Fotos und Werte -- ein Eintrag mit "files" hat keinen Wert und wird übergangen. Betrifft nur eigene Vorlagen mit einem
+   Belegfeld oberhalb der "Unterschrift Büro" bzw. des Wegfalls; die Startvorlagen haben keins.
+3. **Drei Fassungen desselben Kastens**: Auftragsseite (`order.html`), `/mobil` und `_offene_bedenken.html` bauen den Hinweis
+   je selbst; eine Änderung am Text kommt aus einer Quelle (`OPEN_CONCERNS_TEXT`), Darstellung und Link-Regel nicht.

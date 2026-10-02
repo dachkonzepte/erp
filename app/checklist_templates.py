@@ -23,6 +23,11 @@ mit Zweck ist nur archivierbar, nicht löschbar. Seit 1.8.38 prüft das Veröffe
 Reihenfolge der Abschnitte, die ein Zweck vorgibt, und eine Regel kann ihre Aufgabe aufs Anlegen
 einer Checkliste mit Zweck verlinken (link_purpose, link_purpose_choices()).
 
+Seit 1.8.45 gibt es den Feldtyp "beleg" (PDF oder Foto, am Inhalt erkannt, app/checklists.py). Ändert
+der Zweck den Typ eines Systemfelds (Bedenkenanzeige: "Antwort als Beleg" von foto auf beleg), stellt
+das Angleichen ihn im Entwurf um; eine schon veröffentlichte Fassung bleibt, wie sie ist, der Editor
+weist darauf hin (published_system_field_problems).
+
 Rollenlos wie jede Geschäftslogik dieses Projekts -- die Rollenentscheidung sitzt im Router."""
 
 import re
@@ -43,12 +48,12 @@ from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN
 from .tasks import PRIORITIES
 
 FIELD_TYPES = (
-    "ja_nein", "text", "zahl", "auswahl", "datum", "uhrzeit", "datum_uhrzeit", "foto", "unterschrift", "hinweis",
+    "ja_nein", "text", "zahl", "auswahl", "datum", "uhrzeit", "datum_uhrzeit", "foto", "beleg", "unterschrift", "hinweis",
 )
 FIELD_TYPE_LABELS = {
     "ja_nein": "Ja/Nein", "text": "Text", "zahl": "Zahl", "auswahl": "Auswahl", "datum": "Datum",
-    "uhrzeit": "Uhrzeit", "datum_uhrzeit": "Datum und Uhrzeit", "foto": "Foto", "unterschrift": "Unterschrift",
-    "hinweis": "Hinweistext",
+    "uhrzeit": "Uhrzeit", "datum_uhrzeit": "Datum und Uhrzeit", "foto": "Foto", "beleg": "Beleg (PDF oder Foto)",
+    "unterschrift": "Unterschrift", "hinweis": "Hinweistext",
 }
 CONTEXT_TYPES = ("auftrag", "objekt", "betriebsmittel", "betrieb")
 CONTEXT_COLUMNS = {
@@ -67,7 +72,7 @@ ASSIGNEE_MODES = ("rolle", "sachbearbeiter")
 # Fund 3 des Befunds: Monteure haben keinen Aufgabenzugriff, "field" ist als Zielrolle sinnlos.
 RULE_TARGET_ROLES = (ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ROLE_ADMIN)
 
-# Obergrenze Fotos/Unterschriften je Feld -- Speicherbudget des 4-GB-Servers (PDF mit Fotos).
+# Obergrenze Fotos/Belege/Unterschriften je Feld -- Speicherbudget des 4-GB-Servers (PDF mit Fotos).
 MAX_ATTACHMENTS_PER_FIELD = 20
 
 _FIELD_KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_.]{0,79}$")
@@ -177,6 +182,10 @@ def template_to_dict(template: ChecklistTemplate, *, with_editable_version: bool
         # Was am Entwurf den Systemfeldern des Zwecks widerspricht -- der Editor bietet dafür
         # "Systemfelder angleichen" an, Veröffentlichen würde es ablehnen.
         data["system_field_problems"] = system_field_problems(template.purpose, draft) if draft else []
+        # Seit 1.8.45: ohne Entwurf die gültige Fassung -- hat der Zweck sich seit ihrer Veröffentlichung
+        # geändert (z. B. "Antwort als Beleg" jetzt PDF oder Foto), sagt der Editor es; ein neuer Entwurf gleicht an.
+        data["published_system_field_problems"] = (
+            system_field_problems(template.purpose, published) if published and not draft else [])
     return data
 
 
@@ -547,7 +556,7 @@ def _normalize_field(field: ChecklistTemplateField) -> None:
             raise ValueError("Der Mindestwert ist größer als der Höchstwert.")
         if field.decimals is not None and not 0 <= field.decimals <= 4:
             raise ValueError("Nachkommastellen: 0 bis 4.")
-    if t in ("foto", "unterschrift"):
+    if t in ("foto", "beleg", "unterschrift"):
         if field.min_count is not None and field.min_count < 0:
             raise ValueError("Die Mindestanzahl darf nicht negativ sein.")
         if field.max_count is not None and not 1 <= field.max_count <= MAX_ATTACHMENTS_PER_FIELD:
@@ -706,8 +715,9 @@ def _sync_system_fields(db: Session, version: ChecklistTemplateVersion, purpose_
     """Gleicht die Systemfelder einer Entwurfsfassung an ihren Zweck an: fehlende anlegen (am
     Ende), feste Eigenschaften und Optionen auf die Vorgabe setzen, ein gleichnamiges gewöhnliches
     Feld desselben Typs übernehmen. Systemfelder, die der Zweck nicht (mehr) kennt, werden
-    gewöhnliche Felder. Kein Commit. ValueError, bevor sich etwas ändert, wenn ein Feld mit dem
-    Schlüssel eines Systemfelds einen anderen Typ hat."""
+    gewöhnliche Felder. Kein Commit. ValueError, bevor sich etwas ändert, wenn ein gewöhnliches Feld
+    mit dem Schlüssel eines Systemfelds einen anderen Typ hat. Ein Systemfeld mit anderem Typ stellt
+    es um (seit 1.8.45, der Zweck hat den Typ geändert) -- ein Entwurf hat keine Antworten."""
     purpose = get_purpose(purpose_key)
     if purpose is None:
         raise ValueError(f"Unbekannter Zweck: {purpose_key}")
@@ -716,7 +726,7 @@ def _sync_system_fields(db: Session, version: ChecklistTemplateVersion, purpose_
     by_key = {f.field_key: f for f in version.fields}
     for spec in purpose.system_fields:
         field = by_key.get(spec.key)
-        if field is not None and field.field_type != spec.field_type:
+        if field is not None and field.field_type != spec.field_type and not field.is_system:
             raise ValueError(f"Das Feld „{field.label}“ trägt den Schlüssel {spec.key} des Systemfelds „{spec.label}“, "
                              f"hat aber einen anderen Typ. Bitte zuerst seinen Schlüssel ändern.")
     wanted_keys = {spec.key for spec in purpose.system_fields}
@@ -733,6 +743,7 @@ def _sync_system_fields(db: Session, version: ChecklistTemplateVersion, purpose_
             version.fields.append(field)
             next_sort += 10
         field.is_system = True
+        field.field_type = spec.field_type
         field.required, field.allow_na, field.multiple = spec.required, spec.allow_na, spec.multiple
         field.min_count = spec.min_count
         _normalize_field(field)

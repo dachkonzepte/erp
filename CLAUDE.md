@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.44** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.45** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -673,8 +673,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Entscheidung zeigen Auftragsseite und `/mobil` "Offene Bedenken …" (`open_concerns()`). Seit 1.8.44 Brief und Versand wie
   die Behinderungsanzeige (Briefarten je Zweck in `app/notice_letters.py`: `NOTICE_PURPOSES`, `LetterKind.purpose`); weicht der
   Kunde des Projekts vom Kunden laut Auftrag ab (`customer_mismatch()`), entstehen und gehen Briefe beider Anzeigen nur mit
-  Bestätigung; Kundenwechsel im Projekt gesperrt, sobald ein Auftrag einen festgeschriebenen Vertrag hat.
-  Details: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.43".
+  Bestätigung; Kundenwechsel im Projekt gesperrt, sobald ein Auftrag einen festgeschriebenen Vertrag hat. Seit 1.8.45
+  ist "Antwort als Beleg" ein Feld vom Typ `beleg` (PDF oder Foto), und den Hinweis zeigen auch Einsatzbericht- und
+  Checklisten-Seite des Auftrags, für Büro und Monteur (`_offene_bedenken.html`, Link nur, wo der Monteur öffnen darf).
+  Details: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.43" und "Umsetzung 1.8.45".
 - **Weitere Fachbegriffe ausgelagert**: Dachflächen & Bauteile, Wartungsvertrag,
   Einsatzbericht, Rechnung aus Zeitbuchungen, Schnellauftrag, Wartungshistorie und
   Monteursansicht stehen vollständig in `docs/archiv/modul-wartungen-und-monteursansicht.md`;
@@ -769,7 +771,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
 - **Checklisten & Formulare** (Modul `checklisten`, Vorlagenfassungen, Kontexte Auftrag/Objekt/
   Betriebsmittel/Betrieb, Regeln → Aufgaben, Etappenplan 1.8.0–1.8.5 und Stufen 2–4; seit 1.8.38 Systemfelder mit
   Abschnitt und "nur Büro", Folgen nach einer Unterschrift, Regel-Aufgabe mit Link zum Anlegen; seit 1.8.41 Status
-  "gegenstandslos" für Behinderungs- und Bedenkenanzeige; seit 1.8.43 Folgen nach dem Versand eines Briefs) --
+  "gegenstandslos" für Behinderungs- und Bedenkenanzeige; seit 1.8.43 Folgen nach dem Versand eines Briefs; seit 1.8.45
+  Feldtyp "beleg": PDF oder Foto, am Inhalt erkannt, unverändert gespeichert, in Prüfsumme und Versiegelung) --
   `docs/archiv/modul-checklisten.md`
 - **Kaufmännisches Runden** (Helfer `app/rounding.py`, Rundungsregel je Rechnung, Liste der
   Geldstellen, bewusst nicht geänderte Formatierer) -- `docs/archiv/kaufmaennisches-runden.md`
@@ -798,7 +801,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   bestätigt"/"unzustellbar" für alle Dokumente, Zustellung nachtragen mit Empfängerauswahl und Vollmacht, Wiederaufnahme
   "i. A." Büro-Konto, Zeitstrahl, "als gegenstandslos abschließen", Kundenwechsel prüft Beteiligte; seit 1.8.43
   Bedenkenanzeige erfassen mit Folgen und Hinweis "Offene Bedenken"; seit 1.8.44 Bedenkenanzeige als Brief und Versand,
-  Bestätigung bei abweichendem Kunden, Kundenwechsel-Sperre bei festgeschriebenem Vertrag) --
+  Bestätigung bei abweichendem Kunden, Kundenwechsel-Sperre bei festgeschriebenem Vertrag; seit 1.8.45 "Antwort als
+  Beleg" als PDF oder Foto, Hinweis "Offene Bedenken" auch auf Einsatzbericht- und Checklisten-Seite des Auftrags) --
   `docs/archiv/vertragsgrundlage-und-vertrag.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
@@ -1154,7 +1158,10 @@ Beleg-Upload im Versandverlauf, Zustellung nachtragen mit Empfängerauswahl und 
 `klicktest_bedenkenanzeige.py` (1.8.43, Monteurin startet und meldet, Hinweis "Offene Bedenken" in `/mobil` und auf dem
 Auftrag, Büro füllt Anzeige und Entscheidung, Hinweis weg, hell/dunkel, 412 px) und `klicktest_bedenkenanzeige_versand.py`
 (1.8.44, Karte mit dem Brief "Bedenkenanzeige", Bestätigung bei abweichendem Kunden, Versand an einen SMTP-Empfänger im Skript,
-Aufgaben "versenden" und "Antwort prüfen", Versandprotokoll, 412 px). Ein Klicktest, der als
+Aufgaben "versenden" und "Antwort prüfen", Versandprotokoll, 412 px) und `klicktest_beleg_und_hinweis.py` (1.8.45, Hinweis
+"Offene Bedenken" auf Einsatzbericht- und Checklisten-Seite des Auftrags für Monteurin und Büro mit Link nur, wo sie öffnen
+darf, "Antwort als Beleg": SVG abgelehnt, PDF als Kachel, Foto als Vorschau, nach der Unterschrift gesperrt, Editor). Ein
+Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)
 meldet `/mobil` ab, eine 403-Prüfung sähe abends 401; `--wanduhr HH:MM` täuscht eine andere Uhrzeit vor (Gegenprobe),

@@ -1030,3 +1030,18 @@ einem Abschluss) und keine Folgen mehr (`follow_up_due()`, nicht in den offenen 
 (`complete_follow_up_tasks()`). PDF mit "Gegenstandslos: <Begründung>". `CLOSED_STATUSES` = abgeschlossen und gegenstandslos;
 wer künftig auf `status == "abgeschlossen"` prüft, entscheidet, ob "gegenstandslos" dazugehört (E-Mail-Versand und Zustellung der
 Checkliste selbst: nein; PDF und Abschluss-Prüfung: ja).
+
+## Nachtrag 1.8.45 (02.10.2026) -- Feldtyp "Beleg"
+
+Herleitung und Festlegungen: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.45". Für den Baukasten:
+- `field_type` "beleg" (`FIELD_TYPES`, Editor "Beleg (PDF oder Foto)"): PDF oder Foto, am Inhalt erkannt
+  (`app/email_dispatch.py::receipt_content_type()`, nie SVG/HTML), höchstens 15.000.000 Bytes, **unverändert** gespeichert
+  (`store_beleg()`, `ChecklistAttachment.kind` "beleg", der Typ steht in der Endung von `stored_filename`, gelesen von
+  `attachment_content_type()`). Min-/Höchstanzahl, Pflicht, Sperre durch eine Unterschrift darunter, Bindung an eine (auch
+  verworfene) Unterschrift und die Regel "ausgefüllt" wie bei Fotos.
+- Kopie und Abschluss tragen je Belegfeld `"files": [{"id", "sha256"}]` (SHA-256 der Originaldatei) -- eine Änderung an der
+  Datei erscheint als "weicht ab" im Feld. `_photo_bound_by_signature()` liest "photos" und "files".
+- PDF der Checkliste: Foto-Beleg im Speicher verkleinert, PDF-Beleg als Zeile, beide mit der Prüfsumme der Originaldatei.
+- Auslieferung `GET /api/checklist-attachments/{id}/file` mit dem erkannten Typ und `nosniff` (seit 1.8.45 für alle Anhänge).
+- Ändert ein Zweck den Typ eines Systemfelds, stellt `_sync_system_fields()` das Systemfeld im Entwurf um (vorher Fehler);
+  eine veröffentlichte Fassung ohne Entwurf, die nicht mehr passt, meldet `published_system_field_problems` im Editor.

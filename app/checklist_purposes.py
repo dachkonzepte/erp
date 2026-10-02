@@ -35,7 +35,8 @@ Seit 1.8.41 lassen sich Behinderungs- und Bedenkenanzeige "als gegenstandslos ab
 Behinderungsanzeige -- Meldung, Anzeige (Büro), Entscheidung des Auftraggebers (Büro) -- und drei Folgen: nach der
 Meldung "versenden", nach dem Versand (FollowUp.after_letter) "Antwort prüfen", nach der Unterschrift der
 Entscheidung diese Aufgabe erledigen. Herleitung in docs/archiv/vertragsgrundlage-und-vertrag.md, "Umsetzung
-1.8.43". Die Abnahme trägt noch keine Systemfelder.
+1.8.43". Seit 1.8.45 ist "Antwort als Beleg" ein Feld vom Typ "beleg" (PDF oder Foto). Die Abnahme trägt noch keine
+Systemfelder.
 
 Bewusst ohne Import aus app.checklist_templates (das importiert von hier); die Handler der Folgen
 importieren ihre Module erst beim Aufruf."""
@@ -201,7 +202,8 @@ CONCERN_SYSTEM_FIELDS = (
                     ("keine_antwort", "keine Antwort"),
                     ("sonstiges", "Sonstiges"),
                 )),
-    SystemField(_K + "antwort_beleg", "foto", "Antwort als Beleg", section="Entscheidung", office_only=True),
+    # Seit 1.8.45 Typ "beleg" (PDF oder Foto) statt "foto" -- die Antwort kommt oft als PDF.
+    SystemField(_K + "antwort_beleg", "beleg", "Antwort als Beleg", section="Entscheidung", office_only=True),
     SystemField(_K + "notiz", "text", "Notiz", section="Entscheidung", office_only=True, multiline=True),
     SystemField(CONCERN_DECISION_SIGNATURE, "unterschrift", "Unterschrift", required=True, section="Entscheidung",
                 office_only=True, signer_label="Büro"),

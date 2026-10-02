@@ -44,6 +44,9 @@
   Behinderungs- und Bedenkenanzeige lassen sich im Büro "als gegenstandslos abschließen" (cl.can_void, sichtbares
   Begründungsfeld statt Popup, Regel 4); danach Badge "Gegenstandslos", Begründung für jede Rolle, PDF, keine
   Brief-Aktionen mehr (nur Verlauf und Nachtragen einer schon erstellten Fassung).
+
+  Seit 1.8.45: Feldtyp "beleg" -- PDF oder Foto (JPEG, PNG, WebP), der Server erkennt den Typ am Inhalt und lehnt
+  alles andere ab; ein PDF erscheint als Kachel "PDF", ein Foto als Vorschau. Gesperrt und gebunden wie ein Foto.
 #}
 <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 <style>
@@ -87,6 +90,8 @@ textarea{min-height:90px;resize:vertical}
 .thumb{position:relative;width:110px;height:110px;border:1px solid var(--line);background:var(--soft)}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .thumb button{position:absolute;top:2px;right:2px;min-height:32px;min-width:32px;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:16px;cursor:pointer}
+.thumb .pdf-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;color:var(--ink);text-decoration:none;font-weight:800;font-size:18px;gap:4px}
+.thumb .pdf-tile small{font-weight:400;font-size:11.5px;color:var(--muted)}
 .sig-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
 .sig{display:flex;align-items:center;gap:10px;border:1px solid var(--line);padding:6px 8px;background:#fff;flex-wrap:wrap}
 .sig img{height:60px;max-width:220px;object-fit:contain}
@@ -346,6 +351,17 @@ function fieldBody(f){
     return `<div class="thumbs">${list.map(a=>`<div class="thumb"${a.bound_by_signature&&!ro?' title="Gehört zu einer Unterschrift und bleibt als Nachweis erhalten."':''}><a href="${a.url}" target="_blank" rel="noopener"><img src="${a.url}" alt="Foto"></a>${ro||a.bound_by_signature?'':`<button type="button" title="Foto entfernen" onclick="removeAttachment(${a.id})">×</button>`}</div>`).join('')||(ro?'<span class="muted">Keine Fotos.</span>':'')}</div>
       ${ro||list.length>=max?'':`<label class="btn secondary" style="display:inline-flex;align-items:center">Foto aufnehmen / wählen<input type="file" accept="image/*" capture="environment" multiple style="display:none" onchange="uploadPhotos(${f.id},this)"></label>`}
       <div class="muted small" style="margin-top:4px">${list.length} von höchstens ${max}${f.min_count?`, mindestens ${f.min_count}`:''}</div>`;
+  }
+  if(t==='beleg'){
+    // Seit 1.8.45: PDF oder Foto, am Inhalt erkannt -- der Server lehnt alles andere ab (auch SVG, HTML).
+    const list=attachmentsOf(f);
+    const max=f.max_count||20;
+    const tile=a=>a.content_type==='application/pdf'
+      ?`<a class="pdf-tile" href="${a.url}" target="_blank" rel="noopener" title="PDF öffnen">PDF<small>${esc(a.created_at_local||'')}</small></a>`
+      :`<a href="${a.url}" target="_blank" rel="noopener"><img src="${a.url}" alt="Beleg"></a>`;
+    return `<div class="thumbs">${list.map(a=>`<div class="thumb beleg" data-beleg="${esc(a.content_type)}"${a.bound_by_signature&&!ro?' title="Gehört zu einer Unterschrift und bleibt als Nachweis erhalten."':''}>${tile(a)}${ro||a.bound_by_signature?'':`<button type="button" title="Beleg entfernen" onclick="removeAttachment(${a.id})">×</button>`}</div>`).join('')||(ro?'<span class="muted">Kein Beleg.</span>':'')}</div>
+      ${ro||list.length>=max?'':`<label class="btn secondary" style="display:inline-flex;align-items:center">PDF oder Foto wählen<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple style="display:none" onchange="uploadPhotos(${f.id},this,'Beleg')"></label>`}
+      <div class="muted small" style="margin-top:4px">${list.length} von höchstens ${max}${f.min_count?`, mindestens ${f.min_count}`:''} · PDF oder Foto (JPEG, PNG, WebP), bis 15 MB</div>`;
   }
   if(t==='unterschrift'){
     // Seit 1.8.13: keine Unterschrift wird ersetzt oder entfernt -- eine Einzelunterschrift
@@ -686,13 +702,13 @@ async function uploadFile(fieldId,blob,filename,extra={}){
   cl.attachments=data.attachments;cl.missing_required=data.missing_required;
   return data;
 }
-async function uploadPhotos(fieldId,input){
+async function uploadPhotos(fieldId,input,what='Foto'){  // what: 'Beleg' für Belegfelder (seit 1.8.45)
   const files=[...input.files];input.value='';
   const f=cl.fields.find(x=>x.id===fieldId);
   for(let i=0;i<files.length;i++){
-    setStatus(fieldId,`Lädt Foto ${i+1} von ${files.length} hoch …`);
-    try{await uploadFile(fieldId,files[i],files[i].name||'foto.jpg')}
-    catch(e){setStatus(fieldId,'Foto nicht gespeichert: '+e.message,true);rerenderField(f);updateMissing();return}
+    setStatus(fieldId,`Lädt ${what} ${i+1} von ${files.length} hoch …`);
+    try{await uploadFile(fieldId,files[i],files[i].name||(what==='Foto'?'foto.jpg':'beleg'))}
+    catch(e){setStatus(fieldId,what+' nicht gespeichert: '+e.message,true);rerenderField(f);updateMissing();return}
   }
   rerenderField(f);updateMissing();setStatus(fieldId,'Gespeichert');
 }

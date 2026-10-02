@@ -1,0 +1,32 @@
+{#
+  _offene_bedenken.html -- Hinweis "Offene Bedenken …" am Auftrag (seit 1.8.45) für die Einsatzbericht-Seite
+  (service_reports.html) und die Checklisten-Seite des Auftrags (checklist_order.html), Büro und Monteur. Daten aus
+  GET /api/orders/{id}/open-concerns (Text aus einer Quelle, app/concern_notices.py::OPEN_CONCERNS_TEXT); eine Anzeige,
+  die der Monteur nicht öffnen darf (can_open: nicht seine, Vorlage nicht field_readable), steht ohne Link da. Die
+  Auftragsseite (order.html) und /mobil haben seit 1.8.43 eigene Fassungen desselben Kastens.
+
+  Einbinden, wo ein Kasten <div id="…" class="concern-alert" role="alert" hidden></div> steht, dann
+  offeneBedenkenZeigen('…', orderId). Ohne Modul "checklisten" den Kasten gar nicht ausgeben.
+#}
+<style>
+.concern-alert{background:color-mix(in srgb,var(--danger) 10%,var(--card));border:2px solid var(--danger);color:var(--danger);padding:12px 14px;margin-bottom:12px;font-weight:750;font-size:14px;line-height:1.35;overflow-wrap:anywhere}
+.concern-alert[hidden]{display:none}
+.concern-alert .concern-item{display:block;margin-top:6px;color:var(--danger);font-weight:650;font-size:13.5px}
+</style>
+<script>
+function offeneBedenkenZeigen(boxId,orderId){
+  var box=document.getElementById(boxId);
+  if(!box)return Promise.resolve();
+  function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
+  function item(c){
+    var text=esc(c.template_label||'Bedenkenanzeige')+' Nr. '+c.checklist_id
+      +(c.decision_due?' – Entscheidung erbeten bis '+new Date(c.decision_due+'T00:00:00').toLocaleDateString('de-DE'):'');
+    return c.can_open?'<a class="concern-item" href="/checklisten/'+c.checklist_id+'">'+text+' →</a>':'<span class="concern-item">'+text+'</span>';
+  }
+  return fetch('/api/orders/'+orderId+'/open-concerns').then(function(r){return r.ok?r.json():null}).then(function(data){
+    var list=(data&&data.concerns)||[];
+    box.hidden=!list.length;
+    box.innerHTML=list.length?esc(data.text)+list.map(item).join(''):'';
+  }).catch(function(){});
+}
+</script>

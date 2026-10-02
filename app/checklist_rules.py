@@ -88,7 +88,7 @@ def rule_matches(checklist: Checklist, rule: ChecklistTemplateRule) -> bool:
     field = next((f for f in checklist.template_version.fields if f.field_key == rule.field_key), None)
     if field is None:
         return False
-    if rule.operator == "ausgefuellt" and field.field_type in ("foto", "unterschrift"):
+    if rule.operator == "ausgefuellt" and field.field_type in ("foto", "beleg", "unterschrift"):  # Beleg seit 1.8.45
         return any(a.template_field_id == field.id for a in active_attachments(checklist))  # ohne verworfene
     answer = next((a for a in checklist.answers if a.template_field_id == field.id), None)
     if answer is None:

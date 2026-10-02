@@ -121,6 +121,7 @@ a{color:var(--accent)}
 {% include "_debounce.html" %}
 {% include "_unterschrift.html" %}
 {% include "_time_entries_list.html" %}
+{% if is_module_enabled('checklisten') %}{% include "_offene_bedenken.html" %}{% endif %}
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
@@ -130,6 +131,8 @@ a{color:var(--accent)}
   <div><h1>Einsatzbericht</h1><div class="muted small" id="orderContext">Auftrag wird geladen …</div></div>
   <div class="top-links">{% if darf_buero_seiten %}<a id="orderLink" href="#">← Auftrag</a>{% endif %}<a id="timeLink" href="#">Zeiterfassung (Auftrag)</a></div>
 </div>
+{# Seit 1.8.45: offene Bedenkenanzeige am Auftrag -- vor dem Bericht sichtbar, für Büro und Monteur. #}
+{% if is_module_enabled('checklisten') %}<div id="concernAlert" class="concern-alert" role="alert" hidden></div>{% endif %}
 
 <!-- Seit "Rechtekonzept" (siehe CLAUDE.md): Objektname/Anschrift/Zugang/Ansprechpartner vor Ort
      stehen hier, damit ein Monteur sie nie über die Kundenakte/Objektseite (fremder Kontext,
@@ -1354,6 +1357,7 @@ async function init(){
     document.getElementById('listStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
     return;
   }
+  if(window.offeneBedenkenZeigen)offeneBedenkenZeigen('concernAlert',orderId);  // seit 1.8.45, läuft nebenher
   const orderLinkEl=document.getElementById('orderLink');
   if(orderLinkEl)orderLinkEl.href='/orders/'+orderId;
   document.getElementById('timeLink').href='/time-tracking?order_id='+orderId;

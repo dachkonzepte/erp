@@ -81,6 +81,7 @@ def befuellen(db, k):
     db.commit()
 
     _migration("bedenkenanzeige_startvorlage").insert_concern_template(db.connection())
+    _migration("bedenkenanzeige_antwort_als_beleg").answer_as_beleg(db.connection())  # seit 1.8.45
     db.commit()
     vorlage = db.scalar(select(ChecklistTemplate.id).where(ChecklistTemplate.label == "Bedenkenanzeige"))
     publish_draft(db, vorlage)

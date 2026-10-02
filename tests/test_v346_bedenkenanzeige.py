@@ -60,6 +60,7 @@ def _load(name: str):
 
 
 MIG = _load("bedenkenanzeige_startvorlage")
+BELEG_MIG = _load("bedenkenanzeige_antwort_als_beleg")  # seit 1.8.45: "Antwort als Beleg" wird ein Belegfeld
 
 
 def _collect_keys(value, keys):
@@ -79,9 +80,10 @@ def _template_id(db, label=MIG.LABEL):
 
 @pytest.fixture
 def kworld(world):
-    """world aus test_v305 + Startvorlage aus der Migration (veröffentlicht) + Sachbearbeiterin am Auftrag."""
+    """world aus test_v305 + Startvorlage aus den Migrationen (veröffentlicht) + Sachbearbeiterin am Auftrag."""
     db = world["db"]
     assert MIG.insert_concern_template(db.connection())
+    assert BELEG_MIG.answer_as_beleg(db.connection())
     db.commit()
     world["concern_tpl"] = publish_draft(db, _template_id(db))
     world["orders"]["mine"].caseworker_employee_id = world["emps"]["office"].id
@@ -196,7 +198,7 @@ def test_registry_three_sections_office_sections_and_three_follow_ups():
     assert [label for _k, label in spec[K + "entscheidung"].options] == [
         "Bedenken gefolgt", "Ausführung trotz Bedenken angeordnet", "keine Antwort", "Sonstiges"]
     assert spec[K + "entscheidung_bis"].field_type == "datum" and spec[K + "entscheidung_bis"].required
-    assert not spec[K + "vorschlag_abhilfe"].required and spec[K + "antwort_beleg"].field_type == "foto"
+    assert not spec[K + "vorschlag_abhilfe"].required and spec[K + "antwort_beleg"].field_type == "beleg"  # 1.8.45
     triggers = [(f.key, f.after_signature, f.after_letter, f.module) for f in purpose.follow_ups]
     assert triggers == [
         (K + "versenden", K + "unterschrift_meldung", None, "aufgabenmanagement"),
@@ -214,6 +216,8 @@ def test_starter_template_passes_the_real_publish_check_and_matches_the_registry
     with engine.begin() as conn:
         assert MIG.insert_concern_template(conn)
         assert not MIG.insert_concern_template(conn)  # keine Dublette
+        # 1.8.45: die Startvorlage aus 1.8.43 hat noch ein Fotofeld, die Folgemigration macht daraus ein Belegfeld
+        assert BELEG_MIG.answer_as_beleg(conn)
     db = sessionmaker(bind=engine)()
     template = db.get(ChecklistTemplate, _template_id(db))
     [version] = template.versions
@@ -239,7 +243,7 @@ def test_migration_removes_only_an_unused_draft(threaded_db_session):
     conn = db.connection()
     assert MIG.insert_concern_template(conn) and MIG.remove_concern_template(conn)
     assert _template_id(db) is None
-    assert MIG.insert_concern_template(conn)
+    assert MIG.insert_concern_template(conn) and BELEG_MIG.answer_as_beleg(conn)  # Kette bis 1.8.45
     db.commit()
     publish_draft(db, _template_id(db))
     assert not MIG.remove_concern_template(db.connection())  # veröffentlicht: bleibt
@@ -539,8 +543,10 @@ def test_field_reports_but_neither_fills_notice_nor_decision_nor_sees_office_dat
     assert len(_tasks(db, ANSWER_TITLE)) == 1  # die Folgen liefen -- der Monteur sieht keine davon
 
     order_id = kworld["orders"]["mine"].id
+    # Seit 1.8.45 bekommt der Monteur den Hinweis "Offene Bedenken" auch über den Endpunkt (Einsatzbericht- und
+    # Checklisten-Seite des Auftrags) -- an seinem Auftrag, ohne Büro-Daten.
     for name, url in (("detail", f"/api/checklists/{c['id']}"), ("list", f"/api/checklists?order_id={order_id}"),
-                      ("mine", "/api/checklists/mine")):
+                      ("mine", "/api/checklists/mine"), ("concerns", f"/api/orders/{order_id}/open-concerns")):
         resp = field.get(url)
         assert resp.status_code == 200, (name, resp.text)
         responses[name] = resp.json()
@@ -548,7 +554,7 @@ def test_field_reports_but_neither_fills_notice_nor_decision_nor_sees_office_dat
         assert not _collect_keys(body, set()) & OFFICE_KEYS, name
         dumped = json.dumps(body, default=str, ensure_ascii=False)
         assert not any(text in dumped for text in TASK_TEXTS), name
+    assert [x["checklist_id"] for x in responses["concerns"]["concerns"]] == [c["id"]]
     for method, url in (("GET", f"/api/checklists/{c['id']}/follow-ups"),
-                        ("POST", f"/api/checklists/{c['id']}/run-follow-ups"),
-                        ("GET", f"/api/orders/{order_id}/open-concerns")):
+                        ("POST", f"/api/checklists/{c['id']}/run-follow-ups")):
         assert field.request(method, url).status_code == 403, url

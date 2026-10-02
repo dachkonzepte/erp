@@ -4555,6 +4555,7 @@ class ChecklistTemplateOut(BaseModel):
     purpose_label: str = ""
     purpose_locked: bool = False  # seit der ersten Veröffentlichung festgelegt (1.8.16)
     system_field_problems: list[str] = []  # Entwurf gegen die Systemfelder des Zwecks (1.8.16)
+    published_system_field_problems: list[str] = []  # ohne Entwurf: gültige Fassung gegen den Zweck (1.8.45)
     contexts: list[str]
     field_readable: bool
     sort_order: int
@@ -4661,8 +4662,9 @@ class ChecklistAttachmentOut(BaseModel):
     content_sha256: str | None = None    # nur Unterschriften ab 1.8.13
     seal: ChecklistSealCheckOut | None = None  # nur gültige Unterschriften (seit 1.8.14)
     discards_with: list[int] = []  # Unterschriften, die beim Verwerfen dieser mitfallen (seit 1.8.15)
-    bound_by_signature: bool = False  # Foto gehört zu einer (auch verworfenen) Unterschrift, nie löschbar (seit 1.8.14)
+    bound_by_signature: bool = False  # Foto/Beleg gehört zu einer (auch verworfenen) Unterschrift, nie löschbar (seit 1.8.14)
     url: str
+    content_type: str = "image/jpeg"  # seit 1.8.45: ein Beleg ist application/pdf oder ein Bild
 
 
 class ChecklistDiscardedSignatureOut(ChecklistAttachmentOut):
