@@ -394,6 +394,8 @@ QUERY_WERTE = {"start": "2026-01-01", "end": "2026-12-31", "start_date": "2026-0
 QUERY_JE_ROUTE = {
     "/api/field-view/properties/search": {"q": "Halle"},
     "/api/checklists": {"order_id": "@order_id"},
+    # Empfängerauswahl für "Zustellung nachtragen" (seit 1.8.41)
+    "/api/email-dispatches/delivery-recipients": {"document_type": "auftrag", "document_id": "@order_id"},
 }
 
 
@@ -569,6 +571,13 @@ def test_briefe_an_den_auftraggeber_im_durchlauf_fuer_monteure_gesperrt(durchlau
         "/api/checklists/{checklist_id}/notice-letters/{kind}/preview": 403,
         "/api/settings/notice-reservations": 403,
     }
+
+
+def test_empfaengerauswahl_der_zustellung_im_durchlauf_fuer_monteure_gesperrt(durchlauf):
+    """Seit 1.8.41: die Empfängerauswahl für "Zustellung nachtragen" (Auftraggeber, Beteiligte) ist Büro -- der
+    Durchlauf ruft sie als Monteur auf (Query-Werte je Route), 403."""
+    routen = {a["route"]: a["status"] for a in durchlauf["antworten"] if "delivery-recipients" in a["route"]}
+    assert routen == {"/api/email-dispatches/delivery-recipients": 403}
 
 
 def test_dachflaechen_monteur_reduziert_buero_voll(durchlauf, router_test_client):

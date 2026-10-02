@@ -60,7 +60,7 @@ def get_notice_letters(checklist_id: int, db: Session = Depends(get_db), _role: 
 def get_notice_letter_preview(checklist_id: int, kind: str, db: Session = Depends(get_db), _role: AppUser = _office_dep):
     """Vorschau mit dem Stand von jetzt (quer "Vorschau – nicht versendet"), nichts wird abgelegt."""
     _require_module(db)
-    pdf = _call(preview_pdf, db, checklist_id, kind)
+    pdf = _call(preview_pdf, db, checklist_id, kind, user_name=_actor(_role)[1])
     return Response(content=pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="Vorschau-{kind}-{checklist_id}.pdf"',
                              "Cache-Control": "private, no-store"})

@@ -22,7 +22,7 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | **2b-3 Teil 1** | 1.8.38 | Behinderungsanzeige erfassen: Systemfelder in drei Abschnitten (Meldung, Anzeige nur Büro, Wegfall), Startvorlage, Folge nach der Unterschrift der Meldung, Tagesbericht-Regel mit Link zum Anlegen | erledigt |
 | **2b-2 Nachtrag** | 1.8.39 | Beteiligte aus den Stammdaten: Dialog durchsucht Adressbuch, Kunden und Lieferanten (nach Herkunft, Rollenprüfung der Büro-Suche), Adressbuch-Eintrag mit Verweis ohne Kopie, Kunde des Projekts nie Beteiligter | erledigt |
 | **2b-3 Teil 2** | 1.8.40 | Behinderungsanzeige: Brief-PDF (zwei Briefarten), Vorbehalt je Briefart und Grundlage mit Prüfung, Versand an den Auftraggeber mit Vollmacht in der Ablage, Aufgabe erledigt (Punkte 1–3) | erledigt |
-| **2b-3 Teil 2b** | — | Versandprotokoll "Empfang bestätigt"/"unzustellbar", Zeitstrahl an der Anzeige, "als gegenstandslos abschließen", Kundenwechsel prüft Beteiligte (Punkte 4–7, siehe "Offen" unter 1.8.40) | offen |
+| **2b-3 Teil 3** | 1.8.41 | Versandprotokoll "Empfang bestätigt"/"unzustellbar" für alle Dokumente, "Zustellung nachtragen" mit Empfängerauswahl und Vollmacht, Wiederaufnahme "i. A." Büro-Konto, Zeitstrahl an der Anzeige, "als gegenstandslos abschließen" (Behinderungs- und Bedenkenanzeige), Kundenwechsel prüft Beteiligte | erledigt |
 | **2b-4** | — | Bedenkenanzeige | offen |
 
 Nach jeder Runde die Spalten "Version"/"Stand" nachziehen und unten einen Abschnitt
@@ -1081,7 +1081,7 @@ committen und den Rest auflisten -- so geschehen: **1.8.40 = Punkte 1–3 und ih
   `klicktest_versandverlauf.py` 32/32, `klicktest_versandprotokoll.py` 45/45; `klicktest_vertragsgrundlage.py` 30/30 bzw. 29/30
   je nach Lauf (Nebenbefund 4, am Stand 1.8.39 ebenso).
 
-### Offen für Teil 2b (Punkte 4–7 und ihre Tests aus Punkt 8)
+### Offen für Teil 2b (Punkte 4–7 und ihre Tests aus Punkt 8) -- erledigt in 1.8.41, siehe unten
 
 4. **Versandprotokoll "Empfang bestätigt am" / "als unzustellbar markieren"** für alle Dokumente: Vorschlag neue Spalten an
    `email_dispatches` (Bestätigung: Datum, Notiz, optional Beleg in der Ablage; unzustellbar: Datum, Pflicht-Notiz; je wer/wann),
@@ -1113,3 +1113,147 @@ committen und den Rest auflisten -- so geschehen: **1.8.40 = Punkte 1–3 und ih
    scheitert am Primärschlüssel, die Seite zeigt `alert()`. Der Klicktest sät nur `labor_rate_settings` vorab. Am unveränderten
    Stand 1.8.39 in einem eigenen Worktree ebenso (1 von 3 Läufen); dieselbe offene Fehlerklasse "get_or_create_settings(id=1)"
    wie 1.8.21 Nebenbefund 1. Der neue Klicktest sät beide Singletons vorab.
+
+---
+
+## Umsetzung 1.8.41 (02.10.2026) -- Runde 2b-3 Teil 3: Behinderungsanzeige abschließen
+
+Betreibervorgabe: (1) Versandprotokoll für alle Dokumente: "Empfang bestätigt am" (Datum, Notiz, optional Beleg) und "als
+unzustellbar markieren" (Datum, Pflicht-Notiz). (2) "Zustellung nachtragen" mit Empfängerauswahl (Auftraggeber, Beteiligte),
+auch für Beteiligte ohne E-Mail; ist ein gewählter Empfänger empfangsbevollmächtigt, wird seine Vollmacht wie beim E-Mail-Versand
+eingefroren. (3) Wiederaufnahme: der Brief trägt nicht die Unterschrift aus dem Abschnitt Wegfall, sondern den Namen des
+Büro-Kontos, das ihn erstellt ("i. A."); die Unterschrift im Abschnitt bleibt interner Beleg. (4) Zeitstrahl an der Anzeige:
+bekannt seit → Meldung unterschrieben → versendet, mit Abstand. (5) "Als gegenstandslos abschließen" für Behinderungs- und
+Bedenkenanzeige: nur Büro, Pflicht-Begründung, bleibt als Beleg, verschwindet aus offenen Listen, offene Folge-Aufgabe wird
+erledigt. (6) Kundenwechsel im Projekt prüft die Beteiligten, damit der Auftraggeber nicht doppelt auftaucht. (7) Tests mit
+Gegenprobe zu 1 bis 6, Monteur 403.
+
+- **Versandergebnis** (`app/email_dispatch.py::record_dispatch_outcome()`, Tabelle `dispatch_outcomes`, ORM-Sperre: nie geändert,
+  nie gelöscht): je gesendetem Eintrag eines Dokuments (E-Mail oder nachgetragene Zustellung, jede Dokumentart, nie eine
+  Aufgaben-Benachrichtigung) höchstens EIN Ergebnis -- UNIQUE `uq_dispatch_outcome`, zwei gleichzeitige Vermerke ergeben genau
+  einen (SAVEPOINT, der zweite 409). Eigene Tabelle statt Spalten am Protokolleintrag: dessen Sperre (nur der Abschluss aus "in
+  Arbeit") bleibt unverändert. Datum nicht in der Zukunft und nicht vor dem Versandtag (E-Mail: Abschluss in Europe/Berlin,
+  nachgetragen: Zustelldatum); Notiz bei "unzustellbar" 3–1000 Zeichen Pflicht, bei "empfangen" freiwillig; Beleg (am Inhalt
+  erkannt wie bei der Zustellung, höchstens 15 MB) in der Ablage unter Art und Dokument des Versands. Historie "Versandergebnis"
+  am Versand (wie das Klären). `POST /api/email-dispatches/{id}/outcome` (Formular, ab `buero_auftrag`, Aufgaben-Mail 404,
+  Modul `checklisten` für Checkliste und Briefe). `dispatch_to_dict()` trägt `outcome`, `can_record_outcome`,
+  `delivered_to_client`; `list_dispatches()` lädt die Ergebnisse in einer Abfrage.
+- **Oberfläche Versandergebnis**: `_email_dispatch.html::dispatchOutcomeHtml()` -- je Zeile im Versandverlauf (alle
+  Dokumentseiten) und in `/versandprotokoll` (bindet `_email_dispatch.html` jetzt ein) "Empfang bestätigt" bzw. "Unzustellbar":
+  sichtbares Formular mit Datum, Beleg und Notiz (Regel 4), danach farbig vermerkt mit Wer/Wann und Beleg-Link; im
+  Versandprotokoll zusätzlich "Beleg (Empfang)" bzw. "Beleg (unzustellbar)" mit Prüfen in der Ablage-Spalte.
+- **Empfängerauswahl beim Nachtragen** (`delivery_recipients()`, `GET /api/email-dispatches/delivery-recipients`, ab
+  `buero_auftrag`): der Auftraggeber (Kunde des Projekts, Anschrift live) und alle Beteiligten des Projekts -- auch ohne E-Mail,
+  archivierte Kontakte gekennzeichnet --, für jede Dokumentart mit Projekt (über `project_id_of()`); ohne Projekt nur die freie
+  Angabe. `record_manual_delivery(to_client=…, participant_ids=…)`: nur Beteiligte DIESES Projekts (sonst 400); im Eintrag
+  "Name (Auftraggeber); Name (Rolle); freie Angabe"; neue Spalte `email_dispatches.delivered_to_client` (wahr/falsch bei einer
+  Auswahl, leer ohne Auswahl -- wie vor 1.8.41). Je gewähltem Empfangsbevollmächtigten die Vollmacht in derselben Transaktion
+  eingefroren: `freeze_authorization()` (aus `app/notice_letters.py` hierher gezogen, gemeinsam mit dem E-Mail-Versand),
+  `dispatch_authorizations.recipient_email` darf dafür leer sein. Oberfläche: das Formular lädt die Auswahl beim Öffnen,
+  Auftraggeber vorgewählt, je Beteiligtem "Kopie" bzw. "empfangsbevollmächtigt – die Vollmacht wird festgehalten" / "keine
+  Vollmacht hinterlegt", "ohne E-Mail"; der Verlauf zeigt "Empfangsbevollmächtigt: … – ohne E-Mail – Vollmacht festgehalten".
+- **"Beim Auftraggeber angekommen"** (`app/notice_letters.py::reached_client()`, `delivered_dispatches()`): gesendet, nicht als
+  unzustellbar vermerkt, und per E-Mail (An ist immer der Auftraggeber) oder nachgetragen an den Auftraggeber, an einen
+  Empfangsbevollmächtigten (festgehaltene Vollmacht) oder ohne Empfängerauswahl. Daran hängen `letter_was_sent()`, der Stand je
+  Briefart (`status`: versendet / unzustellbar / bereit / wartet), das Datum im Bezug der Wiederaufnahme ("mit unserer
+  Behinderungsanzeige vom …"), der Zeitstrahl und die Aufgabe "versenden" -- erledigt nach einer Zustellung beim Auftraggeber
+  (die nachgetragene prüft es im Nachlauf, `after_delivery(dispatch)`), nach "unzustellbar" ohne andere Zustellung wieder offen
+  (`app/dispatch_documents.py::after_outcome()` → `after_dispatch_outcome()` → `reopen_follow_up_tasks()`). Erledigen und
+  Wiederöffnen liegen jetzt gemeinsam in `app/checklist_follow_ups.py` (`complete_follow_up_tasks()`/`reopen_follow_up_tasks()`,
+  erste "erledigt"- bzw. erste offene Kanban-Spalte, archivierte Aufgaben bleiben, wie sie sind).
+- **Wiederaufnahme "i. A."**: `build_letter_content(issuer_name=…)` friert bei der Anzeige der Wiederaufnahme `signoff` ein
+  (`{"mode": "i_a", "name": <Anzeigename des Büro-Kontos>}`); `app/notice_letter_pdf.py` setzt dann "i. A. <Name>" unter
+  Grußformel und Firmenname, ohne Unterschriftsbild. "signature" bleibt im eingefrorenen Inhalt (Bezug: Unterschrift, Zeitpunkt,
+  Prüfsumme), die Fußzeile nennt "unterschrieben (Abschnitt Wegfall) am … Prüfsumme …". Erstellt wird mit dem Konto, das sendet,
+  "Brief erstellen" klickt oder die erste Zustellung nachträgt; die Vorschau zeigt das ansehende Konto. Die Karte sagt es vorab
+  ("Der Brief trägt „i. A.“ …"). Die Behinderungsanzeige trägt weiter die Unterschrift Büro. Ersetzt Festlegung 5 von 1.8.40
+  (schließt dessen Nebenbefund 3); vor 1.8.41 erstellte Fassungen bleiben, wie sie sind.
+- **Zeitstrahl** (`notice_timeline()`, in `notice_state()`): "Bekannt seit" (Antwort, Ortszeit) → "Meldung unterschrieben"
+  (gültige Unterschrift des Meldenden) → "Versendet" (erste Zustellung beim Auftraggeber: E-Mail mit Uhrzeit, nachgetragen nur der
+  Tag, dann "Zugestellt" mit Weg). Abstand je zum vorigen bekannten Schritt (`gap_text()`): unter einer Stunde "unter 1 Std.",
+  unter einem Tag volle Stunden, sonst "N Tage M Std."; kennt ein Schritt nur den Tag, Kalendertage ("am selben Tag"); rückwärts
+  mit "vorher" (Karte: rot "Reihenfolge prüfen"). Ohne Versand "wartet seit …" bis jetzt (`berlin_now()`). Auf der Karte
+  "Anzeige an den Auftraggeber" (nur Büro), auf schmalen Bildschirmen untereinander.
+- **Als gegenstandslos abschließen** (`app/checklists.py::void_checklist()`, `POST /api/checklists/{id}/void`, nur
+  `buero_auftrag` aufwärts, Modul `checklisten`): Zweck mit `ChecklistPurpose.voidable` (Behinderungs- und Bedenkenanzeige;
+  sonst 400), nur ein Entwurf (abgeschlossen 409), Begründung 3–2000 Zeichen. Unter der Zeilensperre: Status `gegenstandslos`,
+  `voided_at`/`voided_by_user_id`/`voided_by_name`/`void_reason` (neue Spalten, Konto ohne Fremdschlüssel), `completed_at`, und die
+  feste Kopie aller Felder samt Unterschriften wie beim Abschließen -- `completion_content()` mit `"sealed_by": "gegenstandslos"`
+  und der Begründung im Kopf, Prüfsumme `content_sha256`; `check_completion()` prüft auch diese (eine geänderte Begründung
+  erscheint als "Begründung (gegenstandslos)"). Wiederholt: der vorhandene Stand. Danach: keine Regeln (die laufen nur nach einem
+  Abschluss), keine Folgen mehr -- `follow_up_due()` falsch, nicht in "offene Folgen"/"Alle nachholen" --, die offenen Aufgaben
+  aus Folgen erledigt (nach dem Commit); kein neuer Brief, kein Versand, keine Vorschau (409, zweite Prüfung unter der Sperre in
+  `ensure_letter()`); eine schon erstellte Fassung bleibt und lässt sich als zugestellt nachtragen. `complete_checklist()` lässt
+  eine gegenstandslose nicht mehr zu "abgeschlossen" werden (409). PDF der Checkliste mit "Gegenstandslos: <Begründung>" im
+  Kopf. Historie automatisch (Status, Begründung, Wer). Oberfläche: Karte "Als gegenstandslos abschließen" (Büro, Entwurf,
+  sichtbares Begründungsfeld, `confirm()`), danach Badge "Gegenstandslos", Hinweis mit Begründung für jede Rolle, PDF,
+  Anzeige-Karte nur noch mit Stand und Verlauf; Listen (`/checklisten` mit Filter "Gegenstandslos", Abschnitt am
+  Auftrag/Objekt) zeigen den Status, `/mobil` "Offene Checklisten" und "schon offen" am Auftrag nur Entwürfe. Schließt 1.8.38
+  Nebenbefund 1.
+- **Kundenwechsel** (`app/project_participants.py::check_client_change()`, in `PUT /api/projects/{id}`): ist der neue Kunde über
+  seinen Adressbuch-Eintrag schon Beteiligter des Projekts, 409 mit Name und Rolle ("… stünde als Auftraggeber doppelt da. Bitte
+  zuerst im Reiter „Beteiligte“ entfernen …"); die Projektmappe zeigt es im Dialog. Derselbe Kunde prüft nichts. Schließt 1.8.39
+  Nebenbefund 1.
+- **Rechte**: alle neuen Routen ab `buero_auftrag`, Monteure 403; `test_v326` ruft die neue GET-Route im Durchlauf auf (Query-Werte
+  je Route) und erwartet 403. Der Monteur sieht an seiner gegenstandslosen Checkliste Status und Begründung (Schlüssel `void_*`,
+  nicht verboten -- er hat gemeldet).
+- **Migration `0181f8f79a6b`**: Tabelle `dispatch_outcomes` (UNIQUE, benannte Fremdschlüssel), Spalte
+  `email_dispatches.delivered_to_client`, `dispatch_authorizations.recipient_email` darf leer sein, vier Spalten an `checklists`.
+  `downgrade()` bricht ab, solange ein Versandergebnis, eine Zustellung mit Empfängerauswahl, eine Vollmacht ohne E-Mail-Adresse
+  oder eine gegenstandslose Checkliste existiert.
+- **Festlegungen (nicht vorgegeben, bitte bestätigen)**:
+  1. Ein Ergebnis je Eintrag: Empfang und Unzustellbarkeit schließen sich aus, und ein Vermerk ist endgültig (ein Irrtum lässt
+     sich nicht zurücknehmen -- dann ein neuer Versand bzw. eine neue Zustellung).
+  2. "Empfang bestätigt": Notiz freiwillig. Ein Beleg geht bei beiden Ergebnissen (z. B. Foto des Rückläufers).
+  3. Eine unzustellbare Behinderungsanzeige öffnet die Aufgabe "versenden" wieder, solange sie auf keinem anderen Weg beim
+     Auftraggeber ankam; die Anzeige der Wiederaufnahme berührt keine Aufgabe.
+  4. Eine Zustellung nur an Beteiligte (ohne Auftraggeber und ohne Empfangsbevollmächtigten) ist eine Kopie: sie erledigt die
+     Aufgabe nicht und macht die Anzeige nicht "versendet" (schließt 1.8.40 Nebenbefund 2 -- die Kopie per Post ist jetzt
+     vermerkbar). Ohne jede Auswahl gilt eine Zustellung wie vor 1.8.41 als an den Auftraggeber.
+  5. Die Empfängerauswahl gibt es für jede Dokumentart mit Projekt (nicht nur die Briefe); die Vollmacht wird dort ebenso
+     eingefroren. Ersetzt Festlegung 7 von 1.8.40.
+  6. "i. A." trägt den Anzeigenamen des Büro-Kontos, das den Brief erstellt -- nicht den Sachbearbeiter des Auftrags.
+  7. Zeitstrahl nur auf der Karte im Büro, nicht im Brief; Abstände abgerundet.
+  8. Gegenstandslos: auch nach schon versendetem Brief möglich (der Brief bleibt), unumkehrbar, mit fehlenden Pflichtangaben.
+  9. Kundenwechsel: ablehnen und nennen, statt den Beteiligten still zu entfernen (Kopie bei Anzeigen und Vollmacht gingen
+     sonst unbemerkt verloren).
+- **Verifikation**: `tests/test_v344_behinderungsanzeige_abschluss.py` (20 Tests: Versandergebnis mit Beleg und Historie, Regeln
+  zu Datum/Notiz/Status/Art/Beleg, gleichzeitige Vermerke mit ausgehebelter Vorabprüfung, Unveränderlichkeit, Aufgabe wieder offen
+  und wieder erledigt, Empfängerliste, Vollmacht ohne E-Mail eingefroren und nach dem Ersetzen unverändert, Kopie zählt nicht,
+  fremde Beteiligte, "i. A." im Inhalt und im PDF ohne Bild, `gap_text()`, Zeitstrahl mit festen Ortszeiten unabhängig von
+  Sommer-/Winterzeit, gegenstandslos mit Siegel/Listen/Aufgabe/PDF/Monteur/Sperre/Wiederholung, keine Folgen und Briefe danach,
+  schon erstellte Fassung nachtragbar, nur Behinderungs-/Bedenkenanzeige und nur Entwurf, geänderte Begründung im Siegel,
+  Kundenwechsel, Monteur 403, Migration). Der erste Lauf des Zeitstrahl-Tests änderte "bekannt seit" an der Siegelung vorbei --
+  der Versand wurde richtig verweigert; der Test legt die Meldung jetzt vor der Unterschrift an. `test_v326` nachgezogen.
+  Gegenproben (Skript im Scratchpad, Dateien byte-genau zurück): 35 von 36 rot -- Ergebnis ohne Vorabprüfung (Meldung) bzw. ohne UNIQUE (gleichzeitig), unzustellbar ohne Notiz, Datum in der Zukunft bzw. vor dem Versand, Ergebnis für nicht gesendete bzw. für Aufgaben-Mails, Beleg am Namen statt am Inhalt, Ergebnis änderbar, Aufgabe nicht wieder geöffnet, unzustellbar zählt als angekommen, Ergebnis ohne Historie, Zustellung ohne Vollmacht, Beteiligte fremder Projekte, Kopie zählt als Zustellung, `delivered_to_client` fehlt, Empfängerliste ohne Rollenprüfung (auch `test_v326`), Wiederaufnahme mit Unterschriftsbild bzw. ohne "i. A." im Inhalt, Zeitstrahl ohne Abstand, Tage erst ab 48 Std., gegenstandslos für Monteure / ohne Begründung / für jeden Zweck / ohne Siegel / Begründung nicht im Siegel / Aufgabe bleibt offen / Folgen laufen weiter / in den offenen Folgen, Abschließen überschreibt gegenstandslos, Abgeschlossene als gegenstandslos, Kundenwechsel ungeprüft, Downgrade ohne Schutz, Versand eines schon erstellten Briefs nach gegenstandslos, alle drei Brief-Prüfungen zusammen. Nur die beiden Vorprüfungen (Versand, Erstellen) allein auszuhebeln blieb grün -- die Prüfung unter der Zeilensperre in `ensure_letter()` hält; mit einem schon erstellten Brief bzw. ohne sie wird es rot. Gegen PostgreSQL 17 (Wegwerf-Schema
+  je Test, Plugin im Scratchpad): `test_v344` 20 grün, dazu `test_v343`, `test_v341`, `test_v340`, `test_v342`, `test_v324`, `test_v323`, `test_v321` 171 grün. Dabei im Plugin gefunden: im Einzellauf fehlte `Order.source_quote` nach dem Entfernen des Fremdschlüssels die Join-Bedingung -- die Mapper werden jetzt vorher konfiguriert (kein Befund am Code). Migration SQLite (Wegwerf-Datei, Kommandozeile: hin, UNIQUE greift, Downgrade
+  mit Ergebnis verweigert, leer zurück, hin, `alembic current`, `alembic check`) und PostgreSQL (Wegwerf-Schema, ganze Kette,
+  Bestand in `dispatch_authorizations` bleibt, Spalte danach leer erlaubt, UNIQUE und Fremdschlüssel greifen, Vorgabe "System",
+  Downgrade mit Ergebnis bzw. mit Vollmacht ohne E-Mail verweigert, zurück -- `recipient_email` wieder NOT NULL --, hin,
+  `current`, `check`). JS der geänderten Seiten (Checkliste als Büro und Monteur, Checklisten-Liste, Versandprotokoll,
+  Auftrag, Projektmappe, Objekt, `/mobil`) gerendert, `node --check`. Volle Suite 2544 grün (mit den opt-in-Tests gegen PostgreSQL). Klicktest
+  `scripts/klicktest_behinderungsanzeige_abschluss.py` 43/43 (Büro 1400 px hell: Zeitstrahl wartet, senden, Abstand; im
+  Versandverlauf "Unzustellbar" ohne Notiz abgewiesen, mit Notiz gespeichert, Stand und Warnung, Aufgabe offen; "Zustellung
+  nachtragen" mit vorgewähltem Auftraggeber und Gutachter ohne E-Mail, Vollmacht festgehalten, Aufgabe erledigt; "Empfang
+  bestätigt" mit Datei-Upload; Versandprotokoll; dunkel 412 px ohne waagrechten Scrollbalken, Zeitstrahl untereinander;
+  Monteurin unterschreibt den Wegfall, beide Anzeigen offen; Wiederaufnahme-PDF "i. A. Olga Office" ohne Bild und ohne die
+  Monteurin; zweite Anzeige gegenstandslos (ohne Begründung abgewiesen, Rückfrage, Badge, Begründung, PDF, keine
+  Brief-Aktionen, Aufgabe erledigt); Monteurin: nicht mehr offen, Begründung sichtbar, API 403; Projektmappe: Kundenwechsel auf
+  den beteiligten Kunden mit Meldung im Dialog). Der erste Lauf fand einen irreführenden Hinweis ("Vollmacht wird beim Versand
+  an diese Adresse festgehalten" beim Gutachter ohne E-Mail) -- korrigiert. Unverändert grün: `klicktest_behinderungsanzeige_versand.py` 41/41, `klicktest_versandverlauf.py` 32/32, `klicktest_versandprotokoll.py` 45/45, `klicktest_behinderungsanzeige.py` 35/35 und die vier Checklisten-Klicktests (Unterschrift 24/24, Abschnitte 25/25, Verwerfen 23/23, Zweck 28/28).
+
+### Nebenbefunde 1.8.41 (nur gemeldet)
+
+1. **"Zustellung nachtragen" prüft das Modul nur bei der Checkliste**: `POST /api/email-dispatches/manual` sperrt bei
+   ausgeschaltetem Modul `checklisten` nur die Art `checkliste`, nicht `behinderungsanzeige`/`wiederaufnahme` -- über die API
+   ließe sich dann eine Zustellung nachtragen (und dabei ein Brief erstellen). Die neuen Endpunkte dieser Runde prüfen alle drei.
+2. **Nachgetragene Zustellung eines Briefs ohne Nummer**: `dispatch_document_for()` gibt `number=None` (der Brief entsteht erst im
+   PDF-Schritt), das Versandprotokoll zeigt "Behinderungsanzeige #1" statt "AUF-… · Fassung N", der Versandverlauf nennt keine
+   Fassung. Seit 1.8.40.
+3. **`/versandprotokoll` zeigt das Zustelldatum als "2026-10-02"**: `fmtLocal()` erwartet Datum mit Uhrzeit; der Versandverlauf
+   formatiert richtig. Seit 1.8.20.
+4. **E-Mail-Versand anderer Dokumente an einen Empfangsbevollmächtigten**: Angebot, Auftrag, Rechnung, Mahnung, Vertrag und
+   Checkliste frieren beim E-Mail-Versand keine Vollmacht ein (nur die Briefe zur Behinderungsanzeige und seit 1.8.41 jede
+   nachgetragene Zustellung). Fachlich zu entscheiden, ob das nötig ist.
+5. **Nach einem Kundenwechsel**: Briefe gehen an den Kunden des Projekts von heute (Festlegung 2 von 1.8.40), der Auftrag nennt
+   im Schnappschuss weiter den alten -- Anschrift im Brief und Kunde im Auftrag können dann auseinanderlaufen.

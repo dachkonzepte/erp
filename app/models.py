@@ -4796,6 +4796,13 @@ class Checklist(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     content_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     sealed_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Als gegenstandslos abgeschlossen (seit 1.8.41, Behinderungs- und Bedenkenanzeige, nur Büro): status
+    # "gegenstandslos", dazu wann, wer und die Pflicht-Begründung; versiegelt wie ein Abschluss (sealed_content mit
+    # der Begründung, content_sha256). Konto ohne Fremdschlüssel (Muster Versandprotokoll).
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    voided_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    voided_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    void_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     template: Mapped["ChecklistTemplate"] = relationship()
     template_version: Mapped["ChecklistTemplateVersion"] = relationship()
@@ -5032,6 +5039,10 @@ class EmailDispatch(Base):
     delivered_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     delivery_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     receipt_document_id: Mapped[int | None] = mapped_column(ForeignKey("sent_documents.id"), nullable=True)
+    # Empfängerauswahl einer nachgetragenen Zustellung (seit 1.8.41): ging sie an den Auftraggeber? Wahr/falsch,
+    # sobald Empfänger gewählt wurden; leer bei E-Mail und bei einer Zustellung ohne Auswahl (vor 1.8.41 oder nur
+    # Freitext). Beim Anlegen gesetzt, danach fest wie alles am Eintrag.
+    delivered_to_client: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     sent_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[sent_document_id])
     receipt_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[receipt_document_id])
@@ -5096,7 +5107,10 @@ class DispatchAuthorization(Base):
     dort), angelegt vor dem Senden. Ersetzt das Büro die Vollmacht später, bleibt diese Kopie. Ohne
     hinterlegte oder ohne unversehrte Vollmacht bleibt sent_document_id leer und note sagt es. Namen und
     Rolle als Schnappschuss, participant_id ohne Fremdschlüssel (der Beteiligte darf später entfernt
-    werden). Unveränderlich (ORM-Sperre unten)."""
+    werden). Unveränderlich (ORM-Sperre unten).
+
+    Seit 1.8.41 auch bei einer nachgetragenen Zustellung (Einschreiben, Übergabe, Bote, Fax) an einen gewählten
+    empfangsbevollmächtigten Beteiligten, für jede Dokumentart -- dann ohne E-Mail-Adresse (recipient_email leer)."""
 
     __tablename__ = "dispatch_authorizations"
     __table_args__ = (UniqueConstraint("dispatch_id", "participant_id", name="uq_dispatch_authorization"),)
@@ -5106,13 +5120,36 @@ class DispatchAuthorization(Base):
     participant_id: Mapped[int] = mapped_column()
     contact_name: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(40))
-    recipient_email: Mapped[str] = mapped_column(String(255))
+    recipient_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sent_document_id: Mapped[int | None] = mapped_column(ForeignKey("sent_documents.id"), nullable=True)
     poa_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     note: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     sent_document: Mapped["SentDocument | None"] = relationship()
+
+
+class DispatchOutcome(Base):
+    """Was nach dem Versand bekannt wurde (seit 1.8.41, app/email_dispatch.py::record_dispatch_outcome()): je
+    Versand bzw. nachgetragener Zustellung höchstens EIN Ergebnis -- "empfangen" (Empfang bestätigt am, Notiz
+    optional, Beleg optional in der Ablage) oder "unzustellbar" (Datum, Pflicht-Notiz). UNIQUE je Eintrag: zwei
+    gleichzeitige Vermerke ergeben genau einen. Eigene Tabelle statt Spalten am Protokolleintrag, damit dessen
+    Sperre unverändert bleibt. Unveränderlich (ORM-Sperre unten); Konto ohne Fremdschlüssel."""
+
+    __tablename__ = "dispatch_outcomes"
+    __table_args__ = (UniqueConstraint("dispatch_id", name="uq_dispatch_outcome"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dispatch_id: Mapped[int] = mapped_column(ForeignKey("email_dispatches.id"), index=True)
+    outcome: Mapped[str] = mapped_column(String(20))
+    outcome_on: Mapped[date] = mapped_column(Date)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    receipt_document_id: Mapped[int | None] = mapped_column(ForeignKey("sent_documents.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(160), server_default="System")
+
+    receipt_document: Mapped["SentDocument | None"] = relationship()
 
 
 class ArchiveImmutableError(Exception):
@@ -5214,3 +5251,15 @@ def _dispatch_authorization_no_update(mapper, connection, target):
 @event.listens_for(DispatchAuthorization, "before_delete")
 def _dispatch_authorization_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Die beim Versand festgehaltene Vollmacht wird nie gelöscht.")
+
+
+# Empfang bestätigt / unzustellbar (seit 1.8.41): einmal vermerkt, danach fest.
+@event.listens_for(DispatchOutcome, "before_update")
+def _dispatch_outcome_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs if attr.key != "receipt_document"):
+        raise ArchiveImmutableError("Ein vermerkter Empfang bzw. eine Unzustellbarkeit ist unveränderlich.")
+
+
+@event.listens_for(DispatchOutcome, "before_delete")
+def _dispatch_outcome_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Ein vermerkter Empfang bzw. eine Unzustellbarkeit wird nie gelöscht.")

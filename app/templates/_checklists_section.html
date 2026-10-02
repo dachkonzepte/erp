@@ -73,7 +73,8 @@ if(!window.renderChecklistSection){
       }
       if(rows.length){
         html+='<div class="cl-list">'+rows.map(function(c){
-          var badge=c.status==='entwurf'?'<span class="cl-badge draft">Entwurf</span>':'<span class="cl-badge">Abgeschlossen</span>';
+          // seit 1.8.41 auch "gegenstandslos" (Behinderungs-/Bedenkenanzeige ohne Anlass, bleibt als Beleg)
+          var badge=c.status==='entwurf'?'<span class="cl-badge draft">Entwurf</span>':(c.status==='gegenstandslos'?'<span class="cl-badge">Gegenstandslos</span>':'<span class="cl-badge">Abgeschlossen</span>');
           var meta=[fmt(c.completed_at||c.created_at),c.created_by_name,c.is_own?'eigene':null].filter(Boolean).join(' · ');
           var inner='<div><div class="cl-title">'+esc(c.template_label)+'</div><div class="cl-meta">'+esc(meta)+'</div></div>'+badge;
           return c.can_open?'<a class="cl-row" href="/checklisten/'+c.id+'">'+inner+'</a>':'<div class="cl-row" title="Nur Titel, Datum und Ersteller sichtbar">'+inner+'</div>';

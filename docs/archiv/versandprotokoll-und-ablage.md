@@ -307,3 +307,20 @@ Herleitung: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.40". 
   `list_dispatches()` für alle Zeilen in einer Abfrage geladen); Versandverlauf und `/versandprotokoll` zeigen sie.
 - **`DispatchDocument.after_delivery`**: optionaler Nachlauf, den `record_manual_delivery()` nach dem Commit des Eintrags aufruft
   (hier: die Aufgabe "Behinderungsanzeige versenden" erledigen). Eine Wiederholung desselben Schlüssels ruft ihn nicht.
+
+## Nachtrag 1.8.41 -- Versandergebnis, Empfängerauswahl beim Nachtragen
+
+Herleitung: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.41". Was sich hier geändert hat:
+- **Versandergebnis** (`record_dispatch_outcome()`, Tabelle `dispatch_outcomes`, `POST /api/email-dispatches/{id}/outcome`): zu
+  jedem gesendeten Eintrag eines Dokuments (E-Mail oder nachgetragene Zustellung) einmal "Empfang bestätigt am" (Datum, Notiz
+  freiwillig, Beleg optional) oder "unzustellbar" (Datum, Notiz Pflicht, Beleg optional) -- UNIQUE je Eintrag, unveränderlich
+  (ORM-Sperre), Datum zwischen Versandtag und heute, Historie "Versandergebnis". Aufgaben-Benachrichtigungen haben keins. Eine
+  eigene Tabelle, damit die Sperre am Protokolleintrag (nur der Abschluss aus "in Arbeit") unverändert bleibt. Ein Nachlauf je
+  Dokumentart (`app/dispatch_documents.py::after_outcome()`) -- bisher nur die Behinderungsanzeige (Aufgabe wieder offen).
+- **Empfängerauswahl beim Nachtragen** (`delivery_recipients()`, `GET /api/email-dispatches/delivery-recipients`;
+  `record_manual_delivery(to_client=…, participant_ids=…)`): Auftraggeber und Beteiligte des Projekts, auch ohne E-Mail, für jede
+  Dokumentart mit Projekt; Empfänger als Text "Name (Rolle)", `delivered_to_client` am Eintrag. Gewählte Empfangsbevollmächtigte:
+  Vollmacht eingefroren wie beim E-Mail-Versand (`freeze_authorization()`, jetzt hier; `recipient_email` dann leer).
+  `DispatchDocument.after_delivery` bekommt den Eintrag (an wen ging die Zustellung?).
+- **Oberfläche**: `_email_dispatch.html` -- Ergebnis je Zeile (`dispatchOutcomeHtml()`, sichtbares Formular), Empfängerauswahl
+  im Formular "Zustellung nachtragen"; `/versandprotokoll` bindet `_email_dispatch.html` ein und zeigt Ergebnis und Beleg.

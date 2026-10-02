@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.40** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.41** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -582,7 +582,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Briefe zur Behinderungsanzeige ab dem Erstellen (`app/notice_letters.py`), dazu je Versand die Vollmacht eines
     empfangsbevollmächtigten Empfängers (`dispatch_email(before_send=…)`).
     Eine Zustellung auf anderem Weg (Einschreiben, Übergabe, Bote, Fax) wird seit 1.8.20 im selben
-    Protokoll nachgetragen (`record_manual_delivery()`); eine neue Dokumentart braucht einen Eintrag
+    Protokoll nachgetragen (`record_manual_delivery()`, seit 1.8.41 mit Empfängerauswahl aus Auftraggeber und
+    Beteiligten, Vollmacht eingefroren); seit 1.8.41 je gesendetem Eintrag einmal "Empfang bestätigt" oder
+    "unzustellbar" (`record_dispatch_outcome()`, eigene Tabelle, unveränderlich); eine neue Dokumentart braucht einen Eintrag
     in `app/dispatch_documents.py`. Details: `docs/archiv/versandprotokoll-und-ablage.md`.
 
 22. **Ein Update-Endpunkt übernimmt nur gesendete Felder, seit 1.8.25.** Hat ein PUT-Schema Felder
@@ -639,14 +641,19 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Rolle (`app/project_participants.py::ROLES`) einem Projekt zu, eindeutig je Projekt, Kontakt und Rolle. Der Kunde ist
   Auftraggeber und nie Beteiligter. Seit 1.8.39 auch ein Eintrag mit Verweis auf Kunde oder Lieferant
   (`Contact.customer_id`/`supplier_id`, höchstens einer je Stammsatz): Name, Kontaktwege, Adresse kommen live aus dem
-  Stammsatz (`contact_values()`), Suche/Sortierung brauchen `with_sources()`. Details:
+  Stammsatz (`contact_values()`), Suche/Sortierung brauchen `with_sources()`. Seit 1.8.41 lehnt ein Kundenwechsel am
+  Projekt ab (409), wenn der neue Kunde dort schon Beteiligter ist (`check_client_change()`). Details:
   `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.37" und "Umsetzung 1.8.39".
 - **Behinderungsanzeige** (seit 1.8.38): eine Checkliste mit Zweck `behinderungsanzeige` (Systemfelder in
   `app/checklist_purposes.py`): Meldung (meist Monteur) → Anzeige (nur Büro) → Wegfall, je mit Unterschrift; nach der
   Unterschrift der Meldung die Aufgabe "Behinderungsanzeige versenden" (`app/obstruction_notices.py`). Seit 1.8.40 Brief an den
   Auftraggeber (`app/notice_letters.py`): Behinderungsanzeige nach der Unterschrift Büro, Anzeige der Wiederaufnahme nach dem
   Wegfall, Inhalt aus der versiegelten Kopie der Unterschrift, Fassung je Unterschrift in der Ablage, Vorbehalt nur geprüft,
-  An immer der Auftraggeber. Details: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.38" und "Umsetzung 1.8.40".
+  An immer der Auftraggeber. Seit 1.8.41: Zeitstrahl (bekannt seit → Meldung → versendet), "versendet" heißt beim
+  Auftraggeber angekommen (`reached_client()`: nicht unzustellbar, keine reine Kopie an Beteiligte), Wiederaufnahme "i. A."
+  mit dem Büro-Konto statt der Wegfall-Unterschrift, Status `gegenstandslos` (`void_checklist()`, auch Bedenkenanzeige, nur
+  Büro, mit Begründung versiegelt, keine Folgen/Briefe mehr). Details: `docs/archiv/vertragsgrundlage-und-vertrag.md`,
+  "Umsetzung 1.8.38", "Umsetzung 1.8.40" und "Umsetzung 1.8.41".
 - **Weitere Fachbegriffe ausgelagert**: Dachflächen & Bauteile, Wartungsvertrag,
   Einsatzbericht, Rechnung aus Zeitbuchungen, Schnellauftrag, Wartungshistorie und
   Monteursansicht stehen vollständig in `docs/archiv/modul-wartungen-und-monteursansicht.md`;
@@ -740,8 +747,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Echo-Erkennung) -- `docs/archiv/modul-kalender-und-outlook-sync.md`
 - **Checklisten & Formulare** (Modul `checklisten`, Vorlagenfassungen, Kontexte Auftrag/Objekt/
   Betriebsmittel/Betrieb, Regeln → Aufgaben, Etappenplan 1.8.0–1.8.5 und Stufen 2–4; seit 1.8.38 Systemfelder mit
-  Abschnitt und "nur Büro", Folgen nach einer Unterschrift, Regel-Aufgabe mit Link zum Anlegen) --
-  `docs/archiv/modul-checklisten.md`
+  Abschnitt und "nur Büro", Folgen nach einer Unterschrift, Regel-Aufgabe mit Link zum Anlegen; seit 1.8.41 Status
+  "gegenstandslos" für Behinderungs- und Bedenkenanzeige) -- `docs/archiv/modul-checklisten.md`
 - **Kaufmännisches Runden** (Helfer `app/rounding.py`, Rundungsregel je Rechnung, Liste der
   Geldstellen, bewusst nicht geänderte Formatierer) -- `docs/archiv/kaufmaennisches-runden.md`
 - **Versandprotokoll und Ablage** (jede E-Mail über `dispatch_email()`, Schlüssel gegen
@@ -765,8 +772,10 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Kunden und Lieferanten (Dialog nach Herkunft, Rollenprüfung der Büro-Suche `office_source_visible()`, Eintrag mit
   Verweis ohne Kopie); seit 1.8.40 Behinderungsanzeige als Brief (zwei Briefarten, Fassung je Abschnittsunterschrift mit PDF
   in der Ablage, Vorbehalt je Briefart und VOB/B bzw. BGB mit Prüfung, An fest der Auftraggeber, CC "Kopie bei Anzeigen",
-  Vollmacht beim Versand in der Ablage, Aufgabe "versenden" danach erledigt); offen 2b-3 Teil 2b: Empfang bestätigt/unzustellbar,
-  Zeitstrahl, "gegenstandslos", Kundenwechsel) --
+  Vollmacht beim Versand in der Ablage, Aufgabe "versenden" danach erledigt); seit 1.8.41 Versandergebnis "Empfang
+  bestätigt"/"unzustellbar" für alle Dokumente, Zustellung nachtragen mit Empfängerauswahl und Vollmacht, Wiederaufnahme
+  "i. A." Büro-Konto, Zeitstrahl, "als gegenstandslos abschließen", Kundenwechsel prüft Beteiligte; offen 2b-4
+  Bedenkenanzeige) --
   `docs/archiv/vertragsgrundlage-und-vertrag.md`
 - **Speichern nur gesendeter Felder** (`PartialUpdate`, Strukturtest über alle PUT-Handler, Liste der
   Altfälle, Nebenbefunde der Durchsicht aller Speichern-Aufrufer) -- `docs/archiv/teil-updates.md`
@@ -1101,7 +1110,10 @@ ein Eintrag für zwei Projekte, Formular schreibgeschützt, dunkel, 412 px, Mont
 `klicktest_behinderungsanzeige_versand.py` (1.8.40, Karte "Anzeige an den Auftraggeber": wartet → Unterschrift Büro → bereit mit
 Warnung ohne Vorbehalt, Admin prüft den Vorbehalt, Versand an einen SMTP-Empfänger im Skript mit An fest und Anhang = abgelegter
 Brief, Vollmacht im Verlauf, Aufgabe erledigt, dunkel 412 px, Monteurin 403, Wiederaufnahme per "Brief erstellen" und
-Einschreiben). Ein Klicktest, der als Monteur `/mobil` öffnet,
+Einschreiben) und `klicktest_behinderungsanzeige_abschluss.py` (1.8.41, Zeitstrahl, "Unzustellbar" und "Empfang bestätigt" mit
+Beleg-Upload im Versandverlauf, Zustellung nachtragen mit Empfängerauswahl und Vollmacht ohne E-Mail, Wiederaufnahme "i. A.",
+"als gegenstandslos abschließen" für Büro und Monteurin, Kundenwechsel abgelehnt, dunkel 412 px). Ein Klicktest, der als
+Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)
 meldet `/mobil` ab, eine 403-Prüfung sähe abends 401; `--wanduhr HH:MM` täuscht eine andere Uhrzeit vor (Gegenprobe),
 `tests/test_v339_feste_uhr.py` prüft, dass jeder solche Klicktest `uhr=` setzt. Eine Seite mit `alert()` beim Laden hält den headless Chrome an --

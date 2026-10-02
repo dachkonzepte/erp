@@ -32,7 +32,14 @@ send_message() hat keinen anderen Aufrufer, per Test erzwungen). Ablauf je Versa
 Zustellung auf anderem Weg (seit 1.8.20, record_manual_delivery()): Einschreiben, persönliche
 Übergabe, Bote oder Fax trägt das Büro mit Datum, Notiz und optional einem Beleg (Foto/Scan) nach.
 Das ist ein Eintrag im selben Protokoll (channel = Weg, sofort "gesendet"), das PDF des Dokuments und
-der Beleg liegen in der Ablage. Gesendet wird dabei nichts.
+der Beleg liegen in der Ablage. Gesendet wird dabei nichts. Seit 1.8.41 mit Empfängerauswahl
+(delivery_recipients(): Auftraggeber und Beteiligte des Projekts, auch ohne E-Mail); geht sie an einen
+empfangsbevollmächtigten Beteiligten, wird seine Vollmacht wie beim E-Mail-Versand eingefroren
+(freeze_authorization()).
+
+Was danach bekannt wird (seit 1.8.41, record_dispatch_outcome()): "Empfang bestätigt am" (Datum, Notiz,
+optional Beleg) oder "unzustellbar" (Datum, Pflicht-Notiz) -- höchstens eines je Eintrag (DispatchOutcome,
+UNIQUE), danach unveränderlich, für jede Dokumentart, nie für Aufgaben-Benachrichtigungen.
 
 Regel 18: im Protokoll stehen Empfänger und Betreff (vom Betreiber für den Nachweis verlangt), nie
 der Mailtext und nie der Fehlertext -- vom Fehler nur Klassenname und Code (HTTP-Status bzw.
@@ -55,7 +62,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .email_sending import check_attachment_size, ensure_configured, get_or_create_smtp_settings, send_message
-from .models import EmailDispatch, SentDocument
+from .models import DispatchAuthorization, DispatchOutcome, EmailDispatch, ProjectParticipant, SentDocument
 from .sent_documents import DOCUMENT_TYPES, store_sent_document
 
 HEADER_NAME = "X-DK-Versand-ID"
@@ -70,6 +77,10 @@ MAX_RECEIPT_BYTES = 15_000_000  # Beleg einer nachgetragenen Zustellung (Foto vo
 DELIVERY_NOTE_MAX = 1000
 DISPATCH_TYPES = {**DOCUMENT_TYPES, "aufgabe": "Aufgaben-Benachrichtigung"}
 DISPATCH_ENTITY_TYPE = "Versand"  # Änderungshistorie (app/audit.py) für die Klärung eines Eintrags
+# Versandergebnis (seit 1.8.41, record_dispatch_outcome())
+OUTCOMES = {"empfangen": "Empfang bestätigt", "unzustellbar": "Unzustellbar"}
+OUTCOME_NOTE_MAX = 1000
+RECIPIENT_TEXT_MAX = 300
 
 RUNNING_TEXT = (
     "Für dieses Dokument läuft gerade ein anderer Versand. Bitte das Ergebnis abwarten und im "
@@ -454,15 +465,54 @@ def _safe_filename(name: str | None, content_type: str) -> str:
     return f"{stem or 'Beleg'}{suffix}"
 
 
+def _client_of_project(db: Session, project_id: int | None):
+    from .models import Project
+
+    project = db.get(Project, project_id) if project_id is not None else None
+    return project.customer if project is not None else None
+
+
+def delivery_recipients(db: Session, document_type: str, document_id: int) -> dict:
+    """Empfängerauswahl für "Zustellung nachtragen" (seit 1.8.41): der Auftraggeber (Kunde des Projekts, Anschrift
+    live aus dem Kundenstamm) und die Beteiligten des Projekts -- auch ohne E-Mail, archivierte Kontakte
+    gekennzeichnet. Ohne Projekt (z. B. Checkliste am Objekt) leer: dann nur die freie Empfängerangabe.
+    LookupError: unbekannte Art oder Dokument fehlt."""
+    from .dispatch_documents import document_row, project_id_of
+    from .project_participants import participant_info, participant_rows
+
+    if document_row(db, document_type, document_id) is None:
+        raise LookupError("Dokument nicht gefunden.")
+    project_id = project_id_of(db, document_type, document_id)
+    customer = _client_of_project(db, project_id)
+    client = None
+    if customer is not None:
+        address = ", ".join(x for x in (customer.street, " ".join(y for y in (customer.postal_code, customer.city) if y)) if x)
+        client = {"customer_id": customer.id, "name": customer.name, "address": address or None}
+    participants = []
+    if project_id is not None:
+        for p in participant_rows(db, project_id):
+            info = participant_info(p)
+            participants.append({key: info[key] for key in (
+                "participant_id", "name", "role", "role_label", "authorized", "has_poa", "archived", "email")})
+    return {"project_id": project_id, "client": client, "participants": participants}
+
+
 def record_manual_delivery(
     db: Session, *, dispatch_key: str, document_type: str, document_id: int, channel: str, delivered_on: date,
     note: str, recipient: str | None = None, receipt_bytes: bytes | None = None, receipt_filename: str | None = None,
-    user_id: int | None = None, user_name: str | None = None,
+    user_id: int | None = None, user_name: str | None = None, to_client: bool = False,
+    participant_ids: list[int] | None = None,
 ) -> DispatchResult:
     """Zustellung auf anderem Weg nachtragen (seit 1.8.20): Eintrag im Protokoll (Weg, Datum, Notiz,
     optional Empfänger), das PDF des Dokuments und der Beleg in die Ablage -- in einer Transaktion.
     Derselbe Schlüssel wird nie zweimal eingetragen (Wiederholung liefert den Eintrag zurück).
-    Wirft LookupError (404), ValueError (400)."""
+    Wirft LookupError (404), ValueError (400).
+
+    Seit 1.8.41 Empfängerauswahl: to_client (der Auftraggeber) und participant_ids (Beteiligte DIESES Projekts),
+    dazu weiterhin die freie Angabe recipient. Die Empfänger stehen als Text im Eintrag ("Name (Rolle)"),
+    delivered_to_client hält fest, ob der Auftraggeber dabei war (leer, wenn niemand gewählt wurde -- wie vor
+    1.8.41). Je gewähltem empfangsbevollmächtigtem Beteiligten wird seine Vollmacht in derselben Transaktion
+    eingefroren (freeze_authorization(), auch ohne E-Mail-Adresse)."""
     from .berlin_time import berlin_today
     from .dispatch_documents import dispatch_document
     from .sent_documents import ArchiveFileError
@@ -478,13 +528,30 @@ def record_manual_delivery(
     if len(note) > DELIVERY_NOTE_MAX:
         raise ValueError(f"Die Notiz ist zu lang (höchstens {DELIVERY_NOTE_MAX} Zeichen).")
     recipient = (recipient or "").strip()
-    if len(recipient) > 300:
-        raise ValueError("Die Empfängerangabe ist zu lang (höchstens 300 Zeichen).")
+    if len(recipient) > RECIPIENT_TEXT_MAX:
+        raise ValueError(f"Die Empfängerangabe ist zu lang (höchstens {RECIPIENT_TEXT_MAX} Zeichen).")
     if delivered_on > berlin_today():
         raise ValueError("Das Zustelldatum liegt in der Zukunft.")
     if _key_taken(db, key):
         return _existing(db, key, document_type, document_id)
     document = dispatch_document(db, document_type, document_id)
+    participant_ids = list(dict.fromkeys(participant_ids or []))
+    chosen: list[ProjectParticipant] = []
+    client = None
+    if to_client or participant_ids:
+        if document.project_id is None:
+            raise ValueError("Dieses Dokument gehört zu keinem Projekt – bitte den Empfänger als Text angeben.")
+        if to_client:
+            client = _client_of_project(db, document.project_id)
+            if client is None:
+                raise ValueError("Das Projekt hat keinen Auftraggeber.")
+        if participant_ids:
+            from .project_participants import participant_rows
+
+            by_id = {p.id: p for p in participant_rows(db, document.project_id)}
+            if any(pid not in by_id for pid in participant_ids):
+                raise ValueError("Ein gewählter Beteiligter gehört nicht zu diesem Projekt – bitte die Seite neu laden.")
+            chosen = [by_id[pid] for pid in participant_ids]
     receipt_type = None
     if receipt_bytes:
         if len(receipt_bytes) > MAX_RECEIPT_BYTES:
@@ -511,14 +578,20 @@ def record_manual_delivery(
             filename=_safe_filename(receipt_filename, receipt_type), content=receipt_bytes, user_id=user_id,
             user_name=user_name, content_type=receipt_type,
         )
+    from .project_participants import participant_info
+
+    names = ([f"{client.name} (Auftraggeber)"] if client is not None else []) + [
+        f"{info['name']} ({info['role_label']})" for info in (participant_info(p) for p in chosen)]
     now = datetime.utcnow()
     dispatch = EmailDispatch(
         dispatch_key=key, message_ref=str(uuid.uuid4()), status="gesendet", channel=channel,
         document_type=document_type, document_id=document_id, document_number=document.number,
-        to_recipients=recipient, subject=f"{MANUAL_CHANNELS[channel]} – {document.label}",
+        to_recipients="; ".join(names + ([recipient] if recipient else [])),
+        subject=f"{MANUAL_CHANNELS[channel]} – {document.label}",
         sent_document_id=archived.id, receipt_document_id=receipt.id if receipt else None,
         created_at=now, finished_at=now, created_by_user_id=user_id, created_by_name=user_name,
         delivered_on=delivered_on, delivery_note=note,
+        delivered_to_client=(client is not None) if (client is not None or chosen) else None,
     )
     try:
         with db.begin_nested():
@@ -529,13 +602,171 @@ def record_manual_delivery(
         # ohne Eintrag liegen -- die Ablage löscht nie), der andere Eintrag gilt.
         db.rollback()
         return _existing(db, key, document_type, document_id)
+    for participant in chosen:
+        if participant.authorized_recipient:
+            freeze_authorization(db, dispatch, participant, recipient_email=None, user_id=user_id, user_name=user_name)
+    db.flush()
     db.commit()
     db.refresh(dispatch)
     if document.after_delivery is not None:
         # Seit 1.8.40 (Behinderungsanzeige: Aufgabe "versenden" erledigt) -- nach dem Commit, der Eintrag gilt.
-        document.after_delivery()
+        document.after_delivery(dispatch)
         db.refresh(dispatch)
     return DispatchResult(dispatch, True)
+
+
+def freeze_authorization(db: Session, dispatch: EmailDispatch, participant: ProjectParticipant, *,
+                         recipient_email: str | None, user_id: int | None, user_name: str | None) -> DispatchAuthorization:
+    """Die Empfangsvollmacht eines Beteiligten zum Versand festhalten (seit 1.8.40 beim E-Mail-Versand eines Briefs
+    an den Auftraggeber, seit 1.8.41 hier gemeinsam, auch für eine nachgetragene Zustellung ohne E-Mail): die
+    hinterlegte Vollmacht als Kopie in die Ablage (Art und Dokument wie der Versand; dieselbe Datei je Dokument nur
+    einmal, sonst verwiesen) und eine DispatchAuthorization-Zeile. Eine fehlende oder veränderte Vollmacht-Datei
+    hält nichts auf -- die Zeile sagt es dann (note). Committet nicht."""
+    from .project_participants import participant_info, power_of_attorney_path
+    from .sent_documents import CONTENT_TYPE_SUFFIXES
+
+    info = participant_info(participant)
+    document, note = None, None
+    if not participant.poa_stored_filename:
+        note = "Keine Vollmacht hinterlegt."
+    else:
+        try:
+            data = power_of_attorney_path(participant.poa_stored_filename).read_bytes()
+        except (FileNotFoundError, NotADirectoryError):
+            data = None
+        if data is None or hashlib.sha256(data).hexdigest() != participant.poa_sha256 \
+                or participant.poa_content_type not in CONTENT_TYPE_SUFFIXES:
+            note = "Vollmacht-Datei fehlt oder passt nicht zu ihrer Prüfsumme – nicht festgehalten."
+        else:
+            document = db.scalar(select(SentDocument).where(
+                SentDocument.document_type == dispatch.document_type, SentDocument.document_id == dispatch.document_id,
+                SentDocument.sha256 == participant.poa_sha256).limit(1))
+            if document is None:
+                stem = re.sub(r"[^A-Za-z0-9_-]+", "_", f"Vollmacht_{info['name']}")[:80]
+                document = store_sent_document(
+                    db, document_type=dispatch.document_type, document_id=dispatch.document_id,
+                    document_number=dispatch.document_number,
+                    filename=f"{stem}{CONTENT_TYPE_SUFFIXES[participant.poa_content_type]}", content=data,
+                    user_id=user_id, user_name=user_name or "System", content_type=participant.poa_content_type,
+                )
+    row = DispatchAuthorization(
+        dispatch_id=dispatch.id, participant_id=participant.id, contact_name=info["name"][:255], role=participant.role,
+        recipient_email=recipient_email[:255] if recipient_email else None,
+        sent_document_id=document.id if document else None, poa_sha256=document.sha256 if document else None, note=note,
+    )
+    db.add(row)
+    return row
+
+
+def _dispatch_day(dispatch: EmailDispatch) -> date:
+    """Tag des Versands: bei einer nachgetragenen Zustellung das Zustelldatum, sonst der Abschluss in Europe/Berlin."""
+    from .berlin_time import to_berlin
+
+    return dispatch.delivered_on or to_berlin(dispatch.finished_at or dispatch.created_at).date()
+
+
+def record_dispatch_outcome(
+    db: Session, dispatch_id: int, *, outcome: str, outcome_on: date, note: str | None,
+    receipt_bytes: bytes | None = None, receipt_filename: str | None = None,
+    user_id: int | None = None, user_name: str | None = None,
+) -> DispatchOutcome:
+    """"Empfang bestätigt am" bzw. "als unzustellbar markieren" (seit 1.8.41, Stufe 2b, Runde 2b-3 Teil 3) -- für
+    jeden gesendeten Versand und jede nachgetragene Zustellung eines Dokuments, nie für eine
+    Aufgaben-Benachrichtigung. Höchstens EIN Ergebnis je Eintrag (Festlegung: Empfang und Unzustellbarkeit schließen
+    sich aus); Datum nicht in der Zukunft und nicht vor dem Versand; Notiz bei "unzustellbar" Pflicht; optional ein
+    Beleg (Rückschein, Rückläufer, Lesebestätigung -- am Inhalt erkannt wie der Beleg einer Zustellung) in der Ablage.
+    Zwei gleichzeitige Vermerke: der UNIQUE-Schlüssel lässt genau einen zu. Historie wie beim Klären. Danach der
+    Nachlauf je Dokumentart (app/dispatch_documents.py::after_outcome(), Behinderungsanzeige: Aufgabe wieder offen).
+    Wirft LookupError (404), ValueError (400), DispatchConflict (409)."""
+    from .berlin_time import berlin_today
+
+    if outcome not in OUTCOMES:
+        raise ValueError("Bitte „Empfang bestätigt“ oder „unzustellbar“ wählen.")
+    note = (note or "").strip()
+    if outcome == "unzustellbar" and len(note) < 3:
+        raise ValueError("Bitte in der Notiz festhalten, warum unzustellbar (z. B. „Rückläufer: Empfänger unbekannt verzogen“).")
+    if len(note) > OUTCOME_NOTE_MAX:
+        raise ValueError(f"Die Notiz ist zu lang (höchstens {OUTCOME_NOTE_MAX} Zeichen).")
+    if outcome_on > berlin_today():
+        raise ValueError("Das Datum liegt in der Zukunft.")
+    dispatch = db.get(EmailDispatch, dispatch_id)
+    if dispatch is None or dispatch.document_type not in DOCUMENT_TYPES:
+        raise LookupError("Protokolleintrag nicht gefunden.")
+    if dispatch.status != "gesendet":
+        raise DispatchConflict("Empfang oder Unzustellbarkeit lässt sich nur zu einem gesendeten Versand bzw. einer "
+                               f"nachgetragenen Zustellung vermerken (dieser Eintrag: {STATUSES.get(dispatch.status, dispatch.status)}).")
+    day = _dispatch_day(dispatch)
+    if outcome_on < day:
+        raise ValueError(f"Das Datum liegt vor dem Versand ({day.strftime('%d.%m.%Y')}).")
+    existing = db.scalar(select(DispatchOutcome).where(DispatchOutcome.dispatch_id == dispatch_id))
+    if existing is not None:
+        raise DispatchConflict(f"Zu diesem Versand ist bereits vermerkt: {OUTCOMES.get(existing.outcome, existing.outcome)} "
+                               f"am {existing.outcome_on.strftime('%d.%m.%Y')}.")
+    receipt_type = None
+    if receipt_bytes:
+        if len(receipt_bytes) > MAX_RECEIPT_BYTES:
+            raise ValueError(f"Der Beleg ist größer als {MAX_RECEIPT_BYTES // 1_000_000} MB.")
+        receipt_type = receipt_content_type(receipt_bytes)
+    if user_id is None and user_name is None:
+        from .audit import current_actor
+        user_id, user_name = current_actor()
+    user_name = user_name or "System"
+    receipt = None
+    if receipt_type is not None:
+        receipt = store_sent_document(
+            db, document_type=dispatch.document_type, document_id=dispatch.document_id,
+            document_number=dispatch.document_number, filename=_safe_filename(receipt_filename, receipt_type),
+            content=receipt_bytes, user_id=user_id, user_name=user_name, content_type=receipt_type,
+        )
+    row = DispatchOutcome(dispatch_id=dispatch.id, outcome=outcome, outcome_on=outcome_on, note=note or None,
+                          receipt_document_id=receipt.id if receipt else None, created_at=datetime.utcnow(),
+                          created_by_user_id=user_id, created_by_name=user_name)
+    try:
+        with db.begin_nested():
+            db.add(row)
+            db.flush()
+    except IntegrityError:
+        db.rollback()  # ein gleichzeitiger Vermerk war schneller; ein schon abgelegter Beleg bleibt ohne Eintrag (1.8.20)
+        raise DispatchConflict("Zu diesem Versand hat inzwischen jemand anderes ein Ergebnis vermerkt.")
+    from .audit import record_audit_entry
+    from .dispatch_documents import project_id_of
+
+    record_audit_entry(
+        db, action="geändert", entity_type=DISPATCH_ENTITY_TYPE, entity_id=dispatch.id,
+        entity_label=_dispatch_label(dispatch), project_id=project_id_of(db, dispatch.document_type, dispatch.document_id),
+        field_name="outcome", field_label="Versandergebnis",
+        new_value=f"{OUTCOMES[outcome]} am {outcome_on.strftime('%d.%m.%Y')}" + (f" – Notiz: {note}" if note else "")
+                  + (" – mit Beleg" if receipt else ""),
+        actor_user_id=user_id, actor_name=user_name,
+    )
+    db.commit()
+    db.refresh(row)
+    from .dispatch_documents import after_outcome
+
+    after_outcome(db, dispatch, row)
+    return row
+
+
+def outcome_to_dict(row: DispatchOutcome | None) -> dict | None:
+    from .berlin_time import to_berlin
+    from .sent_documents import sent_document_to_dict
+
+    if row is None:
+        return None
+    return {"outcome": row.outcome, "outcome_label": OUTCOMES.get(row.outcome, row.outcome), "outcome_on": row.outcome_on,
+            "note": row.note, "created_at_local": to_berlin(row.created_at), "created_by_name": row.created_by_name,
+            "receipt_document": sent_document_to_dict(row.receipt_document) if row.receipt_document else None}
+
+
+def dispatch_outcomes(db: Session, dispatch_ids: list[int]) -> dict[int, DispatchOutcome]:
+    """Versandergebnisse je Eintrag (seit 1.8.41), für mehrere Einträge in einer Abfrage."""
+    if not dispatch_ids:
+        return {}
+    from sqlalchemy.orm import selectinload
+
+    rows = db.scalars(select(DispatchOutcome).where(DispatchOutcome.dispatch_id.in_(dispatch_ids))
+                      .options(selectinload(DispatchOutcome.receipt_document))).all()
+    return {r.dispatch_id: r for r in rows}
 
 
 def authorization_to_dict(row) -> dict:
@@ -554,8 +785,6 @@ def dispatch_authorizations(db: Session, dispatch_ids: list[int]) -> dict[int, l
         return {}
     from sqlalchemy.orm import selectinload
 
-    from .models import DispatchAuthorization
-
     rows = db.scalars(select(DispatchAuthorization).where(DispatchAuthorization.dispatch_id.in_(dispatch_ids))
                       .options(selectinload(DispatchAuthorization.sent_document))
                       .order_by(DispatchAuthorization.id)).all()
@@ -565,11 +794,16 @@ def dispatch_authorizations(db: Session, dispatch_ids: list[int]) -> dict[int, l
     return result
 
 
-def dispatch_to_dict(dispatch: EmailDispatch, now: datetime | None = None, authorizations: list[dict] | None = None) -> dict:
+def dispatch_to_dict(dispatch: EmailDispatch, now: datetime | None = None, authorizations: list[dict] | None = None,
+                     outcome: DispatchOutcome | None = None) -> dict:
+    """outcome (seit 1.8.41): das vermerkte Versandergebnis, falls schon geladen (list_dispatches())."""
     from .berlin_time import to_berlin
     from .sent_documents import sent_document_to_dict
 
     return {
+        "outcome": outcome_to_dict(outcome), "delivered_to_client": dispatch.delivered_to_client,
+        "can_record_outcome": (outcome is None and dispatch.status == "gesendet"
+                               and dispatch.document_type in DOCUMENT_TYPES),
         "id": dispatch.id, "dispatch_key": dispatch.dispatch_key, "message_ref": dispatch.message_ref,
         "status": dispatch.status, "status_label": STATUSES.get(dispatch.status, dispatch.status),
         "stuck": is_stuck(dispatch, now), "channel": dispatch.channel,
@@ -618,7 +852,8 @@ def list_dispatches(
     rows = db.scalars(query.order_by(EmailDispatch.created_at.desc(), EmailDispatch.id.desc()).limit(limit)).all()
     stuck_count = db.scalar(stuck_query) or 0
     authorizations = dispatch_authorizations(db, [r.id for r in rows])
-    items = [dispatch_to_dict(r, now, authorizations.get(r.id)) for r in rows]
+    outcomes = dispatch_outcomes(db, [r.id for r in rows])
+    items = [dispatch_to_dict(r, now, authorizations.get(r.id), outcomes.get(r.id)) for r in rows]
     # Seit 1.8.33: ein Vertrag hat keine eigene Seite, die Liste verlinkt auf seinen Auftrag.
     contract_ids = {r.document_id for r in rows if r.document_type == "vertrag" and r.document_id is not None}
     if contract_ids:

@@ -4696,6 +4696,13 @@ class ChecklistOut(ChecklistSummaryOut):
     can_delete: bool = False
     can_discard_signatures: bool = False
     can_fill_office_fields: bool = False  # seit 1.8.38: Felder mit office_only (nur Büro)
+    # seit 1.8.41: als gegenstandslos abgeschlossen (Behinderungs-, Bedenkenanzeige; can_void nur Büro im Entwurf)
+    voidable: bool = False
+    can_void: bool = False
+    voided_at: datetime | None = None
+    voided_at_local: str | None = None
+    voided_by_name: str | None = None
+    void_reason: str | None = None
 
 
 class ChecklistAssetReadinessOut(BaseModel):
@@ -4718,6 +4725,11 @@ class ChecklistAssetReleaseWrite(BaseModel):
 class ChecklistDiscardSignaturesWrite(BaseModel):
     reason: str | None = None  # Pflicht -- geprüft in der Geschäftslogik (400 mit Text statt 422)
     signature_id: int | None = None  # Pflicht seit 1.8.15: ab welcher Unterschrift verworfen wird (ebenso 400)
+
+
+class ChecklistVoidWrite(BaseModel):
+    """"Als gegenstandslos abschließen" (seit 1.8.41)."""
+    reason: str | None = None  # Pflicht -- geprüft in der Geschäftslogik (400 mit Text statt 422)
 
 
 class ChecklistRuleExecutionOut(BaseModel):

@@ -26,6 +26,18 @@ Vollmacht vor dem Senden mit Prüfsumme in die Ablage kopiert (DispatchAuthoriza
 später, bleibt diese Kopie. Nach dem Versand der Behinderungsanzeige -- per E-Mail oder als nachgetragene
 Zustellung -- ist die Aufgabe "Behinderungsanzeige versenden" (Folge der Meldung, 1.8.38) erledigt.
 
+Seit 1.8.41 (Runde 2b-3 Teil 3, Herleitung "Umsetzung 1.8.41"):
+- "Beim Auftraggeber angekommen" (delivered_dispatches()) zählt nur ein gesendeter Eintrag, der nicht als
+  unzustellbar vermerkt ist und -- bei einer nachgetragenen Zustellung mit Empfängerauswahl -- an den Auftraggeber
+  oder einen empfangsbevollmächtigten Beteiligten ging; eine Kopie nur an Beteiligte erledigt nichts. Daran hängen
+  "versendet", das Datum im Bezug der Wiederaufnahme, der Zeitstrahl und die Aufgabe "versenden" (erledigt, und
+  nach "unzustellbar" ohne andere Zustellung wieder offen).
+- Die Anzeige der Wiederaufnahme trägt "i. A." und den Namen des Büro-Kontos, das sie erstellt (signoff), nicht die
+  Unterschrift des Abschnitts Wegfall -- die bleibt interner Beleg (Prüfsumme in der Fußzeile).
+- Zeitstrahl (notice_timeline()): bekannt seit → Meldung unterschrieben → versendet, mit Abstand.
+- Als gegenstandslos abgeschlossen (app/checklists.py::void_checklist()): kein neuer Brief, kein Versand; eine
+  schon erstellte Fassung bleibt und lässt sich als zugestellt nachtragen.
+
 Rollenlos wie jede Geschäftslogik; nur das Büro (app/routers/notice_letters.py). Der PDF-Renderer
 (app/notice_letter_pdf.py) wird lokal importiert (Regel 3).
 """
@@ -41,15 +53,15 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from .berlin_time import to_berlin
-from .checklist_follow_ups import triggering_signature
-from .checklist_purposes import OBSTRUCTION_PURPOSE
-from .checklists import _load as _load_checklist, attachment_path, check_signature
+from .berlin_time import berlin_now, to_berlin
+from .checklist_follow_ups import complete_follow_up_tasks, reopen_follow_up_tasks, triggering_signature
+from .checklist_purposes import OBSTRUCTION_PURPOSE, OBSTRUCTION_REPORT_SIGNATURE
+from .checklists import VOID_STATUS, _load as _load_checklist, attachment_path, check_signature
 from .models import (
-    Checklist, ChecklistAttachment, ChecklistFollowUp, Contact, Customer, EmailDispatch, NoticeLetter, Order,
-    ProjectParticipant, SentDocument, Task, TaskColumn,
+    Checklist, ChecklistAttachment, Customer, DispatchAuthorization, DispatchOutcome, EmailDispatch, NoticeLetter, Order,
 )
 from .notice_reservations import printable_reservation, reservation_state
+from .project_participants import participant_info, participant_rows
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +149,14 @@ def section_signature(checklist: Checklist, spec: LetterKind) -> ChecklistAttach
     if any(triggering_signature(checklist, key) is None for key in spec.requires):
         return None
     return triggering_signature(checklist, spec.signature_field)
+
+
+VOID_TEXT = "Die Anzeige ist als gegenstandslos abgeschlossen – es wird kein Brief mehr erstellt oder versendet."
+
+
+def _require_not_void(checklist: Checklist) -> None:
+    if checklist.status == VOID_STATUS:
+        raise NoticeStateError(VOID_TEXT)
 
 
 def _require_intact(checklist: Checklist, signature: ChecklistAttachment) -> None:
@@ -234,52 +254,53 @@ def _letter_fields(checklist: Checklist, spec: LetterKind, signature: ChecklistA
     return items, photos
 
 
-def _participant_rows(db: Session, project_id: int) -> list[ProjectParticipant]:
-    from .project_participants import ROLES
-
-    rows = db.scalars(
-        select(ProjectParticipant).where(ProjectParticipant.project_id == project_id)
-        .options(selectinload(ProjectParticipant.contact).selectinload(Contact.customer),
-                 selectinload(ProjectParticipant.contact).selectinload(Contact.supplier))
-    ).all()
-    order = {key: i for i, key in enumerate(ROLES)}
-    return sorted(rows, key=lambda p: (order.get(p.role, len(order)), p.id))
-
-
-def _participant_info(p: ProjectParticipant) -> dict:
-    from .contacts import contact_display_name, contact_values
-    from .project_participants import role_label
-
-    return {
-        "participant_id": p.id, "name": contact_display_name(p.contact), "role": p.role,
-        "role_label": role_label(p.role), "email": (contact_values(p.contact)["email"] or "").strip() or None,
-        "copy_on_notices": p.copy_on_notices, "authorized": p.authorized_recipient,
-        "has_poa": bool(p.poa_stored_filename), "archived": p.contact.archived,
-    }
-
-
 def copy_recipients(db: Session, project_id: int) -> list[dict]:
     """Beteiligte mit "Kopie bei Anzeigen" (ohne archivierte Kontakte) -- "Kopie an:" im Brief und Vorbelegung
     von CC."""
-    return [info for info in (_participant_info(p) for p in _participant_rows(db, project_id))
+    return [info for info in (participant_info(p) for p in participant_rows(db, project_id))
             if info["copy_on_notices"] and not info["archived"]]
 
 
-def _sent_on(db: Session, kind: str, checklist_id: int) -> date | None:
-    """Tag des ersten erfolgreichen Versands dieser Briefart (E-Mail: Abschluss in Europe/Berlin,
-    nachgetragene Zustellung: Zustelldatum)."""
-    rows = db.execute(select(EmailDispatch.finished_at, EmailDispatch.delivered_on).where(
+def reached_client(dispatch: EmailDispatch, outcome: DispatchOutcome | None, has_authorization: bool) -> bool:
+    """Kam dieser Eintrag beim Auftraggeber an? (seit 1.8.41) Gesendet, nicht als unzustellbar vermerkt, und: per
+    E-Mail (An ist immer der Auftraggeber), oder nachgetragen an den Auftraggeber, an einen empfangsbevollmächtigten
+    Beteiligten (festgehaltene Vollmacht) oder ohne Empfängerauswahl (wie vor 1.8.41)."""
+    from .email_dispatch import MANUAL_CHANNELS
+
+    if dispatch.status != "gesendet" or (outcome is not None and outcome.outcome == "unzustellbar"):
+        return False
+    if dispatch.channel not in MANUAL_CHANNELS:
+        return True
+    return dispatch.delivered_to_client is not False or has_authorization
+
+
+def delivered_dispatches(db: Session, kind: str, checklist_id: int) -> list[EmailDispatch]:
+    """Die Einträge dieser Briefart, die beim Auftraggeber ankamen (reached_client()), ältester zuerst."""
+    rows = db.scalars(select(EmailDispatch).where(
         EmailDispatch.document_type == kind, EmailDispatch.document_id == checklist_id,
-        EmailDispatch.status == "gesendet")).all()
-    days = [delivered or (to_berlin(finished).date() if finished else None) for finished, delivered in rows]
-    days = [d for d in days if d is not None]
+        EmailDispatch.status == "gesendet").order_by(EmailDispatch.created_at, EmailDispatch.id)).all()
+    if not rows:
+        return []
+    ids = [r.id for r in rows]
+    outcomes = {o.dispatch_id: o for o in db.scalars(select(DispatchOutcome).where(DispatchOutcome.dispatch_id.in_(ids)))}
+    authorized = set(db.scalars(select(DispatchAuthorization.dispatch_id).where(DispatchAuthorization.dispatch_id.in_(ids))))
+    return [r for r in rows if reached_client(r, outcomes.get(r.id), r.id in authorized)]
+
+
+def _delivered_on(dispatch: EmailDispatch) -> date:
+    """E-Mail: Abschluss in Europe/Berlin; nachgetragene Zustellung: Zustelldatum."""
+    return dispatch.delivered_on or to_berlin(dispatch.finished_at or dispatch.created_at).date()
+
+
+def _sent_on(db: Session, kind: str, checklist_id: int) -> date | None:
+    """Tag der ersten Zustellung dieser Briefart beim Auftraggeber (delivered_dispatches())."""
+    days = [_delivered_on(d) for d in delivered_dispatches(db, kind, checklist_id)]
     return min(days) if days else None
 
 
 def letter_was_sent(db: Session, kind: str, checklist_id: int) -> bool:
-    return db.scalar(select(EmailDispatch.id).where(
-        EmailDispatch.document_type == kind, EmailDispatch.document_id == checklist_id,
-        EmailDispatch.status == "gesendet").limit(1)) is not None
+    """Ist diese Briefart beim Auftraggeber angekommen? (seit 1.8.41 ohne Unzustellbare und ohne reine Kopien)"""
+    return bool(delivered_dispatches(db, kind, checklist_id))
 
 
 def _canonical(content: dict) -> str:
@@ -287,8 +308,10 @@ def _canonical(content: dict) -> str:
 
 
 def build_letter_content(db: Session, checklist: Checklist, spec: LetterKind, signature: ChecklistAttachment, *,
-                         version_no: int | None, letter_date: date) -> dict:
-    """Alles, was im Brief steht, außer Briefpapier und Layout (eingefroren beim Erstellen)."""
+                         version_no: int | None, letter_date: date, issuer_name: str | None = None) -> dict:
+    """Alles, was im Brief steht, außer Briefpapier und Layout (eingefroren beim Erstellen). issuer_name (seit
+    1.8.41): das Büro-Konto, das den Brief erstellt -- die Anzeige der Wiederaufnahme trägt "i. A." und diesen Namen
+    statt der Unterschrift des Abschnitts Wegfall (signoff); "signature" bleibt als interner Bezug (Prüfsumme)."""
     from .settings import get_or_create_general_settings
 
     order = _order(db, checklist)
@@ -304,7 +327,11 @@ def build_letter_content(db: Session, checklist: Checklist, spec: LetterKind, si
         bezug = f"mit unserer Behinderungsanzeige vom {sent_on.strftime('%d.%m.%Y')} angezeigte" if sent_on else "angezeigte"
     sender_parts = [general.company_name, general.street, " ".join(x for x in (general.postal_code, general.city) if x)]
     project = construction_project(order)
+    signoff = None
+    if spec.key == "wiederaufnahme":
+        signoff = {"mode": "i_a", "name": (issuer_name or "").strip() or "System"}
     return {
+        "signoff": signoff,
         "v": 1, "kind": spec.key, "kind_label": spec.label, "checklist_id": checklist.id, "version_no": version_no,
         "order_id": order.id, "order_number": order.order_number,
         "customer_number": customer.customer_number if customer is not None else order.customer_number,
@@ -361,17 +388,21 @@ def _letter_for(db: Session, checklist_id: int, kind: str, signature_id: int) ->
                                                 NoticeLetter.signature_id == signature_id))
 
 
-def preview_pdf(db: Session, checklist_id: int, kind: str) -> bytes:
-    """Vorschau mit dem Stand von jetzt, quer "Vorschau – nicht versendet" -- nichts wird abgelegt."""
+def preview_pdf(db: Session, checklist_id: int, kind: str, *, user_name: str | None = None) -> bytes:
+    """Vorschau mit dem Stand von jetzt, quer "Vorschau – nicht versendet" -- nichts wird abgelegt. user_name: wer
+    sie ansieht (bei der Wiederaufnahme der Name hinter "i. A.", wie beim Erstellen durch dieses Konto)."""
+    from .audit import current_actor
     from .berlin_time import berlin_today
 
     spec = letter_kind(kind)
     checklist = _checklist(db, checklist_id)
+    _require_not_void(checklist)
     signature = section_signature(checklist, spec)
     if signature is None:
         raise NoticeStateError(spec.waiting_text)
     _require_intact(checklist, signature)
-    content = build_letter_content(db, checklist, spec, signature, version_no=None, letter_date=berlin_today())
+    content = build_letter_content(db, checklist, spec, signature, version_no=None, letter_date=berlin_today(),
+                                   issuer_name=user_name or current_actor()[1])
     return _render(db, checklist, content, watermark=PREVIEW_WATERMARK)
 
 
@@ -389,7 +420,10 @@ def ensure_letter(db: Session, checklist_id: int, kind: str, *, user_id: int | N
     Grundeinstellungen (Briefpapier-Bausteine, Ränder) an und committet dabei; unter einer Zeilensperre
     verklemmten sich so zwei gleichzeitige Aufrufe (gegen PostgreSQL gefunden). Danach unter der Zeilensperre
     der Checkliste: dieselbe Unterschrift noch gültig, noch keine Fassung dazu, dieselbe Nummer -- dann ablegen.
-    Zwei gleichzeitige Aufrufe ergeben so eine Fassung (zusätzlich der Unique-Schlüssel je Unterschrift)."""
+    Zwei gleichzeitige Aufrufe ergeben so eine Fassung (zusätzlich der Unique-Schlüssel je Unterschrift).
+
+    Seit 1.8.41: an einer als gegenstandslos abgeschlossenen Anzeige nur noch die vorhandene Fassung (für eine
+    nachgetragene Zustellung), keine neue (NoticeStateError). Die Wiederaufnahme trägt "i. A." user_name."""
     from .audit import current_actor, record_audit_entry
     from .berlin_time import berlin_today
     from .sent_documents import store_sent_document
@@ -402,13 +436,15 @@ def ensure_letter(db: Session, checklist_id: int, kind: str, *, user_id: int | N
     existing = _letter_for(db, checklist_id, kind, signature.id)
     if existing is not None:
         return existing
+    _require_not_void(checklist)
     _require_intact(checklist, signature)
     if user_id is None and user_name is None:
         user_id, user_name = current_actor()
     user_name = user_name or "System"
     signature_id = signature.id
     version_no = _next_version_no(db, checklist_id, kind)
-    content = build_letter_content(db, checklist, spec, signature, version_no=version_no, letter_date=berlin_today())
+    content = build_letter_content(db, checklist, spec, signature, version_no=version_no, letter_date=berlin_today(),
+                                   issuer_name=user_name)
     canonical = _canonical(content)
     pdf = _render(db, checklist, content)
 
@@ -417,6 +453,9 @@ def ensure_letter(db: Session, checklist_id: int, kind: str, *, user_id: int | N
     if signature is None or signature.id != signature_id:
         db.rollback()
         raise NoticeStateError("Die Unterschrift hat sich inzwischen geändert – bitte die Seite neu laden.")
+    if checklist.status == VOID_STATUS:
+        db.rollback()
+        raise NoticeStateError(VOID_TEXT)
     existing = _letter_for(db, checklist_id, kind, signature_id)
     if existing is not None:
         db.commit()  # Zeilensperre freigeben -- ein gleichzeitiger Aufruf war schneller, seine Fassung gilt
@@ -479,44 +518,17 @@ def _authorized_snapshot(db: Session, dispatch: EmailDispatch, *, kind: str, che
     """Hook vor dem Senden (dispatch_email(before_send=…)): je empfangsbevollmächtigtem Beteiligten, an dessen
     Adresse die Mail geht, die Vollmacht als Kopie in die Ablage und eine DispatchAuthorization-Zeile. Eine
     fehlende oder veränderte Vollmacht-Datei hält den Versand nicht auf (die Anzeige muss unverzüglich hinaus)
-    -- die Zeile sagt es dann. Committet nicht (der Aufrufer)."""
-    from .models import DispatchAuthorization
-    from .project_participants import power_of_attorney_path
-    from .sent_documents import CONTENT_TYPE_SUFFIXES, store_sent_document
+    -- die Zeile sagt es dann. Committet nicht (der Aufrufer). Seit 1.8.41 über
+    app/email_dispatch.py::freeze_authorization() (gemeinsam mit der nachgetragenen Zustellung)."""
+    from .email_dispatch import freeze_authorization
 
     recipients = {a.strip().lower() for a in f"{dispatch.to_recipients or ''},{dispatch.cc_recipients or ''}".split(",")
                   if a.strip()}
-    for p in _participant_rows(db, project_id):
-        info = _participant_info(p)
+    for p in participant_rows(db, project_id):
+        info = participant_info(p)
         if not info["authorized"] or not info["email"] or info["email"].lower() not in recipients:
             continue
-        document, note = None, None
-        if not p.poa_stored_filename:
-            note = "Keine Vollmacht hinterlegt."
-        else:
-            try:
-                data = power_of_attorney_path(p.poa_stored_filename).read_bytes()
-            except (FileNotFoundError, NotADirectoryError):
-                data = None
-            if data is None or hashlib.sha256(data).hexdigest() != p.poa_sha256 \
-                    or p.poa_content_type not in CONTENT_TYPE_SUFFIXES:
-                note = "Vollmacht-Datei fehlt oder passt nicht zu ihrer Prüfsumme – nicht festgehalten."
-            else:
-                document = db.scalar(select(SentDocument).where(
-                    SentDocument.document_type == kind, SentDocument.document_id == checklist_id,
-                    SentDocument.sha256 == p.poa_sha256).limit(1))
-                if document is None:
-                    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", f"Vollmacht_{info['name']}")[:80]
-                    document = store_sent_document(
-                        db, document_type=kind, document_id=checklist_id, document_number=dispatch.document_number,
-                        filename=f"{stem}{CONTENT_TYPE_SUFFIXES[p.poa_content_type]}", content=data, user_id=user_id,
-                        user_name=user_name, content_type=p.poa_content_type,
-                    )
-        db.add(DispatchAuthorization(
-            dispatch_id=dispatch.id, participant_id=p.id, contact_name=info["name"][:255], role=p.role,
-            recipient_email=info["email"][:255], sent_document_id=document.id if document else None,
-            poa_sha256=document.sha256 if document else None, note=note,
-        ))
+        freeze_authorization(db, dispatch, p, recipient_email=info["email"], user_id=user_id, user_name=user_name)
     db.flush()
 
 
@@ -543,6 +555,7 @@ def send_notice_letter(db: Session, checklist_id: int, kind: str, *, cc_email: s
     spec = letter_kind(kind)
     user_id, user_name = actor_of(user)
     checklist = _checklist(db, checklist_id)
+    _require_not_void(checklist)  # seit 1.8.41: gegenstandslos -- nichts geht mehr hinaus
     if section_signature(checklist, spec) is None:
         raise NoticeStateError(spec.waiting_text)  # Zustand zuerst, vor Empfänger und Fassung
     order = _order(db, checklist)
@@ -572,34 +585,17 @@ def send_notice_letter(db: Session, checklist_id: int, kind: str, *, cc_email: s
 
 
 def complete_send_tasks(db: Session, checklist_id: int) -> int:
-    """Setzt die offene Aufgabe "Behinderungsanzeige versenden" der Checkliste auf die erste "erledigt"-Spalte.
-    Ein Fehler hier macht den Versand nicht ungeschehen -- nur Klassenname im Protokoll (Regel 18). Liefert die
-    Zahl der erledigten Aufgaben."""
-    from .tasks import update_task
-
-    done = 0
-    try:
-        task_ids = list(db.scalars(select(ChecklistFollowUp.target_id).where(
-            ChecklistFollowUp.checklist_id == checklist_id, ChecklistFollowUp.follow_up_key == SEND_FOLLOW_UP_KEY,
-            ChecklistFollowUp.target_type == "task", ChecklistFollowUp.target_id.is_not(None))).all())
-        done_key = db.scalar(select(TaskColumn.key).where(TaskColumn.is_done == True)  # noqa: E712
-                             .order_by(TaskColumn.sort_order, TaskColumn.id).limit(1))
-        done_keys = set(db.scalars(select(TaskColumn.key).where(TaskColumn.is_done == True)).all())  # noqa: E712
-        for task_id in task_ids:
-            task = db.get(Task, task_id)
-            if task is None or task.status in done_keys or done_key is None:
-                continue
-            update_task(db, task_id, status=done_key)
-            done += 1
-    except Exception as exc:  # noqa: BLE001 -- der Versand ist geschehen, die Aufgabe bleibt dann offen
-        db.rollback()
-        logger.warning("Aufgabe zur Behinderungsanzeige %s nicht erledigt (%s)", checklist_id, type(exc).__name__)
-    return done
+    """Setzt die offene Aufgabe "Behinderungsanzeige versenden" der Checkliste auf die erste "erledigt"-Spalte
+    (seit 1.8.41 über app/checklist_follow_ups.py::complete_follow_up_tasks()). Ein Fehler dort macht den Versand
+    nicht ungeschehen. Liefert die Zahl der erledigten Aufgaben."""
+    return complete_follow_up_tasks(db, checklist_id, SEND_FOLLOW_UP_KEY)
 
 
 def dispatch_document_for(db: Session, checklist: Checklist, kind: str):
     """Eintrag für app/dispatch_documents.py (Zustellung nachtragen): die Fassung zur aktuellen Unterschrift
-    (beim ersten Mal erstellt), nach dem Eintrag der Behinderungsanzeige die Aufgabe erledigt."""
+    (beim ersten Mal erstellt, nach "gegenstandslos" nur eine schon erstellte), nach dem Eintrag der
+    Behinderungsanzeige die Aufgabe erledigt -- seit 1.8.41 nur, wenn die Zustellung beim Auftraggeber ankam
+    (reached_client(): eine Kopie nur an Beteiligte erledigt sie nicht)."""
     from .dispatch_documents import DispatchDocument
     from .sent_documents import DocumentPdf
 
@@ -616,9 +612,29 @@ def dispatch_document_for(db: Session, checklist: Checklist, kind: str):
         except NoticeStateError as e:
             raise ValueError(str(e)) from e
 
-    after = (lambda: complete_send_tasks(db, checklist.id)) if kind == "behinderungsanzeige" else None
+    def after(dispatch: EmailDispatch) -> None:
+        authorized = db.scalar(select(DispatchAuthorization.id).where(DispatchAuthorization.dispatch_id == dispatch.id)
+                               .limit(1)) is not None
+        if reached_client(dispatch, None, authorized):
+            complete_send_tasks(db, checklist.id)
+
     return DispatchDocument(kind, checklist.id, None, f"{spec.label} zu Auftrag {order.order_number}",
-                            order.project_id, pdf, after_delivery=after)
+                            order.project_id, pdf, after_delivery=after if kind == "behinderungsanzeige" else None)
+
+
+def after_dispatch_outcome(db: Session, dispatch: EmailDispatch, outcome: DispatchOutcome) -> int:
+    """Nachlauf eines Versandergebnisses der Behinderungsanzeige (seit 1.8.41, app/dispatch_documents.py::
+    after_outcome()). Festlegung: "unzustellbar" und auf keinem anderen Weg beim Auftraggeber angekommen -- die
+    Aufgabe "Behinderungsanzeige versenden" ist wieder offen (die Anzeige muss noch hinaus). Nicht an einer
+    gegenstandslosen Anzeige. Liefert die Zahl der wieder geöffneten Aufgaben."""
+    if outcome.outcome != "unzustellbar" or dispatch.document_type != "behinderungsanzeige":
+        return 0
+    checklist = db.get(Checklist, dispatch.document_id)
+    if checklist is None or checklist.status == VOID_STATUS:
+        return 0
+    if letter_was_sent(db, "behinderungsanzeige", checklist.id):
+        return 0
+    return reopen_follow_up_tasks(db, checklist.id, SEND_FOLLOW_UP_KEY)
 
 
 # --- Zustand für die Seite --------------------------------------------------------------------
@@ -637,6 +653,81 @@ def _letter_dict(letter: NoticeLetter, current_signature_id: int | None) -> dict
     }
 
 
+def gap_text(start: datetime, end: datetime, *, date_only: bool = False) -> dict:
+    """Abstand zweier Zeitpunkte für den Zeitstrahl: unter einem Tag in Stunden ("unter 1 Std.", "5 Std."), sonst in
+    Tagen und Stunden ("2 Tage 3 Std."); kennt ein Zeitpunkt nur den Tag, in Kalendertagen ("am selben Tag", "1 Tag").
+    Rückwärts (Reihenfolge stimmt nicht) mit "vorher"."""
+    if date_only:
+        days = (end.date() - start.date()).days
+        text = "am selben Tag" if days == 0 else f"{abs(days)} {'Tag' if abs(days) == 1 else 'Tage'}"
+        return {"text": text + (" vorher" if days < 0 else ""), "minutes": None, "days": days, "negative": days < 0}
+    minutes = int((end - start).total_seconds() // 60)
+    total = abs(minutes)
+    if total < 60:
+        text = "unter 1 Std."
+    elif total < 24 * 60:
+        text = f"{total // 60} Std."
+    else:
+        days, hours = divmod(total // 60, 24)
+        text = f"{days} {'Tag' if days == 1 else 'Tage'}" + (f" {hours} Std." if hours else "")
+    return {"text": text + (" vorher" if minutes < 0 else ""), "minutes": minutes, "days": None, "negative": minutes < 0}
+
+
+def notice_timeline(db: Session, checklist: Checklist) -> list[dict]:
+    """Zeitstrahl der Behinderungsanzeige (seit 1.8.41): "Bekannt seit" (Antwort der Meldung, Ortszeit) → "Meldung
+    unterschrieben" (gültige Unterschrift des Meldenden) → "Versendet" (erste Zustellung beim Auftraggeber: E-Mail
+    mit Uhrzeit, nachgetragen nur mit Tag), je mit Abstand zum vorigen bekannten Schritt. Fehlt "versendet", steht
+    dort, seit wann die Meldung wartet (bis jetzt, Europe/Berlin)."""
+    from .email_dispatch import CHANNELS, MANUAL_CHANNELS
+
+    known_field = next((f for f in checklist.template_version.fields if f.field_key == B + "bekannt_seit"), None)
+    answer = next((a for a in checklist.answers if known_field is not None and a.template_field_id == known_field.id), None)
+    known_at = answer.value_datetime if answer is not None else None
+    report = triggering_signature(checklist, OBSTRUCTION_REPORT_SIGNATURE)
+    report_at = to_berlin(report.created_at) if report is not None and report.created_at else None
+    delivered = delivered_dispatches(db, "behinderungsanzeige", checklist.id)
+    first = min(delivered, key=_delivered_on, default=None) if delivered else None
+    sent_at, sent_date_only, channel = None, False, None
+    if first is not None:
+        channel = CHANNELS.get(first.channel, first.channel)
+        if first.channel in MANUAL_CHANNELS:
+            sent_at, sent_date_only = datetime.combine(first.delivered_on, datetime.min.time()), True
+        else:
+            sent_at = to_berlin(first.finished_at or first.created_at)
+    steps = [
+        {"key": "bekannt_seit", "label": "Bekannt seit", "at": known_at, "date_only": False},
+        {"key": "meldung", "label": "Meldung unterschrieben", "at": report_at, "date_only": False},
+        {"key": "versendet", "label": "Versendet" if not sent_date_only else "Zugestellt", "at": sent_at,
+         "date_only": sent_date_only, "channel": channel},
+    ]
+    previous = None
+    for step in steps:
+        step["gap"] = None
+        if step["at"] is not None and previous is not None:
+            step["gap"] = gap_text(previous["at"], step["at"], date_only=step["date_only"] or previous["date_only"])
+        if step["at"] is not None:
+            previous = step
+    if sent_at is None and checklist.status != VOID_STATUS and previous is not None:
+        steps[-1]["waiting"] = gap_text(previous["at"], berlin_now().replace(tzinfo=None))
+    for step in steps:
+        at = step.pop("at")
+        step["at_local"] = None if at is None else (at.strftime("%Y-%m-%d") if step["date_only"] else at.strftime("%Y-%m-%dT%H:%M"))
+    return steps
+
+
+def _kind_status(db: Session, kind: str, checklist_id: int, ready: bool) -> str:
+    """Stand je Briefart (seit 1.8.41): versendet (beim Auftraggeber angekommen) | unzustellbar (gesendet, aber alles
+    als unzustellbar vermerkt bzw. nur als Kopie) | bereit | wartet."""
+    if letter_was_sent(db, kind, checklist_id):
+        return "versendet"
+    undeliverable = db.scalar(select(DispatchOutcome.id).join(EmailDispatch, EmailDispatch.id == DispatchOutcome.dispatch_id)
+                              .where(EmailDispatch.document_type == kind, EmailDispatch.document_id == checklist_id,
+                                     DispatchOutcome.outcome == "unzustellbar").limit(1))
+    if undeliverable is not None:
+        return "unzustellbar"
+    return "bereit" if ready else "wartet"
+
+
 def notice_state(db: Session, checklist_id: int) -> dict:
     """Alles für die Karte "Anzeige an den Auftraggeber" der Ausfüllseite (nur Büro)."""
     from .contract_basis import contract_basis_label
@@ -644,7 +735,7 @@ def notice_state(db: Session, checklist_id: int) -> dict:
     checklist = _checklist(db, checklist_id)
     order = _order(db, checklist)
     customer = _customer(order)
-    participants = [_participant_info(p) for p in _participant_rows(db, order.project_id)]
+    participants = [participant_info(p) for p in participant_rows(db, order.project_id)]
     ag_email = ((customer.email or "").strip() if customer is not None else "") or None
     seen = {ag_email.lower()} if ag_email else set()
     cc = []
@@ -659,6 +750,9 @@ def notice_state(db: Session, checklist_id: int) -> dict:
         seal = check_signature(checklist, signature) if signature is not None else None
         own = [l for l in letters if l.kind == spec.key]
         kinds.append({
+            "status": _kind_status(db, spec.key, checklist_id, signature is not None),
+            "signoff_text": ("Der Brief trägt „i. A.“ und den Namen des Büro-Kontos, das ihn erstellt – die "
+                             "Unterschrift im Abschnitt „Wegfall“ bleibt interner Beleg.") if spec.key == "wiederaufnahme" else None,
             "kind": spec.key, "label": spec.label, "ready": signature is not None, "waiting_text": spec.waiting_text,
             "signature": None if signature is None else {
                 "id": signature.id, "signer_name": signature.signer_name,
@@ -678,4 +772,7 @@ def notice_state(db: Session, checklist_id: int) -> dict:
         "copies": [p for p in participants if p["copy_on_notices"]],
         "authorized": [p for p in participants if p["authorized"]],
         "kinds": kinds,
+        "timeline": notice_timeline(db, checklist),
+        # seit 1.8.41: als gegenstandslos abgeschlossen -- die Karte zeigt nur noch Stand und Verlauf
+        "voided": checklist.status == VOID_STATUS,
     }

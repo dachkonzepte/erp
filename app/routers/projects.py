@@ -20,6 +20,7 @@ from ..option_settings import default_option_value, ensure_default_option_groups
 from ..orders import load_order, order_to_dict
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_documents import MAX_UPLOAD_BYTES, make_stored_filename, project_directory
+from ..project_participants import ClientChangeConflict, check_client_change
 from ..project_pipeline_columns import default_pipeline_column_id
 from ..projects import delete_project, duplicate_project, load_project, load_quote, next_project_number, next_quote_number, quote_to_dict, set_project_archived
 from ..service_reports import count_reports_for_order
@@ -177,6 +178,11 @@ def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depend
         prop = db.get(Property, payload.property_id)
         if prop is None or prop.customer_id != payload.customer_id:
             raise HTTPException(status_code=422, detail="Objekt gehört nicht zum ausgewählten Kunden.")
+    try:
+        # Seit 1.8.41: ist der neue Kunde hier schon Beteiligter, stünde der Auftraggeber doppelt da -- 409 mit Namen.
+        check_client_change(db, project, payload.customer_id)
+    except ClientChangeConflict as e:
+        raise HTTPException(status_code=409, detail=str(e))
     project.customer_id = payload.customer_id
     project.property_id = payload.property_id
     project.name = payload.name

@@ -19,6 +19,8 @@ Entscheidung fällt je Kontext und je Checkliste hier im Router, die Geschäftsl
     ist dem Büro vorbehalten.
   - Systemfelder mit office_only (seit 1.8.38, Abschnitt "Anzeige" der Behinderungsanzeige samt
     "Unterschrift Büro") füllt nur das Büro, auch an der eigenen Checkliste (403).
+  - "Als gegenstandslos abschließen" (seit 1.8.41, Behinderungs- und Bedenkenanzeige) nur das Büro,
+    mit Pflicht-Begründung; der Monteur sieht danach Status und Begründung an seiner Checkliste.
   - Fremde Checklisten: in der Liste nur Titel/Datum/Ersteller/Status; Einzelabruf und Anhänge
     nur, wenn die Vorlage field_readable trägt (Betreiberentscheidung B).
   - Die EIGENE Checkliste bleibt erreichbar, auch wenn der Monteur inzwischen nicht mehr dem
@@ -40,7 +42,7 @@ from ..checklist_rules import list_checklists_with_open_rules, list_rule_executi
 from ..checklists import (
     ChecklistLocked, add_attachment, asset_readiness, attachment_path, complete_checklist, create_checklist,
     delete_attachment, delete_checklist, discard_signatures, get_attachment, get_checklist, get_checklist_row,
-    is_office_only, list_checklists, list_startable_templates, mark_asset_repaired, save_answer,
+    is_office_only, list_checklists, list_startable_templates, mark_asset_repaired, save_answer, void_checklist,
     MAX_PHOTO_UPLOAD_BYTES,
 )
 from ..database import get_db
@@ -50,7 +52,7 @@ from ..modules import is_module_enabled
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, has_min_role, require_min_role
 from ..schemas import (
     ChecklistAnswerWrite, ChecklistAssetReadinessOut, ChecklistAssetReleaseWrite, ChecklistCreate,
-    ChecklistDiscardSignaturesWrite, ChecklistEmailSend, ChecklistFollowUpOut, ChecklistFollowUpsRunOut,
+    ChecklistDiscardSignaturesWrite, ChecklistEmailSend, ChecklistFollowUpOut, ChecklistFollowUpsRunOut, ChecklistVoidWrite,
     ChecklistRuleExecutionOut, ChecklistRulesRunOut, ChecklistOut, ChecklistStartableTemplateOut,
     ChecklistSummaryOut,
 )
@@ -153,6 +155,7 @@ def _with_flags(data: dict, role: AppUser, checklist: Checklist) -> dict:
         for f in data["fields"])
     data["can_delete"] = data["can_sign"] and not data["has_signatures"]
     data["can_discard_signatures"] = draft and data["signed"] and office
+    data["can_void"] = draft and office and data["voidable"]  # seit 1.8.41
     return data
 
 
@@ -346,6 +349,20 @@ def post_discard_signatures(checklist_id: int, payload: ChecklistDiscardSignatur
     by_name = getattr(_role, "display_name", None) or getattr(_role, "username", None)
     _call(discard_signatures, db, checklist_id, signature_id=payload.signature_id, reason=payload.reason,
           user_id=getattr(_role, "id", None), by_name=by_name)
+    return _detail(db, _role, checklist_id)
+
+
+@router.post("/api/checklists/{checklist_id}/void", response_model=ChecklistOut)
+def post_void_checklist(checklist_id: int, payload: ChecklistVoidWrite, db: Session = Depends(get_db),
+                        _role: AppUser = _office_dep):
+    """"Als gegenstandslos abschließen" (seit 1.8.41): nur Büro, nur Behinderungs- und Bedenkenanzeige im
+    Entwurf, Begründung Pflicht. Bleibt als Beleg (versiegelt mit Prüfsumme), fällt aus den offenen Listen, die offene
+    Aufgabe aus einer Folge ist danach erledigt."""
+    _require_module_enabled(db)
+    _checklist_for(db, _role, checklist_id, write=True)
+    by_name = getattr(_role, "display_name", None) or getattr(_role, "username", None)
+    _call(void_checklist, db, checklist_id, reason=payload.reason, user_id=getattr(_role, "id", None),
+          by_name=by_name, employee_id=_role.employee_id)
     return _detail(db, _role, checklist_id)
 
 

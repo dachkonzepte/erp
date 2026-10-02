@@ -38,7 +38,7 @@ textarea:hover{border-color:var(--field-border-hover)}
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
-<div class="card"><h1>Versandprotokoll</h1><div class="muted">Jeder E-Mail-Versand von Angeboten, Aufträgen, Verträgen, Rechnungen, Mahnungen und Checklisten – mit dem abgelegten PDF genau so, wie es hinausging – und jede nachgetragene Zustellung auf anderem Weg (Einschreiben, persönliche Übergabe, Bote, Fax) mit Beleg. Einträge werden nie gelöscht; einen hängengebliebenen klärt das Büro einmal mit Notiz.</div></div>
+<div class="card"><h1>Versandprotokoll</h1><div class="muted">Jeder E-Mail-Versand von Angeboten, Aufträgen, Verträgen, Rechnungen, Mahnungen und Checklisten – mit dem abgelegten PDF genau so, wie es hinausging – und jede nachgetragene Zustellung auf anderem Weg (Einschreiben, persönliche Übergabe, Bote, Fax) mit Beleg. Einträge werden nie gelöscht; einen hängengebliebenen klärt das Büro einmal mit Notiz. Zu jedem gesendeten Eintrag lässt sich einmal vermerken, ob der Empfang bestätigt ist oder er unzustellbar war.</div></div>
 <div class="card stuck" id="stuckCard" style="display:none"></div>
 <div class="card">
   <div class="filters">
@@ -54,6 +54,7 @@ textarea:hover{border-color:var(--field-border-hover)}
 </main>
 </div>
 </div>
+{% include "_email_dispatch.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
@@ -81,6 +82,8 @@ function statusCell(d){
   if(d.status==='fehlgeschlagen'&&d.error_class) html+=`<div class="small muted">${esc(d.error_class)}${d.error_code?' · '+esc(d.error_code):''}</div>`;
   if(d.resolved) html+=`<div class="resolved-note"><b>Von Hand geklärt</b> · ${esc(d.resolved_by_name)}, ${fmtLocal(d.resolved_at_local)}<div>${esc(d.resolution_note)}</div></div>`;
   if(d.manual&&d.delivery_note) html+=`<div class="resolved-note"><b>Notiz</b><div>${esc(d.delivery_note)}</div></div>`;
+  // Seit 1.8.41: Empfang bestätigt / unzustellbar -- gemeinsame Darstellung und Formular aus _email_dispatch.html.
+  html+=dispatchOutcomeHtml(d,'vp',true);
   return html;
 }
 function whenCell(d){
@@ -107,8 +110,9 @@ function archiveCell(d){
   // Seit 1.8.40: beim Versand festgehaltene Empfangsvollmachten (Brief an den Auftraggeber).
   const poa=(d.authorizations||[]).map(x=>x.sent_document?`<div style="margin-top:8px">${fileButtons(x.sent_document,'Vollmacht '+esc(x.contact_name))}</div>`
     :`<div class="small muted" style="margin-top:8px"><b>Vollmacht ${esc(x.contact_name)}:</b> ${esc(x.note||'nicht festgehalten')}</div>`).join('');
-  if(!a&&!r) return '<span class="small muted">ohne Anhang</span>'+poa;
-  return (a?fileButtons(a,r?'Dokument':''):'')+(r?`<div style="margin-top:8px">${fileButtons(r,'Beleg')}</div>`:'')+poa;
+  const oc=d.outcome&&d.outcome.receipt_document?`<div style="margin-top:8px">${fileButtons(d.outcome.receipt_document,d.outcome.outcome==='empfangen'?'Beleg (Empfang)':'Beleg (unzustellbar)')}</div>`:'';
+  if(!a&&!r) return '<span class="small muted">ohne Anhang</span>'+poa+oc;
+  return (a?fileButtons(a,r?'Dokument':''):'')+(r?`<div style="margin-top:8px">${fileButtons(r,'Beleg')}</div>`:'')+poa+oc;
 }
 async function checkArchive(id,btn){
   const out=document.getElementById('check'+id);btn.disabled=true;out.textContent='prüfe …';out.className='small muted';
@@ -140,6 +144,7 @@ async function reload(){
       <td>${archiveCell(d)}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">Keine Einträge.</td></tr>';
   }catch(e){rows.innerHTML=`<tr><td colspan="7" class="empty">Fehler: ${esc(e.message)}</td></tr>`}
 }
+_dhOutcomeDone.vp=reload;
 if(docType){document.getElementById('filterType').value=docType}
 if(docId){document.getElementById('docFilter').innerHTML=`Nur ein Dokument · <a class="link" href="/versandprotokoll">alle anzeigen</a>`}
 reload();

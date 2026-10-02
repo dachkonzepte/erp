@@ -27,7 +27,7 @@ from typing import Callable
 
 from sqlalchemy.orm import Session
 
-from .models import Checklist, Invoice, Order, OrderContract, Quote, Reminder
+from .models import Checklist, EmailDispatch, Invoice, Order, OrderContract, Quote, Reminder
 from .sent_documents import DOCUMENT_TYPES, DocumentPdf, frozen_or_fresh_pdf
 
 
@@ -39,7 +39,8 @@ class DispatchDocument:
     label: str  # "Rechnung R-2026-0001" -- für Betreff und Historie
     project_id: int | None
     pdf: Callable[[], DocumentPdf]  # wirft ArchiveFileError, wenn die maßgebliche Fassung beschädigt ist
-    after_delivery: Callable[[], None] | None = None  # seit 1.8.40: nach dem Eintrag einer Zustellung
+    # seit 1.8.40: nach dem Eintrag einer Zustellung; seit 1.8.41 mit dem Eintrag (an wen ging sie?)
+    after_delivery: Callable[[EmailDispatch], None] | None = None
 
 
 def _fresh(build: Callable[[], bytes], filename: str) -> Callable[[], DocumentPdf]:
@@ -140,13 +141,28 @@ _REGISTRY = {"angebot": (Quote, _quote), "auftrag": (Order, _order), "rechnung":
 assert set(_REGISTRY) == set(DOCUMENT_TYPES), "jede Dokumentart der Ablage braucht einen Eintrag hier"
 
 
+def document_row(db: Session, document_type: str, document_id: int):
+    """Die Zeile des Dokuments (Angebot, Auftrag, …, Checkliste) -- None bei unbekannter Art oder fehlendem Dokument."""
+    entry = _REGISTRY.get(document_type)
+    return db.get(entry[0], document_id) if entry else None
+
+
 def dispatch_document(db: Session, document_type: str, document_id: int) -> DispatchDocument:
     """LookupError: unbekannte Art oder Dokument fehlt (404). ValueError: nicht zustellbar (400)."""
-    entry = _REGISTRY.get(document_type)
-    row = db.get(entry[0], document_id) if entry else None
+    row = document_row(db, document_type, document_id)
     if row is None:
         raise LookupError("Dokument nicht gefunden.")
-    return entry[1](db, row)
+    return _REGISTRY[document_type][1](db, row)
+
+
+def after_outcome(db: Session, dispatch: EmailDispatch, outcome) -> None:
+    """Nachlauf eines vermerkten Versandergebnisses je Dokumentart (seit 1.8.41, nach dem Commit des Vermerks):
+    Behinderungsanzeige "unzustellbar" -- kam sie auf keinem anderen Weg beim Auftraggeber an, ist die Aufgabe
+    "versenden" wieder offen (app/notice_letters.py). Sonst nichts."""
+    if dispatch.document_type == "behinderungsanzeige":
+        from .notice_letters import after_dispatch_outcome
+
+        after_dispatch_outcome(db, dispatch, outcome)
 
 
 def project_id_of(db: Session, document_type: str, document_id: int | None) -> int | None:

@@ -48,7 +48,7 @@ td a{color:var(--accent);text-decoration:none;font-weight:650}
 </div>
 <div class="card">
   <div class="filters">
-    <div><label>Status</label><select id="fStatus" onchange="load()"><option value="">alle</option><option value="entwurf">Entwurf</option><option value="abgeschlossen">Abgeschlossen</option></select></div>
+    <div><label>Status</label><select id="fStatus" onchange="load()"><option value="">alle</option><option value="entwurf">Entwurf</option><option value="abgeschlossen">Abgeschlossen</option><option value="gegenstandslos">Gegenstandslos</option></select></div>
     <div><label>Bereich</label><select id="fContext" onchange="load()"><option value="">alle</option><option value="auftrag">Auftrag</option><option value="objekt">Objekt</option><option value="betriebsmittel">Betriebsmittel</option><option value="betrieb">Betrieb</option></select></div>
     <div><label>Vorlage</label><select id="fTemplate" onchange="load()"><option value="">alle</option></select></div>
     <span id="listStatus" class="status"></span>
@@ -89,7 +89,7 @@ async function load(){
       <td><a href="/checklisten/${c.id}">${esc(c.template_label)}</a></td>
       <td>${esc(CONTEXT_LABELS[c.context_type]||c.context_type)}: ${esc(c.context_label)}<div class="muted small">${esc(c.context_detail)}</div></td>
       <td>${esc(fmt(c.created_at))}</td><td>${esc(c.created_by_name)}</td>
-      <td>${c.status==='entwurf'?'<span class="badge draft">Entwurf</span>':'<span class="badge done">Abgeschlossen</span>'}</td></tr>`).join('')
+      <td>${c.status==='entwurf'?'<span class="badge draft">Entwurf</span>':(c.status==='gegenstandslos'?'<span class="badge">Gegenstandslos</span>':'<span class="badge done">Abgeschlossen</span>')}</td></tr>`).join('')
       ||'<tr><td colspan="5" class="empty">Keine Checklisten gefunden.</td></tr>';
     st.innerHTML=onlyOpenRules?'Nur mit nicht angelegten Aufgaben · <a href="#" style="color:var(--accent)" onclick="onlyOpenRules=false;load();return false">alle zeigen</a>':'';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}

@@ -30,7 +30,8 @@ docs/archiv/vertragsgrundlage-und-vertrag.md, "Umsetzung 1.8.38". Dazu kamen:
 - SystemField.option_hints: ein Hinweis, der beim Wählen einer Option erscheint.
 - FollowUp.after_signature: die Folge läuft nach der Unterschrift in diesem Systemfeld statt
   nach dem Abschluss.
-Abnahme und Bedenkenanzeige tragen noch keine Systemfelder und Folgen.
+Abnahme und Bedenkenanzeige tragen noch keine Systemfelder und Folgen. Seit 1.8.41 lassen sich Behinderungs- und
+Bedenkenanzeige "als gegenstandslos abschließen" (ChecklistPurpose.voidable).
 
 Bewusst ohne Import aus app.checklist_templates (das importiert von hier); die Handler der Folgen
 importieren ihre Module erst beim Aufruf."""
@@ -82,11 +83,14 @@ class FollowUp:
 
 @dataclass(frozen=True)
 class ChecklistPurpose:
+    """voidable (seit 1.8.41): das Büro kann eine Checkliste dieses Zwecks mit Begründung "als gegenstandslos
+    abschließen" (app/checklists.py::void_checklist()) -- Behinderungs- und Bedenkenanzeige."""
     key: str
     label: str
     contexts: tuple[str, ...]
     system_fields: tuple[SystemField, ...] = ()
     follow_ups: tuple[FollowUp, ...] = ()
+    voidable: bool = False
 
 
 # --- Behinderungsanzeige (seit 1.8.38) -------------------------------------------------------
@@ -140,8 +144,8 @@ PURPOSES: dict[str, ChecklistPurpose] = {p.key: p for p in (
     ChecklistPurpose(OBSTRUCTION_PURPOSE, "Behinderungsanzeige", ("auftrag",), OBSTRUCTION_SYSTEM_FIELDS, (
         FollowUp(_B + "versenden", "Aufgabe „Behinderungsanzeige versenden“", _obstruction_send_task,
                  module="aufgabenmanagement", after_signature=OBSTRUCTION_REPORT_SIGNATURE),
-    )),
-    ChecklistPurpose("bedenkenanzeige", "Bedenkenanzeige", ("auftrag",)),
+    ), voidable=True),
+    ChecklistPurpose("bedenkenanzeige", "Bedenkenanzeige", ("auftrag",), voidable=True),
 )}
 
 

@@ -35,6 +35,12 @@
   Vorschau, "Brief erstellen" für Post/Fax, Versand per E-Mail (An fest der Auftraggeber, CC vorbelegt mit
   "Kopie bei Anzeigen"), deutliche Warnung ohne geprüften Vorbehalt, Fassungen, Versandverlauf mit
   "Zustellung nachtragen". Alles vom Server (GET /api/checklists/{id}/notice-letters).
+
+  Seit 1.8.41: Zeitstrahl in der Anzeige-Karte (bekannt seit → Meldung unterschrieben → versendet, mit Abstand),
+  Stand je Brief (versendet / unzustellbar / bereit / wartet), bei der Wiederaufnahme der Hinweis auf "i. A.".
+  Behinderungs- und Bedenkenanzeige lassen sich im Büro "als gegenstandslos abschließen" (cl.can_void, sichtbares
+  Begründungsfeld statt Popup, Regel 4); danach Badge "Gegenstandslos", Begründung für jede Rolle, PDF, keine
+  Brief-Aktionen mehr (nur Verlauf und Nachtragen einer schon erstellten Fassung).
 #}
 <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 <style>
@@ -128,6 +134,22 @@ textarea{min-height:90px;resize:vertical}
 .notice-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
 .notice-actions a.btn{text-decoration:none;display:inline-flex;align-items:center}
 .notice-card label.small{display:block;font-weight:650;margin:10px 0 4px}
+.badge.void{background:var(--soft);color:var(--ink)}
+.badge.bad{background:var(--danger-soft);color:var(--danger)}
+.timeline{display:flex;flex-wrap:wrap;gap:0;margin:10px 0 2px;border:1px solid var(--line)}
+.tl-step{flex:1 1 150px;padding:8px 10px;border-right:1px solid var(--line);min-width:0}
+.tl-step:last-child{border-right:none}
+.tl-step .tl-label{font-size:11.5px;font-weight:800;text-transform:uppercase;color:var(--muted)}
+.tl-step .tl-at{font-size:14px;font-weight:650;margin-top:2px}
+.tl-step .tl-gap{font-size:12.5px;color:var(--muted);margin-top:2px}
+.tl-step .tl-gap.neg{color:var(--danger);font-weight:650}
+.tl-step.open .tl-at{color:var(--warning)}
+@media (max-width:560px){.tl-step{flex-basis:100%;border-right:none;border-bottom:1px solid var(--line)}.tl-step:last-child{border-bottom:none}}
+.void-card{border-left:3px solid var(--muted)}
+.void-card h2{margin:0 0 4px;font-size:16px}
+.void-card textarea{min-height:70px;margin-top:6px}
+.void-info{border-left:3px solid var(--muted);background:var(--soft)}
+.void-info .reason{white-space:pre-wrap;margin-top:6px}
 .notice-row a{color:var(--accent);font-weight:650;text-decoration:none}
 </style>
 <body class="{{ 'field' if is_field else 'office' }}">
@@ -182,16 +204,42 @@ function missingOf(f){return (cl.missing_required||[]).filter(m=>m===f.label||m.
 // --- Rendern ---------------------------------------------------------------------------
 
 function renderHeader(){
-  const badge=cl.status==='entwurf'?'<span class="badge draft">Entwurf</span>':'<span class="badge done">Abgeschlossen</span>';
+  const badge={entwurf:'<span class="badge draft">Entwurf</span>',gegenstandslos:'<span class="badge void">Gegenstandslos</span>'}[cl.status]||'<span class="badge done">Abgeschlossen</span>';
   const meta=[cl.context_label,cl.context_detail].filter(Boolean).map(esc).join(' – ');
-  const who=[cl.created_by_name?`angelegt von ${esc(cl.created_by_name)}`:null,`am ${esc(fmtDateTime(cl.created_at))}`,cl.completed_at?`abgeschlossen ${esc(fmtDateTime(cl.completed_at))}`:null].filter(Boolean).join(' · ');
+  const who=[cl.created_by_name?`angelegt von ${esc(cl.created_by_name)}`:null,`am ${esc(fmtDateTime(cl.created_at))}`,cl.completed_at&&cl.status!=='gegenstandslos'?`abgeschlossen ${esc(fmtDateTime(cl.completed_at))}`:null].filter(Boolean).join(' · ');
   return `<a class="back" href="${backLink()}">← zurück</a>
     <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap">
       <div><h1>${esc(cl.template_label)}</h1><div class="muted">${meta}</div><div class="muted small" style="margin-top:4px">${who} · Fassung ${cl.version_no}</div></div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${cl.status==='abgeschlossen'?`<a class="btn secondary" id="pdfLink" href="/api/checklists/${cl.id}/pdf" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center">PDF</a>`:''}${badge}</div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${cl.status!=='entwurf'?`<a class="btn secondary" id="pdfLink" href="/api/checklists/${cl.id}/pdf" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center">PDF</a>`:''}${badge}</div></div>
       ${!cl.can_sign&&cl.status==='entwurf'?'<div class="muted small" style="margin-top:8px">Nur lesen – diese Checkliste hat eine andere Person angelegt.</div>':''}
       ${renderCompletionSeal()}
-    </div>${renderLockCard()}`;
+    </div>${renderVoidInfo()}${renderLockCard()}`;
+}
+
+// Seit 1.8.41: als gegenstandslos abgeschlossen -- für jede Rolle sichtbar, mit Begründung.
+function renderVoidInfo(){
+  if(cl.status!=='gegenstandslos')return '';
+  return `<div class="card void-info" id="voidInfo"><b>Als gegenstandslos abgeschlossen</b> <span class="muted small">am ${esc(cl.voided_at_local||'')} Uhr${cl.voided_by_name?' von '+esc(cl.voided_by_name):''}</span>
+    <div class="reason">${esc(cl.void_reason||'')}</div>
+    <div class="muted small" style="margin-top:6px">Bleibt als Beleg erhalten; fehlende Angaben werden nicht mehr ergänzt, es wird nichts mehr versendet.</div></div>`;
+}
+// Seit 1.8.41 (nur Büro, Behinderungs-/Bedenkenanzeige im Entwurf): sichtbares Begründungsfeld, Bestätigung per confirm().
+function renderVoidCard(){
+  if(!cl.can_void)return '';
+  return `<div class="card void-card" id="voidCard"><h2>Als gegenstandslos abschließen</h2>
+    <div class="muted small">Liegt keine ${esc(cl.purpose_label)} vor (z. B. übliche Witterung), schließt das Büro sie hier mit Begründung ab – auch mit fehlenden Angaben. Sie bleibt als Beleg, verschwindet aus den offenen Listen, und die offene Aufgabe dazu ist danach erledigt.</div>
+    <textarea id="voidReason" maxlength="2000" placeholder="Begründung (Pflicht), z. B. übliche Witterung – keine Behinderung nach § 6 Abs. 2 VOB/B"></textarea>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn danger" id="voidBtn" onclick="voidChecklist()">Als gegenstandslos abschließen</button><span class="small error-box" id="voidStatus"></span></div></div>`;
+}
+async function voidChecklist(){
+  const input=document.getElementById('voidReason'),st=document.getElementById('voidStatus'),btn=document.getElementById('voidBtn');
+  const reason=(input.value||'').trim();
+  if(reason.length<3){st.textContent='Bitte begründen, warum die Anzeige gegenstandslos ist.';input.focus();return}
+  if(!confirm(`${cl.purpose_label} als gegenstandslos abschließen?\n\nDanach ist sie nicht mehr änderbar und wird nicht mehr versendet. Sie bleibt mit der Begründung als Beleg erhalten.`))return;
+  btn.disabled=true;st.textContent='';
+  await flushAll();
+  try{cl=await api(`/api/checklists/${checklistId}/void`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});render();window.scrollTo(0,0)}
+  catch(e){st.textContent=e.message;btn.disabled=false}
 }
 
 // Seit 1.8.15 versiegelt das Abschließen alle Angaben samt Unterschriften; Urteil vom Server.
@@ -355,9 +403,16 @@ function noticeKindHtml(k){
   const id=`notice-${k.kind}`;
   const current=k.letters.find(l=>l.current);
   const older=k.letters.filter(l=>!l.current);
-  const badge=k.sent?'<span class="badge done">versendet</span>':(k.ready?'<span class="badge open">bereit</span>':'<span class="badge">wartet</span>');
-  let html=`<div class="notice-kind" id="${id}" data-kind="${esc(k.kind)}"><div class="notice-head"><b>${esc(k.label)}</b>${badge}</div>`;
+  // Stand vom Server (seit 1.8.41): versendet = beim Auftraggeber angekommen, unzustellbar = alles zurück bzw. nur Kopien
+  const badge={versendet:'<span class="badge done">versendet</span>',unzustellbar:'<span class="badge bad">unzustellbar</span>',bereit:'<span class="badge open">bereit</span>'}[k.status]||'<span class="badge">wartet</span>';
+  let html=`<div class="notice-kind" id="${id}" data-kind="${esc(k.kind)}" data-status="${esc(k.status)}"><div class="notice-head"><b>${esc(k.label)}</b>${badge}</div>`;
+  if(k.signoff_text)html+=`<div class="muted small" style="margin-top:4px" data-signoff>${esc(k.signoff_text)}</div>`;
   if(!k.ready)return html+`<div class="muted small" style="margin-top:4px">${esc(k.waiting_text)}</div>${older.length?olderLettersHtml(older):''}</div>`;
+  if(notice.voided){
+    // Gegenstandslos: keine Aktionen mehr, nur Stand, Fassung und Verlauf (Nachtragen nur zu einer schon erstellten Fassung).
+    if(current)html+=`<div class="notice-row" data-notice-letter>Brief vom ${fmtIsoDate(current.letter_date)} (Fassung ${current.version_no}) · <a href="/api/sent-documents/${current.sent_document.id}/file" target="_blank" rel="noopener">PDF öffnen</a></div>`;
+    return html+`<div id="${id}-history"></div>`+(older.length?olderLettersHtml(older):'')+'</div>';
+  }
   if(k.blocked)html+=`<div class="notice-warn" data-notice-blocked><b>Der Brief wird nicht erstellt:</b> ${esc(k.seal.text)} Das Büro kann die Unterschrift mit Begründung verwerfen und neu unterschreiben lassen.</div>`;
   const r=k.reservation;
   const withoutReservation=current?!current.reservation_printed:!r.reviewed;
@@ -381,7 +436,8 @@ function noticeKindHtml(k){
       +`<label class="small" for="${id}-cc">CC (vorbelegt mit „Kopie bei Anzeigen“, mehrere mit Komma)</label>
       <input id="${id}-cc" type="text" inputmode="email" autocomplete="off" value="${esc(cc)}" oninput="noticeCc['${esc(k.kind)}']=this.value">`
       +noticeParticipantHints()
-      +`<div class="notice-actions"><button type="button" class="btn" id="${id}-send" ${rec.email?'':'disabled'} onclick="sendNoticeLetter('${esc(k.kind)}',this)">${esc(k.label)} ${k.sent?'erneut senden':'senden'}</button><span class="muted small" id="${id}-status"></span></div>`;
+      +(k.status==='unzustellbar'?`<div class="notice-warn" data-undeliverable><b>Unzustellbar:</b> ${esc(k.label)} kam beim Auftraggeber nicht an – bitte erneut senden oder auf anderem Weg zustellen und unten nachtragen.</div>`:'')
+      +`<div class="notice-actions"><button type="button" class="btn" id="${id}-send" ${rec.email?'':'disabled'} onclick="sendNoticeLetter('${esc(k.kind)}',this)">${esc(k.label)} ${k.status==='versendet'||k.status==='unzustellbar'?'erneut senden':'senden'}</button><span class="muted small" id="${id}-status"></span></div>`;
   }
   html+=`<div id="${id}-history"></div>`+(older.length?olderLettersHtml(older):'');
   return html+'</div>';
@@ -394,15 +450,37 @@ function noticeParticipantHints(){
   const noMail=notice.copies.filter(c=>!c.email&&!c.archived);
   if(noMail.length)lines.push(`Kopie bei Anzeigen, aber ohne E-Mail (bitte auf anderem Weg): ${esc(noMail.map(c=>`${c.name} (${c.role_label})`).join('; '))}`);
   for(const a of notice.authorized){
-    lines.push(`Empfangsbevollmächtigt: ${esc(a.name)} (${esc(a.role_label)})${a.email?` &lt;${esc(a.email)}&gt;`:' – ohne E-Mail'} – ${a.has_poa?'die Vollmacht wird beim Versand an diese Adresse festgehalten':'keine Vollmacht hinterlegt'}`);
+    // Seit 1.8.41 auch ohne E-Mail: die Vollmacht wird bei einer nachgetragenen Zustellung an ihn festgehalten.
+    const poa=!a.has_poa?'keine Vollmacht hinterlegt':(a.email?'die Vollmacht wird beim Versand an diese Adresse festgehalten':'die Vollmacht wird festgehalten, wenn eine Zustellung an ihn nachgetragen wird');
+    lines.push(`Empfangsbevollmächtigt: ${esc(a.name)} (${esc(a.role_label)})${a.email?` &lt;${esc(a.email)}&gt;`:' – ohne E-Mail'} – ${poa}`);
   }
   return lines.length?`<div class="notice-info">${lines.join('<br>')}</div>`:'';
 }
+// Zeitstrahl (seit 1.8.41): bekannt seit → Meldung unterschrieben → versendet, Abstände vom Server.
+function fmtStep(s){
+  if(!s.at_local)return '';
+  const m=s.at_local.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  return m?`${m[3]}.${m[2]}.${m[1]}${m[4]?`, ${m[4]}:${m[5]} Uhr`:''}`:esc(s.at_local);
+}
+function timelineHtml(steps){
+  return `<div class="timeline" id="noticeTimeline">${steps.map(s=>{
+    const open=!s.at_local;
+    const at=open?(s.key==='versendet'?(notice.voided?'—':'noch nicht'):'—'):fmtStep(s)+(s.channel?` <span class="muted small">(${esc(s.channel)})</span>`:'');
+    const gap=s.gap?`<div class="tl-gap${s.gap.negative?' neg':''}">${s.gap.negative?'':'+ '}${esc(s.gap.text)}${s.gap.negative?' – Reihenfolge prüfen':''}</div>`
+      :(s.waiting?`<div class="tl-gap">wartet seit ${esc(s.waiting.text)}</div>`:'');
+    return `<div class="tl-step${open&&s.key==='versendet'&&!notice.voided?' open':''}" data-step="${esc(s.key)}"><div class="tl-label">${esc(s.label)}</div><div class="tl-at">${at}</div>${gap}</div>`;
+  }).join('')}</div>`;
+}
 function renderNoticeCard(){
   const card=document.getElementById('noticeCard');if(!card||!notice)return;
-  card.innerHTML=`<h2>Anzeige an den Auftraggeber</h2><div class="muted small">Auftrag ${esc(notice.order_number)} · Vertragsgrundlage ${esc(notice.contract_basis_label||'')}. Der Brief kommt aus dem unterschriebenen Inhalt; versendet wird immer der erstellte Brief.</div>`
+  card.innerHTML=`<h2>Anzeige an den Auftraggeber</h2><div class="muted small">Auftrag ${esc(notice.order_number)} · Vertragsgrundlage ${esc(notice.contract_basis_label||'')}. ${notice.voided?'Als gegenstandslos abgeschlossen – es wird nichts mehr versendet.':'Der Brief kommt aus dem unterschriebenen Inhalt; versendet wird immer der erstellte Brief.'}</div>`
+    +timelineHtml(notice.timeline||[])
     +notice.kinds.map(noticeKindHtml).join('');
-  for(const k of notice.kinds)if(k.ready||k.sent)renderDispatchHistory(`notice-${k.kind}-history`,k.kind,checklistId,{});
+  for(const k of notice.kinds){
+    if(!(k.ready||k.sent||k.letters.length))continue;
+    // Nach "gegenstandslos" nur noch zu einer schon erstellten Fassung nachtragen (der Server lehnt sonst ab).
+    renderDispatchHistory(`notice-${k.kind}-history`,k.kind,checklistId,{manual:!notice.voided||k.letters.length>0,onChange:loadNotice});
+  }
 }
 async function loadNotice(){
   const card=document.getElementById('noticeCard');if(!card)return;
@@ -456,6 +534,7 @@ function render(){
       <div class="q-body">${fieldBody(f)}</div><div class="q-status" id="st_${f.id}"></div></div>`;
   }
   html+=renderDiscarded();
+  html+=renderVoidCard();
   if(cl.can_sign){
     const m=cl.missing_required||[];
     html+=`<div class="footer-card"><div class="missing-text" id="missingText">${m.length?'Noch offen: '+esc(m.join(', ')):'Alle Pflichtangaben sind ausgefüllt.'}</div>
@@ -481,7 +560,7 @@ async function loadFollowUps(){
   try{rows=await api(`/api/checklists/${checklistId}/follow-ups`)}
   catch(e){card.style.display='';card.innerHTML=`<h2>Folgen</h2><div class="error-box small">${esc(e.message)}</div>`;return}
   if(!rows.length){card.style.display='none';return}
-  const open=rows.some(r=>r.status!=='erledigt');
+  const open=rows.some(r=>r.status!=='erledigt')&&cl.status!=='gegenstandslos';  // seit 1.8.41: danach keine Folgen mehr
   card.style.display='';
   card.innerHTML=`<h2>Folgen</h2>${rows.map(r=>`<div class="rule-row"><div>${r.target_type==='task'&&r.target_id?`<a href="/tasks?task=${r.target_id}">${esc(r.target_title||r.label)}</a>`:esc(r.label)}<div class="muted small">${esc(r.trigger_label)} · ${esc(fmtDateTime(r.executed_at))}</div></div>
       <span class="badge ${r.status==='erledigt'?'done':'open'}">${esc(r.status_label)}</span></div>`).join('')}

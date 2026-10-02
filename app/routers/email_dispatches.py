@@ -8,8 +8,10 @@ Aufgabentitel) nur für Admins: eine zugewiesene Aufgabe sieht außer ihrem Empf
 Schreiben an genau zwei Stellen, beide ab buero_auftrag: einen hängengebliebenen Eintrag als
 gesendet oder fehlgeschlagen klären, mit Notiz (seit 1.8.19; eine Aufgaben-Benachrichtigung nur
 Admin, für alle anderen gibt es sie nicht -- 404), und eine Zustellung auf anderem Weg nachtragen
-(seit 1.8.20; Einschreiben, persönliche Übergabe, Bote, Fax mit Datum, Notiz, optional Beleg).
-Gesendet, geändert oder gelöscht wird dabei nichts.
+(seit 1.8.20; Einschreiben, persönliche Übergabe, Bote, Fax mit Datum, Notiz, optional Beleg; seit
+1.8.41 mit Empfängerauswahl aus Auftraggeber und Beteiligten). Seit 1.8.41 dazu das Versandergebnis
+("Empfang bestätigt am", "unzustellbar") je gesendetem Eintrag eines Dokuments, ebenfalls ab
+buero_auftrag. Gesendet, geändert oder gelöscht wird dabei nichts.
 """
 
 from datetime import date
@@ -21,8 +23,8 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..email_dispatch import (
-    DISPATCH_TYPES, MAX_RECEIPT_BYTES, STATUSES, DispatchConflict, actor_of, dispatch_to_dict, list_dispatches,
-    record_manual_delivery, resolve_stuck_dispatch,
+    DISPATCH_TYPES, MAX_RECEIPT_BYTES, STATUSES, DispatchConflict, actor_of, delivery_recipients, dispatch_authorizations,
+    dispatch_to_dict, list_dispatches, record_dispatch_outcome, record_manual_delivery, resolve_stuck_dispatch,
 )
 from ..modules import is_module_enabled
 from ..models import AppUser, EmailDispatch, SentDocument
@@ -35,6 +37,16 @@ from ..sent_documents import (
 router = APIRouter()
 
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Das Versandprotokoll ist nur für Büro und Administratoren verfügbar."))
+
+
+# Dokumentarten, die an einer Checkliste hängen -- ohne das Modul "checklisten" gesperrt (seit 1.8.41 für die neuen
+# Endpunkte; "Zustellung nachtragen" prüft wie seit 1.8.20 nur "checkliste", siehe Nebenbefund 1.8.41).
+CHECKLIST_DOCUMENT_TYPES = ("checkliste", "behinderungsanzeige", "wiederaufnahme")
+
+
+def _require_module_for(db: Session, document_type: str) -> None:
+    if document_type in CHECKLIST_DOCUMENT_TYPES and not is_module_enabled(db, "checklisten"):
+        raise HTTPException(status_code=403, detail="Das Modul Checklisten & Formulare ist deaktiviert.")
 
 
 def _archive_http_error(e: ArchiveFileError) -> HTTPException:
@@ -97,15 +109,28 @@ def post_resolve_email_dispatch(dispatch_id: int, payload: EmailDispatchResolve,
     return dispatch_to_dict(resolved)
 
 
+@router.get("/api/email-dispatches/delivery-recipients")
+def get_delivery_recipients(document_type: str, document_id: int, db: Session = Depends(get_db),
+                            _user: AppUser = _role_dep):
+    """Empfängerauswahl für "Zustellung nachtragen" (seit 1.8.41): Auftraggeber und Beteiligte des Projekts."""
+    _require_module_for(db, document_type)
+    try:
+        return delivery_recipients(db, document_type, document_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.post("/api/email-dispatches/manual")
 def post_manual_delivery(
     document_type: str = Form(...), document_id: int = Form(...), channel: str = Form(...),
     delivered_on: date = Form(...), note: str = Form(""), recipient: str = Form(""),
     dispatch_key: str = Form(...), receipt: UploadFile | None = File(None),
+    to_client: bool = Form(False), participant_ids: list[int] = Form([]),
     db: Session = Depends(get_db), user: AppUser = _role_dep,
 ):
     """Zustellung auf anderem Weg nachtragen (seit 1.8.20): Eintrag im Protokoll, PDF des Dokuments
-    und optional der Beleg in der Ablage. Gewöhnliche def-Route (PDF-Erzeugung, Bildprüfung)."""
+    und optional der Beleg in der Ablage. Gewöhnliche def-Route (PDF-Erzeugung, Bildprüfung). Seit 1.8.41
+    Empfängerauswahl: to_client (Auftraggeber) und participant_ids (Beteiligte des Projekts, mehrfach)."""
     if document_type == "checkliste" and not is_module_enabled(db, "checklisten"):
         raise HTTPException(status_code=403, detail="Das Modul Checklisten & Formulare ist deaktiviert.")
     receipt_bytes = None
@@ -117,6 +142,7 @@ def post_manual_delivery(
             db, dispatch_key=dispatch_key, document_type=document_type, document_id=document_id, channel=channel,
             delivered_on=delivered_on, note=note, recipient=recipient, receipt_bytes=receipt_bytes or None,
             receipt_filename=receipt.filename if receipt is not None else None, user_id=user_id, user_name=user_name,
+            to_client=to_client, participant_ids=participant_ids,
         )
     except DispatchConflict as e:
         raise HTTPException(status_code=409, detail=str(e))
@@ -124,7 +150,38 @@ def post_manual_delivery(
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return dispatch_to_dict(result.dispatch)
+    return dispatch_to_dict(result.dispatch, authorizations=dispatch_authorizations(db, [result.dispatch.id]).get(result.dispatch.id))
+
+
+@router.post("/api/email-dispatches/{dispatch_id}/outcome")
+def post_dispatch_outcome(
+    dispatch_id: int, outcome: str = Form(...), outcome_on: date = Form(...), note: str = Form(""),
+    receipt: UploadFile | None = File(None), db: Session = Depends(get_db), user: AppUser = _role_dep,
+):
+    """"Empfang bestätigt am" bzw. "als unzustellbar markieren" (seit 1.8.41): einmal je gesendetem Eintrag eines
+    Dokuments, mit Datum, Notiz (bei unzustellbar Pflicht) und optional Beleg. Aufgaben-Benachrichtigungen haben kein
+    Ergebnis (404). Gewöhnliche def-Route (Bildprüfung des Belegs)."""
+    dispatch = db.get(EmailDispatch, dispatch_id)
+    if dispatch is None or dispatch.document_type == "aufgabe":
+        raise HTTPException(status_code=404, detail="Protokolleintrag nicht gefunden.")
+    _require_module_for(db, dispatch.document_type)
+    receipt_bytes = None
+    if receipt is not None and receipt.filename:
+        receipt_bytes = receipt.file.read(MAX_RECEIPT_BYTES + 1)
+    user_id, user_name = actor_of(user)
+    try:
+        row = record_dispatch_outcome(
+            db, dispatch_id, outcome=outcome, outcome_on=outcome_on, note=note, receipt_bytes=receipt_bytes or None,
+            receipt_filename=receipt.filename if receipt is not None else None, user_id=user_id, user_name=user_name,
+        )
+    except DispatchConflict as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    db.expire_all()
+    return dispatch_to_dict(db.get(EmailDispatch, dispatch_id), outcome=row)
 
 
 def _sent_document_or_404(db: Session, sent_document_id: int) -> SentDocument:

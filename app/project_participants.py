@@ -135,6 +135,58 @@ def check_not_client(project: Project, customer_id: int | None) -> None:
         raise ValueError("Der Kunde dieses Projekts ist Auftraggeber und kann nicht zusätzlich Beteiligter sein.")
 
 
+class ClientChangeConflict(ValueError):
+    """Der neue Kunde des Projekts ist dort schon Beteiligter -- Router: 409."""
+
+
+def check_client_change(db: Session, project: Project, new_customer_id: int) -> None:
+    """Kundenwechsel am Projekt (seit 1.8.41, 1.8.39 Nebenbefund 1): ist der neue Kunde über seinen Adressbuch-Eintrag
+    schon Beteiligter, stünde der Auftraggeber doppelt da. Festlegung: ablehnen und nennen, wo er eingetragen ist --
+    das Büro entfernt ihn im Reiter "Beteiligte" bewusst (Kopie bei Anzeigen, Vollmacht gingen sonst still verloren).
+    Wirft ClientChangeConflict."""
+    from .contacts import contact_display_name
+
+    if new_customer_id == project.customer_id:
+        return
+    rows = db.scalars(
+        select(ProjectParticipant).join(Contact, Contact.id == ProjectParticipant.contact_id)
+        .where(ProjectParticipant.project_id == project.id, Contact.customer_id == new_customer_id)
+        .options(selectinload(ProjectParticipant.contact).selectinload(Contact.customer))
+        .order_by(ProjectParticipant.id)
+    ).all()
+    if rows:
+        name = contact_display_name(rows[0].contact)
+        roles = ", ".join(role_label(p.role) for p in rows)
+        raise ClientChangeConflict(
+            f"{name} ist in diesem Projekt schon Beteiligter ({roles}) und stünde als Auftraggeber doppelt da. "
+            "Bitte zuerst im Reiter „Beteiligte“ entfernen, dann den Kunden wechseln."
+        )
+
+
+def participant_rows(db: Session, project_id: int) -> list[ProjectParticipant]:
+    """Beteiligte eines Projekts in der Reihenfolge der Rollen (wie ROLES), mit Kontakt und dessen Stammsatz geladen."""
+    rows = db.scalars(
+        select(ProjectParticipant).where(ProjectParticipant.project_id == project_id)
+        .options(selectinload(ProjectParticipant.contact).selectinload(Contact.customer),
+                 selectinload(ProjectParticipant.contact).selectinload(Contact.supplier))
+    ).all()
+    order = {key: i for i, key in enumerate(ROLES)}
+    return sorted(rows, key=lambda p: (order.get(p.role, len(order)), p.id))
+
+
+def participant_info(p: ProjectParticipant) -> dict:
+    """Kurzform für Anzeigen und Zustellungen (seit 1.8.40 in app/notice_letters.py, seit 1.8.41 hier):
+    Name und E-Mail live aus dem Kontakt bzw. seinem Stammsatz, Rolle, Häkchen, ob eine Vollmacht hinterlegt ist."""
+    from .contacts import contact_display_name, contact_values
+
+    return {
+        "participant_id": p.id, "name": contact_display_name(p.contact), "role": p.role,
+        "role_label": role_label(p.role), "email": (contact_values(p.contact)["email"] or "").strip() or None,
+        "copy_on_notices": p.copy_on_notices, "authorized": p.authorized_recipient,
+        "has_poa": bool(p.poa_stored_filename), "archived": p.contact.archived,
+    }
+
+
 def add_participant(db: Session, project: Project, contact: Contact, *, role: str, copy_on_notices: bool = False,
                     authorized_recipient: bool = False) -> ProjectParticipant:
     _check_role(role)

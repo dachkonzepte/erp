@@ -35,7 +35,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .checklist_purposes import FollowUp, get_purpose
-from .checklists import active_attachments
+from .checklists import VOID_STATUS, active_attachments
 from .models import (
     Checklist, ChecklistAnswer, ChecklistAttachment, ChecklistFollowUp, ChecklistTemplateField,
     ChecklistTemplateVersion, Task,
@@ -107,7 +107,10 @@ def triggering_signature(checklist: Checklist, field_key: str) -> ChecklistAttac
 
 
 def follow_up_due(checklist: Checklist, spec: FollowUp) -> bool:
-    """Seit 1.8.38: nach einer Unterschrift (after_signature) oder -- Standard -- nach dem Abschluss."""
+    """Seit 1.8.38: nach einer Unterschrift (after_signature) oder -- Standard -- nach dem Abschluss. Seit 1.8.41
+    nie an einer als gegenstandslos abgeschlossenen Checkliste (auch nicht beim Nachholen)."""
+    if checklist.status == VOID_STATUS:
+        return False
     if spec.after_signature:
         return triggering_signature(checklist, spec.after_signature) is not None
     return checklist.status == "abgeschlossen"
@@ -223,11 +226,59 @@ def list_follow_ups(db: Session, checklist_id: int) -> list[dict]:
 
 
 def list_checklists_with_open_follow_ups(db: Session, limit: int = 200) -> list[int]:
-    """IDs der Checklisten mit offenen Folgen (modul_aus/ausstehend) -- für "alle nachholen"."""
+    """IDs der Checklisten mit offenen Folgen (modul_aus/ausstehend) -- für "alle nachholen". Seit 1.8.41 ohne
+    gegenstandslose Checklisten: ihre Folgen werden nie mehr ausgeführt."""
     return list(db.scalars(
         select(ChecklistFollowUp.checklist_id)
-        .where(ChecklistFollowUp.status.in_(OPEN_STATUSES))
+        .join(Checklist, Checklist.id == ChecklistFollowUp.checklist_id)
+        .where(ChecklistFollowUp.status.in_(OPEN_STATUSES), Checklist.status != VOID_STATUS)
         .group_by(ChecklistFollowUp.checklist_id)
         .order_by(ChecklistFollowUp.checklist_id)
         .limit(limit)
     ).all())
+
+
+def _follow_up_task_ids(db: Session, checklist_id: int, follow_up_key: str | None) -> list[int]:
+    query = select(ChecklistFollowUp.target_id).where(
+        ChecklistFollowUp.checklist_id == checklist_id, ChecklistFollowUp.target_type == "task",
+        ChecklistFollowUp.target_id.is_not(None))
+    if follow_up_key is not None:
+        query = query.where(ChecklistFollowUp.follow_up_key == follow_up_key)
+    return list(db.scalars(query).all())
+
+
+def _set_follow_up_tasks(db: Session, checklist_id: int, follow_up_key: str | None, *, done: bool) -> int:
+    """Gemeinsam für Erledigen und Wiederöffnen: je Aufgabe aus einer Folge der Checkliste die erste "erledigt"-
+    bzw. die erste offene Spalte (Kanban-Reihenfolge). Archivierte Aufgaben bleiben, wie sie sind. Ein Fehler hier
+    macht den Anlass (Versand, Abschluss) nicht ungeschehen -- Rollback, nur Klassenname im Protokoll (Regel 18)."""
+    from .models import TaskColumn
+    from .tasks import update_task  # lokal: app.tasks zieht E-Mail-Versand u. a. nach
+
+    changed = 0
+    try:
+        columns = db.scalars(select(TaskColumn).order_by(TaskColumn.sort_order, TaskColumn.id)).all()
+        done_keys = {c.key for c in columns if c.is_done}
+        target = next((c.key for c in columns if c.is_done == done), None)
+        for task_id in _follow_up_task_ids(db, checklist_id, follow_up_key):
+            task = db.get(Task, task_id)
+            if task is None or task.archived or target is None or (task.status in done_keys) == done:
+                continue
+            update_task(db, task_id, status=target)
+            changed += 1
+    except Exception as exc:  # noqa: BLE001 -- der Anlass ist geschehen, die Aufgabe bleibt dann, wie sie ist
+        db.rollback()
+        logger.warning("Aufgaben aus Folgen der Checkliste %s nicht %s (%s)", checklist_id,
+                       "erledigt" if done else "wieder geöffnet", type(exc).__name__)
+    return changed
+
+
+def complete_follow_up_tasks(db: Session, checklist_id: int, follow_up_key: str | None = None) -> int:
+    """Offene Aufgaben aus Folgen der Checkliste erledigen (seit 1.8.41 gemeinsam für den Versand der
+    Behinderungsanzeige und "als gegenstandslos abschließen"); follow_up_key None = alle Folgen. Liefert die Zahl."""
+    return _set_follow_up_tasks(db, checklist_id, follow_up_key, done=True)
+
+
+def reopen_follow_up_tasks(db: Session, checklist_id: int, follow_up_key: str) -> int:
+    """Erledigte Aufgaben aus dieser Folge wieder öffnen (seit 1.8.41: die Behinderungsanzeige ist als unzustellbar
+    vermerkt und kam auf keinem anderen Weg an). Liefert die Zahl."""
+    return _set_follow_up_tasks(db, checklist_id, follow_up_key, done=False)

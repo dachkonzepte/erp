@@ -4,6 +4,28 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.41 – Behinderungsanzeige abschließen
+
+Stufe 2b, Runde 2b-3 Teil 3 (die offenen Punkte 4–7 aus 1.8.40). Im Versandprotokoll lässt sich zu jedem gesendeten
+Eintrag eines Dokuments – E-Mail oder nachgetragene Zustellung, jede Dokumentart – einmal „Empfang bestätigt am“ (Datum,
+Notiz, optional Beleg) oder „unzustellbar“ (Datum, Pflicht-Notiz) vermerken, im Versandverlauf jeder Dokumentseite und in
+`/versandprotokoll`; der Vermerk ist unveränderlich, zwei gleichzeitige ergeben genau einen (`dispatch_outcomes`). „Zustellung
+nachtragen“ hat eine Empfängerauswahl: Auftraggeber (vorgewählt) und alle Beteiligten des Projekts, auch ohne E-Mail; ist ein
+gewählter Empfänger empfangsbevollmächtigt, wird seine Vollmacht eingefroren wie beim E-Mail-Versand. Für die
+Behinderungsanzeige zählt nur, was beim Auftraggeber ankam: eine unzustellbare öffnet die Aufgabe „versenden“ wieder, eine
+Kopie nur an Beteiligte erledigt sie nicht. Die Anzeige der Wiederaufnahme trägt „i. A.“ und den Namen des Büro-Kontos, das sie
+erstellt – die Unterschrift im Abschnitt Wegfall bleibt interner Beleg. Die Karte „Anzeige an den Auftraggeber“ zeigt einen
+Zeitstrahl (bekannt seit → Meldung unterschrieben → versendet, mit Abstand in Stunden bzw. Tagen). Behinderungs- und
+Bedenkenanzeige lassen sich im Büro „als gegenstandslos abschließen“: Pflicht-Begründung, auch mit fehlenden Angaben,
+versiegelt mit Prüfsumme wie ein Abschluss, danach aus den offenen Listen (auch `/mobil`), keine Folgen und keine Briefe mehr,
+die offene Aufgabe erledigt, PDF mit Begründung. Ein Kundenwechsel im Projekt wird abgelehnt, solange der neue Kunde dort
+schon Beteiligter ist. Monteure 403 an allen neuen Endpunkten. Migration `0181f8f79a6b` (Downgrade bricht ab, solange eines
+der neuen Nachweise existiert).
+
+Festlegungen, wo die Vorgabe offen war (ein Ergebnis je Eintrag, Wiederöffnen der Aufgabe, „i. A.“ mit dem erstellenden
+Konto, gegenstandslos auch nach versendetem Brief, Kundenwechsel ablehnen statt entfernen) und fünf Nebenbefunde stehen in
+`docs/archiv/vertragsgrundlage-und-vertrag.md`, „Umsetzung 1.8.41“. `tests/test_v344_behinderungsanzeige_abschluss.py` (20 Tests, auch gegen PostgreSQL 17), Datengrenze `test_v326` nachgezogen; 35 von 36 Gegenproben rot (die grüne: nur die Vorprüfung vor dem Brief, die Prüfung unter der Sperre hält). Migration SQLite und PostgreSQL (ganze Kette, mit Bestand): hin, Downgrade-Abbruch, zurück, hin, `alembic check`. Volle Suite 2544 grün. Klicktest `scripts/klicktest_behinderungsanzeige_abschluss.py` 43/43, die Klicktests von Versand, Versandverlauf, Versandprotokoll und Checklisten unverändert grün.
+
 ## 1.8.40 – Behinderungsanzeige als Brief und Versand
 
 Stufe 2b, Runde 2b-3 Teil 2, Punkte 1–3 (der Rest folgt als eigene Version). Aus der Behinderungsanzeige entstehen

@@ -77,6 +77,11 @@ MAX_SIGNATURE_UPLOAD_BYTES = 2 * 1024 * 1024
 MAX_TEXT_LENGTH = 10_000
 READINESS_FIELD_KEY = "einsatzbereit"  # Entscheidung B, Zusatz: fester Schlüssel für Geräte-Checklisten
 
+VOID_STATUS = "gegenstandslos"  # seit 1.8.41, void_checklist()
+CLOSED_STATUSES = ("abgeschlossen", VOID_STATUS)  # eingefroren, mit Abschluss-Kopie
+VOID_REASON_MAX = 2000
+STATUS_LABELS = {"entwurf": "Entwurf", "abgeschlossen": "Abgeschlossen", VOID_STATUS: "Gegenstandslos"}
+
 ATTACHMENT_FIELD_TYPES = {"foto": "foto", "unterschrift": "unterschrift"}
 _NO_ANSWER_TYPES = {"hinweis", "foto", "unterschrift"}
 _NOT_SEALED_TYPES = {"hinweis", "unterschrift"}  # eine Unterschrift versiegelt Antworten und Fotos
@@ -294,10 +299,13 @@ def completion_content(checklist: Checklist, photo_hashes: dict | None = None) -
     """Der Inhalt, den das Abschließen versiegelt (seit 1.8.15): wie bei einer Unterschrift, aber
     ALLE Felder, die Unterschriften eingeschlossen -- so fällt auch ein nachträglich geänderter
     Name, Zeitpunkt oder ein ausgetauschtes Unterschriftsbild auf. Beim Abschließen als Kopie an
-    der Checkliste abgelegt, geprüft von check_completion()."""
-    return _dump({**_content_head(checklist), "sealed_by": "abschluss",
-                  "fields": _content_entries(checklist, checklist.template_version.fields, photo_hashes,
-                                             with_signatures=True)})
+    der Checkliste abgelegt, geprüft von check_completion(). Seit 1.8.41 ebenso "als gegenstandslos
+    abschließen" -- dann mit "sealed_by": "gegenstandslos" und der Begründung im Kopf."""
+    head = {**_content_head(checklist), "sealed_by": "abschluss"}
+    if checklist.status == VOID_STATUS:
+        head.update(sealed_by="gegenstandslos", void_reason=checklist.void_reason)
+    return _dump({**head, "fields": _content_entries(checklist, checklist.template_version.fields, photo_hashes,
+                                                     with_signatures=True)})
 
 
 def _legacy_content_sha256(checklist: Checklist, photo_hashes: dict | None = None) -> str:
@@ -338,7 +346,9 @@ def _changed_fields(checklist: Checklist, sealed: str, current: str) -> list[str
     old_fields = {e["field_key"]: e for e in old.pop("fields", [])}
     new_fields = {e["field_key"]: e for e in new.pop("fields", [])}
     labels = {f.field_key: f.label for f in checklist.template_version.fields}
-    changed = ["Kopfangaben (Vorlage, Bezug)"] if old != new else []
+    # seit 1.8.41: die Begründung "gegenstandslos" steht im Kopf der Abschluss-Kopie, eigens benannt
+    changed = ["Begründung (gegenstandslos)"] if old.pop("void_reason", None) != new.pop("void_reason", None) else []
+    changed += ["Kopfangaben (Vorlage, Bezug)"] if old != new else []
     return changed + [labels.get(k, k) for k in dict.fromkeys([*old_fields, *new_fields])
                       if old_fields.get(k) != new_fields.get(k)]
 
@@ -375,9 +385,9 @@ def check_signature(checklist: Checklist, signature: ChecklistAttachment, photo_
 
 
 def check_completion(checklist: Checklist, photo_hashes: dict | None = None) -> dict | None:
-    """Wie check_signature(), für die Kopie des Abschlusses (seit 1.8.15). None bei einem
-    Entwurf; vor 1.8.15 abgeschlossene Checklisten haben keine Kopie: ohne_pruefsumme."""
-    if checklist.status != "abgeschlossen":
+    """Wie check_signature(), für die Kopie des Abschlusses (seit 1.8.15, seit 1.8.41 auch "gegenstandslos"). None
+    bei einem Entwurf; vor 1.8.15 abgeschlossene Checklisten haben keine Kopie: ohne_pruefsumme."""
+    if checklist.status not in CLOSED_STATUSES:
         return None
     if not checklist.content_sha256:
         return _seal_result("ohne_pruefsumme", [], COMPLETION_TEXTS)
@@ -479,8 +489,18 @@ def checklist_to_dict(checklist: Checklist) -> dict:
         "missing_required": missing_required_labels(checklist),
         "completion_sha256": checklist.content_sha256,
         "completion_seal": check_completion(checklist, photo_hashes),
+        # seit 1.8.41: "als gegenstandslos abschließen" (Zweck erlaubt es; wer darf, entscheidet der Router)
+        "voidable": is_voidable(checklist),
+        "voided_at": checklist.voided_at, "voided_at_local": _berlin_text(checklist.voided_at),
+        "voided_by_name": checklist.voided_by_name, "void_reason": checklist.void_reason,
     })
     return data
+
+
+def is_voidable(checklist: Checklist) -> bool:
+    """Der Zweck der Fassung erlaubt "als gegenstandslos abschließen" (seit 1.8.41: Behinderungs-, Bedenkenanzeige)."""
+    purpose = get_purpose(checklist.template_version.purpose)
+    return bool(purpose and purpose.voidable)
 
 
 # --- Anlegen --------------------------------------------------------------------------------
@@ -705,6 +725,8 @@ def mark_asset_repaired(db: Session, asset_id: int, *, note: str | None = None, 
 # --- Antworten ------------------------------------------------------------------------------
 
 def _require_draft(checklist: Checklist) -> None:
+    if checklist.status == VOID_STATUS:
+        raise ChecklistLocked("Die Checkliste ist als gegenstandslos abgeschlossen und kann nicht mehr geändert werden.")
     if checklist.status != "entwurf":
         raise ChecklistLocked("Die Checkliste ist abgeschlossen und kann nicht mehr geändert werden.")
 
@@ -1022,6 +1044,7 @@ def complete_checklist(db: Session, checklist_id: int, *, completed_by_employee_
         raise LookupError("Checkliste nicht gefunden.")
     if checklist.status == "abgeschlossen":
         return checklist_to_dict(checklist)
+    _require_draft(checklist)  # seit 1.8.41: "gegenstandslos" bleibt es (409)
     missing = missing_required_labels(checklist)
     if missing:
         raise ValueError("Noch nicht ausgefüllt: " + ", ".join(missing) + ".")
@@ -1037,6 +1060,46 @@ def complete_checklist(db: Session, checklist_id: int, *, completed_by_employee_
     from .checklist_rules import run_rules_after_completion
     run_rules_after_completion(db, checklist_id)
     run_follow_ups_after_completion(db, checklist_id)
+    db.expire_all()
+    return checklist_to_dict(_load(db, checklist_id))
+
+
+def void_checklist(db: Session, checklist_id: int, *, reason: str | None, user_id: int | None = None,
+                   by_name: str | None = None, employee_id: int | None = None) -> dict:
+    """"Als gegenstandslos abschließen" (seit 1.8.41, Stufe 2b, Runde 2b-3 Teil 3): eine Behinderungs- oder
+    Bedenkenanzeige, die sich als keine herausstellt (z. B. übliche Witterung), bleibt als Beleg -- auch mit
+    fehlenden Pflichtangaben und mit Unterschriften. Nur ein Entwurf, nur Zwecke mit voidable, Begründung Pflicht;
+    nur das Büro (entscheidet der Router). Unter der Zeilensperre: Status "gegenstandslos", wann, wer, Begründung,
+    dazu die feste Kopie aller Felder samt Begründung mit Prüfsumme wie beim Abschließen (completion_content()).
+    Danach: keine Regeln (die laufen nur nach einem Abschluss), keine Folgen mehr (follow_up_due()), die offenen
+    Aufgaben aus Folgen sind erledigt (nach dem Commit, ein Fehler dort lässt den Abschluss gelten). Wiederholt
+    (Doppelklick): der vorhandene Stand, keine zweite Begründung."""
+    checklist = _load(db, checklist_id, for_update=True)
+    if checklist is None:
+        raise LookupError("Checkliste nicht gefunden.")
+    if checklist.status == VOID_STATUS:
+        return checklist_to_dict(checklist)
+    if not is_voidable(checklist):
+        raise ValueError("Als gegenstandslos abschließen lassen sich nur Behinderungs- und Bedenkenanzeigen.")
+    _require_draft(checklist)
+    reason = (reason or "").strip()
+    if len(reason) < 3:
+        raise ValueError("Bitte begründen, warum die Anzeige gegenstandslos ist (z. B. „übliche Witterung, keine Behinderung“).")
+    if len(reason) > VOID_REASON_MAX:
+        raise ValueError(f"Die Begründung ist zu lang (höchstens {VOID_REASON_MAX} Zeichen).")
+    now = datetime.utcnow()
+    checklist.status = VOID_STATUS
+    checklist.void_reason = reason
+    checklist.voided_at = now
+    checklist.voided_by_user_id = user_id
+    checklist.voided_by_name = (by_name or "").strip()[:160] or "System"
+    checklist.completed_at = now
+    checklist.completed_by_employee_id = employee_id
+    checklist.sealed_content = completion_content(checklist)
+    checklist.content_sha256 = _sha256_text(checklist.sealed_content)
+    db.commit()
+    from .checklist_follow_ups import complete_follow_up_tasks  # lokal, Muster Regel 3
+    complete_follow_up_tasks(db, checklist_id)
     db.expire_all()
     return checklist_to_dict(_load(db, checklist_id))
 

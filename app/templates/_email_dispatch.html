@@ -95,6 +95,18 @@ async function postEmailDispatch(slot, url, payload, button) {
 .dh-form .dh-wide{grid-column:1/-1}
 .dh-btn{font-family:inherit;cursor:pointer;padding:6px 11px;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--ink);min-height:0;width:auto}
 .dh-btn:hover{background:var(--soft)}.dh-btn:disabled{opacity:.55;cursor:default}
+/* Seit 1.8.41: Versandergebnis je Zeile und Empfängerauswahl beim Nachtragen */
+.dh-outcome{margin-top:4px;padding:5px 7px;font-size:12px;white-space:pre-wrap}
+.dh-outcome.empfangen{background:var(--success-soft,#eaf5ef);color:var(--ink)}
+.dh-outcome.unzustellbar{background:var(--danger-soft);color:var(--ink)}
+.dh-outcome b{font-weight:800}
+.dh-outcome.empfangen b{color:var(--success,#1f8a5f)}.dh-outcome.unzustellbar b{color:var(--danger)}
+.dh-outcome a{color:var(--accent);font-weight:700;text-decoration:none}
+.dh-oc-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.dh-recipients{display:flex;flex-direction:column;gap:6px}
+.dh-form label.dh-check{flex-direction:row;align-items:flex-start;gap:8px;font-weight:500;color:var(--ink);font-size:13px}
+.dh-form label.dh-check input{width:auto;min-height:0;margin-top:2px;flex:none}
+.dh-check .dh-muted{display:block}
 </style>
 <script>
 /* Versandverlauf und "Zustellung nachtragen" (seit 1.8.20). renderDispatchHistory(containerId, art, id)
@@ -102,7 +114,11 @@ async function postEmailDispatch(slot, url, payload, button) {
    seit 1.8.40 behinderungsanzeige und wiederaufnahme -- Dokument-ID ist dort die Checkliste).
    Die Zustellung auf anderem Weg (Einschreiben, persönliche Übergabe, Bote, Fax) trägt ein sichtbares
    Formular nach -- Datum, Notiz (Pflicht), optional Empfänger und Beleg (Foto/Scan); auch hier ein
-   Schlüssel je Klick wie beim E-Mail-Versand. */
+   Schlüssel je Klick wie beim E-Mail-Versand.
+   Seit 1.8.41: Empfängerauswahl beim Nachtragen (Auftraggeber vorgewählt, Beteiligte des Projekts auch ohne
+   E-Mail; bei Empfangsbevollmächtigten wird die Vollmacht festgehalten) und je gesendeter Zeile "Empfang
+   bestätigt" bzw. "Unzustellbar" mit sichtbarem Formular (Datum, Notiz, Beleg) -- einmal je Eintrag, vom Server
+   entschieden (can_record_outcome). dispatchOutcomeHtml()/saveDispatchOutcome() nutzt auch /versandprotokoll. */
 const DISPATCH_MANUAL_CHANNELS = {einschreiben: 'Einschreiben', persoenlich: 'Persönliche Übergabe', bote: 'Bote', fax: 'Fax'};
 const _dhOpts = {};
 const _dhEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
@@ -115,7 +131,71 @@ function berlinTodayIso() {
   for (const x of new Intl.DateTimeFormat('en-US', {timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit'}).formatToParts(new Date())) p[x.type] = x.value;
   return `${p.year}-${p.month}-${p.day}`;
 }
-function _dhRow(d) {
+const _dhOutcomeDone = {};  // slot -> Funktion, die nach einem Vermerk neu lädt
+function _dhDay(d) { return String(d.manual ? d.delivered_on : d.created_at_local || '').slice(0, 10); }
+/* Versandergebnis einer Zeile: vermerkt (mit Beleg) oder -- wenn erlaubt -- zwei Knöpfe und ein verborgenes
+   Formular. slot: eindeutiges Präfix der Seite (Container-ID bzw. 'vp' im Versandprotokoll). */
+function dispatchOutcomeHtml(d, slot, canRecord) {
+  const o = d.outcome;
+  if (o) {
+    const receipt = o.receipt_document ? ` · <a href="/api/sent-documents/${o.receipt_document.id}/file" target="_blank" rel="noopener">Beleg</a>` : '';
+    return `<div class="dh-outcome ${_dhEsc(o.outcome)}" data-outcome="${_dhEsc(o.outcome)}"><b>${_dhEsc(o.outcome_label)} am ${_dhLocal(o.outcome_on)}</b>`
+      + ` <span class="dh-muted">· vermerkt von ${_dhEsc(o.created_by_name)}, ${_dhLocal(o.created_at_local)}</span>${receipt}`
+      + (o.note ? `<div>${_dhEsc(o.note)}</div>` : '') + '</div>';
+  }
+  if (!canRecord || !d.can_record_outcome) return '';
+  const id = `${slot}-oc-${d.id}`, today = berlinTodayIso(), min = _dhDay(d);
+  return `<div class="dh-oc-actions" id="${id}-actions"><button type="button" class="dh-btn" onclick="toggleDispatchOutcome('${id}','empfangen')">Empfang bestätigt</button>`
+    + `<button type="button" class="dh-btn" onclick="toggleDispatchOutcome('${id}','unzustellbar')">Unzustellbar</button></div>`
+    + `<div class="dh-form" id="${id}" data-dispatch-id="${d.id}" style="display:none">
+        <input type="hidden" id="${id}-kind" value="">
+        <label><span id="${id}-datelabel">Datum</span><input type="date" id="${id}-date" value="${today}" min="${_dhEsc(min)}" max="${today}"></label>
+        <label>Beleg (optional)<input type="file" id="${id}-file" accept="image/jpeg,image/png,image/webp,application/pdf"></label>
+        <label class="dh-wide"><span id="${id}-notelabel">Notiz</span><textarea id="${id}-note" rows="2" maxlength="1000"></textarea></label>
+        <div class="dh-wide" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="dh-btn" id="${id}-save" onclick="saveDispatchOutcome('${id}','${_dhEsc(slot)}')">Speichern</button><span class="dh-muted" id="${id}-msg"></span></div>
+      </div>`;
+}
+function toggleDispatchOutcome(id, kind) {
+  const form = document.getElementById(id), $ = s => document.getElementById(`${id}-${s}`);
+  const same = form.style.display !== 'none' && $('kind').value === kind;
+  form.style.display = same ? 'none' : 'grid';
+  $('kind').value = kind;
+  $('datelabel').textContent = kind === 'empfangen' ? 'Empfang bestätigt am' : 'Unzustellbar seit';
+  $('notelabel').textContent = kind === 'empfangen' ? 'Notiz (optional)' : 'Notiz (Pflicht)';
+  $('note').placeholder = kind === 'empfangen' ? 'z. B. Rückschein vom 05.10., Lesebestätigung' : 'z. B. Rückläufer: Empfänger unbekannt verzogen';
+  $('save').textContent = kind === 'empfangen' ? 'Empfang speichern' : 'Als unzustellbar speichern';
+  $('msg').textContent = '';
+}
+async function saveDispatchOutcome(id, slot) {
+  const $ = s => document.getElementById(`${id}-${s}`);
+  const form = document.getElementById(id), msg = $('msg'), button = $('save');
+  const kind = $('kind').value, note = $('note').value.trim();
+  if (kind === 'unzustellbar' && note.length < 3) { msg.textContent = 'Bitte in der Notiz festhalten, warum unzustellbar.'; return; }
+  if (!$('date').value) { msg.textContent = 'Bitte das Datum angeben.'; return; }
+  const data = new FormData();
+  data.append('outcome', kind);
+  data.append('outcome_on', $('date').value);
+  data.append('note', note);
+  if ($('file').files[0]) data.append('receipt', $('file').files[0]);
+  button.disabled = true;
+  msg.textContent = 'speichere …';
+  let r;
+  try {
+    r = await fetch(`/api/email-dispatches/${form.dataset.dispatchId}/outcome`, {method: 'POST', body: data});
+  } catch (e) {
+    msg.textContent = 'Keine Antwort vom Server – bitte neu laden und prüfen, ob es vermerkt ist.';
+    button.disabled = false;
+    return;
+  }
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    msg.textContent = 'Fehler: ' + (typeof d.detail === 'string' ? d.detail : `Eingabe unvollständig oder ungültig (${r.status}).`);
+    button.disabled = false;
+    return;
+  }
+  if (_dhOutcomeDone[slot]) await _dhOutcomeDone[slot]();
+}
+function _dhRow(d, containerId, canRecord) {
   const when = d.manual
     ? `Zugestellt am ${_dhLocal(d.delivered_on)}<div class="dh-muted">nachgetragen ${_dhLocal(d.created_at_local)}</div>`
     : _dhLocal(d.created_at_local);
@@ -132,7 +212,7 @@ function _dhRow(d) {
   if (d.stuck) extra += '<div class="dh-muted">Ausgang unklar – im Versandprotokoll klären.</div>';
   // Seit 1.8.40: beim Versand festgehaltene Empfangsvollmachten (Brief an den Auftraggeber).
   for (const a of d.authorizations || []) {
-    extra += `<div class="dh-muted">Empfangsbevollmächtigt: ${_dhEsc(a.contact_name)} (${_dhEsc(a.role_label)}) – `
+    extra += `<div class="dh-muted">Empfangsbevollmächtigt: ${_dhEsc(a.contact_name)} (${_dhEsc(a.role_label)})${a.recipient_email ? '' : ' – ohne E-Mail'} – `
       + (a.sent_document ? `Vollmacht festgehalten <a href="/api/sent-documents/${a.sent_document.id}/file" target="_blank" rel="noopener">öffnen</a>` : _dhEsc(a.note || 'keine Vollmacht festgehalten'))
       + '</div>';
   }
@@ -141,7 +221,8 @@ function _dhRow(d) {
   // ebenso die Briefe an den Auftraggeber ("AUF-… · Fassung N").
   const versioned = ['vertrag', 'behinderungsanzeige', 'wiederaufnahme'].includes(d.document_type);
   const version = versioned && d.document_number ? ` · ${_dhEsc(d.document_number.split(' · ').slice(1).join(' · '))}` : '';
-  return `<div class="dh-row"><div>${when}</div><div><b>${_dhEsc(d.channel_label)}</b>${version}${to}<div class="dh-muted">${_dhEsc(d.created_by_name)}</div>${extra}</div>`
+  extra += dispatchOutcomeHtml(d, containerId, canRecord);
+  return `<div class="dh-row" data-dispatch-row="${d.id}"><div>${when}</div><div><b>${_dhEsc(d.channel_label)}</b>${version}${to}<div class="dh-muted">${_dhEsc(d.created_by_name)}</div>${extra}</div>`
     + `<div class="dh-end">${pill}<div class="dh-links">${links}</div></div></div>`;
 }
 async function renderDispatchHistory(containerId, type, id, opts) {
@@ -166,26 +247,55 @@ async function renderDispatchHistory(containerId, type, id, opts) {
     if (frozen) hint = `<div class="dh-hint">Nachdruck, Download und erneuter Versand verwenden die abgelegte Fassung vom ${_dhLocal(frozen.sent_document.created_at_local)}.</div>`;
   }
   const canRecord = o.manual !== false;
+  _dhOutcomeDone[containerId] = () => (o.onChange ? o.onChange() : renderDispatchHistory(containerId, type, id));
   const options = Object.entries(DISPATCH_MANUAL_CHANNELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   const today = berlinTodayIso();
   el.innerHTML = `<div class="dh-head"><b>Versandverlauf</b><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">`
     + `<a href="/versandprotokoll?typ=${encodeURIComponent(type)}&id=${id}">Versandprotokoll</a>`
     + (canRecord ? `<button type="button" class="dh-btn" id="${containerId}-toggle" onclick="toggleManualDelivery('${containerId}')">Zustellung nachtragen</button>` : '')
     + `</span></div>`
-    + (items.length ? items.map(_dhRow).join('') : '<div class="dh-muted" style="padding:6px 0">Noch nicht versendet oder zugestellt.</div>')
+    + (items.length ? items.map(d => _dhRow(d, containerId, o.outcomes !== false)).join('') : '<div class="dh-muted" style="padding:6px 0">Noch nicht versendet oder zugestellt.</div>')
     + hint
     + (canRecord ? `<div class="dh-form" id="${containerId}-form" style="display:none">
         <label>Weg<select id="${containerId}-channel">${options}</select></label>
         <label>Zugestellt am<input type="date" id="${containerId}-date" value="${today}" max="${today}"></label>
-        <label>Empfänger (optional)<input id="${containerId}-recipient" maxlength="300" placeholder="Name, Anschrift oder Faxnummer"></label>
+        <div class="dh-wide dh-recipients" id="${containerId}-recipients" data-loaded=""><span class="dh-muted">Empfänger werden geladen …</span></div>
+        <label>Weitere Empfängerangabe (optional)<input id="${containerId}-recipient" maxlength="300" placeholder="Name, Anschrift oder Faxnummer"></label>
         <label>Beleg (optional)<input type="file" id="${containerId}-file" accept="image/jpeg,image/png,image/webp,application/pdf"></label>
         <label class="dh-wide">Notiz (Pflicht)<textarea id="${containerId}-note" rows="2" maxlength="1000" placeholder="z. B. Sendungsnummer, an wen übergeben, Faxbericht OK"></textarea></label>
         <div class="dh-wide" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="dh-btn" id="${containerId}-save" onclick="saveManualDelivery('${containerId}','${_dhEsc(type)}',${Number(id)})">Zustellung speichern</button><span class="dh-muted" id="${containerId}-msg"></span></div>
       </div>` : '');
+  const form = document.getElementById(`${containerId}-form`);
+  if (form) { form.dataset.type = type; form.dataset.id = String(id); }
 }
 function toggleManualDelivery(containerId) {
   const form = document.getElementById(containerId + '-form');
-  if (form) form.style.display = form.style.display === 'none' ? 'grid' : 'none';
+  if (!form) return;
+  form.style.display = form.style.display === 'none' ? 'grid' : 'none';
+  if (form.style.display !== 'none') loadDeliveryRecipients(containerId, form.dataset.type, form.dataset.id);
+}
+/* Seit 1.8.41: Auftraggeber (vorgewählt) und Beteiligte des Projekts, einmal je Formular geladen. */
+async function loadDeliveryRecipients(containerId, type, id) {
+  const box = document.getElementById(`${containerId}-recipients`);
+  if (!box || box.dataset.loaded) return;
+  let data;
+  try {
+    const r = await fetch(`/api/email-dispatches/delivery-recipients?document_type=${encodeURIComponent(type)}&document_id=${id}`);
+    if (!r.ok) throw Error((await r.json().catch(() => ({}))).detail || r.statusText);
+    data = await r.json();
+  } catch (e) {
+    box.innerHTML = `<span class="dh-muted">Empfänger nicht geladen: ${_dhEsc(e.message)} – bitte als Text angeben.</span>`;
+    return;
+  }
+  box.dataset.loaded = '1';
+  if (!data.client && !data.participants.length) { box.innerHTML = '<span class="dh-muted">Kein Projekt – Empfänger bitte unten als Text angeben.</span>'; return; }
+  let html = '<span class="dh-muted" style="font-weight:600">Empfänger</span>';
+  if (data.client) html += `<label class="dh-check"><input type="checkbox" id="${containerId}-client" checked><span><b>${_dhEsc(data.client.name)}</b> – Auftraggeber${data.client.address ? `<span class="dh-muted">${_dhEsc(data.client.address)}</span>` : ''}</span></label>`;
+  for (const p of data.participants) {
+    const poa = p.authorized ? (p.has_poa ? 'empfangsbevollmächtigt – die Vollmacht wird festgehalten' : 'empfangsbevollmächtigt – keine Vollmacht hinterlegt') : 'Kopie';
+    html += `<label class="dh-check"><input type="checkbox" class="${containerId}-participant" value="${Number(p.participant_id)}" data-authorized="${p.authorized ? '1' : ''}"><span><b>${_dhEsc(p.name)}</b> (${_dhEsc(p.role_label)})${p.archived ? ' · archiviert' : ''}<span class="dh-muted">${_dhEsc(poa)}${p.email ? '' : ' · ohne E-Mail'}</span></span></label>`;
+  }
+  box.innerHTML = html;
 }
 async function saveManualDelivery(containerId, type, id) {
   const $ = s => document.getElementById(`${containerId}-${s}`);
@@ -201,6 +311,9 @@ async function saveManualDelivery(containerId, type, id) {
   form.append('delivered_on', $('date').value);
   form.append('note', note);
   form.append('recipient', $('recipient').value.trim());
+  const client = $('client');
+  form.append('to_client', client && client.checked ? 'true' : 'false');
+  for (const box of document.querySelectorAll(`.${containerId}-participant:checked`)) form.append('participant_ids', box.value);
   if ($('file').files[0]) form.append('receipt', $('file').files[0]);
   form.append('dispatch_key', dispatchKeyFor(slot));
   button.disabled = true;

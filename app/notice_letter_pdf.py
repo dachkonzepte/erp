@@ -5,8 +5,9 @@ Dokumenttyp "notice" im gemeinsamen Rahmen (app/document_frame.py, RENDERERS_USI
 Ränder und Wiederholungszeile wie die übrigen Dokumente, Kopf über build_din5008_header_block(). Gerendert wird
 ausschließlich aus der Inhaltsstruktur (build_letter_content()) -- Empfänger, Anrede, Betreff mit Bauvorhaben und
 Auftragsnummer, Einleitung, die Angaben der versiegelten Abschnitte, Vorbehalt (nur geprüft), Grußformel mit der
-Unterschrift des Abschnitts, "Kopie an:", Hinweis auf die Anlage, darunter die Prüfsumme des unterschriebenen
-Inhalts. Danach die Fotos als Anlage.
+Unterschrift des Abschnitts (seit 1.8.41 bei der Anzeige der Wiederaufnahme "i. A." und das Büro-Konto, content
+["signoff"]), "Kopie an:", Hinweis auf die Anlage, darunter die Prüfsumme des unterschriebenen Inhalts. Danach die
+Fotos als Anlage.
 
 Fotos verkleinert (Muster app/checklist_pdf.py::build_checklist_email_pdf()): stufenweise im Speicher neu
 kodiert, bis das PDF unter der Anhanggrenze von 3.000.000 Bytes liegt; die Originale werden nur gelesen. Passt
@@ -65,6 +66,12 @@ def render_notice_letter_pdf(db, content: dict, *, signature_png: bytes | None, 
         block = [Paragraph(ptext(content["closing"]), body), Spacer(1, 1.5 * mm)]
         if content.get("company_name"):
             block.append(Paragraph(ptext(content["company_name"]), body))
+        signoff = content.get("signoff")
+        if signoff and signoff.get("mode") == "i_a":
+            # Seit 1.8.41 (Anzeige der Wiederaufnahme): "i. A." und das Büro-Konto, kein Unterschriftsbild -- die
+            # Unterschrift im Abschnitt Wegfall bleibt interner Beleg.
+            block += [Spacer(1, 8 * mm), Paragraph(ptext(f"i. A. {signoff['name']}"), body)]
+            return block
         if signature_png:
             image = Image(BytesIO(signature_png), width=SIGNATURE_WIDTH_MM * mm, height=SIGNATURE_HEIGHT_MM * mm,
                           kind="proportional", hAlign="LEFT")
@@ -107,8 +114,9 @@ def render_notice_letter_pdf(db, content: dict, *, signature_png: bytes | None, 
         sig = content["signature"]
         signed_at = datetime.fromisoformat(sig["signed_at"]).strftime("%d.%m.%Y %H:%M") if sig.get("signed_at") else ""
         story.append(Spacer(1, 6 * mm))
+        section = " (Abschnitt Wegfall)" if content.get("signoff") else ""
         story.append(Paragraph(ptext(
-            f"Erstellt aus der Behinderungsanzeige Nr. {content['checklist_id']} ({version}); unterschrieben am "
+            f"Erstellt aus der Behinderungsanzeige Nr. {content['checklist_id']} ({version}); unterschrieben{section} am "
             f"{signed_at} Uhr. Prüfsumme (SHA-256) des unterschriebenen Inhalts: {sig.get('content_sha256') or '—'}"
         ), small))
         if photos:

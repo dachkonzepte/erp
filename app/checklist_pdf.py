@@ -32,7 +32,9 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Image, KeepTogether, Paragraph, Spacer, Table, TableStyle
 
 from .berlin_time import to_berlin
-from .checklists import _answer_value, active_attachments, attachment_path, check_completion, check_signature
+from .checklists import (
+    CLOSED_STATUSES, VOID_STATUS, _answer_value, active_attachments, attachment_path, check_completion, check_signature,
+)
 from .document_frame import frame_content_width, render_framed_pdf
 from .document_page_margins import get_margins
 from .document_pdf import build_din5008_header_block, build_object_address_block, build_styles, ptext
@@ -135,8 +137,9 @@ def build_checklist_email_pdf(db, checklist: Checklist) -> bytes:
 def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, bytes] | None = None) -> bytes:
     """photo_bytes (seit 1.8.20, nur build_checklist_email_pdf()): je Foto-ID die verkleinerten
     Bytes statt der Datei, dazu ein Hinweis im Dokument."""
-    if checklist.status != "abgeschlossen":
+    if checklist.status not in CLOSED_STATUSES:  # seit 1.8.41 auch "gegenstandslos" -- bleibt als Beleg
         raise ValueError("Nur abgeschlossene Checklisten können als PDF erzeugt werden.")
+    voided = checklist.status == VOID_STATUS
     general = get_or_create_general_settings(db)
     styles = build_styles()
     body, small, h1 = styles["body"], styles["small"], styles["h1"]
@@ -192,7 +195,7 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
             if order.customer_number:
                 meta_rows.append(("Kunden-Nr.", order.customer_number))
         if completed:
-            meta_rows.append(("Abgeschlossen", completed.strftime("%d.%m.%Y")))
+            meta_rows.append(("Gegenstandslos" if voided else "Abgeschlossen", completed.strftime("%d.%m.%Y")))
         meta_rows.append(("Seite", f"1 / {total_pages}" if total_pages is not None else "1 / …"))
         story = list(build_din5008_header_block(sender_line, recipient_lines, meta_rows, styles, content_width=content_width))
         if order is not None:
@@ -205,10 +208,16 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
             context_line = " – ".join(x for x in (checklist.context_label_snapshot, checklist.context_detail_snapshot) if x)
             story.append(Paragraph(ptext(f"{context_label}: {context_line}" if context_line else context_label), body))
         who = [f"Angelegt von {creator}" if creator else None,
-               f"abgeschlossen am {completed.strftime('%d.%m.%Y %H:%M')} Uhr" if completed else None,
-               f"von {completer}" if completer and completer != creator else None,
+               (f"{'als gegenstandslos abgeschlossen' if voided else 'abgeschlossen'} am "
+                f"{completed.strftime('%d.%m.%Y %H:%M')} Uhr") if completed else None,
+               (f"von {checklist.voided_by_name}" if voided and checklist.voided_by_name
+                else f"von {completer}" if completer and completer != creator and not voided else None),
                f"Vorlagenfassung {checklist.template_version.version_no}"]
         story.append(Paragraph(ptext(" · ".join(x for x in who if x)), small))
+        if voided:
+            # Seit 1.8.41: als gegenstandslos abgeschlossen -- Begründung gut sichtbar vor den Angaben.
+            story.append(Spacer(1, 3 * mm))
+            story.append(Paragraph(f"<b>Gegenstandslos:</b> {ptext(checklist.void_reason or '')}", body))
         story.append(Spacer(1, 5 * mm))
 
         rows: list[list] = []

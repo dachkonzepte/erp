@@ -1018,3 +1018,15 @@ entsteht nur, solange `check_signature()` "unverändert" meldet -- die Kopie ist
 nicht nur Prüfmaßstab. Die Ausfüllseite zeigt dem Büro bei Zweck "behinderungsanzeige" die Karte "Anzeige an den Auftraggeber";
 der Checklisten-Abruf selbst trägt nichts davon (Monteure sehen sie nicht). `create_send_task()` legt nach dem Versand keine
 Aufgabe mehr an, der Versand erledigt eine offene.
+
+## Nachtrag 1.8.41 -- Status "gegenstandslos"
+
+Herleitung: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.41". Neben "entwurf" und "abgeschlossen" gibt es den
+Status `gegenstandslos` (`app/checklists.py::void_checklist()`, `POST /api/checklists/{id}/void`, nur Büro): nur für Zwecke mit
+`ChecklistPurpose.voidable` (Behinderungs- und Bedenkenanzeige), nur aus dem Entwurf, mit Pflicht-Begründung, auch mit fehlenden
+Pflichtangaben. Versiegelt wie ein Abschluss (`completion_content()` mit `"sealed_by": "gegenstandslos"` und der Begründung,
+`check_completion()`), danach unveränderlich (`_require_draft()`, auch `complete_checklist()` 409). Keine Regeln (laufen nur nach
+einem Abschluss) und keine Folgen mehr (`follow_up_due()`, nicht in den offenen Folgen); offene Aufgaben aus Folgen sind erledigt
+(`complete_follow_up_tasks()`). PDF mit "Gegenstandslos: <Begründung>". `CLOSED_STATUSES` = abgeschlossen und gegenstandslos;
+wer künftig auf `status == "abgeschlossen"` prüft, entscheidet, ob "gegenstandslos" dazugehört (E-Mail-Versand und Zustellung der
+Checkliste selbst: nein; PDF und Abschluss-Prüfung: ja).
