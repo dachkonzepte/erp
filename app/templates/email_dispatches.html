@@ -43,7 +43,7 @@ textarea:hover{border-color:var(--field-border-hover)}
 <div class="card">
   <div class="filters">
     <label>Status<select id="filterStatus" onchange="reload()"><option value="">Alle</option><option value="in_arbeit">In Arbeit</option><option value="gesendet">Gesendet</option><option value="fehlgeschlagen">Fehlgeschlagen</option><option value="haengt">Hängengeblieben</option></select></label>
-    <label>Art<select id="filterType" onchange="reload()"><option value="">Alle</option><option value="angebot">Angebot</option><option value="auftrag">Auftrag</option><option value="rechnung">Rechnung</option><option value="mahnung">Mahnung</option><option value="checkliste">Checkliste</option><option value="vertrag">Vertrag</option>{% if can(request.state.erp_user, 'admin') %}<option value="aufgabe">Aufgaben-Benachrichtigung</option>{% endif %}</select></label>
+    <label>Art<select id="filterType" onchange="reload()"><option value="">Alle</option><option value="angebot">Angebot</option><option value="auftrag">Auftrag</option><option value="rechnung">Rechnung</option><option value="mahnung">Mahnung</option><option value="checkliste">Checkliste</option><option value="vertrag">Vertrag</option><option value="behinderungsanzeige">Behinderungsanzeige</option><option value="wiederaufnahme">Anzeige der Wiederaufnahme</option>{% if can(request.state.erp_user, 'admin') %}<option value="aufgabe">Aufgaben-Benachrichtigung</option>{% endif %}</select></label>
     <span class="small muted" id="docFilter"></span>
   </div>
 </div>
@@ -65,7 +65,8 @@ const docType=params.get('typ')||'', docId=params.get('id')||'';
 function docLink(d){
   const label=`${esc(d.document_type_label)} ${esc(d.document_number||(d.document_id?'#'+d.document_id:''))}`;
   const id=d.document_id;
-  const href={angebot:`/quotes/${id}/edit`,auftrag:`/orders/${id}`,rechnung:`/invoices/${id}`,mahnung:'/mahnwesen',checkliste:`/checklisten/${id}`,aufgabe:`/tasks?task=${id}`,vertrag:d.order_id?`/orders/${d.order_id}`:null}[d.document_type];
+  const href={angebot:`/quotes/${id}/edit`,auftrag:`/orders/${id}`,rechnung:`/invoices/${id}`,mahnung:'/mahnwesen',checkliste:`/checklisten/${id}`,aufgabe:`/tasks?task=${id}`,vertrag:d.order_id?`/orders/${d.order_id}`:null,
+    behinderungsanzeige:`/checklisten/${id}`,wiederaufnahme:`/checklisten/${id}`}[d.document_type];
   return id&&href?`<a class="link" href="${href}">${label}</a>`:label;
 }
 function statusCell(d){
@@ -103,8 +104,11 @@ async function resolveDispatch(id,outcome,btn){
 }
 function archiveCell(d){
   const a=d.sent_document, r=d.receipt_document;
-  if(!a&&!r) return '<span class="small muted">ohne Anhang</span>';
-  return (a?fileButtons(a,r?'Dokument':''):'')+(r?`<div style="margin-top:8px">${fileButtons(r,'Beleg')}</div>`:'');
+  // Seit 1.8.40: beim Versand festgehaltene Empfangsvollmachten (Brief an den Auftraggeber).
+  const poa=(d.authorizations||[]).map(x=>x.sent_document?`<div style="margin-top:8px">${fileButtons(x.sent_document,'Vollmacht '+esc(x.contact_name))}</div>`
+    :`<div class="small muted" style="margin-top:8px"><b>Vollmacht ${esc(x.contact_name)}:</b> ${esc(x.note||'nicht festgehalten')}</div>`).join('');
+  if(!a&&!r) return '<span class="small muted">ohne Anhang</span>'+poa;
+  return (a?fileButtons(a,r?'Dokument':''):'')+(r?`<div style="margin-top:8px">${fileButtons(r,'Beleg')}</div>`:'')+poa;
 }
 async function checkArchive(id,btn){
   const out=document.getElementById('check'+id);btn.disabled=true;out.textContent='prüfe …';out.className='small muted';

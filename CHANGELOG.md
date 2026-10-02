@@ -4,6 +4,38 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.40 – Behinderungsanzeige als Brief und Versand
+
+Stufe 2b, Runde 2b-3 Teil 2, Punkte 1–3 (der Rest folgt als eigene Version). Aus der Behinderungsanzeige entstehen
+zwei Briefe an den Auftraggeber: die Behinderungsanzeige nach der „Unterschrift Büro“ und die Anzeige der
+Wiederaufnahme nach der Unterschrift im Abschnitt Wegfall. Der Inhalt kommt aus der versiegelten Kopie dieser
+Unterschrift – Briefkopf, Auftraggeber mit Anrede aus dem Kundenstamm (sonst „Sehr geehrte Damen und Herren“), Betreff
+mit Bauvorhaben und Auftragsnummer, die Angaben der Abschnitte, Vorbehalt, Unterschrift, „Kopie an:“ (Beteiligte mit
+„Kopie bei Anzeigen“), Fotos verkleinert als Anlage unter 3 MB. Weicht der Inhalt an der Sperre vorbei von der
+Unterschrift ab, entsteht kein Brief (409). Erstellt wird er beim ersten Versand oder mit „Brief erstellen“ für Post und
+Fax, als Fassung je Unterschrift mit Prüfsumme und PDF in der Ablage (`notice_letters`); Versand, Download und
+nachgetragene Zustellung verwenden danach nur dieses PDF, eine neue Unterschrift ergibt eine neue Fassung. Der
+Vorbehalt ist ein Textbaustein in den Einstellungen („Vorbehalte in Anzeigen“, je Briefart und VOB/B bzw. BGB, mit
+„rechtlich geprüft am, durch“ wie die Klauseln, nur Administratoren speichern); ungeprüft fehlt er im Brief, der
+Versand bleibt mit deutlicher Warnung möglich. Versand nur nach der Unterschrift des jeweiligen Abschnitts; An ist
+immer der Auftraggeber (die API nimmt keine An-Adresse an), CC vorbelegt und entdoppelt. Geht die Mail an einen
+empfangsbevollmächtigten Beteiligten, wird seine Vollmacht vor dem Senden mit Prüfsumme in die Ablage kopiert
+(`dispatch_authorizations`, neuer Haken `before_send` in `dispatch_email()`); ein späteres Ersetzen lässt diese Kopie
+unverändert. Nach dem Versand – auch als nachgetragene Zustellung – ist die Aufgabe „Behinderungsanzeige versenden“
+erledigt; eine nachgeholte Folge legt nach dem Versand keine mehr an. Karte „Anzeige an den Auftraggeber“ auf der
+Ausfüllseite (nur Büro), Versandverlauf und Versandprotokoll zeigen die festgehaltenen Vollmachten, zwei neue
+E-Mail-Vorlagen, Dokumenttyp `notice` im gemeinsamen PDF-Rahmen. Monteure 403. Migration `e04a5161920d` (Downgrade
+bricht ab, solange ein Brief, eine Vollmacht oder ein Vorbehalt mit Text existiert).
+
+Gefunden beim Test gegen PostgreSQL: zwei gleichzeitige „Brief erstellen“ verklemmten sich, weil das Rendern auf einer
+frischen Datenbank Grundeinstellungen anlegt und dabei unter der Zeilensperre committet – Inhalt und PDF entstehen
+jetzt vor der Sperre, unter ihr wird nur geprüft und abgelegt. `tests/test_v343_behinderungsanzeige_versand.py`
+(18 Tests, einer mit echten parallelen Aufrufen gegen PostgreSQL 17), Datengrenze `test_v326` und `test_v229`
+nachgezogen; 27 Gegenproben rot. Migration SQLite und PostgreSQL (ganze Kette): hin, Downgrade-Abbruch, zurück, hin,
+`alembic check`. Volle Suite 2523 grün. Klicktest `scripts/klicktest_behinderungsanzeige_versand.py` 41/41. Offen für die
+nächste Version: Punkte 4–7 (Empfang bestätigt/unzustellbar im Versandprotokoll, Zeitstrahl, „als gegenstandslos
+abschließen“, Kundenwechsel prüft die Beteiligten) -- siehe `docs/archiv/vertragsgrundlage-und-vertrag.md`.
+
 ## 1.8.39 – Beteiligte aus den Stammdaten
 
 Nachtrag zu Runde 2b-2. Der Dialog „Beteiligten hinzufügen“ durchsucht jetzt Adressbuch, Kunden und Lieferanten,

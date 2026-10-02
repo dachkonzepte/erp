@@ -15,6 +15,9 @@ gehört und welches PDF in die Ablage kommt:
   solange sie zum Auftrag passt (dieselbe Bedingung wie beim E-Mail-Versand,
   app/contract_versions.py::deliverable_version()). Nach der Unterschrift (seit 1.8.35) die unterschriebene
   Abschrift (deliverable_document(); bei einer Unterschrift von vor 1.8.35 hier einmal nachgeholt).
+- Behinderungsanzeige, Anzeige der Wiederaufnahme (seit 1.8.40, Dokument-ID = Checkliste): die Fassung des
+  Briefs zur aktuellen Unterschrift des Abschnitts, beim ersten Mal erstellt (app/notice_letters.py) -- nie
+  neu gerendert; nach der Behinderungsanzeige ist die Aufgabe "versenden" erledigt (after_delivery).
 
 Rollenlos; wer zustellen darf, entscheidet der Router. PDF-Renderer werden lokal importiert (Regel 3).
 """
@@ -36,6 +39,7 @@ class DispatchDocument:
     label: str  # "Rechnung R-2026-0001" -- für Betreff und Historie
     project_id: int | None
     pdf: Callable[[], DocumentPdf]  # wirft ArchiveFileError, wenn die maßgebliche Fassung beschädigt ist
+    after_delivery: Callable[[], None] | None = None  # seit 1.8.40: nach dem Eintrag einer Zustellung
 
 
 def _fresh(build: Callable[[], bytes], filename: str) -> Callable[[], DocumentPdf]:
@@ -118,9 +122,21 @@ def _contract(db: Session, contract: OrderContract) -> DispatchDocument:
     )
 
 
+def _notice(kind: str):
+    def build(db: Session, checklist: Checklist) -> DispatchDocument:
+        from .notice_letters import dispatch_document_for
+
+        try:
+            return dispatch_document_for(db, checklist, kind)
+        except LookupError as e:  # keine Behinderungsanzeige -- für die Zustellung "nicht zustellbar"
+            raise ValueError(str(e)) from e
+    return build
+
+
 _REGISTRY = {"angebot": (Quote, _quote), "auftrag": (Order, _order), "rechnung": (Invoice, _invoice),
              "mahnung": (Reminder, _reminder), "checkliste": (Checklist, _checklist),
-             "vertrag": (OrderContract, _contract)}
+             "vertrag": (OrderContract, _contract), "behinderungsanzeige": (Checklist, _notice("behinderungsanzeige")),
+             "wiederaufnahme": (Checklist, _notice("wiederaufnahme"))}
 assert set(_REGISTRY) == set(DOCUMENT_TYPES), "jede Dokumentart der Ablage braucht einen Eintrag hier"
 
 

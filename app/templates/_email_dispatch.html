@@ -80,6 +80,7 @@ async function postEmailDispatch(slot, url, payload, button) {
 @media (max-width:640px){.dh-row{grid-template-columns:1fr}.dh-row .dh-end{text-align:left}}
 .dh-end{text-align:right}
 .dh-muted{color:var(--muted);font-size:12px}
+.dh-muted a{color:var(--accent);font-weight:700;text-decoration:none}
 .dh-pill{display:inline-block;padding:2px 7px;font-size:11px;font-weight:800;white-space:nowrap;background:var(--soft);color:var(--ink)}
 .dh-pill.gesendet{background:var(--success-soft,#eaf5ef);color:var(--success,#1f8a5f)}
 .dh-pill.fehlgeschlagen,.dh-pill.haengt{background:var(--danger-soft);color:var(--danger)}
@@ -97,7 +98,8 @@ async function postEmailDispatch(slot, url, payload, button) {
 </style>
 <script>
 /* Versandverlauf und "Zustellung nachtragen" (seit 1.8.20). renderDispatchHistory(containerId, art, id)
-   füllt einen Container; Art wie im Protokoll (angebot, auftrag, rechnung, mahnung, checkliste, seit 1.8.33 vertrag).
+   füllt einen Container; Art wie im Protokoll (angebot, auftrag, rechnung, mahnung, checkliste, seit 1.8.33 vertrag,
+   seit 1.8.40 behinderungsanzeige und wiederaufnahme -- Dokument-ID ist dort die Checkliste).
    Die Zustellung auf anderem Weg (Einschreiben, persönliche Übergabe, Bote, Fax) trägt ein sichtbares
    Formular nach -- Datum, Notiz (Pflicht), optional Empfänger und Beleg (Foto/Scan); auch hier ein
    Schlüssel je Klick wie beim E-Mail-Versand. */
@@ -128,9 +130,17 @@ function _dhRow(d) {
   if (d.resolved) extra += `<div class="dh-note">Von Hand geklärt · ${_dhEsc(d.resolved_by_name)}, ${_dhLocal(d.resolved_at_local)}: ${_dhEsc(d.resolution_note)}</div>`;
   if (d.status === 'fehlgeschlagen' && d.error_class) extra += `<div class="dh-muted">${_dhEsc(d.error_class)}${d.error_code ? ' · ' + _dhEsc(d.error_code) : ''}</div>`;
   if (d.stuck) extra += '<div class="dh-muted">Ausgang unklar – im Versandprotokoll klären.</div>';
+  // Seit 1.8.40: beim Versand festgehaltene Empfangsvollmachten (Brief an den Auftraggeber).
+  for (const a of d.authorizations || []) {
+    extra += `<div class="dh-muted">Empfangsbevollmächtigt: ${_dhEsc(a.contact_name)} (${_dhEsc(a.role_label)}) – `
+      + (a.sent_document ? `Vollmacht festgehalten <a href="/api/sent-documents/${a.sent_document.id}/file" target="_blank" rel="noopener">öffnen</a>` : _dhEsc(a.note || 'keine Vollmacht festgehalten'))
+      + '</div>';
+  }
   // Vertrag (seit 1.8.33): welche Fassung hinausging -- document_number "AUF-… · Fassung N", seit 1.8.35 bei der
-  // unterschriebenen Abschrift "AUF-… · Fassung N · unterschrieben": alles nach der Auftragsnummer.
-  const version = d.document_type === 'vertrag' && d.document_number ? ` · ${_dhEsc(d.document_number.split(' · ').slice(1).join(' · '))}` : '';
+  // unterschriebenen Abschrift "AUF-… · Fassung N · unterschrieben": alles nach der Auftragsnummer. Seit 1.8.40
+  // ebenso die Briefe an den Auftraggeber ("AUF-… · Fassung N").
+  const versioned = ['vertrag', 'behinderungsanzeige', 'wiederaufnahme'].includes(d.document_type);
+  const version = versioned && d.document_number ? ` · ${_dhEsc(d.document_number.split(' · ').slice(1).join(' · '))}` : '';
   return `<div class="dh-row"><div>${when}</div><div><b>${_dhEsc(d.channel_label)}</b>${version}${to}<div class="dh-muted">${_dhEsc(d.created_by_name)}</div>${extra}</div>`
     + `<div class="dh-end">${pill}<div class="dh-links">${links}</div></div></div>`;
 }

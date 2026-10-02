@@ -22,7 +22,10 @@ send_message() hat keinen anderen Aufrufer, per Test erzwungen). Ablauf je Versa
    klärt ihn mit Notiz (resolve_stuck_dispatch()).
 4. PDF in die Ablage (app/sent_documents.py), Verweis am Eintrag, commit. Scheitert das Ablegen,
    wird nicht gesendet. Ist das PDF schon die abgelegte Fassung (Rechnung/Storno/Mahnung nach dem
-   ersten Versand, archived_document), wird nur verwiesen, nicht noch einmal abgelegt.
+   ersten Versand, archived_document), wird nur verwiesen, nicht noch einmal abgelegt. Seit 1.8.40
+   kann der Aufrufer hier weitere Nachweise zum Versand ablegen (before_send, z. B. die Vollmacht
+   eines empfangsbevollmächtigten Empfängers, app/notice_letters.py) -- ebenfalls vor dem Senden,
+   scheitert es, wird nicht gesendet.
 5. Senden mit der eigenen Kennung als Kopfzeile X-DK-Versand-ID, danach "gesendet" bzw.
    "fehlgeschlagen" per bedingtem UPDATE (nur aus "in_arbeit"), Sperre frei.
 
@@ -43,6 +46,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from typing import Callable
 
 from io import BytesIO
 
@@ -227,12 +231,17 @@ def dispatch_email(
     attachment_bytes: bytes | None = None, attachment_filename: str | None = None,
     archived_document: SentDocument | None = None,
     user_id: int | None = None, user_name: str | None = None, block_parallel: bool = True,
+    before_send: Callable[[Session, EmailDispatch], None] | None = None,
 ) -> DispatchResult:
     """Siehe Moduldocstring. Wirft ValueError (Eingabe/Konfiguration/Versandfehler, Router 400)
     und DispatchConflict (Router 409). Committet selbst.
 
     archived_document: der Anhang IST diese abgelegte Fassung (app/sent_documents.py::
-    frozen_or_fresh_pdf()) -- dann wird nur auf sie verwiesen, nicht noch einmal abgelegt."""
+    frozen_or_fresh_pdf()) -- dann wird nur auf sie verwiesen, nicht noch einmal abgelegt.
+
+    before_send (seit 1.8.40): läuft nach dem Ablegen des PDFs und vor dem Senden, mit dem Eintrag
+    (Empfänger schon geprüft und entdoppelt) -- für weitere Nachweise in der Ablage. Er committet
+    nicht; scheitert er, wird nichts gesendet. Eine Wiederholung desselben Schlüssels ruft ihn nicht."""
     if document_type not in DISPATCH_TYPES:
         raise ValueError(f"Unbekannte Versandart: {document_type}")
     key = (dispatch_key or "").strip()
@@ -304,6 +313,16 @@ def dispatch_email(
             db.rollback()
             _finish(db, dispatch_id, "fehlgeschlagen", e)
             raise ValueError("Das Dokument konnte nicht in der Ablage gespeichert werden -- es wurde nichts versendet.") from e
+
+    if before_send is not None:
+        try:
+            before_send(db, dispatch)
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            _finish(db, dispatch_id, "fehlgeschlagen", e)
+            raise ValueError("Die Nachweise zum Versand konnten nicht in der Ablage gespeichert werden -- "
+                             "es wurde nichts versendet.") from e
 
     try:
         send_message(
@@ -512,10 +531,41 @@ def record_manual_delivery(
         return _existing(db, key, document_type, document_id)
     db.commit()
     db.refresh(dispatch)
+    if document.after_delivery is not None:
+        # Seit 1.8.40 (Behinderungsanzeige: Aufgabe "versenden" erledigt) -- nach dem Commit, der Eintrag gilt.
+        document.after_delivery()
+        db.refresh(dispatch)
     return DispatchResult(dispatch, True)
 
 
-def dispatch_to_dict(dispatch: EmailDispatch, now: datetime | None = None) -> dict:
+def authorization_to_dict(row) -> dict:
+    """Beim Versand festgehaltene Empfangsvollmacht (seit 1.8.40, DispatchAuthorization)."""
+    from .project_participants import role_label
+    from .sent_documents import sent_document_to_dict
+
+    return {"participant_id": row.participant_id, "contact_name": row.contact_name, "role": row.role,
+            "role_label": role_label(row.role), "recipient_email": row.recipient_email, "note": row.note,
+            "sent_document": sent_document_to_dict(row.sent_document) if row.sent_document else None}
+
+
+def dispatch_authorizations(db: Session, dispatch_ids: list[int]) -> dict[int, list[dict]]:
+    """Festgehaltene Vollmachten je Versand (seit 1.8.40), für mehrere Einträge in einer Abfrage."""
+    if not dispatch_ids:
+        return {}
+    from sqlalchemy.orm import selectinload
+
+    from .models import DispatchAuthorization
+
+    rows = db.scalars(select(DispatchAuthorization).where(DispatchAuthorization.dispatch_id.in_(dispatch_ids))
+                      .options(selectinload(DispatchAuthorization.sent_document))
+                      .order_by(DispatchAuthorization.id)).all()
+    result: dict[int, list[dict]] = {}
+    for row in rows:
+        result.setdefault(row.dispatch_id, []).append(authorization_to_dict(row))
+    return result
+
+
+def dispatch_to_dict(dispatch: EmailDispatch, now: datetime | None = None, authorizations: list[dict] | None = None) -> dict:
     from .berlin_time import to_berlin
     from .sent_documents import sent_document_to_dict
 
@@ -538,6 +588,7 @@ def dispatch_to_dict(dispatch: EmailDispatch, now: datetime | None = None) -> di
         "delivery_note": dispatch.delivery_note,
         "sent_document": sent_document_to_dict(dispatch.sent_document) if dispatch.sent_document else None,
         "receipt_document": sent_document_to_dict(dispatch.receipt_document) if dispatch.receipt_document else None,
+        "authorizations": authorizations or [],
     }
 
 
@@ -566,7 +617,8 @@ def list_dispatches(
         query = query.where(EmailDispatch.status == "in_arbeit", EmailDispatch.created_at < now - STUCK_AFTER)
     rows = db.scalars(query.order_by(EmailDispatch.created_at.desc(), EmailDispatch.id.desc()).limit(limit)).all()
     stuck_count = db.scalar(stuck_query) or 0
-    items = [dispatch_to_dict(r, now) for r in rows]
+    authorizations = dispatch_authorizations(db, [r.id for r in rows])
+    items = [dispatch_to_dict(r, now, authorizations.get(r.id)) for r in rows]
     # Seit 1.8.33: ein Vertrag hat keine eigene Seite, die Liste verlinkt auf seinen Auftrag.
     contract_ids = {r.document_id for r in rows if r.document_type == "vertrag" and r.document_id is not None}
     if contract_ids:

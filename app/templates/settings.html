@@ -70,6 +70,7 @@
         <button type="button" data-settings-section="email-templates" onclick="showSettingsSection('email-templates')">E-Mail-Vorlagen<span class="menu-sub">Betreff/Text je Dokumenttyp</span></button>
         <button type="button" data-settings-section="contract-bases" onclick="showSettingsSection('contract-bases')">Vertragsgrundlagen<span class="menu-sub">Klauseltext je Grundlage, rechtliche Prüfung</span></button>
         <button type="button" data-settings-section="contract-templates" onclick="showSettingsSection('contract-templates')">Vertragsvorlagen<span class="menu-sub">Vertragstext je Grundlage, Platzhalter, Prüfung</span></button>
+        <button type="button" data-settings-section="notice-reservations" onclick="showSettingsSection('notice-reservations')">Vorbehalte in Anzeigen<span class="menu-sub">Behinderungsanzeige, Wiederaufnahme – je VOB/B und BGB, Prüfung</span></button>
       </div>
       <div class="settings-group">Personal</div>
       <div class="settings-menu">
@@ -456,6 +457,8 @@
         <option value="order">Auftrag</option>
         <option value="checklist">Checkliste</option>
         <option value="contract">Vertrag</option>
+        <option value="behinderungsanzeige">Behinderungsanzeige</option>
+        <option value="wiederaufnahme">Anzeige der Wiederaufnahme</option>
       </select>
     </div>
     <div class="fields-2col" style="margin-top:12px">
@@ -481,6 +484,12 @@
     <div class="hint"><b>Wichtig:</b> Hier stehen bewusst keine vorgegebenen Texte – Vertragstext, Widerrufsbelehrung und Muster-Widerrufsformular bitte von einer Rechtsberatung formulieren oder prüfen lassen. Jede Änderung am Inhalt (Titel, Abschnitte, Reihenfolge, „nur bei Verbrauchern“, Ankreuzfeld) macht die Vorlage wieder ungeprüft, solange nicht neue Prüfangaben eingetragen werden.</div>
     <details class="list-narrow" style="margin:6px 0 4px"><summary style="cursor:pointer;font-weight:650;font-size:13px">Verfügbare Platzhalter</summary><table style="margin-top:8px"><thead><tr><th>Platzhalter</th><th>Bedeutung</th></tr></thead><tbody id="contractPlaceholderRows"></tbody></table><div class="muted small" style="margin-top:6px">Platzhalter gelten in Titel, Überschriften und Texten. Ein unbekannter Platzhalter bleibt unverändert im Vertrag stehen – die Vorlage zeigt ihn deshalb als Warnung.</div></details>
     <div id="contractTemplateRows"></div>
+  </section>
+
+  <section class="card settings-section" id="settings-notice-reservations">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Vorbehalte in Anzeigen</h2><div class="muted small">Textbaustein für den Vorbehalt in Briefen an den Auftraggeber – je Briefart (Behinderungsanzeige, Anzeige der Wiederaufnahme) und Vertragsgrundlage des Auftrags (VOB/B oder BGB, auch mit VOB/C Abschnitt 4 und 5). Gedruckt wird er nur, wenn „rechtlich geprüft am“ und „durch“ ausgefüllt sind. Ungeprüft fehlt er im Brief; versendet werden kann trotzdem – eine Behinderung ist unverzüglich anzuzeigen –, die Behinderungsanzeige warnt dann deutlich.</div></div></div>
+    <div class="hint"><b>Wichtig:</b> Hier stehen bewusst keine vorgegebenen Texte. Die Vorbehalte bitte von einer Rechtsberatung formulieren oder prüfen lassen. Wird der Text später geändert, ohne die Prüfangaben neu einzutragen, gilt er wieder als ungeprüft. Ein schon erstellter Brief bleibt, wie er ist.</div>
+    <div id="noticeReservationRows"></div>
   </section>
 
   <section class="card settings-section" id="settings-option-lists">
@@ -846,6 +855,12 @@ let contractBasisClauses=[];
 async function loadContractBasisClauses(){const box=document.getElementById('contractBasisClauseRows');try{contractBasisClauses=await api('/api/settings/contract-basis-clauses');renderContractBasisClauses()}catch(e){box.innerHTML=`<div class="status err">Fehler: ${esc(e.message)}</div>`}}
 function renderContractBasisClauses(){const ro=canEditContractClauses?'':'disabled';document.getElementById('contractBasisClauseRows').innerHTML=(canEditContractClauses?'':'<div class="hint">Nur Administratoren können Klauseltexte und Prüfangaben ändern.</div>')+contractBasisClauses.map(c=>`<div class="list-narrow" data-basis="${esc(c.basis_key)}" style="border-top:1px solid var(--line);padding-top:14px;margin-top:14px"><h3 style="margin:0 0 4px">${esc(c.label)}</h3><div class="small ${c.reviewed?'':'muted'}" style="margin-bottom:8px">${c.reviewed?'Rechtlich geprüft – wird auf Angebot und Auftrag gedruckt.':'Nicht geprüft – wird nicht gedruckt.'}${c.updated_by_name?` · zuletzt gespeichert von ${esc(c.updated_by_name)}`:''}</div><div class="field"><label>Klauseltext</label><textarea class="cbText" rows="5" ${ro}>${esc(c.clause_text||'')}</textarea></div><div class="fields-2col"><div class="field"><label>Rechtlich geprüft am</label><input class="cbReviewedOn" type="date" value="${esc(c.reviewed_on||'')}" ${ro}></div><div class="field"><label>durch</label><input class="cbReviewedBy" value="${esc(c.reviewed_by||'')}" placeholder="z. B. Kanzlei Muster, RA Beispiel" ${ro}></div></div>${canEditContractClauses?`<button onclick="saveContractBasisClause('${esc(c.basis_key)}')">Speichern</button>`:''}<span class="status cbStatus"></span></div>`).join('')}
 async function saveContractBasisClause(key){const row=document.querySelector(`[data-basis="${key}"]`),st=row.querySelector('.cbStatus');st.className='status cbStatus';try{const d=await api(`/api/settings/contract-basis-clauses/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({clause_text:row.querySelector('.cbText').value.trim()||null,reviewed_on:row.querySelector('.cbReviewedOn').value||null,reviewed_by:row.querySelector('.cbReviewedBy').value.trim()||null})});contractBasisClauses=contractBasisClauses.map(c=>c.basis_key===key?d:c);renderContractBasisClauses();const st2=document.querySelector(`[data-basis="${key}"] .cbStatus`);st2.classList.add('ok');st2.textContent=d.review_reset?'Gespeichert. Der Text wurde geändert – die bisherige Prüfangabe gilt nicht mehr, bitte nach erneuter Prüfung neu eintragen.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
+// Vorbehalte in Anzeigen (seit 1.8.40): wie die Klauseln -- lesen Büro und Admin, speichern nur Administratoren
+// (PUT serverseitig admin-only); je Briefart und Gruppe der Vertragsgrundlage eine Zeile.
+let noticeReservations=[];
+async function loadNoticeReservations(){const box=document.getElementById('noticeReservationRows');try{noticeReservations=await api('/api/settings/notice-reservations');renderNoticeReservations()}catch(e){box.innerHTML=`<div class="status err">Fehler: ${esc(e.message)}</div>`}}
+function renderNoticeReservations(){const ro=canEditContractClauses?'':'disabled';document.getElementById('noticeReservationRows').innerHTML=(canEditContractClauses?'':'<div class="hint">Nur Administratoren können Vorbehalte und Prüfangaben ändern.</div>')+noticeReservations.map(r=>{const key=`${r.letter_kind}/${r.basis_group}`;return `<div class="list-narrow" data-reservation="${esc(key)}" style="border-top:1px solid var(--line);padding-top:14px;margin-top:14px"><h3 style="margin:0 0 4px">${esc(r.letter_label)} · ${esc(r.basis_label)}</h3><div class="small ${r.reviewed?'':'muted'}" style="margin-bottom:8px">${r.reviewed?'Rechtlich geprüft – wird im Brief gedruckt.':(r.has_text?'Nicht geprüft – wird nicht gedruckt.':'Kein Text – der Brief enthält keinen Vorbehalt.')}${r.updated_by_name?` · zuletzt gespeichert von ${esc(r.updated_by_name)}`:''}</div><div class="field"><label>Vorbehalt</label><textarea class="nrText" rows="4" ${ro}>${esc(r.reservation_text||'')}</textarea></div><div class="fields-2col"><div class="field"><label>Rechtlich geprüft am</label><input class="nrReviewedOn" type="date" value="${esc(r.reviewed_on||'')}" ${ro}></div><div class="field"><label>durch</label><input class="nrReviewedBy" maxlength="160" value="${esc(r.reviewed_by||'')}" placeholder="z. B. Kanzlei Muster, RA Beispiel" ${ro}></div></div>${canEditContractClauses?`<button onclick="saveNoticeReservation('${esc(key)}')">Speichern</button>`:''}<span class="status nrStatus"></span></div>`}).join('')}
+async function saveNoticeReservation(key){const row=document.querySelector(`[data-reservation="${key}"]`),st=row.querySelector('.nrStatus');st.className='status nrStatus';try{const d=await api(`/api/settings/notice-reservations/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reservation_text:row.querySelector('.nrText').value.trim()||null,reviewed_on:row.querySelector('.nrReviewedOn').value||null,reviewed_by:row.querySelector('.nrReviewedBy').value.trim()||null})});noticeReservations=noticeReservations.map(r=>`${r.letter_kind}/${r.basis_group}`===key?d:r);renderNoticeReservations();const st2=document.querySelector(`[data-reservation="${key}"] .nrStatus`);st2.classList.add('ok');st2.textContent=d.review_reset?'Gespeichert. Der Text wurde geändert – die bisherige Prüfangabe gilt nicht mehr, bitte nach erneuter Prüfung neu eintragen.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
 // Vertragsvorlagen (seit 1.8.32): wie die Klauseln -- lesen Büro und Admin, speichern nur Administratoren.
 // Gespeichert wird immer die ganze Vorlage (Titel, Abschnitte in Reihenfolge, Prüfangaben).
 let contractTemplates=[],contractPlaceholders=[];
@@ -874,7 +889,7 @@ const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
   refreshStatusColors();
 })();
 const v=id=>document.getElementById(id).value.trim();const nv=id=>v(id)||null;const setv=(id,x)=>document.getElementById(id).value=x??'';
-const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','contract-bases','contract-templates','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','recurring-costs','incoming-invoices','accounts','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','operational-assets','mobile','ai-settings','outlook-sync'];
+const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','contract-bases','contract-templates','notice-reservations','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','recurring-costs','incoming-invoices','accounts','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','operational-assets','mobile','ai-settings','outlook-sync'];
 function showSettingsSection(key,updateHash=true){
   if(!SETTINGS_SECTIONS.includes(key))key='general';
   document.querySelectorAll('.settings-section').forEach(x=>x.classList.toggle('active',x.id===`settings-${key}`));
@@ -1919,6 +1934,8 @@ const EMAIL_TEMPLATE_PLACEHOLDER_HINTS = {
   order: 'Verfügbare Platzhalter: {auftragsnummer} {gesamtbetrag} {kundenname}',
   checklist: 'Verfügbare Platzhalter: {checkliste} {checklistennummer} {bezug} {kundenname}',
   contract: 'Verfügbare Platzhalter: {auftragsnummer} {kundenname} {fassung} {vertragsgrundlage} – angehängt wird immer die festgeschriebene Fassung samt Anlage',
+  behinderungsanzeige: 'Verfügbare Platzhalter: {anrede} {auftragsnummer} {kundenname} {bauvorhaben} {checklistennummer} – An ist immer der Auftraggeber, angehängt wird der erstellte Brief',
+  wiederaufnahme: 'Verfügbare Platzhalter: {anrede} {auftragsnummer} {kundenname} {bauvorhaben} {checklistennummer} – An ist immer der Auftraggeber, angehängt wird der erstellte Brief',
   reminder: 'Verfügbare Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {offener_betrag} {mahngebuehr} {gesamtbetrag} {neue_frist} {vorheriges_mahndatum} {mahnstufe}',
 };
 function populateReminderLevelEmailOptions(){
@@ -2178,6 +2195,7 @@ loadEmailTemplate();
 loadAppearance();
 loadContractBasisClauses();
 loadContractTemplates();
+loadNoticeReservations();
 </script>
 </body>
 </html>

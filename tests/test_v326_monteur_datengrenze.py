@@ -385,6 +385,7 @@ PFAD_WERTE = {
     "reminder_id": 1, "contract_id": 1, "inspection_id": 1, "cost_id": 1, "account_id": 1, "event_id": 1,
     "template_id": 1, "component_id": 1, "task_id": 1, "version_id": 1, "sent_document_id": 1,
     "contact_id": 1, "participant_id": 1,  # Adressbuch und Beteiligte (seit 1.8.37)
+    "kind": "behinderungsanzeige",  # Briefe an den Auftraggeber (seit 1.8.40)
 }
 # Query-Parameter: Pflichtparameter nach Namen, dazu je Route, was die Monteursicht erst füllt.
 # "@name" steht für den Wert aus den Testdaten.
@@ -555,6 +556,18 @@ def test_adressbuch_und_beteiligte_im_durchlauf_fuer_monteure_gesperrt(durchlauf
         "/api/projects/{project_id}/participants": 403,
         "/api/projects/{project_id}/participant-candidates": 403,  # seit 1.8.39
         "/api/project-participants/{participant_id}/power-of-attorney": 403,
+    }
+
+
+def test_briefe_an_den_auftraggeber_im_durchlauf_fuer_monteure_gesperrt(durchlauf):
+    """Seit 1.8.40: die Briefe zur Behinderungsanzeige (Stand, Vorschau) und die Vorbehalte in den Einstellungen
+    sind Büro -- der Durchlauf ruft jede GET-Route davon als Monteur auf (Pfadwert kind in PFAD_WERTE), jede 403."""
+    routen = {a["route"]: a["status"] for a in durchlauf["antworten"]
+              if "notice-letters" in a["route"] or "notice-reservations" in a["route"]}
+    assert routen == {
+        "/api/checklists/{checklist_id}/notice-letters": 403,
+        "/api/checklists/{checklist_id}/notice-letters/{kind}/preview": 403,
+        "/api/settings/notice-reservations": 403,
     }
 
 

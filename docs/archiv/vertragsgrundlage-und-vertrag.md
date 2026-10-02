@@ -21,7 +21,8 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | **2b-2** | 1.8.36, 1.8.37 | Vorab feste Uhr für uhrzeitabhängige Tests (1.8.36); Adressbuch als Stammdatenbereich, Beteiligte am Projekt mit fester Rolle, Kopie bei Anzeigen, Empfangsvollmacht mit Beleg, Reiter in der Projektmappe (1.8.37) | erledigt |
 | **2b-3 Teil 1** | 1.8.38 | Behinderungsanzeige erfassen: Systemfelder in drei Abschnitten (Meldung, Anzeige nur Büro, Wegfall), Startvorlage, Folge nach der Unterschrift der Meldung, Tagesbericht-Regel mit Link zum Anlegen | erledigt |
 | **2b-2 Nachtrag** | 1.8.39 | Beteiligte aus den Stammdaten: Dialog durchsucht Adressbuch, Kunden und Lieferanten (nach Herkunft, Rollenprüfung der Büro-Suche), Adressbuch-Eintrag mit Verweis ohne Kopie, Kunde des Projekts nie Beteiligter | erledigt |
-| **2b-3 Teil 2** | — | Behinderungsanzeige: Brief-PDF und Versand | offen |
+| **2b-3 Teil 2** | 1.8.40 | Behinderungsanzeige: Brief-PDF (zwei Briefarten), Vorbehalt je Briefart und Grundlage mit Prüfung, Versand an den Auftraggeber mit Vollmacht in der Ablage, Aufgabe erledigt (Punkte 1–3) | erledigt |
+| **2b-3 Teil 2b** | — | Versandprotokoll "Empfang bestätigt"/"unzustellbar", Zeitstrahl an der Anzeige, "als gegenstandslos abschließen", Kundenwechsel prüft Beteiligte (Punkte 4–7, siehe "Offen" unter 1.8.40) | offen |
 | **2b-4** | — | Bedenkenanzeige | offen |
 
 Nach jeder Runde die Spalten "Version"/"Stand" nachziehen und unten einen Abschnitt
@@ -948,3 +949,167 @@ nicht änderbar, mit Hinweis "aus Kundenstamm" bzw. "aus Lieferantenstamm"; arch
    Eintrag im Adressbuch.
 4. **Kundensuche im Dialog nur nach Name und Kundennummer** (wie die Büro-Suche), nicht nach Ort oder E-Mail -- die
    Adressbuch-Gruppe findet auch über diese.
+
+---
+
+## Umsetzung 1.8.40 (02.10.2026) -- Runde 2b-3 Teil 2, Punkte 1–3: Behinderungsanzeige als Brief und Versand
+
+Betreibervorgabe (acht Punkte): (1) Brief-PDF mit Briefkopf, Auftraggeber als Empfänger (Anrede, sonst "Sehr geehrte
+Damen und Herren"), Betreff mit Bauvorhaben und Auftragsnummer, Inhalt aus den versiegelten Abschnitten, "Kopie an:",
+Unterschrift Büro, Fotos verkleinert als Anlage; zweite Briefart "Anzeige der Wiederaufnahme" nach dem Wegfall. (2) Vorbehalt
+als Textbaustein in den Einstellungen je Briefart und Vertragsgrundlage (VOB/B bzw. BGB) mit Prüfangaben wie die Klauseln;
+ungeprüft nicht gedruckt, Versand trotzdem möglich mit deutlicher Warnung. (3) Versand nur nach der Unterschrift des jeweiligen
+Abschnitts, immer die abgelegte Fassung; An immer der Auftraggeber (nicht entfernbar), CC vorbelegt mit "Kopie bei Anzeigen",
+Empfänger entdoppelt; bei empfangsbevollmächtigten Beteiligten die Vollmacht beim Versand mit Prüfsumme in die Ablage; danach
+die Aufgabe "Behinderungsanzeige versenden" erledigt. (4) Versandprotokoll für alle Dokumente: "Empfang bestätigt am" und "als
+unzustellbar markieren". (5) Zeitstrahl an der Anzeige. (6) "Als gegenstandslos abschließen" für Behinderungs- und
+Bedenkenanzeige. (7) Kundenwechsel prüft die Beteiligten. (8) Tests mit Gegenprobe. Bei zu großem Umfang nach Punkt 3
+committen und den Rest auflisten -- so geschehen: **1.8.40 = Punkte 1–3 und ihre Tests aus Punkt 8**, Punkte 4–7 siehe
+"Offen für Teil 2b" unten.
+
+- **Briefarten** (`app/notice_letters.py::LETTER_KINDS`, rollenlos): `behinderungsanzeige` nach der gültigen "Unterschrift Büro"
+  (Inhalt: alle Felder vor ihr, also Meldung und Anzeige); `wiederaufnahme` nach der gültigen Unterschrift im Abschnitt Wegfall
+  UND der gültigen Unterschrift Büro (Inhalt: die Felder zwischen beiden, dazu "Beginn der Behinderung" als Bezug). Die
+  Schlüssel stehen in Ablage, Versandprotokoll, E-Mail-Vorlagen und Vorbehalten und werden nie umbenannt.
+- **Inhalt aus der versiegelten Kopie**: die Angaben kommen aus `ChecklistAttachment.sealed_content` der Abschnittsunterschrift,
+  nicht aus den Antworten; Beschriftungen und Optionstexte aus der (unveränderlichen) Vorlagenfassung, leere Angaben fehlen,
+  Fotos mit der Prüfsumme aus der Kopie. Vorher `check_signature()`: weicht der aktuelle Inhalt ab (an der Sperre vorbei
+  geändert) oder ist die Kopie verändert, entsteht kein Brief -- 409 mit dem Text der Prüfung, die Karte zeigt es; das Büro kann
+  die Unterschrift verwerfen und neu unterschreiben lassen. Zwei Schutzschichten: die Kopie enthält Felder unterhalb der
+  Unterschrift gar nicht, und der Bereich endet an ihr (Gegenprobe: jede allein hält).
+- **Fassung** (`notice_letters`, ORM-Sperre: nie geändert, nie gelöscht): je Checkliste, Briefart und Unterschrift genau eine
+  (UNIQUE), fortlaufende Nummer je Briefart (UNIQUE). Eingefroren als kanonisches JSON mit Prüfsumme: Datum (Tag des Erstellens,
+  Europe/Berlin), Absenderzeile, Empfänger (Kunde des Projekts aus dem Kundenstamm, ohne Kunde der Schnappschuss am Auftrag),
+  Anrede, Betreff, Einleitung, Angaben, Vorbehalt (Text, ob gedruckt), Grußformel mit Firmenname, Unterschrift (Name, Zeitpunkt,
+  Prüfsumme des versiegelten Inhalts und des Bildes), "Kopie an:", Fotos. Das PDF liegt in der Ablage (Art = Briefart,
+  Dokument-ID = Checkliste, Nummer "AUF-… · Fassung N"); Historie "<Briefart> als Brief erstellt" mit Fassung und PDF-Prüfsumme
+  (Projektmappe). Erstellt beim ersten Versand, bei "Brief erstellen (für Post oder Fax)" oder bei der ersten nachgetragenen
+  Zustellung; danach nur noch dieses PDF (`letter_document()`, nur mit stimmender Prüfsumme -- sonst 409, nie still neu erzeugt).
+  Neue Unterschrift nach Verwerfen → beim nächsten Versand Fassung 2, Fassung 1 bleibt ("Frühere Fassungen" auf der Karte).
+- **Erstellen ohne Verklemmung** (`ensure_letter()`): Inhalt und PDF entstehen OHNE Sperre, danach unter der Zeilensperre der
+  Checkliste: dieselbe Unterschrift noch gültig, noch keine Fassung dazu, dieselbe Nummer -- dann ablegen und committen.
+  Gefunden mit dem PostgreSQL-Test (zwei gleichzeitige "Brief erstellen"): das Rendern legt auf einer frischen Datenbank
+  Grundeinstellungen an und committet (`ensure_default_layout()`, `get_or_create_general_settings()`), das gab unter der Sperre
+  eine Verklemmung (FOR KEY SHARE der Fremdschlüsselprüfung gegen FOR UPDATE). Siehe Nebenbefund 1 zum Vertrag.
+- **Vorschau** (`GET …/notice-letters/{kind}/preview`): Stand von jetzt, quer "Vorschau – nicht versendet", nichts abgelegt.
+- **PDF** (`app/notice_letter_pdf.py`, Dokumenttyp `notice` in `RENDERERS_USING_SHARED_FRAME` und `DOCUMENT_TYPES` des
+  Layouts, Rückfall "default"): DIN-5008-Kopf (Auftragsnr., Datum, Kunden-Nr., Seite), Betreff fett (Briefart, darunter
+  "Bauvorhaben: … · Auftrag …"), Anrede, Einleitung, Angaben als Tabelle, Vorbehalt, Grußformel, Firmenname, Unterschriftsbild,
+  Name, "Kopie an:", "Anlage: N Fotos (verkleinert)", kleingedruckt "Erstellt aus der Behinderungsanzeige Nr. …, unterschrieben am
+  …, Prüfsumme des unterschriebenen Inhalts"; Fotos auf eigenen Seiten. Verkleinert stufenweise wie das Versand-PDF der
+  Checkliste (`EMAIL_PHOTO_STEPS`, im Speicher, Originale nur gelesen), bis das PDF unter 3.000.000 Bytes liegt; passt es auch mit
+  der kleinsten Stufe nicht, bleibt diese (der E-Mail-Versand meldet dann die Größe, Zustellung auf anderem Weg).
+- **Vorbehalt** (`app/notice_reservations.py`, Tabelle `notice_reservations`, UNIQUE je Briefart und Gruppe): Gruppen `vob_b`
+  (VOB/B) und `bgb` (BGB, auch `bgb_vob_c_4_5` und der Bestand `bgb`) nach der Vertragsgrundlage des Auftrags von heute. Regeln
+  wie `update_clause()` (Datum und Name gemeinsam, nicht in der Zukunft, ohne Text keine Prüfung, Textänderung mit denselben
+  Prüfangaben setzt zurück, `review_reset`). Kein Seeding, keine vorgegebenen Texte. Lesen Büro und Admin
+  (`GET /api/settings/notice-reservations`), speichern nur Admin (`PUT …/{kind}/{group}`, alle drei Felder Pflicht, Regel 22).
+  Einstellungen → "Vorbehalte in Anzeigen" (vier Bausteine). Gedruckt nur geprüft; ungeprüft zeigt die Karte rot "Ohne
+  Vorbehalt … Versenden ist trotzdem möglich, die Behinderung ist unverzüglich anzuzeigen", das Senden fragt zusätzlich nach.
+- **Versand** (`send_notice_letter()`, `POST …/notice-letters/{kind}/send-email`, Regel 21): Zustand zuerst (409 ohne
+  Abschnittsunterschrift), dann die E-Mail des Auftraggebers (Kunde des Projekts, live; fehlt sie: 400, keine Fassung -- Brief
+  erstellen und auf anderem Weg zustellen), dann die Fassung. An ist immer der Auftraggeber: `NoticeLetterSend` hat kein Feld
+  dafür, eine mitgeschickte An-Adresse wird nicht beachtet. CC frei; `dispatch_email()` entdoppelt (auch eine CC gleich dem
+  Auftraggeber). Vorbelegung CC: Beteiligte mit "Kopie bei Anzeigen" und E-Mail, ohne archivierte, entdoppelt, ohne die Adresse
+  des Auftraggebers. E-Mail-Vorlagen `behinderungsanzeige`/`wiederaufnahme` (Platzhalter `{anrede}`, `{auftragsnummer}`,
+  `{kundenname}`, `{bauvorhaben}`, `{checklistennummer}`).
+- **Vollmacht beim Versand** (`dispatch_authorizations`, ORM-Sperre): neuer Haken `dispatch_email(before_send=…)` -- läuft nach dem
+  Ablegen des PDFs und vor dem Senden, scheitert er, wird nichts gesendet. Je empfangsbevollmächtigtem Beteiligten, an dessen
+  Adresse die Mail geht (An oder CC), eine Zeile mit Name, Rolle, Adresse und der Vollmacht als Kopie in der Ablage (Art und
+  Dokument-ID wie der Brief, Typ der Datei); dieselbe Datei (gleiche Prüfsumme) wird je Anzeige nur einmal abgelegt und sonst
+  verwiesen. Ohne hinterlegte Vollmacht bzw. mit fehlender oder veränderter Datei: Zeile mit Notiz, der Versand geht trotzdem.
+  Versandverlauf ("Empfangsbevollmächtigt: … – Vollmacht festgehalten öffnen") und `/versandprotokoll` (Datei mit Prüfen) zeigen
+  sie (`dispatch_authorizations()` lädt sie für die Liste in einer Abfrage).
+- **Aufgabe erledigt** (`complete_send_tasks()`): nach einem neuen Versand der Behinderungsanzeige und nach einer nachgetragenen
+  Zustellung (neues `DispatchDocument.after_delivery`, aufgerufen nach dem Commit) die über die Folge angelegte Aufgabe auf die
+  erste "erledigt"-Spalte; ein Fehler dort lässt den Versand gelten (nur Klassenname im Protokoll). `create_send_task()` legt
+  keine Aufgabe mehr an, wenn die Anzeige schon versendet ist (Folge nachgeholt nach ausgeschaltetem Aufgabenmodul).
+- **Zustellung nachtragen**: `app/dispatch_documents.py` kennt beide Briefarten (Dokument-ID = Checkliste); die Fassung wird dabei
+  bei Bedarf erstellt, sonst verwiesen.
+- **Oberfläche** (`checklist.html`, nur Büro, Zweck Behinderungsanzeige): Karte "Anzeige an den Auftraggeber" unter dem Kopf, je
+  Briefart Status (wartet/bereit/versendet), Wartetext, Sperrhinweis bei Abweichung, Warnung ohne Vorbehalt, Fassung mit Datum,
+  Prüfsumme, "PDF öffnen", "Kopie an (im Brief)", Anlage; vor der ersten Fassung "Vorschau" und "Brief erstellen (für Post oder
+  Fax)"; Feld "An (immer der Auftraggeber)" als feste Anzeige, CC vorbelegt, Hinweise (Kopie ohne E-Mail, Empfangsvollmacht mit
+  oder ohne Vollmacht), Knopf "… senden" bzw. "… erneut senden", Versandverlauf mit "Zustellung nachtragen", frühere Fassungen.
+  `email_dispatches.html`: beide Arten im Filter, Link auf die Checkliste, Vollmachten in der Spalte Ablage.
+- **Rechte**: alle neuen Routen ab `buero_auftrag`, Vorbehalte speichern Admin, Modul `checklisten` muss an sein; Monteure 403
+  überall, auch an der eigenen Checkliste. `test_v326`: Pfadwert `kind`, neue Prüfung der drei GET-Routen im Durchlauf.
+- **Migration `e04a5161920d`**: drei Tabellen. `downgrade()` verweigert, solange ein Brief, eine festgehaltene Vollmacht oder ein
+  Vorbehalt mit Text existiert.
+- **Festlegungen (nicht vorgegeben, bitte bestätigen)**:
+  1. Die Fassung entsteht beim ersten Versand bzw. bei "Brief erstellen", nicht schon bei der Unterschrift -- so sieht das Büro
+     vorher die Warnung zum Vorbehalt und kann auf die Prüfung warten. Ein später geprüfter Vorbehalt kommt nur über eine neue
+     Unterschrift (neue Fassung) in einen schon erstellten Brief.
+  2. Anschrift und Anrede aus dem Kundenstamm von heute (der Vertrag nimmt den Schnappschuss am Auftrag) -- dieselbe Quelle wie
+     die E-Mail an den Auftraggeber.
+  3. Anrede: "Herr"/"Frau" mit Titel und Nachname, "Divers" mit "Guten Tag Vorname Nachname,", sonst (auch "Firma")
+     "Sehr geehrte Damen und Herren,".
+  4. Einleitung fest im Code ("hiermit zeigen wir Ihnen an, dass wir … behindert sind. Im Einzelnen:", bei der Wiederaufnahme mit
+     dem Datum des ersten Versands der Behinderungsanzeige); rechtliche Aussagen nur über den geprüften Vorbehalt, keine
+     §-Angabe im Betreff. Der Witterungs-Hinweis (§ 6 Abs. 2 VOB/B) kommt nicht in den Brief -- er richtet sich ans Büro.
+  5. Die Anzeige der Wiederaufnahme trägt die Unterschrift des Abschnitts Wegfall -- auch wenn die Monteurin unterschrieben hat.
+  6. "Kopie an:" nennt alle Beteiligten mit "Kopie bei Anzeigen" (ohne archivierte Kontakte), auch ohne E-Mail (Kopie per
+     Post); CC vorbelegt nur die mit E-Mail.
+  7. Vollmacht nur beim E-Mail-Versand an die Adresse eines empfangsbevollmächtigten Beteiligten; bei einer nachgetragenen
+     Zustellung keine (der Empfänger ist dort Freitext).
+  8. Die Aufgabe "versenden" wird auch durch eine nachgetragene Zustellung erledigt; die Anzeige der Wiederaufnahme berührt sie nicht.
+- **Verifikation**: `tests/test_v343_behinderungsanzeige_versand.py` (18 Tests, einer gegen PostgreSQL 17: zwei gleichzeitige
+  "Brief erstellen" zur selben Unterschrift, beide haben gelesen -- eine Fassung, beide bekommen sie), `test_v326` (neue Prüfung)
+  und `test_v229` (Dokumenttyp `notice`) nachgezogen. Gegenproben (Schutz im Code ausgehebelt, Test rot, Dateien byte-genau
+  zurück, Skript im Scratchpad): 27 rot -- Brief schon nach der Meldung, An = CC, Vorbelegung nicht entdoppelt, Versand rendert neu
+  (mit und ohne Verweis auf die Ablage), Fassung nicht je Unterschrift, keine Prüfung gegen die Kopie, Inhalt live und bis zum
+  Ende, Vorbehalt ungeprüft gedruckt, Prüfung bleibt nach Textänderung, Büro speichert Vorbehalte, Monteur darf (auch `test_v326`),
+  Vollmacht nicht abgelegt, Vollmacht jedes Bevollmächtigten, Vollmacht je Beteiligtem nur einmal, kein Haken vor dem Senden,
+  Aufgabe nach Versand bzw. nach Zustellung offen, Folge nach Versand legt Aufgabe an, Brief änderbar, Vollmacht löschbar,
+  Downgrade ohne Schutz, Fotos nicht verkleinert, Vorschau legt ab, Wiederaufnahme ohne Bezug, Fassung vor der Prüfung der
+  E-Mail, PostgreSQL ohne Prüfung unter der Sperre und ohne Unique (zwei Fassungen). "Inhalt bis zum Ende" allein blieb grün --
+  die versiegelte Kopie enthält Felder unterhalb der Unterschrift ohnehin nicht. Zusätzlich gegen PostgreSQL 17 (Wegwerf-Schema je
+  Test, Scratchpad-Plugin): `test_v343`, `test_v341`, `test_v321`, `test_v323`, `test_v324`, `test_v336`, `test_v338`, `test_v340`,
+  `test_v342` 198 grün, 2 rot -- die Migrationstests von `test_v336`/`test_v338` säen ihren Vorzustand mit erfundenen
+  Fremdschlüsseln für SQLite (das Plugin lenkt auch ihre Engines um), unabhängig von dieser Runde. Migration: SQLite (Wegwerf-Datei,
+  Kommandozeile hin, UNIQUE greift, Downgrade mit Vorbehalt verweigert, zurück, hin, `alembic check`) und PostgreSQL (Wegwerf-Schema,
+  ganze Kette, Constraints, Vorgabe `false`, Downgrade-Abbruch, zurück, hin, `alembic current`, `alembic check`). JS der geänderten
+  Seiten (Einstellungen als Admin und Büro, Checkliste als Büro und Monteur, Versandprotokoll) gerendert, `node --check`.
+  Volle Suite 2523 grün (mit den opt-in-Tests gegen PostgreSQL). Klicktest `scripts/klicktest_behinderungsanzeige_versand.py` 41/41, zweimal (Büro hell: wartet → Unterschrift Büro →
+  bereit mit Warnung, An fest, CC vorbelegt, Hinweise, Vorschau; Admin prüft den Vorbehalt; Versand an SMTP-Empfänger im Skript:
+  Umschlag An + CC entdoppelt, Anhang = abgelegter Brief per SHA-256, Brieftext mit Anrede, Bauvorhaben, Vorbehalt, Kopie an,
+  Anlage; Vollmacht im Verlauf und in der Ablage = hinterlegte; Aufgabe erledigt; Versandprotokoll; dunkel 412 px ohne waagrechten
+  Scrollbalken, Links in Akzentfarbe; Monteurin ohne Karte, API 403, Wegfall unterschreiben; Wiederaufnahme per "Brief
+  erstellen" und Einschreiben nachgetragen). Der erste Lauf hing am bekannten `alert()` der Einstellungsseite (1.8.21
+  Nebenbefund 1) -- Singletons jetzt vorab gesät, `alert()` umgeleitet; ein späterer fand die Browser-Linkfarbe in der Karte
+  (dunkel lila), jetzt Akzentfarbe und geprüft. Unverändert grün: `klicktest_behinderungsanzeige.py` 35/35,
+  `klicktest_versandverlauf.py` 32/32, `klicktest_versandprotokoll.py` 45/45; `klicktest_vertragsgrundlage.py` 30/30 bzw. 29/30
+  je nach Lauf (Nebenbefund 4, am Stand 1.8.39 ebenso).
+
+### Offen für Teil 2b (Punkte 4–7 und ihre Tests aus Punkt 8)
+
+4. **Versandprotokoll "Empfang bestätigt am" / "als unzustellbar markieren"** für alle Dokumente: Vorschlag neue Spalten an
+   `email_dispatches` (Bestätigung: Datum, Notiz, optional Beleg in der Ablage; unzustellbar: Datum, Pflicht-Notiz; je wer/wann),
+   die ORM-Sperre lässt sie genau einmal von leer zu, Historie wie beim Klären; im Versandverlauf und in `/versandprotokoll`.
+   Zu klären: ob "unzustellbar" eine schon bestätigte Zustellung ausschließt (und umgekehrt), und ob eine unzustellbare
+   Behinderungsanzeige die Aufgabe "versenden" wieder öffnet.
+5. **Zeitstrahl** an der Anzeige: "bekannt seit" (Antwort) → Meldung unterschrieben (Zeitpunkt der Unterschrift) → versendet
+   (erster erfolgreicher Versand bzw. Zustelldatum), je mit Abstand in Stunden bzw. Tagen.
+6. **"Als gegenstandslos abschließen"** für Behinderungs- und Bedenkenanzeige (schließt 1.8.38 Nebenbefund 1): nur Büro,
+   Begründung Pflicht, die Checkliste bleibt als Beleg (eigener Abschluss mit Kopie und Prüfsumme wie das Abschließen, auch mit
+   fehlenden Pflichtfeldern), fehlt danach in "Offene Checklisten" (`/mobil`) und offenen Listen, die offene Aufgabe "versenden"
+   wird erledigt. Datenmodell: Status `gegenstandslos` an `checklists` plus Begründung/wer/wann (Spalten oder 1:1-Zusatztabelle).
+7. **Kundenwechsel am Projekt** (1.8.39 Nebenbefund 1): ist der neue Kunde über seinen Adressbuch-Eintrag schon Beteiligter, zeigt
+   der Wechsel das an und lehnt ab oder entfernt den Beteiligten -- fachlich zu entscheiden.
+
+### Nebenbefunde 1.8.40 (nur gemeldet)
+
+1. **Vertrag: Rendern unter der Zeilensperre kann auf einer frischen Datenbank committen** -- `freeze_contract()` und die
+   Unterschrift (Unterschriftsblatt) rendern unter `_locked_contract()`; `ensure_default_layout()` und
+   `get_or_create_general_settings()` committen beim allerersten Aufruf und geben die Sperre damit frei. Auf dem Server gibt es
+   die Zeilen längst, dort folgenlos; auf einer neuen Installation hielte beim allerersten Festschreiben nur der Unique-Schlüssel.
+   Dieselbe Ursache wie der Fund dieser Runde.
+2. **Kopie per Post nicht vermerkbar**: Beteiligte mit "Kopie bei Anzeigen" ohne E-Mail stehen im Brief unter "Kopie an:", die
+   Kopie selbst lässt sich nicht als zugestellt festhalten (eine nachgetragene Zustellung gilt dem Brief an den Auftraggeber).
+3. **Wiederaufnahme mit Unterschrift der Monteurin** (Festlegung 5): ob der Brief an den Auftraggeber eine Unterschrift des Büros
+   braucht, ist fachlich zu entscheiden -- dann bräuchte der Abschnitt Wegfall eine Büro-Unterschrift oder der Brief eine eigene.
+4. **`klicktest_vertragsgrundlage.py` zeitabhängig rot (29/30)**: die Einstellungsseite legt auf einer frischen Datenbank den
+   Singleton `labor_rate_overhead_settings` zweimal parallel an (GET `/api/labor-rate-settings` und `…-calculation`), einer
+   scheitert am Primärschlüssel, die Seite zeigt `alert()`. Der Klicktest sät nur `labor_rate_settings` vorab. Am unveränderten
+   Stand 1.8.39 in einem eigenen Worktree ebenso (1 von 3 Läufen); dieselbe offene Fehlerklasse "get_or_create_settings(id=1)"
+   wie 1.8.21 Nebenbefund 1. Der neue Klicktest sät beide Singletons vorab.

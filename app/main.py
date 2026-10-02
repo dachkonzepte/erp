@@ -17,7 +17,7 @@ from .materials import backfill_existing_service_materials
 from .orders import ensure_existing_order_revisions
 from .routers import (
     absence_requests, account, accounts, address_import, ai_settings, audit, auth, calendar_events, catalogs, changelog, checklist_templates, checklists, contacts, contract_basis, contract_templates, customer_documents, customers, email_dispatches,
-    dashboard, document_categories, document_email_templates, document_layout, email_settings, employees, field_view, findings, imports, incoming_invoices, inquiries, inspection_templates, invoices, labor_rate, maintenance_contracts, materials, modules, operational_assets, orders,
+    dashboard, document_categories, document_email_templates, document_layout, email_settings, employees, field_view, findings, imports, incoming_invoices, inquiries, inspection_templates, invoices, labor_rate, maintenance_contracts, materials, modules, notice_letters, operational_assets, orders,
     outlook_sync_settings, pages, payment_terms, planning, project_documents, project_participants, project_pipeline_columns, projects, properties, property_documents, quick_service_orders, quotes, recurring_costs, reminders,
     resource_planning, roof_areas, search, service_reports, services, settings, task_columns, tasks, tax_keys, time_backoffice, time_tracking, users,
     work_preparation,
@@ -157,6 +157,7 @@ app.include_router(contract_basis.router)
 app.include_router(contract_templates.router)
 app.include_router(contacts.router)
 app.include_router(project_participants.router)
+app.include_router(notice_letters.router)
 
 
 @app.exception_handler(HTTPException)

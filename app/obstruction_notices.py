@@ -3,7 +3,8 @@
 Herleitung: docs/archiv/vertragsgrundlage-und-vertrag.md, "Umsetzung 1.8.38". Die
 Behinderungsanzeige ist eine Checkliste mit Zweck "behinderungsanzeige" (Systemfelder in
 app/checklist_purposes.py): Meldung (meist der Monteur) → Unterschrift des Meldenden, Anzeige
-(Büro) → Unterschrift Büro, Wegfall → Unterschrift. Brief-PDF und Versand kommen in Teil 2.
+(Büro) → Unterschrift Büro, Wegfall → Unterschrift. Brief und Versand seit 1.8.40 in
+app/notice_letters.py -- der Versand erledigt die Aufgabe von hier.
 
 Hier steht die Folge nach der Unterschrift der Meldung: eine Aufgabe "Behinderungsanzeige
 versenden", fällig am Tag der Unterschrift (Europe/Berlin), an den Sachbearbeiter des Auftrags,
@@ -22,10 +23,16 @@ SEND_TASK_PRIORITY = "hoch"  # Festlegung 1.8.38: die Anzeige muss unverzüglich
 OFFICE_ROLE = "buero_auftrag"
 
 
-def create_send_task(db: Session, checklist: Checklist) -> tuple[str, int]:
+def create_send_task(db: Session, checklist: Checklist) -> tuple[str, int] | None:
     """Legt die Aufgabe an (create_task() committet selbst) und liefert ("task", id). Nur
-    Metadaten in der Beschreibung -- wer, wann, welcher Auftrag --, nicht der gemeldete Text."""
+    Metadaten in der Beschreibung -- wer, wann, welcher Auftrag --, nicht der gemeldete Text.
+    Seit 1.8.40 keine Aufgabe, wenn die Behinderungsanzeige schon versendet ist (Nachholen nach
+    ausgeschaltetem Aufgabenmodul) -- dann gibt es nichts mehr zu tun (None)."""
+    from .notice_letters import letter_was_sent  # lokal: das Briefmodul importiert die Folgen
     from .tasks import create_task  # lokal: app.tasks zieht E-Mail-Versand u. a. nach
+
+    if letter_was_sent(db, "behinderungsanzeige", checklist.id):
+        return None
 
     signature = triggering_signature(checklist, OBSTRUCTION_REPORT_SIGNATURE)
     signed_at = to_berlin(signature.created_at) if signature is not None and signature.created_at else berlin_now()

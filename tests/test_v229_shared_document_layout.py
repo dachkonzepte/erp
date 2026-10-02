@@ -197,7 +197,8 @@ def test_rollout_status_lists_reminder_as_using_shared_settings(threaded_db_sess
     using = {row["document_type"] for row in body["using_shared_settings"]}
     pending = {row["document_type"] for row in body["not_yet_migrated"]}
     excluded = {row["document_type"] for row in body["excluded"]}
-    assert using == {"reminder", "invoice", "order", "service_report", "quote", "field_timesheet", "checklist", "contract"}
+    assert using == {"reminder", "invoice", "order", "service_report", "quote", "field_timesheet", "checklist", "contract",
+                     "notice"}
     assert pending == set()
     # "excluded" war bis 1.3.13 hartkodiert {"quote"} -- seit der neue, parallele
     # Angebots-Renderer "quote" selbst registriert, wäre das ein Widerspruch zu "using". Aktuell

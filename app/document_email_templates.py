@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from .models import DocumentEmailTemplate
 
-DOCUMENT_TYPES = {"quote", "order", "invoice", "checklist", "contract"}  # checklist seit 1.8.20, contract seit 1.8.33
+# checklist seit 1.8.20, contract seit 1.8.33, behinderungsanzeige/wiederaufnahme seit 1.8.40 (app/notice_letters.py)
+DOCUMENT_TYPES = {"quote", "order", "invoice", "checklist", "contract", "behinderungsanzeige", "wiederaufnahme"}
 
 
 def _validate_document_type(document_type: str) -> None:

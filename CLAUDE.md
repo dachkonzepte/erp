@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.39** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.40** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -578,7 +578,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Mahnung kommen ab dem ersten Versand aus der Ablage (`frozen_or_fresh_pdf()`), nie neu erzeugt; der Vertrag
     liegt seit 1.8.33 schon ab dem Festschreiben dort (Fassung, `app/contract_versions.py`), seit 1.8.34 auch
     Unterschriftsblatt, Unterschriftsbilder und Papier-Scan (`app/contract_signatures.py`), seit 1.8.35 die
-    unterschriebene Abschrift (Fassung + Blatt bzw. Scan), die Versand und Zustellung danach hinausgeben.
+    unterschriebene Abschrift (Fassung + Blatt bzw. Scan), die Versand und Zustellung danach hinausgeben; seit 1.8.40 ebenso die
+    Briefe zur Behinderungsanzeige ab dem Erstellen (`app/notice_letters.py`), dazu je Versand die Vollmacht eines
+    empfangsbevollmächtigten Empfängers (`dispatch_email(before_send=…)`).
     Eine Zustellung auf anderem Weg (Einschreiben, Übergabe, Bote, Fax) wird seit 1.8.20 im selben
     Protokoll nachgetragen (`record_manual_delivery()`); eine neue Dokumentart braucht einen Eintrag
     in `app/dispatch_documents.py`. Details: `docs/archiv/versandprotokoll-und-ablage.md`.
@@ -641,8 +643,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.37" und "Umsetzung 1.8.39".
 - **Behinderungsanzeige** (seit 1.8.38): eine Checkliste mit Zweck `behinderungsanzeige` (Systemfelder in
   `app/checklist_purposes.py`): Meldung (meist Monteur) → Anzeige (nur Büro) → Wegfall, je mit Unterschrift; nach der
-  Unterschrift der Meldung die Aufgabe "Behinderungsanzeige versenden" (`app/obstruction_notices.py`). Details:
-  `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.38".
+  Unterschrift der Meldung die Aufgabe "Behinderungsanzeige versenden" (`app/obstruction_notices.py`). Seit 1.8.40 Brief an den
+  Auftraggeber (`app/notice_letters.py`): Behinderungsanzeige nach der Unterschrift Büro, Anzeige der Wiederaufnahme nach dem
+  Wegfall, Inhalt aus der versiegelten Kopie der Unterschrift, Fassung je Unterschrift in der Ablage, Vorbehalt nur geprüft,
+  An immer der Auftraggeber. Details: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.38" und "Umsetzung 1.8.40".
 - **Weitere Fachbegriffe ausgelagert**: Dachflächen & Bauteile, Wartungsvertrag,
   Einsatzbericht, Rechnung aus Zeitbuchungen, Schnellauftrag, Wartungshistorie und
   Monteursansicht stehen vollständig in `docs/archiv/modul-wartungen-und-monteursansicht.md`;
@@ -759,7 +763,10 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Projektmappe); seit 1.8.38 Behinderungsanzeige erfassen (Startvorlage, drei Abschnitte, Anzeige nur Büro, Aufgabe
   "versenden" nach der Unterschrift der Meldung, Tagesbericht-Regel verlinkt aufs Anlegen); seit 1.8.39 Beteiligte aus
   Kunden und Lieferanten (Dialog nach Herkunft, Rollenprüfung der Büro-Suche `office_source_visible()`, Eintrag mit
-  Verweis ohne Kopie); Brief und Versand folgen) --
+  Verweis ohne Kopie); seit 1.8.40 Behinderungsanzeige als Brief (zwei Briefarten, Fassung je Abschnittsunterschrift mit PDF
+  in der Ablage, Vorbehalt je Briefart und VOB/B bzw. BGB mit Prüfung, An fest der Auftraggeber, CC "Kopie bei Anzeigen",
+  Vollmacht beim Versand in der Ablage, Aufgabe "versenden" danach erledigt); offen 2b-3 Teil 2b: Empfang bestätigt/unzustellbar,
+  Zeitstrahl, "gegenstandslos", Kundenwechsel) --
   `docs/archiv/vertragsgrundlage-und-vertrag.md`
 - **Speichern nur gesendeter Felder** (`PartialUpdate`, Strukturtest über alle PUT-Handler, Liste der
   Altfälle, Nebenbefunde der Durchsicht aller Speichern-Aufrufer) -- `docs/archiv/teil-updates.md`
@@ -1090,7 +1097,11 @@ Archivieren und Löschen, Reiter "Beteiligte": suchen, doppelt, neu anlegen und 
 meldet und unterschreibt auf 412 px, Anzeige für sie gesperrt; Büro dunkel mit Folgen-Karte, Witterungs-Hinweis, Unterschrift
 Büro; Link aus der Tagesbericht-Aufgabe; Editor) und `klicktest_beteiligte_stammdaten.py` (1.8.39, Dialog nach Herkunft
 gruppiert, Auftraggeber gesperrt, Kunde und inaktiver Lieferant hinzufügen, geänderte E-Mail im Kunden beim Beteiligten,
-ein Eintrag für zwei Projekte, Formular schreibgeschützt, dunkel, 412 px, Monteur 403). Ein Klicktest, der als Monteur `/mobil` öffnet,
+ein Eintrag für zwei Projekte, Formular schreibgeschützt, dunkel, 412 px, Monteur 403) und
+`klicktest_behinderungsanzeige_versand.py` (1.8.40, Karte "Anzeige an den Auftraggeber": wartet → Unterschrift Büro → bereit mit
+Warnung ohne Vorbehalt, Admin prüft den Vorbehalt, Versand an einen SMTP-Empfänger im Skript mit An fest und Anhang = abgelegter
+Brief, Vollmacht im Verlauf, Aufgabe erledigt, dunkel 412 px, Monteurin 403, Wiederaufnahme per "Brief erstellen" und
+Einschreiben). Ein Klicktest, der als Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)
 meldet `/mobil` ab, eine 403-Prüfung sähe abends 401; `--wanduhr HH:MM` täuscht eine andere Uhrzeit vor (Gegenprobe),
 `tests/test_v339_feste_uhr.py` prüft, dass jeder solche Klicktest `uhr=` setzt. Eine Seite mit `alert()` beim Laden hält den headless Chrome an --

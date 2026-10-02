@@ -81,6 +81,9 @@ RENDERERS_USING_SHARED_FRAME: dict[str, str] = {
     "checklist": "Checkliste",
     # Seit 1.8.32: Vertrag zum Auftrag (app/contract_pdf.py) -- Rückfall auf "default" wie die übrigen.
     "contract": "Vertrag",
+    # Seit 1.8.40: Brief an den Auftraggeber -- Behinderungsanzeige, Anzeige der Wiederaufnahme
+    # (app/notice_letter_pdf.py); Rückfall auf "default" wie die übrigen.
+    "notice": "Anzeige an den Auftraggeber",
 }
 
 

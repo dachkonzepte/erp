@@ -1007,3 +1007,14 @@ geändert hat und für jeden künftigen Zweck (Abnahme, Bedenkenanzeige) gilt:
   am Entwurf; die Ausfüllseite zeigt dem Büro die Karte "Folgen", "Alle nachholen" der Übersicht nimmt Folgen mit.
 - Regeln: `link_purpose` ("Aufgabe verlinkt auf") -- Aufgabe verlinkt aufs Anlegen einer Checkliste mit Zweck am selben
   Auftrag, keine zweite, solange eine mit demselben Link offen ist (`aufgabe_vorhanden`).
+
+---
+
+## Nachtrag 1.8.40 (02.10.2026) -- Brief zur Behinderungsanzeige
+
+Herleitung: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.40". Für den Baukasten bedeutsam: ein Brief an den
+Auftraggeber nimmt seinen Inhalt aus der versiegelten Kopie einer Unterschrift (`ChecklistAttachment.sealed_content`) und
+entsteht nur, solange `check_signature()` "unverändert" meldet -- die Kopie ist damit erstmals Quelle eines Dokuments nach außen,
+nicht nur Prüfmaßstab. Die Ausfüllseite zeigt dem Büro bei Zweck "behinderungsanzeige" die Karte "Anzeige an den Auftraggeber";
+der Checklisten-Abruf selbst trägt nichts davon (Monteure sehen sie nicht). `create_send_task()` legt nach dem Versand keine
+Aufgabe mehr an, der Versand erledigt eine offene.

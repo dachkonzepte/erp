@@ -29,6 +29,12 @@
   option_hints zeigt beim gewählten Wert einen Hinweis (Witterung). Die Karte "Folgen" (nur Büro)
   zeigt, was eine Unterschrift oder der Abschluss ausgelöst hat (Aufgabe "Behinderungsanzeige
   versenden"), mit "Folgen nachholen".
+
+  Seit 1.8.40 (nur Büro, Zweck Behinderungsanzeige): Karte "Anzeige an den Auftraggeber" mit beiden
+  Briefen (Behinderungsanzeige nach der Unterschrift Büro, Anzeige der Wiederaufnahme nach dem Wegfall) --
+  Vorschau, "Brief erstellen" für Post/Fax, Versand per E-Mail (An fest der Auftraggeber, CC vorbelegt mit
+  "Kopie bei Anzeigen"), deutliche Warnung ohne geprüften Vorbehalt, Fassungen, Versandverlauf mit
+  "Zustellung nachtragen". Alles vom Server (GET /api/checklists/{id}/notice-letters).
 #}
 <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 <style>
@@ -109,6 +115,20 @@ textarea{min-height:90px;resize:vertical}
 .send-row input{flex:1 1 220px;width:auto}
 .option-hint{margin-top:8px;padding:8px 10px;border-left:3px solid var(--warning);background:var(--warning-soft);color:var(--ink);font-size:13.5px}
 .q-label .office-tag{font-size:11.5px;font-weight:600;color:var(--muted);margin-left:6px;white-space:nowrap}
+.notice-card h2{margin:0 0 4px;font-size:16px}
+.notice-kind{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+.notice-head{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.notice-head b{font-size:15px}
+.notice-warn{margin-top:8px;padding:9px 11px;border-left:3px solid var(--danger);background:var(--danger-soft);color:var(--ink);font-size:13.5px}
+.notice-info{margin-top:8px;padding:8px 10px;border-left:3px solid var(--warning);background:var(--warning-soft);color:var(--ink);font-size:13px}
+.notice-row{margin-top:8px;font-size:13.5px;overflow-wrap:anywhere}
+.notice-row .mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.notice-to{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);background:var(--soft);font-size:14px;min-height:44px}
+.notice-to .fixed{font-size:11.5px;font-weight:700;text-transform:uppercase;color:var(--muted)}
+.notice-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.notice-actions a.btn{text-decoration:none;display:inline-flex;align-items:center}
+.notice-card label.small{display:block;font-weight:650;margin:10px 0 4px}
+.notice-row a{color:var(--accent);font-weight:650;text-decoration:none}
 </style>
 <body class="{{ 'field' if is_field else 'office' }}">
 {% if is_field %}
@@ -326,9 +346,99 @@ async function sendChecklistEmail(btn){
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 
+// --- Anzeige an den Auftraggeber (seit 1.8.40, nur Büro, Zweck Behinderungsanzeige) ---------------------
+// Briefe aus der versiegelten Kopie der Abschnittsunterschrift; was möglich ist, sagt der Server.
+let notice=null;
+const noticeCc={};  // eingegebene CC je Briefart -- bleibt beim Neuzeichnen stehen
+const fmtIsoDate=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}.${m[2]}.${m[1]}`:''};
+function noticeKindHtml(k){
+  const id=`notice-${k.kind}`;
+  const current=k.letters.find(l=>l.current);
+  const older=k.letters.filter(l=>!l.current);
+  const badge=k.sent?'<span class="badge done">versendet</span>':(k.ready?'<span class="badge open">bereit</span>':'<span class="badge">wartet</span>');
+  let html=`<div class="notice-kind" id="${id}" data-kind="${esc(k.kind)}"><div class="notice-head"><b>${esc(k.label)}</b>${badge}</div>`;
+  if(!k.ready)return html+`<div class="muted small" style="margin-top:4px">${esc(k.waiting_text)}</div>${older.length?olderLettersHtml(older):''}</div>`;
+  if(k.blocked)html+=`<div class="notice-warn" data-notice-blocked><b>Der Brief wird nicht erstellt:</b> ${esc(k.seal.text)} Das Büro kann die Unterschrift mit Begründung verwerfen und neu unterschreiben lassen.</div>`;
+  const r=k.reservation;
+  const withoutReservation=current?!current.reservation_printed:!r.reviewed;
+  if(withoutReservation)html+=`<div class="notice-warn" data-reservation-warning><b>Ohne Vorbehalt:</b> ${current?'Dieser Brief wurde ohne Vorbehalt erstellt':`Für ${esc(k.label)} bei ${esc(r.basis_label)} gibt es keinen rechtlich geprüften Vorbehalt`} – ${current?'er':'der Brief'} enthält keinen. Versenden ist trotzdem möglich, die Behinderung ist unverzüglich anzuzeigen. Den Vorbehalt pflegt ein Administrator unter Einstellungen → Vorbehalte in Anzeigen.</div>`;
+  if(current){
+    const doc=current.sent_document;
+    html+=`<div class="notice-row" data-notice-letter>Brief vom ${fmtIsoDate(current.letter_date)} (Fassung ${current.version_no}), erstellt von ${esc(current.created_by_name)} · <span class="mono" title="SHA-256 ${esc(doc.sha256)}">Prüfsumme ${esc(doc.sha256.slice(0,12))}…</span> · <a href="/api/sent-documents/${doc.id}/file" target="_blank" rel="noopener">PDF öffnen</a></div>`
+      +(current.copy_to.length?`<div class="notice-row muted">Kopie an (im Brief): ${esc(current.copy_to.map(c=>`${c.name} (${c.role_label})`).join('; '))}</div>`:'')
+      +(current.photo_count?`<div class="notice-row muted">Anlage: ${current.photo_count} ${current.photo_count===1?'Foto':'Fotos'} (verkleinert)</div>`:'');
+  }else if(!k.blocked){
+    html+=`<div class="notice-row muted">Noch kein Brief – er entsteht beim ersten Versand aus dem unterschriebenen Inhalt und gilt danach unverändert für jeden weiteren Versand.</div>
+      <div class="notice-actions"><a class="btn secondary" href="/api/checklists/${checklistId}/notice-letters/${esc(k.kind)}/preview" target="_blank" rel="noopener">Vorschau</a>
+      <button type="button" class="btn secondary" onclick="freezeNoticeLetter('${esc(k.kind)}',this)">Brief erstellen (für Post oder Fax)</button></div>`;
+  }
+  if(!k.blocked){
+    const rec=notice.recipient;
+    const cc=noticeCc[k.kind]!==undefined?noticeCc[k.kind]:notice.cc_prefill;
+    html+=`<label class="small">An (immer der Auftraggeber)</label>
+      <div class="notice-to" data-notice-to>${esc(rec.name)}${rec.email?` &lt;${esc(rec.email)}&gt;`:''}<span class="fixed">fest</span></div>`
+      +(rec.email?'':`<div class="notice-warn">Der Auftraggeber hat keine E-Mail-Adresse. Bitte im Kundenstamm ergänzen oder den Brief erstellen, auf anderem Weg zustellen und unten unter „Zustellung nachtragen“ festhalten.</div>`)
+      +`<label class="small" for="${id}-cc">CC (vorbelegt mit „Kopie bei Anzeigen“, mehrere mit Komma)</label>
+      <input id="${id}-cc" type="text" inputmode="email" autocomplete="off" value="${esc(cc)}" oninput="noticeCc['${esc(k.kind)}']=this.value">`
+      +noticeParticipantHints()
+      +`<div class="notice-actions"><button type="button" class="btn" id="${id}-send" ${rec.email?'':'disabled'} onclick="sendNoticeLetter('${esc(k.kind)}',this)">${esc(k.label)} ${k.sent?'erneut senden':'senden'}</button><span class="muted small" id="${id}-status"></span></div>`;
+  }
+  html+=`<div id="${id}-history"></div>`+(older.length?olderLettersHtml(older):'');
+  return html+'</div>';
+}
+function olderLettersHtml(list){
+  return `<div class="notice-row muted">Frühere Fassungen (Unterschrift inzwischen verworfen): ${list.map(l=>`Fassung ${l.version_no} vom ${fmtIsoDate(l.letter_date)} <a href="/api/sent-documents/${l.sent_document.id}/file" target="_blank" rel="noopener">PDF</a>`).join(' · ')}</div>`;
+}
+function noticeParticipantHints(){
+  const lines=[];
+  const noMail=notice.copies.filter(c=>!c.email&&!c.archived);
+  if(noMail.length)lines.push(`Kopie bei Anzeigen, aber ohne E-Mail (bitte auf anderem Weg): ${esc(noMail.map(c=>`${c.name} (${c.role_label})`).join('; '))}`);
+  for(const a of notice.authorized){
+    lines.push(`Empfangsbevollmächtigt: ${esc(a.name)} (${esc(a.role_label)})${a.email?` &lt;${esc(a.email)}&gt;`:' – ohne E-Mail'} – ${a.has_poa?'die Vollmacht wird beim Versand an diese Adresse festgehalten':'keine Vollmacht hinterlegt'}`);
+  }
+  return lines.length?`<div class="notice-info">${lines.join('<br>')}</div>`:'';
+}
+function renderNoticeCard(){
+  const card=document.getElementById('noticeCard');if(!card||!notice)return;
+  card.innerHTML=`<h2>Anzeige an den Auftraggeber</h2><div class="muted small">Auftrag ${esc(notice.order_number)} · Vertragsgrundlage ${esc(notice.contract_basis_label||'')}. Der Brief kommt aus dem unterschriebenen Inhalt; versendet wird immer der erstellte Brief.</div>`
+    +notice.kinds.map(noticeKindHtml).join('');
+  for(const k of notice.kinds)if(k.ready||k.sent)renderDispatchHistory(`notice-${k.kind}-history`,k.kind,checklistId,{});
+}
+async function loadNotice(){
+  const card=document.getElementById('noticeCard');if(!card)return;
+  try{notice=await api(`/api/checklists/${checklistId}/notice-letters`);renderNoticeCard()}
+  catch(e){card.innerHTML=`<h2>Anzeige an den Auftraggeber</h2><div class="error-box small">${esc(e.message)}</div>`}
+}
+async function freezeNoticeLetter(kind,btn){
+  const k=notice.kinds.find(x=>x.kind===kind);
+  const warn=!k.reservation.reviewed?'\n\nEin geprüfter Vorbehalt fehlt – der Brief enthält keinen.':'';
+  if(!confirm(`${k.label} jetzt als Brief erstellen? Danach gilt genau dieser Brief für Versand und Zustellung.${warn}`))return;
+  btn.disabled=true;
+  try{notice=await api(`/api/checklists/${checklistId}/notice-letters/${kind}/freeze`,{method:'POST'});renderNoticeCard()}
+  catch(e){btn.disabled=false;const st=document.getElementById(`notice-${kind}-status`);if(st)st.textContent='Fehler: '+e.message;else alert(e.message)}
+}
+async function sendNoticeLetter(kind,btn){
+  const k=notice.kinds.find(x=>x.kind===kind);
+  const st=document.getElementById(`notice-${kind}-status`);
+  const cc=(document.getElementById(`notice-${kind}-cc`).value||'').trim();
+  const current=k.letters.find(l=>l.current);
+  if(current?!current.reservation_printed:!k.reservation.reviewed){
+    if(!confirm(`${k.label} ohne Vorbehalt senden? Ein rechtlich geprüfter Vorbehalt fehlt.`))return;
+  }
+  st.textContent='Wird gesendet …';
+  try{
+    await postEmailDispatch(`${kind}-${checklistId}`,`/api/checklists/${checklistId}/notice-letters/${kind}/send-email`,{cc_email:cc||null},btn);
+    delete noticeCc[kind];
+    await loadNotice();
+    const st2=document.getElementById(`notice-${kind}-status`);if(st2)st2.textContent='Versendet.';
+    loadFollowUps();
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+
 function render(){
   const main=document.getElementById('clMain');
   let html=renderHeader()+renderSendCard();
+  if(!IS_FIELD&&cl.purpose==='behinderungsanzeige')html+='<div class="card notice-card" id="noticeCard"><h2>Anzeige an den Auftraggeber</h2><div class="muted small">Lädt …</div></div>';
   let group=null;
   const missing=new Set(cl.missing_required||[]);
   // Nur wenn ein Teil gesperrt und ein Teil offen ist, markiert jedes gesperrte Feld sich selbst.
@@ -358,6 +468,7 @@ function render(){
   main.innerHTML=html;
   for(const f of cl.fields)if(f.field_type==='unterschrift')setupPad(f.id);
   if(!IS_FIELD)loadFollowUps();
+  if(!IS_FIELD&&cl.purpose==='behinderungsanzeige')loadNotice();
   if(!IS_FIELD&&cl.status==='abgeschlossen'){loadRules();afterRenderSendCard()}
 }
 

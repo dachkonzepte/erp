@@ -4767,6 +4767,36 @@ class EmailDispatchResolve(BaseModel):
     note: str = Field(min_length=1, max_length=1000)
 
 
+class NoticeLetterSend(BaseModel):
+    """Brief an den Auftraggeber per E-Mail (seit 1.8.40, app/notice_letters.py): An ist immer der Auftraggeber
+    und deshalb kein Feld -- eine mitgeschickte An-Adresse wird nicht beachtet. CC frei (mehrere mit Komma)."""
+    cc_email: str | None = None
+    dispatch_key: str = Field(min_length=8, max_length=80)
+
+
+class NoticeReservationOut(BaseModel):
+    letter_kind: str
+    letter_label: str
+    basis_group: str
+    basis_label: str
+    reservation_text: str | None = None
+    reviewed_on: date | None = None
+    reviewed_by: str | None = None
+    reviewed: bool
+    has_text: bool
+    updated_at: datetime | None = None
+    updated_by_name: str | None = None
+    review_reset: bool = False  # nur in der Antwort auf PUT: Text geändert, Prüfangaben gelöscht
+
+
+class NoticeReservationUpdate(BaseModel):
+    """Alle drei Felder Pflicht (Regel 22: kein Vorgabewert, der einen gespeicherten Wert still ersetzt);
+    null leert."""
+    reservation_text: str | None = Field(max_length=20000)
+    reviewed_on: date | None
+    reviewed_by: str | None = Field(max_length=160)
+
+
 class ChecklistEmailSend(BaseModel):
     """Checkliste per E-Mail (seit 1.8.20, app/checklist_email.py) -- wie die übrigen *EmailSend."""
     to_email: str | None = None  # None = aus dem Kunden des Auftrags/Objekts; mehrere mit Komma/Semikolon

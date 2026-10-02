@@ -49,8 +49,11 @@ SENT_DOCUMENT_ROOT = Path(os.getenv("DACHKONZEPTE_SENT_DOCUMENT_ROOT", data_dir(
 
 # "vertrag" seit 1.8.33: die festgeschriebene Fassung liegt schon vor dem ersten Versand hier
 # (app/contract_versions.py), Dokument-ID ist die des Vertrags (OrderContract), nicht der Fassung.
+# "behinderungsanzeige"/"wiederaufnahme" seit 1.8.40: Briefe an den Auftraggeber (app/notice_letters.py), Dokument-ID
+# ist die der Checkliste; die Fassung liegt ab dem Erstellen hier, dazu beim Versand die Vollmachten.
 DOCUMENT_TYPES = {"angebot": "Angebot", "auftrag": "Auftrag", "rechnung": "Rechnung", "mahnung": "Mahnung",
-                  "checkliste": "Checkliste", "vertrag": "Vertrag"}
+                  "checkliste": "Checkliste", "vertrag": "Vertrag", "behinderungsanzeige": "Behinderungsanzeige",
+                  "wiederaufnahme": "Anzeige der Wiederaufnahme"}
 # Was die Ablage aufnimmt (seit 1.8.20 neben PDFs auch Belege nachgetragener Zustellungen) und mit
 # welcher Endung die Datei abgelegt wird.
 CONTENT_TYPE_SUFFIXES = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}

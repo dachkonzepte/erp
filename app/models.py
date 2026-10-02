@@ -5037,6 +5037,84 @@ class EmailDispatch(Base):
     receipt_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[receipt_document_id])
 
 
+class NoticeLetter(Base):
+    """Brief an den Auftraggeber zu einer Anzeige (seit 1.8.40, Stufe 2b, Runde 2b-3 Teil 2,
+    app/notice_letters.py): Behinderungsanzeige bzw. Anzeige der Wiederaufnahme zu einer Checkliste mit
+    Zweck "behinderungsanzeige". Eine Fassung je Unterschrift des Abschnitts (signature_id): ihr Inhalt
+    kommt aus der versiegelten Kopie dieser Unterschrift, content ist das kanonische JSON alles dessen,
+    was im Brief steht (Empfänger, Betreff, Angaben, Vorbehalt, "Kopie an:", Fotos), content_sha256 seine
+    Prüfsumme, sent_document_id das PDF in der Ablage. Versand, Download und nachgetragene Zustellung
+    verwenden nur dieses PDF; eine Fassung wird nie neu gerendert. Unveränderlich (ORM-Sperre unten)."""
+
+    __tablename__ = "notice_letters"
+    __table_args__ = (
+        UniqueConstraint("checklist_id", "kind", "version_no", name="uq_notice_letter_version"),
+        UniqueConstraint("checklist_id", "kind", "signature_id", name="uq_notice_letter_signature"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    checklist_id: Mapped[int] = mapped_column(ForeignKey("checklists.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(30))
+    version_no: Mapped[int] = mapped_column()
+    signature_id: Mapped[int] = mapped_column(ForeignKey("checklist_attachments.id"))
+    signature_sha256: Mapped[str] = mapped_column(String(64))
+    content: Mapped[str] = mapped_column(Text)
+    content_sha256: Mapped[str] = mapped_column(String(64))
+    sent_document_id: Mapped[int] = mapped_column(ForeignKey("sent_documents.id"))
+    reservation_printed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(160), server_default="System")
+
+    sent_document: Mapped["SentDocument"] = relationship()
+
+
+class NoticeReservation(Base):
+    """Vorbehalt als Textbaustein für Briefe an den Auftraggeber (seit 1.8.40, Einstellungen ->
+    Anzeigen): je Briefart (letter_kind, app/notice_letters.py::LETTER_KINDS) und Gruppe der
+    Vertragsgrundlage (basis_group "vob_b" oder "bgb"). Gedruckt nur, wenn Text, "rechtlich geprüft am"
+    und "durch" gesetzt sind -- wie die Klauseln (ContractBasisClause); ändert sich der Text ohne neue
+    Prüfangaben, fällt die Prüfung weg. Zeilen entstehen beim ersten Speichern, kein Seeding."""
+
+    __tablename__ = "notice_reservations"
+    __table_args__ = (UniqueConstraint("letter_kind", "basis_group", name="uq_notice_reservation"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    letter_kind: Mapped[str] = mapped_column(String(30))
+    basis_group: Mapped[str] = mapped_column(String(20))
+    reservation_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    updated_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class DispatchAuthorization(Base):
+    """Empfangsvollmacht zum Zeitpunkt eines Versands (seit 1.8.40, app/notice_letters.py): je Versand
+    eines Briefs an den Auftraggeber und empfangsbevollmächtigtem Beteiligten, an dessen Adresse die Mail
+    ging (An oder CC), eine Zeile -- mit der Vollmacht als Kopie in der Ablage (sent_document_id, Prüfsumme
+    dort), angelegt vor dem Senden. Ersetzt das Büro die Vollmacht später, bleibt diese Kopie. Ohne
+    hinterlegte oder ohne unversehrte Vollmacht bleibt sent_document_id leer und note sagt es. Namen und
+    Rolle als Schnappschuss, participant_id ohne Fremdschlüssel (der Beteiligte darf später entfernt
+    werden). Unveränderlich (ORM-Sperre unten)."""
+
+    __tablename__ = "dispatch_authorizations"
+    __table_args__ = (UniqueConstraint("dispatch_id", "participant_id", name="uq_dispatch_authorization"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dispatch_id: Mapped[int] = mapped_column(ForeignKey("email_dispatches.id"), index=True)
+    participant_id: Mapped[int] = mapped_column()
+    contact_name: Mapped[str] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(40))
+    recipient_email: Mapped[str] = mapped_column(String(255))
+    sent_document_id: Mapped[int | None] = mapped_column(ForeignKey("sent_documents.id"), nullable=True)
+    poa_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    note: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    sent_document: Mapped["SentDocument | None"] = relationship()
+
+
 class ArchiveImmutableError(Exception):
     """Versuch, eine abgelegte Datei, ihren Ablage-Eintrag oder einen abgeschlossenen
     Protokolleintrag zu ändern oder zu löschen (seit 1.8.17)."""
@@ -5113,3 +5191,26 @@ def _contract_signature_no_update(mapper, connection, target):
 @event.listens_for(OrderContractSignature, "before_delete")
 def _contract_signature_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Eine Unterschrift unter dem Vertrag wird nie gelöscht.")
+
+
+# Brief an den Auftraggeber und Empfangsvollmacht zum Versand (seit 1.8.40): unveränderlich, nie gelöscht.
+@event.listens_for(NoticeLetter, "before_update")
+def _notice_letter_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs if attr.key != "sent_document"):
+        raise ArchiveImmutableError("Ein erstellter Brief ist unveränderlich.")
+
+
+@event.listens_for(NoticeLetter, "before_delete")
+def _notice_letter_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Ein erstellter Brief wird nie gelöscht.")
+
+
+@event.listens_for(DispatchAuthorization, "before_update")
+def _dispatch_authorization_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs if attr.key != "sent_document"):
+        raise ArchiveImmutableError("Die beim Versand festgehaltene Vollmacht ist unveränderlich.")
+
+
+@event.listens_for(DispatchAuthorization, "before_delete")
+def _dispatch_authorization_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Die beim Versand festgehaltene Vollmacht wird nie gelöscht.")

@@ -291,3 +291,19 @@ prüft die Prüfsumme. Nie neu erzeugt; eine Fassung, die nicht mehr zum Auftrag
 zugestellt. `list_dispatches()` liefert für Vertragszeilen `order_id`, `/versandprotokoll` verlinkt damit auf den
 Auftrag; der Versandverlauf nennt je Versand die Fassung. `FROZEN_AFTER_FIRST_DISPATCH` bleibt unverändert
 (Rechnung, Mahnung) -- beim Vertrag ist die Fassung schon vorher eingefroren.
+
+## Nachtrag 1.8.40 -- Briefe an den Auftraggeber, Vollmacht beim Versand, Nachlauf einer Zustellung
+
+Herleitung: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.40". Was sich hier geändert hat:
+- **Zwei Dokumentarten**: `behinderungsanzeige` und `wiederaufnahme` (Dokument-ID = Checkliste). Wie beim Vertrag liegt der Brief
+  ab dem Erstellen (erster Versand, "Brief erstellen", erste nachgetragene Zustellung) als Fassung in der Ablage
+  (`notice_letters`, Nummer "AUF-… · Fassung N"); Versand und Zustellung verweisen per `archived_document` auf sie, nie neu
+  gerendert. `app/dispatch_documents.py` kennt beide; `/versandprotokoll` verlinkt auf die Checkliste, der Versandverlauf nennt
+  die Fassung.
+- **`dispatch_email(before_send=…)`**: ein Haken nach dem Ablegen des PDFs und vor dem Senden, mit dem schon angelegten Eintrag
+  (Empfänger geprüft und entdoppelt). Er legt weitere Nachweise ab (hier: die Vollmacht eines empfangsbevollmächtigten Empfängers,
+  Tabelle `dispatch_authorizations`, ORM-Sperre), committet nicht; scheitert er, wird der Eintrag "fehlgeschlagen" und nichts
+  gesendet. Eine Wiederholung desselben Schlüssels ruft ihn nicht. `dispatch_to_dict()` trägt `authorizations` (in
+  `list_dispatches()` für alle Zeilen in einer Abfrage geladen); Versandverlauf und `/versandprotokoll` zeigen sie.
+- **`DispatchDocument.after_delivery`**: optionaler Nachlauf, den `record_manual_delivery()` nach dem Commit des Eintrags aufruft
+  (hier: die Aufgabe "Behinderungsanzeige versenden" erledigen). Eine Wiederholung desselben Schlüssels ruft ihn nicht.
