@@ -97,10 +97,11 @@ from typing import Callable
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from .contacts import contact_display_name, contact_search_filter, contact_sort_columns
 from .materials import list_materials
 from .modules import is_module_enabled
 from .models import (
-    AppUser, Customer, CustomerProfile, Employee, Finding, Inquiry, Invoice, MaintenanceContract,
+    AppUser, Contact, Customer, CustomerProfile, Employee, Finding, Inquiry, Invoice, MaintenanceContract,
     Material, OperationalAsset, OperationalResource, Order, Project, Property, Quote, Reminder,
     RoofArea, Service, ServiceReport, Supplier,
 )
@@ -599,6 +600,20 @@ def _supplier_row(s: Supplier) -> dict:
     return {"id": s.id, "title": s.name, "subtitle": s.city, "url": f"/master-data/suppliers/{s.id}/edit"}
 
 
+# --- Adressbuch (seit 1.8.37) -- dieselbe Suche wie Adressbuch-Liste und Auswahl in der Projektmappe
+# (app/contacts.py); archivierte Kontakte werden gefunden und als solche gekennzeichnet. ---
+
+def _search_contacts(db: Session, term: str, limit: int) -> tuple[int, list]:
+    stmt = select(Contact).where(contact_search_filter(term))
+    return _count_and_fetch(db, stmt, contact_sort_columns()[0], limit)
+
+
+def _contact_row(c: Contact) -> dict:
+    firma = c.company_name if c.kind == "person" else None
+    sub = " · ".join(x for x in [c.function, firma, c.city, "archiviert" if c.archived else None] if x)
+    return {"id": c.id, "title": contact_display_name(c), "subtitle": sub or None, "url": f"/master-data/contacts/{c.id}/edit"}
+
+
 # --- Die Registry selbst -- siehe tests/test_v270_office_search.py für die erzwungene
 # Vollständigkeitsprüfung (EXPECTED_OFFICE_SEARCH_KEYS), gebaut ZUSAMMEN mit dieser Liste, nicht
 # danach (ausdrückliche Vorgabe, siehe CLAUDE.md "Büro-Suche"). ---
@@ -621,6 +636,7 @@ OFFICE_SEARCH_SOURCES: tuple[SearchSource, ...] = (
     SearchSource("services", "Leistungen", OFFICE_ROLES, _search_services, _service_row),
     SearchSource("materials", "Materialien", OFFICE_ROLES, _search_materials, _material_row),
     SearchSource("suppliers", "Lieferanten", OFFICE_ROLES, _search_suppliers, _supplier_row),
+    SearchSource("contacts", "Adressbuch", OFFICE_ROLES, _search_contacts, _contact_row),
     SearchSource(
         "operational_assets", "Betriebsmittel", OFFICE_ROLES, _search_operational_assets, _operational_asset_row,
         module_key="betriebsmittel",

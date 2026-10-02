@@ -835,11 +835,16 @@ def delete_project(db: Session, project: Project) -> None:
     referenzierende CalendarEvent-Zeilen aus (project_id/quote_id -> NULL), statt sie zu
     löschen -- ein Termin (Besichtigung/Aufmaß) bleibt auch nach Löschen des Projekts als
     eigenständige Historie sinnvoll. Muss VOR dem Löschen der Quotes (Kaskade unten) laufen,
-    sonst verletzt PostgreSQL die Fremdschlüssel-Bedingung auf CalendarEvent.quote_id."""
+    sonst verletzt PostgreSQL die Fremdschlüssel-Bedingung auf CalendarEvent.quote_id.
+
+    Seit 1.8.37 zusätzlich die Beteiligten (ProjectParticipant, Zusatztabelle ohne Relationship,
+    Regel 6) samt Vollmacht-Belegen -- die Kontakte selbst bleiben im Adressbuch."""
     if project.orders:
         raise ValueError("Projekte mit bestehendem Auftrag können nicht gelöscht werden, nur archiviert.")
     from .calendar_events import unlink_calendar_events_for_project
+    from .project_participants import delete_participants_of_project, power_of_attorney_path
     unlink_calendar_events_for_project(db, project.id)
+    participant_files = delete_participants_of_project(db, project.id)
     directory = project_directory(project.id)
     for quote in project.quotes:
         db.execute(delete(QuoteSection).where(QuoteSection.quote_id == quote.id))
@@ -852,3 +857,5 @@ def delete_project(db: Session, project: Project) -> None:
     db.commit()
     if directory.exists():
         shutil.rmtree(directory, ignore_errors=True)
+    for stored in participant_files:
+        power_of_attorney_path(stored).unlink(missing_ok=True)

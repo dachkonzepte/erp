@@ -657,3 +657,92 @@ Behebt Nebenbefund 3 aus 1.8.35.
   43/43, `klicktest_vertrag_abschrift.py` 26/26; Festschreiben mit `--wanduhr 19:30` 40/40, derselbe Klicktest ohne
   feste Uhr (Wrapper im Scratchpad) bei 19:30 39/40 -- "Monteur: Vertrag per API gesperrt" 401 statt 403, genau der
   alte Abendfehler.
+
+---
+
+## Umsetzung 1.8.37 (02.10.2026) -- Runde 2b-2: Beteiligte mit Adressbuch
+
+Betreibervorgabe: (1) Adressbuch als Stammdatenbereich (Regel 10): Kontakt als Person oder Firma mit Funktion,
+Telefon, Mobil, E-Mail und Adresse; Archivieren statt Löschen, sobald ein Kontakt in einem Projekt verwendet wird; in
+der Büro-Suche. (2) Beteiligte am Projekt: Projekt--Kontakt--Rolle, Rollen fest im Code, eindeutig je Projekt,
+Kontakt und Rolle; Häkchen "Kopie bei Anzeigen" und "empfangsbevollmächtigt für den Auftraggeber" (Vollmacht als
+Beleg hochladbar); der Kunde bleibt Auftraggeber und wird nicht zusätzlich geführt. (3) Reiter "Beteiligte" nach dem
+Muster des Termine-Reiters, beim Hinzufügen erst suchen, dann neu anlegen. (4) Nur Büro, Monteur 403, Datengrenze-Test
+deckt die neuen Routen ab. (5) Tests mit Gegenprobe. Kern, kein Modul.
+
+- **Adressbuch** (`app/contacts.py`, Tabelle `contacts`, rollenlos): `kind` "person" (Nachname Pflicht, Vorname und
+  Firma der Person optional) oder "firma" (Firmenname Pflicht, Namen leer); Funktion, Telefon, Mobil, E-Mail, Straße,
+  PLZ, Ort; `archived`/`archived_at`. Anzeigename Person "Vorname Nachname", Firma der Firmenname. Eine Suche
+  (`contact_search_filter()`: Name, Firma, Funktion, Telefon, Mobil, E-Mail, Ort, "Vorname Nachname") für Liste,
+  Auswahl in der Projektmappe und Büro-Suche; sortiert nach Nachname bzw. Firmenname, dann Vorname.
+  **Festlegungen (nicht vorgegeben, bitte bestätigen)**: keine Anrede/kein Titel (nicht verlangt -- für ein Anschreiben
+  in 2b-3 womöglich nötig); Archivieren geht immer, Löschen nur ohne Projekt (409 "… in N Projekten eingetragen …
+  bitte archivieren"; gleichzeitiges Eintragen hält unter PostgreSQL der Fremdschlüssel, die Geschäftslogik meldet
+  dasselbe); ein archivierter Kontakt fehlt in der Auswahl beim Hinzufügen, lässt sich keinem Projekt neu zuordnen
+  (400 "archiviert – bitte erst wiederherstellen") und bleibt in seinen Projekten stehen, gekennzeichnet; die
+  Büro-Suche findet auch archivierte, im Untertitel "archiviert".
+- **Stammdaten** (Regel 10): `master_data.html` Bereich "Adressbuch" (nach Lieferanten), Liste zuerst mit Name/Firma,
+  Art, Funktion, Telefon/E-Mail, Ort, Anzahl Projekte, Status; "Archivierte auch anzeigen"; Bearbeiten, Archivieren/
+  Wiederherstellen, Löschen nur bei Kontakten ohne Projekt. Anlegen und Bearbeiten auf `master_data_form.html`
+  (`contactForm()`, Person/Firma umschaltbar), beim Bearbeiten darunter "Eingetragen in Projekten" mit Rolle und Link
+  in den Reiter. Seitenrouten `/master-data/contacts/new|{id}/edit` wie die übrigen Bereiche (Büro).
+- **Beteiligte** (`app/project_participants.py`, Tabelle `project_participants`, Zusatztabelle ohne Relationship am
+  Projekt, Regel 6): `role` aus `ROLES`, fest im Code -- `architekt_planer` "Architekt/Planer", `bauleitung_ag`
+  "Bauleitung des Auftraggebers", `hausverwaltung`, `eigentuemer`, `sachverstaendiger` "Sachverständiger/Gutachter",
+  `versicherung`, `anderes_gewerk` "Anderes Gewerk", `sonstiges`; die Schlüssel stehen in der Datenbank und werden
+  nie umbenannt. UNIQUE `(project_id, contact_id, role)`: derselbe Kontakt darf in einem Projekt zwei Rollen haben
+  und dieselbe Rolle in mehreren Projekten. Doppelt: Vorprüfung (409 mit Text), bei gleichzeitigen Anfragen der
+  Constraint im SAVEPOINT (Muster Self-Seeding), beim Rollenwechsel der Constraint beim Commit. Keine Rolle
+  "Auftraggeber": der Kunde ist kein Kontakt des Adressbuchs.
+- **Häkchen und Vollmacht**: `copy_on_notices` und `authorized_recipient` unabhängig, einzeln änderbar (Teil-Update,
+  Regel 22). Vollmacht als Beleg (`poa_*`: Dateiname, Art, Größe, SHA-256, Zeitpunkt, wer) unter
+  `DACHKONZEPTE_PARTICIPANT_FILE_ROOT` (Vorgabe `ERP_DATA_DIR/participant_documents`, in `.env.example`), am Inhalt
+  erkannt wie der Beleg einer Zustellung (PDF, JPEG, PNG, WebP), höchstens 15 MB. **Festlegungen (bitte bestätigen)**:
+  Hochladen nur mit gesetzter Empfangsvollmacht (400); wird das Häkchen später entfernt, bleibt der Beleg (ein
+  Dokument, keine Einstellung) und lässt sich ausdrücklich entfernen; Ersetzen löscht die alte Datei; der Beleg liegt
+  nicht in der unveränderlichen Ablage -- für 2b-3 zu entscheiden, ob eine Anzeige an einen Bevollmächtigten die
+  Vollmacht dieses Zeitpunkts einfrieren soll.
+- **Reiter "Beteiligte"** (`project_folder.html`, `sec-participants`, nach "Termine", ohne Modul-Gate): oben der
+  Kunde als "Auftraggeber" (nur Anzeige, "Kunde öffnen"), darunter je Beteiligtem Name, Funktion/Firma, Telefon/
+  Mobil/E-Mail, Adresse, Rolle als Auswahl (speichert beim Wechsel), beide Häkchen, Vollmacht (öffnen, ersetzen,
+  entfernen), "Kontakt bearbeiten", "Aus dem Projekt entfernen". "+ Beteiligten hinzufügen" öffnet einen Dialog:
+  Suchfeld mit Fokus, Treffer aus dem Adressbuch (ohne Archivierte, je Treffer "bereits als …"), dann Rolle (Pflicht)
+  und Häkchen. **Neu anlegen** über "Neuen Kontakt im Adressbuch anlegen" -- die Formularseite des Adressbuchs (ein
+  Formular für den Kontakt, Regel 10), Suchtext als Nachname vorbelegt; nach dem Speichern zurück in die Projektmappe
+  (`?kontakt=<id>#sec-participants`), der Dialog öffnet mit dem neuen Kontakt, die Adresse wird bereinigt.
+- **Projekt löschen** (`delete_project()`): löscht die Beteiligten (vor dem Projekt geflusht, Fremdschlüssel) und nach
+  dem Commit ihre Belege; die Kontakte bleiben. **Festlegung**: Kopieren/Mustervorgang übernimmt keine Beteiligten
+  (projektbezogen).
+- **Historie** (`app/audit.py`): "Kontakt (Adressbuch)" und "Projektbeteiligter" (Bezeichnung "Name · Rolle", mit
+  `project_id` -- erscheint im Reiter Historie der Projektmappe). Ein Rollenwechsel steht mit Beschriftungen da
+  ("Hausverwaltung → Eigentümer"), nicht mit den Schlüsseln.
+- **Büro-Suche**: Quelle `contacts` "Adressbuch" (19. Quelle, nach Lieferanten), Treffer auf die Formularseite;
+  `search_results.html` und die Vollständigkeitstests nachgezogen.
+- **Rechte**: alle 15 Routen (`app/routers/contacts.py`, `app/routers/project_participants.py`)
+  `require_min_role(ROLE_OFFICE_AUFTRAG)`. Datengrenze-Test: `contact_id`/`participant_id` in `PFAD_WERTE`, neue
+  Prüfung, dass der Durchlauf die fünf GET-Routen als Monteur aufruft und jede 403 liefert.
+- **Fehlermeldungen**: `project_folder.html`, `master_data.html` und `master_data_form.html` lesen abgelehnte Antworten
+  jetzt über `fehlerText()` (Architekturentscheidung 1.8.35: eine angefasste Seite stellt um), mit Feldnamen der Seite.
+- **Migration `d99494185ce7`**: zwei neue Tabellen (Vorgaben `kind` 'person', Häkchen und `archived` falsch),
+  UNIQUE mit Namen `uq_project_participant`, Fremdschlüssel auf `projects` und `contacts`. `downgrade()` bricht ab,
+  solange eine der Tabellen Zeilen hat.
+- **Verifikation**: `tests/test_v340_beteiligte_adressbuch.py` (18 Tests, einer gegen PostgreSQL 17 im Wegwerf-Schema:
+  zwei gleichzeitige gleiche Zuordnungen -- genau eine angelegt, die andere abgelehnt; Kontakt in Verwendung nicht
+  löschbar, auch roh per SQL am Fremdschlüssel; Projekt mit Beteiligtem löschbar). Gegenproben (Skript im Scratchpad,
+  Datei byte-genau zurück): 14 rot -- Löschen ohne Verwendungsprüfung, archivierter Kontakt zuordenbar, Eindeutigkeit
+  ohne Projekt, ohne Constraint, ohne SAVEPOINT, Rollenwechsel ohne Prüfung und Abfangen, Adressbuch bzw. Beteiligte
+  für Monteure offen (auch `test_v326` rot), Projekt löschen ohne Beteiligte, Vollmacht ohne Empfangsvollmacht bzw.
+  ohne Inhaltsprüfung, Adressbuch nicht in der Suche, Teil-Update übernimmt alles (auch `test_v329` rot). Die
+  Rolle in der Historie als Schlüssel (14. Probe, rot). Die
+  Vorprüfung beim Rollenwechsel allein auszuhebeln bleibt grün -- der Constraint beim Commit hält, die Vorprüfung ist
+  nur der Weg zur Meldung. Migration: SQLite und PostgreSQL (ganze Kette im leeren Schema) hin, Bestand über den
+  App-Code, Downgrade verweigert, leer zurück, hin, `alembic check`. JS der geänderten Seiten mit `node --check`
+  (gerendert über die Seitenrouten). Volle Suite 2475 grün. Klicktest `scripts/klicktest_beteiligte.py` 43/43 (der
+  erste Lauf fand zwei Fehler der Oberfläche: Häkchen im Dialog erbten `width:100%` aus `.field input`, die
+  Adressbuch-Tabelle hatte mit zehn Spalten einen waagrechten Scrollbalken -- beide behoben, jetzt geprüft).
+
+### Nebenbefunde 1.8.37 (nur gemeldet)
+
+1. **Häkchen in der Stammdatenliste 260 px breit**: `master_data.html` setzt global `input{min-width:260px}`, das trifft
+   auch die Häkchen "Archivierte auch anzeigen" (Leistungs-, Materialkataloge) und "Hauptadressen anzeigen" (Objekte);
+   die Beschriftung steht dadurch weit rechts (im Browser gemessen: 260 px, beim Adressbuch mit `min-width:0` 13 px).

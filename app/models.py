@@ -671,6 +671,69 @@ class ProjectDocument(Base):
     document_category: Mapped["DocumentCategory"] = relationship()
 
 
+class Contact(Base):
+    """Adressbuch (seit 1.8.37, Stufe 2b, Runde 2b-2): Person oder Firma, die an Projekten beteiligt
+    ist, ohne Kunde zu sein -- Architekt, Bauleitung des Auftraggebers, Hausverwaltung,
+    Sachverständiger, Versicherung, andere Gewerke. Die Rolle steht nicht hier, sondern an der
+    Zuordnung zum Projekt (ProjectParticipant): dieselbe Hausverwaltung betreut viele Objekte.
+
+    kind "person" (last_name Pflicht, company_name optional die Firma der Person) oder "firma"
+    (company_name Pflicht, Namen leer) -- geprüft in app/contacts.py. Archivieren statt Löschen,
+    sobald der Kontakt in einem Projekt eingetragen ist (app/contacts.py::delete_contact())."""
+
+    __tablename__ = "contacts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(10), default="person", server_default="person")
+    company_name: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    first_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    function: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    mobile: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    street: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", index=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ProjectParticipant(Base):
+    """Beteiligter am Projekt (seit 1.8.37, Stufe 2b, Runde 2b-2): Projekt -- Kontakt -- Rolle.
+
+    role ist ein fester Schlüssel aus app/project_participants.py::ROLES (keine Auswahlliste), eindeutig
+    je Projekt, Kontakt und Rolle. Der Kunde ist Auftraggeber und wird nicht zusätzlich geführt.
+    copy_on_notices ("Kopie bei Anzeigen") und authorized_recipient ("empfangsbevollmächtigt für den
+    Auftraggeber") sind zwei unabhängige Häkchen; poa_* ist die Vollmacht als Beleg (Datei unter
+    DACHKONZEPTE_PARTICIPANT_FILE_ROOT, Prüfsumme SHA-256).
+
+    Bewusst ohne Relationship an Project (Muster Zusatztabelle, Regel 6): delete_project() löscht die
+    Zeilen ausdrücklich und entfernt die Belege nach dem Commit."""
+
+    __tablename__ = "project_participants"
+    __table_args__ = (UniqueConstraint("project_id", "contact_id", "role", name="uq_project_participant"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    contact_id: Mapped[int] = mapped_column(ForeignKey("contacts.id"), index=True)
+    role: Mapped[str] = mapped_column(String(40))
+    copy_on_notices: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    authorized_recipient: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    poa_stored_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    poa_original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    poa_content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    poa_size_bytes: Mapped[int | None] = mapped_column(nullable=True)
+    poa_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    poa_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    poa_uploaded_by_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    contact: Mapped[Contact] = relationship()
+
+
 class CustomerDocument(Base):
     """Datei in der Kundenmappe (seit 1.0.54, Dokumentenmanagement) --
     strukturell bewusst identisch zu ProjectDocument (category + subfolder,

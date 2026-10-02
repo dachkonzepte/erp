@@ -427,7 +427,7 @@ def _require_finanzen_for_employees(data_type: str, role: AppUser) -> None:
 
 @router.get("/master-data/{data_type}/new", response_class=HTMLResponse)
 def master_data_create_page(request: Request, data_type: str, _role: AppUser = _role_dep):
-    if data_type not in {"customers", "properties", "employees", "suppliers", "resources", "teams", "catalogs", "materials", "materialGroups", "assets"}:
+    if data_type not in {"customers", "properties", "employees", "suppliers", "contacts", "resources", "teams", "catalogs", "materials", "materialGroups", "assets"}:
         raise HTTPException(status_code=404, detail="Stammdatenbereich nicht gefunden.")
     _require_finanzen_for_employees(data_type, _role)
     return templates.TemplateResponse(request=request, name="master_data_form.html", context={"data_type": data_type})
@@ -435,7 +435,7 @@ def master_data_create_page(request: Request, data_type: str, _role: AppUser = _
 
 @router.get("/master-data/{data_type}/{record_id}/edit", response_class=HTMLResponse)
 def master_data_edit_page(request: Request, data_type: str, record_id: int, _role: AppUser = _role_dep):
-    if data_type not in {"properties", "employees", "suppliers", "resources", "teams", "materials"}:
+    if data_type not in {"properties", "employees", "suppliers", "contacts", "resources", "teams", "materials"}:
         raise HTTPException(status_code=404, detail="Stammdatenbereich nicht gefunden.")
     _require_finanzen_for_employees(data_type, _role)
     return templates.TemplateResponse(

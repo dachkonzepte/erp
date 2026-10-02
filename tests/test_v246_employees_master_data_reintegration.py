@@ -153,7 +153,8 @@ def test_save_builds_a_valid_employee_payload_and_the_generic_name_check_does_no
     Assets (name bleibt NULL, wenn ein Ressourcenbezug gewählt ist -- geprüft ist das bereits
     serverseitig über den Pydantic-Validator)."""
     form = _form()
-    assert "if(!body.name&&type!=='employees'&&type!=='customers'&&type!=='assets')throw Error" in form
+    # seit 1.8.37 zusätzlich das Adressbuch (Person ohne "name", Pflichtfeld je Art)
+    assert "if(!body.name&&type!=='employees'&&type!=='customers'&&type!=='assets'&&type!=='contacts')throw Error" in form
     assert "type==='employees'&&(!body.first_name||!body.last_name)" in form
     assert "url=editing?`/api/employees/${recordId}`:'/api/employees'" in form
 

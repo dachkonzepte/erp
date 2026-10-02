@@ -4760,3 +4760,111 @@ class ChecklistEmailSend(BaseModel):
     to_email: str | None = None  # None = aus dem Kunden des Auftrags/Objekts; mehrere mit Komma/Semikolon
     cc_email: str | None = None
     dispatch_key: str = Field(min_length=8, max_length=80)
+
+
+# --- Adressbuch und Beteiligte am Projekt (seit 1.8.37, Stufe 2b, Runde 2b-2) ---
+
+class ContactCreate(BaseModel):
+    """Person (Nachname Pflicht) oder Firma (Firmenname Pflicht) -- geprüft in app/contacts.py."""
+    kind: Literal["person", "firma"] = "person"
+    company_name: str | None = Field(default=None, max_length=255)
+    first_name: str | None = Field(default=None, max_length=120)
+    last_name: str | None = Field(default=None, max_length=255)
+    function: str | None = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=80)
+    mobile: str | None = Field(default=None, max_length=80)
+    email: str | None = Field(default=None, max_length=255)
+    street: str | None = Field(default=None, max_length=255)
+    postal_code: str | None = Field(default=None, max_length=20)
+    city: str | None = Field(default=None, max_length=120)
+
+
+class ContactUpdate(PartialUpdate):
+    NOT_NULL = frozenset({"kind"})
+    kind: Literal["person", "firma"] | None = None
+    company_name: str | None = Field(default=None, max_length=255)
+    first_name: str | None = Field(default=None, max_length=120)
+    last_name: str | None = Field(default=None, max_length=255)
+    function: str | None = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=80)
+    mobile: str | None = Field(default=None, max_length=80)
+    email: str | None = Field(default=None, max_length=255)
+    street: str | None = Field(default=None, max_length=255)
+    postal_code: str | None = Field(default=None, max_length=20)
+    city: str | None = Field(default=None, max_length=120)
+
+
+class ContactOut(BaseModel):
+    id: int
+    kind: str
+    kind_label: str
+    display_name: str
+    company_name: str | None
+    first_name: str | None
+    last_name: str | None
+    function: str | None
+    phone: str | None
+    mobile: str | None
+    email: str | None
+    street: str | None
+    postal_code: str | None
+    city: str | None
+    archived: bool
+    archived_at: datetime | None
+    project_count: int
+
+
+class ContactProjectOut(BaseModel):
+    participant_id: int
+    project_id: int
+    project_number: str
+    project_name: str
+    project_archived: bool
+    role: str
+    role_label: str
+
+
+class ContactDetailOut(ContactOut):
+    projects: list[ContactProjectOut]
+
+
+class ParticipantRoleOut(BaseModel):
+    key: str
+    label: str
+
+
+class PowerOfAttorneyOut(BaseModel):
+    filename: str
+    content_type: str
+    size_bytes: int
+    sha256: str
+    uploaded_at: datetime
+    uploaded_by_name: str | None
+
+
+class ProjectParticipantCreate(BaseModel):
+    contact_id: int
+    role: str = Field(min_length=1, max_length=40)
+    copy_on_notices: bool = False
+    authorized_recipient: bool = False
+
+
+class ProjectParticipantUpdate(PartialUpdate):
+    """Teil-Update (Regel 22): die Projektmappe ändert Rolle und Häkchen einzeln."""
+    NOT_NULL = frozenset({"role", "copy_on_notices", "authorized_recipient"})
+    role: str | None = Field(default=None, min_length=1, max_length=40)
+    copy_on_notices: bool | None = None
+    authorized_recipient: bool | None = None
+
+
+class ProjectParticipantOut(BaseModel):
+    id: int
+    project_id: int
+    contact_id: int
+    role: str
+    role_label: str
+    copy_on_notices: bool
+    authorized_recipient: bool
+    contact: ContactOut
+    power_of_attorney: PowerOfAttorneyOut | None
+    created_at: datetime

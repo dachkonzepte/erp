@@ -13,7 +13,7 @@ from .models import (
     QuoteEmployeeAssignment, Order, OrderRevision, OrderSection, OrderItem, WorkPreparation, WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationMaterialSupplier, WorkPreparationDeliveryNote, WorkPreparationMaterialDeliveryNote, PlanningSlot, PlanningSettings, PlanningRegionSettings, PlanningHoliday, EmployeeAbsence, EmployeeAbsenceRequest, PlanningSlotCapacity, TimeEntry, TimeEntryGroup, TimeEntryGroupMember, TimeTrackingSettings, EmployeePayrollSettings, TimeBackofficeAdvancedSettings, WorkTimeModel, WorkTimeBreakRule, EmployeeWorkTimeModel, Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings,
     EmployeeFunction, GeneralSettings, CalculationSettings, LaborRateSettings, LaborRateOverheadSettings,
     NumberSequence, SettingOptionGroup, SettingOption, AppUser, ServiceCalculation, MaterialCalculationOverride,
-    Checklist, ChecklistAttachment, ChecklistAssetRelease, OperationalAsset,
+    Checklist, ChecklistAttachment, ChecklistAssetRelease, OperationalAsset, Contact, ProjectParticipant,
 )
 
 _actor_id = contextvars.ContextVar("audit_actor_id", default=None)
@@ -36,6 +36,7 @@ TYPE_LABELS = {
     SettingOption: "Auswahllistenwert", AppUser: "ERP-Benutzer", Inquiry: "Anfrage",
     ServiceCalculation: "Katalogleistung-Kalkulation", MaterialCalculationOverride: "Katalog-Materialkalkulation",
     Checklist: "Checkliste", ChecklistAssetRelease: "Gerät als repariert markiert",
+    Contact: "Kontakt (Adressbuch)", ProjectParticipant: "Projektbeteiligter",
 }
 
 EXTENSION_TYPES = (CustomerProfile, ProjectProfile, EmployeeProfile, EmployeeRoleSettings, EmployeeCompensationSettings, EmployeeCostAllocationSettings, QuoteDocumentMeta, QuoteItemLayout, QuoteEmployeeAssignment)
@@ -51,6 +52,8 @@ AUDITED_TYPES = (
     # speichern beim Tippen (eine Zeile je 700-ms-Pause), verbindlich wird der Inhalt erst mit der
     # Unterschrift, und die bindet ihn per Prüfsumme.
     Checklist, ChecklistAttachment, ChecklistAssetRelease,
+    # Adressbuch und Beteiligte am Projekt (seit 1.8.37); Beteiligte erscheinen in der Historie der Projektmappe.
+    Contact, ProjectParticipant,
 )
 
 FIELD_LABELS = {
@@ -73,6 +76,7 @@ FIELD_LABELS = {
     "function_id":"Funktion / Tätigkeit","caseworker_employee_id":"Sachbearbeiter",
     "planned_start":"Geplanter Baustart","planned_end":"Geplante Fertigstellung","site_notes":"Baustellenhinweise","material_notes":"Materialhinweise","planned_hours":"Geplante Stunden","role":"Rolle","priority":"Priorität","due_date":"Fälligkeit","assigned_employee_id":"Zuständig","planned_quantity":"Planmenge","supplier":"Lieferant","supplier_id":"Lieferant","resource_type":"Ressourcentyp","identifier":"Kennzeichen / Seriennummer","team_number":"Teamnummer","resource_number":"Ressourcennummer","supplier_number":"Lieferantennummer","delivery_note_number":"Lieferscheinnummer","start_date":"Planungsbeginn","end_date":"Planungsende","team_assignment_id":"Kolonne / Team","daily_work_hours":"Tägliche Arbeitszeit","default_travel_hours_per_employee_day":"Standard-Anfahrtszeit","federal_state_code":"Bundesland","auto_public_holidays":"Feiertage automatisch","show_school_holidays":"Schulferien anzeigen","holiday_date":"Feiertag / betriebsfreier Tag","absence_type":"Abwesenheitsart","decision":"Entscheidung","review_notes":"Freigabe-Notiz","reviewed_by_user_id":"Geprüft von","approved_absence_id":"Genehmigte Abwesenheit","team_id":"Team","travel_hours_per_employee_day":"Anfahrtszeit pro MA/Tag","work_date":"Arbeitstag","entry_type":"Zeitart","hours":"Ist-Stunden","break_minutes":"Pause (Min.)","activity":"Tätigkeit","order_item_id":"LV-Position","counts_as_productive":"Produktive Zeit","datev_personnel_number":"DATEV-Personalnummer","payroll_export_enabled":"DATEV-Lohnexport aktiv","datev_personnel_equals_erp_number":"DATEV-Nr. entspricht ERP-Nr.","default_work_time_model_id":"Standard-Arbeitszeitmodell","daily_target_hours":"Soll-Arbeitszeit pro Tag","threshold_hours":"Pausenschwelle","model_id":"Arbeitszeitmodell",
     "completed_at":"Abgeschlossen am","completed_by_employee_id":"Abgeschlossen von (Mitarbeiter)","signer_name":"Unterschrieben von","content_sha256":"Prüfsumme (SHA-256)","discarded_at":"Verworfen am","discarded_by_user_id":"Verworfen von (Konto)","discarded_by_name":"Verworfen von","discard_reason":"Begründung (Verwerfen)",
+    "kind":"Art","company_name":"Firma","first_name":"Vorname","last_name":"Nachname","function":"Funktion","archived":"Archiviert","archived_at":"Archiviert am","contact_id":"Kontakt","copy_on_notices":"Kopie bei Anzeigen","authorized_recipient":"Empfangsbevollmächtigt für den Auftraggeber","poa_original_filename":"Vollmacht (Datei)","poa_sha256":"Vollmacht (Prüfsumme SHA-256)","poa_content_type":"Vollmacht (Dateiart)","poa_size_bytes":"Vollmacht (Größe)","poa_uploaded_at":"Vollmacht hochgeladen am","poa_uploaded_by_name":"Vollmacht hochgeladen von","poa_stored_filename":"Vollmacht (Ablagename)",
 }
 
 
@@ -140,6 +144,13 @@ def _normalize(session, obj):
         c = session.get(Customer, obj.customer_id); return "Kunde", str(obj.customer_id), _entity_label(c), None
     if isinstance(obj, ProjectProfile):
         p = session.get(Project, obj.project_id); return "Projekt", str(obj.project_id), _entity_label(p), obj.project_id
+    if isinstance(obj, ProjectParticipant):
+        # Über session.get, nicht obj.contact -- bei "gelöscht" ist die Zeile schon aus der Sitzung.
+        from .contacts import contact_display_name
+        from .project_participants import role_label
+        c = session.get(Contact, obj.contact_id)
+        name = contact_display_name(c) if c else f"Kontakt #{obj.contact_id}"
+        return "Projektbeteiligter", str(obj.id), f"{name} · {role_label(obj.role)}"[:255], obj.project_id
     if isinstance(obj, (EmployeeProfile, EmployeeRoleSettings, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeePlanningSettings)):
         e = session.get(Employee, obj.employee_id); return "Mitarbeiter", str(obj.employee_id), _entity_label(e), None
     if isinstance(obj, QuoteDocumentMeta) or isinstance(obj, QuoteSection) or isinstance(obj, QuoteEmployeeAssignment):
@@ -269,6 +280,9 @@ def _entity_label(obj):
     if isinstance(obj, WorkPreparationDeliveryNote): return obj.delivery_note_number or f"Lieferschein #{obj.id}"
     if isinstance(obj, PlanningSlot): return f"Planeinsatz {obj.start_date}–{obj.end_date}"
     if isinstance(obj, Supplier): return f"{obj.supplier_number or ''} {obj.name}".strip()
+    if isinstance(obj, Contact):
+        from .contacts import contact_display_name
+        return contact_display_name(obj) or f"Kontakt #{obj.id}"
     if isinstance(obj, OperationalResource): return f"{obj.resource_number or ''} {obj.name}".strip()
     if isinstance(obj, Team): return f"{obj.team_number or ''} {obj.name}".strip()
     if isinstance(obj, QuoteItem): return f"{obj.gaeb_oz or obj.position_number or ''} {obj.short_text}".strip()[:255]
@@ -303,6 +317,10 @@ def collect_audit(session, flush_context, instances):
             old = hist.deleted[0] if hist.deleted else None
             new = hist.added[0] if hist.added else getattr(obj, key, None)
             if _text(old) == _text(new): continue
+            if isinstance(obj, ProjectParticipant) and key == "role":
+                # Rolle als Beschriftung ("Hausverwaltung → Eigentümer"), nicht als Schlüssel (seit 1.8.37)
+                from .project_participants import role_label
+                old, new = role_label(old), role_label(new)
             pending.append(_record("geändert", obj, key, old, new))
     for obj in list(session.deleted):
         if isinstance(obj, AuditLog) or not isinstance(obj, AUDITED_TYPES): continue

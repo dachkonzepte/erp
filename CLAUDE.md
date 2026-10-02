@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.36** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.37** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -632,6 +632,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   als reinen Text-Schnappschuss zum Zeitpunkt der Beauftragung/Rechnungsstellung. Wer von einem
   `Order` zum zugehörigen `Property` will, muss über `order.project.property_id` gehen (siehe
   `list_property_history()` in `app/service_reports.py`).
+- **Adressbuch und Beteiligte** (seit 1.8.37): `Contact` ist eine Person oder Firma, die an Projekten beteiligt ist,
+  ohne Kunde zu sein (Architekt, Hausverwaltung, Sachverständiger …); `ProjectParticipant` ordnet sie mit einer festen
+  Rolle (`app/project_participants.py::ROLES`) einem Projekt zu, eindeutig je Projekt, Kontakt und Rolle. Der Kunde ist
+  Auftraggeber und nie Beteiligter. Details: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.37".
 - **Weitere Fachbegriffe ausgelagert**: Dachflächen & Bauteile, Wartungsvertrag,
   Einsatzbericht, Rechnung aus Zeitbuchungen, Schnellauftrag, Wartungshistorie und
   Monteursansicht stehen vollständig in `docs/archiv/modul-wartungen-und-monteursansicht.md`;
@@ -742,7 +746,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Betrieb, gebunden an Fassung und PDF-Prüfsumme, Ankreuzfelder im unterschriebenen Inhalt, Unterschriftsblatt) oder
   Papier-Scan, danach keine neue Fassung und Vertragsgrundlage/Abgleich gesperrt, Widerrufsfrist bei Verbrauchern;
   seit 1.8.35 unterschriebene Abschrift mit eigener Prüfsumme, die Versand und Zustellung nach der Unterschrift
-  verwenden) -- `docs/archiv/vertragsgrundlage-und-vertrag.md`
+  verwenden; seit 1.8.37 Adressbuch (`Contact`, Stammdaten, archivieren statt löschen) und Beteiligte am Projekt
+  (`ProjectParticipant`, Rollen fest im Code, Kopie bei Anzeigen, Empfangsvollmacht mit Beleg, Reiter in der
+  Projektmappe)) -- `docs/archiv/vertragsgrundlage-und-vertrag.md`
 - **Speichern nur gesendeter Felder** (`PartialUpdate`, Strukturtest über alle PUT-Handler, Liste der
   Altfälle, Nebenbefunde der Durchsicht aller Speichern-Aufrufer) -- `docs/archiv/teil-updates.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
@@ -788,8 +794,9 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   Platzhaltern zeigt ihre Liste in der Oberfläche und warnt vor unbekannten (`unknown_placeholders()`).
 - **Abgelehnte API-Antworten lesbar über `app/templates/_fehlertext.html`** (seit 1.8.35, `fehlerText(body, status,
   felder)`): `detail` als Text unverändert, als 422-Liste "Bitte die Eingabe prüfen – <Feld> <Art>." mit den
-  Feldnamen der Seite, sonst ein Text je Status. Bisher nur die Auftragsseite; 36 weitere Vorlagen reichen `detail`
-  noch roh an `Error()` weiter ("[object Object]" bei 422) -- eine Seite, die man anfasst, stellt um.
+  Feldnamen der Seite, sonst ein Text je Status. Auftragsseite, seit 1.8.37 Projektmappe und Stammdaten (Liste,
+  Formular); 33 weitere Vorlagen reichen `detail` noch roh an `Error()` weiter ("[object Object]" bei 422) -- eine
+  Seite, die man anfasst, stellt um.
 - **Unterschriften zeichnen über `app/templates/_unterschrift.html`** (seit 1.8.34, `unterschriftsfeld(canvas)`
   auf einem `<canvas class="dk-unterschrift">`): Checkliste, Einsatzbericht und Vertrag teilen sich die Fläche
   (weiß mit dunklem Strich in beiden Themes, Geräteauflösung) -- eine neue Unterschrift baut keine eigene
@@ -1065,7 +1072,9 @@ SMTP-Empfänger im Skript mit Anhang = Fassung, neue Fassung, versendete Fassung
 `klicktest_vertrag_unterschrift.py` (1.8.34, Zeichnen über CDP-Mausereignisse: Vertrag auf dem Gerät mit Ankreuzfeld,
 Sperren danach, Widerrufsfrist, Papier-Scan, Checkliste und Einsatzbericht über die gemeinsame Fläche, dunkel und hell)
 und `klicktest_vertrag_abschrift.py` (1.8.35, unterschriebene Abschrift auf der Karte und als Anhang, nachgeholt für eine
-ältere Unterschrift, Papier-Foto; lesbare 422/409 der Auftragsseite). Ein Klicktest, der als Monteur `/mobil` öffnet,
+ältere Unterschrift, Papier-Foto; lesbare 422/409 der Auftragsseite) und `klicktest_beteiligte.py` (1.8.37, Adressbuch mit
+Archivieren und Löschen, Reiter "Beteiligte": suchen, doppelt, neu anlegen und zurück, Vollmacht, Rolle ändern, hell/dunkel,
+412 px, Monteur 403). Ein Klicktest, der als Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)
 meldet `/mobil` ab, eine 403-Prüfung sähe abends 401; `--wanduhr HH:MM` täuscht eine andere Uhrzeit vor (Gegenprobe),
 `tests/test_v339_feste_uhr.py` prüft, dass jeder solche Klicktest `uhr=` setzt. Eine Seite mit `alert()` beim Laden hält den headless Chrome an --

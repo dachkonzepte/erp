@@ -384,6 +384,7 @@ PFAD_WERTE = {
     "quote_id": 1, "inquiry_id": 1, "supplier_id": 1, "resource_id": 1, "service_id": 1, "invoice_id": 1,
     "reminder_id": 1, "contract_id": 1, "inspection_id": 1, "cost_id": 1, "account_id": 1, "event_id": 1,
     "template_id": 1, "component_id": 1, "task_id": 1, "version_id": 1, "sent_document_id": 1,
+    "contact_id": 1, "participant_id": 1,  # Adressbuch und Beteiligte (seit 1.8.37)
 }
 # Query-Parameter: Pflichtparameter nach Namen, dazu je Route, was die Monteursicht erst füllt.
 # "@name" steht für den Wert aus den Testdaten.
@@ -539,6 +540,20 @@ def test_vertragsrouten_im_durchlauf_fuer_monteure_gesperrt(durchlauf):
         "/api/orders/{order_id}/contract": 403,
         "/api/orders/{order_id}/contract/pdf": 403,
         "/api/orders/{order_id}/contract/attachment-options": 403,
+    }
+
+
+def test_adressbuch_und_beteiligte_im_durchlauf_fuer_monteure_gesperrt(durchlauf):
+    """Seit 1.8.37: Adressbuch und Beteiligte am Projekt sind Büro -- der Durchlauf ruft jede GET-Route davon
+    als Monteur auf (Pfadwerte contact_id/participant_id in PFAD_WERTE), und jede antwortet 403."""
+    routen = {a["route"]: a["status"] for a in durchlauf["antworten"]
+              if "/contacts" in a["route"] or "participant" in a["route"]}
+    assert routen == {
+        "/api/contacts": 403,
+        "/api/contacts/{contact_id}": 403,
+        "/api/project-participant-roles": 403,
+        "/api/projects/{project_id}/participants": 403,
+        "/api/project-participants/{participant_id}/power-of-attorney": 403,
     }
 
 

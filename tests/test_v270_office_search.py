@@ -23,7 +23,7 @@ from decimal import Decimal
 import pytest
 
 from app.models import (
-    Customer, CustomerProfile, Employee, EnabledModule, Finding, ImportBatch, Inquiry, Invoice,
+    Contact, Customer, CustomerProfile, Employee, EnabledModule, Finding, ImportBatch, Inquiry, Invoice,
     MaintenanceContract, Material, OperationalAsset, Order, Project, Property, Quote, Reminder, RoofArea,
     Service, ServiceReport, Supplier, Task,
 )
@@ -35,8 +35,8 @@ from tests.test_v153_mahnwesen import db_session  # noqa: F401 -- re-exportiert 
 EXPECTED_OFFICE_SEARCH_KEYS = frozenset({
     "customers", "properties", "roof_areas", "projects", "quotes", "orders", "invoices",
     "reminders", "inquiries", "tasks", "employees", "service_reports", "findings",
-    "maintenance_contracts", "services", "materials", "suppliers", "operational_assets",
-})
+    "maintenance_contracts", "services", "materials", "suppliers", "contacts", "operational_assets",
+})  # contacts seit 1.8.37 (Adressbuch)
 
 _FORBIDDEN_KEY_SUBSTRINGS = (
     "price", "preis", "purchase", "einkauf", "wage", "lohn", "gehalt", "cost", "kosten",
@@ -53,10 +53,10 @@ def _offending_keys(rows: list[dict]) -> list[str]:
 
 # --- 1./2.: Registry-Vollständigkeit und Rollensicherheit ---
 
-def test_registry_declares_exactly_the_expected_eighteen_keys():
+def test_registry_declares_exactly_the_expected_keys():
     actual = {s.key for s in OFFICE_SEARCH_SOURCES}
     assert actual == EXPECTED_OFFICE_SEARCH_KEYS
-    assert len(OFFICE_SEARCH_SOURCES) == 18
+    assert len(OFFICE_SEARCH_SOURCES) == 19
 
 
 def test_registry_allowed_roles_never_empty_and_never_include_field():
@@ -134,6 +134,7 @@ def _build_full_dataset(db, marker: str):
     db.add(CustomerProfile(customer_id=customer.id, customer_number=f"K-{marker}"))
 
     db.add(Supplier(name=f"{marker} Lieferant", supplier_number=f"L-{marker}", city="Teststadt"))
+    db.add(Contact(kind="firma", company_name=f"{marker} Architekturbüro", city="Teststadt"))
 
     prop = Property(customer_id=customer.id, name=f"{marker} Objekt", city="Teststadt")
     db.add(prop); db.flush()
@@ -185,8 +186,8 @@ def _build_full_dataset(db, marker: str):
 # --- 4.: Der Angriffstest + Ende-zu-Ende-Beleg, dass jede Quelle tatsächlich einen Treffer liefert ---
 
 def test_admin_finds_a_hit_in_every_single_group_and_no_row_ever_carries_extra_fields(db_session):
-    """Stärkster Beleg, dass query_fn/row_fn für alle 18 Quellen tatsächlich funktionieren (nicht
-    nur, dass die Registry 18 Schlüssel deklariert) -- UND die strukturelle Garantie, dass keine
+    """Stärkster Beleg, dass query_fn/row_fn für alle 19 Quellen tatsächlich funktionieren (nicht
+    nur, dass die Registry 19 Schlüssel deklariert) -- UND die strukturelle Garantie, dass keine
     Zeile je ein anderes Feld als id/title/subtitle/url trägt, unabhängig vom Inhalt der Quelle
     (Employee.hourly_wage/Material.purchase_price/Service.sale_price sind in den Testdaten
     bewusst gesetzt, tauchen aber in keiner Zeile auf)."""

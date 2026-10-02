@@ -4,6 +4,32 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.37 – Beteiligte mit Adressbuch
+
+Stufe 2b, Runde 2b-2. Neuer Stammdatenbereich „Adressbuch“ (Regel 10: Liste zuerst, Anlegen und Bearbeiten auf der
+Formularseite): Kontakte als Person oder Firma mit Funktion, Telefon, Mobil, E-Mail und Adresse. Sobald ein Kontakt in
+einem Projekt eingetragen ist, lässt er sich nicht mehr löschen (409 mit Hinweis), nur archivieren; archiviert fehlt
+er in der Auswahl und lässt sich keinem Projekt neu zuordnen, bleibt aber in seinen Projekten stehen, gekennzeichnet.
+Die Büro-Suche findet Kontakte als eigene Gruppe „Adressbuch“. In der Projektmappe zeigt der neue Reiter „Beteiligte“
+oben den Kunden als Auftraggeber (er wird nicht zusätzlich geführt) und darunter die Beteiligten mit fester Rolle
+(Architekt/Planer, Bauleitung des Auftraggebers, Hausverwaltung, Eigentümer, Sachverständiger/Gutachter,
+Versicherung, Anderes Gewerk, Sonstiges), eindeutig je Projekt, Kontakt und Rolle, dazu die Häkchen „Kopie bei
+Anzeigen“ und „empfangsbevollmächtigt für den Auftraggeber“ mit der Vollmacht als Beleg (PDF oder Foto, am Inhalt
+erkannt, SHA-256). Hinzufügen sucht zuerst im Adressbuch; „Neuen Kontakt anlegen“ führt auf die Formularseite des
+Adressbuchs (Suchtext vorbelegt) und nach dem Speichern zurück in den Dialog mit dem neuen Kontakt. Nur Büro: alle 15
+Routen verlangen `buero_auftrag`, Monteure bekommen 403, der Datengrenze-Durchlauf ruft die neuen GET-Routen auf.
+Projekt löschen räumt Beteiligte und Belege mit ab, die Kontakte bleiben; die Historie der Projektmappe zeigt
+Beteiligte mit Rolle als Beschriftung. Projektmappe und Stammdaten lesen
+abgelehnte Antworten jetzt über `fehlerText()`. Migration `d99494185ce7` (zwei neue Tabellen, Downgrade nur ohne
+Bestand), neue Umgebungsvariable `DACHKONZEPTE_PARTICIPANT_FILE_ROOT`.
+
+`tests/test_v340_beteiligte_adressbuch.py` (18 Tests: Person/Firma, Teil-Update, Kontakt in zwei Projekten auch mit
+derselben Rolle, Archivieren statt Löschen, Büro-Suche, Rollen, doppelte Zuordnung auch ohne Vorprüfung am
+Constraint, Häkchen, Vollmacht, Aufräumen beim Löschen, Historie, Monteur 403 auf allen 15 Routen und den Seiten,
+Oberfläche; gleichzeitige Doppelzuordnung und Fremdschlüssel gegen PostgreSQL 17). 14 Gegenproben rot (Schutz im Code
+ausgehebelt, Datei byte-genau zurück). Migration SQLite und PostgreSQL hin, Downgrade mit Bestand verweigert, zurück,
+hin, `alembic check`. Volle Suite 2475 grün. Klicktest `scripts/klicktest_beteiligte.py` 43/43.
+
 ## 1.8.36 – Tests und Klicktests unabhängig von der Tageszeit
 
 Stufe 2b, Runde 2b-2, Punkt 0 (behebt Nebenbefund 3 aus 1.8.35). Ab der Feierabend-Grenze
