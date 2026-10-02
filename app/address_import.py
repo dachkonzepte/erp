@@ -390,13 +390,15 @@ def _run_is_untouched(db: Session, run: ImportRun) -> bool:
     """Alles-oder-nichts-Voraussetzung fürs Rückgängigmachen: JEDER durch den Lauf erzeugte
     Kunde/Lieferant darf noch keine eigene Verwendung haben, UND jede seiner offen gebliebenen
     Arbeitslisten-Zeilen darf noch nicht aufgelöst worden sein."""
-    from .models import Inquiry, Project
+    from .models import Contact, Inquiry, Project
 
     customers = db.scalars(select(Customer).where(Customer.import_run_id == run.id)).all()
     for customer in customers:
         has_project = db.scalar(select(Project.id).where(Project.customer_id == customer.id)) is not None
         has_inquiry = db.scalar(select(Inquiry.id).where(Inquiry.customer_id == customer.id)) is not None
-        if has_project or has_inquiry:
+        # Seit 1.8.39: ein Adressbuch-Eintrag mit Verweis auf den Kunden (Beteiligter) ist eine Verwendung.
+        has_contact = db.scalar(select(Contact.id).where(Contact.customer_id == customer.id)) is not None
+        if has_project or has_inquiry or has_contact:
             return False
         extra_properties = [p for p in customer.properties if p.name != "Hauptadresse"]
         if extra_properties:
@@ -408,6 +410,7 @@ def _run_is_untouched(db: Session, run: ImportRun) -> bool:
         used = (
             db.scalar(select(WorkPreparationMaterialSupplier.id).where(WorkPreparationMaterialSupplier.supplier_id == supplier.id)) is not None
             or db.scalar(select(WorkPreparationDeliveryNote.id).where(WorkPreparationDeliveryNote.supplier_id == supplier.id)) is not None
+            or db.scalar(select(Contact.id).where(Contact.supplier_id == supplier.id)) is not None
         )
         if used:
             return False

@@ -679,11 +679,21 @@ class Contact(Base):
 
     kind "person" (last_name Pflicht, company_name optional die Firma der Person) oder "firma"
     (company_name Pflicht, Namen leer) -- geprüft in app/contacts.py. Archivieren statt Löschen,
-    sobald der Kontakt in einem Projekt eingetragen ist (app/contacts.py::delete_contact())."""
+    sobald der Kontakt in einem Projekt eingetragen ist (app/contacts.py::delete_contact()).
+
+    Seit 1.8.39 auch ein Verweis auf einen Kunden (customer_id) oder Lieferanten (supplier_id), höchstens
+    einer je Stammsatz: Name, E-Mail, Telefon und Adresse kommen dann bei jedem Lesen aus dem Stammsatz
+    (app/contacts.py::contact_values()), die eigenen Spalten dafür bleiben leer -- keine Kopie."""
 
     __tablename__ = "contacts"
+    __table_args__ = (
+        UniqueConstraint("customer_id", name="uq_contact_customer"),
+        UniqueConstraint("supplier_id", name="uq_contact_supplier"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True)
+    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), nullable=True)
     kind: Mapped[str] = mapped_column(String(10), default="person", server_default="person")
     company_name: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     first_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -699,6 +709,9 @@ class Contact(Base):
     archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    customer: Mapped["Customer | None"] = relationship()
+    supplier: Mapped["Supplier | None"] = relationship()
 
 
 class ProjectParticipant(Base):

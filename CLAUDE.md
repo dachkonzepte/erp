@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.38** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.39** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -635,7 +635,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
 - **Adressbuch und Beteiligte** (seit 1.8.37): `Contact` ist eine Person oder Firma, die an Projekten beteiligt ist,
   ohne Kunde zu sein (Architekt, Hausverwaltung, Sachverständiger …); `ProjectParticipant` ordnet sie mit einer festen
   Rolle (`app/project_participants.py::ROLES`) einem Projekt zu, eindeutig je Projekt, Kontakt und Rolle. Der Kunde ist
-  Auftraggeber und nie Beteiligter. Details: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.37".
+  Auftraggeber und nie Beteiligter. Seit 1.8.39 auch ein Eintrag mit Verweis auf Kunde oder Lieferant
+  (`Contact.customer_id`/`supplier_id`, höchstens einer je Stammsatz): Name, Kontaktwege, Adresse kommen live aus dem
+  Stammsatz (`contact_values()`), Suche/Sortierung brauchen `with_sources()`. Details:
+  `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.37" und "Umsetzung 1.8.39".
 - **Behinderungsanzeige** (seit 1.8.38): eine Checkliste mit Zweck `behinderungsanzeige` (Systemfelder in
   `app/checklist_purposes.py`): Meldung (meist Monteur) → Anzeige (nur Büro) → Wegfall, je mit Unterschrift; nach der
   Unterschrift der Meldung die Aufgabe "Behinderungsanzeige versenden" (`app/obstruction_notices.py`). Details:
@@ -754,7 +757,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   verwenden; seit 1.8.37 Adressbuch (`Contact`, Stammdaten, archivieren statt löschen) und Beteiligte am Projekt
   (`ProjectParticipant`, Rollen fest im Code, Kopie bei Anzeigen, Empfangsvollmacht mit Beleg, Reiter in der
   Projektmappe); seit 1.8.38 Behinderungsanzeige erfassen (Startvorlage, drei Abschnitte, Anzeige nur Büro, Aufgabe
-  "versenden" nach der Unterschrift der Meldung, Tagesbericht-Regel verlinkt aufs Anlegen); Brief und Versand folgen) --
+  "versenden" nach der Unterschrift der Meldung, Tagesbericht-Regel verlinkt aufs Anlegen); seit 1.8.39 Beteiligte aus
+  Kunden und Lieferanten (Dialog nach Herkunft, Rollenprüfung der Büro-Suche `office_source_visible()`, Eintrag mit
+  Verweis ohne Kopie); Brief und Versand folgen) --
   `docs/archiv/vertragsgrundlage-und-vertrag.md`
 - **Speichern nur gesendeter Felder** (`PartialUpdate`, Strukturtest über alle PUT-Handler, Liste der
   Altfälle, Nebenbefunde der Durchsicht aller Speichern-Aufrufer) -- `docs/archiv/teil-updates.md`
@@ -1083,7 +1088,9 @@ und `klicktest_vertrag_abschrift.py` (1.8.35, unterschriebene Abschrift auf der 
 Archivieren und Löschen, Reiter "Beteiligte": suchen, doppelt, neu anlegen und zurück, Vollmacht, Rolle ändern, hell/dunkel,
 412 px, Monteur 403) und `klicktest_behinderungsanzeige.py` (1.8.38, Startvorlagen über die Migrationsfunktionen: Monteurin
 meldet und unterschreibt auf 412 px, Anzeige für sie gesperrt; Büro dunkel mit Folgen-Karte, Witterungs-Hinweis, Unterschrift
-Büro; Link aus der Tagesbericht-Aufgabe; Editor). Ein Klicktest, der als Monteur `/mobil` öffnet,
+Büro; Link aus der Tagesbericht-Aufgabe; Editor) und `klicktest_beteiligte_stammdaten.py` (1.8.39, Dialog nach Herkunft
+gruppiert, Auftraggeber gesperrt, Kunde und inaktiver Lieferant hinzufügen, geänderte E-Mail im Kunden beim Beteiligten,
+ein Eintrag für zwei Projekte, Formular schreibgeschützt, dunkel, 412 px, Monteur 403). Ein Klicktest, der als Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)
 meldet `/mobil` ab, eine 403-Prüfung sähe abends 401; `--wanduhr HH:MM` täuscht eine andere Uhrzeit vor (Gegenprobe),
 `tests/test_v339_feste_uhr.py` prüft, dass jeder solche Klicktest `uhr=` setzt. Eine Seite mit `alert()` beim Laden hält den headless Chrome an --

@@ -97,7 +97,10 @@ from typing import Callable
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from .contacts import contact_display_name, contact_search_filter, contact_sort_columns
+from .contacts import (
+    contact_display_name, contact_load_options, contact_search_filter, contact_sort_columns, contact_values,
+    source_info, with_sources,
+)
 from .materials import list_materials
 from .modules import is_module_enabled
 from .models import (
@@ -601,16 +604,20 @@ def _supplier_row(s: Supplier) -> dict:
 
 
 # --- Adressbuch (seit 1.8.37) -- dieselbe Suche wie Adressbuch-Liste und Auswahl in der Projektmappe
-# (app/contacts.py); archivierte Kontakte werden gefunden und als solche gekennzeichnet. ---
+# (app/contacts.py); archivierte Kontakte werden gefunden und als solche gekennzeichnet. Seit 1.8.39 auch
+# Einträge mit Verweis auf einen Kunden oder Lieferanten, mit dessen Werten und dem Hinweis auf die Herkunft. ---
 
 def _search_contacts(db: Session, term: str, limit: int) -> tuple[int, list]:
-    stmt = select(Contact).where(contact_search_filter(term))
-    return _count_and_fetch(db, stmt, contact_sort_columns()[0], limit)
+    stmt = with_sources(select(Contact)).where(contact_search_filter(term))
+    return _count_and_fetch(db, stmt, contact_sort_columns()[0], limit, options=contact_load_options())
 
 
 def _contact_row(c: Contact) -> dict:
-    firma = c.company_name if c.kind == "person" else None
-    sub = " · ".join(x for x in [c.function, firma, c.city, "archiviert" if c.archived else None] if x)
+    values = contact_values(c)
+    firma = values["company_name"] if values["kind"] == "person" else None
+    herkunft = source_info(c)["source_label"]
+    sub = " · ".join(x for x in [values["function"], firma, values["city"], herkunft,
+                                 "archiviert" if c.archived else None] if x)
     return {"id": c.id, "title": contact_display_name(c), "subtitle": sub or None, "url": f"/master-data/contacts/{c.id}/edit"}
 
 
@@ -644,6 +651,23 @@ OFFICE_SEARCH_SOURCES: tuple[SearchSource, ...] = (
 )
 
 
+def office_source(key: str) -> SearchSource:
+    """Die Quelle der Büro-Suche zu einem Schlüssel -- seit 1.8.39 auch für den Dialog "Beteiligten
+    hinzufügen" (app/project_participants.py), der Kunden und Lieferanten über dieselbe Suche findet."""
+    for source in OFFICE_SEARCH_SOURCES:
+        if source.key == key:
+            return source
+    raise KeyError(key)
+
+
+def office_source_visible(db: Session, role: str, source: SearchSource) -> bool:
+    """Darf diese Rolle die Quelle sehen? Rolle (allowed_roles) und Modul-Zustand (module_key) -- die eine
+    Prüfung der Büro-Suche, die der Dialog "Beteiligten hinzufügen" mitbenutzt (seit 1.8.39)."""
+    if role not in source.allowed_roles:
+        return False
+    return source.module_key is None or is_module_enabled(db, source.module_key)
+
+
 def search_office(
     db: Session, role: str, query: str, *,
     limit_per_type: int = OFFICE_SEARCH_RESULT_LIMIT, types: frozenset[str] | None = None,
@@ -670,11 +694,9 @@ def search_office(
         return []
     groups = []
     for source in OFFICE_SEARCH_SOURCES:
-        if role not in source.allowed_roles:
-            continue
         if types is not None and source.key not in types:
             continue
-        if source.module_key is not None and not is_module_enabled(db, source.module_key):
+        if not office_source_visible(db, role, source):
             continue
         if source.key == "tasks":
             # Einzige Quelle, die pro Aufrufer scopen muss (siehe _search_tasks()-Docstring) --

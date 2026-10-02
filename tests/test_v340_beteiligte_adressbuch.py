@@ -362,7 +362,7 @@ def test_monteur_bekommt_ueberall_403_buero_darf(router_test_client, threaded_db
         response = monteur.request(method, path.format(**werte), json={})
         gesehen.append(path)
         assert response.status_code == 403, (method, path, response.status_code)
-    assert len(gesehen) == 15
+    assert len(gesehen) == 16  # seit 1.8.39 mit der Suche des Dialogs (participant-candidates)
     for rolle in (ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ROLE_ADMIN):
         buero = router_test_client(db, contacts_router, participants_router, role=rolle)
         assert buero.get(f"/api/projects/{projekt.id}/participants").status_code == 200, rolle

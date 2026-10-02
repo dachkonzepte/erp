@@ -7,7 +7,12 @@ app/contacts.py) -- Rolle.
 - Eindeutig je Projekt, Kontakt und Rolle (UNIQUE-Constraint); derselbe Kontakt darf in einem Projekt
   zwei Rollen haben (Eigentümer und Hausverwaltung in einer Person).
 - Der Kunde ist Auftraggeber und wird nicht zusätzlich als Beteiligter geführt -- deshalb gibt es keine
-  Rolle "Auftraggeber"; der Kunde ist kein Kontakt des Adressbuchs.
+  Rolle "Auftraggeber". Seit 1.8.39 kann ein Kunde zwar über einen Adressbuch-Eintrag mit Verweis Beteiligter
+  eines fremden Projekts sein (Hausverwaltung, die selbst Kunde ist), nie aber in seinem eigenen
+  (check_not_client()).
+- Seit 1.8.39 durchsucht der Dialog "Beteiligten hinzufügen" Adressbuch, Kunden und Lieferanten, nach
+  Herkunft gruppiert (participant_candidates()); welche Quellen eine Rolle sehen darf, entscheidet der Router
+  mit derselben Prüfung wie die Büro-Suche (app/search.py::office_source_visible()). Mitarbeiter nicht.
 - "Kopie bei Anzeigen" (copy_on_notices) und "empfangsbevollmächtigt für den Auftraggeber"
   (authorized_recipient) sind zwei unabhängige Häkchen. Zur Empfangsvollmacht kann die Vollmacht als
   Beleg hochgeladen werden (PDF oder Foto, am Inhalt erkannt wie der Beleg einer Zustellung). Hochladen
@@ -22,7 +27,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import case, select
+from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -43,6 +48,13 @@ ROLES = {
 
 POWER_OF_ATTORNEY_ROOT = Path(os.getenv("DACHKONZEPTE_PARTICIPANT_FILE_ROOT", data_dir() / "participant_documents"))
 MAX_POWER_OF_ATTORNEY_BYTES = 15_000_000  # wie der Beleg einer Zustellung
+
+
+CANDIDATE_LIMIT = 20
+
+# Quellen des Dialogs "Beteiligten hinzufügen", Schlüssel wie in der Büro-Suche (app/search.py) -- Mitarbeiter
+# bewusst nicht: sie sind Betrieb, keine Beteiligten.
+CANDIDATE_SOURCES = ("contacts", "customers", "suppliers")
 
 
 class DuplicateParticipantError(ValueError):
@@ -87,13 +99,14 @@ def participant_to_dict(db: Session, p: ProjectParticipant, counts: dict[int, in
 
 def list_participants(db: Session, project_id: int) -> list[dict]:
     """In der Reihenfolge der Rollen (wie ROLES), darin nach Name."""
-    from .contacts import contact_sort_columns, usage_counts
+    from .contacts import contact_sort_columns, usage_counts, with_sources
 
     order = case({key: index for index, key in enumerate(ROLES)}, value=ProjectParticipant.role, else_=len(ROLES))
     rows = db.scalars(
-        select(ProjectParticipant).join(Contact, Contact.id == ProjectParticipant.contact_id)
+        with_sources(select(ProjectParticipant).join(Contact, Contact.id == ProjectParticipant.contact_id))
         .where(ProjectParticipant.project_id == project_id)
-        .options(selectinload(ProjectParticipant.contact))
+        .options(selectinload(ProjectParticipant.contact).selectinload(Contact.customer),
+                 selectinload(ProjectParticipant.contact).selectinload(Contact.supplier))
         .order_by(order, *contact_sort_columns(), ProjectParticipant.id)
     ).all()
     counts = usage_counts(db, sorted({p.contact_id for p in rows}))
@@ -116,9 +129,16 @@ def _duplicate_text(contact: Contact, role: str) -> str:
     return f"{contact_display_name(contact)} ist in diesem Projekt bereits als {role_label(role)} eingetragen."
 
 
+def check_not_client(project: Project, customer_id: int | None) -> None:
+    """Der Kunde des Projekts ist Auftraggeber und wird nicht zusätzlich Beteiligter (Betreibervorgabe)."""
+    if customer_id is not None and customer_id == project.customer_id:
+        raise ValueError("Der Kunde dieses Projekts ist Auftraggeber und kann nicht zusätzlich Beteiligter sein.")
+
+
 def add_participant(db: Session, project: Project, contact: Contact, *, role: str, copy_on_notices: bool = False,
                     authorized_recipient: bool = False) -> ProjectParticipant:
     _check_role(role)
+    check_not_client(project, contact.customer_id)
     if contact.archived:
         raise ValueError("Der Kontakt ist archiviert – bitte im Adressbuch erst wiederherstellen.")
     if _duplicate_exists(db, project.id, contact.id, role):
@@ -137,6 +157,77 @@ def add_participant(db: Session, project: Project, contact: Contact, *, role: st
     db.commit()
     db.refresh(participant)
     return participant
+
+
+def _candidate_contact_hit(contact: Contact, *, blocked: str | None = None) -> dict:
+    from .contacts import contact_display_name, contact_values, source_info
+
+    values, source = contact_values(contact), source_info(contact)
+    firma = values["company_name"] if values["kind"] == "person" else None
+    return {
+        "contact_id": contact.id, "customer_id": contact.customer_id, "supplier_id": contact.supplier_id,
+        "title": contact_display_name(contact),
+        "subtitle": " · ".join(x for x in (values["function"], firma, values["city"]) if x) or None,
+        "source_archived": source["source_archived"], "contact_archived": contact.archived, "blocked": blocked,
+    }
+
+
+def participant_candidates(db: Session, project: Project, term: str, *, sources: list[str],
+                           limit: int = CANDIDATE_LIMIT) -> list[dict]:
+    """Der Dialog "Beteiligten hinzufügen": Treffer nach Herkunft gruppiert -- Adressbuch (eigene Einträge, ohne
+    archivierte), Kunden, Lieferanten. sources: die Schlüssel, die die Rolle sehen darf (entscheidet der Router).
+
+    Kunden und Lieferanten über dieselbe Suche wie in der Büro-Suche (query_fn der Quelle), erst ab
+    MIN_QUERY_LENGTH Zeichen; ein leerer Suchbegriff zeigt nur das Adressbuch (wie bisher). Ein Kunde oder
+    Lieferant mit Adressbuch-Eintrag erscheint unter seiner Herkunft, mit contact_id. Nicht wählbar
+    (blocked mit Grund): der Kunde des Projekts und ein Stammsatz, dessen Eintrag im Adressbuch archiviert ist.
+    Ein archivierter (inaktiver) Lieferant bleibt wählbar und ist gekennzeichnet."""
+    from .contacts import (
+        contact_load_options, contact_search_filter, contact_sort_columns, with_sources,
+    )
+    from .search import MIN_QUERY_LENGTH, office_source
+
+    term = (term or "").strip()
+    groups = []
+    if "contacts" in sources:
+        stmt = (with_sources(select(Contact))
+                .where(Contact.archived.is_(False), Contact.customer_id.is_(None), Contact.supplier_id.is_(None)))
+        if term:
+            stmt = stmt.where(contact_search_filter(term))
+        total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+        rows = db.scalars(stmt.options(*contact_load_options())
+                          .order_by(*contact_sort_columns(), Contact.id).limit(limit)).all()
+        groups.append({"key": "contacts", "label": office_source("contacts").label, "total": total,
+                       "hits": [_candidate_contact_hit(c) for c in rows]})
+    if len(term) >= MIN_QUERY_LENGTH:
+        for key, column in (("customers", Contact.customer_id), ("suppliers", Contact.supplier_id)):
+            if key not in sources:
+                continue
+            source = office_source(key)
+            total, rows = source.query_fn(db, term, limit)
+            linked = {}
+            if rows:
+                linked = {getattr(c, column.key): c for c in db.scalars(
+                    select(Contact).where(column.in_([r.id for r in rows])).options(*contact_load_options()))}
+            hits = []
+            for row in rows:
+                contact = linked.get(row.id)
+                blocked = None
+                if key == "customers" and row.id == project.customer_id:
+                    blocked = "Auftraggeber dieses Projekts"
+                elif contact is not None and contact.archived:
+                    blocked = "im Adressbuch archiviert – dort erst wiederherstellen"
+                if contact is not None:
+                    hits.append(_candidate_contact_hit(contact, blocked=blocked))
+                    continue
+                hits.append({
+                    "contact_id": None, "customer_id": row.id if key == "customers" else None,
+                    "supplier_id": row.id if key == "suppliers" else None, "title": row.name,
+                    "subtitle": row.city or None, "source_archived": key == "suppliers" and not row.active,
+                    "contact_archived": False, "blocked": blocked,
+                })
+            groups.append({"key": key, "label": source.label, "total": total, "hits": hits})
+    return groups
 
 
 def update_participant(db: Session, participant: ProjectParticipant, values: dict) -> ProjectParticipant:

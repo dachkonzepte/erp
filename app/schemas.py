@@ -4824,6 +4824,13 @@ class ContactOut(BaseModel):
     archived: bool
     archived_at: datetime | None
     project_count: int
+    # Seit 1.8.39: Eintrag mit Verweis auf einen Kunden ("customer") oder Lieferanten ("supplier") -- Name,
+    # Kontaktwege und Adresse oben kommen dann aus dem Stammsatz; source_archived: Lieferant inaktiv.
+    source: str | None = None
+    source_label: str | None = None
+    source_id: int | None = None
+    source_url: str | None = None
+    source_archived: bool = False
 
 
 class ContactProjectOut(BaseModel):
@@ -4855,10 +4862,20 @@ class PowerOfAttorneyOut(BaseModel):
 
 
 class ProjectParticipantCreate(BaseModel):
-    contact_id: int
+    """Genau eine Herkunft: ein Kontakt des Adressbuchs oder (seit 1.8.39) ein Kunde bzw. Lieferant -- für
+    diesen wird der Adressbuch-Eintrag mit Verweis angelegt oder der vorhandene wiederverwendet."""
+    contact_id: int | None = None
+    customer_id: int | None = None
+    supplier_id: int | None = None
     role: str = Field(min_length=1, max_length=40)
     copy_on_notices: bool = False
     authorized_recipient: bool = False
+
+    @model_validator(mode="after")
+    def _genau_eine_herkunft(self):
+        if sum(x is not None for x in (self.contact_id, self.customer_id, self.supplier_id)) != 1:
+            raise ValueError("Bitte genau einen Kontakt, Kunden oder Lieferanten wählen.")
+        return self
 
 
 class ProjectParticipantUpdate(PartialUpdate):
@@ -4867,6 +4884,36 @@ class ProjectParticipantUpdate(PartialUpdate):
     role: str | None = Field(default=None, min_length=1, max_length=40)
     copy_on_notices: bool | None = None
     authorized_recipient: bool | None = None
+
+
+class ParticipantCandidateOut(BaseModel):
+    """Ein Treffer im Dialog "Beteiligten hinzufügen" (seit 1.8.39): contact_id, wenn es den Eintrag im
+    Adressbuch schon gibt, sonst customer_id bzw. supplier_id. blocked: Grund, warum nicht wählbar."""
+    contact_id: int | None
+    customer_id: int | None
+    supplier_id: int | None
+    title: str
+    subtitle: str | None
+    source_archived: bool
+    contact_archived: bool
+    blocked: str | None
+
+
+class ParticipantCandidateGroupOut(BaseModel):
+    key: str
+    label: str
+    total: int
+    hits: list[ParticipantCandidateOut]
+
+
+class ParticipantCandidateSourceOut(BaseModel):
+    key: str
+    label: str
+
+
+class ParticipantCandidatesOut(BaseModel):
+    sources: list[ParticipantCandidateSourceOut]  # die durchsuchten Quellen -- je nach Rolle
+    groups: list[ParticipantCandidateGroupOut]
 
 
 class ProjectParticipantOut(BaseModel):

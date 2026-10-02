@@ -4,6 +4,28 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.39 – Beteiligte aus den Stammdaten
+
+Nachtrag zu Runde 2b-2. Der Dialog „Beteiligten hinzufügen“ durchsucht jetzt Adressbuch, Kunden und Lieferanten,
+nach Herkunft gruppiert, und nur die Quellen, die die Rolle in der Büro-Suche sieht (gemeinsame Prüfung
+`office_source_visible()` in `app/search.py`; Mitarbeiter sind keine Quelle). Kunden und Lieferanten erscheinen ab
+zwei Zeichen, ohne Suchbegriff bleibt es beim Adressbuch. Wird ein Kunde oder Lieferant gewählt, entsteht ein
+Adressbuch-Eintrag mit Verweis darauf (`Contact.customer_id`/`supplier_id`, höchstens einer je Stammsatz, auch bei
+gleichzeitiger erster Wahl), der in weiteren Projekten wiederverwendet wird. Name, E-Mail, Telefon und Adresse kommen
+bei jedem Abruf aus dem Stammsatz, ohne Kopie; im Adressbuch sind sie dort schreibgeschützt mit dem Hinweis „aus
+Kundenstamm“ bzw. „aus Lieferantenstamm“ und Link auf den Stammsatz, änderbar bleibt die Funktion. Ein inaktiver
+Lieferant ist gekennzeichnet; Kunden kennen keinen Archivstatus. Der Kunde des Projekts ist Auftraggeber und wird
+abgelehnt – im Dialog grau mit Grund, über die API mit 400, auch über seinen Eintrag aus einem fremden Projekt.
+Anlegen aus einem Kunden oder Lieferanten prüft dieselbe Rollenregel wie die Suche (403). Ein Eintrag mit Verweis
+zählt als Verwendung: Lieferant löschen deaktiviert ihn dann nur, ein Importlauf mit so verwendetem Stammsatz ist
+nicht mehr rückgängig zu machen (unter PostgreSQL hielte sonst der Fremdschlüssel). Migration `07c03fe93478`
+(Downgrade bricht ab, solange ein Eintrag einen Verweis trägt).
+
+`tests/test_v342_beteiligte_aus_stammdaten.py` (12 Tests, einer gegen PostgreSQL 17: zwei gleichzeitige erste Wahlen
+desselben Kunden ergeben einen Eintrag); 23 Gegenproben rot. Migration SQLite und PostgreSQL hin, Downgrade-Abbruch,
+zurück, hin, `alembic check`. Volle Suite 2504 grün. Klicktest `scripts/klicktest_beteiligte_stammdaten.py` 28/28,
+`klicktest_beteiligte.py` 43/43.
+
 ## 1.8.38 – Behinderungsanzeige erfassen
 
 Stufe 2b, Runde 2b-3 Teil 1. Der Zweck „Behinderungsanzeige“ trägt jetzt 13 Systemfelder in drei Abschnitten: Meldung

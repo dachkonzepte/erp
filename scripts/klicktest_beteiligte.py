@@ -137,7 +137,7 @@ async def pruefen(tab, seed, p):
     # nicht gefunden -> neu anlegen -> zurück in den Dialog
     await tab.js("pmChooseOther()")
     await tab.js(SUCHE % "Lot")
-    await tab.warten("document.getElementById('pmResults').innerText.includes('Kein Kontakt gefunden')")
+    await tab.warten("document.getElementById('pmResults').innerText.includes('Kein Treffer.')")
     link = await tab.js("document.getElementById('pmNewContact').getAttribute('href')")
     p.pruefe("Nicht gefunden: Link mit Projekt und Suchtext", link, f"/master-data/contacts/new?projekt={projekt}&name=Lot")
     p.pruefe("Dialog: JS-Fehler", tab.fehler, [])

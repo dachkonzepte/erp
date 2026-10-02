@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
-from ..models import AppUser, Employee, OperationalResource, Supplier, Team, TeamEmployee, TeamResource, WorkPreparationDeliveryNote, WorkPreparationMaterialSupplier, WorkPreparationTeamAssignment, WorkPreparationTeamResource
+from ..models import AppUser, Contact, Employee, OperationalResource, Supplier, Team, TeamEmployee, TeamResource, WorkPreparationDeliveryNote, WorkPreparationMaterialSupplier, WorkPreparationTeamAssignment, WorkPreparationTeamResource
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import OperationalResourceCreate, OperationalResourceOut, OperationalResourceUpdate, SupplierCreate, SupplierOut, SupplierUpdate, TeamCreate, TeamOut, TeamUpdate
 
@@ -114,7 +114,8 @@ def update_supplier(supplier_id:int,payload:SupplierUpdate,db:Session=Depends(ge
 def delete_supplier(supplier_id:int,db:Session=Depends(get_db),_role:AppUser=_role_dep):
     x=db.get(Supplier,supplier_id)
     if x is None: raise HTTPException(status_code=404,detail="Lieferant nicht gefunden.")
-    used=db.scalar(select(WorkPreparationMaterialSupplier).where(WorkPreparationMaterialSupplier.supplier_id==supplier_id)) or db.scalar(select(WorkPreparationDeliveryNote).where(WorkPreparationDeliveryNote.supplier_id==supplier_id))
+    # Seit 1.8.39 zählt auch ein Adressbuch-Eintrag mit Verweis auf den Lieferanten (Beteiligter) als Verwendung.
+    used=db.scalar(select(WorkPreparationMaterialSupplier).where(WorkPreparationMaterialSupplier.supplier_id==supplier_id)) or db.scalar(select(WorkPreparationDeliveryNote).where(WorkPreparationDeliveryNote.supplier_id==supplier_id)) or db.scalar(select(Contact.id).where(Contact.supplier_id==supplier_id))
     if used:
         x.active=False; db.commit(); return {"deleted":False,"deactivated":True}
     db.delete(x); db.commit(); return {"deleted":True}

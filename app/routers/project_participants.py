@@ -3,22 +3,31 @@
 Nur Büro (buero_auftrag und höher), wie die übrige Projektmappe (app/routers/projects.py). Ein Monteur
 bekommt 403 -- Beteiligte, ihre Kontaktdaten und die Vollmacht sind kaufmännisch. Geschäftslogik in
 app/project_participants.py.
+
+Seit 1.8.39 Beteiligte auch aus Kunden und Lieferanten: der Dialog sucht nur in den Quellen, die die Rolle
+in der Büro-Suche sehen darf (app/search.py::office_source_visible()), und Anlegen aus einem Kunden bzw.
+Lieferanten prüft dasselbe -- sonst wäre über die API wählbar, was die Suche verbirgt.
 """
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from ..contacts import linked_contact
 from ..database import get_db
 from ..email_dispatch import actor_of
-from ..models import AppUser, Contact, Project, ProjectParticipant
+from ..models import AppUser, Contact, Customer, Project, ProjectParticipant, Supplier
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_participants import (
-    MAX_POWER_OF_ATTORNEY_BYTES, DuplicateParticipantError, add_participant, list_participants,
-    participant_to_dict, power_of_attorney_path, remove_participant, remove_power_of_attorney, roles_list,
-    store_power_of_attorney, update_participant,
+    CANDIDATE_SOURCES, MAX_POWER_OF_ATTORNEY_BYTES, DuplicateParticipantError, add_participant, check_not_client,
+    list_participants, participant_candidates, participant_to_dict, power_of_attorney_path, remove_participant,
+    remove_power_of_attorney, roles_list, store_power_of_attorney, update_participant,
 )
-from ..schemas import ParticipantRoleOut, ProjectParticipantCreate, ProjectParticipantOut, ProjectParticipantUpdate
+from ..schemas import (
+    ParticipantCandidatesOut, ParticipantRoleOut, ProjectParticipantCreate, ProjectParticipantOut,
+    ProjectParticipantUpdate,
+)
+from ..search import office_source, office_source_visible
 
 router = APIRouter()
 
@@ -48,6 +57,17 @@ def _errors(action):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _visible_sources(db: Session, user: AppUser) -> list:
+    return [source for source in (office_source(key) for key in CANDIDATE_SOURCES)
+            if office_source_visible(db, user.role, source)]
+
+
+def _require_source(db: Session, user: AppUser, key: str) -> None:
+    source = office_source(key)
+    if not office_source_visible(db, user.role, source):
+        raise HTTPException(status_code=403, detail=f"{source.label} sind für Ihre Rolle nicht sichtbar.")
+
+
 @router.get("/api/project-participant-roles", response_model=list[ParticipantRoleOut])
 def get_participant_roles(_role: AppUser = _role_dep):
     return roles_list()
@@ -59,13 +79,44 @@ def get_project_participants(project_id: int, db: Session = Depends(get_db), _ro
     return list_participants(db, project_id)
 
 
+@router.get("/api/projects/{project_id}/participant-candidates", response_model=ParticipantCandidatesOut)
+def get_participant_candidates(project_id: int, q: str = "", db: Session = Depends(get_db), user: AppUser = _role_dep):
+    """Der Dialog "Beteiligten hinzufügen": Adressbuch, Kunden und Lieferanten, nach Herkunft gruppiert, nur
+    die Quellen, die die Rolle in der Büro-Suche sieht."""
+    project = _project_or_404(db, project_id)
+    sources = _visible_sources(db, user)
+    groups = participant_candidates(db, project, q, sources=[s.key for s in sources])
+    return {"sources": [{"key": s.key, "label": s.label} for s in sources],
+            "groups": [g for g in groups if g["total"] or g["key"] == "contacts"]}
+
+
 @router.post("/api/projects/{project_id}/participants", response_model=ProjectParticipantOut)
 def post_project_participant(project_id: int, payload: ProjectParticipantCreate, db: Session = Depends(get_db),
-                             _role: AppUser = _role_dep):
+                             user: AppUser = _role_dep):
     project = _project_or_404(db, project_id)
-    contact = db.get(Contact, payload.contact_id)
-    if contact is None:
-        raise HTTPException(status_code=404, detail="Kontakt nicht gefunden.")
+    if payload.contact_id is not None:
+        contact = db.get(Contact, payload.contact_id)
+        if contact is None:
+            raise HTTPException(status_code=404, detail="Kontakt nicht gefunden.")
+        if contact.customer_id is not None:
+            _require_source(db, user, "customers")
+        elif contact.supplier_id is not None:
+            _require_source(db, user, "suppliers")
+        else:
+            _require_source(db, user, "contacts")
+    elif payload.customer_id is not None:
+        _require_source(db, user, "customers")
+        customer = db.get(Customer, payload.customer_id)
+        if customer is None:
+            raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
+        _errors(lambda: check_not_client(project, customer.id))
+        contact = linked_contact(db, customer=customer)
+    else:
+        _require_source(db, user, "suppliers")
+        supplier = db.get(Supplier, payload.supplier_id)
+        if supplier is None:
+            raise HTTPException(status_code=404, detail="Lieferant nicht gefunden.")
+        contact = linked_contact(db, supplier=supplier)
     participant = _errors(lambda: add_participant(
         db, project, contact, role=payload.role, copy_on_notices=payload.copy_on_notices,
         authorized_recipient=payload.authorized_recipient,

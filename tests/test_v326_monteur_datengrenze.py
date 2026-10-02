@@ -553,6 +553,7 @@ def test_adressbuch_und_beteiligte_im_durchlauf_fuer_monteure_gesperrt(durchlauf
         "/api/contacts/{contact_id}": 403,
         "/api/project-participant-roles": 403,
         "/api/projects/{project_id}/participants": 403,
+        "/api/projects/{project_id}/participant-candidates": 403,  # seit 1.8.39
         "/api/project-participants/{participant_id}/power-of-attorney": 403,
     }
 

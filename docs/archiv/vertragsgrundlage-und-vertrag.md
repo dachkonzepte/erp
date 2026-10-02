@@ -20,6 +20,7 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | **2b-1b Abrundung** | 1.8.35 | Unterschriebene Abschrift (Fassung + Blatt bzw. Scan) für Versand und Zustellung, Größengrenze der Berichtsunterschrift, lesbare Fehler der Auftragsseite | erledigt |
 | **2b-2** | 1.8.36, 1.8.37 | Vorab feste Uhr für uhrzeitabhängige Tests (1.8.36); Adressbuch als Stammdatenbereich, Beteiligte am Projekt mit fester Rolle, Kopie bei Anzeigen, Empfangsvollmacht mit Beleg, Reiter in der Projektmappe (1.8.37) | erledigt |
 | **2b-3 Teil 1** | 1.8.38 | Behinderungsanzeige erfassen: Systemfelder in drei Abschnitten (Meldung, Anzeige nur Büro, Wegfall), Startvorlage, Folge nach der Unterschrift der Meldung, Tagesbericht-Regel mit Link zum Anlegen | erledigt |
+| **2b-2 Nachtrag** | 1.8.39 | Beteiligte aus den Stammdaten: Dialog durchsucht Adressbuch, Kunden und Lieferanten (nach Herkunft, Rollenprüfung der Büro-Suche), Adressbuch-Eintrag mit Verweis ohne Kopie, Kunde des Projekts nie Beteiligter | erledigt |
 | **2b-3 Teil 2** | — | Behinderungsanzeige: Brief-PDF und Versand | offen |
 | **2b-4** | — | Bedenkenanzeige | offen |
 
@@ -862,3 +863,88 @@ Gegenprobe. Brief-PDF und Versand: Teil 2. Modul `checklisten` (Kern der Stufe 2
 4. **Arbeitskopie mit CRLF**: einige Dateien liegen wegen `core.autocrlf` in der Arbeitskopie mit CRLF vor (z. B.
    `app/routers/checklists.py`, `app/schemas.py`); die in dieser Runde angefassten wurden auf LF gebracht -- Git speichert
    ohnehin LF, kein Unterschied im Commit.
+
+---
+
+## Umsetzung 1.8.39 (02.10.2026) -- Nachtrag zu 2b-2: Beteiligte aus den Stammdaten
+
+Betreibervorgabe: (1) Der Dialog "Beteiligten hinzufügen" durchsucht Adressbuch, Kunden und Lieferanten, Treffer nach
+Herkunft gruppiert, nur was die Rolle ohnehin sehen darf (Rollenprüfung wie in der Büro-Suche), Mitarbeiter nicht.
+(2) Ein gewählter Kunde oder Lieferant wird zum Adressbuch-Eintrag mit Verweis, höchstens einer je Stammsatz, in weiteren
+Projekten wiederverwendet; Name, E-Mail, Telefon und Adresse immer aktuell aus dem Stammsatz, ohne Kopie, im Adressbuch
+nicht änderbar, mit Hinweis "aus Kundenstamm" bzw. "aus Lieferantenstamm"; archivierte Stammsätze gekennzeichnet.
+(3) Der Kunde des Projekts kann nicht Beteiligter werden. (4) Tests mit Gegenprobe.
+
+- **Verweis am Kontakt** (`Contact.customer_id`/`supplier_id`, je UNIQUE `uq_contact_customer`/`uq_contact_supplier`):
+  `app/contacts.py::linked_contact()` nimmt den vorhandenen Eintrag oder legt einen an (ohne Commit); zwei
+  gleichzeitige erste Wahlen desselben Stammsatzes -- eine scheitert am Constraint im SAVEPOINT und nimmt den Eintrag
+  der anderen (Muster Self-Seeding). Die eigenen Spalten für Name, Kontaktwege und Adresse bleiben leer;
+  `contact_values()` liest sie bei jedem Abruf aus dem Stammsatz, `contact_display_name()` den Namen (beim Kunden
+  `Customer.name` samt Anrede und Titel). Eigen am Eintrag bleiben Funktion und Archiv; `update_contact()` lehnt jedes
+  andere Feld mit 400 ab ("… kommen aus dem Kundenstamm – bitte dort ändern"). `contact_to_dict()` trägt dazu `source`,
+  `source_label`, `source_id`, `source_url` und `source_archived`.
+- **Suche und Sortierung** brauchen dafür Kunde und Lieferant im Statement (`with_sources()`, outer join):
+  `contact_search_filter()` sucht zusätzlich in Name, E-Mail, Telefon, Mobil und Ort des Kunden bzw. Name, E-Mail,
+  Telefon und Ort des Lieferanten; `contact_sort_columns()` sortiert nach Nachname bzw. Firmen-/Lieferantenname.
+  Adressbuch-Liste, Beteiligte des Projekts und die Büro-Suche (Untertitel mit "aus Kundenstamm") nutzen das.
+- **Dialog** (`GET /api/projects/{id}/participant-candidates?q=`, `app/project_participants.py::participant_candidates()`):
+  Gruppen "Adressbuch" (nur eigene Einträge ohne Verweis, ohne archivierte), "Kunden", "Lieferanten" -- Kunden und
+  Lieferanten über die `query_fn` ihrer Quelle der Büro-Suche (Kunde: Name, Kundennummer; Lieferant: Name,
+  Lieferantennummer), erst ab zwei Zeichen (`MIN_QUERY_LENGTH`); ohne Suchbegriff nur das Adressbuch wie bisher. Ein
+  Stammsatz mit Eintrag erscheint unter seiner Herkunft, mit `contact_id`. Nicht wählbar (mit Grund): der Kunde des
+  Projekts ("Auftraggeber dieses Projekts") und ein Stammsatz, dessen Eintrag archiviert ist. Mitarbeiter sind keine
+  Quelle (`CANDIDATE_SOURCES`).
+- **Rollenprüfung**: `app/search.py::office_source_visible()` -- Rolle und Modul der Quelle, dieselbe Prüfung, die
+  `search_office()` jetzt selbst verwendet. Der Router durchsucht nur die sichtbaren Quellen und prüft dasselbe beim
+  Anlegen aus Kunde/Lieferant und beim Anlegen über die `contact_id` eines Eintrags mit Verweis (403), sonst wäre über
+  die API wählbar, was die Suche verbirgt. Heute sehen alle Bürorollen alle drei Quellen; der Test schränkt
+  Lieferanten probeweise auf Admin ein.
+- **Anlegen** (`POST /api/projects/{id}/participants`): genau eine Herkunft -- `contact_id`, `customer_id` oder
+  `supplier_id` (sonst 422). Der Auftraggeber wird vor dem Anlegen eines Eintrags abgelehnt (400, kein Eintrag) und
+  zusätzlich in `add_participant()` (`check_not_client()`) -- auch über den Eintrag aus einem fremden Projekt.
+- **Oberfläche**: Dialog mit Gruppenüberschriften, Hinweis "Gesucht in: …" je nach Rolle, gesperrte Treffer grau mit
+  Grund; Karte des Beteiligten mit "aus Kundenstamm"/"aus Lieferantenstamm", "Lieferant inaktiv", "Kunde öffnen"
+  bzw. "Lieferant öffnen" und "Adressbuch-Eintrag". Adressbuch-Liste mit Herkunft unter dem Namen; Formular eines
+  Eintrags mit Verweis: Hinweis mit Link auf den Stammsatz, Stammfelder schreibgeschützt, gespeichert wird nur die
+  Funktion (Regel 22).
+- **Festlegungen (nicht vorgegeben, bitte bestätigen)**: "archiviert" gibt es nur bei Lieferanten ("inaktiv") -- Kunden
+  kennen keinen Archivstatus. Ein inaktiver Lieferant bleibt wählbar, gekennzeichnet (anders als ein archivierter
+  Eintrag, der erst wiederhergestellt werden muss). Die Art (Person/Firma) eines Kunden-Eintrags folgt aus dem Kunden:
+  Vorname oder eine Anrede außer "Firma" = Person. Der Kunde eines Projekts kann in fremden Projekten Beteiligter sein
+  (Hausverwaltung, die selbst Kunde ist). Ein Eintrag mit Verweis zählt als Verwendung des Stammsatzes: Lieferant
+  löschen deaktiviert ihn dann nur (wie bei Arbeitsvorbereitung/Lieferschein), ein Importlauf mit so verwendetem
+  Kunden oder Lieferanten ist nicht mehr rückgängig zu machen -- unter PostgreSQL hielte sonst der Fremdschlüssel
+  (500). Das Adressbuch selbst zeigt Einträge mit Verweis jedem, der das Adressbuch sieht (heute dieselben Rollen wie
+  Kunden und Lieferanten).
+- **Migration `07c03fe93478`**: zwei Spalten mit Fremdschlüssel (`fk_contacts_customer_id`, `fk_contacts_supplier_id`)
+  und UNIQUE, nichts zu übernehmen. `downgrade()` bricht ab, solange ein Eintrag einen Verweis trägt (er stünde sonst
+  namenlos da).
+- **Verifikation**: `tests/test_v342_beteiligte_aus_stammdaten.py` (12 Tests, einer gegen PostgreSQL 17 im
+  Wegwerf-Schema: zwei gleichzeitige erste Wahlen desselben Kunden, beide haben vor dem Anlegen gelesen -- ein
+  Eintrag, beide bekommen ihn). `test_v340` (Routenzahl 16) und `test_v326` (neue Route im Monteur-Durchlauf, 403)
+  nachgezogen. 23 Gegenproben rot (Skript im Scratchpad, Dateien byte-genau zurück): ohne Nachschlagen und ohne
+  UNIQUE, ohne Abfangen, Werte aus eigenen Spalten, Kopie beim Anlegen, inaktiv nicht gekennzeichnet, Stammfelder
+  änderbar, Auftraggeber ungeprüft bzw. erst nach dem Anlegen geprüft bzw. im Dialog nicht gekennzeichnet,
+  archivierter Eintrag wählbar, verknüpfte Einträge auch unter "Adressbuch", Kunden ohne Suchbegriff, Dialog bzw.
+  Anlegen bzw. `contact_id`-Weg ohne Rollenprüfung, Dialog für Monteure offen, Suche ohne Stammsatz-Werte, Büro-Suche
+  ohne Herkunft, Name aus eigenen Spalten (Historie), Lieferant löschen bzw. Importlauf ohne Verweisprüfung,
+  gleichzeitig ohne SAVEPOINT (PostgreSQL), Formular schickt alle Felder. Migration SQLite (mit Bestand) und
+  PostgreSQL (ganze Kette im leeren Schema, mit Bestand): hin, UNIQUE und Fremdschlüssel greifen, Downgrade mit
+  Verweis verweigert, leer zurück, hin, `alembic current`, `alembic check`. JS der drei Seiten über die Seitenrouten
+  gerendert, `node --check`. Volle Suite 2504 grün. Klicktest `scripts/klicktest_beteiligte_stammdaten.py` 28/28 (der
+  erste Lauf fand einen Fehler des Klicktests selbst: die Wartebedingung "ein Treffer" war vom Ergebnis der leeren
+  Suche schon erfüllt -- jetzt wartet er auf die Antwort der Suche); `klicktest_beteiligte.py` 43/43 (Leertext jetzt
+  "Kein Treffer.").
+
+### Nebenbefunde 1.8.39 (nur gemeldet)
+
+1. **Kundenwechsel am Projekt**: "Projektmappe bearbeiten" erlaubt einen anderen Kunden. Ist der neue Kunde dort schon
+   Beteiligter (über seinen Adressbuch-Eintrag), steht der Auftraggeber zusätzlich als Beteiligter da -- der
+   Kundenwechsel prüft das nicht.
+2. **Kunden ohne Archivstatus**: ein nicht mehr betreuter Kunde lässt sich nur stehen lassen; "archiviert
+   gekennzeichnet" kann es für Kunden erst geben, wenn sie einen Status bekommen.
+3. **Lieferant ohne Mobilnummer**: der Lieferantenstamm kennt kein Mobil-Feld und nur einen Ansprechpartner als Text
+   (`contact_person`) -- ein bestimmter Ansprechpartner eines Lieferanten als Beteiligter geht weiter nur als eigener
+   Eintrag im Adressbuch.
+4. **Kundensuche im Dialog nur nach Name und Kundennummer** (wie die Büro-Suche), nicht nach Ort oder E-Mail -- die
+   Adressbuch-Gruppe findet auch über diese.
