@@ -22,6 +22,7 @@ from tests.test_v229_shared_document_layout import _run_migration_step
 from app.database import Base
 from app.invoices import add_invoice_item, create_schlussrechnung, finalize_and_send_invoice
 from app.models import DocumentLayoutBlock
+from tests.grunddaten_schalter import ohne_grunddaten
 
 
 def _make_finalized_invoice(db, **kwargs):
@@ -132,13 +133,13 @@ def test_continuation_header_appears_only_on_later_pages_with_correct_page_count
 
 
 def test_continuation_header_can_be_disabled():
-    from app.document_layout import ensure_default_layout, update_layout_block
+    from app.document_layout import load_layout, update_layout_block
     from app.invoice_pdf import build_invoice_pdf
 
     db = db_session()
     invoice = _make_finalized_multipage_invoice(db)
 
-    block = next(b for b in ensure_default_layout(db, "invoice") if b.block_type == "continuation_header")
+    block = next(b for b in load_layout(db, "invoice") if b.block_type == "continuation_header")
     update_layout_block(
         db, block, x_mm=block.x_mm, y_mm=block.y_mm, width_mm=block.width_mm, height_mm=block.height_mm,
         content=None, font_size=block.font_size, font_weight=block.font_weight, text_align=block.text_align,
@@ -167,11 +168,11 @@ def test_continuation_header_does_not_overlap_company_header_or_content():
     entfernten Konstante CONTINUATION_HEADER_Y_MM -- die Position ist jetzt editierbar, die
     Invariante muss deshalb für den JEWEILS KONFIGURIERTEN Wert gelten, nicht nur einen
     hartcodierten."""
-    from app.document_layout import ensure_default_layout
+    from app.document_layout import load_layout
     from app.document_page_margins import get_margins
 
     db = db_session()
-    blocks = {b.block_type: b for b in ensure_default_layout(db, "invoice")}
+    blocks = {b.block_type: b for b in load_layout(db, "invoice")}
     company_header = blocks["company_header"]
     continuation_header = blocks["continuation_header"]
     margins = get_margins(db, "invoice", "continuation")
@@ -191,13 +192,13 @@ def test_continuation_header_vertical_position_is_configurable():
     (PUT .../blocks/{id}) wie die Sichtbarkeit einstellbar, kein neues Feld nötig. Baut ein
     mehrseitiges PDF zweimal, einmal mit dem Standardwert, einmal mit einer stark abweichenden
     Position, und misst nach, dass die Zeile tatsächlich an der konfigurierten Stelle landet."""
-    from app.document_layout import ensure_default_layout, update_layout_block
+    from app.document_layout import load_layout, update_layout_block
     from app.invoice_pdf import build_invoice_pdf
 
     db = db_session()
     invoice = _make_finalized_multipage_invoice(db)
 
-    block = next(b for b in ensure_default_layout(db, "invoice") if b.block_type == "continuation_header")
+    block = next(b for b in load_layout(db, "invoice") if b.block_type == "continuation_header")
     default_y = float(block.y_mm)
     pdf_before = build_invoice_pdf(db, invoice)
 
@@ -246,7 +247,8 @@ def _load_migration():
 
 def _new_engine_with_schema():
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
+    with ohne_grunddaten():
+        Base.metadata.create_all(engine)
     return engine
 
 
@@ -274,7 +276,7 @@ def test_migration_adds_continuation_header_to_already_seeded_default_only():
 
 def test_migration_does_nothing_when_default_was_never_seeded():
     """Kein 'default' -> keine Zeile einfügen (sonst würde eine komplett frische Installation,
-    die noch nie ensure_default_layout() aufgerufen hat, plötzlich eine einzelne, verwaiste
+    die noch nie ensure_default_layout() durchlaufen hat, plötzlich eine einzelne, verwaiste
     continuation_header-Zeile bekommen)."""
     migration = _load_migration()
     engine = _new_engine_with_schema()

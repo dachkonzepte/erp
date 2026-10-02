@@ -39,12 +39,12 @@ from reportlab.pdfgen import canvas as canvas_module
 from reportlab.platypus import BaseDocTemplate, Frame, NextPageTemplate, PageTemplate
 
 from .company_logo import logo_path
-from .document_layout import ensure_default_layout, get_effective_background
+from .document_layout import get_effective_background, load_layout
 from .document_layout_background import background_path
 from .document_page_margins import get_margins
 from .document_pdf import build_company_header_block, build_styles
 from .models import DocumentLayoutBlock, DocumentPageMargins
-from .settings import get_or_create_general_settings
+from .settings import load_general_settings
 
 PAGE_WIDTH_MM = Decimal("210.0")
 PAGE_HEIGHT_MM = Decimal("297.0")
@@ -332,9 +332,9 @@ def render_framed_pdf(
             f"Unbekannter Dokumenttyp für den gemeinsamen PDF-Rahmen: {document_type!r}. "
             "Neu in RENDERERS_USING_SHARED_FRAME (app/document_frame.py) eintragen."
         )
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     styles = build_styles()
-    blocks = {b.block_type: b for b in ensure_default_layout(db, document_type) if b.block_type in FRAME_BLOCK_TYPES}
+    blocks = {b.block_type: b for b in load_layout(db, document_type) if b.block_type in FRAME_BLOCK_TYPES}
     footer_block = blocks.get("footer_text")
     footer_enabled = footer_block.visible if footer_block is not None else False
 

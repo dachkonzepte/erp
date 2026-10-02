@@ -29,7 +29,7 @@ from .document_pdf import build_din5008_header_block, build_styles
 from .models import Employee
 from .option_settings import get_option_group, option_group_to_dict
 from .rounding import round_hours
-from .settings import get_or_create_general_settings
+from .settings import load_general_settings
 from .time_tracking import entry_to_dict, list_entries
 
 MONTH_NAMES_DE = {
@@ -66,7 +66,7 @@ def build_field_timesheet_pdf(db: Session, employee_id: int, year: int, month: i
         raise ValueError("Mitarbeiter wurde nicht gefunden.")
     start, end = month_date_range(year, month)
     rows = list_entries(db, employee_id=employee_id, start_date=start, end_date=end, limit=2000)
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     styles = build_styles()
     body, h1 = styles["body"], styles["h1"]
     content_width = frame_content_width(get_margins(db, "field_timesheet", "first"))

@@ -16,7 +16,7 @@ from reportlab.lib.units import mm
 
 from app.document_frame import _build_frame, render_framed_pdf
 from app.document_layout import (
-    DEFAULT_SHARED_LAYOUT, ensure_default_layout, get_background, list_layout_blocks,
+    DEFAULT_SHARED_LAYOUT, load_layout, get_background, list_layout_blocks,
     set_background, update_layout_block,
 )
 from app.document_layout_background import (
@@ -67,7 +67,7 @@ def _enable_footer(db, document_type="reminder"):
     """Seit 1.3.8 steht footer_text standardmäßig aus (siehe CLAUDE.md "Gemeinsamer
     Dokumenttyp") -- Tests, die gezielt den Fußzeilen-/Seitenzahl-Mechanismus selbst prüfen,
     schalten ihn deshalb bewusst manuell ein, statt sich auf einen Standardwert zu verlassen."""
-    footer_block = next(b for b in ensure_default_layout(db, document_type) if b.block_type == "footer_text")
+    footer_block = next(b for b in load_layout(db, document_type) if b.block_type == "footer_text")
     update_layout_block(
         db, footer_block, x_mm=footer_block.x_mm, y_mm=footer_block.y_mm, width_mm=footer_block.width_mm,
         height_mm=footer_block.height_mm, content=None, font_size=footer_block.font_size,
@@ -104,7 +104,7 @@ def test_render_framed_pdf_single_page_shows_one_of_one():
 
 def test_render_framed_pdf_footer_disabled_hides_page_number():
     db = db_session()
-    blocks = {b.block_type: b for b in ensure_default_layout(db, "reminder")}
+    blocks = {b.block_type: b for b in load_layout(db, "reminder")}
     footer_block = blocks["footer_text"]
     update_layout_block(
         db, footer_block, x_mm=footer_block.x_mm, y_mm=footer_block.y_mm, width_mm=footer_block.width_mm,
@@ -126,7 +126,7 @@ def test_ensure_default_layout_seeds_three_reminder_blocks():
     """Trotz des (nicht mehr ganz passenden) Namens seit 1.3.7 VIER Bausteine --
     continuation_header (Wiederholungszeile auf Folgeseiten) kam als vierter dazu."""
     db = db_session()
-    blocks = ensure_default_layout(db, "reminder")
+    blocks = load_layout(db, "reminder")
     assert {b.block_type for b in blocks} == {"logo", "company_header", "footer_text", "continuation_header"}
     assert len(DEFAULT_SHARED_LAYOUT) == 4
     # Seit 1.3.6 (Zusammenführung der Layout-Einstellungen): "reminder" hat keine eigene Zeile
@@ -171,12 +171,12 @@ def test_reminder_default_company_header_and_logo_do_not_overlap_default_frame()
     Dokumenttypen standardmäßig unsichtbar (1.3.2/1.3.8), der Fall tritt nur ein, wenn ein Admin
     sie OHNE eigenes Briefpapier UND ohne den oberen Rand selbst wieder zu vergrößern aktiviert."""
     db = db_session()
-    blocks = {b.block_type for b in ensure_default_layout(db, "reminder")}
+    blocks = {b.block_type for b in load_layout(db, "reminder")}
     assert blocks  # seeded
 
     margins = get_margins(db, "reminder", "continuation")
     for block_type in ("logo", "company_header"):
-        block = [b for b in ensure_default_layout(db, "reminder") if b.block_type == block_type][0]
+        block = [b for b in load_layout(db, "reminder") if b.block_type == block_type][0]
         block_bottom_edge_mm = block.y_mm + block.height_mm
         assert margins.top_mm >= block_bottom_edge_mm, (
             f"continuation: Rand ({margins.top_mm}mm) liegt oberhalb der Unterkante von "
@@ -191,7 +191,7 @@ def test_reminder_pdf_with_company_header_enabled_and_default_margin_renders_wit
     auftrat)."""
     from app.reminder_pdf import build_reminder_pdf
     from app.reminders import create_reminder, ensure_default_reminder_levels
-    from app.settings import get_or_create_general_settings
+    from app.settings import load_general_settings
     from tests.test_v153_mahnwesen import make_sent_overdue_invoice
 
     db = db_session()
@@ -199,7 +199,7 @@ def test_reminder_pdf_with_company_header_enabled_and_default_margin_renders_wit
     invoice = make_sent_overdue_invoice(db)
     reminder = create_reminder(db, invoice, 1)
 
-    header = [b for b in ensure_default_layout(db, "reminder") if b.block_type == "company_header"][0]
+    header = [b for b in load_layout(db, "reminder") if b.block_type == "company_header"][0]
     update_layout_block(
         db, header, x_mm=header.x_mm, y_mm=header.y_mm, width_mm=header.width_mm, height_mm=header.height_mm,
         content=None, font_size=header.font_size, font_weight=header.font_weight, text_align=header.text_align,
@@ -209,7 +209,7 @@ def test_reminder_pdf_with_company_header_enabled_and_default_margin_renders_wit
     pdf_bytes = build_reminder_pdf(db, reminder)
     assert pdf_bytes[:4] == b"%PDF"
     text = _extract_pdf_text(pdf_bytes)
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     # ASCII-Ausschnitt statt des vollen Namens: reportlab schreibt PDF-Textliterale in
     # PDFDocEncoding/Latin-1 mit Oktal-Escapes für Nicht-ASCII-Zeichen (z. B. "R\366dchen" statt
     # UTF-8 "R\xc3\xb6dchen") -- ein reiner Test-Encoding-Fallstrick, kein App-Fehler.
@@ -219,8 +219,8 @@ def test_reminder_pdf_with_company_header_enabled_and_default_margin_renders_wit
 
 def test_ensure_default_layout_reminder_does_not_duplicate_on_second_call():
     db = db_session()
-    ensure_default_layout(db, "reminder")
-    blocks = ensure_default_layout(db, "reminder")
+    load_layout(db, "reminder")
+    blocks = load_layout(db, "reminder")
     assert len(blocks) == len(DEFAULT_SHARED_LAYOUT)
 
 
@@ -430,7 +430,7 @@ def test_reminder_pdf_logo_and_header_toggle_off_without_gaps():
     invoice = make_sent_overdue_invoice(db)
     reminder = create_reminder(db, invoice, 1)
 
-    blocks = {b.block_type: b for b in ensure_default_layout(db, "reminder")}
+    blocks = {b.block_type: b for b in load_layout(db, "reminder")}
     for key in ("logo", "company_header", "footer_text"):
         b = blocks[key]
         update_layout_block(
@@ -547,7 +547,7 @@ def test_reminder_pdf_footer_and_meta_block_page_count_can_both_be_active():
     invoice = make_sent_overdue_invoice(db)
     reminder = create_reminder(db, invoice, 1)
 
-    footer_block = next(b for b in ensure_default_layout(db, "reminder") if b.block_type == "footer_text")
+    footer_block = next(b for b in load_layout(db, "reminder") if b.block_type == "footer_text")
     assert footer_block.visible is False  # seit 1.3.8 Standard: aus
     update_layout_block(
         db, footer_block, x_mm=footer_block.x_mm, y_mm=footer_block.y_mm, width_mm=footer_block.width_mm,
@@ -600,7 +600,7 @@ def test_background_repeat_endpoint_was_removed_with_the_old_editor(threaded_db_
 def test_footer_text_defaults_to_invisible_for_every_document_type_using_the_shared_frame():
     db = db_session()
     for document_type in ("reminder", "invoice", "order"):
-        blocks = {b.block_type: b for b in ensure_default_layout(db, document_type)}
+        blocks = {b.block_type: b for b in load_layout(db, document_type)}
         assert blocks["footer_text"].visible is False, f"{document_type}: footer_text sollte standardmäßig aus sein"
         assert blocks["continuation_header"].visible is True, f"{document_type}: continuation_header sollte standardmäßig an sein"
 

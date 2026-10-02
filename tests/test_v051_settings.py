@@ -9,7 +9,7 @@ from app.database import Base
 from app.models import Customer, CustomerProfile
 from app.settings import (
     format_sequence_number,
-    get_or_create_general_settings,
+    load_general_settings,
     preview_number,
     update_sequence,
 )
@@ -77,6 +77,6 @@ def test_duplicate_customer_number_is_rejected():
 
 def test_company_settings_are_available():
     db = new_db()
-    settings = get_or_create_general_settings(db)
+    settings = load_general_settings(db)
     assert settings.company_name == "DACHKONZEPTE Rödchen GmbH"
     assert float(settings.default_vat_rate) == 19.0

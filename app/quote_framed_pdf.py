@@ -40,7 +40,7 @@ from .document_pdf import (
     build_styles, money, money_bare, ptext, qty,
 )
 from .projects import quote_to_dict
-from .settings import get_or_create_general_settings
+from .settings import load_general_settings
 
 # Menge/EH/EP/GP wie bei Auftrag/Rechnung (order_pdf.py/invoice_pdf.py) -- "Leistung" nimmt den
 # Rest der tatsächlich konfigurierten Satzspiegelbreite auf (CLAUDE.md "Positionstabelle:
@@ -353,7 +353,7 @@ def build_quote_framed_pdf(db, quote, *, watermark_text: str | None = None) -> b
     """watermark_text (seit 1.8.32): nur für das Angebot als Anlage eines Vertrags mit ungeprüfter
     Vorlage (app/contract_pdf.py) -- das Wasserzeichen steht dort auf jeder Seite."""
     data = quote_to_dict(quote)
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     customer = quote.project.customer
     property_obj = quote.project.property
     styles = build_styles()

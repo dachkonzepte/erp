@@ -5,7 +5,7 @@ from sqlalchemy import select
 from app.maintenance_contracts import (
     _next_window_opening, _window_close_date, check_due_contracts_and_create_reminders, create_contract,
     create_contract_item, create_project_from_contract, create_window, delete_contract, delete_contract_item,
-    delete_window, get_or_create_maintenance_settings, list_contracts, set_item_archived,
+    delete_window, load_maintenance_settings, list_contracts, set_item_archived,
 )
 from app.models import (
     Customer, MaintenanceContractItem, MaintenanceWindow, Order, Project, ProjectProfile,
@@ -25,7 +25,7 @@ def _enable_roof_area_items(db):
     """Seit 1.2.19 ist create_contract_item() nur erlaubt, wenn MaintenanceSettings.
     use_roof_area_items an ist (Default aus) -- diese Datei testet gezielt das
     Positionen-Verhalten, braucht den Schalter also explizit an."""
-    settings = get_or_create_maintenance_settings(db)
+    settings = load_maintenance_settings(db)
     settings.use_roof_area_items = True
     db.commit()
 

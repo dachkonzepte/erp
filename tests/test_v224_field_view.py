@@ -14,7 +14,7 @@ from starlette.requests import Request
 
 from app.auth import COOKIE_NAME, hash_password
 from app.mobile_manifest import build_icon_png, build_manifest
-from app.mobile_settings import get_or_create_mobile_settings, is_past_shift_end, update_mobile_settings
+from app.mobile_settings import load_mobile_settings, is_past_shift_end, update_mobile_settings
 from app.models import (
     AppUser, Employee, PlanningSlot, Property, Team, WorkPreparation, WorkPreparationEmployee,
     WorkPreparationTeamAssignment, WorkPreparationTeamEmployee,
@@ -238,7 +238,7 @@ def test_field_view_today_logs_out_past_shift_end():
 
 def test_is_past_shift_end_before_and_after_configured_time():
     db = db_session()
-    settings = get_or_create_mobile_settings(db)
+    settings = load_mobile_settings(db)
     assert settings.shift_end_time == dt_time(19, 0)
     assert is_past_shift_end(settings, now=datetime(2026, 9, 10, 18, 59)) is False
     assert is_past_shift_end(settings, now=datetime(2026, 9, 10, 19, 0)) is True
@@ -249,7 +249,7 @@ def test_update_mobile_settings_round_trip():
     db = db_session()
     result = update_mobile_settings(db, dt_time(17, 30))
     assert result["shift_end_time"] == "17:30"
-    assert get_or_create_mobile_settings(db).shift_end_time == dt_time(17, 30)
+    assert load_mobile_settings(db).shift_end_time == dt_time(17, 30)
 
 
 # --- Web-App-Manifest / Icons -----------------------------------------------------------------
@@ -290,8 +290,8 @@ def test_build_icon_png_embeds_logo_when_present(tmp_path):
     company_logo.LOGO_ROOT = tmp_path / "logo"
     from PIL import Image as PILImage
     db = db_session()
-    from app.settings import get_or_create_general_settings
-    general = get_or_create_general_settings(db)
+    from app.settings import load_general_settings
+    general = load_general_settings(db)
     buf = io.BytesIO()
     PILImage.new("RGB", (40, 40), "red").save(buf, format="PNG")
     stored = company_logo.replace_logo(None, "logo.png", buf.getvalue())

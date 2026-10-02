@@ -21,7 +21,7 @@ from app.database import Base
 from app.models import EnabledModule, OperationalAsset
 from app.operational_assets import asset_field_dict, asset_qr_target_url, create_asset, update_asset
 from app.schemas import GeneralSettingsUpdate, OperationalAssetCreate
-from app.settings import get_or_create_general_settings
+from app.settings import load_general_settings
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -216,7 +216,7 @@ def test_qr_code_content_changes_when_public_base_url_is_configured(threaded_db_
 
     without_override = office.get(f"/api/operational-assets/{created['id']}/qr-code.png").content
 
-    settings = get_or_create_general_settings(db)
+    settings = load_general_settings(db)
     settings.public_base_url = "https://app.example.test"
     db.commit()
 

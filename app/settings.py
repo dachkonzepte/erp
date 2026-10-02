@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from .grunddaten import GrunddatenFehlen, einzelzeile
 from .berlin_time import berlin_now
 from .models import (
     CustomerProfile, GeneralSettings, Inquiry, NumberSequence, Project, Quote, Order,
@@ -20,22 +21,17 @@ DEFAULT_SEQUENCES = {
 }
 
 
-def get_or_create_general_settings(db: Session) -> GeneralSettings:
-    settings = db.get(GeneralSettings, 1)
-    if settings is None:
-        settings = GeneralSettings(id=1)
-        db.add(settings)
-        db.commit()
-        db.refresh(settings)
-    return settings
+def load_general_settings(db: Session) -> GeneralSettings:
+    """Nur lesen -- die Zeile legt app.grunddaten.anlegen() beim Start an (seit 1.8.42)."""
+    return einzelzeile(db, GeneralSettings)
 
 
 def get_accent_color(db: Session) -> str:
-    return get_or_create_general_settings(db).accent_color
+    return load_general_settings(db).accent_color
 
 
 def set_accent_color(db: Session, accent_color: str) -> str:
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     general.accent_color = accent_color
     db.commit()
     return general.accent_color
@@ -92,19 +88,30 @@ def _sync_from_existing(db: Session, sequence: NumberSequence) -> None:
         sequence.next_value = highest + 1
 
 
-def get_or_create_sequence(db: Session, sequence_key: str) -> NumberSequence:
+def load_sequence(db: Session, sequence_key: str) -> NumberSequence:
+    """Nur lesen -- die Nummernkreise legt app.grunddaten.anlegen() beim Start an (seit 1.8.42)."""
+    if sequence_key not in DEFAULT_SEQUENCES:
+        raise KeyError(f"Unbekannter Nummernkreis: {sequence_key}")
+    sequence = db.scalar(select(NumberSequence).where(NumberSequence.sequence_key == sequence_key))
+    if sequence is None:
+        raise GrunddatenFehlen(f"number_sequences: Nummernkreis {sequence_key} fehlt -- app.grunddaten.anlegen() "
+                               "ist beim Start nicht gelaufen oder gescheitert (siehe Log).")
+    return sequence
+
+
+def load_sequences(db: Session) -> list[NumberSequence]:
+    return [load_sequence(db, key) for key in DEFAULT_SEQUENCES]
+
+
+def _create_sequence(db: Session, sequence_key: str) -> None:
     """Gegen einen gleichzeitigen ersten Zugriff abgesichert (siehe CLAUDE.md "Self-Seeding
     gegen gleichzeitigen Zugriff absichern"): der Anlegeversuch läuft in einem SAVEPOINT --
     kollidiert er mit der UNIQUE-Verletzung auf sequence_key (ein anderer Prozess war
-    zwischen dem obigen SELECT und hier schneller), wird die inzwischen von ihm angelegte
-    Zeile erneut gelesen und wie ein bereits bestehender Nummernkreis behandelt (inkl.
-    _sync_from_existing())."""
-    sequence = db.scalar(select(NumberSequence).where(NumberSequence.sequence_key == sequence_key))
-    if sequence is not None:
-        return sequence
-    default = DEFAULT_SEQUENCES.get(sequence_key)
-    if default is None:
-        raise KeyError(f"Unbekannter Nummernkreis: {sequence_key}")
+    zwischen dem obigen SELECT und hier schneller), gilt das als "schon angelegt".
+    Ein neuer Nummernkreis übernimmt die höchste schon vergebene Nummer (_sync_from_existing())."""
+    if db.scalar(select(NumberSequence.id).where(NumberSequence.sequence_key == sequence_key)) is not None:
+        return
+    default = DEFAULT_SEQUENCES[sequence_key]
     year = berlin_now().year
     try:
         with db.begin_nested():
@@ -120,15 +127,16 @@ def get_or_create_sequence(db: Session, sequence_key: str) -> NumberSequence:
             db.add(sequence)
             db.flush()
     except IntegrityError:
-        sequence = db.scalar(select(NumberSequence).where(NumberSequence.sequence_key == sequence_key))
-        assert sequence is not None  # der andere Prozess muss die Zeile inzwischen committet haben
-        return sequence
+        return
     _sync_from_existing(db, sequence)
-    return sequence
+    db.flush()
 
 
-def ensure_default_sequences(db: Session) -> list[NumberSequence]:
-    return [get_or_create_sequence(db, key) for key in DEFAULT_SEQUENCES]
+def ensure_default_sequences(db: Session) -> None:
+    """Anlegeschritt von app.grunddaten.anlegen() (seit 1.8.42): flush, kein commit -- ein Commit gäbe dort
+    die Sperre frei. Lesepfade rufen das nicht mehr auf."""
+    for key in DEFAULT_SEQUENCES:
+        _create_sequence(db, key)
 
 
 def _apply_year_reset(sequence: NumberSequence) -> None:
@@ -139,7 +147,7 @@ def _apply_year_reset(sequence: NumberSequence) -> None:
 
 
 def preview_number(db: Session, sequence_key: str) -> str:
-    sequence = get_or_create_sequence(db, sequence_key)
+    sequence = load_sequence(db, sequence_key)
     _apply_year_reset(sequence)
     _sync_from_existing(db, sequence)
     db.flush()
@@ -147,7 +155,7 @@ def preview_number(db: Session, sequence_key: str) -> str:
 
 
 def issue_number(db: Session, sequence_key: str) -> str:
-    sequence = get_or_create_sequence(db, sequence_key)
+    sequence = load_sequence(db, sequence_key)
     _apply_year_reset(sequence)
     _sync_from_existing(db, sequence)
     value = format_sequence_number(sequence.format_pattern, sequence.next_value)
@@ -163,7 +171,7 @@ def update_sequence(
     validate_number_pattern(format_pattern)
     if start_value < 0 or next_value < 0:
         raise ValueError("Start- und nächste Nummer müssen größer oder gleich 0 sein.")
-    sequence = get_or_create_sequence(db, sequence_key)
+    sequence = load_sequence(db, sequence_key)
     sequence.format_pattern = format_pattern.strip()
     sequence.start_value = start_value
     sequence.next_value = next_value

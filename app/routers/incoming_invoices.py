@@ -19,7 +19,7 @@ from ..incoming_invoice_documents import (
 )
 from ..incoming_invoices import (
     MODULE_KEY, check_due_skonto_and_create_reminders, create_invoice, delete_invoice,
-    get_invoice, get_or_create_incoming_invoice_settings, incoming_invoice_settings_to_dict,
+    get_invoice, load_incoming_invoice_settings, incoming_invoice_settings_to_dict,
     list_invoices, open_liabilities_summary, remove_invoice_document, set_invoice_document,
     update_incoming_invoice_settings, update_invoice,
 )
@@ -151,7 +151,7 @@ def delete_incoming_invoice_document(invoice_id: int, db: Session = Depends(get_
 @router.get("/api/incoming-invoice-settings", response_model=IncomingInvoiceSettingsOut)
 def get_incoming_invoice_settings_endpoint(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
-    return incoming_invoice_settings_to_dict(get_or_create_incoming_invoice_settings(db))
+    return incoming_invoice_settings_to_dict(load_incoming_invoice_settings(db))
 
 
 @router.put("/api/incoming-invoice-settings", response_model=IncomingInvoiceSettingsOut)

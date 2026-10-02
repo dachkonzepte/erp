@@ -26,7 +26,7 @@ from .invoices import compute_invoice_totals, get_invoice, invoice_rounding
 from .models import Invoice, Reminder, ReminderLevel
 from .placeholders import apply_placeholders
 from .rounding import CENT
-from .settings import get_or_create_general_settings, issue_number
+from .settings import load_general_settings, issue_number
 
 
 def reminder_total(reminder: Reminder) -> Decimal:
@@ -70,7 +70,9 @@ def ensure_default_reminder_levels(db: Session) -> None:
     Rührt bestehende Stufen nicht an. Die vorgeschlagenen Fristen, Gebühren
     und Texte sind ein Startpunkt, keine Rechtsberatung -- insbesondere die
     Höhe zulässiger Mahngebühren und der genaue Wortlaut bitte vor
-    Verwendung mit einem Steuerberater/Rechtsanwalt abgleichen."""
+    Verwendung mit einem Steuerberater/Rechtsanwalt abgleichen.
+    Anlegeschritt von app.grunddaten.anlegen() (seit 1.8.42): flush, kein commit -- ein Commit gäbe dort
+    die Sperre frei. Lesepfade rufen das nicht mehr auf."""
     if db.scalar(select(ReminderLevel.id).limit(1)) is not None:
         return
     for level, label, days, fee, text in DEFAULT_REMINDER_LEVELS:
@@ -78,7 +80,7 @@ def ensure_default_reminder_levels(db: Session) -> None:
             level=level, label=label, days_after_previous_step=days,
             fee_amount=fee, text_template=text, active=True, sort_order=level * 10,
         ))
-    db.commit()
+    db.flush()
 
 
 def list_reminder_levels(db: Session) -> list[ReminderLevel]:
@@ -331,11 +333,11 @@ def list_all_reminders(db: Session) -> list[Reminder]:
 
 
 def get_reminder_auto_create_setting(db: Session) -> bool:
-    return get_or_create_general_settings(db).reminders_auto_create_drafts
+    return load_general_settings(db).reminders_auto_create_drafts
 
 
 def set_reminder_auto_create_setting(db: Session, enabled: bool) -> bool:
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     general.reminders_auto_create_drafts = enabled
     db.commit()
     return general.reminders_auto_create_drafts

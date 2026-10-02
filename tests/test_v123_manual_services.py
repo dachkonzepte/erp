@@ -3,7 +3,7 @@ from decimal import Decimal
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.calculation import build_calculation, get_or_create_settings
+from app.calculation import build_calculation, load_calculation_settings
 from app.catalogs import create_catalog
 from app.database import Base
 from app.models import ImportBatch, Material, MaterialCalculationOverride, Service, ServiceCalculation, ServiceMaterial
@@ -64,7 +64,7 @@ def test_manual_service_with_manual_sale_price_has_zero_delta():
     db.commit()
     db.refresh(service)
 
-    settings = get_or_create_settings(db)
+    settings = load_calculation_settings(db)
     calc = build_calculation(service, settings)
     assert calc["effective_sale_price"] == Decimal("50.00")
     assert calc["delta_to_source"] == Decimal("0")

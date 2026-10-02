@@ -3,7 +3,7 @@ from decimal import Decimal
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from app.calculation import build_calculation, get_or_create_settings, get_settings_for_catalog
+from app.calculation import build_calculation, load_calculation_settings, get_settings_for_catalog
 from app.catalogs import backfill_existing_services, create_catalog, ensure_import_catalog, list_catalogs, set_catalog_archived
 from app.database import Base
 from app.importers.leistungen_dach import ParsedMaterial, ParsedProject, ParsedService
@@ -67,10 +67,10 @@ def test_backfill_works_normally_once_column_exists():
     assert result == 1
 
 
-def test_get_or_create_settings_raises_clear_error_when_migration_not_yet_applied():
+def test_load_calculation_settings_raises_clear_error_when_migration_not_yet_applied():
     # Genau der Fehler, der nach 1.0.18 real aufgetreten ist ("Einstellungen
     # konnten nicht geladen werden"): die Einstellungsseite ruft
-    # get_or_create_settings() auf, das seit 1.0.17 nach catalog_id IS NULL
+    # get_or_create_settings() (seit 1.8.42 load_calculation_settings()) auf, das seit 1.0.17 nach catalog_id IS NULL
     # sucht -- auf einer noch nicht migrierten echten Datenbank gibt es diese
     # Spalte in calculation_settings aber noch gar nicht. Ein ORM-Fallback ist
     # hier NICHT möglich (anders als bei backfill_existing_services): jede
@@ -85,7 +85,7 @@ def test_get_or_create_settings_raises_clear_error_when_migration_not_yet_applie
     db.commit()
 
     try:
-        get_or_create_settings(db)
+        load_calculation_settings(db)
         assert False, "sollte RuntimeError auslösen"
     except RuntimeError as exc:
         assert "Migration" in str(exc) or "migriert" in str(exc)
@@ -162,7 +162,7 @@ def test_service_without_own_catalog_settings_uses_global_fallback():
     db = db_session()
     catalog = create_catalog(db, "Katalog ohne eigene Kalkulation", None)
     service = make_imported_service(db, catalog_id=catalog.id)
-    global_settings = get_or_create_settings(db)
+    global_settings = load_calculation_settings(db)
     global_settings.labor_rate = Decimal("82.00")
     db.commit()
     resolved = get_settings_for_catalog(db, service.catalog_id)
@@ -183,7 +183,7 @@ def test_service_with_own_catalog_settings_uses_those_not_global():
 
     # Wirkt sich tatsächlich auf die Kalkulation aus, nicht nur auf den gelesenen Datensatz:
     calc_with_own = build_calculation(service, resolved)
-    calc_with_global = build_calculation(service, get_or_create_settings(db))
+    calc_with_global = build_calculation(service, load_calculation_settings(db))
     assert calc_with_own["effective_sale_price"] != calc_with_global["effective_sale_price"]
 
 

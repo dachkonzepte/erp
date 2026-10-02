@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import require_admin
-from ..email_sending import get_or_create_smtp_settings
-from ..outlook_calendar_sync import get_or_create_outlook_sync_settings, update_outlook_sync_settings
+from ..email_sending import load_smtp_settings
+from ..outlook_calendar_sync import load_outlook_sync_settings, update_outlook_sync_settings
 from ..schemas import OutlookSyncSettingsOut, OutlookSyncSettingsUpdate
 
 router = APIRouter()
@@ -21,8 +21,8 @@ _ADMIN_MESSAGE = "Die Outlook-Kalendersynchronisation ist nur für Administrator
 
 
 def _to_out(db: Session) -> OutlookSyncSettingsOut:
-    s = get_or_create_outlook_sync_settings(db)
-    smtp = get_or_create_smtp_settings(db)
+    s = load_outlook_sync_settings(db)
+    smtp = load_smtp_settings(db)
     graph_configured = bool(smtp.graph_tenant_id and smtp.graph_client_id and smtp.graph_client_secret_encrypted)
     return OutlookSyncSettingsOut(enabled=s.enabled, graph_configured=graph_configured)
 

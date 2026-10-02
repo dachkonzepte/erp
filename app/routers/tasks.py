@@ -24,7 +24,7 @@ from ..schemas import (
 )
 from ..tasks import (
     add_checklist_item, claim_task, create_task, delete_checklist_item, delete_task,
-    get_or_create_task_settings, list_tasks_for_user, release_task, set_task_archived,
+    load_task_settings, list_tasks_for_user, release_task, set_task_archived,
     task_visible_for_user, update_checklist_item, update_task, update_task_settings,
 )
 from ..models import AppUser, Task
@@ -203,7 +203,7 @@ def delete_checklist_item_endpoint(task_id: int, item_id: int, db: Session = Dep
 @router.get("/api/task-settings", response_model=TaskSettingsOut)
 def get_task_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
-    return get_or_create_task_settings(db)
+    return load_task_settings(db)
 
 
 @router.put("/api/task-settings", response_model=TaskSettingsOut)

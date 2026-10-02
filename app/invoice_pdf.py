@@ -11,7 +11,7 @@ from .document_pdf import (
     build_styles, money, money_bare, ptext, qty,
 )
 from .invoices import invoice_to_dict, visible_items
-from .settings import get_or_create_general_settings
+from .settings import load_general_settings
 
 INVOICE_TYPE_LABELS = {
     "abschlag_pauschal": "Abschlagsrechnung",
@@ -60,7 +60,7 @@ ITEMS_COL_WIDTHS_MM = {"position": 18, "menge": 20, "eh": 14, "ep": 20, "betrag"
 
 def build_invoice_pdf(db, invoice) -> bytes:
     data = invoice_to_dict(invoice)
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     label = INVOICE_TYPE_LABELS.get(data["invoice_type"], "Rechnung")
     styles = build_styles()
     body, small, h1 = styles["body"], styles["small"], styles["h1"]

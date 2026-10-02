@@ -8,7 +8,7 @@ from app.company_logo import LOGO_ROOT, delete_logo, logo_path, replace_logo
 from app.database import Base
 from app.document_layout import (
     DEFAULT_SHARED_LAYOUT,
-    ensure_default_layout,
+    load_layout,
     get_background,
     list_layout_blocks,
     remove_background,
@@ -26,7 +26,7 @@ def db_session():
 
 
 # ---------------------------------------------------------------------------
-# ensure_default_layout / list_layout_blocks
+# load_layout / list_layout_blocks
 # ---------------------------------------------------------------------------
 
 def test_ensure_default_layout_seeds_shared_defaults_for_every_document_type():
@@ -39,7 +39,7 @@ def test_ensure_default_layout_seeds_shared_defaults_for_every_document_type():
     db = db_session()
     expected_block_types = {row[0] for row in DEFAULT_SHARED_LAYOUT}
     for doc_type in ("order", "invoice", "reminder", "service_report", "quote"):
-        blocks = ensure_default_layout(db, doc_type)
+        blocks = load_layout(db, doc_type)
         assert {b.block_type for b in blocks} == expected_block_types
         assert all(b.document_type == "default" for b in blocks)
 
@@ -49,7 +49,7 @@ def test_ensure_default_layout_logo_hidden_by_default():
     deshalb unsichtbar vorbelegt sein, sonst zeichnet der spätere Renderer
     eine leere Fläche."""
     db = db_session()
-    blocks = ensure_default_layout(db, "default")
+    blocks = load_layout(db, "default")
     logo_block = [b for b in blocks if b.block_type == "logo"][0]
     assert logo_block.visible is False
 
@@ -57,7 +57,7 @@ def test_ensure_default_layout_logo_hidden_by_default():
 def test_ensure_default_layout_rejects_unknown_document_type():
     db = db_session()
     try:
-        ensure_default_layout(db, "gutschrift")
+        load_layout(db, "gutschrift")
         assert False, "hätte ValueError werfen müssen"
     except ValueError:
         pass
@@ -65,20 +65,20 @@ def test_ensure_default_layout_rejects_unknown_document_type():
 
 def test_ensure_default_layout_does_not_duplicate_on_second_call():
     db = db_session()
-    ensure_default_layout(db, "default")
-    ensure_default_layout(db, "default")
+    load_layout(db, "default")
+    load_layout(db, "default")
     assert len(list_layout_blocks(db, "default")) == len(DEFAULT_SHARED_LAYOUT)
 
 
 def test_ensure_default_layout_preserves_existing_edits():
     db = db_session()
-    blocks = ensure_default_layout(db, "default")
+    blocks = load_layout(db, "default")
     header = [b for b in blocks if b.block_type == "company_header"][0]
     update_layout_block(
         db, header, x_mm=Decimal("20"), y_mm=Decimal("20"), width_mm=Decimal("170"), height_mm=Decimal("30"),
         content=None, font_size=Decimal("11"), font_weight="bold", text_align="center", visible=True,
     )
-    ensure_default_layout(db, "default")  # darf die Bearbeitung nicht zurücksetzen
+    load_layout(db, "default")  # darf die Bearbeitung nicht zurücksetzen
     reloaded = [b for b in list_layout_blocks(db, "default") if b.block_type == "company_header"][0]
     assert reloaded.x_mm == Decimal("20")
     assert reloaded.font_weight == "bold"
@@ -90,7 +90,7 @@ def test_ensure_default_layout_preserves_existing_edits():
 
 def test_update_layout_block_changes_position_and_style():
     db = db_session()
-    blocks = ensure_default_layout(db, "default")
+    blocks = load_layout(db, "default")
     footer = [b for b in blocks if b.block_type == "footer_text"][0]
     updated = update_layout_block(
         db, footer, x_mm=Decimal("50"), y_mm=Decimal("200"), width_mm=Decimal("100"), height_mm=Decimal("15"),
@@ -107,7 +107,7 @@ def test_update_layout_block_ignores_content_for_predefined_blocks():
     (deren Inhalt aus den echten Dokumentdaten kommt) darf ein versehentlich mitgeschickter
     content-Wert nichts bewirken."""
     db = db_session()
-    blocks = ensure_default_layout(db, "default")
+    blocks = load_layout(db, "default")
     header = [b for b in blocks if b.block_type == "company_header"][0]
     updated = update_layout_block(
         db, header, x_mm=header.x_mm, y_mm=header.y_mm, width_mm=header.width_mm, height_mm=header.height_mm,
@@ -127,7 +127,7 @@ def test_reset_layout_restores_defaults_after_an_edit():
     entfernt worden (CLAUDE.md "Gemeinsamer Dokumenttyp"), bleibt deshalb hier auf den
     predefined-Bausteinen selbst geprüft."""
     db = db_session()
-    blocks = ensure_default_layout(db, "default")
+    blocks = load_layout(db, "default")
     header = [b for b in blocks if b.block_type == "company_header"][0]
     update_layout_block(
         db, header, x_mm=Decimal("99"), y_mm=Decimal("99"), width_mm=Decimal("50"), height_mm=Decimal("10"),

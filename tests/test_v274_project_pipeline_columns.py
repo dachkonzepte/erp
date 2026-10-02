@@ -69,8 +69,10 @@ def test_default_pipeline_column_id_is_the_lowest_sort_order_column(db_session):
     assert first.key == "neu"
 
 
-def test_default_pipeline_column_id_self_seeds_on_a_completely_empty_table(db_session):
-    assert db_session.query(ProjectPipelineColumn).count() == 0
+def test_default_pipeline_column_id_reads_the_start_columns(db_session):
+    """Bis 1.8.41 legte default_pipeline_column_id() die Startspalten auf einer leeren Tabelle selbst an. Seit
+    1.8.42 legt sie app.grunddaten.anlegen() beim Start an (in Tests create_all()), die Funktion liest nur."""
+    assert db_session.query(ProjectPipelineColumn).count() == 4
     column_id = default_pipeline_column_id(db_session)
     assert db_session.query(ProjectPipelineColumn).count() == 4
     assert db_session.get(ProjectPipelineColumn, column_id).key == "neu"

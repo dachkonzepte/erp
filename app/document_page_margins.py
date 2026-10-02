@@ -12,7 +12,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .document_type_fallback import resolve_shared_document_type
+from .document_type_fallback import SHARED_DOCUMENT_TYPE, resolve_shared_document_type
+from .grunddaten import GrunddatenFehlen
 from .models import DocumentPageMargins
 
 PAGE_TYPES = {"first", "continuation"}
@@ -67,63 +68,57 @@ def _validate_page_type(page_type: str) -> None:
         raise ValueError(f"Unbekannter Seitentyp: {page_type}")
 
 
-def ensure_default_margins(db: Session, document_type: str, page_type: str) -> DocumentPageMargins:
-    """Legt beim ersten Aufruf die Standardwerte an (siehe DEFAULT_MARGINS). Rührt eine bereits
-    bestehende Einstellung nicht an.
-
-    LESEND mit Rückfall (seit 1.3.6): existiert für document_type selbst keine eigene Zeile (der
-    Normalfall für jeden Typ außer "quote"), wird stattdessen die Zeile des geteilten Satzes
-    (SHARED_DOCUMENT_TYPE) gelesen bzw. bei Bedarf dort neu angelegt -- siehe
-    app/document_type_fallback.py. update_margins()/reset_margins_to_default() nutzen das
-    bewusst NICHT (siehe dort), damit ein Schreibzugriff nie versehentlich die geteilte Zeile
-    statt einer eigenen trifft.
+def ensure_default_margins(db: Session) -> None:
+    """Legt die Ränder des geteilten Satzes (SHARED_DOCUMENT_TYPE) für jeden Seitentyp an, wo sie
+    fehlen (Standardwerte siehe DEFAULT_MARGINS). Rührt eine bereits bestehende Einstellung nicht an.
+    Anlegeschritt von app.grunddaten.anlegen() (seit 1.8.42): flush, kein commit -- bis 1.8.41 legte
+    der erste Lesezugriff die Zeile an und committete dabei, auch beim Rendern unter einer Zeilensperre.
 
     Gegen einen gleichzeitigen ersten Zugriff abgesichert (siehe CLAUDE.md "Self-Seeding gegen
     gleichzeitigen Zugriff absichern"): kollidiert der INSERT mit der UNIQUE-Verletzung auf
-    (document_type, page_type) (ein anderer Prozess war zwischen dem obigen SELECT und hier
-    schneller), wird die inzwischen von ihm angelegte Zeile erneut gelesen und zurückgegeben,
-    statt einen Fehler zu werfen."""
+    (document_type, page_type), gilt das als "schon angelegt"."""
+    for page_type in sorted(PAGE_TYPES):
+        exists = db.scalar(select(DocumentPageMargins.id).where(
+            DocumentPageMargins.document_type == SHARED_DOCUMENT_TYPE, DocumentPageMargins.page_type == page_type,
+        ))
+        if exists is not None:
+            continue
+        defaults = _default_margin_values(SHARED_DOCUMENT_TYPE, page_type)
+        try:
+            with db.begin_nested():
+                db.add(DocumentPageMargins(
+                    document_type=SHARED_DOCUMENT_TYPE, page_type=page_type,
+                    top_mm=defaults["top"], bottom_mm=defaults["bottom"], left_mm=defaults["left"], right_mm=defaults["right"],
+                ))
+                db.flush()
+        except IntegrityError:
+            continue
+
+
+def get_margins(db: Session, document_type: str, page_type: str) -> DocumentPageMargins:
+    """Die Ränder, die für diesen Dokumenttyp und Seitentyp gelten -- nur lesen.
+
+    Mit Rückfall (seit 1.3.6): existiert für document_type selbst keine eigene Zeile (der
+    Normalfall für jeden Dokumenttyp), gilt die Zeile des geteilten Satzes (SHARED_DOCUMENT_TYPE) --
+    siehe app/document_type_fallback.py. update_margins()/reset_margins_to_default() nutzen das
+    bewusst NICHT (siehe dort), damit ein Schreibzugriff nie versehentlich die geteilte Zeile
+    statt einer eigenen trifft. Die Zeilen des geteilten Satzes legt app.grunddaten.anlegen() beim
+    Start an (seit 1.8.42)."""
     _validate_page_type(page_type)
     effective_type = resolve_shared_document_type(db, DocumentPageMargins, document_type, DocumentPageMargins.page_type == page_type)
     row = db.scalar(
         select(DocumentPageMargins)
         .where(DocumentPageMargins.document_type == effective_type, DocumentPageMargins.page_type == page_type)
     )
-    if row is not None:
-        return row
-    defaults = _default_margin_values(effective_type, page_type)
-    try:
-        with db.begin_nested():
-            row = DocumentPageMargins(
-                document_type=effective_type, page_type=page_type,
-                top_mm=defaults["top"], bottom_mm=defaults["bottom"], left_mm=defaults["left"], right_mm=defaults["right"],
-            )
-            db.add(row)
-            db.flush()
-    except IntegrityError:
-        row = db.scalar(
-            select(DocumentPageMargins)
-            .where(DocumentPageMargins.document_type == effective_type, DocumentPageMargins.page_type == page_type)
-        )
-        assert row is not None  # der andere Prozess muss die Zeile inzwischen committet haben
-        return row
-    db.commit()
-    db.refresh(row)
+    if row is None:
+        raise GrunddatenFehlen(f"document_page_margins: Ränder {effective_type}/{page_type} fehlen -- "
+                               "app.grunddaten.anlegen() ist beim Start nicht gelaufen oder gescheitert (siehe Log).")
     return row
-
-
-def get_margins(db: Session, document_type: str, page_type: str) -> DocumentPageMargins:
-    """Wie ensure_default_margins() -- eigener Name für Aufrufstellen, bei
-    denen es nur ums Lesen (nicht ums bewusste Anlegen) geht; verhält sich
-    aber identisch, da ein Lesezugriff ohne vorhandene Zeile ohnehin die
-    Standardwerte anlegen soll, damit der Renderer immer einen gültigen
-    Wert bekommt."""
-    return ensure_default_margins(db, document_type, page_type)
 
 
 def update_margins(db: Session, document_type: str, page_type: str, *, top_mm: Decimal, bottom_mm: Decimal, left_mm: Decimal, right_mm: Decimal) -> DocumentPageMargins:
     """Schreibt IMMER auf die Zeile mit exakt diesem document_type -- bewusst OHNE den Rückfall
-    aus ensure_default_margins(), sonst würde ein Aufruf mit einem echten Dokumenttyp ohne eigene
+    aus get_margins(), sonst würde ein Aufruf mit einem echten Dokumenttyp ohne eigene
     Zeile (z.B. "invoice") lautlos die geteilte Zeile verändern statt eine eigene für "invoice"
     anzulegen. Die schreibenden Endpunkte lassen dafür ohnehin nur noch "quote" und
     SHARED_DOCUMENT_TYPE durch (siehe _validate_writable_document_type() in

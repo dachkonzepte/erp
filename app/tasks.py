@@ -16,10 +16,10 @@ from datetime import date, datetime
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session, selectinload
 
+from .grunddaten import einzelzeile
 from .audit import TASK_ENTITY_TYPE, record_audit_entry
 from .models import AppUser, Employee, Task, TaskChecklistItem, TaskColumn, TaskSettings
 from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLES, has_min_role, has_role
-from .task_columns import ensure_default_columns
 
 PRIORITIES = ("niedrig", "normal", "hoch", "dringend")
 TASK_ALREADY_TAKEN = "Diese Aufgabe hat bereits jemand anderes übernommen."
@@ -30,7 +30,6 @@ def _employee_name(e: Employee | None) -> str | None:
 
 
 def _columns_by_key(db: Session) -> dict[str, TaskColumn]:
-    ensure_default_columns(db)
     return {c.key: c for c in db.scalars(select(TaskColumn)).all()}
 
 
@@ -236,18 +235,13 @@ def release_task(db: Session, task_id: int) -> dict | None:
     return task_to_dict(_load_task(db, task.id), _columns_by_key(db))
 
 
-def get_or_create_task_settings(db: Session) -> TaskSettings:
-    settings = db.get(TaskSettings, 1)
-    if settings is None:
-        settings = TaskSettings(id=1)
-        db.add(settings)
-        db.commit()
-        db.refresh(settings)
-    return settings
+def load_task_settings(db: Session) -> TaskSettings:
+    """Nur lesen -- die Zeile legt app.grunddaten.anlegen() beim Start an (seit 1.8.42)."""
+    return einzelzeile(db, TaskSettings)
 
 
 def update_task_settings(db: Session, notify_on_assignment: bool) -> TaskSettings:
-    settings = get_or_create_task_settings(db)
+    settings = load_task_settings(db)
     settings.notify_on_assignment = notify_on_assignment
     db.commit()
     return settings
@@ -267,7 +261,7 @@ def notify_task_assignment(db: Session, task: Task) -> None:
     ist dort jetzt sichtbar statt still verschluckt; die Aufgabe bleibt trotzdem gespeichert.
     Kein Parallelversand-Block: jede Zuweisung ist ein eigener Anlass."""
     from .email_dispatch import DispatchConflict, dispatch_email, new_dispatch_key
-    settings = get_or_create_task_settings(db)
+    settings = load_task_settings(db)
     if not settings.notify_on_assignment:
         return
     employee = task.assigned_employee

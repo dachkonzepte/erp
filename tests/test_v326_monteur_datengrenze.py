@@ -34,7 +34,7 @@ from fastapi import APIRouter, Depends, FastAPI
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from PIL import Image
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -127,6 +127,22 @@ OHNE_200 = {
 }
 # Für Monteure freigegeben, Antwort im Durchlauf leer -- jeweils mit Grund.
 LEER_ERLAUBT: dict[str, str] = {}
+
+# GET-Endpunkte, die heute noch in die Datenbank schreiben (seit 1.8.42): Route -> (Tabellen, Grund).
+# Darf nur kürzer werden -- ein neuer schreibender GET färbt test_kein_get_schreibt rot, ebenso ein
+# Eintrag, der nicht mehr (oder anders) schreibt.
+SCHREIBT_BEKANNT: dict[str, tuple[set[str], str]] = {
+    "/api/projects/{project_id}/quotes": (
+        {"quote_document_meta", "quote_item_layouts"},
+        "ensure_quote_structure() legt Meta und Positionslayout eines Angebots beim ersten Lesen an -- "
+        "POST /api/projects/{id}/quotes legt sie nicht an. Je Angebot, keine Grunddaten (1.8.42 gemeldet).",
+    ),
+    "/api/settings/number-sequences": (
+        {"number_sequences", "audit_logs"},
+        "preview_number() gleicht next_value mit schon vergebenen Nummern ab und setzt das Jahr zurück "
+        "(flush ohne commit), audit_logs ist der Protokolleintrag dazu (1.8.42 gemeldet).",
+    ),
+}
 
 
 def _verboten(key: str) -> bool:
@@ -236,9 +252,9 @@ def _monteur_welt(db: Session) -> dict:
 
     today = berlin_today()
     monteur = Employee(employee_number="M-1", first_name="Max", last_name="Monteur", job_title="Dachdecker",
-                       employee_group="angestellt", hourly_wage=Decimal("31.50"), weekly_hours=Decimal("40"), active=True)
+                       employee_group="gewerblich", hourly_wage=Decimal("31.50"), weekly_hours=Decimal("40"), active=True)
     kollege = Employee(employee_number="M-2", first_name="Karl", last_name="Kollege", job_title="Geselle",
-                       employee_group="angestellt", hourly_wage=Decimal("29.00"), weekly_hours=Decimal("40"), active=True)
+                       employee_group="gewerblich", hourly_wage=Decimal("29.00"), weekly_hours=Decimal("40"), active=True)
     db.add_all([monteur, kollege])
     db.flush()
     for nr, emp in enumerate((monteur, kollege), start=1):
@@ -443,9 +459,32 @@ def _wert(welt: dict, value):
     return welt[value[1:]] if isinstance(value, str) and value.startswith("@") else value
 
 
-def _durchlauf(db: Session, welt: dict, routers) -> dict:
-    client = _monteur_client(db, routers, welt["user_id"])
+# Schreibzugriff auf Cursor-Ebene -- zählt auch, was danach zurückgerollt wird (ein flush ohne commit).
+_SCHREIBEN = re.compile(r'^\s*(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+"?(\w+)', re.I)
+
+
+def _durchlauf(db: Session, welt: dict, routers, user_id: int | None = None) -> dict:
+    """Ruft jeden GET-Endpunkt unter /api/ auf, als welt["user_id"] (Monteur) oder user_id. Seit 1.8.42
+    merkt ein Datenbank-Listener je Route die Tabellen, in die der Aufruf schreibt ("schreibt")."""
+    client = _monteur_client(db, routers, user_id or welt["user_id"])
     ohne_wert, antworten = [], []
+    schreibt: dict[str, set] = {}
+    route_jetzt = [None]
+
+    def _schreiben_merken(conn, cursor, statement, params, context, executemany):
+        treffer = _SCHREIBEN.match(statement)
+        if treffer and route_jetzt[0]:
+            schreibt.setdefault(route_jetzt[0], set()).add(treffer.group(1))
+
+    event.listen(db.get_bind(), "before_cursor_execute", _schreiben_merken)
+    try:
+        _rundgang(client, welt, routers, ohne_wert, antworten, route_jetzt)
+    finally:
+        event.remove(db.get_bind(), "before_cursor_execute", _schreiben_merken)
+    return {"ohne_wert": ohne_wert, "antworten": antworten, "schreibt": schreibt}
+
+
+def _rundgang(client, welt: dict, routers, ohne_wert: list, antworten: list, route_jetzt: list) -> None:
     for router in routers:
         for route in router.routes:
             if not isinstance(route, APIRoute) or not route.path.startswith("/api/") or "GET" not in route.methods:
@@ -465,12 +504,15 @@ def _durchlauf(db: Session, welt: dict, routers) -> dict:
                     query[param.name] = _wert(welt, QUERY_WERTE[param.name])
             if any(v is None for v in werte.values()):
                 continue
-            response = client.get(route.path.format(**werte), params=query)
+            route_jetzt[0] = route.path
+            try:
+                response = client.get(route.path.format(**werte), params=query)
+            finally:
+                route_jetzt[0] = None
             is_json = response.headers.get("content-type", "").startswith("application/json")
             body = response.json() if response.status_code == 200 and is_json else None
             antworten.append({"route": route.path, "status": response.status_code, "json": is_json,
                               "monteur": _fuer_monteure_offen(route), "body": body})
-    return {"ohne_wert": ohne_wert, "antworten": antworten}
 
 
 @pytest.fixture(scope="module")
@@ -487,6 +529,52 @@ def durchlauf():
         with uhr_festhalten():
             welt = _monteur_welt(db)
             yield {"db": db, "welt": welt, **_durchlauf(db, welt, _routers_in_betriebsreihenfolge())}
+    finally:
+        db.close()
+        engine.dispose()
+
+
+def _buero_welt(db: Session) -> dict:
+    """Die Monteurswelt, dazu ein Admin-Konto und je ein Datensatz der Art, die PFAD_WERTE mit 1 anspricht
+    -- damit der Rundgang als Admin die Lesepfade auch mit Inhalt durchläuft."""
+    from app.contacts import create_contact
+    from app.invoices import create_schlussrechnung
+    from app.models import Quote, QuoteItem
+    from app.project_participants import add_participant
+    from app.tasks import create_task
+
+    welt = _monteur_welt(db)
+    admin = AppUser(username="admin", password_hash=hash_password("Passwort123"), display_name="Anna Admin",
+                    role="admin", active=True)
+    db.add(admin)
+    project = db.get(Project, welt["project_id"])
+    # Angebot wie POST /api/projects/{id}/quotes es anlegt (ohne Meta/Gliederung), dazu eine Position.
+    quote = Quote(quote_number="A-2026-0001", project_id=project.id, title="Dachsanierung", vat_rate=Decimal("19"))
+    db.add(quote)
+    db.flush()
+    db.add(QuoteItem(quote_id=quote.id, sort_order=10, position_number="1", short_text="Eindecken",
+                     quantity=Decimal("10"), unit="m²", unit_price=Decimal("50")))
+    db.commit()
+    create_schlussrechnung(db, db.get(Order, welt["order_id"]))
+    create_task(db, "Rückruf Kundin", project_id=project.id)
+    contact = create_contact(db, {"kind": "person", "first_name": "Petra", "last_name": "Plan"})
+    add_participant(db, project, contact, role="architekt_planer")
+    db.commit()
+    return {**welt, "admin_id": admin.id}
+
+
+@pytest.fixture(scope="module")
+def durchlauf_admin():
+    """Derselbe Rundgang als Admin (seit 1.8.42): der Monteur bekommt die meisten GET-Endpunkte mit 403,
+    bevor die Datenbank gefragt wird -- ob ein Lesepfad schreibt, zeigt erst ein Konto, das alles darf."""
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    db = sessionmaker(bind=engine)()
+    try:
+        with uhr_festhalten():
+            welt = _buero_welt(db)
+            yield {"db": db, "welt": welt,
+                   **_durchlauf(db, welt, _routers_in_betriebsreihenfolge(), user_id=welt["admin_id"])}
     finally:
         db.close()
         engine.dispose()
@@ -529,6 +617,28 @@ def test_keine_verbotenen_schluessel_in_monteur_antworten(durchlauf):
     gefunden, genutzt = _verstoesse(durchlauf["antworten"])
     assert gefunden == [], "\n".join(["Verbotene Schlüssel in Monteur-Antworten:", *gefunden])
     assert set(ERLAUBT_JE_ROUTE) - genutzt == set(), "Ausnahme greift nicht mehr -- aus ERLAUBT_JE_ROUTE streichen"
+
+
+def test_kein_get_schreibt(durchlauf, durchlauf_admin):
+    """Seit 1.8.42: ein GET-Aufruf schreibt nichts in die Datenbank -- weder als Monteur noch als Admin.
+    Grunddaten legt der Start an (app/grunddaten.py), nicht der erste Lesezugriff. Was heute noch schreibt,
+    steht mit Grund in SCHREIBT_BEKANNT; die Liste darf nur kürzer werden."""
+    schreibt: dict[str, set] = {}
+    for lauf in (durchlauf, durchlauf_admin):
+        for route, tabellen in lauf["schreibt"].items():
+            schreibt.setdefault(route, set()).update(tabellen)
+    neu = sorted(f"{route}: {', '.join(sorted(tabellen))}" for route, tabellen in schreibt.items()
+                 if SCHREIBT_BEKANNT.get(route, (set(),))[0] != tabellen)
+    assert neu == [], "\n".join(["GET-Aufrufe, die schreiben:", *neu])
+    veraltet = sorted(set(SCHREIBT_BEKANNT) - set(schreibt))
+    assert veraltet == [], f"Schreibt nicht mehr -- aus SCHREIBT_BEKANNT streichen: {veraltet}"
+
+
+def test_admin_durchlauf_ohne_serverfehler(durchlauf_admin):
+    """Ein 500 bräche den Aufruf ab, bevor er womöglich schreibt -- der Admin-Rundgang muss durchlaufen."""
+    fehler = sorted(f"{a['status']} {a['route']}" for a in durchlauf_admin["antworten"] if a["status"] >= 500)
+    assert fehler == []
+    assert sum(a["status"] == 200 for a in durchlauf_admin["antworten"]) > 180  # 1.8.42: 188
 
 
 def test_vertragsrouten_im_durchlauf_fuer_monteure_gesperrt(durchlauf):

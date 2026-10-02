@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.employees import apply_employee_payload, employee_to_dict, ensure_default_employee_functions
 from app.models import Employee, EmployeeFunction, EmployeeRoleSettings, QuoteEmployeeAssignment, SettingOption
-from app.option_settings import ensure_default_option_groups, get_option_group, default_option_value
+from app.option_settings import ensure_default_option_groups, get_option_group, default_option_value, load_option_groups
 from app.schemas import EmployeeCreate, CustomerCreate, ProjectCreate, QuoteCreate, QuoteDocumentMetaUpdate
 from app.main import create_customer, create_project, create_quote, update_quote_document_meta
 
@@ -20,7 +20,7 @@ def new_db():
 
 def test_generic_option_groups_have_units_texts_and_categories():
     db = new_db()
-    groups = {g.group_key: g for g in ensure_default_option_groups(db)}
+    groups = {g.group_key: g for g in load_option_groups(db)}
     assert {"units", "quote_payment_terms", "quote_intro_texts", "quote_outro_texts", "customer_categories"} <= set(groups)
     assert default_option_value(db, "units") == "Stück"
     assert default_option_value(db, "quote_payment_terms")

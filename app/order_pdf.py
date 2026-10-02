@@ -22,7 +22,7 @@ from .document_pdf import (
     build_styles, money, money_bare, ptext, qty,
 )
 from .orders import execution_period_text, order_to_dict
-from .settings import get_or_create_general_settings
+from .settings import load_general_settings
 
 # Feste Spaltenbreiten der Positionstabelle -- alle außer "Leistung" (siehe build_order_pdf():
 # leistung_width = content_width - ITEMS_FIXED_COLUMNS_WIDTH_MM, nimmt den kompletten Rest auf).
@@ -53,7 +53,7 @@ def _totals_table(rows: list[list[str]], content_width: float) -> Table:
 
 def build_order_pdf(db, order) -> bytes:
     data = order_to_dict(order, db)
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     styles = build_styles()
     body, small, h1, h2, h3 = styles["body"], styles["small"], styles["h1"], styles["h2"], styles["h3"]
 

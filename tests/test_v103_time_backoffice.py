@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.models import Employee
 from app.time_backoffice import (
-    get_or_create_time_settings, time_settings_dict, get_employee_payroll,
+    load_time_settings, time_settings_dict, get_employee_payroll,
     backoffice_summary, build_timesheet_pdf, build_time_csv, build_datev_export,
 )
 from app.time_tracking import create_manual_entry
@@ -33,7 +33,7 @@ def test_backoffice_summary_pdf_csv_and_datev_export():
     assert build_timesheet_pdf(db,date(2026,9,1),date(2026,9,30)).startswith(b"%PDF")
     assert b"Mitarbeiter" in build_time_csv(db,date(2026,9,1),date(2026,9,30))
     p=get_employee_payroll(db,emp.id);p.datev_personnel_number="14";db.commit()
-    ts=get_or_create_time_settings(db);ts.datev_target="lohn_gehalt";ts.datev_wage_type_site="200";ts.datev_wage_type_travel="201";db.commit()
+    ts=load_time_settings(db);ts.datev_target="lohn_gehalt";ts.datev_wage_type_site="200";ts.datev_wage_type_travel="201";db.commit()
     data,ext,warnings=build_datev_export(db,date(2026,9,1),date(2026,9,30))
     text=data.decode("utf-8-sig")
     assert ext=="csv" and "Personalnummer" in text and ";14;" not in text  # number is first field on data row
@@ -41,7 +41,7 @@ def test_backoffice_summary_pdf_csv_and_datev_export():
 
 
 def test_time_settings_default_and_backoffice_ui_structure():
-    db=db_session();row=get_or_create_time_settings(db);d=time_settings_dict(row)
+    db=db_session();row=load_time_settings(db);d=time_settings_dict(row)
     assert d["allow_manual_entries"] is True and d["allow_group_bookings"] is True
     root=Path(__file__).parents[1]
     html=(root/"app/templates/time_backoffice.html").read_text(encoding="utf-8")

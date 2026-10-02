@@ -312,11 +312,11 @@ def build_letter_content(db: Session, checklist: Checklist, spec: LetterKind, si
     """Alles, was im Brief steht, außer Briefpapier und Layout (eingefroren beim Erstellen). issuer_name (seit
     1.8.41): das Büro-Konto, das den Brief erstellt -- die Anzeige der Wiederaufnahme trägt "i. A." und diesen Namen
     statt der Unterschrift des Abschnitts Wegfall (signoff); "signature" bleibt als interner Bezug (Prüfsumme)."""
-    from .settings import get_or_create_general_settings
+    from .settings import load_general_settings
 
     order = _order(db, checklist)
     customer = _customer(order)
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     items, photos = _letter_fields(checklist, spec, signature)
     reservation_text = printable_reservation(db, spec.key, order.contract_basis)
     signature_field = next(f for f in checklist.template_version.fields if f.id == signature.template_field_id)

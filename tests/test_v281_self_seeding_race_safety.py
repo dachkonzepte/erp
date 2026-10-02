@@ -37,7 +37,14 @@ Ein before_flush-Hook auf Session 1 lässt -- beim ERSTEN eigenen Flush-Versuch 
 Funktion -- Session 2 dieselbe Funktion vollständig (inklusive commit) durchlaufen, BEVOR Session
 1s eigener Flush fortgesetzt wird. Session 1 kollidiert dadurch garantiert mit dem, was Session 2
 inzwischen committet hat -- deterministisch, ohne echtes Threading/Timing-Abhängigkeit, mit
-bereits im Projekt vorhandenen Mitteln (SQLAlchemys Event-System)."""
+bereits im Projekt vorhandenen Mitteln (SQLAlchemys Event-System).
+
+Seit 1.8.42 (app/grunddaten.py): die ensure_default_*()-Funktionen laufen nur noch als Schritte von
+anlegen() beim Start, in einer Transaktion hinter einer Sperre -- zwei Prozesse treffen sich dort gar
+nicht mehr im selben Schritt (test_v345_grunddaten.py, auch für die vier Sätze ohne UNIQUE und die
+Singletons). Die Schritte committen nicht mehr selbst. Der SAVEPOINT je Schritt bleibt als zweite
+Absicherung, und genau den prüft diese Datei weiter: die zweite Sitzung führt den Schritt aus und
+committet (= "ein anderer Prozess war schneller"), auf einer Datenbank ohne Grunddaten."""
 
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import sessionmaker
@@ -50,9 +57,10 @@ from app.database import Base
 from app.document_page_margins import ensure_default_margins
 from app.models import (
     DocumentCategory, DocumentPageMargins, EmployeeFunction, NumberSequence,
-    ProjectPipelineColumn, SettingOptionGroup, TaskColumn, WorkTimeBreakRule, WorkTimeModel,
+    ProjectPipelineColumn, SettingOptionGroup, TaskColumn, TimeBackofficeAdvancedSettings, WorkTimeBreakRule, WorkTimeModel,
     WorkTimeModelValidity,
 )
+from tests.grunddaten_schalter import ohne_grunddaten
 
 
 def _file_sessions(tmp_path):
@@ -60,7 +68,8 @@ def _file_sessions(tmp_path):
     tatsächliche, datenebenen-Interleaving-Simulation (siehe Moduldocstring)."""
     db_path = tmp_path / "race.db"
     engine = create_engine(f"sqlite:///{db_path}")
-    Base.metadata.create_all(engine)
+    with ohne_grunddaten():
+        Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
     return Session, Session()
 
@@ -78,8 +87,10 @@ def _race(db1, other_session_factory, seed_fn, *args, **kwargs):
             return
         fired["v"] = True
         seed_fn(db2, *args, **kwargs)
+        db2.commit()  # seit 1.8.42 committet der Schritt nicht selbst, sondern anlegen() am Ende
 
     result = seed_fn(db1, *args, **kwargs)
+    db1.commit()
     db2.close()
     return result
 
@@ -153,27 +164,23 @@ def test_ensure_default_margins_survives_concurrent_first_access(tmp_path):
     Dokumenttypen, die auf einer frischen Installation gleichzeitig zum ersten Mal gerendert
     werden."""
     Session, db1 = _file_sessions(tmp_path)
-    _race(db1, Session, ensure_default_margins, "reminder", "first")
+    _race(db1, Session, ensure_default_margins)
 
     check = Session()
-    rows = check.scalars(
-        select(DocumentPageMargins).where(
-            DocumentPageMargins.document_type == "default", DocumentPageMargins.page_type == "first"
-        )
-    ).all()
-    assert len(rows) == 1
+    rows = check.scalars(select(DocumentPageMargins).where(DocumentPageMargins.document_type == "default")).all()
+    assert sorted(r.page_type for r in rows) == ["continuation", "first"]
     check.close()
 
 
-def test_get_or_create_sequence_survives_concurrent_first_access(tmp_path):
+def test_ensure_default_sequences_survives_concurrent_first_access(tmp_path):
     """Beim Sweep gefunden -- höhere Tragweite als die übrigen (jede Dokumentnummer-Vergabe ruft
     das auf), aber die Race-Window betrifft nur den allerersten Aufruf je sequence_key."""
     Session, db1 = _file_sessions(tmp_path)
-    _race(db1, Session, settings_module.get_or_create_sequence, "quote")
+    _race(db1, Session, settings_module.ensure_default_sequences)
 
     check = Session()
-    rows = check.scalars(select(NumberSequence).where(NumberSequence.sequence_key == "quote")).all()
-    assert len(rows) == 1
+    keys = check.scalars(select(NumberSequence.sequence_key)).all()
+    assert sorted(keys) == sorted(settings_module.DEFAULT_SEQUENCES)
     check.close()
 
 
@@ -183,6 +190,9 @@ def test_ensure_default_work_time_models_survives_concurrent_first_access(tmp_pa
     Singleton-Einstellung -- alles muss als EINE Einheit kollidieren/gelingen, sonst blieben
     Modelle ohne ihre Gültigkeits-/Pausenzeilen zurück."""
     Session, db1 = _file_sessions(tmp_path)
+    # Wie in anlegen(): die Backoffice-Einstellung steht vor den Modellen (sie bekommt das Standardmodell).
+    db1.add(TimeBackofficeAdvancedSettings(id=1, datev_personnel_equals_erp_number=False))
+    db1.commit()
     _race(db1, Session, work_time_models.ensure_default_work_time_models)
 
     check = Session()
@@ -208,9 +218,9 @@ def test_seeding_still_works_without_any_race_for_option_groups(tmp_path):
     """Regressionsschutz: der ganz normale, unkollidierte Fall (kein zweiter Prozess) bleibt
     unverändert -- die Absicherung darf den Erfolgspfad nicht verändern."""
     Session, db1 = _file_sessions(tmp_path)
-    result = option_settings.ensure_default_option_groups(db1)
-    assert len(result) == len(option_settings.DEFAULT_OPTION_GROUPS)
+    option_settings.ensure_default_option_groups(db1)
+    assert len(option_settings.load_option_groups(db1)) == len(option_settings.DEFAULT_OPTION_GROUPS)
 
     # ein zweiter Aufruf auf derselben, bereits gesäten Session darf nichts mehr verändern
-    result_again = option_settings.ensure_default_option_groups(db1)
-    assert len(result_again) == len(option_settings.DEFAULT_OPTION_GROUPS)
+    option_settings.ensure_default_option_groups(db1)
+    assert len(option_settings.load_option_groups(db1)) == len(option_settings.DEFAULT_OPTION_GROUPS)

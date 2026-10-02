@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from .ai_adapters import _ADAPTERS, AIProviderAdapter
-from .ai_settings import get_or_create_ai_settings
+from .ai_settings import load_ai_settings
 from .ai_types import AIProviderError, AIProviderNotConfigured, AIProviderUnavailable, AIRequest, AIResponse
 from .models import AICallLog
 
@@ -71,7 +71,7 @@ async def call_ai_async(
 def _resolve_adapter(db: Session, adapter_override: AIProviderAdapter | None) -> AIProviderAdapter:
     if adapter_override is not None:
         return adapter_override
-    settings = get_or_create_ai_settings(db)
+    settings = load_ai_settings(db)
     if not settings.enabled or not settings.provider:
         raise AIProviderNotConfigured(
             "Keine KI konfiguriert -- der Normalzustand. Diese Funktion arbeitet ohne KI weiter."

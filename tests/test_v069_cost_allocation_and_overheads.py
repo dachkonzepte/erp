@@ -5,10 +5,10 @@ from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.calculation import get_or_create_settings
+from app.calculation import load_calculation_settings
 from app.database import Base
 from app.employees import employee_to_dict
-from app.labor_rate import calculate_labor_rate, get_or_create_labor_rate_settings, get_or_create_overhead_settings
+from app.labor_rate import calculate_labor_rate, load_labor_rate_settings, load_overhead_settings
 from app.models import Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings
 from app.schemas import EmployeeCreate
 
@@ -40,19 +40,19 @@ def add_employee(db, first, group, wage=None, salary=None, allocation="labor_rat
 
 def test_variable_overhead_employee_is_not_in_mean_wage_but_added_to_overhead():
     db = new_db()
-    params = get_or_create_labor_rate_settings(db)
+    params = load_labor_rate_settings(db)
     params.employer_cost_pct = Decimal("0")
     params.productive_time_pct = Decimal("100")
     params.target_profit_pct = Decimal("0")
     params.weeks_per_year = Decimal("52")
-    overhead = get_or_create_overhead_settings(db, params)
+    overhead = load_overhead_settings(db)
     overhead.fixed_overhead_mode = "eur"; overhead.fixed_overhead_value = Decimal("0")
     overhead.variable_overhead_mode = "eur"; overhead.variable_overhead_value = Decimal("0")
     add_employee(db, "Direkt", "gewerblich", wage=20, allocation="labor_rate")
     add_employee(db, "Büro", "kaufmaennisch", salary=3000, allocation="variable_overhead")
     db.commit()
 
-    result = calculate_labor_rate(db, get_or_create_settings(db))
+    result = calculate_labor_rate(db, load_calculation_settings(db))
     assert result["direct_employee_count"] == 1
     assert result["variable_overhead_employee_count"] == 1
     assert result["weighted_mean_wage"] == Decimal("20.00")
@@ -65,18 +65,18 @@ def test_variable_overhead_employee_is_not_in_mean_wage_but_added_to_overhead():
 
 def test_fixed_and_variable_overheads_can_be_percent_of_direct_labor_cost():
     db = new_db()
-    params = get_or_create_labor_rate_settings(db)
+    params = load_labor_rate_settings(db)
     params.employer_cost_pct = Decimal("0")
     params.productive_time_pct = Decimal("100")
     params.target_profit_pct = Decimal("0")
     params.weeks_per_year = Decimal("52")
-    overhead = get_or_create_overhead_settings(db, params)
+    overhead = load_overhead_settings(db)
     overhead.fixed_overhead_mode = "pct"; overhead.fixed_overhead_value = Decimal("10")
     overhead.variable_overhead_mode = "pct"; overhead.variable_overhead_value = Decimal("5")
     add_employee(db, "Direkt", "gewerblich", wage=20, allocation="labor_rate")
     db.commit()
 
-    result = calculate_labor_rate(db, get_or_create_settings(db))
+    result = calculate_labor_rate(db, load_calculation_settings(db))
     assert result["direct_labor_annual_cost"] == Decimal("41600.00")
     assert result["fixed_overhead_annual"] == Decimal("4160.00")
     assert result["manual_variable_overhead_annual"] == Decimal("2080.00")
@@ -87,18 +87,18 @@ def test_fixed_and_variable_overheads_can_be_percent_of_direct_labor_cost():
 
 def test_overhead_euro_mode_uses_annual_amounts():
     db = new_db()
-    params = get_or_create_labor_rate_settings(db)
+    params = load_labor_rate_settings(db)
     params.employer_cost_pct = Decimal("0")
     params.productive_time_pct = Decimal("100")
     params.target_profit_pct = Decimal("0")
     params.weeks_per_year = Decimal("52")
-    overhead = get_or_create_overhead_settings(db, params)
+    overhead = load_overhead_settings(db)
     overhead.fixed_overhead_mode = "eur"; overhead.fixed_overhead_value = Decimal("10000")
     overhead.variable_overhead_mode = "eur"; overhead.variable_overhead_value = Decimal("5000")
     add_employee(db, "Direkt", "gewerblich", wage=20, allocation="labor_rate")
     db.commit()
 
-    result = calculate_labor_rate(db, get_or_create_settings(db))
+    result = calculate_labor_rate(db, load_calculation_settings(db))
     assert result["fixed_overhead_annual"] == Decimal("10000.00")
     assert result["variable_overhead_annual"] == Decimal("5000.00")
     assert result["overhead_per_productive_hour"] == Decimal("7.21")

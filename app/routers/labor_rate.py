@@ -9,11 +9,11 @@ from fastapi import APIRouter
 from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from ..calculation import get_or_create_settings
+from ..calculation import load_calculation_settings
 from ..database import get_db
 from ..labor_rate import (
-    apply_recurring_cost_overhead_proposal, calculate_labor_rate, get_or_create_labor_rate_settings,
-    get_or_create_overhead_settings, labor_rate_settings_dict, recurring_cost_overhead_proposal,
+    apply_recurring_cost_overhead_proposal, calculate_labor_rate, load_labor_rate_settings,
+    load_overhead_settings, labor_rate_settings_dict, recurring_cost_overhead_proposal,
 )
 from ..models import AppUser
 from ..permissions import ROLE_OFFICE_FINANZEN, require_min_role
@@ -43,8 +43,8 @@ def get_labor_rate_settings(db: Session = Depends(get_db), _role: AppUser = _rol
 
 @router.put("/api/labor-rate-settings", response_model=LaborRateSettingsOut)
 def update_labor_rate_settings(payload: LaborRateSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    settings = get_or_create_labor_rate_settings(db)
-    overhead = get_or_create_overhead_settings(db, settings)
+    settings = load_labor_rate_settings(db)
+    overhead = load_overhead_settings(db)
     settings.employer_cost_pct = payload.employer_cost_pct
     settings.productive_time_pct = payload.productive_time_pct
     settings.target_profit_pct = payload.target_profit_pct
@@ -75,12 +75,12 @@ def update_labor_rate_settings(payload: LaborRateSettingsUpdate, db: Session = D
 
 @router.get("/api/labor-rate-calculation", response_model=LaborRateCalculationOut)
 def get_labor_rate_calculation(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    return LaborRateCalculationOut.model_validate(calculate_labor_rate(db, get_or_create_settings(db)))
+    return LaborRateCalculationOut.model_validate(calculate_labor_rate(db, load_calculation_settings(db)))
 
 
 @router.post("/api/labor-rate-calculation/apply", response_model=CalculationSettingsOut)
 def apply_labor_rate_calculation(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    calc_settings = get_or_create_settings(db)
+    calc_settings = load_calculation_settings(db)
     result = calculate_labor_rate(db, calc_settings)
     if not result["can_calculate"] or result["suggested_labor_rate"] is None:
         raise HTTPException(status_code=422, detail=result.get("note") or "Stundenverrechnungssatz kann nicht berechnet werden.")
@@ -117,7 +117,7 @@ def post_apply_productive_hours_settings(db: Session = Depends(get_db), _role: A
 @router.get("/api/recurring-cost-overhead-proposal", response_model=RecurringCostOverheadProposalOut)
 def get_recurring_cost_overhead_proposal(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return RecurringCostOverheadProposalOut.model_validate(
-        recurring_cost_overhead_proposal(db, get_or_create_settings(db))
+        recurring_cost_overhead_proposal(db, load_calculation_settings(db))
     )
 
 
@@ -125,5 +125,5 @@ def get_recurring_cost_overhead_proposal(db: Session = Depends(get_db), _role: A
 def post_apply_recurring_cost_overhead_proposal(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     apply_recurring_cost_overhead_proposal(db)
     return RecurringCostOverheadProposalOut.model_validate(
-        recurring_cost_overhead_proposal(db, get_or_create_settings(db))
+        recurring_cost_overhead_proposal(db, load_calculation_settings(db))
     )

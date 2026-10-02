@@ -11,7 +11,7 @@ from ..database import get_db
 from ..models import AppUser
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..tax_keys import (
-    create_tax_key, ensure_default_tax_keys, list_tax_keys,
+    create_tax_key, list_tax_keys,
     set_default_tax_key, set_tax_key_archived, update_tax_key,
 )
 from ..schemas import TaxKeyCreate, TaxKeyOut, TaxKeyUpdate
@@ -25,13 +25,11 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 @router.get("/api/tax-keys", response_model=list[TaxKeyOut])
 def get_tax_keys(include_archived: bool = False, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    ensure_default_tax_keys(db)
     return list_tax_keys(db, include_archived=include_archived)
 
 
 @router.post("/api/tax-keys", response_model=TaxKeyOut)
 def post_tax_key(payload: TaxKeyCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    ensure_default_tax_keys(db)
     return create_tax_key(db, payload.label, payload.vat_rate, payload.notice_text)
 
 

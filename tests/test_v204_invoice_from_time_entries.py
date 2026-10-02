@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
-from app.calculation import get_or_create_settings
+from app.calculation import load_calculation_settings
 from app.invoices import compute_invoice_totals, create_invoice_from_time_entries
 from app.models import Employee, TimeEntry
 from tests.test_v133_invoices import db_session, make_order_with_item
@@ -63,7 +63,7 @@ def test_groups_by_employee_and_activity_and_uses_labor_rate():
     assert invoice.status == "entwurf"
     assert len(invoice.items) == 3
 
-    rate = get_or_create_settings(db).labor_rate
+    rate = load_calculation_settings(db).labor_rate
     material_item = next(i for i in invoice.items if i.short_text == "Material besorgen")
     assert material_item.ist_quantity == Decimal("0.5")
     assert material_item.unit_price == rate
@@ -81,7 +81,7 @@ def test_invoice_totals_sum_all_items():
     order, _ = make_order_with_item(db)
     emp = make_employee(db)
     invoice = create_invoice_from_time_entries(db, order, [booking(order, emp, "4.0")], [])
-    rate = get_or_create_settings(db).labor_rate
+    rate = load_calculation_settings(db).labor_rate
     totals = compute_invoice_totals(invoice)
     assert totals["net_total"] == Decimal("4.0") * rate
 

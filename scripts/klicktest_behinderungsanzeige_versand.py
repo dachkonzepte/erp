@@ -66,14 +66,13 @@ def befuellen(db, k):
     from app.checklist_templates import publish_draft
     from app.checklists import add_attachment, create_checklist, save_answer
     from app.email_sending import update_smtp_settings
-    from app.labor_rate import get_or_create_labor_rate_settings, get_or_create_overhead_settings
     from app.models import (
         AppUser, ChecklistTemplate, Contact, Customer, Employee, Order, Project, Property, WorkPreparationEmployee,
     )
     from app.notice_reservations import update_reservation
     from app.project_participants import add_participant, store_power_of_attorney
     from app.project_pipeline_columns import default_pipeline_column_id
-    from app.settings import get_or_create_general_settings
+    from app.settings import load_general_settings
     from app.work_preparation import ensure_preparation
 
     with socket.socket() as s:
@@ -81,13 +80,9 @@ def befuellen(db, k):
         smtp_port = s.getsockname()[1]
     update_smtp_settings(db, host="127.0.0.1", port=smtp_port, username="buero", encryption="none",
                          sender_email="buero@klicktest.example", sender_name="Klicktest GmbH", password="pw")
-    get_or_create_general_settings(db).company_name = "Klicktest Dach GmbH"
-    # Wie klicktest_vertragsgrundlage.py: Singletons vorab, sonst alert() auf der Einstellungsseite (bekannte,
-    # offene Fehlerklasse "get_or_create_settings(id=1)", CLAUDE.md) -- dazu der Gemeinkosten-Singleton: GET
-    # /api/labor-rate-settings legt ihn sonst beim ersten Aufruf parallel zu labor-rate-calculation an, derselbe
-    # Wettlauf, zeitabhängig (1.8.40 Nebenbefund, auch am Stand 1.8.39).
-    get_or_create_labor_rate_settings(db)
-    get_or_create_overhead_settings(db)
+    load_general_settings(db).company_name = "Klicktest Dach GmbH"
+    # Bis 1.8.41 standen hier labor_rate_settings und die Gemeinkosten-Einstellung vorab (sonst alert() auf der
+    # Einstellungsseite, 1.8.40 Nebenbefund 4) -- seit 1.8.42 legt der Start der Instanz sie an.
     ma = {key: Employee(employee_number=nr, first_name=vor, last_name=nach, employee_group="gewerblich", active=True,
                         hourly_wage=Decimal("22.00"))
           for key, nr, vor, nach in (("mia", "E-1", "Mia", "Monteurin"), ("olga", "E-2", "Olga", "Office"))}

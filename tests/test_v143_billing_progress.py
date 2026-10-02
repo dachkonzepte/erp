@@ -157,10 +157,11 @@ def test_auftrag_mit_leicht_abweichender_schreibweise_findet_trotzdem_die_zahlun
     from app.payment_terms import create_payment_term
 
     db = db_session()
-    create_payment_term(db, "14 Tage netto", 14, skonto_percent=Decimal("2.00"), skonto_days=7)
+    # Nicht "14 Tage netto": die gibt es seit 1.8.42 schon als Standard-Bedingung (Grunddaten beim Start).
+    create_payment_term(db, "21 Tage netto", 21, skonto_percent=Decimal("2.00"), skonto_days=7)
     order, _ = make_order_with_item(db)
-    order.payment_terms = "14 Tage Netto"  # abweichende Groß-/Kleinschreibung
+    order.payment_terms = "21 Tage Netto"  # abweichende Groß-/Kleinschreibung
     db.commit()
     invoice = create_schlussrechnung(db, order)
-    assert invoice.due_date == invoice.invoice_date + timedelta(days=14)
+    assert invoice.due_date == invoice.invoice_date + timedelta(days=21)
     assert invoice.skonto_percent == Decimal("2.00")

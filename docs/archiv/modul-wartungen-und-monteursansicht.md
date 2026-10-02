@@ -734,7 +734,10 @@ jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
   noch nicht committeten Datensatz verwerfen. Deshalb ruft `create_invoice_from_time_entries()`
   diese Funktion ganz bewusst **vor** dem Anlegen der neuen `Invoice` auf, nicht danach – gilt
   als Vorsichtsmaßnahme für jede künftige Funktion, die `get_or_create_settings()` mit noch
-  ungesichertem Session-Zustand kombiniert, nicht nur für diese eine Stelle.
+  ungesichertem Session-Zustand kombiniert, nicht nur für diese eine Stelle. **Seit 1.8.42** heißt die
+  Funktion `load_calculation_settings()` und committet nicht mehr (Grunddaten beim Start,
+  `docs/archiv/grunddaten-beim-start.md`); die Schema-Introspektion bleibt und mit ihr die Reihenfolge --
+  1.8.42 erneut gesehen in `test_v052` (geflushte Werte auf `:memory:`-SQLite verworfen).
   - **Materialpositionen seit 1.2.23**: `create_invoice_from_time_entries()` bekommt einen
     neuen, dritten Parameter `materials: list[ServiceReportMaterial]` (Router lädt über die neue
     `list_materials_for_invoicing()` in `app/service_reports.py`, exakt dasselbe "Router lädt,

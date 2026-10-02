@@ -44,7 +44,7 @@ from ..operational_assets import (
     MODULE_KEY, LinkedRecurringCostHasDataError, asset_qr_target_url,
     check_due_asset_inspections_and_create_reminders, create_asset, create_asset_document, create_inspection,
     delete_asset, delete_asset_document, delete_inspection, get_asset, get_asset_field,
-    get_or_create_operational_asset_settings, list_assets, list_due_assets, list_selectable_assets,
+    load_operational_asset_settings, list_assets, list_due_assets, list_selectable_assets,
     operational_asset_settings_to_dict, remove_inspection_document, set_inspection_document,
     sync_asset_recurring_cost, update_asset, update_inspection, update_operational_asset_settings,
 )
@@ -57,7 +57,7 @@ from ..schemas import (
     OperationalAssetRecurringCostUpdate, OperationalAssetSettingsOut, OperationalAssetSettingsUpdate,
     OperationalAssetUpdate,
 )
-from ..settings import get_or_create_general_settings
+from ..settings import load_general_settings
 
 router = APIRouter()
 
@@ -76,7 +76,7 @@ def _resolve_public_base_url(request: Request, db: Session) -> str:
     Unternehmensstammdaten), falls hinterlegt, sonst die tatsächliche Anfrage-Adresse
     (request.base_url). NIE hartkodiert -- sonst zeigten alle Codes auf localhost/127.0.0.1,
     sobald die App nicht lokal aufgerufen wird."""
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     configured = (general.public_base_url or "").strip()
     if configured:
         return configured.rstrip("/")
@@ -332,7 +332,7 @@ def delete_operational_asset_document_endpoint(document_id: int, db: Session = D
 @router.get("/api/operational-asset-settings", response_model=OperationalAssetSettingsOut)
 def get_operational_asset_settings_endpoint(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
-    return operational_asset_settings_to_dict(get_or_create_operational_asset_settings(db))
+    return operational_asset_settings_to_dict(load_operational_asset_settings(db))
 
 
 @router.put("/api/operational-asset-settings", response_model=OperationalAssetSettingsOut)

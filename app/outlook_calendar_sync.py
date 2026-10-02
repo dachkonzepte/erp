@@ -321,8 +321,9 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select, update as sa_update
 from sqlalchemy.orm import Session
 
+from .grunddaten import einzelzeile
 from .auth import resolve_account_display
-from .email_sending import get_graph_access_token, get_or_create_smtp_settings
+from .email_sending import get_graph_access_token, load_smtp_settings
 from .models import AppUser, CalendarEvent, OutlookCalendarSyncState, OutlookSeriesOccurrence, OutlookSyncSettings
 
 logger = logging.getLogger("app.outlook_calendar_sync")
@@ -439,18 +440,13 @@ def _parse_graph_datetime(value: str) -> datetime:
 # ---------------------------------------------------------------------------
 
 
-def get_or_create_outlook_sync_settings(db: Session) -> OutlookSyncSettings:
-    settings = db.get(OutlookSyncSettings, 1)
-    if settings is None:
-        settings = OutlookSyncSettings(id=1)
-        db.add(settings)
-        db.commit()
-        db.refresh(settings)
-    return settings
+def load_outlook_sync_settings(db: Session) -> OutlookSyncSettings:
+    """Nur lesen -- die Zeile legt app.grunddaten.anlegen() beim Start an (seit 1.8.42)."""
+    return einzelzeile(db, OutlookSyncSettings)
 
 
 def update_outlook_sync_settings(db: Session, *, enabled: bool) -> OutlookSyncSettings:
-    settings = get_or_create_outlook_sync_settings(db)
+    settings = load_outlook_sync_settings(db)
     settings.enabled = enabled
     db.commit()
     db.refresh(settings)
@@ -462,10 +458,10 @@ def is_outlook_sync_available(db: Session, user: AppUser | None = None) -> bool:
     siehe OutlookSyncSettings-Klassendocstring) -- prüft, wenn user übergeben wird, zusätzlich
     dessen eigenes outlook_mailbox. Reicht als schnelle Vorprüfung (Muster
     app/modules.py::is_module_enabled()), ohne selbst schon Netzwerkzugriff auszulösen."""
-    settings = get_or_create_outlook_sync_settings(db)
+    settings = load_outlook_sync_settings(db)
     if not settings.enabled:
         return False
-    smtp = get_or_create_smtp_settings(db)
+    smtp = load_smtp_settings(db)
     if not (smtp.graph_tenant_id and smtp.graph_client_id and smtp.graph_client_secret_encrypted):
         return False
     if user is not None and not user.outlook_mailbox:
@@ -632,7 +628,7 @@ def push_event_best_effort(db: Session, event_id: int) -> None:
     diag = diagnostics_enabled()
     old_etag = event.outlook_etag  # vor jeder Mutation erfasst, für die Diagnosezeile
     try:
-        smtp = get_or_create_smtp_settings(db)
+        smtp = load_smtp_settings(db)
         token = get_graph_access_token(smtp)
         # Seit 1.7.6 (siehe Moduldocstring "Nachtrag"): bleibt UNVERÄNDERT -- reines Pushen ändert
         # am lokalen Termin selbst nichts, nur an Outlooks Kopie davon. outlook_event_id/
@@ -692,7 +688,7 @@ def try_delete_remote_event(db: Session, event: CalendarEvent) -> bool:
     if not is_outlook_sync_available(db, user):
         return True
     try:
-        smtp = get_or_create_smtp_settings(db)
+        smtp = load_smtp_settings(db)
         token = get_graph_access_token(smtp)
         _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{event.outlook_event_id}", method="DELETE")
         return True
@@ -1048,7 +1044,7 @@ def sync_user_calendar(db: Session, user: AppUser, *, now_utc: datetime | None =
         return {"skipped": True, **counters}
 
     state = get_or_create_sync_state(db, user)
-    smtp = get_or_create_smtp_settings(db)
+    smtp = load_smtp_settings(db)
     just_synced_ids: set[int] = set()
     diag = diagnostics_enabled()
 

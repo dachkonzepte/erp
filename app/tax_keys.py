@@ -34,12 +34,14 @@ def ensure_default_tax_keys(db: Session) -> None:
     an. Rührt bestehende Schlüssel nicht an -- kein Zurücksetzen bei jedem
     Start, nur eine einmalige Grundausstattung. Die Texte für §13b/Solar
     sind ein Startpunkt, keine Rechtsberatung -- bitte vor Verwendung mit
-    einem Steuerberater abgleichen."""
+    einem Steuerberater abgleichen.
+    Anlegeschritt von app.grunddaten.anlegen() (seit 1.8.42): flush, kein commit -- ein Commit gäbe dort
+    die Sperre frei. Lesepfade rufen das nicht mehr auf."""
     if db.scalar(select(TaxKey.id).limit(1)) is not None:
         return
     for sort_order, label, vat_rate, notice_text, is_default in DEFAULT_TAX_KEYS:
         db.add(TaxKey(label=label, vat_rate=vat_rate, notice_text=notice_text, is_default=is_default, sort_order=sort_order))
-    db.commit()
+    db.flush()
 
 
 def list_tax_keys(db: Session, *, include_archived: bool = False) -> list[TaxKey]:

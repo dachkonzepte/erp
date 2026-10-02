@@ -34,14 +34,14 @@ def befuellen(db, k):
     from decimal import Decimal
 
     from app.contract_templates import save_template
-    from app.labor_rate import get_or_create_labor_rate_settings
+    from app.labor_rate import load_labor_rate_settings
     from app.models import AppUser, Customer, Project, Quote, QuoteItem
     from app.orders import create_order_from_quote
     from app.project_pipeline_columns import default_pipeline_column_id
     from app.projects import ensure_quote_structure
 
     # Wie klicktest_vertragsgrundlage.py: Singleton vorab, sonst alert() auf der Einstellungsseite.
-    get_or_create_labor_rate_settings(db)
+    load_labor_rate_settings(db)
     db.commit()
 
     anna = AppUser(username="anna", display_name="Anna Admin", role="admin", password_hash=k.passwort())

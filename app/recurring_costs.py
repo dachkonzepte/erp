@@ -37,6 +37,7 @@ from decimal import Decimal
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session, selectinload
 
+from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
 from .date_utils import add_months
 from .modules import is_module_enabled
@@ -139,13 +140,9 @@ def is_cancellation_overdue(deadline: date | None, *, today: date | None = None)
     return deadline < today
 
 
-def get_or_create_recurring_cost_settings(db: Session) -> RecurringCostSettings:
-    settings = db.get(RecurringCostSettings, 1)
-    if settings is None:
-        settings = RecurringCostSettings(id=1)
-        db.add(settings)
-        db.commit()
-    return settings
+def load_recurring_cost_settings(db: Session) -> RecurringCostSettings:
+    """Nur lesen -- die Zeile legt app.grunddaten.anlegen() beim Start an (seit 1.8.42)."""
+    return einzelzeile(db, RecurringCostSettings)
 
 
 def recurring_cost_settings_to_dict(settings: RecurringCostSettings) -> dict:
@@ -153,7 +150,7 @@ def recurring_cost_settings_to_dict(settings: RecurringCostSettings) -> dict:
 
 
 def update_recurring_cost_settings(db: Session, reminder_lead_days: int) -> dict:
-    settings = get_or_create_recurring_cost_settings(db)
+    settings = load_recurring_cost_settings(db)
     settings.reminder_lead_days = reminder_lead_days
     db.commit()
     return recurring_cost_settings_to_dict(settings)
@@ -218,12 +215,12 @@ def get_cost(db: Session, cost_id: int) -> dict | None:
     cost = _load(db, cost_id)
     if cost is None:
         return None
-    lead_days = get_or_create_recurring_cost_settings(db).reminder_lead_days
+    lead_days = load_recurring_cost_settings(db).reminder_lead_days
     return cost_to_dict(cost, lead_days)
 
 
 def list_costs(db: Session, *, include_inactive: bool = True) -> list[dict]:
-    lead_days = get_or_create_recurring_cost_settings(db).reminder_lead_days
+    lead_days = load_recurring_cost_settings(db).reminder_lead_days
     query = _cost_query()
     if not include_inactive:
         query = query.where(RecurringCost.active == True)  # noqa: E712
@@ -266,7 +263,7 @@ def create_cost(db: Session, payload: dict) -> dict:
     cost = RecurringCost(**_payload_fields(payload))
     db.add(cost)
     db.commit()
-    lead_days = get_or_create_recurring_cost_settings(db).reminder_lead_days
+    lead_days = load_recurring_cost_settings(db).reminder_lead_days
     return cost_to_dict(_load(db, cost.id), lead_days)
 
 
@@ -280,7 +277,7 @@ def update_cost(db: Session, cost_id: int, payload: dict) -> dict | None:
     for field, value in _payload_fields(payload).items():
         setattr(cost, field, value)
     db.commit()
-    lead_days = get_or_create_recurring_cost_settings(db).reminder_lead_days
+    lead_days = load_recurring_cost_settings(db).reminder_lead_days
     return cost_to_dict(_load(db, cost.id), lead_days)
 
 
@@ -330,7 +327,7 @@ def overview_summary(db: Session) -> dict:
     behandlung mehr nötig), Kündigungsfristen hervorgehoben (fällig/überfällig getrennt
     ausgewiesen) -- der eigentliche Schritt zum Verrechnungssatz bleibt Schicht 3, hier nur die
     reine Erfassungs-Übersicht."""
-    lead_days = get_or_create_recurring_cost_settings(db).reminder_lead_days
+    lead_days = load_recurring_cost_settings(db).reminder_lead_days
     costs = [c for c in db.scalars(_cost_query().where(RecurringCost.active == True)).all()]  # noqa: E712
     cost_dicts = [cost_to_dict(c, lead_days) for c in costs]
 
@@ -378,7 +375,7 @@ def check_due_cancellations_and_create_reminders(db: Session) -> list[int]:
     Finanzen/Admin etwas an, nicht die Auftragsbearbeitung (Nutzervorgabe)."""
     if not is_module_enabled(db, "aufgabenmanagement"):
         return []
-    settings = get_or_create_recurring_cost_settings(db)
+    settings = load_recurring_cost_settings(db)
     threshold = berlin_today() + timedelta(days=settings.reminder_lead_days)
     active_costs = db.scalars(
         select(RecurringCost).where(

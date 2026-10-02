@@ -11,6 +11,7 @@ from .auth import otp_ok_for_user, user_from_request, users_exist, warn_if_secre
 from .permissions import default_home_page_for_role
 from .catalogs import backfill_existing_services, ensure_import_catalog
 from .database import DATABASE_URL, Base, SessionLocal, engine
+from . import grunddaten
 from .logging_config import configure_logging
 from .material_groups import backfill_existing_materials, ensure_import_material_group
 from .materials import backfill_existing_service_materials
@@ -23,7 +24,6 @@ from .routers import (
     work_preparation,
 )
 from .version import APP_VERSION
-from .work_time_models import ensure_default_work_time_models
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -43,9 +43,13 @@ else:
         "ERP_ENV=production -- Base.metadata.create_all() wird nicht ausgefuehrt, "
         "alembic upgrade head ist hier die alleinige Quelle fuer das Datenbankschema."
     )
+# Grunddaten (Einstellungen, Standardsätze) beim Start, nicht beim ersten Lesen (seit 1.8.42, siehe
+# app/grunddaten.py) -- in jeder Umgebung, auch mit ERP_ENV=production. Zwei gleichzeitig startende
+# Arbeitsprozesse warten aufeinander; scheitert das Anlegen, startet die App nicht (wie die übrigen
+# Schritte hier).
 with SessionLocal() as _upgrade_db:
     ensure_existing_order_revisions(_upgrade_db)
-    ensure_default_work_time_models(_upgrade_db)
+    grunddaten.anlegen(_upgrade_db)
     _import_catalog = ensure_import_catalog(_upgrade_db)
     _backfilled = backfill_existing_services(_upgrade_db, _import_catalog)
     if _backfilled == -1:

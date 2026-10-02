@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..calculation import get_or_create_settings
+from ..calculation import load_calculation_settings
 from ..company_logo import (
     MAX_UPLOAD_BYTES as LOGO_MAX_UPLOAD_BYTES,
     delete_logo,
@@ -25,12 +25,12 @@ from ..company_logo import (
     validate_logo_image,
 )
 from ..database import get_db
-from ..employees import ensure_default_employee_functions
+from ..employees import load_employee_functions
 from ..models import AppUser, Employee, EmployeeFunction, EmployeeProfile, SettingOption
-from ..option_settings import ensure_default_option_groups, get_option_group, option_group_to_dict
+from ..option_settings import get_option_group, load_option_groups, option_group_to_dict
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, require_min_role
 from ..schemas import AppearanceSettingsOut, AppearanceSettingsUpdate, CalculationSettingsOut, CalculationSettingsUpdate, EmployeeFunctionCreate, EmployeeFunctionOut, EmployeeFunctionUpdate, GeneralSettingsOut, GeneralSettingsUpdate, NumberPreviewOut, NumberSequenceOut, NumberSequenceUpdate, SettingOptionCreate, SettingOptionGroupOut, SettingOptionOut, SettingOptionUpdate
-from ..settings import ensure_default_sequences, get_accent_color, get_or_create_general_settings, preview_number, set_accent_color, update_sequence
+from ..settings import get_accent_color, load_general_settings, load_sequences, preview_number, set_accent_color, update_sequence
 
 router = APIRouter()
 
@@ -55,12 +55,12 @@ _finanzen_dep = Depends(require_min_role(ROLE_OFFICE_FINANZEN, message="Kalkulat
 
 @router.get("/api/calculation-settings", response_model=CalculationSettingsOut)
 def get_calculation_settings(db: Session = Depends(get_db), _role: AppUser = _finanzen_dep):
-    return CalculationSettingsOut.model_validate(get_or_create_settings(db), from_attributes=True)
+    return CalculationSettingsOut.model_validate(load_calculation_settings(db), from_attributes=True)
 
 
 @router.put("/api/calculation-settings", response_model=CalculationSettingsOut)
 def update_calculation_settings(payload: CalculationSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _finanzen_dep):
-    settings = get_or_create_settings(db)
+    settings = load_calculation_settings(db)
     settings.labor_rate = payload.labor_rate
     settings.material_markup_pct = payload.material_markup_pct
     settings.overhead_pct = payload.overhead_pct
@@ -73,12 +73,11 @@ def update_calculation_settings(payload: CalculationSettingsUpdate, db: Session 
 
 @router.get("/api/settings/option-groups", response_model=list[SettingOptionGroupOut])
 def list_setting_option_groups(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    return [option_group_to_dict(g) for g in ensure_default_option_groups(db)]
+    return [option_group_to_dict(g) for g in load_option_groups(db)]
 
 
 @router.get("/api/settings/option-groups/{group_key}", response_model=SettingOptionGroupOut)
 def get_setting_option_group(group_key: str, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
-    ensure_default_option_groups(db)
     group = get_option_group(db, group_key)
     if group is None:
         raise HTTPException(status_code=404, detail="Auswahlliste nicht gefunden.")
@@ -87,7 +86,6 @@ def get_setting_option_group(group_key: str, db: Session = Depends(get_db), _rol
 
 @router.post("/api/settings/option-groups/{group_key}/options", response_model=SettingOptionOut)
 def create_setting_option(group_key: str, payload: SettingOptionCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    ensure_default_option_groups(db)
     group = get_option_group(db, group_key)
     if group is None:
         raise HTTPException(status_code=404, detail="Auswahlliste nicht gefunden.")
@@ -105,7 +103,6 @@ def create_setting_option(group_key: str, payload: SettingOptionCreate, db: Sess
 
 @router.put("/api/settings/option-groups/{group_key}/options/{option_id}", response_model=SettingOptionOut)
 def update_setting_option(group_key: str, option_id: int, payload: SettingOptionUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    ensure_default_option_groups(db)
     group = get_option_group(db, group_key)
     row = db.get(SettingOption, option_id)
     if group is None or row is None or row.group_id != group.id:
@@ -124,7 +121,6 @@ def update_setting_option(group_key: str, option_id: int, payload: SettingOption
 
 @router.delete("/api/settings/option-groups/{group_key}/options/{option_id}")
 def delete_setting_option(group_key: str, option_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    ensure_default_option_groups(db)
     group = get_option_group(db, group_key); row = db.get(SettingOption, option_id)
     if group is None or row is None or row.group_id != group.id:
         raise HTTPException(status_code=404, detail="Eintrag nicht gefunden.")
@@ -133,7 +129,7 @@ def delete_setting_option(group_key: str, option_id: int, db: Session = Depends(
 
 @router.get("/api/settings/employee-functions", response_model=list[EmployeeFunctionOut])
 def list_employee_functions(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    return ensure_default_employee_functions(db)
+    return load_employee_functions(db)
 
 
 @router.post("/api/settings/employee-functions", response_model=EmployeeFunctionOut)
@@ -191,12 +187,12 @@ def delete_employee_function(function_id: int, db: Session = Depends(get_db), _r
 
 @router.get("/api/settings/general", response_model=GeneralSettingsOut)
 def get_general_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    return get_or_create_general_settings(db)
+    return load_general_settings(db)
 
 
 @router.put("/api/settings/general", response_model=GeneralSettingsOut)
 def put_general_settings(payload: GeneralSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    settings = get_or_create_general_settings(db)
+    settings = load_general_settings(db)
     # Nur gesendete Felder (seit 1.8.25) -- Stammdaten und Logohöhe speichern getrennt.
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(settings, key, value)
@@ -228,7 +224,7 @@ async def upload_company_logo(file: UploadFile = File(...), db: Session = Depend
         validate_logo_image(file.content_type, data)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    settings = get_or_create_general_settings(db)
+    settings = load_general_settings(db)
     settings.logo_filename = replace_logo(settings.logo_filename, file.filename, data)
     db.commit()
     db.refresh(settings)
@@ -242,7 +238,7 @@ def view_company_logo(db: Session = Depends(get_db), _role: AppUser = _any_role_
     von der Platte, siehe document_frame.py/mobile_manifest.py). Liefert deshalb bevorzugt die
     verkleinerte Anzeige-Rendition (siehe company_logo.py-Moduldocstring) -- fällt auf das
     Original zurück, wenn keine existiert (SVG, oder ein vor 1.3.39 hochgeladenes Logo)."""
-    settings = get_or_create_general_settings(db)
+    settings = load_general_settings(db)
     if not settings.logo_filename:
         raise HTTPException(status_code=404, detail="Kein Logo hinterlegt.")
     # stored_filename ist ein zufälliger, je Upload neuer Name (?v=<stored_filename> in der
@@ -260,7 +256,7 @@ def view_company_logo(db: Session = Depends(get_db), _role: AppUser = _any_role_
 
 @router.delete("/api/settings/general/logo", response_model=GeneralSettingsOut)
 def remove_company_logo(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    settings = get_or_create_general_settings(db)
+    settings = load_general_settings(db)
     delete_logo(settings.logo_filename)
     settings.logo_filename = None
     db.commit()
@@ -284,7 +280,7 @@ async def upload_sidebar_logo(file: UploadFile = File(...), db: Session = Depend
         validate_logo_image(file.content_type, data)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    settings = get_or_create_general_settings(db)
+    settings = load_general_settings(db)
     settings.sidebar_logo_filename = replace_sidebar_logo(settings.sidebar_logo_filename, file.filename, data)
     db.commit()
     db.refresh(settings)
@@ -296,7 +292,7 @@ def view_sidebar_logo(db: Session = Depends(get_db), _role: AppUser = _any_role_
     """Auslieferungsweg für das dedizierte Sidebar-Logo -- Gegenstück zu view_company_logo()
     oben, nur im eigenen Ordner. Genutzt von sidebar_logo_url() (app/routers/pages.py), wenn
     company_logo.py::sidebar_logo_filename() die Quelle "sidebar" auflöst."""
-    settings = get_or_create_general_settings(db)
+    settings = load_general_settings(db)
     if not settings.sidebar_logo_filename:
         raise HTTPException(status_code=404, detail="Kein Sidebar-Logo hinterlegt.")
     cache_headers = {"Cache-Control": "private, max-age=31536000, immutable"}
@@ -311,7 +307,7 @@ def view_sidebar_logo(db: Session = Depends(get_db), _role: AppUser = _any_role_
 
 @router.delete("/api/settings/general/sidebar-logo", response_model=GeneralSettingsOut)
 def remove_sidebar_logo(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    settings = get_or_create_general_settings(db)
+    settings = load_general_settings(db)
     delete_sidebar_logo(settings.sidebar_logo_filename)
     settings.sidebar_logo_filename = None
     db.commit()
@@ -321,7 +317,7 @@ def remove_sidebar_logo(db: Session = Depends(get_db), _role: AppUser = _role_de
 
 @router.get("/api/settings/number-sequences", response_model=list[NumberSequenceOut])
 def list_number_sequences(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    sequences = ensure_default_sequences(db)
+    sequences = load_sequences(db)
     result = []
     for sequence in sequences:
         result.append(NumberSequenceOut(

@@ -20,7 +20,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.incoming_invoices import (
     MODULE_KEY, check_due_skonto_and_create_reminders, create_invoice, delete_invoice,
-    get_invoice, get_or_create_incoming_invoice_settings, gross_amount, invoice_gross_amount,
+    get_invoice, load_incoming_invoice_settings, gross_amount, invoice_gross_amount,
     is_overdue, is_skonto_due, is_skonto_overdue, list_invoices, open_liabilities_summary,
     remove_invoice_document, set_invoice_document, update_incoming_invoice_settings, update_invoice,
 )
@@ -396,7 +396,7 @@ def test_document_set_and_remove():
 
 def test_settings_roundtrip():
     db = db_session()
-    default_settings = get_or_create_incoming_invoice_settings(db)
+    default_settings = load_incoming_invoice_settings(db)
     assert default_settings.skonto_reminder_lead_days == 5
     updated = update_incoming_invoice_settings(db, 10)
     assert updated["skonto_reminder_lead_days"] == 10

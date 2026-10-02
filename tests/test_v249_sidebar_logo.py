@@ -40,7 +40,7 @@ from pathlib import Path
 import jinja2
 
 from app import company_logo
-from app.settings import get_or_create_general_settings
+from app.settings import load_general_settings
 
 
 # ---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ def test_sidebar_logo_filename_none_when_nothing_set(db_session):
 def test_sidebar_logo_filename_falls_back_to_company_logo_when_no_sidebar_logo_set(db_session, tmp_path, monkeypatch):
     monkeypatch.setattr(company_logo, "LOGO_ROOT", tmp_path / "company_logo")
     stored = company_logo.replace_logo(None, "logo.png", b"Bildinhalt")
-    settings = get_or_create_general_settings(db_session)
+    settings = load_general_settings(db_session)
     settings.logo_filename = stored
     db_session.commit()
 
@@ -67,7 +67,7 @@ def test_sidebar_logo_filename_prefers_dedicated_sidebar_logo_over_company_logo(
     monkeypatch.setattr(company_logo, "SIDEBAR_LOGO_ROOT", tmp_path / "sidebar_logo")
     company_stored = company_logo.replace_logo(None, "logo.png", b"Firmenlogo-Bildinhalt")
     sidebar_stored = company_logo.replace_sidebar_logo(None, "sidebar.png", b"Sidebar-Logo-Bildinhalt")
-    settings = get_or_create_general_settings(db_session)
+    settings = load_general_settings(db_session)
     settings.logo_filename = company_stored
     settings.sidebar_logo_filename = sidebar_stored
     db_session.commit()
@@ -83,7 +83,7 @@ def test_sidebar_logo_filename_falls_back_to_company_logo_when_sidebar_file_miss
     monkeypatch.setattr(company_logo, "LOGO_ROOT", tmp_path / "company_logo")
     monkeypatch.setattr(company_logo, "SIDEBAR_LOGO_ROOT", tmp_path / "sidebar_logo")
     company_stored = company_logo.replace_logo(None, "logo.png", b"Firmenlogo-Bildinhalt")
-    settings = get_or_create_general_settings(db_session)
+    settings = load_general_settings(db_session)
     settings.logo_filename = company_stored
     settings.sidebar_logo_filename = "nie-hochgeladen.png"
     db_session.commit()
@@ -95,7 +95,7 @@ def test_sidebar_logo_filename_falls_back_to_company_logo_when_sidebar_file_miss
 def test_sidebar_logo_filename_none_when_file_missing_despite_db_entry(db_session, tmp_path, monkeypatch):
     """Wie oben, aber ohne jede zweite Stufe -- fällt bis auf den Schriftzug (None) zurück."""
     monkeypatch.setattr(company_logo, "LOGO_ROOT", tmp_path / "company_logo")
-    settings = get_or_create_general_settings(db_session)
+    settings = load_general_settings(db_session)
     settings.logo_filename = "nie-hochgeladen.png"
     db_session.commit()
 
@@ -176,7 +176,7 @@ def test_sidebar_logo_height_px_default_is_64(db_session):
 
 
 def test_sidebar_logo_height_px_returns_configured_value(db_session):
-    settings = get_or_create_general_settings(db_session)
+    settings = load_general_settings(db_session)
     settings.sidebar_logo_height_px = 90
     db_session.commit()
 
@@ -187,7 +187,7 @@ def test_sidebar_logo_height_px_clamps_out_of_range_value(db_session):
     """Verteidigung in der Tiefe: ein Wert außerhalb 24-120 (z. B. durch einen direkten
     Datenbankzugriff, das Feld selbst hat keine DB-seitige Prüfung) darf die Sidebar nicht
     absurd groß/klein machen."""
-    settings = get_or_create_general_settings(db_session)
+    settings = load_general_settings(db_session)
     settings.sidebar_logo_height_px = 500
     db_session.commit()
     assert company_logo.sidebar_logo_height_px(db_session) == company_logo.MAX_SIDEBAR_LOGO_HEIGHT_PX

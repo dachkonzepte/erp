@@ -4,6 +4,7 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from .grunddaten import GrunddatenFehlen
 from .models import (
     CalculationSettings,
     MaterialCalculationOverride,
@@ -37,14 +38,16 @@ def _calculation_settings_has_catalog_column(db: Session) -> bool:
     sobald die 1.0.14-Migration angewendet wurde. Vorher existiert
     calculation_settings.catalog_id in der echten Datenbank noch nicht --
     genau das hat "Einstellungen konnten nicht geladen werden" in 1.0.18
-    ausgelöst, weil get_or_create_settings() seit dem catalog_id-IS-NULL-Fix
+    ausgelöst, weil get_or_create_settings() (seit 1.8.42 load_calculation_settings()) seit dem catalog_id-IS-NULL-Fix
     ungeprüft auf diese Spalte zugegriffen hat."""
     inspector = sa_inspect(db.get_bind())
     columns = {col["name"] for col in inspector.get_columns("calculation_settings")}
     return "catalog_id" in columns
 
 
-def get_or_create_settings(db: Session) -> CalculationSettings:
+def load_calculation_settings(db: Session) -> CalculationSettings:
+    """Globale Kalkulationsgrundlagen -- nur lesen, angelegt von app.grunddaten.anlegen() beim Start
+    (seit 1.8.42)."""
     if not _calculation_settings_has_catalog_column(db):
         # Anders als backfill_existing_services() kann diese Funktion nicht
         # einfach überspringen -- sie muss etwas zurückgeben, das alle
@@ -71,10 +74,8 @@ def get_or_create_settings(db: Session) -> CalculationSettings:
     # automatisch catalog_id=NULL -- wird also unverändert gefunden.
     settings = db.scalar(select(CalculationSettings).where(CalculationSettings.catalog_id.is_(None)))
     if settings is None:
-        settings = CalculationSettings(catalog_id=None)
-        db.add(settings)
-        db.commit()
-        db.refresh(settings)
+        raise GrunddatenFehlen("calculation_settings: globaler Datensatz fehlt -- app.grunddaten.anlegen() "
+                               "ist beim Start nicht gelaufen oder gescheitert (siehe Log).")
     return settings
 
 
@@ -85,7 +86,7 @@ def get_settings_for_catalog(
 
     Hat der Katalog eigene Kalkulationsgrundlagen (CalculationSettings mit
     passender catalog_id), gelten die. Sonst gilt weiterhin der globale
-    Datensatz (get_or_create_settings) -- bestehendes Verhalten bleibt damit
+    Datensatz (load_calculation_settings) -- bestehendes Verhalten bleibt damit
     für alle Katalog ohne eigene Grundlagen unverändert.
 
     cache ist optional: bei Listen mit vielen Leistungen aus wenigen
@@ -97,7 +98,7 @@ def get_settings_for_catalog(
     if catalog_id is not None:
         settings = db.scalar(select(CalculationSettings).where(CalculationSettings.catalog_id == catalog_id))
     if settings is None:
-        settings = get_or_create_settings(db)
+        settings = load_calculation_settings(db)
     if cache is not None:
         cache[catalog_id] = settings
     return settings

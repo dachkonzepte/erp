@@ -37,18 +37,18 @@ def befuellen(db, k):
 
     from app.berlin_time import berlin_today
     from app.invoices import create_abschlag_pauschal
-    from app.labor_rate import get_or_create_labor_rate_settings
+    from app.labor_rate import load_labor_rate_settings
     from app.models import (
         AppUser, Customer, Employee, ImportBatch, Order, OrderItem, Project, Service, ServiceCalculation, Team,
         TeamEmployee, WorkPreparationEmployee,
     )
     from app.project_pipeline_columns import default_pipeline_column_id
-    from app.settings import get_or_create_general_settings
-    from app.time_backoffice import get_or_create_time_settings
+    from app.settings import load_general_settings
+    from app.time_backoffice import load_time_settings
     from app.time_tracking import create_group_manual_entry, create_manual_entry
     from app.work_preparation import ensure_preparation
 
-    get_or_create_labor_rate_settings(db)  # Singleton vorab: sonst rennen /settings-Abrufe beim ersten Zugriff
+    load_labor_rate_settings(db)  # Singleton vorab: sonst rennen /settings-Abrufe beim ersten Zugriff
     heute = berlin_today()
     max_m = Employee(employee_number="M-1", first_name="Max", last_name="Kolonne", employee_group="gewerblich",
                      weekly_hours=Decimal("40"), active=True)
@@ -75,7 +75,7 @@ def befuellen(db, k):
     vorbereitung.planned_start, vorbereitung.planned_end = heute, heute
     db.add_all([WorkPreparationEmployee(preparation_id=vorbereitung.id, employee_id=max_m.id),
                 WorkPreparationEmployee(preparation_id=vorbereitung.id, employee_id=moritz.id)])
-    get_or_create_time_settings(db).default_break_minutes = 30
+    load_time_settings(db).default_break_minutes = 30
     db.commit()
 
     einzeln = create_manual_entry(db, employee_id=max_m.id, order_id=auftrag.id, order_item_id=position.id,
@@ -85,7 +85,7 @@ def befuellen(db, k):
                                        work_date=heute, hours=Decimal("8"), order_item_id=position.id,
                                        break_minutes=45, notes="Kolonne alt")
 
-    allgemein = get_or_create_general_settings(db)
+    allgemein = load_general_settings(db)
     allgemein.company_name, allgemein.phone, allgemein.sidebar_logo_height_px = "DACHKONZEPTE GmbH", "040 1", 48
     rechnung = create_abschlag_pauschal(db, auftrag, lump_sum_net=Decimal("3000"), progress_description="1. Abschlag")
     rechnung.intro_text, rechnung.outro_text_2 = "Einleitung bleibt", SCHLUSS_2

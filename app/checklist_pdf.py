@@ -39,7 +39,7 @@ from .document_frame import frame_content_width, render_framed_pdf
 from .document_page_margins import get_margins
 from .document_pdf import build_din5008_header_block, build_object_address_block, build_styles, ptext
 from .models import Checklist, Order
-from .settings import get_or_create_general_settings
+from .settings import load_general_settings
 
 DOCUMENT_TYPE = "checklist"
 CONTEXT_LABELS = {"auftrag": "Auftrag", "objekt": "Objekt", "betriebsmittel": "Betriebsmittel", "betrieb": "Betrieb"}
@@ -140,7 +140,7 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
     if checklist.status not in CLOSED_STATUSES:  # seit 1.8.41 auch "gegenstandslos" -- bleibt als Beleg
         raise ValueError("Nur abgeschlossene Checklisten können als PDF erzeugt werden.")
     voided = checklist.status == VOID_STATUS
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     styles = build_styles()
     body, small, h1 = styles["body"], styles["small"], styles["h1"]
     # Überschriften bleiben mit dem Folgenden zusammen (keepWithNext) -- keine Abschnitts- oder

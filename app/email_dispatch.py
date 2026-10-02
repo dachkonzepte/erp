@@ -61,7 +61,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .email_sending import check_attachment_size, ensure_configured, get_or_create_smtp_settings, send_message
+from .email_sending import check_attachment_size, ensure_configured, load_smtp_settings, send_message
 from .models import DispatchAuthorization, DispatchOutcome, EmailDispatch, ProjectParticipant, SentDocument
 from .sent_documents import DOCUMENT_TYPES, store_sent_document
 
@@ -277,7 +277,7 @@ def dispatch_email(
     cc_list = [a for a in parse_recipients(cc, label="CC") if a.lower() not in {t.lower() for t in to_list}]
     if len(to_list) + len(cc_list) > MAX_RECIPIENTS:
         raise ValueError(f"Höchstens {MAX_RECIPIENTS} Empfänger (An und CC zusammen) je Versand.")
-    settings = get_or_create_smtp_settings(db)
+    settings = load_smtp_settings(db)
     ensure_configured(settings)
     check_attachment_size(attachment_bytes, attachment_filename)
     lock_key = _lock_key(document_type, document_id) if block_parallel and document_id is not None else None

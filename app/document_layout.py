@@ -94,10 +94,29 @@ DEFAULT_SHARED_LAYOUT = [
 ]
 
 
-def ensure_default_layout(db: Session, document_type: str) -> list[DocumentLayoutBlock]:
-    """Legt beim ersten Aufruf für diesen Dokumenttyp die Standardbelegung an. Rührt eine bereits
-    bestehende Belegung nicht an -- ruft man das erneut auf, nachdem jemand schon etwas
-    verschoben hat, bleibt die Bearbeitung erhalten.
+def _add_default_blocks(db: Session, document_type: str) -> None:
+    for i, (block_type, label, x, y, w, h, fs, fw, align, visible) in enumerate(DEFAULT_SHARED_LAYOUT):
+        db.add(DocumentLayoutBlock(
+            document_type=document_type, block_type=block_type, label=label,
+            x_mm=Decimal(x), y_mm=Decimal(y), width_mm=Decimal(w), height_mm=Decimal(h),
+            font_size=Decimal(str(fs)), font_weight=fw, text_align=align, visible=visible,
+            sort_order=(i + 1) * 10,
+        ))
+
+
+def ensure_default_layout(db: Session) -> None:
+    """Legt die Standardbelegung des geteilten Satzes (SHARED_DOCUMENT_TYPE) an, wenn er noch keinen
+    Baustein hat. Rührt eine bereits bestehende Belegung nicht an. Anlegeschritt von
+    app.grunddaten.anlegen() (seit 1.8.42): flush, kein commit -- bis 1.8.41 legte der erste
+    Lesezugriff die Belegung an und committete dabei, auch beim Rendern unter einer Zeilensperre."""
+    if db.scalar(select(DocumentLayoutBlock.id).where(DocumentLayoutBlock.document_type == SHARED_DOCUMENT_TYPE).limit(1)) is not None:
+        return
+    _add_default_blocks(db, SHARED_DOCUMENT_TYPE)
+    db.flush()
+
+
+def load_layout(db: Session, document_type: str) -> list[DocumentLayoutBlock]:
+    """Die Bausteine, die für diesen Dokumenttyp gelten -- nur lesen.
 
     Jeder Dokumenttyp -- seit 1.3.20 auch "quote", siehe CLAUDE.md "Gemeinsamer Dokumenttyp"/
     Aufräumen nach dem PDF-Umbau -- landet über resolve_shared_document_type() beim geteilten Satz
@@ -110,19 +129,7 @@ def ensure_default_layout(db: Session, document_type: str) -> list[DocumentLayou
     nicht über einen echten Dokumenttyp."""
     if document_type not in DOCUMENT_TYPES and document_type != SHARED_DOCUMENT_TYPE:
         raise ValueError(f"Unbekannter Dokumenttyp: {document_type}")
-    effective_type = resolve_shared_document_type(db, DocumentLayoutBlock, document_type)
-    existing = db.scalar(select(DocumentLayoutBlock.id).where(DocumentLayoutBlock.document_type == effective_type).limit(1))
-    if existing is not None:
-        return list_layout_blocks(db, effective_type)
-    for i, (block_type, label, x, y, w, h, fs, fw, align, visible) in enumerate(DEFAULT_SHARED_LAYOUT):
-        db.add(DocumentLayoutBlock(
-            document_type=effective_type, block_type=block_type, label=label,
-            x_mm=Decimal(x), y_mm=Decimal(y), width_mm=Decimal(w), height_mm=Decimal(h),
-            font_size=Decimal(str(fs)), font_weight=fw, text_align=align, visible=visible,
-            sort_order=(i + 1) * 10,
-        ))
-    db.commit()
-    return list_layout_blocks(db, effective_type)
+    return list_layout_blocks(db, resolve_shared_document_type(db, DocumentLayoutBlock, document_type))
 
 
 def list_layout_blocks(db: Session, document_type: str) -> list[DocumentLayoutBlock]:
@@ -155,8 +162,11 @@ def reset_layout_to_default(db: Session, document_type: str) -> list[DocumentLay
     destruktiv, im Frontend mit einer deutlichen Sicherheitsabfrage abzusichern."""
     for block in list_layout_blocks(db, document_type):
         db.delete(block)
+    db.flush()
+    if document_type == SHARED_DOCUMENT_TYPE:
+        _add_default_blocks(db, document_type)
     db.commit()
-    return ensure_default_layout(db, document_type)
+    return load_layout(db, document_type)
 
 
 def get_background(db: Session, document_type: str, page_type: str = "first") -> DocumentLayoutBackground | None:

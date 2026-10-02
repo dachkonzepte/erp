@@ -2,6 +2,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from .grunddaten import einzelzeile
 from .models import (
     CalculationSettings, Employee, EmployeeCompensationSettings,
     LaborRateOverheadSettings, LaborRateSettings,
@@ -16,37 +17,20 @@ def q(value: Decimal | int | float | str) -> Decimal:
     return round_money(value)
 
 
-def get_or_create_labor_rate_settings(db: Session) -> LaborRateSettings:
-    settings = db.get(LaborRateSettings, 1)
-    if settings is None:
-        settings = LaborRateSettings(id=1)
-        db.add(settings)
-        db.commit()
-        db.refresh(settings)
-    return settings
+def load_labor_rate_settings(db: Session) -> LaborRateSettings:
+    """Nur lesen -- die Zeile legt app.grunddaten.anlegen() beim Start an (seit 1.8.42)."""
+    return einzelzeile(db, LaborRateSettings)
 
 
-def get_or_create_overhead_settings(db: Session, base: LaborRateSettings | None = None) -> LaborRateOverheadSettings:
-    row = db.get(LaborRateOverheadSettings, 1)
-    if row is None:
-        base = base or get_or_create_labor_rate_settings(db)
-        # Bestehende "jährliche Gemeinkosten" aus <=0.6.8 werden einmalig als fixe GK in EUR übernommen.
-        row = LaborRateOverheadSettings(
-            id=1,
-            fixed_overhead_mode="eur",
-            fixed_overhead_value=Decimal(base.annual_overhead or ZERO),
-            variable_overhead_mode="eur",
-            variable_overhead_value=ZERO,
-        )
-        db.add(row)
-        db.commit()
-        db.refresh(row)
-    return row
+def load_overhead_settings(db: Session) -> LaborRateOverheadSettings:
+    """Nur lesen -- die Zeile legt app.grunddaten.anlegen() beim Start an (seit 1.8.42), dort auch die
+    einmalige Übernahme der alten "jährlichen Gemeinkosten" aus <=0.6.8."""
+    return einzelzeile(db, LaborRateOverheadSettings)
 
 
 def labor_rate_settings_dict(db: Session) -> dict:
-    base = get_or_create_labor_rate_settings(db)
-    overhead = get_or_create_overhead_settings(db, base)
+    base = load_labor_rate_settings(db)
+    overhead = load_overhead_settings(db)
     return {
         "employer_cost_pct": base.employer_cost_pct,
         "productive_time_pct": base.productive_time_pct,
@@ -84,8 +68,8 @@ def _overhead_amount(mode: str, value: Decimal, direct_labor_annual_cost: Decima
 def calculate_labor_rate(
     db: Session, calc_settings: CalculationSettings, *, overhead_override: dict | None = None,
 ) -> dict:
-    params = get_or_create_labor_rate_settings(db)
-    overhead_settings = get_or_create_overhead_settings(db, params)
+    params = load_labor_rate_settings(db)
+    overhead_settings = load_overhead_settings(db)
     weeks = Decimal(params.weeks_per_year or Decimal("52"))
     employer_pct = Decimal(params.employer_cost_pct or ZERO)
 
@@ -259,7 +243,7 @@ def recurring_cost_overhead_proposal(db: Session, calc_settings: CalculationSett
     current UND proposed automatisch identisch, ohne dass das hier gesondert sichergestellt
     werden muesste."""
     summary = overview_summary(db)
-    overhead = get_or_create_overhead_settings(db)
+    overhead = load_overhead_settings(db)
     proposed_fixed_value = Decimal(summary["annual_fixed_from_costs"])
     proposed_variable_value = Decimal(summary["annual_usage_dependent_from_costs"])
 
@@ -302,8 +286,8 @@ def apply_recurring_cost_overhead_proposal(db: Session) -> None:
     Erzwingt dabei IMMER Modus "eur" auf beiden (Nutzervorgabe: keine stille Semantikaenderung --
     die Warnung dafuer sitzt im Frontend, vor diesem Aufruf, nicht hier)."""
     summary = overview_summary(db)
-    overhead = get_or_create_overhead_settings(db)
-    params = get_or_create_labor_rate_settings(db)
+    overhead = load_overhead_settings(db)
+    params = load_labor_rate_settings(db)
     overhead.fixed_overhead_mode = "eur"
     overhead.fixed_overhead_value = Decimal(summary["annual_fixed_from_costs"])
     overhead.variable_overhead_mode = "eur"

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..document_frame import RENDERERS_USING_SHARED_FRAME
 from ..document_layout import (
-    DOCUMENT_TYPES, ensure_default_layout, get_background, get_effective_background,
+    DOCUMENT_TYPES, get_background, get_effective_background, load_layout,
     remove_background, reset_layout_to_default, set_background, update_layout_block,
 )
 from ..document_layout_background import (
@@ -111,7 +111,7 @@ def get_shared_frame_rollout_status(_role: AppUser = _role_dep):
 @router.get("/api/document-layout/{document_type}", response_model=list[DocumentLayoutBlockOut])
 def get_document_layout(document_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _validate_readable_document_type(document_type)
-    return ensure_default_layout(db, document_type)
+    return load_layout(db, document_type)
 
 
 @router.put("/api/document-layout/blocks/{block_id}", response_model=DocumentLayoutBlockOut)

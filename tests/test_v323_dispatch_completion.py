@@ -33,7 +33,7 @@ from app.models import AuditLog, EmailDispatch, Invoice, SentDocument
 from app.reminder_pdf import build_reminder_pdf
 from app.reminders import send_reminder_email
 from app.sent_documents import frozen_version
-from app.settings import get_or_create_general_settings
+from app.settings import load_general_settings
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
 from tests.test_v174_email_sending import finalized_reminder
 from tests.test_v213_inspection_items import _extract_pdf_text
@@ -71,7 +71,7 @@ def _stuck_entry(db, document_type, document_id, *, key, minutes_ago=None, lock=
 
 
 def _set_letterhead(db, name):
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     general.company_name = name
     db.commit()
 
@@ -376,6 +376,7 @@ def test_two_simultaneous_resolutions_exactly_one_wins(file_db):
     # B hält den Eintrag in seiner Session (Referenz nötig, sonst lädt get() später frisch) und sieht
     # ihn damit noch "in Arbeit", wenn A schon geklärt hat -- genau das Fenster zwischen Prüfen und Schreiben.
     seen_by_b = office_b.get(EmailDispatch, row.id)
+    vorher = len(office_a.scalars(select(AuditLog)).all())  # seit 1.8.42 mit den Einträgen der Grunddaten
     resolve_stuck_dispatch(office_a, row.id, outcome="gesendet", note="gefunden", user_id=1, user_name="Anna")
     assert seen_by_b.status == "in_arbeit"
     with pytest.raises(DispatchConflict):
@@ -383,7 +384,7 @@ def test_two_simultaneous_resolutions_exactly_one_wins(file_db):
     check = file_db()
     stored = check.get(EmailDispatch, row.id)
     assert (stored.status, stored.resolved_by_name, stored.resolution_note) == ("gesendet", "Anna", "gefunden")
-    assert len(check.scalars(select(AuditLog)).all()) == 1
+    assert len(check.scalars(select(AuditLog)).all()) == vorher + 1
     for s in (office_a, office_b, check):
         s.close()
 
@@ -391,11 +392,12 @@ def test_two_simultaneous_resolutions_exactly_one_wins(file_db):
 def test_task_mail_can_only_be_resolved_by_admin(threaded_db_session, router_test_client):
     db = threaded_db_session
     row = _stuck_entry(db, "aufgabe", 42, key="aufgabe-haengt-0001", lock=False)
+    vorher = set(db.scalars(select(AuditLog.id)).all())  # seit 1.8.42 mit den Einträgen der Grunddaten
     url = f"/api/email-dispatches/{row.id}/resolve"
     for role in ("buero_auftrag", "buero_finanzen"):
         assert _office(db, router_test_client, role=role).post(url, json={"outcome": "gesendet", "note": "geprüft"}).status_code == 404
     assert _office(db, router_test_client, role="admin").post(url, json={"outcome": "gesendet", "note": "geprüft"}).status_code == 200
-    [audit] = db.scalars(select(AuditLog)).all()
+    [audit] = [a for a in db.scalars(select(AuditLog)).all() if a.id not in vorher]
     assert (audit.entity_type, audit.entity_id) == ("Aufgabe", "42")  # nur Admin sieht Aufgaben in der Historie
 
 

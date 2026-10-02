@@ -15,25 +15,21 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 
+from .grunddaten import einzelzeile
 from .models import AppUser, Employee, EmployeePayrollSettings, TimeEntry, TimeTrackingSettings, WorkTimeModel
 from .rounding import round_hours
 from .time_tracking import list_entries, entry_to_dict
-from .settings import get_or_create_general_settings
-from .work_time_models import get_or_create_advanced_settings
+from .settings import load_general_settings
+from .work_time_models import load_advanced_settings
 
 
-def get_or_create_time_settings(db: Session) -> TimeTrackingSettings:
-    row = db.get(TimeTrackingSettings, 1)
-    if row is None:
-        row = TimeTrackingSettings(id=1)
-        db.add(row)
-        db.commit()
-        db.refresh(row)
-    return row
+def load_time_settings(db: Session) -> TimeTrackingSettings:
+    """Nur lesen -- die Zeile legt app.grunddaten.anlegen() beim Start an (seit 1.8.42)."""
+    return einzelzeile(db, TimeTrackingSettings)
 
 
 def time_settings_dict(row: TimeTrackingSettings, db: Session | None = None) -> dict:
-    advanced = get_or_create_advanced_settings(db) if db is not None else None
+    advanced = load_advanced_settings(db) if db is not None else None
     return {
         "rounding_minutes": row.rounding_minutes,
         "default_break_minutes": row.default_break_minutes,
@@ -64,13 +60,13 @@ def _locked_by_name(db: Session, row: TimeTrackingSettings) -> str | None:
 
 
 def locked_until(db: Session) -> date | None:
-    return get_or_create_time_settings(db).locked_until
+    return load_time_settings(db).locked_until
 
 
 def set_time_lock(db: Session, new_locked_until: date | None, *, user_id: int | None) -> TimeTrackingSettings:
     """Setzt den Abschluss (None = alles offen). Wer zurücknehmen darf, entscheidet der Router --
     diese Funktion kennt keine Rollen."""
-    row = get_or_create_time_settings(db)
+    row = load_time_settings(db)
     row.locked_until = new_locked_until
     row.locked_at = datetime.utcnow()
     row.locked_by_user_id = user_id
@@ -79,7 +75,7 @@ def set_time_lock(db: Session, new_locked_until: date | None, *, user_id: int | 
 
 
 def update_time_settings(db: Session, payload) -> TimeTrackingSettings:
-    row = get_or_create_time_settings(db)
+    row = load_time_settings(db)
     for key in (
         "rounding_minutes", "default_break_minutes", "allow_manual_entries",
         "allow_group_bookings", "require_order_item", "require_activity",
@@ -88,7 +84,7 @@ def update_time_settings(db: Session, payload) -> TimeTrackingSettings:
         "datev_wage_type_weather_winter", "datev_wage_type_weather_summer",
     ):
         setattr(row, key, getattr(payload, key))
-    advanced = get_or_create_advanced_settings(db)
+    advanced = load_advanced_settings(db)
     advanced.datev_personnel_equals_erp_number = bool(getattr(payload, "datev_personnel_equals_erp_number", False))
     model_id = getattr(payload, "default_work_time_model_id", None)
     if model_id is not None:
@@ -109,7 +105,7 @@ def get_employee_payroll(db: Session, employee_id: int) -> EmployeePayrollSettin
 
 
 def effective_datev_personnel_number(db: Session, employee: Employee, payroll: EmployeePayrollSettings | None = None) -> str | None:
-    advanced = get_or_create_advanced_settings(db)
+    advanced = load_advanced_settings(db)
     if advanced.datev_personnel_equals_erp_number:
         return (employee.employee_number or "").strip() or None
     payroll = payroll or get_employee_payroll(db, employee.id)
@@ -118,7 +114,7 @@ def effective_datev_personnel_number(db: Session, employee: Employee, payroll: E
 
 def payroll_rows(db: Session) -> list[dict]:
     employees = db.scalars(select(Employee).order_by(Employee.active.desc(), Employee.last_name, Employee.first_name)).all()
-    advanced = get_or_create_advanced_settings(db)
+    advanced = load_advanced_settings(db)
     result=[]
     for emp in employees:
         p=get_employee_payroll(db, emp.id)
@@ -137,7 +133,7 @@ def payroll_rows(db: Session) -> list[dict]:
 def set_employee_payroll(db: Session, employee_id: int, payload) -> dict:
     emp=db.get(Employee, employee_id)
     if emp is None: raise ValueError("Mitarbeiter wurde nicht gefunden.")
-    advanced=get_or_create_advanced_settings(db)
+    advanced=load_advanced_settings(db)
     value=((emp.employee_number or "").strip() or None) if advanced.datev_personnel_equals_erp_number else ((payload.datev_personnel_number or "").strip() or None)
     if advanced.datev_personnel_equals_erp_number and not value and payload.payroll_export_enabled:
         raise ValueError("ERP-Mitarbeiternummer fehlt. Bei aktivierter Gleichsetzung wird sie als DATEV-Personalnummer benötigt.")
@@ -205,7 +201,7 @@ def _fmt_h(value) -> str:
 def build_timesheet_pdf(db: Session, start_date: date, end_date: date, employee_id: int | None = None) -> bytes:
     type_labels=_entry_type_labels(db)
     rows=list_entries(db, employee_id=employee_id, start_date=start_date, end_date=end_date, limit=None)
-    general=get_or_create_general_settings(db)
+    general=load_general_settings(db)
     grouped=defaultdict(list)
     for r in rows: grouped[r.employee_id].append(r)
     if employee_id and employee_id not in grouped:
@@ -264,10 +260,7 @@ def _entry_type_labels(db: Session) -> dict[str, str]:
     """Bezeichnung je Zeitart für den Stundenzettel/CSV-Export -- ohne diese Auflösung stünde
     dort z. B. der rohe interne Wert "weather_winter" statt "Schlechtwetter Winter".
 
-    Seit 1.8.8 einmal je Lauf statt je Zeile: get_option_group() läuft jedes Mal durch
-    ensure_default_option_groups(), zusammen fünf Abfragen. Vor list_entries() aufrufen -- legt
-    ensure_default_option_groups() eine fehlende Standardgruppe an, committet es und ließe sonst
-    die bereits geladenen Buchungen verfallen (jede lädt sich dann einzeln nach)."""
+    Seit 1.8.8 einmal je Lauf statt je Zeile (vorher Abfragen je Buchung)."""
     from .option_settings import get_option_group
     group = get_option_group(db, "time_entry_types")
     configured = {}
@@ -277,7 +270,7 @@ def _entry_type_labels(db: Session) -> dict[str, str]:
 
 
 def build_datev_export(db: Session, start_date: date, end_date: date) -> tuple[bytes,str,list[str]]:
-    settings=get_or_create_time_settings(db)
+    settings=load_time_settings(db)
     rows=list_entries(db,start_date=start_date,end_date=end_date,limit=None)
     aggregated=defaultdict(Decimal); warnings=[]
     payroll={x.employee_id:x for x in db.scalars(select(EmployeePayrollSettings)).all()}

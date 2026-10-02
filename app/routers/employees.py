@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
-from ..employees import apply_employee_payload, employee_to_dict, ensure_default_employee_functions, ensure_employee_profiles, set_cost_allocation, set_planning_visibility
+from ..employees import apply_employee_payload, employee_to_dict, ensure_employee_profiles, set_cost_allocation, set_planning_visibility
 from ..models import AppUser, Employee, EmployeeProfile, EmployeeRoleSettings
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, require_min_role
 from ..schemas import EmployeeCreate, EmployeeNameOut, EmployeeOut, EmployeeRosterOut, EmployeeUpdate
@@ -86,7 +86,6 @@ def get_employee(employee_id: int, db: Session = Depends(get_db), _role: AppUser
 
 @router.post("/api/employees", response_model=EmployeeOut)
 def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db), _role: AppUser = _finanzen_dep):
-    ensure_default_employee_functions(db)
     if payload.employee_number:
         exists = db.scalar(select(Employee).where(Employee.employee_number == payload.employee_number))
         if exists:

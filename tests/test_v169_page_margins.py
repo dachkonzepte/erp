@@ -8,7 +8,7 @@ from app.database import Base
 from app.document_page_margins import (
     DEFAULT_MARGINS,
     PAGE_TYPES,
-    ensure_default_margins,
+    get_margins,
     get_margins,
     reset_margins_to_default,
     update_margins,
@@ -37,8 +37,8 @@ def db_session():
 
 def test_ensure_default_margins_does_not_duplicate_on_second_call():
     db = db_session()
-    ensure_default_margins(db, "default", "first")
-    ensure_default_margins(db, "default", "first")
+    get_margins(db, "default", "first")
+    get_margins(db, "default", "first")
     from app.models import DocumentPageMargins
     rows = db.query(DocumentPageMargins).filter_by(document_type="default", page_type="first").all()
     assert len(rows) == 1
@@ -47,7 +47,7 @@ def test_ensure_default_margins_does_not_duplicate_on_second_call():
 def test_ensure_default_margins_rejects_unknown_page_type():
     db = db_session()
     try:
-        ensure_default_margins(db, "default", "zweite_seite")
+        get_margins(db, "default", "zweite_seite")
         assert False, "hätte ValueError werfen müssen"
     except ValueError:
         pass

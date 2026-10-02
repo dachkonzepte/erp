@@ -27,14 +27,14 @@ from decimal import Decimal
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.calculation import get_or_create_settings
+from app.calculation import load_calculation_settings
 from app.database import Base
 from app.employees import set_cost_allocation
 from app.labor_rate import (
     apply_recurring_cost_overhead_proposal,
     calculate_labor_rate,
-    get_or_create_labor_rate_settings,
-    get_or_create_overhead_settings,
+    load_labor_rate_settings,
+    load_overhead_settings,
     recurring_cost_overhead_proposal,
 )
 from app.models import Employee
@@ -109,8 +109,8 @@ def _make_variable_overhead_employee(db, *, hourly_wage="10", weekly_hours="40")
 def test_overhead_override_computes_in_memory_without_touching_persisted_settings():
     db = db_session()
     _make_direct_employee(db)
-    calc_settings = get_or_create_settings(db)
-    overhead = get_or_create_overhead_settings(db)
+    calc_settings = load_calculation_settings(db)
+    overhead = load_overhead_settings(db)
     overhead.fixed_overhead_mode = "eur"
     overhead.fixed_overhead_value = Decimal("10000")
     overhead.variable_overhead_mode = "eur"
@@ -146,8 +146,8 @@ def test_overhead_override_computes_in_memory_without_touching_persisted_setting
 def test_overhead_override_with_percent_mode_uses_direct_labor_cost_as_base():
     db = db_session()
     _make_direct_employee(db, hourly_wage="20", weekly_hours="40")
-    calc_settings = get_or_create_settings(db)
-    labor_rate_settings = get_or_create_labor_rate_settings(db)
+    calc_settings = load_calculation_settings(db)
+    labor_rate_settings = load_labor_rate_settings(db)
     labor_rate_settings.employer_cost_pct = Decimal("20")
     db.commit()
     # direct_labor_annual_cost = 20*40*52 * 1.20 = 49920.00
@@ -167,12 +167,12 @@ def test_proposal_reuses_calculate_labor_rate_for_current_and_proposed():
     db = db_session()
     _make_direct_employee(db, hourly_wage="20", weekly_hours="40")
     _make_variable_overhead_employee(db, hourly_wage="10", weekly_hours="40")
-    calc_settings = get_or_create_settings(db)
-    labor_rate_settings = get_or_create_labor_rate_settings(db)
+    calc_settings = load_calculation_settings(db)
+    labor_rate_settings = load_labor_rate_settings(db)
     labor_rate_settings.employer_cost_pct = Decimal("20")
     labor_rate_settings.productive_time_pct = Decimal("80")
     labor_rate_settings.target_profit_pct = Decimal("10")
-    overhead = get_or_create_overhead_settings(db)
+    overhead = load_overhead_settings(db)
     overhead.fixed_overhead_mode = "eur"
     overhead.fixed_overhead_value = Decimal("5000")
     overhead.variable_overhead_mode = "eur"
@@ -239,7 +239,7 @@ def test_proposal_lists_individual_items_excluding_keine_and_inactive():
     """Dreistufige Aufschluesselung, Punkt 3: fixed_costs/usage_dependent_costs sind die
     einzelnen, aufklappbaren Posten -- "keine"-klassifizierte und inaktive Posten fehlen."""
     db = db_session()
-    calc_settings = get_or_create_settings(db)
+    calc_settings = load_calculation_settings(db)
     miete = create_cost(db, _cost_payload(label="Miete", net_amount="1000.00", overhead_classification="fix"))
     diesel = create_cost(db, _cost_payload(label="Diesel", net_amount="200.00", overhead_classification="auslastungsabhaengig"))
     create_cost(db, _cost_payload(label="Unklassifiziert", net_amount="50.00", overhead_classification="keine"))
@@ -253,8 +253,8 @@ def test_proposal_lists_individual_items_excluding_keine_and_inactive():
 
 def test_proposal_is_read_only_and_never_writes_anything():
     db = db_session()
-    calc_settings = get_or_create_settings(db)
-    overhead = get_or_create_overhead_settings(db)
+    calc_settings = load_calculation_settings(db)
+    overhead = load_overhead_settings(db)
     overhead.fixed_overhead_mode = "pct"
     overhead.fixed_overhead_value = Decimal("12")
     db.commit()
@@ -271,7 +271,7 @@ def test_proposal_is_read_only_and_never_writes_anything():
 
 def test_apply_forces_eur_mode_on_both_fields_regardless_of_previous_mode():
     db = db_session()
-    overhead = get_or_create_overhead_settings(db)
+    overhead = load_overhead_settings(db)
     overhead.fixed_overhead_mode = "pct"
     overhead.fixed_overhead_value = Decimal("15")
     overhead.variable_overhead_mode = "pct"
@@ -293,11 +293,11 @@ def test_apply_syncs_legacy_annual_overhead_field_but_touches_nothing_else():
     """Schritt 1 schreibt AUSSCHLIESSLICH die beiden Gemeinkosten-Felder (plus das Legacy-Spiegel-
     feld annual_overhead) -- NICHT CalculationSettings.labor_rate (bleibt Schritt 2, getrennt)."""
     db = db_session()
-    labor_rate_settings = get_or_create_labor_rate_settings(db)
+    labor_rate_settings = load_labor_rate_settings(db)
     labor_rate_settings.employer_cost_pct = Decimal("25.00")
     labor_rate_settings.target_profit_pct = Decimal("12.00")
     labor_rate_settings.annual_overhead = Decimal("1.00")
-    calc_settings = get_or_create_settings(db)
+    calc_settings = load_calculation_settings(db)
     calc_settings.labor_rate = Decimal("77.00")
     db.commit()
     create_cost(db, _cost_payload(label="Miete", net_amount="1000.00", overhead_classification="fix"))
@@ -322,7 +322,7 @@ def test_apply_excludes_keine_and_inactive_costs_from_the_written_sums():
 
     apply_recurring_cost_overhead_proposal(db)
 
-    overhead = get_or_create_overhead_settings(db)
+    overhead = load_overhead_settings(db)
     assert overhead.fixed_overhead_value == Decimal("12000.00")
 
 

@@ -3,7 +3,7 @@ erweitert."""
 
 from decimal import Decimal
 
-from app.calculation import effective_material_sale_price, get_or_create_settings
+from app.calculation import effective_material_sale_price, load_calculation_settings
 from app.invoices import create_invoice_from_time_entries
 from app.materials import create_manual_material
 from app.models import Material
@@ -246,7 +246,7 @@ def test_effective_material_sale_price_with_and_without_markup():
 
 def test_invoice_from_effort_prices_catalog_material_with_configured_markup():
     db = db_session()
-    settings = get_or_create_settings(db)
+    settings = load_calculation_settings(db)
     settings.material_markup_pct = Decimal("20")
     db.commit()
 
@@ -269,7 +269,7 @@ def test_invoice_from_effort_uses_bare_purchase_price_when_markup_is_zero_defaul
     Installation, die ihn nie konfiguriert hat) führt zum nackten Einkaufspreis in der
     Rechnung -- genau der Zustand, den der sichtbare Hinweis im Router abfangen soll."""
     db = db_session()
-    settings = get_or_create_settings(db)
+    settings = load_calculation_settings(db)
     assert settings.material_markup_pct == Decimal("0")  # Standardwert, nicht extra gesetzt
 
     order, _ = make_order_with_item(db)
@@ -370,7 +370,7 @@ def test_router_endpoint_sets_material_markup_hint_only_when_relevant(threaded_d
 
 def test_router_endpoint_material_markup_hint_absent_with_configured_markup(threaded_db_session, router_test_client):
     from app.routers.invoices import router as invoices_router
-    from app.calculation import get_or_create_settings as _settings
+    from app.calculation import load_calculation_settings as _settings
 
     db = threaded_db_session
     settings = _settings(db)

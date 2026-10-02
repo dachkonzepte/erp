@@ -16,7 +16,7 @@ from ..document_categories import resolve_category_id
 from ..invoices import invoice_overview_row, invoice_summary_for_order, list_invoices_for_project
 from ..work_preparation import planned_hours
 from ..models import AppUser, Customer, Order, Project, ProjectDocument, ProjectPipelineColumn, ProjectProfile, Property, Quote
-from ..option_settings import default_option_value, ensure_default_option_groups
+from ..option_settings import default_option_value
 from ..orders import load_order, order_to_dict
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_documents import MAX_UPLOAD_BYTES, make_stored_filename, project_directory
@@ -25,7 +25,7 @@ from ..project_pipeline_columns import default_pipeline_column_id
 from ..projects import delete_project, duplicate_project, load_project, load_quote, next_project_number, next_quote_number, quote_to_dict, set_project_archived
 from ..service_reports import count_reports_for_order
 from ..schemas import InvoiceOverviewOut, OrderListOut, ProjectCreate, ProjectDetailOut, ProjectDocumentOut, ProjectDuplicateRequest, ProjectListOut, ProjectPipelineColumnMove, ProjectUpdate, QuoteCreate, QuoteListOut, QuoteOut
-from ..settings import get_or_create_general_settings
+from ..settings import load_general_settings
 
 from .project_documents import _project_document_out
 
@@ -36,7 +36,6 @@ router = APIRouter()
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 def _ensure_project_profile(db: Session, project_id: int, category: str | None = None) -> ProjectProfile:
-    ensure_default_option_groups(db)
     profile = db.scalar(select(ProjectProfile).where(ProjectProfile.project_id == project_id))
     if profile is None:
         profile = ProjectProfile(project_id=project_id, category=category or default_option_value(db, "project_categories"))
@@ -318,7 +317,7 @@ def create_quote(project_id: int, payload: QuoteCreate, db: Session = Depends(ge
     project = load_project(db, project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     quote = Quote(
         quote_number=next_quote_number(db),
         project_id=project.id,

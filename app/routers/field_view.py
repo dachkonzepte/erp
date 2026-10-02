@@ -40,11 +40,11 @@ from ..berlin_time import berlin_now, berlin_today
 from ..auth import COOKIE_NAME
 from ..database import get_db
 from ..deps import require_admin
-from ..document_categories import ensure_default_categories, field_may_see_category
+from ..document_categories import field_may_see_category
 from ..field_timesheet_pdf import build_field_timesheet_pdf
 from ..maintenance_contracts import list_relevant_contracts_for_employee
 from ..mobile_manifest import build_icon_png, build_manifest
-from ..mobile_settings import get_or_create_mobile_settings, is_past_shift_end, mobile_settings_to_dict, update_mobile_settings
+from ..mobile_settings import load_mobile_settings, is_past_shift_end, mobile_settings_to_dict, update_mobile_settings
 from ..models import AppUser, DocumentCategory, Property
 from ..modules import is_module_enabled
 from ..permissions import ROLE_FIELD, require_min_role
@@ -98,7 +98,7 @@ def get_field_view_today(request: Request, db: Session = Depends(get_db)):
     user = getattr(request.state, "erp_user", None)
     if user is None:
         raise HTTPException(status_code=401, detail="Bitte zuerst anmelden.")
-    if is_past_shift_end(get_or_create_mobile_settings(db), _now()):
+    if is_past_shift_end(load_mobile_settings(db), _now()):
         response = JSONResponse(status_code=401, content={"detail": "Feierabend -- bitte erneut anmelden."})
         response.delete_cookie(COOKIE_NAME)
         return response
@@ -235,7 +235,6 @@ def get_field_view_document_categories(db: Session = Depends(get_db), _role: App
     eine gesperrte Kategorie zur Wahl anbietet. Der eigentliche Schutz sitzt trotzdem serverseitig
     im Upload-Endpunkt selbst (siehe unten) -- diese Liste ist nur die Komfort-Vorauswahl, kein
     zusätzliches Schloss."""
-    ensure_default_categories(db)
     categories = db.scalars(
         select(DocumentCategory).where(DocumentCategory.active == True)  # noqa: E712
         .order_by(DocumentCategory.sort_order, DocumentCategory.id)
@@ -380,7 +379,7 @@ def get_field_view_property_maintenance_history_report_pdf(
 
 @router.get("/api/mobile-settings", response_model=MobileSettingsOut)
 def get_mobile_settings(db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
-    return mobile_settings_to_dict(get_or_create_mobile_settings(db))
+    return mobile_settings_to_dict(load_mobile_settings(db))
 
 
 @router.put("/api/mobile-settings", response_model=MobileSettingsOut)

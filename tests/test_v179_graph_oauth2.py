@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from app.email_sending import (
     check_smtp_connection,
-    get_or_create_smtp_settings,
+    load_smtp_settings,
     is_smtp_configured,
     set_send_method,
     update_graph_settings,
@@ -34,14 +34,14 @@ def _fake_token_response(token="FAKE_TOKEN"):
 
 def test_send_method_defaults_to_smtp():
     db = db_session()
-    s = get_or_create_smtp_settings(db)
+    s = load_smtp_settings(db)
     assert s.send_method == "smtp"
 
 
 def test_set_send_method_switches_to_graph():
     db = db_session()
     set_send_method(db, "graph_oauth2")
-    assert get_or_create_smtp_settings(db).send_method == "graph_oauth2"
+    assert load_smtp_settings(db).send_method == "graph_oauth2"
 
 
 def test_set_send_method_rejects_unknown_value():
@@ -112,10 +112,10 @@ def test_update_graph_settings_none_secret_keeps_existing():
     from app.crypto import decrypt_secret
     db = db_session()
     _configure_graph(db, client_secret="erstes-secret")
-    first_encrypted = get_or_create_smtp_settings(db).graph_client_secret_encrypted
+    first_encrypted = load_smtp_settings(db).graph_client_secret_encrypted
 
     update_graph_settings(db, tenant_id="tenant-123", client_id="neue-client-id", sender_mailbox="buero@firma.de", client_secret=None)
-    settings = get_or_create_smtp_settings(db)
+    settings = load_smtp_settings(db)
     assert settings.graph_client_id == "neue-client-id"  # andere Felder geändert
     assert settings.graph_client_secret_encrypted == first_encrypted  # Secret unangetastet
     assert decrypt_secret(settings.graph_client_secret_encrypted) == "erstes-secret"

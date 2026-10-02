@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from app.email_sending import (
     check_smtp_connection,
-    get_or_create_smtp_settings,
+    load_smtp_settings,
     is_smtp_configured,
     update_smtp_settings,
 )
@@ -67,9 +67,9 @@ def finalized_reminder(db, *, customer_email=None):
 # SmtpSettings: Geschäftslogik
 # ---------------------------------------------------------------------------
 
-def test_get_or_create_smtp_settings_seeds_defaults():
+def test_smtp_settings_start_with_defaults():
     db = db_session()
-    s = get_or_create_smtp_settings(db)
+    s = load_smtp_settings(db)
     assert s.id == 1
     assert s.port == 587
     assert s.encryption == "starttls"
@@ -107,13 +107,13 @@ def test_update_smtp_settings_none_password_keeps_existing():
         db, host="smtp.example.com", port=587, username="buero@example.com",
         encryption="starttls", sender_email="buero@example.com", sender_name=None, password="erstes-passwort",
     )
-    first_encrypted = get_or_create_smtp_settings(db).password_encrypted
+    first_encrypted = load_smtp_settings(db).password_encrypted
 
     update_smtp_settings(
         db, host="smtp.example.com", port=465, username="buero@example.com",
         encryption="ssl", sender_email="buero@example.com", sender_name="Neuer Name", password=None,
     )
-    settings = get_or_create_smtp_settings(db)
+    settings = load_smtp_settings(db)
     assert settings.port == 465  # andere Felder wurden geändert
     assert settings.password_encrypted == first_encrypted  # Passwort unangetastet
 
@@ -140,7 +140,7 @@ def test_password_round_trips_through_encryption():
         db, host="smtp.example.com", port=587, username="x", encryption="starttls",
         sender_email="x@example.com", sender_name=None, password="mein-geheimes-passwort",
     )
-    settings = get_or_create_smtp_settings(db)
+    settings = load_smtp_settings(db)
     assert decrypt_secret(settings.password_encrypted) == "mein-geheimes-passwort"
 
 

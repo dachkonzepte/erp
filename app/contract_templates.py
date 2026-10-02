@@ -30,7 +30,7 @@ from .document_pdf import money, qty
 from .models import ContractTemplate, ContractTemplateSection, Order, OrderContract, QuoteDocumentMeta
 from .orders import execution_period_text, order_to_dict
 from .placeholders import apply_placeholders, unknown_placeholders
-from .settings import get_or_create_general_settings
+from .settings import load_general_settings
 
 CONTRACT_WATERMARK_TEXT = "Entwurf – Vertragstext nicht geprüft"
 DEFAULT_CONTRACT_TITLE = "Vertrag"
@@ -356,7 +356,7 @@ def contract_placeholder_values(db: Session, order: Order, contract: OrderContra
     """Die Werte für jeden Platzhalter aus CONTRACT_PLACEHOLDERS -- live aus Auftrag, Angebot und
     Betrieb, die Fallfelder aus dem Entwurf. Kunde und Objekt sind der Schnappschuss am Auftrag."""
     data = data if data is not None else order_to_dict(order, db, include_sync_state=False)
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     meta = db.scalar(select(QuoteDocumentMeta).where(QuoteDocumentMeta.quote_id == order.source_quote_id))
     company_city = " ".join(x for x in (general.postal_code, general.city) if x)
     values = {
@@ -407,7 +407,7 @@ def contract_content(db: Session, order: Order, contract: OrderContract | None) 
     data = order_to_dict(order, db, include_sync_state=False)
     values = contract_placeholder_values(db, order, contract, data=data)
     sections = visible_sections(template, is_consumer=is_consumer)
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     raw_texts = [template.title or ""] + [t for s in sections for t in (s.heading or "", s.body_text or "")]
     used = [p for p in KNOWN_PLACEHOLDERS if any(p in t for t in raw_texts)]
     sender_parts = [general.company_name, general.street, " ".join(x for x in [general.postal_code, general.city] if x)]

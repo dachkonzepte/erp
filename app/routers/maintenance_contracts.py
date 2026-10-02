@@ -14,7 +14,7 @@ from ..maintenance_contracts import (
     create_maintenance_contract_from_project, create_maintenance_visit, create_project_from_contract,
     create_window, delete_contract,
     delete_contract_item, delete_window, field_may_perform_maintenance, get_contract,
-    get_or_create_maintenance_settings, list_contracts,
+    load_maintenance_settings, list_contracts,
     list_contracts_for_property, list_due_items_grouped,
     list_windows, maintenance_settings_to_dict, reorder_windows, set_contract_archived, set_contract_status,
     set_item_archived, update_contract, update_contract_item, update_maintenance_settings, update_window,
@@ -242,7 +242,7 @@ def post_maintenance_contract_from_project(project_id: int, payload: Maintenance
 @router.get("/api/maintenance-settings", response_model=MaintenanceSettingsOut)
 def get_maintenance_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
-    return maintenance_settings_to_dict(get_or_create_maintenance_settings(db))
+    return maintenance_settings_to_dict(load_maintenance_settings(db))
 
 
 @router.put("/api/maintenance-settings", response_model=MaintenanceSettingsOut)

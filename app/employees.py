@@ -27,13 +27,15 @@ DEFAULT_EMPLOYEE_FUNCTIONS = [
 ]
 
 
-def ensure_default_employee_functions(db: Session) -> list[EmployeeFunction]:
-    """Gegen einen gleichzeitigen ersten Zugriff abgesichert (siehe CLAUDE.md "Self-Seeding
+def ensure_default_employee_functions(db: Session) -> None:
+    """Anlegeschritt von app.grunddaten.anlegen() (seit 1.8.42): flush, kein commit -- ein Commit gäbe dort
+    die Sperre frei. Lesepfade rufen das nicht mehr auf.
+
+    Gegen einen gleichzeitigen ersten Zugriff abgesichert (siehe CLAUDE.md "Self-Seeding
     gegen gleichzeitigen Zugriff absichern"): jede fehlende Funktion wird einzeln in einem
     SAVEPOINT angelegt -- eine UNIQUE-Verletzung auf name (ein anderer Prozess war schneller)
     wird als "schon gesät" behandelt, nicht als Fehler."""
     existing = {f.name: f for f in db.scalars(select(EmployeeFunction)).all()}
-    changed = False
     for sort_order, name, group in DEFAULT_EMPLOYEE_FUNCTIONS:
         if name in existing:
             continue
@@ -45,9 +47,9 @@ def ensure_default_employee_functions(db: Session) -> list[EmployeeFunction]:
         except IntegrityError:
             continue
         existing[name] = fn
-        changed = True
-    if changed:
-        db.commit()
+
+
+def load_employee_functions(db: Session) -> list[EmployeeFunction]:
     return db.scalars(
         select(EmployeeFunction).order_by(EmployeeFunction.sort_order, EmployeeFunction.name)
     ).all()
@@ -60,7 +62,6 @@ def get_employee_function(db: Session, function_id: int | None) -> EmployeeFunct
 
 
 def _function_for_legacy_employee(db: Session, employee: Employee) -> EmployeeFunction:
-    ensure_default_employee_functions(db)
     if employee.job_title:
         existing = db.scalar(select(EmployeeFunction).where(EmployeeFunction.name == employee.job_title.strip()))
         if existing:
@@ -93,7 +94,6 @@ def ensure_employee_profile(db: Session, employee: Employee) -> EmployeeProfile:
 
 
 def ensure_employee_profiles(db: Session) -> list[Employee]:
-    ensure_default_employee_functions(db)
     employees = db.scalars(
         select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function))
         .order_by(Employee.active.desc(), Employee.last_name, Employee.first_name)
@@ -236,8 +236,8 @@ def employee_to_dict(employee: Employee, db: Session | None = None) -> dict:
     weeks_per_year = Decimal("52")
     if db is not None and employee.id:
         role = db.scalar(select(EmployeeRoleSettings).where(EmployeeRoleSettings.employee_id == employee.id))
-        from .labor_rate import get_or_create_labor_rate_settings
-        weeks_per_year = Decimal(get_or_create_labor_rate_settings(db).weeks_per_year or Decimal("52"))
+        from .labor_rate import load_labor_rate_settings
+        weeks_per_year = Decimal(load_labor_rate_settings(db).weeks_per_year or Decimal("52"))
         if employee.compensation is None:
             existing = db.scalar(select(EmployeeCompensationSettings).where(EmployeeCompensationSettings.employee_id == employee.id))
             if existing is not None:
@@ -311,8 +311,8 @@ def apply_employee_payload(db: Session, employee: Employee, payload) -> Employee
     if compensation_type == "hourly":
         employee.hourly_wage = payload.hourly_wage
     else:
-        from .labor_rate import get_or_create_labor_rate_settings
-        weeks = Decimal(get_or_create_labor_rate_settings(db).weeks_per_year or Decimal("52"))
+        from .labor_rate import load_labor_rate_settings
+        weeks = Decimal(load_labor_rate_settings(db).weeks_per_year or Decimal("52"))
         monthly = Decimal(payload.monthly_salary or 0)
         annual_hours = Decimal(payload.weekly_hours or 0) * weeks
         employee.hourly_wage = (monthly * Decimal("12") / annual_hours) if monthly > 0 and annual_hours > 0 else None

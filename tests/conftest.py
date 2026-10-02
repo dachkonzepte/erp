@@ -36,14 +36,59 @@ os.environ.pop("ERP_ENV", None)
 import pytest  # noqa: E402 -- erst nach dem Umlenken der Datenbank
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, event, select
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.auth import hash_password
 from app.database import Base, get_db
 from app.models import AppUser
+from tests.grunddaten_schalter import grunddaten_aus, ohne_grunddaten
 from tests.uhr import uhr_festhalten
+
+
+@event.listens_for(Base.metadata, "after_create")
+def _grunddaten_wie_nach_dem_start(target, connection, **kw):
+    """Seit 1.8.42 legt app/main.py die Grunddaten (Einstellungen, Standardsätze) beim Start an, kein
+    Lesepfad mehr beim ersten Zugriff (app/grunddaten.py). Jede Testdatenbank aus create_all() bekommt
+    sie hier genauso -- sie sieht damit aus wie eine Installation nach dem Start. Läuft in der
+    Transaktion von create_all(); eine Datenbank OHNE Grunddaten: tests/grunddaten_schalter.py.
+
+    Unter SQLite übernimmt der Hook die Zeilen einer Vorlage, die anlegen() einmal je Jahr erzeugt hat
+    (anlegen() je Datenbank kostete rund 70 ms, bei über 2500 Tests zwei Minuten). Das Jahr zählt, weil
+    die Nummernkreise es speichern (test_v316 stellt die Uhr auf andere Jahre). Hat die Datenbank schon
+    Grunddaten oder ist es PostgreSQL (Sequenzen), läuft anlegen() selbst."""
+    if grunddaten_aus():
+        return
+    from app.berlin_time import berlin_now
+    from app.grunddaten import anlegen
+    from app.models import GeneralSettings
+    leer = connection.execute(select(GeneralSettings.id).limit(1)).first() is None
+    if connection.dialect.name == "sqlite" and leer:
+        for table, rows in _grunddaten_vorlage(berlin_now().year):
+            connection.execute(table.insert(), rows)
+        return
+    with Session(bind=connection) as session:
+        anlegen(session)
+
+
+_VORLAGEN: dict[int, list] = {}
+
+
+def _grunddaten_vorlage(jahr: int) -> list:
+    """(Tabelle, Zeilen) aller Tabellen, in die anlegen() auf einer leeren SQLite-Datenbank schreibt."""
+    if jahr not in _VORLAGEN:
+        from app.grunddaten import anlegen
+        engine = create_engine("sqlite:///:memory:")
+        with ohne_grunddaten():
+            Base.metadata.create_all(engine)
+        with Session(engine) as session:
+            anlegen(session)
+        with engine.connect() as conn:
+            _VORLAGEN[jahr] = [(table, rows) for table in Base.metadata.sorted_tables
+                               if (rows := [dict(r._mapping) for r in conn.execute(table.select())])]
+        engine.dispose()
+    return _VORLAGEN[jahr]
 
 
 def pytest_addoption(parser):

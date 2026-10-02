@@ -20,18 +20,19 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.document_frame import RENDERERS_USING_SHARED_FRAME
 from app.document_layout import (
-    ensure_default_layout, get_effective_background, set_background,
+    load_layout, get_effective_background, set_background,
     set_background_repeat,
 )
-from app.document_page_margins import ensure_default_margins
+from app.document_page_margins import get_margins
 from app.models import Customer, DocumentLayoutBlock, Project, Quote, QuoteItem, QuoteItemLayout, QuoteSection
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.projects import load_quote
 from app.quote_framed_pdf import _build_items_table, build_quote_framed_pdf
-from app.settings import get_or_create_general_settings
+from app.settings import load_general_settings
 from tests.test_v229_shared_document_layout import _run_migration_step
 
 import pypdfium2 as pdfium
+from tests.grunddaten_schalter import ohne_grunddaten
 
 
 def db_session():
@@ -598,7 +599,8 @@ def _load_quote_continuation_header_migration():
 def test_migration_adds_continuation_header_to_already_seeded_quote_only():
     migration = _load_quote_continuation_header_migration()
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
+    with ohne_grunddaten():
+        Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     db = Session()
     for i, (block_type, label, x, y, w, h, fs, fw, align, visible) in enumerate(_HISTORICAL_QUOTE_LAYOUT_BEFORE_1_3_13):
@@ -637,7 +639,8 @@ def test_migration_adds_continuation_header_to_already_seeded_quote_only():
 def test_migration_is_idempotent_and_downgrade_removes_the_row():
     migration = _load_quote_continuation_header_migration()
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
+    with ohne_grunddaten():
+        Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     db = Session()
     for i, (block_type, label, x, y, w, h, fs, fw, align, visible) in enumerate(_HISTORICAL_QUOTE_LAYOUT_BEFORE_1_3_13):
@@ -672,10 +675,10 @@ def test_continuation_header_block_is_seeded_by_ensure_default_layout_for_fresh_
     """Eine komplett frische Installation (kein Migrationslauf) braucht die Migration nicht --
     DEFAULT_SHARED_LAYOUT selbst enthält den Baustein bereits. Seit 1.3.20 hat "quote" keine
     eigenen Bausteine mehr (CLAUDE.md "Gemeinsamer Dokumenttyp"/Aufräumen nach dem PDF-Umbau) --
-    ensure_default_layout(db, "quote") faellt deshalb auf den geteilten, vier Bausteine
+    load_layout(db, "quote") faellt deshalb auf den geteilten, vier Bausteine
     umfassenden Satz zurueck, statt (wie vor 1.3.20) elf eigene Bausteine zu seeden."""
     db = db_session()
-    blocks = ensure_default_layout(db, "quote")
+    blocks = load_layout(db, "quote")
     assert len(blocks) == 4
     header = [b for b in blocks if b.block_type == "continuation_header"][0]
     assert (header.y_mm, header.height_mm, header.visible) == (Decimal("12"), Decimal("4"), True)
@@ -688,9 +691,9 @@ def test_continuation_header_default_position_does_not_overlap_continuation_marg
     page_type='continuation' liegen. Seit 1.3.20 ueber den "default"-Rueckfall geprueft (siehe
     oben) -- derselbe Baustein/dieselben Randwerte, die "quote" jetzt ueber den Rueckfall liest."""
     db = db_session()
-    blocks = ensure_default_layout(db, "quote")
+    blocks = load_layout(db, "quote")
     header = [b for b in blocks if b.block_type == "continuation_header"][0]
-    margins = ensure_default_margins(db, "quote", "continuation")
+    margins = get_margins(db, "quote", "continuation")
     assert margins.top_mm >= header.y_mm + header.height_mm
 
 
@@ -766,7 +769,7 @@ def test_quote_pdf_identical_whether_quote_has_its_own_rows_or_falls_back_to_def
         set_background(db, document_type_for_settings, stored, page_type="first")
         update_margins(db, document_type_for_settings, "first", top_mm=Decimal("25"), bottom_mm=Decimal("32"), left_mm=Decimal("17"), right_mm=Decimal("17"))
         update_margins(db, document_type_for_settings, "continuation", top_mm=Decimal("40"), bottom_mm=Decimal("32"), left_mm=Decimal("17"), right_mm=Decimal("17"))
-        for block in ensure_default_layout(db, document_type_for_settings):
+        for block in load_layout(db, document_type_for_settings):
             if block.block_type in ("logo", "company_header", "footer_text"):
                 update_layout_block(
                     db, block, x_mm=block.x_mm, y_mm=block.y_mm, width_mm=block.width_mm, height_mm=block.height_mm,

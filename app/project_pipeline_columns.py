@@ -42,7 +42,10 @@ def ensure_default_columns(db: Session) -> None:
 
     Gegen einen gleichzeitigen ersten Zugriff abgesichert (siehe CLAUDE.md "Self-Seeding gegen
     gleichzeitigen Zugriff absichern") -- eine UNIQUE-Verletzung auf key (ein anderer Prozess
-    war schneller) wird als "schon gesät" behandelt, kein Fehler."""
+    war schneller) wird als "schon gesät" behandelt, kein Fehler.
+
+    Anlegeschritt von app.grunddaten.anlegen() (seit 1.8.42): flush, kein commit -- ein Commit gäbe dort
+    die Sperre frei. Lesepfade rufen das nicht mehr auf."""
     if db.scalar(select(ProjectPipelineColumn.id).limit(1)) is not None:
         return
     try:
@@ -52,7 +55,6 @@ def ensure_default_columns(db: Session) -> None:
             db.flush()
     except IntegrityError:
         return
-    db.commit()
 
 
 def _slugify(label: str) -> str:
@@ -74,7 +76,6 @@ def _column_to_dict(column: ProjectPipelineColumn) -> dict:
 
 
 def list_columns(db: Session) -> list[dict]:
-    ensure_default_columns(db)
     rows = db.scalars(select(ProjectPipelineColumn).order_by(ProjectPipelineColumn.sort_order, ProjectPipelineColumn.id)).all()
     return [_column_to_dict(c) for c in rows]
 
@@ -85,16 +86,14 @@ def default_pipeline_column_id(db: Session) -> int:
     duplicate_project(), app/quick_service_orders.py, app/routers/inquiries.py::
     convert_inquiry(), app/routers/projects.py::create_project()), damit kein Projekt je ohne
     Spalte entsteht -- ein Projekt ohne Spalte würde im künftigen Kanban unsichtbar bleiben."""
-    ensure_default_columns(db)
     column_id = db.scalar(
         select(ProjectPipelineColumn.id).order_by(ProjectPipelineColumn.sort_order, ProjectPipelineColumn.id).limit(1)
     )
-    assert column_id is not None  # ensure_default_columns() garantiert mindestens eine Zeile
+    assert column_id is not None  # app.grunddaten.anlegen() legt die Startspalten beim Start an
     return column_id
 
 
 def create_column(db: Session, label: str) -> dict:
-    ensure_default_columns(db)
     label = label.strip()
     if not label:
         raise ValueError("Bitte eine Bezeichnung angeben.")
@@ -106,7 +105,6 @@ def create_column(db: Session, label: str) -> dict:
 
 
 def update_column(db: Session, column_id: int, label: str | None = None) -> dict:
-    ensure_default_columns(db)
     column = db.get(ProjectPipelineColumn, column_id)
     if column is None:
         raise ValueError("Spalte nicht gefunden.")
@@ -120,7 +118,6 @@ def update_column(db: Session, column_id: int, label: str | None = None) -> dict
 
 
 def reorder_columns(db: Session, ordered_ids: list[int]) -> list[dict]:
-    ensure_default_columns(db)
     columns_by_id = {c.id: c for c in db.scalars(select(ProjectPipelineColumn)).all()}
     if set(ordered_ids) != set(columns_by_id.keys()):
         raise ValueError("Die Reihenfolge muss alle vorhandenen Spalten enthalten.")
@@ -131,7 +128,6 @@ def reorder_columns(db: Session, ordered_ids: list[int]) -> list[dict]:
 
 
 def delete_column(db: Session, column_id: int) -> None:
-    ensure_default_columns(db)
     column = db.get(ProjectPipelineColumn, column_id)
     if column is None:
         raise ValueError("Spalte nicht gefunden.")

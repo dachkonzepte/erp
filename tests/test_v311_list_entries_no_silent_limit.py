@@ -22,7 +22,7 @@ from app.models import Employee, EmployeePayrollSettings, Order, TimeEntry
 from app.service_report_pdf import build_service_report_pdf
 from app.service_reports import _load as _load_report, create_report, sign_report
 from app.time_backoffice import (
-    backoffice_summary, build_datev_export, build_time_csv, build_timesheet_pdf, get_or_create_time_settings,
+    backoffice_summary, build_datev_export, build_time_csv, build_timesheet_pdf, load_time_settings,
 )
 from tests.test_v133_invoices import make_order_with_item
 from tests.test_v213_inspection_items import TINY_PNG, _extract_pdf_text
@@ -45,7 +45,7 @@ def bookings():
                    employee_group="gewerblich", hourly_wage="25", active=True)
     db.add_all([order_b, emp]); db.commit()
     db.add(EmployeePayrollSettings(employee_id=emp.id, datev_personnel_number="1001", payroll_export_enabled=True))
-    get_or_create_time_settings(db).datev_wage_type_site = "1000"
+    load_time_settings(db).datev_wage_type_site = "1000"
 
     def booking(order, work_date, activity="Reparatur"):
         return TimeEntry(employee_id=emp.id, project_id=order.project_id, order_id=order.id,

@@ -35,16 +35,14 @@ def befuellen(db, k):
 
     from app.berlin_time import berlin_today
     from app.contract_basis import update_clause
-    from app.labor_rate import get_or_create_labor_rate_settings
     from app.models import AppUser, Customer, Project, Quote, QuoteItem
     from app.orders import create_order_from_quote
     from app.project_pipeline_columns import default_pipeline_column_id
 
-    # Die Einstellungsseite ruft labor-rate-settings und labor-rate-calculation parallel ab; auf einer
-    # frischen Datenbank legen beide denselben Singleton an, einer scheitert (UNIQUE auf id, bekannte
-    # offene Fehlerklasse "get_or_create_settings(id=1)", CLAUDE.md) und die Seite zeigt ein alert().
-    get_or_create_labor_rate_settings(db)
-    db.commit()
+    # Bis 1.8.41 säte dieser Klicktest den Singleton labor_rate_settings vorab: die Einstellungsseite ruft
+    # labor-rate-settings und labor-rate-calculation parallel ab, auf einer frischen Datenbank legten beide ihn
+    # an, einer scheiterte, die Seite zeigte alert(). Seit 1.8.42 legt der Start der Instanz die Grunddaten an
+    # (app/grunddaten.py) -- der Klicktest prüft damit genau den Weg wie auf dem Server.
 
     anna = AppUser(username="anna", display_name="Anna Admin", role="admin", password_hash=k.passwort())
     bert = AppUser(username="bert", display_name="Bert Büro", role="buero_auftrag", password_hash=k.passwort())

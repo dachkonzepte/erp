@@ -33,6 +33,7 @@ from app.projects import duplicate_project, ensure_quote_structure, load_project
 from app.quote_framed_pdf import build_quote_framed_pdf
 from tests.test_v153_mahnwesen import db_session
 from tests.test_v230_invoice_pdf_shared_frame import _page_text
+from tests.grunddaten_schalter import ohne_grunddaten
 
 CLAUSE = "Es gilt die VOB Teil B in der bei Vertragsschluss gueltigen Fassung."
 
@@ -86,7 +87,8 @@ def _migration():
 def _pre_migration_engine():
     """Schema von heute, dann alles entfernt, was die Migration anlegt -- der Stand davor."""
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
+    with ohne_grunddaten():
+        Base.metadata.create_all(engine)
     with engine.begin() as conn:
         conn.execute(text("DROP TABLE order_contract_basis_changes"))
         conn.execute(text("DROP TABLE contract_basis_clauses"))

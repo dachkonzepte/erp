@@ -23,6 +23,7 @@ from datetime import date, timedelta
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
 from .date_utils import add_months
 from .models import (
@@ -69,14 +70,9 @@ def _address(*parts) -> str | None:
     return ", ".join(values) if values else None
 
 
-def get_or_create_maintenance_settings(db: Session) -> MaintenanceSettings:
-    settings = db.get(MaintenanceSettings, 1)
-    if settings is None:
-        settings = MaintenanceSettings(id=1)
-        db.add(settings)
-        db.commit()
-        db.refresh(settings)
-    return settings
+def load_maintenance_settings(db: Session) -> MaintenanceSettings:
+    """Nur lesen -- die Zeile legt app.grunddaten.anlegen() beim Start an (seit 1.8.42)."""
+    return einzelzeile(db, MaintenanceSettings)
 
 
 def maintenance_settings_to_dict(settings: MaintenanceSettings) -> dict:
@@ -92,7 +88,7 @@ def update_maintenance_settings(db: Session, reminder_lead_days: int, use_roof_a
                                  default_responsible_employee_id: int | None) -> dict:
     if reminder_lead_days < 0:
         raise ValueError("Die Vorlaufzeit darf nicht negativ sein.")
-    settings = get_or_create_maintenance_settings(db)
+    settings = load_maintenance_settings(db)
     settings.reminder_lead_days = reminder_lead_days
     settings.use_roof_area_items = use_roof_area_items
     settings.default_responsible_employee_id = default_responsible_employee_id
@@ -232,12 +228,12 @@ def get_contract(db: Session, contract_id: int) -> dict | None:
     contract = _load(db, contract_id)
     if contract is None:
         return None
-    settings = get_or_create_maintenance_settings(db)
+    settings = load_maintenance_settings(db)
     return contract_to_dict(contract, settings.reminder_lead_days, settings.use_roof_area_items)
 
 
 def list_contracts(db: Session, status: str | None = None, include_archived: bool = False) -> list[dict]:
-    settings = get_or_create_maintenance_settings(db)
+    settings = load_maintenance_settings(db)
     query = select(MaintenanceContract).options(
         selectinload(MaintenanceContract.customer), selectinload(MaintenanceContract.property),
         selectinload(MaintenanceContract.template_project), selectinload(MaintenanceContract.responsible_employee),
@@ -260,7 +256,7 @@ def list_contracts_for_property(db: Session, property_id: int, include_archived:
     select-Abfrage genügt hier, eine Relationship nur für diesen einen Anzeigefall wäre
     Overkill (gleiche Zurückhaltung wie bei der property_id-Auflösung in
     app/service_reports.py::list_property_history())."""
-    settings = get_or_create_maintenance_settings(db)
+    settings = load_maintenance_settings(db)
     query = select(MaintenanceContract).options(
         selectinload(MaintenanceContract.customer), selectinload(MaintenanceContract.property),
         selectinload(MaintenanceContract.template_project), selectinload(MaintenanceContract.responsible_employee),
@@ -322,7 +318,7 @@ def list_relevant_contracts_for_employee(db: Session, employee_id: int) -> list[
     if not contracts:
         return []
 
-    settings = get_or_create_maintenance_settings(db)
+    settings = load_maintenance_settings(db)
     groups: dict[tuple, dict] = {}
     for contract in contracts:
         if settings.use_roof_area_items and any(not i.archived for i in contract.items):
@@ -363,7 +359,7 @@ def create_contract(db: Session, customer_id: int, property_id: int | None, titl
     )
     db.add(contract)
     db.commit()
-    settings = get_or_create_maintenance_settings(db)
+    settings = load_maintenance_settings(db)
     return contract_to_dict(_load(db, contract.id), settings.reminder_lead_days, settings.use_roof_area_items)
 
 
@@ -383,7 +379,7 @@ def update_contract(db: Session, contract_id: int, title: str, interval_months: 
     contract.responsible_employee_id = responsible_employee_id
     contract.notes = notes or None
     db.commit()
-    settings = get_or_create_maintenance_settings(db)
+    settings = load_maintenance_settings(db)
     return contract_to_dict(_load(db, contract.id), settings.reminder_lead_days, settings.use_roof_area_items)
 
 
@@ -395,7 +391,7 @@ def set_contract_status(db: Session, contract_id: int, status: str) -> dict | No
         return None
     contract.status = status
     db.commit()
-    settings = get_or_create_maintenance_settings(db)
+    settings = load_maintenance_settings(db)
     return contract_to_dict(_load(db, contract.id), settings.reminder_lead_days, settings.use_roof_area_items)
 
 
@@ -408,7 +404,7 @@ def set_contract_archived(db: Session, contract_id: int, archived: bool) -> dict
         return None
     contract.archived = archived
     db.commit()
-    settings = get_or_create_maintenance_settings(db)
+    settings = load_maintenance_settings(db)
     return contract_to_dict(_load(db, contract.id), settings.reminder_lead_days, settings.use_roof_area_items)
 
 
@@ -465,7 +461,7 @@ def check_due_contracts_and_create_reminders(db: Session) -> list[dict]:
     Aufgaben."""
     if not is_module_enabled(db, "aufgabenmanagement"):
         return []
-    settings = get_or_create_maintenance_settings(db)
+    settings = load_maintenance_settings(db)
     threshold = berlin_today() + timedelta(days=settings.reminder_lead_days)
     due = db.scalars(
         select(MaintenanceContract)
@@ -544,7 +540,7 @@ def create_project_from_contract(db: Session, contract_id: int, item_id: int | N
     contract = db.get(MaintenanceContract, contract_id)
     if contract is None:
         raise ValueError("Wartungsvertrag nicht gefunden.")
-    use_roof_area_items = get_or_create_maintenance_settings(db).use_roof_area_items
+    use_roof_area_items = load_maintenance_settings(db).use_roof_area_items
     active_items = [i for i in contract.items if not i.archived]
 
     if item_id is None:
@@ -657,7 +653,7 @@ def create_maintenance_visit(db: Session, contract_id: int, created_by_employee_
     contract = db.get(MaintenanceContract, contract_id)
     if contract is None:
         raise ValueError("Wartungsvertrag nicht gefunden.")
-    use_roof_area_items = get_or_create_maintenance_settings(db).use_roof_area_items
+    use_roof_area_items = load_maintenance_settings(db).use_roof_area_items
     if use_roof_area_items and any(not i.archived for i in contract.items):
         raise ValueError("Dieser Wartungsvertrag hat aktive Positionen -- bitte den Vorgang je Position anlegen.")
 
@@ -709,7 +705,7 @@ def create_maintenance_contract_from_project(db: Session, project_id: int, *, in
 def create_contract_item(db: Session, contract_id: int, roof_area_id: int, maintenance_window_id: int,
                           description: str | None = None, template_project_id: int | None = None,
                           inspection_template_id: int | None = None, duration_minutes: int | None = None) -> dict:
-    if not get_or_create_maintenance_settings(db).use_roof_area_items:
+    if not load_maintenance_settings(db).use_roof_area_items:
         raise ValueError("Zu wartende Dachflächen sind in den Einstellungen deaktiviert.")
     contract = db.get(MaintenanceContract, contract_id)
     if contract is None:
@@ -732,7 +728,7 @@ def create_contract_item(db: Session, contract_id: int, roof_area_id: int, maint
     )
     db.add(item)
     db.commit()
-    lead_days = get_or_create_maintenance_settings(db).reminder_lead_days
+    lead_days = load_maintenance_settings(db).reminder_lead_days
     return item_to_dict(_load_item(db, item.id), lead_days)
 
 
@@ -760,7 +756,7 @@ def update_contract_item(db: Session, item_id: int, roof_area_id: int, maintenan
     item.inspection_template_id = inspection_template_id
     item.duration_minutes = duration_minutes
     db.commit()
-    lead_days = get_or_create_maintenance_settings(db).reminder_lead_days
+    lead_days = load_maintenance_settings(db).reminder_lead_days
     return item_to_dict(_load_item(db, item.id), lead_days)
 
 
@@ -770,7 +766,7 @@ def set_item_archived(db: Session, item_id: int, archived: bool) -> dict | None:
         return None
     item.archived = archived
     db.commit()
-    lead_days = get_or_create_maintenance_settings(db).reminder_lead_days
+    lead_days = load_maintenance_settings(db).reminder_lead_days
     return item_to_dict(_load_item(db, item.id), lead_days)
 
 

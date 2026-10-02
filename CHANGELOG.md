@@ -4,6 +4,36 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.42 – Grunddaten beim Start statt beim ersten Lesen
+
+Pflege-Runde. Einstellungen und Standardsätze legt kein Lesepfad mehr beim ersten Zugriff an, sondern
+`app/grunddaten.py::anlegen()` beim Start der App (`app/main.py`, in jeder Umgebung): 18 Singleton-Einstellungen
+(u. a. `labor_rate_settings`, die Gemeinkosten-Einstellung samt Übernahme der alten „jährlichen Gemeinkosten“), die
+globalen Kalkulationsgrundlagen und 12 Standardsätze (Optionsgruppen, Dokumentkategorien, Mitarbeiterfunktionen,
+Zahlungsbedingungen, Steuerschlüssel, Mahnstufen, Pipeline- und Aufgaben-Spalten, Nummernkreise, Arbeitszeitmodelle,
+Layout-Bausteine und Seitenränder des geteilten Satzes). Die Lesefunktionen heißen jetzt `load_*` statt
+`get_or_create_*` und melden eine fehlende Zeile mit `GrunddatenFehlen`; `ensure_default_*()` sind nur noch Schritte
+von `anlegen()` und committen nicht. `anlegen()` läuft in einer Transaktion hinter einer Sperrzeile (`general_settings`
+FOR UPDATE, unter SQLite `BEGIN IMMEDIATE`): zwei gleichzeitig startende Arbeitsprozesse legen nichts doppelt an –
+auch nicht die vier Sätze ohne UNIQUE und die Singletons, die 1.4.6 offen ließ. Damit sind 1.8.21 Nebenbefund 1 und
+1.8.40 Nebenbefunde 1 und 4 behoben (Einstellungsseite auf frischer Datenbank, Commit unter der Vertragssperre beim
+Rendern); die Klicktests säen nichts mehr vorab. Der Docstring von `_entry_type_labels()` verliert die
+Reihenfolge-Regel aus 1.8.8. Neue Regel 23 in CLAUDE.md. Keine Migration.
+
+Dauerhafter Test: der Rundgang in `test_v326_monteur_datengrenze.py` merkt per Datenbank-Listener je GET-Route jeden
+Schreibzugriff und läuft zusätzlich als Admin (der Monteur bekommt die meisten Endpunkte mit 403 vor jedem
+Datenbankzugriff); `SCHREIBT_BEKANNT` hält die zwei verbliebenen Fälle fest und darf nur kürzer werden. Vor dem Umbau
+schrieben 24 GET-Routen. Testdatenbanken bekommen die Grunddaten nach `create_all()` (conftest, unter SQLite aus einer
+Vorlage je Jahr), ohne sie: `tests/grunddaten_schalter.py`. Beim Test mit zwei Prozessen gefunden: unter SQLite ist ein
+SAVEPOINT vor der ersten Änderung selbst die Transaktion und sein RELEASE committet – Zahlungsbedingungen entstanden
+doppelt, jetzt `BEGIN IMMEDIATE`. Liste der umgestellten Stellen, Gegenproben und sechs Nebenbefunde (u. a. zwei
+GET-Endpunkte, die noch schreiben) in `docs/archiv/grunddaten-beim-start.md`. `tests/test_v345_grunddaten.py`
+(16 Tests, davon 4 gegen PostgreSQL 17: gleichzeitiges Anlegen, zwei Produktionsstarts, 46 gleichzeitige Erstaufrufe
+ohne Schreiben, Vertrag rendern unter gehaltener Sperre); dieselbe Gegenprobe einmal auf einer Datenbank aus
+`alembic upgrade head`. Listener-Test mit drei Gegenproben rot. Volle Suite 2562 grün (mit den opt-in-Tests gegen PostgreSQL).
+`klicktest_vertragsgrundlage.py` dreimal hintereinander 30/30, Vertrag festschreiben 40/40, Unterschrift 43/43,
+Behinderungsanzeige-Versand 41/41.
+
 ## 1.8.41 – Behinderungsanzeige abschließen
 
 Stufe 2b, Runde 2b-3 Teil 3 (die offenen Punkte 4–7 aus 1.8.40). Im Versandprotokoll lässt sich zu jedem gesendeten

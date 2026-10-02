@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import require_admin
 from ..email_sending import (
-    check_smtp_connection, get_or_create_smtp_settings, is_smtp_configured,
+    check_smtp_connection, load_smtp_settings, is_smtp_configured,
     set_send_method, update_graph_settings, update_smtp_settings,
 )
 from ..schemas import GraphSettingsUpdate, SendMethodUpdate, SmtpSettingsOut, SmtpSettingsUpdate
@@ -29,7 +29,7 @@ _ADMIN_MESSAGE = "Die E-Mail-Einstellungen sind nur für Administratoren verfüg
 
 
 def _to_out(db: Session) -> SmtpSettingsOut:
-    s = get_or_create_smtp_settings(db)
+    s = load_smtp_settings(db)
     return SmtpSettingsOut(
         configured=is_smtp_configured(db), send_method=s.send_method,
         host=s.host, port=s.port, username=s.username,

@@ -51,6 +51,7 @@ from email.utils import formataddr
 
 from sqlalchemy.orm import Session
 
+from .grunddaten import einzelzeile
 from .crypto import decrypt_secret, encrypt_secret
 from .models import SmtpSettings
 
@@ -64,14 +65,9 @@ GRAPH_SEND_TIMEOUT = 30
 MAX_ATTACHMENT_BYTES = 3_000_000
 
 
-def get_or_create_smtp_settings(db: Session) -> SmtpSettings:
-    settings = db.get(SmtpSettings, 1)
-    if settings is None:
-        settings = SmtpSettings(id=1)
-        db.add(settings)
-        db.commit()
-        db.refresh(settings)
-    return settings
+def load_smtp_settings(db: Session) -> SmtpSettings:
+    """Nur lesen -- die Zeile legt app.grunddaten.anlegen() beim Start an (seit 1.8.42)."""
+    return einzelzeile(db, SmtpSettings)
 
 
 def _missing_config_fields(s: SmtpSettings) -> list[str]:
@@ -98,14 +94,14 @@ def is_smtp_configured(db: Session) -> bool:
     """Prüft die JEWEILS aktive Methode (send_method) auf Vollständigkeit --
     der Name blieb aus demselben historischen Grund wie der Tabellenname
     'smtp_settings' erhalten, deckt inzwischen aber beide Versandwege ab."""
-    s = get_or_create_smtp_settings(db)
+    s = load_smtp_settings(db)
     return not _missing_config_fields(s)
 
 
 def set_send_method(db: Session, method: str) -> SmtpSettings:
     if method not in SEND_METHODS:
         raise ValueError(f"Unbekannter Versandweg: {method}")
-    settings = get_or_create_smtp_settings(db)
+    settings = load_smtp_settings(db)
     settings.send_method = method
     db.commit()
     db.refresh(settings)
@@ -123,7 +119,7 @@ def update_smtp_settings(
     Klartext an die Oberfläche zurückgegeben werden, um es "vorauszufüllen"."""
     if encryption not in ENCRYPTION_MODES:
         raise ValueError(f"Unbekannte Verschlüsselung: {encryption}")
-    settings = get_or_create_smtp_settings(db)
+    settings = load_smtp_settings(db)
     settings.host = host
     settings.port = port
     settings.username = username
@@ -142,7 +138,7 @@ def update_graph_settings(
 ) -> SmtpSettings:
     """Analog zu update_smtp_settings(): client_secret=None lässt das
     bereits gespeicherte, verschlüsselte Secret unangetastet."""
-    settings = get_or_create_smtp_settings(db)
+    settings = load_smtp_settings(db)
     settings.graph_tenant_id = tenant_id
     settings.graph_client_id = client_id
     settings.graph_sender_mailbox = sender_mailbox
@@ -247,7 +243,7 @@ def check_smtp_connection(db: Session) -> None:
     Bei Microsoft 365 bestätigt das nur Mandant/App/Secret, NICHT, ob das
     Absender-Postfach in der RBAC-Gruppe ERP-Zugriff ist -- das zeigt sich
     erst beim echten Versand."""
-    settings = get_or_create_smtp_settings(db)
+    settings = load_smtp_settings(db)
     missing = _missing_config_fields(settings)
     if missing:
         raise ValueError(f"E-Mail-Versand ist noch nicht vollständig konfiguriert. Es fehlt: {', '.join(missing)}.")

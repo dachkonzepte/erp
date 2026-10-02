@@ -16,10 +16,11 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.document_layout import ensure_default_layout, get_background, get_effective_background, set_background
-from app.document_page_margins import ensure_default_margins, get_margins
+from app.document_layout import load_layout, get_background, get_effective_background, set_background
+from app.document_page_margins import get_margins
 from app.document_type_fallback import SHARED_DOCUMENT_TYPE, resolve_shared_document_type
 from app.models import DocumentLayoutBackground, DocumentLayoutBlock, DocumentPageMargins
+from tests.grunddaten_schalter import ohne_grunddaten
 
 
 def db_session():
@@ -90,13 +91,13 @@ def test_document_layout_and_page_margins_import_the_same_helper_not_a_copy():
 
 
 # ---------------------------------------------------------------------------
-# Lesen mit Rückfall vs. Schreiben literal (ensure_default_layout/get_margins/get_background)
+# Lesen mit Rückfall vs. Schreiben literal (load_layout/get_margins/get_background)
 # ---------------------------------------------------------------------------
 
 def test_ensure_default_layout_reminder_and_order_share_the_same_seeded_rows():
     db = db_session()
-    reminder_blocks = ensure_default_layout(db, "reminder")
-    order_blocks = ensure_default_layout(db, "order")
+    reminder_blocks = load_layout(db, "reminder")
+    order_blocks = load_layout(db, "order")
     assert {b.id for b in reminder_blocks} == {b.id for b in order_blocks}  # identische Zeilen
     assert all(b.document_type == "default" for b in reminder_blocks)
 
@@ -107,7 +108,7 @@ def test_ensure_default_margins_reminder_uses_shared_top_default():
     gegen das echte Briefpapier vermessenen Wert (seit 1.3.19: 25mm, vorher 1.3.2: 42mm) statt
     des generischen 17mm-Werts bekommen, weil sie auf den geteilten Satz zurückfällt."""
     db = db_session()
-    margins = ensure_default_margins(db, "reminder", "first")
+    margins = get_margins(db, "reminder", "first")
     assert margins.document_type == "default"
     assert margins.top_mm == Decimal("25.0")
 
@@ -121,7 +122,7 @@ def test_ensure_default_margins_shared_bottom_matches_the_real_letterhead():
     Seite)."""
     db = db_session()
     for page_type in ("first", "continuation"):
-        margins = ensure_default_margins(db, "reminder", page_type)
+        margins = get_margins(db, "reminder", page_type)
         assert margins.document_type == "default"
         assert margins.bottom_mm == Decimal("32.0"), page_type
 
@@ -143,12 +144,12 @@ def test_update_margins_never_silently_touches_the_shared_row():
     from app.document_page_margins import update_margins
 
     db = db_session()
-    shared_before = ensure_default_margins(db, "reminder", "first")
+    shared_before = get_margins(db, "reminder", "first")
     assert shared_before.top_mm == Decimal("25.0")
 
     update_margins(db, "invoice", "first", top_mm=Decimal("99"), bottom_mm=Decimal("20"), left_mm=Decimal("18"), right_mm=Decimal("16"))
 
-    shared_after = ensure_default_margins(db, "reminder", "first")
+    shared_after = get_margins(db, "reminder", "first")
     assert shared_after.top_mm == Decimal("25.0")  # unveraendert, NICHT auf 99 geändert
     invoice_row = db.scalar(select(DocumentPageMargins).where(DocumentPageMargins.document_type == "invoice", DocumentPageMargins.page_type == "first"))
     assert invoice_row is not None
@@ -254,7 +255,8 @@ def _run_migration_step(engine, fn):
 def test_migration_upgrade_moves_reminder_rows_to_default_quote_untouched():
     migration = _load_migration()
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
+    with ohne_grunddaten():
+        Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     db = Session()
     db.add(DocumentLayoutBlock(
@@ -300,7 +302,8 @@ def test_migration_upgrade_moves_reminder_rows_to_default_quote_untouched():
 def test_migration_downgrade_reverses_upgrade():
     migration = _load_migration()
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
+    with ohne_grunddaten():
+        Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     db = Session()
     db.add(DocumentPageMargins(document_type="reminder", page_type="first", top_mm=Decimal("42.0"), bottom_mm=Decimal("20"), left_mm=Decimal("18"), right_mm=Decimal("16")))

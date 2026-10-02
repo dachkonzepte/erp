@@ -17,7 +17,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.models import EnabledModule, OperationalAsset, OperationalAssetInspection, OperationalResource
 from app.operational_assets import (
-    create_asset, create_inspection, delete_asset, get_asset, get_or_create_operational_asset_settings,
+    create_asset, create_inspection, delete_asset, get_asset, load_operational_asset_settings,
     is_inspection_due, is_inspection_overdue, list_assets, list_due_assets, update_asset,
     update_operational_asset_settings,
 )
@@ -157,10 +157,10 @@ def test_delete_asset_removes_inspections_but_never_the_linked_resource():
 
 def test_settings_singleton_default_lead_days_and_update():
     db = db_session()
-    settings = get_or_create_operational_asset_settings(db)
+    settings = load_operational_asset_settings(db)
     assert settings.reminder_lead_days == 30
     update_operational_asset_settings(db, 45)
-    assert get_or_create_operational_asset_settings(db).reminder_lead_days == 45
+    assert load_operational_asset_settings(db).reminder_lead_days == 45
 
 
 # --- Migration: Backfill bestehender Ressourcen als verknüpfte Assets ---

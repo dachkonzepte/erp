@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
 from .models import (
     Employee, EmployeeWorkTimeModel, TimeBackofficeAdvancedSettings,
@@ -39,19 +40,17 @@ def model_is_valid_on(db: Session, model_id: int, on_date: date | None = None) -
     return week_in_range(week, start, end)
 
 
-def get_or_create_advanced_settings(db: Session) -> TimeBackofficeAdvancedSettings:
-    row = db.get(TimeBackofficeAdvancedSettings, 1)
-    if row is None:
-        row = TimeBackofficeAdvancedSettings(id=1, datev_personnel_equals_erp_number=False)
-        db.add(row)
-        db.flush()
-    return row
+def load_advanced_settings(db: Session) -> TimeBackofficeAdvancedSettings:
+    """Nur lesen -- die Zeile legt app.grunddaten.anlegen() beim Start an (seit 1.8.42)."""
+    return einzelzeile(db, TimeBackofficeAdvancedSettings)
 
 
 def ensure_default_work_time_models(db: Session) -> None:
-    """Legt nur fehlende Startmodelle an; vorhandene Nutzerkonfiguration wird nie überschrieben."""
+    """Legt nur fehlende Startmodelle an; vorhandene Nutzerkonfiguration wird nie überschrieben.
+    Anlegeschritt von app.grunddaten.anlegen() (seit 1.8.42): flush, kein commit -- ein Commit gäbe dort
+    die Sperre frei. Lesepfade rufen das nicht mehr auf."""
     if db.scalar(select(WorkTimeModel.id).limit(1)) is not None:
-        settings = get_or_create_advanced_settings(db)
+        settings = load_advanced_settings(db)
         for model in db.scalars(select(WorkTimeModel)).all():
             if validity_row(db, model.id, create=False) is None:
                 code=(model.code or "").lower()
@@ -65,7 +64,7 @@ def ensure_default_work_time_models(db: Session) -> None:
             first = db.scalar(select(WorkTimeModel).where(WorkTimeModel.active.is_(True)).order_by(WorkTimeModel.sort_order, WorkTimeModel.id))
             if first:
                 settings.default_work_time_model_id = first.id
-        db.commit()
+        db.flush()
         return
     # Gegen einen gleichzeitigen ersten Zugriff abgesichert (siehe CLAUDE.md "Self-Seeding
     # gegen gleichzeitigen Zugriff absichern"): der komplette Satz (beide Modelle samt
@@ -87,11 +86,10 @@ def ensure_default_work_time_models(db: Session) -> None:
                     WorkTimeBreakRule(model_id=model.id, threshold_hours=Decimal("6.00"), break_minutes=30, sort_order=10),
                     WorkTimeBreakRule(model_id=model.id, threshold_hours=Decimal("9.00"), break_minutes=45, sort_order=20),
                 ])
-            settings = get_or_create_advanced_settings(db)
+            settings = load_advanced_settings(db)
             settings.default_work_time_model_id = summer.id
     except IntegrityError:
         return
-    db.commit()
 
 
 def model_to_dict(model: WorkTimeModel, db: Session | None = None) -> dict:
@@ -114,7 +112,6 @@ def model_to_dict(model: WorkTimeModel, db: Session | None = None) -> dict:
 
 
 def list_models(db: Session) -> list[dict]:
-    ensure_default_work_time_models(db)
     rows = db.scalars(select(WorkTimeModel).options(selectinload(WorkTimeModel.break_rules)).order_by(WorkTimeModel.sort_order, WorkTimeModel.name)).all()
     return [model_to_dict(x, db) for x in rows]
 
@@ -164,7 +161,7 @@ def save_model(db: Session, *, model_id: int | None, name: str, code: str | None
     for rid, rule in existing.items():
         if rid not in keep:
             db.delete(rule)
-    settings = get_or_create_advanced_settings(db)
+    settings = load_advanced_settings(db)
     if settings.default_work_time_model_id is None:
         settings.default_work_time_model_id = row.id
     db.commit(); db.refresh(row)
@@ -176,7 +173,7 @@ def delete_model(db: Session, model_id: int) -> None:
     if row is None:
         raise ValueError("Arbeitszeitmodell wurde nicht gefunden.")
     used = db.scalar(select(EmployeeWorkTimeModel.id).where(EmployeeWorkTimeModel.model_id == model_id).limit(1))
-    settings = get_or_create_advanced_settings(db)
+    settings = load_advanced_settings(db)
     if used is not None or settings.default_work_time_model_id == model_id:
         raise ValueError("Arbeitszeitmodell ist noch als Standard oder bei Mitarbeitern zugeordnet.")
     validity = validity_row(db, model_id, create=False)
@@ -189,7 +186,7 @@ def employee_model_id(db: Session, employee_id: int) -> int | None:
     assignment = db.scalar(select(EmployeeWorkTimeModel).where(EmployeeWorkTimeModel.employee_id == employee_id))
     if assignment:
         return assignment.model_id
-    return get_or_create_advanced_settings(db).default_work_time_model_id
+    return load_advanced_settings(db).default_work_time_model_id
 
 
 def employee_model(db: Session, employee_id: int, on_date: date | None = None) -> WorkTimeModel | None:
@@ -199,13 +196,12 @@ def employee_model(db: Session, employee_id: int, on_date: date | None = None) -
     Außerhalb seiner Gültigkeit wird zunächst das gültige Standardmodell und danach
     das erste aktive, für die Kalenderwoche gültige Modell verwendet.
     """
-    ensure_default_work_time_models(db)
     on_date = on_date or berlin_today()
     assigned_id = employee_model_id(db, employee_id)
     assigned = db.scalar(select(WorkTimeModel).options(selectinload(WorkTimeModel.break_rules)).where(WorkTimeModel.id == assigned_id)) if assigned_id else None
     if assigned is not None and assigned.active and model_is_valid_on(db, assigned.id, on_date):
         return assigned
-    settings = get_or_create_advanced_settings(db)
+    settings = load_advanced_settings(db)
     if settings.default_work_time_model_id and settings.default_work_time_model_id != assigned_id:
         default = db.scalar(select(WorkTimeModel).options(selectinload(WorkTimeModel.break_rules)).where(WorkTimeModel.id == settings.default_work_time_model_id, WorkTimeModel.active.is_(True)))
         if default is not None and model_is_valid_on(db, default.id, on_date):
@@ -235,7 +231,6 @@ def bulk_set_employee_model(db: Session, employee_ids: list[int], model_id: int)
 
 
 def employee_model_rows(db: Session) -> list[dict]:
-    ensure_default_work_time_models(db)
     employees = db.scalars(select(Employee).order_by(Employee.active.desc(), Employee.last_name, Employee.first_name)).all()
     result=[]
     for emp in employees:

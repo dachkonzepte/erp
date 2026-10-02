@@ -6,7 +6,7 @@ from datetime import date
 from pathlib import Path
 
 from app.inspection_templates import list_roof_type_template_defaults, set_roof_type_template_default
-from app.maintenance_contracts import create_contract, create_maintenance_visit, get_or_create_maintenance_settings
+from app.maintenance_contracts import create_contract, create_maintenance_visit, load_maintenance_settings
 from app.models import InspectionItem, MaintenanceContract, ServiceReportRoofArea
 from app.roof_areas import create_roof_area, create_roof_component, set_roof_area_archived
 from app.service_reports import (

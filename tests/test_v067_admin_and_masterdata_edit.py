@@ -8,7 +8,7 @@ from app.models import AppUser, AuditLog, Customer, Property, Employee
 from app.auth import COOKIE_NAME, hash_password, make_cookie
 from app.main import update_app_user, delete_app_user, update_property, get_employee, update_employee
 from app.schemas import AppUserUpdate, PropertyUpdate, EmployeeUpdate
-from app.employees import ensure_default_employee_functions
+from app.employees import load_employee_functions
 from app.audit import set_audit_context, reset_audit_context
 
 
@@ -62,7 +62,7 @@ def test_property_and_employee_can_be_edited_and_are_audited():
         updated_prop = update_property(prop.id, PropertyUpdate(customer_id=c2.id, name="Neuobjekt", street="Neue Str. 1", postal_code="52531", city="Übach-Palenberg", notes="bearbeitet"), db)
         assert updated_prop.customer_id == c2.id and updated_prop.name == "Neuobjekt"
 
-        fn = ensure_default_employee_functions(db)[0]
+        fn = load_employee_functions(db)[0]
         emp = Employee(first_name="Max", last_name="Alt", employee_group="gewerblich", hourly_wage=20, weekly_hours=40, active=True)
         db.add(emp); db.commit()
         payload = EmployeeUpdate(employee_number="MA-1", first_name="Max", last_name="Neu", function_id=fn.id, employee_group=fn.employee_group, hourly_wage=22, weekly_hours=39, street="Mitarbeiterstr. 1", postal_code="52531", city="Übach-Palenberg", country="Deutschland", phone="02451", mobile="0170", email="max@example.de", birthday=None, important_info="Hinweis", available_as_caseworker=True, active=True)

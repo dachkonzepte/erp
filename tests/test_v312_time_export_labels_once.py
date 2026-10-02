@@ -5,7 +5,10 @@ Optionsgruppe neu (get_option_group() -> ensure_default_option_groups(), fünf A
 Buchung); seit 1.8.7 ohne Kappung wuchs das mit dem Zeitraum. Zwei sonst gleiche Datenbanken mit
 10 und 2001 Buchungen, jede Zeitart in beiden. Jeder Lauf in einer frischen Session, damit die
 Identity Map keinen der beiden bevorzugt. Die Standardgruppen sind vorab gesät: gemessen wird der
-Normalbetrieb, nicht das einmalige Anlegen."""
+Normalbetrieb, nicht das einmalige Anlegen.
+
+Seit 1.8.42 legt der Start die Standardgruppen an (app/grunddaten.py, in Tests create_all()), kein
+Lesepfad mehr -- der Lauf schreibt nichts, statt höchstens einmal anzulegen."""
 
 import csv
 import io
@@ -16,10 +19,8 @@ import pytest
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import sessionmaker
 
-from app import option_settings
 from app.database import Base
 from app.models import Employee, SettingOption, SettingOptionGroup, TimeEntry
-from app.settings import get_or_create_general_settings
 from app.time_backoffice import build_time_csv, build_timesheet_pdf
 from tests.test_v133_invoices import make_order_with_item
 from tests.test_v213_inspection_items import _extract_pdf_text
@@ -40,8 +41,6 @@ def _database(count):
     emp = Employee(employee_number="T-1", first_name="Max", last_name="Muster",
                    employee_group="gewerblich", hourly_wage="25", active=True)
     db.add(emp); db.commit()
-    get_or_create_general_settings(db)
-    option_settings.ensure_default_option_groups(db)
     # Umbenannt, damit die Tests die Optionsgruppe sehen und nicht die gleichlautenden Rückfallwerte.
     db.scalar(select(SettingOption).join(SettingOptionGroup).where(
         SettingOptionGroup.group_key == "time_entry_types", SettingOption.value == "site",
@@ -66,28 +65,13 @@ def engines():
         engine.dispose()
 
 
-@pytest.fixture
-def seedings(monkeypatch):
-    """Zählt die Aufrufe von ensure_default_option_groups() (get_option_group() ruft es je Aufruf)."""
-    calls = []
-    original = option_settings.ensure_default_option_groups
-
-    def counting(db):
-        calls.append(db)
-        return original(db)
-
-    monkeypatch.setattr(option_settings, "ensure_default_option_groups", counting)
-    return calls
-
-
-def _run(engine, build, seedings):
-    """Ein Lauf in frischer Session: Zahl der Abfragen, Zahl der ensure_default_option_groups()-Aufrufe."""
+def _run(engine, build):
+    """Ein Lauf in frischer Session: Zahl der Abfragen, Zahl der schreibenden davon."""
     queries = []
 
     def count(conn, cursor, statement, *args):
         queries.append(statement)
 
-    seedings.clear()
     event.listen(engine, "before_cursor_execute", count)
     db = sessionmaker(bind=engine)()
     try:
@@ -95,15 +79,16 @@ def _run(engine, build, seedings):
     finally:
         db.close()
         event.remove(engine, "before_cursor_execute", count)
-    return len(queries), len(seedings)
+    writes = [q for q in queries if q.lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE"))]
+    return len(queries), len(writes)
 
 
 @pytest.mark.parametrize("build", [build_timesheet_pdf, build_time_csv], ids=["stundenzettel", "csv"])
-def test_query_count_same_for_10_and_2001_entries(engines, seedings, build):
-    few_queries, few_seedings = _run(engines[10], build, seedings)
-    many_queries, many_seedings = _run(engines[2001], build, seedings)
+def test_query_count_same_for_10_and_2001_entries(engines, build):
+    few_queries, few_writes = _run(engines[10], build)
+    many_queries, many_writes = _run(engines[2001], build)
     assert few_queries == many_queries
-    assert few_seedings <= 1 and many_seedings <= 1
+    assert few_writes == many_writes == 0
 
 
 def test_labels_come_from_option_group(engines):

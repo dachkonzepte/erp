@@ -57,7 +57,6 @@ def category_to_dict(category: DocumentCategory) -> dict:
 
 
 def list_categories(db: Session, include_inactive: bool = False) -> list[dict]:
-    ensure_default_categories(db)
     query = select(DocumentCategory)
     if not include_inactive:
         query = query.where(DocumentCategory.active == True)  # noqa: E712 -- SQLAlchemy-Vergleich, kein Python-Bool-Vergleich
@@ -143,10 +142,10 @@ def field_may_see_category(category: DocumentCategory) -> bool:
 
 
 def ensure_default_categories(db: Session) -> None:
-    """Selbst-Seeding wie bei den SettingOptionGroups/RoofComponentType -- greift nur, wenn die
-    Tabelle noch komplett leer ist (z. B. eine per Base.metadata.create_all() erzeugte
-    Testdatenbank ohne die eigentliche Migration). Rührt eine bereits gesäte Zeile nie wieder
-    an, exakt das etablierte Muster dieses Projekts.
+    """Greift nur, wenn die Tabelle noch komplett leer ist. Rührt eine bereits gesäte Zeile nie
+    wieder an.
+    Anlegeschritt von app.grunddaten.anlegen() (seit 1.8.42): flush, kein commit -- ein Commit gäbe dort
+    die Sperre frei. Lesepfade rufen das nicht mehr auf.
 
     Gegen einen gleichzeitigen ersten Zugriff abgesichert (siehe CLAUDE.md "Self-Seeding gegen
     gleichzeitigen Zugriff absichern"): der komplette Satz wird in einem SAVEPOINT eingefügt --
@@ -161,7 +160,6 @@ def ensure_default_categories(db: Session) -> None:
             db.flush()
     except IntegrityError:
         return
-    db.commit()
 
 
 def resolve_category_id(db: Session, category_label: str | None) -> int:
@@ -170,7 +168,6 @@ def resolve_category_id(db: Session, category_label: str | None) -> int:
     exakte Übereinstimmung, da key==label bei der Erstbefüllung (siehe DEFAULT_CATEGORIES).
     Kein Treffer (unbekannter/leerer String) fällt auf "Sonstiges" zurück, NIE auf eine
     sichtbare oder sensible Kategorie -- im Zweifel gesperrt, nie offen, siehe CLAUDE.md."""
-    ensure_default_categories(db)
     label = (category_label or "").strip()
     if label:
         category_id = db.scalar(select(DocumentCategory.id).where(DocumentCategory.key == label))
@@ -178,5 +175,5 @@ def resolve_category_id(db: Session, category_label: str | None) -> int:
             return category_id
     fallback_id = db.scalar(select(DocumentCategory.id).where(DocumentCategory.key == FALLBACK_CATEGORY_KEY))
     if fallback_id is None:
-        raise RuntimeError('Fallback-Kategorie "Sonstiges" fehlt -- ensure_default_categories() nicht gelaufen?')
+        raise RuntimeError('Fallback-Kategorie "Sonstiges" fehlt -- app.grunddaten.anlegen() nicht gelaufen?')
     return fallback_id

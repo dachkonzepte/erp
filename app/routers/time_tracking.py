@@ -31,7 +31,7 @@ from ..models import AppUser, TimeEntry, TimeEntryGroup
 from ..permissions import ROLE_FIELD, require_min_role
 from .orders import require_field_order_access
 from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
-from ..time_backoffice import get_or_create_time_settings, locked_until, rounded_hours, time_settings_dict
+from ..time_backoffice import load_time_settings, locked_until, rounded_hours, time_settings_dict
 from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, entry_to_dict, field_time_tracking_context, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
 from ..work_time_models import automatic_break_minutes_for_timer
 
@@ -60,7 +60,7 @@ def _time_entry_can_edit(request: Request, row: TimeEntry) -> bool:
 
 
 def _validate_time_rules(db: Session, *, order_item_id: int | None, activity: str | None, manual: bool = False, group: bool = False):
-    settings=get_or_create_time_settings(db)
+    settings=load_time_settings(db)
     if manual and not settings.allow_manual_entries:
         raise HTTPException(status_code=403,detail="Manuelle Zeitbuchungen sind im Zeiterfassungs-Backoffice deaktiviert.")
     if group and not settings.allow_group_bookings:
@@ -73,7 +73,7 @@ def _validate_time_rules(db: Session, *, order_item_id: int | None, activity: st
 
 
 def _apply_time_rounding(db: Session, entry: TimeEntry):
-    settings=get_or_create_time_settings(db)
+    settings=load_time_settings(db)
     if entry.status=="booked" and settings.rounding_minutes:
         entry.hours=rounded_hours(Decimal(entry.hours or 0),settings.rounding_minutes)
         db.commit(); db.refresh(entry)
@@ -164,7 +164,7 @@ def _group_actor(request: Request) -> tuple[int | None, bool, int | None]:
 
 @router.get("/api/time-tracking/settings", response_model=TimeTrackingSettingsOut)
 def get_mobile_time_settings(db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
-    return TimeTrackingSettingsOut.model_validate(time_settings_dict(get_or_create_time_settings(db), db))
+    return TimeTrackingSettingsOut.model_validate(time_settings_dict(load_time_settings(db), db))
 
 
 @router.get("/api/time-tracking/context")

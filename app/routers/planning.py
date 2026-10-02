@@ -15,7 +15,7 @@ from ..berlin_time import berlin_today
 from ..database import get_db
 from ..models import AppUser, Employee, EmployeeAbsence, PlanningHoliday
 from ..permissions import ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, require_min_role
-from ..planning import GERMAN_STATES, create_slot, delete_slot, get_or_create_planning_settings, get_or_create_region_settings, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
+from ..planning import GERMAN_STATES, create_slot, delete_slot, load_planning_settings, load_region_settings, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, EmployeeAbsenceUpdate, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest
 
 router = APIRouter()
@@ -83,7 +83,7 @@ def _redact_suggestion_absences(suggestion: dict, role: AppUser) -> dict:
 
 @router.get("/api/planning/settings", response_model=PlanningSettingsOut)
 def get_planning_capacity_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    return planning_settings_dict(get_or_create_planning_settings(db), db)
+    return planning_settings_dict(load_planning_settings(db), db)
 
 
 @router.put("/api/planning/settings", response_model=PlanningSettingsOut)
@@ -94,7 +94,7 @@ def put_planning_capacity_settings(payload: PlanningSettingsUpdate, db: Session 
 
 @router.post("/api/planning/school-holidays/sync")
 def sync_planning_school_holidays(start_year: int | None = None, years: int = 3, force: bool = False, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    region = get_or_create_region_settings(db)
+    region = load_region_settings(db)
     start_year = start_year or berlin_today().year
     years = max(1, min(int(years), 6))
     results = [sync_school_holidays(db, region.federal_state_code, year, force=force) for year in range(start_year, start_year + years)]

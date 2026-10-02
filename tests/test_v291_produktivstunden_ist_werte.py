@@ -24,10 +24,10 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.employees import set_cost_allocation
 from app.models import Employee, EmployeeAbsence, PlanningHoliday
-from app.planning import count_workday_holidays, get_or_create_planning_settings
+from app.planning import count_workday_holidays, load_planning_settings
 from app.productive_hours import (
     MIN_EMPLOYEES_FOR_SICK_DAYS_AVERAGE,
-    get_or_create_productive_hours_settings,
+    load_productive_hours_settings,
     labor_rate_employees,
     productive_hours_settings_dict,
     public_holidays_suggestion,
@@ -101,7 +101,7 @@ def test_count_workday_holidays_respects_configured_working_weekdays():
     """Nutzt dieselbe Arbeitstage-Definition wie die Plantafel (PlanningSettings), nicht
     hartcodiertes Mo-Fr -- ein Betrieb mit Samstagsarbeit zaehlt einen Samstagsfeiertag mit."""
     db = db_session()
-    settings = get_or_create_planning_settings(db)
+    settings = load_planning_settings(db)
     settings.saturday = True
     db.commit()
     db.add(PlanningHoliday(holiday_date=date(2026, 12, 26), name="2. Weihnachtstag (Sa)"))
@@ -156,7 +156,7 @@ def test_labor_rate_employees_uses_cost_allocation_not_app_user_role():
 
 def test_weather_days_actual_converts_hours_via_the_existing_daily_hours_setting():
     db = db_session()
-    settings = get_or_create_productive_hours_settings(db)
+    settings = load_productive_hours_settings(db)
     settings.daily_hours = Decimal("8.00")
     db.commit()
     emp1 = _make_employee(db, number="M-1")

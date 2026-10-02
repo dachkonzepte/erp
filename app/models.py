@@ -155,11 +155,11 @@ class CalculationSettings(Base):
     globale Datensatz. Siehe get_settings_for_catalog() in calculation.py.
 
     Bewusst OHNE id-Default (anders als die übrigen Singleton-Einstellungen
-    in diesem Modul, z. B. GeneralSettings): get_or_create_settings() setzt
-    id=1 für den globalen Datensatz weiterhin explizit, aber jeder neue,
-    katalogeigene Datensatz muss eine echte, automatisch vergebene ID
-    bekommen -- mit einem Default von 1 würden mehrere neu angelegte
-    Datensätze sonst um dieselbe ID konkurrieren."""
+    in diesem Modul, z. B. GeneralSettings): jeder neue, katalogeigene
+    Datensatz muss eine echte, automatisch vergebene ID bekommen -- mit einem
+    Default von 1 würden mehrere neu angelegte Datensätze sonst um dieselbe ID
+    konkurrieren. Den globalen Datensatz kennzeichnet catalog_id IS NULL, nicht
+    die ID; app.grunddaten.anlegen() legt ihn beim Start an (seit 1.8.42)."""
 
     __tablename__ = "calculation_settings"
     __table_args__ = (UniqueConstraint("catalog_id", name="uq_calculation_settings_catalog"),)

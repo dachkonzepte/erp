@@ -146,7 +146,8 @@ mit Liste aller Felder. (6) Tests mit Gegenprobe.
    `IntegrityError`, die Seite zeigt ein `alert()`. Die bekannte, offene Fehlerklasse
    "get_or_create_settings(id=1)" aus CLAUDE.md; beim Klicktest aufgefallen (der Dialog hielt den
    headless Chrome an). Der Klicktest sät den Singleton vorab und leitet `alert()` auf
-   `console.error` um.
+   `console.error` um. **Behoben in 1.8.42**: Grunddaten legt der Start an, kein Lesepfad
+   (`docs/archiv/grunddaten-beim-start.md`); der Klicktest sät nichts mehr vorab, dreimal hintereinander 30/30.
 2. **`QuoteDocumentMeta.internal_note` wird bei jedem Speichern der Angebotsdetails geleert**:
    `saveHeader()` in `quote_editor.html` schickt fest `internal_note:null`, ein Eingabefeld gibt es
    nicht. Nur über die API oder eine Projektkopie gesetzte Notizen gehen dadurch verloren.
@@ -1103,7 +1104,9 @@ committen und den Rest auflisten -- so geschehen: **1.8.40 = Punkte 1–3 und ih
    Unterschrift (Unterschriftsblatt) rendern unter `_locked_contract()`; `ensure_default_layout()` und
    `get_or_create_general_settings()` committen beim allerersten Aufruf und geben die Sperre damit frei. Auf dem Server gibt es
    die Zeilen längst, dort folgenlos; auf einer neuen Installation hielte beim allerersten Festschreiben nur der Unique-Schlüssel.
-   Dieselbe Ursache wie der Fund dieser Runde.
+   Dieselbe Ursache wie der Fund dieser Runde. **Behoben in 1.8.42**: Rendern liest nur (`load_layout()`,
+   `load_general_settings()`), kein Commit unter der Sperre -- geprüft gegen PostgreSQL mit NOWAIT aus einer zweiten
+   Verbindung (`test_v345_grunddaten.py`), siehe `docs/archiv/grunddaten-beim-start.md`.
 2. **Kopie per Post nicht vermerkbar**: Beteiligte mit "Kopie bei Anzeigen" ohne E-Mail stehen im Brief unter "Kopie an:", die
    Kopie selbst lässt sich nicht als zugestellt festhalten (eine nachgetragene Zustellung gilt dem Brief an den Auftraggeber).
 3. **Wiederaufnahme mit Unterschrift der Monteurin** (Festlegung 5): ob der Brief an den Auftraggeber eine Unterschrift des Büros
@@ -1112,7 +1115,8 @@ committen und den Rest auflisten -- so geschehen: **1.8.40 = Punkte 1–3 und ih
    Singleton `labor_rate_overhead_settings` zweimal parallel an (GET `/api/labor-rate-settings` und `…-calculation`), einer
    scheitert am Primärschlüssel, die Seite zeigt `alert()`. Der Klicktest sät nur `labor_rate_settings` vorab. Am unveränderten
    Stand 1.8.39 in einem eigenen Worktree ebenso (1 von 3 Läufen); dieselbe offene Fehlerklasse "get_or_create_settings(id=1)"
-   wie 1.8.21 Nebenbefund 1. Der neue Klicktest sät beide Singletons vorab.
+   wie 1.8.21 Nebenbefund 1. Der neue Klicktest sät beide Singletons vorab. **Behoben in 1.8.42** (siehe Nebenbefund 1
+   von 1.8.21); beide Klicktests säen nichts mehr vorab.
 
 ---
 

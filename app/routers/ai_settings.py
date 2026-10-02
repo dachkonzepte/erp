@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..ai_service import call_ai
-from ..ai_settings import get_or_create_ai_settings, update_ai_settings
+from ..ai_settings import load_ai_settings, update_ai_settings
 from ..ai_types import AIProviderError, AIRequest
 from ..database import get_db
 from ..deps import require_admin
@@ -24,7 +24,7 @@ _ADMIN_MESSAGE = "Die KI-Einstellungen sind nur für Administratoren verfügbar.
 
 
 def _to_out(db: Session) -> AISettingsOut:
-    s = get_or_create_ai_settings(db)
+    s = load_ai_settings(db)
     return AISettingsOut(
         enabled=s.enabled, provider=s.provider, api_base_url=s.api_base_url, model=s.model,
         has_api_key=bool(s.api_key_encrypted),

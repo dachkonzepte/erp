@@ -263,14 +263,14 @@ class TestRelevantContractsForEmployee:
         keinen Weg, statt dessen je Position vorzugehen, also erscheint der Vertrag hier gar
         nicht erst."""
         db = threaded_db_session
-        from app.maintenance_contracts import create_contract_item, get_or_create_maintenance_settings
+        from app.maintenance_contracts import create_contract_item, load_maintenance_settings
         from app.models import MaintenanceWindow
         from app.roof_areas import create_roof_area
         monteur = _employee(db, "T-262-14", "Rudi", "Roofarea")
         order, customer, prop = _order_with_property(db, "AUF-262-0014", "P-262-0014")
         prep, assignment = _assign_via_team(db, order, monteur)
         _slot(db, prep.id, assignment.id, date.today(), date.today())
-        settings = get_or_create_maintenance_settings(db)
+        settings = load_maintenance_settings(db)
         settings.use_roof_area_items = True
         db.commit()
         contract = create_contract(db, customer_id=customer.id, property_id=prop.id, title="Positionsvertrag",

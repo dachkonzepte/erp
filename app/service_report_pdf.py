@@ -32,7 +32,7 @@ from .findings import ACTION_LABELS, SEVERITY_LABELS, STATUS_LABELS
 from .service_report_photos import photo_path
 from .rounding import round_hours
 from .service_reports import REPORT_TYPE_LABELS, report_to_dict, signature_path
-from .settings import get_or_create_general_settings
+from .settings import load_general_settings
 from .time_tracking import entry_to_dict, list_entries
 
 CONDITION_GRADE_LABELS = {1: "Neuwertig", 2: "Gebrauchsspuren", 3: "Abgenutzt", 4: "Sanierung erforderlich"}
@@ -148,7 +148,7 @@ def build_service_report_pdf(db, report, *, include_time_entries: bool = True) -
         raise ValueError("Nur unterschriebene Berichte können als PDF exportiert werden.")
     data = report_to_dict(report)
     order = report.order
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     label = REPORT_TYPE_LABELS.get(report.report_type, report.report_type)
     styles = build_styles()
     body, small, h1, h2, h3 = styles["body"], styles["small"], styles["h1"], styles["h2"], styles["h3"]

@@ -41,7 +41,7 @@ from sqlalchemy.orm import Session
 
 from .document_storage import make_stored_filename
 from .paths import data_dir
-from .settings import get_or_create_general_settings
+from .settings import load_general_settings
 
 LOGO_ROOT = Path(os.getenv("DACHKONZEPTE_LOGO_FILE_ROOT", data_dir() / "company_logo"))
 SIDEBAR_LOGO_ROOT = Path(os.getenv("DACHKONZEPTE_SIDEBAR_LOGO_FILE_ROOT", data_dir() / "sidebar_logo"))
@@ -194,7 +194,7 @@ def sidebar_logo_filename(db: Session) -> SidebarLogoReference | None:
     als unzureichend: das echte Firmenlogo enthält einen Schriftzug ("DACHKONZEPTE GmbH"/
     "RÖDCHEN" unter dem Dachzeichen), der in der schmalen Sidebar bei keiner erlaubten Höhe
     mehr lesbar ist."""
-    settings = get_or_create_general_settings(db)
+    settings = load_general_settings(db)
     if settings.sidebar_logo_filename and sidebar_logo_path(settings.sidebar_logo_filename).is_file():
         return SidebarLogoReference("sidebar", settings.sidebar_logo_filename)
     if settings.logo_filename and logo_path(settings.logo_filename).is_file():
@@ -207,6 +207,6 @@ def sidebar_logo_height_px(db: Session) -> int:
     Unternehmensstammdaten, Feld direkt neben dem Logo-Upload) -- auf den erlaubten Bereich
     geklammert, falls der gespeicherte Wert (z. B. durch einen direkten Datenbankzugriff)
     außerhalb liegt."""
-    settings = get_or_create_general_settings(db)
+    settings = load_general_settings(db)
     height = settings.sidebar_logo_height_px or DEFAULT_SIDEBAR_LOGO_HEIGHT_PX
     return max(MIN_SIDEBAR_LOGO_HEIGHT_PX, min(MAX_SIDEBAR_LOGO_HEIGHT_PX, height))

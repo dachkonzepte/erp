@@ -20,12 +20,14 @@ DEFAULT_TERMS = [
 def ensure_default_payment_terms(db: Session) -> None:
     """Legt beim ersten Aufruf (leere Tabelle) die drei Standard-Bedingungen
     an. Rührt bestehende Bedingungen nicht an -- kein Zurücksetzen bei jedem
-    Start, nur eine einmalige Grundausstattung."""
+    Start, nur eine einmalige Grundausstattung.
+    Anlegeschritt von app.grunddaten.anlegen() (seit 1.8.42): flush, kein commit -- ein Commit gäbe dort
+    die Sperre frei. Lesepfade rufen das nicht mehr auf."""
     if db.scalar(select(PaymentTerm.id).limit(1)) is not None:
         return
     for sort_order, label, days, is_default in DEFAULT_TERMS:
         db.add(PaymentTerm(label=label, days=days, is_default=is_default, sort_order=sort_order))
-    db.commit()
+    db.flush()
 
 
 def list_payment_terms(db: Session, *, include_archived: bool = False) -> list[PaymentTerm]:

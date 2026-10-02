@@ -27,12 +27,12 @@ NOTIZ = "Kunde will Skonto, nicht zusagen"
 def befuellen(db, k):
     from decimal import Decimal
 
-    from app.labor_rate import get_or_create_labor_rate_settings
+    from app.labor_rate import load_labor_rate_settings
     from app.models import AppUser, Customer, Project, Quote, QuoteItem
     from app.project_pipeline_columns import default_pipeline_column_id
     from app.projects import ensure_quote_structure
 
-    get_or_create_labor_rate_settings(db)  # siehe klicktest_vertragsgrundlage.py: Singleton vorab anlegen
+    load_labor_rate_settings(db)  # siehe klicktest_vertragsgrundlage.py: Singleton vorab anlegen
     bert = AppUser(username="bert", display_name="Bert Büro", role="buero_auftrag", password_hash=k.passwort())
     kunde = Customer(name="Firma Bau GmbH", last_name="Firma Bau GmbH", is_consumer=False)
     db.add_all([bert, kunde]); db.flush()

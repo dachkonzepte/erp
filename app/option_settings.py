@@ -355,8 +355,10 @@ DEFAULT_OPTION_GROUPS = {
 }
 
 
-def ensure_default_option_groups(db: Session) -> list[SettingOptionGroup]:
+def ensure_default_option_groups(db: Session) -> None:
     """Initialisiert Gruppen genau einmal. Existierende Gruppen werden nicht wieder mit Defaults aufgefüllt.
+    Anlegeschritt von app.grunddaten.anlegen() (seit 1.8.42): flush, kein commit -- ein Commit gäbe dort
+    die Sperre frei. Lesepfade rufen das nicht mehr auf.
 
     Gegen einen gleichzeitigen allerersten Zugriff zweier Request-Threads/Prozesse abgesichert
     (siehe CLAUDE.md "Self-Seeding gegen gleichzeitigen Zugriff absichern"): jede Gruppe wird in
@@ -367,7 +369,6 @@ def ensure_default_option_groups(db: Session) -> list[SettingOptionGroup]:
     derselben Schleife bleiben davon unberührt. Kein Sperrmechanismus: ein Locking-Ansatz (z. B.
     PostgreSQL-Advisory-Lock) wäre plattformabhängig und unter SQLite gar nicht verfügbar."""
     existing = {g.group_key: g for g in db.scalars(select(SettingOptionGroup)).all()}
-    changed = False
     for key, cfg in DEFAULT_OPTION_GROUPS.items():
         if key in existing:
             continue
@@ -393,9 +394,9 @@ def ensure_default_option_groups(db: Session) -> list[SettingOptionGroup]:
         except IntegrityError:
             continue  # ein anderer Prozess hat diese Gruppe zwischen SELECT und INSERT bereits angelegt
         existing[key] = group
-        changed = True
-    if changed:
-        db.commit()
+
+
+def load_option_groups(db: Session) -> list[SettingOptionGroup]:
     return db.scalars(
         select(SettingOptionGroup).options(selectinload(SettingOptionGroup.options))
         .order_by(SettingOptionGroup.sort_order, SettingOptionGroup.label)
@@ -403,7 +404,6 @@ def ensure_default_option_groups(db: Session) -> list[SettingOptionGroup]:
 
 
 def get_option_group(db: Session, group_key: str) -> SettingOptionGroup | None:
-    ensure_default_option_groups(db)
     return db.scalar(
         select(SettingOptionGroup).options(selectinload(SettingOptionGroup.options))
         .where(SettingOptionGroup.group_key == group_key)

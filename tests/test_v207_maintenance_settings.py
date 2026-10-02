@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 from app.maintenance_contracts import (
-    check_due_contracts_and_create_reminders, create_contract, get_or_create_maintenance_settings,
+    check_due_contracts_and_create_reminders, create_contract, load_maintenance_settings,
     list_contracts, update_maintenance_settings,
 )
 from app.models import Employee
@@ -12,7 +12,7 @@ from tests.test_v153_mahnwesen import db_session
 
 def test_settings_default_to_thirty_days_lead_time():
     db = db_session()
-    settings = get_or_create_maintenance_settings(db)
+    settings = load_maintenance_settings(db)
     assert settings.reminder_lead_days == 30
     assert settings.default_responsible_employee_id is None
 

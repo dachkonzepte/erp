@@ -54,6 +54,7 @@ from decimal import Decimal
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session, selectinload
 
+from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
 from .date_utils import add_months
 from .modules import is_module_enabled
@@ -104,13 +105,9 @@ def is_inspection_overdue(next_due_date: date | None, *, today: date | None = No
     return next_due_date < today
 
 
-def get_or_create_operational_asset_settings(db: Session) -> OperationalAssetSettings:
-    settings = db.get(OperationalAssetSettings, 1)
-    if settings is None:
-        settings = OperationalAssetSettings(id=1)
-        db.add(settings)
-        db.commit()
-    return settings
+def load_operational_asset_settings(db: Session) -> OperationalAssetSettings:
+    """Nur lesen -- die Zeile legt app.grunddaten.anlegen() beim Start an (seit 1.8.42)."""
+    return einzelzeile(db, OperationalAssetSettings)
 
 
 def operational_asset_settings_to_dict(settings: OperationalAssetSettings) -> dict:
@@ -118,7 +115,7 @@ def operational_asset_settings_to_dict(settings: OperationalAssetSettings) -> di
 
 
 def update_operational_asset_settings(db: Session, reminder_lead_days: int) -> dict:
-    settings = get_or_create_operational_asset_settings(db)
+    settings = load_operational_asset_settings(db)
     settings.reminder_lead_days = reminder_lead_days
     db.commit()
     return operational_asset_settings_to_dict(settings)
@@ -271,7 +268,7 @@ def get_asset(db: Session, asset_id: int) -> dict | None:
     asset = _load(db, asset_id)
     if asset is None:
         return None
-    lead_days = get_or_create_operational_asset_settings(db).reminder_lead_days
+    lead_days = load_operational_asset_settings(db).reminder_lead_days
     return asset_to_dict(asset, lead_days, db=db)
 
 
@@ -284,7 +281,7 @@ def get_asset_field(db: Session, asset_id: int) -> dict | None:
 
 
 def list_assets(db: Session, *, include_inactive: bool = True) -> list[dict]:
-    lead_days = get_or_create_operational_asset_settings(db).reminder_lead_days
+    lead_days = load_operational_asset_settings(db).reminder_lead_days
     query = _asset_query()
     if not include_inactive:
         query = query.where(OperationalAsset.active == True)  # noqa: E712
@@ -348,7 +345,7 @@ def create_asset(db: Session, payload: dict) -> dict:
     )
     db.add(asset)
     db.commit()
-    lead_days = get_or_create_operational_asset_settings(db).reminder_lead_days
+    lead_days = load_operational_asset_settings(db).reminder_lead_days
     return asset_to_dict(_load(db, asset.id), lead_days, db=db)
 
 
@@ -376,7 +373,7 @@ def update_asset(db: Session, asset_id: int, payload: dict) -> dict | None:
     asset.active = payload.get("active", True)
     asset.selectable_in_reports = payload.get("selectable_in_reports", False)
     db.commit()
-    lead_days = get_or_create_operational_asset_settings(db).reminder_lead_days
+    lead_days = load_operational_asset_settings(db).reminder_lead_days
     return asset_to_dict(_load(db, asset.id), lead_days, db=db)
 
 
@@ -545,7 +542,7 @@ def create_inspection(db: Session, asset_id: int, payload: dict) -> dict | None:
     )
     db.add(inspection)
     db.commit()
-    lead_days = get_or_create_operational_asset_settings(db).reminder_lead_days
+    lead_days = load_operational_asset_settings(db).reminder_lead_days
     return _inspection_to_dict(inspection, lead_days)
 
 
@@ -565,7 +562,7 @@ def update_inspection(db: Session, inspection_id: int, payload: dict) -> dict | 
     inspection.inspector = payload.get("inspector")
     inspection.notes = payload.get("notes")
     db.commit()
-    lead_days = get_or_create_operational_asset_settings(db).reminder_lead_days
+    lead_days = load_operational_asset_settings(db).reminder_lead_days
     return _inspection_to_dict(inspection, lead_days)
 
 
@@ -587,7 +584,7 @@ def set_inspection_document(db: Session, inspection_id: int, stored_filename: st
     inspection.document_filename = stored_filename
     inspection.document_original_name = original_name
     db.commit()
-    lead_days = get_or_create_operational_asset_settings(db).reminder_lead_days
+    lead_days = load_operational_asset_settings(db).reminder_lead_days
     return _inspection_to_dict(inspection, lead_days)
 
 
@@ -599,7 +596,7 @@ def remove_inspection_document(db: Session, inspection_id: int) -> dict | None:
     inspection.document_filename = None
     inspection.document_original_name = None
     db.commit()
-    lead_days = get_or_create_operational_asset_settings(db).reminder_lead_days
+    lead_days = load_operational_asset_settings(db).reminder_lead_days
     return _inspection_to_dict(inspection, lead_days)
 
 
@@ -656,7 +653,7 @@ def check_due_asset_inspections_and_create_reminders(db: Session) -> list[int]:
     Zuständigkeit festlegte."""
     if not is_module_enabled(db, "aufgabenmanagement"):
         return []
-    settings = get_or_create_operational_asset_settings(db)
+    settings = load_operational_asset_settings(db)
     threshold = berlin_today() + timedelta(days=settings.reminder_lead_days)
     due = db.scalars(
         select(OperationalAssetInspection)

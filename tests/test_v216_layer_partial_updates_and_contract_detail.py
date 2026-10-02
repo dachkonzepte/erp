@@ -5,7 +5,7 @@ from datetime import date, timedelta
 
 from app.maintenance_contracts import (
     check_due_contracts_and_create_reminders, create_contract, create_contract_item, create_project_from_contract,
-    get_contract, get_or_create_maintenance_settings, list_contracts, update_maintenance_settings,
+    get_contract, load_maintenance_settings, list_contracts, update_maintenance_settings,
 )
 from app.models import MaintenanceContractItem
 from app.roof_areas import create_layer_type, create_roof_area, upsert_roof_layer
@@ -137,7 +137,7 @@ def test_create_contract_item_rejects_when_setting_off():
     area = create_roof_area(db, prop.id, "Fläche")
     window = create_window(db, "Herbst", 10, 11)
     contract = create_contract(db, customer.id, prop.id, "Vertrag", 12, date.today())
-    assert get_or_create_maintenance_settings(db).use_roof_area_items is False  # Default
+    assert load_maintenance_settings(db).use_roof_area_items is False  # Default
     try:
         create_contract_item(db, contract["id"], area["id"], window["id"])
         assert False, "sollte ValueError auslösen"

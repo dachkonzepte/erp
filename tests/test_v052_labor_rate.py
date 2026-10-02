@@ -6,8 +6,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.calculation import get_or_create_settings
-from app.labor_rate import calculate_labor_rate, get_or_create_labor_rate_settings
+from app.calculation import load_calculation_settings
+from app.labor_rate import calculate_labor_rate, load_labor_rate_settings, load_overhead_settings
 from app.models import Employee
 from app.schemas import EmployeeCreate
 
@@ -44,14 +44,19 @@ def test_labor_rate_uses_weighted_mean_and_only_active_commercial_staff():
     ])
     db.commit()
 
-    params = get_or_create_labor_rate_settings(db)
+    # Zuerst: load_calculation_settings() prüft die Spalten über einen Inspector, der auf :memory:-SQLite
+    # die Rohverbindung teilt und schon geflushte Änderungen zurückrollt (siehe app/invoices.py).
+    calc_settings = load_calculation_settings(db)
+    calc_settings.labor_rate = Decimal("82")
+    params = load_labor_rate_settings(db)
     params.employer_cost_pct = Decimal("25")
     params.productive_time_pct = Decimal("70")
-    params.annual_overhead = Decimal("100000")
     params.target_profit_pct = Decimal("10")
     params.weeks_per_year = Decimal("52")
-    calc_settings = get_or_create_settings(db)
-    calc_settings.labor_rate = Decimal("82")
+    # Seit 0.6.9 Gemeinkosten-Einstellung statt annual_overhead -- bis 1.8.41 übernahm sie annual_overhead beim
+    # ersten Rechnen, seit 1.8.42 legt der Start sie an (app/grunddaten.py).
+    overhead = load_overhead_settings(db)
+    overhead.fixed_overhead_mode, overhead.fixed_overhead_value = "eur", Decimal("100000")
     db.commit()
 
     result = calculate_labor_rate(db, calc_settings)
@@ -71,7 +76,7 @@ def test_labor_rate_uses_weighted_mean_and_only_active_commercial_staff():
 
 def test_no_employees_returns_explanation_instead_of_fake_rate():
     db = new_db()
-    result = calculate_labor_rate(db, get_or_create_settings(db))
+    result = calculate_labor_rate(db, load_calculation_settings(db))
     assert result["can_calculate"] is False
     assert result["suggested_labor_rate"] is None
     assert "keine aktiven gewerblichen Mitarbeiter" in result["note"]

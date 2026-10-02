@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import AppUser
 from ..payment_terms import (
-    create_payment_term, ensure_default_payment_terms, list_payment_terms,
+    create_payment_term, list_payment_terms,
     set_default_payment_term, set_payment_term_archived, update_payment_term,
 )
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
@@ -25,13 +25,11 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 @router.get("/api/payment-terms", response_model=list[PaymentTermOut])
 def get_payment_terms(include_archived: bool = False, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    ensure_default_payment_terms(db)
     return list_payment_terms(db, include_archived=include_archived)
 
 
 @router.post("/api/payment-terms", response_model=PaymentTermOut)
 def post_payment_term(payload: PaymentTermCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    ensure_default_payment_terms(db)
     try:
         return create_payment_term(db, payload.label, payload.days, payload.skonto_percent, payload.skonto_days, payload.text_template)
     except ValueError as e:

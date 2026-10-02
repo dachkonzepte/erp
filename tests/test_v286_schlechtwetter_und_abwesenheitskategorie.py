@@ -27,7 +27,7 @@ from app.invoices import create_invoice_from_time_entries
 from app.models import Employee, EmployeeAbsence, InvoiceItem, TimeTrackingSettings
 from app.routers.absence_requests import router as absence_requests_router
 from app.routers.planning import router as planning_router
-from app.time_backoffice import _wage_type, get_or_create_time_settings
+from app.time_backoffice import _wage_type, load_time_settings
 from app.time_tracking import NON_PRODUCTIVE_ENTRY_TYPES, create_manual_entry, entry_type_is_productive
 from tests.test_v133_invoices import make_order_with_item
 
@@ -120,7 +120,7 @@ def test_invoice_from_time_entries_rejects_when_only_weather_booked():
 
 def test_wage_type_has_no_fallback_to_other_for_weather_types():
     db = db_session()
-    settings = get_or_create_time_settings(db)
+    settings = load_time_settings(db)
     settings.datev_wage_type_other = "900"
     db.commit()
     assert _wage_type(settings, "weather_winter") is None
@@ -132,7 +132,7 @@ def test_wage_type_has_no_fallback_to_other_for_weather_types():
 
 def test_wage_type_returns_configured_weather_lohnart():
     db = db_session()
-    settings = get_or_create_time_settings(db)
+    settings = load_time_settings(db)
     settings.datev_wage_type_weather_winter = "911"
     settings.datev_wage_type_weather_summer = "912"
     db.commit()

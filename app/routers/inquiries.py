@@ -18,7 +18,7 @@ from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_pipeline_columns import default_pipeline_column_id
 from ..projects import load_project, load_quote, next_project_number, next_quote_number, quote_to_dict
 from ..schemas import InquiryConvertOut, InquiryConvertRequest, InquiryCreate, InquiryOut, InquiryUpdate, ProjectListOut, QuoteOut
-from ..settings import get_or_create_general_settings
+from ..settings import load_general_settings
 
 router = APIRouter()
 
@@ -121,7 +121,7 @@ def convert_inquiry(inquiry_id: int, payload: InquiryConvertRequest, db: Session
         raise HTTPException(status_code=404, detail="Anfrage nicht gefunden.")
     if inquiry.project_id is not None:
         raise HTTPException(status_code=409, detail="Für diese Anfrage wurde bereits ein Projekt erzeugt.")
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     project = Project(
         project_number=next_project_number(db),
         customer_id=inquiry.customer_id,

@@ -230,18 +230,18 @@ def test_checklist_pdf_prints_completion_and_signature_in_berlin_time(world, rou
 
 def test_number_sequence_starts_new_year_at_silvester_2330_utc(utc_server):
     from app import settings as settings_module
-    from app.settings import get_or_create_sequence, issue_number
+    from app.settings import load_sequence, issue_number
     from tests.test_v133_invoices import db_session
 
     db = db_session()
-    sequence = get_or_create_sequence(db, "invoice")  # R-{YYYY}-{NNNN}, jährlich neu
+    sequence = load_sequence(db, "invoice")  # R-{YYYY}-{NNNN}, jährlich neu
     sequence.last_year, sequence.next_value = 2026, 57
     db.commit()
 
     utc_server(SILVESTER_UTC, settings_module)
     assert issue_number(db, "invoice") == "R-2027-0001"
     assert issue_number(db, "invoice") == "R-2027-0002"
-    assert get_or_create_sequence(db, "invoice").last_year == 2027
+    assert load_sequence(db, "invoice").last_year == 2027
 
 
 def test_timer_books_new_year_at_silvester_2330_utc(utc_server):

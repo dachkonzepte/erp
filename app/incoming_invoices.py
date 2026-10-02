@@ -32,6 +32,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
 from .incoming_invoice_documents import delete_document_file
 from .models import (
@@ -106,13 +107,9 @@ def is_invoice_accounted(invoice: IncomingInvoice) -> bool:
     return invoice.account_id is not None
 
 
-def get_or_create_incoming_invoice_settings(db: Session) -> IncomingInvoiceSettings:
-    settings = db.get(IncomingInvoiceSettings, 1)
-    if settings is None:
-        settings = IncomingInvoiceSettings(id=1)
-        db.add(settings)
-        db.commit()
-    return settings
+def load_incoming_invoice_settings(db: Session) -> IncomingInvoiceSettings:
+    """Nur lesen -- die Zeile legt app.grunddaten.anlegen() beim Start an (seit 1.8.42)."""
+    return einzelzeile(db, IncomingInvoiceSettings)
 
 
 def incoming_invoice_settings_to_dict(settings: IncomingInvoiceSettings) -> dict:
@@ -120,7 +117,7 @@ def incoming_invoice_settings_to_dict(settings: IncomingInvoiceSettings) -> dict
 
 
 def update_incoming_invoice_settings(db: Session, skonto_reminder_lead_days: int) -> dict:
-    settings = get_or_create_incoming_invoice_settings(db)
+    settings = load_incoming_invoice_settings(db)
     settings.skonto_reminder_lead_days = skonto_reminder_lead_days
     db.commit()
     return incoming_invoice_settings_to_dict(settings)
@@ -202,7 +199,7 @@ def get_invoice(db: Session, invoice_id: int) -> dict | None:
     invoice = _load(db, invoice_id)
     if invoice is None:
         return None
-    lead_days = get_or_create_incoming_invoice_settings(db).skonto_reminder_lead_days
+    lead_days = load_incoming_invoice_settings(db).skonto_reminder_lead_days
     return invoice_to_dict(invoice, lead_days)
 
 
@@ -213,7 +210,7 @@ def list_invoices(
     """supplier_id/date_from/date_to filtern auf echten Spalten (SQL), payment_status filtert
     auf dem berechneten display_status (siehe invoice_to_dict()) -- "ueberfaellig" ist kein
     gespeicherter Spaltenwert, kann also nicht Teil der WHERE-Klausel sein."""
-    lead_days = get_or_create_incoming_invoice_settings(db).skonto_reminder_lead_days
+    lead_days = load_incoming_invoice_settings(db).skonto_reminder_lead_days
     query = _invoice_query()
     if supplier_id is not None:
         query = query.where(IncomingInvoice.supplier_id == supplier_id)
@@ -328,7 +325,7 @@ def create_invoice(db: Session, payload: dict) -> dict:
     invoice.items = [IncomingInvoiceItem(**item) for item in items]
     db.add(invoice)
     db.commit()
-    lead_days = get_or_create_incoming_invoice_settings(db).skonto_reminder_lead_days
+    lead_days = load_incoming_invoice_settings(db).skonto_reminder_lead_days
     return invoice_to_dict(_load(db, invoice.id), lead_days)
 
 
@@ -349,7 +346,7 @@ def update_invoice(db: Session, invoice_id: int, payload: dict) -> dict | None:
     # entfernt werden.
     invoice.items = [IncomingInvoiceItem(**item) for item in items]
     db.commit()
-    lead_days = get_or_create_incoming_invoice_settings(db).skonto_reminder_lead_days
+    lead_days = load_incoming_invoice_settings(db).skonto_reminder_lead_days
     return invoice_to_dict(_load(db, invoice.id), lead_days)
 
 
@@ -372,7 +369,7 @@ def set_invoice_document(db: Session, invoice_id: int, *, stored_filename: str, 
     invoice.document_filename = stored_filename
     invoice.document_original_name = original_filename
     db.commit()
-    lead_days = get_or_create_incoming_invoice_settings(db).skonto_reminder_lead_days
+    lead_days = load_incoming_invoice_settings(db).skonto_reminder_lead_days
     return invoice_to_dict(_load(db, invoice.id), lead_days)
 
 
@@ -384,7 +381,7 @@ def remove_invoice_document(db: Session, invoice_id: int) -> dict | None:
     invoice.document_filename = None
     invoice.document_original_name = None
     db.commit()
-    lead_days = get_or_create_incoming_invoice_settings(db).skonto_reminder_lead_days
+    lead_days = load_incoming_invoice_settings(db).skonto_reminder_lead_days
     return invoice_to_dict(_load(db, invoice.id), lead_days)
 
 
@@ -392,7 +389,7 @@ def open_liabilities_summary(db: Session, *, today: date | None = None) -> dict:
     """Summe offener Verbindlichkeiten (payment_status=="offen") -- Muster
     RecurringCost.overview_summary(), hier ohne Kündigungsfristen, dafür mit Skonto-/
     Überfälligkeits-Kennzeichnung."""
-    settings = get_or_create_incoming_invoice_settings(db)
+    settings = load_incoming_invoice_settings(db)
     open_invoices = db.scalars(_invoice_query().where(IncomingInvoice.payment_status == "offen")).all()
     total_gross = round_money(sum((invoice_gross_amount(i) for i in open_invoices), Decimal("0")))
     dicts = [invoice_to_dict(i, settings.skonto_reminder_lead_days, today=today) for i in open_invoices]
@@ -416,7 +413,7 @@ def check_due_skonto_and_create_reminders(db: Session) -> list[int]:
     is_skonto_due() ohnehin nicht mehr (payment_status != "offen")."""
     if not is_module_enabled(db, "aufgabenmanagement"):
         return []
-    settings = get_or_create_incoming_invoice_settings(db)
+    settings = load_incoming_invoice_settings(db)
     threshold = berlin_today() + timedelta(days=settings.skonto_reminder_lead_days)
     candidates = db.scalars(
         select(IncomingInvoice).options(selectinload(IncomingInvoice.supplier)).where(

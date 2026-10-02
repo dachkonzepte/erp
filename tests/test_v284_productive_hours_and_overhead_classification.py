@@ -20,11 +20,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.labor_rate import get_or_create_labor_rate_settings
+from app.labor_rate import load_labor_rate_settings
 from app.productive_hours import (
     apply_productive_hours_to_labor_rate,
     calculate_productive_hours,
-    get_or_create_productive_hours_settings,
+    load_productive_hours_settings,
     productive_hours_settings_dict,
     update_productive_hours_settings,
 )
@@ -57,7 +57,7 @@ def test_calculate_productive_hours_with_round_numbers():
     """Runde Zahlen ohne Krankheit/Feiertage/Schlechtwetter/unproduktive Zeit -- von Hand
     nachrechenbar: 40h * 50 Wochen = 2000 Bruttostunden, 25 Urlaubstage * 8h = 200h Urlaub,
     1800h verbleiben, alle davon produktiv -> 90 %."""
-    settings = get_or_create_productive_hours_settings(db_session())
+    settings = load_productive_hours_settings(db_session())
     settings.weekly_hours = Decimal("40")
     settings.daily_hours = Decimal("8")
     settings.vacation_days = Decimal("25")
@@ -81,7 +81,7 @@ def test_calculate_productive_hours_with_every_deduction_active():
     2080 Bruttostunden - 440h Abwesenheiten = 1640h, davon 15 % unproduktiv (246h) ->
     1394 produktive Stunden, 67,02 % der Bruttostunden."""
     db = db_session()
-    settings = get_or_create_productive_hours_settings(db)
+    settings = load_productive_hours_settings(db)
     result = calculate_productive_hours(settings, Decimal("52"))
 
     assert result["annual_gross_hours"] == Decimal("2080.00")
@@ -97,7 +97,7 @@ def test_calculate_productive_hours_with_every_deduction_active():
 
 def test_calculate_productive_hours_floors_at_zero_when_absences_exceed_gross_hours():
     """Absurd hohe Abwesenheiten (Testgrenzfall) dürfen nicht zu negativen Stunden führen."""
-    settings = get_or_create_productive_hours_settings(db_session())
+    settings = load_productive_hours_settings(db_session())
     settings.weekly_hours = Decimal("40")
     settings.daily_hours = Decimal("8")
     settings.vacation_days = Decimal("300")
@@ -117,7 +117,7 @@ def test_calculate_productive_hours_floors_at_zero_when_absences_exceed_gross_ho
 
 def test_weeks_per_year_is_read_from_labor_rate_settings_not_a_second_field():
     db = db_session()
-    labor_rate_settings = get_or_create_labor_rate_settings(db)
+    labor_rate_settings = load_labor_rate_settings(db)
     labor_rate_settings.weeks_per_year = Decimal("48.00")
     db.commit()
 
@@ -152,7 +152,7 @@ def test_update_productive_hours_settings_persists_and_recalculates():
 
 def test_apply_writes_only_productive_time_pct_leaves_everything_else_untouched():
     db = db_session()
-    labor_rate_settings = get_or_create_labor_rate_settings(db)
+    labor_rate_settings = load_labor_rate_settings(db)
     labor_rate_settings.employer_cost_pct = Decimal("30.00")
     labor_rate_settings.target_profit_pct = Decimal("12.00")
     labor_rate_settings.weeks_per_year = Decimal("52.00")
@@ -180,7 +180,7 @@ def test_apply_is_a_conscious_second_step_not_triggered_by_saving_settings_alone
     """Speichern allein (ohne apply()) darf productive_time_pct NICHT veraendern -- Muster
     apply_labor_rate_calculation(): kein Automatismus."""
     db = db_session()
-    labor_rate_settings = get_or_create_labor_rate_settings(db)
+    labor_rate_settings = load_labor_rate_settings(db)
     labor_rate_settings.productive_time_pct = Decimal("70.00")
     db.commit()
 

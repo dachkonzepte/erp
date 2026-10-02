@@ -11,6 +11,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
 from .models import (
     Employee, EmployeeAbsence, EmployeePlanningSettings, EmployeeProfile, OperationalResource, Order, PlanningHoliday,
@@ -39,18 +40,15 @@ SCHOOL_HOLIDAY_NAMES = {
     "fruehjahrsferien": "Frühjahrsferien", "himmelfahrt": "Himmelfahrt / Pfingsten",
 }
 
-def get_or_create_region_settings(db: Session) -> PlanningRegionSettings:
-    row = db.get(PlanningRegionSettings, 1)
-    if row is None:
-        row = PlanningRegionSettings(id=1, federal_state_code="NW")
-        db.add(row); db.commit(); db.refresh(row)
-    return row
+def load_region_settings(db: Session) -> PlanningRegionSettings:
+    """Nur lesen -- die Zeile legt app.grunddaten.anlegen() beim Start an (seit 1.8.42)."""
+    return einzelzeile(db, PlanningRegionSettings)
 
 def update_region_settings(db: Session, *, federal_state_code: str, auto_public_holidays: bool, show_school_holidays: bool) -> PlanningRegionSettings:
     code = (federal_state_code or "NW").upper()
     if code not in GERMAN_STATES:
         raise ValueError("Unbekanntes Bundesland.")
-    row = get_or_create_region_settings(db)
+    row = load_region_settings(db)
     row.federal_state_code = code; row.auto_public_holidays = bool(auto_public_holidays); row.show_school_holidays = bool(show_school_holidays)
     db.commit(); db.refresh(row); return row
 
@@ -87,7 +85,7 @@ def _manual_holiday_map(db: Session, start: date, end: date) -> dict[date, str]:
     return {x.holiday_date:x.name for x in _holiday_rows(db,start,end)}
 
 def _combined_holiday_map(db: Session, start: date, end: date) -> tuple[dict[date,str], list[dict]]:
-    region=get_or_create_region_settings(db); manual=_manual_holiday_map(db,start,end); auto={}
+    region=load_region_settings(db); manual=_manual_holiday_map(db,start,end); auto={}
     if region.auto_public_holidays:
         auto=automatic_public_holidays(region.federal_state_code, range(start.year,end.year+1))
         auto={d:n for d,n in auto.items() if start<=d<=end}
@@ -154,7 +152,7 @@ def sync_school_holidays(db: Session, state_code: str, year: int, force: bool=Fa
         return {"state_code":code,"year":year,"success":False,"error":str(exc)}
 
 def school_holidays_for_range(db: Session, start: date, end: date, auto_sync: bool=True) -> tuple[list[dict], list[str]]:
-    region=get_or_create_region_settings(db)
+    region=load_region_settings(db)
     if not region.show_school_holidays: return [],[]
     warnings=[]
     years=range(start.year,end.year+1)
@@ -190,14 +188,9 @@ def _date_range(start: date, end: date):
         current += timedelta(days=1)
 
 
-def get_or_create_planning_settings(db: Session) -> PlanningSettings:
-    row = db.get(PlanningSettings, 1)
-    if row is None:
-        row = PlanningSettings(id=1)
-        db.add(row)
-        db.commit()
-        db.refresh(row)
-    return row
+def load_planning_settings(db: Session) -> PlanningSettings:
+    """Nur lesen -- die Zeile legt app.grunddaten.anlegen() beim Start an (seit 1.8.42)."""
+    return einzelzeile(db, PlanningSettings)
 
 
 def planning_settings_dict(row: PlanningSettings, db: Session | None = None) -> dict:
@@ -210,7 +203,7 @@ def planning_settings_dict(row: PlanningSettings, db: Session | None = None) -> 
         "sunday": row.sunday,
     }
     if db is not None:
-        region = get_or_create_region_settings(db)
+        region = load_region_settings(db)
         result.update({
             "federal_state_code": region.federal_state_code,
             "federal_state_name": GERMAN_STATES.get(region.federal_state_code, region.federal_state_code),
@@ -223,12 +216,12 @@ def planning_settings_dict(row: PlanningSettings, db: Session | None = None) -> 
 
 
 def update_planning_settings(db: Session, **values) -> PlanningSettings:
-    row = get_or_create_planning_settings(db)
+    row = load_planning_settings(db)
     region_keys = {k: values.pop(k) for k in list(values) if k in {"federal_state_code","auto_public_holidays","show_school_holidays"}}
     for key, value in values.items():
         setattr(row, key, value)
     if region_keys:
-        current = get_or_create_region_settings(db)
+        current = load_region_settings(db)
         update_region_settings(
             db,
             federal_state_code=region_keys.get("federal_state_code", current.federal_state_code),
@@ -262,7 +255,7 @@ def count_workday_holidays(db: Session, start: date, end: date) -> int:
     (app/productive_hours.py) für den Feiertage-Vorschlag. Zählt genau die hinterlegten Zeilen,
     unabhängig davon, für welches Bundesland sie gedacht sind -- PlanningHoliday kennt keine
     Bundesland-Spalte, es ist eine einzige, unternehmensweite Liste."""
-    working_days = _working_weekdays(get_or_create_planning_settings(db))
+    working_days = _working_weekdays(load_planning_settings(db))
     return sum(1 for h in _holiday_rows(db, start, end) if h.holiday_date.weekday() in working_days)
 
 
@@ -460,7 +453,7 @@ def create_slot(
         raise ValueError("Auftrag wurde nicht gefunden.")
     prep = ensure_preparation(db, order_id)
     assignment = ensure_team_assignment(db, prep, team_id)
-    settings = get_or_create_planning_settings(db)
+    settings = load_planning_settings(db)
     travel = _d(travel_hours_per_employee_day if travel_hours_per_employee_day is not None else settings.default_travel_hours_per_employee_day)
     if travel >= _d(settings.daily_work_hours):
         raise ValueError("Anfahrtszeit muss kleiner als die tägliche Arbeitszeit sein.")
@@ -494,7 +487,7 @@ def update_slot(
     slot.end_date = end_date
     slot.status = status
     slot.notes = notes
-    settings = get_or_create_planning_settings(db)
+    settings = load_planning_settings(db)
     capacity = slot.capacity
     if capacity is None:
         capacity = PlanningSlotCapacity(slot_id=slot.id, planned_hours=_infer_slot_hours(db, slot))
@@ -568,7 +561,7 @@ def slot_to_dict(slot: PlanningSlot, conflicts: list[dict] | None = None, db: Se
         address = ", ".join(x for x in [prop.street, f"{prop.postal_code or ''} {prop.city or ''}".strip()] if x)
     elif order.property_address:
         address = order.property_address.replace("\n", ", ")
-    settings = get_or_create_planning_settings(db) if db is not None else None
+    settings = load_planning_settings(db) if db is not None else None
     travel = _slot_travel(slot, settings) if settings is not None else (_d(slot.capacity.travel_hours_per_employee_day) if slot.capacity else Decimal("0"))
     hours = _infer_slot_hours(db, slot) if db is not None else (_stored_slot_hours(slot) or Decimal("0"))
     visible_ids = planning_visible_employee_ids(db) if db is not None else None
@@ -937,7 +930,7 @@ def planning_suggestion(
     employees = _team_members_from_master(team, visible_employee_ids)
     if not employees:
         raise ValueError("Die Kolonne hat keine aktiven Mitarbeiter.")
-    settings = get_or_create_planning_settings(db)
+    settings = load_planning_settings(db)
     daily = _d(daily_work_hours if daily_work_hours is not None else settings.daily_work_hours)
     travel = _d(travel_hours_per_employee_day if travel_hours_per_employee_day is not None else settings.default_travel_hours_per_employee_day)
     if travel >= daily:
@@ -994,7 +987,7 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
         raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
     if (end_date - start_date).days > 62:
         raise ValueError("Die Plantafel kann maximal 63 Tage gleichzeitig anzeigen.")
-    settings = get_or_create_planning_settings(db)
+    settings = load_planning_settings(db)
     all_slots = db.scalars(
         select(PlanningSlot)
         .options(

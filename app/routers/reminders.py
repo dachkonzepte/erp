@@ -16,7 +16,7 @@ from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..reminder_pdf import build_reminder_pdf
 from ..reminders import (
     auto_create_due_reminder_drafts, compute_reminder_status, create_reminder, delete_reminder_draft,
-    ensure_default_reminder_levels, finalize_and_send_reminder, get_reminder_auto_create_setting,
+    finalize_and_send_reminder, get_reminder_auto_create_setting,
     list_all_reminders, list_invoices_needing_attention, list_reminder_levels,
     list_reminders_for_invoice, reminder_to_dict, send_reminder_email, set_reminder_auto_create_setting,
     update_reminder_draft, update_reminder_level,
@@ -46,7 +46,6 @@ def _get_reminder_or_404(db: Session, reminder_id: int) -> Reminder:
 
 @router.get("/api/reminder-levels", response_model=list[ReminderLevelOut])
 def get_reminder_levels(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    ensure_default_reminder_levels(db)
     return list_reminder_levels(db)
 
 
@@ -64,7 +63,6 @@ def put_reminder_level(level_id: int, payload: ReminderLevelUpdate, db: Session 
 
 @router.get("/api/reminders/overdue", response_model=list[InvoiceNeedingAttentionOut])
 def get_overdue_invoices(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    ensure_default_reminder_levels(db)
     return list_invoices_needing_attention(db)
 
 
@@ -85,14 +83,12 @@ def put_reminder_settings(payload: ReminderSettingsUpdate, db: Session = Depends
 
 @router.post("/api/reminders/auto-create", response_model=list[ReminderOut])
 def post_auto_create_reminder_drafts(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    ensure_default_reminder_levels(db)
     return [reminder_to_dict(r) for r in auto_create_due_reminder_drafts(db)]
 
 
 @router.get("/api/invoices/{invoice_id}/reminder-status", response_model=ReminderStatusOut)
 def get_invoice_reminder_status(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
-    ensure_default_reminder_levels(db)
     return compute_reminder_status(db, invoice)
 
 

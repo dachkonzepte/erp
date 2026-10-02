@@ -8,7 +8,7 @@ from starlette.datastructures import Headers, UploadFile
 
 from app.database import Base
 from app.main import create_customer, create_project, delete_project_document, list_project_documents, upload_project_document
-from app.option_settings import ensure_default_option_groups, get_option_group
+from app.option_settings import get_option_group, load_option_groups
 from app.project_documents import document_path
 import app.project_documents as project_documents
 from app.schemas import CustomerCreate, ProjectCreate
@@ -22,7 +22,7 @@ def new_db():
 
 def test_project_document_categories_are_configurable():
     db = new_db()
-    groups = {g.group_key: g for g in ensure_default_option_groups(db)}
+    groups = {g.group_key: g for g in load_option_groups(db)}
     assert "project_document_categories" in groups
     group = get_option_group(db, "project_document_categories")
     assert {o.value for o in group.options} >= {"Pläne", "Bilder / Fotos", "Lieferscheine"}

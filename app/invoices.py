@@ -25,7 +25,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .berlin_time import berlin_today
-from .calculation import effective_material_sale_price, get_or_create_settings
+from .calculation import effective_material_sale_price, load_calculation_settings
 from .models import Invoice, InvoiceItem, Material, Order, OrderItem, PaymentTerm, ServiceReportMaterial, TaxKey, TimeEntry
 from .option_settings import default_option_value
 from .payment_terms import get_default_payment_term
@@ -379,13 +379,12 @@ def create_invoice_from_time_entries(
     if not booked and not materials:
         raise ValueError("Weder abrechenbare Zeitbuchungen noch Material für diesen Auftrag vorhanden.")
 
-    # Stundenpreis/Materialaufschlag VOR dem Anlegen der Rechnung abfragen: get_or_create_settings()
-    # führt bei einer noch nie gespeicherten CalculationSettings-Zeile eine eigene Schema-
-    # Introspektion (sa_inspect) plus einen eigenen Commit aus. Käme das NACH einem bereits
-    # geflushten, aber noch nicht committeten Invoice, kann das je nach Verbindungs-/Pooling-
-    # Verhalten die noch ungesicherte Zeile verwerfen -- also lieber vorher abfragen, wenn die
-    # Session noch keinen eigenen ungesicherten Stand trägt.
-    settings = get_or_create_settings(db)
+    # Stundenpreis/Materialaufschlag VOR dem Anlegen der Rechnung abfragen: load_calculation_settings()
+    # führt eine eigene Schema-Introspektion (sa_inspect) aus. Käme das NACH einem bereits geflushten,
+    # aber noch nicht committeten Invoice, kann das je nach Verbindungs-/Pooling-Verhalten die noch
+    # ungesicherte Zeile verwerfen -- also lieber vorher abfragen, wenn die Session noch keinen eigenen
+    # ungesicherten Stand trägt. (Bis 1.8.41 kam beim ersten Aufruf noch ein eigener Commit dazu.)
+    settings = load_calculation_settings(db)
     hourly_rate = settings.labor_rate
 
     invoice = Invoice(

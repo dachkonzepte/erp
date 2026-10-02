@@ -5,8 +5,8 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.employees import apply_employee_payload, employee_to_dict
-from app.labor_rate import calculate_labor_rate, get_or_create_labor_rate_settings
-from app.calculation import get_or_create_settings
+from app.labor_rate import calculate_labor_rate, load_labor_rate_settings
+from app.calculation import load_calculation_settings
 from app.models import Employee, EmployeeCompensationSettings
 from app.schemas import EmployeeCreate
 
@@ -19,7 +19,7 @@ def new_db():
 
 def test_fixed_salary_is_converted_to_effective_hourly_wage():
     db = new_db()
-    get_or_create_labor_rate_settings(db).weeks_per_year = Decimal("52")
+    load_labor_rate_settings(db).weeks_per_year = Decimal("52")
     payload = EmployeeCreate(
         first_name="Max", last_name="Fix", employee_group="gewerblich",
         compensation_type="fixed_salary", monthly_salary=Decimal("3500"),
@@ -38,7 +38,7 @@ def test_fixed_salary_is_converted_to_effective_hourly_wage():
 
 def test_labor_rate_combines_hourly_and_fixed_salary_employees():
     db = new_db()
-    params = get_or_create_labor_rate_settings(db)
+    params = load_labor_rate_settings(db)
     params.weeks_per_year = Decimal("52")
     params.employer_cost_pct = Decimal("0")
     params.productive_time_pct = Decimal("100")
@@ -56,7 +56,7 @@ def test_labor_rate_combines_hourly_and_fixed_salary_employees():
         compensation=EmployeeCompensationSettings(compensation_type="fixed_salary", monthly_salary=Decimal("4160")),
     )
     db.add_all([hourly, fixed]); db.commit()
-    result = calculate_labor_rate(db, get_or_create_settings(db))
+    result = calculate_labor_rate(db, load_calculation_settings(db))
     # Hourly employee: 41,600 €/year; fixed salary: 49,920 €/year.
     # Combined 91,520 € / 4,160 paid hours = 22 €/h.
     assert result["annual_gross_wages"] == Decimal("91520.00")

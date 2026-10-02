@@ -32,10 +32,11 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
 from .date_utils import add_months
 from .employees import effective_cost_allocation
-from .labor_rate import active_employees, get_or_create_labor_rate_settings
+from .labor_rate import active_employees, load_labor_rate_settings
 from .models import Employee, EmployeeAbsence, ProductiveHoursSettings, TimeEntry
 from .planning import count_workday_holidays
 from .rounding import round_half_up
@@ -63,13 +64,9 @@ def _q(value: Decimal) -> Decimal:
     return round_half_up(value, _Q2)
 
 
-def get_or_create_productive_hours_settings(db: Session) -> ProductiveHoursSettings:
-    settings = db.get(ProductiveHoursSettings, 1)
-    if settings is None:
-        settings = ProductiveHoursSettings(id=1)
-        db.add(settings)
-        db.commit()
-    return settings
+def load_productive_hours_settings(db: Session) -> ProductiveHoursSettings:
+    """Nur lesen -- die Zeile legt app.grunddaten.anlegen() beim Start an (seit 1.8.42)."""
+    return einzelzeile(db, ProductiveHoursSettings)
 
 
 def calculate_productive_hours(settings: ProductiveHoursSettings, weeks_per_year: Decimal) -> dict:
@@ -175,7 +172,7 @@ def weather_days_actual(db: Session, *, today: date | None = None) -> dict:
     start, end, months = _rolling_window(today)
     employees = labor_rate_employees(db)
     employee_ids = [e.id for e in employees]
-    daily_hours = get_or_create_productive_hours_settings(db).daily_hours
+    daily_hours = load_productive_hours_settings(db).daily_hours
 
     if not employee_ids:
         return {
@@ -290,8 +287,8 @@ def public_holidays_suggestion(db: Session, *, today: date | None = None) -> Dec
 
 
 def productive_hours_settings_dict(db: Session) -> dict:
-    settings = get_or_create_productive_hours_settings(db)
-    labor_rate_settings = get_or_create_labor_rate_settings(db)
+    settings = load_productive_hours_settings(db)
+    labor_rate_settings = load_labor_rate_settings(db)
     result = calculate_productive_hours(settings, labor_rate_settings.weeks_per_year)
     result["current_productive_time_pct"] = labor_rate_settings.productive_time_pct
     result["public_holidays_suggested"] = public_holidays_suggestion(db)
@@ -301,7 +298,7 @@ def productive_hours_settings_dict(db: Session) -> dict:
 
 
 def update_productive_hours_settings(db: Session, payload: dict) -> dict:
-    settings = get_or_create_productive_hours_settings(db)
+    settings = load_productive_hours_settings(db)
     settings.weekly_hours = payload["weekly_hours"]
     settings.daily_hours = payload["daily_hours"]
     settings.vacation_days = payload["vacation_days"]
@@ -317,7 +314,7 @@ def apply_productive_hours_to_labor_rate(db: Session) -> dict:
     """Bewusster zweiter Schritt (Muster apply_labor_rate_calculation()) -- schreibt
     AUSSCHLIESSLICH productive_time_pct, calculate_labor_rate() selbst bleibt unangetastet."""
     result = productive_hours_settings_dict(db)
-    labor_rate_settings = get_or_create_labor_rate_settings(db)
+    labor_rate_settings = load_labor_rate_settings(db)
     labor_rate_settings.productive_time_pct = result["productive_time_pct_result"]
     db.commit()
     return productive_hours_settings_dict(db)

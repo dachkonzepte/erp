@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.employees import (
-    apply_employee_payload, employee_to_dict, ensure_default_employee_functions,
+    apply_employee_payload, employee_to_dict, ensure_default_employee_functions, load_employee_functions,
     ensure_employee_profiles,
 )
 from app.models import Employee, EmployeeFunction
@@ -19,7 +19,7 @@ def new_db():
 
 def test_default_functions_are_seeded_and_grouped():
     db = new_db()
-    functions = ensure_default_employee_functions(db)
+    functions = load_employee_functions(db)
     names = {f.name: f.employee_group for f in functions}
     assert names["Dachdecker Geselle"] == "gewerblich"
     assert names["Büro / Verwaltung"] == "kaufmaennisch"

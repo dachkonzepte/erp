@@ -32,7 +32,10 @@ def ensure_default_columns(db: Session) -> None:
 
     Gegen einen gleichzeitigen ersten Zugriff abgesichert (siehe CLAUDE.md "Self-Seeding gegen
     gleichzeitigen Zugriff absichern") -- eine UNIQUE-Verletzung auf key (ein anderer Prozess
-    war schneller) wird als "schon gesät" behandelt, kein Fehler."""
+    war schneller) wird als "schon gesät" behandelt, kein Fehler.
+
+    Anlegeschritt von app.grunddaten.anlegen() (seit 1.8.42): flush, kein commit -- ein Commit gäbe dort
+    die Sperre frei. Lesepfade rufen das nicht mehr auf."""
     if db.scalar(select(TaskColumn.id).limit(1)) is not None:
         return
     try:
@@ -42,7 +45,6 @@ def ensure_default_columns(db: Session) -> None:
             db.flush()
     except IntegrityError:
         return
-    db.commit()
 
 
 def _slugify(label: str) -> str:
@@ -70,13 +72,11 @@ def _column_to_dict(column: TaskColumn) -> dict:
 
 
 def list_columns(db: Session) -> list[dict]:
-    ensure_default_columns(db)
     rows = db.scalars(select(TaskColumn).order_by(TaskColumn.sort_order, TaskColumn.id)).all()
     return [_column_to_dict(c) for c in rows]
 
 
 def create_column(db: Session, label: str, is_done: bool = False) -> dict:
-    ensure_default_columns(db)
     label = label.strip()
     if not label:
         raise ValueError("Bitte eine Bezeichnung angeben.")
@@ -88,7 +88,6 @@ def create_column(db: Session, label: str, is_done: bool = False) -> dict:
 
 
 def update_column(db: Session, column_id: int, label: str | None = None, is_done: bool | None = None) -> dict:
-    ensure_default_columns(db)
     column = db.get(TaskColumn, column_id)
     if column is None:
         raise ValueError("Spalte nicht gefunden.")
@@ -104,7 +103,6 @@ def update_column(db: Session, column_id: int, label: str | None = None, is_done
 
 
 def reorder_columns(db: Session, ordered_ids: list[int]) -> list[dict]:
-    ensure_default_columns(db)
     columns_by_id = {c.id: c for c in db.scalars(select(TaskColumn)).all()}
     if set(ordered_ids) != set(columns_by_id.keys()):
         raise ValueError("Die Reihenfolge muss alle vorhandenen Spalten enthalten.")
@@ -115,7 +113,6 @@ def reorder_columns(db: Session, ordered_ids: list[int]) -> list[dict]:
 
 
 def delete_column(db: Session, column_id: int) -> None:
-    ensure_default_columns(db)
     column = db.get(TaskColumn, column_id)
     if column is None:
         raise ValueError("Spalte nicht gefunden.")

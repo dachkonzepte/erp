@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.email_sending import update_smtp_settings
 from app.models import Employee, EmployeeProfile
-from app.tasks import create_task, get_or_create_task_settings, update_task, update_task_settings
+from app.tasks import create_task, load_task_settings, update_task, update_task_settings
 
 
 def db_session():
@@ -38,7 +38,7 @@ def make_employee_without_email(db):
 
 def test_task_settings_default_to_notifications_enabled():
     db = db_session()
-    settings = get_or_create_task_settings(db)
+    settings = load_task_settings(db)
     assert settings.notify_on_assignment is True
 
 

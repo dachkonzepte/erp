@@ -9,13 +9,13 @@ from app.database import Base
 from app.models import Employee
 from app.schemas import TimeTrackingSettingsUpdate
 from app.time_backoffice import (
-    build_datev_export, get_employee_payroll, get_or_create_time_settings,
+    build_datev_export, get_employee_payroll, load_time_settings,
     payroll_rows, time_settings_dict, update_time_settings,
 )
 from app.time_tracking import start_timer, stop_timer
 from app.work_time_models import (
     automatic_break_minutes_for_duration, ensure_default_work_time_models,
-    get_or_create_advanced_settings, list_models, set_employee_model,
+    load_advanced_settings, list_models, set_employee_model,
 )
 from tests.test_v100_time_tracking import setup_order
 
@@ -31,7 +31,7 @@ def test_datev_can_use_erp_employee_number():
     emp = Employee(employee_number="MA-0042", first_name="Max", last_name="Dach", employee_group="gewerblich", hourly_wage=Decimal("22"), weekly_hours=Decimal("40"), active=True)
     db.add(emp); db.commit(); db.refresh(emp)
     get_employee_payroll(db, emp.id)
-    current = get_or_create_time_settings(db)
+    current = load_time_settings(db)
     payload = TimeTrackingSettingsUpdate(**{
         **time_settings_dict(current, db),
         "datev_personnel_equals_erp_number": True,
@@ -76,6 +76,6 @@ def test_backoffice_ui_has_separate_options_work_models_and_current_month_entrie
 
 def test_advanced_settings_default_model_is_created():
     db = db_session(); ensure_default_work_time_models(db)
-    advanced = get_or_create_advanced_settings(db)
+    advanced = load_advanced_settings(db)
     assert advanced.default_work_time_model_id is not None
     assert len(list_models(db)) >= 2

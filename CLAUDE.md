@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.41** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.42** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -601,6 +601,18 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     PUT/PATCH-Handler per AST; die 73 Altfälle stehen dort als Liste, die nur kürzer werden darf.
     Details: `docs/archiv/teil-updates.md`.
 
+23. **Grunddaten legt der Start an, nie ein Lesepfad -- kein GET schreibt, seit 1.8.42.** Einstellungen
+    (Singletons, id=1) und Standardsätze (Optionsgruppen, Kategorien, Spalten, Nummernkreise, Layout, Ränder …)
+    legt `app/grunddaten.py::anlegen()` beim Start an (`app/main.py`, auch in Produktion); zwei gleichzeitig
+    startende Arbeitsprozesse warten an der Sperrzeile `general_settings`. Lesefunktionen (`load_*`,
+    `get_margins()`, `load_layout()`) lesen nur und melden eine fehlende Zeile mit `GrunddatenFehlen`. Eine neue
+    Einstellung oder ein neuer Standardsatz kommt in `grunddaten.py`, nie als Anlegen in eine Lesefunktion;
+    Anlegeschritte committen nicht (ein Commit gäbe die Sperre frei). `test_kein_get_schreibt`
+    (`tests/test_v326_monteur_datengrenze.py`) ruft jeden GET-Endpunkt als Monteur und als Admin mit
+    Datenbank-Listener auf; `SCHREIBT_BEKANNT` darf nur kürzer werden. Testdatenbanken bekommen die Grunddaten
+    nach `create_all()` (conftest), ohne sie: `tests/grunddaten_schalter.py`. Details:
+    `docs/archiv/grunddaten-beim-start.md`.
+
 ## Fachbegriffe & Domänenmodell
 
 - **"Vorgang"** (in normalem Gespräch) = **Projekt** (`Project`) – wurde in der Sitzung explizit
@@ -777,6 +789,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   "i. A." Büro-Konto, Zeitstrahl, "als gegenstandslos abschließen", Kundenwechsel prüft Beteiligte; offen 2b-4
   Bedenkenanzeige) --
   `docs/archiv/vertragsgrundlage-und-vertrag.md`
+- **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
+  Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
+  `docs/archiv/grunddaten-beim-start.md`
 - **Speichern nur gesendeter Felder** (`PartialUpdate`, Strukturtest über alle PUT-Handler, Liste der
   Altfälle, Nebenbefunde der Durchsicht aller Speichern-Aufrufer) -- `docs/archiv/teil-updates.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
@@ -813,9 +828,9 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   LV-/Adress-Schnappschüsse zum Zeitpunkt der Beauftragung/Finalisierung (siehe "Fachbegriffe &
   Domänenmodell" unten, Regel 5) -- ein Renderer darf dafür nie live vom aktuellen
   Kunden-/Objektdatensatz lesen.
-- **Self-Seeding mit SAVEPOINT-Absicherung**: siehe eigener Abschnitt "Self-Seeding gegen
-  gleichzeitigen ersten Zugriff absichern" unten -- gilt für jede künftige
-  `ensure_default_*()`-Funktion mit UNIQUE-Constraint.
+- **Grunddaten beim Start statt beim ersten Lesen** (seit 1.8.42, Regel 23): `app/grunddaten.py::anlegen()`
+  in einer Transaktion hinter einer Sperrzeile, Schritte mit SAVEPOINT (siehe "Self-Seeding gegen gleichzeitigen
+  ersten Zugriff absichern" unten) und ohne eigenen Commit. Siehe `docs/archiv/grunddaten-beim-start.md`.
 - **Platzhalter in Textvorlagen über `app/placeholders.py::apply_placeholders()`** (seit 1.8.32,
   vorher je Versender eine eigene Schleife): ersetzt in einem Durchgang, ein eingesetzter Wert wird nie
   erneut ersetzt; Mahnung, E-Mail-Vorlagen und Vertragsvorlagen nutzen es. Eine neue Vorlage mit
@@ -901,10 +916,16 @@ zweiten, gleichberechtigt unterstützten Dialekt dieses Projekts) keine Entsprec
 
 **Trägt die Tabelle KEINEN UNIQUE-Constraint**, ist die Funktion nicht von dieser Race-Condition-
 Klasse betroffen (kein Crash), sondern von einer anderen, leiseren: ein Wettlauf würde stille
-doppelte Zeilen anlegen. Das Abfangen einer nie geworfenen `IntegrityError` bewirkt dort nichts --
-eine echte Behebung bräuchte zuerst eine Migration, die den fehlenden Constraint ergänzt (bekannte,
-noch offene Fälle: `app/document_layout.py`, `app/payment_terms.py`, `app/tax_keys.py`,
-`app/reminders.py`, siehe CHANGELOG.md 1.4.6).
+doppelte Zeilen anlegen. Das Abfangen einer nie geworfenen `IntegrityError` bewirkt dort nichts
+(Fälle: `app/document_layout.py`, `app/payment_terms.py`, `app/tax_keys.py`, `app/reminders.py`, siehe
+CHANGELOG.md 1.4.6).
+
+**Seit 1.8.42 (Regel 23)** laufen alle `ensure_default_*()` nur noch als Schritte von `app/grunddaten.py::anlegen()`
+beim Start, in einer Transaktion hinter einer Sperrzeile (`general_settings` FOR UPDATE, unter SQLite
+`BEGIN IMMEDIATE`) -- zwei Prozesse treffen sich nicht mehr im selben Schritt, auch die vier Sätze ohne UNIQUE und
+die Singleton-Einstellungen nicht. Der SAVEPOINT je Schritt bleibt als zweite Absicherung; die Schritte committen
+nicht selbst (ein Commit gäbe die Sperre frei). Achtung SQLite: pysqlite beginnt die Transaktion erst vor der
+ersten Änderung -- ein SAVEPOINT davor ist selbst die Transaktion, sein RELEASE committet.
 
 ## Migrations-Workflow
 
@@ -1017,6 +1038,12 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   Positionsextraktion aus gerenderten PDF-Bytes. Für "Seite X von Y" dagegen weiterhin die
   etablierte Content-Stream-Textextraktion (`_extract_pdf_text()`, seit 1.2.16 in
   `tests/test_v213_inspection_items.py`, hier wiederverwendet statt dupliziert).
+
+- **Grunddaten in jeder Testdatenbank** (seit 1.8.42): `tests/conftest.py` ruft nach jedem
+  `Base.metadata.create_all()` `app.grunddaten.anlegen()` auf -- wie der Start einer echten Installation. Ein Test,
+  der den Vorzustand genau braucht (Migrationstests, `anlegen()` selbst), legt die Tabellen in
+  `with ohne_grunddaten():` (`tests/grunddaten_schalter.py`) an. Audit-Zähler in Tests: die Grunddaten schreiben
+  "System angelegt"-Einträge -- vorher/nachher vergleichen statt absolut zählen.
 
 - **Feste Uhr statt Tageszeit** (seit 1.8.36): ein Test, dessen Ergebnis von der Uhrzeit abhängt (z. B. Monteur
   an `/api/field-view/today`, ab 19:00 "Feierabend" 401), nimmt die Fixture `feste_uhr` bzw. in einer Modul-Fixture
@@ -1167,19 +1194,14 @@ Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
   z. B. `checklists.created_by_user_id`; SQLite erzwingt FKs hier nicht, deshalb lokal unsichtbar.
   Nicht behoben (Deaktivieren statt Löschen oder FK-Regel wäre zu entscheiden). Details:
   `docs/archiv/modul-checklisten.md`, "Umsetzung 1.8.13" -> "Nebenbefunde".
-- **Vier `ensure_default_*()`-Self-Seeding-Funktionen ohne UNIQUE-Constraint, dadurch weiterhin
-  anfällig für stille Dopplung bei gleichzeitigem erstem Zugriff** (gefunden beim 1.4.6-Sweep,
-  siehe Abschnitt "Self-Seeding gegen gleichzeitigen ersten Zugriff absichern" oben):
-  `app/document_layout.py::ensure_default_layout()`, `app/payment_terms.py::ensure_default_payment_terms()`,
-  `app/tax_keys.py::ensure_default_tax_keys()`, `app/reminders.py::ensure_default_reminder_levels()`.
-  Andere Fehlerklasse als die acht in 1.4.6 behobenen Fundstellen -- kein Crash (keine
-  UNIQUE-Verletzung zum Abfangen vorhanden), sondern im seltenen Kollisionsfall zwei identische
-  Standardzeilen. Nicht behoben, da eine echte Behebung zuerst eine neue Migration bräuchte
-  (fehlenden Constraint ergänzen) -- ein größerer, separat zu entscheidender Schritt, kein reiner
-  Code-Fix wie bei den acht anderen. **Ebenfalls bewusst außerhalb**: das strukturell verwandte,
-  aber deutlich umfangreichere "get_or_create_settings(id=1)"-Singleton-Muster (`GeneralSettings`,
-  `TaskSettings`, `MaintenanceSettings` u. v. a., über zehn Tabellen) -- dort kollidiert ein
-  PRIMARY KEY statt eines Business-Keys, ein eigener, größerer Sweep, nicht Teil der 1.4.6-Anfrage.
+- ~~Vier `ensure_default_*()` ohne UNIQUE (stille Dopplung) und das "get_or_create_settings(id=1)"-Singleton-
+  Muster~~ -- seit 1.8.42 gelöst: Grunddaten legt der Start an, serialisiert über eine Sperrzeile (Regel 23,
+  `docs/archiv/grunddaten-beim-start.md`), ohne neue Constraints.
+- **Zwei GET-Endpunkte schreiben noch** (1.8.42, `SCHREIBT_BEKANNT` in `test_v326_monteur_datengrenze.py`):
+  `GET /api/projects/{id}/quotes` legt je Angebot Meta und Positionslayout an (`ensure_quote_structure()`),
+  `GET /api/settings/number-sequences` gleicht in `preview_number()` den Nummernkreis ab (flush ohne commit).
+  Weitere Anleger je Datensatz in Lesepfaden, die der Rundgang mit seinen Testdaten nicht auslöst, siehe
+  `docs/archiv/grunddaten-beim-start.md`, "Nebenbefunde".
 - ~~Kolonnenführer-Rolle für Gruppenbuchungen~~ -- seit 1.7.12 gelöst über das Kennzeichen
   `TeamEmployee.is_crew_leader` (keine eigene Rolle), siehe `docs/archiv/rechtekonzept.md`,
   "Zeiterfassung für Monteure" -> "Nachtrag (seit 1.7.12)".

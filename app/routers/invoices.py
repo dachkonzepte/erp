@@ -9,7 +9,7 @@ versendeten Rechnung) in aussagekräftige 400-Antworten.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from ..calculation import get_or_create_settings
+from ..calculation import load_calculation_settings
 from ..database import get_db
 from ..email_dispatch import DispatchConflict
 from .email_dispatches import document_pdf_response
@@ -23,7 +23,6 @@ from ..invoices import (
     update_invoice_payment_term, update_invoice_tax_key,
 )
 from ..models import AppUser, Order
-from ..payment_terms import ensure_default_payment_terms
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..service_reports import list_materials_for_invoicing
 from ..time_tracking import list_entries
@@ -76,7 +75,6 @@ def get_invoice_detail(invoice_id: int, db: Session = Depends(get_db), _role: Ap
 @router.post("/api/orders/{order_id}/invoices/abschlag-pauschal", response_model=InvoiceOut)
 def post_abschlag_pauschal(order_id: int, payload: InvoiceCreateAbschlagPauschal, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     order = _get_order_or_404(db, order_id)
-    ensure_default_payment_terms(db)
     invoice = create_abschlag_pauschal(
         db, order, lump_sum_net=payload.lump_sum_net,
         progress_description=payload.progress_description, due_date=payload.due_date,
@@ -87,7 +85,6 @@ def post_abschlag_pauschal(order_id: int, payload: InvoiceCreateAbschlagPauschal
 @router.post("/api/orders/{order_id}/invoices/abschlag-leistungsstand", response_model=InvoiceOut)
 def post_abschlag_leistungsstand(order_id: int, payload: InvoiceCreateFromOrder, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     order = _get_order_or_404(db, order_id)
-    ensure_default_payment_terms(db)
     invoice = create_abschlag_leistungsstand(db, order, due_date=payload.due_date)
     return invoice_to_dict(invoice)
 
@@ -95,7 +92,6 @@ def post_abschlag_leistungsstand(order_id: int, payload: InvoiceCreateFromOrder,
 @router.post("/api/orders/{order_id}/invoices/schlussrechnung", response_model=InvoiceOut)
 def post_schlussrechnung(order_id: int, payload: InvoiceCreateFromOrder, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     order = _get_order_or_404(db, order_id)
-    ensure_default_payment_terms(db)
     invoice = create_schlussrechnung(db, order, due_date=payload.due_date)
     return invoice_to_dict(invoice)
 
@@ -103,7 +99,6 @@ def post_schlussrechnung(order_id: int, payload: InvoiceCreateFromOrder, db: Ses
 @router.post("/api/orders/{order_id}/invoices/aus-zeitbuchungen", response_model=InvoiceOut)
 def post_invoice_from_time_entries(order_id: int, payload: InvoiceCreateFromOrder, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     order = _get_order_or_404(db, order_id)
-    ensure_default_payment_terms(db)
     # Alle Buchungen des Auftrags -- ohne limit=None schnitt der Vorgabewert 500 die ältesten
     # still ab (bis 1.8.5).
     entries = list_entries(db, order_id=order_id, limit=None)
@@ -117,7 +112,7 @@ def post_invoice_from_time_entries(order_id: int, payload: InvoiceCreateFromOrde
     # Material ohne konfigurierten Aufschlag abgerechnet wurde -- sonst fällt der fehlende
     # Aufschlag nicht auf, der Einkaufspreis sieht wie ein gültiger Preis aus.
     has_catalog_material = any(m.material_id is not None for m in materials)
-    if has_catalog_material and get_or_create_settings(db).material_markup_pct == 0:
+    if has_catalog_material and load_calculation_settings(db).material_markup_pct == 0:
         result["material_markup_hint"] = (
             "Materialpositionen wurden ohne Aufschlag (Materialaufschlag steht auf 0 %) mit dem "
             "reinen Einkaufspreis eingetragen -- vor dem Versenden prüfen."

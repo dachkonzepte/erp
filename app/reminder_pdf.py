@@ -31,7 +31,7 @@ from .document_frame import frame_content_width, render_framed_pdf
 from .document_page_margins import get_margins
 from .document_pdf import build_din5008_header_block, build_object_address_block, build_styles, money, ptext
 from .reminders import reminder_to_dict
-from .settings import get_or_create_general_settings
+from .settings import load_general_settings
 
 LEVEL_LABELS = {1: "1. Mahnung", 2: "2. Mahnung", 3: "3. Mahnung"}
 
@@ -43,7 +43,7 @@ def build_reminder_pdf(db, reminder) -> bytes:
     styles = build_styles()
     body, h1 = styles["body"], styles["h1"]
 
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     sender_parts = [general.company_name, general.street, " ".join(x for x in [general.postal_code, general.city] if x)]
     sender_line = " - ".join(x for x in sender_parts if x)
 

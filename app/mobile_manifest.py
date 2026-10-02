@@ -12,7 +12,7 @@ from PIL import Image
 from sqlalchemy.orm import Session
 
 from .company_logo import logo_path
-from .settings import get_accent_color, get_or_create_general_settings
+from .settings import get_accent_color, load_general_settings
 
 ICON_SIZES = (192, 512)
 
@@ -29,7 +29,7 @@ def build_icon_png(db: Session, size: int) -> bytes:
     """Ist ein Firmenlogo hinterlegt, wird es zentriert/gepolstert auf ein einfarbiges Quadrat in
     der Akzentfarbe gesetzt und auf size skaliert; sonst bleibt es beim schlichten, einfarbigen
     Platzhalter-Quadrat."""
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     canvas = Image.new("RGB", (size, size), _hex_to_rgb(get_accent_color(db)))
     if general.logo_filename:
         path = logo_path(general.logo_filename)
@@ -45,7 +45,7 @@ def build_icon_png(db: Session, size: int) -> bytes:
 
 
 def build_manifest(db: Session) -> dict:
-    general = get_or_create_general_settings(db)
+    general = load_general_settings(db)
     accent = get_accent_color(db)
     return {
         "name": f"{general.company_name} – Mobil",

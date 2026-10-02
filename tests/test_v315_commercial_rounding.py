@@ -24,7 +24,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.calculation import get_or_create_settings
+from app.calculation import load_calculation_settings
 from app.incoming_invoices import gross_amount as incoming_gross_amount, invoice_gross_amount
 from app.invoice_pdf import build_invoice_pdf
 from app.invoices import (
@@ -36,7 +36,7 @@ from app.models import Employee, IncomingInvoice, IncomingInvoiceItem, Invoice, 
 from app.recurring_costs import create_cost, gross_amount as cost_gross_amount, overview_summary
 from app.reminders import create_reminder, ensure_default_reminder_levels, format_reminder_text, reminder_to_dict
 from app.rounding import round_half_up, round_hours, round_money
-from app.time_backoffice import backoffice_summary, build_datev_export, get_employee_payroll, get_or_create_time_settings
+from app.time_backoffice import backoffice_summary, build_datev_export, get_employee_payroll, load_time_settings
 from app.time_tracking import create_manual_entry, summarize_entries
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.test_v213_inspection_items import _extract_pdf_text
@@ -179,7 +179,7 @@ def test_invoice_from_time_entries_hours_times_rate_half_cent():
     """1,2525 Std. x 50,00 = 62,625 -- auf der Rechnung aus Aufwand jetzt 62,63 (alt im PDF 62,62)."""
     db = db_session()
     order, _ = make_order_with_item(db, vat_rate=Decimal("0"))
-    get_or_create_settings(db).labor_rate = Decimal("50.00"); db.commit()
+    load_calculation_settings(db).labor_rate = Decimal("50.00"); db.commit()
     emp = Employee(employee_number="E-1", first_name="Paul", last_name="Aufwand", employee_group="gewerblich", active=True)
     db.add(emp); db.commit()
     entry = create_manual_entry(db, employee_id=emp.id, order_id=order.id, work_date=date.today(), hours=Decimal("1.2525"), activity="Reparatur")
@@ -244,7 +244,7 @@ def test_datev_export_hours_half_hundredth_round_up():
     db = db_session()
     emp = _hours_setup(db, "1.125")
     get_employee_payroll(db, emp.id).datev_personnel_number = "14"
-    settings = get_or_create_time_settings(db)
+    settings = load_time_settings(db)
     settings.datev_target, settings.datev_wage_type_site, settings.rounding_minutes = "lohn_gehalt", "200", 0
     db.commit()
     data, _, warnings = build_datev_export(db, date(2026, 9, 1), date(2026, 9, 30))

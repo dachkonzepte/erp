@@ -20,7 +20,7 @@ from ..permissions import ROLE_OFFICE_FINANZEN, require_min_role
 from ..recurring_cost_documents import ALLOWED_CONTENT_TYPES, MAX_UPLOAD_BYTES, document_path, save_document
 from ..recurring_costs import (
     MODULE_KEY, check_due_cancellations_and_create_reminders, create_cost, create_cost_document,
-    delete_cost, delete_cost_document, get_cost, get_or_create_recurring_cost_settings, list_costs,
+    delete_cost, delete_cost_document, get_cost, load_recurring_cost_settings, list_costs,
     overview_summary, recurring_cost_settings_to_dict, update_cost, update_recurring_cost_settings,
 )
 from ..schemas import (
@@ -147,7 +147,7 @@ def delete_recurring_cost_document_endpoint(document_id: int, db: Session = Depe
 @router.get("/api/recurring-cost-settings", response_model=RecurringCostSettingsOut)
 def get_recurring_cost_settings_endpoint(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
-    return recurring_cost_settings_to_dict(get_or_create_recurring_cost_settings(db))
+    return recurring_cost_settings_to_dict(load_recurring_cost_settings(db))
 
 
 @router.put("/api/recurring-cost-settings", response_model=RecurringCostSettingsOut)
