@@ -17,6 +17,8 @@ Entscheidung fällt je Kontext und je Checkliste hier im Router, die Geschäftsl
   - Eine Unterschrift sperrt die Antworten und Fotos oberhalb von ihr (seit 1.8.13, seit 1.8.14
     abschnittsweise) für JEDE Rolle, auch fürs Büro; "Unterschriften verwerfen" mit Begründung
     ist dem Büro vorbehalten.
+  - Systemfelder mit office_only (seit 1.8.38, Abschnitt "Anzeige" der Behinderungsanzeige samt
+    "Unterschrift Büro") füllt nur das Büro, auch an der eigenen Checkliste (403).
   - Fremde Checklisten: in der Liste nur Titel/Datum/Ersteller/Status; Einzelabruf und Anhänge
     nur, wenn die Vorlage field_readable trägt (Betreiberentscheidung B).
   - Die EIGENE Checkliste bleibt erreichbar, auch wenn der Monteur inzwischen nicht mehr dem
@@ -38,7 +40,8 @@ from ..checklist_rules import list_checklists_with_open_rules, list_rule_executi
 from ..checklists import (
     ChecklistLocked, add_attachment, asset_readiness, attachment_path, complete_checklist, create_checklist,
     delete_attachment, delete_checklist, discard_signatures, get_attachment, get_checklist, get_checklist_row,
-    list_checklists, list_startable_templates, mark_asset_repaired, save_answer, MAX_PHOTO_UPLOAD_BYTES,
+    is_office_only, list_checklists, list_startable_templates, mark_asset_repaired, save_answer,
+    MAX_PHOTO_UPLOAD_BYTES,
 )
 from ..database import get_db
 from ..email_dispatch import DispatchConflict, dispatch_to_dict
@@ -62,6 +65,7 @@ _office_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 NOT_OWNER = "Diese Checkliste hat eine andere Person angelegt."
 ANSWERS_HIDDEN = "Von dieser Checkliste sind für Sie nur Titel, Datum und Ersteller sichtbar."
 COMPANY_OFFICE_ONLY = "Checklisten im Kontext Betrieb sind dem Büro vorbehalten."
+OFFICE_FIELD = "Dieses Feld füllt das Büro aus."
 
 
 def _require_module_enabled(db: Session) -> None:
@@ -122,19 +126,33 @@ def _checklist_for(db: Session, role: AppUser, checklist_id: int, *, write: bool
     return checklist
 
 
+def _require_field_writable(role: AppUser, checklist: Checklist, field_id: int | None) -> None:
+    """Felder mit office_only (seit 1.8.38, z. B. Abschnitt "Anzeige" der Behinderungsanzeige samt
+    "Unterschrift Büro") füllt nur das Büro -- auch an der eigenen Checkliste des Monteurs."""
+    if _is_office(role):
+        return
+    field = next((f for f in checklist.template_version.fields if f.id == field_id), None)
+    if field is not None and is_office_only(checklist, field):
+        raise HTTPException(status_code=403, detail=OFFICE_FIELD)
+
+
 def _with_flags(data: dict, role: AppUser, checklist: Checklist) -> dict:
     """can_edit: mindestens ein Feld ist noch offen (seit 1.8.14 abschnittsweise, welche genau
-    gesperrt sind, steht in sealed_field_ids). can_delete: Entwurf ohne jede Unterschrift, auch
-    ohne verworfene."""
+    gesperrt sind, steht in sealed_field_ids) -- und für diese Rolle beschreibbar (seit 1.8.38 nicht
+    die Felder mit office_only für Monteure, can_fill_office_fields). can_delete: Entwurf ohne jede
+    Unterschrift, auch ohne verworfene."""
     own = _is_own(role, checklist)
     draft = checklist.status == "entwurf"
+    office = _is_office(role)
     data["is_own"] = own
-    data["can_sign"] = draft and (_is_office(role) or own)
+    data["can_sign"] = draft and (office or own)
+    data["can_fill_office_fields"] = office
     sealed = set(data["sealed_field_ids"])
     data["can_edit"] = data["can_sign"] and any(
-        f["field_type"] not in ("hinweis", "unterschrift") and f["id"] not in sealed for f in data["fields"])
+        f["field_type"] not in ("hinweis", "unterschrift") and f["id"] not in sealed and (office or not f["office_only"])
+        for f in data["fields"])
     data["can_delete"] = data["can_sign"] and not data["has_signatures"]
-    data["can_discard_signatures"] = draft and data["signed"] and _is_office(role)
+    data["can_discard_signatures"] = draft and data["signed"] and office
     return data
 
 
@@ -183,10 +201,10 @@ def get_checklists(context: str | None = None, order_id: int | None = None, prop
         _require_context_access(db, _role, context_type, order_id=order_id, asset_id=operational_asset_id)
         context = context_type
     ids = None
-    if open_rules:  # Büro: nur Checklisten mit nicht angelegten Aufgaben (seit 1.8.3)
+    if open_rules:  # Büro: nur Checklisten mit nicht angelegten Aufgaben (seit 1.8.3), seit 1.8.38 auch Folgen
         if not _is_office(_role):
             raise HTTPException(status_code=403, detail="Nur für das Büro.")
-        ids = list_checklists_with_open_rules(db)
+        ids = sorted(set(list_checklists_with_open_rules(db)) | set(list_checklists_with_open_follow_ups(db)))
     rows = list_checklists(db, context_type=context, order_id=order_id, property_id=property_id,
                            asset_id=operational_asset_id, status=status, template_id=template_id, ids=ids)
     office = _is_office(_role)
@@ -262,7 +280,8 @@ def get_checklist_endpoint(checklist_id: int, db: Session = Depends(get_db), _ro
 def put_checklist_answer(checklist_id: int, field_id: int, payload: ChecklistAnswerWrite,
                          db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    _checklist_for(db, _role, checklist_id, write=True)
+    checklist = _checklist_for(db, _role, checklist_id, write=True)
+    _require_field_writable(_role, checklist, field_id)
     _call(save_answer, db, checklist_id, field_id, payload.value, recorded_by_employee_id=_role.employee_id,
           client_uuid=payload.client_uuid, client_recorded_at=payload.client_recorded_at)
     return _detail(db, _role, checklist_id)
@@ -273,7 +292,8 @@ def post_checklist_attachment(checklist_id: int, field_id: int = Form(...), file
                               signer_name: str | None = Form(None), client_uuid: str | None = Form(None),
                               db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    _checklist_for(db, _role, checklist_id, write=True)
+    checklist = _checklist_for(db, _role, checklist_id, write=True)
+    _require_field_writable(_role, checklist, field_id)
     data = file.file.read(MAX_PHOTO_UPLOAD_BYTES + 1)
     _call(add_attachment, db, checklist_id, field_id, data, signer_name=signer_name,
           created_by_employee_id=_role.employee_id, client_uuid=client_uuid)
@@ -301,7 +321,8 @@ def delete_checklist_attachment(attachment_id: int, db: Session = Depends(get_db
     if attachment is None:
         raise HTTPException(status_code=404, detail="Anhang nicht gefunden.")
     checklist_id = attachment.checklist_id
-    _checklist_for(db, _role, checklist_id, write=True)
+    checklist = _checklist_for(db, _role, checklist_id, write=True)
+    _require_field_writable(_role, checklist, attachment.template_field_id)
     _call(delete_attachment, db, attachment_id)
     return _detail(db, _role, checklist_id)
 

@@ -19,7 +19,8 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | **2b-1b Teil 2b** | 1.8.34 | Gemeinsame Unterschriftsvorlage, Unterschrift auf dem Gerät (Kunde und Betrieb, Ankreuzfelder, Unterschriftsblatt) oder Papier-Scan, Sperren nach der Unterschrift, Widerrufsfrist | erledigt |
 | **2b-1b Abrundung** | 1.8.35 | Unterschriebene Abschrift (Fassung + Blatt bzw. Scan) für Versand und Zustellung, Größengrenze der Berichtsunterschrift, lesbare Fehler der Auftragsseite | erledigt |
 | **2b-2** | 1.8.36, 1.8.37 | Vorab feste Uhr für uhrzeitabhängige Tests (1.8.36); Adressbuch als Stammdatenbereich, Beteiligte am Projekt mit fester Rolle, Kopie bei Anzeigen, Empfangsvollmacht mit Beleg, Reiter in der Projektmappe (1.8.37) | erledigt |
-| **2b-3** | — | Behinderungsanzeige | offen |
+| **2b-3 Teil 1** | 1.8.38 | Behinderungsanzeige erfassen: Systemfelder in drei Abschnitten (Meldung, Anzeige nur Büro, Wegfall), Startvorlage, Folge nach der Unterschrift der Meldung, Tagesbericht-Regel mit Link zum Anlegen | erledigt |
+| **2b-3 Teil 2** | — | Behinderungsanzeige: Brief-PDF und Versand | offen |
 | **2b-4** | — | Bedenkenanzeige | offen |
 
 Nach jeder Runde die Spalten "Version"/"Stand" nachziehen und unten einen Abschnitt
@@ -746,3 +747,118 @@ deckt die neuen Routen ab. (5) Tests mit Gegenprobe. Kern, kein Modul.
 1. **Häkchen in der Stammdatenliste 260 px breit**: `master_data.html` setzt global `input{min-width:260px}`, das trifft
    auch die Häkchen "Archivierte auch anzeigen" (Leistungs-, Materialkataloge) und "Hauptadressen anzeigen" (Objekte);
    die Beschriftung steht dadurch weit rechts (im Browser gemessen: 260 px, beim Adressbuch mit `min-width:0` 13 px).
+
+---
+
+## Umsetzung 1.8.38 (02.10.2026) -- Runde 2b-3 Teil 1: Behinderungsanzeige erfassen
+
+Betreibervorgabe: (1) Zweck `behinderungsanzeige` mit Systemfeldern in drei Abschnitten -- Meldung (bekannt seit als
+Datum und Uhrzeit, Beschreibung, Fotos, Unterschrift des Meldenden), Anzeige (Ursache als Auswahl: fehlende Vorleistung
+eines anderen Gewerks, fehlende Pläne oder Freigaben, Zugang oder Gerüst, vom Auftraggeber zu lieferndes Material,
+außergewöhnliche Witterung, Sonstiges -- mit Beschreibung; betroffene Leistungen, Beginn, voraussichtliche Dauer,
+Unterschrift Büro; bei Witterung der Hinweis "übliche Witterung ist nach § 6 Abs. 2 VOB/B keine Behinderung"), Wegfall
+(beendet am, Arbeit wieder aufgenommen am, Unterschrift). (2) Startvorlage als Entwurf, startbar am Auftrag im Büro und
+in `/mobil`. (3) Folgen auch nach der Unterschrift eines bestimmten Abschnitts, idempotent; nach der Unterschrift der
+Meldung Aufgabe "Behinderungsanzeige versenden", fällig am selben Tag, an den Sachbearbeiter, sonst ohne Zuständigkeit.
+(4) Tagesbericht "Behinderung = ja" legt stattdessen eine Aufgabe mit Link zum Anlegen an, keine doppelten. (5) Tests mit
+Gegenprobe. Brief-PDF und Versand: Teil 2. Modul `checklisten` (Kern der Stufe 2b nur fachlich, technisch Checkliste).
+
+- **Registry** (`app/checklist_purposes.py`, Herleitung des Zweck-Mechanismus in `docs/archiv/modul-checklisten.md`,
+  "Umsetzung 1.8.16"): `OBSTRUCTION_SYSTEM_FIELDS`, Schlüssel `behinderungsanzeige.<name>` (`bekannt_seit`,
+  `beschreibung`, `fotos`, `unterschrift_meldung`, `ursache` mit Optionen `vorleistung`, `plaene_freigaben`,
+  `zugang_geruest`, `material_ag`, `witterung`, `sonstiges`, `ursache_beschreibung`, `betroffene_leistungen`, `beginn`,
+  `dauer`, `unterschrift_buero`, `beendet_am`, `wieder_aufgenommen_am`, `unterschrift_wegfall`) -- die Schlüssel stehen
+  in der Datenbank und werden nie umbenannt. Neu an `SystemField`: `section` (Abschnitt), `office_only`, `option_hints`,
+  dazu `multiline`/`signer_label` als Vorschläge beim Anlegen; an `FollowUp`: `after_signature`.
+- **Abschnitte geprüft**: `section_order_problem()` -- beim Veröffentlichen müssen die Systemfelder in der Reihenfolge
+  ihrer Abschnitte stehen, jede Unterschrift am Ende ihres Abschnitts; innerhalb eines Abschnitts und für gewöhnliche
+  Felder bleibt die Reihenfolge frei. **Festlegung (abweichend von 1.8.16 "Reihenfolge frei", bitte bestätigen)**: ohne
+  diese Prüfung könnte ein umsortiertes Feld der Meldung unter ihrer Unterschrift landen -- die Unterschrift versiegelte
+  es nicht, und die Folge liefe auf einem halben Stand. `_sync_system_fields()` legt fehlende Systemfelder mit Abschnitt
+  als Abschnittsname an.
+- **Festlegungen zu den Feldern (nicht vorgegeben, bitte bestätigen; an Systemfeldern im Editor nicht änderbar)**:
+  Pflicht sind bekannt seit, Beschreibung, Unterschrift der Meldung, Ursache, Beschreibung der Ursache, betroffene
+  Leistungen, Beginn, Unterschrift Büro, beendet am, wieder aufgenommen am, Unterschrift Wegfall; ohne Pflicht Fotos
+  (ohne Mindestanzahl, Startvorlage höchstens 10) und voraussichtliche Dauer (Text, oft "nicht absehbar"). "Ursache mit
+  Beschreibung" ist ein eigenes Textfeld. Beginn, beendet am, wieder aufgenommen am sind Datumsfelder; bekannt seit
+  Datum und Uhrzeit ohne Vorbelegung "jetzt" (der Zeitpunkt des Bekanntwerdens, nicht der Meldung).
+- **Nur Büro** (`office_only`, Abschnitt Anzeige samt "Unterschrift Büro"): `app/routers/checklists.py::
+  _require_field_writable()` weist Antwort, Foto und Unterschrift eines Monteurs in diesen Feldern mit 403 ab, auch an
+  seiner eigenen Checkliste; `can_fill_office_fields` im Abruf, `office_only`/`option_hints` je Feld (aus der Vorgabe,
+  `field_to_dict(..., purpose_key)`). **Festlegung**: der Monteur sieht den Abschnitt lesend ("füllt das Büro aus", nicht
+  als fehlend markiert); die Vorgabe "sieht keine Büro-Daten" ist wie in 1.8.16 als Folgen, Aufgaben, Regeln und
+  Sachbearbeiter verstanden. Soll er die Anzeige auch nicht lesen, bräuchte es eine Ausblendung je Feld im Router.
+  Wegfall füllt Monteur oder Büro.
+- **Witterung**: `option_hints` am Systemfeld Ursache; die Ausfüllseite zeigt den Hinweis unter den Kacheln, solange
+  "außergewöhnliche Witterung" gewählt ist; im Editor steht er am Feld. Im PDF noch nicht (Teil 2).
+- **Folge nach einer Unterschrift** (`app/checklist_follow_ups.py`): `follow_up_due()` -- mit `after_signature` fällig,
+  sobald im Feld eine gültige (nicht verworfene) Unterschrift steht, auch am Entwurf; sonst nach dem Abschluss wie bisher.
+  `add_attachment()` ruft `run_follow_ups_after_signature()` NACH dem Commit der Unterschrift (Muster des Abschlusses, Fund 4);
+  `run_checklist_follow_ups()` lehnt einen Entwurf nicht mehr ab, sondern führt aus, was fällig ist. Wiederholt ein Gerät
+  dieselbe Unterschrift (gleiche `client_uuid`, Stufe-3-Vorbereitung), entsteht keine zweite, aber eine offene Folge wird
+  nachgeholt -- sonst bliebe sie nach einem Abbruch direkt nach dem Commit bis zum Nachholen im Büro liegen. Idempotenz unverändert
+  über `checklist_follow_ups` (eine Zeile je Checkliste und Folge): Abschluss, Nachholen, Verwerfen und erneutes
+  Unterschreiben führen nichts doppelt aus. Die Übersicht (`GET /api/checklists?open_rules=true`, "Alle nachholen") nimmt
+  offene Folgen mit; die Ausfüllseite zeigt dem Büro die Karte "Folgen" (Auslöser, Status, Link auf die Aufgabe,
+  "Folgen nachholen").
+- **Aufgabe "Behinderungsanzeige versenden"** (`app/obstruction_notices.py::create_send_task()`): fällig am Tag der
+  Unterschrift in Europe/Berlin -- auch beim Nachholen, dann eben überfällig --, an `Order.caseworker_employee_id`, sonst
+  ohne Zuständigkeit für `buero_auftrag` aufwärts; Projekt des Auftrags, Link auf die Behinderungsanzeige, Modul
+  `aufgabenmanagement` (aus → `modul_aus`, nachholbar). **Festlegung**: Priorität hoch (die Anzeige muss unverzüglich
+  hinaus); die Beschreibung nennt nur wer, wann, welcher Auftrag, nicht den gemeldeten Text.
+- **Tagesbericht** (`app/checklist_rules.py`): neue Regel-Einstellung "Aufgabe verlinkt auf" (`link_purpose`, jeder Zweck
+  außer "allgemein", der am Auftrag erlaubt ist). Die Aufgabe verlinkt dann auf
+  `/checklisten/auftrag/{id}?zweck=<Zweck>` -- die Seite hebt "<Zweck> anlegen" mit genau den Vorlagen dieses Zwecks hervor
+  und nennt schon offene Entwürfe; angelegt wird erst auf Klick. **Festlegung "keine doppelten Aufgaben"**: solange eine
+  Aufgabe mit demselben Link (gleicher Auftrag, gleicher Zweck) offen ist, legt die Regel keine zweite an -- die
+  Ausführung steht dann als "Aufgabe war schon offen" (`aufgabe_vorhanden`, verweist auf die offene, wird nie
+  nachgeholt). Erledigt oder archiviert: der nächste Tagesbericht mit "ja" legt wieder eine an. Restrisiko: zwei genau
+  gleichzeitig abgeschlossene Tagesberichte können beide eine anlegen (keine Sperre über Checklisten hinweg).
+- **Migration `d6ac03a06d6f`**: Spalte `checklist_template_rules.link_purpose`; Startvorlage "Behinderungsanzeige"
+  (Entwurf, nur Auftrag, `field_readable` aus, statt des FaSi-Satzes ein Hinweis "Vor Veröffentlichung prüfen" und ein
+  Hinweis "Behinderung sofort melden" für den Monteur); Tagesbericht-Regel umgestellt nur, wenn die Vorlage eine einzige
+  Fassung im Entwurf hat und die Regel wie 1.8.5 ist. **Auf dem Server**: ist der Tagesbericht dort schon
+  veröffentlicht, bleibt er wie er ist -- dann im Editor einen neuen Entwurf anlegen, an der Regel "Behinderung
+  aufgetreten ist Ja" "Aufgabe verlinkt auf: Behinderungsanzeige am Auftrag anlegen" wählen, Titel anpassen,
+  veröffentlichen. `downgrade()` stellt die Regel zurück, bricht ab, solange eine andere Regel einen Link trägt, und
+  entfernt die Startvorlage nur unveröffentlicht und unbenutzt.
+- **Fehlermeldungen**: `checklist.html`, `checklist_template.html`, `checklists.html` und `checklist_order.html` lesen
+  abgelehnte Antworten über `fehlerText()` (Architekturentscheidung 1.8.35); `_checklists_section.html` nutzt es, wenn die
+  einbindende Seite `_fehlertext.html` hat, sonst nur einen Text-`detail`. **Mitbehoben**: lange Optionstexte liefen auf
+  der Ausfüllseite aus ihrer Kachel ("außergewöhnliche Witterung" bei sechs Kacheln in einer Reihe) -- jetzt Umbruch im
+  Wort mit Silbentrennung, wo der Browser sie kann.
+- **Verifikation**: `tests/test_v341_behinderungsanzeige.py` (17 Tests; einer gegen PostgreSQL 17 im Wegwerf-Schema: zwei
+  gleichzeitige "Nachholen", die beide die offene Zeile gelesen haben, legen genau eine Aufgabe an; die Abfrage nach einer
+  offenen Aufgabe mit demselben Link läuft). `test_v320` angepasst (die Behinderungsanzeige hat jetzt Systemfelder; der
+  Konsistenz-Wächter prüft zusätzlich Auslöser, Abschnitte und Hinweise). 20 Gegenproben rot (Skript im Scratchpad, Datei
+  byte-genau zurück): Abschnittsreihenfolge, feste Eigenschaften, keine Folge nach der Unterschrift, erledigte Folge erneut,
+  Folge ohne Unterschrift fällig, Nachholen am Entwurf abgelehnt, Büro-Felder offen, ohne Sachbearbeiter, ohne Fälligkeit,
+  Tagesbericht ohne Prüfung auf offene Aufgabe, "vorhanden" nachholbar, Link fehlt, Migration bei veröffentlichtem
+  Tagesbericht bzw. veröffentlichter Startvorlage, unbekannter Zweck auf der Seite, Link-Zweck ungeprüft, neuer Entwurf ohne
+  Link, Folgen-Feld im Monteur-Schema (Scan), wiederholte Unterschrift holt nichts nach, Nachholen ohne bedingte Belegung
+  (PostgreSQL). Zwei Proben blieben zuerst
+  grün und haben die Tests geschärft: "vorhanden" nachholbar (erst nach dem Erledigen der ersten Aufgabe schädlich) und die
+  PostgreSQL-Probe (ein Thread war fertig, bevor der andere las -- jetzt warten beide nach dem Lesen aufeinander).
+  Migration SQLite und PostgreSQL (ganze Kette im leeren Schema): hin, Downgrade mit fremdem Link verweigert, zurück, hin,
+  `alembic current`, `alembic check`. JS der geänderten Seiten (zehn Seitenrouten, Büro und Monteur) gerendert und mit
+  `node --check` geprüft. Volle Suite 2492 grün. Klicktest `scripts/klicktest_behinderungsanzeige.py` 35/35 (Monteurin 412 px hell: starten,
+  Abschnitte, Anzeige gesperrt, Meldung unterschreiben, 403; Büro 1400 px dunkel: Folgen-Karte, Witterungs-Hinweis, Anzeige
+  unterschreiben, Aufgabe an die Sachbearbeiterin; Link aus der Tagesbericht-Aufgabe; Editor). Der erste Lauf fand den
+  Kachel-Überlauf (Gegenprobe: ohne die CSS-Änderung 33/35). Die vier Checklisten-Klicktests (Unterschrift, Abschnitte,
+  Verwerfen, Zweck) und `klicktest_versandverlauf.py` unverändert grün.
+
+### Nebenbefunde 1.8.38 (nur gemeldet)
+
+1. **Keine Behinderung -- und nun?** Stellt das Büro fest, dass keine Behinderung vorliegt (z. B. übliche Witterung),
+   lässt sich die Anzeige weder abschließen (Pflichtfelder Anzeige und Wegfall) noch löschen (eine unterschriebene
+   Checkliste ist nicht löschbar, 1.8.13). Sie bleibt Entwurf und steht beim Monteur unter "Offene Checklisten" in
+   `/mobil`, bis sie abgeschlossen ist -- das gilt auch für jede echte Behinderung bis zum Wegfall. Fachlich zu
+   entscheiden: ein Abschluss "keine Behinderung" mit Begründung, oder offene Behinderungsanzeigen in `/mobil` gesondert.
+2. **`_checklists_section.html` ohne `_fehlertext.html`** auf `mobil_objekt.html`, `property.html`,
+   `operational_asset.html`, `operational_asset_field.html`: dort zeigt der Abschnitt bei einer 422 nur "Fehler 422"
+   statt der Felder -- nicht mehr "[object Object]", aber auch nicht lesbar. Umstellung beim nächsten Anfassen der Seiten.
+3. **Die Aufgabe heißt "versenden", versendet wird erst ab Teil 2** -- bis dahin schickt das Büro die Anzeige von Hand
+   (z. B. als PDF der Checkliste nach dem Abschluss, das aber erst nach dem Wegfall entsteht).
+4. **Arbeitskopie mit CRLF**: einige Dateien liegen wegen `core.autocrlf` in der Arbeitskopie mit CRLF vor (z. B.
+   `app/routers/checklists.py`, `app/schemas.py`); die in dieser Runde angefassten wurden auf LF gebracht -- Git speichert
+   ohnehin LF, kein Unterschied im Commit.

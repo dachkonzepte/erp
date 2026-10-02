@@ -116,10 +116,17 @@ tr:last-child td{border-bottom:none}
 </main>
 </div>
 </div>
+{% include "_fehlertext.html" %}
 <script>
 const templateId={{ template_id }};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+// Abgelehnte Antworten lesbar über fehlerText() (_fehlertext.html, seit 1.8.38 auch hier).
+const FELDNAMEN={label:'Bezeichnung',description:'Beschreibung',contexts:'Kontexte',purpose:'Zweck',field_key:'Schlüssel',
+  field_type:'Typ',help_text:'Hilfetext',group_name:'Abschnitt',min_value:'Mindestwert',max_value:'Höchstwert',decimals:'Nachkommastellen',
+  min_count:'Mindestanzahl',max_count:'Höchstanzahl',signer_label:'Rolle',unit:'Einheit',task_title:'Aufgabentitel',
+  task_description:'Beschreibung der Aufgabe',operand:'Vergleichswert',due_in_days:'Fällig in (Tagen)',link_purpose:'Aufgabe verlinkt auf',
+  new_label:'Bezeichnung der Kopie'};
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,FELDNAMEN));return r.json()}
 const json=(method,body)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 
 const FIELD_TYPES=[['ja_nein','Ja/Nein'],['text','Text'],['zahl','Zahl'],['auswahl','Auswahl'],['datum','Datum'],['uhrzeit','Uhrzeit'],['datum_uhrzeit','Datum und Uhrzeit'],['foto','Foto'],['unterschrift','Unterschrift'],['hinweis','Hinweistext']];
@@ -233,6 +240,7 @@ function fieldSummary(f){
     if(range)bits.push(range);
   }
   if(f.is_system)bits.push('Systemfeld');
+  if(f.office_only)bits.push('nur Büro');
   return bits.join(' · ');
 }
 
@@ -261,7 +269,9 @@ function fieldBody(f){
   if(t==='foto'||(t==='unterschrift'&&f.multiple))html+=`<div class="field"><label>Mindestanzahl</label><input type="number" min="0" data-k="min_count" value="${f.min_count??''}" ${ds}></div>
       <div class="field"><label>Höchstanzahl</label><input type="number" min="1" max="20" data-k="max_count" value="${f.max_count??''}" ${d}></div>`;
   html+='</div>';
-  if(f.is_system)html+='<div class="muted small" style="margin-top:8px">Systemfeld des Zwecks: Beschriftung, Hilfetext, Abschnitt und Reihenfolge sind frei; Schlüssel, Typ, Pflicht, „entfällt“, Mehrfach, Mindestanzahl und Optionen sind fest, löschen geht nicht.</div>';
+  if(f.is_system)html+='<div class="muted small" style="margin-top:8px">Systemfeld des Zwecks: Beschriftung, Hilfetext, Abschnitt und Reihenfolge sind frei (gibt der Zweck Abschnitte vor, innerhalb ihrer Reihenfolge); Schlüssel, Typ, Pflicht, „entfällt“, Mehrfach, Mindestanzahl und Optionen sind fest, löschen geht nicht.'
+    +(f.office_only?' Dieses Feld füllt nur das Büro aus (auch die Unterschrift), Monteure sehen es nur.':'')
+    +(Object.keys(f.option_hints||{}).length?' Hinweis beim Wählen: '+Object.entries(f.option_hints).map(([k,h])=>`„${esc((f.options.find(o=>o.option_key===k)||{label:k}).label)}“ – ${esc(h)}`).join('; '):'')+'</div>';
   if(t==='auswahl'){
     html+=`<div class="group-title">Optionen${f.is_system?' <span class="muted small">(vom Zweck vorgegeben)</span>':''}</div>`+f.options.map(o=>`<div class="opt-row">
       <span class="key">${esc(o.option_key)}</span>
@@ -384,8 +394,15 @@ function describeRule(r){
   if(r.operator==='enthaelt'){const o=f?.options.find(x=>x.option_key===r.operand);cond+=` „${esc(o?o.label:r.operand)}“`}
   if(['kleiner','groesser','gleich'].includes(r.operator))cond+=` ${esc(r.operand)}${f&&f.unit?' '+esc(f.unit):''}`;
   const to=r.assignee_mode==='sachbearbeiter'?'Sachbearbeiter des Auftrags':(ROLES.find(x=>x[0]===r.min_visible_role)||[,r.min_visible_role])[1];
-  return `<b>${cond}</b> → Aufgabe „${esc(r.task_title)}“ <span class="muted small">(${esc(r.task_priority)}, an ${esc(to)}${r.due_in_days!=null?`, fällig in ${r.due_in_days} Tagen`:''})</span>`;
+  const link=r.link_purpose?`, Link: ${esc(linkPurposeLabel(r.link_purpose))} anlegen`:'';
+  return `<b>${cond}</b> → Aufgabe „${esc(r.task_title)}“ <span class="muted small">(${esc(r.task_priority)}, an ${esc(to)}${r.due_in_days!=null?`, fällig in ${r.due_in_days} Tagen`:''}${link})</span>`;
 }
+
+// Seit 1.8.38: die Aufgabe kann statt auf die Checkliste aufs Anlegen einer Checkliste mit Zweck
+// am selben Auftrag verlinken (z. B. Tagesbericht → Behinderungsanzeige). Wählbar: jeder Zweck
+// außer "allgemein", der am Auftrag erlaubt ist (wie die Prüfung im Server).
+function linkPurposes(){return purposes.filter(p=>p.key!=='allgemein'&&p.contexts.includes('auftrag'))}
+function linkPurposeLabel(key){return (purposes.find(p=>p.key===key)||{label:key}).label}
 
 function ruleForm(r){
   const d=dis();
@@ -408,6 +425,7 @@ function ruleForm(r){
     <div class="field"><label>Fällig in (Tagen)</label><input type="number" min="0" max="365" data-r="due_in_days" value="${r.due_in_days??''}" ${d} placeholder="ohne Fälligkeit"></div>
     <div class="field"><label>Empfänger</label><select data-r="assignee_mode" ${d}><option value="rolle" ${r.assignee_mode==='rolle'?'selected':''}>Büro nach Rolle (übernehmen)</option><option value="sachbearbeiter" ${r.assignee_mode==='sachbearbeiter'?'selected':''}>Sachbearbeiter des Auftrags</option></select></div>
     <div class="field"><label>Sichtbar für <span class="muted small">(ohne Sachbearbeiter)</span></label><select data-r="min_visible_role" ${d}>${ROLES.map(([v,l])=>`<option value="${v}" ${v===r.min_visible_role?'selected':''}>${l}</option>`).join('')}</select></div>
+    <div class="field full"><label>Aufgabe verlinkt auf <span class="muted small">(nur im Kontext Auftrag; solange eine Aufgabe mit diesem Link offen ist, entsteht keine zweite)</span></label><select data-r="link_purpose" ${d}><option value="" ${r.link_purpose?'':'selected'}>diese Checkliste</option>${linkPurposes().map(p=>`<option value="${esc(p.key)}" ${p.key===r.link_purpose?'selected':''}>${esc(p.label)} am Auftrag anlegen</option>`).join('')}${r.link_purpose&&!linkPurposes().some(p=>p.key===r.link_purpose)?`<option value="${esc(r.link_purpose)}" selected>${esc(r.link_purpose)} (unbekannt)</option>`:''}</select></div>
   </div>`;
 }
 
@@ -419,7 +437,7 @@ function readRuleForm(){
   box.querySelectorAll('[data-r]').forEach(el=>{
     const k=el.dataset.r;
     if(k==='due_in_days')out[k]=el.value===''?null:Number(el.value);
-    else out[k]=el.value===''&&(k==='field_key'||k==='operand'||k==='task_description')?null:el.value;
+    else out[k]=el.value===''&&(k==='field_key'||k==='operand'||k==='task_description'||k==='link_purpose')?null:el.value;
   });
   return out;
 }

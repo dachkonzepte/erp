@@ -1,16 +1,21 @@
 """Folgen des Abschlusses einer Checkliste nach dem Zweck ihrer Fassung (seit 1.8.16, Modul
-"checklisten").
+"checklisten") -- seit 1.8.38 auch Folgen nach der Unterschrift in einem bestimmten Systemfeld.
 
-Herleitung: docs/archiv/modul-checklisten.md, "Umsetzung 1.8.16". Welche Folgen ein Zweck hat,
-steht in app/checklist_purposes.py (FollowUp); bisher hat kein Zweck eine -- die ersten kommen in
-den Runden 2b/2c, die Tests arbeiten mit einem eigenen Test-Zweck.
+Herleitung: docs/archiv/modul-checklisten.md, "Umsetzung 1.8.16", und
+docs/archiv/vertragsgrundlage-und-vertrag.md, "Umsetzung 1.8.38". Welche Folgen ein Zweck hat,
+steht in app/checklist_purposes.py (FollowUp); die erste echte ist "Behinderungsanzeige
+versenden" nach der Unterschrift der Meldung.
 
 Ablauf wie bei den Regeln (app/checklist_rules.py, Fund 4):
-- Nur eine ABGESCHLOSSENE Checkliste, nur die Folgen des Zwecks ihrer Fassung.
+- Fällig ist eine Folge nach dem Abschluss (Standard) bzw. -- mit after_signature -- sobald im
+  genannten Unterschriftsfeld eine gültige (nicht verworfene) Unterschrift steht, auch an einem
+  Entwurf. Nur die Folgen des Zwecks der Fassung. Aufgerufen nach dem Commit des Abschlusses und
+  jeder Unterschrift; "Nachholen" führt aus, was fällig und offen ist.
 - Je (Checkliste, Folgeschlüssel) zuerst eine ChecklistFollowUp-Zeile belegen (Unique-Constraint,
   SAVEPOINT, eigener Commit), dann den Handler aufrufen (er darf selbst committen), dann Status
   "erledigt" und das Ziel vermerken. Ein zweiter Aufruf -- Doppelklick, Wiederholung,
-  "Nachholen" -- findet die Zeile und führt nichts doppelt aus.
+  "Nachholen" -- findet die Zeile und führt nichts doppelt aus. Wird die auslösende Unterschrift
+  verworfen und neu geleistet, bleibt es bei der einen Ausführung.
 - "modul_aus" (die Folge braucht ein ausgeschaltetes Modul) und "ausstehend" (belegt, aber nicht
   bestätigt ausgeführt: Abbruch oder Fehler im Handler) sind offen und nachholbar; Nachholen belegt
   per bedingtem UPDATE auf (id, status, executed_at), nur einer gewinnt. Dasselbe Restrisiko wie
@@ -29,8 +34,12 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from .checklist_purposes import get_purpose
-from .models import Checklist, ChecklistAnswer, ChecklistFollowUp, ChecklistTemplateField, ChecklistTemplateVersion
+from .checklist_purposes import FollowUp, get_purpose
+from .checklists import active_attachments
+from .models import (
+    Checklist, ChecklistAnswer, ChecklistAttachment, ChecklistFollowUp, ChecklistTemplateField,
+    ChecklistTemplateVersion, Task,
+)
 from .modules import is_module_enabled
 
 logger = logging.getLogger(__name__)
@@ -88,20 +97,48 @@ def _claim_open(db: Session, row: ChecklistFollowUp, status: str) -> bool:
     return result.rowcount == 1
 
 
+def triggering_signature(checklist: Checklist, field_key: str) -> ChecklistAttachment | None:
+    """Die gültige Unterschrift im Unterschriftsfeld mit diesem Schlüssel (die erste, falls das
+    Feld mehrere nimmt) -- None, solange keine da ist oder alle verworfen sind."""
+    field_ids = {f.id for f in checklist.template_version.fields
+                 if f.field_key == field_key and f.field_type == "unterschrift"}
+    return next((a for a in active_attachments(checklist)
+                 if a.kind == "unterschrift" and a.template_field_id in field_ids), None)
+
+
+def follow_up_due(checklist: Checklist, spec: FollowUp) -> bool:
+    """Seit 1.8.38: nach einer Unterschrift (after_signature) oder -- Standard -- nach dem Abschluss."""
+    if spec.after_signature:
+        return triggering_signature(checklist, spec.after_signature) is not None
+    return checklist.status == "abgeschlossen"
+
+
+def trigger_label(checklist: Checklist | None, spec: FollowUp | None) -> str:
+    if spec is None:
+        return ""
+    if not spec.after_signature:
+        return "nach dem Abschluss"
+    fields = checklist.template_version.fields if checklist is not None else []
+    label = next((f.label for f in fields if f.field_key == spec.after_signature), spec.after_signature)
+    return f"nach der Unterschrift „{label}“"
+
+
 def run_checklist_follow_ups(db: Session, checklist_id: int) -> dict:
-    """Führt die noch offenen Folgen einer abgeschlossenen Checkliste aus. Idempotent -- dient
-    zugleich als "Nachholen". Liefert {"done": n, "module_off": n, "failed": n}."""
-    checklist = db.get(Checklist, checklist_id)
+    """Führt die fälligen, noch offenen Folgen einer Checkliste aus (follow_up_due()). Idempotent --
+    dient zugleich als "Nachholen", seit 1.8.38 auch an einem Entwurf (Folgen nach einer
+    Unterschrift). Liefert {"done": n, "module_off": n, "failed": n}."""
+    checklist = _load(db, checklist_id)
     if checklist is None:
         raise LookupError("Checkliste nicht gefunden.")
-    if checklist.status != "abgeschlossen":
-        raise ValueError("Folgen werden erst beim Abschluss ausgeführt.")
     counts = {"done": 0, "module_off": 0, "failed": 0}
     purpose = get_purpose(checklist.template_version.purpose)
     if purpose is None or not purpose.follow_ups:
         return counts
+    due = [spec for spec in purpose.follow_ups if follow_up_due(checklist, spec)]
+    if not due:
+        return counts
     existing = _existing_rows(db, checklist_id)
-    for spec in purpose.follow_ups:
+    for spec in due:
         module_on = spec.module is None or is_module_enabled(db, spec.module)
         target_status = STATUS_PENDING if module_on else STATUS_MODULE_OFF
         row = existing.get(spec.key)
@@ -148,21 +185,41 @@ def run_follow_ups_after_completion(db: Session, checklist_id: int) -> None:
         logger.warning("Folgen der Checkliste %s nicht ausgewertet (%s)", checklist_id, type(exc).__name__)
 
 
+def run_follow_ups_after_signature(db: Session, checklist_id: int) -> None:
+    """Aufruf aus add_attachment() NACH dem Commit einer Unterschrift (seit 1.8.38) -- dieselbe
+    Absicherung wie nach dem Abschluss: die Unterschrift gilt, offene Folgen sind nachholbar."""
+    try:
+        run_checklist_follow_ups(db, checklist_id)
+    except Exception as exc:  # noqa: BLE001 -- bewusst breit, siehe Docstring
+        db.rollback()
+        logger.warning("Folgen der Checkliste %s nach einer Unterschrift nicht ausgewertet (%s)", checklist_id,
+                       type(exc).__name__)
+
+
 def list_follow_ups(db: Session, checklist_id: int) -> list[dict]:
     """Folgen einer Checkliste fürs Büro, in der Reihenfolge des Zwecks (unbekannte Schlüssel am
-    Ende), mit Ziel."""
-    checklist = db.get(Checklist, checklist_id)
+    Ende), mit Auslöser und Ziel (bei einer Aufgabe deren Titel)."""
+    checklist = _load(db, checklist_id)
     if checklist is None:
         return []
     purpose = get_purpose(checklist.template_version.purpose)
-    specs = {s.key: (i, s.label) for i, s in enumerate(purpose.follow_ups)} if purpose else {}
+    specs = {s.key: (i, s) for i, s in enumerate(purpose.follow_ups)} if purpose else {}
     rows = db.scalars(select(ChecklistFollowUp).where(ChecklistFollowUp.checklist_id == checklist_id)).all()
-    rows = sorted(rows, key=lambda r: (specs.get(r.follow_up_key, (len(specs), ""))[0], r.id))
-    return [{
-        "id": r.id, "follow_up_key": r.follow_up_key, "label": specs.get(r.follow_up_key, (0, r.follow_up_key))[1],
-        "status": r.status, "status_label": STATUS_LABELS.get(r.status, r.status),
-        "target_type": r.target_type, "target_id": r.target_id, "executed_at": r.executed_at,
-    } for r in rows]
+    rows = sorted(rows, key=lambda r: (specs.get(r.follow_up_key, (len(specs), None))[0], r.id))
+    task_ids = [r.target_id for r in rows if r.target_type == "task" and r.target_id is not None]
+    titles = dict(db.execute(select(Task.id, Task.title).where(Task.id.in_(task_ids))).all()) if task_ids else {}
+    result = []
+    for r in rows:
+        spec = specs.get(r.follow_up_key, (0, None))[1]
+        result.append({
+            "id": r.id, "follow_up_key": r.follow_up_key, "label": spec.label if spec else r.follow_up_key,
+            "trigger_label": trigger_label(checklist, spec),
+            "status": r.status, "status_label": STATUS_LABELS.get(r.status, r.status),
+            "target_type": r.target_type, "target_id": r.target_id,
+            "target_title": titles.get(r.target_id) if r.target_type == "task" else None,
+            "executed_at": r.executed_at,
+        })
+    return result
 
 
 def list_checklists_with_open_follow_ups(db: Session, limit: int = 200) -> list[int]:

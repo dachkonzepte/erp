@@ -7,7 +7,12 @@
    einbindenden Seite (--accent/--card/--ink/--muted/--line/--soft). Was ein Monteur sieht,
    entscheidet ausschließlich der Server (GET /api/checklists liefert für fremde Checklisten nur
    Titel/Datum/Ersteller, can_open steuert den Link) -- hier ist keine Rollenlogik. Bedienelemente
-   mindestens 44px hoch (Tablet, Handschuhe). #}
+   mindestens 44px hoch (Tablet, Handschuhe).
+
+   Seit 1.8.38 optional ein vierter Parameter {zweck:'behinderungsanzeige', zweckLabel:'…'}: ein
+   hervorgehobener Kasten "<Zweck> anlegen" oben mit genau den Vorlagen dieses Zwecks und den schon
+   offenen Entwürfen dieses Zwecks am Bezug -- Ziel des Links aus einer Regel-Aufgabe (z. B.
+   Tagesbericht "Behinderung = ja"). Angelegt wird erst auf Klick, nie beim Öffnen. #}
 <style>
 .cl-list{display:flex;flex-direction:column;gap:6px}
 .cl-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);background:var(--card);min-height:44px;color:var(--ink);text-decoration:none}
@@ -23,6 +28,10 @@ a.cl-row:hover{background:var(--soft)}
 .cl-start-buttons button:hover{background:var(--accent);color:#fff}
 .cl-empty{color:var(--muted);font-size:13.5px;padding:6px 0}
 .cl-error{color:var(--danger,#c0362c);font-size:13.5px;padding:6px 0}
+.cl-focus{border:1px solid var(--accent);border-left:4px solid var(--accent);background:var(--soft);padding:12px 14px;margin-bottom:14px}
+.cl-focus .cl-start-title{color:var(--ink);font-size:14px;text-transform:none}
+.cl-focus .cl-open{font-size:13.5px;margin-top:8px}
+.cl-focus .cl-open a{color:var(--accent);font-weight:650}
 </style>
 <script>
 if(!window.renderChecklistSection){
@@ -32,18 +41,36 @@ if(!window.renderChecklistSection){
     var h=Array.from(b,function(x){return x.toString(16).padStart(2,'0')}).join('');
     return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);
   };
-  window.renderChecklistSection=function(containerId,context,contextId){
+  window.renderChecklistSection=function(containerId,context,contextId,opts){
     var el=document.getElementById(containerId);
     if(!el)return;
+    var zweck=(opts&&opts.zweck)||null,zweckLabel=(opts&&opts.zweckLabel)||zweck;
     var esc=function(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})};
     var param={auftrag:'order_id',objekt:'property_id',betriebsmittel:'operational_asset_id'}[context];
     var listUrl='/api/checklists?'+(param?param+'='+encodeURIComponent(contextId):'context='+encodeURIComponent(context));
     var fmt=function(s){if(!s)return '';var d=new Date(s+(String(s).endsWith('Z')?'':'Z'));return isNaN(d)?s:d.toLocaleDateString('de-DE')};
-    var get=function(url){return fetch(url).then(function(r){if(!r.ok)return r.json().catch(function(){return {}}).then(function(d){throw new Error(d.detail||r.statusText)});return r.json()})};
+    // Lesbare Meldung über fehlerText(), wenn die einbindende Seite _fehlertext.html einbindet (seit
+    // 1.8.38); sonst nur ein Text-detail -- nie "[object Object]" aus einer 422-Liste.
+    var errText=function(d,status){
+      if(typeof window.fehlerText==='function')return window.fehlerText(d,status,{template_id:'Vorlage',order_id:'Auftrag'});
+      return d&&typeof d.detail==='string'?d.detail:'Fehler '+status;
+    };
+    var get=function(url){return fetch(url).then(function(r){if(!r.ok)return r.json().catch(function(){return null}).then(function(d){throw new Error(errText(d,r.status))});return r.json()})};
     el.innerHTML='<div class="cl-empty">Lädt …</div>';
     Promise.all([get(listUrl),get('/api/checklists/startable-templates?context='+encodeURIComponent(context))]).then(function(res){
       var rows=res[0],templates=res[1];
       var html='';
+      var startButton=function(t){return '<button type="button" data-template-id="'+t.id+'" title="'+esc(t.description||'')+'">'+esc(t.label)+'</button>'};
+      if(zweck){
+        var fitting=templates.filter(function(t){return t.purpose===zweck});
+        var openOnes=rows.filter(function(c){return c.purpose===zweck&&c.status==='entwurf'&&c.can_open});
+        html+='<div class="cl-focus" id="clFocus"><div class="cl-start-title">'+esc(zweckLabel)+' anlegen</div>';
+        html+=fitting.length
+          ?'<div class="cl-start-buttons">'+fitting.map(startButton).join('')+'</div>'
+          :'<div class="cl-empty">Keine veröffentlichte Vorlage mit Zweck „'+esc(zweckLabel)+'“ – bitte unter Checklisten → Vorlagen veröffentlichen.</div>';
+        if(openOnes.length)html+='<div class="cl-open">Schon offen an diesem Auftrag: '+openOnes.map(function(c){return '<a href="/checklisten/'+c.id+'">'+esc(c.template_label)+' vom '+esc(fmt(c.created_at))+'</a>'}).join(', ')+'</div>';
+        html+='</div>';
+      }
       if(rows.length){
         html+='<div class="cl-list">'+rows.map(function(c){
           var badge=c.status==='entwurf'?'<span class="cl-badge draft">Entwurf</span>':'<span class="cl-badge">Abgeschlossen</span>';
@@ -56,7 +83,7 @@ if(!window.renderChecklistSection){
       }
       html+='<div class="cl-start"><div class="cl-start-title">Checkliste starten</div>';
       html+=templates.length
-        ?'<div class="cl-start-buttons">'+templates.map(function(t){return '<button type="button" data-template-id="'+t.id+'" title="'+esc(t.description||'')+'">'+esc(t.label)+'</button>'}).join('')+'</div>'
+        ?'<div class="cl-start-buttons">'+templates.map(startButton).join('')+'</div>'
         :'<div class="cl-empty">Für diesen Bereich ist keine Vorlage veröffentlicht.</div>';
       html+='<div class="cl-error" style="display:none"></div></div>';
       el.innerHTML=html;
@@ -66,7 +93,7 @@ if(!window.renderChecklistSection){
           var body={template_id:Number(btn.dataset.templateId),context_type:context,client_uuid:window.newClientUuid()};
           if(param)body[param]=contextId;
           fetch('/api/checklists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){
-            return r.json().catch(function(){return {}}).then(function(d){if(!r.ok)throw new Error(d.detail||r.statusText);return d});
+            return r.json().catch(function(){return null}).then(function(d){if(!r.ok)throw new Error(errText(d,r.status));return d});
           }).then(function(c){location.href='/checklisten/'+c.id}).catch(function(err){
             btn.disabled=false;var e=el.querySelector('.cl-error');e.style.display='';e.textContent='Fehler: '+err.message;
           });

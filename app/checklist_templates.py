@@ -19,7 +19,9 @@ ersten Veröffentlichung änderbar; Veröffentlichen friert ihn an der Fassung e
 beschränkt die Kontexte und verlangt seine Systemfelder -- das Setzen des Zwecks legt sie im
 Entwurf an (sync_system_fields()), ein neuer Entwurf und eine Kopie gleichen sie an, das
 Veröffentlichen PRÜFT nur (fehlt eines oder weicht es ab, wird nicht veröffentlicht). Eine Vorlage
-mit Zweck ist nur archivierbar, nicht löschbar.
+mit Zweck ist nur archivierbar, nicht löschbar. Seit 1.8.38 prüft das Veröffentlichen auch die
+Reihenfolge der Abschnitte, die ein Zweck vorgibt, und eine Regel kann ihre Aufgabe aufs Anlegen
+einer Checkliste mit Zweck verlinken (link_purpose, link_purpose_choices()).
 
 Rollenlos wie jede Geschäftslogik dieses Projekts -- die Rollenentscheidung sitzt im Router."""
 
@@ -30,7 +32,9 @@ from decimal import Decimal, InvalidOperation
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from .checklist_purposes import DEFAULT_PURPOSE, get_purpose, purpose_label
+from .checklist_purposes import (
+    DEFAULT_PURPOSE, PURPOSES, get_purpose, purpose_label, section_order_problem, system_field_spec,
+)
 from .models import (
     Checklist, ChecklistTemplate, ChecklistTemplateField, ChecklistTemplateFieldOption, ChecklistTemplateRule,
     ChecklistTemplateVersion,
@@ -74,7 +78,7 @@ _FIELD_UPDATE_KEYS = {
 }
 _RULE_UPDATE_KEYS = {
     "field_key", "operator", "operand", "task_title", "task_description", "task_priority", "due_in_days",
-    "assignee_mode", "min_visible_role", "sort_order",
+    "assignee_mode", "min_visible_role", "sort_order", "link_purpose",
 }
 # An einem Systemfeld fest (Betreibervorgabe 1.8.16) -- dazu die Optionen. Frei bleiben
 # Beschriftung, Hilfetext, Abschnitt, Reihenfolge und die übrigen Eigenschaften.
@@ -92,7 +96,10 @@ def option_to_dict(option: ChecklistTemplateFieldOption) -> dict:
             "label": option.label, "sort_order": option.sort_order}
 
 
-def field_to_dict(field: ChecklistTemplateField) -> dict:
+def field_to_dict(field: ChecklistTemplateField, purpose_key: str | None = None) -> dict:
+    """purpose_key (seit 1.8.38): Zweck der Fassung -- ein Systemfeld bekommt daraus office_only
+    und option_hints (app/checklist_purposes.py)."""
+    spec = system_field_spec(purpose_key, field.field_key) if field.is_system else None
     return {
         "id": field.id, "version_id": field.version_id, "field_key": field.field_key,
         "sort_order": field.sort_order, "group_name": field.group_name, "field_type": field.field_type,
@@ -102,6 +109,8 @@ def field_to_dict(field: ChecklistTemplateField) -> dict:
         "decimals": field.decimals, "min_count": field.min_count, "max_count": field.max_count,
         "prefill_now": field.prefill_now, "signer_label": field.signer_label, "is_system": field.is_system,
         "options": [option_to_dict(o) for o in field.options],
+        "office_only": bool(spec and spec.office_only),
+        "option_hints": dict(spec.option_hints) if spec else {},
     }
 
 
@@ -111,7 +120,7 @@ def rule_to_dict(rule: ChecklistTemplateRule) -> dict:
         "operand": rule.operand, "task_title": rule.task_title, "task_description": rule.task_description,
         "task_priority": rule.task_priority, "due_in_days": rule.due_in_days,
         "assignee_mode": rule.assignee_mode, "min_visible_role": rule.min_visible_role,
-        "sort_order": rule.sort_order,
+        "sort_order": rule.sort_order, "link_purpose": rule.link_purpose,
     }
 
 
@@ -120,7 +129,7 @@ def version_to_dict(version: ChecklistTemplateVersion) -> dict:
         "id": version.id, "template_id": version.template_id, "version_no": version.version_no,
         "status": version.status, "purpose": version.purpose,
         "published_at": version.published_at, "created_at": version.created_at,
-        "fields": [field_to_dict(f) for f in version.fields],
+        "fields": [field_to_dict(f, version.purpose) for f in version.fields],
         "rules": [rule_to_dict(r) for r in version.rules],
     }
 
@@ -363,7 +372,7 @@ def _copy_version_content(db: Session, source: ChecklistTemplateVersion, target:
             version_id=target.id, field_key=rule.field_key, operator=rule.operator, operand=rule.operand,
             task_title=rule.task_title, task_description=rule.task_description, task_priority=rule.task_priority,
             due_in_days=rule.due_in_days, assignee_mode=rule.assignee_mode,
-            min_visible_role=rule.min_visible_role, sort_order=rule.sort_order,
+            min_visible_role=rule.min_visible_role, sort_order=rule.sort_order, link_purpose=rule.link_purpose,
         ))
 
 
@@ -451,7 +460,8 @@ def validate_version_for_publish(template: ChecklistTemplate, version: Checklist
     for rule in version.rules:
         try:
             _validate_rule_values(fields_by_key, rule.field_key, rule.operator, rule.operand, rule.task_title,
-                                  rule.task_priority, rule.assignee_mode, rule.min_visible_role, rule.due_in_days)
+                                  rule.task_priority, rule.assignee_mode, rule.min_visible_role, rule.due_in_days,
+                                  rule.link_purpose)
         except ValueError as exc:
             problems.append(f"Regel \"{rule.task_title}\": {exc}")
     return problems
@@ -684,6 +694,11 @@ def system_field_problems(purpose_key: str, version: ChecklistTemplateVersion) -
             differs.append("Optionen")
         if differs:
             problems.append(f"Das Systemfeld „{field.label}“ ({spec.key}) weicht von der Vorgabe ab: {', '.join(differs)}.")
+    # Seit 1.8.38: Abschnitte in der vorgegebenen Reihenfolge, jede Unterschrift an ihrem Ende --
+    # sonst versiegelte z. B. die Unterschrift der Meldung nicht die ganze Meldung.
+    order_problem = section_order_problem(purpose, [f.field_key for f in version.fields if f.is_system])
+    if order_problem:
+        problems.append(order_problem)
     return problems
 
 
@@ -711,9 +726,10 @@ def _sync_system_fields(db: Session, version: ChecklistTemplateVersion, purpose_
     next_sort = max((f.sort_order for f in version.fields), default=0) + 10
     for spec in purpose.system_fields:
         field = by_key.get(spec.key)
-        if field is None:
+        if field is None:  # Abschnitt, mehrzeilig, Rollenbeschriftung: Vorschläge der Vorgabe (seit 1.8.38)
             field = ChecklistTemplateField(field_key=spec.key, field_type=spec.field_type, label=spec.label,
-                                           sort_order=next_sort)
+                                           sort_order=next_sort, group_name=spec.section, multiline=spec.multiline,
+                                           signer_label=spec.signer_label)
             version.fields.append(field)
             next_sort += 10
         field.is_system = True
@@ -820,10 +836,19 @@ def delete_option(db: Session, option_id: int) -> dict | None:
 
 # --- Regeln ---------------------------------------------------------------------------------
 
+def link_purpose_choices() -> list[dict]:
+    """Zwecke, auf deren Anlegen die Aufgabe einer Regel verlinken kann (seit 1.8.38): jeder Zweck
+    außer "allgemein", der am Auftrag erlaubt ist -- der Link führt zum Anlegen am selben Auftrag."""
+    return [{"key": p.key, "label": p.label} for p in PURPOSES.values()
+            if p.key != DEFAULT_PURPOSE and "auftrag" in p.contexts]
+
+
 def _validate_rule_values(fields_by_key: dict, field_key, operator, operand, task_title, task_priority,
-                          assignee_mode, min_visible_role, due_in_days) -> None:
+                          assignee_mode, min_visible_role, due_in_days, link_purpose=None) -> None:
     if operator not in RULE_OPERATORS:
         raise ValueError(f"Unbekannte Bedingung: {operator}")
+    if link_purpose is not None and link_purpose not in {c["key"] for c in link_purpose_choices()}:
+        raise ValueError(f"Unbekannter Zweck für den Link der Aufgabe: {link_purpose}")
     if not (task_title or "").strip():
         raise ValueError("Bitte einen Aufgabentitel angeben.")
     if task_priority not in PRIORITIES:
@@ -851,6 +876,7 @@ def _validate_rule_values(fields_by_key: dict, field_key, operator, operand, tas
 def _apply_rule(rule: ChecklistTemplateRule, version: ChecklistTemplateVersion) -> None:
     rule.task_title = (rule.task_title or "").strip()
     rule.task_description = (rule.task_description or "").strip() or None
+    rule.link_purpose = (rule.link_purpose or "").strip() or None
     if rule.operator == "immer":
         rule.field_key = None
         rule.operand = None
@@ -858,7 +884,8 @@ def _apply_rule(rule: ChecklistTemplateRule, version: ChecklistTemplateVersion) 
         rule.operand = None
     fields_by_key = {f.field_key: f for f in version.fields}
     _validate_rule_values(fields_by_key, rule.field_key, rule.operator, rule.operand, rule.task_title,
-                          rule.task_priority, rule.assignee_mode, rule.min_visible_role, rule.due_in_days)
+                          rule.task_priority, rule.assignee_mode, rule.min_visible_role, rule.due_in_days,
+                          rule.link_purpose)
 
 
 def add_rule(db: Session, version_id: int, fields: dict) -> dict:

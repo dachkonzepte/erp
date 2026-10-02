@@ -4721,7 +4721,11 @@ class ChecklistTemplateRule(Base):
     seit 1.8.3 beim Abschluss, app/checklist_rules.py). field_key NULL nur bei operator "immer". min_visible_role nur
     buero_auftrag/buero_finanzen/admin -- Monteure haben keinen Aufgabenzugriff.
     assignee_mode "sachbearbeiter" = Order.caseworker_employee_id im Kontext Auftrag; fehlt er
-    (oder anderer Kontext), wird die Aufgabe empfängerlos mit min_visible_role."""
+    (oder anderer Kontext), wird die Aufgabe empfängerlos mit min_visible_role.
+    link_purpose (seit 1.8.38): leer = die Aufgabe verlinkt auf die Checkliste; sonst ein Zweck
+    (app/checklist_purposes.py) -- die Aufgabe verlinkt aufs Anlegen einer Checkliste dieses
+    Zwecks am selben Auftrag, und solange eine solche Aufgabe offen ist, legt die Regel keine
+    zweite an (app/checklist_rules.py)."""
 
     __tablename__ = "checklist_template_rules"
 
@@ -4737,6 +4741,7 @@ class ChecklistTemplateRule(Base):
     assignee_mode: Mapped[str] = mapped_column(String(30), default="rolle", server_default="rolle")
     min_visible_role: Mapped[str] = mapped_column(String(30), default="buero_auftrag", server_default="buero_auftrag")
     sort_order: Mapped[int] = mapped_column(default=100, server_default="100")
+    link_purpose: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
     version: Mapped["ChecklistTemplateVersion"] = relationship(back_populates="rules")
 

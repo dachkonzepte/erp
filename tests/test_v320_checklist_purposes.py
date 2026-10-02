@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 import app.checklist_follow_ups as follow_ups_module
-from app.checklist_purposes import PURPOSES, ChecklistPurpose, FollowUp, SystemField
+from app.checklist_purposes import PURPOSES, ChecklistPurpose, FollowUp, SystemField, section_order_problem
 from app.checklist_templates import (
     _FIELD_KEY_PATTERN, CONTEXT_TYPES, FIELD_TYPES, _normalize_field, add_field, add_option, add_rule, copy_template,
     create_template, delete_field, delete_option, delete_template, get_template, publish_draft, set_template_archived,
@@ -104,6 +104,7 @@ def test_registry_has_the_four_purposes_and_the_three_only_at_orders():
     assert PURPOSES["allgemein"].contexts == ("auftrag", "objekt", "betriebsmittel", "betrieb")
     for key in ("abnahme", "behinderungsanzeige", "bedenkenanzeige"):
         assert PURPOSES[key].contexts == ("auftrag",)
+    for key in ("abnahme", "bedenkenanzeige"):  # die Behinderungsanzeige hat sie seit 1.8.38 (test_v341)
         assert PURPOSES[key].system_fields == () and PURPOSES[key].follow_ups == ()  # kommen in 2b/2c
 
 
@@ -115,10 +116,19 @@ def test_every_registered_purpose_is_consistent(testzweck):
         assert purpose.contexts and set(purpose.contexts) <= set(CONTEXT_TYPES), purpose.key
         assert len({f.key for f in purpose.follow_ups}) == len(purpose.follow_ups), purpose.key
         assert len({s.key for s in purpose.system_fields}) == len(purpose.system_fields), purpose.key
+        signatures = {s.key for s in purpose.system_fields if s.field_type == "unterschrift"}
+        for follow_up in purpose.follow_ups:  # seit 1.8.38: Auslöser ist ein Unterschrifts-Systemfeld
+            assert follow_up.after_signature is None or follow_up.after_signature in signatures, follow_up.key
+        # Abschnitte (seit 1.8.38): entweder alle Systemfelder mit Abschnitt oder keines, und die
+        # Vorgabe selbst steht in einer Reihenfolge, die das Veröffentlichen annimmt.
+        sections = [s.section for s in purpose.system_fields]
+        assert all(sections) or not any(sections), purpose.key
+        assert section_order_problem(purpose, [s.key for s in purpose.system_fields]) is None, purpose.key
         for spec in purpose.system_fields:
             assert spec.field_type in FIELD_TYPES and spec.field_type != "hinweis", spec.key
             assert _FIELD_KEY_PATTERN.match(spec.key), spec.key
             assert bool(spec.options) == (spec.field_type == "auswahl"), spec.key
+            assert {k for k, _hint in spec.option_hints} <= {k for k, _label in spec.options}, spec.key
             field = ChecklistTemplateField(field_key=spec.key, field_type=spec.field_type, label=spec.label,
                                            required=spec.required, allow_na=spec.allow_na, multiple=spec.multiple,
                                            min_count=spec.min_count)

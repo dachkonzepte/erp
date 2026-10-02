@@ -41,7 +41,7 @@ td a{color:var(--accent);text-decoration:none;font-weight:650}
 </div>
 <div class="card" id="openRulesCard" style="display:none;border-left:4px solid var(--warning)">
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:240px"><b id="openRulesText"></b>
-    <div class="muted small">Beim Abschluss ausgelöste Regeln, deren Aufgabe nicht angelegt wurde (z. B. weil das Aufgabenmodul ausgeschaltet war).</div></div>
+    <div class="muted small">Ausgelöste Regeln und Folgen (z. B. „Behinderungsanzeige versenden“), deren Aufgabe nicht angelegt wurde (z. B. weil das Aufgabenmodul ausgeschaltet war).</div></div>
     <a class="btnlink" href="#" onclick="showOpenRules();return false">Anzeigen</a>
     <button type="button" class="btnlink primary" id="openRulesBtn" onclick="runOpenRules()">Alle nachholen</button>
     <span id="openRulesStatus" class="status"></span></div>
@@ -69,9 +69,11 @@ td a{color:var(--accent);text-decoration:none;font-weight:650}
 </main>
 </div>
 </div>
+{% include "_fehlertext.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+// Abgelehnte Antworten lesbar über fehlerText() (_fehlertext.html, seit 1.8.38 auch hier).
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,{status:'Status',context:'Bereich',template_id:'Vorlage'}));return r.json()}
 const CONTEXT_LABELS={auftrag:'Auftrag',objekt:'Objekt',betriebsmittel:'Betriebsmittel',betrieb:'Betrieb'};
 const fmt=s=>s?new Date(s+'Z').toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}):'';
 
@@ -108,8 +110,11 @@ async function runOpenRules(){
   const btn=document.getElementById('openRulesBtn'),st=document.getElementById('openRulesStatus');
   btn.disabled=true;st.className='status';st.textContent='Legt an …';
   try{
+    // Regeln und (seit 1.8.38) Folgen der Zwecke -- beide legen Aufgaben an, beide idempotent.
     const r=await api('/api/checklists/run-open-rules',{method:'POST'});
-    st.textContent=r.module_off?'Das Aufgabenmodul ist ausgeschaltet – bitte zuerst in den Einstellungen aktivieren.':`${r.created} ${r.created===1?'Aufgabe':'Aufgaben'} angelegt.`;
+    const f=await api('/api/checklists/run-open-follow-ups',{method:'POST'});
+    const created=r.created+f.done;
+    st.textContent=r.module_off||f.module_off?'Das Aufgabenmodul ist ausgeschaltet – bitte zuerst in den Einstellungen aktivieren.':`${created} ${created===1?'Aufgabe':'Aufgaben'} angelegt.`;
     await loadOpenRules();
   }catch(e){st.className='status err';st.textContent=e.message}
   btn.disabled=false;

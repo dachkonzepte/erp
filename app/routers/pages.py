@@ -16,6 +16,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from ..auth import resolve_account_display, users_exist
+from ..checklist_purposes import DEFAULT_PURPOSE, PURPOSES
 from ..company_logo import DEFAULT_SIDEBAR_LOGO_HEIGHT_PX, sidebar_logo_filename
 from ..company_logo import sidebar_logo_height_px as _sidebar_logo_height_px_lookup
 from ..database import SessionLocal, get_db
@@ -560,12 +561,17 @@ def checklist_page(request: Request, checklist_id: int, _role: AppUser = _any_ro
 
 
 @router.get("/checklisten/auftrag/{order_id:int}", response_class=HTMLResponse)
-def checklist_order_page(request: Request, order_id: int, _role: AppUser = _any_role_dep):
+def checklist_order_page(request: Request, order_id: int, zweck: str | None = None, _role: AppUser = _any_role_dep):
     """Checklisten eines Auftrags (seit 1.8.1), Einstieg für Monteure aus /mobil. Der
     Auftragszugriff wird von der API geprüft (require_field_order_access()), die Seite rendert
-    nur das Gerüst."""
+    nur das Gerüst. ?zweck= (seit 1.8.38, Link einer Regel-Aufgabe) hebt das Anlegen einer
+    Checkliste dieses Zwecks hervor; ein unbekannter Zweck wird ignoriert."""
+    purpose = PURPOSES.get(zweck or "")
+    if purpose is None or purpose.key == DEFAULT_PURPOSE:
+        purpose = None
     return templates.TemplateResponse(request=request, name="checklist_order.html", context={
         "order_id": order_id, "is_field": _role.role == ROLE_FIELD,
+        "zweck": purpose.key if purpose else None, "zweck_label": purpose.label if purpose else None,
     })
 
 

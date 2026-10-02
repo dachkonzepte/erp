@@ -4471,6 +4471,7 @@ class ChecklistTemplateRuleWrite(BaseModel):
     assignee_mode: str | None = Field(default=None, max_length=30)
     min_visible_role: str | None = Field(default=None, max_length=30)
     sort_order: int | None = None
+    link_purpose: str | None = Field(default=None, max_length=40)  # seit 1.8.38
 
 
 class ChecklistTemplateFieldOptionOut(BaseModel):
@@ -4504,6 +4505,10 @@ class ChecklistTemplateFieldOut(BaseModel):
     signer_label: str | None = None
     is_system: bool
     options: list[ChecklistTemplateFieldOptionOut] = []
+    # Seit 1.8.38, aus der Vorgabe des Systemfelds (app/checklist_purposes.py): nur das Büro füllt
+    # aus bzw. unterschreibt; Hinweis je option_key, der beim Wählen erscheint.
+    office_only: bool = False
+    option_hints: dict[str, str] = {}
 
 
 class ChecklistTemplateRuleOut(BaseModel):
@@ -4519,6 +4524,7 @@ class ChecklistTemplateRuleOut(BaseModel):
     assignee_mode: str
     min_visible_role: str
     sort_order: int
+    link_purpose: str | None = None  # seit 1.8.38: Aufgabe verlinkt aufs Anlegen einer Checkliste dieses Zwecks
 
 
 class ChecklistTemplateVersionOut(BaseModel):
@@ -4567,6 +4573,8 @@ class ChecklistPurposeSystemFieldOut(BaseModel):
     key: str
     field_type: str
     label: str
+    section: str | None = None  # seit 1.8.38
+    office_only: bool = False
 
 
 class ChecklistPurposeOut(BaseModel):
@@ -4687,6 +4695,7 @@ class ChecklistOut(ChecklistSummaryOut):
     can_sign: bool = False
     can_delete: bool = False
     can_discard_signatures: bool = False
+    can_fill_office_fields: bool = False  # seit 1.8.38: Felder mit office_only (nur Büro)
 
 
 class ChecklistAssetReadinessOut(BaseModel):
@@ -4730,14 +4739,17 @@ class ChecklistRulesRunOut(BaseModel):
 
 
 class ChecklistFollowUpOut(BaseModel):
-    """Folge des Abschlusses (seit 1.8.16, app/checklist_follow_ups.py) -- nur fürs Büro."""
+    """Folge des Abschlusses bzw. seit 1.8.38 einer Unterschrift (app/checklist_follow_ups.py) --
+    nur fürs Büro. trigger_label: wann sie läuft; target_title: Titel der angelegten Aufgabe."""
     id: int
     follow_up_key: str
     label: str
+    trigger_label: str = ""
     status: str
     status_label: str
     target_type: str | None = None
     target_id: int | None = None
+    target_title: str | None = None
     executed_at: datetime
 
 

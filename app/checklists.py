@@ -40,7 +40,9 @@ jedem Abruf. Vorher abgeschlossene Checklisten bleiben ohne Prüfsumme.
 
 Seit 1.8.16 nutzt eine Checkliste den Zweck ihrer Fassung (app/checklist_purposes.py): er
 beschränkt die Kontexte beim Anlegen und bestimmt die Folgen des Abschlusses
-(app/checklist_follow_ups.py).
+(app/checklist_follow_ups.py) -- seit 1.8.38 auch Folgen nach der Unterschrift in einem
+bestimmten Systemfeld (add_attachment()), und die Felder tragen office_only/option_hints aus der
+Vorgabe ihres Systemfelds (wer "nur Büro" durchsetzt, entscheidet der Router).
 
 Rollenlos wie jede Geschäftslogik dieses Projekts -- wer was sehen/ändern darf, entscheidet
 app/routers/checklists.py."""
@@ -57,7 +59,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .berlin_time import to_berlin
-from .checklist_purposes import get_purpose, purpose_label
+from .checklist_purposes import get_purpose, purpose_label, system_field_spec
 from .checklist_templates import (
     CONTEXT_COLUMNS, CONTEXT_LABELS, CONTEXT_TYPES, MAX_ATTACHMENTS_PER_FIELD, field_to_dict,
 )
@@ -464,7 +466,7 @@ def checklist_to_dict(checklist: Checklist) -> dict:
     data.update({
         "template_version_id": checklist.template_version_id,
         "version_no": checklist.template_version.version_no,
-        "fields": [field_to_dict(f) for f in fields],
+        "fields": [field_to_dict(f, checklist.template_version.purpose) for f in fields],
         "answers": answers,
         "attachments": attachments,
         "sealed_field_ids": sorted(sealed_field_ids(checklist)),
@@ -714,6 +716,13 @@ def _require_field_open(checklist: Checklist, field: ChecklistTemplateField) -> 
         raise ChecklistLocked(f"„{field.label}“ ist durch eine Unterschrift gesperrt. {DISCARD_HINT}")
 
 
+def is_office_only(checklist: Checklist, field: ChecklistTemplateField) -> bool:
+    """Systemfeld, das laut Vorgabe seines Zwecks nur das Büro ausfüllt bzw. unterschreibt (seit
+    1.8.38, z. B. Abschnitt "Anzeige" der Behinderungsanzeige). Durchsetzen tut es der Router."""
+    spec = system_field_spec(checklist.template_version.purpose, field.field_key) if field.is_system else None
+    return bool(spec and spec.office_only)
+
+
 def _field_of(checklist: Checklist, field_id: int) -> ChecklistTemplateField:
     field = next((f for f in checklist.template_version.fields if f.id == field_id), None)
     if field is None:
@@ -844,7 +853,16 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
         raise LookupError("Checkliste nicht gefunden.")
     client_uuid = (client_uuid or "").strip() or None
     if client_uuid and any(a.client_uuid == client_uuid for a in checklist.attachments):
-        return checklist_to_dict(checklist)  # Wiederholung -- keine zweite Datei
+        # Wiederholung -- keine zweite Datei. Bei einer Unterschrift die Folgen nachholen (seit
+        # 1.8.38, idempotent): brach der erste Aufruf nach dem Commit ab, liefen sie sonst erst beim
+        # Nachholen im Büro.
+        if any(a.client_uuid == client_uuid and a.kind == "unterschrift" for a in checklist.attachments):
+            db.commit()  # Zeilensperre freigeben, bevor die Folgen eigene Commits machen
+            from .checklist_follow_ups import run_follow_ups_after_signature  # lokal, Muster Regel 3
+            run_follow_ups_after_signature(db, checklist_id)
+            db.expire_all()
+            return checklist_to_dict(_load(db, checklist_id))
+        return checklist_to_dict(checklist)
     _require_draft(checklist)
     field = _field_of(checklist, field_id)
     kind = ATTACHMENT_FIELD_TYPES.get(field.field_type)
@@ -896,6 +914,12 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
         return checklist_to_dict(_load(db, checklist_id))
     checklist.updated_at = datetime.utcnow()
     db.commit()
+    if kind == "unterschrift":
+        # Folgen des Zwecks, die nach dieser Unterschrift fällig sind (seit 1.8.38) -- NACH dem Commit
+        # wie beim Abschluss: eine Aufgabe entsteht nur zu einer gespeicherten Unterschrift, ein Fehler
+        # dort macht die Unterschrift nicht ungültig (im Büro nachholbar).
+        from .checklist_follow_ups import run_follow_ups_after_signature  # lokal, Muster Regel 3
+        run_follow_ups_after_signature(db, checklist_id)
     db.expire_all()
     return checklist_to_dict(_load(db, checklist_id))
 

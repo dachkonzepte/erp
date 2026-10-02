@@ -17,7 +17,13 @@ Herleitung: docs/archiv/modul-checklisten.md (Fund 4, Betreiberentscheidung C, "
   hingenommen: bricht der Prozess GENAU zwischen create_task() und dem Vermerk der task_id ab,
   bleibt die Zeile "ausstehend" und ein späteres Nachholen legt eine zweite Aufgabe an.
 - Rollenlos wie jede Geschäftslogik; wer Ausführungen sehen/nachholen darf, entscheidet der Router
-  (nur Büro -- die Regeln sind Büro-intern)."""
+  (nur Büro -- die Regeln sind Büro-intern).
+- Link-Zweck (seit 1.8.38, ChecklistTemplateRule.link_purpose): die Aufgabe verlinkt nicht auf die
+  Checkliste, sondern aufs Anlegen einer Checkliste dieses Zwecks am selben Auftrag
+  (/checklisten/auftrag/{id}?zweck=...; Beispiel Tagesbericht "Behinderung = ja" →
+  "Behinderungsanzeige anlegen"). Ist eine Aufgabe mit genau diesem Link noch offen, entsteht
+  keine zweite: die Zeile bekommt Status "aufgabe_vorhanden" und verweist auf die offene. Ein
+  Tagesbericht je Tag einer andauernden Behinderung legt so nicht täglich eine neue an."""
 
 import logging
 from datetime import datetime, timedelta
@@ -28,10 +34,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .berlin_time import berlin_now, to_berlin
+from .checklist_purposes import purpose_label
 from .checklists import active_attachments
 from .models import (
     Checklist, ChecklistAnswer, ChecklistRuleExecution, ChecklistTemplateField, ChecklistTemplateRule,
-    ChecklistTemplateVersion, Order, Task,
+    ChecklistTemplateVersion, Order, Task, TaskColumn,
 )
 from .modules import is_module_enabled
 
@@ -40,10 +47,12 @@ logger = logging.getLogger(__name__)
 TASK_MODULE_KEY = "aufgabenmanagement"
 SOURCE_MODULE = "checklisten"
 STATUS_DONE = "aufgabe_angelegt"
+STATUS_EXISTING = "aufgabe_vorhanden"  # seit 1.8.38: offene Aufgabe mit demselben Link, keine zweite
 STATUS_MODULE_OFF = "modul_aus"
 STATUS_PENDING = "ausstehend"
 OPEN_STATUSES = (STATUS_MODULE_OFF, STATUS_PENDING)
-STATUS_LABELS = {STATUS_DONE: "Aufgabe angelegt", STATUS_MODULE_OFF: "nicht angelegt (Aufgabenmodul aus)",
+STATUS_LABELS = {STATUS_DONE: "Aufgabe angelegt", STATUS_EXISTING: "Aufgabe war schon offen",
+                 STATUS_MODULE_OFF: "nicht angelegt (Aufgabenmodul aus)",
                  STATUS_PENDING: "nicht angelegt (unterbrochen)"}
 OPERATOR_LABELS = {"immer": "immer", "ist_ja": "ist ja", "ist_nein": "ist nein", "enthaelt": "enthält",
                    "kleiner": "kleiner als", "groesser": "größer als", "gleich": "gleich",
@@ -146,6 +155,15 @@ def _task_values(db: Session, checklist: Checklist, rule: ChecklistTemplateRule)
             project_id = order.project_id
             if rule.assignee_mode == "sachbearbeiter":
                 assigned = order.caseworker_employee_id  # fehlt er: empfängerlos mit min_visible_role
+    context = checklist.context_label_snapshot or "Betrieb"
+    source_label = f"{checklist.template_label_snapshot} – {context}"
+    source_url = f"/checklisten/{checklist.id}"
+    if rule.link_purpose and checklist.context_type == "auftrag" and checklist.order_id is not None:
+        # Seit 1.8.38: Link zum Anlegen einer Checkliste des Zwecks am selben Auftrag; die auslösende
+        # Checkliste steht dann in der Fußzeile.
+        source_label = f"{purpose_label(rule.link_purpose)} anlegen – {context}"
+        source_url = f"/checklisten/auftrag/{checklist.order_id}?zweck={rule.link_purpose}"
+        footer += f" Checkliste: /checklisten/{checklist.id}"
     return {
         "title": (_fill(rule.task_title, checklist) or checklist.template_label_snapshot)[:255],
         "description": f"{description}\n\n{footer}" if description else footer,
@@ -154,10 +172,17 @@ def _task_values(db: Session, checklist: Checklist, rule: ChecklistTemplateRule)
         "assigned_employee_id": assigned, "project_id": project_id,
         "created_by_user_id": checklist.created_by_user_id,
         "source_module": SOURCE_MODULE,
-        "source_label": f"{checklist.template_label_snapshot} – {checklist.context_label_snapshot or 'Betrieb'}"[:255],
-        "source_url": f"/checklisten/{checklist.id}",
+        "source_label": source_label[:255],
+        "source_url": source_url,
         "min_visible_role": rule.min_visible_role,
     }
+
+
+def _open_task_with_link(db: Session, source_url: str) -> Task | None:
+    """Offene (nicht erledigte, nicht archivierte) Aufgabe mit genau diesem Link (seit 1.8.38)."""
+    done_columns = select(TaskColumn.key).where(TaskColumn.is_done == True)  # noqa: E712 -- SQLAlchemy-Vergleich
+    return db.scalar(select(Task).where(Task.source_url == source_url, Task.archived == False,  # noqa: E712
+                                        Task.status.not_in(done_columns)).order_by(Task.id).limit(1))
 
 
 def _claim_new(db: Session, checklist_id: int, rule_id: int, status: str) -> ChecklistRuleExecution | None:
@@ -210,7 +235,7 @@ def run_checklist_rules(db: Session, checklist_id: int) -> dict:
             execution = _claim_new(db, checklist.id, rule.id, target_status)
             if execution is None:
                 continue
-        elif execution.status == STATUS_DONE:
+        elif execution.status in (STATUS_DONE, STATUS_EXISTING):
             continue
         elif execution.status == STATUS_MODULE_OFF and not module_on:
             counts["module_off"] += 1  # weiterhin offen -- zählt, damit das Büro den Grund sieht
@@ -220,7 +245,14 @@ def run_checklist_rules(db: Session, checklist_id: int) -> dict:
         if not module_on:
             counts["module_off"] += 1
             continue
-        task = create_task(db, **_task_values(db, checklist, rule))
+        values = _task_values(db, checklist, rule)
+        linked = _open_task_with_link(db, values["source_url"]) if rule.link_purpose else None
+        if linked is not None:  # seit 1.8.38: keine zweite offene Aufgabe zum selben Link
+            db.execute(update(ChecklistRuleExecution).where(ChecklistRuleExecution.id == execution.id)
+                       .values(status=STATUS_EXISTING, task_id=linked.id).execution_options(synchronize_session=False))
+            db.commit()
+            continue
+        task = create_task(db, **values)
         db.execute(update(ChecklistRuleExecution).where(ChecklistRuleExecution.id == execution.id)
                    .values(status=STATUS_DONE, task_id=task["id"]).execution_options(synchronize_session=False))
         db.commit()

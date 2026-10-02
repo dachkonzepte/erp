@@ -5,6 +5,10 @@
   _mobile_header.html, sonst mit Sidebar (Weiche an der Rolle, wie checklist.html). Ob der
   Monteur den Auftrag überhaupt sehen darf, entscheidet der Server (require_field_order_access()
   hinter GET /api/orders/{id} und GET /api/checklists?order_id=).
+
+  Seit 1.8.38 mit ?zweck=<Zweck>: Ziel des Links einer Regel-Aufgabe (Tagesbericht "Behinderung
+  = ja" → "Behinderungsanzeige anlegen"); der Abschnitt hebt das Anlegen mit diesem Zweck hervor.
+  Ein unbekannter Zweck wird ignoriert (pages.py).
 #}
 <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 <style>
@@ -23,6 +27,7 @@ h1{margin:0 0 4px;font-size:20px}.muted{color:var(--muted)}
   <a class="back" href="{{ '/mobil' if is_field else '/orders/' ~ order_id }}">← zurück</a>
   <div class="card"><h1 id="orderTitle">Auftrag</h1><div class="muted" id="orderSub"></div></div>
   {% if is_module_enabled('checklisten') %}
+  {% include "_fehlertext.html" %}
   {% include "_checklists_section.html" %}
   <div class="card"><div id="checklistSection"></div></div>
   {% else %}
@@ -38,7 +43,8 @@ h1{margin:0 0 4px;font-size:20px}.muted{color:var(--muted)}
     document.getElementById('orderTitle').textContent='Auftrag '+o.order_number;
     document.getElementById('orderSub').textContent=o.customer_name||'';
   });
-  if(window.renderChecklistSection)renderChecklistSection('checklistSection','auftrag',orderId);
+  var zweck={{ zweck|tojson }},zweckLabel={{ zweck_label|tojson }};
+  if(window.renderChecklistSection)renderChecklistSection('checklistSection','auftrag',orderId,zweck?{zweck:zweck,zweckLabel:zweckLabel}:null);
 })();
 </script>
 </body></html>

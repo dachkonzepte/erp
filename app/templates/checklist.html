@@ -23,6 +23,12 @@
   Feld bleiben; verworfene stehen danach unten als Nachweis. "Entwurf löschen" nur ohne jede, auch
   verworfene, Unterschrift (can_delete). Seit 1.8.15 zeigt eine abgeschlossene Checkliste, ob der
   Inhalt noch zur Prüfsumme des Abschlusses passt (cl.completion_seal).
+
+  Seit 1.8.38: Felder mit office_only (Abschnitt "Anzeige" der Behinderungsanzeige) füllt nur das
+  Büro (cl.can_fill_office_fields) -- ein Monteur sieht sie nur lesend mit "füllt das Büro aus".
+  option_hints zeigt beim gewählten Wert einen Hinweis (Witterung). Die Karte "Folgen" (nur Büro)
+  zeigt, was eine Unterschrift oder der Abschluss ausgelöst hat (Aufgabe "Behinderungsanzeige
+  versenden"), mit "Folgen nachholen".
 #}
 <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 <style>
@@ -50,7 +56,7 @@ h1{margin:0 0 4px;font-size:21px}
 .hint{background:var(--soft);border-left:3px solid var(--accent);padding:12px 14px;margin-bottom:10px}
 .hint .q-help{color:var(--ink)}
 .tiles{display:flex;gap:8px;flex-wrap:wrap}
-.tile{flex:1;min-width:92px;min-height:48px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-weight:650;font-size:15px;cursor:pointer;padding:8px 12px}
+.tile{flex:1;min-width:92px;min-height:48px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-weight:650;font-size:15px;cursor:pointer;padding:8px 12px;hyphens:auto;overflow-wrap:anywhere}
 .tile.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .tile:disabled{cursor:default;opacity:.85}
 input,textarea{padding:11px 12px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:16px;width:100%;min-height:44px}
@@ -101,7 +107,9 @@ textarea{min-height:90px;resize:vertical}
 .badge.open{background:var(--warning-soft);color:var(--warning)}
 .send-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
 .send-row input{flex:1 1 220px;width:auto}
-</style></head>
+.option-hint{margin-top:8px;padding:8px 10px;border-left:3px solid var(--warning);background:var(--warning-soft);color:var(--ink);font-size:13.5px}
+.q-label .office-tag{font-size:11.5px;font-weight:600;color:var(--muted);margin-left:6px;white-space:nowrap}
+</style>
 <body class="{{ 'field' if is_field else 'office' }}">
 {% if is_field %}
 {% include "_mobile_header.html" %}
@@ -117,13 +125,17 @@ textarea{min-height:90px;resize:vertical}
 {% endif %}
 {% if not is_field %}{% include "_email_dispatch.html" %}{% endif %}
 {% include "_unterschrift.html" %}
+{% include "_fehlertext.html" %}
 <script>
 const checklistId={{ checklist_id }};
 const IS_FIELD={{ 'true' if is_field else 'false' }};
 const MY_NAME={{ (request.state.erp_user.display_name or '')|tojson }};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function uuid(){if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();const b=new Uint8Array(16);crypto.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`}
-async function api(u,o){const r=await fetch(u,o);const d=await r.json().catch(()=>({detail:r.statusText}));if(!r.ok){const e=new Error(d.detail||r.statusText);e.status=r.status;throw e}return d}
+// Abgelehnte Antworten lesbar über fehlerText() (_fehlertext.html, seit 1.8.38 auch hier).
+const FELDNAMEN={value:'Antwort',signer_name:'Name',reason:'Begründung',signature_id:'Unterschrift',to_email:'An',cc_email:'CC',
+  client_uuid:'Kennung',client_recorded_at:'Zeitpunkt',file:'Datei',field_id:'Feld'};
+async function api(u,o){const r=await fetch(u,o);const d=await r.json().catch(()=>null);if(!r.ok){const e=new Error(fehlerText(d,r.status,FELDNAMEN));e.status=r.status;throw e}return d}
 const fmtDateTime=s=>{if(!s)return '';const d=new Date(s+(String(s).endsWith('Z')?'':'Z'));return isNaN(d)?s:d.toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'})};
 
 let cl=null;
@@ -142,7 +154,9 @@ function attachmentsOf(f){return cl.attachments.filter(a=>a.field_id===f.id)}
 // Seit 1.8.14 abschnittsweise: gesperrt ist, was der Server in sealed_field_ids nennt.
 const CONTENT_TYPES=f=>!['hinweis','unterschrift'].includes(f.field_type);
 function isSealed(f){return (cl.sealed_field_ids||[]).includes(f.id)}
-function editable(f){return cl.can_sign&&!isSealed(f)}
+// Seit 1.8.38: Felder "nur Büro" (office_only) füllt ein Monteur nicht -- der Server weist es ab (403).
+function forRole(f){return !f.office_only||cl.can_fill_office_fields}
+function editable(f){return cl.can_sign&&!isSealed(f)&&forRole(f)}
 function missingOf(f){return (cl.missing_required||[]).filter(m=>m===f.label||m.startsWith(f.label+' (mindestens'))}
 
 // --- Rendern ---------------------------------------------------------------------------
@@ -173,7 +187,7 @@ function missingIn(list){return list.flatMap(missingOf)}
 function renderLockCard(){
   if(!cl.signed||cl.status!=='entwurf')return '';
   const sealed=cl.fields.filter(isSealed);
-  const open=cl.fields.filter(f=>CONTENT_TYPES(f)&&!isSealed(f));
+  const open=cl.fields.filter(f=>CONTENT_TYPES(f)&&!isSealed(f)&&forRole(f));
   const missing=missingIn(sealed);
   return `<div class="card lock-card" id="lockCard"><div class="lock-title">Unterschrieben – ${open.length?'die Angaben oberhalb der Unterschrift sind gesperrt':'Antworten und Fotos sind gesperrt'}</div>
     <div class="muted small" style="margin-top:4px">${open.length?`Die Angaben darunter (${open.length}) bleiben bis zur nächsten Unterschrift offen. `:''}Weitere Unterschriften und Abschließen sind möglich.${IS_FIELD?' Muss noch etwas Gesperrtes geändert werden, kann das Büro die sperrende Unterschrift mit Begründung verwerfen.':''}</div>
@@ -238,7 +252,10 @@ function fieldBody(f){
   }
   if(t==='auswahl'){
     const chosen=Array.isArray(v)?v:(v?[v]:[]);
-    return `<div class="tiles">${f.options.map(o=>`<button type="button" class="tile${chosen.includes(o.option_key)?' on':''}" ${ro?'disabled':''} onclick="toggleOption(${f.id},'${esc(o.option_key)}')">${esc(o.label)}</button>`).join('')}</div>`;
+    // Hinweis zur gewählten Option (seit 1.8.38, z. B. Witterung bei der Behinderungsanzeige)
+    const hints=chosen.map(k=>(f.option_hints||{})[k]).filter(Boolean);
+    return `<div class="tiles">${f.options.map(o=>`<button type="button" class="tile${chosen.includes(o.option_key)?' on':''}" ${ro?'disabled':''} onclick="toggleOption(${f.id},'${esc(o.option_key)}')">${esc(o.label)}</button>`).join('')}</div>`
+      +hints.map(h=>`<div class="option-hint" data-option-hint>${esc(h)}</div>`).join('');
   }
   if(ro&&['text','zahl','datum','uhrzeit','datum_uhrzeit'].includes(t))return `<div class="value-ro">${valueText(f,v)}</div>`;
   if(t==='text')return f.multiline
@@ -263,7 +280,7 @@ function fieldBody(f){
     // Seit 1.8.13: keine Unterschrift wird ersetzt oder entfernt -- eine Einzelunterschrift
     // nimmt genau eine auf, eine Mehrfachunterschrift bis max_count, auch nach der ersten.
     const list=attachmentsOf(f);
-    const canAdd=cl.can_sign&&(f.multiple?list.length<(f.max_count||20):!list.length);
+    const canAdd=cl.can_sign&&forRole(f)&&(f.multiple?list.length<(f.max_count||20):!list.length);
     const prefill=(!f.multiple&&/monteur|ausführend|fahrer/i.test(f.signer_label||f.label))?MY_NAME:'';
     const meta=a=>[a.created_at_local?a.created_at_local+' Uhr':null,a.content_sha256?'Prüfsumme '+a.content_sha256.slice(0,12)+'…':null].filter(Boolean).join(' · ');
     return `<div class="sig-list">${list.map(a=>`<div class="sig"><img src="${a.url}" alt="Unterschrift"><span class="name">${esc(a.signer_name)}<span class="sig-meta"${a.content_sha256?` title="SHA-256 des unterschriebenen Inhalts: ${esc(a.content_sha256)}"`:''}>${esc(meta(a))}</span>${sealLine(a)}</span></div>`).join('')||(canAdd?'':'<span class="muted">Keine Unterschrift.</span>')}</div>
@@ -323,8 +340,8 @@ function render(){
       html+=`<div class="hint"><div class="q-label">${esc(f.label)}</div>${f.help_text?`<div class="q-help">${esc(f.help_text)}</div>`:''}</div>`;
       continue;
     }
-    const isMissing=cl.can_sign&&[...missing].some(m=>m===f.label||m.startsWith(f.label+' (mindestens'));
-    const label=`${esc(f.label)}${f.required||f.min_count?'<span class="req">*</span>':''}${f.signer_label?` <span class="muted small">(${esc(f.signer_label)})</span>`:''}${partly&&isSealed(f)?'<span class="sealed-tag">· gesperrt</span>':''}`;
+    const isMissing=cl.can_sign&&forRole(f)&&[...missing].some(m=>m===f.label||m.startsWith(f.label+' (mindestens'));
+    const label=`${esc(f.label)}${f.required||f.min_count?'<span class="req">*</span>':''}${f.signer_label?` <span class="muted small">(${esc(f.signer_label)})</span>`:''}${partly&&isSealed(f)?'<span class="sealed-tag">· gesperrt</span>':''}${!forRole(f)&&cl.status==='entwurf'?'<span class="office-tag">· füllt das Büro aus</span>':''}`;
     html+=`<div class="q${isMissing?' missing':''}" id="q_${f.id}"><div class="q-label">${label}</div>${f.help_text?`<div class="q-help">${esc(f.help_text)}</div>`:''}
       <div class="q-body">${fieldBody(f)}</div><div class="q-status" id="st_${f.id}"></div></div>`;
   }
@@ -337,9 +354,37 @@ function render(){
       <div id="pageError" class="error-box small" style="margin-top:8px"></div>`;
   }
   if(!IS_FIELD&&cl.status==='abgeschlossen')html+='<div class="card rules" id="rulesCard"><h2>Ausgelöste Aufgaben</h2><div class="muted small">Lädt …</div></div>';
+  if(!IS_FIELD)html+='<div class="card rules" id="followUpsCard" style="display:none"></div>';
   main.innerHTML=html;
   for(const f of cl.fields)if(f.field_type==='unterschrift')setupPad(f.id);
+  if(!IS_FIELD)loadFollowUps();
   if(!IS_FIELD&&cl.status==='abgeschlossen'){loadRules();afterRenderSendCard()}
+}
+
+// Folgen des Zwecks (seit 1.8.38 sichtbar, nur Büro): z. B. die Aufgabe "Behinderungsanzeige
+// versenden" nach der Unterschrift der Meldung. Offene (Aufgabenmodul aus, unterbrochen) lassen
+// sich nachholen -- idempotent wie die Regeln.
+async function loadFollowUps(){
+  const card=document.getElementById('followUpsCard');if(!card)return;
+  let rows;
+  try{rows=await api(`/api/checklists/${checklistId}/follow-ups`)}
+  catch(e){card.style.display='';card.innerHTML=`<h2>Folgen</h2><div class="error-box small">${esc(e.message)}</div>`;return}
+  if(!rows.length){card.style.display='none';return}
+  const open=rows.some(r=>r.status!=='erledigt');
+  card.style.display='';
+  card.innerHTML=`<h2>Folgen</h2>${rows.map(r=>`<div class="rule-row"><div>${r.target_type==='task'&&r.target_id?`<a href="/tasks?task=${r.target_id}">${esc(r.target_title||r.label)}</a>`:esc(r.label)}<div class="muted small">${esc(r.trigger_label)} · ${esc(fmtDateTime(r.executed_at))}</div></div>
+      <span class="badge ${r.status==='erledigt'?'done':'open'}">${esc(r.status_label)}</span></div>`).join('')}
+    ${open?`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px"><button type="button" class="btn" id="followUpsRetryBtn" onclick="retryFollowUps()">Folgen nachholen</button><span class="muted small" id="followUpsStatus"></span></div>`:''}`;
+}
+async function retryFollowUps(){
+  const btn=document.getElementById('followUpsRetryBtn'),st=document.getElementById('followUpsStatus');
+  btn.disabled=true;st.textContent='Führt aus …';
+  try{
+    const r=await api(`/api/checklists/${checklistId}/run-follow-ups`,{method:'POST'});
+    await loadFollowUps();
+    const st2=document.getElementById('followUpsStatus');
+    if(st2)st2.textContent=r.module_off?'Das Aufgabenmodul ist ausgeschaltet – bitte zuerst in den Einstellungen aktivieren.':(r.failed?'Nicht ausgeführt – bitte später erneut versuchen.':'');
+  }catch(e){st.textContent=e.message;btn.disabled=false}
 }
 
 // Regeln → Aufgaben (seit 1.8.3), nur Büro: welche Regeln beim Abschluss ausgelöst haben und
@@ -350,9 +395,11 @@ async function loadRules(){
   let rows;
   try{rows=await api(`/api/checklists/${checklistId}/rule-executions`)}
   catch(e){card.innerHTML=`<h2>Ausgelöste Aufgaben</h2><div class="error-box small">${esc(e.message)}</div>`;return}
-  const open=rows.some(r=>r.status!=='aufgabe_angelegt');
+  // "aufgabe_vorhanden" (seit 1.8.38): eine Aufgabe mit demselben Link war schon offen -- erledigt, nicht nachzuholen.
+  const done=r=>r.status==='aufgabe_angelegt'||r.status==='aufgabe_vorhanden';
+  const open=rows.some(r=>!done(r));
   card.innerHTML=`<h2>Ausgelöste Aufgaben</h2>${rows.length?rows.map(r=>`<div class="rule-row"><div>${r.task_id?`<a href="/tasks?task=${r.task_id}">${esc(r.task_title||r.rule_title)}</a>`:esc(r.rule_title)}<div class="muted small">Priorität ${esc(r.priority)} · ${esc(fmtDateTime(r.executed_at))}</div></div>
-      <span class="badge ${r.status==='aufgabe_angelegt'?'done':'open'}">${esc(r.status_label)}</span></div>`).join(''):'<div class="muted small">Keine Regel dieser Vorlage hat ausgelöst.</div>'}
+      <span class="badge ${done(r)?'done':'open'}">${esc(r.status_label)}</span></div>`).join(''):'<div class="muted small">Keine Regel dieser Vorlage hat ausgelöst.</div>'}
     ${open?`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px"><button type="button" class="btn" id="rulesRetryBtn" onclick="retryRules()">Aufgaben nachholen</button><span class="muted small" id="rulesStatus"></span></div>`:''}`;
 }
 async function retryRules(){
@@ -372,7 +419,7 @@ function updateMissing(){
   const m=cl.missing_required||[];
   el.textContent=m.length?'Noch offen: '+m.join(', '):'Alle Pflichtangaben sind ausgefüllt.';
   const err=document.getElementById('pageError');if(err&&!m.length)err.textContent='';  // alte Abschluss-Meldung nicht stehen lassen
-  for(const f of cl.fields){const q=document.getElementById('q_'+f.id);if(q)q.classList.toggle('missing',m.some(x=>x===f.label||x.startsWith(f.label+' (mindestens')))}
+  for(const f of cl.fields){const q=document.getElementById('q_'+f.id);if(q)q.classList.toggle('missing',forRole(f)&&m.some(x=>x===f.label||x.startsWith(f.label+' (mindestens')))}
 }
 
 // --- Speichern -------------------------------------------------------------------------

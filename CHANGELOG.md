@@ -4,6 +4,36 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.38 – Behinderungsanzeige erfassen
+
+Stufe 2b, Runde 2b-3 Teil 1. Der Zweck „Behinderungsanzeige“ trägt jetzt 13 Systemfelder in drei Abschnitten: Meldung
+(bekannt seit, Beschreibung, Fotos, Unterschrift des Meldenden), Anzeige (Ursache aus sechs festen Optionen,
+Beschreibung der Ursache, betroffene Leistungen, Beginn, voraussichtliche Dauer, Unterschrift Büro) und Wegfall
+(beendet am, Arbeit wieder aufgenommen am, Unterschrift). Den Abschnitt Anzeige füllt und unterschreibt nur das Büro
+– ein Monteur sieht ihn, bekommt beim Schreiben aber 403. Bei „außergewöhnliche Witterung“ erscheint der Hinweis
+„Übliche Witterung ist nach § 6 Abs. 2 VOB/B keine Behinderung.“ Neu für alle Zwecke: Systemfelder können einen
+Abschnitt vorgeben, dessen Reihenfolge das Veröffentlichen prüft (jede Unterschrift am Ende ihres Abschnitts), und
+eine Folge kann statt nach dem Abschluss nach der Unterschrift in einem bestimmten Feld laufen – idempotent über die
+bestehende Folgetabelle, nachholbar auch am Entwurf (und bei der Wiederholung derselben Unterschrift mit gleicher
+`client_uuid`). Die erste echte Folge: nach der Unterschrift der Meldung die Aufgabe „Behinderungsanzeige versenden“,
+fällig am selben Tag, an den Sachbearbeiter des Auftrags, sonst ohne Zuständigkeit; Verwerfen und erneutes
+Unterschreiben legt keine zweite an. Die Ausfüllseite zeigt dem Büro eine Karte
+„Folgen“ mit „Folgen nachholen“, „Alle nachholen“ in der Checklisten-Übersicht umfasst jetzt auch Folgen.
+Startvorlage „Behinderungsanzeige“ als Entwurf per Migration, am Auftrag im Büro und in `/mobil` startbar.
+
+Eine Regel kann ihre Aufgabe jetzt aufs Anlegen einer Checkliste mit Zweck am selben Auftrag verlinken (Editor:
+„Aufgabe verlinkt auf“, Spalte `link_purpose`); solange eine Aufgabe mit demselben Link offen ist, legt die Regel
+keine zweite an. Die Tagesbericht-Regel „Behinderung = ja“ legt so „Behinderungsanzeige anlegen“ mit Link an;
+`/checklisten/auftrag/{id}?zweck=behinderungsanzeige` hebt das Anlegen hervor und nennt schon offene Anzeigen. Die
+Ausfüllseite, der Vorlagen-Editor und die Übersicht lesen abgelehnte Antworten über `fehlerText()`; lange
+Optionstexte brechen in ihrer Kachel um. Migration `d6ac03a06d6f` (Spalte, Startvorlage, Tagesbericht-Regel nur als
+unveränderter Entwurf; Downgrade bricht ab, solange eine andere Regel einen Link trägt).
+
+`tests/test_v341_behinderungsanzeige.py` (17 Tests, einer gegen PostgreSQL 17: zwei gleichzeitige „Nachholen“ legen
+genau eine Aufgabe an); 20 Gegenproben rot. Migration SQLite und PostgreSQL hin, Downgrade-Abbruch, zurück, hin,
+`alembic check`. Volle Suite 2492 grün. Klicktest `scripts/klicktest_behinderungsanzeige.py` 35/35, die vier
+Checklisten-Klicktests und der Versandverlauf unverändert grün.
+
 ## 1.8.37 – Beteiligte mit Adressbuch
 
 Stufe 2b, Runde 2b-2. Neuer Stammdatenbereich „Adressbuch“ (Regel 10: Liste zuerst, Anlegen und Bearbeiten auf der

@@ -991,3 +991,19 @@ Die Unterschrift der Checkliste zeichnet seit 1.8.34 über `app/templates/_unter
 `checklist.html` sind nur noch Hüllen; IDs `pad_…`/`padName_…` und die Knöpfe sind unverändert, die drei
 Checklisten-Klicktests laufen ohne Änderung. Verhalten wie bisher (Fläche weiß, Strich #111, Geräteauflösung,
 PNG mit durchsichtigem Hintergrund); Serverseite unverändert.
+
+---
+
+## Nachtrag 1.8.38 (02.10.2026) -- erste echte Systemfelder und Folge (Behinderungsanzeige)
+
+Herleitung und Festlegungen: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.38". Was sich am Baukasten
+geändert hat und für jeden künftigen Zweck (Abnahme, Bedenkenanzeige) gilt:
+- `SystemField.section` -- Abschnitt; das Veröffentlichen prüft die Reihenfolge der Abschnitte, jede Unterschrift am
+  Ende ihres Abschnitts (`section_order_problem()`). Die Aussage "Reihenfolge frei" aus 1.8.16 gilt nur noch innerhalb
+  eines Abschnitts.
+- `SystemField.office_only` -- nur das Büro füllt aus und unterschreibt (Router 403 für Monteure, auch an der eigenen
+  Checkliste); `option_hints` -- Hinweis beim Wählen einer Option.
+- `FollowUp.after_signature` -- Folge nach der Unterschrift in diesem Systemfeld statt nach dem Abschluss, nachholbar auch
+  am Entwurf; die Ausfüllseite zeigt dem Büro die Karte "Folgen", "Alle nachholen" der Übersicht nimmt Folgen mit.
+- Regeln: `link_purpose` ("Aufgabe verlinkt auf") -- Aufgabe verlinkt aufs Anlegen einer Checkliste mit Zweck am selben
+  Auftrag, keine zweite, solange eine mit demselben Link offen ist (`aufgabe_vorhanden`).
