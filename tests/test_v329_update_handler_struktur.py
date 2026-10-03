@@ -240,7 +240,6 @@ BEKANNT = {
     "PUT /api/reminder-levels/{level_id}": _VOLLES_FORMULAR,
     "PUT /api/reminders/{reminder_id}": _VOLLES_FORMULAR,
     "PUT /api/resources/{resource_id}": _VOLLES_FORMULAR,
-    "PUT /api/roof-areas/{roof_area_id}": _VOLLES_FORMULAR,
     "PUT /api/roof-component-types/{component_type_id}": _VOLLES_FORMULAR,
     "PUT /api/roof-components/{component_id}": _VOLLES_FORMULAR,
     "PUT /api/roof-components/{component_id}/position": _LEEREN_GEWOLLT,
@@ -274,6 +273,7 @@ REPARIERT_1_8_25 = {
 # Seither einzeln zum Teil-Update umgebaut und aus BEKANNT gestrichen -- ebenso nie wieder ein Fund.
 REPARIERT_SPAETER = {
     "PUT /api/orders/{order_id}",  # 1.8.32: neues Feld execution_period, ein Aufrufer ohne es hätte es geleert
+    "PUT /api/roof-areas/{roof_area_id}",  # 1.8.46: Garantie Dritter umbenannt, Speicherweg auf Teil-Update
 }
 
 

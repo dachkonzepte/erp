@@ -1037,6 +1037,13 @@ class Order(Base):
     # Historie in OrderContractBasisChange). Bestand: bgb.
     contract_basis: Mapped[str] = mapped_column(String(30), default="bgb", server_default="bgb")
     contract_basis_manual: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    # Leistungsart und Gewährleistungsdauer (seit 1.8.46, Stufe 2c-1, app/warranty.py): leer = "nicht festgelegt".
+    # Gesetzt nur über set_order_warranty() -- den Vorschlag bewusst übernehmen oder abweichend mit Begründung,
+    # Historie in OrderWarrantyChange. Das Gewährleistungsende wird nie gespeichert, sondern aus dem Datum einer
+    # Abnahme abgeleitet (warranty_end()).
+    work_kind: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    warranty_months: Mapped[int | None] = mapped_column(nullable=True)
+    warranty_days: Mapped[int | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -1056,6 +1063,116 @@ class Order(Base):
     contract: Mapped["OrderContract | None"] = relationship(
         back_populates="order", cascade="all, delete-orphan", uselist=False
     )
+    warranty_changes: Mapped[list["OrderWarrantyChange"]] = relationship(
+        back_populates="order", cascade="all, delete-orphan", order_by="OrderWarrantyChange.id"
+    )
+
+
+class OrderWarrantyChange(Base):
+    """Historie von Leistungsart und Gewährleistungsdauer am Auftrag (seit 1.8.46, Stufe 2c-1). Jede Festlegung
+    eine Zeile mit dem Vorschlag dieses Zeitpunkts (Vertragsgrundlage + Leistungsart); weicht die Dauer davon ab,
+    ist die Begründung Pflicht. Wird nie geändert oder gelöscht (außer mit dem Auftrag selbst)."""
+
+    __tablename__ = "order_warranty_changes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
+    work_kind: Mapped[str] = mapped_column(String(20))
+    warranty_months: Mapped[int] = mapped_column()
+    warranty_days: Mapped[int] = mapped_column()
+    contract_basis: Mapped[str] = mapped_column(String(30))
+    proposal_months: Mapped[int] = mapped_column()
+    proposal_days: Mapped[int] = mapped_column()
+    follows_proposal: Mapped[bool] = mapped_column(Boolean)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    changed_by_name: Mapped[str] = mapped_column(String(160), default="System")
+    changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    order: Mapped[Order] = relationship(back_populates="warranty_changes")
+
+
+class OrderAcceptance(Base):
+    """Abnahme zum Auftrag (seit 1.8.46, Stufe 2c-1, app/acceptances.py) -- mehrere je Auftrag (Teilabnahmen,
+    Verweigerung, Korrektur). Nach dem Speichern unveränderlich (ORM-Sperre unten): Korrektur nur durch
+    Verwerfen mit Begründung (bedingtes UPDATE, nicht über das ORM) und einen neuen Eintrag.
+
+    property_id ist das Objekt des Projekts beim Erfassen; die Dachflächen (OrderAcceptanceRoofArea) stammen nur
+    daraus. Erklärt durch den Auftraggeber (declared_by_name = Kunde laut Auftrag) oder einen Beteiligten des
+    Projekts (participant_id, Name und Rolle als Schnappschuss; poa_on_record: Empfangsvollmacht mit Beleg beim
+    Erfassen, der Beleg selbst als Kopie in OrderAcceptanceFile, Art "vollmacht"). content_sha256 bindet den
+    Inhalt samt Prüfsummen der Belege (app/acceptances.py::acceptance_content()); jeder Abruf rechnet nach.
+
+    created_by_user_id/discarded_by_user_id bewusst ohne Fremdschlüssel: Benutzer löschen scheitert unter
+    PostgreSQL schon heute an 15 Fremdschlüsseln (CLAUDE.md, bekannte offene Punkte) -- kein sechzehnter."""
+
+    __tablename__ = "order_acceptances"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
+    property_id: Mapped[int | None] = mapped_column(ForeignKey("properties.id"), nullable=True, index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    accepted_on: Mapped[date] = mapped_column(Date)
+    scope: Mapped[str] = mapped_column(String(10))
+    scope_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result: Mapped[str] = mapped_column(String(20))
+    reservation_defects: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    reservation_penalty: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    contractor_objections: Mapped[str | None] = mapped_column(Text, nullable=True)
+    declared_by: Mapped[str] = mapped_column(String(20))
+    participant_id: Mapped[int | None] = mapped_column(ForeignKey("project_participants.id"), nullable=True, index=True)
+    declared_by_name: Mapped[str] = mapped_column(String(255))
+    declared_by_role: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    poa_on_record: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    conduct_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_sha256: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(160), default="System")
+    discarded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    discarded_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    discarded_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    discard_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    roof_areas: Mapped[list["OrderAcceptanceRoofArea"]] = relationship(
+        back_populates="acceptance", order_by="OrderAcceptanceRoofArea.id"
+    )
+    files: Mapped[list["OrderAcceptanceFile"]] = relationship(
+        back_populates="acceptance", order_by="OrderAcceptanceFile.id"
+    )
+
+
+class OrderAcceptanceRoofArea(Base):
+    """Dachfläche einer Abnahme (seit 1.8.46), Name als Schnappschuss. Unveränderlich wie die Abnahme; eine so
+    genannte Dachfläche lässt sich nicht mehr löschen (nur archivieren)."""
+
+    __tablename__ = "order_acceptance_roof_areas"
+    __table_args__ = (UniqueConstraint("acceptance_id", "roof_area_id", name="uq_order_acceptance_roof_area"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    acceptance_id: Mapped[int] = mapped_column(ForeignKey("order_acceptances.id"), index=True)
+    roof_area_id: Mapped[int] = mapped_column(ForeignKey("roof_areas.id"), index=True)
+    roof_area_name: Mapped[str] = mapped_column(String(255))
+
+    acceptance: Mapped[OrderAcceptance] = relationship(back_populates="roof_areas")
+
+
+class OrderAcceptanceFile(Base):
+    """Beleg einer Abnahme (seit 1.8.46): kind "nachweis" (PDF oder Foto, am Inhalt erkannt) oder "vollmacht"
+    (Kopie der beim Erfassen hinterlegten Vollmacht des erklärenden Beteiligten). Datei exklusiv angelegt und
+    schreibgeschützt unter DACHKONZEPTE_ACCEPTANCE_FILE_ROOT, unverändert mit SHA-256; jeder Abruf rechnet nach."""
+
+    __tablename__ = "order_acceptance_files"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    acceptance_id: Mapped[int] = mapped_column(ForeignKey("order_acceptances.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    stored_filename: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(50))
+    size_bytes: Mapped[int] = mapped_column()
+    sha256: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    acceptance: Mapped[OrderAcceptance] = relationship(back_populates="files")
 
 
 class OrderContractBasisChange(Base):
@@ -3294,7 +3411,11 @@ class RoofArea(Base):
     Spalten werden NICHT gelöscht (Altbestand geht sonst verloren) und bleiben in
     roof_area_to_dict() lesbar, aber kein Code-Pfad (create_roof_area()/update_roof_area())
     schreibt sie noch -- die Oberfläche zeigt sie nur noch schreibgeschützt als "Aufbau
-    (Altbestand, Freitext)", wenn befüllt."""
+    (Altbestand, Freitext)", wenn befüllt.
+
+    Gewährleistung aus Abnahmen (seit 1.8.46): nie gespeichert, sondern aus jeder nicht verworfenen Abnahme
+    abgeleitet, die diese Dachfläche nennt (OrderAcceptanceRoofArea). Eine so genannte Dachfläche lässt sich nur
+    noch archivieren, nicht löschen."""
 
     __tablename__ = "roof_areas"
 
@@ -3309,7 +3430,10 @@ class RoofArea(Base):
     insulation: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_renovation: Mapped[date | None] = mapped_column(Date, nullable=True)
     contractor: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    warranty_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Garantie Dritter (Hersteller oder Fremdfirma) bis -- seit 1.8.46 so benannt, vorher warranty_until
+    # ("Gewährleistung bis", von Hand gepflegt, ohne Bezug zu Auftrag oder Abnahme). Die Gewährleistung des
+    # Betriebs steht nie hier, sondern wird aus der Abnahme abgeleitet (app/acceptances.py, app/warranty.py).
+    third_party_guarantee_until: Mapped[date | None] = mapped_column(Date, nullable=True)
     sketch_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", index=True)
@@ -5264,3 +5388,30 @@ def _dispatch_outcome_no_update(mapper, connection, target):
 @event.listens_for(DispatchOutcome, "before_delete")
 def _dispatch_outcome_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Ein vermerkter Empfang bzw. eine Unzustellbarkeit wird nie gelöscht.")
+
+
+# Abnahme (seit 1.8.46): nach dem Speichern unveränderlich und nie gelöscht -- samt Dachflächen und Belegen.
+# Verworfen wird mit einem bedingten UPDATE in app/acceptances.py::discard_acceptance(), nicht über das ORM.
+@event.listens_for(OrderAcceptance, "before_update")
+def _acceptance_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs if attr.key not in {"roof_areas", "files"}):
+        raise ArchiveImmutableError("Eine gespeicherte Abnahme ist unveränderlich – Korrektur nur durch Verwerfen "
+                                    "und einen neuen Eintrag.")
+
+
+@event.listens_for(OrderAcceptance, "before_delete")
+def _acceptance_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Eine gespeicherte Abnahme wird nie gelöscht.")
+
+
+@event.listens_for(OrderAcceptanceRoofArea, "before_update")
+@event.listens_for(OrderAcceptanceFile, "before_update")
+def _acceptance_part_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs if attr.key != "acceptance"):
+        raise ArchiveImmutableError("Dachflächen und Belege einer gespeicherten Abnahme sind unveränderlich.")
+
+
+@event.listens_for(OrderAcceptanceRoofArea, "before_delete")
+@event.listens_for(OrderAcceptanceFile, "before_delete")
+def _acceptance_part_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Dachflächen und Belege einer gespeicherten Abnahme werden nie gelöscht.")

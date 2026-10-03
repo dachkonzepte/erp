@@ -110,7 +110,7 @@ def _report_id_for_child(db: Session, model, row_id: int, not_found: str) -> int
 @router.get("/api/orders/{order_id}/roof-areas", response_model=list[RoofAreaOut] | list[RoofAreaFieldOut])
 def get_roof_areas_for_order(order_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     """Seit 1.8.22 bekommt `field` RoofAreaFieldOut -- bis dahin die volle Dachfläche samt
-    customer_id, notes, contractor und warranty_until (Fund, siehe CLAUDE.md "Rechtekonzept").
+    customer_id, notes, contractor und warranty_until (seit 1.8.46 third_party_guarantee_until) (Fund, siehe CLAUDE.md "Rechtekonzept").
     Bereits validiert zurückgegeben, wie GET /api/orders/{order_id}, damit die Union-Deklaration
     nie das jeweils andere Schema wählt."""
     _require_module_enabled(db)

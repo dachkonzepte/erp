@@ -61,6 +61,10 @@ class DuplicateParticipantError(ValueError):
     """Dieser Kontakt hat diese Rolle in diesem Projekt schon."""
 
 
+class ParticipantInUseError(ValueError):
+    """Der Beteiligte hat eine Abnahme erklärt (seit 1.8.46) -- er bleibt im Projekt, Router: 409."""
+
+
 def role_label(role: str) -> str:
     return ROLES.get(role, role)
 
@@ -318,6 +322,11 @@ def update_participant(db: Session, participant: ProjectParticipant, values: dic
 
 
 def remove_participant(db: Session, participant: ProjectParticipant) -> None:
+    from .acceptances import acceptances_declared_by
+
+    if acceptances_declared_by(db, participant.id):
+        # Die Abnahme verweist auf ihn (Fremdschlüssel) und bleibt unverändert -- auch eine verworfene.
+        raise ParticipantInUseError("Dieser Beteiligte hat eine Abnahme erklärt und bleibt deshalb im Projekt.")
     stored = participant.poa_stored_filename
     db.delete(participant)
     db.commit()

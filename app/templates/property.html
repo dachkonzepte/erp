@@ -88,8 +88,21 @@ tr:last-child td{border-bottom:none}
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Name</th><th>Dachtyp</th><th>Fläche</th><th>Eindeckung</th><th>Gewährleistung</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Dachtyp</th><th>Fläche</th><th>Eindeckung</th><th title="aus Abnahmen, die die Dachfläche nennen">Gewährleistung bis</th><th>Garantie Dritter bis</th><th></th></tr></thead>
       <tbody id="roofAreaRows"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Seit 1.8.46: Gewährleistung des Betriebs, abgeleitet aus jeder nicht verworfenen, abgenommenen Abnahme an
+     diesem Objekt (Objekt beim Erfassen) -- nie gespeichert. -->
+<div class="card" id="acceptanceWarrantyCard">
+  <div class="section-title"><h2>Gewährleistung aus Abnahmen</h2></div>
+  <div class="muted small" style="margin-bottom:8px">Abgeleitet: Datum der Abnahme plus Gewährleistungsdauer des Auftrags. Verweigerte und verworfene Abnahmen erscheinen nicht.</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Auftrag</th><th>Umfang</th><th>Abnahme</th><th>Ergebnis</th><th>Gewährleistung bis</th></tr></thead>
+      <tbody id="acceptanceWarrantyRows"><tr><td colspan="5" class="empty">Lädt …</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -129,6 +142,7 @@ tr:last-child td{border-bottom:none}
 </div>
 {% if is_module_enabled('checklisten') %}
 {% include "_checklists_section.html" %}
+{% include "_fehlertext.html" %}
 <div class="card"><h2>Checklisten</h2><div id="checklistSection"></div></div>
 {% endif %}
 </main>
@@ -137,7 +151,9 @@ tr:last-child td{border-bottom:none}
 <script>
 const propertyId={{ property_id }};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+// Seit 1.8.46 über fehlerText() (_fehlertext.html): eine 422-Liste erschien vorher als "[object Object]".
+const FELDNAMEN={name:'Bezeichnung',street:'Straße',postal_code:'PLZ',city:'Ort',notes:'Notizen',access_notes:'Zugang',site_contact_name:'Ansprechpartner vor Ort',site_contact_phone:'Telefon vor Ort',roof_type:'Dachtyp',names:'Bezeichnungen',category:'Kategorie',file:'Datei'};
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,FELDNAMEN));return r.json()}
 async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
 function optionsHtml(list,selected){return '<option value="">— keine Auswahl —</option>'+(list||[]).filter(o=>o.active!==false).map(o=>`<option value="${esc(o.value)}" ${o.value===selected?'selected':''}>${esc(o.label)}</option>`).join('')}
@@ -199,14 +215,39 @@ function roofAreaRow(r){
     <td>${esc(r.roof_type||'—')}</td>
     <td>${r.area_sqm?Number(r.area_sqm).toLocaleString('de-DE')+' m²':'—'}</td>
     <td>${esc(r.covering||'—')}</td>
-    <td>${r.warranty_until?fmtDate(r.warranty_until):'—'}</td>
+    <td>${acceptanceWarrantyEnd(r.id)}</td>
+    <td>${r.third_party_guarantee_until?fmtDate(r.third_party_guarantee_until):'—'}</td>
     <td><a href="/roof-areas/${r.id}" style="color:var(--accent);font-weight:650;text-decoration:none">Öffnen</a></td>
   </tr>`;
 }
 
+// Seit 1.8.46: Gewährleistung aus Abnahmen (GET /api/properties/{id}/acceptance-warranties).
+let acceptanceWarranty={acceptances:[],roof_areas:{}};
+function acceptanceWarrantyEnd(roofAreaId){
+  const x=acceptanceWarranty.roof_areas[String(roofAreaId)];
+  if(!x)return '—';
+  return x.end?`<span title="aus ${esc(x.order_number)}">${fmtDate(x.end)}</span>`:'<span class="muted" title="Dauer am Auftrag nicht festgelegt">abgenommen, Dauer offen</span>';
+}
+function acceptanceWarrantyRow(a){
+  const scope=a.scope==='teil'?`Teil: ${esc(a.scope_description)}`:'gesamt';
+  const areas=a.roof_areas.length?`<div class="muted small">Dachflächen: ${a.roof_areas.map(r=>esc(r.name)).join(', ')}</div>`:'';
+  const w=a.warranty;
+  return `<tr>
+    <td><a href="/orders/${a.order_id}" style="color:var(--accent);font-weight:650;text-decoration:none">${esc(a.order_number)}</a><div class="muted small">${esc(a.order_title||'')}</div></td>
+    <td>${scope}${areas}</td>
+    <td>${fmtDate(a.accepted_on)} · ${esc(a.kind_label)}</td>
+    <td>${esc(a.result_text)}</td>
+    <td>${w&&w.end?`<b title="${esc(w.rule||'')}">${fmtDate(w.end)}</b>`:`<span class="muted">${esc(w?w.text:'—')}</span>`}</td>
+  </tr>`;
+}
+async function loadAcceptanceWarranties(){
+  acceptanceWarranty=await api(`/api/properties/${propertyId}/acceptance-warranties`).catch(()=>({acceptances:[],roof_areas:{}}));
+  document.getElementById('acceptanceWarrantyRows').innerHTML=acceptanceWarranty.acceptances.map(acceptanceWarrantyRow).join('')||'<tr><td colspan="5" class="empty">Keine Abnahme an diesem Objekt erfasst.</td></tr>';
+}
+
 async function loadRoofAreas(){
   roofAreas=await api(`/api/roof-areas?property_id=${propertyId}`).catch(()=>[]);
-  document.getElementById('roofAreaRows').innerHTML=roofAreas.map(roofAreaRow).join('')||'<tr><td colspan="6" class="empty">Noch keine Dachflächen angelegt.</td></tr>';
+  document.getElementById('roofAreaRows').innerHTML=roofAreas.map(roofAreaRow).join('')||'<tr><td colspan="7" class="empty">Noch keine Dachflächen angelegt.</td></tr>';
 }
 
 function toggleBulkForm(){
@@ -323,6 +364,7 @@ async function init(){
     return;
   }
   renderBreadcrumb();renderHeader();fillPropertyForm();
+  await loadAcceptanceWarranties();
   await loadRoofAreas();
   await loadDocumentCategoriesForUpload();
   await loadPropertyDocuments();

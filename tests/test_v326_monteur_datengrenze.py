@@ -79,6 +79,12 @@ VERBOTENE_WORTTEILE = (
     "intern", "notiz", "vermerk", "bemerkung",
     "email", "phone", "mobile", "telefon",
     "warranty", "gewaehrleistung", "contractor",
+    # Garantie Dritter an der Dachfläche (seit 1.8.46, vorher warranty_until) -- nach der Umbenennung sonst
+    # nicht mehr verboten.
+    "guarantee", "garantie",
+    # Abnahme und Vertrag (seit 1.8.46): Vertragsstrafe und Sicherheitseinbehalt, auch der Vorbehalt der
+    # Vertragsstrafe bei der Abnahme -- kaufmännisch, nie an den Monteur.
+    "strafe", "penalty", "einbehalt", "retention",
     # Personaldaten (seit 1.8.24): Personalnummer (auch die DATEV-Personalnummer), Geburtsdatum,
     # Bankverbindung, Steuer- und Sozialversicherungsdaten. Die Privatadresse trägt keinen eigenen
     # Namen (street/city wie am Objekt) -- siehe _privatadresse().
@@ -291,7 +297,7 @@ def _monteur_welt(db: Session) -> dict:
     db.flush()
     roof = RoofArea(property_id=prop.id, name="Hauptdach", roof_type="flachdach", covering="Bitumen",
                     pitch_degrees=Decimal("3"), area_sqm=Decimal("850"), contractor="Fremdfirma GmbH",
-                    warranty_until=date(2031, 5, 1), last_renovation=date(2016, 5, 1),
+                    third_party_guarantee_until=date(2031, 5, 1), last_renovation=date(2016, 5, 1),
                     notes="Gewährleistungsstreit mit der Fremdfirma")
     db.add(roof)
     db.flush()
@@ -423,6 +429,7 @@ PFAD_WERTE = {
     "template_id": 1, "component_id": 1, "task_id": 1, "version_id": 1, "sent_document_id": 1,
     "contact_id": 1, "participant_id": 1,  # Adressbuch und Beteiligte (seit 1.8.37)
     "kind": "behinderungsanzeige",  # Briefe an den Auftraggeber (seit 1.8.40)
+    "acceptance_id": 1, "file_id": 1,  # Abnahme und ihr Beleg (seit 1.8.46)
 }
 # Query-Parameter: Pflichtparameter nach Namen, dazu je Route, was die Monteursicht erst füllt.
 # "@name" steht für den Wert aus den Testdaten.
@@ -581,6 +588,15 @@ def _buero_welt(db: Session) -> dict:
     contact = create_contact(db, {"kind": "person", "first_name": "Petra", "last_name": "Plan"})
     add_participant(db, project, contact, role="architekt_planer")
     db.commit()
+    # Seit 1.8.46: Gewährleistungsdauer und eine Abnahme mit Beleg -- der Admin liest sie mit Inhalt.
+    from app.acceptances import create_acceptance
+    from app.warranty import set_order_warranty
+    order = db.get(Order, welt["order_id"])
+    set_order_warranty(db, order, work_kind="bauwerk", warranty_months=60, warranty_days=0, reason="vereinbart")
+    create_acceptance(db, order, {"kind": "foermlich", "accepted_on": date(2026, 9, 15), "scope": "gesamt",
+                                  "result": "abgenommen", "reservation_defects": False, "reservation_penalty": True,
+                                  "declared_by": "auftraggeber"},
+                      [("protokoll.pdf", b"%PDF-1.4\n%%EOF\n")], user_id=admin.id, user_name="Anna Admin")
     return {**welt, "admin_id": admin.id}
 
 
@@ -711,6 +727,20 @@ def test_empfaengerauswahl_der_zustellung_im_durchlauf_fuer_monteure_gesperrt(du
     assert routen == {"/api/email-dispatches/delivery-recipients": 403}
 
 
+def test_abnahme_und_gewaehrleistung_im_durchlauf_fuer_monteure_gesperrt(durchlauf, durchlauf_admin):
+    """Seit 1.8.46: Abnahmen, ihre Belege, die Gewährleistung am Auftrag und aus Abnahmen an Objekt und Dachfläche
+    sind Büro -- jede GET-Route davon antwortet dem Monteur 403; der Admin bekommt sie mit Inhalt."""
+    def routen(lauf):
+        return {a["route"]: a["status"] for a in lauf["antworten"]
+                if "acceptance" in a["route"] or "warranty" in a["route"]}
+    erwartet = {"/api/orders/{order_id}/warranty-changes", "/api/orders/{order_id}/acceptances",
+                "/api/orders/{order_id}/acceptance-options", "/api/order-acceptances/{acceptance_id}/files/{file_id}",
+                "/api/properties/{property_id}/acceptance-warranties",
+                "/api/roof-areas/{roof_area_id}/acceptance-warranties"}
+    assert routen(durchlauf) == dict.fromkeys(erwartet, 403)
+    assert routen(durchlauf_admin) == dict.fromkeys(erwartet, 200)
+
+
 def test_dachflaechen_monteur_reduziert_buero_voll(durchlauf, router_test_client):
     """Punkt 1 dieser Runde: der Monteur bekommt nur, was die Berichtsseite braucht, plus die
     technischen Angaben zur Fläche; das Büro unverändert alles."""
@@ -724,7 +754,7 @@ def test_dachflaechen_monteur_reduziert_buero_voll(durchlauf, router_test_client
     assert monteur["body"][0]["name"] == "Hauptdach"
     office = router_test_client(db, service_reports_router, role=ROLE_OFFICE_AUFTRAG).get(url)
     assert office.status_code == 200
-    assert office.json()[0]["warranty_until"] == "2031-05-01"
+    assert office.json()[0]["third_party_guarantee_until"] == "2031-05-01"
     assert office.json()[0]["contractor"] == "Fremdfirma GmbH"
     assert office.json()[0]["customer_id"] == welt["customer_id"]
 
@@ -746,7 +776,7 @@ def test_gegenprobe_altes_dachflaechen_schema_faellt_auf(threaded_db_session):
     ergebnis = _durchlauf(db, welt, [*_routers_in_betriebsreihenfolge(), altes_schema])
     gefunden, _ = _verstoesse(ergebnis["antworten"])
     alt = {eintrag.split("  ")[1] for eintrag in gefunden if eintrag.startswith("/api/orders/{order_id}/roof-areas-alt")}
-    assert {"$[].customer_id", "$[].notes", "$[].contractor", "$[].warranty_until"} <= alt
+    assert {"$[].customer_id", "$[].notes", "$[].contractor", "$[].third_party_guarantee_until"} <= alt
     assert all(eintrag.startswith("/api/orders/{order_id}/roof-areas-alt") for eintrag in gefunden)
 
 
@@ -832,6 +862,25 @@ def test_gegenprobe_alter_kontext_und_mitarbeiterbestand_fallen_auf(threaded_db_
 ])
 def test_personaldaten_schluessel_sind_verboten(key):
     assert _verboten(key)
+
+
+@pytest.mark.parametrize("key", [
+    "vertragsstrafe", "contract_penalty", "penalty_per_day", "reservation_penalty", "vorbehalt_vertragsstrafe",
+    "sicherheitseinbehalt", "einbehalt_prozent", "retention_amount", "security_retention", "retention_until",
+    "warranty_months", "warranty_end", "gewaehrleistung_bis",
+])
+def test_abnahme_und_vertrag_schluessel_sind_verboten(key):
+    """Seit 1.8.46 (Stufe 2c): Vertragsstrafe, Sicherheitseinbehalt und Gewährleistung als Wortteil."""
+    assert _verboten(key)
+
+
+def test_gegenprobe_abnahme_schluessel_fallen_im_durchlauf_auf():
+    """Eine Monteur-Antwort mit Vorbehalt der Vertragsstrafe und Einbehalt wird gefunden, auch verschachtelt."""
+    antworten = [{"route": "/api/probe", "body": {"acceptances": [{"id": 1, "reservation_penalty": True,
+                                                                   "retention_pct": 5, "accepted_on": "2026-10-01"}]}}]
+    gefunden, _ = _verstoesse(antworten)
+    assert gefunden == ["/api/probe  $.acceptances[].reservation_penalty",
+                        "/api/probe  $.acceptances[].retention_pct"]
 
 
 @pytest.mark.parametrize("route,path,key,erwartet", [

@@ -19,7 +19,8 @@ from ..email_dispatch import actor_of
 from ..models import AppUser, Contact, Customer, Project, ProjectParticipant, Supplier
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_participants import (
-    CANDIDATE_SOURCES, MAX_POWER_OF_ATTORNEY_BYTES, DuplicateParticipantError, add_participant, check_not_client,
+    CANDIDATE_SOURCES, MAX_POWER_OF_ATTORNEY_BYTES, DuplicateParticipantError, ParticipantInUseError, add_participant,
+    check_not_client,
     list_participants, participant_candidates, participant_to_dict, power_of_attorney_path, remove_participant,
     remove_power_of_attorney, roles_list, store_power_of_attorney, update_participant,
 )
@@ -51,7 +52,7 @@ def _participant_or_404(db: Session, participant_id: int) -> ProjectParticipant:
 def _errors(action):
     try:
         return action()
-    except DuplicateParticipantError as exc:
+    except (DuplicateParticipantError, ParticipantInUseError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -134,7 +135,8 @@ def put_project_participant(participant_id: int, payload: ProjectParticipantUpda
 
 @router.delete("/api/project-participants/{participant_id}")
 def delete_project_participant(participant_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    remove_participant(db, _participant_or_404(db, participant_id))
+    participant = _participant_or_404(db, participant_id)
+    _errors(lambda: remove_participant(db, participant))
     return {"ok": True}
 
 

@@ -57,8 +57,8 @@ def post_roof_area(payload: RoofAreaCreate, db: Session = Depends(get_db), _role
         return create_roof_area(
             db, payload.property_id, payload.name, roof_type=payload.roof_type, covering=payload.covering,
             pitch_degrees=payload.pitch_degrees, area_sqm=payload.area_sqm,
-            last_renovation=payload.last_renovation,
-            contractor=payload.contractor, warranty_until=payload.warranty_until, notes=payload.notes,
+            last_renovation=payload.last_renovation, contractor=payload.contractor,
+            third_party_guarantee_until=payload.third_party_guarantee_until, notes=payload.notes,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -75,12 +75,8 @@ def post_roof_areas_bulk(property_id: int, payload: RoofAreaBulkCreate, db: Sess
 @router.put("/api/roof-areas/{roof_area_id}", response_model=RoofAreaOut)
 def put_roof_area(roof_area_id: int, payload: RoofAreaUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     try:
-        result = update_roof_area(
-            db, roof_area_id, payload.name, roof_type=payload.roof_type, covering=payload.covering,
-            pitch_degrees=payload.pitch_degrees, area_sqm=payload.area_sqm,
-            last_renovation=payload.last_renovation,
-            contractor=payload.contractor, warranty_until=payload.warranty_until, notes=payload.notes,
-        )
+        # Seit 1.8.46 Teil-Update (Regel 22): nur gesendete Felder.
+        result = update_roof_area(db, roof_area_id, **payload.model_dump(exclude_unset=True))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if result is None:

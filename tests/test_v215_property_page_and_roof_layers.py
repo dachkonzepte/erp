@@ -100,7 +100,7 @@ def test_roof_type_change_keeps_existing_layer_rows():
     layer_type = next(t for t in list_layer_types(db, roof_type="Steildach") if t["label"] == "Aufsparrendämmung")
     upsert_roof_layer(db, area["id"], layer_type["id"], {"present": True, "execution": "Mineralwolle", "thickness_mm": 160})
 
-    update_roof_area(db, area["id"], "Hauptdach", roof_type="Flachdach")
+    update_roof_area(db, area["id"], name="Hauptdach", roof_type="Flachdach")  # seit 1.8.46 Teil-Update
 
     layers = list_roof_layers(db, area["id"])
     assert len(layers) == 1
@@ -141,7 +141,7 @@ def test_update_roof_area_does_not_touch_legacy_build_up_and_insulation():
     row.insulation = "Mineralwolle 140mm"
     db.commit()
 
-    updated = update_roof_area(db, area["id"], "Hauptdach umbenannt", contractor="Testfirma")
+    updated = update_roof_area(db, area["id"], name="Hauptdach umbenannt", contractor="Testfirma")
     assert updated["name"] == "Hauptdach umbenannt"
     assert updated["build_up"] == "Alter Freitext aus 2019"
     assert updated["insulation"] == "Mineralwolle 140mm"

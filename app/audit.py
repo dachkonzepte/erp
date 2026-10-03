@@ -14,6 +14,7 @@ from .models import (
     EmployeeFunction, GeneralSettings, CalculationSettings, LaborRateSettings, LaborRateOverheadSettings,
     NumberSequence, SettingOptionGroup, SettingOption, AppUser, ServiceCalculation, MaterialCalculationOverride,
     Checklist, ChecklistAttachment, ChecklistAssetRelease, OperationalAsset, Contact, ProjectParticipant,
+    OrderAcceptance,
 )
 
 _actor_id = contextvars.ContextVar("audit_actor_id", default=None)
@@ -37,6 +38,7 @@ TYPE_LABELS = {
     ServiceCalculation: "Katalogleistung-Kalkulation", MaterialCalculationOverride: "Katalog-Materialkalkulation",
     Checklist: "Checkliste", ChecklistAssetRelease: "Gerät als repariert markiert",
     Contact: "Kontakt (Adressbuch)", ProjectParticipant: "Projektbeteiligter",
+    OrderAcceptance: "Abnahme",
 }
 
 EXTENSION_TYPES = (CustomerProfile, ProjectProfile, EmployeeProfile, EmployeeRoleSettings, EmployeeCompensationSettings, EmployeeCostAllocationSettings, QuoteDocumentMeta, QuoteItemLayout, QuoteEmployeeAssignment)
@@ -54,6 +56,9 @@ AUDITED_TYPES = (
     Checklist, ChecklistAttachment, ChecklistAssetRelease,
     # Adressbuch und Beteiligte am Projekt (seit 1.8.37); Beteiligte erscheinen in der Historie der Projektmappe.
     Contact, ProjectParticipant,
+    # Abnahme (seit 1.8.46): das Anlegen mit dem ganzen Inhalt; das Verwerfen läuft als bedingtes UPDATE an der
+    # ORM-Sperre vorbei und schreibt seine Zeile selbst (app/acceptances.py::discard_acceptance()).
+    OrderAcceptance,
 )
 
 FIELD_LABELS = {
@@ -79,6 +84,13 @@ FIELD_LABELS = {
     "kind":"Art","company_name":"Firma","first_name":"Vorname","last_name":"Nachname","function":"Funktion","archived":"Archiviert","archived_at":"Archiviert am","contact_id":"Kontakt","copy_on_notices":"Kopie bei Anzeigen","authorized_recipient":"Empfangsbevollmächtigt für den Auftraggeber","poa_original_filename":"Vollmacht (Datei)","poa_sha256":"Vollmacht (Prüfsumme SHA-256)","poa_content_type":"Vollmacht (Dateiart)","poa_size_bytes":"Vollmacht (Größe)","poa_uploaded_at":"Vollmacht hochgeladen am","poa_uploaded_by_name":"Vollmacht hochgeladen von","poa_stored_filename":"Vollmacht (Ablagename)",
     # seit 1.8.41: Checkliste als gegenstandslos abgeschlossen
     "void_reason":"Begründung (gegenstandslos)","voided_at":"Gegenstandslos am","voided_by_name":"Gegenstandslos durch","voided_by_user_id":"Gegenstandslos durch (Konto)",
+    # seit 1.8.46: Leistungsart und Gewährleistungsdauer am Auftrag, Abnahme
+    "work_kind":"Leistungsart","warranty_months":"Gewährleistung (Monate)","warranty_days":"Gewährleistung (Tage)",
+    "accepted_on":"Abnahmedatum","scope":"Umfang","scope_description":"Umfang (Beschreibung)","result":"Ergebnis",
+    "reservation_defects":"Vorbehalt Mängel","reservation_penalty":"Vorbehalt Vertragsstrafe",
+    "contractor_objections":"Einwendungen des Auftragnehmers","declared_by":"Erklärt durch","participant_id":"Beteiligter",
+    "declared_by_name":"Erklärt durch (Name)","declared_by_role":"Erklärt durch (Rolle)","poa_on_record":"Vollmacht hinterlegt",
+    "conduct_reason":"Begründung (schlüssige Abnahme)","created_by_name":"Erfasst von","created_by_user_id":"Erfasst von (Konto)",
 }
 
 
@@ -228,6 +240,10 @@ def _normalize(session, obj):
         label = f"{name or 'Betriebsmittel'}{number} · Meldung aus Checkliste Nr. {obj.checklist_id}"
         return "Gerät als repariert markiert", str(obj.checklist_id), label[:255], None
     if isinstance(obj, Order): return "Auftrag", str(obj.id), _entity_label(obj), obj.project_id
+    if isinstance(obj, OrderAcceptance):
+        from .acceptances import ENTITY_TYPE, _label
+        o = session.get(Order, obj.order_id)
+        return ENTITY_TYPE, str(obj.id), _label(obj, o), o.project_id if o else None
     if isinstance(obj, OrderRevision):
         o = session.get(Order, obj.order_id); return "Auftragsrevision", str(obj.id), f"Revision {obj.revision_number} · {_entity_label(o) or ''}".strip(), o.project_id if o else None
     if isinstance(obj, OrderSection):

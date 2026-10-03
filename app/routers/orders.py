@@ -21,6 +21,7 @@ from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from ..acceptances import AcceptanceExistsError
 from ..contract_basis import ContractSignedError, change_order_contract_basis, list_order_contract_basis_changes
 from ..database import get_db
 from ..email_dispatch import DispatchConflict
@@ -203,7 +204,7 @@ def sync_order_source(order_id: int, payload: OrderSyncRequest, request: Request
     actor_name = getattr(actor, "display_name", None) or getattr(actor, "username", None) or "System"
     try:
         order = sync_order_from_source_quote(db, order, actor_name=actor_name, reason=payload.reason)
-    except ContractSignedError as exc:  # seit 1.8.34: Vertrag unterschrieben
+    except (ContractSignedError, AcceptanceExistsError) as exc:  # seit 1.8.34 Vertrag unterschrieben, 1.8.46 Abnahme
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

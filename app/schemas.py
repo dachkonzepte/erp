@@ -1343,6 +1343,16 @@ class OrderOut(BaseModel):
     email_sent_at: datetime | None = None
     email_sent_to: str | None = None
     recipient_email: str | None = None  # aktuell hinterlegte Kunden-E-Mail, für die Versand-Oberfläche
+    # Leistungsart und Gewährleistungsdauer (seit 1.8.46, app/warranty.py::order_warranty_info()).
+    work_kind: str | None = None
+    work_kind_label: str | None = None
+    warranty_months: int | None = None
+    warranty_days: int | None = None
+    warranty_set: bool = False
+    warranty_text: str | None = None
+    warranty_follows_proposal: bool | None = None
+    warranty_proposals: dict[str, dict | None] | None = None
+    has_active_acceptance: bool | None = None  # seit 1.8.46: sperrt den Abgleich mit dem Angebot
 
 
 class OrderFieldAccessItemOut(BaseModel):
@@ -1375,6 +1385,38 @@ class OrderFieldAccessOut(BaseModel):
 class OrderContractBasisUpdate(BaseModel):
     """Vertragsgrundlage am Auftrag ändern (seit 1.8.21) -- nur mit Begründung."""
     contract_basis: str = Field(min_length=1, max_length=30)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class OrderWarrantyUpdate(BaseModel):
+    """Leistungsart und Gewährleistungsdauer festlegen (seit 1.8.46). Alle Felder Pflicht -- reason darf null sein,
+    wenn die Dauer dem Vorschlag entspricht (bewusste Übernahme); weicht sie ab, lehnt app/warranty.py ohne ab."""
+    model_config = ConfigDict(extra="forbid")
+    work_kind: str = Field(min_length=1, max_length=20)
+    warranty_months: int = Field(ge=0, le=360)
+    warranty_days: int = Field(ge=0, le=366)
+    reason: str | None = Field(max_length=2000)
+
+
+class OrderAcceptanceCreate(BaseModel):
+    """Abnahme erfassen (seit 1.8.46) -- als JSON im Formularfeld "data" neben den Belegen. Ohne Vorgaben: Datum,
+    Art, Umfang, Ergebnis und die beiden Vorbehalte kommen ausdrücklich; die Regeln je Fall prüft app/acceptances.py."""
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["foermlich", "ausdruecklich", "schluessig"]
+    accepted_on: date
+    scope: Literal["gesamt", "teil"]
+    scope_description: str | None = None
+    roof_area_ids: list[int] = Field(default_factory=list, max_length=100)
+    result: Literal["abgenommen", "verweigert"]
+    reservation_defects: StrictBool | None = None
+    reservation_penalty: StrictBool | None = None
+    contractor_objections: str | None = None
+    declared_by: Literal["auftraggeber", "beteiligter"]
+    participant_id: int | None = None
+    conduct_reason: str | None = None
+
+
+class OrderAcceptanceDiscard(BaseModel):
     reason: str = Field(min_length=1, max_length=2000)
 
 
@@ -2679,7 +2721,7 @@ class RoofAreaOut(BaseModel):
     insulation: str | None = None
     last_renovation: date | None = None
     contractor: str | None = None
-    warranty_until: date | None = None
+    third_party_guarantee_until: date | None = None  # Garantie Dritter (seit 1.8.46, vorher warranty_until)
     has_sketch: bool
     notes: str | None = None
     archived: bool
@@ -2691,8 +2733,8 @@ class RoofAreaOut(BaseModel):
 class RoofAreaFieldOut(BaseModel):
     """Dachfläche für den Monteur (seit 1.8.22, GET /api/orders/{order_id}/roof-areas): die
     Berichtsseite braucht id/name für die Flächenauswahl, dazu die technischen Angaben zur Fläche.
-    Bewusst OHNE notes (Büro-Freitext), contractor/warranty_until/last_renovation (Gewährleistung
-    und ausführende Fremdfirma), customer_id/customer_name/property_* (Kundenkontext, den der
+    Bewusst OHNE notes (Büro-Freitext), contractor/third_party_guarantee_until/last_renovation (Garantie
+    Dritter, bis 1.8.45 warranty_until, und ausführende Fremdfirma), customer_id/customer_name/property_* (Kundenkontext, den der
     Bericht schon über PropertyAccessOut zeigt). Muster OrderFieldAccessOut."""
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -2714,19 +2756,22 @@ class RoofAreaCreate(BaseModel):
     area_sqm: Decimal | None = None
     last_renovation: date | None = None
     contractor: str | None = None
-    warranty_until: date | None = None
+    third_party_guarantee_until: date | None = None
     notes: str | None = None
 
 
-class RoofAreaUpdate(BaseModel):
-    name: str = Field(min_length=1, max_length=255)
+class RoofAreaUpdate(PartialUpdate):
+    """Seit 1.8.46 Teil-Update (Regel 22): nur gesendete Felder; ein Aufrufer, der ein Feld nicht kennt, lässt es
+    stehen. name darf fehlen, aber nicht leer sein."""
+    NOT_NULL = frozenset({"name"})
+    name: str | None = Field(default=None, min_length=1, max_length=255)
     roof_type: str | None = None
     covering: str | None = None
     pitch_degrees: Decimal | None = None
     area_sqm: Decimal | None = None
     last_renovation: date | None = None
     contractor: str | None = None
-    warranty_until: date | None = None
+    third_party_guarantee_until: date | None = None
     notes: str | None = None
 
 

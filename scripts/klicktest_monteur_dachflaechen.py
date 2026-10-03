@@ -45,7 +45,7 @@ def befuellen(db, k):
     objekt = Property(customer_id=kunde.id, name="Halle Süd", street="Werkstr. 5", postal_code="22222", city="Objektstadt")
     db.add(objekt); db.flush()
     db.add(RoofArea(property_id=objekt.id, name="Hauptdach", roof_type="flachdach", covering="Bitumen",
-                    area_sqm=Decimal("850"), contractor="Fremdfirma GmbH", warranty_until=date(2031, 5, 1),
+                    area_sqm=Decimal("850"), contractor="Fremdfirma GmbH", third_party_guarantee_until=date(2031, 5, 1),
                     notes="Gewährleistungsstreit"))
     projekt = Project(project_number="P-KT-1", name="Sanierung", customer_id=kunde.id, property_id=objekt.id,
                       pipeline_column_id=default_pipeline_column_id(db))

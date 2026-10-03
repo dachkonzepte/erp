@@ -46,16 +46,19 @@ def test_list_roof_areas_and_components_hide_archived_by_default():
 
 
 def test_update_roof_area_and_component_replace_all_fields():
+    """Seit 1.8.46 ist die Dachfläche ein Teil-Update: nicht übergebene Felder bleiben (die Bauteile ersetzen
+    weiter alles)."""
     db = db_session()
     customer, prop = make_customer_and_property(db)
-    area = create_roof_area(db, prop.id, "Hauptdach")
+    area = create_roof_area(db, prop.id, "Hauptdach", contractor="Fremdfirma GmbH")
     updated = update_roof_area(
-        db, area["id"], "Hauptdach Süd", roof_type="Steildach", covering="Ziegel",
+        db, area["id"], name="Hauptdach Süd", roof_type="Steildach", covering="Ziegel",
         area_sqm=Decimal("123.45"), notes="Frisch saniert",
     )
     assert updated["name"] == "Hauptdach Süd"
     assert updated["area_sqm"] == Decimal("123.45")
     assert updated["notes"] == "Frisch saniert"
+    assert updated["contractor"] == "Fremdfirma GmbH"
 
     component = create_roof_component(db, area["id"], "Gully")
     updated_component = update_roof_component(

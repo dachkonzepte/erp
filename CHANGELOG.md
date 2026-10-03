@@ -4,6 +4,39 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.46 – Abnahme und Gewährleistung: Fundament
+
+Stufe 2c, Runde 2c-1. Am Auftrag stehen jetzt Leistungsart (Bauwerk / sonstige Arbeiten) und Gewährleistungsdauer in
+Monaten und Tagen – „nicht festgelegt“, bis jemand den Vorschlag bewusst übernimmt (VOB/B 48 bzw. 24 Monate, BGB und BGB
+mit VOB/C 60 bzw. 24 Monate, Fundstelle als Hinweis) oder eine andere Dauer mit Begründung festlegt; jede Festlegung steht
+in einer Historie. Neue Karte „Abnahme“ auf der Auftragsseite: mehrere Abnahmen je Auftrag mit Art (förmlich,
+ausdrücklich, schlüssig), Datum ohne Vorgabe, Umfang (gesamt oder Teil mit Beschreibung, Dachflächen nur aus dem Objekt
+des Projekts), Ergebnis mit den Pflichtfragen „Vorbehalt Mängel“ und „Vorbehalt Vertragsstrafe“ („mit Vorbehalten“ wird
+nur abgeleitet), Einwendungen des Auftragnehmers, Erklärendem (Auftraggeber oder Beteiligter, Warnung ohne hinterlegte
+Vollmacht, die Vollmacht wird sonst als Kopie festgehalten) und Nachweis (Beleg als PDF oder Foto, bei „schlüssig“ eine
+Pflicht-Begründung). Nach dem Speichern unveränderlich – ORM-Sperre, schreibgeschützte Belege mit SHA-256 und eine
+Prüfsumme über den Inhalt, die jede Anzeige nachrechnet; Korrektur nur durch Verwerfen mit Begründung (Änderungshistorie)
+und einen neuen Eintrag. Das Gewährleistungsende wird nie gespeichert, sondern aus Abnahmedatum und Dauer abgeleitet
+(§ 187 Abs. 1, § 188 Abs. 2 und 3 BGB) und an Auftrag, Objekt und Dachfläche angezeigt, nicht bei „verweigert“. Solange
+eine nicht verworfene Abnahme besteht, ist der Abgleich mit dem Angebot gesperrt. Monteure sehen nichts davon.
+
+Das Feld „Gewährleistung bis“ an der Dachfläche heißt jetzt „Garantie Dritter (Hersteller oder Fremdfirma) bis“
+(`third_party_guarantee_until`, Werte bleiben), der Speicherweg der Dachfläche ist ein Teil-Update. Eine in einer Abnahme
+genannte Dachfläche lässt sich nur noch archivieren, ein Beteiligter, der eine Abnahme erklärt hat, nicht mehr aus dem
+Projekt entfernen. Der Regel-20-Test findet jetzt auch Spaltenvorgaben wie `default=date.today` (sechs Altfälle in einer
+Liste, die nur kürzer werden darf), der Datengrenze-Test die Wortteile Strafe, Penalty, Einbehalt, Retention und Garantie.
+Objekt-, Dachflächen- und Kundenseite lesen abgelehnte Antworten über `fehlerText()`.
+
+**Auf dem Server**: Migration `e15280e3b567` (neue Tabellen, drei Spalten am Auftrag, Umbenennung an der Dachfläche);
+neuer Datenordner `acceptance_documents` unter `ERP_DATA_DIR` – gehört in die Sicherung. Festlegungen (15, bitte
+bestätigen) und drei Nebenbefunde in `docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.46“.
+`tests/test_v349_abnahme_und_gewaehrleistung.py` (65 Tests, einer gegen PostgreSQL), `test_v316`, `test_v326`, `test_v329`,
+`test_v211`, `test_v215`, `test_v325` nachgezogen; 39 von 40 Gegenproben rot (die grüne erklärt das Archiv). Migration
+SQLite und PostgreSQL hin/zurück/hin, Downgrade-Abbruch mit Bestand, `alembic check` sauber. Volle Suite 2686 grün (mit
+den opt-in-Tests gegen PostgreSQL). Klicktest `scripts/klicktest_abnahme.py` 41/41 (fand einen Darstellungsfehler, behoben),
+unverändert grün `klicktest_monteur_dachflaechen.py` 6/6, `klicktest_beteiligte.py` 43/43,
+`klicktest_vertrag_festschreiben.py` 40/40, `klicktest_monteur_navigation.py` 27/27, `klicktest_vertragsgrundlage.py` 30/30.
+
 ## 1.8.45 – Bedenkenanzeige abrunden: Beleg als PDF, Hinweis auf weiteren Seiten
 
 Checklisten kennen den neuen Feldtyp „Beleg“: PDF oder Foto, am Inhalt erkannt wie der Beleg bei „Zustellung nachtragen“

@@ -47,7 +47,7 @@ def roof_area_to_dict(roof_area: RoofArea) -> dict:
         "insulation": roof_area.insulation,
         "last_renovation": roof_area.last_renovation,
         "contractor": roof_area.contractor,
-        "warranty_until": roof_area.warranty_until,
+        "third_party_guarantee_until": roof_area.third_party_guarantee_until,
         "has_sketch": roof_area.sketch_path is not None,
         "notes": roof_area.notes,
         "archived": roof_area.archived,
@@ -119,7 +119,7 @@ def create_roof_area(
     db: Session, property_id: int, name: str, roof_type: str | None = None, covering: str | None = None,
     pitch_degrees: Decimal | None = None, area_sqm: Decimal | None = None,
     last_renovation: date | None = None, contractor: str | None = None,
-    warranty_until: date | None = None, notes: str | None = None,
+    third_party_guarantee_until: date | None = None, notes: str | None = None,
 ) -> dict:
     """Seit 1.2.18 OHNE build_up/insulation-Parameter -- die Schichtenliste (RoofLayer) hat das
     Freitextfeld abgelöst, siehe RoofArea-Docstring in app/models.py. Neue Dachflächen starten
@@ -132,7 +132,8 @@ def create_roof_area(
     roof_area = RoofArea(
         property_id=property_id, name=name, roof_type=roof_type, covering=covering,
         pitch_degrees=pitch_degrees, area_sqm=area_sqm,
-        last_renovation=last_renovation, contractor=contractor, warranty_until=warranty_until,
+        last_renovation=last_renovation, contractor=contractor,
+        third_party_guarantee_until=third_party_guarantee_until,
         notes=(notes or None),
     )
     db.add(roof_area)
@@ -140,33 +141,36 @@ def create_roof_area(
     return roof_area_to_dict(_load_roof_area(db, roof_area.id))
 
 
-def update_roof_area(
-    db: Session, roof_area_id: int, name: str, roof_type: str | None = None, covering: str | None = None,
-    pitch_degrees: Decimal | None = None, area_sqm: Decimal | None = None,
-    last_renovation: date | None = None, contractor: str | None = None,
-    warranty_until: date | None = None, notes: str | None = None,
-) -> dict | None:
-    """Seit 1.2.18 OHNE build_up/insulation-Parameter -- **bewusst**, nicht nur zur
+_UPDATABLE_FIELDS = frozenset({
+    "name", "roof_type", "covering", "pitch_degrees", "area_sqm", "last_renovation", "contractor",
+    "third_party_guarantee_until", "notes",
+})
+
+
+def update_roof_area(db: Session, roof_area_id: int, **changes) -> dict | None:
+    """Seit 1.8.46 Teil-Update (Regel 22): ändert nur die übergebenen Felder, ein unbekannter Schlüssel ist ein
+    TypeError. Vorher ersetzte jedes Speichern alle Felder -- ein Aufrufer ohne ein Feld hätte es geleert.
+
+    Seit 1.2.18 OHNE build_up/insulation-Parameter -- **bewusst**, nicht nur zur
     Vereinfachung: der bisherige Parameter build_up: str | None = None hätte bei jedem Speichern
     über das neue, reduzierte Formular (das dieses Feld gar nicht mehr sendet) automatisch None
     übernommen und damit einen vorhandenen Altbestand-Text bei der nächsten Änderung eines
     BELIEBIGEN anderen Feldes stillschweigend gelöscht. build_up/insulation bleiben in der
     Datenbank und in roof_area_to_dict() lesbar, aber ab hier für immer unverändert."""
+    unknown = set(changes) - _UPDATABLE_FIELDS
+    if unknown:
+        raise TypeError(f"Unbekannte Felder der Dachfläche: {', '.join(sorted(unknown))}")
     roof_area = db.get(RoofArea, roof_area_id)
     if roof_area is None:
         return None
-    name = name.strip()
-    if not name:
-        raise ValueError("Bitte eine Bezeichnung angeben.")
-    roof_area.name = name
-    roof_area.roof_type = roof_type
-    roof_area.covering = covering
-    roof_area.pitch_degrees = pitch_degrees
-    roof_area.area_sqm = area_sqm
-    roof_area.last_renovation = last_renovation
-    roof_area.contractor = contractor
-    roof_area.warranty_until = warranty_until
-    roof_area.notes = notes or None
+    if "name" in changes:
+        changes["name"] = (changes["name"] or "").strip()
+        if not changes["name"]:
+            raise ValueError("Bitte eine Bezeichnung angeben.")
+    if "notes" in changes:
+        changes["notes"] = changes["notes"] or None
+    for key, value in changes.items():
+        setattr(roof_area, key, value)
     db.commit()
     return roof_area_to_dict(_load_roof_area(db, roof_area.id))
 
@@ -202,7 +206,7 @@ def delete_roof_area(db: Session, roof_area_id: int) -> bool:
     Property.roof_areas kaskadierten Löschweg abdeckt.
 
     Blockiert (seit 1.2.15), solange eine MaintenanceContractItem noch auf diese Dachfläche
-    verweist -- SQLite erzwingt Fremdschlüssel in diesem Projekt nicht selbst
+    verweist, seit 1.8.46 auch, wenn eine Abnahme sie nennt -- SQLite erzwingt Fremdschlüssel in diesem Projekt nicht selbst
     (app/database.py setzt kein PRAGMA foreign_keys=ON), ein ungeprüftes Löschen würde also
     eine tote Fremdschlüsselzeile zurücklassen."""
     roof_area = db.get(RoofArea, roof_area_id)
@@ -210,6 +214,11 @@ def delete_roof_area(db: Session, roof_area_id: int) -> bool:
         return False
     if db.scalar(select(MaintenanceContractItem.id).where(MaintenanceContractItem.roof_area_id == roof_area_id).limit(1)):
         raise ValueError("Diese Dachfläche wird noch in einem Wartungsvertrag als Position verwendet.")
+    from .acceptances import acceptances_naming_roof_area
+
+    if acceptances_naming_roof_area(db, roof_area_id):
+        # Seit 1.8.46: die Abnahme nennt sie (unveränderlich, Fremdschlüssel) -- archivieren statt löschen.
+        raise ValueError("Diese Dachfläche ist in einer Abnahme genannt und lässt sich nur noch archivieren.")
     db.delete(roof_area)
     db.commit()
     return True

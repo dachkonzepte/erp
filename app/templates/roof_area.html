@@ -57,6 +57,7 @@ tr:last-child td{border-bottom:none}
 <div class="app-content">
 {% include "_topbar.html" %}
 {% include "_auswahl.html" %}
+{% include "_fehlertext.html" %}
 <main>
 <div class="breadcrumb" id="breadcrumb">Lädt …</div>
 <div class="hero">
@@ -77,7 +78,7 @@ tr:last-child td{border-bottom:none}
     <div class="field"><label>Fläche (m²)</label><input id="editArea" type="number" step="0.01" min="0"></div>
     <div class="field"><label>Letzte Sanierung</label><input id="editLastRenovation" type="date"></div>
     <div class="field"><label>Ausführender Betrieb</label><input id="editContractor"></div>
-    <div class="field"><label>Gewährleistung bis</label><input id="editWarrantyUntil" type="date"></div>
+    <div class="field"><label>Garantie Dritter (Hersteller oder Fremdfirma) bis</label><input id="editThirdPartyGuarantee" type="date"></div>
     <div class="field full"><label>Notizen</label><textarea id="editNotes"></textarea></div>
   </div>
   <div class="editor-actions">
@@ -90,6 +91,13 @@ tr:last-child td{border-bottom:none}
     <div id="legacyBuildUpText" style="white-space:pre-wrap;font-size:13.5px"></div>
     <div id="legacyInsulationText" class="muted small" style="margin-top:4px"></div>
   </div>
+</div>
+
+<!-- Seit 1.8.46: Gewährleistung des Betriebs aus Abnahmen, die diese Dachfläche nennen -- abgeleitet, nie gespeichert;
+     getrennt von der Garantie Dritter oben. -->
+<div class="card" id="acceptanceWarrantyCard">
+  <div class="section-title"><h2>Gewährleistung aus Abnahmen</h2></div>
+  <div id="acceptanceWarrantyList" class="small muted">Lädt …</div>
 </div>
 
 <div class="card">
@@ -158,7 +166,9 @@ tr:last-child td{border-bottom:none}
 <script>
 const roofAreaId={{ roof_area_id }};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+// Seit 1.8.46 über fehlerText() (_fehlertext.html): eine 422-Liste erschien vorher als "[object Object]".
+const FELDNAMEN={name:'Bezeichnung',roof_type:'Dachtyp',covering:'Eindeckung',pitch_degrees:'Dachneigung',area_sqm:'Fläche',last_renovation:'Letzte Sanierung',contractor:'Ausführender Betrieb',third_party_guarantee_until:'Garantie Dritter bis',notes:'Notizen',component_type:'Bauteiltyp',quantity:'Menge',unit:'Einheit',year_built:'Baujahr',sort_order:'Reihenfolge'};
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,FELDNAMEN));return r.json()}
 async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
 // Seit 1.8.30 über auswahlOptionen() (_auswahl.html): ein abgeschalteter gespeicherter Eintrag (Dachtyp, Eindeckung,
@@ -216,7 +226,7 @@ function fillAreaForm(){
   document.getElementById('editArea').value=area.area_sqm??'';
   document.getElementById('editLastRenovation').value=area.last_renovation||'';
   document.getElementById('editContractor').value=area.contractor||'';
-  document.getElementById('editWarrantyUntil').value=area.warranty_until||'';
+  document.getElementById('editThirdPartyGuarantee').value=area.third_party_guarantee_until||'';
   document.getElementById('editNotes').value=area.notes||'';
   renderLegacyBuildUp();
 }
@@ -398,7 +408,7 @@ async function saveRoofArea(){
     area_sqm:document.getElementById('editArea').value?Number(document.getElementById('editArea').value):null,
     last_renovation:document.getElementById('editLastRenovation').value||null,
     contractor:document.getElementById('editContractor').value.trim()||null,
-    warranty_until:document.getElementById('editWarrantyUntil').value||null,
+    third_party_guarantee_until:document.getElementById('editThirdPartyGuarantee').value||null,
     notes:document.getElementById('editNotes').value.trim()||null,
   };
   st.className='status';st.textContent='Speichert …';
@@ -657,6 +667,19 @@ async function loadComponents(){
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
+async function loadAcceptanceWarranties(){
+  const box=document.getElementById('acceptanceWarrantyList');
+  let data;
+  try{data=await api(`/api/roof-areas/${roofAreaId}/acceptance-warranties`)}catch(e){box.textContent='Konnte nicht geladen werden: '+e.message;return}
+  const rows=data.acceptances.map(a=>{
+    const w=a.warranty,scope=a.scope==='teil'?`Teilabnahme (${esc(a.scope_description)})`:'Gesamtabnahme';
+    return `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><a href="/orders/${a.order_id}" style="color:var(--accent);font-weight:650;text-decoration:none">${esc(a.order_number)}</a> · ${scope} · ${esc(a.kind_label)} am ${fmtDate(a.accepted_on)} · ${esc(a.result_text)}<div>${w&&w.end?`<b title="${esc(w.rule||'')}">${esc(w.text)}</b>`:`<span style="color:var(--warning)">${esc(w?w.text:'')}</span>`}</div></div>`;
+  });
+  const hint=data.property_without_roof_areas?`<div style="margin-top:8px">${data.property_without_roof_areas} Abnahme${data.property_without_roof_areas===1?'':'n'} am Objekt ohne Angabe von Dachflächen – ${data.property_without_roof_areas===1?'sie kann':'sie können'} auch diese Fläche betreffen (siehe <a href="/properties/${area.property_id}" style="color:var(--accent);font-weight:650">Objekt</a>).</div>`:'';
+  box.className='small';
+  box.innerHTML=(rows.join('')||'<div class="muted">Keine Abnahme nennt diese Dachfläche.</div>')+hint;
+}
+
 async function init(){
   findingsModuleEnabled=await isModuleEnabled('wartungen');
   document.getElementById('findingsColHead').classList.toggle('hidden',!findingsModuleEnabled);
@@ -677,6 +700,7 @@ async function init(){
     return;
   }
   renderBreadcrumb();renderHeader();fillAreaForm();
+  await loadAcceptanceWarranties();
   await loadComponents();
   await loadLayers();
 }

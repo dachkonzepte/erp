@@ -72,6 +72,10 @@ ORDER_FIELDS: dict[type, dict[str, tuple]] = {
         "project_manager_employee_id": eigen("im Beauftragen-Dialog eingegeben"),
         "email_sent_at": eigen("Versandnachweis des Auftrags"),
         "email_sent_to": eigen("Versandnachweis des Auftrags"),
+        # Seit 1.8.46: am Auftrag bewusst festgelegt (Vorschlag übernehmen oder mit Begründung), nie aus dem Angebot.
+        "work_kind": eigen("am Auftrag festgelegt (app/warranty.py)"),
+        "warranty_months": eigen("am Auftrag festgelegt (app/warranty.py)"),
+        "warranty_days": eigen("am Auftrag festgelegt (app/warranty.py)"),
         "created_at": eigen("technisch"),
         "updated_at": eigen("technisch"),
     },

@@ -12,12 +12,14 @@ from .models import (
     Project, QuoteEmployeeAssignment, ServiceReport, TaxKey,
     WorkPreparation, WorkPreparationEmployee, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee,
 )
+from .acceptances import ensure_no_active_acceptance, has_active_acceptance
 from .contract_basis import clause_is_reviewed, contract_basis_label, ensure_contract_not_signed
 from .invoices import compute_order_billing_progress
 from .placeholders import apply_placeholders
 from .projects import ensure_quote_structure, load_quote
 from .rounding import round_money
 from .settings import issue_number
+from .warranty import order_warranty_info
 
 
 def money_q(value) -> Decimal:
@@ -410,17 +412,22 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
         "email_sent_at": order.email_sent_at,
         "email_sent_to": order.email_sent_to,
         "recipient_email": get_order_recipient_email(order),
+        # Leistungsart und Gewährleistungsdauer (seit 1.8.46) -- nur Büro (OrderFieldAccessOut hat sie nicht).
+        **order_warranty_info(order),
     }
     if include_sync_state:
         if db is None:
             # Best effort for callers that only need the snapshot representation.
             result["source_quote_in_sync"] = None
+            result["has_active_acceptance"] = None
             result["invoiced_net"] = None
             result["invoiced_gross"] = None
             result["open_net"] = None
             result["open_gross"] = None
         else:
             result["source_quote_in_sync"] = order_matches_source_quote(db, order)
+            # Seit 1.8.46: eine nicht verworfene Abnahme sperrt den Abgleich mit dem Angebot.
+            result["has_active_acceptance"] = has_active_acceptance(db, order.id)
             progress = compute_order_billing_progress(db, order.id)
             result["invoiced_net"] = progress["invoiced_net"]
             result["invoiced_gross"] = progress["invoiced_gross"]
@@ -721,6 +728,9 @@ def create_order_from_quote(
 def sync_order_from_source_quote(db: Session, order: Order, *, actor_name: str = "System", reason: str | None = None) -> Order:
     # Seit 1.8.34: nach der Unterschrift unter dem Vertrag gesperrt (ContractSignedError, Router 409).
     ensure_contract_not_signed(db, order.id, "der Abgleich mit dem Angebot")
+    # Seit 1.8.46: ebenso, solange eine nicht verworfene Abnahme besteht (AcceptanceExistsError, Router 409). Sperrt
+    # die Zeile des Auftrags -- eine gleichzeitig erfasste Abnahme wartet, bis der Abgleich durch ist, und umgekehrt.
+    ensure_no_active_acceptance(db, order.id, "der Abgleich mit dem Angebot")
     quote = load_quote(db, order.source_quote_id)
     if quote is None:
         raise ValueError("Quellangebot nicht gefunden.")

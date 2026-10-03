@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.45** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.46** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -562,7 +562,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     `berlin_now()`), seit 1.8.12.** Der VPS läuft in UTC, `date.today()`/`datetime.now()` liefern
     dort bis 1–2 Uhr nachts den Vortag und an Silvester das alte Jahr -- lokal unter deutscher
     Windows-Zeit unsichtbar. Beide sind unter `app/` verboten, `tests/test_v316_berlin_time.py`
-    sucht sie per AST. Gespeicherte Zeitstempel aus `datetime.utcnow()` bleiben naive UTC; wer sie
+    sucht sie per AST -- seit 1.8.46 auch als Spaltenvorgabe ohne Klammern (`default=date.today`,
+    `default_factory=date.today`); die sechs Altfälle stehen in `BEKANNTE_VORGABEN`, die Liste darf nur kürzer werden. Gespeicherte Zeitstempel aus `datetime.utcnow()` bleiben naive UTC; wer sie
     druckt oder ein Datum daraus ableitet, rechnet mit `to_berlin()` um. Beginn/Ende einer
     Zeitbuchung sind dagegen naive Ortszeit. Browser-Seite: `_berlin_date.html`. Details und die
     offenen Browser-Stellen: `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Kalenderdatum in
@@ -677,6 +678,15 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   ist "Antwort als Beleg" ein Feld vom Typ `beleg` (PDF oder Foto), und den Hinweis zeigen auch Einsatzbericht- und
   Checklisten-Seite des Auftrags, für Büro und Monteur (`_offene_bedenken.html`, Link nur, wo der Monteur öffnen darf).
   Details: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.43" und "Umsetzung 1.8.45".
+- **Abnahme und Gewährleistung** (seit 1.8.46, Stufe 2c): am Auftrag Leistungsart (`work_kind`) und
+  Gewährleistungsdauer (`warranty_months`/`warranty_days`), leer = "nicht festgelegt", gesetzt nur bewusst über
+  `app/warranty.py::set_order_warranty()` (Vorschlag je Vertragsgrundlage mit Fundstelle, Abweichung mit Begründung).
+  `OrderAcceptance` (mehrere je Auftrag, `app/acceptances.py`): nach dem Speichern unveränderlich (ORM-Sperre, Belege
+  schreibgeschützt mit SHA-256, `content_sha256` über den Inhalt), Korrektur nur durch Verwerfen mit Begründung und
+  einen neuen Eintrag. Das Gewährleistungsende wird nie gespeichert, sondern aus Abnahmedatum und Dauer abgeleitet
+  (`warranty_end()`, § 188 Abs. 2/3 BGB). Eine nicht verworfene Abnahme sperrt den Abgleich mit dem Angebot.
+  `RoofArea.third_party_guarantee_until` ist die Garantie Dritter (Hersteller/Fremdfirma), nicht die Gewährleistung des
+  Betriebs. Details: `docs/archiv/abnahme-und-gewaehrleistung.md`.
 - **Weitere Fachbegriffe ausgelagert**: Dachflächen & Bauteile, Wartungsvertrag,
   Einsatzbericht, Rechnung aus Zeitbuchungen, Schnellauftrag, Wartungshistorie und
   Monteursansicht stehen vollständig in `docs/archiv/modul-wartungen-und-monteursansicht.md`;
@@ -804,6 +814,10 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Bestätigung bei abweichendem Kunden, Kundenwechsel-Sperre bei festgeschriebenem Vertrag; seit 1.8.45 "Antwort als
   Beleg" als PDF oder Foto, Hinweis "Offene Bedenken" auch auf Einsatzbericht- und Checklisten-Seite des Auftrags) --
   `docs/archiv/vertragsgrundlage-und-vertrag.md`
+- **Abnahme und Gewährleistung** (Stufe 2c mit eigenem Etappenplan; seit 1.8.46 Leistungsart und
+  Gewährleistungsdauer am Auftrag, Abnahme unveränderlich mit Verwerfen, Gewährleistungsende abgeleitet an Auftrag/Objekt/
+  Dachfläche, Garantie Dritter an der Dachfläche, Abgleich gesperrt nach Abnahme) --
+  `docs/archiv/abnahme-und-gewaehrleistung.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
   `docs/archiv/grunddaten-beim-start.md`
@@ -894,7 +908,7 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   jeden GET-Endpunkt unter `/api/` als Monteur auf und prüft jede JSON-Antwort rekursiv auf
   verbotene Schlüssel (Preise, Kosten, Löhne, Sätze, interne Notizen, Kundenkontakt,
   Gewährleistung, seit 1.8.24 Personaldaten samt Privatadresse an Personen, seit 1.8.27 "Wichtige
-  Infos" am Mitarbeiter). Ein neuer Endpunkt für
+  Infos" am Mitarbeiter, seit 1.8.46 Vertragsstrafe, Einbehalt und Garantie). Ein neuer Endpunkt für
   `field` braucht Testdaten, die ihn mit Inhalt füllen; ein Feld, das der Monteur trotz verbotenem
   Namen sehen soll, eine begründete Ausnahme in `ERLAUBT_JE_ROUTE`.
 - **Kein sichtbarer Link auf eine gesperrte Seite** (seit 1.8.24):
@@ -1160,7 +1174,10 @@ Auftrag, Büro füllt Anzeige und Entscheidung, Hinweis weg, hell/dunkel, 412 px
 (1.8.44, Karte mit dem Brief "Bedenkenanzeige", Bestätigung bei abweichendem Kunden, Versand an einen SMTP-Empfänger im Skript,
 Aufgaben "versenden" und "Antwort prüfen", Versandprotokoll, 412 px) und `klicktest_beleg_und_hinweis.py` (1.8.45, Hinweis
 "Offene Bedenken" auf Einsatzbericht- und Checklisten-Seite des Auftrags für Monteurin und Büro mit Link nur, wo sie öffnen
-darf, "Antwort als Beleg": SVG abgelehnt, PDF als Kachel, Foto als Vorschau, nach der Unterschrift gesperrt, Editor). Ein
+darf, "Antwort als Beleg": SVG abgelehnt, PDF als Kachel, Foto als Vorschau, nach der Unterschrift gesperrt, Editor) und
+`klicktest_abnahme.py` (1.8.46, Gewährleistung: Vorschlag übernehmen, Abweichung nur mit Begründung; Abnahme-Dialog ohne
+Vorauswahl, Dachflächen nur des Objekts, Vollmacht-Warnung, SVG abgelehnt, Beleg, Abgleich gesperrt, Verwerfen mit
+Begründung; Objekt und Dachfläche mit Gewährleistung und Garantie Dritter; 412 px dunkel; Monteurin 403). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

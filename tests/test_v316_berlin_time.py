@@ -56,11 +56,9 @@ def utc_server(monkeypatch):
 # 1. Kein date.today()/datetime.now() ohne Zeitzone unter app/
 # ---------------------------------------------------------------------------
 
-def local_clock_calls(source: str, filename: str = "<quelle>") -> list[int]:
-    """Zeilen aller Aufrufe, die die Uhr des Rechners lesen: date.today(), datetime.today(),
-    datetime.now() ohne tz -- auch über Aliasse (from datetime import date as _date,
-    import datetime as dt). datetime.utcnow() bleibt erlaubt, es liefert UTC."""
-    tree = ast.parse(source, filename)
+def _clock_class_resolver(tree):
+    """Funktion expr -> "date"/"datetime"/None, mit den Aliassen der Datei (from datetime import date as
+    _date, import datetime as dt)."""
     classes, modules = {"date": "date", "datetime": "datetime"}, {"datetime"}
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module == "datetime":
@@ -76,7 +74,19 @@ def local_clock_calls(source: str, filename: str = "<quelle>") -> list[int]:
         if isinstance(expr, ast.Attribute) and isinstance(expr.value, ast.Name) and expr.value.id in modules:
             return expr.attr if expr.attr in ("date", "datetime") else None
         return None
+    return clock_class
 
+
+def _reads_local_clock(cls: str | None, attr: str) -> bool:
+    return cls is not None and (attr == "today" or (attr == "now" and cls == "datetime"))
+
+
+def local_clock_calls(source: str, filename: str = "<quelle>") -> list[int]:
+    """Zeilen aller Aufrufe, die die Uhr des Rechners lesen: date.today(), datetime.today(),
+    datetime.now() ohne tz -- auch über Aliasse (from datetime import date as _date,
+    import datetime as dt). datetime.utcnow() bleibt erlaubt, es liefert UTC."""
+    tree = ast.parse(source, filename)
+    clock_class = _clock_class_resolver(tree)
     lines = []
     for node in ast.walk(tree):
         if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
@@ -88,6 +98,39 @@ def local_clock_calls(source: str, filename: str = "<quelle>") -> list[int]:
         if attr == "today" or (attr == "now" and cls == "datetime" and not has_tz):
             lines.append(node.lineno)
     return sorted(lines)
+
+
+def local_clock_references(source: str, filename: str = "<quelle>") -> list[tuple[int, str]]:
+    """Seit 1.8.46: date.today, datetime.today und datetime.now als Verweis ohne Aufruf -- vor allem als
+    Spaltenvorgabe (default=date.today, onupdate=datetime.now) oder default_factory im Schema. Sie lesen
+    die Uhr erst beim Anlegen einer Zeile und liefern auf dem Server (UTC) zwischen 0 und 2 Uhr den
+    Vortag; local_clock_calls() sieht sie nicht, weil hier niemand die Klammern schreibt. Ein Aufruf in
+    einer lambda (default=lambda: date.today()) ist ein Aufruf und gehört zu local_clock_calls().
+    Rückgabe (Zeile, Ort): Ort "Klasse.feld", sonst die umgebende Funktion bzw. Zuweisung."""
+    tree = ast.parse(source, filename)
+    clock_class = _clock_class_resolver(tree)
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    called = {id(node.func) for node in ast.walk(tree) if isinstance(node, ast.Call)}
+
+    def where(node) -> str:
+        target, scope = None, None
+        while node in parents:
+            node = parents[node]
+            if target is None and isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                target = node.target.id
+            elif target is None and isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
+                target = node.targets[0].id
+            elif isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                scope = node.name
+                break
+        return ".".join(part for part in (scope, target) if part) or "<modul>"
+
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and id(node) not in called \
+                and _reads_local_clock(clock_class(node.value), node.attr):
+            found.append((node.lineno, where(node)))
+    return sorted(found)
 
 
 def test_no_local_clock_in_app():
@@ -123,6 +166,66 @@ k = "date.today()"  # nur Text
 m = order.date.today()
 '''
     assert local_clock_calls(source) == [5, 6, 9, 10, 11, 12, 14]
+
+
+# Spaltenvorgaben und default_factory, die beim Einführen der Suche (1.8.46, Befund Stufe 2c, Widerspruch 2)
+# schon da waren. Darf nur kürzer werden: ein neuer Fund ist rot, ein Eintrag ohne Fund auch (dann streichen).
+# Abhilfe je Fall: Vorgabe weg und das Datum beim Anlegen ausdrücklich mit berlin_today() setzen.
+_UTC_DATUM = ("Datum beim Anlegen aus der Uhr des Rechners -- auf dem Server UTC, zwischen 0 und 2 Uhr der Vortag "
+              "(Befund Stufe 2c, 03.10.2026)")
+BEKANNTE_VORGABEN = {
+    "app/models.py::QuoteDocumentMeta.quote_date": _UTC_DATUM + "; neue Angebote setzen es aus created_at in "
+                                                               "Europe/Berlin (ensure_quote_structure)",
+    "app/models.py::Order.order_date": _UTC_DATUM,
+    "app/models.py::Invoice.invoice_date": _UTC_DATUM + "; Rechnungsdatum = Tag des Entwurfs, beim Versand nicht "
+                                                        "erneuert",
+    "app/models.py::Reminder.reminder_date": _UTC_DATUM,
+    "app/models.py::ServiceReport.performed_at": _UTC_DATUM,
+    "app/schemas.py::OrderCreateFromQuote.order_date": _UTC_DATUM + "; Vorgabe, wenn der Beauftragen-Dialog kein "
+                                                                    "Datum schickt",
+}
+
+
+def test_no_local_clock_as_column_default_in_app():
+    found, scanned = {}, set()
+    for path in sorted(APP.rglob("*.py")):
+        scanned.add(path.relative_to(APP).as_posix())
+        for line, where in local_clock_references(path.read_text(encoding="utf-8"), str(path)):
+            found.setdefault(f"{path.relative_to(ROOT).as_posix()}::{where}", line)
+    assert len(scanned) > 100 and "models.py" in scanned, "Suche läuft ins Leere: app/ nicht erfasst"
+    neu = sorted(f"{key} (Zeile {line})" for key, line in found.items() if key not in BEKANNTE_VORGABEN)
+    assert not neu, ("date.today/datetime.now als Vorgabe lesen die Uhr des Rechners, auf dem Server UTC. "
+                     "Datum beim Anlegen ausdrücklich mit app/berlin_time.py setzen: " + ", ".join(neu))
+    veraltet = sorted(set(BEKANNTE_VORGABEN) - set(found))
+    assert not veraltet, "BEKANNTE_VORGABEN ohne Fund -- streichen: " + ", ".join(veraltet)
+
+
+def test_search_catches_clock_references_as_defaults():
+    source = '''
+from datetime import date, datetime
+from datetime import date as _d
+import datetime as dt
+from pydantic import Field
+from sqlalchemy.orm import mapped_column
+class Rechnung:
+    datum = mapped_column(Date, default=date.today)
+    zeit = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
+    tag: date = Field(default_factory=_d.today)
+    modul = mapped_column(Date, default=dt.date.today)
+    jetzt = mapped_column(DateTime, default=dt.datetime.today)
+    utc = mapped_column(DateTime, default=datetime.utcnow)
+    aufruf = mapped_column(Date, default=lambda: date.today())
+    text = "default=date.today"
+    fremd = mapped_column(Date, default=order.date.today)
+def sortieren(xs):
+    return sorted(xs, key=datetime.today)
+vorgabe = date.today
+'''
+    assert local_clock_references(source) == [
+        (8, "Rechnung.datum"), (9, "Rechnung.zeit"), (9, "Rechnung.zeit"), (10, "Rechnung.tag"),
+        (11, "Rechnung.modul"), (12, "Rechnung.jetzt"), (18, "sortieren"), (19, "vorgabe"),
+    ]
+    assert local_clock_calls(source) == [14]  # die lambda ruft auf -- der andere Test findet sie
 
 
 # ---------------------------------------------------------------------------
