@@ -61,6 +61,34 @@ class DuplicateParticipantError(ValueError):
     """Dieser Kontakt hat diese Rolle in diesem Projekt schon."""
 
 
+# Zwei Vollmachten am Beteiligten, je Häkchen und Beleg (Spalten mit eigenem Präfix): die Empfangsvollmacht (seit 1.8.37,
+# Anzeigen und Zustellung) und die Vollmacht zur Abnahme (seit 1.8.47, nur sie zählt beim Erfassen einer Abnahme).
+POA_KINDS = {
+    "empfang": {"flag": "authorized_recipient", "prefix": "poa_", "label": "Empfangsvollmacht",
+                "missing_flag": "Eine Vollmacht gehört zur Empfangsvollmacht – bitte zuerst „empfangsbevollmächtigt“ setzen.",
+                "invalid": "Die Vollmacht muss ein PDF oder ein Foto (JPEG, PNG, WebP) sein."},
+    "abnahme": {"flag": "acceptance_authorized", "prefix": "acceptance_poa_", "label": "Vollmacht zur Abnahme",
+                "missing_flag": "Der Beleg gehört zur Vollmacht zur Abnahme – bitte zuerst „Vollmacht zur Abnahme“ setzen.",
+                "invalid": "Die Vollmacht zur Abnahme muss ein PDF oder ein Foto (JPEG, PNG, WebP) sein."},
+}
+_POA_COLUMNS = ("stored_filename", "original_filename", "content_type", "size_bytes", "sha256", "uploaded_at",
+                "uploaded_by_name")
+
+
+def poa_value(participant: ProjectParticipant, kind: str, column: str):
+    return getattr(participant, POA_KINDS[kind]["prefix"] + column)
+
+
+def poa_to_dict(participant: ProjectParticipant, kind: str) -> dict | None:
+    if not poa_value(participant, kind, "stored_filename"):
+        return None
+    return {"filename": poa_value(participant, kind, "original_filename"),
+            "content_type": poa_value(participant, kind, "content_type"),
+            "size_bytes": poa_value(participant, kind, "size_bytes"), "sha256": poa_value(participant, kind, "sha256"),
+            "uploaded_at": poa_value(participant, kind, "uploaded_at"),
+            "uploaded_by_name": poa_value(participant, kind, "uploaded_by_name")}
+
+
 class ParticipantInUseError(ValueError):
     """Der Beteiligte hat eine Abnahme erklärt (seit 1.8.46) -- er bleibt im Projekt, Router: 409."""
 
@@ -92,11 +120,10 @@ def participant_to_dict(db: Session, p: ProjectParticipant, counts: dict[int, in
         "id": p.id, "project_id": p.project_id, "contact_id": p.contact_id, "role": p.role,
         "role_label": role_label(p.role), "copy_on_notices": p.copy_on_notices,
         "authorized_recipient": p.authorized_recipient,
+        "acceptance_authorized": p.acceptance_authorized,
         "contact": contact_to_dict(p.contact, counts.get(p.contact_id, 0)),
-        "power_of_attorney": None if not p.poa_stored_filename else {
-            "filename": p.poa_original_filename, "content_type": p.poa_content_type, "size_bytes": p.poa_size_bytes,
-            "sha256": p.poa_sha256, "uploaded_at": p.poa_uploaded_at, "uploaded_by_name": p.poa_uploaded_by_name,
-        },
+        "power_of_attorney": poa_to_dict(p, "empfang"),
+        "acceptance_power_of_attorney": poa_to_dict(p, "abnahme"),  # seit 1.8.47
         "created_at": p.created_at,
     }
 
@@ -202,11 +229,12 @@ def participant_info(p: ProjectParticipant) -> dict:
         "role_label": role_label(p.role), "email": (contact_values(p.contact)["email"] or "").strip() or None,
         "copy_on_notices": p.copy_on_notices, "authorized": p.authorized_recipient,
         "has_poa": bool(p.poa_stored_filename), "archived": p.contact.archived,
+        "acceptance_authorized": p.acceptance_authorized, "has_acceptance_poa": bool(p.acceptance_poa_stored_filename),
     }
 
 
 def add_participant(db: Session, project: Project, contact: Contact, *, role: str, copy_on_notices: bool = False,
-                    authorized_recipient: bool = False) -> ProjectParticipant:
+                    authorized_recipient: bool = False, acceptance_authorized: bool = False) -> ProjectParticipant:
     _check_role(role)
     check_not_client(project, contact.customer_id)
     if contact.archived:
@@ -215,7 +243,7 @@ def add_participant(db: Session, project: Project, contact: Contact, *, role: st
         raise DuplicateParticipantError(_duplicate_text(contact, role))
     participant = ProjectParticipant(
         project_id=project.id, contact_id=contact.id, role=role, copy_on_notices=bool(copy_on_notices),
-        authorized_recipient=bool(authorized_recipient),
+        authorized_recipient=bool(authorized_recipient), acceptance_authorized=bool(acceptance_authorized),
     )
     try:
         # Zwei gleichzeitige Anfragen kommen beide an der Prüfung oben vorbei -- die zweite scheitert
@@ -301,7 +329,8 @@ def participant_candidates(db: Session, project: Project, term: str, *, sources:
 
 
 def update_participant(db: Session, participant: ProjectParticipant, values: dict) -> ProjectParticipant:
-    """values: nur die gesendeten Felder (Regel 22) -- role, copy_on_notices, authorized_recipient."""
+    """values: nur die gesendeten Felder (Regel 22) -- role, copy_on_notices, authorized_recipient, seit 1.8.47
+    acceptance_authorized."""
     if "role" in values:
         role = values["role"]
         _check_role(role)
@@ -309,7 +338,7 @@ def update_participant(db: Session, participant: ProjectParticipant, values: dic
                                                           except_id=participant.id):
             raise DuplicateParticipantError(_duplicate_text(participant.contact, role))
         participant.role = role
-    for key in ("copy_on_notices", "authorized_recipient"):
+    for key in ("copy_on_notices", "authorized_recipient", "acceptance_authorized"):
         if key in values:
             setattr(participant, key, bool(values[key]))
     try:
@@ -327,19 +356,22 @@ def remove_participant(db: Session, participant: ProjectParticipant) -> None:
     if acceptances_declared_by(db, participant.id):
         # Die Abnahme verweist auf ihn (Fremdschlüssel) und bleibt unverändert -- auch eine verworfene.
         raise ParticipantInUseError("Dieser Beteiligte hat eine Abnahme erklärt und bleibt deshalb im Projekt.")
-    stored = participant.poa_stored_filename
+    stored = [x for x in (participant.poa_stored_filename, participant.acceptance_poa_stored_filename) if x]
     db.delete(participant)
     db.commit()
-    if stored:
-        power_of_attorney_path(stored).unlink(missing_ok=True)
+    for name in stored:
+        power_of_attorney_path(name).unlink(missing_ok=True)
 
 
 def store_power_of_attorney(db: Session, participant: ProjectParticipant, *, filename: str | None, data: bytes,
-                            user_name: str | None) -> ProjectParticipant:
+                            user_name: str | None, kind: str = "empfang") -> ProjectParticipant:
+    """Beleg einer Vollmacht hinterlegen; kind "empfang" (Empfangsvollmacht) oder seit 1.8.47 "abnahme" (Vollmacht zur
+    Abnahme) -- je mit eigenem Häkchen, das vorher gesetzt sein muss."""
     from .email_dispatch import receipt_content_type
 
-    if not participant.authorized_recipient:
-        raise ValueError("Eine Vollmacht gehört zur Empfangsvollmacht – bitte zuerst „empfangsbevollmächtigt“ setzen.")
+    spec = POA_KINDS[kind]
+    if not getattr(participant, spec["flag"]):
+        raise ValueError(spec["missing_flag"])
     if not data:
         raise ValueError("Die Datei ist leer.")
     if len(data) > MAX_POWER_OF_ATTORNEY_BYTES:
@@ -347,19 +379,17 @@ def store_power_of_attorney(db: Session, participant: ProjectParticipant, *, fil
     try:
         content_type = receipt_content_type(data)
     except ValueError as exc:
-        raise ValueError("Die Vollmacht muss ein PDF oder ein Foto (JPEG, PNG, WebP) sein.") from exc
+        raise ValueError(spec["invalid"]) from exc
     original = (Path(filename or "").name or "vollmacht")[:255]
     stored = make_stored_filename(original)
     POWER_OF_ATTORNEY_ROOT.mkdir(parents=True, exist_ok=True)
     power_of_attorney_path(stored).write_bytes(data)
-    old = participant.poa_stored_filename
-    participant.poa_stored_filename = stored
-    participant.poa_original_filename = original
-    participant.poa_content_type = content_type
-    participant.poa_size_bytes = len(data)
-    participant.poa_sha256 = hashlib.sha256(data).hexdigest()
-    participant.poa_uploaded_at = datetime.utcnow()
-    participant.poa_uploaded_by_name = (user_name or "")[:255] or None
+    old = poa_value(participant, kind, "stored_filename")
+    values = {"stored_filename": stored, "original_filename": original, "content_type": content_type,
+              "size_bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "uploaded_at": datetime.utcnow(),
+              "uploaded_by_name": (user_name or "")[:255] or None}
+    for column, value in values.items():
+        setattr(participant, spec["prefix"] + column, value)
     try:
         db.commit()
     except Exception:
@@ -372,13 +402,12 @@ def store_power_of_attorney(db: Session, participant: ProjectParticipant, *, fil
     return participant
 
 
-def remove_power_of_attorney(db: Session, participant: ProjectParticipant) -> ProjectParticipant:
-    old = participant.poa_stored_filename
+def remove_power_of_attorney(db: Session, participant: ProjectParticipant, kind: str = "empfang") -> ProjectParticipant:
+    old = poa_value(participant, kind, "stored_filename")
     if not old:
         return participant
-    for key in ("poa_stored_filename", "poa_original_filename", "poa_content_type", "poa_size_bytes", "poa_sha256",
-                "poa_uploaded_at", "poa_uploaded_by_name"):
-        setattr(participant, key, None)
+    for column in _POA_COLUMNS:
+        setattr(participant, POA_KINDS[kind]["prefix"] + column, None)
     db.commit()
     power_of_attorney_path(old).unlink(missing_ok=True)
     db.refresh(participant)
@@ -389,7 +418,7 @@ def delete_participants_of_project(db: Session, project_id: int) -> list[str]:
     """Für delete_project(): Zeilen löschen (ohne Commit), Dateinamen der Belege zurückgeben -- die
     Dateien entfernt der Aufrufer erst nach dem Commit."""
     rows = db.scalars(select(ProjectParticipant).where(ProjectParticipant.project_id == project_id)).all()
-    stored = [p.poa_stored_filename for p in rows if p.poa_stored_filename]
+    stored = [name for p in rows for name in (p.poa_stored_filename, p.acceptance_poa_stored_filename) if name]
     for p in rows:
         db.delete(p)
     db.flush()  # vor dem Projekt -- ohne Relationship kennt der Flush die Reihenfolge nicht sicher

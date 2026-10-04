@@ -90,8 +90,8 @@ def _objekt(db, customer_id, name, flaechen):
 
 def _welt(db) -> dict:
     """Gewerbekunde (VOB/B), Projekt mit Objekt "Halle" (Nord, Süd, Anbau (alt)), ein fremdes Objekt mit "Fremd",
-    Auftrag; Beteiligte: Architektin ohne Vollmacht, Hausverwaltung mit Vollmacht samt Beleg, dazu ein Beteiligter
-    eines anderen Projekts."""
+    Auftrag; Beteiligte: Architektin ohne Vollmacht, Hausverwaltung mit Empfangsvollmacht samt Beleg (genügt seit
+    1.8.47 nicht), Bauleitung mit Vollmacht zur Abnahme samt Beleg, dazu ein Beteiligter eines anderen Projekts."""
     quote = make_quote(db, is_consumer=False, number="0349")
     order = beauftragen(db, quote)
     project = db.get(Project, order.project_id)
@@ -104,13 +104,19 @@ def _welt(db) -> dict:
     verwaltung = add_participant(db, project, create_contact(db, {"kind": "firma", "company_name": "HV Muster"}),
                                  role="hausverwaltung", authorized_recipient=True)
     store_power_of_attorney(db, verwaltung, filename="vollmacht.pdf", data=PDF + b"vollmacht", user_name="Büro")
+    bauleitung = add_participant(db, project, create_contact(db, {"kind": "person", "first_name": "Bernd",
+                                                                   "last_name": "Bau"}),
+                                 role="bauleitung_ag", acceptance_authorized=True)
+    store_power_of_attorney(db, bauleitung, filename="abnahmevollmacht.pdf", data=PDF + b"abnahme", user_name="Büro",
+                            kind="abnahme")
     other_quote = make_quote(db, is_consumer=False, number="0350")
     other_order = beauftragen(db, other_quote)
     fremd_beteiligt = add_participant(db, db.get(Project, other_order.project_id),
                                       create_contact(db, {"kind": "person", "last_name": "Fremd"}), role="sonstiges")
     return {"order_id": order.id, "project_id": project.id, "property_id": prop.id, "areas": areas,
             "fremd_property_id": fremd.id, "fremd_area": fremd_areas["Fremd"], "architektin": architektin.id,
-            "verwaltung": verwaltung.id, "fremd_beteiligt": fremd_beteiligt.id, "other_order_id": other_order.id}
+            "verwaltung": verwaltung.id, "bauleitung": bauleitung.id, "fremd_beteiligt": fremd_beteiligt.id,
+            "other_order_id": other_order.id}
 
 
 @pytest.fixture
@@ -295,7 +301,7 @@ def test_with_reservations_is_only_derived(welt, buero, maengel, strafe, text_):
     ({"result": "verweigert"}, 400, "keine Vorbehalte"),
     ({"declared_by": "beteiligter"}, 400, "Beteiligten"),
     ({"participant_id": 1}, 400, "Beteiligter gehört nur"),
-    ({"conduct_reason": "Ingebrauchnahme"}, 400, "nur zur schlüssigen"),
+    ({"conduct_reason": "Ingebrauchnahme"}, 400, "förmlichen Abnahme ist das Protokoll"),  # seit 1.8.47
     ({"unbekannt": 1}, 422, None),
 ])
 def test_invalid_input_is_rejected_and_nothing_is_stored(welt, buero, ablage, werte, status, teil):
@@ -312,16 +318,24 @@ def test_future_date_is_rejected(welt, buero):
     assert _erfassen(buero, welt["order_id"], accepted_on=berlin_today().isoformat()).status_code == 200
 
 
-def test_receipt_required_except_for_conduct_which_needs_a_reason(welt, buero):
+def test_proof_formal_needs_receipt_otherwise_receipt_or_reason(welt, buero):
+    """Seit 1.8.47: förmlich -> Beleg Pflicht; ausdrücklich und schlüssig -> Beleg oder Begründung, mindestens eins."""
     r = _erfassen(buero, welt["order_id"], files=())
-    assert r.status_code == 400 and "Beleg" in r.json()["detail"]
-    r = _erfassen(buero, welt["order_id"], files=(), kind="schluessig")
-    assert r.status_code == 400 and "schlüssigen Abnahme" in r.json()["detail"]
+    assert r.status_code == 400 and "Protokoll der förmlichen Abnahme" in r.json()["detail"]
+    for kind in ("ausdruecklich", "schluessig"):
+        r = _erfassen(buero, welt["order_id"], files=(), kind=kind)
+        assert r.status_code == 400 and "einen Beleg (PDF oder Foto) oder eine Begründung" in r.json()["detail"], kind
     r = _erfassen(buero, welt["order_id"], files=(), kind="schluessig",
                   conduct_reason="Halle seit 01.09. ohne Rüge in Gebrauch, Schlussrechnung vorbehaltlos bezahlt.")
     assert r.status_code == 200 and r.json()["files"] == [] and r.json()["kind_label"] == "schlüssig"
+    r = _erfassen(buero, welt["order_id"], files=(), kind="ausdruecklich",
+                  conduct_reason="Abnahme per E-Mail vom 15.09. erklärt, Ausdruck in der Akte.")
+    assert r.status_code == 200 and r.json()["files"] == [] and r.json()["kind_label"] == "ausdrücklich"
     foto = _erfassen(buero, welt["order_id"], files=(("foto.png", _png(), "image/png"),), kind="ausdruecklich")
     assert foto.status_code == 200 and foto.json()["files"][0]["content_type"] == "image/png"
+    beides = _erfassen(buero, welt["order_id"], files=(("b.pdf", PDF + b"b", "application/pdf"),), kind="schluessig",
+                       conduct_reason="Ingebrauchnahme")
+    assert beides.status_code == 200 and beides.json()["conduct_reason"] == "Ingebrauchnahme"
 
 
 @pytest.mark.parametrize("name,inhalt,art", [
@@ -377,9 +391,10 @@ def test_options_offer_only_the_projects_roof_areas_and_participants(welt, buero
     assert o["property"]["name"] == "Halle" and [r["name"] for r in o["roof_areas"]] == ["Nord", "Süd"]
     assert o["client_name"] == "Kunde 0349"
     by_id = {p["participant_id"]: p for p in o["participants"]}
-    assert set(by_id) == {welt["architektin"], welt["verwaltung"]}
+    assert set(by_id) == {welt["architektin"], welt["verwaltung"], welt["bauleitung"]}
     assert by_id[welt["architektin"]]["poa_on_record"] is False
-    assert by_id[welt["verwaltung"]]["poa_on_record"] is True
+    assert by_id[welt["verwaltung"]]["poa_on_record"] is False  # seit 1.8.47: Empfangsvollmacht genügt nicht
+    assert by_id[welt["bauleitung"]]["poa_on_record"] is True
 
 
 def test_participant_without_power_of_attorney_is_saved_with_warning(welt, buero):
@@ -389,17 +404,77 @@ def test_participant_without_power_of_attorney_is_saved_with_warning(welt, buero
     assert [f["kind"] for f in a["files"]] == ["nachweis"]
 
 
-def test_participant_with_power_of_attorney_freezes_a_copy(welt, buero):
+def test_participant_with_acceptance_power_of_attorney_freezes_a_copy(welt, buero):
+    db = welt["db"]
+    a = _erfassen(buero, welt["order_id"], declared_by="beteiligter", participant_id=welt["bauleitung"]).json()
+    assert a["poa_on_record"] is True and a["without_power_of_attorney"] is False
+    vollmacht = next(f for f in a["files"] if f["kind"] == "abnahmevollmacht")
+    assert vollmacht["sha256"] == hashlib.sha256(PDF + b"abnahme").hexdigest()
+    assert vollmacht["kind_label"] == "Vollmacht zur Abnahme (beim Erfassen hinterlegt)"
+    # Der Beteiligte ersetzt seine Vollmacht später -- die Abnahme behält die von damals.
+    store_power_of_attorney(db, db.get(participants_module.ProjectParticipant, welt["bauleitung"]),
+                            filename="neu.pdf", data=PDF + b"neu", user_name="Büro", kind="abnahme")
+    datei = buero.get(f"/api/order-acceptances/{a['id']}/files/{vollmacht['id']}")
+    assert datei.status_code == 200 and datei.content == PDF + b"abnahme"
+
+
+def test_receiving_power_of_attorney_is_not_enough(welt, buero):
+    """Seit 1.8.47: die Hausverwaltung hat nur eine Empfangsvollmacht (Häkchen und Beleg) -- Warnung, nichts
+    festgehalten; ebenso das Häkchen "Vollmacht zur Abnahme" ohne Beleg."""
     db = welt["db"]
     a = _erfassen(buero, welt["order_id"], declared_by="beteiligter", participant_id=welt["verwaltung"]).json()
-    assert a["poa_on_record"] is True and a["without_power_of_attorney"] is False
-    vollmacht = next(f for f in a["files"] if f["kind"] == "vollmacht")
-    assert vollmacht["sha256"] == hashlib.sha256(PDF + b"vollmacht").hexdigest()
-    # Der Beteiligte ersetzt seine Vollmacht später -- die Abnahme behält die von damals.
-    store_power_of_attorney(db, db.get(participants_module.ProjectParticipant, welt["verwaltung"]),
-                            filename="neu.pdf", data=PDF + b"neu", user_name="Büro")
-    datei = buero.get(f"/api/order-acceptances/{a['id']}/files/{vollmacht['id']}")
-    assert datei.status_code == 200 and datei.content == PDF + b"vollmacht"
+    assert a["without_power_of_attorney"] is True and a["poa_on_record"] is False
+    assert [f["kind"] for f in a["files"]] == ["nachweis"]
+    r = buero.put(f"/api/project-participants/{welt['verwaltung']}", json={"acceptance_authorized": True})
+    assert r.status_code == 200 and r.json()["acceptance_authorized"] is True
+    assert r.json()["acceptance_power_of_attorney"] is None and r.json()["power_of_attorney"] is not None
+    b = _erfassen(buero, welt["order_id"], declared_by="beteiligter", participant_id=welt["verwaltung"]).json()
+    assert b["without_power_of_attorney"] is True
+    db.expire_all()
+    assert db.get(participants_module.ProjectParticipant, welt["verwaltung"]).authorized_recipient is True
+
+
+def test_acceptance_power_of_attorney_endpoints(welt, buero):
+    url = f"/api/project-participants/{welt['architektin']}/acceptance-power-of-attorney"
+    r = buero.post(url, files={"file": ("v.pdf", PDF + b"x", "application/pdf")})
+    assert r.status_code == 400 and "„Vollmacht zur Abnahme“ setzen" in r.json()["detail"]
+    buero.put(f"/api/project-participants/{welt['architektin']}", json={"acceptance_authorized": True})
+    r = buero.post(url, files={"file": ("bild.svg", SVG, "image/svg+xml")})
+    assert r.status_code == 400 and "Vollmacht zur Abnahme muss ein PDF" in r.json()["detail"]
+    r = buero.post(url, files={"file": ("v.pdf", PDF + b"x", "application/pdf")})
+    assert r.status_code == 200
+    beleg = r.json()["acceptance_power_of_attorney"]
+    assert beleg["filename"] == "v.pdf" and beleg["sha256"] == hashlib.sha256(PDF + b"x").hexdigest()
+    assert r.json()["power_of_attorney"] is None  # die Empfangsvollmacht bleibt unberührt
+    assert buero.get(url).content == PDF + b"x"
+    a = _erfassen(buero, welt["order_id"], declared_by="beteiligter", participant_id=welt["architektin"]).json()
+    assert a["without_power_of_attorney"] is False
+    assert buero.delete(url).json()["acceptance_power_of_attorney"] is None
+    assert buero.get(url).status_code == 404
+
+
+def test_entry_from_1_8_46_with_receiving_power_of_attorney_stays_intact_and_warns(welt, buero, ablage):
+    """Ein Eintrag aus 1.8.46 hielt die Empfangsvollmacht fest (Art "vollmacht", poa_on_record wahr) -- sein gebundener
+    Inhalt bleibt gültig, er gilt aber als ohne Vollmacht zur Abnahme."""
+    db = welt["db"]
+    order = db.get(Order, welt["order_id"])
+    alt = OrderAcceptance(order_id=order.id, property_id=welt["property_id"], kind="foermlich",
+                          accepted_on=date(2026, 9, 10), scope="gesamt", result="abgenommen", reservation_defects=False,
+                          reservation_penalty=False, declared_by="beteiligter", participant_id=welt["verwaltung"],
+                          declared_by_name="HV Muster", declared_by_role="Hausverwaltung", poa_on_record=True,
+                          content_sha256="", created_at=datetime(2026, 10, 3, 9, 0), created_by_name="Büro")
+    for kind, inhalt in (("nachweis", PDF), ("vollmacht", PDF + b"vollmacht")):
+        stored = acceptances_module._write_file(inhalt, "application/pdf")
+        alt.files.append(OrderAcceptanceFile(kind=kind, stored_filename=stored, content_type="application/pdf",
+                                             size_bytes=len(inhalt), sha256=hashlib.sha256(inhalt).hexdigest(),
+                                             created_at=alt.created_at))
+    alt.content_sha256 = acceptances_module.content_sha256(acceptances_module.acceptance_content(alt))
+    db.add(alt)
+    db.commit()
+    stand = buero.get(f"/api/orders/{welt['order_id']}/acceptances").json()[0]
+    assert stand["content_ok"] is True and stand["intact"] is True
+    assert stand["without_power_of_attorney"] is True and stand["poa_on_record"] is True
+    assert "Empfangsvollmacht" in next(f for f in stand["files"] if f["kind"] == "vollmacht")["kind_label"]
 
 
 def test_participant_of_another_project_is_rejected(welt, buero):
@@ -527,6 +602,8 @@ def test_attack_field_worker_sees_nothing(welt, buero, router_test_client):
     for url in (f"/api/orders/{welt['order_id']}/acceptances", f"/api/orders/{welt['order_id']}/acceptance-options",
                 f"/api/order-acceptances/{a['id']}/files/{a['files'][0]['id']}",
                 f"/api/orders/{welt['order_id']}/warranty-changes",
+                f"/api/orders/{welt['order_id']}/warranty-preview?work_kind=bauwerk&warranty_months=48&warranty_days=0",
+                f"/api/project-participants/{welt['bauleitung']}/acceptance-power-of-attorney",
                 f"/api/properties/{welt['property_id']}/acceptance-warranties",
                 f"/api/roof-areas/{welt['areas']['Nord']}/acceptance-warranties"):
         assert monteur.get(url).status_code == 403, url
@@ -562,7 +639,9 @@ def test_warranty_end_at_order_property_and_roof_area(welt, buero):
     _dauer(buero, welt, 60, grund="5 Jahre vereinbart")
     liste = {x["id"]: x for x in buero.get(f"/api/orders/{welt['order_id']}/acceptances").json()}
     assert liste[teil["id"]]["warranty"]["end"] == "2029-02-28"   # § 188 Abs. 3
-    assert liste[teil["id"]]["warranty"]["text"] == "Gewährleistung bis 28.02.2029 (60 Monate (5 Jahre) ab Abnahme)"
+    assert liste[teil["id"]]["warranty"]["text"] == ("Gewährleistung regulär bis 28.02.2029 (60 Monate (5 Jahre) "
+                                                     "ab Abnahme)")
+    assert liste[teil["id"]]["warranty"]["hint"] == "ohne Hemmung oder Neubeginn"
 
     objekt = buero.get(f"/api/properties/{welt['property_id']}/acceptance-warranties").json()
     assert {x["id"] for x in objekt["acceptances"]} == {teil["id"], gesamt["id"]}  # nicht die verweigerte
@@ -577,6 +656,60 @@ def test_warranty_end_at_order_property_and_roof_area(welt, buero):
     nord = buero.get(f"/api/roof-areas/{welt['areas']['Nord']}/acceptance-warranties").json()
     assert nord["acceptances"] == []
     assert buero.get(f"/api/properties/{welt['property_id']}/acceptance-warranties").json()["roof_areas"] == {}
+
+
+def _vorschau(buero, welt, kind, monate, tage=0):
+    r = buero.get(f"/api/orders/{welt['order_id']}/warranty-preview",
+                  params={"work_kind": kind, "warranty_months": monate, "warranty_days": tage})
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_after_first_acceptance_changes_need_a_reason_and_show_shifts(welt, buero):
+    """Seit 1.8.47: nach der ersten nicht verworfenen Abnahme Leistungsart oder Dauer nur mit Begründung -- auch die
+    Übernahme eines Vorschlags; die Vorschau zeigt die verschobenen Enden, die Historie hält sie fest."""
+    url = f"/api/orders/{welt['order_id']}/warranty"
+    assert _vorschau(buero, welt, "bauwerk", 48)["reason_required"] is False  # noch keine Abnahme
+    _dauer(buero, welt, 48)
+    a = _erfassen(buero, welt["order_id"], accepted_on="2026-08-31").json()
+    v = _vorschau(buero, welt, "bauwerk", 60)
+    assert v["reason_required"] is True and v["reason_why"] == ["weicht vom Vorschlag ab", "Änderung nach einer Abnahme"]
+    assert v["shifts"] == [{"acceptance_id": a["id"], "accepted_on": "2026-08-31", "scope_label": "Gesamtabnahme",
+                            "scope_description": None, "old_end": "2030-08-31", "new_end": "2031-08-31"}]
+    v = _vorschau(buero, welt, "sonstige", 24)  # Vorschlag, aber Änderung nach der Abnahme
+    assert v["follows_proposal"] is True and v["reason_required"] is True
+    assert v["reason_why"] == ["Änderung nach einer Abnahme"] and v["shifts"][0]["new_end"] == "2028-08-31"
+    r = buero.put(url, json={"work_kind": "sonstige", "warranty_months": 24, "warranty_days": 0, "reason": None})
+    assert r.status_code == 422 and "nur mit Begründung" in r.json()["detail"]
+    assert buero.get(f"/api/orders/{welt['order_id']}").json()["warranty_months"] == 48
+    r = buero.put(url, json={"work_kind": "sonstige", "warranty_months": 24, "warranty_days": 0,
+                             "reason": "Nur Wartung beauftragt, kein Bauwerk"})
+    assert r.status_code == 200
+    eintrag = buero.get(f"/api/orders/{welt['order_id']}/warranty-changes").json()[0]
+    assert eintrag["acceptance_shifts"] == [{"acceptance_id": a["id"], "accepted_on": "2026-08-31",
+                                             "scope_label": "Gesamtabnahme", "scope_description": None,
+                                             "old_end": "2030-08-31", "new_end": "2028-08-31"}]
+    assert buero.get(f"/api/orders/{welt['order_id']}/warranty-changes").json()[1]["acceptance_shifts"] is None
+
+
+def test_first_setting_after_acceptance_needs_no_reason_and_discarded_acceptance_does_not_count(welt, buero):
+    a = _erfassen(buero, welt["order_id"], accepted_on="2026-08-31").json()
+    v = _vorschau(buero, welt, "bauwerk", 48)
+    assert v["reason_required"] is False and v["after_acceptance"] is True
+    assert v["shifts"][0]["old_end"] is None and v["shifts"][0]["new_end"] == "2030-08-31"
+    _dauer(buero, welt, 48)  # erste Festlegung: verschiebt nichts
+    buero.post(f"/api/order-acceptances/{a['id']}/discard", json={"reason": "falsch erfasst"})
+    v = _vorschau(buero, welt, "sonstige", 24)
+    assert v["after_acceptance"] is False and v["reason_required"] is False and v["shifts"] == []
+    assert buero.put(f"/api/orders/{welt['order_id']}/warranty", json={
+        "work_kind": "sonstige", "warranty_months": 24, "warranty_days": 0, "reason": None}).status_code == 200
+
+
+def test_refused_acceptance_also_requires_a_reason_but_shifts_nothing(welt, buero):
+    _dauer(buero, welt, 48)
+    _erfassen(buero, welt["order_id"], result="verweigert", reservation_defects=..., reservation_penalty=...)
+    v = _vorschau(buero, welt, "sonstige", 24)
+    assert v["reason_required"] is True and v["shifts"] == []
 
 
 def test_acceptance_keeps_its_property_when_the_project_moves(welt, buero):
@@ -767,62 +900,105 @@ def _waits_for(first_holds_lock, second_action) -> dict:
     return done
 
 
-def test_postgresql_acceptance_waits_for_a_running_sync_and_vice_versa(pg):
+def _create(Session, welt, *, pause: tuple[threading.Event, threading.Event] | None = None) -> int:
+    """Echtes Erfassen über create_acceptance() in eigener Verbindung. Mit pause=(bereit, weiter): die Zeilen sind
+    geschrieben (flush), vor dem Commit wird angehalten -- so hält die Erfassung ihre Sperren, bis weiter gesetzt ist."""
+    db = Session()
+    try:
+        if pause is not None:
+            bereit, weiter = pause
+            commit = db.commit
+
+            def angehalten():
+                db.flush()
+                bereit.set()
+                weiter.wait(timeout=30)
+                commit()
+            db.commit = angehalten
+        order = db.get(Order, welt["order_id"])
+        return acceptances_module.create_acceptance(
+            db, order, {**GUELTIG, "accepted_on": date(2026, 9, 15), "roof_area_ids": []},
+            [("beleg.pdf", PDF)], user_id=None, user_name="PG").id
+    finally:
+        db.close()
+
+
+def _check(Session, welt) -> str:
+    """Die Prüfung, mit der der Abgleich beginnt (sperrt die Auftragszeile)."""
+    db = Session()
+    try:
+        ensure_no_active_acceptance(db, welt["order_id"], "der Abgleich")
+        return "frei"
+    finally:
+        db.close()
+
+
+def test_postgresql_acceptance_waits_for_a_running_sync(pg):
+    """Der Abgleich hat die Prüfung hinter sich und hält die Sperre der Auftragszeile -- eine gleichzeitige Erfassung
+    wartet, bis er fertig ist (dann gilt die Abnahme für den neuen Stand). Ohne die Sperre im Abgleich liefe sie
+    durch."""
     Session, welt = pg
-    holder = Session()
-    holder_ready = threading.Event()
+    holder, ready = Session(), threading.Event()
 
     def hold(release):
         def run():
-            ensure_no_active_acceptance(holder, welt["order_id"], "der Abgleich")  # sperrt den Auftrag
-            holder_ready.set()
+            ensure_no_active_acceptance(holder, welt["order_id"], "der Abgleich")
+            ready.set()
             release.wait(timeout=30)
             holder.commit()
         threading.Thread(target=run).start()
-        holder_ready.wait(timeout=10)
-
-    def create():
-        db = Session()
-        try:
-            order = db.get(Order, welt["order_id"])
-            return acceptances_module.create_acceptance(
-                db, order, {**GUELTIG, "accepted_on": date(2026, 9, 15), "roof_area_ids": []},
-                [("beleg.pdf", PDF)], user_id=None, user_name="PG").id
-        finally:
-            db.close()
-    done = _waits_for(hold, create)
-    assert isinstance(done["result"], int) and done["seconds"] >= 0.9
+        ready.wait(timeout=10)
+    done = _waits_for(hold, lambda: _create(Session, welt))
     holder.close()
+    assert isinstance(done["result"], int) and done["seconds"] >= 0.9
 
-    # Umgekehrt: eine Abnahme wird gerade erfasst (Sperre gehalten, Zeile noch nicht committet) -- der Abgleich
-    # wartet und sieht sie danach. Ohne Sperre sähe er nichts und liefe durch.
-    db = Session()
-    acceptances_module.discard_acceptance(db, db.get(OrderAcceptance, done["result"]), reason="Probe",
-                                          user_id=None, user_name="PG")
-    db.close()
-    holder2 = Session()
-    ready2 = threading.Event()
 
-    def hold2(release):
+def test_postgresql_sync_waits_for_a_running_acceptance(pg):
+    """Eine Erfassung läuft (Zeilen geschrieben, noch nicht committet) -- der Abgleich wartet und sieht die Abnahme
+    danach (409). Ohne die Sperre im Abgleich sähe er die noch nicht committete Zeile nicht und liefe durch."""
+    Session, welt = pg
+    bereit, ergebnis = threading.Event(), {}
+
+    def hold(release):
         def run():
-            acceptances_module.lock_order(holder2, welt["order_id"])
-            holder2.add(OrderAcceptance(order_id=welt["order_id"], kind="foermlich", accepted_on=date(2026, 9, 20),
-                                        scope="gesamt", result="verweigert", declared_by="auftraggeber",
-                                        declared_by_name="K", content_sha256="probe", created_by_name="PG"))
-            holder2.flush()
-            ready2.set()
-            release.wait(timeout=30)
-            holder2.commit()
+            ergebnis["id"] = _create(Session, welt, pause=(bereit, release))
         threading.Thread(target=run).start()
-        ready2.wait(timeout=10)
-
-    def check():
-        db = Session()
-        try:
-            ensure_no_active_acceptance(db, welt["order_id"], "der Abgleich")
-            return "frei"
-        finally:
-            db.close()
-    done = _waits_for(hold2, check)
+        bereit.wait(timeout=10)
+    done = _waits_for(hold, lambda: _check(Session, welt))
     assert isinstance(done["result"], AcceptanceExistsError) and done["seconds"] >= 0.9
-    holder2.close()
+    time.sleep(0.2)
+    assert isinstance(ergebnis.get("id"), int)
+
+
+def _migration_1847():
+    path = next(ROOT.glob("alembic/versions/*_vollmacht_zur_abnahme.py"))
+    spec = importlib.util.spec_from_file_location("migration_1847_vollmacht", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_migration_1847_down_refuses_while_data_exists():
+    """Seit 1.8.47: Vollmacht zur Abnahme und festgehaltene Verschiebungen gehen beim Downgrade nicht still verloren."""
+    module = _migration_1847()
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+
+    def run(name):
+        with engine.begin() as conn:
+            with Operations.context(MigrationContext.configure(conn)):
+                getattr(module, name)()
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO project_participants (project_id, contact_id, role, copy_on_notices, "
+                          "authorized_recipient, acceptance_authorized, created_at) "
+                          "VALUES (1, 1, 'sonstiges', false, false, true, '2026-10-04')"))
+    with pytest.raises(RuntimeError, match="1 Beteiligte mit Vollmacht zur Abnahme"):
+        run("downgrade")
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE project_participants SET acceptance_authorized = false"))
+    run("downgrade")
+    assert not any(c["name"].startswith("acceptance_") for c in inspect(engine).get_columns("project_participants"))
+    assert "acceptance_shifts" not in {c["name"] for c in inspect(engine).get_columns("order_warranty_changes")}
+    run("upgrade")
+    with engine.begin() as conn:
+        assert conn.execute(text("SELECT acceptance_authorized FROM project_participants")).scalar() in (False, 0)

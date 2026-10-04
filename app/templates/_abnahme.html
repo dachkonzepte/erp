@@ -1,7 +1,9 @@
 {# Gewährleistung und Abnahme am Auftrag (seit 1.8.46, Stufe 2c-1, docs/archiv/abnahme-und-gewaehrleistung.md).
    Eingebunden in order.html (rechte Spalte); nutzt dort orderId, order, api(), esc(), fehlerText() und FELDNAMEN.
    - Karte "Gewährleistung": Leistungsart und Dauer -- Vorschlag je Vertragsgrundlage mit Fundstelle bewusst
-     übernehmen oder abweichend mit Begründung; sonst "nicht festgelegt". Historie darunter.
+     übernehmen oder abweichend mit Begründung; sonst "nicht festgelegt". Historie darunter. Seit 1.8.47 fragt jede
+     Festlegung erst die Vorschau ab: nach einer Abnahme erscheinen vor dem Speichern die verschobenen
+     Gewährleistungsenden mit Pflicht-Begründung.
    - Karte "Abnahme": alle Einträge samt verworfener, mit Prüfung von Inhalt und Belegen und dem abgeleiteten
      Gewährleistungsende; "+ Abnahme erfassen" öffnet den Dialog, "Verwerfen" eine Zeile mit Pflicht-Begründung
      (kein prompt(), Regel 4).
@@ -15,6 +17,9 @@
 .acc-discard{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}.acc-discard[hidden]{display:none}.acc-discard textarea{flex:1 1 100%;min-height:60px;border:1px solid var(--field-border);padding:7px;background:var(--card);color:var(--ink);font:inherit;font-size:13px}
 #warrantyCard details{margin-top:8px}#warrantyCard summary{cursor:pointer;font-weight:650;font-size:13px}
 #warrantyProposal .proposal{background:var(--soft);padding:8px 10px;margin:4px 0 8px}
+#warrantyConfirm[hidden]{display:none}#warrantyConfirm{margin-top:10px}#warrantyConfirm textarea{width:100%;min-height:60px;border:1px solid var(--field-border);padding:7px;background:var(--card);color:var(--ink);font:inherit;font-size:13px;margin-top:4px}
+#warrantyConfirm table{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0}#warrantyConfirm td,#warrantyConfirm th{text-align:left;padding:3px 4px;border-bottom:1px solid var(--line)}
+.acc-hint{color:var(--muted);font-weight:400;font-size:12px}
 #acceptanceDialog{width:min(760px,96vw)}
 #acceptanceDialog fieldset{border:1px solid var(--line);padding:8px 10px 10px;margin:0 0 10px;min-width:0}
 #acceptanceDialog legend{font-size:11px;font-weight:800;color:var(--muted);padding:0 4px;text-transform:uppercase}
@@ -39,6 +44,13 @@
     </div>
     <button class="secondary" onclick="setWarrantyDeviation()">Abweichend festlegen</button>
   </details>
+  <div id="warrantyConfirm" class="notice warning" hidden>
+    <div id="warrantyConfirmText"></div>
+    <div id="warrantyShifts"></div>
+    <label for="warrantyConfirmReason" class="small"><b id="warrantyConfirmReasonLabel">Begründung</b></label>
+    <textarea id="warrantyConfirmReason" maxlength="2000"></textarea>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button onclick="confirmWarranty(this)">So festlegen</button><button class="secondary" onclick="cancelWarranty()">Abbrechen</button></div>
+  </div>
   <div id="warrantyStatus" class="status"></div>
   <div id="warrantyHistory"></div>
 </div>
@@ -81,14 +93,14 @@
   <fieldset><legend>Nachweis</legend>
     <div id="accProofHint" class="small muted" style="margin-bottom:6px">Bitte zuerst die Art der Abnahme wählen.</div>
     <input id="accFiles" type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp">
-    <div id="accConductBox" class="acc-sub" hidden><label for="accConductReason">Begründung der schlüssigen Abnahme (Pflicht)</label><textarea id="accConductReason" maxlength="5000" placeholder="z. B. Halle seit 01.09. ohne Rüge in Gebrauch, Schlussrechnung vorbehaltlos bezahlt"></textarea></div>
+    <div id="accConductBox" class="acc-sub" hidden><label for="accConductReason">Begründung, woraus sich die Abnahme ergibt (Pflicht ohne Beleg)</label><textarea id="accConductReason" maxlength="5000" placeholder="z. B. Abnahme per E-Mail vom 15.09.; Halle seit 01.09. ohne Rüge in Gebrauch"></textarea></div>
   </fieldset>
   <div class="notice">Nach dem Speichern unveränderlich – Korrektur nur durch Verwerfen mit Begründung und einen neuen Eintrag.</div>
   <div class="acc-actions"><button id="accSaveBtn" onclick="saveAcceptance(this)">Abnahme speichern</button><button class="secondary" onclick="closeAcceptanceDialog()">Abbrechen</button></div>
   <div id="accDialogStatus" class="status"></div>
 </div></dialog>
 <script>
-let acceptances=[],warrantyChanges=[],acceptanceOptions=null;
+let acceptances=[],warrantyChanges=[],acceptanceOptions=null,warrantyPending=null;
 function accDate(s){if(!s)return'';const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}.${m[2]}.${m[1]}`:esc(s)}
 function accDateTime(s){const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);return m?`${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}`:''}
 function accSize(n){return n>=1048576?(n/1048576).toLocaleString('de-DE',{maximumFractionDigits:1})+' MB':Math.max(1,Math.round(n/1024))+' KB'}
@@ -104,7 +116,7 @@ function renderWarranty(){
   if(set&&order.warranty_follows_proposal===false&&p){dev.style.display='';dev.innerHTML=`Weicht vom Vorschlag für die Vertragsgrundlage <b>${esc(order.contract_basis_label||order.contract_basis)}</b> ab (${esc(p.text)}, ${esc(p.citation)}).${last&&last.reason?`<div class="small" style="margin-top:4px;white-space:pre-wrap">Begründung: ${esc(last.reason)}</div>`:''}`}else{dev.style.display='none';dev.innerHTML=''}
   document.getElementById('workKindSelect').value=order.work_kind||'';
   renderWarrantyProposal();
-  document.getElementById('warrantyHistory').innerHTML=warrantyChanges.length?'<div class="small muted" style="margin-top:10px">Historie</div>'+warrantyChanges.map(c=>`<div class="revision"><b>${esc(c.work_kind_label)} · ${esc(c.warranty_text)}</b> <span class="small muted">(${c.follows_proposal?'Vorschlag':'abweichend vom Vorschlag '+esc(c.proposal_text)} · ${esc(c.contract_basis_label)})</span>${c.reason?`<div class="small" style="white-space:pre-wrap">${esc(c.reason)}</div>`:''}<div class="small muted">${accDateTime(c.changed_at)} · ${esc(c.changed_by_name)}</div></div>`).join(''):'';
+  document.getElementById('warrantyHistory').innerHTML=warrantyChanges.length?'<div class="small muted" style="margin-top:10px">Historie</div>'+warrantyChanges.map(c=>`<div class="revision"><b>${esc(c.work_kind_label)} · ${esc(c.warranty_text)}</b> <span class="small muted">(${c.follows_proposal?'Vorschlag':'abweichend vom Vorschlag '+esc(c.proposal_text)} · ${esc(c.contract_basis_label)})</span>${c.reason?`<div class="small" style="white-space:pre-wrap">${esc(c.reason)}</div>`:''}${c.acceptance_shifts&&c.acceptance_shifts.length?`<div class="small">Nach der Abnahme festgelegt: ${c.acceptance_shifts.map(x=>`${esc(x.scope_label)} ${accDate(x.accepted_on)}: ${x.old_end?accDate(x.old_end):'nicht festgelegt'} → ${accDate(x.new_end)}`).join('; ')}</div>`:''}<div class="small muted">${accDateTime(c.changed_at)} · ${esc(c.changed_by_name)}</div></div>`).join(''):'';
 }
 function renderWarrantyProposal(){
   const kind=document.getElementById('workKindSelect').value,box=document.getElementById('warrantyProposal');
@@ -115,18 +127,42 @@ function renderWarrantyProposal(){
 }
 async function putWarranty(body,okText){
   const st=document.getElementById('warrantyStatus');
-  try{order=await api(`/api/orders/${orderId}/warranty`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});st.textContent=okText;await loadAcceptanceSection();return true}catch(e){st.textContent='Fehler: '+e.message;return false}
+  try{order=await api(`/api/orders/${orderId}/warranty`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});st.textContent=okText;cancelWarranty();await loadAcceptanceSection();return true}catch(e){st.textContent='Fehler: '+e.message;return false}
 }
+// Seit 1.8.47: jede Festlegung fragt erst die Vorschau ab. Besteht schon eine Abnahme, zeigt die Karte vor dem Speichern,
+// welche Gewährleistungsenden sich verschieben (bzw. entstehen), mit Begründung -- Pflicht, wenn der Server es verlangt.
+async function prepareWarranty(body,okText){
+  const st=document.getElementById('warrantyStatus');st.textContent='';
+  let v;
+  try{v=await api(`/api/orders/${orderId}/warranty-preview?`+new URLSearchParams({work_kind:body.work_kind,warranty_months:body.warranty_months,warranty_days:body.warranty_days}))}catch(e){st.textContent='Fehler: '+e.message;return false}
+  if(!v.after_acceptance&&!(v.reason_required&&!body.reason))return putWarranty(body,okText);
+  warrantyPending={body,okText,v};
+  const box=document.getElementById('warrantyConfirm');
+  document.getElementById('warrantyConfirmText').innerHTML=`<b>${esc(v.work_kind_label)} · ${esc(v.warranty_text)}</b>${v.after_acceptance?' – zu diesem Auftrag ist eine Abnahme erfasst.':''}${v.reason_why.length?`<div class="small">Begründung nötig: ${esc(v.reason_why.join(', '))}.</div>`:''}`;
+  document.getElementById('warrantyShifts').innerHTML=v.shifts.length?`<table><thead><tr><th>Abnahme</th><th>bisher regulär bis</th><th>danach regulär bis</th></tr></thead><tbody>${v.shifts.map(x=>`<tr><td>${esc(x.scope_label)} ${accDate(x.accepted_on)}</td><td>${x.old_end?accDate(x.old_end):'nicht festgelegt'}</td><td><b>${accDate(x.new_end)}</b></td></tr>`).join('')}</tbody></table><div class="small acc-hint">ohne Hemmung oder Neubeginn</div>`:'<div class="small">Keine abgenommene Abnahme – kein Gewährleistungsende verschiebt sich.</div>';
+  document.getElementById('warrantyConfirmReasonLabel').textContent=v.reason_required?'Begründung (Pflicht)':'Begründung (optional)';
+  document.getElementById('warrantyConfirmReason').value=body.reason||'';
+  box.hidden=false;box.scrollIntoView({block:'nearest'});
+  return false;
+}
+async function confirmWarranty(btn){
+  if(!warrantyPending)return;
+  const st=document.getElementById('warrantyStatus'),reason=document.getElementById('warrantyConfirmReason').value.trim();
+  if(warrantyPending.v.reason_required&&!reason){st.textContent='Bitte eine Begründung angeben.';return}
+  btn.disabled=true;
+  try{if(await putWarranty({...warrantyPending.body,reason:reason||null},warrantyPending.okText)){['warrantyMonths','warrantyDays','warrantyReason'].forEach(id=>document.getElementById(id).value='');document.getElementById('warrantyDeviate').open=false}}finally{btn.disabled=false}
+}
+function cancelWarranty(){warrantyPending=null;document.getElementById('warrantyConfirm').hidden=true}
 async function adoptWarrantyProposal(){
   const kind=document.getElementById('workKindSelect').value,p=order.warranty_proposals[kind];
-  await putWarranty({work_kind:kind,warranty_months:p.months,warranty_days:p.days,reason:null},'Vorschlag übernommen.');
+  await prepareWarranty({work_kind:kind,warranty_months:p.months,warranty_days:p.days,reason:null},'Vorschlag übernommen.');
 }
 async function setWarrantyDeviation(){
   const st=document.getElementById('warrantyStatus'),kind=document.getElementById('workKindSelect').value;
   const m=document.getElementById('warrantyMonths').value,d=document.getElementById('warrantyDays').value,reason=document.getElementById('warrantyReason').value.trim();
   if(!kind){st.textContent='Bitte zuerst die Leistungsart wählen.';return}
   if(m===''||d===''){st.textContent='Bitte Monate und Tage angeben (0 ist erlaubt).';return}
-  if(await putWarranty({work_kind:kind,warranty_months:Number(m),warranty_days:Number(d),reason:reason||null},'Gewährleistungsdauer festgelegt.')){
+  if(await prepareWarranty({work_kind:kind,warranty_months:Number(m),warranty_days:Number(d),reason:reason||null},'Gewährleistungsdauer festgelegt.')){
     ['warrantyMonths','warrantyDays','warrantyReason'].forEach(id=>document.getElementById(id).value='');document.getElementById('warrantyDeviate').open=false;
   }
 }
@@ -134,12 +170,12 @@ function acceptanceHtml(a){
   const lines=[`<div class="acc-head">${esc(a.scope_label)} · ${esc(a.kind_label)} · ${accDate(a.accepted_on)}</div>`,`<div class="acc-row">Ergebnis: <b>${esc(a.result_text)}</b></div>`];
   if(a.scope_description)lines.push(`<div class="acc-row">Teil: ${esc(a.scope_description)}</div>`);
   if(a.roof_areas.length)lines.push(`<div class="acc-row">Dachflächen: ${a.roof_areas.map(r=>`<a href="/roof-areas/${r.id}">${esc(r.name)}</a>`).join(', ')}</div>`);
-  lines.push(`<div class="acc-row">Erklärt durch: ${a.declared_by==='beteiligter'?`${esc(a.declared_by_name)} (${esc(a.declared_by_role||'Beteiligter')})`:`Auftraggeber ${esc(a.declared_by_name)}`}${a.without_power_of_attorney?' <span class="acc-warn">⚠ ohne hinterlegte Vollmacht</span>':''}</div>`);
+  lines.push(`<div class="acc-row">Erklärt durch: ${a.declared_by==='beteiligter'?`${esc(a.declared_by_name)} (${esc(a.declared_by_role||'Beteiligter')})`:`Auftraggeber ${esc(a.declared_by_name)}`}${a.without_power_of_attorney?' <span class="acc-warn">⚠ ohne Vollmacht zur Abnahme</span>':''}</div>`);
   if(a.contractor_objections)lines.push(`<div class="acc-row" style="white-space:pre-wrap">Einwendungen des Auftragnehmers: ${esc(a.contractor_objections)}</div>`);
-  if(a.conduct_reason)lines.push(`<div class="acc-row" style="white-space:pre-wrap">Begründung (schlüssig): ${esc(a.conduct_reason)}</div>`);
+  if(a.conduct_reason)lines.push(`<div class="acc-row" style="white-space:pre-wrap">Begründung (Nachweis): ${esc(a.conduct_reason)}</div>`);
   a.files.forEach(f=>lines.push(`<div class="acc-row"><a href="/api/order-acceptances/${a.id}/files/${f.id}" target="_blank" rel="noopener">${esc(f.kind_label)} (${f.content_type==='application/pdf'?'PDF':'Foto'}, ${accSize(f.size_bytes)})</a> <span class="acc-sha" title="${esc(f.sha256)}">SHA-256 ${esc(f.sha256.slice(0,16))}…</span>${f.status!=='unveraendert'?` <span class="acc-bad">${esc(f.status_text)}</span>`:''}</div>`));
   if(!a.content_ok)lines.push('<div class="acc-row acc-bad">Der gespeicherte Inhalt weicht von seiner Prüfsumme ab – nachträglich verändert.</div>');
-  if(a.warranty)lines.push(a.warranty.end?`<div class="acc-row acc-good" title="${esc(a.warranty.rule||'')}">${esc(a.warranty.text)}</div>`:`<div class="acc-row acc-warn">${esc(a.warranty.text)}</div>`);
+  if(a.warranty)lines.push(a.warranty.end?`<div class="acc-row acc-good" title="${esc(a.warranty.rule||'')}">${esc(a.warranty.text)} <span class="acc-hint">· ${esc(a.warranty.hint)}</span></div>`:`<div class="acc-row acc-warn">${esc(a.warranty.text)}</div>`);
   lines.push(`<div class="acc-row muted">Erfasst ${accDateTime(a.created_at_local)} von ${esc(a.created_by_name)}</div>`);
   if(a.discarded)lines.push(`<div class="acc-row acc-bad" style="white-space:pre-wrap">Verworfen ${accDateTime(a.discarded_at_local)} von ${esc(a.discarded_by_name)}: ${esc(a.discard_reason)}</div>`);
   else lines.push(`<div class="acc-row"><button class="secondary" onclick="showDiscard(${a.id})">Verwerfen …</button></div><div id="accDiscard${a.id}" class="acc-discard" hidden><textarea id="accDiscardReason${a.id}" maxlength="2000" placeholder="Begründung (Pflicht), z. B. falsches Datum erfasst"></textarea><button class="danger" onclick="discardAcceptance(${a.id},this)">Abnahme verwerfen</button><button class="secondary" onclick="showDiscard(${a.id})">Abbrechen</button></div>`);
@@ -175,12 +211,13 @@ function accUpdate(){
   document.getElementById('accScopeDescBox').hidden=scope!=='teil';
   document.getElementById('accReservations').hidden=result!=='abgenommen';
   document.getElementById('accParticipantBox').hidden=declarer!=='beteiligter';
-  document.getElementById('accConductBox').hidden=kind!=='schluessig';
-  document.getElementById('accProofHint').textContent=!kind?'Bitte zuerst die Art der Abnahme wählen.':kind==='schluessig'?'Bei einer schlüssigen Abnahme ist die Begründung der Nachweis; ein Beleg (PDF oder Foto) ist zusätzlich möglich.':`Beleg Pflicht: PDF oder Foto (JPEG, PNG, WebP), höchstens ${acceptanceOptions.max_files} Dateien, je ${acceptanceOptions.max_file_mb} MB, zusammen ${acceptanceOptions.max_total_mb} MB.`;
+  document.getElementById('accConductBox').hidden=!kind||kind==='foermlich';
+  const limits=`höchstens ${acceptanceOptions.max_files} Dateien, je ${acceptanceOptions.max_file_mb} MB, zusammen ${acceptanceOptions.max_total_mb} MB`;
+  document.getElementById('accProofHint').textContent=!kind?'Bitte zuerst die Art der Abnahme wählen.':kind==='foermlich'?`Beleg Pflicht: das Protokoll als PDF oder Foto (JPEG, PNG, WebP), ${limits}.`:`Beleg (PDF oder Foto, ${limits}) oder Begründung – mindestens eins, auch beides.`;
   const warn=document.getElementById('accPoaWarning'),pid=document.getElementById('accParticipant').value;
   const p=declarer==='beteiligter'&&pid?acceptanceOptions.participants.find(x=>String(x.participant_id)===pid):null;
   warn.hidden=!(p&&!p.poa_on_record);
-  warn.textContent=p&&!p.poa_on_record?`Für ${p.name} ist keine Vollmacht hinterlegt (Häkchen „empfangsbevollmächtigt“ und Beleg im Reiter Beteiligte). Die Abnahme wird trotzdem gespeichert und als „ohne hinterlegte Vollmacht“ gekennzeichnet. Ob die Vollmacht die Abnahme umfasst, prüft das ERP nicht.`:'';
+  warn.textContent=p&&!p.poa_on_record?`Für ${p.name} ist keine Vollmacht zur Abnahme hinterlegt (Häkchen „Vollmacht zur Abnahme“ und Beleg im Reiter Beteiligte) – eine Empfangsvollmacht genügt nicht. Die Abnahme wird trotzdem gespeichert und als „ohne Vollmacht zur Abnahme“ gekennzeichnet.`:'';
 }
 async function saveAcceptance(btn){
   const st=document.getElementById('accDialogStatus'),yesNo=v=>v===null?null:v==='ja';
@@ -190,7 +227,7 @@ async function saveAcceptance(btn){
     result:accRadio('accResult'),contractor_objections:document.getElementById('accObjections').value.trim()||null,
     declared_by:accRadio('accDeclarer'),conduct_reason:document.getElementById('accConductReason').value.trim()||null};
   if(data.scope!=='teil')data.scope_description=null;
-  if(data.kind!=='schluessig')data.conduct_reason=null;
+  if(data.kind==='foermlich')data.conduct_reason=null;
   if(data.result==='abgenommen'){data.reservation_defects=yesNo(accRadio('accDefects'));data.reservation_penalty=yesNo(accRadio('accPenalty'))}
   if(data.declared_by==='beteiligter'){const v=document.getElementById('accParticipant').value;data.participant_id=v?Number(v):null}
   const missing=[!data.kind&&'Art',!data.accepted_on&&'Datum',!data.scope&&'Umfang',!data.result&&'Ergebnis',data.result==='abgenommen'&&data.reservation_defects==null&&'Vorbehalt Mängel',data.result==='abgenommen'&&data.reservation_penalty==null&&'Vorbehalt Vertragsstrafe',!data.declared_by&&'Erklärt durch',data.declared_by==='beteiligter'&&!data.participant_id&&'Beteiligter'].filter(Boolean);

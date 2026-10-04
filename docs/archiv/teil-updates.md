@@ -58,11 +58,11 @@ Der Sweep 1.8.24 fand sechs weitere, je mit einer Oberfläche, die das Feld wegl
 
 ## Die eingefrorene Liste (BEKANNT im Strukturtest)
 
-Beim Einführen fand der Test 77 weitere Handler (seit 1.8.29 noch 74, seit 1.8.32 noch 73, siehe unten). Ein Agent hat alle 117 PUT/PATCH-Routen samt
+Beim Einführen fand der Test 77 weitere Handler (seit 1.8.29 noch 74, seit 1.8.32 noch 73, seit 1.8.46 noch 72: die Dachfläche, siehe unten). Ein Agent hat alle 117 PUT/PATCH-Routen samt
 Geschäftsfunktion und jedem Aufrufer in den Vorlagen durchgesehen (01.10.2026):
 
 - **69 übernehmen nicht gesendete Felder** (seit 1.8.29 noch 66: die drei der Arbeitsvorbereitung sind
-  Teil-Updates, siehe Nebenbefund 1; seit 1.8.32 noch 65: der Auftragskopf, siehe unten), aber jede Oberfläche schickt dort heute alle Felder -- kein
+  Teil-Updates, siehe Nebenbefund 1; seit 1.8.32 noch 65: der Auftragskopf, siehe unten; seit 1.8.46 noch 64: die Dachfläche, `docs/archiv/abnahme-und-gewaehrleistung.md`), aber jede Oberfläche schickt dort heute alle Felder -- kein
   Datenverlust, solange kein neuer Aufrufer ein Feld weglässt. Davon 6 absichtlich ("Weglassen heißt
   leeren"): Checklisten-Antwort, Dashboard-Layout, Standard-Prüfvorlage je Dachtyp, Betriebskosten des
   Betriebsmittels, Position in der Dachskizze, Sperrdatum der Zeiterfassung. `PUT

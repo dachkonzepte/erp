@@ -1,7 +1,8 @@
 """Router: Abnahme und Gewährleistung (seit 1.8.46, Stufe 2c-1, docs/archiv/abnahme-und-gewaehrleistung.md).
 
 - PUT /api/orders/{order_id}/warranty: Leistungsart und Gewährleistungsdauer festlegen (Vorschlag übernehmen oder
-  abweichend mit Begründung); GET /api/orders/{order_id}/warranty-changes: Historie.
+  abweichend mit Begründung; nach einer Abnahme jede Änderung mit Begründung); GET /api/orders/{order_id}/warranty-preview
+  (seit 1.8.47): welche Gewährleistungsenden sich verschieben würden; GET /api/orders/{order_id}/warranty-changes: Historie.
 - GET /api/orders/{order_id}/acceptances: alle Abnahmen des Auftrags samt verworfener, mit Prüfung von Inhalt und
   Belegen und dem abgeleiteten Gewährleistungsende.
 - GET /api/orders/{order_id}/acceptance-options: Auswahl zum Erfassen (Dachflächen des Objekts, Beteiligte).
@@ -32,7 +33,7 @@ from ..models import AppUser, Order, OrderAcceptance, OrderAcceptanceFile, Prope
 from ..orders import load_order, order_to_dict
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import OrderAcceptanceCreate, OrderAcceptanceDiscard, OrderOut, OrderWarrantyUpdate
-from ..warranty import list_warranty_changes, set_order_warranty
+from ..warranty import list_warranty_changes, set_order_warranty, warranty_change_preview
 
 router = APIRouter()
 
@@ -66,6 +67,19 @@ def put_order_warranty(order_id: int, payload: OrderWarrantyUpdate, db: Session 
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return OrderOut.model_validate(order_to_dict(load_order(db, order_id), db))
+
+
+@router.get("/api/orders/{order_id}/warranty-preview")
+def get_order_warranty_preview(order_id: int, work_kind: str, warranty_months: int, warranty_days: int,
+                               db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Seit 1.8.47: was eine Festlegung bewirken würde -- Begründung nötig?, welche Gewährleistungsenden sich
+    verschieben. Liest nur; die Auftragsseite zeigt es vor dem Speichern."""
+    order = _order_or_404(db, order_id)
+    try:
+        return warranty_change_preview(db, order, work_kind=work_kind, warranty_months=warranty_months,
+                                       warranty_days=warranty_days)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/api/orders/{order_id}/warranty-changes")

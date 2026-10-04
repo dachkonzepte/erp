@@ -101,6 +101,10 @@ def befuellen(db, k):
     hv = add_participant(db, projekt, create_contact(db, {"kind": "firma", "company_name": "HV Muster"}),
                          role="hausverwaltung", authorized_recipient=True)
     store_power_of_attorney(db, hv, filename="vollmacht.pdf", data=PDF, user_name="Olga Office")
+    bauleitung = add_participant(db, projekt, create_contact(db, {"kind": "person", "first_name": "Bernd", "last_name": "Bau"}),
+                                 role="bauleitung_ag", acceptance_authorized=True)
+    store_power_of_attorney(db, bauleitung, filename="abnahmevollmacht.pdf", data=PDF, user_name="Olga Office",
+                            kind="abnahme")
 
     ordner = Path(os.environ["ERP_DATA_DIR"]) / "klicktest-uploads"  # im Wegwerf-Ordner der Instanz
     ordner.mkdir(parents=True, exist_ok=True)
@@ -108,7 +112,7 @@ def befuellen(db, k):
     dateien["pdf"].write_bytes(PDF)
     dateien["svg"].write_bytes(SVG)
     dateien["jpg"].write_bytes(_bild("JPEG"))
-    return {"auftrag": auftrag.id, "auftragsnummer": auftrag.order_number, "objekt": objekt.id, "flaechen": {n: f.id for n, f in flaechen.items()},
+    return {"auftrag": auftrag.id, "auftragsnummer": auftrag.order_number, "objekt": objekt.id, "projekt": projekt.id, "flaechen": {n: f.id for n, f in flaechen.items()},
             "dateien": {n: str(p) for n, p in dateien.items()},
             "cookies": {name: k.cookies(u) for name, u in benutzer.items()}}
 
@@ -167,10 +171,17 @@ async def pruefen(tab, seed, p):
         "Gewährleistungsdauer: 48 Monate")
     await tab.js("document.getElementById('warrantyDeviate').open=true;document.getElementById('warrantyMonths').value='60';"
                  "document.getElementById('warrantyDays').value='0';setWarrantyDeviation()")
-    await tab.warten("document.getElementById('warrantyStatus').textContent.startsWith('Fehler')")
-    p.pruefe("Gewährleistung: Abweichung ohne Begründung abgelehnt", await tab.js(
-        "document.getElementById('warrantyStatus').textContent.includes('bitte eine Begründung angeben')"), True)
-    await tab.js("document.getElementById('warrantyReason').value='5 Jahre im Vertrag vereinbart (§ 7)';setWarrantyDeviation()")
+    await tab.warten("!document.getElementById('warrantyConfirm').hidden")
+    p.pruefe("Gewährleistung: Abweichung fragt nach Begründung (noch ohne Abnahme)", await tab.js(
+        "[document.getElementById('warrantyConfirmText').innerText.includes('Begründung nötig: weicht vom Vorschlag ab'), "
+        "document.getElementById('warrantyConfirmReasonLabel').textContent, "
+        "document.getElementById('warrantyShifts').innerText.startsWith('Keine abgenommene Abnahme')]"),
+        [True, "Begründung (Pflicht)", True])
+    await tab.js("confirmWarranty(document.querySelector('#warrantyConfirm button'))")
+    p.pruefe("Gewährleistung: ohne Begründung nicht gespeichert", await tab.js(
+        "document.getElementById('warrantyStatus').textContent"), "Bitte eine Begründung angeben.")
+    await tab.js("document.getElementById('warrantyConfirmReason').value='5 Jahre im Vertrag vereinbart (§ 7)';"
+                 "confirmWarranty(document.querySelector('#warrantyConfirm button'))")
     await tab.warten("document.getElementById('warrantyStatus').textContent==='Gewährleistungsdauer festgelegt.'")
     p.pruefe("Gewährleistung: abweichend mit Hinweis und Historie", await tab.js(
         "[document.getElementById('warrantyDeviation').style.display!=='none', "
@@ -192,6 +203,9 @@ async def pruefen(tab, seed, p):
     p.pruefe("Dialog: fehlende Pflichtangaben", await tab.js("document.getElementById('accDialogStatus').textContent"),
              "Bitte angeben: Art, Datum, Umfang, Ergebnis, Erklärt durch.")
     await tab.js(_radio("accKind", "foermlich"))
+    p.pruefe("Förmlich: Beleg Pflicht, kein Begründungsfeld", await tab.js(
+        "[document.getElementById('accProofHint').textContent.startsWith('Beleg Pflicht: das Protokoll'), "
+        "document.getElementById('accConductBox').hidden]"), [True, True])
     await tab.js("document.getElementById('accDate').value='2026-09-15'")
     await tab.js(_radio("accScope", "teil"))
     await tab.js("document.getElementById('accScopeDesc').value='Dachfläche Nord samt Attika'")
@@ -209,12 +223,17 @@ async def pruefen(tab, seed, p):
     await tab.js(_waehlen("accParticipant", "s.selectedIndex=2"))
     p.pruefe("Dialog: Hausverwaltung gewählt", await tab.js(
         "document.getElementById('accParticipant').selectedOptions[0].textContent"), "HV Muster (Hausverwaltung)")
-    p.pruefe("Dialog: Hausverwaltung mit Vollmacht -- keine Warnung", await tab.js(
-        "document.getElementById('accPoaWarning').hidden"), True)
+    p.pruefe("Dialog: Hausverwaltung nur mit Empfangsvollmacht -- Warnung", await tab.js(
+        "[document.getElementById('accPoaWarning').hidden, document.getElementById('accPoaWarning').textContent.includes("
+        "'eine Empfangsvollmacht genügt nicht')]"), [False, True])
+    await tab.js(_waehlen("accParticipant", "s.selectedIndex=3"))
+    p.pruefe("Dialog: Bauleitung mit Vollmacht zur Abnahme -- keine Warnung", await tab.js(
+        "[document.getElementById('accParticipant').selectedOptions[0].textContent, "
+        "document.getElementById('accPoaWarning').hidden]"), ["Bernd Bau (Bauleitung des Auftraggebers)", True])
     await tab.js(_waehlen("accParticipant", "s.selectedIndex=1"))
     p.pruefe("Dialog: Architektin ohne Vollmacht -- Warnung", await tab.js(
         "[document.getElementById('accPoaWarning').hidden, document.getElementById('accPoaWarning').textContent.startsWith("
-        "'Für Petra Plan ist keine Vollmacht hinterlegt')]"), [False, True])
+        "'Für Petra Plan ist keine Vollmacht zur Abnahme hinterlegt')]"), [False, True])
     await _datei_setzen(tab, "#accFiles", seed["dateien"]["svg"])
     await tab.js("saveAcceptance(document.getElementById('accSaveBtn'))")
     await tab.warten("document.getElementById('accDialogStatus').textContent.startsWith('Fehler')")
@@ -230,8 +249,9 @@ async def pruefen(tab, seed, p):
         "Teilabnahme · förmlich · 15.09.2026", "Ergebnis: abgenommen mit Vorbehalten (Mängel)",
         "Teil: Dachfläche Nord samt Attika"])
     p.pruefe("Abnahme: Dachfläche, Warnung, Gewährleistung", await tab.js(
-        f"[{eintrag}.includes('Dachflächen: Nord'), {eintrag}.includes('Petra Plan (Architekt/Planer) ⚠ ohne hinterlegte Vollmacht'), "
-        f"{eintrag}.includes('Gewährleistung bis 15.09.2031 (60 Monate (5 Jahre) ab Abnahme)')]"), [True, True, True])
+        f"[{eintrag}.includes('Dachflächen: Nord'), {eintrag}.includes('Petra Plan (Architekt/Planer) ⚠ ohne Vollmacht zur Abnahme'), "
+        f"{eintrag}.includes('Gewährleistung regulär bis 15.09.2031 (60 Monate (5 Jahre) ab Abnahme) · ohne Hemmung oder Neubeginn')]"),
+        [True, True, True])
     p.pruefe("Abnahme: Beleg als PDF mit nosniff", await tab.js(
         f"fetch({LISTE}[0].querySelector('a[href*=\"/files/\"]').href).then(r=>[r.status,r.headers.get('content-type'),"
         "r.headers.get('x-content-type-options')])"), [200, "application/pdf", "nosniff"])
@@ -240,6 +260,27 @@ async def pruefen(tab, seed, p):
         "document.querySelectorAll('#syncCard button').length]"), [True, 0])
     await tab.js("document.getElementById('acceptanceCard').scrollIntoView()")
     await tab.bild("3_abnahme_gespeichert_hell")
+
+    # --- Gewährleistung nach der Abnahme ändern: Vorschau der Verschiebung, Begründung Pflicht ----------------
+    await tab.js("[...document.querySelectorAll('#warrantyProposal button')].find(b=>b.textContent==='Vorschlag übernehmen').click()")
+    await tab.warten("!document.getElementById('warrantyConfirm').hidden")
+    p.pruefe("Nach der Abnahme: Vorschau mit verschobenem Ende", await tab.js(
+        "[document.getElementById('warrantyConfirmText').innerText.includes('Begründung nötig: Änderung nach einer Abnahme'), "
+        "[...document.querySelectorAll('#warrantyShifts tbody td')].map(t=>t.textContent)]"),
+        [True, ["Teilabnahme 15.09.2026", "15.09.2031", "15.09.2030"]])
+    await tab.js("document.getElementById('warrantyCard').scrollIntoView()")
+    await tab.bild("3b_vorschau_verschiebung_hell")
+    await tab.js("confirmWarranty(document.querySelector('#warrantyConfirm button'))")
+    p.pruefe("Nach der Abnahme: ohne Begründung nicht gespeichert", await tab.js(
+        "document.getElementById('warrantyStatus').textContent"), "Bitte eine Begründung angeben.")
+    await tab.js("document.getElementById('warrantyConfirmReason').value='Vertrag sieht doch 4 Jahre vor (§ 7 Abs. 2)';"
+                 "confirmWarranty(document.querySelector('#warrantyConfirm button'))")
+    await tab.warten("document.getElementById('warrantyStatus').textContent==='Vorschlag übernommen.' && "
+                     f"{LISTE}[0].innerText.includes('regulär bis 15.09.2030')")
+    p.pruefe("Nach der Abnahme: Ende verschoben, Historie hält es fest", await tab.js(
+        f"[{eintrag}.includes('Gewährleistung regulär bis 15.09.2030'), "
+        "document.querySelector('#warrantyHistory .revision').innerText.includes('Nach der Abnahme festgelegt: Teilabnahme "
+        "15.09.2026: 15.09.2031 → 15.09.2030')]"), [True, True])
 
     # --- Verwerfen -------------------------------------------------------------------------------------
     p.pruefe("Verwerfen: Begründungsfeld erst nach dem Klick sichtbar", await tab.js(
@@ -254,19 +295,20 @@ async def pruefen(tab, seed, p):
                  f"{LISTE}[0].querySelector('.acc-discard .danger').click()")
     await tab.warten(f"{LISTE}[0].classList.contains('discarded')")
     p.pruefe("Verworfen: gekennzeichnet, ohne Gewährleistung", await tab.js(
-        f"[{eintrag}.includes('Falscher Umfang erfasst'), {eintrag}.includes('Gewährleistung bis')]"), [True, False])
+        f"[{eintrag}.includes('Falscher Umfang erfasst'), {eintrag}.includes('Gewährleistung regulär bis')]"), [True, False])
     await tab.warten("document.querySelectorAll('#syncCard button').length===1")
     p.pruefe("Abgleich nach dem Verwerfen wieder möglich", await tab.js(
         "document.querySelectorAll('#syncCard button').length"), 1)
 
-    # --- schlüssig/verweigert ohne Beleg, ausdrücklich gesamt mit Foto -----------------------------------
-    await _erfassen(tab, [_radio("accKind", "schluessig"), "document.getElementById('accDate').value='2026-09-20'",
+    # --- ausdrücklich/verweigert nur mit Begründung, ausdrücklich gesamt mit Foto -------------------------------
+    await _erfassen(tab, [_radio("accKind", "ausdruecklich"), "document.getElementById('accDate').value='2026-09-20'",
                           _radio("accScope", "gesamt"), _radio("accResult", "verweigert"),
                           _radio("accDeclarer", "auftraggeber")])
-    p.pruefe("Schlüssig: Begründungsfeld statt Pflichtbeleg", await tab.js(
+    p.pruefe("Ausdrücklich: Beleg oder Begründung", await tab.js(
         "[!document.getElementById('accConductBox').hidden, document.getElementById('accReservations').hidden, "
-        "document.getElementById('accProofHint').textContent.startsWith('Bei einer schlüssigen Abnahme')]"), [True, True, True])
-    await tab.js("document.getElementById('accConductReason').value='Abnahme durch Schreiben vom 20.09. verweigert';"
+        "document.getElementById('accProofHint').textContent.endsWith('oder Begründung – mindestens eins, auch beides.')]"),
+        [True, True, True])
+    await tab.js("document.getElementById('accConductReason').value='Abnahme per E-Mail vom 20.09. verweigert';"
                  "saveAcceptance(document.getElementById('accSaveBtn'))")
     await tab.warten(f"!document.getElementById('acceptanceDialog').open && {LISTE}.length===2")
     await _erfassen(tab, [_radio("accKind", "ausdruecklich"), "document.getElementById('accDate').value='2026-09-25'",
@@ -278,8 +320,8 @@ async def pruefen(tab, seed, p):
     await tab.js("saveAcceptance(document.getElementById('accSaveBtn'))")
     await tab.warten(f"!document.getElementById('acceptanceDialog').open && {LISTE}.length===3")
     p.pruefe("Liste: neueste zuerst, verweigert ohne Gewährleistung", await tab.js(
-        f"{LISTE}.map(e=>[e.querySelector('.acc-head').textContent, e.innerText.includes('Gewährleistung bis')])"),
-        [["Gesamtabnahme · ausdrücklich · 25.09.2026", True], ["Gesamtabnahme · schlüssig · 20.09.2026", False],
+        f"{LISTE}.map(e=>[e.querySelector('.acc-head').textContent, e.innerText.includes('Gewährleistung regulär bis')])"),
+        [["Gesamtabnahme · ausdrücklich · 25.09.2026", True], ["Gesamtabnahme · ausdrücklich · 20.09.2026", False],
          ["Teilabnahme · förmlich · 15.09.2026", False]])
     p.pruefe("Büro Auftrag: keine JS-Fehler", tab.fehler, [])
 
@@ -288,19 +330,20 @@ async def pruefen(tab, seed, p):
                       "!document.getElementById('acceptanceWarrantyRows').textContent.includes('Lädt')")
     p.pruefe("Objekt: Spalten der Dachflächen", await tab.js(
         "[...document.querySelectorAll('#roofAreaRows')[0].closest('table').querySelectorAll('th')].map(t=>t.textContent)"),
-        ["Name", "Dachtyp", "Fläche", "Eindeckung", "Gewährleistung bis", "Garantie Dritter bis", ""])
+        ["Name", "Dachtyp", "Fläche", "Eindeckung", "Gewährleistung regulär bis", "Garantie Dritter bis", ""])
     p.pruefe("Objekt: Süd mit Gewährleistung und Garantie Dritter, Nord ohne", await tab.js(
         "[...document.querySelectorAll('#roofAreaRows tr')].map(r=>[...r.children].map(c=>c.textContent.trim()).slice(0,6))"),
-        [["Nord", "—", "—", "—", "—", "—"], ["Süd", "—", "—", "—", "25.9.2031", "30.6.2030"]])
+        [["Nord", "—", "—", "—", "—", "—"], ["Süd", "—", "—", "—", "25.9.2030", "30.6.2030"]])
     p.pruefe("Objekt: Karte nur mit der gültigen, abgenommenen Abnahme", await tab.js(
         "[...document.querySelectorAll('#acceptanceWarrantyRows tr')].map(r=>[...r.children].map(c=>c.innerText.trim()))"),
         [[f"{seed['auftragsnummer']}\nDachsanierung Halle", "gesamt\nDachflächen: Süd", "25.9.2026 · ausdrücklich",
-          "abgenommen ohne Vorbehalte", "25.9.2031"]])
+          "abgenommen ohne Vorbehalte", "25.9.2030"]])
     await tab.bild("4_objekt_hell")
     sued = seed["flaechen"]["sued"]
     await tab.oeffnen(f"/roof-areas/{sued}", "!document.getElementById('acceptanceWarrantyList').textContent.includes('Lädt')")
     p.pruefe("Dachfläche Süd: Abnahme mit Gewährleistung", await tab.js(
-        "document.getElementById('acceptanceWarrantyList').innerText.includes('Gewährleistung bis 25.09.2031')"), True)
+        "document.getElementById('acceptanceWarrantyList').innerText.includes('Gewährleistung regulär bis 25.09.2030 "
+        "(48 Monate (4 Jahre) ab Abnahme) · ohne Hemmung oder Neubeginn')"), True)
     p.pruefe("Dachfläche Süd: Feld Garantie Dritter", await tab.js(
         "[document.getElementById('editThirdPartyGuarantee').closest('.field').querySelector('label').textContent, "
         "document.getElementById('editThirdPartyGuarantee').value]"),
@@ -316,6 +359,24 @@ async def pruefen(tab, seed, p):
     p.pruefe("Dachfläche Nord: keine Abnahme (die verworfene zählt nicht)", await tab.js(
         "document.getElementById('acceptanceWarrantyList').innerText"), "Keine Abnahme nennt diese Dachfläche.")
     p.pruefe("Büro Objekt/Dachfläche: keine JS-Fehler", tab.fehler, [])
+
+    # --- Projektmappe: Vollmacht zur Abnahme am Beteiligten -------------------------------------------------
+    await tab.oeffnen(f"/projects/{seed['projekt']}#sec-participants",
+                      "document.querySelectorAll('[data-participant-id]').length===3")
+    karte = "(n=>[...document.querySelectorAll('[data-participant-id]')].find(k=>k.innerText.includes(n)))"
+    p.pruefe("Projektmappe: Bauleitung mit Vollmacht zur Abnahme und Beleg", await tab.js(
+        f"[{karte}('Bernd Bau').querySelector('.p-acceptance').checked, "
+        f"!!{karte}('Bernd Bau').querySelector('a[href$=acceptance-power-of-attorney]')]"), [True, True])
+    p.pruefe("Projektmappe: Hausverwaltung nur Empfangsvollmacht", await tab.js(
+        f"[{karte}('HV Muster').querySelector('.p-acceptance').checked, {karte}('HV Muster').querySelector('.p-authorized').checked, "
+        f"!!{karte}('HV Muster').querySelector('a[href$=acceptance-power-of-attorney]')]"), [False, True, False])
+    await tab.js(f"{karte}('Petra Plan').querySelector('.p-acceptance').click()")
+    await tab.warten(f"!!{karte}('Petra Plan').querySelector('.p-acceptance-poa label')")
+    p.pruefe("Projektmappe: Häkchen setzt, Hochladen erscheint", await tab.js(
+        f"{karte}('Petra Plan').querySelector('.p-acceptance-poa').innerText.includes('Vollmacht zur Abnahme hochladen')"), True)
+    await tab.js(f"{karte}('Bernd Bau').scrollIntoView()")
+    await tab.bild("5b_projektmappe_beteiligte_hell")
+    p.pruefe("Projektmappe: keine JS-Fehler", tab.fehler, [])
 
     # --- 412 px, dunkel ----------------------------------------------------------------------------------
     await tab.fenster(412, 900, mobil=True)
@@ -341,7 +402,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("Monteurin: API der Abnahme gesperrt", await tab.js(
         f"Promise.all(['/api/orders/{auftrag}/acceptances','/api/orders/{auftrag}/acceptance-options',"
         f"'/api/orders/{auftrag}/warranty-changes','/api/properties/{seed['objekt']}/acceptance-warranties',"
-        f"'/api/roof-areas/{sued}/acceptance-warranties'].map(u=>fetch(u).then(r=>r.status)))"), [403] * 5)
+        f"'/api/roof-areas/{sued}/acceptance-warranties','/api/orders/{auftrag}/warranty-preview?work_kind=bauwerk&warranty_months=48&warranty_days=0'"
+        "].map(u=>fetch(u).then(r=>r.status)))"), [403] * 6)
     await tab.oeffnen(url, "document.body && document.readyState==='complete'")
     p.pruefe("Monteurin: Auftragsseite gesperrt, keine Abnahme-Karte", await tab.js(
         "[!!document.getElementById('acceptanceCard'), document.title]"), [False, "DACHKONZEPTE ERP – Kein Zugriff"])

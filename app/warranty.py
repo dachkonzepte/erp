@@ -7,11 +7,16 @@
   (set_order_warranty()); eine andere Dauer nur mit Begründung. Jede Festlegung steht in OrderWarrantyChange mit dem
   Vorschlag dieses Zeitpunkts. Ändert sich später die Vertragsgrundlage, bleibt die Dauer stehen -- die Auftragsseite
   zeigt dann, dass sie vom heutigen Vorschlag abweicht.
+- Seit 1.8.47: nach der ersten nicht verworfenen Abnahme ändern sich Leistungsart oder Dauer nur noch mit Begründung
+  (auch beim Vorschlag); warranty_change_preview() zeigt vorher, welche Gewährleistungsenden sich verschieben, die
+  Festlegung hält sie fest (acceptance_shifts). Die erste Festlegung nach einer Abnahme verschiebt nichts (vorher gab es
+  kein Ende) und braucht keine Begründung, die Vorschau zeigt die entstehenden Enden.
 - Gewährleistungsende: nie gespeichert, immer abgeleitet -- Datum einer Abnahme plus Dauer (warranty_end()).
 
 Rollenlos wie jede Geschäftslogik; wer festlegen darf, entscheidet der Router.
 """
 
+import json
 from datetime import date, timedelta
 
 from sqlalchemy import select
@@ -110,12 +115,8 @@ def _clean(value: str | None) -> str | None:
     return value or None
 
 
-def set_order_warranty(
-    db: Session, order: Order, *, work_kind: str, warranty_months: int, warranty_days: int, reason: str | None,
-    actor_name: str = "System",
-) -> OrderWarrantyChange:
-    """Leistungsart und Gewährleistungsdauer festlegen. Entspricht die Dauer dem Vorschlag für die Vertragsgrundlage
-    des Auftrags und die Leistungsart, ist das die bewusste Übernahme; sonst ist die Begründung Pflicht."""
+def _check_values(order: Order, work_kind: str, warranty_months: int, warranty_days: int) -> dict:
+    """Prüft die Eingabe, liefert den Vorschlag für Vertragsgrundlage und Leistungsart."""
     if work_kind not in WORK_KINDS:
         raise ValueError(f"Unbekannte Leistungsart: {work_kind!r}.")
     if not 0 <= warranty_months <= MAX_MONTHS:
@@ -124,24 +125,106 @@ def set_order_warranty(
         raise ValueError(f"Die Tage müssen zwischen 0 und {MAX_DAYS} liegen.")
     if warranty_months == 0 and warranty_days == 0:
         raise ValueError("Eine Gewährleistungsdauer von 0 Monaten und 0 Tagen ist keine Festlegung.")
-    text = _clean(reason)
-    if text is not None and len(text) > MAX_REASON_LENGTH:
-        raise ValueError(f"Die Begründung darf höchstens {MAX_REASON_LENGTH} Zeichen lang sein.")
     proposal = warranty_proposal(order.contract_basis, work_kind)
     if proposal is None:
         raise ValueError(f"Für die Vertragsgrundlage {order.contract_basis!r} gibt es keinen Vorschlag.")
+    return proposal
+
+
+def _is_set(order: Order) -> bool:
+    return order.work_kind is not None or order.warranty_months is not None or order.warranty_days is not None
+
+
+def warranty_shifts(db: Session, order: Order, warranty_months: int, warranty_days: int) -> list[dict]:
+    """Je nicht verworfene, abgenommene Abnahme des Auftrags: Gewährleistungsende bisher (None, wenn die Dauer noch
+    nicht festgelegt war) und mit der neuen Dauer."""
+    from .acceptances import SCOPES
+    from .models import OrderAcceptance
+
+    rows = db.scalars(
+        select(OrderAcceptance)
+        .where(OrderAcceptance.order_id == order.id, OrderAcceptance.discarded_at.is_(None),
+               OrderAcceptance.result == "abgenommen")
+        .order_by(OrderAcceptance.accepted_on, OrderAcceptance.id)
+    ).all()
+    was_set = order.warranty_months is not None and order.warranty_days is not None
+    shifts = []
+    for a in rows:
+        old = warranty_end(a.accepted_on, order.warranty_months, order.warranty_days) if was_set else None
+        new = warranty_end(a.accepted_on, warranty_months, warranty_days)
+        shifts.append({"acceptance_id": a.id, "accepted_on": a.accepted_on.isoformat(),
+                       "scope_label": SCOPES.get(a.scope, a.scope), "scope_description": a.scope_description,
+                       "old_end": old.isoformat() if old else None, "new_end": new.isoformat()})
+    return shifts
+
+
+def _reason_needed_after_acceptance(db: Session, order: Order) -> bool:
+    from .acceptances import has_active_acceptance
+
+    return has_active_acceptance(db, order.id)
+
+
+def warranty_change_preview(db: Session, order: Order, *, work_kind: str, warranty_months: int,
+                            warranty_days: int) -> dict:
+    """Was eine Festlegung bewirken würde (seit 1.8.47) -- liest nur: Vorschlag, ob eine Begründung nötig ist und
+    welche Gewährleistungsenden sich verschieben (bzw. bei der ersten Festlegung entstehen)."""
+    proposal = _check_values(order, work_kind, warranty_months, warranty_days)
+    follows = (warranty_months, warranty_days) == (proposal["months"], proposal["days"])
+    after_acceptance = _reason_needed_after_acceptance(db, order)
+    change_after_acceptance = after_acceptance and _is_set(order)
+    return {
+        "work_kind": work_kind, "work_kind_label": work_kind_label(work_kind),
+        "warranty_text": duration_text(warranty_months, warranty_days),
+        "proposal": proposal, "follows_proposal": follows,
+        "after_acceptance": after_acceptance,
+        "reason_required": (not follows) or change_after_acceptance,
+        "reason_why": [why for why, needed in (
+            ("weicht vom Vorschlag ab", not follows),
+            ("Änderung nach einer Abnahme", change_after_acceptance)) if needed],
+        "unchanged": (order.work_kind, order.warranty_months, order.warranty_days)
+                     == (work_kind, warranty_months, warranty_days),
+        "shifts": warranty_shifts(db, order, warranty_months, warranty_days),
+    }
+
+
+def set_order_warranty(
+    db: Session, order: Order, *, work_kind: str, warranty_months: int, warranty_days: int, reason: str | None,
+    actor_name: str = "System",
+) -> OrderWarrantyChange:
+    """Leistungsart und Gewährleistungsdauer festlegen. Entspricht die Dauer dem Vorschlag für die Vertragsgrundlage
+    des Auftrags und die Leistungsart, ist das die bewusste Übernahme; sonst ist die Begründung Pflicht. Seit 1.8.47
+    ebenso, wenn schon eine nicht verworfene Abnahme besteht und Leistungsart oder Dauer bereits festgelegt waren; die
+    verschobenen Enden stehen dann in der Historie. Sperrt die Zeile des Auftrags wie das Erfassen einer Abnahme."""
+    from .acceptances import lock_order
+
+    proposal = _check_values(order, work_kind, warranty_months, warranty_days)
+    text = _clean(reason)
+    if text is not None and len(text) > MAX_REASON_LENGTH:
+        raise ValueError(f"Die Begründung darf höchstens {MAX_REASON_LENGTH} Zeichen lang sein.")
     follows = (warranty_months, warranty_days) == (proposal["months"], proposal["days"])
     if not follows and text is None:
         raise ValueError(
             f"Die Dauer weicht vom Vorschlag ab ({proposal['text']}, {proposal['citation']}) – bitte eine Begründung "
             "angeben (z. B. im Vertrag vereinbart)."
         )
+    lock_order(db, order.id)
+    db.refresh(order)
+    after_acceptance = _reason_needed_after_acceptance(db, order)
+    problem = None
     if (order.work_kind, order.warranty_months, order.warranty_days) == (work_kind, warranty_months, warranty_days):
-        raise ValueError("Leistungsart und Gewährleistungsdauer sind bereits so festgelegt.")
+        problem = "Leistungsart und Gewährleistungsdauer sind bereits so festgelegt."
+    elif after_acceptance and _is_set(order) and text is None:
+        problem = ("Zu diesem Auftrag ist eine Abnahme erfasst – Leistungsart oder Gewährleistungsdauer nur mit "
+                   "Begründung ändern (die Gewährleistungsenden verschieben sich).")
+    if problem:
+        db.rollback()  # Sperre der Auftragszeile freigeben
+        raise ValueError(problem)
+    shifts = warranty_shifts(db, order, warranty_months, warranty_days) if after_acceptance else None
     change = OrderWarrantyChange(
         order_id=order.id, work_kind=work_kind, warranty_months=warranty_months, warranty_days=warranty_days,
         contract_basis=order.contract_basis, proposal_months=proposal["months"], proposal_days=proposal["days"],
         follows_proposal=follows, reason=text, changed_by_name=actor_name or "System",
+        acceptance_shifts=json.dumps(shifts, ensure_ascii=False) if shifts is not None else None,
     )
     db.add(change)
     order.work_kind = work_kind
@@ -166,6 +249,7 @@ def warranty_change_to_dict(change: OrderWarrantyChange) -> dict:
         "proposal_text": duration_text(change.proposal_months, change.proposal_days),
         "follows_proposal": change.follows_proposal,
         "reason": change.reason,
+        "acceptance_shifts": json.loads(change.acceptance_shifts) if change.acceptance_shifts else None,
         "changed_by_name": change.changed_by_name,
         "changed_at": change.changed_at,
     }

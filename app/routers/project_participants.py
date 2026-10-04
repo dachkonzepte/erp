@@ -21,7 +21,8 @@ from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_participants import (
     CANDIDATE_SOURCES, MAX_POWER_OF_ATTORNEY_BYTES, DuplicateParticipantError, ParticipantInUseError, add_participant,
     check_not_client,
-    list_participants, participant_candidates, participant_to_dict, power_of_attorney_path, remove_participant,
+    POA_KINDS, list_participants, participant_candidates, participant_to_dict, poa_value, power_of_attorney_path,
+    remove_participant,
     remove_power_of_attorney, roles_list, store_power_of_attorney, update_participant,
 )
 from ..schemas import (
@@ -120,7 +121,7 @@ def post_project_participant(project_id: int, payload: ProjectParticipantCreate,
         contact = linked_contact(db, supplier=supplier)
     participant = _errors(lambda: add_participant(
         db, project, contact, role=payload.role, copy_on_notices=payload.copy_on_notices,
-        authorized_recipient=payload.authorized_recipient,
+        authorized_recipient=payload.authorized_recipient, acceptance_authorized=payload.acceptance_authorized,
     ))
     return participant_to_dict(db, participant)
 
@@ -140,29 +141,58 @@ def delete_project_participant(participant_id: int, db: Session = Depends(get_db
     return {"ok": True}
 
 
-@router.post("/api/project-participants/{participant_id}/power-of-attorney", response_model=ProjectParticipantOut)
-def post_power_of_attorney(participant_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                           user: AppUser = _role_dep):
+def _store_poa(participant_id: int, file: UploadFile, db: Session, user: AppUser, kind: str) -> dict:
     participant = _participant_or_404(db, participant_id)
     data = file.file.read(MAX_POWER_OF_ATTORNEY_BYTES + 1)
     _user_id, user_name = actor_of(user)
     return participant_to_dict(db, _errors(lambda: store_power_of_attorney(
-        db, participant, filename=file.filename, data=data, user_name=user_name,
+        db, participant, filename=file.filename, data=data, user_name=user_name, kind=kind,
     )))
+
+
+def _poa_file(participant_id: int, db: Session, kind: str):
+    participant = _participant_or_404(db, participant_id)
+    stored = poa_value(participant, kind, "stored_filename")
+    if not stored:
+        raise HTTPException(status_code=404, detail=f"Keine {POA_KINDS[kind]['label']} hinterlegt.")
+    path = power_of_attorney_path(stored)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Datei der Vollmacht nicht gefunden.")
+    return FileResponse(path, media_type=poa_value(participant, kind, "content_type"),
+                        filename=poa_value(participant, kind, "original_filename"), content_disposition_type="inline")
+
+
+@router.post("/api/project-participants/{participant_id}/power-of-attorney", response_model=ProjectParticipantOut)
+def post_power_of_attorney(participant_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
+                           user: AppUser = _role_dep):
+    return _store_poa(participant_id, file, db, user, "empfang")
 
 
 @router.get("/api/project-participants/{participant_id}/power-of-attorney")
 def get_power_of_attorney(participant_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    participant = _participant_or_404(db, participant_id)
-    if not participant.poa_stored_filename:
-        raise HTTPException(status_code=404, detail="Keine Vollmacht hinterlegt.")
-    path = power_of_attorney_path(participant.poa_stored_filename)
-    if not path.is_file():
-        raise HTTPException(status_code=404, detail="Datei der Vollmacht nicht gefunden.")
-    return FileResponse(path, media_type=participant.poa_content_type, filename=participant.poa_original_filename,
-                        content_disposition_type="inline")
+    return _poa_file(participant_id, db, "empfang")
 
 
 @router.delete("/api/project-participants/{participant_id}/power-of-attorney", response_model=ProjectParticipantOut)
 def delete_power_of_attorney(participant_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return participant_to_dict(db, remove_power_of_attorney(db, _participant_or_404(db, participant_id)))
+
+
+# Vollmacht zur Abnahme (seit 1.8.47) -- dieselben drei Wege, eigene Spalten.
+@router.post("/api/project-participants/{participant_id}/acceptance-power-of-attorney",
+             response_model=ProjectParticipantOut)
+def post_acceptance_power_of_attorney(participant_id: int, file: UploadFile = File(...),
+                                      db: Session = Depends(get_db), user: AppUser = _role_dep):
+    return _store_poa(participant_id, file, db, user, "abnahme")
+
+
+@router.get("/api/project-participants/{participant_id}/acceptance-power-of-attorney")
+def get_acceptance_power_of_attorney(participant_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    return _poa_file(participant_id, db, "abnahme")
+
+
+@router.delete("/api/project-participants/{participant_id}/acceptance-power-of-attorney",
+               response_model=ProjectParticipantOut)
+def delete_acceptance_power_of_attorney(participant_id: int, db: Session = Depends(get_db),
+                                        _role: AppUser = _role_dep):
+    return participant_to_dict(db, remove_power_of_attorney(db, _participant_or_404(db, participant_id), "abnahme"))

@@ -9,10 +9,12 @@ Mehrere Einträge je Auftrag (Teilabnahmen, Verweigerung, Korrektur). Ein Eintra
   Vertragsstrafe); "mit Vorbehalten" wird nur abgeleitet (result_text()), nie gespeichert.
 - Einwendungen des Auftragnehmers (Text).
 - Erklärt durch: Auftraggeber (Name = Kunde laut Auftrag) oder einen Beteiligten des Projekts (Name und Rolle als
-  Schnappschuss). Ohne Empfangsvollmacht mit Beleg nur eine Warnung (poa_on_record falsch); mit ihr wird der Beleg
-  als Kopie mit Prüfsumme festgehalten -- der Beteiligte kann ihn später ersetzen oder entfernen.
-- Nachweis: Beleg (PDF oder Foto, am Inhalt erkannt, unverändert gespeichert, SHA-256); bei "schlüssig" stattdessen
-  eine Pflicht-Begründung (ein Beleg ist dort zusätzlich erlaubt).
+  Schnappschuss). Seit 1.8.47 zählt nur die Vollmacht zur Abnahme (Häkchen und Beleg am Beteiligten, eine
+  Empfangsvollmacht genügt nicht): ohne sie nur eine Warnung (poa_on_record falsch); mit ihr wird der Beleg als Kopie
+  mit Prüfsumme festgehalten (Datei-Art "abnahmevollmacht") -- der Beteiligte kann ihn später ersetzen oder entfernen.
+  Einträge aus 1.8.46 hielten die Empfangsvollmacht fest (Art "vollmacht") und gelten als ohne Vollmacht zur Abnahme.
+- Nachweis (seit 1.8.47): bei "förmlich" ein Beleg Pflicht (PDF oder Foto, am Inhalt erkannt, unverändert gespeichert,
+  SHA-256), sonst Beleg oder Begründung, mindestens eins (conduct_reason; beides zusammen erlaubt).
 
 Nach dem Speichern unveränderlich: ORM-Sperre (app/models.py), Dateien exklusiv angelegt und schreibgeschützt,
 content_sha256 über den Inhalt samt Prüfsummen der Belege -- jeder Abruf rechnet nach (verify_acceptance()), eine am
@@ -48,7 +50,10 @@ KINDS = {"foermlich": "förmlich", "ausdruecklich": "ausdrücklich", "schluessig
 SCOPES = {"gesamt": "Gesamtabnahme", "teil": "Teilabnahme"}
 RESULTS = {"abgenommen": "abgenommen", "verweigert": "verweigert"}
 DECLARERS = {"auftraggeber": "Auftraggeber", "beteiligter": "Beteiligter"}
-FILE_KINDS = {"nachweis": "Nachweis", "vollmacht": "Vollmacht des Beteiligten (beim Erfassen hinterlegt)"}
+FILE_KINDS = {"nachweis": "Nachweis",
+              "abnahmevollmacht": "Vollmacht zur Abnahme (beim Erfassen hinterlegt)",
+              "vollmacht": "Empfangsvollmacht (beim Erfassen hinterlegt, Erfassung vor 1.8.47)"}
+REGULAR_HINT = "ohne Hemmung oder Neubeginn"  # seit 1.8.47 neben jedem "Gewährleistung regulär bis"
 
 MAX_FILES = 5
 MAX_FILE_BYTES = 15_000_000  # wie der Beleg einer Zustellung (app/email_dispatch.py::MAX_RECEIPT_BYTES)
@@ -187,20 +192,21 @@ def _checked_upload(filename: str | None, data: bytes) -> tuple[bytes, str]:
 
 
 def _frozen_power_of_attorney(participant: ProjectParticipant) -> tuple[bytes, str] | None:
-    """Die hinterlegte Vollmacht des Beteiligten -- nur mit gesetzter Empfangsvollmacht, vorhandener Datei und
-    stimmender Prüfsumme, sonst None (dann warnt die Abnahme)."""
+    """Die Vollmacht zur Abnahme des Beteiligten (seit 1.8.47; vorher die Empfangsvollmacht) -- nur mit gesetztem
+    Häkchen, vorhandener Datei und stimmender Prüfsumme, sonst None (dann warnt die Abnahme). Eine Empfangsvollmacht
+    genügt nicht."""
     from .project_participants import power_of_attorney_path
 
-    if not participant.authorized_recipient or not participant.poa_stored_filename \
-            or participant.poa_content_type not in _SUFFIXES:
+    if not participant.acceptance_authorized or not participant.acceptance_poa_stored_filename \
+            or participant.acceptance_poa_content_type not in _SUFFIXES:
         return None
     try:
-        data = power_of_attorney_path(participant.poa_stored_filename).read_bytes()
+        data = power_of_attorney_path(participant.acceptance_poa_stored_filename).read_bytes()
     except (FileNotFoundError, NotADirectoryError):
         return None
-    if hashlib.sha256(data).hexdigest() != participant.poa_sha256:
+    if hashlib.sha256(data).hexdigest() != participant.acceptance_poa_sha256:
         return None
-    return data, participant.poa_content_type
+    return data, participant.acceptance_poa_content_type
 
 
 # ---------------------------------------------------------------------------
@@ -307,16 +313,18 @@ def create_acceptance(
 
     objections = _clean(data.get("contractor_objections"), TEXT_MAX, "Die Einwendungen")
     conduct_reason = _clean(data.get("conduct_reason"), TEXT_MAX, "Die Begründung")
-    if kind == "schluessig" and conduct_reason is None:
-        raise ValueError("Bei einer schlüssigen Abnahme bitte begründen, woraus sie sich ergibt (z. B. Ingebrauchnahme, "
-                         "vorbehaltlose Zahlung).")
-    if kind != "schluessig" and conduct_reason is not None:
-        raise ValueError("Eine Begründung gehört nur zur schlüssigen Abnahme – sonst ist der Beleg der Nachweis.")
-
+    # Nachweis (seit 1.8.47): förmlich -> Beleg Pflicht (das Protokoll), sonst Beleg oder Begründung, mindestens eins.
     if len(files) > MAX_FILES:
         raise ValueError(f"Höchstens {MAX_FILES} Belege je Abnahme.")
-    if kind != "schluessig" and not files:
-        raise ValueError(f"Bitte den Nachweis der {KINDS[kind]}en Abnahme als Beleg hochladen (PDF oder Foto).")
+    if kind == "foermlich":
+        if not files:
+            raise ValueError("Bitte das Protokoll der förmlichen Abnahme als Beleg hochladen (PDF oder Foto).")
+        if conduct_reason is not None:
+            raise ValueError("Bei der förmlichen Abnahme ist das Protokoll der Nachweis – eine Begründung statt Beleg "
+                             "gehört zur ausdrücklichen oder schlüssigen Abnahme.")
+    elif not files and conduct_reason is None:
+        raise ValueError(f"Bitte einen Nachweis der {KINDS[kind]}en Abnahme angeben: einen Beleg (PDF oder Foto) oder "
+                         "eine Begründung, woraus sie sich ergibt (z. B. E-Mail, Ingebrauchnahme, vorbehaltlose Zahlung).")
     uploads = [_checked_upload(name, content) for name, content in files]
     if sum(len(c) for c, _ in uploads) > MAX_TOTAL_BYTES:
         raise ValueError(f"Die Belege sind zusammen größer als {MAX_TOTAL_BYTES // 1_000_000} MB.")
@@ -372,7 +380,7 @@ def create_acceptance(
             acceptance.roof_areas.append(OrderAcceptanceRoofArea(roof_area_id=area.id, roof_area_name=area.name[:255]))
         stored_files = [("nachweis", content, content_type) for content, content_type in uploads]
         if frozen_poa is not None:
-            stored_files.append(("vollmacht", *frozen_poa))
+            stored_files.append(("abnahmevollmacht", *frozen_poa))
         for file_kind, content, content_type in stored_files:
             stored = _write_file(content, content_type)
             written.append(stored)
@@ -453,16 +461,21 @@ def acceptance_warranty(a: OrderAcceptance, order: Order) -> dict | None:
     if a.discarded_at is not None or a.result != "abgenommen":
         return None
     if order.warranty_months is None or order.warranty_days is None:
-        return {"end": None, "text": "Gewährleistungsende nicht berechenbar – Dauer am Auftrag nicht festgelegt"}
+        return {"end": None, "text": "Gewährleistungsende nicht berechenbar – Dauer am Auftrag nicht festgelegt",
+                "hint": None}
     end = warranty_end(a.accepted_on, order.warranty_months, order.warranty_days)
+    # Seit 1.8.47 "regulär": Abnahmedatum plus Dauer, ohne Hemmung oder Neubeginn der Verjährung (die kennt das ERP nicht).
     return {"end": end, "duration_text": duration_text(order.warranty_months, order.warranty_days),
-            "text": f"Gewährleistung bis {end:%d.%m.%Y} ({duration_text(order.warranty_months, order.warranty_days)} "
-                    f"ab Abnahme)", "rule": END_RULE_TEXT}
+            "text": f"Gewährleistung regulär bis {end:%d.%m.%Y} "
+                    f"({duration_text(order.warranty_months, order.warranty_days)} ab Abnahme)",
+            "hint": REGULAR_HINT, "rule": END_RULE_TEXT}
 
 
 def acceptance_to_dict(a: OrderAcceptance, order: Order) -> dict:
     check = verify_acceptance(a)
-    without_poa = a.declared_by == "beteiligter" and not a.poa_on_record
+    # Seit 1.8.47 zählt nur eine festgehaltene Vollmacht zur Abnahme -- eine Empfangsvollmacht (Einträge aus 1.8.46)
+    # nicht.
+    without_poa = a.declared_by == "beteiligter" and not any(f.kind == "abnahmevollmacht" for f in a.files)
     return {
         "id": a.id, "order_id": a.order_id, "order_number": order.order_number, "project_id": order.project_id,
         "property_id": a.property_id,

@@ -434,6 +434,7 @@ PFAD_WERTE = {
 # Query-Parameter: Pflichtparameter nach Namen, dazu je Route, was die Monteursicht erst füllt.
 # "@name" steht für den Wert aus den Testdaten.
 QUERY_WERTE = {"start": "2026-01-01", "end": "2026-12-31", "start_date": "2026-01-01", "end_date": "2026-12-31",
+               "work_kind": "bauwerk", "warranty_months": "48", "warranty_days": "0",  # Vorschau (seit 1.8.47)
                "property_id": "@property_id", "context": "auftrag"}
 QUERY_JE_ROUTE = {
     "/api/field-view/properties/search": {"q": "Halle"},
@@ -586,7 +587,10 @@ def _buero_welt(db: Session) -> dict:
     create_schlussrechnung(db, db.get(Order, welt["order_id"]))
     create_task(db, "Rückruf Kundin", project_id=project.id)
     contact = create_contact(db, {"kind": "person", "first_name": "Petra", "last_name": "Plan"})
-    add_participant(db, project, contact, role="architekt_planer")
+    beteiligt = add_participant(db, project, contact, role="architekt_planer", acceptance_authorized=True)
+    from app.project_participants import store_power_of_attorney
+    store_power_of_attorney(db, beteiligt, filename="abnahmevollmacht.pdf", data=b"%PDF-1.4\n%%EOF\n",
+                            user_name="Anna Admin", kind="abnahme")  # seit 1.8.47
     db.commit()
     # Seit 1.8.46: Gewährleistungsdauer und eine Abnahme mit Beleg -- der Admin liest sie mit Inhalt.
     from app.acceptances import create_acceptance
@@ -705,6 +709,7 @@ def test_adressbuch_und_beteiligte_im_durchlauf_fuer_monteure_gesperrt(durchlauf
         "/api/projects/{project_id}/participants": 403,
         "/api/projects/{project_id}/participant-candidates": 403,  # seit 1.8.39
         "/api/project-participants/{participant_id}/power-of-attorney": 403,
+        "/api/project-participants/{participant_id}/acceptance-power-of-attorney": 403,  # seit 1.8.47
     }
 
 
@@ -733,7 +738,9 @@ def test_abnahme_und_gewaehrleistung_im_durchlauf_fuer_monteure_gesperrt(durchla
     def routen(lauf):
         return {a["route"]: a["status"] for a in lauf["antworten"]
                 if "acceptance" in a["route"] or "warranty" in a["route"]}
-    erwartet = {"/api/orders/{order_id}/warranty-changes", "/api/orders/{order_id}/acceptances",
+    erwartet = {"/api/orders/{order_id}/warranty-changes", "/api/orders/{order_id}/warranty-preview",
+                "/api/project-participants/{participant_id}/acceptance-power-of-attorney",
+                "/api/orders/{order_id}/acceptances",
                 "/api/orders/{order_id}/acceptance-options", "/api/order-acceptances/{acceptance_id}/files/{file_id}",
                 "/api/properties/{property_id}/acceptance-warranties",
                 "/api/roof-areas/{roof_area_id}/acceptance-warranties"}

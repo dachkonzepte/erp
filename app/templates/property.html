@@ -88,20 +88,21 @@ tr:last-child td{border-bottom:none}
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Name</th><th>Dachtyp</th><th>Fläche</th><th>Eindeckung</th><th title="aus Abnahmen, die die Dachfläche nennen">Gewährleistung bis</th><th>Garantie Dritter bis</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Dachtyp</th><th>Fläche</th><th>Eindeckung</th><th title="aus Abnahmen, die die Dachfläche nennen; ohne Hemmung oder Neubeginn">Gewährleistung regulär bis</th><th>Garantie Dritter bis</th><th></th></tr></thead>
       <tbody id="roofAreaRows"></tbody>
     </table>
   </div>
+  <div class="muted small" style="margin-top:6px">„Gewährleistung regulär bis“: aus Abnahmen, ohne Hemmung oder Neubeginn.</div>
 </div>
 
 <!-- Seit 1.8.46: Gewährleistung des Betriebs, abgeleitet aus jeder nicht verworfenen, abgenommenen Abnahme an
      diesem Objekt (Objekt beim Erfassen) -- nie gespeichert. -->
 <div class="card" id="acceptanceWarrantyCard">
   <div class="section-title"><h2>Gewährleistung aus Abnahmen</h2></div>
-  <div class="muted small" style="margin-bottom:8px">Abgeleitet: Datum der Abnahme plus Gewährleistungsdauer des Auftrags. Verweigerte und verworfene Abnahmen erscheinen nicht.</div>
+  <div class="muted small" style="margin-bottom:8px">Abgeleitet: Datum der Abnahme plus Gewährleistungsdauer des Auftrags – „regulär“ heißt ohne Hemmung oder Neubeginn. Verweigerte und verworfene Abnahmen erscheinen nicht.</div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Auftrag</th><th>Umfang</th><th>Abnahme</th><th>Ergebnis</th><th>Gewährleistung bis</th></tr></thead>
+      <thead><tr><th>Auftrag</th><th>Umfang</th><th>Abnahme</th><th>Ergebnis</th><th title="ohne Hemmung oder Neubeginn">Gewährleistung regulär bis</th></tr></thead>
       <tbody id="acceptanceWarrantyRows"><tr><td colspan="5" class="empty">Lädt …</td></tr></tbody>
     </table>
   </div>

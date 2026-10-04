@@ -4,6 +4,28 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.47 – Abnahme: Vollmacht zur Abnahme, Begründung nach der Abnahme, Nachweis, „regulär“
+
+Stufe 2c, Nachtrag zu 2c-1 nach Betreiberentscheidung. Beteiligte haben ein eigenes Häkchen „Vollmacht zur Abnahme“
+mit eigenem Beleg (Reiter „Beteiligte“, eigene Spalten, eigene Routen); nur danach richtet sich beim Erfassen einer
+Abnahme die Warnung, eine Empfangsvollmacht genügt nicht mehr, und festgehalten wird nur noch diese Vollmacht. Einträge
+aus 1.8.46, die eine Empfangsvollmacht festhielten, behalten ihre Prüfsumme und gelten als „ohne Vollmacht zur
+Abnahme“. Nach der ersten nicht verworfenen Abnahme ändern sich Leistungsart oder Gewährleistungsdauer nur noch mit
+Begründung, auch beim Übernehmen eines Vorschlags; vor dem Speichern zeigt die Karte „Gewährleistung“, welche
+Gewährleistungsenden sich verschieben (neue Vorschau `GET /api/orders/{id}/warranty-preview`), die Historie hält die
+Verschiebung fest. Nachweis: bei „förmlich“ ein Beleg Pflicht, sonst Beleg oder Begründung, mindestens eins. Die Enden
+heißen jetzt „Gewährleistung regulär bis“, mit dem Hinweis „ohne Hemmung oder Neubeginn“.
+
+**Auf dem Server**: Migration `1dcea6473427` (Spalten am Beteiligten, Verschiebungen an der Historie); vorhandene
+Beteiligte haben danach keine Vollmacht zur Abnahme – sie wird bei Bedarf im Reiter „Beteiligte“ gesetzt. Festlegungen
+und Antworten in `docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.47“. `test_v349` erweitert (u. a. Vollmacht
+zur Abnahme, Begründung und Verschiebung nach der Abnahme, Nachweisregel, Eintrag aus 1.8.46, PostgreSQL-Sperre je
+Richtung getrennt, Migration), `test_v326` und `test_v340` nachgezogen; 16 von 16 Gegenproben rot. Migration SQLite und
+PostgreSQL hin/zurück/hin, Downgrade-Abbruch mit Bestand, `alembic check` sauber. Volle Suite 2694 grün (mit den opt-in-Tests
+gegen PostgreSQL). Klicktest `klicktest_abnahme.py` 51/51, unverändert grün `klicktest_beteiligte.py` 43/43,
+`klicktest_beteiligte_stammdaten.py` 28/28, `klicktest_behinderungsanzeige_versand.py` 41/41,
+`klicktest_monteur_navigation.py` 27/27.
+
 ## 1.8.46 – Abnahme und Gewährleistung: Fundament
 
 Stufe 2c, Runde 2c-1. Am Auftrag stehen jetzt Leistungsart (Bauwerk / sonstige Arbeiten) und Gewährleistungsdauer in

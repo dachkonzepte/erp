@@ -742,6 +742,17 @@ class ProjectParticipant(Base):
     poa_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     poa_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     poa_uploaded_by_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Vollmacht zur Abnahme (seit 1.8.47): eigenes Häkchen und eigener Beleg, unabhängig von der Empfangsvollmacht
+    # oben -- nur danach richtet sich die Warnung beim Erfassen einer Abnahme (app/acceptances.py). Beleg im selben
+    # Ordner wie die Empfangsvollmacht.
+    acceptance_authorized: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    acceptance_poa_stored_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    acceptance_poa_original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    acceptance_poa_content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    acceptance_poa_size_bytes: Mapped[int | None] = mapped_column(nullable=True)
+    acceptance_poa_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    acceptance_poa_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    acceptance_poa_uploaded_by_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     contact: Mapped[Contact] = relationship()
@@ -1085,6 +1096,9 @@ class OrderWarrantyChange(Base):
     proposal_days: Mapped[int] = mapped_column()
     follows_proposal: Mapped[bool] = mapped_column(Boolean)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Seit 1.8.47: bei einer Änderung nach der ersten nicht verworfenen Abnahme die verschobenen Gewährleistungsenden
+    # als JSON-Liste [{acceptance_id, accepted_on, old_end, new_end}] -- so, wie die Seite sie vor dem Speichern zeigte.
+    acceptance_shifts: Mapped[str | None] = mapped_column(Text, nullable=True)
     changed_by_name: Mapped[str] = mapped_column(String(160), default="System")
     changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -1098,8 +1112,10 @@ class OrderAcceptance(Base):
 
     property_id ist das Objekt des Projekts beim Erfassen; die Dachflächen (OrderAcceptanceRoofArea) stammen nur
     daraus. Erklärt durch den Auftraggeber (declared_by_name = Kunde laut Auftrag) oder einen Beteiligten des
-    Projekts (participant_id, Name und Rolle als Schnappschuss; poa_on_record: Empfangsvollmacht mit Beleg beim
-    Erfassen, der Beleg selbst als Kopie in OrderAcceptanceFile, Art "vollmacht"). content_sha256 bindet den
+    Projekts (participant_id, Name und Rolle als Schnappschuss; poa_on_record: Vollmacht mit Beleg beim Erfassen, der
+    Beleg selbst als Kopie in OrderAcceptanceFile). Seit 1.8.47 zählt nur die Vollmacht zur Abnahme (Datei-Art
+    "abnahmevollmacht"); Einträge aus 1.8.46 hielten die Empfangsvollmacht fest (Art "vollmacht") -- sie gelten
+    als "ohne Vollmacht zur Abnahme", ihr gebundener Inhalt bleibt unverändert. content_sha256 bindet den
     Inhalt samt Prüfsummen der Belege (app/acceptances.py::acceptance_content()); jeder Abruf rechnet nach.
 
     created_by_user_id/discarded_by_user_id bewusst ohne Fremdschlüssel: Benutzer löschen scheitert unter

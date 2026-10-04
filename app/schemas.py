@@ -4967,6 +4967,7 @@ class ProjectParticipantCreate(BaseModel):
     role: str = Field(min_length=1, max_length=40)
     copy_on_notices: bool = False
     authorized_recipient: bool = False
+    acceptance_authorized: bool = False  # seit 1.8.47: Vollmacht zur Abnahme
 
     @model_validator(mode="after")
     def _genau_eine_herkunft(self):
@@ -4977,10 +4978,11 @@ class ProjectParticipantCreate(BaseModel):
 
 class ProjectParticipantUpdate(PartialUpdate):
     """Teil-Update (Regel 22): die Projektmappe ändert Rolle und Häkchen einzeln."""
-    NOT_NULL = frozenset({"role", "copy_on_notices", "authorized_recipient"})
+    NOT_NULL = frozenset({"role", "copy_on_notices", "authorized_recipient", "acceptance_authorized"})
     role: str | None = Field(default=None, min_length=1, max_length=40)
     copy_on_notices: bool | None = None
     authorized_recipient: bool | None = None
+    acceptance_authorized: bool | None = None  # seit 1.8.47
 
 
 class ParticipantCandidateOut(BaseModel):
@@ -5021,6 +5023,8 @@ class ProjectParticipantOut(BaseModel):
     role_label: str
     copy_on_notices: bool
     authorized_recipient: bool
+    acceptance_authorized: bool = False
     contact: ContactOut
     power_of_attorney: PowerOfAttorneyOut | None
+    acceptance_power_of_attorney: PowerOfAttorneyOut | None = None  # seit 1.8.47
     created_at: datetime

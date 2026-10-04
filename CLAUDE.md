@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.46** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.47** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -599,7 +599,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     und gekennzeichnet; der Server prüft "aktiv" nur bei einem neu gewählten Wert. Ein leerer gespeicherter
     Wert bleibt leer -- eine Vorgabe aus den Einstellungen gilt nur beim Anlegen (seit 1.8.31).
     `tests/test_v329_update_handler_struktur.py` prüft jeden
-    PUT/PATCH-Handler per AST; die 73 Altfälle stehen dort als Liste, die nur kürzer werden darf.
+    PUT/PATCH-Handler per AST; die 72 Altfälle (seit 1.8.46) stehen dort als Liste, die nur kürzer werden darf.
     Details: `docs/archiv/teil-updates.md`.
 
 23. **Grunddaten legt der Start an, nie ein Lesepfad -- kein GET schreibt, seit 1.8.42.** Einstellungen
@@ -684,7 +684,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   `OrderAcceptance` (mehrere je Auftrag, `app/acceptances.py`): nach dem Speichern unveränderlich (ORM-Sperre, Belege
   schreibgeschützt mit SHA-256, `content_sha256` über den Inhalt), Korrektur nur durch Verwerfen mit Begründung und
   einen neuen Eintrag. Das Gewährleistungsende wird nie gespeichert, sondern aus Abnahmedatum und Dauer abgeleitet
-  (`warranty_end()`, § 188 Abs. 2/3 BGB). Eine nicht verworfene Abnahme sperrt den Abgleich mit dem Angebot.
+  (`warranty_end()`, § 188 Abs. 2/3 BGB, angezeigt als "Gewährleistung regulär bis" -- ohne Hemmung oder Neubeginn). Eine
+  nicht verworfene Abnahme sperrt den Abgleich mit dem Angebot und (seit 1.8.47) jede Änderung von Leistungsart oder
+  Dauer ohne Begründung. Beim Erklärenden zählt nur die "Vollmacht zur Abnahme" am Beteiligten
+  (`acceptance_authorized` + Beleg), nicht die Empfangsvollmacht.
   `RoofArea.third_party_guarantee_until` ist die Garantie Dritter (Hersteller/Fremdfirma), nicht die Gewährleistung des
   Betriebs. Details: `docs/archiv/abnahme-und-gewaehrleistung.md`.
 - **Weitere Fachbegriffe ausgelagert**: Dachflächen & Bauteile, Wartungsvertrag,
@@ -816,8 +819,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   `docs/archiv/vertragsgrundlage-und-vertrag.md`
 - **Abnahme und Gewährleistung** (Stufe 2c mit eigenem Etappenplan; seit 1.8.46 Leistungsart und
   Gewährleistungsdauer am Auftrag, Abnahme unveränderlich mit Verwerfen, Gewährleistungsende abgeleitet an Auftrag/Objekt/
-  Dachfläche, Garantie Dritter an der Dachfläche, Abgleich gesperrt nach Abnahme) --
-  `docs/archiv/abnahme-und-gewaehrleistung.md`
+  Dachfläche, Garantie Dritter an der Dachfläche, Abgleich gesperrt nach Abnahme; seit 1.8.47 Vollmacht zur Abnahme am
+  Beteiligten, Begründung mit Vorschau der verschobenen Enden nach der ersten Abnahme, Nachweis förmlich: Beleg, sonst Beleg
+  oder Begründung) -- `docs/archiv/abnahme-und-gewaehrleistung.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
   `docs/archiv/grunddaten-beim-start.md`
@@ -1177,7 +1181,8 @@ Aufgaben "versenden" und "Antwort prüfen", Versandprotokoll, 412 px) und `klick
 darf, "Antwort als Beleg": SVG abgelehnt, PDF als Kachel, Foto als Vorschau, nach der Unterschrift gesperrt, Editor) und
 `klicktest_abnahme.py` (1.8.46, Gewährleistung: Vorschlag übernehmen, Abweichung nur mit Begründung; Abnahme-Dialog ohne
 Vorauswahl, Dachflächen nur des Objekts, Vollmacht-Warnung, SVG abgelehnt, Beleg, Abgleich gesperrt, Verwerfen mit
-Begründung; Objekt und Dachfläche mit Gewährleistung und Garantie Dritter; 412 px dunkel; Monteurin 403). Ein
+Begründung; Objekt und Dachfläche mit Gewährleistung und Garantie Dritter; 412 px dunkel; Monteurin 403; seit 1.8.47
+Vorschau der verschobenen Enden mit Pflicht-Begründung, Vollmacht zur Abnahme in Dialog und Projektmappe, Nachweisregel). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)
@@ -1244,7 +1249,7 @@ Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 - ~~Kolonnenführer-Rolle für Gruppenbuchungen~~ -- seit 1.7.12 gelöst über das Kennzeichen
   `TeamEmployee.is_crew_leader` (keine eigene Rolle), siehe `docs/archiv/rechtekonzept.md`,
   "Zeiterfassung für Monteure" -> "Nachtrag (seit 1.7.12)".
-- **65 Update-Handler übernehmen weiterhin nicht gesendete Felder** (die sechs mit Datenverlust seit
+- **64 Update-Handler übernehmen weiterhin nicht gesendete Felder** (seit 1.8.46 ohne die Dachfläche; die sechs mit Datenverlust seit
   1.8.25 behoben, die drei der Arbeitsvorbereitung seit 1.8.29, der Auftragskopf seit 1.8.32, Regel 22): jede Oberfläche schickt dort heute alle Felder, kein akuter Datenverlust.
   Eingefroren in `BEKANNT` (`tests/test_v329_update_handler_struktur.py`), Abbau bei Gelegenheit; dazu
   Speichern-Aufrufe, die nicht bearbeitete oder gemerkte Werte schicken: `docs/archiv/teil-updates.md`,
