@@ -326,7 +326,11 @@ async def pruefen(tab, seed, p):
     # --- Verwerfen -------------------------------------------------------------------------------------
     p.pruefe("Verwerfen: Begründungsfeld erst nach dem Klick sichtbar", await tab.js(
         f"getComputedStyle({LISTE}[0].querySelector('.acc-discard')).display"), "none")
-    await tab.js(f"{LISTE}[0].querySelector('button').click()")
+    # Seit 1.8.49 trägt eine Abnahme mit Vorbehalt Mängel auch "+ Mangel erfassen" und warnt ohne Mangel.
+    p.pruefe("Abnahme mit Vorbehalt Mängel: Warnung ohne Mangel und Knopf", await tab.js(
+        f"[{eintrag}.includes('ohne erfassten Mangel'), !!{LISTE}[0].querySelector('button[onclick^=openDefectDialog]')]"),
+        [True, True])
+    await tab.js(f"{LISTE}[0].querySelector('button[onclick^=showDiscard]').click()")
     p.pruefe("Verwerfen: Begründungsfeld nach dem Klick sichtbar", await tab.js(
         f"getComputedStyle({LISTE}[0].querySelector('.acc-discard')).display"), "flex")
     await tab.js(f"{LISTE}[0].querySelector('.acc-discard .danger').click()")

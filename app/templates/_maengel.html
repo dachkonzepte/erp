@@ -1,0 +1,197 @@
+{# Mängel aus der Abnahme am Auftrag (seit 1.8.49, Stufe 2c-2a, docs/archiv/abnahme-und-gewaehrleistung.md).
+   Eingebunden in order.html nach _abnahme.html; nutzt orderId, order, api(), esc(), fehlerText(), FELDNAMEN und aus
+   _abnahme.html accDate(), accDateTime(), accSize(), accCheck().
+   - Karte "Mängel": jeder Mangel mit Stand (Status, Haltung, Freigabe), Frist, Dateien, Aufgabe, bei VOB/B
+     "Nachbesserung regulär bis" mit Prüfstatus, Verlauf; Aktionen über eingeblendete Felder (kein prompt(), Regel 4).
+   - Dialog "Mangel erfassen": geöffnet aus einer Abnahme mit Vorbehalt Mängel oder Verweigerung (Knopf in der Karte
+     "Abnahme"); ohne Vorauswahl. Nach dem Speichern springt die Seite zum neuen Mangel. #}
+<style>
+.def-item{border-top:1px solid var(--line);padding:10px 0;font-size:13px;overflow-wrap:anywhere}.def-item:first-child{border-top:none;padding-top:0}
+.def-item.discarded{opacity:.7}.def-item.flash{outline:2px solid var(--accent);outline-offset:4px}
+.def-head{font-weight:750;font-size:13.5px}.def-row{margin-top:3px}
+.def-badge{display:inline-block;padding:1px 7px;margin:2px 4px 0 0;font-size:11.5px;font-weight:700;border:1px solid var(--line);background:var(--soft)}
+.def-badge.done{border-color:var(--success);color:var(--success)}.def-badge.warn{border-color:var(--warning);color:var(--warning)}
+.def-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.def-panel{margin-top:8px;padding:8px 10px;background:var(--soft);display:grid;gap:6px}.def-panel[hidden]{display:none}
+.def-panel textarea{width:100%;min-height:56px;border:1px solid var(--field-border);padding:7px;background:var(--card);color:var(--ink);font:inherit;font-size:13px}
+.def-panel .choice,#defectDialog .choice{display:inline-flex;gap:6px;align-items:center;margin:2px 14px 2px 0;cursor:pointer;font-size:13.5px}
+.def-panel input[type=radio],#defectDialog input[type=radio]{width:auto;margin:0;flex:none}
+.def-panel label.lbl,#defectDialog label.lbl{display:block;font-size:11px;font-weight:800;color:var(--muted);margin-bottom:2px}
+.def-item details{margin-top:6px}.def-item summary{cursor:pointer;font-weight:650}
+.def-event{border-left:3px solid var(--line);padding:2px 0 2px 8px;margin-top:4px}
+.def-item a{color:var(--accent);font-weight:650}
+#defectDialog{width:min(680px,96vw)}#defectDialog .fields{margin-bottom:8px}
+</style>
+<div class="card" id="defectCard"><h3>Mängel</h3>
+  <div class="small muted" style="margin-bottom:8px">Aus Abnahmen mit Vorbehalt wegen Mängeln oder Verweigerung („+ Mangel erfassen“ an der Abnahme). Nach dem Speichern unveränderlich – Haltung, Status und Freigabe stehen im Verlauf; eine falsche Angabe wird mit Begründung verworfen.</div>
+  <div id="defectList" class="small muted">Lädt …</div>
+  <div id="defectStatus" class="status"></div>
+</div>
+<dialog id="defectDialog"><div class="dialog"><div class="dialog-head"><h3>Mangel erfassen</h3><button class="secondary" onclick="closeDefectDialog()">✕</button></div>
+  <div id="defAcceptanceInfo" class="small" style="margin-bottom:8px"></div>
+  <div class="fields">
+    <div class="field full"><label for="defDescription">Beschreibung (Pflicht)</label><textarea id="defDescription" maxlength="5000" placeholder="z. B. Anschluss an der Attika undicht, Wasser tritt bei Regen ein"></textarea></div>
+    <div class="field"><label for="defRoofArea">Dachfläche (optional)</label><select id="defRoofArea"></select></div>
+    <div class="field"><label for="defLocation">Ortsangabe (optional)</label><input id="defLocation" maxlength="500" placeholder="z. B. Attika Westseite, Achse 3"></div>
+    <div class="field"><label for="defDue">Beseitigungsfrist (optional)</label><input id="defDue" type="date"></div>
+    <div class="field full"><label for="defPhotos">Fotos (JPEG, PNG, WebP)</label><input id="defPhotos" type="file" multiple accept="image/jpeg,image/png,image/webp"></div>
+    <div class="field full"><label for="defReceipts">Belege (PDF oder Foto, z. B. Protokoll, Schreiben)</label><input id="defReceipts" type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp"></div>
+  </div>
+  <div id="defLimits" class="small muted"></div>
+  <div class="notice">Nach dem Speichern unveränderlich – Fotos lassen sich später nur ergänzen. Beim Speichern entsteht eine Aufgabe ohne Zuständigkeit, fällig zur Frist.</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button id="defSaveBtn" onclick="saveDefect(this)">Mangel speichern</button><button class="secondary" onclick="closeDefectDialog()">Abbrechen</button></div>
+  <div id="defDialogStatus" class="status"></div>
+</div></dialog>
+<script>
+let defects=[],defectAcceptanceId=null,defectOptionsCache={},defectHashDone=false;
+// FELDNAMEN definiert order.html erst NACH diesem Include -- deshalb erst beim Aufruf zusammensetzen, nie beim Laden.
+function defFeldnamen(){return {...FELDNAMEN,description:'Beschreibung',location:'Ortsangabe',remedy_due_on:'Beseitigungsfrist',roof_area_id:'Dachfläche',stance:'Haltung',released:'Freigabe',event_date:'Datum'}}
+async function defApi(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,defFeldnamen()));return r.json()}
+async function loadDefects(){
+  try{defects=await defApi(`/api/orders/${orderId}/defects`)}catch(e){document.getElementById('defectList').textContent='Mängel konnten nicht geladen werden: '+e.message;return}
+  renderDefects();
+  // Verweis aus der Aufgabe (/orders/{id}#mangel-{id}): der Mangel entsteht erst hier -- einmal hinspringen.
+  const m=!defectHashDone&&location.hash.match(/^#mangel-(\d+)$/);defectHashDone=true;
+  if(m)defFlash(Number(m[1]));
+}
+function defFlash(id){const el=document.getElementById('mangel-'+id);if(el){el.scrollIntoView({block:'center'});el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),2500)}}
+function renderDefects(){
+  const box=document.getElementById('defectList');box.className='';
+  box.innerHTML=defects.length?defects.map(defectHtml).join(''):'<div class="small muted">Noch kein Mangel erfasst.</div>';
+}
+function defFiles(d,files){return files.map(f=>`<div class="def-row"><a href="/api/defects/${d.id}/files/${f.id}" target="_blank" rel="noopener">${esc(f.kind_label)} (${f.kind==='foto'?'':(f.content_type==='application/pdf'?'PDF, ':'Foto, ')}${accSize(f.size_bytes)})</a> <span class="acc-sha" title="${esc(f.sha256)}">SHA-256 ${esc(f.sha256.slice(0,16))}…</span>${f.status!=='unveraendert'?` <span class="acc-bad">${esc(f.status_text)}</span>`:''}</div>`).join('')}
+function defEventHtml(d,e){
+  const what=e.kind==='fotos'?`${e.files.length} Foto${e.files.length===1?'':'s'} ergänzt`:`${esc(e.kind_label)}: ${e.previous_value_label?esc(e.previous_value_label)+' → ':''}<b>${esc(e.value_label)}</b>`;
+  const parts=[`<div>${what}${e.event_date?` am ${accDate(e.event_date)}`:''}${e.intact?'':' <span class="acc-bad">⚠ weicht von seiner Prüfsumme ab</span>'}</div>`];
+  if(e.declared_by)parts.push(`<div>Erklärt durch: ${e.declared_by==='beteiligter'?`${esc(e.declared_by_name)} (${esc(e.declared_by_role||'Beteiligter')})`:`Auftraggeber ${esc(e.declared_by_name)}`}${e.without_power_of_attorney?' <span class="acc-warn">⚠ ohne Vollmacht zur Abnahme</span>':''}</div>`);
+  if(e.reason)parts.push(`<div style="white-space:pre-wrap">Begründung: ${esc(e.reason)}</div>`);
+  if(e.kind!=='fotos'||e.files.length)parts.push(defFiles(d,e.files));
+  parts.push(`<div class="muted">${accDateTime(e.created_at_local)} · ${esc(e.created_by_name)}</div>`);
+  return `<div class="def-event">${parts.join('')}</div>`;
+}
+function defectHtml(d){
+  const place=[d.roof_area_name&&(d.roof_area_id?`<a href="/roof-areas/${d.roof_area_id}">${esc(d.roof_area_name)}</a>`:esc(d.roof_area_name)),d.location&&esc(d.location)].filter(Boolean).join(' · ');
+  const badges=[`<span class="def-badge${d.done?' done':''}">${esc(d.status_label)}${d.status_date?' '+accDate(d.status_date):''}</span>`,`<span class="def-badge${d.stance==='bestritten'?' warn':''}">Haltung: ${esc(d.stance_label)}</span>`,`<span class="def-badge">${d.released?'zur Beseitigung freigegeben':'nicht freigegeben'}</span>`];
+  const lines=[`<div class="def-head">Mangel Nr. ${d.id}${place?' · '+place:''}</div>`,`<div>${badges.join('')}</div>`,`<div class="def-row" style="white-space:pre-wrap">${esc(d.description)}</div>`];
+  if(d.acceptance)lines.push(`<div class="def-row muted">Aus der ${esc(d.acceptance.scope_label)} vom ${accDate(d.acceptance.accepted_on)} (${esc(d.acceptance.result_text)})${d.acceptance.discarded?' <span class="acc-warn">– Abnahme verworfen</span>':''}</div>`);
+  if(d.remedy_due_on)lines.push(`<div class="def-row${d.remedy_overdue?' acc-bad':''}">Beseitigungsfrist: ${accDate(d.remedy_due_on)}${d.remedy_overdue?' – überschritten':''}</div>`);
+  lines.push(defFiles(d,d.files));
+  const w=d.remedy_warranty;
+  if(w)lines.push(`<div class="def-row ${w.end&&w.check.ok?'acc-good':'acc-warn'}" title="${esc(w.rule||'')}">${esc(w.text)}${w.hint?` <span class="acc-hint">· ${esc(w.hint)}</span>`:''} ${accCheck(w.check)}</div>`);
+  const t=d.task;
+  lines.push(`<div class="def-row">Aufgabe: ${t.exists?`<a href="/tasks">${esc(t.title)}</a> – ${esc(t.status_label)}${t.archived?' (archiviert)':''}`:`<span class="muted">${esc(t.text)}</span>`}</div>`);
+  if(d.task_hint)lines.push(`<div class="def-row acc-warn">${esc(d.task_hint)}</div>`);
+  if(!d.intact)lines.push(`<div class="def-row acc-bad">⚠ Prüfung: ${esc(d.check.text)}</div>`);
+  lines.push(`<div class="def-row muted">Erfasst ${accDateTime(d.created_at_local)} von ${esc(d.created_by_name)}</div>`);
+  if(d.discarded){
+    lines.push(`<div class="def-row acc-bad" style="white-space:pre-wrap">Verworfen ${accDateTime(d.discarded_at_local)} von ${esc(d.discarded_by_name)}: ${esc(d.discard_reason)}</div>`);
+  }else{
+    const acts=[['haltung','Haltung …'],!d.done&&['freigabe',d.released?'Freigabe zurücknehmen …':'Zur Beseitigung freigeben …'],d.next_statuses.length&&['status','Status …'],['fotos','Fotos ergänzen …'],['verwerfen','Verwerfen …']].filter(Boolean);
+    lines.push(`<div class="def-actions">${acts.map(([k,l])=>`<button class="secondary" onclick="defOpen(${d.id},'${k}')">${l}</button>`).join('')}</div><div id="defPanel${d.id}" class="def-panel" hidden></div>`);
+  }
+  if(d.events.length)lines.push(`<details><summary>Verlauf (${d.events.length})</summary>${d.events.map(e=>defEventHtml(d,e)).join('')}</details>`);
+  return `<div class="def-item${d.discarded?' discarded':''}" id="mangel-${d.id}" data-defect="${d.id}">${lines.join('')}</div>`;
+}
+function defRadio(scope,name){const x=scope.querySelector(`input[name="${name}"]:checked`);return x?x.value:null}
+async function defOptions(acceptanceId){if(!defectOptionsCache[acceptanceId])defectOptionsCache[acceptanceId]=await defApi(`/api/order-acceptances/${acceptanceId}/defect-options`);return defectOptionsCache[acceptanceId]}
+async function defOpen(id,kind){
+  const d=defects.find(x=>x.id===id),box=document.getElementById('defPanel'+id);
+  if(!box.hidden&&box.dataset.kind===kind){box.hidden=true;return}
+  box.dataset.kind=kind;let html='';
+  if(kind==='haltung'){
+    html=`<div><label class="lbl">Haltung zum Mangel</label>${['anerkannt','bestritten'].map(v=>`<label class="choice"><input type="radio" name="defStance${id}" value="${v}" ${d.stance===v?'disabled':''}> ${v}</label>`).join('')}</div><label class="lbl" for="defReason${id}">Begründung (Pflicht bei „bestritten“)</label><textarea id="defReason${id}" maxlength="2000"></textarea><div><button onclick="defStance(${id},this)">Haltung speichern</button></div>`;
+  }else if(kind==='freigabe'){
+    html=d.released?`<div>Die Freigabe zur Beseitigung zurücknehmen.</div><label class="lbl" for="defReason${id}">Begründung (Pflicht)</label><textarea id="defReason${id}" maxlength="2000"></textarea><div><button class="danger" onclick="defRelease(${id},false,this)">Freigabe zurücknehmen</button></div>`
+      :`<div>Den Mangel bewusst zur Beseitigung freigeben – unabhängig von der Haltung.${d.stance==='bestritten'?' <b>Der Mangel ist bestritten</b> – eine Freigabe trotzdem (z. B. aus Kulanz) bitte begründen.':''}</div><label class="lbl" for="defReason${id}">Begründung${d.stance==='bestritten'?' (Pflicht)':' (optional)'}</label><textarea id="defReason${id}" maxlength="2000"></textarea><div><button onclick="defRelease(${id},true,this)">Zur Beseitigung freigeben</button></div>`;
+  }else if(kind==='status'){
+    html=`<div><label class="lbl">Neuer Status (bisher: ${esc(d.status_label)})</label>${d.next_statuses.map(s=>`<label class="choice"><input type="radio" name="defNext${id}" value="${s.value}" onchange="defStatusUpdate(${id})"> ${esc(s.label)}</label>`).join('')}</div>
+      <div id="defDateBox${id}" hidden><label class="lbl" for="defDate${id}">Datum</label><input id="defDate${id}" type="date"></div>
+      <div id="defDeclBox${id}" hidden><label class="lbl">Erklärt durch</label><label class="choice"><input type="radio" name="defDecl${id}" value="auftraggeber" onchange="defStatusUpdate(${id})"> Auftraggeber</label><label class="choice"><input type="radio" name="defDecl${id}" value="beteiligter" onchange="defStatusUpdate(${id})"> Beteiligter des Projekts</label>
+        <div id="defPartBox${id}" hidden><select id="defPart${id}" onchange="defStatusUpdate(${id})"></select><div id="defPoa${id}" class="notice warning" style="margin:6px 0 0" hidden></div></div>
+        <label class="lbl" for="defReceipts${id}" style="margin-top:6px">Beleg (PDF oder Foto) – oder Begründung, mindestens eins</label><input id="defReceipts${id}" type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp"></div>
+      <label class="lbl" for="defReason${id}">Begründung</label><textarea id="defReason${id}" maxlength="2000"></textarea><div><button onclick="defStatus(${id},this)">Status speichern</button></div>`;
+  }else if(kind==='fotos'){
+    html=`<label class="lbl" for="defMorePhotos${id}">Fotos ergänzen (JPEG, PNG, WebP) – nur hinzufügen, vorhandene bleiben</label><input id="defMorePhotos${id}" type="file" multiple accept="image/jpeg,image/png,image/webp"><div><button onclick="defPhotos(${id},this)">Fotos hinzufügen</button></div>`;
+  }else{
+    html=`<label class="lbl" for="defReason${id}">Begründung (Pflicht), z. B. doppelt erfasst</label><textarea id="defReason${id}" maxlength="2000"></textarea><div><button class="danger" onclick="defDiscard(${id},this)">Mangel verwerfen</button></div>`;
+  }
+  box.innerHTML=html+`<div id="defPanelStatus${id}" class="status"></div>`;box.hidden=false;
+  if(kind==='status'){
+    try{const o=await defOptions(d.acceptance_id);document.getElementById('defPart'+id).innerHTML='<option value="">— bitte wählen —</option>'+o.participants.map(p=>`<option value="${p.participant_id}" ${p.archived?'disabled':''}>${esc(p.name)} (${esc(p.role_label)})${p.archived?' – archiviert':''}</option>`).join('')}catch(e){}
+    defStatusUpdate(id);
+  }
+}
+function defStatusUpdate(id){
+  const box=document.getElementById('defPanel'+id),next=defRadio(box,'defNext'+id),decl=defRadio(box,'defDecl'+id);
+  document.getElementById('defDateBox'+id).hidden=!(next==='beseitigt'||next==='beseitigung_abgenommen');
+  document.getElementById('defDeclBox'+id).hidden=next!=='beseitigung_abgenommen';
+  document.getElementById('defPartBox'+id).hidden=decl!=='beteiligter';
+  const d=defects.find(x=>x.id===id),o=defectOptionsCache[d.acceptance_id],pid=document.getElementById('defPart'+id).value;
+  const p=o&&decl==='beteiligter'&&pid?o.participants.find(x=>String(x.participant_id)===pid):null,warn=document.getElementById('defPoa'+id);
+  warn.hidden=!(p&&!p.poa_on_record);warn.textContent=p&&!p.poa_on_record?`Für ${p.name} ist keine Vollmacht zur Abnahme hinterlegt – gespeichert wird trotzdem, gekennzeichnet „ohne Vollmacht zur Abnahme“.`:'';
+}
+async function defSend(id,url,options,okText,btn){
+  const st=document.getElementById('defPanelStatus'+id);btn.disabled=true;st.textContent='Wird gespeichert …';
+  try{const v=await defApi(url,options);defects=defects.map(x=>x.id===id?v:x);renderDefects();document.getElementById('defectStatus').textContent=okText;loadAcceptanceList();return true}
+  catch(e){st.textContent='Fehler: '+e.message;btn.disabled=false;return false}
+}
+function defJson(body){return {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}}
+async function defStance(id,btn){
+  const box=document.getElementById('defPanel'+id),stance=defRadio(box,'defStance'+id),reason=document.getElementById('defReason'+id).value.trim();
+  if(!stance){document.getElementById('defPanelStatus'+id).textContent='Bitte die Haltung wählen.';return}
+  await defSend(id,`/api/defects/${id}/stance`,defJson({stance,reason:reason||null}),'Haltung gespeichert.',btn);
+}
+async function defRelease(id,released,btn){
+  const reason=document.getElementById('defReason'+id).value.trim();
+  await defSend(id,`/api/defects/${id}/release`,defJson({released,reason:reason||null}),released?'Zur Beseitigung freigegeben.':'Freigabe zurückgenommen.',btn);
+}
+async function defStatus(id,btn){
+  const box=document.getElementById('defPanel'+id),st=document.getElementById('defPanelStatus'+id),status=defRadio(box,'defNext'+id);
+  if(!status){st.textContent='Bitte den neuen Status wählen.';return}
+  const data={status,reason:document.getElementById('defReason'+id).value.trim()||null};
+  if(status==='beseitigt'||status==='beseitigung_abgenommen')data.event_date=document.getElementById('defDate'+id).value||null;
+  const form=new FormData();
+  if(status==='beseitigung_abgenommen'){data.declared_by=defRadio(box,'defDecl'+id);if(data.declared_by==='beteiligter'){const v=document.getElementById('defPart'+id).value;data.participant_id=v?Number(v):null}[...document.getElementById('defReceipts'+id).files].forEach(f=>form.append('receipts',f))}
+  form.append('data',JSON.stringify(data));
+  await defSend(id,`/api/defects/${id}/status`,{method:'POST',body:form},'Status gespeichert.',btn);
+}
+async function defPhotos(id,btn){
+  const files=[...document.getElementById('defMorePhotos'+id).files];
+  if(!files.length){document.getElementById('defPanelStatus'+id).textContent='Bitte mindestens ein Foto wählen.';return}
+  const form=new FormData();files.forEach(f=>form.append('photos',f));
+  await defSend(id,`/api/defects/${id}/photos`,{method:'POST',body:form},'Fotos ergänzt.',btn);
+}
+async function defDiscard(id,btn){
+  const reason=document.getElementById('defReason'+id).value.trim();
+  if(!reason){document.getElementById('defPanelStatus'+id).textContent='Bitte begründen, warum der Mangel verworfen wird.';return}
+  await defSend(id,`/api/defects/${id}/discard`,defJson({reason}),'Mangel verworfen.',btn);
+}
+async function openDefectDialog(acceptanceId){
+  const st=document.getElementById('acceptanceStatus');let o;
+  try{delete defectOptionsCache[acceptanceId];o=await defOptions(acceptanceId)}catch(e){st.textContent='Fehler: '+e.message;return}
+  if(!o.allowed){st.textContent=o.not_allowed_text;return}
+  defectAcceptanceId=acceptanceId;
+  document.getElementById('defAcceptanceInfo').innerHTML=`Abnahme: <b>${esc(o.acceptance.scope_label)} vom ${accDate(o.acceptance.accepted_on)}</b> (${esc(o.acceptance.kind_label)}, ${esc(o.acceptance.result_text)})`;
+  document.getElementById('defRoofArea').innerHTML=(o.property?`<option value="">— keine Dachfläche —</option>`+o.roof_areas.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join(''):'<option value="">— kein Objekt an der Abnahme —</option>');
+  ['defDescription','defLocation','defDue','defPhotos','defReceipts'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('defLimits').textContent=`Höchstens ${o.max_files} Dateien, je ${o.max_file_mb} MB, zusammen ${o.max_total_mb} MB.`;
+  document.getElementById('defDialogStatus').textContent='';
+  document.getElementById('defectDialog').showModal();
+}
+function closeDefectDialog(){document.getElementById('defectDialog').close()}
+async function saveDefect(btn){
+  const st=document.getElementById('defDialogStatus'),description=document.getElementById('defDescription').value.trim();
+  if(!description){st.textContent='Bitte den Mangel beschreiben.';return}
+  const roof=document.getElementById('defRoofArea').value;
+  const data={description,roof_area_id:roof?Number(roof):null,location:document.getElementById('defLocation').value.trim()||null,remedy_due_on:document.getElementById('defDue').value||null};
+  const form=new FormData();form.append('data',JSON.stringify(data));
+  [...document.getElementById('defPhotos').files].forEach(f=>form.append('photos',f));[...document.getElementById('defReceipts').files].forEach(f=>form.append('receipts',f));
+  btn.disabled=true;st.textContent='Wird gespeichert …';
+  try{
+    const d=await defApi(`/api/order-acceptances/${defectAcceptanceId}/defects`,{method:'POST',body:form});
+    closeDefectDialog();document.getElementById('defectStatus').textContent='Mangel gespeichert.';
+    await Promise.all([loadDefects(),loadAcceptanceList()]);
+    defFlash(d.id);
+  }catch(e){st.textContent='Fehler: '+e.message}finally{btn.disabled=false}
+}
+</script>

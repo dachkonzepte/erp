@@ -1198,6 +1198,104 @@ class OrderAcceptanceFile(Base):
     acceptance: Mapped[OrderAcceptance] = relationship(back_populates="files")
 
 
+class Defect(Base):
+    """Mangel (seit 1.8.49, Stufe 2c-2a, app/defects.py) -- bewusst nicht der Befund am Einsatzbericht (Finding).
+    Quelle vorerst nur "abnahme" (acceptance_id, nur an einer nicht verworfenen Abnahme mit Vorbehalt Mängel oder
+    Verweigerung); später kommt die Rüge dazu (acceptance_id dann leer). property_id ist das Objekt der Abnahme, die
+    Dachfläche stammt nur daraus (Name als Schnappschuss).
+
+    Nach dem Speichern unveränderlich (ORM-Sperre unten) samt Dateien und Ereignissen: Haltung, Status, Freigabe und
+    nachgereichte Fotos sind DefectEvent-Zeilen, der Stand ergibt sich aus ihnen. Verworfen wird mit einem bedingten
+    UPDATE samt Siegel (discard_sha256) in app/defects.py::discard_defect(). content_sha256 bindet den Inhalt samt
+    Prüfsummen der Dateien beim Erfassen und die Fassung des Prüfsummenformats (checksum_format).
+
+    task_id: die beim Erfassen angelegte Aufgabe -- ohne Fremdschlüssel (eine Aufgabe lässt sich löschen, der Mangel
+    bleibt) und nicht im gebundenen Inhalt. created_by_user_id/discarded_by_user_id ohne Fremdschlüssel wie bei der
+    Abnahme."""
+
+    __tablename__ = "defects"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
+    property_id: Mapped[int | None] = mapped_column(ForeignKey("properties.id"), nullable=True, index=True)
+    source: Mapped[str] = mapped_column(String(20))
+    acceptance_id: Mapped[int | None] = mapped_column(ForeignKey("order_acceptances.id"), nullable=True, index=True)
+    description: Mapped[str] = mapped_column(Text)
+    roof_area_id: Mapped[int | None] = mapped_column(ForeignKey("roof_areas.id"), nullable=True, index=True)
+    roof_area_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    location: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    remedy_due_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    task_id: Mapped[int | None] = mapped_column(nullable=True)
+    content_sha256: Mapped[str] = mapped_column(String(64))
+    checksum_format: Mapped[int] = mapped_column(server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(160), default="System")
+    discarded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    discarded_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    discarded_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    discard_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    discard_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    files: Mapped[list["DefectFile"]] = relationship(
+        back_populates="defect", order_by="DefectFile.id", foreign_keys="DefectFile.defect_id"
+    )
+    events: Mapped[list["DefectEvent"]] = relationship(back_populates="defect", order_by="DefectEvent.id")
+
+
+class DefectEvent(Base):
+    """Ein Eintrag im Verlauf eines Mangels (seit 1.8.49): kind "haltung" (value anerkannt/bestritten), "status"
+    (beseitigt, beseitigung_abgenommen, erledigt_ohne, offen), "freigabe" (freigegeben/zurueckgenommen) oder "fotos"
+    (nur Dateien). previous_value: der Stand davor. Bei "Beseitigung abgenommen" Datum, Erklärender (wie bei der
+    Abnahme, Vollmacht zur Abnahme als Kopie) und Beleg oder Begründung. Unveränderlich; content_sha256 bindet den
+    Eintrag an den Inhalt des Mangels und an das vorige Ereignis (previous_event_sha256, Kette)."""
+
+    __tablename__ = "defect_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    defect_id: Mapped[int] = mapped_column(ForeignKey("defects.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    value: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    previous_value: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    event_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    declared_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    participant_id: Mapped[int | None] = mapped_column(ForeignKey("project_participants.id"), nullable=True, index=True)
+    declared_by_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    declared_by_role: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    poa_on_record: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    previous_event_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    content_sha256: Mapped[str] = mapped_column(String(64))
+    checksum_format: Mapped[int] = mapped_column(server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(160), default="System")
+
+    defect: Mapped[Defect] = relationship(back_populates="events")
+    files: Mapped[list["DefectFile"]] = relationship(back_populates="event", order_by="DefectFile.id")
+
+
+class DefectFile(Base):
+    """Datei eines Mangels (seit 1.8.49): "foto", "beleg" oder "abnahmevollmacht" (Kopie beim Abnehmen der
+    Beseitigung). event_id leer = beim Erfassen (im Inhalt des Mangels gebunden), sonst im Inhalt des Ereignisses.
+    Ablage der Abnahme (Ordner "maengel"), exklusiv angelegt und schreibgeschützt, unverändert mit SHA-256."""
+
+    __tablename__ = "defect_files"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    defect_id: Mapped[int] = mapped_column(ForeignKey("defects.id"), index=True)
+    event_id: Mapped[int | None] = mapped_column(ForeignKey("defect_events.id"), nullable=True, index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    stored_filename: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(50))
+    size_bytes: Mapped[int] = mapped_column()
+    sha256: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    defect: Mapped[Defect] = relationship(back_populates="files", foreign_keys=[defect_id])
+    event: Mapped[DefectEvent | None] = relationship(back_populates="files")
+
+
 class OrderContractBasisChange(Base):
     """Historie der am Auftrag geänderten Vertragsgrundlage (seit 1.8.21). Jede Änderung mit
     Pflicht-Begründung, wird nie geändert oder gelöscht (außer mit dem Auftrag selbst)."""
@@ -5438,3 +5536,36 @@ def _acceptance_part_no_update(mapper, connection, target):
 @event.listens_for(OrderAcceptanceFile, "before_delete")
 def _acceptance_part_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Dachflächen und Belege einer gespeicherten Abnahme werden nie gelöscht.")
+
+
+
+# Mangel (seit 1.8.49): nach dem Speichern unveränderlich und nie gelöscht -- samt Verlauf und Dateien. Verworfen wird
+# mit einem bedingten UPDATE in app/defects.py::discard_defect(), nicht über das ORM.
+@event.listens_for(Defect, "before_update")
+def _defect_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs if attr.key not in {"files", "events"}):
+        raise ArchiveImmutableError("Ein gespeicherter Mangel ist unveränderlich – Korrektur nur durch Verwerfen und "
+                                    "einen neuen Eintrag.")
+
+
+@event.listens_for(Defect, "before_delete")
+def _defect_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Ein gespeicherter Mangel wird nie gelöscht.")
+
+
+@event.listens_for(DefectEvent, "before_update")
+def _defect_event_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs if attr.key not in {"defect", "files"}):
+        raise ArchiveImmutableError("Ein Eintrag im Verlauf eines Mangels ist unveränderlich.")
+
+
+@event.listens_for(DefectFile, "before_update")
+def _defect_file_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs if attr.key not in {"defect", "event"}):
+        raise ArchiveImmutableError("Eine Datei eines Mangels ist unveränderlich.")
+
+
+@event.listens_for(DefectEvent, "before_delete")
+@event.listens_for(DefectFile, "before_delete")
+def _defect_part_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Verlauf und Dateien eines Mangels werden nie gelöscht.")

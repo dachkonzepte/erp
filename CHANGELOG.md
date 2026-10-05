@@ -4,6 +4,28 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.49 – Mängel aus der Abnahme
+
+Stufe 2c, Runde 2c-2a, Punkt 1. An einer Abnahme mit „Vorbehalt Mängel: ja“ oder einer verweigerten Abnahme lassen sich
+jetzt Mängel erfassen („+ Mangel erfassen“ in der Karte „Abnahme“, die warnt, solange keiner erfasst ist): Beschreibung,
+optional Dachfläche aus dem Objekt der Abnahme, Ortsangabe, Beseitigungsfrist, Fotos und Belege. Ein Mangel ist nach dem
+Speichern unveränderlich wie die Abnahme (Prüfsumme mit Fassung, schreibgeschützte Dateien), Fotos lassen sich nur
+ergänzen, eine falsche Angabe wird mit Begründung verworfen. Haltung (anerkannt, bestritten mit Begründung), Status
+(beseitigt, Beseitigung abgenommen mit Erklärendem und Beleg oder Begründung, erledigt ohne Beseitigung, zurück auf
+offen) und die Freigabe zur Beseitigung (unabhängig von der Haltung, bei „bestritten“ als Kulanz mit Begründung) stehen
+als unveränderliche, verkettete Einträge im Verlauf. Bei VOB/B zeigt ein abgenommener Mangel „Nachbesserung regulär bis“
+– das spätere von Regelende und Abnahme der Beseitigung plus 24 Monate. Beim Erfassen entsteht eine Aufgabe im
+Büro-Eingang, fällig zur Frist, mit Verweis zurück zum Mangel; ist der Mangel erledigt oder verworfen, ist es auch die
+Aufgabe – umgekehrt nicht. Alles nur für das Büro, Monteure sehen nichts.
+
+**Auf dem Server**: Migration `60f193510ae2` (drei neue Tabellen, kein Bestand berührt); Dateien landen in der Ablage der
+Abnahme (Unterordner `maengel`). Festlegungen in `docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.49“. Neue
+`test_v351` (38, zwei gegen PostgreSQL), `test_v326` nachgezogen; 22 von 22 Gegenproben rot. Migration SQLite und
+PostgreSQL hin/zurück/hin, Downgrade-Abbruch mit Bestand, `alembic check` sauber. Volle Suite 2747 grün (mit den opt-in-Tests
+gegen PostgreSQL), `test_v351`/`test_v326` gegen PostgreSQL grün bis auf den bekannten Migrationstest mit rohem SQL. Neuer
+Klicktest `klicktest_maengel.py` 32/32 (der erste Lauf fand einen eigenen Fehler der Oberfläche, behoben); `klicktest_abnahme.py`
+56/56 (Klick auf „Verwerfen“ eindeutig gemacht – die Abnahme trägt jetzt auch „+ Mangel erfassen“).
+
 ## 1.8.48 – Abnahme: Prüfstatus neben jedem Gewährleistungsende, Siegel des Verwerfens
 
 Stufe 2c, Runde 2c-2a, Punkt 0 („Vorweg“). Jedes Gewährleistungsende – in der Liste am Auftrag, in der Vorschau einer

@@ -8,7 +8,9 @@
    - Karte "Abnahme": alle Einträge samt verworfener, mit Prüfung von Inhalt und Belegen und dem abgeleiteten
      Gewährleistungsende; "+ Abnahme erfassen" öffnet den Dialog, "Verwerfen" eine Zeile mit Pflicht-Begründung
      (kein prompt(), Regel 4).
-   - Dialog: keine Vorauswahl -- weder Datum noch Art, Umfang, Ergebnis, die beiden Vorbehalte oder Erklärende. #}
+   - Dialog: keine Vorauswahl -- weder Datum noch Art, Umfang, Ergebnis, die beiden Vorbehalte oder Erklärende.
+   - Seit 1.8.49: an einer Abnahme mit Vorbehalt Mängel oder Verweigerung "+ Mangel erfassen" (Dialog in _maengel.html)
+     und eine Warnung, solange kein Mangel erfasst ist; loadAcceptanceSection() lädt die Karte "Mängel" mit. #}
 <style>
 .acc-item{border-top:1px solid var(--line);padding:10px 0;font-size:13px;overflow-wrap:anywhere}.acc-item:first-child{border-top:none;padding-top:0}
 .acc-item.discarded{opacity:.7}.acc-head{font-weight:750;font-size:13.5px}.acc-row{margin-top:3px}
@@ -111,7 +113,10 @@ function accRadio(name){const x=document.querySelector(`#acceptanceDialog input[
 async function loadAcceptanceSection(){
   [warrantyChanges,acceptances]=await Promise.all([api(`/api/orders/${orderId}/warranty-changes`).catch(()=>[]),api(`/api/orders/${orderId}/acceptances`).catch(e=>{document.getElementById('acceptanceList').textContent='Abnahmen konnten nicht geladen werden: '+e.message;return null})]);
   renderWarranty();if(acceptances)renderAcceptances();
+  if(typeof loadDefects==='function')loadDefects();
 }
+// Seit 1.8.49: nur die Abnahmen neu laden (Stand der Mängel nach Erfassen/Verwerfen eines Mangels).
+async function loadAcceptanceList(){try{acceptances=await api(`/api/orders/${orderId}/acceptances`);renderAcceptances()}catch(e){}}
 function renderWarranty(){
   const set=order.warranty_set,last=warrantyChanges[0];
   document.getElementById('warrantyCurrent').innerHTML=`<div>Leistungsart: <b>${esc(order.work_kind_label||'nicht festgelegt')}</b></div><div>Gewährleistungsdauer: <b>${esc(order.warranty_text)}</b>${set&&last?` <span class="muted">(${last.follows_proposal?'Vorschlag übernommen':'abweichend festgelegt'} am ${accDateTime(last.changed_at)} von ${esc(last.changed_by_name)})</span>`:''}</div>`;
@@ -178,6 +183,10 @@ function acceptanceHtml(a){
   if(a.conduct_reason)lines.push(`<div class="acc-row" style="white-space:pre-wrap">Begründung (Nachweis): ${esc(a.conduct_reason)}</div>`);
   a.files.forEach(f=>lines.push(`<div class="acc-row"><a href="/api/order-acceptances/${a.id}/files/${f.id}" target="_blank" rel="noopener">${esc(f.kind_label)} (${f.content_type==='application/pdf'?'PDF':'Foto'}, ${accSize(f.size_bytes)})</a> <span class="acc-sha" title="${esc(f.sha256)}">SHA-256 ${esc(f.sha256.slice(0,16))}…</span>${f.status!=='unveraendert'?` <span class="acc-bad">${esc(f.status_text)}</span>`:''}</div>`));
   if(!a.content_ok)lines.push('<div class="acc-row acc-bad">Der gespeicherte Inhalt weicht von seiner Prüfsumme ab – nachträglich verändert.</div>');
+  const dq=a.defects;
+  if(dq&&dq.missing)lines.push(`<div class="acc-row acc-warn">⚠ ${esc(dq.text)}</div>`);
+  if(dq&&dq.total)lines.push(`<div class="acc-row">Mängel: <a href="#defectCard">${dq.active} erfasst${dq.total>dq.active?`, ${dq.total-dq.active} verworfen`:''}</a></div>`);
+  if(dq&&dq.expected)lines.push(`<div class="acc-row"><button class="secondary" onclick="openDefectDialog(${a.id})">+ Mangel erfassen</button></div>`);
   if(a.warranty)lines.push(a.warranty.end?`<div class="acc-row ${a.warranty.check.ok?'acc-good':'acc-warn'}" title="${esc(a.warranty.rule||'')}">${esc(a.warranty.text)} <span class="acc-hint">· ${esc(a.warranty.hint)}</span> ${accCheck(a.warranty.check)}</div>`:`<div class="acc-row acc-warn">${esc(a.warranty.text)} ${accCheck(a.warranty.check)}</div>`);
   lines.push(`<div class="acc-row muted">Erfasst ${accDateTime(a.created_at_local)} von ${esc(a.created_by_name)}</div>`);
   if(a.discarded)lines.push(`<div class="acc-row acc-bad" style="white-space:pre-wrap">Verworfen ${accDateTime(a.discarded_at_local)} von ${esc(a.discarded_by_name)}: ${esc(a.discard_reason)}</div>${a.discard_check?`<div class="acc-row ${a.discard_check==='abweichend'?'acc-bad':'acc-hint'}">${a.discard_check==='abweichend'?'⚠ ':''}${esc(a.discard_check_text)}</div>`:''}`);

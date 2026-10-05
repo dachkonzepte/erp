@@ -430,6 +430,7 @@ PFAD_WERTE = {
     "contact_id": 1, "participant_id": 1,  # Adressbuch und Beteiligte (seit 1.8.37)
     "kind": "behinderungsanzeige",  # Briefe an den Auftraggeber (seit 1.8.40)
     "acceptance_id": 1, "file_id": 1,  # Abnahme und ihr Beleg (seit 1.8.46)
+    "defect_id": 1,  # Mangel aus der Abnahme und seine Datei (seit 1.8.49)
 }
 # Query-Parameter: Pflichtparameter nach Namen, dazu je Route, was die Monteursicht erst füllt.
 # "@name" steht für den Wert aus den Testdaten.
@@ -597,10 +598,16 @@ def _buero_welt(db: Session) -> dict:
     from app.warranty import set_order_warranty
     order = db.get(Order, welt["order_id"])
     set_order_warranty(db, order, work_kind="bauwerk", warranty_months=60, warranty_days=0, reason="vereinbart")
-    create_acceptance(db, order, {"kind": "foermlich", "accepted_on": date(2026, 9, 15), "scope": "gesamt",
-                                  "result": "abgenommen", "reservation_defects": False, "reservation_penalty": True,
-                                  "declared_by": "auftraggeber"},
-                      [("protokoll.pdf", b"%PDF-1.4\n%%EOF\n")], user_id=admin.id, user_name="Anna Admin")
+    acceptance = create_acceptance(
+        db, order, {"kind": "foermlich", "accepted_on": date(2026, 9, 15), "scope": "gesamt", "result": "abgenommen",
+                    "reservation_defects": True, "reservation_penalty": True, "declared_by": "auftraggeber"},
+        [("protokoll.pdf", b"%PDF-1.4\n%%EOF\n")], user_id=admin.id, user_name="Anna Admin")
+    # Seit 1.8.49: ein Mangel mit Foto an dieser Abnahme (Vorbehalt Mängel) -- der Admin liest ihn mit Inhalt.
+    from app.defects import create_defect
+    buf = BytesIO()
+    Image.new("RGB", (4, 4), "white").save(buf, format="PNG")
+    create_defect(db, acceptance, {"description": "Attika undicht", "remedy_due_on": None},
+                  [("foto", "mangel.png", buf.getvalue())], user_id=admin.id, user_name="Anna Admin")
     return {**welt, "admin_id": admin.id}
 
 
@@ -734,16 +741,19 @@ def test_empfaengerauswahl_der_zustellung_im_durchlauf_fuer_monteure_gesperrt(du
 
 def test_abnahme_und_gewaehrleistung_im_durchlauf_fuer_monteure_gesperrt(durchlauf, durchlauf_admin):
     """Seit 1.8.46: Abnahmen, ihre Belege, die Gewährleistung am Auftrag und aus Abnahmen an Objekt und Dachfläche
-    sind Büro -- jede GET-Route davon antwortet dem Monteur 403; der Admin bekommt sie mit Inhalt."""
+    sind Büro -- jede GET-Route davon antwortet dem Monteur 403; der Admin bekommt sie mit Inhalt. Seit 1.8.49 ebenso
+    die Mängel aus der Abnahme und ihre Dateien."""
     def routen(lauf):
         return {a["route"]: a["status"] for a in lauf["antworten"]
-                if "acceptance" in a["route"] or "warranty" in a["route"]}
+                if "acceptance" in a["route"] or "warranty" in a["route"] or "defect" in a["route"]}
     erwartet = {"/api/orders/{order_id}/warranty-changes", "/api/orders/{order_id}/warranty-preview",
                 "/api/project-participants/{participant_id}/acceptance-power-of-attorney",
                 "/api/orders/{order_id}/acceptances",
                 "/api/orders/{order_id}/acceptance-options", "/api/order-acceptances/{acceptance_id}/files/{file_id}",
                 "/api/properties/{property_id}/acceptance-warranties",
-                "/api/roof-areas/{roof_area_id}/acceptance-warranties"}
+                "/api/roof-areas/{roof_area_id}/acceptance-warranties",
+                "/api/orders/{order_id}/defects", "/api/order-acceptances/{acceptance_id}/defect-options",
+                "/api/defects/{defect_id}/files/{file_id}"}
     assert routen(durchlauf) == dict.fromkeys(erwartet, 403)
     assert routen(durchlauf_admin) == dict.fromkeys(erwartet, 200)
 

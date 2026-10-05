@@ -147,11 +147,12 @@ def _path_for(stored_filename: str) -> Path:
     return path
 
 
-def _write_file(content: bytes, content_type: str) -> str:
-    """Exklusiv anlegen (nie überschreiben), schreibgeschützt setzen, Prüfsumme gegenlesen."""
+def _write_file(content: bytes, content_type: str, subdir: str | None = None) -> str:
+    """Exklusiv anlegen (nie überschreiben), schreibgeschützt setzen, Prüfsumme gegenlesen. `subdir` (seit 1.8.49):
+    Unterordner der Ablage, z. B. "maengel" für die Dateien eines Mangels (app/defects.py)."""
     sha256 = hashlib.sha256(content).hexdigest()
     now = datetime.utcnow()
-    stored = f"{now:%Y}/{now:%m}/{uuid.uuid4().hex}_{sha256[:16]}{_SUFFIXES[content_type]}"
+    stored = f"{subdir + '/' if subdir else ''}{now:%Y}/{now:%m}/{uuid.uuid4().hex}_{sha256[:16]}{_SUFFIXES[content_type]}"
     path = ACCEPTANCE_FILE_ROOT / stored
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "xb") as fh:
@@ -583,11 +584,49 @@ def _load(db: Session, query) -> list[OrderAcceptance]:
     ).all()
 
 
+def _defect_counts(db: Session, acceptance_ids: list[int]) -> dict[int, dict]:
+    """Mängel je Abnahme (seit 1.8.49): alle und nicht verworfene -- eine Abfrage für die ganze Liste."""
+    from sqlalchemy import case, func
+
+    from .models import Defect
+
+    if not acceptance_ids:
+        return {}
+    rows = db.execute(
+        select(Defect.acceptance_id, func.count(Defect.id),
+               func.sum(case((Defect.discarded_at.is_(None), 1), else_=0)))
+        .where(Defect.acceptance_id.in_(acceptance_ids)).group_by(Defect.acceptance_id)
+    ).all()
+    return {r[0]: {"total": r[1], "active": int(r[2] or 0)} for r in rows}
+
+
+def acceptance_allows_defects(a: OrderAcceptance) -> bool:
+    """Mängel (seit 1.8.49, app/defects.py) nur an einer nicht verworfenen Abnahme mit "Vorbehalt Mängel: ja" oder
+    "verweigert"."""
+    return a.discarded_at is None and (a.result == "verweigert" or a.reservation_defects is True)
+
+
+def defect_summary(a: OrderAcceptance, counts: dict | None) -> dict:
+    """Ob an dieser Abnahme Mängel zu erfassen sind (acceptance_allows_defects()) und ob einer fehlt -- dann warnt die
+    Liste (seit 1.8.49)."""
+    counts = counts or {"total": 0, "active": 0}
+    expected = acceptance_allows_defects(a)
+    missing = expected and counts["active"] == 0
+    text = None
+    if missing:
+        why = "verweigert" if a.result == "verweigert" else "mit Vorbehalt wegen Mängeln abgenommen"
+        text = f"Abnahme {why}, aber ohne erfassten Mangel – bitte die Mängel erfassen."
+    return {"expected": expected, "active": counts["active"], "total": counts["total"], "missing": missing,
+            "text": text}
+
+
 def list_acceptances(db: Session, order: Order) -> list[dict]:
-    """Alle Einträge des Auftrags, neueste zuerst, verworfene eingeschlossen (Historie)."""
+    """Alle Einträge des Auftrags, neueste zuerst, verworfene eingeschlossen (Historie). Seit 1.8.49 je Eintrag der
+    Stand der Mängel (defect_summary())."""
     rows = _load(db, select(OrderAcceptance).where(OrderAcceptance.order_id == order.id)
                  .order_by(OrderAcceptance.accepted_on.desc(), OrderAcceptance.id.desc()))
-    return [acceptance_to_dict(a, order) for a in rows]
+    counts = _defect_counts(db, [a.id for a in rows])
+    return [{**acceptance_to_dict(a, order), "defects": defect_summary(a, counts.get(a.id))} for a in rows]
 
 
 def _warranty_rows(db: Session, rows: list[OrderAcceptance]) -> list[dict]:

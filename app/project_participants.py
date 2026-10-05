@@ -356,6 +356,12 @@ def remove_participant(db: Session, participant: ProjectParticipant) -> None:
     if acceptances_declared_by(db, participant.id):
         # Die Abnahme verweist auf ihn (Fremdschlüssel) und bleibt unverändert -- auch eine verworfene.
         raise ParticipantInUseError("Dieser Beteiligte hat eine Abnahme erklärt und bleibt deshalb im Projekt.")
+    from .models import DefectEvent
+
+    if db.scalar(select(DefectEvent.id).where(DefectEvent.participant_id == participant.id).limit(1)):
+        # Seit 1.8.49: ebenso, wenn er die Beseitigung eines Mangels abgenommen hat.
+        raise ParticipantInUseError("Dieser Beteiligte hat die Beseitigung eines Mangels abgenommen und bleibt deshalb "
+                                    "im Projekt.")
     stored = [x for x in (participant.poa_stored_filename, participant.acceptance_poa_stored_filename) if x]
     db.delete(participant)
     db.commit()

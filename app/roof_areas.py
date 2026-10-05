@@ -219,6 +219,11 @@ def delete_roof_area(db: Session, roof_area_id: int) -> bool:
     if acceptances_naming_roof_area(db, roof_area_id):
         # Seit 1.8.46: die Abnahme nennt sie (unveränderlich, Fremdschlüssel) -- archivieren statt löschen.
         raise ValueError("Diese Dachfläche ist in einer Abnahme genannt und lässt sich nur noch archivieren.")
+    from .models import Defect
+
+    if db.scalar(select(Defect.id).where(Defect.roof_area_id == roof_area_id).limit(1)):
+        # Seit 1.8.49: ein Mangel nennt sie (unveränderlich, Fremdschlüssel) -- ebenso nur archivieren.
+        raise ValueError("Diese Dachfläche ist bei einem Mangel genannt und lässt sich nur noch archivieren.")
     db.delete(roof_area)
     db.commit()
     return True

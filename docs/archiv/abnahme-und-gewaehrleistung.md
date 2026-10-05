@@ -17,7 +17,7 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | Runde | Version | Inhalt | Stand |
 |---|---|---|---|
 | **2c-1** | 1.8.46, 1.8.47 | Fundament: Regel-20-Test auch für Spaltenvorgaben, Datengrenze (Strafe, Einbehalt), Leistungsart und Gewährleistungsdauer am Auftrag, Abnahme (unveränderlich, Verwerfen, Historie), Gewährleistungsende abgeleitet an Auftrag/Objekt/Dachfläche, Garantie Dritter an der Dachfläche mit Teil-Update, Abgleich gesperrt nach Abnahme (1.8.46); Vollmacht zur Abnahme am Beteiligten, Begründung und Vorschau nach der ersten Abnahme, Nachweis "förmlich: Beleg, sonst Beleg oder Begründung", "Gewährleistung regulär bis" (1.8.47) | erledigt |
-| **2c-2a** | 1.8.48 | Vorweg: Prüfstatus neben jedem Gewährleistungsende (eine Funktion, `logger.error` bei Abweichung), Siegel des Verwerfens, Fassung des Prüfsummenformats | erledigt |
+| **2c-2a** | 1.8.48, 1.8.49 | Vorweg: Prüfstatus neben jedem Gewährleistungsende (eine Funktion, `logger.error` bei Abweichung), Siegel des Verwerfens, Fassung des Prüfsummenformats (1.8.48); Mängel aus der Abnahme mit Haltung, Status, Freigabe, Verlauf, Aufgabe und "Nachbesserung regulär bis" (1.8.49) | erledigt |
 
 Nach jeder Runde die Spalten "Version"/"Stand" nachziehen und unten einen Abschnitt "Umsetzung 1.8.x" ergänzen.
 
@@ -321,3 +321,100 @@ bleibt dann als einzige Spur.
 - Klicktest `klicktest_abnahme.py` 55/55, neu: zweiter Auftrag mit am ORM vorbei verändertem Abnahmedatum -- rot an
   Dachflächenliste und Karte des Objekts, Dachfläche und Auftrag, verworfener Eintrag mit verändertem Siegel; Spalte
   "Prüfung" der Vorschau.
+
+---
+
+## Umsetzung 1.8.49 (05.10.2026) -- Runde 2c-2a, Punkt 1: Mängel aus der Abnahme
+
+Betreibervorgabe (gekürzt): neues Modell Mangel (nicht Finding) nur an Abnahmen mit "Vorbehalt Mängel: ja" oder
+"verweigert", Warnung an solchen ohne Mangel, Quelle vorerst nur "Abnahme"; Beschreibung Pflicht, optional Dachfläche (nur
+aus dem Objekt der Abnahme), Ortsangabe, Beseitigungsfrist, Fotos und Belege; unveränderlich, Fotos nur ergänzen, Korrektur
+durch Verwerfen mit Begründung; Haltung (offen, anerkannt, bestritten mit Begründung) und Status (offen, beseitigt mit Datum,
+Beseitigung abgenommen mit Datum/Erklärendem/Beleg oder Begründung, erledigt ohne Beseitigung mit Begründung) mit Historie;
+Freigabe zur Beseitigung nur durch das Büro, bewusst, mit Historie, unabhängig von der Haltung; nur bei `vob_b`
+"Nachbesserung regulär bis" = das spätere von Regelende und Abnahme der Beseitigung + 24 Monate; beim Erfassen eine Aufgabe
+ohne Zuständigkeit, fällig zur Frist, Verweis in beide Richtungen, der Mangel ist die Wahrheit.
+
+### Modell (`app/models.py`, `app/defects.py`, `app/routers/defects.py`)
+
+- **`defects`**: `order_id`, `property_id` (Objekt der Abnahme), `source` ("abnahme"; später "ruege"), `acceptance_id`,
+  `description`, `roof_area_id` + `roof_area_name` (Schnappschuss), `location`, `remedy_due_on`, `task_id` (ohne
+  Fremdschlüssel, nicht gebunden), `content_sha256` + `checksum_format` (Fassung 1, steht im Inhalt), erfasst/verworfen wie
+  bei der Abnahme samt Siegel `discard_sha256`.
+- **`defect_events`** (Verlauf): `kind` haltung/status/freigabe/fotos, `value`, `previous_value`, `event_date`, `reason`,
+  Erklärender (wie Abnahme, `poa_on_record`), `previous_event_sha256`, `content_sha256` (bindet Prüfsumme des Mangels und
+  des vorigen Eintrags -- Kette). Der Stand (`defect_state()`) ergibt sich aus den Einträgen.
+- **`defect_files`**: `foto`, `beleg`, `abnahmevollmacht`; `event_id` leer = beim Erfassen (im Inhalt des Mangels), sonst im
+  Inhalt des Eintrags. Ablage der Abnahme, Unterordner `maengel` (`_write_file(subdir=…)`), exklusiv, schreibgeschützt.
+- ORM-Sperre für alle drei (Ändern, Löschen); Verwerfen per bedingtem UPDATE mit Siegel und Historienzeile.
+- **Routen** (alle `require_min_role(buero_auftrag)`): `GET /api/orders/{id}/defects`,
+  `GET /api/order-acceptances/{id}/defect-options`, `POST /api/order-acceptances/{id}/defects` (multipart "data",
+  "photos", "receipts"), `POST /api/defects/{id}/stance|release` (JSON), `/status` (multipart "data", "receipts"),
+  `/photos`, `/discard`, `GET /api/defects/{id}/files/{file_id}` (nur mit stimmender Prüfsumme, nosniff).
+- **Sperren**: Erfassen sperrt die Auftragszeile wie das Verwerfen der Abnahme (beide warten aufeinander, danach 409); jeder
+  Eintrag im Verlauf sperrt die Zeile des Mangels und liest Stand und Verlauf neu.
+- **Abnahmeliste**: `defects` je Eintrag (`defect_summary()`: erwartet, aktiv, gesamt, fehlt + Text);
+  `acceptance_allows_defects()` ist die eine Regel (`app/acceptances.py`).
+- **Historie**: `Defect` und `DefectEvent` in `AUDITED_TYPES`, beide unter der Kennung des Mangels ("Mangel"), Verwerfen als
+  eigene Zeile.
+- **Folgen an anderer Stelle**: eine bei einem Mangel genannte Dachfläche lässt sich nicht mehr löschen (400, archivieren);
+  ein Beteiligter, der eine Beseitigung abgenommen hat, bleibt im Projekt (409).
+- **Oberfläche** (`app/templates/_maengel.html`, in `order.html` nach `_abnahme.html`): Karte "Mängel" mit Stand
+  (Status, Haltung, Freigabe), Frist (überschritten rot), Dateien, "Nachbesserung regulär bis" mit Prüfstatus, Aufgabe (mit
+  Hinweis, wenn sie erledigt, der Mangel aber offen ist), Verlauf; Aktionen über eingeblendete Felder (kein `prompt()`);
+  Dialog "Mangel erfassen" ohne Vorauswahl, geöffnet aus der Abnahme ("+ Mangel erfassen", Warnung "ohne erfassten
+  Mangel", "Mängel: n erfasst"); nach dem Speichern Sprung zum Mangel, ebenso über den Verweis der Aufgabe
+  (`/orders/<id>#mangel-<id>`).
+
+### Festlegungen 1.8.49 (bitte bestätigen)
+
+1. **Quelle als Feld** (`source` + `acceptance_id`): die Rüge kommt später als `source` "ruege" ohne Abnahme dazu.
+2. **An einer verworfenen Abnahme kein neuer Mangel (409), an einer ohne Vorbehalt 400.** Mängel einer später verworfenen
+   Abnahme bleiben bestehen, gekennzeichnet "Abnahme verworfen"; die Warnung "ohne Mangel" entfällt mit dem Verwerfen.
+3. **Dachfläche aus dem Objekt der Abnahme** (beim Erfassen der Abnahme festgehalten), nicht aus dem heutigen des Projekts;
+   archivierte nicht neu.
+4. **Beseitigungsfrist nicht vor dem Abnahmedatum**, in der Vergangenheit erlaubt (nachträgliches Erfassen); "überschritten"
+   rot, solange der Mangel nicht erledigt ist.
+5. **Dateien**: Fotos nur JPEG/PNG/WebP, Belege PDF oder Foto, am Inhalt erkannt; höchstens 10 je Speichern, je 15 MB,
+   zusammen 30 MB; dieselbe Datei nicht doppelt. Ablage der Abnahme (Unterordner `maengel`), keine neue Umgebungsvariable.
+6. **"Fotos nur ergänzen"**: nachgereicht werden nur Fotos (keine Belege), als eigener Eintrag im Verlauf -- auch nach der
+   Erledigung, nicht nach dem Verwerfen.
+7. **Haltung**: "anerkannt" ohne, "bestritten" mit Begründungspflicht; Wechsel zwischen beiden jederzeit (auch nach der
+   Erledigung), nie zurück auf "offen"; derselbe Wert zweimal ist 409.
+8. **Status**: offen -> beseitigt oder erledigt ohne Beseitigung; beseitigt -> Beseitigung abgenommen oder zurück auf offen
+   (Begründung Pflicht, z. B. Nachbesserung misslungen); **nicht** beseitigt -> erledigt ohne Beseitigung. Beseitigung
+   abgenommen und erledigt ohne Beseitigung sind endgültig -- Korrektur nur über Verwerfen und neues Erfassen. "beseitigt"
+   nicht vor der Abnahme und nicht in der Zukunft, Abnahme der Beseitigung nicht vor "beseitigt". Ein Übergang, den der Stand
+   nicht zulässt, ist 409.
+9. **Beseitigung abgenommen**: Erklärender wie bei der Abnahme (Auftraggeber = Kunde laut Auftrag oder Beteiligter dieses
+   Projekts, Vollmacht zur Abnahme als Kopie, sonst Warnung); Nachweis Beleg oder Begründung, mindestens eins -- ohne
+   Unterscheidung nach Art.
+10. **Freigabe**: Begründung Pflicht bei "bestritten" (Kulanz) und beim Zurücknehmen, sonst freiwillig; nach der Erledigung
+    keine Änderung mehr; "bewusst" heißt: eigener Knopf im eigenen Feld, kein zusätzliches Häkchen.
+11. **Nachbesserung regulär bis** nach der HEUTIGEN Vertragsgrundlage des Auftrags; bei verweigerter oder verworfener Abnahme
+    und ohne Dauer "nicht berechenbar"; nur am Mangel auf der Auftragsseite, nicht an Objekt und Dachfläche.
+12. **Aufgabe**: Titel "Mangel aus Abnahme <Auftrag> – <Dachfläche bzw. Ort>", Beschreibung nur Metadaten (nicht der
+    Mangeltext, wie bei den Aufgaben aus Anzeigen), ohne Zuständigkeit mit Sichtbarkeitsgrenze `buero_auftrag`
+    (Büro-Eingang), fällig zur Frist (ohne Frist ohne Fälligkeit), Priorität normal, in derselben Transaktion wie der Mangel.
+    Ohne Aufgabenmodul keine Aufgabe und kein Nachholen. Erledigt bei Beseitigung abgenommen, erledigt ohne Beseitigung und
+    Verwerfen; archivierte bleiben unberührt; eine gelöschte zeigt der Mangel an.
+13. **Kette im Verlauf**: ein mittendrin entfernter oder geänderter Eintrag fällt auf, ein entfernter letzter nicht (Grenze
+    wie beim Verwerfen, 1.8.48).
+14. **Verwerfen auch nach der Erledigung möglich.**
+
+### Verifikation 1.8.49
+
+- `tests/test_v351_maengel.py` (38 Tests, zwei opt-in gegen PostgreSQL: Erfassen wartet auf das Verwerfen der Abnahme und
+  bekommt 409; zwei gleichzeitige Statuswechsel -- der zweite wartet und bekommt 409, ein Eintrag); `test_v326` (Pfadwert
+  `defect_id`, Mangel mit Foto im Rundgang, drei neue GET-Routen: Monteur 403, Admin 200).
+- Volle Suite 2747 grün (mit den opt-in-Tests gegen PostgreSQL). `test_v351`/`test_v326` über das Scratchpad-Plugin gegen
+  PostgreSQL 17: 95 grün, rot nur der Migrationstest mit rohem SQL und erfundenen Fremdschlüsseln (bekannte Grenze).
+- Gegenproben (Schutz ausgehebelt, Datei byte-genau zurück): 22 von 22 rot, darunter beide Sperren gegen PostgreSQL.
+- Migration `60f193510ae2`: SQLite hin/zurück/hin, `alembic check`; PostgreSQL 17 im Wegwerf-Schema: Kette bis `9c5a97bc71ef`,
+  head, Mangel über den App-Code (bestritten, Kulanz-Freigabe, beseitigt, abgenommen; Prüfung stimmt, Aufgabe angelegt),
+  downgrade verweigert ("1 Mängel samt Verlauf"), `current` = head, `check` sauber; leeres Schema hin/zurück/hin.
+- Klicktest `scripts/klicktest_maengel.py` 32/32. Der erste Lauf fand einen eigenen Fehler: `_maengel.html` setzte beim Laden
+  `FELDNAMEN` aus `order.html` zusammen, das dort erst nach dem Include steht -- das Skript brach ab, jede Aktion außer dem
+  Erfassen lief ins Leere. Behoben (erst beim Aufruf), seither geprüft.
+- `klicktest_abnahme.py` 56/56: der Schritt "Verwerfen" klickte den ersten Knopf der Abnahme -- das ist an einer Abnahme
+  mit Vorbehalt jetzt "+ Mangel erfassen"; Klick eindeutig gemacht, Warnung und Knopf geprüft.

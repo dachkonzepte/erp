@@ -14,7 +14,7 @@ from .models import (
     EmployeeFunction, GeneralSettings, CalculationSettings, LaborRateSettings, LaborRateOverheadSettings,
     NumberSequence, SettingOptionGroup, SettingOption, AppUser, ServiceCalculation, MaterialCalculationOverride,
     Checklist, ChecklistAttachment, ChecklistAssetRelease, OperationalAsset, Contact, ProjectParticipant,
-    OrderAcceptance,
+    OrderAcceptance, Defect, DefectEvent,
 )
 
 _actor_id = contextvars.ContextVar("audit_actor_id", default=None)
@@ -38,7 +38,7 @@ TYPE_LABELS = {
     ServiceCalculation: "Katalogleistung-Kalkulation", MaterialCalculationOverride: "Katalog-Materialkalkulation",
     Checklist: "Checkliste", ChecklistAssetRelease: "Gerät als repariert markiert",
     Contact: "Kontakt (Adressbuch)", ProjectParticipant: "Projektbeteiligter",
-    OrderAcceptance: "Abnahme",
+    OrderAcceptance: "Abnahme", Defect: "Mangel", DefectEvent: "Mangel",
 }
 
 EXTENSION_TYPES = (CustomerProfile, ProjectProfile, EmployeeProfile, EmployeeRoleSettings, EmployeeCompensationSettings, EmployeeCostAllocationSettings, QuoteDocumentMeta, QuoteItemLayout, QuoteEmployeeAssignment)
@@ -59,6 +59,9 @@ AUDITED_TYPES = (
     # Abnahme (seit 1.8.46): das Anlegen mit dem ganzen Inhalt; das Verwerfen läuft als bedingtes UPDATE an der
     # ORM-Sperre vorbei und schreibt seine Zeile selbst (app/acceptances.py::discard_acceptance()).
     OrderAcceptance,
+    # Mangel (seit 1.8.49): Anlegen mit dem ganzen Inhalt und jeder Eintrag im Verlauf (Haltung, Status, Freigabe,
+    # Fotos) unter der Kennung des Mangels; das Verwerfen schreibt seine Zeile selbst (app/defects.py::discard_defect()).
+    Defect, DefectEvent,
 )
 
 FIELD_LABELS = {
@@ -93,6 +96,12 @@ FIELD_LABELS = {
     "contractor_objections":"Einwendungen des Auftragnehmers","declared_by":"Erklärt durch","participant_id":"Beteiligter",
     "declared_by_name":"Erklärt durch (Name)","declared_by_role":"Erklärt durch (Rolle)","poa_on_record":"Vollmacht hinterlegt",
     "conduct_reason":"Begründung (schlüssige Abnahme)","created_by_name":"Erfasst von","created_by_user_id":"Erfasst von (Konto)",
+    # seit 1.8.48/1.8.49: Prüfsummenformat, Siegel des Verwerfens; Mangel und sein Verlauf
+    "checksum_format":"Prüfsummenformat","discard_sha256":"Siegel des Verwerfens (SHA-256)",
+    "source":"Quelle","acceptance_id":"Abnahme","roof_area_id":"Dachfläche","roof_area_name":"Dachfläche (Name)",
+    "location":"Ortsangabe","remedy_due_on":"Beseitigungsfrist","task_id":"Aufgabe","defect_id":"Mangel",
+    "previous_value":"Stand davor","event_date":"Datum","reason":"Begründung",
+    "previous_event_sha256":"Prüfsumme des vorigen Eintrags",
 }
 
 
@@ -246,6 +255,15 @@ def _normalize(session, obj):
         from .acceptances import ENTITY_TYPE, _label
         o = session.get(Order, obj.order_id)
         return ENTITY_TYPE, str(obj.id), _label(obj, o), o.project_id if o else None
+    if isinstance(obj, (Defect, DefectEvent)):
+        # Seit 1.8.49: ein Eintrag im Verlauf steht unter der Kennung seines Mangels (Muster Checklisten-Unterschrift).
+        from .defects import ENTITY_TYPE, EVENT_KINDS, defect_label
+        defect = obj if isinstance(obj, Defect) else session.get(Defect, obj.defect_id)
+        o = session.get(Order, defect.order_id) if defect else None
+        label = defect_label(defect, o) if defect else f"Mangel Nr. {obj.defect_id}"
+        if isinstance(obj, DefectEvent):
+            label = f"{label} · {EVENT_KINDS.get(obj.kind, obj.kind)}"[:255]
+        return ENTITY_TYPE, str(defect.id if defect else obj.defect_id), label, o.project_id if o else None
     if isinstance(obj, OrderRevision):
         o = session.get(Order, obj.order_id); return "Auftragsrevision", str(obj.id), f"Revision {obj.revision_number} · {_entity_label(o) or ''}".strip(), o.project_id if o else None
     if isinstance(obj, OrderSection):

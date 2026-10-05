@@ -1420,6 +1420,42 @@ class OrderAcceptanceDiscard(BaseModel):
     reason: str = Field(min_length=1, max_length=2000)
 
 
+class DefectCreate(BaseModel):
+    """Mangel erfassen (seit 1.8.49) -- als JSON im Formularfeld "data" neben Fotos und Belegen; die Regeln (Beschreibung
+    Pflicht, Dachfläche aus dem Objekt der Abnahme, Frist nicht vor der Abnahme) prüft app/defects.py."""
+    model_config = ConfigDict(extra="forbid")
+    description: str | None = None
+    roof_area_id: int | None = None
+    location: str | None = None
+    remedy_due_on: date | None = None
+
+
+class DefectStance(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    stance: Literal["anerkannt", "bestritten"]
+    reason: str | None = Field(default=None, max_length=2000)
+
+
+class DefectRelease(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    released: StrictBool
+    reason: str | None = Field(default=None, max_length=2000)
+
+
+class DefectStatusChange(BaseModel):
+    """Status eines Mangels weiterschreiben (seit 1.8.49) -- als JSON im Formularfeld "data" neben den Belegen."""
+    model_config = ConfigDict(extra="forbid")
+    status: Literal["offen", "beseitigt", "beseitigung_abgenommen", "erledigt_ohne"]
+    event_date: date | None = None
+    reason: str | None = None
+    declared_by: Literal["auftraggeber", "beteiligter"] | None = None
+    participant_id: int | None = None
+
+
+class DefectDiscard(BaseModel):
+    reason: str = Field(min_length=1, max_length=2000)
+
+
 class OrderContractBasisChangeOut(BaseModel):
     id: int
     order_id: int
