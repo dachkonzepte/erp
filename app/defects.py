@@ -25,12 +25,16 @@ regulär bis" der Abnahme und Abnahme der Beseitigung plus 24 Monate (§ 13 Abs.
 Beim Erfassen entsteht eine Aufgabe ohne Zuständigkeit (Büro), fällig zur Beseitigungsfrist, in derselben Transaktion;
 Verweis in beide Richtungen (Defect.task_id, Task.source_url). Der Mangel ist die Wahrheit: seine Erledigung (Beseitigung
 abgenommen, erledigt ohne Beseitigung, verworfen) erledigt die Aufgabe; eine erledigte Aufgabe ändert am Mangel nichts.
+Seit 1.8.54 folgt die Aufgabe dem Status: "beseitigt" (Büro oder Monteur) erledigt "Mangel beseitigen" und legt
+"Beseitigung abnehmen lassen" an, zurück auf "offen" erledigt diese und legt wieder "Mangel beseitigen" an -- im selben
+Commit wie der Eintrag, die neue Aufgabe steht am Eintrag (DefectEvent.task_id). Die aktuelle Aufgabe ist die des letzten
+Eintrags, der eine angelegt hat, sonst die beim Erfassen (current_task()).
 
 Rollenlos wie jede Geschäftslogik; app/routers/defects.py lässt nur das Büro zu (ab buero_auftrag). Seit 1.8.52 sieht der
 Monteur in /mobil (app/routers/field_defects.py) die Mängel, die er beseitigen soll -- freigegeben, Status offen, nicht
 verworfen, an einem Auftrag, den er öffnen darf (field_may_see_defect(), field_may_access_order()) -- mit einer
 Positivliste von Feldern (field_defect_dict()) und meldet "beseitigt" mit mindestens einem Foto (report_remedied(),
-idempotent über client_uuid).
+idempotent über client_uuid), seit 1.8.54 optional mit einem kurzen Hinweis fürs Büro (Text des Eintrags, nie in /mobil).
 """
 
 import hashlib
@@ -87,6 +91,9 @@ TASK_MODULE = "aufgabenmanagement"
 TASK_ROLE = "buero_auftrag"
 TASK_SOURCE = "maengel"
 TASK_SHORT_TEXT = 60  # Zeichen der Beschreibung im Aufgabentitel (seit 1.8.51)
+# Art der Aufgabe zum Mangel (seit 1.8.54) und welcher Status welche anlegt -- die bisherige wird dabei erledigt.
+TASK_KINDS = {"beseitigen": "Mangel beseitigen", "abnahme": "Beseitigung abnehmen lassen"}
+STATUS_TASKS = {"beseitigt": "abnahme", "offen": "beseitigen"}
 ENTITY_TYPE = "Mangel"  # Änderungshistorie (app/audit.py)
 
 DISCARD_TEXTS = {"unveraendert": "Verwerfen unverändert (Prüfsumme stimmt)",
@@ -285,31 +292,77 @@ def short_text(text: str, limit: int = TASK_SHORT_TEXT) -> str:
     return cut.rstrip(" ,;:.-–") + "…"
 
 
-def _new_task(db: Session, order: Order, acceptance: OrderAcceptance, *, place: str | None, description: str, due,
-              user_id: int | None, user_name: str) -> Task | None:
-    """Die Aufgabe zum Mangel -- in derselben Transaktion, ohne Zuständigkeit, nur fürs Büro. Ohne Aufgabenmodul keine
-    (der Mangel zeigt das). Seit 1.8.51 trägt der Titel eine Kurzfassung der Beschreibung (Betreibervorgabe 2c-2b);
-    die Beschreibung der Aufgabe bleibt bei Metadaten (wer, wann, welche Abnahme, Frist) -- wie bei den Aufgaben aus
-    Anzeigen (app/obstruction_notices.py). Der Titel ist eine Kopie: maßgeblich bleibt der Mangel."""
+def _task_title(order: Order, place: str | None, description: str) -> str:
+    where = f" – {place}" if place else ""
+    return f"Mangel aus Abnahme {order.order_number}{where}: {short_text(description)}"
+
+
+def _add_task(db: Session, order: Order, *, title: str, description: str, due, user_id: int | None,
+              source_url: str | None = None) -> Task | None:
+    """Eine Aufgabe zum Mangel -- in der Transaktion des Aufrufers, ohne Zuständigkeit, nur fürs Büro. Ohne
+    Aufgabenmodul keine (der Mangel zeigt das, nachgeholt wird nicht)."""
     from .modules import is_module_enabled
     from .tasks import _default_column_key
 
     if not is_module_enabled(db, TASK_MODULE):
         return None
-    where = f" – {place}" if place else ""
-    title = f"Mangel aus Abnahme {order.order_number}{where}: {short_text(description)}"[:255]
-    due_text = due.strftime("%d.%m.%Y") if due else "keine"
-    description = (f"Mangel aus der {SCOPES.get(acceptance.scope, acceptance.scope)} vom "
-                   f"{acceptance.accepted_on:%d.%m.%Y} ({result_text(acceptance)}), erfasst von {user_name}. "
-                   f"Beseitigungsfrist: {due_text}. Haltung, Freigabe und Erledigung am Mangel auf der Auftragsseite "
-                   f"festhalten – ist der Mangel erledigt, erledigt sich diese Aufgabe von selbst (umgekehrt nicht).")
-    task = Task(title=title, description=description, status=_default_column_key(db), priority="normal",
+    task = Task(title=title[:255], description=description, status=_default_column_key(db), priority="normal",
                 due_date=due, assigned_employee_id=None, project_id=order.project_id, created_by_user_id=user_id,
-                source_module=TASK_SOURCE, source_label=f"Mangel – {order.order_number}"[:255],
+                source_module=TASK_SOURCE, source_label=f"Mangel – {order.order_number}"[:255], source_url=source_url,
                 min_visible_role=TASK_ROLE)
     db.add(task)
     db.flush()
     return task
+
+
+def _new_task(db: Session, order: Order, acceptance: OrderAcceptance, *, place: str | None, description: str, due,
+              user_id: int | None, user_name: str) -> Task | None:
+    """Die Aufgabe beim Erfassen ("Mangel beseitigen"). Seit 1.8.51 trägt der Titel eine Kurzfassung der Beschreibung
+    (Betreibervorgabe 2c-2b); die Beschreibung der Aufgabe bleibt bei Metadaten (wer, wann, welche Abnahme, Frist) --
+    wie bei den Aufgaben aus Anzeigen (app/obstruction_notices.py). Der Titel ist eine Kopie: maßgeblich bleibt der
+    Mangel."""
+    due_text = due.strftime("%d.%m.%Y") if due else "keine"
+    text = (f"Mangel aus der {SCOPES.get(acceptance.scope, acceptance.scope)} vom "
+            f"{acceptance.accepted_on:%d.%m.%Y} ({result_text(acceptance)}), erfasst von {user_name}. "
+            f"Beseitigungsfrist: {due_text}. Haltung, Freigabe und Erledigung am Mangel auf der Auftragsseite "
+            f"festhalten – ist der Mangel erledigt, erledigt sich diese Aufgabe von selbst (umgekehrt nicht).")
+    return _add_task(db, order, title=_task_title(order, place, description), description=text, due=due,
+                     user_id=user_id)
+
+
+def _follow_task(db: Session, defect: Defect, kind: str, *, event_date, user_id: int | None, user_name: str,
+                 via_field_view: bool) -> Task | None:
+    """Die Aufgabe nach einem Statuswechsel (seit 1.8.54, Betreibervorgabe 2c-2b): "abnahme" nach "beseitigt" --
+    "Beseitigung abnehmen lassen", ohne Fälligkeit; "beseitigen" nach "zurück auf offen" -- "Erneut beseitigen",
+    fällig zur Beseitigungsfrist. Titel wie beim Erfassen mit vorangestellter Art, Beschreibung nur Metadaten (nicht
+    Mangeltext, Begründung oder Hinweis des Monteurs)."""
+    order = db.get(Order, defect.order_id)
+    base = _task_title(order, defect.roof_area_name or defect.location, defect.description)
+    who = f"{'in der Monteursansicht von ' if via_field_view else 'von '}{user_name}"
+    url = f"/orders/{order.id}#mangel-{defect.id}"
+    if kind == "abnahme":
+        text = (f"Mangel Nr. {defect.id} ist als beseitigt eingetragen (am {event_date:%d.%m.%Y}, {who}). Die "
+                "Beseitigung vom Auftraggeber abnehmen lassen und am Mangel als „Beseitigung abgenommen“ festhalten – "
+                "ist sie nicht gelungen, zurück auf „offen“. Ist der Mangel erledigt, erledigt sich diese Aufgabe von "
+                "selbst (umgekehrt nicht).")
+        return _add_task(db, order, title=f"Beseitigung abnehmen lassen – {base}", description=text, due=None,
+                         user_id=user_id, source_url=url)
+    due = defect.remedy_due_on
+    text = (f"Mangel Nr. {defect.id} ist wieder offen (zurückgesetzt {who}) – die Beseitigung ist nicht gelungen oder "
+            f"nicht abgenommen. Beseitigungsfrist: {due.strftime('%d.%m.%Y') if due else 'keine'}. Ist der Mangel "
+            "erledigt, erledigt sich diese Aufgabe von selbst (umgekehrt nicht).")
+    return _add_task(db, order, title=f"Erneut beseitigen – {base}", description=text, due=due, user_id=user_id,
+                     source_url=url)
+
+
+def current_task(defect: Defect, events) -> tuple[int | None, str]:
+    """(ID, Art) der aktuellen Aufgabe des Mangels (seit 1.8.54): die des letzten Eintrags, der eine angelegt hat, sonst
+    die beim Erfassen ("beseitigen")."""
+    task_id, kind = defect.task_id, "beseitigen"
+    for e in sorted(events, key=lambda x: x.id):
+        if e.task_id is not None:
+            task_id, kind = e.task_id, STATUS_TASKS.get(e.value, "beseitigen")
+    return task_id, kind
 
 
 def create_defect(db: Session, acceptance: OrderAcceptance, data: dict, files: list[tuple[str, str | None, bytes]], *,
@@ -405,23 +458,31 @@ def _complete_task(db: Session, task_id: int | None) -> bool:
 def _append(db: Session, defect: Defect, events: list[DefectEvent], *, kind: str, value: str | None,
             previous_value: str | None, files: list[tuple[str, bytes, str]] = (), event_date=None,
             reason: str | None = None, declared: dict | None = None, user_id: int | None, user_name: str | None,
-            complete_task: bool = False, client_uuid: str | None = None) -> DefectEvent:
+            complete_task: bool = False, task_kind: str | None = None, client_uuid: str | None = None) -> DefectEvent:
+    """Ein Eintrag im Verlauf, in einem Commit mit der Aufgabe: complete_task erledigt die aktuelle Aufgabe, task_kind
+    (seit 1.8.54) erledigt sie ebenfalls und legt die nächste an -- vor dem Eintrag, damit er ihre ID beim Einfügen trägt
+    (danach ist er unveränderlich)."""
     name = (user_name or "System")[:160]
     now = datetime.utcnow().replace(microsecond=0)
     written: list[str] = []
     try:
+        task_id = None
+        if complete_task or task_kind:
+            _complete_task(db, current_task(defect, events)[0])
+        if task_kind:
+            task = _follow_task(db, defect, task_kind, event_date=event_date, user_id=user_id, user_name=name,
+                                via_field_view=client_uuid is not None)
+            task_id = task.id if task is not None else None
         event = DefectEvent(
             defect_id=defect.id, kind=kind, value=value, previous_value=previous_value, event_date=event_date,
             reason=reason, previous_event_sha256=events[-1].content_sha256 if events else None,
             content_sha256="", checksum_format=CHECKSUM_FORMAT, created_at=now, created_by_user_id=user_id,
-            created_by_name=name, client_uuid=client_uuid, **(declared or {}),
+            created_by_name=name, client_uuid=client_uuid, task_id=task_id, **(declared or {}),
         )
         for file_kind, content, content_type in files:
             event.files.append(_store(written, defect.id, file_kind, content, content_type, now))
         event.content_sha256 = content_sha256(event_content(event, defect.content_sha256))
         db.add(event)
-        if complete_task:
-            _complete_task(db, defect.task_id)
         db.commit()
     except Exception:
         db.rollback()
@@ -546,7 +607,7 @@ def set_status(db: Session, defect: Defect, data: dict, files: list[tuple[str, s
         stored_files.append(("abnahmevollmacht", *frozen))
     return _append(db, defect, events, kind="status", value=status, previous_value=state["status"],
                    files=stored_files, event_date=event_date, reason=text, declared=declared, user_id=user_id,
-                   user_name=user_name, complete_task=status in DONE_STATUSES)
+                   user_name=user_name, complete_task=status in DONE_STATUSES, task_kind=STATUS_TASKS.get(status))
 
 
 def add_photos(db: Session, defect: Defect, files: list[tuple[str, str | None, bytes]], *, user_id: int | None,
@@ -574,7 +635,7 @@ def add_receipts(db: Session, defect: Defect, files: list[tuple[str, str | None,
 
 def discard_defect(db: Session, defect: Defect, *, reason: str, user_id: int | None, user_name: str | None) -> Defect:
     """Verwirft einen Mangel mit Begründung -- genau einmal (bedingtes UPDATE mit Siegel an der ORM-Sperre vorbei),
-    Historie, erledigt die Aufgabe."""
+    Historie, erledigt die aktuelle Aufgabe."""
     from .audit import record_audit_entry
 
     text = _clean(reason, REASON_MAX, "Die Begründung")
@@ -598,7 +659,8 @@ def discard_defect(db: Session, defect: Defect, *, reason: str, user_id: int | N
                        entity_label=defect_label(defect, order), project_id=order.project_id if order else None,
                        field_name="discard_reason", old_value=None, new_value=text, actor_user_id=user_id,
                        actor_name=name)
-    _complete_task(db, defect.task_id)
+    events = db.scalars(select(DefectEvent).where(DefectEvent.defect_id == defect.id)).all()
+    _complete_task(db, current_task(defect, events)[0])
     db.commit()
     db.expire(defect)
     db.refresh(defect)
@@ -668,11 +730,14 @@ def _event_dict(e: DefectEvent, check: dict) -> dict:
         "files": [_file_dict(f, check["files"].get(f.id, "fehlt")) for f in e.files],
         "intact": check["events"].get(e.id, False),
         "created_at": e.created_at, "created_at_local": to_berlin(e.created_at), "created_by_name": e.created_by_name,
-        "via_field_view": e.client_uuid is not None,  # seit 1.8.52: Meldung aus der Monteursansicht
+        "via_field_view": e.client_uuid is not None,  # seit 1.8.52: Meldung aus der Monteursansicht (reason = Hinweis)
+        # seit 1.8.54: die Aufgabe, die dieser Eintrag angelegt hat
+        "task_id": e.task_id,
+        "task_label": TASK_KINDS[STATUS_TASKS.get(e.value, "beseitigen")] if e.task_id is not None else None,
     }
 
 
-def _task_dict(task: Task | None, task_id: int | None, columns: dict[str, TaskColumn]) -> dict:
+def _task_dict(task: Task | None, task_id: int | None, kind: str, columns: dict[str, TaskColumn]) -> dict:
     if task_id is None:
         return {"exists": False, "text": "keine Aufgabe angelegt (Aufgabenmodul beim Erfassen ausgeschaltet)"}
     if task is None:
@@ -680,14 +745,16 @@ def _task_dict(task: Task | None, task_id: int | None, columns: dict[str, TaskCo
     column = columns.get(task.status)
     done = bool(column and column.is_done)
     return {"exists": True, "id": task.id, "title": task.title, "done": done, "archived": task.archived,
-            "status_label": column.label if column else task.status, "url": "/tasks"}
+            "status_label": column.label if column else task.status, "kind_label": TASK_KINDS[kind],
+            "url": f"/tasks?task={task.id}"}
 
 
 def defect_to_dict(d: Defect, *, order: Order, acceptance: OrderAcceptance | None, acceptance_check: dict | None,
-                   task: Task | None, columns: dict[str, TaskColumn]) -> dict:
+                   tasks: dict[int, Task], columns: dict[str, TaskColumn]) -> dict:
     check = verify_defect(d)
     state = defect_state(d.events)
-    task_info = _task_dict(task, d.task_id, columns)
+    task_id, task_kind = current_task(d, d.events)
+    task_info = _task_dict(tasks.get(task_id), task_id, task_kind, columns)
     task_hint = None
     if task_info.get("done") and not state["done"] and d.discarded_at is None:
         task_hint = "Die Aufgabe ist erledigt, der Mangel aber nicht – maßgeblich ist der Mangel."
@@ -732,11 +799,11 @@ def _dicts(db: Session, rows: list[Defect], order: Order) -> list[dict]:
         .options(selectinload(OrderAcceptance.roof_areas), selectinload(OrderAcceptance.files))
     ).all()} if acceptance_ids else {}
     checks = {a_id: verify_acceptance(a) for a_id, a in acceptances.items()}
-    task_ids = {d.task_id for d in rows if d.task_id}
+    task_ids = {current_task(d, d.events)[0] for d in rows} - {None}
     tasks = {t.id: t for t in db.scalars(select(Task).where(Task.id.in_(task_ids))).all()} if task_ids else {}
     columns = {c.key: c for c in db.scalars(select(TaskColumn)).all()}
     return [defect_to_dict(d, order=order, acceptance=acceptances.get(d.acceptance_id),
-                           acceptance_check=checks.get(d.acceptance_id), task=tasks.get(d.task_id), columns=columns)
+                           acceptance_check=checks.get(d.acceptance_id), tasks=tasks, columns=columns)
             for d in rows]
 
 
@@ -755,6 +822,7 @@ def get_defect_dict(db: Session, defect: Defect) -> dict:
 # ---------------------------------------------------------------------------
 
 FIELD_KEY_MAX = 36
+FIELD_NOTE_MAX = 500  # Hinweis des Monteurs zur Meldung (seit 1.8.54), nur fürs Büro
 FIELD_PHOTO_KIND = "foto"  # nur Fotos -- Belege und Vollmachten nie (können Schreiben des Kunden sein)
 
 
@@ -846,17 +914,21 @@ def field_report_replay(db: Session, defect_id: int, client_uuid: str | None, us
 
 def report_remedied(db: Session, defect: Defect, *, event_date, client_uuid: str | None,
                     files: list[tuple[str, str | None, bytes]], user_id: int | None,
-                    user_name: str | None) -> DefectEvent:
+                    user_name: str | None, note: str | None = None) -> DefectEvent:
     """Der Monteur meldet "beseitigt": Status offen -> beseitigt mit Datum und mindestens einem Foto (Dateien des
-    Eintrags, Art "foto"), ohne Begründung und ohne Erklärenden. Idempotent über client_uuid (global eindeutig): eine
-    schon gespeicherte Meldung mit dieser Kennung ist die Antwort, geprüft vor dem Einfügen und unter der Sperre des
-    Mangels; eine gleichzeitige Wiederholung, die beides passiert, fängt der UNIQUE-Schlüssel ab. Unter der Sperre neu
-    geprüft: verworfen, Freigabe zurückgenommen oder Status nicht mehr "offen" -> DefectConflict (409). Ob der Monteur
-    den Mangel sehen darf, prüft der Router vorher (field_visible_defect())."""
+    Eintrags, Art "foto"), ohne Erklärenden. Seit 1.8.54 optional ein kurzer Hinweis (höchstens FIELD_NOTE_MAX Zeichen)
+    als Text des Eintrags -- im gebundenen Inhalt, nur fürs Büro sichtbar (die Positivliste in /mobil kennt keinen
+    Verlauf). Wie im Büro erledigt "beseitigt" die Aufgabe "Mangel beseitigen" und legt "Beseitigung abnehmen lassen"
+    an. Idempotent über client_uuid (global eindeutig): eine schon gespeicherte Meldung mit dieser Kennung ist die
+    Antwort, geprüft vor dem Einfügen und unter der Sperre des Mangels; eine gleichzeitige Wiederholung, die beides
+    passiert, fängt der UNIQUE-Schlüssel ab. Unter der Sperre neu geprüft: verworfen, Freigabe zurückgenommen oder
+    Status nicht mehr "offen" -> DefectConflict (409). Ob der Monteur den Mangel sehen darf, prüft der Router vorher
+    (field_visible_defect())."""
     key = _field_key(client_uuid)
     existing = _event_by_key(db, key)
     if existing is not None:
         return _replay(existing, defect.id, user_id)
+    text = _clean(note, FIELD_NOTE_MAX, "Der Hinweis")
     uploads = _checked_files([("foto", name, data) for _, name, data in files], {"foto"})
     if not uploads:
         raise ValueError("Bitte mindestens ein Foto der Beseitigung aufnehmen.")
@@ -888,7 +960,8 @@ def report_remedied(db: Session, defect: Defect, *, event_date, client_uuid: str
         raise DefectConflict(problem + " Bitte die Seite neu laden.")
     try:
         return _append(db, defect, events, kind="status", value="beseitigt", previous_value="offen", files=uploads,
-                       event_date=event_date, client_uuid=key, user_id=user_id, user_name=user_name)
+                       event_date=event_date, reason=text, client_uuid=key, user_id=user_id, user_name=user_name,
+                       task_kind=STATUS_TASKS["beseitigt"])
     except IntegrityError:
         existing = _event_by_key(db, key)  # _append hat zurückgerollt
         if existing is None:

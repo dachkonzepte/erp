@@ -1,8 +1,9 @@
 {# Mängel aus der Abnahme am Auftrag (seit 1.8.49, Stufe 2c-2a, docs/archiv/abnahme-und-gewaehrleistung.md).
    Eingebunden in order.html nach _abnahme.html; nutzt orderId, order, api(), esc(), fehlerText(), FELDNAMEN und aus
    _abnahme.html accDate(), accDateTime(), accSize(), accCheck().
-   - Karte "Mängel": jeder Mangel mit Stand (Status, Haltung, Freigabe), Frist, Dateien, Aufgabe, bei VOB/B
-     "Nachbesserung regulär bis" mit Prüfstatus, Verlauf; Aktionen über eingeblendete Felder (kein prompt(), Regel 4).
+   - Karte "Mängel": jeder Mangel mit Stand (Status, Haltung, Freigabe), Frist, Dateien, aktuelle Aufgabe (seit 1.8.54
+     mit Art, sie folgt dem Status), bei VOB/B "Nachbesserung regulär bis" mit Prüfstatus, Verlauf (Hinweis des Monteurs,
+     angelegte Aufgaben); Aktionen über eingeblendete Felder (kein prompt(), Regel 4).
    - Dialog "Mangel erfassen": geöffnet aus einer Abnahme mit Vorbehalt Mängel oder Verweigerung (Knopf in der Karte
      "Abnahme"); ohne Vorauswahl. Nach dem Speichern springt die Seite zum neuen Mangel. #}
 <style>
@@ -64,8 +65,10 @@ function defEventHtml(d,e){
   const what=e.kind==='fotos'?`${e.files.length} Foto${e.files.length===1?'':'s'} ergänzt`:e.kind==='belege'?`${e.files.length} Beleg${e.files.length===1?'':'e'} ergänzt`:`${esc(e.kind_label)}: ${e.previous_value_label?esc(e.previous_value_label)+' → ':''}<b>${esc(e.value_label)}</b>`;
   const parts=[`<div>${what}${e.event_date?` am ${accDate(e.event_date)}`:''}${e.intact?'':' <span class="acc-bad">⚠ weicht von seiner Prüfsumme ab</span>'}</div>`];
   if(e.declared_by)parts.push(`<div>Erklärt durch: ${e.declared_by==='beteiligter'?`${esc(e.declared_by_name)} (${esc(e.declared_by_role||'Beteiligter')})`:`Auftraggeber ${esc(e.declared_by_name)}`}${e.without_power_of_attorney?' <span class="acc-warn">⚠ ohne Vollmacht zur Abnahme</span>':''}</div>`);
-  if(e.reason)parts.push(`<div style="white-space:pre-wrap">Begründung: ${esc(e.reason)}</div>`);
+  // Seit 1.8.54: bei einer Meldung aus der Monteursansicht ist der Text der Hinweis des Monteurs (nur hier sichtbar).
+  if(e.reason)parts.push(`<div style="white-space:pre-wrap">${e.via_field_view?'Hinweis aus der Monteursansicht':'Begründung'}: ${esc(e.reason)}</div>`);
   if(e.files.length)parts.push(defFiles(d,e.files));
+  if(e.task_label)parts.push(`<div class="muted">Aufgabe „${esc(e.task_label)}“ angelegt</div>`);
   parts.push(`<div class="muted">${accDateTime(e.created_at_local)} · ${esc(e.created_by_name)}${e.via_field_view?' · gemeldet in der Monteursansicht':''}</div>`);
   return `<div class="def-event">${parts.join('')}</div>`;
 }
@@ -79,7 +82,7 @@ function defectHtml(d){
   const w=d.remedy_warranty;
   if(w)lines.push(`<div class="def-row ${w.end&&w.check.ok?'acc-good':'acc-warn'}" title="${esc(w.rule||'')}">${esc(w.text)}${w.hint?` <span class="acc-hint">· ${esc(w.hint)}</span>`:''} ${accCheck(w.check)}</div>`);
   const t=d.task;
-  lines.push(`<div class="def-row">Aufgabe: ${t.exists?`<a href="/tasks">${esc(t.title)}</a> – ${esc(t.status_label)}${t.archived?' (archiviert)':''}`:`<span class="muted">${esc(t.text)}</span>`}</div>`);
+  lines.push(`<div class="def-row">Aufgabe${t.exists?` (${esc(t.kind_label)})`:''}: ${t.exists?`<a href="${esc(t.url)}">${esc(t.title)}</a> – ${esc(t.status_label)}${t.archived?' (archiviert)':''}`:`<span class="muted">${esc(t.text)}</span>`}</div>`);
   if(d.task_hint)lines.push(`<div class="def-row acc-warn">${esc(d.task_hint)}</div>`);
   if(!d.intact)lines.push(`<div class="def-row acc-bad">⚠ Prüfung: ${esc(d.check.text)}</div>`);
   lines.push(`<div class="def-row muted">Erfasst ${accDateTime(d.created_at_local)} von ${esc(d.created_by_name)}</div>`);

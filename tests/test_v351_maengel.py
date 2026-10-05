@@ -461,7 +461,10 @@ def test_finishing_the_defect_completes_the_task(welt, buero, abschluss):
     elif abschluss == "beseitigung_abgenommen":
         _ok(_status(buero, d["id"], status="beseitigt", event_date=_iso(HEUTE)))
         db.expire_all()
-        assert db.get(Task, d["task"]["id"]).completed_at is None  # "beseitigt" erledigt noch nichts
+        # Seit 1.8.54: "beseitigt" erledigt "Mangel beseitigen" und legt "Beseitigung abnehmen lassen" an
+        # (tests/test_v356_maengel_aufgabe_und_hinweis.py); erst die Abnahme der Beseitigung erledigt diese.
+        assert db.get(Task, d["task"]["id"]).completed_at is not None
+        assert db.scalars(select(Task).where(Task.id != d["task"]["id"])).one().completed_at is None
         _ok(_status(buero, d["id"], status="beseitigung_abgenommen", event_date=_iso(HEUTE), reason="vor Ort",
                     declared_by="auftraggeber"))
     else:
@@ -469,7 +472,8 @@ def test_finishing_the_defect_completes_the_task(welt, buero, abschluss):
     db.expire_all()
     task = db.get(Task, d["task"]["id"])
     assert task.completed_at is not None and db.get(TaskColumn, 1) is not None
-    assert task.status in {c.key for c in db.scalars(select(TaskColumn).where(TaskColumn.is_done.is_(True)))}
+    done_keys = {c.key for c in db.scalars(select(TaskColumn).where(TaskColumn.is_done.is_(True)))}
+    assert all(t.status in done_keys and t.completed_at is not None for t in db.scalars(select(Task)))
 
 
 def test_without_task_module_no_task_and_deleted_task_is_shown(welt, buero):

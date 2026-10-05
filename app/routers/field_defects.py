@@ -7,7 +7,8 @@ docs/archiv/abnahme-und-gewaehrleistung.md, "Umsetzung 1.8.52").
 - GET /api/field-view/defects/{defect_id}/photos/{file_id}: ein Foto genau dieses Mangels, dieselbe Prüfung wie die
   Liste, nur Art "foto", nur mit stimmender Prüfsumme (409/410), nosniff. Der Büro-Weg /api/defects/... bleibt 403.
 - POST /api/field-view/defects/{defect_id}/remedied: "beseitigt" melden (multipart: "data" = FieldDefectRemedied als
-  JSON, "photos" mindestens eins), idempotent über client_uuid.
+  JSON, "photos" mindestens eins), idempotent über client_uuid; seit 1.8.54 optional ein kurzer Hinweis ("note"), nur
+  fürs Büro -- die Antwort nennt ihn nicht.
 
 Der Mitarbeiter kommt ausschließlich aus dem angemeldeten Konto (wie GET /api/field-view/today), nie aus der Anfrage.
 Was der Monteur nicht sehen darf -- nicht freigegeben, fremder Auftrag, verworfen, schon beseitigt, gibt es nicht --,
@@ -89,7 +90,7 @@ def post_field_defect_remedied(defect_id: int, data: str = Form(...), photos: li
     uploads = _read_uploads([("foto", photos)])
     try:
         event = report_remedied(db, defect, event_date=payload.event_date, client_uuid=payload.client_uuid,
-                                files=uploads, user_id=user_id, user_name=user_name)
+                                files=uploads, note=payload.note, user_id=user_id, user_name=user_name)
     except DefectConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:

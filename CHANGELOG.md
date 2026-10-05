@@ -4,6 +4,25 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.54 – Mängel: Aufgabe folgt dem Status, Hinweis des Monteurs
+
+Stufe 2c, Runde 2c-2b, Nacharbeiten Punkt 2 bis 4. Wird ein Mangel „beseitigt“ – im Büro oder als Meldung aus der
+Monteursansicht –, ist die Aufgabe „Mangel beseitigen“ erledigt und im Büro-Eingang steht „Beseitigung abnehmen lassen“;
+setzt das Büro zurück auf „offen“, ist diese erledigt und „Erneut beseitigen“ (fällig zur Beseitigungsfrist) da. Abnahme
+der Beseitigung, Erledigung ohne Beseitigung und Verwerfen erledigen die jeweils aktuelle Aufgabe. Alles im selben Commit
+wie der Eintrag im Verlauf, der die neue Aufgabe festhält; der Mangel bleibt die Wahrheit, die Auftragsseite zeigt die
+aktuelle Aufgabe mit Art und Link. Zur Meldung „beseitigt“ kann der Monteur einen kurzen Hinweis schreiben (höchstens 500
+Zeichen); er steht mitversiegelt im Verlauf, nur das Büro sieht ihn („Hinweis aus der Monteursansicht“). CLAUDE.md:
+eingespielt wird mit `/home/tobias/update.sh`, das eine Migration selbst gegen die Spielwiese probt.
+
+Migration `d5479410d4ff` (Spalte `defect_events.task_id`), geprüft unter SQLite und PostgreSQL 17 (hin, zurück, hin,
+`check`, mit Daten über den App-Code). Neue `test_v356` (14, einer gegen PostgreSQL: Meldung wartet auf das gleichzeitige
+„beseitigt“ des Büros – ein Eintrag, eine neue Aufgabe), angepasst `test_v351` („beseitigt“ erledigt jetzt die erste
+Aufgabe) und `test_v354` (Kommentar). Gegenproben 13 von 13 rot. Volle Suite 2834 grün (mit den opt-in-Tests
+gegen PostgreSQL). Klicktest `klicktest_maengel_monteur.py` 27/27 (neu: Hinweisfeld, Hinweis und Aufgabe in der Büro-Ansicht,
+zurück auf offen). Festlegungen in
+`docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.53 und 1.8.54“.
+
 ## 1.8.53 – Aufgaben-Mails ohne Inhalt der Aufgabe
 
 Stufe 2c, Runde 2c-2b, Nacharbeiten Punkt 1. Die Benachrichtigung über eine zugewiesene Aufgabe nennt nur noch die Art

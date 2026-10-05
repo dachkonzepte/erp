@@ -1252,7 +1252,11 @@ class DefectEvent(Base):
 
     client_uuid (seit 1.8.52): Kennung der Meldung "beseitigt" aus der Monteursansicht, global eindeutig -- dieselbe
     Kennung noch einmal liefert die gespeicherte Meldung (Stufe 3, offline). Technischer Schlüssel, nicht im gebundenen
-    Inhalt; leer bei allen Einträgen aus dem Büro."""
+    Inhalt; leer bei allen Einträgen aus dem Büro.
+
+    task_id (seit 1.8.54): die Aufgabe, die dieser Eintrag angelegt hat -- "Beseitigung abnehmen lassen" bei "beseitigt",
+    "Mangel beseitigen" bei "zurück auf offen" (app/defects.py::current_task()). Wie Defect.task_id ohne Fremdschlüssel und
+    nicht im gebundenen Inhalt; beim Einfügen gesetzt, danach unveränderlich wie der ganze Eintrag."""
 
     __tablename__ = "defect_events"
     __table_args__ = (UniqueConstraint("client_uuid", name="uq_defect_event_client_uuid"),)
@@ -1276,6 +1280,7 @@ class DefectEvent(Base):
     created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
     created_by_name: Mapped[str] = mapped_column(String(160), default="System")
     client_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    task_id: Mapped[int | None] = mapped_column(nullable=True)
 
     defect: Mapped[Defect] = relationship(back_populates="events")
     files: Mapped[list["DefectFile"]] = relationship(back_populates="event", order_by="DefectFile.id")

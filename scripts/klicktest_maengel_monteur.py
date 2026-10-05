@@ -1,4 +1,5 @@
-"""Klicktest: Monteur-Sicht auf Mängel in /mobil (1.8.52, Stufe 2c-2b, Punkt 1).
+"""Klicktest: Monteur-Sicht auf Mängel in /mobil (1.8.52, Stufe 2c-2b, Punkt 1; seit 1.8.54 Hinweis des Monteurs und
+Aufgabe, die dem Status folgt).
 
 Befüllt: Gewerbekunde (VOB/B), Objekt "Halle Nord" mit Dachfläche "Nord", Auftrag (Monteurin Mia über die
 Arbeitsvorbereitung zugeordnet), Abnahme vor 20 Tagen mit Vorbehalt Mängel; Mängel: "Attika undicht" (Nord, Attika West,
@@ -7,12 +8,16 @@ Frist gestern, Foto und Beleg, freigegeben, Haltung bestritten), "Rinne lose" (n
 
     Monteurin (412 px, dunkel)  /mobil: Abschnitt "Mängel zur Beseitigung" nur mit "Attika undicht" -- Beschreibung,
                                 Dachfläche, Ort, Frist überschritten, Foto geladen; keine Haltung, keine Abnahme, kein
-                                Beleg. "Beseitigt melden": Datum vorbelegt mit heute, ohne Foto abgelehnt, mit Foto
-                                gesendet -> Meldung, Abschnitt leer; dieselbe Kennung noch einmal: dieselbe Antwort.
-                                Nicht freigegebener und fremder Mangel: Foto und Meldung 404; Büro-Wege 403.
-    Büro (1400 px, hell)        Auftrag: "beseitigt", Verlauf "gemeldet in der Monteursansicht" mit dem Foto; "Rinne lose"
-                                freigeben.
-    Monteurin (412 px, hell)    "Rinne lose" erscheint; nach dem Zurücknehmen durch das Büro (API) verschwindet er.
+                                Beleg. "Beseitigt melden": Datum vorbelegt mit heute, ohne Foto abgelehnt, mit Foto und
+                                Hinweis (seit 1.8.54, höchstens 500 Zeichen, "nur fürs Büro") gesendet -> Meldung,
+                                Abschnitt leer; dieselbe Kennung noch einmal: dieselbe Antwort. Nicht freigegebener und
+                                fremder Mangel: Foto und Meldung 404; Büro-Wege 403.
+    Büro (1400 px, hell)        Auftrag: "beseitigt", Verlauf "gemeldet in der Monteursansicht" mit dem Foto, "Hinweis aus
+                                der Monteursansicht", "Aufgabe „Beseitigung abnehmen lassen“ angelegt", Aufgabenzeile mit
+                                Art und Link auf die Aufgabe; "Rinne lose" freigeben.
+    Monteurin (412 px, hell)    "Rinne lose" erscheint; nach dem Zurücknehmen durch das Büro (API) verschwindet er. Das Büro
+                                setzt "Attika undicht" zurück auf offen (API): er erscheint wieder, ohne den Hinweis; im
+                                Büro steht die Aufgabe "Erneut beseitigen".
 
 Feste Uhr 10:00 (cdp_klicktest.py, /mobil meldet ab 19 Uhr ab); die Daten liegen relativ zum heutigen Tag.
 
@@ -32,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import klicktest_main  # noqa: E402
 
 PDF = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n"
+HINWEIS = "Anschluss neu eingeklebt, Attika trocken"
 
 
 def _bild(fmt: str, farbe=(30, 110, 160), groesse=(320, 200)) -> bytes:
@@ -212,6 +218,10 @@ async def pruefen(tab, seed, p):
              "Bitte mindestens ein Foto der Beseitigung aufnehmen.")
     kennung = await tab.js(f"{_karte(m['attika'])}.querySelector('.defect-report').dataset.kennung")
     await _datei_setzen(tab, f"#mmangel-{m['attika']} input[type=file]", seed["nachher"])
+    p.pruefe("Hinweis: optional, höchstens 500 Zeichen, nur fürs Büro", await tab.js(
+        f"(t=>[t.maxLength, t.closest('label').textContent.includes('nur fürs Büro')])"
+        f"({_karte(m['attika'])}.querySelector('textarea'))"), [500, True])
+    await tab.js(f"{_karte(m['attika'])}.querySelector('textarea').value={HINWEIS!r}")
     await tab.bild("2_mobil_meldung_dunkel_412")
     await tab.js(f"{_karte(m['attika'])}.querySelector('button.defect-send-btn').click()")
     await tab.warten("document.getElementById('defectsStatus').textContent.includes('beseitigt gemeldet')")
@@ -238,6 +248,13 @@ async def pruefen(tab, seed, p):
         f"(t=>[t.split('\\n')[1].startsWith('beseitigt'), t.includes('gemeldet in der Monteursansicht'), "
         f"[...{karte}.querySelectorAll('.def-event')].pop().querySelectorAll('a[href*=\"/files/\"]').length, "
         f"t.includes('Mia Monteurin')])({karte}.innerText)"), [True, True, 1, True])
+    p.pruefe("Büro: Hinweis aus der Monteursansicht, Aufgabe angelegt", await tab.js(
+        f"(t=>[t.includes('Hinweis aus der Monteursansicht: {HINWEIS}'), "
+        "t.includes('Aufgabe „Beseitigung abnehmen lassen“ angelegt'), "
+        "t.includes('Aufgabe (Beseitigung abnehmen lassen): Beseitigung abnehmen lassen – Mangel aus Abnahme')])"
+        f"({karte}.innerText)"), [True, True, True])
+    p.pruefe("Büro: Link auf die Aufgabe", await tab.js(
+        f"[...{karte}.querySelectorAll('a[href^=\"/tasks?task=\"]')].length"), 1)
     await tab.bild("4_buero_beseitigt_hell")
     await tab.js(f"defOpen({m['rinne']},'freigabe');document.getElementById('defPanel{m['rinne']}').querySelector('button').click()")
     await tab.warten(f"document.getElementById('mangel-{m['rinne']}').innerText.includes('zur Beseitigung freigegeben')")
@@ -261,7 +278,27 @@ async def pruefen(tab, seed, p):
     await asyncio.sleep(0.2)
     p.pruefe("Zurückgenommen: verschwunden", await tab.js("document.getElementById('defectsList').innerText"),
              "Keine Mängel zur Beseitigung.")
+
+    # --- Seit 1.8.54: zurück auf offen -- wieder in /mobil ohne Hinweis, im Büro "Erneut beseitigen" --------------------
+    await tab.anmelden(seed["cookies"]["buero"])
+    status = await tab.js(
+        f"(()=>{{const f=new FormData();f.append('data',JSON.stringify({{status:'offen',reason:'Nachbesserung misslungen'}}));"
+        f"return fetch('/api/defects/{m['attika']}/status',{{method:'POST',body:f}}).then(r=>r.status)}})()")
+    p.pruefe("Büro setzt 'Attika undicht' zurück auf offen", status, 200)
+    await tab.anmelden(seed["cookies"]["mia"])
+    await tab.oeffnen("/mobil", MOBIL_BEREIT)
+    p.pruefe("Wieder offen: sichtbar, ohne Hinweis", await tab.js(
+        "[[...document.querySelectorAll('#defectsList .defect-card')].map(c=>Number(c.dataset.defect)),"
+        f"document.getElementById('defectsList').innerText.includes({HINWEIS!r})]"), [[m["attika"]], False])
     p.pruefe("Monteurin hell: keine JS-Fehler", tab.fehler, [])
+    await tab.anmelden(seed["cookies"]["buero"])
+    await tab.fenster(1400, 1000)
+    await tab.oeffnen(f"/orders/{seed['auftrag']}", BUERO_BEREIT)
+    p.pruefe("Büro: aktuelle Aufgabe 'Erneut beseitigen'", await tab.js(
+        f"{karte}.innerText.includes('Aufgabe (Mangel beseitigen): Erneut beseitigen – Mangel aus Abnahme')"), True)
+    await tab.js(f"{karte}.scrollIntoView()")
+    await tab.bild("6_buero_wieder_offen_hell")
+    p.pruefe("Büro (zweiter Besuch): keine JS-Fehler", tab.fehler, [])
 
 
 if __name__ == "__main__":

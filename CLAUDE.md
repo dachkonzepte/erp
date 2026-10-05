@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.53** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.54** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -97,7 +97,7 @@ Stand, den `git log` nicht erklären kann), nicht nur ein theoretisches.
 | Datenbank | `dachkonzepte` (produktiv), `spielwiese` (Probe, siehe unten) |
 | Dienst | `erp.service`, `gunicorn -w 2 --timeout 120` |
 | Sicherung | `/home/tobias/backup.sh`, täglich 2 Uhr UTC, 14 Tage Aufbewahrung; sichert `erp-data` vollständig (Betreiberangabe 05.10.2026) |
-| Einspielen | ausschließlich `update.sh` (liegt auf dem Server, nicht im Repo), nie einzelne `alembic`-Befehle |
+| Einspielen | ausschließlich `/home/tobias/update.sh` (auf dem Server, nicht im Repo; probt eine Migration selbst gegen `spielwiese`), nie einzelne `alembic`-Befehle -- auch nicht für die Probe |
 | Notfallskripte | `scripts/reset_admin_2fa.py`, `scripts/migrate_sqlite_to_postgres.py` |
 | Zeitzone | `Etc/UTC` (`timedatectl`) -- Datum und Uhrzeit deshalb nur über `app/berlin_time.py`, Regel 20 |
 
@@ -123,9 +123,10 @@ Committen -- der Betreiber pusht (etablierte Praxis dieser Sitzungen: Claude Cod
 aber pusht nie ohne ausdrückliche Aufforderung). Auf dem Server: sichern, `git pull`, Abhängigkeiten,
 Migrationen, Dienst neu starten.
 
-**Seit 05.10.2026 (Betreibervorgabe): eingespielt wird nur mit `update.sh`, nie mit einzelnen
-`alembic`-Befehlen.** Das Skript liegt auf dem Server, nicht im Repo -- eine Anleitung oder ein Bericht
-nennt deshalb `update.sh`, nicht die Einzelschritte. `backup.sh` sichert `erp-data` vollständig (auch die
+**Seit 05.10.2026 (Betreibervorgabe): eingespielt wird nur mit `/home/tobias/update.sh`, nie mit einzelnen
+`alembic`-Befehlen.** Das Skript liegt auf dem Server, nicht im Repo, und probt eine Migration selbst zuerst gegen
+`spielwiese` (Betreiberangabe 05.10.2026, in CLAUDE.md seit 1.8.54) -- eine Anleitung oder ein Bericht nennt deshalb
+`update.sh`, nicht die Einzelschritte und keinen eigenen Probe-Befehl. `backup.sh` sichert `erp-data` vollständig (auch die
 Ablagen unter `ERP_DATA_DIR`, z. B. `acceptance_documents`). Die Abfolge unten ist die frühere Handabfolge
 (Stand 1.3.42) und bleibt als Nachweis dessen, was ein Einspielen leisten muss (Sicherung, Umgebung laden,
 Migration, `alembic current` als Beleg, Neustart) -- nicht zum Abtippen.
@@ -153,11 +154,10 @@ fehlt. Die siebte Zeile (`alembic current`) ist der einzige tatsächliche Nachwe
 Migration gegriffen hat -- "keine Fehlermeldung gesehen" ist kein Ersatz dafür, siehe Vorfall 1.
 
 Bei Schemaänderungen läuft die Migration vorher zusätzlich einmal gegen `spielwiese` (die
-Probe-Datenbank auf demselben Server, nicht die lokale, portable Instanz aus der Entwicklung) --
-`DATABASE_URL=postgresql+psycopg://<user>:<pass>@localhost:5432/spielwiese .venv/bin/alembic
-upgrade head`, geprüft, danach erst die Abfolge oben gegen `dachkonzepte`. **Offen seit 1.8.51**: das ist
-ein einzelner `alembic`-Befehl -- ob die Probe künftig ebenfalls über `update.sh` läuft (z. B. mit der
-Datenbank als Parameter), ist mit dem Betreiber zu klären.
+Probe-Datenbank auf demselben Server, nicht die lokale, portable Instanz aus der Entwicklung) -- das erledigt
+`update.sh` selbst, kein einzelner `alembic`-Befehl. Bis 1.8.53 stand hier ein Befehl
+`DATABASE_URL=…/spielwiese alembic upgrade head` zum Abtippen und seit 1.8.51 die offene Frage, ob die Probe über
+`update.sh` laufen soll; beides ist mit der Betreiberangabe vom 05.10.2026 erledigt.
 
 ### Was das für Migrationen heißt
 
@@ -517,9 +517,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     lesend" und kopiert in eine neue Zieldatenbank (Muster
     `scripts/migrate_sqlite_to_postgres.py`), ein Browser-/Angriffstest baut sich eine eigene,
     kurzlebige Datenbank auf einem separaten Port auf und räumt sie danach vollständig ab.
-    Schema-Änderungen laufen bei Bedarf zusätzlich einmal gegen die Probe-Datenbank
-    `spielwiese` (siehe "Produktivbetrieb" → "Der Weg einer Änderung auf den Server"), ebenfalls
-    nicht gegen `dachkonzepte`. Diese Regel gilt themenübergreifend -- unabhängig davon, welches
+    Schema-Änderungen laufen zusätzlich einmal gegen die Probe-Datenbank `spielwiese` -- das
+    erledigt `update.sh` selbst (siehe "Produktivbetrieb" → "Der Weg einer Änderung auf den Server"),
+    ebenfalls nicht gegen `dachkonzepte`. Diese Regel gilt themenübergreifend -- unabhängig davon, welches
     Modul gerade getestet wird (real wiederholt angewendet u. a. bei Kalender-Sync,
     Buchhaltung, Projektliste, Betriebsmittelverwaltung; Details siehe jeweilige Archivdatei).
 
@@ -706,7 +706,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   (`defect_state()`); beim Erfassen eine Aufgabe im Büro-Eingang, die die Erledigung des Mangels mit erledigt (umgekehrt nicht),
   seit 1.8.51 mit Kurzfassung der Beschreibung im Titel; Fotos und Belege nur ergänzen. Seit 1.8.52 sieht der Monteur in
   `/mobil` freigegebene, offene Mängel seiner Aufträge (`field_may_see_defect()`, Antwortschema `FieldDefectOut` als
-  Positivliste) und meldet "beseitigt" mit Foto, idempotent über `DefectEvent.client_uuid`.
+  Positivliste) und meldet "beseitigt" mit Foto, idempotent über `DefectEvent.client_uuid`. Seit 1.8.54 folgt die Aufgabe
+  dem Status ("beseitigt" -> "Beseitigung abnehmen lassen", zurück auf offen -> wieder "Mangel beseitigen", am Eintrag
+  `DefectEvent.task_id`, aktuelle über `current_task()`), die Meldung trägt optional einen Hinweis des Monteurs, nur fürs Büro.
   Seit 1.8.50 setzt `{gewaehrleistung}` in Vertragsvorlagen die Dauer ein; ein Vertrag damit wird erst mit festgelegter Dauer
   festgeschrieben, danach sind Leistungsart und Dauer gesperrt (`warranty_contract_lock()`, Sperrreihenfolge Vertrag ->
   Auftrag wie beim Abgleich). Details: `docs/archiv/abnahme-und-gewaehrleistung.md`.
@@ -848,7 +850,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   bei VOB/B "Nachbesserung regulär bis"; seit 1.8.50 Platzhalter `{gewaehrleistung}` in Vertragsvorlagen, Festschreiben erst
   mit Dauer, danach Dauer und Leistungsart gesperrt; seit 1.8.51 Belege am Mangel nachreichen, Aufgabentitel mit Kurzfassung,
   Bindung der Sperren an eine gültige Fassung offen, weil es kein Zurückziehen gibt; seit 1.8.52 Monteur-Sicht auf Mängel in
-  `/mobil` mit Positivliste, "beseitigt" melden mit Foto, Fotos nur über den Monteur-Weg) -- `docs/archiv/abnahme-und-gewaehrleistung.md`
+  `/mobil` mit Positivliste, "beseitigt" melden mit Foto, Fotos nur über den Monteur-Weg; seit 1.8.54 Aufgabe folgt dem
+  Status, Hinweis des Monteurs zur Meldung) -- `docs/archiv/abnahme-und-gewaehrleistung.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
   `docs/archiv/grunddaten-beim-start.md`

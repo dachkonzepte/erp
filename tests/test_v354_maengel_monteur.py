@@ -292,8 +292,9 @@ def test_report_remedied_with_photo(welt, buero, mia, ablage):
     assert buero_sicht["status"] == "beseitigt" and buero_sicht["intact"] is True
     assert buero_sicht["events"][-1]["via_field_view"] is True and len(buero_sicht["events"][-1]["files"]) == 2
     assert buero_sicht["events"][0]["via_field_view"] is False
-    # Die Aufgabe bleibt offen -- erledigt ist der Mangel erst mit der Abnahme der Beseitigung.
-    assert buero_sicht["task"]["done"] is False
+    # Die aktuelle Aufgabe ist offen -- seit 1.8.54 "Beseitigung abnehmen lassen" (test_v356); erledigt ist der Mangel
+    # erst mit der Abnahme der Beseitigung.
+    assert buero_sicht["task"]["done"] is False and buero_sicht["task"]["kind_label"] == "Beseitigung abnehmen lassen"
     # Das Büro kann weiterschreiben.
     _ok(_status(buero, d["id"], status="beseitigung_abgenommen", event_date=_iso(HEUTE), reason="vor Ort abgenommen",
                 declared_by="auftraggeber"))

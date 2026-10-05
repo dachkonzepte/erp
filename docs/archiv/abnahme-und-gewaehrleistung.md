@@ -18,7 +18,7 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 |---|---|---|---|
 | **2c-1** | 1.8.46, 1.8.47 | Fundament: Regel-20-Test auch für Spaltenvorgaben, Datengrenze (Strafe, Einbehalt), Leistungsart und Gewährleistungsdauer am Auftrag, Abnahme (unveränderlich, Verwerfen, Historie), Gewährleistungsende abgeleitet an Auftrag/Objekt/Dachfläche, Garantie Dritter an der Dachfläche mit Teil-Update, Abgleich gesperrt nach Abnahme (1.8.46); Vollmacht zur Abnahme am Beteiligten, Begründung und Vorschau nach der ersten Abnahme, Nachweis "förmlich: Beleg, sonst Beleg oder Begründung", "Gewährleistung regulär bis" (1.8.47) | erledigt |
 | **2c-2a** | 1.8.48–1.8.50 | Vorweg: Prüfstatus neben jedem Gewährleistungsende (eine Funktion, `logger.error` bei Abweichung), Siegel des Verwerfens, Fassung des Prüfsummenformats (1.8.48); Mängel aus der Abnahme mit Haltung, Status, Freigabe, Verlauf, Aufgabe und "Nachbesserung regulär bis" (1.8.49); Platzhalter `{gewaehrleistung}`, Festschreiben erst mit Dauer, danach Dauer und Leistungsart gesperrt (1.8.50) | erledigt |
-| **2c-2b** | 1.8.51, 1.8.52 | Vorweg: Sperre an eine gültige Fassung binden (nur gemeldet -- es gibt kein Zurückziehen einer Fassung), Belege am Mangel nachreichen, Aufgabentitel mit Kurzfassung, CLAUDE.md `update.sh`/`backup.sh` (1.8.51); Monteur-Sicht auf Mängel in `/mobil` mit Positivliste, "beseitigt" melden mit Foto, idempotent über `client_uuid` (1.8.52) | erledigt bis auf das Zurückziehen einer Fassung (Entscheidung offen) |
+| **2c-2b** | 1.8.51–1.8.54 | Vorweg: Sperre an eine gültige Fassung binden (nur gemeldet -- es gibt kein Zurückziehen einer Fassung), Belege am Mangel nachreichen, Aufgabentitel mit Kurzfassung, CLAUDE.md `update.sh`/`backup.sh` (1.8.51); Monteur-Sicht auf Mängel in `/mobil` mit Positivliste, "beseitigt" melden mit Foto, idempotent über `client_uuid` (1.8.52); Nacharbeiten: Aufgaben-Mails ohne Inhalt (1.8.53), Aufgabe folgt dem Status des Mangels, Hinweis des Monteurs zur Meldung, `update.sh` probt selbst gegen die Spielwiese (1.8.54) | erledigt bis auf das Zurückziehen einer Fassung (Entscheidung offen) |
 
 Nach jeder Runde die Spalten "Version"/"Stand" nachziehen und unten einen Abschnitt "Umsetzung 1.8.x" ergänzen.
 
@@ -553,13 +553,14 @@ Serverumgebung (Zeilen "Sicherung" und "Einspielen") und "Der Weg einer Änderun
 Nachweis, was ein Einspielen leisten muss. Offen vermerkt: die Probe gegen `spielwiese` bei Schemaänderungen ist dort ein
 einzelner `alembic`-Befehl.
 
-### Festlegungen 1.8.51 (bitte bestätigen)
+### Festlegungen 1.8.51 (bestätigt am 05.10.2026, Nacharbeiten 2c-2b; Nr. 4 beantwortet: `/home/tobias/update.sh`)
 
 1. **Belege als eigener Eintrag "belege"**, nicht im Eintrag "fotos" -- der Verlauf unterscheidet Fotos und Belege; je
    Speichern nur eine Art.
 2. **Belege nachreichen auch nach der Erledigung** (wie Fotos), nicht nach dem Verwerfen; nur das Büro.
 3. **Kurzfassung 60 Zeichen** an der Wortgrenze; Titel höchstens 255 Zeichen wie bisher.
 4. **Pfad von `update.sh`** in CLAUDE.md ohne Verzeichnis -- bitte den Pfad nennen, wenn er dort stehen soll.
+   **Beantwortet 05.10.2026**: `/home/tobias/update.sh`, probt selbst gegen die Spielwiese (CLAUDE.md seit 1.8.54).
 
 ### Verifikation 1.8.51
 
@@ -634,7 +635,7 @@ im Abschnitt (kein `prompt()`): Datum vorbelegt mit heute in Europe/Berlin (`_be
 `defect_events.client_uuid` (String 36, nullable) mit `uq_defect_event_client_uuid`. `downgrade()` ohne Rückfrage: verloren
 gehen nur die Kennungen, die Meldungen bleiben gültige Einträge (die Kennung steht nicht im gebundenen Inhalt).
 
-### Festlegungen 1.8.52 (bitte bestätigen)
+### Festlegungen 1.8.52 (bestätigt am 05.10.2026 außer Nr. 5 "kein Text des Monteurs" -- seit 1.8.54 optionaler Hinweis, siehe "Umsetzung 1.8.53 und 1.8.54")
 
 1. **"Zugeordnete Aufträge" = `field_may_access_order()`**: Zuweisung an der AV (einzeln oder Team, ohne Datumsfilter) oder
    ein eigener Bericht; kein Filter auf den Auftragsstatus (ein Mangel kommt oft nach dem Abschluss). Jeder so zugeordnete
@@ -647,7 +648,8 @@ gehen nur die Kennungen, die Meldungen bleiben gültige Einträge (die Kennung s
 4. **404 ohne Grund** für alles, was der Monteur nicht sehen darf (nicht 403) -- sonst verriete die Antwort, dass es den
    Mangel gibt.
 5. **Meldung**: Datum Pflicht, nicht in der Zukunft, nicht vor der Abnahme; kein Text des Monteurs; Fotos JPEG/PNG/WebP mit
-   den Grenzen des Büros (10 je Meldung, je 15 MB, zusammen 30 MB).
+   den Grenzen des Büros (10 je Meldung, je 15 MB, zusammen 30 MB). **Nicht bestätigt**: seit 1.8.54 optional ein kurzer
+   Hinweis des Monteurs, nur intern sichtbar (Rest der Festlegung unverändert).
 6. **`client_uuid` Pflicht, höchstens 36 Zeichen, global eindeutig**; die Wiederholung liefert dieselbe Antwort nur an dieselbe
    Person für denselben Mangel -- auch nachdem das Büro weitergeschrieben hat. Nicht im gebundenen Inhalt.
 7. **Fotos ergänzt der Monteur nur mit der Meldung**, nicht einzeln; "eigener Monteur-Weg" = Abruf und Meldung.
@@ -681,7 +683,8 @@ gehen nur die Kennungen, die Meldungen bleiben gültige Einträge (die Kennung s
 ### Nebenbefunde 1.8.52 (nur gemeldet)
 
 1. **Keine Nachricht ans Büro bei einer Meldung**: die Aufgabe zum Mangel bleibt unverändert, "beseitigt" sieht das Büro nur
-   auf der Auftragsseite. Möglich wäre eine Folge "Beseitigung abnehmen" -- nicht gebaut.
+   auf der Auftragsseite. Möglich wäre eine Folge "Beseitigung abnehmen" -- nicht gebaut. **Erledigt seit 1.8.54**: "beseitigt"
+   legt die Aufgabe "Beseitigung abnehmen lassen" im Büro-Eingang an.
 2. **Datumsanzeige in `/mobil`** (`fmtDate()`, bestehend) ohne führende Null ("4.10.2026"), im Büro "04.10.2026".
 3. **Speicher**: eine Meldung liest bis zu 30 MB Fotos in den Speicher (wie im Büro); Handyfotos haben oft 3–8 MB. Bei zwei
    Arbeitsprozessen und gleichzeitigen Meldungen das Doppelte -- im Budget, aber erwähnt.
@@ -718,3 +721,95 @@ und 4, weiter offen).
   neuen Betreff (zwei Stellen).
 - **Auf dem Server prüfen**: ob Einstellungen → Allgemein → "Öffentliche Adresse" gesetzt ist -- sonst enthält die Mail
   statt eines klickbaren Links nur den Pfad.
+
+### Punkt 2 (1.8.54): die Aufgabe folgt dem Status
+
+- **Neue Spalte** `defect_events.task_id` (Migration `d5479410d4ff`, nullable, ohne Fremdschlüssel wie `defects.task_id`,
+  nicht im gebundenen Inhalt): die Aufgabe, die ein Eintrag angelegt hat. Gesetzt beim Einfügen -- `_append()` erledigt
+  die bisherige Aufgabe und legt die neue an, BEVOR der Eintrag entsteht (danach ist er unveränderlich), alles in einem
+  Commit unter der Sperre des Mangels.
+- **Welche Aufgabe** (`STATUS_TASKS`, `TASK_KINDS`): "beseitigt" (Büro über `set_status()` oder Monteur über
+  `report_remedied()`) -> "Beseitigung abnehmen lassen"; zurück auf "offen" -> "Mangel beseitigen". "Beseitigung
+  abgenommen", "erledigt ohne Beseitigung" und Verwerfen erledigen die aktuelle Aufgabe wie bisher.
+- **Aktuelle Aufgabe** `current_task(defect, events)`: die des letzten Eintrags mit Aufgabe, sonst die beim Erfassen.
+  Die Auftragsseite zeigt sie mit Art ("Aufgabe (Beseitigung abnehmen lassen): …", Link `/tasks?task=<id>`), der Verlauf
+  "Aufgabe „…“ angelegt" am Eintrag.
+- **Titel**: "Beseitigung abnehmen lassen – Mangel aus Abnahme <Auftrag> – <Ort>: <Kurzfassung>" bzw. "Erneut beseitigen –
+  …"; die Aufgabe beim Erfassen behält ihren Titel. Beschreibung nur Metadaten (Mangel Nr., Datum, wer, "in der
+  Monteursansicht"), nie Mangeltext, Begründung oder Hinweis des Monteurs. Ohne Zuständigkeit, Sichtbarkeitsgrenze
+  `buero_auftrag`, Verweis auf den Mangel (`source_url`).
+- **Der Mangel bleibt die Wahrheit**: eine von Hand erledigte Aufgabe ändert am Mangel nichts (Hinweis auf der Seite wie
+  bisher); der nächste Statuswechsel legt trotzdem die nächste an.
+
+### Punkt 3 (1.8.54): Hinweis des Monteurs zur Meldung
+
+- `FieldDefectRemedied.note` (optional, höchstens 500 Zeichen, sonst 422; weiter `extra="forbid"`), in
+  `report_remedied(note=…)` gekürzt (`_clean`, leer -> kein Text) und als Text des Eintrags (`reason`) gespeichert -- im
+  gebundenen Inhalt, also mitversiegelt.
+- **Nur intern sichtbar**: die Büro-Seite beschriftet ihn "Hinweis aus der Monteursansicht" (statt "Begründung"); in
+  `/mobil` erscheint er nie (die Positivliste `FieldDefectOut` kennt keinen Verlauf, auch nicht nach "zurück auf offen",
+  auch nicht für andere Monteure), nicht in der Antwort der Meldung, nicht in Aufgabe oder Aufgaben-Mail.
+- `/mobil`: Feld "Hinweis (optional, nur fürs Büro sichtbar)" unter den Fotos.
+
+### Punkt 4 (1.8.54): CLAUDE.md
+
+Serverumgebung ("Einspielen"), "Der Weg einer Änderung auf den Server" und Regel 16: `/home/tobias/update.sh` probt eine
+Migration selbst gegen `spielwiese`; kein einzelner `alembic`-Befehl, auch nicht für die Probe. Der bisher dort stehende
+Probe-Befehl und die offene Frage aus 1.8.51 sind entfernt.
+
+### Festlegungen 1.8.54 (bitte bestätigen)
+
+1. **Eine offene Aufgabe je Mangel**: jeder Statuswechsel "beseitigt"/"offen" erledigt die aktuelle und legt die nächste
+   an -- nie zwei offene gleichzeitig. Eine von Hand erledigte bleibt erledigt.
+2. **Neue Aufgaben ohne Zuständigkeit** (Büro-Eingang wie beim Erfassen), auch wenn die bisherige übernommen war -- keine
+   Übernahme der Zuständigkeit.
+3. **Fälligkeit**: "Beseitigung abnehmen lassen" ohne; "Erneut beseitigen" zur ursprünglichen Beseitigungsfrist (ist sie
+   vorbei, steht die Aufgabe gleich als überfällig da -- eine neue Frist gibt es am Mangel nicht).
+4. **Titel**: Art vorangestellt ("Beseitigung abnehmen lassen – …", "Erneut beseitigen – …"), die Aufgabe beim Erfassen
+   behält "Mangel aus Abnahme …".
+5. **Ohne Aufgabenmodul**: keine neue Aufgabe; die bisherige wird trotzdem erledigt (wie beim Verwerfen seit 1.8.49).
+6. **Bestand**: Mängel, die vor 1.8.54 auf "beseitigt" gesetzt wurden, haben noch ihre erste Aufgabe offen und keine
+   "abnehmen lassen" -- der nächste Statuswechsel erledigt sie; nachträglich angelegt wird nichts.
+7. **Hinweis des Monteurs**: höchstens 500 Zeichen, gespeichert als Text des Eintrags (dasselbe Feld wie die Begründung im
+   Büro, im gebundenen Inhalt); ändern oder löschen lässt er sich nicht.
+8. **Downgrade ohne Rückfrage**: verloren gehen nur die Verweise vom Eintrag auf seine Aufgabe; die Aufgaben bleiben, als
+   aktuelle gilt danach wieder die beim Erfassen.
+
+### Verifikation 1.8.54
+
+- `tests/test_v356_maengel_aufgabe_und_hinweis.py` (14 Tests, einer opt-in gegen PostgreSQL): "beseitigt" im Büro und als
+  Meldung (erste Aufgabe erledigt, "Beseitigung abnehmen lassen" offen, ohne Zuständigkeit, ohne Fälligkeit, Verweis,
+  Metadaten ohne Mangeltext; Wiederholung derselben Kennung legt keine zweite an), zurück auf offen ("Erneut beseitigen"
+  zur Frist) und wieder beseitigt und abgenommen (vier Aufgaben, nie zwei offen), Erledigung und Verwerfen nach "zurück auf
+  offen" erledigen die aktuelle, von Hand erledigte Aufgabe ändert den Mangel nicht, ohne Aufgabenmodul keine neue,
+  Aufgabe und Eintrag in einer Transaktion (Fehler beim Anlegen: weder Eintrag noch Aufgabe noch Fotos), Hinweis
+  gespeichert, versiegelt, im Büro sichtbar, in `/mobil` für beide Monteure nie (auch nach "zurück auf offen"), optional,
+  gekürzt, höchstens 500 Zeichen, andere Felder weiter 422, Beschriftung auf Büro- und Monteurseite, Migration;
+  PostgreSQL: Meldung wartet auf das gleichzeitige "beseitigt" des Büros und bekommt 409 -- ein Eintrag, eine neue Aufgabe.
+- Volle Suite 2834 grün (mit den opt-in-Tests gegen PostgreSQL).
+- Angepasst: `test_v351` ("beseitigt erledigt noch nichts" gilt nicht mehr: die erste Aufgabe ist erledigt, die neue offen,
+  am Ende alle erledigt), `test_v354` (Kommentar, Art der aktuellen Aufgabe).
+- Gegenproben (Schutz ausgehebelt, Dateien byte-genau zurück): 13 von 13 rot -- keine Aufgabe nach "beseitigt" bzw.
+  "offen", bisherige bleibt offen, nur die beim Erfassen erledigt, aktuelle immer die beim Erfassen, Aufgabe mit eigenem
+  Commit, Eintrag ohne Verweis, Hinweis nicht gespeichert, Hinweis in `/mobil`, ohne Längengrenze, nicht gekürzt, im Büro
+  als "Begründung", kein Hinweisfeld in `/mobil`.
+- Migration `d5479410d4ff`: SQLite hin/zurück/hin, `alembic check`; PostgreSQL 17 im Wegwerf-Schema: Kette bis
+  `6c7610e54ce3`, head, Mangel über den App-Code (Meldung mit Hinweis -> "Beseitigung abnehmen lassen", zurück auf offen ->
+  "Erneut beseitigen"; Prüfung stimmt), downgrade (Spalte weg, 3 Einträge und 3 Aufgaben bleiben), upgrade, `check`
+  sauber, Prüfung stimmt, `current` = head; leeres Schema hin/zurück/hin. **Eigener Fehler dabei**: der erste Lauf der
+  Probe fiel in die laufenden Gegenproben, die `app/defects.py` gerade ausgehebelt hatten -- er zeigte nach der Meldung
+  keine neue Aufgabe. Wiederholt nach den Gegenproben, Ergebnis wie oben; kein Befund am Code.
+- Klicktest `scripts/klicktest_maengel_monteur.py` 27/27 (neu: Hinweisfeld mit Grenze und Beschriftung, Büro sieht
+  "Hinweis aus der Monteursansicht", "Aufgabe „Beseitigung abnehmen lassen“ angelegt" und die Aufgabenzeile mit Link;
+  zurück auf offen: wieder in `/mobil` ohne Hinweis, im Büro "Erneut beseitigen").
+
+### Nebenbefunde 1.8.53/1.8.54 (nur gemeldet)
+
+1. **Versandprotokoll der Aufgaben-Mails**: auch ohne Inhalt verrät die Zeile Empfänger und Zeitpunkt einer Zuweisung --
+   deshalb bleibt sie nur für Admins sichtbar (unverändert seit 1.8.17).
+2. **Öffentliche Adresse**: ohne sie trägt die Aufgaben-Mail nur den Pfad `/tasks?task=<id>` (siehe Punkt 1); ob sie auf
+   dem Server gesetzt ist, ist nicht geprüft.
+3. **"Erneut beseitigen" zur ursprünglichen Frist** ist meist sofort überfällig (Festlegung 3) -- eine neue Frist nach einer
+   misslungenen Nachbesserung gibt es am Mangel nicht; das wäre ein eigener Eintrag im Verlauf.
+4. **Monteur mit eigenem Bericht, ohne Zuordnung an der AV** (Nebenbefund 4 aus 1.8.52) sieht freigegebene Mängel weiterhin
+   -- unverändert, Entscheidung offen.

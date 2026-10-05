@@ -1481,10 +1481,12 @@ class FieldDefectOut(BaseModel):
 
 class FieldDefectRemedied(BaseModel):
     """Monteur meldet "beseitigt" (seit 1.8.52) -- als JSON im Formularfeld "data" neben den Fotos. client_uuid macht
-    die Meldung wiederholbar (Stufe 3); ein Text des Monteurs ist nicht vorgesehen."""
+    die Meldung wiederholbar (Stufe 3). Seit 1.8.54 optional ein kurzer Hinweis (note) -- nur fürs Büro sichtbar, als
+    Text des Eintrags; jedes andere Feld bleibt verboten."""
     model_config = ConfigDict(extra="forbid")
     client_uuid: str = Field(min_length=1, max_length=36)
     event_date: date
+    note: str | None = Field(default=None, max_length=500)
 
 
 class FieldDefectReportOut(BaseModel):

@@ -51,7 +51,8 @@
     .defect-report{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:grid;gap:10px}
     .defect-report[hidden]{display:none}
     .defect-report label{display:grid;gap:4px;font-size:12.5px;font-weight:700;color:var(--muted)}
-    .defect-report input{font:inherit;font-size:15px;padding:9px;border:1px solid var(--line);background:var(--card);color:var(--ink);min-height:44px;width:100%}
+    .defect-report input,.defect-report textarea{font:inherit;font-size:15px;padding:9px;border:1px solid var(--line);background:var(--card);color:var(--ink);min-height:44px;width:100%}
+    .defect-report textarea{resize:vertical;font-weight:400}
     .defect-send-btn{min-height:44px}
     .defect-status{font-size:13.5px;color:var(--muted);overflow-wrap:anywhere}
     .defects-status{font-size:13.5px;font-weight:650;color:var(--success);margin:-4px 0 8px}
@@ -183,8 +184,8 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
   // Seit 1.8.52: Mängel zur Beseitigung (freigegeben, offen, an eigenen Aufträgen) -- nur die Positivliste der API
   // (Beschreibung, Ort, Dachfläche, Frist, Fotos). "Beseitigt melden" mit mindestens einem Foto; die Kennung entsteht
   // beim Öffnen des Formulars und bleibt bei jeder Wiederholung gleich -- ein zweiter Klick oder eine verlorene Antwort
-  // legt keine zweite Meldung an.
-  var DEFECT_FIELDS={client_uuid:'Kennung',event_date:'Datum',photos:'Fotos'};
+  // legt keine zweite Meldung an. Seit 1.8.54 optional ein kurzer Hinweis fürs Büro -- er erscheint hier nie wieder.
+  var DEFECT_FIELDS={client_uuid:'Kennung',event_date:'Datum',photos:'Fotos',note:'Hinweis'};
   function newKey(){
     if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
     var b=new Uint8Array(16);crypto.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;
@@ -211,6 +212,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
         +'<div class="defect-report" hidden>'
         +'<label>Datum der Beseitigung<input type="date"></label>'
         +'<label>Fotos der Beseitigung (mindestens eins)<input type="file" accept="image/jpeg,image/png,image/webp" multiple></label>'
+        +'<label>Hinweis (optional, nur fürs Büro sichtbar)<textarea maxlength="500" rows="3" placeholder="z. B. Anschluss neu eingeklebt, Rinne gereinigt"></textarea></label>'
         +'<button type="button" class="perform-btn defect-send-btn">Meldung senden</button>'
         +'<div class="defect-status" role="status"></div>'
         +'</div></div>';
@@ -233,7 +235,8 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     if(!files.length){st.textContent='Bitte mindestens ein Foto der Beseitigung aufnehmen.';return}
     if(!date){st.textContent='Bitte das Datum der Beseitigung angeben.';return}
     var form=new FormData();
-    form.append('data',JSON.stringify({client_uuid:box.dataset.kennung,event_date:date}));
+    var note=box.querySelector('textarea').value.trim();
+    form.append('data',JSON.stringify({client_uuid:box.dataset.kennung,event_date:date,note:note||null}));
     for(var i=0;i<files.length;i++)form.append('photos',files[i]);
     btn.disabled=true;st.textContent='Wird gesendet…';
     fetch('/api/field-view/defects/'+card.dataset.defect+'/remedied',{method:'POST',body:form}).then(function(r){
