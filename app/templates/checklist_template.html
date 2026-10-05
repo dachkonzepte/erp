@@ -130,13 +130,15 @@ async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText
 const json=(method,body)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 
 const FIELD_TYPES=[['ja_nein','Ja/Nein'],['text','Text'],['zahl','Zahl'],['auswahl','Auswahl'],['datum','Datum'],['uhrzeit','Uhrzeit'],['datum_uhrzeit','Datum und Uhrzeit'],['foto','Foto'],['beleg','Beleg (PDF oder Foto)'],['unterschrift','Unterschrift'],['hinweis','Hinweistext']];
-const TYPE_LABEL={...Object.fromEntries(FIELD_TYPES),maengel:'Mängel'};  // Mängel (seit 1.8.60) nur als Systemfeld eines Zwecks
+// Mängel (seit 1.8.60) und Dachflächen (seit 1.8.61) nur als Systemfeld eines Zwecks
+const SYSTEM_ONLY_TYPES=[['maengel','Mängel'],['dachflaechen','Dachflächen']];
+const TYPE_LABEL={...Object.fromEntries(FIELD_TYPES),...Object.fromEntries(SYSTEM_ONLY_TYPES)};
 const OPERATORS=[['immer','immer (bei jedem Abschluss)',null],['ist_ja','ist „Ja“',['ja_nein']],['ist_nein','ist „Nein“',['ja_nein']],['enthaelt','enthält Option',['auswahl']],['kleiner','kleiner als',['zahl']],['groesser','größer als',['zahl']],['gleich','gleich',['zahl']],['ausgefuellt','ist ausgefüllt','*']];
 const PRIORITIES=[['niedrig','niedrig'],['normal','normal'],['hoch','hoch'],['dringend','dringend']];
 const ROLES=[['buero_auftrag','Büro – Auftrag (und höher)'],['buero_finanzen','Büro – Finanzen (und höher)'],['admin','nur Administrator']];
 const CONTEXTS=['auftrag','objekt','betriebsmittel','betrieb'];
 // Unterzeichner je Unterschriftsfeld (seit 1.8.57): woher Name und Nachweis kommen. Auftraggeber und Beteiligter nur am Auftrag.
-const SIGNER_MODES=[['frei','frei eingetragen (Name tippen)'],['konto','angemeldetes Konto'],['auftraggeber','Auftraggeber laut Auftrag'],['beteiligter','Beteiligter des Projekts (mit Vollmacht zur Abnahme)']];
+const SIGNER_MODES=[['frei','frei eingetragen (Name tippen)'],['konto','angemeldetes Konto'],['auftraggeber','Auftraggeber laut Auftrag'],['beteiligter','Beteiligter des Projekts (mit Vollmacht zur Abnahme)'],['ag_oder_beteiligter','Auftraggeber laut Auftrag oder Beteiligter (beim Unterschreiben gewählt)']];
 
 let template=null,version=null,openFieldId=null,openRuleId=null,purposes=[];
 const CONTEXT_LABEL={auftrag:'Auftrag',objekt:'Objekt',betriebsmittel:'Betriebsmittel',betrieb:'Betrieb'};
@@ -196,6 +198,7 @@ function applyPurposeContexts(){
   const bits=[];
   if(p&&p.contexts.length<CONTEXTS.length)bits.push('nur '+p.contexts.map(c=>CONTEXT_LABEL[c]).join(', '));
   if(p&&p.system_fields.length)bits.push(p.system_fields.length+' Systemfeld'+(p.system_fields.length===1?'':'er')+' (fester Schlüssel und Typ, nicht löschbar)');
+  if(p&&p.office_only)bits.push('nur Büro – Monteure sehen Checklisten dieses Zwecks nicht, auch nicht in /mobil');  // seit 1.8.61
   bits.push(template.purpose_locked?'seit der ersten Veröffentlichung festgelegt – für einen anderen Zweck die Vorlage kopieren':'nach der ersten Veröffentlichung nicht mehr änderbar');
   document.getElementById('purposeHint').textContent=bits.join(' · ');
 }
@@ -236,7 +239,7 @@ async function viewVersion(versionId){
 
 // --- Felder ------------------------------------------------------------------------------
 
-function typeOptions(selected){return FIELD_TYPES.concat(selected==='maengel'?[['maengel','Mängel']]:[]).map(([v,l])=>`<option value="${v}" ${v===selected?'selected':''}>${l}</option>`).join('')}
+function typeOptions(selected){return FIELD_TYPES.concat(SYSTEM_ONLY_TYPES.filter(([k])=>k===selected)).map(([v,l])=>`<option value="${v}" ${v===selected?'selected':''}>${l}</option>`).join('')}
 
 function fieldSummary(f){
   const bits=[];
@@ -273,7 +276,7 @@ function fieldBody(f){
       <div class="field"><label>Nachkommastellen</label><input type="number" min="0" max="4" data-k="decimals" value="${f.decimals??''}" ${d}></div></div></div>`;
   if(t==='datum'||t==='uhrzeit'||t==='datum_uhrzeit')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="prefill_now" ${f.prefill_now?'checked':''} ${d}> mit „jetzt“ vorbelegen</label></div></div>`;
   if(t==='unterschrift')html+=`<div class="field"><label>Wer unterschreibt?</label><input data-k="signer_label" value="${esc(f.signer_label)}" placeholder="z. B. Monteur, Kunde, Brandwache" ${d}></div>
-      <div class="field"><label>Unterzeichner</label><select data-k="signer_mode" ${d}>${SIGNER_MODES.map(([k,l])=>`<option value="${k}"${(f.signer_mode||'frei')===k?' selected':''}>${esc(l)}</option>`).join('')}</select></div>
+      <div class="field"><label>Unterzeichner${f.signer_mode_locked?' <span class="muted small">(vom Zweck vorgegeben)</span>':''}</label><select data-k="signer_mode" ${f.signer_mode_locked?'disabled':d}>${SIGNER_MODES.map(([k,l])=>`<option value="${k}"${(f.signer_mode||'frei')===k?' selected':''}>${esc(l)}</option>`).join('')}</select></div>
       <div class="field"><label>&nbsp;</label><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${ds}> mehrere Unterschriften (z. B. Teilnehmer)</label></div></div>`;
   if(t==='auswahl')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${ds}> Mehrfachauswahl</label></div></div>`;
   if(t==='beleg')html+='<div class="field full muted small">PDF oder Foto (JPEG, PNG, WebP), bis 15 MB – am Inhalt erkannt, unverändert gespeichert.</div>';
@@ -282,6 +285,7 @@ function fieldBody(f){
   html+='</div>';
   if(f.is_system)html+='<div class="muted small" style="margin-top:8px">Systemfeld des Zwecks: Beschriftung, Hilfetext, Abschnitt und Reihenfolge sind frei (gibt der Zweck Abschnitte vor, innerhalb ihrer Reihenfolge); Schlüssel, Typ, Pflicht, „entfällt“, Mehrfach, Mindestanzahl und Optionen sind fest, löschen geht nicht.'
     +(f.office_only?' Dieses Feld füllt nur das Büro aus (auch die Unterschrift), Monteure sehen es nur.':'')
+    +(f.signer_mode_locked?' Den Unterzeichner gibt der Zweck vor.':'')
     +(Object.keys(f.option_hints||{}).length?' Hinweis beim Wählen: '+Object.entries(f.option_hints).map(([k,h])=>`„${esc((f.options.find(o=>o.option_key===k)||{label:k}).label)}“ – ${esc(h)}`).join('; '):'')+'</div>';
   if(t==='auswahl'){
     html+=`<div class="group-title">Optionen${f.is_system?' <span class="muted small">(vom Zweck vorgegeben)</span>':''}</div>`+f.options.map(o=>`<div class="opt-row">

@@ -4636,6 +4636,7 @@ class ChecklistTemplateFieldOut(BaseModel):
     # aus bzw. unterschreibt; Hinweis je option_key, der beim Wählen erscheint.
     office_only: bool = False
     option_hints: dict[str, str] = {}
+    signer_mode_locked: bool = False  # seit 1.8.61: der Zweck gibt den Unterzeichner vor
 
 
 class ChecklistTemplateRuleOut(BaseModel):
@@ -4704,13 +4705,15 @@ class ChecklistPurposeSystemFieldOut(BaseModel):
     label: str
     section: str | None = None  # seit 1.8.38
     office_only: bool = False
+    signer_mode: str | None = None  # seit 1.8.61: vom Zweck vorgegebener Unterzeichner
 
 
 class ChecklistPurposeOut(BaseModel):
-    """Zweck aus der Registry (app/checklist_purposes.py, seit 1.8.16) -- ohne Folgen."""
+    """Zweck aus der Registry (app/checklist_purposes.py, seit 1.8.16) -- ohne Folgen. office_only seit 1.8.61."""
     key: str
     label: str
     contexts: list[str]
+    office_only: bool = False
     system_fields: list[ChecklistPurposeSystemFieldOut] = []
 
 
@@ -4725,8 +4728,9 @@ class ChecklistCreate(BaseModel):
 
 class ChecklistAnswerWrite(BaseModel):
     """value je Feldtyp: "ja"/"nein"/"entfaellt", Text, Zahl, option_key bzw. Liste von
-    option_keys, "JJJJ-MM-TT", "HH:MM", "JJJJ-MM-TTTHH:MM"; null/""/[] leert die Antwort."""
-    value: str | int | float | list[str] | None = None
+    option_keys, "JJJJ-MM-TT", "HH:MM", "JJJJ-MM-TTTHH:MM", seit 1.8.61 bei "dachflaechen" eine Liste von
+    Dachflächen-Kennungen; null/""/[] leert die Antwort."""
+    value: str | int | float | list[str] | list[int] | None = None
     client_uuid: str | None = Field(default=None, max_length=36)
     client_recorded_at: datetime | None = None
 
@@ -4766,8 +4770,14 @@ class ChecklistSummaryOut(BaseModel):
     can_open: bool = True
 
 
+class ChecklistRoofAreaValueOut(BaseModel):
+    """Eine gewählte Dachfläche im Feld "dachflaechen" (seit 1.8.61): Kennung und Name beim Speichern."""
+    id: int
+    name: str
+
+
 class ChecklistAnswerOut(BaseModel):
-    value: str | Decimal | list[str] | None = None
+    value: str | Decimal | list[str] | list[ChecklistRoofAreaValueOut] | None = None
     recorded_at: datetime | None = None
     client_recorded_at: datetime | None = None
 

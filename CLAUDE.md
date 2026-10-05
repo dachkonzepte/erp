@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.60** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.61** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -721,6 +721,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   (`source` "protokoll", `Defect.checklist_id`, gebundener Inhalt mit der Checkliste statt der Abnahme): je Mangel Kennung und
   Prüfsumme in der Kopie jeder Unterschrift darunter, im Stand ihres Zeitpunkts (`defect_in_seal()`); nach der Unterschrift
   keine neuen; bis zur Abnahme aus dem Protokoll nur verwerfbar (`protocol_pending()`).
+  **Abnahmeprotokoll** (seit 1.8.61): Checkliste mit Zweck `abnahme`, nur Büro (`ChecklistPurpose.office_only`), Systemfelder
+  Befund / Erklärungen des Auftraggebers / Schluss; Unterschrift des Auftraggebers mit Unterzeichner `ag_oder_beteiligter`,
+  davor prüft `app/acceptance_protocol.py::check_customer_signature()` die Widersprüche (Mängel ohne Vorbehalt, Vorbehalt ohne
+  Mangel, "verweigert" ohne Mangel) und was die Abnahme nicht annähme. Die Abnahme aus dem Protokoll (Punkt 3) ist geplant,
+  nicht gebaut.
   Seit 1.8.50 setzt `{gewaehrleistung}` in Vertragsvorlagen die Dauer ein; ein Vertrag damit wird erst mit festgelegter Dauer
   festgeschrieben, danach sind Leistungsart und Dauer gesperrt (`warranty_contract_lock()`, Sperrreihenfolge Vertrag ->
   Auftrag wie beim Abgleich). Details: `docs/archiv/abnahme-und-gewaehrleistung.md`.
@@ -828,7 +833,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   beim Auftraggeber Pflicht "Name der unterschreibenden Person" (optional Funktion), Vollmacht immer "Vollmacht zur Abnahme:
   ja/nein", Veröffentlichen lehnt Pflichtfelder "nur Büro" über einer Unterschrift ab, die auch der Monteur leistet --
   bekannte Ausnahme Behinderungsanzeige in `SIGNER_FILL_EXCEPTIONS`; seit 1.8.60 Feldtyp "maengel", nur als Systemfeld eines
-  Zwecks (`SYSTEM_ONLY_FIELD_TYPES`), Mängel als eigene Datensätze im Siegel) --
+  Zwecks (`SYSTEM_ONLY_FIELD_TYPES`), Mängel als eigene Datensätze im Siegel; seit 1.8.61 Zweck "nur Büro"
+  (`office_only`), fester Unterzeichner je Systemfeld (`SystemField.signer_mode`), Prüfung vor einer Unterschrift je Zweck
+  (`signature_checks`), Feldtyp "dachflaechen" mit Namens-Schnappschuss) --
   `docs/archiv/modul-checklisten.md`
 - **Kaufmännisches Runden** (Helfer `app/rounding.py`, Rundungsregel je Rechnung, Liste der
   Geldstellen, bewusst nicht geänderte Formatierer) -- `docs/archiv/kaufmaennisches-runden.md`
@@ -872,7 +879,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   `/mobil` mit Positivliste, "beseitigt" melden mit Foto, Fotos nur über den Monteur-Weg; seit 1.8.54 Aufgabe folgt dem
   Status, Hinweis des Monteurs zur Meldung; Stufe 2c-2c ab 1.8.55: neue Frist bei "zurück auf offen", Zurückziehen einer
   Vertragsfassung entschieden, nicht gebaut; Stufe 2c-2d ab 1.8.59: Abnahmeprotokoll als Checkliste, Etappenplan im Archiv;
-  seit 1.8.60 Feld "Mängel" im Protokoll)
+  seit 1.8.60 Feld "Mängel" im Protokoll; seit 1.8.61 Zweck "abnahme" mit Systemfeldern, Startvorlage, Prüfung der
+  Unterschrift des Auftraggebers; Punkt 3 und 4 geplant)
   -- `docs/archiv/abnahme-und-gewaehrleistung.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
@@ -925,6 +933,9 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   Feldnamen der Seite, sonst ein Text je Status. Auftragsseite, seit 1.8.37 Projektmappe und Stammdaten (Liste,
   Formular); 33 weitere Vorlagen reichen `detail` noch roh an `Error()` weiter ("[object Object]" bei 422) -- eine
   Seite, die man anfasst, stellt um.
+- **Feste Schlüssel passen in ihre Spalte** (seit 1.8.61): unter PostgreSQL lehnt eine zu kurze `String(n)`-Spalte einen
+  längeren Wert ab, SQLite nimmt ihn still an. Neue Unterzeichner, Feldtypen und Systemfeld-Schlüssel prüft
+  `tests/test_v363_zweck_abnahme.py::test_signer_modes_and_field_types_fit_their_columns` gegen die Spaltenlänge.
 - **Unterschriften zeichnen über `app/templates/_unterschrift.html`** (seit 1.8.34, `unterschriftsfeld(canvas)`
   auf einem `<canvas class="dk-unterschrift">`): Checkliste, Einsatzbericht und Vertrag teilen sich die Fläche
   (weiß mit dunklem Strich in beiden Themes, Geräteauflösung; seit 1.8.58 neu vermessen bei Drehen und Größenänderung,
@@ -1255,7 +1266,11 @@ Siegelformat 3; Büro dunkel mit Link auf die eingefrorene Vollmacht; Editor "Un
 `Emulation.setDeviceMetricsOverride` mit `screenOrientation`: Fläche neu vermessen, Strich unter dem Finger, Einsatzbericht) und
 `klicktest_protokoll_maengel.py` (1.8.60, Feld "Mängel" im Protokoll: erfassen mit Foto und Beleg, vor der Unterschrift
 verworfen "nicht im Protokoll", Auftragsseite "noch ohne Abnahme", nach der Unterschrift kein Formular und 409, danach verworfen
-"bleibt im Protokoll", Monteurin 403; das Feld bis 1.8.61 direkt in der Wegwerf-Datenbank gesetzt). Ein
+"bleibt im Protokoll", Monteurin 403; das Feld bis 1.8.61 direkt in der Wegwerf-Datenbank gesetzt) und
+`klicktest_abnahmeprotokoll.py` (1.8.61, Startvorlage über ihre Migration: Abschnitte, nichts vorausgewählt, Dachflächen ohne
+archivierte, Mangel, "Wer unterschreibt?" mit Vollmacht-Angabe und Warnung, Mangel ohne Vorbehalt abgelehnt, Auftraggeber mit
+Person und Auftragnehmer-Konto unterschrieben, Editor "vom Zweck vorgegeben", Monteurin ohne Abnahme in Start-Auswahl und
+`/mobil`, Protokoll 403). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

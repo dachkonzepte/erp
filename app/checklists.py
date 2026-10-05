@@ -59,6 +59,11 @@ Datensätze (app/defects.py::create_protocol_defect(), source "protokoll"), sola
 versiegelt. Die Kopie einer Unterschrift und des Abschlusses trägt je Mangel Kennung und Prüfsumme seines Inhalts -- im Stand
 ihres Zeitpunkts: vorher verworfene fehlen, danach verworfene bleiben drin (defect_in_seal()).
 
+Seit 1.8.61 (Stufe 2c-2d, Punkt 2) das Abnahmeprotokoll (Zweck "abnahme", nur Büro): Feldtyp "dachflaechen" (Antwort =
+gewählte Dachflächen aus dem Objekt des Projekts, Kennung und Name als Schnappschuss in value_text), Unterzeichner
+"ag_oder_beteiligter" (beim Unterschreiben gewählt) und die Prüfung des Zwecks vor der Unterschrift des
+Auftraggebers (ChecklistPurpose.signature_checks, app/acceptance_protocol.py).
+
 Seit 1.8.57 (Stufe 2c-2c, Punkt 3): der Unterzeichner je Unterschriftsfeld (ChecklistTemplateField.signer_mode) -- frei
 (Name eintippen wie bisher), angemeldetes Konto, Auftraggeber laut Auftrag oder ein Beteiligter des Projekts (Name und Rolle
 als Schnappschuss, Vollmacht zur Abnahme als Kopie eingefroren, ohne sie mit Warnung -- wie bei der Abnahme). Den Namen setzt
@@ -256,6 +261,8 @@ def _answer_value(answer: ChecklistAnswer, field: ChecklistTemplateField):
         return answer.value_time.strftime("%H:%M") if answer.value_time else None
     if t == "datum_uhrzeit":
         return answer.value_datetime.strftime("%Y-%m-%dT%H:%M") if answer.value_datetime else None
+    if t == "dachflaechen":  # seit 1.8.61: [{"id", "name"}] -- der Name als Schnappschuss beim Speichern
+        return json.loads(answer.value_text) if answer.value_text else None
     return None
 
 
@@ -674,10 +681,12 @@ def signer_choices(checklist: Checklist) -> dict[str, dict]:
             choices[str(f.id)] = {"mode": "auftraggeber", "name": order.customer_name}
             continue
         signed = {a.signer_participant_id for a in active_attachments(checklist) if a.template_field_id == f.id}
-        choices[str(f.id)] = {"mode": "beteiligter", "participants": [{
+        choices[str(f.id)] = {"mode": f.signer_mode, "participants": [{
             "participant_id": p.id, "name": contact_display_name(p.contact) or f"Kontakt #{p.contact_id}",
             "role_label": role_label(p.role), "poa_on_record": _poa_on_record(p), "signed": p.id in signed,
         } for p in participants]}
+        if f.signer_mode == "ag_oder_beteiligter":  # seit 1.8.61: beides zur Wahl
+            choices[str(f.id)]["name"] = order.customer_name
     return choices
 
 
@@ -993,6 +1002,56 @@ def _parse_value(field: ChecklistTemplateField, value):
     return columns, selections
 
 
+def checklist_property_id(db: Session, checklist: Checklist) -> int | None:
+    """Objekt des Projekts zum Auftrag der Checkliste (seit 1.8.61) -- dort liegen die wählbaren Dachflächen."""
+    from .models import Project  # lokal wie Defect
+
+    order = db.get(Order, checklist.order_id) if checklist.order_id else None
+    project = db.get(Project, order.project_id) if order else None
+    return project.property_id if project else None
+
+
+def _roof_area_columns(db: Session, checklist: Checklist, field: ChecklistTemplateField, value) -> dict:
+    """Feld "Dachflächen" (seit 1.8.61): Liste von Kennungen -> value_text als JSON [{"id", "name"}], nach Kennung, der Name
+    als Schnappschuss. Nur Dachflächen aus dem Objekt des Projekts, nicht archiviert. Leer leert."""
+    from .models import RoofArea
+
+    columns = {"value_text": None, "value_number": None, "value_date": None, "value_time": None, "value_datetime": None}
+    if value is None or value == "" or value == []:
+        return columns
+    if not isinstance(value, list) or not all(isinstance(v, int) and not isinstance(v, bool) for v in value):
+        raise ValueError(f"\"{field.label}\": bitte Dachflächen als Liste von Kennungen senden.")
+    property_id = checklist_property_id(db, checklist)
+    chosen = []
+    for roof_area_id in sorted(set(value)):
+        area = db.get(RoofArea, roof_area_id)
+        if area is None or property_id is None or area.property_id != property_id:
+            raise ValueError(f"\"{field.label}\": eine gewählte Dachfläche gehört nicht zum Objekt des Projekts.")
+        if area.archived:
+            raise ValueError(f"\"{field.label}\": die Dachfläche „{area.name}“ ist archiviert.")
+        chosen.append({"id": area.id, "name": area.name})
+    columns["value_text"] = json.dumps(chosen, ensure_ascii=False)
+    return columns
+
+
+def roof_area_answer_problem(db: Session, checklist: Checklist) -> str | None:
+    """Gehören die gewählten Dachflächen noch zum Objekt und sind nicht archiviert? (seit 1.8.61, vor der Unterschrift des
+    Auftraggebers -- die Abnahme aus dem Protokoll nimmt sie so) None = in Ordnung."""
+    from .models import RoofArea
+
+    property_id = checklist_property_id(db, checklist)
+    fields = {f.id: f for f in checklist.template_version.fields if f.field_type == "dachflaechen"}
+    for answer in checklist.answers:
+        field = fields.get(answer.template_field_id)
+        for item in (_answer_value(answer, field) or []) if field else []:
+            area = db.get(RoofArea, item["id"])
+            if area is None or property_id is None or area.property_id != property_id:
+                return f"Die Dachfläche „{item['name']}“ gehört nicht mehr zum Objekt des Projekts – bitte die Auswahl prüfen."
+            if area.archived:
+                return f"Die Dachfläche „{area.name}“ ist inzwischen archiviert – bitte die Auswahl prüfen."
+    return None
+
+
 def save_answer(db: Session, checklist_id: int, field_id: int, value, *, recorded_by_employee_id: int | None = None,
                 client_uuid: str | None = None, client_recorded_at: datetime | None = None) -> dict:
     checklist = _load(db, checklist_id, for_update=True)
@@ -1007,7 +1066,10 @@ def save_answer(db: Session, checklist_id: int, field_id: int, value, *, recorde
         raise ValueError("Fotos, Belege und Unterschriften werden als Anhang gespeichert, Mängel über „Mangel erfassen“, "
                          "Hinweistexte nicht beantwortet.")
     _require_field_open(checklist, field)
-    columns, selections = _parse_value(field, value)
+    if field.field_type == "dachflaechen":  # seit 1.8.61: Dachflächen aus dem Objekt -- braucht die Datenbank
+        columns, selections = _roof_area_columns(db, checklist, field, value), []
+    else:
+        columns, selections = _parse_value(field, value)
     if client_recorded_at is not None:
         client_recorded_at = client_recorded_at.replace(tzinfo=None)
 
@@ -1063,6 +1125,8 @@ def _signer(db: Session, checklist: Checklist, field: ChecklistTemplateField, ex
     Seit 1.8.59 beim Auftraggeber laut Auftrag Pflicht: der Name der Person, die unterschreibt (signer_person, ohne
     Vorbelegung), dazu optional ihre Funktion -- bei jedem anderen Unterzeichner ein Fehler."""
     mode = field.signer_mode or "frei"
+    if mode == "ag_oder_beteiligter":  # seit 1.8.61: gewählt wird beim Unterschreiben
+        mode = "beteiligter" if participant_id is not None else "auftraggeber"
     person = " ".join((signer_person or "").split()) or None
     function = " ".join((signer_function or "").split()) or None
     if (person or function) and mode != "auftraggeber":
@@ -1174,6 +1238,12 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
                                      signer_function=signer_function)
     elif participant_id is not None or signer_name or signer_person or signer_function:
         raise ValueError("Name und Beteiligter gehören nur zu einer Unterschrift.")
+    if kind == "unterschrift" and field.is_system:
+        # Seit 1.8.61: Prüfung des Zwecks (Abnahmeprotokoll: Unterschrift des Auftraggebers) -- unter der Zeilensperre.
+        purpose = get_purpose(checklist.template_version.purpose)
+        check = dict(purpose.signature_checks).get(field.field_key) if purpose else None
+        if check is not None:
+            check(db, checklist, signer)
 
     maximum = 1 if single_signature else (field.max_count or MAX_ATTACHMENTS_PER_FIELD)
     if len(existing) >= maximum:

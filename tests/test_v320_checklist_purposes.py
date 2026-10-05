@@ -104,8 +104,9 @@ def test_registry_has_the_four_purposes_and_the_three_only_at_orders():
     assert PURPOSES["allgemein"].contexts == ("auftrag", "objekt", "betriebsmittel", "betrieb")
     for key in ("abnahme", "behinderungsanzeige", "bedenkenanzeige"):
         assert PURPOSES[key].contexts == ("auftrag",)
-    # die Behinderungsanzeige hat sie seit 1.8.38 (test_v341), die Bedenkenanzeige seit 1.8.43 (test_v346)
-    assert PURPOSES["abnahme"].system_fields == () and PURPOSES["abnahme"].follow_ups == ()  # kommt in 2c
+    # die Behinderungsanzeige hat sie seit 1.8.38 (test_v341), die Bedenkenanzeige seit 1.8.43 (test_v346), die Abnahme
+    # seit 1.8.61 (test_v363); ihre Folge "Abnahme anlegen" kommt mit 1.8.62
+    assert PURPOSES["abnahme"].system_fields and PURPOSES["abnahme"].follow_ups == ()
 
 
 def test_every_registered_purpose_is_consistent(testzweck):
@@ -323,7 +324,8 @@ def test_template_with_purpose_can_only_be_archived(world, testzweck):
 def test_purpose_and_system_fields_over_http(world, testzweck, router_test_client):
     client = router_test_client(world["db"], checklist_templates_router, role="buero_auftrag")
     purposes = {p["key"]: p for p in client.get("/api/checklist-purposes").json()}
-    assert purposes["abnahme"]["contexts"] == ["auftrag"] and purposes["abnahme"]["system_fields"] == []
+    assert purposes["abnahme"]["contexts"] == ["auftrag"] and purposes["abnahme"]["office_only"] is True  # seit 1.8.61
+    assert [s["key"] for s in purposes["abnahme"]["system_fields"]] == [s.key for s in PURPOSES["abnahme"].system_fields]
     assert [s["key"] for s in purposes[TEST_KEY]["system_fields"]] == [s.key for s in SYSTEM_FIELDS]
     t = client.post("/api/checklist-templates", json={"label": "Über HTTP", "contexts": ["auftrag"],
                                                       "purpose": TEST_KEY}).json()

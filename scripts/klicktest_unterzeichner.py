@@ -13,7 +13,8 @@ Monteurin hat die Checkliste angelegt, die Feststellung ist ausgefüllt.
                               abgelehnt, mit Person und Funktion unterschrieben; Konto; jede Unterschrift "Inhalt
                               unverändert"; die Vollmacht über die API 403; kein waagrechter Scrollbalken.
     Büro (1400 px, dunkel)    Link "Vollmacht zur Abnahme" an Bernds Unterschrift liefert das PDF (nosniff); Editor zeigt
-                              "Unterzeichner" mit den vier Arten, gesperrt in der veröffentlichten Fassung.
+                              "Unterzeichner" mit den Arten (seit 1.8.61 fünf: dazu "Auftraggeber laut Auftrag oder
+                              Beteiligter"), gesperrt in der veröffentlichten Fassung.
 
 `confirm()` wird automatisch bestätigt und mitgeschrieben. Unterschriften mit echten Mausereignissen. Feste Uhr 10:00.
 
@@ -207,9 +208,9 @@ async def pruefen(tab, seed, p):
     await tab.bild("2_buero_dunkel")
     await tab.oeffnen(f"/checklisten/vorlagen/{seed['template']}", "document.querySelector('#fieldList .frow')")
     await tab.js(f"toggleField({f['ag']})")  # Details der Unterschrift Auftraggeber aufklappen
-    p.pruefe("Editor: Unterzeichner mit vier Arten, gesperrt in der veröffentlichten Fassung", await tab.js(
+    p.pruefe("Editor: Unterzeichner mit fünf Arten (seit 1.8.61), gesperrt in der veröffentlichten Fassung", await tab.js(
         f"(s=>s&&[[...s.options].map(o=>o.value), s.value, s.disabled])(document.querySelector('#frow_{f['ag']} select[data-k=signer_mode]'))"),
-        [["frei", "konto", "auftraggeber", "beteiligter"], "auftraggeber", True])
+        [["frei", "konto", "auftraggeber", "beteiligter", "ag_oder_beteiligter"], "auftraggeber", True])
     p.pruefe("Editor: keine JS-Fehler", tab.fehler, [])
 
 

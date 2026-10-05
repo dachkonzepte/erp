@@ -277,11 +277,24 @@ function signerInput(f,prefill){
   if(mode==='konto')return `<span class="signer-fixed" data-signer="${f.id}">Unterschreibt: ${esc(MY_NAME||'angemeldetes Konto')} (angemeldetes Konto)</span>`;
   // Seit 1.8.59: der Auftraggeber steht fest, wer für ihn unterschreibt, wird eingetragen (Pflicht, ohne Vorbelegung).
   if(mode==='auftraggeber')return `<span class="signer-fixed" data-signer="${f.id}">Für: ${esc(ch.name||'')} (Auftraggeber laut Auftrag)</span><input id="padPerson_${f.id}" maxlength="160" autocomplete="off" placeholder="Name der unterschreibenden Person"><input id="padFunction_${f.id}" maxlength="120" autocomplete="off" placeholder="Funktion (optional)">`;
+  if(mode==='ag_oder_beteiligter'){
+    // Seit 1.8.61 (Abnahmeprotokoll): beim Unterschreiben gewählt -- der Auftraggeber laut Auftrag (Person Pflicht) oder ein
+    // Beteiligter (ohne Vollmacht zur Abnahme mit Warnung).
+    const list=(ch.participants||[]).filter(p=>!p.signed);
+    return `<select id="padWho_${f.id}" onchange="signerWhoChange(${f.id})"><option value="">– Wer unterschreibt? –</option><option value="ag">${esc(ch.name||'')} (Auftraggeber laut Auftrag)</option>${list.map(p=>`<option value="${p.participant_id}">${esc(p.name)} (${esc(p.role_label)}) · Vollmacht zur Abnahme: ${p.poa_on_record?'ja':'nein'}</option>`).join('')}</select><div id="padAg_${f.id}" class="signer-ag" hidden><input id="padPerson_${f.id}" maxlength="160" autocomplete="off" placeholder="Name der unterschreibenden Person"><input id="padFunction_${f.id}" maxlength="120" autocomplete="off" placeholder="Funktion (optional)"></div><div class="option-hint" id="padPoa_${f.id}" hidden></div>`;
+  }
   if(mode==='beteiligter'){
     const list=(ch.participants||[]).filter(p=>!p.signed);
     return `<select id="padPart_${f.id}" onchange="signerPoaHint(${f.id})"><option value="">– Beteiligten wählen –</option>${list.map(p=>`<option value="${p.participant_id}">${esc(p.name)} (${esc(p.role_label)}) · Vollmacht zur Abnahme: ${p.poa_on_record?'ja':'nein'}</option>`).join('')}</select><div class="option-hint" id="padPoa_${f.id}" hidden></div>`;
   }
   return `<input id="padName_${f.id}" placeholder="Name ${esc(f.signer_label||'')}" value="${esc(prefill)}">`;
+}
+function signerWhoChange(fieldId){  // seit 1.8.61
+  const who=document.getElementById('padWho_'+fieldId).value,hint=document.getElementById('padPoa_'+fieldId);
+  document.getElementById('padAg_'+fieldId).hidden=who!=='ag';
+  const p=(((cl.signer_choices||{})[fieldId]||{}).participants||[]).find(x=>String(x.participant_id)===who);
+  hint.hidden=!(p&&!p.poa_on_record&&cl.purpose==='abnahme');
+  hint.textContent=p&&!p.poa_on_record?`Für ${p.name} ist keine Vollmacht zur Abnahme hinterlegt – die Unterschrift wird trotzdem erfasst, gekennzeichnet „ohne Vollmacht zur Abnahme“.`:'';
 }
 function signerPoaHint(fieldId){
   const sel=document.getElementById('padPart_'+fieldId),hint=document.getElementById('padPoa_'+fieldId);
@@ -346,6 +359,7 @@ function sealLine(a){
 function valueText(f,v){
   if(v==null||v===''||(Array.isArray(v)&&!v.length))return '<span class="muted">—</span>';
   if(f.field_type==='ja_nein')return {ja:'Ja',nein:'Nein',entfaellt:'Entfällt'}[v]||esc(v);
+  if(f.field_type==='dachflaechen')return esc(v.map(a=>a.name).join(', '));  // seit 1.8.61: Name als Schnappschuss
   if(f.field_type==='auswahl'){const lbl=k=>(f.options.find(o=>o.option_key===k)||{label:k}).label;return esc((Array.isArray(v)?v:[v]).map(lbl).join(', '))}
   if(f.field_type==='zahl')return esc(Number(v).toLocaleString('de-DE',{maximumFractionDigits:4}))+(f.unit?' '+esc(f.unit):'');
   if(f.field_type==='datum')return esc(new Date(v+'T00:00:00').toLocaleDateString('de-DE'));
@@ -370,6 +384,17 @@ function fieldBody(f){
       <label>Fotos (JPEG, PNG, WebP)</label><input id="pdefPhotos_${f.id}" type="file" multiple accept="image/jpeg,image/png,image/webp">
       <label>Belege (PDF oder Foto)</label><input id="pdefReceipts_${f.id}" type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp">
       <div><button type="button" class="btn" id="pdefSave_${f.id}" onclick="saveProtocolDefect(${f.id},this)">Mangel erfassen</button></div></div>`:''}`;
+  }
+  if(t==='dachflaechen'){
+    // Seit 1.8.61 (Abnahmeprotokoll, nur Büro): Dachflächen aus dem Objekt des Auftrags, nicht archiviert. Eine gewählte, die
+    // inzwischen nicht mehr wählbar ist, bleibt sichtbar und lässt sich abwählen.
+    const chosen=Array.isArray(v)?v:[];
+    if(ro||IS_FIELD)return `<div class="value-ro" data-dachflaechen="${f.id}">${valueText(f,chosen)}</div>`;
+    if(!pdefOptions){loadProtocolOptions().then(()=>rerenderField(f));return '<span class="muted small">Lädt …</span>'}
+    const areas=pdefOptions.roof_areas||[],ids=chosen.map(a=>a.id);
+    const gone=chosen.filter(a=>!areas.some(r=>r.id===a.id)).map(a=>({...a,gone:true}));
+    if(!areas.length&&!gone.length)return `<div class="muted small" data-dachflaechen="${f.id}">${esc(pdefOptions.error||'Am Objekt des Auftrags sind keine Dachflächen erfasst.')}</div>`;
+    return `<div class="tiles" data-dachflaechen="${f.id}">${areas.concat(gone).map(a=>`<button type="button" class="tile${ids.includes(a.id)?' on':''}" onclick="toggleRoofArea(${f.id},${a.id})">${esc(a.name)}${a.gone?' (nicht mehr wählbar)':''}</button>`).join('')}</div>`;
   }
   if(t==='ja_nein'){
     const opts=[['ja','Ja'],['nein','Nein']].concat(f.allow_na?[['entfaellt','Entfällt']]:[]);
@@ -748,6 +773,11 @@ async function toggleOption(fieldId,key){
   else next=v===key?null:key;
   if(await sendAnswer(fieldId,next))rerenderField(f);
 }
+async function toggleRoofArea(fieldId,id){  // seit 1.8.61
+  const f=cl.fields.find(x=>x.id===fieldId),cur=(answerOf(f)||[]).map(a=>a.id);
+  const next=cur.includes(id)?cur.filter(x=>x!==id):cur.concat([id]);
+  if(await sendAnswer(fieldId,next.length?next:null))rerenderField(f);
+}
 function rerenderField(f){const q=document.getElementById('q_'+f.id);if(q)q.querySelector('.q-body').innerHTML=fieldBody(f);if(f.field_type==='unterschrift')setupPad(f.id)}
 
 async function uploadFile(fieldId,blob,filename,extra={}){
@@ -779,13 +809,19 @@ async function removeAttachment(attachmentId){
 // Je Mangel Beschreibung, Ort, Frist, Dateien, Prüfstatus; verworfen gekennzeichnet -- "bleibt im Protokoll", wenn erst nach
 // der Unterschrift verworfen (dann steht er in deren Kopie), sonst "nicht im Protokoll".
 let pdefOptions=null;
+// Dachflächen aus dem Objekt des Auftrags -- für "Mangel erfassen" und seit 1.8.61 das Feld "Dachflächen". Ein Fehler bleibt
+// als Text stehen (sonst lüde jede Darstellung erneut).
+async function loadProtocolOptions(){
+  if(!pdefOptions){try{pdefOptions=await api(`/api/checklists/${checklistId}/protocol-options`)}catch(e){pdefOptions={roof_areas:[],error:e.message}}}
+  return pdefOptions;
+}
 async function loadProtocolDefects(f){
   const box=document.getElementById('pdefList_'+f.id);if(!box)return;
   try{
     const list=await api(`/api/checklists/${checklistId}/defects`);
     box.innerHTML=list.length?list.map(d=>protocolDefectHtml(f,d)).join(''):'<div class="muted small">Noch kein Mangel erfasst.</div>';
     const sel=document.getElementById('pdefArea_'+f.id);
-    if(sel&&!pdefOptions)pdefOptions=await api(`/api/checklists/${checklistId}/protocol-options`);
+    if(sel)await loadProtocolOptions();
     if(sel&&sel.options.length<=1)sel.innerHTML='<option value="">— keine Dachfläche —</option>'+(pdefOptions.roof_areas||[]).map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('');
   }catch(e){box.innerHTML=`<div class="pdef-bad">${esc(e.message)}</div>`}
 }
@@ -845,6 +881,15 @@ async function saveSignature(fieldId){
     if(!(per.value||'').trim()){setStatus(fieldId,'Bitte den Namen der Person eintragen, die für den Auftraggeber unterschreibt.',true);per.focus();return}
     extra.signer_person=per.value.trim();
     if((fn.value||'').trim())extra.signer_function=fn.value.trim();
+  }else if(mode==='ag_oder_beteiligter'){  // seit 1.8.61: Auftraggeber (mit Person) oder Beteiligter
+    const who=document.getElementById('padWho_'+fieldId);
+    if(!who.value){setStatus(fieldId,'Bitte wählen, wer für den Auftraggeber unterschreibt.',true);who.focus();return}
+    if(who.value==='ag'){
+      const per=document.getElementById('padPerson_'+fieldId),fn=document.getElementById('padFunction_'+fieldId);
+      if(!(per.value||'').trim()){setStatus(fieldId,'Bitte den Namen der Person eintragen, die für den Auftraggeber unterschreibt.',true);per.focus();return}
+      extra.signer_person=per.value.trim();
+      if((fn.value||'').trim())extra.signer_function=fn.value.trim();
+    }else extra.participant_id=who.value;
   }else if(mode==='beteiligter'){  // seit 1.8.57: den Namen setzt der Server
     const sel=document.getElementById('padPart_'+fieldId);
     if(!sel.value){setStatus(fieldId,'Bitte den Beteiligten wählen, der unterschreibt.',true);sel.focus();return}

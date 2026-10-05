@@ -87,6 +87,8 @@ def format_answer(field, answer) -> str:
         return answer.value_date.strftime("%d.%m.%Y")
     if t == "datum_uhrzeit":
         return answer.value_datetime.strftime("%d.%m.%Y %H:%M")
+    if t == "dachflaechen":  # seit 1.8.61: die Namen beim Speichern
+        return ", ".join(a["name"] for a in value)
     return str(value)
 
 

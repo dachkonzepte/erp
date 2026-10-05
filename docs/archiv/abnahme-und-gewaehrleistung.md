@@ -20,7 +20,7 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | **2c-2a** | 1.8.48–1.8.50 | Vorweg: Prüfstatus neben jedem Gewährleistungsende (eine Funktion, `logger.error` bei Abweichung), Siegel des Verwerfens, Fassung des Prüfsummenformats (1.8.48); Mängel aus der Abnahme mit Haltung, Status, Freigabe, Verlauf, Aufgabe und "Nachbesserung regulär bis" (1.8.49); Platzhalter `{gewaehrleistung}`, Festschreiben erst mit Dauer, danach Dauer und Leistungsart gesperrt (1.8.50) | erledigt |
 | **2c-2b** | 1.8.51–1.8.54 | Vorweg: Sperre an eine gültige Fassung binden (nur gemeldet -- es gibt kein Zurückziehen einer Fassung), Belege am Mangel nachreichen, Aufgabentitel mit Kurzfassung, CLAUDE.md `update.sh`/`backup.sh` (1.8.51); Monteur-Sicht auf Mängel in `/mobil` mit Positivliste, "beseitigt" melden mit Foto, idempotent über `client_uuid` (1.8.52); Nacharbeiten: Aufgaben-Mails ohne Inhalt (1.8.53), Aufgabe folgt dem Status des Mangels, Hinweis des Monteurs zur Meldung, `update.sh` probt selbst gegen die Spielwiese (1.8.54) | erledigt; Zurückziehen einer Fassung am 05.10.2026 entschieden, noch nicht gebaut (siehe "Umsetzung 1.8.55", Punkt 0c) |
 | **2c-2c** | 1.8.55–1.8.58 | Unterschriften in Checklisten härten, Fundament für das Abnahmeprotokoll. Vorweg: "zurück auf offen" mit neuer Frist, Regel 24 (Marker GEGENPROBE), Entscheidung zum Zurückziehen einer Vertragsfassung ins Archiv (1.8.55); Pflichtfelder oberhalb einer Abschnittsunterschrift, eine gemeinsame Prüfung des Unterschriftsbilds (1.8.56); Unterzeichner je Unterschriftsfeld mit Siegel (1.8.57); Zeichenfläche nach Drehen neu vermessen (1.8.58) | erledigt; Festlegungen 1.8.55–1.8.58 bestätigt (05.10.2026, Vorgabe 2c-2d) |
-| **2c-2d** | 1.8.59– | Abnahmeprotokoll als Checkliste, Plan unten ("Etappenplan 2c-2d"). Vorweg: Person und Funktion beim Unterzeichner Auftraggeber, Vollmacht-Kennzeichnung mit Art, Veröffentlichen prüft Pflichtfelder, die der Unterzeichner nicht ausfüllen darf (1.8.59); Feldtyp "Mängel" (1.8.60); Zweck "abnahme" mit Systemfeldern und Startvorlage (1.8.61); Folge "Abnahme anlegen" nach der Unterschrift des Auftraggebers (1.8.62); Mängel und Erklärungen auf Seite und PDF (1.8.63) | in Arbeit |
+| **2c-2d** | 1.8.59–1.8.61 | Abnahmeprotokoll als Checkliste, Plan unten ("Etappenplan 2c-2d"). Vorweg: Person und Funktion beim Unterzeichner Auftraggeber, Vollmacht-Kennzeichnung mit Art, Veröffentlichen prüft Pflichtfelder, die der Unterzeichner nicht ausfüllen darf (1.8.59); Feldtyp "Mängel" (1.8.60); Zweck "abnahme" mit Systemfeldern und Startvorlage (1.8.61); Folge "Abnahme anlegen" nach der Unterschrift des Auftraggebers (1.8.62); Mängel und Erklärungen auf Seite und PDF (1.8.63) | Punkte 0–2 erledigt (1.8.59–1.8.61); Punkte 3 und 4 geplant, nicht gebaut -- siehe "Offen aus 2c-2d" bei "Umsetzung 1.8.61" |
 
 Nach jeder Runde die Spalten "Version"/"Stand" nachziehen und unten einen Abschnitt "Umsetzung 1.8.x" ergänzen.
 
@@ -1344,3 +1344,165 @@ Versionen: 1.8.59 Punkt 0, 1.8.60 Punkt 1, 1.8.61 Punkt 2, 1.8.62 Punkt 3, 1.8.6
   "nicht im Protokoll". Ein vor der ersten Unterschrift verworfener Mangel kommt in keine Kopie mehr; jetzt
   `defect_in_seal(d, sealed_at)` auch ohne Unterschrift. `test_v362` prüfte die Liste nur nach der Unterschrift -- jetzt auch
   davor (Gegenprobe rot).
+
+---
+
+## Umsetzung 1.8.61 (05.10.2026) -- Runde 2c-2d, Punkt 2: Zweck "abnahme"
+
+### Zweck und Systemfelder (`app/checklist_purposes.py`)
+
+- `ChecklistPurpose("abnahme", …, ("auftrag",), ACCEPTANCE_SYSTEM_FIELDS, office_only=True, signature_checks=…)`, keine Folgen
+  (die Folge "Abnahme anlegen" kommt mit 1.8.62). Systemfelder (Schlüssel `abnahme.<name>`, stehen in der Datenbank, werden nie
+  umbenannt), ohne Vorgabe der Antworten:
+
+  | Abschnitt | Feld | Typ | Pflicht |
+  |---|---|---|---|
+  | Befund | `teilnehmer` Teilnehmer | Text, mehrzeilig | ja |
+  | | `umfang` Umfang | Auswahl `gesamt` Gesamtabnahme / `teil` Teilabnahme | ja |
+  | | `umfang_beschreibung` Abgenommener Teil | Text, mehrzeilig | bei Teilabnahme (Prüfung bei der Unterschrift) |
+  | | `dachflaechen` Dachflächen | neu: `dachflaechen` | nein |
+  | | `maengel` Mängel | `maengel` (1.8.60) | nein |
+  | | `einwendungen` Einwendungen des Auftragnehmers | Text, mehrzeilig | nein |
+  | Erklärungen des Auftraggebers | `ergebnis` Ergebnis | Auswahl `abgenommen` Abnahme erklärt / `verweigert` Abnahme verweigert | ja |
+  | | `vorbehalt_maengel` Vorbehalt wegen bekannter Mängel | Ja/Nein | bei "abgenommen" (Prüfung bei der Unterschrift) |
+  | | `vorbehalt_vertragsstrafe` Vorbehalt der Vertragsstrafe | Ja/Nein | bei "abgenommen" (Prüfung bei der Unterschrift) |
+  | | `unterschrift_auftraggeber` Unterschrift Auftraggeber | Unterschrift, Unterzeichner `ag_oder_beteiligter` | ja |
+  | Schluss | `unterschrift_auftragnehmer` Unterschrift Auftragnehmer | Unterschrift, Unterzeichner `konto` | ja |
+
+- Neu an `SystemField`: `signer_mode` -- der Unterzeichner eines Unterschrifts-Systemfelds ist fest wie der Typ:
+  `_sync_system_fields()` setzt ihn, `system_field_problems()` meldet eine Abweichung ("weicht von der Vorgabe ab:
+  Unterzeichner"), `update_field()` lehnt eine Änderung ab ("Den Unterzeichner dieses Systemfelds gibt der Zweck vor."), der
+  Editor zeigt "(vom Zweck vorgegeben)" und sperrt die Auswahl (`signer_mode_locked`). Ohne Vorgabe (`None`, Behinderungs- und
+  Bedenkenanzeige) bleibt er frei wählbar wie bisher.
+
+### Nur Büro
+
+- `ChecklistPurpose.office_only` (`purpose_office_only()`), im Router (`app/routers/checklists.py`): der Monteur sieht
+  Vorlagen dieses Zwecks nicht in der Start-Auswahl, Checklisten nicht in der Liste am Auftrag und nicht unter "meine", Anlegen
+  403 ("Diese Checkliste führt das Büro."), jeder Einzelzugriff 403 (Abruf, Antworten, Anhänge, PDF, Mängel) -- auch eine
+  "eigene", die am Router vorbei angelegt wurde. `/mobil` nutzt dieselben Endpunkte. Der Editor nennt am Zweck "nur Büro".
+
+### Unterzeichner "Auftraggeber laut Auftrag oder Beteiligter"
+
+- Neuer Unterzeichner `ag_oder_beteiligter` (der Schlüssel ist kurz, weil `signer_mode` String(20) ist -- der zuerst geplante
+  `auftraggeber_oder_beteiligter` hätte unter PostgreSQL die Spaltenlänge überschritten, SQLite hätte ihn still angenommen).
+  Gewählt wird beim Unterschreiben: ohne Beteiligten der Auftraggeber laut Auftrag (Person Pflicht, Funktion optional, 1.8.59),
+  mit Beteiligtem dessen Pfad (Rolle, Vollmacht zur Abnahme eingefroren, ohne mit Warnung). Gespeichert wird die gewählte Art
+  (`signer_kind` "auftraggeber" bzw. "beteiligter") -- Siegel, Text und PDF wie bisher. Seite: "Wer unterschreibt?" mit dem
+  Auftraggeber und den Beteiligten ("· Vollmacht zur Abnahme: ja/nein"), beim Auftraggeber die Personenfelder, beim
+  Beteiligten ohne Vollmacht die Warnung (Zweck "abnahme").
+
+### Prüfung bei der Unterschrift des Auftraggebers (`app/acceptance_protocol.py`)
+
+- `ChecklistPurpose.signature_checks` (Feldschlüssel -> Prüfung), aufgerufen in `add_attachment()` nach der Prüfung der
+  Pflichtangaben oberhalb und des Unterzeichners, unter der Zeilensperre der Checkliste -- dieselbe Sperre nehmen Erfassen und
+  Verwerfen eines Mangels im Protokoll (1.8.60). Abgelehnt (400):
+  - die drei Widersprüche: **Mängel ohne Vorbehalt** (abgenommen, mindestens ein nicht verworfener Mangel, Vorbehalt "nein"),
+    **Vorbehalt ohne Mangel** (Vorbehalt "ja", kein nicht verworfener Mangel), **"verweigert" ohne Mangel**;
+  - was die Abnahme aus dem Protokoll (1.8.62, `create_acceptance()`) ablehnen würde: Teilabnahme ohne Beschreibung,
+    Beschreibung bei der Gesamtabnahme, fehlende Vorbehalte bei "abgenommen", Vorbehalte bei "verweigert", eine gewählte
+    Dachfläche, die nicht mehr zum Objekt gehört oder inzwischen archiviert ist;
+  - jeder andere Unterzeichner als Auftraggeber oder Beteiligter -- auch wenn die Fassung am ORM vorbei "frei" oder "Konto"
+    trägt (Angriff "falsche Unterzeichner-Art").
+
+### Feldtyp "Dachflächen"
+
+- Neuer Feldtyp `dachflaechen`, nur als Systemfeld (`SYSTEM_ONLY_FIELD_TYPES`), nie Pflicht. Antwort: Liste von
+  Dachflächen-Kennungen; gespeichert in `value_text` als `[{"id", "name"}]` nach Kennung, der Name als Schnappschuss
+  (Umbenennen ändert Antwort und Siegel nicht). Nur aus dem Objekt des Projekts, nicht archiviert (400). Seite: Kacheln aus
+  `GET /api/checklists/{id}/protocol-options`; eine gewählte, später archivierte bleibt sichtbar ("nicht mehr wählbar") und
+  lässt sich abwählen. PDF: die Namen. Schemas: `ChecklistAnswerWrite.value` nimmt `list[int]`, `ChecklistAnswerOut.value`
+  `list[ChecklistRoofAreaValueOut]`.
+
+### Startvorlage (Migration `65c57e30d0f3`)
+
+- "Abnahmeprotokoll" als Entwurf (Zweck abnahme, nur Auftrag, `field_readable` aus), mit Hinweis "Vor Veröffentlichung
+  prüfen", Hilfetexten je Feld und den beiden festen Unterzeichnern; eine gleichnamige Vorlage bleibt unangetastet.
+  `downgrade()` entfernt sie nur unveröffentlicht und unbenutzt. Kein Schema.
+- **Auf dem Server**: eine schon vorhandene Vorlage mit Zweck "abnahme" (seit 1.8.16 wählbar, bisher ohne Systemfelder) wird
+  mit 1.8.61 "nur Büro". Ihre veröffentlichten Fassungen bleiben nutzbar, ohne Prüfung des Zwecks (ihnen fehlt das Feld
+  `abnahme.unterschrift_auftraggeber`); ein neuer Entwurf bekommt die Systemfelder, Veröffentlichen verlangt sie. Ob es eine
+  solche Vorlage gibt, lässt sich von hier nicht prüfen.
+
+### Festlegungen 1.8.61 (bitte bestätigen)
+
+1. **"Systemfelder ohne Vorgabe"** verstanden als: keine Vorbelegung und keine Vorauswahl der Antworten (wie der
+   Abnahme-Dialog seit 1.8.46). Die Unterzeichner der beiden Unterschriften gibt der Zweck dagegen fest vor, wie die Vorgabe sie
+   nennt.
+2. **Ein Unterzeichner "Auftraggeber laut Auftrag oder Beteiligter"**, gewählt beim Unterschreiben, statt zweier Felder --
+   gespeichert wird die gewählte Art.
+3. **Pflicht**: Teilnehmer, Umfang, Ergebnis, beide Unterschriften. **Bedingt** (bei der Unterschrift des Auftraggebers
+   geprüft): Beschreibung bei der Teilabnahme (bei der Gesamtabnahme leer), beide Vorbehalte bei "abgenommen" (bei
+   "verweigert" leer). Dachflächen, Mängel, Einwendungen frei.
+4. **Neben den drei Widersprüchen lehnt die Unterschrift ab, was die Abnahme aus dem Protokoll nicht annähme** -- sonst
+   entstünde mit 1.8.62 eine Folge, die nicht ausführbar ist, nachdem die Unterschrift den Befund schon versiegelt hat.
+5. **"Mangel" heißt ein nicht verworfener Mangel im Feld "Mängel"** -- ein verworfener zählt weder für den Vorbehalt noch
+   für die Verweigerung.
+6. **Dachflächen als eigener Feldtyp mit Namens-Schnappschuss**; eine später archivierte gewählte Fläche hält die
+   Unterschrift auf, bis sie abgewählt ist.
+7. **Nur Büro gilt für den ganzen Zweck**, auch für eine am Router vorbei angelegte "eigene" Checkliste des Monteurs und für
+   schon vorhandene Vorlagen mit Zweck "abnahme".
+8. **Startvorlage als Entwurf** mit Hinweis "Vor Veröffentlichung prüfen", wie Behinderungs- und Bedenkenanzeige.
+9. **Ergebnis-Optionen "Abnahme erklärt"/"Abnahme verweigert"** (Schlüssel `abgenommen`/`verweigert` wie an der Abnahme).
+
+### Verifikation 1.8.61
+
+- `tests/test_v363_zweck_abnahme.py` (36, davon 2 nur gegen PostgreSQL): Registry (Abschnitte, Pflicht, feste Unterzeichner,
+  Prüfung nur am Feld des Auftraggebers), Spaltenlängen, Startvorlage gegen die Registry über die echte
+  Veröffentlichungsprüfung, Downgrade nur unbenutzt, Unterzeichner im Editor fest (ändern 400, am ORM vorbei -> "weicht ab",
+  Angleichen setzt zurück), Zweckliste und Editor über HTTP, Monteur (Start-Auswahl, Anlegen, Liste, "meine", Abruf, Antwort,
+  Anhang, PDF, Mängel, auch eine eigene), Auftraggeber mit Person, Beteiligter mit/ohne Vollmacht, unvollständig oder gemischt
+  abgelehnt, Angriff falsche Unterzeichner-Art ("frei", "Konto"), die drei Widersprüche und ein nur verworfener Mangel, drei
+  stimmige Protokolle, was die Abnahme nicht annähme (fünf Fälle), Teilabnahme mit Beschreibung, Dachflächen (Schnappschuss,
+  fremd, archiviert, keine Liste, nach dem Archivieren), Seiten; gegen PostgreSQL: Unterschrift wartet auf das Verwerfen des
+  einzigen Mangels und wird abgelehnt, Verwerfen wartet auf die Unterschrift und bleibt in der Kopie.
+- Angepasst: `test_v320` (abnahme hat Systemfelder, "nur Büro" in der Zweckliste), `test_v361` (Testunterschrift über den neuen
+  Pflicht-Systemfeldern). Beim Anpassen gefunden: die Antwortschemata (`ChecklistPurposeOut`, `ChecklistTemplateFieldOut`)
+  filterten `office_only` und `signer_mode_locked` heraus -- ergänzt, `test_v363` prüft es jetzt über HTTP.
+- Gegenproben (Marker GEGENPROBE, Dateien byte-genau zurück): 21 von 21 rot (Monteur fünfmal, Prüfung des Zwecks, jede der
+  drei Widersprüche, verworfene zählen mit, Unterzeichner-Art, Teilabnahme, Vorbehalte bei "verweigert", archivierte und fremde
+  Dachfläche, Namens-Schnappschuss, Unterzeichner im Editor und in der Veröffentlichungsprüfung, Startvorlage, Sperre beim
+  Verwerfen gegen PostgreSQL, Spaltenlänge).
+- Migration `65c57e30d0f3`: SQLite hin/zurück/hin (Startvorlage weg und wieder da), `current`, `check`; PostgreSQL 17 im
+  Wegwerf-Schema: Kette bis `82e4382b0c9f`, eine alte, veröffentlichte Vorlage mit Zweck "abnahme" ohne Systemfelder, head,
+  Startvorlage veröffentlicht und über den App-Code ausgefüllt (Teilabnahme, Dachfläche, Mangel mit Vorbehalt), freier Name am
+  Auftraggeber-Feld abgelehnt, Beteiligter und Konto unterschrieben -- beide "unverändert"; die alte Vorlage weiter nutzbar;
+  zurück/hin lässt die benutzte Startvorlage stehen und legt keine zweite an; `current`, `check`; leeres Schema hin/zurück/hin.
+- PostgreSQL (pytest-Plugin): `test_v363`, `test_v320`, `test_v361` -- 67 grün, 1 übersprungen (Bestand mit rohem SQL nur
+  unter SQLite).
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 2977 grün; der danach ergänzte Spaltenlängen-Test grün.
+- Klicktests: neu `klicktest_abnahmeprotokoll.py` 18/18; angepasst und grün `klicktest_checkliste_zweck.py` 28/28 (die
+  Monteurin startet keine Abnahme mehr, Anlegen 403) und `klicktest_unterzeichner.py` 19/19 (fünf Unterzeichner); unverändert
+  grün `klicktest_behinderungsanzeige.py` 35/35.
+
+### Nebenbefunde 1.8.61 (nur gemeldet)
+
+1. **Behinderungsanzeige, Wegfall-Unterschrift** (1.8.59, Festlegung 5): weiter als bekannte Ausnahme in
+   `SIGNER_FILL_EXCEPTIONS`, Entscheidung offen.
+2. **`create_checklist()` und jede Integritätsverletzung** (1.8.57, Nebenbefund 1): unverändert offen.
+3. **`test_v326` kann die Protokoll-Routen nicht mit Inhalt füllen** (die Checkliste des Durchlaufs ist keine mit Feld
+   "Mängel"); geprüft wird dort nur Monteur 403, der Inhalt fürs Büro in `test_v362`/`test_v363`.
+
+### Offen aus 2c-2d: Punkt 3 und 4 (nach Punkt 2 committet, wie für einen zu großen Umfang vorgegeben)
+
+Punkt 3 greift in die unveränderliche Abnahme ein (neue Nachweisart, neues Prüfsummenformat) und hängt an zwei offenen
+Festlegungen (1.8.60 Nr. 4, 1.8.61 Nr. 4) -- deshalb erst nach deren Bestätigung. Geplant:
+
+- **1.8.62 Punkt 3, Folge "Abnahme anlegen"** nach der Unterschrift des Auftraggebers (`FollowUp(after_signature=
+  abnahme.unterschrift_auftraggeber)`): `order_acceptances.checklist_id` (FK, UNIQUE -- höchstens eine Abnahme je Protokoll,
+  auch wenn ein Abbruch zwischen Handler und Vermerk das Nachholen wiederholt); Art förmlich, Nachweis "Protokoll" statt Beleg:
+  Verweis auf die Unterschrift (Kennung, `content_sha256` ihrer Kopie) im gebundenen Inhalt der Abnahme (neues
+  Prüfsummenformat, ältere Abnahmen rechnen in ihrem Format); Datum = Tag der Unterschrift in Europe/Berlin; Erklärender aus der
+  Unterschrift (Auftraggeber mit Person bzw. Beteiligter mit der beim Unterschreiben eingefrorenen Vollmacht-Kopie, nicht der
+  heutige Stand am Beteiligten); Umfang, Ergebnis, Vorbehalte, Einwendungen, Dachflächen aus der versiegelten Kopie. Danach
+  `acceptance_id` an jedem nicht verworfenen Mangel des Protokolls (gebundener Inhalt unverändert, Festlegung 1.8.60 Nr. 4), erst
+  dann Aufgaben je Mangel und Freigabe möglich (`protocol_pending()` wird falsch). Ausstehende oder fehlgeschlagene Folge als
+  Hinweis am Auftrag mit "Nachholen". `discard_signatures()`: die Unterschrift des Auftraggebers lässt sich nicht verwerfen,
+  solange die Abnahme daraus nicht verworfen ist (409). Angriffstests: doppelte Folge (gleichzeitig, auch gegen PostgreSQL),
+  Verwerfen der Unterschrift bei gültiger Abnahme, Nachholen nach verworfener Abnahme (keine zweite).
+- **1.8.63 Punkt 4**: Mängel (mit "verworfen"/"bleibt im Protokoll") und Erklärungen auf der Protokollseite gebündelt und im
+  PDF -- heute zeigt das PDF am Feld "Mängel" nur "—", die Dachflächen schon mit Namen. Feste Fassung, Ablage und Versand: 2c-2e.
+
+Offene Fragen dazu: (a) Soll eine verworfene Abnahme aus dem Protokoll eine neue aus demselben Protokoll erlauben (die Vorgabe
+sagt "höchstens eine Abnahme je Protokoll, auch beim Nachholen" -- verstanden als nie, ein neues Protokoll ist der Weg)?
+(b) Tag der Abnahme = Tag der Unterschrift des Auftraggebers, auch wenn die Folge erst Tage später nachgeholt wird?

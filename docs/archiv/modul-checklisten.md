@@ -1071,3 +1071,20 @@ Herleitung und Festlegungen: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umse
 - Eine Unterschrift ist nach dem Speichern bis auf das Verwerfen unveränderlich (ORM-Sperre) -- Tests, die eine Manipulation
   nachstellen, schreiben per rohem UPDATE.
 
+## Nachtrag 1.8.59–1.8.61 (05.10.2026) -- Abnahmeprotokoll als Checkliste, Punkte 0–2
+
+Herleitung und Festlegungen: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.59" bis "Umsetzung 1.8.61". Für den
+Baukasten:
+- Beim Unterzeichner "auftraggeber" Pflicht `signer_person` (Name der Person), optional `signer_function`, beide im Siegel nur,
+  wenn gesetzt (1.8.59). Veröffentlichen lehnt Pflichtfelder "nur Büro" über einer Unterschrift ab, die auch der Monteur leistet
+  (`signer_fill_findings()`, bekannte Ausnahme in `SIGNER_FILL_EXCEPTIONS`).
+- Feldtypen, die nur ein Zweck als Systemfeld vorgibt (`SYSTEM_ONLY_FIELD_TYPES`): `maengel` (1.8.60, Mängel als eigene
+  Datensätze, je Mangel Kennung und Prüfsumme in der Kopie im Stand ihres Zeitpunkts) und `dachflaechen` (1.8.61, Antwort
+  `[{"id", "name"}]` als JSON in `value_text`, Name als Schnappschuss).
+- Seit 1.8.60 speichern Unterschrift (`created_at`) und Abschluss ihren Zeitpunkt mit voller Genauigkeit; `completed_at` steht
+  vor dem Versiegeln fest.
+- Am Zweck (1.8.61): `office_only` (der Monteur sieht und startet nichts davon, jeder Einzelzugriff 403), `signature_checks`
+  (Prüfung vor dem Speichern einer Unterschrift in einem Systemfeld, unter der Zeilensperre), am Systemfeld `signer_mode` (fest
+  wie der Typ). Neuer Unterzeichner `ag_oder_beteiligter`, gewählt beim Unterschreiben, gespeichert als die gewählte Art.
+- Feste Schlüssel müssen in ihre Spalte passen (`signer_mode` String 20, `field_type` String 30, `field_key` String 80) --
+  `tests/test_v363_zweck_abnahme.py::test_signer_modes_and_field_types_fit_their_columns`.

@@ -118,8 +118,9 @@ def test_page_asks_for_person_without_prefill():
 def _beteiligter_ohne_vollmacht(w, client, purpose):
     db = w["db"]
     t = create_template(db, label=f"Protokoll {purpose}", contexts=["auftrag"], purpose=purpose)
+    # Ganz oben: seit 1.8.61 trägt der Zweck "abnahme" Pflicht-Systemfelder -- über dieser Unterschrift steht keins davon
     add_field(db, t["draft_version_id"], {"field_type": "unterschrift", "label": "Beteiligter", "field_key": "bet",
-                                          "signer_mode": "beteiligter"})
+                                          "signer_mode": "beteiligter", "sort_order": 1})
     tpl = publish_draft(db, t["id"])
     c = _start_ohne_pflicht(w, client, tpl)
     r = _sign(client, c, "bet", participant_id=w["arch"].id)

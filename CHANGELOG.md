@@ -4,6 +4,27 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.61 – Abnahmeprotokoll: Zweck „abnahme“ mit Systemfeldern und Startvorlage
+
+Stufe 2c, Runde 2c-2d, Punkt 2. Der Zweck „abnahme“ trägt jetzt Systemfelder in drei Abschnitten – Befund (Teilnehmer,
+Umfang gesamt/Teil mit Beschreibung, Dachflächen aus dem Objekt, Mängel, Einwendungen des Auftragnehmers), Erklärungen des
+Auftraggebers (Ergebnis, Vorbehalt wegen bekannter Mängel, Vorbehalt der Vertragsstrafe, Unterschrift Auftraggeber) und Schluss
+(Unterschrift Auftragnehmer) –, ohne Vorgabe der Antworten. Die Unterschrift des Auftraggebers leistet der Auftraggeber laut
+Auftrag (mit Person) oder ein Beteiligter, gewählt beim Unterschreiben; die des Auftragnehmers das angemeldete Konto – beides
+gibt der Zweck fest vor. Bei der Unterschrift des Auftraggebers lehnt der Server Mängel ohne Vorbehalt, Vorbehalt ohne Mangel
+und „verweigert“ ohne Mangel ab, dazu alles, was die Abnahme aus dem Protokoll nicht annähme, und jeden anderen Unterzeichner.
+Checklisten dieses Zwecks führt nur das Büro: der Monteur sieht und startet sie nicht, auch nicht in /mobil. Neuer Feldtyp
+„Dachflächen“ (nur Systemfeld, Name als Schnappschuss). Startvorlage „Abnahmeprotokoll“ als Entwurf.
+
+Fund beim Bauen: `signer_mode` ist eine Spalte mit 20 Zeichen – der zuerst geplante Schlüssel `auftraggeber_oder_beteiligter`
+hätte unter PostgreSQL die Spalte gesprengt, SQLite hätte ihn still angenommen; jetzt `ag_oder_beteiligter` und ein Test, der
+jeden Unterzeichner und Feldtyp gegen seine Spaltenlänge prüft. Migration `65c57e30d0f3` (Startvorlage, kein Schema), geprüft
+unter SQLite und PostgreSQL 17 samt alter Vorlage mit Zweck „abnahme“. Neue `test_v363` (36), Gegenproben 21 von 21 rot;
+angepasst `test_v320`, `test_v361` und die Klicktests `klicktest_checkliste_zweck.py` (Monteurin startet keine Abnahme mehr) und
+`klicktest_unterzeichner.py` (fünf Unterzeichner). Neuer Klicktest `klicktest_abnahmeprotokoll.py` 18/18. Volle Suite 2977 grün (mit den opt-in-Tests gegen PostgreSQL), gegen PostgreSQL 67 grün.
+Punkt 3 (Abnahme aus dem Protokoll) und 4 (Seite und PDF) sind offen und im Archiv geplant. Festlegungen in
+`docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.61“.
+
 ## 1.8.60 – Abnahmeprotokoll: Feldtyp „Mängel“
 
 Stufe 2c, Runde 2c-2d, Punkt 1. Neuer Feldtyp „Mängel“, den nur ein Zweck als Systemfeld vorgibt (ab 1.8.61 das

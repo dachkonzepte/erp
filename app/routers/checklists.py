@@ -19,6 +19,9 @@ Entscheidung fällt je Kontext und je Checkliste hier im Router, die Geschäftsl
     ist dem Büro vorbehalten.
   - Systemfelder mit office_only (seit 1.8.38, Abschnitt "Anzeige" der Behinderungsanzeige samt
     "Unterschrift Büro") füllt nur das Büro, auch an der eigenen Checkliste (403).
+  - Zweck nur fürs Büro (seit 1.8.61, ChecklistPurpose.office_only -- das Abnahmeprotokoll): solche Vorlagen und
+    Checklisten sieht der Monteur weder in der Start-Auswahl noch in einer Liste, Anlegen und jeder Einzelzugriff 403,
+    auch in /mobil.
   - "Als gegenstandslos abschließen" (seit 1.8.41, Behinderungs- und Bedenkenanzeige) nur das Büro,
     mit Pflicht-Begründung; der Monteur sieht danach Status und Begründung an seiner Checkliste.
   - Fremde Checklisten: in der Liste nur Titel/Datum/Ersteller/Status; Einzelabruf und Anhänge
@@ -43,13 +46,14 @@ from sqlalchemy.orm import Session
 from ..checklist_email import get_checklist_recipient_email, send_checklist_email
 from ..checklist_follow_ups import list_checklists_with_open_follow_ups, list_follow_ups, run_checklist_follow_ups
 from ..checklist_pdf import build_checklist_pdf
+from ..checklist_purposes import purpose_office_only
 from ..concern_notices import OPEN_CONCERNS_TEXT, open_concerns
 from ..checklist_rules import list_checklists_with_open_rules, list_rule_executions, run_checklist_rules
 from ..checklists import (
     ChecklistLocked, add_attachment, asset_readiness, attachment_path, complete_checklist, create_checklist,
     attachment_content_type, delete_attachment, delete_checklist, discard_signatures, get_attachment, get_checklist,
-    get_checklist_row, is_office_only, list_checklists, list_startable_templates, mark_asset_repaired, read_signer_poa,
-    save_answer, void_checklist, MAX_UPLOAD_BYTES,
+    get_checklist_row, is_office_only, list_checklists, list_startable_templates, mark_asset_repaired, published_version,
+    read_signer_poa, save_answer, void_checklist, MAX_UPLOAD_BYTES,
 )
 from ..database import get_db
 from ..email_dispatch import DispatchConflict, dispatch_to_dict
@@ -71,6 +75,7 @@ _any_role_dep = Depends(require_min_role(ROLE_FIELD))
 _office_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 NOT_OWNER = "Diese Checkliste hat eine andere Person angelegt."
+OFFICE_PURPOSE = "Diese Checkliste führt das Büro."  # seit 1.8.61, Zweck nur fürs Büro (Abnahmeprotokoll)
 ANSWERS_HIDDEN = "Von dieser Checkliste sind für Sie nur Titel, Datum und Ersteller sichtbar."
 COMPANY_OFFICE_ONLY = "Checklisten im Kontext Betrieb sind dem Büro vorbehalten."
 OFFICE_FIELD = "Dieses Feld füllt das Büro aus."
@@ -121,6 +126,8 @@ def _checklist_for(db: Session, role: AppUser, checklist_id: int, *, write: bool
     _require_field_employee(role)
     if checklist.context_type == "betrieb":
         raise HTTPException(status_code=403, detail=COMPANY_OFFICE_ONLY)
+    if purpose_office_only(checklist.template_version.purpose):  # seit 1.8.61, auch die eigene
+        raise HTTPException(status_code=403, detail=OFFICE_PURPOSE)
     if _is_own(role, checklist):
         if checklist.context_type == "betriebsmittel" and not is_module_enabled(db, "betriebsmittel"):
             raise HTTPException(status_code=403, detail="Das Modul Betriebsmittelverwaltung ist deaktiviert.")
@@ -191,7 +198,10 @@ def get_startable_templates(context: str, db: Session = Depends(get_db), _role: 
     _require_module_enabled(db)
     if not _is_office(_role) and context == "betrieb":
         raise HTTPException(status_code=403, detail=COMPANY_OFFICE_ONLY)
-    return _call(list_startable_templates, db, context)
+    rows = _call(list_startable_templates, db, context)
+    if not _is_office(_role):  # seit 1.8.61: Zwecke nur fürs Büro fehlen
+        rows = [r for r in rows if not purpose_office_only(r["purpose"])]
+    return rows
 
 
 @router.get("/api/checklists", response_model=list[ChecklistSummaryOut])
@@ -217,6 +227,8 @@ def get_checklists(context: str | None = None, order_id: int | None = None, prop
     rows = list_checklists(db, context_type=context, order_id=order_id, property_id=property_id,
                            asset_id=operational_asset_id, status=status, template_id=template_id, ids=ids)
     office = _is_office(_role)
+    if not office:  # seit 1.8.61: Checklisten eines Zwecks nur fürs Büro fehlen ganz
+        rows = [r for r in rows if not purpose_office_only(r["purpose"])]
     for row in rows:
         row["is_own"] = _role.employee_id is not None and row["created_by_employee_id"] == _role.employee_id
         row["can_open"] = office or row["is_own"] or row["field_readable"]
@@ -232,7 +244,7 @@ def get_my_checklists(status: str | None = "entwurf", db: Session = Depends(get_
         return []
     rows = list_checklists(db, created_by_employee_id=_role.employee_id, status=status or None)
     if not _is_office(_role):
-        rows = [r for r in rows if r["context_type"] != "betrieb"]
+        rows = [r for r in rows if r["context_type"] != "betrieb" and not purpose_office_only(r["purpose"])]
     for row in rows:
         row["is_own"] = True
         row["can_open"] = True
@@ -290,6 +302,10 @@ def post_checklist(payload: ChecklistCreate, db: Session = Depends(get_db), _rol
     _require_module_enabled(db)
     _require_context_access(db, _role, payload.context_type, order_id=payload.order_id,
                             asset_id=payload.operational_asset_id)
+    if not _is_office(_role):  # seit 1.8.61: Zweck der veröffentlichten Fassung nur fürs Büro
+        version = published_version(db, payload.template_id)
+        if version is not None and purpose_office_only(version.purpose):
+            raise HTTPException(status_code=403, detail=OFFICE_PURPOSE)
     data = _call(
         create_checklist, db, template_id=payload.template_id, context_type=payload.context_type,
         order_id=payload.order_id, property_id=payload.property_id, asset_id=payload.operational_asset_id,

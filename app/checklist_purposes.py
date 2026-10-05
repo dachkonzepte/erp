@@ -35,8 +35,17 @@ Seit 1.8.41 lassen sich Behinderungs- und Bedenkenanzeige "als gegenstandslos ab
 Behinderungsanzeige -- Meldung, Anzeige (Büro), Entscheidung des Auftraggebers (Büro) -- und drei Folgen: nach der
 Meldung "versenden", nach dem Versand (FollowUp.after_letter) "Antwort prüfen", nach der Unterschrift der
 Entscheidung diese Aufgabe erledigen. Herleitung in docs/archiv/vertragsgrundlage-und-vertrag.md, "Umsetzung
-1.8.43". Seit 1.8.45 ist "Antwort als Beleg" ein Feld vom Typ "beleg" (PDF oder Foto). Die Abnahme trägt noch keine
-Systemfelder.
+1.8.43". Seit 1.8.45 ist "Antwort als Beleg" ein Feld vom Typ "beleg" (PDF oder Foto).
+
+Seit 1.8.61 (Stufe 2c-2d, Punkt 2) das Abnahmeprotokoll: Zweck "abnahme" mit Systemfeldern in drei Abschnitten (Befund,
+Erklärungen des Auftraggebers, Schluss), Herleitung in docs/archiv/abnahme-und-gewaehrleistung.md, "Umsetzung 1.8.61".
+Dazu kamen:
+- SystemField.signer_mode: der Unterzeichner eines Unterschrifts-Systemfelds, fest wie der Typ (None = frei wählbar wie
+  bisher bei Behinderungs- und Bedenkenanzeige).
+- ChecklistPurpose.office_only: Checklisten dieses Zwecks nur fürs Büro -- der Monteur sieht sie nicht, startet sie nicht,
+  auch nicht in /mobil (Router 403).
+- ChecklistPurpose.signature_checks: (Schlüssel eines Unterschriftsfelds, Prüfung) -- die Prüfung läuft vor dem Speichern
+  der Unterschrift unter der Zeilensperre der Checkliste und lehnt mit ValueError ab (app/acceptance_protocol.py).
 
 Bewusst ohne Import aus app.checklist_templates (das importiert von hier); die Handler der Folgen
 importieren ihre Module erst beim Aufruf."""
@@ -69,6 +78,7 @@ class SystemField:
     option_hints: tuple[tuple[str, str], ...] = ()  # (option_key, Hinweis beim Wählen)
     multiline: bool = False
     signer_label: str | None = None
+    signer_mode: str | None = None  # seit 1.8.61, siehe Moduldocstring
 
 
 @dataclass(frozen=True)
@@ -91,13 +101,16 @@ class FollowUp:
 @dataclass(frozen=True)
 class ChecklistPurpose:
     """voidable (seit 1.8.41): das Büro kann eine Checkliste dieses Zwecks mit Begründung "als gegenstandslos
-    abschließen" (app/checklists.py::void_checklist()) -- Behinderungs- und Bedenkenanzeige."""
+    abschließen" (app/checklists.py::void_checklist()) -- Behinderungs- und Bedenkenanzeige. office_only und
+    signature_checks seit 1.8.61, siehe Moduldocstring."""
     key: str
     label: str
     contexts: tuple[str, ...]
     system_fields: tuple[SystemField, ...] = ()
     follow_ups: tuple[FollowUp, ...] = ()
     voidable: bool = False
+    office_only: bool = False
+    signature_checks: tuple[tuple[str, Callable], ...] = ()
 
 
 # --- Behinderungsanzeige (seit 1.8.38) -------------------------------------------------------
@@ -210,9 +223,58 @@ CONCERN_SYSTEM_FIELDS = (
 )
 
 
+# --- Abnahmeprotokoll (seit 1.8.61) -------------------------------------------------------------
+
+ACCEPTANCE_PURPOSE = "abnahme"
+_A = ACCEPTANCE_PURPOSE + "."
+ACCEPTANCE_SCOPE = _A + "umfang"
+ACCEPTANCE_SCOPE_TEXT = _A + "umfang_beschreibung"
+ACCEPTANCE_ROOF_AREAS = _A + "dachflaechen"
+ACCEPTANCE_DEFECTS_FIELD = _A + "maengel"
+ACCEPTANCE_OBJECTIONS = _A + "einwendungen"
+ACCEPTANCE_RESULT = _A + "ergebnis"
+ACCEPTANCE_DEFECTS = _A + "vorbehalt_maengel"
+ACCEPTANCE_PENALTY = _A + "vorbehalt_vertragsstrafe"
+ACCEPTANCE_CUSTOMER_SIGNATURE = _A + "unterschrift_auftraggeber"
+ACCEPTANCE_CONTRACTOR_SIGNATURE = _A + "unterschrift_auftragnehmer"
+
+
+def _acceptance_customer_check(db, checklist, signer):
+    from .acceptance_protocol import check_customer_signature  # erst beim Aufruf, siehe Moduldocstring
+    return check_customer_signature(db, checklist, signer)
+
+
+# Ohne Vorgabe der Antworten (keine Vorauswahl, wie der Abnahme-Dialog seit 1.8.46). Bedingte Pflicht (Beschreibung bei der
+# Teilabnahme, Vorbehalte bei "abgenommen") prüft die Unterschrift des Auftraggebers, nicht das Pflicht-Kennzeichen.
+ACCEPTANCE_SYSTEM_FIELDS = (
+    # Befund
+    SystemField(_A + "teilnehmer", "text", "Teilnehmer", required=True, section="Befund", multiline=True),
+    SystemField(ACCEPTANCE_SCOPE, "auswahl", "Umfang", required=True, section="Befund", options=(
+        ("gesamt", "Gesamtabnahme"),
+        ("teil", "Teilabnahme"),
+    )),
+    SystemField(ACCEPTANCE_SCOPE_TEXT, "text", "Abgenommener Teil", section="Befund", multiline=True),
+    SystemField(ACCEPTANCE_ROOF_AREAS, "dachflaechen", "Dachflächen", section="Befund"),
+    SystemField(ACCEPTANCE_DEFECTS_FIELD, "maengel", "Mängel", section="Befund"),
+    SystemField(ACCEPTANCE_OBJECTIONS, "text", "Einwendungen des Auftragnehmers", section="Befund", multiline=True),
+    # Erklärungen des Auftraggebers
+    SystemField(ACCEPTANCE_RESULT, "auswahl", "Ergebnis", required=True, section="Erklärungen des Auftraggebers",
+                options=(("abgenommen", "Abnahme erklärt"), ("verweigert", "Abnahme verweigert"))),
+    SystemField(ACCEPTANCE_DEFECTS, "ja_nein", "Vorbehalt wegen bekannter Mängel", section="Erklärungen des Auftraggebers"),
+    SystemField(ACCEPTANCE_PENALTY, "ja_nein", "Vorbehalt der Vertragsstrafe", section="Erklärungen des Auftraggebers"),
+    SystemField(ACCEPTANCE_CUSTOMER_SIGNATURE, "unterschrift", "Unterschrift Auftraggeber", required=True,
+                section="Erklärungen des Auftraggebers", signer_label="Auftraggeber",
+                signer_mode="ag_oder_beteiligter"),
+    # Schluss
+    SystemField(ACCEPTANCE_CONTRACTOR_SIGNATURE, "unterschrift", "Unterschrift Auftragnehmer", required=True,
+                section="Schluss", signer_label="Auftragnehmer", signer_mode="konto"),
+)
+
+
 PURPOSES: dict[str, ChecklistPurpose] = {p.key: p for p in (
     ChecklistPurpose(DEFAULT_PURPOSE, "Allgemein", ALL_CONTEXTS),
-    ChecklistPurpose("abnahme", "Abnahme", ("auftrag",)),
+    ChecklistPurpose(ACCEPTANCE_PURPOSE, "Abnahme", ("auftrag",), ACCEPTANCE_SYSTEM_FIELDS, office_only=True,
+                     signature_checks=((ACCEPTANCE_CUSTOMER_SIGNATURE, _acceptance_customer_check),)),
     ChecklistPurpose(OBSTRUCTION_PURPOSE, "Behinderungsanzeige", ("auftrag",), OBSTRUCTION_SYSTEM_FIELDS, (
         FollowUp(_B + "versenden", "Aufgabe „Behinderungsanzeige versenden“", _obstruction_send_task,
                  module="aufgabenmanagement", after_signature=OBSTRUCTION_REPORT_SIGNATURE),
@@ -232,6 +294,12 @@ def get_purpose(key: str | None) -> ChecklistPurpose | None:
     """None bei unbekanntem Schlüssel -- wer darauf reagiert, entscheidet selbst (Anlegen einer
     Checkliste lehnt ab, Folgen laufen keine)."""
     return PURPOSES.get(key or DEFAULT_PURPOSE)
+
+
+def purpose_office_only(key: str | None) -> bool:
+    """Checklisten dieses Zwecks nur fürs Büro? (seit 1.8.61, Abnahmeprotokoll)"""
+    purpose = get_purpose(key)
+    return bool(purpose and purpose.office_only)
 
 
 def purpose_label(key: str | None) -> str:
@@ -266,8 +334,9 @@ def purpose_to_dict(purpose: ChecklistPurpose) -> dict:
     """Für den Vorlagen-Editor (Büro) -- ohne Folgen, die sind Programmlogik."""
     return {
         "key": purpose.key, "label": purpose.label, "contexts": list(purpose.contexts),
+        "office_only": purpose.office_only,  # seit 1.8.61
         "system_fields": [{"key": s.key, "field_type": s.field_type, "label": s.label, "section": s.section,
-                           "office_only": s.office_only} for s in purpose.system_fields],
+                           "office_only": s.office_only, "signer_mode": s.signer_mode} for s in purpose.system_fields],
     }
 
 

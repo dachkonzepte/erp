@@ -49,15 +49,15 @@ from .tasks import PRIORITIES
 
 FIELD_TYPES = (
     "ja_nein", "text", "zahl", "auswahl", "datum", "uhrzeit", "datum_uhrzeit", "foto", "beleg", "unterschrift", "hinweis",
-    "maengel",
+    "maengel", "dachflaechen",
 )
 # Seit 1.8.60: Feldtypen, die nur ein Zweck als Systemfeld vorgibt -- von Hand nicht anzulegen (Mängel brauchen einen Auftrag
-# und die Abnahme, die aus dem Protokoll entsteht).
-SYSTEM_ONLY_FIELD_TYPES = {"maengel": "Mängel"}
+# und die Abnahme, die aus dem Protokoll entsteht; seit 1.8.61 ebenso die Dachflächen aus dem Objekt des Auftrags).
+SYSTEM_ONLY_FIELD_TYPES = {"maengel": "Mängel", "dachflaechen": "Dachflächen"}
 FIELD_TYPE_LABELS = {
     "ja_nein": "Ja/Nein", "text": "Text", "zahl": "Zahl", "auswahl": "Auswahl", "datum": "Datum",
     "uhrzeit": "Uhrzeit", "datum_uhrzeit": "Datum und Uhrzeit", "foto": "Foto", "beleg": "Beleg (PDF oder Foto)",
-    "unterschrift": "Unterschrift", "hinweis": "Hinweistext", "maengel": "Mängel",
+    "unterschrift": "Unterschrift", "hinweis": "Hinweistext", "maengel": "Mängel", "dachflaechen": "Dachflächen",
 }
 CONTEXT_TYPES = ("auftrag", "objekt", "betriebsmittel", "betrieb")
 CONTEXT_COLUMNS = {
@@ -78,12 +78,15 @@ RULE_TARGET_ROLES = (ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ROLE_ADMIN)
 
 # Unterzeichner je Unterschriftsfeld (seit 1.8.57, Stufe 2c-2c): wer unterschreibt und woher der Name kommt.
 # "frei" wie bis 1.8.56 (Name eintippen); die übrigen setzt der Server (app/checklists.py::_signer()).
+# Seit 1.8.61 "ag_oder_beteiligter" (Abnahmeprotokoll): wer unterschreibt, wählt man beim Unterschreiben -- der
+# Auftraggeber laut Auftrag (mit Person) oder ein Beteiligter; gespeichert wird die gewählte Art.
 SIGNER_MODES = {
     "frei": "frei eingetragen", "konto": "angemeldetes Konto", "auftraggeber": "Auftraggeber laut Auftrag",
     "beteiligter": "Beteiligter des Projekts",
+    "ag_oder_beteiligter": "Auftraggeber laut Auftrag oder Beteiligter",
 }
-ORDER_SIGNER_MODES = ("auftraggeber", "beteiligter")  # nur an einer Checkliste zum Auftrag
-SINGLE_SIGNER_MODES = ("konto", "auftraggeber")  # immer genau eine Person -- nie "mehrere Unterschriften"
+ORDER_SIGNER_MODES = ("auftraggeber", "beteiligter", "ag_oder_beteiligter")  # nur an einer Checkliste zum Auftrag
+SINGLE_SIGNER_MODES = ("konto", "auftraggeber", "ag_oder_beteiligter")  # genau eine Person -- nie "mehrere"
 
 # Seit 1.8.59: Unterschriften, die der Monteur leisten kann, unter Pflichtfeldern, die nur das Büro ausfüllt -- bekannte
 # Ausnahmen aus einem Zweck, je mit Grund. Darf nur kürzer werden (Entscheidung offen, siehe
@@ -140,6 +143,7 @@ def field_to_dict(field: ChecklistTemplateField, purpose_key: str | None = None)
         "options": [option_to_dict(o) for o in field.options],
         "office_only": bool(spec and spec.office_only),
         "option_hints": dict(spec.option_hints) if spec else {},
+        "signer_mode_locked": bool(spec and spec.signer_mode),  # seit 1.8.61: der Zweck gibt den Unterzeichner vor
     }
 
 
@@ -617,7 +621,7 @@ def _normalize_field(field: ChecklistTemplateField) -> None:
     field.group_name = (field.group_name or "").strip() or None
     field.help_text = (field.help_text or "").strip() or None
     t = field.field_type
-    if t in ("hinweis", "maengel"):  # Mängel: keine Antwort, kein Pflichtfeld (seit 1.8.60)
+    if t in ("hinweis", "maengel", "dachflaechen"):  # Mängel (seit 1.8.60), Dachflächen (seit 1.8.61): nie Pflicht
         field.required = False
     if t != "ja_nein":
         field.allow_na = False
@@ -705,6 +709,10 @@ def update_field(db: Session, field_id: int, fields: dict) -> dict | None:
         _no_system_only_type(values["field_type"])  # seit 1.8.60
     if field.is_system:
         _check_system_field_update(field, values)
+        spec = system_field_spec(version.template.purpose, field.field_key)
+        if (spec is not None and spec.signer_mode and "signer_mode" in values
+                and (values["signer_mode"] or "frei") != spec.signer_mode):  # seit 1.8.61
+            raise ValueError("Den Unterzeichner dieses Systemfelds gibt der Zweck vor.")
     old_key = field.field_key
     if "field_key" in values:
         new_key = (values["field_key"] or "").strip()
@@ -795,6 +803,8 @@ def system_field_problems(purpose_key: str, version: ChecklistTemplateVersion) -
         wanted = {"field_type": spec.field_type, "required": spec.required, "allow_na": spec.allow_na,
                   "multiple": spec.multiple, "min_count": spec.min_count}
         differs = [SYSTEM_LOCKED_ATTRIBUTES[a] for a, v in wanted.items() if getattr(field, a) != v]
+        if spec.signer_mode and (field.signer_mode or "frei") != spec.signer_mode:  # seit 1.8.61
+            differs.append("Unterzeichner")
         if {o.option_key for o in field.options} != {key for key, _label in spec.options}:
             differs.append("Optionen")
         if differs:
@@ -842,6 +852,8 @@ def _sync_system_fields(db: Session, version: ChecklistTemplateVersion, purpose_
         field.field_type = spec.field_type
         field.required, field.allow_na, field.multiple = spec.required, spec.allow_na, spec.multiple
         field.min_count = spec.min_count
+        if spec.signer_mode:  # seit 1.8.61
+            field.signer_mode = spec.signer_mode
         _normalize_field(field)
         spec_keys = {key for key, _label in spec.options}
         for option in list(field.options):

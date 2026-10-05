@@ -12,7 +12,11 @@ einem eigenen Prozess -- ein Test-Zweck lässt sich dort nicht einhängen. Desha
                              -- danach ist der Zweck gesperrt; Start-Auswahl nur am Auftrag.
     Vorlage "Altzweck"       Zweck, den die Registry nicht kennt: Hinweis "Systemfelder des Zwecks"
                              mit Knopf "angleichen", der mit der Begründung scheitert.
-    Monteurin (Handybreite)  sieht die Abnahme am Auftrag in "Checkliste starten".
+    Monteurin (Handybreite)  sah die Abnahme bis 1.8.60 am Auftrag in "Checkliste starten"; seit 1.8.61 ist der
+                             Zweck "abnahme" nur fürs Büro -- keine Abnahme zum Starten, Anlegen über die API 403.
+
+Seit 1.8.61 trägt der Zweck "abnahme" echte Systemfelder (Abnahmeprotokoll); die beiden hier markierten Felder bleiben
+zusätzlich als Beispiel für die Sperren im Editor.
 
 `confirm()` wird auf jeder Seite automatisch bestätigt und mitgeschrieben (Headless-Chrome blockiert
 sonst). Hell- und Dunkelmodus werden ausdrücklich gesetzt (sonst gälte die Windows-Einstellung).
@@ -117,7 +121,8 @@ async def pruefen(tab, seed, p):
         "['auftrag','objekt','betriebsmittel','betrieb'].map(c=>{const b=document.getElementById('ctx_'+c);return [b.checked,b.disabled]})"),
         [[True, False], [False, True], [False, True], [False, True]])
     p.pruefe("Hinweis zum Zweck", await tab.js("document.getElementById('purposeHint').textContent"),
-             "nur Auftrag · nach der ersten Veröffentlichung nicht mehr änderbar")
+             "nur Auftrag · 11 Systemfelder (fester Schlüssel und Typ, nicht löschbar) · nur Büro – Monteure sehen "
+             "Checklisten dieses Zwecks nicht, auch nicht in /mobil · nach der ersten Veröffentlichung nicht mehr änderbar")
     await tab.js("[...document.querySelectorAll('button')].find(b=>b.textContent==='Speichern').click()")
     await tab.warten("document.getElementById('metaStatus').textContent==='Gespeichert.'", 10)
     confirms = await tab.js("window.__confirms")
@@ -202,14 +207,13 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"]["mia"])
     await tab.fenster(390, 844, mobil=True)
     await tab.oeffnen(f"/checklisten/auftrag/{seed['auftrag']}", "document.querySelector('.cl-start')")
-    p.pruefe("Monteurin: Abnahme startbar", await tab.js(
-        "[...document.querySelectorAll('.cl-start-buttons button')].map(b=>b.textContent)"), ["Abnahme mit Systemfeldern"])
-    await tab.js("document.querySelector('.cl-start-buttons button').click()")
-    await tab.warten("location.pathname.match(/^\\/checklisten\\/\\d+$/) && document.querySelector('#clMain .q')", 15)
     await asyncio.sleep(0.3)
-    p.pruefe("Monteurin: Checkliste mit Zweck angelegt", await tab.js(
-        "fetch('/api/checklists/'+location.pathname.split('/').pop()).then(r=>r.json()).then(c=>[c.purpose,c.purpose_label,'follow_ups' in c,'rules' in c])"),
-        ["abnahme", "Abnahme", False, False])
+    p.pruefe("Monteurin: keine Abnahme zum Starten (seit 1.8.61 nur Büro)", await tab.js(
+        "[...document.querySelectorAll('.cl-start-buttons button')].map(b=>b.textContent)"), [])
+    p.pruefe("Monteurin: Anlegen über die API 403", await tab.js(
+        f"fetch('/api/checklists',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify("
+        f"{{template_id:{seed['abnahme']},context_type:'auftrag',order_id:{seed['auftrag']}}})}}).then(async r=>[r.status,(await r.json()).detail])"),
+        [403, "Diese Checkliste führt das Büro."])
     p.pruefe("Monteurin: JS-Fehler", tab.fehler, [])
     await tab.bild("monteurin_abnahme")
 
