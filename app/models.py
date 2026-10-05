@@ -1211,7 +1211,11 @@ class Defect(Base):
 
     task_id: die beim Erfassen angelegte Aufgabe -- ohne Fremdschlüssel (eine Aufgabe lässt sich löschen, der Mangel
     bleibt) und nicht im gebundenen Inhalt. created_by_user_id/discarded_by_user_id ohne Fremdschlüssel wie bei der
-    Abnahme."""
+    Abnahme.
+
+    Seit 1.8.60 Quelle "protokoll": aus dem Feld "Mängel" eines Abnahmeprotokolls (checklist_id, im gebundenen Inhalt);
+    acceptance_id leer, bis die Abnahme aus dem Protokoll entsteht -- dann einmal gesetzt, wie task_id nicht im gebundenen
+    Inhalt. Bis dahin keine Aufgabe, keine Haltung, Freigabe oder Status."""
 
     __tablename__ = "defects"
 
@@ -1220,6 +1224,10 @@ class Defect(Base):
     property_id: Mapped[int | None] = mapped_column(ForeignKey("properties.id"), nullable=True, index=True)
     source: Mapped[str] = mapped_column(String(20))
     acceptance_id: Mapped[int | None] = mapped_column(ForeignKey("order_acceptances.id"), nullable=True, index=True)
+    # seit 1.8.60: Mangel aus einem Abnahmeprotokoll (source "protokoll") -- entsteht im Entwurf der Checkliste, die Abnahme
+    # kommt erst mit der Unterschrift des Auftraggebers dazu (acceptance_id dann einmal gesetzt, nicht im gebundenen Inhalt)
+    checklist_id: Mapped[int | None] = mapped_column(ForeignKey("checklists.id", name="fk_defects_checklist_id"),
+                                                     nullable=True, index=True)
     description: Mapped[str] = mapped_column(Text)
     roof_area_id: Mapped[int | None] = mapped_column(ForeignKey("roof_areas.id"), nullable=True, index=True)
     roof_area_name: Mapped[str | None] = mapped_column(String(255), nullable=True)

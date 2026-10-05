@@ -34,6 +34,12 @@ Seit 1.8.55 trägt "zurück auf offen" optional eine neue Beseitigungsfrist (Def
 Frist ist die des letzten Eintrags mit einer, sonst die beim Erfassen (current_due()) -- Aufgabe "Erneut beseitigen",
 Büro-Seite, Überschreitung und /mobil nutzen sie.
 
+Seit 1.8.60 (Stufe 2c-2d) die Quelle "protokoll": ein Mangel aus dem Feld "Mängel" eines Abnahmeprotokolls
+(create_protocol_defect()) -- im Entwurf der Checkliste, solange keine gültige Unterschrift das Feld versiegelt, unter der
+Zeilensperre der Checkliste (dieselbe wie beim Unterschreiben). Der gebundene Inhalt trägt checklist_id statt acceptance_id;
+die Abnahme entsteht erst mit der Unterschrift des Auftraggebers und wird dann einmal angehängt. Bis dahin keine Aufgabe und
+keine Einträge im Verlauf (_lock()), Verwerfen geht.
+
 Rollenlos wie jede Geschäftslogik; app/routers/defects.py lässt nur das Büro zu (ab buero_auftrag). Seit 1.8.52 sieht der
 Monteur in /mobil (app/routers/field_defects.py) die Mängel, die er beseitigen soll -- freigegeben, Status offen, nicht
 verworfen, an einem Auftrag, den er öffnen darf (field_may_see_defect(), field_may_access_order()) -- mit einer
@@ -56,14 +62,14 @@ from .acceptances import (  # noqa: F401  (AcceptanceFileError: der Router fäng
 )
 from .berlin_time import berlin_today, to_berlin
 from .models import (
-    Defect, DefectEvent, DefectFile, Order, OrderAcceptance, ProjectParticipant, Property, RoofArea, Task,
+    Defect, DefectEvent, DefectFile, Order, OrderAcceptance, Project, ProjectParticipant, Property, RoofArea, Task,
     TaskColumn,
 )
 from .warranty import warranty_end
 
 logger = logging.getLogger(__name__)
 
-SOURCES = {"abnahme": "Abnahme"}  # später "ruege" (Rüge in der Gewährleistung)
+SOURCES = {"abnahme": "Abnahme", "protokoll": "Abnahmeprotokoll"}  # später "ruege" (Rüge in der Gewährleistung)
 STANCES = {"offen": "offen", "anerkannt": "anerkannt", "bestritten": "bestritten"}
 STATUSES = {"offen": "offen", "beseitigt": "beseitigt", "beseitigung_abgenommen": "Beseitigung abgenommen",
             "erledigt_ohne": "erledigt ohne Beseitigung"}
@@ -106,6 +112,15 @@ DISCARD_TEXTS = {"unveraendert": "Verwerfen unverändert (Prüfsumme stimmt)",
 
 class DefectConflict(ValueError):
     """Der Stand hat sich geändert (verworfen, anderer Status, Abnahme verworfen) -- Router: 409."""
+
+
+PROTOCOL_PENDING_TEXT = ("Der Mangel steht in einem Abnahmeprotokoll, aus dem noch keine Abnahme angelegt ist – Haltung, "
+                         "Freigabe, Status und Nachträge erst danach.")
+
+
+def protocol_pending(d: Defect) -> bool:
+    """Mangel aus einem Abnahmeprotokoll, an dem noch keine Abnahme hängt (seit 1.8.60)."""
+    return d.source == "protokoll" and d.acceptance_id is None
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +185,17 @@ def _file_entries(files) -> list[dict]:
 
 def defect_content(d: Defect) -> dict:
     """Der gebundene Inhalt des Mangels: alles außer Verwerfen und Aufgabe, die Dateien beim Erfassen (event_id leer),
-    "Erfasst von" als Kopie, die Fassung des Prüfsummenformats."""
+    "Erfasst von" als Kopie, die Fassung des Prüfsummenformats. Seit 1.8.60 bei der Quelle "protokoll" die Checkliste statt
+    der Abnahme -- die kommt erst später dazu und wird angehängt, ohne den Inhalt zu ändern."""
+    if d.source == "protokoll":
+        content = _base_content(d)
+        content.pop("acceptance_id")
+        content["checklist_id"] = d.checklist_id
+        return content
+    return _base_content(d)
+
+
+def _base_content(d: Defect) -> dict:
     return {
         "checksum_format": d.checksum_format, "order_id": d.order_id, "property_id": d.property_id,
         "source": d.source, "acceptance_id": d.acceptance_id, "description": d.description,
@@ -447,6 +472,122 @@ def create_defect(db: Session, acceptance: OrderAcceptance, data: dict, files: l
 
 
 # ---------------------------------------------------------------------------
+# Aus dem Abnahmeprotokoll (seit 1.8.60)
+# ---------------------------------------------------------------------------
+
+def _protocol_field(checklist):
+    return next((f for f in checklist.template_version.fields if f.field_type == "maengel"), None)
+
+
+def protocol_options(db: Session, checklist) -> dict:
+    """Auswahl zum Erfassen im Protokoll: Dachflächen aus dem Objekt des Projekts (nicht archiviert)."""
+    order = db.get(Order, checklist.order_id) if checklist.order_id else None
+    project = db.get(Project, order.project_id) if order else None
+    prop = db.get(Property, project.property_id) if project and project.property_id else None
+    areas = db.scalars(select(RoofArea).where(RoofArea.property_id == prop.id, RoofArea.archived.is_(False))
+                       .order_by(RoofArea.name)).all() if prop else []
+    return {"property": {"id": prop.id, "name": prop.name} if prop else None,
+            "roof_areas": [{"id": r.id, "name": r.name} for r in areas]}
+
+
+def create_protocol_defect(db: Session, checklist_id: int, data: dict, files: list[tuple[str, str | None, bytes]], *,
+                           user_id: int | None, user_name: str | None) -> Defect:
+    """Einen Mangel im Feld "Mängel" eines Abnahmeprotokolls erfassen. `data`: description, roof_area_id, location,
+    remedy_due_on (nicht in der Vergangenheit); `files` wie beim Erfassen an der Abnahme. Unter der Zeilensperre der
+    Checkliste (wie beim Unterschreiben): nur im Entwurf und solange keine gültige Unterschrift das Feld versiegelt -- sonst
+    ChecklistLocked (409). Keine Aufgabe, keine Abnahme: beides entsteht erst mit der Unterschrift des Auftraggebers."""
+    from .checklists import ChecklistLocked, _load as load_checklist, _require_draft, sealed_field_ids
+
+    description = _clean(data.get("description"), DESCRIPTION_MAX, "Die Beschreibung")
+    if description is None:
+        raise ValueError("Bitte den Mangel beschreiben.")
+    location = _clean(data.get("location"), LOCATION_MAX, "Die Ortsangabe")
+    due = data.get("remedy_due_on")
+    if due is not None and due < berlin_today():
+        raise ValueError("Die Beseitigungsfrist liegt in der Vergangenheit.")
+    uploads = _checked_files(files, {"foto", "beleg"})
+
+    checklist = load_checklist(db, checklist_id, for_update=True)
+    if checklist is None:
+        db.rollback()
+        raise LookupError("Checkliste nicht gefunden.")
+    try:
+        _require_draft(checklist)
+        field = _protocol_field(checklist)
+        if field is None or checklist.order_id is None:
+            raise ValueError("Diese Checkliste hat kein Feld „Mängel“.")
+        if field.id in sealed_field_ids(checklist):
+            raise ChecklistLocked("Das Protokoll ist unterschrieben – an diesem Protokoll entstehen keine neuen Mängel "
+                                  "mehr.")
+        order = db.get(Order, checklist.order_id)
+        project = db.get(Project, order.project_id)
+        property_id = project.property_id if project else None
+        roof_area = None
+        if data.get("roof_area_id") is not None:
+            roof_area = db.get(RoofArea, data["roof_area_id"])
+            if roof_area is None or property_id is None or roof_area.property_id != property_id:
+                raise ValueError("Die gewählte Dachfläche gehört nicht zum Objekt des Projekts.")
+            if roof_area.archived:
+                raise ValueError(f"Die Dachfläche „{roof_area.name}“ ist archiviert.")
+    except (ValueError, LookupError, ChecklistLocked):
+        db.rollback()
+        raise
+    name = (user_name or "System")[:160]
+    now = datetime.utcnow().replace(microsecond=0)
+    written: list[str] = []
+    try:
+        defect = Defect(
+            order_id=order.id, property_id=property_id, source="protokoll", acceptance_id=None,
+            checklist_id=checklist.id, description=description, roof_area_id=roof_area.id if roof_area else None,
+            roof_area_name=roof_area.name[:255] if roof_area else None, location=location, remedy_due_on=due,
+            task_id=None, content_sha256="", checksum_format=CHECKSUM_FORMAT, created_at=now, created_by_user_id=user_id,
+            created_by_name=name,
+        )
+        for kind, content, content_type in uploads:
+            defect.files.append(_store(written, None, kind, content, content_type, now))
+        defect.content_sha256 = content_sha256(defect_content(defect))
+        db.add(defect)
+        db.commit()
+    except Exception:
+        db.rollback()
+        _remove_written(written)
+        raise
+    db.refresh(defect)
+    return defect
+
+
+def list_protocol_defects(db: Session, checklist) -> list[dict]:
+    """Die Mängel eines Protokolls für die Protokollseite (seit 1.8.60): Inhalt, Dateien, Prüfstatus und ob der Mangel in
+    der Kopie der ersten Unterschrift über dem Feld steht -- vorher verworfene nicht, danach verworfene schon (verworfen
+    gekennzeichnet)."""
+    from .checklists import active_attachments, defect_in_seal, protocol_defects
+
+    field = _protocol_field(checklist)
+    if field is None:
+        return []
+    position = {f.id: i for i, f in enumerate(checklist.template_version.fields)}
+    sealing = [a for a in active_attachments(checklist) if a.kind == "unterschrift"
+               and position.get(a.template_field_id, -1) > position[field.id]]
+    sealed_at = min((a.created_at for a in sealing), default=None)
+    result = []
+    for d in protocol_defects(checklist):
+        check = verify_defect(d)
+        result.append({
+            "id": d.id, "description": d.description, "roof_area_id": d.roof_area_id, "roof_area_name": d.roof_area_name,
+            "location": d.location, "remedy_due_on": d.remedy_due_on, "acceptance_id": d.acceptance_id,
+            "files": [_file_dict(f, check["files"][f.id]) for f in d.files if f.event_id is None],
+            "content_sha256": d.content_sha256, "intact": check["ok"], "check": check_summary(check),
+            "created_at": d.created_at, "created_at_local": to_berlin(d.created_at), "created_by_name": d.created_by_name,
+            "discarded": d.discarded_at is not None, "discarded_at_local": to_berlin(d.discarded_at),
+            "discarded_by_name": d.discarded_by_name, "discard_reason": d.discard_reason,
+            # Ohne Unterschrift: steht in der nächsten Kopie, wenn nicht verworfen (defect_in_seal(d, None)) -- ein schon
+            # verworfener Mangel kommt in keine Kopie mehr.
+            "sealed": sealed_at is not None, "in_protocol": defect_in_seal(d, sealed_at),
+        })
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Ereignisse
 # ---------------------------------------------------------------------------
 
@@ -457,6 +598,9 @@ def _lock(db: Session, defect: Defect) -> list[DefectEvent]:
     if defect.discarded_at is not None:
         db.rollback()
         raise DefectConflict("Der Mangel ist verworfen – keine weiteren Einträge.")
+    if protocol_pending(defect):  # seit 1.8.60
+        db.rollback()
+        raise DefectConflict(PROTOCOL_PENDING_TEXT)
     return list(db.scalars(select(DefectEvent).where(DefectEvent.defect_id == defect.id).order_by(DefectEvent.id)).all())
 
 
@@ -670,8 +814,13 @@ def discard_defect(db: Session, defect: Defect, *, reason: str, user_id: int | N
     text = _clean(reason, REASON_MAX, "Die Begründung")
     if text is None:
         raise ValueError("Bitte begründen, warum der Mangel verworfen wird.")
+    if defect.checklist_id is not None:
+        # Seit 1.8.60: erst die Checkliste, dann der Mangel (wie beim Erfassen) -- so steht fest, ob das Verwerfen vor oder
+        # nach einer Unterschrift lag, die die Mängel versiegelt.
+        from .models import Checklist
+        db.execute(select(Checklist.id).where(Checklist.id == defect.checklist_id).with_for_update())
     db.execute(select(Defect.id).where(Defect.id == defect.id).with_for_update())
-    now = datetime.utcnow().replace(microsecond=0)
+    now = datetime.utcnow()  # volle Genauigkeit seit 1.8.60 -- das Siegel des Verwerfens rundet selbst auf Sekunden
     name = (user_name or "System")[:160]
     seal = content_sha256(discard_content(defect.content_sha256, now, name, text))
     done = db.execute(
@@ -784,6 +933,8 @@ def defect_to_dict(d: Defect, *, order: Order, acceptance: OrderAcceptance | Non
     state = defect_state(d.events)
     task_id, task_kind = current_task(d, d.events)
     task_info = _task_dict(tasks.get(task_id), task_id, task_kind, columns)
+    if protocol_pending(d):  # seit 1.8.60
+        task_info = {"exists": False, "text": "entsteht mit der Abnahme aus dem Abnahmeprotokoll"}
     due = current_due(d, d.events)
     task_hint = None
     if task_info.get("done") and not state["done"] and d.discarded_at is None:
@@ -791,6 +942,8 @@ def defect_to_dict(d: Defect, *, order: Order, acceptance: OrderAcceptance | Non
     return {
         "id": d.id, "order_id": d.order_id, "order_number": order.order_number, "source": d.source,
         "source_label": SOURCES.get(d.source, d.source), "acceptance_id": d.acceptance_id,
+        # seit 1.8.60: aus einem Abnahmeprotokoll; ohne Abnahme noch keine Haltung, Freigabe, Status
+        "checklist_id": d.checklist_id, "protocol_pending": protocol_pending(d),
         "acceptance": None if acceptance is None else {
             "id": acceptance.id, "accepted_on": acceptance.accepted_on,
             "scope_label": SCOPES.get(acceptance.scope, acceptance.scope), "result_text": result_text(acceptance),

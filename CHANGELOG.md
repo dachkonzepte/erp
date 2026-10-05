@@ -4,6 +4,27 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.60 – Abnahmeprotokoll: Feldtyp „Mängel“
+
+Stufe 2c, Runde 2c-2d, Punkt 1. Neuer Feldtyp „Mängel“, den nur ein Zweck als Systemfeld vorgibt (ab 1.8.61 das
+Abnahmeprotokoll). Mängel entstehen im Entwurf des Protokolls als eigene Datensätze mit Herkunft „Abnahmeprotokoll“ – Beschreibung,
+Dachfläche aus dem Objekt, Ort, Frist, Fotos, Belege –, noch ohne Abnahme und ohne Aufgabe; bis die Abnahme aus dem Protokoll
+entsteht, lassen sie sich nur verwerfen. Jede Unterschrift darunter und der Abschluss nehmen je Mangel Kennung und Prüfsumme in
+ihre feste Kopie auf, im Stand ihres Zeitpunkts: vor der Unterschrift verworfene fehlen, danach verworfene bleiben drin und
+werden als verworfen angezeigt („bleibt im Protokoll“). Sobald eine Unterschrift das Feld versiegelt, entstehen an diesem
+Protokoll keine neuen Mängel (409), auch nicht über die API; Erfassen, Verwerfen und Unterschreiben laufen unter derselben
+Sperre der Checkliste. Die Auftragsseite zeigt solche Mängel mit Link aufs Protokoll und „noch ohne Abnahme“.
+
+Zwei eigene Fehler, beide vor dem Commit gefunden: Unterschrift und Verwerfen wurden auf Sekunden gekürzt gespeichert – ein in
+derselben Sekunde vor der Unterschrift verworfener Mangel wäre in ihrer Kopie gelandet (jetzt volle Genauigkeit); und die Liste
+zeigte vor der ersten Unterschrift auch einen verworfenen Mangel als „im Protokoll“ (im Klicktest gefunden). Migration
+`82e4382b0c9f` (`defects.checklist_id`; Downgrade verweigert, sobald genutzt), geprüft unter SQLite und PostgreSQL 17. Neue
+`test_v362` (18), Gegenproben 14 von 14 rot, gegen PostgreSQL 126 grün (dazu der bekannte rote Migrationstest mit rohem SQL aus
+`test_v351`). `test_v326` an die neue Büro-Route angepasst (eigener Test, Monteur 403). Neuer Klicktest
+`klicktest_protokoll_maengel.py` 16/16, die angrenzenden Klicktests grün. Volle Suite 2940 grün vor der Anpassung von
+`test_v326`, danach die betroffenen Dateien 379 grün. Festlegungen in `docs/archiv/abnahme-und-gewaehrleistung.md`,
+„Umsetzung 1.8.60“.
+
 ## 1.8.59 – Unterschriften: Person beim Auftraggeber, Vollmacht mit Art, Prüfung der Vorlagen
 
 Stufe 2c, Runde 2c-2d (Abnahmeprotokoll als Checkliste), Punkt 0. Unterschreibt der Auftraggeber laut Auftrag, ist jetzt der

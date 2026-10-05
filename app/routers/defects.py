@@ -8,6 +8,9 @@
 - POST /api/defects/{defect_id}/stance und /release (JSON), /status (multipart: "data", "receipts"), /photos
   (multipart), seit 1.8.51 /receipts (multipart: Belege nachreichen), /discard (JSON).
 - GET /api/defects/{defect_id}/files/{file_id}: Datei, nur mit stimmender Prüfsumme.
+- Seit 1.8.60 aus dem Abnahmeprotokoll: GET /api/checklists/{checklist_id}/defects (Mängel des Protokolls mit "im
+  Protokoll"), GET .../protocol-options (Dachflächen des Objekts), POST /api/checklists/{checklist_id}/defects (multipart wie
+  oben; 409, sobald eine Unterschrift das Feld versiegelt). Modul "checklisten" muss aktiv sein.
 
 Alles ab buero_auftrag -- auch die Freigabe zur Beseitigung setzt nur das Büro; Monteure sehen nichts (403). Kein
 Ändern und kein Löschen eines Mangels oder eines Eintrags im Verlauf.
@@ -21,12 +24,14 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
+from ..checklists import ChecklistLocked, get_checklist_row
 from ..defects import (
     MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_BYTES, AcceptanceFileError, DefectConflict, add_photos, add_receipts,
-    create_defect,
-    defect_options, discard_defect, get_defect_dict, list_defects, read_defect_file, set_release, set_stance,
-    set_status,
+    create_defect, create_protocol_defect,
+    defect_options, discard_defect, get_defect_dict, list_defects, list_protocol_defects, protocol_options,
+    read_defect_file, set_release, set_stance, set_status,
 )
+from ..modules import is_module_enabled
 from ..email_dispatch import actor_of
 from ..models import AppUser, Defect, DefectFile, Order, OrderAcceptance
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
@@ -118,6 +123,47 @@ def post_defect(acceptance_id: int, data: str = Form(...), photos: list[UploadFi
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return get_defect_dict(db, _defect_or_404(db, defect.id))
+
+
+def _protocol_or_404(db: Session, checklist_id: int):
+    """Seit 1.8.60: die Checkliste (Abnahmeprotokoll) -- Modul "checklisten" muss aktiv sein."""
+    if not is_module_enabled(db, "checklisten"):
+        raise HTTPException(status_code=403, detail="Das Modul Checklisten & Formulare ist deaktiviert.")
+    checklist = get_checklist_row(db, checklist_id)
+    if checklist is None:
+        raise HTTPException(status_code=404, detail="Checkliste nicht gefunden.")
+    return checklist
+
+
+@router.get("/api/checklists/{checklist_id}/defects")
+def get_protocol_defects(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    return list_protocol_defects(db, _protocol_or_404(db, checklist_id))
+
+
+@router.get("/api/checklists/{checklist_id}/protocol-options")
+def get_protocol_options(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    return protocol_options(db, _protocol_or_404(db, checklist_id))
+
+
+@router.post("/api/checklists/{checklist_id}/defects")
+def post_protocol_defect(checklist_id: int, data: str = Form(...), photos: list[UploadFile] = File(default=[]),
+                         receipts: list[UploadFile] = File(default=[]), db: Session = Depends(get_db),
+                         user: AppUser = _role_dep):
+    """Mangel im Feld "Mängel" eines Abnahmeprotokolls erfassen (seit 1.8.60) -- `data` wie DefectCreate."""
+    _protocol_or_404(db, checklist_id)
+    payload = _parse(DefectCreate, data)
+    uploads = _read_uploads([("foto", photos), ("beleg", receipts)])
+    user_id, user_name = actor_of(user)
+    try:
+        create_protocol_defect(db, checklist_id, payload.model_dump(), uploads, user_id=user_id, user_name=user_name)
+    except (DefectConflict, ChecklistLocked) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    db.expire_all()
+    return list_protocol_defects(db, _protocol_or_404(db, checklist_id))
 
 
 @router.post("/api/defects/{defect_id}/stance")

@@ -117,6 +117,13 @@ textarea{min-height:90px;resize:vertical}
 .discarded-row:last-of-type{border-bottom:none}
 .pad-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
 .pad-actions input{flex:1;min-width:180px}
+/* Feld "Mängel" (seit 1.8.60) */
+.pdef{border:1px solid var(--line);padding:10px;margin-bottom:8px;background:var(--card)}
+.pdef.discarded{opacity:.75;border-style:dashed}
+.pdef-head{font-weight:700}.pdef-row{font-size:13.5px;margin-top:3px}
+.pdef-form{border-top:1px solid var(--line);margin-top:10px;padding-top:10px;display:grid;gap:8px}
+.pdef-form select{padding:10px 12px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:16px;min-height:44px;width:100%}
+.pdef-bad{color:var(--danger);font-weight:650}
 .pad-actions select{flex:1;min-width:180px;padding:10px 12px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:16px;min-height:44px}
 .signer-fixed{flex:1;min-width:180px;font-size:14px;font-weight:650;color:var(--ink)}
 .sig .signer-line{display:block;font-weight:400;font-size:12.5px;color:#5c6f68;margin-top:2px}.sig .signer-line .no-poa{color:#8a5a00;font-weight:600}
@@ -350,6 +357,20 @@ function fieldBody(f){
   const v=answerOf(f);
   const ro=!editable(f);
   const t=f.field_type;
+  if(t==='maengel'){
+    // Seit 1.8.60: Mängel sind eigene Datensätze (nur Büro), geladen über /api/checklists/{id}/defects. Erfassen nur im
+    // Entwurf, solange keine Unterschrift das Feld versiegelt -- danach keine neuen Mängel an diesem Protokoll.
+    if(IS_FIELD)return '<div class="muted small">Mängel erfasst das Büro.</div>';
+    const offen=cl.status==='entwurf'&&!isSealed(f);
+    return `<div id="pdefList_${f.id}" data-maengel="${f.id}"><span class="muted small">Lädt …</span></div>${offen?`<div class="pdef-form" id="pdefForm_${f.id}">
+      <label for="pdefDesc_${f.id}">Mangel (Beschreibung)</label><textarea id="pdefDesc_${f.id}" maxlength="5000" rows="2"></textarea>
+      <label for="pdefArea_${f.id}">Dachfläche</label><select id="pdefArea_${f.id}"><option value="">— keine Dachfläche —</option></select>
+      <label for="pdefLoc_${f.id}">Ortsangabe</label><input id="pdefLoc_${f.id}" maxlength="500">
+      <label for="pdefDue_${f.id}">Beseitigungsfrist (optional)</label><input id="pdefDue_${f.id}" type="date">
+      <label>Fotos (JPEG, PNG, WebP)</label><input id="pdefPhotos_${f.id}" type="file" multiple accept="image/jpeg,image/png,image/webp">
+      <label>Belege (PDF oder Foto)</label><input id="pdefReceipts_${f.id}" type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp">
+      <div><button type="button" class="btn" id="pdefSave_${f.id}" onclick="saveProtocolDefect(${f.id},this)">Mangel erfassen</button></div></div>`:''}`;
+  }
   if(t==='ja_nein'){
     const opts=[['ja','Ja'],['nein','Nein']].concat(f.allow_na?[['entfaellt','Entfällt']]:[]);
     return `<div class="tiles">${opts.map(([k,l])=>`<button type="button" class="tile${v===k?' on':''}" ${ro?'disabled':''} onclick="setChoice(${f.id},'${k}')">${l}</button>`).join('')}</div>`;
@@ -619,6 +640,7 @@ function render(){
   if(!IS_FIELD)html+='<div class="card rules" id="followUpsCard" style="display:none"></div>';
   main.innerHTML=html;
   for(const f of cl.fields)if(f.field_type==='unterschrift')setupPad(f.id);
+  if(!IS_FIELD)for(const f of cl.fields)if(f.field_type==='maengel')loadProtocolDefects(f);
   if(!IS_FIELD)loadFollowUps();
   if(!IS_FIELD&&NOTICE_PURPOSES.includes(cl.purpose))loadNotice();
   if(!IS_FIELD&&cl.status==='abgeschlossen'){loadRules();afterRenderSendCard()}
@@ -751,6 +773,55 @@ async function removeAttachment(attachmentId){
   const a=cl.attachments.find(x=>x.id===attachmentId);
   try{const data=await api(`/api/checklist-attachments/${attachmentId}`,{method:'DELETE'});cl.attachments=data.attachments;cl.missing_required=data.missing_required;cl.missing_before_signature=data.missing_before_signature;rerenderField(cl.fields.find(x=>x.id===a.field_id));updateMissing()}
   catch(e){alert('Fehler: '+e.message)}
+}
+
+// --- Mängel (seit 1.8.60) -----------------------------------------------------------------
+// Je Mangel Beschreibung, Ort, Frist, Dateien, Prüfstatus; verworfen gekennzeichnet -- "bleibt im Protokoll", wenn erst nach
+// der Unterschrift verworfen (dann steht er in deren Kopie), sonst "nicht im Protokoll".
+let pdefOptions=null;
+async function loadProtocolDefects(f){
+  const box=document.getElementById('pdefList_'+f.id);if(!box)return;
+  try{
+    const list=await api(`/api/checklists/${checklistId}/defects`);
+    box.innerHTML=list.length?list.map(d=>protocolDefectHtml(f,d)).join(''):'<div class="muted small">Noch kein Mangel erfasst.</div>';
+    const sel=document.getElementById('pdefArea_'+f.id);
+    if(sel&&!pdefOptions)pdefOptions=await api(`/api/checklists/${checklistId}/protocol-options`);
+    if(sel&&sel.options.length<=1)sel.innerHTML='<option value="">— keine Dachfläche —</option>'+(pdefOptions.roof_areas||[]).map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('');
+  }catch(e){box.innerHTML=`<div class="pdef-bad">${esc(e.message)}</div>`}
+}
+function protocolDefectHtml(f,d){
+  const place=[d.roof_area_name,d.location].filter(Boolean).map(esc).join(' · ');
+  const files=d.files.length?`${d.files.length} ${d.files.length===1?'Datei':'Dateien'}: `+d.files.map(x=>`<a href="/api/defects/${d.id}/files/${x.id}" target="_blank" rel="noopener">${esc(x.kind_label)}</a>`).join(', '):'';
+  const lines=[`<div class="pdef-head">Mangel Nr. ${d.id}${place?' · '+place:''}</div>`,`<div class="pdef-row" style="white-space:pre-wrap">${esc(d.description)}</div>`];
+  if(d.remedy_due_on)lines.push(`<div class="pdef-row">Beseitigungsfrist: ${esc(String(d.remedy_due_on).split('-').reverse().join('.'))}</div>`);
+  if(files)lines.push(`<div class="pdef-row">${files}</div>`);
+  if(!d.intact)lines.push(`<div class="pdef-row pdef-bad">⚠ ${esc(d.check.text)}</div>`);
+  if(d.discarded)lines.push(`<div class="pdef-row pdef-bad" data-verworfen>Verworfen (${esc(d.discard_reason||'')}) – ${d.in_protocol?'bleibt im Protokoll (erst nach der Unterschrift verworfen)':'nicht im Protokoll'}</div>`);
+  else if(cl.status==='entwurf')lines.push(`<div class="pdef-row"><button type="button" class="btn secondary" onclick="discardProtocolDefect(${f.id},${d.id},this)">Verwerfen …</button> <input id="pdefReason_${d.id}" placeholder="Begründung" maxlength="2000" style="max-width:320px"></div>`);
+  return `<div class="pdef${d.discarded?' discarded':''}" data-defect="${d.id}">${lines.join('')}</div>`;
+}
+async function saveProtocolDefect(fieldId,btn){
+  const f=cl.fields.find(x=>x.id===fieldId),g=id=>document.getElementById(id+'_'+fieldId);
+  const description=g('pdefDesc').value.trim();
+  if(!description){setStatus(fieldId,'Bitte den Mangel beschreiben.',true);g('pdefDesc').focus();return}
+  const data={description,roof_area_id:g('pdefArea').value?Number(g('pdefArea').value):null,location:g('pdefLoc').value.trim()||null,remedy_due_on:g('pdefDue').value||null};
+  const fd=new FormData();fd.append('data',JSON.stringify(data));
+  for(const x of g('pdefPhotos').files)fd.append('photos',x);
+  for(const x of g('pdefReceipts').files)fd.append('receipts',x);
+  btn.disabled=true;setStatus(fieldId,'Speichert …');
+  try{await api(`/api/checklists/${checklistId}/defects`,{method:'POST',body:fd});
+    ['pdefDesc','pdefLoc','pdefDue','pdefPhotos','pdefReceipts'].forEach(k=>{g(k).value=''});g('pdefArea').value='';
+    setStatus(fieldId,'Mangel erfasst');await loadProtocolDefects(f)}
+  catch(e){setStatus(fieldId,'Nicht gespeichert: '+e.message,true);if(e.status===409)await reload()}
+  finally{btn.disabled=false}
+}
+async function discardProtocolDefect(fieldId,defectId,btn){
+  const reason=(document.getElementById('pdefReason_'+defectId).value||'').trim();
+  if(!reason){setStatus(fieldId,'Bitte begründen, warum der Mangel verworfen wird.',true);return}
+  if(!confirm(`Mangel Nr. ${defectId} verwerfen?`))return;
+  btn.disabled=true;
+  try{await api(`/api/defects/${defectId}/discard`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});setStatus(fieldId,'Mangel verworfen');await loadProtocolDefects(cl.fields.find(x=>x.id===fieldId))}
+  catch(e){setStatus(fieldId,'Nicht verworfen: '+e.message,true);btn.disabled=false}
 }
 
 // --- Unterschrift ------------------------------------------------------------------------

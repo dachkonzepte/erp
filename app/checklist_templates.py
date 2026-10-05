@@ -49,11 +49,15 @@ from .tasks import PRIORITIES
 
 FIELD_TYPES = (
     "ja_nein", "text", "zahl", "auswahl", "datum", "uhrzeit", "datum_uhrzeit", "foto", "beleg", "unterschrift", "hinweis",
+    "maengel",
 )
+# Seit 1.8.60: Feldtypen, die nur ein Zweck als Systemfeld vorgibt -- von Hand nicht anzulegen (Mängel brauchen einen Auftrag
+# und die Abnahme, die aus dem Protokoll entsteht).
+SYSTEM_ONLY_FIELD_TYPES = {"maengel": "Mängel"}
 FIELD_TYPE_LABELS = {
     "ja_nein": "Ja/Nein", "text": "Text", "zahl": "Zahl", "auswahl": "Auswahl", "datum": "Datum",
     "uhrzeit": "Uhrzeit", "datum_uhrzeit": "Datum und Uhrzeit", "foto": "Foto", "beleg": "Beleg (PDF oder Foto)",
-    "unterschrift": "Unterschrift", "hinweis": "Hinweistext",
+    "unterschrift": "Unterschrift", "hinweis": "Hinweistext", "maengel": "Mängel",
 }
 CONTEXT_TYPES = ("auftrag", "objekt", "betriebsmittel", "betrieb")
 CONTEXT_COLUMNS = {
@@ -613,7 +617,7 @@ def _normalize_field(field: ChecklistTemplateField) -> None:
     field.group_name = (field.group_name or "").strip() or None
     field.help_text = (field.help_text or "").strip() or None
     t = field.field_type
-    if t == "hinweis":
+    if t in ("hinweis", "maengel"):  # Mängel: keine Antwort, kein Pflichtfeld (seit 1.8.60)
         field.required = False
     if t != "ja_nein":
         field.allow_na = False
@@ -667,9 +671,16 @@ def _field_values_from(fields: dict) -> dict:
     return values
 
 
+def _no_system_only_type(field_type: str | None) -> None:
+    if field_type in SYSTEM_ONLY_FIELD_TYPES:
+        raise ValueError(f"Den Feldtyp „{SYSTEM_ONLY_FIELD_TYPES[field_type]}“ gibt ein Zweck als Systemfeld vor (Abnahme) – "
+                         "er lässt sich nicht von Hand anlegen.")
+
+
 def add_field(db: Session, version_id: int, fields: dict) -> dict:
     version = _require_draft(_load_version(db, version_id))
     values = _field_values_from(fields)
+    _no_system_only_type(values.get("field_type"))  # seit 1.8.60
     values.setdefault("field_type", "ja_nein")
     values.setdefault("label", "Neues Feld")
     base_key = values.pop("field_key", None) or _slugify_key(values["label"])
@@ -690,6 +701,8 @@ def update_field(db: Session, field_id: int, fields: dict) -> dict | None:
         return None
     version = _require_draft(_load_version(db, field.version_id))
     values = _field_values_from(fields)
+    if "field_type" in values and values["field_type"] != field.field_type:
+        _no_system_only_type(values["field_type"])  # seit 1.8.60
     if field.is_system:
         _check_system_field_update(field, values)
     old_key = field.field_key

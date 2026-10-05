@@ -78,6 +78,7 @@ function defectHtml(d){
   const badges=[`<span class="def-badge${d.done?' done':''}">${esc(d.status_label)}${d.status_date?' '+accDate(d.status_date):''}</span>`,`<span class="def-badge${d.stance==='bestritten'?' warn':''}">Haltung: ${esc(d.stance_label)}</span>`,`<span class="def-badge">${d.released?'zur Beseitigung freigegeben':'nicht freigegeben'}</span>`];
   const lines=[`<div class="def-head">Mangel Nr. ${d.id}${place?' · '+place:''}</div>`,`<div>${badges.join('')}</div>`,`<div class="def-row" style="white-space:pre-wrap">${esc(d.description)}</div>`];
   if(d.acceptance)lines.push(`<div class="def-row muted">Aus der ${esc(d.acceptance.scope_label)} vom ${accDate(d.acceptance.accepted_on)} (${esc(d.acceptance.result_text)})${d.acceptance.discarded?' <span class="acc-warn">– Abnahme verworfen</span>':''}</div>`);
+  if(d.checklist_id)lines.push(`<div class="def-row${d.protocol_pending?' acc-warn':' muted'}" data-protokoll>Aus dem <a href="/checklisten/${d.checklist_id}">Abnahmeprotokoll</a>${d.protocol_pending?' – noch ohne Abnahme: Haltung, Freigabe und Status erst danach':''}</div>`);  // seit 1.8.60
   // Seit 1.8.55 die aktuelle Frist -- eine bei "zurück auf offen" neu gesetzte, sonst die beim Erfassen.
   if(d.remedy_due_on)lines.push(`<div class="def-row${d.remedy_overdue?' acc-bad':''}" data-frist>Beseitigungsfrist: ${accDate(d.remedy_due_on)}${d.remedy_overdue?' – überschritten':''}${d.remedy_due_changed?` <span class="muted">(neu gesetzt; beim Erfassen: ${d.remedy_due_on_original?accDate(d.remedy_due_on_original):'keine'})</span>`:''}</div>`);
   lines.push(defFiles(d,d.files));
@@ -91,7 +92,8 @@ function defectHtml(d){
   if(d.discarded){
     lines.push(`<div class="def-row acc-bad" style="white-space:pre-wrap">Verworfen ${accDateTime(d.discarded_at_local)} von ${esc(d.discarded_by_name)}: ${esc(d.discard_reason)}</div>`);
   }else{
-    const acts=[['haltung','Haltung …'],!d.done&&['freigabe',d.released?'Freigabe zurücknehmen …':'Zur Beseitigung freigeben …'],d.next_statuses.length&&['status','Status …'],['fotos','Fotos ergänzen …'],['belege','Belege ergänzen …'],['verwerfen','Verwerfen …']].filter(Boolean);
+    // Seit 1.8.60: Mangel aus einem Abnahmeprotokoll ohne Abnahme -- nur Verwerfen, der Rest erst mit der Abnahme.
+    const acts=d.protocol_pending?[['verwerfen','Verwerfen …']]:[['haltung','Haltung …'],!d.done&&['freigabe',d.released?'Freigabe zurücknehmen …':'Zur Beseitigung freigeben …'],d.next_statuses.length&&['status','Status …'],['fotos','Fotos ergänzen …'],['belege','Belege ergänzen …'],['verwerfen','Verwerfen …']].filter(Boolean);
     lines.push(`<div class="def-actions">${acts.map(([k,l])=>`<button class="secondary" onclick="defOpen(${d.id},'${k}')">${l}</button>`).join('')}</div><div id="defPanel${d.id}" class="def-panel" hidden></div>`);
   }
   if(d.events.length)lines.push(`<details><summary>Verlauf (${d.events.length})</summary>${d.events.map(e=>defEventHtml(d,e)).join('')}</details>`);

@@ -1250,3 +1250,97 @@ Versionen: 1.8.59 Punkt 0, 1.8.60 Punkt 1, 1.8.61 Punkt 2, 1.8.62 Punkt 3, 1.8.6
   Funktion; Vollmacht "ja/nein", kein Warnhinweis beim Zweck allgemein); unverändert grün: `behinderungsanzeige` 35, `_abschluss`
   43, `bedenkenanzeige` 22, `checkliste_zweck` 28, `checkliste_unterschrift` 26, `vertrag_unterschrift` 43.
 - Volle Suite 2923 grün (mit den opt-in-Tests gegen PostgreSQL).
+
+---
+
+## Umsetzung 1.8.60 (05.10.2026) -- Runde 2c-2d, Punkt 1: Feldtyp "Mängel"
+
+### Feld und Datensatz
+
+- Neuer Feldtyp `maengel` (`FIELD_TYPES`), nur als Systemfeld eines Zwecks (`SYSTEM_ONLY_FIELD_TYPES`): im Editor nicht
+  wählbar, Anlegen und Umstellen von Hand abgelehnt ("Den Feldtyp „Mängel“ gibt ein Zweck als Systemfeld vor …"); nie
+  Pflicht, keine Antwort (`_NO_ANSWER_TYPES`). Bis 1.8.61 trägt ihn kein Zweck -- im Betrieb also noch nicht sichtbar.
+- Ein Mangel aus dem Protokoll ist ein gewöhnlicher `Defect` mit `source = "protokoll"` und neuer Spalte
+  `defects.checklist_id` (FK `fk_defects_checklist_id`, Index; Migration `82e4382b0c9f`, Downgrade verweigert, solange ein
+  Mangel aus einem Protokoll existiert). `acceptance_id` bleibt leer, bis die Abnahme aus dem Protokoll entsteht (1.8.62).
+- Gebundener Inhalt (`defect_content()`): bei Herkunft Protokoll `checklist_id` statt `acceptance_id`, sonst wie bisher --
+  die Prüfsumme (`content_sha256`) steht ab dem Erfassen fest.
+- `create_protocol_defect()` (`app/defects.py`), `POST /api/checklists/{id}/defects` (Büro, Modul `checklisten`; dazu `GET
+  …/defects` und `GET …/protocol-options`): Beschreibung Pflicht, Dachfläche nur aus dem Objekt des Projekts und nicht
+  archiviert, Ortsangabe, Frist nicht in der Vergangenheit, Fotos und Belege wie an der Abnahme. Unter der Zeilensperre der
+  Checkliste (wie das Unterschreiben): nur im Entwurf, nur solange keine gültige Unterschrift das Feld versiegelt -- sonst 409
+  "Das Protokoll ist unterschrieben – an diesem Protokoll entstehen keine neuen Mängel mehr." Keine Aufgabe.
+- Bis zur Abnahme (`protocol_pending()`): Haltung, Freigabe, Status, Fotos und Belege ergänzen abgelehnt (409 "… aus dem noch
+  keine Abnahme angelegt ist – Haltung, Freigabe, Status und Nachträge erst danach."); Verwerfen mit Begründung geht. Die Auftragsseite zeigt solche Mängel mit "Aus dem
+  Abnahmeprotokoll – noch ohne Abnahme …", Link aufs Protokoll, nur "Verwerfen …", Aufgabe "entsteht mit der Abnahme aus dem
+  Abnahmeprotokoll".
+
+### Siegel
+
+- Kopie jeder Unterschrift unterhalb des Felds und des Abschlusses: `{"field_key": …, "defects": [{"id", "sha256"}]}` -- je
+  Mangel Kennung und Prüfsumme seines gebundenen Inhalts, nachgerechnet (nicht aus der Spalte gelesen): ein am ORM vorbei
+  geänderter Mangel erscheint an der Unterschrift als "weicht ab: Mängel".
+- Im Stand des Zeitpunkts (`defect_in_seal(defect, as_of)`): ein vor der Unterschrift verworfener Mangel fehlt, ein danach
+  verworfener bleibt drin -- die Unterschrift bleibt "Inhalt unverändert", die Seite zeigt ihn "Verworfen (…) – bleibt im
+  Protokoll (erst nach der Unterschrift verworfen)", einen vorher verworfenen "… – nicht im Protokoll". Der Abschluss nimmt
+  den Stand seines Zeitpunkts (`completed_at` steht jetzt vor dem Versiegeln fest).
+- Ältere Siegel sind unberührt: der Eintrag entsteht nur an einem Feld vom Typ `maengel`.
+- **Eigener Fehler, im Test gefunden**: Unterschrift (`created_at`) und Verwerfen (`discarded_at`) wurden auf volle Sekunden
+  gekürzt -- ein in derselben Sekunde vor der Unterschrift verworfener Mangel landete in ihrer Kopie. Beide Zeitpunkte jetzt
+  mit voller Genauigkeit (das Siegel des Verwerfens kürzt intern wie bisher), Vergleich "verworfen nach der Unterschrift"
+  strikt, und das Verwerfen eines Protokoll-Mangels sperrt zuerst die Checkliste -- Unterschrift und Verwerfen laufen
+  nacheinander, nie verschränkt.
+
+### Seite
+
+- Ausfüllseite (Büro): Liste der Mängel (Nr., Dachfläche, Ort, Beschreibung, Frist, Dateien, Prüfstatus, verworfen mit
+  Kennzeichnung) und darunter "Mangel erfassen" (Beschreibung, Dachfläche, Ortsangabe, Frist, Fotos, Belege), solange das
+  Feld offen ist; "Verwerfen …" mit Begründung je Mangel. Monteur: "Mängel erfasst das Büro.", Liste und Erfassen 403.
+
+### Festlegungen 1.8.60 (bitte bestätigen)
+
+1. **Das Feld "Mängel" gibt nur ein Zweck vor** -- von Hand nicht anzulegen (ein Mangel braucht Auftrag, Objekt und später die
+   Abnahme aus dem Protokoll).
+2. **"Nach der Unterschrift des Auftraggebers keine neuen Mängel"** ist umgesetzt als: sobald eine gültige Unterschrift das
+   Feld versiegelt (jede Unterschrift darunter, wie bei Antworten und Fotos). Wird sie verworfen, ist das Feld wieder offen;
+   ab 1.8.62 lässt sich die Unterschrift des Auftraggebers nicht verwerfen, solange die Abnahme aus ihr gilt.
+3. **Bis zur Abnahme nur Verwerfen** -- Haltung, Freigabe, Status und Nachträge erst danach; Fotos und Belege beim Erfassen.
+4. **Der gebundene Inhalt bleibt beim Protokoll** (`checklist_id`): wenn die Abnahme in 1.8.62 entsteht, wird `acceptance_id`
+   gesetzt, ohne den gebundenen Inhalt zu ändern -- sonst wichen die Siegel des Protokolls ab.
+5. **Frist nicht in der Vergangenheit, Dachfläche nur aus dem Objekt und nicht archiviert** -- wie beim Erfassen an der
+   Abnahme bzw. "zurück auf offen" (1.8.55).
+6. **Mängel im Protokoll sieht nur das Büro** (der Zweck "abnahme" ist ab 1.8.61 ohnehin nur fürs Büro).
+7. **Zeitpunkte von Unterschrift und Verwerfen mit voller Genauigkeit**, Verwerfen eines Protokoll-Mangels unter der Sperre
+   der Checkliste (siehe "Eigener Fehler").
+
+### Verifikation 1.8.60
+
+- `tests/test_v362_maengel_im_protokoll.py` (18, davon 2 nur gegen PostgreSQL): Herkunft und gebundener Inhalt, Prüfung beim
+  Erfassen (Beschreibung, fremde und archivierte Dachfläche, Frist), keine Einträge vor der Abnahme (Verwerfen geht),
+  Systemfeld-Typ, Monteur 403, je Mangel Kennung und Prüfsumme in der Kopie, Angriff "Mangel nach der Unterschrift" (409, auch
+  nach dem Verwerfen der Unterschrift wieder offen), vorher/danach verworfen in Kopie und Liste, Abschluss, am ORM vorbei
+  geänderter Mangel -> "weicht ab: Mängel", Seiten, Migration mit verweigertem Downgrade; gegen PostgreSQL: Mangel während der
+  Unterschrift wartet und wird abgelehnt, Unterschrift wartet auf den Mangel und versiegelt ihn mit.
+- Gegenproben (Marker GEGENPROBE, Dateien byte-genau zurück): 13 von 13 rot, dazu 1 von 1 für die Liste (siehe unten).
+- Migration `82e4382b0c9f`: SQLite hin/zurück/hin, `check`; PostgreSQL 17 im Wegwerf-Schema: Bestand über den App-Code
+  (Protokoll-Mangel unter einer Unterschrift, "unverändert"), Downgrade verweigert, `current`, `check`, leeres Schema
+  hin/zurück/hin.
+- PostgreSQL (pytest-Plugin): `test_v362`, `test_v361`, `test_v359`, `test_v358`, `test_v351` -- 126 grün, 1 übersprungen, 1 rot:
+  `test_v351::test_migration_down_refuses_while_defects_exist` sät mit rohem SQL und erfundenen Fremdschlüsseln (bekanntes
+  Muster, unter PostgreSQL immer rot, kein Befund).
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 2940 grün, 1 rot -- `test_v326`: die neue Route
+  `/api/checklists/{id}/defects` fiel in den Filter "acceptance/warranty/defect", der für den Admin 200 mit Inhalt erwartet; die
+  Checkliste des Durchlaufs hat kein Feld "Mängel". Die beiden Protokoll-Routen haben dort jetzt einen eigenen Test (Monteur
+  403), Inhalt fürs Büro prüft `test_v362`. Danach `test_v326` 60 grün; nach der Korrektur unten die Dateien rund um Abnahme,
+  Mängel und Checklisten (`test_v349`, `test_v35*`, `test_v36*`, `test_v326`) 379 grün.
+- Klicktest neu: `klicktest_protokoll_maengel.py` 16/16 (Büro dunkel: leer, Dachflächen ohne archivierte, ohne Beschreibung
+  abgelehnt, Mangel mit Foto und Beleg, vorher verworfen "nicht im Protokoll"; 412 px hell; Auftragsseite "noch ohne Abnahme",
+  nur Verwerfen; Unterschrift -> kein Formular, API 409, danach verworfen "bleibt im Protokoll", Unterschrift unverändert;
+  Monteurin "Mängel erfasst das Büro.", API 403). Das Feld "Mängel" setzt der Klicktest bis 1.8.61 direkt in der
+  Wegwerf-Datenbank. Unverändert grün: `klicktest_maengel.py` 39, `klicktest_unterzeichner.py` 19,
+  `klicktest_checkliste_unterschrift.py` 26.
+- **Zweiter eigener Fehler, im Klicktest gefunden**: die Liste der Protokoll-Mängel meldete vor jeder Unterschrift jeden Mangel
+  als "im Protokoll", auch einen schon verworfenen (`sealed_at is None or …`) -- die Seite zeigte "bleibt im Protokoll" statt
+  "nicht im Protokoll". Ein vor der ersten Unterschrift verworfener Mangel kommt in keine Kopie mehr; jetzt
+  `defect_in_seal(d, sealed_at)` auch ohne Unterschrift. `test_v362` prüfte die Liste nur nach der Unterschrift -- jetzt auch
+  davor (Gegenprobe rot).

@@ -762,10 +762,11 @@ def test_abnahme_und_gewaehrleistung_im_durchlauf_fuer_monteure_gesperrt(durchla
     """Seit 1.8.46: Abnahmen, ihre Belege, die Gewährleistung am Auftrag und aus Abnahmen an Objekt und Dachfläche
     sind Büro -- jede GET-Route davon antwortet dem Monteur 403; der Admin bekommt sie mit Inhalt. Seit 1.8.49 ebenso
     die Mängel aus der Abnahme und ihre Dateien."""
-    def routen(lauf):  # der eigene Weg des Monteurs (/api/field-view/defects..., seit 1.8.52) steht unten
+    def routen(lauf):  # der eigene Weg des Monteurs (/api/field-view/defects..., seit 1.8.52) steht unten, ebenso die
+        # Mängel im Abnahmeprotokoll (/api/checklists/{id}/defects, seit 1.8.60)
         return {a["route"]: a["status"] for a in lauf["antworten"]
                 if ("acceptance" in a["route"] or "warranty" in a["route"] or "defect" in a["route"])
-                and not a["route"].startswith("/api/field-view/")}
+                and not a["route"].startswith(("/api/field-view/", "/api/checklists/"))}
     erwartet = {"/api/orders/{order_id}/warranty-changes", "/api/orders/{order_id}/warranty-preview",
                 "/api/project-participants/{participant_id}/acceptance-power-of-attorney",
                 "/api/orders/{order_id}/acceptances",
@@ -776,6 +777,15 @@ def test_abnahme_und_gewaehrleistung_im_durchlauf_fuer_monteure_gesperrt(durchla
                 "/api/defects/{defect_id}/files/{file_id}"}
     assert routen(durchlauf) == dict.fromkeys(erwartet, 403)
     assert routen(durchlauf_admin) == dict.fromkeys(erwartet, 200)
+
+
+def test_maengel_im_abnahmeprotokoll_im_durchlauf_fuer_monteure_gesperrt(durchlauf):
+    """Seit 1.8.60: die Mängel im Feld "Mängel" eines Abnahmeprotokolls und die Auswahl zum Erfassen (Dachflächen des
+    Objekts) sind Büro -- der Durchlauf ruft beide als Monteur auf, 403. Mit Inhalt fürs Büro prüft sie
+    test_v362_maengel_im_protokoll.py (die Checkliste des Durchlaufs hat kein Feld "Mängel")."""
+    routen = {a["route"]: a["status"] for a in durchlauf["antworten"]
+              if a["route"] in ("/api/checklists/{checklist_id}/defects", "/api/checklists/{checklist_id}/protocol-options")}
+    assert routen == {"/api/checklists/{checklist_id}/defects": 403, "/api/checklists/{checklist_id}/protocol-options": 403}
 
 
 def test_maengel_zur_beseitigung_im_durchlauf_fuer_monteure_offen(durchlauf):

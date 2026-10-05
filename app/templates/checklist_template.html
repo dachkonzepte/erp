@@ -130,7 +130,7 @@ async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText
 const json=(method,body)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 
 const FIELD_TYPES=[['ja_nein','Ja/Nein'],['text','Text'],['zahl','Zahl'],['auswahl','Auswahl'],['datum','Datum'],['uhrzeit','Uhrzeit'],['datum_uhrzeit','Datum und Uhrzeit'],['foto','Foto'],['beleg','Beleg (PDF oder Foto)'],['unterschrift','Unterschrift'],['hinweis','Hinweistext']];
-const TYPE_LABEL=Object.fromEntries(FIELD_TYPES);
+const TYPE_LABEL={...Object.fromEntries(FIELD_TYPES),maengel:'Mängel'};  // Mängel (seit 1.8.60) nur als Systemfeld eines Zwecks
 const OPERATORS=[['immer','immer (bei jedem Abschluss)',null],['ist_ja','ist „Ja“',['ja_nein']],['ist_nein','ist „Nein“',['ja_nein']],['enthaelt','enthält Option',['auswahl']],['kleiner','kleiner als',['zahl']],['groesser','größer als',['zahl']],['gleich','gleich',['zahl']],['ausgefuellt','ist ausgefüllt','*']];
 const PRIORITIES=[['niedrig','niedrig'],['normal','normal'],['hoch','hoch'],['dringend','dringend']];
 const ROLES=[['buero_auftrag','Büro – Auftrag (und höher)'],['buero_finanzen','Büro – Finanzen (und höher)'],['admin','nur Administrator']];
@@ -236,7 +236,7 @@ async function viewVersion(versionId){
 
 // --- Felder ------------------------------------------------------------------------------
 
-function typeOptions(selected){return FIELD_TYPES.map(([v,l])=>`<option value="${v}" ${v===selected?'selected':''}>${l}</option>`).join('')}
+function typeOptions(selected){return FIELD_TYPES.concat(selected==='maengel'?[['maengel','Mängel']]:[]).map(([v,l])=>`<option value="${v}" ${v===selected?'selected':''}>${l}</option>`).join('')}
 
 function fieldSummary(f){
   const bits=[];
