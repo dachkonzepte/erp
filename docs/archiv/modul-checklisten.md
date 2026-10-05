@@ -1045,3 +1045,15 @@ Herleitung und Festlegungen: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Um
 - Auslieferung `GET /api/checklist-attachments/{id}/file` mit dem erkannten Typ und `nosniff` (seit 1.8.45 für alle Anhänge).
 - Ändert ein Zweck den Typ eines Systemfelds, stellt `_sync_system_fields()` das Systemfeld im Entwurf um (vorher Fehler);
   eine veröffentlichte Fassung ohne Entwurf, die nicht mehr passt, meldet `published_system_field_problems` im Editor.
+
+## Nachtrag 1.8.56 (05.10.2026) -- Pflichtangaben vor der Unterschrift, eine Bildprüfung
+
+Herleitung und Festlegungen: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.56". Für den Baukasten:
+- Eine Unterschrift verlangt alle Pflichtangaben oberhalb von ihr (`missing_required_labels(before=…)`: Antworten, Fotos,
+  Belege samt Mindestanzahl, ohne Hinweise und Unterschriften) -- sonst 400, nichts gespeichert. Der Befund aus 1.8.13
+  ("Startvorlagen mit Feldern nach der ersten Unterschrift", "Pflichtangaben, die sich nicht mehr ergänzen lassen") kann für
+  neue Unterschriften nicht mehr eintreten; die Warnung der Karte "Unterschrieben" bleibt für ältere.
+- Das Bild läuft durch `app/signature_image.py::check_signature_png()` (PNG, Größe, nicht leer) -- vorher nahm die Checkliste
+  jedes lesbare Bild an, auch ein leeres oder ein JPEG.
+- `checklist_to_dict()` liefert `missing_before_signature` je Unterschriftsfeld; die Ausfüllseite zeigt es über der
+  Zeichenfläche und bricht "Unterschrift übernehmen" damit ab.

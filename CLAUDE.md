@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.55** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.56** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -818,7 +818,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Betriebsmittel/Betrieb, Regeln → Aufgaben, Etappenplan 1.8.0–1.8.5 und Stufen 2–4; seit 1.8.38 Systemfelder mit
   Abschnitt und "nur Büro", Folgen nach einer Unterschrift, Regel-Aufgabe mit Link zum Anlegen; seit 1.8.41 Status
   "gegenstandslos" für Behinderungs- und Bedenkenanzeige; seit 1.8.43 Folgen nach dem Versand eines Briefs; seit 1.8.45
-  Feldtyp "beleg": PDF oder Foto, am Inhalt erkannt, unverändert gespeichert, in Prüfsumme und Versiegelung) --
+  Feldtyp "beleg": PDF oder Foto, am Inhalt erkannt, unverändert gespeichert, in Prüfsumme und Versiegelung; seit 1.8.56
+  verlangt eine Unterschrift alle Pflichtangaben oberhalb, `missing_before_signature`) --
   `docs/archiv/modul-checklisten.md`
 - **Kaufmännisches Runden** (Helfer `app/rounding.py`, Rundungsregel je Rechnung, Liste der
   Geldstellen, bewusst nicht geänderte Formatierer) -- `docs/archiv/kaufmaennisches-runden.md`
@@ -916,7 +917,11 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
 - **Unterschriften zeichnen über `app/templates/_unterschrift.html`** (seit 1.8.34, `unterschriftsfeld(canvas)`
   auf einem `<canvas class="dk-unterschrift">`): Checkliste, Einsatzbericht und Vertrag teilen sich die Fläche
   (weiß mit dunklem Strich in beiden Themes, Geräteauflösung) -- eine neue Unterschrift baut keine eigene
-  Zeichenlogik. `tests/test_v337_vertrag_unterschrift.py` prüft, dass die drei Seiten keine eigene haben.
+  Zeichenlogik. `tests/test_v337_vertrag_unterschrift.py` prüft, dass die drei Seiten keine eigene haben. Seit 1.8.56
+  prüft der Server jedes gezeichnete Bild an einer Stelle: `app/signature_image.py::check_signature_png()` (PNG, höchstens
+  2 MB und 5000 Pixel je Seite, nicht leer) -- ein neuer Unterschrift-Weg ruft sie auf, bevor er speichert;
+  `tests/test_v358_unterschrift_pruefung.py` ordnet jede Spalte ein, die nach Unterschrift klingt, und sucht jeden
+  speichernden Weg per AST.
 - **KI-Aufrufe ausschließlich über `call_ai()`/`call_ai_async()`** (`app/ai_service.py`) --
   nie einen Adapter (`app/ai_adapters.py`) direkt importieren/aufrufen. `call_ai_async()` aus
   `async def`-Routen, `call_ai()` nur aus gewöhnlichen `def`-Routen (Starlette-Threadpool) --

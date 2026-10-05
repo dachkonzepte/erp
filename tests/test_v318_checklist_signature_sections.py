@@ -162,6 +162,7 @@ def test_signature_order_does_not_matter_lower_signature_seals_everything_above(
     a = _client(hot, router_test_client, "a")
     c = _start(hot, a)
     _put(a, c, "frei", "ja")
+    _put(a, c, "befund", "ja")  # seit 1.8.56: alle Pflichtangaben oberhalb der Brandwache
     body = _sign(a, c, "sig2").json()
     assert body["sealed_field_ids"] == _ids(body, "frei", "bereich", "fotos_vorher", "ende", "befund", "fotos_nachher")
     assert _sign(a, c, "sig1").status_code == 200

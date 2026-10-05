@@ -1,13 +1,15 @@
 """Klicktest: Unterschrift bindet den Inhalt einer Checkliste (1.8.13, Stufe 2 Runde 2a-1).
 
-    Monteurin  (Handybreite) tippt eine Bemerkung und unterschreibt sofort danach: die Bemerkung
-               wird vor der Unterschrift gespeichert, der Hinweis vor der ersten Unterschrift nennt
-               die noch offene Pflichtangabe. Danach: Felder gesperrt, Karte "Unterschrieben",
-               Zeit und Prüfsumme an der Unterschrift, kein "Entwurf löschen", die zweite
-               Unterschrift (Kunde) bleibt möglich, kein Verwerfen-Feld.
+    Monteurin  (Handybreite) tippt eine Bemerkung und will sofort unterschreiben: die Bemerkung
+               wird gespeichert, die Unterschrift aber abgelehnt -- seit 1.8.56 fehlt oberhalb noch die
+               Pflichtangabe "Freigegeben" (Hinweis über der Zeichenfläche, keine Rückfrage). Sie
+               antwortet "Nein" und unterschreibt: Hinweis vor der ersten Unterschrift, danach Felder
+               gesperrt, Karte "Unterschrieben" ohne Warnung zu fehlenden Angaben, Zeit und Prüfsumme an
+               der Unterschrift, kein "Entwurf löschen", die zweite Unterschrift (Kunde) bleibt möglich,
+               kein Verwerfen-Feld.
     Büro       (Desktop) verwirft die Unterschriften -- erst ohne Begründung (Meldung, nichts
                passiert), dann mit. Danach offen, "Verworfene Unterschriften" mit Begründung.
-    Monteurin  ergänzt die Pflichtangabe, unterschreibt neu, schließt ab.
+    Monteurin  korrigiert die Freigabe auf "Ja", unterschreibt neu, schließt ab.
     Büro       Geräteseite: "Als repariert markieren" ohne Notiz → Meldung, mit Notiz → erledigt.
 
 `confirm()` wird auf jeder Seite automatisch bestätigt und mitgeschrieben (Headless-Chrome
@@ -116,14 +118,25 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen(f"/checklisten/{cid}", bereit)
     await tab.js(f"(()=>{{const el=document.querySelector('#q_{f['bem']} input');el.value='Dachrand gesichert';el.dispatchEvent(new Event('input'))}})()")
     await _unterschreiben(tab, f["sig"], "Mia Monteurin")
+    await tab.warten(f"document.getElementById('st_{f['sig']}').classList.contains('err')", 10)
+    antworten = await tab.js(f"fetch('{api}').then(r=>r.json()).then(d=>[d.answers['{f['bem']}']?.value, d.signed])")
+    p.pruefe("Bemerkung gespeichert, Unterschrift ohne Pflichtangabe abgelehnt (seit 1.8.56)", antworten,
+             ["Dachrand gesichert", False])
+    p.pruefe("Ablehnung auf der Seite, ohne Rückfrage", [
+        await tab.js(f"document.getElementById('st_{f['sig']}').textContent"), await tab.js("window.__confirms.length"),
+        await tab.js(f"document.querySelector('[data-missing-before=\"{f['sig']}\"]').hidden")],
+        ["Vor der Unterschrift fehlen noch: Freigegeben.", 0, False])
+    await tab.js(f"[...document.querySelectorAll('#q_{f['frei']} .tile')][1].click()")  # "Nein" ist eine Antwort
+    await tab.warten(f"[...document.querySelectorAll('#q_{f['frei']} .tile')][1].classList.contains('on')", 10)
+    p.pruefe("Hinweis über der Zeichenfläche weg", await tab.js(
+        f"document.querySelector('[data-missing-before=\"{f['sig']}\"]').hidden"), True)
+    await _unterschreiben(tab, f["sig"], "Mia Monteurin")
     await tab.warten("document.getElementById('lockCard')", 10)
-    antworten = await tab.js(f"fetch('{api}').then(r=>r.json()).then(d=>d.answers['{f['bem']}']?.value)")
-    p.pruefe("Bemerkung vor der Unterschrift gespeichert", antworten, "Dachrand gesichert")
     confirms = await tab.js("window.__confirms")
-    p.pruefe("Hinweis vor erster Unterschrift: Sperre + offene Angabe",
-             bool(confirms) and "gesperrt" in confirms[-1] and "Freigegeben" in confirms[-1], True)
-    p.pruefe("Karte 'Unterschrieben' nennt fehlende Pflichtangabe",
-             await tab.js("document.querySelector('#lockCard .warn')?.textContent.includes('Freigegeben')"), True)
+    p.pruefe("Hinweis vor erster Unterschrift: Sperre, keine offene Angabe",
+             bool(confirms) and "gesperrt" in confirms[-1] and "Noch nicht ausgefüllt" not in confirms[-1], True)
+    p.pruefe("Karte 'Unterschrieben' ohne Warnung zu fehlenden Angaben",
+             await tab.js("!document.querySelector('#lockCard .warn')"), True)
     p.pruefe("Ja/Nein gesperrt", await tab.js(f"[...document.querySelectorAll('#q_{f['frei']} .tile')].every(b=>b.disabled)"), True)
     p.pruefe("Bemerkung nur noch Anzeige", await tab.js(f"!document.querySelector('#q_{f['bem']} input') && document.querySelector('#q_{f['bem']} .value-ro')?.textContent"),
              "Dachrand gesichert")
@@ -152,12 +165,12 @@ async def pruefen(tab, seed, p):
     p.pruefe("Verwerfen ohne Begründung: Meldung", await tab.js("document.getElementById('discardStatus').textContent"),
              "Bitte eine Begründung eintragen.")
     p.pruefe("Verwerfen ohne Begründung: weiter unterschrieben", await tab.js(f"fetch('{api}').then(r=>r.json()).then(d=>d.signed)"), True)
-    await tab.js("document.getElementById('discardReason').value='Freigabe fehlt, bitte nachtragen'")
+    await tab.js("document.getElementById('discardReason').value='Freigabe falsch, bitte korrigieren'")
     await tab.js("document.getElementById('discardBtn').click()")
     await tab.warten("!document.getElementById('lockCard')", 10)
     p.pruefe("Nach Verwerfen: offen", await tab.js(f"!!document.querySelector('#q_{f['bem']} input')"), True)
     p.pruefe("Verworfene Unterschrift mit Begründung", await tab.js(
-        "[...document.querySelectorAll('.discarded-row')].map(r=>r.textContent.includes('Freigabe fehlt, bitte nachtragen')&&r.textContent.includes('Mia Monteurin'))"), [True])
+        "[...document.querySelectorAll('.discarded-row')].map(r=>r.textContent.includes('Freigabe falsch, bitte korrigieren')&&r.textContent.includes('Mia Monteurin'))"), [True])
     p.pruefe("Büro: JS-Fehler", tab.fehler, [])
     await tab.bild("buero_verworfen")
 
@@ -165,8 +178,8 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"]["mia"])
     await tab.fenster(390, 844, mobil=True)
     await tab.oeffnen(f"/checklisten/{cid}", bereit)
-    await tab.js(f"document.querySelector('#q_{f['frei']} .tile').click()")
-    await tab.warten(f"document.querySelector('#q_{f['frei']} .tile.on')", 10)
+    await tab.js(f"document.querySelector('#q_{f['frei']} .tile').click()")  # "Ja"
+    await tab.warten(f"document.querySelector('#q_{f['frei']} .tile').classList.contains('on')", 10)
     await _unterschreiben(tab, f["sig"], "Mia Monteurin")
     await tab.warten("document.getElementById('lockCard')", 10)
     p.pruefe("Neu unterschrieben, keine offene Angabe", await tab.js("!document.querySelector('#lockCard .warn')"), True)

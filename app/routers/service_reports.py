@@ -24,8 +24,6 @@ Monteur JEDEN Bericht des Auftrags, aber im reduzierten Schema für alles außer
 1.3.55: GET /api/orders/{order_id}/materials (für order.html, "Rechnung aus Aufwand" -- reine
 Büro-Entscheidung) bleibt Büro/Admin."""
 
-import base64
-import binascii
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
@@ -43,6 +41,7 @@ from ..schemas import (
 )
 from ..service_report_pdf import build_service_report_pdf
 from ..service_report_photos import MAX_UPLOAD_BYTES, photo_path
+from ..signature_image import signature_png_from_base64
 from ..service_reports import (
     add_asset_usage, add_inspection_item, add_material, add_photo, create_report, delete_asset_usage,
     delete_inspection_item, delete_material, delete_photo, delete_report, get_property_context_for_order,
@@ -223,22 +222,13 @@ def delete_service_report(report_id: int, db: Session = Depends(get_db), _role: 
     return {"ok": True}
 
 
-def _decode_signature_png(raw: str) -> bytes:
-    if "," in raw and raw.strip().lower().startswith("data:"):
-        raw = raw.split(",", 1)[1]
-    try:
-        return base64.b64decode(raw, validate=True)
-    except (binascii.Error, ValueError) as exc:
-        raise HTTPException(status_code=400, detail="Ungültige Unterschrift (kein gültiges Base64-PNG).") from exc
-
-
 @router.post("/api/service-reports/{report_id}/sign", response_model=ServiceReportOut)
 def post_sign_service_report(report_id: int, payload: ServiceReportSign, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
     require_field_report_ownership(db, _role, report_id)
-    installer_bytes = _decode_signature_png(payload.installer_signature_png_base64)
-    customer_bytes = _decode_signature_png(payload.customer_signature_png_base64)
     try:
+        installer_bytes = signature_png_from_base64(payload.installer_signature_png_base64)
+        customer_bytes = signature_png_from_base64(payload.customer_signature_png_base64)
         result = sign_report(
             db, report_id,
             installer_signature_png_bytes=installer_bytes, installer_signature_name=payload.installer_signature_name,

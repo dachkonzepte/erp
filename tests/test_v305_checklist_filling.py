@@ -307,6 +307,8 @@ def test_photos_and_signatures(world, router_test_client):
     assert too_many.status_code == 400  # max_count=2
     assert client.post(url, data={"field_id": f["fotos"]}, files={"file": ("x.jpg", b"kein bild", "image/jpeg")}).status_code == 400
     assert client.post(url, data={"field_id": f["sig"]}, files={"file": ("s.png", _png(), "image/png")}).status_code == 400
+    # Seit 1.8.56 verlangt die Unterschrift die Pflichtangaben oberhalb ("Freigegeben").
+    assert client.put(f"/api/checklists/{c['id']}/answers/{f['frei']}", json={"value": "ja"}).status_code == 200
     client.post(url, data={"field_id": f["sig"], "signer_name": "Anna"}, files={"file": ("s.png", _png(), "image/png")})
     again = client.post(url, data={"field_id": f["sig"], "signer_name": "Anna Alpha"},
                         files={"file": ("s.png", _png((0, 0, 0)), "image/png")})

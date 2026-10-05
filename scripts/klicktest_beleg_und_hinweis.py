@@ -108,12 +108,13 @@ def befuellen(db, k):
     f = {x["field_key"]: x["id"] for x in buero["fields"]}
     for key, wert in ((K + "bekannt_seit", "2026-10-02T07:45"), (K + "beschreibung", "Gelieferte Dämmplatten sind nass.")):
         save_answer(db, buero["id"], f[key], wert, recorded_by_employee_id=ma["olga"].id)
-    add_attachment(db, buero["id"], f[K + "unterschrift_meldung"], _bild("PNG", (255, 255, 255), (300, 100)),
+    # Seit 1.8.56 prüft die gemeinsame Bildprüfung "nicht leer" -- ein weißes Bild wäre abgelehnt (app/signature_image.py).
+    add_attachment(db, buero["id"], f[K + "unterschrift_meldung"], _bild("PNG", (40, 40, 40), (300, 100)),
                    signer_name="Olga Office", created_by_employee_id=ma["olga"].id)
     for key, wert in ((K + "bedenken_gegen", ["stoffe_bauteile"]), (K + "begruendung", "Durchfeuchtete Dämmung."),
                       (K + "moegliche_folgen", "Tauwasser, Schimmel."), (K + "entscheidung_bis", "2026-10-09")):
         save_answer(db, buero["id"], f[key], wert, recorded_by_employee_id=ma["olga"].id)
-    add_attachment(db, buero["id"], f[K + "unterschrift_buero"], _bild("PNG", (255, 255, 255), (300, 100)),
+    add_attachment(db, buero["id"], f[K + "unterschrift_buero"], _bild("PNG", (40, 40, 40), (300, 100)),
                    signer_name="Olga Office", created_by_employee_id=ma["olga"].id)
 
     ordner = Path(os.environ["ERP_DATA_DIR"]) / "klicktest-uploads"  # im Wegwerf-Ordner der Instanz

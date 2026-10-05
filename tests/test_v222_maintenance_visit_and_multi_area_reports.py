@@ -19,6 +19,7 @@ from tests.test_v153_mahnwesen import db_session
 from tests.test_v202_maintenance_contracts import make_customer_and_property, make_template_project
 from tests.test_v212_maintenance_windows import _enable_roof_area_items
 from tests.test_v213_inspection_items import _make_order_for_report, _seed_test_template
+from tests.test_v213_inspection_items import TINY_PNG
 
 
 def _migration_module():
@@ -278,7 +279,7 @@ def test_sign_report_advances_contract_due_date_only_when_flagged():
     db.commit()
 
     report = create_report(db, order.id, "wartung", advance_due_date_on_sign=True)
-    sign_report(db, report["id"], installer_signature_png_bytes=b"fake-signature-bytes", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"fake-signature-bytes", customer_signature_name="Max Mustermann")
+    sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
     updated_contract = db.get(MaintenanceContract, contract["id"])
     assert updated_contract.next_due_date == date(2026, 7, 1)
     assert updated_contract.last_reminder_due_date is None
@@ -294,7 +295,7 @@ def test_sign_report_does_not_advance_due_date_without_flag():
     db.commit()
 
     report = create_report(db, order.id, "wartung")  # advance_due_date_on_sign bleibt False
-    sign_report(db, report["id"], installer_signature_png_bytes=b"fake-signature-bytes", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"fake-signature-bytes", customer_signature_name="Max Mustermann")
+    sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
     unchanged_contract = db.get(MaintenanceContract, contract["id"])
     assert unchanged_contract.next_due_date == date(2026, 1, 1)
 
@@ -331,5 +332,5 @@ def test_sign_report_with_flag_but_deleted_contract_does_not_error():
     row = _load_report(db, report["id"])
     row.maintenance_contract_id = 999999  # zeigt ins Leere, simuliert einen inzwischen gelöschten Vertrag
     db.commit()
-    signed = sign_report(db, report["id"], installer_signature_png_bytes=b"fake-signature-bytes", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"fake-signature-bytes", customer_signature_name="Max Mustermann")
+    signed = sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
     assert signed["status"] == "unterschrieben"

@@ -1524,3 +1524,10 @@ Monteure). Der Baukasten selbst: `docs/archiv/modul-checklisten.md`, "Nachtrag 1
 Das Zurückziehen einer festgeschriebenen Vertragsfassung (samt einer Regel `contract_lock` für Kunde, Dauer und Leistungsart,
 Wegfall von "Neue Fassung", Zurückziehen auch nach dem Versand mit Aufgabe "Kunden informieren") ist entschieden, aber noch
 nicht gebaut -- Wortlaut der Entscheidung: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.55", Punkt 0c.
+
+## Nachtrag 1.8.56 (05.10.2026) -- gemeinsame Bildprüfung
+
+Die Prüfung des Unterschriftsbilds aus 1.8.34 (`signature_png()`/`_has_ink()` in `app/contract_signatures.py`) ist nach
+`app/signature_image.py::check_signature_png()` gewandert und gilt seither auch für Checkliste und Einsatzbericht, dazu
+Grenzen je Seite (5000 Pixel) und insgesamt (12 Mio. Pixel). Herleitung: `docs/archiv/abnahme-und-gewaehrleistung.md`,
+"Umsetzung 1.8.56".

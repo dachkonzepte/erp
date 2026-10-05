@@ -12,6 +12,9 @@ Unterschrift Ausführender, Abschnitt 2 (Ende, Nachkontrolle ohne Befund) → Un
                gehört zur verworfenen Unterschrift: kein Entfernen-Knopf.
     Monteurin  unterschreibt neu, die Brandwache unterschreibt, abschließen, PDF.
 
+Seit 1.8.56: vor der Brandwache fehlt zunächst "Nachkontrolle ohne Befund" (Pflicht) -- der Hinweis steht über der
+Zeichenfläche, Unterschreiben wird auf der Seite abgelehnt (ohne Rückfrage, nichts gespeichert); nach der Antwort ist er weg.
+
 `confirm()` wird auf jeder Seite automatisch bestätigt und mitgeschrieben (Headless-Chrome
 blockiert sonst). Unterschriften mit echten Mausereignissen.
 
@@ -135,10 +138,24 @@ async def pruefen(tab, seed, p):
     p.pruefe("Unterschrift 1: Inhalt unverändert", [await tab.js(seal("sig1")), "unverändert" in await tab.js(seal_text("sig1"))], ["unveraendert", True])
     p.pruefe("Kein 'Entwurf löschen'", await tab.js("[...document.querySelectorAll('.footer-card .btn')].map(b=>b.textContent.trim())"), ["Abschließen"])
 
+    # Seit 1.8.56: Pflichtangaben oberhalb einer Unterschrift.
+    fehlt = "Vor der Unterschrift fehlen noch: Nachkontrolle ohne Befund."
+    hinweis = f"(e=>e&&!e.hidden?e.textContent:null)(document.querySelector('[data-missing-before=\"{f['sig2']}\"]'))"
+    p.pruefe("Hinweis über der Brandwache: fehlende Pflichtangabe", await tab.js(hinweis), fehlt)
+    rueckfragen = len(await tab.js("window.__confirms"))
+    await _unterschreiben(tab, f["sig2"], "Karl Kollege")
+    await tab.warten(f"document.getElementById('st_{f['sig2']}').classList.contains('err')", 10)
+    p.pruefe("Brandwache ohne Pflichtangabe: abgelehnt, keine Rückfrage, nichts gespeichert", [
+        await tab.js(f"document.getElementById('st_{f['sig2']}').textContent"),
+        len(await tab.js("window.__confirms")) == rueckfragen,
+        await tab.js(f"fetch('{api}').then(r=>r.json()).then(d=>d.attachments.filter(a=>a.kind==='unterschrift').length)")],
+        [fehlt, True, 1])
+
     await tab.js(f"(()=>{{const el=document.querySelector('#q_{f['ende']} input');el.value='16:30';el.dispatchEvent(new Event('input'));el.dispatchEvent(new Event('blur'))}})()")
     await tab.js(f"document.querySelector('#q_{f['befund']} .tile').click()")
     await tab.warten(f"document.querySelector('#q_{f['befund']} .tile.on')", 10)
     await asyncio.sleep(0.3)
+    p.pruefe("Hinweis weg nach der Antwort", await tab.js(hinweis), None)
     antworten = await tab.js(f"fetch('{api}').then(r=>r.json()).then(d=>[d.answers['{f['ende']}']?.value,d.answers['{f['befund']}']?.value])")
     p.pruefe("Abschnitt 2 nach der Unterschrift gespeichert", antworten, ["16:30", "ja"])
     p.pruefe("Monteurin: JS-Fehler", tab.fehler, [])

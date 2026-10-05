@@ -4814,6 +4814,7 @@ class ChecklistOut(ChecklistSummaryOut):
     signed: bool = False
     sealed_field_ids: list[int] = []
     has_signatures: bool = False
+    missing_before_signature: dict[str, list[str]] = {}  # seit 1.8.56: je Unterschriftsfeld (ID) die fehlenden Pflichtangaben oberhalb
     missing_required: list[str] = []
     completion_sha256: str | None = None
     completion_seal: ChecklistSealCheckOut | None = None

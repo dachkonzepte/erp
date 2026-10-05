@@ -19,6 +19,7 @@ from app.service_reports import create_report, sign_report
 from app.tasks import list_tasks
 from tests.test_v153_mahnwesen import db_session
 from tests.test_v202_maintenance_contracts import make_customer_and_property, make_template_project
+from tests.test_v213_inspection_items import TINY_PNG
 
 
 def _enable_roof_area_items(db):
@@ -269,7 +270,7 @@ def test_delete_contract_cascades_items_without_reports_but_blocks_when_signed_r
     )
     db.add(order); db.commit()
     report = create_report(db, order.id, "wartung")
-    sign_report(db, report["id"], installer_signature_png_bytes=b"fake-signature-bytes", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"fake-signature-bytes", customer_signature_name="Monteur Mustermann")
+    sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Monteur Mustermann")
 
     try:
         delete_contract(db, contract2["id"])

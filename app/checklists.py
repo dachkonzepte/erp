@@ -49,6 +49,11 @@ Zustellung (app/email_dispatch.py::receipt_content_type(), dieselbe Größengren
 unverändert gespeichert -- die Prüfsumme in Kopie und Abschluss geht über genau die hochgeladenen Bytes.
 Ein Beleg wird versiegelt und gebunden wie ein Foto.
 
+Seit 1.8.56 (Stufe 2c-2c): eine Unterschrift verlangt alle Pflichtangaben oberhalb von ihr (missing_required_labels(
+before=…), Antworten, Fotos und Belege samt Mindestanzahl -- Pflicht-Unterschriften oberhalb nicht, eine obere Unterschrift
+bleibt nach einer unteren möglich), und das Bild läuft durch die gemeinsame Prüfung aller Unterschrift-Wege
+(app/signature_image.py: PNG, Größe, nicht leer). Vorher nahm die Checkliste jedes lesbare Bild an, auch ein leeres.
+
 Rollenlos wie jede Geschäftslogik dieses Projekts -- wer was sehen/ändern darf, entscheidet
 app/routers/checklists.py."""
 
@@ -76,10 +81,11 @@ from .models import (
 )
 from .operational_assets import resolve_asset_identity
 from .paths import data_dir
+from .signature_image import MAX_SIGNATURE_PNG_BYTES, check_signature_png
 
 CHECKLIST_ROOT = Path(os.getenv("DACHKONZEPTE_CHECKLIST_FILE_ROOT", data_dir() / "checklist_files"))
 MAX_PHOTO_UPLOAD_BYTES = 15 * 1024 * 1024  # Rohdatei vor der Verkleinerung -- Handyfotos sind groß
-MAX_SIGNATURE_UPLOAD_BYTES = 2 * 1024 * 1024
+MAX_SIGNATURE_UPLOAD_BYTES = MAX_SIGNATURE_PNG_BYTES  # seit 1.8.56 aus der gemeinsamen Prüfung
 MAX_BELEG_UPLOAD_BYTES = 15_000_000  # wie MAX_RECEIPT_BYTES der nachgetragenen Zustellung (seit 1.8.45)
 MAX_UPLOAD_BYTES = max(MAX_PHOTO_UPLOAD_BYTES, MAX_BELEG_UPLOAD_BYTES)  # so viel liest der Router höchstens
 MAX_TEXT_LENGTH = 10_000
@@ -522,6 +528,10 @@ def checklist_to_dict(checklist: Checklist) -> dict:
         } for a in checklist.attachments if a.discarded_at is not None],
         "signed": is_signed(checklist),
         "missing_required": missing_required_labels(checklist),
+        # seit 1.8.56: je Unterschriftsfeld, was oberhalb noch fehlt -- so lange lehnt der Server die Unterschrift ab
+        "missing_before_signature": {
+            str(f.id): missing_required_labels(checklist, before=f) for f in fields if f.field_type == "unterschrift"
+        } if checklist.status == "entwurf" else {},
         "completion_sha256": checklist.content_sha256,
         "completion_seal": check_completion(checklist, photo_hashes),
         # seit 1.8.41: "als gegenstandslos abschließen" (Zweck erlaubt es; wer darf, entscheidet der Router)
@@ -931,6 +941,12 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
         _require_field_open(checklist, field)
     elif single_signature and existing:
         raise ChecklistLocked(f"\"{field.label}\" ist bereits unterschrieben – eine Unterschrift wird nicht ersetzt.")
+    if kind == "unterschrift":
+        # Seit 1.8.56: erst alle Pflichtangaben oberhalb (die Unterschrift versiegelt sie), dann das Bild selbst.
+        missing = missing_required_labels(checklist, before=field)
+        if missing:
+            raise ValueError(f"Vor der Unterschrift „{field.label}“ fehlen noch Pflichtangaben: {', '.join(missing)}.")
+        check_signature_png(data, f"in „{field.label}“")
     if not data:
         raise ValueError("Die Datei ist leer.")
     if kind == "beleg" and len(data) > MAX_BELEG_UPLOAD_BYTES:  # Wortlaut wie bei der nachgetragenen Zustellung
@@ -1050,16 +1066,20 @@ def discard_signatures(db: Session, checklist_id: int, *, signature_id: int | No
 
 # --- Abschließen, Löschen -------------------------------------------------------------------
 
-def missing_required_labels(checklist: Checklist) -> list[str]:
+def missing_required_labels(checklist: Checklist, *, before: ChecklistTemplateField | None = None) -> list[str]:
     """Beschriftungen aller noch fehlenden Pflichtangaben. Bei Foto/Beleg/Unterschrift zählt die
     Mindestanzahl (min_count, bei Pflicht mindestens 1) -- ein nicht als Pflicht markiertes
-    Fotofeld mit Mindestanzahl gilt ebenfalls als Pflicht."""
+    Fotofeld mit Mindestanzahl gilt ebenfalls als Pflicht. Mit `before` (seit 1.8.56) nur die Felder, die eine
+    Unterschrift in diesem Feld versiegelt: alle oberhalb, ohne Hinweise und Unterschriften."""
     by_field = {a.template_field_id: a for a in checklist.answers}
     counts: dict[int, int] = {}
     for a in active_attachments(checklist):
         counts[a.template_field_id] = counts.get(a.template_field_id, 0) + 1
     missing = []
-    for field in checklist.template_version.fields:
+    fields = checklist.template_version.fields
+    if before is not None:
+        fields = [f for f in fields[:fields.index(before)] if f.field_type not in _NOT_SEALED_TYPES]
+    for field in fields:
         if field.field_type == "hinweis":
             continue
         if field.field_type in ATTACHMENT_FIELD_TYPES:

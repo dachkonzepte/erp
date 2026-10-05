@@ -906,3 +906,10 @@ Zeichnen kaum zu sehen; jetzt in beiden Themes weiß mit dunklem Strich. Neu: Ze
 (`devicePixelRatio`, vorher CSS-Pixel) -- das PNG ist auf einem Tablet entsprechend größer, das PDF zeigt es
 weiterhin in 60×30 mm. Ablauf, API (`installer_/customer_signature_png_base64`) und `sign_report()` unverändert.
 Nebenbefund: `_decode_signature_png()` begrenzt die Größe nicht (Checkliste und Vertrag: 2 MB).
+
+## Nachtrag 1.8.56 (05.10.2026) -- Unterschriftsbild des Einsatzberichts geprüft
+
+`sign_report()` speicherte die beiden Unterschriftsbilder bis 1.8.55 ungeprüft (nur die Größe, seit 1.8.35) -- über die API
+ging auch "AAAA". Seit 1.8.56 laufen beide durch `app/signature_image.py::check_signature_png()` (PNG, Größe, nicht leer),
+an der Stelle der bisherigen Größenprüfung, vor den inhaltlichen Prüfungen. Herleitung:
+`docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.56".

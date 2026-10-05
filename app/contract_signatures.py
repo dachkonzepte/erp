@@ -58,13 +58,13 @@ from .contract_versions import (
     current_version, frozen_content, sha256_text, version_differences,
 )
 from .models import Order, OrderContract, OrderContractSignature, OrderContractVersion, SentDocument
+from .signature_image import check_signature_png
 from .sent_documents import (
     CONTENT_TYPE_SUFFIXES, ArchiveFileError, read_sent_document, sent_document_to_dict, store_sent_document,
     verify_sent_document,
 )
 
 METHODS = {"geraet": "auf dem Gerät", "papier": "auf Papier (Scan)"}
-MAX_SIGNATURE_PNG_BYTES = 2 * 1024 * 1024  # wie die Checklisten-Unterschrift
 MAX_SCAN_BYTES = 15_000_000  # wie der Beleg einer Zustellung
 MAX_SIGNER_NAME = 160
 WITHDRAWAL_DAYS = 14
@@ -81,39 +81,6 @@ def _signer_name(value: str | None, who: str) -> str:
     if len(name) > MAX_SIGNER_NAME:
         raise ValueError(f"Der Name {who} ist zu lang (höchstens {MAX_SIGNER_NAME} Zeichen).")
     return name
-
-
-def _has_ink(image) -> bool:
-    """Ob auf dem Bild etwas gezeichnet ist: bei durchsichtigem Hintergrund (Zeichenfläche) ein sichtbares
-    Pixel, bei deckendem Hintergrund ein dunkles."""
-    rgba = image.convert("RGBA")
-    alpha = rgba.getchannel("A")
-    if alpha.getextrema()[0] == 255:
-        return rgba.convert("L").getextrema()[0] < 160
-    return alpha.point(lambda a: 255 if a > 32 else 0).getbbox() is not None
-
-
-def signature_png(data: bytes, who: str) -> bytes:
-    """Prüft ein Unterschriftsbild: ein PNG (am Inhalt erkannt, von Pillow vollständig gelesen), nicht zu
-    groß, nicht leer. Wirft ValueError."""
-    from PIL import Image, UnidentifiedImageError
-
-    if not data:
-        raise ValueError(f"Bitte {who} unterschreiben.")
-    if len(data) > MAX_SIGNATURE_PNG_BYTES:
-        raise ValueError(f"Die Unterschrift {who} ist zu groß.")
-    try:
-        with Image.open(BytesIO(data)) as image:
-            fmt = image.format
-            image.load()
-            ink = _has_ink(image)
-    except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
-        fmt, ink = None, False
-    if fmt != "PNG":
-        raise ValueError(f"Die Unterschrift {who} ist kein gültiges PNG.")
-    if not ink:
-        raise ValueError(f"Die Unterschrift {who} ist leer – bitte im Feld unterschreiben.")
-    return data
 
 
 def _box_label(box: dict) -> str:
@@ -398,8 +365,9 @@ def sign_contract_on_device(
     user_name = user_name or "System"
     customer_name = _signer_name(customer_name, "des Kunden")
     company_name = _signer_name(company_name, "der Person, die für den Betrieb unterschreibt")
-    signature_png(customer_png, "des Kunden")
-    signature_png(company_png, "für den Betrieb")
+    # Seit 1.8.56 die gemeinsame Prüfung aller Unterschrift-Wege (app/signature_image.py), vorher eine eigene hier.
+    check_signature_png(customer_png, "des Kunden")
+    check_signature_png(company_png, "für den Betrieb")
     try:
         contract, version, version_pdf = _signable(db, order, version_id=version_id, pdf_sha256=pdf_sha256,
                                                    require_matching=True)

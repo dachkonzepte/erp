@@ -42,7 +42,9 @@ def _make_tiny_png() -> bytes:
     from io import BytesIO
     from PIL import Image as PILImage
     buf = BytesIO()
-    PILImage.new("RGB", (4, 4), "white").save(buf, format="PNG")
+    image = PILImage.new("RGB", (4, 4), "white")
+    image.putpixel((1, 1), (0, 0, 0))  # seit 1.8.56: ein Unterschriftsbild darf nicht leer sein (app/signature_image.py)
+    image.save(buf, format="PNG")
     return buf.getvalue()
 
 

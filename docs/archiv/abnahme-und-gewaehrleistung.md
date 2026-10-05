@@ -905,3 +905,77 @@ festgehalten wird.
 - **Eigener Fehler aus 1.8.54, mitbehoben**: `klicktest_maengel.py` war nach "Aufgabe folgt dem Status" nicht nachgezogen worden
   -- vier Prüfungen erwarteten noch die Aufgabenzeile "Aufgabe: …" und zwei statt drei Aufgaben (seit 1.8.54 "Aufgabe (Art): …"
   und "Beseitigung abnehmen lassen" nach "beseitigt"). Erwartungen auf das bestätigte Verhalten gebracht; am Code kein Befund.
+
+
+---
+
+## Umsetzung 1.8.56 (05.10.2026) -- Runde 2c-2c, Punkte 1 und 2: Pflichtangaben vor der Unterschrift, eine Bildprüfung
+
+### Punkt 1: Abschnittsunterschrift prüft die Pflichtangaben oberhalb
+
+- `app/checklists.py::add_attachment()` (Feldtyp "unterschrift"): vor allem anderen am Bild
+  `missing_required_labels(checklist, before=field)` -- alle Felder oberhalb der Unterschrift, die sie versiegelt (ohne
+  Hinweise und Unterschriften), mit derselben Regel wie beim Abschließen (Pflicht, Mindestanzahl bei Foto/Beleg, "entfällt"
+  ist eine Antwort). Fehlt etwas: 400 "Vor der Unterschrift „…“ fehlen noch Pflichtangaben: …", nichts gespeichert, kein
+  Bild auf der Platte. Gilt für jede Rolle, auch fürs Büro und für eine neue `client_uuid`; eine Wiederholung einer schon
+  gespeicherten bleibt 200.
+- `checklist_to_dict()` liefert `missing_before_signature` (je Unterschriftsfeld die fehlenden Beschriftungen, nur im
+  Entwurf). `checklist.html`: Hinweis über der Zeichenfläche ("Vor der Unterschrift fehlen noch: …", `data-missing-before`),
+  der jeder gespeicherten Eingabe folgt; "Unterschrift übernehmen" speichert erst offene Eingaben und bricht dann mit dem
+  Hinweis ab, ohne Rückfrage. Die Rückfrage vor dem Versiegeln nennt keine fehlenden Pflichtangaben mehr (es kann keine
+  geben); die Warnung "Pflichtangaben, die sich nicht mehr ergänzen lassen" in der Karte "Unterschrieben" bleibt für
+  Unterschriften von vor 1.8.56.
+
+### Punkt 2: eine Prüfung für alle Unterschriften
+
+- Neues Modul `app/signature_image.py`: `check_signature_png(data, who)` -- vorhanden, höchstens 2 MB, ein PNG (am Inhalt
+  erkannt, vollständig gelesen), höchstens 5000 Pixel je Seite und 12 Mio. Pixel (Speicherbudget: ein kleines PNG kann sich
+  riesig entpacken), nicht leer (durchsichtig: ein sichtbares Pixel; deckend: ein dunkles); `signature_png_from_base64()`
+  für die JSON-Wege. Aufgerufen von Checkliste (`add_attachment()`), Einsatzbericht (`sign_report()`, Monteur und Kunde)
+  und Vertrag auf dem Gerät (`sign_contract_on_device()`, Kunde und Betrieb), jeweils bevor etwas gespeichert wird.
+- **Bestand vorher**: der Vertrag prüfte seit 1.8.34 PNG und "nicht leer" (`_has_ink`, jetzt hierher verschoben), die
+  Checkliste nur "Pillow kann es öffnen" (jedes Format, auch ein leeres Bild), der Einsatzbericht nur die Größe -- er schrieb
+  die Bytes ungeprüft auf die Platte (über die API auch "AAAA"). Die beiden Router-Hilfen zum Base64 sind entfallen.
+- **Strukturtest** `tests/test_v358_unterschrift_pruefung.py`: (a) jede Spalte, deren Name nach Unterschrift klingt
+  (`signature`, `signer`, `signed`, `unterschrift`, `image`), steht eingeordnet in `SPALTEN` -- "bild" (verweist auf ein
+  gezeichnetes Bild) oder mit Grund; eine neue Spalte ist rot, bis sie eingeordnet ist; (b) per AST jede Funktion unter
+  `app/`, die ein Unterschriftsbild speichert (Zuweisung an eine "bild"-Spalte, Modell-Konstruktor mit so einem
+  Schlüsselwort, Anlegen einer `ChecklistAttachment`), ruft `check_signature_png()` auf -- oder jeder ihrer Aufrufer im
+  Modul tut es (so `_finish()` des Vertrags über `sign_contract_on_device()`), ausgenommen mit Grund nur der Papier-Scan
+  (`record_paper_signature()`); (c) keine zweite Leer-/PNG-Prüfung außerhalb des Moduls.
+
+### Festlegungen 1.8.56 (bitte bestätigen)
+
+1. **"Oberhalb" heißt alle Felder vor der Unterschrift**, nicht nur ihr Abschnitt -- die Unterschrift versiegelt sie alle.
+2. **Pflicht-Unterschriften oberhalb zählen nicht** (seit 1.8.14 bleibt eine obere Unterschrift nach einer unteren möglich,
+   z. B. Teilnehmer nach dem Unterweisenden).
+3. **Felder "nur Büro" oberhalb zählen mit**: eine Unterschrift des Monteurs unter einem Büro-Abschnitt (z. B. Wegfall unter
+   der Anzeige) wartet, bis das Büro dessen Pflichtangaben ausgefüllt hat -- sonst versiegelte sie die Büro-Felder leer.
+4. **Reihenfolge der Prüfungen** an der Checkliste: Entwurf, Feld, schon unterschrieben (409), Pflichtangaben (400), Bild
+   (400), Name -- an Bericht und Vertrag die Bildprüfung an der Stelle der bisherigen Größenprüfung (vor den inhaltlichen).
+5. **PNG überall Pflicht**: die Checkliste nimmt keine JPEG-Unterschrift mehr an (die Zeichenfläche liefert PNG).
+6. **Grenzen**: 2 MB wie bisher, dazu 5000 Pixel je Seite und 12 Mio. Pixel; "nicht leer" wie beim Vertrag seit 1.8.34 (ein
+   Punkt genügt -- keine Mindestgröße der Unterschrift, die Seite verlangt schon einen Strich).
+
+### Verifikation 1.8.56
+
+- `tests/test_v358_unterschrift_pruefung.py` (27): die Prüfung (neun Ablehnungen, Annahme durchsichtig und deckend, genau an
+  der 2-MB-Grenze), Angriff je Weg über die API (Checkliste leer/weiß/JPEG, Bericht Monteur/Kunde leer/weiß/JPEG/kein Bild,
+  Vertrag Kunde/Betrieb leer -- 400, nichts gespeichert, kein Bild auf der Platte, mit Strich angenommen), Strukturtest (drei
+  Teile), Pflichtangaben (oberhalb ja, darunter nein, "entfällt" genügt, Mindestanzahl Fotos, Pflicht-Unterschrift oberhalb
+  nicht, Liste je Unterschrift, Angriff über die API auch fürs Büro und mit neuer Kennung, Seite).
+- Angepasst (Attrappen statt echter Bilder bzw. Unterschrift ohne Pflichtangabe): `TINY_PNG` in `test_v203`/`test_v213`
+  mit einem dunklen Pixel, `b"fake-signature-bytes"`/`b"sig"` durch `TINY_PNG` in `test_v212`, `test_v213`, `test_v214`,
+  `test_v222`, `test_v223` (zusammen 27 Stellen), "AAAA" in `test_v213`/`test_v214`, `test_v338` (Größengrenze mit echtem
+  PNG), `test_v305` und `test_v318` (Pflichtangabe vor der Unterschrift).
+- Gegenproben (Marker GEGENPROBE, Dateien byte-genau zurück): 14 von 14 rot.
+- PostgreSQL (Wegwerf-Schemas über ein pytest-Plugin im Scratchpad): `test_v358` und die Checklisten-Unterschriftstests
+  v305/v317/v318/v319 -- 100 grün. Keine Migration.
+- Klicktests mit Unterschriften, alle 13 grün: `klicktest_checkliste_abschnitte.py` 28/28 (neu: Hinweis über der Brandwache,
+  Unterschreiben ohne Pflichtangabe auf der Seite abgelehnt ohne Rückfrage, Hinweis weg nach der Antwort),
+  `klicktest_checkliste_unterschrift.py` 26/26 (umgestellt: der Ablauf von 1.8.13 "unterschreiben, obwohl eine Pflichtangabe
+  fehlt, Warnung danach" ist nicht mehr möglich -- jetzt Ablehnung, Antwort "Nein", Unterschrift, Büro verwirft, Korrektur auf
+  "Ja"), `klicktest_beleg_und_hinweis.py` 24/24 (Befüllung mit einem weißen Unterschriftsbild -- jetzt abgelehnt, auf ein
+  dunkles umgestellt), unverändert grün: `_verwerfen` 23, `_zweck` 28, `behinderungsanzeige` 35, `_versand` 41,
+  `_abschluss` 43, `bedenkenanzeige` 22, `_versand` 20, `versandverlauf` 32, `vertrag_unterschrift` 43, `vertrag_abschrift` 26.
+- Volle Suite 2874 grün (mit den opt-in-Tests gegen PostgreSQL).

@@ -1,3 +1,4 @@
+import base64
 from datetime import date, timedelta
 
 from app.findings import create_finding, list_findings_for_component, update_finding_followup
@@ -73,7 +74,7 @@ def test_sign_report_blocks_on_negative_item_without_finding_then_with_photo_suc
     update_inspection_item(db, ablauf_item["id"], {"result": "nok"})
 
     try:
-        sign_report(db, report["id"], installer_signature_png_bytes=b"sig", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"sig", customer_signature_name="Max Mustermann")
+        sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
         assert False, "sollte ValueError auslösen"
     except ValueError as exc:
         assert "1" in str(exc)
@@ -82,13 +83,13 @@ def test_sign_report_blocks_on_negative_item_without_finding_then_with_photo_suc
     assert finding["roof_component_id"] is not None  # aus dem Prüfpunkt übernommen
 
     try:
-        sign_report(db, report["id"], installer_signature_png_bytes=b"sig", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"sig", customer_signature_name="Max Mustermann")
+        sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
         assert False, "sollte ValueError auslösen"
     except ValueError as exc:
         assert "Foto" in str(exc)
 
     add_photo(db, report["id"], TINY_PNG, "foto.png", finding_id=finding["id"])
-    signed = sign_report(db, report["id"], installer_signature_png_bytes=b"sig", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"sig", customer_signature_name="Max Mustermann")
+    signed = sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
     assert signed["status"] == "unterschrieben"
 
 
@@ -114,7 +115,7 @@ def test_resubmission_date_required_for_zurueckgestellt_at_create_and_sign(tmp_p
     row.resubmission_date = None
     db.commit()
     try:
-        sign_report(db, report["id"], installer_signature_png_bytes=b"sig", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"sig", customer_signature_name="Max Mustermann")
+        sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
         assert False, "sollte ValueError auslösen"
     except ValueError as exc:
         assert "Wiedervorlage" in str(exc)
@@ -314,7 +315,7 @@ def test_findings_and_photos_immutable_after_signature(tmp_path):
     report = create_report(db, order.id, "rapport")
     finding = create_finding(db, report["id"], "Kaputt", "gering", "sofort_behoben")
     photo = add_photo(db, report["id"], TINY_PNG, "foto.png", finding_id=finding["id"])
-    sign_report(db, report["id"], installer_signature_png_bytes=b"sig", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"sig", customer_signature_name="Max Mustermann")
+    sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
     try:
         add_photo(db, report["id"], TINY_PNG, "zweites.png", finding_id=finding["id"])
@@ -356,7 +357,7 @@ def test_delete_roof_component_blocks_when_finding_references_it_regardless_of_r
         pass
 
     add_photo(db, report["id"], TINY_PNG, "foto.png", finding_id=finding["id"])
-    sign_report(db, report["id"], installer_signature_png_bytes=b"sig", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"sig", customer_signature_name="Max Mustermann")
+    sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
     try:
         delete_roof_component(db, component["id"])
         assert False, "sollte ValueError auslösen (unterschrieben)"
@@ -400,9 +401,10 @@ def test_router_endpoints_create_finding_and_reject_sign_without_photo(threaded_
     assert finding_resp.status_code == 200, finding_resp.text
     finding_id = finding_resp.json()["id"]
 
+    png = base64.b64encode(TINY_PNG).decode()  # seit 1.8.56 ein echtes Bild -- sonst lehnt schon die Bildprüfung ab
     sign_resp = client.post(f"/api/service-reports/{report_id}/sign", json={
-        "installer_signature_png_base64": "AAAA", "installer_signature_name": "Monteur Test",
-        "customer_signature_png_base64": "AAAA", "customer_signature_name": "Max Mustermann",
+        "installer_signature_png_base64": png, "installer_signature_name": "Monteur Test",
+        "customer_signature_png_base64": png, "customer_signature_name": "Max Mustermann",
     })
     assert sign_resp.status_code == 400
     assert "Foto" in sign_resp.json()["detail"]

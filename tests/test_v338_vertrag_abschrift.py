@@ -335,8 +335,10 @@ def test_service_report_signature_is_limited_to_2_mb(router_test_client, threade
     client = router_test_client(db, sr_router)
     assert MAX_SIGNATURE_PNG_BYTES == 2 * 1024 * 1024
 
-    def png(size):
-        return base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"0" * (size - 8)).decode()
+    from tests.test_v358_unterschrift_pruefung import SIGNATUR
+
+    def png(size):  # seit 1.8.56 ein echtes, nicht leeres PNG (gemeinsame Prüfung), aufgefüllt hinter dem Ende
+        return base64.b64encode(SIGNATUR + b"\0" * (size - len(SIGNATUR))).decode()
 
     def sign(report_id, installer, customer):
         return client.post(f"/api/service-reports/{report_id}/sign", json={

@@ -27,7 +27,9 @@ def _make_tiny_png() -> bytes:
     from io import BytesIO
     from PIL import Image as PILImage
     buf = BytesIO()
-    PILImage.new("RGB", (4, 4), "white").save(buf, format="PNG")
+    image = PILImage.new("RGB", (4, 4), "white")
+    image.putpixel((1, 1), (0, 0, 0))  # seit 1.8.56: ein Unterschriftsbild darf nicht leer sein (app/signature_image.py)
+    image.save(buf, format="PNG")
     return buf.getvalue()
 
 
@@ -125,7 +127,7 @@ def test_report_without_resolvable_roof_area_behaves_like_before():
     assert report["inspection_template_id"] is None
     assert list_inspection_items(db, report["id"]) == []
 
-    signed = sign_report(db, report["id"], installer_signature_png_bytes=b"fake-signature-bytes", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"fake-signature-bytes", customer_signature_name="Max Mustermann")
+    signed = sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
     assert signed["status"] == "unterschrieben"
 
 
@@ -165,7 +167,7 @@ def test_sign_report_blocks_on_open_required_items_and_names_count_then_succeeds
     assert len(required_items) == 4  # Zugang, Gesamtzustand, Abdichtung (alle ohne Bauteil) + Gully "Ablauf frei"
 
     try:
-        sign_report(db, report["id"], installer_signature_png_bytes=b"sig", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"sig", customer_signature_name="Max Mustermann")
+        sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
         assert False, "sollte ValueError auslösen"
     except ValueError as exc:
         assert "4" in str(exc)
@@ -174,14 +176,14 @@ def test_sign_report_blocks_on_open_required_items_and_names_count_then_succeeds
         update_inspection_item(db, item["id"], {"result": "ok", "condition_grade": 1})
 
     try:
-        sign_report(db, report["id"], installer_signature_png_bytes=b"sig", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"sig", customer_signature_name="Max Mustermann")
+        sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
         assert False, "sollte ValueError auslösen"
     except ValueError as exc:
         assert "1" in str(exc)
 
     last = required_items[-1]
     update_inspection_item(db, last["id"], {"result": "ok", "condition_grade": 1})
-    signed = sign_report(db, report["id"], installer_signature_png_bytes=b"sig", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"sig", customer_signature_name="Max Mustermann")
+    signed = sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
     assert signed["status"] == "unterschrieben"
 
 
@@ -195,7 +197,7 @@ def test_changes_to_inspection_items_blocked_after_signature():
     for item in list_inspection_items(db, report["id"]):
         if item["required"]:
             update_inspection_item(db, item["id"], {"result": "ok", "condition_grade": 1})
-    sign_report(db, report["id"], installer_signature_png_bytes=b"sig", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"sig", customer_signature_name="Max Mustermann")
+    sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
     some_item = list_inspection_items(db, report["id"])[0]
     for fn, args in [
@@ -297,7 +299,7 @@ def test_delete_roof_component_blocks_when_signed_report_references_it_then_succ
     for item in list_inspection_items(db, report["id"]):
         if item["required"]:
             update_inspection_item(db, item["id"], {"result": "ok", "condition_grade": 1})
-    sign_report(db, report["id"], installer_signature_png_bytes=b"sig", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"sig", customer_signature_name="Max Mustermann")
+    sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
     try:
         delete_roof_component(db, component["id"])
@@ -328,7 +330,7 @@ def test_component_archived_after_signature_report_remains_fully_readable(tmp_pa
     for item in list_inspection_items(db, report["id"]):
         if item["required"]:
             update_inspection_item(db, item["id"], {"result": "ok", "condition_grade": 1})
-    sign_report(db, report["id"], installer_signature_png_bytes=b"sig", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"sig", customer_signature_name="Max Mustermann")
+    sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
     set_roof_component_archived(db, component["id"], True)
 
@@ -451,9 +453,10 @@ def test_router_endpoints_generate_items_and_reject_open_required_via_http(threa
     assert items_resp.status_code == 200
     assert len(items_resp.json()) > 0
 
+    png = base64.b64encode(TINY_PNG).decode()  # seit 1.8.56 ein echtes Bild -- sonst lehnt schon die Bildprüfung ab
     sign_resp = client.post(f"/api/service-reports/{report_id}/sign", json={
-        "installer_signature_png_base64": "AAAA", "installer_signature_name": "Monteur Test",
-        "customer_signature_png_base64": "AAAA", "customer_signature_name": "Max Mustermann",
+        "installer_signature_png_base64": png, "installer_signature_name": "Monteur Test",
+        "customer_signature_png_base64": png, "customer_signature_name": "Max Mustermann",
     })
     assert sign_resp.status_code == 400
     assert re.search(r"\d+ Pflichtpunkt", sign_resp.json()["detail"])

@@ -24,8 +24,6 @@ stimmender Prüfsumme).
 Monteure: kein Zugriff (403), wie auf Auftrag und Angebot als kaufmännische Dokumente.
 """
 
-import base64
-import binascii
 import json
 from datetime import date
 
@@ -36,6 +34,7 @@ from sqlalchemy.orm import Session
 from ..contract_basis import CONTRACT_BASES
 from ..contract_pdf import build_contract_pdf
 from ..contract_signatures import MAX_SCAN_BYTES, record_paper_signature, sign_contract_on_device
+from ..signature_image import signature_png_from_base64
 from ..contract_templates import (
     create_contract_draft, get_order_contract, list_templates, placeholder_list, save_template, update_contract_draft,
 )
@@ -204,16 +203,6 @@ def post_send_contract_email(
     return contract_state(db, _order_or_404(db, order_id))
 
 
-def _png_from_base64(raw: str) -> bytes:
-    raw = (raw or "").strip()
-    if raw.lower().startswith("data:") and "," in raw:
-        raw = raw.split(",", 1)[1]
-    try:
-        return base64.b64decode(raw, validate=True)
-    except (binascii.Error, ValueError) as exc:
-        raise HTTPException(status_code=400, detail="Ungültige Unterschrift (kein gültiges Base64-PNG).") from exc
-
-
 def _signature_errors(call):
     try:
         return call()
@@ -231,8 +220,11 @@ def post_sign_contract(
 ):
     """Gewöhnliche def-Route: prüft die Bilder und rendert das Unterschriftsblatt (Threadpool)."""
     order = _order_or_404(db, order_id)
-    customer_png = _png_from_base64(payload.customer_signature_png_base64)
-    company_png = _png_from_base64(payload.company_signature_png_base64)
+    try:
+        customer_png = signature_png_from_base64(payload.customer_signature_png_base64)
+        company_png = signature_png_from_base64(payload.company_signature_png_base64)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     user_id, user_name = actor_of(user)
     _signature_errors(lambda: sign_contract_on_device(
         db, order, version_id=payload.version_id, pdf_sha256=payload.pdf_sha256, checkboxes=payload.checkboxes,

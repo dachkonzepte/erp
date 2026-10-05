@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.56 – Unterschriften: Pflichtangaben oberhalb, eine Prüfung für jedes Unterschriftsbild
+
+Stufe 2c, Runde 2c-2c, Punkte 1 und 2. Eine Unterschrift in einer Checkliste verlangt jetzt alle Pflichtangaben oberhalb
+von ihr – Antworten, Fotos und Belege samt Mindestanzahl; fehlt etwas, lehnt der Server ab und speichert nichts. Die
+Ausfüllseite sagt es vorher über der Zeichenfläche („Vor der Unterschrift fehlen noch: …“) und bricht „Unterschrift
+übernehmen“ damit ab. Bisher konnte eine Abschnittsunterschrift leere Pflichtfelder versiegeln, die danach niemand mehr
+ergänzen konnte. Pflicht-Unterschriften oberhalb zählen nicht – eine obere Unterschrift bleibt nach einer unteren möglich.
+
+Jedes gezeichnete Unterschriftsbild – Checkliste, Einsatzbericht (Monteur und Kunde), Vertrag auf dem Gerät – läuft durch
+eine gemeinsame Prüfung (`app/signature_image.py`): PNG, höchstens 2 MB und 5000 Pixel je Seite, nicht leer. Bisher prüfte
+nur der Vertrag „nicht leer“, die Checkliste nahm jedes lesbare Bild an, der Einsatzbericht speicherte die Bytes ungeprüft.
+Ein Strukturtest ordnet jede Spalte ein, die nach Unterschrift klingt, und sucht per AST jede Stelle, die ein
+Unterschriftsbild speichert – sie muss die Prüfung aufrufen.
+
+Keine Migration. Neue `test_v358` (27), angepasst: Attrappen-Bilder in neun älteren Testdateien und zwei Tests, die ohne
+Pflichtangabe unterschrieben. Gegenproben 14 von 14 rot; Checklisten-Unterschriftstests gegen PostgreSQL 100 grün. Alle 13
+Klicktests mit Unterschriften grün, `klicktest_checkliste_unterschrift.py` auf den neuen Ablauf umgestellt. Volle Suite 2874 grün (mit den opt-in-Tests gegen
+PostgreSQL). Festlegungen
+in `docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.56“.
+
 ## 1.8.55 – Mängel: neue Frist bei „zurück auf offen“, Regel gegen vergessene Gegenproben
 
 Stufe 2c, Runde 2c-2c, Punkt 0. Setzt das Büro einen beseitigten Mangel zurück auf „offen“, kann es jetzt eine neue

@@ -153,7 +153,7 @@ def test_material_blocked_after_signature():
     order = _make_order_for_report(db)
     report = create_report(db, order.id, "rapport")
     row = add_material(db, report["id"], description="Test", quantity=Decimal("1"))
-    sign_report(db, report["id"], installer_signature_png_bytes=b"fake-signature-bytes", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"fake-signature-bytes", customer_signature_name="Max Mustermann")
+    sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
     try:
         add_material(db, report["id"], description="Neu", quantity=Decimal("1"))
@@ -176,7 +176,7 @@ def test_sign_report_without_any_material_is_unaffected():
     db = db_session()
     order = _make_order_for_report(db)
     report = create_report(db, order.id, "rapport")
-    signed = sign_report(db, report["id"], installer_signature_png_bytes=b"fake-signature-bytes", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"fake-signature-bytes", customer_signature_name="Max Mustermann")
+    signed = sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
     assert signed["status"] == "unterschrieben"
 
 
@@ -254,7 +254,7 @@ def test_invoice_from_effort_prices_catalog_material_with_configured_markup():
     report = create_report(db, order.id, "rapport")
     material = _make_material(db, name="Bitumenbahn", unit="m2", purchase_price="10.00")
     add_material(db, report["id"], material_id=material.id, quantity=Decimal("5"))
-    sign_report(db, report["id"], installer_signature_png_bytes=b"fake-signature-bytes", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"fake-signature-bytes", customer_signature_name="Max Mustermann")
+    sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
     materials = list_materials_for_invoicing(db, order.id)
     invoice = create_invoice_from_time_entries(db, order, [], materials)
@@ -276,7 +276,7 @@ def test_invoice_from_effort_uses_bare_purchase_price_when_markup_is_zero_defaul
     report = create_report(db, order.id, "rapport")
     material = _make_material(db, name="Bitumenbahn", unit="m2", purchase_price="10.00")
     add_material(db, report["id"], material_id=material.id, quantity=Decimal("5"))
-    sign_report(db, report["id"], installer_signature_png_bytes=b"fake-signature-bytes", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"fake-signature-bytes", customer_signature_name="Max Mustermann")
+    sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
     materials = list_materials_for_invoicing(db, order.id)
     invoice = create_invoice_from_time_entries(db, order, [], materials)
@@ -290,7 +290,7 @@ def test_invoice_from_effort_free_material_has_zero_price_and_is_never_merged():
     report = create_report(db, order.id, "rapport")
     add_material(db, report["id"], description="Dachziegel Rest", quantity=Decimal("2"), unit="Stk")
     add_material(db, report["id"], description="Dachziegel Rest", quantity=Decimal("3"), unit="Stk")
-    sign_report(db, report["id"], installer_signature_png_bytes=b"fake-signature-bytes", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"fake-signature-bytes", customer_signature_name="Max Mustermann")
+    sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
     materials = list_materials_for_invoicing(db, order.id)
     invoice = create_invoice_from_time_entries(db, order, [], materials)
@@ -306,11 +306,11 @@ def test_invoice_from_effort_merges_same_catalog_material_across_two_signed_repo
 
     report1 = create_report(db, order.id, "rapport")
     add_material(db, report1["id"], material_id=material.id, quantity=Decimal("5"))
-    sign_report(db, report1["id"], installer_signature_png_bytes=b"fake-signature-bytes", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"fake-signature-bytes", customer_signature_name="Max Mustermann")
+    sign_report(db, report1["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
     report2 = create_report(db, order.id, "rapport")
     add_material(db, report2["id"], material_id=material.id, quantity=Decimal("3"))
-    sign_report(db, report2["id"], installer_signature_png_bytes=b"fake-signature-bytes", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"fake-signature-bytes", customer_signature_name="Erika Musterfrau")
+    sign_report(db, report2["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Erika Musterfrau")
 
     materials = list_materials_for_invoicing(db, order.id)
     assert len(materials) == 2
@@ -360,7 +360,7 @@ def test_router_endpoint_sets_material_markup_hint_only_when_relevant(threaded_d
     material = _make_material(db, name="Bitumenbahn", unit="m2", purchase_price="10.00")
     report = create_report(db, order.id, "rapport")
     add_material(db, report["id"], material_id=material.id, quantity=Decimal("1"))
-    sign_report(db, report["id"], installer_signature_png_bytes=b"fake-signature-bytes", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"fake-signature-bytes", customer_signature_name="Max Mustermann")
+    sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
     client = router_test_client(db, invoices_router)
     resp = client.post(f"/api/orders/{order.id}/invoices/aus-zeitbuchungen", json={"due_date": None})
@@ -380,7 +380,7 @@ def test_router_endpoint_material_markup_hint_absent_with_configured_markup(thre
     material = _make_material(db, name="Bitumenbahn", unit="m2", purchase_price="10.00")
     report = create_report(db, order.id, "rapport")
     add_material(db, report["id"], material_id=material.id, quantity=Decimal("1"))
-    sign_report(db, report["id"], installer_signature_png_bytes=b"fake-signature-bytes", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"fake-signature-bytes", customer_signature_name="Max Mustermann")
+    sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
     client = router_test_client(db, invoices_router)
     resp = client.post(f"/api/orders/{order.id}/invoices/aus-zeitbuchungen", json={"due_date": None})
@@ -395,7 +395,7 @@ def test_router_endpoint_material_markup_hint_absent_for_free_material_only(thre
     order, _ = make_order_with_item(db)
     report = create_report(db, order.id, "rapport")
     add_material(db, report["id"], description="Freies Material", quantity=Decimal("1"))
-    sign_report(db, report["id"], installer_signature_png_bytes=b"fake-signature-bytes", installer_signature_name="Monteur Test", customer_signature_png_bytes=b"fake-signature-bytes", customer_signature_name="Max Mustermann")
+    sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
     client = router_test_client(db, invoices_router)
     resp = client.post(f"/api/orders/{order.id}/invoices/aus-zeitbuchungen", json={"due_date": None})

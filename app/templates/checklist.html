@@ -15,8 +15,9 @@
   die Felder in cl.sealed_field_ids (alles oberhalb der untersten gültigen Unterschrift), Felder
   darunter bleiben bis zur nächsten Unterschrift offen. Weitere Unterschriften und Abschließen
   bleiben möglich (can_sign). Keine Unterschrift wird ersetzt oder entfernt. Bevor eine Unterschrift
-  neue Felder sperrt, werden offene Eingaben gespeichert und ein Hinweis nennt die Angaben, die
-  danach nicht mehr ergänzbar sind. Jede Unterschrift zeigt, ob der aktuelle Inhalt noch zu ihrer
+  neue Felder sperrt, werden offene Eingaben gespeichert und bestätigt. Seit 1.8.56 nimmt der Server eine
+  Unterschrift erst an, wenn oberhalb keine Pflichtangabe fehlt (cl.missing_before_signature je Feld, als Hinweis
+  über der Zeichenfläche). Jede Unterschrift zeigt, ob der aktuelle Inhalt noch zu ihrer
   Prüfsumme passt (att.seal, vom Server). Das Büro kann eine Unterschrift mit Begründung verwerfen
   (can_discard_signatures, Auswahl und sichtbares Eingabefeld statt Popup, Regel 4) -- seit 1.8.15
   fallen die Unterschriften in Feldern darunter mit (att.discards_with, vom Server), die im selben
@@ -259,6 +260,10 @@ function renderCompletionSeal(){
 
 // Fehlende Pflichtangaben in den Feldern `list` -- gesperrt lassen sie sich nicht mehr ergänzen.
 function missingIn(list){return list.flatMap(missingOf)}
+// Seit 1.8.56: was oberhalb einer Unterschrift noch fehlt, sagt der Server (missing_before_signature) -- so lange lehnt
+// er die Unterschrift ab. Der Hinweis steht über der Zeichenfläche und folgt jeder gespeicherten Eingabe (updateMissing()).
+function missingBeforeText(fieldId){const m=(cl.missing_before_signature||{})[fieldId]||[];return m.length?'Vor der Unterschrift fehlen noch: '+m.join(', ')+'.':''}
+function missingBeforeHtml(f){const t=missingBeforeText(f.id);return `<div class="option-hint" data-missing-before="${f.id}"${t?'':' hidden'}>${esc(t)}</div>`}
 
 function renderLockCard(){
   if(!cl.signed||cl.status!=='entwurf')return '';
@@ -371,7 +376,7 @@ function fieldBody(f){
     const prefill=(!f.multiple&&/monteur|ausführend|fahrer/i.test(f.signer_label||f.label))?MY_NAME:'';
     const meta=a=>[a.created_at_local?a.created_at_local+' Uhr':null,a.content_sha256?'Prüfsumme '+a.content_sha256.slice(0,12)+'…':null].filter(Boolean).join(' · ');
     return `<div class="sig-list">${list.map(a=>`<div class="sig"><img src="${a.url}" alt="Unterschrift"><span class="name">${esc(a.signer_name)}<span class="sig-meta"${a.content_sha256?` title="SHA-256 des unterschriebenen Inhalts: ${esc(a.content_sha256)}"`:''}>${esc(meta(a))}</span>${sealLine(a)}</span></div>`).join('')||(canAdd?'':'<span class="muted">Keine Unterschrift.</span>')}</div>
-      ${canAdd?`<canvas id="pad_${f.id}" class="dk-unterschrift"></canvas>
+      ${canAdd?`${missingBeforeHtml(f)}<canvas id="pad_${f.id}" class="dk-unterschrift"></canvas>
       <div class="pad-actions"><input id="padName_${f.id}" placeholder="Name ${esc(f.signer_label||'')}" value="${esc(prefill)}">
         <button type="button" class="btn secondary" onclick="clearPad(${f.id})">Leeren</button>
         <button type="button" class="btn" onclick="saveSignature(${f.id})">Unterschrift übernehmen</button></div>`:''}`;
@@ -650,6 +655,7 @@ function updateMissing(){
   el.textContent=m.length?'Noch offen: '+m.join(', '):'Alle Pflichtangaben sind ausgefüllt.';
   const err=document.getElementById('pageError');if(err&&!m.length)err.textContent='';  // alte Abschluss-Meldung nicht stehen lassen
   for(const f of cl.fields){const q=document.getElementById('q_'+f.id);if(q)q.classList.toggle('missing',forRole(f)&&m.some(x=>x===f.label||x.startsWith(f.label+' (mindestens')))}
+  for(const el of document.querySelectorAll('[data-missing-before]')){const t=missingBeforeText(el.dataset.missingBefore);el.textContent=t;el.hidden=!t}
 }
 
 // --- Speichern -------------------------------------------------------------------------
@@ -661,7 +667,7 @@ async function sendAnswer(fieldId,value){
   inflight.add(p);
   try{
     const data=await p;
-    cl.answers=data.answers;cl.missing_required=data.missing_required;
+    cl.answers=data.answers;cl.missing_required=data.missing_required;cl.missing_before_signature=data.missing_before_signature;
     setStatus(fieldId,'Gespeichert');updateMissing();
     return true;
   }catch(e){
@@ -699,7 +705,7 @@ async function uploadFile(fieldId,blob,filename,extra={}){
   fd.append('field_id',fieldId);fd.append('file',blob,filename);fd.append('client_uuid',uuid());
   for(const [k,v] of Object.entries(extra))fd.append(k,v);
   const data=await api(`/api/checklists/${checklistId}/attachments`,{method:'POST',body:fd});
-  cl.attachments=data.attachments;cl.missing_required=data.missing_required;
+  cl.attachments=data.attachments;cl.missing_required=data.missing_required;cl.missing_before_signature=data.missing_before_signature;
   return data;
 }
 async function uploadPhotos(fieldId,input,what='Foto'){  // what: 'Beleg' für Belegfelder (seit 1.8.45)
@@ -715,7 +721,7 @@ async function uploadPhotos(fieldId,input,what='Foto'){  // what: 'Beleg' für B
 async function removeAttachment(attachmentId){
   if(!confirm('Wirklich entfernen?'))return;
   const a=cl.attachments.find(x=>x.id===attachmentId);
-  try{const data=await api(`/api/checklist-attachments/${attachmentId}`,{method:'DELETE'});cl.attachments=data.attachments;cl.missing_required=data.missing_required;rerenderField(cl.fields.find(x=>x.id===a.field_id));updateMissing()}
+  try{const data=await api(`/api/checklist-attachments/${attachmentId}`,{method:'DELETE'});cl.attachments=data.attachments;cl.missing_required=data.missing_required;cl.missing_before_signature=data.missing_before_signature;rerenderField(cl.fields.find(x=>x.id===a.field_id));updateMissing()}
   catch(e){alert('Fehler: '+e.message)}
 }
 
@@ -735,16 +741,17 @@ async function saveSignature(fieldId){
   if(!name){setStatus(fieldId,'Bitte den Namen der unterschreibenden Person eintragen.',true);nameEl.focus();return}
   const idx=cl.fields.findIndex(x=>x.id===fieldId);
   const newly=cl.fields.slice(0,idx).filter(f=>CONTENT_TYPES(f)&&!isSealed(f));
+  // Zuerst alles Getippte speichern (sonst käme es nach der Unterschrift an und würde abgewiesen). Seit 1.8.56 lehnt der
+  // Server die Unterschrift ab, solange oberhalb eine Pflichtangabe fehlt -- die Seite sagt es vorher.
+  setStatus(fieldId,'Speichert Eingaben …');
+  await flushAll();
+  const fehlt=missingBeforeText(fieldId);
+  if(fehlt){setStatus(fieldId,fehlt,true);updateMissing();return}
   if(newly.length){
-    // Die Unterschrift sperrt die noch offenen Angaben oberhalb: zuerst alles Getippte speichern
-    // (sonst käme es nach der Unterschrift an und würde abgewiesen), dann bewusst bestätigen lassen.
-    setStatus(fieldId,'Speichert Eingaben …');
-    await flushAll();
-    const open=missingIn(newly);
+    // Die Unterschrift sperrt die noch offenen Angaben oberhalb -- bewusst bestätigen lassen.
     const below=cl.fields.slice(idx+1).some(CONTENT_TYPES);
     const text='Nach der Unterschrift sind die Angaben oberhalb gesperrt und lassen sich nicht mehr ändern.'
       +(below?' Die Angaben darunter bleiben bis zur nächsten Unterschrift offen.':'')
-      +(open.length?'\n\nNoch nicht ausgefüllt: '+open.join(', ')+'\nDiese Angaben lassen sich danach nicht mehr ergänzen.':'')
       +'\n\nJetzt unterschreiben?';
     if(!confirm(text)){setStatus(fieldId,'');return}
   }
