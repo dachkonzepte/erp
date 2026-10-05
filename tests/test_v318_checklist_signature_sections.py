@@ -17,7 +17,7 @@ import json
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import sessionmaker
 
 import app.checklists as checklists_module
@@ -177,7 +177,8 @@ def test_sealed_copy_is_stored_and_the_hash_is_its_sha256(hot, router_test_clien
     assert sig.content_sha256 == hashlib.sha256(sig.sealed_content.encode("utf-8")).hexdigest()
     copy = json.loads(sig.sealed_content)
     checklist = get_checklist_row(hot["db"], body["id"])
-    assert copy["v"] == 2 and copy["signature_field_key"] == "sig1"
+    assert copy["v"] == 3 and copy["signature_field_key"] == "sig1"  # seit 1.8.57 Format 3 mit Unterzeichner
+    assert copy["signer"]["kind"] == "frei" and copy["signer"]["name"] == sig.signer_name and sig.seal_format == 3
     assert copy["template_version_id"] == checklist.template_version_id
     assert copy["version_no"] == checklist.template_version.version_no
     assert [e["field_key"] for e in copy["fields"]] == ["frei", "bereich", "fotos_vorher"]  # nichts von darunter
@@ -284,7 +285,9 @@ def test_tampered_copy_is_reported_and_still_protects_photos(hot, router_test_cl
     sig = hot["db"].get(ChecklistAttachment, _signature(body, "sig1")["id"])
     copy = json.loads(sig.sealed_content)
     copy["fields"][2]["photos"] = []  # Foto aus der Kopie "entfernt"
-    sig.sealed_content = json.dumps(copy, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    # An der Sperre vorbei (rohes UPDATE) -- seit 1.8.57 lehnt das ORM jede Änderung an einer Unterschrift ab.
+    hot["db"].execute(update(ChecklistAttachment).where(ChecklistAttachment.id == sig.id).values(
+        sealed_content=json.dumps(copy, sort_keys=True, separators=(",", ":"), ensure_ascii=False)))
     hot["db"].commit()
     seen = a.get(f"/api/checklists/{body['id']}").json()
     assert _signature(seen, "sig1")["seal"]["status"] == "kopie_veraendert"
@@ -301,15 +304,17 @@ def test_signature_without_copy_still_seals_the_whole_checklist(hot, router_test
     body = _section_one_signed(hot, a)
     sig = hot["db"].get(ChecklistAttachment, _signature(body, "sig1")["id"])
     checklist = get_checklist_row(hot["db"], body["id"])
-    sig.sealed_content = None  # so sieht eine 1.8.13-Unterschrift aus
-    sig.content_sha256 = checklists_module._legacy_content_sha256(checklist)
+    # So sieht eine 1.8.13-Unterschrift aus (rohes UPDATE: seit 1.8.57 lehnt das ORM jede Änderung an einer Unterschrift ab).
+    hot["db"].execute(update(ChecklistAttachment).where(ChecklistAttachment.id == sig.id).values(
+        sealed_content=None, content_sha256=checklists_module._legacy_content_sha256(checklist), seal_format=None,
+        signer_kind=None))
     hot["db"].commit()
     seen = a.get(f"/api/checklists/{body['id']}").json()
     assert seen["sealed_field_ids"] == _ids(seen, "frei", "bereich", "fotos_vorher", "ende", "befund", "fotos_nachher")
     assert _signature(seen, "sig1")["seal"]["status"] == "unveraendert"
     assert _put(a, body, "ende", "16:30").status_code == 409
-    sig.content_sha256 = None  # vor 1.8.13: keine Prüfsumme
-    hot["db"].commit()
+    hot["db"].execute(update(ChecklistAttachment).where(ChecklistAttachment.id == sig.id).values(content_sha256=None))
+    hot["db"].commit()  # vor 1.8.13: keine Prüfsumme
     assert _signature(a.get(f"/api/checklists/{body['id']}").json(), "sig1")["seal"]["status"] == "ohne_pruefsumme"
 
 

@@ -25,7 +25,7 @@ import app.audit  # noqa: F401 -- registriert die Historien-Listener, wie in Pro
 import app.checklists as checklists_module
 from app.berlin_time import to_berlin
 from app.checklist_pdf import build_checklist_pdf
-from app.checklists import get_checklist_row, seal_content
+from app.checklists import SEAL_FORMAT, get_checklist_row, seal_content, signer_content
 from app.models import AuditLog, Checklist, ChecklistAssetRelease, ChecklistAttachment, Customer
 from tests.test_v213_inspection_items import _extract_pdf_text
 from tests.test_v305_checklist_filling import _client, _fields, _jpeg, _png, _start_order, world  # noqa: F401
@@ -61,11 +61,16 @@ def _sig_id(body):
 
 
 def _recomputed(world, checklist_id, field_key="sig"):
-    """SHA-256 des aktuellen Inhalts, so wie ihn eine Unterschrift im Feld field_key versiegelt."""
+    """SHA-256 des aktuellen Inhalts, so wie ihn die Unterschrift im Feld field_key versiegelt -- seit 1.8.57 samt
+    Unterzeichner, Zeitpunkt und Prüfsumme des Bilds (Siegelformat 3), wie check_signature() nachrechnet."""
     world["db"].expire_all()
     checklist = get_checklist_row(world["db"], checklist_id)
     field = next(f for f in checklist.template_version.fields if f.field_key == field_key)
-    return hashlib.sha256(seal_content(checklist, field).encode("utf-8")).hexdigest()
+    sig = next((a for a in checklist.attachments if a.template_field_id == field.id and a.kind == "unterschrift"
+                and a.discarded_at is None), None)
+    signer = (signer_content(sig, hashlib.sha256(checklists_module.attachment_path(sig).read_bytes()).hexdigest())
+              if sig is not None and sig.seal_format == SEAL_FORMAT else None)
+    return hashlib.sha256(seal_content(checklist, field, signer=signer).encode("utf-8")).hexdigest()
 
 
 # --- Sperre und Prüfsumme -------------------------------------------------------------------
@@ -131,7 +136,10 @@ def test_further_signatures_allowed_but_never_replaced_or_deleted(world, router_
     body = _sign(office, c, "Bernd Beta", "tn").json()  # weitere Unterschrift: erlaubt
     sigs = body["attachments"]
     assert [s["signer_name"] for s in sigs] == ["Anna Alpha", "Bernd Beta"]
-    assert sigs[0]["content_sha256"] == sigs[1]["content_sha256"]  # derselbe Inhalt, dieselbe Summe
+    # Seit 1.8.57 steht der Unterzeichner im Siegel -- zwei Unterschriften, zwei Summen; die versiegelten Felder gleich.
+    assert sigs[0]["content_sha256"] != sigs[1]["content_sha256"]
+    rows = [world["db"].get(ChecklistAttachment, s["id"]) for s in sigs]
+    assert [json.loads(r.sealed_content)["fields"] for r in rows][0] == json.loads(rows[1].sealed_content)["fields"]
     assert office.delete(f"/api/checklist-attachments/{sigs[0]['id']}").status_code == 409
     assert office.delete(f"/api/checklists/{c['id']}").status_code == 409
     assert office.post(f"/api/checklists/{c['id']}/complete").json()["status"] == "abgeschlossen"

@@ -72,6 +72,15 @@ ASSIGNEE_MODES = ("rolle", "sachbearbeiter")
 # Fund 3 des Befunds: Monteure haben keinen Aufgabenzugriff, "field" ist als Zielrolle sinnlos.
 RULE_TARGET_ROLES = (ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ROLE_ADMIN)
 
+# Unterzeichner je Unterschriftsfeld (seit 1.8.57, Stufe 2c-2c): wer unterschreibt und woher der Name kommt.
+# "frei" wie bis 1.8.56 (Name eintippen); die übrigen setzt der Server (app/checklists.py::_signer()).
+SIGNER_MODES = {
+    "frei": "frei eingetragen", "konto": "angemeldetes Konto", "auftraggeber": "Auftraggeber laut Auftrag",
+    "beteiligter": "Beteiligter des Projekts",
+}
+ORDER_SIGNER_MODES = ("auftraggeber", "beteiligter")  # nur an einer Checkliste zum Auftrag
+SINGLE_SIGNER_MODES = ("konto", "auftraggeber")  # immer genau eine Person -- nie "mehrere Unterschriften"
+
 # Obergrenze Fotos/Belege/Unterschriften je Feld -- Speicherbudget des 4-GB-Servers (PDF mit Fotos).
 MAX_ATTACHMENTS_PER_FIELD = 20
 
@@ -79,7 +88,7 @@ _FIELD_KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_.]{0,79}$")
 _FIELD_UPDATE_KEYS = {
     "field_key", "sort_order", "group_name", "field_type", "label", "help_text", "required", "allow_na",
     "multiline", "multiple", "unit", "min_value", "max_value", "decimals", "min_count", "max_count",
-    "prefill_now", "signer_label",
+    "prefill_now", "signer_label", "signer_mode",
 }
 _RULE_UPDATE_KEYS = {
     "field_key", "operator", "operand", "task_title", "task_description", "task_priority", "due_in_days",
@@ -113,6 +122,8 @@ def field_to_dict(field: ChecklistTemplateField, purpose_key: str | None = None)
         "unit": field.unit, "min_value": field.min_value, "max_value": field.max_value,
         "decimals": field.decimals, "min_count": field.min_count, "max_count": field.max_count,
         "prefill_now": field.prefill_now, "signer_label": field.signer_label, "is_system": field.is_system,
+        "signer_mode": field.signer_mode or "frei",  # seit 1.8.57
+        "signer_mode_label": SIGNER_MODES.get(field.signer_mode or "frei", field.signer_mode),
         "options": [option_to_dict(o) for o in field.options],
         "office_only": bool(spec and spec.office_only),
         "option_hints": dict(spec.option_hints) if spec else {},
@@ -271,11 +282,27 @@ def _apply_template_meta(template: ChecklistTemplate, *, label: str, description
     if unknown:
         raise ValueError(f"Unbekannter Kontext: {', '.join(unknown)}")
     _check_purpose_contexts(template.purpose or DEFAULT_PURPOSE, contexts)
+    if contexts and set(contexts) != {"auftrag"}:  # seit 1.8.57: Auftraggeber/Beteiligter gibt es nur am Auftrag
+        for version in template.versions:
+            if version.status != "abgeloest" and (labels := order_only_signer_labels(version)):
+                raise ValueError(_order_only_text(labels))
     template.label = label
     template.description = (description or "").strip() or None
     for context, column in CONTEXT_COLUMNS.items():
         setattr(template, column, context in contexts)
     template.field_readable = bool(field_readable)
+
+
+def order_only_signer_labels(version: ChecklistTemplateVersion) -> list[str]:
+    """Unterschriftsfelder, deren Unterzeichner einen Auftrag braucht (Auftraggeber laut Auftrag, Beteiligter, seit
+    1.8.57) -- eine solche Vorlage gilt nur im Kontext Auftrag (beim Veröffentlichen und beim Ändern der Kontexte geprüft,
+    beim Unterschreiben noch einmal)."""
+    return [f.label for f in version.fields if f.field_type == "unterschrift" and f.signer_mode in ORDER_SIGNER_MODES]
+
+
+def _order_only_text(labels: list[str]) -> str:
+    return ("Unterzeichner „Auftraggeber laut Auftrag“ bzw. „Beteiligter des Projekts“ gibt es nur am Auftrag – "
+            f"Kontext auf „Auftrag“ beschränken ({', '.join(labels)}).")
 
 
 def _checked_purpose(purpose_key: str) -> str:
@@ -368,7 +395,7 @@ def _copy_version_content(db: Session, source: ChecklistTemplateVersion, target:
             multiline=field.multiline, multiple=field.multiple, unit=field.unit, min_value=field.min_value,
             max_value=field.max_value, decimals=field.decimals, min_count=field.min_count,
             max_count=field.max_count, prefill_now=field.prefill_now, signer_label=field.signer_label,
-            is_system=field.is_system,
+            signer_mode=field.signer_mode or "frei", is_system=field.is_system,
         )
         db.add(new_field)
         db.flush()
@@ -459,6 +486,9 @@ def validate_version_for_publish(template: ChecklistTemplate, version: Checklist
     except ValueError as exc:
         problems.append(str(exc))
     problems.extend(system_field_problems(template.purpose, version))
+    labels = order_only_signer_labels(version)
+    if labels and set(template_contexts(template)) != {"auftrag"}:
+        problems.append(_order_only_text(labels))
     answerable = [f for f in version.fields if f.field_type != "hinweis"]
     if not answerable:
         problems.append("Die Vorlage braucht mindestens ein Feld, das ausgefüllt wird.")
@@ -572,8 +602,15 @@ def _normalize_field(field: ChecklistTemplateField) -> None:
         field.prefill_now = False
     if t != "unterschrift":
         field.signer_label = None
+        field.signer_mode = "frei"
     else:
         field.signer_label = (field.signer_label or "").strip() or None
+        field.signer_mode = field.signer_mode or "frei"
+        if field.signer_mode not in SIGNER_MODES:
+            raise ValueError(f"Unbekannter Unterzeichner: {field.signer_mode}")
+        if field.multiple and field.signer_mode in SINGLE_SIGNER_MODES:
+            raise ValueError(f"Mehrere Unterschriften gehen nur bei „{SIGNER_MODES['frei']}“ oder "
+                             f"„{SIGNER_MODES['beteiligter']}“ – „{SIGNER_MODES[field.signer_mode]}“ ist eine Person.")
 
 
 def _field_values_from(fields: dict) -> dict:

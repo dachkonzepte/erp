@@ -4965,6 +4965,8 @@ class ChecklistTemplateField(Base):
     max_count: Mapped[int | None] = mapped_column(nullable=True)
     prefill_now: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     signer_label: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # Unterzeichner (seit 1.8.57, app/checklists.py::SIGNER_MODES): frei | konto | auftraggeber | beteiligter
+    signer_mode: Mapped[str] = mapped_column(String(20), default="frei", server_default="frei")
     is_system: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
     version: Mapped["ChecklistTemplateVersion"] = relationship(back_populates="fields")
@@ -5145,7 +5147,14 @@ class ChecklistAttachment(Base):
     sealed_content ist die feste Kopie dieses Inhalts (kanonisches JSON: Fassung, Feldschlüssel,
     Antworten, Prüfsummen der Fotos, app/checklists.py::seal_content()), content_sha256 die
     SHA-256 genau dieser Zeichenkette. NULL bei Unterschriften von vor 1.8.14 -- die versiegeln
-    weiterhin die ganze Checkliste (so wurden sie geleistet)."""
+    weiterhin die ganze Checkliste (so wurden sie geleistet).
+
+    Seit 1.8.57 der Unterzeichner je Unterschrift (Art nach dem Feld: frei, angemeldetes Konto, Auftraggeber laut
+    Auftrag, Beteiligter mit Rolle und eingefrorener Vollmacht zur Abnahme als Kopie unter signer_poa_*), alles im Siegel
+    beim Unterschreiben (seal_format 3: dazu Zeitpunkt und Prüfsumme des Bilds). seal_format leer = vor 1.8.57 (Kopie
+    "v": 2 bzw. ohne Kopie) -- diese Siegel werden nach ihrem eigenen Format geprüft. signer_user_id ohne Fremdschlüssel
+    (Benutzer löschen, Befund 1.8.13). Eine Unterschrift ist nach dem Speichern bis auf das Verwerfen unveränderlich
+    (ORM-Sperre, ArchiveImmutableError)."""
 
     __tablename__ = "checklist_attachments"
     __table_args__ = (UniqueConstraint("checklist_id", "client_uuid", name="uq_checklist_attachment_client_uuid"),)
@@ -5166,6 +5175,16 @@ class ChecklistAttachment(Base):
     discarded_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     discard_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     sealed_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    signer_kind: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    signer_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    signer_participant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("project_participants.id", name="fk_checklist_attachments_signer_participant_id"),
+        nullable=True, index=True)  # benannt wie in der Migration -- so lässt sie sich auch zurücknehmen
+    signer_role: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    signer_poa_stored_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    signer_poa_content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    signer_poa_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    seal_format: Mapped[int | None] = mapped_column(nullable=True)
 
     checklist: Mapped["Checklist"] = relationship(back_populates="attachments")
 
@@ -5525,6 +5544,28 @@ def _dispatch_outcome_no_update(mapper, connection, target):
 @event.listens_for(DispatchOutcome, "before_delete")
 def _dispatch_outcome_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Ein vermerkter Empfang bzw. eine Unzustellbarkeit wird nie gelöscht.")
+
+
+# Unterschrift unter einer Checkliste (seit 1.8.57): nach dem Speichern bis auf das Verwerfen unveränderlich -- Name,
+# Art, Konto, Beteiligter, Vollmacht, Bild, Siegel. Gelöscht wird sie nie (app/checklists.py lehnt es schon ab).
+_SIGNATURE_DISCARD_FIELDS = {"discarded_at", "discarded_by_user_id", "discarded_by_name", "discard_reason", "checklist"}
+
+
+def _was_signature(target) -> bool:
+    return target.kind == "unterschrift" or "unterschrift" in (inspect(target).attrs.kind.history.deleted or ())
+
+
+@event.listens_for(ChecklistAttachment, "before_update")
+def _checklist_signature_no_update(mapper, connection, target):
+    if _was_signature(target) and any(attr.history.has_changes() for attr in inspect(target).attrs
+                                      if attr.key not in _SIGNATURE_DISCARD_FIELDS):
+        raise ArchiveImmutableError("Eine Unterschrift ist unveränderlich – nur Verwerfen mit Begründung.")
+
+
+@event.listens_for(ChecklistAttachment, "before_delete")
+def _checklist_signature_no_delete(mapper, connection, target):
+    if _was_signature(target):
+        raise ArchiveImmutableError("Eine Unterschrift wird nie gelöscht.")
 
 
 # Abnahme (seit 1.8.46): nach dem Speichern unveränderlich und nie gelöscht -- samt Dachflächen und Belegen.

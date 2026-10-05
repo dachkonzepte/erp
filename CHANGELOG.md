@@ -4,6 +4,27 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.57 – Checklisten: Unterzeichner je Unterschriftsfeld, im Siegel
+
+Stufe 2c, Runde 2c-2c, Punkt 3 – Fundament für das Abnahmeprotokoll. Im Vorlagen-Editor lässt sich je Unterschriftsfeld
+festlegen, wer unterschreibt: frei eingetragen (wie bisher), das angemeldete Konto, der Auftraggeber laut Auftrag oder ein
+Beteiligter des Projekts. Außer bei „frei“ setzt der Server den Namen – die Seite zeigt „Unterschreibt: … (…)“ bzw. eine
+Auswahl der Beteiligten; beim Beteiligten werden Name und Rolle festgehalten und seine Vollmacht zur Abnahme als Kopie
+eingefroren (ohne Vollmacht wird erfasst und gekennzeichnet, wie bei der Abnahme). Name, Art, Konto, Beteiligter, Rolle und
+Vollmacht stehen ab sofort im Siegel der Unterschrift (Siegelformat 3, dazu Zeitpunkt und Prüfsumme des Bilds) – nicht erst im
+Abschluss; vorhandene Siegel werden nach ihrem eigenen Format geprüft und bleiben gültig. Eine Unterschrift ist bis auf das
+Verwerfen unveränderlich, auch über das ORM. Auftraggeber und Beteiligter gibt es nur an Vorlagen für den Auftrag; ein
+Beteiligter, der unterschrieben hat, bleibt im Projekt.
+
+Migration `5e562a4a172b` (`checklist_template_fields.signer_mode` mit Vorgabe „frei“, acht Spalten an
+`checklist_attachments`; Downgrade verweigert, sobald etwas davon genutzt ist), geprüft unter SQLite und PostgreSQL 17 – dabei
+gefunden: der Name des Fremdschlüssels war für PostgreSQL zu lang (gekürzt). Neue `test_v359` (29), angepasst fünf ältere
+Testdateien (Manipulationen per rohem SQL statt am ORM, Prüfsumme im Format 3); Gegenproben 16 von 16 rot (eine erst nach
+nachgeschärftem Test). Gegen PostgreSQL 129 grün. Neuer Klicktest `klicktest_unterzeichner.py` 17/17, die übrigen Unterschrift-Klicktests grün
+(`klicktest_checkliste_verwerfen.py` umgestellt). Volle Suite 2903 grün (mit den opt-in-Tests gegen
+PostgreSQL). Festlegungen in `docs/archiv/abnahme-und-gewaehrleistung.md`,
+„Umsetzung 1.8.57“.
+
 ## 1.8.56 – Unterschriften: Pflichtangaben oberhalb, eine Prüfung für jedes Unterschriftsbild
 
 Stufe 2c, Runde 2c-2c, Punkte 1 und 2. Eine Unterschrift in einer Checkliste verlangt jetzt alle Pflichtangaben oberhalb

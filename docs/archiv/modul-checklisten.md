@@ -1057,3 +1057,17 @@ Herleitung und Festlegungen: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umse
   jedes lesbare Bild an, auch ein leeres oder ein JPEG.
 - `checklist_to_dict()` liefert `missing_before_signature` je Unterschriftsfeld; die Ausfüllseite zeigt es über der
   Zeichenfläche und bricht "Unterschrift übernehmen" damit ab.
+
+## Nachtrag 1.8.57 (05.10.2026) -- Unterzeichner je Unterschriftsfeld
+
+Herleitung und Festlegungen: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.57". Für den Baukasten:
+- `ChecklistTemplateField.signer_mode` (frei | konto | auftraggeber | beteiligter, `SIGNER_MODES`), im Editor "Unterzeichner";
+  "auftraggeber"/"beteiligter" nur an Vorlagen, die ausschließlich am Auftrag gelten; "konto"/"auftraggeber" nie "mehrere".
+- Den Namen setzt außer bei "frei" der Server (`_signer()`); ein Beteiligter bringt Rolle und eingefrorene Vollmacht zur Abnahme
+  mit (Kopie im Ordner der Checkliste, `signer_poa_*`, Abruf nur fürs Büro).
+- Siegelformat je Unterschrift (`seal_format`): 3 = Kopf "v": 3 mit `"signer"` (Art, Name, Konto, Beteiligter, Rolle, Vollmacht,
+  Zeitpunkt, Prüfsumme des Bilds); leer = wie vorher. Wer eine Checkliste künftig auswertet, liest den Unterzeichner aus den Spalten
+  der Unterschrift, geprüft über `check_signature()`.
+- Eine Unterschrift ist nach dem Speichern bis auf das Verwerfen unveränderlich (ORM-Sperre) -- Tests, die eine Manipulation
+  nachstellen, schreiben per rohem UPDATE.
+

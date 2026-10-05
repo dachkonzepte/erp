@@ -187,6 +187,15 @@ SPALTEN = {
     "order_contract_signatures.company_signer_name": "Name",
     "order_contract_signatures.signed_content": "unterschriebener Inhalt (Text)",
     "services.image_reference": "Leistungsbild, keine Unterschrift",
+    # Unterzeichner (seit 1.8.57): die Vollmacht ist ein Beleg (PDF oder Foto), kein gezeichnetes Bild
+    "checklist_template_fields.signer_mode": "Unterzeichner des Felds (Vorlage)",
+    "checklist_attachments.signer_kind": "Art des Unterzeichners",
+    "checklist_attachments.signer_user_id": "Konto des Unterzeichners",
+    "checklist_attachments.signer_participant_id": "Beteiligter als Unterzeichner",
+    "checklist_attachments.signer_role": "Rolle des Beteiligten",
+    "checklist_attachments.signer_poa_stored_filename": "Kopie der Vollmacht zur Abnahme (Beleg, kein Unterschriftsbild)",
+    "checklist_attachments.signer_poa_content_type": "Typ der Vollmacht",
+    "checklist_attachments.signer_poa_sha256": "Prüfsumme der Vollmacht",
 }
 # Modelle, deren Zeile selbst ein Unterschriftsbild sein kann (Feldtyp "unterschrift"): ihr Anlegen ist ein Weg.
 ZEILEN = {"ChecklistAttachment"}

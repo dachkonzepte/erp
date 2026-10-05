@@ -54,6 +54,15 @@ before=…), Antworten, Fotos und Belege samt Mindestanzahl -- Pflicht-Unterschr
 bleibt nach einer unteren möglich), und das Bild läuft durch die gemeinsame Prüfung aller Unterschrift-Wege
 (app/signature_image.py: PNG, Größe, nicht leer). Vorher nahm die Checkliste jedes lesbare Bild an, auch ein leeres.
 
+Seit 1.8.57 (Stufe 2c-2c, Punkt 3): der Unterzeichner je Unterschriftsfeld (ChecklistTemplateField.signer_mode) -- frei
+(Name eintippen wie bisher), angemeldetes Konto, Auftraggeber laut Auftrag oder ein Beteiligter des Projekts (Name und Rolle
+als Schnappschuss, Vollmacht zur Abnahme als Kopie eingefroren, ohne sie mit Warnung -- wie bei der Abnahme). Den Namen setzt
+außer bei "frei" der Server (_signer()). Name, Art, Konto, Beteiligter, Rolle und Vollmacht kommen beim Unterschreiben ins
+Siegel, dazu Zeitpunkt und Prüfsumme des gespeicherten Bilds (SEAL_FORMAT 3, "v": 3, signer_content()); das Siegelformat
+steht an der Unterschrift (seal_format). Vorhandene Siegel (leer = Format 2 mit Kopie bzw. 1.8.13 ohne) werden nach ihrem
+eigenen Format geprüft und bleiben gültig. Eine Unterschrift ist bis auf das Verwerfen unveränderlich (ORM-Sperre in
+app/models.py).
+
 Rollenlos wie jede Geschäftslogik dieses Projekts -- wer was sehen/ändern darf, entscheidet
 app/routers/checklists.py."""
 
@@ -67,17 +76,19 @@ from pathlib import Path
 
 from sqlalchemy import event, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, object_session, selectinload
 
 from .berlin_time import to_berlin
 from .checklist_purposes import get_purpose, purpose_label, system_field_spec
 from .checklist_templates import (
-    CONTEXT_COLUMNS, CONTEXT_LABELS, CONTEXT_TYPES, MAX_ATTACHMENTS_PER_FIELD, field_to_dict,
+    CONTEXT_COLUMNS, CONTEXT_LABELS, CONTEXT_TYPES, MAX_ATTACHMENTS_PER_FIELD, ORDER_SIGNER_MODES, SIGNER_MODES,
+    field_to_dict,
 )
 from .image_storage import resize_and_store_jpeg, store_png
 from .models import (
     Checklist, ChecklistAnswer, ChecklistAnswerSelection, ChecklistAssetRelease, ChecklistAttachment,
     ChecklistTemplate, ChecklistTemplateField, ChecklistTemplateVersion, Employee, OperationalAsset, Order, Property,
+    ProjectParticipant,
 )
 from .operational_assets import resolve_asset_identity
 from .paths import data_dir
@@ -118,6 +129,10 @@ SEAL_TEXTS = {
     "ohne_pruefsumme": "Ältere Unterschrift ohne Prüfsumme – nicht prüfbar.",
 }
 COMPLETION_TEXTS = {**SEAL_TEXTS, "ohne_pruefsumme": "Ohne Prüfsumme abgeschlossen (älterer Stand) – nicht prüfbar."}
+# Siegelformat neuer Unterschriften (seit 1.8.57): Kopf "v": 3 mit dem Unterzeichner, Zeitpunkt und Prüfsumme des Bilds.
+# An der Unterschrift steht ihr Format (seal_format); leer = vor 1.8.57 ("v": 2 mit Kopie bzw. 1.8.13 ohne).
+SEAL_FORMAT = 3
+MAX_SIGNER_NAME = 160
 
 
 # --- Hilfen ---------------------------------------------------------------------------------
@@ -278,10 +293,11 @@ def _dump(content: dict) -> str:
     return json.dumps(content, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def _content_head(checklist: Checklist) -> dict:
-    """Kopf jeder Kopie ("v": 2): Checkliste, Vorlage und Fassung, eingefrorene Bezeichnungen."""
+def _content_head(checklist: Checklist, version: int = 2) -> dict:
+    """Kopf jeder Kopie ("v": 2, seit 1.8.57 bei Unterschriften "v": 3): Checkliste, Vorlage und Fassung, eingefrorene
+    Bezeichnungen."""
     return {
-        "v": 2, "checklist_id": checklist.id, "template_id": checklist.template_id,
+        "v": version, "checklist_id": checklist.id, "template_id": checklist.template_id,
         "template_version_id": checklist.template_version_id, "version_no": checklist.template_version.version_no,
         "template_label": checklist.template_label_snapshot, "context_type": checklist.context_type,
         "context_label": checklist.context_label_snapshot, "context_detail": checklist.context_detail_snapshot,
@@ -321,18 +337,36 @@ def _content_entries(checklist: Checklist, fields: list[ChecklistTemplateField],
     return entries
 
 
+def signer_content(signature: ChecklistAttachment, image_sha256: str | None) -> dict:
+    """Der Unterzeichner im Siegel (seit 1.8.57): Art, Name, Konto, Beteiligter, Rolle, eingefrorene Vollmacht (Prüfsumme
+    und Typ der Kopie), Zeitpunkt und Prüfsumme des gespeicherten Bilds -- aus den Spalten der Unterschrift, beim
+    Unterschreiben wie beim Prüfen."""
+    return {
+        "kind": signature.signer_kind, "name": signature.signer_name, "user_id": signature.signer_user_id,
+        "participant_id": signature.signer_participant_id, "role": signature.signer_role,
+        "poa": ({"sha256": signature.signer_poa_sha256, "content_type": signature.signer_poa_content_type}
+                if signature.signer_poa_sha256 else None),
+        "signed_at": signature.created_at.isoformat() if signature.created_at else None, "image_sha256": image_sha256,
+    }
+
+
 def seal_content(checklist: Checklist, signature_field: ChecklistTemplateField,
-                 photo_hashes: dict | None = None) -> str:
+                 photo_hashes: dict | None = None, signer: dict | None = None) -> str:
     """Der Inhalt, den eine Unterschrift in diesem Feld versiegelt, als kanonisches JSON (seit
     1.8.14, Format "v": 2): Kopf (_content_head()), das Unterschriftsfeld und JEDES Feld, das in
     der Vorlage vor ihm steht, außer Hinweisen und Unterschriften (_content_entries()). Beim
     Unterschreiben als Kopie abgelegt; zum Prüfen wird dieselbe Funktion auf den aktuellen Stand
     angewandt. Andere Unterschriften gehören nicht dazu: bei unverändertem Inhalt tragen zwei
-    Unterschriften im selben Feld dieselbe Summe."""
+    Unterschriften im selben Feld dieselbe Summe. Mit `signer` (seit 1.8.57, signer_content()) Format 3: Kopf "v": 3 und der
+    Unterzeichner -- dann tragen auch zwei Unterschriften im selben Feld verschiedene Summen."""
     fields = checklist.template_version.fields
     index = next(i for i, f in enumerate(fields) if f.id == signature_field.id)
-    return _dump({**_content_head(checklist), "signature_field_key": signature_field.field_key,
-                  "fields": _content_entries(checklist, fields[:index], photo_hashes)})
+    content = {**_content_head(checklist, SEAL_FORMAT if signer is not None else 2),
+               "signature_field_key": signature_field.field_key,
+               "fields": _content_entries(checklist, fields[:index], photo_hashes)}
+    if signer is not None:
+        content["signer"] = signer
+    return _dump(content)
 
 
 def completion_content(checklist: Checklist, photo_hashes: dict | None = None) -> str:
@@ -388,6 +422,8 @@ def _changed_fields(checklist: Checklist, sealed: str, current: str) -> list[str
     labels = {f.field_key: f.label for f in checklist.template_version.fields}
     # seit 1.8.41: die Begründung "gegenstandslos" steht im Kopf der Abschluss-Kopie, eigens benannt
     changed = ["Begründung (gegenstandslos)"] if old.pop("void_reason", None) != new.pop("void_reason", None) else []
+    # seit 1.8.57: der Unterzeichner einer Unterschrift (Name, Art, Konto, Beteiligter, Vollmacht, Zeitpunkt, Bild)
+    changed += ["Unterzeichner"] if old.pop("signer", None) != new.pop("signer", None) else []
     changed += ["Kopfangaben (Vorlage, Bezug)"] if old != new else []
     return changed + [labels.get(k, k) for k in dict.fromkeys([*old_fields, *new_fields])
                       if old_fields.get(k) != new_fields.get(k)]
@@ -414,13 +450,19 @@ def check_signature(checklist: Checklist, signature: ChecklistAttachment, photo_
     abweichend | kopie_veraendert (Inhalt passt, die abgelegte Kopie nicht) | ohne_pruefsumme."""
     if not signature.content_sha256:
         status, changed = "ohne_pruefsumme", []
+    elif signature.seal_format not in (None, 2, SEAL_FORMAT):  # unbekanntes Format: nicht nachrechenbar
+        status, changed = "abweichend", ["Siegelformat"]
     elif signature.sealed_content is None:  # 1.8.13: Summe über die ganze Checkliste, ohne Kopie
         same = _legacy_content_sha256(checklist, photo_hashes) == signature.content_sha256
         status, changed = ("unveraendert" if same else "abweichend"), []
     else:
         field = next(f for f in checklist.template_version.fields if f.id == signature.template_field_id)
+        # Nach dem Format der Unterschrift: 3 mit Unterzeichner (seit 1.8.57), sonst wie sie geleistet wurde. Wer das
+        # Format am ORM vorbei ändert, ändert damit den nachgerechneten Inhalt -- "abweichend".
+        signer = (signer_content(signature, _attachment_sha256(signature, photo_hashes))
+                  if signature.seal_format == SEAL_FORMAT else None)
         status, changed = _compare(checklist, signature.sealed_content, signature.content_sha256,
-                                   seal_content(checklist, field, photo_hashes))
+                                   seal_content(checklist, field, photo_hashes, signer=signer))
     return _seal_result(status, changed, SEAL_TEXTS)
 
 
@@ -470,6 +512,11 @@ def _attachment_dict(a: ChecklistAttachment) -> dict:
         "created_at": a.created_at, "created_at_local": _berlin_text(a.created_at),
         "content_sha256": a.content_sha256, "url": f"/api/checklist-attachments/{a.id}/file",
         "content_type": attachment_content_type(a),  # seit 1.8.45: ein Beleg ist PDF oder Bild
+        # seit 1.8.57: Unterzeichner -- Art, Rolle, ob eine Vollmacht zur Abnahme eingefroren ist (der Beleg selbst nur
+        # fürs Büro über GET /api/checklist-attachments/{id}/power-of-attorney), Siegelformat
+        "signer_kind": a.signer_kind, "signer_kind_label": SIGNER_MODES.get(a.signer_kind) if a.signer_kind else None,
+        "signer_role": a.signer_role, "signer_poa": bool(a.signer_poa_sha256),
+        "signer_without_poa": a.signer_kind == "beteiligter" and not a.signer_poa_sha256, "seal_format": a.seal_format,
     }
 
 
@@ -532,6 +579,7 @@ def checklist_to_dict(checklist: Checklist) -> dict:
         "missing_before_signature": {
             str(f.id): missing_required_labels(checklist, before=f) for f in fields if f.field_type == "unterschrift"
         } if checklist.status == "entwurf" else {},
+        "signer_choices": signer_choices(checklist),  # seit 1.8.57
         "completion_sha256": checklist.content_sha256,
         "completion_seal": check_completion(checklist, photo_hashes),
         # seit 1.8.41: "als gegenstandslos abschließen" (Zweck erlaubt es; wer darf, entscheidet der Router)
@@ -540,6 +588,42 @@ def checklist_to_dict(checklist: Checklist) -> dict:
         "voided_by_name": checklist.voided_by_name, "void_reason": checklist.void_reason,
     })
     return data
+
+
+def _poa_on_record(participant: ProjectParticipant) -> bool:
+    """Liegt eine Vollmacht zur Abnahme vor? Für die Auswahl genügt der Stand am Beteiligten (Häkchen, Beleg, Typ) -- die
+    Datei samt Prüfsumme liest erst das Unterschreiben (app/acceptances.py::_frozen_power_of_attorney()), sonst läse jede
+    gespeicherte Antwort alle Vollmachten des Projekts."""
+    return bool(participant.acceptance_authorized and participant.acceptance_poa_stored_filename
+                and participant.acceptance_poa_content_type in BELEG_SUFFIXES)
+
+
+def signer_choices(checklist: Checklist) -> dict[str, dict]:
+    """Was die Seite zum Unterschreiben braucht (seit 1.8.57), je Unterschriftsfeld mit Auftraggeber oder Beteiligtem:
+    den Auftraggeber laut Auftrag bzw. die Beteiligten des Projekts (Name, Rolle, Vollmacht zur Abnahme ja/nein, ob schon
+    unterschrieben) -- keine Kontaktwege, kein Beleg. Nur im Entwurf an einer Checkliste zum Auftrag."""
+    fields = [f for f in checklist.template_version.fields
+              if f.field_type == "unterschrift" and f.signer_mode in ORDER_SIGNER_MODES]
+    db = object_session(checklist)
+    if not fields or checklist.status != "entwurf" or checklist.order_id is None or db is None:
+        return {}
+    from .contacts import contact_display_name  # lokal: contacts zieht Kunden und Lieferanten nach
+    from .project_participants import role_label
+
+    order = db.get(Order, checklist.order_id)
+    participants = [p for p in db.scalars(select(ProjectParticipant).where(ProjectParticipant.project_id == order.project_id)
+                                          .order_by(ProjectParticipant.id)).all() if not p.contact.archived]
+    choices = {}
+    for f in fields:
+        if f.signer_mode == "auftraggeber":
+            choices[str(f.id)] = {"mode": "auftraggeber", "name": order.customer_name}
+            continue
+        signed = {a.signer_participant_id for a in active_attachments(checklist) if a.template_field_id == f.id}
+        choices[str(f.id)] = {"mode": "beteiligter", "participants": [{
+            "participant_id": p.id, "name": contact_display_name(p.contact) or f"Kontakt #{p.contact_id}",
+            "role_label": role_label(p.role), "poa_on_record": _poa_on_record(p), "signed": p.id in signed,
+        } for p in participants]}
+    return choices
 
 
 def is_voidable(checklist: Checklist) -> bool:
@@ -913,8 +997,63 @@ def save_answer(db: Session, checklist_id: int, field_id: int, value, *, recorde
 
 # --- Anhänge (Fotos, Belege, Unterschriften) -----------------------------------------------
 
+def _signer(db: Session, checklist: Checklist, field: ChecklistTemplateField, existing: list[ChecklistAttachment], *,
+            signer_name: str | None, participant_id: int | None, account_user_id: int | None,
+            account_name: str | None) -> tuple[dict, tuple[bytes, str] | None]:
+    """Wer unterschreibt (seit 1.8.57), nach dem Unterzeichner des Felds: (Spalten der Unterschrift, eingefrorene
+    Vollmacht oder None). Außer bei "frei" setzt der Server den Namen -- ein mitgeschickter Name ist ein Fehler, keine
+    stille Umdeutung. ValueError (400), ChecklistLocked (409) für eine zweite Unterschrift derselben Person im Feld."""
+    mode = field.signer_mode or "frei"
+    if participant_id is not None and mode != "beteiligter":
+        raise ValueError(f"Ein Beteiligter gehört nur zu einem Unterschriftsfeld „{SIGNER_MODES['beteiligter']}“.")
+    if mode == "frei":
+        if not signer_name:
+            raise ValueError("Bitte den Namen der unterschreibenden Person angeben.")
+        if len(signer_name) > MAX_SIGNER_NAME:
+            raise ValueError(f"Der Name ist zu lang (höchstens {MAX_SIGNER_NAME} Zeichen).")
+        return {"signer_kind": "frei", "signer_name": signer_name}, None
+    if signer_name:
+        raise ValueError(f"Den Namen setzt hier der Server ({SIGNER_MODES[mode]}) – bitte keinen Namen mitschicken.")
+    if mode == "konto":
+        if account_user_id is None:
+            raise ValueError("Diese Unterschrift leistet das angemeldete Konto – ohne Anmeldung nicht möglich.")
+        if any(a.signer_user_id == account_user_id for a in existing):
+            raise ChecklistLocked("Dieses Konto hat hier schon unterschrieben.")
+        return {"signer_kind": "konto", "signer_name": (account_name or "Konto")[:MAX_SIGNER_NAME],
+                "signer_user_id": account_user_id}, None
+    order = db.get(Order, checklist.order_id) if checklist.order_id else None
+    if order is None:
+        raise ValueError(f"„{field.label}“ unterschreibt der {SIGNER_MODES[mode]} – das geht nur an einer Checkliste zum "
+                         "Auftrag.")
+    if mode == "auftraggeber":
+        name = " ".join((order.customer_name or "").split())
+        if not name:
+            raise ValueError("Am Auftrag steht kein Auftraggeber.")
+        return {"signer_kind": "auftraggeber", "signer_name": name[:MAX_SIGNER_NAME]}, None
+    if participant_id is None:
+        raise ValueError("Bitte den Beteiligten wählen, der unterschreibt.")
+    participant = db.get(ProjectParticipant, participant_id)
+    if participant is None or participant.project_id != order.project_id:
+        raise ValueError("Bitte einen Beteiligten dieses Projekts wählen.")
+    if participant.contact.archived:
+        raise ValueError("Der gewählte Beteiligte ist im Adressbuch archiviert.")
+    from .acceptances import _frozen_power_of_attorney  # lokal, Muster Regel 3
+    from .contacts import contact_display_name
+    from .project_participants import role_label
+
+    name = (contact_display_name(participant.contact) or f"Kontakt #{participant.contact_id}")[:MAX_SIGNER_NAME]
+    if any(a.signer_participant_id == participant.id for a in existing):
+        raise ChecklistLocked(f"{name} hat hier schon unterschrieben.")
+    return ({"signer_kind": "beteiligter", "signer_name": name, "signer_participant_id": participant.id,
+             "signer_role": role_label(participant.role)[:120]}, _frozen_power_of_attorney(participant))
+
+
 def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *, signer_name: str | None = None,
-                   created_by_employee_id: int | None = None, client_uuid: str | None = None) -> dict:
+                   created_by_employee_id: int | None = None, client_uuid: str | None = None,
+                   participant_id: int | None = None, account_user_id: int | None = None,
+                   account_name: str | None = None) -> dict:
+    """Foto, Beleg oder Unterschrift. Seit 1.8.57 bei einer Unterschrift: participant_id (Unterzeichner "Beteiligter"),
+    account_user_id/account_name (das angemeldete Konto, vom Router -- für "konto"); signer_name nur bei "frei"."""
     checklist = _load(db, checklist_id, for_update=True)
     if checklist is None:
         raise LookupError("Checkliste nicht gefunden.")
@@ -955,18 +1094,17 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
     if len(data) > limit:
         raise ValueError(f"Die Datei ist zu groß (höchstens {limit // (1024 * 1024)} MB).")
     signer_name = (signer_name or "").strip() or None
-    if kind == "unterschrift" and not signer_name:
-        raise ValueError("Bitte den Namen der unterschreibenden Person angeben.")
+    signer, frozen_poa = {}, None
+    if kind == "unterschrift":
+        signer, frozen_poa = _signer(db, checklist, field, existing, signer_name=signer_name,
+                                     participant_id=participant_id, account_user_id=account_user_id,
+                                     account_name=account_name)
+    elif participant_id is not None or signer_name:
+        raise ValueError("Name und Beteiligter gehören nur zu einer Unterschrift.")
 
     maximum = 1 if single_signature else (field.max_count or MAX_ATTACHMENTS_PER_FIELD)
     if len(existing) >= maximum:
         raise ValueError(f"Für \"{field.label}\" sind höchstens {maximum} erlaubt.")
-    # Was diese Unterschrift versiegelt, als feste Kopie -- die Felder oberhalb, berechnet vor dem
-    # Speichern (unter der Zeilensperre, keine Antwort kann dazwischen kommen). Die Prüfsumme ist
-    # die SHA-256 genau dieser Kopie.
-    sealed_content = seal_content(checklist, field) if kind == "unterschrift" else None
-    content_sha256 = _sha256_text(sealed_content) if sealed_content is not None else None
-
     directory = CHECKLIST_ROOT / str(checklist.id)
     if kind == "beleg":
         stored = store_beleg(directory, data)  # ValueError, wenn weder PDF noch Foto
@@ -975,21 +1113,41 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
             stored = resize_and_store_jpeg(directory, data) if kind == "foto" else store_png(directory, data, max_dimension=1200)
         except Exception as exc:  # Pillow wirft je nach Format unterschiedliche Ausnahmen
             raise ValueError("Die Datei ist kein lesbares Bild.") from exc
-    attachment = ChecklistAttachment(
-        checklist_id=checklist.id, template_field_id=field.id, kind=kind, stored_filename=stored,
-        signer_name=signer_name if kind == "unterschrift" else None,
-        sort_order=(max((a.sort_order for a in checklist.attachments if a.template_field_id == field.id), default=0) + 10),
-        created_by_employee_id=created_by_employee_id, client_uuid=client_uuid, content_sha256=content_sha256,
-        sealed_content=sealed_content,
-    )
+    written = [directory / stored]
     try:
+        attachment = ChecklistAttachment(
+            checklist_id=checklist.id, template_field_id=field.id, kind=kind, stored_filename=stored,
+            sort_order=(max((a.sort_order for a in checklist.attachments if a.template_field_id == field.id), default=0) + 10),
+            created_by_employee_id=created_by_employee_id, client_uuid=client_uuid,
+            created_at=datetime.utcnow().replace(microsecond=0), **signer,
+        )
+        if kind == "unterschrift":
+            if frozen_poa is not None:  # Kopie der Vollmacht zur Abnahme, wie bei der Abnahme (seit 1.8.57)
+                poa_data, poa_type = frozen_poa
+                poa_name = f"vollmacht-{uuid.uuid4().hex}{BELEG_SUFFIXES[poa_type]}"
+                (directory / poa_name).write_bytes(poa_data)
+                written.append(directory / poa_name)
+                attachment.signer_poa_stored_filename, attachment.signer_poa_content_type = poa_name, poa_type
+                attachment.signer_poa_sha256 = hashlib.sha256(poa_data).hexdigest()
+            # Was diese Unterschrift versiegelt, als feste Kopie -- die Felder oberhalb und (seit 1.8.57) der Unterzeichner
+            # samt Zeitpunkt und Prüfsumme des gespeicherten Bilds, unter der Zeilensperre (keine Antwort kann dazwischen
+            # kommen). Die Prüfsumme ist die SHA-256 genau dieser Kopie.
+            attachment.seal_format = SEAL_FORMAT
+            attachment.sealed_content = seal_content(checklist, field,
+                                                     signer=signer_content(attachment, _file_sha256(directory / stored)))
+            attachment.content_sha256 = _sha256_text(attachment.sealed_content)
         with db.begin_nested():
             db.add(attachment)
             db.flush()
     except IntegrityError:
-        (directory / stored).unlink(missing_ok=True)  # gleichzeitige Wiederholung: Datei nicht doppelt behalten
+        for path in written:  # gleichzeitige Wiederholung: Dateien nicht doppelt behalten
+            path.unlink(missing_ok=True)
         db.expire_all()
         return checklist_to_dict(_load(db, checklist_id))
+    except Exception:
+        for path in written:
+            path.unlink(missing_ok=True)
+        raise
     checklist.updated_at = datetime.utcnow()
     db.commit()
     if kind == "unterschrift":
@@ -1004,6 +1162,33 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
 
 def get_attachment(db: Session, attachment_id: int) -> ChecklistAttachment | None:
     return db.get(ChecklistAttachment, attachment_id)
+
+
+def signer_text(signature: ChecklistAttachment) -> str | None:
+    """Unterzeichner einer Unterschrift ab 1.8.57 als Zeile (Seite und PDF): Art, bei einem Beteiligten Rolle und Vollmacht
+    zur Abnahme. None bei älteren Unterschriften."""
+    if not signature.signer_kind:
+        return None
+    text = f"Unterzeichner: {SIGNER_MODES.get(signature.signer_kind, signature.signer_kind)}"
+    if signature.signer_kind == "beteiligter":
+        text += f" ({signature.signer_role})" if signature.signer_role else ""
+        text += (f", Vollmacht zur Abnahme festgehalten (SHA-256 {signature.signer_poa_sha256})" if signature.signer_poa_sha256
+                 else " – ohne Vollmacht zur Abnahme")
+    return text
+
+
+def read_signer_poa(attachment: ChecklistAttachment) -> tuple[bytes, str]:
+    """Die beim Unterschreiben eingefrorene Vollmacht (seit 1.8.57): (Inhalt, Typ). LookupError ohne Vollmacht oder ohne
+    Datei, ValueError, wenn die Datei nicht mehr zu ihrer Prüfsumme passt."""
+    if not attachment.signer_poa_stored_filename:
+        raise LookupError("Zu dieser Unterschrift ist keine Vollmacht festgehalten.")
+    try:
+        data = (CHECKLIST_ROOT / str(attachment.checklist_id) / attachment.signer_poa_stored_filename).read_bytes()
+    except FileNotFoundError as exc:
+        raise LookupError("Die Datei der Vollmacht fehlt.") from exc
+    if hashlib.sha256(data).hexdigest() != attachment.signer_poa_sha256:
+        raise ValueError("Die Vollmacht weicht von ihrer Prüfsumme ab.")
+    return data, attachment.signer_poa_content_type
 
 
 def delete_attachment(db: Session, attachment_id: int) -> dict | None:

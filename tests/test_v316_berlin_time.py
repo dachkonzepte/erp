@@ -311,8 +311,11 @@ def test_checklist_pdf_prints_completion_and_signature_in_berlin_time(world, rou
     db = world["db"]
     checklist = db.get(Checklist, c["id"])
     checklist.completed_at = datetime(2026, 7, 15, 12, 0)
-    for att in checklist.attachments:
-        att.created_at = datetime(2026, 7, 15, 11, 50)
+    # Rohes UPDATE -- seit 1.8.57 lehnt das ORM jede Änderung an einer Unterschrift ab.
+    from sqlalchemy import update
+    from app.models import ChecklistAttachment
+    db.execute(update(ChecklistAttachment).where(ChecklistAttachment.checklist_id == c["id"])
+               .values(created_at=datetime(2026, 7, 15, 11, 50)))
     db.commit()
 
     text = _extract_pdf_text(a.get(f"/api/checklists/{c['id']}/pdf").content)

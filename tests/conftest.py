@@ -164,8 +164,9 @@ def router_test_client():
     Seit "Rechtekonzept" (siehe CLAUDE.md): optionale Parameter role/employee_id, um dieselbe
     Test-App auch als Büro-/Monteur-Konto statt fest als Administrator zu durchlaufen (z. B. um
     require_role(...)-Ablehnungen zu belegen) -- Vorgabewerte bleiben "admin"/None, kein
-    bestehender Aufruf muss sich ändern."""
-    def _make(db, *routers, role="admin", employee_id=None):
+    bestehender Aufruf muss sich ändern. Seit 1.8.57 optional user_id/display_name -- ein Konto mit ID (z. B. für
+    Unterschriften "angemeldetes Konto"); ohne bleibt das Konto ohne ID wie bisher."""
+    def _make(db, *routers, role="admin", employee_id=None, user_id=None, display_name=None):
         app = FastAPI()
         for router in routers:
             app.include_router(router)
@@ -173,7 +174,7 @@ def router_test_client():
         @app.middleware("http")
         async def _fake_identity(request, call_next):
             request.state.erp_user = AppUser(
-                username=f"{role}-test", display_name=role.capitalize(), role=role, active=True,
+                id=user_id, username=f"{role}-test", display_name=display_name or role.capitalize(), role=role, active=True,
                 employee_id=employee_id, password_hash=hash_password("Passwort123"),
             )
             return await call_next(request)

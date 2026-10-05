@@ -11,7 +11,8 @@ Abschnitte sind ausgefüllt und unterschrieben (Mia, Karl).
     Monteurin  (Handybreite) ändert das Ende, die Brandwache unterschreibt neu, abschließen: oben
                "Abschluss: Inhalt unverändert" mit Prüfsumme.
     Datenbank  Name der Brandwache an der Sperre vorbei geändert (Wegwerf-SQLite dieses Laufs) --
-               der Abschluss zeigt die Abweichung samt Feld, die Unterschriften selbst nicht.
+               der Abschluss zeigt die Abweichung samt Feld, seit 1.8.57 auch die Unterschrift der Brandwache
+               ("Unterzeichner", der Name steht in ihrem Siegel), die des Ausführenden nicht.
     Büro       sieht es im hellen und im dunklen Modus, PDF-Abruf.
 
 `confirm()` wird auf jeder Seite automatisch bestätigt und mitgeschrieben (Headless-Chrome
@@ -182,7 +183,10 @@ async def pruefen(tab, seed, p):
     p.pruefe("Abschluss zeigt die Abweichung samt Feld", await tab.js(
         "[document.querySelector('#completionSeal .seal').dataset.seal, document.querySelector('#completionSeal .seal').textContent]"),
         ["abweichend", "Inhalt weicht von der Prüfsumme ab: Unterschrift Brandwache."])
-    p.pruefe("Unterschriften selbst unverändert", [await tab.js(seal("sig1")), await tab.js(seal("sig2"))], ["unveraendert", "unveraendert"])
+    # Seit 1.8.57 steht der Unterzeichner im Siegel jeder Unterschrift -- die geänderte Brandwache sieht auch ihre eigene.
+    p.pruefe("Ausführender unverändert, Brandwache weicht ab (Unterzeichner)", [await tab.js(seal("sig1")), await tab.js(seal("sig2")),
+             await tab.js(f"document.querySelector('#q_{f['sig2']} .seal').textContent")],
+             ["unveraendert", "abweichend", "Inhalt weicht von der Prüfsumme ab: Unterzeichner."])
     await tab.js("localStorage.setItem('erp_theme','light')")
     await tab.oeffnen(f"/checklisten/{cid}", "document.getElementById('completionSeal')")
     p.pruefe("Hellmodus: Abweichung in der Warnfarbe", await tab.js(

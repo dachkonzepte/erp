@@ -48,8 +48,8 @@ from ..checklist_rules import list_checklists_with_open_rules, list_rule_executi
 from ..checklists import (
     ChecklistLocked, add_attachment, asset_readiness, attachment_path, complete_checklist, create_checklist,
     attachment_content_type, delete_attachment, delete_checklist, discard_signatures, get_attachment, get_checklist,
-    get_checklist_row, is_office_only, list_checklists, list_startable_templates, mark_asset_repaired, save_answer,
-    void_checklist, MAX_UPLOAD_BYTES,
+    get_checklist_row, is_office_only, list_checklists, list_startable_templates, mark_asset_repaired, read_signer_poa,
+    save_answer, void_checklist, MAX_UPLOAD_BYTES,
 )
 from ..database import get_db
 from ..email_dispatch import DispatchConflict, dispatch_to_dict
@@ -320,13 +320,17 @@ def put_checklist_answer(checklist_id: int, field_id: int, payload: ChecklistAns
 @router.post("/api/checklists/{checklist_id}/attachments", response_model=ChecklistOut)
 def post_checklist_attachment(checklist_id: int, field_id: int = Form(...), file: UploadFile = File(...),
                               signer_name: str | None = Form(None), client_uuid: str | None = Form(None),
+                              participant_id: int | None = Form(None),
                               db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    """Seit 1.8.57: participant_id für einen Unterzeichner "Beteiligter"; das angemeldete Konto (für "konto") reicht der
+    Router selbst weiter -- der Name kommt dann nie aus der Anfrage."""
     _require_module_enabled(db)
     checklist = _checklist_for(db, _role, checklist_id, write=True)
     _require_field_writable(_role, checklist, field_id)
     data = file.file.read(MAX_UPLOAD_BYTES + 1)
     _call(add_attachment, db, checklist_id, field_id, data, signer_name=signer_name,
-          created_by_employee_id=_role.employee_id, client_uuid=client_uuid)
+          created_by_employee_id=_role.employee_id, client_uuid=client_uuid, participant_id=participant_id,
+          account_user_id=_role.id, account_name=_role.display_name or _role.username)
     return _detail(db, _role, checklist_id)
 
 
@@ -347,6 +351,26 @@ def get_checklist_attachment_file(attachment_id: int, db: Session = Depends(get_
     if attachment.kind == "beleg":
         headers["Content-Disposition"] = f'inline; filename="Beleg-{attachment.id}{path.suffix.lower()}"'
     return FileResponse(path, media_type=media_type, headers=headers)
+
+
+@router.get("/api/checklist-attachments/{attachment_id}/power-of-attorney")
+def get_checklist_signer_poa(attachment_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
+    """Die beim Unterschreiben eingefrorene Vollmacht eines Beteiligten (seit 1.8.57) -- nur das Büro, wie die Vollmacht
+    am Beteiligten selbst. 409, wenn die Datei nicht mehr zu ihrer Prüfsumme passt."""
+    _require_module_enabled(db)
+    attachment = get_attachment(db, attachment_id)
+    if attachment is None:
+        raise HTTPException(status_code=404, detail="Anhang nicht gefunden.")
+    try:
+        data, content_type = read_signer_poa(attachment)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    suffix = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}.get(content_type, "")
+    return Response(content=data, media_type=content_type, headers={
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": f'inline; filename="Vollmacht-Unterschrift-{attachment.id}{suffix}"'})
 
 
 @router.delete("/api/checklist-attachments/{attachment_id}", response_model=ChecklistOut)

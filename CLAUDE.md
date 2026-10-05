@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.56** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.57** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -819,7 +819,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Abschnitt und "nur Büro", Folgen nach einer Unterschrift, Regel-Aufgabe mit Link zum Anlegen; seit 1.8.41 Status
   "gegenstandslos" für Behinderungs- und Bedenkenanzeige; seit 1.8.43 Folgen nach dem Versand eines Briefs; seit 1.8.45
   Feldtyp "beleg": PDF oder Foto, am Inhalt erkannt, unverändert gespeichert, in Prüfsumme und Versiegelung; seit 1.8.56
-  verlangt eine Unterschrift alle Pflichtangaben oberhalb, `missing_before_signature`) --
+  verlangt eine Unterschrift alle Pflichtangaben oberhalb, `missing_before_signature`; seit 1.8.57 Unterzeichner je
+  Unterschriftsfeld -- frei, angemeldetes Konto, Auftraggeber laut Auftrag, Beteiligter mit eingefrorener Vollmacht zur
+  Abnahme --, beim Unterschreiben im Siegel (`seal_format` 3), Unterschrift bis aufs Verwerfen unveränderlich) --
   `docs/archiv/modul-checklisten.md`
 - **Kaufmännisches Runden** (Helfer `app/rounding.py`, Rundungsregel je Rechnung, Liste der
   Geldstellen, bewusst nicht geänderte Formatierer) -- `docs/archiv/kaufmaennisches-runden.md`
@@ -1080,7 +1082,8 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   `tests/conftest.py` stellt dafür die Fixtures `threaded_db_session` (wie `db_session`, aber
   `check_same_thread=False` + `StaticPool`, weil der `TestClient` Endpunkte über einen
   Threadpool ausführt) und `router_test_client` (Fabrik, baut aus echten Router-Instanzen eine
-  schlanke Test-App mit fest angemeldetem Admin-Kontext, ohne die produktive
+  schlanke Test-App mit fest angemeldetem Admin-Kontext (seit 1.8.57 optional `user_id`/`display_name` -- ein Konto mit
+  ID, z. B. für Unterschriften "angemeldetes Konto"), ohne die produktive
   `identity_and_audit_middleware`) bereit – seit 1.2.16 dort zentral, nicht mehr lokal in
   `test_v212_maintenance_windows.py` dupliziert. Verwendung:
   `client = router_test_client(db, some_router, other_router)`.
@@ -1236,7 +1239,9 @@ Vorschlag übernehmen, Fassung 1 festschreiben, danach Karte "Gewährleistung" g
 `klicktest_maengel_monteur.py` (1.8.52, `/mobil` als Monteurin: nur der freigegebene Mangel ohne Haltung und Belege, Foto über
 den Monteur-Weg, verborgene Mängel 404, "Beseitigt melden" ohne Foto abgelehnt, mit Foto gemeldet, dieselbe Kennung noch einmal
 dieselbe Antwort, Büro sieht "gemeldet in der Monteursansicht", Freigabe zurückgenommen -> verschwunden, 412 px dunkel und hell;
-seit 1.8.51 prüft `klicktest_maengel.py` auch "Belege ergänzen"). Ein
+seit 1.8.51 prüft `klicktest_maengel.py` auch "Belege ergänzen") und `klicktest_unterzeichner.py` (1.8.57, Monteurin auf
+412 px: Auftraggeber und Konto ohne Namensfeld, Beteiligte als Auswahl mit Hinweis ohne Vollmacht, vier Unterschriften im
+Siegelformat 3; Büro dunkel mit Link auf die eingefrorene Vollmacht; Editor "Unterzeichner"). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

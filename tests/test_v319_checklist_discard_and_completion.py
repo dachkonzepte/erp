@@ -16,7 +16,7 @@ import hashlib
 import json
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import sessionmaker
 
 import app.audit  # noqa: F401 -- registriert die Historien-Listener, wie in Produktion app.main
@@ -239,14 +239,20 @@ def test_attack_changes_after_completion_show_as_deviation(starters, router_test
     cid = done["id"]
 
     watch = db.get(ChecklistAttachment, _sigs(done)["Bernd Beta"]["id"])
-    watch.signer_name = "Mallory"
+    # Rohes UPDATE an der Sperre vorbei -- seit 1.8.57 lehnt das ORM jede Änderung an einer Unterschrift ab.
+    rename = lambda name: db.execute(update(ChecklistAttachment).where(ChecklistAttachment.id == watch.id)  # noqa: E731
+                                     .values(signer_name=name))
+    rename("Mallory")
     db.commit()
     seen = a.get(f"/api/checklists/{cid}").json()
     assert seen["completion_seal"]["status"] == "abweichend"
     assert seen["completion_seal"]["text"] == "Inhalt weicht von der Prüfsumme ab: Unterschrift Brandwache."
-    assert [s["seal"]["status"] for s in _sigs(seen).values()] == ["unveraendert"] * 2  # nur der Abschluss sieht es
-    assert _pdf_text(db, cid).count(b"weicht von der Pr") == 1
-    watch.signer_name = "Bernd Beta"
+    # Seit 1.8.57 sieht es auch die Unterschrift selbst (Unterzeichner im Siegel), nicht nur der Abschluss.
+    assert {n: s["seal"]["status"] for n, s in _sigs(seen).items()} == {"Anna Alpha": "unveraendert",
+                                                                       "Mallory": "abweichend"}
+    assert _sigs(seen)["Mallory"]["seal"]["changed_fields"] == ["Unterzeichner"]
+    assert _pdf_text(db, cid).count(b"weicht von der Pr") == 2
+    rename("Bernd Beta")
     db.commit()
     assert a.get(f"/api/checklists/{cid}").json()["completion_seal"]["status"] == "unveraendert"
 

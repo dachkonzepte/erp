@@ -38,7 +38,7 @@ from reportlab.platypus import Image, KeepTogether, Paragraph, Spacer, Table, Ta
 from .berlin_time import to_berlin
 from .checklists import (
     CLOSED_STATUSES, VOID_STATUS, _answer_value, _attachment_sha256, active_attachments, attachment_content_type,
-    attachment_path, check_completion, check_signature,
+    attachment_path, check_completion, check_signature, signer_text,
 )
 from .document_frame import frame_content_width, render_framed_pdf
 from .document_page_margins import get_margins
@@ -300,6 +300,8 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
                         _image(attachment_path(sig), SIGNATURE_WIDTH_MM, max_height_mm=SIGNATURE_HEIGHT_MM),
                         Paragraph(ptext(f"{sig.signer_name or ''}, {to_berlin(sig.created_at).strftime('%d.%m.%Y %H:%M')} Uhr"), small),
                     ]
+                    if signer_text(sig):  # seit 1.8.57: Art des Unterzeichners, Rolle, Vollmacht
+                        block.append(Paragraph(ptext(signer_text(sig)), small))
                     if sig.content_sha256:  # seit 1.8.13; ältere Unterschriften haben keine
                         scope = "die Angaben oberhalb dieser Unterschrift" if sig.sealed_content is not None else "die ganze Checkliste"
                         block.append(Paragraph(ptext(f"Versiegelt {scope}. Prüfsumme (SHA-256): {sig.content_sha256}"), small))

@@ -117,6 +117,9 @@ textarea{min-height:90px;resize:vertical}
 .discarded-row:last-of-type{border-bottom:none}
 .pad-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
 .pad-actions input{flex:1;min-width:180px}
+.pad-actions select{flex:1;min-width:180px;padding:10px 12px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:16px;min-height:44px}
+.signer-fixed{flex:1;min-width:180px;font-size:14px;font-weight:650;color:var(--ink)}
+.sig .signer-line{display:block;font-weight:400;font-size:12.5px;color:#5c6f68;margin-top:2px}.sig .signer-line .no-poa{color:#8a5a00;font-weight:600}
 .footer-card{position:sticky;bottom:0;background:var(--card);border:1px solid var(--line);padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 -4px 14px rgba(0,0,0,.06)}
 .footer-card .missing-text{flex:1;min-width:200px;font-size:13px;color:var(--muted)}
 .error-box{color:var(--danger)}
@@ -260,6 +263,24 @@ function renderCompletionSeal(){
 
 // Fehlende Pflichtangaben in den Feldern `list` -- gesperrt lassen sie sich nicht mehr ergänzen.
 function missingIn(list){return list.flatMap(missingOf)}
+// Seit 1.8.57: wer unterschreibt -- "frei" mit Namensfeld wie bisher, sonst setzt der Server den Namen: das angemeldete
+// Konto, der Auftraggeber laut Auftrag (cl.signer_choices) oder ein gewählter Beteiligter (ohne Vollmacht mit Warnung).
+function signerInput(f,prefill){
+  const mode=f.signer_mode||'frei',ch=(cl.signer_choices||{})[f.id]||{};
+  if(mode==='konto')return `<span class="signer-fixed" data-signer="${f.id}">Unterschreibt: ${esc(MY_NAME||'angemeldetes Konto')} (angemeldetes Konto)</span>`;
+  if(mode==='auftraggeber')return `<span class="signer-fixed" data-signer="${f.id}">Unterschreibt: ${esc(ch.name||'')} (Auftraggeber laut Auftrag)</span>`;
+  if(mode==='beteiligter'){
+    const list=(ch.participants||[]).filter(p=>!p.signed);
+    return `<select id="padPart_${f.id}" onchange="signerPoaHint(${f.id})"><option value="">– Beteiligten wählen –</option>${list.map(p=>`<option value="${p.participant_id}">${esc(p.name)} (${esc(p.role_label)})${p.poa_on_record?'':' – ohne Vollmacht'}</option>`).join('')}</select><div class="option-hint" id="padPoa_${f.id}" hidden></div>`;
+  }
+  return `<input id="padName_${f.id}" placeholder="Name ${esc(f.signer_label||'')}" value="${esc(prefill)}">`;
+}
+function signerPoaHint(fieldId){
+  const sel=document.getElementById('padPart_'+fieldId),hint=document.getElementById('padPoa_'+fieldId);
+  const p=(((cl.signer_choices||{})[fieldId]||{}).participants||[]).find(x=>String(x.participant_id)===sel.value);
+  hint.hidden=!(p&&!p.poa_on_record);
+  hint.textContent=p&&!p.poa_on_record?`Für ${p.name} ist keine Vollmacht zur Abnahme hinterlegt – die Unterschrift wird trotzdem erfasst, gekennzeichnet „ohne Vollmacht zur Abnahme“.`:'';
+}
 // Seit 1.8.56: was oberhalb einer Unterschrift noch fehlt, sagt der Server (missing_before_signature) -- so lange lehnt
 // er die Unterschrift ab. Der Hinweis steht über der Zeichenfläche und folgt jeder gespeicherten Eingabe (updateMissing()).
 function missingBeforeText(fieldId){const m=(cl.missing_before_signature||{})[fieldId]||[];return m.length?'Vor der Unterschrift fehlen noch: '+m.join(', ')+'.':''}
@@ -374,10 +395,12 @@ function fieldBody(f){
     const list=attachmentsOf(f);
     const canAdd=cl.can_sign&&forRole(f)&&(f.multiple?list.length<(f.max_count||20):!list.length);
     const prefill=(!f.multiple&&/monteur|ausführend|fahrer/i.test(f.signer_label||f.label))?MY_NAME:'';
+    // Seit 1.8.57: Unterzeichner des Felds -- Art, bei einem Beteiligten Rolle und Vollmacht; der Beleg nur fürs Büro.
+    const signerLine=a=>a.signer_kind?`<span class="signer-line">Unterzeichner: ${esc(a.signer_kind_label)}${a.signer_role?` (${esc(a.signer_role)})`:''}${a.signer_kind==='beteiligter'?(a.signer_poa?(IS_FIELD?' · Vollmacht zur Abnahme festgehalten':` · <a href="/api/checklist-attachments/${a.id}/power-of-attorney" target="_blank" rel="noopener">Vollmacht zur Abnahme</a>`):' · <span class="no-poa">⚠ ohne Vollmacht zur Abnahme</span>'):''}</span>`:'';
     const meta=a=>[a.created_at_local?a.created_at_local+' Uhr':null,a.content_sha256?'Prüfsumme '+a.content_sha256.slice(0,12)+'…':null].filter(Boolean).join(' · ');
-    return `<div class="sig-list">${list.map(a=>`<div class="sig"><img src="${a.url}" alt="Unterschrift"><span class="name">${esc(a.signer_name)}<span class="sig-meta"${a.content_sha256?` title="SHA-256 des unterschriebenen Inhalts: ${esc(a.content_sha256)}"`:''}>${esc(meta(a))}</span>${sealLine(a)}</span></div>`).join('')||(canAdd?'':'<span class="muted">Keine Unterschrift.</span>')}</div>
+    return `<div class="sig-list">${list.map(a=>`<div class="sig"><img src="${a.url}" alt="Unterschrift"><span class="name">${esc(a.signer_name)}${signerLine(a)}<span class="sig-meta"${a.content_sha256?` title="SHA-256 des unterschriebenen Inhalts: ${esc(a.content_sha256)}"`:''}>${esc(meta(a))}</span>${sealLine(a)}</span></div>`).join('')||(canAdd?'':'<span class="muted">Keine Unterschrift.</span>')}</div>
       ${canAdd?`${missingBeforeHtml(f)}<canvas id="pad_${f.id}" class="dk-unterschrift"></canvas>
-      <div class="pad-actions"><input id="padName_${f.id}" placeholder="Name ${esc(f.signer_label||'')}" value="${esc(prefill)}">
+      <div class="pad-actions">${signerInput(f,prefill)}
         <button type="button" class="btn secondary" onclick="clearPad(${f.id})">Leeren</button>
         <button type="button" class="btn" onclick="saveSignature(${f.id})">Unterschrift übernehmen</button></div>`:''}`;
   }
@@ -735,10 +758,17 @@ function setupPad(fieldId){
 }
 function clearPad(fieldId){const p=pads[fieldId];if(p)p.leeren()}
 async function saveSignature(fieldId){
-  const p=pads[fieldId];const nameEl=document.getElementById('padName_'+fieldId);
-  const name=(nameEl.value||'').trim();
+  const p=pads[fieldId],f=cl.fields.find(x=>x.id===fieldId),mode=f.signer_mode||'frei',extra={};
   if(!p||p.leer()){setStatus(fieldId,'Bitte zuerst im Feld unterschreiben.',true);return}
-  if(!name){setStatus(fieldId,'Bitte den Namen der unterschreibenden Person eintragen.',true);nameEl.focus();return}
+  if(mode==='frei'){
+    const nameEl=document.getElementById('padName_'+fieldId),name=(nameEl.value||'').trim();
+    if(!name){setStatus(fieldId,'Bitte den Namen der unterschreibenden Person eintragen.',true);nameEl.focus();return}
+    extra.signer_name=name;
+  }else if(mode==='beteiligter'){  // seit 1.8.57: den Namen setzt der Server
+    const sel=document.getElementById('padPart_'+fieldId);
+    if(!sel.value){setStatus(fieldId,'Bitte den Beteiligten wählen, der unterschreibt.',true);sel.focus();return}
+    extra.participant_id=sel.value;
+  }
   const idx=cl.fields.findIndex(x=>x.id===fieldId);
   const newly=cl.fields.slice(0,idx).filter(f=>CONTENT_TYPES(f)&&!isSealed(f));
   // Zuerst alles Getippte speichern (sonst käme es nach der Unterschrift an und würde abgewiesen). Seit 1.8.56 lehnt der
@@ -757,7 +787,7 @@ async function saveSignature(fieldId){
   }
   setStatus(fieldId,'Speichert …');
   const blob=await p.alsBlob();
-  try{cl=await uploadFile(fieldId,blob,'unterschrift.png',{signer_name:name});render();setStatus(fieldId,'Gespeichert')}
+  try{cl=await uploadFile(fieldId,blob,'unterschrift.png',extra);render();setStatus(fieldId,'Gespeichert')}
   catch(e){setStatus(fieldId,'Nicht gespeichert: '+e.message,true);if(e.status===409)await reload()}
 }
 

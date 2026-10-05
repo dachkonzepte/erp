@@ -123,7 +123,7 @@ const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 // Abgelehnte Antworten lesbar über fehlerText() (_fehlertext.html, seit 1.8.38 auch hier).
 const FELDNAMEN={label:'Bezeichnung',description:'Beschreibung',contexts:'Kontexte',purpose:'Zweck',field_key:'Schlüssel',
   field_type:'Typ',help_text:'Hilfetext',group_name:'Abschnitt',min_value:'Mindestwert',max_value:'Höchstwert',decimals:'Nachkommastellen',
-  min_count:'Mindestanzahl',max_count:'Höchstanzahl',signer_label:'Rolle',unit:'Einheit',task_title:'Aufgabentitel',
+  min_count:'Mindestanzahl',max_count:'Höchstanzahl',signer_label:'Rolle',signer_mode:'Unterzeichner',unit:'Einheit',task_title:'Aufgabentitel',
   task_description:'Beschreibung der Aufgabe',operand:'Vergleichswert',due_in_days:'Fällig in (Tagen)',link_purpose:'Aufgabe verlinkt auf',
   new_label:'Bezeichnung der Kopie'};
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,FELDNAMEN));return r.json()}
@@ -135,6 +135,8 @@ const OPERATORS=[['immer','immer (bei jedem Abschluss)',null],['ist_ja','ist „
 const PRIORITIES=[['niedrig','niedrig'],['normal','normal'],['hoch','hoch'],['dringend','dringend']];
 const ROLES=[['buero_auftrag','Büro – Auftrag (und höher)'],['buero_finanzen','Büro – Finanzen (und höher)'],['admin','nur Administrator']];
 const CONTEXTS=['auftrag','objekt','betriebsmittel','betrieb'];
+// Unterzeichner je Unterschriftsfeld (seit 1.8.57): woher Name und Nachweis kommen. Auftraggeber und Beteiligter nur am Auftrag.
+const SIGNER_MODES=[['frei','frei eingetragen (Name tippen)'],['konto','angemeldetes Konto'],['auftraggeber','Auftraggeber laut Auftrag'],['beteiligter','Beteiligter des Projekts (mit Vollmacht zur Abnahme)']];
 
 let template=null,version=null,openFieldId=null,openRuleId=null,purposes=[];
 const CONTEXT_LABEL={auftrag:'Auftrag',objekt:'Objekt',betriebsmittel:'Betriebsmittel',betrieb:'Betrieb'};
@@ -268,6 +270,7 @@ function fieldBody(f){
       <div class="field"><label>Nachkommastellen</label><input type="number" min="0" max="4" data-k="decimals" value="${f.decimals??''}" ${d}></div></div></div>`;
   if(t==='datum'||t==='uhrzeit'||t==='datum_uhrzeit')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="prefill_now" ${f.prefill_now?'checked':''} ${d}> mit „jetzt“ vorbelegen</label></div></div>`;
   if(t==='unterschrift')html+=`<div class="field"><label>Wer unterschreibt?</label><input data-k="signer_label" value="${esc(f.signer_label)}" placeholder="z. B. Monteur, Kunde, Brandwache" ${d}></div>
+      <div class="field"><label>Unterzeichner</label><select data-k="signer_mode" ${d}>${SIGNER_MODES.map(([k,l])=>`<option value="${k}"${(f.signer_mode||'frei')===k?' selected':''}>${esc(l)}</option>`).join('')}</select></div>
       <div class="field"><label>&nbsp;</label><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${ds}> mehrere Unterschriften (z. B. Teilnehmer)</label></div></div>`;
   if(t==='auswahl')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${ds}> Mehrfachauswahl</label></div></div>`;
   if(t==='beleg')html+='<div class="field full muted small">PDF oder Foto (JPEG, PNG, WebP), bis 15 MB – am Inhalt erkannt, unverändert gespeichert.</div>';

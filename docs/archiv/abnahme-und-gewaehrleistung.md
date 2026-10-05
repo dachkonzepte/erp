@@ -979,3 +979,121 @@ festgehalten wird.
   dunkles umgestellt), unverändert grün: `_verwerfen` 23, `_zweck` 28, `behinderungsanzeige` 35, `_versand` 41,
   `_abschluss` 43, `bedenkenanzeige` 22, `_versand` 20, `versandverlauf` 32, `vertrag_unterschrift` 43, `vertrag_abschrift` 26.
 - Volle Suite 2874 grün (mit den opt-in-Tests gegen PostgreSQL).
+
+
+---
+
+## Umsetzung 1.8.57 (05.10.2026) -- Runde 2c-2c, Punkt 3: Unterzeichner je Unterschriftsfeld
+
+### Vorlage
+
+- Neue Spalte `checklist_template_fields.signer_mode` (Migration `5e562a4a172b`, NOT NULL, `server_default` "frei"):
+  "frei" (Name eintippen wie bisher), "konto" (angemeldetes Konto), "auftraggeber" (Auftraggeber laut Auftrag), "beteiligter"
+  (Beteiligter des Projekts). `SIGNER_MODES` in `app/checklist_templates.py`. Editor: Auswahl "Unterzeichner" am
+  Unterschriftsfeld; in der veröffentlichten Fassung gesperrt wie jede Eigenschaft.
+- Regeln: nur an Unterschriftsfeldern (sonst "frei"); "konto" und "auftraggeber" nie mit "mehrere Unterschriften" (eine
+  Person); "auftraggeber"/"beteiligter" nur, wenn die Vorlage ausschließlich am Auftrag gilt -- geprüft beim Veröffentlichen
+  (`order_only_signer_labels()`), beim Ändern der Kontexte (nicht abgelöste Fassungen) und beim Unterschreiben.
+
+### Unterschreiben (`app/checklists.py::_signer()`, `add_attachment()`)
+
+- "frei": `signer_name` Pflicht (höchstens 160 Zeichen). Alle anderen: ein mitgeschickter Name ist 400 ("Den Namen setzt hier
+  der Server"), `participant_id` nur bei "beteiligter" (sonst 400).
+- "konto": Name und ID des angemeldeten Kontos aus dem Router (`account_user_id`/`account_name`), dasselbe Konto höchstens
+  einmal je Feld (409).
+- "auftraggeber": `Order.customer_name` als Schnappschuss; nur an einer Checkliste zum Auftrag (sonst 400).
+- "beteiligter": `participant_id` Pflicht, Beteiligter dieses Projekts, nicht archiviert, höchstens einmal je Feld (409); Name
+  (`contact_display_name()`) und Rolle als Schnappschuss; die Vollmacht zur Abnahme über
+  `app/acceptances.py::_frozen_power_of_attorney()` (Häkchen, Datei, stimmende Prüfsumme) als Kopie neben die Unterschrift
+  (`vollmacht-<uuid>.<endung>` im Ordner der Checkliste, `signer_poa_*`); ohne sie wird die Unterschrift erfasst und
+  gekennzeichnet ("⚠ ohne Vollmacht zur Abnahme"). Ein Beteiligter, der unterschrieben hat, lässt sich nicht mehr aus dem
+  Projekt entfernen (409, wie bei Abnahme und Mangel).
+- `checklist_to_dict()` liefert `signer_choices` je Feld mit Auftraggeber/Beteiligtem (Name des Auftraggebers bzw. Beteiligte
+  mit Name, Rolle, Vollmacht ja/nein, schon unterschrieben) -- auch an Monteure, ohne Kontaktwege und Belege. Die Seite zeigt
+  "Unterschreibt: … (…)" statt des Namensfelds bzw. die Auswahl mit Hinweis ohne Vollmacht; an jeder Unterschrift die Zeile
+  "Unterzeichner: …", fürs Büro mit Link auf die eingefrorene Vollmacht
+  (`GET /api/checklist-attachments/{id}/power-of-attorney`, ab `buero_auftrag`, nosniff, 409 bei abweichender Prüfsumme).
+  PDF: dieselbe Zeile unter Name und Zeitpunkt (`signer_text()`).
+
+### Siegel
+
+- Neue Spalten an `checklist_attachments`: `signer_kind`, `signer_user_id` (ohne Fremdschlüssel -- Befund "Benutzer löschen"
+  1.8.13), `signer_participant_id` (FK, Index), `signer_role`, `signer_poa_stored_filename`/`_content_type`/`_sha256`,
+  `seal_format`. Neue Unterschriften: `seal_format` 3, die Kopie trägt `"v": 3` und `"signer"` (`signer_content()`: Art,
+  Name, Konto, Beteiligter, Rolle, Vollmacht mit Prüfsumme und Typ, Zeitpunkt, Prüfsumme des gespeicherten Bilds). Der
+  Zeitpunkt wird beim Anlegen auf ganze Sekunden gesetzt.
+- `check_signature()` rechnet nach dem Format der Unterschrift nach: 3 mit Unterzeichner, leer wie bisher (Format 2 mit Kopie
+  bzw. 1.8.13 ohne) -- vorhandene Siegel bleiben gültig; ein unbekanntes Format ist "abweichend: Siegelformat". Ein am ORM vorbei
+  geändertes Format ändert den nachgerechneten Inhalt -- "abweichend". `_changed_fields()` nennt einen geänderten Unterzeichner
+  (auch ein ausgetauschtes Bild) als "Unterzeichner".
+- **ORM-Sperre**: eine Unterschrift ist nach dem Speichern bis auf die Spalten des Verwerfens unveränderlich, gelöscht wird sie
+  nie (`ArchiveImmutableError`, `app/models.py`) -- auch ein Wechsel der Art "unterschrift" zu etwas anderem.
+- Der Abschluss (1.8.15) bleibt im Format 2 -- er bindet je Unterschrift deren Prüfsumme, also seit 1.8.57 auch den Unterzeichner.
+
+### Festlegungen 1.8.57 (bitte bestätigen)
+
+1. **Vier Arten**: frei, angemeldetes Konto, Auftraggeber laut Auftrag, Beteiligter. Vorgabe "frei" -- alle vorhandenen Felder und
+   Startvorlagen bleiben, wie sie sind; Systemfelder geben keinen Unterzeichner vor (umstellbar im Editor).
+2. **Auftraggeber = Kunde laut Auftrag** (`Order.customer_name`, wie bei der Abnahme), ohne Namen der unterschreibenden Person bei
+   Firmen -- wer für eine Firma unterschreibt und nicht der Auftraggeber selbst ist, gehört als Beteiligter mit Vollmacht erfasst.
+3. **Vollmacht = Vollmacht zur Abnahme** (Häkchen und Beleg am Beteiligten, wie bei der Abnahme), die Empfangsvollmacht zählt nicht;
+   ohne sie mit Warnung erfasst, nicht abgelehnt.
+4. **Mitgeschickter Name bei festem Unterzeichner ist ein Fehler** (400), keine stille Umdeutung.
+5. **Höchstens einmal je Feld** je Konto bzw. Beteiligtem; "konto" und "auftraggeber" nie "mehrere".
+6. **Monteur sieht** in der Auswahl Name, Rolle und "ohne Vollmacht" der Beteiligten seines Auftrags, nicht den Beleg (403).
+7. **Siegel mit Zeitpunkt und Prüfsumme des Bilds** -- über die Vorgabe (Name, Art, Vollmacht) hinaus; damit fällt auch ein
+   ausgetauschtes Bild schon vor dem Abschluss auf. Zwei Unterschriften im selben Feld tragen deshalb verschiedene Prüfsummen.
+8. **Auswahl liest die Vollmacht nicht**: "Vollmacht ja/nein" in der Auswahl folgt dem Stand am Beteiligten (Häkchen, Beleg,
+   Typ); die Datei samt Prüfsumme liest erst das Unterschreiben -- sonst läse jede gespeicherte Antwort alle Vollmachten. Ist die
+   Datei inzwischen kaputt, wird ohne Vollmacht erfasst (gekennzeichnet).
+9. **Downgrade verweigert**, sobald eine Unterschrift im Format 3 oder ein Feld mit festem Unterzeichner existiert.
+
+### Verifikation 1.8.57
+
+- `tests/test_v359_unterzeichner.py` (29): Konto (Name und ID vom Konto, Siegel "v": 3 mit Unterzeichner und Prüfsumme des Bilds),
+  Auftraggeber (Kunde laut Auftrag, späterer Kundenname am Auftrag ändert nichts), Beteiligter (Auswahl, Vollmacht eingefroren
+  als Kopie, ohne Vollmacht gekennzeichnet, später ersetzte Vollmacht ändert Kopie und Siegel nicht, Abruf fürs Büro), frei wie
+  bisher; Angriffe: falsche Angaben über die API (Name bei festem Unterzeichner, ohne Wahl, unbekannter Beteiligter,
+  Beteiligter eines anderen Projekts, Beteiligter am falschen Feld, frei ohne Name -- je 400, nichts gespeichert), gleiche
+  Kennung mit anderem Namen (dieselbe Antwort), derselbe Beteiligte zweimal (409), Änderung am ORM (fünf Spalten und Löschen:
+  `ArchiveImmutableError`), Änderung per SQL (acht Fälle: Name, Art, Rolle, Konto, Vollmacht, Beteiligter, Format 2, Format leer
+  -> "abweichend"), ausgetauschtes Bild ("Unterzeichner"), Unterzeichner einer veröffentlichten Fassung nicht änderbar; Regeln
+  der Vorlage, altes Siegel (Format 2) bleibt gültig, Beteiligter mit Unterschrift bleibt im Projekt, Monteur sieht die Auswahl,
+  nicht die Vollmacht; Seiten; Migration (Downgrade verweigert).
+- Angepasst: `test_v358` (die neuen Spalten eingeordnet -- der Strukturtest aus 1.8.56 hat sie als neu gemeldet, wie gedacht),
+  `test_v317` (Prüfsumme im Format 3 nachgerechnet; zwei Unterschriften im selben Feld haben jetzt verschiedene Summen),
+  `test_v318` (Kopie "v": 3; Manipulationen per rohem UPDATE statt am ORM), `test_v319` (ein geänderter Name zeigt jetzt auch die
+  Unterschrift selbst als "abweichend"), `test_v316` (Zeitstempel per rohem UPDATE), `tests/conftest.py` (`router_test_client`
+  optional mit `user_id`/`display_name`).
+- Gegenproben (Marker GEGENPROBE, Dateien byte-genau zurück): 16 von 16 rot. **Eine blieb zuerst grün**: "Beteiligter eines
+  anderen Projekts" -- der Test nutzte eine nicht vorhandene ID und deckte die Projektprüfung gar nicht ab; mit einem echten
+  Beteiligten des fremden Projekts nachgeschärft, danach rot.
+- Migration `5e562a4a172b`: SQLite hin/zurück/hin, `check`; PostgreSQL 17 im Wegwerf-Schema: Kette bis `90a5ff1e1714`, head,
+  Checkliste mit Unterschriften über den App-Code (Auftraggeber, Beteiligter mit Vollmacht, Konto -- alle Format 3,
+  "unverändert"), Downgrade verweigert, `current` = head, `check` sauber; leeres Schema hin/zurück/hin. **Eigener Fehler, von
+  der PostgreSQL-Probe gefunden**: der Name des Fremdschlüssels war 69 Zeichen lang, PostgreSQL erlaubt 63 (SQLite prüft das
+  nicht) -- gekürzt auf `fk_checklist_attachments_signer_participant_id`, im Modell benannt (sonst ließe sich die Migration
+  auf einer per `create_all()` angelegten Datenbank nicht zurücknehmen).
+- PostgreSQL (pytest-Plugin): `test_v359`, `test_v358` und die Checklisten-Unterschriftstests v305/v317/v318/v319 -- 129 grün (114 Wegwerf-Schemas, danach entfernt). Dabei zwei Fehler in meinen eigenen Tests gefunden und behoben: ein Test-Konto ohne Zeile
+  in `app_users` (unter PostgreSQL verlangt `checklists.created_by_user_id` eines) und `0`/`1` für Booleans im rohen SQL des
+  Migrationstests (jetzt über die App-Funktionen angelegt).
+- Klicktests: neu `scripts/klicktest_unterzeichner.py` 17/17; `klicktest_checkliste_verwerfen.py` 23/23 (umgestellt: die
+  an der Sperre vorbei umbenannte Brandwache zeigt jetzt auch ihre eigene Unterschrift als "weicht ab: Unterzeichner"); unverändert
+  grün: `_abschnitte` 28, `_unterschrift` 26, `_zweck` 28, `behinderungsanzeige` 35, `_versand` 41, `_abschluss` 43,
+  `bedenkenanzeige` 22, `_versand` 20, `beleg_und_hinweis` 24, `versandverlauf` 32, `vertrag_unterschrift` 43.
+- Volle Suite 2903 grün (mit den opt-in-Tests gegen PostgreSQL). **Eigener Fehler beim Prüfen**: zwei Läufe gegen
+  PostgreSQL schrieben in dieselbe Ausgabedatei, die Zusammenfassung stammte vom alten Lauf vor der Konto-Korrektur -- in eine
+  eigene Datei wiederholt (oben).
+
+### Nebenbefunde 1.8.57 (nur gemeldet)
+
+1. **`create_checklist()` meldet jede Integritätsverletzung als "Diese Kennung (client_uuid) ist bereits vergeben"** -- auch ohne
+   Kennung, z. B. bei einem Fremdschlüssel unter PostgreSQL (in den Tests dieser Runde mit einem Konto ohne Zeile so aufgetreten).
+   Der Text führt in die Irre; der SAVEPOINT-Zweig sollte nur bei gesetzter Kennung greifen.
+2. **Systemfelder geben keinen Unterzeichner vor**: "Unterschrift Büro" der Behinderungs- und Bedenkenanzeige wäre ein Fall für
+   "angemeldetes Konto" (die Wiederaufnahme nutzt schon das Büro-Konto für "i. A."). Eine Vorgabe im Zweck würde veröffentlichte
+   Vorlagen als "weicht ab" melden -- deshalb nicht gesetzt, Entscheidung offen.
+3. **Startvorlagen**: "Unterschrift Kunde" (Nachtragsmeldung) und ähnliche wären "Auftraggeber laut Auftrag" -- nur als Vorschlag,
+   die Startvorlagen bleiben "frei".
+4. **Zweck "abnahme" hat noch keine Systemfelder** -- das Abnahmeprotokoll (Fundament dieser Runde) wäre der nächste Schritt:
+   Systemfelder mit Unterzeichner Auftraggeber/Beteiligter, Folge "Abnahme erfassen" aus der Checkliste.

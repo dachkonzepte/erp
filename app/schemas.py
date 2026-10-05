@@ -4568,6 +4568,7 @@ class ChecklistTemplateFieldWrite(BaseModel):
     max_count: int | None = None
     prefill_now: bool | None = None
     signer_label: str | None = Field(default=None, max_length=80)
+    signer_mode: str | None = Field(default=None, max_length=20)  # seit 1.8.57: frei|konto|auftraggeber|beteiligter
 
 
 class ChecklistTemplateFieldReorder(BaseModel):
@@ -4627,6 +4628,8 @@ class ChecklistTemplateFieldOut(BaseModel):
     max_count: int | None = None
     prefill_now: bool
     signer_label: str | None = None
+    signer_mode: str = "frei"  # seit 1.8.57
+    signer_mode_label: str | None = None
     is_system: bool
     options: list[ChecklistTemplateFieldOptionOut] = []
     # Seit 1.8.38, aus der Vorgabe des Systemfelds (app/checklist_purposes.py): nur das Büro füllt
@@ -4787,6 +4790,13 @@ class ChecklistAttachmentOut(BaseModel):
     seal: ChecklistSealCheckOut | None = None  # nur gültige Unterschriften (seit 1.8.14)
     discards_with: list[int] = []  # Unterschriften, die beim Verwerfen dieser mitfallen (seit 1.8.15)
     bound_by_signature: bool = False  # Foto/Beleg gehört zu einer (auch verworfenen) Unterschrift, nie löschbar (seit 1.8.14)
+    # Unterzeichner (seit 1.8.57): Art, Rolle eines Beteiligten, ob eine Vollmacht zur Abnahme eingefroren ist, Siegelformat
+    signer_kind: str | None = None
+    signer_kind_label: str | None = None
+    signer_role: str | None = None
+    signer_poa: bool = False
+    signer_without_poa: bool = False
+    seal_format: int | None = None
     url: str
     content_type: str = "image/jpeg"  # seit 1.8.45: ein Beleg ist application/pdf oder ein Bild
 
@@ -4815,6 +4825,8 @@ class ChecklistOut(ChecklistSummaryOut):
     sealed_field_ids: list[int] = []
     has_signatures: bool = False
     missing_before_signature: dict[str, list[str]] = {}  # seit 1.8.56: je Unterschriftsfeld (ID) die fehlenden Pflichtangaben oberhalb
+    # seit 1.8.57: je Unterschriftsfeld mit Auftraggeber oder Beteiligtem, wer unterschreiben kann (Name, Rolle, Vollmacht ja/nein)
+    signer_choices: dict[str, dict] = {}
     missing_required: list[str] = []
     completion_sha256: str | None = None
     completion_seal: ChecklistSealCheckOut | None = None

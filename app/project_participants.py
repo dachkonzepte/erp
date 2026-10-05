@@ -362,6 +362,11 @@ def remove_participant(db: Session, participant: ProjectParticipant) -> None:
         # Seit 1.8.49: ebenso, wenn er die Beseitigung eines Mangels abgenommen hat.
         raise ParticipantInUseError("Dieser Beteiligte hat die Beseitigung eines Mangels abgenommen und bleibt deshalb "
                                     "im Projekt.")
+    from .models import ChecklistAttachment
+
+    if db.scalar(select(ChecklistAttachment.id).where(ChecklistAttachment.signer_participant_id == participant.id).limit(1)):
+        # Seit 1.8.57: ebenso, wenn er eine Checkliste unterschrieben hat (die Unterschrift verweist auf ihn).
+        raise ParticipantInUseError("Dieser Beteiligte hat eine Checkliste unterschrieben und bleibt deshalb im Projekt.")
     stored = [x for x in (participant.poa_stored_filename, participant.acceptance_poa_stored_filename) if x]
     db.delete(participant)
     db.commit()
