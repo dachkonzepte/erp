@@ -224,10 +224,12 @@ function roofAreaRow(r){
 
 // Seit 1.8.46: Gewährleistung aus Abnahmen (GET /api/properties/{id}/acceptance-warranties).
 let acceptanceWarranty={acceptances:[],roof_areas:{}};
+// Seit 1.8.48 mit Prüfstatus der Abnahme(n) neben jedem Ende -- bei Abweichung rot, das Ende ist dann nicht verlässlich.
+function acceptanceCheck(c){return !c?'':c.ok?'<div class="muted small">✓ Prüfsumme stimmt</div>':`<div style="color:var(--danger);font-weight:700" class="small">⚠ Prüfung: ${esc(c.text)} – Ende nicht verlässlich</div>`}
 function acceptanceWarrantyEnd(roofAreaId){
   const x=acceptanceWarranty.roof_areas[String(roofAreaId)];
   if(!x)return '—';
-  return x.end?`<span title="aus ${esc(x.order_number)}">${fmtDate(x.end)}</span>`:'<span class="muted" title="Dauer am Auftrag nicht festgelegt">abgenommen, Dauer offen</span>';
+  return (x.end?`<span title="aus ${esc(x.order_number)}">${fmtDate(x.end)}</span>`:'<span class="muted" title="Dauer am Auftrag nicht festgelegt">abgenommen, Dauer offen</span>')+acceptanceCheck(x.check);
 }
 function acceptanceWarrantyRow(a){
   const scope=a.scope==='teil'?`Teil: ${esc(a.scope_description)}`:'gesamt';
@@ -238,7 +240,7 @@ function acceptanceWarrantyRow(a){
     <td>${scope}${areas}</td>
     <td>${fmtDate(a.accepted_on)} · ${esc(a.kind_label)}</td>
     <td>${esc(a.result_text)}</td>
-    <td>${w&&w.end?`<b title="${esc(w.rule||'')}">${fmtDate(w.end)}</b>`:`<span class="muted">${esc(w?w.text:'—')}</span>`}</td>
+    <td>${w&&w.end?`<b title="${esc(w.rule||'')}">${fmtDate(w.end)}</b>`:`<span class="muted">${esc(w?w.text:'—')}</span>`}${acceptanceCheck(w&&w.check)}</td>
   </tr>`;
 }
 async function loadAcceptanceWarranties(){

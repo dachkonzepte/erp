@@ -21,6 +21,12 @@ content_sha256 über den Inhalt samt Prüfsummen der Belege -- jeder Abruf rechn
 ORM vorbei geänderte Zeile oder Datei erscheint als "weicht ab". Korrektur nur durch Verwerfen mit Begründung
 (bedingtes UPDATE, Historie) und einen neuen Eintrag.
 
+Seit 1.8.48: das Verwerfen ist versiegelt (discard_sha256 über Prüfsumme des Inhalts, Zeitpunkt, Name als Kopie und
+Begründung); "Erfasst von" stand schon seit 1.8.46 im gebundenen Inhalt. Die Fassung des Prüfsummenformats steht je
+Eintrag (checksum_format, CHECKSUM_FORMAT für neue) -- vorhandene Prüfsummen werden nie neu berechnet. Jede Anzeige
+eines Gewährleistungsendes kommt aus acceptance_warranty() und trägt den Prüfstatus; eine Abweichung meldet
+verify_acceptance() zusätzlich mit logger.error (nur Kennungen, Regel 18).
+
 Abgleich mit dem Angebot: gesperrt, solange eine nicht verworfene Abnahme besteht (ensure_no_active_acceptance(),
 seit 1.8.46 Punkt 7). Erfassen, Verwerfen und Abgleich sperren dieselbe Zeile (der Auftrag, SELECT … FOR UPDATE).
 
@@ -29,6 +35,7 @@ Rollenlos wie jede Geschäftslogik; wer erfassen darf, entscheidet der Router (a
 
 import hashlib
 import json
+import logging
 import os
 import stat
 import uuid
@@ -67,10 +74,21 @@ _SUFFIXES = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png
 
 ENTITY_TYPE = "Abnahme"  # Änderungshistorie (app/audit.py)
 
+# Fassung des Prüfsummenformats (seit 1.8.48, OrderAcceptance.checksum_format): 1 = bis 1.8.47 (Inhalt ohne Fassung,
+# Verwerfen nicht versiegelt), 2 = Fassung im Inhalt, Verwerfen versiegelt (discard_sha256 Pflicht).
+CHECKSUM_FORMAT = 2
+
+logger = logging.getLogger(__name__)
+
 VERIFY_TEXTS = {
     "unveraendert": "unverändert (Prüfsumme stimmt)",
     "abweichend": "weicht von der beim Speichern festgehaltenen Prüfsumme ab",
     "fehlt": "Datei fehlt",
+}
+DISCARD_TEXTS = {
+    "unveraendert": "Verwerfen unverändert (Prüfsumme stimmt)",
+    "abweichend": "Verwerfen weicht von seiner Prüfsumme ab",
+    "ohne_pruefsumme": "Verwerfen vor 1.8.48 erfasst, ohne Prüfsumme",
 }
 
 
@@ -214,8 +232,10 @@ def _frozen_power_of_attorney(participant: ProjectParticipant) -> tuple[bytes, s
 # ---------------------------------------------------------------------------
 
 def acceptance_content(a: OrderAcceptance) -> dict:
-    """Der gebundene Inhalt (kanonisches JSON für content_sha256): alles außer den Verwerfen-Feldern."""
-    return {
+    """Der gebundene Inhalt (kanonisches JSON für content_sha256): alles außer den Verwerfen-Feldern, "Erfasst von"
+    (Name als Kopie) eingeschlossen. Ab Fassung 2 (seit 1.8.48) steht die Fassung selbst darin -- wer sie am ORM vorbei
+    auf 1 zurücksetzt, um das Siegel des Verwerfens zu umgehen, ändert damit den Inhalt."""
+    content = {
         "order_id": a.order_id, "property_id": a.property_id, "kind": a.kind, "accepted_on": a.accepted_on.isoformat(),
         "scope": a.scope, "scope_description": a.scope_description,
         "roof_areas": sorted(({"id": r.roof_area_id, "name": r.roof_area_name} for r in a.roof_areas),
@@ -228,6 +248,9 @@ def acceptance_content(a: OrderAcceptance) -> dict:
                          for f in a.files), key=lambda f: (f["kind"], f["sha256"], f["size_bytes"])),
         "created_at": a.created_at.replace(microsecond=0).isoformat(), "created_by_name": a.created_by_name,
     }
+    if (a.checksum_format or 1) >= 2:
+        content["checksum_format"] = a.checksum_format
+    return content
 
 
 def content_sha256(content: dict) -> str:
@@ -236,12 +259,52 @@ def content_sha256(content: dict) -> str:
     ).hexdigest()
 
 
+def discard_content(content_hash: str, discarded_at: datetime, name: str, reason: str) -> dict:
+    """Das Siegel des Verwerfens (seit 1.8.48): Prüfsumme des Inhalts, Zeitpunkt, Name als Kopie, Begründung."""
+    return {"content_sha256": content_hash, "discarded_at": discarded_at.replace(microsecond=0).isoformat(),
+            "discarded_by_name": name, "discard_reason": reason}
+
+
+def _verify_discard(a: OrderAcceptance) -> str | None:
+    """None (nicht verworfen), "unveraendert", "abweichend" oder "ohne_pruefsumme" (Fassung 1, vor 1.8.48 verworfen).
+    Ein Siegel ohne Verwerfen, ein fehlendes Siegel ab Fassung 2 oder ein unvollständiges Verwerfen weichen ab."""
+    if a.discarded_at is None:
+        return "abweichend" if a.discard_sha256 or a.discarded_by_name or a.discard_reason else None
+    if a.discard_sha256 is None:
+        return "ohne_pruefsumme" if (a.checksum_format or 1) < 2 else "abweichend"
+    if not a.discarded_by_name or not a.discard_reason:
+        return "abweichend"
+    expected = content_sha256(discard_content(a.content_sha256, a.discarded_at, a.discarded_by_name, a.discard_reason))
+    return "unveraendert" if expected == a.discard_sha256 else "abweichend"
+
+
 def verify_acceptance(a: OrderAcceptance) -> dict:
-    """Inhalt und Belege nachgerechnet: {"content_ok", "files": {id: status}, "ok"}."""
+    """Inhalt, Belege und Verwerfen nachgerechnet: {"content_ok", "files": {id: status}, "discard", "ok", "text"}.
+    Seit 1.8.48 meldet eine Abweichung zusätzlich logger.error -- nur Kennungen, kein Inhalt (Regel 18)."""
     content_ok = content_sha256(acceptance_content(a)) == a.content_sha256
     files = {f.id: _verify_file(f) for f in a.files}
-    return {"content_ok": content_ok, "files": files,
-            "ok": content_ok and all(s == "unveraendert" for s in files.values())}
+    discard = _verify_discard(a)
+    problems = []
+    if not content_ok:
+        problems.append("Inhalt weicht von seiner Prüfsumme ab")
+    bad_files = sorted(fid for fid, status in files.items() if status != "unveraendert")
+    for text in dict.fromkeys("Beleg fehlt" if files[fid] == "fehlt" else "Beleg weicht von seiner Prüfsumme ab"
+                              for fid in bad_files):
+        problems.append(text)
+    if discard == "abweichend":
+        problems.append(DISCARD_TEXTS["abweichend"])
+    ok = not problems
+    if not ok:
+        logger.error("Abnahme %s (Auftrag %s): Prüfung weicht ab -- Inhalt %s, Belege %s, Verwerfen %s",
+                     a.id, a.order_id, "ok" if content_ok else "abweichend",
+                     ",".join(f"{fid}:{files[fid]}" for fid in bad_files) or "ok", discard or "-")
+    return {"content_ok": content_ok, "files": files, "discard": discard, "ok": ok,
+            "text": "Prüfsumme stimmt" if ok else "; ".join(problems)}
+
+
+def check_summary(check: dict) -> dict:
+    """Der Prüfstatus, wie ihn jede Anzeige eines Gewährleistungsendes mitliefert (seit 1.8.48)."""
+    return {"ok": check["ok"], "text": check["text"]}
 
 
 # ---------------------------------------------------------------------------
@@ -372,7 +435,7 @@ def create_acceptance(
             reservation_penalty=penalty, contractor_objections=objections, declared_by=declared_by,
             participant_id=participant.id if participant else None, declared_by_name=declared_name[:255],
             declared_by_role=role_text, poa_on_record=(frozen_poa is not None) if participant else None,
-            conduct_reason=conduct_reason, content_sha256="",
+            conduct_reason=conduct_reason, content_sha256="", checksum_format=CHECKSUM_FORMAT,
             created_at=datetime.utcnow().replace(microsecond=0), created_by_user_id=user_id,
             created_by_name=(user_name or "System")[:160],
         )
@@ -407,7 +470,8 @@ def discard_acceptance(
     db: Session, acceptance: OrderAcceptance, *, reason: str, user_id: int | None, user_name: str | None,
 ) -> OrderAcceptance:
     """Verwirft eine Abnahme mit Begründung -- genau einmal (bedingtes UPDATE an der ORM-Sperre vorbei, wie das
-    Nachholen der Abschrift in app/contract_signatures.py), mit Eintrag in der Änderungshistorie."""
+    Nachholen der Abschrift in app/contract_signatures.py), mit Eintrag in der Änderungshistorie. Seit 1.8.48 mit
+    Siegel (discard_sha256), auch für Einträge der Fassung 1."""
     from .audit import record_audit_entry
 
     text = _clean(reason, REASON_MAX, "Die Begründung")
@@ -416,10 +480,12 @@ def discard_acceptance(
     lock_order(db, acceptance.order_id)
     now = datetime.utcnow().replace(microsecond=0)
     name = (user_name or "System")[:160]
+    seal = content_sha256(discard_content(acceptance.content_sha256, now, name, text))
     done = db.execute(
         update(OrderAcceptance)
         .where(OrderAcceptance.id == acceptance.id, OrderAcceptance.discarded_at.is_(None))
-        .values(discarded_at=now, discarded_by_user_id=user_id, discarded_by_name=name, discard_reason=text)
+        .values(discarded_at=now, discarded_by_user_id=user_id, discarded_by_name=name, discard_reason=text,
+                discard_sha256=seal)
         .execution_options(synchronize_session=False)
     ).rowcount
     if done != 1:
@@ -455,20 +521,24 @@ def result_text(a: OrderAcceptance) -> str:
     return f"abgenommen mit Vorbehalten ({', '.join(reserved)})" if reserved else "abgenommen ohne Vorbehalte"
 
 
-def acceptance_warranty(a: OrderAcceptance, order: Order) -> dict | None:
-    """Gewährleistungsende dieser Abnahme -- nur für eine nicht verworfene, abgenommene; ohne festgelegte Dauer
-    {"end": None} mit Hinweis."""
+def acceptance_warranty(a: OrderAcceptance, order: Order, check: dict | None = None, *,
+                        duration: tuple[int, int] | None = None) -> dict | None:
+    """Gewährleistungsende dieser Abnahme samt Prüfstatus -- die eine Quelle für jede Anzeige eines Endes (Auftrag,
+    Objekt, Dachfläche, Vorschau einer Änderung, seit 1.8.48). Nur für eine nicht verworfene, abgenommene; ohne
+    festgelegte Dauer {"end": None} mit Hinweis. `check`: ein schon gerechnetes verify_acceptance(), sonst rechnet die
+    Funktion selbst; `duration`: (Monate, Tage) statt der Dauer am Auftrag (Vorschau)."""
     if a.discarded_at is not None or a.result != "abgenommen":
         return None
-    if order.warranty_months is None or order.warranty_days is None:
+    status = check_summary(check if check is not None else verify_acceptance(a))
+    months, days = duration if duration is not None else (order.warranty_months, order.warranty_days)
+    if months is None or days is None:
         return {"end": None, "text": "Gewährleistungsende nicht berechenbar – Dauer am Auftrag nicht festgelegt",
-                "hint": None}
-    end = warranty_end(a.accepted_on, order.warranty_months, order.warranty_days)
+                "hint": None, "check": status}
+    end = warranty_end(a.accepted_on, months, days)
     # Seit 1.8.47 "regulär": Abnahmedatum plus Dauer, ohne Hemmung oder Neubeginn der Verjährung (die kennt das ERP nicht).
-    return {"end": end, "duration_text": duration_text(order.warranty_months, order.warranty_days),
-            "text": f"Gewährleistung regulär bis {end:%d.%m.%Y} "
-                    f"({duration_text(order.warranty_months, order.warranty_days)} ab Abnahme)",
-            "hint": REGULAR_HINT, "rule": END_RULE_TEXT}
+    return {"end": end, "duration_text": duration_text(months, days),
+            "text": f"Gewährleistung regulär bis {end:%d.%m.%Y} ({duration_text(months, days)} ab Abnahme)",
+            "hint": REGULAR_HINT, "rule": END_RULE_TEXT, "check": status}
 
 
 def acceptance_to_dict(a: OrderAcceptance, order: Order) -> dict:
@@ -497,11 +567,13 @@ def acceptance_to_dict(a: OrderAcceptance, order: Order) -> dict:
             "status_text": VERIFY_TEXTS[check["files"][f.id]],
         } for f in a.files],
         "content_sha256": a.content_sha256, "content_ok": check["content_ok"], "intact": check["ok"],
+        "check": check_summary(check), "checksum_format": a.checksum_format,
         "created_at": a.created_at, "created_at_local": to_berlin(a.created_at), "created_by_name": a.created_by_name,
         "discarded": a.discarded_at is not None, "discarded_at": a.discarded_at,
         "discarded_at_local": to_berlin(a.discarded_at), "discarded_by_name": a.discarded_by_name,
-        "discard_reason": a.discard_reason,
-        "warranty": acceptance_warranty(a, order),
+        "discard_reason": a.discard_reason, "discard_check": check["discard"],
+        "discard_check_text": DISCARD_TEXTS.get(check["discard"]) if check["discard"] else None,
+        "warranty": acceptance_warranty(a, order, check),
     }
 
 
@@ -532,19 +604,28 @@ def _warranty_rows(db: Session, rows: list[OrderAcceptance]) -> list[dict]:
 
 def property_acceptance_warranties(db: Session, property_id: int) -> dict:
     """Für die Objektseite: jede nicht verworfene, abgenommene Abnahme an diesem Objekt (Objekt beim Erfassen) mit
-    ihrem Gewährleistungsende, dazu je Dachfläche das späteste Ende der Abnahmen, die sie nennen."""
+    ihrem Gewährleistungsende, dazu je Dachfläche das späteste Ende der Abnahmen, die sie nennen. Seit 1.8.48 trägt
+    das späteste Ende einen Prüfstatus über ALLE Abnahmen, die die Fläche nennen: ein Höchstwert ist nur so
+    verlässlich wie jede Abnahme, aus der er gebildet wird."""
     rows = _load(db, select(OrderAcceptance).where(
         OrderAcceptance.property_id == property_id, OrderAcceptance.discarded_at.is_(None),
         OrderAcceptance.result == "abgenommen",
     ).order_by(OrderAcceptance.accepted_on.desc(), OrderAcceptance.id.desc()))
     items = _warranty_rows(db, rows)
     latest: dict[int, dict] = {}
+    problems: dict[int, list[str]] = {}
     for item in items:
-        end = (item["warranty"] or {}).get("end")
+        warranty = item["warranty"] or {}
+        end = warranty.get("end")
         for area in item["roof_areas"]:
+            if not warranty["check"]["ok"]:
+                problems.setdefault(area["id"], []).append(f"{item['order_number']}: {warranty['check']['text']}")
             current = latest.get(area["id"])
             if current is None or (end is not None and (current["end"] is None or end > current["end"])):
                 latest[area["id"]] = {"end": end, "order_number": item["order_number"]}
+    for area_id, entry in latest.items():
+        found = problems.get(area_id)
+        entry["check"] = {"ok": not found, "text": "; ".join(found) if found else "Prüfsumme stimmt"}
     return {"acceptances": items, "roof_areas": {str(k): v for k, v in latest.items()}}
 
 

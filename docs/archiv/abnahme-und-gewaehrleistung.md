@@ -17,6 +17,7 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | Runde | Version | Inhalt | Stand |
 |---|---|---|---|
 | **2c-1** | 1.8.46, 1.8.47 | Fundament: Regel-20-Test auch für Spaltenvorgaben, Datengrenze (Strafe, Einbehalt), Leistungsart und Gewährleistungsdauer am Auftrag, Abnahme (unveränderlich, Verwerfen, Historie), Gewährleistungsende abgeleitet an Auftrag/Objekt/Dachfläche, Garantie Dritter an der Dachfläche mit Teil-Update, Abgleich gesperrt nach Abnahme (1.8.46); Vollmacht zur Abnahme am Beteiligten, Begründung und Vorschau nach der ersten Abnahme, Nachweis "förmlich: Beleg, sonst Beleg oder Begründung", "Gewährleistung regulär bis" (1.8.47) | erledigt |
+| **2c-2a** | 1.8.48 | Vorweg: Prüfstatus neben jedem Gewährleistungsende (eine Funktion, `logger.error` bei Abweichung), Siegel des Verwerfens, Fassung des Prüfsummenformats | erledigt |
 
 Nach jeder Runde die Spalten "Version"/"Stand" nachziehen und unten einen Abschnitt "Umsetzung 1.8.x" ergänzen.
 
@@ -126,6 +127,9 @@ Stand nach der Rückmeldung vom 04.10.2026: **bestätigt** 4 (nur "erst Monate, 
 `garantie`/`guarantee` (Punkt 2); **geändert in 1.8.47** 3, 10, 11 (siehe "Umsetzung 1.8.47"); **offen** 1, 2, 5, 7, 8, 13,
 15 und aus 4 der Teil "§ 193 BGB nicht angewandt".
 
+**Stand 05.10.2026 (Vorgabe 2c-2a): alle Festlegungen aus 1.8.46 und 1.8.47 bestätigt** -- auch die bis dahin offenen
+1, 2, 5, 7, 8, 13, 15 und "§ 193 BGB nicht angewandt" aus 4; 3, 10 und 11 in der Fassung von 1.8.47.
+
 1. **Leistungsart nur zusammen mit der Dauer**: eine Festlegung ist immer Leistungsart + Monate + Tage. Abweichung
    heißt: andere Dauer als der Vorschlag für die Grundlage des Auftrags. Eine Begründung bei der Übernahme ist erlaubt
    und wird gespeichert. 0 Monate und 0 Tage sind keine Festlegung; Monate 0–360, Tage 0–366; dieselben Werte noch
@@ -225,7 +229,7 @@ Neubeginn". Bestätigt: Zuschnitt (eine Version), `garantie`/`guarantee`, Auftra
   Beteiligte haben danach keine Vollmacht zur Abnahme). `downgrade()` verweigert bei gesetztem Häkchen, Beleg oder
   festgehaltener Verschiebung.
 
-### Festlegungen 1.8.47 (bitte bestätigen)
+### Festlegungen 1.8.47 (bestätigt am 05.10.2026)
 
 1. **Die erste Festlegung nach einer Abnahme braucht keine Begründung** -- sie verschiebt nichts, sie legt die Enden erst
    fest; die Vorschau zeigt sie trotzdem vorher.
@@ -252,3 +256,68 @@ Neubeginn". Bestätigt: Zuschnitt (eine Version), `garantie`/`guarantee`, Auftra
   nicht.
 - **Teil-Update-Liste**: `BEKANNT` hat 72 Einträge (64 übernehmen nicht gesendete Felder, 8 kein Verstoß); 1.8.46 strich
   die Dachfläche, die Zahlen in CLAUDE.md und `teil-updates.md` sind in 1.8.47 nachgezogen.
+
+---
+
+## Umsetzung 1.8.48 (05.10.2026) -- Runde 2c-2a, Punkt 0: Prüfstatus und Siegel des Verwerfens
+
+Betreibervorgabe "Vorweg": (a) Prüfstatus der Abnahme überall zeigen, wo das Gewährleistungsende erscheint (Auftrag, Objekt,
+Dachfläche) -- eine Funktion liefert Ende und Prüfstatus, alle Anzeigen nutzen sie, eine Abweichung zusätzlich mit
+`logger.error`; (b) Namen bei "Erfasst von" und "Verworfen von" als Kopie in den versiegelten Inhalt, vorhandene
+Prüfsummen nicht neu berechnen, sondern die Fassung des Prüfsummenformats mitspeichern.
+
+- **Eine Quelle** (`app/acceptances.py::acceptance_warranty()`): liefert neben dem Ende `check` = {ok, text} aus
+  `verify_acceptance()`; neuer Parameter `duration` für die Vorschau einer Änderung. Benutzt von der Liste am Auftrag,
+  der Vorschau (`app/warranty.py::warranty_shifts()`, jede Zeile mit `check`, auch in der gespeicherten Historie), der
+  Objektseite (Karte und spätestes Ende je Dachfläche) und der Dachflächenseite. Das späteste Ende je Dachfläche trägt
+  den Prüfstatus über ALLE Abnahmen, die die Fläche nennen (ein Höchstwert ist nur so verlässlich wie jede Eingabe).
+- **Anzeige**: "✓ Prüfsumme stimmt" bzw. rot "⚠ Prüfung: … – Ende nicht verlässlich" neben jedem Ende (Auftrag:
+  `accCheck()`, Spalte "Prüfung" in der Vorschau; Objekt: `acceptanceCheck()`; Dachfläche). Das Ende bleibt sichtbar,
+  nur gekennzeichnet.
+- **`logger.error`** in `verify_acceptance()` bei jeder Abweichung: Abnahme-ID, Auftrags-ID, welcher Teil (Inhalt,
+  Beleg-IDs mit Stand, Verwerfen) -- kein Inhalt (Regel 18).
+- **"Erfasst von"** stand schon seit 1.8.46 im gebundenen Inhalt (`created_by_name`), unverändert.
+- **"Verworfen von"**: neues Siegel `order_acceptances.discard_sha256` = SHA-256 über Prüfsumme des Inhalts, Zeitpunkt,
+  Name (Kopie) und Begründung (`discard_content()`), gesetzt im bedingten UPDATE des Verwerfens.
+- **Fassung des Prüfsummenformats** `order_acceptances.checksum_format` (`CHECKSUM_FORMAT` = 2 für neue Einträge):
+  1 = Erfassung bis 1.8.47, Inhalt wie bisher; 2 = die Fassung steht im gebundenen Inhalt, ein verworfener Eintrag
+  braucht das Siegel. Prüfung des Verwerfens (`_verify_discard()`): nicht verworfen und keine Verwerfen-Spalte gefüllt
+  -> nichts; Siegel stimmt -> "unverändert"; kein Siegel bei Fassung 1 -> "vor 1.8.48 erfasst, ohne Prüfsumme" (keine
+  Abweichung); kein Siegel bei Fassung 2, Siegel ohne Verwerfen oder abweichend -> "weicht ab".
+- **Migration `9c5a97bc71ef`**: beide Spalten, vorhandene Einträge `checksum_format` 1 (server_default), Prüfsummen
+  unberührt. `downgrade()` verweigert, solange ein Eintrag der Fassung 2 oder ein Siegel besteht.
+
+### Festlegungen 1.8.48 (bitte bestätigen)
+
+1. **Die Fassung steht ab Fassung 2 im gebundenen Inhalt** -- sonst ließe sich ein verworfener Eintrag am ORM vorbei auf
+   Fassung 1 zurücksetzen und sein Siegel löschen, und er ginge als "vor 1.8.48" durch.
+2. **Auch Einträge der Fassung 1 bekommen beim Verwerfen ab jetzt das Siegel**; vor dem Update verworfene bleiben ohne
+   und gelten nicht als Abweichung.
+3. **Bei Abweichung wird das Ende weiter angezeigt (rot gekennzeichnet)** und zählt weiter für Abgleichsperre und
+   Begründungspflicht -- wie in den Antworten zu 1.8.47 beschrieben; ausgeblendet wird nichts.
+4. **`logger.error` bei jeder Prüfung mit Abweichung**, ohne Drosselung (jeder Seitenaufruf meldet erneut).
+5. **Die Vorschau speichert den Prüfstatus mit** (`acceptance_shifts[].check`): die Historie zeigt, ob die Abnahme zum
+   Zeitpunkt der Änderung stimmte.
+
+### Grenze
+
+Ein Verwerfen, das am ORM vorbei vollständig zurückgenommen wird (alle vier Spalten geleert), bleibt unerkannt: ein
+späteres Ereignis kann nicht im Inhalt stehen, den es selbst versiegelt. Die Zeile "verworfen" in der Änderungshistorie
+bleibt dann als einzige Spur.
+
+### Verifikation 1.8.48
+
+- `tests/test_v350_abnahme_pruefstatus.py` (15 Tests: Fassung 2 mit Fassung im Inhalt, Eintrag der Fassung 1 behält
+  seine Prüfsumme, Rücksetzen der Fassung erkannt, Siegel mit Name als Kopie, fünf Angriffe auf das Verwerfen am ORM
+  vorbei samt Protokoll ohne Inhalt, Fassung 1 ohne Siegel keine Abweichung, Prüfstatus an Auftrag/Vorschau/Objekt/
+  Dachfläche mit Gegenprobe, spätestes Ende je Dachfläche, fehlender Beleg, Seiten, Migration); `test_v349` nachgezogen
+  (Schlüssel `check`).
+- Volle Suite 2709 grün (mit den opt-in-Tests gegen PostgreSQL). `test_v349`/`test_v350` über das Scratchpad-Plugin gegen
+  PostgreSQL 17: 85 grün, rot nur die drei Migrationstests mit rohem SQL und erfundenen Fremdschlüsseln (bekannte Grenze).
+- Migration `9c5a97bc71ef`: SQLite hin/zurück/hin, `alembic check`; PostgreSQL 17 im Wegwerf-Schema: Kette bis
+  `1dcea6473427`, head, Abnahme über den App-Code (Fassung 2, verworfen, Siegel stimmt), downgrade verweigert ("1 Abnahmen
+  in Prüfsummenformat 2, 1 versiegelte Verwerfen"), `current` = head, `check` sauber; leeres Schema hin/zurück/hin.
+- Gegenproben (Schutz ausgehebelt, Datei byte-genau zurück): 8 von 8 rot.
+- Klicktest `klicktest_abnahme.py` 55/55, neu: zweiter Auftrag mit am ORM vorbei verändertem Abnahmedatum -- rot an
+  Dachflächenliste und Karte des Objekts, Dachfläche und Auftrag, verworfener Eintrag mit verändertem Siegel; Spalte
+  "Prüfung" der Vorschau.

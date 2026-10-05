@@ -1119,7 +1119,12 @@ class OrderAcceptance(Base):
     Inhalt samt Prüfsummen der Belege (app/acceptances.py::acceptance_content()); jeder Abruf rechnet nach.
 
     created_by_user_id/discarded_by_user_id bewusst ohne Fremdschlüssel: Benutzer löschen scheitert unter
-    PostgreSQL schon heute an 15 Fremdschlüsseln (CLAUDE.md, bekannte offene Punkte) -- kein sechzehnter."""
+    PostgreSQL schon heute an 15 Fremdschlüsseln (CLAUDE.md, bekannte offene Punkte) -- kein sechzehnter.
+
+    Seit 1.8.48: checksum_format ist die Fassung des Prüfsummenformats (1 = Erfassung bis 1.8.47, 2 = ab 1.8.48:
+    die Fassung selbst steht im gebundenen Inhalt, ein verworfener Eintrag braucht discard_sha256). discard_sha256
+    versiegelt das Verwerfen (Zeitpunkt, Name als Kopie, Begründung, Prüfsumme des Inhalts) -- auch bei Einträgen der
+    Fassung 1, die nach 1.8.48 verworfen werden; vorher Verworfene bleiben ohne."""
 
     __tablename__ = "order_acceptances"
 
@@ -1141,6 +1146,7 @@ class OrderAcceptance(Base):
     poa_on_record: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     conduct_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     content_sha256: Mapped[str] = mapped_column(String(64))
+    checksum_format: Mapped[int] = mapped_column(server_default="1")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
     created_by_name: Mapped[str] = mapped_column(String(160), default="System")
@@ -1148,6 +1154,7 @@ class OrderAcceptance(Base):
     discarded_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
     discarded_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     discard_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    discard_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     roof_areas: Mapped[list["OrderAcceptanceRoofArea"]] = relationship(
         back_populates="acceptance", order_by="OrderAcceptanceRoofArea.id"

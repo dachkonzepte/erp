@@ -137,8 +137,8 @@ def _is_set(order: Order) -> bool:
 
 def warranty_shifts(db: Session, order: Order, warranty_months: int, warranty_days: int) -> list[dict]:
     """Je nicht verworfene, abgenommene Abnahme des Auftrags: Gewährleistungsende bisher (None, wenn die Dauer noch
-    nicht festgelegt war) und mit der neuen Dauer."""
-    from .acceptances import SCOPES
+    nicht festgelegt war) und mit der neuen Dauer -- beide aus acceptance_warranty(), mit Prüfstatus (seit 1.8.48)."""
+    from .acceptances import SCOPES, acceptance_warranty, verify_acceptance
     from .models import OrderAcceptance
 
     rows = db.scalars(
@@ -147,14 +147,15 @@ def warranty_shifts(db: Session, order: Order, warranty_months: int, warranty_da
                OrderAcceptance.result == "abgenommen")
         .order_by(OrderAcceptance.accepted_on, OrderAcceptance.id)
     ).all()
-    was_set = order.warranty_months is not None and order.warranty_days is not None
     shifts = []
     for a in rows:
-        old = warranty_end(a.accepted_on, order.warranty_months, order.warranty_days) if was_set else None
-        new = warranty_end(a.accepted_on, warranty_months, warranty_days)
+        check = verify_acceptance(a)
+        old = acceptance_warranty(a, order, check)["end"]
+        new = acceptance_warranty(a, order, check, duration=(warranty_months, warranty_days))
         shifts.append({"acceptance_id": a.id, "accepted_on": a.accepted_on.isoformat(),
                        "scope_label": SCOPES.get(a.scope, a.scope), "scope_description": a.scope_description,
-                       "old_end": old.isoformat() if old else None, "new_end": new.isoformat()})
+                       "old_end": old.isoformat() if old else None, "new_end": new["end"].isoformat(),
+                       "check": new["check"]})
     return shifts
 
 

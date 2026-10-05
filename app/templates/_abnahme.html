@@ -3,7 +3,8 @@
    - Karte "Gewährleistung": Leistungsart und Dauer -- Vorschlag je Vertragsgrundlage mit Fundstelle bewusst
      übernehmen oder abweichend mit Begründung; sonst "nicht festgelegt". Historie darunter. Seit 1.8.47 fragt jede
      Festlegung erst die Vorschau ab: nach einer Abnahme erscheinen vor dem Speichern die verschobenen
-     Gewährleistungsenden mit Pflicht-Begründung.
+     Gewährleistungsenden mit Pflicht-Begründung. Seit 1.8.48 steht neben jedem Ende der Prüfstatus der Abnahme
+     (accCheck()), beim verworfenen Eintrag der Stand des Siegels.
    - Karte "Abnahme": alle Einträge samt verworfener, mit Prüfung von Inhalt und Belegen und dem abgeleiteten
      Gewährleistungsende; "+ Abnahme erfassen" öffnet den Dialog, "Verwerfen" eine Zeile mit Pflicht-Begründung
      (kein prompt(), Regel 4).
@@ -104,6 +105,8 @@ let acceptances=[],warrantyChanges=[],acceptanceOptions=null,warrantyPending=nul
 function accDate(s){if(!s)return'';const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}.${m[2]}.${m[1]}`:esc(s)}
 function accDateTime(s){const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);return m?`${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}`:''}
 function accSize(n){return n>=1048576?(n/1048576).toLocaleString('de-DE',{maximumFractionDigits:1})+' MB':Math.max(1,Math.round(n/1024))+' KB'}
+// Seit 1.8.48: Prüfstatus neben jedem Gewährleistungsende (acceptance_warranty() liefert ihn mit).
+function accCheck(c){return !c?'':c.ok?`<span class="acc-hint">· Prüfung: ${esc(c.text)}</span>`:`<span class="acc-bad">⚠ Prüfung: ${esc(c.text)} – Ende nicht verlässlich</span>`}
 function accRadio(name){const x=document.querySelector(`#acceptanceDialog input[name="${name}"]:checked`);return x?x.value:null}
 async function loadAcceptanceSection(){
   [warrantyChanges,acceptances]=await Promise.all([api(`/api/orders/${orderId}/warranty-changes`).catch(()=>[]),api(`/api/orders/${orderId}/acceptances`).catch(e=>{document.getElementById('acceptanceList').textContent='Abnahmen konnten nicht geladen werden: '+e.message;return null})]);
@@ -139,7 +142,7 @@ async function prepareWarranty(body,okText){
   warrantyPending={body,okText,v};
   const box=document.getElementById('warrantyConfirm');
   document.getElementById('warrantyConfirmText').innerHTML=`<b>${esc(v.work_kind_label)} · ${esc(v.warranty_text)}</b>${v.after_acceptance?' – zu diesem Auftrag ist eine Abnahme erfasst.':''}${v.reason_why.length?`<div class="small">Begründung nötig: ${esc(v.reason_why.join(', '))}.</div>`:''}`;
-  document.getElementById('warrantyShifts').innerHTML=v.shifts.length?`<table><thead><tr><th>Abnahme</th><th>bisher regulär bis</th><th>danach regulär bis</th></tr></thead><tbody>${v.shifts.map(x=>`<tr><td>${esc(x.scope_label)} ${accDate(x.accepted_on)}</td><td>${x.old_end?accDate(x.old_end):'nicht festgelegt'}</td><td><b>${accDate(x.new_end)}</b></td></tr>`).join('')}</tbody></table><div class="small acc-hint">ohne Hemmung oder Neubeginn</div>`:'<div class="small">Keine abgenommene Abnahme – kein Gewährleistungsende verschiebt sich.</div>';
+  document.getElementById('warrantyShifts').innerHTML=v.shifts.length?`<table><thead><tr><th>Abnahme</th><th>bisher regulär bis</th><th>danach regulär bis</th><th>Prüfung</th></tr></thead><tbody>${v.shifts.map(x=>`<tr><td>${esc(x.scope_label)} ${accDate(x.accepted_on)}</td><td>${x.old_end?accDate(x.old_end):'nicht festgelegt'}</td><td><b>${accDate(x.new_end)}</b></td><td>${x.check&&!x.check.ok?`<span class="acc-bad">⚠ ${esc(x.check.text)}</span>`:'stimmt'}</td></tr>`).join('')}</tbody></table><div class="small acc-hint">ohne Hemmung oder Neubeginn</div>`:'<div class="small">Keine abgenommene Abnahme – kein Gewährleistungsende verschiebt sich.</div>';
   document.getElementById('warrantyConfirmReasonLabel').textContent=v.reason_required?'Begründung (Pflicht)':'Begründung (optional)';
   document.getElementById('warrantyConfirmReason').value=body.reason||'';
   box.hidden=false;box.scrollIntoView({block:'nearest'});
@@ -175,9 +178,9 @@ function acceptanceHtml(a){
   if(a.conduct_reason)lines.push(`<div class="acc-row" style="white-space:pre-wrap">Begründung (Nachweis): ${esc(a.conduct_reason)}</div>`);
   a.files.forEach(f=>lines.push(`<div class="acc-row"><a href="/api/order-acceptances/${a.id}/files/${f.id}" target="_blank" rel="noopener">${esc(f.kind_label)} (${f.content_type==='application/pdf'?'PDF':'Foto'}, ${accSize(f.size_bytes)})</a> <span class="acc-sha" title="${esc(f.sha256)}">SHA-256 ${esc(f.sha256.slice(0,16))}…</span>${f.status!=='unveraendert'?` <span class="acc-bad">${esc(f.status_text)}</span>`:''}</div>`));
   if(!a.content_ok)lines.push('<div class="acc-row acc-bad">Der gespeicherte Inhalt weicht von seiner Prüfsumme ab – nachträglich verändert.</div>');
-  if(a.warranty)lines.push(a.warranty.end?`<div class="acc-row acc-good" title="${esc(a.warranty.rule||'')}">${esc(a.warranty.text)} <span class="acc-hint">· ${esc(a.warranty.hint)}</span></div>`:`<div class="acc-row acc-warn">${esc(a.warranty.text)}</div>`);
+  if(a.warranty)lines.push(a.warranty.end?`<div class="acc-row ${a.warranty.check.ok?'acc-good':'acc-warn'}" title="${esc(a.warranty.rule||'')}">${esc(a.warranty.text)} <span class="acc-hint">· ${esc(a.warranty.hint)}</span> ${accCheck(a.warranty.check)}</div>`:`<div class="acc-row acc-warn">${esc(a.warranty.text)} ${accCheck(a.warranty.check)}</div>`);
   lines.push(`<div class="acc-row muted">Erfasst ${accDateTime(a.created_at_local)} von ${esc(a.created_by_name)}</div>`);
-  if(a.discarded)lines.push(`<div class="acc-row acc-bad" style="white-space:pre-wrap">Verworfen ${accDateTime(a.discarded_at_local)} von ${esc(a.discarded_by_name)}: ${esc(a.discard_reason)}</div>`);
+  if(a.discarded)lines.push(`<div class="acc-row acc-bad" style="white-space:pre-wrap">Verworfen ${accDateTime(a.discarded_at_local)} von ${esc(a.discarded_by_name)}: ${esc(a.discard_reason)}</div>${a.discard_check?`<div class="acc-row ${a.discard_check==='abweichend'?'acc-bad':'acc-hint'}">${a.discard_check==='abweichend'?'⚠ ':''}${esc(a.discard_check_text)}</div>`:''}`);
   else lines.push(`<div class="acc-row"><button class="secondary" onclick="showDiscard(${a.id})">Verwerfen …</button></div><div id="accDiscard${a.id}" class="acc-discard" hidden><textarea id="accDiscardReason${a.id}" maxlength="2000" placeholder="Begründung (Pflicht), z. B. falsches Datum erfasst"></textarea><button class="danger" onclick="discardAcceptance(${a.id},this)">Abnahme verwerfen</button><button class="secondary" onclick="showDiscard(${a.id})">Abbrechen</button></div>`);
   return `<div class="acc-item${a.discarded?' discarded':''}" data-acceptance="${a.id}">${lines.join('')}</div>`;
 }

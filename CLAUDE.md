@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.47** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.48** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -821,7 +821,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Gewährleistungsdauer am Auftrag, Abnahme unveränderlich mit Verwerfen, Gewährleistungsende abgeleitet an Auftrag/Objekt/
   Dachfläche, Garantie Dritter an der Dachfläche, Abgleich gesperrt nach Abnahme; seit 1.8.47 Vollmacht zur Abnahme am
   Beteiligten, Begründung mit Vorschau der verschobenen Enden nach der ersten Abnahme, Nachweis förmlich: Beleg, sonst Beleg
-  oder Begründung) -- `docs/archiv/abnahme-und-gewaehrleistung.md`
+  oder Begründung; seit 1.8.48 Prüfstatus neben jedem Gewährleistungsende aus einer Funktion, Siegel des Verwerfens, Fassung
+  des Prüfsummenformats je Abnahme) -- `docs/archiv/abnahme-und-gewaehrleistung.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
   `docs/archiv/grunddaten-beim-start.md`

@@ -17,6 +17,10 @@ Architektin ohne Vollmacht, Hausverwaltung mit Vollmacht samt Beleg.
     Büro (1400 px, hell)    Objekt: Karte "Gewährleistung aus Abnahmen", Spalten "Gewährleistung bis" und
                             "Garantie Dritter bis"; Dachfläche Süd: Karte mit der Abnahme, Feld "Garantie Dritter
                             (Hersteller oder Fremdfirma) bis", Speichern lässt es stehen; Dachfläche Nord: keine.
+    Büro (1400 px, hell)    Seit 1.8.48: zweiter Auftrag am Objekt "Lagerhalle", Abnahme am ORM vorbei verändert --
+                            rot "⚠ Prüfung … – Ende nicht verlässlich" in Dachflächenliste und Karte des Objekts, auf
+                            der Dachfläche und am Auftrag; verworfener Eintrag mit verändertem Siegel; Vorschau mit
+                            Spalte "Prüfung", "✓ Prüfsumme stimmt" sonst.
     Büro (412 px, dunkel)   Auftrag: Karten lesbar, Dialog ohne waagrechten Scrollbalken.
     Monteurin               API der Abnahme 403, Auftragsseite gesperrt.
 
@@ -106,6 +110,42 @@ def befuellen(db, k):
     store_power_of_attorney(db, bauleitung, filename="abnahmevollmacht.pdf", data=PDF, user_name="Olga Office",
                             kind="abnahme")
 
+    # Seit 1.8.48: ein zweiter Auftrag am Objekt "Lagerhalle", dessen Abnahme am ORM vorbei verändert wurde (Datum) --
+    # der Prüfstatus muss überall rot neben dem Ende stehen; dazu eine verworfene, deren Begründung verändert wurde.
+    from sqlalchemy import update as sql_update
+
+    from app.acceptances import create_acceptance, discard_acceptance
+    from app.models import OrderAcceptance
+    from app.warranty import set_order_warranty
+    lager = Property(customer_id=kunde.id, name="Lagerhalle", street="Werkstr. 9", postal_code="52531", city="Uebach")
+    db.add(lager); db.flush()
+    lager_dach = RoofArea(property_id=lager.id, name="Lager-Dach")
+    db.add(lager_dach); db.flush()
+    projekt2 = Project(project_number="P-KT-LAG", name="Lagerhalle", customer_id=kunde.id, property_id=lager.id,
+                       status="angebot", pipeline_column_id=default_pipeline_column_id(db))
+    db.add(projekt2); db.flush()
+    angebot2 = Quote(quote_number="A-KT-LAG", project_id=projekt2.id, title="Lagerhalle", vat_rate=Decimal("19"))
+    db.add(angebot2); db.flush()
+    db.add(QuoteItem(quote_id=angebot2.id, position_number="1", short_text="Abdichtung", quantity=Decimal("100"),
+                     unit="m²", unit_price=Decimal("40")))
+    db.commit()
+    auftrag2 = create_order_from_quote(db, angebot2.id, order_date=date(2026, 8, 1), execution_start=None,
+                                       execution_end=None, caseworker_employee_id=None, project_manager_employee_id=None,
+                                       payment_terms=None, remarks=None)
+    set_order_warranty(db, auftrag2, work_kind="bauwerk", warranty_months=48, warranty_days=0, reason=None)
+    werte = {"kind": "ausdruecklich", "scope": "gesamt", "result": "abgenommen", "reservation_defects": False,
+             "reservation_penalty": False, "declared_by": "auftraggeber", "conduct_reason": "per E-Mail"}
+    manipuliert = create_acceptance(db, auftrag2, {**werte, "accepted_on": date(2026, 8, 20),
+                                                   "roof_area_ids": [lager_dach.id]}, [], user_id=None, user_name="Olga Office")
+    verworfen = create_acceptance(db, auftrag2, {**werte, "accepted_on": date(2026, 8, 10), "roof_area_ids": []}, [],
+                                  user_id=None, user_name="Olga Office")
+    discard_acceptance(db, verworfen, reason="doppelt erfasst", user_id=None, user_name="Olga Office")
+    db.execute(sql_update(OrderAcceptance).where(OrderAcceptance.id == manipuliert.id)
+               .values(accepted_on=date(2026, 9, 20)).execution_options(synchronize_session=False))
+    db.execute(sql_update(OrderAcceptance).where(OrderAcceptance.id == verworfen.id)
+               .values(discard_reason="anders").execution_options(synchronize_session=False))
+    db.commit()
+
     ordner = Path(os.environ["ERP_DATA_DIR"]) / "klicktest-uploads"  # im Wegwerf-Ordner der Instanz
     ordner.mkdir(parents=True, exist_ok=True)
     dateien = {"pdf": ordner / "Protokoll.pdf", "svg": ordner / "Protokoll.svg", "jpg": ordner / "Foto.jpg"}
@@ -113,6 +153,7 @@ def befuellen(db, k):
     dateien["svg"].write_bytes(SVG)
     dateien["jpg"].write_bytes(_bild("JPEG"))
     return {"auftrag": auftrag.id, "auftragsnummer": auftrag.order_number, "objekt": objekt.id, "projekt": projekt.id, "flaechen": {n: f.id for n, f in flaechen.items()},
+            "lager": {"auftrag": auftrag2.id, "objekt": lager.id, "dach": lager_dach.id},
             "dateien": {n: str(p) for n, p in dateien.items()},
             "cookies": {name: k.cookies(u) for name, u in benutzer.items()}}
 
@@ -267,7 +308,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Nach der Abnahme: Vorschau mit verschobenem Ende", await tab.js(
         "[document.getElementById('warrantyConfirmText').innerText.includes('Begründung nötig: Änderung nach einer Abnahme'), "
         "[...document.querySelectorAll('#warrantyShifts tbody td')].map(t=>t.textContent)]"),
-        [True, ["Teilabnahme 15.09.2026", "15.09.2031", "15.09.2030"]])
+        [True, ["Teilabnahme 15.09.2026", "15.09.2031", "15.09.2030", "stimmt"]])  # Spalte "Prüfung" seit 1.8.48
     await tab.js("document.getElementById('warrantyCard').scrollIntoView()")
     await tab.bild("3b_vorschau_verschiebung_hell")
     await tab.js("confirmWarranty(document.querySelector('#warrantyConfirm button'))")
@@ -333,11 +374,11 @@ async def pruefen(tab, seed, p):
         ["Name", "Dachtyp", "Fläche", "Eindeckung", "Gewährleistung regulär bis", "Garantie Dritter bis", ""])
     p.pruefe("Objekt: Süd mit Gewährleistung und Garantie Dritter, Nord ohne", await tab.js(
         "[...document.querySelectorAll('#roofAreaRows tr')].map(r=>[...r.children].map(c=>c.textContent.trim()).slice(0,6))"),
-        [["Nord", "—", "—", "—", "—", "—"], ["Süd", "—", "—", "—", "25.9.2030", "30.6.2030"]])
+        [["Nord", "—", "—", "—", "—", "—"], ["Süd", "—", "—", "—", "25.9.2030✓ Prüfsumme stimmt", "30.6.2030"]])
     p.pruefe("Objekt: Karte nur mit der gültigen, abgenommenen Abnahme", await tab.js(
         "[...document.querySelectorAll('#acceptanceWarrantyRows tr')].map(r=>[...r.children].map(c=>c.innerText.trim()))"),
         [[f"{seed['auftragsnummer']}\nDachsanierung Halle", "gesamt\nDachflächen: Süd", "25.9.2026 · ausdrücklich",
-          "abgenommen ohne Vorbehalte", "25.9.2030"]])
+          "abgenommen ohne Vorbehalte", "25.9.2030\n✓ Prüfsumme stimmt"]])
     await tab.bild("4_objekt_hell")
     sued = seed["flaechen"]["sued"]
     await tab.oeffnen(f"/roof-areas/{sued}", "!document.getElementById('acceptanceWarrantyList').textContent.includes('Lädt')")
@@ -359,6 +400,26 @@ async def pruefen(tab, seed, p):
     p.pruefe("Dachfläche Nord: keine Abnahme (die verworfene zählt nicht)", await tab.js(
         "document.getElementById('acceptanceWarrantyList').innerText"), "Keine Abnahme nennt diese Dachfläche.")
     p.pruefe("Büro Objekt/Dachfläche: keine JS-Fehler", tab.fehler, [])
+
+    # --- Seit 1.8.48: Prüfstatus neben jedem Ende (Abnahme am ORM vorbei verändert) ---------------------------
+    lager = seed["lager"]
+    rot = "⚠ Prüfung: Inhalt weicht von seiner Prüfsumme ab – Ende nicht verlässlich"
+    await tab.oeffnen(f"/properties/{lager['objekt']}", "document.querySelectorAll('#roofAreaRows tr').length===1 && "
+                      "!document.getElementById('acceptanceWarrantyRows').textContent.includes('Lädt')")
+    p.pruefe("Prüfstatus Objekt: Dachflächenliste und Karte rot", await tab.js(
+        f"[document.querySelector('#roofAreaRows tr').children[4].innerText.includes('Inhalt weicht von seiner Prüfsumme ab'), "
+        f"document.querySelector('#acceptanceWarrantyRows tr').children[4].innerText.includes('{rot}')]"), [True, True])
+    await tab.bild("5c_objekt_pruefung_rot_hell")
+    await tab.oeffnen(f"/roof-areas/{lager['dach']}", "!document.getElementById('acceptanceWarrantyList').textContent.includes('Lädt')")
+    p.pruefe("Prüfstatus Dachfläche: rot", await tab.js(
+        f"document.getElementById('acceptanceWarrantyList').innerText.includes('{rot}')"), True)
+    await tab.oeffnen(f"/orders/{lager['auftrag']}", BEREIT)
+    p.pruefe("Prüfstatus Auftrag: Ende rot, verworfener Eintrag mit abweichendem Siegel", await tab.js(
+        f"[{LISTE}[0].innerText.includes('{rot}'), {LISTE}[0].innerText.includes('Gewährleistung regulär bis 20.09.2030'), "
+        f"{LISTE}[1].innerText.includes('⚠ Verwerfen weicht von seiner Prüfsumme ab')]"), [True, True, True])
+    await tab.js("document.getElementById('acceptanceCard').scrollIntoView()")
+    await tab.bild("5d_auftrag_pruefung_rot_hell")
+    p.pruefe("Prüfstatus: keine JS-Fehler", tab.fehler, [])
 
     # --- Projektmappe: Vollmacht zur Abnahme am Beteiligten -------------------------------------------------
     await tab.oeffnen(f"/projects/{seed['projekt']}#sec-participants",

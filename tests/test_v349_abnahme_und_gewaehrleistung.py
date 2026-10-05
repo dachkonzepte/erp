@@ -645,7 +645,8 @@ def test_warranty_end_at_order_property_and_roof_area(welt, buero):
 
     objekt = buero.get(f"/api/properties/{welt['property_id']}/acceptance-warranties").json()
     assert {x["id"] for x in objekt["acceptances"]} == {teil["id"], gesamt["id"]}  # nicht die verweigerte
-    assert objekt["roof_areas"] == {str(welt["areas"]["Nord"]): {"end": "2029-02-28", "order_number": teil["order_number"]}}
+    assert objekt["roof_areas"] == {str(welt["areas"]["Nord"]): {"end": "2029-02-28", "order_number": teil["order_number"],
+                                                                 "check": {"ok": True, "text": "Prüfsumme stimmt"}}}
     nord = buero.get(f"/api/roof-areas/{welt['areas']['Nord']}/acceptance-warranties").json()
     assert [x["id"] for x in nord["acceptances"]] == [teil["id"]] and nord["property_without_roof_areas"] == 1
     sued = buero.get(f"/api/roof-areas/{welt['areas']['Süd']}/acceptance-warranties").json()
@@ -675,7 +676,8 @@ def test_after_first_acceptance_changes_need_a_reason_and_show_shifts(welt, buer
     v = _vorschau(buero, welt, "bauwerk", 60)
     assert v["reason_required"] is True and v["reason_why"] == ["weicht vom Vorschlag ab", "Änderung nach einer Abnahme"]
     assert v["shifts"] == [{"acceptance_id": a["id"], "accepted_on": "2026-08-31", "scope_label": "Gesamtabnahme",
-                            "scope_description": None, "old_end": "2030-08-31", "new_end": "2031-08-31"}]
+                            "scope_description": None, "old_end": "2030-08-31", "new_end": "2031-08-31",
+                            "check": {"ok": True, "text": "Prüfsumme stimmt"}}]  # Prüfstatus seit 1.8.48
     v = _vorschau(buero, welt, "sonstige", 24)  # Vorschlag, aber Änderung nach der Abnahme
     assert v["follows_proposal"] is True and v["reason_required"] is True
     assert v["reason_why"] == ["Änderung nach einer Abnahme"] and v["shifts"][0]["new_end"] == "2028-08-31"
@@ -688,7 +690,8 @@ def test_after_first_acceptance_changes_need_a_reason_and_show_shifts(welt, buer
     eintrag = buero.get(f"/api/orders/{welt['order_id']}/warranty-changes").json()[0]
     assert eintrag["acceptance_shifts"] == [{"acceptance_id": a["id"], "accepted_on": "2026-08-31",
                                              "scope_label": "Gesamtabnahme", "scope_description": None,
-                                             "old_end": "2030-08-31", "new_end": "2028-08-31"}]
+                                             "old_end": "2030-08-31", "new_end": "2028-08-31",
+                                             "check": {"ok": True, "text": "Prüfsumme stimmt"}}]
     assert buero.get(f"/api/orders/{welt['order_id']}/warranty-changes").json()[1]["acceptance_shifts"] is None
 
 

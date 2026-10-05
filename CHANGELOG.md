@@ -4,6 +4,25 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.48 – Abnahme: Prüfstatus neben jedem Gewährleistungsende, Siegel des Verwerfens
+
+Stufe 2c, Runde 2c-2a, Punkt 0 („Vorweg“). Jedes Gewährleistungsende – in der Liste am Auftrag, in der Vorschau einer
+Änderung, auf der Objektseite (Karte und Dachflächenliste) und auf der Dachflächenseite – kommt jetzt aus einer
+Funktion (`acceptance_warranty()`), die den Prüfstatus der Abnahme mitliefert: „✓ Prüfsumme stimmt“ oder rot
+„⚠ Prüfung: … – Ende nicht verlässlich“. Bisher sahen Objekt- und Dachflächenseite eine am ORM vorbei veränderte
+Abnahme nicht. Eine Abweichung meldet zusätzlich `logger.error`, nur mit Kennungen. „Erfasst von“ stand schon im
+versiegelten Inhalt; das Verwerfen bekommt ein eigenes Siegel (Prüfsumme des Inhalts, Zeitpunkt, Name als Kopie,
+Begründung). Jede Abnahme trägt die Fassung ihres Prüfsummenformats: vorhandene bleiben Fassung 1 mit unveränderter
+Prüfsumme, neue sind Fassung 2 – dort steht die Fassung selbst im Inhalt, damit sich ein Siegel nicht durch
+Zurücksetzen der Fassung umgehen lässt.
+
+**Auf dem Server**: Migration `9c5a97bc71ef` (zwei Spalten an `order_acceptances`, Bestand in Fassung 1). Festlegungen in
+`docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.48“; dort sind auch alle Festlegungen aus 1.8.46/1.8.47 als
+bestätigt markiert. Neue `test_v350` (15), `test_v349` nachgezogen; 8 von 8 Gegenproben rot. Migration SQLite und
+PostgreSQL hin/zurück/hin, Downgrade-Abbruch mit Bestand, `alembic check` sauber. Volle Suite 2709 grün (mit den
+opt-in-Tests gegen PostgreSQL), `test_v349`/`test_v350` gegen PostgreSQL grün bis auf die bekannten Migrationstests mit
+rohem SQL. Klicktest `klicktest_abnahme.py` 55/55 (neu: verändertes Abnahmedatum rot an Objekt, Dachfläche und Auftrag).
+
 ## 1.8.47 – Abnahme: Vollmacht zur Abnahme, Begründung nach der Abnahme, Nachweis, „regulär“
 
 Stufe 2c, Nachtrag zu 2c-1 nach Betreiberentscheidung. Beteiligte haben ein eigenes Häkchen „Vollmacht zur Abnahme“
