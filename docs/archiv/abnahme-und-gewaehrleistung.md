@@ -19,7 +19,7 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | **2c-1** | 1.8.46, 1.8.47 | Fundament: Regel-20-Test auch für Spaltenvorgaben, Datengrenze (Strafe, Einbehalt), Leistungsart und Gewährleistungsdauer am Auftrag, Abnahme (unveränderlich, Verwerfen, Historie), Gewährleistungsende abgeleitet an Auftrag/Objekt/Dachfläche, Garantie Dritter an der Dachfläche mit Teil-Update, Abgleich gesperrt nach Abnahme (1.8.46); Vollmacht zur Abnahme am Beteiligten, Begründung und Vorschau nach der ersten Abnahme, Nachweis "förmlich: Beleg, sonst Beleg oder Begründung", "Gewährleistung regulär bis" (1.8.47) | erledigt |
 | **2c-2a** | 1.8.48–1.8.50 | Vorweg: Prüfstatus neben jedem Gewährleistungsende (eine Funktion, `logger.error` bei Abweichung), Siegel des Verwerfens, Fassung des Prüfsummenformats (1.8.48); Mängel aus der Abnahme mit Haltung, Status, Freigabe, Verlauf, Aufgabe und "Nachbesserung regulär bis" (1.8.49); Platzhalter `{gewaehrleistung}`, Festschreiben erst mit Dauer, danach Dauer und Leistungsart gesperrt (1.8.50) | erledigt |
 | **2c-2b** | 1.8.51–1.8.54 | Vorweg: Sperre an eine gültige Fassung binden (nur gemeldet -- es gibt kein Zurückziehen einer Fassung), Belege am Mangel nachreichen, Aufgabentitel mit Kurzfassung, CLAUDE.md `update.sh`/`backup.sh` (1.8.51); Monteur-Sicht auf Mängel in `/mobil` mit Positivliste, "beseitigt" melden mit Foto, idempotent über `client_uuid` (1.8.52); Nacharbeiten: Aufgaben-Mails ohne Inhalt (1.8.53), Aufgabe folgt dem Status des Mangels, Hinweis des Monteurs zur Meldung, `update.sh` probt selbst gegen die Spielwiese (1.8.54) | erledigt; Zurückziehen einer Fassung am 05.10.2026 entschieden, noch nicht gebaut (siehe "Umsetzung 1.8.55", Punkt 0c) |
-| **2c-2c** | 1.8.55– | Unterschriften in Checklisten härten, Fundament für das Abnahmeprotokoll. Vorweg: "zurück auf offen" mit neuer Frist, Regel 24 (Marker GEGENPROBE), Entscheidung zum Zurückziehen einer Vertragsfassung ins Archiv (1.8.55); Pflichtfelder oberhalb einer Abschnittsunterschrift, eine gemeinsame Prüfung des Unterschriftsbilds (1.8.56); Unterzeichner je Unterschriftsfeld mit Siegel (1.8.57); Zeichenfläche nach Drehen neu vermessen (1.8.58) | in Arbeit |
+| **2c-2c** | 1.8.55–1.8.58 | Unterschriften in Checklisten härten, Fundament für das Abnahmeprotokoll. Vorweg: "zurück auf offen" mit neuer Frist, Regel 24 (Marker GEGENPROBE), Entscheidung zum Zurückziehen einer Vertragsfassung ins Archiv (1.8.55); Pflichtfelder oberhalb einer Abschnittsunterschrift, eine gemeinsame Prüfung des Unterschriftsbilds (1.8.56); Unterzeichner je Unterschriftsfeld mit Siegel (1.8.57); Zeichenfläche nach Drehen neu vermessen (1.8.58) | erledigt; Festlegungen 1.8.55–1.8.58 zur Bestätigung |
 
 Nach jeder Runde die Spalten "Version"/"Stand" nachziehen und unten einen Abschnitt "Umsetzung 1.8.x" ergänzen.
 
@@ -1097,3 +1097,46 @@ festgehalten wird.
    die Startvorlagen bleiben "frei".
 4. **Zweck "abnahme" hat noch keine Systemfelder** -- das Abnahmeprotokoll (Fundament dieser Runde) wäre der nächste Schritt:
    Systemfelder mit Unterzeichner Auftraggeber/Beteiligter, Folge "Abnahme erfassen" aus der Checkliste.
+
+
+---
+
+## Umsetzung 1.8.58 (05.10.2026) -- Runde 2c-2c, Punkt 4: Zeichenfläche nach Drehen neu vermessen
+
+- **Befund vorher**: `unterschriftsfeld()` (`app/templates/_unterschrift.html`, seit 1.8.34) maß die Fläche genau einmal beim
+  Aufruf. Wurde das Tablet danach gedreht oder das Fenster schmaler, blieb die Pixelgröße der alten Breite: der Browser streckte
+  das Bild, ein neuer Strich landete versetzt neben dem Finger (im Klicktest nachgestellt: quer gedreht lag der Strich nicht unter
+  der Berührstelle), und die Auflösung passte nicht mehr. Betrifft Checkliste, Einsatzbericht und Vertrag gleichermaßen.
+- **Jetzt**: die Fläche vermisst sich neu, sobald sich ihre angezeigte Größe oder die Geräteauflösung ändert -- `ResizeObserver`
+  auf der Fläche plus `resize` am Fenster (Zoom ändert die Auflösung), gebündelt über `requestAnimationFrame`. Die Striche werden
+  als Punkte gemerkt, in der Größe beim ersten Strich, und nach dem Vermessen gleichmäßig skaliert neu gezeichnet
+  (`Math.min(Breite, Höhe)`-Verhältnis -- nie verzerrt, nichts abgeschnitten); die Strichstärke bleibt am Bildschirm gleich.
+  Neue Striche werden in diese Basisgröße umgerechnet und liegen damit unter dem Finger. Unsichtbare Fläche (geschlossener
+  Dialog): Vermessen wartet, bis sie sichtbar wird. Eine Fläche, die nicht mehr im Dokument hängt, meldet Beobachter und
+  Fenster-Ereignis ab; ein erneuter Aufruf für dieselbe Fläche ersetzt den alten. Schnittstelle unverändert
+  (`leer()`, `leeren()`, `alsBlob()`, `alsDataUrl()`, neu `vermessen()`), die drei Seiten bleiben wie sie sind.
+
+### Festlegungen 1.8.58 (bitte bestätigen)
+
+1. **Beim Drehen bleibt die Unterschrift erhalten**, gleichmäßig skaliert -- nicht leeren. Abgewogen: Leeren wäre einfacher und
+   "was man sieht, ist was gezeichnet wurde", kostet aber eine schon geleistete Unterschrift, wenn das Gerät beim Weitergeben kippt.
+2. **Gleichmäßig skaliert auf die kleinere Seite** -- eine quer gezeichnete Unterschrift wird hochkant kleiner, nie gestaucht.
+3. **Strichstärke am Bildschirm gleich** (2,4 Pixel), nicht mitskaliert.
+4. **Das PNG ist das, was gerade zu sehen ist** (in der aktuellen Pixelgröße) -- keine zweite, "originale" Fassung.
+
+### Verifikation 1.8.58
+
+- Neuer Klicktest `scripts/klicktest_zeichenflaeche.py` (Tablet 600 x 960 mit Geräteauflösung 2, Touch-Emulation, Striche über
+  `Input.dispatchTouchEvent`, Drehen über `Emulation.setDeviceMetricsOverride` mit `screenOrientation`): 11/11 -- hochkant
+  vermessen, Touch-Strich, quer neu vermessen, erster Strich sichtbar, zweiter Strich unter dem Finger, zurückgedreht, schmaler
+  ohne Drehen, Unterschrift übernommen (Server: nicht leer, Siegel unverändert), Einsatzbericht nach dem Drehen vermessen.
+  **Gegenprobe mit der Fläche von 1.8.57** (vor dem Einsetzen der neuen): 4 rot -- quer nicht neu vermessen, Strich nicht unter
+  dem Finger, schmaler nicht vermessen, Einsatzbericht nicht vermessen.
+- `tests/test_v360_zeichenflaeche.py` (4): Aufbau der Fläche (Beobachter, Fenster-Ereignis, gebündelt, Vermessen, unsichtbar
+  später), Striche gemerkt und gleichmäßig neu gezeichnet, Abmelden, Schnittstelle der drei Seiten.
+- Gegenproben am Template (Marker GEGENPROBE, Datei byte-genau zurück): 5 von 5 rot -- kein Beobachter, kein
+  Fenster-Ereignis, verzerrt statt gleichmäßig, abgelöste Fläche bleibt angemeldet, Striche nicht gemerkt.
+- Alle 14 Klicktests mit Unterschriften mit der neuen Fläche grün (`_abschnitte` 28, `_unterschrift` 26, `_verwerfen` 23,
+  `_zweck` 28, `behinderungsanzeige` 35, `_versand` 41, `_abschluss` 43, `bedenkenanzeige` 22, `_versand` 20,
+  `beleg_und_hinweis` 24, `versandverlauf` 32, `vertrag_unterschrift` 43, `vertrag_abschrift` 26, `unterzeichner` 17).
+- Volle Suite 2907 grün (mit den opt-in-Tests gegen PostgreSQL). Keine Migration.

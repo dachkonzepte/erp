@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.57** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.58** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -918,8 +918,8 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   Seite, die man anfasst, stellt um.
 - **Unterschriften zeichnen über `app/templates/_unterschrift.html`** (seit 1.8.34, `unterschriftsfeld(canvas)`
   auf einem `<canvas class="dk-unterschrift">`): Checkliste, Einsatzbericht und Vertrag teilen sich die Fläche
-  (weiß mit dunklem Strich in beiden Themes, Geräteauflösung) -- eine neue Unterschrift baut keine eigene
-  Zeichenlogik. `tests/test_v337_vertrag_unterschrift.py` prüft, dass die drei Seiten keine eigene haben. Seit 1.8.56
+  (weiß mit dunklem Strich in beiden Themes, Geräteauflösung; seit 1.8.58 neu vermessen bei Drehen und Größenänderung,
+  Striche gleichmäßig skaliert neu gezeichnet) -- eine neue Unterschrift baut keine eigene Zeichenlogik. `tests/test_v337_vertrag_unterschrift.py` prüft, dass die drei Seiten keine eigene haben. Seit 1.8.56
   prüft der Server jedes gezeichnete Bild an einer Stelle: `app/signature_image.py::check_signature_png()` (PNG, höchstens
   2 MB und 5000 Pixel je Seite, nicht leer) -- ein neuer Unterschrift-Weg ruft sie auf, bevor er speichert;
   `tests/test_v358_unterschrift_pruefung.py` ordnet jede Spalte ein, die nach Unterschrift klingt, und sucht jeden
@@ -1241,7 +1241,9 @@ den Monteur-Weg, verborgene Mängel 404, "Beseitigt melden" ohne Foto abgelehnt,
 dieselbe Antwort, Büro sieht "gemeldet in der Monteursansicht", Freigabe zurückgenommen -> verschwunden, 412 px dunkel und hell;
 seit 1.8.51 prüft `klicktest_maengel.py` auch "Belege ergänzen") und `klicktest_unterzeichner.py` (1.8.57, Monteurin auf
 412 px: Auftraggeber und Konto ohne Namensfeld, Beteiligte als Auswahl mit Hinweis ohne Vollmacht, vier Unterschriften im
-Siegelformat 3; Büro dunkel mit Link auf die eingefrorene Vollmacht; Editor "Unterzeichner"). Ein
+Siegelformat 3; Büro dunkel mit Link auf die eingefrorene Vollmacht; Editor "Unterzeichner") und
+`klicktest_zeichenflaeche.py` (1.8.58, Tablet mit Touch-Emulation über `Input.dispatchTouchEvent`, Drehen über
+`Emulation.setDeviceMetricsOverride` mit `screenOrientation`: Fläche neu vermessen, Strich unter dem Finger, Einsatzbericht). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

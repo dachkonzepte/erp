@@ -4,6 +4,19 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.58 – Zeichenfläche: nach Drehen oder Größenänderung neu vermessen
+
+Stufe 2c, Runde 2c-2c, Punkt 4. Die gemeinsame Zeichenfläche für Unterschriften (Checkliste, Einsatzbericht, Vertrag) maß
+sich bisher nur einmal beim Öffnen. Wurde das Tablet danach gedreht oder das Fenster schmaler, streckte der Browser das Bild
+und ein neuer Strich landete neben dem Finger. Jetzt vermisst sich die Fläche bei jeder Größen- oder Auflösungsänderung neu
+und zeichnet die schon geleisteten Striche gleichmäßig skaliert neu – nichts geht verloren, nichts wird verzerrt, neue
+Striche liegen unter dem Finger. Ein geschlossener Dialog wird vermessen, sobald er sichtbar ist.
+
+Keine Migration, keine Änderung am Server. Neuer Klicktest `klicktest_zeichenflaeche.py` mit simulierter Touch-Eingabe und
+Drehen 11/11 – gegen die alte Fläche 4 rot; neue `test_v360` (4). Alle 14 Klicktests mit Unterschriften grün. Volle Suite 2907 grün (mit den opt-in-Tests
+gegen PostgreSQL). Festlegungen in
+`docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.58“.
+
 ## 1.8.57 – Checklisten: Unterzeichner je Unterschriftsfeld, im Siegel
 
 Stufe 2c, Runde 2c-2c, Punkt 3 – Fundament für das Abnahmeprotokoll. Im Vorlagen-Editor lässt sich je Unterschriftsfeld
