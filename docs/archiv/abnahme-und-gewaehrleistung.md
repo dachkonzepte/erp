@@ -543,7 +543,8 @@ Beschreibung der Aufgabe bleibt bei Metadaten. Bestehende Aufgaben behalten ihre
 übernommen oder zugewiesen, schickt `app/tasks.py::notify_task_assignment()` (Einstellung "bei Zuweisung benachrichtigen")
 den Titel per E-Mail an die Adresse im Mitarbeiterprofil (`EmployeeProfile.email`, kann privat sein) und hält ihn im
 Versandprotokoll fest -- die Kurzfassung des Mangels verlässt dann das ERP. Monteure sehen Aufgaben nie (`/api/tasks` ist
-Büro). Der Titel ist eine bearbeitbare Kopie; maßgeblich bleibt der Mangel.
+Büro). Der Titel ist eine bearbeitbare Kopie; maßgeblich bleibt der Mangel. **Erledigt seit 1.8.53**: Aufgaben-Mails
+enthalten keinen Inhalt der Aufgabe mehr, nur Art und Link (siehe "Umsetzung 1.8.53/1.8.54").
 
 ### Punkt 0d: CLAUDE.md
 
@@ -686,3 +687,34 @@ gehen nur die Kennungen, die Meldungen bleiben gültige Einträge (die Kennung s
    Arbeitsprozessen und gleichzeitigen Meldungen das Doppelte -- im Budget, aber erwähnt.
 4. **Monteur ohne Zuordnung an der AV, mit eigenem Bericht** sieht die freigegebenen Mängel dieses Auftrags (Weg 2 von
    `field_may_access_order()`) -- folgerichtig, aber vielleicht nicht gewollt (Festlegung 1).
+
+---
+
+## Umsetzung 1.8.53 und 1.8.54 (05.10.2026) -- Runde 2c-2b, Nacharbeiten
+
+Betreibervorgabe (gekürzt): (1) Benachrichtigungsmails zu Aufgaben ohne Inhalt der Aufgabe, nur Art und Link, mit
+Strukturtest über alle Aufgaben-Mails; (2) wird ein Mangel "beseitigt" (Monteur oder Büro), ist die Aufgabe "Mangel
+beseitigen" erledigt und es entsteht "Beseitigung abnehmen lassen", zurück auf "offen" wieder "Mangel beseitigen" -- der
+Mangel bleibt die Wahrheit; (3) zur Meldung "beseitigt" ein optionaler kurzer Hinweis des Monteurs, nur intern sichtbar;
+(4) CLAUDE.md: `update.sh` liegt unter `/home/tobias/update.sh` und probt selbst gegen die Spielwiese. Festlegungen
+1.8.51/1.8.52 bestätigt außer "kein Text zur Meldung" (1.8.52 Nr. 5, durch Punkt 3 ersetzt) und der Sperre (1.8.50 Nr. 3
+und 4, weiter offen).
+
+### Punkt 1 (1.8.53): Aufgaben-Mails ohne Inhalt
+
+- `app/tasks.py::notify_task_assignment()`: Betreff immer `TASK_MAIL_SUBJECT` ("Neue Aufgabe im ERP"), Text nur Art und
+  Link. Art = `task_mail_kind(source_module)` (Mangel, Einsatzbericht, Wartungsvertrag, Checkliste, Eingangsrechnung,
+  Betriebsmittel, Betriebskosten, sonst "allgemeine Aufgabe"); Link = `task_mail_link()`, `/tasks?task=<id>` (öffnet die
+  Aufgabe im Editor), absolut nur mit `GeneralSettings.public_base_url` (Einstellungen → Allgemein → "Öffentliche
+  Adresse"), sonst als Pfad -- die Mail entsteht in der Geschäftslogik, ohne Anfrage. Keine Anrede mit Vornamen mehr.
+- `tests/test_v355_aufgaben_mail_ohne_inhalt.py` (18 Tests): AST über `app/` -- jeder `dispatch_email()`-Aufruf mit
+  konstanter Versandart (Ausnahme `send_notice_letter()`, Art aus `LETTER_KINDS`), Versandart "aufgabe" nur aus
+  `TASK_MAIL_SENDERS`, dort an der Aufgabe nur `id`, `source_module`, `assigned_employee` und die Aufgabe nie an eine
+  Hilfsfunktion; Versand über Anlegen, Bearbeiten und Übernehmen mit einer Markierung in jedem Textfeld der Aufgabe (aus den
+  Spalten des Modells -- ein neues Feld ist automatisch dabei), in Projekt, Fälligkeit und Checkliste: keine Markierung in
+  Betreff, Text (dekodiert), Rohtext oder Protokollzeile. Gegenproben (Titel im Betreff, Beschreibung, Projekt, Aufgabe an
+  eine Hilfsfunktion) 4 von 4 rot.
+- Volle Suite 2820 grün (mit den opt-in-Tests gegen PostgreSQL). Keine Migration. Angepasst: `test_v321` erwartet den
+  neuen Betreff (zwei Stellen).
+- **Auf dem Server prüfen**: ob Einstellungen → Allgemein → "Öffentliche Adresse" gesetzt ist -- sonst enthält die Mail
+  statt eines klickbaren Links nur den Pfad.

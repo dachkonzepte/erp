@@ -638,7 +638,7 @@ def test_task_mail_is_logged_without_attachment_and_only_admin_sees_it(db_sessio
     task = create_task(db, title="Dachrinne prüfen", assigned_employee_id=emp.id)
     [row] = _dispatches(db)
     assert (row.document_type, row.document_id, row.status) == ("aufgabe", task["id"], "gesendet")
-    assert row.sent_document_id is None and row.subject == "Neue Aufgabe: Dachrinne prüfen"
+    assert row.sent_document_id is None and row.subject == "Neue Aufgabe im ERP"  # seit 1.8.53 ohne Titel
     assert list_dispatches(db)["items"] == []
     assert [d["id"] for d in list_dispatches(db, include_task_mails=True)["items"]] == [row.id]
 
@@ -662,7 +662,7 @@ def test_task_mails_in_the_api_only_for_admin(router_test_client, threaded_db_se
         assert body["items"] == [], role
         assert _office(db, router_test_client, role=role).get("/api/email-dispatches?document_type=aufgabe").json()["items"] == []
     [item] = _office(db, router_test_client, role="admin").get("/api/email-dispatches").json()["items"]
-    assert item["subject"] == "Neue Aufgabe: Vertraulich: Lohngespräch"
+    assert item["subject"] == "Neue Aufgabe im ERP"  # seit 1.8.53 ohne Titel
 
 
 def test_task_mail_failure_is_logged_and_task_still_saved(db_session, smtp):

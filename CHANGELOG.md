@@ -4,6 +4,21 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.53 – Aufgaben-Mails ohne Inhalt der Aufgabe
+
+Stufe 2c, Runde 2c-2b, Nacharbeiten Punkt 1. Die Benachrichtigung über eine zugewiesene Aufgabe nennt nur noch die Art
+(aus dem Ursprung der Aufgabe, z. B. „Mangel“, „Checkliste“, „Eingangsrechnung“, sonst „allgemeine Aufgabe“) und den Link
+(`/tasks?task=<id>`, absolut mit der öffentlichen Adresse aus Einstellungen → Allgemein, sonst als Pfad). Bisher gingen
+Titel, Priorität, Fälligkeit und Projekt an die Adresse im Mitarbeiterprofil, die privat sein kann – seit 1.8.51 auch die
+Kurzfassung eines Mangels im Titel. Der Betreff heißt jetzt immer „Neue Aufgabe im ERP“, auch im Versandprotokoll.
+
+Neuer Strukturtest `test_v355` (18) über alle Aufgaben-Mails: per AST jeder Versand mit konstanter Versandart (sonst
+begründete Ausnahme), die Versandart „aufgabe“ nur aus `notify_task_assignment()`, dort an der Aufgabe nur `id`,
+`source_module` und `assigned_employee`, die Aufgabe nie an eine Hilfsfunktion; dazu der Versand selbst über Anlegen,
+Bearbeiten und Übernehmen mit einer Markierung in jedem Textfeld der Aufgabe (aus den Spalten des Modells), in Projekt,
+Fälligkeit und Checkliste – keine kommt in Betreff, Text oder Protokollzeile an. Gegenproben 4 von 4 rot. Volle Suite
+2820 grün (mit den opt-in-Tests gegen PostgreSQL). Keine Migration.
+
 ## 1.8.52 – Mängel zur Beseitigung in der Monteursansicht
 
 Stufe 2c, Runde 2c-2b, Punkt 1. In `/mobil` gibt es den Abschnitt „Mängel zur Beseitigung“: der Monteur sieht die Mängel,

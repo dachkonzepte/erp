@@ -76,8 +76,10 @@ Etappenplan). Vor jeder Änderung am E-Mail-Versand diese Datei lesen (Regel 14)
   Zeile Kennung, An/CC, Betreff, Weg und Benutzer, Status mit Fehlerklasse, Ablage mit Größe, gekürzter
   Prüfsumme, "PDF" und "Prüfen".
 - Rechte: Lesen ab `buero_auftrag` (wer versendet, muss sehen, ob es hinausging), Monteure 403 an
-  Seite und API. **Aufgaben-Benachrichtigungen nur für Admins**: ihr Betreff nennt den Aufgabentitel,
-  und eine zugewiesene Aufgabe sieht außer dem Empfänger nur Admin (`list_tasks_for_user()`).
+  Seite und API. **Aufgaben-Benachrichtigungen nur für Admins**: ihr Betreff nannte den Aufgabentitel,
+  und eine zugewiesene Aufgabe sieht außer dem Empfänger nur Admin (`list_tasks_for_user()`). Seit
+  1.8.53 enthält die Mail keinen Inhalt der Aufgabe mehr (Betreff "Neue Aufgabe im ERP", nur Art und
+  Link, `docs/archiv/modul-aufgaben.md`); die Zeile verrät weiterhin, wer wann eine Aufgabe bekam.
   Schreibende Endpunkte gibt es nicht.
 
 ## Umsetzung 1.8.17 (30.09.2026)

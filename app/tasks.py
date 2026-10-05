@@ -247,6 +247,34 @@ def update_task_settings(db: Session, notify_on_assignment: bool) -> TaskSetting
     return settings
 
 
+# Art einer Aufgabe in der Benachrichtigung (seit 1.8.53) -- aus dem Ursprung (source_module), nie aus dem Inhalt.
+TASK_MAIL_KINDS = {
+    "maengel": "Mangel",
+    "wartungsbericht": "Einsatzbericht",
+    "wartungsvertrag": "Wartungsvertrag",
+    "checklisten": "Checkliste",
+    "buchhaltung": "Eingangsrechnung",
+    "betriebsmittel": "Betriebsmittel",
+    "betriebskosten": "Betriebskosten",
+}
+TASK_MAIL_KIND_DEFAULT = "allgemeine Aufgabe"
+TASK_MAIL_SUBJECT = "Neue Aufgabe im ERP"
+
+
+def task_mail_kind(source_module: str | None) -> str:
+    return TASK_MAIL_KINDS.get(source_module or "", TASK_MAIL_KIND_DEFAULT)
+
+
+def task_mail_link(db: Session, task_id: int) -> str:
+    """Link zur Aufgabe (/tasks?task=<id> öffnet sie im Editor). Absolut nur mit der öffentlichen Adresse aus
+    Einstellungen -> Allgemein -- die Benachrichtigung entsteht in der Geschäftslogik, ohne Anfrage."""
+    from .settings import load_general_settings
+
+    path = f"/tasks?task={task_id}"
+    base = (load_general_settings(db).public_base_url or "").strip().rstrip("/")
+    return f"{base}{path}" if base else f"im ERP unter „Aufgaben“ ({path})"
+
+
 def notify_task_assignment(db: Session, task: Task) -> None:
     """Benachrichtigt den zugewiesenen Mitarbeiter per E-Mail über eine neue Aufgabe (seit
     1.1.3). Stiller No-op, wenn die Benachrichtigung abgeschaltet ist oder der Mitarbeiter
@@ -256,10 +284,16 @@ def notify_task_assignment(db: Session, task: Task) -> None:
     Fehler erscheinen lassen.
 
     Seit 1.8.17 über app/email_dispatch.py: jede Benachrichtigung steht im Versandprotokoll
-    (Dokumentart "aufgabe", nur für Admins sichtbar -- der Betreff nennt den Aufgabentitel, und
-    eine zugewiesene Aufgabe sieht außer dem Empfänger nur Admin). Ein fehlgeschlagener Versand
-    ist dort jetzt sichtbar statt still verschluckt; die Aufgabe bleibt trotzdem gespeichert.
-    Kein Parallelversand-Block: jede Zuweisung ist ein eigener Anlass."""
+    (Dokumentart "aufgabe", nur für Admins sichtbar). Ein fehlgeschlagener Versand ist dort
+    sichtbar statt still verschluckt; die Aufgabe bleibt trotzdem gespeichert. Kein
+    Parallelversand-Block: jede Zuweisung ist ein eigener Anlass.
+
+    Seit 1.8.53 ohne Inhalt der Aufgabe (Betreibervorgabe 2c-2b): nur Art (aus dem Ursprung,
+    task_mail_kind()) und Link. Titel, Beschreibung, Projekt, Fälligkeit und Priorität verließen
+    vorher das ERP -- an die Adresse im Mitarbeiterprofil, die privat sein kann (seit 1.8.51 mit
+    der Kurzfassung eines Mangels im Titel). tests/test_v355_aufgaben_mail_ohne_inhalt.py prüft
+    jede Aufgaben-Mail: per AST, welche Felder der Aufgabe hier gelesen werden, und am Versand
+    selbst, dass keins ankommt."""
     from .email_dispatch import DispatchConflict, dispatch_email, new_dispatch_key
     settings = load_task_settings(db)
     if not settings.notify_on_assignment:
@@ -267,19 +301,19 @@ def notify_task_assignment(db: Session, task: Task) -> None:
     employee = task.assigned_employee
     if employee is None or employee.profile is None or not employee.profile.email:
         return
-    due = f"\nFälligkeit: {task.due_date.strftime('%d.%m.%Y')}" if task.due_date else ""
-    project = f"\nProjekt: {task.project.project_number} · {task.project.name}" if task.project else ""
     body = (
-        f"Hallo {employee.first_name},\n\n"
-        f"dir wurde die Aufgabe \"{task.title}\" zugewiesen.\n"
-        f"Priorität: {task.priority}{due}{project}\n\n"
-        f"Diese Nachricht wurde automatisch vom ERP versendet."
+        "Hallo,\n\n"
+        "dir wurde im ERP eine Aufgabe zugewiesen.\n\n"
+        f"Art: {task_mail_kind(task.source_module)}\n"
+        f"Link: {task_mail_link(db, task.id)}\n\n"
+        "Was zu tun ist, steht nur im ERP (nach der Anmeldung).\n\n"
+        "Diese Nachricht wurde automatisch vom ERP versendet."
     )
     try:
         dispatch_email(
             db, dispatch_key=new_dispatch_key(f"aufgabe-{task.id}"), document_type="aufgabe",
             document_id=task.id, document_number=None, to=employee.profile.email, cc=None,
-            subject=f"Neue Aufgabe: {task.title}", body_text=body, block_parallel=False,
+            subject=TASK_MAIL_SUBJECT, body_text=body, block_parallel=False,
         )
     except (ValueError, DispatchConflict):
         pass

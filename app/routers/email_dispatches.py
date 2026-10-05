@@ -1,9 +1,10 @@
 """Router: Versandprotokoll und Ablage versendeter Dokumente (seit 1.8.17).
 
 Lesen ab buero_auftrag -- wer Angebote, Aufträge, Rechnungen und Mahnungen versendet, muss sehen,
-ob sie hinausgingen. Monteure: 403 an jedem Endpunkt. Aufgaben-Benachrichtigungen (Betreff =
-Aufgabentitel) nur für Admins: eine zugewiesene Aufgabe sieht außer ihrem Empfänger nur Admin
-(app/tasks.py::list_tasks_for_user()).
+ob sie hinausgingen. Monteure: 403 an jedem Endpunkt. Aufgaben-Benachrichtigungen nur für Admins:
+eine zugewiesene Aufgabe sieht außer ihrem Empfänger nur Admin (app/tasks.py::list_tasks_for_user()).
+Bis 1.8.52 stand der Aufgabentitel im Betreff; seit 1.8.53 enthält die Mail keinen Inhalt der Aufgabe
+mehr, der Eintrag verrät aber weiterhin, wer wann eine Aufgabe zugewiesen bekam.
 
 Schreiben an genau zwei Stellen, beide ab buero_auftrag: einen hängengebliebenen Eintrag als
 gesendet oder fehlgeschlagen klären, mit Notiz (seit 1.8.19; eine Aufgaben-Benachrichtigung nur

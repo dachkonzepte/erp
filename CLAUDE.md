@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.52** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.53** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -751,7 +751,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Angebot/Rechnung teilen sich eine Textvorlagen-
   Tabelle (`app/document_email_templates.py`), Mahnungen haben eigene Vorlagen pro Stufe direkt
   auf `ReminderLevel` (historisch zuerst gebaut, nie migriert). Seit 1.8.17 läuft jeder Versand
-  über das Versandprotokoll mit Ablage (Regel 21), mehrere Empfänger und CC, Anhang höchstens 3 MB.
+  über das Versandprotokoll mit Ablage (Regel 21), mehrere Empfänger und CC, Anhang höchstens 3 MB. Aufgaben-Mails
+  enthalten seit 1.8.53 keinen Inhalt der Aufgabe (nur Art und Link, `notify_task_assignment()`), geprüft für jede
+  Versandstelle in `tests/test_v355_aufgaben_mail_ohne_inhalt.py`.
 - **Modul-Umschalter** (seit 1.1.0): Tabelle `EnabledModule` (`module_key`, `enabled`), Registry
   `OPTIONAL_MODULES` in `app/modules.py` ist die einzige Stelle, an der sich ein künftiges Modul
   eintragen muss. Opt-out-Default – fehlt eine Zeile für einen `module_key`, gilt das Modul als

@@ -41,7 +41,17 @@ jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
     fehlen) über die neue anhangslose `send_plain_email()` in `app/email_sending.py`. Schalter dazu
     in `TaskSettings.notify_on_assignment` (Singleton wie `LaborRateSettings`). Ein Versandfehler
     wird innerhalb der Funktion abgefangen – darf das bereits erfolgte Speichern der Aufgabe nicht
-    rückwirkend als Fehler erscheinen lassen.
+    rückwirkend als Fehler erscheinen lassen. **Seit 1.8.53 ohne Inhalt der Aufgabe** (Betreibervorgabe
+    2c-2b): Betreff immer "Neue Aufgabe im ERP", Text nur Art (`task_mail_kind()`, aus `source_module`:
+    Mangel, Einsatzbericht, Wartungsvertrag, Checkliste, Eingangsrechnung, Betriebsmittel,
+    Betriebskosten, sonst "allgemeine Aufgabe") und Link (`task_mail_link()`: `/tasks?task=<id>`,
+    absolut nur mit `GeneralSettings.public_base_url`, sonst als Pfad -- die Mail entsteht in der
+    Geschäftslogik ohne Anfrage). Vorher gingen Titel, Priorität, Fälligkeit und Projekt an die
+    Adresse im Mitarbeiterprofil, die privat sein kann. `tests/test_v355_aufgaben_mail_ohne_inhalt.py`
+    prüft jede Aufgaben-Mail: per AST (Versandart konstant, "aufgabe" nur aus
+    `notify_task_assignment()`, an der Aufgabe nur `id`/`source_module`/`assigned_employee`, die
+    Aufgabe nie an eine Hilfsfunktion) und am Versand mit einer Markierung in jedem Textfeld. Eine
+    neue Versandstelle für Aufgaben kommt in `TASK_MAIL_SENDERS` und gilt dann denselben Prüfungen.
   - **Archivieren** (`set_task_archived()`, seit 1.2.11, gleiches Muster wie
     `Project.archived`): blendet eine Aufgabe aus dem Standard-Board aus, ohne sie wie
     `delete_task()` unwiderruflich zu löschen – unabhängig von Spalte/`is_done`. `list_tasks()`
