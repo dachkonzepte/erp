@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.58** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.59** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -821,7 +821,10 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Feldtyp "beleg": PDF oder Foto, am Inhalt erkannt, unverändert gespeichert, in Prüfsumme und Versiegelung; seit 1.8.56
   verlangt eine Unterschrift alle Pflichtangaben oberhalb, `missing_before_signature`; seit 1.8.57 Unterzeichner je
   Unterschriftsfeld -- frei, angemeldetes Konto, Auftraggeber laut Auftrag, Beteiligter mit eingefrorener Vollmacht zur
-  Abnahme --, beim Unterschreiben im Siegel (`seal_format` 3), Unterschrift bis aufs Verwerfen unveränderlich) --
+  Abnahme --, beim Unterschreiben im Siegel (`seal_format` 3), Unterschrift bis aufs Verwerfen unveränderlich; seit 1.8.59
+  beim Auftraggeber Pflicht "Name der unterschreibenden Person" (optional Funktion), Vollmacht immer "Vollmacht zur Abnahme:
+  ja/nein", Veröffentlichen lehnt Pflichtfelder "nur Büro" über einer Unterschrift ab, die auch der Monteur leistet --
+  bekannte Ausnahme Behinderungsanzeige in `SIGNER_FILL_EXCEPTIONS`) --
   `docs/archiv/modul-checklisten.md`
 - **Kaufmännisches Runden** (Helfer `app/rounding.py`, Rundungsregel je Rechnung, Liste der
   Geldstellen, bewusst nicht geänderte Formatierer) -- `docs/archiv/kaufmaennisches-runden.md`
@@ -864,7 +867,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Bindung der Sperren an eine gültige Fassung offen, weil es kein Zurückziehen gibt; seit 1.8.52 Monteur-Sicht auf Mängel in
   `/mobil` mit Positivliste, "beseitigt" melden mit Foto, Fotos nur über den Monteur-Weg; seit 1.8.54 Aufgabe folgt dem
   Status, Hinweis des Monteurs zur Meldung; Stufe 2c-2c ab 1.8.55: neue Frist bei "zurück auf offen", Zurückziehen einer
-  Vertragsfassung entschieden, nicht gebaut) -- `docs/archiv/abnahme-und-gewaehrleistung.md`
+  Vertragsfassung entschieden, nicht gebaut; Stufe 2c-2d ab 1.8.59: Abnahmeprotokoll als Checkliste, Etappenplan im Archiv)
+  -- `docs/archiv/abnahme-und-gewaehrleistung.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
   `docs/archiv/grunddaten-beim-start.md`

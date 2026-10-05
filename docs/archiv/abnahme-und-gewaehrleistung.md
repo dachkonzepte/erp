@@ -19,7 +19,8 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | **2c-1** | 1.8.46, 1.8.47 | Fundament: Regel-20-Test auch für Spaltenvorgaben, Datengrenze (Strafe, Einbehalt), Leistungsart und Gewährleistungsdauer am Auftrag, Abnahme (unveränderlich, Verwerfen, Historie), Gewährleistungsende abgeleitet an Auftrag/Objekt/Dachfläche, Garantie Dritter an der Dachfläche mit Teil-Update, Abgleich gesperrt nach Abnahme (1.8.46); Vollmacht zur Abnahme am Beteiligten, Begründung und Vorschau nach der ersten Abnahme, Nachweis "förmlich: Beleg, sonst Beleg oder Begründung", "Gewährleistung regulär bis" (1.8.47) | erledigt |
 | **2c-2a** | 1.8.48–1.8.50 | Vorweg: Prüfstatus neben jedem Gewährleistungsende (eine Funktion, `logger.error` bei Abweichung), Siegel des Verwerfens, Fassung des Prüfsummenformats (1.8.48); Mängel aus der Abnahme mit Haltung, Status, Freigabe, Verlauf, Aufgabe und "Nachbesserung regulär bis" (1.8.49); Platzhalter `{gewaehrleistung}`, Festschreiben erst mit Dauer, danach Dauer und Leistungsart gesperrt (1.8.50) | erledigt |
 | **2c-2b** | 1.8.51–1.8.54 | Vorweg: Sperre an eine gültige Fassung binden (nur gemeldet -- es gibt kein Zurückziehen einer Fassung), Belege am Mangel nachreichen, Aufgabentitel mit Kurzfassung, CLAUDE.md `update.sh`/`backup.sh` (1.8.51); Monteur-Sicht auf Mängel in `/mobil` mit Positivliste, "beseitigt" melden mit Foto, idempotent über `client_uuid` (1.8.52); Nacharbeiten: Aufgaben-Mails ohne Inhalt (1.8.53), Aufgabe folgt dem Status des Mangels, Hinweis des Monteurs zur Meldung, `update.sh` probt selbst gegen die Spielwiese (1.8.54) | erledigt; Zurückziehen einer Fassung am 05.10.2026 entschieden, noch nicht gebaut (siehe "Umsetzung 1.8.55", Punkt 0c) |
-| **2c-2c** | 1.8.55–1.8.58 | Unterschriften in Checklisten härten, Fundament für das Abnahmeprotokoll. Vorweg: "zurück auf offen" mit neuer Frist, Regel 24 (Marker GEGENPROBE), Entscheidung zum Zurückziehen einer Vertragsfassung ins Archiv (1.8.55); Pflichtfelder oberhalb einer Abschnittsunterschrift, eine gemeinsame Prüfung des Unterschriftsbilds (1.8.56); Unterzeichner je Unterschriftsfeld mit Siegel (1.8.57); Zeichenfläche nach Drehen neu vermessen (1.8.58) | erledigt; Festlegungen 1.8.55–1.8.58 zur Bestätigung |
+| **2c-2c** | 1.8.55–1.8.58 | Unterschriften in Checklisten härten, Fundament für das Abnahmeprotokoll. Vorweg: "zurück auf offen" mit neuer Frist, Regel 24 (Marker GEGENPROBE), Entscheidung zum Zurückziehen einer Vertragsfassung ins Archiv (1.8.55); Pflichtfelder oberhalb einer Abschnittsunterschrift, eine gemeinsame Prüfung des Unterschriftsbilds (1.8.56); Unterzeichner je Unterschriftsfeld mit Siegel (1.8.57); Zeichenfläche nach Drehen neu vermessen (1.8.58) | erledigt; Festlegungen 1.8.55–1.8.58 bestätigt (05.10.2026, Vorgabe 2c-2d) |
+| **2c-2d** | 1.8.59– | Abnahmeprotokoll als Checkliste, Plan unten ("Etappenplan 2c-2d"). Vorweg: Person und Funktion beim Unterzeichner Auftraggeber, Vollmacht-Kennzeichnung mit Art, Veröffentlichen prüft Pflichtfelder, die der Unterzeichner nicht ausfüllen darf (1.8.59); Feldtyp "Mängel" (1.8.60); Zweck "abnahme" mit Systemfeldern und Startvorlage (1.8.61); Folge "Abnahme anlegen" nach der Unterschrift des Auftraggebers (1.8.62); Mängel und Erklärungen auf Seite und PDF (1.8.63) | in Arbeit |
 
 Nach jeder Runde die Spalten "Version"/"Stand" nachziehen und unten einen Abschnitt "Umsetzung 1.8.x" ergänzen.
 
@@ -871,7 +872,7 @@ Offen für die Umsetzung (nicht entschieden, nur notiert): ob eine mit Warnung e
 zurückgezogenen Fassung diese wieder gültig macht (und damit die Sperren nach Nr. 2 auslöst) oder nur als Nachweis
 festgehalten wird.
 
-### Festlegungen 1.8.55 (bitte bestätigen)
+### Festlegungen 1.8.55 (bestätigt am 05.10.2026, Vorgabe 2c-2d)
 
 1. **Neue Frist nur bei "zurück auf offen"**, optional; bei jedem anderen Status abgelehnt (400), nicht beim Erfassen
    nachträglich änderbar.
@@ -944,7 +945,7 @@ festgehalten wird.
   Modul tut es (so `_finish()` des Vertrags über `sign_contract_on_device()`), ausgenommen mit Grund nur der Papier-Scan
   (`record_paper_signature()`); (c) keine zweite Leer-/PNG-Prüfung außerhalb des Moduls.
 
-### Festlegungen 1.8.56 (bitte bestätigen)
+### Festlegungen 1.8.56 (bestätigt am 05.10.2026, Vorgabe 2c-2d)
 
 1. **"Oberhalb" heißt alle Felder vor der Unterschrift**, nicht nur ihr Abschnitt -- die Unterschrift versiegelt sie alle.
 2. **Pflicht-Unterschriften oberhalb zählen nicht** (seit 1.8.14 bleibt eine obere Unterschrift nach einer unteren möglich,
@@ -1030,7 +1031,7 @@ festgehalten wird.
   nie (`ArchiveImmutableError`, `app/models.py`) -- auch ein Wechsel der Art "unterschrift" zu etwas anderem.
 - Der Abschluss (1.8.15) bleibt im Format 2 -- er bindet je Unterschrift deren Prüfsumme, also seit 1.8.57 auch den Unterzeichner.
 
-### Festlegungen 1.8.57 (bitte bestätigen)
+### Festlegungen 1.8.57 (bestätigt am 05.10.2026, Vorgabe 2c-2d)
 
 1. **Vier Arten**: frei, angemeldetes Konto, Auftraggeber laut Auftrag, Beteiligter. Vorgabe "frei" -- alle vorhandenen Felder und
    Startvorlagen bleiben, wie sie sind; Systemfelder geben keinen Unterzeichner vor (umstellbar im Editor).
@@ -1116,7 +1117,7 @@ festgehalten wird.
   Fenster-Ereignis ab; ein erneuter Aufruf für dieselbe Fläche ersetzt den alten. Schnittstelle unverändert
   (`leer()`, `leeren()`, `alsBlob()`, `alsDataUrl()`, neu `vermessen()`), die drei Seiten bleiben wie sie sind.
 
-### Festlegungen 1.8.58 (bitte bestätigen)
+### Festlegungen 1.8.58 (bestätigt am 05.10.2026, Vorgabe 2c-2d)
 
 1. **Beim Drehen bleibt die Unterschrift erhalten**, gleichmäßig skaliert -- nicht leeren. Abgewogen: Leeren wäre einfacher und
    "was man sieht, ist was gezeichnet wurde", kostet aber eine schon geleistete Unterschrift, wenn das Gerät beim Weitergeben kippt.
@@ -1140,3 +1141,112 @@ festgehalten wird.
   `_zweck` 28, `behinderungsanzeige` 35, `_versand` 41, `_abschluss` 43, `bedenkenanzeige` 22, `_versand` 20,
   `beleg_und_hinweis` 24, `versandverlauf` 32, `vertrag_unterschrift` 43, `vertrag_abschrift` 26, `unterzeichner` 17).
 - Volle Suite 2907 grün (mit den opt-in-Tests gegen PostgreSQL). Keine Migration.
+
+---
+
+## Etappenplan 2c-2d (Vorgabe vom 05.10.2026, übernommen wie gegeben)
+
+Stufe 2c-2d: Abnahmeprotokoll als Checkliste. Grundlage: der Befund aus 2c-2b. Festlegungen 1.8.55–1.8.58 bestätigt.
+
+0. Vorweg:
+   - Unterzeichner "Auftraggeber laut Auftrag": Pflichtangabe "Name der unterschreibenden Person" (optional Funktion), ohne
+     Vorbelegung, im Siegel.
+   - Vollmacht-Kennzeichnung nennt immer die Art ("Vollmacht zur Abnahme: ja/nein"). Als Warnung nur beim Zweck "abnahme".
+   - Vorlage veröffentlichen abgelehnt, wenn ein Pflichtfeld, das der Unterzeichner nicht ausfüllen darf, über seiner
+     Unterschrift steht. Vorhandene Start- und veröffentlichte Vorlagen prüfen und melden.
+1. Feldtyp "Mängel": Mängel entstehen im Entwurf mit Herkunft Protokoll; in die feste Kopie je Mangel Kennung und Prüfsumme.
+   Nach der Unterschrift des Auftraggebers keine neuen Mängel an diesem Protokoll. Vorher verworfene fehlen in der Kopie,
+   danach verworfene bleiben drin und werden als verworfen angezeigt.
+2. Zweck "abnahme" (nur Auftrag, nur Büro, nicht in /mobil), Systemfelder ohne Vorgabe, Startvorlage per Migration:
+   - Befund: Teilnehmer, Umfang (gesamt/Teil mit Beschreibung), Dachflächen aus dem Objekt, Mängel, Einwendungen des
+     Auftragnehmers
+   - Erklärungen des Auftraggebers: Ergebnis, Vorbehalt Mängel, Vorbehalt Vertragsstrafe; Unterschrift Auftraggeber (laut
+     Auftrag oder Beteiligter)
+   - Schluss: Unterschrift Auftragnehmer (Konto)
+   Bei der Unterschrift des Auftraggebers lehnt der Server ab: Mängel ohne Vorbehalt, Vorbehalt ohne Mangel, "verweigert" ohne
+   Mangel.
+3. Folge nach der Unterschrift des Auftraggebers: legt die Abnahme an (förmlich, Nachweis "Protokoll" mit Verweis aufs Siegel,
+   Datum der Unterschrift in Berliner Zeit, Erklärender mit Vollmacht-Kopie) und hängt die Mängel daran; erst dann Aufgaben und
+   Freigabe. Höchstens eine Abnahme je Protokoll, auch beim Nachholen. Ausstehende Folge sichtbar am Auftrag. Die Unterschrift
+   des Auftraggebers lässt sich nicht verwerfen, solange die daraus entstandene Abnahme gilt.
+4. Mängel und Erklärungen auf der Protokollseite und im PDF. Feste Fassung, Ablage und Versand kommen in 2c-2e.
+
+Angriffstests mit Gegenprobe: Mangel nach der Unterschrift, die drei Widersprüche, doppelte Folge, Monteur öffnet das
+Protokoll, falsche Unterzeichner-Art am Auftraggeber-Feld, Verwerfen der Unterschrift bei gültiger Abnahme. Wichtige Tests auch
+gegen PostgreSQL. Eigene Festlegungen mit "Bitte bestätigen", Nebenbefunde nur melden. Wird der Umfang zu groß: nach Punkt 2
+committen und den Rest auflisten.
+
+Versionen: 1.8.59 Punkt 0, 1.8.60 Punkt 1, 1.8.61 Punkt 2, 1.8.62 Punkt 3, 1.8.63 Punkt 4 -- je ein Commit (Regel 13).
+
+
+---
+
+## Umsetzung 1.8.59 (05.10.2026) -- Runde 2c-2d, Punkt 0 (Vorweg)
+
+### 0a: Person und Funktion beim Unterzeichner "Auftraggeber laut Auftrag"
+
+- Neue Spalten `checklist_attachments.signer_person` (String 160) und `signer_function` (String 120), Migration
+  `cd0d94c87f0c` (Downgrade verweigert, sobald eine Unterschrift eine Person trägt).
+- `_signer()`: beim Auftraggeber laut Auftrag ist `signer_person` Pflicht (400 "Bitte den Namen der Person angeben, die für den
+  Auftraggeber unterschreibt."), `signer_function` optional; Leerraum zusammengezogen, Längen 160/120. Bei jedem anderen
+  Unterzeichner sind beide ein Fehler (400). `signer_name` bleibt der Auftraggeber laut Auftrag.
+- Siegel: `signer_content()` nimmt `"person"`/`"function"` nur auf, wenn gesetzt -- Siegel von 1.8.57/1.8.58 rechnen unverändert
+  nach, eine am ORM vorbei gesetzte, geänderte oder entfernte Person erscheint als "weicht ab: Unterzeichner".
+- Seite: statt "Unterschreibt: …" jetzt "Für: <Auftraggeber> (Auftraggeber laut Auftrag)", darunter "Name der unterschreibenden
+  Person" (Pflicht, ohne Vorbelegung) und "Funktion (optional)"; an der Unterschrift "– unterschrieben von <Person>
+  (<Funktion>)", ebenso im PDF (`signer_text()`).
+
+### 0b: Vollmacht immer mit Art, Warnung nur beim Zweck "abnahme"
+
+- Unterschrift eines Beteiligten: "Vollmacht zur Abnahme: ja" (Büro mit Link "ansehen") bzw. "Vollmacht zur Abnahme: nein";
+  nur beim Zweck "abnahme" als Warnung ("⚠ …", `signer_poa_warning`; im PDF "Achtung: Vollmacht zur Abnahme: nein").
+- Auswahl der Beteiligten: "<Name> (<Rolle>) · Vollmacht zur Abnahme: ja/nein"; der Warnhinweis beim Wählen erscheint nur beim
+  Zweck "abnahme".
+
+### 0c: Veröffentlichen prüft Pflichtfelder, die der Unterzeichner nicht ausfüllen darf
+
+- `signer_fill_findings()` (`app/checklist_templates.py`): je Unterschriftsfeld ohne "nur Büro" (also eines, das auch der
+  Monteur leisten kann) die Pflichtfelder darüber (required oder Mindestanzahl, ohne Hinweise und Unterschriften), die nur das
+  Büro ausfüllt. Ein solches Feld verlangt seine Unterschrift seit 1.8.56 -- der Monteur käme nie zur Unterschrift.
+  `validate_version_for_publish()` lehnt ab (`signer_fill_problems()`), der Editor zeigt die Befunde am Entwurf und an der
+  gültigen Fassung (Kasten "Unterschrift und Pflichtfelder").
+- **Befund an den vorhandenen Vorlagen** (Startvorlagen über ihre Migrationen geprüft, `test_v361`): die 13 allgemeinen
+  Startvorlagen und die Bedenkenanzeige -- nichts; die **Behinderungsanzeige** -- "Unterschrift" im Abschnitt Wegfall (Monteur
+  oder Büro, 1.8.38) steht unter den Pflichtfeldern der Anzeige (Ursache, Beschreibung der Ursache, Betroffene Leistungen,
+  Beginn), die nur das Büro ausfüllt. Gewöhnliche Felder sind nie "nur Büro" -- auf dem Server kann deshalb nur eine
+  veröffentlichte Behinderungsanzeige betroffen sein; der Editor zeigt es dort an.
+- Die Behinderungsanzeige steht als **bekannte Ausnahme** in `SIGNER_FILL_EXCEPTIONS` (darf nur kürzer werden, ein Test prüft,
+  dass jede Ausnahme einem echten Befund entspricht) -- sonst ließe sich weder die Startvorlage noch eine neue Fassung einer
+  Behinderungsanzeige veröffentlichen. Der Editor kennzeichnet sie "bekannte Ausnahme des Zwecks, Entscheidung offen".
+
+### Festlegungen 1.8.59 (bitte bestätigen)
+
+1. **`signer_name` bleibt der Auftraggeber**, die Person kommt dazu (eigene Spalten) -- "Hallenbau GmbH, unterschrieben von
+   Herbert Halle (Geschäftsführer)".
+2. **Person und Funktion im Siegel nur, wenn gesetzt** -- keine neue Fassung des Siegelformats.
+3. **Person und Funktion bei jedem anderen Unterzeichner abgelehnt** (400), keine stille Umdeutung.
+4. **"Der Unterzeichner darf nicht ausfüllen"** heißt: eine Unterschrift ohne "nur Büro" unter einem Pflichtfeld "nur Büro".
+   Pflicht wie beim Abschließen (required oder Mindestanzahl).
+5. **Behinderungsanzeige als bekannte Ausnahme statt Ablehnung.** **Bitte entscheiden**, wie sie aufgelöst wird: (a) die
+   Wegfall-Unterschrift nur fürs Büro (der Monteur trägt Beendigung und Wiederaufnahme ein, das Büro unterschreibt), oder (b)
+   die Ausnahme behalten (der Monteur wartet mit der Wegfall-Unterschrift, bis das Büro die Anzeige ausgefüllt hat -- so ist der
+   Ablauf seit 1.8.56).
+
+### Verifikation 1.8.59
+
+- `tests/test_v361_abnahmeprotokoll_vorweg.py` (16, einer nur unter SQLite): Person Pflicht und im Siegel, Funktion optional,
+  Person/Funktion bei frei, Konto, Beteiligter abgelehnt, ältere Siegel gültig und Person gebunden (gesetzt, entfernt, Funktion
+  geändert -> "Unterzeichner"), Seite ohne Vorbelegung; Vollmacht "ja/nein" mit Art, Warnung nur beim Zweck "abnahme" (Daten,
+  PDF-Zeile, Seite); Veröffentlichen abgelehnt mit Test-Zweck, freiwilliges Büro-Feld und Büro-Unterschrift in Ordnung, alle
+  Startvorlagen geprüft (nur die bekannte Ausnahme, sie hindert nicht), Editor; Migration mit verweigertem Downgrade.
+- Angepasst: `test_v359` (Auftraggeber mit Person, Seitentext), `test_v358` (zwei neue Spalten eingeordnet -- vom Strukturtest
+  gemeldet).
+- Gegenproben (Marker GEGENPROBE, Dateien byte-genau zurück): 13 von 13 rot.
+- Migration `cd0d94c87f0c`: SQLite hin/zurück/hin, `check`; PostgreSQL 17 im Wegwerf-Schema: Kette bis `5e562a4a172b`, head,
+  Bestand über den App-Code (Auftraggeber mit Person, Beteiligter mit Vollmacht, Konto -- alle "unverändert"), Downgrade
+  verweigert, `current`, `check`; leeres Schema hin/zurück/hin.
+- PostgreSQL (pytest-Plugin): `test_v361` und `test_v359` -- 44 grün, einer übersprungen (Bestand mit rohem SQL nur unter SQLite).
+- Klicktests: `klicktest_unterzeichner.py` 19/19 (neu: Person Pflicht ohne Vorbelegung, ohne Person abgelehnt, mit Person und
+  Funktion; Vollmacht "ja/nein", kein Warnhinweis beim Zweck allgemein); unverändert grün: `behinderungsanzeige` 35, `_abschluss`
+  43, `bedenkenanzeige` 22, `checkliste_zweck` 28, `checkliste_unterschrift` 26, `vertrag_unterschrift` 43.
+- Volle Suite 2923 grün (mit den opt-in-Tests gegen PostgreSQL).

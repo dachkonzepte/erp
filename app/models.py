@@ -5154,7 +5154,11 @@ class ChecklistAttachment(Base):
     beim Unterschreiben (seal_format 3: dazu Zeitpunkt und Prüfsumme des Bilds). seal_format leer = vor 1.8.57 (Kopie
     "v": 2 bzw. ohne Kopie) -- diese Siegel werden nach ihrem eigenen Format geprüft. signer_user_id ohne Fremdschlüssel
     (Benutzer löschen, Befund 1.8.13). Eine Unterschrift ist nach dem Speichern bis auf das Verwerfen unveränderlich
-    (ORM-Sperre, ArchiveImmutableError)."""
+    (ORM-Sperre, ArchiveImmutableError).
+
+    Seit 1.8.59 beim Unterzeichner "Auftraggeber laut Auftrag" zusätzlich die unterschreibende Person (signer_person,
+    Pflicht) und ihre Funktion (signer_function, optional) -- im Siegel nur, wenn gesetzt, so bleiben Siegel von 1.8.57/1.8.58
+    gültig."""
 
     __tablename__ = "checklist_attachments"
     __table_args__ = (UniqueConstraint("checklist_id", "client_uuid", name="uq_checklist_attachment_client_uuid"),)
@@ -5185,6 +5189,9 @@ class ChecklistAttachment(Base):
     signer_poa_content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     signer_poa_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     seal_format: Mapped[int | None] = mapped_column(nullable=True)
+    # seit 1.8.59: wer für den Auftraggeber laut Auftrag unterschreibt (Pflicht) und in welcher Funktion (optional)
+    signer_person: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    signer_function: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
     checklist: Mapped["Checklist"] = relationship(back_populates="attachments")
 

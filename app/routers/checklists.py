@@ -320,7 +320,8 @@ def put_checklist_answer(checklist_id: int, field_id: int, payload: ChecklistAns
 @router.post("/api/checklists/{checklist_id}/attachments", response_model=ChecklistOut)
 def post_checklist_attachment(checklist_id: int, field_id: int = Form(...), file: UploadFile = File(...),
                               signer_name: str | None = Form(None), client_uuid: str | None = Form(None),
-                              participant_id: int | None = Form(None),
+                              participant_id: int | None = Form(None), signer_person: str | None = Form(None),
+                              signer_function: str | None = Form(None),
                               db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     """Seit 1.8.57: participant_id für einen Unterzeichner "Beteiligter"; das angemeldete Konto (für "konto") reicht der
     Router selbst weiter -- der Name kommt dann nie aus der Anfrage."""
@@ -330,7 +331,8 @@ def post_checklist_attachment(checklist_id: int, field_id: int = Form(...), file
     data = file.file.read(MAX_UPLOAD_BYTES + 1)
     _call(add_attachment, db, checklist_id, field_id, data, signer_name=signer_name,
           created_by_employee_id=_role.employee_id, client_uuid=client_uuid, participant_id=participant_id,
-          account_user_id=_role.id, account_name=_role.display_name or _role.username)
+          account_user_id=_role.id, account_name=_role.display_name or _role.username, signer_person=signer_person,
+          signer_function=signer_function)
     return _detail(db, _role, checklist_id)
 
 

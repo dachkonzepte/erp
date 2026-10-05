@@ -196,6 +196,9 @@ SPALTEN = {
     "checklist_attachments.signer_poa_stored_filename": "Kopie der Vollmacht zur Abnahme (Beleg, kein Unterschriftsbild)",
     "checklist_attachments.signer_poa_content_type": "Typ der Vollmacht",
     "checklist_attachments.signer_poa_sha256": "Prüfsumme der Vollmacht",
+    # seit 1.8.59: wer für den Auftraggeber laut Auftrag unterschreibt
+    "checklist_attachments.signer_person": "Name der unterschreibenden Person",
+    "checklist_attachments.signer_function": "Funktion der unterschreibenden Person",
 }
 # Modelle, deren Zeile selbst ein Unterschriftsbild sein kann (Feldtyp "unterschrift"): ihr Anlegen ist ein Weg.
 ZEILEN = {"ChecklistAttachment"}

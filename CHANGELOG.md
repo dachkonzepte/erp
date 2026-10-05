@@ -4,6 +4,23 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.59 – Unterschriften: Person beim Auftraggeber, Vollmacht mit Art, Prüfung der Vorlagen
+
+Stufe 2c, Runde 2c-2d (Abnahmeprotokoll als Checkliste), Punkt 0. Unterschreibt der Auftraggeber laut Auftrag, ist jetzt der
+Name der Person Pflicht, die für ihn unterschreibt (ohne Vorbelegung), dazu optional ihre Funktion; beides steht im Siegel der
+Unterschrift, auf der Seite und im PDF („Hallenbau GmbH, unterschrieben von Herbert Halle (Geschäftsführer)“). Bei einem
+Beteiligten nennt die Checkliste die Vollmacht immer mit Art – „Vollmacht zur Abnahme: ja/nein“ –, als Warnung nur beim Zweck
+„abnahme“. Eine Vorlage lässt sich nicht mehr veröffentlichen, wenn über einer Unterschrift, die auch der Monteur leisten
+kann, ein Pflichtfeld steht, das nur das Büro ausfüllt; der Editor zeigt solche Befunde auch an der gültigen Fassung. Geprüft
+an allen Startvorlagen: betroffen ist nur die Behinderungsanzeige (Wegfall unter der Anzeige) – sie steht als bekannte
+Ausnahme fest, die Entscheidung ist offen. Der Etappenplan 2c-2d steht im Archiv, die Festlegungen 1.8.55–1.8.58 sind bestätigt.
+
+Migration `cd0d94c87f0c` (Person und Funktion an der Unterschrift; Downgrade verweigert, sobald genutzt), geprüft unter SQLite
+und PostgreSQL 17. Siegel von 1.8.57/1.8.58 bleiben gültig (die neuen Angaben stehen nur im Siegel, wenn gesetzt). Neue
+`test_v361` (16), Gegenproben 13 von 13 rot, gegen PostgreSQL 44 grün. Klicktest `klicktest_unterzeichner.py` 19/19, die
+zweckbezogenen Klicktests grün. Volle Suite 2923 grün (mit den opt-in-Tests gegen
+PostgreSQL). Festlegungen in `docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.59“.
+
 ## 1.8.58 – Zeichenfläche: nach Drehen oder Größenänderung neu vermessen
 
 Stufe 2c, Runde 2c-2c, Punkt 4. Die gemeinsame Zeichenfläche für Unterschriften (Checkliste, Einsatzbericht, Vertrag) maß

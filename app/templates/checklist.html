@@ -268,17 +268,19 @@ function missingIn(list){return list.flatMap(missingOf)}
 function signerInput(f,prefill){
   const mode=f.signer_mode||'frei',ch=(cl.signer_choices||{})[f.id]||{};
   if(mode==='konto')return `<span class="signer-fixed" data-signer="${f.id}">Unterschreibt: ${esc(MY_NAME||'angemeldetes Konto')} (angemeldetes Konto)</span>`;
-  if(mode==='auftraggeber')return `<span class="signer-fixed" data-signer="${f.id}">Unterschreibt: ${esc(ch.name||'')} (Auftraggeber laut Auftrag)</span>`;
+  // Seit 1.8.59: der Auftraggeber steht fest, wer für ihn unterschreibt, wird eingetragen (Pflicht, ohne Vorbelegung).
+  if(mode==='auftraggeber')return `<span class="signer-fixed" data-signer="${f.id}">Für: ${esc(ch.name||'')} (Auftraggeber laut Auftrag)</span><input id="padPerson_${f.id}" maxlength="160" autocomplete="off" placeholder="Name der unterschreibenden Person"><input id="padFunction_${f.id}" maxlength="120" autocomplete="off" placeholder="Funktion (optional)">`;
   if(mode==='beteiligter'){
     const list=(ch.participants||[]).filter(p=>!p.signed);
-    return `<select id="padPart_${f.id}" onchange="signerPoaHint(${f.id})"><option value="">– Beteiligten wählen –</option>${list.map(p=>`<option value="${p.participant_id}">${esc(p.name)} (${esc(p.role_label)})${p.poa_on_record?'':' – ohne Vollmacht'}</option>`).join('')}</select><div class="option-hint" id="padPoa_${f.id}" hidden></div>`;
+    return `<select id="padPart_${f.id}" onchange="signerPoaHint(${f.id})"><option value="">– Beteiligten wählen –</option>${list.map(p=>`<option value="${p.participant_id}">${esc(p.name)} (${esc(p.role_label)}) · Vollmacht zur Abnahme: ${p.poa_on_record?'ja':'nein'}</option>`).join('')}</select><div class="option-hint" id="padPoa_${f.id}" hidden></div>`;
   }
   return `<input id="padName_${f.id}" placeholder="Name ${esc(f.signer_label||'')}" value="${esc(prefill)}">`;
 }
 function signerPoaHint(fieldId){
   const sel=document.getElementById('padPart_'+fieldId),hint=document.getElementById('padPoa_'+fieldId);
   const p=(((cl.signer_choices||{})[fieldId]||{}).participants||[]).find(x=>String(x.participant_id)===sel.value);
-  hint.hidden=!(p&&!p.poa_on_record);
+  // Seit 1.8.59 als Warnung nur beim Zweck "abnahme" -- sonst steht "Vollmacht zur Abnahme: nein" schon in der Auswahl.
+  hint.hidden=!(p&&!p.poa_on_record&&cl.purpose==='abnahme');
   hint.textContent=p&&!p.poa_on_record?`Für ${p.name} ist keine Vollmacht zur Abnahme hinterlegt – die Unterschrift wird trotzdem erfasst, gekennzeichnet „ohne Vollmacht zur Abnahme“.`:'';
 }
 // Seit 1.8.56: was oberhalb einer Unterschrift noch fehlt, sagt der Server (missing_before_signature) -- so lange lehnt
@@ -396,7 +398,10 @@ function fieldBody(f){
     const canAdd=cl.can_sign&&forRole(f)&&(f.multiple?list.length<(f.max_count||20):!list.length);
     const prefill=(!f.multiple&&/monteur|ausführend|fahrer/i.test(f.signer_label||f.label))?MY_NAME:'';
     // Seit 1.8.57: Unterzeichner des Felds -- Art, bei einem Beteiligten Rolle und Vollmacht; der Beleg nur fürs Büro.
-    const signerLine=a=>a.signer_kind?`<span class="signer-line">Unterzeichner: ${esc(a.signer_kind_label)}${a.signer_role?` (${esc(a.signer_role)})`:''}${a.signer_kind==='beteiligter'?(a.signer_poa?(IS_FIELD?' · Vollmacht zur Abnahme festgehalten':` · <a href="/api/checklist-attachments/${a.id}/power-of-attorney" target="_blank" rel="noopener">Vollmacht zur Abnahme</a>`):' · <span class="no-poa">⚠ ohne Vollmacht zur Abnahme</span>'):''}</span>`:'';
+    // Seit 1.8.59: beim Auftraggeber die unterschreibende Person; die Vollmacht immer mit Art ("Vollmacht zur Abnahme: ja/nein"),
+    // als Warnung nur beim Zweck "abnahme" (signer_poa_warning vom Server).
+    const poaText=a=>a.signer_kind!=='beteiligter'?'':(a.signer_poa?` · Vollmacht zur Abnahme: ja${IS_FIELD?'':` (<a href="/api/checklist-attachments/${a.id}/power-of-attorney" target="_blank" rel="noopener">ansehen</a>)`}`:(a.signer_poa_warning?' · <span class="no-poa">⚠ Vollmacht zur Abnahme: nein</span>':' · Vollmacht zur Abnahme: nein'));
+    const signerLine=a=>a.signer_kind?`<span class="signer-line">Unterzeichner: ${esc(a.signer_kind_label)}${a.signer_person?` – unterschrieben von ${esc(a.signer_person)}${a.signer_function?` (${esc(a.signer_function)})`:''}`:''}${a.signer_role?` (${esc(a.signer_role)})`:''}${poaText(a)}</span>`:'';
     const meta=a=>[a.created_at_local?a.created_at_local+' Uhr':null,a.content_sha256?'Prüfsumme '+a.content_sha256.slice(0,12)+'…':null].filter(Boolean).join(' · ');
     return `<div class="sig-list">${list.map(a=>`<div class="sig"><img src="${a.url}" alt="Unterschrift"><span class="name">${esc(a.signer_name)}${signerLine(a)}<span class="sig-meta"${a.content_sha256?` title="SHA-256 des unterschriebenen Inhalts: ${esc(a.content_sha256)}"`:''}>${esc(meta(a))}</span>${sealLine(a)}</span></div>`).join('')||(canAdd?'':'<span class="muted">Keine Unterschrift.</span>')}</div>
       ${canAdd?`${missingBeforeHtml(f)}<canvas id="pad_${f.id}" class="dk-unterschrift"></canvas>
@@ -764,6 +769,11 @@ async function saveSignature(fieldId){
     const nameEl=document.getElementById('padName_'+fieldId),name=(nameEl.value||'').trim();
     if(!name){setStatus(fieldId,'Bitte den Namen der unterschreibenden Person eintragen.',true);nameEl.focus();return}
     extra.signer_name=name;
+  }else if(mode==='auftraggeber'){  // seit 1.8.59: wer für den Auftraggeber unterschreibt, Pflicht
+    const per=document.getElementById('padPerson_'+fieldId),fn=document.getElementById('padFunction_'+fieldId);
+    if(!(per.value||'').trim()){setStatus(fieldId,'Bitte den Namen der Person eintragen, die für den Auftraggeber unterschreibt.',true);per.focus();return}
+    extra.signer_person=per.value.trim();
+    if((fn.value||'').trim())extra.signer_function=fn.value.trim();
   }else if(mode==='beteiligter'){  // seit 1.8.57: den Namen setzt der Server
     const sel=document.getElementById('padPart_'+fieldId);
     if(!sel.value){setStatus(fieldId,'Bitte den Beteiligten wählen, der unterschreibt.',true);sel.focus();return}

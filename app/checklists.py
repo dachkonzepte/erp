@@ -132,7 +132,9 @@ COMPLETION_TEXTS = {**SEAL_TEXTS, "ohne_pruefsumme": "Ohne Prüfsumme abgeschlos
 # Siegelformat neuer Unterschriften (seit 1.8.57): Kopf "v": 3 mit dem Unterzeichner, Zeitpunkt und Prüfsumme des Bilds.
 # An der Unterschrift steht ihr Format (seal_format); leer = vor 1.8.57 ("v": 2 mit Kopie bzw. 1.8.13 ohne).
 SEAL_FORMAT = 3
+ABNAHME_PURPOSE = "abnahme"  # ohne Vollmacht zur Abnahme warnt die Unterschrift nur bei diesem Zweck (seit 1.8.59)
 MAX_SIGNER_NAME = 160
+MAX_SIGNER_FUNCTION = 120
 
 
 # --- Hilfen ---------------------------------------------------------------------------------
@@ -347,6 +349,10 @@ def signer_content(signature: ChecklistAttachment, image_sha256: str | None) -> 
         "poa": ({"sha256": signature.signer_poa_sha256, "content_type": signature.signer_poa_content_type}
                 if signature.signer_poa_sha256 else None),
         "signed_at": signature.created_at.isoformat() if signature.created_at else None, "image_sha256": image_sha256,
+        # seit 1.8.59 (Auftraggeber laut Auftrag): die unterschreibende Person und ihre Funktion -- nur wenn gesetzt, so
+        # rechnen Siegel von 1.8.57/1.8.58 unverändert nach; eine am ORM vorbei gesetzte oder entfernte Person ändert den Inhalt
+        **({"person": signature.signer_person} if signature.signer_person else {}),
+        **({"function": signature.signer_function} if signature.signer_function else {}),
     }
 
 
@@ -517,6 +523,11 @@ def _attachment_dict(a: ChecklistAttachment) -> dict:
         "signer_kind": a.signer_kind, "signer_kind_label": SIGNER_MODES.get(a.signer_kind) if a.signer_kind else None,
         "signer_role": a.signer_role, "signer_poa": bool(a.signer_poa_sha256),
         "signer_without_poa": a.signer_kind == "beteiligter" and not a.signer_poa_sha256, "seal_format": a.seal_format,
+        # seit 1.8.59: Person und Funktion beim Auftraggeber laut Auftrag; ohne Vollmacht zur Abnahme als Warnung nur beim
+        # Zweck "abnahme" -- sonst ist "Vollmacht zur Abnahme: nein" nur eine Angabe
+        "signer_person": a.signer_person, "signer_function": a.signer_function,
+        "signer_poa_warning": (a.signer_kind == "beteiligter" and not a.signer_poa_sha256
+                               and a.checklist.template_version.purpose == ABNAHME_PURPOSE),
     }
 
 
@@ -999,11 +1010,19 @@ def save_answer(db: Session, checklist_id: int, field_id: int, value, *, recorde
 
 def _signer(db: Session, checklist: Checklist, field: ChecklistTemplateField, existing: list[ChecklistAttachment], *,
             signer_name: str | None, participant_id: int | None, account_user_id: int | None,
-            account_name: str | None) -> tuple[dict, tuple[bytes, str] | None]:
+            account_name: str | None, signer_person: str | None = None,
+            signer_function: str | None = None) -> tuple[dict, tuple[bytes, str] | None]:
     """Wer unterschreibt (seit 1.8.57), nach dem Unterzeichner des Felds: (Spalten der Unterschrift, eingefrorene
     Vollmacht oder None). Außer bei "frei" setzt der Server den Namen -- ein mitgeschickter Name ist ein Fehler, keine
-    stille Umdeutung. ValueError (400), ChecklistLocked (409) für eine zweite Unterschrift derselben Person im Feld."""
+    stille Umdeutung. ValueError (400), ChecklistLocked (409) für eine zweite Unterschrift derselben Person im Feld.
+    Seit 1.8.59 beim Auftraggeber laut Auftrag Pflicht: der Name der Person, die unterschreibt (signer_person, ohne
+    Vorbelegung), dazu optional ihre Funktion -- bei jedem anderen Unterzeichner ein Fehler."""
     mode = field.signer_mode or "frei"
+    person = " ".join((signer_person or "").split()) or None
+    function = " ".join((signer_function or "").split()) or None
+    if (person or function) and mode != "auftraggeber":
+        raise ValueError("Name und Funktion der unterschreibenden Person gehören nur zum Unterzeichner "
+                         f"„{SIGNER_MODES['auftraggeber']}“.")
     if participant_id is not None and mode != "beteiligter":
         raise ValueError(f"Ein Beteiligter gehört nur zu einem Unterschriftsfeld „{SIGNER_MODES['beteiligter']}“.")
     if mode == "frei":
@@ -1029,7 +1048,14 @@ def _signer(db: Session, checklist: Checklist, field: ChecklistTemplateField, ex
         name = " ".join((order.customer_name or "").split())
         if not name:
             raise ValueError("Am Auftrag steht kein Auftraggeber.")
-        return {"signer_kind": "auftraggeber", "signer_name": name[:MAX_SIGNER_NAME]}, None
+        if not person:
+            raise ValueError("Bitte den Namen der Person angeben, die für den Auftraggeber unterschreibt.")
+        if len(person) > MAX_SIGNER_NAME:
+            raise ValueError(f"Der Name der unterschreibenden Person ist zu lang (höchstens {MAX_SIGNER_NAME} Zeichen).")
+        if function and len(function) > MAX_SIGNER_FUNCTION:
+            raise ValueError(f"Die Funktion ist zu lang (höchstens {MAX_SIGNER_FUNCTION} Zeichen).")
+        return {"signer_kind": "auftraggeber", "signer_name": name[:MAX_SIGNER_NAME], "signer_person": person,
+                "signer_function": function}, None
     if participant_id is None:
         raise ValueError("Bitte den Beteiligten wählen, der unterschreibt.")
     participant = db.get(ProjectParticipant, participant_id)
@@ -1051,7 +1077,8 @@ def _signer(db: Session, checklist: Checklist, field: ChecklistTemplateField, ex
 def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *, signer_name: str | None = None,
                    created_by_employee_id: int | None = None, client_uuid: str | None = None,
                    participant_id: int | None = None, account_user_id: int | None = None,
-                   account_name: str | None = None) -> dict:
+                   account_name: str | None = None, signer_person: str | None = None,
+                   signer_function: str | None = None) -> dict:
     """Foto, Beleg oder Unterschrift. Seit 1.8.57 bei einer Unterschrift: participant_id (Unterzeichner "Beteiligter"),
     account_user_id/account_name (das angemeldete Konto, vom Router -- für "konto"); signer_name nur bei "frei"."""
     checklist = _load(db, checklist_id, for_update=True)
@@ -1098,8 +1125,9 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
     if kind == "unterschrift":
         signer, frozen_poa = _signer(db, checklist, field, existing, signer_name=signer_name,
                                      participant_id=participant_id, account_user_id=account_user_id,
-                                     account_name=account_name)
-    elif participant_id is not None or signer_name:
+                                     account_name=account_name, signer_person=signer_person,
+                                     signer_function=signer_function)
+    elif participant_id is not None or signer_name or signer_person or signer_function:
         raise ValueError("Name und Beteiligter gehören nur zu einer Unterschrift.")
 
     maximum = 1 if single_signature else (field.max_count or MAX_ATTACHMENTS_PER_FIELD)
@@ -1164,16 +1192,23 @@ def get_attachment(db: Session, attachment_id: int) -> ChecklistAttachment | Non
     return db.get(ChecklistAttachment, attachment_id)
 
 
-def signer_text(signature: ChecklistAttachment) -> str | None:
-    """Unterzeichner einer Unterschrift ab 1.8.57 als Zeile (Seite und PDF): Art, bei einem Beteiligten Rolle und Vollmacht
-    zur Abnahme. None bei älteren Unterschriften."""
+def signer_text(signature: ChecklistAttachment, purpose_key: str | None = None) -> str | None:
+    """Unterzeichner einer Unterschrift ab 1.8.57 als Zeile (Seite und PDF): Art, beim Auftraggeber laut Auftrag die
+    unterschreibende Person und Funktion (seit 1.8.59), bei einem Beteiligten Rolle und "Vollmacht zur Abnahme: ja/nein" --
+    immer mit der Art der Vollmacht, als Warnung ("Achtung") nur beim Zweck "abnahme" (seit 1.8.59). None bei älteren
+    Unterschriften."""
     if not signature.signer_kind:
         return None
     text = f"Unterzeichner: {SIGNER_MODES.get(signature.signer_kind, signature.signer_kind)}"
+    if signature.signer_person:
+        text += f", unterschrieben von {signature.signer_person}"
+        text += f" ({signature.signer_function})" if signature.signer_function else ""
     if signature.signer_kind == "beteiligter":
         text += f" ({signature.signer_role})" if signature.signer_role else ""
-        text += (f", Vollmacht zur Abnahme festgehalten (SHA-256 {signature.signer_poa_sha256})" if signature.signer_poa_sha256
-                 else " – ohne Vollmacht zur Abnahme")
+        if signature.signer_poa_sha256:
+            text += f", Vollmacht zur Abnahme: ja (SHA-256 {signature.signer_poa_sha256})"
+        else:
+            text += ", Achtung: Vollmacht zur Abnahme: nein" if purpose_key == ABNAHME_PURPOSE else ", Vollmacht zur Abnahme: nein"
     return text
 
 

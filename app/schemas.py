@@ -4683,6 +4683,7 @@ class ChecklistTemplateOut(BaseModel):
     purpose_locked: bool = False  # seit der ersten Veröffentlichung festgelegt (1.8.16)
     system_field_problems: list[str] = []  # Entwurf gegen die Systemfelder des Zwecks (1.8.16)
     published_system_field_problems: list[str] = []  # ohne Entwurf: gültige Fassung gegen den Zweck (1.8.45)
+    signer_fill_findings: list[dict] = []  # seit 1.8.59: Unterschrift des Monteurs unter Pflichtfeldern nur fürs Büro
     contexts: list[str]
     field_readable: bool
     sort_order: int
@@ -4797,6 +4798,9 @@ class ChecklistAttachmentOut(BaseModel):
     signer_poa: bool = False
     signer_without_poa: bool = False
     seal_format: int | None = None
+    signer_person: str | None = None  # seit 1.8.59: wer für den Auftraggeber laut Auftrag unterschreibt
+    signer_function: str | None = None
+    signer_poa_warning: bool = False  # ohne Vollmacht zur Abnahme -- als Warnung nur beim Zweck "abnahme"
     url: str
     content_type: str = "image/jpeg"  # seit 1.8.45: ein Beleg ist application/pdf oder ein Bild
 

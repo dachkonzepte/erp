@@ -130,7 +130,7 @@ def test_customer_signer_is_the_customer_of_the_order(abnahme, router_test_clien
     office = _client(abnahme, router_test_client, "office")
     c = _start(abnahme, office)
     assert c["signer_choices"][str(_fields(c)["ag"])] == {"mode": "auftraggeber", "name": "Kunde Nord"}
-    a, row = _sig(abnahme, _sign(office, c, "ag").json(), "ag")
+    a, row = _sig(abnahme, _sign(office, c, "ag", signer_person="Klara Kundin").json(), "ag")
     assert (row.signer_kind, row.signer_name, a["signer_kind_label"]) == ("auftraggeber", "Kunde Nord",
                                                                            "Auftraggeber laut Auftrag")
     # Ein späterer Kundenname am Auftrag ändert die Unterschrift nicht (Schnappschuss im Siegel).
@@ -222,7 +222,7 @@ def test_attack_replay_with_same_key_cannot_change_the_signer(abnahme, router_te
 def test_attack_signer_changed_at_the_orm_is_refused(abnahme, router_test_client):
     office = _client(abnahme, router_test_client, "office")
     c = _start(abnahme, office)
-    _, row = _sig(abnahme, _sign(office, c, "ag").json(), "ag")
+    _, row = _sig(abnahme, _sign(office, c, "ag", signer_person="Klara Kundin").json(), "ag")
     db = abnahme["db"]
     for feld, wert in (("signer_name", "Mallory"), ("signer_kind", "frei"), ("seal_format", 2),
                        ("signer_participant_id", abnahme["bau"].id), ("stored_filename", "anderes.png")):
@@ -259,7 +259,7 @@ def test_attack_signer_changed_in_the_database_is_detected(abnahme, router_test_
 def test_attack_image_replaced_on_disk_is_detected(abnahme, router_test_client):
     office = _client(abnahme, router_test_client, "office")
     c = _start(abnahme, office)
-    _, row = _sig(abnahme, _sign(office, c, "ag").json(), "ag")
+    _, row = _sig(abnahme, _sign(office, c, "ag", signer_person="Klara Kundin").json(), "ag")
     checklists_module.attachment_path(row).write_bytes(_bild(size=(310, 90)))  # ein anderes Bild
     body = office.get(f"/api/checklists/{c['id']}").json()
     seal = next(x for x in body["attachments"] if x["id"] == row.id)["seal"]
@@ -344,7 +344,7 @@ def test_pages_show_the_signer_by_mode():
     page = (root / "checklist.html").read_text(encoding="utf-8")
     assert "function signerInput(f,prefill)" in page and 'data-signer="${f.id}"' in page and "padPart_" in page
     assert "extra.participant_id=sel.value" in page and "extra.signer_name=name" in page
-    assert "power-of-attorney" in page and "IS_FIELD?' · Vollmacht zur Abnahme festgehalten'" in page
+    assert "power-of-attorney" in page and "Vollmacht zur Abnahme: ja${IS_FIELD?" in page  # seit 1.8.59 mit Art
     editor = (root / "checklist_template.html").read_text(encoding="utf-8")
     assert 'data-k="signer_mode"' in editor and "['beteiligter','Beteiligter des Projekts" in editor
 

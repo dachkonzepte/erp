@@ -6,11 +6,12 @@ Auftrag: Feststellung (Pflicht) -> Unterschrift Auftraggeber (Auftraggeber laut 
 (Beteiligter, mehrere) -> Unterschrift Betrieb (angemeldetes Konto) -> Bemerkung -> Unterschrift Zeuge (frei). Die
 Monteurin hat die Checkliste angelegt, die Feststellung ist ausgefüllt.
 
-    Monteurin (412 px, hell)  Auftraggeber und Konto ohne Namensfeld, der Name steht fest; Beteiligte als Auswahl mit
-                              Hinweis ohne Vollmacht; ohne Wahl abgelehnt; Petra (ohne Vollmacht, gekennzeichnet) und
-                              Bernd (Vollmacht festgehalten, für sie ohne Link) unterschreiben, danach keine Wahl mehr;
-                              Auftraggeber und Konto unterschreiben; jede Unterschrift "Inhalt unverändert"; die
-                              Vollmacht über die API 403; kein waagrechter Scrollbalken.
+    Monteurin (412 px, hell)  Konto ohne Namensfeld, der Name steht fest; Auftraggeber fest, seit 1.8.59 mit Pflichtfeld
+                              "Name der unterschreibenden Person" (ohne Vorbelegung) und Funktion; Beteiligte als Auswahl
+                              mit "Vollmacht zur Abnahme: ja/nein" (Zweck allgemein: kein Warnhinweis); ohne Wahl
+                              abgelehnt; Petra und Bernd unterschreiben, danach keine Wahl mehr; Auftraggeber ohne Person
+                              abgelehnt, mit Person und Funktion unterschrieben; Konto; jede Unterschrift "Inhalt
+                              unverändert"; die Vollmacht über die API 403; kein waagrechter Scrollbalken.
     Büro (1400 px, dunkel)    Link "Vollmacht zur Abnahme" an Bernds Unterschrift liefert das PDF (nosniff); Editor zeigt
                               "Unterzeichner" mit den vier Arten, gesperrt in der veröffentlichten Fassung.
 
@@ -130,20 +131,24 @@ async def pruefen(tab, seed, p):
     p.pruefe("Auftraggeber und Konto: Name fest, kein Namensfeld", await tab.js(
         f"[document.querySelector('[data-signer=\"{f['ag']}\"]')?.textContent, document.querySelector('[data-signer=\"{f['betrieb']}\"]')?.textContent, "
         f"!document.getElementById('padName_{f['ag']}'), !document.getElementById('padName_{f['betrieb']}'), !!document.getElementById('padName_{f['zeuge']}')]"),
-        ["Unterschreibt: Hallenbau GmbH (Auftraggeber laut Auftrag)", "Unterschreibt: Mia Monteurin (angemeldetes Konto)",
+        ["Für: Hallenbau GmbH (Auftraggeber laut Auftrag)", "Unterschreibt: Mia Monteurin (angemeldetes Konto)",
          True, True, True])
+    p.pruefe("Auftraggeber: Person Pflicht, ohne Vorbelegung, Funktion optional", await tab.js(
+        f"[document.getElementById('padPerson_{f['ag']}').value, document.getElementById('padPerson_{f['ag']}').placeholder, "
+        f"document.getElementById('padFunction_{f['ag']}').placeholder]"),
+        ["", "Name der unterschreibenden Person", "Funktion (optional)"])
     p.pruefe("Beteiligte: Auswahl ohne Vorauswahl", await tab.js(
         f"[...document.getElementById('padPart_{f['bet']}').options].map(o=>o.textContent)"),
-        ["– Beteiligten wählen –", "Bernd Bau (Bauleitung des Auftraggebers)", "Petra Plan (Architekt/Planer) – ohne Vollmacht"])
+        ["– Beteiligten wählen –", "Bernd Bau (Bauleitung des Auftraggebers) · Vollmacht zur Abnahme: ja",
+         "Petra Plan (Architekt/Planer) · Vollmacht zur Abnahme: nein"])
     await _zeichnen(tab, f["bet"])
     await tab.js(_knopf(f["bet"]))
     await tab.warten(f"document.getElementById('st_{f['bet']}').classList.contains('err')", 10)
     p.pruefe("Ohne Wahl abgelehnt", await tab.js(f"document.getElementById('st_{f['bet']}').textContent"),
              "Bitte den Beteiligten wählen, der unterschreibt.")
     await tab.js(f"(s=>{{s.selectedIndex=2;s.dispatchEvent(new Event('change'))}})(document.getElementById('padPart_{f['bet']}'))")
-    p.pruefe("Petra gewählt: Hinweis ohne Vollmacht", await tab.js(
-        f"(h=>[h.hidden,h.textContent.includes('keine Vollmacht zur Abnahme')])(document.getElementById('padPoa_{f['bet']}'))"),
-        [False, True])
+    p.pruefe("Petra gewählt: kein Warnhinweis (Zweck allgemein, seit 1.8.59)", await tab.js(
+        f"document.getElementById('padPoa_{f['bet']}').hidden"), True)
     await tab.js(_knopf(f["bet"]))
     await tab.warten(f"document.querySelectorAll('#q_{f['bet']} .sig').length===1", 10)
     await _zeichnen(tab, f["bet"])
@@ -152,17 +157,25 @@ async def pruefen(tab, seed, p):
     await tab.js(_knopf(f["bet"]))
     await tab.warten(f"document.querySelectorAll('#q_{f['bet']} .sig').length===2", 10)
     p.pruefe("Beteiligte: Art, Rolle, Vollmacht je Unterschrift (Monteurin ohne Link)", await tab.js(zeile("bet")), [
-        "Petra Plan | Unterzeichner: Beteiligter des Projekts (Architekt/Planer) · ⚠ ohne Vollmacht zur Abnahme",
-        "Bernd Bau | Unterzeichner: Beteiligter des Projekts (Bauleitung des Auftraggebers) · Vollmacht zur Abnahme festgehalten"])
+        "Petra Plan | Unterzeichner: Beteiligter des Projekts (Architekt/Planer) · Vollmacht zur Abnahme: nein",
+        "Bernd Bau | Unterzeichner: Beteiligter des Projekts (Bauleitung des Auftraggebers) · Vollmacht zur Abnahme: ja"])
     p.pruefe("Beteiligte: keiner mehr zur Wahl, kein Link für die Monteurin", await tab.js(
         f"[[...document.getElementById('padPart_{f['bet']}').options].length, document.querySelectorAll('#q_{f['bet']} a[href*=power-of-attorney]').length]"),
         [1, 0])
-    for key in ("ag", "betrieb"):
-        await _zeichnen(tab, f[key])
-        await tab.js(_knopf(f[key]))
-        await tab.warten(f"document.querySelectorAll('#q_{f[key]} .sig').length===1", 10)
-    p.pruefe("Auftraggeber und Konto unterschrieben", [await tab.js(zeile("ag")), await tab.js(zeile("betrieb"))], [
-        ["Hallenbau GmbH | Unterzeichner: Auftraggeber laut Auftrag"],
+    await _zeichnen(tab, f["ag"])
+    await tab.js(_knopf(f["ag"]))
+    await tab.warten(f"document.getElementById('st_{f['ag']}').classList.contains('err')", 10)
+    p.pruefe("Auftraggeber ohne Person abgelehnt", await tab.js(f"document.getElementById('st_{f['ag']}').textContent"),
+             "Bitte den Namen der Person eintragen, die für den Auftraggeber unterschreibt.")
+    await tab.js(f"document.getElementById('padPerson_{f['ag']}').value='Herbert Halle';"
+                 f"document.getElementById('padFunction_{f['ag']}').value='Geschäftsführer'")
+    await tab.js(_knopf(f["ag"]))
+    await tab.warten(f"document.querySelectorAll('#q_{f['ag']} .sig').length===1", 10)
+    await _zeichnen(tab, f["betrieb"])
+    await tab.js(_knopf(f["betrieb"]))
+    await tab.warten(f"document.querySelectorAll('#q_{f['betrieb']} .sig').length===1", 10)
+    p.pruefe("Auftraggeber (mit Person und Funktion) und Konto unterschrieben", [await tab.js(zeile("ag")), await tab.js(zeile("betrieb"))], [
+        ["Hallenbau GmbH | Unterzeichner: Auftraggeber laut Auftrag – unterschrieben von Herbert Halle (Geschäftsführer)"],
         ["Mia Monteurin | Unterzeichner: angemeldetes Konto"]])
     alle = await tab.js(sigs)
     p.pruefe("Vier Unterschriften, Siegelformat 3, jede unverändert",
@@ -201,4 +214,4 @@ async def pruefen(tab, seed, p):
 
 
 if __name__ == "__main__":
-    sys.exit(klicktest_main(befuellen, pruefen, beschreibung="Unterzeichner je Unterschriftsfeld (1.8.57)", uhr="10:00"))
+    sys.exit(klicktest_main(befuellen, pruefen, beschreibung="Unterzeichner je Unterschriftsfeld (1.8.57, 1.8.59)", uhr="10:00"))

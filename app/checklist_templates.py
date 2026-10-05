@@ -81,6 +81,15 @@ SIGNER_MODES = {
 ORDER_SIGNER_MODES = ("auftraggeber", "beteiligter")  # nur an einer Checkliste zum Auftrag
 SINGLE_SIGNER_MODES = ("konto", "auftraggeber")  # immer genau eine Person -- nie "mehrere Unterschriften"
 
+# Seit 1.8.59: Unterschriften, die der Monteur leisten kann, unter Pflichtfeldern, die nur das Büro ausfüllt -- bekannte
+# Ausnahmen aus einem Zweck, je mit Grund. Darf nur kürzer werden (Entscheidung offen, siehe
+# docs/archiv/abnahme-und-gewaehrleistung.md, "Umsetzung 1.8.59").
+SIGNER_FILL_EXCEPTIONS = {
+    ("behinderungsanzeige", "behinderungsanzeige.unterschrift_wegfall"):
+        "Wegfall: Monteur oder Büro (1.8.38) -- unterschreibt der Monteur, wartet er seit 1.8.56, bis das Büro die "
+        "Anzeige ausgefüllt hat",
+}
+
 # Obergrenze Fotos/Belege/Unterschriften je Feld -- Speicherbudget des 4-GB-Servers (PDF mit Fotos).
 MAX_ATTACHMENTS_PER_FIELD = 20
 
@@ -197,6 +206,12 @@ def template_to_dict(template: ChecklistTemplate, *, with_editable_version: bool
         # geändert (z. B. "Antwort als Beleg" jetzt PDF oder Foto), sagt der Editor es; ein neuer Entwurf gleicht an.
         data["published_system_field_problems"] = (
             system_field_problems(template.purpose, published) if published and not draft else [])
+        # Seit 1.8.59: Unterschrift des Monteurs unter Pflichtfeldern nur fürs Büro -- im Entwurf lehnt das Veröffentlichen
+        # ab, an der gültigen Fassung ein Hinweis (auch bekannte Ausnahmen, gekennzeichnet).
+        shown = draft or published
+        data["signer_fill_findings"] = [
+            {"text": text, "known_exception": (template.purpose, key) in SIGNER_FILL_EXCEPTIONS}
+            for key, text in (signer_fill_findings(template.purpose, shown) if shown else [])]
     return data
 
 
@@ -291,6 +306,36 @@ def _apply_template_meta(template: ChecklistTemplate, *, label: str, description
     for context, column in CONTEXT_COLUMNS.items():
         setattr(template, column, context in contexts)
     template.field_readable = bool(field_readable)
+
+
+def _office_only_field(purpose_key: str | None, field: ChecklistTemplateField) -> bool:
+    spec = system_field_spec(purpose_key, field.field_key) if field.is_system else None
+    return bool(spec and spec.office_only)
+
+
+def signer_fill_findings(purpose_key: str | None, version: ChecklistTemplateVersion) -> list[tuple[str, str]]:
+    """Seit 1.8.59: je Unterschriftsfeld, das auch der Monteur leisten kann (nicht "nur Büro"), die Pflichtfelder darüber,
+    die nur das Büro ausfüllt -- dort könnte der Unterzeichner sie nicht ausfüllen, und seine Unterschrift verlangt sie
+    (seit 1.8.56). Liefert (Feldschlüssel der Unterschrift, Text). Pflicht wie beim Abschließen: required oder
+    Mindestanzahl. Ein Zweck, den nur das Büro ausfüllt, hat keine solchen Felder."""
+    findings = []
+    fields = version.fields
+    for index, signature in enumerate(fields):
+        if signature.field_type != "unterschrift" or _office_only_field(purpose_key, signature):
+            continue
+        blocked = [f.label for f in fields[:index]
+                   if f.field_type not in ("hinweis", "unterschrift") and (f.required or (f.min_count or 0) > 0)
+                   and _office_only_field(purpose_key, f)]
+        if blocked:
+            findings.append((signature.field_key, f"„{signature.label}“ kann auch der Monteur unterschreiben, darüber stehen "
+                                                  f"Pflichtfelder, die nur das Büro ausfüllt: {', '.join(blocked)}."))
+    return findings
+
+
+def signer_fill_problems(purpose_key: str | None, version: ChecklistTemplateVersion) -> list[str]:
+    """Was davon das Veröffentlichen ablehnt -- ohne die bekannten Ausnahmen (SIGNER_FILL_EXCEPTIONS)."""
+    return [text for key, text in signer_fill_findings(purpose_key, version)
+            if (purpose_key, key) not in SIGNER_FILL_EXCEPTIONS]
 
 
 def order_only_signer_labels(version: ChecklistTemplateVersion) -> list[str]:
@@ -489,6 +534,7 @@ def validate_version_for_publish(template: ChecklistTemplate, version: Checklist
     labels = order_only_signer_labels(version)
     if labels and set(template_contexts(template)) != {"auftrag"}:
         problems.append(_order_only_text(labels))
+    problems.extend(signer_fill_problems(template.purpose, version))  # seit 1.8.59
     answerable = [f for f in version.fields if f.field_type != "hinweis"]
     if not answerable:
         problems.append("Die Vorlage braucht mindestens ein Feld, das ausgefüllt wird.")
