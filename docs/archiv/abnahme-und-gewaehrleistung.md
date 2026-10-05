@@ -18,6 +18,7 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 |---|---|---|---|
 | **2c-1** | 1.8.46, 1.8.47 | Fundament: Regel-20-Test auch für Spaltenvorgaben, Datengrenze (Strafe, Einbehalt), Leistungsart und Gewährleistungsdauer am Auftrag, Abnahme (unveränderlich, Verwerfen, Historie), Gewährleistungsende abgeleitet an Auftrag/Objekt/Dachfläche, Garantie Dritter an der Dachfläche mit Teil-Update, Abgleich gesperrt nach Abnahme (1.8.46); Vollmacht zur Abnahme am Beteiligten, Begründung und Vorschau nach der ersten Abnahme, Nachweis "förmlich: Beleg, sonst Beleg oder Begründung", "Gewährleistung regulär bis" (1.8.47) | erledigt |
 | **2c-2a** | 1.8.48–1.8.50 | Vorweg: Prüfstatus neben jedem Gewährleistungsende (eine Funktion, `logger.error` bei Abweichung), Siegel des Verwerfens, Fassung des Prüfsummenformats (1.8.48); Mängel aus der Abnahme mit Haltung, Status, Freigabe, Verlauf, Aufgabe und "Nachbesserung regulär bis" (1.8.49); Platzhalter `{gewaehrleistung}`, Festschreiben erst mit Dauer, danach Dauer und Leistungsart gesperrt (1.8.50) | erledigt |
+| **2c-2b** | 1.8.51 | Vorweg: Sperre an eine gültige Fassung binden (nur gemeldet -- es gibt kein Zurückziehen einer Fassung), Belege am Mangel nachreichen, Aufgabentitel mit Kurzfassung, CLAUDE.md `update.sh`/`backup.sh` (1.8.51); Monteur-Sicht auf Mängel in `/mobil` | Punkt 0 erledigt |
 
 Nach jeder Runde die Spalten "Version"/"Stand" nachziehen und unten einen Abschnitt "Umsetzung 1.8.x" ergänzen.
 
@@ -190,7 +191,8 @@ Stand nach der Rückmeldung vom 04.10.2026: **bestätigt** 4 (nur "erst Monate, 
    `dachkonzepte_erp.db` (Regel 16) und legte dort per `create_all()` 20 leere Tabellen an; Daten unverändert (Vergleich
    mit der Sicherung v1.8.45). Tabellen wieder entfernt, Schema danach gleich der Sicherung.
 2. **Neuer Datenordner `acceptance_documents`** unter `ERP_DATA_DIR`: `backup_windows.ps1` sichert `data/` ganz; ob
-   `/home/tobias/backup.sh` den ganzen Datenordner sichert, steht nicht im Repo -- bitte prüfen.
+   `/home/tobias/backup.sh` den ganzen Datenordner sichert, steht nicht im Repo -- bitte prüfen. **Beantwortet
+   05.10.2026**: `backup.sh` sichert `erp-data` vollständig (CLAUDE.md, Serverumgebung).
 3. Die Dachfläche hat weiterhin keine Änderungshistorie (`AUDITED_TYPES`, Befund 2c Nr. 7) -- die Garantie Dritter
    ändert sich ohne Spur.
 
@@ -287,7 +289,7 @@ Prüfsummen nicht neu berechnen, sondern die Fassung des Prüfsummenformats mits
 - **Migration `9c5a97bc71ef`**: beide Spalten, vorhandene Einträge `checksum_format` 1 (server_default), Prüfsummen
   unberührt. `downgrade()` verweigert, solange ein Eintrag der Fassung 2 oder ein Siegel besteht.
 
-### Festlegungen 1.8.48 (bitte bestätigen)
+### Festlegungen 1.8.48 (bestätigt am 05.10.2026, Vorgabe 2c-2b)
 
 1. **Die Fassung steht ab Fassung 2 im gebundenen Inhalt** -- sonst ließe sich ein verworfener Eintrag am ORM vorbei auf
    Fassung 1 zurücksetzen und sein Siegel löschen, und er ginge als "vor 1.8.48" durch.
@@ -366,7 +368,7 @@ ohne Zuständigkeit, fällig zur Frist, Verweis in beide Richtungen, der Mangel 
   Mangel", "Mängel: n erfasst"); nach dem Speichern Sprung zum Mangel, ebenso über den Verweis der Aufgabe
   (`/orders/<id>#mangel-<id>`).
 
-### Festlegungen 1.8.49 (bitte bestätigen)
+### Festlegungen 1.8.49 (bestätigt am 05.10.2026, Vorgabe 2c-2b; Nr. 6 seit 1.8.51 um Belege erweitert, Nr. 12 um die Kurzfassung im Titel)
 
 1. **Quelle als Feld** (`source` + `acceptance_id`): die Rüge kommt später als `source` "ruege" ohne Abnahme dazu.
 2. **An einer verworfenen Abnahme kein neuer Mangel (409), an einer ohne Vorbehalt 400.** Mängel einer später verworfenen
@@ -444,7 +446,7 @@ beim Kundenwechsel.
   Sperre den Grund (`order_to_dict()["warranty_lock_text"]`, nur in der Einzelansicht) statt Leistungsart, Vorschlag und
   Abweichung; nach dem Festlegen lädt die Vertragskarte neu.
 
-### Festlegungen 1.8.50 (bitte bestätigen)
+### Festlegungen 1.8.50 (bestätigt am 05.10.2026 außer der Sperre: Nr. 3 und 4 offen, siehe "Umsetzung 1.8.51", Punkt 0a)
 
 1. **Text der Dauer**: Jahre nur bei vollen 12 Monaten, sonst Monate; Tage mit "und"; im Entwurf ohne Dauer "nicht
    festgelegt".
@@ -477,6 +479,7 @@ beim Kundenwechsel.
 
 1. **Sicherung auf dem Server**: die Dateien der Mängel liegen unter `ERP_DATA_DIR/acceptance_documents/maengel` -- die Frage
    aus 1.8.46 (Nebenbefund 2), ob `/home/tobias/backup.sh` den ganzen Datenordner sichert, gilt damit auch für sie.
+   **Beantwortet 05.10.2026**: ja, `erp-data` vollständig.
 2. **Meldetext beim Foto**: ein SVG als Foto eines Mangels meldet "Der Beleg muss ein Foto (JPEG, PNG, WebP) oder ein PDF
    sein" -- der Text stammt aus `_checked_upload()` der Abnahme und sagt "Beleg" auch beim Foto. Abgelehnt wird richtig.
 3. **Grenze der Siegel**: ein am ORM vorbei vollständig zurückgenommenes Verwerfen (Abnahme oder Mangel) und ein entfernter
@@ -485,3 +488,85 @@ beim Kundenwechsel.
    die korrigierte Abnahme umgehängt; das Büro verwirft oder erledigt sie bei Bedarf einzeln.
 5. **Klicktest `klicktest_abnahme.py`** klickte "den ersten Knopf" einer Abnahme -- mit "+ Mangel erfassen" traf das den
    falschen; im Skript behoben (1.8.49). Ähnliche Selektoren in anderen Klicktests nicht durchgesehen.
+
+---
+
+## Umsetzung 1.8.51 (05.10.2026) -- Runde 2c-2b, Punkt 0 (Vorweg)
+
+Betreibervorgabe "Vorweg": (a) Sperre von Dauer, Leistungsart und Kundenwechsel an eine gültige festgeschriebene Fassung
+binden, eine Regel für alle drei; vor der Unterschrift Fassung mit Begründung zurückziehen, korrigieren, neu festschreiben,
+nach der Unterschrift endgültig -- gibt es das Zurückziehen noch nicht: nur melden; (b) Belege am Mangel nachreichen wie
+Fotos; (c) Aufgabentitel mit Kurzfassung des Mangeltexts, Einwände melden; (d) CLAUDE.md: eingespielt wird nur mit
+`update.sh`, `backup.sh` sichert `erp-data` vollständig. Festlegungen 1.8.48–1.8.50 bestätigt außer der Sperre.
+
+### Punkt 0a: Sperre an eine gültige Fassung -- nur gemeldet, nicht gebaut
+
+Ein Zurückziehen einer Fassung gibt es nicht (geprüft: `app/contract_versions.py`, `app/contract_signatures.py`,
+Routen `app/routers/contract_templates.py`). Stand heute -- drei Regeln, keine davon kennt "gültig":
+
+| Sperre | Funktion | greift ab | endet |
+|---|---|---|---|
+| Kundenwechsel im Projekt (1.8.44) | `project_participants.py::check_client_change()` | irgendeine Fassung irgendeines Auftrags des Projekts | nie |
+| Dauer und Leistungsart (1.8.50) | `warranty.py::warranty_contract_lock()` | irgendeine Fassung, deren `used_placeholders` `{gewaehrleistung}` enthält (auch überholte) | nie |
+| neue Fassung (1.8.33/1.8.34) | `contract_versions.py::start_new_version()` | -- | ab Unterschrift keine neue Fassung |
+
+"Neue Fassung" macht den festgeschriebenen Vertrag ohne Begründung wieder zum Entwurf; die bisherige Fassung bleibt die
+geltende (`superseded_at` leer), bis eine neue festgeschrieben ist, und ist bis dahin weiter versendbar. Ein Zurückziehen
+im Sinn der Vorgabe (Fassung ungültig, mit Begründung, danach korrigieren) fehlt.
+
+Vorschlag für die Umsetzung (bitte entscheiden):
+1. **"Fassung zurückziehen"** nur bei Status "festgeschrieben" (nicht nach der Unterschrift), Büro, Pflicht-Begründung;
+   bedingtes UPDATE mit Siegel wie beim Verwerfen der Abnahme (`withdrawn_at`/`_by_name`/`_reason`/`withdraw_sha256` an
+   `OrderContractVersion`), Vertrag zurück auf "entwurf", Zeile in der Änderungshistorie. Die Fassung bleibt sichtbar und in
+   der Ablage, wird aber nicht mehr versendet oder zugestellt.
+2. **Eine Regel** `contract_lock(db, order)`: gesperrt, solange der Auftrag eine **gültige** Fassung hat (festgeschrieben oder
+   unterschrieben, nicht zurückgezogen, nicht überholt). Offen: sperrt eine gültige Fassung Dauer und Leistungsart **immer**
+   (wie den Kunden) oder nur, wenn sie `{gewaehrleistung}` nutzt (heute Festlegung 1.8.50 Nr. 4)?
+3. **"Neue Fassung"** ersetzen durch "zurückziehen" oder daneben behalten? Heute erlaubt sie das Korrigieren ohne
+   Begründung, die alte Fassung bleibt bis dahin gültig.
+4. **Schon versendete Fassung zurückziehen**: nur mit Hinweis, dass der Kunde sie hat (Versandverlauf), oder gesperrt?
+
+### Punkt 0b: Belege nachreichen
+
+- `app/defects.py::add_receipts()`, `POST /api/defects/{id}/receipts` (multipart "receipts", ab `buero_auftrag`): neuer
+  Eintrag im Verlauf `kind` "belege" ("Belege ergänzt"), Dateien Art "beleg" -- PDF oder Foto, am Inhalt erkannt, gleiche
+  Grenzen wie beim Erfassen. Keine Migration (`kind` ist ein Text, der Inhalt des Eintrags hat schon `files`).
+- Karte "Mängel": Knopf "Belege ergänzen …" neben "Fotos ergänzen …"; der Verlauf zeigt "n Belege ergänzt" mit den Dateien.
+
+### Punkt 0c: Aufgabentitel mit Kurzfassung
+
+`_new_task()`: Titel "Mangel aus Abnahme <Auftrag> – <Dachfläche bzw. Ort>: <Kurzfassung>" (ohne Ort ohne den Teil davor),
+Kurzfassung über `short_text()` (Leerraum zusammengezogen, höchstens 60 Zeichen, an einer Wortgrenze mit "…"). Die
+Beschreibung der Aufgabe bleibt bei Metadaten. Bestehende Aufgaben behalten ihren Titel.
+
+**Gemeldet, was dagegen sprechen kann** (gebaut trotzdem, weil es alle Aufgabentitel gleich trifft): wird die Aufgabe
+übernommen oder zugewiesen, schickt `app/tasks.py::notify_task_assignment()` (Einstellung "bei Zuweisung benachrichtigen")
+den Titel per E-Mail an die Adresse im Mitarbeiterprofil (`EmployeeProfile.email`, kann privat sein) und hält ihn im
+Versandprotokoll fest -- die Kurzfassung des Mangels verlässt dann das ERP. Monteure sehen Aufgaben nie (`/api/tasks` ist
+Büro). Der Titel ist eine bearbeitbare Kopie; maßgeblich bleibt der Mangel.
+
+### Punkt 0d: CLAUDE.md
+
+Serverumgebung (Zeilen "Sicherung" und "Einspielen") und "Der Weg einer Änderung auf den Server": eingespielt wird nur mit
+`update.sh` (auf dem Server, nicht im Repo), nie mit einzelnen `alembic`-Befehlen; die frühere Handabfolge bleibt als
+Nachweis, was ein Einspielen leisten muss. Offen vermerkt: die Probe gegen `spielwiese` bei Schemaänderungen ist dort ein
+einzelner `alembic`-Befehl.
+
+### Festlegungen 1.8.51 (bitte bestätigen)
+
+1. **Belege als eigener Eintrag "belege"**, nicht im Eintrag "fotos" -- der Verlauf unterscheidet Fotos und Belege; je
+   Speichern nur eine Art.
+2. **Belege nachreichen auch nach der Erledigung** (wie Fotos), nicht nach dem Verwerfen; nur das Büro.
+3. **Kurzfassung 60 Zeichen** an der Wortgrenze; Titel höchstens 255 Zeichen wie bisher.
+4. **Pfad von `update.sh`** in CLAUDE.md ohne Verzeichnis -- bitte den Pfad nennen, wenn er dort stehen soll.
+
+### Verifikation 1.8.51
+
+- `tests/test_v353_maengel_belege_und_titel.py` (12 Tests): Belege nur ergänzen (zwei Einträge, nichts ersetzt, Datei
+  abrufbar), ungültige Belege (keiner, SVG, doppelt) -- 400 und nichts gespeichert, nach Erledigung ja und nach Verwerfen
+  409, Monteur 403 mit Gegenprobe, Knopf auf der Auftragsseite, `short_text()`, Titel mit Dachfläche, Ort oder ohne.
+- Volle Suite 2776 grün (mit den opt-in-Tests gegen PostgreSQL). Keine Migration, keine Sperre neu -- kein eigener Lauf
+  gegen PostgreSQL nötig (die Belege laufen über dieselbe Sperre des Mangels wie Fotos, 1.8.49 gegen PostgreSQL geprüft).
+- Gegenproben (Schutz ausgehebelt, Datei byte-genau zurück): 7 von 7 rot.
+- Klicktest `klicktest_maengel.py` 35/35 (neu: "Belege ergänzen" ohne Auswahl abgelehnt, mit PDF als sechster Eintrag im
+  Verlauf, Beleg abrufbar mit nosniff, Aufgabentitel mit Kurzfassung).

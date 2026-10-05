@@ -1205,7 +1205,7 @@ class Defect(Base):
     Dachfläche stammt nur daraus (Name als Schnappschuss).
 
     Nach dem Speichern unveränderlich (ORM-Sperre unten) samt Dateien und Ereignissen: Haltung, Status, Freigabe und
-    nachgereichte Fotos sind DefectEvent-Zeilen, der Stand ergibt sich aus ihnen. Verworfen wird mit einem bedingten
+    nachgereichte Fotos und Belege sind DefectEvent-Zeilen, der Stand ergibt sich aus ihnen. Verworfen wird mit einem bedingten
     UPDATE samt Siegel (discard_sha256) in app/defects.py::discard_defect(). content_sha256 bindet den Inhalt samt
     Prüfsummen der Dateien beim Erfassen und die Fassung des Prüfsummenformats (checksum_format).
 
@@ -1245,8 +1245,8 @@ class Defect(Base):
 
 class DefectEvent(Base):
     """Ein Eintrag im Verlauf eines Mangels (seit 1.8.49): kind "haltung" (value anerkannt/bestritten), "status"
-    (beseitigt, beseitigung_abgenommen, erledigt_ohne, offen), "freigabe" (freigegeben/zurueckgenommen) oder "fotos"
-    (nur Dateien). previous_value: der Stand davor. Bei "Beseitigung abgenommen" Datum, Erklärender (wie bei der
+    (beseitigt, beseitigung_abgenommen, erledigt_ohne, offen), "freigabe" (freigegeben/zurueckgenommen), "fotos" oder
+    seit 1.8.51 "belege" (nur Dateien). previous_value: der Stand davor. Bei "Beseitigung abgenommen" Datum, Erklärender (wie bei der
     Abnahme, Vollmacht zur Abnahme als Kopie) und Beleg oder Begründung. Unveränderlich; content_sha256 bindet den
     Eintrag an den Inhalt des Mangels und an das vorige Ereignis (previous_event_sha256, Kette)."""
 

@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.50** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.51** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -96,7 +96,8 @@ Stand, den `git log` nicht erklären kann), nicht nur ein theoretisches.
 | Umgebung | `/home/tobias/erp/.env` |
 | Datenbank | `dachkonzepte` (produktiv), `spielwiese` (Probe, siehe unten) |
 | Dienst | `erp.service`, `gunicorn -w 2 --timeout 120` |
-| Sicherung | `/home/tobias/backup.sh`, täglich 2 Uhr UTC, 14 Tage Aufbewahrung |
+| Sicherung | `/home/tobias/backup.sh`, täglich 2 Uhr UTC, 14 Tage Aufbewahrung; sichert `erp-data` vollständig (Betreiberangabe 05.10.2026) |
+| Einspielen | ausschließlich `update.sh` (liegt auf dem Server, nicht im Repo), nie einzelne `alembic`-Befehle |
 | Notfallskripte | `scripts/reset_admin_2fa.py`, `scripts/migrate_sqlite_to_postgres.py` |
 | Zeitzone | `Etc/UTC` (`timedatectl`) -- Datum und Uhrzeit deshalb nur über `app/berlin_time.py`, Regel 20 |
 
@@ -121,6 +122,13 @@ Lokal bauen, volle Testsuite, bei Oberflächenänderungen zusätzlich ein Klickt
 Committen -- der Betreiber pusht (etablierte Praxis dieser Sitzungen: Claude Code committet,
 aber pusht nie ohne ausdrückliche Aufforderung). Auf dem Server: sichern, `git pull`, Abhängigkeiten,
 Migrationen, Dienst neu starten.
+
+**Seit 05.10.2026 (Betreibervorgabe): eingespielt wird nur mit `update.sh`, nie mit einzelnen
+`alembic`-Befehlen.** Das Skript liegt auf dem Server, nicht im Repo -- eine Anleitung oder ein Bericht
+nennt deshalb `update.sh`, nicht die Einzelschritte. `backup.sh` sichert `erp-data` vollständig (auch die
+Ablagen unter `ERP_DATA_DIR`, z. B. `acceptance_documents`). Die Abfolge unten ist die frühere Handabfolge
+(Stand 1.3.42) und bleibt als Nachweis dessen, was ein Einspielen leisten muss (Sicherung, Umgebung laden,
+Migration, `alembic current` als Beleg, Neustart) -- nicht zum Abtippen.
 
 **Korrigiert seit 1.3.42, nach einem realen Vorfall beim Ausliefern von 1.3.38–1.3.41** (siehe
 "Zwei Vorfälle beim Ausliefern von 1.3.38–1.3.41" unten für die volle Herleitung) -- exakt diese
@@ -147,7 +155,9 @@ Migration gegriffen hat -- "keine Fehlermeldung gesehen" ist kein Ersatz dafür,
 Bei Schemaänderungen läuft die Migration vorher zusätzlich einmal gegen `spielwiese` (die
 Probe-Datenbank auf demselben Server, nicht die lokale, portable Instanz aus der Entwicklung) --
 `DATABASE_URL=postgresql+psycopg://<user>:<pass>@localhost:5432/spielwiese .venv/bin/alembic
-upgrade head`, geprüft, danach erst die Abfolge oben gegen `dachkonzepte`.
+upgrade head`, geprüft, danach erst die Abfolge oben gegen `dachkonzepte`. **Offen seit 1.8.51**: das ist
+ein einzelner `alembic`-Befehl -- ob die Probe künftig ebenfalls über `update.sh` läuft (z. B. mit der
+Datenbank als Parameter), ist mit dem Betreiber zu klären.
 
 ### Was das für Migrationen heißt
 
@@ -693,7 +703,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   **Mangel** (`Defect`, seit 1.8.49, `app/defects.py`, bewusst nicht der Befund `Finding`): nur an einer nicht verworfenen
   Abnahme mit Vorbehalt Mängel oder Verweigerung (`acceptance_allows_defects()`), unveränderlich wie die Abnahme; Haltung,
   Status und Freigabe zur Beseitigung sind verkettete Einträge (`DefectEvent`), der Stand ergibt sich aus ihnen
-  (`defect_state()`); beim Erfassen eine Aufgabe im Büro-Eingang, die die Erledigung des Mangels mit erledigt (umgekehrt nicht).
+  (`defect_state()`); beim Erfassen eine Aufgabe im Büro-Eingang, die die Erledigung des Mangels mit erledigt (umgekehrt nicht),
+  seit 1.8.51 mit Kurzfassung der Beschreibung im Titel; Fotos und Belege nur ergänzen.
   Seit 1.8.50 setzt `{gewaehrleistung}` in Vertragsvorlagen die Dauer ein; ein Vertrag damit wird erst mit festgelegter Dauer
   festgeschrieben, danach sind Leistungsart und Dauer gesperrt (`warranty_contract_lock()`, Sperrreihenfolge Vertrag ->
   Auftrag wie beim Abgleich). Details: `docs/archiv/abnahme-und-gewaehrleistung.md`.
@@ -831,7 +842,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   oder Begründung; seit 1.8.48 Prüfstatus neben jedem Gewährleistungsende aus einer Funktion, Siegel des Verwerfens, Fassung
   des Prüfsummenformats je Abnahme; seit 1.8.49 Mängel aus der Abnahme mit Haltung, Status, Freigabe, Verlauf, Aufgabe und
   bei VOB/B "Nachbesserung regulär bis"; seit 1.8.50 Platzhalter `{gewaehrleistung}` in Vertragsvorlagen, Festschreiben erst
-  mit Dauer, danach Dauer und Leistungsart gesperrt) -- `docs/archiv/abnahme-und-gewaehrleistung.md`
+  mit Dauer, danach Dauer und Leistungsart gesperrt; seit 1.8.51 Belege am Mangel nachreichen, Aufgabentitel mit Kurzfassung,
+  Bindung der Sperren an eine gültige Fassung offen, weil es kein Zurückziehen gibt) -- `docs/archiv/abnahme-und-gewaehrleistung.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
   `docs/archiv/grunddaten-beim-start.md`

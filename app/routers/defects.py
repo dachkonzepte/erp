@@ -6,7 +6,7 @@
   Abnahme, Beteiligte mit Vollmacht zur Abnahme).
 - POST /api/order-acceptances/{acceptance_id}/defects: erfassen (multipart: "data" als JSON, "photos", "receipts").
 - POST /api/defects/{defect_id}/stance und /release (JSON), /status (multipart: "data", "receipts"), /photos
-  (multipart), /discard (JSON).
+  (multipart), seit 1.8.51 /receipts (multipart: Belege nachreichen), /discard (JSON).
 - GET /api/defects/{defect_id}/files/{file_id}: Datei, nur mit stimmender Prüfsumme.
 
 Alles ab buero_auftrag -- auch die Freigabe zur Beseitigung setzt nur das Büro; Monteure sehen nichts (403). Kein
@@ -22,7 +22,8 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
 from ..defects import (
-    MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_BYTES, AcceptanceFileError, DefectConflict, add_photos, create_defect,
+    MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_BYTES, AcceptanceFileError, DefectConflict, add_photos, add_receipts,
+    create_defect,
     defect_options, discard_defect, get_defect_dict, list_defects, read_defect_file, set_release, set_stance,
     set_status,
 )
@@ -155,6 +156,16 @@ def post_defect_photos(defect_id: int, photos: list[UploadFile] = File(default=[
     uploads = _read_uploads([("foto", photos)])
     user_id, user_name = actor_of(user)
     return _run(db, defect_id, lambda: add_photos(db, defect, uploads, user_id=user_id, user_name=user_name))
+
+
+@router.post("/api/defects/{defect_id}/receipts")
+def post_defect_receipts(defect_id: int, receipts: list[UploadFile] = File(default=[]), db: Session = Depends(get_db),
+                         user: AppUser = _role_dep):
+    """Belege nachreichen (seit 1.8.51) -- wie Fotos nur ergänzen."""
+    defect = _defect_or_404(db, defect_id)
+    uploads = _read_uploads([("beleg", receipts)])
+    user_id, user_name = actor_of(user)
+    return _run(db, defect_id, lambda: add_receipts(db, defect, uploads, user_id=user_id, user_name=user_name))
 
 
 @router.post("/api/defects/{defect_id}/discard")

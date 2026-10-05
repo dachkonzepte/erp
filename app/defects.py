@@ -17,7 +17,7 @@ nicht). Daraus ergibt sich der Stand (defect_state()):
   Beseitigung abgenommen und erledigt ohne Beseitigung sind endgültig.
 - Freigabe zur Beseitigung: nur bewusst, unabhängig von der Haltung -- bei "bestritten" mit Begründung (Kulanz);
   Zurücknehmen mit Begründung; nach einem endgültigen Status nicht mehr.
-- Fotos ergänzen: nur hinzufügen.
+- Fotos ergänzen, seit 1.8.51 auch Belege: nur hinzufügen.
 
 Nur bei Vertragsgrundlage vob_b abgeleitet (nie gespeichert): "Nachbesserung regulär bis" = das spätere von "Gewährleistung
 regulär bis" der Abnahme und Abnahme der Beseitigung plus 24 Monate (§ 13 Abs. 5 Nr. 1 Satz 3 VOB/B), mit Prüfstatus.
@@ -56,7 +56,7 @@ STATUSES = {"offen": "offen", "beseitigt": "beseitigt", "beseitigung_abgenommen"
             "erledigt_ohne": "erledigt ohne Beseitigung"}
 RELEASES = {"freigegeben": "zur Beseitigung freigegeben", "zurueckgenommen": "Freigabe zurückgenommen"}
 EVENT_KINDS = {"haltung": "Haltung", "status": "Status", "freigabe": "Freigabe zur Beseitigung",
-               "fotos": "Fotos ergänzt"}
+               "fotos": "Fotos ergänzt", "belege": "Belege ergänzt"}
 DONE_STATUSES = {"beseitigung_abgenommen", "erledigt_ohne"}
 # Status -> mögliche nächste Status. Die beiden erledigten Status haben keinen Nachfolger.
 STATUS_STEPS = {"offen": ("beseitigt", "erledigt_ohne"), "beseitigt": ("beseitigung_abgenommen", "offen")}
@@ -81,6 +81,7 @@ FILE_SUBDIR = "maengel"
 TASK_MODULE = "aufgabenmanagement"
 TASK_ROLE = "buero_auftrag"
 TASK_SOURCE = "maengel"
+TASK_SHORT_TEXT = 60  # Zeichen der Beschreibung im Aufgabentitel (seit 1.8.51)
 ENTITY_TYPE = "Mangel"  # Änderungshistorie (app/audit.py)
 
 DISCARD_TEXTS = {"unveraendert": "Verwerfen unverändert (Prüfsumme stimmt)",
@@ -267,18 +268,31 @@ def defect_options(db: Session, acceptance: OrderAcceptance) -> dict:
     }
 
 
-def _new_task(db: Session, order: Order, acceptance: OrderAcceptance, *, place: str | None, due, user_id: int | None,
-              user_name: str) -> Task | None:
+def short_text(text: str, limit: int = TASK_SHORT_TEXT) -> str:
+    """Kurzfassung eines Freitexts: Leerraum zusammengezogen, höchstens `limit` Zeichen, an einer Wortgrenze mit "…"
+    gekürzt (ein einzelnes überlanges Wort hart)."""
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit - 1]
+    if " " in cut and text[limit - 1] != " ":
+        cut = cut.rsplit(" ", 1)[0]
+    return cut.rstrip(" ,;:.-–") + "…"
+
+
+def _new_task(db: Session, order: Order, acceptance: OrderAcceptance, *, place: str | None, description: str, due,
+              user_id: int | None, user_name: str) -> Task | None:
     """Die Aufgabe zum Mangel -- in derselben Transaktion, ohne Zuständigkeit, nur fürs Büro. Ohne Aufgabenmodul keine
-    (der Mangel zeigt das). Nur Metadaten (wer, wann, welcher Auftrag, Ort), nicht die Beschreibung -- wie bei den
-    Aufgaben aus Anzeigen (app/obstruction_notices.py)."""
+    (der Mangel zeigt das). Seit 1.8.51 trägt der Titel eine Kurzfassung der Beschreibung (Betreibervorgabe 2c-2b);
+    die Beschreibung der Aufgabe bleibt bei Metadaten (wer, wann, welche Abnahme, Frist) -- wie bei den Aufgaben aus
+    Anzeigen (app/obstruction_notices.py). Der Titel ist eine Kopie: maßgeblich bleibt der Mangel."""
     from .modules import is_module_enabled
     from .tasks import _default_column_key
 
     if not is_module_enabled(db, TASK_MODULE):
         return None
     where = f" – {place}" if place else ""
-    title = f"Mangel aus Abnahme {order.order_number}{where}"[:255]
+    title = f"Mangel aus Abnahme {order.order_number}{where}: {short_text(description)}"[:255]
     due_text = due.strftime("%d.%m.%Y") if due else "keine"
     description = (f"Mangel aus der {SCOPES.get(acceptance.scope, acceptance.scope)} vom "
                    f"{acceptance.accepted_on:%d.%m.%Y} ({result_text(acceptance)}), erfasst von {user_name}. "
@@ -330,8 +344,8 @@ def create_defect(db: Session, acceptance: OrderAcceptance, data: dict, files: l
 
     written: list[str] = []
     try:
-        task = _new_task(db, order, acceptance, place=roof_area.name if roof_area else location, due=due,
-                         user_id=user_id, user_name=name)
+        task = _new_task(db, order, acceptance, place=roof_area.name if roof_area else location,
+                         description=description, due=due, user_id=user_id, user_name=name)
         defect = Defect(
             order_id=order.id, property_id=acceptance.property_id, source="abnahme", acceptance_id=acceptance.id,
             description=description, roof_area_id=roof_area.id if roof_area else None,
@@ -538,6 +552,18 @@ def add_photos(db: Session, defect: Defect, files: list[tuple[str, str | None, b
         raise ValueError("Bitte mindestens ein Foto auswählen.")
     events = _lock(db, defect)
     return _append(db, defect, events, kind="fotos", value=None, previous_value=None, files=uploads, user_id=user_id,
+                   user_name=user_name)
+
+
+def add_receipts(db: Session, defect: Defect, files: list[tuple[str, str | None, bytes]], *, user_id: int | None,
+                 user_name: str | None) -> DefectEvent:
+    """Belege ergänzen (seit 1.8.51) -- wie Fotos: nur hinzufügen, eigener Eintrag im Verlauf; PDF oder Foto, am Inhalt
+    erkannt. Auch nach der Erledigung, nicht nach dem Verwerfen."""
+    uploads = _checked_files([("beleg", name, data) for _, name, data in files], {"beleg"})
+    if not uploads:
+        raise ValueError("Bitte mindestens einen Beleg auswählen.")
+    events = _lock(db, defect)
+    return _append(db, defect, events, kind="belege", value=None, previous_value=None, files=uploads, user_id=user_id,
                    user_name=user_name)
 
 

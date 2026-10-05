@@ -4,6 +4,20 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.51 – Mängel: Belege nachreichen, Aufgabentitel mit Kurzfassung
+
+Stufe 2c, Runde 2c-2b, Punkt 0. Am Mangel lassen sich jetzt auch Belege nachreichen („Belege ergänzen …“), genau wie Fotos:
+nur hinzufügen, als eigener Eintrag „Belege ergänzt“ im Verlauf, PDF oder Foto am Inhalt erkannt, auch nach der Erledigung,
+nicht nach dem Verwerfen. Die Aufgabe zum Mangel trägt im Titel eine Kurzfassung der Beschreibung (60 Zeichen, an der
+Wortgrenze gekürzt); ihre Beschreibung bleibt bei Metadaten. Gemeldet: übernimmt jemand die Aufgabe, geht der Titel mit der
+Benachrichtigung per E-Mail hinaus. CLAUDE.md hält fest, dass auf dem Server nur mit `update.sh` eingespielt wird und
+`backup.sh` `erp-data` vollständig sichert.
+
+Die verlangte Bindung der Sperren (Dauer, Leistungsart, Kundenwechsel) an eine gültige Fassung ist nicht gebaut: ein
+Zurückziehen einer Fassung gibt es noch nicht -- Stand und Vorschlag in `docs/archiv/abnahme-und-gewaehrleistung.md`,
+„Umsetzung 1.8.51“. Keine Migration. Volle Suite 2776 grün (mit den opt-in-Tests gegen PostgreSQL), neue `test_v353` (12),
+Gegenproben 7 von 7 rot, Klicktest `klicktest_maengel.py` 35/35.
+
 ## 1.8.50 – Vertragsvorlagen: Platzhalter {gewaehrleistung}
 
 Stufe 2c, Runde 2c-2a, Punkt 2. Vertragsvorlagen kennen jetzt `{gewaehrleistung}`: er setzt die Gewährleistungsdauer des

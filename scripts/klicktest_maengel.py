@@ -11,7 +11,8 @@ vor 10 Tagen verweigert); Beteiligte: Architektin ohne Vollmacht, Bauleitung mit
                             Haltung "bestritten" ohne Begründung abgelehnt, mit gespeichert; Freigabe trotz "bestritten"
                             nur mit Begründung (Kulanz); Status "beseitigt", dann "Beseitigung abgenommen" durch die
                             Architektin (Warnung ohne Vollmacht) mit Begründung -> erledigt, "Nachbesserung regulär bis",
-                            Aufgabe erledigt; Fotos ergänzen; Verlauf; zweiter Mangel verworfen.
+                            Aufgabe erledigt; Fotos ergänzen, seit 1.8.51 auch Belege (ohne Auswahl abgelehnt); Verlauf;
+                            Aufgabentitel mit Kurzfassung; zweiter Mangel verworfen.
     Büro (1400 px, hell)    Aufgaben: die Aufgabe des offenen Mangels ohne Zuständigkeit; ihr Link springt zum Mangel.
     Büro (412 px, dunkel)   Auftrag: Karte lesbar, Dialog ohne waagrechten Scrollbalken.
     Monteurin               API der Mängel 403.
@@ -282,11 +283,27 @@ async def pruefen(tab, seed, p):
     await _datei_setzen(tab, f"#defMorePhotos{mangel_id}", seed["dateien"]["png"])
     await tab.js(f"{_panel(mangel_id)}.querySelector('button').click()")
     await tab.warten(f"{MANGEL}.querySelector('summary').textContent==='Verlauf (5)'")
+    # Seit 1.8.51: Belege nachreichen wie Fotos.
+    await tab.js(f"defOpen({mangel_id},'belege')")
+    await tab.js(f"{_panel(mangel_id)}.querySelector('button').click()")
+    p.pruefe("Belege ergänzen: ohne Auswahl abgelehnt", await tab.js(
+        f"document.getElementById('defPanelStatus{mangel_id}').textContent"), "Bitte mindestens einen Beleg wählen.")
+    await _datei_setzen(tab, f"#defMoreReceipts{mangel_id}", seed["dateien"]["pdf"])
+    await tab.js(f"{_panel(mangel_id)}.querySelector('button').click()")
+    await tab.warten(f"{MANGEL}.querySelector('summary').textContent==='Verlauf (6)'")
     await tab.js(f"{MANGEL}.querySelector('details').open=true")
-    p.pruefe("Verlauf: fünf Einträge in Reihenfolge", await tab.js(
+    p.pruefe("Verlauf: sechs Einträge in Reihenfolge", await tab.js(
         f"[...{MANGEL}.querySelectorAll('.def-event')].map(e=>e.innerText.split('\\n')[0].split(' am ')[0])"),
         ["Haltung: offen → bestritten", "Freigabe zur Beseitigung: zur Beseitigung freigegeben",
-         "Status: offen → beseitigt", "Status: beseitigt → Beseitigung abgenommen", "1 Foto ergänzt"])
+         "Status: offen → beseitigt", "Status: beseitigt → Beseitigung abgenommen", "1 Foto ergänzt",
+         "1 Beleg ergänzt"])
+    p.pruefe("Verlauf: der nachgereichte Beleg ist abrufbar (PDF, nosniff)", await tab.js(
+        f"fetch([...{MANGEL}.querySelectorAll('.def-event')].pop().querySelector('a[href*=\"/files/\"]').href)"
+        ".then(r=>[r.status,r.headers.get('content-type'),r.headers.get('x-content-type-options')])"),
+        [200, "application/pdf", "nosniff"])
+    p.pruefe("Aufgabe: Titel mit Kurzfassung", await tab.js(
+        f"{MANGEL}.innerText.includes('Aufgabe: Mangel aus Abnahme {seed['auftragsnummer']} – Nord: Anschluss an der Attika undicht')"),
+        True)
     p.pruefe("Verlauf: Architektin ohne Vollmacht gekennzeichnet", await tab.js(
         f"{MANGEL}.querySelector('details').innerText.includes('Petra Plan (Architekt/Planer) ⚠ ohne Vollmacht zur Abnahme')"), True)
     await tab.js(f"{MANGEL}.scrollIntoView()")
