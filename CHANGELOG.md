@@ -4,6 +4,23 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.50 – Vertragsvorlagen: Platzhalter {gewaehrleistung}
+
+Stufe 2c, Runde 2c-2a, Punkt 2. Vertragsvorlagen kennen jetzt `{gewaehrleistung}`: er setzt die Gewährleistungsdauer des
+Auftrags als Text ein („5 Jahre“, „18 Monate“, „2 Jahre und 10 Tage“). Nutzt der Vertrag ihn, lässt er sich erst
+festschreiben, wenn die Dauer am Auftrag festgelegt ist – die Karte „Vertrag“ sagt das und sperrt den Knopf. Nach dem
+Festschreiben einer solchen Fassung sind Leistungsart und Dauer gesperrt, wie der Kunde des Projekts bei einem
+festgeschriebenen Vertrag; die Karte „Gewährleistung“ zeigt dann den Grund statt der Auswahl. Festschreiben und
+Festlegen der Dauer sperren Vertrag und Auftrag in derselben Reihenfolge und warten aufeinander; das Festschreiben liest
+den Auftrag danach neu und schreibt so immer die gerade gültige Dauer fest.
+
+Keine Migration. Volle Suite 2764 grün (mit den opt-in-Tests gegen PostgreSQL), `test_v352`/`test_v336` gegen PostgreSQL grün
+bis auf den bekannten Migrationstest mit rohem SQL. Festlegungen (u. a. Sperre schon ab Festschreiben, nicht erst ab Unterschrift – bitte entscheiden) und die
+Nebenbefunde der Runde in `docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.50“. Neue `test_v352` (17, zwei gegen
+PostgreSQL); 8 von 9 Gegenproben rot, die grüne ist eine zweite Absicherung (Auftragssperre im Festschreiben). Neuer
+Klicktest `klicktest_vertrag_gewaehrleistung.py` 8/8, unverändert grün `klicktest_vertrag_festschreiben.py` 40/40,
+`klicktest_abnahme.py` 56/56, `klicktest_maengel.py` 32/32.
+
 ## 1.8.49 – Mängel aus der Abnahme
 
 Stufe 2c, Runde 2c-2a, Punkt 1. An einer Abnahme mit „Vorbehalt Mängel: ja“ oder einer verweigerten Abnahme lassen sich

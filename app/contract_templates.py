@@ -31,6 +31,8 @@ from .models import ContractTemplate, ContractTemplateSection, Order, OrderContr
 from .orders import execution_period_text, order_to_dict
 from .placeholders import apply_placeholders, unknown_placeholders
 from .settings import load_general_settings
+from .warranty import CONTRACT_PLACEHOLDER as WARRANTY_PLACEHOLDER
+from .warranty import contract_duration_text
 
 CONTRACT_WATERMARK_TEXT = "Entwurf – Vertragstext nicht geprüft"
 DEFAULT_CONTRACT_TITLE = "Vertrag"
@@ -56,6 +58,9 @@ CONTRACT_PLACEHOLDERS: list[tuple[str, str]] = [
     ("{angebotsdatum}", "Datum des Angebots"),
     ("{projektnummer}", "Nummer des Vorgangs"),
     ("{vertragsgrundlage}", "Bezeichnung der Vertragsgrundlage des Auftrags, z. B. VOB/B"),
+    ("{gewaehrleistung}", "Gewährleistungsdauer des Auftrags, z. B. „5 Jahre“ – solange sie am Auftrag nicht festgelegt "
+                          "ist, lässt sich ein Vertrag mit diesem Platzhalter nicht festschreiben; danach sind Dauer und "
+                          "Leistungsart gesperrt"),
     ("{auftragssumme_netto}", "Auftragssumme netto"),
     ("{umsatzsteuersatz}", "Umsatzsteuersatz des Auftrags in Prozent"),
     ("{umsatzsteuer}", "Umsatzsteuer auf die Auftragssumme"),
@@ -326,6 +331,17 @@ def update_contract_draft(db: Session, contract: OrderContract, values: dict, *,
     return contract
 
 
+def warranty_missing(row: ContractTemplate | None, order: Order) -> bool:
+    """Seit 1.8.50: die Vorlage nutzt {gewaehrleistung} in einem Abschnitt, der in diesen Vertrag kommt, und die Dauer
+    ist am Auftrag nicht festgelegt -- dann wird nicht festgeschrieben."""
+    if order.warranty_months is not None and order.warranty_days is not None:
+        return False
+    texts = [row.title or ""] if row is not None else []
+    texts += [t for s in visible_sections(row, is_consumer=order_customer_is_consumer(order))
+              for t in (s.heading or "", s.body_text or "")]
+    return any(WARRANTY_PLACEHOLDER in t for t in texts)
+
+
 def contract_state(db: Session, order: Order) -> dict:
     """Alles, was die Auftragsseite für die Karte "Vertrag" braucht."""
     row = get_template_row(db, order.contract_basis)
@@ -338,6 +354,7 @@ def contract_state(db: Session, order: Order) -> dict:
         "template_reviewed": template_is_reviewed(row),
         "unused_case_fields": unused_case_fields(row) if template_has_content(row) else [],
         "is_consumer": order_customer_is_consumer(order),
+        "warranty_missing": warranty_missing(row, order),
         "contract": None if contract is None else {
             "id": contract.id, "order_id": contract.order_id, "status": contract.status,
             "execution_period": contract.execution_period, "payment_plan": contract.payment_plan,
@@ -374,6 +391,7 @@ def contract_placeholder_values(db: Session, order: Order, contract: OrderContra
         "{angebotsdatum}": _date(meta.quote_date) if meta else "",
         "{projektnummer}": data.get("project_number") or "",
         "{vertragsgrundlage}": contract_basis_label(order.contract_basis) or "",
+        "{gewaehrleistung}": contract_duration_text(order.warranty_months, order.warranty_days),  # seit 1.8.50
         "{auftragssumme_netto}": money(data["net_total"]),
         "{umsatzsteuersatz}": f"{qty(data['vat_rate'])} %",
         "{umsatzsteuer}": money(data["vat_total"]),

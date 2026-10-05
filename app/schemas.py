@@ -1352,6 +1352,7 @@ class OrderOut(BaseModel):
     warranty_text: str | None = None
     warranty_follows_proposal: bool | None = None
     warranty_proposals: dict[str, dict | None] | None = None
+    warranty_lock_text: str | None = None  # seit 1.8.50
     has_active_acceptance: bool | None = None  # seit 1.8.46: sperrt den Abgleich mit dem Angebot
 
 
@@ -1602,6 +1603,7 @@ class OrderContractStateOut(BaseModel):
     template_reviewed: bool
     unused_case_fields: list[ContractCaseFieldOut]
     is_consumer: bool
+    warranty_missing: bool = False  # seit 1.8.50: Vorlage nutzt {gewaehrleistung}, Dauer nicht festgelegt
     contract: OrderContractOut | None = None
 
 

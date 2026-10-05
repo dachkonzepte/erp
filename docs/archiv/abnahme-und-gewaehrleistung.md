@@ -17,7 +17,7 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 | Runde | Version | Inhalt | Stand |
 |---|---|---|---|
 | **2c-1** | 1.8.46, 1.8.47 | Fundament: Regel-20-Test auch für Spaltenvorgaben, Datengrenze (Strafe, Einbehalt), Leistungsart und Gewährleistungsdauer am Auftrag, Abnahme (unveränderlich, Verwerfen, Historie), Gewährleistungsende abgeleitet an Auftrag/Objekt/Dachfläche, Garantie Dritter an der Dachfläche mit Teil-Update, Abgleich gesperrt nach Abnahme (1.8.46); Vollmacht zur Abnahme am Beteiligten, Begründung und Vorschau nach der ersten Abnahme, Nachweis "förmlich: Beleg, sonst Beleg oder Begründung", "Gewährleistung regulär bis" (1.8.47) | erledigt |
-| **2c-2a** | 1.8.48, 1.8.49 | Vorweg: Prüfstatus neben jedem Gewährleistungsende (eine Funktion, `logger.error` bei Abweichung), Siegel des Verwerfens, Fassung des Prüfsummenformats (1.8.48); Mängel aus der Abnahme mit Haltung, Status, Freigabe, Verlauf, Aufgabe und "Nachbesserung regulär bis" (1.8.49) | erledigt |
+| **2c-2a** | 1.8.48–1.8.50 | Vorweg: Prüfstatus neben jedem Gewährleistungsende (eine Funktion, `logger.error` bei Abweichung), Siegel des Verwerfens, Fassung des Prüfsummenformats (1.8.48); Mängel aus der Abnahme mit Haltung, Status, Freigabe, Verlauf, Aufgabe und "Nachbesserung regulär bis" (1.8.49); Platzhalter `{gewaehrleistung}`, Festschreiben erst mit Dauer, danach Dauer und Leistungsart gesperrt (1.8.50) | erledigt |
 
 Nach jeder Runde die Spalten "Version"/"Stand" nachziehen und unten einen Abschnitt "Umsetzung 1.8.x" ergänzen.
 
@@ -418,3 +418,70 @@ ohne Zuständigkeit, fällig zur Frist, Verweis in beide Richtungen, der Mangel 
   Erfassen lief ins Leere. Behoben (erst beim Aufruf), seither geprüft.
 - `klicktest_abnahme.py` 56/56: der Schritt "Verwerfen" klickte den ersten Knopf der Abnahme -- das ist an einer Abnahme
   mit Vorbehalt jetzt "+ Mangel erfassen"; Klick eindeutig gemacht, Warnung und Knopf geprüft.
+
+---
+
+## Umsetzung 1.8.50 (05.10.2026) -- Runde 2c-2a, Punkt 2: Platzhalter {gewaehrleistung}
+
+Betreibervorgabe: Platzhalter `{gewaehrleistung}` für Vertragsvorlagen (Text der Dauer, z. B. "5 Jahre"). Nutzt die Vorlage
+ihn, ist Festschreiben gesperrt, solange die Dauer nicht festgelegt ist. Danach sind Dauer und Leistungsart gesperrt wie
+beim Kundenwechsel.
+
+- **Platzhalter** (`app/contract_templates.py`): in `CONTRACT_PLACEHOLDERS` (Einstellungen → Vertragsvorlagen zeigen ihn mit
+  Erklärung), Wert `app/warranty.py::contract_duration_text()`: volle 12 Monate als Jahre ("5 Jahre", "1 Jahr"), sonst
+  Monate ("18 Monate"), Tage mit "und" ("2 Jahre und 10 Tage"); ohne Dauer "nicht festgelegt" (nur im Entwurf sichtbar).
+- **Festschreiben** (`app/contract_versions.py::freeze_contract()`): steht `{gewaehrleistung}` in `used_placeholders` und
+  ist die Dauer nicht festgelegt -> `ContractStateError` (409). Festschreiben sperrt jetzt nach dem Vertrag auch die
+  Auftragszeile und liest den Auftrag danach neu -- eine gleichzeitig festgelegte Dauer steht so im Vertrag, nicht der beim
+  Laden gelesene Stand.
+- **Sperre** (`app/warranty.py::warranty_contract_lock()`): hat eine festgeschriebene Fassung den Platzhalter genutzt (laut
+  `used_placeholders` im eingefrorenen Inhalt), lehnen `set_order_warranty()` und die Vorschau mit `WarrantyLockedError`
+  ab (409). `set_order_warranty()` sperrt dafür erst die Vertragszeile, dann die Auftragszeile -- dieselbe Reihenfolge wie
+  Festschreiben und der Abgleich mit dem Angebot (`ensure_contract_not_signed()`), damit sich keine zwei Vorgänge
+  gegenseitig blockieren.
+- **Oberfläche**: Karte "Vertrag" mit Hinweis und gesperrtem Knopf "festschreiben", solange die Dauer fehlt
+  (`contract_state()["warranty_missing"]`, nur Abschnitte, die in diesen Vertrag kommen); Karte "Gewährleistung" zeigt bei
+  Sperre den Grund (`order_to_dict()["warranty_lock_text"]`, nur in der Einzelansicht) statt Leistungsart, Vorschlag und
+  Abweichung; nach dem Festlegen lädt die Vertragskarte neu.
+
+### Festlegungen 1.8.50 (bitte bestätigen)
+
+1. **Text der Dauer**: Jahre nur bei vollen 12 Monaten, sonst Monate; Tage mit "und"; im Entwurf ohne Dauer "nicht
+   festgelegt".
+2. **"Die Vorlage nutzt ihn"** = Titel oder ein Abschnitt, der in DIESEN Vertrag kommt (Verbraucher-Abschnitte nur bei
+   Verbrauchern) -- dieselbe Regel wie `used_placeholders` beim Festschreiben.
+3. **Gesperrt ab der ersten festgeschriebenen Fassung mit dem Platzhalter**, auch ohne Unterschrift, auch nach "Neue
+   Fassung" und auch, wenn eine spätere Fassung ihn nicht mehr nutzt -- wie der Kundenwechsel (ab Festschreiben, dauerhaft).
+   Folge: eine falsch festgelegte Dauer lässt sich nach dem Festschreiben nicht mehr über eine neue Fassung korrigieren. Zu
+   entscheiden, ob die Sperre erst mit der Unterschrift greifen soll.
+4. **Eine festgeschriebene Fassung ohne den Platzhalter sperrt nichts.**
+5. **Die Sperre geht der Begründungspflicht nach einer Abnahme (1.8.47) vor**: auch mit Begründung keine Änderung.
+6. **Die Vorschau antwortet bei Sperre ebenfalls 409**; die Karte zeigt den Grund statt der Bedienelemente.
+
+### Verifikation 1.8.50
+
+- `tests/test_v352_vertrag_gewaehrleistung.py` (17 Tests: Text der Dauer, Platzhalter in der Liste, Festschreiben gesperrt
+  bis zur Festlegung samt Inhalt "5 Jahre", Sperre von Dauer und Leistungsart auch nach neuer Fassung und in der
+  Geschäftsfunktion, Gegenprobe ohne Platzhalter, Entwurf "nicht festgelegt", Seite; zwei opt-in gegen PostgreSQL: Festlegen
+  wartet auf ein laufendes Festschreiben und wird abgelehnt; Festschreiben wartet auf ein laufendes Festlegen und schreibt
+  den neuen Wert fest).
+- Gegenproben: 8 von 9 rot. Grün blieb "Festschreiben ohne Auftragssperre" gegen PostgreSQL: das Festlegen wartet schon an der
+  Vertragssperre -- die Auftragssperre im Festschreiben bleibt als zweite Absicherung (wie beim Erfassen der Abnahme, 1.8.46).
+- Keine Migration (keine neue Spalte).
+- Volle Suite 2764 grün (mit den opt-in-Tests gegen PostgreSQL). `test_v352`/`test_v336` über das Scratchpad-Plugin gegen
+  PostgreSQL 17: 35 grün, rot nur der bekannte Migrationstest von `test_v336` (rohes SQL, erfundene Fremdschlüssel).
+- Klicktest `scripts/klicktest_vertrag_gewaehrleistung.py` 8/8; unverändert grün `klicktest_vertrag_festschreiben.py`
+  40/40, `klicktest_abnahme.py` 56/56, `klicktest_maengel.py` 32/32.
+
+### Nebenbefunde 2c-2a (1.8.48–1.8.50, nur gemeldet)
+
+1. **Sicherung auf dem Server**: die Dateien der Mängel liegen unter `ERP_DATA_DIR/acceptance_documents/maengel` -- die Frage
+   aus 1.8.46 (Nebenbefund 2), ob `/home/tobias/backup.sh` den ganzen Datenordner sichert, gilt damit auch für sie.
+2. **Meldetext beim Foto**: ein SVG als Foto eines Mangels meldet "Der Beleg muss ein Foto (JPEG, PNG, WebP) oder ein PDF
+   sein" -- der Text stammt aus `_checked_upload()` der Abnahme und sagt "Beleg" auch beim Foto. Abgelehnt wird richtig.
+3. **Grenze der Siegel**: ein am ORM vorbei vollständig zurückgenommenes Verwerfen (Abnahme oder Mangel) und ein entfernter
+   letzter Eintrag im Verlauf eines Mangels bleiben unerkannt; nur die Änderungshistorie behält ihre Zeile.
+4. **Mängel einer später verworfenen Abnahme** behalten ihre offene Aufgabe (Festlegung 1.8.49 Nr. 2) -- sie werden nicht an
+   die korrigierte Abnahme umgehängt; das Büro verwirft oder erledigt sie bei Bedarf einzeln.
+5. **Klicktest `klicktest_abnahme.py`** klickte "den ersten Knopf" einer Abnahme -- mit "+ Mangel erfassen" traf das den
+   falschen; im Skript behoben (1.8.49). Ähnliche Selektoren in anderen Klicktests nicht durchgesehen.

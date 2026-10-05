@@ -20,7 +20,7 @@
 .acc-discard{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}.acc-discard[hidden]{display:none}.acc-discard textarea{flex:1 1 100%;min-height:60px;border:1px solid var(--field-border);padding:7px;background:var(--card);color:var(--ink);font:inherit;font-size:13px}
 #warrantyCard details{margin-top:8px}#warrantyCard summary{cursor:pointer;font-weight:650;font-size:13px}
 #warrantyProposal .proposal{background:var(--soft);padding:8px 10px;margin:4px 0 8px}
-#warrantyConfirm[hidden]{display:none}#warrantyConfirm{margin-top:10px}#warrantyConfirm textarea{width:100%;min-height:60px;border:1px solid var(--field-border);padding:7px;background:var(--card);color:var(--ink);font:inherit;font-size:13px;margin-top:4px}
+#warrantyConfirm[hidden],#warrantyLock[hidden],#warrantyDeviate[hidden],#warrantyProposal[hidden]{display:none}#warrantyConfirm{margin-top:10px}#warrantyConfirm textarea{width:100%;min-height:60px;border:1px solid var(--field-border);padding:7px;background:var(--card);color:var(--ink);font:inherit;font-size:13px;margin-top:4px}
 #warrantyConfirm table{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0}#warrantyConfirm td,#warrantyConfirm th{text-align:left;padding:3px 4px;border-bottom:1px solid var(--line)}
 .acc-hint{color:var(--muted);font-weight:400;font-size:12px}
 #acceptanceDialog{width:min(760px,96vw)}
@@ -36,6 +36,7 @@
 <div class="card" id="warrantyCard"><h3>Gewährleistung</h3>
   <div id="warrantyCurrent" class="small"></div>
   <div id="warrantyDeviation" class="notice warning" style="display:none;margin-top:8px"></div>
+  <div id="warrantyLock" class="notice" style="margin-top:8px" hidden></div>
   <div class="fields" style="margin-top:8px"><div class="field full"><label for="workKindSelect">Leistungsart</label>
     <select id="workKindSelect" onchange="renderWarrantyProposal()"><option value="">— bitte wählen —</option><option value="bauwerk">Bauwerk</option><option value="sonstige">sonstige Arbeiten</option></select></div></div>
   <div id="warrantyProposal" class="small"></div>
@@ -123,6 +124,11 @@ function renderWarranty(){
   const dev=document.getElementById('warrantyDeviation'),p=order.work_kind&&order.warranty_proposals?order.warranty_proposals[order.work_kind]:null;
   if(set&&order.warranty_follows_proposal===false&&p){dev.style.display='';dev.innerHTML=`Weicht vom Vorschlag für die Vertragsgrundlage <b>${esc(order.contract_basis_label||order.contract_basis)}</b> ab (${esc(p.text)}, ${esc(p.citation)}).${last&&last.reason?`<div class="small" style="margin-top:4px;white-space:pre-wrap">Begründung: ${esc(last.reason)}</div>`:''}`}else{dev.style.display='none';dev.innerHTML=''}
   document.getElementById('workKindSelect').value=order.work_kind||'';
+  // Seit 1.8.50: der festgeschriebene Vertrag nennt die Dauer ({gewaehrleistung}) -- Leistungsart und Dauer gesperrt.
+  const lock=document.getElementById('warrantyLock'),locked=!!order.warranty_lock_text;
+  lock.hidden=!locked;lock.textContent=order.warranty_lock_text||'';
+  document.getElementById('workKindSelect').disabled=locked;document.getElementById('warrantyDeviate').hidden=locked;
+  document.getElementById('warrantyProposal').hidden=locked;
   renderWarrantyProposal();
   document.getElementById('warrantyHistory').innerHTML=warrantyChanges.length?'<div class="small muted" style="margin-top:10px">Historie</div>'+warrantyChanges.map(c=>`<div class="revision"><b>${esc(c.work_kind_label)} · ${esc(c.warranty_text)}</b> <span class="small muted">(${c.follows_proposal?'Vorschlag':'abweichend vom Vorschlag '+esc(c.proposal_text)} · ${esc(c.contract_basis_label)})</span>${c.reason?`<div class="small" style="white-space:pre-wrap">${esc(c.reason)}</div>`:''}${c.acceptance_shifts&&c.acceptance_shifts.length?`<div class="small">Nach der Abnahme festgelegt: ${c.acceptance_shifts.map(x=>`${esc(x.scope_label)} ${accDate(x.accepted_on)}: ${x.old_end?accDate(x.old_end):'nicht festgelegt'} → ${accDate(x.new_end)}`).join('; ')}</div>`:''}<div class="small muted">${accDateTime(c.changed_at)} · ${esc(c.changed_by_name)}</div></div>`).join(''):'';
 }
@@ -135,7 +141,7 @@ function renderWarrantyProposal(){
 }
 async function putWarranty(body,okText){
   const st=document.getElementById('warrantyStatus');
-  try{order=await api(`/api/orders/${orderId}/warranty`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});st.textContent=okText;cancelWarranty();await loadAcceptanceSection();return true}catch(e){st.textContent='Fehler: '+e.message;return false}
+  try{order=await api(`/api/orders/${orderId}/warranty`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});st.textContent=okText;cancelWarranty();await loadAcceptanceSection();if(typeof loadContract==='function')loadContract();return true}catch(e){st.textContent='Fehler: '+e.message;return false}
 }
 // Seit 1.8.47: jede Festlegung fragt erst die Vorschau ab. Besteht schon eine Abnahme, zeigt die Karte vor dem Speichern,
 // welche Gewährleistungsenden sich verschieben (bzw. entstehen), mit Begründung -- Pflicht, wenn der Server es verlangt.

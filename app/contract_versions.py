@@ -252,7 +252,10 @@ def freeze_contract(
     user_id: int | None = None, user_name: str | None = None,
 ) -> OrderContractVersion:
     """Schreibt den Entwurf als neue Fassung fest. Wirft LookupError (kein Vertrag), ContractStateError
-    (kein Entwurf, keine oder ungeprüfte Vorlage, Anlage nicht gewählt oder überholt)."""
+    (kein Entwurf, keine oder ungeprüfte Vorlage, Anlage nicht gewählt oder überholt, seit 1.8.50: die Vorlage nutzt
+    {gewaehrleistung} und die Dauer ist am Auftrag nicht festgelegt). Sperrt Vertrag und dann Auftrag (wie das Festlegen
+    der Dauer, app/warranty.py) und liest den Auftrag danach frisch -- eine gleichzeitig festgelegte Dauer steht so im
+    Vertrag, nicht der beim Laden gelesene Stand."""
     from .audit import record_audit_entry
     from .contract_pdf import render_contract_pdf
 
@@ -264,6 +267,11 @@ def freeze_contract(
         raise ContractStateError("Der Vertrag ist unterschrieben – es gibt keine neue Fassung mehr.")
     if contract.status != "entwurf":
         raise ContractStateError("Der Vertrag ist bereits festgeschrieben – Änderungen nur als neue Fassung.")
+    from .acceptances import lock_order
+    from .warranty import CONTRACT_PLACEHOLDER as WARRANTY_PLACEHOLDER
+
+    lock_order(db, order.id)
+    db.refresh(order)
     try:
         content = contract_content(db, order, contract)
     except ValueError as e:
@@ -272,6 +280,12 @@ def freeze_contract(
         raise ContractStateError(
             f"Die Vertragsvorlage für „{content['basis_label']}“ ist nicht rechtlich geprüft (Einstellungen → "
             "Vertragsvorlagen). Festgeschrieben wird nur ein geprüfter Vertragstext."
+        )
+    if WARRANTY_PLACEHOLDER in content["used_placeholders"] and (order.warranty_months is None
+                                                                  or order.warranty_days is None):
+        raise ContractStateError(
+            "Die Vertragsvorlage nutzt {gewaehrleistung}, die Gewährleistungsdauer ist am Auftrag aber nicht festgelegt "
+            "– bitte zuerst in der Karte „Gewährleistung“ festlegen."
         )
     situation = attachment_situation(db, order)
     kind, attachment_bytes, attachment_doc = _choose_attachment(order, situation, attachment, attachment_document_id)

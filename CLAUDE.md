@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.49** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.50** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -694,7 +694,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Abnahme mit Vorbehalt Mängel oder Verweigerung (`acceptance_allows_defects()`), unveränderlich wie die Abnahme; Haltung,
   Status und Freigabe zur Beseitigung sind verkettete Einträge (`DefectEvent`), der Stand ergibt sich aus ihnen
   (`defect_state()`); beim Erfassen eine Aufgabe im Büro-Eingang, die die Erledigung des Mangels mit erledigt (umgekehrt nicht).
-  Details: `docs/archiv/abnahme-und-gewaehrleistung.md`.
+  Seit 1.8.50 setzt `{gewaehrleistung}` in Vertragsvorlagen die Dauer ein; ein Vertrag damit wird erst mit festgelegter Dauer
+  festgeschrieben, danach sind Leistungsart und Dauer gesperrt (`warranty_contract_lock()`, Sperrreihenfolge Vertrag ->
+  Auftrag wie beim Abgleich). Details: `docs/archiv/abnahme-und-gewaehrleistung.md`.
 - **Weitere Fachbegriffe ausgelagert**: Dachflächen & Bauteile, Wartungsvertrag,
   Einsatzbericht, Rechnung aus Zeitbuchungen, Schnellauftrag, Wartungshistorie und
   Monteursansicht stehen vollständig in `docs/archiv/modul-wartungen-und-monteursansicht.md`;
@@ -828,7 +830,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Beteiligten, Begründung mit Vorschau der verschobenen Enden nach der ersten Abnahme, Nachweis förmlich: Beleg, sonst Beleg
   oder Begründung; seit 1.8.48 Prüfstatus neben jedem Gewährleistungsende aus einer Funktion, Siegel des Verwerfens, Fassung
   des Prüfsummenformats je Abnahme; seit 1.8.49 Mängel aus der Abnahme mit Haltung, Status, Freigabe, Verlauf, Aufgabe und
-  bei VOB/B "Nachbesserung regulär bis") -- `docs/archiv/abnahme-und-gewaehrleistung.md`
+  bei VOB/B "Nachbesserung regulär bis"; seit 1.8.50 Platzhalter `{gewaehrleistung}` in Vertragsvorlagen, Festschreiben erst
+  mit Dauer, danach Dauer und Leistungsart gesperrt) -- `docs/archiv/abnahme-und-gewaehrleistung.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
   `docs/archiv/grunddaten-beim-start.md`
@@ -1193,7 +1196,8 @@ Vorschau der verschobenen Enden mit Pflicht-Begründung, Vollmacht zur Abnahme i
 1.8.48 Prüfstatus rot an Objekt, Dachfläche und Auftrag) und `klicktest_maengel.py` (1.8.49, Warnung und "+ Mangel erfassen"
 nur an Abnahmen mit Vorbehalt oder Verweigerung, Dialog ohne Vorauswahl, Haltung, Kulanz-Freigabe, beseitigt und abgenommen,
 "Nachbesserung regulär bis", Fotos ergänzen, Verlauf, Verwerfen, Aufgabe im Büro-Eingang mit Sprung zum Mangel, 412 px
-dunkel, Monteurin 403). Ein
+dunkel, Monteurin 403) und `klicktest_vertrag_gewaehrleistung.py` (1.8.50, Hinweis und gesperrtes Festschreiben ohne Dauer,
+Vorschlag übernehmen, Fassung 1 festschreiben, danach Karte "Gewährleistung" gesperrt und Festlegen 409, 412 px dunkel). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

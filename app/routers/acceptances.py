@@ -33,7 +33,7 @@ from ..models import AppUser, Order, OrderAcceptance, OrderAcceptanceFile, Prope
 from ..orders import load_order, order_to_dict
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import OrderAcceptanceCreate, OrderAcceptanceDiscard, OrderOut, OrderWarrantyUpdate
-from ..warranty import list_warranty_changes, set_order_warranty, warranty_change_preview
+from ..warranty import WarrantyLockedError, list_warranty_changes, set_order_warranty, warranty_change_preview
 
 router = APIRouter()
 
@@ -64,6 +64,8 @@ def put_order_warranty(order_id: int, payload: OrderWarrantyUpdate, db: Session 
     try:
         set_order_warranty(db, order, work_kind=payload.work_kind, warranty_months=payload.warranty_months,
                            warranty_days=payload.warranty_days, reason=payload.reason, actor_name=user_name)
+    except WarrantyLockedError as exc:  # seit 1.8.50: der festgeschriebene Vertrag nennt die Dauer
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return OrderOut.model_validate(order_to_dict(load_order(db, order_id), db))
@@ -78,6 +80,8 @@ def get_order_warranty_preview(order_id: int, work_kind: str, warranty_months: i
     try:
         return warranty_change_preview(db, order, work_kind=work_kind, warranty_months=warranty_months,
                                        warranty_days=warranty_days)
+    except WarrantyLockedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

@@ -19,7 +19,7 @@ from .placeholders import apply_placeholders
 from .projects import ensure_quote_structure, load_quote
 from .rounding import round_money
 from .settings import issue_number
-from .warranty import order_warranty_info
+from .warranty import order_warranty_info, warranty_contract_lock
 
 
 def money_q(value) -> Decimal:
@@ -420,6 +420,7 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
             # Best effort for callers that only need the snapshot representation.
             result["source_quote_in_sync"] = None
             result["has_active_acceptance"] = None
+            result["warranty_lock_text"] = None
             result["invoiced_net"] = None
             result["invoiced_gross"] = None
             result["open_net"] = None
@@ -428,6 +429,8 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
             result["source_quote_in_sync"] = order_matches_source_quote(db, order)
             # Seit 1.8.46: eine nicht verworfene Abnahme sperrt den Abgleich mit dem Angebot.
             result["has_active_acceptance"] = has_active_acceptance(db, order.id)
+            # Seit 1.8.50: ein festgeschriebener Vertrag mit {gewaehrleistung} sperrt Leistungsart und Dauer.
+            result["warranty_lock_text"] = warranty_contract_lock(db, order)
             progress = compute_order_billing_progress(db, order.id)
             result["invoiced_net"] = progress["invoiced_net"]
             result["invoiced_gross"] = progress["invoiced_gross"]

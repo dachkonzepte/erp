@@ -12,6 +12,10 @@
   Festlegung hält sie fest (acceptance_shifts). Die erste Festlegung nach einer Abnahme verschiebt nichts (vorher gab es
   kein Ende) und braucht keine Begründung, die Vorschau zeigt die entstehenden Enden.
 - Gewährleistungsende: nie gespeichert, immer abgeleitet -- Datum einer Abnahme plus Dauer (warranty_end()).
+- Seit 1.8.50: der Platzhalter {gewaehrleistung} der Vertragsvorlagen setzt contract_duration_text() ein. Hat ein
+  festgeschriebener Vertrag ihn genutzt (warranty_contract_lock()), sind Leistungsart und Dauer gesperrt
+  (WarrantyLockedError) -- wie der Kundenwechsel bei einem festgeschriebenen Vertrag. Festlegen sperrt dafür erst den
+  Vertrag, dann den Auftrag -- dieselbe Reihenfolge wie Festschreiben und der Abgleich mit dem Angebot.
 
 Rollenlos wie jede Geschäftslogik; wer festlegen darf, entscheidet der Router.
 """
@@ -44,12 +48,18 @@ PROPOSALS: dict[tuple[str, str], tuple[int, int, str]] = {
 }
 assert {basis for basis, _ in PROPOSALS} == set(CONTRACT_BASES), "jede Vertragsgrundlage braucht einen Vorschlag"
 
+CONTRACT_PLACEHOLDER = "{gewaehrleistung}"  # seit 1.8.50, Vertragsvorlagen (app/contract_templates.py)
+
 MAX_MONTHS = 360  # 30 Jahre
 MAX_DAYS = 366
 MAX_REASON_LENGTH = 2000
 NOT_SET_TEXT = "nicht festgelegt"
 END_RULE_TEXT = ("Abnahmetag zählt nicht mit (§ 187 Abs. 1 BGB); Ende am Tag mit derselben Zahl im letzten Monat, "
                  "fehlt er, am Monatsletzten (§ 188 Abs. 2 und 3 BGB)")
+
+
+class WarrantyLockedError(ValueError):
+    """Ein festgeschriebener Vertrag nennt die Gewährleistungsdauer ({gewaehrleistung}) -- Router: 409."""
 
 
 def work_kind_label(key: str | None) -> str | None:
@@ -70,6 +80,51 @@ def duration_text(months: int | None, days: int | None) -> str:
         years = months // 12
         text += f" ({years} Jahr{'e' if years != 1 else ''})"
     return text
+
+
+def contract_duration_text(months: int | None, days: int | None) -> str:
+    """Die Dauer, wie sie im Vertrag steht (seit 1.8.50, Platzhalter {gewaehrleistung}): "5 Jahre", "1 Jahr",
+    "18 Monate", "2 Jahre und 10 Tage", "30 Tage"; leer -> "nicht festgelegt" (nur im Entwurf -- festgeschrieben wird
+    so nicht)."""
+    if months is None or days is None:
+        return NOT_SET_TEXT
+    parts = []
+    if months:
+        if months % 12 == 0:
+            years = months // 12
+            parts.append(f"{years} Jahr" + ("e" if years != 1 else ""))
+        else:
+            parts.append(f"{months} Monat" + ("e" if months != 1 else ""))
+    if days:
+        parts.append(f"{days} Tag" + ("e" if days != 1 else ""))
+    return " und ".join(parts) or "0 Tage"
+
+
+def warranty_contract_lock(db: Session, order: Order) -> str | None:
+    """Der Grund der Sperre, wenn eine festgeschriebene Fassung des Vertrags {gewaehrleistung} genutzt hat (auch eine
+    inzwischen überholte -- vereinbart ist, was festgeschrieben wurde), sonst None."""
+    from .models import OrderContract, OrderContractVersion
+
+    rows = db.execute(
+        select(OrderContractVersion.version_no, OrderContractVersion.frozen_content)
+        .join(OrderContract, OrderContract.id == OrderContractVersion.contract_id)
+        .where(OrderContract.order_id == order.id).order_by(OrderContractVersion.version_no)
+    ).all()
+    for version_no, frozen in rows:
+        if CONTRACT_PLACEHOLDER in (json.loads(frozen).get("used_placeholders") or []):
+            return (f"Der festgeschriebene Vertrag (Fassung {version_no}) nennt die Gewährleistungsdauer – Leistungsart "
+                    "und Dauer lassen sich nicht mehr ändern, wie der Kunde des Projekts.")
+    return None
+
+
+def _lock_contract_and_order(db: Session, order_id: int) -> None:
+    """Erst die Vertragszeile (wie ensure_contract_not_signed() und das Festschreiben), dann die Auftragszeile --
+    immer in dieser Reihenfolge, sonst könnten sich zwei Vorgänge gegenseitig blockieren."""
+    from .acceptances import lock_order
+    from .models import OrderContract
+
+    db.execute(select(OrderContract.id).where(OrderContract.order_id == order_id).with_for_update())
+    lock_order(db, order_id)
 
 
 def warranty_proposal(contract_basis: str | None, work_kind: str | None) -> dict | None:
@@ -170,6 +225,9 @@ def warranty_change_preview(db: Session, order: Order, *, work_kind: str, warran
     """Was eine Festlegung bewirken würde (seit 1.8.47) -- liest nur: Vorschlag, ob eine Begründung nötig ist und
     welche Gewährleistungsenden sich verschieben (bzw. bei der ersten Festlegung entstehen)."""
     proposal = _check_values(order, work_kind, warranty_months, warranty_days)
+    locked = warranty_contract_lock(db, order)
+    if locked:
+        raise WarrantyLockedError(locked)
     follows = (warranty_months, warranty_days) == (proposal["months"], proposal["days"])
     after_acceptance = _reason_needed_after_acceptance(db, order)
     change_after_acceptance = after_acceptance and _is_set(order)
@@ -195,9 +253,8 @@ def set_order_warranty(
     """Leistungsart und Gewährleistungsdauer festlegen. Entspricht die Dauer dem Vorschlag für die Vertragsgrundlage
     des Auftrags und die Leistungsart, ist das die bewusste Übernahme; sonst ist die Begründung Pflicht. Seit 1.8.47
     ebenso, wenn schon eine nicht verworfene Abnahme besteht und Leistungsart oder Dauer bereits festgelegt waren; die
-    verschobenen Enden stehen dann in der Historie. Sperrt die Zeile des Auftrags wie das Erfassen einer Abnahme."""
-    from .acceptances import lock_order
-
+    verschobenen Enden stehen dann in der Historie. Sperrt die Zeile des Auftrags wie das Erfassen einer Abnahme, seit
+    1.8.50 vorher die des Vertrags: hat ein festgeschriebener Vertrag {gewaehrleistung} genutzt, WarrantyLockedError."""
     proposal = _check_values(order, work_kind, warranty_months, warranty_days)
     text = _clean(reason)
     if text is not None and len(text) > MAX_REASON_LENGTH:
@@ -208,8 +265,12 @@ def set_order_warranty(
             f"Die Dauer weicht vom Vorschlag ab ({proposal['text']}, {proposal['citation']}) – bitte eine Begründung "
             "angeben (z. B. im Vertrag vereinbart)."
         )
-    lock_order(db, order.id)
+    _lock_contract_and_order(db, order.id)
     db.refresh(order)
+    locked = warranty_contract_lock(db, order)
+    if locked:
+        db.rollback()  # Sperren freigeben
+        raise WarrantyLockedError(locked)
     after_acceptance = _reason_needed_after_acceptance(db, order)
     problem = None
     if (order.work_kind, order.warranty_months, order.warranty_days) == (work_kind, warranty_months, warranty_days):
