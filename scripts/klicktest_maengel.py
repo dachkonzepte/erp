@@ -14,7 +14,10 @@ vor 10 Tagen verweigert); Beteiligte: Architektin ohne Vollmacht, Bauleitung mit
                             Aufgabe erledigt; Fotos ergänzen, seit 1.8.51 auch Belege (ohne Auswahl abgelehnt); Verlauf;
                             Aufgabentitel mit Kurzfassung; zweiter Mangel verworfen.
     Büro (1400 px, hell)    Aufgaben: die Aufgabe des offenen Mangels ohne Zuständigkeit; ihr Link springt zum Mangel.
-    Büro (412 px, dunkel)   Auftrag: Karte lesbar, Dialog ohne waagrechten Scrollbalken.
+    Büro (1400 px, hell)    Seit 1.8.55: dritter Mangel ohne Frist, beseitigt, zurück auf offen -- Feld "Neue
+                            Beseitigungsfrist" nur dort; mit Frist gespeichert -> am Mangel "(neu gesetzt; beim Erfassen:
+                            keine)", im Verlauf, Aufgabe "Erneut beseitigen" fällig zur neuen Frist.
+    Büro (412 px, dunkel)  Auftrag: Karte lesbar, Dialog ohne waagrechten Scrollbalken.
     Monteurin               API der Mängel 403.
 
 Feste Uhr 10:00 (cdp_klicktest.py); die Daten liegen relativ zum heutigen Tag.
@@ -133,6 +136,7 @@ def befuellen(db, k):
     return {"auftrag": auftrag.id, "auftragsnummer": auftrag.order_number, "flaechen": {n: f.id for n, f in flaechen.items()},
             "abnahmen": {n: a.id for n, a in abnahmen.items()}, "tage": tage,
             "datum": {"frist": iso(heute + timedelta(days=14)), "beseitigt": iso(heute - timedelta(days=3)),
+                      "neue_frist": iso(heute + timedelta(days=30)), "heute": iso(heute),
                       "abgenommen": iso(heute - timedelta(days=1)), "regulaer_ende": regulaer.strftime("%d.%m.%Y")},
             "dateien": {n: str(p) for n, p in dateien.items()},
             "cookies": {name: k.cookies(u) for name, u in benutzer.items()}}
@@ -206,7 +210,7 @@ async def pruefen(tab, seed, p):
     mangel_id = await tab.js("Number(document.querySelector('#defectList .def-item').dataset.defect)")
     p.pruefe("Mangel: Kopf, Stand, Frist, Dateien, Aufgabe", await tab.js(
         f"(t=>[t.split('\\n')[0], t.includes('offen'), t.includes('Haltung: offen'), t.includes('nicht freigegeben'), "
-        f"t.includes('Beseitigungsfrist: '), (t.match(/SHA-256/g)||[]).length, t.includes('Aufgabe: Mangel aus Abnahme')])"
+        f"t.includes('Beseitigungsfrist: '), (t.match(/SHA-256/g)||[]).length, t.includes('Aufgabe (Mangel beseitigen): Mangel aus Abnahme')])"
         f"({MANGEL}.innerText)"),
         [f"Mangel Nr. {mangel_id} · Nord · Attika West", True, True, True, True, 2, True])
     p.pruefe("Mangel: Sprung zum neuen Eintrag (sichtbar)", await tab.js(
@@ -272,7 +276,7 @@ async def pruefen(tab, seed, p):
                  f"[...{_panel(mangel_id)}.querySelectorAll('button')].pop().click()")
     await tab.warten(f"{MANGEL}.innerText.split('\\n')[1].startsWith('Beseitigung abgenommen')")
     p.pruefe("Erledigt: Nachbesserung regulär bis (VOB/B), Aufgabe erledigt, keine Freigabe/kein Status mehr", await tab.js(
-        f"(t=>[t.includes('Nachbesserung regulär bis'), t.includes('Prüfung: Prüfsumme stimmt'), /Aufgabe: .* – (Erledigt|erledigt)/.test(t), "
+        f"(t=>[t.includes('Nachbesserung regulär bis'), t.includes('Prüfung: Prüfsumme stimmt'), /Aufgabe \\(Beseitigung abnehmen lassen\\): .* – (Erledigt|erledigt)/.test(t), "
         f"!!{MANGEL}.querySelector('button[onclick*=freigabe]'), !!{MANGEL}.querySelector('button[onclick*=status]')])"
         f"({MANGEL}.innerText)"), [True, True, True, False, False])
     p.pruefe("Nachbesserung: das spätere ist das reguläre Ende", await tab.js(
@@ -301,8 +305,10 @@ async def pruefen(tab, seed, p):
         f"fetch([...{MANGEL}.querySelectorAll('.def-event')].pop().querySelector('a[href*=\"/files/\"]').href)"
         ".then(r=>[r.status,r.headers.get('content-type'),r.headers.get('x-content-type-options')])"),
         [200, "application/pdf", "nosniff"])
+    # Seit 1.8.54 ist die aktuelle Aufgabe nach "beseitigt" die "Beseitigung abnehmen lassen" -- Titel mit Kurzfassung.
     p.pruefe("Aufgabe: Titel mit Kurzfassung", await tab.js(
-        f"{MANGEL}.innerText.includes('Aufgabe: Mangel aus Abnahme {seed['auftragsnummer']} – Nord: Anschluss an der Attika undicht')"),
+        f"{MANGEL}.innerText.includes('Aufgabe (Beseitigung abnehmen lassen): Beseitigung abnehmen lassen – "
+        f"Mangel aus Abnahme {seed['auftragsnummer']} – Nord: Anschluss an der Attika undicht')"),
         True)
     p.pruefe("Verlauf: Architektin ohne Vollmacht gekennzeichnet", await tab.js(
         f"{MANGEL}.querySelector('details').innerText.includes('Petra Plan (Architekt/Planer) ⚠ ohne Vollmacht zur Abnahme')"), True)
@@ -332,14 +338,56 @@ async def pruefen(tab, seed, p):
                for x in (antwort[1] if antwort and antwort[0] == 200 else []) if x.get("source_module") == "maengel"]
     if not aufgabe:
         print("Antwort /api/tasks:", str(antwort)[:500])
-    p.pruefe("Aufgaben: zwei aus Mängeln, ohne Zuständigkeit, beide erledigt (abgenommen bzw. verworfen)",
-             sorted(aufgabe, key=lambda x: x[2]), sorted([
+    # Seit 1.8.54 drei: "beseitigt" erledigt die erste des ersten Mangels und legt "Beseitigung abnehmen lassen" an.
+    reihe = lambda x: (x[2], x[3] or "")  # noqa: E731
+    p.pruefe("Aufgaben: drei aus Mängeln, ohne Zuständigkeit, alle erledigt (abgenommen bzw. verworfen)",
+             sorted(aufgabe, key=reihe), sorted([
                  [None, True, f"/orders/{auftrag}#mangel-{mangel_id}", seed["datum"]["frist"]],
-                 [None, True, f"/orders/{auftrag}#mangel-{zweiter}", None]], key=lambda x: x[2]))
+                 [None, True, f"/orders/{auftrag}#mangel-{mangel_id}", None],
+                 [None, True, f"/orders/{auftrag}#mangel-{zweiter}", None]], key=reihe))
     await tab.oeffnen(f"/orders/{auftrag}#mangel-{mangel_id}", BEREIT + " && document.getElementById('mangel-" + str(mangel_id) + "')")
     await asyncio.sleep(0.4)
     p.pruefe("Verweis aus der Aufgabe: springt zum Mangel", await tab.js(
         f"(r=>r.top>=0&&r.bottom<=innerHeight)(document.getElementById('mangel-{mangel_id}').getBoundingClientRect())"), True)
+
+    # --- seit 1.8.55: zurück auf offen mit neuer Frist -------------------------------------------------------------
+    dritter = await tab.js(
+        f"(()=>{{const f=new FormData();f.append('data',JSON.stringify({{description:'Kehle Ost undicht'}}));"
+        f"return fetch('/api/order-acceptances/{ab['vorbehalt']}/defects',{{method:'POST',body:f}}).then(r=>r.json()).then(j=>j.id)}})()")
+    await tab.oeffnen(url, BEREIT + f" && document.getElementById('mangel-{dritter}')")
+    m3 = f"document.getElementById('mangel-{dritter}')"
+    await tab.js(f"defOpen({dritter},'status')")
+    await tab.warten(f"document.getElementById('defPart{dritter}').options.length>1")
+    await tab.js(f"{_panel(dritter)}.querySelector('input[value=beseitigt]').click();"
+                 f"document.getElementById('defDate{dritter}').value='{seed['datum']['heute']}';"
+                 f"[...{_panel(dritter)}.querySelectorAll('button')].pop().click()")
+    await tab.warten(f"{m3}.innerText.split('\\n')[1].startsWith('beseitigt')")
+    await tab.js(f"defOpen({dritter},'status')")
+    await tab.warten(f"document.getElementById('defPart{dritter}').options.length>1")
+    await tab.js(f"{_panel(dritter)}.querySelector('input[value=beseitigung_abgenommen]').click()")
+    sichtbar_abgenommen = await tab.js(f"document.getElementById('defDueBox{dritter}').hidden")
+    await tab.js(f"{_panel(dritter)}.querySelector('input[value=offen]').click()")
+    p.pruefe("Neue Frist: Feld nur bei 'zurück auf offen', optional, nennt die bisherige", [sichtbar_abgenommen, await tab.js(
+        f"[document.getElementById('defDueBox{dritter}').hidden, document.querySelector('label[for=defDue{dritter}]').textContent]")],
+        [True, [False, "Neue Beseitigungsfrist (optional – leer: es bleibt ohne Frist)"]])
+    await tab.js(f"document.getElementById('defDue{dritter}').value='{seed['datum']['neue_frist']}';"
+                 f"document.getElementById('defReason{dritter}').value='Nachbesserung misslungen';"
+                 f"[...{_panel(dritter)}.querySelectorAll('button')].pop().click()")
+    await tab.warten(f"{m3}.innerText.split('\\n')[1].startsWith('offen')")
+    await tab.js(f"{m3}.querySelector('details').open=true")
+    neu = "{2}.{1}.{0}".format(*seed["datum"]["neue_frist"].split("-"))
+    p.pruefe("Neue Frist: am Mangel mit Hinweis, im Verlauf, Prüfsumme stimmt", await tab.js(
+        f"(t=>[t.includes('Beseitigungsfrist: {neu} (neu gesetzt; beim Erfassen: keine)'), "
+        f"{m3}.querySelector('[data-neue-frist]').textContent, t.includes('Prüfung: Prüfsumme stimmt') || !t.includes('Prüfung:')])"
+        f"({m3}.innerText)"), [True, f"Neue Beseitigungsfrist: {neu}", True])
+    antwort = await tab.js("fetch('/api/tasks?unassigned_only=true').then(r=>r.json())")
+    erneut = [[x["title"].split(" – ")[0], x["due_date"]] for x in (antwort or [])
+              if x.get("source_url") == f"/orders/{auftrag}#mangel-{dritter}" and not x["status_is_done"]]
+    p.pruefe("Neue Frist: Aufgabe 'Erneut beseitigen' fällig zur neuen Frist", erneut,
+             [["Erneut beseitigen", seed["datum"]["neue_frist"]]])
+    await tab.js(f"{m3}.scrollIntoView()")
+    await tab.bild("4b_neue_frist_hell")
+    p.pruefe("Neue Frist: keine JS-Fehler", tab.fehler, [])
 
     # --- 412 px, dunkel ----------------------------------------------------------------------------------------------
     await tab.fenster(412, 900, mobil=True)
@@ -371,4 +419,4 @@ async def pruefen(tab, seed, p):
 
 
 if __name__ == "__main__":
-    sys.exit(klicktest_main(befuellen, pruefen, beschreibung="Mängel aus der Abnahme (1.8.49)", uhr="10:00"))
+    sys.exit(klicktest_main(befuellen, pruefen, beschreibung="Mängel aus der Abnahme (1.8.49, Frist 1.8.55)", uhr="10:00"))

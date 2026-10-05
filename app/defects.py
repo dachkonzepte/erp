@@ -30,6 +30,10 @@ Seit 1.8.54 folgt die Aufgabe dem Status: "beseitigt" (Büro oder Monteur) erled
 Commit wie der Eintrag, die neue Aufgabe steht am Eintrag (DefectEvent.task_id). Die aktuelle Aufgabe ist die des letzten
 Eintrags, der eine angelegt hat, sonst die beim Erfassen (current_task()).
 
+Seit 1.8.55 trägt "zurück auf offen" optional eine neue Beseitigungsfrist (DefectEvent.due_on, nicht vor heute). Die aktuelle
+Frist ist die des letzten Eintrags mit einer, sonst die beim Erfassen (current_due()) -- Aufgabe "Erneut beseitigen",
+Büro-Seite, Überschreitung und /mobil nutzen sie.
+
 Rollenlos wie jede Geschäftslogik; app/routers/defects.py lässt nur das Büro zu (ab buero_auftrag). Seit 1.8.52 sieht der
 Monteur in /mobil (app/routers/field_defects.py) die Mängel, die er beseitigen soll -- freigegeben, Status offen, nicht
 verworfen, an einem Auftrag, den er öffnen darf (field_may_see_defect(), field_may_access_order()) -- mit einer
@@ -178,8 +182,10 @@ def defect_content(d: Defect) -> dict:
 
 
 def event_content(e: DefectEvent, defect_hash: str) -> dict:
-    """Der gebundene Inhalt eines Ereignisses -- samt Prüfsumme des Mangels und des vorigen Ereignisses (Kette)."""
-    return {
+    """Der gebundene Inhalt eines Ereignisses -- samt Prüfsumme des Mangels und des vorigen Ereignisses (Kette). Die neue
+    Frist (seit 1.8.55) nur, wenn gesetzt: so bleiben die Prüfsummen aller früheren Einträge gültig, und ein am ORM vorbei
+    gesetztes oder entferntes Datum ändert den Inhalt trotzdem."""
+    content = {
         "checksum_format": e.checksum_format, "defect_id": e.defect_id, "defect_content_sha256": defect_hash,
         "previous_event_sha256": e.previous_event_sha256, "kind": e.kind, "value": e.value,
         "previous_value": e.previous_value, "event_date": e.event_date.isoformat() if e.event_date else None,
@@ -188,6 +194,9 @@ def event_content(e: DefectEvent, defect_hash: str) -> dict:
         "poa_on_record": e.poa_on_record, "files": _file_entries(e.files),
         "created_at": e.created_at.replace(microsecond=0).isoformat(), "created_by_name": e.created_by_name,
     }
+    if e.due_on is not None:
+        content["due_on"] = e.due_on.isoformat()
+    return content
 
 
 def _verify_discard(d: Defect) -> str | None:
@@ -331,11 +340,12 @@ def _new_task(db: Session, order: Order, acceptance: OrderAcceptance, *, place: 
 
 
 def _follow_task(db: Session, defect: Defect, kind: str, *, event_date, user_id: int | None, user_name: str,
-                 via_field_view: bool) -> Task | None:
+                 via_field_view: bool, due=None) -> Task | None:
     """Die Aufgabe nach einem Statuswechsel (seit 1.8.54, Betreibervorgabe 2c-2b): "abnahme" nach "beseitigt" --
     "Beseitigung abnehmen lassen", ohne Fälligkeit; "beseitigen" nach "zurück auf offen" -- "Erneut beseitigen",
-    fällig zur Beseitigungsfrist. Titel wie beim Erfassen mit vorangestellter Art, Beschreibung nur Metadaten (nicht
-    Mangeltext, Begründung oder Hinweis des Monteurs)."""
+    fällig zur aktuellen Beseitigungsfrist (`due`, seit 1.8.55 die neue des Eintrags oder die bisher geltende). Titel wie
+    beim Erfassen mit vorangestellter Art, Beschreibung nur Metadaten (nicht Mangeltext, Begründung oder Hinweis des
+    Monteurs)."""
     order = db.get(Order, defect.order_id)
     base = _task_title(order, defect.roof_area_name or defect.location, defect.description)
     who = f"{'in der Monteursansicht von ' if via_field_view else 'von '}{user_name}"
@@ -347,12 +357,21 @@ def _follow_task(db: Session, defect: Defect, kind: str, *, event_date, user_id:
                 "selbst (umgekehrt nicht).")
         return _add_task(db, order, title=f"Beseitigung abnehmen lassen – {base}", description=text, due=None,
                          user_id=user_id, source_url=url)
-    due = defect.remedy_due_on
     text = (f"Mangel Nr. {defect.id} ist wieder offen (zurückgesetzt {who}) – die Beseitigung ist nicht gelungen oder "
             f"nicht abgenommen. Beseitigungsfrist: {due.strftime('%d.%m.%Y') if due else 'keine'}. Ist der Mangel "
             "erledigt, erledigt sich diese Aufgabe von selbst (umgekehrt nicht).")
     return _add_task(db, order, title=f"Erneut beseitigen – {base}", description=text, due=due, user_id=user_id,
                      source_url=url)
+
+
+def current_due(defect: Defect, events):
+    """Die aktuelle Beseitigungsfrist (seit 1.8.55): die des letzten Eintrags, der eine neue gesetzt hat ("zurück auf
+    offen" mit Frist), sonst die beim Erfassen. None = keine Frist."""
+    due = defect.remedy_due_on
+    for e in sorted(events, key=lambda x: x.id):
+        if e.due_on is not None:
+            due = e.due_on
+    return due
 
 
 def current_task(defect: Defect, events) -> tuple[int | None, str]:
@@ -458,10 +477,12 @@ def _complete_task(db: Session, task_id: int | None) -> bool:
 def _append(db: Session, defect: Defect, events: list[DefectEvent], *, kind: str, value: str | None,
             previous_value: str | None, files: list[tuple[str, bytes, str]] = (), event_date=None,
             reason: str | None = None, declared: dict | None = None, user_id: int | None, user_name: str | None,
-            complete_task: bool = False, task_kind: str | None = None, client_uuid: str | None = None) -> DefectEvent:
+            complete_task: bool = False, task_kind: str | None = None, client_uuid: str | None = None,
+            due_on=None) -> DefectEvent:
     """Ein Eintrag im Verlauf, in einem Commit mit der Aufgabe: complete_task erledigt die aktuelle Aufgabe, task_kind
     (seit 1.8.54) erledigt sie ebenfalls und legt die nächste an -- vor dem Eintrag, damit er ihre ID beim Einfügen trägt
-    (danach ist er unveränderlich)."""
+    (danach ist er unveränderlich). due_on (seit 1.8.55): neue Beseitigungsfrist des Eintrags, auch die der neuen
+    Aufgabe."""
     name = (user_name or "System")[:160]
     now = datetime.utcnow().replace(microsecond=0)
     written: list[str] = []
@@ -471,13 +492,14 @@ def _append(db: Session, defect: Defect, events: list[DefectEvent], *, kind: str
             _complete_task(db, current_task(defect, events)[0])
         if task_kind:
             task = _follow_task(db, defect, task_kind, event_date=event_date, user_id=user_id, user_name=name,
-                                via_field_view=client_uuid is not None)
+                                via_field_view=client_uuid is not None,
+                                due=due_on if due_on is not None else current_due(defect, events))
             task_id = task.id if task is not None else None
         event = DefectEvent(
             defect_id=defect.id, kind=kind, value=value, previous_value=previous_value, event_date=event_date,
             reason=reason, previous_event_sha256=events[-1].content_sha256 if events else None,
             content_sha256="", checksum_format=CHECKSUM_FORMAT, created_at=now, created_by_user_id=user_id,
-            created_by_name=name, client_uuid=client_uuid, task_id=task_id, **(declared or {}),
+            created_by_name=name, client_uuid=client_uuid, task_id=task_id, due_on=due_on, **(declared or {}),
         )
         for file_kind, content, content_type in files:
             event.files.append(_store(written, defect.id, file_kind, content, content_type, now))
@@ -560,8 +582,9 @@ def _declarer(db: Session, defect: Defect, data: dict) -> tuple[dict, tuple[byte
 
 def set_status(db: Session, defect: Defect, data: dict, files: list[tuple[str, str | None, bytes]], *,
                user_id: int | None, user_name: str | None) -> DefectEvent:
-    """Status weiterschreiben. `data`: status, event_date, reason, declared_by, participant_id; `files`: Belege nur
-    bei "Beseitigung abgenommen". Ein Übergang, den der Stand nicht (mehr) zulässt, ist ein DefectConflict (409)."""
+    """Status weiterschreiben. `data`: status, event_date, reason, declared_by, participant_id, seit 1.8.55 due_on (neue
+    Beseitigungsfrist, nur bei "zurück auf offen", optional, nicht vor heute); `files`: Belege nur bei "Beseitigung
+    abgenommen". Ein Übergang, den der Stand nicht (mehr) zulässt, ist ein DefectConflict (409)."""
     status = data.get("status")
     if status not in STATUSES:
         raise ValueError("Unbekannter Status.")
@@ -585,6 +608,11 @@ def set_status(db: Session, defect: Defect, data: dict, files: list[tuple[str, s
                          "eine Begründung, woraus sie sich ergibt.")
     if status != "beseitigung_abgenommen" and (data.get("declared_by") or data.get("participant_id") is not None):
         raise ValueError("„Erklärt durch“ gehört nur zu „Beseitigung abgenommen“.")
+    due_on = data.get("due_on")
+    if due_on is not None and status != "offen":
+        raise ValueError("Eine neue Beseitigungsfrist gehört nur zu „zurück auf offen“.")
+    if due_on is not None and due_on < berlin_today():
+        raise ValueError("Die neue Beseitigungsfrist liegt in der Vergangenheit.")
 
     events = _lock(db, defect)
     state = defect_state(events)
@@ -607,7 +635,8 @@ def set_status(db: Session, defect: Defect, data: dict, files: list[tuple[str, s
         stored_files.append(("abnahmevollmacht", *frozen))
     return _append(db, defect, events, kind="status", value=status, previous_value=state["status"],
                    files=stored_files, event_date=event_date, reason=text, declared=declared, user_id=user_id,
-                   user_name=user_name, complete_task=status in DONE_STATUSES, task_kind=STATUS_TASKS.get(status))
+                   user_name=user_name, complete_task=status in DONE_STATUSES, task_kind=STATUS_TASKS.get(status),
+                   due_on=due_on)
 
 
 def add_photos(db: Session, defect: Defect, files: list[tuple[str, str | None, bytes]], *, user_id: int | None,
@@ -722,7 +751,7 @@ def _event_dict(e: DefectEvent, check: dict) -> dict:
         "id": e.id, "kind": e.kind, "kind_label": EVENT_KINDS.get(e.kind, e.kind),
         "value": e.value, "value_label": labels.get(e.value, e.value),
         "previous_value": e.previous_value, "previous_value_label": labels.get(e.previous_value, e.previous_value),
-        "event_date": e.event_date, "reason": e.reason,
+        "event_date": e.event_date, "reason": e.reason, "due_on": e.due_on,  # due_on: neue Frist (seit 1.8.55)
         "declared_by": e.declared_by, "declared_by_label": DECLARERS.get(e.declared_by) if e.declared_by else None,
         "declared_by_name": e.declared_by_name, "declared_by_role": e.declared_by_role,
         "without_power_of_attorney": e.declared_by == "beteiligter" and not any(f.kind == "abnahmevollmacht"
@@ -755,6 +784,7 @@ def defect_to_dict(d: Defect, *, order: Order, acceptance: OrderAcceptance | Non
     state = defect_state(d.events)
     task_id, task_kind = current_task(d, d.events)
     task_info = _task_dict(tasks.get(task_id), task_id, task_kind, columns)
+    due = current_due(d, d.events)
     task_hint = None
     if task_info.get("done") and not state["done"] and d.discarded_at is None:
         task_hint = "Die Aufgabe ist erledigt, der Mangel aber nicht – maßgeblich ist der Mangel."
@@ -766,9 +796,10 @@ def defect_to_dict(d: Defect, *, order: Order, acceptance: OrderAcceptance | Non
             "scope_label": SCOPES.get(acceptance.scope, acceptance.scope), "result_text": result_text(acceptance),
             "discarded": acceptance.discarded_at is not None},
         "property_id": d.property_id, "description": d.description, "roof_area_id": d.roof_area_id,
-        "roof_area_name": d.roof_area_name, "location": d.location, "remedy_due_on": d.remedy_due_on,
-        "remedy_overdue": bool(d.remedy_due_on and not state["done"] and d.discarded_at is None
-                               and d.remedy_due_on < berlin_today()),
+        # remedy_due_on: die aktuelle Frist (seit 1.8.55), remedy_due_on_original: die beim Erfassen
+        "roof_area_name": d.roof_area_name, "location": d.location, "remedy_due_on": due,
+        "remedy_due_on_original": d.remedy_due_on, "remedy_due_changed": due != d.remedy_due_on,
+        "remedy_overdue": bool(due and not state["done"] and d.discarded_at is None and due < berlin_today()),
         "files": [_file_dict(f, check["files"][f.id]) for f in d.files if f.event_id is None],
         "stance": state["stance"], "stance_label": STANCES[state["stance"]],
         "status": state["status"], "status_label": STATUSES[state["status"]], "status_date": state["status_date"],
@@ -834,20 +865,22 @@ def field_may_see_defect(d: Defect, state: dict) -> bool:
 
 
 def field_defect_dict(d: Defect, order: Order, prop: Property | None) -> dict:
-    """Die Positivliste für den Monteur: Beschreibung, Ort, Dachfläche, Frist, Fotos -- dazu, wo er hin muss (Auftrag,
-    Objekt der Abnahme, sonst der Schnappschuss am Auftrag). Keine Haltung, keine Abnahmedaten, keine Gewährleistung,
-    kein Verlauf. Das Antwortschema (FieldDefectOut) lässt zusätzlich nichts anderes durch."""
+    """Die Positivliste für den Monteur: Beschreibung, Ort, Dachfläche, Frist (seit 1.8.55 die aktuelle, current_due()),
+    Fotos -- dazu, wo er hin muss (Auftrag, Objekt der Abnahme, sonst der Schnappschuss am Auftrag). Keine Haltung, keine
+    Abnahmedaten, keine Gewährleistung, kein Verlauf. Das Antwortschema (FieldDefectOut) lässt zusätzlich nichts anderes
+    durch."""
     if prop is not None:
         name = prop.name
         address = ", ".join(x for x in (prop.street, " ".join(y for y in (prop.postal_code, prop.city) if y)) if x)
     else:
         name, address = order.property_name, order.property_address
+    due = current_due(d, d.events)
     return {
         "id": d.id, "order_id": d.order_id, "order_number": order.order_number,
         "property_name": name, "property_address": address or None,
         "description": d.description, "location": d.location, "roof_area_name": d.roof_area_name,
-        "remedy_due_on": d.remedy_due_on,
-        "remedy_overdue": bool(d.remedy_due_on and d.remedy_due_on < berlin_today()),
+        "remedy_due_on": due,
+        "remedy_overdue": bool(due and due < berlin_today()),
         "photos": [{"id": f.id} for f in sorted(d.files, key=lambda f: f.id) if f.kind == FIELD_PHOTO_KIND],
     }
 
@@ -866,7 +899,8 @@ def list_field_defects(db: Session, employee_id: int) -> list[dict]:
     orders = {o.id: o for o in db.scalars(select(Order).where(Order.id.in_({d.order_id for d in rows})))} if rows else {}
     prop_ids = {d.property_id for d in rows if d.property_id}
     props = {p.id: p for p in db.scalars(select(Property).where(Property.id.in_(prop_ids)))} if prop_ids else {}
-    rows.sort(key=lambda d: (d.remedy_due_on is None, d.remedy_due_on or berlin_today(), d.id))
+    dues = {d.id: current_due(d, d.events) for d in rows}
+    rows.sort(key=lambda d: (dues[d.id] is None, dues[d.id] or berlin_today(), d.id))
     return [field_defect_dict(d, orders[d.order_id], props.get(d.property_id)) for d in rows]
 
 

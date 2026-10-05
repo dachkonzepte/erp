@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.54** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.55** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -624,6 +624,13 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     nach `create_all()` (conftest), ohne sie: `tests/grunddaten_schalter.py`. Details:
     `docs/archiv/grunddaten-beim-start.md`.
 
+24. **Eine Gegenprobe bleibt nie im Code, seit 1.8.55.** Eine Gegenprobe hebelt einen Schutz in `app/` absichtlich aus, um
+    zu zeigen, dass sein Test dann rot wird. Jede Änderung dafür trägt den Marker `GEGENPROBE` (Kommentar in der geänderten
+    Zeile, in Vorlagen `/* GEGENPROBE */`); `tests/test_v357_gegenprobe_marker.py` schlägt an, sobald er irgendwo unter
+    `app/` steht, mit Datei und Zeile. Danach die Datei byte-genau zurück (Prüfsumme vergleichen). Solange eine Gegenprobe
+    läuft, läuft nichts anderes gegen diesen Code -- Anlass: in 1.8.54 fiel eine Migrationsprobe in eine laufende
+    Gegenprobe (`docs/archiv/abnahme-und-gewaehrleistung.md`, "Verifikation 1.8.54" und "Umsetzung 1.8.55").
+
 ## Fachbegriffe & Domänenmodell
 
 - **"Vorgang"** (in normalem Gespräch) = **Projekt** (`Project`) – wurde in der Sitzung explizit
@@ -709,6 +716,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Positivliste) und meldet "beseitigt" mit Foto, idempotent über `DefectEvent.client_uuid`. Seit 1.8.54 folgt die Aufgabe
   dem Status ("beseitigt" -> "Beseitigung abnehmen lassen", zurück auf offen -> wieder "Mangel beseitigen", am Eintrag
   `DefectEvent.task_id`, aktuelle über `current_task()`), die Meldung trägt optional einen Hinweis des Monteurs, nur fürs Büro.
+  Seit 1.8.55 trägt "zurück auf offen" optional eine neue Beseitigungsfrist (`DefectEvent.due_on`, nicht vor heute); Aufgabe,
+  Büro und `/mobil` nutzen die aktuelle (`current_due()`).
   Seit 1.8.50 setzt `{gewaehrleistung}` in Vertragsvorlagen die Dauer ein; ein Vertrag damit wird erst mit festgelegter Dauer
   festgeschrieben, danach sind Leistungsart und Dauer gesperrt (`warranty_contract_lock()`, Sperrreihenfolge Vertrag ->
   Auftrag wie beim Abgleich). Details: `docs/archiv/abnahme-und-gewaehrleistung.md`.
@@ -851,7 +860,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   mit Dauer, danach Dauer und Leistungsart gesperrt; seit 1.8.51 Belege am Mangel nachreichen, Aufgabentitel mit Kurzfassung,
   Bindung der Sperren an eine gültige Fassung offen, weil es kein Zurückziehen gibt; seit 1.8.52 Monteur-Sicht auf Mängel in
   `/mobil` mit Positivliste, "beseitigt" melden mit Foto, Fotos nur über den Monteur-Weg; seit 1.8.54 Aufgabe folgt dem
-  Status, Hinweis des Monteurs zur Meldung) -- `docs/archiv/abnahme-und-gewaehrleistung.md`
+  Status, Hinweis des Monteurs zur Meldung; Stufe 2c-2c ab 1.8.55: neue Frist bei "zurück auf offen", Zurückziehen einer
+  Vertragsfassung entschieden, nicht gebaut) -- `docs/archiv/abnahme-und-gewaehrleistung.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
   `docs/archiv/grunddaten-beim-start.md`
@@ -1216,7 +1226,7 @@ Vorschau der verschobenen Enden mit Pflicht-Begründung, Vollmacht zur Abnahme i
 1.8.48 Prüfstatus rot an Objekt, Dachfläche und Auftrag) und `klicktest_maengel.py` (1.8.49, Warnung und "+ Mangel erfassen"
 nur an Abnahmen mit Vorbehalt oder Verweigerung, Dialog ohne Vorauswahl, Haltung, Kulanz-Freigabe, beseitigt und abgenommen,
 "Nachbesserung regulär bis", Fotos ergänzen, Verlauf, Verwerfen, Aufgabe im Büro-Eingang mit Sprung zum Mangel, 412 px
-dunkel, Monteurin 403) und `klicktest_vertrag_gewaehrleistung.py` (1.8.50, Hinweis und gesperrtes Festschreiben ohne Dauer,
+dunkel, Monteurin 403; seit 1.8.55 neue Frist bei "zurück auf offen") und `klicktest_vertrag_gewaehrleistung.py` (1.8.50, Hinweis und gesperrtes Festschreiben ohne Dauer,
 Vorschlag übernehmen, Fassung 1 festschreiben, danach Karte "Gewährleistung" gesperrt und Festlegen 409, 412 px dunkel) und
 `klicktest_maengel_monteur.py` (1.8.52, `/mobil` als Monteurin: nur der freigegebene Mangel ohne Haltung und Belege, Foto über
 den Monteur-Weg, verborgene Mängel 404, "Beseitigt melden" ohne Foto abgelehnt, mit Foto gemeldet, dieselbe Kennung noch einmal

@@ -1444,13 +1444,15 @@ class DefectRelease(BaseModel):
 
 
 class DefectStatusChange(BaseModel):
-    """Status eines Mangels weiterschreiben (seit 1.8.49) -- als JSON im Formularfeld "data" neben den Belegen."""
+    """Status eines Mangels weiterschreiben (seit 1.8.49) -- als JSON im Formularfeld "data" neben den Belegen. due_on
+    (seit 1.8.55): neue Beseitigungsfrist, nur bei "zurück auf offen"."""
     model_config = ConfigDict(extra="forbid")
     status: Literal["offen", "beseitigt", "beseitigung_abgenommen", "erledigt_ohne"]
     event_date: date | None = None
     reason: str | None = None
     declared_by: Literal["auftraggeber", "beteiligter"] | None = None
     participant_id: int | None = None
+    due_on: date | None = None
 
 
 class DefectDiscard(BaseModel):

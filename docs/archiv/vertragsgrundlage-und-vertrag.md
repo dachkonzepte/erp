@@ -1515,3 +1515,12 @@ Monteure). Der Baukasten selbst: `docs/archiv/modul-checklisten.md`, "Nachtrag 1
    Belegfeld oberhalb der "Unterschrift Büro" bzw. des Wegfalls; die Startvorlagen haben keins.
 3. **Drei Fassungen desselben Kastens**: Auftragsseite (`order.html`), `/mobil` und `_offene_bedenken.html` bauen den Hinweis
    je selbst; eine Änderung am Text kommt aus einer Quelle (`OPEN_CONCERNS_TEXT`), Darstellung und Link-Regel nicht.
+
+
+---
+
+## Nachtrag 1.8.55 (05.10.2026) -- Zurückziehen einer Fassung entschieden
+
+Das Zurückziehen einer festgeschriebenen Vertragsfassung (samt einer Regel `contract_lock` für Kunde, Dauer und Leistungsart,
+Wegfall von "Neue Fassung", Zurückziehen auch nach dem Versand mit Aufgabe "Kunden informieren") ist entschieden, aber noch
+nicht gebaut -- Wortlaut der Entscheidung: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.55", Punkt 0c.

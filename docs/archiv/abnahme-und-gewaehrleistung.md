@@ -18,7 +18,8 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 |---|---|---|---|
 | **2c-1** | 1.8.46, 1.8.47 | Fundament: Regel-20-Test auch für Spaltenvorgaben, Datengrenze (Strafe, Einbehalt), Leistungsart und Gewährleistungsdauer am Auftrag, Abnahme (unveränderlich, Verwerfen, Historie), Gewährleistungsende abgeleitet an Auftrag/Objekt/Dachfläche, Garantie Dritter an der Dachfläche mit Teil-Update, Abgleich gesperrt nach Abnahme (1.8.46); Vollmacht zur Abnahme am Beteiligten, Begründung und Vorschau nach der ersten Abnahme, Nachweis "förmlich: Beleg, sonst Beleg oder Begründung", "Gewährleistung regulär bis" (1.8.47) | erledigt |
 | **2c-2a** | 1.8.48–1.8.50 | Vorweg: Prüfstatus neben jedem Gewährleistungsende (eine Funktion, `logger.error` bei Abweichung), Siegel des Verwerfens, Fassung des Prüfsummenformats (1.8.48); Mängel aus der Abnahme mit Haltung, Status, Freigabe, Verlauf, Aufgabe und "Nachbesserung regulär bis" (1.8.49); Platzhalter `{gewaehrleistung}`, Festschreiben erst mit Dauer, danach Dauer und Leistungsart gesperrt (1.8.50) | erledigt |
-| **2c-2b** | 1.8.51–1.8.54 | Vorweg: Sperre an eine gültige Fassung binden (nur gemeldet -- es gibt kein Zurückziehen einer Fassung), Belege am Mangel nachreichen, Aufgabentitel mit Kurzfassung, CLAUDE.md `update.sh`/`backup.sh` (1.8.51); Monteur-Sicht auf Mängel in `/mobil` mit Positivliste, "beseitigt" melden mit Foto, idempotent über `client_uuid` (1.8.52); Nacharbeiten: Aufgaben-Mails ohne Inhalt (1.8.53), Aufgabe folgt dem Status des Mangels, Hinweis des Monteurs zur Meldung, `update.sh` probt selbst gegen die Spielwiese (1.8.54) | erledigt bis auf das Zurückziehen einer Fassung (Entscheidung offen) |
+| **2c-2b** | 1.8.51–1.8.54 | Vorweg: Sperre an eine gültige Fassung binden (nur gemeldet -- es gibt kein Zurückziehen einer Fassung), Belege am Mangel nachreichen, Aufgabentitel mit Kurzfassung, CLAUDE.md `update.sh`/`backup.sh` (1.8.51); Monteur-Sicht auf Mängel in `/mobil` mit Positivliste, "beseitigt" melden mit Foto, idempotent über `client_uuid` (1.8.52); Nacharbeiten: Aufgaben-Mails ohne Inhalt (1.8.53), Aufgabe folgt dem Status des Mangels, Hinweis des Monteurs zur Meldung, `update.sh` probt selbst gegen die Spielwiese (1.8.54) | erledigt; Zurückziehen einer Fassung am 05.10.2026 entschieden, noch nicht gebaut (siehe "Umsetzung 1.8.55", Punkt 0c) |
+| **2c-2c** | 1.8.55– | Unterschriften in Checklisten härten, Fundament für das Abnahmeprotokoll. Vorweg: "zurück auf offen" mit neuer Frist, Regel 24 (Marker GEGENPROBE), Entscheidung zum Zurückziehen einer Vertragsfassung ins Archiv (1.8.55); Pflichtfelder oberhalb einer Abschnittsunterschrift, eine gemeinsame Prüfung des Unterschriftsbilds (1.8.56); Unterzeichner je Unterschriftsfeld mit Siegel (1.8.57); Zeichenfläche nach Drehen neu vermessen (1.8.58) | in Arbeit |
 
 Nach jeder Runde die Spalten "Version"/"Stand" nachziehen und unten einen Abschnitt "Umsetzung 1.8.x" ergänzen.
 
@@ -757,7 +758,7 @@ Serverumgebung ("Einspielen"), "Der Weg einer Änderung auf den Server" und Rege
 Migration selbst gegen `spielwiese`; kein einzelner `alembic`-Befehl, auch nicht für die Probe. Der bisher dort stehende
 Probe-Befehl und die offene Frage aus 1.8.51 sind entfernt.
 
-### Festlegungen 1.8.54 (bitte bestätigen)
+### Festlegungen 1.8.54 (bestätigt am 05.10.2026, Vorgabe 2c-2c; Nr. 3 seit 1.8.55 zur aktuellen Frist)
 
 1. **Eine offene Aufgabe je Mangel**: jeder Statuswechsel "beseitigt"/"offen" erledigt die aktuelle und legt die nächste
    an -- nie zwei offene gleichzeitig. Eine von Hand erledigte bleibt erledigt.
@@ -809,7 +810,98 @@ Probe-Befehl und die offene Frage aus 1.8.51 sind entfernt.
    deshalb bleibt sie nur für Admins sichtbar (unverändert seit 1.8.17).
 2. **Öffentliche Adresse**: ohne sie trägt die Aufgaben-Mail nur den Pfad `/tasks?task=<id>` (siehe Punkt 1); ob sie auf
    dem Server gesetzt ist, ist nicht geprüft.
-3. **"Erneut beseitigen" zur ursprünglichen Frist** ist meist sofort überfällig (Festlegung 3) -- eine neue Frist nach einer
+3. ~~**"Erneut beseitigen" zur ursprünglichen Frist**~~ -- seit 1.8.55 mit optionaler neuer Frist (siehe "Umsetzung 1.8.55").
+   Ursprünglicher Text: ist meist sofort überfällig (Festlegung 3) -- eine neue Frist nach einer
    misslungenen Nachbesserung gibt es am Mangel nicht; das wäre ein eigener Eintrag im Verlauf.
 4. **Monteur mit eigenem Bericht, ohne Zuordnung an der AV** (Nebenbefund 4 aus 1.8.52) sieht freigegebene Mängel weiterhin
    -- unverändert, Entscheidung offen.
+
+---
+
+## Umsetzung 1.8.55 (05.10.2026) -- Runde 2c-2c, Punkt 0 (Vorweg)
+
+Betreibervorgabe 2c-2c (gekürzt): Unterschriften in Checklisten härten, Fundament für das Abnahmeprotokoll; Festlegungen
+1.8.53/1.8.54 bestätigt. Vorweg: (a) "zurück auf offen" mit optionaler neuer Frist im Eintrag, Aufgabe und Monteur-Sicht nutzen
+die jeweils aktuelle; (b) jede Änderung für eine Gegenprobe trägt den Marker GEGENPROBE, ein Dauertest schlägt an, sobald er
+unter `app/` steht, als Regel in CLAUDE.md; (c) Vertragsfassungen entschieden, nur ins Archiv, nicht bauen. Danach: (1)
+Abschnittsunterschrift prüft die Pflichtfelder oberhalb, (2) eine gemeinsame Prüfung für alle Unterschriften, leeres Bild
+abgelehnt, mit Strukturtest, (3) Unterzeichner je Unterschriftsfeld mit Siegel und Fassung des Siegelformats, (4)
+Zeichenfläche nach Drehen oder Größenänderung neu vermessen.
+
+### Punkt 0a: neue Frist bei "zurück auf offen"
+
+- **Neue Spalte** `defect_events.due_on` (Migration `90a5ff1e1714`, nullable Datum). Gesetzt nur bei "zurück auf offen" und
+  nur, wenn das Büro eine neue Frist angibt (`DefectStatusChange.due_on`, Feld "Neue Beseitigungsfrist (optional …)" im
+  Status-Dialog, nur bei "offen" sichtbar). Nicht vor heute (Europe/Berlin); bei jedem anderen Status 400.
+- **Aktuelle Frist** `current_due(defect, events)`: die des letzten Eintrags mit einer, sonst die beim Erfassen. Die Aufgabe
+  "Erneut beseitigen" ist zur neuen Frist fällig, ohne neue zur aktuellen (also einer früher neu gesetzten, nicht zwingend der
+  beim Erfassen). Büro: `remedy_due_on` ist jetzt die aktuelle, dazu `remedy_due_on_original`/`remedy_due_changed` ("neu
+  gesetzt; beim Erfassen: …"), Überschreitung nach der aktuellen, der Verlauf zeigt "Neue Beseitigungsfrist: …". `/mobil`:
+  `remedy_due_on` und Überschreitung nach der aktuellen, Sortierung ebenso -- die Positivliste `FieldDefectOut` bleibt gleich.
+- **Gebundener Inhalt**: `event_content()` nimmt `due_on` nur auf, wenn gesetzt. So bleiben die Prüfsummen aller früheren
+  Einträge gültig, ohne neue Fassung des Prüfsummenformats; ein am ORM vorbei gesetztes, geändertes oder entferntes Datum
+  ändert den Inhalt und erscheint als "Verlauf weicht von seiner Prüfsumme ab".
+- **Downgrade** verweigert, solange ein Eintrag eine neue Frist trägt (sie ginge verloren, und 1.8.54 rechnete den Eintrag
+  ohne sie nach -- Prüfsumme falsch).
+
+### Punkt 0b: Regel 24 -- Marker GEGENPROBE
+
+Jede Änderung in `app/`, die für eine Gegenprobe einen Schutz aushebelt, trägt den Marker `GEGENPROBE` (Kommentar in der
+geänderten Zeile). `tests/test_v357_gegenprobe_marker.py` durchsucht jede Textdatei unter `app/` (Python, Vorlagen, alles)
+und nennt Datei und Zeile; ein zweiter Test prüft die Suche selbst. Anlass: in 1.8.54 lief eine Migrationsprobe, während
+eine Gegenprobe `app/defects.py` ausgehebelt hatte ("Verifikation 1.8.54"). Der Gegenproben-Läufer dieser Runde (Scratchpad)
+verlangt den Marker in jeder Ersetzung und prüft nach dem Zurücksetzen die Prüfsumme der Datei.
+
+### Punkt 0c: Zurückziehen einer Vertragsfassung -- entschieden am 05.10.2026, nicht gebaut
+
+Auf den Vorschlag aus "Umsetzung 1.8.51", Punkt 0a:
+1. **Zurückziehen wie vorgeschlagen**: nur bei Status "festgeschrieben" (nicht nach der Unterschrift), Büro,
+   Pflicht-Begründung; bedingtes UPDATE mit Siegel wie beim Verwerfen der Abnahme (`withdrawn_at`/`_by_name`/`_reason`/
+   `withdraw_sha256` an `OrderContractVersion`), Vertrag zurück auf "entwurf", Zeile in der Änderungshistorie. Die Fassung
+   bleibt sichtbar und in der Ablage, wird aber nicht mehr versendet oder zugestellt.
+2. **Eine Regel** `contract_lock(db, order)`: eine **gültige** Fassung (festgeschrieben oder unterschrieben, nicht
+   zurückgezogen, nicht überholt) sperrt, was sie enthält -- den Kunden immer, Dauer und Leistungsart nur, wenn sie
+   `{gewaehrleistung}` nutzt. Ersetzt `check_client_change()` (Teil Vertrag) und `warranty_contract_lock()`.
+3. **"Neue Fassung" entfällt** -- korrigiert wird nur über Zurückziehen und neu Festschreiben.
+4. **Versendete Fassung zurückziehen erlaubt**: mit Hinweis auf den Versand (Versandverlauf) und einer Aufgabe "Kunden
+   informieren". Eine spätere Unterschrift auf einer zurückgezogenen Fassung (z. B. Papier, das der Kunde vor dem Zurückziehen
+   bekommen hat) wird nicht still abgelehnt, sondern mit Warnung erfassbar.
+
+Offen für die Umsetzung (nicht entschieden, nur notiert): ob eine mit Warnung erfasste Unterschrift auf einer
+zurückgezogenen Fassung diese wieder gültig macht (und damit die Sperren nach Nr. 2 auslöst) oder nur als Nachweis
+festgehalten wird.
+
+### Festlegungen 1.8.55 (bitte bestätigen)
+
+1. **Neue Frist nur bei "zurück auf offen"**, optional; bei jedem anderen Status abgelehnt (400), nicht beim Erfassen
+   nachträglich änderbar.
+2. **Nicht vor heute** (Europe/Berlin), heute erlaubt -- anders als beim Erfassen (dort: nicht vor der Abnahme).
+3. **Ohne neue Frist gilt die zuletzt gesetzte weiter** (auch für die Aufgabe), nicht die beim Erfassen.
+4. **Eine einmal gesetzte Frist lässt sich nicht wieder entfernen**, nur durch eine neue ersetzen.
+5. **Im gebundenen Inhalt nur, wenn gesetzt** -- keine neue Fassung des Prüfsummenformats für Einträge (Abwägung: eine
+   Fassung 2 hätte jeden neuen Eintrag für ein Downgrade unprüfbar gemacht, auch ohne Frist).
+6. **Downgrade verweigert**, sobald ein Eintrag eine neue Frist trägt.
+7. **Monteur** sieht nur die aktuelle Frist, nicht, dass sie neu gesetzt wurde.
+
+### Verifikation 1.8.55
+
+- `tests/test_v357_maengel_neue_frist.py` (11 Tests): neue Frist am Eintrag, an der Aufgabe "Erneut beseitigen", in der
+  Büro-Ansicht mit ursprünglicher und im Verlauf, im gebundenen Inhalt; ohne neue Frist gilt die zuletzt gesetzte; neue Frist
+  ohne ursprüngliche; Überschreitung in Büro und `/mobil` nach der aktuellen; abgelehnt bei anderem Status, bei "beseitigt" und
+  in der Vergangenheit (nichts gespeichert, heute erlaubt); Angriff am ORM vorbei (gesetzt, geändert, entfernt -> "weicht
+  ab", zurück -> stimmt); Einträge ohne Frist mit unveränderter Prüfsumme; Feld auf der Seite; Migration mit verweigertem
+  Downgrade. `tests/test_v357_gegenprobe_marker.py` (2).
+- Gegenproben (mit Marker, Dateien byte-genau zurück, Prüfsumme verglichen): 10 von 10 rot -- Frist nicht im Inhalt, Aufgabe
+  mit der Frist beim Erfassen (mit und ohne neue), Büro und Monteur mit der Frist beim Erfassen, neue Frist bei anderem Status,
+  in der Vergangenheit, nicht gespeichert, Downgrade ohne Verweigerung, Marker in `app/berlin_time.py` (Dauertest).
+- Migration `90a5ff1e1714`: SQLite hin/zurück/hin, `check`; PostgreSQL 17 im Wegwerf-Schema: Kette bis `d5479410d4ff`, head,
+  Mangel über den App-Code (beseitigt, zurück auf offen mit neuer Frist; aktuelle Frist und Prüfung stimmen), Downgrade
+  verweigert, `current` = head, `check` sauber; leeres Schema hin/zurück/hin, `check`, `current`.
+- Volle Suite 2847 grün (mit den opt-in-Tests gegen PostgreSQL). Dabei rot und behoben: `test_v339` -- der Aufruf
+  `klicktest_main(..., uhr="10:00")` in `klicktest_maengel.py` stand nach meiner Änderung auf zwei Zeilen, die Prüfung auf feste
+  Uhr sucht ihn auf einer (eigener Fehler, vom Wächter gefunden).
+- Klicktest `scripts/klicktest_maengel.py` 39/39 (neu: dritter Mangel, Feld nur bei "zurück auf offen", Frist am Mangel mit
+  "(neu gesetzt; beim Erfassen: keine)", im Verlauf, Aufgabe "Erneut beseitigen" zur neuen Frist).
+- **Eigener Fehler aus 1.8.54, mitbehoben**: `klicktest_maengel.py` war nach "Aufgabe folgt dem Status" nicht nachgezogen worden
+  -- vier Prüfungen erwarteten noch die Aufgabenzeile "Aufgabe: …" und zwei statt drei Aufgaben (seit 1.8.54 "Aufgabe (Art): …"
+  und "Beseitigung abnehmen lassen" nach "beseitigt"). Erwartungen auf das bestätigte Verhalten gebracht; am Code kein Befund.

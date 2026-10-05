@@ -4,6 +4,24 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.55 – Mängel: neue Frist bei „zurück auf offen“, Regel gegen vergessene Gegenproben
+
+Stufe 2c, Runde 2c-2c, Punkt 0. Setzt das Büro einen beseitigten Mangel zurück auf „offen“, kann es jetzt eine neue
+Beseitigungsfrist angeben (optional, nicht vor heute). Sie steht im Eintrag des Verlaufs, mitversiegelt; die Aufgabe
+„Erneut beseitigen“ ist zu ihr fällig, und Auftragsseite wie Monteursansicht zeigen und werten die jeweils aktuelle Frist
+– ohne neue gilt die zuletzt gesetzte weiter. Die Auftragsseite nennt bei einer neu gesetzten Frist die beim Erfassen.
+Neue Regel 24 in CLAUDE.md: jede Änderung für eine Gegenprobe trägt den Marker GEGENPROBE, ein Dauertest schlägt an,
+sobald er unter `app/` steht (Anlass: in 1.8.54 fiel eine Migrationsprobe in eine laufende Gegenprobe). Die Entscheidung
+zum Zurückziehen einer Vertragsfassung steht im Archiv, gebaut ist sie noch nicht; die Festlegungen 1.8.53/1.8.54 sind
+als bestätigt markiert.
+
+Migration `90a5ff1e1714` (Spalte `defect_events.due_on`; Downgrade verweigert, solange ein Eintrag eine neue Frist trägt),
+geprüft unter SQLite und PostgreSQL 17 (hin, zurück, hin, `check`, mit Daten über den App-Code). Frühere Einträge behalten
+ihre Prüfsumme: die Frist steht nur im gebundenen Inhalt, wenn gesetzt. Neue `test_v357` (13), Gegenproben 10 von 10 rot.
+Klicktest `klicktest_maengel.py` 39/39 – dabei vier Prüfungen nachgezogen, die seit 1.8.54 („Aufgabe folgt dem Status“)
+veraltet waren (eigener Fehler der Vorrunde). Volle Suite 2847 grün (mit den opt-in-Tests gegen PostgreSQL).
+Festlegungen in `docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.55“.
+
 ## 1.8.54 – Mängel: Aufgabe folgt dem Status, Hinweis des Monteurs
 
 Stufe 2c, Runde 2c-2b, Nacharbeiten Punkt 2 bis 4. Wird ein Mangel „beseitigt“ – im Büro oder als Meldung aus der

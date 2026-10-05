@@ -1256,7 +1256,11 @@ class DefectEvent(Base):
 
     task_id (seit 1.8.54): die Aufgabe, die dieser Eintrag angelegt hat -- "Beseitigung abnehmen lassen" bei "beseitigt",
     "Mangel beseitigen" bei "zurück auf offen" (app/defects.py::current_task()). Wie Defect.task_id ohne Fremdschlüssel und
-    nicht im gebundenen Inhalt; beim Einfügen gesetzt, danach unveränderlich wie der ganze Eintrag."""
+    nicht im gebundenen Inhalt; beim Einfügen gesetzt, danach unveränderlich wie der ganze Eintrag.
+
+    due_on (seit 1.8.55): neue Beseitigungsfrist, nur bei "zurück auf offen" und optional. Die aktuelle Frist ist die des
+    letzten Eintrags mit einer, sonst Defect.remedy_due_on (app/defects.py::current_due()). Im gebundenen Inhalt ab
+    checksum_format 2 -- Einträge mit Fassung 1 behalten ihre Prüfsumme."""
 
     __tablename__ = "defect_events"
     __table_args__ = (UniqueConstraint("client_uuid", name="uq_defect_event_client_uuid"),)
@@ -1281,6 +1285,7 @@ class DefectEvent(Base):
     created_by_name: Mapped[str] = mapped_column(String(160), default="System")
     client_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True)
     task_id: Mapped[int | None] = mapped_column(nullable=True)
+    due_on: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     defect: Mapped[Defect] = relationship(back_populates="events")
     files: Mapped[list["DefectFile"]] = relationship(back_populates="event", order_by="DefectFile.id")

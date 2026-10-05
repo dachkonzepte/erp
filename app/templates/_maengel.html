@@ -46,7 +46,7 @@
 <script>
 let defects=[],defectAcceptanceId=null,defectOptionsCache={},defectHashDone=false;
 // FELDNAMEN definiert order.html erst NACH diesem Include -- deshalb erst beim Aufruf zusammensetzen, nie beim Laden.
-function defFeldnamen(){return {...FELDNAMEN,description:'Beschreibung',location:'Ortsangabe',remedy_due_on:'Beseitigungsfrist',roof_area_id:'Dachfläche',stance:'Haltung',released:'Freigabe',event_date:'Datum'}}
+function defFeldnamen(){return {...FELDNAMEN,description:'Beschreibung',location:'Ortsangabe',remedy_due_on:'Beseitigungsfrist',roof_area_id:'Dachfläche',stance:'Haltung',released:'Freigabe',event_date:'Datum',due_on:'Neue Beseitigungsfrist'}}
 async function defApi(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,defFeldnamen()));return r.json()}
 async function loadDefects(){
   try{defects=await defApi(`/api/orders/${orderId}/defects`)}catch(e){document.getElementById('defectList').textContent='Mängel konnten nicht geladen werden: '+e.message;return}
@@ -67,6 +67,7 @@ function defEventHtml(d,e){
   if(e.declared_by)parts.push(`<div>Erklärt durch: ${e.declared_by==='beteiligter'?`${esc(e.declared_by_name)} (${esc(e.declared_by_role||'Beteiligter')})`:`Auftraggeber ${esc(e.declared_by_name)}`}${e.without_power_of_attorney?' <span class="acc-warn">⚠ ohne Vollmacht zur Abnahme</span>':''}</div>`);
   // Seit 1.8.54: bei einer Meldung aus der Monteursansicht ist der Text der Hinweis des Monteurs (nur hier sichtbar).
   if(e.reason)parts.push(`<div style="white-space:pre-wrap">${e.via_field_view?'Hinweis aus der Monteursansicht':'Begründung'}: ${esc(e.reason)}</div>`);
+  if(e.due_on)parts.push(`<div data-neue-frist>Neue Beseitigungsfrist: ${accDate(e.due_on)}</div>`);  // seit 1.8.55
   if(e.files.length)parts.push(defFiles(d,e.files));
   if(e.task_label)parts.push(`<div class="muted">Aufgabe „${esc(e.task_label)}“ angelegt</div>`);
   parts.push(`<div class="muted">${accDateTime(e.created_at_local)} · ${esc(e.created_by_name)}${e.via_field_view?' · gemeldet in der Monteursansicht':''}</div>`);
@@ -77,7 +78,8 @@ function defectHtml(d){
   const badges=[`<span class="def-badge${d.done?' done':''}">${esc(d.status_label)}${d.status_date?' '+accDate(d.status_date):''}</span>`,`<span class="def-badge${d.stance==='bestritten'?' warn':''}">Haltung: ${esc(d.stance_label)}</span>`,`<span class="def-badge">${d.released?'zur Beseitigung freigegeben':'nicht freigegeben'}</span>`];
   const lines=[`<div class="def-head">Mangel Nr. ${d.id}${place?' · '+place:''}</div>`,`<div>${badges.join('')}</div>`,`<div class="def-row" style="white-space:pre-wrap">${esc(d.description)}</div>`];
   if(d.acceptance)lines.push(`<div class="def-row muted">Aus der ${esc(d.acceptance.scope_label)} vom ${accDate(d.acceptance.accepted_on)} (${esc(d.acceptance.result_text)})${d.acceptance.discarded?' <span class="acc-warn">– Abnahme verworfen</span>':''}</div>`);
-  if(d.remedy_due_on)lines.push(`<div class="def-row${d.remedy_overdue?' acc-bad':''}">Beseitigungsfrist: ${accDate(d.remedy_due_on)}${d.remedy_overdue?' – überschritten':''}</div>`);
+  // Seit 1.8.55 die aktuelle Frist -- eine bei "zurück auf offen" neu gesetzte, sonst die beim Erfassen.
+  if(d.remedy_due_on)lines.push(`<div class="def-row${d.remedy_overdue?' acc-bad':''}" data-frist>Beseitigungsfrist: ${accDate(d.remedy_due_on)}${d.remedy_overdue?' – überschritten':''}${d.remedy_due_changed?` <span class="muted">(neu gesetzt; beim Erfassen: ${d.remedy_due_on_original?accDate(d.remedy_due_on_original):'keine'})</span>`:''}</div>`);
   lines.push(defFiles(d,d.files));
   const w=d.remedy_warranty;
   if(w)lines.push(`<div class="def-row ${w.end&&w.check.ok?'acc-good':'acc-warn'}" title="${esc(w.rule||'')}">${esc(w.text)}${w.hint?` <span class="acc-hint">· ${esc(w.hint)}</span>`:''} ${accCheck(w.check)}</div>`);
@@ -109,6 +111,7 @@ async function defOpen(id,kind){
   }else if(kind==='status'){
     html=`<div><label class="lbl">Neuer Status (bisher: ${esc(d.status_label)})</label>${d.next_statuses.map(s=>`<label class="choice"><input type="radio" name="defNext${id}" value="${s.value}" onchange="defStatusUpdate(${id})"> ${esc(s.label)}</label>`).join('')}</div>
       <div id="defDateBox${id}" hidden><label class="lbl" for="defDate${id}">Datum</label><input id="defDate${id}" type="date"></div>
+      <div id="defDueBox${id}" hidden><label class="lbl" for="defDue${id}">Neue Beseitigungsfrist (optional – leer: es bleibt ${d.remedy_due_on?'die Frist '+accDate(d.remedy_due_on):'ohne Frist'})</label><input id="defDue${id}" type="date"></div>
       <div id="defDeclBox${id}" hidden><label class="lbl">Erklärt durch</label><label class="choice"><input type="radio" name="defDecl${id}" value="auftraggeber" onchange="defStatusUpdate(${id})"> Auftraggeber</label><label class="choice"><input type="radio" name="defDecl${id}" value="beteiligter" onchange="defStatusUpdate(${id})"> Beteiligter des Projekts</label>
         <div id="defPartBox${id}" hidden><select id="defPart${id}" onchange="defStatusUpdate(${id})"></select><div id="defPoa${id}" class="notice warning" style="margin:6px 0 0" hidden></div></div>
         <label class="lbl" for="defReceipts${id}" style="margin-top:6px">Beleg (PDF oder Foto) – oder Begründung, mindestens eins</label><input id="defReceipts${id}" type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp"></div>
@@ -129,6 +132,7 @@ async function defOpen(id,kind){
 function defStatusUpdate(id){
   const box=document.getElementById('defPanel'+id),next=defRadio(box,'defNext'+id),decl=defRadio(box,'defDecl'+id);
   document.getElementById('defDateBox'+id).hidden=!(next==='beseitigt'||next==='beseitigung_abgenommen');
+  document.getElementById('defDueBox'+id).hidden=next!=='offen';
   document.getElementById('defDeclBox'+id).hidden=next!=='beseitigung_abgenommen';
   document.getElementById('defPartBox'+id).hidden=decl!=='beteiligter';
   const d=defects.find(x=>x.id===id),o=defectOptionsCache[d.acceptance_id],pid=document.getElementById('defPart'+id).value;
@@ -155,6 +159,7 @@ async function defStatus(id,btn){
   if(!status){st.textContent='Bitte den neuen Status wählen.';return}
   const data={status,reason:document.getElementById('defReason'+id).value.trim()||null};
   if(status==='beseitigt'||status==='beseitigung_abgenommen')data.event_date=document.getElementById('defDate'+id).value||null;
+  if(status==='offen'){const due=document.getElementById('defDue'+id).value;if(due)data.due_on=due}
   const form=new FormData();
   if(status==='beseitigung_abgenommen'){data.declared_by=defRadio(box,'defDecl'+id);if(data.declared_by==='beteiligter'){const v=document.getElementById('defPart'+id).value;data.participant_id=v?Number(v):null}[...document.getElementById('defReceipts'+id).files].forEach(f=>form.append('receipts',f))}
   form.append('data',JSON.stringify(data));
