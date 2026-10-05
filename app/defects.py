@@ -26,7 +26,11 @@ Beim Erfassen entsteht eine Aufgabe ohne Zuständigkeit (Büro), fällig zur Bes
 Verweis in beide Richtungen (Defect.task_id, Task.source_url). Der Mangel ist die Wahrheit: seine Erledigung (Beseitigung
 abgenommen, erledigt ohne Beseitigung, verworfen) erledigt die Aufgabe; eine erledigte Aufgabe ändert am Mangel nichts.
 
-Rollenlos wie jede Geschäftslogik; die Router lassen nur das Büro zu (ab buero_auftrag), Monteure sehen nichts.
+Rollenlos wie jede Geschäftslogik; app/routers/defects.py lässt nur das Büro zu (ab buero_auftrag). Seit 1.8.52 sieht der
+Monteur in /mobil (app/routers/field_defects.py) die Mängel, die er beseitigen soll -- freigegeben, Status offen, nicht
+verworfen, an einem Auftrag, den er öffnen darf (field_may_see_defect(), field_may_access_order()) -- mit einer
+Positivliste von Feldern (field_defect_dict()) und meldet "beseitigt" mit mindestens einem Foto (report_remedied(),
+idempotent über client_uuid).
 """
 
 import hashlib
@@ -34,6 +38,7 @@ import logging
 from datetime import datetime
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .acceptances import (  # noqa: F401  (AcceptanceFileError: der Router fängt sie beim Ausliefern einer Datei)
@@ -400,7 +405,7 @@ def _complete_task(db: Session, task_id: int | None) -> bool:
 def _append(db: Session, defect: Defect, events: list[DefectEvent], *, kind: str, value: str | None,
             previous_value: str | None, files: list[tuple[str, bytes, str]] = (), event_date=None,
             reason: str | None = None, declared: dict | None = None, user_id: int | None, user_name: str | None,
-            complete_task: bool = False) -> DefectEvent:
+            complete_task: bool = False, client_uuid: str | None = None) -> DefectEvent:
     name = (user_name or "System")[:160]
     now = datetime.utcnow().replace(microsecond=0)
     written: list[str] = []
@@ -409,7 +414,7 @@ def _append(db: Session, defect: Defect, events: list[DefectEvent], *, kind: str
             defect_id=defect.id, kind=kind, value=value, previous_value=previous_value, event_date=event_date,
             reason=reason, previous_event_sha256=events[-1].content_sha256 if events else None,
             content_sha256="", checksum_format=CHECKSUM_FORMAT, created_at=now, created_by_user_id=user_id,
-            created_by_name=name, **(declared or {}),
+            created_by_name=name, client_uuid=client_uuid, **(declared or {}),
         )
         for file_kind, content, content_type in files:
             event.files.append(_store(written, defect.id, file_kind, content, content_type, now))
@@ -663,6 +668,7 @@ def _event_dict(e: DefectEvent, check: dict) -> dict:
         "files": [_file_dict(f, check["files"].get(f.id, "fehlt")) for f in e.files],
         "intact": check["events"].get(e.id, False),
         "created_at": e.created_at, "created_at_local": to_berlin(e.created_at), "created_by_name": e.created_by_name,
+        "via_field_view": e.client_uuid is not None,  # seit 1.8.52: Meldung aus der Monteursansicht
     }
 
 
@@ -742,3 +748,155 @@ def list_defects(db: Session, order: Order) -> list[dict]:
 def get_defect_dict(db: Session, defect: Defect) -> dict:
     order = db.get(Order, defect.order_id)
     return _dicts(db, _load_defects(db, select(Defect).where(Defect.id == defect.id)), order)[0]
+
+
+# ---------------------------------------------------------------------------
+# Monteur (seit 1.8.52, Stufe 2c-2b): Mängel zur Beseitigung in /mobil
+# ---------------------------------------------------------------------------
+
+FIELD_KEY_MAX = 36
+FIELD_PHOTO_KIND = "foto"  # nur Fotos -- Belege und Vollmachten nie (können Schreiben des Kunden sein)
+
+
+def field_may_see_defect(d: Defect, state: dict) -> bool:
+    """Die eine Regel, wann ein Monteur einen Mangel sieht (neben dem Zugriff auf den Auftrag): zur Beseitigung
+    freigegeben, Status "offen", nicht verworfen. Nimmt das Büro die Freigabe zurück, setzt es einen anderen Status oder
+    verwirft es den Mangel, verschwindet er; setzt es nach "beseitigt" zurück auf "offen", ist er wieder da."""
+    return d.discarded_at is None and state["released"] and state["status"] == "offen"
+
+
+def field_defect_dict(d: Defect, order: Order, prop: Property | None) -> dict:
+    """Die Positivliste für den Monteur: Beschreibung, Ort, Dachfläche, Frist, Fotos -- dazu, wo er hin muss (Auftrag,
+    Objekt der Abnahme, sonst der Schnappschuss am Auftrag). Keine Haltung, keine Abnahmedaten, keine Gewährleistung,
+    kein Verlauf. Das Antwortschema (FieldDefectOut) lässt zusätzlich nichts anderes durch."""
+    if prop is not None:
+        name = prop.name
+        address = ", ".join(x for x in (prop.street, " ".join(y for y in (prop.postal_code, prop.city) if y)) if x)
+    else:
+        name, address = order.property_name, order.property_address
+    return {
+        "id": d.id, "order_id": d.order_id, "order_number": order.order_number,
+        "property_name": name, "property_address": address or None,
+        "description": d.description, "location": d.location, "roof_area_name": d.roof_area_name,
+        "remedy_due_on": d.remedy_due_on,
+        "remedy_overdue": bool(d.remedy_due_on and d.remedy_due_on < berlin_today()),
+        "photos": [{"id": f.id} for f in sorted(d.files, key=lambda f: f.id) if f.kind == FIELD_PHOTO_KIND],
+    }
+
+
+def list_field_defects(db: Session, employee_id: int) -> list[dict]:
+    """Die Mängel, die der Monteur beseitigen soll: an Aufträgen, die er öffnen darf (field_accessible_order_ids(),
+    dieselbe Regel wie field_may_access_order()), nach field_may_see_defect(). Frist zuerst (ohne Frist zuletzt)."""
+    from .orders import field_accessible_order_ids
+
+    order_ids = field_accessible_order_ids(db, employee_id)
+    if not order_ids:
+        return []
+    rows = [d for d in _load_defects(db, select(Defect).where(Defect.order_id.in_(order_ids),
+                                                              Defect.discarded_at.is_(None)))
+            if field_may_see_defect(d, defect_state(d.events))]
+    orders = {o.id: o for o in db.scalars(select(Order).where(Order.id.in_({d.order_id for d in rows})))} if rows else {}
+    prop_ids = {d.property_id for d in rows if d.property_id}
+    props = {p.id: p for p in db.scalars(select(Property).where(Property.id.in_(prop_ids)))} if prop_ids else {}
+    rows.sort(key=lambda d: (d.remedy_due_on is None, d.remedy_due_on or berlin_today(), d.id))
+    return [field_defect_dict(d, orders[d.order_id], props.get(d.property_id)) for d in rows]
+
+
+def field_visible_defect(db: Session, employee_id: int, defect_id: int) -> Defect | None:
+    """Der Mangel, wenn der Monteur ihn sehen darf -- sonst None (der Router antwortet 404, ohne zu verraten, ob es ihn
+    gibt, ob er nicht freigegeben ist oder zu einem fremden Auftrag gehört)."""
+    from .orders import field_may_access_order
+
+    d = db.get(Defect, defect_id, options=[selectinload(Defect.files), selectinload(Defect.events)])
+    if d is None or not field_may_access_order(db, employee_id, d.order_id):
+        return None
+    return d if field_may_see_defect(d, defect_state(d.events)) else None
+
+
+def field_photo(d: Defect, file_id: int) -> DefectFile | None:
+    """Ein Foto genau dieses Mangels (beim Erfassen, ergänzt oder aus einer früheren Meldung) -- nie ein Beleg."""
+    return next((f for f in d.files if f.id == file_id and f.kind == FIELD_PHOTO_KIND), None)
+
+
+def _field_key(client_uuid: str | None) -> str:
+    key = (client_uuid or "").strip()
+    if not key or len(key) > FIELD_KEY_MAX:
+        raise ValueError("Die Kennung der Meldung (client_uuid) fehlt oder ist zu lang.")
+    return key
+
+
+def _event_by_key(db: Session, key: str) -> DefectEvent | None:
+    return db.scalar(select(DefectEvent).where(DefectEvent.client_uuid == key))
+
+
+def _replay(event: DefectEvent, defect_id: int, user_id: int | None) -> DefectEvent:
+    """Eine gespeicherte Meldung zu dieser Kennung -- nur an dieselbe Person für denselben Mangel."""
+    if event.defect_id != defect_id or user_id is None or event.created_by_user_id != user_id:
+        raise ValueError("Diese Kennung (client_uuid) ist bereits vergeben.")
+    return event
+
+
+def field_report_replay(db: Session, defect_id: int, client_uuid: str | None, user_id: int | None) -> DefectEvent | None:
+    """Gibt es zu dieser Kennung schon eine Meldung, ist das die Antwort -- auch wenn der Mangel inzwischen nicht mehr
+    sichtbar ist (die Meldung selbst hat ihn auf "beseitigt" gesetzt). Deshalb fragt der Router das VOR der
+    Sichtbarkeit. ValueError, wenn die Kennung zu einer anderen Person oder einem anderen Mangel gehört."""
+    event = _event_by_key(db, _field_key(client_uuid))
+    return _replay(event, defect_id, user_id) if event is not None else None
+
+
+def report_remedied(db: Session, defect: Defect, *, event_date, client_uuid: str | None,
+                    files: list[tuple[str, str | None, bytes]], user_id: int | None,
+                    user_name: str | None) -> DefectEvent:
+    """Der Monteur meldet "beseitigt": Status offen -> beseitigt mit Datum und mindestens einem Foto (Dateien des
+    Eintrags, Art "foto"), ohne Begründung und ohne Erklärenden. Idempotent über client_uuid (global eindeutig): eine
+    schon gespeicherte Meldung mit dieser Kennung ist die Antwort, geprüft vor dem Einfügen und unter der Sperre des
+    Mangels; eine gleichzeitige Wiederholung, die beides passiert, fängt der UNIQUE-Schlüssel ab. Unter der Sperre neu
+    geprüft: verworfen, Freigabe zurückgenommen oder Status nicht mehr "offen" -> DefectConflict (409). Ob der Monteur
+    den Mangel sehen darf, prüft der Router vorher (field_visible_defect())."""
+    key = _field_key(client_uuid)
+    existing = _event_by_key(db, key)
+    if existing is not None:
+        return _replay(existing, defect.id, user_id)
+    uploads = _checked_files([("foto", name, data) for _, name, data in files], {"foto"})
+    if not uploads:
+        raise ValueError("Bitte mindestens ein Foto der Beseitigung aufnehmen.")
+    if event_date is None:
+        raise ValueError("Bitte das Datum der Beseitigung angeben.")
+    if event_date > berlin_today():
+        raise ValueError("Das Datum darf nicht in der Zukunft liegen.")
+    acceptance = db.get(OrderAcceptance, defect.acceptance_id) if defect.acceptance_id else None
+    if acceptance is not None and event_date < acceptance.accepted_on:
+        raise ValueError("Das Datum der Beseitigung liegt vor der Abnahme, bei der der Mangel festgehalten wurde.")
+
+    db.execute(select(Defect.id).where(Defect.id == defect.id).with_for_update())
+    db.refresh(defect)
+    existing = _event_by_key(db, key)
+    if existing is not None:  # dieselbe Meldung war gleichzeitig unterwegs und hat zuerst committet
+        db.rollback()
+        return _replay(existing, defect.id, user_id)
+    events = list(db.scalars(select(DefectEvent).where(DefectEvent.defect_id == defect.id).order_by(DefectEvent.id)))
+    state = defect_state(events)
+    problem = None
+    if defect.discarded_at is not None:
+        problem = "Der Mangel ist verworfen – keine Meldung mehr."
+    elif not state["released"]:
+        problem = "Der Mangel ist nicht mehr zur Beseitigung freigegeben."
+    elif state["status"] != "offen":
+        problem = f"Der Mangel steht schon auf „{STATUSES[state['status']]}“."
+    if problem:
+        db.rollback()
+        raise DefectConflict(problem + " Bitte die Seite neu laden.")
+    try:
+        return _append(db, defect, events, kind="status", value="beseitigt", previous_value="offen", files=uploads,
+                       event_date=event_date, client_uuid=key, user_id=user_id, user_name=user_name)
+    except IntegrityError:
+        existing = _event_by_key(db, key)  # _append hat zurückgerollt
+        if existing is None:
+            raise
+        return _replay(existing, defect.id, user_id)
+
+
+def field_report_dict(event: DefectEvent) -> dict:
+    """Die Antwort auf eine Meldung -- dieselbe beim ersten Mal und bei jeder Wiederholung der Kennung."""
+    return {"defect_id": event.defect_id, "event_id": event.id, "event_date": event.event_date,
+            "photo_count": sum(f.kind == FIELD_PHOTO_KIND for f in event.files)}

@@ -405,6 +405,25 @@ def _monteur_welt(db: Session) -> dict:
     create_checklist(db, template_id=concern_tpl, context_type="auftrag", order_id=order.id,
                      created_by_employee_id=monteur.id, created_by_user_id=user.id)
 
+    # Seit 1.8.52: ein zur Beseitigung freigegebener Mangel am Auftrag des Monteurs (Abnahme mit Vorbehalt Mängel), mit
+    # allem, was ein Mangel tragen kann -- Dachfläche, Ort, Frist, Foto, Beleg, Haltung mit Begründung. Mangel 1 und
+    # Foto 1 sind die Werte aus PFAD_WERTE (defect_id, file_id); der Monteur bekommt sie über /api/field-view/defects.
+    from app.acceptances import create_acceptance
+    from app.defects import create_defect, set_release, set_stance
+    acceptance = create_acceptance(
+        db, order, {"kind": "foermlich", "accepted_on": today - timedelta(days=10), "scope": "gesamt",
+                    "result": "abgenommen", "reservation_defects": True, "reservation_penalty": True,
+                    "declared_by": "auftraggeber"},
+        [("protokoll.pdf", b"%PDF-1.4\n%%EOF\n")], user_id=None, user_name="Büro")
+    mangel = create_defect(db, acceptance, {"description": "Attika undicht", "roof_area_id": roof.id,
+                                            "location": "Attika West", "remedy_due_on": today + timedelta(days=7)},
+                           [("foto", "mangel.png", _png()), ("beleg", "ruege.pdf", b"%PDF-1.4\n%%EOF\n")],
+                           user_id=None, user_name="Büro")
+    set_stance(db, mangel, stance="bestritten", reason="Abnutzung", user_id=None, user_name="Büro")
+    set_release(db, mangel, released=True, reason="Kulanz", user_id=None, user_name="Büro")
+    mangel_foto = next(f for f in mangel.files if f.kind == "foto")
+    assert (mangel.id, mangel_foto.id) == (PFAD_WERTE["defect_id"], PFAD_WERTE["file_id"])
+
     return {
         "user_id": user.id, "employee_id": monteur.id, "order_id": order.id, "report_id": report_id,
         "property_id": prop.id, "roof_area_id": roof.id, "asset_id": asset.id, "photo_id": photo["id"],
@@ -743,9 +762,10 @@ def test_abnahme_und_gewaehrleistung_im_durchlauf_fuer_monteure_gesperrt(durchla
     """Seit 1.8.46: Abnahmen, ihre Belege, die Gewährleistung am Auftrag und aus Abnahmen an Objekt und Dachfläche
     sind Büro -- jede GET-Route davon antwortet dem Monteur 403; der Admin bekommt sie mit Inhalt. Seit 1.8.49 ebenso
     die Mängel aus der Abnahme und ihre Dateien."""
-    def routen(lauf):
+    def routen(lauf):  # der eigene Weg des Monteurs (/api/field-view/defects..., seit 1.8.52) steht unten
         return {a["route"]: a["status"] for a in lauf["antworten"]
-                if "acceptance" in a["route"] or "warranty" in a["route"] or "defect" in a["route"]}
+                if ("acceptance" in a["route"] or "warranty" in a["route"] or "defect" in a["route"])
+                and not a["route"].startswith("/api/field-view/")}
     erwartet = {"/api/orders/{order_id}/warranty-changes", "/api/orders/{order_id}/warranty-preview",
                 "/api/project-participants/{participant_id}/acceptance-power-of-attorney",
                 "/api/orders/{order_id}/acceptances",
@@ -756,6 +776,18 @@ def test_abnahme_und_gewaehrleistung_im_durchlauf_fuer_monteure_gesperrt(durchla
                 "/api/defects/{defect_id}/files/{file_id}"}
     assert routen(durchlauf) == dict.fromkeys(erwartet, 403)
     assert routen(durchlauf_admin) == dict.fromkeys(erwartet, 200)
+
+
+def test_maengel_zur_beseitigung_im_durchlauf_fuer_monteure_offen(durchlauf):
+    """Seit 1.8.52: der eigene Weg des Monteurs zu den Mängeln -- Liste (mit Inhalt, durch die Wortprüfung oben) und
+    Foto antworten 200; die Liste trägt keinen Schlüssel aus Haltung, Abnahme oder Verlauf."""
+    antworten = {a["route"]: a for a in durchlauf["antworten"] if a["route"].startswith("/api/field-view/defects")}
+    assert {r: a["status"] for r, a in antworten.items()} == {
+        "/api/field-view/defects": 200, "/api/field-view/defects/{defect_id}/photos/{file_id}": 200}
+    liste = antworten["/api/field-view/defects"]["body"]
+    assert [m["description"] for m in liste] == ["Attika undicht"] and liste[0]["photos"] == [{"id": 1}]
+    assert not {"stance", "released", "acceptance", "events", "files", "task"} & set(liste[0])
+    assert antworten["/api/field-view/defects/{defect_id}/photos/{file_id}"]["json"] is False
 
 
 def test_dachflaechen_monteur_reduziert_buero_voll(durchlauf, router_test_client):

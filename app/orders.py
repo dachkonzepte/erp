@@ -306,17 +306,31 @@ def field_may_access_order(db: Session, employee_id: int, order_id: int) -> bool
     Kein dritter Weg (geprüft): Monteure legen selbst keine Aufträge an
     (quick_service_orders.py ist Büro/Admin; der Schnellauftrag hinter "Wartung durchführen"
     läuft in-process), Zeitbuchungen setzen 1a./1b. bereits voraus, und jede andere Verbindung
-    Mitarbeiter <-> Auftrag läuft über eine der drei Tabellen oben."""
-    individual, team = _assigned_order_id_queries(employee_id)
-    for stmt in (individual, team):
-        if db.scalar(stmt.where(WorkPreparation.order_id == order_id).limit(1)) is not None:
+    Mitarbeiter <-> Auftrag läuft über eine der drei Tabellen oben.
+
+    Seit 1.8.52 über _field_order_id_queries() -- dieselben drei Abfragen liefern auch die Menge
+    (field_accessible_order_ids(), Mängel in /mobil), keine zweite Definition."""
+    for stmt in _field_order_id_queries(employee_id):
+        if db.scalar(stmt.where(stmt.selected_columns[0] == order_id).limit(1)) is not None:
             return True
-    own_report = (
-        select(ServiceReport.id)
-        .where(ServiceReport.order_id == order_id, ServiceReport.created_by_employee_id == employee_id)
-        .limit(1)
-    )
-    return db.scalar(own_report) is not None
+    return False
+
+
+def _field_order_id_queries(employee_id: int):
+    """Die drei Wege aus field_may_access_order(), je eine Abfrage mit der Auftrags-ID als einziger Spalte:
+    Einzelzuweisung, Team-Besetzung (beide an der AV, ohne Datumsfilter), eigener Bericht."""
+    individual, team = _assigned_order_id_queries(employee_id)
+    own_report = select(ServiceReport.order_id).where(ServiceReport.created_by_employee_id == employee_id)
+    return individual, team, own_report
+
+
+def field_accessible_order_ids(db: Session, employee_id: int) -> set[int]:
+    """Alle Aufträge, die ein Monteur öffnen darf -- dieselbe Regel wie field_may_access_order(), als Menge (seit
+    1.8.52 für die Mängel in /mobil). Ohne Datums- und Statusfilter: ein Mangel kommt oft lange nach dem Einsatz."""
+    ids: set[int] = set()
+    for stmt in _field_order_id_queries(employee_id):
+        ids.update(db.scalars(stmt).all())
+    return ids
 
 
 def order_to_dict(order: Order, db: Session | None = None, include_sync_state: bool = True) -> dict:

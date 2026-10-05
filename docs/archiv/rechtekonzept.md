@@ -165,6 +165,10 @@ ist seit Teil A Büro/Admin; der Schnellauftrag hinter "Wartung durchführen" l�
 Zeitbuchungen setzen 1a./1b. bereits voraus, jede andere Verbindung Mitarbeiter ↔ Auftrag läuft
 über eine der drei Tabellen oben.
 
+**Nachtrag (seit 1.8.52)**: die drei Abfragen stehen in `_field_order_id_queries()`; `field_may_access_order()`
+fragt sie je Auftrag ab, `field_accessible_order_ids()` liefert sie als Menge (Mängel zur Beseitigung in `/mobil`,
+`docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.52") -- keine zweite Definition, Verhalten unverändert.
+
 **"Wartung durchführen" für Monteure (seit 1.3.56, Betreibervorgabe)**:
 `POST /api/maintenance-contracts/{id}/perform-maintenance` war seit Teil A Büro/Admin -- ein
 Monteur, der vor Ort eine ungeplante Wartung startet, hätte den Weg nicht gehabt. Jetzt

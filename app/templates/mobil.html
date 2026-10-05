@@ -11,7 +11,8 @@
      "Monteursansicht: Umbenennung zu /mobil". Seit 1.3.61 zusätzlich "Meine kommenden Termine"
      (Punkt 5, siehe CLAUDE.md "Zeiterfassung für Monteure" -> "Eigene Plantafel-Einträge") --
      reine Leseansicht, KEIN Zugriff auf die Plantafel selbst, deshalb bewusst als reine Karte
-     ohne Link gerendert (anders als "Heutige Einsätze", die in den Bericht führen). #}
+     ohne Link gerendert (anders als "Heutige Einsätze", die in den Bericht führen). Seit 1.8.52 "Mängel zur
+     Beseitigung" (app/routers/field_defects.py, docs/archiv/abnahme-und-gewaehrleistung.md, "Umsetzung 1.8.52"). #}
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="{{ get_theme().accent_color }}">
   <link rel="apple-touch-icon" href="/api/mobile-icon/192.png">
@@ -41,6 +42,20 @@
     .concern-alert{margin:-10px 0 10px;padding:10px 14px;border:2px solid var(--danger);border-top:none;background:var(--card);color:var(--danger);font-weight:700;font-size:14px;line-height:1.35;overflow-wrap:anywhere}
     .concern-alert a{display:block;margin-top:6px;color:var(--danger);font-weight:650;font-size:13.5px}
     .checklist-link{display:flex;align-items:center;min-height:44px;margin:-10px 0 10px;padding:0 16px;border:1px solid var(--line);border-top:none;background:var(--card);color:var(--accent);font-weight:650;font-size:13.5px;text-decoration:none}
+    /* Seit 1.8.52: Mängel zur Beseitigung */
+    .defect-desc{margin-top:8px;font-size:14.5px;font-weight:650;white-space:pre-wrap;overflow-wrap:anywhere}
+    .defect-place{margin-top:4px;font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+    .defect-photos{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+    .defect-photos img{width:88px;height:88px;object-fit:cover;border:1px solid var(--line);display:block}
+    .defect-report-btn{margin-top:12px;min-height:44px}
+    .defect-report{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:grid;gap:10px}
+    .defect-report[hidden]{display:none}
+    .defect-report label{display:grid;gap:4px;font-size:12.5px;font-weight:700;color:var(--muted)}
+    .defect-report input{font:inherit;font-size:15px;padding:9px;border:1px solid var(--line);background:var(--card);color:var(--ink);min-height:44px;width:100%}
+    .defect-send-btn{min-height:44px}
+    .defect-status{font-size:13.5px;color:var(--muted);overflow-wrap:anywhere}
+    .defects-status{font-size:13.5px;font-weight:650;color:var(--success);margin:-4px 0 8px}
+    .defects-status:empty{display:none}
   </style>
 </head>
 <body>
@@ -50,6 +65,9 @@
   <div id="assignmentsList" class="loading">Lädt…</div>
   <h1>Offene Berichte</h1>
   <div id="draftReportsList" class="loading">Lädt…</div>
+  <h1>Mängel zur Beseitigung</h1>
+  <div id="defectsStatus" class="defects-status" role="status"></div>
+  <div id="defectsList" class="loading">Lädt…</div>
   {% if is_module_enabled('checklisten') %}
   <h1>Offene Checklisten</h1>
   <div id="draftChecklistsList" class="loading">Lädt…</div>
@@ -59,6 +77,8 @@
   <h1>Wartungen an meinen Objekten</h1>
   <div id="maintenanceList" class="loading">Lädt…</div>
 </main>
+{% include "_berlin_date.html" %}
+{% include "_fehlertext.html" %}
 <script>
 var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false' }};
 var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
@@ -160,8 +180,88 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       btn.textContent='Wartung durchführen';
     });
   }
+  // Seit 1.8.52: Mängel zur Beseitigung (freigegeben, offen, an eigenen Aufträgen) -- nur die Positivliste der API
+  // (Beschreibung, Ort, Dachfläche, Frist, Fotos). "Beseitigt melden" mit mindestens einem Foto; die Kennung entsteht
+  // beim Öffnen des Formulars und bleibt bei jeder Wiederholung gleich -- ein zweiter Klick oder eine verlorene Antwort
+  // legt keine zweite Meldung an.
+  var DEFECT_FIELDS={client_uuid:'Kennung',event_date:'Datum',photos:'Fotos'};
+  function newKey(){
+    if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
+    var b=new Uint8Array(16);crypto.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;
+    var h=Array.prototype.map.call(b,function(x){return x.toString(16).padStart(2,'0')}).join('');
+    return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);
+  }
+  function todayBerlin(){var p=berlinDateParts();return p.year+'-'+String(p.month).padStart(2,'0')+'-'+String(p.day).padStart(2,'0')}
+  function renderDefects(list){
+    var el=document.getElementById('defectsList');
+    if(!list.length){el.className='empty';el.textContent='Keine Mängel zur Beseitigung.';return}
+    el.className='';
+    el.innerHTML=list.map(function(d){
+      var place=[d.roof_area_name?'Dachfläche: '+esc(d.roof_area_name):'',d.location?'Ort: '+esc(d.location):''].filter(Boolean).join(' · ');
+      var photos=d.photos.map(function(f){var u='/api/field-view/defects/'+d.id+'/photos/'+f.id;return '<a href="'+u+'" target="_blank" rel="noopener"><img src="'+u+'" alt="Foto zum Mangel" loading="lazy"></a>'}).join('');
+      return '<div class="assign-card defect-card" id="mmangel-'+d.id+'" data-defect="'+d.id+'">'
+        +'<div class="obj">'+esc(d.property_name||('Auftrag '+d.order_number))+'</div>'
+        +(d.property_address?'<div class="addr">'+esc(d.property_address)+'</div>':'')
+        +'<div class="defect-desc">'+esc(d.description)+'</div>'
+        +(place?'<div class="defect-place">'+place+'</div>':'')
+        +'<div class="meta"><span>Auftrag '+esc(d.order_number)+'</span>'
+        +(d.remedy_due_on?'<span class="status-pill'+(d.remedy_overdue?' due':'')+'">Frist '+fmtDate(d.remedy_due_on)+(d.remedy_overdue?' – überschritten':'')+'</span>':'')+'</div>'
+        +(photos?'<div class="defect-photos">'+photos+'</div>':'')
+        +'<button type="button" class="perform-btn defect-report-btn">Beseitigt melden</button>'
+        +'<div class="defect-report" hidden>'
+        +'<label>Datum der Beseitigung<input type="date"></label>'
+        +'<label>Fotos der Beseitigung (mindestens eins)<input type="file" accept="image/jpeg,image/png,image/webp" multiple></label>'
+        +'<button type="button" class="perform-btn defect-send-btn">Meldung senden</button>'
+        +'<div class="defect-status" role="status"></div>'
+        +'</div></div>';
+    }).join('');
+    el.querySelectorAll('.defect-card').forEach(function(card){
+      card.querySelector('.defect-report-btn').addEventListener('click',function(){toggleReport(card)});
+      card.querySelector('.defect-send-btn').addEventListener('click',function(e){sendReport(card,e.currentTarget)});
+    });
+  }
+  function toggleReport(card){
+    var box=card.querySelector('.defect-report'),date=box.querySelector('input[type=date]');
+    box.hidden=!box.hidden;
+    if(box.hidden)return;
+    if(!box.dataset.kennung)box.dataset.kennung=newKey();
+    var heute=todayBerlin();date.max=heute;if(!date.value)date.value=heute;
+  }
+  function sendReport(card,btn){
+    var box=card.querySelector('.defect-report'),st=box.querySelector('.defect-status');
+    var files=box.querySelector('input[type=file]').files,date=box.querySelector('input[type=date]').value;
+    if(!files.length){st.textContent='Bitte mindestens ein Foto der Beseitigung aufnehmen.';return}
+    if(!date){st.textContent='Bitte das Datum der Beseitigung angeben.';return}
+    var form=new FormData();
+    form.append('data',JSON.stringify({client_uuid:box.dataset.kennung,event_date:date}));
+    for(var i=0;i<files.length;i++)form.append('photos',files[i]);
+    btn.disabled=true;st.textContent='Wird gesendet…';
+    fetch('/api/field-view/defects/'+card.dataset.defect+'/remedied',{method:'POST',body:form}).then(function(r){
+      return r.json().catch(function(){return null}).then(function(body){
+        if(!r.ok)throw new Error(fehlerText(body,r.status,DEFECT_FIELDS));
+        return body;
+      });
+    }).then(function(){
+      document.getElementById('defectsStatus').textContent='Mangel als beseitigt gemeldet – das Büro prüft die Abnahme der Beseitigung.';
+      loadDefects();
+    }).catch(function(err){
+      st.textContent='Fehler: '+(err.message||'Meldung nicht gesendet.');
+      btn.disabled=false;
+    });
+  }
+  function loadDefects(){
+    var el=document.getElementById('defectsList');
+    fetch('/api/field-view/defects').then(function(r){
+      return r.json().catch(function(){return null}).then(function(body){
+        if(!r.ok)throw new Error(fehlerText(body,r.status,DEFECT_FIELDS));
+        return body;
+      });
+    }).then(function(list){renderDefects(list||[])}).catch(function(err){
+      el.className='error';el.textContent=err.message||'Fehler beim Laden.';
+    });
+  }
   function showError(message){
-    ['assignmentsList','draftReportsList','upcomingList','maintenanceList'].forEach(function(id){
+    ['assignmentsList','draftReportsList','defectsList','upcomingList','maintenanceList'].forEach(function(id){
       var el=document.getElementById(id);
       el.className='error';
       el.textContent=message;
@@ -179,6 +279,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
   }).then(function(data){
     renderAssignments(data.assignments||[]);
     renderDrafts(data.draft_reports||[]);
+    loadDefects();
   }).catch(function(err){
     if(err.message!=='nicht angemeldet') showError(err.message||'Fehler beim Laden.');
   });

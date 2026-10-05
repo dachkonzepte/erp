@@ -1457,6 +1457,43 @@ class DefectDiscard(BaseModel):
     reason: str = Field(min_length=1, max_length=2000)
 
 
+class FieldDefectPhotoOut(BaseModel):
+    """Foto eines Mangels für den Monteur (seit 1.8.52) -- nur die ID, abrufbar über den Monteur-Weg."""
+    id: int
+
+
+class FieldDefectOut(BaseModel):
+    """Mangel zur Beseitigung für den Monteur (seit 1.8.52, /mobil) -- die Positivliste: wo (Auftrag, Objekt), was
+    (Beschreibung, Ort, Dachfläche), bis wann (Frist), Fotos. Alles andere (Haltung, Abnahme, Gewährleistung, Verlauf,
+    Belege) fehlt im Schema und kommt deshalb nie an, auch wenn die Geschäftslogik mehr liefern sollte."""
+    id: int
+    order_id: int
+    order_number: str | None = None
+    property_name: str | None = None
+    property_address: str | None = None
+    description: str
+    location: str | None = None
+    roof_area_name: str | None = None
+    remedy_due_on: date | None = None
+    remedy_overdue: bool
+    photos: list[FieldDefectPhotoOut]
+
+
+class FieldDefectRemedied(BaseModel):
+    """Monteur meldet "beseitigt" (seit 1.8.52) -- als JSON im Formularfeld "data" neben den Fotos. client_uuid macht
+    die Meldung wiederholbar (Stufe 3); ein Text des Monteurs ist nicht vorgesehen."""
+    model_config = ConfigDict(extra="forbid")
+    client_uuid: str = Field(min_length=1, max_length=36)
+    event_date: date
+
+
+class FieldDefectReportOut(BaseModel):
+    defect_id: int
+    event_id: int
+    event_date: date
+    photo_count: int
+
+
 class OrderContractBasisChangeOut(BaseModel):
     id: int
     order_id: int

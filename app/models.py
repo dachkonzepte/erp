@@ -1248,9 +1248,14 @@ class DefectEvent(Base):
     (beseitigt, beseitigung_abgenommen, erledigt_ohne, offen), "freigabe" (freigegeben/zurueckgenommen), "fotos" oder
     seit 1.8.51 "belege" (nur Dateien). previous_value: der Stand davor. Bei "Beseitigung abgenommen" Datum, Erklärender (wie bei der
     Abnahme, Vollmacht zur Abnahme als Kopie) und Beleg oder Begründung. Unveränderlich; content_sha256 bindet den
-    Eintrag an den Inhalt des Mangels und an das vorige Ereignis (previous_event_sha256, Kette)."""
+    Eintrag an den Inhalt des Mangels und an das vorige Ereignis (previous_event_sha256, Kette).
+
+    client_uuid (seit 1.8.52): Kennung der Meldung "beseitigt" aus der Monteursansicht, global eindeutig -- dieselbe
+    Kennung noch einmal liefert die gespeicherte Meldung (Stufe 3, offline). Technischer Schlüssel, nicht im gebundenen
+    Inhalt; leer bei allen Einträgen aus dem Büro."""
 
     __tablename__ = "defect_events"
+    __table_args__ = (UniqueConstraint("client_uuid", name="uq_defect_event_client_uuid"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     defect_id: Mapped[int] = mapped_column(ForeignKey("defects.id"), index=True)
@@ -1270,6 +1275,7 @@ class DefectEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
     created_by_name: Mapped[str] = mapped_column(String(160), default="System")
+    client_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
     defect: Mapped[Defect] = relationship(back_populates="events")
     files: Mapped[list["DefectFile"]] = relationship(back_populates="event", order_by="DefectFile.id")

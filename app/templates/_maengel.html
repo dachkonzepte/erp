@@ -66,7 +66,7 @@ function defEventHtml(d,e){
   if(e.declared_by)parts.push(`<div>Erklärt durch: ${e.declared_by==='beteiligter'?`${esc(e.declared_by_name)} (${esc(e.declared_by_role||'Beteiligter')})`:`Auftraggeber ${esc(e.declared_by_name)}`}${e.without_power_of_attorney?' <span class="acc-warn">⚠ ohne Vollmacht zur Abnahme</span>':''}</div>`);
   if(e.reason)parts.push(`<div style="white-space:pre-wrap">Begründung: ${esc(e.reason)}</div>`);
   if(e.files.length)parts.push(defFiles(d,e.files));
-  parts.push(`<div class="muted">${accDateTime(e.created_at_local)} · ${esc(e.created_by_name)}</div>`);
+  parts.push(`<div class="muted">${accDateTime(e.created_at_local)} · ${esc(e.created_by_name)}${e.via_field_view?' · gemeldet in der Monteursansicht':''}</div>`);
   return `<div class="def-event">${parts.join('')}</div>`;
 }
 function defectHtml(d){

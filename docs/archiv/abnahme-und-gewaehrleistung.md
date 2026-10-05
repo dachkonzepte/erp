@@ -18,7 +18,7 @@ Je Version ein Commit (Regel 13), `VERSION` + `CHANGELOG.md` + `backup_windows.p
 |---|---|---|---|
 | **2c-1** | 1.8.46, 1.8.47 | Fundament: Regel-20-Test auch für Spaltenvorgaben, Datengrenze (Strafe, Einbehalt), Leistungsart und Gewährleistungsdauer am Auftrag, Abnahme (unveränderlich, Verwerfen, Historie), Gewährleistungsende abgeleitet an Auftrag/Objekt/Dachfläche, Garantie Dritter an der Dachfläche mit Teil-Update, Abgleich gesperrt nach Abnahme (1.8.46); Vollmacht zur Abnahme am Beteiligten, Begründung und Vorschau nach der ersten Abnahme, Nachweis "förmlich: Beleg, sonst Beleg oder Begründung", "Gewährleistung regulär bis" (1.8.47) | erledigt |
 | **2c-2a** | 1.8.48–1.8.50 | Vorweg: Prüfstatus neben jedem Gewährleistungsende (eine Funktion, `logger.error` bei Abweichung), Siegel des Verwerfens, Fassung des Prüfsummenformats (1.8.48); Mängel aus der Abnahme mit Haltung, Status, Freigabe, Verlauf, Aufgabe und "Nachbesserung regulär bis" (1.8.49); Platzhalter `{gewaehrleistung}`, Festschreiben erst mit Dauer, danach Dauer und Leistungsart gesperrt (1.8.50) | erledigt |
-| **2c-2b** | 1.8.51 | Vorweg: Sperre an eine gültige Fassung binden (nur gemeldet -- es gibt kein Zurückziehen einer Fassung), Belege am Mangel nachreichen, Aufgabentitel mit Kurzfassung, CLAUDE.md `update.sh`/`backup.sh` (1.8.51); Monteur-Sicht auf Mängel in `/mobil` | Punkt 0 erledigt |
+| **2c-2b** | 1.8.51, 1.8.52 | Vorweg: Sperre an eine gültige Fassung binden (nur gemeldet -- es gibt kein Zurückziehen einer Fassung), Belege am Mangel nachreichen, Aufgabentitel mit Kurzfassung, CLAUDE.md `update.sh`/`backup.sh` (1.8.51); Monteur-Sicht auf Mängel in `/mobil` mit Positivliste, "beseitigt" melden mit Foto, idempotent über `client_uuid` (1.8.52) | erledigt bis auf das Zurückziehen einer Fassung (Entscheidung offen) |
 
 Nach jeder Runde die Spalten "Version"/"Stand" nachziehen und unten einen Abschnitt "Umsetzung 1.8.x" ergänzen.
 
@@ -570,3 +570,119 @@ einzelner `alembic`-Befehl.
 - Gegenproben (Schutz ausgehebelt, Datei byte-genau zurück): 7 von 7 rot.
 - Klicktest `klicktest_maengel.py` 35/35 (neu: "Belege ergänzen" ohne Auswahl abgelehnt, mit PDF als sechster Eintrag im
   Verlauf, Beleg abrufbar mit nosniff, Aufgabentitel mit Kurzfassung).
+
+---
+
+## Umsetzung 1.8.52 (05.10.2026) -- Runde 2c-2b, Punkt 1: Monteur-Sicht auf Mängel in /mobil
+
+Betreibervorgabe: in `/mobil` nur freigegebene, nicht erledigte, nicht verworfene Mängel der zugeordneten Aufträge; Felder als
+Positivliste (Beschreibung, Ort, Dachfläche, Frist, Fotos), keine Haltung, keine Abnahmedaten, keine Gewährleistung;
+"beseitigt" melden mit mindestens einem Foto, idempotent über `client_uuid` (Stufe 3); Fotos nur über einen eigenen
+Monteur-Weg mit derselben Prüfung; wird die Freigabe zurückgenommen, verschwindet der Mangel. Angriffstests mit Gegenprobe,
+wichtige Tests gegen PostgreSQL.
+
+### Sichtbarkeit (`app/defects.py`, Abschnitt "Monteur")
+
+- **Eine Regel** `field_may_see_defect()`: freigegeben (letzter Eintrag "freigabe" = freigegeben), Status "offen", nicht
+  verworfen -- live aus dem Verlauf, deshalb verschwindet der Mangel mit dem Zurücknehmen der Freigabe sofort.
+- **Aufträge**: `app/orders.py::field_accessible_order_ids()` -- dieselben drei Abfragen wie `field_may_access_order()`
+  (Einzelzuweisung, Team-Besetzung an der AV ohne Datumsfilter, eigener Bericht), jetzt in `_field_order_id_queries()`
+  einmal definiert; `field_may_access_order()` nutzt sie ebenfalls (Verhalten unverändert).
+- `list_field_defects()` (Frist zuerst, ohne Frist zuletzt), `field_visible_defect()` (Einzelzugriff), `field_photo()`
+  (nur Art "foto" genau dieses Mangels).
+
+### Positivliste
+
+`field_defect_dict()` und das Antwortschema `FieldDefectOut` (`app/schemas.py`): `id`, `order_id`, `order_number`,
+`property_name`, `property_address`, `description`, `location`, `roof_area_name`, `remedy_due_on`, `remedy_overdue`,
+`photos[].id`. Das Schema ist die eigentliche Grenze -- liefert die Geschäftslogik mehr, kommt es nicht an (Test mit
+untergeschobenen Schlüsseln). Objekt: das der Abnahme (live, `Defect.property_id`), sonst der Schnappschuss am Auftrag.
+
+### Routen (`app/routers/field_defects.py`, alle `require_min_role(field)`)
+
+- `GET /api/field-view/defects` -- Mitarbeiter nur aus dem Konto (ohne: 422).
+- `GET /api/field-view/defects/{defect_id}/photos/{file_id}` -- dieselbe Prüfung, nur Fotos, nur mit stimmender Prüfsumme
+  (409/410), nosniff. Der Büro-Weg `/api/defects/...` bleibt für Monteure 403.
+- `POST /api/field-view/defects/{defect_id}/remedied` (multipart "data" = `FieldDefectRemedied`: `client_uuid`,
+  `event_date`, `extra="forbid"`; "photos"). Reihenfolge: Wiederholung (dieselbe Kennung -> dieselbe Antwort, auch wenn der
+  Mangel durch die Meldung schon unsichtbar ist), Sichtbarkeit (404), Meldung (400/409). Antwort `FieldDefectReportOut`:
+  `defect_id`, `event_id`, `event_date`, `photo_count`.
+- Nicht sichtbar -- nicht freigegeben, fremder Auftrag, verworfen, schon beseitigt, gibt es nicht: überall 404 "Mangel
+  nicht gefunden.", ohne Grund.
+
+### Meldung "beseitigt" (`report_remedied()`)
+
+- Eintrag "Status: offen -> beseitigt" mit Datum und den Fotos als Dateien des Eintrags (in dessen gebundenem Inhalt),
+  Ersteller das Konto des Monteurs; kein Text, kein Erklärender. Die Aufgabe bleibt offen (erledigt wird sie erst mit
+  "Beseitigung abgenommen", 1.8.49).
+- **Idempotenz**: `defect_events.client_uuid` (global eindeutig, UNIQUE). Geprüft vor dem Einfügen und unter der Sperre des
+  Mangels; eine gleichzeitige Wiederholung, die beides passiert, fängt der UNIQUE-Schlüssel (`IntegrityError` -> gespeicherte
+  Meldung). Gehört die Kennung einer anderen Person oder einem anderen Mangel: 400.
+- **Unter der Sperre neu geprüft**: verworfen, Freigabe zurückgenommen, Status nicht mehr "offen" -> 409.
+- Büro: der Eintrag im Verlauf trägt "gemeldet in der Monteursansicht" (`_event_dict()["via_field_view"]`).
+
+### Oberfläche (`app/templates/mobil.html`)
+
+Abschnitt "Mängel zur Beseitigung" nach "Offene Berichte": Karte je Mangel (Objekt, Adresse, Beschreibung, Dachfläche,
+Ort, Auftrag, Frist rot bei Überschreitung, Fotos als Vorschau über den Monteur-Weg), "Beseitigt melden" öffnet ein Formular
+im Abschnitt (kein `prompt()`): Datum vorbelegt mit heute in Europe/Berlin (`_berlin_date.html`), Fotos (mindestens eins),
+"Meldung senden". Die Kennung entsteht beim Öffnen und bleibt bei jeder Wiederholung gleich. Fehler über `fehlerText()`.
+
+### Migration `6c7610e54ce3`
+
+`defect_events.client_uuid` (String 36, nullable) mit `uq_defect_event_client_uuid`. `downgrade()` ohne Rückfrage: verloren
+gehen nur die Kennungen, die Meldungen bleiben gültige Einträge (die Kennung steht nicht im gebundenen Inhalt).
+
+### Festlegungen 1.8.52 (bitte bestätigen)
+
+1. **"Zugeordnete Aufträge" = `field_may_access_order()`**: Zuweisung an der AV (einzeln oder Team, ohne Datumsfilter) oder
+   ein eigener Bericht; kein Filter auf den Auftragsstatus (ein Mangel kommt oft nach dem Abschluss). Jeder so zugeordnete
+   Monteur sieht den freigegebenen Mangel -- eine Zuweisung je Mangel gibt es nicht.
+2. **"Nicht erledigt" heißt für den Monteur Status "offen"**: nach "beseitigt" verschwindet der Mangel (für alle Monteure);
+   setzt das Büro zurück auf "offen", erscheint er wieder.
+3. **Positivliste zusätzlich zu den fünf Feldern**: Auftragsnummer und Objekt (Name, Adresse), damit der Monteur weiß, wohin;
+   "Frist überschritten" als Ja/Nein. Fotos: alle Fotos des Mangels (beim Erfassen, ergänzt, aus einer früheren Meldung),
+   nie Belege oder Vollmachten -- auch nicht ein Beleg, der ein Bild ist.
+4. **404 ohne Grund** für alles, was der Monteur nicht sehen darf (nicht 403) -- sonst verriete die Antwort, dass es den
+   Mangel gibt.
+5. **Meldung**: Datum Pflicht, nicht in der Zukunft, nicht vor der Abnahme; kein Text des Monteurs; Fotos JPEG/PNG/WebP mit
+   den Grenzen des Büros (10 je Meldung, je 15 MB, zusammen 30 MB).
+6. **`client_uuid` Pflicht, höchstens 36 Zeichen, global eindeutig**; die Wiederholung liefert dieselbe Antwort nur an dieselbe
+   Person für denselben Mangel -- auch nachdem das Büro weitergeschrieben hat. Nicht im gebundenen Inhalt.
+7. **Fotos ergänzt der Monteur nur mit der Meldung**, nicht einzeln; "eigener Monteur-Weg" = Abruf und Meldung.
+8. **Büro-Konten dürfen die Monteur-Routen nutzen** (eigene Zuordnungen, ohne Mitarbeiter 422), wie `/api/field-view/today`.
+9. **Downgrade ohne Rückfrage** (siehe Migration).
+
+### Verifikation 1.8.52
+
+- `tests/test_v354_maengel_monteur.py` (25 Tests, zwei opt-in gegen PostgreSQL): Sichtbarkeit mit Gegenprobe (nicht
+  freigegeben, zurückgenommen, beseitigt, erledigt, verworfen, fremder Auftrag), Zurücknehmen der Freigabe (Liste, Foto,
+  Meldung), rekursiver Scan der Positivliste mit Gegenprobe an der Büro-Antwort, untergeschobene Schlüssel kommen nicht an,
+  Fotos nur über den Monteur-Weg (Beleg als Bild 404, Büro-Weg 403), Foto eines nicht freigegebenen oder fremden Mangels und
+  über einen sichtbaren Mangel an das Foto eines anderen (404, Gegenprobe 200), Meldung mit zwei Fotos, acht ungültige
+  Meldungen ohne Spur, Meldung an verborgene Mängel 404, doppelte Meldung mit derselben Kennung (auch nach dem Weiterschreiben
+  des Büros), fremde Kennung 400, UNIQUE in der Datenbank, Rückfall auf die gespeicherte Meldung, Büro ohne Mitarbeiter 422,
+  Seite `/mobil`, Migration; PostgreSQL: zwei gleichzeitige Meldungen mit derselben Kennung (die zweite wartet, ein
+  Eintrag), Meldung gegen gleichzeitiges Zurücknehmen der Freigabe (wartet, 409).
+- `test_v326`: Monteurswelt mit freigegebenem Mangel (Dachfläche, Ort, Frist, Foto, Beleg, Haltung) -- Liste und Foto 200,
+  Wortprüfung ohne Fund; die Abnahme-Prüfung schließt den eigenen Weg des Monteurs aus (+1 Test).
+- Volle Suite 2802 grün (mit den opt-in-Tests gegen PostgreSQL).
+- Gegen PostgreSQL 17 über das Scratchpad-Plugin: `test_v354`, `test_v353`, `test_v351`, `test_v326` -- 133 grün, rot nur der
+  bekannte Migrationstest von `test_v351` (rohes SQL, erfundene Fremdschlüssel).
+- Migration: SQLite hin/zurück/hin, `alembic check`; PostgreSQL 17 im Wegwerf-Schema: Kette bis head, Meldung samt
+  Wiederholung über den App-Code (Prüfung stimmt), downgrade (Spalte weg, beide Einträge bleiben), upgrade, `check` sauber,
+  Prüfung stimmt, `current` = head; leeres Schema hin/zurück/hin.
+- Gegenproben (Schutz ausgehebelt, Datei byte-genau zurück): 22 von 22 rot, darunter drei gegen PostgreSQL (Wiederholung
+  unter der Sperre, Sperre des Mangels, Freigabe unter der Sperre).
+- Klicktest `scripts/klicktest_maengel_monteur.py` 20/20 (412 px dunkel und hell, Büro 1400 px hell); unverändert grün
+  `klicktest_maengel.py` 35/35, `klicktest_monteur_navigation.py` 27/27, `klicktest_bedenkenanzeige.py` 22/22 (`/mobil`).
+
+### Nebenbefunde 1.8.52 (nur gemeldet)
+
+1. **Keine Nachricht ans Büro bei einer Meldung**: die Aufgabe zum Mangel bleibt unverändert, "beseitigt" sieht das Büro nur
+   auf der Auftragsseite. Möglich wäre eine Folge "Beseitigung abnehmen" -- nicht gebaut.
+2. **Datumsanzeige in `/mobil`** (`fmtDate()`, bestehend) ohne führende Null ("4.10.2026"), im Büro "04.10.2026".
+3. **Speicher**: eine Meldung liest bis zu 30 MB Fotos in den Speicher (wie im Büro); Handyfotos haben oft 3–8 MB. Bei zwei
+   Arbeitsprozessen und gleichzeitigen Meldungen das Doppelte -- im Budget, aber erwähnt.
+4. **Monteur ohne Zuordnung an der AV, mit eigenem Bericht** sieht die freigegebenen Mängel dieses Auftrags (Weg 2 von
+   `field_may_access_order()`) -- folgerichtig, aber vielleicht nicht gewollt (Festlegung 1).
