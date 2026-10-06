@@ -56,8 +56,9 @@ bleibt nach einer unteren möglich), und das Bild läuft durch die gemeinsame Pr
 
 Seit 1.8.60 (Stufe 2c-2d) der Feldtyp "maengel" (nur als Systemfeld eines Zwecks): Mängel entstehen im Entwurf als eigene
 Datensätze (app/defects.py::create_protocol_defect(), source "protokoll"), solange keine gültige Unterschrift das Feld
-versiegelt. Die Kopie einer Unterschrift und des Abschlusses trägt je Mangel Kennung und Prüfsumme seines Inhalts -- im Stand
-ihres Zeitpunkts: vorher verworfene fehlen, danach verworfene bleiben drin (defect_in_seal()).
+versiegelt. Die Kopie einer Unterschrift und des Abschlusses trägt je Mangel Kennung und Prüfsumme seines Inhalts -- die
+beim Versiegeln nicht verworfenen. Seit 1.8.62 entscheidet die Kopie selbst, nicht ein Zeitvergleich, ob ein verworfener
+Mangel dazugehört (defect_in_seal(), sealed_defect_ids()): steht er darin, wurde er erst danach verworfen und bleibt drin.
 
 Seit 1.8.61 (Stufe 2c-2d, Punkt 2) das Abnahmeprotokoll (Zweck "abnahme", nur Büro): Feldtyp "dachflaechen" (Antwort =
 gewählte Dachflächen aus dem Objekt des Projekts, Kennung und Name als Schnappschuss in value_text), Unterzeichner
@@ -329,19 +330,32 @@ def protocol_defects(checklist: Checklist) -> list:
                            .where(Defect.checklist_id == checklist.id).order_by(Defect.id)).all())
 
 
-def defect_in_seal(defect, as_of: datetime | None) -> bool:
-    """Gehört der Mangel in eine Kopie vom Zeitpunkt as_of? (seit 1.8.60) Nicht verworfen, oder erst danach verworfen -- ein
-    vorher verworfener fehlt, ein danach verworfener bleibt drin. Beide Zeitpunkte mit voller Genauigkeit, und das Verwerfen
-    eines Protokoll-Mangels wartet auf die Sperre der Checkliste (app/defects.py::discard_defect()) -- Unterschrift und
-    Verwerfen kommen sich so nie in die Quere. Ohne Zeitpunkt nur die nicht verworfenen."""
+def sealed_defect_ids(sealed_content: str | None) -> set[int] | None:
+    """Die Kennungen der Mängel in einer abgelegten Kopie (Unterschrift oder Abschluss, seit 1.8.62) -- None ohne Kopie, eine
+    unlesbare Kopie gilt als leer (dann weicht sie ohnehin von ihrer Prüfsumme ab)."""
+    if sealed_content is None:
+        return None
+    try:
+        entries = json.loads(sealed_content).get("fields", [])
+        return {d["id"] for e in entries for d in e.get("defects", [])}
+    except (ValueError, TypeError, AttributeError, KeyError):
+        return set()
+
+
+def defect_in_seal(defect, sealed_ids: set[int] | None) -> bool:
+    """Gehört der Mangel in die Kopie? (seit 1.8.60, seit 1.8.62 nach der Kopie statt nach einem Zeitvergleich) Ein nicht
+    verworfener immer; ein verworfener nur, wenn er in der abgelegten Kopie steht (`sealed_ids`, sealed_defect_ids()) -- dann
+    wurde er erst nach dem Versiegeln verworfen und bleibt drin. Beim Versiegeln selbst (keine Kopie, None) nur die nicht
+    verworfenen; das Verwerfen eines Protokoll-Mangels wartet dafür auf die Sperre der Checkliste
+    (app/defects.py::discard_defect()), Unterschrift und Verwerfen kommen sich nie in die Quere."""
     if defect.discarded_at is None:
         return True
-    return as_of is not None and defect.discarded_at > as_of
+    return sealed_ids is not None and defect.id in sealed_ids
 
 
-def _defect_entries(checklist: Checklist, as_of: datetime | None, cache: dict | None) -> list[dict]:
+def _defect_entries(checklist: Checklist, sealed_ids: set[int] | None, cache: dict | None) -> list[dict]:
     """Je Mangel in der Kopie Kennung und Prüfsumme seines Inhalts -- nachgerechnet, nicht aus der Spalte: so fällt auch ein
-    am ORM vorbei geänderter Mangel an der Unterschrift auf."""
+    am ORM vorbei geänderter Mangel an der Unterschrift auf, ebenso ein fehlender oder ein am ORM vorbei hinzugekommener."""
     from .acceptances import content_sha256  # lokal: acceptances zieht Abnahme und Gewährleistung nach
     from .defects import defect_content
 
@@ -349,13 +363,13 @@ def _defect_entries(checklist: Checklist, as_of: datetime | None, cache: dict | 
     if cache is None or key not in cache:
         rows = [(d, content_sha256(defect_content(d))) for d in protocol_defects(checklist)]
         if cache is None:
-            return [{"id": d.id, "sha256": h} for d, h in rows if defect_in_seal(d, as_of)]
+            return [{"id": d.id, "sha256": h} for d, h in rows if defect_in_seal(d, sealed_ids)]
         cache[key] = rows
-    return [{"id": d.id, "sha256": h} for d, h in cache[key] if defect_in_seal(d, as_of)]
+    return [{"id": d.id, "sha256": h} for d, h in cache[key] if defect_in_seal(d, sealed_ids)]
 
 
 def _content_entries(checklist: Checklist, fields: list[ChecklistTemplateField], photo_hashes: dict | None, *,
-                     with_signatures: bool = False, as_of: datetime | None = None) -> list[dict]:
+                     with_signatures: bool = False, sealed_ids: set[int] | None = None) -> list[dict]:
     """Je Feld Schlüssel und Wert -- auch leere, damit ein später ergänztes Feld auffällt --, bei
     Fotofeldern jedes gültige Foto mit der SHA-256 seiner Datei, bei Belegfeldern (seit 1.8.45) jeder
     Beleg ebenso unter "files". Hinweise nie; Unterschriften nur
@@ -380,8 +394,9 @@ def _content_entries(checklist: Checklist, fields: list[ChecklistTemplateField],
         elif field.field_type == "beleg":
             entries.append({"field_key": field.field_key, "files": [
                 {"id": b.id, "sha256": _attachment_sha256(b, photo_hashes)} for b in items]})
-        elif field.field_type == "maengel":  # seit 1.8.60: je Mangel Kennung und Prüfsumme (Stand as_of)
-            entries.append({"field_key": field.field_key, "defects": _defect_entries(checklist, as_of, photo_hashes)})
+        elif field.field_type == "maengel":  # seit 1.8.60: je Mangel Kennung und Prüfsumme (welche: defect_in_seal())
+            entries.append({"field_key": field.field_key,
+                            "defects": _defect_entries(checklist, sealed_ids, photo_hashes)})
         else:
             answer = answers.get(field.id)
             value = _answer_value(answer, field) if answer is not None else None
@@ -407,36 +422,39 @@ def signer_content(signature: ChecklistAttachment, image_sha256: str | None) -> 
 
 
 def seal_content(checklist: Checklist, signature_field: ChecklistTemplateField,
-                 photo_hashes: dict | None = None, signer: dict | None = None, as_of: datetime | None = None) -> str:
+                 photo_hashes: dict | None = None, signer: dict | None = None,
+                 sealed_ids: set[int] | None = None) -> str:
     """Der Inhalt, den eine Unterschrift in diesem Feld versiegelt, als kanonisches JSON (seit
     1.8.14, Format "v": 2): Kopf (_content_head()), das Unterschriftsfeld und JEDES Feld, das in
     der Vorlage vor ihm steht, außer Hinweisen und Unterschriften (_content_entries()). Beim
     Unterschreiben als Kopie abgelegt; zum Prüfen wird dieselbe Funktion auf den aktuellen Stand
     angewandt. Andere Unterschriften gehören nicht dazu: bei unverändertem Inhalt tragen zwei
     Unterschriften im selben Feld dieselbe Summe. Mit `signer` (seit 1.8.57, signer_content()) Format 3: Kopf "v": 3 und der
-    Unterzeichner -- dann tragen auch zwei Unterschriften im selben Feld verschiedene Summen."""
+    Unterzeichner -- dann tragen auch zwei Unterschriften im selben Feld verschiedene Summen. `sealed_ids` (seit 1.8.62): beim
+    Prüfen die Mängel der abgelegten Kopie (sealed_defect_ids()), beim Unterschreiben None."""
     fields = checklist.template_version.fields
     index = next(i for i, f in enumerate(fields) if f.id == signature_field.id)
     content = {**_content_head(checklist, SEAL_FORMAT if signer is not None else 2),
                "signature_field_key": signature_field.field_key,
-               "fields": _content_entries(checklist, fields[:index], photo_hashes, as_of=as_of)}
+               "fields": _content_entries(checklist, fields[:index], photo_hashes, sealed_ids=sealed_ids)}
     if signer is not None:
         content["signer"] = signer
     return _dump(content)
 
 
-def completion_content(checklist: Checklist, photo_hashes: dict | None = None) -> str:
+def completion_content(checklist: Checklist, photo_hashes: dict | None = None,
+                       sealed_ids: set[int] | None = None) -> str:
     """Der Inhalt, den das Abschließen versiegelt (seit 1.8.15): wie bei einer Unterschrift, aber
     ALLE Felder, die Unterschriften eingeschlossen -- so fällt auch ein nachträglich geänderter
     Name, Zeitpunkt oder ein ausgetauschtes Unterschriftsbild auf. Beim Abschließen als Kopie an
     der Checkliste abgelegt, geprüft von check_completion(). Seit 1.8.41 ebenso "als gegenstandslos
-    abschließen" -- dann mit "sealed_by": "gegenstandslos" und der Begründung im Kopf."""
+    abschließen" -- dann mit "sealed_by": "gegenstandslos" und der Begründung im Kopf. Mängel (seit 1.8.60): beim
+    Abschließen die nicht verworfenen, beim Prüfen dazu die der abgelegten Kopie (`sealed_ids`, seit 1.8.62)."""
     head = {**_content_head(checklist), "sealed_by": "abschluss"}
     if checklist.status == VOID_STATUS:
         head.update(sealed_by="gegenstandslos", void_reason=checklist.void_reason)
-    # Mängel (seit 1.8.60) im Stand des Abschlusses -- completed_at steht vor dem Versiegeln fest
     return _dump({**head, "fields": _content_entries(checklist, checklist.template_version.fields, photo_hashes,
-                                                     with_signatures=True, as_of=checklist.completed_at)})
+                                                     with_signatures=True, sealed_ids=sealed_ids)})
 
 
 def _legacy_content_sha256(checklist: Checklist, photo_hashes: dict | None = None) -> str:
@@ -519,7 +537,8 @@ def check_signature(checklist: Checklist, signature: ChecklistAttachment, photo_
         signer = (signer_content(signature, _attachment_sha256(signature, photo_hashes))
                   if signature.seal_format == SEAL_FORMAT else None)
         status, changed = _compare(checklist, signature.sealed_content, signature.content_sha256,
-                                   seal_content(checklist, field, photo_hashes, signer=signer, as_of=signature.created_at))
+                                   seal_content(checklist, field, photo_hashes, signer=signer,
+                                                sealed_ids=sealed_defect_ids(signature.sealed_content)))
     return _seal_result(status, changed, SEAL_TEXTS)
 
 
@@ -531,7 +550,7 @@ def check_completion(checklist: Checklist, photo_hashes: dict | None = None) -> 
     if not checklist.content_sha256:
         return _seal_result("ohne_pruefsumme", [], COMPLETION_TEXTS)
     status, changed = _compare(checklist, checklist.sealed_content, checklist.content_sha256,
-                               completion_content(checklist, photo_hashes))
+                               completion_content(checklist, photo_hashes, sealed_defect_ids(checklist.sealed_content)))
     return _seal_result(status, changed, COMPLETION_TEXTS)
 
 
@@ -1262,7 +1281,7 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
             checklist_id=checklist.id, template_field_id=field.id, kind=kind, stored_filename=stored,
             sort_order=(max((a.sort_order for a in checklist.attachments if a.template_field_id == field.id), default=0) + 10),
             created_by_employee_id=created_by_employee_id, client_uuid=client_uuid,
-            # volle Genauigkeit (seit 1.8.60): die Mängel gehen im Stand genau dieses Zeitpunkts in die Kopie
+            # volle Genauigkeit (seit 1.8.60; welche Mängel in der Kopie stehen, entscheidet seit 1.8.62 die Kopie selbst)
             created_at=datetime.utcnow(), **signer,
         )
         if kind == "unterschrift":
@@ -1278,8 +1297,7 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
             # kommen). Die Prüfsumme ist die SHA-256 genau dieser Kopie.
             attachment.seal_format = SEAL_FORMAT
             attachment.sealed_content = seal_content(checklist, field,
-                                                     signer=signer_content(attachment, _file_sha256(directory / stored)),
-                                                     as_of=attachment.created_at)
+                                                     signer=signer_content(attachment, _file_sha256(directory / stored)))
             attachment.content_sha256 = _sha256_text(attachment.sealed_content)
         with db.begin_nested():
             db.add(attachment)
@@ -1446,8 +1464,7 @@ def complete_checklist(db: Session, checklist_id: int, *, completed_by_employee_
     if missing:
         raise ValueError("Noch nicht ausgefüllt: " + ", ".join(missing) + ".")
     # Feste Kopie aller Felder samt Unterschriften (seit 1.8.15), unter der Zeilensperre -- die
-    # Prüfsumme ist die SHA-256 genau dieser Kopie, wie bei einer Unterschrift. Seit 1.8.60 steht der Zeitpunkt vorher
-    # fest (die Mängel gehen im Stand dieses Zeitpunkts in die Kopie).
+    # Prüfsumme ist die SHA-256 genau dieser Kopie, wie bei einer Unterschrift (die Mängel: die jetzt nicht verworfenen).
     checklist.completed_at = datetime.utcnow()
     checklist.sealed_content = completion_content(checklist)
     checklist.content_sha256 = _sha256_text(checklist.sealed_content)

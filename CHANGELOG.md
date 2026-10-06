@@ -4,6 +4,25 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.62 – Abnahmeprotokoll: Mängel nach der Kopie, Längentest für alle festen Werte
+
+Stufe 2c, Runde 2c-2d Teil 2, Vorweg. Ob ein verworfener Mangel im Protokoll bleibt, entschied bisher ein Vergleich von
+Verwerfen und Unterschriftszeit; jetzt entscheidet die abgelegte Kopie selbst: steht er darin, wurde er erst danach verworfen
+und bleibt drin (`sealed_defect_ids()`, `defect_in_seal()`). Jede Unterschrift und der Abschluss rechnen gegen ihre eigene Kopie
+nach, die Protokollseite nimmt die Kopie der ersten Unterschrift unter dem Feld. Vorhandene Siegel rechnen unverändert nach,
+keine Migration. Ein am ORM vorbei verschobener Zeitpunkt des Verwerfens ändert nichts mehr daran, ob der Mangel im Protokoll
+steht – das zeigt das Siegel des Verwerfens am Mangel.
+
+Der Längentest aus 1.8.61 ist jetzt das Muster für jede Textspalte mit festen Werten: `test_v364_feste_werte_spaltenlaenge`
+ordnet jede Spalte ein (108 aus Konstanten, 46 aus Literalen, 26 mit Vorgaben aus dem Code, 71 ohne feste Werte), prüft jeden
+Wert gegen die Spaltenlänge und sucht per AST jedes Literal in Konstruktoren, `update().values()` und Vergleichen – heute ist
+keiner zu lang. Die Festlegungen 1.8.59–1.8.61 sind bestätigt; die Behinderungsanzeige behält ihre Ausnahme (die Wegfall-
+Unterschrift darf unter den Büro-Feldern der Anzeige stehen), die Ausnahme deckt jetzt aber genau diese vier Felder ab. Neue
+`test_v364_maengel_nach_kopie` (11) und `test_v364_feste_werte_spaltenlaenge` (4), Gegenproben 9 von 9 rot, volle Suite 2993
+grün (mit den opt-in-Tests gegen PostgreSQL). Nebenbefunde
+(Schlüssel der Aufgaben- und Pipelinespalten können länger als ihre Spalte werden, Einheiten ohne Längengrenze) im Archiv,
+`docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.62“.
+
 ## 1.8.61 – Abnahmeprotokoll: Zweck „abnahme“ mit Systemfeldern und Startvorlage
 
 Stufe 2c, Runde 2c-2d, Punkt 2. Der Zweck „abnahme“ trägt jetzt Systemfelder in drei Abschnitten – Befund (Teilnehmer,

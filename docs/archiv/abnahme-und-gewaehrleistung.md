@@ -1219,7 +1219,7 @@ Versionen: 1.8.59 Punkt 0, 1.8.60 Punkt 1, 1.8.61 Punkt 2, 1.8.62 Punkt 3, 1.8.6
   dass jede Ausnahme einem echten Befund entspricht) -- sonst ließe sich weder die Startvorlage noch eine neue Fassung einer
   Behinderungsanzeige veröffentlichen. Der Editor kennzeichnet sie "bekannte Ausnahme des Zwecks, Entscheidung offen".
 
-### Festlegungen 1.8.59 (bitte bestätigen)
+### Festlegungen 1.8.59 (bestätigt am 06.10.2026, Vorgabe 2c-2d Teil 2; Nr. 5 entschieden: (b), siehe "Umsetzung 1.8.62")
 
 1. **`signer_name` bleibt der Auftraggeber**, die Person kommt dazu (eigene Spalten) -- "Hallenbau GmbH, unterschrieben von
    Herbert Halle (Geschäftsführer)".
@@ -1297,7 +1297,7 @@ Versionen: 1.8.59 Punkt 0, 1.8.60 Punkt 1, 1.8.61 Punkt 2, 1.8.62 Punkt 3, 1.8.6
   Kennzeichnung) und darunter "Mangel erfassen" (Beschreibung, Dachfläche, Ortsangabe, Frist, Fotos, Belege), solange das
   Feld offen ist; "Verwerfen …" mit Begründung je Mangel. Monteur: "Mängel erfasst das Büro.", Liste und Erfassen 403.
 
-### Festlegungen 1.8.60 (bitte bestätigen)
+### Festlegungen 1.8.60 (bestätigt am 06.10.2026, Vorgabe 2c-2d Teil 2; zu Nr. 7: ob ein Mangel im Protokoll bleibt, entscheidet seit 1.8.62 die Kopie, kein Zeitvergleich)
 
 1. **Das Feld "Mängel" gibt nur ein Zweck vor** -- von Hand nicht anzulegen (ein Mangel braucht Auftrag, Objekt und später die
    Abnahme aus dem Protokoll).
@@ -1424,7 +1424,7 @@ Versionen: 1.8.59 Punkt 0, 1.8.60 Punkt 1, 1.8.61 Punkt 2, 1.8.62 Punkt 3, 1.8.6
   `abnahme.unterschrift_auftraggeber`); ein neuer Entwurf bekommt die Systemfelder, Veröffentlichen verlangt sie. Ob es eine
   solche Vorlage gibt, lässt sich von hier nicht prüfen.
 
-### Festlegungen 1.8.61 (bitte bestätigen)
+### Festlegungen 1.8.61 (bestätigt am 06.10.2026, Vorgabe 2c-2d Teil 2)
 
 1. **"Systemfelder ohne Vorgabe"** verstanden als: keine Vorbelegung und keine Vorauswahl der Antworten (wie der
    Abnahme-Dialog seit 1.8.46). Die Unterzeichner der beiden Unterschriften gibt der Zweck dagegen fest vor, wie die Vorgabe sie
@@ -1506,3 +1506,119 @@ Festlegungen (1.8.60 Nr. 4, 1.8.61 Nr. 4) -- deshalb erst nach deren Bestätigun
 Offene Fragen dazu: (a) Soll eine verworfene Abnahme aus dem Protokoll eine neue aus demselben Protokoll erlauben (die Vorgabe
 sagt "höchstens eine Abnahme je Protokoll, auch beim Nachholen" -- verstanden als nie, ein neues Protokoll ist der Weg)?
 (b) Tag der Abnahme = Tag der Unterschrift des Auftraggebers, auch wenn die Folge erst Tage später nachgeholt wird?
+
+Antworten (Vorgabe 2c-2d Teil 2, 06.10.2026): (a) Schlüssel der Folge ist die Unterschrift des Auftraggebers, nicht das
+Protokoll -- höchstens eine Abnahme je Unterschrift; eine neue Abnahme aus demselben Protokoll nur über eine neue Unterschrift,
+nachdem Abnahme und alte Unterschrift verworfen sind. (b) Ja: das Datum kommt aus der versiegelten Unterschrift (Berliner Zeit),
+nie aus dem Zeitpunkt der Folge.
+
+---
+
+## Vorgabe 2c-2d Teil 2 (06.10.2026, übernommen wie gegeben)
+
+Punkte 3 und 4 nach der Planung oben. Festlegungen 1.8.59–1.8.61 als bestätigt markieren. Antworten (a)/(b) siehe oben.
+Behinderungsanzeige (Festlegung 1.8.59 Nr. 5): (b) behalten, wenn die Ausnahme genau die Büro-Felder der Anzeige über der
+Wegfall-Unterschrift betrifft und das Datum des Wegfalls ein eigenes Feld ist, nicht die Unterschriftszeit -- sonst melden.
+
+Vorweg:
+- Ob ein Mangel vor oder nach der Unterschrift verworfen wurde, ergibt sich daraus, ob er in der versiegelten Kopie steht, nicht
+  aus einem Zeitvergleich. Falls heute über Zeitstempel: umstellen.
+- Längentest als Muster für alle Textspalten mit festen Werten, falls er das noch nicht ist.
+
+Die Folge legt die Abnahme über dieselbe Prüf- und Anlegefunktion an wie das Erfassen von Hand, nichts nachgebaut.
+Angriffstests mit Gegenprobe wie in der letzten Vorgabe (doppelte Folge, Verwerfen der Unterschrift bei gültiger Abnahme), dazu:
+eine neue Unterschrift nach verworfener Abnahme ergibt genau eine neue Abnahme. Wichtige Tests auch gegen PostgreSQL. Eigene
+Festlegungen mit "Bitte bestätigen", Nebenbefunde nur melden. Commit nach Regel 13.
+
+Versionen: 1.8.62 Vorweg, 1.8.63 Punkt 3, 1.8.64 Punkt 4 (der Plan oben nannte 1.8.62/1.8.63 -- der Vorweg-Teil ist als eigene
+Version davor gekommen).
+
+---
+
+## Umsetzung 1.8.62 (06.10.2026) -- Runde 2c-2d Teil 2, Vorweg
+
+### Mängel im Protokoll: die Kopie entscheidet, nicht die Uhr
+
+- Bis 1.8.61 rechnete die Prüfung einer Unterschrift (und des Abschlusses) die Mängel "im Stand ihres Zeitpunkts" nach:
+  `defect_in_seal(defect, as_of)` verglich `discarded_at` mit `created_at` der Unterschrift; die Protokollseite ("bleibt im
+  Protokoll" / "nicht im Protokoll") ebenso mit der ersten Unterschrift unter dem Feld. Das ist umgestellt:
+  - `sealed_defect_ids(sealed_content)` (`app/checklists.py`): die Kennungen der Mängel in einer abgelegten Kopie.
+  - `defect_in_seal(defect, sealed_ids)`: ein nicht verworfener Mangel immer; ein verworfener nur, wenn er in der Kopie steht.
+    Beim Versiegeln selbst (keine Kopie) nur die nicht verworfenen -- unter der Zeilensperre der Checkliste, die auch das
+    Verwerfen eines Protokoll-Mangels nimmt (1.8.60).
+  - `check_signature()` und `check_completion()` rechnen mit den Kennungen ihrer eigenen Kopie nach, `list_protocol_defects()`
+    mit der Kopie der ersten gültigen Unterschrift unter dem Feld (nach Zeitpunkt, dann Kennung).
+- Was das nachgerechnete Siegel jetzt erkennt: ein am ORM vorbei geänderter, gelöschter oder neu eingefügter (nicht verworfener)
+  Mangel weicht ab wie bisher. Was es nicht mehr meldet: ein nach der Unterschrift verworfener Mangel, dessen Zeitpunkt des
+  Verwerfens am ORM vorbei vor die Unterschrift gelegt wurde -- er steht in der Kopie und bleibt im Protokoll; die Abweichung
+  zeigt das Siegel des Verwerfens am Mangel selbst ("Verwerfen weicht von seiner Prüfsumme ab").
+- Vorhandene Siegel (1.8.60/1.8.61): für unverändert gespeicherte Daten ergibt die Kopie dasselbe wie der Zeitvergleich -- sie
+  rechnen unverändert nach. Kein neues Siegelformat, keine Migration. Die volle Genauigkeit von `created_at`/`discarded_at`
+  (1.8.60, Festlegung 7) bleibt; sie trägt die Entscheidung nicht mehr.
+
+### Längentest als Muster für alle Textspalten mit festen Werten
+
+- Bis 1.8.61 prüfte `test_v363::test_signer_modes_and_field_types_fit_their_columns` nur Unterzeichner, Feldtypen und
+  Systemfeld-Schlüssel. Neu `tests/test_v364_feste_werte_spaltenlaenge.py`:
+  - `FESTE_WERTE` (108 Spalten): Spalte -> die Konstanten im Code (`(Modul, Ausdruck)` oder eine Funktion) -- ein neuer Wert in
+    der Konstante wird automatisch mitgeprüft; `FESTE_LITERALE` (46): Werte, die nur als Literal an Schreibstellen stehen;
+    `VORGABEN` (26): Spalten mit Nutzerwerten, deren Vorgaben beim Start aus dem Code kommen; `OHNE_FESTE_WERTE` (71) mit Grund.
+  - Jede String(n)-Spalte, deren Name nach festen Werten klingt (`NAMENSMUSTER`, u. a. status, kind, type, mode, source, role,
+    key), muss eingeordnet sein; veraltete Einträge fallen auf.
+  - Per AST jedes Literal unter `app/`, das in einen Modellkonstruktor, `update(Modell).values(...)` oder einen Vergleich
+    `Modell.spalte == "…"`/`!=`/`.in_([...])` geht (136), und jede String-Vorgabe der Modelle.
+  - Ergebnis heute: kein fester Wert ist zu lang. Am Rand: `recurring_costs.overhead_classification` "auslastungsabhaengig"
+    20/20, `ag_oder_beteiligter` 19/20, `behinderungsanzeige` in den `document_type`-Spalten 19/20.
+- Die Bestandsaufnahme der Spalten hat ein Hilfsagent vorbereitet; Einordnung und Ausdrücke sind im Test ausgeführt
+  (jeder Ausdruck liefert Werte, jede Spalte existiert).
+
+### Behinderungsanzeige: (b) behalten, Ausnahme genau für die Büro-Felder der Anzeige
+
+- Geprüft: die Ausnahme (`SIGNER_FILL_EXCEPTIONS`) betrifft die Wegfall-Unterschrift unter genau den vier Büro-Pflichtfeldern der
+  Anzeige (Ursache, Beschreibung der Ursache, Betroffene Leistungen, Beginn) -- andere Felder "nur Büro" gibt es über ihr nicht.
+  Beendigung ("Behinderung beendet am") und Wiederaufnahme ("Arbeit wieder aufgenommen am") sind eigene Datumsfelder (Pflicht,
+  Abschnitt Wegfall); der Brief "Anzeige der Wiederaufnahme" nimmt sie aus der Kopie der Wegfall-Unterschrift, nirgends wird die
+  Unterschriftszeit als Datum des Wegfalls verwendet. Bedingung erfüllt -- (b) bleibt.
+- Neu: eine Ausnahme nennt die Felder, die sie abdeckt (`(Zweck, Unterschrift) -> (Feldschlüssel, Grund)`); steht ein weiteres
+  Büro-Pflichtfeld über der Unterschrift, lehnt das Veröffentlichen wieder ab. Der Editor schreibt statt "Entscheidung offen"
+  "der Monteur unterschreibt erst, wenn das Büro diese Felder ausgefüllt hat".
+
+### Festlegungen 1.8.62 (bitte bestätigen)
+
+1. **Maßgeblich ist die Kopie der ersten gültigen Unterschrift unter dem Feld** (nach Zeitpunkt) für "bleibt im Protokoll" auf
+   der Seite; jede Unterschrift und der Abschluss prüfen gegen ihre eigene Kopie. Für die Abnahme aus dem Protokoll (1.8.63)
+   zählt die Kopie der Unterschrift des Auftraggebers.
+2. **Eine unlesbare Kopie gilt als ohne Mängel** -- sie weicht dann ohnehin von ihrer Prüfsumme ab.
+3. **Feste Literale ohne Konstante stehen als Liste im Test** (`FESTE_LITERALE`); Zuweisungen `obj.spalte = "…"` findet die
+   AST-Suche nicht -- ein neuer Wert dort muss von Hand in die Liste. Eine Konstante je Spalte wäre robuster, ist aber ein
+   Umbau an 46 Stellen und nicht Teil dieser Runde.
+
+### Verifikation 1.8.62
+
+- `tests/test_v364_maengel_nach_kopie.py` (11): nach der Unterschrift verworfen und zurückdatiert -> bleibt im Protokoll, Siegel
+  unverändert, Abweichung nur am Siegel des Verwerfens; vor der Unterschrift verworfen und vordatiert -> nicht im Protokoll,
+  Siegel unverändert; dasselbe für den Abschluss; ein am ORM vorbei eingefügter Mangel -> "weicht ab: Mängel";
+  `sealed_defect_ids()` (vier Fälle); Ausnahme der Behinderungsanzeige genau die vier Felder, Datumsfelder des Wegfalls, ein
+  zusätzliches Büro-Pflichtfeld -> abgelehnt, die echte Vorlage veröffentlicht weiter.
+- `tests/test_v364_feste_werte_spaltenlaenge.py` (4): Werte, Einordnung, Literale im Code, Modellvorgaben.
+- Gegenproben (Marker GEGENPROBE, Dateien byte-genau zurück): 9 von 9 rot (verworfene nie in der Kopie, jeder verworfene bei
+  vorhandener Kopie, Prüfung ohne die Kopie der Unterschrift, Abschluss ohne seine Kopie, Liste ohne die Kopie, Ausnahme ohne
+  Feldprüfung, zu langer Unterzeichner in der Konstante, zu langes Literal im Konstruktor, zu langes Literal im Vergleich).
+- Betroffene Dateien (`test_v361`–`test_v364`) unter SQLite 77 grün; die vier PostgreSQL-Tests aus `test_v362`/`test_v363`
+  grün (die lokale Instanz war aus und musste gestartet werden). Volle Suite 2993 grün (mit den opt-in-Tests gegen
+  PostgreSQL).
+
+### Nebenbefunde 1.8.62 (nur gemeldet)
+
+1. **Aufgaben- und Pipelinespalten: Schlüssel länger als die Spalte möglich.** Die Beschriftung darf 80 Zeichen haben, der
+   daraus erzeugte Schlüssel (`app/task_columns.py::_slugify()`, ebenso `project_pipeline_columns.py`) wird nicht gekürzt --
+   `task_columns.key`/`project_pipeline_columns.key` sind String(40), `tasks.status` (nimmt den Spaltenschlüssel) String(30).
+   Unter PostgreSQL scheitert eine Spalte mit langer Beschriftung bzw. das Verschieben einer Aufgabe dorthin (500).
+2. **`inspection_items.result` (String(20)) ungeprüft**: `update_inspection_item()` übernimmt jeden Text, das Schema begrenzt ihn
+   nicht.
+3. **Einheiten ohne Längengrenze im Schema** bei String(20)/(50)-Spalten: `RoofComponentCreate`/`Update.unit`,
+   `InspectionTemplateItemCreate.unit`, `QuoteItemUpdate.unit` (nur Mindestlänge), `InvoiceItemUpdate.unit`.
+4. **1.8.61 prüfte vor der Unterschrift des Auftraggebers keine Textlängen**: Beschreibung des Teils und Einwendungen nimmt das
+   Protokoll bis 10.000 Zeichen, die Abnahme nur 2.000 bzw. 5.000 -- eine längere Angabe hätte die Unterschrift durchgelassen
+   und die Abnahme aus dem Protokoll scheitern lassen. Behebung mit Punkt 3 (1.8.63) vorgesehen: die Prüfung ruft dann dieselbe Prüffunktion wie das
+   Erfassen.

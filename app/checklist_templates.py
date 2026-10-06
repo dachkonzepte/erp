@@ -89,12 +89,17 @@ ORDER_SIGNER_MODES = ("auftraggeber", "beteiligter", "ag_oder_beteiligter")  # n
 SINGLE_SIGNER_MODES = ("konto", "auftraggeber", "ag_oder_beteiligter")  # genau eine Person -- nie "mehrere"
 
 # Seit 1.8.59: Unterschriften, die der Monteur leisten kann, unter Pflichtfeldern, die nur das Büro ausfüllt -- bekannte
-# Ausnahmen aus einem Zweck, je mit Grund. Darf nur kürzer werden (Entscheidung offen, siehe
-# docs/archiv/abnahme-und-gewaehrleistung.md, "Umsetzung 1.8.59").
+# Ausnahmen aus einem Zweck: (Zweck, Unterschrift) -> (die Büro-Pflichtfelder, die sie genau abdeckt, Grund). Seit 1.8.62
+# deckt eine Ausnahme nur diese Felder ab -- steht ein weiteres Büro-Pflichtfeld darüber, lehnt das Veröffentlichen wieder
+# ab. Darf nur kürzer werden. Behinderungsanzeige: entschieden am 06.10.2026 -- (b) behalten (die Ausnahme betrifft genau die
+# Büro-Felder der Anzeige, Beendigung und Wiederaufnahme sind eigene Datumsfelder, nicht die Zeit der Unterschrift); siehe
+# docs/archiv/abnahme-und-gewaehrleistung.md, "Umsetzung 1.8.62".
 SIGNER_FILL_EXCEPTIONS = {
-    ("behinderungsanzeige", "behinderungsanzeige.unterschrift_wegfall"):
+    ("behinderungsanzeige", "behinderungsanzeige.unterschrift_wegfall"): (
+        frozenset({"behinderungsanzeige.ursache", "behinderungsanzeige.ursache_beschreibung",
+                   "behinderungsanzeige.betroffene_leistungen", "behinderungsanzeige.beginn"}),
         "Wegfall: Monteur oder Büro (1.8.38) -- unterschreibt der Monteur, wartet er seit 1.8.56, bis das Büro die "
-        "Anzeige ausgefüllt hat",
+        "Anzeige ausgefüllt hat"),
 }
 
 # Obergrenze Fotos/Belege/Unterschriften je Feld -- Speicherbudget des 4-GB-Servers (PDF mit Fotos).
@@ -218,8 +223,8 @@ def template_to_dict(template: ChecklistTemplate, *, with_editable_version: bool
         # ab, an der gültigen Fassung ein Hinweis (auch bekannte Ausnahmen, gekennzeichnet).
         shown = draft or published
         data["signer_fill_findings"] = [
-            {"text": text, "known_exception": (template.purpose, key) in SIGNER_FILL_EXCEPTIONS}
-            for key, text in (signer_fill_findings(template.purpose, shown) if shown else [])]
+            {"text": text, "known_exception": known}
+            for _key, text, known in (_signer_fill_entries(template.purpose, shown) if shown else [])]
     return data
 
 
@@ -326,24 +331,32 @@ def signer_fill_findings(purpose_key: str | None, version: ChecklistTemplateVers
     die nur das Büro ausfüllt -- dort könnte der Unterzeichner sie nicht ausfüllen, und seine Unterschrift verlangt sie
     (seit 1.8.56). Liefert (Feldschlüssel der Unterschrift, Text). Pflicht wie beim Abschließen: required oder
     Mindestanzahl. Ein Zweck, den nur das Büro ausfüllt, hat keine solchen Felder."""
-    findings = []
+    return [(key, text) for key, text, _known in _signer_fill_entries(purpose_key, version)]
+
+
+def _signer_fill_entries(purpose_key: str | None, version: ChecklistTemplateVersion) -> list[tuple[str, str, bool]]:
+    """(Feldschlüssel der Unterschrift, Text, bekannte Ausnahme?) -- eine Ausnahme nur, wenn sie jedes der blockierenden
+    Felder abdeckt (SIGNER_FILL_EXCEPTIONS, seit 1.8.62 je Feld)."""
+    entries = []
     fields = version.fields
     for index, signature in enumerate(fields):
         if signature.field_type != "unterschrift" or _office_only_field(purpose_key, signature):
             continue
-        blocked = [f.label for f in fields[:index]
+        blocked = [f for f in fields[:index]
                    if f.field_type not in ("hinweis", "unterschrift") and (f.required or (f.min_count or 0) > 0)
                    and _office_only_field(purpose_key, f)]
         if blocked:
-            findings.append((signature.field_key, f"„{signature.label}“ kann auch der Monteur unterschreiben, darüber stehen "
-                                                  f"Pflichtfelder, die nur das Büro ausfüllt: {', '.join(blocked)}."))
-    return findings
+            exception = SIGNER_FILL_EXCEPTIONS.get((purpose_key, signature.field_key))
+            known = exception is not None and {f.field_key for f in blocked} <= exception[0]
+            entries.append((signature.field_key,
+                            f"„{signature.label}“ kann auch der Monteur unterschreiben, darüber stehen Pflichtfelder, die "
+                            f"nur das Büro ausfüllt: {', '.join(f.label for f in blocked)}.", known))
+    return entries
 
 
 def signer_fill_problems(purpose_key: str | None, version: ChecklistTemplateVersion) -> list[str]:
     """Was davon das Veröffentlichen ablehnt -- ohne die bekannten Ausnahmen (SIGNER_FILL_EXCEPTIONS)."""
-    return [text for key, text in signer_fill_findings(purpose_key, version)
-            if (purpose_key, key) not in SIGNER_FILL_EXCEPTIONS]
+    return [text for _key, text, known in _signer_fill_entries(purpose_key, version) if not known]
 
 
 def order_only_signer_labels(version: ChecklistTemplateVersion) -> list[str]:

@@ -218,7 +218,7 @@ function renderVersionNotice(){
     Neue Checklisten nutzen bis zur nächsten Veröffentlichung weiter diese Fassung. „Neuen Entwurf anlegen“ gleicht die Systemfelder an, danach veröffentlichen.</div>`;
   // Seit 1.8.59: Unterschrift, die auch der Monteur leistet, unter Pflichtfeldern nur fürs Büro.
   const fill=template.signer_fill_findings||[];
-  if(fill.length)el.innerHTML+=`<div class="notice" id="signerFillHint"><b>Unterschrift und Pflichtfelder:</b><ul style="margin:6px 0 8px 18px;padding:0">${fill.map(p=>`<li>${esc(p.text)}${p.known_exception?' <span class="muted">(bekannte Ausnahme des Zwecks, Entscheidung offen)</span>':(editable()?' Veröffentlichen ist so nicht möglich.':'')}</li>`).join('')}</ul></div>`;
+  if(fill.length)el.innerHTML+=`<div class="notice" id="signerFillHint"><b>Unterschrift und Pflichtfelder:</b><ul style="margin:6px 0 8px 18px;padding:0">${fill.map(p=>`<li>${esc(p.text)}${p.known_exception?' <span class="muted">(bekannte Ausnahme des Zwecks: der Monteur unterschreibt erst, wenn das Büro diese Felder ausgefüllt hat)</span>':(editable()?' Veröffentlichen ist so nicht möglich.':'')}</li>`).join('')}</ul></div>`;
   document.getElementById('addFieldActions').classList.toggle('hidden',!editable());
   document.getElementById('addRuleActions').classList.toggle('hidden',!editable());
 }

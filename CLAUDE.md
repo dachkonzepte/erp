@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.61** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.62** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -719,8 +719,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Seit 1.8.55 trägt "zurück auf offen" optional eine neue Beseitigungsfrist (`DefectEvent.due_on`, nicht vor heute); Aufgabe,
   Büro und `/mobil` nutzen die aktuelle (`current_due()`). Seit 1.8.60 auch aus dem Feld "Mängel" eines Abnahmeprotokolls
   (`source` "protokoll", `Defect.checklist_id`, gebundener Inhalt mit der Checkliste statt der Abnahme): je Mangel Kennung und
-  Prüfsumme in der Kopie jeder Unterschrift darunter, im Stand ihres Zeitpunkts (`defect_in_seal()`); nach der Unterschrift
-  keine neuen; bis zur Abnahme aus dem Protokoll nur verwerfbar (`protocol_pending()`).
+  Prüfsumme in der Kopie jeder Unterschrift darunter -- ob ein verworfener dazugehört, sagt seit 1.8.62 die Kopie selbst,
+  kein Zeitvergleich (`defect_in_seal()`, `sealed_defect_ids()`); nach der Unterschrift keine neuen; bis zur Abnahme aus dem
+  Protokoll nur verwerfbar (`protocol_pending()`).
   **Abnahmeprotokoll** (seit 1.8.61): Checkliste mit Zweck `abnahme`, nur Büro (`ChecklistPurpose.office_only`), Systemfelder
   Befund / Erklärungen des Auftraggebers / Schluss; Unterschrift des Auftraggebers mit Unterzeichner `ag_oder_beteiligter`,
   davor prüft `app/acceptance_protocol.py::check_customer_signature()` die Widersprüche (Mängel ohne Vorbehalt, Vorbehalt ohne
@@ -880,7 +881,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Status, Hinweis des Monteurs zur Meldung; Stufe 2c-2c ab 1.8.55: neue Frist bei "zurück auf offen", Zurückziehen einer
   Vertragsfassung entschieden, nicht gebaut; Stufe 2c-2d ab 1.8.59: Abnahmeprotokoll als Checkliste, Etappenplan im Archiv;
   seit 1.8.60 Feld "Mängel" im Protokoll; seit 1.8.61 Zweck "abnahme" mit Systemfeldern, Startvorlage, Prüfung der
-  Unterschrift des Auftraggebers; Punkt 3 und 4 geplant)
+  Unterschrift des Auftraggebers; Teil 2 ab 1.8.62: Mängel im Protokoll nach der Kopie statt nach der Uhr, Punkt 3 und 4
+  geplant)
   -- `docs/archiv/abnahme-und-gewaehrleistung.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
@@ -933,9 +935,12 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   Feldnamen der Seite, sonst ein Text je Status. Auftragsseite, seit 1.8.37 Projektmappe und Stammdaten (Liste,
   Formular); 33 weitere Vorlagen reichen `detail` noch roh an `Error()` weiter ("[object Object]" bei 422) -- eine
   Seite, die man anfasst, stellt um.
-- **Feste Schlüssel passen in ihre Spalte** (seit 1.8.61): unter PostgreSQL lehnt eine zu kurze `String(n)`-Spalte einen
-  längeren Wert ab, SQLite nimmt ihn still an. Neue Unterzeichner, Feldtypen und Systemfeld-Schlüssel prüft
-  `tests/test_v363_zweck_abnahme.py::test_signer_modes_and_field_types_fit_their_columns` gegen die Spaltenlänge.
+- **Feste Werte passen in ihre Spalte** (seit 1.8.61, seit 1.8.62 für jede Textspalte): unter PostgreSQL lehnt eine zu kurze
+  `String(n)`-Spalte einen längeren Wert ab, SQLite nimmt ihn still an. `tests/test_v364_feste_werte_spaltenlaenge.py` prüft
+  jede Spalte mit festen Werten gegen ihre Länge -- aus den Konstanten im Code (`FESTE_WERTE`), aus Literalen ohne Konstante
+  (`FESTE_LITERALE`), dazu per AST jedes Literal in Konstruktoren, `update().values()` und Vergleichen; jede Spalte mit einem
+  Namen nach festen Werten (status, kind, type, mode, key …) muss eingeordnet sein. Eine neue Spalte oder Konstante kommt dort
+  in die passende Liste.
 - **Unterschriften zeichnen über `app/templates/_unterschrift.html`** (seit 1.8.34, `unterschriftsfeld(canvas)`
   auf einem `<canvas class="dk-unterschrift">`): Checkliste, Einsatzbericht und Vertrag teilen sich die Fläche
   (weiß mit dunklem Strich in beiden Themes, Geräteauflösung; seit 1.8.58 neu vermessen bei Drehen und Größenänderung,

@@ -558,17 +558,17 @@ def create_protocol_defect(db: Session, checklist_id: int, data: dict, files: li
 
 def list_protocol_defects(db: Session, checklist) -> list[dict]:
     """Die Mängel eines Protokolls für die Protokollseite (seit 1.8.60): Inhalt, Dateien, Prüfstatus und ob der Mangel in
-    der Kopie der ersten Unterschrift über dem Feld steht -- vorher verworfene nicht, danach verworfene schon (verworfen
-    gekennzeichnet)."""
-    from .checklists import active_attachments, defect_in_seal, protocol_defects
+    der Kopie der ersten Unterschrift unter dem Feld steht -- vorher verworfene nicht, danach verworfene schon (verworfen
+    gekennzeichnet). Seit 1.8.62 entscheidet das die abgelegte Kopie selbst (sealed_defect_ids()), kein Zeitvergleich."""
+    from .checklists import active_attachments, defect_in_seal, protocol_defects, sealed_defect_ids
 
     field = _protocol_field(checklist)
     if field is None:
         return []
     position = {f.id: i for i, f in enumerate(checklist.template_version.fields)}
-    sealing = [a for a in active_attachments(checklist) if a.kind == "unterschrift"
-               and position.get(a.template_field_id, -1) > position[field.id]]
-    sealed_at = min((a.created_at for a in sealing), default=None)
+    sealing = sorted((a for a in active_attachments(checklist) if a.kind == "unterschrift"
+                      and position.get(a.template_field_id, -1) > position[field.id]), key=lambda a: (a.created_at, a.id))
+    sealed_ids = sealed_defect_ids(sealing[0].sealed_content) if sealing else None
     result = []
     for d in protocol_defects(checklist):
         check = verify_defect(d)
@@ -582,7 +582,7 @@ def list_protocol_defects(db: Session, checklist) -> list[dict]:
             "discarded_by_name": d.discarded_by_name, "discard_reason": d.discard_reason,
             # Ohne Unterschrift: steht in der nächsten Kopie, wenn nicht verworfen (defect_in_seal(d, None)) -- ein schon
             # verworfener Mangel kommt in keine Kopie mehr.
-            "sealed": sealed_at is not None, "in_protocol": defect_in_seal(d, sealed_at),
+            "sealed": bool(sealing), "in_protocol": defect_in_seal(d, sealed_ids),
         })
     return result
 
@@ -815,8 +815,8 @@ def discard_defect(db: Session, defect: Defect, *, reason: str, user_id: int | N
     if text is None:
         raise ValueError("Bitte begründen, warum der Mangel verworfen wird.")
     if defect.checklist_id is not None:
-        # Seit 1.8.60: erst die Checkliste, dann der Mangel (wie beim Erfassen) -- so steht fest, ob das Verwerfen vor oder
-        # nach einer Unterschrift lag, die die Mängel versiegelt.
+        # Seit 1.8.60: erst die Checkliste, dann der Mangel (wie beim Erfassen) -- Unterschrift und Verwerfen laufen
+        # nacheinander; ob der Mangel danach im Protokoll bleibt, sagt die Kopie der Unterschrift (seit 1.8.62).
         from .models import Checklist
         db.execute(select(Checklist.id).where(Checklist.id == defect.checklist_id).with_for_update())
     db.execute(select(Defect.id).where(Defect.id == defect.id).with_for_update())
