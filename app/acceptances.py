@@ -697,7 +697,7 @@ def acceptance_to_dict(a: OrderAcceptance, order: Order) -> dict:
         "from_protocol": a.checklist_attachment_id is not None,
         "protocol": None if protocol_reference(a) is None else {
             **protocol_reference(a), "check": check["protocol"], "check_text": PROTOCOL_TEXTS.get(check["protocol"]),
-            "url": f"/checklists/{a.checklist_id}" if a.checklist_id else None},
+            "url": f"/checklisten/{a.checklist_id}" if a.checklist_id else None},
         "declared_by_person": a.declared_by_person, "declared_by_function": a.declared_by_function,
         "created_at": a.created_at, "created_at_local": to_berlin(a.created_at), "created_by_name": a.created_by_name,
         "discarded": a.discarded_at is not None, "discarded_at": a.discarded_at,

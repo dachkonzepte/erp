@@ -124,6 +124,15 @@ textarea{min-height:90px;resize:vertical}
 .pdef-form{border-top:1px solid var(--line);margin-top:10px;padding-top:10px;display:grid;gap:8px}
 .pdef-form select{padding:10px 12px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:16px;min-height:44px;width:100%}
 .pdef-bad{color:var(--danger);font-weight:650}
+/* Erklärungen und Mängel gebündelt (seit 1.8.64, Abnahmeprotokoll, nur Büro) */
+.psum h2{margin:0 0 4px;font-size:16px}.psum h3{margin:12px 0 4px;font-size:14px}
+.psum-row{display:grid;grid-template-columns:minmax(120px,38%) 1fr;gap:8px;font-size:13.5px;padding:4px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.psum-row>span:first-child{color:var(--muted)}
+.psum-def{font-size:13.5px;padding:4px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.psum-def.out{opacity:.7}
+.psum-tag{display:inline-block;font-size:12px;font-weight:700;padding:1px 6px;border:1px solid var(--line);margin-left:6px}
+.psum-tag.warn{color:var(--warning);border-color:var(--warning)}.psum-tag.out{color:var(--muted)}
+.psum-acc{margin-top:10px;font-size:13.5px}.psum-acc a{color:var(--accent);font-weight:650}
+@media (max-width:520px){.psum-row{grid-template-columns:1fr;gap:0}}
 .pad-actions select{flex:1;min-width:180px;padding:10px 12px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:16px;min-height:44px}
 .signer-fixed{flex:1;min-width:180px;font-size:14px;font-weight:650;color:var(--ink)}
 .sig .signer-line{display:block;font-weight:400;font-size:12.5px;color:#5c6f68;margin-top:2px}.sig .signer-line .no-poa{color:#8a5a00;font-weight:600}
@@ -636,6 +645,7 @@ function render(){
   const main=document.getElementById('clMain');
   let html=renderHeader()+renderSendCard();
   if(!IS_FIELD&&NOTICE_PURPOSES.includes(cl.purpose))html+='<div class="card notice-card" id="noticeCard"><h2>Anzeige an den Auftraggeber</h2><div class="muted small">Lädt …</div></div>';
+  if(!IS_FIELD&&cl.purpose==='abnahme')html+='<div class="card psum" id="protocolSummaryCard"><h2>Erklärungen und Mängel</h2><div class="muted small">Lädt …</div></div>';  // seit 1.8.64
   let group=null;
   const missing=new Set(cl.missing_required||[]);
   // Nur wenn ein Teil gesperrt und ein Teil offen ist, markiert jedes gesperrte Feld sich selbst.
@@ -666,6 +676,7 @@ function render(){
   main.innerHTML=html;
   for(const f of cl.fields)if(f.field_type==='unterschrift')setupPad(f.id);
   if(!IS_FIELD)for(const f of cl.fields)if(f.field_type==='maengel')loadProtocolDefects(f);
+  if(!IS_FIELD&&cl.purpose==='abnahme')loadProtocolSummary();
   if(!IS_FIELD)loadFollowUps();
   if(!IS_FIELD&&NOTICE_PURPOSES.includes(cl.purpose))loadNotice();
   if(!IS_FIELD&&cl.status==='abgeschlossen'){loadRules();afterRenderSendCard()}
@@ -745,6 +756,7 @@ async function sendAnswer(fieldId,value){
     const data=await p;
     cl.answers=data.answers;cl.missing_required=data.missing_required;cl.missing_before_signature=data.missing_before_signature;
     setStatus(fieldId,'Gespeichert');updateMissing();
+    if(!IS_FIELD&&cl.purpose==='abnahme')loadProtocolSummary();  // seit 1.8.64: Erklärungen aktuell halten
     return true;
   }catch(e){
     setStatus(fieldId,'Nicht gespeichert: '+e.message,true);
@@ -816,10 +828,35 @@ async function loadProtocolOptions(){
   if(!pdefOptions){try{pdefOptions=await api(`/api/checklists/${checklistId}/protocol-options`)}catch(e){pdefOptions={roof_areas:[],error:e.message}}}
   return pdefOptions;
 }
+// --- Erklärungen und Mängel gebündelt (seit 1.8.64, Abnahmeprotokoll, nur Büro) -----------------------------
+// Nach der Unterschrift des Auftraggebers aus ihrer Kopie (was er unterschrieben hat), vorher die aktuellen Angaben; dazu
+// die Abnahme am Auftrag bzw. warum sie aussteht ("Abnahme jetzt anlegen" wie auf der Auftragsseite).
+async function loadProtocolSummary(){
+  const card=document.getElementById('protocolSummaryCard');if(!card)return;
+  let s;
+  try{s=await api(`/api/checklists/${checklistId}/protocol-summary`)}catch(e){card.innerHTML=`<h2>Erklärungen und Mängel</h2><div class="pdef-bad">${esc(e.message)}</div>`;return}
+  if(!s){card.remove();return}
+  const due=x=>x?` · Frist ${esc(String(x).split('-').reverse().join('.'))}`:'';
+  const defs=s.defects.map(d=>`<div class="psum-def${d.in_protocol?'':' out'}" data-psum-defect="${d.id}">Mangel Nr. ${d.id}${[d.roof_area_name,d.location].filter(Boolean).map(x=>' · '+esc(x)).join('')}: ${esc(d.description)}${due(d.remedy_due_on)}<span class="psum-tag${d.discarded?(d.in_protocol?' warn':' out'):''}">${esc(d.status_label)}</span></div>`).join('');
+  let acc='';
+  if(s.acceptance)acc=`Abnahme am Auftrag: <a href="${esc(s.acceptance.url)}">vom ${esc(String(s.acceptance.accepted_on).split('-').reverse().join('.'))}</a>${s.acceptance.discarded?' <span class="pdef-bad">(verworfen – eine neue entsteht nur mit einer neuen Unterschrift des Auftraggebers)</span>':''}`;
+  else if(s.pending)acc=`<span class="pdef-bad">Die Abnahme am Auftrag ist noch nicht angelegt.</span>${s.problem?` <span class="pdef-bad">${esc(s.problem)}</span>`:''} <button type="button" class="btn secondary" id="psumRun" onclick="runSummaryAcceptance(this)">Abnahme jetzt anlegen</button> <span class="small" id="psumStatus"></span>`;
+  else acc='<span class="muted">Die Abnahme am Auftrag entsteht mit der Unterschrift des Auftraggebers.</span>';
+  card.innerHTML=`<h2>Erklärungen und Mängel</h2><div class="muted small">${s.signed?`Stand der Unterschrift des Auftraggebers vom ${esc(fmtDateTime(s.signature.signed_at))} – ${esc(s.signature.text||s.signature.name||'')}`:'Noch nicht unterschrieben – aktuelle Angaben.'}</div>
+    <h3>Erklärungen des Auftraggebers</h3>${s.declarations.map(r=>`<div class="psum-row"><span>${esc(r.label)}</span><span style="white-space:pre-wrap">${esc(r.value)}</span></div>`).join('')}
+    <h3>Mängel</h3>${defs||'<div class="muted small">Kein Mangel erfasst.</div>'}
+    <div class="psum-acc" id="psumAcceptance">${acc}</div>`;
+}
+async function runSummaryAcceptance(btn){
+  const st=document.getElementById('psumStatus');btn.disabled=true;st.textContent='Legt an …';
+  try{await api(`/api/checklists/${checklistId}/acceptance-from-protocol`,{method:'POST'});await loadProtocolSummary();loadFollowUps()}
+  catch(e){st.textContent='Nicht angelegt: '+e.message;btn.disabled=false}
+}
 async function loadProtocolDefects(f){
   const box=document.getElementById('pdefList_'+f.id);if(!box)return;
   try{
     const list=await api(`/api/checklists/${checklistId}/defects`);
+    if(cl.purpose==='abnahme')loadProtocolSummary();  // seit 1.8.64: Mängel im Bündel mitziehen
     box.innerHTML=list.length?list.map(d=>protocolDefectHtml(f,d)).join(''):'<div class="muted small">Noch kein Mangel erfasst.</div>';
     const sel=document.getElementById('pdefArea_'+f.id);
     if(sel)await loadProtocolOptions();

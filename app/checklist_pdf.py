@@ -26,7 +26,13 @@ und das Dokument sagt das. Der Download (PDF-Knopf) bleibt in voller Auflösung.
 
 Belege (seit 1.8.45, Feldtyp "beleg"): liegen unverändert vor, bis 15 MB. Ein Foto-Beleg erscheint im
 Dokument verkleinert (im Speicher, wie im Versand-PDF), ein PDF-Beleg als Zeile -- beide mit der Prüfsumme
-der Originaldatei, auf die sich auch Unterschriften und Abschluss beziehen."""
+der Originaldatei, auf die sich auch Unterschriften und Abschluss beziehen.
+
+Abnahmeprotokoll (seit 1.8.64, Zweck "abnahme"): oben "Erklärungen des Auftraggebers" gebündelt aus der versiegelten Kopie
+seiner Unterschrift (app/acceptance_protocol.py::protocol_summary()), am Feld "Mängel" jeder Mangel, der im Protokoll steht
+(die Kopie entscheidet) -- Beschreibung, Ort, Frist, Zahl der Fotos und Belege (die Dateien liegen im ERP am Mangel), Prüfsumme;
+ein erst nach der Unterschrift verworfener mit diesem Vermerk, vorher verworfene gar nicht. Ohne Begründungen, ohne Abnahme am
+Auftrag und ohne Aufgaben -- das Dokument kann an den Auftraggeber gehen."""
 
 from io import BytesIO
 
@@ -143,6 +149,29 @@ def _beleg_block(beleg, width_mm: float, photo_bytes: dict | None, photo_hashes:
     return head + [Paragraph(ptext(f"Prüfsumme der Originaldatei (SHA-256): {sha}"), small)]
 
 
+def _defect_block(d: dict, body, small) -> list:
+    """Ein Mangel im Abnahmeprotokoll (seit 1.8.64, Eintrag aus app/defects.py::list_protocol_defects()): Nummer, Ort,
+    Beschreibung, Frist, Dateien als Anzahl, Prüfsumme; erst nach der Unterschrift verworfen mit Vermerk, ohne Begründung."""
+    place = " · ".join(x for x in (d["roof_area_name"], d["location"]) if x)
+    head = f"<b>Mangel Nr. {d['id']}</b>" + (f" – {ptext(place)}" if place else "")
+    block = [Paragraph(head, body), Paragraph(ptext(d["description"]), body)]
+    details = []
+    if d["remedy_due_on"]:
+        details.append(f"Beseitigungsfrist: {d['remedy_due_on']:%d.%m.%Y}")
+    fotos = sum(1 for f in d["files"] if f["kind"] == "foto")
+    belege = sum(1 for f in d["files"] if f["kind"] != "foto")
+    if fotos or belege:
+        details.append(f"Fotos: {fotos}, Belege: {belege} (liegen im ERP am Mangel)")
+    details.append(f"Prüfsumme (SHA-256): {d['content_sha256']}")
+    block.append(Paragraph(ptext(" · ".join(details)), small))
+    if not d["intact"]:
+        block.append(Paragraph(f"<b>{ptext(d['check']['text'])}</b>", small))
+    if d["discarded"]:
+        when = f" am {d['discarded_at_local']:%d.%m.%Y}" if d["discarded_at_local"] else ""
+        block.append(Paragraph(f"<b>{ptext(f'Nach der Unterschrift verworfen{when} – bleibt im Protokoll.')}</b>", small))
+    return block
+
+
 def build_checklist_email_pdf(db, checklist: Checklist) -> bytes:
     """Das PDF für den Versand per E-Mail: höchstens MAX_ATTACHMENT_BYTES, Fotos stufenweise
     kleiner (EMAIL_PHOTO_STEPS). Je Stufe liegen nur deren Fotos im Speicher. Passt es auch mit der
@@ -202,6 +231,8 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
     seals = {a.id: check_signature(checklist, a, photo_hashes)
              for items in attachments.values() for a in items if a.kind == "unterschrift"}
     completion = check_completion(checklist, photo_hashes)
+    from .acceptance_protocol import protocol_summary  # seit 1.8.64; lokal wie die übrigen Fachmodule eines Renderers
+    summary = protocol_summary(db, checklist)
 
     def seal_paragraph(check: dict) -> Paragraph:
         text = ptext(check["text"])  # eine Abweichung fett
@@ -248,6 +279,15 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
             # Seit 1.8.41: als gegenstandslos abgeschlossen -- Begründung gut sichtbar vor den Angaben.
             story.append(Spacer(1, 3 * mm))
             story.append(Paragraph(f"<b>Gegenstandslos:</b> {ptext(checklist.void_reason or '')}", body))
+        if summary is not None:  # seit 1.8.64: Abnahmeprotokoll -- die Erklärungen auf einen Blick
+            story.append(Spacer(1, 4 * mm))
+            story.append(Paragraph("Erklärungen des Auftraggebers – Zusammenfassung", h3))
+            story.append(answer_table([[Paragraph(ptext(r["label"]), body), Paragraph(ptext(r["value"]), body)]
+                                       for r in summary["declarations"]]))
+            sig = summary["signature"]
+            stand = (f"Stand der Unterschrift des Auftraggebers vom {sig['signed_at_local']:%d.%m.%Y %H:%M} Uhr – "
+                     f"{sig['text'] or sig['name']}" if sig else "Noch nicht vom Auftraggeber unterschrieben.")
+            story.append(Paragraph(ptext(stand), small))
         story.append(Spacer(1, 5 * mm))
 
         rows: list[list] = []
@@ -290,6 +330,15 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
                 for beleg in belege:
                     story.append(KeepTogether(_beleg_block(beleg, min(PHOTO_WIDTH_MM, content_width_mm), photo_bytes,
                                                            photo_hashes, small) + [Spacer(1, 2 * mm)]))
+                story.append(Spacer(1, 2 * mm))
+            elif field.field_type == "maengel" and summary is not None:  # seit 1.8.64: die Mängel im Protokoll
+                flush_rows()
+                story.append(Paragraph(ptext(field.label), h3))
+                drin = [d for d in summary["defects"] if d["in_protocol"]]
+                if not drin:
+                    story.append(Paragraph("Keine Mängel.", small))
+                for d in drin:
+                    story.append(KeepTogether(_defect_block(d, body, small) + [Spacer(1, 2 * mm)]))
                 story.append(Spacer(1, 2 * mm))
             elif field.field_type == "unterschrift":
                 flush_rows()

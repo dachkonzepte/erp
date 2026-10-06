@@ -21,7 +21,7 @@ Entscheidung fällt je Kontext und je Checkliste hier im Router, die Geschäftsl
     "Unterschrift Büro") füllt nur das Büro, auch an der eigenen Checkliste (403).
   - Zweck nur fürs Büro (seit 1.8.61, ChecklistPurpose.office_only -- das Abnahmeprotokoll): solche Vorlagen und
     Checklisten sieht der Monteur weder in der Start-Auswahl noch in einer Liste, Anlegen und jeder Einzelzugriff 403,
-    auch in /mobil.
+    auch in /mobil. Seit 1.8.64 GET /api/checklists/{id}/protocol-summary (nur Büro): Erklärungen und Mängel gebündelt.
   - "Als gegenstandslos abschließen" (seit 1.8.41, Behinderungs- und Bedenkenanzeige) nur das Büro,
     mit Pflicht-Begründung; der Monteur sieht danach Status und Begründung an seiner Checkliste.
   - Fremde Checklisten: in der Liste nur Titel/Datum/Ersteller/Status; Einzelabruf und Anhänge
@@ -46,6 +46,7 @@ from sqlalchemy.orm import Session
 from ..checklist_email import get_checklist_recipient_email, send_checklist_email
 from ..checklist_follow_ups import list_checklists_with_open_follow_ups, list_follow_ups, run_checklist_follow_ups
 from ..checklist_pdf import build_checklist_pdf
+from ..acceptance_protocol import protocol_summary
 from ..checklist_purposes import purpose_office_only
 from ..concern_notices import OPEN_CONCERNS_TEXT, open_concerns
 from ..checklist_rules import list_checklists_with_open_rules, list_rule_executions, run_checklist_rules
@@ -516,6 +517,16 @@ def post_run_open_rules(db: Session = Depends(get_db), _role: AppUser = _office_
         for key in total:
             total[key] += result[key]
     return total
+
+
+# --- Abnahmeprotokoll: Erklärungen und Mängel gebündelt (seit 1.8.64, nur Büro) ---------------
+
+@router.get("/api/checklists/{checklist_id}/protocol-summary")
+def get_protocol_summary(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
+    """Erklärungen des Auftraggebers, Mängel mit ihrem Stand und die Abnahme am Auftrag (oder warum sie aussteht) -- null,
+    wenn die Checkliste kein Abnahmeprotokoll ist. Liest nur."""
+    _require_module_enabled(db)
+    return protocol_summary(db, _checklist_for(db, _role, checklist_id))
 
 
 # --- Folgen des Zwecks (seit 1.8.16, nur Büro) -----------------------------------------------

@@ -1758,3 +1758,77 @@ Version davor gekommen).
    Karten "Quellangebot" bzw. "Abnahme" zu sehen) -- unabhängig von dieser Runde.
 2. **Vier Migrationstests aus 1.8.46–1.8.49 sind gegen PostgreSQL immer rot** (siehe Verifikation) -- sie prüfen die Migration
    nur unter SQLite; die PostgreSQL-Probe der jeweiligen Migration lief damals mit eigenem Skript.
+
+---
+
+## Umsetzung 1.8.64 (06.10.2026) -- Runde 2c-2d Teil 2, Punkt 4: Mängel und Erklärungen auf Protokollseite und im PDF
+
+### Eine Quelle für Seite und PDF (`app/acceptance_protocol.py::protocol_summary()`)
+
+- Nur für den Zweck "abnahme" (sonst `None`). Nach der Unterschrift des Auftraggebers aus der versiegelten Kopie seiner
+  Unterschrift (was er unterschrieben hat -- eine danach am ORM vorbei geänderte Antwort ändert die Zusammenfassung nicht), vorher
+  aus den aktuellen Antworten, gekennzeichnet ("Kopie der Unterschrift des Auftraggebers" bzw. "aktuelle Angaben").
+- Erklärungen als Zeilen mit den Beschriftungen der Fassung: Ergebnis, Umfang (mit dem abgenommenen Teil), Dachflächen,
+  bei "abgenommen" die beiden Vorbehalte, Mängel im Protokoll (Zahl), Einwendungen des Auftragnehmers, wenn vorhanden.
+- Mängel aus `list_protocol_defects()` mit ihrem Stand (`defect_status_label()`): "erfasst" (noch nicht unterschrieben), "im
+  Protokoll", "nach der Unterschrift verworfen – bleibt im Protokoll", "verworfen – nicht im Protokoll" -- die Kopie entscheidet
+  (1.8.62).
+- Für die Seite: die Abnahme am Auftrag (Datum, verworfen, Link) oder warum sie aussteht (`protocol_acceptance_problem()`).
+
+### Protokollseite (`checklist.html`, `GET /api/checklists/{id}/protocol-summary`, nur Büro)
+
+- Karte "Erklärungen und Mängel" oben: Stand der Unterschrift (Zeitpunkt, Unterzeichner mit Person), die Erklärungen, die
+  Mängel mit Stand, darunter "Abnahme am Auftrag: vom …" mit Link, an einer verworfenen der Weg zu einer neuen, eine ausstehende
+  mit Grund und "Abnahme jetzt anlegen" (derselbe Endpunkt wie auf der Auftragsseite). Lädt neu nach jeder gespeicherten Antwort,
+  nach Erfassen und Verwerfen eines Mangels und nach jeder Unterschrift. Monteur: 403 (der Zweck ist ohnehin nur Büro).
+
+### PDF (`app/checklist_pdf.py`)
+
+- Oben "Erklärungen des Auftraggebers – Zusammenfassung" (Tabelle wie die Antworten) mit "Stand der Unterschrift des
+  Auftraggebers vom … – Unterzeichner: …".
+- Am Feld "Mängel" statt "—" jeder Mangel im Protokoll: "Mangel Nr. …" mit Dachfläche und Ort, Beschreibung, Frist, Zahl der
+  Fotos und Belege ("liegen im ERP am Mangel"), Prüfsumme seines Inhalts, eine Abweichung fett; ein erst nach der Unterschrift
+  verworfener mit "Nach der Unterschrift verworfen am … – bleibt im Protokoll.". Vor der Unterschrift verworfene fehlen, ohne
+  Mangel "Keine Mängel.". Keine Begründungen, keine Abnahme am Auftrag, keine Aufgaben -- das Dokument kann an den Auftraggeber
+  gehen (Versand abgeschlossener Checklisten seit 1.8.20).
+- Andere Zwecke: unverändert.
+
+### Eigener Fehler aus 1.8.63, hier behoben
+
+- Die Links aufs Protokoll (Nachweis an der Abnahme, Hinweis "ausstehend" auf der Auftragsseite) zeigten auf `/checklists/{id}`
+  -- die Seite heißt `/checklisten/{id}`, der Link führte ins Leere. Der Test aus 1.8.63 hatte den falschen Pfad festgeschrieben,
+  der Klicktest nur geprüft, dass es den Link gibt. Jetzt `/checklisten/{id}`; `test_v366` prüft jeden dieser Links gegen die
+  Seitenrouten (`app/routers/pages.py`).
+
+### Festlegungen 1.8.64 (bitte bestätigen)
+
+1. **Nach der Unterschrift zeigen Seite und PDF die Erklärungen aus der Kopie der Unterschrift des Auftraggebers**, vorher die
+   aktuellen Angaben (gekennzeichnet).
+2. **Im PDF die Mängel ohne Bilder** -- Zahl der Fotos und Belege, Prüfsumme; die Dateien liegen im ERP am Mangel (Speicherbudget,
+   bis zu 10 Dateien je Mangel mit bis zu 15 MB). Bilder im Protokoll-PDF wären mit der festen Fassung (2c-2e) zu entscheiden.
+3. **Im PDF keine Begründungen des Verwerfens, keine Abnahme am Auftrag, keine Aufgaben** -- nur, was zum Protokoll gehört; ein
+   nach der Unterschrift verworfener Mangel bleibt mit Vermerk drin, ein vorher verworfener fehlt.
+4. **Die Zusammenfassung steht im PDF oben, die Felder bleiben vollständig** -- die Erklärungen erscheinen damit zweimal (gebündelt
+   und im Formular).
+
+### Verifikation 1.8.64
+
+- `tests/test_v366_protokoll_seite_und_pdf.py` (9): Zusammenfassung vor der Unterschrift (aktuelle Angaben), nach der Unterschrift
+  aus der Kopie (Antwort am ORM vorbei geändert -> Kopie bleibt; Mängel vorher/danach verworfen mit Stand; Abnahme verlinkt),
+  "verweigert" ohne Vorbehalte, ausstehend mit Grund, Monteur 403 und `null` für andere Checklisten, Seite; PDF mit Zusammenfassung
+  und den Mängeln im Protokoll (vorher verworfener fehlt, danach verworfener mit Vermerk, keine Begründung), PDF anderer
+  Checklisten ohne Zusammenfassung; Links aufs Protokoll auf eine echte Seite (Korrektur 1.8.63).
+- Angepasst: `test_v365` (Pfad des Links).
+- Gegenproben (Marker GEGENPROBE, Dateien byte-genau zurück): 8 von 8 rot (Erklärungen aus den aktuellen Antworten, Stand
+  vertauscht, Vorbehalte bei "verweigert", PDF ohne Mängel, PDF mit vorher verworfenen, PDF ohne Zusammenfassung, beide Links wie
+  in 1.8.63).
+- PostgreSQL (pytest-Plugin): `test_v366` und `test_v365` -- 39 grün.
+- Klicktest `klicktest_abnahme_aus_protokoll.py` erweitert, 13/13 (Karte "Erklärungen und Mängel" mit Stand, Ergebnis, Mangel
+  "im Protokoll" und verlinkter Abnahme; Protokoll abgeschlossen, PDF mit Zusammenfassung und Mangel, Seiten als PNG geprüft).
+- Volle Suite 3032 grün (mit den opt-in-Tests gegen PostgreSQL).
+
+### Offen nach 2c-2d
+
+- 2c-2e laut Vorgabe: feste Fassung des Protokolls, Ablage und Versand (mit Festlegung 1.8.64 Nr. 2 zu Bildern der Mängel).
+- Ein nach der Abnahme erkannter Mangel (Rüge) ist weiterhin nicht gebaut -- an einer Abnahme aus dem Protokoll gibt es keinen
+  Weg, einen Mangel von Hand zu erfassen (Festlegung 1.8.63 Nr. 5).

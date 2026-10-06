@@ -146,7 +146,7 @@ def test_customer_signature_creates_the_acceptance_from_the_sealed_copy(protokol
     assert (content["declared_by_person"], content["checksum_format"]) == ("Herbert Halle", 3)
     eintrag = _liste(p)[a.id]
     assert eintrag["intact"] and eintrag["from_protocol"] and eintrag["protocol"]["check"] == "unveraendert"
-    assert eintrag["protocol"]["url"] == f"/checklists/{p['c']['id']}"
+    assert eintrag["protocol"]["url"] == f"/checklisten/{p['c']['id']}"  # die Seite (1.8.63 fälschlich /checklists/…)
     assert eintrag["defects"]["can_add"] is False and "Abnahmeprotokoll" in eintrag["defects"]["protocol_text"]
     # Mangel: an der Abnahme, mit Aufgabe -- erst jetzt Haltung, Freigabe, Status
     d = _defect(db, p["mangel"])

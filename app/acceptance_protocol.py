@@ -286,6 +286,85 @@ def protocol_acceptance_problem(db: Session, checklist, signature) -> str | None
     return None
 
 
+# ---------------------------------------------------------------------------
+# Erklärungen und Mängel gebündelt (seit 1.8.64)
+# ---------------------------------------------------------------------------
+
+_YES_NO_TEXT = {"ja": "ja", "nein": "nein"}
+
+
+def defect_status_label(d: dict, signed: bool) -> str:
+    """Stand eines Mangels im Protokoll (Eintrag aus list_protocol_defects()): ob er in der Kopie der Unterschrift steht,
+    entscheidet die Kopie (seit 1.8.62)."""
+    if not d["discarded"]:
+        return "im Protokoll" if signed else "erfasst"
+    return "nach der Unterschrift verworfen – bleibt im Protokoll" if d["in_protocol"] else "verworfen – nicht im Protokoll"
+
+
+def protocol_summary(db: Session, checklist) -> dict | None:
+    """Erklärungen des Auftraggebers und Mängel des Abnahmeprotokolls auf einen Blick (seit 1.8.64, Punkt 4) -- für die
+    Protokollseite und das PDF. Nach der Unterschrift des Auftraggebers aus ihrer versiegelten Kopie (was er unterschrieben
+    hat), vorher aus den aktuellen Antworten. Mängel aus list_protocol_defects() mit ihrem Stand. Dazu, für die Seite, die
+    Abnahme am Auftrag oder warum sie aussteht. None, wenn die Checkliste kein Abnahmeprotokoll ist. Liest nur."""
+    from .checklists import signer_text
+    from .defects import list_protocol_defects
+
+    if checklist.template_version.purpose != ACCEPTANCE_PURPOSE:
+        return None
+    fields = {f.field_key: f for f in checklist.template_version.fields}
+    signature = customer_signature(checklist)
+    values = sealed_values(signature) if signature is not None and signature.sealed_content else protocol_values(checklist)
+
+    def label(key: str, fallback: str) -> str:
+        return fields[key].label if key in fields else fallback
+
+    def option(key: str, value):
+        field = fields.get(key)
+        return {o.option_key: o.label for o in field.options}.get(value, value) if field is not None else value
+
+    scope, result = values.get(ACCEPTANCE_SCOPE), values.get(ACCEPTANCE_RESULT)
+    scope_text = (values.get(ACCEPTANCE_SCOPE_TEXT) or "").strip() or None
+    roof_names = [r["name"] for r in values.get(ACCEPTANCE_ROOF_AREAS) or []]
+    defects = list_protocol_defects(db, checklist)
+    signed = signature is not None
+    for d in defects:
+        d["status_label"] = defect_status_label(d, signed)
+    in_protocol = [d for d in defects if d["in_protocol"]]
+    declarations = [(label(ACCEPTANCE_RESULT, "Ergebnis"), option(ACCEPTANCE_RESULT, result) or "–"),
+                    (label(ACCEPTANCE_SCOPE, "Umfang"),
+                     (option(ACCEPTANCE_SCOPE, scope) or "–") + (f": {scope_text}" if scope_text else "")),
+                    (label(ACCEPTANCE_ROOF_AREAS, "Dachflächen"), ", ".join(roof_names) or "keine angegeben")]
+    if result != "verweigert":
+        declarations += [(label(ACCEPTANCE_DEFECTS, "Vorbehalt wegen bekannter Mängel"),
+                          _YES_NO_TEXT.get(values.get(ACCEPTANCE_DEFECTS), "–")),
+                         (label(ACCEPTANCE_PENALTY, "Vorbehalt der Vertragsstrafe"),
+                          _YES_NO_TEXT.get(values.get(ACCEPTANCE_PENALTY), "–"))]
+    declarations.append(("Mängel im Protokoll", str(len(in_protocol))))
+    objections = (values.get(ACCEPTANCE_OBJECTIONS) or "").strip() or None
+    if objections:
+        declarations.append((label(ACCEPTANCE_OBJECTIONS, "Einwendungen des Auftragnehmers"), objections))
+
+    acceptance, problem = None, None
+    if signed:
+        row = acceptance_for_signature(db, signature.id)
+        if row is not None:
+            acceptance = {"id": row.id, "accepted_on": row.accepted_on, "discarded": row.discarded_at is not None,
+                          "url": f"/orders/{row.order_id}#acceptanceCard"}
+        else:
+            problem = protocol_acceptance_problem(db, checklist, signature)
+    return {
+        "signed": signed, "source": "Kopie der Unterschrift des Auftraggebers" if signed else "aktuelle Angaben",
+        "signature": None if not signed else {
+            "id": signature.id, "name": signature.signer_name, "person": signature.signer_person,
+            "function": signature.signer_function, "text": signer_text(signature, ACCEPTANCE_PURPOSE),
+            "signed_at": signature.created_at, "signed_at_local": to_berlin(signature.created_at)},
+        "result": result, "scope": scope, "declarations": [{"label": k, "value": v} for k, v in declarations],
+        "defects": defects, "defects_in_protocol": len(in_protocol),
+        "defects_left_out": sum(1 for d in defects if not d["in_protocol"]),
+        "acceptance": acceptance, "pending": signed and acceptance is None, "problem": problem,
+    }
+
+
 def pending_protocol_acceptances(db: Session, order: Order) -> list[dict]:
     """Abnahmeprotokolle dieses Auftrags mit gültiger Unterschrift des Auftraggebers, aus der noch keine Abnahme entstanden
     ist -- für den Hinweis am Auftrag mit "Nachholen", samt Grund, falls das Anlegen scheitern würde. Liest nur."""
@@ -303,7 +382,7 @@ def pending_protocol_acceptances(db: Session, order: Order) -> list[dict]:
             continue
         signed = to_berlin(signature.created_at)
         result.append({
-            "checklist_id": checklist.id, "label": checklist.template_label_snapshot, "url": f"/checklists/{checklist.id}",
+            "checklist_id": checklist.id, "label": checklist.template_label_snapshot, "url": f"/checklisten/{checklist.id}",
             "signature_id": signature.id, "signed_at_local": signed, "signed_on": signed.date() if signed else None,
             "signer_name": signature.signer_name, "signer_text": signer_text(signature, ACCEPTANCE_PURPOSE),
             "problem": protocol_acceptance_problem(db, checklist, signature),

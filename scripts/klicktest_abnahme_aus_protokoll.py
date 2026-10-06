@@ -1,4 +1,5 @@
-"""Klicktest: Abnahme aus dem Abnahmeprotokoll (1.8.63, Stufe 2c-2d Teil 2, Punkt 3).
+"""Klicktest: Abnahme aus dem Abnahmeprotokoll (1.8.63, Stufe 2c-2d Teil 2, Punkt 3) und Erklärungen und Mängel auf
+Protokollseite und im PDF (1.8.64, Punkt 4).
 
 Befüllt wie scripts/klicktest_abnahmeprotokoll.py (Hallenbau GmbH, Objekt "Halle Nord" mit Nord, Süd, Alt archiviert, Bernd
 Bau mit Vollmacht zur Abnahme), dazu zwei Protokolle, deren Unterschrift des Auftraggebers ohne Folge gespeichert ist (Abbruch
@@ -11,6 +12,9 @@ nach dem Commit): "B" ohne Hindernis, "C" mit der Dachfläche Süd, die danach a
                             Ausstehend: B und C mit Hinweis, C mit Grund "Süd archiviert"; "Abnahme jetzt anlegen" bei B ->
                             angelegt, Hinweis weg; bei C -> "Nicht angelegt: …".
                             Unterschrift des Auftraggebers in A verwerfen -> abgelehnt (erst die Abnahme verwerfen).
+                            Seit 1.8.64: Karte "Erklärungen und Mängel" in A (Stand der Unterschrift, Ergebnis, Mangel "im
+                            Protokoll", Abnahme verlinkt); A abgeschlossen, PDF mit Zusammenfassung und dem Mangel (als PNG
+                            je Seite im Ordner der Screenshots).
     Büro (412 px, hell)     Auftragsseite ohne waagrechten Scrollbalken.
 
 `confirm()` wird automatisch bestätigt. Unterschrift in A mit echten Mausereignissen. Feste Uhr 10:00.
@@ -120,7 +124,19 @@ async def pruefen(tab, seed, p):
         "(r=>[r.querySelector('a').textContent.startsWith('Abnahme vom '), r.querySelector('a').getAttribute('href'), "
         "r.querySelector('.badge').textContent])(document.querySelector('#followUpsCard .rule-row'))"),
         [True, f"/orders/{auftrag}#acceptanceCard", "erledigt"])
+    # Seit 1.8.64: Karte "Erklärungen und Mängel" -- aus der Kopie der Unterschrift, mit der Abnahme am Auftrag
+    await tab.warten("document.querySelector('#protocolSummaryCard #psumAcceptance a')", 15)
+    p.pruefe("Karte 'Erklärungen und Mängel': Stand der Unterschrift, Ergebnis, Mangel im Protokoll, Abnahme verlinkt",
+             await tab.js(
+                 "(c=>[c.innerText.includes('Stand der Unterschrift des Auftraggebers'), "
+                 "[...c.querySelectorAll('.psum-row')].map(r=>r.innerText.replace('\\n',': ').replace('\\t',': ')).filter(t=>t.startsWith('Ergebnis')||t.startsWith('Mängel im Protokoll')), "
+                 "[...c.querySelectorAll('.psum-def .psum-tag')].map(t=>t.textContent), "
+                 f"c.querySelector('#psumAcceptance a').getAttribute('href')])(document.getElementById('protocolSummaryCard'))"),
+             [True, ["Ergebnis: Abnahme erklärt", "Mängel im Protokoll: 1"], ["im Protokoll"], f"/orders/{auftrag}#acceptanceCard"])
     p.pruefe("Protokoll A: keine JS-Fehler", tab.fehler, [])
+    await tab.js("document.getElementById('protocolSummaryCard').scrollIntoView()")
+    await tab.bild("1a_protokoll_erklaerungen_dunkel")
+    await tab.js("document.getElementById('followUpsCard').scrollIntoView()")
     await tab.bild("1_protokoll_folge_dunkel")
 
     # --- Auftragsseite ---------------------------------------------------------------------------------------------
@@ -162,6 +178,37 @@ async def pruefen(tab, seed, p):
         f"fetch('/api/checklists/{cid}/discard-signatures',{{method:'POST',headers:{{'Content-Type':'application/json'}},"
         f"body:JSON.stringify({{signature_id:{sig},reason:'neu'}})}}).then(async r=>[r.status,(await r.json()).detail"
         f".includes('erst die Abnahme am Auftrag')])"), [409, True])
+
+    # --- Seit 1.8.64: Protokoll A abschließen, PDF mit Erklärungen und Mängeln -----------------------------------------
+    await tab.oeffnen(f"/checklisten/{cid}", bereit)
+    an = f["unterschrift_auftragnehmer"]
+    await _zeichnen(tab, an)
+    await tab.js(_knopf(an))
+    await tab.warten(f"document.querySelectorAll('#q_{an} .sig').length===1", 15)
+    p.pruefe("Protokoll A abgeschlossen", await tab.js(
+        f"fetch('/api/checklists/{cid}/complete',{{method:'POST'}}).then(r=>r.status)"), 200)
+    pdf_b64 = await tab.js(
+        f"fetch('/api/checklists/{cid}/pdf').then(r=>r.arrayBuffer()).then(b=>{{let s='';const u=new Uint8Array(b);"
+        f"for(let i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);return btoa(s)}})")
+    import base64
+
+    import pypdfium2 as pdfium
+
+    pdf = base64.b64decode(pdf_b64)
+    ordner = (await tab.bild("5_protokoll_abgeschlossen")).parent
+    (ordner / "6_protokoll.pdf").write_bytes(pdf)
+    doc = pdfium.PdfDocument(pdf)
+    texte = []
+    for i, seite in enumerate(doc):
+        tp = seite.get_textpage()
+        texte.append(tp.get_text_range(0, tp.count_chars()))
+        tp.close()
+        seite.render(scale=1.4).to_pil().save(ordner / f"6_protokoll_seite_{i + 1}.png")
+    doc.close()
+    pdf_text = "\n".join(texte)
+    p.pruefe("PDF: Zusammenfassung der Erklärungen und der Mangel mit Nummer statt '—'", [
+        "Erklärungen des Auftraggebers – Zusammenfassung" in pdf_text, "Attika West undicht" in pdf_text,
+        "Mängel im Protokoll" in pdf_text], [True, True, True])
 
     # --- 412 px, hell ---------------------------------------------------------------------------------------------------
     await tab.js("localStorage.setItem('erp_theme','light')")

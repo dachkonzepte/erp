@@ -4,6 +4,22 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.64 – Abnahmeprotokoll: Erklärungen und Mängel auf der Seite und im PDF
+
+Stufe 2c, Runde 2c-2d Teil 2, Punkt 4. Die Protokollseite zeigt fürs Büro oben die Karte „Erklärungen und Mängel“: Ergebnis,
+Umfang, Dachflächen, Vorbehalte, die Zahl der Mängel im Protokoll und die Einwendungen – nach der Unterschrift des Auftraggebers
+aus der Kopie seiner Unterschrift, vorher die aktuellen Angaben –, jeden Mangel mit seinem Stand („im Protokoll“, „nach der
+Unterschrift verworfen – bleibt im Protokoll“, „verworfen – nicht im Protokoll“) und die Abnahme am Auftrag mit Link bzw. warum
+sie aussteht, samt „Abnahme jetzt anlegen“. Das PDF trägt oben dieselbe Zusammenfassung und am Feld „Mängel“ statt „—“ jeden Mangel
+im Protokoll mit Nummer, Ort, Beschreibung, Frist, Zahl der Fotos und Belege und Prüfsumme; ohne Bilder, ohne Begründungen und
+ohne interne Angaben, weil es an den Auftraggeber gehen kann. Eine Quelle für beides: `protocol_summary()`.
+
+Eigener Fehler aus 1.8.63, hier behoben: die Links aufs Protokoll zeigten auf `/checklists/…` statt auf die Seite
+`/checklisten/…`; der Test hatte den falschen Pfad festgeschrieben. Jetzt prüft `test_v366` jeden dieser Links gegen die
+Seitenrouten. Neue `test_v366` (9), Gegenproben 8 von 8 rot, gegen PostgreSQL `test_v365`/`test_v366` 39 grün; Klicktest
+`klicktest_abnahme_aus_protokoll.py` erweitert, 13/13. Volle Suite 3032 grün (mit den opt-in-Tests gegen PostgreSQL). Festlegungen in
+`docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.64“.
+
 ## 1.8.63 – Abnahmeprotokoll: Abnahme aus dem Protokoll
 
 Stufe 2c, Runde 2c-2d Teil 2, Punkt 3. Nach der Unterschrift des Auftraggebers legt die Folge „Abnahme am Auftrag anlegen“ die
