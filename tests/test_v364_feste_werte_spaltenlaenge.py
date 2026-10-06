@@ -187,7 +187,8 @@ FESTE_WERTE = {
 FESTE_LITERALE = {
     "ai_call_log.caller": ("einstellungen_test",),  # routers/ai_settings.py
     "audit_logs.action": ("angelegt", "geändert", "gelöscht", "verworfen"),  # audit.py, record_audit_entry(action=…)
-    "checklist_follow_ups.target_type": ("task",),  # Rückgabe der Folge-Handler (obstruction/concern_notices.py)
+    # Rückgabe der Folge-Handler (obstruction/concern_notices.py; "abnahme" seit 1.8.63, checklist_purposes.py)
+    "checklist_follow_ups.target_type": ("task", "abnahme"),
     "checklist_template_versions.status": ("entwurf", "veroeffentlicht", "abgeloest"),  # checklist_templates.py
     "document_layout_blocks.font_weight": ("normal", "bold"),  # schemas.py (pattern)
     "document_layout_blocks.text_align": ("left", "center", "right"),  # schemas.py (pattern)

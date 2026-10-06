@@ -138,7 +138,9 @@ def test_acceptance_list_warns_without_defect(welt, buero):
         return {x["id"]: x["defects"] for x in buero.get(f"/api/orders/{welt['order_id']}/acceptances").json()}
     s = stand()
     assert s[vorbehalt["id"]]["missing"] is True and s[verweigert["id"]]["missing"] is True
-    assert s[ohne["id"]] == {"expected": False, "active": 0, "total": 0, "missing": False, "text": None}
+    assert s[ohne["id"]] == {"expected": False, "active": 0, "total": 0, "missing": False, "text": None,
+                             "can_add": False, "protocol_text": None}  # die beiden letzten seit 1.8.63
+    assert s[vorbehalt["id"]]["can_add"] is True
     assert "ohne erfassten Mangel" in s[vorbehalt["id"]]["text"]
     d = _ok(_mangel(buero, vorbehalt["id"]))
     assert stand()[vorbehalt["id"]]["missing"] is False and stand()[vorbehalt["id"]]["active"] == 1

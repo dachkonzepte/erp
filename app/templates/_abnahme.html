@@ -10,7 +10,10 @@
      (kein prompt(), Regel 4).
    - Dialog: keine Vorauswahl -- weder Datum noch Art, Umfang, Ergebnis, die beiden Vorbehalte oder Erklärende.
    - Seit 1.8.49: an einer Abnahme mit Vorbehalt Mängel oder Verweigerung "+ Mangel erfassen" (Dialog in _maengel.html)
-     und eine Warnung, solange kein Mangel erfasst ist; loadAcceptanceSection() lädt die Karte "Mängel" mit. #}
+     und eine Warnung, solange kein Mangel erfasst ist; loadAcceptanceSection() lädt die Karte "Mängel" mit.
+   - Seit 1.8.63: Abnahme aus dem Abnahmeprotokoll -- Nachweis "Abnahmeprotokoll" mit Link und Prüfung des Verweises, Person
+     beim Auftraggeber, kein "+ Mangel erfassen" (die Mängel stehen im Protokoll); oben ein Hinweis je Protokoll, aus dessen
+     Unterschrift noch keine Abnahme entstanden ist, mit "Abnahme jetzt anlegen" und dem Grund, falls es scheitern würde. #}
 <style>
 .acc-item{border-top:1px solid var(--line);padding:10px 0;font-size:13px;overflow-wrap:anywhere}.acc-item:first-child{border-top:none;padding-top:0}
 .acc-item.discarded{opacity:.7}.acc-head{font-weight:750;font-size:13.5px}.acc-row{margin-top:3px}
@@ -60,6 +63,7 @@
 </div>
 <div class="card" id="acceptanceCard"><h3>Abnahme</h3>
   <div class="small muted" style="margin-bottom:8px">Nach dem Speichern unveränderlich – eine falsche Angabe wird mit Begründung verworfen und neu erfasst.</div>
+  <div id="protocolPending"></div>
   <div id="acceptanceList" class="small muted">Lädt …</div>
   <button class="secondary" style="margin-top:8px" onclick="openAcceptanceDialog()">+ Abnahme erfassen</button>
   <div id="acceptanceStatus" class="status"></div>
@@ -114,7 +118,19 @@ function accRadio(name){const x=document.querySelector(`#acceptanceDialog input[
 async function loadAcceptanceSection(){
   [warrantyChanges,acceptances]=await Promise.all([api(`/api/orders/${orderId}/warranty-changes`).catch(()=>[]),api(`/api/orders/${orderId}/acceptances`).catch(e=>{document.getElementById('acceptanceList').textContent='Abnahmen konnten nicht geladen werden: '+e.message;return null})]);
   renderWarranty();if(acceptances)renderAcceptances();
+  loadProtocolPending();
   if(typeof loadDefects==='function')loadDefects();
+}
+// Seit 1.8.63: Abnahmeprotokolle mit Unterschrift des Auftraggebers, aus der noch keine Abnahme entstanden ist.
+async function loadProtocolPending(){
+  const box=document.getElementById('protocolPending');
+  let rows=[];try{rows=await api(`/api/orders/${orderId}/pending-protocol-acceptances`)}catch(e){box.innerHTML=`<div class="notice warning">Ausstehende Abnahmen aus Protokollen konnten nicht geladen werden: ${esc(e.message)}</div>`;return}
+  box.innerHTML=rows.map(r=>`<div class="notice warning" data-protocol-pending="${r.checklist_id}" style="margin:0 0 8px">⚠ <a href="${esc(r.url)}">${esc(r.label)} (Nr. ${r.checklist_id})</a>: unterschrieben vom Auftraggeber am ${accDateTime(r.signed_at_local)} – die Abnahme am Auftrag ist noch nicht angelegt.${r.problem?`<div class="small acc-bad" style="margin-top:4px">${esc(r.problem)}</div>`:''}<div style="margin-top:6px"><button class="secondary" onclick="runProtocolAcceptance(${r.checklist_id},this)">Abnahme jetzt anlegen</button> <span class="small" id="protocolPendingStatus${r.checklist_id}"></span></div></div>`).join('');
+}
+async function runProtocolAcceptance(checklistId,btn){
+  const st=document.getElementById('protocolPendingStatus'+checklistId);btn.disabled=true;st.textContent='Legt an …';
+  try{await api(`/api/checklists/${checklistId}/acceptance-from-protocol`,{method:'POST'});st.textContent='Abnahme angelegt.';order=await api('/api/orders/'+orderId);renderSync();await loadAcceptanceSection()}
+  catch(e){st.textContent='Nicht angelegt: '+e.message;btn.disabled=false}
 }
 // Seit 1.8.49: nur die Abnahmen neu laden (Stand der Mängel nach Erfassen/Verwerfen eines Mangels).
 async function loadAcceptanceList(){try{acceptances=await api(`/api/orders/${orderId}/acceptances`);renderAcceptances()}catch(e){}}
@@ -184,7 +200,9 @@ function acceptanceHtml(a){
   const lines=[`<div class="acc-head">${esc(a.scope_label)} · ${esc(a.kind_label)} · ${accDate(a.accepted_on)}</div>`,`<div class="acc-row">Ergebnis: <b>${esc(a.result_text)}</b></div>`];
   if(a.scope_description)lines.push(`<div class="acc-row">Teil: ${esc(a.scope_description)}</div>`);
   if(a.roof_areas.length)lines.push(`<div class="acc-row">Dachflächen: ${a.roof_areas.map(r=>`<a href="/roof-areas/${r.id}">${esc(r.name)}</a>`).join(', ')}</div>`);
-  lines.push(`<div class="acc-row">Erklärt durch: ${a.declared_by==='beteiligter'?`${esc(a.declared_by_name)} (${esc(a.declared_by_role||'Beteiligter')})`:`Auftraggeber ${esc(a.declared_by_name)}`}${a.without_power_of_attorney?' <span class="acc-warn">⚠ ohne Vollmacht zur Abnahme</span>':''}</div>`);
+  lines.push(`<div class="acc-row">Erklärt durch: ${a.declared_by==='beteiligter'?`${esc(a.declared_by_name)} (${esc(a.declared_by_role||'Beteiligter')})`:`Auftraggeber ${esc(a.declared_by_name)}`}${a.declared_by_person?`, unterschrieben von ${esc(a.declared_by_person)}${a.declared_by_function?` (${esc(a.declared_by_function)})`:''}`:''}${a.without_power_of_attorney?' <span class="acc-warn">⚠ ohne Vollmacht zur Abnahme</span>':''}</div>`);
+  // Seit 1.8.63: Nachweis "Abnahmeprotokoll" statt eines Belegs
+  if(a.protocol)lines.push(`<div class="acc-row" data-protocol-proof>Nachweis: <a href="${esc(a.protocol.url||'#')}">Abnahmeprotokoll Nr. ${a.protocol.checklist_id}</a>, Unterschrift des Auftraggebers <span class="acc-sha" title="${esc(a.protocol.seal_sha256||'')}">SHA-256 ${esc((a.protocol.seal_sha256||'').slice(0,16))}…</span>${a.protocol.check!=='unveraendert'?` <span class="acc-bad">⚠ ${esc(a.protocol.check_text||'')}</span>`:''}</div>`);
   if(a.contractor_objections)lines.push(`<div class="acc-row" style="white-space:pre-wrap">Einwendungen des Auftragnehmers: ${esc(a.contractor_objections)}</div>`);
   if(a.conduct_reason)lines.push(`<div class="acc-row" style="white-space:pre-wrap">Begründung (Nachweis): ${esc(a.conduct_reason)}</div>`);
   a.files.forEach(f=>lines.push(`<div class="acc-row"><a href="/api/order-acceptances/${a.id}/files/${f.id}" target="_blank" rel="noopener">${esc(f.kind_label)} (${f.content_type==='application/pdf'?'PDF':'Foto'}, ${accSize(f.size_bytes)})</a> <span class="acc-sha" title="${esc(f.sha256)}">SHA-256 ${esc(f.sha256.slice(0,16))}…</span>${f.status!=='unveraendert'?` <span class="acc-bad">${esc(f.status_text)}</span>`:''}</div>`));
@@ -192,10 +210,11 @@ function acceptanceHtml(a){
   const dq=a.defects;
   if(dq&&dq.missing)lines.push(`<div class="acc-row acc-warn">⚠ ${esc(dq.text)}</div>`);
   if(dq&&dq.total)lines.push(`<div class="acc-row">Mängel: <a href="#defectCard">${dq.active} erfasst${dq.total>dq.active?`, ${dq.total-dq.active} verworfen`:''}</a></div>`);
-  if(dq&&dq.expected)lines.push(`<div class="acc-row"><button class="secondary" onclick="openDefectDialog(${a.id})">+ Mangel erfassen</button></div>`);
+  if(dq&&dq.can_add)lines.push(`<div class="acc-row"><button class="secondary" onclick="openDefectDialog(${a.id})">+ Mangel erfassen</button></div>`);
+  else if(dq&&dq.protocol_text)lines.push(`<div class="acc-row acc-hint">${esc(dq.protocol_text)}</div>`);
   if(a.warranty)lines.push(a.warranty.end?`<div class="acc-row ${a.warranty.check.ok?'acc-good':'acc-warn'}" title="${esc(a.warranty.rule||'')}">${esc(a.warranty.text)} <span class="acc-hint">· ${esc(a.warranty.hint)}</span> ${accCheck(a.warranty.check)}</div>`:`<div class="acc-row acc-warn">${esc(a.warranty.text)} ${accCheck(a.warranty.check)}</div>`);
   lines.push(`<div class="acc-row muted">Erfasst ${accDateTime(a.created_at_local)} von ${esc(a.created_by_name)}</div>`);
-  if(a.discarded)lines.push(`<div class="acc-row acc-bad" style="white-space:pre-wrap">Verworfen ${accDateTime(a.discarded_at_local)} von ${esc(a.discarded_by_name)}: ${esc(a.discard_reason)}</div>${a.discard_check?`<div class="acc-row ${a.discard_check==='abweichend'?'acc-bad':'acc-hint'}">${a.discard_check==='abweichend'?'⚠ ':''}${esc(a.discard_check_text)}</div>`:''}`);
+  if(a.discarded)lines.push(`<div class="acc-row acc-bad" style="white-space:pre-wrap">Verworfen ${accDateTime(a.discarded_at_local)} von ${esc(a.discarded_by_name)}: ${esc(a.discard_reason)}</div>${a.discard_check?`<div class="acc-row ${a.discard_check==='abweichend'?'acc-bad':'acc-hint'}">${a.discard_check==='abweichend'?'⚠ ':''}${esc(a.discard_check_text)}</div>`:''}${a.from_protocol?'<div class="acc-row acc-hint">Eine neue Abnahme aus diesem Protokoll entsteht nur mit einer neuen Unterschrift des Auftraggebers: im Protokoll die alte Unterschrift verwerfen und neu unterschreiben lassen.</div>':''}`);
   else lines.push(`<div class="acc-row"><button class="secondary" onclick="showDiscard(${a.id})">Verwerfen …</button></div><div id="accDiscard${a.id}" class="acc-discard" hidden><textarea id="accDiscardReason${a.id}" maxlength="2000" placeholder="Begründung (Pflicht), z. B. falsches Datum erfasst"></textarea><button class="danger" onclick="discardAcceptance(${a.id},this)">Abnahme verwerfen</button><button class="secondary" onclick="showDiscard(${a.id})">Abbrechen</button></div>`);
   return `<div class="acc-item${a.discarded?' discarded':''}" data-acceptance="${a.id}">${lines.join('')}</div>`;
 }

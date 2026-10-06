@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.62** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.63** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -725,8 +725,15 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   **Abnahmeprotokoll** (seit 1.8.61): Checkliste mit Zweck `abnahme`, nur Büro (`ChecklistPurpose.office_only`), Systemfelder
   Befund / Erklärungen des Auftraggebers / Schluss; Unterschrift des Auftraggebers mit Unterzeichner `ag_oder_beteiligter`,
   davor prüft `app/acceptance_protocol.py::check_customer_signature()` die Widersprüche (Mängel ohne Vorbehalt, Vorbehalt ohne
-  Mangel, "verweigert" ohne Mangel) und was die Abnahme nicht annähme. Die Abnahme aus dem Protokoll (Punkt 3) ist geplant,
-  nicht gebaut.
+  Mangel, "verweigert" ohne Mangel) und was die Abnahme nicht annähme (seit 1.8.63 zum Schluss `check_acceptance()`, dieselbe
+  Prüfung wie von Hand). Seit 1.8.63 legt die Folge danach die **Abnahme aus dem Protokoll** an
+  (`acceptance_from_protocol()`, über `create_acceptance(…, protocol=ProtocolSource)`): je Unterschrift höchstens eine (UNIQUE
+  `order_acceptances.checklist_attachment_id`, Folge `per_signature`), förmlich, Nachweis = Verweis auf die Unterschrift
+  (Prüfsummenformat 3), Datum der Unterschrift in Europe/Berlin, Werte aus der versiegelten Kopie, Erklärender samt eingefrorener
+  Vollmacht aus der Unterschrift; im selben Commit die Mängel der Kopie (bedingtes UPDATE, von leer oder einer verworfenen
+  Abnahme) mit Aufgabe. Die Unterschrift lässt sich nicht verwerfen, solange die Abnahme gilt; eine neue Abnahme nur über eine
+  neue Unterschrift. Ausstehende am Auftrag mit Grund und "Abnahme jetzt anlegen"; an einer Abnahme aus dem Protokoll keine
+  Mängel von Hand.
   Seit 1.8.50 setzt `{gewaehrleistung}` in Vertragsvorlagen die Dauer ein; ein Vertrag damit wird erst mit festgelegter Dauer
   festgeschrieben, danach sind Leistungsart und Dauer gesperrt (`warranty_contract_lock()`, Sperrreihenfolge Vertrag ->
   Auftrag wie beim Abgleich). Details: `docs/archiv/abnahme-und-gewaehrleistung.md`.
@@ -836,7 +843,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   bekannte Ausnahme Behinderungsanzeige in `SIGNER_FILL_EXCEPTIONS`; seit 1.8.60 Feldtyp "maengel", nur als Systemfeld eines
   Zwecks (`SYSTEM_ONLY_FIELD_TYPES`), Mängel als eigene Datensätze im Siegel; seit 1.8.61 Zweck "nur Büro"
   (`office_only`), fester Unterzeichner je Systemfeld (`SystemField.signer_mode`), Prüfung vor einer Unterschrift je Zweck
-  (`signature_checks`), Feldtyp "dachflaechen" mit Namens-Schnappschuss) --
+  (`signature_checks`), Feldtyp "dachflaechen" mit Namens-Schnappschuss; seit 1.8.63 Folge je Unterschrift
+  (`FollowUp.per_signature`, Zeile `<Folge>#<Unterschrift>`, "entfallen" nach verworfener Unterschrift)) --
   `docs/archiv/modul-checklisten.md`
 - **Kaufmännisches Runden** (Helfer `app/rounding.py`, Rundungsregel je Rechnung, Liste der
   Geldstellen, bewusst nicht geänderte Formatierer) -- `docs/archiv/kaufmaennisches-runden.md`
@@ -881,8 +889,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Status, Hinweis des Monteurs zur Meldung; Stufe 2c-2c ab 1.8.55: neue Frist bei "zurück auf offen", Zurückziehen einer
   Vertragsfassung entschieden, nicht gebaut; Stufe 2c-2d ab 1.8.59: Abnahmeprotokoll als Checkliste, Etappenplan im Archiv;
   seit 1.8.60 Feld "Mängel" im Protokoll; seit 1.8.61 Zweck "abnahme" mit Systemfeldern, Startvorlage, Prüfung der
-  Unterschrift des Auftraggebers; Teil 2 ab 1.8.62: Mängel im Protokoll nach der Kopie statt nach der Uhr, Punkt 3 und 4
-  geplant)
+  Unterschrift des Auftraggebers; Teil 2 ab 1.8.62: Mängel im Protokoll nach der Kopie statt nach der Uhr; seit 1.8.63 Abnahme
+  aus dem Protokoll als Folge je Unterschrift, Sperre der Unterschrift, Hinweis und Nachholen am Auftrag; Punkt 4 geplant)
   -- `docs/archiv/abnahme-und-gewaehrleistung.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
@@ -1275,7 +1283,9 @@ verworfen "nicht im Protokoll", Auftragsseite "noch ohne Abnahme", nach der Unte
 `klicktest_abnahmeprotokoll.py` (1.8.61, Startvorlage über ihre Migration: Abschnitte, nichts vorausgewählt, Dachflächen ohne
 archivierte, Mangel, "Wer unterschreibt?" mit Vollmacht-Angabe und Warnung, Mangel ohne Vorbehalt abgelehnt, Auftraggeber mit
 Person und Auftragnehmer-Konto unterschrieben, Editor "vom Zweck vorgegeben", Monteurin ohne Abnahme in Start-Auswahl und
-`/mobil`, Protokoll 403). Ein
+`/mobil`, Protokoll 403) und `klicktest_abnahme_aus_protokoll.py` (1.8.63, Unterschrift des Auftraggebers -> Abnahme am Auftrag
+mit Nachweis Protokoll und Person, ausstehende Abnahmen mit Grund und "Abnahme jetzt anlegen", Verwerfen der Unterschrift 409;
+die Protokolle ohne Folge legt `befuellen()` mit abgeschalteter Folge an). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

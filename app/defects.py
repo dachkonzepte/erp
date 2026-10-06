@@ -37,8 +37,9 @@ Büro-Seite, Überschreitung und /mobil nutzen sie.
 Seit 1.8.60 (Stufe 2c-2d) die Quelle "protokoll": ein Mangel aus dem Feld "Mängel" eines Abnahmeprotokolls
 (create_protocol_defect()) -- im Entwurf der Checkliste, solange keine gültige Unterschrift das Feld versiegelt, unter der
 Zeilensperre der Checkliste (dieselbe wie beim Unterschreiben). Der gebundene Inhalt trägt checklist_id statt acceptance_id;
-die Abnahme entsteht erst mit der Unterschrift des Auftraggebers und wird dann einmal angehängt. Bis dahin keine Aufgabe und
-keine Einträge im Verlauf (_lock()), Verwerfen geht.
+die Abnahme entsteht erst mit der Unterschrift des Auftraggebers und wird dann angehängt (seit 1.8.63
+app/acceptance_protocol.py, samt Aufgabe). Bis dahin keine Aufgabe und keine Einträge im Verlauf (_lock()), Verwerfen geht. An
+einer Abnahme aus dem Protokoll erfasst man keine Mängel (seit 1.8.63, DefectConflict) -- ihre Mängel stehen im Protokoll.
 
 Rollenlos wie jede Geschäftslogik; app/routers/defects.py lässt nur das Büro zu (ab buero_auftrag). Seit 1.8.52 sieht der
 Monteur in /mobil (app/routers/field_defects.py) die Mängel, die er beseitigen soll -- freigegeben, Status offen, nicht
@@ -56,7 +57,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .acceptances import (  # noqa: F401  (AcceptanceFileError: der Router fängt sie beim Ausliefern einer Datei)
-    DECLARERS, KINDS, REGULAR_HINT, SCOPES, AcceptanceFileError, _checked_upload, _clean, _frozen_power_of_attorney,
+    DECLARERS, KINDS, PROTOCOL_DEFECTS_TEXT, REGULAR_HINT, SCOPES, AcceptanceFileError, _checked_upload, _clean,
+    _frozen_power_of_attorney,
     _remove_written, _verify_file, _write_file, acceptance_allows_defects, acceptance_warranty, check_summary,
     content_sha256, discard_content, lock_order, read_acceptance_file, result_text, verify_acceptance,
 )
@@ -130,6 +132,8 @@ def protocol_pending(d: Defect) -> bool:
 def _not_allowed_text(a: OrderAcceptance) -> str | None:
     if a.discarded_at is not None:
         return "Die Abnahme ist verworfen – Mängel nur an einer gültigen Abnahme erfassen."
+    if a.checklist_attachment_id is not None:  # seit 1.8.63: die Mängel stehen im Abnahmeprotokoll
+        return PROTOCOL_DEFECTS_TEXT
     if not acceptance_allows_defects(a):
         return ("Mängel nur an einer Abnahme mit „Vorbehalt Mängel: ja“ oder an einer verweigerten Abnahme – diese "
                 "wurde ohne Vorbehalt wegen Mängeln abgenommen.")
@@ -301,7 +305,7 @@ def defect_options(db: Session, acceptance: OrderAcceptance) -> dict:
         .where(ProjectParticipant.project_id == order.project_id).order_by(ProjectParticipant.id)
     ).all()
     return {
-        "allowed": acceptance_allows_defects(acceptance), "not_allowed_text": _not_allowed_text(acceptance),
+        "allowed": _not_allowed_text(acceptance) is None, "not_allowed_text": _not_allowed_text(acceptance),
         "acceptance": {"id": acceptance.id, "accepted_on": acceptance.accepted_on,
                        "scope_label": SCOPES.get(acceptance.scope, acceptance.scope),
                        "kind_label": KINDS.get(acceptance.kind, acceptance.kind), "result_text": result_text(acceptance)},
@@ -428,7 +432,7 @@ def create_defect(db: Session, acceptance: OrderAcceptance, data: dict, files: l
     problem = _not_allowed_text(acceptance)
     if problem:
         db.rollback()
-        if acceptance.discarded_at is not None:
+        if acceptance.discarded_at is not None or acceptance.checklist_attachment_id is not None:
             raise DefectConflict(problem)
         raise ValueError(problem)
     roof_area = None

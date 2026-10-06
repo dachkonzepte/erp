@@ -46,6 +46,8 @@ Dazu kamen:
   auch nicht in /mobil (Router 403).
 - ChecklistPurpose.signature_checks: (Schlüssel eines Unterschriftsfelds, Prüfung) -- die Prüfung läuft vor dem Speichern
   der Unterschrift unter der Zeilensperre der Checkliste und lehnt mit ValueError ab (app/acceptance_protocol.py).
+Seit 1.8.63 die Folge "Abnahme am Auftrag anlegen" nach der Unterschrift des Auftraggebers -- FollowUp.per_signature: je
+Unterschrift, nicht je Checkliste.
 
 Bewusst ohne Import aus app.checklist_templates (das importiert von hier); die Handler der Folgen
 importieren ihre Module erst beim Aufruf."""
@@ -89,13 +91,17 @@ class FollowUp:
     anzulegen). Er darf selbst committen (wie app/tasks.py::create_task()). module: ohne dieses
     Modul bleibt die Folge "modul_aus" und ist nachholbar (wie Betreiberentscheidung C bei den
     Regeln). after_letter (seit 1.8.43): die Folge läuft, sobald der Brief dieser Art beim Auftraggeber
-    angekommen ist (app/notice_letters.py::letter_was_sent()) -- nach der Bedenkenanzeige "Antwort prüfen"."""
+    angekommen ist (app/notice_letters.py::letter_was_sent()) -- nach der Bedenkenanzeige "Antwort prüfen". per_signature
+    (seit 1.8.63, nur mit after_signature): die Folge gilt je auslösender Unterschrift, nicht je Checkliste -- wird die
+    Unterschrift verworfen und neu geleistet, ist sie für die neue wieder fällig; der Handler bekommt dann
+    handler(db, checklist, signature_id=…, actor=(Konto-ID, Name) oder None)."""
     key: str
     label: str
     handler: Callable
     module: str | None = None
     after_signature: str | None = None
     after_letter: str | None = None
+    per_signature: bool = False
 
 
 @dataclass(frozen=True)
@@ -239,9 +245,20 @@ ACCEPTANCE_CUSTOMER_SIGNATURE = _A + "unterschrift_auftraggeber"
 ACCEPTANCE_CONTRACTOR_SIGNATURE = _A + "unterschrift_auftragnehmer"
 
 
+ACCEPTANCE_FOLLOW_UP = _A + "abnahme_anlegen"
+
+
 def _acceptance_customer_check(db, checklist, signer):
     from .acceptance_protocol import check_customer_signature  # erst beim Aufruf, siehe Moduldocstring
     return check_customer_signature(db, checklist, signer)
+
+
+def _acceptance_from_protocol(db, checklist, *, signature_id, actor):
+    from .acceptance_protocol import acceptance_from_protocol  # seit 1.8.63
+    user_id, user_name = actor or (None, None)
+    acceptance = acceptance_from_protocol(db, checklist.id, signature_id=signature_id, user_id=user_id,
+                                          user_name=user_name)
+    return "abnahme", acceptance.id
 
 
 # Ohne Vorgabe der Antworten (keine Vorauswahl, wie der Abnahme-Dialog seit 1.8.46). Bedingte Pflicht (Beschreibung bei der
@@ -273,8 +290,11 @@ ACCEPTANCE_SYSTEM_FIELDS = (
 
 PURPOSES: dict[str, ChecklistPurpose] = {p.key: p for p in (
     ChecklistPurpose(DEFAULT_PURPOSE, "Allgemein", ALL_CONTEXTS),
-    ChecklistPurpose(ACCEPTANCE_PURPOSE, "Abnahme", ("auftrag",), ACCEPTANCE_SYSTEM_FIELDS, office_only=True,
-                     signature_checks=((ACCEPTANCE_CUSTOMER_SIGNATURE, _acceptance_customer_check),)),
+    ChecklistPurpose(ACCEPTANCE_PURPOSE, "Abnahme", ("auftrag",), ACCEPTANCE_SYSTEM_FIELDS, (
+        # seit 1.8.63: die Abnahme am Auftrag -- je Unterschrift des Auftraggebers höchstens eine (app/acceptance_protocol.py)
+        FollowUp(ACCEPTANCE_FOLLOW_UP, "Abnahme am Auftrag anlegen", _acceptance_from_protocol,
+                 after_signature=ACCEPTANCE_CUSTOMER_SIGNATURE, per_signature=True),
+    ), office_only=True, signature_checks=((ACCEPTANCE_CUSTOMER_SIGNATURE, _acceptance_customer_check),)),
     ChecklistPurpose(OBSTRUCTION_PURPOSE, "Behinderungsanzeige", ("auftrag",), OBSTRUCTION_SYSTEM_FIELDS, (
         FollowUp(_B + "versenden", "Aufgabe „Behinderungsanzeige versenden“", _obstruction_send_task,
                  module="aufgabenmanagement", after_signature=OBSTRUCTION_REPORT_SIGNATURE),

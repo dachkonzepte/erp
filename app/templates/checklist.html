@@ -680,9 +680,10 @@ async function loadFollowUps(){
   try{rows=await api(`/api/checklists/${checklistId}/follow-ups`)}
   catch(e){card.style.display='';card.innerHTML=`<h2>Folgen</h2><div class="error-box small">${esc(e.message)}</div>`;return}
   if(!rows.length){card.style.display='none';return}
-  const open=rows.some(r=>r.status!=='erledigt')&&cl.status!=='gegenstandslos';  // seit 1.8.41: danach keine Folgen mehr
+  // seit 1.8.41: nach "gegenstandslos" keine Folgen mehr; seit 1.8.63 ist "entfallen" (Unterschrift verworfen) nicht offen
+  const open=rows.some(r=>r.status==='ausstehend'||r.status==='modul_aus')&&cl.status!=='gegenstandslos';
   card.style.display='';
-  card.innerHTML=`<h2>Folgen</h2>${rows.map(r=>`<div class="rule-row"><div>${r.target_type==='task'&&r.target_id?`<a href="/tasks?task=${r.target_id}">${esc(r.target_title||r.label)}</a>`:esc(r.label)}<div class="muted small">${esc(r.trigger_label)} · ${esc(fmtDateTime(r.executed_at))}</div></div>
+  card.innerHTML=`<h2>Folgen</h2>${rows.map(r=>`<div class="rule-row"><div>${r.target_url?`<a href="${esc(r.target_url)}">${esc(r.target_title||r.label)}</a>`:esc(r.label)}<div class="muted small">${esc(r.trigger_label)} · ${esc(fmtDateTime(r.executed_at))}</div></div>
       <span class="badge ${r.status==='erledigt'?'done':'open'}">${esc(r.status_label)}</span></div>`).join('')}
     ${open?`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px"><button type="button" class="btn" id="followUpsRetryBtn" onclick="retryFollowUps()">Folgen nachholen</button><span class="muted small" id="followUpsStatus"></span></div>`:''}`;
 }

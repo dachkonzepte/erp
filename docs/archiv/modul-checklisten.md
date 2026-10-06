@@ -1088,3 +1088,21 @@ Baukasten:
   wie der Typ). Neuer Unterzeichner `ag_oder_beteiligter`, gewählt beim Unterschreiben, gespeichert als die gewählte Art.
 - Feste Schlüssel müssen in ihre Spalte passen (`signer_mode` String 20, `field_type` String 30, `field_key` String 80) --
   `tests/test_v363_zweck_abnahme.py::test_signer_modes_and_field_types_fit_their_columns`.
+
+## Nachtrag 1.8.62–1.8.63 (06.10.2026) -- Mängel nach der Kopie, Folge je Unterschrift
+
+Herleitung und Festlegungen: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.62" und "Umsetzung 1.8.63".
+
+- Seit 1.8.62 entscheidet die abgelegte Kopie einer Unterschrift bzw. des Abschlusses, ob ein verworfener Mangel darin steht
+  (`sealed_defect_ids()`, `defect_in_seal(defect, sealed_ids)`) -- kein Zeitvergleich mehr; die volle Genauigkeit der Zeitpunkte
+  (1.8.60) trägt die Entscheidung nicht mehr.
+- Seit 1.8.62 prüft `tests/test_v364_feste_werte_spaltenlaenge.py` jede Textspalte mit festen Werten gegen ihre Länge (der Test
+  aus 1.8.61 bleibt daneben stehen).
+- Seit 1.8.63 `FollowUp.per_signature`: die Zeile in `checklist_follow_ups` gilt je auslösender Unterschrift (Schlüssel
+  `<Folge>#<Unterschrift>`); eine neue Unterschrift nach einer verworfenen macht die Folge wieder fällig, eine offene Zeile einer
+  verworfenen Unterschrift wird "entfallen". Der Handler bekommt `signature_id` und `actor` (das Konto, das die Unterschrift
+  aufnimmt bzw. die Folge nachholt). Bisher einzige Folge dieser Art: "Abnahme am Auftrag anlegen" (Zweck "abnahme").
+- Seit 1.8.63 lehnt `discard_signatures()` ab (409), solange aus einer der betroffenen Unterschriften eine nicht verworfene
+  Abnahme entstanden ist.
+- Karte "Folgen" auf der Checklistenseite: Link über `target_url` (Aufgabe oder Abnahme am Auftrag); "entfallen" zählt nicht als
+  offen.

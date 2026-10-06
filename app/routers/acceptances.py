@@ -11,6 +11,9 @@
 - GET /api/order-acceptances/{acceptance_id}/files/{file_id}: Beleg, nur mit stimmender Prüfsumme.
 - GET /api/properties/{property_id}/acceptance-warranties, GET /api/roof-areas/{roof_area_id}/acceptance-warranties:
   Gewährleistung aus Abnahmen für Objekt- und Dachflächenseite.
+- Seit 1.8.63 (Abnahme aus dem Abnahmeprotokoll): GET /api/orders/{order_id}/pending-protocol-acceptances -- Protokolle mit
+  gültiger Unterschrift des Auftraggebers ohne Abnahme, mit Grund; POST /api/checklists/{checklist_id}/acceptance-from-protocol
+  -- die Folge nachholen (409 mit Grund, wenn sie weiter aussteht). Modul "checklisten" muss aktiv sein.
 
 Alles ab buero_auftrag; Monteure sehen nichts davon (403). Kein Ändern und kein Löschen einer Abnahme.
 """
@@ -27,9 +30,16 @@ from ..acceptances import (
     acceptance_to_dict, create_acceptance, discard_acceptance, list_acceptances, property_acceptance_warranties,
     read_acceptance_file, roof_area_acceptance_warranties,
 )
+from ..acceptance_protocol import (
+    acceptance_for_signature, customer_signature, pending_protocol_acceptances, protocol_acceptance_problem,
+)
+from ..checklist_follow_ups import run_checklist_follow_ups
+from ..checklist_purposes import ACCEPTANCE_PURPOSE
+from ..checklists import get_checklist_row
 from ..database import get_db
 from ..email_dispatch import actor_of
 from ..models import AppUser, Order, OrderAcceptance, OrderAcceptanceFile, Property, RoofArea
+from ..modules import is_module_enabled
 from ..orders import load_order, order_to_dict
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import OrderAcceptanceCreate, OrderAcceptanceDiscard, OrderOut, OrderWarrantyUpdate
@@ -163,6 +173,40 @@ def get_order_acceptance_file(acceptance_id: int, file_id: int, db: Session = De
         "Content-Disposition": f'inline; filename="{name}-{row.acceptance_id}-{row.id}.{suffix}"',
         "X-Content-Type-Options": "nosniff",
     })
+
+
+@router.get("/api/orders/{order_id}/pending-protocol-acceptances")
+def get_pending_protocol_acceptances(order_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Seit 1.8.63: ausstehende Abnahmen aus Abnahmeprotokollen dieses Auftrags (Hinweis mit "Nachholen") -- liest nur.
+    Ohne Modul "checklisten" gibt es keine Protokolle."""
+    order = _order_or_404(db, order_id)
+    if not is_module_enabled(db, "checklisten"):
+        return []
+    return pending_protocol_acceptances(db, order)
+
+
+@router.post("/api/checklists/{checklist_id}/acceptance-from-protocol")
+def post_acceptance_from_protocol(checklist_id: int, db: Session = Depends(get_db), user: AppUser = _role_dep):
+    """Seit 1.8.63: die Folge "Abnahme am Auftrag anlegen" nachholen -- über die Folgen der Checkliste (idempotent, je
+    Unterschrift höchstens eine Abnahme). Steht sie danach weiter aus, 409 mit dem Grund."""
+    if not is_module_enabled(db, "checklisten"):
+        raise HTTPException(status_code=403, detail="Das Modul Checklisten & Formulare ist deaktiviert.")
+    checklist = get_checklist_row(db, checklist_id)
+    if checklist is None or checklist.template_version.purpose != ACCEPTANCE_PURPOSE:
+        raise HTTPException(status_code=404, detail="Abnahmeprotokoll nicht gefunden.")
+    run_checklist_follow_ups(db, checklist_id, actor=actor_of(user))
+    db.expire_all()
+    checklist = get_checklist_row(db, checklist_id)
+    signature = customer_signature(checklist)
+    if signature is None:
+        raise HTTPException(status_code=409, detail="Die Unterschrift des Auftraggebers fehlt oder ist verworfen – keine "
+                                                    "Abnahme aus diesem Protokoll.")
+    acceptance = acceptance_for_signature(db, signature.id)
+    if acceptance is None:
+        problem = protocol_acceptance_problem(db, checklist, signature)
+        raise HTTPException(status_code=409, detail=problem or "Die Abnahme wurde nicht angelegt – bitte später erneut "
+                                                               "versuchen.")
+    return acceptance_to_dict(_acceptance_or_404(db, acceptance.id), db.get(Order, acceptance.order_id))
 
 
 @router.get("/api/properties/{property_id}/acceptance-warranties")

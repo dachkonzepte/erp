@@ -105,8 +105,9 @@ def test_registry_has_the_four_purposes_and_the_three_only_at_orders():
     for key in ("abnahme", "behinderungsanzeige", "bedenkenanzeige"):
         assert PURPOSES[key].contexts == ("auftrag",)
     # die Behinderungsanzeige hat sie seit 1.8.38 (test_v341), die Bedenkenanzeige seit 1.8.43 (test_v346), die Abnahme
-    # seit 1.8.61 (test_v363); ihre Folge "Abnahme anlegen" kommt mit 1.8.62
-    assert PURPOSES["abnahme"].system_fields and PURPOSES["abnahme"].follow_ups == ()
+    # seit 1.8.61 (test_v363); ihre Folge "Abnahme am Auftrag anlegen" seit 1.8.63 (test_v365)
+    assert PURPOSES["abnahme"].system_fields and [f.key for f in PURPOSES["abnahme"].follow_ups] == [
+        "abnahme.abnahme_anlegen"]
 
 
 def test_every_registered_purpose_is_consistent(testzweck):

@@ -1124,9 +1124,15 @@ class OrderAcceptance(Base):
     Seit 1.8.48: checksum_format ist die Fassung des Prüfsummenformats (1 = Erfassung bis 1.8.47, 2 = ab 1.8.48:
     die Fassung selbst steht im gebundenen Inhalt, ein verworfener Eintrag braucht discard_sha256). discard_sha256
     versiegelt das Verwerfen (Zeitpunkt, Name als Kopie, Begründung, Prüfsumme des Inhalts) -- auch bei Einträgen der
-    Fassung 1, die nach 1.8.48 verworfen werden; vorher Verworfene bleiben ohne."""
+    Fassung 1, die nach 1.8.48 verworfen werden; vorher Verworfene bleiben ohne.
+
+    Seit 1.8.63 (checksum_format 3) auch aus einem Abnahmeprotokoll (app/acceptance_protocol.py): checklist_id,
+    checklist_attachment_id (die Unterschrift des Auftraggebers -- UNIQUE, höchstens eine Abnahme je Unterschrift) und
+    protocol_seal_sha256 (Prüfsumme ihrer Kopie) sind der Nachweis statt eines Belegs; declared_by_person/-function die Person,
+    die für den Auftraggeber laut Auftrag unterschrieben hat. Alles im gebundenen Inhalt."""
 
     __tablename__ = "order_acceptances"
+    __table_args__ = (UniqueConstraint("checklist_attachment_id", name="uq_order_acceptance_checklist_attachment"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
@@ -1155,6 +1161,14 @@ class OrderAcceptance(Base):
     discarded_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     discard_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     discard_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # seit 1.8.63: aus einem Abnahmeprotokoll (siehe Docstring) -- Fremdschlüssel benannt wie in der Migration
+    checklist_id: Mapped[int | None] = mapped_column(
+        ForeignKey("checklists.id", name="fk_order_acceptances_checklist_id"), nullable=True, index=True)
+    checklist_attachment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("checklist_attachments.id", name="fk_order_acceptances_checklist_attachment_id"), nullable=True)
+    protocol_seal_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    declared_by_person: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    declared_by_function: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
     roof_areas: Mapped[list["OrderAcceptanceRoofArea"]] = relationship(
         back_populates="acceptance", order_by="OrderAcceptanceRoofArea.id"
@@ -1214,8 +1228,9 @@ class Defect(Base):
     Abnahme.
 
     Seit 1.8.60 Quelle "protokoll": aus dem Feld "Mängel" eines Abnahmeprotokolls (checklist_id, im gebundenen Inhalt);
-    acceptance_id leer, bis die Abnahme aus dem Protokoll entsteht -- dann einmal gesetzt, wie task_id nicht im gebundenen
-    Inhalt. Bis dahin keine Aufgabe, keine Haltung, Freigabe oder Status."""
+    acceptance_id leer, bis die Abnahme aus dem Protokoll entsteht -- dann gesetzt, wie task_id nicht im gebundenen Inhalt.
+    Bis dahin keine Aufgabe, keine Haltung, Freigabe oder Status. Seit 1.8.63 setzt beides app/acceptance_protocol.py mit einem
+    bedingten UPDATE: nur von leer oder von einer verworfenen Abnahme aus (neue Unterschrift nach verworfener Abnahme)."""
 
     __tablename__ = "defects"
 
@@ -1225,7 +1240,7 @@ class Defect(Base):
     source: Mapped[str] = mapped_column(String(20))
     acceptance_id: Mapped[int | None] = mapped_column(ForeignKey("order_acceptances.id"), nullable=True, index=True)
     # seit 1.8.60: Mangel aus einem Abnahmeprotokoll (source "protokoll") -- entsteht im Entwurf der Checkliste, die Abnahme
-    # kommt erst mit der Unterschrift des Auftraggebers dazu (acceptance_id dann einmal gesetzt, nicht im gebundenen Inhalt)
+    # kommt erst mit der Unterschrift des Auftraggebers dazu (acceptance_id dann gesetzt, nicht im gebundenen Inhalt)
     checklist_id: Mapped[int | None] = mapped_column(ForeignKey("checklists.id", name="fk_defects_checklist_id"),
                                                      nullable=True, index=True)
     description: Mapped[str] = mapped_column(Text)

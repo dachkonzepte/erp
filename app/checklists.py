@@ -1220,7 +1220,7 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
         if any(a.client_uuid == client_uuid and a.kind == "unterschrift" for a in checklist.attachments):
             db.commit()  # Zeilensperre freigeben, bevor die Folgen eigene Commits machen
             from .checklist_follow_ups import run_follow_ups_after_signature  # lokal, Muster Regel 3
-            run_follow_ups_after_signature(db, checklist_id)
+            run_follow_ups_after_signature(db, checklist_id, (account_user_id, account_name))
             db.expire_all()
             return checklist_to_dict(_load(db, checklist_id))
         return checklist_to_dict(checklist)
@@ -1316,9 +1316,10 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
     if kind == "unterschrift":
         # Folgen des Zwecks, die nach dieser Unterschrift fällig sind (seit 1.8.38) -- NACH dem Commit
         # wie beim Abschluss: eine Aufgabe entsteht nur zu einer gespeicherten Unterschrift, ein Fehler
-        # dort macht die Unterschrift nicht ungültig (im Büro nachholbar).
+        # dort macht die Unterschrift nicht ungültig (im Büro nachholbar). Seit 1.8.63 mit dem Konto, das die Unterschrift
+        # aufnimmt (die Abnahme aus dem Protokoll trägt es als "Erfasst von").
         from .checklist_follow_ups import run_follow_ups_after_signature  # lokal, Muster Regel 3
-        run_follow_ups_after_signature(db, checklist_id)
+        run_follow_ups_after_signature(db, checklist_id, (account_user_id, account_name))
     db.expire_all()
     return checklist_to_dict(_load(db, checklist_id))
 
@@ -1390,7 +1391,8 @@ def discard_signatures(db: Session, checklist_id: int, *, signature_id: int | No
     Begründung, Wer und Wann markiert; was keine verbleibende Unterschrift mehr sperrt, ist danach
     wieder offen. Gelöscht wird nichts -- Bild, Name, Zeitpunkt und Prüfsumme bleiben als
     Nachweis stehen, die Änderungshistorie hält den Vorgang fest. Eine abgeschlossene Checkliste
-    bleibt eingefroren (409)."""
+    bleibt eingefroren (409). Seit 1.8.63 auch (409), solange aus einer der betroffenen Unterschriften
+    eine nicht verworfene Abnahme entstanden ist (Unterschrift des Auftraggebers im Abnahmeprotokoll)."""
     checklist = _load(db, checklist_id, for_update=True)
     if checklist is None:
         raise LookupError("Checkliste nicht gefunden.")
@@ -1407,8 +1409,23 @@ def discard_signatures(db: Session, checklist_id: int, *, signature_id: int | No
         raise LookupError("Diese Unterschrift gehört nicht zu dieser Checkliste.")
     if chosen.discarded_at is not None:
         raise ValueError("Diese Unterschrift ist bereits verworfen.")
+    affected = signatures_discarded_with(checklist, chosen)
+    # Seit 1.8.63: eine Unterschrift, aus der eine gültige Abnahme entstanden ist (Abnahmeprotokoll), bleibt -- auch wenn sie
+    # nur mit einer Unterschrift weiter oben fiele. Geprüft unter der Zeilensperre der Checkliste, die auch das Anlegen der
+    # Abnahme nimmt (app/acceptance_protocol.py): beides läuft nacheinander.
+    from .models import OrderAcceptance  # lokal wie Defect
+    blocking = db.scalars(select(OrderAcceptance).where(
+        OrderAcceptance.checklist_attachment_id.in_([s.id for s in affected]), OrderAcceptance.discarded_at.is_(None))
+    ).all()
+    if blocking:
+        field_labels = {f.id: f.label for f in checklist.template_version.fields}
+        signature = next(s for s in affected if s.id == blocking[0].checklist_attachment_id)
+        raise ChecklistLocked(
+            f"Aus der Unterschrift „{field_labels.get(signature.template_field_id, 'Unterschrift')}“ ist die Abnahme vom "
+            f"{blocking[0].accepted_on:%d.%m.%Y} entstanden – erst die Abnahme am Auftrag mit Begründung verwerfen, dann die "
+            "Unterschrift.")
     now = datetime.utcnow()
-    for signature in signatures_discarded_with(checklist, chosen):
+    for signature in affected:
         signature.discarded_at = now
         signature.discarded_by_user_id = user_id
         signature.discarded_by_name = (by_name or "").strip()[:160] or None

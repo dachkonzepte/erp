@@ -4915,6 +4915,7 @@ class ChecklistFollowUpOut(BaseModel):
     target_type: str | None = None
     target_id: int | None = None
     target_title: str | None = None
+    target_url: str | None = None  # seit 1.8.63: Aufgabe oder Abnahme am Auftrag
     executed_at: datetime
 
 

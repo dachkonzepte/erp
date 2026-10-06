@@ -1622,3 +1622,139 @@ Version davor gekommen).
    Protokoll bis 10.000 Zeichen, die Abnahme nur 2.000 bzw. 5.000 -- eine längere Angabe hätte die Unterschrift durchgelassen
    und die Abnahme aus dem Protokoll scheitern lassen. Behebung mit Punkt 3 (1.8.63) vorgesehen: die Prüfung ruft dann dieselbe Prüffunktion wie das
    Erfassen.
+
+---
+
+## Umsetzung 1.8.63 (06.10.2026) -- Runde 2c-2d Teil 2, Punkt 3: Abnahme aus dem Abnahmeprotokoll
+
+### Folge "Abnahme am Auftrag anlegen" (`app/acceptance_protocol.py`)
+
+- Zweck "abnahme" trägt die Folge `abnahme.abnahme_anlegen` nach der Unterschrift des Auftraggebers, ohne Modul-Bedingung. Neu
+  an `FollowUp`: `per_signature` -- die Zeile in `checklist_follow_ups` gilt je auslösender Unterschrift (Schlüssel
+  `abnahme.abnahme_anlegen#<Unterschrift>`); eine neue Unterschrift nach einer verworfenen macht die Folge wieder fällig. Eine
+  offene Zeile, deren Unterschrift nicht mehr gilt, wird beim nächsten Lauf "entfallen" (nicht mehr nachholbar). Der Handler
+  bekommt die Unterschrift und das Konto, das sie aufgenommen hat (bzw. nachholt).
+- `acceptance_from_protocol()`: unter der Zeilensperre der Checkliste die gültige Unterschrift des Auftraggebers; gibt es zu
+  ihr schon eine Abnahme (auch eine verworfene), ist das die Antwort. Sonst:
+  - `protocol_acceptance_input()`: nur wenn die Unterschrift noch zu ihrer Prüfsumme passt (`check_signature()`), Werte aus der
+    versiegelten Kopie -- Umfang, Beschreibung, Ergebnis, Vorbehalte (ja/nein), Einwendungen, Dachflächen (Namen wie im
+    Protokoll); Datum = Tag der Unterschrift in Europe/Berlin (`to_berlin(created_at).date()`), nie der Tag der Folge;
+    Erklärender aus der Unterschrift: Auftraggeber laut Auftrag (Name der Unterschrift, Person, Funktion) bzw. Beteiligter
+    (Name, Rolle, die beim Unterschreiben eingefrorene Vollmacht -- nicht der heutige Stand am Beteiligten).
+  - `app/acceptances.py::create_acceptance(…, protocol=ProtocolSource, commit=False)`: dieselbe Prüfung und dasselbe Anlegen
+    wie von Hand (`_prepare()`), nichts nachgebaut. Mit `protocol`: Art förmlich, keine Belege und keine Begründung -- der
+    Nachweis ist der Verweis (`checklist_id`, `checklist_attachment_id`, `protocol_seal_sha256`); die Vollmacht als Datei
+    "abnahmevollmacht" wie von Hand.
+  - `_attach_defects()`, im selben Commit: jeder Mangel in der Kopie der Unterschrift bekommt die Abnahme (bedingtes UPDATE an
+    der ORM-Sperre vorbei, nur von leer oder von einer verworfenen Abnahme aus; umgehängt -> Eintrag in der Änderungshistorie),
+    auch ein nach der Unterschrift verworfener (er steht im Protokoll); ein nicht verworfener ohne Aufgabe bekommt sie jetzt
+    ("Mangel beseitigen" im Büro-Eingang, fällig zur Frist, "erfasst von" der Ersteller des Mangels). Erst danach sind Haltung,
+    Freigabe und Status möglich (`protocol_pending()` falsch). Der gebundene Inhalt des Mangels bleibt (Festlegung 1.8.60 Nr. 4).
+  - UNIQUE `uq_order_acceptance_checklist_attachment`: höchstens eine Abnahme je Unterschrift, auch wenn ein Abbruch genau
+    zwischen Anlegen und Vermerk der Folge das Nachholen wiederholt oder SQLite keine Zeilen sperrt -- eine `IntegrityError`
+    gilt als "schon angelegt".
+- `check_customer_signature()` ruft zum Schluss `check_acceptance()` -- dieselben Regeln ohne Schreiben. Gefunden dabei (siehe
+  Nebenbefund 4 von 1.8.62): die Beschreibung des Teils (Abnahme 2.000 Zeichen) und die Einwendungen (5.000) prüfte die
+  Unterschrift bisher nicht.
+
+### Abnahme (`app/acceptances.py`, `order_acceptances`)
+
+- Neue Spalten (Migration `4b9e2c7d1a63`): `checklist_id` (FK, Index), `checklist_attachment_id` (FK, UNIQUE),
+  `protocol_seal_sha256`, `declared_by_person`, `declared_by_function`. Downgrade verweigert, solange eine Abnahme einen Verweis
+  oder eine Person trägt.
+- Prüfsummenformat 3 (`CHECKSUM_FORMAT`) für jede neue Abnahme, auch von Hand: Verweis, Person und Funktion stehen im gebundenen
+  Inhalt, auch leer. Ältere Fassungen rechnen unverändert; ein am ORM vorbei gesetzter Verweis oder eine Person ändert ihren
+  Inhalt trotzdem.
+- `verify_acceptance()` prüft den Verweis: die Unterschrift gibt es an dieser Checkliste, ihre Prüfsumme ist die festgehaltene,
+  die Art förmlich -- sonst "Verweis auf das Abnahmeprotokoll weicht ab". Ob der Inhalt des Protokolls noch zur Kopie passt,
+  zeigt die Checkliste selbst.
+- An einer Abnahme aus dem Protokoll erfasst man keine Mängel (409 "Diese Abnahme stammt aus dem Abnahmeprotokoll …",
+  `defect_options().allowed` falsch); der Mängelstand der Liste trägt `can_add`/`protocol_text`.
+
+### Sperre der Unterschrift (`app/checklists.py::discard_signatures()`)
+
+- Abgelehnt (409), solange aus einer der betroffenen Unterschriften (die gewählte und jede weiter unten) eine nicht verworfene
+  Abnahme entstanden ist -- unter derselben Zeilensperre wie das Anlegen. Die Unterschrift des Auftragnehmers allein lässt sich
+  verwerfen. Erst die Abnahme am Auftrag verwerfen, dann die Unterschrift; danach ist das Protokoll wieder offen, und eine neue
+  Unterschrift ergibt genau eine neue Abnahme. An einem abgeschlossenen Protokoll lässt sich keine Unterschrift verwerfen (schon
+  bisher) -- dort ist ein neues Protokoll der Weg.
+
+### Auftragsseite (`_abnahme.html`) und Router (`app/routers/acceptances.py`)
+
+- `GET /api/orders/{id}/pending-protocol-acceptances` (Büro; leer ohne Modul Checklisten): Protokolle mit gültiger Unterschrift
+  des Auftraggebers ohne Abnahme, mit Grund, falls das Anlegen scheitern würde (`protocol_acceptance_problem()`, prüft ohne zu
+  schreiben). `POST /api/checklists/{id}/acceptance-from-protocol` (Büro, Modul Checklisten): holt die Folge nach; steht sie
+  danach weiter aus, 409 mit dem Grund.
+- Karte "Abnahme": je ausstehendes Protokoll ein Hinweis mit Link, Datum der Unterschrift, Grund und "Abnahme jetzt anlegen";
+  am Eintrag "Nachweis: Abnahmeprotokoll Nr. …" mit Prüfsumme und Prüfstatus des Verweises, "unterschrieben von <Person>
+  (<Funktion>)", statt "+ Mangel erfassen" der Hinweis, dass die Mängel im Protokoll stehen; an einer verworfenen Abnahme aus
+  dem Protokoll der Weg zu einer neuen. Checklistenseite, Karte "Folgen": Link auf die Abnahme, "entfallen" zählt nicht als
+  offen.
+
+### Festlegungen 1.8.63 (bitte bestätigen)
+
+1. **Die Folge gilt je Unterschrift** (`per_signature`, Zeile mit der Unterschrift im Schlüssel); eine offene Zeile einer
+   verworfenen Unterschrift wird "entfallen".
+2. **Nachweis "Protokoll" = Verweis auf die Unterschrift** (Checkliste, Unterschrift, Prüfsumme ihrer Kopie) im gebundenen
+   Inhalt -- kein PDF des Protokolls als Beleg (feste Fassung und Ablage kommen mit 2c-2e).
+3. **Werte nur aus einer Kopie, die noch zu ihrer Prüfsumme passt** -- sonst keine Abnahme, der Hinweis am Auftrag nennt den
+   Grund.
+4. **Person und Funktion als eigene Spalten** an der Abnahme; `declared_by_name` bleibt der Auftraggeber laut Auftrag.
+5. **Keine Mängel von Hand an einer Abnahme aus dem Protokoll** (409) -- ein später erkannter Mangel ist eine Rüge (noch nicht
+   gebaut).
+6. **Die Mängel der Kopie bekommen die Abnahme**, auch nach der Unterschrift verworfene (ohne Aufgabe); vor der Unterschrift
+   verworfene nicht.
+7. **Neue Unterschrift nach verworfener Abnahme: die Mängel werden auf die neue Abnahme umgehängt** (bedingtes UPDATE,
+   Änderungshistorie); Verlauf und Aufgabe eines Mangels bleiben.
+8. **"Erfasst von"** ist das Konto, das die Unterschrift aufgenommen hat, beim Nachholen das nachholende.
+9. **Beim Nachholen gelten dieselben Prüfungen wie beim Erfassen von Hand** -- eine nach der Unterschrift archivierte
+   Dachfläche oder ein archivierter Beteiligter halten die Abnahme auf, bis das behoben ist (Hinweis mit Grund).
+10. **Prüfsummenformat 3 für jede neue Abnahme**, auch von Hand (Verweis, Person, Funktion leer im Inhalt).
+
+### Verifikation 1.8.63
+
+- `tests/test_v365_abnahme_aus_protokoll.py` (30, davon 4 nur gegen PostgreSQL): Abnahme aus der versiegelten Kopie (Teilabnahme,
+  Dachfläche, Einwendungen, Person, Verweis, Format 3, "Erfasst von"), Beteiligter mit und ohne Vollmacht, Vollmacht aus der
+  Unterschrift statt vom heutigen Beteiligten, Weg über `create_acceptance()`, Datum der Unterschrift in Berliner Zeit (22:30
+  UTC -> nächster Tag) beim Nachholen drei Tage später, Mängel der Kopie (vorher/danach verworfen, offen mit Aufgabe), gemeinsame
+  Prüfung vor der Unterschrift (Länge), doppelte Folge, UNIQUE, Verwerfen der Unterschrift bei gültiger Abnahme (auch über eine
+  Unterschrift darunter), neue Unterschrift nach verworfener Abnahme -> genau eine neue (Mängel umgehängt, Historie), Hinweis und
+  Nachholen, Grund bei archivierter Dachfläche, "entfallen", geändertes Protokoll blockiert, kein Mangel von Hand, Monteur 403,
+  Verweis/Person am ORM vorbei geändert, Prüfsumme der Unterschrift geändert, Format 2 bleibt gültig, Seiten, Migration; gegen
+  PostgreSQL: zwei Folgen gleichzeitig -> eine Abnahme, Verwerfen wartet auf die Folge und wird abgelehnt, Folge wartet auf das
+  Verwerfen und legt nichts an, neue Unterschrift nach verworfener Abnahme.
+- Angepasst: `test_v363` und `test_v320` (der Zweck hat jetzt eine Folge), `test_v326` (neue Route in der Liste), `test_v350` (neue Abnahmen Format 3), `test_v351` (Mängelstand mit
+  `can_add`/`protocol_text`), `test_v364_feste_werte_spaltenlaenge` (Ziel "abnahme").
+- Gegenproben (Marker GEGENPROBE, Dateien byte-genau zurück): 18 von 18 rot (keine Prüfung auf vorhandene Abnahme, kein UNIQUE,
+  Unterschrift verwerfbar, Folge ohne Zeilensperre gegen PostgreSQL, Mängel nur von leer umhängen, Folge je Checkliste, Datum der
+  Folge, Datum in UTC, ohne gemeinsame Prüfung, ohne Siegelprüfung, Vollmacht vom heutigen Beteiligten, Mängel außerhalb der
+  Kopie, Aufgabe für verworfene, Mangel an Protokoll-Abnahme erlaubt, Verweis ungeprüft, Verweis nicht im Inhalt, Zeile bleibt
+  offen, Abnahme nicht über `create_acceptance()`).
+- Migration `4b9e2c7d1a63`: SQLite hin, `check`, zurück, hin; PostgreSQL 17 im Wegwerf-Schema: Bestand aus dem Code von 1.8.62
+  (Abnahme Fassung 2), head, alte Abnahme "Prüfsumme stimmt", Protokoll unterschrieben -> Abnahme aus dem Protokoll (Fassung 3,
+  Person, Mangel mit Aufgabe), Verwerfen der Unterschrift abgelehnt, Downgrade verweigert, `current`, `check`; leeres Schema
+  hin/zurück/hin, `check`.
+- PostgreSQL (pytest-Plugin, die Wegwerf-Datenbanken der Tests in Schemas der lokalen Instanz): `test_v365`, `test_v364_maengel_nach_kopie`,
+  `test_v363`, `test_v362`, `test_v351`, `test_v350`, `test_v349` -- 217 grün, 4 rot: die Migrationstests
+  `test_v349::test_migration_down_refuses_while_data_exists_and_up_restores`, `test_v349::test_migration_1847_down_refuses_while_data_exists`,
+  `test_v350::test_migration_keeps_existing_entries_in_format_1_and_refuses_to_lose_format_2` und
+  `test_v351::test_migration_down_refuses_while_defects_exist` säen mit rohem SQL und erfundenen Fremdschlüsseln (bzw. löschen
+  Tabellen unter bestehenden Fremdschlüsseln) -- auf dem Stand 1.8.62 gegen PostgreSQL ebenso rot, bekanntes Muster, kein Befund.
+  Ein eigener Testfehler fiel dabei auf: `audit_logs.entity_id` ist Text, der Test verglich mit einer Zahl -- SQLite nimmt das
+  hin, PostgreSQL nicht; korrigiert.
+- Klicktests: neu `klicktest_abnahme_aus_protokoll.py` 10/10 (Protokoll über die Seite unterschrieben -> Folge "Abnahme vom …"
+  erledigt mit Link; Auftragsseite: förmlich, Nachweis Protokoll, Person, kein "+ Mangel erfassen", Mangel mit Aufgabe;
+  ausstehend B ohne und C mit Grund "Süd archiviert", "Abnahme jetzt anlegen" bei C abgelehnt mit Grund, bei B angelegt;
+  Verwerfen der Unterschrift 409; 412 px hell ohne waagrechten Scrollbalken); unverändert grün `klicktest_abnahmeprotokoll.py`
+  18/18, `klicktest_protokoll_maengel.py` 16/16, `klicktest_maengel.py` 39/39, `klicktest_abnahme.py` 56/56.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3020 grün, 3 rot -- `test_v320` (der Zweck "abnahme" hatte noch keine
+  Folge), `test_v326` (die neue Route fehlte in der Liste der Abnahme-Routen, die der Monteur nicht sieht) und `test_v109` (lokale
+  Importe von Konstanten im Router -- der Test erkennt dort nur Funktionen und Klassen; die Importe stehen jetzt auf Modulebene).
+  Danach die drei Dateien samt `test_v365` und `test_v260` 149 grün.
+
+### Nebenbefunde 1.8.63 (nur gemeldet)
+
+1. **Auftragsseite bei 1400 px: der Spaltenkopf "GP" der LV-Tabelle ragt in die rechte Spalte** (auf den Screenshots über den
+   Karten "Quellangebot" bzw. "Abnahme" zu sehen) -- unabhängig von dieser Runde.
+2. **Vier Migrationstests aus 1.8.46–1.8.49 sind gegen PostgreSQL immer rot** (siehe Verifikation) -- sie prüfen die Migration
+   nur unter SQLite; die PostgreSQL-Probe der jeweiligen Migration lief damals mit eigenem Skript.

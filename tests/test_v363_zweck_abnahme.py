@@ -142,7 +142,10 @@ def protokoll(welt, ablage, tmp_path, monkeypatch, router_test_client):  # noqa:
 
 def test_purpose_has_office_only_system_fields_in_three_sections():
     purpose = PURPOSES["abnahme"]
-    assert (purpose.contexts, purpose.office_only, purpose.voidable, purpose.follow_ups) == (("auftrag",), True, False, ())
+    assert (purpose.contexts, purpose.office_only, purpose.voidable) == (("auftrag",), True, False)
+    # seit 1.8.63 die Folge "Abnahme am Auftrag anlegen" nach der Unterschrift des Auftraggebers, je Unterschrift
+    assert [(f.key, f.after_signature, f.per_signature, f.module) for f in purpose.follow_ups] == [
+        (A + "abnahme_anlegen", A + AG, True, None)]
     assert [(s.key.removeprefix(A), s.field_type, s.required, s.section) for s in purpose.system_fields] == [
         ("teilnehmer", "text", True, "Befund"), ("umfang", "auswahl", True, "Befund"),
         ("umfang_beschreibung", "text", False, "Befund"), ("dachflaechen", "dachflaechen", False, "Befund"),

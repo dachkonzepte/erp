@@ -774,7 +774,9 @@ def test_abnahme_und_gewaehrleistung_im_durchlauf_fuer_monteure_gesperrt(durchla
                 "/api/properties/{property_id}/acceptance-warranties",
                 "/api/roof-areas/{roof_area_id}/acceptance-warranties",
                 "/api/orders/{order_id}/defects", "/api/order-acceptances/{acceptance_id}/defect-options",
-                "/api/defects/{defect_id}/files/{file_id}"}
+                "/api/defects/{defect_id}/files/{file_id}",
+                # seit 1.8.63: ausstehende Abnahmen aus Abnahmeprotokollen (im Durchlauf leer, mit Inhalt in test_v365)
+                "/api/orders/{order_id}/pending-protocol-acceptances"}
     assert routen(durchlauf) == dict.fromkeys(erwartet, 403)
     assert routen(durchlauf_admin) == dict.fromkeys(erwartet, 200)
 

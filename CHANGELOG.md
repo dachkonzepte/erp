@@ -4,6 +4,29 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.63 – Abnahmeprotokoll: Abnahme aus dem Protokoll
+
+Stufe 2c, Runde 2c-2d Teil 2, Punkt 3. Nach der Unterschrift des Auftraggebers legt die Folge „Abnahme am Auftrag anlegen“ die
+Abnahme an – über dieselbe Prüf- und Anlegefunktion wie das Erfassen von Hand (`create_acceptance()` mit dem Nachweis
+„Protokoll“). Förmlich, Datum = Tag der Unterschrift in Berliner Zeit (auch wenn die Folge später nachgeholt wird), Umfang,
+Ergebnis, Vorbehalte, Einwendungen und Dachflächen aus der versiegelten Kopie (nur wenn sie noch zu ihrer Prüfsumme passt), der
+Erklärende aus der Unterschrift – Auftraggeber mit Person und Funktion bzw. Beteiligter mit der beim Unterschreiben
+eingefrorenen Vollmacht. Im selben Commit bekommen die Mängel der Kopie die Abnahme und die offenen ihre Aufgabe. Je Unterschrift
+höchstens eine Abnahme (UNIQUE, Folge je Unterschrift); die Unterschrift lässt sich nicht verwerfen, solange die Abnahme gilt;
+eine neue Abnahme aus demselben Protokoll entsteht nur über eine neue Unterschrift, die Mängel werden dann umgehängt. Die
+Auftragsseite zeigt ausstehende Abnahmen mit Grund und „Abnahme jetzt anlegen“, am Eintrag den Nachweis „Abnahmeprotokoll“ und
+die Person; Mängel von Hand gibt es an einer solchen Abnahme nicht.
+
+Gefunden beim Bauen: die Prüfung vor der Unterschrift des Auftraggebers (1.8.61) kannte die Textlängen der Abnahme nicht – eine
+längere Beschreibung des Teils wäre unterschrieben worden und die Abnahme dann gescheitert; die Prüfung ruft jetzt zum Schluss
+dieselbe Prüffunktion. Neue Abnahmen tragen das Prüfsummenformat 3 (Verweis, Person, Funktion), ältere rechnen in ihrem Format.
+Migration `4b9e2c7d1a63` (fünf Spalten an `order_acceptances`, Downgrade verweigert, sobald eine Abnahme aus einem Protokoll
+existiert), geprüft unter SQLite und PostgreSQL 17 mit Bestand aus 1.8.62. Neue `test_v365` (30, davon 4 gleichzeitig gegen
+PostgreSQL), Gegenproben 18 von 18 rot; angepasst `test_v320`, `test_v326`, `test_v350`, `test_v351`, `test_v363`, `test_v364`. Neuer Klicktest
+`klicktest_abnahme_aus_protokoll.py` 10/10; `klicktest_abnahmeprotokoll`, `_protokoll_maengel`, `_maengel`, `_abnahme`
+unverändert grün. Volle Suite 3020 grün, drei Testanpassungen danach grün (mit den opt-in-Tests gegen
+PostgreSQL). Festlegungen in `docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.63“.
+
 ## 1.8.62 – Abnahmeprotokoll: Mängel nach der Kopie, Längentest für alle festen Werte
 
 Stufe 2c, Runde 2c-2d Teil 2, Vorweg. Ob ein verworfener Mangel im Protokoll bleibt, entschied bisher ein Vergleich von

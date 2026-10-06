@@ -30,6 +30,14 @@ verify_acceptance() zusätzlich mit logger.error (nur Kennungen, Regel 18).
 Abgleich mit dem Angebot: gesperrt, solange eine nicht verworfene Abnahme besteht (ensure_no_active_acceptance(),
 seit 1.8.46 Punkt 7). Erfassen, Verwerfen und Abgleich sperren dieselbe Zeile (der Auftrag, SELECT … FOR UPDATE).
 
+Seit 1.8.63 (Stufe 2c-2d Teil 2, Punkt 3) auch aus dem Abnahmeprotokoll (app/acceptance_protocol.py): dieselbe Prüf- und
+Anlegefunktion (create_acceptance() mit `protocol`, ProtocolSource), Art förmlich, Nachweis ist statt eines Belegs der Verweis
+auf die Unterschrift des Auftraggebers (Checkliste, Unterschrift, Prüfsumme ihrer Kopie); der Erklärende kommt aus der
+Unterschrift (Auftraggeber mit Person und Funktion bzw. Beteiligter mit der beim Unterschreiben eingefrorenen Vollmacht), nicht
+aus dem heutigen Stand am Beteiligten. Prüfsummenformat 3: Verweis, Person und Funktion im gebundenen Inhalt; ältere Einträge
+rechnen in ihrem Format. check_acceptance() prüft dieselben Regeln, ohne zu schreiben (vor der Unterschrift des Auftraggebers
+und für den Hinweis am Auftrag).
+
 Rollenlos wie jede Geschäftslogik; wer erfassen darf, entscheidet der Router (ab buero_auftrag, Monteure nichts).
 """
 
@@ -39,11 +47,12 @@ import logging
 import os
 import stat
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import select, update
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, object_session, selectinload
 
 from .berlin_time import berlin_today, to_berlin
 from .models import (
@@ -75,8 +84,9 @@ _SUFFIXES = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png
 ENTITY_TYPE = "Abnahme"  # Änderungshistorie (app/audit.py)
 
 # Fassung des Prüfsummenformats (seit 1.8.48, OrderAcceptance.checksum_format): 1 = bis 1.8.47 (Inhalt ohne Fassung,
-# Verwerfen nicht versiegelt), 2 = Fassung im Inhalt, Verwerfen versiegelt (discard_sha256 Pflicht).
-CHECKSUM_FORMAT = 2
+# Verwerfen nicht versiegelt), 2 = Fassung im Inhalt, Verwerfen versiegelt (discard_sha256 Pflicht), 3 = seit 1.8.63 dazu
+# Verweis aufs Abnahmeprotokoll, Person und Funktion (auch leer im Inhalt).
+CHECKSUM_FORMAT = 3
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +99,10 @@ DISCARD_TEXTS = {
     "unveraendert": "Verwerfen unverändert (Prüfsumme stimmt)",
     "abweichend": "Verwerfen weicht von seiner Prüfsumme ab",
     "ohne_pruefsumme": "Verwerfen vor 1.8.48 erfasst, ohne Prüfsumme",
+}
+PROTOCOL_TEXTS = {  # seit 1.8.63
+    "unveraendert": "Verweis auf das Abnahmeprotokoll stimmt",
+    "abweichend": "Verweis auf das Abnahmeprotokoll weicht ab",
 }
 
 
@@ -104,6 +118,23 @@ class AcceptanceFileError(Exception):
     def __init__(self, status: str):
         super().__init__(VERIFY_TEXTS[status])
         self.status = status
+
+
+@dataclass
+class ProtocolSource:
+    """Nachweis "Abnahmeprotokoll" (seit 1.8.63, gebaut von app/acceptance_protocol.py): die Unterschrift des Auftraggebers
+    statt eines Belegs, der Erklärende aus der Unterschrift. signature_id/seal_sha256 None bei der Prüfung vor der
+    Unterschrift; poa die beim Unterschreiben eingefrorene Vollmacht (Inhalt, Typ); roof_area_names die Namen der Dachflächen
+    wie im Protokoll (Schnappschuss)."""
+    checklist_id: int
+    signature_id: int | None
+    seal_sha256: str | None
+    declared_name: str
+    declared_role: str | None = None
+    person: str | None = None
+    function: str | None = None
+    poa: tuple[bytes, str] | None = None
+    roof_area_names: dict[int, str] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -251,7 +282,37 @@ def acceptance_content(a: OrderAcceptance) -> dict:
     }
     if (a.checksum_format or 1) >= 2:
         content["checksum_format"] = a.checksum_format
+    # Seit 1.8.63 (Fassung 3): Verweis aufs Abnahmeprotokoll, Person und Funktion -- auch leer. Bei älteren Fassungen nur, wenn
+    # gesetzt: so rechnen sie unverändert nach, und ein am ORM vorbei gesetzter Verweis ändert ihren Inhalt trotzdem.
+    protocol = protocol_reference(a)
+    if (a.checksum_format or 1) >= 3 or protocol is not None or a.declared_by_person or a.declared_by_function:
+        content.update(protocol=protocol, declared_by_person=a.declared_by_person,
+                       declared_by_function=a.declared_by_function)
     return content
+
+
+def protocol_reference(a: OrderAcceptance) -> dict | None:
+    """Der Nachweis "Abnahmeprotokoll" (seit 1.8.63): Checkliste, Unterschrift des Auftraggebers, Prüfsumme ihrer Kopie."""
+    if a.checklist_id is None and a.checklist_attachment_id is None and a.protocol_seal_sha256 is None:
+        return None
+    return {"checklist_id": a.checklist_id, "signature_id": a.checklist_attachment_id, "seal_sha256": a.protocol_seal_sha256}
+
+
+def _verify_protocol(a: OrderAcceptance) -> str | None:
+    """None (von Hand erfasst), "unveraendert" oder "abweichend": die Unterschrift, auf die der Nachweis verweist, gibt es an
+    dieser Checkliste, und ihre Prüfsumme ist die festgehaltene (seit 1.8.63). Ob ihr Inhalt noch zur Kopie passt, prüft die
+    Checkliste selbst."""
+    if protocol_reference(a) is None:
+        return None
+    from .models import ChecklistAttachment  # lokal: die Checkliste hängt nicht an der Abnahme
+
+    db = object_session(a)
+    signature = db.get(ChecklistAttachment, a.checklist_attachment_id) \
+        if db is not None and a.checklist_attachment_id is not None else None
+    ok = (signature is not None and signature.kind == "unterschrift" and signature.checklist_id == a.checklist_id
+          and bool(signature.content_sha256) and signature.content_sha256 == a.protocol_seal_sha256
+          and a.kind == "foermlich")
+    return "unveraendert" if ok else "abweichend"
 
 
 def content_sha256(content: dict) -> str:
@@ -285,6 +346,7 @@ def verify_acceptance(a: OrderAcceptance) -> dict:
     content_ok = content_sha256(acceptance_content(a)) == a.content_sha256
     files = {f.id: _verify_file(f) for f in a.files}
     discard = _verify_discard(a)
+    protocol = _verify_protocol(a)  # seit 1.8.63
     problems = []
     if not content_ok:
         problems.append("Inhalt weicht von seiner Prüfsumme ab")
@@ -292,14 +354,16 @@ def verify_acceptance(a: OrderAcceptance) -> dict:
     for text in dict.fromkeys("Beleg fehlt" if files[fid] == "fehlt" else "Beleg weicht von seiner Prüfsumme ab"
                               for fid in bad_files):
         problems.append(text)
+    if protocol == "abweichend":
+        problems.append(PROTOCOL_TEXTS["abweichend"])
     if discard == "abweichend":
         problems.append(DISCARD_TEXTS["abweichend"])
     ok = not problems
     if not ok:
-        logger.error("Abnahme %s (Auftrag %s): Prüfung weicht ab -- Inhalt %s, Belege %s, Verwerfen %s",
+        logger.error("Abnahme %s (Auftrag %s): Prüfung weicht ab -- Inhalt %s, Belege %s, Protokoll %s, Verwerfen %s",
                      a.id, a.order_id, "ok" if content_ok else "abweichend",
-                     ",".join(f"{fid}:{files[fid]}" for fid in bad_files) or "ok", discard or "-")
-    return {"content_ok": content_ok, "files": files, "discard": discard, "ok": ok,
+                     ",".join(f"{fid}:{files[fid]}" for fid in bad_files) or "ok", protocol or "-", discard or "-")
+    return {"content_ok": content_ok, "files": files, "discard": discard, "protocol": protocol, "ok": ok,
             "text": "Prüfsumme stimmt" if ok else "; ".join(problems)}
 
 
@@ -345,12 +409,18 @@ def acceptance_options(db: Session, order: Order) -> dict:
     }
 
 
-def create_acceptance(
-    db: Session, order: Order, data: dict, files: list[tuple[str | None, bytes]], *,
-    user_id: int | None, user_name: str | None,
-) -> OrderAcceptance:
-    """Eine Abnahme erfassen. `data`: die Felder aus OrderAcceptanceCreate (app/schemas.py), `files`: (Dateiname,
-    Inhalt) der Nachweise. ValueError bei ungültiger Eingabe (Router 400), nichts gespeichert."""
+def check_acceptance(db: Session, order: Order, data: dict, files: list[tuple[str | None, bytes]] = (), *,
+                     protocol: ProtocolSource | None = None) -> None:
+    """Dieselben Regeln wie create_acceptance(), ohne zu schreiben und ohne Sperre (seit 1.8.63): vor der Unterschrift des
+    Auftraggebers im Abnahmeprotokoll und für den Hinweis am Auftrag, warum eine Abnahme aus dem Protokoll aussteht.
+    ValueError wie beim Erfassen."""
+    _prepare(db, order, data, list(files), protocol=protocol, lock=False)
+
+
+def _prepare(db: Session, order: Order, data: dict, files: list[tuple[str | None, bytes]], *,
+             protocol: ProtocolSource | None, lock: bool) -> dict:
+    """Prüft die Eingabe (die eine Prüfung für Erfassen von Hand, Abnahme aus dem Protokoll und die Prüfung davor) und
+    liefert, was das Anlegen braucht. ValueError bei ungültiger Eingabe."""
     kind, scope, result, declared_by = data["kind"], data["scope"], data["result"], data["declared_by"]
     if kind not in KINDS or scope not in SCOPES or result not in RESULTS or declared_by not in DECLARERS:
         raise ValueError("Unbekannte Art, Umfang, Ergebnis oder Erklärende.")
@@ -378,9 +448,16 @@ def create_acceptance(
     objections = _clean(data.get("contractor_objections"), TEXT_MAX, "Die Einwendungen")
     conduct_reason = _clean(data.get("conduct_reason"), TEXT_MAX, "Die Begründung")
     # Nachweis (seit 1.8.47): förmlich -> Beleg Pflicht (das Protokoll), sonst Beleg oder Begründung, mindestens eins.
+    # Seit 1.8.63 aus dem Abnahmeprotokoll: förmlich, der Nachweis ist die Unterschrift des Auftraggebers.
     if len(files) > MAX_FILES:
         raise ValueError(f"Höchstens {MAX_FILES} Belege je Abnahme.")
-    if kind == "foermlich":
+    if protocol is not None:
+        if kind != "foermlich":
+            raise ValueError("Eine Abnahme aus dem Abnahmeprotokoll ist eine förmliche Abnahme.")
+        if files or conduct_reason is not None:
+            raise ValueError("Bei der Abnahme aus dem Abnahmeprotokoll ist das Protokoll der Nachweis – keine Belege, keine "
+                             "Begründung.")
+    elif kind == "foermlich":
         if not files:
             raise ValueError("Bitte das Protokoll der förmlichen Abnahme als Beleg hochladen (PDF oder Foto).")
         if conduct_reason is not None:
@@ -395,7 +472,8 @@ def create_acceptance(
     if len({hashlib.sha256(c).hexdigest() for c, _ in uploads}) != len(uploads):
         raise ValueError("Derselbe Beleg ist mehrfach ausgewählt.")
 
-    lock_order(db, order.id)
+    if lock:
+        lock_order(db, order.id)
     project = db.get(Project, order.project_id)
     property_id = project.property_id if project else None
 
@@ -420,29 +498,61 @@ def create_acceptance(
             raise ValueError("Bitte einen Beteiligten dieses Projekts wählen.")
         if participant.contact.archived:
             raise ValueError("Der gewählte Beteiligte ist im Adressbuch archiviert.")
-        declared_name = contact_display_name(participant.contact) or f"Kontakt #{participant.contact_id}"
-        role_text = role_label(participant.role)
-        frozen_poa = _frozen_power_of_attorney(participant)
+        if protocol is not None:  # seit 1.8.63: wie beim Unterschreiben, samt der dort eingefrorenen Vollmacht
+            declared_name, role_text, frozen_poa = protocol.declared_name, protocol.declared_role, protocol.poa
+        else:
+            declared_name = contact_display_name(participant.contact) or f"Kontakt #{participant.contact_id}"
+            role_text = role_label(participant.role)
+            frozen_poa = _frozen_power_of_attorney(participant)
     else:
         if participant_id is not None:
             raise ValueError("Ein Beteiligter gehört nur zu „erklärt durch einen Beteiligten“.")
-        declared_name = order.customer_name
+        declared_name = protocol.declared_name if protocol is not None else order.customer_name
+    person =protocol.person if protocol is not None and declared_by == "auftraggeber" else None
+    function = protocol.function if protocol is not None and declared_by == "auftraggeber" else None
+    return {
+        "kind": kind, "scope": scope, "result": result, "declared_by": declared_by, "accepted_on": accepted_on,
+        "scope_description": scope_description, "defects": defects, "penalty": penalty, "objections": objections,
+        "conduct_reason": conduct_reason, "uploads": uploads, "property_id": property_id, "roof_areas": roof_areas,
+        "participant": participant, "frozen_poa": frozen_poa, "role_text": role_text, "declared_name": declared_name,
+        "person": person, "function": function,
+    }
 
+
+def create_acceptance(
+    db: Session, order: Order, data: dict, files: list[tuple[str | None, bytes]], *,
+    user_id: int | None, user_name: str | None, protocol: ProtocolSource | None = None, commit: bool = True,
+) -> OrderAcceptance:
+    """Eine Abnahme erfassen. `data`: die Felder aus OrderAcceptanceCreate (app/schemas.py), `files`: (Dateiname,
+    Inhalt) der Nachweise. ValueError bei ungültiger Eingabe (Router 400), nichts gespeichert.
+
+    Seit 1.8.63: `protocol` (ProtocolSource) -- die Abnahme aus dem Abnahmeprotokoll, über genau diese Prüfung und dieses
+    Anlegen; `commit=False` lässt die Transaktion offen (der Aufrufer hängt im selben Commit die Mängel an). Scheitert danach
+    etwas, rollt der Aufrufer zurück und entfernt die Dateien (stored_filenames())."""
+    p = _prepare(db, order, data, files, protocol=protocol, lock=True)
+    participant, frozen_poa = p["participant"], p["frozen_poa"]
+    names = protocol.roof_area_names if protocol is not None else {}
     written: list[str] = []
     try:
         acceptance = OrderAcceptance(
-            order_id=order.id, property_id=property_id, kind=kind, accepted_on=accepted_on, scope=scope,
-            scope_description=scope_description, result=result, reservation_defects=defects,
-            reservation_penalty=penalty, contractor_objections=objections, declared_by=declared_by,
-            participant_id=participant.id if participant else None, declared_by_name=declared_name[:255],
-            declared_by_role=role_text, poa_on_record=(frozen_poa is not None) if participant else None,
-            conduct_reason=conduct_reason, content_sha256="", checksum_format=CHECKSUM_FORMAT,
+            order_id=order.id, property_id=p["property_id"], kind=p["kind"], accepted_on=p["accepted_on"],
+            scope=p["scope"], scope_description=p["scope_description"], result=p["result"],
+            reservation_defects=p["defects"], reservation_penalty=p["penalty"], contractor_objections=p["objections"],
+            declared_by=p["declared_by"], participant_id=participant.id if participant else None,
+            declared_by_name=p["declared_name"][:255], declared_by_role=p["role_text"],
+            poa_on_record=(frozen_poa is not None) if participant else None,
+            conduct_reason=p["conduct_reason"], content_sha256="", checksum_format=CHECKSUM_FORMAT,
             created_at=datetime.utcnow().replace(microsecond=0), created_by_user_id=user_id,
             created_by_name=(user_name or "System")[:160],
+            checklist_id=protocol.checklist_id if protocol is not None else None,
+            checklist_attachment_id=protocol.signature_id if protocol is not None else None,
+            protocol_seal_sha256=protocol.seal_sha256 if protocol is not None else None,
+            declared_by_person=p["person"], declared_by_function=p["function"],
         )
-        for area in roof_areas:
-            acceptance.roof_areas.append(OrderAcceptanceRoofArea(roof_area_id=area.id, roof_area_name=area.name[:255]))
-        stored_files = [("nachweis", content, content_type) for content, content_type in uploads]
+        for area in p["roof_areas"]:
+            acceptance.roof_areas.append(OrderAcceptanceRoofArea(
+                roof_area_id=area.id, roof_area_name=names.get(area.id, area.name)[:255]))
+        stored_files = [("nachweis", content, content_type) for content, content_type in p["uploads"]]
         if frozen_poa is not None:
             stored_files.append(("abnahmevollmacht", *frozen_poa))
         for file_kind, content, content_type in stored_files:
@@ -454,13 +564,27 @@ def create_acceptance(
             ))
         acceptance.content_sha256 = content_sha256(acceptance_content(acceptance))
         db.add(acceptance)
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
     except Exception:
         db.rollback()
         _remove_written(written)
         raise
-    db.refresh(acceptance)
+    if commit:
+        db.refresh(acceptance)
     return acceptance
+
+
+def stored_filenames(acceptance: OrderAcceptance) -> list[str]:
+    """Die Dateien einer (noch nicht committeten) Abnahme -- zum Aufräumen, wenn der Aufrufer zurückrollt (seit 1.8.63)."""
+    return [f.stored_filename for f in acceptance.files]
+
+
+def remove_stored_files(stored: list[str]) -> None:
+    """Dateien einer zurückgerollten Abnahme entfernen (seit 1.8.63) -- nur solche, die nie zu einem Eintrag gehörten."""
+    _remove_written(stored)
 
 
 # ---------------------------------------------------------------------------
@@ -569,6 +693,12 @@ def acceptance_to_dict(a: OrderAcceptance, order: Order) -> dict:
         } for f in a.files],
         "content_sha256": a.content_sha256, "content_ok": check["content_ok"], "intact": check["ok"],
         "check": check_summary(check), "checksum_format": a.checksum_format,
+        # seit 1.8.63: aus dem Abnahmeprotokoll -- Verweis auf die Unterschrift des Auftraggebers statt eines Belegs, Person
+        "from_protocol": a.checklist_attachment_id is not None,
+        "protocol": None if protocol_reference(a) is None else {
+            **protocol_reference(a), "check": check["protocol"], "check_text": PROTOCOL_TEXTS.get(check["protocol"]),
+            "url": f"/checklists/{a.checklist_id}" if a.checklist_id else None},
+        "declared_by_person": a.declared_by_person, "declared_by_function": a.declared_by_function,
         "created_at": a.created_at, "created_at_local": to_berlin(a.created_at), "created_by_name": a.created_by_name,
         "discarded": a.discarded_at is not None, "discarded_at": a.discarded_at,
         "discarded_at_local": to_berlin(a.discarded_at), "discarded_by_name": a.discarded_by_name,
@@ -606,18 +736,26 @@ def acceptance_allows_defects(a: OrderAcceptance) -> bool:
     return a.discarded_at is None and (a.result == "verweigert" or a.reservation_defects is True)
 
 
+PROTOCOL_DEFECTS_TEXT = ("Diese Abnahme stammt aus dem Abnahmeprotokoll – ihre Mängel stehen dort, nach der Unterschrift des "
+                         "Auftraggebers kommen keine neuen hinzu.")
+
+
 def defect_summary(a: OrderAcceptance, counts: dict | None) -> dict:
     """Ob an dieser Abnahme Mängel zu erfassen sind (acceptance_allows_defects()) und ob einer fehlt -- dann warnt die
-    Liste (seit 1.8.49)."""
+    Liste (seit 1.8.49). Seit 1.8.63: an einer Abnahme aus dem Protokoll erfasst man keine (can_add falsch, Festlegung
+    1.8.63 Nr. 5), ihre Mängel kommen aus dem Protokoll."""
     counts = counts or {"total": 0, "active": 0}
     expected = acceptance_allows_defects(a)
+    from_protocol = a.checklist_attachment_id is not None
     missing = expected and counts["active"] == 0
     text = None
     if missing:
         why = "verweigert" if a.result == "verweigert" else "mit Vorbehalt wegen Mängeln abgenommen"
-        text = f"Abnahme {why}, aber ohne erfassten Mangel – bitte die Mängel erfassen."
+        text = (f"Abnahme {why}, aber alle Mängel aus dem Abnahmeprotokoll sind verworfen." if from_protocol
+                else f"Abnahme {why}, aber ohne erfassten Mangel – bitte die Mängel erfassen.")
     return {"expected": expected, "active": counts["active"], "total": counts["total"], "missing": missing,
-            "text": text}
+            "text": text, "can_add": expected and not from_protocol,
+            "protocol_text": PROTOCOL_DEFECTS_TEXT if expected and from_protocol else None}
 
 
 def list_acceptances(db: Session, order: Order) -> list[dict]:
