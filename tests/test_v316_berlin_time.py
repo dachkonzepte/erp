@@ -301,7 +301,11 @@ def test_service_report_pdf_single_signature_branch_uses_berlin_time(tmp_path, m
 
 
 def test_checklist_pdf_prints_completion_and_signature_in_berlin_time(world, router_test_client):
-    """Abschluss und Unterschrift in Ortszeit; um 23:30 UTC steht schon der Folgetag im Kopf."""
+    """Abschluss und Unterschrift in Ortszeit; um 23:30 UTC steht schon der Folgetag im Kopf. Seit 1.8.66 liefert der
+    PDF-Knopf die feste Fassung des Abschlusses (nie neu erzeugt) -- die nachträglich gesetzten Zeitpunkte prüft deshalb der
+    Renderer selbst."""
+    from app.checklist_pdf import build_checklist_pdf
+    from app.checklists import get_checklist_row
     from app.models import Checklist
     from tests.test_v305_checklist_filling import _client
     from tests.test_v308_checklist_pdf import _completed_order_checklist
@@ -318,14 +322,15 @@ def test_checklist_pdf_prints_completion_and_signature_in_berlin_time(world, rou
                .values(created_at=datetime(2026, 7, 15, 11, 50)))
     db.commit()
 
-    text = _extract_pdf_text(a.get(f"/api/checklists/{c['id']}/pdf").content)
+    text = _extract_pdf_text(build_checklist_pdf(db, get_checklist_row(db, c["id"])))
     assert b"abgeschlossen am 15.07.2026 14:00 Uhr" in text
     assert b"Anna Alpha, 15.07.2026 13:50 Uhr" in text
     assert b"12:00 Uhr" not in text and b"11:50 Uhr" not in text
 
     checklist.completed_at = datetime(2026, 7, 15, 23, 30)
     db.commit()
-    text = _extract_pdf_text(a.get(f"/api/checklists/{c['id']}/pdf").content)
+    db.expire_all()
+    text = _extract_pdf_text(build_checklist_pdf(db, get_checklist_row(db, c["id"])))
     assert b"abgeschlossen am 16.07.2026 01:30 Uhr" in text
     assert text.count(b"16.07.2026") >= 2  # auch die Kopfzeile "Abgeschlossen"
 

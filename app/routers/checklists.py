@@ -46,12 +46,13 @@ from sqlalchemy.orm import Session
 from ..checklist_email import get_checklist_recipient_email, send_checklist_email
 from ..checklist_follow_ups import list_checklists_with_open_follow_ups, list_follow_ups, run_checklist_follow_ups
 from ..checklist_pdf import build_checklist_pdf
+from ..checklist_versions import completion_version, list_versions
 from ..acceptance_protocol import protocol_summary
 from ..checklist_purposes import purpose_office_only
 from ..concern_notices import OPEN_CONCERNS_TEXT, open_concerns
 from ..checklist_rules import list_checklists_with_open_rules, list_rule_executions, run_checklist_rules
 from ..checklists import (
-    ChecklistLocked, add_attachment, asset_readiness, attachment_path, complete_checklist, create_checklist,
+    CLOSED_STATUSES, ChecklistLocked, add_attachment, asset_readiness, attachment_path, complete_checklist, create_checklist,
     attachment_content_type, delete_attachment, delete_checklist, discard_signatures, get_attachment, get_checklist,
     get_checklist_row, is_office_only, list_checklists, list_startable_templates, mark_asset_repaired, published_version,
     read_signer_poa, save_answer, void_checklist, MAX_UPLOAD_BYTES,
@@ -61,6 +62,7 @@ from ..email_dispatch import DispatchConflict, dispatch_to_dict
 from ..models import AppUser, Checklist, ChecklistTemplate
 from ..modules import is_module_enabled
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, has_min_role, require_min_role
+from ..sent_documents import ArchiveFileError, read_sent_document
 from ..schemas import (
     ChecklistAnswerWrite, ChecklistAssetReadinessOut, ChecklistAssetReleaseWrite, ChecklistCreate,
     ChecklistDiscardSignaturesWrite, ChecklistEmailSend, ChecklistFollowUpOut, ChecklistFollowUpsRunOut, ChecklistVoidWrite,
@@ -409,7 +411,8 @@ def delete_checklist_attachment(attachment_id: int, db: Session = Depends(get_db
 def post_complete_checklist(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
     _checklist_for(db, _role, checklist_id, write=True)
-    _call(complete_checklist, db, checklist_id, completed_by_employee_id=_role.employee_id)
+    _call(complete_checklist, db, checklist_id, completed_by_employee_id=_role.employee_id, user_id=_role.id,
+          user_name=_role.display_name or _role.username)
     return _detail(db, _role, checklist_id)
 
 
@@ -445,13 +448,32 @@ def post_void_checklist(checklist_id: int, payload: ChecklistVoidWrite, db: Sess
 def get_checklist_pdf(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
     """PDF einer abgeschlossenen Checkliste (seit 1.8.4) -- dieselbe Leseprüfung wie der
     Einzelabruf: Büro alles, Monteur die eigene und fremde nur bei field_readable, Betrieb nie.
-    Gewöhnliche def-Route: das Rendern ist CPU-gebunden (Befund 1.3.62)."""
+    Gewöhnliche def-Route: das Rendern ist CPU-gebunden (Befund 1.3.62). Seit 1.8.66 die feste Fassung des Abschlusses
+    aus der Ablage (Kopfzeile X-DK-Ablage), nie neu erzeugt -- verändert 409, fehlt 410; nur vor 1.8.66 abgeschlossene
+    Checklisten werden wie bisher neu erzeugt. Ältere und überholte Fassungen gibt es nur fürs Büro (…/versions)."""
     _require_module_enabled(db)
     checklist = _checklist_for(db, _role, checklist_id)
-    pdf = _call(build_checklist_pdf, db, checklist)
     filename = f"Checkliste-{checklist.id}.pdf"
-    return Response(content=pdf, media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="{filename}"', "Cache-Control": "private, no-store"})
+    headers = {"Content-Disposition": f'inline; filename="{filename}"', "Cache-Control": "private, no-store"}
+    version = completion_version(db, checklist) if checklist.status in CLOSED_STATUSES else None
+    if version is not None:
+        try:
+            pdf = read_sent_document(version.sent_document)
+        except ArchiveFileError as exc:
+            raise HTTPException(status_code=410 if exc.status == "fehlt" else 409,
+                                detail=f"Die feste Fassung in der Ablage ist nicht mehr unversehrt: {exc}") from exc
+        return Response(content=pdf, media_type="application/pdf",
+                        headers={**headers, "X-DK-Ablage": str(version.sent_document_id)})
+    pdf = _call(build_checklist_pdf, db, checklist)
+    return Response(content=pdf, media_type="application/pdf", headers=headers)
+
+
+@router.get("/api/checklists/{checklist_id}/versions")
+def get_checklist_versions(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
+    """Feste Fassungen der Checkliste (seit 1.8.66) mit gilt/überholt -- nur fürs Büro, wie die Ablage selbst; die PDFs
+    liefert GET /api/sent-documents/{id}/file (ab buero_auftrag, nur mit stimmender Prüfsumme)."""
+    _require_module_enabled(db)
+    return list_versions(db, _checklist_for(db, _role, checklist_id))
 
 
 @router.get("/api/checklists/{checklist_id}/email-recipient")

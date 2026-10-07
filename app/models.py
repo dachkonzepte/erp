@@ -5391,6 +5391,38 @@ class NoticeLetter(Base):
     sent_document: Mapped["SentDocument"] = relationship()
 
 
+class ChecklistVersion(Base):
+    """Feste Fassung einer Checkliste (seit 1.8.66, Stufe 2c-2e, app/checklist_versions.py): bei jeder Unterschrift
+    (signature_id, kind "unterschrift") und beim Abschluss bzw. "gegenstandslos" (kind, signature_id leer) das PDF des Stands
+    genau dieses Moments in der Ablage (sent_document_id; Art "checkliste", Dokument-ID = Checkliste). version_no fortlaufend je
+    Checkliste. signature_ids: die Unterschriften, die das PDF als gültig zeigt (JSON, aufsteigend) -- ist eine davon verworfen,
+    ist die Fassung überholt (abgeleitet, nicht gespeichert). seal_sha256: Prüfsumme der Kopie der Unterschrift bzw. des
+    Abschlusses beim Erstellen. Nie neu erzeugt, nie geändert, nie gelöscht (ORM-Sperre unten); Konto ohne Fremdschlüssel."""
+
+    __tablename__ = "checklist_versions"
+    __table_args__ = (
+        UniqueConstraint("checklist_id", "version_no", name="uq_checklist_version_no"),
+        UniqueConstraint("signature_id", name="uq_checklist_version_signature"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    checklist_id: Mapped[int] = mapped_column(
+        ForeignKey("checklists.id", name="fk_checklist_versions_checklist_id"), index=True)
+    version_no: Mapped[int] = mapped_column()
+    kind: Mapped[str] = mapped_column(String(20))
+    signature_id: Mapped[int | None] = mapped_column(
+        ForeignKey("checklist_attachments.id", name="fk_checklist_versions_signature_id"), nullable=True)
+    signature_ids: Mapped[str] = mapped_column(Text)
+    seal_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    sent_document_id: Mapped[int] = mapped_column(
+        ForeignKey("sent_documents.id", name="fk_checklist_versions_sent_document_id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(160), server_default="System")
+
+    sent_document: Mapped["SentDocument"] = relationship()
+
+
 class NoticeReservation(Base):
     """Vorbehalt als Textbaustein für Briefe an den Auftraggeber (seit 1.8.40, Einstellungen ->
     Anzeigen): je Briefart (letter_kind, app/notice_letters.py::LETTER_KINDS) und Gruppe der
@@ -5551,6 +5583,18 @@ def _notice_letter_no_update(mapper, connection, target):
 @event.listens_for(NoticeLetter, "before_delete")
 def _notice_letter_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Ein erstellter Brief wird nie gelöscht.")
+
+
+# Feste Fassung einer Checkliste (seit 1.8.66): unveränderlich, nie gelöscht -- "überholt" wird abgeleitet.
+@event.listens_for(ChecklistVersion, "before_update")
+def _checklist_version_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs if attr.key != "sent_document"):
+        raise ArchiveImmutableError("Eine feste Fassung ist unveränderlich.")
+
+
+@event.listens_for(ChecklistVersion, "before_delete")
+def _checklist_version_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Eine feste Fassung wird nie gelöscht.")
 
 
 @event.listens_for(DispatchAuthorization, "before_update")

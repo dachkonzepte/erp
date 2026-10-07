@@ -32,7 +32,12 @@ Abnahmeprotokoll (seit 1.8.64, Zweck "abnahme"): oben "Erklärungen des Auftragg
 seiner Unterschrift (app/acceptance_protocol.py::protocol_summary()), am Feld "Mängel" jeder Mangel, der im Protokoll steht
 (die Kopie entscheidet) -- Beschreibung, Ort, Frist, Zahl der Fotos und Belege (die Dateien liegen im ERP am Mangel), Prüfsumme;
 ein erst nach der Unterschrift verworfener mit diesem Vermerk, vorher verworfene gar nicht. Ohne Begründungen, ohne Abnahme am
-Auftrag und ohne Aufgaben -- das Dokument kann an den Auftraggeber gehen."""
+Auftrag und ohne Aufgaben -- das Dokument kann an den Auftraggeber gehen.
+
+Feste Fassung (seit 1.8.66, app/checklist_versions.py, build_checklist_version_pdf()): bei jeder Unterschrift, beim Abschluss
+und bei "gegenstandslos" das PDF des Stands genau dieses Moments -- auch an einem Entwurf. Kopf und Unterzeile nennen Fassung und
+Anlass, der Abschluss-Block sagt "noch nicht abgeschlossen"; die Fotos stufenweise verkleinert wie beim Versand-PDF, aber ohne
+Abbruch: passt auch die kleinste Stufe nicht unter 3 MB, bleibt sie (der Versand meldet dann die Größe)."""
 
 from io import BytesIO
 
@@ -63,6 +68,8 @@ EMAIL_PHOTO_STEPS = ((1600, 80), (1280, 75), (1024, 70), (800, 65), (640, 60), (
 _EMBED_FACTOR = 1.25
 EMAIL_PHOTO_NOTE = ("Fotos für den Versand per E-Mail verkleinert. Die Originale liegen unverändert im ERP; "
                     "die Prüfsummen oben beziehen sich auf sie.")
+VERSION_PHOTO_NOTE = ("Fotos in dieser Fassung auf höchstens {px} Pixel verkleinert. Die Originale liegen unverändert im ERP; "
+                      "die Prüfsummen oben beziehen sich auf sie.")  # seit 1.8.66
 SIGNATURE_WIDTH_MM, SIGNATURE_HEIGHT_MM = 60, 25
 BELEG_PDF_PX, BELEG_PDF_QUALITY = 1600, 82  # Foto-Beleg im Dokument: wie ein Foto nach dem Hochladen
 ANSWER_COL_MM = 70  # Antwortspalte; die Frage nimmt den Rest des Satzspiegels
@@ -193,10 +200,52 @@ def build_checklist_email_pdf(db, checklist: Checklist) -> bytes:
     )
 
 
-def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, bytes] | None = None) -> bytes:
+def build_checklist_version_pdf(db, checklist: Checklist, stand: dict) -> bytes:
+    """Das PDF einer festen Fassung (seit 1.8.66): stand = {"version_no", "kind", "signature", "at"}. Fotos und Foto-Belege
+    stufenweise verkleinert (EMAIL_PHOTO_STEPS), bis das PDF unter MAX_ATTACHMENT_BYTES liegt; passt auch die kleinste Stufe
+    nicht, bleibt sie -- anders als beim Versand-PDF kein Abbruch, die Unterschrift gilt trotzdem. Je Stufe liegen nur deren
+    Fotos im Speicher."""
+    from .email_sending import MAX_ATTACHMENT_BYTES
+
+    photos = [a for a in active_attachments(checklist) if a.kind == "foto" or _is_image_beleg(a)]
+    if not photos:
+        return build_checklist_pdf(db, checklist, stand=stand)
+    pdf = None
+    for index, (max_px, quality) in enumerate(EMAIL_PHOTO_STEPS):
+        last = index == len(EMAIL_PHOTO_STEPS) - 1
+        reduced = {a.id: _reduced_photo(attachment_path(a), max_px, quality) for a in photos}
+        if not last and sum(len(b) for b in reduced.values()) * _EMBED_FACTOR > MAX_ATTACHMENT_BYTES:
+            continue
+        pdf = build_checklist_pdf(db, checklist, photo_bytes=reduced, stand={**stand, "photo_px": max_px})
+        if len(pdf) <= MAX_ATTACHMENT_BYTES:
+            break
+    return pdf
+
+
+def _stand_text(checklist: Checklist, stand: dict) -> str:
+    """Unterzeile einer festen Fassung: Nummer, Anlass, Zeitpunkt (Berliner Zeit)."""
+    at = to_berlin(stand.get("at"))
+    when = f" am {at:%d.%m.%Y %H:%M} Uhr" if at else ""
+    signature = stand.get("signature")
+    if stand["kind"] == "unterschrift" and signature is not None:
+        field = next((f for f in checklist.template_version.fields if f.id == signature.template_field_id), None)
+        text = (f"Feste Fassung {stand['version_no']} – Stand bei der Unterschrift „{field.label if field else 'Unterschrift'}“"
+                f" ({signature.signer_name or 'ohne Namen'}){when}.")
+        fields = checklist.template_version.fields
+        if field is not None and any(f.field_type not in ("hinweis", "unterschrift") for f in fields[fields.index(field) + 1:]):
+            text += " Angaben unterhalb dieser Unterschrift waren zu diesem Zeitpunkt noch offen und sind von ihr nicht versiegelt."
+        return text
+    if stand["kind"] == "gegenstandslos":
+        return f"Feste Fassung {stand['version_no']} – Stand beim Abschluss als gegenstandslos{when}."
+    return f"Feste Fassung {stand['version_no']} – Stand beim Abschluss{when}."
+
+
+def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, bytes] | None = None,
+                        stand: dict | None = None) -> bytes:
     """photo_bytes (seit 1.8.20, nur build_checklist_email_pdf()): je Foto-ID die verkleinerten
-    Bytes statt der Datei, dazu ein Hinweis im Dokument."""
-    if checklist.status not in CLOSED_STATUSES:  # seit 1.8.41 auch "gegenstandslos" -- bleibt als Beleg
+    Bytes statt der Datei, dazu ein Hinweis im Dokument. stand (seit 1.8.66, nur build_checklist_version_pdf()): das PDF
+    einer festen Fassung -- dann auch an einem Entwurf."""
+    if checklist.status not in CLOSED_STATUSES and stand is None:  # seit 1.8.41 auch "gegenstandslos" -- bleibt als Beleg
         raise ValueError("Nur abgeschlossene Checklisten können als PDF erzeugt werden.")
     voided = checklist.status == VOID_STATUS
     general = load_general_settings(db)
@@ -257,6 +306,10 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
                 meta_rows.append(("Kunden-Nr.", order.customer_number))
         if completed:
             meta_rows.append(("Gegenstandslos" if voided else "Abgeschlossen", completed.strftime("%d.%m.%Y")))
+        if stand is not None:  # seit 1.8.66: feste Fassung
+            meta_rows.append(("Fassung", str(stand["version_no"])))
+            if not completed and to_berlin(stand.get("at")):
+                meta_rows.append(("Stand", to_berlin(stand["at"]).strftime("%d.%m.%Y")))
         meta_rows.append(("Seite", f"1 / {total_pages}" if total_pages is not None else "1 / …"))
         story = list(build_din5008_header_block(sender_line, recipient_lines, meta_rows, styles, content_width=content_width))
         if order is not None:
@@ -275,6 +328,8 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
                 else f"von {completer}" if completer and completer != creator and not voided else None),
                f"Vorlagenfassung {checklist.template_version.version_no}"]
         story.append(Paragraph(ptext(" · ".join(x for x in who if x)), small))
+        if stand is not None:
+            story.append(Paragraph(f"<b>{ptext(_stand_text(checklist, stand))}</b>", small))
         if voided:
             # Seit 1.8.41: als gegenstandslos abgeschlossen -- Begründung gut sichtbar vor den Angaben.
             story.append(Spacer(1, 3 * mm))
@@ -288,9 +343,9 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
                 story.append(answer_table([[Paragraph(ptext(r["label"]), body), Paragraph(ptext(r["value"]), body)]
                                            for r in summary["declarations"]]))
             sig = summary["signature"]
-            stand = (f"Stand der Unterschrift des Auftraggebers vom {sig['signed_at_local']:%d.%m.%Y %H:%M} Uhr – "
+            stand_ag = (f"Stand der Unterschrift des Auftraggebers vom {sig['signed_at_local']:%d.%m.%Y %H:%M} Uhr – "
                      f"{sig['text'] or sig['name']}" if sig else "Noch nicht vom Auftraggeber unterschrieben.")
-            story.append(Paragraph(ptext(stand), small))
+            story.append(Paragraph(ptext(stand_ag), small))
         story.append(Spacer(1, 5 * mm))
 
         rows: list[list] = []
@@ -374,13 +429,20 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
         if checklist.content_sha256:
             block.append(Paragraph(ptext("Versiegelt alle Angaben samt Unterschriften. "
                                          f"Prüfsumme (SHA-256): {checklist.content_sha256}"), small))
-        block.append(seal_paragraph(completion))
-        if photo_bytes:
+        if completion is not None:
+            block.append(seal_paragraph(completion))
+        else:  # seit 1.8.66: feste Fassung eines Entwurfs
+            block.append(Paragraph("Noch nicht abgeschlossen.", small))
+        if photo_bytes and stand is not None and stand.get("photo_px"):
+            block.append(Paragraph(ptext(VERSION_PHOTO_NOTE.format(px=stand["photo_px"])), small))
+        elif photo_bytes:
             block.append(Paragraph(ptext(EMAIL_PHOTO_NOTE), small))
         story.append(KeepTogether(block))
         return story
 
     continuation = [("Checkliste", f"Nr. {checklist.id}")]
+    if stand is not None:
+        continuation.append(("Fassung", str(stand["version_no"])))
     if order is not None:
         continuation.append(("Auftragsnr.", order.order_number))
     if completed:

@@ -181,6 +181,8 @@ SPALTEN = {
     "checklist_attachments.signer_name": "Name (das Bild ist die Zeile selbst, Art 'unterschrift' -- siehe ZEILEN)",
     "checklist_template_fields.signer_label": "Beschriftung in der Vorlage",
     "notice_letters.signature_id": "Verweis auf eine schon gespeicherte Unterschrift (liest nur)",
+    "checklist_versions.signature_id": "Verweis auf eine schon gespeicherte Unterschrift (liest nur, seit 1.8.66)",
+    "checklist_versions.signature_ids": "Kennungen der Unterschriften, die eine feste Fassung zeigt (liest nur, seit 1.8.66)",
     "notice_letters.signature_sha256": "Prüfsumme der Kopie (liest nur)",
     "order_contract_signatures.signed_on": "Datum",
     "order_contract_signatures.customer_signer_name": "Name",

@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.65** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.66** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -591,7 +591,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Unterschriftsblatt, Unterschriftsbilder und Papier-Scan (`app/contract_signatures.py`), seit 1.8.35 die
     unterschriebene Abschrift (Fassung + Blatt bzw. Scan), die Versand und Zustellung danach hinausgeben; seit 1.8.40 ebenso die
     Briefe zur Behinderungsanzeige (seit 1.8.44 auch zur Bedenkenanzeige) ab dem Erstellen (`app/notice_letters.py`), dazu je Versand die Vollmacht eines
-    empfangsbevollmächtigten Empfängers (`dispatch_email(before_send=…)`).
+    empfangsbevollmächtigten Empfängers (`dispatch_email(before_send=…)`); seit 1.8.66 jede Checkliste ab jeder Unterschrift und
+    dem Abschluss (feste Fassung, `app/checklist_versions.py`, überholt nach verworfener Unterschrift).
     Eine Zustellung auf anderem Weg (Einschreiben, Übergabe, Bote, Fax) wird seit 1.8.20 im selben
     Protokoll nachgetragen (`record_manual_delivery()`, seit 1.8.41 mit Empfängerauswahl aus Auftraggeber und
     Beteiligten, Vollmacht eingefroren); seit 1.8.41 je gesendetem Eintrag einmal "Empfang bestätigt" oder
@@ -848,8 +849,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Zwecks (`SYSTEM_ONLY_FIELD_TYPES`), Mängel als eigene Datensätze im Siegel; seit 1.8.61 Zweck "nur Büro"
   (`office_only`), fester Unterzeichner je Systemfeld (`SystemField.signer_mode`), Prüfung vor einer Unterschrift je Zweck
   (`signature_checks`), Feldtyp "dachflaechen" mit Namens-Schnappschuss; seit 1.8.63 Folge je Unterschrift
-  (`FollowUp.per_signature`, Zeile `<Folge>#<Unterschrift>`, "entfallen" nach verworfener Unterschrift)) --
-  `docs/archiv/modul-checklisten.md`
+  (`FollowUp.per_signature`, Zeile `<Folge>#<Unterschrift>`, "entfallen" nach verworfener Unterschrift); seit 1.8.66 feste
+  Fassung je Unterschrift und Abschluss in der Ablage, nie neu erzeugt, überholt nach verworfener Unterschrift
+  (`app/checklist_versions.py`, Karte "Feste Fassungen" nur Büro)) -- `docs/archiv/modul-checklisten.md`
 - **Kaufmännisches Runden** (Helfer `app/rounding.py`, Rundungsregel je Rechnung, Liste der
   Geldstellen, bewusst nicht geänderte Formatierer) -- `docs/archiv/kaufmaennisches-runden.md`
 - **Versandprotokoll und Ablage** (jede E-Mail über `dispatch_email()`, Schlüssel gegen
@@ -896,7 +898,7 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Unterschrift des Auftraggebers; Teil 2 ab 1.8.62: Mängel im Protokoll nach der Kopie statt nach der Uhr; seit 1.8.63 Abnahme
   aus dem Protokoll als Folge je Unterschrift, Sperre der Unterschrift, Hinweis und Nachholen am Auftrag; seit 1.8.64
   Erklärungen und Mängel gebündelt auf Protokollseite und im PDF; Stufe 2c-2e ab 1.8.65: Mängel im Protokoll nach der ersten
-  gültigen Unterschrift überall, kaputte Kopie als Fehler; offen: feste Fassung, Ablage, Versand)
+  gültigen Unterschrift überall, kaputte Kopie als Fehler; seit 1.8.66 feste Fassung je Unterschrift; offen: Versand)
   -- `docs/archiv/abnahme-und-gewaehrleistung.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
@@ -1293,7 +1295,8 @@ Person und Auftragnehmer-Konto unterschrieben, Editor "vom Zweck vorgegeben", Mo
 `/mobil`, Protokoll 403) und `klicktest_abnahme_aus_protokoll.py` (1.8.63, Unterschrift des Auftraggebers -> Abnahme am Auftrag
 mit Nachweis Protokoll und Person, ausstehende Abnahmen mit Grund und "Abnahme jetzt anlegen", Verwerfen der Unterschrift 409;
 die Protokolle ohne Folge legt `befuellen()` mit abgeschalteter Folge an; seit 1.8.64 Karte "Erklärungen und Mängel" und das PDF
-des abgeschlossenen Protokolls, dessen Seiten als PNG im Ordner der Screenshots landen). Ein
+des abgeschlossenen Protokolls, dessen Seiten als PNG im Ordner der Screenshots landen) und `klicktest_feste_fassung.py` (1.8.66,
+Karte "Feste Fassungen" mit überholter Fassung, PDF und Prüfen, 412 px, Monteurin ohne Karte und 403). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

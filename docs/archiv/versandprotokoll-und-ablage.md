@@ -326,3 +326,12 @@ Herleitung: `docs/archiv/vertragsgrundlage-und-vertrag.md`, "Umsetzung 1.8.41". 
   `DispatchDocument.after_delivery` bekommt den Eintrag (an wen ging die Zustellung?).
 - **Oberfläche**: `_email_dispatch.html` -- Ergebnis je Zeile (`dispatchOutcomeHtml()`, sichtbares Formular), Empfängerauswahl
   im Formular "Zustellung nachtragen"; `/versandprotokoll` bindet `_email_dispatch.html` ein und zeigt Ergebnis und Beleg.
+
+## Nachtrag 1.8.66 -- feste Fassung einer Checkliste
+
+Herleitung: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.66". Wie Vertrag und Briefe liegt jetzt auch die
+Checkliste vor jedem Versand in der Ablage: jede Unterschrift, der Abschluss und "gegenstandslos" legen eine Fassung ab (Art
+`checkliste`, Dokument-ID = Checkliste, Nummer "Nr. … · Fassung N", `checklist_versions`). Der Versand einer abgeschlossenen
+Checkliste und die nachgetragene Zustellung verweisen per `archived_document` auf die Fassung des Abschlusses (keine zweite Datei),
+der PDF-Knopf liefert sie mit `X-DK-Ablage`; verändert oder fehlend: verweigert, nie still neu erzeugt. Checklisten von vor 1.8.66
+ohne Fassung wie bisher. `FROZEN_AFTER_FIRST_DISPATCH` bleibt unverändert.

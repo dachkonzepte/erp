@@ -9,8 +9,8 @@ gehört und welches PDF in die Ablage kommt:
   gibt (app/sent_documents.py::frozen_or_fresh_pdf()), sonst neu erzeugt -- und damit ab jetzt
   maßgeblich.
 - Angebot, Auftrag: neu erzeugt, wie beim E-Mail-Versand.
-- Checkliste: das PDF in voller Auflösung (so wie es über den PDF-Knopf gedruckt wird), nicht das
-  verkleinerte Versand-PDF.
+- Checkliste: seit 1.8.66 die feste Fassung des Abschlusses aus der Ablage (app/checklist_versions.py) -- nie neu
+  erzeugt; nur vor 1.8.66 abgeschlossene wie bisher neu erzeugt in voller Auflösung (so wie über den PDF-Knopf).
 - Vertrag (seit 1.8.33): die gültige festgeschriebene Fassung aus der Ablage -- nie neu erzeugt, und nur,
   solange sie zum Auftrag passt (dieselbe Bedingung wie beim E-Mail-Versand,
   app/contract_versions.py::deliverable_version()). Nach der Unterschrift (seit 1.8.35) die unterschriebene
@@ -98,10 +98,19 @@ def _checklist(db: Session, checklist: Checklist) -> DispatchDocument:
 
     if checklist.status != "abgeschlossen":
         raise ValueError("Nur abgeschlossene Checklisten werden zugestellt.")
+    from .checklist_versions import completion_version
+    from .sent_documents import read_sent_document
+
     order = db.get(Order, checklist.order_id) if checklist.order_id else None
+    label = f"Checkliste Nr. {checklist.id} ({checklist.template_label_snapshot})"
+    version = completion_version(db, checklist)
+    if version is not None:  # seit 1.8.66: die feste Fassung, ArchiveFileError bei veränderter Datei
+        document = version.sent_document
+        return DispatchDocument("checkliste", checklist.id, document.document_number, label,
+                                order.project_id if order else None,
+                                lambda: DocumentPdf(read_sent_document(document), document.filename, document))
     return DispatchDocument(
-        "checkliste", checklist.id, f"Nr. {checklist.id}", f"Checkliste Nr. {checklist.id} ({checklist.template_label_snapshot})",
-        order.project_id if order else None,
+        "checkliste", checklist.id, f"Nr. {checklist.id}", label, order.project_id if order else None,
         _fresh(lambda: build_checklist_pdf(db, checklist), f"Checkliste-{checklist.id}.pdf"),
     )
 

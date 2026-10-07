@@ -163,6 +163,15 @@ textarea{min-height:90px;resize:vertical}
 .notice-actions a.btn{text-decoration:none;display:inline-flex;align-items:center}
 .notice-card label.small{display:block;font-weight:650;margin:10px 0 4px}
 .badge.void{background:var(--soft);color:var(--ink)}
+/* Seit 1.8.66: feste Fassungen (nur Büro) */
+.ver-row{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.ver-row:last-child{border-bottom:0}
+.ver-row .ver-main{min-width:0;flex:1 1 280px;overflow-wrap:anywhere}
+.ver-row .ver-links{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ver-row .mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.ver-row.superseded .ver-main{color:var(--muted)}
+.ver-row a{color:var(--accent);font-weight:600}
+.badge.bad{background:var(--danger-soft);color:var(--danger)}
 .badge.bad{background:var(--danger-soft);color:var(--danger)}
 .timeline{display:flex;flex-wrap:wrap;gap:0;margin:10px 0 2px;border:1px solid var(--line)}
 .tl-step{flex:1 1 150px;padding:8px 10px;border-right:1px solid var(--line);min-width:0}
@@ -646,6 +655,7 @@ function render(){
   let html=renderHeader()+renderSendCard();
   if(!IS_FIELD&&NOTICE_PURPOSES.includes(cl.purpose))html+='<div class="card notice-card" id="noticeCard"><h2>Anzeige an den Auftraggeber</h2><div class="muted small">Lädt …</div></div>';
   if(!IS_FIELD&&cl.purpose==='abnahme')html+='<div class="card psum" id="protocolSummaryCard"><h2>Erklärungen und Mängel</h2><div class="muted small">Lädt …</div></div>';  // seit 1.8.64
+  if(!IS_FIELD)html+='<div class="card" id="versionsCard" style="display:none"></div>';  // seit 1.8.66: feste Fassungen
   let group=null;
   const missing=new Set(cl.missing_required||[]);
   // Nur wenn ein Teil gesperrt und ein Teil offen ist, markiert jedes gesperrte Feld sich selbst.
@@ -678,8 +688,34 @@ function render(){
   if(!IS_FIELD)for(const f of cl.fields)if(f.field_type==='maengel')loadProtocolDefects(f);
   if(!IS_FIELD&&cl.purpose==='abnahme')loadProtocolSummary();
   if(!IS_FIELD)loadFollowUps();
+  if(!IS_FIELD)loadVersions();
   if(!IS_FIELD&&NOTICE_PURPOSES.includes(cl.purpose))loadNotice();
   if(!IS_FIELD&&cl.status==='abgeschlossen'){loadRules();afterRenderSendCard()}
+}
+
+// Feste Fassungen (seit 1.8.66, nur Büro): je Unterschrift und beim Abschluss das PDF dieses Stands in der Ablage, nie neu
+// erzeugt. Überholt, sobald eine Unterschrift verworfen ist, die das PDF zeigt -- dann nicht mehr versendbar.
+async function loadVersions(){
+  const card=document.getElementById('versionsCard');if(!card)return;
+  let rows;
+  try{rows=await api(`/api/checklists/${checklistId}/versions`)}
+  catch(e){card.style.display='';card.innerHTML=`<h2>Feste Fassungen</h2><div class="error-box small">${esc(e.message)}</div>`;return}
+  if(!rows.length){card.style.display='none';return}
+  card.style.display='';
+  const anlass=v=>v.signature?`nach der Unterschrift „${esc(v.signature.field_label)}“ (${esc(v.signature.signer_name||'ohne Namen')})`:esc(v.kind_label);
+  card.innerHTML=`<h2>Feste Fassungen</h2><div class="muted small">Jede Unterschrift und der Abschluss legen das PDF dieses Stands mit Prüfsumme in die Ablage; es wird nie neu erzeugt.</div>`
+    +rows.slice().reverse().map(v=>{const d=v.sent_document;
+      const state=v.valid?'<span class="badge done">gilt</span>':'<span class="badge bad">überholt</span>';
+      const why=v.superseded?`<div class="muted small" data-superseded>Überholt: Unterschrift „${esc(v.superseded.field_label)}“ (${esc(v.superseded.signer_name||'ohne Namen')}) verworfen am ${esc(fmtDateTime(v.superseded.discarded_at))}${v.superseded.discarded_by_name?' von '+esc(v.superseded.discarded_by_name):''} – nicht mehr versendbar.</div>`:'';
+      return `<div class="ver-row${v.valid?'':' superseded'}" data-version="${v.version_no}"><div class="ver-main"><b>Fassung ${v.version_no}</b> · ${anlass(v)} · ${esc(fmtDateTime(v.created_at))} · erstellt von ${esc(v.created_by_name)}
+        <div class="muted small"><span class="mono" title="SHA-256 ${esc(d.sha256)}">Prüfsumme ${esc(d.sha256.slice(0,12))}…</span> · ${Math.max(1,Math.round(d.size_bytes/1024))} KB <span id="verCheck_${v.id}"></span></div>${why}</div>
+        <div class="ver-links">${state}<a href="/api/sent-documents/${d.id}/file" target="_blank" rel="noopener">PDF</a><button type="button" class="btn secondary" onclick="checkVersion(${v.id},${d.id},this)">Prüfen</button></div></div>`}).join('');
+}
+async function checkVersion(versionId,docId,btn){
+  const out=document.getElementById('verCheck_'+versionId);btn.disabled=true;
+  try{const r=await api(`/api/sent-documents/${docId}/check`);out.textContent='· '+r.check.text;out.className=r.check.status==='unveraendert'?'':'pdef-bad'}
+  catch(e){out.textContent='· '+e.message;out.className='pdef-bad'}
+  finally{btn.disabled=false}
 }
 
 // Folgen des Zwecks (seit 1.8.38 sichtbar, nur Büro): z. B. die Aufgabe "Behinderungsanzeige

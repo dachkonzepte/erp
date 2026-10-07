@@ -78,6 +78,10 @@ steht an der Unterschrift (seal_format). Vorhandene Siegel (leer = Format 2 mit 
 eigenen Format geprüft und bleiben gültig. Eine Unterschrift ist bis auf das Verwerfen unveränderlich (ORM-Sperre in
 app/models.py).
 
+Seit 1.8.66 (Stufe 2c-2e, Punkt 1) die feste Fassung (app/checklist_versions.py): jede Unterschrift, der Abschluss und "als
+gegenstandslos abschließen" legen das PDF des Stands genau dieses Moments in die Ablage -- im selben Commit, unter der
+Zeilensperre (keine Unterschrift ohne Fassung; scheitert das PDF, wird nichts gespeichert).
+
 Rollenlos wie jede Geschäftslogik dieses Projekts -- wer was sehen/ändern darf, entscheidet
 app/routers/checklists.py."""
 
@@ -1397,12 +1401,21 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
         with db.begin_nested():
             db.add(attachment)
             db.flush()
+            if kind == "unterschrift":
+                # Seit 1.8.66: die feste Fassung im selben SAVEPOINT, unter der Zeilensperre -- keine Unterschrift ohne
+                # Fassung. Nicht erst danach: unter SQLite ist ein SAVEPOINT vor der ersten Änderung selbst die Transaktion,
+                # sein RELEASE committet die Unterschrift schon (CLAUDE.md, "Self-Seeding …"). Scheitert die Fassung, fällt
+                # beides weg (ValueError, auch bei einer Kollision der Nummer -- keine IntegrityError, die hier als
+                # Wiederholung gälte).
+                _store_version(db, checklist, kind="unterschrift", signature=attachment, user_id=account_user_id,
+                               user_name=account_name)
     except IntegrityError:
         for path in written:  # gleichzeitige Wiederholung: Dateien nicht doppelt behalten
             path.unlink(missing_ok=True)
         db.expire_all()
         return checklist_to_dict(_load(db, checklist_id))
     except Exception:
+        db.rollback()
         for path in written:
             path.unlink(missing_ok=True)
         raise
@@ -1417,6 +1430,18 @@ def add_attachment(db: Session, checklist_id: int, field_id: int, data: bytes, *
         run_follow_ups_after_signature(db, checklist_id, (account_user_id, account_name))
     db.expire_all()
     return checklist_to_dict(_load(db, checklist_id))
+
+
+def _store_version(db: Session, checklist: Checklist, *, kind: str, signature: ChecklistAttachment | None = None,
+                   user_id: int | None = None, user_name: str | None = None) -> None:
+    """Die feste Fassung zum jetzigen Stand (seit 1.8.66, app/checklist_versions.py) -- nach dem Schreiben der Unterschrift
+    bzw. der Kopie des Abschlusses (geflusht), vor dem Commit. Die Anhänge der Checkliste werden neu gelesen, damit eine eben
+    geleistete Unterschrift im PDF steht."""
+    from .checklist_versions import create_version  # lokal, Muster Regel 3
+
+    db.flush()
+    db.expire(checklist, ["attachments"])
+    create_version(db, checklist, kind=kind, signature=signature, user_id=user_id, user_name=user_name)
 
 
 def get_attachment(db: Session, attachment_id: int) -> ChecklistAttachment | None:
@@ -1561,11 +1586,13 @@ def missing_required_labels(checklist: Checklist, *, before: ChecklistTemplateFi
     return missing
 
 
-def complete_checklist(db: Session, checklist_id: int, *, completed_by_employee_id: int | None = None) -> dict:
+def complete_checklist(db: Session, checklist_id: int, *, completed_by_employee_id: int | None = None,
+                       user_id: int | None = None, user_name: str | None = None) -> dict:
     """Friert ein. Zweiter Aufruf auf einer bereits abgeschlossenen Checkliste: aktueller Stand,
     kein Fehler (idempotent). Die Regeln (Aufgaben, seit 1.8.3) und die Folgen des Zwecks (seit
     1.8.16) laufen NACH diesem Commit (Fund 4: create_task() committet selbst) -- ein Fehler dort
-    macht den Abschluss nicht rückgängig, beides bleibt im Büro nachholbar."""
+    macht den Abschluss nicht rückgängig, beides bleibt im Büro nachholbar. Seit 1.8.66 im selben Commit die feste Fassung
+    des Abschlusses (user_id/user_name: das Konto, sonst das der Anfrage)."""
     checklist = _load(db, checklist_id, for_update=True)
     if checklist is None:
         raise LookupError("Checkliste nicht gefunden.")
@@ -1584,6 +1611,11 @@ def complete_checklist(db: Session, checklist_id: int, *, completed_by_employee_
     checklist.content_sha256 = _sha256_text(checklist.sealed_content)
     checklist.status = "abgeschlossen"
     checklist.completed_by_employee_id = completed_by_employee_id
+    try:
+        _store_version(db, checklist, kind="abschluss", user_id=user_id, user_name=user_name)
+    except Exception:
+        db.rollback()
+        raise
     db.commit()
     from .checklist_follow_ups import run_follow_ups_after_completion  # lokal, Muster Regel 3
     from .checklist_rules import run_rules_after_completion
@@ -1627,6 +1659,11 @@ def void_checklist(db: Session, checklist_id: int, *, reason: str | None, user_i
     checklist.completed_by_employee_id = employee_id
     checklist.sealed_content = completion_content(checklist, sealed_ids=seal_ids)
     checklist.content_sha256 = _sha256_text(checklist.sealed_content)
+    try:  # seit 1.8.66: feste Fassung wie beim Abschließen
+        _store_version(db, checklist, kind="gegenstandslos", user_id=user_id, user_name=checklist.voided_by_name)
+    except Exception:
+        db.rollback()
+        raise
     db.commit()
     from .checklist_follow_ups import complete_follow_up_tasks  # lokal, Muster Regel 3
     complete_follow_up_tasks(db, checklist_id)

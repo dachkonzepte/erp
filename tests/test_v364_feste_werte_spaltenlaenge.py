@@ -142,6 +142,7 @@ FESTE_WERTE = {
     "invoices.invoice_type": [("app.invoices", "mod.INVOICE_TYPES")],
     "maintenance_contracts.status": [("app.maintenance_contracts", "mod.STATUSES")],
     "notice_letters.kind": [("app.notice_letters", "mod.LETTER_KINDS")],
+    "checklist_versions.kind": [("app.checklist_versions", "mod.VERSION_KINDS")],  # seit 1.8.66
     "notice_reservations.letter_kind": [("app.notice_reservations", "mod.RESERVATION_LETTER_KINDS")],
     "notice_reservations.basis_group": [("app.notice_reservations", "mod.BASIS_GROUPS")],
     "number_sequences.sequence_key": [("app.settings", "mod.DEFAULT_SEQUENCES")],

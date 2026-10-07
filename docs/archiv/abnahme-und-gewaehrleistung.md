@@ -1947,3 +1947,106 @@ Kopie).
 - Volle Suite: 3049 grün (mit den opt-in-Tests gegen PostgreSQL).
 - Klicktests unverändert grün (Karte "Erklärungen und Mängel" und Mängelliste mit geändertem JavaScript):
   `klicktest_abnahme_aus_protokoll.py` 13/13, `klicktest_protokoll_maengel.py` 16/16.
+
+---
+
+## Umsetzung 1.8.66 (07.10.2026) -- Runde 2c-2e, Punkt 1: feste Fassung für alle Checklisten
+
+### Fassung (`app/checklist_versions.py`, Tabelle `checklist_versions`)
+
+- Jede Unterschrift legt das PDF der Checkliste im Stand genau dieses Moments in die Ablage (`app/sent_documents.py`: Art
+  `checkliste`, Dokument-ID = Checkliste, Nummer "Nr. … · Fassung N", Dateiname `Checkliste-<id>-Fassung-<N>.pdf`, SHA-256) und
+  trägt die Fassung ein: fortlaufende Nummer je Checkliste (UNIQUE), Unterschrift (UNIQUE), Anlass, die Unterschriften, die das PDF
+  als gültig zeigt (`signature_ids`), Prüfsumme der Kopie, wer. Ebenso der Abschluss und "als gegenstandslos abschließen" (Anlass
+  `abschluss` bzw. `gegenstandslos`, ohne Unterschrift). ORM-Sperre: nie geändert, nie gelöscht.
+- Im selben SAVEPOINT bzw. Commit wie die Unterschrift bzw. der Abschluss, unter der Zeilensperre der Checkliste
+  (`app/checklists.py::_store_version()`): keine Unterschrift ohne Fassung, keine Antwort dazwischen. Scheitert das PDF, ist nichts
+  gespeichert (400 "Die feste Fassung (PDF) der Checkliste ließ sich nicht erstellen …", `logger.error` mit Klassenname), auch keine
+  Datei der Unterschrift. Eigener Fehler im ersten Entwurf, im Test gefunden: die Fassung entstand nach dem SAVEPOINT der Unterschrift
+  -- unter SQLite ist ein SAVEPOINT vor der ersten Änderung selbst die Transaktion, sein RELEASE hatte die Unterschrift schon
+  committet; die Unterschrift blieb ohne Fassung stehen. Jetzt im selben SAVEPOINT.
+- Nie neu erzeugt: der PDF-Knopf einer abgeschlossenen Checkliste (`GET /api/checklists/{id}/pdf`) liefert die Fassung des
+  Abschlusses aus der Ablage (Kopfzeile `X-DK-Ablage`, verändert 409, fehlt 410), ebenso Versand per E-Mail (`archived_document`,
+  keine zweite Datei) und nachgetragene Zustellung (`app/dispatch_documents.py`). Vor 1.8.66 abgeschlossene Checklisten haben keine
+  Fassung und werden wie bisher neu erzeugt.
+- Überholt (abgeleitet, `superseded_by()`): ist eine Unterschrift verworfen, die die Fassung als gültig zeigt, gilt die Fassung als
+  überholt und ist nicht mehr versendbar -- auch eine Fassung, deren eigene Unterschrift gilt (Auftragnehmer zuerst, Auftraggeber
+  danach, die Unterschrift des Auftragnehmers verworfen: beide Fassungen überholt). `latest_valid_version()`: die jüngste gültige.
+  Eine Fassung des Abschlusses wird nie überholt.
+
+### PDF (`app/checklist_pdf.py`)
+
+- `build_checklist_pdf(…, stand=…)` auch für einen Entwurf: im Kopf "Fassung N" (und "Stand"), darunter fett "Feste Fassung N –
+  Stand bei der Unterschrift „…“ (Name) am … Uhr." bzw. "– Stand beim Abschluss …"; folgen unter der Unterschrift noch Angaben,
+  dazu "Angaben unterhalb dieser Unterschrift waren zu diesem Zeitpunkt noch offen und sind von ihr nicht versiegelt."; am Ende
+  "Abschluss: Noch nicht abgeschlossen.".
+- `build_checklist_version_pdf()`: Fotos und Foto-Belege stufenweise im Speicher verkleinert wie das Versand-PDF
+  (`EMAIL_PHOTO_STEPS`), bis das PDF unter 3.000.000 Bytes liegt; passt auch die kleinste Stufe nicht, bleibt sie (kein Abbruch --
+  die Unterschrift gilt; der E-Mail-Versand meldet dann die Größe). Hinweis im PDF "Fotos in dieser Fassung auf höchstens N Pixel
+  verkleinert. Die Originale liegen unverändert im ERP …".
+
+### Oberfläche und Rechte
+
+- Checklistenseite, nur Büro: Karte "Feste Fassungen" -- je Fassung Nummer, Anlass, Zeitpunkt, wer, Prüfsumme, Größe, "gilt" bzw.
+  "überholt" mit der verworfenen Unterschrift ("nicht mehr versendbar"), "PDF" (Ablage) und "Prüfen" (rechnet die Prüfsumme nach).
+- `GET /api/checklists/{id}/versions` nur Büro (Modul `checklisten`), die Dateien über `GET /api/sent-documents/{id}/file` (ab
+  `buero_auftrag`, nur mit stimmender Prüfsumme). Der Monteur: Liste und Ablage 403; den PDF-Knopf seiner abgeschlossenen
+  Checkliste behält er (dasselbe Dokument wie bisher, jetzt aus der Ablage).
+
+### Migration `28dde84825c8`
+
+Tabelle `checklist_versions` (Fremdschlüssel benannt). `downgrade()` verweigert, solange eine Fassung existiert. Kein Bestand:
+Unterschriften und Abschlüsse von vor 1.8.66 bekommen keine Fassung.
+
+### Festlegungen 1.8.66 (bitte bestätigen)
+
+1. **Auch der Abschluss und "gegenstandslos" legen eine Fassung ab** -- sonst würde das PDF einer abgeschlossenen Checkliste nach
+   der letzten Unterschrift weiter neu erzeugt (Felder nach der letzten Unterschrift, Prüfsumme des Abschlusses). Download, Versand
+   und Zustellung einer abgeschlossenen Checkliste verwenden diese Fassung.
+2. **Die Fassung ist das PDF des ganzen Stands im Moment der Unterschrift**, auch der Felder darunter (mit dem Hinweis, dass sie
+   offen und nicht versiegelt sind) -- nicht nur der versiegelte Teil.
+3. **Fotos stufenweise verkleinert bis unter 3 MB** (wie Versand-PDF und Briefe), damit jede Fassung per E-Mail hinausgehen kann;
+   die Fassung ersetzt damit den Download in voller Auflösung, die Originale bleiben im ERP.
+4. **Überholt, sobald irgendeine Unterschrift verworfen ist, die die Fassung als gültig zeigt** -- nicht nur die eigene.
+5. **Scheitert das PDF, scheitert die Unterschrift** (bzw. der Abschluss) mit Meldung -- keine Unterschrift ohne Fassung.
+6. **Fassungen sieht nur das Büro**; der Monteur behält den PDF-Knopf seiner abgeschlossenen Checkliste.
+7. **Keine nachträgliche Fassung für Unterschriften von vor 1.8.66** -- ein heute erzeugtes PDF wäre nicht der Stand der
+   Unterschrift.
+8. **Ablage-Art `checkliste`**, keine neue Art; die Nummer nennt die Fassung.
+
+### Verifikation 1.8.66
+
+- `tests/test_v368_feste_fassung.py` (11, einer nur gegen PostgreSQL): je Unterschrift und beim Abschluss eine Fassung (Nummer,
+  Anlass, gezeigte Unterschriften, Prüfsumme, Ablage, Text im PDF); PDF-Knopf byte-gleich aus der Ablage nach geändertem
+  Firmennamen (neu gerendert sähe anders aus); überholt auch über eine andere Unterschrift, neue Unterschrift -> jüngste gültige;
+  Angriffe: PDF scheitert -> keine Unterschrift und keine Datei, beim Abschluss bleibt der Entwurf; Fassung am ORM vorbei ändern
+  bzw. löschen -> `ArchiveImmutableError`; Monteurin: Liste und Ablage 403, PDF-Knopf = Fassung; Datei nach dem Abschluss verändert
+  -> Download 409, Prüfen "weicht ab", Versand und Zustellung verweigert, nichts gesendet, nichts neu abgelegt; Fotos verkleinert,
+  Originale byte-gleich; Migration; PostgreSQL: zwei Unterschriften gleichzeitig -> die zweite wartet, Fassungen 1 und 2, Fassung 2
+  zeigt beide.
+- Angepasst: `test_v324` (Versand und Zustellung einer abgeschlossenen Checkliste verwenden die Fassung, der Download liefert sie;
+  der Altfall ohne Fassung bleibt geprüft), `test_v364_feste_werte_spaltenlaenge` (`checklist_versions.kind`),
+  `test_v358` (die beiden neuen Spalten, die nach Unterschrift klingen, eingeordnet: nur lesende Verweise), `test_v316` (setzte den
+  Abschlusszeitpunkt nachträglich und las den PDF-Knopf -- der liefert jetzt die feste Fassung; die Ortszeit prüft der Renderer
+  selbst).
+- Gegenproben (Marker GEGENPROBE, Dateien byte-genau zurück): 13 von 13 rot -- Unterschrift ohne Fassung, Fassung nach dem
+  SAVEPOINT (wie der erste Entwurf), Abschluss ohne Fassung, PDF-Knopf erzeugt neu, überholt nur bei der eigenen Unterschrift,
+  Fassungen für jede Rolle, Ablage ohne Prüfsumme gelesen, Versand bzw. Zustellung rendern neu, Fassung änderbar, Fotos nicht
+  verkleinert, Downgrade ohne Schutz, Nummer ohne Zeilensperre (PostgreSQL).
+- Migration: SQLite (Kommandozeile hin, zurück, hin, `check`, Downgrade mit Bestand verweigert) und PostgreSQL 17 im
+  Wegwerf-Schema (Bestand aus dem Code von 1.8.65 mit unterschriebenem Protokoll -> head: alte Unterschrift ohne Fassung, Unterschrift
+  des Auftragnehmers -> Fassung 1 mit beiden, Abschluss -> Fassung 2, PDF lesbar; Downgrade verweigert; `current`, `check`; leeres
+  Schema hin/zurück/hin, `check`).
+- PostgreSQL (pytest-Plugin): `test_v368`, `test_v367`, `test_v365`, `test_v324`, `test_v343` -- 88 grün.
+- Volle Suite: 3058 grün, 2 rot (test_v358, test_v316 -- angepasst, beide Dateien danach 40 grün; mit den opt-in-Tests gegen PostgreSQL).
+- Klicktest neu `scripts/klicktest_feste_fassung.py` 10/10 (Karte mit drei Fassungen, überholt mit Grund, PDF, Prüfen, Links in
+  Akzentfarbe -- der erste Lauf zeigte sie in der Linkfarbe des Browsers, korrigiert --, 412 px hell, Monteurin ohne Karte und 403).
+
+### Nebenbefunde 1.8.66 (nur gemeldet)
+
+1. **`GET /api/sent-documents/{id}/file` prüft das Modul nicht**: bei ausgeschaltetem Modul "Checklisten" sind Fassungen über die
+   Ablage weiter abrufbar (Büro) -- wie alle Ablage-Dateien seit 1.8.17.
+2. **Größenmeldung nennt "höchstens 3 MB" fest** (`check_attachment_size()`), auch wenn die Grenze anders gesetzt ist -- nur in Tests
+   sichtbar.
+3. **Unterschrift dauert mit vielen Fotos länger**: das PDF der Fassung entsteht in der Anfrage der Unterschrift (mit 20 Fotos wie
+   das Versand-PDF einige Sekunden, Messung 1.8.20: ein Renderlauf 2,6 s plus Neukodieren je Stufe).

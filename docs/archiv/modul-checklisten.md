@@ -1119,3 +1119,16 @@ Herleitung und Festlegungen: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umse
   Abschluss 409. `check_signature()`/`check_completion()` rechnen mit den Kennungen der eigenen Kopie nur als Versuch nach
   (`_trial_defect_ids()`), eine passende Prüfsumme belegt den Inhalt.
 - Eine Kopie, die samt Prüfsumme unlesbar ist, ergibt "abweichend" statt 500 (`_compare()`, `_photo_bound_by_signature()`).
+
+## Nachtrag 1.8.66 (07.10.2026) -- feste Fassung je Unterschrift und Abschluss
+
+Herleitung und Festlegungen: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.66".
+
+- `app/checklist_versions.py`, Tabelle `checklist_versions`: jede Unterschrift, der Abschluss und "gegenstandslos" legen das PDF des
+  Stands genau dieses Moments in die Ablage (Art `checkliste`, "Nr. … · Fassung N") -- im selben SAVEPOINT bzw. Commit, unter der
+  Zeilensperre; scheitert das PDF, ist nichts gespeichert. Nie neu erzeugt, nie geändert (ORM-Sperre).
+- Überholt, sobald eine Unterschrift verworfen ist, die die Fassung als gültig zeigt (`signature_ids`, `superseded_by()`).
+- PDF-Knopf, Versand und Zustellung einer abgeschlossenen Checkliste verwenden die Fassung des Abschlusses; vor 1.8.66
+  abgeschlossene werden wie bisher neu erzeugt.
+- `build_checklist_pdf(…, stand=…)` auch im Entwurf; `build_checklist_version_pdf()` verkleinert Fotos stufenweise bis unter 3 MB.
+- Karte "Feste Fassungen" und `GET /api/checklists/{id}/versions` nur Büro.

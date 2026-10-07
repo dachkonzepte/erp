@@ -5,6 +5,9 @@ Ablage, Sperre gegen Doppelversand, mehrere Empfänger/CC, Regel 21). Angehängt
 mit verkleinerten Fotos (app/checklist_pdf.py::build_checklist_email_pdf(), höchstens 3.000.000
 Bytes) -- genau das landet in der Ablage. Die Fotos in der Checkliste bleiben unverändert.
 
+Seit 1.8.66 hängt der Versand die feste Fassung des Abschlusses an (app/checklist_versions.py) -- aus der Ablage, nur mit
+stimmender Prüfsumme, nie neu erzeugt; nur vor 1.8.66 abgeschlossene Checklisten bekommen wie bisher das Versand-PDF.
+
 Vorbelegter Empfänger: im Kontext Auftrag die E-Mail des Kunden am Projekt, im Kontext Objekt die des
 Objekt-Kunden, sonst keiner. Betreff/Text aus der E-Mail-Vorlage "checklist" (Einstellungen →
 E-Mail-Vorlagen), sonst der eingebaute Standard. Rollenlos; wer senden darf, entscheidet der Router.
@@ -64,7 +67,9 @@ def send_checklist_email(
     keine eigenen Versandfelder -- der Verlauf steht im Protokoll). Wirft ValueError (400) und
     DispatchConflict (409)."""
     from .checklist_pdf import build_checklist_email_pdf
+    from .checklist_versions import completion_version
     from .document_email_templates import get_email_template
+    from .sent_documents import ArchiveFileError, read_sent_document
     from .email_dispatch import actor_of, dispatch_email, new_dispatch_key
 
     if checklist.status != "abgeschlossen":
@@ -79,11 +84,21 @@ def send_checklist_email(
     subject = apply_placeholders(subject, placeholders)
     body = apply_placeholders(body, placeholders)
 
-    pdf_bytes = build_checklist_email_pdf(db, checklist)
+    version = completion_version(db, checklist)
+    if version is not None:  # seit 1.8.66: die feste Fassung aus der Ablage
+        try:
+            pdf_bytes = read_sent_document(version.sent_document)
+        except ArchiveFileError as exc:
+            raise ValueError(f"Die feste Fassung in der Ablage ist nicht mehr unversehrt: {exc} Es wurde nichts "
+                             "versendet.") from exc
+        archived, number, filename = version.sent_document, version.sent_document.document_number, version.sent_document.filename
+    else:
+        pdf_bytes = build_checklist_email_pdf(db, checklist)
+        archived, number, filename = None, f"Nr. {checklist.id}", f"Checkliste-{checklist.id}.pdf"
     user_id, user_name = actor_of(user)
     return dispatch_email(
         db, dispatch_key=dispatch_key or new_dispatch_key("checkliste"), document_type="checkliste",
-        document_id=checklist.id, document_number=f"Nr. {checklist.id}", to=recipient, cc=cc_email,
-        subject=subject, body_text=body, attachment_bytes=pdf_bytes,
-        attachment_filename=f"Checkliste-{checklist.id}.pdf", user_id=user_id, user_name=user_name,
+        document_id=checklist.id, document_number=number, to=recipient, cc=cc_email,
+        subject=subject, body_text=body, attachment_bytes=pdf_bytes, attachment_filename=filename,
+        archived_document=archived, user_id=user_id, user_name=user_name,
     )

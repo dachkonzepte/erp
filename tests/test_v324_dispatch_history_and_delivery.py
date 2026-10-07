@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 import app.checklists as checklists_module
 from app.berlin_time import berlin_today
@@ -30,6 +30,7 @@ from app.models import (
 from app.routers.checklists import router as checklists_router
 from app.routers.email_dispatches import router as dispatches_router
 from app.routers.invoices import router as invoices_router
+from app.checklist_versions import completion_version
 from app.sent_documents import frozen_version
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
 from tests.test_v213_inspection_items import _extract_pdf_text
@@ -143,16 +144,33 @@ def test_checklist_is_sent_with_the_small_pdf_and_archived(photo_checklist, rout
     assert row.subject == f"Fotodokumentation – Checkliste Nr. {checklist.id}"
     assert "Auftrag AU-2026-0001" in mail["message"].get_payload()[0].get_payload(decode=True).decode("utf-8")
     assert _photo_hashes(checklist) == before
+    # Seit 1.8.66: angehängt ist die feste Fassung des Abschlusses -- keine zweite Datei in der Ablage; der Download liefert
+    # dieselben Bytes (nicht mehr in voller Auflösung neu erzeugt).
+    version = completion_version(db, checklist)
+    assert row.sent_document_id == version.sent_document_id
     download = office.get(f"/api/checklists/{checklist.id}/pdf")
-    assert download.status_code == 200 and len(download.content) > MAX_ATTACHMENT_BYTES  # Download: volle Auflösung
+    assert download.status_code == 200 and download.content == attached
+    assert download.headers["X-DK-Ablage"] == str(version.sent_document_id)
+
+
+def _ohne_fassung(db, checklist) -> None:
+    """Wie eine vor 1.8.66 abgeschlossene Checkliste: ohne feste Fassung (am ORM vorbei entfernt)."""
+    db.execute(text("DELETE FROM checklist_versions WHERE checklist_id = :c"), {"c": checklist.id})
+    db.commit()
 
 
 def test_too_large_even_when_reduced_gives_a_clear_message(photo_checklist, router_test_client, monkeypatch):
+    """Vor 1.8.66 abgeschlossen (ohne feste Fassung): das Versand-PDF wird verkleinert, passt es nicht, die Meldung mit
+    "Zustellung nachtragen". Seit 1.8.66 (mit Fassung): die Größenprüfung des Versands nennt die Fassung."""
     import app.email_sending as email_sending_module
     world, checklist = photo_checklist
     monkeypatch.setattr(email_sending_module, "MAX_ATTACHMENT_BYTES", 40_000)
-    response = _office(world, router_test_client).post(
-        f"/api/checklists/{checklist.id}/send-email", json={"dispatch_key": "checkliste-gross-0001"})
+    office = _office(world, router_test_client)
+    response = office.post(f"/api/checklists/{checklist.id}/send-email", json={"dispatch_key": "checkliste-gross-0001"})
+    assert response.status_code == 400 and "Fassung-" in response.json()["detail"], response.text
+    assert "auf anderem Weg zustellen" in response.json()["detail"]
+    _ohne_fassung(world["db"], checklist)
+    response = office.post(f"/api/checklists/{checklist.id}/send-email", json={"dispatch_key": "checkliste-gross-0002"})
     assert response.status_code == 400 and "Zustellung nachtragen" in response.json()["detail"]
     assert FakeSMTP.sent == [] and _dispatches(world["db"]) == []
 
@@ -289,15 +307,24 @@ def test_manual_entry_is_unchangeable(invoice_world, router_test_client):
 
 
 def test_manual_delivery_of_a_checklist_archives_the_full_pdf(photo_checklist, router_test_client):
+    """Seit 1.8.66 verweist die nachgetragene Zustellung auf die feste Fassung des Abschlusses (keine zweite Datei); vor
+    1.8.66 abgeschlossene (ohne Fassung) legen wie bisher das PDF in voller Auflösung ab."""
     world, checklist = photo_checklist
+    db = world["db"]
     office = _office(world, router_test_client)
     response = _manual(office, "checkliste", checklist.id, key="manuell-checkliste-01", channel="persoenlich",
                        recipient="Herr Nord", note="Ausdruck vor Ort übergeben")
     assert response.status_code == 200, response.text
-    [row] = _dispatches(world["db"])
+    [row] = _dispatches(db)
+    assert row.sent_document_id == completion_version(db, checklist).sent_document_id
+    assert row.subject == f"Persönliche Übergabe – Checkliste Nr. {checklist.id} (Fotodokumentation)"
+    _ohne_fassung(db, checklist)
+    response = _manual(office, "checkliste", checklist.id, key="manuell-checkliste-02", channel="persoenlich",
+                       recipient="Herr Nord", note="Ausdruck vor Ort übergeben")
+    assert response.status_code == 200, response.text
+    row = _dispatches(db)[-1]
     archived = _archive_path(row.sent_document).read_bytes()
     assert len(archived) > MAX_ATTACHMENT_BYTES and b"Die Originale liegen" not in _extract_pdf_text(archived)
-    assert row.subject == f"Persönliche Übergabe – Checkliste Nr. {checklist.id} (Fotodokumentation)"
 
 
 # --- 5. Versandverlauf am Dokument ----------------------------------------------------------

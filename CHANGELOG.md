@@ -4,6 +4,22 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.66 – Checklisten: feste Fassung je Unterschrift
+
+Stufe 2c, Runde 2c-2e, Punkt 1. Jede Unterschrift unter einer Checkliste legt jetzt das PDF des Stands genau dieses Moments als
+feste Fassung mit Prüfsumme in die Ablage – im selben Commit wie die Unterschrift; scheitert das PDF, wird auch die Unterschrift
+nicht gespeichert. Ebenso der Abschluss und „als gegenstandslos abschließen“. Danach wird das PDF nie neu erzeugt: der PDF-Knopf
+einer abgeschlossenen Checkliste, der Versand per E-Mail und die nachgetragene Zustellung verwenden die abgelegte Fassung, eine
+veränderte Datei wird nicht ausgeliefert. Wird eine Unterschrift verworfen, die eine Fassung zeigt, gilt die Fassung als überholt
+und ist nicht mehr versendbar. Das Büro sieht die Fassungen auf der Checklistenseite (Karte „Feste Fassungen“ mit Prüfen), der
+Monteur nicht. Fotos werden in der Fassung wie im Versand-PDF verkleinert, bis sie unter 3 MB liegt; die Originale bleiben.
+
+Eigener Fehler im ersten Entwurf, im Test gefunden: unter SQLite blieb die Unterschrift stehen, wenn das PDF scheiterte (der
+SAVEPOINT der Unterschrift hatte schon committet) – die Fassung entsteht jetzt im selben SAVEPOINT. Migration `28dde84825c8`
+(Tabelle `checklist_versions`, Downgrade mit Bestand verweigert), geprüft unter SQLite und PostgreSQL 17 mit Bestand aus 1.8.65.
+Neue `test_v368` (11), Gegenproben 13 von 13 rot, gegen PostgreSQL 88 grün; Klicktest `klicktest_feste_fassung.py` 10/10. Volle
+Suite: 3058 grün, 2 rot (test_v358, test_v316 -- angepasst, beide Dateien danach 40 grün; mit den opt-in-Tests gegen PostgreSQL). Festlegungen in `docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.66“.
+
 ## 1.8.65 – Abnahmeprotokoll: Mängel im Protokoll eindeutig, Navigationstest mit 404
 
 Stufe 2c, Runde 2c-2e, Vorweg. Die Festlegungen 1.8.62–1.8.64 sind bestätigt, mit zwei Änderungen. Erstens zählt für „bleibt im
