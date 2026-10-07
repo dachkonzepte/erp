@@ -562,17 +562,20 @@ def create_protocol_defect(db: Session, checklist_id: int, data: dict, files: li
 
 def list_protocol_defects(db: Session, checklist) -> list[dict]:
     """Die Mängel eines Protokolls für die Protokollseite (seit 1.8.60): Inhalt, Dateien, Prüfstatus und ob der Mangel in
-    der Kopie der ersten Unterschrift unter dem Feld steht -- vorher verworfene nicht, danach verworfene schon (verworfen
-    gekennzeichnet). Seit 1.8.62 entscheidet das die abgelegte Kopie selbst (sealed_defect_ids()), kein Zeitvergleich."""
-    from .checklists import active_attachments, defect_in_seal, protocol_defects, sealed_defect_ids
+    der Kopie der ersten gültigen Unterschrift unter dem Feld steht -- vorher verworfene nicht, danach verworfene schon
+    (verworfen gekennzeichnet). Seit 1.8.62 entscheidet das die abgelegte Kopie selbst, kein Zeitvergleich; seit 1.8.65 über
+    app/checklists.py::protocol_defect_ids(): ist diese Kopie nicht lesbar oder weicht sie von ihrer Prüfsumme ab, steht bei
+    jedem Mangel in_protocol None und der Grund in seal_problem -- kein Schluss, auch nicht "ohne Mängel"."""
+    from .checklists import SealedCopyError, defect_in_seal, protocol_defect_ids, protocol_defects, protocol_seal
 
     field = _protocol_field(checklist)
     if field is None:
         return []
-    position = {f.id: i for i, f in enumerate(checklist.template_version.fields)}
-    sealing = sorted((a for a in active_attachments(checklist) if a.kind == "unterschrift"
-                      and position.get(a.template_field_id, -1) > position[field.id]), key=lambda a: (a.created_at, a.id))
-    sealed_ids = sealed_defect_ids(sealing[0].sealed_content) if sealing else None
+    sealed = protocol_seal(checklist) is not None
+    try:
+        sealed_ids, seal_problem = protocol_defect_ids(checklist), None
+    except SealedCopyError as exc:
+        sealed_ids, seal_problem = None, str(exc)
     result = []
     for d in protocol_defects(checklist):
         check = verify_defect(d)
@@ -586,7 +589,8 @@ def list_protocol_defects(db: Session, checklist) -> list[dict]:
             "discarded_by_name": d.discarded_by_name, "discard_reason": d.discard_reason,
             # Ohne Unterschrift: steht in der nächsten Kopie, wenn nicht verworfen (defect_in_seal(d, None)) -- ein schon
             # verworfener Mangel kommt in keine Kopie mehr.
-            "sealed": bool(sealing), "in_protocol": defect_in_seal(d, sealed_ids),
+            "sealed": sealed, "in_protocol": None if seal_problem else defect_in_seal(d, sealed_ids),
+            "seal_problem": seal_problem,
         })
     return result
 

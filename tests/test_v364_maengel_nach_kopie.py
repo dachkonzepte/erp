@@ -101,10 +101,16 @@ def test_defect_added_after_the_signature_past_the_orm_shows_at_the_signature(pr
 
 @pytest.mark.parametrize("inhalt, erwartet", [
     (None, None), ('{"fields":[{"field_key":"x","defects":[{"id":3,"sha256":"a"}]},{"field_key":"y","value":1}]}', {3}),
-    ("kein json", set()), ('{"fields":[{"field_key":"x","defects":[{"sha256":"a"}]}]}', set()),
+    ("kein json", checklists_module.SealedCopyError),
+    ('{"fields":[{"field_key":"x","defects":[{"sha256":"a"}]}]}', checklists_module.SealedCopyError),
 ], ids=["ohne_kopie", "kopie", "unlesbar", "ohne_kennung"])
 def test_sealed_defect_ids_reads_the_copy(inhalt, erwartet):
-    assert checklists_module.sealed_defect_ids(inhalt) == erwartet
+    """Seit 1.8.65 gilt eine unlesbare Kopie nicht mehr als leer ("ohne Mängel"), sondern als Fehler."""
+    if erwartet is checklists_module.SealedCopyError:
+        with pytest.raises(checklists_module.SealedCopyError):
+            checklists_module.sealed_defect_ids(inhalt)
+    else:
+        assert checklists_module.sealed_defect_ids(inhalt) == erwartet
 
 
 # ---------------------------------------------------------------------------

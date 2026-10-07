@@ -282,8 +282,11 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
         if summary is not None:  # seit 1.8.64: Abnahmeprotokoll -- die Erklärungen auf einen Blick
             story.append(Spacer(1, 4 * mm))
             story.append(Paragraph("Erklärungen des Auftraggebers – Zusammenfassung", h3))
-            story.append(answer_table([[Paragraph(ptext(r["label"]), body), Paragraph(ptext(r["value"]), body)]
-                                       for r in summary["declarations"]]))
+            for error in summary["errors"]:  # seit 1.8.65: fehlerhafte Kopie -- sichtbar, keine Schlüsse daraus
+                story.append(Paragraph(f"<b>{ptext(error)}</b>", small))
+            if summary["declarations"]:
+                story.append(answer_table([[Paragraph(ptext(r["label"]), body), Paragraph(ptext(r["value"]), body)]
+                                           for r in summary["declarations"]]))
             sig = summary["signature"]
             stand = (f"Stand der Unterschrift des Auftraggebers vom {sig['signed_at_local']:%d.%m.%Y %H:%M} Uhr – "
                      f"{sig['text'] or sig['name']}" if sig else "Noch nicht vom Auftraggeber unterschrieben.")
@@ -334,8 +337,11 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
             elif field.field_type == "maengel" and summary is not None:  # seit 1.8.64: die Mängel im Protokoll
                 flush_rows()
                 story.append(Paragraph(ptext(field.label), h3))
-                drin = [d for d in summary["defects"] if d["in_protocol"]]
-                if not drin:
+                problem = next((d["seal_problem"] for d in summary["defects"] if d.get("seal_problem")), None)
+                if problem:  # seit 1.8.65: nicht feststellbar -- kein "Keine Mängel.", keine Auswahl
+                    story.append(Paragraph(f"<b>{ptext(problem)}</b>", small))
+                drin = [] if problem else [d for d in summary["defects"] if d["in_protocol"]]
+                if not drin and not problem:
                     story.append(Paragraph("Keine Mängel.", small))
                 for d in drin:
                     story.append(KeepTogether(_defect_block(d, body, small) + [Spacer(1, 2 * mm)]))

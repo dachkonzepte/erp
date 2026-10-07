@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.64** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.65** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -734,8 +734,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Abnahme) mit Aufgabe. Die Unterschrift lässt sich nicht verwerfen, solange die Abnahme gilt; eine neue Abnahme nur über eine
   neue Unterschrift. Ausstehende am Auftrag mit Grund und "Abnahme jetzt anlegen"; an einer Abnahme aus dem Protokoll keine
   Mängel von Hand. Seit 1.8.64 Erklärungen und Mängel gebündelt auf der Protokollseite und im PDF (`protocol_summary()`, nach
-  der Unterschrift aus ihrer Kopie; im PDF die Mängel im Protokoll ohne Bilder und ohne Begründungen). Feste Fassung, Ablage und
-  Versand des Protokolls: 2c-2e.
+  der Unterschrift aus ihrer Kopie; im PDF die Mängel im Protokoll ohne Bilder und ohne Begründungen). Seit 1.8.65 zählt für
+  "bleibt im Protokoll" überall die erste gültige Unterschrift unter dem Feld (`protocol_defect_ids()`, auch für jede weitere
+  Kopie und die Abnahme); eine unlesbare oder abweichende Kopie gilt nie als "ohne Mängel" (`SealedCopyError`, sichtbarer Fehler,
+  `logger.error`, keine Unterschrift/kein Abschluss darunter). Feste Fassung, Ablage und Versand des Protokolls: 2c-2e.
   Seit 1.8.50 setzt `{gewaehrleistung}` in Vertragsvorlagen die Dauer ein; ein Vertrag damit wird erst mit festgelegter Dauer
   festgeschrieben, danach sind Leistungsart und Dauer gesperrt (`warranty_contract_lock()`, Sperrreihenfolge Vertrag ->
   Auftrag wie beim Abgleich). Details: `docs/archiv/abnahme-und-gewaehrleistung.md`.
@@ -893,7 +895,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   seit 1.8.60 Feld "Mängel" im Protokoll; seit 1.8.61 Zweck "abnahme" mit Systemfeldern, Startvorlage, Prüfung der
   Unterschrift des Auftraggebers; Teil 2 ab 1.8.62: Mängel im Protokoll nach der Kopie statt nach der Uhr; seit 1.8.63 Abnahme
   aus dem Protokoll als Folge je Unterschrift, Sperre der Unterschrift, Hinweis und Nachholen am Auftrag; seit 1.8.64
-  Erklärungen und Mängel gebündelt auf Protokollseite und im PDF; 2c-2e offen: feste Fassung, Ablage, Versand)
+  Erklärungen und Mängel gebündelt auf Protokollseite und im PDF; Stufe 2c-2e ab 1.8.65: Mängel im Protokoll nach der ersten
+  gültigen Unterschrift überall, kaputte Kopie als Fehler; offen: feste Fassung, Ablage, Versand)
   -- `docs/archiv/abnahme-und-gewaehrleistung.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
@@ -1000,8 +1003,9 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   Namen sehen soll, eine begründete Ausnahme in `ERLAUBT_JE_ROUTE`.
 - **Kein sichtbarer Link auf eine gesperrte Seite** (seit 1.8.24):
   `tests/test_v328_navigation_ohne_sperrseiten.py` rendert je Rolle jede erlaubte Seite und ruft
-  jeden beim Laden sichtbaren Link als dieselbe Rolle auf -- kein 403; `BEKANNT_OFFEN` ist seit
-  1.8.27 leer. Links, die erst das JavaScript baut (Breadcrumb der Berichtsseite), prüft der
+  jeden beim Laden sichtbaren Link als dieselbe Rolle auf -- kein 403, seit 1.8.65 auch kein 404; `BEKANNT_OFFEN` ist seit
+  1.8.27 leer. Seit 1.8.65 prüft derselbe Test jedes Link-Ziel im JavaScript der Vorlagen und jeden "…url"-Wert im Python-Code
+  gegen die Routen (Anlass: `/checklists/` statt `/checklisten/` in 1.8.63). Links, die erst das JavaScript baut (Breadcrumb der Berichtsseite), prüft der
   Klicktest `scripts/klicktest_monteur_navigation.py`; die Seite bekommt dafür vom Server, ob die
   Rolle Büro-Seiten öffnen darf (`darfBueroSeiten`).
 

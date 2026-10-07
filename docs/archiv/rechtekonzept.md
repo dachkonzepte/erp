@@ -1978,3 +1978,11 @@ gar nichts -- unverändert bereits durch `allowed_roles`/den Router-`require_rol
 abgedeckt (`test_field_role_gets_nothing_from_any_source_pure_function`/
 `test_office_search_router_field_role_always_gets_403`), keine neue Prüfung dafür nötig. Volle
 Suite grün (1466/1466).
+
+**Nachtrag (seit 1.8.65): 404 und Link-Ziele im Code.** `tests/test_v328_navigation_ohne_sperrseiten.py` meldet im Durchlauf
+über die sichtbaren Links jetzt auch 404 (Seite gibt es nicht). Neu `test_jeder_link_im_code_fuehrt_auf_eine_vorhandene_route`:
+jedes Link-Ziel in den Vorlagen (`href=`, `location.href=`, `window.location=`, `location.assign/replace(`, `window.open(`, auch
+in JavaScript-Strings) und jeder "…url"-Wert im Python-Code, der mit "/" beginnt, passt zu einer GET-Route der App; Laufzeit-Teile
+passen auf jedes Stück, ein Ziel, das mit einem Ausdruck weitergeht, muss Anfang einer Route sein. Anlass: 1.8.63 baute im
+JavaScript der Auftragsseite und in einer API-Antwort `/checklists/{id}` statt `/checklisten/{id}`
+(`docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.65").

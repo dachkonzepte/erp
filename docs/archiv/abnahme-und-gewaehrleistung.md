@@ -1583,7 +1583,7 @@ Version davor gekommen).
   Büro-Pflichtfeld über der Unterschrift, lehnt das Veröffentlichen wieder ab. Der Editor schreibt statt "Entscheidung offen"
   "der Monteur unterschreibt erst, wenn das Büro diese Felder ausgefüllt hat".
 
-### Festlegungen 1.8.62 (bitte bestätigen)
+### Festlegungen 1.8.62 (bestätigt am 07.10.2026, Vorgabe 2c-2e; Nr. 1 gilt seit 1.8.65 überall, Nr. 2 ersetzt -- siehe "Umsetzung 1.8.65")
 
 1. **Maßgeblich ist die Kopie der ersten gültigen Unterschrift unter dem Feld** (nach Zeitpunkt) für "bleibt im Protokoll" auf
    der Seite; jede Unterschrift und der Abschluss prüfen gegen ihre eigene Kopie. Für die Abnahme aus dem Protokoll (1.8.63)
@@ -1691,7 +1691,7 @@ Version davor gekommen).
   dem Protokoll der Weg zu einer neuen. Checklistenseite, Karte "Folgen": Link auf die Abnahme, "entfallen" zählt nicht als
   offen.
 
-### Festlegungen 1.8.63 (bitte bestätigen)
+### Festlegungen 1.8.63 (bestätigt am 07.10.2026, Vorgabe 2c-2e; Nr. 6: "die Mängel der Kopie" sind seit 1.8.65 die Mängel im Protokoll)
 
 1. **Die Folge gilt je Unterschrift** (`per_signature`, Zeile mit der Unterschrift im Schlüssel); eine offene Zeile einer
    verworfenen Unterschrift wird "entfallen".
@@ -1800,7 +1800,7 @@ Version davor gekommen).
   der Klicktest nur geprüft, dass es den Link gibt. Jetzt `/checklisten/{id}`; `test_v366` prüft jeden dieser Links gegen die
   Seitenrouten (`app/routers/pages.py`).
 
-### Festlegungen 1.8.64 (bitte bestätigen)
+### Festlegungen 1.8.64 (bestätigt am 07.10.2026, Vorgabe 2c-2e)
 
 1. **Nach der Unterschrift zeigen Seite und PDF die Erklärungen aus der Kopie der Unterschrift des Auftraggebers**, vorher die
    aktuellen Angaben (gekennzeichnet).
@@ -1832,3 +1832,118 @@ Version davor gekommen).
 - 2c-2e laut Vorgabe: feste Fassung des Protokolls, Ablage und Versand (mit Festlegung 1.8.64 Nr. 2 zu Bildern der Mängel).
 - Ein nach der Abnahme erkannter Mangel (Rüge) ist weiterhin nicht gebaut -- an einer Abnahme aus dem Protokoll gibt es keinen
   Weg, einen Mangel von Hand zu erfassen (Festlegung 1.8.63 Nr. 5).
+
+---
+
+## Vorgabe 2c-2e (07.10.2026, übernommen wie gegeben)
+
+Stufe 2c-2e: feste Fassung, Ablage und Versand des Abnahmeprotokolls. Festlegungen 1.8.62–64 als bestätigt markieren, mit
+diesen Änderungen:
+- Für „bleibt im Protokoll“ zählt die erste gültige Unterschrift unter dem Feld.
+- Eine unlesbare oder abweichende Kopie gilt nicht als „ohne Mängel“: sichtbarer Fehler, logger.error, keine Schlüsse daraus.
+
+0. Vorweg: Der Navigationstest meldet auch Links auf nicht vorhandene Seiten (404), nicht nur 403. Anlass: /checklists/ statt
+   /checklisten/.
+1. Feste Fassung für alle Checklisten: Jede Unterschrift legt das PDF als feste Fassung mit Prüfsumme in die Ablage; danach wird
+   es nie neu erzeugt. Wird die Unterschrift verworfen, gilt die Fassung als überholt und ist nicht mehr versendbar.
+2. Versand des Protokolls über den Weg der Anzeigen, nichts nachgebaut: An fest der Auftraggeber, Prüfung auf abweichenden
+   Kunden, Kopie an Beteiligte mit „Kopie bei Anzeigen“, „Kopie an:“ im PDF, Versand nur aus der Ablage (jüngste gültige
+   Fassung), Zustellung nachtragen.
+3. Die Abnahme aus dem Protokoll verweist zusätzlich auf die feste Fassung ihrer Unterschrift.
+
+Angriffstests mit Gegenprobe: Versand einer überholten Fassung, Empfänger über die API mitschicken, PDF nach der Unterschrift
+verändern (Prüfsumme), Monteur ruft eine Fassung ab. Test-Mails nur an eigene Adressen. Wichtige Tests auch gegen PostgreSQL.
+Eigene Festlegungen mit „Bitte bestätigen“. Nebenbefunde nur melden. Wird der Umfang zu groß: nach Punkt 1 committen und den Rest
+auflisten. Commit nach Regel 13, Bericht kurz.
+
+Versionen: 1.8.65 Vorweg (die beiden Änderungen und Punkt 0), 1.8.66 Punkt 1, 1.8.67 Punkte 2 und 3.
+
+---
+
+## Umsetzung 1.8.65 (07.10.2026) -- Runde 2c-2e, Vorweg
+
+### Änderung 1: "bleibt im Protokoll" nach der ersten gültigen Unterschrift unter dem Feld -- überall
+
+- Bis 1.8.64 galt das nur für Seite und PDF (`list_protocol_defects()`). Jede weitere Kopie versiegelte nur die nicht verworfenen
+  Mängel, und die Abnahme aus dem Protokoll nahm die Mängel aus der Kopie des Auftraggebers. Unterschrieb der Auftragnehmer vor dem
+  Auftraggeber (eine untere Unterschrift vor einer oberen ist erlaubt, 1.8.56) und wurde dazwischen ein Mangel verworfen, stand er
+  auf Seite und im PDF "im Protokoll", fehlte aber in der Kopie des Auftraggebers und an der Abnahme.
+- Jetzt (`app/checklists.py`): `protocol_seal()` ist die erste gültige Unterschrift unter dem Feld "Mängel" (nach Zeitpunkt, dann
+  Kennung), `protocol_defect_ids()` die Kennungen aus ihrer Kopie. Jede weitere Unterschrift unter dem Feld und der Abschluss
+  versiegeln damit (`_seal_defect_ids()` -> `seal_content(…, sealed_ids=…)`, `completion_content(…, sealed_ids=…)`): ein dort
+  versiegelter, danach verworfener Mangel steht in jeder späteren Kopie -- alle Kopien sagen dasselbe. `defect_in_seal()` bleibt
+  unverändert. `app/acceptance_protocol.py::_attach_defects()` nimmt die Mängel im Protokoll (`protocol_defect_ids()`), nicht mehr
+  die Kopie des Auftraggebers -- für Kopien ab 1.8.65 dieselbe Menge, für ältere fehlte dort ggf. ein vorher verworfener.
+- Vorhandene Siegel rechnen unverändert: jede Unterschrift prüft gegen ihre eigene Kopie (1.8.62).
+
+### Änderung 2: unlesbare oder abweichende Kopie -- Fehler, kein Schluss
+
+- `sealed_defect_ids()` wirft für eine unlesbare Kopie `SealedCopyError` (bis 1.8.64: leere Menge, also "ohne Mängel").
+  `protocol_defect_ids()` wirft sie auch, wenn die Kopie von ihrer Prüfsumme abweicht, und meldet `logger.error` (nur Kennungen).
+- Wer sonst einen Schluss gezogen hätte, zeigt den Fehler:
+  - Mängel im Protokoll (`list_protocol_defects()`, Seite und `GET /api/checklists/{id}/defects`): `in_protocol` null und der
+    Grund in `seal_problem` -- auch bei nicht verworfenen; Stand "nicht feststellbar – Kopie der Unterschrift fehlerhaft".
+  - Zusammenfassung (`protocol_summary()`): `errors`; aus einer fehlerhaften Kopie des Auftraggebers keine Erklärungen (mit
+    `logger.error`), "Mängel im Protokoll: nicht feststellbar", keine Zahl.
+  - PDF: der Fehler fett in der Zusammenfassung und am Feld "Mängel", kein "Keine Mängel.".
+  - Eine weitere Unterschrift unter dem Feld und der Abschluss: 409 mit dem Grund -- es wird nicht versiegelt, bis das Büro die
+    Unterschrift verwirft. Die Abnahme aus dem Protokoll entsteht nicht (Grund am Auftrag).
+- Die Prüfung einer Unterschrift (`check_signature()`, `check_completion()`) rechnet mit den Kennungen ihrer eigenen Kopie nur als
+  Versuch nach (`_trial_defect_ids()`): stimmt das Ergebnis mit der Prüfsumme, ist der Inhalt belegt, gleich woher die Kennungen
+  kamen; sonst "abweichend" -- daraus wird nichts über Mängel geschlossen. Eine unlesbare Kopie geht leer in den Versuch.
+- Gefunden dabei: eine Kopie, die zusammen mit ihrer Prüfsumme am ORM vorbei unlesbar gemacht wird, brachte die Seite der Checkliste
+  mit 500 zum Stehen (`_changed_fields()` und `_photo_bound_by_signature()` lasen sie ungeschützt). Jetzt "abweichend" bzw. "jedes
+  Foto gilt als gebunden".
+
+### Punkt 0: Navigationstest mit 404 und Link-Zielen im Code
+
+- `tests/test_v328_navigation_ohne_sperrseiten.py`: der Durchlauf über die sichtbaren Links meldet auch 404 (Seite gibt es nicht).
+- Der Anlass aus 1.8.63 (`/checklists/{id}` statt `/checklisten/{id}`) stand nicht im Server-Markup, sondern im JavaScript der
+  Auftragsseite und in einer API-Antwort -- der Durchlauf hätte ihn auch mit 404 nicht gesehen. Neu deshalb
+  `test_jeder_link_im_code_fuehrt_auf_eine_vorhandene_route`: jedes Link-Ziel in den Vorlagen (`href=`, `location.href=`,
+  `window.location=`, `location.assign/replace(`, `window.open(`, auch in JavaScript-Strings) und jeder Text bzw. f-String unter einem
+  Schlüssel, Argument oder Attribut "…url" im Python-Code, der mit "/" beginnt, muss zu einer GET-Route der App passen. Laufzeit-Teile
+  (`${…}`, `{{ … }}`, `{…}`) passen auf jedes Stück; ein Ziel, das mit einem Ausdruck weitergeht (`'/orders/'+id`), muss der Anfang
+  einer Route sein. Heute 400+ Ziele, keins ohne Route.
+
+### Festlegungen 1.8.62–1.8.64
+
+Bestätigt am 07.10.2026 (Vorgabe 2c-2e), mit den beiden Änderungen oben: 1.8.62 Nr. 1 gilt seit 1.8.65 überall (auch für die
+Abnahme aus dem Protokoll und jede weitere Kopie), 1.8.62 Nr. 2 ist ersetzt (keine Schlüsse aus einer unlesbaren oder abweichenden
+Kopie).
+
+### Festlegungen 1.8.65 (bitte bestätigen)
+
+1. **Neue Kopien enthalten die Mängel im Protokoll**, auch einen nach der ersten Unterschrift verworfenen -- so sagen alle Kopien
+   dasselbe. (Die Alternative, nur die Abnahme nach der ersten Unterschrift zu richten, ließe die Kopie des Auftraggebers ohne ihn.)
+2. **Eine fehlerhafte Kopie der ersten Unterschrift unter dem Feld sperrt** jede weitere Unterschrift unter dem Feld, den Abschluss
+   und die Abnahme aus dem Protokoll, bis das Büro die Unterschrift verwirft.
+3. **Bei fehlerhafter Kopie haben auch nicht verworfene Mängel keinen Stand** ("nicht feststellbar"), obwohl sie nach den Regeln
+   darin stehen müssten -- kein Schluss aus der Kopie.
+4. **`logger.error` dort, wo sonst ein Schluss gezogen würde** (Mängel im Protokoll, Erklärungen aus der Kopie des Auftraggebers),
+   nicht bei jeder Prüfung einer Unterschrift (die läuft bei jedem Seitenaufruf je Unterschrift; das Siegel zeigt die Abweichung
+   sichtbar wie bisher).
+5. **Der Link-Test prüft das Gerüst eines Ziels**: ein Laufzeit-Teil passt auf jedes Stück -- ein Fehler nur im eingesetzten Wert
+   (z. B. falsche ID) fällt nicht auf, ein falscher fester Teil schon.
+
+### Verifikation 1.8.65
+
+- `tests/test_v367_protokoll_kopie_eindeutig.py` (7): Auftragnehmer unterschreibt zuerst, ein Mangel wird verworfen, dann der
+  Auftraggeber -- der verworfene steht in seiner Kopie, auf der Seite und an der Abnahme (ohne Aufgabe), sein Siegel stimmt; eine
+  Kopie des Auftraggebers wie bis 1.8.64 (ohne den verworfenen) -- die Abnahme bekommt ihn trotzdem; der Abschluss versiegelt ihn;
+  Kopie unlesbar bzw. abweichend (zwei Fälle) -- kein Stand, keine Zahl, keine Erklärungen, Fehler mit `logger.error`, weitere
+  Unterschrift 409, keine Abnahme; PDF nennt den Fehler in der Zusammenfassung und am Feld, kein "Keine Mängel."; Kopie und
+  Prüfsumme unlesbar -- die Seite lädt, die Unterschrift "weicht ab".
+- `tests/test_v328_navigation_ohne_sperrseiten.py`: Durchlauf jetzt mit 404, neu `test_jeder_link_im_code_fuehrt_auf_eine_vorhandene_route`
+  und neun Fälle der Prüfung selbst (u. a. `/checklists/…` vollständig und als Anfang). Angepasst: `test_v364_maengel_nach_kopie`
+  (unlesbare Kopie -> Fehler statt leer).
+- Gegenproben (Marker GEGENPROBE, Dateien byte-genau zurück): 10 von 10 rot -- unlesbare Kopie wieder leer, abweichende Kopie
+  ungeprüft, Versiegeln nur der nicht verworfenen, Abnahme nach der Kopie des Auftraggebers, Liste schließt trotz kaputter Kopie,
+  Zusammenfassung aus abweichender Kopie, PDF ohne Fehlerzeile, Seitenleiste mit Link auf `/checklists` (404), JavaScript-Link und
+  API-Link wie 1.8.63. "PDF ohne Fehlerzeile" blieb zuerst grün: derselbe Satz stand auch in der Zusammenfassung oben -- der Test
+  zählt jetzt beide Stellen.
+- PostgreSQL (pytest-Plugin, Wegwerf-Schemas der lokalen Instanz): `test_v362`, `test_v364_maengel_nach_kopie`, `test_v365`,
+  `test_v366`, `test_v367` -- 75 grün.
+- Volle Suite: 3049 grün (mit den opt-in-Tests gegen PostgreSQL).
+- Klicktests unverändert grün (Karte "Erklärungen und Mängel" und Mängelliste mit geändertem JavaScript):
+  `klicktest_abnahme_aus_protokoll.py` 13/13, `klicktest_protokoll_maengel.py` 16/16.

@@ -837,13 +837,15 @@ async function loadProtocolSummary(){
   try{s=await api(`/api/checklists/${checklistId}/protocol-summary`)}catch(e){card.innerHTML=`<h2>Erklärungen und Mängel</h2><div class="pdef-bad">${esc(e.message)}</div>`;return}
   if(!s){card.remove();return}
   const due=x=>x?` · Frist ${esc(String(x).split('-').reverse().join('.'))}`:'';
-  const defs=s.defects.map(d=>`<div class="psum-def${d.in_protocol?'':' out'}" data-psum-defect="${d.id}">Mangel Nr. ${d.id}${[d.roof_area_name,d.location].filter(Boolean).map(x=>' · '+esc(x)).join('')}: ${esc(d.description)}${due(d.remedy_due_on)}<span class="psum-tag${d.discarded?(d.in_protocol?' warn':' out'):''}">${esc(d.status_label)}</span></div>`).join('');
+  const defs=s.defects.map(d=>`<div class="psum-def${d.in_protocol===false?' out':''}" data-psum-defect="${d.id}">Mangel Nr. ${d.id}${[d.roof_area_name,d.location].filter(Boolean).map(x=>' · '+esc(x)).join('')}: ${esc(d.description)}${due(d.remedy_due_on)}<span class="psum-tag${d.in_protocol===null?' out':(d.discarded?(d.in_protocol?' warn':' out'):'')}">${esc(d.status_label)}</span></div>`).join('');
+  // seit 1.8.65: eine fehlerhafte Kopie sichtbar -- keine Erklärungen und keine Zahl daraus
+  const errs=(s.errors||[]).map(x=>`<div class="pdef-bad" data-psum-error>⚠ ${esc(x)}</div>`).join('');
   let acc='';
   if(s.acceptance)acc=`Abnahme am Auftrag: <a href="${esc(s.acceptance.url)}">vom ${esc(String(s.acceptance.accepted_on).split('-').reverse().join('.'))}</a>${s.acceptance.discarded?' <span class="pdef-bad">(verworfen – eine neue entsteht nur mit einer neuen Unterschrift des Auftraggebers)</span>':''}`;
   else if(s.pending)acc=`<span class="pdef-bad">Die Abnahme am Auftrag ist noch nicht angelegt.</span>${s.problem?` <span class="pdef-bad">${esc(s.problem)}</span>`:''} <button type="button" class="btn secondary" id="psumRun" onclick="runSummaryAcceptance(this)">Abnahme jetzt anlegen</button> <span class="small" id="psumStatus"></span>`;
   else acc='<span class="muted">Die Abnahme am Auftrag entsteht mit der Unterschrift des Auftraggebers.</span>';
   card.innerHTML=`<h2>Erklärungen und Mängel</h2><div class="muted small">${s.signed?`Stand der Unterschrift des Auftraggebers vom ${esc(fmtDateTime(s.signature.signed_at))} – ${esc(s.signature.text||s.signature.name||'')}`:'Noch nicht unterschrieben – aktuelle Angaben.'}</div>
-    <h3>Erklärungen des Auftraggebers</h3>${s.declarations.map(r=>`<div class="psum-row"><span>${esc(r.label)}</span><span style="white-space:pre-wrap">${esc(r.value)}</span></div>`).join('')}
+    ${errs}<h3>Erklärungen des Auftraggebers</h3>${s.declarations.map(r=>`<div class="psum-row"><span>${esc(r.label)}</span><span style="white-space:pre-wrap">${esc(r.value)}</span></div>`).join('')}
     <h3>Mängel</h3>${defs||'<div class="muted small">Kein Mangel erfasst.</div>'}
     <div class="psum-acc" id="psumAcceptance">${acc}</div>`;
 }
@@ -870,7 +872,8 @@ function protocolDefectHtml(f,d){
   if(d.remedy_due_on)lines.push(`<div class="pdef-row">Beseitigungsfrist: ${esc(String(d.remedy_due_on).split('-').reverse().join('.'))}</div>`);
   if(files)lines.push(`<div class="pdef-row">${files}</div>`);
   if(!d.intact)lines.push(`<div class="pdef-row pdef-bad">⚠ ${esc(d.check.text)}</div>`);
-  if(d.discarded)lines.push(`<div class="pdef-row pdef-bad" data-verworfen>Verworfen (${esc(d.discard_reason||'')}) – ${d.in_protocol?'bleibt im Protokoll (erst nach der Unterschrift verworfen)':'nicht im Protokoll'}</div>`);
+  if(d.in_protocol===null&&d.seal_problem)lines.push(`<div class="pdef-row pdef-bad" data-seal-problem>⚠ ${esc(d.seal_problem)}</div>`);  // seit 1.8.65
+  if(d.discarded)lines.push(`<div class="pdef-row pdef-bad" data-verworfen>Verworfen (${esc(d.discard_reason||'')})${d.in_protocol===null?'':' – '+(d.in_protocol?'bleibt im Protokoll (erst nach der Unterschrift verworfen)':'nicht im Protokoll')}</div>`);
   else if(cl.status==='entwurf')lines.push(`<div class="pdef-row"><button type="button" class="btn secondary" onclick="discardProtocolDefect(${f.id},${d.id},this)">Verwerfen …</button> <input id="pdefReason_${d.id}" placeholder="Begründung" maxlength="2000" style="max-width:320px"></div>`);
   return `<div class="pdef${d.discarded?' discarded':''}" data-defect="${d.id}">${lines.join('')}</div>`;
 }

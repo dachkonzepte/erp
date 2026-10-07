@@ -1106,3 +1106,16 @@ Herleitung und Festlegungen: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umse
   Abnahme entstanden ist.
 - Karte "Folgen" auf der Checklistenseite: Link über `target_url` (Aufgabe oder Abnahme am Auftrag); "entfallen" zählt nicht als
   offen.
+
+## Nachtrag 1.8.65 (07.10.2026) -- Mängel im Protokoll eindeutig, kaputte Kopie als Fehler
+
+Herleitung und Festlegungen: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.65".
+
+- Ob ein verworfener Mangel im Protokoll steht, entscheidet überall die Kopie der ersten gültigen Unterschrift unter dem Feld
+  "Mängel" (`protocol_seal()`, `protocol_defect_ids()`); jede weitere Unterschrift unter dem Feld und der Abschluss versiegeln diese
+  Mängel mit (`_seal_defect_ids()`), so sagen alle Kopien dasselbe.
+- `SealedCopyError`: eine unlesbare Kopie (`sealed_defect_ids()`) bzw. eine unlesbare oder von ihrer Prüfsumme abweichende
+  maßgebliche Kopie (`protocol_defect_ids()`, mit `logger.error`) -- kein Schluss daraus; weitere Unterschrift unter dem Feld und
+  Abschluss 409. `check_signature()`/`check_completion()` rechnen mit den Kennungen der eigenen Kopie nur als Versuch nach
+  (`_trial_defect_ids()`), eine passende Prüfsumme belegt den Inhalt.
+- Eine Kopie, die samt Prüfsumme unlesbar ist, ergibt "abweichend" statt 500 (`_compare()`, `_photo_bound_by_signature()`).

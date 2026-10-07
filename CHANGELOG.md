@@ -4,6 +4,24 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.65 – Abnahmeprotokoll: Mängel im Protokoll eindeutig, Navigationstest mit 404
+
+Stufe 2c, Runde 2c-2e, Vorweg. Die Festlegungen 1.8.62–1.8.64 sind bestätigt, mit zwei Änderungen. Erstens zählt für „bleibt im
+Protokoll“ überall die erste gültige Unterschrift unter dem Feld „Mängel“ – nicht nur auf der Protokollseite und im PDF, sondern
+auch in jeder weiteren Kopie und bei der Abnahme aus dem Protokoll. Bisher konnte ein Mangel, der zwischen der Unterschrift des
+Auftragnehmers und der des Auftraggebers verworfen wurde, „im Protokoll“ stehen und trotzdem in der Kopie des Auftraggebers und an
+der Abnahme fehlen. Jetzt versiegeln spätere Unterschriften und der Abschluss die Mängel im Protokoll mit, und die Abnahme nimmt
+genau diese. Zweitens gilt eine unlesbare oder von ihrer Prüfsumme abweichende Kopie nicht mehr als „ohne Mängel“: Seite, API und
+PDF zeigen den Fehler statt eines Stands, eine weitere Unterschrift, der Abschluss und die Abnahme aus dem Protokoll werden
+abgelehnt, bis das Büro die Unterschrift verwirft; dazu `logger.error` mit Kennungen.
+
+Der Navigationstest meldet jetzt auch Links auf nicht vorhandene Seiten (404). Weil der Anlass – `/checklists/` statt
+`/checklisten/` aus 1.8.63 – im JavaScript und in einer API-Antwort stand, prüft ein neuer Test zusätzlich jedes Link-Ziel in den
+Vorlagen und jeden „…url“-Wert im Python-Code gegen die Routen der App. Nebenbei gefunden: eine Kopie, die zusammen mit ihrer
+Prüfsumme am ORM vorbei unlesbar gemacht wird, ließ die Seite der Checkliste mit 500 scheitern – jetzt „weicht ab“.
+Neue `test_v367` (7), `test_v328` erweitert, Gegenproben 10 von 10 rot, gegen PostgreSQL 75 grün. Volle Suite: 3049 grün (mit den opt-in-Tests gegen PostgreSQL).
+Herleitung und Festlegungen in `docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.65“.
+
 ## 1.8.64 – Abnahmeprotokoll: Erklärungen und Mängel auf der Seite und im PDF
 
 Stufe 2c, Runde 2c-2d Teil 2, Punkt 4. Die Protokollseite zeigt fürs Büro oben die Karte „Erklärungen und Mängel“: Ergebnis,

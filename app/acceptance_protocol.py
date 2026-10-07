@@ -34,6 +34,7 @@ werden kann (protocol_acceptance_problem(), prüft ohne zu schreiben).
 Rollenlos."""
 
 import json
+import logging
 
 from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
@@ -45,10 +46,13 @@ from .checklist_purposes import (
     ACCEPTANCE_CUSTOMER_SIGNATURE, ACCEPTANCE_DEFECTS, ACCEPTANCE_OBJECTIONS, ACCEPTANCE_PENALTY, ACCEPTANCE_PURPOSE,
     ACCEPTANCE_RESULT, ACCEPTANCE_ROOF_AREAS, ACCEPTANCE_SCOPE, ACCEPTANCE_SCOPE_TEXT,
 )
-from .checklists import _answer_value, protocol_defects, roof_area_answer_problem
+from .checklists import (
+    SealedCopyError, _answer_value, _copy_intact, protocol_defect_ids, protocol_defects, roof_area_answer_problem,
+)
 from .models import Checklist, ChecklistTemplateVersion, Defect, Order, OrderAcceptance
 
 CUSTOMER_SIGNER_KINDS = ("auftraggeber", "beteiligter")
+logger = logging.getLogger(__name__)
 _YES_NO = {"ja": True, "nein": False}
 
 
@@ -150,6 +154,10 @@ def protocol_acceptance_input(db: Session, checklist, signature) -> tuple[dict, 
     if signature.signer_kind not in CUSTOMER_SIGNER_KINDS:
         raise ValueError("Die Unterschrift des Auftraggebers stammt nicht vom Auftraggeber laut Auftrag oder einem "
                          "Beteiligten – keine Abnahme.")
+    try:  # seit 1.8.65: welche Mängel im Protokoll stehen, sagt die erste gültige Unterschrift unter dem Feld
+        protocol_defect_ids(checklist)
+    except SealedCopyError as exc:
+        raise ValueError(f"{exc} Aus dem Protokoll entsteht so keine Abnahme.") from exc
     poa = None
     if signature.signer_poa_sha256:
         try:
@@ -238,16 +246,18 @@ def acceptance_from_protocol(db: Session, checklist_id: int, *, signature_id: in
 
 def _attach_defects(db: Session, checklist, signature, acceptance: OrderAcceptance, order: Order, *,
                     user_id: int | None, user_name: str | None) -> None:
-    """Jeder Mangel in der Kopie der Unterschrift bekommt die Abnahme -- auch ein danach verworfener (er steht im Protokoll),
-    ein vorher verworfener nicht. Bedingtes UPDATE an der ORM-Sperre vorbei, nur von leer oder von einer verworfenen Abnahme
-    aus (neue Unterschrift nach verworfener Abnahme -- dann mit Eintrag in der Änderungshistorie). Ein nicht verworfener
+    """Jeder Mangel im Protokoll bekommt die Abnahme -- auch ein danach verworfener (er steht im Protokoll), ein vorher
+    verworfener nicht. Seit 1.8.65 entscheidet das wie überall die Kopie der ersten gültigen Unterschrift unter dem Feld
+    (protocol_defect_ids(), Festlegung 1.8.62 Nr. 1 in der Fassung vom 07.10.2026), nicht mehr die Kopie der Unterschrift des
+    Auftraggebers -- seit 1.8.65 enthält sie dieselben Mängel, bei älteren Kopien konnte ein vor ihr verworfener fehlen.
+    Bedingtes UPDATE an der ORM-Sperre vorbei, nur von leer oder von einer verworfenen Abnahme aus (neue Unterschrift nach
+    verworfener Abnahme -- dann mit Eintrag in der Änderungshistorie). Ein nicht verworfener
     Mangel ohne Aufgabe bekommt sie jetzt (wie beim Erfassen an der Abnahme: im Büro-Eingang, fällig zur Frist). Der
     gebundene Inhalt des Mangels ändert sich nicht (Festlegung 1.8.60 Nr. 4)."""
     from .audit import record_audit_entry
-    from .checklists import sealed_defect_ids
     from .defects import ENTITY_TYPE, _new_task, defect_label
 
-    ids = sealed_defect_ids(signature.sealed_content) or set()
+    ids = protocol_defect_ids(checklist) or set()  # SealedCopyError hat protocol_acceptance_input() schon abgewiesen
     discarded = select(OrderAcceptance.id).where(OrderAcceptance.discarded_at.is_not(None)).scalar_subquery()
     for defect in protocol_defects(checklist):
         if defect.id not in ids or defect.acceptance_id == acceptance.id:
@@ -295,7 +305,9 @@ _YES_NO_TEXT = {"ja": "ja", "nein": "nein"}
 
 def defect_status_label(d: dict, signed: bool) -> str:
     """Stand eines Mangels im Protokoll (Eintrag aus list_protocol_defects()): ob er in der Kopie der Unterschrift steht,
-    entscheidet die Kopie (seit 1.8.62)."""
+    entscheidet die Kopie (seit 1.8.62). Seit 1.8.65 "nicht feststellbar", wenn diese Kopie nicht lesbar ist oder abweicht."""
+    if d.get("in_protocol") is None and d.get("seal_problem"):
+        return "nicht feststellbar – Kopie der Unterschrift fehlerhaft"
     if not d["discarded"]:
         return "im Protokoll" if signed else "erfasst"
     return "nach der Unterschrift verworfen – bleibt im Protokoll" if d["in_protocol"] else "verworfen – nicht im Protokoll"
@@ -305,7 +317,11 @@ def protocol_summary(db: Session, checklist) -> dict | None:
     """Erklärungen des Auftraggebers und Mängel des Abnahmeprotokolls auf einen Blick (seit 1.8.64, Punkt 4) -- für die
     Protokollseite und das PDF. Nach der Unterschrift des Auftraggebers aus ihrer versiegelten Kopie (was er unterschrieben
     hat), vorher aus den aktuellen Antworten. Mängel aus list_protocol_defects() mit ihrem Stand. Dazu, für die Seite, die
-    Abnahme am Auftrag oder warum sie aussteht. None, wenn die Checkliste kein Abnahmeprotokoll ist. Liest nur."""
+    Abnahme am Auftrag oder warum sie aussteht. None, wenn die Checkliste kein Abnahmeprotokoll ist. Liest nur.
+
+    Seit 1.8.65: ist die Kopie der Unterschrift des Auftraggebers nicht lesbar oder weicht sie von ihrer Prüfsumme ab, stehen
+    keine Erklärungen aus ihr da, sondern der Fehler (errors, logger.error); ebenso, wenn sich nicht feststellen lässt, welche
+    Mängel im Protokoll stehen -- dann keine Zahl, kein "ohne Mängel"."""
     from .checklists import signer_text
     from .defects import list_protocol_defects
 
@@ -313,7 +329,21 @@ def protocol_summary(db: Session, checklist) -> dict | None:
         return None
     fields = {f.field_key: f for f in checklist.template_version.fields}
     signature = customer_signature(checklist)
-    values = sealed_values(signature) if signature is not None and signature.sealed_content else protocol_values(checklist)
+    errors: list[str] = []
+    values = protocol_values(checklist)
+    if signature is not None and signature.sealed_content:
+        try:
+            if not _copy_intact(signature):
+                raise ValueError("abweichend")
+            values = sealed_values(signature)
+        except (ValueError, TypeError, KeyError, AttributeError) as exc:
+            values = None
+            logger.error("Checkliste %s: Kopie der Unterschrift des Auftraggebers %s %s -- keine Erklärungen daraus",
+                         checklist.id, signature.id, "abweichend" if str(exc) == "abweichend" else "unlesbar")
+            errors.append("Die Kopie der Unterschrift des Auftraggebers "
+                          + ("weicht von ihrer Prüfsumme ab" if str(exc) == "abweichend" else "ist nicht lesbar")
+                          + " – was er unterschrieben hat, lässt sich daraus nicht zeigen. Das Büro kann die Unterschrift "
+                            "mit Begründung verwerfen und neu unterschreiben lassen.")
 
     def label(key: str, fallback: str) -> str:
         return fields[key].label if key in fields else fallback
@@ -322,27 +352,33 @@ def protocol_summary(db: Session, checklist) -> dict | None:
         field = fields.get(key)
         return {o.option_key: o.label for o in field.options}.get(value, value) if field is not None else value
 
-    scope, result = values.get(ACCEPTANCE_SCOPE), values.get(ACCEPTANCE_RESULT)
-    scope_text = (values.get(ACCEPTANCE_SCOPE_TEXT) or "").strip() or None
-    roof_names = [r["name"] for r in values.get(ACCEPTANCE_ROOF_AREAS) or []]
     defects = list_protocol_defects(db, checklist)
     signed = signature is not None
     for d in defects:
         d["status_label"] = defect_status_label(d, signed)
-    in_protocol = [d for d in defects if d["in_protocol"]]
-    declarations = [(label(ACCEPTANCE_RESULT, "Ergebnis"), option(ACCEPTANCE_RESULT, result) or "–"),
-                    (label(ACCEPTANCE_SCOPE, "Umfang"),
-                     (option(ACCEPTANCE_SCOPE, scope) or "–") + (f": {scope_text}" if scope_text else "")),
-                    (label(ACCEPTANCE_ROOF_AREAS, "Dachflächen"), ", ".join(roof_names) or "keine angegeben")]
-    if result != "verweigert":
-        declarations += [(label(ACCEPTANCE_DEFECTS, "Vorbehalt wegen bekannter Mängel"),
-                          _YES_NO_TEXT.get(values.get(ACCEPTANCE_DEFECTS), "–")),
-                         (label(ACCEPTANCE_PENALTY, "Vorbehalt der Vertragsstrafe"),
-                          _YES_NO_TEXT.get(values.get(ACCEPTANCE_PENALTY), "–"))]
-    declarations.append(("Mängel im Protokoll", str(len(in_protocol))))
-    objections = (values.get(ACCEPTANCE_OBJECTIONS) or "").strip() or None
-    if objections:
-        declarations.append((label(ACCEPTANCE_OBJECTIONS, "Einwendungen des Auftragnehmers"), objections))
+    seal_problem = next((d["seal_problem"] for d in defects if d.get("seal_problem")), None)
+    if seal_problem:
+        errors.append(seal_problem)
+    in_protocol = None if seal_problem else [d for d in defects if d["in_protocol"]]
+    result = scope = None
+    declarations = []
+    if values is not None:
+        scope, result = values.get(ACCEPTANCE_SCOPE), values.get(ACCEPTANCE_RESULT)
+        scope_text = (values.get(ACCEPTANCE_SCOPE_TEXT) or "").strip() or None
+        roof_names = [r["name"] for r in values.get(ACCEPTANCE_ROOF_AREAS) or []]
+        declarations = [(label(ACCEPTANCE_RESULT, "Ergebnis"), option(ACCEPTANCE_RESULT, result) or "–"),
+                        (label(ACCEPTANCE_SCOPE, "Umfang"),
+                         (option(ACCEPTANCE_SCOPE, scope) or "–") + (f": {scope_text}" if scope_text else "")),
+                        (label(ACCEPTANCE_ROOF_AREAS, "Dachflächen"), ", ".join(roof_names) or "keine angegeben")]
+        if result != "verweigert":
+            declarations += [(label(ACCEPTANCE_DEFECTS, "Vorbehalt wegen bekannter Mängel"),
+                              _YES_NO_TEXT.get(values.get(ACCEPTANCE_DEFECTS), "–")),
+                             (label(ACCEPTANCE_PENALTY, "Vorbehalt der Vertragsstrafe"),
+                              _YES_NO_TEXT.get(values.get(ACCEPTANCE_PENALTY), "–"))]
+        declarations.append(("Mängel im Protokoll", "nicht feststellbar" if in_protocol is None else str(len(in_protocol))))
+        objections = (values.get(ACCEPTANCE_OBJECTIONS) or "").strip() or None
+        if objections:
+            declarations.append((label(ACCEPTANCE_OBJECTIONS, "Einwendungen des Auftragnehmers"), objections))
 
     acceptance, problem = None, None
     if signed:
@@ -359,9 +395,10 @@ def protocol_summary(db: Session, checklist) -> dict | None:
             "function": signature.signer_function, "text": signer_text(signature, ACCEPTANCE_PURPOSE),
             "signed_at": signature.created_at, "signed_at_local": to_berlin(signature.created_at)},
         "result": result, "scope": scope, "declarations": [{"label": k, "value": v} for k, v in declarations],
-        "defects": defects, "defects_in_protocol": len(in_protocol),
-        "defects_left_out": sum(1 for d in defects if not d["in_protocol"]),
+        "defects": defects, "defects_in_protocol": None if in_protocol is None else len(in_protocol),
+        "defects_left_out": None if in_protocol is None else sum(1 for d in defects if not d["in_protocol"]),
         "acceptance": acceptance, "pending": signed and acceptance is None, "problem": problem,
+        "errors": errors,  # seit 1.8.65: sichtbar auf Seite und im PDF
     }
 
 
