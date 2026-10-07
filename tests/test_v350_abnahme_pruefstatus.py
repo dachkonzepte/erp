@@ -52,14 +52,15 @@ def _verwerfen(buero, acceptance_id, grund="Falsches Datum erfasst"):
 # Fassung des Prüfsummenformats
 # ---------------------------------------------------------------------------
 
-def test_new_entry_is_format_3_with_the_format_in_its_content(welt, buero):
-    """Seit 1.8.63 Fassung 3 (Verweis aufs Abnahmeprotokoll, Person, Funktion -- leer bei einer von Hand erfassten); Fassung 2
-    rechnet weiter in ihrem Format (test_v365)."""
+def test_new_entry_is_format_4_with_the_format_in_its_content(welt, buero):
+    """Seit 1.8.63 Fassung 3 (Verweis aufs Abnahmeprotokoll, Person, Funktion -- leer bei einer von Hand erfassten), seit
+    1.8.67 Fassung 4 (dazu die feste Fassung der Unterschrift); Fassung 2 und 3 rechnen weiter in ihrem Format (test_v365,
+    test_v369)."""
     a = _erfassen(buero, welt["order_id"]).json()
     row = welt["db"].get(OrderAcceptance, a["id"])
-    assert row.checksum_format == acceptances_module.CHECKSUM_FORMAT == 3 and a["checksum_format"] == 3
+    assert row.checksum_format == acceptances_module.CHECKSUM_FORMAT == 4 and a["checksum_format"] == 4
     content = acceptances_module.acceptance_content(row)
-    assert content["checksum_format"] == 3 and content["created_by_name"] == "Buero_auftrag"  # "Erfasst von" gebunden
+    assert content["checksum_format"] == 4 and content["created_by_name"] == "Buero_auftrag"  # "Erfasst von" gebunden
     assert a["intact"] is True and a["check"] == {"ok": True, "text": "Prüfsumme stimmt"}
 
 

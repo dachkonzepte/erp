@@ -85,8 +85,9 @@ ENTITY_TYPE = "Abnahme"  # Änderungshistorie (app/audit.py)
 
 # Fassung des Prüfsummenformats (seit 1.8.48, OrderAcceptance.checksum_format): 1 = bis 1.8.47 (Inhalt ohne Fassung,
 # Verwerfen nicht versiegelt), 2 = Fassung im Inhalt, Verwerfen versiegelt (discard_sha256 Pflicht), 3 = seit 1.8.63 dazu
-# Verweis aufs Abnahmeprotokoll, Person und Funktion (auch leer im Inhalt).
-CHECKSUM_FORMAT = 3
+# Verweis aufs Abnahmeprotokoll, Person und Funktion (auch leer im Inhalt), 4 = seit 1.8.67 im Verweis dazu die feste Fassung
+# der Unterschrift und die Prüfsumme ihres PDFs (auch leer).
+CHECKSUM_FORMAT = 4
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,8 @@ class ProtocolSource:
     function: str | None = None
     poa: tuple[bytes, str] | None = None
     roof_area_names: dict[int, str] = field(default_factory=dict)
+    version_id: int | None = None  # seit 1.8.67: die feste Fassung der Unterschrift (app/checklist_versions.py)
+    pdf_sha256: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -292,10 +295,16 @@ def acceptance_content(a: OrderAcceptance) -> dict:
 
 
 def protocol_reference(a: OrderAcceptance) -> dict | None:
-    """Der Nachweis "Abnahmeprotokoll" (seit 1.8.63): Checkliste, Unterschrift des Auftraggebers, Prüfsumme ihrer Kopie."""
-    if a.checklist_id is None and a.checklist_attachment_id is None and a.protocol_seal_sha256 is None:
+    """Der Nachweis "Abnahmeprotokoll" (seit 1.8.63): Checkliste, Unterschrift des Auftraggebers, Prüfsumme ihrer Kopie --
+    seit 1.8.67 (Fassung 4) dazu die feste Fassung der Unterschrift und die Prüfsumme ihres PDFs, auch leer. Bei Fassung 3 nur,
+    wenn gesetzt: so rechnen sie unverändert, und ein am ORM vorbei gesetzter Verweis ändert ihren Inhalt trotzdem."""
+    if (a.checklist_id is None and a.checklist_attachment_id is None and a.protocol_seal_sha256 is None
+            and a.protocol_version_id is None and a.protocol_pdf_sha256 is None):
         return None
-    return {"checklist_id": a.checklist_id, "signature_id": a.checklist_attachment_id, "seal_sha256": a.protocol_seal_sha256}
+    ref = {"checklist_id": a.checklist_id, "signature_id": a.checklist_attachment_id, "seal_sha256": a.protocol_seal_sha256}
+    if (a.checksum_format or 1) >= 4 or a.protocol_version_id is not None or a.protocol_pdf_sha256 is not None:
+        ref.update(version_id=a.protocol_version_id, pdf_sha256=a.protocol_pdf_sha256)
+    return ref
 
 
 def _verify_protocol(a: OrderAcceptance) -> str | None:
@@ -312,7 +321,27 @@ def _verify_protocol(a: OrderAcceptance) -> str | None:
     ok = (signature is not None and signature.kind == "unterschrift" and signature.checklist_id == a.checklist_id
           and bool(signature.content_sha256) and signature.content_sha256 == a.protocol_seal_sha256
           and a.kind == "foermlich")
+    if ok and ((a.checksum_format or 1) >= 4 or a.protocol_version_id is not None):
+        # seit 1.8.67: die Fassung gehört zu dieser Unterschrift, ihr PDF trägt die festgehaltene Prüfsumme. Ob die Datei
+        # selbst noch dazu passt, prüft die Ablage bei jedem Abruf (die Datei wird hier nicht gelesen).
+        from .models import ChecklistVersion
+
+        version = db.get(ChecklistVersion, a.protocol_version_id) if a.protocol_version_id is not None else None
+        ok = (version is not None and version.checklist_id == a.checklist_id and version.signature_id == signature.id
+              and bool(a.protocol_pdf_sha256) and version.sent_document.sha256 == a.protocol_pdf_sha256)
     return "unveraendert" if ok else "abweichend"
+
+
+def _protocol_version_info(a: OrderAcceptance) -> dict:
+    """Für die Auftragsseite (seit 1.8.67): Nummer der festen Fassung und ihr PDF in der Ablage."""
+    if a.protocol_version_id is None:
+        return {"version_no": None, "pdf_document_id": None}
+    from .models import ChecklistVersion
+
+    db = object_session(a)
+    version = db.get(ChecklistVersion, a.protocol_version_id) if db is not None else None
+    return {"version_no": version.version_no if version else None,
+            "pdf_document_id": version.sent_document_id if version else None}
 
 
 def content_sha256(content: dict) -> str:
@@ -547,6 +576,8 @@ def create_acceptance(
             checklist_id=protocol.checklist_id if protocol is not None else None,
             checklist_attachment_id=protocol.signature_id if protocol is not None else None,
             protocol_seal_sha256=protocol.seal_sha256 if protocol is not None else None,
+            protocol_version_id=protocol.version_id if protocol is not None else None,
+            protocol_pdf_sha256=protocol.pdf_sha256 if protocol is not None else None,
             declared_by_person=p["person"], declared_by_function=p["function"],
         )
         for area in p["roof_areas"]:
@@ -697,7 +728,7 @@ def acceptance_to_dict(a: OrderAcceptance, order: Order) -> dict:
         "from_protocol": a.checklist_attachment_id is not None,
         "protocol": None if protocol_reference(a) is None else {
             **protocol_reference(a), "check": check["protocol"], "check_text": PROTOCOL_TEXTS.get(check["protocol"]),
-            "url": f"/checklisten/{a.checklist_id}" if a.checklist_id else None},
+            "url": f"/checklisten/{a.checklist_id}" if a.checklist_id else None, **_protocol_version_info(a)},
         "declared_by_person": a.declared_by_person, "declared_by_function": a.declared_by_function,
         "created_at": a.created_at, "created_at_local": to_berlin(a.created_at), "created_by_name": a.created_by_name,
         "discarded": a.discarded_at is not None, "discarded_at": a.discarded_at,

@@ -39,7 +39,9 @@ TASK_MAIL_SENDERS = {"tasks.py::notify_task_assignment"}
 TASK_FIELDS_ALLOWED = {"id", "source_module", "assigned_employee"}
 # dispatch_email() mit einer Variablen als Versandart -- begründet: kann nie "aufgabe" sein.
 VARIABLE_TYPE_ALLOWED = {
-    "notice_letters.py::send_notice_letter",  # kind aus LETTER_KINDS (letter_kind() lehnt alles andere ab)
+    # seit 1.8.67 gemeinsam für Briefe und Abnahmeprotokoll: document_type ist die Briefart aus LETTER_KINDS
+    # (send_notice_letter(), letter_kind() lehnt alles andere ab) bzw. fest "checkliste" (app/protocol_dispatch.py)
+    "notice_letters.py::dispatch_to_client",
 }
 
 MARK = "MARKE7f3a"

@@ -2050,3 +2050,115 @@ Unterschriften und Abschlüsse von vor 1.8.66 bekommen keine Fassung.
    sichtbar.
 3. **Unterschrift dauert mit vielen Fotos länger**: das PDF der Fassung entsteht in der Anfrage der Unterschrift (mit 20 Fotos wie
    das Versand-PDF einige Sekunden, Messung 1.8.20: ein Renderlauf 2,6 s plus Neukodieren je Stufe).
+
+---
+
+## Umsetzung 1.8.67 (07.10.2026) -- Runde 2c-2e, Punkte 2 und 3: Versand des Protokolls, Verweis der Abnahme auf die Fassung
+
+### Punkt 2: Versand über den Weg der Anzeigen (`app/protocol_dispatch.py`)
+
+- Nichts nachgebaut: `app/notice_letters.py` gibt den Versand an den Auftraggeber als gemeinsame Funktionen her, die Briefe der
+  Anzeigen nutzen sie selbst -- `client_recipients()` (An = Kunde des Projekts, Vorbelegung CC aus "Kopie bei Anzeigen" ohne
+  archivierte und ohne die Adresse des Auftraggebers, Kopien, Empfangsbevollmächtigte, abweichender Kunde), `client_address()`
+  (Prüfung auf abweichenden Kunden mit `CustomerMismatch`, E-Mail Pflicht), `dispatch_to_client()` (Vorlage, Anhang = abgelegtes PDF
+  mit `archived_document`, vor dem Senden die Vollmacht empfangsbevollmächtigter Empfänger, nach einem Versand mit bestätigter
+  Abweichung der Eintrag in der Historie) und `delivery_status()` (versendet = beim Auftraggeber angekommen, wie 1.8.41).
+  `notice_state()` und `send_notice_letter()` sind darauf umgestellt; ihre Tests (`test_v343`, `test_v344`, `test_v347`) laufen
+  unverändert.
+- Versendet wird nur aus der Ablage: die jüngste gültige feste Fassung, die die gültige Unterschrift des Auftraggebers zeigt
+  (`protocol_version()`), nur mit stimmender Prüfsumme (sonst 409, nichts gesendet). Ohne Unterschrift des Auftraggebers "wartet";
+  gibt es zu ihr keine gültige Fassung (Unterschrift vor 1.8.66, oder alle Fassungen mit ihr überholt), 409 mit dem Weg. Vor dem
+  Senden prüft ein Haken (`dispatch_email(before_send=…)`) unter der Zeilensperre der Checkliste noch einmal, ob die Fassung die
+  jüngste gültige ist -- sonst fehlgeschlagen, nichts gesendet. `dispatch_email()` reicht dafür den Text eines `ValueError` aus
+  dem Haken weiter (bisher immer "Die Nachweise zum Versand …").
+- Dokumentart in Versandprotokoll und Ablage bleibt `checkliste` (Dokument-ID = Checkliste, Nummer "Nr. … · Fassung N"). Der
+  allgemeine Versand einer abgeschlossenen Checkliste mit freiem Empfänger (`POST /api/checklists/{id}/send-email`) lehnt das
+  Abnahmeprotokoll ab (400); die Seite zeigt dort keine Karte "Versand".
+- "Kopie an:" im PDF: beim Erstellen jeder Fassung eines Abnahmeprotokolls eingefroren (`checklist_versions.copy_to`, dieselbe Liste
+  wie in den Briefen, `copy_recipients()`), im PDF nach den Feldern ("Kopie an: Name (Rolle); …"); ein neu gerendertes PDF (vor 1.8.66
+  abgeschlossen) nimmt die Liste von heute.
+- Zustellung nachtragen (`app/dispatch_documents.py`, Art `checkliste`): beim Abnahmeprotokoll dieselbe Fassung wie beim Versand, auch
+  an einem Entwurf; Empfängerauswahl und Vollmacht wie seit 1.8.41.
+- E-Mail-Vorlage `abnahmeprotokoll` (Einstellungen → E-Mail-Vorlagen, Platzhalter wie die Anzeigen: `{anrede}`, `{auftragsnummer}`,
+  `{kundenname}`, `{bauvorhaben}`, `{checklistennummer}`).
+- Oberfläche (`checklist.html`, nur Büro, Zweck "abnahme"): Karte "Protokoll an den Auftraggeber" -- Stand (wartet / bereit /
+  versendet / unzustellbar), die Fassung mit Prüfsumme und PDF, "Kopie an (im Protokoll)", Warnung und Bestätigung bei
+  abweichendem Kunden, "An (immer der Auftraggeber)" fest, CC vorbelegt, Hinweise (ohne E-Mail, empfangsbevollmächtigt), Senden,
+  Versandverlauf mit "Zustellung nachtragen", "Empfang bestätigt"/"Unzustellbar". Die Hilfen der Anzeigen-Karte nehmen dafür den
+  Zustand als Parameter (`noticeParticipantHints(state)`).
+- Routen (`app/routers/notice_letters.py`, ab `buero_auftrag`, Modul `checklisten`): `GET /api/checklists/{id}/protocol-dispatch`,
+  `POST /api/checklists/{id}/protocol-dispatch/send-email` (`ProtocolSend`: CC, Schlüssel, Bestätigung -- kein Feld für An).
+
+### Punkt 3: die Abnahme verweist auf die feste Fassung ihrer Unterschrift
+
+- Neue Spalten `order_acceptances.protocol_version_id` (Fremdschlüssel auf `checklist_versions`) und `protocol_pdf_sha256`.
+  Prüfsummenformat 4 (`CHECKSUM_FORMAT`): der Verweis im gebundenen Inhalt trägt dazu Fassung und Prüfsumme ihres PDFs, auch leer
+  (von Hand erfasst). Format 3 rechnet unverändert; ein am ORM vorbei gesetzter Verweis ändert seinen Inhalt trotzdem.
+- Beim Anlegen (`protocol_acceptance_input()` -> `_signature_version()`): die Fassung zur Unterschrift des Auftraggebers ist Pflicht
+  und ihre Datei muss zur Prüfsumme passen -- sonst keine Abnahme, der Hinweis am Auftrag nennt den Grund.
+- `verify_acceptance()`: die Fassung gehört zur Checkliste und zur Unterschrift, die Prüfsumme ihres PDFs ist die festgehaltene --
+  sonst "Verweis auf das Abnahmeprotokoll weicht ab". Die Datei selbst liest die Prüfung nicht (sie läuft bei jeder Anzeige eines
+  Gewährleistungsendes); das tut die Ablage bei jedem Abruf.
+- Auftragsseite: am Nachweis "Fassung N (PDF)" mit Prüfsumme, der Link öffnet die Fassung aus der Ablage.
+
+### Migration `7c1e5a9d3f20`
+
+`checklist_versions.copy_to`, `order_acceptances.protocol_version_id` (benannter Fremdschlüssel) und `protocol_pdf_sha256`.
+`downgrade()` verweigert, solange eine Abnahme auf eine Fassung verweist oder eine Fassung "Kopie an:" trägt.
+
+### Festlegungen 1.8.67 (bitte bestätigen)
+
+1. **Dokumentart `checkliste`** für Versand und Ablage des Protokolls -- keine neue Art; Versandverlauf und Versandprotokoll zeigen
+   "Nr. … · Fassung N".
+2. **Versendbar ab der Unterschrift des Auftraggebers**, auch vor dem Abschluss; versendet wird die jüngste gültige Fassung, die sie
+   zeigt (nach der Unterschrift des Auftragnehmers dessen Fassung, nach dem Abschluss die des Abschlusses).
+3. **Kein Versand mit freiem Empfänger** für das Abnahmeprotokoll (400); CC bleibt frei wie bei den Anzeigen.
+4. **"Kopie an:" je Fassung eingefroren**; ein danach hinzugekommener Beteiligter steht in der Vorbelegung von CC, nicht im PDF einer
+   älteren Fassung -- wie bei den Briefen.
+5. **Restfenster beim Verwerfen**: die letzte Prüfung vor dem Senden gibt die Zeilensperre vor dem Aufruf von SMTP bzw. Graph wieder
+   frei; ein Verwerfen genau zwischen beidem bleibt möglich. Eine Sperre über den Versand hinweg hielte Unterschreiben und Verwerfen
+   bis zu den Zeitgrenzen des Versands an.
+6. **Zustellung nachtragen ohne erneute Prüfung des abweichenden Kunden** (wie bei einem schon erstellten Brief); der Empfänger wird
+   dort ausgewählt.
+7. **Ohne feste Fassung keine Abnahme aus dem Protokoll** -- eine ausstehende Abnahme zu einer Unterschrift von vor 1.8.66 entsteht
+   nicht mehr; der Weg ist eine neue Unterschrift.
+8. **Fassungen aus 1.8.66 ohne "Kopie an:"** (Spalte leer, PDF ohne die Zeile) -- 1.8.66 ist noch nicht eingespielt, die Fassungen
+   gibt es nur lokal.
+
+### Verifikation 1.8.67
+
+- `tests/test_v369_protokoll_versand.py` (19, einer nur gegen PostgreSQL): wartet ohne Unterschrift des Auftraggebers (Versand 409,
+  Zustellung 400); Versand an den Auftraggeber mit CC aus der Vorbelegung, Anhang = Fassung aus der Ablage (keine zweite Datei),
+  Vollmacht der Hausverwaltung festgehalten, "Kopie an:" im PDF, danach "versendet"; Vorlage mit Platzhaltern; abweichender Kunde
+  nur mit Bestätigung, Eintrag in der Historie; Zustellung nachtragen mit Empfängerauswahl und Vollmacht; Abnahme mit Verweis auf die
+  Fassung (Format 4), auf der Auftragsseite mit Nummer und PDF; Format 3 ohne Verweis bleibt gültig; Migration. Angriffe: An-Adresse
+  über die API (drei Schreibweisen) nicht beachtet; allgemeiner Versand mit freiem Empfänger 400; überholte Fassung nie gesendet
+  (stattdessen Fassung 1), keine gültige Fassung -> 409 und Zustellung 400 bis zur neuen Unterschrift; Verwerfen zwischen Prüfung und
+  Versand -> fehlgeschlagen, nichts gesendet; PDF verändert -> Versand 409, Zustellung 400; Monteur 403; Verweis bzw. Prüfsumme am ORM
+  vorbei geändert -> "weicht ab"; veränderte Fassung -> keine Abnahme; PostgreSQL: der Versand wartet auf ein laufendes Verwerfen und
+  sendet nichts.
+- Angepasst: `test_v365` und `test_v350` (neue Abnahmen im Format 4 mit Verweis auf die Fassung), `test_v355` (die begründete
+  Stelle mit variabler Versandart ist von `send_notice_letter()` nach `dispatch_to_client()` gewandert: Briefart aus
+  `LETTER_KINDS` bzw. fest `checkliste`, nie `aufgabe`).
+- Gegenproben (Marker GEGENPROBE, Dateien byte-genau zurück; das Werkzeug ändert seit dieser Runde auch mehrere Dateien je Probe): 16
+  von 16 rot -- allgemeiner Versand offen, zusätzliche Adresse aus der Anfrage, überholte Fassung wählbar, keine Prüfung vor dem
+  Senden, Prüfung ohne Zeilensperre (PostgreSQL), PDF ohne Prüfsumme gelesen, abweichender Kunde ungeprüft, Zustellung ohne die
+  Fassung, "Kopie an:" fehlt im PDF, Vollmacht nicht festgehalten, Monteur darf den Stand lesen, Abnahme ohne Verweis, Verweis
+  ungeprüft, Abnahme trotz veränderter Fassung, Format 3 mit Verweis gerechnet, Downgrade ohne Schutz.
+- Migration: SQLite (Kommandozeile hin, `check` ohne Unterschied zum handgeschriebenen Skript, zurück, hin) und PostgreSQL 17 im
+  Wegwerf-Schema (Bestand aus dem Code von 1.8.66 mit Protokoll, Abnahme Format 3 und zwei Fassungen -> head: alte Abnahme "Prüfsumme
+  stimmt", altes Protokoll versendbar, neues Protokoll -> Abnahme Format 4 mit Verweis auf Fassung 1 und "Kopie an:"; Downgrade
+  verweigert; `current`, `check`; leeres Schema hin/zurück/hin, `check`).
+- PostgreSQL (pytest-Plugin): `test_v369`, `test_v368`, `test_v365`, `test_v343`, `test_v344`, `test_v347`, `test_v350` -- 124 grün, 1 rot (test_v350::test_migration_keeps_existing_entries_in_format_1_and_refuses_to_lose_format_2 -- gegen PostgreSQL seit 1.8.63 bekannt rot, rohes SQL mit erfundenen Fremdschlüsseln, kein Befund).
+- Volle Suite: 3078 grün, 1 rot (test_v355 -- angepasst, die Datei danach 18 grün; mit den opt-in-Tests gegen PostgreSQL).
+- Klicktest neu `scripts/klicktest_protokoll_versand.py` 14/14 (Karte bereit mit Fassung 2, "Kopie an", An fest, CC vorbelegt, Hinweis
+  ohne E-Mail, keine Karte "Versand"; Senden an einen SMTP-Empfänger im Skript: Umschlag Auftraggeber + Kopie, Anhang = Fassung 2 per
+  SHA-256, "versendet", Versandverlauf; nach verworfener Unterschrift Fassung 1; Auftragsseite "Fassung 1 (PDF)"; 412 px hell).
+  Unverändert grün: `klicktest_feste_fassung.py` 10/10, `klicktest_behinderungsanzeige_versand.py` 41/41,
+  `klicktest_bedenkenanzeige_versand.py` 20/20.
+
+### Offen nach 2c-2e
+
+- Ein nach der Abnahme erkannter Mangel (Rüge) ist weiterhin nicht gebaut (Festlegung 1.8.63 Nr. 5).
+- Bilder der Mängel im Protokoll-PDF (Festlegung 1.8.64 Nr. 2): die feste Fassung enthält weiter nur Zahl und Prüfsumme der Fotos und
+  Belege -- nicht entschieden, ob sie hineingehören (Speicherbudget, 3-MB-Grenze des Versands).

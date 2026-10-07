@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.66** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.67** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -592,7 +592,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     unterschriebene Abschrift (Fassung + Blatt bzw. Scan), die Versand und Zustellung danach hinausgeben; seit 1.8.40 ebenso die
     Briefe zur Behinderungsanzeige (seit 1.8.44 auch zur Bedenkenanzeige) ab dem Erstellen (`app/notice_letters.py`), dazu je Versand die Vollmacht eines
     empfangsbevollmächtigten Empfängers (`dispatch_email(before_send=…)`); seit 1.8.66 jede Checkliste ab jeder Unterschrift und
-    dem Abschluss (feste Fassung, `app/checklist_versions.py`, überholt nach verworfener Unterschrift).
+    dem Abschluss (feste Fassung, `app/checklist_versions.py`, überholt nach verworfener Unterschrift); seit 1.8.67 geht das
+    Abnahmeprotokoll über den Weg der Briefe (`app/protocol_dispatch.py`, gemeinsame Funktionen `client_recipients()`,
+    `client_address()`, `dispatch_to_client()` in `app/notice_letters.py`) -- nur die jüngste gültige Fassung.
     Eine Zustellung auf anderem Weg (Einschreiben, Übergabe, Bote, Fax) wird seit 1.8.20 im selben
     Protokoll nachgetragen (`record_manual_delivery()`, seit 1.8.41 mit Empfängerauswahl aus Auftraggeber und
     Beteiligten, Vollmacht eingefroren); seit 1.8.41 je gesendetem Eintrag einmal "Empfang bestätigt" oder
@@ -738,7 +740,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   der Unterschrift aus ihrer Kopie; im PDF die Mängel im Protokoll ohne Bilder und ohne Begründungen). Seit 1.8.65 zählt für
   "bleibt im Protokoll" überall die erste gültige Unterschrift unter dem Feld (`protocol_defect_ids()`, auch für jede weitere
   Kopie und die Abnahme); eine unlesbare oder abweichende Kopie gilt nie als "ohne Mängel" (`SealedCopyError`, sichtbarer Fehler,
-  `logger.error`, keine Unterschrift/kein Abschluss darunter). Feste Fassung, Ablage und Versand des Protokolls: 2c-2e.
+  `logger.error`, keine Unterschrift/kein Abschluss darunter). Seit 1.8.66 feste Fassung je Unterschrift (`app/checklist_versions.py`),
+  seit 1.8.67 Versand an den Auftraggeber über den Weg der Anzeigen (`app/protocol_dispatch.py`: An fest, CC "Kopie bei Anzeigen",
+  "Kopie an:" im PDF, nur die jüngste gültige Fassung, Prüfung vor dem Senden unter der Zeilensperre) und die Abnahme verweist auf
+  die Fassung ihrer Unterschrift (Prüfsummenformat 4).
   Seit 1.8.50 setzt `{gewaehrleistung}` in Vertragsvorlagen die Dauer ein; ein Vertrag damit wird erst mit festgelegter Dauer
   festgeschrieben, danach sind Leistungsart und Dauer gesperrt (`warranty_contract_lock()`, Sperrreihenfolge Vertrag ->
   Auftrag wie beim Abgleich). Details: `docs/archiv/abnahme-und-gewaehrleistung.md`.
@@ -898,7 +903,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Unterschrift des Auftraggebers; Teil 2 ab 1.8.62: Mängel im Protokoll nach der Kopie statt nach der Uhr; seit 1.8.63 Abnahme
   aus dem Protokoll als Folge je Unterschrift, Sperre der Unterschrift, Hinweis und Nachholen am Auftrag; seit 1.8.64
   Erklärungen und Mängel gebündelt auf Protokollseite und im PDF; Stufe 2c-2e ab 1.8.65: Mängel im Protokoll nach der ersten
-  gültigen Unterschrift überall, kaputte Kopie als Fehler; seit 1.8.66 feste Fassung je Unterschrift; offen: Versand)
+  gültigen Unterschrift überall, kaputte Kopie als Fehler; seit 1.8.66 feste Fassung je Unterschrift; seit 1.8.67 Versand des
+  Protokolls an den Auftraggeber, Abnahme mit Verweis auf die Fassung (Format 4))
   -- `docs/archiv/abnahme-und-gewaehrleistung.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
@@ -1296,7 +1302,9 @@ Person und Auftragnehmer-Konto unterschrieben, Editor "vom Zweck vorgegeben", Mo
 mit Nachweis Protokoll und Person, ausstehende Abnahmen mit Grund und "Abnahme jetzt anlegen", Verwerfen der Unterschrift 409;
 die Protokolle ohne Folge legt `befuellen()` mit abgeschalteter Folge an; seit 1.8.64 Karte "Erklärungen und Mängel" und das PDF
 des abgeschlossenen Protokolls, dessen Seiten als PNG im Ordner der Screenshots landen) und `klicktest_feste_fassung.py` (1.8.66,
-Karte "Feste Fassungen" mit überholter Fassung, PDF und Prüfen, 412 px, Monteurin ohne Karte und 403). Ein
+Karte "Feste Fassungen" mit überholter Fassung, PDF und Prüfen, 412 px, Monteurin ohne Karte und 403) und
+`klicktest_protokoll_versand.py` (1.8.67, Karte "Protokoll an den Auftraggeber", Versand an einen SMTP-Empfänger im Skript mit
+Anhang = Fassung, nach verworfener Unterschrift Fassung 1, Abnahme mit "Fassung 1 (PDF)", 412 px). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

@@ -19,8 +19,9 @@ from ..models import AppUser
 from ..modules import is_module_enabled
 from ..notice_letters import NoticeStateError, ensure_letter, notice_state, preview_pdf, send_notice_letter
 from ..notice_reservations import list_reservations, update_reservation
+from ..protocol_dispatch import protocol_dispatch_state, send_protocol
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_min_role
-from ..schemas import NoticeLetterFreeze, NoticeLetterSend, NoticeReservationOut, NoticeReservationUpdate
+from ..schemas import NoticeLetterFreeze, NoticeLetterSend, NoticeReservationOut, NoticeReservationUpdate, ProtocolSend
 
 router = APIRouter()
 
@@ -46,6 +47,25 @@ def _call(fn, *args, **kwargs):
 
 def _actor(user: AppUser) -> tuple[int | None, str]:
     return getattr(user, "id", None), (getattr(user, "display_name", None) or getattr(user, "username", None) or "System")
+
+
+@router.get("/api/checklists/{checklist_id}/protocol-dispatch")
+def get_protocol_dispatch(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
+    """Abnahmeprotokoll an den Auftraggeber (seit 1.8.67): Empfänger wie bei den Anzeigen, die Fassung, die hinausgeht, und der
+    Stand."""
+    _require_module(db)
+    return _call(protocol_dispatch_state, db, checklist_id)
+
+
+@router.post("/api/checklists/{checklist_id}/protocol-dispatch/send-email")
+def post_protocol_send(checklist_id: int, payload: ProtocolSend, db: Session = Depends(get_db),
+                       _role: AppUser = _office_dep):
+    """Versendet die jüngste gültige feste Fassung an den Auftraggeber (seit 1.8.67) -- An ist immer der Auftraggeber, eine
+    mitgeschickte An-Adresse wird nicht beachtet (ProtocolSend hat kein Feld dafür)."""
+    _require_module(db)
+    result = _call(send_protocol, db, checklist_id, cc_email=payload.cc_email, dispatch_key=payload.dispatch_key, user=_role,
+                   confirm_customer=payload.confirm_customer)
+    return dispatch_to_dict(result.dispatch)
 
 
 @router.get("/api/checklists/{checklist_id}/notice-letters")

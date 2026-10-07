@@ -18,6 +18,9 @@ und das Verwerfen eines Mangels im Protokoll (app/defects.py), die Zahl der Män
 Seit 1.8.63 ruft die Prüfung zum Schluss dieselbe Prüffunktion wie das Erfassen von Hand (app/acceptances.py::
 check_acceptance()) -- so lehnt sie auch ab, was dort zusätzlich gilt (z. B. Länge der Texte).
 
+Seit 1.8.67 (Stufe 2c-2e, Punkt 3) verweist die Abnahme aus dem Protokoll zusätzlich auf die feste Fassung der Unterschrift des
+Auftraggebers (app/checklist_versions.py) samt Prüfsumme ihres PDFs -- ohne Fassung oder mit veränderter Datei keine Abnahme.
+
 Seit 1.8.63 (Stufe 2c-2d Teil 2, Punkt 3) die Folge "Abnahme am Auftrag anlegen" nach der Unterschrift des Auftraggebers
 (acceptance_from_protocol(), Folge mit per_signature in app/checklist_purposes.py): je Unterschrift höchstens eine Abnahme
 (UNIQUE an order_acceptances.checklist_attachment_id), angelegt über app/acceptances.py::create_acceptance() mit dem Nachweis
@@ -158,6 +161,7 @@ def protocol_acceptance_input(db: Session, checklist, signature) -> tuple[dict, 
         protocol_defect_ids(checklist)
     except SealedCopyError as exc:
         raise ValueError(f"{exc} Aus dem Protokoll entsteht so keine Abnahme.") from exc
+    version_id, pdf_sha256 = _signature_version(db, signature)  # seit 1.8.67: die feste Fassung der Unterschrift
     poa = None
     if signature.signer_poa_sha256:
         try:
@@ -170,10 +174,29 @@ def protocol_acceptance_input(db: Session, checklist, signature) -> tuple[dict, 
     source = ProtocolSource(checklist_id=checklist.id, signature_id=signature.id, seal_sha256=signature.content_sha256,
                             declared_name=signature.signer_name or "", declared_role=signature.signer_role,
                             person=signature.signer_person, function=signature.signer_function, poa=poa,
-                            roof_area_names={r["id"]: r["name"] for r in roof})
+                            roof_area_names={r["id"]: r["name"] for r in roof}, version_id=version_id,
+                            pdf_sha256=pdf_sha256)
     data = acceptance_data(values, accepted_on=to_berlin(signature.created_at).date(),
                            declared_by=signature.signer_kind, participant_id=signature.signer_participant_id)
     return data, source
+
+
+def _signature_version(db: Session, signature) -> tuple[int, str]:
+    """(Fassung, Prüfsumme ihres PDFs) der Unterschrift des Auftraggebers (seit 1.8.67, Punkt 3) -- die Abnahme verweist
+    zusätzlich auf sie. ValueError ohne Fassung (Unterschrift vor 1.8.66) oder mit veränderter Datei in der Ablage."""
+    from .models import ChecklistVersion
+    from .sent_documents import ArchiveFileError, read_sent_document
+
+    version = db.scalar(select(ChecklistVersion).where(ChecklistVersion.signature_id == signature.id))
+    if version is None:
+        raise ValueError("Zur Unterschrift des Auftraggebers gibt es keine feste Fassung (vor 1.8.66 geleistet) – aus ihr "
+                         "entsteht keine Abnahme. Bitte die Unterschrift mit Begründung verwerfen und neu leisten lassen.")
+    try:
+        read_sent_document(version.sent_document)
+    except ArchiveFileError as exc:
+        raise ValueError(f"Die feste Fassung der Unterschrift des Auftraggebers in der Ablage ist nicht mehr unversehrt: "
+                         f"{exc} Aus ihr entsteht keine Abnahme.") from exc
+    return version.id, version.sent_document.sha256
 
 
 def acceptance_for_signature(db: Session, signature_id: int) -> OrderAcceptance | None:

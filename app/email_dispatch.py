@@ -252,7 +252,8 @@ def dispatch_email(
 
     before_send (seit 1.8.40): läuft nach dem Ablegen des PDFs und vor dem Senden, mit dem Eintrag
     (Empfänger schon geprüft und entdoppelt) -- für weitere Nachweise in der Ablage. Er committet
-    nicht; scheitert er, wird nichts gesendet. Eine Wiederholung desselben Schlüssels ruft ihn nicht."""
+    nicht; scheitert er, wird nichts gesendet. Eine Wiederholung desselben Schlüssels ruft ihn nicht. Seit 1.8.67 auch für
+    eine letzte Prüfung (Abnahmeprotokoll: Fassung noch gültig) -- ein ValueError von ihm geht mit seinem Text weiter."""
     if document_type not in DISPATCH_TYPES:
         raise ValueError(f"Unbekannte Versandart: {document_type}")
     key = (dispatch_key or "").strip()
@@ -332,6 +333,8 @@ def dispatch_email(
         except Exception as e:
             db.rollback()
             _finish(db, dispatch_id, "fehlgeschlagen", e)
+            if isinstance(e, ValueError):  # seit 1.8.67: eine Prüfung vor dem Senden sagt selbst, warum (Fassung überholt)
+                raise ValueError(str(e)) from e
             raise ValueError("Die Nachweise zum Versand konnten nicht in der Ablage gespeichert werden -- "
                              "es wurde nichts versendet.") from e
 

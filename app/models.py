@@ -1126,6 +1126,9 @@ class OrderAcceptance(Base):
     versiegelt das Verwerfen (Zeitpunkt, Name als Kopie, Begründung, Prüfsumme des Inhalts) -- auch bei Einträgen der
     Fassung 1, die nach 1.8.48 verworfen werden; vorher Verworfene bleiben ohne.
 
+    Seit 1.8.67 (checksum_format 4) zusätzlich protocol_version_id/protocol_pdf_sha256: die feste Fassung (PDF in der Ablage)
+    der Unterschrift des Auftraggebers, im gebundenen Inhalt.
+
     Seit 1.8.63 (checksum_format 3) auch aus einem Abnahmeprotokoll (app/acceptance_protocol.py): checklist_id,
     checklist_attachment_id (die Unterschrift des Auftraggebers -- UNIQUE, höchstens eine Abnahme je Unterschrift) und
     protocol_seal_sha256 (Prüfsumme ihrer Kopie) sind der Nachweis statt eines Belegs; declared_by_person/-function die Person,
@@ -1169,6 +1172,10 @@ class OrderAcceptance(Base):
     protocol_seal_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     declared_by_person: Mapped[str | None] = mapped_column(String(160), nullable=True)
     declared_by_function: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # seit 1.8.67 (checksum_format 4): die feste Fassung der Unterschrift des Auftraggebers und die Prüfsumme ihres PDFs
+    protocol_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("checklist_versions.id", name="fk_order_acceptances_protocol_version_id"), nullable=True)
+    protocol_pdf_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     roof_areas: Mapped[list["OrderAcceptanceRoofArea"]] = relationship(
         back_populates="acceptance", order_by="OrderAcceptanceRoofArea.id"
@@ -5419,6 +5426,8 @@ class ChecklistVersion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
     created_by_name: Mapped[str] = mapped_column(String(160), server_default="System")
+    # seit 1.8.67: Abnahmeprotokoll -- "Kopie an:" im PDF dieser Fassung (Beteiligte mit "Kopie bei Anzeigen", JSON)
+    copy_to: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     sent_document: Mapped["SentDocument"] = relationship()
 

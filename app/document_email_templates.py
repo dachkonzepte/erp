@@ -13,7 +13,8 @@ from .models import DocumentEmailTemplate
 
 # checklist seit 1.8.20, contract seit 1.8.33, behinderungsanzeige/wiederaufnahme seit 1.8.40 (app/notice_letters.py)
 DOCUMENT_TYPES = {"quote", "order", "invoice", "checklist", "contract", "behinderungsanzeige", "wiederaufnahme",
-                  "bedenkenanzeige"}  # bedenkenanzeige seit 1.8.44
+                  "bedenkenanzeige",  # bedenkenanzeige seit 1.8.44
+                  "abnahmeprotokoll"}  # seit 1.8.67 (app/protocol_dispatch.py)
 
 
 def _validate_document_type(document_type: str) -> None:

@@ -15,6 +15,8 @@ gehört und welches PDF in die Ablage kommt:
   solange sie zum Auftrag passt (dieselbe Bedingung wie beim E-Mail-Versand,
   app/contract_versions.py::deliverable_version()). Nach der Unterschrift (seit 1.8.35) die unterschriebene
   Abschrift (deliverable_document(); bei einer Unterschrift von vor 1.8.35 hier einmal nachgeholt).
+- Abnahmeprotokoll (seit 1.8.67, Art "checkliste"): die jüngste gültige Fassung mit der Unterschrift des Auftraggebers
+  (app/protocol_dispatch.py), auch an einem Entwurf -- wie beim Versand.
 - Behinderungsanzeige, Anzeige der Wiederaufnahme (seit 1.8.40, Dokument-ID = Checkliste): die Fassung des
   Briefs zur aktuellen Unterschrift des Abschnitts, beim ersten Mal erstellt (app/notice_letters.py) -- nie
   neu gerendert; nach der Behinderungsanzeige ist die Aufgabe "versenden" erledigt (after_delivery).
@@ -96,6 +98,10 @@ def _reminder(db: Session, reminder: Reminder) -> DispatchDocument:
 def _checklist(db: Session, checklist: Checklist) -> DispatchDocument:
     from .checklist_pdf import build_checklist_pdf
 
+    if checklist.template_version.purpose == "abnahme" and checklist.order_id is not None:
+        # seit 1.8.67: das Abnahmeprotokoll -- die jüngste gültige Fassung mit der Unterschrift des Auftraggebers
+        from .protocol_dispatch import protocol_dispatch_document
+        return protocol_dispatch_document(db, checklist)
     if checklist.status != "abgeschlossen":
         raise ValueError("Nur abgeschlossene Checklisten werden zugestellt.")
     from .checklist_versions import completion_version

@@ -4,6 +4,21 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.67 – Abnahmeprotokoll: Versand an den Auftraggeber, Abnahme mit Verweis auf die feste Fassung
+
+Stufe 2c, Runde 2c-2e, Punkte 2 und 3. Das Abnahmeprotokoll geht jetzt über den Weg der Anzeigen an den Auftraggeber: An ist fest
+der Auftraggeber (die API nimmt keine An-Adresse), CC vorbelegt mit den Beteiligten „Kopie bei Anzeigen“, ein abweichender Kunde
+braucht eine Bestätigung, die Vollmacht eines empfangsbevollmächtigten Empfängers wird beim Versand festgehalten, und im PDF steht
+„Kopie an:“. Versendet wird nur die jüngste gültige feste Fassung aus der Ablage, die die Unterschrift des Auftraggebers zeigt – nie
+neu erzeugt, nie eine überholte; vor dem Senden prüft der Versand das unter der Zeilensperre noch einmal. Zustellung nachtragen
+verwendet dieselbe Fassung. Dafür stellt das Modul der Anzeigen seine Versandfunktionen gemeinsam bereit, die Briefe nutzen sie
+selbst; nichts ist doppelt gebaut. Die Abnahme aus dem Protokoll verweist zusätzlich auf die feste Fassung der Unterschrift des
+Auftraggebers und die Prüfsumme ihres PDFs (Prüfsummenformat 4).
+
+Migration `7c1e5a9d3f20` (drei Spalten, Downgrade mit Bestand verweigert), geprüft unter SQLite und PostgreSQL 17 mit Bestand aus
+1.8.66. Neue `test_v369` (19), Gegenproben 16 von 16 rot, gegen PostgreSQL 124 grün, 1 rot (test_v350::test_migration_keeps_existing_entries_in_format_1_and_refuses_to_lose_format_2 -- gegen PostgreSQL seit 1.8.63 bekannt rot, rohes SQL mit erfundenen Fremdschlüsseln, kein Befund); Klicktest `klicktest_protokoll_versand.py` 14/14.
+Volle Suite: 3078 grün, 1 rot (test_v355 -- angepasst, die Datei danach 18 grün; mit den opt-in-Tests gegen PostgreSQL). Festlegungen in `docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.67“.
+
 ## 1.8.66 – Checklisten: feste Fassung je Unterschrift
 
 Stufe 2c, Runde 2c-2e, Punkt 1. Jede Unterschrift unter einer Checkliste legt jetzt das PDF des Stands genau dieses Moments als

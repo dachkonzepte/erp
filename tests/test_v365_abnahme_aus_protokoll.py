@@ -35,7 +35,7 @@ from app.checklist_follow_ups import list_follow_ups, run_checklist_follow_ups
 from app.database import Base
 from app.defects import PROTOCOL_PENDING_TEXT, create_protocol_defect
 from app.models import (
-    AuditLog, ChecklistAttachment, ChecklistFollowUp, Defect, Order, OrderAcceptance, RoofArea, Task,
+    AuditLog, ChecklistAttachment, ChecklistFollowUp, ChecklistVersion, Defect, Order, OrderAcceptance, RoofArea, Task,
 )
 from app.routers import acceptances as acceptances_router
 from app.routers import defects as defects_router
@@ -137,13 +137,16 @@ def test_customer_signature_creates_the_acceptance_from_the_sealed_copy(protokol
         "Attika ist kein Mangel, sondern Restarbeit")
     assert (a.declared_by, a.declared_by_name, a.declared_by_person, a.declared_by_function, a.participant_id) == (
         "auftraggeber", order.customer_name, "Herbert Halle", "Geschäftsführer", None)
-    assert (a.checklist_id, a.checklist_attachment_id, a.protocol_seal_sha256, a.checksum_format) == (
-        p["c"]["id"], sig.id, sig.content_sha256, 3)
+    # seit 1.8.67 (Fassung 4) dazu die feste Fassung der Unterschrift und die Prüfsumme ihres PDFs
+    version = db.scalar(select(ChecklistVersion).where(ChecklistVersion.signature_id == sig.id))
+    assert (a.checklist_id, a.checklist_attachment_id, a.protocol_seal_sha256, a.checksum_format, a.protocol_version_id,
+            a.protocol_pdf_sha256) == (p["c"]["id"], sig.id, sig.content_sha256, 4, version.id, version.sent_document.sha256)
     assert [(x.roof_area_id, x.roof_area_name) for x in a.roof_areas] == [(nord, "Nord")]
     assert a.files == [] and a.conduct_reason is None and a.created_by_name == "Olga Office"
     content = acceptances_module.acceptance_content(a)
-    assert content["protocol"] == {"checklist_id": p["c"]["id"], "signature_id": sig.id, "seal_sha256": sig.content_sha256}
-    assert (content["declared_by_person"], content["checksum_format"]) == ("Herbert Halle", 3)
+    assert content["protocol"] == {"checklist_id": p["c"]["id"], "signature_id": sig.id, "seal_sha256": sig.content_sha256,
+                                   "version_id": version.id, "pdf_sha256": version.sent_document.sha256}
+    assert (content["declared_by_person"], content["checksum_format"]) == ("Herbert Halle", 4)
     eintrag = _liste(p)[a.id]
     assert eintrag["intact"] and eintrag["from_protocol"] and eintrag["protocol"]["check"] == "unveraendert"
     assert eintrag["protocol"]["url"] == f"/checklisten/{p['c']['id']}"  # die Seite (1.8.63 fälschlich /checklists/…)
@@ -466,7 +469,8 @@ def test_older_formats_keep_their_checksum_and_a_set_reference_changes_them(prot
     assert _liste(p)[a["id"]]["intact"] is False
 
 
-def test_manual_acceptance_is_format_3_without_reference(protokoll, router_test_client):
+def test_manual_acceptance_is_current_format_without_reference(protokoll, router_test_client):
+    """Von Hand erfasst: aktuelles Prüfsummenformat (seit 1.8.67: 4), ohne Verweis aufs Protokoll."""
     from tests.test_v349_abnahme_und_gewaehrleistung import _erfassen
 
     p, db = protokoll, protokoll["db"]
@@ -475,7 +479,7 @@ def test_manual_acceptance_is_format_3_without_reference(protokoll, router_test_
     row = db.get(OrderAcceptance, a["id"])
     content = acceptances_module.acceptance_content(row)
     assert (row.checksum_format, content["protocol"], content["declared_by_person"], a["from_protocol"], a["protocol"]) == (
-        3, None, None, False, None)
+        4, None, None, False, None)
     # förmlich ohne Beleg bleibt von Hand abgelehnt -- das Protokoll ist nur über die Folge der Nachweis
     r = buero.post(f"/api/orders/{p['order_id']}/acceptances", data={"data": json.dumps({
         "kind": "foermlich", "accepted_on": berlin_today().isoformat(), "scope": "gesamt", "result": "verweigert",

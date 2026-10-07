@@ -1531,3 +1531,10 @@ Die Prüfung des Unterschriftsbilds aus 1.8.34 (`signature_png()`/`_has_ink()` i
 `app/signature_image.py::check_signature_png()` gewandert und gilt seither auch für Checkliste und Einsatzbericht, dazu
 Grenzen je Seite (5000 Pixel) und insgesamt (12 Mio. Pixel). Herleitung: `docs/archiv/abnahme-und-gewaehrleistung.md`,
 "Umsetzung 1.8.56".
+
+## Nachtrag 1.8.67 (07.10.2026) -- Versand an den Auftraggeber gemeinsam mit dem Abnahmeprotokoll
+
+`app/notice_letters.py` gibt den Versand an den Auftraggeber als gemeinsame Funktionen her (`client_recipients()`,
+`client_address()`, `dispatch_to_client()`, `delivery_status()`); `notice_state()` und `send_notice_letter()` nutzen sie selbst, das
+Abnahmeprotokoll (`app/protocol_dispatch.py`) ebenso. Verhalten der Briefe unverändert. Herleitung:
+`docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.67".

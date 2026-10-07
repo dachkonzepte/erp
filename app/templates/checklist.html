@@ -479,7 +479,7 @@ function fieldBody(f){
 // Versand per E-Mail und Versandverlauf (seit 1.8.20), nur Büro und nur abgeschlossen. Das Versand-PDF
 // verkleinert die Fotos (unter 3 MB), die Originale bleiben, wie sie sind.
 function renderSendCard(){
-  if(IS_FIELD||cl.status!=='abgeschlossen')return '';
+  if(IS_FIELD||cl.status!=='abgeschlossen'||cl.purpose==='abnahme')return '';  // seit 1.8.67: Protokoll über die eigene Karte
   return `<div class="card" id="sendCard"><h2>Versand</h2>
     <div class="send-row"><input id="clEmailTo" type="text" inputmode="email" autocomplete="off" placeholder="An – mehrere mit Komma oder Semikolon" title="Empfänger, mehrere mit Komma oder Semikolon trennen">
       <input id="clEmailCc" type="text" inputmode="email" autocomplete="off" placeholder="CC (optional)" title="CC, mehrere mit Komma oder Semikolon trennen">
@@ -563,11 +563,11 @@ function noticeKindHtml(k){
 function olderLettersHtml(list){
   return `<div class="notice-row muted">Frühere Fassungen (Unterschrift inzwischen verworfen): ${list.map(l=>`Fassung ${l.version_no} vom ${fmtIsoDate(l.letter_date)} <a href="/api/sent-documents/${l.sent_document.id}/file" target="_blank" rel="noopener">PDF</a>`).join(' · ')}</div>`;
 }
-function noticeParticipantHints(){
+function noticeParticipantHints(state=notice){  // seit 1.8.67 auch für das Abnahmeprotokoll (state)
   const lines=[];
-  const noMail=notice.copies.filter(c=>!c.email&&!c.archived);
+  const noMail=state.copies.filter(c=>!c.email&&!c.archived);
   if(noMail.length)lines.push(`Kopie bei Anzeigen, aber ohne E-Mail (bitte auf anderem Weg): ${esc(noMail.map(c=>`${c.name} (${c.role_label})`).join('; '))}`);
-  for(const a of notice.authorized){
+  for(const a of state.authorized){
     // Seit 1.8.41 auch ohne E-Mail: die Vollmacht wird bei einer nachgetragenen Zustellung an ihn festgehalten.
     const poa=!a.has_poa?'keine Vollmacht hinterlegt':(a.email?'die Vollmacht wird beim Versand an diese Adresse festgehalten':'die Vollmacht wird festgehalten, wenn eine Zustellung an ihn nachgetragen wird');
     lines.push(`Empfangsbevollmächtigt: ${esc(a.name)} (${esc(a.role_label)})${a.email?` &lt;${esc(a.email)}&gt;`:' – ohne E-Mail'} – ${poa}`);
@@ -650,11 +650,58 @@ async function sendNoticeLetter(kind,btn){
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 
+// --- Abnahmeprotokoll an den Auftraggeber (seit 1.8.67, nur Büro) --------------------------------------------------------
+// Der Weg der Anzeigen: An fest der Auftraggeber, CC vorbelegt mit "Kopie bei Anzeigen", Bestätigung bei abweichendem Kunden,
+// Versand nur der jüngsten gültigen festen Fassung aus der Ablage, Zustellung nachtragen im Versandverlauf.
+let protocolDispatch=null,protocolConfirmCustomer=false,protocolCc;
+function protocolDispatchHtml(s){
+  const badge={versendet:'<span class="badge done">versendet</span>',unzustellbar:'<span class="badge bad">unzustellbar</span>',bereit:'<span class="badge open">bereit</span>'}[s.status]||'<span class="badge">wartet</span>';
+  let html=`<div class="notice-head"><h2 style="margin:0">Protokoll an den Auftraggeber</h2>${badge}</div>
+    <div class="muted small">Auftrag ${esc(s.order_number)}. Versendet wird immer die jüngste gültige feste Fassung aus der Ablage – nie neu erzeugt.</div>`;
+  if(!s.ready)return html+`<div class="notice-row muted" data-protocol-waiting>${esc(s.waiting_text||'')}</div><div id="protocolDispatchHistory"></div>`;
+  const v=s.version,doc=v.sent_document;
+  html+=`<div class="notice-row" data-protocol-version>Fassung ${v.version_no} vom ${esc(fmtDateTime(v.created_at))} · <span class="mono" title="SHA-256 ${esc(doc.sha256)}">Prüfsumme ${esc(doc.sha256.slice(0,12))}…</span> · <a href="/api/sent-documents/${doc.id}/file" target="_blank" rel="noopener">PDF öffnen</a></div>`
+    +(v.copy_to.length?`<div class="notice-row muted" data-protocol-copy>Kopie an (im Protokoll): ${esc(v.copy_to.map(c=>`${c.name} (${c.role_label})`).join('; '))}</div>`:'');
+  const m=s.customer_mismatch;
+  if(m)html+=`<div class="notice-warn" data-customer-mismatch><b>Abweichender Kunde:</b> ${esc(m.text)}
+    <label class="notice-confirm"><input type="checkbox" id="protocolConfirmCustomer" ${protocolConfirmCustomer?'checked':''} onchange="protocolConfirmCustomer=this.checked"><span>Abweichung geprüft – E-Mail an ${esc(m.project_customer)}</span></label></div>`;
+  const rec=s.recipient;
+  html+=`<label class="small">An (immer der Auftraggeber)</label>
+    <div class="notice-to" data-notice-to>${esc(rec.name)}${rec.email?` &lt;${esc(rec.email)}&gt;`:''}<span class="fixed">fest</span></div>`
+    +(rec.email?'':`<div class="notice-warn">Der Auftraggeber hat keine E-Mail-Adresse. Bitte im Kundenstamm ergänzen oder das Protokoll auf anderem Weg zustellen und unten unter „Zustellung nachtragen“ festhalten.</div>`)
+    +`<label class="small" for="protocolCc">CC (vorbelegt mit „Kopie bei Anzeigen“, mehrere mit Komma)</label>
+    <input id="protocolCc" type="text" inputmode="email" autocomplete="off" value="${esc(protocolCc!==undefined?protocolCc:s.cc_prefill)}" oninput="protocolCc=this.value">`
+    +noticeParticipantHints(s)
+    +(s.status==='unzustellbar'?`<div class="notice-warn" data-undeliverable><b>Unzustellbar:</b> Das Protokoll kam beim Auftraggeber nicht an – bitte erneut senden oder auf anderem Weg zustellen und unten nachtragen.</div>`:'')
+    +`<div class="notice-actions"><button type="button" class="btn" id="protocolSend" ${rec.email?'':'disabled'} onclick="sendProtocol(this)">Protokoll ${s.status==='versendet'||s.status==='unzustellbar'?'erneut senden':'senden'}</button><span class="muted small" id="protocolStatus"></span></div>`;
+  return html+'<div id="protocolDispatchHistory"></div>';
+}
+async function loadProtocolDispatch(){
+  const card=document.getElementById('protocolDispatchCard');if(!card)return;
+  try{protocolDispatch=await api(`/api/checklists/${checklistId}/protocol-dispatch`)}
+  catch(e){card.innerHTML=`<h2>Protokoll an den Auftraggeber</h2><div class="error-box small">${esc(e.message)}</div>`;return}
+  card.innerHTML=protocolDispatchHtml(protocolDispatch);
+  renderDispatchHistory('protocolDispatchHistory','checkliste',checklistId,{manual:protocolDispatch.ready,onChange:loadProtocolDispatch});
+}
+async function sendProtocol(btn){
+  const st=document.getElementById('protocolStatus');
+  if(protocolDispatch.customer_mismatch&&!protocolConfirmCustomer){st.textContent='Bitte zuerst oben die Abweichung des Kunden prüfen und bestätigen.';document.getElementById('protocolConfirmCustomer')?.focus();return}
+  const cc=(document.getElementById('protocolCc').value||'').trim();
+  st.textContent='Wird gesendet …';
+  try{
+    await postEmailDispatch(`protokoll-${checklistId}`,`/api/checklists/${checklistId}/protocol-dispatch/send-email`,{cc_email:cc||null,confirm_customer:protocolConfirmCustomer},btn);
+    protocolCc=undefined;
+    await loadProtocolDispatch();
+    const st2=document.getElementById('protocolStatus');if(st2)st2.textContent='Versendet.';
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+
 function render(){
   const main=document.getElementById('clMain');
   let html=renderHeader()+renderSendCard();
   if(!IS_FIELD&&NOTICE_PURPOSES.includes(cl.purpose))html+='<div class="card notice-card" id="noticeCard"><h2>Anzeige an den Auftraggeber</h2><div class="muted small">Lädt …</div></div>';
   if(!IS_FIELD&&cl.purpose==='abnahme')html+='<div class="card psum" id="protocolSummaryCard"><h2>Erklärungen und Mängel</h2><div class="muted small">Lädt …</div></div>';  // seit 1.8.64
+  if(!IS_FIELD&&cl.purpose==='abnahme')html+='<div class="card notice-card" id="protocolDispatchCard"><h2>Protokoll an den Auftraggeber</h2><div class="muted small">Lädt …</div></div>';  // seit 1.8.67
   if(!IS_FIELD)html+='<div class="card" id="versionsCard" style="display:none"></div>';  // seit 1.8.66: feste Fassungen
   let group=null;
   const missing=new Set(cl.missing_required||[]);
@@ -689,6 +736,7 @@ function render(){
   if(!IS_FIELD&&cl.purpose==='abnahme')loadProtocolSummary();
   if(!IS_FIELD)loadFollowUps();
   if(!IS_FIELD)loadVersions();
+  if(!IS_FIELD&&cl.purpose==='abnahme')loadProtocolDispatch();
   if(!IS_FIELD&&NOTICE_PURPOSES.includes(cl.purpose))loadNotice();
   if(!IS_FIELD&&cl.status==='abgeschlossen'){loadRules();afterRenderSendCard()}
 }

@@ -46,6 +46,11 @@ Versandergebnis, Zeitstrahl, gegenstandslos). Nach dem Versand des Hauptbriefs (
 Fallen Kunde des Projekts und Kunde laut Auftrag auseinander (customer_mismatch()), entsteht und geht kein Brief
 ohne ausdrückliche Bestätigung (CustomerMismatch, 409); die Bestätigung steht in der Historie.
 
+Seit 1.8.67 (Stufe 2c-2e, Punkt 2) gemeinsam mit dem Versand des Abnahmeprotokolls (app/protocol_dispatch.py): Empfänger
+(client_recipients()), Adresse des Auftraggebers samt Prüfung auf abweichenden Kunden (client_address()), Versand mit Vorlage,
+Vollmacht und Bestätigung in der Historie (dispatch_to_client()) und der Stand (delivery_status()) -- je Dokumentart, nichts
+doppelt.
+
 Rollenlos wie jede Geschäftslogik; nur das Büro (app/routers/notice_letters.py). Der PDF-Renderer
 (app/notice_letter_pdf.py) wird lokal importiert (Regel 3).
 """
@@ -152,11 +157,14 @@ INTRO = {
                         "an und bitten um Ihre Entscheidung. Im Einzelnen:"),
 }
 DEFAULT_EMAIL_SUBJECT = {
+    "abnahmeprotokoll": "Abnahmeprotokoll – Auftrag {auftragsnummer}",  # seit 1.8.67 (app/protocol_dispatch.py)
     "behinderungsanzeige": "Behinderungsanzeige – Auftrag {auftragsnummer}",
     "wiederaufnahme": "Anzeige der Wiederaufnahme – Auftrag {auftragsnummer}",
     "bedenkenanzeige": "Bedenkenanzeige – Auftrag {auftragsnummer}",
 }
 DEFAULT_EMAIL_BODY = {
+    "abnahmeprotokoll": ("{anrede}\n\nanbei erhalten Sie das Protokoll der Abnahme zum Auftrag {auftragsnummer} (Bauvorhaben "
+                         "{bauvorhaben}).\n\nMit freundlichen Grüßen"),
     "behinderungsanzeige": ("{anrede}\n\nanbei erhalten Sie unsere Behinderungsanzeige zum Auftrag {auftragsnummer} "
                             "(Bauvorhaben {bauvorhaben}).\n\nMit freundlichen Grüßen"),
     "wiederaufnahme": ("{anrede}\n\nanbei erhalten Sie unsere Anzeige der Wiederaufnahme der Arbeiten zum Auftrag "
@@ -348,6 +356,42 @@ def copy_recipients(db: Session, project_id: int) -> list[dict]:
     von CC."""
     return [info for info in (participant_info(p) for p in participant_rows(db, project_id))
             if info["copy_on_notices"] and not info["archived"]]
+
+
+def client_recipients(db: Session, order: Order) -> dict:
+    """Empfänger eines Schreibens an den Auftraggeber (seit 1.8.67 gemeinsam für die Briefe der Anzeigen und das
+    Abnahmeprotokoll): An = Kunde des Projekts (E-Mail live), Vorbelegung CC = Beteiligte mit "Kopie bei Anzeigen" und E-Mail
+    (ohne archivierte, entdoppelt, ohne die Adresse des Auftraggebers), die Kopien, die Empfangsbevollmächtigten und eine
+    Abweichung zwischen Kunde des Projekts und Kunde laut Auftrag."""
+    customer = _customer(order)
+    participants = [participant_info(p) for p in participant_rows(db, order.project_id)]
+    ag_email = ((customer.email or "").strip() if customer is not None else "") or None
+    seen = {ag_email.lower()} if ag_email else set()
+    cc = []
+    for info in participants:
+        if info["copy_on_notices"] and not info["archived"] and info["email"] and info["email"].lower() not in seen:
+            seen.add(info["email"].lower())
+            cc.append(info["email"])
+    return {
+        "customer_mismatch": customer_mismatch(order, customer),
+        "recipient": {"name": customer.name if customer is not None else order.customer_name, "email": ag_email,
+                      "customer_id": customer.id if customer is not None else None},
+        "cc_prefill": ", ".join(cc),
+        "copies": [p for p in participants if p["copy_on_notices"]],
+        "authorized": [p for p in participants if p["authorized"]],
+    }
+
+
+def client_address(order: Order, confirm_customer: bool, *, what: str = "den Brief") -> tuple[str, dict | None]:
+    """(E-Mail des Auftraggebers, bestätigte Abweichung oder None) -- CustomerMismatch ohne Bestätigung, ValueError ohne
+    E-Mail-Adresse (seit 1.8.67 gemeinsam, vorher Teil von send_notice_letter())."""
+    customer = _customer(order)
+    mismatch = _require_confirmed_customer(order, customer, confirm_customer)
+    to = (customer.email or "").strip() if customer is not None else ""
+    if not to:
+        raise ValueError(f"Der Auftraggeber hat keine E-Mail-Adresse. Bitte im Kundenstamm ergänzen oder {what} auf anderem "
+                         "Weg zustellen und unter „Zustellung nachtragen“ festhalten.")
+    return to, mismatch
 
 
 def reached_client(dispatch: EmailDispatch, outcome: DispatchOutcome | None, has_authorization: bool) -> bool:
@@ -641,13 +685,42 @@ def _email_texts(db: Session, kind: str, checklist: Checklist, order: Order) -> 
     return apply_placeholders(subject, values), apply_placeholders(body, values)
 
 
+def dispatch_to_client(db: Session, *, checklist: Checklist, order: Order, template_key: str, label: str,
+                       document_type: str, document, pdf: bytes, to: str, cc_email: str | None, dispatch_key: str | None,
+                       user_id: int | None, user_name: str | None, mismatch: dict | None, check=None):
+    """Der Versand an den Auftraggeber (seit 1.8.67 gemeinsam für Briefe und Abnahmeprotokoll): Betreff und Text aus der
+    E-Mail-Vorlage template_key, Anhang = das abgelegte PDF (document, nie neu abgelegt), vor dem Senden check (falls gegeben)
+    und die Vollmachten der empfangsbevollmächtigten Empfänger (before_send), nach einem neuen Versand mit bestätigter
+    Abweichung des Kunden der Eintrag in der Historie. Liefert das DispatchResult."""
+    from .email_dispatch import dispatch_email, new_dispatch_key
+
+    subject, body = _email_texts(db, template_key, checklist, order)
+    project_id, checklist_id = order.project_id, checklist.id
+
+    def before_send(session: Session, dispatch: EmailDispatch) -> None:
+        if check is not None:
+            check(session, dispatch)
+        _authorized_snapshot(session, dispatch, kind=document_type, checklist_id=checklist_id, project_id=project_id,
+                             user_id=user_id, user_name=user_name or "System")
+
+    result = dispatch_email(
+        db, dispatch_key=dispatch_key or new_dispatch_key(template_key), document_type=document_type,
+        document_id=checklist_id, document_number=document.document_number, to=to, cc=cc_email, subject=subject,
+        body_text=body, attachment_bytes=pdf, attachment_filename=document.filename, archived_document=document,
+        user_id=user_id, user_name=user_name, before_send=before_send,
+    )
+    if result.newly_sent and mismatch is not None:
+        _record_customer_confirmation(db, checklist, order, label, mismatch, user_id=user_id, user_name=user_name)
+    return result
+
+
 def send_notice_letter(db: Session, checklist_id: int, kind: str, *, cc_email: str | None = None,
                        dispatch_key: str | None = None, user=None, confirm_customer: bool = False):
     """Versendet die Fassung zur aktuellen Unterschrift (erstellt sie beim ersten Mal) an den Auftraggeber.
     Wirft NoticeStateError (Zustand, 409; seit 1.8.44 auch CustomerMismatch ohne Bestätigung), ValueError
     (Eingabe/Versand, 400), DispatchConflict (409). Nach dem Versand des Hauptbriefs: Aufgabe "versenden" erledigt,
     Folgen nach dem Versand (seit 1.8.44, "Antwort prüfen" der Bedenkenanzeige)."""
-    from .email_dispatch import actor_of, dispatch_email, new_dispatch_key
+    from .email_dispatch import actor_of
 
     spec = letter_kind(kind)
     user_id, user_name = actor_of(user)
@@ -656,37 +729,22 @@ def send_notice_letter(db: Session, checklist_id: int, kind: str, *, cc_email: s
     if section_signature(checklist, spec) is None:
         raise NoticeStateError(spec.waiting_text)  # Zustand zuerst, vor Empfänger und Fassung
     order = _order(db, checklist)
-    customer = _customer(order)
-    mismatch = _require_confirmed_customer(order, customer, confirm_customer)
-    to = (customer.email or "").strip() if customer is not None else ""
-    if not to:
-        raise ValueError("Der Auftraggeber hat keine E-Mail-Adresse. Bitte im Kundenstamm ergänzen oder den Brief "
-                         "auf anderem Weg zustellen und unter „Zustellung nachtragen“ festhalten.")
+    to, mismatch = client_address(order, confirm_customer)
     letter = ensure_letter(db, checklist_id, kind, user_id=user_id, user_name=user_name,
                            confirm_customer=confirm_customer)
     pdf = letter_document(letter)
-    subject, body = _email_texts(db, kind, checklist, order)
-    project_id = order.project_id
-
-    def freeze(session: Session, dispatch: EmailDispatch) -> None:
-        _authorized_snapshot(session, dispatch, kind=kind, checklist_id=checklist_id, project_id=project_id,
-                             user_id=user_id, user_name=user_name or "System")
-
-    result = dispatch_email(
-        db, dispatch_key=dispatch_key or new_dispatch_key(kind), document_type=kind, document_id=checklist_id,
-        document_number=letter.sent_document.document_number, to=to, cc=cc_email, subject=subject, body_text=body,
-        attachment_bytes=pdf, attachment_filename=letter.sent_document.filename, archived_document=letter.sent_document,
-        user_id=user_id, user_name=user_name, before_send=freeze,
+    result = dispatch_to_client(
+        db, checklist=checklist, order=order, template_key=kind, label=spec.label, document_type=kind,
+        document=letter.sent_document, pdf=pdf, to=to, cc_email=cc_email, dispatch_key=dispatch_key, user_id=user_id,
+        user_name=user_name, mismatch=mismatch,
     )
-    if result.newly_sent and mismatch is not None:
-        _record_customer_confirmation(db, checklist, order, spec, mismatch, user_id=user_id, user_name=user_name)
     if result.newly_sent and spec.is_main:
         complete_send_tasks(db, checklist_id, spec.purpose)
         run_follow_ups_after_letter(db, checklist_id)
     return result
 
 
-def _record_customer_confirmation(db: Session, checklist: Checklist, order: Order, spec: LetterKind, mismatch: dict, *,
+def _record_customer_confirmation(db: Session, checklist: Checklist, order: Order, label: str, mismatch: dict, *,
                                   user_id: int | None, user_name: str | None) -> None:
     """Historie: versendet trotz abweichendem Kunden, bestätigt (seit 1.8.44). Ein Fehler hier macht den Versand
     nicht ungeschehen."""
@@ -696,7 +754,7 @@ def _record_customer_confirmation(db: Session, checklist: Checklist, order: Orde
         record_audit_entry(
             db, action="geändert", entity_type="Checkliste", entity_id=checklist.id,
             entity_label=f"Nr. {checklist.id} {checklist.template_label_snapshot} · {checklist.context_label_snapshot or ''}",
-            project_id=order.project_id, field_name="notice_customer", field_label=f"{spec.label}: abweichender Kunde bestätigt",
+            project_id=order.project_id, field_name="notice_customer", field_label=f"{label}: abweichender Kunde bestätigt",
             new_value=f"versendet an {mismatch['project_customer']}, Kunde laut Auftrag {mismatch['order_customer']}",
             actor_user_id=user_id, actor_name=user_name or "System",
         )
@@ -843,9 +901,10 @@ def notice_timeline(db: Session, checklist: Checklist) -> list[dict]:
     return steps
 
 
-def _kind_status(db: Session, kind: str, checklist_id: int, ready: bool) -> str:
-    """Stand je Briefart (seit 1.8.41): versendet (beim Auftraggeber angekommen) | unzustellbar (gesendet, aber alles
-    als unzustellbar vermerkt bzw. nur als Kopie) | bereit | wartet."""
+def delivery_status(db: Session, kind: str, checklist_id: int, ready: bool) -> str:
+    """Stand je Briefart (seit 1.8.41, seit 1.8.67 auch des Abnahmeprotokolls: Art "checkliste"): versendet (beim
+    Auftraggeber angekommen) | unzustellbar (gesendet, aber alles als unzustellbar vermerkt bzw. nur als Kopie) | bereit |
+    wartet."""
     if letter_was_sent(db, kind, checklist_id):
         return "versendet"
     undeliverable = db.scalar(select(DispatchOutcome.id).join(EmailDispatch, EmailDispatch.id == DispatchOutcome.dispatch_id)
@@ -864,15 +923,7 @@ def notice_state(db: Session, checklist_id: int) -> dict:
     checklist = _checklist(db, checklist_id)
     purpose = checklist.template_version.purpose
     order = _order(db, checklist)
-    customer = _customer(order)
-    participants = [participant_info(p) for p in participant_rows(db, order.project_id)]
-    ag_email = ((customer.email or "").strip() if customer is not None else "") or None
-    seen = {ag_email.lower()} if ag_email else set()
-    cc = []
-    for info in participants:
-        if info["copy_on_notices"] and not info["archived"] and info["email"] and info["email"].lower() not in seen:
-            seen.add(info["email"].lower())
-            cc.append(info["email"])
+    recipients = client_recipients(db, order)  # seit 1.8.67 gemeinsam mit dem Abnahmeprotokoll
     letters = _letters(db, checklist_id)
     kinds = []
     for spec in (s for s in LETTER_KINDS.values() if s.purpose == purpose):
@@ -880,7 +931,7 @@ def notice_state(db: Session, checklist_id: int) -> dict:
         seal = check_signature(checklist, signature) if signature is not None else None
         own = [l for l in letters if l.kind == spec.key]
         kinds.append({
-            "status": _kind_status(db, spec.key, checklist_id, signature is not None),
+            "status": delivery_status(db, spec.key, checklist_id, signature is not None),
             "signoff_text": ("Der Brief trägt „i. A.“ und den Namen des Büro-Kontos, das ihn erstellt – die "
                              "Unterschrift im Abschnitt „Wegfall“ bleibt interner Beleg.") if spec.key == "wiederaufnahme" else None,
             "kind": spec.key, "label": spec.label, "ready": signature is not None, "waiting_text": spec.waiting_text,
@@ -894,15 +945,10 @@ def notice_state(db: Session, checklist_id: int) -> dict:
             "sent": letter_was_sent(db, spec.key, checklist_id),
         })
     return {
+        **recipients,  # Empfänger, Vorbelegung CC, Kopien, Bevollmächtigte, seit 1.8.44 abweichender Kunde
         "checklist_id": checklist_id, "order_id": order.id, "order_number": order.order_number,
         "purpose": purpose, "purpose_label": NOTICE_PURPOSES[purpose].label,
-        "customer_mismatch": customer_mismatch(order, customer),  # seit 1.8.44: Bestätigung vor Brief und Versand
         "contract_basis": order.contract_basis, "contract_basis_label": contract_basis_label(order.contract_basis),
-        "recipient": {"name": customer.name if customer is not None else order.customer_name, "email": ag_email,
-                      "customer_id": customer.id if customer is not None else None},
-        "cc_prefill": ", ".join(cc),
-        "copies": [p for p in participants if p["copy_on_notices"]],
-        "authorized": [p for p in participants if p["authorized"]],
         "kinds": kinds,
         "timeline": notice_timeline(db, checklist),
         # seit 1.8.41: als gegenstandslos abgeschlossen -- die Karte zeigt nur noch Stand und Verlauf

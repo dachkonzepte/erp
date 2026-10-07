@@ -335,3 +335,11 @@ Checkliste vor jedem Versand in der Ablage: jede Unterschrift, der Abschluss und
 Checkliste und die nachgetragene Zustellung verweisen per `archived_document` auf die Fassung des Abschlusses (keine zweite Datei),
 der PDF-Knopf liefert sie mit `X-DK-Ablage`; verändert oder fehlend: verweigert, nie still neu erzeugt. Checklisten von vor 1.8.66
 ohne Fassung wie bisher. `FROZEN_AFTER_FIRST_DISPATCH` bleibt unverändert.
+
+## Nachtrag 1.8.67 -- Versand des Abnahmeprotokolls
+
+Herleitung: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.67". Das Abnahmeprotokoll geht als Art `checkliste` über
+den Weg der Briefe an den Auftraggeber (`app/protocol_dispatch.py`, gemeinsame Funktionen in `app/notice_letters.py`): An fest,
+CC "Kopie bei Anzeigen", Vollmacht beim Versand, Anhang = die jüngste gültige feste Fassung per `archived_document`; vor dem Senden
+prüft ein `before_send`-Haken unter der Zeilensperre, ob sie noch gilt. `dispatch_email()` reicht seit 1.8.67 den Text eines
+`ValueError` aus `before_send` weiter. Zustellung nachtragen verwendet dieselbe Fassung. E-Mail-Vorlage `abnahmeprotokoll`.

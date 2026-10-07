@@ -4943,6 +4943,14 @@ class NoticeLetterSend(BaseModel):
     confirm_customer: bool = False
 
 
+class ProtocolSend(BaseModel):
+    """Abnahmeprotokoll an den Auftraggeber per E-Mail (seit 1.8.67, app/protocol_dispatch.py) -- wie NoticeLetterSend: An ist
+    immer der Auftraggeber und deshalb kein Feld; CC frei; confirm_customer bei abweichendem Kunden."""
+    cc_email: str | None = None
+    dispatch_key: str = Field(min_length=8, max_length=80)
+    confirm_customer: bool = False
+
+
 class NoticeLetterFreeze(BaseModel):
     """"Brief erstellen" (seit 1.8.44 mit Körper): confirm_customer wie beim Versand."""
     confirm_customer: bool = False

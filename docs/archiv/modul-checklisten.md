@@ -1132,3 +1132,9 @@ Herleitung und Festlegungen: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umse
   abgeschlossene werden wie bisher neu erzeugt.
 - `build_checklist_pdf(…, stand=…)` auch im Entwurf; `build_checklist_version_pdf()` verkleinert Fotos stufenweise bis unter 3 MB.
 - Karte "Feste Fassungen" und `GET /api/checklists/{id}/versions` nur Büro.
+
+## Nachtrag 1.8.67 (07.10.2026) -- Versand des Abnahmeprotokolls
+
+Herleitung: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.67". Karte "Protokoll an den Auftraggeber" auf der
+Protokollseite (nur Büro); der allgemeine Versand einer Checkliste mit freiem Empfänger ist für den Zweck "abnahme" gesperrt.
+Fassungen eines Abnahmeprotokolls frieren "Kopie an:" ein (`checklist_versions.copy_to`), das PDF druckt es nach den Feldern.

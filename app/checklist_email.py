@@ -72,6 +72,9 @@ def send_checklist_email(
     from .sent_documents import ArchiveFileError, read_sent_document
     from .email_dispatch import actor_of, dispatch_email, new_dispatch_key
 
+    if checklist.template_version.purpose == "abnahme":  # seit 1.8.67: An ist dort immer der Auftraggeber
+        raise ValueError("Das Abnahmeprotokoll geht über die Karte „Protokoll an den Auftraggeber“ hinaus – An ist dort "
+                         "immer der Auftraggeber, versendet wird die jüngste gültige Fassung.")
     if checklist.status != "abgeschlossen":
         raise ValueError("Nur abgeschlossene Checklisten können per E-Mail versendet werden.")
     recipient = (to_email or "").strip() or get_checklist_recipient_email(db, checklist)

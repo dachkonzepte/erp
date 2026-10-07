@@ -281,7 +281,10 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
              for items in attachments.values() for a in items if a.kind == "unterschrift"}
     completion = check_completion(checklist, photo_hashes)
     from .acceptance_protocol import protocol_summary  # seit 1.8.64; lokal wie die übrigen Fachmodule eines Renderers
+    from .checklist_versions import protocol_copy_to
     summary = protocol_summary(db, checklist)
+    # seit 1.8.67: "Kopie an:" im Abnahmeprotokoll -- in einer Fassung die beim Erstellen eingefrorene Liste
+    copy_to = stand["copy_to"] if stand is not None and "copy_to" in stand else protocol_copy_to(db, checklist)
 
     def seal_paragraph(check: dict) -> Paragraph:
         text = ptext(check["text"])  # eine Abweichung fett
@@ -424,6 +427,10 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
             else:
                 rows.append([Paragraph(ptext(field.label), body), Paragraph(ptext(format_answer(field, answers.get(field.id))), body)])
         flush_rows()
+        if copy_to:  # seit 1.8.67: Abnahmeprotokoll -- wer eine Kopie bekommt (wie in den Briefen der Anzeigen)
+            story.append(Paragraph(ptext("Kopie an: " + "; ".join(f"{c['name']} ({c['role_label']})" for c in copy_to)),
+                                   body))
+            story.append(Spacer(1, 3 * mm))
         # Abschluss (seit 1.8.15): versiegelt alle Angaben samt Unterschriften.
         block = [Paragraph("Abschluss", h3)]
         if checklist.content_sha256:

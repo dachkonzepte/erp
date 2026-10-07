@@ -58,7 +58,8 @@ def create_version(db: Session, checklist: Checklist, *, kind: str, signature: C
     user_name = (user_name or "System")[:160]
     version_no = _next_no(db, checklist.id)
     signature_ids = sorted(a.id for a in active_attachments(checklist) if a.kind == "unterschrift")
-    stand = {"version_no": version_no, "kind": kind, "signature": signature,
+    copy_to = protocol_copy_to(db, checklist)  # seit 1.8.67: nur das Abnahmeprotokoll, sonst None
+    stand = {"version_no": version_no, "kind": kind, "signature": signature, "copy_to": copy_to,
              "at": signature.created_at if signature is not None else checklist.completed_at}
     try:
         pdf = build_checklist_version_pdf(db, checklist, stand)
@@ -76,6 +77,7 @@ def create_version(db: Session, checklist: Checklist, *, kind: str, signature: C
         signature_id=signature.id if signature is not None else None, signature_ids=json.dumps(signature_ids),
         seal_sha256=signature.content_sha256 if signature is not None else checklist.content_sha256,
         sent_document_id=document.id, created_at=datetime.utcnow(), created_by_user_id=user_id, created_by_name=user_name,
+        copy_to=None if copy_to is None else json.dumps(copy_to, ensure_ascii=False),
     )
     db.add(version)
     try:
@@ -84,6 +86,21 @@ def create_version(db: Session, checklist: Checklist, *, kind: str, signature: C
         raise ValueError("Inzwischen ist eine andere Fassung dieser Checkliste entstanden – bitte die Seite neu laden und "
                          "erneut versuchen.") from exc
     return version
+
+
+def protocol_copy_to(db: Session, checklist: Checklist) -> list[dict] | None:
+    """"Kopie an:" im PDF eines Abnahmeprotokolls (seit 1.8.67, Punkt 2): die Beteiligten mit "Kopie bei Anzeigen" (ohne
+    archivierte) -- dieselbe Liste wie in den Briefen der Anzeigen (app/notice_letters.py::copy_recipients()). None für jede
+    andere Checkliste."""
+    from .checklist_purposes import ACCEPTANCE_PURPOSE
+    from .models import Order
+    from .notice_letters import copy_recipients  # lokal: das Briefmodul zieht Checklisten und Folgen nach
+
+    if checklist.template_version.purpose != ACCEPTANCE_PURPOSE or checklist.order_id is None:
+        return None
+    order = db.get(Order, checklist.order_id)
+    return [{"participant_id": c["participant_id"], "name": c["name"], "role_label": c["role_label"]}
+            for c in copy_recipients(db, order.project_id)]
 
 
 def versions_of(db: Session, checklist_id: int) -> list[ChecklistVersion]:
@@ -140,6 +157,7 @@ def version_to_dict(version: ChecklistVersion, checklist: Checklist) -> dict:
             "discarded_at": superseded.discarded_at, "discarded_at_local": to_berlin(superseded.discarded_at),
             "discarded_by_name": superseded.discarded_by_name},
         "sent_document": sent_document_to_dict(version.sent_document),
+        "copy_to": None if version.copy_to is None else json.loads(version.copy_to),
     }
 
 
