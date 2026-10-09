@@ -4,6 +4,21 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.68 – Abnahmeprotokoll: Fotos der Mängel im PDF, Kopien an die eingefrorenen Empfänger
+
+Nachtrag zu Stufe 2c-2e. Das PDF des Abnahmeprotokolls zeigt jetzt die Fotos der Mängel – nur die, die bei der Unterschrift zum
+Mangel gehörten: die beim Erfassen, und nur, wenn der Mangel zur Prüfsumme in der Kopie der Unterschrift passt und die Datei zu
+ihrer Prüfsumme; sonst ein Hinweis statt der Bilder. Später ergänzte Fotos (z. B. „beseitigt“) bleiben draußen. Die Fotos werden in
+der festen Fassung in denselben Stufen verkleinert wie die übrigen, bis das PDF unter 3 MB liegt, je mit der Prüfsumme der
+Originaldatei. Beim Versand des Protokolls geht die Kopie (CC) genau an die Empfänger, die in der Fassung unter „Kopie an:“
+eingefroren sind, jetzt samt ihrer Adresse – kein freies CC mehr, PDF und Mail laufen nie auseinander. Haben sich die Beteiligten
+seither geändert, zeigt die Karte das vor dem Versand und fragt beim Senden nach. Bestätigt, nicht geändert: scheitert das PDF
+einer Unterschrift, sagt die Meldung „es wurde nichts gespeichert“, die Zeichnung bleibt für einen neuen Versuch stehen.
+
+Keine Migration. Neue `test_v370` (9), `test_v369` an das feste CC angepasst, Gegenproben 10 von 10 rot, gegen PostgreSQL 227 grün, 1 rot (test_v351, Migrationstest mit erfundenem Fremdschlüssel, kein Befund);
+Klicktests `klicktest_protokoll_versand.py` 16/16, `klicktest_feste_fassung.py` 15/15 (neu: Unterschrift bei scheiterndem PDF).
+Volle Suite: 3088 grün, 0 rot (mit den opt-in-Tests gegen PostgreSQL). Festlegungen in `docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.68“.
+
 ## 1.8.67 – Abnahmeprotokoll: Versand an den Auftraggeber, Abnahme mit Verweis auf die feste Fassung
 
 Stufe 2c, Runde 2c-2e, Punkte 2 und 3. Das Abnahmeprotokoll geht jetzt über den Weg der Anzeigen an den Auftraggeber: An ist fest

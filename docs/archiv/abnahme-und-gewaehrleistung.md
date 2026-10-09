@@ -1800,7 +1800,7 @@ Version davor gekommen).
   der Klicktest nur geprüft, dass es den Link gibt. Jetzt `/checklisten/{id}`; `test_v366` prüft jeden dieser Links gegen die
   Seitenrouten (`app/routers/pages.py`).
 
-### Festlegungen 1.8.64 (bestätigt am 07.10.2026, Vorgabe 2c-2e)
+### Festlegungen 1.8.64 (bestätigt am 07.10.2026, Vorgabe 2c-2e; Nr. 2 seit 1.8.68 überholt: Fotos der Mängel im PDF)
 
 1. **Nach der Unterschrift zeigen Seite und PDF die Erklärungen aus der Kopie der Unterschrift des Auftraggebers**, vorher die
    aktuellen Angaben (gekennzeichnet).
@@ -1912,7 +1912,7 @@ Bestätigt am 07.10.2026 (Vorgabe 2c-2e), mit den beiden Änderungen oben: 1.8.6
 Abnahme aus dem Protokoll und jede weitere Kopie), 1.8.62 Nr. 2 ist ersetzt (keine Schlüsse aus einer unlesbaren oder abweichenden
 Kopie).
 
-### Festlegungen 1.8.65 (bitte bestätigen)
+### Festlegungen 1.8.65 (Nr. 1 und 3 bestätigt am 09.10.2026; Nr. 2, 4 und 5 waren im Bericht nicht einzeln vorgelegt)
 
 1. **Neue Kopien enthalten die Mängel im Protokoll**, auch einen nach der ersten Unterschrift verworfenen -- so sagen alle Kopien
    dasselbe. (Die Alternative, nur die Abnahme nach der ersten Unterschrift zu richten, ließe die Kopie des Auftraggebers ohne ihn.)
@@ -1998,7 +1998,7 @@ Kopie).
 Tabelle `checklist_versions` (Fremdschlüssel benannt). `downgrade()` verweigert, solange eine Fassung existiert. Kein Bestand:
 Unterschriften und Abschlüsse von vor 1.8.66 bekommen keine Fassung.
 
-### Festlegungen 1.8.66 (bitte bestätigen)
+### Festlegungen 1.8.66 (bestätigt am 09.10.2026 außer Nr. 4, die im Bericht nicht einzeln vorgelegt war)
 
 1. **Auch der Abschluss und "gegenstandslos" legen eine Fassung ab** -- sonst würde das PDF einer abgeschlossenen Checkliste nach
    der letzten Unterschrift weiter neu erzeugt (Felder nach der letzten Unterschrift, Prüfsumme des Abschlusses). Download, Versand
@@ -2106,7 +2106,7 @@ Unterschriften und Abschlüsse von vor 1.8.66 bekommen keine Fassung.
 `checklist_versions.copy_to`, `order_acceptances.protocol_version_id` (benannter Fremdschlüssel) und `protocol_pdf_sha256`.
 `downgrade()` verweigert, solange eine Abnahme auf eine Fassung verweist oder eine Fassung "Kopie an:" trägt.
 
-### Festlegungen 1.8.67 (bitte bestätigen)
+### Festlegungen 1.8.67 (Nr. 1, 2, 5, 6, 7 bestätigt am 09.10.2026; Nr. 4 und "CC bleibt frei" aus Nr. 3 seit 1.8.68 ersetzt: Kopien genau an die Empfänger der Fassung; Nr. 8 war im Bericht nicht einzeln vorgelegt)
 
 1. **Dokumentart `checkliste`** für Versand und Ablage des Protokolls -- keine neue Art; Versandverlauf und Versandprotokoll zeigen
    "Nr. … · Fassung N".
@@ -2160,5 +2160,93 @@ Unterschriften und Abschlüsse von vor 1.8.66 bekommen keine Fassung.
 ### Offen nach 2c-2e
 
 - Ein nach der Abnahme erkannter Mangel (Rüge) ist weiterhin nicht gebaut (Festlegung 1.8.63 Nr. 5).
-- Bilder der Mängel im Protokoll-PDF (Festlegung 1.8.64 Nr. 2): die feste Fassung enthält weiter nur Zahl und Prüfsumme der Fotos und
-  Belege -- nicht entschieden, ob sie hineingehören (Speicherbudget, 3-MB-Grenze des Versands).
+- ~~Bilder der Mängel im Protokoll-PDF (Festlegung 1.8.64 Nr. 2)~~ -- seit 1.8.68 die Fotos beim Erfassen, verkleinert (siehe
+  "Umsetzung 1.8.68").
+
+## Umsetzung 1.8.68 (09.10.2026) -- Nachtrag zu 2c-2e: Fotos der Mängel im Protokoll-PDF, Kopien an die eingefrorenen Empfänger
+
+Vorgabe vom 09.10.2026 (Festlegungen 1.8.65–1.8.67 bestätigt als Nr. 1–7, 9 und 10 des Berichts, Nr. 8 nicht): 1. Mängel-Fotos ins
+Protokoll-PDF, verkleinert wie die übrigen Fotos, nur die Fotos, die bei der Unterschrift zum Mangel gehörten. 2. Die Kopien gehen
+genau an die in der Fassung eingefrorenen Empfänger; haben sich die Beteiligten seither geändert, Hinweis vor dem Versand; PDF und
+Mail dürfen nie auseinanderlaufen. 3. Scheitert das PDF bei einer Unterschrift: die Meldung sagt klar, dass nichts gespeichert wurde,
+die Zeichnung bleibt für einen neuen Versuch stehen -- war schon so, im Browser bestätigt (siehe Verifikation).
+
+### Punkt 1: Fotos der Mängel (`app/checklist_pdf.py`)
+
+- Welche: die Dateien beim Erfassen (`DefectFile.event_id` leer) -- sie stehen im gebundenen Inhalt des Mangels, dessen Prüfsumme
+  in der Kopie jeder Unterschrift unter dem Feld steht. Gezeigt nur, wenn der Inhalt des Mangels heute zu seiner Prüfsumme UND zur
+  Prüfsumme in der Kopie der ersten gültigen Unterschrift unter dem Feld passt (`list_protocol_defects()`, neu `files_as_signed`
+  über `app/checklists.py::protocol_sealed_defects()`); sonst statt der Bilder "Fotos nicht gezeigt: der Mangel passt nicht zur
+  Kopie der Unterschrift." Je Foto die Datei nur mit stimmender Prüfsumme (`read_defect_file()`), sonst "Foto zum Mangel Nr. … nicht
+  gezeigt: <Prüfstatus>". Später ergänzte Fotos (Ereignisse, z. B. "beseitigt") stehen nie im Protokoll. Ohne Unterschrift unter
+  dem Feld (noch keine Kopie) die Fotos der nicht verworfenen Mängel von jetzt.
+- Wie: unter dem Text des Mangels je Foto das Bild (Breite wie die übrigen Fotos) und "Foto zum Mangel Nr. N – Prüfsumme der
+  Originaldatei (SHA-256): …". Die Zeile des Mangels nennt nur noch die Belege als Zahl.
+- Verkleinert: in der festen Fassung (`build_checklist_version_pdf()`) in denselben Stufen wie die Fotos der Checkliste
+  (`EMAIL_PHOTO_STEPS`, 1600 px abwärts, beide Mengen zusammen gezählt), bis das PDF unter 3 MB liegt; der Hinweis "auf höchstens
+  … Pixel verkleinert" steht auch, wenn nur Mängel Fotos haben. Ein neu erzeugtes PDF ohne Fassung (vor 1.8.66 abgeschlossen)
+  verkleinert sie auf 1600 px wie einen Foto-Beleg. Je Stufe liegen nur deren Bytes im Speicher; die Originale bleiben unverändert.
+
+### Punkt 2: Kopien genau an die eingefrorenen Empfänger (`app/protocol_dispatch.py`)
+
+- "Kopie an:" einer Fassung (`checklist_versions.copy_to`) trägt seit 1.8.68 je Empfänger auch die E-Mail-Adresse beim Erstellen
+  (`protocol_copy_to()`). Der Versand nimmt CC nur noch daraus (`frozen_copies()`, `frozen_cc()`: jede Adresse einmal, ohne die des
+  Auftraggebers) -- kein freies CC mehr, `ProtocolSend` hat kein Feld dafür, eine mitgeschickte Adresse wird nicht beachtet. Wer in
+  der Fassung ohne Adresse steht, bekommt keine Mail; die Karte nennt ihn mit dem Weg (anders zustellen, "Zustellung nachtragen").
+- Hinweis vor dem Versand (`copy_changes()`): jeder Beteiligte mit "Kopie bei Anzeigen", der seither neu ist, keine Kopie mehr hat
+  (entfernt, archiviert, abgewählt), eine andere Adresse oder einen anderen Namen bzw. eine andere Rolle hat. Auf der Karte als
+  Warnung, beim Senden als Rückfrage (`confirm()`); versendet wird trotzdem an die Empfänger der Fassung.
+- Fassungen von 1.8.66/1.8.67 (nur lokal, nie eingespielt) haben in "Kopie an:" noch keine Adresse: dann die desselben Beteiligten
+  von heute, auf der Karte gekennzeichnet; gibt es ihn nicht mehr, ohne Adresse.
+- Karte: "Kopie (CC) – genau die Empfänger der Fassung N, wie im PDF unter „Kopie an:“" fest statt des Eingabefelds; die Hinweise
+  zu Empfangsbevollmächtigten sagen, ob er unter den Empfängern der Fassung ist.
+
+### Punkt 3
+
+Nichts geändert: `create_version()` meldet "Die feste Fassung (PDF) der Checkliste ließ sich nicht erstellen – es wurde nichts
+gespeichert. Bitte erneut versuchen; bleibt es dabei, das Büro verständigen." (400), `saveSignature()` zeigt "Nicht gespeichert: …"
+und lädt nur bei 409 neu -- die Zeichnung und der Name bleiben stehen.
+
+### Festlegungen 1.8.68 (bitte bestätigen)
+
+1. **Eingefroren ist auch die Adresse**: hat ein Empfänger seither eine andere, geht die Kopie an die Adresse der Fassung (Hinweis
+   nennt beide). Die neue Adresse erreicht nur eine Zustellung auf anderem Weg -- oder eine neue Fassung (neue Unterschrift).
+2. **Ein Empfänger ohne Adresse in der Fassung** steht im PDF unter "Kopie an:", bekommt aber keine Mail; der Versand geht trotzdem
+   (Hinweis auf der Karte), statt zu sperren.
+3. **Der Hinweis auf geänderte Beteiligte verlangt keine Bestätigung am Server** -- Warnung auf der Karte und Rückfrage beim Senden;
+   anders als beim abweichenden Kunden, wo An betroffen ist.
+4. **Belege der Mängel bleiben im PDF eine Zahl**, auch Foto-Belege -- verlangt waren die Fotos.
+5. **Passt ein Mangel nicht zur Kopie, zeigt das PDF keines seiner Fotos** (statt der zur Prüfsumme passenden einzelnen) -- welche
+   Dateien bei der Unterschrift dazugehörten, ist dann nicht mehr belegt.
+6. **Fassungen von 1.8.66/1.8.67 ohne Adresse** nehmen die desselben Beteiligten von heute (gekennzeichnet) -- es gibt sie nur
+   lokal.
+
+### Verifikation 1.8.68
+
+- Neue `tests/test_v370_protokoll_fotos_und_kopien.py` (9): Fotos verkleinert (≤ 1600 px, Hinweis im PDF) mit Prüfsumme der
+  Originaldatei, Beleg als Zahl, Originale byte-gleich; nach der Unterschrift ergänztes Foto nicht in der nächsten Fassung; viele
+  Fotos bei enger Grenze verkleinert; Kopien genau an die Empfänger der Fassung trotz neuer Adresse, entfernter und neuer Kopie
+  (drei Hinweise, Cc-Kopfzeile, Versandprotokoll, "Kopie an:" im PDF gleich); Empfänger ohne Adresse ohne Mail; Adresse des
+  Auftraggebers nicht doppelt; Fassung ohne Adresse (wie 1.8.66/67). Angriffe: Foto-Datei nach der Unterschrift verändert -> Hinweis
+  statt Bild, das andere Foto bleibt; Foto am ORM vorbei in den Mangel geschoben und dessen Prüfsumme passend nachgerechnet -> keine
+  Fotos, Hinweis; CC über die API (auch in `test_v369`).
+- Angepasst: `test_v369` -- `test_send_goes_to_the_client_with_copies_and_the_archived_version` (alt: CC = Vorbelegung `cc_prefill`,
+  neu: CC = Empfänger der Fassung `cc`, kein `cc_prefill`) und `test_attack_recipient_sent_through_the_api_is_ignored` (alt: Mail nur
+  an den Auftraggeber, weil der Test kein CC schickte; neu: Auftraggeber + die beiden Kopien der Fassung, auch mit mitgeschickter
+  CC-Adresse) -- das freie CC gibt es nicht mehr. Die übrigen Aufrufe schickten `cc_email=None` mit; entfernt, ohne andere Wirkung.
+- Gegenproben (Marker GEGENPROBE, byte-genau zurück; das Werkzeug zeigt seit dieser Runde je Probe den Rotgrund): 10 von 10 rot --
+  Fotos fehlen im PDF, auch später ergänzte Fotos, Datei ohne Prüfsumme gelesen, Kopie der Unterschrift nicht beachtet, Fotos nicht in
+  den Stufen der Fassung, CC wieder die Vorbelegung von heute, CC aus der Anfrage zusätzlich, kein Hinweis auf geänderte Beteiligte,
+  Adresse des Auftraggebers auch in CC, Fassung vor 1.8.68 ohne Adresse.
+- Klicktests: `klicktest_protokoll_versand.py` 16/16 (Kopie fest mit der Adresse der Fassung und "ohne E-Mail-Adresse", kein
+  Eingabefeld, Hinweis mit der neuen Adresse, Rückfrage beim Senden, Umschlag und Cc-Kopfzeile = Empfänger der Fassung);
+  `klicktest_feste_fassung.py` 15/15 (Monteurin, 412 px: Foto-Datei in der Wegwerf-Ablage weggeräumt -> "Nicht gespeichert: … es
+  wurde nichts gespeichert …", Zeichnung und Name stehen, keine Unterschrift am Server; Datei zurück, derselbe Knopf -> gespeichert).
+- PostgreSQL (pytest-Plugin): `test_v308`, `test_v324`, `test_v351`, `test_v353`, `test_v362`, `test_v363`, `test_v364_maengel_nach_kopie`, `test_v365` bis `test_v370` -- 227 grün, 1 rot (`test_v351::test_migration_down_refuses_while_defects_exist`: Migrationstest, der mit rohem SQL einen Mangel zu einem nicht vorhandenen Auftrag einfügt -- unter PostgreSQL greift der Fremdschlüssel, dieselbe Klasse wie `test_v350` seit 1.8.63, kein Befund).
+- Volle Suite auf dem Endstand: 3088 grün, 0 rot (mit den opt-in-Tests gegen PostgreSQL). Danach nur noch die Zahlen dieses Abschnitts und des CHANGELOG eingetragen.
+- Unverändert grün: `klicktest_protokoll_maengel.py` 16/16, `klicktest_abnahme_aus_protokoll.py` 13/13, `klicktest_abnahmeprotokoll.py` 18/18.
+
+### Nebenbefunde 1.8.68 (nur gemeldet)
+
+- Die Briefe der Behinderungs- und Bedenkenanzeige haben weiter ein freies CC (vorbelegt), ihr "Kopie an:" ist je Fassung
+  eingefroren -- dieselbe Frage wie Nr. 8 des Berichts zu 1.8.67, dort nicht entschieden.

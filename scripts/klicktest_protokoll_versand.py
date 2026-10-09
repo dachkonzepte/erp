@@ -1,12 +1,15 @@
-"""Klicktest: Abnahmeprotokoll an den Auftraggeber (1.8.67, Stufe 2c-2e, Punkte 2 und 3).
+"""Klicktest: Abnahmeprotokoll an den Auftraggeber (1.8.67, Stufe 2c-2e, Punkte 2 und 3; seit 1.8.68 CC fest aus der Fassung).
 
 Befüllt wie scripts/klicktest_abnahmeprotokoll.py (Hallenbau GmbH, Bernd Bau, Petra Plan), der Auftraggeber mit E-Mail, Petra
 Plan "Kopie bei Anzeigen" mit E-Mail, Bernd Bau "Kopie bei Anzeigen" ohne E-Mail; SMTP an einen Empfänger im Skript (es verlässt
-keine Mail den Rechner). Ein Protokoll, vom Auftraggeber (Folge: Abnahme) und vom Auftragnehmer unterschrieben -> Fassungen 1, 2.
+keine Mail den Rechner). Ein Protokoll, vom Auftraggeber (Folge: Abnahme) und vom Auftragnehmer unterschrieben -> Fassungen 1, 2;
+danach bekommt Petra Plan eine neue E-Mail-Adresse.
 
-    Büro (1400 px, dunkel)  Karte "Protokoll an den Auftraggeber": bereit, Fassung 2, "Kopie an (im Protokoll)" mit beiden, An
-                            fest der Auftraggeber, CC vorbelegt mit Petra Plan, Hinweis "ohne E-Mail" für Bernd Bau; Senden ->
-                            Umschlag Auftraggeber + Petra Plan, Anhang = Fassung 2 (SHA-256), danach "versendet" und eine Zeile
+    Büro (1400 px, dunkel)  Karte "Protokoll an den Auftraggeber": bereit, Fassung 2, An fest der Auftraggeber, Kopie (CC) fest
+                            -- Petra Plan mit der Adresse aus der Fassung, Bernd Bau "ohne E-Mail-Adresse in der Fassung", kein
+                            Eingabefeld; Hinweis "Beteiligte seit Fassung 2 geändert" mit der neuen Adresse; Senden -> Rückfrage
+                            mit demselben Hinweis, Umschlag Auftraggeber + Petra Plan (alte Adresse, wie im PDF), Anhang =
+                            Fassung 2 (SHA-256), danach "versendet" und eine Zeile
                             im Versandverlauf mit "Zustellung nachtragen". Unterschrift des Auftragnehmers verworfen -> die Karte
                             nennt Fassung 1.
                             Auftragsseite: an der Abnahme "Fassung 1 (PDF)" (Punkt 3), der Link liefert das PDF.
@@ -35,6 +38,7 @@ from klicktest_versandprotokoll import POSTFACH, _smtp_starten  # noqa: E402
 A = "abnahme."
 AG = "auftraggeber@klicktest.example"
 PLAN = "petra.plan@klicktest.example"
+PLAN_NEU = "petra.neu@klicktest.example"
 KARTE = "document.getElementById('protocolDispatchCard')"
 
 
@@ -68,6 +72,10 @@ def befuellen(db, k):
     an = cl.add_attachment(db, c["id"], f["unterschrift_auftragnehmer"], _unterschrift_png(), account_user_id=olga.id,
                            account_name="Olga Office")
     an_id = next(a["id"] for a in an["attachments"] if a["field_id"] == f["unterschrift_auftragnehmer"])
+    for p in db.scalars(select(ProjectParticipant)):  # seit 1.8.68: nach den Fassungen geändert -> Hinweis, CC bleibt
+        if p.contact.last_name == "Plan":
+            p.contact.email = PLAN_NEU
+    db.commit()
     return {**seed, "smtp_port": smtp_port, "protokoll": c["id"], "an": an_id}
 
 
@@ -98,15 +106,16 @@ async def _pruefen(tab, seed, p):
     p.pruefe("Karte: bereit, Fassung 2", await tab.js(
         f"[{KARTE}.querySelector('.badge').textContent, {KARTE}.querySelector('[data-protocol-version]').textContent.startsWith('Fassung 2 ')]"),
         ["bereit", True])
-    p.pruefe("Kopie an (im Protokoll): Petra Plan und Bernd Bau", await tab.js(
-        f"(t=>[t.includes('Petra Plan'), t.includes('Bernd Bau')])({KARTE}.querySelector('[data-protocol-copy]').textContent)"),
-        [True, True])
+    p.pruefe("Kopie (CC) fest: Petra Plan mit der Adresse der Fassung, Bernd Bau ohne Adresse, kein Eingabefeld", await tab.js(
+        f"(c=>[(t=>t.includes('Petra Plan') && t.includes('<{PLAN}>'))(c.querySelector('[data-copy-mail]').textContent), "
+        f"c.querySelector('[data-copy-nomail]').textContent.includes('Bernd Bau'), c.querySelectorAll('input').length, "
+        f"!document.getElementById('protocolCc')])({KARTE}.querySelector('[data-protocol-cc]'))"), [True, True, 0, True])
+    p.pruefe("Hinweis: Beteiligte seit Fassung 2 geändert, mit der neuen Adresse", await tab.js(
+        f"(w=>!!w && w.textContent.includes('seit Fassung 2 geändert') && w.textContent.includes('{PLAN_NEU}'))"
+        f"({KARTE}.querySelector('[data-copy-changes]'))"), True)
     p.pruefe("An fest der Auftraggeber, kein Eingabefeld", await tab.js(
         f"[{KARTE}.querySelector('[data-notice-to]').textContent.includes('{AG}'), {KARTE}.querySelectorAll('[data-notice-to] input').length]"),
         [True, 0])
-    p.pruefe("CC vorbelegt mit Petra Plan, Hinweis ohne E-Mail für Bernd Bau", await tab.js(
-        f"[document.getElementById('protocolCc').value, {KARTE}.querySelector('.notice-info').textContent.includes('Bernd Bau')]"),
-        [PLAN, True])
     p.pruefe("kein allgemeiner Versand für das Protokoll", await tab.js("!document.getElementById('sendCard')"), True)
     await tab.js(f"{KARTE}.scrollIntoView()")
     await tab.bild("1_protokoll_bereit_dunkel")
@@ -122,7 +131,11 @@ async def _pruefen(tab, seed, p):
     for part in (mail["message"].walk() if mail else []):
         if part.get_content_disposition() == "attachment":
             anhang = part.get_payload(decode=True)
-    p.pruefe("Versand: Umschlag Auftraggeber + Petra Plan", mail["rcpts"] if mail else None, [AG, PLAN])
+    p.pruefe("Rückfrage vor dem Senden nennt die Änderung", await tab.js(
+        "window.__confirms.some(m=>m.includes('seit Fassung 2 geändert') && m.includes('Kopie an:'))"), True)
+    p.pruefe("Versand: Umschlag Auftraggeber + Petra Plan mit der Adresse der Fassung", mail["rcpts"] if mail else None,
+             [AG, PLAN])
+    p.pruefe("Mail: Cc-Kopfzeile = Empfänger der Fassung", (mail["message"]["Cc"] or "") if mail else None, PLAN)
     p.pruefe("Anhang = Fassung 2 aus der Ablage (SHA-256)", hashlib.sha256(anhang or b"").hexdigest(), fassung2)
     await tab.warten("document.querySelector('#protocolDispatchHistory [data-dispatch-row]')", 15)
     p.pruefe("Versandverlauf: Zeile und 'Zustellung nachtragen'", await tab.js(

@@ -566,16 +566,17 @@ def list_protocol_defects(db: Session, checklist) -> list[dict]:
     (verworfen gekennzeichnet). Seit 1.8.62 entscheidet das die abgelegte Kopie selbst, kein Zeitvergleich; seit 1.8.65 über
     app/checklists.py::protocol_defect_ids(): ist diese Kopie nicht lesbar oder weicht sie von ihrer Prüfsumme ab, steht bei
     jedem Mangel in_protocol None und der Grund in seal_problem -- kein Schluss, auch nicht "ohne Mängel"."""
-    from .checklists import SealedCopyError, defect_in_seal, protocol_defect_ids, protocol_defects, protocol_seal
+    from .checklists import SealedCopyError, defect_in_seal, protocol_defects, protocol_seal, protocol_sealed_defects
 
     field = _protocol_field(checklist)
     if field is None:
         return []
     sealed = protocol_seal(checklist) is not None
     try:
-        sealed_ids, seal_problem = protocol_defect_ids(checklist), None
+        sealed_hashes, seal_problem = protocol_sealed_defects(checklist), None
     except SealedCopyError as exc:
-        sealed_ids, seal_problem = None, str(exc)
+        sealed_hashes, seal_problem = None, str(exc)
+    sealed_ids = None if sealed_hashes is None else set(sealed_hashes)
     result = []
     for d in protocol_defects(checklist):
         check = verify_defect(d)
@@ -591,6 +592,11 @@ def list_protocol_defects(db: Session, checklist) -> list[dict]:
             # verworfener Mangel kommt in keine Kopie mehr.
             "sealed": sealed, "in_protocol": None if seal_problem else defect_in_seal(d, sealed_ids),
             "seal_problem": seal_problem,
+            # seit 1.8.68: die Dateien beim Erfassen (im gebundenen Inhalt) sind die bei der Unterschrift -- wenn der Inhalt
+            # zu seiner Prüfsumme UND zur Prüfsumme in der Kopie passt; nur dann zeigt das PDF die Fotos
+            "sealed_sha256": None if sealed_hashes is None else sealed_hashes.get(d.id),
+            "files_as_signed": (sealed_hashes is not None and check["content_ok"]
+                                and sealed_hashes.get(d.id) == d.content_sha256),
         })
     return result
 

@@ -391,6 +391,13 @@ def protocol_defect_ids(checklist: Checklist) -> set[int] | None:
     (protocol_seal()) -- None, solange es sie nicht gibt (dann gehört jeder nicht verworfene Mangel in die nächste Kopie).
     Seit 1.8.65: ist diese Kopie nicht lesbar oder weicht sie von ihrer Prüfsumme ab, SealedCopyError mit logger.error -- kein
     Schluss daraus, auch nicht "ohne Mängel"."""
+    sealed = protocol_sealed_defects(checklist)
+    return None if sealed is None else set(sealed)
+
+
+def protocol_sealed_defects(checklist: Checklist) -> dict[int, str] | None:
+    """Wie protocol_defect_ids(), dazu je Mangel die Prüfsumme seines Inhalts in der Kopie (seit 1.8.68) -- daran hängt, welche
+    Fotos bei der Unterschrift zum Mangel gehörten (die Dateien beim Erfassen stehen in seinem gebundenen Inhalt)."""
     seal = protocol_seal(checklist)
     if seal is None or seal.sealed_content is None:
         return None  # vor 1.8.14 geleistete Unterschriften ohne Kopie gibt es unter einem Mängelfeld (seit 1.8.60) nicht
@@ -400,7 +407,9 @@ def protocol_defect_ids(checklist: Checklist) -> set[int] | None:
         problem = "weicht von ihrer Prüfsumme ab"
     else:
         try:
-            return sealed_defect_ids(seal.sealed_content)
+            sealed_defect_ids(seal.sealed_content)  # wirft bei einer unlesbaren Kopie
+            entries = json.loads(seal.sealed_content).get("fields", [])
+            return {d["id"]: d.get("sha256") for e in entries for d in e.get("defects", [])}
         except SealedCopyError:
             problem = "ist nicht lesbar"
     logger.error("Checkliste %s: Kopie der Unterschrift %s %s -- Mängel im Protokoll nicht feststellbar", checklist.id,

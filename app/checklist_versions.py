@@ -99,7 +99,8 @@ def protocol_copy_to(db: Session, checklist: Checklist) -> list[dict] | None:
     if checklist.template_version.purpose != ACCEPTANCE_PURPOSE or checklist.order_id is None:
         return None
     order = db.get(Order, checklist.order_id)
-    return [{"participant_id": c["participant_id"], "name": c["name"], "role_label": c["role_label"]}
+    # seit 1.8.68 mit der E-Mail-Adresse beim Erstellen: genau an sie geht die Kopie beim Versand (PDF und Mail gleich)
+    return [{"participant_id": c["participant_id"], "name": c["name"], "role_label": c["role_label"], "email": c["email"]}
             for c in copy_recipients(db, order.project_id)]
 
 

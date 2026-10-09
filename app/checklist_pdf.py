@@ -34,6 +34,11 @@ seiner Unterschrift (app/acceptance_protocol.py::protocol_summary()), am Feld "M
 ein erst nach der Unterschrift verworfener mit diesem Vermerk, vorher verworfene gar nicht. Ohne Begründungen, ohne Abnahme am
 Auftrag und ohne Aufgaben -- das Dokument kann an den Auftraggeber gehen.
 
+Fotos der Mängel (seit 1.8.68): am Feld "Mängel" die Fotos jedes Mangels im Protokoll, die bei der Unterschrift zu ihm
+gehörten -- die beim Erfassen (im gebundenen Inhalt des Mangels), und nur, wenn sein Inhalt zur Prüfsumme in der Kopie der
+Unterschrift passt (sonst ein Hinweis statt der Bilder) und die Datei zu ihrer Prüfsumme. Später ergänzte Fotos (Ereignisse,
+z. B. "beseitigt") gehören nicht dazu. Verkleinert wie die übrigen Fotos, die Originale bleiben unverändert im ERP.
+
 Feste Fassung (seit 1.8.66, app/checklist_versions.py, build_checklist_version_pdf()): bei jeder Unterschrift, beim Abschluss
 und bei "gegenstandslos" das PDF des Stands genau dieses Moments -- auch an einem Entwurf. Kopf und Unterzeile nennen Fassung und
 Anlass, der Abschluss-Block sagt "noch nicht abgeschlossen"; die Fotos stufenweise verkleinert wie beim Versand-PDF, aber ohne
@@ -123,10 +128,11 @@ def _image(source, width_mm: float, *, max_height_mm: float | None = None):
 
 
 def _reduced_photo(path, max_px: int, quality: int) -> bytes:
-    """Das Foto neu verkleinert, nur im Speicher -- die Datei selbst wird nur gelesen."""
+    """Das Foto neu verkleinert, nur im Speicher -- die Datei selbst wird nur gelesen. path: Pfad oder (seit 1.8.68) die
+    Bytes eines Fotos (Mangel, aus der Ablage der Abnahmen)."""
     from PIL import Image as PILImage
 
-    with PILImage.open(path) as im:
+    with PILImage.open(BytesIO(path) if isinstance(path, bytes) else path) as im:
         im = im.convert("RGB")
         im.thumbnail((max_px, max_px))
         buf = BytesIO()
@@ -158,17 +164,16 @@ def _beleg_block(beleg, width_mm: float, photo_bytes: dict | None, photo_hashes:
 
 def _defect_block(d: dict, body, small) -> list:
     """Ein Mangel im Abnahmeprotokoll (seit 1.8.64, Eintrag aus app/defects.py::list_protocol_defects()): Nummer, Ort,
-    Beschreibung, Frist, Dateien als Anzahl, Prüfsumme; erst nach der Unterschrift verworfen mit Vermerk, ohne Begründung."""
+    Beschreibung, Frist, Belege als Anzahl (Fotos seit 1.8.68 als Bilder darunter), Prüfsumme; erst nach der Unterschrift verworfen mit Vermerk, ohne Begründung."""
     place = " · ".join(x for x in (d["roof_area_name"], d["location"]) if x)
     head = f"<b>Mangel Nr. {d['id']}</b>" + (f" – {ptext(place)}" if place else "")
     block = [Paragraph(head, body), Paragraph(ptext(d["description"]), body)]
     details = []
     if d["remedy_due_on"]:
         details.append(f"Beseitigungsfrist: {d['remedy_due_on']:%d.%m.%Y}")
-    fotos = sum(1 for f in d["files"] if f["kind"] == "foto")
-    belege = sum(1 for f in d["files"] if f["kind"] != "foto")
-    if fotos or belege:
-        details.append(f"Fotos: {fotos}, Belege: {belege} (liegen im ERP am Mangel)")
+    belege = sum(1 for f in d["files"] if f["kind"] != "foto")  # seit 1.8.68 die Fotos als Bilder darunter
+    if belege:
+        details.append(f"Belege: {belege} (liegen im ERP am Mangel)")
     details.append(f"Prüfsumme (SHA-256): {d['content_sha256']}")
     block.append(Paragraph(ptext(" · ".join(details)), small))
     if not d["intact"]:
@@ -200,23 +205,53 @@ def build_checklist_email_pdf(db, checklist: Checklist) -> bytes:
     )
 
 
+def defect_photo_rows(db, summary: dict | None) -> list:
+    """Die Fotos, die bei der Unterschrift zu den Mängeln im Protokoll gehörten (seit 1.8.68): die Dateien beim Erfassen eines
+    Mangels, dessen Inhalt zur Prüfsumme in der Kopie passt (files_as_signed) -- nur Fotos, nur mit stimmender Prüfsumme der
+    Datei. Ohne Unterschrift unter dem Feld (noch keine Kopie) die Fotos beim Erfassen der nicht verworfenen."""
+    from .models import DefectFile
+
+    rows = []
+    for d in (summary or {}).get("defects", []):
+        if not d["in_protocol"] or (d["sealed"] and not d.get("files_as_signed")):
+            continue
+        rows += [db.get(DefectFile, f["id"]) for f in d["files"] if f["kind"] == "foto" and f["status"] == "unveraendert"]
+    return rows
+
+
+def _defect_photo(row, max_px: int, quality: int) -> bytes | None:
+    """Ein Foto eines Mangels verkleinert -- None, wenn die Datei fehlt oder nicht zu ihrer Prüfsumme passt."""
+    from .defects import read_defect_file
+    from .acceptances import AcceptanceFileError
+
+    try:
+        return _reduced_photo(read_defect_file(row), max_px, quality)
+    except AcceptanceFileError:
+        return None
+
+
 def build_checklist_version_pdf(db, checklist: Checklist, stand: dict) -> bytes:
     """Das PDF einer festen Fassung (seit 1.8.66): stand = {"version_no", "kind", "signature", "at"}. Fotos und Foto-Belege
     stufenweise verkleinert (EMAIL_PHOTO_STEPS), bis das PDF unter MAX_ATTACHMENT_BYTES liegt; passt auch die kleinste Stufe
     nicht, bleibt sie -- anders als beim Versand-PDF kein Abbruch, die Unterschrift gilt trotzdem. Je Stufe liegen nur deren
     Fotos im Speicher."""
+    from .acceptance_protocol import protocol_summary
     from .email_sending import MAX_ATTACHMENT_BYTES
 
     photos = [a for a in active_attachments(checklist) if a.kind == "foto" or _is_image_beleg(a)]
-    if not photos:
+    defect_rows = defect_photo_rows(db, protocol_summary(db, checklist))  # seit 1.8.68
+    if not photos and not defect_rows:
         return build_checklist_pdf(db, checklist, stand=stand)
     pdf = None
     for index, (max_px, quality) in enumerate(EMAIL_PHOTO_STEPS):
         last = index == len(EMAIL_PHOTO_STEPS) - 1
         reduced = {a.id: _reduced_photo(attachment_path(a), max_px, quality) for a in photos}
-        if not last and sum(len(b) for b in reduced.values()) * _EMBED_FACTOR > MAX_ATTACHMENT_BYTES:
+        reduced_defects = {r.id: data for r in defect_rows if (data := _defect_photo(r, max_px, quality)) is not None}
+        size = sum(len(b) for b in reduced.values()) + sum(len(b) for b in reduced_defects.values())
+        if not last and size * _EMBED_FACTOR > MAX_ATTACHMENT_BYTES:
             continue
-        pdf = build_checklist_pdf(db, checklist, photo_bytes=reduced, stand={**stand, "photo_px": max_px})
+        pdf = build_checklist_pdf(db, checklist, photo_bytes=reduced, defect_photo_bytes=reduced_defects,
+                                  stand={**stand, "photo_px": max_px})
         if len(pdf) <= MAX_ATTACHMENT_BYTES:
             break
     return pdf
@@ -241,10 +276,11 @@ def _stand_text(checklist: Checklist, stand: dict) -> str:
 
 
 def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, bytes] | None = None,
-                        stand: dict | None = None) -> bytes:
+                        stand: dict | None = None, defect_photo_bytes: dict[int, bytes] | None = None) -> bytes:
     """photo_bytes (seit 1.8.20, nur build_checklist_email_pdf()): je Foto-ID die verkleinerten
     Bytes statt der Datei, dazu ein Hinweis im Dokument. stand (seit 1.8.66, nur build_checklist_version_pdf()): das PDF
-    einer festen Fassung -- dann auch an einem Entwurf."""
+    einer festen Fassung -- dann auch an einem Entwurf. defect_photo_bytes (seit 1.8.68): je Foto eines Mangels
+    (DefectFile-ID) die verkleinerten Bytes; fehlt eins, wird es hier wie ein Foto-Beleg verkleinert."""
     if checklist.status not in CLOSED_STATUSES and stand is None:  # seit 1.8.41 auch "gegenstandslos" -- bleibt als Beleg
         raise ValueError("Nur abgeschlossene Checklisten können als PDF erzeugt werden.")
     voided = checklist.status == VOID_STATUS
@@ -285,6 +321,34 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
     summary = protocol_summary(db, checklist)
     # seit 1.8.67: "Kopie an:" im Abnahmeprotokoll -- in einer Fassung die beim Erstellen eingefrorene Liste
     copy_to = stand["copy_to"] if stand is not None and "copy_to" in stand else protocol_copy_to(db, checklist)
+
+    defect_photo_cache = dict(defect_photo_bytes or {})
+
+    def defect_photos(d: dict) -> list:
+        """Die Fotos des Mangels wie bei der Unterschrift (seit 1.8.68, siehe defect_photo_rows()), je mit Prüfsumme der
+        Originaldatei; passt der Mangel nicht zur Kopie bzw. eine Datei nicht zu ihrer Prüfsumme, ein Hinweis statt Bild."""
+        from .models import DefectFile
+
+        fotos = [f for f in d["files"] if f["kind"] == "foto"]
+        if not fotos:
+            return []
+        if d["sealed"] and not d.get("files_as_signed"):
+            return [Paragraph("<b>Fotos nicht gezeigt: der Mangel passt nicht zur Kopie der Unterschrift.</b>", small),
+                    Spacer(1, 2 * mm)]
+        width = min(PHOTO_WIDTH_MM, content_width_mm)
+        out = []
+        for f in fotos:
+            if f["id"] not in defect_photo_cache and f["status"] == "unveraendert":  # einmal je PDF, nicht je Durchlauf
+                defect_photo_cache[f["id"]] = _defect_photo(db.get(DefectFile, f["id"]), BELEG_PDF_PX, BELEG_PDF_QUALITY)
+            data = defect_photo_cache.get(f["id"])
+            if data is None:
+                text = f"Foto zum Mangel Nr. {d['id']} nicht gezeigt: {f['status_text']}."
+                out.append(Paragraph(f"<b>{ptext(text)}</b>", small))
+                continue
+            out.append(KeepTogether([_image(data, width), Paragraph(ptext(
+                f"Foto zum Mangel Nr. {d['id']} – Prüfsumme der Originaldatei (SHA-256): {f['sha256']}"), small),
+                Spacer(1, 2 * mm)]))
+        return out
 
     def seal_paragraph(check: dict) -> Paragraph:
         text = ptext(check["text"])  # eine Abweichung fett
@@ -403,6 +467,7 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
                     story.append(Paragraph("Keine Mängel.", small))
                 for d in drin:
                     story.append(KeepTogether(_defect_block(d, body, small) + [Spacer(1, 2 * mm)]))
+                    story += defect_photos(d)  # seit 1.8.68
                 story.append(Spacer(1, 2 * mm))
             elif field.field_type == "unterschrift":
                 flush_rows()
@@ -440,7 +505,7 @@ def build_checklist_pdf(db, checklist: Checklist, *, photo_bytes: dict[int, byte
             block.append(seal_paragraph(completion))
         else:  # seit 1.8.66: feste Fassung eines Entwurfs
             block.append(Paragraph("Noch nicht abgeschlossen.", small))
-        if photo_bytes and stand is not None and stand.get("photo_px"):
+        if (photo_bytes or defect_photo_bytes) and stand is not None and stand.get("photo_px"):
             block.append(Paragraph(ptext(VERSION_PHOTO_NOTE.format(px=stand["photo_px"])), small))
         elif photo_bytes:
             block.append(Paragraph(ptext(EMAIL_PHOTO_NOTE), small))

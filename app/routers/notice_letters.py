@@ -60,10 +60,11 @@ def get_protocol_dispatch(checklist_id: int, db: Session = Depends(get_db), _rol
 @router.post("/api/checklists/{checklist_id}/protocol-dispatch/send-email")
 def post_protocol_send(checklist_id: int, payload: ProtocolSend, db: Session = Depends(get_db),
                        _role: AppUser = _office_dep):
-    """Versendet die jüngste gültige feste Fassung an den Auftraggeber (seit 1.8.67) -- An ist immer der Auftraggeber, eine
-    mitgeschickte An-Adresse wird nicht beachtet (ProtocolSend hat kein Feld dafür)."""
+    """Versendet die jüngste gültige feste Fassung an den Auftraggeber (seit 1.8.67) -- An ist immer der Auftraggeber, CC seit
+    1.8.68 genau die in der Fassung eingefrorenen Empfänger; eine mitgeschickte An- oder CC-Adresse wird nicht beachtet
+    (ProtocolSend hat kein Feld dafür)."""
     _require_module(db)
-    result = _call(send_protocol, db, checklist_id, cc_email=payload.cc_email, dispatch_key=payload.dispatch_key, user=_role,
+    result = _call(send_protocol, db, checklist_id, dispatch_key=payload.dispatch_key, user=_role,
                    confirm_customer=payload.confirm_customer)
     return dispatch_to_dict(result.dispatch)
 

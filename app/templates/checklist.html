@@ -563,7 +563,7 @@ function noticeKindHtml(k){
 function olderLettersHtml(list){
   return `<div class="notice-row muted">Frühere Fassungen (Unterschrift inzwischen verworfen): ${list.map(l=>`Fassung ${l.version_no} vom ${fmtIsoDate(l.letter_date)} <a href="/api/sent-documents/${l.sent_document.id}/file" target="_blank" rel="noopener">PDF</a>`).join(' · ')}</div>`;
 }
-function noticeParticipantHints(state=notice){  // seit 1.8.67 auch für das Abnahmeprotokoll (state)
+function noticeParticipantHints(state=notice){  // Zustand als Parameter seit 1.8.67; das Abnahmeprotokoll hat seit 1.8.68 eigene Hinweise (protocolCopyHtml)
   const lines=[];
   const noMail=state.copies.filter(c=>!c.email&&!c.archived);
   if(noMail.length)lines.push(`Kopie bei Anzeigen, aber ohne E-Mail (bitte auf anderem Weg): ${esc(noMail.map(c=>`${c.name} (${c.role_label})`).join('; '))}`);
@@ -651,17 +651,34 @@ async function sendNoticeLetter(kind,btn){
 }
 
 // --- Abnahmeprotokoll an den Auftraggeber (seit 1.8.67, nur Büro) --------------------------------------------------------
-// Der Weg der Anzeigen: An fest der Auftraggeber, CC vorbelegt mit "Kopie bei Anzeigen", Bestätigung bei abweichendem Kunden,
-// Versand nur der jüngsten gültigen festen Fassung aus der Ablage, Zustellung nachtragen im Versandverlauf.
-let protocolDispatch=null,protocolConfirmCustomer=false,protocolCc;
+// Der Weg der Anzeigen: An fest der Auftraggeber, Bestätigung bei abweichendem Kunden, Versand nur der jüngsten gültigen festen
+// Fassung aus der Ablage, Zustellung nachtragen im Versandverlauf. Seit 1.8.68 CC fest: genau die in der Fassung eingefrorenen
+// Empfänger ("Kopie an:" im PDF), Hinweis vor dem Versand, wenn sich die Beteiligten seither geändert haben.
+let protocolDispatch=null,protocolConfirmCustomer=false;
+function protocolCopyHtml(s){
+  const v=s.version,lines=[];
+  for(const c of v.copy_to){
+    const who=`${esc(c.name)} (${esc(c.role_label)})`;
+    if(!c.email)lines.push(`<div data-copy-nomail>${who} – ohne E-Mail-Adresse in der Fassung: Kopie auf anderem Weg zustellen und unten unter „Zustellung nachtragen“ festhalten</div>`);
+    else lines.push(`<div data-copy-mail>${who} &lt;${esc(c.email)}&gt;${c.email_source==='heute'?' <span class="muted">(Adresse von heute – Fassung vor 1.8.68)</span>':''}</div>`);
+  }
+  let html=`<label class="small">Kopie (CC) – genau die Empfänger der Fassung ${v.version_no}, wie im PDF unter „Kopie an:“</label>
+    <div class="notice-to" data-protocol-cc>${lines.length?lines.join(''):'<span class="muted">keine – in der Fassung steht keine Kopie</span>'}<span class="fixed">fest</span></div>`;
+  if(s.copy_changes.length)html+=`<div class="notice-warn" data-copy-changes><b>Beteiligte seit Fassung ${v.version_no} geändert:</b><br>${s.copy_changes.map(esc).join('<br>')}<br>Die Kopie geht trotzdem nur an die Empfänger der Fassung (wie im PDF). Weitere Empfänger: PDF auf anderem Weg zustellen und unten unter „Zustellung nachtragen“ festhalten.</div>`;
+  const auth=s.authorized.map(a=>{
+    const inCopy=a.email&&s.cc.some(x=>x.toLowerCase()===a.email.toLowerCase());
+    const poa=!a.has_poa?'keine Vollmacht hinterlegt':(inCopy?'die Vollmacht wird beim Versand an diese Adresse festgehalten':'nicht unter den Empfängern der Fassung – die Vollmacht wird festgehalten, wenn eine Zustellung an ihn nachgetragen wird');
+    return `Empfangsbevollmächtigt: ${esc(a.name)} (${esc(a.role_label)})${a.email?` &lt;${esc(a.email)}&gt;`:' – ohne E-Mail'} – ${poa}`;
+  });
+  return html+(auth.length?`<div class="notice-info">${auth.join('<br>')}</div>`:'');
+}
 function protocolDispatchHtml(s){
   const badge={versendet:'<span class="badge done">versendet</span>',unzustellbar:'<span class="badge bad">unzustellbar</span>',bereit:'<span class="badge open">bereit</span>'}[s.status]||'<span class="badge">wartet</span>';
   let html=`<div class="notice-head"><h2 style="margin:0">Protokoll an den Auftraggeber</h2>${badge}</div>
     <div class="muted small">Auftrag ${esc(s.order_number)}. Versendet wird immer die jüngste gültige feste Fassung aus der Ablage – nie neu erzeugt.</div>`;
   if(!s.ready)return html+`<div class="notice-row muted" data-protocol-waiting>${esc(s.waiting_text||'')}</div><div id="protocolDispatchHistory"></div>`;
   const v=s.version,doc=v.sent_document;
-  html+=`<div class="notice-row" data-protocol-version>Fassung ${v.version_no} vom ${esc(fmtDateTime(v.created_at))} · <span class="mono" title="SHA-256 ${esc(doc.sha256)}">Prüfsumme ${esc(doc.sha256.slice(0,12))}…</span> · <a href="/api/sent-documents/${doc.id}/file" target="_blank" rel="noopener">PDF öffnen</a></div>`
-    +(v.copy_to.length?`<div class="notice-row muted" data-protocol-copy>Kopie an (im Protokoll): ${esc(v.copy_to.map(c=>`${c.name} (${c.role_label})`).join('; '))}</div>`:'');
+  html+=`<div class="notice-row" data-protocol-version>Fassung ${v.version_no} vom ${esc(fmtDateTime(v.created_at))} · <span class="mono" title="SHA-256 ${esc(doc.sha256)}">Prüfsumme ${esc(doc.sha256.slice(0,12))}…</span> · <a href="/api/sent-documents/${doc.id}/file" target="_blank" rel="noopener">PDF öffnen</a></div>`;
   const m=s.customer_mismatch;
   if(m)html+=`<div class="notice-warn" data-customer-mismatch><b>Abweichender Kunde:</b> ${esc(m.text)}
     <label class="notice-confirm"><input type="checkbox" id="protocolConfirmCustomer" ${protocolConfirmCustomer?'checked':''} onchange="protocolConfirmCustomer=this.checked"><span>Abweichung geprüft – E-Mail an ${esc(m.project_customer)}</span></label></div>`;
@@ -669,9 +686,7 @@ function protocolDispatchHtml(s){
   html+=`<label class="small">An (immer der Auftraggeber)</label>
     <div class="notice-to" data-notice-to>${esc(rec.name)}${rec.email?` &lt;${esc(rec.email)}&gt;`:''}<span class="fixed">fest</span></div>`
     +(rec.email?'':`<div class="notice-warn">Der Auftraggeber hat keine E-Mail-Adresse. Bitte im Kundenstamm ergänzen oder das Protokoll auf anderem Weg zustellen und unten unter „Zustellung nachtragen“ festhalten.</div>`)
-    +`<label class="small" for="protocolCc">CC (vorbelegt mit „Kopie bei Anzeigen“, mehrere mit Komma)</label>
-    <input id="protocolCc" type="text" inputmode="email" autocomplete="off" value="${esc(protocolCc!==undefined?protocolCc:s.cc_prefill)}" oninput="protocolCc=this.value">`
-    +noticeParticipantHints(s)
+    +protocolCopyHtml(s)
     +(s.status==='unzustellbar'?`<div class="notice-warn" data-undeliverable><b>Unzustellbar:</b> Das Protokoll kam beim Auftraggeber nicht an – bitte erneut senden oder auf anderem Weg zustellen und unten nachtragen.</div>`:'')
     +`<div class="notice-actions"><button type="button" class="btn" id="protocolSend" ${rec.email?'':'disabled'} onclick="sendProtocol(this)">Protokoll ${s.status==='versendet'||s.status==='unzustellbar'?'erneut senden':'senden'}</button><span class="muted small" id="protocolStatus"></span></div>`;
   return html+'<div id="protocolDispatchHistory"></div>';
@@ -686,11 +701,10 @@ async function loadProtocolDispatch(){
 async function sendProtocol(btn){
   const st=document.getElementById('protocolStatus');
   if(protocolDispatch.customer_mismatch&&!protocolConfirmCustomer){st.textContent='Bitte zuerst oben die Abweichung des Kunden prüfen und bestätigen.';document.getElementById('protocolConfirmCustomer')?.focus();return}
-  const cc=(document.getElementById('protocolCc').value||'').trim();
+  if(protocolDispatch.copy_changes.length&&!confirm(`Die Beteiligten haben sich seit Fassung ${protocolDispatch.version.version_no} geändert. Die Kopie geht trotzdem nur an die Empfänger der Fassung (wie im PDF unter „Kopie an:“). Senden?`))return;
   st.textContent='Wird gesendet …';
   try{
-    await postEmailDispatch(`protokoll-${checklistId}`,`/api/checklists/${checklistId}/protocol-dispatch/send-email`,{cc_email:cc||null,confirm_customer:protocolConfirmCustomer},btn);
-    protocolCc=undefined;
+    await postEmailDispatch(`protokoll-${checklistId}`,`/api/checklists/${checklistId}/protocol-dispatch/send-email`,{confirm_customer:protocolConfirmCustomer},btn);
     await loadProtocolDispatch();
     const st2=document.getElementById('protocolStatus');if(st2)st2.textContent='Versendet.';
   }catch(e){st.textContent='Fehler: '+e.message}

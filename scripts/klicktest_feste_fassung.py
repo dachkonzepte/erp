@@ -8,6 +8,9 @@ verworfen und neu geleistet (Fassung 3). Außerdem eine eigene Checkliste der Mo
                             Unterschrift, 1 und 3 "gilt"; "PDF" liefert ein PDF; "Prüfen" -> "Datei unverändert".
     Büro (412 px, hell)     Karte ohne waagrechten Scrollbalken.
     Monteurin               an der eigenen Checkliste keine Karte, die Liste der Fassungen 403.
+    Monteurin (seit 1.8.68) Unterschrift, deren Fassung (PDF) scheitert (Foto-Datei weggeräumt): Meldung "Nicht gespeichert"
+                            mit "es wurde nichts gespeichert", die Zeichnung bleibt stehen, keine Unterschrift am Server;
+                            Datei zurück, derselbe Knopf noch einmal -> gespeichert.
 
 AUFRUF (aus dem Projektordner):
 
@@ -18,6 +21,7 @@ Optionen, Ablauf, Rückgabecode und Regeln (isolierte Wegwerf-Datenbank, Prozess
 scripts/cdp_klicktest.py. Feste Uhr 10:00 (die Monteurin öffnet ihre Checkliste).
 """
 
+import shutil
 import sys
 from pathlib import Path
 
@@ -25,6 +29,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import klicktest_main  # noqa: E402
 from klicktest_abnahme_aus_protokoll import _unterschrift_png  # noqa: E402
 from klicktest_abnahmeprotokoll import befuellen as befuellen_basis  # noqa: E402
+from klicktest_checkliste_unterschrift import CONFIRM  # noqa: E402
+from klicktest_unterzeichner import _knopf, _zeichnen  # noqa: E402
 
 A = "abnahme."
 
@@ -34,7 +40,7 @@ def befuellen(db, k):
 
     from app import checklists as cl
     from app.checklist_templates import add_field, create_template, publish_draft
-    from app.models import AppUser
+    from app.models import AppUser, Checklist
 
     seed = befuellen_basis(db, k)
     olga = db.scalar(select(AppUser).where(AppUser.username == "olga"))
@@ -64,7 +70,24 @@ def befuellen(db, k):
     cl.save_answer(db, eigene["id"], g["frei"], "ja")
     cl.add_attachment(db, eigene["id"], g["sig"], _unterschrift_png(), signer_name="Mia Monteurin",
                       created_by_employee_id=mia.employee_id, account_user_id=mia.id, account_name="Mia Monteurin")
-    return {**seed, "protokoll": c["id"], "eigene": eigene["id"]}
+    # seit 1.8.68: eine Checkliste mit Foto, noch nicht unterschrieben -- das PDF der Fassung scheitert, wenn die Datei fehlt
+    from io import BytesIO
+
+    from PIL import Image
+
+    t2 = create_template(db, label="Fotos (Klicktest)", contexts=["auftrag"])
+    add_field(db, t2["draft_version_id"], {"field_type": "foto", "label": "Foto", "field_key": "foto"})
+    add_field(db, t2["draft_version_id"], {"field_type": "unterschrift", "label": "Unterschrift Monteur", "field_key": "sig"})
+    tpl2 = publish_draft(db, t2["id"])
+    foto = cl.create_checklist(db, template_id=tpl2["id"], context_type="auftrag", order_id=seed["auftrag"],
+                               created_by_employee_id=mia.employee_id, created_by_user_id=mia.id)
+    h = {x["field_key"]: x["id"] for x in foto["fields"]}
+    buf = BytesIO()
+    Image.new("RGB", (800, 600), (120, 160, 200)).save(buf, format="JPEG")
+    cl.add_attachment(db, foto["id"], h["foto"], buf.getvalue(), created_by_employee_id=mia.employee_id)
+    att = next(a for a in db.get(Checklist, foto["id"]).attachments if a.kind == "foto")
+    return {**seed, "protokoll": c["id"], "eigene": eigene["id"], "foto_liste": foto["id"], "foto_sig": h["sig"],
+            "foto_pfad": str(cl.attachment_path(att))}
 
 
 async def pruefen(tab, seed, p):
@@ -123,6 +146,37 @@ async def pruefen(tab, seed, p):
         [True, 403])
     p.pruefe("Monteurin: keine JS-Fehler", tab.fehler, [])
     await tab.bild("3_monteurin_ohne_fassungen")
+
+    # --- Monteurin: das PDF der Fassung scheitert (seit 1.8.68 bestätigt) ----------------------------------------------
+    fid, sig = seed["foto_liste"], seed["foto_sig"]
+    datei, weg = Path(seed["foto_pfad"]), Path(seed["foto_pfad"] + ".weg")
+    await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source=CONFIRM)
+    await tab.oeffnen(f"/checklisten/{fid}", bereit)
+    await tab.warten(f"document.getElementById('pad_{sig}')", 15)
+    shutil.move(datei, weg)  # nur in der Wegwerf-Ablage dieses Klicktests
+    try:
+        await tab.js(f"document.getElementById('padName_{sig}').value='Mia Monteurin'")
+        await _zeichnen(tab, sig)
+        await tab.js(_knopf(sig))
+        await tab.warten(f"document.getElementById('st_{sig}') && document.getElementById('st_{sig}').textContent.startsWith('Nicht gespeichert')", 20)
+        p.pruefe("Meldung: nicht gespeichert, ausdrücklich nichts gespeichert", await tab.js(
+            f"(t=>[t.startsWith('Nicht gespeichert: '), t.includes('es wurde nichts gespeichert'), t.includes('erneut versuchen')])"
+            f"(document.getElementById('st_{sig}').textContent)"), [True, True, True])
+        p.pruefe("Zeichnung bleibt stehen, Name auch", await tab.js(
+            f"[!pads[{sig}].leer(), document.getElementById('padName_{sig}').value]"), [True, "Mia Monteurin"])
+        p.pruefe("am Server keine Unterschrift", await tab.js(
+            f"fetch('/api/checklists/{fid}').then(r=>r.json()).then(c=>c.attachments.filter(a=>a.kind==='unterschrift').length)"), 0)
+        await tab.js(f"document.getElementById('pad_{sig}').scrollIntoView({{block:'center'}})")
+        await tab.bild("4_monteurin_pdf_gescheitert")
+    finally:
+        shutil.move(weg, datei)
+    await tab.js(_knopf(sig))
+    await tab.warten(f"document.getElementById('st_{sig}') && document.getElementById('st_{sig}').textContent==='Gespeichert'", 20)
+    p.pruefe("Datei zurück, noch einmal: gespeichert", await tab.js(
+        f"fetch('/api/checklists/{fid}').then(r=>r.json()).then(c=>c.attachments.filter(a=>a.kind==='unterschrift')"
+        f".map(a=>a.signer_name))"), ["Mia Monteurin"])
+    p.pruefe("Monteurin: keine JS-Fehler (Fassung)", [f for f in tab.fehler if "400" not in f], [])
+    await tab.bild("5_monteurin_gespeichert")
 
 
 if __name__ == "__main__":

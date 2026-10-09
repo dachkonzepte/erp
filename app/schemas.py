@@ -4944,9 +4944,9 @@ class NoticeLetterSend(BaseModel):
 
 
 class ProtocolSend(BaseModel):
-    """Abnahmeprotokoll an den Auftraggeber per E-Mail (seit 1.8.67, app/protocol_dispatch.py) -- wie NoticeLetterSend: An ist
-    immer der Auftraggeber und deshalb kein Feld; CC frei; confirm_customer bei abweichendem Kunden."""
-    cc_email: str | None = None
+    """Abnahmeprotokoll an den Auftraggeber per E-Mail (seit 1.8.67, app/protocol_dispatch.py): An ist immer der Auftraggeber,
+    CC seit 1.8.68 genau die in der Fassung eingefrorenen Empfänger -- beides kein Feld (eine mitgeschickte Adresse wird nicht
+    beachtet); confirm_customer bei abweichendem Kunden."""
     dispatch_key: str = Field(min_length=8, max_length=80)
     confirm_customer: bool = False
 

@@ -1,7 +1,8 @@
 """Version 1.8.67 -- Stufe 2c-2e, Punkte 2 und 3 (docs/archiv/abnahme-und-gewaehrleistung.md, "Umsetzung 1.8.67").
 
 2. Versand des Abnahmeprotokolls über den Weg der Anzeigen (app/notice_letters.py, dieselben Funktionen): An fest der
-   Auftraggeber, Prüfung auf abweichenden Kunden, CC vorbelegt mit "Kopie bei Anzeigen", Vollmacht eines empfangsbevollmächtigten
+   Auftraggeber, Prüfung auf abweichenden Kunden, CC "Kopie bei Anzeigen" (seit 1.8.68 fest aus der Fassung, test_v370), Vollmacht
+   eines empfangsbevollmächtigten
    Empfängers festgehalten, "Kopie an:" im PDF, versendet nur die jüngste gültige feste Fassung aus der Ablage, Zustellung
    nachtragen mit Empfängerauswahl.
 3. Die Abnahme aus dem Protokoll verweist zusätzlich auf die feste Fassung ihrer Unterschrift (Prüfsummenformat 4).
@@ -105,7 +106,7 @@ def test_protocol_waits_for_the_customer_signature(versand):
     p = versand
     s = _state(p)
     assert (s["ready"], s["status"], s["version"]) == (False, "wartet", None) and "Auftraggebers" in s["waiting_text"]
-    r = _send(p, cc_email=None)
+    r = _send(p)
     assert r.status_code == 409, r.text
     r = _manual(p)
     assert r.status_code == 400 and "Abnahmeprotokoll" in r.json()["detail"], r.text
@@ -113,17 +114,18 @@ def test_protocol_waits_for_the_customer_signature(versand):
 
 
 def test_send_goes_to_the_client_with_copies_and_the_archived_version(versand):
-    """An der Auftraggeber, CC die Vorbelegung (beide "Kopie bei Anzeigen"), Anhang = die Fassung aus der Ablage (keine zweite
-    Datei), die Vollmacht der Hausverwaltung festgehalten, "Kopie an:" im PDF, danach "versendet"."""
+    """An der Auftraggeber, CC die beiden "Kopie bei Anzeigen" (seit 1.8.68 fest aus der Fassung, kein freies CC mehr), Anhang =
+    die Fassung aus der Ablage (keine zweite Datei), die Vollmacht der Hausverwaltung festgehalten, "Kopie an:" im PDF, danach
+    "versendet"."""
     p, db = versand, versand["db"]
     assert _sign_ag(p).status_code == 200
     [version] = _versions(db, p["c"]["id"])
     s = _state(p)
     assert (s["ready"], s["status"], s["version"]["version_no"], s["recipient"]["email"]) == (True, "bereit", 1, AG_EMAIL)
-    assert s["cc_prefill"] == f"{ARCH_EMAIL}, {HV_EMAIL}"
+    assert s["cc"] == [ARCH_EMAIL, HV_EMAIL] and s["copy_changes"] == []
     assert {c["name"] for c in s["version"]["copy_to"]} == {"Petra Plan", "HV Muster"}
     vorher = db.scalar(select(SentDocument.id).order_by(SentDocument.id.desc()))
-    r = _send(p, cc_email=s["cc_prefill"])
+    r = _send(p)
     assert r.status_code == 200, r.text
     [mail] = FakeSMTP.sent
     assert mail["recipients"] == [AG_EMAIL, ARCH_EMAIL, HV_EMAIL]
@@ -143,13 +145,15 @@ def test_send_goes_to_the_client_with_copies_and_the_archived_version(versand):
 
 
 def test_attack_recipient_sent_through_the_api_is_ignored(versand):
-    """Eine mitgeschickte An-Adresse (in jeder Schreibweise) wird nicht beachtet -- die Mail geht nur an den Auftraggeber."""
+    """Eine mitgeschickte An- oder CC-Adresse (in jeder Schreibweise) wird nicht beachtet -- die Mail geht an den Auftraggeber
+    und seit 1.8.68 in Kopie genau an die Empfänger der Fassung."""
     p = versand
     assert _sign_ag(p).status_code == 200
-    r = _send(p, to_email="fremd@angreifer.example", to="fremd@angreifer.example", recipient="fremd@angreifer.example")
+    r = _send(p, to_email="fremd@angreifer.example", to="fremd@angreifer.example", recipient="fremd@angreifer.example",
+              cc_email="fremd@angreifer.example", cc="fremd@angreifer.example")
     assert r.status_code == 200, r.text
     [mail] = FakeSMTP.sent
-    assert mail["recipients"] == [AG_EMAIL] and r.json()["to_recipients"] == AG_EMAIL
+    assert mail["recipients"] == [AG_EMAIL, ARCH_EMAIL, HV_EMAIL] and r.json()["to_recipients"] == AG_EMAIL
 
 
 def test_attack_general_send_with_free_recipient_is_blocked_for_the_protocol(versand):
@@ -174,7 +178,7 @@ def test_attack_superseded_version_is_never_sent(versand):
                          json={"signature_id": _sig(p, AN).id, "reason": "falsches Konto"})
     assert r.status_code == 200, r.text
     assert _state(p)["version"]["version_no"] == 1
-    assert _send(p, cc_email=None).status_code == 200
+    assert _send(p).status_code == 200
     [mail] = FakeSMTP.sent
     assert _attachment(mail["message"]) == read_sent_document(v1.sent_document) != read_sent_document(v2.sent_document)
 
@@ -187,7 +191,7 @@ def test_attack_no_valid_version_with_the_customer_signature(versand):
     assert r.status_code == 200, r.text
     s = _state(p)
     assert (s["ready"], s["version"]) == (False, None) and "keine gültige feste Fassung" in s["waiting_text"]
-    r = _send(p, cc_email=None)
+    r = _send(p)
     assert r.status_code == 409 and "keine gültige feste Fassung" in r.json()["detail"], r.text
     assert _manual(p).status_code == 400
     assert _sign_an(p).status_code == 200
@@ -208,7 +212,7 @@ def test_attack_discard_between_check_and_send_stops_before_sending(versand, mon
         checklists_module.discard_signatures(db, p["c"]["id"], signature_id=an, reason="gleichzeitig verworfen")
         return data
     monkeypatch.setattr(dispatch_module, "_document", dazwischen)
-    r = _send(p, cc_email=None)
+    r = _send(p)
     assert r.status_code == 400 and "überholt" in r.json()["detail"], r.text
     assert FakeSMTP.sent == [] and [d.status for d in _dispatches(db)] == ["fehlgeschlagen"]
 
@@ -218,7 +222,7 @@ def test_attack_pdf_changed_after_the_signature_is_not_sent(versand):
     assert _sign_ag(p).status_code == 200
     [version] = _versions(db, p["c"]["id"])
     _verfaelschen(version.sent_document)
-    r = _send(p, cc_email=None)
+    r = _send(p)
     assert r.status_code == 409 and "nicht mehr unversehrt" in r.json()["detail"], r.text
     r = _manual(p)
     assert r.status_code == 400 and "nicht mehr unversehrt" in r.json()["detail"], r.text
@@ -233,10 +237,10 @@ def test_customer_mismatch_needs_confirmation_and_is_recorded(versand):
     db.commit()
     s = _state(p)
     assert s["customer_mismatch"] is not None
-    r = _send(p, cc_email=None)
+    r = _send(p)
     assert r.status_code == 409 and "weicht vom Kunden laut Auftrag" in r.json()["detail"], r.text
     assert FakeSMTP.sent == []
-    r = _send(p, key="protokoll-versand-0002", cc_email=None, confirm_customer=True)
+    r = _send(p, key="protokoll-versand-0002", confirm_customer=True)
     assert r.status_code == 200, r.text
     assert db.scalar(select(AuditLog.id).where(AuditLog.field_label == "Abnahmeprotokoll: abweichender Kunde bestätigt"))
 
@@ -274,7 +278,7 @@ def test_email_template_and_placeholders(versand):
     update_email_template(db, "abnahmeprotokoll", subject_template="Protokoll {auftragsnummer} – {kundenname}",
                           body_template="{anrede}\n\nProtokoll Nr. {checklistennummer} zum Bauvorhaben {bauvorhaben}.")
     assert _sign_ag(p).status_code == 200
-    assert _send(p, cc_email=None).status_code == 200
+    assert _send(p).status_code == 200
     [mail] = FakeSMTP.sent
     order = db.get(acceptances_module.Order, p["order_id"])
     from email.header import decode_header, make_header
