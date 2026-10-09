@@ -84,8 +84,8 @@ def require_field_report_ownership(db: Session, role: AppUser, report_id: int) -
     {report_id}/pdf, app/routers/field_view.py) prüft NICHT über diese Funktion, sondern über
     resolve_property_history_report_for_field() (app/service_reports.py) -- dort darf ein
     Monteur das vollständige PDF eines fremden, bereits unterschriebenen Berichts lesen, wenn er
-    zu einem für ihn erreichbaren Objekt gehört (jedes Objekt, siehe field_view.py), unabhängig
-    vom Auftragsbezug und ohne Ersteller-Prüfung. Reines Lesen, kein Auftrags-Endpunkt -- diese
+    zu einem Objekt seiner Aufträge gehört (seit 1.8.70, vorher jedes Objekt, siehe field_view.py),
+    ohne Bezug zum Auftrag des Berichts und ohne Ersteller-Prüfung. Reines Lesen, kein Auftrags-Endpunkt -- diese
     Funktion hier bleibt für alle Schreibzugriffe und den auftragsbezogenen Weg unverändert."""
     report = db.get(ServiceReport, report_id)
     if report is None:

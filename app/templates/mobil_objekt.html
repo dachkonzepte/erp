@@ -219,7 +219,16 @@
   api('/api/field-view/document-categories').then(renderCategories).catch(function(){
     renderCategories([]);
   });
-  api('/api/field-view/properties/'+propertyId+'/maintenance-history').then(renderHistory).catch(function(err){
+  // Seit 1.8.70 nur für Objekte der eigenen Aufträge -- sonst 403 mit Hinweis, ruhig statt rot angezeigt.
+  fetch('/api/field-view/properties/'+propertyId+'/maintenance-history').then(function(r){
+    if(r.status===403)return r.json().catch(function(){return {}}).then(function(d){
+      var el=document.getElementById('historyList');
+      el.className='empty';
+      el.textContent=d.detail||'Keine Wartungshistorie für dieses Objekt.';
+    });
+    if(!r.ok)return r.json().catch(function(){return {}}).then(function(d){throw new Error(d.detail||r.statusText)});
+    return r.json().then(renderHistory);
+  }).catch(function(err){
     document.getElementById('historyList').className='error';
     document.getElementById('historyList').textContent=err.message||'Fehler beim Laden.';
   });

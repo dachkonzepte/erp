@@ -741,7 +741,8 @@ def _copy_quote_into_project(db: Session, source_quote: Quote, target_project: P
     return new_quote
 
 
-def duplicate_project(db: Session, source_project: Project, *, as_template: bool) -> Project:
+def duplicate_project(db: Session, source_project: Project, *, as_template: bool,
+                      owner: tuple[int, int | None] | None = None) -> Project:
     """Erstellt eine vollständige Kopie eines Projekts samt dessen zuletzt
     angelegtem Angebot (seit 1.0.92) -- gemeinsamer Mechanismus für 'Vorgang
     kopieren', 'als Mustervorgang speichern' und 'neuen Vorgang aus Muster
@@ -755,10 +756,17 @@ def duplicate_project(db: Session, source_project: Project, *, as_template: bool
     Falls das Quellprojekt mehrere Angebote hat, wird nur das zuletzt
     angelegte (höchste id) kopiert -- ein 'Vorgang' im Sinne dieser Funktion
     hat typischerweise genau ein repräsentatives Angebot; alternative/
-    verworfene Angebotsversionen sollen sich nicht anhäufen."""
+    verworfene Angebotsversionen sollen sich nicht anhäufen.
+
+    owner (seit 1.8.70, Befund 2h): (customer_id, property_id) der Kopie statt
+    der des Quellprojekts -- der Vorgang aus einem Wartungsvertrag gehört dem
+    Kunden und Objekt des Vertrags, nicht denen des Mustervorgangs. Vor dem
+    Kopieren des Angebots gesetzt, damit dessen Vertragsgrundlage dem neuen
+    Kunden folgt."""
+    customer_id, property_id = owner if owner is not None else (source_project.customer_id, source_project.property_id)
     new_project = Project(
-        project_number=next_project_number(db), customer_id=source_project.customer_id,
-        property_id=source_project.property_id, name=source_project.name, status="anfrage",
+        project_number=next_project_number(db), customer_id=customer_id,
+        property_id=property_id, name=source_project.name, status="anfrage",
         description=source_project.description, is_template=as_template,
         pipeline_column_id=default_pipeline_column_id(db),
     )

@@ -913,3 +913,12 @@ Nebenbefund: `_decode_signature_png()` begrenzt die Größe nicht (Checkliste un
 ging auch "AAAA". Seit 1.8.56 laufen beide durch `app/signature_image.py::check_signature_png()` (PNG, Größe, nicht leer),
 an der Stelle der bisherigen Größenprüfung, vor den inhaltlichen Prüfungen. Herleitung:
 `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.56".
+
+## Nachtrag 1.8.70 (09.10.2026) -- Dachflächen, Bauteile, Objekt am Schnellauftrag und Vertrag
+
+Befund „Vor dem Echtbetrieb“ Punkt 2 behoben: Einsatzbericht, Prüfpunkt, Mangel und Material nehmen Dachflächen und Bauteile nur
+noch aus dem Objekt des Auftrags (`app/zugehoerigkeit.py::require_in_order_property()`, sonst 404 ohne Grund); ohne Auswahl wird
+eine fremde Fläche der Vertragsposition weggelassen. „Erfasst von“ am Prüfpunkt und „geschlossen von“ am Mangel kommen aus der
+Anmeldung. Schnellauftrag und Wartungsvertrag am Objekt eines anderen Kunden nur mit Bestätigung (409 sonst), der Vorgang aus dem
+Vertrag bekommt dessen Kunden und Objekt, der Mustervorgang muss einer sein, die Wartungshistorie in /mobil gilt nur für Objekte
+der eigenen Aufträge. Herleitung, Festlegungen und Tests: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.70".

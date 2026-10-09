@@ -461,9 +461,15 @@ def add_invoice_item(
 ) -> InvoiceItem:
     """Für Nachträge/neue Positionen (source_order_item_id=None) sowie um
     ausdrücklich eine bestehende Auftragsposition erneut hinzuzufügen, falls
-    sie zuvor entfernt wurde."""
+    sie zuvor entfernt wurde. Seit 1.8.70 (Befund 2i) nur eine Position des
+    Auftrags dieser Rechnung -- vorher auch die eines fremden Auftrags (volle
+    Menge berechnet, nach dem Festschreiben unveränderlich)."""
     if not is_invoice_editable(invoice):
         raise ValueError("Nur Rechnungen im Entwurf können bearbeitet werden.")
+    if source_order_item_id is not None:
+        source = db.get(OrderItem, source_order_item_id)
+        if source is None or source.order_id != invoice.order_id:
+            raise ValueError("Die Auftragsposition gehört nicht zum Auftrag dieser Rechnung.")
     if invoice.invoice_type == "abschlag_pauschal":
         raise ValueError(
             "Pauschale Abschlagsrechnungen haben nur die eine, automatisch erzeugte Position -- "

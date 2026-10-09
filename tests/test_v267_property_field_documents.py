@@ -15,6 +15,7 @@ from app.document_categories import ensure_default_categories
 from app.models import Customer, DocumentCategory, Employee, Order, OrderItem, Project, Property, PropertyDocument, ProjectDocument
 from app.project_pipeline_columns import default_pipeline_column_id
 from tests.test_v153_mahnwesen import db_session  # noqa: F401 -- re-exportiert db_session als Fixture
+from tests.test_v263_report_ownership_and_contract_scope import _assign_via_team
 
 
 @pytest.fixture(autouse=True)
@@ -375,6 +376,7 @@ def test_field_maintenance_history_is_property_scoped_and_reduced(router_test_cl
     db.get(ServiceReport, report_id).status = "unterschrieben"; db.commit()
 
     monteur = _employee(db, "T-D10", "Klaus", "Keiner")
+    _assign_via_team(db, order, monteur)  # seit 1.8.70: Historie nur an Objekten seiner Aufträge
     field = router_test_client(db, field_router, role="field", employee_id=monteur.id)
     resp = field.get(f"/api/field-view/properties/{prop.id}/maintenance-history")
     assert resp.status_code == 200, resp.text
@@ -403,6 +405,7 @@ def test_no_field_view_property_endpoint_leaks_price_or_internal_fields(router_t
     _project_document(db, project, "Pläne")
     _property_document(db, prop, "Bilder / Fotos")
     monteur = _employee(db, "T-D11", "Klaus", "Keiner")
+    _assign_via_team(db, _order(db, project, customer, prop, number="AUF-0011"), monteur)  # seit 1.8.70: Historie nur an Objekten seiner Aufträge
     field = router_test_client(db, field_router, role="field", employee_id=monteur.id)
 
     endpoints = [

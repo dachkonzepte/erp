@@ -21,6 +21,7 @@ from ..maintenance_contracts import (
 )
 from ..modules import is_module_enabled
 from ..service_reports import list_contract_history
+from ..zugehoerigkeit import PropertyCustomerMismatch
 from .service_reports import _employee_for_request
 from ..schemas import (
     MaintenanceContractCreate, MaintenanceContractCreateProjectRequest, MaintenanceContractFromProjectCreate,
@@ -109,7 +110,10 @@ def post_maintenance_contract(payload: MaintenanceContractCreate, db: Session = 
             interval_months=payload.interval_months, next_due_date=payload.next_due_date,
             template_project_id=payload.template_project_id,
             responsible_employee_id=payload.responsible_employee_id, notes=payload.notes,
+            confirm_property_customer=payload.confirm_property_customer,
         )
+    except PropertyCustomerMismatch as exc:  # seit 1.8.70: Objekt eines anderen Kunden ohne Bestätigung
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -122,8 +126,10 @@ def put_maintenance_contract(contract_id: int, payload: MaintenanceContractUpdat
             db, contract_id, title=payload.title, interval_months=payload.interval_months,
             next_due_date=payload.next_due_date, template_project_id=payload.template_project_id,
             responsible_employee_id=payload.responsible_employee_id, notes=payload.notes,
-            property_id=payload.property_id,
+            property_id=payload.property_id, confirm_property_customer=payload.confirm_property_customer,
         )
+    except PropertyCustomerMismatch as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if result is None:

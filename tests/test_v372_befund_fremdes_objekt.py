@@ -7,8 +7,9 @@ roof_area_ids beim Anlegen des Berichts (app/service_reports.py::create_report()
 (add_inspection_item()) und roof_component_id am Mangel (app/findings.py::create_finding()). Die Oberfläche bietet nur die
 Flächen des eigenen Objekts an -- der Weg ist der direkte API-Aufruf.
 
-Fehler als xfail (tests/befund_vor_echtbetrieb.py). Geprüft wird die Eigenschaft (nichts mit Bezug auf das fremde Objekt
-gespeichert, nichts davon in einer Antwort an die Monteurin), nicht der Weg (ablehnen oder weglassen). Dazu 2e-2i: dasselbe Muster
+Seit 1.8.70 behoben, die Tests sind die Abnahmetests (bis dahin xfail, tests/befund_vor_echtbetrieb.py). Geprüft wird die
+Eigenschaft (nichts mit Bezug auf das fremde Objekt gespeichert, nichts davon in einer Antwort an die Monteurin), nicht der Weg
+(ablehnen oder weglassen); wie abgelehnt wird (404 ohne Grund, 409 mit Bestätigung), prüft tests/test_v373_zugehoerigkeit.py. Dazu 2e-2i: dasselbe Muster
 (ID aus der Anfrage ohne Prüfung der Zugehörigkeit) an weiteren Stellen, gefunden bei der Suche über den ganzen Code."""
 
 import json
@@ -25,7 +26,7 @@ from app.routers.roof_areas import router as roof_router
 from app.routers.service_reports import router as sr_router
 from tests.test_v213_inspection_items import _extract_pdf_text, _seed_test_template
 from tests.test_v263_report_ownership_and_contract_scope import _assign_via_team, _employee, _order_with_property
-from tests.befund_vor_echtbetrieb import befund, vorbedingung as _vorbedingung
+from tests.befund_vor_echtbetrieb import vorbedingung as _vorbedingung
 from tests.test_v326_monteur_datengrenze import _verstoesse
 
 MARKE = "FREMD"  # steht in jedem Namen und in der Adresse des fremden Objekts
@@ -84,14 +85,12 @@ def _gespeichert_mit_fremdem_bezug(w) -> list[str]:
 # 2a-2c: gespeichert wird der Bezug auf das fremde Objekt
 # ---------------------------------------------------------------------------
 
-@befund("2a", "Einsatzbericht nimmt Dachflächen eines fremden Objekts an (roof_area_ids)")
 @pytest.mark.parametrize("report_type", ["wartung", "rapport"])
 def test_report_does_not_store_a_roof_area_of_another_property(welt, report_type):
     _bericht(welt, [welt["eigene_flaeche"], welt["fremde_flaeche"]], report_type)
     assert _gespeichert_mit_fremdem_bezug(welt) == []
 
 
-@befund("2b", "Prüfpunkt nimmt Bauteil und Dachfläche eines fremden Objekts an")
 def test_inspection_item_does_not_store_a_component_or_area_of_another_property(welt):
     report_id = _eigener_bericht(welt)
     welt["client"].post(f"/api/service-reports/{report_id}/inspection-items", json={
@@ -100,7 +99,6 @@ def test_inspection_item_does_not_store_a_component_or_area_of_another_property(
     assert _gespeichert_mit_fremdem_bezug(welt) == []
 
 
-@befund("2c", "Mangel nimmt ein Bauteil eines fremden Objekts an -- er erscheint in dessen Bauteil-Historie")
 def test_finding_does_not_store_a_component_of_another_property(welt):
     report_id = _eigener_bericht(welt)
     welt["client"].post(f"/api/service-reports/{report_id}/findings", json={
@@ -188,7 +186,6 @@ def test_today_key_scan_of_the_data_boundary_finds_nothing(welt):
     assert gefunden == []
 
 
-@befund("2d", "die Monteurin sieht danach Namen und IDs von Dachfläche und Bauteil des fremden Objekts")
 def test_monteur_sees_nothing_of_the_other_property_in_json_or_pdf(welt):
     report_id = _alles_versuchen(welt)
     funde = []
@@ -218,7 +215,6 @@ def test_today_other_property_itself_stays_closed_for_the_monteur(welt):
 # 2e-2i: dasselbe Muster an weiteren Stellen (Suche über den ganzen Code, Liste im Archiv)
 # ---------------------------------------------------------------------------
 
-@befund("2e", "Material am Bericht nimmt eine fremde Dachfläche an, solange der Bericht keine Flächen hat")
 def test_material_does_not_store_a_roof_area_of_another_property(welt):
     from app.models import ServiceReportMaterial
 
@@ -238,7 +234,6 @@ def _objekt_passt_zum_kunden(db, customer_id, property_id) -> bool:
     return property_id is None or db.get(Property, property_id).customer_id == customer_id
 
 
-@befund("2f", "Schnellauftrag (POST /api/quick-service-orders) verbindet Kunde X mit dem Objekt von Kunde Y")
 def test_quick_service_order_keeps_property_and_customer_together(welt):
     from app.models import Order, Project
     from app.quick_service_orders import create_quick_service_order
@@ -262,7 +257,6 @@ def test_quick_service_order_keeps_property_and_customer_together(welt):
             if f"{MARKE}OBJEKT" in (o.property_name or "")] == []
 
 
-@befund("2g", "Wartungsvertrag (POST/PUT /api/maintenance-contracts) nimmt das Objekt eines anderen Kunden an")
 def test_maintenance_contract_keeps_property_and_customer_together(welt):
     from datetime import date
 
@@ -286,8 +280,6 @@ def test_maintenance_contract_keeps_property_and_customer_together(welt):
     assert falsch == []
 
 
-@befund("2h", "Vorgang aus dem Wartungsvertrag gehört dem Kunden des Mustervorgangs, nicht dem des Vertrags "
-              "(template_project_id ohne Zugehörigkeitsprüfung)")
 def test_project_from_maintenance_contract_belongs_to_the_contract_customer(welt):
     from datetime import date
 
@@ -311,7 +303,6 @@ def test_project_from_maintenance_contract_belongs_to_the_contract_customer(welt
     assert all(neu == (kunde_x, welt["eigen"].id) for neu in neue), neue
 
 
-@befund("2i", "Rechnungsposition (POST /api/invoices/{id}/items) verweist auf die Position eines anderen Auftrags")
 def test_invoice_item_does_not_refer_to_an_item_of_another_order(welt):
     from decimal import Decimal
 

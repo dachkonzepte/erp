@@ -50,6 +50,7 @@ tr:last-child td{border-bottom:none}
 <div class="app-content">
 {% include "_topbar.html" %}
 {% include "_auswahl.html" %}
+{% include "_objekt_anderer_kunde.html" %}
 <main>
 <div class="breadcrumb" id="breadcrumb">Lädt …</div>
 <div class="hero">
@@ -73,7 +74,9 @@ tr:last-child td{border-bottom:none}
   <h2>Vertragsstammdaten</h2>
   <div class="fields-2col">
     <div class="field"><label>Kunde</label><input id="viewCustomer" disabled></div>
-    <div class="field"><label>Objekt <span class="muted small">(optional, sonst Hauptadresse des Kunden)</span></label><select id="editProperty"></select></div>
+    <div class="field"><label>Objekt <span class="muted small">(optional, sonst Hauptadresse des Kunden)</span></label><select id="editProperty" onchange="renderEditMismatch()"></select>
+      <label class="objekt-andere"><input type="checkbox" id="editOtherOwners" onchange="renderPropertyOptions()"> Objekte anderer Kunden anzeigen (z. B. Hausverwaltung, Generalunternehmer)</label>
+      <div id="editMismatch"></div></div>
     <div class="field full"><label>Bezeichnung *</label><input id="editTitle" placeholder="z. B. Jährliche Dachwartung"></div>
     <div class="field"><label>Intervall (Monate)</label><input id="editInterval" type="number" min="1" max="24" list="intervalMonthsOptions">
       <datalist id="intervalMonthsOptions">{% for m in range(1, 25) %}<option value="{{ m }}">{{ m }} Monat{{ 'e' if m != 1 else '' }}</option>{% endfor %}</datalist>
@@ -120,12 +123,30 @@ function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
 
 const contractId={{ contract_id }};
-let contract=null,maintenanceSettings={use_roof_area_items:false},properties=[],employees=[],templates=[];
+let contract=null,maintenanceSettings={use_roof_area_items:false},properties=[],customers=[],employees=[],templates=[];
 let maintenanceWindows=[],inspectionTemplates=[],roofAreas=[],history=[];
 
-function propertyOptionsHtml(customerId,selected){
-  const filtered=properties.filter(p=>p.customer_id===Number(customerId)&&!p.is_primary_address);
-  return '<option value="">— Hauptadresse verwenden —</option>'+filtered.map(p=>`<option value="${p.id}" ${Number(selected)===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
+// Seit 1.8.70: Objekte anderer Kunden auf Wunsch, mit Hinweis und Bestätigung (_objekt_anderer_kunde.html). Ein
+// gespeichertes fremdes Objekt bleibt vorgewählt; die Bestätigung braucht nur ein neu gewähltes.
+function propertyOptionsHtml(customerId,selected,showOthers){
+  return objektOptionen(properties,customers,customerId,selected,showOthers);
+}
+function renderPropertyOptions(){
+  const sel=document.getElementById('editProperty');
+  sel.innerHTML=propertyOptionsHtml(contract.customer_id,sel.value,document.getElementById('editOtherOwners').checked);
+  renderEditMismatch();
+}
+function propertyNeedsConfirmation(){
+  const chosen=document.getElementById('editProperty').value;
+  return Number(chosen||0)!==Number(contract.property_id||0)&&!!objektAbweichung(properties,contract.customer_id,chosen);
+}
+function renderEditMismatch(){
+  const box=document.getElementById('editMismatch');
+  const chosen=document.getElementById('editProperty').value;
+  if(propertyNeedsConfirmation()){box.innerHTML=objektAbweichungHtml(properties,customers,contract.customer_id,chosen,'editConfirmProperty');return}
+  const p=objektAbweichung(properties,contract.customer_id,chosen);
+  const owner=p?((customers.find(c=>c.id===p.customer_id)||{}).name||'einem anderen Kunden'):'';
+  box.innerHTML=p?`<div class="muted small" style="margin-top:6px" data-objekt-anderer-kunde>Objekt von ${esc(owner)} – bestätigt.</div>`:'';
 }
 // Seit 1.8.30 über auswahlOptionen() (_auswahl.html): ein archivierter Mustervorgang bzw. inaktiver
 // Verantwortlicher bleibt vorgewählt und gekennzeichnet, statt beim nächsten Speichern geleert zu werden.
@@ -212,7 +233,9 @@ async function performMaintenanceNow(){
 
 function fillEditor(){
   document.getElementById('viewCustomer').value=contract.customer_name||'';
-  document.getElementById('editProperty').innerHTML=propertyOptionsHtml(contract.customer_id,contract.property_id);
+  document.getElementById('editOtherOwners').checked=false;
+  document.getElementById('editProperty').innerHTML=propertyOptionsHtml(contract.customer_id,contract.property_id,false);
+  renderEditMismatch();
   document.getElementById('editTitle').value=contract.title;
   document.getElementById('editInterval').value=contract.interval_months;
   document.getElementById('editDueDate').value=contract.next_due_date||'';
@@ -226,6 +249,10 @@ async function saveContractDetail(){
   const title=document.getElementById('editTitle').value.trim();
   const dueDate=document.getElementById('editDueDate').value;
   if(!title||!dueDate){st.className='status err';st.textContent='Bitte Bezeichnung und Fälligkeit angeben.';return}
+  if(propertyNeedsConfirmation()&&!document.getElementById('editConfirmProperty')?.checked){
+    st.className='status err';st.textContent='Bitte zuerst die Abweichung beim Objekt prüfen und bestätigen.';
+    document.getElementById('editConfirmProperty')?.focus();return;
+  }
   const propertyId=document.getElementById('editProperty').value;
   const payload={
     property_id:propertyId?Number(propertyId):null,
@@ -235,6 +262,7 @@ async function saveContractDetail(){
     template_project_id:document.getElementById('editTemplate').value?Number(document.getElementById('editTemplate').value):null,
     responsible_employee_id:document.getElementById('editResponsible').value?Number(document.getElementById('editResponsible').value):null,
     notes:document.getElementById('editNotes').value.trim()||null,
+    confirm_property_customer:!!document.getElementById('editConfirmProperty')?.checked,
   };
   try{
     contract=await api(`/api/maintenance-contracts/${contractId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
@@ -394,9 +422,9 @@ async function init(){
     document.getElementById('breadcrumb').textContent='Fehler: '+e.message;
     return;
   }
-  [maintenanceSettings,properties,employees,templates]=await Promise.all([
+  [maintenanceSettings,properties,customers,employees,templates]=await Promise.all([
     api('/api/maintenance-settings').catch(()=>({use_roof_area_items:false})),
-    api('/api/properties').catch(()=>[]), api('/api/employees').catch(()=>[]),
+    api('/api/properties').catch(()=>[]), api('/api/customers').catch(()=>[]), api('/api/employees').catch(()=>[]),
     api('/api/project-templates?include_archived=true').catch(()=>[]),
   ]);
   if(maintenanceSettings.use_roof_area_items){

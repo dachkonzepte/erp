@@ -1084,8 +1084,7 @@ async function saveInspectionResult(itemId,overrides){
     });
   }
   Object.assign(payload,overrides||{});
-  const report=reports.find(r=>r.id===reportId);
-  if(report&&report.created_by_employee_id)payload.recorded_by_employee_id=report.created_by_employee_id;
+  // Seit 1.8.70 setzt der Server "erfasst von" aus der Anmeldung -- mitgeschickt lehnt er ab (422).
   try{
     await api(`/api/inspection-items/${itemId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(reportId){

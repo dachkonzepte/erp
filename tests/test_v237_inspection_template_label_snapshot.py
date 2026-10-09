@@ -22,8 +22,11 @@ from app.roof_areas import create_roof_area
 from app.service_reports import _load as _load_report, create_report, report_to_dict
 
 
-def _make_order_for_report(db):
+def _make_order_for_report(db, prop=None):
     order, _ = make_order_with_item(db)
+    if prop is not None:  # seit 1.8.70: Dachflächen nur aus dem Objekt des Auftrags
+        order.project.property_id = prop.id
+        db.commit()
     return order
 
 
@@ -36,7 +39,7 @@ def test_create_report_snapshots_template_label():
     _seed_test_template(db, roof_type="Flachdach", label="Testvorlage")
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
 
     link = db.scalar(select(ServiceReportRoofArea).where(ServiceReportRoofArea.service_report_id == report["id"]))
@@ -50,7 +53,7 @@ def test_report_roof_area_without_resolvable_template_has_no_label_snapshot():
     db = db_session()
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Steildach")  # keine Vorlage dafür
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
 
     link = db.scalar(select(ServiceReportRoofArea).where(ServiceReportRoofArea.service_report_id == report["id"]))
@@ -67,7 +70,7 @@ def test_report_roof_area_template_label_stays_frozen_after_template_renamed():
     template = _seed_test_template(db, roof_type="Flachdach", label="Testvorlage")
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
 
     # Vorlage NACH der Berichtsanlage umbenennen.
@@ -85,7 +88,7 @@ def test_report_to_dict_falls_back_to_live_label_when_snapshot_missing():
     _seed_test_template(db, roof_type="Flachdach", label="Testvorlage")
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
 
     link = db.scalar(select(ServiceReportRoofArea).where(ServiceReportRoofArea.service_report_id == report["id"]))

@@ -15,6 +15,7 @@ Vier Punkte, jeder einzeln geprüft:
    entfernt, da ServiceReportMaterial/TimeEntry ohnehin nirgends eine Preisspalte tragen.
 3. Zugang nur über das Objekt -- eine geratene report_id ohne Objektweg oder ein Bericht, der zu
    einem ANDEREN Objekt gehört, wird abgewiesen (404, ununterscheidbar von "existiert nicht").
+   Seit 1.8.70 nur an Objekten der eigenen Aufträge (tests/test_v373_zugehoerigkeit.py).
 4. Nur Lesen -- kein PUT/DELETE/sign über diesen Weg; die bestehenden Berichts-Endpunkte bleiben
    unverändert über require_field_report_ownership() gesperrt, unberührt von dieser Änderung."""
 
@@ -53,6 +54,15 @@ def _order(db, order_number, project_number, property_id=None, customer=None):
                       quantity=Decimal("100"), unit="m²", unit_price=Decimal("50")))
     db.commit()
     return order, customer, property_id
+
+
+def _current_order_at(db, property_id, viewer, order_number):
+    """Seit 1.8.70 sieht ein Monteur die Wartungshistorie nur an Objekten seiner Aufträge: der Betrachter hat am selben
+    Objekt einen eigenen, aktuellen Auftrag (der Bericht des Kollegen gehört zu einem früheren)."""
+    from tests.test_v263_report_ownership_and_contract_scope import _assign_via_team
+    order, _, _ = _order(db, order_number, "P-" + order_number, property_id=property_id)
+    _assign_via_team(db, order, viewer)
+    return order
 
 
 def _signed_report_with_finding_and_foreign_time(db, order, creator):
@@ -207,6 +217,7 @@ def test_correct_object_and_report_returns_the_pdf(router_test_client, threaded_
     viewer = _employee(db, "T-C5", "Uwe", "Aktuell")
     order, _, property_id = _order(db, "AUF-C-0004", "P-C-0004")
     report_id = _signed_report_with_finding_and_foreign_time(db, order, creator)
+    _current_order_at(db, property_id, viewer, "AUF-C-0104")
 
     field = router_test_client(db, field_view_router, role="field", employee_id=viewer.id)
     response = field.get(f"/api/field-view/properties/{property_id}/maintenance-history/{report_id}/pdf")
@@ -243,6 +254,8 @@ def test_report_belonging_to_a_different_property_is_rejected(router_test_client
     order_a, _, property_a = _order(db, "AUF-C-0006", "P-C-0006")
     _, _, property_b = _order(db, "AUF-C-0007", "P-C-0007")  # fremdes, unabhängiges zweites Objekt
     report_id = _signed_report_with_finding_and_foreign_time(db, order_a, creator)
+    _current_order_at(db, property_a, viewer, "AUF-C-0106")
+    _current_order_at(db, property_b, viewer, "AUF-C-0107")  # auch am zweiten Objekt zugeordnet: 404 kommt vom Bericht
 
     field = router_test_client(db, field_view_router, role="field", employee_id=viewer.id)
     wrong = field.get(f"/api/field-view/properties/{property_b}/maintenance-history/{report_id}/pdf")
@@ -300,6 +313,7 @@ def test_existing_write_endpoints_remain_ownership_gated_unaffected_by_the_new_r
     viewer = _employee(db, "T-C13", "Uwe", "Aktuell")
     order, _, property_id = _order(db, "AUF-C-0010", "P-C-0010")
     report_id = _signed_report_with_finding_and_foreign_time(db, order, creator)
+    _current_order_at(db, property_id, viewer, "AUF-C-0110")
 
     field = router_test_client(db, field_view_router, sr_router, role="field", employee_id=viewer.id)
     # Lesen über das Objekt: erlaubt.

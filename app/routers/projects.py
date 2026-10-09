@@ -173,7 +173,11 @@ def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depend
     if customer is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
     prop = None
-    if payload.property_id is not None:
+    # Seit 1.8.70 nur für einen neu gewählten Kunden oder ein neu gewähltes Objekt: ein Vorgang aus einem Schnellauftrag oder
+    # Wartungsvertrag kann bewusst bestätigt am Objekt eines anderen Kunden hängen (app/zugehoerigkeit.py) -- unverändert
+    # gespeichert blockiert das nicht jedes Speichern des Projekts.
+    changed = payload.customer_id != project.customer_id or payload.property_id != project.property_id
+    if payload.property_id is not None and changed:
         prop = db.get(Property, payload.property_id)
         if prop is None or prop.customer_id != payload.customer_id:
             raise HTTPException(status_code=422, detail="Objekt gehört nicht zum ausgewählten Kunden.")

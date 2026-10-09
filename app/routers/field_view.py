@@ -26,7 +26,12 @@ Die Wartungshistorie (.../maintenance-history) hat seither eine Detail-Variante
 Ersteller-Prüfung require_field_report_ownership() (app/routers/orders.py): ein Monteur darf
 hier auch den Bericht eines längst ausgeschiedenen Kollegen lesen, solange er zu diesem Objekt
 gehört und bereits unterschrieben ist. Reines Lesen -- kein PUT/DELETE/sign existiert unter
-diesem Pfad, siehe resolve_property_history_report_for_field() (app/service_reports.py)."""
+diesem Pfad, siehe resolve_property_history_report_for_field() (app/service_reports.py).
+
+Seit 1.8.70 (Befund „Vor dem Echtbetrieb“ Punkt 2) gilt für die Wartungshistorie -- Liste und PDF --
+NICHT mehr "jedes Objekt": nur Objekte der Aufträge, die der Monteur öffnen darf
+(_field_may_see_history(), dieselbe Regel wie Auftrag und Bericht). Objektansicht, Dokumente und
+Upload bleiben für jedes Objekt offen."""
 
 from datetime import datetime
 from typing import Literal
@@ -48,6 +53,7 @@ from ..mobile_manifest import build_icon_png, build_manifest
 from ..mobile_settings import load_mobile_settings, is_past_shift_end, mobile_settings_to_dict, update_mobile_settings
 from ..models import AppUser, DocumentCategory, Property
 from ..modules import is_module_enabled
+from ..orders import field_accessible_property_ids
 from ..permissions import ROLE_FIELD, require_min_role
 from ..planning import list_field_bookable_orders, list_todays_assignments_for_employee, list_upcoming_assignments_for_employee
 from ..property_documents import (
@@ -340,6 +346,24 @@ async def upload_field_view_property_document(
     }
 
 
+FIELD_HISTORY_DENIED = "Die Wartungshistorie zeigt die Monteursansicht nur für Objekte Ihrer Aufträge."
+
+
+def _field_may_see_history(db: Session, role: AppUser, property_id: int) -> bool:
+    """Seit 1.8.70 (Befund „Vor dem Echtbetrieb“ Punkt 2): die Wartungshistorie eines Objekts -- Liste und PDF -- sieht ein
+    Monteur nur, wenn das Objekt zu einem seiner Aufträge gehört (field_accessible_property_ids(), dieselbe Regel wie
+    Auftrag und Bericht). Vorher jedes Objekt, wie Objektansicht und Dokumente (die bleiben so, Betreiberentscheidung
+    "Dateiablage je Objekt"). Büro/Admin unbeschränkt."""
+    if role.role != ROLE_FIELD:
+        return True
+    return role.employee_id is not None and property_id in field_accessible_property_ids(db, role.employee_id)
+
+
+def _require_field_history_access(db: Session, role: AppUser, property_id: int) -> None:
+    if not _field_may_see_history(db, role, property_id):
+        raise HTTPException(status_code=403, detail=FIELD_HISTORY_DENIED)
+
+
 @router.get(
     "/api/field-view/properties/{property_id}/maintenance-history",
     response_model=list[ServiceReportHistoryOut],
@@ -349,9 +373,11 @@ def get_field_view_property_maintenance_history(property_id: int, db: Session = 
     (ServiceReportHistoryOut/_history_report_to_field_dict(), Rechtekonzept -> "Berichts-
     Eigentümerschaft") -- anders als list_property_history_for_field() (Auftrag-scoped, schließt
     den eigenen Auftrag aus) objektbezogen und ohne Ausschluss, siehe
-    list_maintenance_history_for_property_field() in app/service_reports.py."""
+    list_maintenance_history_for_property_field() in app/service_reports.py. Seit 1.8.70 für
+    `field` nur an Objekten seiner Aufträge (_require_field_history_access())."""
     if db.get(Property, property_id) is None:
         raise HTTPException(status_code=404, detail="Objekt nicht gefunden.")
+    _require_field_history_access(db, _role, property_id)
     return list_maintenance_history_for_property_field(db, property_id)
 
 
@@ -380,7 +406,7 @@ def get_field_view_property_maintenance_history_report_pdf(
     if db.get(Property, property_id) is None:
         raise HTTPException(status_code=404, detail="Objekt nicht gefunden.")
     report = resolve_property_history_report_for_field(db, property_id, report_id)
-    if report is None:
+    if report is None or not _field_may_see_history(db, _role, property_id):
         raise HTTPException(status_code=404, detail="Bericht nicht gefunden.")
     pdf = build_service_report_pdf_for_field(db, report)
     filename = f"Einsatzbericht_{report.order.order_number}_{report.id}.pdf".replace("/", "-")

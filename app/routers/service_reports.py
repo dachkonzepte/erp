@@ -50,6 +50,7 @@ from ..service_reports import (
     list_reports_for_field, list_roof_areas_for_order, material_to_dict, regenerate_inspection_items, sign_report,
     sync_inspection_items, update_asset_usage, update_inspection_item, update_material, update_report,
 )
+from ..zugehoerigkeit import NotInOrderProperty
 from .orders import require_field_order_access, require_field_report_ownership
 
 router = APIRouter()
@@ -191,6 +192,8 @@ def post_service_report(order_id: int, payload: ServiceReportCreate, request: Re
             created_by_employee_id=employee_id, performed_at=payload.performed_at,
             roof_area_ids=payload.roof_area_ids, inspection_template_id=payload.inspection_template_id,
         )
+    except NotInOrderProperty as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -278,6 +281,8 @@ def post_inspection_item(report_id: int, payload: InspectionItemCreate, db: Sess
             required=payload.required, target_min=payload.target_min, target_max=payload.target_max,
             unit=payload.unit, roof_component_id=payload.roof_component_id, roof_area_id=payload.roof_area_id,
         )
+    except NotInOrderProperty as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -308,7 +313,8 @@ def put_inspection_item(item_id: int, payload: InspectionItemResultUpdate, db: S
     require_field_report_ownership(db, _role, _report_id_for_child(db, InspectionItem, item_id, "Prüfpunkt nicht gefunden."))
     fields = payload.model_dump(exclude_unset=True)
     try:
-        result = update_inspection_item(db, item_id, fields)
+        # "Erfasst von" seit 1.8.70 aus der Anmeldung (das Schema lehnt den Wert aus der Anfrage ab).
+        result = update_inspection_item(db, item_id, fields, recorded_by_employee_id=_role.employee_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if result is None:
@@ -415,6 +421,8 @@ def post_service_report_material(
             inspection_item_id=payload.inspection_item_id, finding_id=payload.finding_id, notes=payload.notes,
             created_by_employee_id=employee_id, client_uuid=payload.client_uuid,
         )
+    except NotInOrderProperty as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -426,6 +434,8 @@ def put_service_report_material(material_id: int, payload: ServiceReportMaterial
     fields = payload.model_dump(exclude_unset=True)
     try:
         result = update_material(db, material_id, fields)
+    except NotInOrderProperty as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if result is None:

@@ -23,8 +23,11 @@ from app.service_report_pdf import build_service_report_pdf
 from app.service_reports import _load as _load_report, create_report, sign_report
 
 
-def _make_order_for_report(db):
+def _make_order_for_report(db, prop=None):
     order, _ = make_order_with_item(db)
+    if prop is not None:  # seit 1.8.70: Dachflächen nur aus dem Objekt des Auftrags
+        order.project.property_id = prop.id
+        db.commit()
     return order
 
 
@@ -37,7 +40,7 @@ def test_create_finding_snapshots_component_name():
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     component = create_roof_component(db, area["id"], "Gully Nordost", component_type="Gully")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "rapport")
 
     finding = create_finding(db, report["id"], "Riss im Bauteil", "mittel", "sofort_behoben", roof_component_id=component["id"])
@@ -52,7 +55,7 @@ def test_finding_name_stays_frozen_after_component_renamed():
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     component = create_roof_component(db, area["id"], "Gully Nordost", component_type="Gully")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "rapport")
     finding = create_finding(db, report["id"], "Riss im Bauteil", "mittel", "sofort_behoben", roof_component_id=component["id"])
     add_finding_photo_and_sign(db, report["id"], finding["id"])
@@ -98,7 +101,7 @@ def test_finding_to_dict_falls_back_to_live_name_when_snapshot_missing():
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     component = create_roof_component(db, area["id"], "Gully Nordost", component_type="Gully")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "rapport")
     finding = create_finding(db, report["id"], "Riss im Bauteil", "mittel", "sofort_behoben", roof_component_id=component["id"])
 
@@ -119,7 +122,7 @@ def test_report_roof_area_name_stays_frozen_after_area_renamed():
     _seed_test_template(db)
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach Nord", roof_type="Flachdach")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
 
     link = db.scalar(select(ServiceReportRoofArea).where(ServiceReportRoofArea.service_report_id == report["id"]))

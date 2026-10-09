@@ -46,6 +46,7 @@ tr:last-child td{border-bottom:none}
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
+{% include "_objekt_anderer_kunde.html" %}
 <main>
 {% if is_module_enabled('wartungen') %}
 <div class="hero"><div><h1>Wartungen &amp; Reparaturen</h1><div class="muted small">Wiederkehrende Wartungsverträge, ihre Fälligkeiten und einmalige Reparatur-/Wartungsaufträge.</div></div><div style="display:flex;gap:14px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650"><input type="checkbox" id="showArchived" style="width:auto" onchange="renderRows()"> Archivierte anzeigen</label><button onclick="openCreateEditor()">+ Wartungsvertrag</button></div></div>
@@ -61,7 +62,9 @@ tr:last-child td{border-bottom:none}
   <div class="muted small" style="margin-bottom:10px">Für einen einzelnen, einmaligen Auftrag -- legt im Hintergrund Projekt, Angebot und Beauftragung in einem Schritt an. Abgerechnet wird später über die Zeitbuchungen auf dem Auftrag.</div>
   <div class="fields-2col">
     <div class="field"><label>Kunde *</label><select id="qsoCustomer" onchange="onQsoCustomerChange()"></select></div>
-    <div class="field"><label>Objekt <span class="muted small">(optional, sonst Hauptadresse des Kunden)</span></label><select id="qsoProperty"></select></div>
+    <div class="field"><label>Objekt <span class="muted small">(optional, sonst Hauptadresse des Kunden)</span></label><select id="qsoProperty" onchange="renderQsoMismatch()"></select>
+      <label class="objekt-andere"><input type="checkbox" id="qsoOtherOwners" onchange="onQsoCustomerChange(true)"> Objekte anderer Kunden anzeigen (z. B. Hausverwaltung, Generalunternehmer)</label>
+      <div id="qsoMismatch"></div></div>
     <div class="field"><label>Art *</label><select id="qsoType"><option value="reparatur">Reparatur</option><option value="wartung">Wartung</option></select></div>
     <div class="field"><label>Bezeichnung *</label><input id="qsoTitle" placeholder="z. B. Dachrinne verstopft"></div>
     <div class="field"><label>Zuständig <span class="muted small">(optional)</span></label><select id="qsoResponsible"></select></div>
@@ -78,7 +81,9 @@ tr:last-child td{border-bottom:none}
   <h2>Wartungsvertrag anlegen</h2>
   <div class="fields-2col">
     <div class="field"><label>Kunde *</label><select id="editCustomer" onchange="onCustomerChange()"></select></div>
-    <div class="field"><label>Objekt <span class="muted small">(optional, sonst Hauptadresse des Kunden)</span></label><select id="editProperty"></select></div>
+    <div class="field"><label>Objekt <span class="muted small">(optional, sonst Hauptadresse des Kunden)</span></label><select id="editProperty" onchange="renderEditMismatch()"></select>
+      <label class="objekt-andere"><input type="checkbox" id="editOtherOwners" onchange="onCustomerChange(true)"> Objekte anderer Kunden anzeigen (z. B. Hausverwaltung, Generalunternehmer)</label>
+      <div id="editMismatch"></div></div>
     <div class="field full"><label>Bezeichnung *</label><input id="editTitle" placeholder="z. B. Jährliche Dachwartung"></div>
     <div class="field"><label>Intervall (Monate)</label><input id="editInterval" type="number" min="1" max="24" list="intervalMonthsOptions" value="12">
       <datalist id="intervalMonthsOptions">{% for m in range(1, 25) %}<option value="{{ m }}">{{ m }} Monat{{ 'e' if m != 1 else '' }}</option>{% endfor %}</datalist>
@@ -118,9 +123,9 @@ let authStatus=null,customers=[],properties=[],employees=[],templates=[],contrac
 function customerOptionsHtml(selected){
   return '<option value="">— wählen —</option>'+customers.map(c=>`<option value="${c.id}" ${Number(selected)===c.id?'selected':''}>${esc(c.name)}</option>`).join('');
 }
-function propertyOptionsHtml(customerId,selected){
-  const filtered=properties.filter(p=>p.customer_id===Number(customerId)&&!p.is_primary_address);
-  return '<option value="">— Hauptadresse verwenden —</option>'+filtered.map(p=>`<option value="${p.id}" ${Number(selected)===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
+// Seit 1.8.70: Objekte anderer Kunden auf Wunsch, mit Hinweis und Bestätigung (_objekt_anderer_kunde.html).
+function propertyOptionsHtml(customerId,selected,showOthers){
+  return objektOptionen(properties,customers,customerId,selected,showOthers);
 }
 function templateOptionsHtml(selected){
   return '<option value="">— keiner —</option>'+templates.map(t=>`<option value="${t.id}" ${Number(selected)===t.id?'selected':''}>${esc(t.project_number+' · '+t.name)}</option>`).join('');
@@ -129,12 +134,30 @@ function employeeOptionsHtml(selected){
   return '<option value="">— nicht zugeordnet —</option>'+employees.filter(e=>e.active).map(e=>`<option value="${e.id}" ${Number(selected)===e.id?'selected':''}>${esc(e.first_name+' '+e.last_name)}</option>`).join('');
 }
 
-function onCustomerChange(){
-  document.getElementById('editProperty').innerHTML=propertyOptionsHtml(document.getElementById('editCustomer').value,null);
+function onCustomerChange(keep){
+  const sel=document.getElementById('editProperty');
+  sel.innerHTML=propertyOptionsHtml(document.getElementById('editCustomer').value,keep?sel.value:null,document.getElementById('editOtherOwners').checked);
+  renderEditMismatch();
+}
+function renderEditMismatch(){
+  document.getElementById('editMismatch').innerHTML=objektAbweichungHtml(properties,customers,document.getElementById('editCustomer').value,document.getElementById('editProperty').value,'editConfirmProperty');
 }
 
-function onQsoCustomerChange(){
-  document.getElementById('qsoProperty').innerHTML=propertyOptionsHtml(document.getElementById('qsoCustomer').value,null);
+function onQsoCustomerChange(keep){
+  const sel=document.getElementById('qsoProperty');
+  sel.innerHTML=propertyOptionsHtml(document.getElementById('qsoCustomer').value,keep?sel.value:null,document.getElementById('qsoOtherOwners').checked);
+  renderQsoMismatch();
+}
+function renderQsoMismatch(){
+  document.getElementById('qsoMismatch').innerHTML=objektAbweichungHtml(properties,customers,document.getElementById('qsoCustomer').value,document.getElementById('qsoProperty').value,'qsoConfirmProperty');
+}
+// Abweichung angezeigt, aber nicht bestätigt? Dann nicht absenden -- der Server lehnte ohnehin mit 409 ab.
+function propertyConfirmMissing(customerSel,propertySel,confirmId,st){
+  if(!objektAbweichung(properties,document.getElementById(customerSel).value,document.getElementById(propertySel).value))return false;
+  if(document.getElementById(confirmId)?.checked)return false;
+  st.className='status err';st.textContent='Bitte zuerst die Abweichung beim Objekt prüfen und bestätigen.';
+  document.getElementById(confirmId)?.focus();
+  return true;
 }
 
 async function saveQuickServiceOrder(){
@@ -142,6 +165,7 @@ async function saveQuickServiceOrder(){
   const customerId=document.getElementById('qsoCustomer').value;
   const title=document.getElementById('qsoTitle').value.trim();
   if(!customerId||!title){st.className='status err';st.textContent='Bitte Kunde und Bezeichnung angeben.';return}
+  if(propertyConfirmMissing('qsoCustomer','qsoProperty','qsoConfirmProperty',st))return;
   const payload={
     customer_id:Number(customerId),
     property_id:document.getElementById('qsoProperty').value?Number(document.getElementById('qsoProperty').value):null,
@@ -150,6 +174,7 @@ async function saveQuickServiceOrder(){
     description:document.getElementById('qsoDescription').value.trim()||null,
     caseworker_employee_id:document.getElementById('qsoResponsible').value?Number(document.getElementById('qsoResponsible').value):null,
     execution_start:document.getElementById('qsoExecutionDate').value||null,
+    confirm_property_customer:!!document.getElementById('qsoConfirmProperty')?.checked,
   };
   st.className='status';st.textContent='Lege Auftrag an …';
   try{
@@ -161,7 +186,9 @@ async function saveQuickServiceOrder(){
 
 function openCreateEditor(){
   document.getElementById('editCustomer').innerHTML=customerOptionsHtml(null);
-  document.getElementById('editProperty').innerHTML=propertyOptionsHtml(null,null);
+  document.getElementById('editOtherOwners').checked=false;
+  document.getElementById('editProperty').innerHTML=propertyOptionsHtml(null,null,false);
+  document.getElementById('editMismatch').innerHTML='';
   document.getElementById('editTitle').value='';
   document.getElementById('editInterval').value='12';
   document.getElementById('editDueDate').value='';
@@ -184,6 +211,7 @@ async function saveContract(){
   const title=document.getElementById('editTitle').value.trim();
   const dueDate=document.getElementById('editDueDate').value;
   if(!customerId||!title||!dueDate){st.textContent='Bitte Kunde, Bezeichnung und Fälligkeit angeben.';return}
+  if(propertyConfirmMissing('editCustomer','editProperty','editConfirmProperty',st))return;
   const payload={
     customer_id:Number(customerId),
     property_id:propertyId?Number(propertyId):null,
@@ -193,6 +221,7 @@ async function saveContract(){
     template_project_id:document.getElementById('editTemplate').value?Number(document.getElementById('editTemplate').value):null,
     responsible_employee_id:document.getElementById('editResponsible').value?Number(document.getElementById('editResponsible').value):null,
     notes:document.getElementById('editNotes').value.trim()||null,
+    confirm_property_customer:!!document.getElementById('editConfirmProperty')?.checked,
   };
   try{
     const created=await api('/api/maintenance-contracts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
@@ -265,7 +294,7 @@ async function init(){
     api('/api/employees').catch(()=>[]), api('/api/project-templates').catch(()=>[]),
   ]);
   document.getElementById('qsoCustomer').innerHTML=customerOptionsHtml(null);
-  document.getElementById('qsoProperty').innerHTML=propertyOptionsHtml(null,null);
+  document.getElementById('qsoProperty').innerHTML=propertyOptionsHtml(null,null,false);
   document.getElementById('qsoResponsible').innerHTML=employeeOptionsHtml(null);
   await api('/api/maintenance-contracts/check-due',{method:'POST'}).catch(()=>null);
   await loadContracts();

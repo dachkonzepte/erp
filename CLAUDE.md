@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.69** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.70** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -638,6 +638,16 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     läuft, läuft nichts anderes gegen diesen Code -- Anlass: in 1.8.54 fiel eine Migrationsprobe in eine laufende
     Gegenprobe (`docs/archiv/abnahme-und-gewaehrleistung.md`, "Verifikation 1.8.54" und "Umsetzung 1.8.55").
 
+25. **Eine ID aus der Anfrage gehört zum selben Objekt, Auftrag oder Kunden, seit 1.8.70.** Wer eine fremde ID speichert, ohne
+    das zu prüfen, öffnet einen Weg über fortlaufende IDs (Befund: Dachfläche eines fremden Objekts im Einsatzbericht, Position
+    eines fremden Auftrags in der Rechnung). Prüfungen in `app/zugehoerigkeit.py` (`require_in_order_property()`: Dachfläche und
+    Bauteil nur aus dem Objekt des Auftrags, fremd wie unbekannt 404 ohne Grund; `require_confirmed_property()`: Objekt eines
+    anderen Kunden nur mit Bestätigung, sonst 409) oder eine eigene. `tests/test_v373_zugehoerigkeit_struktur.py` findet jede
+    ID-Eingabe schreibender Routen (Body, Formular, Query) und jedes ID-Paar im Pfad; jede steht in `STAMMDATEN` (Feldname),
+    `GEPRUEFT` (Funktion und Vergleich, der Test verlangt beides auf dem Weg vom Endpunkt), `FREI` (legt Besitzer/Kontext fest)
+    oder `AUSNAHMEN` (darf nur kürzer werden). "Erfasst von"/"geschlossen von" setzt der Server aus der Anmeldung, mitgeschickt
+    422. Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.70".
+
 ## Fachbegriffe & Domänenmodell
 
 - **"Vorgang"** (in normalem Gespräch) = **Projekt** (`Project`) – wurde in der Sitzung explizit
@@ -916,6 +926,11 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Kopien an die in der Fassung eingefrorenen Empfänger; seit 1.8.69 als Personen an ihre Adresse von heute, Kopie ohne Mail im
   Versandverlauf, Briefe der Anzeigen ohne freies CC, Strukturtest "Kopie an:" = Cc)
   -- `docs/archiv/abnahme-und-gewaehrleistung.md`
+- **Befund „Vor dem Echtbetrieb: Geld und Sicherheit“** (09.10.2026: Abschläge/Schlussrechnung/Storno, fremde IDs ohne
+  Zugehörigkeitsprüfung, Abgleich mit dem Angebot, Rechnungsdatum, Spaltenschlüssel; je Fehler ein Test unter
+  `tests/test_v372_befund_*.py`, xfail bis zur Reparatur; seit 1.8.70 Punkt 2 behoben: Zugehörigkeit, Historie in /mobil,
+  "erfasst/geschlossen von", Objekt eines anderen Kunden mit Bestätigung, Strukturtest Regel 25) --
+  `docs/archiv/befund-vor-echtbetrieb.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
   `docs/archiv/grunddaten-beim-start.md`
@@ -1005,7 +1020,8 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   einen selbst angelegten Bericht (`ServiceReport.created_by_employee_id`) -- nie über
   Vertrauen in eine fortlaufende ID. `app/orders.py::field_may_access_order()` ist die eine
   Definition dafür, `require_field_report_ownership()` verschärft das für Schreibzugriffe auf
-  den eigenen Bericht.
+  den eigenen Bericht. Die Wartungshistorie in /mobil gilt seit 1.8.70 nur für Objekte dieser Aufträge
+  (`field_accessible_property_ids()`); Objektansicht und Dokumente bleiben für jedes Objekt offen.
 - **Ausblenden statt ausgrauen**: eine für eine Rolle nicht gedachte Seite fehlt im Markup
   (`can()`-Jinja-Global, `_dk_roles`-Markierung), nicht nur deaktiviert -- ein 403 auf einer
   Seiten-Route zeigt `access_denied.html`, nie rohes JSON.
@@ -1317,7 +1333,10 @@ deren PDF scheitert: Meldung "nichts gespeichert", Zeichnung bleibt, zweiter Ver
 `klicktest_protokoll_versand.py` (1.8.67, Karte "Protokoll an den Auftraggeber", Versand an einen SMTP-Empfänger im Skript mit
 Anhang = Fassung, nach verworfener Unterschrift Fassung 1, Abnahme mit "Fassung 1 (PDF)", 412 px; seit 1.8.68 CC fest aus der
 Fassung, Hinweis und Rückfrage bei geänderten Beteiligten; seit 1.8.69 Adresse von heute, Hinweis mit alter und neuer, "Laut „Kopie
-an:“ ohne Mail" im Versandverlauf; ebenso seit 1.8.69 `klicktest_behinderungsanzeige_versand.py`: CC fest statt Eingabefeld). Ein
+an:“ ohne Mail" im Versandverlauf; ebenso seit 1.8.69 `klicktest_behinderungsanzeige_versand.py`: CC fest statt Eingabefeld) und
+`klicktest_objekt_anderer_kunde.py` (1.8.70, Schnellauftrag, Vertragsanlage und Vertragsseite am Objekt eines anderen Kunden: nur
+mit Häkchen, API ohne Bestätigung 409, gespeichertes Objekt "bestätigt", neu gewählt wieder Rückfrage; /mobil: Historie nur am
+Objekt des eigenen Auftrags, sonst ruhiger Hinweis, 412 px). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

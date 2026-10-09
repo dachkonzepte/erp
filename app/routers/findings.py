@@ -16,6 +16,7 @@ from ..models import AppUser, Finding
 from ..modules import is_module_enabled
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import FindingCreate, FindingFollowupUpdate, FindingOut
+from ..zugehoerigkeit import NotInOrderProperty
 from .orders import require_field_report_ownership
 from .service_reports import _employee_for_request
 from .tasks import _require_module_enabled as _require_tasks_module_enabled, _require_visible_task
@@ -94,7 +95,10 @@ def post_finding(report_id: int, payload: FindingCreate, request: Request, db: S
             db, report_id, payload.description, payload.severity, payload.action,
             inspection_item_id=payload.inspection_item_id, roof_component_id=payload.roof_component_id,
             resubmission_date=payload.resubmission_date, created_by_employee_id=employee_id,
+            closed_by_employee_id=_role.employee_id,
         )
+    except NotInOrderProperty as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -104,9 +108,10 @@ def put_finding_followup(finding_id: int, payload: FindingFollowupUpdate, db: Se
     _require_module_enabled(db)
     require_field_report_ownership(db, _role, _report_id_for_finding(db, finding_id))
     try:
+        # "Geschlossen von" seit 1.8.70 aus der Anmeldung (das Schema lehnt den Wert aus der Anfrage ab).
         result = update_finding_followup(
             db, finding_id, status=payload.status, action=payload.action,
-            resubmission_date=payload.resubmission_date, closed_by_employee_id=payload.closed_by_employee_id,
+            resubmission_date=payload.resubmission_date, closed_by_employee_id=_role.employee_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -42,7 +42,7 @@ def test_create_report_with_multiple_areas_generates_items_for_both_and_tags_roo
     area_b = create_roof_area(db, prop.id, "Flachdach Süd", roof_type="Flachdach")
     create_roof_component(db, area_a["id"], "Gully A1", component_type="Gully", sort_order=10)
     create_roof_component(db, area_b["id"], "Gully B1", component_type="Gully", sort_order=10)
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
 
     report = create_report(db, order.id, "wartung", roof_area_ids=[area_a["id"], area_b["id"]])
     assert len(report["roof_areas"]) == 2
@@ -65,7 +65,7 @@ def test_area_without_resolvable_template_still_gets_its_row_but_no_items():
     db = db_session()
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Steildach ohne Vorlage", roof_type="Steildach")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
     assert len(report["roof_areas"]) == 1
     assert report["roof_areas"][0]["roof_area_id"] == area["id"]
@@ -80,7 +80,7 @@ def test_regenerate_and_sync_work_across_multiple_areas():
     area_a = create_roof_area(db, prop.id, "Fläche A", roof_type="Flachdach")
     area_b = create_roof_area(db, prop.id, "Fläche B", roof_type="Flachdach")
     create_roof_component(db, area_a["id"], "Gully A1", component_type="Gully", sort_order=10)
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area_a["id"], area_b["id"]])
 
     result = sync_inspection_items(db, report["id"])
@@ -106,7 +106,7 @@ def test_regenerate_and_sync_still_work_for_legacy_single_area_report_without_re
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Altbestand-Fläche", roof_type="Flachdach")
     create_roof_component(db, area["id"], "Gully 1", component_type="Gully", sort_order=10)
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "rapport")  # keine Fläche -> keine ServiceReportRoofArea-Zeile
 
     row = _load_report(db, report["id"])
@@ -134,7 +134,7 @@ def test_resolve_inspection_template_uses_explicit_default_over_sort_order():
     db = db_session()
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Fläche", roof_type="Flachdach")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
 
     from app.inspection_templates import create_template
     winner_by_sort_order = create_template(db, "Zuerst (niedrigster sort_order)", roof_type="Flachdach")
@@ -152,7 +152,7 @@ def test_resolve_inspection_template_falls_back_to_null_stage_when_multiple_cand
     db = db_session()
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Fläche", roof_type="Flachdach")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
 
     from app.inspection_templates import create_template
     create_template(db, "Kandidat 1", roof_type="Flachdach")
@@ -171,7 +171,7 @@ def test_resolve_inspection_template_uses_sole_candidate_without_explicit_defaul
     template = _seed_test_template(db, roof_type="Steildach")
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Fläche", roof_type="Steildach")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
     assert report["roof_areas"][0]["inspection_template_id"] == template["id"]
 

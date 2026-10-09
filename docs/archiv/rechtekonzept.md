@@ -1474,6 +1474,12 @@ stattdessen ausschließlich im INHALT:
   objektbezogen statt auftragsbezogen, deshalb ohne den dortigen Ausschluss "nicht der eigene
   Auftrag" (hier gibt es keinen "eigenen" Auftrag, von dem aus die Ansicht geöffnet wurde).
 
+**Nachtrag (seit 1.8.70, Betreibervorgabe)**: die Wartungshistorie -- Liste und PDF -- gilt NICHT mehr für jedes Objekt, sondern
+nur für Objekte der Aufträge, die der Monteur öffnen darf (`app/orders.py::field_accessible_property_ids()`, dieselbe Regel wie
+Auftrag und Bericht: Team, Einzelzuweisung, eigener Bericht, ohne Zeitfenster). Liste sonst 403 mit Hinweis, PDF 404.
+Objektansicht, Dokumente und Upload bleiben für jedes Objekt offen. Herleitung, Festlegungen und Tests:
+`docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.70".
+
 **Angriffstest (`tests/test_v267_property_field_documents.py`, 15 Tests), wie verlangt**:
 fremdes Objekt über die ID öffnen -- erlaubt, aber nur die harmlosen Felder (per
 `set(body) == {...}`-Vergleich belegt, kein `notes`/`customer_id`); Datei aus gesperrter

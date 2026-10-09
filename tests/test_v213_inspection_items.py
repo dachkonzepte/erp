@@ -76,11 +76,14 @@ def _seed_test_template(db, roof_type="Flachdach", label="Testvorlage"):
     return get_template(db, tid)
 
 
-def _make_order_for_report(db):
-    """Ein Auftrag ohne Gebäude-/Dachflächenbezug (make_order_with_item() legt ein eigenes,
-    property-loses Projekt an) -- roof_area_id wird in den Tests bewusst explizit übergeben,
-    die Order->Project->Property-Auflösung wird hier nicht gebraucht."""
+def _make_order_for_report(db, prop=None):
+    """Ein Auftrag (make_order_with_item() legt ein eigenes, property-loses Projekt an). Seit 1.8.70
+    nimmt der Bericht nur Dachflächen aus dem Objekt des Auftrags -- wer Flächen übergibt, gibt
+    deshalb deren Objekt mit (prop), das Projekt hängt dann daran."""
     order, _ = make_order_with_item(db)
+    if prop is not None:  # seit 1.8.70: Dachflächen nur aus dem Objekt des Auftrags
+        order.project.property_id = prop.id
+        db.commit()
     return order
 
 
@@ -96,7 +99,7 @@ def test_generation_creates_expected_item_count_with_component_names_and_order()
     for i in range(3):
         create_roof_component(db, area["id"], f"Lichtkuppel {i + 1}", component_type="Lichtkuppel", sort_order=(i + 1) * 10)
 
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
     assert report["roof_areas"][0]["inspection_template_id"] == template["id"]
 
@@ -136,7 +139,7 @@ def test_rapport_without_explicit_template_gets_no_items():
     _seed_test_template(db)
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "rapport", roof_area_ids=[area["id"]])
     assert report["inspection_template_id"] is None
     assert list_inspection_items(db, report["id"]) == []
@@ -147,7 +150,7 @@ def test_rapport_with_explicit_template_gets_items():
     template = _seed_test_template(db)
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "rapport", roof_area_ids=[area["id"]], inspection_template_id=template["id"])
     assert report["roof_areas"][0]["inspection_template_id"] == template["id"]
     assert len(list_inspection_items(db, report["id"])) > 0
@@ -159,7 +162,7 @@ def test_sign_report_blocks_on_open_required_items_and_names_count_then_succeeds
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     create_roof_component(db, area["id"], "Gully 1", component_type="Gully", sort_order=10)
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
 
     items = list_inspection_items(db, report["id"])
@@ -192,7 +195,7 @@ def test_changes_to_inspection_items_blocked_after_signature():
     _seed_test_template(db)
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
     for item in list_inspection_items(db, report["id"]):
         if item["required"]:
@@ -218,7 +221,7 @@ def test_template_change_does_not_affect_existing_report():
     template = _seed_test_template(db)
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
     original_texts = {i["id"]: i["text"] for i in list_inspection_items(db, report["id"])}
 
@@ -242,7 +245,7 @@ def test_sync_inspection_items_is_purely_additive():
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     create_roof_component(db, area["id"], "Gully 1", component_type="Gully", sort_order=10)
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
 
     ablauf_item = next(i for i in list_inspection_items(db, report["id"]) if i["text"] == "Gully 1: Ablauf frei und funktionsfähig")
@@ -275,7 +278,7 @@ def test_sort_order_band_holds_with_large_component_sort_order():
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     create_roof_component(db, area["id"], "Gully hoch sortiert", component_type="Gully", sort_order=5000)
     create_roof_component(db, area["id"], "Notüberlauf 1", component_type="Notüberlauf", sort_order=10)
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
 
     items = list_inspection_items(db, report["id"])
@@ -294,7 +297,7 @@ def test_delete_roof_component_blocks_when_signed_report_references_it_then_succ
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     component = create_roof_component(db, area["id"], "Gully 1", component_type="Gully", sort_order=10)
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
     for item in list_inspection_items(db, report["id"]):
         if item["required"]:
@@ -325,7 +328,7 @@ def test_component_archived_after_signature_report_remains_fully_readable(tmp_pa
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     component = create_roof_component(db, area["id"], "Gully 1", component_type="Gully", sort_order=10)
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
     for item in list_inspection_items(db, report["id"]):
         if item["required"]:
@@ -343,7 +346,7 @@ def test_client_uuid_unique_constraint_allows_multiple_nulls_but_not_duplicate_v
     _seed_test_template(db)
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
     items = list_inspection_items(db, report["id"])
     assert len(items) >= 2
@@ -404,7 +407,7 @@ def test_signed_report_pdf_includes_inspection_results(tmp_path):
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     create_roof_component(db, area["id"], "Gully Nordost", component_type="Gully", sort_order=10)
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
     for item in list_inspection_items(db, report["id"]):
         if item["required"]:
@@ -443,7 +446,7 @@ def test_router_endpoints_generate_items_and_reject_open_required_via_http(threa
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     create_roof_component(db, area["id"], "Gully 1", component_type="Gully", sort_order=10)
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
 
     client = router_test_client(db, service_reports_router, inspection_templates_router)
     resp = client.post(f"/api/orders/{order.id}/service-reports", json={"report_type": "wartung", "roof_area_ids": [area["id"]]})

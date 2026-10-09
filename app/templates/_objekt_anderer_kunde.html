@@ -1,0 +1,45 @@
+<style>
+/* label.… und .objekt-abweichung label.… schlagen die Seitenregel ".field label{display:block}" */
+.field label.objekt-andere,label.objekt-andere{display:flex;gap:6px;align-items:center;margin:6px 0 0;font-size:12.5px;color:var(--muted);font-weight:650}
+label.objekt-andere input,.objekt-abweichung label.objekt-bestaetigen input{flex:0 0 auto;width:16px;height:16px;padding:0;margin:1px 0 0}
+.objekt-abweichung{margin-top:8px;padding:9px 11px;border-left:3px solid var(--warning);background:var(--warning-soft);color:var(--ink);font-size:13px}
+.objekt-abweichung label.objekt-bestaetigen{display:flex;gap:8px;align-items:flex-start;margin:8px 0 0;font-size:13px;color:var(--ink);font-weight:650}
+</style>
+<script>
+/* Geteilter Baustein (seit 1.8.70, Befund „Vor dem Echtbetrieb“ 2f/2g) für Schnellauftrag und Wartungsvertrag: ein Objekt
+   eines anderen Kunden (Generalunternehmer, Hausverwaltung) ist möglich, aber nur mit sichtbarem Hinweis und bewusster
+   Bestätigung -- dasselbe Muster wie der abweichende Kunde der Anzeigen (checklist.html, customerMismatchHtml()). Der
+   Server lehnt ohne confirm_property_customer mit 409 ab (app/zugehoerigkeit.py::require_confirmed_property()).
+
+   objektOptionen(objekte, kunden, kundeId, gewaehlt, andereZeigen) -> HTML der <option>-Elemente: erst die Objekte des
+     Kunden (ohne Hauptadresse), mit andereZeigen danach "Objekte anderer Kunden"; ein gespeichertes fremdes Objekt bleibt
+     immer vorgewählt (sonst leerte das nächste Speichern es).
+   objektAbweichungHtml(objekte, kunden, kundeId, objektId, idBestaetigung) -> Hinweis mit Häkchen, oder '' ohne Abweichung.
+   objektAbweichung(objekte, kundeId, objektId) -> das fremde Objekt oder null. */
+function objektAbweichung(objekte, kundeId, objektId) {
+  if (!objektId || !kundeId) return null;
+  const p = (objekte || []).find(x => x.id === Number(objektId));
+  return p && p.customer_id !== Number(kundeId) ? p : null;
+}
+function objektOptionen(objekte, kunden, kundeId, gewaehlt, andereZeigen) {
+  const m = s => String(s ?? '').replace(/[&<>'"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[c]));
+  const name = id => ((kunden || []).find(c => c.id === id) || {}).name || 'anderer Kunde';
+  const g = Number(gewaehlt) || null;
+  const opt = p => `<option value="${p.id}" ${g === p.id ? 'selected' : ''}>${m(p.name)}</option>`;
+  const fremdOpt = p => `<option value="${p.id}" ${g === p.id ? 'selected' : ''}>${m(p.name + ' – ' + name(p.customer_id))}</option>`;
+  const eigene = (objekte || []).filter(p => p.customer_id === Number(kundeId) && !p.is_primary_address);
+  const fremde = (objekte || []).filter(p => p.customer_id !== Number(kundeId) && (andereZeigen || p.id === g));
+  let html = '<option value="">— Hauptadresse verwenden —</option>' + eigene.map(opt).join('');
+  if (fremde.length) html += `<optgroup label="Objekte anderer Kunden">${fremde.map(fremdOpt).join('')}</optgroup>`;
+  return html;
+}
+function objektAbweichungHtml(objekte, kunden, kundeId, objektId, idBestaetigung) {
+  const p = objektAbweichung(objekte, kundeId, objektId);
+  if (!p) return '';
+  const m = s => String(s ?? '').replace(/[&<>'"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[c]));
+  const name = id => ((kunden || []).find(c => c.id === id) || {}).name || 'einem anderen Kunden';
+  const kunde = name(Number(kundeId)), inhaber = name(p.customer_id);
+  return `<div class="objekt-abweichung" data-objekt-abweichung><b>Objekt eines anderen Kunden:</b> „${m(p.name)}“ gehört zu ${m(inhaber)}, nicht zu ${m(kunde)} (z. B. Generalunternehmer oder Hausverwaltung).
+    <label class="objekt-bestaetigen"><input type="checkbox" id="${m(idBestaetigung)}"><span>Abweichung geprüft – für ${m(kunde)} am Objekt von ${m(inhaber)}</span></label></div>`;
+}
+</script>

@@ -11,6 +11,7 @@ from ..modules import is_module_enabled
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..quick_service_orders import create_quick_service_order
 from ..schemas import QuickServiceOrderCreate, QuickServiceOrderOut
+from ..zugehoerigkeit import PropertyCustomerMismatch
 
 router = APIRouter()
 
@@ -35,6 +36,9 @@ def post_quick_service_order(payload: QuickServiceOrderCreate, db: Session = Dep
             db, customer_id=payload.customer_id, property_id=payload.property_id,
             order_type=payload.order_type, title=payload.title, description=payload.description,
             caseworker_employee_id=payload.caseworker_employee_id, execution_start=payload.execution_start,
+            confirm_property_customer=payload.confirm_property_customer,
         )
+    except PropertyCustomerMismatch as exc:  # seit 1.8.70: Objekt eines anderen Kunden ohne Bestätigung
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

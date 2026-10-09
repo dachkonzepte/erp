@@ -333,6 +333,20 @@ def field_accessible_order_ids(db: Session, employee_id: int) -> set[int]:
     return ids
 
 
+def field_accessible_property_ids(db: Session, employee_id: int) -> set[int]:
+    """Die Objekte der Aufträge, die ein Monteur öffnen darf (field_accessible_order_ids(), dieselbe Regel wie Auftrag und
+    Bericht) -- seit 1.8.70 die Grenze der Wartungshistorie in /mobil (Befund „Vor dem Echtbetrieb“ Punkt 2). Ein Auftrag
+    ohne Objekt am Projekt (Hauptadresse) trägt nichts bei; die Historie läuft ohnehin über Project.property_id."""
+    order_ids = field_accessible_order_ids(db, employee_id)
+    if not order_ids:
+        return set()
+    rows = db.scalars(
+        select(Project.property_id).join(Order, Order.project_id == Project.id)
+        .where(Order.id.in_(order_ids), Project.property_id.is_not(None))
+    ).all()
+    return set(rows)
+
+
 def order_to_dict(order: Order, db: Session | None = None, include_sync_state: bool = True) -> dict:
     tax_key = db.get(TaxKey, order.tax_key_id) if (db is not None and order.tax_key_id) else None
     sections = sorted(order.sections, key=lambda x: (x.sort_order, x.id))

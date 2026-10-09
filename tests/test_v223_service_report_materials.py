@@ -84,7 +84,7 @@ def test_add_material_rejects_roof_area_not_covered_by_report():
     customer, prop = make_customer_and_property(db)
     other_customer, other_prop = make_customer_and_property(db)
     foreign_area = create_roof_area(db, other_prop.id, "Fremde Fläche")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     area = create_roof_area(db, prop.id, "Eigene Fläche")
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
     try:
@@ -101,6 +101,8 @@ def test_add_material_rejects_inspection_item_and_finding_from_other_report():
     template = _seed_test_template(db)
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Fläche", roof_type="Flachdach")
+    order1.project.property_id = prop.id  # seit 1.8.70: Dachflächen nur aus dem Objekt des Auftrags
+    db.commit()
     report1 = create_report(db, order1.id, "wartung", roof_area_ids=[area["id"]])
     report2 = create_report(db, order2.id, "rapport")
     foreign_item = _load_report(db, report1["id"]).inspection_items[0]
@@ -219,7 +221,7 @@ def test_pdf_material_section_groups_by_area_and_shows_no_prices(tmp_path):
     customer, prop = make_customer_and_property(db)
     area_a = create_roof_area(db, prop.id, "Flaeche Nord")
     area_b = create_roof_area(db, prop.id, "Flaeche Sued")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area_a["id"], area_b["id"]])
     add_material(db, report["id"], description="Bitumenbahn", quantity=Decimal("12.5"), unit="m2", roof_area_id=area_a["id"])
     add_material(db, report["id"], description="Dachlatte", quantity=Decimal("3"), unit="Stk", roof_area_id=area_b["id"])

@@ -37,6 +37,7 @@ from .quick_service_orders import create_quick_service_order
 from .roof_areas import list_roof_areas
 from .service_reports import create_report
 from .tasks import create_task
+from .zugehoerigkeit import require_confirmed_property
 
 STATUSES = ("aktiv", "pausiert", "beendet")
 MODULE_KEY = "wartungen"
@@ -346,11 +347,27 @@ def list_relevant_contracts_for_employee(db: Session, employee_id: int) -> list[
     return [g for g in groups.values() if g["contracts"]]
 
 
+def require_template_project(db: Session, template_project_id: int | None) -> None:
+    """Seit 1.8.70 (Befund 2h): ein Mustervorgang am Vertrag oder an der Position ist ein Mustervorgang (is_template) --
+    vorher jedes Projekt. Kunde und Objekt des Musters zählen nicht mehr: der Vorgang daraus bekommt die des Vertrags
+    (create_project_from_contract())."""
+    if template_project_id is None:
+        return
+    template = db.get(Project, template_project_id)
+    if template is None or not template.is_template:
+        raise ValueError("Mustervorgang nicht gefunden.")
+
+
 def create_contract(db: Session, customer_id: int, property_id: int | None, title: str, interval_months: int,
                      next_due_date: date, template_project_id: int | None = None,
-                     responsible_employee_id: int | None = None, notes: str | None = None) -> dict:
+                     responsible_employee_id: int | None = None, notes: str | None = None,
+                     confirm_property_customer: bool = False) -> dict:
+    """confirm_property_customer (seit 1.8.70, Befund 2g): ein Objekt eines anderen Kunden (Generalunternehmer,
+    Hausverwaltung) nur mit Bestätigung -- sonst PropertyCustomerMismatch (Router 409)."""
     if interval_months < 1:
         raise ValueError("Das Intervall muss mindestens 1 Monat betragen.")
+    require_confirmed_property(db, customer_id, property_id, confirm_property_customer)
+    require_template_project(db, template_project_id)
     contract = MaintenanceContract(
         customer_id=customer_id, property_id=property_id, title=title.strip(),
         interval_months=interval_months, next_due_date=next_due_date,
@@ -365,12 +382,23 @@ def create_contract(db: Session, customer_id: int, property_id: int | None, titl
 
 def update_contract(db: Session, contract_id: int, title: str, interval_months: int, next_due_date: date,
                      template_project_id: int | None, responsible_employee_id: int | None,
-                     notes: str | None, property_id: int | None = None) -> dict | None:
+                     notes: str | None, property_id: int | None = None,
+                     confirm_property_customer: bool = False) -> dict | None:
+    """Seit 1.8.70 (Befund 2g, 2h): ein NEU gewähltes Objekt eines anderen Kunden nur mit confirm_property_customer; ein
+    neues Objekt nicht, solange Positionen an Dachflächen eines anderen Objekts hängen; ein neu gewählter Mustervorgang
+    muss einer sein. Ein unverändert gespeicherter Wert wird nicht erneut geprüft (wie "aktiv" bei Auswahllisten, Regel 22)."""
     contract = db.get(MaintenanceContract, contract_id)
     if contract is None:
         return None
     if interval_months < 1:
         raise ValueError("Das Intervall muss mindestens 1 Monat betragen.")
+    if property_id != contract.property_id:
+        require_confirmed_property(db, contract.customer_id, property_id, confirm_property_customer)
+        if any(item.roof_area is None or item.roof_area.property_id != property_id for item in contract.items):
+            raise ValueError("Der Vertrag hat Positionen an Dachflächen des bisherigen Objekts -- "
+                             "das Objekt lässt sich erst ändern, wenn sie entfernt sind.")
+    if template_project_id != contract.template_project_id:
+        require_template_project(db, template_project_id)
     contract.property_id = property_id
     contract.title = title.strip()
     contract.interval_months = interval_months
@@ -553,7 +581,8 @@ def create_project_from_contract(db: Session, contract_id: int, item_id: int | N
         template = db.get(Project, contract.template_project_id)
         if template is None:
             raise ValueError("Der hinterlegte Mustervorgang wurde nicht gefunden.")
-        new_project = duplicate_project(db, template, as_template=False)
+        # Seit 1.8.70 (Befund 2h): Kunde und Objekt des Vertrags, nicht die des Mustervorgangs.
+        new_project = duplicate_project(db, template, as_template=False, owner=(contract.customer_id, contract.property_id))
         new_project.description = (
             f"{new_project.description}\n\n" if new_project.description else ""
         ) + f"Erstellt aus Wartungsvertrag \"{contract.title}\" am {berlin_today().strftime('%d.%m.%Y')}."
@@ -569,7 +598,7 @@ def create_project_from_contract(db: Session, contract_id: int, item_id: int | N
         template = db.get(Project, template_id)
         if template is None:
             raise ValueError("Der hinterlegte Mustervorgang wurde nicht gefunden.")
-        new_project = duplicate_project(db, template, as_template=False)
+        new_project = duplicate_project(db, template, as_template=False, owner=(contract.customer_id, contract.property_id))
         new_project.description = (
             f"{new_project.description}\n\n" if new_project.description else ""
         ) + (
@@ -658,9 +687,11 @@ def create_maintenance_visit(db: Session, contract_id: int, created_by_employee_
         raise ValueError("Dieser Wartungsvertrag hat aktive Positionen -- bitte den Vorgang je Position anlegen.")
 
     title = f"Wartung {contract.title} vom {berlin_today().strftime('%d.%m.%Y')}"
+    # Ein Objekt eines anderen Kunden ist am Vertrag bereits bestätigt (create_contract()/update_contract()).
     result = create_quick_service_order(
         db, customer_id=contract.customer_id, property_id=contract.property_id,
         order_type="wartung", title=title, caseworker_employee_id=contract.responsible_employee_id,
+        confirm_property_customer=True,
     )
     profile = get_or_create_project_profile(db, result["project_id"])
     profile.source_maintenance_contract_id = contract.id
@@ -694,9 +725,11 @@ def create_maintenance_contract_from_project(db: Session, project_id: int, *, in
             "den bestehenden Mustervorgang direkt beim Anlegen eines Wartungsvertrags auswählen."
         )
     template = duplicate_project(db, project, as_template=True)
+    # Kunde und Objekt kommen aus dem bestehenden Projekt -- eine Abweichung ist dort schon vorhanden, nicht neu gewählt.
     return create_contract(
         db, project.customer_id, project.property_id, project.name, interval_months, next_due_date,
         template_project_id=template.id, responsible_employee_id=responsible_employee_id,
+        confirm_property_customer=True,
     )
 
 
@@ -720,6 +753,7 @@ def create_contract_item(db: Session, contract_id: int, roof_area_id: int, maint
     window = db.get(MaintenanceWindow, maintenance_window_id)
     if window is None:
         raise ValueError("Wartungsfenster nicht gefunden.")
+    require_template_project(db, template_project_id)
     item = MaintenanceContractItem(
         contract_id=contract_id, roof_area_id=roof_area_id, maintenance_window_id=maintenance_window_id,
         template_project_id=template_project_id, inspection_template_id=inspection_template_id,
@@ -749,6 +783,8 @@ def update_contract_item(db: Session, item_id: int, roof_area_id: int, maintenan
     window = db.get(MaintenanceWindow, maintenance_window_id)
     if window is None:
         raise ValueError("Wartungsfenster nicht gefunden.")
+    if template_project_id != item.template_project_id:
+        require_template_project(db, template_project_id)
     item.roof_area_id = roof_area_id
     item.maintenance_window_id = maintenance_window_id
     item.description = description or None

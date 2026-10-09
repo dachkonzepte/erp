@@ -34,6 +34,7 @@ from .models import Employee, Finding, InspectionItem, Order, Project, RoofCompo
 from .modules import is_module_enabled
 from .quick_service_orders import create_quick_service_order
 from .tasks import create_task
+from .zugehoerigkeit import require_in_order_property
 
 SEVERITIES = ("gering", "mittel", "dringend", "akute_gefahr")
 ACTIONS = ("sofort_behoben", "buero_pruefen", "zurueckgestellt")
@@ -248,6 +249,7 @@ def create_follow_up_project_for_task(db: Session, task_id: int) -> dict:
             f"(Auftrag {order.order_number}) am {berlin_today():%d.%m.%Y}."
         ),
         caseworker_employee_id=order.caseworker_employee_id,
+        confirm_property_customer=True,  # Kunde und Objekt aus dem bestehenden Projekt, nicht neu gewählt (seit 1.8.70)
     )
     finding.follow_up_project_id = result["project_id"]
     finding.follow_up_order_id = result["order_id"]
@@ -256,11 +258,17 @@ def create_follow_up_project_for_task(db: Session, task_id: int) -> dict:
     return result
 
 
+_AS_CREATOR = object()  # create_finding(): "geschlossen von" wie der Ersteller
+
+
 def create_finding(
     db: Session, service_report_id: int, description: str, severity: str, action: str,
     inspection_item_id: int | None = None, roof_component_id: int | None = None,
     resubmission_date: date | None = None, created_by_employee_id: int | None = None,
+    closed_by_employee_id: "int | None | object" = _AS_CREATOR,
 ) -> dict:
+    """closed_by_employee_id (seit 1.8.70): wer bei "sofort behoben" als "geschlossen von" gilt -- der Router setzt es aus
+    der Anmeldung (None: Konto ohne Mitarbeiter); ohne Angabe (Aufrufe im Prozess) der Ersteller wie bisher."""
     report = db.get(ServiceReport, service_report_id)
     if report is None:
         raise ValueError("Bericht nicht gefunden.")
@@ -280,6 +288,10 @@ def create_finding(
         # roof_component_id wird aus dem Prüfpunkt übernommen, falls der Mangel aus ihm
         # entsteht -- ein ggf. mitgegebener Wert wird dabei bewusst überschrieben.
         roof_component_id = item.roof_component_id
+    else:
+        # Seit 1.8.70 (Befund 2c): ein frei angegebenes Bauteil nur aus dem Objekt des Auftrags -- vorher stand der Mangel
+        # sonst in der Bauteil-Historie eines fremden Objekts.
+        require_in_order_property(db, report.order, roof_component_id=roof_component_id)
 
     # Physischer Namens-Schnappschuss (seit 1.3.12, CLAUDE.md "Eingefrorene Bauteil-/
     # Dachflächennamen") -- dasselbe Prinzip wie InspectionItem.text seit 1.2.16: ein Mangel ist
@@ -299,7 +311,8 @@ def create_finding(
     db.add(finding)
     db.flush()
     try:
-        _execute_finding_action(db, finding, action, resubmission_date=resubmission_date, employee_id=created_by_employee_id)
+        closing = created_by_employee_id if closed_by_employee_id is _AS_CREATOR else closed_by_employee_id
+        _execute_finding_action(db, finding, action, resubmission_date=resubmission_date, employee_id=closing)
     except ValueError:
         # Ohne Rollback bliebe die bereits geflushte (aber nie committete) Finding-Zeile im
         # offenen Transaktionszustand der Session hängen und würde beim nächsten -- völlig

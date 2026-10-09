@@ -14,8 +14,11 @@ from tests.test_v202_maintenance_contracts import make_customer_and_property
 from tests.test_v213_inspection_items import TINY_PNG, _extract_pdf_text, _seed_test_template
 
 
-def _make_order_for_report(db):
+def _make_order_for_report(db, prop=None):
     order, _ = make_order_with_item(db)
+    if prop is not None:  # seit 1.8.70: Dachflächen nur aus dem Objekt des Auftrags
+        order.project.property_id = prop.id
+        db.commit()
     return order
 
 
@@ -66,7 +69,7 @@ def test_sign_report_blocks_on_negative_item_without_finding_then_with_photo_suc
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     create_roof_component(db, area["id"], "Gully 1", component_type="Gully", sort_order=10)
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
     _answer_required_items(db, report["id"])
 
@@ -143,7 +146,7 @@ def test_signed_report_pdf_includes_findings_and_documentation_sections(tmp_path
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     create_roof_component(db, area["id"], "Gully Nordost", component_type="Gully", sort_order=10)
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
     _answer_required_items(db, report["id"])
 
@@ -227,7 +230,7 @@ def test_finding_photo_must_belong_to_exactly_one_of_item_or_finding():
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     create_roof_component(db, area["id"], "Gully 1", component_type="Gully", sort_order=10)
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
     finding = create_finding(db, report["id"], "Test", "gering", "sofort_behoben")
     item = list_inspection_items(db, report["id"])[0]
@@ -253,7 +256,7 @@ def test_before_after_photo_limit_and_kind_normalization():
     create_template_item(db, template["id"], "Normaler Punkt", "ja_nein", photo_before_after=False, sort_order=20)
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]], inspection_template_id=template["id"])
     items = list_inspection_items(db, report["id"])
     ba_item = next(i for i in items if i["photo_before_after"])
@@ -346,7 +349,7 @@ def test_delete_roof_component_blocks_when_finding_references_it_regardless_of_r
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach")
     component = create_roof_component(db, area["id"], "Gully 1")
-    order = _make_order_for_report(db)
+    order = _make_order_for_report(db, prop)
     report = create_report(db, order.id, "rapport")
     finding = create_finding(db, report["id"], "Verstopft", "gering", "sofort_behoben", roof_component_id=component["id"])
 
@@ -370,11 +373,13 @@ def test_list_findings_for_component_returns_chronological_history():
     customer, prop = make_customer_and_property(db)
     area = create_roof_area(db, prop.id, "Hauptdach")
     component = create_roof_component(db, area["id"], "Gully 1")
-    order1 = _make_order_for_report(db)
+    order1 = _make_order_for_report(db, prop)
     report1 = create_report(db, order1.id, "rapport", performed_at=date(2026, 1, 10))
     finding1 = create_finding(db, report1["id"], "Erste Verstopfung", "gering", "sofort_behoben", roof_component_id=component["id"])
 
-    order2, _customer2, _project2 = _build_extra_order(db, "0002", source_quote_id=2)
+    order2, _customer2, project2 = _build_extra_order(db, "0002", source_quote_id=2)
+    project2.property_id = prop.id  # seit 1.8.70: Bauteil nur aus dem Objekt des Auftrags -- zweiter Einsatz am selben Objekt
+    db.commit()
     report2 = create_report(db, order2.id, "rapport", performed_at=date(2026, 3, 5))
     finding2 = create_finding(db, report2["id"], "Zweite Verstopfung", "mittel", "sofort_behoben", roof_component_id=component["id"])
 

@@ -36,7 +36,7 @@ Nebenbefunde nur melden. Commit nach Regel 13, nur Tests und Archiv.
 |---|---|---|---|
 | `tests/test_v372_befund_an_pflicht.py` | Vorab (An) | 0 | 14 |
 | `tests/test_v372_befund_schlussrechnung.py` | 1 | 15 | 4 |
-| `tests/test_v372_befund_fremdes_objekt.py` | 2 | 10 | 2 |
+| `tests/test_v372_befund_fremdes_objekt.py` | 2 | 0 (seit 1.8.70 behoben, vorher 10) | 12 |
 | `tests/test_v372_befund_abgleich.py` | 3 | 9 (4 nur PostgreSQL) | 2 (1 nur PostgreSQL) |
 | `tests/test_v372_befund_rechnungsdatum.py` | 4 | 5 | 2 |
 | `tests/test_v372_befund_spaltenschluessel.py` | 5 | 5 (alle nur PostgreSQL) | 2 (1 nur PostgreSQL) |
@@ -277,7 +277,7 @@ Unter SQLite wird jeder dieser Werte still gespeichert (grün festgehalten).
 1. **Prüfpunkte ohne Fläche fehlen im PDF eines Berichts mit Flächen** (`service_report_pdf.py:243–250`): gerendert werden je Fläche
    nur Punkte mit deren `roof_area_id`; ein von Hand ergänzter Punkt ohne Fläche (oder mit einer Fläche außerhalb des Berichts)
    fehlt im unterschriebenen PDF -- `add_inspection_item()` verspricht im Docstring "rendert außerhalb jedes Flächen-Blocks".
-2. **Mitarbeiter ohne `_employee_for_request()`**: `recorded_by_employee_id` am Prüfpunkt (`PUT`, Feldliste
+2. **(seit 1.8.70 behoben, siehe unten)** **Mitarbeiter ohne `_employee_for_request()`**: `recorded_by_employee_id` am Prüfpunkt (`PUT`, Feldliste
    `service_reports.py:720–723`) und `closed_by_employee_id` am Mangel (`routers/findings.py:109`) übernimmt der Server aus der
    Anfrage -- ein Monteur kann einen anderen als "erfasst von"/"geschlossen von" eintragen (Regel im Docstring von
    `_employee_for_request()`).
@@ -292,7 +292,8 @@ Unter SQLite wird jeder dieser Werte still gespeichert (grün festgehalten).
 7. **Veraltete Verweise**: `models.py:1741` und `invoices.py:13` nennen `berechne_abgerechnete_menge()`, die es nicht gibt
    (gemeint: `compute_billed_quantity_and_total()`); der Kommentar an `Invoice.invoice_type` (`models.py:1655`) nennt 4 Arten, es
    sind 5 (`aufwand` fehlt).
-8. **CLAUDE.md** hat noch keinen Verweis auf diese Datei (Vorgabe: nur Tests und Archiv).
+8. **CLAUDE.md** hat noch keinen Verweis auf diese Datei (Vorgabe: nur Tests und Archiv). Seit 1.8.70 ergänzt (Modulübersicht,
+   Regel 25).
 
 ## Verifikation
 
@@ -306,3 +307,134 @@ Unter SQLite wird jeder dieser Werte still gespeichert (grün festgehalten).
 - Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3130 grün, 44 erwartet fehlgeschlagen, 0 rot. Danach nur noch in
   `tests/befund_vor_echtbetrieb.py` der Import von `app.models` in `pg_sitzung()` ergänzt (ohne ihn hat ein Aufruf außerhalb der
   Suite keine Tabellen); Kontrolle der sechs Dateien mit `test_v316` und `test_v357`: 41 grün, 44 erwartet fehlgeschlagen.
+
+## Umsetzung 1.8.70: Reparatur Sicherheit (Punkt 2)
+
+### Vorgabe vom 09.10.2026 (übernommen wie gegeben)
+
+Reparatur Sicherheit (befund-vor-echtbetrieb.md, Punkt 2). In CLAUDE.md den Verweis auf befund-vor-echtbetrieb.md ergänzen.
+
+1. Monteur-Wege (2a–2e): Dachfläche, Bauteil und Material nur aus dem Objekt des Auftrags. Eine gemeinsame Prüffunktion; sonst
+   404 ohne Grund.
+2. Objekt-Historie in /mobil nur für Objekte seiner zugeordneten Aufträge, nach derselben Zugriffsregel wie Auftrag und Bericht.
+3. „Erfasst von“ und „geschlossen von“ setzt der Server aus der Anmeldung; Werte aus der Anfrage werden abgelehnt.
+4. 2h: Der Vorgang aus einem Wartungsvertrag bekommt den Kunden des Vertrags. 2i: Eine Rechnungsposition verweist nur auf
+   Positionen desselben Auftrags.
+5. 2f/2g (Büro): Kunde und Objekt dürfen abweichen (Generalunternehmer, Hausverwaltung), aber nur mit Hinweis und bewusster
+   Bestätigung wie beim abweichenden Kunden der Anzeigen.
+6. Muster: Strukturtest, der jede Eingabe mit einer fremden ID findet und verlangt, dass sie über eine Zugehörigkeitsprüfung
+   läuft. Ausnahmeliste darf nur kürzer werden.
+
+Die xfail-Tests zu Punkt 2 müssen grün werden; Markierung dann entfernen. Angriffstests mit Gegenprobe. Wichtige Tests auch gegen
+PostgreSQL. Eigene Festlegungen mit „Bitte bestätigen“. Nebenbefunde nur melden. Wird der Umfang zu groß: nach Punkt 3 committen
+und den Rest auflisten. Commit nach Regel 13, Bericht kurz.
+
+### Was gebaut ist
+
+- **Gemeinsame Prüfung** `app/zugehoerigkeit.py::require_in_order_property(db, order, roof_area_ids=…, roof_component_id=…,
+  roof_area_id=…)`: jede Dachfläche und das Bauteil gehören zum Objekt des Auftrags (`order.project.property_id`), ein Bauteil mit
+  angegebener Fläche sitzt auf genau dieser. Sonst `NotInOrderProperty` (ein `ValueError`), der Router antwortet 404 mit
+  „Dachfläche nicht gefunden.“ bzw. „Bauteil nicht gefunden.“ – für eine fremde und eine nicht vorhandene ID dieselbe Antwort.
+  Aufgerufen in `create_report()` (2a, ausdrückliche Auswahl), `add_inspection_item()` (2b), `create_finding()` (2c, frei
+  angegebenes Bauteil; mit Prüfpunkt kommt das Bauteil wie bisher aus dem Prüfpunkt), `add_material()`/`update_material()` (2e,
+  jetzt immer, die Prüfung „gehört zum Bericht“ bleibt danach mit 400). Nichts wird angelegt, wenn eine ID nicht passt.
+- **Wartungshistorie in /mobil**: `GET /api/field-view/properties/{id}/maintenance-history` und `…/{report_id}/pdf` für `field`
+  nur, wenn das Objekt zu einem Auftrag gehört, den der Monteur öffnen darf (`app/orders.py::field_accessible_property_ids()` über
+  `field_accessible_order_ids()`: Team, Einzelzuweisung, eigener Bericht – ohne Zeitfenster). Liste sonst 403 mit Hinweis, PDF 404
+  wie „nicht vorhanden“. `mobil_objekt.html` zeigt den Hinweis ruhig statt rot. Objektansicht, Dokumente und Upload bleiben für
+  jedes Objekt offen (Betreiberentscheidung „Dateiablage je Objekt“, `rechtekonzept.md`).
+- **„Erfasst von“ / „geschlossen von“**: `InspectionItemResultUpdate` und `FindingFollowupUpdate` ohne die Felder; wer sie
+  mitschickt, bekommt 422 (Muster `TaskUpdate`), auch mit dem eigenen Wert und als Admin. Der Router übergibt
+  `_role.employee_id`: `update_inspection_item(…, recorded_by_employee_id=…)` setzt es bei jeder Änderung wie `recorded_at`,
+  `update_finding_followup(closed_by_employee_id=…)` und „sofort behoben“ beim Anlegen (`create_finding(closed_by_employee_id=…)`).
+  `service_reports.html` schickt den Wert nicht mehr.
+- **2h**: `duplicate_project(…, owner=(customer_id, property_id))`; `create_project_from_contract()` übergibt Kunde und Objekt des
+  Vertrags (Vertrags- und Positionsebene) – auch die Vertragsgrundlage des kopierten Angebots folgt dem Vertragskunden. Ein
+  Mustervorgang am Vertrag oder an der Position muss ein Mustervorgang sein (`require_template_project()`, `is_template`), geprüft
+  beim Anlegen und bei einem neu gewählten Wert.
+- **2i**: `add_invoice_item()` nimmt `source_order_item_id` nur aus dem Auftrag der Rechnung (sonst 400 mit Grund).
+- **2f/2g**: `property_customer_mismatch()` / `require_confirmed_property()` in `app/zugehoerigkeit.py`: gehört das Objekt einem
+  anderen Kunden, braucht `POST /api/quick-service-orders`, `POST /api/maintenance-contracts` und ein neu gewähltes Objekt bei
+  `PUT /api/maintenance-contracts/{id}` `confirm_property_customer: true`, sonst 409 mit Hinweistext (beide Kunden und das Objekt).
+  Aufrufe im Prozess, die Kunde und Objekt aus einem bestehenden Datensatz übernehmen („Wartung durchführen“, Folgeauftrag aus dem
+  Mangel, Vertrag aus Projekt), bestätigen selbst. Oberfläche (`_objekt_anderer_kunde.html`, auf „Wartungen & Reparaturen“ für
+  Schnellauftrag und Vertragsanlage und auf der Vertragsseite): Häkchen „Objekte anderer Kunden anzeigen“, bei einem solchen
+  Objekt ein Hinweis mit Bestätigungs-Häkchen; ohne Häkchen sendet die Seite nicht. Ein gespeichertes fremdes Objekt bleibt
+  vorgewählt („Objekt von … – bestätigt.“). Ein Objektwechsel am Vertrag wird abgelehnt, solange Positionen an Dachflächen eines
+  anderen Objekts hängen. `PUT /api/projects/{id}` prüft „Objekt gehört zum Kunden“ nur noch bei geändertem Kunden oder Objekt.
+- **Strukturtest** `tests/test_v373_zugehoerigkeit_struktur.py`: geht jede Route aus `app.main` durch und findet jede ID-Eingabe
+  einer schreibenden Route (Body auch verschachtelt, Formular, Query) und jedes Paar von IDs im Pfad (jede Methode). Einordnung:
+  STAMMDATEN nach Feldname (35 Namen, je mit Grund), GEPRUEFT je Route und Feld mit Funktion und Vergleich (81 Einträge: die
+  Funktion muss vom Endpunkt aus erreicht werden – Aufrufgraph über `app/` per AST, auch über weitergereichte Funktionen und
+  Import-Aliase – und den Vergleich wörtlich enthalten), FREI mit Grund (die ID legt Besitzer oder Kontext fest, 30), AUSNAHMEN
+  (1, darf nur kürzer werden: Eigentümerwechsel am Objekt, Nebenbefund 3). Dazu: „erfasst/geschlossen von“ nimmt keine Route an,
+  kein STAMMDATEN-Name zeigt auf eine Tabelle mit Objekt-, Auftrags- oder Kundenbezug. Die Liste der Prüfstellen stammt aus einer
+  Durchsicht aller Eingaben bis zur Speicherstelle (87 Felder, 24 Pfad-Paare; zwei weitere Pfad-Paare der
+  Positions-Kalkulation fand erst der Test).
+
+### Festlegungen – Bitte bestätigen
+
+1. 404-Texte „Dachfläche nicht gefunden.“ / „Bauteil nicht gefunden.“ – gleich für fremd und unbekannt. Die Prüfung sitzt in der
+   Geschäftslogik und gilt für jede Rolle, auch fürs Büro.
+2. Bauteil und Fläche beide angegeben: das Bauteil muss auf genau dieser Fläche sitzen (sonst 404 wie fremd).
+3. Archivierte Dachflächen und Bauteile des eigenen Objekts bleiben erlaubt.
+4. Auftrag ohne Objekt am Projekt (Hauptadresse): keine Dachfläche annehmbar – wie die Auswahl, die dort keine anbietet.
+5. Ohne ausdrückliche Auswahl nimmt der Bericht die Fläche der Vertragsposition – gehört sie nicht zum Objekt des Auftrags, wird
+   sie still weggelassen (kein Fehler), damit „Wartung durchführen“ an älteren Vorgängen nicht scheitert.
+6. Material an einer Fläche des eigenen Objekts, die nicht am Bericht ist: weiter 400 mit Grund (kein Geheimnis).
+7. Historie: Liste für ein Objekt ohne eigenen Auftrag 403 mit Hinweis (das Objekt selbst ist für den Monteur offen, also kein
+   Geheimnis), PDF 404. Der Weg „eigener Bericht“ zählt mit, ein Zeitfenster nicht.
+8. „Erfasst von“ / „geschlossen von“ für jede Rolle aus der Anmeldung, auch Admin (vorher war der Admin frei); ein Konto ohne
+   Mitarbeiter setzt leer. Mitgeschickt 422, auch mit dem eigenen Wert. Ändert das Büro ein Ergebnis nach, ist es danach
+   „erfasst von“ (wie `recorded_at`). Bei „sofort behoben“ beim Anlegen gilt die Anmeldung, auch wenn ein Admin einen anderen
+   Ersteller einträgt. `created_by_employee_id` an Bericht, Foto, Material, Mangel und Betriebsmittel bleibt bei
+   `_employee_for_request()` (Admin frei) – nicht Teil der Vorgabe.
+9. 2h: der Vorgang bekommt Kunde UND Objekt des Vertrags (Vertrag ohne Objekt: Projekt ohne Objekt = Hauptadresse). Ein
+   Mustervorgang muss `is_template` tragen; dessen Kunde und Objekt spielen keine Rolle mehr. Ein schon gespeicherter, der keiner
+   (mehr) ist, blockiert das Speichern nicht.
+10. 2i: Ablehnung mit 400 und Grund (Büro-Weg, kein Geheimnis).
+11. 2f/2g: Bestätigung nur bei einem neu gewählten Objekt; Übernahmen im Prozess bestätigen selbst (siehe oben).
+12. Objektwechsel am Vertrag abgelehnt, solange irgendeine Position (auch archiviert) an einer Fläche eines anderen Objekts hängt –
+    auch das Entfernen des Objekts.
+13. `PUT /api/projects/{id}`: „Objekt gehört zum Kunden“ nur bei geändertem Kunden oder Objekt – sonst blockierte jedes Speichern
+    eines bestätigten Vorgangs am Objekt eines anderen Kunden. Das Projektformular selbst bietet keine fremden Objekte an.
+14. Strukturtest-Umfang: schreibende Routen (Body, Formular, Query) und Pfad-Paare jeder Methode; Lese-Filter (Query eines GET)
+    nicht – sie speichern nichts, ihre Grenze ist die Rolle. Einordnung STAMMDATEN nach Feldname.
+15. Neue Regel 25 in CLAUDE.md (Zugehörigkeit, Strukturtest), Verweis auf diese Datei in der Modulübersicht.
+
+### Tests und Prüfung
+
+- Die zehn xfail-Tests aus `test_v372_befund_fremdes_objekt.py` (2a ×2, 2b–2i) meldeten nach der Reparatur XPASS; Markierungen
+  entfernt, sie sind die Abnahmetests.
+- Neu `tests/test_v373_zugehoerigkeit.py` (30): je Weg fremd und unbekannt gleich (404), nichts angelegt, Büro dieselbe Antwort,
+  Auftrag ohne Objekt, Bauteil auf anderer Fläche, Material POST/PUT, Rückfall der Vertragsposition; Historie (403/404, eigener
+  Bericht, Büro, Objektansicht bleibt offen); „erfasst/geschlossen von“ (422 mit fremdem, eigenem, leerem Wert; aus der Anmeldung
+  für Monteur, Büro, Admin ohne Mitarbeiter; „sofort behoben“); 2h auf Vertrags- und Positionsebene, Mustervorgang; 2i; 2f/2g mit
+  und ohne Bestätigung, unverändert speichern, Positionen, „Wartung durchführen“ am bestätigten Objekt, Projekt speichern.
+- Neu `tests/test_v373_zugehoerigkeit_struktur.py` (8, davon 2 Selbsttests der Suche).
+- Angepasst (lose Testdaten bzw. alte Regel festgehalten): `test_v213`, `test_v214`, `test_v222`, `test_v223`, `test_v233`,
+  `test_v234`, `test_v237` – der Auftrag hängt jetzt am Objekt der übergebenen Dachfläche (`_make_order_for_report(db, prop)`);
+  `test_v267`, `test_v273` – der Monteur hat am Objekt einen eigenen Auftrag.
+- Gegenproben (Regel 24): 14 von 14 rot – Dachfläche, Bauteil, Aufruf im Bericht, Historie, erfasst von (Schema, Anmeldung),
+  geschlossen von (Schema, Ersteller), 2h, Mustervorgang, 2i, Bestätigung, Positionen beim Objektwechsel, Material nach altem
+  Stand; jede Datei byte-genau zurück (SHA-256), kein Marker übrig.
+- PostgreSQL (pytest-Plugin, Wegwerf-Schemas der lokalen Instanz): `test_v373_zugehoerigkeit.py` und
+  `test_v372_befund_fremdes_objekt.py` 42 grün.
+- Klicktest `scripts/klicktest_objekt_anderer_kunde.py` 21/21: Schnellauftrag (nur eigene Objekte, mit Häkchen die übrigen,
+  Hinweis, ohne Bestätigung gesperrt und API 409, mit Bestätigung Auftrag für den Kunden am fremden Objekt), Vertragsanlage,
+  Vertragsseite (vorgewählt „bestätigt“, unverändert speichern, neu gewählt wieder Rückfrage, dunkel), /mobil auf 412 px
+  (Historie am Objekt des eigenen Auftrags, am fremden ein ruhiger Hinweis, Objektansicht offen). Dabei gefunden und behoben: die
+  Seitenregel `.field label{display:block}` ließ das Häkchen im Hinweis am Text kleben.
+- Volle Suite: 3178 grün, 0 rot, 34 erwartet fehlgeschlagen (die übrigen Punkte des Befunds; mit den opt-in-Tests gegen PostgreSQL).
+
+### Nebenbefunde (nur gemeldet)
+
+1. `POST`/`PUT /api/tasks` mit `project_id`: nicht einmal die Existenz wird geprüft – unter PostgreSQL 500 (Fremdschlüssel) bei
+   einer unbekannten ID, unter SQLite bleibt sie stehen.
+2. Schnellauftrag und Wartungsvertrag ohne Objekt: `customer_id` prüft nur der Fremdschlüssel (PostgreSQL 500 bei unbekanntem
+   Kunden).
+3. `PUT /api/roof-areas/{id}/layers/{layer_type_id}` prüft nicht, ob der Dachtyp des Schichttyps zur Fläche passt.
+4. Die Reihenfolge-Endpunkte vergleichen Mengen – doppelte IDs gehen durch (harmlos).
+5. Ein von Hand ergänzter Prüfpunkt wird gegen das Objekt geprüft, nicht gegen die Flächen des Berichts – Nebenbefund 1 oben
+   (Punkt fehlt im PDF) bleibt so möglich.
+6. Kundenwechsel einer Anfrage ist bis zur Projektanlage frei.

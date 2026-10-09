@@ -20,6 +20,7 @@ from .models import Project, Quote
 from .orders import create_order_from_quote
 from .project_pipeline_columns import default_pipeline_column_id
 from .projects import create_free_quote_item, next_project_number, next_quote_number
+from .zugehoerigkeit import require_confirmed_property
 
 ORDER_TYPES = ("reparatur", "wartung")
 ORDER_TYPE_LABELS = {"reparatur": "Reparatur", "wartung": "Wartung"}
@@ -28,13 +29,18 @@ ORDER_TYPE_LABELS = {"reparatur": "Reparatur", "wartung": "Wartung"}
 def create_quick_service_order(
     db: Session, *, customer_id: int, property_id: int | None, order_type: str, title: str,
     description: str | None = None, caseworker_employee_id: int | None = None,
-    execution_start: date | None = None,
+    execution_start: date | None = None, confirm_property_customer: bool = False,
 ) -> dict:
+    """confirm_property_customer (seit 1.8.70, Befund 2f): ein Objekt eines anderen Kunden (Generalunternehmer,
+    Hausverwaltung) nur mit Bestätigung -- sonst PropertyCustomerMismatch (Router 409). Vorher verband der Schnellauftrag
+    jeden Kunden mit jedem Objekt; Auftrag und Rechnung tragen das Objekt als Schnappschuss. Aufrufe im Prozess, die Kunde
+    und Objekt aus einem bestehenden Datensatz übernehmen (Vertrag, Mangel), bestätigen selbst."""
     if order_type not in ORDER_TYPES:
         raise ValueError(f"Unbekannte Auftragsart: {order_type}")
     title = title.strip()
     if not title:
         raise ValueError("Bitte eine Bezeichnung angeben.")
+    require_confirmed_property(db, customer_id, property_id, confirm_property_customer)
 
     project = Project(
         project_number=next_project_number(db), customer_id=customer_id, property_id=property_id,

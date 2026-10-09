@@ -4,6 +4,30 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.70 – Reparatur Sicherheit: IDs aus der Anfrage nur mit Zugehörigkeitsprüfung
+
+Behebt Punkt 2 des Befunds „Vor dem Echtbetrieb: Geld und Sicherheit“. Der Server nahm IDs aus der Anfrage an, ohne zu prüfen,
+dass sie zum selben Objekt, Auftrag oder Kunden gehören: ein Monteur konnte über fortlaufende IDs Dachflächen und Bauteile eines
+fremden Objekts in seinen Einsatzbericht, an Prüfpunkt, Mangel und Material hängen und sah danach deren Namen. Jetzt prüft eine
+gemeinsame Funktion (`app/zugehoerigkeit.py::require_in_order_property()`) jeden dieser Wege; fremd und unbekannt antworten gleich
+mit 404 ohne Grund, und nichts wird angelegt. Die Wartungshistorie in /mobil – Liste und PDF – gilt nur noch für Objekte der
+Aufträge, die der Monteur öffnen darf (dieselbe Regel wie Auftrag und Bericht); Objektansicht und Dokumente bleiben offen.
+„Erfasst von“ am Prüfpunkt und „geschlossen von“ am Mangel setzt der Server aus der Anmeldung, mitgeschickt lehnt er mit 422 ab.
+
+Im Büro: der Vorgang aus einem Wartungsvertrag bekommt Kunde und Objekt des Vertrags statt die des Mustervorgangs, der
+Mustervorgang muss einer sein; eine Rechnungsposition verweist nur auf Positionen desselben Auftrags. Schnellauftrag und
+Wartungsvertrag dürfen am Objekt eines anderen Kunden hängen (Generalunternehmer, Hausverwaltung), aber nur mit sichtbarem Hinweis
+und bewusster Bestätigung – Häkchen „Objekte anderer Kunden anzeigen“, ohne Bestätigung 409, wie beim abweichenden Kunden der
+Anzeigen; ein Objektwechsel am Vertrag geht nicht, solange Positionen am alten Objekt hängen. Ein neuer Strukturtest findet jede
+ID-Eingabe schreibender Routen und jedes ID-Paar im Pfad und verlangt eine Einordnung: geprüft (Funktion und Vergleich auf dem Weg
+vom Endpunkt), frei mit Grund oder Stammdaten; die Ausnahmeliste (heute ein Eintrag) darf nur kürzer werden (Regel 25).
+
+Die zehn xfail-Tests zu Punkt 2 sind grün, ihre Markierung ist entfernt. Neue `test_v373_zugehoerigkeit` (30) und
+`test_v373_zugehoerigkeit_struktur` (8); angepasst `test_v213`, `test_v214`, `test_v222`, `test_v223`, `test_v233`, `test_v234`,
+`test_v237` (Auftrag ohne Objekt mit beliebiger Dachfläche) und `test_v267`, `test_v273` (Historie für jedes Objekt). Gegenproben
+14 von 14 rot; gegen PostgreSQL 42 grün. Volle Suite: 3178 grün, 0 rot, 34 erwartet fehlgeschlagen (die übrigen Punkte des Befunds; mit den opt-in-Tests gegen PostgreSQL). Festlegungen zum Bestätigen in
+`docs/archiv/befund-vor-echtbetrieb.md`, „Umsetzung 1.8.70“.
+
 ## 1.8.69 – Kopien an die Personen unter „Kopie an:“: Abnahmeprotokoll und Briefe der Anzeigen
 
 Nacharbeit zu Stufe 2c-2. Die Festlegungen 1.8.68 sind bestätigt, zwei davon geändert. Unter „Kopie an:“ sind jetzt die

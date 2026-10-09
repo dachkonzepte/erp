@@ -226,6 +226,8 @@ def test_inspection_and_material_and_time_tables_follow_custom_margins(tmp_path)
     area = create_roof_area(db, prop.id, "Testfläche", roof_type="Flachdach")
 
     order, _ = make_order_with_item(db)
+    order.project.property_id = prop.id  # seit 1.8.70: Dachflächen nur aus dem Objekt des Auftrags
+    db.commit()
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
     add_material(db, report["id"], description="Bitumenbahn", quantity=Decimal("5"), unit="m2")
     create_manual_entry(db, order_id=order.id, employee_id=employee.id, work_date=date.today(), activity="Wartung", hours=Decimal("1.5"))

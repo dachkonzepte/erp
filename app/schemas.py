@@ -3497,6 +3497,7 @@ class FieldMaintenancePropertyGroupOut(BaseModel):
 
 
 class MaintenanceContractCreate(BaseModel):
+    """confirm_property_customer (seit 1.8.70): Objekt eines anderen Kunden bewusst bestätigt, sonst 409."""
     customer_id: int
     property_id: int | None = None
     title: str = Field(min_length=1, max_length=255)
@@ -3505,9 +3506,11 @@ class MaintenanceContractCreate(BaseModel):
     template_project_id: int | None = None
     responsible_employee_id: int | None = None
     notes: str | None = None
+    confirm_property_customer: bool = False
 
 
 class MaintenanceContractUpdate(BaseModel):
+    """confirm_property_customer (seit 1.8.70): nur nötig, wenn ein neu gewähltes Objekt einem anderen Kunden gehört."""
     property_id: int | None = None
     title: str = Field(min_length=1, max_length=255)
     interval_months: int
@@ -3515,6 +3518,7 @@ class MaintenanceContractUpdate(BaseModel):
     template_project_id: int | None = None
     responsible_employee_id: int | None = None
     notes: str | None = None
+    confirm_property_customer: bool = False
 
 
 class MaintenanceContractStatusUpdate(BaseModel):
@@ -3553,6 +3557,8 @@ class MobileSettingsUpdate(BaseModel):
 
 # --- Version 1.2.12: Schnellauftrag für Reparatur/Wartung ---
 class QuickServiceOrderCreate(BaseModel):
+    """confirm_property_customer (seit 1.8.70): das Objekt gehört einem anderen Kunden (Generalunternehmer, Hausverwaltung),
+    das Büro hat es bewusst bestätigt -- ohne die Bestätigung 409 mit Hinweistext (app/zugehoerigkeit.py)."""
     customer_id: int
     property_id: int | None = None
     order_type: str
@@ -3560,6 +3566,7 @@ class QuickServiceOrderCreate(BaseModel):
     description: str | None = None
     caseworker_employee_id: int | None = None
     execution_start: date | None = None
+    confirm_property_customer: bool = False
 
 
 class QuickServiceOrderOut(BaseModel):
@@ -3685,6 +3692,16 @@ class InspectionItemCreate(BaseModel):
 
 
 class InspectionItemResultUpdate(BaseModel):
+    """Seit 1.8.70 ohne recorded_by_employee_id: "erfasst von" setzt der Server aus der Anmeldung -- wer es mitschickt,
+    bekommt 422, auch als Admin (vorher konnte ein Monteur einen anderen eintragen)."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _erfasst_von_setzt_der_server(cls, data):
+        if isinstance(data, dict) and "recorded_by_employee_id" in data:
+            raise ValueError("„Erfasst von“ setzt der Server aus der Anmeldung.")
+        return data
+
     result: str | None = None
     condition_grade: int | None = None
     measured_value: Decimal | None = None
@@ -3692,7 +3709,6 @@ class InspectionItemResultUpdate(BaseModel):
     duration_minutes: int | None = None
     notes: str | None = None
     client_uuid: str | None = None
-    recorded_by_employee_id: int | None = None
 
 
 class InspectionItemsSyncResult(BaseModel):
@@ -3861,10 +3877,19 @@ class FindingCreate(BaseModel):
 
 
 class FindingFollowupUpdate(BaseModel):
+    """Seit 1.8.70 ohne closed_by_employee_id: "geschlossen von" setzt der Server aus der Anmeldung -- wer es mitschickt,
+    bekommt 422, auch als Admin."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _geschlossen_von_setzt_der_server(cls, data):
+        if isinstance(data, dict) and "closed_by_employee_id" in data:
+            raise ValueError("„Geschlossen von“ setzt der Server aus der Anmeldung.")
+        return data
+
     status: str | None = None
     action: str | None = None
     resubmission_date: date | None = None
-    closed_by_employee_id: int | None = None
 
 
 class ServiceReportPhotoOut(BaseModel):

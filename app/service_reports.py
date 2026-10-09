@@ -38,6 +38,7 @@ from .roof_areas import list_roof_areas
 from .service_report_photos import delete_photo_file, resize_and_store_photo
 from .signature_image import MAX_SIGNATURE_PNG_BYTES as _MAX_SIGNATURE_PNG_BYTES, check_signature_png
 from .tasks import create_task
+from .zugehoerigkeit import require_in_order_property, roof_area_in_order_property
 
 
 @event.listens_for(ServiceReportPhoto, "before_delete")
@@ -334,10 +335,10 @@ def resolve_property_history_report_for_field(db: Session, property_id: int, rep
     (app/routers/orders.py): die Wartungshistorie zeigt einem Monteur schon immer fremde Berichte
     desselben Objekts (list_maintenance_history_for_property_field() oben) -- das ist dieselbe,
     bereits etablierte Ausnahme, hier nur als Detailansicht (vollständiges PDF statt der
-    reduzierten Liste) statt als reine Zusammenfassung. Kein Auftragsbezug, keine Rolle jenseits
-    des Rollen-Gates auf der Route selbst -- jedes Objekt ist für `field` ohnehin erreichbar
-    (siehe Moduldocstring app/routers/field_view.py), die einzige Prüfung hier ist die
-    Objekt-Zugehörigkeit des Berichts."""
+    reduzierten Liste) statt als reine Zusammenfassung. Keine Rolle hier -- ob ein Monteur die
+    Historie dieses Objekts überhaupt sehen darf (seit 1.8.70 nur Objekte seiner Aufträge),
+    prüft der Router (app/routers/field_view.py::_field_may_see_history()); die einzige Prüfung
+    hier ist die Objekt-Zugehörigkeit des Berichts."""
     report = get_report_row(db, report_id)
     if report is None or report.status != "unterschrieben":
         return None
@@ -510,6 +511,10 @@ def create_report(db: Session, order_id: int, report_type: str, description: str
     order = db.get(Order, order_id)
     if order is None:
         raise ValueError("Auftrag nicht gefunden.")
+    # Seit 1.8.70 (Befund 2a): nur Dachflächen aus dem Objekt des Auftrags -- vorher übersprang die Schleife unten eine
+    # unbekannte ID still und nahm eine fremde an (Namens-Schnappschuss, Prüfpunkte aus deren Bauteilen).
+    if roof_area_ids is not None:
+        require_in_order_property(db, order, roof_area_ids=roof_area_ids)
     report = ServiceReport(
         order_id=order_id, report_type=report_type, description=(description or None),
         created_by_employee_id=created_by_employee_id, performed_at=performed_at or berlin_today(),
@@ -533,8 +538,10 @@ def create_report(db: Session, order_id: int, report_type: str, description: str
     if roof_area_ids is not None:
         resolved_ids = roof_area_ids
     elif report.maintenance_contract_item_id is not None:
+        # Rückfall ohne Auswahl: die Fläche der Vertragsposition -- seit 1.8.70 nur, wenn sie zum Objekt des Auftrags
+        # gehört (ein älterer Vorgang aus einem Mustervorgang kann an einem anderen Objekt hängen); sonst ohne Fläche.
         item = db.get(MaintenanceContractItem, report.maintenance_contract_item_id)
-        resolved_ids = [item.roof_area_id] if item is not None else []
+        resolved_ids = [item.roof_area_id] if item is not None and roof_area_in_order_property(db, order, item.roof_area_id) else []
     else:
         resolved_ids = []
 
@@ -699,13 +706,15 @@ def add_inspection_item(db: Session, report_id: int, text: str, item_type: str, 
     """Manuelle Ergänzung im Entwurf -- der Monteur findet vor Ort ein Bauteil, das in den
     Stammdaten fehlt. template_item_id bleibt NULL (keine Vorlagen-Herkunft). roof_area_id (seit
     1.2.22) ordnet den Punkt bei Mehrflächen-Berichten der richtigen Fläche zu -- ohne Angabe
-    bleibt er ohne Flächenbezug (rendert außerhalb jedes Flächen-Blocks)."""
+    bleibt er ohne Flächenbezug (rendert außerhalb jedes Flächen-Blocks). Seit 1.8.70 (Befund 2b)
+    nur Bauteil und Fläche aus dem Objekt des Auftrags, das Bauteil auf der angegebenen Fläche."""
     report = _require_draft_report(db, report_id)
     text = text.strip()
     if not text:
         raise ValueError("Bitte einen Prüftext angeben.")
     if item_type not in ITEM_TYPES:
         raise ValueError(f"Unbekannter Punkttyp: {item_type}")
+    require_in_order_property(db, report.order, roof_component_id=roof_component_id, roof_area_id=roof_area_id)
     max_sort = max((i.sort_order for i in report.inspection_items), default=0)
     item = InspectionItem(
         service_report_id=report_id, template_item_id=None, roof_component_id=roof_component_id,
@@ -719,11 +728,11 @@ def add_inspection_item(db: Session, report_id: int, text: str, item_type: str, 
 
 _INSPECTION_ITEM_UPDATE_FIELDS = {
     "result", "condition_grade", "measured_value", "quantity", "duration_minutes", "notes",
-    "recorded_by_employee_id",
 }
 
 
-def update_inspection_item(db: Session, item_id: int, fields: dict) -> dict | None:
+def update_inspection_item(db: Session, item_id: int, fields: dict,
+                           recorded_by_employee_id: int | None = None) -> dict | None:
     """Seit 1.2.19 überschreibt diese Funktion NUR NOCH die in fields tatsächlich enthaltenen
     Schlüssel (Router: payload.model_dump(exclude_unset=True)), analog zu upsert_roof_layer() in
     app/roof_areas.py. Vorher überschrieb jeder Aufruf unbedingt alle Felder -- in Kombination
@@ -731,7 +740,10 @@ def update_inspection_item(db: Session, item_id: int, fields: dict) -> dict | No
     in service_reports.html) löschte jeder Klick auf einem leak_test-Prüfpunkt dessen bereits
     erfasste duration_minutes. Der Frontend-Teil dieses Fundes ist inzwischen ebenfalls behoben
     (saveInspectionResult() liest den Container jetzt immer und legt Overrides nur noch
-    darüber), diese Funktion wird trotzdem auf das robustere Muster umgestellt."""
+    darüber), diese Funktion wird trotzdem auf das robustere Muster umgestellt.
+
+    recorded_by_employee_id ("erfasst von") setzt seit 1.8.70 der Router aus der Anmeldung, wie
+    recorded_at aus der Uhr -- nie aus fields (Befund, Nebenbefund 2: ein Monteur trug einen anderen ein)."""
     item = db.get(InspectionItem, item_id)
     if item is None:
         return None
@@ -745,6 +757,7 @@ def update_inspection_item(db: Session, item_id: int, fields: dict) -> dict | No
     client_uuid = fields.get("client_uuid")
     if client_uuid:
         item.client_uuid = client_uuid
+    item.recorded_by_employee_id = recorded_by_employee_id
     item.recorded_at = datetime.utcnow()
     db.commit()
     return inspection_item_to_dict(item)
@@ -1009,6 +1022,8 @@ def add_material(
         if finding is None or finding.service_report_id != service_report_id:
             raise ValueError("Mangel nicht gefunden.")
     if roof_area_id is not None:
+        # Seit 1.8.70 (Befund 2e) immer aus dem Objekt des Auftrags -- vorher nur geprüft, wenn der Bericht Flächen hat.
+        require_in_order_property(db, report.order, roof_area_ids=[roof_area_id])
         covered = _report_covered_roof_area_ids(report)
         if covered and roof_area_id not in covered:
             raise ValueError("Diese Dachfläche gehört nicht zu diesem Bericht.")
@@ -1065,6 +1080,7 @@ def update_material(db: Session, material_id: int, fields: dict) -> dict | None:
             if finding is None or finding.service_report_id != row.service_report_id:
                 raise ValueError("Mangel nicht gefunden.")
         if key == "roof_area_id" and value is not None:
+            require_in_order_property(db, report.order, roof_area_ids=[value])
             covered = _report_covered_roof_area_ids(report)
             if covered and value not in covered:
                 raise ValueError("Diese Dachfläche gehört nicht zu diesem Bericht.")
