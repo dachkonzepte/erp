@@ -343,3 +343,13 @@ den Weg der Briefe an den Auftraggeber (`app/protocol_dispatch.py`, gemeinsame F
 CC "Kopie bei Anzeigen", Vollmacht beim Versand, Anhang = die jüngste gültige feste Fassung per `archived_document`; vor dem Senden
 prüft ein `before_send`-Haken unter der Zeilensperre, ob sie noch gilt. `dispatch_email()` reicht seit 1.8.67 den Text eines
 `ValueError` aus `before_send` weiter. Zustellung nachtragen verwendet dieselbe Fassung. E-Mail-Vorlage `abnahmeprotokoll`.
+
+## Nachtrag 1.8.69 -- Kopie laut Dokument je Versand
+
+Herleitung: `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.69". Wo ein PDF "Kopie an:" zeigt (Briefe der Anzeigen,
+Abnahmeprotokoll), ist CC nicht mehr frei: `dispatch_to_client()` bildet es aus den Personen unter "Kopie an:" mit ihrer Adresse
+von heute (`app/frozen_copies.py`). Je Versand und je solcher Person hält eine neue Tabelle `dispatch_copies` (`DispatchCopy`, vor
+dem Senden im `before_send`-Haken angelegt, ORM-Sperre, Fremdschlüssel nur auf den Protokolleintrag) fest, an welche Adresse die
+Kopie ging oder warum keine Mail (keine oder ungültige Adresse, nicht mehr im Adressbuch). Eigene Tabelle wie Vollmacht und
+Versandergebnis, damit die Sperre des Protokolleintrags unverändert bleibt. Versandverlauf und Versandprotokoll zeigen "Laut
+„Kopie an:“ ohne Mail: …", die API liefert alle Zeilen am Eintrag (`copies`).

@@ -225,7 +225,8 @@ def participant_info(p: ProjectParticipant) -> dict:
     from .contacts import contact_display_name, contact_values
 
     return {
-        "participant_id": p.id, "name": contact_display_name(p.contact), "role": p.role,
+        "participant_id": p.id, "contact_id": p.contact_id,  # Kontakt seit 1.8.69: die Person hinter "Kopie an:"
+        "name": contact_display_name(p.contact), "role": p.role,
         "role_label": role_label(p.role), "email": (contact_values(p.contact)["email"] or "").strip() or None,
         "copy_on_notices": p.copy_on_notices, "authorized": p.authorized_recipient,
         "has_poa": bool(p.poa_stored_filename), "archived": p.contact.archived,

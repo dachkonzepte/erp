@@ -1,4 +1,5 @@
-"""Klicktest: Abnahmeprotokoll an den Auftraggeber (1.8.67, Stufe 2c-2e, Punkte 2 und 3; seit 1.8.68 CC fest aus der Fassung).
+"""Klicktest: Abnahmeprotokoll an den Auftraggeber (1.8.67, Stufe 2c-2e, Punkte 2 und 3; seit 1.8.68 CC fest aus der Fassung,
+seit 1.8.69 die Personen der Fassung an ihre Adresse von heute).
 
 Befüllt wie scripts/klicktest_abnahmeprotokoll.py (Hallenbau GmbH, Bernd Bau, Petra Plan), der Auftraggeber mit E-Mail, Petra
 Plan "Kopie bei Anzeigen" mit E-Mail, Bernd Bau "Kopie bei Anzeigen" ohne E-Mail; SMTP an einen Empfänger im Skript (es verlässt
@@ -6,11 +7,11 @@ keine Mail den Rechner). Ein Protokoll, vom Auftraggeber (Folge: Abnahme) und vo
 danach bekommt Petra Plan eine neue E-Mail-Adresse.
 
     Büro (1400 px, dunkel)  Karte "Protokoll an den Auftraggeber": bereit, Fassung 2, An fest der Auftraggeber, Kopie (CC) fest
-                            -- Petra Plan mit der Adresse aus der Fassung, Bernd Bau "ohne E-Mail-Adresse in der Fassung", kein
-                            Eingabefeld; Hinweis "Beteiligte seit Fassung 2 geändert" mit der neuen Adresse; Senden -> Rückfrage
-                            mit demselben Hinweis, Umschlag Auftraggeber + Petra Plan (alte Adresse, wie im PDF), Anhang =
-                            Fassung 2 (SHA-256), danach "versendet" und eine Zeile
-                            im Versandverlauf mit "Zustellung nachtragen". Unterschrift des Auftragnehmers verworfen -> die Karte
+                            -- Petra Plan mit ihrer Adresse von heute (seit 1.8.69; 1.8.68: die der Fassung), Bernd Bau "keine
+                            Mail: keine E-Mail-Adresse", kein Eingabefeld; Hinweis "Beteiligte seit Fassung 2 geändert" mit alter
+                            und neuer Adresse; Senden -> Rückfrage, Umschlag Auftraggeber + Petra Plan (neue Adresse), Anhang =
+                            Fassung 2 (SHA-256), danach "versendet" und eine Zeile im Versandverlauf mit "Zustellung nachtragen"
+                            und "Laut „Kopie an:“ ohne Mail: Bernd Bau". Unterschrift des Auftragnehmers verworfen -> die Karte
                             nennt Fassung 1.
                             Auftragsseite: an der Abnahme "Fassung 1 (PDF)" (Punkt 3), der Link liefert das PDF.
     Büro (412 px, hell)     Protokollseite ohne waagrechten Scrollbalken.
@@ -106,12 +107,13 @@ async def _pruefen(tab, seed, p):
     p.pruefe("Karte: bereit, Fassung 2", await tab.js(
         f"[{KARTE}.querySelector('.badge').textContent, {KARTE}.querySelector('[data-protocol-version]').textContent.startsWith('Fassung 2 ')]"),
         ["bereit", True])
-    p.pruefe("Kopie (CC) fest: Petra Plan mit der Adresse der Fassung, Bernd Bau ohne Adresse, kein Eingabefeld", await tab.js(
-        f"(c=>[(t=>t.includes('Petra Plan') && t.includes('<{PLAN}>'))(c.querySelector('[data-copy-mail]').textContent), "
-        f"c.querySelector('[data-copy-nomail]').textContent.includes('Bernd Bau'), c.querySelectorAll('input').length, "
-        f"!document.getElementById('protocolCc')])({KARTE}.querySelector('[data-protocol-cc]'))"), [True, True, 0, True])
-    p.pruefe("Hinweis: Beteiligte seit Fassung 2 geändert, mit der neuen Adresse", await tab.js(
-        f"(w=>!!w && w.textContent.includes('seit Fassung 2 geändert') && w.textContent.includes('{PLAN_NEU}'))"
+    p.pruefe("Kopie (CC) fest: Petra Plan mit der Adresse von heute, Bernd Bau ohne Mail, kein Eingabefeld", await tab.js(
+        f"(c=>[(t=>t.includes('Petra Plan') && t.includes('<{PLAN_NEU}>'))(c.querySelector('[data-copy-mail]').textContent), "
+        f"(t=>t.includes('Bernd Bau') && t.includes('keine Mail: keine E-Mail-Adresse'))(c.querySelector('[data-copy-nomail]').textContent), "
+        f"c.querySelectorAll('input').length, !document.getElementById('protocolCc')])({KARTE}.querySelector('[data-protocol-cc]'))"),
+        [True, True, 0, True])
+    p.pruefe("Hinweis: Beteiligte seit Fassung 2 geändert, mit alter und neuer Adresse", await tab.js(
+        f"(w=>!!w && w.textContent.includes('seit Fassung 2 geändert') && w.textContent.includes('heute {PLAN_NEU} statt {PLAN}'))"
         f"({KARTE}.querySelector('[data-copy-changes]'))"), True)
     p.pruefe("An fest der Auftraggeber, kein Eingabefeld", await tab.js(
         f"[{KARTE}.querySelector('[data-notice-to]').textContent.includes('{AG}'), {KARTE}.querySelectorAll('[data-notice-to] input').length]"),
@@ -133,14 +135,18 @@ async def _pruefen(tab, seed, p):
             anhang = part.get_payload(decode=True)
     p.pruefe("Rückfrage vor dem Senden nennt die Änderung", await tab.js(
         "window.__confirms.some(m=>m.includes('seit Fassung 2 geändert') && m.includes('Kopie an:'))"), True)
-    p.pruefe("Versand: Umschlag Auftraggeber + Petra Plan mit der Adresse der Fassung", mail["rcpts"] if mail else None,
-             [AG, PLAN])
-    p.pruefe("Mail: Cc-Kopfzeile = Empfänger der Fassung", (mail["message"]["Cc"] or "") if mail else None, PLAN)
+    p.pruefe("Versand: Umschlag Auftraggeber + Petra Plan mit der Adresse von heute", mail["rcpts"] if mail else None,
+             [AG, PLAN_NEU])
+    p.pruefe("Mail: Cc-Kopfzeile = Personen der Fassung, Adresse von heute", (mail["message"]["Cc"] or "") if mail else None,
+             PLAN_NEU)
     p.pruefe("Anhang = Fassung 2 aus der Ablage (SHA-256)", hashlib.sha256(anhang or b"").hexdigest(), fassung2)
     await tab.warten("document.querySelector('#protocolDispatchHistory [data-dispatch-row]')", 15)
     p.pruefe("Versandverlauf: Zeile und 'Zustellung nachtragen'", await tab.js(
         "[document.querySelectorAll('#protocolDispatchHistory [data-dispatch-row]').length, "
         "!!document.getElementById('protocolDispatchHistory-toggle')]"), [1, True])
+    p.pruefe("Versandverlauf: Bernd Bau laut „Kopie an:“ ohne Mail (seit 1.8.69)", await tab.js(
+        "document.querySelector('#protocolDispatchHistory [data-copy-missed]')?.textContent"),
+        "Laut „Kopie an:“ ohne Mail: Bernd Bau (Bauleitung des Auftraggebers) – keine E-Mail-Adresse")
     p.pruefe("Büro: keine JS-Fehler", tab.fehler, [])
     await tab.js(f"{KARTE}.scrollIntoView()")
     await tab.bild("2_protokoll_versendet_dunkel")

@@ -105,6 +105,10 @@ async function resolveDispatch(id,outcome,btn){
     await reload();
   }catch(e){out.className='small check-bad';out.textContent='Fehler: '+e.message;btn.disabled=false}
 }
+function copyMissedHtml(d){  // seit 1.8.69: unter „Kopie an:“ im Dokument, aber keine Mail
+  const missed=(d.copies||[]).filter(c=>!c.email);
+  return missed.length?`<div class="small" style="color:var(--warning)" data-copy-missed>Laut „Kopie an:“ ohne Mail: ${missed.map(c=>`${esc(c.contact_name)} (${esc(c.role_label)}) – ${esc(c.note||'')}`).join('; ')}</div>`:'';
+}
 function archiveCell(d){
   const a=d.sent_document, r=d.receipt_document;
   // Seit 1.8.40: beim Versand festgehaltene Empfangsvollmachten (Brief an den Auftraggeber).
@@ -137,7 +141,7 @@ async function reload(){
     rows.innerHTML=data.items.length?data.items.map(d=>`<tr>
       <td>${whenCell(d)}</td>
       <td>${docLink(d)}</td>
-      <td>${d.to_recipients?esc(d.to_recipients):'<span class="small muted">—</span>'}${d.cc_recipients?`<div class="small muted">CC: ${esc(d.cc_recipients)}</div>`:''}</td>
+      <td>${d.to_recipients?esc(d.to_recipients):'<span class="small muted">—</span>'}${d.cc_recipients?`<div class="small muted">CC: ${esc(d.cc_recipients)}</div>`:''}${copyMissedHtml(d)}</td>
       <td>${esc(d.subject)}</td>
       <td>${esc(d.channel_label)}<div class="small muted">${esc(d.created_by_name)}</div></td>
       <td>${statusCell(d)}</td>

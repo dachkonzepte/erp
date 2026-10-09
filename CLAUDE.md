@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.68** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.69** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -595,7 +595,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     dem Abschluss (feste Fassung, `app/checklist_versions.py`, überholt nach verworfener Unterschrift); seit 1.8.67 geht das
     Abnahmeprotokoll über den Weg der Briefe (`app/protocol_dispatch.py`, gemeinsame Funktionen `client_recipients()`,
     `client_address()`, `dispatch_to_client()` in `app/notice_letters.py`) -- nur die jüngste gültige Fassung, seit 1.8.68 in
-    Kopie genau an die in der Fassung eingefrorenen Empfänger (`frozen_cc()`, kein freies CC).
+    Kopie genau an die in der Fassung eingefrorenen Empfänger (kein freies CC). Seit 1.8.69 für Protokoll und Briefe: wo ein PDF
+    "Kopie an:" zeigt, gehen die Mails genau an diese Personen, an ihre Adresse von heute (`app/frozen_copies.py`,
+    `dispatch_to_client(copies=…)`); wer keine Mail bekam, hält `dispatch_copies` fest; ein neues PDF mit "Kopie an:" braucht
+    einen Eintrag in `KOPIE_AN_PDFS` (`tests/test_v371_kopien_an_personen.py`).
     Eine Zustellung auf anderem Weg (Einschreiben, Übergabe, Bote, Fax) wird seit 1.8.20 im selben
     Protokoll nachgetragen (`record_manual_delivery()`, seit 1.8.41 mit Empfängerauswahl aus Auftraggeber und
     Beteiligten, Vollmacht eingefroren); seit 1.8.41 je gesendetem Eintrag einmal "Empfang bestätigt" oder
@@ -683,7 +686,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Unterschrift der Meldung die Aufgabe "Behinderungsanzeige versenden" (`app/obstruction_notices.py`). Seit 1.8.40 Brief an den
   Auftraggeber (`app/notice_letters.py`): Behinderungsanzeige nach der Unterschrift Büro, Anzeige der Wiederaufnahme nach dem
   Wegfall, Inhalt aus der versiegelten Kopie der Unterschrift, Fassung je Unterschrift in der Ablage, Vorbehalt nur geprüft,
-  An immer der Auftraggeber. Seit 1.8.41: Zeitstrahl (bekannt seit → Meldung → versendet), "versendet" heißt beim
+  An immer der Auftraggeber, CC seit 1.8.69 fest die Personen unter "Kopie an:" im Brief (Adresse von heute, wie beim
+  Abnahmeprotokoll). Seit 1.8.41: Zeitstrahl (bekannt seit → Meldung → versendet), "versendet" heißt beim
   Auftraggeber angekommen (`reached_client()`: nicht unzustellbar, keine reine Kopie an Beteiligte), Wiederaufnahme "i. A."
   mit dem Büro-Konto statt der Wegfall-Unterschrift, Status `gegenstandslos` (`void_checklist()`, auch Bedenkenanzeige, nur
   Büro, mit Begründung versiegelt, keine Folgen/Briefe mehr). Details: `docs/archiv/vertragsgrundlage-und-vertrag.md`,
@@ -745,8 +749,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   `logger.error`, keine Unterschrift/kein Abschluss darunter). Seit 1.8.66 feste Fassung je Unterschrift (`app/checklist_versions.py`),
   seit 1.8.67 Versand an den Auftraggeber über den Weg der Anzeigen (`app/protocol_dispatch.py`: An fest, CC "Kopie bei Anzeigen",
   "Kopie an:" im PDF, nur die jüngste gültige Fassung, Prüfung vor dem Senden unter der Zeilensperre) und die Abnahme verweist auf
-  die Fassung ihrer Unterschrift (Prüfsummenformat 4). Seit 1.8.68 CC genau die in der Fassung eingefrorenen Empfänger samt Adresse
-  (`frozen_copies()`), Hinweis vor dem Versand, wenn sich die Beteiligten seither geändert haben (`copy_changes()`).
+  die Fassung ihrer Unterschrift (Prüfsummenformat 4). Seit 1.8.68 CC genau die in der Fassung eingefrorenen Empfänger, seit 1.8.69
+  als Personen an ihre Adresse von heute (`app/frozen_copies.py`, auch für die Briefe der Anzeigen), Hinweis vor dem Versand mit alter
+  und neuer Adresse (`changes()`), wer keine Mail bekam im Versandverlauf (`DispatchCopy`).
   Seit 1.8.50 setzt `{gewaehrleistung}` in Vertragsvorlagen die Dauer ein; ein Vertrag damit wird erst mit festgelegter Dauer
   festgeschrieben, danach sind Leistungsart und Dauer gesperrt (`warranty_contract_lock()`, Sperrreihenfolge Vertrag ->
   Auftrag wie beim Abgleich). Details: `docs/archiv/abnahme-und-gewaehrleistung.md`.
@@ -908,7 +913,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Erklärungen und Mängel gebündelt auf Protokollseite und im PDF; Stufe 2c-2e ab 1.8.65: Mängel im Protokoll nach der ersten
   gültigen Unterschrift überall, kaputte Kopie als Fehler; seit 1.8.66 feste Fassung je Unterschrift; seit 1.8.67 Versand des
   Protokolls an den Auftraggeber, Abnahme mit Verweis auf die Fassung (Format 4); seit 1.8.68 Fotos der Mängel im Protokoll-PDF,
-  Kopien an die in der Fassung eingefrorenen Empfänger)
+  Kopien an die in der Fassung eingefrorenen Empfänger; seit 1.8.69 als Personen an ihre Adresse von heute, Kopie ohne Mail im
+  Versandverlauf, Briefe der Anzeigen ohne freies CC, Strukturtest "Kopie an:" = Cc)
   -- `docs/archiv/abnahme-und-gewaehrleistung.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
@@ -1310,7 +1316,8 @@ Karte "Feste Fassungen" mit überholter Fassung, PDF und Prüfen, 412 px, Monteu
 deren PDF scheitert: Meldung "nichts gespeichert", Zeichnung bleibt, zweiter Versuch speichert) und
 `klicktest_protokoll_versand.py` (1.8.67, Karte "Protokoll an den Auftraggeber", Versand an einen SMTP-Empfänger im Skript mit
 Anhang = Fassung, nach verworfener Unterschrift Fassung 1, Abnahme mit "Fassung 1 (PDF)", 412 px; seit 1.8.68 CC fest aus der
-Fassung, Hinweis und Rückfrage bei geänderten Beteiligten). Ein
+Fassung, Hinweis und Rückfrage bei geänderten Beteiligten; seit 1.8.69 Adresse von heute, Hinweis mit alter und neuer, "Laut „Kopie
+an:“ ohne Mail" im Versandverlauf; ebenso seit 1.8.69 `klicktest_behinderungsanzeige_versand.py`: CC fest statt Eingabefeld). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

@@ -5504,6 +5504,27 @@ class DispatchOutcome(Base):
     receipt_document: Mapped["SentDocument | None"] = relationship()
 
 
+class DispatchCopy(Base):
+    """Kopie laut Dokument zum Versand (seit 1.8.69, app/frozen_copies.py): je Versand eines Dokuments, dessen PDF "Kopie an:"
+    zeigt (Briefe der Behinderungs- und Bedenkenanzeige, Abnahmeprotokoll), und je dort eingefrorenem Empfänger eine Zeile,
+    angelegt vor dem Senden: an welche Adresse die Kopie tatsächlich ging (email, die Adresse von heute) -- oder dass er keine
+    Mail bekam und warum (email leer, note). Name und Rolle wie im Dokument, Beteiligter und Kontakt ohne Fremdschlüssel (dürfen
+    später entfernt werden). Unveränderlich (ORM-Sperre unten)."""
+
+    __tablename__ = "dispatch_copies"
+    __table_args__ = (UniqueConstraint("dispatch_id", "participant_id", name="uq_dispatch_copy"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dispatch_id: Mapped[int] = mapped_column(ForeignKey("email_dispatches.id"), index=True)
+    participant_id: Mapped[int] = mapped_column()
+    contact_id: Mapped[int | None] = mapped_column(nullable=True)
+    contact_name: Mapped[str] = mapped_column(String(255))
+    role_label: Mapped[str] = mapped_column(String(80))
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    note: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class ArchiveImmutableError(Exception):
     """Versuch, eine abgelegte Datei, ihren Ablage-Eintrag oder einen abgeschlossenen
     Protokolleintrag zu ändern oder zu löschen (seit 1.8.17)."""
@@ -5627,6 +5648,18 @@ def _dispatch_outcome_no_update(mapper, connection, target):
 @event.listens_for(DispatchOutcome, "before_delete")
 def _dispatch_outcome_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Ein vermerkter Empfang bzw. eine Unzustellbarkeit wird nie gelöscht.")
+
+
+# Kopie laut Dokument zum Versand (seit 1.8.69): vor dem Senden festgehalten, danach fest.
+@event.listens_for(DispatchCopy, "before_update")
+def _dispatch_copy_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs):
+        raise ArchiveImmutableError("Die beim Versand festgehaltene Kopie ist unveränderlich.")
+
+
+@event.listens_for(DispatchCopy, "before_delete")
+def _dispatch_copy_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Die beim Versand festgehaltene Kopie wird nie gelöscht.")
 
 
 # Unterschrift unter einer Checkliste (seit 1.8.57): nach dem Speichern bis auf das Verwerfen unveränderlich -- Name,

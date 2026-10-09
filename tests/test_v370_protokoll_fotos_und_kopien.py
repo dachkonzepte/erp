@@ -3,8 +3,9 @@
 1. Fotos der Mängel im PDF des Abnahmeprotokolls (app/checklist_pdf.py, defect_photo_rows()): nur die Fotos, die bei der
    Unterschrift zum Mangel gehörten -- die beim Erfassen, wenn der Mangel zur Prüfsumme in der Kopie passt und die Datei zu ihrer
    Prüfsumme --, verkleinert wie die übrigen Fotos (Stufen der festen Fassung), mit Prüfsumme der Originaldatei.
-2. Kopien des Protokolls genau an die in der Fassung eingefrorenen Empfänger (app/protocol_dispatch.py, frozen_copies()/
-   frozen_cc()) -- PDF und Mail nie auseinander; geänderte Beteiligte als Hinweis vor dem Versand (copy_changes()).
+2. Kopien des Protokolls genau an die in der Fassung eingefrorenen Empfänger (app/protocol_dispatch.py, frozen_copies()) --
+   PDF und Mail nie auseinander; geänderte Beteiligte als Hinweis vor dem Versand (copy_changes()). Seit 1.8.69 als Personen an
+   ihre Adresse von heute (app/frozen_copies.py, test_v371) -- die drei Tests dazu unten sind darauf angepasst.
 
 Angriffe: Foto nach der Unterschrift ergänzt, Datei eines Fotos verändert, Foto am ORM vorbei in den Mangel geschoben (Prüfsumme
 des Mangels passend nachgerechnet), CC über die API. Mails gehen nur an die Test-Attrappe (FakeSMTP), Adressen der eigenen Domain."""
@@ -188,7 +189,8 @@ def _cc_header(mail) -> str:
 def test_copies_go_exactly_to_the_frozen_recipients(versand):
     """Nach der Unterschrift ändern sich die Beteiligten (Architektin neue Adresse, Hausverwaltung ohne "Kopie bei Anzeigen",
     Bauleitung neu mit Kopie): die Karte nennt alle drei Änderungen, die Mail geht trotzdem genau an die Empfänger der Fassung --
-    dieselben wie "Kopie an:" im PDF; eine mitgeschickte CC-Adresse wird nicht beachtet."""
+    dieselben wie "Kopie an:" im PDF; eine mitgeschickte CC-Adresse wird nicht beachtet. Seit 1.8.69 an ihre Adresse von heute:
+    die Architektin an die neue (bis 1.8.68 an die der Fassung)."""
     p, db = versand, versand["db"]
     assert _sign_ag(p).status_code == 200
     [version] = _versions(db, p["c"]["id"])
@@ -199,39 +201,45 @@ def test_copies_go_exactly_to_the_frozen_recipients(versand):
     bau.copy_on_notices, bau.contact.email = True, BAU_EMAIL
     db.commit()
     s = _state(p)
-    assert s["cc"] == [ARCH_EMAIL, HV_EMAIL] and "cc_prefill" not in s
-    assert [(c["name"], c["email"], c["email_source"]) for c in s["version"]["copy_to"]] == [
-        ("Petra Plan", ARCH_EMAIL, "fassung"), ("HV Muster", HV_EMAIL, "fassung")]
+    assert s["cc"] == [NEU_EMAIL, HV_EMAIL] and "cc_prefill" not in s
+    assert [(c["name"], c["email"], c["email_then"]) for c in s["version"]["copy_to"]] == [
+        ("Petra Plan", NEU_EMAIL, ARCH_EMAIL), ("HV Muster", HV_EMAIL, HV_EMAIL)]
     changes = " ".join(s["copy_changes"])
     assert len(s["copy_changes"]) == 3
     assert NEU_EMAIL in changes and "HV Muster (Hausverwaltung) hat heute keine" in changes and "Bernd Bau" in changes
     r = _send(p, cc_email=f"angriff@dachkonzepte.example, {NEU_EMAIL}")
     assert r.status_code == 200, r.text
     [mail] = FakeSMTP.sent
-    assert mail["recipients"] == [AG_EMAIL, ARCH_EMAIL, HV_EMAIL]
-    assert [a.strip() for a in _cc_header(mail).split(",")] == [ARCH_EMAIL, HV_EMAIL]
+    assert mail["recipients"] == [AG_EMAIL, NEU_EMAIL, HV_EMAIL]
+    assert [a.strip() for a in _cc_header(mail).split(",")] == [NEU_EMAIL, HV_EMAIL]
     [row] = db.scalars(select(EmailDispatch)).all()
-    assert row.cc_recipients.replace(" ", "") == f"{ARCH_EMAIL},{HV_EMAIL}"
+    assert row.cc_recipients.replace(" ", "") == f"{NEU_EMAIL},{HV_EMAIL}"
     kopie = _text(_pdf(version)).split("Kopie an: ")[1].split("Abschluss")[0]
     assert "Petra Plan" in kopie and "HV Muster" in kopie and "Bernd Bau" not in kopie
 
 
 def test_frozen_recipient_without_address_gets_no_mail(versand):
-    """Die Hausverwaltung hat bei der Unterschrift keine E-Mail-Adresse: sie steht in "Kopie an:" und auf der Karte als "ohne
-    E-Mail-Adresse", bekommt keine Mail -- auch nicht, wenn sie seither eine Adresse hat (Hinweis)."""
+    """Die Hausverwaltung hat bei der Unterschrift keine E-Mail-Adresse und seither eine: seit 1.8.69 bekommt sie die Kopie an die
+    Adresse von heute (bis 1.8.68 keine Mail), der Hinweis nennt beide. Umgekehrt (Adresse seither weg) keine Mail."""
     p, db = versand, versand["db"]
     db.get(ProjectParticipant, p["verwaltung"]).contact.email = None
     db.commit()
     assert _sign_ag(p).status_code == 200
     db.get(ProjectParticipant, p["verwaltung"]).contact.email = HV_EMAIL
     db.commit()
+    db.get(ProjectParticipant, p["architektin"]).contact.email = None
+    db.commit()
     s = _state(p)
-    assert [(c["name"], c["email"]) for c in s["version"]["copy_to"]] == [("Petra Plan", ARCH_EMAIL), ("HV Muster", None)]
-    assert s["cc"] == [ARCH_EMAIL]
-    assert s["copy_changes"] == [f"HV Muster (Hausverwaltung): E-Mail-Adresse heute {HV_EMAIL} statt keine."]
+    assert [(c["name"], c["email"], c["email_then"]) for c in s["version"]["copy_to"]] == [
+        ("Petra Plan", None, ARCH_EMAIL), ("HV Muster", HV_EMAIL, None)]
+    assert s["cc"] == [HV_EMAIL]
+    assert s["copy_changes"] == [
+        f"Petra Plan (Architekt/Planer): heute keine E-Mail-Adresse statt {ARCH_EMAIL} – keine Mail; die Kopie bitte auf anderem "
+        "Weg zustellen.",
+        f"HV Muster (Hausverwaltung): E-Mail-Adresse heute {HV_EMAIL} statt keine – die Kopie geht an {HV_EMAIL}."]
     assert _send(p).status_code == 200
     [mail] = FakeSMTP.sent
-    assert mail["recipients"] == [AG_EMAIL, ARCH_EMAIL]
+    assert mail["recipients"] == [AG_EMAIL, HV_EMAIL]
 
 
 def test_client_address_among_the_copies_is_not_doubled(versand):
@@ -247,7 +255,8 @@ def test_client_address_among_the_copies_is_not_doubled(versand):
 
 def test_version_before_1_8_68_uses_the_address_of_the_same_participant_today(versand):
     """Eine Fassung von 1.8.66/1.8.67 hat in "Kopie an:" noch keine Adresse: dieselben Beteiligten wie im PDF, mit ihrer Adresse
-    von heute (gekennzeichnet); kein Hinweis auf eine geänderte Adresse, die es nicht gab."""
+    von heute; kein Hinweis auf eine geänderte Adresse (die alte ist unbekannt). Seit 1.8.69 gilt die Adresse von heute für alle
+    Fassungen -- "email_source" gibt es nicht mehr, then_known sagt, ob die alte bekannt ist."""
     p, db = versand, versand["db"]
     assert _sign_ag(p).status_code == 200
     [version] = _versions(db, p["c"]["id"])
@@ -258,7 +267,7 @@ def test_version_before_1_8_68_uses_the_address_of_the_same_participant_today(ve
     db.commit()
     db.expire_all()
     s = _state(p)
-    assert [(c["email"], c["email_source"]) for c in s["version"]["copy_to"]] == [(NEU_EMAIL, "heute"), (HV_EMAIL, "heute")]
+    assert [(c["email"], c["then_known"]) for c in s["version"]["copy_to"]] == [(NEU_EMAIL, False), (HV_EMAIL, False)]
     assert s["cc"] == [NEU_EMAIL, HV_EMAIL] and s["copy_changes"] == []
     assert _send(p).status_code == 200
     assert FakeSMTP.sent[0]["recipients"] == [AG_EMAIL, NEU_EMAIL, HV_EMAIL]

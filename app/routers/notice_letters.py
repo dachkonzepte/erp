@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..email_dispatch import DispatchConflict, dispatch_to_dict
+from ..frozen_copies import dispatch_copies
 from ..models import AppUser
 from ..modules import is_module_enabled
 from ..notice_letters import NoticeStateError, ensure_letter, notice_state, preview_pdf, send_notice_letter
@@ -49,6 +50,11 @@ def _actor(user: AppUser) -> tuple[int | None, str]:
     return getattr(user, "id", None), (getattr(user, "display_name", None) or getattr(user, "username", None) or "System")
 
 
+def _dispatch_out(db: Session, dispatch) -> dict:
+    """Der Eintrag samt der Kopien laut Dokument (seit 1.8.69: an welche Adresse, wer ohne Mail)."""
+    return dispatch_to_dict(dispatch, copies=dispatch_copies(db, [dispatch.id]).get(dispatch.id))
+
+
 @router.get("/api/checklists/{checklist_id}/protocol-dispatch")
 def get_protocol_dispatch(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
     """Abnahmeprotokoll an den Auftraggeber (seit 1.8.67): Empfänger wie bei den Anzeigen, die Fassung, die hinausgeht, und der
@@ -66,13 +72,14 @@ def post_protocol_send(checklist_id: int, payload: ProtocolSend, db: Session = D
     _require_module(db)
     result = _call(send_protocol, db, checklist_id, dispatch_key=payload.dispatch_key, user=_role,
                    confirm_customer=payload.confirm_customer)
-    return dispatch_to_dict(result.dispatch)
+    return _dispatch_out(db, result.dispatch)
 
 
 @router.get("/api/checklists/{checklist_id}/notice-letters")
 def get_notice_letters(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
     """Stand der Briefe der Anzeige (Behinderungsanzeige und Anzeige der Wiederaufnahme bzw. Bedenkenanzeige) samt
-    Empfänger, Vorbelegung CC, Vorbehalt, Fassungen und -- seit 1.8.44 -- einer Abweichung Projekt-/Auftragskunde."""
+    Empfänger, Kopien (seit 1.8.69 die Personen unter "Kopie an:" mit ihrer Adresse von heute), Vorbehalt, Fassungen und --
+    seit 1.8.44 -- einer Abweichung Projekt-/Auftragskunde."""
     _require_module(db)
     return _call(notice_state, db, checklist_id)
 
@@ -102,12 +109,12 @@ def post_notice_letter_freeze(checklist_id: int, kind: str, payload: NoticeLette
 @router.post("/api/checklists/{checklist_id}/notice-letters/{kind}/send-email")
 def post_notice_letter_send(checklist_id: int, kind: str, payload: NoticeLetterSend, db: Session = Depends(get_db),
                             _role: AppUser = _office_dep):
-    """Per E-Mail an den Auftraggeber (An fest, nicht wählbar), CC frei -- immer die abgelegte Fassung. Bei
-    abweichendem Kunden nur mit confirm_customer (seit 1.8.44, sonst 409)."""
+    """Per E-Mail an den Auftraggeber (An fest, nicht wählbar), CC seit 1.8.69 genau die Personen unter "Kopie an:" im Brief
+    (nicht wählbar) -- immer die abgelegte Fassung. Bei abweichendem Kunden nur mit confirm_customer (seit 1.8.44, sonst 409)."""
     _require_module(db)
-    result = _call(send_notice_letter, db, checklist_id, kind, cc_email=payload.cc_email,
-                   dispatch_key=payload.dispatch_key, user=_role, confirm_customer=payload.confirm_customer)
-    return dispatch_to_dict(result.dispatch)
+    result = _call(send_notice_letter, db, checklist_id, kind, dispatch_key=payload.dispatch_key, user=_role,
+                   confirm_customer=payload.confirm_customer)
+    return _dispatch_out(db, result.dispatch)
 
 
 @router.get("/api/settings/notice-reservations", response_model=list[NoticeReservationOut])

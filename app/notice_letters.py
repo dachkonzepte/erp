@@ -20,11 +20,12 @@ nachgetragene Zustellung verwenden danach nur dieses PDF. Wird die Unterschrift 
 entsteht beim nächsten Versand eine neue Fassung; die alten bleiben als Nachweis.
 
 Versand (Regel 21, über dispatch_email()): An ist immer der Auftraggeber -- die API nimmt keine An-Adresse
-entgegen; CC vorbelegt mit den Beteiligten "Kopie bei Anzeigen", doppelte Adressen fallen weg (auch eine CC
-gleich dem Auftraggeber). Geht die Mail an einen empfangsbevollmächtigten Beteiligten (An oder CC), wird seine
-Vollmacht vor dem Senden mit Prüfsumme in die Ablage kopiert (DispatchAuthorization) -- ersetzt das Büro sie
-später, bleibt diese Kopie. Nach dem Versand der Behinderungsanzeige -- per E-Mail oder als nachgetragene
-Zustellung -- ist die Aufgabe "Behinderungsanzeige versenden" (Folge der Meldung, 1.8.38) erledigt.
+entgegen; CC bis 1.8.68 vorbelegt mit den Beteiligten "Kopie bei Anzeigen" (seit 1.8.69 fest, siehe unten),
+doppelte Adressen fallen weg (auch eine CC gleich dem Auftraggeber). Geht die Mail an einen
+empfangsbevollmächtigten Beteiligten (An oder CC), wird seine Vollmacht vor dem Senden mit Prüfsumme in die
+Ablage kopiert (DispatchAuthorization) -- ersetzt das Büro sie später, bleibt diese Kopie. Nach dem Versand der
+Behinderungsanzeige -- per E-Mail oder als nachgetragene Zustellung -- ist die Aufgabe "Behinderungsanzeige
+versenden" (Folge der Meldung, 1.8.38) erledigt.
 
 Seit 1.8.41 (Runde 2b-3 Teil 3, Herleitung "Umsetzung 1.8.41"):
 - "Beim Auftraggeber angekommen" (delivered_dispatches()) zählt nur ein gesendeter Eintrag, der nicht als
@@ -51,6 +52,12 @@ Seit 1.8.67 (Stufe 2c-2e, Punkt 2) gemeinsam mit dem Versand des Abnahmeprotokol
 Vollmacht und Bestätigung in der Historie (dispatch_to_client()) und der Stand (delivery_status()) -- je Dokumentart, nichts
 doppelt.
 
+Seit 1.8.69 (Nacharbeit zu Stufe 2c-2, Herleitung docs/archiv/abnahme-und-gewaehrleistung.md, "Umsetzung 1.8.69"): CC nicht mehr
+frei, sondern genau die Personen unter "Kopie an:" im Brief, an ihre Adresse von heute (app/frozen_copies.py) -- dispatch_to_client()
+bildet CC nur daraus, für Briefe und Protokoll. Wer dort steht und keine Mail bekommt (keine oder ungültige Adresse, nicht mehr im
+Adressbuch), hält das Versandprotokoll fest (DispatchCopy). Vor dem ersten Brief zeigt die Karte, wer beim Erstellen unter "Kopie
+an:" käme.
+
 Rollenlos wie jede Geschäftslogik; nur das Büro (app/routers/notice_letters.py). Der PDF-Renderer
 (app/notice_letter_pdf.py) wird lokal importiert (Regel 3).
 """
@@ -74,6 +81,8 @@ from .checklist_purposes import (
     CONCERN_PURPOSE, CONCERN_REPORT_SIGNATURE, OBSTRUCTION_PURPOSE, OBSTRUCTION_REPORT_SIGNATURE,
 )
 from .checklists import VOID_STATUS, _load as _load_checklist, attachment_path, check_signature
+from .frozen_copies import cc_of, changes as copy_changes, freeze as freeze_copies, record as record_copies
+from .frozen_copies import resolve as resolve_copies
 from .models import (
     Checklist, ChecklistAttachment, Customer, DispatchAuthorization, DispatchOutcome, EmailDispatch, NoticeLetter, Order,
 )
@@ -351,32 +360,18 @@ def _letter_fields(checklist: Checklist, spec: LetterKind, signature: ChecklistA
     return items, photos
 
 
-def copy_recipients(db: Session, project_id: int) -> list[dict]:
-    """Beteiligte mit "Kopie bei Anzeigen" (ohne archivierte Kontakte) -- "Kopie an:" im Brief und Vorbelegung
-    von CC."""
-    return [info for info in (participant_info(p) for p in participant_rows(db, project_id))
-            if info["copy_on_notices"] and not info["archived"]]
-
-
 def client_recipients(db: Session, order: Order) -> dict:
     """Empfänger eines Schreibens an den Auftraggeber (seit 1.8.67 gemeinsam für die Briefe der Anzeigen und das
-    Abnahmeprotokoll): An = Kunde des Projekts (E-Mail live), Vorbelegung CC = Beteiligte mit "Kopie bei Anzeigen" und E-Mail
-    (ohne archivierte, entdoppelt, ohne die Adresse des Auftraggebers), die Kopien, die Empfangsbevollmächtigten und eine
-    Abweichung zwischen Kunde des Projekts und Kunde laut Auftrag."""
+    Abnahmeprotokoll): An = Kunde des Projekts (E-Mail live), die Beteiligten mit "Kopie bei Anzeigen", die
+    Empfangsbevollmächtigten und eine Abweichung zwischen Kunde des Projekts und Kunde laut Auftrag. Seit 1.8.69 keine
+    Vorbelegung für CC mehr -- CC sind die Personen unter "Kopie an:" im Dokument (app/frozen_copies.py)."""
     customer = _customer(order)
     participants = [participant_info(p) for p in participant_rows(db, order.project_id)]
     ag_email = ((customer.email or "").strip() if customer is not None else "") or None
-    seen = {ag_email.lower()} if ag_email else set()
-    cc = []
-    for info in participants:
-        if info["copy_on_notices"] and not info["archived"] and info["email"] and info["email"].lower() not in seen:
-            seen.add(info["email"].lower())
-            cc.append(info["email"])
     return {
         "customer_mismatch": customer_mismatch(order, customer),
         "recipient": {"name": customer.name if customer is not None else order.customer_name, "email": ag_email,
                       "customer_id": customer.id if customer is not None else None},
-        "cc_prefill": ", ".join(cc),
         "copies": [p for p in participants if p["copy_on_notices"]],
         "authorized": [p for p in participants if p["authorized"]],
     }
@@ -485,8 +480,8 @@ def build_letter_content(db: Session, checklist: Checklist, spec: LetterKind, si
             "content_sha256": signature.content_sha256,
             "image_sha256": _file_sha256(attachment_path(signature)),
         },
-        "copy_to": [{"participant_id": c["participant_id"], "name": c["name"], "role_label": c["role_label"]}
-                    for c in copy_recipients(db, order.project_id)],
+        # seit 1.8.69 die Personen (Kontakt) samt Adresse beim Erstellen -- die Kopie geht an ihre Adresse von heute
+        "copy_to": freeze_copies(db, order.project_id),
         "photos": photos,
     }
 
@@ -686,26 +681,32 @@ def _email_texts(db: Session, kind: str, checklist: Checklist, order: Order) -> 
 
 
 def dispatch_to_client(db: Session, *, checklist: Checklist, order: Order, template_key: str, label: str,
-                       document_type: str, document, pdf: bytes, to: str, cc_email: str | None, dispatch_key: str | None,
+                       document_type: str, document, pdf: bytes, to: str, copies: list[dict], dispatch_key: str | None,
                        user_id: int | None, user_name: str | None, mismatch: dict | None, check=None):
     """Der Versand an den Auftraggeber (seit 1.8.67 gemeinsam für Briefe und Abnahmeprotokoll): Betreff und Text aus der
-    E-Mail-Vorlage template_key, Anhang = das abgelegte PDF (document, nie neu abgelegt), vor dem Senden check (falls gegeben)
-    und die Vollmachten der empfangsbevollmächtigten Empfänger (before_send), nach einem neuen Versand mit bestätigter
-    Abweichung des Kunden der Eintrag in der Historie. Liefert das DispatchResult."""
+    E-Mail-Vorlage template_key, Anhang = das abgelegte PDF (document, nie neu abgelegt), vor dem Senden check (falls gegeben),
+    die Vollmachten der empfangsbevollmächtigten Empfänger und die Kopien laut Dokument (before_send), nach einem neuen Versand
+    mit bestätigter Abweichung des Kunden der Eintrag in der Historie. Liefert das DispatchResult.
+
+    copies (seit 1.8.69, statt eines freien CC): die Personen unter "Kopie an:" im PDF mit ihrer Adresse von heute
+    (app/frozen_copies.py::resolve()) -- CC kommt nur daraus, PDF und Mail laufen nie auseinander; wer keine Mail bekommt, steht
+    im Versandprotokoll (DispatchCopy)."""
     from .email_dispatch import dispatch_email, new_dispatch_key
 
     subject, body = _email_texts(db, template_key, checklist, order)
     project_id, checklist_id = order.project_id, checklist.id
+    cc = cc_of(copies, to)
 
     def before_send(session: Session, dispatch: EmailDispatch) -> None:
         if check is not None:
             check(session, dispatch)
         _authorized_snapshot(session, dispatch, kind=document_type, checklist_id=checklist_id, project_id=project_id,
                              user_id=user_id, user_name=user_name or "System")
+        record_copies(session, dispatch, copies)
 
     result = dispatch_email(
         db, dispatch_key=dispatch_key or new_dispatch_key(template_key), document_type=document_type,
-        document_id=checklist_id, document_number=document.document_number, to=to, cc=cc_email, subject=subject,
+        document_id=checklist_id, document_number=document.document_number, to=to, cc=", ".join(cc) or None, subject=subject,
         body_text=body, attachment_bytes=pdf, attachment_filename=document.filename, archived_document=document,
         user_id=user_id, user_name=user_name, before_send=before_send,
     )
@@ -714,9 +715,15 @@ def dispatch_to_client(db: Session, *, checklist: Checklist, order: Order, templ
     return result
 
 
-def send_notice_letter(db: Session, checklist_id: int, kind: str, *, cc_email: str | None = None,
-                       dispatch_key: str | None = None, user=None, confirm_customer: bool = False):
-    """Versendet die Fassung zur aktuellen Unterschrift (erstellt sie beim ersten Mal) an den Auftraggeber.
+def letter_copies(db: Session, letter: NoticeLetter, project_id: int) -> list[dict]:
+    """Die Personen unter "Kopie an:" im Brief mit ihrer Adresse von heute (seit 1.8.69)."""
+    return resolve_copies(db, json.loads(letter.content)["copy_to"], project_id)
+
+
+def send_notice_letter(db: Session, checklist_id: int, kind: str, *, dispatch_key: str | None = None, user=None,
+                       confirm_customer: bool = False):
+    """Versendet die Fassung zur aktuellen Unterschrift (erstellt sie beim ersten Mal) an den Auftraggeber, CC seit 1.8.69 genau
+    die Personen unter "Kopie an:" im Brief an ihre Adresse von heute (kein freies CC mehr).
     Wirft NoticeStateError (Zustand, 409; seit 1.8.44 auch CustomerMismatch ohne Bestätigung), ValueError
     (Eingabe/Versand, 400), DispatchConflict (409). Nach dem Versand des Hauptbriefs: Aufgabe "versenden" erledigt,
     Folgen nach dem Versand (seit 1.8.44, "Antwort prüfen" der Bedenkenanzeige)."""
@@ -735,8 +742,8 @@ def send_notice_letter(db: Session, checklist_id: int, kind: str, *, cc_email: s
     pdf = letter_document(letter)
     result = dispatch_to_client(
         db, checklist=checklist, order=order, template_key=kind, label=spec.label, document_type=kind,
-        document=letter.sent_document, pdf=pdf, to=to, cc_email=cc_email, dispatch_key=dispatch_key, user_id=user_id,
-        user_name=user_name, mismatch=mismatch,
+        document=letter.sent_document, pdf=pdf, to=to, copies=letter_copies(db, letter, order.project_id),
+        dispatch_key=dispatch_key, user_id=user_id, user_name=user_name, mismatch=mismatch,
     )
     if result.newly_sent and spec.is_main:
         complete_send_tasks(db, checklist_id, spec.purpose)
@@ -925,12 +932,20 @@ def notice_state(db: Session, checklist_id: int) -> dict:
     order = _order(db, checklist)
     recipients = client_recipients(db, order)  # seit 1.8.67 gemeinsam mit dem Abnahmeprotokoll
     letters = _letters(db, checklist_id)
+    upcoming = resolve_copies(db, freeze_copies(db, order.project_id), order.project_id)  # wer beim Erstellen käme
     kinds = []
     for spec in (s for s in LETTER_KINDS.values() if s.purpose == purpose):
         signature = section_signature(checklist, spec)
         seal = check_signature(checklist, signature) if signature is not None else None
         own = [l for l in letters if l.kind == spec.key]
+        # Seit 1.8.69: CC = die Personen unter "Kopie an:" im Brief zur aktuellen Unterschrift (Adresse von heute), vor dem
+        # ersten Brief die, die beim Erstellen dort hinkämen; dazu die Änderungen seit dem Brief.
+        current = next((l for l in own if signature is not None and l.signature_id == signature.id), None)
+        copies = letter_copies(db, current, order.project_id) if current is not None else upcoming
         kinds.append({
+            "copies": copies, "copies_frozen": current is not None,
+            "cc": cc_of(copies, recipients["recipient"]["email"]),
+            "copy_changes": copy_changes(db, order.project_id, copies) if current is not None else [],
             "status": delivery_status(db, spec.key, checklist_id, signature is not None),
             "signoff_text": ("Der Brief trägt „i. A.“ und den Namen des Büro-Kontos, das ihn erstellt – die "
                              "Unterschrift im Abschnitt „Wegfall“ bleibt interner Beleg.") if spec.key == "wiederaufnahme" else None,
@@ -945,7 +960,7 @@ def notice_state(db: Session, checklist_id: int) -> dict:
             "sent": letter_was_sent(db, spec.key, checklist_id),
         })
     return {
-        **recipients,  # Empfänger, Vorbelegung CC, Kopien, Bevollmächtigte, seit 1.8.44 abweichender Kunde
+        **recipients,  # Empfänger, Kopien, Bevollmächtigte, seit 1.8.44 abweichender Kunde (Vorbelegung CC bis 1.8.68)
         "checklist_id": checklist_id, "order_id": order.id, "order_number": order.order_number,
         "purpose": purpose, "purpose_label": NOTICE_PURPOSES[purpose].label,
         "contract_basis": order.contract_basis, "contract_basis_label": contract_basis_label(order.contract_basis),

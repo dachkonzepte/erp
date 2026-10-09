@@ -798,8 +798,10 @@ def dispatch_authorizations(db: Session, dispatch_ids: list[int]) -> dict[int, l
 
 
 def dispatch_to_dict(dispatch: EmailDispatch, now: datetime | None = None, authorizations: list[dict] | None = None,
-                     outcome: DispatchOutcome | None = None) -> dict:
-    """outcome (seit 1.8.41): das vermerkte Versandergebnis, falls schon geladen (list_dispatches())."""
+                     outcome: DispatchOutcome | None = None, copies: list[dict] | None = None) -> dict:
+    """outcome (seit 1.8.41): das vermerkte Versandergebnis, falls schon geladen (list_dispatches()). copies (seit 1.8.69): die
+    Personen unter "Kopie an:" im Dokument mit der Adresse, an die die Kopie ging, oder ohne Mail mit Grund
+    (app/frozen_copies.py)."""
     from .berlin_time import to_berlin
     from .sent_documents import sent_document_to_dict
 
@@ -826,6 +828,7 @@ def dispatch_to_dict(dispatch: EmailDispatch, now: datetime | None = None, autho
         "sent_document": sent_document_to_dict(dispatch.sent_document) if dispatch.sent_document else None,
         "receipt_document": sent_document_to_dict(dispatch.receipt_document) if dispatch.receipt_document else None,
         "authorizations": authorizations or [],
+        "copies": copies or [],
     }
 
 
@@ -854,9 +857,12 @@ def list_dispatches(
         query = query.where(EmailDispatch.status == "in_arbeit", EmailDispatch.created_at < now - STUCK_AFTER)
     rows = db.scalars(query.order_by(EmailDispatch.created_at.desc(), EmailDispatch.id.desc()).limit(limit)).all()
     stuck_count = db.scalar(stuck_query) or 0
+    from .frozen_copies import dispatch_copies
+
     authorizations = dispatch_authorizations(db, [r.id for r in rows])
     outcomes = dispatch_outcomes(db, [r.id for r in rows])
-    items = [dispatch_to_dict(r, now, authorizations.get(r.id), outcomes.get(r.id)) for r in rows]
+    copies = dispatch_copies(db, [r.id for r in rows])
+    items = [dispatch_to_dict(r, now, authorizations.get(r.id), outcomes.get(r.id), copies.get(r.id)) for r in rows]
     # Seit 1.8.33: ein Vertrag hat keine eigene Seite, die Liste verlinkt auf seinen Auftrag.
     contract_ids = {r.document_id for r in rows if r.document_type == "vertrag" and r.document_id is not None}
     if contract_ids:

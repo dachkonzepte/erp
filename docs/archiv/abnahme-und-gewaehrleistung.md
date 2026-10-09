@@ -2207,7 +2207,7 @@ Nichts geändert: `create_version()` meldet "Die feste Fassung (PDF) der Checkli
 gespeichert. Bitte erneut versuchen; bleibt es dabei, das Büro verständigen." (400), `saveSignature()` zeigt "Nicht gespeichert: …"
 und lädt nur bei 409 neu -- die Zeichnung und der Name bleiben stehen.
 
-### Festlegungen 1.8.68 (bitte bestätigen)
+### Festlegungen 1.8.68 (bestätigt am 09.10.2026 außer Nr. 1 und 2, die geändert sind; Nr. 6 damit gegenstandslos -- siehe "Umsetzung 1.8.69")
 
 1. **Eingefroren ist auch die Adresse**: hat ein Empfänger seither eine andere, geht die Kopie an die Adresse der Fassung (Hinweis
    nennt beide). Die neue Adresse erreicht nur eine Zustellung auf anderem Weg -- oder eine neue Fassung (neue Unterschrift).
@@ -2248,5 +2248,171 @@ und lädt nur bei 409 neu -- die Zeichnung und der Name bleiben stehen.
 
 ### Nebenbefunde 1.8.68 (nur gemeldet)
 
-- Die Briefe der Behinderungs- und Bedenkenanzeige haben weiter ein freies CC (vorbelegt), ihr "Kopie an:" ist je Fassung
-  eingefroren -- dieselbe Frage wie Nr. 8 des Berichts zu 1.8.67, dort nicht entschieden.
+- ~~Die Briefe der Behinderungs- und Bedenkenanzeige haben weiter ein freies CC (vorbelegt), ihr "Kopie an:" ist je Fassung
+  eingefroren -- dieselbe Frage wie Nr. 8 des Berichts zu 1.8.67, dort nicht entschieden.~~ -- seit 1.8.69 dieselbe Regel wie
+  beim Protokoll (siehe "Umsetzung 1.8.69", Punkt 3).
+
+---
+
+## Vorgabe vom 09.10.2026 (Nacharbeiten zu 2c-2, übernommen wie gegeben)
+
+Stufe 2c-2, Nacharbeiten (der Abnahmetest folgt später). Festlegungen 1.8.68 als bestätigt markieren, mit diesen Änderungen:
+
+1. Zu Nr. 1: Eingefroren werden die Empfänger als Personen, nicht ihre Adressen. Die Kopie geht an die heutige Adresse; der
+   Hinweis nennt alte und neue; das Versandprotokoll hält die tatsächlich genutzte Adresse fest. Steht die Adresse im PDF selbst:
+   melden statt umbauen.
+2. Zu Nr. 2: Der Versandverlauf hält fest, wer laut Fassung eine Kopie bekommen sollte, aber keine Mail bekam.
+3. Briefe der Behinderungs- und Bedenkenanzeige: Stimmen „Kopie an:“ im Brief und die tatsächlichen Empfänger immer überein?
+   Falls nicht, dieselbe Regel wie beim Protokoll. Strukturtest: Wo ein PDF „Kopie an:“ zeigt, gehen die Mails genau an diese
+   Empfänger.
+4. Die offenen Festlegungen 1.8.65 Nr. 2, 4, 5; 1.8.66 Nr. 4; 1.8.67 Nr. 8 je in einer Zeile vorlegen.
+
+Angriffstests mit Gegenprobe. Nebenbefunde nur melden. Commit nach Regel 13, Bericht kurz.
+
+## Umsetzung 1.8.69 (09.10.2026) -- Nacharbeiten zu 2c-2: Kopien an die eingefrorenen Personen, Briefe der Anzeigen
+
+### Festlegungen 1.8.68
+
+Bestätigt am 09.10.2026 mit der Vorgabe oben: Nr. 1 ersetzt (Personen statt Adressen, Punkt 1), Nr. 2 ergänzt (Kopie ohne Mail
+im Versandverlauf, Punkt 2), Nr. 3, 4, 5 unverändert. Nr. 6 (Fassungen 1.8.66/1.8.67 ohne Adresse nehmen die von heute) ist damit
+gegenstandslos: jede Fassung nimmt die Adresse von heute.
+
+Steht die Adresse im PDF selbst? Nein -- "Kopie an:" im Brief (`app/notice_letter_pdf.py`) und im Protokoll (`app/checklist_pdf.py`)
+zeigt nur Name und Rolle. Die Adresse beim Erstellen steht nur im eingefrorenen Inhalt (Brief) bzw. in `checklist_versions.copy_to`
+und dient seit 1.8.69 nur dem Hinweis. Nichts zu melden, nichts umgebaut.
+
+### Punkt 1: Personen statt Adressen (`app/frozen_copies.py`, gemeinsam für Protokoll und Briefe)
+
+- Beim Erstellen des Dokuments eingefroren (`freeze()`): je Empfänger Beteiligter, **Kontakt** (die Person), Name und Rolle wie im
+  PDF, dazu die Adresse von jetzt -- nur für den Hinweis. Bisher fehlte der Kontakt; ein aus dem Projekt entfernter Beteiligter
+  war damit nicht mehr zu finden.
+- Beim Versand (`resolve()`): die Adresse von heute des Kontakts (bei einem Eintrag mit Verweis aus dem Kunden- bzw.
+  Lieferantenstamm, `contact_values()`). Die Kopie geht auch an eine Person, die seither keine "Kopie bei Anzeigen" mehr hat, aus
+  dem Projekt entfernt oder im Adressbuch archiviert ist -- sie steht im PDF. Keine Mail bekommt, wer heute keine Adresse hat,
+  eine ungültige (das Adressbuch prüft keine; `parse_recipients()`, mehrere Adressen im Feld gehen alle) oder nicht mehr im
+  Adressbuch steht (Kontakt gelöscht). Der Versand geht trotzdem.
+- CC (`cc_of()`): die Adressen von heute, jede einmal, ohne die des Auftraggebers.
+- Hinweis vor dem Versand (`changes()`): alte und neue Adresse ("E-Mail-Adresse heute X statt Y – die Kopie geht an X"), heute
+  keine Adresse mehr, nicht mehr im Adressbuch, keine "Kopie bei Anzeigen" mehr (bleibt Empfänger), anderer Name bzw. andere Rolle,
+  seither neu mit "Kopie bei Anzeigen" (keine Mail). Karte: Warnung; Senden: Rückfrage (`confirm()`), keine Bestätigung am Server
+  (wie 1.8.68 Nr. 3).
+- Dokumente von vor 1.8.69 tragen keinen Kontakt (Briefe seit 1.8.40: nur Beteiligter, Name, Rolle; Protokoll-Fassungen
+  1.8.66–1.8.68 dazu die Adresse): die Person über den Beteiligten desselben Projekts; ist er entfernt, gilt sie als nicht mehr
+  im Adressbuch. Ohne festgehaltene Adresse nennt der Hinweis keine alte (`then_known`).
+- Versandprotokoll: `email_dispatches.cc_recipients` enthält die tatsächlich genutzten Adressen (wie bisher), dazu je Person die
+  Zeile in `dispatch_copies` (Punkt 2).
+- Ersetzt: `frozen_copies()`/`frozen_cc()`/`copy_changes()` in `app/protocol_dispatch.py` (1.8.68), `email_source` in der Antwort
+  (jetzt `email`, `email_then`, `then_known`, `no_mail`, `archived`); `copy_recipients()` liegt jetzt in `app/frozen_copies.py`.
+
+### Punkt 2: Kopie ohne Mail im Versandverlauf (`dispatch_copies`, `DispatchCopy`)
+
+- Je Versand eines Dokuments mit "Kopie an:" und je dort eingefrorener Person eine Zeile, vor dem Senden angelegt
+  (`dispatch_email(before_send=…)`, `record()`): die Adressen, an die die Kopie tatsächlich ging (aus An und CC des Eintrags), oder
+  leer mit Grund ("keine E-Mail-Adresse", "E-Mail-Adresse „…“ ungültig", "nicht mehr im Adressbuch"); "dieselbe Adresse wie der
+  Auftraggeber (An)", wenn sie mit dem Auftraggeber zusammenfällt. Name und Rolle wie im Dokument, Beteiligter und Kontakt ohne
+  Fremdschlüssel. Unveränderlich (ORM-Sperre), wie Vollmacht und Versandergebnis eine eigene Tabelle statt Spalten am
+  Protokolleintrag.
+- Versandverlauf (`_email_dispatch.html`) und Versandprotokoll (`email_dispatches.html`): "Laut „Kopie an:“ ohne Mail: Name (Rolle)
+  – Grund". Die API (`copies` am Eintrag) liefert alle Zeilen, auch die mit Mail.
+
+### Punkt 3: Briefe der Behinderungs- und Bedenkenanzeige
+
+- Befund: **nein**, bis 1.8.68 stimmten "Kopie an:" im Brief und die tatsächlichen Empfänger nicht immer überein. CC war frei, nur
+  vorbelegt (1.8.40): das Büro konnte Adressen löschen oder ergänzen; die Vorbelegung kam aus den Beteiligten von heute, ein
+  erneuter Versand eines älteren Briefs nahm also andere Empfänger als sein "Kopie an:"; wer im Brief ohne Adresse stand, bekam
+  nichts, ohne Nachweis.
+- Jetzt dieselbe Regel wie beim Protokoll: `dispatch_to_client()` nimmt kein CC mehr, sondern `copies` (die Personen unter "Kopie
+  an:" mit ihrer Adresse von heute) und bildet CC nur daraus; `NoticeLetterSend` hat kein Feld `cc_email` mehr (eine mitgeschickte
+  Adresse wird nicht beachtet, wie beim Protokoll). Der Inhalt eines neuen Briefs trägt in "Kopie an:" Kontakt und Adresse beim
+  Erstellen. Vor dem ersten Brief zeigt die Karte die Personen, die beim Erstellen unter "Kopie an:" kämen (Vorbelegung
+  `cc_prefill` entfällt); danach die Personen des Briefs mit den Änderungen seither.
+- Folge: Ein empfangsbevollmächtigter Beteiligter ohne "Kopie bei Anzeigen" bekommt keine Mail mehr über ein von Hand ergänztes
+  CC -- er braucht "Kopie bei Anzeigen" vor dem Erstellen des Briefs, sonst Zustellung nachtragen (der Hinweis auf der Karte sagt
+  es). Die Vollmacht wird wie bisher festgehalten, wenn die Mail an seine Adresse geht.
+- Strukturtest (`tests/test_v371_kopien_an_personen.py`): (a) jedes Modul, das mit reportlab baut und "Kopie an" schreibt, steht in
+  `KOPIE_AN_PDFS` (heute Brief und Checkliste); (b) jeder Aufruf von `dispatch_email()` mit einer dieser Dokumentarten oder mit
+  veränderlicher Art liegt in `dispatch_to_client()` -- einzige begründete Ausnahme der allgemeine Versand einer Checkliste, der
+  das Abnahmeprotokoll ablehnt; (c) `dispatch_to_client()` hat keinen Parameter für CC, bildet es aus `cc_of(copies, to)`, seine
+  Aufrufer geben `letter_copies()` bzw. `frozen_copies()`, die Schemas beider Versand-Routen haben kein Feld für An oder CC; (d) je
+  Dokumentart (Behinderungsanzeige, Wiederaufnahme, Bedenkenanzeige, Abnahmeprotokoll) nach geänderter Adresse, entzogener Kopie
+  und neuem Beteiligten: die Namen unter "Kopie an:" im versendeten PDF sind genau die festgehaltenen Kopien, Cc genau ihre
+  Adressen von heute.
+
+### Punkt 4: offene Festlegungen, je eine Zeile
+
+- 1.8.65 Nr. 2: Eine fehlerhafte Kopie der ersten Unterschrift unter "Mängel" sperrt jede weitere Unterschrift darunter, den
+  Abschluss und die Abnahme aus dem Protokoll, bis das Büro die Unterschrift verwirft.
+- 1.8.65 Nr. 4: `logger.error` nur, wo sonst ein Schluss gezogen würde (Mängel im Protokoll, Erklärungen aus der Kopie des
+  Auftraggebers), nicht bei jeder Prüfung einer Unterschrift.
+- 1.8.65 Nr. 5: Der Link-Test prüft das Gerüst eines Ziels -- ein falscher fester Teil fällt auf, ein falscher eingesetzter Wert
+  (z. B. eine falsche ID) nicht.
+- 1.8.66 Nr. 4: Eine Fassung ist überholt, sobald irgendeine Unterschrift verworfen ist, die sie als gültig zeigt -- nicht nur die
+  eigene.
+- 1.8.67 Nr. 8: Fassungen aus 1.8.66 haben kein "Kopie an:" (Spalte leer, PDF ohne die Zeile, Versand ohne Kopie) -- 1.8.66 ist
+  nie eingespielt, es gibt sie nur lokal.
+
+### Migration `5d2f8a6c1e47`
+
+Tabelle `dispatch_copies` (Fremdschlüssel auf `email_dispatches` benannt, UNIQUE je Versand und Beteiligtem). Kein Bestand:
+Versände vor 1.8.69 haben keine Zeilen. `downgrade()` verweigert, solange eine Zeile existiert.
+
+### Festlegungen 1.8.69 (bitte bestätigen)
+
+1. **Die Person ist der Kontakt im Adressbuch**; bei einem Eintrag mit Verweis die Adresse aus dem Kunden- bzw. Lieferantenstamm.
+   Dokumente von vor 1.8.69 kennen nur den Beteiligten: die Person über ihn; ist er aus dem Projekt entfernt, keine Mail
+   (festgehalten).
+2. **Die Kopie geht auch an eine Person ohne "Kopie bei Anzeigen"** (abgewählt, entfernt, archiviert), solange sie im PDF steht --
+   der Hinweis nennt es.
+3. **Eine ungültige Adresse sperrt den Versand nicht**: keine Mail an diese Person, festgehalten; der Auftraggeber und die übrigen
+   bekommen das Dokument (eine Anzeige muss unverzüglich hinaus). Bis 1.8.68 brach der Versand dann mit 400 ab.
+4. **Festgehalten wird jede Person unter "Kopie an:"**, auch mit Mail (die genutzte Adresse); Versandverlauf und Versandprotokoll
+   zeigen nur die ohne Mail.
+5. **Vor dem ersten Brief** zeigt die Karte die Personen, die beim Erstellen unter "Kopie an:" kämen, ohne Hinweis (es gibt noch
+   keinen Brief).
+6. **Kein CC von Hand mehr bei den Briefen**, auch nicht für einen Empfangsbevollmächtigten ohne "Kopie bei Anzeigen" -- weitere
+   Empfänger nur über "Zustellung nachtragen".
+
+### Verifikation 1.8.69
+
+- Neue `tests/test_v371_kopien_an_personen.py` (16): Protokoll -- Kopie an die Adresse von heute, Hinweis mit alter und neuer,
+  genutzte Adresse je Person festgehalten, "Kopie an:" im PDF unverändert; aus dem Projekt entfernte bzw. abgewählte Person
+  bekommt die Kopie weiter; ohne Adresse, mit ungültiger Adresse und mit gelöschtem Kontakt keine Mail, Versand an die übrigen,
+  Grund in Antwort und Versandverlauf; Adresse des Auftraggebers unter den Kopien nicht doppelt; Fassung ohne Kontakt (vor 1.8.69)
+  findet die Person über den Beteiligten. Briefe -- vor dem ersten Brief die künftigen Personen, eingefroren mit Kontakt und
+  Adresse, zweiter Versand an die Personen des Briefs mit der Adresse von heute; Brief wie seit 1.8.40 (ohne Kontakt). Strukturtest
+  (a)–(d), (d) für vier Dokumentarten. Migration. Angriffe: An und CC über die API (drei Schreibweisen), festgehaltene Kopie am ORM
+  vorbei ändern bzw. löschen (`ArchiveImmutableError`).
+- Angepasst, weil sie die alte Regel festhielten: `test_v343` (Vorbelegung `cc_prefill` -> `cc` je Briefart; "Kopie an:" im
+  Inhalt mit Kontakt und Adresse; der Entdoppelungs-Test schickt CC mit, das jetzt nicht zählt, und prüft stattdessen die
+  festgehaltenen Kopien samt "dieselbe Adresse wie der Auftraggeber (An)" und "keine E-Mail-Adresse"; der Vollmacht-Test nimmt CC
+  aus "Kopie an:" statt von Hand -- je Versand Architekt und Bauleitung), `test_v347` (Vorbelegung -> `cc`), `test_v370` (drei
+  Tests von "Adresse der Fassung" auf "Adresse von heute"; `email_source` -> `then_known`).
+- Gegenproben (Marker GEGENPROBE, Dateien byte-genau zurück): 14 von 14 rot -- Adresse der Fassung statt von heute (wie 1.8.68),
+  Person nur über den Beteiligten, freies CC für Briefe wieder offen (Schema, Router, Versand), Kopien nicht festgehalten, wer keine
+  Mail bekam nicht festgehalten, ungültige Adresse sperrt den Versand, Hinweis ohne alte Adresse, neuer PDF-Renderer mit "Kopie
+  an:" nicht eingetragen, Brief an `dispatch_to_client()` vorbei versendet, CC nicht aus `cc_of()`, Downgrade ohne Schutz,
+  festgehaltene Kopie änderbar, Briefe mit CC aus den Beteiligten von heute, Versandverlauf ohne Zeile "ohne Mail". Das Werkzeug
+  brach bei der Ausgabe nach Probe 7 an einem Umlaut ab (die Dateien waren schon zurück und geprüft); Ausgabe jetzt UTF-8, Proben
+  8–14 neu gestartet.
+- Migration: SQLite (Kommandozeile hin, `current`, zurück, hin, `check` ohne Unterschied) und PostgreSQL 17 im Wegwerf-Schema
+  (Bestand aus dem Code von 1.8.68: Protokoll, Fassung 1 mit "Kopie an:" samt Adresse ohne Kontakt, ein Versand -> head: der alte
+  Versand ohne Zeilen; neue Adresse der Architektin -> Karte und Versand mit der neuen, Hinweis mit beiden, Hausverwaltung "keine
+  E-Mail-Adresse" festgehalten und im Versandverlauf; Downgrade verweigert; `current`, `check`; leeres Schema hin/zurück/hin,
+  `check`).
+- PostgreSQL (pytest-Plugin): `test_v371`, `test_v370`, `test_v369`, `test_v343`, `test_v347`, `test_v344`, `test_v324` -- 116 grün.
+- Volle Suite: 3104 grün, 0 rot (mit den opt-in-Tests gegen PostgreSQL). Danach nur noch der Modul-Docstring von
+  `app/notice_letters.py` umbrochen (Kontrolle `test_v371`, `test_v343`, `test_v357`: 36 grün) und die Zahlen eingetragen.
+- Klicktests: `klicktest_protokoll_versand.py` 17/17 (Petra Plan mit der Adresse von heute, Bernd Bau "keine Mail", Hinweis mit
+  alter und neuer Adresse, Umschlag und Cc mit der neuen, Versandverlauf "Laut „Kopie an:“ ohne Mail"),
+  `klicktest_behinderungsanzeige_versand.py` 42/42 (CC fest statt Eingabefeld, Hausverwaltung "keine Mail", Versandverlauf und
+  Versandprotokoll mit der Kopie ohne Mail); unverändert grün `klicktest_bedenkenanzeige_versand.py` 20/20,
+  `klicktest_behinderungsanzeige_abschluss.py` 43/43, `klicktest_feste_fassung.py` 15/15.
+
+### Nebenbefunde 1.8.69 (nur gemeldet)
+
+1. **Adressbuch und Stammdaten prüfen E-Mail-Adressen beim Speichern nicht** (`app/contacts.py`, Kunde, Lieferant): eine ungültige
+   Adresse fällt erst beim Versand auf -- bis 1.8.68 als 400 für die ganze Anzeige (über die Vorbelegung von CC), seit 1.8.69 als
+   "keine Mail" mit Grund.
+2. **Unter SQLite kann eine ID wiederkommen**: wird der jüngste Beteiligte gelöscht, kann ein neuer seine ID bekommen. Dokumente von
+   vor 1.8.69 finden die Person nur über die Beteiligten-ID (im selben Projekt) -- lokal könnte so ein später angelegter Beteiligter
+   an ihre Stelle treten. PostgreSQL (Server) vergibt keine ID zweimal.

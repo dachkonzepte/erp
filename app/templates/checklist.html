@@ -515,7 +515,6 @@ async function sendChecklistEmail(btn){
 const NOTICE_PURPOSES=['behinderungsanzeige','bedenkenanzeige'];
 let notice=null;
 let noticeConfirmCustomer=false;  // seit 1.8.44: abweichender Kunde geprüft (bleibt beim Neuzeichnen stehen)
-const noticeCc={};  // eingegebene CC je Briefart -- bleibt beim Neuzeichnen stehen
 const fmtIsoDate=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}.${m[2]}.${m[1]}`:''};
 function noticeKindHtml(k){
   const id=`notice-${k.kind}`;
@@ -547,13 +546,14 @@ function noticeKindHtml(k){
   }
   if(!k.blocked){
     const rec=notice.recipient;
-    const cc=noticeCc[k.kind]!==undefined?noticeCc[k.kind]:notice.cc_prefill;
+    // Seit 1.8.69 kein freies CC: genau die Personen unter „Kopie an:“ im Brief, an ihre Adresse von heute.
+    const head=current?`Kopie (CC) – genau die Personen unter „Kopie an:“ im Brief (Fassung ${current.version_no}), an ihre Adresse von heute`
+      :'Kopie (CC) – die Beteiligten mit „Kopie bei Anzeigen“: sie kommen beim Erstellen des Briefs unter „Kopie an:“ und bekommen die Kopie an ihre Adresse von heute';
     html+=`<label class="small">An (immer der Auftraggeber)</label>
       <div class="notice-to" data-notice-to>${esc(rec.name)}${rec.email?` &lt;${esc(rec.email)}&gt;`:''}<span class="fixed">fest</span></div>`
       +(rec.email?'':`<div class="notice-warn">Der Auftraggeber hat keine E-Mail-Adresse. Bitte im Kundenstamm ergänzen oder den Brief erstellen, auf anderem Weg zustellen und unten unter „Zustellung nachtragen“ festhalten.</div>`)
-      +`<label class="small" for="${id}-cc">CC (vorbelegt mit „Kopie bei Anzeigen“, mehrere mit Komma)</label>
-      <input id="${id}-cc" type="text" inputmode="email" autocomplete="off" value="${esc(cc)}" oninput="noticeCc['${esc(k.kind)}']=this.value">`
-      +noticeParticipantHints()
+      +`<div id="${id}-copies">${copyListHtml(k.copies,k.copy_changes,head,'Beteiligte seit dem Brief geändert')}</div>`
+      +authorizedHintsHtml(notice.authorized,k.cc)
       +(k.status==='unzustellbar'?`<div class="notice-warn" data-undeliverable><b>Unzustellbar:</b> ${esc(k.label)} kam beim Auftraggeber nicht an – bitte erneut senden oder auf anderem Weg zustellen und unten nachtragen.</div>`:'')
       +`<div class="notice-actions"><button type="button" class="btn" id="${id}-send" ${rec.email?'':'disabled'} onclick="sendNoticeLetter('${esc(k.kind)}',this)">${esc(k.label)} ${k.status==='versendet'||k.status==='unzustellbar'?'erneut senden':'senden'}</button><span class="muted small" id="${id}-status"></span></div>`;
   }
@@ -563,15 +563,26 @@ function noticeKindHtml(k){
 function olderLettersHtml(list){
   return `<div class="notice-row muted">Frühere Fassungen (Unterschrift inzwischen verworfen): ${list.map(l=>`Fassung ${l.version_no} vom ${fmtIsoDate(l.letter_date)} <a href="/api/sent-documents/${l.sent_document.id}/file" target="_blank" rel="noopener">PDF</a>`).join(' · ')}</div>`;
 }
-function noticeParticipantHints(state=notice){  // Zustand als Parameter seit 1.8.67; das Abnahmeprotokoll hat seit 1.8.68 eigene Hinweise (protocolCopyHtml)
-  const lines=[];
-  const noMail=state.copies.filter(c=>!c.email&&!c.archived);
-  if(noMail.length)lines.push(`Kopie bei Anzeigen, aber ohne E-Mail (bitte auf anderem Weg): ${esc(noMail.map(c=>`${c.name} (${c.role_label})`).join('; '))}`);
-  for(const a of state.authorized){
+// Kopien an den Personen unter „Kopie an:“ (seit 1.8.69 für Briefe und Protokoll gemeinsam): an ihre Adresse von heute; wer keine
+// (gültige) hat oder nicht mehr im Adressbuch steht, bekommt keine Mail -- das Versandprotokoll hält es fest.
+function copyListHtml(copies,changes,head,changedLabel){
+  const lines=copies.map(c=>{
+    const who=`${esc(c.name)} (${esc(c.role_label)})`;
+    if(!c.email)return `<div data-copy-nomail>${who} – keine Mail: ${esc(c.no_mail)}. Kopie auf anderem Weg zustellen und unten unter „Zustellung nachtragen“ festhalten</div>`;
+    return `<div data-copy-mail>${who} &lt;${esc(c.email)}&gt;${c.archived?' <span class="muted">(im Adressbuch archiviert)</span>':''}</div>`;
+  });
+  let html=`<label class="small">${head}</label>
+    <div class="notice-to" data-copy-list>${lines.length?lines.join(''):'<span class="muted">keine – unter „Kopie an:“ steht niemand</span>'}<span class="fixed">fest</span></div>`;
+  if(changes.length)html+=`<div class="notice-warn" data-copy-changes><b>${esc(changedLabel)}:</b><br>${changes.map(esc).join('<br>')}</div>`;
+  return html;
+}
+function authorizedHintsHtml(authorized,cc){  // seit 1.8.69 für Briefe und Protokoll: ist er unter den Kopien?
+  const lines=authorized.map(a=>{
     // Seit 1.8.41 auch ohne E-Mail: die Vollmacht wird bei einer nachgetragenen Zustellung an ihn festgehalten.
-    const poa=!a.has_poa?'keine Vollmacht hinterlegt':(a.email?'die Vollmacht wird beim Versand an diese Adresse festgehalten':'die Vollmacht wird festgehalten, wenn eine Zustellung an ihn nachgetragen wird');
-    lines.push(`Empfangsbevollmächtigt: ${esc(a.name)} (${esc(a.role_label)})${a.email?` &lt;${esc(a.email)}&gt;`:' – ohne E-Mail'} – ${poa}`);
-  }
+    const inCopy=a.email&&cc.some(x=>x.toLowerCase()===a.email.toLowerCase());
+    const poa=!a.has_poa?'keine Vollmacht hinterlegt':(inCopy?'die Vollmacht wird beim Versand an diese Adresse festgehalten':'nicht unter „Kopie an:“ – die Vollmacht wird festgehalten, wenn eine Zustellung an ihn nachgetragen wird');
+    return `Empfangsbevollmächtigt: ${esc(a.name)} (${esc(a.role_label)})${a.email?` &lt;${esc(a.email)}&gt;`:' – ohne E-Mail'} – ${poa}`;
+  });
   return lines.length?`<div class="notice-info">${lines.join('<br>')}</div>`:'';
 }
 // Zeitstrahl (seit 1.8.41): bekannt seit → Meldung unterschrieben → versendet, Abstände vom Server.
@@ -634,16 +645,16 @@ async function freezeNoticeLetter(kind,btn){
 async function sendNoticeLetter(kind,btn){
   const k=notice.kinds.find(x=>x.kind===kind);
   const st=document.getElementById(`notice-${kind}-status`);
-  const cc=(document.getElementById(`notice-${kind}-cc`).value||'').trim();
   const current=k.letters.find(l=>l.current);
   if(needsCustomerConfirmation(kind))return;
   if(current?!current.reservation_printed:!k.reservation.reviewed){
     if(!confirm(`${k.label} ohne Vorbehalt senden? Ein rechtlich geprüfter Vorbehalt fehlt.`))return;
   }
+  if(k.copy_changes.length&&!confirm(`Die Beteiligten haben sich seit dem Brief geändert. Die Kopie geht an die Personen unter „Kopie an:“ im Brief, an ihre Adresse von heute. Senden?`))return;
   st.textContent='Wird gesendet …';
   try{
-    await postEmailDispatch(`${kind}-${checklistId}`,`/api/checklists/${checklistId}/notice-letters/${kind}/send-email`,{cc_email:cc||null,confirm_customer:noticeConfirmCustomer},btn);
-    delete noticeCc[kind];
+    // Seit 1.8.69 ohne CC: der Server nimmt die Personen unter „Kopie an:“ im Brief.
+    await postEmailDispatch(`${kind}-${checklistId}`,`/api/checklists/${checklistId}/notice-letters/${kind}/send-email`,{confirm_customer:noticeConfirmCustomer},btn);
     await loadNotice();
     const st2=document.getElementById(`notice-${kind}-status`);if(st2)st2.textContent='Versendet.';
     loadFollowUps();
@@ -653,24 +664,13 @@ async function sendNoticeLetter(kind,btn){
 // --- Abnahmeprotokoll an den Auftraggeber (seit 1.8.67, nur Büro) --------------------------------------------------------
 // Der Weg der Anzeigen: An fest der Auftraggeber, Bestätigung bei abweichendem Kunden, Versand nur der jüngsten gültigen festen
 // Fassung aus der Ablage, Zustellung nachtragen im Versandverlauf. Seit 1.8.68 CC fest: genau die in der Fassung eingefrorenen
-// Empfänger ("Kopie an:" im PDF), Hinweis vor dem Versand, wenn sich die Beteiligten seither geändert haben.
+// Empfänger ("Kopie an:" im PDF), seit 1.8.69 als Personen an ihre Adresse von heute (copyListHtml(), wie die Briefe); Hinweis vor
+// dem Versand, wenn sich die Beteiligten seither geändert haben.
 let protocolDispatch=null,protocolConfirmCustomer=false;
 function protocolCopyHtml(s){
-  const v=s.version,lines=[];
-  for(const c of v.copy_to){
-    const who=`${esc(c.name)} (${esc(c.role_label)})`;
-    if(!c.email)lines.push(`<div data-copy-nomail>${who} – ohne E-Mail-Adresse in der Fassung: Kopie auf anderem Weg zustellen und unten unter „Zustellung nachtragen“ festhalten</div>`);
-    else lines.push(`<div data-copy-mail>${who} &lt;${esc(c.email)}&gt;${c.email_source==='heute'?' <span class="muted">(Adresse von heute – Fassung vor 1.8.68)</span>':''}</div>`);
-  }
-  let html=`<label class="small">Kopie (CC) – genau die Empfänger der Fassung ${v.version_no}, wie im PDF unter „Kopie an:“</label>
-    <div class="notice-to" data-protocol-cc>${lines.length?lines.join(''):'<span class="muted">keine – in der Fassung steht keine Kopie</span>'}<span class="fixed">fest</span></div>`;
-  if(s.copy_changes.length)html+=`<div class="notice-warn" data-copy-changes><b>Beteiligte seit Fassung ${v.version_no} geändert:</b><br>${s.copy_changes.map(esc).join('<br>')}<br>Die Kopie geht trotzdem nur an die Empfänger der Fassung (wie im PDF). Weitere Empfänger: PDF auf anderem Weg zustellen und unten unter „Zustellung nachtragen“ festhalten.</div>`;
-  const auth=s.authorized.map(a=>{
-    const inCopy=a.email&&s.cc.some(x=>x.toLowerCase()===a.email.toLowerCase());
-    const poa=!a.has_poa?'keine Vollmacht hinterlegt':(inCopy?'die Vollmacht wird beim Versand an diese Adresse festgehalten':'nicht unter den Empfängern der Fassung – die Vollmacht wird festgehalten, wenn eine Zustellung an ihn nachgetragen wird');
-    return `Empfangsbevollmächtigt: ${esc(a.name)} (${esc(a.role_label)})${a.email?` &lt;${esc(a.email)}&gt;`:' – ohne E-Mail'} – ${poa}`;
-  });
-  return html+(auth.length?`<div class="notice-info">${auth.join('<br>')}</div>`:'');
+  const v=s.version;
+  return `<div data-protocol-cc>${copyListHtml(v.copy_to,s.copy_changes,`Kopie (CC) – genau die Personen unter „Kopie an:“ in Fassung ${v.version_no}, an ihre Adresse von heute`,`Beteiligte seit Fassung ${v.version_no} geändert`)}</div>`
+    +authorizedHintsHtml(s.authorized,s.cc);
 }
 function protocolDispatchHtml(s){
   const badge={versendet:'<span class="badge done">versendet</span>',unzustellbar:'<span class="badge bad">unzustellbar</span>',bereit:'<span class="badge open">bereit</span>'}[s.status]||'<span class="badge">wartet</span>';
@@ -701,7 +701,7 @@ async function loadProtocolDispatch(){
 async function sendProtocol(btn){
   const st=document.getElementById('protocolStatus');
   if(protocolDispatch.customer_mismatch&&!protocolConfirmCustomer){st.textContent='Bitte zuerst oben die Abweichung des Kunden prüfen und bestätigen.';document.getElementById('protocolConfirmCustomer')?.focus();return}
-  if(protocolDispatch.copy_changes.length&&!confirm(`Die Beteiligten haben sich seit Fassung ${protocolDispatch.version.version_no} geändert. Die Kopie geht trotzdem nur an die Empfänger der Fassung (wie im PDF unter „Kopie an:“). Senden?`))return;
+  if(protocolDispatch.copy_changes.length&&!confirm(`Die Beteiligten haben sich seit Fassung ${protocolDispatch.version.version_no} geändert. Die Kopie geht an die Personen unter „Kopie an:“ in der Fassung, an ihre Adresse von heute. Senden?`))return;
   st.textContent='Wird gesendet …';
   try{
     await postEmailDispatch(`protokoll-${checklistId}`,`/api/checklists/${checklistId}/protocol-dispatch/send-email`,{confirm_customer:protocolConfirmCustomer},btn);

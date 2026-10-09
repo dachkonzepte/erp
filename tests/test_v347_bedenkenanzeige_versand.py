@@ -121,7 +121,7 @@ def test_letter_from_report_and_notice_with_items_subject_copies_and_footer(mwor
     assert state["kinds"][0]["ready"] and state["customer_mismatch"] is None
     assert [s["key"] for s in state["timeline"]] == ["bekannt_seit", "meldung", "versendet"]
     assert state["timeline"][0]["at_local"] == "2026-10-02T07:45"
-    assert state["cc_prefill"] == "arch@example.com"
+    assert state["kinds"][0]["cc"] == ["arch@example.com"]  # seit 1.8.69 ohne Vorbelegung: die Personen unter "Kopie an:"
     assert _freeze(office, c).status_code == 200
     [letter] = _letters(db)
     content = json.loads(letter.content)
@@ -198,7 +198,7 @@ def test_send_by_mail_completes_send_task_creates_answer_task_and_freezes_power_
     c = _signed(mworld, router_test_client, deadline="2026-10-12")
     [send_task] = _tasks(db, SEND_TITLE)
     assert not _done(db, send_task) and _tasks(db, ANSWER_TITLE) == []
-    res = _send(office, c, cc_email="arch@example.com")
+    res = _send(office, c)  # seit 1.8.69 CC = "Kopie an:" im Brief
     assert res.status_code == 200, res.text
     [mail] = FakeSMTP.sent
     assert sorted(mail["recipients"]) == sorted([AG_EMAIL, "arch@example.com"])

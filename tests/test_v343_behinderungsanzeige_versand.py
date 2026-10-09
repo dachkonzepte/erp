@@ -154,7 +154,8 @@ def test_letter_from_the_sealed_sections_with_recipient_subject_copies_signature
 
     state = _state(office, c)
     assert _kind(state)["ready"] and not _kind(state, RESUME)["ready"]
-    assert state["recipient"]["email"] == AG_EMAIL and state["cc_prefill"] == "arch@example.com"
+    # seit 1.8.69 keine Vorbelegung mehr: CC sind die Personen, die beim Erstellen unter "Kopie an:" kommen
+    assert state["recipient"]["email"] == AG_EMAIL and _kind(state)["cc"] == ["arch@example.com"]
     res = office.post(f"/api/checklists/{c['id']}/notice-letters/{NOTICE}/freeze")
     assert res.status_code == 200, res.text
     [letter] = _letters(db)
@@ -169,8 +170,10 @@ def test_letter_from_the_sealed_sections_with_recipient_subject_copies_signature
         ("Ursache", "Zugang oder Gerüst"), ("Beschreibung der Ursache", "Gerüstbauer nicht erschienen"),
         ("Betroffene Leistungen", "Dachdeckung Nordseite"), ("Beginn der Behinderung", "02.10.2026"),
         ("Voraussichtliche Dauer", "etwa eine Woche")]
+    # seit 1.8.69 mit dem Kontakt (die Person) und der Adresse beim Erstellen (nur für den Hinweis)
     assert content["copy_to"] == [{"participant_id": content["copy_to"][0]["participant_id"],
-                                   "name": "Architekturbüro Plan", "role_label": "Architekt/Planer"}]
+                                   "contact_id": content["copy_to"][0]["contact_id"], "name": "Architekturbüro Plan",
+                                   "role_label": "Architekt/Planer", "email": "arch@example.com"}]
     assert content["signature"]["signer_name"] == "Olga Office" and content["signature"]["field_key"] == B + "unterschrift_buero"
     # Die Fotos mit der Prüfsumme aus der versiegelten Kopie der Unterschrift.
     signature = db.get(ChecklistAttachment, content["signature"]["attachment_id"])
@@ -372,16 +375,22 @@ def test_client_is_always_in_to_and_recipients_are_deduplicated(nworld, router_t
     office = _office(nworld, router_test_client)
     c = _signed(nworld, router_test_client)
     state = _state(office, c)
-    assert state["cc_prefill"] == "arch@example.com"
+    assert _kind(state)["cc"] == ["arch@example.com"]
+    # Seit 1.8.69 CC nicht mehr frei: An und CC aus der Anfrage zählen nicht, CC sind die Personen unter "Kopie an:".
     res = _send(office, c, to_email="fremd@example.com",
                 cc_email=f"arch@example.com; {AG_EMAIL.upper()}, ARCH@example.com, neu@example.com")
     assert res.status_code == 200, res.text
     dispatch = res.json()
     assert dispatch["to_recipients"] == AG_EMAIL
-    assert dispatch["cc_recipients"] == "arch@example.com, neu@example.com"
+    assert dispatch["cc_recipients"] == "arch@example.com"
     [mail] = FakeSMTP.sent
-    assert mail["recipients"] == [AG_EMAIL, "arch@example.com", "neu@example.com"]
-    assert "fremd@example.com" not in json.dumps(dispatch)
+    assert mail["recipients"] == [AG_EMAIL, "arch@example.com"]
+    assert "fremd@example.com" not in json.dumps(dispatch) and "neu@example.com" not in json.dumps(dispatch)
+    assert [(x["contact_name"], x["email"], x["note"]) for x in dispatch["copies"]] == [
+        ("Architekt", "arch@example.com", None),
+        ("Verwaltung mit AG-Adresse", AG_EMAIL.upper(), "dieselbe Adresse wie der Auftraggeber (An)"),
+        ("Eigentümer", "ARCH@example.com", None),
+        ("Ohne E-Mail", None, "keine E-Mail-Adresse")]
     # Ohne E-Mail des Auftraggebers kein Versand -- und auch keine Fassung.
     c2 = _signed(nworld, router_test_client)
     nworld["orders"]["mine"].project.customer.email = None
@@ -405,8 +414,8 @@ def test_always_the_archived_letter(nworld, router_test_client):
     db.commit()
     _participant(db, nworld, name="Später dazu", email="spaet@example.com")
     # Seit 1.8.44: der umbenannte Kunde weicht vom Kunden laut Auftrag ab -- erst mit Bestätigung.
-    assert _send(office, c, cc_email="spaet@example.com").status_code == 409
-    assert _send(office, c, cc_email="spaet@example.com", confirm_customer=True).status_code == 200
+    assert _send(office, c).status_code == 409
+    assert _send(office, c, confirm_customer=True).status_code == 200
     first, second = FakeSMTP.sent
     assert _attachment(first["message"]) == archived == _attachment(second["message"])
     assert db.scalar(select(func.count()).select_from(SentDocument)) == documents
@@ -433,7 +442,7 @@ def test_power_of_attorney_frozen_at_dispatch_and_unchanged_after_replacement(nw
     store_power_of_attorney(db, arch, filename="vollmacht.pdf", data=first_poa, user_name="Olga")
     store_power_of_attorney(db, hv, filename="hv.pdf", data=_pdf_bytes(b"HV"), user_name="Olga")
     c = _signed(nworld, router_test_client)
-    res = _send(office, c, cc_email="arch@example.com, bau@example.com")
+    res = _send(office, c)  # seit 1.8.69 CC = "Kopie an:" im Brief: Architekt und Bauleitung, nicht die Hausverwaltung
     assert res.status_code == 200, res.text
     rows = db.scalars(select(DispatchAuthorization).order_by(DispatchAuthorization.id)).all()
     assert [(r.contact_name, r.note) for r in rows] == [("Architekt", None), ("Bauleitung", "Keine Vollmacht hinterlegt.")]
@@ -444,13 +453,13 @@ def test_power_of_attorney_frozen_at_dispatch_and_unchanged_after_replacement(nw
     store_power_of_attorney(db, db.get(type(arch), arch.id), filename="neu.pdf", data=second_poa, user_name="Olga")
     assert _archive_bytes(frozen) == first_poa
     assert sent_documents_module.verify_sent_document(frozen)["status"] == "unveraendert"
-    assert _send(office, c, cc_email="arch@example.com").status_code == 200
+    assert _send(office, c).status_code == 200
     db.expire_all()
     rows = db.scalars(select(DispatchAuthorization).order_by(DispatchAuthorization.id)).all()
     assert [_archive_bytes(r.sent_document) for r in rows if r.sent_document] == [first_poa, second_poa]
     # Im Versandverlauf je Versand.
     items = office.get(f"/api/email-dispatches?document_type={NOTICE}&document_id={c['id']}").json()["items"]
-    assert [[a["contact_name"] for a in d["authorizations"]] for d in items] == [["Architekt"], ["Architekt", "Bauleitung"]]
+    assert [[a["contact_name"] for a in d["authorizations"]] for d in items] == [["Architekt", "Bauleitung"]] * 2
 
 
 def test_send_task_done_after_sending_by_mail_or_recorded_delivery(nworld, router_test_client):
@@ -516,7 +525,7 @@ def test_letter_and_authorization_are_immutable(nworld, router_test_client):
     arch = _participant(db, nworld, name="Architekt", email="arch@example.com", authorized=True)
     store_power_of_attorney(db, arch, filename="v.pdf", data=_pdf_bytes(), user_name="Olga")
     c = _signed(nworld, router_test_client)
-    assert _send(_office(nworld, router_test_client), c, cc_email="arch@example.com").status_code == 200
+    assert _send(_office(nworld, router_test_client), c).status_code == 200
     [letter] = _letters(db)
     letter.content = "{}"
     with pytest.raises(ArchiveImmutableError):

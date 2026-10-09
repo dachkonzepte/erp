@@ -4,6 +4,27 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.69 – Kopien an die Personen unter „Kopie an:“: Abnahmeprotokoll und Briefe der Anzeigen
+
+Nacharbeit zu Stufe 2c-2. Die Festlegungen 1.8.68 sind bestätigt, zwei davon geändert. Unter „Kopie an:“ sind jetzt die
+Empfänger als Personen eingefroren, nicht ihre Adressen: die Kopie geht an die Adresse von heute – auch an jemanden, der seither
+keine „Kopie bei Anzeigen“ mehr hat oder aus dem Projekt entfernt wurde, denn er steht im PDF. Der Hinweis vor dem Versand nennt
+alte und neue Adresse. Wer im Dokument steht und keine Mail bekommt – keine oder ungültige Adresse, nicht mehr im Adressbuch –,
+hält das Versandprotokoll je Person fest, Versandverlauf und Versandprotokoll zeigen es; eine ungültige Adresse sperrt den Versand
+nicht mehr. Die Adresse steht nicht im PDF (dort nur Name und Rolle), es war nichts zu melden.
+
+Die Briefe der Behinderungs- und Bedenkenanzeige hatten bis hierher ein freies, vorbelegtes CC – „Kopie an:“ im Brief und die
+tatsächlichen Empfänger konnten auseinanderlaufen. Jetzt gilt dieselbe Regel wie beim Protokoll: der Versand an den Auftraggeber
+bildet CC nur noch aus den Personen im Dokument. Ein Strukturtest hält fest, dass jedes PDF mit „Kopie an:“ eingetragen ist, seine
+Mails nur über diesen Weg gehen und je Dokumentart die Namen im versendeten PDF mit Cc übereinstimmen.
+
+Migration `5d2f8a6c1e47` (Tabelle `dispatch_copies`, Downgrade mit Bestand verweigert), geprüft unter SQLite und PostgreSQL 17
+mit Bestand aus 1.8.68. Neue `test_v371` (16), angepasst `test_v343`, `test_v347`, `test_v370` (sie hielten das freie CC bzw. die
+Adresse der Fassung fest); Gegenproben 14 von 14 rot; gegen PostgreSQL 116 grün; Klicktests `klicktest_protokoll_versand.py`
+17/17, `klicktest_behinderungsanzeige_versand.py` 42/42, unverändert grün Bedenkenanzeige 20/20, Abschluss 43/43, feste Fassung
+15/15. Volle Suite: 3104 grün, 0 rot (mit den opt-in-Tests gegen PostgreSQL). Festlegungen in
+`docs/archiv/abnahme-und-gewaehrleistung.md`, „Umsetzung 1.8.69“.
+
 ## 1.8.68 – Abnahmeprotokoll: Fotos der Mängel im PDF, Kopien an die eingefrorenen Empfänger
 
 Nachtrag zu Stufe 2c-2e. Das PDF des Abnahmeprotokolls zeigt jetzt die Fotos der Mängel – nur die, die bei der Unterschrift zum

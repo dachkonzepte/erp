@@ -4935,10 +4935,10 @@ class EmailDispatchResolve(BaseModel):
 
 class NoticeLetterSend(BaseModel):
     """Brief an den Auftraggeber per E-Mail (seit 1.8.40, app/notice_letters.py): An ist immer der Auftraggeber
-    und deshalb kein Feld -- eine mitgeschickte An-Adresse wird nicht beachtet. CC frei (mehrere mit Komma).
+    und deshalb kein Feld -- eine mitgeschickte An-Adresse wird nicht beachtet. CC bis 1.8.68 frei, seit 1.8.69 genau die
+    Personen unter "Kopie an:" im Brief -- ebenfalls kein Feld mehr, eine mitgeschickte CC-Adresse wird nicht beachtet.
     confirm_customer (seit 1.8.44): Kunde des Projekts und Kunde laut Auftrag fallen auseinander, das Büro hat es
     geprüft -- ohne diese Bestätigung 409."""
-    cc_email: str | None = None
     dispatch_key: str = Field(min_length=8, max_length=80)
     confirm_customer: bool = False
 

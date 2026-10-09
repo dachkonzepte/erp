@@ -88,6 +88,7 @@ async function postEmailDispatch(slot, url, payload, button) {
 .dh-note{margin-top:4px;padding:5px 7px;background:var(--soft);font-size:12px;white-space:pre-wrap}
 .dh-links a{color:var(--accent);font-weight:700;text-decoration:none;margin-left:8px;font-size:12px}
 .dh-hint{margin-top:6px;font-size:12px;color:var(--muted)}
+.dh-warn{margin-top:4px;padding:5px 7px;background:var(--warning-soft,#fdf3dc);color:var(--warning,#9b6a12);font-size:12px}
 .dh-form{margin-top:8px;padding:10px;border:1px solid var(--line);display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;align-items:end}
 .dh-form label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);font-weight:600}
 .dh-form input,.dh-form select,.dh-form textarea{font-family:inherit;font-size:13px;padding:6px 8px;min-height:34px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);width:100%}
@@ -216,6 +217,9 @@ function _dhRow(d, containerId, canRecord) {
       + (a.sent_document ? `Vollmacht festgehalten <a href="/api/sent-documents/${a.sent_document.id}/file" target="_blank" rel="noopener">öffnen</a>` : _dhEsc(a.note || 'keine Vollmacht festgehalten'))
       + '</div>';
   }
+  // Seit 1.8.69: wer unter „Kopie an:“ im Dokument steht, aber keine Mail bekam (keine oder ungültige Adresse, nicht mehr im Adressbuch).
+  const missed = (d.copies || []).filter(c => !c.email);
+  if (missed.length) extra += `<div class="dh-warn" data-copy-missed>Laut „Kopie an:“ ohne Mail: ${missed.map(c => `${_dhEsc(c.contact_name)} (${_dhEsc(c.role_label)}) – ${_dhEsc(c.note || '')}`).join('; ')}</div>`;
   // Vertrag (seit 1.8.33): welche Fassung hinausging -- document_number "AUF-… · Fassung N", seit 1.8.35 bei der
   // unterschriebenen Abschrift "AUF-… · Fassung N · unterschrieben": alles nach der Auftragsnummer. Seit 1.8.40
   // ebenso die Briefe an den Auftraggeber ("AUF-… · Fassung N").

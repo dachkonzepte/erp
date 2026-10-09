@@ -9,13 +9,15 @@ Anzeigen", ohne E-Mail).
 
     Büro (1400 px, hell)      Karte "Anzeige an den Auftraggeber": Behinderungsanzeige wartet auf die
                               Unterschrift Büro; nach der Unterschrift bereit, deutliche Warnung "Ohne
-                              Vorbehalt", An fest der Auftraggeber, CC vorbelegt, Hinweise (ohne E-Mail,
-                              Vollmacht); Vorschau als PDF.
+                              Vorbehalt", An fest der Auftraggeber, CC fest (seit 1.8.69: die Personen, die
+                              unter "Kopie an:" kommen -- Hausverwaltung "keine Mail"), Hinweis Vollmacht;
+                              Vorschau als PDF.
     Admin                     Einstellungen → Vorbehalte in Anzeigen: sechs Bausteine, VOB/B prüfen.
     Büro                      Warnung weg; Versand an einen SMTP-Empfänger im Skript: Umschlag An + CC,
                               Anhang = abgelegter Brief (SHA-256), Text mit Vorbehalt, "Kopie an:", Anrede;
-                              Karte "versendet", Versandverlauf mit festgehaltener Vollmacht; Aufgabe
-                              "Behinderungsanzeige versenden" erledigt; Versandprotokoll mit Link und Vollmacht.
+                              Karte "versendet", Versandverlauf mit festgehaltener Vollmacht und (seit 1.8.69)
+                              "Laut „Kopie an:“ ohne Mail: Hausverwaltung"; Aufgabe "Behinderungsanzeige
+                              versenden" erledigt; Versandprotokoll mit Link, Vollmacht und Kopie ohne Mail.
     Büro dunkel, 412 px       Karte lesbar, kein waagrechter Scrollbalken.
     Monteurin (412 px)        keine Karte, API 403; Wegfall ausfüllen und unterschreiben.
     Büro                      Anzeige der Wiederaufnahme: "Brief erstellen (für Post oder Fax)", Zustellung
@@ -196,11 +198,15 @@ async def _pruefen(tab, seed, p):
     p.pruefe("An fest: der Auftraggeber, kein Eingabefeld", await tab.js(
         f"[{BEH}.querySelector('[data-notice-to]').textContent,{BEH}.querySelectorAll('[data-notice-to] input').length]"),
         [f"Herr Max Muster <{AG}>fest", 0])
-    p.pruefe("CC vorbelegt mit 'Kopie bei Anzeigen'", await tab.js(
-        "document.getElementById('notice-behinderungsanzeige-cc').value"), ARCH)
+    # Seit 1.8.69 kein CC-Feld: die Personen, die beim Erstellen unter „Kopie an:“ kommen, fest mit ihrer Adresse von heute.
+    p.pruefe("CC fest: Kopie an mit Adresse, Hausverwaltung ohne Mail, kein Eingabefeld", await tab.js(
+        f"(()=>{{const l={BEH}.querySelector('[data-copy-list]');return [[...l.querySelectorAll('[data-copy-mail]')].map(e=>e.textContent),"
+        f"[...l.querySelectorAll('[data-copy-nomail]')].map(e=>e.textContent.split('.')[0]),!document.getElementById('notice-behinderungsanzeige-cc'),"
+        f"{BEH}.textContent.includes('kommen beim Erstellen des Briefs unter „Kopie an:“')]}})()"),
+        [[f"Architekturbüro Plan (Architekt/Planer) <{ARCH}>"], ["Hausverwaltung Ohne Mail (Hausverwaltung) – keine Mail: keine E-Mail-Adresse"],
+         True, True])
     hinweise = await tab.js(f"{BEH}.querySelector('.notice-info').textContent")
-    p.pruefe("Hinweise: ohne E-Mail und Vollmacht", ["Hausverwaltung Ohne Mail" in hinweise,
-                                                     "Vollmacht wird beim Versand" in hinweise], [True, True])
+    p.pruefe("Hinweis: Vollmacht", "Vollmacht wird beim Versand" in hinweise, True)
     vorschau = await tab.js(_sha_js(f"/api/checklists/{cid}/notice-letters/behinderungsanzeige/preview"))
     p.pruefe("Vorschau als PDF", vorschau[:2], [200, "application/pdf"])
     await tab.js(f"{BEH}.scrollIntoView({{block:'start'}})")
@@ -230,12 +236,10 @@ async def _pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"]["buero"])
     await tab.oeffnen(f"/checklisten/{cid}", f"document.getElementById('notice-behinderungsanzeige-send')")
     p.pruefe("Warnung nach der Prüfung weg", await tab.js(f"!{BEH}.querySelector('[data-reservation-warning]')"), True)
-    await tab.js("document.getElementById('notice-behinderungsanzeige-cc').value+=', ag@klicktest.example';"
-                 "noticeCc['behinderungsanzeige']=document.getElementById('notice-behinderungsanzeige-cc').value")
     await tab.js("document.getElementById('notice-behinderungsanzeige-send').click()")
     await tab.warten(f"{BEH} && {BEH}.querySelector('.badge').textContent==='versendet' && document.querySelector('#notice-behinderungsanzeige-history .dh-row')")
     p.pruefe("Versand: eine Mail", len(POSTFACH), 1)
-    p.pruefe("Versand: Umschlag An = Auftraggeber, CC entdoppelt", POSTFACH[0]["rcpts"] if POSTFACH else None, [AG, ARCH])
+    p.pruefe("Versand: Umschlag An = Auftraggeber, CC = Kopie an mit Adresse", POSTFACH[0]["rcpts"] if POSTFACH else None, [AG, ARCH])
     anhang = None
     for part in (POSTFACH[0]["message"].walk() if POSTFACH else []):
         if part.get_content_disposition() == "attachment":
@@ -258,6 +262,9 @@ async def _pruefen(tab, seed, p):
     verlauf = await tab.js("document.querySelector('#notice-behinderungsanzeige-history .dh-row').textContent")
     p.pruefe("Versandverlauf: Vollmacht festgehalten", ["Empfangsbevollmächtigt: Architekturbüro Plan" in verlauf,
                                                         "Vollmacht festgehalten" in verlauf, "Fassung 1" in verlauf], [True, True, True])
+    p.pruefe("Versandverlauf: Kopie ohne Mail festgehalten (seit 1.8.69)", await tab.js(
+        "document.querySelector('#notice-behinderungsanzeige-history [data-copy-missed]')?.textContent"),
+        "Laut „Kopie an:“ ohne Mail: Hausverwaltung Ohne Mail (Hausverwaltung) – keine E-Mail-Adresse")
     vollmacht = await tab.js(
         f"fetch('/api/email-dispatches?document_type=behinderungsanzeige&document_id={cid}').then(r=>r.json()).then(d=>d.items[0].authorizations[0].sent_document.sha256)")
     p.pruefe("Vollmacht in der Ablage = hinterlegte Vollmacht", vollmacht, seed["vollmacht_sha"])
@@ -269,9 +276,10 @@ async def _pruefen(tab, seed, p):
     p.pruefe("Büro: keine JS-Fehler (Versand)", tab.fehler, [])
 
     await tab.oeffnen(f"/versandprotokoll?typ=behinderungsanzeige&id={cid}", "!!document.querySelector('#rows tr td') && !document.querySelector('#rows td.empty')")
-    p.pruefe("Versandprotokoll: Link auf die Checkliste und Vollmacht", await tab.js(
-        f"[!!document.querySelector('#rows a[href=\"/checklisten/{cid}\"]'), document.querySelector('#rows').textContent.includes('Vollmacht Architekturbüro Plan')]"),
-        [True, True])
+    p.pruefe("Versandprotokoll: Link auf die Checkliste, Vollmacht und Kopie ohne Mail", await tab.js(
+        f"[!!document.querySelector('#rows a[href=\"/checklisten/{cid}\"]'), document.querySelector('#rows').textContent.includes('Vollmacht Architekturbüro Plan'),"
+        "document.querySelector('#rows [data-copy-missed]')?.textContent.includes('Hausverwaltung Ohne Mail')]"),
+        [True, True, True])
     p.pruefe("Versandprotokoll: Art im Filter", await tab.js(
         "[...document.getElementById('filterType').options].map(o=>o.value).filter(v=>['behinderungsanzeige','wiederaufnahme'].includes(v))"),
         ["behinderungsanzeige", "wiederaufnahme"])

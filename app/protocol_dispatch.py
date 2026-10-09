@@ -7,10 +7,11 @@ Ablage, E-Mail-Vorlage mit denselben Platzhaltern, "Zustellung nachtragen" und "
 Versandprotokoll.
 
 Kopie (CC) seit 1.8.68 nicht mehr frei, sondern genau die Empfänger, die in der Fassung eingefroren sind ("Kopie an:" im PDF,
-checklist_versions.copy_to, mit der E-Mail-Adresse beim Erstellen) -- PDF und Mail laufen nie auseinander. Wer dort ohne Adresse
-steht, bekommt die Kopie auf anderem Weg (Hinweis auf der Karte). Haben sich die Beteiligten mit "Kopie bei Anzeigen" seither
-geändert (neu, entfernt, andere Adresse, andere Angaben), zeigt die Karte das vor dem Versand (copy_changes()); versendet wird
-trotzdem an die Empfänger der Fassung. Herleitung: "Umsetzung 1.8.68".
+checklist_versions.copy_to) -- PDF und Mail laufen nie auseinander. Seit 1.8.69 als Personen, nicht als Adressen
+(app/frozen_copies.py, gemeinsam mit den Briefen der Anzeigen): die Kopie geht an ihre Adresse von heute; wer keine hat, bekommt
+keine Mail, das Versandprotokoll hält es fest (DispatchCopy). Haben sich die Beteiligten seither geändert (neu, entfernt, andere
+Adresse -- alte und neue --, andere Angaben), zeigt die Karte das vor dem Versand. Herleitung: "Umsetzung 1.8.68" und
+"Umsetzung 1.8.69".
 
 Versendet wird nur aus der Ablage: die jüngste gültige feste Fassung (app/checklist_versions.py), die die gültige Unterschrift des
 Auftraggebers zeigt -- nie neu erzeugt, nur mit stimmender Prüfsumme. Ist die Fassung überholt (eine Unterschrift darin verworfen),
@@ -30,12 +31,11 @@ from .acceptance_protocol import customer_signature
 from .berlin_time import to_berlin
 from .checklist_purposes import ACCEPTANCE_PURPOSE
 from .checklist_versions import latest_valid_version, shown_signature_ids
-from .models import Checklist, ChecklistVersion, EmailDispatch, Order, ProjectParticipant
+from .frozen_copies import cc_of, changes as copy_changes, resolve as resolve_copies
+from .models import Checklist, ChecklistVersion, EmailDispatch, Order
 from .notice_letters import (
-    NoticeStateError, client_address, client_recipients, copy_recipients, delivery_status, dispatch_to_client,
-    letter_was_sent,
+    NoticeStateError, client_address, client_recipients, delivery_status, dispatch_to_client, letter_was_sent,
 )
-from .project_participants import participant_info
 
 DOCUMENT_TYPE = "checkliste"  # Ablage und Versandprotokoll
 TEMPLATE_KEY = "abnahmeprotokoll"  # E-Mail-Vorlage (app/document_email_templates.py)
@@ -86,53 +86,10 @@ def _document(version: ChecklistVersion) -> bytes:
                                "wurde nichts versendet.") from exc
 
 
-def frozen_copies(db: Session, version: ChecklistVersion) -> list[dict]:
-    """Die Empfänger einer Kopie, wie in der Fassung eingefroren ("Kopie an:" im PDF), je mit der E-Mail-Adresse beim Erstellen
-    (seit 1.8.68). Eine Fassung von 1.8.66/1.8.67 hat noch keine Adresse: dann die desselben Beteiligten von heute
-    (email_source "heute") -- dieselbe Person wie im PDF; gibt es ihn nicht mehr, ohne Adresse."""
-    copies = []
-    for entry in json.loads(version.copy_to or "[]"):
-        if "email" in entry:
-            email, source = (entry["email"] or "").strip() or None, "fassung"
-        else:
-            row = db.get(ProjectParticipant, entry["participant_id"])
-            email, source = (participant_info(row)["email"] if row is not None else None), "heute"
-        copies.append({**entry, "email": email, "email_source": source})
-    return copies
-
-
-def frozen_cc(copies: list[dict], ag_email: str | None) -> list[str]:
-    """CC aus den eingefrorenen Empfängern: jede Adresse einmal, ohne die des Auftraggebers (der steht in An)."""
-    seen = {ag_email.strip().lower()} if ag_email else set()
-    cc = []
-    for c in copies:
-        if c["email"] and c["email"].lower() not in seen:
-            seen.add(c["email"].lower())
-            cc.append(c["email"])
-    return cc
-
-
-def copy_changes(db: Session, project_id: int, copies: list[dict]) -> list[str]:
-    """Was sich seit der Fassung an den Beteiligten mit "Kopie bei Anzeigen" geändert hat -- je Änderung ein Satz, leer wenn
-    nichts. Nur Hinweis: die Kopie geht trotzdem an die Empfänger der Fassung."""
-    def label(c):
-        return f"{c['name']} ({c['role_label']})"
-
-    today = {c["participant_id"]: c for c in copy_recipients(db, project_id)}
-    lines = []
-    for c in copies:
-        now = today.get(c["participant_id"])
-        if now is None:
-            lines.append(f"{label(c)} hat heute keine „Kopie bei Anzeigen“ mehr (entfernt, archiviert oder abgewählt).")
-            continue
-        if (now["name"], now["role_label"]) != (c["name"], c["role_label"]):
-            lines.append(f"{label(c)} heißt heute {label(now)}.")
-        if c["email_source"] == "fassung" and (now["email"] or "").lower() != (c["email"] or "").lower():
-            lines.append(f"{label(c)}: E-Mail-Adresse heute {now['email'] or 'keine'} statt {c['email'] or 'keine'}.")
-    frozen_ids = {c["participant_id"] for c in copies}
-    lines += [f"{label(now)} hat seither „Kopie bei Anzeigen“ und steht nicht in der Fassung."
-              for pid, now in today.items() if pid not in frozen_ids]
-    return lines
+def frozen_copies(db: Session, version: ChecklistVersion, project_id: int) -> list[dict]:
+    """Die Personen unter "Kopie an:" in der Fassung mit ihrer Adresse von heute (seit 1.8.69 über app/frozen_copies.py; 1.8.68
+    nahm die Adresse beim Erstellen)."""
+    return resolve_copies(db, json.loads(version.copy_to or "[]"), project_id)
 
 
 def _still_current(version_id: int, checklist_id: int):
@@ -149,9 +106,9 @@ def _still_current(version_id: int, checklist_id: int):
 
 def send_protocol(db: Session, checklist_id: int, *, dispatch_key: str | None = None, user=None,
                   confirm_customer: bool = False):
-    """Versendet die jüngste gültige Fassung an den Auftraggeber, CC genau die in der Fassung eingefrorenen Empfänger (seit
-    1.8.68, frozen_cc() -- kein freies CC mehr). NoticeStateError (Zustand, 409; CustomerMismatch ohne Bestätigung), ValueError
-    (Eingabe/Versand, 400), DispatchConflict (409)."""
+    """Versendet die jüngste gültige Fassung an den Auftraggeber, CC genau die in der Fassung eingefrorenen Personen (seit
+    1.8.68 kein freies CC mehr, seit 1.8.69 an ihre Adresse von heute). NoticeStateError (Zustand, 409; CustomerMismatch ohne
+    Bestätigung), ValueError (Eingabe/Versand, 400), DispatchConflict (409)."""
     from .email_dispatch import actor_of
 
     user_id, user_name = actor_of(user)
@@ -159,13 +116,12 @@ def send_protocol(db: Session, checklist_id: int, *, dispatch_key: str | None = 
     version = _require_version(db, checklist)  # Zustand zuerst, vor Empfänger und Datei
     order = db.get(Order, checklist.order_id)
     to, mismatch = client_address(order, confirm_customer)
-    cc = frozen_cc(frozen_copies(db, version), to)
     pdf = _document(version)
     return dispatch_to_client(
         db, checklist=checklist, order=order, template_key=TEMPLATE_KEY, label=LABEL, document_type=DOCUMENT_TYPE,
-        document=version.sent_document, pdf=pdf, to=to, cc_email=", ".join(cc) or None, dispatch_key=dispatch_key,
-        user_id=user_id,
-        user_name=user_name, mismatch=mismatch, check=_still_current(version.id, checklist.id),
+        document=version.sent_document, pdf=pdf, to=to, copies=frozen_copies(db, version, order.project_id),
+        dispatch_key=dispatch_key, user_id=user_id, user_name=user_name, mismatch=mismatch,
+        check=_still_current(version.id, checklist.id),
     )
 
 
@@ -188,8 +144,8 @@ def protocol_dispatch_document(db: Session, checklist: Checklist):
 
 def protocol_dispatch_state(db: Session, checklist_id: int) -> dict:
     """Alles für die Karte "Protokoll an den Auftraggeber" (nur Büro): An wie bei den Anzeigen, die Fassung, die hinausgeht,
-    ihre eingefrorenen Kopie-Empfänger samt CC und den Änderungen seither (seit 1.8.68), und der Stand (versendet = beim
-    Auftraggeber angekommen, wie bei den Anzeigen)."""
+    ihre eingefrorenen Kopie-Empfänger samt CC und den Änderungen seither (seit 1.8.68; seit 1.8.69 die Personen mit ihrer
+    Adresse von heute), und der Stand (versendet = beim Auftraggeber angekommen, wie bei den Anzeigen)."""
     from .sent_documents import sent_document_to_dict
 
     checklist = _protocol(db, checklist_id)
@@ -198,11 +154,10 @@ def protocol_dispatch_state(db: Session, checklist_id: int) -> dict:
     version = protocol_version(db, checklist)
     ready = version is not None
     recipients = client_recipients(db, order)
-    recipients.pop("cc_prefill")  # seit 1.8.68: kein freies CC
-    copies = frozen_copies(db, version) if ready else []
+    copies = frozen_copies(db, version, order.project_id) if ready else []
     return {
         **recipients, "checklist_id": checklist.id, "order_id": order.id,
-        "cc": frozen_cc(copies, recipients["recipient"]["email"]),
+        "cc": cc_of(copies, recipients["recipient"]["email"]),
         "copy_changes": copy_changes(db, order.project_id, copies) if ready else [],
         "order_number": order.order_number, "label": LABEL,
         "signed": signature is not None, "ready": ready,

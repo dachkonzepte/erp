@@ -90,18 +90,17 @@ def create_version(db: Session, checklist: Checklist, *, kind: str, signature: C
 
 def protocol_copy_to(db: Session, checklist: Checklist) -> list[dict] | None:
     """"Kopie an:" im PDF eines Abnahmeprotokolls (seit 1.8.67, Punkt 2): die Beteiligten mit "Kopie bei Anzeigen" (ohne
-    archivierte) -- dieselbe Liste wie in den Briefen der Anzeigen (app/notice_letters.py::copy_recipients()). None für jede
-    andere Checkliste."""
+    archivierte) -- dieselbe Liste wie in den Briefen der Anzeigen (app/frozen_copies.py::freeze()). None für jede andere
+    Checkliste. Seit 1.8.68 mit der Adresse beim Erstellen, seit 1.8.69 mit dem Kontakt: die Kopie geht an die Person, an ihre
+    Adresse von heute; die Adresse beim Erstellen dient nur dem Hinweis auf eine Änderung."""
     from .checklist_purposes import ACCEPTANCE_PURPOSE
+    from .frozen_copies import freeze
     from .models import Order
-    from .notice_letters import copy_recipients  # lokal: das Briefmodul zieht Checklisten und Folgen nach
 
     if checklist.template_version.purpose != ACCEPTANCE_PURPOSE or checklist.order_id is None:
         return None
     order = db.get(Order, checklist.order_id)
-    # seit 1.8.68 mit der E-Mail-Adresse beim Erstellen: genau an sie geht die Kopie beim Versand (PDF und Mail gleich)
-    return [{"participant_id": c["participant_id"], "name": c["name"], "role_label": c["role_label"], "email": c["email"]}
-            for c in copy_recipients(db, order.project_id)]
+    return freeze(db, order.project_id)
 
 
 def versions_of(db: Session, checklist_id: int) -> list[ChecklistVersion]:

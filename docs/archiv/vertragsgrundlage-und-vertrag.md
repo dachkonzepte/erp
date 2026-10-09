@@ -1013,7 +1013,9 @@ committen und den Rest auflisten -- so geschehen: **1.8.40 = Punkte 1–3 und ih
   erstellen und auf anderem Weg zustellen), dann die Fassung. An ist immer der Auftraggeber: `NoticeLetterSend` hat kein Feld
   dafür, eine mitgeschickte An-Adresse wird nicht beachtet. CC frei; `dispatch_email()` entdoppelt (auch eine CC gleich dem
   Auftraggeber). Vorbelegung CC: Beteiligte mit "Kopie bei Anzeigen" und E-Mail, ohne archivierte, entdoppelt, ohne die Adresse
-  des Auftraggebers. E-Mail-Vorlagen `behinderungsanzeige`/`wiederaufnahme` (Platzhalter `{anrede}`, `{auftragsnummer}`,
+  des Auftraggebers. **Seit 1.8.69 ersetzt**: kein freies CC mehr, sondern genau die Personen unter "Kopie an:" im Brief an ihre
+  Adresse von heute, wer keine Mail bekam steht im Versandverlauf (`docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung
+  1.8.69", Punkt 3). E-Mail-Vorlagen `behinderungsanzeige`/`wiederaufnahme` (Platzhalter `{anrede}`, `{auftragsnummer}`,
   `{kundenname}`, `{bauvorhaben}`, `{checklistennummer}`).
 - **Vollmacht beim Versand** (`dispatch_authorizations`, ORM-Sperre): neuer Haken `dispatch_email(before_send=…)` -- läuft nach dem
   Ablegen des PDFs und vor dem Senden, scheitert er, wird nichts gesendet. Je empfangsbevollmächtigtem Beteiligten, an dessen
@@ -1051,7 +1053,8 @@ committen und den Rest auflisten -- so geschehen: **1.8.40 = Punkte 1–3 und ih
      §-Angabe im Betreff. Der Witterungs-Hinweis (§ 6 Abs. 2 VOB/B) kommt nicht in den Brief -- er richtet sich ans Büro.
   5. Die Anzeige der Wiederaufnahme trägt die Unterschrift des Abschnitts Wegfall -- auch wenn die Monteurin unterschrieben hat.
   6. "Kopie an:" nennt alle Beteiligten mit "Kopie bei Anzeigen" (ohne archivierte Kontakte), auch ohne E-Mail (Kopie per
-     Post); CC vorbelegt nur die mit E-Mail.
+     Post); CC vorbelegt nur die mit E-Mail. (Seit 1.8.69: CC fest = die Personen unter "Kopie an:" an ihre Adresse von heute,
+     siehe `docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.69".)
   7. Vollmacht nur beim E-Mail-Versand an die Adresse eines empfangsbevollmächtigten Beteiligten; bei einer nachgetragenen
      Zustellung keine (der Empfänger ist dort Freitext).
   8. Die Aufgabe "versenden" wird auch durch eine nachgetragene Zustellung erledigt; die Anzeige der Wiederaufnahme berührt sie nicht.
