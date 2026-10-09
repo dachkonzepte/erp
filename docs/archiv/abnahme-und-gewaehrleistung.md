@@ -1912,7 +1912,7 @@ Bestätigt am 07.10.2026 (Vorgabe 2c-2e), mit den beiden Änderungen oben: 1.8.6
 Abnahme aus dem Protokoll und jede weitere Kopie), 1.8.62 Nr. 2 ist ersetzt (keine Schlüsse aus einer unlesbaren oder abweichenden
 Kopie).
 
-### Festlegungen 1.8.65 (Nr. 1 und 3 bestätigt am 09.10.2026; Nr. 2, 4 und 5 waren im Bericht nicht einzeln vorgelegt)
+### Festlegungen 1.8.65 (bestätigt am 09.10.2026: Nr. 1 und 3 mit der Vorgabe zu 1.8.68, Nr. 2, 4 und 5 nach der Einzelvorlage in "Umsetzung 1.8.69", Punkt 4)
 
 1. **Neue Kopien enthalten die Mängel im Protokoll**, auch einen nach der ersten Unterschrift verworfenen -- so sagen alle Kopien
    dasselbe. (Die Alternative, nur die Abnahme nach der ersten Unterschrift zu richten, ließe die Kopie des Auftraggebers ohne ihn.)
@@ -1998,7 +1998,7 @@ Kopie).
 Tabelle `checklist_versions` (Fremdschlüssel benannt). `downgrade()` verweigert, solange eine Fassung existiert. Kein Bestand:
 Unterschriften und Abschlüsse von vor 1.8.66 bekommen keine Fassung.
 
-### Festlegungen 1.8.66 (bestätigt am 09.10.2026 außer Nr. 4, die im Bericht nicht einzeln vorgelegt war)
+### Festlegungen 1.8.66 (bestätigt am 09.10.2026; Nr. 4 nach der Einzelvorlage in "Umsetzung 1.8.69", Punkt 4)
 
 1. **Auch der Abschluss und "gegenstandslos" legen eine Fassung ab** -- sonst würde das PDF einer abgeschlossenen Checkliste nach
    der letzten Unterschrift weiter neu erzeugt (Felder nach der letzten Unterschrift, Prüfsumme des Abschlusses). Download, Versand
@@ -2106,7 +2106,7 @@ Unterschriften und Abschlüsse von vor 1.8.66 bekommen keine Fassung.
 `checklist_versions.copy_to`, `order_acceptances.protocol_version_id` (benannter Fremdschlüssel) und `protocol_pdf_sha256`.
 `downgrade()` verweigert, solange eine Abnahme auf eine Fassung verweist oder eine Fassung "Kopie an:" trägt.
 
-### Festlegungen 1.8.67 (Nr. 1, 2, 5, 6, 7 bestätigt am 09.10.2026; Nr. 4 und "CC bleibt frei" aus Nr. 3 seit 1.8.68 ersetzt: Kopien genau an die Empfänger der Fassung; Nr. 8 war im Bericht nicht einzeln vorgelegt)
+### Festlegungen 1.8.67 (bestätigt am 09.10.2026: Nr. 1, 2, 5, 6, 7 mit der Vorgabe zu 1.8.68, Nr. 8 nach der Einzelvorlage in "Umsetzung 1.8.69", Punkt 4; Nr. 4 und "CC bleibt frei" aus Nr. 3 seit 1.8.68 ersetzt: Kopien genau an die Empfänger der Fassung)
 
 1. **Dokumentart `checkliste`** für Versand und Ablage des Protokolls -- keine neue Art; Versandverlauf und Versandprotokoll zeigen
    "Nr. … · Fassung N".
@@ -2338,7 +2338,7 @@ und dient seit 1.8.69 nur dem Hinweis. Nichts zu melden, nichts umgebaut.
   und neuem Beteiligten: die Namen unter "Kopie an:" im versendeten PDF sind genau die festgehaltenen Kopien, Cc genau ihre
   Adressen von heute.
 
-### Punkt 4: offene Festlegungen, je eine Zeile
+### Punkt 4: offene Festlegungen, je eine Zeile (alle fünf bestätigt am 09.10.2026, Vorgabe "Vor dem Echtbetrieb")
 
 - 1.8.65 Nr. 2: Eine fehlerhafte Kopie der ersten Unterschrift unter "Mängel" sperrt jede weitere Unterschrift darunter, den
   Abschluss und die Abnahme aus dem Protokoll, bis das Büro die Unterschrift verwirft.
@@ -2356,7 +2356,7 @@ und dient seit 1.8.69 nur dem Hinweis. Nichts zu melden, nichts umgebaut.
 Tabelle `dispatch_copies` (Fremdschlüssel auf `email_dispatches` benannt, UNIQUE je Versand und Beteiligtem). Kein Bestand:
 Versände vor 1.8.69 haben keine Zeilen. `downgrade()` verweigert, solange eine Zeile existiert.
 
-### Festlegungen 1.8.69 (bitte bestätigen)
+### Festlegungen 1.8.69 (bestätigt am 09.10.2026, Vorgabe "Vor dem Echtbetrieb"; zu Nr. 3: An bleibt Pflicht, siehe `docs/archiv/befund-vor-echtbetrieb.md`, "Vorab")
 
 1. **Die Person ist der Kontakt im Adressbuch**; bei einem Eintrag mit Verweis die Adresse aus dem Kunden- bzw. Lieferantenstamm.
    Dokumente von vor 1.8.69 kennen nur den Beteiligten: die Person über ihn; ist er aus dem Projekt entfernt, keine Mail
