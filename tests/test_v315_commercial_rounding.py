@@ -41,6 +41,7 @@ from app.time_tracking import create_manual_entry, summarize_entries
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.test_v213_inspection_items import _extract_pdf_text
 from tests.test_v283_recurring_costs import _base_payload
+from tests.leistungszeitraum import festschreiben
 
 ROOT = Path(__file__).resolve().parent.parent
 APP = ROOT / "app"
@@ -123,7 +124,7 @@ def test_round_hours_and_other_precisions():
 def _invoice(db, quantity, unit_price, vat_rate=Decimal("19.00"), finalize=False):
     order, _ = make_order_with_item(db, quantity=Decimal(quantity), unit_price=Decimal(unit_price), vat_rate=Decimal(vat_rate))
     invoice = create_schlussrechnung(db, order, due_date=DUE)
-    return finalize_and_send_invoice(db, invoice) if finalize else invoice
+    return festschreiben(db, invoice) if finalize else invoice
 
 
 def _pdf(db, invoice) -> bytes:

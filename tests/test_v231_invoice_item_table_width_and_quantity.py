@@ -19,12 +19,13 @@ from tests.test_v230_invoice_pdf_shared_frame import _page_text
 
 from app.document_page_margins import update_margins
 from app.invoices import add_invoice_item, create_schlussrechnung, finalize_and_send_invoice
+from tests.leistungszeitraum import festschreiben
 
 
 def _make_finalized_invoice(db, **kwargs):
     order, item = make_order_with_item(db, **kwargs)
     invoice = create_schlussrechnung(db, order)
-    invoice = finalize_and_send_invoice(db, invoice)
+    invoice = festschreiben(db, invoice)
     return invoice
 
 
@@ -83,7 +84,7 @@ def test_currency_removed_from_item_values_kept_in_headers_and_totals():
     order, _ = make_order_with_item(db, quantity=Decimal("3"), unit_price=Decimal("7"))
     invoice = create_schlussrechnung(db, order)
     add_invoice_item(db, invoice, short_text="Zweite Position", long_text="", unit="Stk", unit_price=Decimal("50"), ist_quantity=Decimal("1"))
-    invoice = finalize_and_send_invoice(db, invoice)
+    invoice = festschreiben(db, invoice)
 
     pdf_bytes = build_invoice_pdf(db, invoice)
     text = _extract_pdf_text(pdf_bytes)
@@ -104,7 +105,7 @@ def test_menge_and_eh_columns_appear_before_leistung_column():
 
     pos_left, _ = _char_x_range_mm(pdf_bytes, "Pos.")
     menge_left, _ = _char_x_range_mm(pdf_bytes, "Menge Einh.")
-    leistung_left, _ = _char_x_range_mm(pdf_bytes, "Leistung")
+    leistung_left, _ = _char_x_range_mm(pdf_bytes, "Leistung", whole_word=True)  # seit 1.8.74 steht "Leistungszeitraum" davor
     assert pos_left < menge_left < leistung_left
 
 

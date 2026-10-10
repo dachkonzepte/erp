@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from .grunddaten import GrunddatenFehlen, einzelzeile
 from .berlin_time import berlin_now
 from .models import (
-    CustomerProfile, GeneralSettings, Inquiry, NumberSequence, Project, Quote, Order,
+    CustomerProfile, GeneralSettings, Inquiry, Invoice, NumberSequence, Project, Quote, Order, Reminder,
 )
 
 DEFAULT_SEQUENCES = {
@@ -54,14 +54,38 @@ def format_sequence_number(pattern: str, value: int, year: int | None = None) ->
 
 
 def _existing_column(sequence_key: str):
+    """Spalte mit den vergebenen Nummern je Nummernkreis -- seit 1.8.74 auch Rechnung und Mahnung (vorher fehlten sie: wer
+    "nächste Nummer" zurücksetzte, bekam dort eine schon vergebene Nummer)."""
     mapping = {
         "customer": CustomerProfile.customer_number,
         "inquiry": Inquiry.inquiry_number,
         "project": Project.project_number,
         "quote": Quote.quote_number,
         "order": Order.order_number,
+        "invoice": Invoice.invoice_number,
+        "reminder": Reminder.reminder_number,
     }
     return mapping.get(sequence_key)
+
+
+class NumberBelowExisting(ValueError):
+    """Die nächste Nummer läge auf oder unter einer vergebenen desselben Formats und Jahres (seit 1.8.74) -- der Router
+    antwortet 409 mit der höchsten vergebenen."""
+
+
+def highest_existing(db: Session, sequence_key: str, format_pattern: str) -> tuple[int, str] | None:
+    """(laufende Nummer, Nummer) der höchsten vergebenen Nummer desselben Formats im laufenden Jahr (Berlin) -- ein Format
+    ohne Jahr vergleicht mit allen Nummern dieses Formats. None, wenn es keine gibt."""
+    column = _existing_column(sequence_key)
+    if column is None:
+        return None
+    regex = _pattern_regex(format_pattern, berlin_now().year)
+    best = None
+    for value in db.scalars(select(column).where(column.is_not(None))):
+        match = regex.fullmatch(value)
+        if match and (best is None or int(match.group(1)) > best[0]):
+            best = (int(match.group(1)), value)
+    return best
 
 
 def _pattern_regex(pattern: str, year: int) -> re.Pattern:
@@ -74,18 +98,11 @@ def _pattern_regex(pattern: str, year: int) -> re.Pattern:
 
 
 def _sync_from_existing(db: Session, sequence: NumberSequence) -> None:
-    column = _existing_column(sequence.sequence_key)
-    if column is None:
-        return
-    year = berlin_now().year
-    regex = _pattern_regex(sequence.format_pattern, year)
-    highest = 0
-    for value in db.scalars(select(column)).all():
-        match = regex.fullmatch(value or "")
-        if match:
-            highest = max(highest, int(match.group(1)))
-    if highest >= sequence.next_value:
-        sequence.next_value = highest + 1
+    """Sicherheitsnetz der Vergabe: liegt die nächste Nummer auf oder unter einer vergebenen (Nummer von Hand, Import, Bestand
+    vor 1.8.74), springt sie darüber. Die Einstellungen lehnen das dagegen ab (update_sequence(), seit 1.8.74)."""
+    best = highest_existing(db, sequence.sequence_key, sequence.format_pattern)
+    if best is not None and best[0] >= sequence.next_value:
+        sequence.next_value = best[0] + 1
 
 
 def load_sequence(db: Session, sequence_key: str) -> NumberSequence:
@@ -196,6 +213,13 @@ def update_sequence(
     if start_value < 0 or next_value < 0:
         raise ValueError("Start- und nächste Nummer müssen größer oder gleich 0 sein.")
     sequence = load_sequence(db, sequence_key)
+    # Seit 1.8.74: nicht auf oder unter eine vergebene Nummer desselben Formats und Jahres -- ablehnen mit der höchsten
+    # vergebenen, statt (wie bis 1.8.73 die Vorschau danach) still darüber zu springen; bei Rechnung und Mahnung entstand
+    # vorher sogar eine Dublette.
+    best = highest_existing(db, sequence_key, format_pattern.strip())
+    if best is not None and next_value <= best[0]:
+        raise NumberBelowExisting(f"Die nächste Nummer darf nicht auf oder unter einer vergebenen liegen: höchste vergebene "
+                                  f"Nummer in diesem Format ist {best[1]} -- nächste Nummer mindestens {best[0] + 1}.")
     sequence.format_pattern = format_pattern.strip()
     sequence.start_value = start_value
     sequence.next_value = next_value

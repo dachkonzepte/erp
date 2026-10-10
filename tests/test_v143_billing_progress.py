@@ -15,6 +15,7 @@ from app.invoices import (
 from app.models import Order, OrderItem, Customer, Project
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.orders import order_to_dict
+from tests.leistungszeitraum import festschreiben
 
 
 def db_session():
@@ -71,7 +72,7 @@ def test_finalisierte_abschlagsrechnung_zaehlt():
     db = db_session()
     order, _ = make_order_with_item(db, quantity=Decimal("100"), unit_price=Decimal("50"), vat_rate=Decimal("19.00"))
     invoice = create_abschlag_pauschal(db, order, lump_sum_net=Decimal("1000"))
-    finalize_and_send_invoice(db, invoice)
+    festschreiben(db, invoice)
     progress = compute_order_billing_progress(db, order.id)
     assert progress["invoiced_net"] == Decimal("1000.00")
     assert progress["invoiced_gross"] == Decimal("1190.00")  # 1000 * 1.19
@@ -81,7 +82,7 @@ def test_offener_betrag_ist_auftragswert_minus_abgerechnet():
     db = db_session()
     order, _ = make_order_with_item(db, quantity=Decimal("100"), unit_price=Decimal("50"))  # 5000€ netto, 5950€ brutto
     invoice = create_abschlag_pauschal(db, order, lump_sum_net=Decimal("2000"))
-    finalize_and_send_invoice(db, invoice)
+    festschreiben(db, invoice)
     data = order_to_dict(order, db)
     assert data["net_total"] == Decimal("5000.00")
     assert data["invoiced_net"] == Decimal("2000.00")
@@ -101,12 +102,12 @@ def test_stornierte_rechnung_und_ihr_storno_heben_sich_gegenseitig_auf():
     db = db_session()
     order, _ = make_order_with_item(db, quantity=Decimal("100"), unit_price=Decimal("50"))
     invoice = create_schlussrechnung(db, order)
-    finalize_and_send_invoice(db, invoice)
+    festschreiben(db, invoice)
     progress_vor_storno = compute_order_billing_progress(db, order.id)
     assert progress_vor_storno["invoiced_net"] == Decimal("5000.00")
 
     storno = create_storno_draft(db, invoice)
-    finalize_and_send_invoice(db, storno)
+    festschreiben(db, storno)
 
     progress_nach_storno = compute_order_billing_progress(db, order.id)
     assert progress_nach_storno["invoiced_net"] == Decimal("0")
@@ -117,9 +118,9 @@ def test_mehrere_abschlagsrechnungen_summieren_sich():
     db = db_session()
     order, _ = make_order_with_item(db, quantity=Decimal("100"), unit_price=Decimal("50"))
     inv1 = create_abschlag_pauschal(db, order, lump_sum_net=Decimal("1000"))
-    finalize_and_send_invoice(db, inv1)
+    festschreiben(db, inv1)
     inv2 = create_abschlag_pauschal(db, order, lump_sum_net=Decimal("1500"))
-    finalize_and_send_invoice(db, inv2)
+    festschreiben(db, inv2)
     progress = compute_order_billing_progress(db, order.id)
     assert progress["invoiced_net"] == Decimal("2500.00")
     assert progress["invoiced_gross"] == Decimal("2975.00")  # 2500 * 1.19

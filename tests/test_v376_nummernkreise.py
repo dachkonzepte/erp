@@ -35,6 +35,7 @@ from app.settings import DEFAULT_SEQUENCES, issue_number, load_sequence
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
 from tests.test_v375_rechnungen_sperren import _run, _vorbereiten, pg  # noqa: F401  (pg ist eine Fixture)
+from tests.leistungszeitraum import festschreiben, mit_zeitraum
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -157,9 +158,10 @@ def test_postgresql_two_orders_finalized_at_once_get_different_numbers(pg):
     """Der Nachweis aus 1.8.72 (Nebenbefund 1): vorher beide R-2026-0001."""
     Session, order_id = pg
     zweiter = _zweiter_auftrag(Session)
-    ids = [_vorbereiten(Session, lambda s, o=o: create_schlussrechnung(s, s.get(Order, o)).id) for o in (order_id, zweiter)]
-    first, second = _run(Session, lambda s: finalize_and_send_invoice(s, s.get(Invoice, ids[0])).invoice_number,
-                         lambda s: finalize_and_send_invoice(s, s.get(Invoice, ids[1])).invoice_number)
+    ids = [_vorbereiten(Session, lambda s, o=o: mit_zeitraum(s, create_schlussrechnung(s, s.get(Order, o))).id)
+           for o in (order_id, zweiter)]
+    first, second = _run(Session, lambda s: festschreiben(s, s.get(Invoice, ids[0])).invoice_number,
+                         lambda s: festschreiben(s, s.get(Invoice, ids[1])).invoice_number)
     assert isinstance(second, str) and first != second, (first, second)
     nummern = _vorbereiten(Session, lambda s: sorted(s.scalars(select(Invoice.invoice_number)).all()))
     assert nummern == sorted([first, second])
@@ -168,8 +170,8 @@ def test_postgresql_two_orders_finalized_at_once_get_different_numbers(pg):
 def test_postgresql_delete_waits_for_finalizing_and_is_rejected(pg):
     """Der Nachweis aus 1.8.72 (Nebenbefund 2): vorher löschte das DELETE die eben festgeschriebene Rechnung."""
     Session, order_id = pg
-    invoice_id = _vorbereiten(Session, lambda s: create_schlussrechnung(s, s.get(Order, order_id)).id)
-    first, second = _run(Session, lambda s: finalize_and_send_invoice(s, s.get(Invoice, invoice_id)).invoice_number,
+    invoice_id = _vorbereiten(Session, lambda s: mit_zeitraum(s, create_schlussrechnung(s, s.get(Order, order_id))).id)
+    first, second = _run(Session, lambda s: festschreiben(s, s.get(Invoice, invoice_id)).invoice_number,
                          lambda s: delete_invoice_draft(s, s.get(Invoice, invoice_id)))
     assert isinstance(second, InvoiceBlocked) and f"inzwischen festgeschrieben ({first})" in str(second), second
     assert _vorbereiten(Session, lambda s: s.get(Invoice, invoice_id).invoice_number) == first
@@ -177,10 +179,10 @@ def test_postgresql_delete_waits_for_finalizing_and_is_rejected(pg):
 
 def test_postgresql_finalizing_waits_for_the_delete_and_uses_no_number(pg):
     Session, order_id = pg
-    invoice_id = _vorbereiten(Session, lambda s: create_schlussrechnung(s, s.get(Order, order_id)).id)
+    invoice_id = _vorbereiten(Session, lambda s: mit_zeitraum(s, create_schlussrechnung(s, s.get(Order, order_id))).id)
     vorher = _next_value(Session, "invoice")
     _, second = _run(Session, lambda s: delete_invoice_draft(s, s.get(Invoice, invoice_id)) or "geloescht",
-                     lambda s: finalize_and_send_invoice(s, s.get(Invoice, invoice_id)))
+                     lambda s: festschreiben(s, s.get(Invoice, invoice_id)))
     assert isinstance(second, InvoiceBlocked) and str(second) == "Der Entwurf wurde inzwischen gelöscht.", second
     assert _vorbereiten(Session, lambda s: s.get(Invoice, invoice_id)) is None
     assert _next_value(Session, "invoice") == vorher
@@ -189,7 +191,7 @@ def test_postgresql_finalizing_waits_for_the_delete_and_uses_no_number(pg):
 def _mahnungsentwurf(Session, order_id):
     def build(s):
         schluss = create_schlussrechnung(s, s.get(Order, order_id), due_date=date.today() - timedelta(days=20))
-        return create_reminder(s, finalize_and_send_invoice(s, schluss), 1).id
+        return create_reminder(s, festschreiben(s, schluss), 1).id
     return _vorbereiten(Session, build)
 
 

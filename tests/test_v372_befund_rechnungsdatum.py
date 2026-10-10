@@ -29,6 +29,7 @@ from app.invoices import (
 from app.models import Invoice, PaymentTerm
 from tests.befund_vor_echtbetrieb import befund, vorbedingung
 from tests.test_v133_invoices import db_session, make_order_with_item
+from tests.leistungszeitraum import festschreiben
 
 SOMMER_UTC = datetime(2026, 7, 14, 22, 30)      # in Berlin 15.07.2026, 0:30 Uhr (MESZ)
 SILVESTER_UTC = datetime(2026, 12, 31, 23, 30)  # in Berlin 01.01.2027, 0:30 Uhr (MEZ)
@@ -72,7 +73,7 @@ def test_invoice_date_is_the_berlin_date(server_uhr, utc_naive):
     db = db_session()
     heute = server_uhr(utc_naive)
     order, _ = make_order_with_item(db)
-    invoice = finalize_and_send_invoice(db, _entwurf(db, order, utc_naive))
+    invoice = festschreiben(db, _entwurf(db, order, utc_naive))
     vorbedingung(invoice.invoice_number.startswith(f"R-{heute.year}-"), invoice.invoice_number)
     assert invoice.invoice_date == heute
 
@@ -101,7 +102,7 @@ def test_a_draft_finalized_later_is_not_already_due(server_uhr):
     order, _ = _auftrag_mit_zahlungsbedingung(db)
     invoice = _entwurf(db, order, SOMMER_UTC)
     heute = server_uhr(SOMMER_UTC + timedelta(days=21))  # drei Wochen später festgeschrieben und versendet
-    invoice = finalize_and_send_invoice(db, invoice)
+    invoice = festschreiben(db, invoice)
     assert invoice.due_date >= heute
 
 
@@ -117,7 +118,7 @@ def test_today_invoice_date_is_neither_editable_nor_renewed():
     invoice = create_schlussrechnung(db, order)
     invoice.invoice_date = date(2026, 7, 1)  # wie ein älterer Entwurf
     db.commit()
-    assert finalize_and_send_invoice(db, invoice).invoice_date == date(2026, 7, 1)
+    assert festschreiben(db, invoice).invoice_date == date(2026, 7, 1)
 
 
 # ---------------------------------------------------------------------------

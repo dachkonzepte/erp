@@ -40,6 +40,7 @@ from tests.test_v213_inspection_items import _extract_pdf_text
 from tests.test_v321_email_dispatch import (  # noqa: F401 -- Fixtures
     LOG_SECRET, FakeSMTP, _archive_path, _attachment, _configure_graph, _configure_smtp, _dispatches, graph, smtp,
 )
+from tests.leistungszeitraum import festschreiben
 
 OLD_LETTERHEAD = "Dachkonzepte Alt GmbH"
 NEW_LETTERHEAD = "Neuer Briefkopf GmbH"
@@ -468,7 +469,7 @@ def test_reprint_of_a_sent_cancellation_is_byte_identical(office_world, router_t
     original = make_sent_overdue_invoice(db)
     send_invoice_email(db, original, to_email="kunde@example.com", dispatch_key="rechnung-orig-0001")
     original_bytes = _attachment(FakeSMTP.sent[0]["message"])
-    storno = finalize_and_send_invoice(db, create_storno_draft(db, original))
+    storno = festschreiben(db, create_storno_draft(db, original))
     assert storno.invoice_type == "storno"
     send_invoice_email(db, storno, to_email="kunde@example.com", dispatch_key="rechnung-storno-0001")
     storno_bytes = _attachment(FakeSMTP.sent[1]["message"])

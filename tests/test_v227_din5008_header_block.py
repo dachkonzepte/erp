@@ -143,14 +143,15 @@ def test_reminder_pdf_without_customer_address_does_not_crash():
 # nachträglich gemessenen Zellenpolster-Fehler.
 # ---------------------------------------------------------------------------
 
-def _char_x_range_mm(pdf_bytes: bytes, needle: str) -> tuple[float, float] | None:
+def _char_x_range_mm(pdf_bytes: bytes, needle: str, *, whole_word: bool = False) -> tuple[float, float] | None:
+    """whole_word (seit 1.8.74): "Leistung" nicht in "Leistungszeitraum" finden."""
     import pypdfium2 as pdfium
 
     mm_per_pt = 25.4 / 72.0
     pdf = pdfium.PdfDocument(pdf_bytes)
     textpage = pdf[0].get_textpage()
     try:
-        searcher = textpage.search(needle, match_case=False)
+        searcher = textpage.search(needle, match_case=False, match_whole_word=whole_word)
         result = searcher.get_next()
         searcher.close()
         if result is None:

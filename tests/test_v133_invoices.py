@@ -21,6 +21,7 @@ from app.invoices import (
 )
 from app.models import Order, OrderItem, Customer, Project
 from app.project_pipeline_columns import default_pipeline_column_id
+from tests.leistungszeitraum import festschreiben
 
 
 def db_session():
@@ -142,7 +143,7 @@ def test_kumulierte_abrechnung_ueber_zwei_abschlaege_und_schlussrechnung():
     update_invoice_item(db, inv1, item1, ist_quantity=Decimal("40"))
     assert item1.billed_quantity == Decimal("40")  # 40 - 0 (noch nichts vorher)
     assert item1.billed_total == Decimal("2000")
-    finalize_and_send_invoice(db, inv1)
+    festschreiben(db, inv1)
     assert inv1.invoice_number is not None
     assert inv1.invoice_number.startswith("R-")
 
@@ -155,7 +156,7 @@ def test_kumulierte_abrechnung_ueber_zwei_abschlaege_und_schlussrechnung():
     update_invoice_item(db, inv2, item2, ist_quantity=Decimal("70"))
     assert item2.billed_quantity == Decimal("30")  # 70 - 40, NICHT 70
     assert item2.billed_total == Decimal("1500")
-    finalize_and_send_invoice(db, inv2)
+    festschreiben(db, inv2)
 
     # Schlussrechnung: Vorbelegung mit voller Menge (100), abgerechnet wird der Rest
     inv3 = create_schlussrechnung(db, order)
@@ -163,7 +164,7 @@ def test_kumulierte_abrechnung_ueber_zwei_abschlaege_und_schlussrechnung():
     assert item3.ist_quantity == Decimal("100")
     assert item3.billed_quantity == Decimal("30")  # 100 - 70
     assert item3.billed_total == Decimal("1500")
-    finalize_and_send_invoice(db, inv3)
+    festschreiben(db, inv3)
 
     # Summe über alle drei Rechnungen muss den vollen Auftragswert ergeben
     total_billed = item1.billed_total + item2.billed_total + item3.billed_total
@@ -194,7 +195,7 @@ def test_finalize_vergibt_nummer_und_sperrt_bearbeitung():
     order, _ = make_order_with_item(db)
     invoice = create_abschlag_pauschal(db, order, lump_sum_net=Decimal("1000"), progress_description=None)
     assert is_invoice_editable(invoice) is True
-    finalize_and_send_invoice(db, invoice)
+    festschreiben(db, invoice)
     assert invoice.status == "versendet"
     assert invoice.invoice_number is not None
     assert is_invoice_editable(invoice) is False
@@ -210,9 +211,9 @@ def test_finalize_kann_nicht_zweimal_aufgerufen_werden():
     db = db_session()
     order, _ = make_order_with_item(db)
     invoice = create_abschlag_pauschal(db, order, lump_sum_net=Decimal("1000"), progress_description=None)
-    finalize_and_send_invoice(db, invoice)
+    festschreiben(db, invoice)
     try:
-        finalize_and_send_invoice(db, invoice)
+        festschreiben(db, invoice)
         assert False, "hätte ValueError auslösen müssen"
     except ValueError:
         pass
@@ -223,8 +224,8 @@ def test_invoice_numbers_sind_fortlaufend_ueber_mehrere_rechnungen():
     order, _ = make_order_with_item(db)
     inv1 = create_abschlag_pauschal(db, order, lump_sum_net=Decimal("100"), progress_description=None)
     inv2 = create_abschlag_pauschal(db, order, lump_sum_net=Decimal("200"), progress_description=None)
-    finalize_and_send_invoice(db, inv1)
-    finalize_and_send_invoice(db, inv2)
+    festschreiben(db, inv1)
+    festschreiben(db, inv2)
     assert inv1.invoice_number != inv2.invoice_number
 
 
@@ -237,7 +238,7 @@ def test_mark_paid_nur_ab_versendet():
         assert False, "hätte ValueError auslösen müssen (noch Entwurf)"
     except ValueError:
         pass
-    finalize_and_send_invoice(db, invoice)
+    festschreiben(db, invoice)
     mark_invoice_paid(db, invoice, paid_date=date(2026, 10, 1))
     assert invoice.status == "bezahlt"
     assert invoice.paid_date == date(2026, 10, 1)
@@ -302,7 +303,7 @@ def test_storno_kehrt_betraege_um_und_sperrt_original_erst_beim_versenden():
     db = db_session()
     order, _ = make_order_with_item(db, quantity=Decimal("10"), unit_price=Decimal("100"))
     original = create_schlussrechnung(db, order)
-    finalize_and_send_invoice(db, original)
+    festschreiben(db, original)
     assert original.status == "versendet"
 
     storno = create_storno_draft(db, original)
@@ -312,7 +313,7 @@ def test_storno_kehrt_betraege_um_und_sperrt_original_erst_beim_versenden():
     # Original bleibt unangetastet, solange der Storno-Entwurf nicht versendet ist
     assert original.status == "versendet"
 
-    finalize_and_send_invoice(db, storno)
+    festschreiben(db, storno)
     assert storno.status == "versendet"
     assert storno.invoice_number is not None
     assert storno.invoice_number != original.invoice_number
@@ -328,10 +329,10 @@ def test_stornierte_rechnung_zaehlt_nicht_mehr_als_vorheriger_stand():
 
     inv1 = create_abschlag_leistungsstand(db, order)
     update_invoice_item(db, inv1, inv1.items[0], ist_quantity=Decimal("40"))
-    finalize_and_send_invoice(db, inv1)
+    festschreiben(db, inv1)
 
     storno = create_storno_draft(db, inv1)
-    finalize_and_send_invoice(db, storno)  # inv1 ist jetzt storniert
+    festschreiben(db, storno)  # inv1 ist jetzt storniert
 
     inv2 = create_abschlag_leistungsstand(db, order)
     item2 = inv2.items[0]

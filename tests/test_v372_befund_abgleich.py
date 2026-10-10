@@ -38,6 +38,7 @@ from app.time_tracking import create_manual_entry
 from tests.befund_vor_echtbetrieb import pg_sitzung, vorbedingung
 from tests.test_v153_mahnwesen import db_session
 from tests.test_v325_contract_basis import beauftragen, make_quote
+from tests.leistungszeitraum import festschreiben
 
 
 def _angebot(db, nummer: str, *, titel: bool = False):
@@ -115,10 +116,10 @@ def test_final_invoice_after_sync_bills_the_order_once():
     doppelt abgerechnet."""
     db = db_session()
     quote_id, order_id, _ = _welt(db)
-    finalize_and_send_invoice(db, _leistungsstand(db, order_id, "4"))
+    festschreiben(db, _leistungsstand(db, order_id, "4"))
     _angebot_aendern(db, quote_id)
     _abgleich(db, order_id)
-    finalize_and_send_invoice(db, create_schlussrechnung(db, load_order(db, order_id)))
+    festschreiben(db, create_schlussrechnung(db, load_order(db, order_id)))
     assert compute_order_billing_progress(db, order_id)["invoiced_net"] == _auftragssumme(db, order_id)
 
 
@@ -141,7 +142,7 @@ def test_finalized_invoice_keeps_its_order_item_after_sync():
     """3c (seit 1.8.71 behoben)."""
     db = db_session()
     quote_id, order_id, _ = _welt(db)
-    invoice = finalize_and_send_invoice(db, _leistungsstand(db, order_id, "4"))
+    invoice = festschreiben(db, _leistungsstand(db, order_id, "4"))
     rows = {i.id: _position(db, i.source_order_item_id) for i in invoice.items}
     vorbedingung(list(rows.values()) == [(order_id, "1", "Eindecken")], str(rows))
     _angebot_aendern(db, quote_id)
@@ -196,7 +197,7 @@ def _pg_vorbereiten(db, fall):
     elif fall == "rechnung_entwurf":
         _leistungsstand(db, order_id, "4")
     elif fall == "rechnung":
-        finalize_and_send_invoice(db, _leistungsstand(db, order_id, "4"))
+        festschreiben(db, _leistungsstand(db, order_id, "4"))
     _angebot_aendern(db, quote_id)
     return order_id
 

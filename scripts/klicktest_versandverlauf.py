@@ -69,6 +69,12 @@ def befuellen(db, k):
     from app.project_pipeline_columns import default_pipeline_column_id
     from app.reminders import compute_reminder_status, create_reminder, ensure_default_reminder_levels, finalize_and_send_reminder
 
+    def festschreiben(inv):  # seit 1.8.74: Leistungszeitraum Pflicht beim Festschreiben
+        from app.invoices import update_invoice_header
+        if inv.service_period_start is None:
+            update_invoice_header(db, inv, service_period_start=date(2026, 9, 1), service_period_end=date(2026, 9, 30))
+        return finalize_and_send_invoice(db, inv)
+
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         smtp_port = s.getsockname()[1]
@@ -89,7 +95,7 @@ def befuellen(db, k):
     db.add(OrderItem(order_id=auftrag.id, sort_order=10, position_number="1", short_text="Dacheindeckung",
                      quantity=Decimal("10"), unit="m²", unit_price=Decimal("50")))
     db.commit()
-    rechnung = finalize_and_send_invoice(db, create_schlussrechnung(db, auftrag, due_date=date.today() - timedelta(days=20)))
+    rechnung = festschreiben(create_schlussrechnung(db, auftrag, due_date=date.today() - timedelta(days=20)))
     ensure_default_reminder_levels(db)
     mahnung = finalize_and_send_reminder(db, create_reminder(db, rechnung, compute_reminder_status(db, rechnung)["next_level"]))
 

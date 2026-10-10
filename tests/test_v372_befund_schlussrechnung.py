@@ -39,13 +39,14 @@ from app.reminders import create_reminder, finalize_and_send_reminder
 from tests.befund_vor_echtbetrieb import befund, vorbedingung
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
+from tests.leistungszeitraum import ZEITRAUM, festschreiben
 
 # Auftrag: 100 m² x 50 EUR = 5.000 EUR netto, 19 % = 5.950 EUR brutto.
 AUFTRAG_NETTO, AUFTRAG_BRUTTO = Decimal("5000"), Decimal("5950")
 
 
 def _final(db, invoice):
-    return finalize_and_send_invoice(db, invoice)
+    return festschreiben(db, invoice)
 
 
 def _leistungsstand(db, order, ist):
@@ -239,6 +240,8 @@ def test_cancellation_of_a_legacy_lump_sum_invoice_reverses_its_amount():
     pauschal = create_abschlag_pauschal(db, order, lump_sum_net=Decimal("2000"))
     db.delete(pauschal.items[0])  # so stehen sie in der Datenbank (projektliste-und-mappe.md, 1.3.24)
     pauschal.rounding_rule = None  # vor 1.8.11 versendet
+    # Zeitraum direkt (seit 1.8.74 Pflicht) -- das Kopf-Update legte die fehlende Position wieder an
+    pauschal.service_period_start, pauschal.service_period_end = ZEITRAUM
     db.commit()
     db.refresh(pauschal)
     pauschal = _final(db, pauschal)

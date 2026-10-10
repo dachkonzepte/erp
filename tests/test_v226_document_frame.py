@@ -29,6 +29,7 @@ from app.routers.document_layout import router as document_layout_router
 from tests.test_v153_mahnwesen import db_session
 from tests.test_v213_inspection_items import _extract_pdf_text
 from tests.test_v167_pagination import count_pdf_pages
+from tests.leistungszeitraum import festschreiben
 
 
 # ---------------------------------------------------------------------------
@@ -616,7 +617,7 @@ def test_invoice_pdf_has_no_footer_page_number_by_default():
     db = db_session()
     order, item = make_order_with_item(db)
     invoice = create_schlussrechnung(db, order)
-    invoice = finalize_and_send_invoice(db, invoice)
+    invoice = festschreiben(db, invoice)
 
     pdf_bytes = build_invoice_pdf(db, invoice)
     text = _extract_pdf_text(pdf_bytes)

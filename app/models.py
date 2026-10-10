@@ -1652,11 +1652,21 @@ class Invoice(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     invoice_number: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
-    invoice_type: Mapped[str] = mapped_column(String(30), index=True)  # 'abschlag_pauschal' | 'abschlag_leistungsstand' | 'schluss' | 'storno'
+    invoice_type: Mapped[str] = mapped_column(String(30), index=True)  # 'abschlag_pauschal' | 'abschlag_leistungsstand' | 'schluss' | 'aufwand' | 'storno'
     status: Mapped[str] = mapped_column(String(20), default="entwurf", index=True)  # 'entwurf' | 'versendet' | 'bezahlt' | 'storniert'
     invoice_date: Mapped[date] = mapped_column(Date, default=date.today)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     paid_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Leistungszeitraum (seit 1.8.74, Regel: jede Rechnung hat einen): Pflicht beim Festschreiben, Ende >= Beginn
+    # (app/invoices.py::finalize_block_reason()); der Vorschlag (app/service_period.py) wird nie still eingetragen. Ein
+    # Storno übernimmt den Zeitraum der stornierten Rechnung. Leer = vor 1.8.74 festgeschrieben (bleibt so). Migration
+    # 9b4e2c7a1d58.
+    service_period_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    service_period_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Nur Rechnung aus Aufwand: erster und letzter Arbeitstag der übernommenen Zeitbuchungen, beim Anlegen festgehalten --
+    # Quelle des Vorschlags, denn welche Buchungen abgerechnet wurden, steht sonst nirgends (seit 1.8.74).
+    billed_work_from: Mapped[date | None] = mapped_column(Date, nullable=True)
+    billed_work_to: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Bei invoice_type='storno': welche Rechnung wird hiermit storniert. Bewusst
     # nur als FK-Spalte, ohne eigene ORM-Relationship -- vermeidet Komplexität

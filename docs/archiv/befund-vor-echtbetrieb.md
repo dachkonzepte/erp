@@ -910,7 +910,7 @@ Abschlag nach Leistungsstand kennt sie nicht (40 % = 2.000 € unabhängig davon
 - Mit der vorgesehenen eindeutigen Rechnungsnummer (Datenbank-Bedingung) schlüge eine solche Dublette am Speichern fehl (500) statt
   still zu entstehen.
 
-### Festlegungen – Bitte bestätigen
+### Festlegungen 1.8.73 (bestätigt am 10.10.2026, Vorgabe 1.8.74)
 
 1. Gesperrt wird mit einem UPDATE ohne Änderung statt `SELECT … FOR UPDATE` -- dieselbe Wirkung unter PostgreSQL, dazu unter SQLite
    (Entwicklung) die Schreibsperre der Datenbank; die Sperre hält bis zum Commit. Ein Ablauf, der mehrere Nummern zieht
@@ -952,6 +952,123 @@ Abschlag nach Leistungsstand kennt sie nicht (40 % = 2.000 € unabhängig davon
    Warnung. GoBD-relevant; die übrigen fünf Nummernkreise haben den Abgleich.
 2. `_sync_from_existing()` lädt bei jeder Vergabe alle Nummern der Tabelle und prüft sie in Python -- wächst mit dem Bestand.
 
+## Umsetzung 1.8.74: Leistungszeitraum, nächste Nummer nicht auf oder unter eine vergebene
+
+### Vorgabe vom 10.10.2026 (übernommen wie gegeben)
+
+1.8.73 geprüft, Festlegungen 1–5 bestätigt.
+Bitte im nächsten Bericht:
+- welcher Test rot war und welche Erwartung du geändert hast (eine Zeile),
+- Archiv-Punkte 7 und 9 aus „Umsetzung 1.8.72“ im Wortlaut.
+
+1.8.74:
+- Einstellungen, alle sieben Nummernkreise: Die nächste Nummer darf nicht auf oder unter eine vorhandene Nummer desselben Formats
+  und Jahres gesetzt werden. Ablehnung mit Meldung, die die höchste vergebene Nummer nennt; kein stilles Überspringen.
+- Leistungszeitraum (Regel: jede Rechnung hat einen):
+  - Felder Beginn/Ende an der Rechnung, Ende ≥ Beginn, auf dem PDF. Pflicht beim Festschreiben, sonst 409 mit Grund.
+  - Vorschlag im Entwurf mit Quellenangabe, Übernahme per Klick, nicht still eintragen:
+    - Abschlag: erste bis letzte Zeitbuchung nach Ende des Zeitraums des vorigen gültigen Abschlags.
+    - Rechnung aus Aufwand: erste bis letzte abgerechnete Zeitbuchung.
+    - Schlussrechnung: erste Zeitbuchung des Auftrags bis Abnahmedatum, ohne Abnahme bis letzte Zeitbuchung.
+    - Ohne Zeitbuchungen: geplanter Zeitraum des Auftrags.
+  - Storno übernimmt den Zeitraum der stornierten Rechnung.
+  - Festgeschriebener Altbestand bleibt unverändert.
+- Tests mit Gegenprobe.
+Die Datenbank-Bedingung für eindeutige Nummern folgt nach meiner Prüfabfrage auf dem Server.
+
+### Vorweg
+
+- Festlegungen 1.8.73 an der Überschrift als bestätigt markiert.
+- Der rote Test in 1.8.73: `tests/test_projects.py::test_project_number_sequence` -- er rief `next_project_number()` einmal nur zum
+  Nachsehen auf (erwartete "…0001", nahm für das Projekt dieselbe Nummer und danach "…0002"); jetzt bekommt das Projekt die erste
+  gezogene Nummer, danach "…0002".
+- Archiv-Punkte 7 und 9 aus "Umsetzung 1.8.72" stehen dort unverändert (bei 9 seit 1.8.73 der Zusatz zu "Entwurf löschen").
+
+### Was gebaut ist
+
+- **Nächste Nummer** (`app/settings.py::update_sequence()`, alle sieben Nummernkreise): liegt sie auf oder unter der höchsten
+  vergebenen Nummer desselben Formats im laufenden Jahr (Berlin; ein Format ohne Jahr gegen alle Nummern dieses Formats), lehnt das
+  Speichern mit 409 ab: "Die nächste Nummer darf nicht auf oder unter einer vergebenen liegen: höchste vergebene Nummer in diesem Format
+  ist R-2026-0042 -- nächste Nummer mindestens 43." Nichts wird gespeichert (`NumberBelowExisting`, `highest_existing()`). Vorher sprang
+  die Vorschau danach still über die vergebenen -- bei Rechnung und Mahnung nicht einmal das: `_existing_column()` kennt sie jetzt
+  (Nebenbefund 1 aus 1.8.73). Die Vergabe selbst gleicht weiter mit den vergebenen ab (Sicherheitsnetz, Festlegung 2).
+- **Leistungszeitraum** (`Invoice.service_period_start/_end`, Migration `9b4e2c7a1d58`, `app/service_period.py`):
+  - Pflicht beim Festschreiben, jede Art auch Storno: fehlt Beginn oder Ende oder liegt das Ende vor dem Beginn, antwortet
+    Festschreiben 409 mit Grund ("Der Leistungszeitraum fehlt (Ende) -- jede Rechnung braucht einen. …"); die Rechnungsseite zeigt
+    den Grund statt "Rechnung finalisieren" (`finalize_block`, nach den Sperren aus 1.8.72).
+  - Speichern im Entwurf über den Rechnungskopf (`PUT /api/invoices/{id}`, je Feld einzeln): Ende vor Beginn -- auch gegen den
+    gespeicherten Wert der anderen Seite -- 400 mit Grund.
+  - PDF unter der Überschrift: "Leistungszeitraum: 01.09.2026 bis 18.09.2026", an einem Tag "Leistungsdatum: 08.09.2026".
+  - Storno übernimmt Beginn und Ende der stornierten Rechnung beim Anlegen.
+  - Vorschlag im Entwurf (`invoice_to_dict()["service_period_proposal"]`: Beginn, Ende, Quelle), nur gelesen; die Rechnungsseite
+    zeigt ihn mit Quelle und "Übernehmen" (speichert beide Felder); ohne Daten den Grund, warum es keinen gibt.
+  - Rechnung aus Aufwand hält beim Anlegen den ersten und letzten Arbeitstag der übernommenen Buchungen fest
+    (`Invoice.billed_work_from/_to`) -- welche Buchungen abgerechnet wurden, stand sonst nirgends.
+  - Altbestand: keine Spalte wird befüllt; festgeschriebene Rechnungen ohne Zeitraum bleiben, wie sie waren (PDF ohne Zeile,
+    unveränderlich).
+
+### Festlegungen – Bitte bestätigen
+
+1. Nächste Nummer: Ablehnung mit 409 (die übrigen Fehler der Seite bleiben 422). Gemessen am neuen Format im laufenden Jahr; die
+   Startnummer prüft nichts (sie gilt erst beim Jahreswechsel).
+2. Die Vergabe springt weiter still über vergebene Nummern, wenn die nächste Nummer an den Einstellungen vorbei darunter liegt
+   (Nummer von Hand, Import, Datenbank) -- statt das Festschreiben einer Rechnung zu blockieren. "Kein stilles Überspringen" gilt für
+   das Speichern in den Einstellungen.
+3. Pflicht für jede Rechnungsart, auch Storno. Storno einer Rechnung ohne Zeitraum (vor 1.8.74): kein Vorschlag, von Hand eintragen.
+4. Zeitbuchungen im Vorschlag: gebucht, mit Stunden, ohne Schlechtwetter -- dieselbe Auswahl wie die Rechnung aus Aufwand; Fahrzeit
+   zählt.
+5. Abschlag: "vorig" sind alle festgeschriebenen, nicht stornierten Abschläge (beide Arten) desselben Auftrags mit Zeitraum, maßgeblich
+   das späteste Ende; einer ohne Zeitraum (Altbestand) zählt nicht. Gibt es Buchungen, aber keine danach: kein Vorschlag (mit Grund),
+   nicht der geplante Zeitraum.
+6. Schluss: Abnahmedatum = jüngstes Datum einer nicht verworfenen Abnahme "abgenommen"; eine verweigerte zählt nicht. Liegt es vor der
+   ersten Buchung: bis zur letzten Buchung, mit Hinweis.
+7. Ohne Zeitbuchungen am Auftrag: geplanter Zeitraum; ist nur Beginn oder Ende geplant, schlägt der Vorschlag nur dieses vor. Aufwand
+   nur mit Material (oder vor 1.8.74 angelegt): ebenfalls der geplante Zeitraum.
+8. Ende vor Beginn: beim Speichern 400 (wie die übrigen Fehler im Rechnungskopf), beim Festschreiben 409. Keine Datenbank-Bedingung
+   (Geschäftsregel, wie 1.8.72 Nr. 8).
+9. "Übernehmen" speichert sofort; das Ändern eines Datumsfelds speichert nur dieses Feld.
+
+### Tests und Prüfung
+
+- Neu `tests/test_v377_leistungszeitraum.py` (26): nächste Nummer je Nummernkreis (7) auf und unter der höchsten abgelehnt, darüber
+  gespeichert; Vorjahr und anderes Format sperren nicht; Route 409 mit Nummer, nichts gespeichert; Vergabe überspringt eine vergebene
+  Rechnungsnummer statt sie doppelt zu vergeben. Leistungszeitraum: Pflicht (409, nichts vergeben), Ende vor Beginn beim Speichern
+  (auch einseitig) und beim Festschreiben, PDF (Zeitraum, ein Tag), Storno übernimmt, Altbestand und sein Storno, Vorschlag je Art
+  (geplant, Abschlag nach dem vorigen, ohne neue Buchungen, stornierter zählt nicht, Schluss bis Abnahme mit verweigerter und
+  verworfener, Aufwand ohne später gebuchte), nichts still eingetragen, Übernahme per PUT, Seite.
+- **Testdaten angepasst** (Pflicht beim Festschreiben): neuer Helfer `tests/leistungszeitraum.py::festschreiben()` (trägt in einen
+  Entwurf ohne Zeitraum einen ein, über denselben Weg wie "Übernehmen", dann Festschreiben) in 16 Testdateien statt
+  `finalize_and_send_invoice()`; in den Gleichzeitigkeitstests trägt die Vorbereitung den Zeitraum ein (die erste Aktion soll nur beim
+  Festschreiben anhalten); über die API ein PUT vor `/send`. `test_v372_befund_schlussrechnung` 1d setzt den Zeitraum direkt (das
+  Kopf-Update hätte die fehlende Position der pauschalen Altrechnung wieder angelegt) -- 1d bleibt xfail aus seinem Grund.
+  `test_v227`/`test_v231`: die Spaltensuche im PDF findet "Leistung" als ganzes Wort (sonst "Leistungszeitraum").
+- **Erwartung geändert**: `test_v375::test_invoice_dict_carries_both_reasons_and_order_dict_without_db_has_none` -- ein Entwurf
+  ohne Zeitraum hat jetzt einen Grund (`finalize_block` = Leistungszeitraum fehlt) statt keinen.
+- Gegenproben (Regel 24): 13 von 13 rot -- Ablehnung der nächsten Nummer, Rechnung im Abgleich, Pflicht beim Festschreiben, Ende vor
+  Beginn beim Speichern und beim Festschreiben, PDF-Zeile, Storno übernimmt, Aufwand-Buchungstage, Abschlag nach dem vorigen,
+  stornierte zählen nicht, Schluss bis zur Abnahme, ohne Schlechtwetter, Vorschlag nur im Entwurf. Jede Datei byte-genau zurück
+  (SHA-256), kein Marker übrig.
+- Migration `9b4e2c7a1d58`: SQLite (Wegwerf-Datei) und PostgreSQL (Wegwerf-Schema mit einer Rechnung als Bestand): hoch, `current`
+  head, `check` ohne Unterschied, Bestand leer, `downgrade` mit gespeichertem Zeitraum verweigert, ohne erlaubt, wieder hoch.
+- Klicktests: neu `klicktest_leistungszeitraum.py` 16/16 (Vorschlag mit Quelle, Grund statt Finalisieren, nichts still
+  eingetragen, Übernehmen, Ende vor Beginn, Finalisieren; geplanter Zeitraum; Nummernkreis-Meldung mit der höchsten, nichts
+  gespeichert; hell und dunkel). Mit Zeitraum in `befuellen()`: `klicktest_rechnungen_sperren` 24/24, `klicktest_rechnung_rundung`
+  10/10, `klicktest_versandprotokoll` 45/45, `klicktest_versandverlauf` 31/32 (die eine rote Prüfung ist auf 1.8.73 genauso rot,
+  Nebenbefund 1).
+- PostgreSQL über das pytest-Plugin (Wegwerf-Schemas): `test_v377`, `test_v375`, `test_v376`, `test_v133`, `test_v153`,
+  `test_v051`, `test_v143`, die Befunddateien zu Punkt 1 und 4: 156 grün, 11 erwartet fehlgeschlagen (1a, 1b, 1d, 4a-4c).
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie): 3331 grün, 0 rot, 11 erwartet fehlgeschlagen (1a, 1b, 1d,
+  4a-4c). Danach nur Doku geändert.
+
+### Nebenbefunde (nur gemeldet)
+
+1. `klicktest_versandverlauf.py`: "Checkliste: PDF-Knopf weiter in voller Auflösung (über 3 MB)" ist rot -- auch auf dem Stand
+   1.8.73 (in einer Arbeitskopie nachgeprüft), also nicht von dieser Änderung; nicht untersucht.
+2. Einstellungen -> Nummernkreise: der Text "Die Rechnungs- und Auftragsnummernkreise werden bereits gespeichert und später vom
+   jeweiligen Modul verwendet." ist veraltet (beide werden längst verwendet).
+3. Ein Format ohne Jahr mit "Jahreswechsel: auf Startnummer zurück" setzt die nächste Nummer zum Jahreswechsel auf die Startnummer --
+   die Vergabe springt dann still über die vergebenen (Festlegung 2); die Einstellungen warnen vor der Kombination nicht.
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
@@ -962,6 +1079,6 @@ Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
 - **Offene Abschläge** nach der Schlussrechnung nur noch über diese gemahnt.
 - **Zahlung auf den Zahlbetrag**: Vorschlag zuerst auf offene Abschläge (ältester zuerst), dann Schlussrechnung, das Büro bestätigt.
 - **Rechnungsdatum** = Tag der Ausgabe, jede Rechnung mit Pflicht-Leistungszeitraum, Nummer beim Festschreiben, Nummernkreise beim
-  Start auf 1. (Was dabei heute passiert: "Umsetzung 1.8.73" -> Befund b.)
+  Start auf 1. (Was dabei heute passiert: "Umsetzung 1.8.73" -> Befund b.) Pflicht-Leistungszeitraum seit 1.8.74 gebaut.
 - **Storno**: höchstens ein Storno je Rechnung, kein Storno eines Stornos.
 - **Steuersatz**: keine mehreren Steuersätze je Rechnung.

@@ -43,6 +43,12 @@ def befuellen(db, k):
     from app.project_pipeline_columns import default_pipeline_column_id
     from app.reminders import create_reminder
 
+    def festschreiben(inv):  # seit 1.8.74: Leistungszeitraum Pflicht beim Festschreiben
+        from app.invoices import update_invoice_header
+        if inv.service_period_start is None:
+            update_invoice_header(db, inv, service_period_start=date(2026, 9, 1), service_period_end=date(2026, 9, 30))
+        return finalize_and_send_invoice(db, inv)
+
     buero = AppUser(username="buero", display_name="Bea Büro", role="buero_auftrag", password_hash=k.passwort())
     kunde = Customer(name="Bauherr Klar", last_name="Klar", street="Dachweg 1", postal_code="52531", city="Uebach",
                      email="klar@example.com")
@@ -69,23 +75,23 @@ def befuellen(db, k):
 
     # A: pauschaler Abschlag festgeschrieben -> Schlussrechnung gesperrt
     a = auftrag("KT-1")
-    pauschal = finalize_and_send_invoice(db, create_abschlag_pauschal(db, a, lump_sum_net=Decimal("200")))
+    pauschal = festschreiben(create_abschlag_pauschal(db, a, lump_sum_net=Decimal("200")))
     # B: Abschlag 40 %, Schlussrechnung festgeschrieben, dazwischen ein Abschlagsentwurf
     b = auftrag("KT-2")
-    abschlag = finalize_and_send_invoice(db, leistungsstand(b, "4"))
+    abschlag = festschreiben(leistungsstand(b, "4"))
     schluss = create_schlussrechnung(db, load_order(db, b.id))
     spaeter = leistungsstand(load_order(db, b.id), "8")
-    schluss = finalize_and_send_invoice(db, schluss)
+    schluss = festschreiben(schluss)
     # C: Rechnung und ihr Storno
     c = auftrag("KT-3")
-    storno = finalize_and_send_invoice(db, create_storno_draft(db, finalize_and_send_invoice(db, leistungsstand(c, "2"))))
+    storno = festschreiben(create_storno_draft(db, festschreiben(leistungsstand(c, "2"))))
     # D: frei; E: Schlussrechnung als Entwurf
     d = auftrag("KT-4")
     e = auftrag("KT-5")
     e_entwurf = create_schlussrechnung(db, e)
     # F: überfällige Rechnung mit Mahnungsentwurf, danach bezahlt
     f = auftrag("KT-6")
-    rechnung = finalize_and_send_invoice(db, create_schlussrechnung(db, f, due_date=berlin_today() - timedelta(days=20)))
+    rechnung = festschreiben(create_schlussrechnung(db, f, due_date=berlin_today() - timedelta(days=20)))
     mahnung = create_reminder(db, rechnung, 1)
     mark_invoice_paid(db, rechnung, paid_date=berlin_today() - timedelta(days=1))
     # G (seit 1.8.73): pauschaler Abschlag nur als Entwurf -> Ausweg "Entwurf löschen"

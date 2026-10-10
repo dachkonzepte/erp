@@ -15,6 +15,7 @@ from app.invoices import (
 from app.models import Order, OrderItem, PaymentTerm, Customer, Project
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.payment_terms import create_payment_term, update_payment_term
+from tests.leistungszeitraum import festschreiben
 
 
 def db_session():
@@ -191,7 +192,7 @@ def test_skonto_bleibt_nach_finalisieren_eingefroren_auch_wenn_zahlungsbedingung
     term = create_payment_term(db, "14 Tage netto, 2% Skonto", 14, skonto_percent=Decimal("2.00"), skonto_days=7)
     order, _ = make_order_with_item(db, payment_terms="14 Tage netto, 2% Skonto")
     invoice = create_schlussrechnung(db, order)
-    finalize_and_send_invoice(db, invoice)
+    festschreiben(db, invoice)
     assert invoice.skonto_percent == Decimal("2.00")
 
     update_payment_term(db, term.id, "14 Tage netto, 2% Skonto", 14, skonto_percent=Decimal("5.00"), skonto_days=7)
@@ -262,7 +263,7 @@ def test_finalisierte_rechnung_kann_nicht_geloescht_werden():
     db = db_session()
     order, _ = make_order_with_item(db)
     invoice = create_schlussrechnung(db, order)
-    finalize_and_send_invoice(db, invoice)
+    festschreiben(db, invoice)
     try:
         delete_invoice_draft(db, invoice)
         assert False, "hätte ValueError auslösen müssen"
@@ -276,7 +277,7 @@ def test_bezahlte_rechnung_kann_nicht_geloescht_werden():
     db = db_session()
     order, _ = make_order_with_item(db)
     invoice = create_schlussrechnung(db, order)
-    finalize_and_send_invoice(db, invoice)
+    festschreiben(db, invoice)
     mark_invoice_paid(db, invoice)
     try:
         delete_invoice_draft(db, invoice)
@@ -291,9 +292,9 @@ def test_stornierte_rechnung_kann_nicht_geloescht_werden():
     db = db_session()
     order, _ = make_order_with_item(db)
     invoice = create_schlussrechnung(db, order)
-    finalize_and_send_invoice(db, invoice)
+    festschreiben(db, invoice)
     storno = create_storno_draft(db, invoice)
-    finalize_and_send_invoice(db, storno)
+    festschreiben(db, storno)
     db.refresh(invoice)
     assert invoice.status == "storniert"
     try:
@@ -313,7 +314,7 @@ def test_storno_entwurf_loeschen_laesst_original_unberuehrt():
     db = db_session()
     order, _ = make_order_with_item(db)
     invoice = create_schlussrechnung(db, order)
-    finalize_and_send_invoice(db, invoice)
+    festschreiben(db, invoice)
     storno = create_storno_draft(db, invoice)
     assert storno.status == "entwurf"
 

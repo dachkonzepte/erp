@@ -47,12 +47,13 @@ from app.routers.orders import router as orders_router
 from app.routers.reminders import router as reminders_router
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
+from tests.leistungszeitraum import ZEITRAUM_JSON, festschreiben, mit_zeitraum
 
 PG_TEST_DATABASE_URL = os.getenv("ERP_TEST_POSTGRES_URL")
 
 
 def _final(db, invoice):
-    return finalize_and_send_invoice(db, invoice)
+    return festschreiben(db, invoice)
 
 
 def _leistungsstand(db, order, ist):
@@ -163,7 +164,7 @@ def test_time_based_invoice_stays_possible_after_the_final_invoice():
     order, _ = make_order_with_item(db)
     _final(db, create_schlussrechnung(db, order))
     eintrag = SimpleNamespace(status="booked", hours=Decimal("2"), entry_type="work", employee_id=None, employee=None,
-                              activity="Nacharbeit")
+                              activity="Nacharbeit", work_date=date(2026, 10, 2))
     assert create_invoice_from_time_entries(db, db.get(Order, order.id), [eintrag], []).invoice_type == "aufwand"
 
 
@@ -380,6 +381,7 @@ def test_router_answers_409_with_the_reason_and_400_stays_for_the_draft_cases(th
     second = client.post(f"/api/orders/{order.id}/invoices/schlussrechnung", json={})
     assert second.status_code == 409 and second.json()["detail"].startswith("Am Auftrag besteht schon eine Schlussrechnung")
     assert client.post(f"/api/invoices/{first.json()['id']}/storno").status_code == 400  # Entwurf: wie bisher 400
+    client.put(f"/api/invoices/{first.json()['id']}", json=ZEITRAUM_JSON)  # seit 1.8.74 Pflicht
     assert client.post(f"/api/invoices/{first.json()['id']}/send").status_code == 200
     pauschal = client.post(f"/api/orders/{order.id}/invoices/abschlag-pauschal", json={"lump_sum_net": "100"})
     assert pauschal.status_code == 409 and "keine weiteren Abschlagsrechnungen" in pauschal.json()["detail"]
@@ -417,10 +419,12 @@ def test_order_and_invoice_name_the_reasons_for_the_page(threaded_db_session, ro
     pauschal = client.post(f"/api/orders/{order.id}/invoices/abschlag-pauschal", json={"lump_sum_net": "100"}).json()
     schluss_text = client.get(f"/api/orders/{order.id}").json()["invoice_create_blocks"]["schluss"]
     assert schluss_text.startswith("Die Schlussrechnung ist vorerst gesperrt")
+    client.put(f"/api/invoices/{pauschal['id']}", json=ZEITRAUM_JSON)  # seit 1.8.74 Pflicht
     assert client.get(f"/api/invoices/{pauschal['id']}").json()["finalize_block"] is None
     client.delete(f"/api/invoices/{pauschal['id']}")
     schluss = client.post(f"/api/orders/{order.id}/invoices/schlussrechnung", json={}).json()
     abschlag = client.post(f"/api/orders/{order.id}/invoices/abschlag-leistungsstand", json={}).json()
+    client.put(f"/api/invoices/{schluss['id']}", json=ZEITRAUM_JSON)  # seit 1.8.74 Pflicht
     client.post(f"/api/invoices/{schluss['id']}/send")
     detail = client.get(f"/api/invoices/{abschlag['id']}").json()
     assert detail["finalize_block"].startswith("Nach der Schlussrechnung R-")
@@ -448,7 +452,8 @@ def test_invoice_dict_carries_both_reasons_and_order_dict_without_db_has_none():
     order, _ = make_order_with_item(db)
     schluss = create_schlussrechnung(db, order)
     data = invoice_to_dict(schluss)
-    assert (data["finalize_block"], data["storno_block"]) == (None, None)
+    assert data["storno_block"] is None
+    assert data["finalize_block"].startswith("Der Leistungszeitraum fehlt")  # seit 1.8.74 Pflicht
     assert order_to_dict(db.get(Order, order.id), None)["invoice_create_blocks"] is None
 
 
@@ -565,7 +570,7 @@ def _inv(s, invoice_id):
 def _leistungsstand_pg(s, order_id, ist="4"):
     invoice = create_abschlag_leistungsstand(s, _order(s, order_id))
     update_invoice_item(s, invoice, invoice.items[0], ist_quantity=Decimal(ist))
-    return finalize_and_send_invoice(s, invoice).id
+    return festschreiben(s, invoice).id
 
 
 def _zaehlen(Session, order_id, **where):
@@ -597,8 +602,8 @@ def test_postgresql_two_stornos_at_once_give_one(pg):
 def test_postgresql_storno_of_a_progress_invoice_waits_for_the_final_invoice_and_is_rejected(pg):
     Session, order_id = pg
     abschlag_id = _vorbereiten(Session, lambda s: _leistungsstand_pg(s, order_id))
-    schluss_id = _vorbereiten(Session, lambda s: create_schlussrechnung(s, _order(s, order_id)).id)
-    _, second = _run(Session, lambda s: finalize_and_send_invoice(s, _inv(s, schluss_id)).id,
+    schluss_id = _vorbereiten(Session, lambda s: mit_zeitraum(s, create_schlussrechnung(s, _order(s, order_id))).id)
+    _, second = _run(Session, lambda s: festschreiben(s, _inv(s, schluss_id)).id,
                      lambda s: create_storno_draft(s, _inv(s, abschlag_id)))
     assert isinstance(second, InvoiceBlocked) and "zuerst die Schlussrechnung stornieren" in str(second), second
     assert _zaehlen(Session, order_id, invoice_type="storno") == 0
@@ -606,10 +611,10 @@ def test_postgresql_storno_of_a_progress_invoice_waits_for_the_final_invoice_and
 
 def test_postgresql_progress_draft_waits_for_the_final_invoice_and_is_rejected(pg):
     Session, order_id = pg
-    schluss_id = _vorbereiten(Session, lambda s: create_schlussrechnung(s, _order(s, order_id)).id)
-    abschlag_id = _vorbereiten(Session, lambda s: create_abschlag_leistungsstand(s, _order(s, order_id)).id)
-    _, second = _run(Session, lambda s: finalize_and_send_invoice(s, _inv(s, schluss_id)).id,
-                     lambda s: finalize_and_send_invoice(s, _inv(s, abschlag_id)))
+    schluss_id = _vorbereiten(Session, lambda s: mit_zeitraum(s, create_schlussrechnung(s, _order(s, order_id))).id)
+    abschlag_id = _vorbereiten(Session, lambda s: mit_zeitraum(s, create_abschlag_leistungsstand(s, _order(s, order_id))).id)
+    _, second = _run(Session, lambda s: festschreiben(s, _inv(s, schluss_id)).id,
+                     lambda s: festschreiben(s, _inv(s, abschlag_id)))
     assert isinstance(second, InvoiceBlocked), second
     assert _vorbereiten(Session, lambda s: (_inv(s, abschlag_id).status, _inv(s, abschlag_id).invoice_number)) == (
         "entwurf", None)
@@ -625,9 +630,9 @@ def test_postgresql_final_invoice_waits_for_a_lump_sum_and_is_rejected(pg):
 
 def test_postgresql_same_draft_finalized_twice_at_once_gets_one_number(pg):
     Session, order_id = pg
-    schluss_id = _vorbereiten(Session, lambda s: create_schlussrechnung(s, _order(s, order_id)).id)
-    first, second = _run(Session, lambda s: finalize_and_send_invoice(s, _inv(s, schluss_id)).invoice_number,
-                         lambda s: finalize_and_send_invoice(s, _inv(s, schluss_id)))
+    schluss_id = _vorbereiten(Session, lambda s: mit_zeitraum(s, create_schlussrechnung(s, _order(s, order_id))).id)
+    first, second = _run(Session, lambda s: festschreiben(s, _inv(s, schluss_id)).invoice_number,
+                         lambda s: festschreiben(s, _inv(s, schluss_id)))
     assert isinstance(second, ValueError) and "Nur Rechnungen im Entwurf" in str(second), second
     assert _vorbereiten(Session, lambda s: _inv(s, schluss_id).invoice_number) == first
     assert _vorbereiten(Session, lambda s: s.scalar(select(NumberSequence.next_value).where(
@@ -637,7 +642,7 @@ def test_postgresql_same_draft_finalized_twice_at_once_gets_one_number(pg):
 def _rechnung_mit_mahnung(Session, order_id, *, mahnung=True):
     def build(s):
         schluss = create_schlussrechnung(s, _order(s, order_id), due_date=date.today() - timedelta(days=20))
-        schluss = finalize_and_send_invoice(s, schluss)
+        schluss = festschreiben(s, schluss)
         return schluss.id, (create_reminder(s, schluss, 1).id if mahnung else None)
     return _vorbereiten(Session, build)
 
@@ -648,7 +653,7 @@ def test_postgresql_reminder_waits_for_storno_or_payment_and_is_rejected(pg, ers
     invoice_id, reminder_id = _rechnung_mit_mahnung(Session, order_id)
     if erst == "storno":
         storno_id = _vorbereiten(Session, lambda s: create_storno_draft(s, _inv(s, invoice_id)).id)
-        first = lambda s: finalize_and_send_invoice(s, _inv(s, storno_id)).id  # noqa: E731
+        first = lambda s: festschreiben(s, _inv(s, storno_id)).id  # noqa: E731
     else:
         first = lambda s: mark_invoice_paid(s, _inv(s, invoice_id), paid_date=date(2026, 10, 2)).id  # noqa: E731
     _, second = _run(Session, first, lambda s: finalize_and_send_reminder(s, s.get(Reminder, reminder_id)))

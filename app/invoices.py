@@ -29,7 +29,7 @@ from datetime import date, timedelta
 from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from .acceptances import lock_order
 from .berlin_time import berlin_today
@@ -39,6 +39,7 @@ from .option_settings import default_option_value
 from .payment_terms import get_default_payment_term
 from .placeholders import apply_placeholders
 from .rounding import CENT, INVOICE_ROUNDING_HALF_UP, round_money
+from .service_period import check_order, missing_reason, period_text, proposal as service_period_proposal
 from .settings import issue_number
 
 INVOICE_TYPES = {"abschlag_pauschal", "abschlag_leistungsstand", "schluss", "aufwand", "storno"}
@@ -147,7 +148,12 @@ def storno_block_reason(invoices: list[Invoice], original: Invoice, *, storno_dr
 
 def finalize_block_reason(invoices: list[Invoice], invoice: Invoice) -> str | None:
     """Warum dieser Entwurf nicht festgeschrieben werden kann -- dieselben Regeln wie beim Anlegen, für Entwürfe, die vor
-    einer anderen Festschreibung entstanden sind (oder als Altbestand vor 1.8.72)."""
+    einer anderen Festschreibung entstanden sind (oder als Altbestand vor 1.8.72). Seit 1.8.74 zuletzt der
+    Leistungszeitraum (Pflicht, app/service_period.py::missing_reason())."""
+    return _finalize_rule_reason(invoices, invoice) or missing_reason(invoice)
+
+
+def _finalize_rule_reason(invoices: list[Invoice], invoice: Invoice) -> str | None:
     if invoice.invoice_type == "schluss":
         other = _final_invoices(invoices, with_drafts=False, exclude_id=invoice.id)
         if other:
@@ -517,8 +523,12 @@ def create_invoice_from_time_entries(
     settings = load_calculation_settings(db)
     hourly_rate = settings.labor_rate
 
+    # Seit 1.8.74: erster und letzter Arbeitstag der übernommenen Buchungen -- Quelle des Vorschlags für den
+    # Leistungszeitraum (app/service_period.py); welche Buchungen abgerechnet wurden, steht sonst nirgends.
+    work_dates = [e.work_date for e in booked]
     invoice = Invoice(
         order_id=order.id, invoice_type="aufwand", status="entwurf",
+        billed_work_from=min(work_dates, default=None), billed_work_to=max(work_dates, default=None),
         **_default_invoice_header_fields(db, order, due_date=due_date),
     )
     db.add(invoice)
@@ -769,6 +779,8 @@ def create_storno_draft(db: Session, original: Invoice) -> Invoice:
         tax_key_id=original.tax_key_id, tax_notice_text=original.tax_notice_text,
         progress_description=f"Stornierung zu Rechnung {original.invoice_number or '(Entwurf)'}",
         lump_sum_net=(-original.lump_sum_net if original.lump_sum_net is not None else None),
+        # Seit 1.8.74: der Leistungszeitraum der stornierten Rechnung (vor 1.8.74 festgeschrieben: leer, dann von Hand).
+        service_period_start=original.service_period_start, service_period_end=original.service_period_end,
     )
     db.add(storno)
     db.flush()
@@ -796,7 +808,7 @@ def visible_items(invoice: Invoice) -> list[InvoiceItem]:
 
 
 INVOICE_HEADER_FIELDS = ("due_date", "progress_description", "lump_sum_net", "intro_text", "outro_text",
-                         "outro_text_2", "payment_terms")
+                         "outro_text_2", "payment_terms", "service_period_start", "service_period_end")
 
 
 def update_invoice_header(db: Session, invoice: Invoice, **changes) -> Invoice:
@@ -809,6 +821,9 @@ def update_invoice_header(db: Session, invoice: Invoice, **changes) -> Invoice:
         raise ValueError("Nur Rechnungen im Entwurf können bearbeitet werden.")
     if invoice.invoice_type != "abschlag_pauschal":
         changes.pop("lump_sum_net", None)
+    # Seit 1.8.74: Leistungszeitraum -- Ende >= Beginn, auch wenn nur eine Seite gesendet wird (gegen den gespeicherten Wert).
+    check_order(changes.get("service_period_start", invoice.service_period_start),
+                changes.get("service_period_end", invoice.service_period_end))
     for key, value in changes.items():
         setattr(invoice, key, value)
     if invoice.invoice_type == "abschlag_pauschal":
@@ -900,6 +915,19 @@ def format_payment_terms_sentence(invoice: Invoice) -> str:
     return sentence
 
 
+def _service_period_info(invoice: Invoice) -> dict:
+    start, end = invoice.service_period_start, invoice.service_period_end
+    db = object_session(invoice)
+    return {
+        "service_period_start": start,
+        "service_period_end": end,
+        "service_period_text": period_text(start, end) if start is not None and end is not None and end >= start else None,
+        "service_period_proposal": (service_period_proposal(db, invoice).as_dict()
+                                    if invoice.status == EDITABLE_STATUS and db is not None and invoice.order is not None
+                                    else None),
+    }
+
+
 def _action_blocks(invoice: Invoice) -> dict:
     invoices = list(invoice.order.invoices) if invoice.order is not None else [invoice]
     return {
@@ -954,6 +982,8 @@ def invoice_to_dict(invoice: Invoice) -> dict:
         ),
         # Seit 1.8.72: warum "Finalisieren" bzw. "Stornieren" gesperrt ist -- die Rechnungsseite zeigt den Grund statt des Knopfs.
         **_action_blocks(invoice),
+        # Seit 1.8.74: Leistungszeitraum, im Entwurf mit Vorschlag samt Quelle (übernommen nur per Klick).
+        **_service_period_info(invoice),
         "items": [
             {
                 "id": i.id, "source_order_item_id": i.source_order_item_id, "sort_order": i.sort_order,

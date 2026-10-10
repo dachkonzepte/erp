@@ -23,12 +23,13 @@ from app.database import Base
 from app.invoices import add_invoice_item, create_schlussrechnung, finalize_and_send_invoice
 from app.models import DocumentLayoutBlock
 from tests.grunddaten_schalter import ohne_grunddaten
+from tests.leistungszeitraum import festschreiben
 
 
 def _make_finalized_invoice(db, **kwargs):
     order, item = make_order_with_item(db, **kwargs)
     invoice = create_schlussrechnung(db, order)
-    invoice = finalize_and_send_invoice(db, invoice)
+    invoice = festschreiben(db, invoice)
     return invoice
 
 
@@ -42,7 +43,7 @@ def _make_finalized_multipage_invoice(db):
             db, invoice, short_text=f"Zusatzposition {i}", long_text="", unit="Stk",
             unit_price=Decimal("10"), ist_quantity=Decimal("1"),
         )
-    invoice = finalize_and_send_invoice(db, invoice)
+    invoice = festschreiben(db, invoice)
     return invoice
 
 

@@ -104,6 +104,10 @@ def build_invoice_pdf(db, invoice) -> bytes:
         )
 
         story.append(Paragraph(label, h1))
+        # Seit 1.8.74: Leistungszeitraum (Pflicht beim Festschreiben); leer nur bei Rechnungen von vor 1.8.74 -- die bleiben,
+        # wie sie waren.
+        if data.get("service_period_text"):
+            story += [Paragraph(ptext(data["service_period_text"]), body), Spacer(1, 3*mm)]
         # Seit 1.3.24 traegt eine pauschale Abschlagsrechnung mit Projektions-Position (siehe
         # _sync_lump_sum_pauschal_item() in app/invoices.py) denselben Text bereits als Leistungs-
         # beschreibung der einzigen Zeile -- eine zusaetzliche Ueberschrift daruber wuerde ihn

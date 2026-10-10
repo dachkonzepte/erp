@@ -23,6 +23,7 @@ from app.routers.orders import router as orders_router
 from app.time_tracking import create_group_manual_entry, create_manual_entry
 from tests.test_v153_mahnwesen import db_session
 from tests.test_v372_befund_abgleich import _angebot_aendern, _leistungsstand, _welt
+from tests.leistungszeitraum import festschreiben
 
 GESPERRT = "Der Abgleich mit dem Angebot ist gesperrt: "
 
@@ -75,7 +76,7 @@ def test_invoice_draft_blocks_and_is_named_then_its_number():
     entwurf = _leistungsstand(db, order_id, "4")
     _angebot_aendern(db, quote_id)
     assert "an den Positionen hängen Rechnungen (1 Entwurf)" in _gesperrt(db, order_id)
-    nummer = finalize_and_send_invoice(db, entwurf).invoice_number
+    nummer = festschreiben(db, entwurf).invoice_number
     assert f"an den Positionen hängen Rechnungen ({nummer})" in _gesperrt(db, order_id)
 
 
@@ -83,8 +84,8 @@ def test_cancelled_invoice_and_its_storno_still_block():
     """Storniert ist die Rechnung nicht weg -- ihre Positionen und die der Stornorechnung zeigen weiter auf den Auftrag."""
     db = db_session()
     quote_id, order_id, _ = _welt(db)
-    original = finalize_and_send_invoice(db, _leistungsstand(db, order_id, "4"))
-    storno = finalize_and_send_invoice(db, create_storno_draft(db, original))
+    original = festschreiben(db, _leistungsstand(db, order_id, "4"))
+    storno = festschreiben(db, create_storno_draft(db, original))
     db.refresh(original)
     assert original.status == "storniert"
     _angebot_aendern(db, quote_id)
@@ -96,7 +97,7 @@ def test_lump_sum_down_payment_without_item_reference_does_not_block():
     """Ein pauschaler Abschlag ist ein Nettobetrag ohne Bezug auf eine Position -- er hängt nicht an den Positionen."""
     db = db_session()
     quote_id, order_id, _ = _welt(db)
-    finalize_and_send_invoice(db, create_abschlag_pauschal(db, load_order(db, order_id), lump_sum_net=Decimal("100")))
+    festschreiben(db, create_abschlag_pauschal(db, load_order(db, order_id), lump_sum_net=Decimal("100")))
     _angebot_aendern(db, quote_id)
     _erlaubt(db, order_id)
 

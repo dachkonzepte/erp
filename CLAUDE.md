@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.73** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.74** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -663,7 +663,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   unveränderlich außer über eine Stornorechnung. Seit 1.8.72 je Auftrag höchstens eine nicht stornierte Schlussrechnung (auch
   Entwurf), danach keine Abschläge; je Rechnung höchstens ein Storno, keins eines Stornos oder eines verrechneten Abschlags; bis R4
   keine Schlussrechnung neben einem pauschalen Abschlag -- geprüft beim Anlegen und Festschreiben unter der Sperre der
-  Auftragszeile (`app/invoices.py::lock_order_invoices()`, Gründe `*_block_reason()`, `InvoiceBlocked` = 409).
+  Auftragszeile (`app/invoices.py::lock_order_invoices()`, Gründe `*_block_reason()`, `InvoiceBlocked` = 409). Seit 1.8.74
+  hat jede Rechnung einen Leistungszeitraum (`service_period_start/_end`, Ende >= Beginn, auf dem PDF), Pflicht beim
+  Festschreiben (409); der Vorschlag mit Quelle (`app/service_period.py::proposal()`) wird nur per Klick übernommen, nie still
+  eingetragen; Storno übernimmt den Zeitraum; Altbestand ohne Zeitraum bleibt.
 - `Reminder`: hängt an überfälligen Rechnungen, hat Stufen (1./2./3. Mahnung), jede Stufe mit
   eigenen Fristen/Gebühren/Textvorlagen (`ReminderLevel`). `Reminder.text` ist beim Anlegen
   (`create_reminder()`) eine reine Kopie von `ReminderLevel.text_template` mit noch
@@ -940,7 +943,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Rechnungen" festgehalten, nicht gebaut; seit 1.8.72 (R3) 1c, 1e-1h behoben: Sperren an Schlussrechnung, Abschlag, Storno und
   Mahnung unter der Sperre der Auftragszeile, Grund statt Knopf; seit 1.8.73 Nummernvergabe atomar je Nummernkreis, Entwurf löschen
   unter der Sperre, Prüfabfrage `scripts/pruefabfrage_nummernkreise.sql` (Dubletten und Lücken); offen gemeldet: Rechnungs- und
-  Mahnungsnummer gleichen nicht mit den vorhandenen ab ("nächste Nummer" zurückgesetzt -> Dublette); 1a, 1b, 1d und 4a-4c für R4)
+  Mahnungsnummer gleichen nicht mit den vorhandenen ab ("nächste Nummer" zurückgesetzt -> Dublette) -- seit 1.8.74 behoben: die
+  Einstellungen lehnen eine nächste Nummer auf oder unter einer vergebenen ab (409); seit 1.8.74 Pflicht-Leistungszeitraum;
+  1a, 1b, 1d und 4a-4c für R4)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
@@ -1012,7 +1017,9 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
 - **Nummern nur über `app/settings.py::issue_number()`** (seit 1.8.73): sperrt die Zeile des Nummernkreises bis zum Commit des
   Aufrufers (UPDATE ohne Änderung -- Zeilensperre unter PostgreSQL, Schreibsperre unter SQLite), alle sieben Nummernkreise.
   `preview_number()` ist nur Anzeige; `tests/test_v376_nummernkreise.py` prüft die Aufrufer. Einen Entwurf mit späterer Nummer
-  (Rechnung, Mahnung) löscht nur, wer dieselbe Sperre wie das Festschreiben hält.
+  (Rechnung, Mahnung) löscht nur, wer dieselbe Sperre wie das Festschreiben hält. Seit 1.8.74 lehnt
+  `update_sequence()` eine nächste Nummer auf oder unter der höchsten vergebenen desselben Formats und Jahres ab
+  (`NumberBelowExisting`, 409); alle sieben Kreise gleichen bei der Vergabe mit den vergebenen ab (`_existing_column()`).
 - **KI-Aufrufe ausschließlich über `call_ai()`/`call_ai_async()`** (`app/ai_service.py`) --
   nie einen Adapter (`app/ai_adapters.py`) direkt importieren/aufrufen. `call_ai_async()` aus
   `async def`-Routen, `call_ai()` nur aus gewöhnlichen `def`-Routen (Starlette-Threadpool) --
@@ -1217,6 +1224,12 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   `with ohne_grunddaten():` (`tests/grunddaten_schalter.py`) an. Audit-Zähler in Tests: die Grunddaten schreiben
   "System angelegt"-Einträge -- vorher/nachher vergleichen statt absolut zählen.
 
+- **Rechnung festschreiben in Tests** (seit 1.8.74): jede Rechnung braucht beim Festschreiben einen Leistungszeitraum --
+  `tests/leistungszeitraum.py::festschreiben(db, invoice)` trägt in einen Entwurf ohne Zeitraum einen ein (wie "Übernehmen")
+  und schreibt fest; `mit_zeitraum()` nur den Zeitraum, `ZEITRAUM_JSON` für ein PUT vor `/send`. In Gleichzeitigkeitstests
+  den Zeitraum in der Vorbereitung eintragen (der angehaltene Commit soll beim Festschreiben liegen). Die Pflicht selbst prüft
+  `tests/test_v377_leistungszeitraum.py` mit `finalize_and_send_invoice()`.
+
 - **Feste Uhr statt Tageszeit** (seit 1.8.36): ein Test, dessen Ergebnis von der Uhrzeit abhängt (z. B. Monteur
   an `/api/field-view/today`, ab 19:00 "Feierabend" 401), nimmt die Fixture `feste_uhr` bzw. in einer Modul-Fixture
   `with uhr_festhalten():` (`tests/uhr.py`, laufende Uhr ab heute 10:00 Europe/Berlin über `app.berlin_time._utc_now`).
@@ -1358,7 +1371,9 @@ Angebots-Editor nennen den Grund der Sperre statt des Knopfs, API 409, freier Au
 Einsatzbericht mit Hinweis fürs Büro, Monteurin auf 412 px ohne) und `klicktest_rechnungen_sperren.py` (1.8.72, Auftragsseite
 "Neue Rechnung" mit Grund statt Knopf je Rechnungsart, Rechnungsseite ohne Finalisieren bzw. Stornieren mit Grund, hell und dunkel,
 Mahnwesen-Entwurf zu bezahlter Rechnung, API 409; seit 1.8.73 der Ausweg im Sperrtext: "R4" bzw. "Entwurf löschen", gelöscht ->
-frei). Ein
+frei) und `klicktest_leistungszeitraum.py` (1.8.74, Rechnungsseite: Vorschlag mit Quelle, Grund statt Finalisieren, nichts still
+eingetragen, "Übernehmen", Ende vor Beginn, Finalisieren; geplanter Zeitraum; Nummernkreis: Meldung mit der höchsten vergebenen,
+nichts gespeichert). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

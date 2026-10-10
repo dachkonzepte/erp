@@ -22,6 +22,7 @@ from app.reminders import (
     reminder_to_dict,
     update_reminder_level,
 )
+from tests.leistungszeitraum import festschreiben
 
 
 def db_session():
@@ -63,7 +64,7 @@ def make_sent_overdue_invoice(db, days_overdue=16, quantity=Decimal("100"), unit
 
     due_date = date.today() - timedelta(days=days_overdue)
     invoice = create_schlussrechnung(db, order, due_date=due_date)
-    invoice = finalize_and_send_invoice(db, invoice)
+    invoice = festschreiben(db, invoice)
     return invoice
 
 
@@ -314,7 +315,7 @@ def test_list_invoices_needing_attention_only_includes_overdue_sent_invoices():
     db.add(OrderItem(order_id=order2.id, sort_order=10, position_number="1", short_text="X",
                       quantity=Decimal("1"), unit="Stk", unit_price=Decimal("100"))); db.commit(); db.refresh(order2)
     not_due = create_schlussrechnung(db, order2, due_date=date.today() + timedelta(days=10))
-    finalize_and_send_invoice(db, not_due)
+    festschreiben(db, not_due)
 
     rows = list_invoices_needing_attention(db)
     assert len(rows) == 1

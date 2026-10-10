@@ -2018,6 +2018,11 @@ class InvoiceOut(BaseModel):
     is_overdue: bool
     finalize_block: str | None = None  # seit 1.8.72: warum "Finalisieren" gesperrt ist (app/invoices.py)
     storno_block: str | None = None  # seit 1.8.72: warum "Stornieren" gesperrt ist
+    # Seit 1.8.74: Leistungszeitraum; im Entwurf der Vorschlag {start, end, source} (app/service_period.py::proposal()).
+    service_period_start: date | None = None
+    service_period_end: date | None = None
+    service_period_text: str | None = None
+    service_period_proposal: dict | None = None
     items: list[InvoiceItemOut] = Field(default_factory=list)
     net_total: Decimal
     vat_total: Decimal
@@ -2096,6 +2101,8 @@ class InvoiceHeaderUpdate(PartialUpdate):
     outro_text: str | None = None
     outro_text_2: str | None = None
     payment_terms: str | None = None
+    service_period_start: date | None = None  # seit 1.8.74: Leistungszeitraum, Ende >= Beginn (app/service_period.py)
+    service_period_end: date | None = None
 
 
 class InvoiceItemCreate(BaseModel):

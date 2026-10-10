@@ -10,6 +10,7 @@ from app.project_pipeline_columns import default_pipeline_column_id
 from app.orders import order_to_dict, update_order_tax_key
 from app.projects import quote_to_dict, update_quote_tax_key
 from app.tax_keys import create_tax_key, update_tax_key
+from tests.leistungszeitraum import festschreiben
 
 
 def db_session():
@@ -154,7 +155,7 @@ def test_storno_uebernimmt_steuerschluessel_und_hinweistext_vom_original():
     invoice = create_schlussrechnung(db, order)
     update_invoice_tax_key(db, invoice, key_13b.id)
     from app.invoices import finalize_and_send_invoice
-    finalize_and_send_invoice(db, invoice)
+    festschreiben(db, invoice)
 
     storno = create_storno_draft(db, invoice)
     assert storno.tax_key_id == key_13b.id

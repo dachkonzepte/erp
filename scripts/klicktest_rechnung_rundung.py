@@ -40,6 +40,12 @@ def befuellen(db, k):
     from app.models import AppUser, Customer, Order, OrderItem, Project
     from app.project_pipeline_columns import default_pipeline_column_id
 
+    def festschreiben(inv):  # seit 1.8.74: Leistungszeitraum Pflicht beim Festschreiben
+        from app.invoices import update_invoice_header
+        if inv.service_period_start is None:
+            update_invoice_header(db, inv, service_period_start=date(2026, 9, 1), service_period_end=date(2026, 9, 30))
+        return finalize_and_send_invoice(db, inv)
+
     kunde = Customer(name="Klicktest Kunde", last_name="Klicktest Kunde")
     db.add(kunde); db.flush()
     admin = AppUser(username="anna", display_name="Anna Admin", role="admin", password_hash=k.passwort())
@@ -58,7 +64,7 @@ def befuellen(db, k):
 
     a, b, c = rechnung("1", "1", "1.50", "19.00"), rechnung("2", "2.5", "0.85", "19.00"), rechnung("3", "1", "10.25", "0")
     c.skonto_percent, c.skonto_days = Decimal("2.00"), 10
-    d = finalize_and_send_invoice(db, rechnung("4", "1", "1.50", "19.00"))
+    d = festschreiben(rechnung("4", "1", "1.50", "19.00"))
     d.rounding_rule = None   # so steht eine vor 1.8.11 versendete Rechnung nach der Migration da
     db.commit()
     return {"rechnungen": {"A": a.id, "B": b.id, "C": c.id, "D": d.id}, "cookies": {"anna": k.cookies(admin)}}

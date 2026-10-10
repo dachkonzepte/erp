@@ -4,6 +4,27 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.74 – Leistungszeitraum an der Rechnung, nächste Nummer nicht unter eine vergebene
+
+Jede Rechnung hat jetzt einen Leistungszeitraum: Beginn und Ende stehen an der Rechnung (Ende nicht vor Beginn) und auf dem PDF
+unter der Überschrift („Leistungszeitraum: … bis …“, an einem Tag „Leistungsdatum“). Ohne ihn lässt sich eine Rechnung nicht
+festschreiben – die Rechnungsseite nennt den Grund statt des Knopfs. Im Entwurf steht ein Vorschlag mit Quelle, übernommen wird er
+nur per Klick: beim Abschlag die Zeitbuchungen nach dem Zeitraum des vorigen Abschlags, bei der Rechnung aus Aufwand die
+abgerechneten Buchungen (beim Anlegen festgehalten), bei der Schlussrechnung die erste Buchung bis zur Abnahme bzw. bis zur letzten
+Buchung, ohne Zeitbuchungen der geplante Zeitraum des Auftrags. Ein Storno übernimmt den Zeitraum der stornierten Rechnung;
+festgeschriebene Rechnungen von vorher bleiben, wie sie sind. Migration `9b4e2c7a1d58` (vier leere Spalten).
+
+In den Einstellungen lässt sich die nächste Nummer eines Nummernkreises nicht mehr auf oder unter eine vergebene desselben Formats
+und Jahres setzen – die Meldung nennt die höchste vergebene, gespeichert wird nichts. Vorher sprang die Vorschau still darüber, und bei
+Rechnung und Mahnung entstand sogar eine Dublette; beide gleichen jetzt wie die übrigen fünf mit den vergebenen Nummern ab.
+
+Neu `test_v377_leistungszeitraum` (26) und der Test-Helfer `tests/leistungszeitraum.py::festschreiben()` (16 Testdateien schreiben
+darüber fest). Gegenproben 13 von 13 rot, Migration gegen SQLite und PostgreSQL geprüft, Klicktest `klicktest_leistungszeitraum.py`
+16/16, die vier Klicktests mit festgeschriebenen Rechnungen wie bisher (eine schon vorher rote Prüfung in
+`klicktest_versandverlauf.py`, gemeldet). Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3331 grün, 0 rot, 11 erwartet
+fehlgeschlagen. Festlegungen zum
+Bestätigen in `docs/archiv/befund-vor-echtbetrieb.md`, „Umsetzung 1.8.74“.
+
 ## 1.8.73 – Nummernvergabe und Entwurf löschen unter Sperre
 
 Behebt die beiden in 1.8.72 unter PostgreSQL nachgestellten Fehler. Jede Nummer – Kunde, Anfrage, Projekt, Angebot, Auftrag,

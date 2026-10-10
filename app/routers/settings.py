@@ -30,7 +30,10 @@ from ..models import AppUser, Employee, EmployeeFunction, EmployeeProfile, Setti
 from ..option_settings import get_option_group, load_option_groups, option_group_to_dict
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, require_min_role
 from ..schemas import AppearanceSettingsOut, AppearanceSettingsUpdate, CalculationSettingsOut, CalculationSettingsUpdate, EmployeeFunctionCreate, EmployeeFunctionOut, EmployeeFunctionUpdate, GeneralSettingsOut, GeneralSettingsUpdate, NumberPreviewOut, NumberSequenceOut, NumberSequenceUpdate, SettingOptionCreate, SettingOptionGroupOut, SettingOptionOut, SettingOptionUpdate
-from ..settings import get_accent_color, load_general_settings, load_sequences, preview_number, set_accent_color, update_sequence
+from ..settings import (
+    NumberBelowExisting, get_accent_color, load_general_settings, load_sequences, preview_number, set_accent_color,
+    update_sequence,
+)
 
 router = APIRouter()
 
@@ -340,6 +343,8 @@ def put_number_sequence(sequence_key: str, payload: NumberSequenceUpdate, db: Se
         )
         preview = preview_number(db, sequence_key)
         db.commit()
+    except NumberBelowExisting as exc:  # seit 1.8.74: auf/unter einer vergebenen Nummer
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return NumberSequenceOut(
