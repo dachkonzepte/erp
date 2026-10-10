@@ -35,7 +35,7 @@ Nebenbefunde nur melden. Commit nach Regel 13, nur Tests und Archiv.
 | Datei | Punkt | xfail | grün |
 |---|---|---|---|
 | `tests/test_v372_befund_an_pflicht.py` | Vorab (An) | 0 | 14 |
-| `tests/test_v372_befund_schlussrechnung.py` | 1 | 15 | 4 |
+| `tests/test_v372_befund_schlussrechnung.py` | 1 | 7 (1c, 1e-1h seit 1.8.72 behoben, vorher 15) | 12 |
 | `tests/test_v372_befund_fremdes_objekt.py` | 2 | 0 (seit 1.8.70 behoben, vorher 10) | 12 |
 | `tests/test_v372_befund_abgleich.py` | 3 | 0 (seit 1.8.71 behoben, vorher 9) | 11 (5 nur PostgreSQL) |
 | `tests/test_v372_befund_rechnungsdatum.py` | 4 | 4 (4d seit 1.8.71 behoben) | 3 |
@@ -70,7 +70,9 @@ Nebenbefunde nur melden. Commit nach Regel 13, nur Tests und Archiv.
 
 ## Punkt 1: Abschläge, Schlussrechnung, Storno -- nachgestellt: ja
 
-Entscheidungen dazu (10.10.2026, festgehalten, nicht gebaut): siehe "Entscheidungen Rechnungen" unten.
+Entscheidungen dazu (10.10.2026, festgehalten, nicht gebaut): siehe "Entscheidungen Rechnungen" unten. **1c, 1e, 1f, 1g, 1h seit
+1.8.72 behoben** (Sperren, siehe "Umsetzung 1.8.72"); 1a, 1b, 1d offen bis R4 -- bis dahin ist die Schlussrechnung neben einem
+nicht stornierten pauschalen Abschlag gesperrt.
 
 **Wie heute abgezogen wird** (`app/invoices.py`, grün festgehalten):
 
@@ -559,7 +561,12 @@ Die Sperre würde diese drei Entscheidungen zurücknehmen; dazu bräche `test_v2
 der Klicktest `klicktest_objekt_anderer_kunde.py`. "Einheitlich 404" beträfe auch die Historie selbst: heute Liste 403 mit
 ruhigem Hinweis, PDF 404 "Bericht nicht gefunden." (unbekanntes Objekt "Objekt nicht gefunden.").
 
-### Festlegungen – Bitte bestätigen
+**Entscheidung (10.10.2026, Vorgabe R3):** Objektsuche, Dateiablage und Checklisten am Objekt bleiben für Monteure offen; die
+Wartungshistorie bleibt auf die Objekte eigener Aufträge beschränkt, die Liste darf dort mit Hinweis 403 antworten (PDF weiter 404).
+Damit ist der Wunsch "Objektansicht und Dokumente nach derselben Regel, einheitlich 404" (Festlegung 1.8.70 Nr. 7) erledigt -- es
+bleibt beim Stand von 1.8.70. Vermerkt auch in `docs/archiv/rechtekonzept.md` (Nachtrag 1.8.70).
+
+### Festlegungen 1.8.71 (bestätigt am 10.10.2026, Vorgabe R3)
 
 1. "Rechnung an einer Position" = jede Rechnungsposition mit Bezug auf eine Position des Auftrags, jeder Status und jede Art (auch
    Entwurf, Storno, stornierte Rechnung) -- an allen hängt der Fremdschlüssel. Ein pauschaler Abschlag (Position ohne Bezug) sperrt
@@ -623,6 +630,176 @@ ruhigem Hinweis, PDF 404 "Bericht nicht gefunden." (unbekanntes Objekt "Objekt n
    nicht weiter geprüft.
 4. Der Angebots-Editor kennt den unterschriebenen Vertrag nicht (`OrderOut` ohne Vertragsstatus): dort bleibt der Knopf
    "Änderungen … übernehmen", der Klick antwortet 409 mit Text (wie bisher).
+
+## Umsetzung 1.8.72: Rechnungen, Teil 1 (Punkt 1: 1c, 1e-1h)
+
+### Vorgabe vom 10.10.2026 (übernommen wie gegeben)
+
+R3 Rechnungen, Teil 1 (befund-vor-echtbetrieb.md, Punkt 1; Entscheidungen Rechnungen im Archiv). Festlegungen 1.8.71 als bestätigt
+markieren. Zu 3 ins Archiv als Entscheidung: Objektsuche, Dateiablage und Checklisten am Objekt bleiben für Monteure offen; die
+Historie bleibt auf eigene Aufträge beschränkt, die Liste darf dort mit Hinweis 403 antworten.
+
+Befund vorab, nur lesen, im Bericht mit Fundstellen:
+a) Zahlungseingänge: Wie werden sie heute erfasst (Betrag, Teilzahlung, Datum, Skonto)? Gibt es offene Posten je Rechnung?
+b) Rechnungsnummer: Wird sie beim Entwurf oder beim Festschreiben vergeben? Lassen sich Entwürfe löschen, entstehen Lücken?
+c) Leistungszeitraum: Gibt es ihn an Rechnung, Auftrag oder Einsatzbericht? Woraus ließe er sich vorschlagen?
+
+Bauen:
+1. Höchstens eine gültige Schlussrechnung je Auftrag, auch als Entwurf (1c). Nach einer festgeschriebenen Schlussrechnung keine
+   weiteren Abschläge.
+2. Höchstens ein Storno je Rechnung, kein Storno eines Stornos (1e, 1f).
+3. Kein Storno eines Abschlags, solange eine gültige Schlussrechnung besteht (1g).
+4. Mahnung: Entwurf und Versand prüfen unter Sperre, dass die Rechnung weder storniert noch bezahlt ist (1h).
+5. Bis R4: Schlussrechnung gesperrt (409 mit Begründung), solange am Auftrag ein nicht stornierter pauschaler Abschlag besteht.
+
+Die xfail-Tests zu 1c, 1e, 1f, 1g und 1h müssen grün werden, Markierung dann entfernen; die übrigen bleiben. Angriffstests mit
+Gegenprobe, Gleichzeitigkeit gegen PostgreSQL. Eigene Festlegungen mit „Bitte bestätigen“. Nebenbefunde nur melden. Commit nach
+Regel 13, Bericht kurz.
+
+### Vorweg
+
+- **Festlegungen 1.8.71**: an der Überschrift als bestätigt markiert.
+- **Zu 3**: als Entscheidung festgehalten unter "Umsetzung 1.8.71" -> "Zu 3", Verweis in `rechtekonzept.md` (Nachtrag 1.8.70).
+  Nichts gebaut, Stand von 1.8.70 bleibt.
+
+### Befund vorab (nur gelesen; Zeilen nach dem Stand 1.8.72)
+
+**a) Zahlungseingänge.** Es gibt keine. "Bezahlt" ist ein Status mit Datum: `mark_invoice_paid()` (`app/invoices.py:691`) setzt
+`status="bezahlt"` und `paid_date` (`models.py:1659`) -- kein Betrag, keine Teilzahlung, kein Skonto-Abzug, keine Zahlungstabelle.
+`POST /api/invoices/{id}/mark-paid` nimmt nur `paid_date` (`InvoiceMarkPaid`, `schemas.py:2120`), die Rechnungsseite schickt nicht
+einmal das (`markPaid()`, `invoice_detail.html:190`: leerer Body -> `berlin_today()`). Skonto steht nur als eingefrorene Bedingung an
+der Rechnung (`skonto_percent`/`skonto_days`) und im Zahlungssatz (`format_payment_terms_sentence()`, `:834`); ob es gezogen wurde,
+hält nichts fest. **Offene Posten je Rechnung gibt es nicht**: offen = Status `versendet`, der offene Betrag ist immer der volle
+Bruttobetrag -- in der Mahnung (`Reminder.outstanding_amount = gross_total` beim Anlegen, `reminders.py:211`), in der
+Mahnwesen-Liste (`:457`) und in Finanzen/Dashboard ("Offener Betrag" = Summe der versendeten, `finanzen.html:47`,
+`dashboard.html:137`). "Noch offen" am Auftrag (`orders.py:471`) heißt "noch nicht abgerechnet", nicht "noch nicht bezahlt".
+Zahlungsstatus mit Datum gibt es nur an Eingangsrechnungen (`IncomingInvoice.payment_status`/`payment_date`, Buchhaltung).
+
+**b) Rechnungsnummer.** Vergeben beim Festschreiben, nicht beim Entwurf: `finalize_and_send_invoice()` ->
+`issue_number(db, "invoice")` (`invoices.py:680`, `settings.py:157`); der Entwurf hat `invoice_number = NULL`. Entwürfe lassen sich
+löschen (`delete_invoice_draft()`, `:705`, nur Status `entwurf`) -- das reißt keine Lücke. Lücken und Doppel entstehen anders:
+- **Doppelte Nummer bei gleichzeitigem Festschreiben -- nachgestellt (PostgreSQL)**: zwei Schlussrechnungen verschiedener
+  Aufträge gleichzeitig festgeschrieben (Commit der ersten eine Sekunde angehalten) -> beide `R-2026-0001`. `issue_number()` liest
+  den Nummernkreis ohne Sperre (`load_sequence()`), das UPDATE der zweiten wartet zwar auf die erste, schreibt dann aber denselben
+  Folgewert; `invoices.invoice_number` hat nur einen Index, keine Eindeutigkeit (`models.py:1653`). Gilt für jeden Nummernkreis
+  (Mahnung, Auftrag, Angebot, Projekt …). Die Sperre aus 1.8.72 hilft nur innerhalb eines Auftrags.
+- **Entwurf gelöscht, während er festgeschrieben wird -- nachgestellt (PostgreSQL)**: `delete_invoice_draft()` prüft den Status ohne
+  Sperre; das DELETE wartet auf das Festschreiben und löscht danach die festgeschriebene Rechnung samt Positionen. Ergebnis: Nummer
+  vergeben, Rechnung weg -- eine Lücke.
+- Von Hand: Einstellungen -> Nummernkreise setzt `next_value` frei (`update_sequence()`, `settings.py:167`); nach vorn entsteht eine
+  Lücke, nach hinten zieht `_sync_from_existing()` (`:76`) auf die höchste vorhandene Nummer des Musters im laufenden Jahr nach.
+  Jahreswechsel mit `reset_yearly` (`:142`) beginnt neu (gewollt).
+- Stornorechnungen ziehen aus demselben Nummernkreis (gewollt).
+
+**c) Leistungszeitraum.** An der Rechnung nicht (kein Feld, kein Text im PDF). Am Auftrag geplant: `execution_start`/
+`execution_end` (Datum, `models.py:1033-1034`, aus dem Beauftragen-Dialog, auf der Auftragsseite änderbar) und `execution_period`
+(Freitext aus dem Angebot, `:1038`; ebenso am Vertragsentwurf, `:1442`); Auftrags-PDF und Vertrag zeigen sie
+(`orders.py::execution_period_text()`). Am Einsatzbericht `performed_at` (ein Tag). Woraus sich ein Vorschlag ableiten ließe, je
+Auftrag: Arbeitstage der gebuchten Zeiten (`TimeEntry.work_date`, `TimeEntryGroup.work_date`, `order_id`), Einsatzberichte
+(`ServiceReport.performed_at`), Plantafel (`PlanningSlot.start_date`/`end_date` über die Arbeitsvorbereitung des Auftrags), Abnahme
+(`OrderAcceptance.accepted_on`, nicht verworfen -- Ende der Leistung für die Schlussrechnung), geplanter Zeitraum am Auftrag, und für
+den nächsten Abschlag das Ende des Zeitraums des vorigen. Nicht gebaut.
+
+### Was gebaut ist
+
+- **Sperre** `app/invoices.py::lock_order_invoices()`: dieselbe Zeile wie Abnahme und Abgleich (`acceptances.lock_order()`, Auftrag
+  `FOR UPDATE`), danach Auftrag und alle seine Rechnungen frisch geladen (`populate_existing`). Genommen von: Abschlag pauschal und
+  nach Leistungsstand anlegen, Schlussrechnung anlegen, Festschreiben (jede Art, auch Storno), Storno-Entwurf anlegen, "bezahlt",
+  Mahnung anlegen und festschreiben. Ein zweites gleichzeitiges Festschreiben desselben Entwurfs (Rechnung oder Mahnung) findet ihn
+  danach festgeschrieben (400) statt eine zweite Nummer zu ziehen.
+- **Gründe** (reine Funktionen über die Rechnungen des Auftrags): `create_block_reason()`, `finalize_block_reason()`,
+  `storno_block_reason()`; Fehler `InvoiceBlocked` (ein `ValueError`), Router 409 mit dem Text.
+  1. Schlussrechnung anlegen: gesperrt, solange eine nicht stornierte besteht, auch ein Entwurf ("Am Auftrag besteht schon eine
+     Schlussrechnung (R-… / ein Entwurf). Eine weitere ist erst möglich, wenn sie storniert bzw. der Entwurf gelöscht ist.").
+     Festschreiben: gesperrt neben einer festgeschriebenen (Altbestand mit zwei Entwürfen). Abschläge (beide Arten) anlegen und
+     festschreiben: gesperrt nach einer festgeschriebenen Schlussrechnung.
+  2. Storno: keins einer Stornorechnung; keins, wenn schon eines besteht (beim Anlegen auch ein Entwurf, beim Festschreiben nur ein
+     festgeschriebenes); keins einer schon stornierten Rechnung (jetzt 409 mit der Nummer des Stornos, vorher 400).
+  3. Storno eines Abschlags: gesperrt, solange eine festgeschriebene, nicht stornierte Schlussrechnung besteht ("… zuerst die
+     Schlussrechnung stornieren"); beim Anlegen und beim Festschreiben eines älteren Storno-Entwurfs.
+  4. Mahnung (`app/reminders.py::send_block_reason()`): Anlegen und Festschreiben unter der Sperre, nicht zu einer stornierten oder
+     bezahlten Rechnung ("Die Rechnung R-… ist bezahlt (am …) -- dazu geht keine Mahnung mehr hinaus."); dazu der E-Mail-Versand einer
+     schon festgeschriebenen Mahnung (Prüfung ohne Sperre). Ein Entwurf bekommt dann keine Nummer.
+  5. Bis R4: Schlussrechnung anlegen und festschreiben gesperrt neben einem nicht stornierten pauschalen Abschlag (auch Entwurf):
+     "Die Schlussrechnung ist vorerst gesperrt: am Auftrag besteht ein pauschaler Abschlag (R-…). Die Schlussrechnung zieht pauschale
+     Abschläge noch nicht ab -- der Auftrag wäre doppelt abgerechnet."
+- **Oberfläche** (Grund statt Knopf, Muster 1.8.71): Auftragsseite "Neue Rechnung" -- je gewählter Art der Grund
+  (`order_to_dict()["invoice_create_blocks"]`), der Knopf "Rechnung anlegen" fehlt; nach "Löschen" eines Entwurfs in der Liste neu
+  geladen. Rechnungsseite: `finalize_block` statt "Rechnung finalisieren" ("Entwurf löschen" bleibt), `storno_block` statt
+  "Stornieren" (`invoice_to_dict()`). Mahnwesen, "Alle Mahnungen": `send_block` statt "Versenden" bzw. E-Mail-Feld.
+- Moduldocstring `app/invoices.py` ("Sperren") und der veraltete Verweis auf `berechne_abgerechnete_menge()` (Nebenbefund 7)
+  korrigiert.
+
+### Festlegungen – Bitte bestätigen
+
+1. "Gültig" heißt festgeschrieben und nicht storniert (`versendet`/`bezahlt`). Wo die Vorgabe "auch als Entwurf" sagt (Punkt 1,
+   Anlegen der Schlussrechnung), zählt der Entwurf mit; Punkt 3 nur die festgeschriebene -- ein Entwurf der Schlussrechnung sperrt
+   das Storno eines Abschlags nicht (dass er dann falsch rechnet, ist 1b, R4).
+2. Beim Festschreiben sperrt nur eine schon festgeschriebene Schlussrechnung bzw. ein festgeschriebenes Storno -- Altbestand mit zwei
+   Entwürfen: der zuerst festgeschriebene gilt, der andere bleibt Entwurf ohne Nummer (löschbar).
+3. "Keine weiteren Abschläge" gilt für pauschal und nach Leistungsstand, beim Anlegen und beim Festschreiben eines älteren Entwurfs.
+   Ein Entwurf der Schlussrechnung sperrt keinen Abschlag. **"Rechnung aus Aufwand" bleibt nach der Schlussrechnung möglich** (kein
+   Abschlag, nicht Teil der Vorgabe).
+4. Storno: auch ein Storno-Entwurf zählt beim Anlegen (wie bei der Schlussrechnung) -- ein zweiter Klick auf "Stornieren" antwortet
+   409 statt eines zweiten Entwurfs. Storno eines Entwurfs bleibt 400 wie bisher; Storno einer schon stornierten Rechnung jetzt 409.
+5. Punkt 5: jeder pauschale Abschlag, der nicht `storniert` ist -- auch ein Entwurf -- sperrt Anlegen und Festschreiben der
+   Schlussrechnung. Ein pauschaler Abschlag darf neben einem Schlussrechnungs-Entwurf entstehen; dann ist dessen Festschreiben
+   gesperrt. Der Text nennt Grund und Nummern, keinen Ausweg (ob stornieren oder auf R4 warten, entscheidet das Büro).
+6. Mahnung: zusätzlich zur Vorgabe auch der E-Mail-Versand einer schon festgeschriebenen Mahnung nach Storno oder Zahlung gesperrt --
+   ohne Sperre der Auftragszeile, weil der Versand sie sonst über die Verbindung zum Mailserver hielte. Ein vorhandener Entwurf bleibt
+   stehen (löschbar), die Mahnwesen-Liste nennt den Grund. Bezahlt markieren und Storno löschen keine Mahnungsentwürfe.
+7. Alle neuen Sperren 409 mit Text; vorhandene 400 (Entwurf stornieren, zu einem Entwurf mahnen, bezahlt nur aus "versendet")
+   bleiben.
+8. Keine Datenbank-Bedingung (eindeutiger Teilindex je Auftrag bzw. Original): Altbestand könnte sie verletzen und die Migration auf
+   dem Server scheitern lassen. Prüfabfragen 1c/1e/1f oben. Unter SQLite (nur Entwicklung) wirkt `FOR UPDATE` nicht.
+9. Nicht unter der Sperre (nicht Teil der Vorgabe): "Rechnung aus Aufwand" anlegen, Positionen und Kopf bearbeiten, Entwurf löschen
+   (siehe Nebenbefund 2).
+
+### Tests und Prüfung
+
+- `test_v372_befund_schlussrechnung.py`: xfail entfernt bei 1c (3), 1e, 1f, 1g, 1h (2) -- 8 grün. Bei 1c (zwei Entwürfe) und 1e
+  läuft jetzt auch das **zweite Anlegen** über `_versuch()`, weil die Reparatur schon dort ablehnt (vorher nur das Festschreiben);
+  keine `assert`-Zeile geändert. 1a bleibt xfail, der Weg angepasst: die Schlussrechnung läuft über `_versuch()` (bis R4 gesperrt),
+  und der Test verlangt **zusätzlich eine gültige Schlussrechnung** -- ohne sie wäre `test_lump_sum_then_progress…` zufällig grün
+  (2.000 pauschal + 60 % = 5.000). 1b und 1d unverändert. Mit `--runxfail` scheitern alle sieben an ihrer Prüfung.
+- Angepasst (nur Testdaten): `test_v324::test_manual_delivery_rights_and_documents` brauchte einen Entwurf und legte dafür eine
+  zweite Schlussrechnung neben der festgeschriebenen an -- jetzt ein Storno-Entwurf; Erwartung unverändert.
+- Neu `tests/test_v375_rechnungen_sperren.py` (41, davon 11 gegen PostgreSQL): je Regel Anlegen und Festschreiben, Altbestand mit
+  zwei Entwürfen (Schluss, Storno, Storno eines Stornos), Nummernkreis bleibt bei Ablehnung, Aufwand nach Schluss, pauschal in drei
+  Zuständen, nach Storno/Löschen frei; Mahnung anlegen, festschreiben, E-Mail; Router 409/400; Gründe in Auftrag, Rechnung, Mahnung.
+  **Gleichzeitig (PostgreSQL, Commit der ersten Aktion eine Sekunde angehalten, die zweite lädt vorher ihre Objekte wie der Router):**
+  zwei Schlussrechnungen, zwei Stornos, Storno des Abschlags gegen Festschreiben der Schluss, Abschlagsentwurf gegen Schluss,
+  Schluss gegen pauschalen Abschlag, derselbe Entwurf zweimal (eine Nummer), Mahnung gegen Storno und gegen "bezahlt", neue Mahnung
+  gegen "bezahlt", dieselbe Mahnung zweimal -- jeweils wartet die zweite (≥ 0,9 s) und wird abgelehnt.
+- Gegenproben (Regel 24): 16 von 16 rot -- zweite Schluss beim Anlegen und beim Festschreiben, Abschlag nach Schluss, Storno eines
+  Stornos, zweites Storno, Storno hinter der Schluss, pauschal, Mahnung (Status), Mahnung (E-Mail), Sperre der Auftragszeile, frisches
+  Laden nach der Sperre, Sperre beim Bezahlen, Router Rechnungen und Mahnungen (409), Anzeige an Rechnung und Auftrag. Die letzte war
+  zuerst falsch gebaut (der Marker-Kommentar verschluckte den Rest der Zeile: Syntaxfehler statt Gegenprobe) -- neu gebaut, dann rot.
+  Jede Datei byte-genau zurück (SHA-256), kein Marker übrig.
+- Klicktest `scripts/klicktest_rechnungen_sperren.py` 21/21: Auftragsseite (Schluss neben pauschal mit Grund und API 409, nach der
+  Schluss Abschläge und zweite Schluss gesperrt, freier Auftrag mit Knopf, Schluss-Entwurf in der Liste gelöscht -> frei),
+  Rechnungsseite (Abschlagsentwurf ohne Finalisieren, verrechneter Abschlag ohne Stornieren, Stornorechnung; hell und dunkel),
+  Mahnwesen (Entwurf zu bezahlter Rechnung mit Grund, API 409).
+- PostgreSQL über das pytest-Plugin (Wegwerf-Schemas der lokalen Instanz): `test_v372_befund_schlussrechnung`, `test_v375`,
+  `test_v133`, `test_v141`, `test_v143`, `test_v153`, `test_v236`, `test_v240`, `test_v315`, `test_v374_abgleich_sperre`: 191 grün,
+  7 erwartet fehlgeschlagen (1a, 1b, 1d).
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie): 3285 grün, 0 rot, 11 erwartet fehlgeschlagen (Punkt 1: 7,
+  4a-4c: 4). Danach nur noch ein Kommentar in `app/reminders.py` geändert; Kontrolle `test_v375`, `test_v372_befund_schlussrechnung`,
+  `test_v153`, `test_v236`: 87 grün, 7 erwartet fehlgeschlagen.
+
+### Nebenbefunde (nur gemeldet)
+
+1. **Doppelte Nummern bei gleichzeitigem Festschreiben** (siehe b, nachgestellt): `issue_number()` ohne Sperre des Nummernkreises,
+   keine Eindeutigkeit an `invoices.invoice_number` -- betrifft alle Nummernkreise. GoBD-relevant.
+2. **Entwurf löschen gegen Festschreiben** (siehe b, nachgestellt): `delete_invoice_draft()` ohne Sperre löscht unter PostgreSQL eine
+   gerade festgeschriebene Rechnung.
+3. **Finanzen und Dashboard zählen Stornorechnungen als offen**: "Offene Rechnungen"/"Offener Betrag" = alle mit Status `versendet`
+   (`finanzen.html:47`, `dashboard.html:137`) -- eine Stornorechnung bleibt `versendet` und geht mit negativem Betrag in den offenen
+   Betrag ein, während ihr Original als `storniert` herausfällt.
+4. **"+ Position hinzufügen" auf einer festgeschriebenen Rechnung**: der Knopf in der Positionskarte (`invoice_detail.html`, Zeile 20)
+   wird nicht ausgeblendet; der Server lehnt ab (400).
+5. Ein Mahnungsentwurf derselben Stufe lässt sich zweimal anlegen (`create_reminder()` prüft keinen vorhandenen Entwurf); die
+   Mahnwesen-Übersicht zeigt nur einen davon.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 

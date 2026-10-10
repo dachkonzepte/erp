@@ -15,7 +15,7 @@ from .models import (
 )
 from .acceptances import ensure_no_active_acceptance, has_active_acceptance
 from .contract_basis import clause_is_reviewed, contract_basis_label, ensure_contract_not_signed
-from .invoices import compute_order_billing_progress
+from .invoices import compute_order_billing_progress, create_block_reason, list_invoices_for_order
 from .placeholders import apply_placeholders
 from .projects import ensure_quote_structure, load_quote
 from .rounding import round_money
@@ -455,6 +455,7 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
             result["invoiced_gross"] = None
             result["open_net"] = None
             result["open_gross"] = None
+            result["invoice_create_blocks"] = None
         else:
             result["source_quote_in_sync"] = order_matches_source_quote(db, order)
             # Seit 1.8.71: warum der Abgleich gesperrt ist (Status, an den Positionen Hängendes) -- nur, wenn er abweicht.
@@ -469,6 +470,11 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
             result["invoiced_gross"] = progress["invoiced_gross"]
             result["open_net"] = net - progress["invoiced_net"]
             result["open_gross"] = gross - progress["invoiced_gross"]
+            # Seit 1.8.72: warum eine neue Rechnung dieser Art gesperrt ist -- die Auftragsseite zeigt den Grund.
+            invoices = list_invoices_for_order(db, order.id)
+            result["invoice_create_blocks"] = {
+                kind: create_block_reason(invoices, kind) for kind in ("abschlag_pauschal", "abschlag_leistungsstand", "schluss")
+            }
     return result
 
 

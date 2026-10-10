@@ -22,7 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .berlin_time import berlin_today
-from .invoices import compute_invoice_totals, get_invoice, invoice_rounding
+from .invoices import InvoiceBlocked, compute_invoice_totals, get_invoice, invoice_rounding, lock_order_invoices
 from .models import Invoice, Reminder, ReminderLevel
 from .placeholders import apply_placeholders
 from .rounding import CENT
@@ -173,11 +173,36 @@ def format_reminder_text(reminder: Reminder) -> str:
     return apply_placeholders(reminder.text or "", _reminder_placeholders(reminder))
 
 
+def send_block_reason(invoice: Invoice) -> str | None:
+    """Warum zu dieser Rechnung keine Mahnung (mehr) entsteht oder hinausgeht (seit 1.8.72, Befund 1h), sonst None."""
+    number = invoice.invoice_number or "(Entwurf)"
+    if invoice.status == "storniert":
+        return f"Die Rechnung {number} ist storniert -- dazu geht keine Mahnung mehr hinaus."
+    if invoice.status == "bezahlt":
+        paid = f" (am {invoice.paid_date.strftime('%d.%m.%Y')})" if invoice.paid_date else ""
+        return f"Die Rechnung {number} ist bezahlt{paid} -- dazu geht keine Mahnung mehr hinaus."
+    return None
+
+
+def _lock_and_check(db: Session, invoice: Invoice) -> None:
+    """Sperrt die Zeile des Auftrags (dieselbe Sperre wie Storno und "bezahlt", app/invoices.py::lock_order_invoices())
+    und prüft danach den frischen Status der Rechnung -- seit 1.8.72 (Befund 1h): vorher prüfte nur das Anlegen, und
+    nur auf "versendet"; ein Entwurf ging auch nach Storno oder Zahlung noch hinaus."""
+    lock_order_invoices(db, invoice.order_id)
+    reason = send_block_reason(invoice)
+    if reason:
+        db.rollback()
+        raise InvoiceBlocked(reason)
+
+
 def create_reminder(db: Session, invoice: Invoice, level: int) -> Reminder:
+    _lock_and_check(db, invoice)
     if invoice.status != "versendet":
+        db.rollback()
         raise ValueError("Nur zu versendeten Rechnungen kann eine Mahnung erstellt werden.")
     cfg = db.scalar(select(ReminderLevel).where(ReminderLevel.level == level, ReminderLevel.active == True))  # noqa: E712
     if cfg is None:
+        db.rollback()
         raise ValueError(f"Mahnstufe {level} ist nicht aktiv oder existiert nicht.")
     today = berlin_today()
     reminder = Reminder(
@@ -193,7 +218,12 @@ def create_reminder(db: Session, invoice: Invoice, level: int) -> Reminder:
 
 
 def finalize_and_send_reminder(db: Session, reminder: Reminder) -> Reminder:
+    """Seit 1.8.72 unter der Sperre der Auftragszeile: die Rechnung darf weder storniert noch bezahlt sein (InvoiceBlocked);
+    ein zweites, gleichzeitiges Versenden desselben Entwurfs findet ihn danach schon versendet."""
+    _lock_and_check(db, reminder.invoice)
+    db.refresh(reminder)
     if reminder.status != "entwurf":
+        db.rollback()
         raise ValueError("Nur Mahnungen im Entwurf können versendet werden.")
     reminder.reminder_number = issue_number(db, "reminder")
     reminder.status = "versendet"
@@ -255,6 +285,11 @@ def send_reminder_email(
 
     if reminder.status != "versendet":
         raise ValueError("Nur bereits finalisierte Mahnungen können per E-Mail versendet werden.")
+    # Seit 1.8.72: auch eine festgeschriebene Mahnung geht nach Storno oder Zahlung der Rechnung nicht mehr per E-Mail
+    # hinaus (ohne Sperre der Auftragszeile -- sonst hielte der Versand sie über die Verbindung zum Mailserver).
+    reason = send_block_reason(reminder.invoice)
+    if reason:
+        raise InvoiceBlocked(reason)
 
     recipient = (to_email or "").strip() or get_reminder_recipient_email(reminder)
     if not recipient:
@@ -397,6 +432,7 @@ def reminder_to_dict(reminder: Reminder) -> dict:
         "email_sent_at": reminder.email_sent_at,
         "email_sent_to": reminder.email_sent_to,
         "recipient_email": get_reminder_recipient_email(reminder),
+        "send_block": send_block_reason(invoice),
     }
 
 

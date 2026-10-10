@@ -9,7 +9,13 @@ stornierte zählen nicht.
 Fehler, nachgestellt als xfail (tests/befund_vor_echtbetrieb.py) -- sie werden die Abnahmetests der Reparatur. Geprüft wird
 jeweils eine Eigenschaft, kein Weg: nach einer gültigen Schlussrechnung sind die gültigen Rechnungen eines Auftrags zusammen genau
 die Auftragssumme (compute_order_billing_progress(), dieselbe Zahl, die die Auftragsseite als "abgerechnet"/"offen" zeigt); eine
-Aktion, die die Reparatur ablehnen darf, läuft über _versuch()."""
+Aktion, die die Reparatur ablehnen darf, läuft über _versuch().
+
+Seit 1.8.72 (R3) behoben und ohne Markierung: 1c, 1e, 1f, 1g, 1h. Weil die Reparatur schon das Anlegen einer zweiten
+Schlussrechnung bzw. eines zweiten Stornos ablehnt, läuft dort auch das zweite Anlegen über _versuch() (die Prüfungen sind
+unverändert); den Altbestand mit zwei Entwürfen prüft tests/test_v375_rechnungen_sperren.py. Offen bis R4: 1a, 1b, 1d -- bei 1a
+ist die Schlussrechnung neben einem pauschalen Abschlag bis dahin gesperrt; der Test verlangt deshalb zusätzlich, dass eine
+gültige Schlussrechnung besteht (sonst wäre er ohne sie zufällig grün: 2.000 pauschal + 60 % = 5.000)."""
 
 from datetime import date, timedelta
 from decimal import Decimal
@@ -67,6 +73,12 @@ def _versuch(fn, *args, **kwargs):
         return None
 
 
+def _schluss_festschreiben(db, order):
+    """Schlussrechnung anlegen und festschreiben -- seit 1.8.72 bis R4 neben einem pauschalen Abschlag gesperrt."""
+    schluss = _versuch(create_schlussrechnung, db, order)
+    return _versuch(_final, db, schluss) if schluss is not None else None
+
+
 # ---------------------------------------------------------------------------
 # Heutiges Verhalten (Antworten auf die Fragen, grün)
 # ---------------------------------------------------------------------------
@@ -112,7 +124,8 @@ def test_final_invoice_after_lump_sum_progress_invoice_bills_the_order_once(beza
     pauschal = _final(db, create_abschlag_pauschal(db, order, lump_sum_net=Decimal("2000")))
     if bezahlt:
         mark_invoice_paid(db, pauschal, paid_date=date(2026, 9, 30))
-    _final(db, create_schlussrechnung(db, order))
+    _schluss_festschreiben(db, order)
+    assert _gueltige_schlussrechnungen(db, order) == 1
     assert _abgerechnet(db, order) == (AUFTRAG_NETTO, AUFTRAG_BRUTTO)
 
 
@@ -122,7 +135,8 @@ def test_lump_sum_then_progress_by_quantity_then_final_bills_the_order_once():
     order, _ = make_order_with_item(db)
     _final(db, create_abschlag_pauschal(db, order, lump_sum_net=Decimal("2000")))
     _final(db, _leistungsstand(db, order, "60"))
-    _final(db, create_schlussrechnung(db, order))
+    _schluss_festschreiben(db, order)
+    assert _gueltige_schlussrechnungen(db, order) == 1
     assert _abgerechnet(db, order) == (AUFTRAG_NETTO, AUFTRAG_BRUTTO)
 
 
@@ -166,20 +180,21 @@ def test_final_invoice_drafted_before_a_cancellation_bills_the_order_once():
 # 1c: zweite Schlussrechnung
 # ---------------------------------------------------------------------------
 
-@befund("1c", "zwei Schlussrechnungen als Entwurf -- beide lassen sich festschreiben, jede über 100 %")
 def test_two_final_invoice_drafts_never_both_become_valid():
+    """1c, seit 1.8.72 behoben: vorher ließen sich zwei Schlussrechnungen als Entwurf anlegen und beide festschreiben."""
     db = db_session()
     order, _ = make_order_with_item(db)
     erste = create_schlussrechnung(db, order)
-    zweite = create_schlussrechnung(db, order)
+    zweite = _versuch(create_schlussrechnung, db, order)
     _final(db, erste)
-    _versuch(_final, db, zweite)
+    if zweite is not None:
+        _versuch(_final, db, zweite)
     assert _gueltige_schlussrechnungen(db, order) == 1
     assert _abgerechnet(db, order) == (AUFTRAG_NETTO, AUFTRAG_BRUTTO)
 
 
-@befund("1c", "neben einer gültigen Schlussrechnung entsteht eine zweite mit eigener Nummer (über 0,00 EUR)")
 def test_no_second_valid_final_invoice_next_to_a_valid_one():
+    """1c, seit 1.8.72 behoben: vorher entstand neben einer gültigen eine zweite mit eigener Nummer (über 0,00 EUR)."""
     db = db_session()
     order, _ = make_order_with_item(db)
     _final(db, create_schlussrechnung(db, order))
@@ -189,8 +204,9 @@ def test_no_second_valid_final_invoice_next_to_a_valid_one():
     assert _gueltige_schlussrechnungen(db, order) == 1
 
 
-@befund("1c", "nach der Schlussrechnung lässt sich ein pauschaler Abschlag stellen und wird zusätzlich abgerechnet")
 def test_lump_sum_progress_invoice_after_the_final_invoice_does_not_bill_more():
+    """1c, seit 1.8.72 behoben: vorher ließ sich nach der Schlussrechnung ein pauschaler Abschlag stellen und wurde
+    zusätzlich abgerechnet."""
     db = db_session()
     order, _ = make_order_with_item(db)
     _final(db, create_schlussrechnung(db, order))
@@ -233,22 +249,24 @@ def test_cancellation_of_a_legacy_lump_sum_invoice_reverses_its_amount():
     assert compute_invoice_totals(storno)["gross_total"] == Decimal("-2380")
 
 
-@befund("1e", "zwei Storno-Entwürfe zur selben Rechnung -- beide lassen sich festschreiben, die Gutschrift entsteht doppelt")
 def test_an_invoice_is_cancelled_at_most_once():
+    """1e, seit 1.8.72 behoben: vorher ließen sich zwei Storno-Entwürfe zur selben Rechnung anlegen und beide festschreiben
+    -- die Gutschrift entstand doppelt."""
     db = db_session()
     order, _ = make_order_with_item(db)
     abschlag = _final(db, _leistungsstand(db, order, "40"))
     erstes = create_storno_draft(db, abschlag)
-    zweites = create_storno_draft(db, abschlag)
+    zweites = _versuch(create_storno_draft, db, abschlag)
     _final(db, erstes)
-    _versuch(_final, db, zweites)
+    if zweites is not None:
+        _versuch(_final, db, zweites)
     assert db.scalar(select(func.count()).select_from(Invoice).where(
         Invoice.storno_of_invoice_id == abschlag.id, Invoice.status != "entwurf")) == 1
 
 
-@befund("1f", "eine Stornorechnung lässt sich selbst stornieren -- das Original bleibt storniert, die Rückgängigmachung "
-              "zählt nirgends")
 def test_a_cancellation_invoice_cannot_be_cancelled():
+    """1f, seit 1.8.72 behoben: vorher ließ sich eine Stornorechnung selbst stornieren -- das Original blieb storniert, die
+    Rückgängigmachung zählte nirgends."""
     db = db_session()
     order, _ = make_order_with_item(db)
     abschlag = _final(db, _leistungsstand(db, order, "40"))
@@ -260,8 +278,9 @@ def test_a_cancellation_invoice_cannot_be_cancelled():
         Invoice.storno_of_invoice_id == storno.id, Invoice.status != "entwurf")) == 0
 
 
-@befund("1g", "Storno eines Abschlags hinter einer gültigen Schlussrechnung -- der Auftrag bleibt still unterabgerechnet")
 def test_cancelling_a_progress_invoice_behind_a_valid_final_invoice_keeps_the_order_fully_billed():
+    """1g, seit 1.8.72 behoben: vorher ließ sich ein Abschlag hinter einer gültigen Schlussrechnung stornieren -- der
+    Auftrag blieb still unterabgerechnet."""
     db = db_session()
     order, _ = make_order_with_item(db)
     abschlag = _final(db, _leistungsstand(db, order, "40"))
@@ -274,9 +293,9 @@ def test_cancelling_a_progress_invoice_behind_a_valid_final_invoice_keeps_the_or
         assert _abgerechnet(db, order) == (AUFTRAG_NETTO, AUFTRAG_BRUTTO)
 
 
-@befund("1h", "ein Mahnungsentwurf geht noch hinaus, nachdem die Rechnung storniert oder bezahlt ist")
 @pytest.mark.parametrize("danach", ["storniert", "bezahlt"])
 def test_reminder_draft_cannot_be_sent_after_the_invoice_was_cancelled_or_paid(danach):
+    """1h, seit 1.8.72 behoben: vorher ging ein Mahnungsentwurf noch hinaus, nachdem die Rechnung storniert oder bezahlt war."""
     db = db_session()
     invoice = make_sent_overdue_invoice(db)
     mahnung = create_reminder(db, invoice, 1)

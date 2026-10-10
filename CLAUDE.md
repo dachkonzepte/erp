@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.71** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.72** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -660,7 +660,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
 - `Order`: entsteht ausschließlich durch Beauftragung eines Angebots, ist ein **unveränderlicher
   LV-Snapshot**. Kein Entwurfsstatus – startet direkt bei `beauftragt`.
 - `Invoice`: `entwurf` bis zur Finalisierung (vergibt Nummer aus Nummernkreis), danach
-  unveränderlich außer über eine Stornorechnung.
+  unveränderlich außer über eine Stornorechnung. Seit 1.8.72 je Auftrag höchstens eine nicht stornierte Schlussrechnung (auch
+  Entwurf), danach keine Abschläge; je Rechnung höchstens ein Storno, keins eines Stornos oder eines verrechneten Abschlags; bis R4
+  keine Schlussrechnung neben einem pauschalen Abschlag -- geprüft beim Anlegen und Festschreiben unter der Sperre der
+  Auftragszeile (`app/invoices.py::lock_order_invoices()`, Gründe `*_block_reason()`, `InvoiceBlocked` = 409).
 - `Reminder`: hängt an überfälligen Rechnungen, hat Stufen (1./2./3. Mahnung), jede Stufe mit
   eigenen Fristen/Gebühren/Textvorlagen (`ReminderLevel`). `Reminder.text` ist beim Anlegen
   (`create_reminder()`) eine reine Kopie von `ReminderLevel.text_template` mit noch
@@ -934,7 +937,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   4d behoben: Abgleich mit dem Angebot gesperrt mit Grund (409), sobald an den Positionen etwas hängt oder der Auftrag storniert
   bzw. abgeschlossen ist (`sync_block_reasons()`), Untertitel unter PostgreSQL, Projektstatus bleibt; Spaltenschlüssel gekürzt
   und eindeutig; Auftragsdatum aus Berlin; Hinweis fürs Büro, wenn die Fläche der Vertragsposition fremd ist; "Entscheidungen
-  Rechnungen" festgehalten, nicht gebaut) -- `docs/archiv/befund-vor-echtbetrieb.md`
+  Rechnungen" festgehalten, nicht gebaut; seit 1.8.72 (R3) 1c, 1e-1h behoben: Sperren an Schlussrechnung, Abschlag, Storno und
+  Mahnung unter der Sperre der Auftragszeile, Grund statt Knopf; offen gemeldet: doppelte Nummern bei gleichzeitigem Festschreiben
+  verschiedener Aufträge, Entwurf löschen gegen Festschreiben; 1a, 1b, 1d und 4a-4c für R4) -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
   `docs/archiv/grunddaten-beim-start.md`
@@ -1344,7 +1349,9 @@ an:“ ohne Mail" im Versandverlauf; ebenso seit 1.8.69 `klicktest_behinderungsa
 mit Häkchen, API ohne Bestätigung 409, gespeichertes Objekt "bestätigt", neu gewählt wieder Rückfrage; /mobil: Historie nur am
 Objekt des eigenen Auftrags, sonst ruhiger Hinweis, 412 px) und `klicktest_abgleich_sperre.py` (1.8.71, Auftragsseite und
 Angebots-Editor nennen den Grund der Sperre statt des Knopfs, API 409, freier Auftrag gleicht ab und behält den Projektstatus;
-Einsatzbericht mit Hinweis fürs Büro, Monteurin auf 412 px ohne). Ein
+Einsatzbericht mit Hinweis fürs Büro, Monteurin auf 412 px ohne) und `klicktest_rechnungen_sperren.py` (1.8.72, Auftragsseite
+"Neue Rechnung" mit Grund statt Knopf je Rechnungsart, Rechnungsseite ohne Finalisieren bzw. Stornieren mit Grund, hell und dunkel,
+Mahnwesen-Entwurf zu bezahlter Rechnung, API 409). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

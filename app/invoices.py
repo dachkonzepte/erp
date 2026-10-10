@@ -10,12 +10,19 @@ KUMULIERTE Stand zum Zeitpunkt dieser Rechnung (z.B. "80 von 100 m² insgesamt
 fertig"), nicht der Anteil dieser einen Rechnung. Was auf einer konkreten
 Rechnung abgerechnet wird (billed_quantity/billed_total), ist die Differenz
 zum kumulierten Stand der letzten vorherigen, bereits versendeten Rechnung für
-dieselbe Auftragsposition -- siehe berechne_abgerechnete_menge().
+dieselbe Auftragsposition -- siehe compute_billed_quantity_and_total().
 
 Nummernvergabe: eine Rechnung bekommt ihre invoice_number erst beim Versenden
 (entwurf -> versendet), nicht beim Anlegen -- verworfene Entwürfe hinterlassen
 so keine Lücken in der Nummernfolge (GoBD). Ab 'versendet' ist eine Rechnung
 unveränderlich; Korrekturen laufen ausschließlich über eine Stornorechnung.
+
+Sperren (seit 1.8.72, Befund 1c-1h, docs/archiv/befund-vor-echtbetrieb.md): je Auftrag höchstens eine nicht
+stornierte Schlussrechnung (auch als Entwurf), nach der festgeschriebenen keine Abschläge mehr und kein Storno eines
+Abschlags; je Rechnung höchstens ein Storno, keins eines Stornos; bis zur Umstellung der Schlussrechnung (R4) keine
+Schlussrechnung neben einem nicht stornierten pauschalen Abschlag. Geprüft beim Anlegen und noch einmal beim
+Festschreiben, unter der Sperre der Auftragszeile (lock_order_invoices()) -- die Gründe kommen aus
+create_block_reason()/finalize_block_reason()/storno_block_reason(), dieselben Texte zeigen Auftrags- und Rechnungsseite.
 """
 
 from datetime import date, timedelta
@@ -24,6 +31,7 @@ from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .acceptances import lock_order
 from .berlin_time import berlin_today
 from .calculation import effective_material_sale_price, load_calculation_settings
 from .models import Invoice, InvoiceItem, Material, Order, OrderItem, PaymentTerm, ServiceReportMaterial, TaxKey, TimeEntry
@@ -36,10 +44,118 @@ from .settings import issue_number
 INVOICE_TYPES = {"abschlag_pauschal", "abschlag_leistungsstand", "schluss", "aufwand", "storno"}
 EDITABLE_STATUS = "entwurf"
 PROGRESS_INVOICE_TYPES = ("abschlag_pauschal", "abschlag_leistungsstand")
+VALID_STATUSES = ("versendet", "bezahlt")  # festgeschrieben und nicht storniert -- "gültig"
+
+
+class InvoiceBlocked(ValueError):
+    """Eine Aktion ist am Stand des Auftrags gesperrt (seit 1.8.72, siehe Moduldocstring "Sperren"; auch die Mahnung zu
+    einer stornierten oder bezahlten Rechnung, app/reminders.py). Die Router antworten 409 mit dem Text."""
 
 
 def is_invoice_editable(invoice: Invoice) -> bool:
     return invoice.status == EDITABLE_STATUS
+
+
+def lock_order_invoices(db: Session, order_id: int) -> list[Invoice]:
+    """Sperrt die Zeile des Auftrags bis zum Commit und liefert seine Rechnungen frisch aus der Datenbank (seit 1.8.72).
+    Dieselbe Sperre wie Abnahme und Abgleich mit dem Angebot (app/acceptances.py::lock_order()): Anlegen, Festschreiben,
+    Storno und "bezahlt" der Rechnungen eines Auftrags und Anlegen und Versenden ihrer Mahnungen laufen so nacheinander,
+    jede Prüfung sieht den Stand, den die vorige hinterlassen hat. populate_existing: der Router hat Auftrag und Rechnung
+    vorher ungesperrt geladen -- ohne das blieben deren Werte von vor dem Warten stehen. Wirkt unter PostgreSQL; SQLite
+    (nur Entwicklung) ignoriert FOR UPDATE."""
+    lock_order(db, order_id)
+    db.scalar(select(Order).where(Order.id == order_id).execution_options(populate_existing=True))
+    return list(db.scalars(
+        select(Invoice).where(Invoice.order_id == order_id).order_by(Invoice.id).execution_options(populate_existing=True)
+    ))
+
+
+def _labels(invoices: list[Invoice]) -> str:
+    """"R-2026-0003, R-2026-0005 und ein Entwurf" -- Nummern, Entwürfe als Anzahl."""
+    parts = [i.invoice_number for i in invoices if i.invoice_number]
+    drafts = sum(1 for i in invoices if not i.invoice_number)
+    if drafts:
+        parts.append("ein Entwurf" if drafts == 1 else f"{drafts} Entwürfe")
+    return parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " und " + parts[-1]
+
+
+def _final_invoices(invoices: list[Invoice], *, with_drafts: bool, exclude_id: int | None = None) -> list[Invoice]:
+    statuses = (EDITABLE_STATUS, *VALID_STATUSES) if with_drafts else VALID_STATUSES
+    return [i for i in invoices if i.invoice_type == "schluss" and i.status in statuses and i.id != exclude_id]
+
+
+def _lump_sum_reason(invoices: list[Invoice]) -> str | None:
+    """Bis R4 (Schlussrechnung als Endrechnung, "Entscheidungen Rechnungen" im Befund): die Schlussrechnung zieht einen
+    pauschalen Abschlag nicht ab (Befund 1a) -- neben einem nicht stornierten, auch einem Entwurf, ist sie gesperrt."""
+    lump_sums = [i for i in invoices if i.invoice_type == "abschlag_pauschal" and i.status != "storniert"]
+    if not lump_sums:
+        return None
+    return (f"Die Schlussrechnung ist vorerst gesperrt: am Auftrag besteht ein pauschaler Abschlag ({_labels(lump_sums)}). "
+            "Die Schlussrechnung zieht pauschale Abschläge noch nicht ab -- der Auftrag wäre doppelt abgerechnet.")
+
+
+def _progress_after_final_reason(invoices: list[Invoice]) -> str | None:
+    final = _final_invoices(invoices, with_drafts=False)
+    if not final:
+        return None
+    return f"Nach der Schlussrechnung {_labels(final)} sind keine weiteren Abschlagsrechnungen möglich."
+
+
+def create_block_reason(invoices: list[Invoice], invoice_type: str) -> str | None:
+    """Warum eine neue Rechnung dieser Art am Auftrag gesperrt ist (invoices = alle Rechnungen des Auftrags), sonst None."""
+    if invoice_type == "schluss":
+        existing = _final_invoices(invoices, with_drafts=True)
+        if existing:
+            return (f"Am Auftrag besteht schon eine Schlussrechnung ({_labels(existing)}). Eine weitere ist erst möglich, "
+                    "wenn sie storniert bzw. der Entwurf gelöscht ist.")
+        return _lump_sum_reason(invoices)
+    if invoice_type in PROGRESS_INVOICE_TYPES:
+        return _progress_after_final_reason(invoices)
+    return None
+
+
+def storno_block_reason(invoices: list[Invoice], original: Invoice, *, storno_draft_id: int | None = None) -> str | None:
+    """Warum diese Rechnung nicht (mehr) storniert werden kann, sonst None. storno_draft_id: beim Festschreiben dieser
+    Storno-Entwurf selbst -- dort zählt nur ein schon festgeschriebenes Storno (Altbestand: zwei Entwürfe nebeneinander);
+    beim Anlegen zählt auch ein Entwurf."""
+    if original.invoice_type == "storno":
+        return "Eine Stornorechnung lässt sich nicht stornieren."
+    others = [i for i in invoices if i.invoice_type == "storno" and i.storno_of_invoice_id == original.id
+              and i.id != storno_draft_id and (storno_draft_id is None or i.status != EDITABLE_STATUS)]
+    if others:
+        return f"Zu dieser Rechnung besteht schon eine Stornorechnung ({_labels(others)})."
+    if original.status == "storniert":
+        return "Diese Rechnung ist schon storniert."
+    if original.invoice_type in PROGRESS_INVOICE_TYPES:
+        final = _final_invoices(invoices, with_drafts=False)
+        if final:
+            return (f"Der Abschlag ist in der Schlussrechnung {_labels(final)} verrechnet und lässt sich nicht stornieren, "
+                    "solange sie gilt -- zuerst die Schlussrechnung stornieren.")
+    return None
+
+
+def finalize_block_reason(invoices: list[Invoice], invoice: Invoice) -> str | None:
+    """Warum dieser Entwurf nicht festgeschrieben werden kann -- dieselben Regeln wie beim Anlegen, für Entwürfe, die vor
+    einer anderen Festschreibung entstanden sind (oder als Altbestand vor 1.8.72)."""
+    if invoice.invoice_type == "schluss":
+        other = _final_invoices(invoices, with_drafts=False, exclude_id=invoice.id)
+        if other:
+            return f"Am Auftrag besteht schon eine festgeschriebene Schlussrechnung ({_labels(other)})."
+        return _lump_sum_reason(invoices)
+    if invoice.invoice_type in PROGRESS_INVOICE_TYPES:
+        return _progress_after_final_reason(invoices)
+    if invoice.invoice_type == "storno" and invoice.storno_of_invoice_id is not None:
+        original = next((i for i in invoices if i.id == invoice.storno_of_invoice_id), None)
+        if original is not None:
+            return storno_block_reason(invoices, original, storno_draft_id=invoice.id)
+    return None
+
+
+def _check_create(db: Session, order: Order, invoice_type: str) -> None:
+    reason = create_block_reason(lock_order_invoices(db, order.id), invoice_type)
+    if reason:
+        db.rollback()  # gibt die Sperre frei
+        raise InvoiceBlocked(reason)
 
 
 def _snapshot_order_fields(db: Session, order: Order) -> dict:
@@ -295,6 +411,7 @@ def create_abschlag_pauschal(
     db: Session, order: Order, *, lump_sum_net: Decimal, progress_description: str | None = None,
     due_date: date | None = None,
 ) -> Invoice:
+    _check_create(db, order, "abschlag_pauschal")
     if not progress_description:
         progress_description = f"{_count_progress_invoices(db, order.id) + 1}. Abschlagsrechnung"
     invoice = Invoice(
@@ -311,6 +428,7 @@ def create_abschlag_pauschal(
 
 
 def create_abschlag_leistungsstand(db: Session, order: Order, *, due_date: date | None = None) -> Invoice:
+    _check_create(db, order, "abschlag_leistungsstand")
     progress_description = f"{_count_progress_invoices(db, order.id) + 1}. Abschlagsrechnung (nach Leistungsstand)"
     invoice = Invoice(
         order_id=order.id, invoice_type="abschlag_leistungsstand", status="entwurf",
@@ -326,6 +444,7 @@ def create_abschlag_leistungsstand(db: Session, order: Order, *, due_date: date 
 
 
 def create_schlussrechnung(db: Session, order: Order, *, due_date: date | None = None) -> Invoice:
+    _check_create(db, order, "schluss")
     invoice = Invoice(
         order_id=order.id, invoice_type="schluss", status="entwurf",
         **_default_invoice_header_fields(db, order, due_date=due_date),
@@ -545,9 +664,19 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
     Rechnung wird im selben Schritt die referenzierte Original-Rechnung auf
     'storniert' gesetzt -- so entsteht nie ein Zwischenzustand mit einem noch
     verwerfbaren Storno-Entwurf, aber einer bereits als storniert markierten
-    Original-Rechnung."""
+    Original-Rechnung.
+
+    Seit 1.8.72 unter der Sperre der Auftragszeile und mit den Regeln aus finalize_block_reason() (InvoiceBlocked): ein
+    Entwurf, der vor einer anderen Festschreibung oder einem Storno desselben Auftrags entstand, wird hier noch einmal
+    geprüft. Ein zweites, gleichzeitiges Festschreiben desselben Entwurfs findet ihn danach schon festgeschrieben."""
+    invoices = lock_order_invoices(db, invoice.order_id)
     if invoice.status != "entwurf":
+        db.rollback()
         raise ValueError("Nur Rechnungen im Entwurf können versendet werden.")
+    reason = finalize_block_reason(invoices, invoice)
+    if reason:
+        db.rollback()
+        raise InvoiceBlocked(reason)
     invoice.invoice_number = issue_number(db, "invoice")
     invoice.status = "versendet"
     if invoice.invoice_type == "storno" and invoice.storno_of_invoice_id is not None:
@@ -560,7 +689,11 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
 
 
 def mark_invoice_paid(db: Session, invoice: Invoice, *, paid_date: date | None = None) -> Invoice:
+    """Seit 1.8.72 unter der Sperre der Auftragszeile: eine gleichzeitig versendete Mahnung (app/reminders.py) wartet
+    darauf und findet die Rechnung danach bezahlt."""
+    lock_order_invoices(db, invoice.order_id)
     if invoice.status != "versendet":
+        db.rollback()
         raise ValueError("Nur versendete Rechnungen können als bezahlt markiert werden.")
     invoice.status = "bezahlt"
     invoice.paid_date = paid_date or berlin_today()
@@ -590,9 +723,18 @@ def create_storno_draft(db: Session, original: Invoice) -> Invoice:
     Vorzeichen). Die Original-Rechnung wird NICHT sofort auf 'storniert'
     gesetzt, sondern erst, wenn dieser Entwurf tatsächlich versendet wird
     (siehe finalize_and_send_invoice) -- ein verworfener Storno-Entwurf lässt
-    die Original-Rechnung also unangetastet."""
-    if original.status not in ("versendet", "bezahlt"):
+    die Original-Rechnung also unangetastet.
+
+    Seit 1.8.72 (Befund 1e-1g) unter der Sperre der Auftragszeile: höchstens ein Storno je Rechnung (auch ein Entwurf
+    zählt), keins eines Stornos, keins eines Abschlags hinter einer gültigen Schlussrechnung -- storno_block_reason()."""
+    invoices = lock_order_invoices(db, original.order_id)
+    if original.status == EDITABLE_STATUS:
+        db.rollback()
         raise ValueError("Nur versendete oder bezahlte Rechnungen können storniert werden.")
+    reason = storno_block_reason(invoices, original)  # auch "schon storniert" (409 statt bis 1.8.71 400)
+    if reason:
+        db.rollback()
+        raise InvoiceBlocked(reason)
     storno = Invoice(
         order_id=original.order_id, invoice_type="storno", status="entwurf",
         storno_of_invoice_id=original.id,
@@ -733,6 +875,14 @@ def format_payment_terms_sentence(invoice: Invoice) -> str:
     return sentence
 
 
+def _action_blocks(invoice: Invoice) -> dict:
+    invoices = list(invoice.order.invoices) if invoice.order is not None else [invoice]
+    return {
+        "finalize_block": finalize_block_reason(invoices, invoice) if invoice.status == EDITABLE_STATUS else None,
+        "storno_block": storno_block_reason(invoices, invoice) if invoice.status in VALID_STATUSES else None,
+    }
+
+
 def invoice_to_dict(invoice: Invoice) -> dict:
     """Rechnung inkl. Positionen und berechneter Summen für API-Antworten und
     PDF-Erzeugung. visible_items() (Ist=0 ausgeblendet) wird bewusst NICHT
@@ -777,6 +927,8 @@ def invoice_to_dict(invoice: Invoice) -> dict:
         "is_overdue": (
             invoice.status == "versendet" and invoice.due_date is not None and invoice.due_date < berlin_today()
         ),
+        # Seit 1.8.72: warum "Finalisieren" bzw. "Stornieren" gesperrt ist -- die Rechnungsseite zeigt den Grund statt des Knopfs.
+        **_action_blocks(invoice),
         "items": [
             {
                 "id": i.id, "source_order_item_id": i.source_order_item_id, "sort_order": i.sort_order,

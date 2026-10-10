@@ -287,8 +287,10 @@ def test_manual_delivery_rights_and_documents(invoice_world, router_test_client)
     office = router_test_client(db, dispatches_router, role="buero_auftrag")
     assert _manual(office, "rechnung", 999999, key="manuell-fehlt-00001").status_code == 404
     assert _manual(office, "aufgabe", 1, key="manuell-aufgabe-0001").status_code == 404
-    from app.invoices import create_schlussrechnung
-    draft = create_schlussrechnung(db, invoice.order, due_date=date.today())
+    # Ein Entwurf zu diesem Auftrag: seit 1.8.72 ein Storno-Entwurf -- eine zweite Schlussrechnung neben der festgeschriebenen
+    # ist gesperrt (Befund 1c).
+    from app.invoices import create_storno_draft
+    draft = create_storno_draft(db, invoice)
     assert db.get(Invoice, draft.id).status == "entwurf"
     response = _manual(office, "rechnung", draft.id, key="manuell-entwurf-0001")
     assert response.status_code == 400 and "Entwurf" in response.json()["detail"]

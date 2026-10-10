@@ -1358,6 +1358,9 @@ class OrderOut(BaseModel):
     warranty_lock_text: str | None = None  # seit 1.8.50
     has_active_acceptance: bool | None = None  # seit 1.8.46: sperrt den Abgleich mit dem Angebot
     source_quote_sync_blocked: str | None = None  # seit 1.8.71: Grund, warum der Abgleich gesperrt ist (Status, Positionen)
+    # Seit 1.8.72: je Rechnungsart (abschlag_pauschal, abschlag_leistungsstand, schluss) der Grund, warum eine neue gesperrt
+    # ist, sonst None (app/invoices.py::create_block_reason()).
+    invoice_create_blocks: dict[str, str | None] | None = None
 
 
 class OrderFieldAccessItemOut(BaseModel):
@@ -1800,6 +1803,7 @@ class ReminderOut(BaseModel):
     email_sent_at: datetime | None = None
     email_sent_to: str | None = None
     recipient_email: str | None = None  # aktuell hinterlegte Kunden-E-Mail, für die Versand-Oberfläche
+    send_block: str | None = None  # seit 1.8.72: Rechnung storniert oder bezahlt -- kein Versand (app/reminders.py)
 
 
 class ReminderStatusOut(BaseModel):
@@ -2012,6 +2016,8 @@ class InvoiceOut(BaseModel):
     payment_terms_sentence: str
     is_editable: bool
     is_overdue: bool
+    finalize_block: str | None = None  # seit 1.8.72: warum "Finalisieren" gesperrt ist (app/invoices.py)
+    storno_block: str | None = None  # seit 1.8.72: warum "Stornieren" gesperrt ist
     items: list[InvoiceItemOut] = Field(default_factory=list)
     net_total: Decimal
     vat_total: Decimal

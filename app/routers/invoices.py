@@ -3,7 +3,8 @@
 Endpunkte für das Rechnungswesen -- Geschäftslogik liegt vollständig in
 app/invoices.py, hier nur die HTTP-Anbindung und die Übersetzung von
 ValueError (unzulässiger Zustandsübergang, z.B. Bearbeitung einer bereits
-versendeten Rechnung) in aussagekräftige 400-Antworten.
+versendeten Rechnung) in aussagekräftige 400-Antworten -- seit 1.8.72 InvoiceBlocked
+(zweite Schlussrechnung, Abschlag nach der Schlussrechnung, zweites Storno usw.) in 409.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,7 +16,7 @@ from ..email_dispatch import DispatchConflict
 from .email_dispatches import document_pdf_response
 from ..invoice_pdf import build_invoice_pdf
 from ..invoices import (
-    add_invoice_item, create_abschlag_leistungsstand, create_abschlag_pauschal,
+    InvoiceBlocked, add_invoice_item, create_abschlag_leistungsstand, create_abschlag_pauschal,
     create_invoice_from_time_entries, create_schlussrechnung, create_storno_draft,
     delete_invoice_draft, finalize_and_send_invoice, get_invoice, invoice_overview_row,
     invoice_to_dict, list_all_invoices, list_invoices_for_order, mark_invoice_paid,
@@ -75,24 +76,33 @@ def get_invoice_detail(invoice_id: int, db: Session = Depends(get_db), _role: Ap
 @router.post("/api/orders/{order_id}/invoices/abschlag-pauschal", response_model=InvoiceOut)
 def post_abschlag_pauschal(order_id: int, payload: InvoiceCreateAbschlagPauschal, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     order = _get_order_or_404(db, order_id)
-    invoice = create_abschlag_pauschal(
-        db, order, lump_sum_net=payload.lump_sum_net,
-        progress_description=payload.progress_description, due_date=payload.due_date,
-    )
+    try:
+        invoice = create_abschlag_pauschal(
+            db, order, lump_sum_net=payload.lump_sum_net,
+            progress_description=payload.progress_description, due_date=payload.due_date,
+        )
+    except InvoiceBlocked as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     return invoice_to_dict(invoice)
 
 
 @router.post("/api/orders/{order_id}/invoices/abschlag-leistungsstand", response_model=InvoiceOut)
 def post_abschlag_leistungsstand(order_id: int, payload: InvoiceCreateFromOrder, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     order = _get_order_or_404(db, order_id)
-    invoice = create_abschlag_leistungsstand(db, order, due_date=payload.due_date)
+    try:
+        invoice = create_abschlag_leistungsstand(db, order, due_date=payload.due_date)
+    except InvoiceBlocked as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     return invoice_to_dict(invoice)
 
 
 @router.post("/api/orders/{order_id}/invoices/schlussrechnung", response_model=InvoiceOut)
 def post_schlussrechnung(order_id: int, payload: InvoiceCreateFromOrder, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     order = _get_order_or_404(db, order_id)
-    invoice = create_schlussrechnung(db, order, due_date=payload.due_date)
+    try:
+        invoice = create_schlussrechnung(db, order, due_date=payload.due_date)
+    except InvoiceBlocked as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     return invoice_to_dict(invoice)
 
 
@@ -198,6 +208,8 @@ def post_send_invoice(invoice_id: int, db: Session = Depends(get_db), _role: App
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         finalize_and_send_invoice(db, invoice)
+    except InvoiceBlocked as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return invoice_to_dict(invoice)
@@ -237,6 +249,8 @@ def post_storno_invoice(invoice_id: int, db: Session = Depends(get_db), _role: A
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         storno = create_storno_draft(db, invoice)
+    except InvoiceBlocked as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return invoice_to_dict(storno)

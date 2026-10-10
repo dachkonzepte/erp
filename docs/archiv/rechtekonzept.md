@@ -1478,7 +1478,9 @@ stattdessen ausschließlich im INHALT:
 nur für Objekte der Aufträge, die der Monteur öffnen darf (`app/orders.py::field_accessible_property_ids()`, dieselbe Regel wie
 Auftrag und Bericht: Team, Einzelzuweisung, eigener Bericht, ohne Zeitfenster). Liste sonst 403 mit Hinweis, PDF 404.
 Objektansicht, Dokumente und Upload bleiben für jedes Objekt offen. Herleitung, Festlegungen und Tests:
-`docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.70".
+`docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.70". **Entscheidung 10.10.2026 (R3):** so bleibt es -- Objektsuche,
+Dateiablage und Checklisten am Objekt offen für Monteure, die Historie nur für Objekte eigener Aufträge (Liste 403 mit Hinweis);
+ein einheitliches 404 für Objektansicht und Dokumente entfällt (`befund-vor-echtbetrieb.md`, "Umsetzung 1.8.71" -> "Zu 3").
 
 **Angriffstest (`tests/test_v267_property_field_documents.py`, 15 Tests), wie verlangt**:
 fremdes Objekt über die ID öffnen -- erlaubt, aber nur die harmlosen Felder (per

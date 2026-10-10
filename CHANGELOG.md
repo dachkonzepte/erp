@@ -4,6 +4,29 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.72 – Rechnungen, Teil 1: Sperren an Schlussrechnung, Storno und Mahnung
+
+Behebt 1c und 1e–1h des Befunds „Vor dem Echtbetrieb: Geld und Sicherheit“. Je Auftrag gibt es höchstens eine nicht stornierte
+Schlussrechnung, auch als Entwurf; nach der festgeschriebenen keine Abschläge mehr. Je Rechnung höchstens ein Storno, keins eines
+Stornos, und kein Storno eines Abschlags, solange eine festgeschriebene Schlussrechnung gilt – vorher ließ sich der Auftrag so still
+doppelt oder zu wenig abrechnen. Eine Mahnung entsteht und geht nur noch hinaus (Nummer, auch per E-Mail), solange die Rechnung
+weder storniert noch bezahlt ist. Bis zur Umstellung der Schlussrechnung (R4) ist sie neben einem nicht stornierten pauschalen
+Abschlag gesperrt, weil sie ihn nicht abzieht. Geprüft wird beim Anlegen und noch einmal beim Festschreiben (ältere Entwürfe,
+Altbestand), unter der Sperre der Auftragszeile wie bei Abnahme und Abgleich; ein gesperrter Schritt antwortet 409 mit dem Grund,
+und Auftragsseite, Rechnungsseite und Mahnwesen zeigen den Grund statt des Knopfs. Nebenbei zieht dasselbe Festschreiben, zweimal
+gleichzeitig ausgelöst, keine zweite Nummer mehr.
+
+Vorab gelesen: Zahlungseingänge gibt es nicht („bezahlt“ ist Status und Datum, kein Betrag, kein Skonto, keine offenen Posten), die
+Rechnungsnummer entsteht beim Festschreiben, einen Leistungszeitraum hat die Rechnung nicht (Quellen für einen Vorschlag im Archiv).
+Dabei unter PostgreSQL nachgestellt und nur gemeldet: zwei Rechnungen verschiedener Aufträge, gleichzeitig festgeschrieben,
+bekommen dieselbe Nummer, und ein Entwurf, der während seines Festschreibens gelöscht wird, nimmt die festgeschriebene Rechnung mit.
+
+Die xfail-Tests zu 1c, 1e, 1f, 1g und 1h sind grün, ihre Markierung ist entfernt; 1a, 1b, 1d bleiben für R4. Neu
+`test_v375_rechnungen_sperren` (41, davon 11 Gleichzeitigkeitstests gegen PostgreSQL). Gegenproben 16 von 16 rot, Klicktest
+`klicktest_rechnungen_sperren.py` 21/21. Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3285 grün, 0 rot, 11 erwartet fehlgeschlagen (Punkt 1: 1a, 1b, 1d; 4a–4c).
+Festlegungen zum
+Bestätigen in `docs/archiv/befund-vor-echtbetrieb.md`, „Umsetzung 1.8.72“.
+
 ## 1.8.71 – Reparatur Abgleich, Spaltenschlüssel und Auftragsdatum
 
 Behebt die Punkte 3, 5 und 4d des Befunds „Vor dem Echtbetrieb: Geld und Sicherheit“. Der Abgleich eines Auftrags mit dem

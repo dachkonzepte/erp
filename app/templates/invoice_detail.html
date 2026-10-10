@@ -148,13 +148,14 @@ function renderStatusActions(){
   let html='';
   if(invoice.status==='entwurf'){
     info.textContent='Diese Rechnung ist noch ein Entwurf und trägt noch keine Rechnungsnummer. "Finalisieren" vergibt die nächste Nummer aus dem Nummernkreis und sperrt die Rechnung für weitere Bearbeitung – ein tatsächlicher Versand (E-Mail/Post) findet dabei nicht statt, das PDF muss weiterhin separat heruntergeladen und verschickt werden.';
-    html+='<button onclick="sendInvoice()">Rechnung finalisieren</button><button class="danger" onclick="deleteInvoiceDraft()">Entwurf löschen</button>';
+    // Seit 1.8.72: gesperrtes Finalisieren bzw. Stornieren zeigt den Grund vom Server statt des Knopfs.
+    html+=(invoice.finalize_block?blockNoticeHtml(invoice.finalize_block):'<button onclick="sendInvoice()">Rechnung finalisieren</button>')+'<button class="danger" onclick="deleteInvoiceDraft()">Entwurf löschen</button>';
   }else if(invoice.status==='versendet'){
     info.textContent=invoice.paid_date?`Bezahlt am ${new Date(invoice.paid_date).toLocaleDateString('de-DE')}.`:'Diese Rechnung ist finalisiert und wartet auf Zahlung.';
-    html+=emailSendControlsHtml()+'<button onclick="markPaid()">Als bezahlt markieren</button><button class="danger" onclick="stornoInvoice()">Stornieren</button>';
+    html+=emailSendControlsHtml()+'<button onclick="markPaid()">Als bezahlt markieren</button>'+stornoActionHtml();
   }else if(invoice.status==='bezahlt'){
     info.textContent=`Bezahlt am ${invoice.paid_date?new Date(invoice.paid_date).toLocaleDateString('de-DE'):'—'}.`;
-    html+=emailSendControlsHtml()+'<button class="danger" onclick="stornoInvoice()">Stornieren</button>';
+    html+=emailSendControlsHtml()+stornoActionHtml();
   }else if(invoice.status==='storniert'){
     info.textContent='Diese Rechnung wurde storniert.';
   }
@@ -163,6 +164,9 @@ function renderStatusActions(){
   if(invoice.status==='entwurf') document.getElementById('invoiceDispatchHistory').innerHTML='';
   else if(!_dhOpts.invoiceDispatchHistory) renderDispatchHistory('invoiceDispatchHistory','rechnung',invoiceId,{});
 }
+
+function blockNoticeHtml(text){return `<div class="notice warning" data-sperre style="margin:0">${esc(text)}</div>`}
+function stornoActionHtml(){return invoice.storno_block?blockNoticeHtml(invoice.storno_block):'<button class="danger" onclick="stornoInvoice()">Stornieren</button>'}
 
 function emailSendControlsHtml(){
   return `<span style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap"><input id="invoiceEmailInput" type="text" inputmode="email" autocomplete="off" value="${esc(invoice.recipient_email||'')}" placeholder="An – mehrere mit Komma oder Semikolon" title="Empfänger, mehrere mit Komma oder Semikolon trennen" style="padding:7px 10px;border:1px solid var(--field-border);font-family:inherit;font-size:13px;background:var(--card);color:var(--ink);min-width:220px"><input id="invoiceCcInput" type="text" inputmode="email" autocomplete="off" placeholder="CC (optional)" title="CC, mehrere mit Komma oder Semikolon trennen" style="padding:7px 10px;border:1px solid var(--field-border);font-family:inherit;font-size:13px;background:var(--card);color:var(--ink);min-width:170px"><button onclick="sendInvoiceEmail(this)">✉️ Per E-Mail senden</button><a class="small" href="/versandprotokoll?typ=rechnung&id=${invoiceId}">Versandprotokoll</a></span>`;

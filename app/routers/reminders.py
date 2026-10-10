@@ -1,7 +1,8 @@
 """Router: reminders (seit 1.0.53).
 
 Endpunkte für das Mahnwesen -- Geschäftslogik liegt vollständig in
-app/reminders.py, hier nur die HTTP-Anbindung, analog zu app/routers/invoices.py.
+app/reminders.py, hier nur die HTTP-Anbindung, analog zu app/routers/invoices.py. Seit 1.8.72
+InvoiceBlocked (Rechnung storniert oder bezahlt) als 409.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,7 +11,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..email_dispatch import DispatchConflict
 from .email_dispatches import document_pdf_response
-from ..invoices import get_invoice
+from ..invoices import InvoiceBlocked, get_invoice
 from ..models import AppUser, Reminder, ReminderLevel
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..reminder_pdf import build_reminder_pdf
@@ -103,6 +104,8 @@ def post_invoice_reminder(invoice_id: int, payload: ReminderCreate, db: Session 
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         reminder = create_reminder(db, invoice, payload.level)
+    except InvoiceBlocked as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return reminder_to_dict(reminder)
@@ -113,6 +116,8 @@ def post_send_reminder(reminder_id: int, db: Session = Depends(get_db), _role: A
     reminder = _get_reminder_or_404(db, reminder_id)
     try:
         finalize_and_send_reminder(db, reminder)
+    except InvoiceBlocked as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return reminder_to_dict(reminder)
@@ -130,7 +135,7 @@ def post_send_reminder_email(reminder_id: int, payload: ReminderEmailSend, db: S
             db, reminder, to_email=payload.to_email, cc_email=payload.cc_email,
             dispatch_key=payload.dispatch_key, user=user,
         )
-    except DispatchConflict as e:
+    except (DispatchConflict, InvoiceBlocked) as e:
         raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
