@@ -182,9 +182,24 @@ def test_final_invoice_is_blocked_by_a_lump_sum_that_is_not_cancelled(status):
         mark_invoice_paid(db, pauschal, paid_date=date(2026, 10, 1))
     text_ = _gesperrt(create_schlussrechnung, db, order)
     genannt = pauschal.invoice_number or "ein Entwurf"
+    # Seit 1.8.73 mit Ausweg (Festlegung 1.8.72 Nr. 5): Entwurf -> löschen, sonst R4.
+    ausweg = ("Ausweg: den Entwurf löschen." if status == "entwurf"
+              else "Schlussrechnungen mit pauschalen Abschlägen kommen mit R4.")
     assert text_ == (f"Die Schlussrechnung ist vorerst gesperrt: am Auftrag besteht ein pauschaler Abschlag ({genannt}). "
-                     "Die Schlussrechnung zieht pauschale Abschläge noch nicht ab -- der Auftrag wäre doppelt abgerechnet.")
+                     f"Die Schlussrechnung zieht pauschale Abschläge noch nicht ab -- der Auftrag wäre doppelt abgerechnet. "
+                     f"{ausweg}")
     assert _anzahl(db, order, "schluss") == 0
+
+
+def test_lump_sum_draft_next_to_a_finalized_one_names_r4_not_deleting():
+    """Ein festgeschriebener und ein Entwurf: Löschen allein hilft nicht -- der Text nennt R4."""
+    db = db_session()
+    order, _ = make_order_with_item(db)
+    erster = _final(db, create_abschlag_pauschal(db, order, lump_sum_net=Decimal("1000")))
+    create_abschlag_pauschal(db, order, lump_sum_net=Decimal("500"))
+    text_ = _gesperrt(create_schlussrechnung, db, order)
+    assert f"({erster.invoice_number} und ein Entwurf)" in text_
+    assert text_.endswith("Schlussrechnungen mit pauschalen Abschlägen kommen mit R4.")
 
 
 @pytest.mark.parametrize("weg", ["storniert", "geloescht"])

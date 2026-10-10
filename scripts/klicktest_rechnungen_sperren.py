@@ -9,6 +9,8 @@ Befund „Vor dem Echtbetrieb“ Punkt 1 (docs/archiv/befund-vor-echtbetrieb.md,
                        bleibt; verrechneter Abschlag: Grund statt "Stornieren"; Stornorechnung: "lässt sich nicht stornieren"
                        (hell und dunkel)
     Mahnwesen          Mahnungsentwurf zu einer inzwischen bezahlten Rechnung: Grund statt "Versenden", API 409
+    Ausweg (1.8.73)    Schlussrechnung neben festgeschriebenem pauschalem Abschlag: "… kommen mit R4."; neben einem Entwurf:
+                       "Ausweg: den Entwurf löschen.", gelöscht -> frei
 
 AUFRUF (aus dem Projektordner):
 
@@ -86,7 +88,10 @@ def befuellen(db, k):
     rechnung = finalize_and_send_invoice(db, create_schlussrechnung(db, f, due_date=berlin_today() - timedelta(days=20)))
     mahnung = create_reminder(db, rechnung, 1)
     mark_invoice_paid(db, rechnung, paid_date=berlin_today() - timedelta(days=1))
-    return {"a": a.id, "pauschal": pauschal.invoice_number, "b": b.id, "abschlag": abschlag.id, "schluss": schluss.invoice_number,
+    # G (seit 1.8.73): pauschaler Abschlag nur als Entwurf -> Ausweg "Entwurf löschen"
+    g = auftrag("KT-7")
+    g_pauschal = create_abschlag_pauschal(db, g, lump_sum_net=Decimal("150"))
+    return {"g": g.id, "g_pauschal": g_pauschal.id, "a": a.id, "pauschal": pauschal.invoice_number, "b": b.id, "abschlag": abschlag.id, "schluss": schluss.invoice_number,
             "spaeter": spaeter.id, "storno": storno.id, "d": d.id, "e": e.id, "e_entwurf": e_entwurf.id, "mahnung": mahnung.id,
             "rechnung": rechnung.invoice_number, "cookies": {"buero": k.cookies(buero)}}
 
@@ -130,6 +135,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("A Schluss: Grund nennt den Abschlag",
              text.startswith(f"Die Schlussrechnung ist vorerst gesperrt: am Auftrag besteht ein pauschaler Abschlag "
                              f"({seed['pauschal']})"), True)
+    p.pruefe("A Schluss: Ausweg R4 (festgeschrieben)",
+             text.endswith("Schlussrechnungen mit pauschalen Abschlägen kommen mit R4."), True)
     p.pruefe("A Abschlag nach Leistungsstand: frei", await _art(tab, "abschlag_leistungsstand"), [False, "", True])
     api = await tab.js(f"fetch('/api/orders/{seed['a']}/invoices/schlussrechnung',{{method:'POST',headers:{{'Content-Type':"
                        "'application/json'},body:'{}'}).then(async r=>[r.status,(await r.json()).detail.slice(0,42)])")
@@ -182,6 +189,16 @@ async def pruefen(tab, seed, p):
     p.pruefe("E nach dem Löschen: frei",
              await tab.warten("invoices.length===0&&!document.getElementById('newInvoiceButton').hidden"), True)
     p.pruefe("E nach dem Löschen: Hinweis weg", await tab.js("document.getElementById('newInvoiceBlock').hidden"), True)
+
+    # --- Auftrag G: pauschaler Abschlag als Entwurf -> Ausweg "Entwurf löschen", danach frei (1.8.73) ---
+    await tab.oeffnen(f"/orders/{seed['g']}", ORDER_READY)
+    sichtbar, text, knopf = await _art(tab, "schluss")
+    p.pruefe("G Schluss neben pauschalem Entwurf: Ausweg löschen",
+             [sichtbar, knopf, "(ein Entwurf)" in text, text.endswith("Ausweg: den Entwurf löschen.")], [True, False, True, True])
+    await _bild(tab, "auftrag_g_ausweg_loeschen", "newInvoiceBlock")
+    await tab.js(f"deleteDraftFromList(new Event('click'),{seed['g_pauschal']})")
+    p.pruefe("G nach dem Löschen: Schluss frei",
+             await tab.warten("invoices.length===0&&!document.getElementById('newInvoiceButton').hidden"), True)
 
     # --- Mahnwesen: Entwurf zu bezahlter Rechnung ---
     await tab.oeffnen("/mahnwesen", "allReminders.length>0&&document.getElementById('allRows').innerHTML.length>0")

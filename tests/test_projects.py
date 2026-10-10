@@ -15,8 +15,10 @@ def test_project_number_sequence():
     customer = Customer(name="Testkunde", last_name="Testkunde")
     db.add(customer)
     db.flush()
-    assert next_project_number(db).endswith("0001")
-    db.add(Project(project_number=next_project_number(db), customer_id=customer.id, name="Testprojekt", pipeline_column_id=default_pipeline_column_id(db)))
+    # Seit 1.8.73 vergibt next_project_number() (zählt hoch) statt nur nachzusehen -- jeder Aufruf ist eine Nummer.
+    erste = next_project_number(db)
+    assert erste.endswith("0001")
+    db.add(Project(project_number=erste, customer_id=customer.id, name="Testprojekt", pipeline_column_id=default_pipeline_column_id(db)))
     db.commit()
     assert next_project_number(db).endswith("0002")
 

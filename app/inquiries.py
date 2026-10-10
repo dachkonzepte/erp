@@ -2,11 +2,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from .models import Inquiry, Project
-from .settings import preview_number
+from .settings import issue_number
 
 
 def next_inquiry_number(db: Session) -> str:
-    return preview_number(db, "inquiry")
+    """Vergibt die nächste Anfragenummer -- seit 1.8.73 über issue_number() statt der Vorschau."""
+    return issue_number(db, "inquiry")
 
 def load_inquiry(db: Session, inquiry_id: int) -> Inquiry | None:
     return db.scalar(

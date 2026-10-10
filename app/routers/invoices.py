@@ -261,6 +261,8 @@ def delete_invoice(invoice_id: int, db: Session = Depends(get_db), _role: AppUse
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         delete_invoice_draft(db, invoice)
+    except InvoiceBlocked as e:  # seit 1.8.73: nicht (mehr) Entwurf nach der Sperre
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"deleted": True}

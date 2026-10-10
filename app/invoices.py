@@ -70,6 +70,12 @@ def lock_order_invoices(db: Session, order_id: int) -> list[Invoice]:
     ))
 
 
+def _still_there(invoices: list[Invoice], invoice: Invoice) -> bool:
+    """Gibt es die Rechnung nach der Sperre noch? (Ein gleichzeitig gelöschter Entwurf fehlt in der frisch geladenen Liste,
+    sein Objekt trüge sonst weiter den alten Stand.)"""
+    return any(i.id == invoice.id for i in invoices)
+
+
 def _labels(invoices: list[Invoice]) -> str:
     """"R-2026-0003, R-2026-0005 und ein Entwurf" -- Nummern, Entwürfe als Anzahl."""
     parts = [i.invoice_number for i in invoices if i.invoice_number]
@@ -90,8 +96,13 @@ def _lump_sum_reason(invoices: list[Invoice]) -> str | None:
     lump_sums = [i for i in invoices if i.invoice_type == "abschlag_pauschal" and i.status != "storniert"]
     if not lump_sums:
         return None
+    # Ausweg (seit 1.8.73, Festlegung 1.8.72 Nr. 5): nur Entwürfe -> löschen; ein festgeschriebener bleibt bis R4.
+    if all(i.status == EDITABLE_STATUS for i in lump_sums):
+        way_out = "Ausweg: den Entwurf löschen." if len(lump_sums) == 1 else "Ausweg: die Entwürfe löschen."
+    else:
+        way_out = "Schlussrechnungen mit pauschalen Abschlägen kommen mit R4."
     return (f"Die Schlussrechnung ist vorerst gesperrt: am Auftrag besteht ein pauschaler Abschlag ({_labels(lump_sums)}). "
-            "Die Schlussrechnung zieht pauschale Abschläge noch nicht ab -- der Auftrag wäre doppelt abgerechnet.")
+            f"Die Schlussrechnung zieht pauschale Abschläge noch nicht ab -- der Auftrag wäre doppelt abgerechnet. {way_out}")
 
 
 def _progress_after_final_reason(invoices: list[Invoice]) -> str | None:
@@ -670,6 +681,9 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
     Entwurf, der vor einer anderen Festschreibung oder einem Storno desselben Auftrags entstand, wird hier noch einmal
     geprüft. Ein zweites, gleichzeitiges Festschreiben desselben Entwurfs findet ihn danach schon festgeschrieben."""
     invoices = lock_order_invoices(db, invoice.order_id)
+    if not _still_there(invoices, invoice):
+        db.rollback()
+        raise InvoiceBlocked("Der Entwurf wurde inzwischen gelöscht.")
     if invoice.status != "entwurf":
         db.rollback()
         raise ValueError("Nur Rechnungen im Entwurf können versendet werden.")
@@ -710,9 +724,20 @@ def delete_invoice_draft(db: Session, invoice: Invoice) -> None:
     reißen -- GoBD-technisch unproblematisch. Eine Stornorechnung im Entwurf
     darf ebenfalls gelöscht werden: das Original wird erst beim tatsächlichen
     Versand des Storno auf 'storniert' gesetzt (siehe finalize_and_send_invoice),
-    ist also zu diesem Zeitpunkt noch unberührt und bleibt es auch."""
+    ist also zu diesem Zeitpunkt noch unberührt und bleibt es auch.
+
+    Seit 1.8.73 (Nebenbefund 2 aus 1.8.72) unter derselben Sperre wie das Festschreiben: gelöscht wird nur, was danach
+    noch Entwurf ist, sonst InvoiceBlocked (409). Vorher prüfte das Löschen ohne Sperre -- unter PostgreSQL wartete das
+    DELETE auf ein gleichzeitiges Festschreiben und löschte danach die festgeschriebene Rechnung (Nummer vergeben,
+    Rechnung weg)."""
+    invoices = lock_order_invoices(db, invoice.order_id)
+    if not _still_there(invoices, invoice):
+        db.rollback()
+        raise InvoiceBlocked("Der Entwurf wurde inzwischen gelöscht.")
     if invoice.status != EDITABLE_STATUS:
-        raise ValueError("Nur Rechnungen im Entwurf können gelöscht werden.")
+        number = f" Die Rechnung ist inzwischen festgeschrieben ({invoice.invoice_number})." if invoice.invoice_number else ""
+        db.rollback()
+        raise InvoiceBlocked(f"Nur Rechnungen im Entwurf können gelöscht werden.{number}")
     db.delete(invoice)
     db.commit()
 

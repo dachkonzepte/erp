@@ -16,7 +16,7 @@ from .models import (
 )
 from .project_documents import project_directory
 from .project_pipeline_columns import default_pipeline_column_id
-from .settings import preview_number
+from .settings import issue_number
 from .payment_terms import get_default_payment_term
 from .placeholders import apply_placeholders
 from .rounding import round_money
@@ -27,11 +27,13 @@ def money_q(value: Decimal) -> Decimal:
 
 
 def next_project_number(db: Session) -> str:
-    return preview_number(db, "project")
+    """Vergibt die nächste Projektnummer -- seit 1.8.73 über issue_number() statt der Vorschau."""
+    return issue_number(db, "project")
 
 
 def next_quote_number(db: Session) -> str:
-    return preview_number(db, "quote")
+    """Vergibt die nächste Angebotsnummer -- seit 1.8.73 über issue_number() statt der Vorschau."""
+    return issue_number(db, "quote")
 
 
 def load_project(db: Session, project_id: int) -> Project | None:

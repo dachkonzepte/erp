@@ -1,6 +1,6 @@
 import re
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -147,6 +147,8 @@ def _apply_year_reset(sequence: NumberSequence) -> None:
 
 
 def preview_number(db: Session, sequence_key: str) -> str:
+    """Nur zur Anzeige ("nächste Nummer" in Formularen und Einstellungen), ohne Sperre und ohne Hochzählen -- seit 1.8.73
+    vergibt nichts mehr hierüber (tests/test_v376_nummernkreise.py prüft die Aufrufer)."""
     sequence = load_sequence(db, sequence_key)
     _apply_year_reset(sequence)
     _sync_from_existing(db, sequence)
@@ -154,8 +156,30 @@ def preview_number(db: Session, sequence_key: str) -> str:
     return format_sequence_number(sequence.format_pattern, sequence.next_value)
 
 
+def _lock_sequence(db: Session, sequence_key: str) -> NumberSequence:
+    """Sperrt die Zeile des Nummernkreises bis zum Commit und lädt sie danach frisch (seit 1.8.73, Nebenbefund 1 aus
+    1.8.72: zwei gleichzeitig festgeschriebene Rechnungen verschiedener Aufträge bekamen dieselbe Nummer -- beide lasen
+    next_value, bevor die erste committet hatte). Gesperrt wird mit einem UPDATE ohne Änderung statt SELECT ... FOR UPDATE:
+    unter PostgreSQL hält es die Zeilensperre, unter SQLite die Schreibsperre der Datenbank -- auch dort wartet der zweite,
+    bis der erste committet hat. populate_existing: ein vorher geladener Nummernkreis bliebe sonst auf dem alten Stand."""
+    if sequence_key not in DEFAULT_SEQUENCES:
+        raise KeyError(f"Unbekannter Nummernkreis: {sequence_key}")
+    db.execute(
+        update(NumberSequence).where(NumberSequence.sequence_key == sequence_key)
+        .values(next_value=NumberSequence.next_value).execution_options(synchronize_session=False)
+    )
+    sequence = db.scalar(select(NumberSequence).where(NumberSequence.sequence_key == sequence_key)
+                         .execution_options(populate_existing=True))
+    return sequence if sequence is not None else load_sequence(db, sequence_key)  # fehlt: GrunddatenFehlen
+
+
 def issue_number(db: Session, sequence_key: str) -> str:
-    sequence = load_sequence(db, sequence_key)
+    """Vergibt die nächste Nummer des Nummernkreises -- seit 1.8.73 unter der Sperre seiner Zeile (_lock_sequence()) bis
+    zum Commit des Aufrufers: Jahreswechsel, Abgleich mit den vorhandenen Nummern und Hochzählen laufen für jeden
+    Nummernkreis nacheinander. Alle sieben Nummernkreise vergeben hierüber (Kunde, Anfrage, Projekt und Angebot bis 1.8.72
+    über preview_number() ohne Hochzählen -- gleichzeitig angelegt, scheiterte der zweite an der Eindeutigkeit). Wird der
+    Aufrufer zurückgerollt, ist auch die Nummer nicht verbraucht."""
+    sequence = _lock_sequence(db, sequence_key)
     _apply_year_reset(sequence)
     _sync_from_existing(db, sequence)
     value = format_sequence_number(sequence.format_pattern, sequence.next_value)

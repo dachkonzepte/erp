@@ -195,6 +195,15 @@ def _lock_and_check(db: Session, invoice: Invoice) -> None:
         raise InvoiceBlocked(reason)
 
 
+def _refresh_or_gone(db: Session, reminder: Reminder) -> None:
+    """Nach der Sperre frisch laden -- ein gleichzeitig gelöschter Entwurf ergibt InvoiceBlocked (409) statt eines
+    Fehlers beim Neuladen (seit 1.8.73)."""
+    if db.scalar(select(Reminder.id).where(Reminder.id == reminder.id)) is None:
+        db.rollback()
+        raise InvoiceBlocked("Der Mahnungsentwurf wurde inzwischen gelöscht.")
+    db.refresh(reminder)
+
+
 def create_reminder(db: Session, invoice: Invoice, level: int) -> Reminder:
     _lock_and_check(db, invoice)
     if invoice.status != "versendet":
@@ -221,7 +230,7 @@ def finalize_and_send_reminder(db: Session, reminder: Reminder) -> Reminder:
     """Seit 1.8.72 unter der Sperre der Auftragszeile: die Rechnung darf weder storniert noch bezahlt sein (InvoiceBlocked);
     ein zweites, gleichzeitiges Versenden desselben Entwurfs findet ihn danach schon versendet."""
     _lock_and_check(db, reminder.invoice)
-    db.refresh(reminder)
+    _refresh_or_gone(db, reminder)
     if reminder.status != "entwurf":
         db.rollback()
         raise ValueError("Nur Mahnungen im Entwurf können versendet werden.")
@@ -346,8 +355,15 @@ def update_reminder_draft(
 
 
 def delete_reminder_draft(db: Session, reminder: Reminder) -> None:
+    """Seit 1.8.73 unter derselben Sperre wie das Festschreiben (wie app/invoices.py::delete_invoice_draft()): gelöscht
+    wird nur, was danach noch Entwurf ist, sonst InvoiceBlocked (409) -- vorher konnte ein gleichzeitiges Löschen eine eben
+    festgeschriebene Mahnung mitnehmen."""
+    lock_order_invoices(db, reminder.invoice.order_id)
+    _refresh_or_gone(db, reminder)
     if reminder.status != "entwurf":
-        raise ValueError("Nur Mahnungen im Entwurf können gelöscht werden.")
+        number = f" Die Mahnung ist inzwischen festgeschrieben ({reminder.reminder_number})." if reminder.reminder_number else ""
+        db.rollback()
+        raise InvoiceBlocked(f"Nur Mahnungen im Entwurf können gelöscht werden.{number}")
     db.delete(reminder)
     db.commit()
 

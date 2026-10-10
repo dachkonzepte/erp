@@ -730,7 +730,12 @@ den nächsten Abschlag das Ende des Zeitraums des vorigen. Nicht gebaut.
 - Moduldocstring `app/invoices.py` ("Sperren") und der veraltete Verweis auf `berechne_abgerechnete_menge()` (Nebenbefund 7)
   korrigiert.
 
-### Festlegungen – Bitte bestätigen
+### Festlegungen 1.8.72 (Rückmeldung 10.10.2026, Vorgabe 1.8.73)
+
+Der Bericht nannte sieben Punkte (Nr. 7 dort = Nr. 8 hier; Nr. 7 und 9 hier standen nicht im Bericht). Bestätigt: 1, 2, 4,
+6. Nr. 5 als Übergang bestätigt, der Sperrtext nennt seit 1.8.73 den Ausweg. Nr. 3 offen, nichts ändern. Nr. 8 gilt für die
+Geschäftsregeln, nicht für Rechnungsnummern (dort ist eine Datenbank-Bedingung vorgesehen, siehe "Umsetzung 1.8.73"). Nr. 7 und 9
+unbestätigt; aus Nr. 9 ist "Entwurf löschen" seit 1.8.73 unter der Sperre.
 
 1. "Gültig" heißt festgeschrieben und nicht storniert (`versendet`/`bezahlt`). Wo die Vorgabe "auch als Entwurf" sagt (Punkt 1,
    Anlegen der Schlussrechnung), zählt der Entwurf mit; Punkt 3 nur die festgeschriebene -- ein Entwurf der Schlussrechnung sperrt
@@ -739,12 +744,14 @@ den nächsten Abschlag das Ende des Zeitraums des vorigen. Nicht gebaut.
    Entwürfen: der zuerst festgeschriebene gilt, der andere bleibt Entwurf ohne Nummer (löschbar).
 3. "Keine weiteren Abschläge" gilt für pauschal und nach Leistungsstand, beim Anlegen und beim Festschreiben eines älteren Entwurfs.
    Ein Entwurf der Schlussrechnung sperrt keinen Abschlag. **"Rechnung aus Aufwand" bleibt nach der Schlussrechnung möglich** (kein
-   Abschlag, nicht Teil der Vorgabe).
+   Abschlag, nicht Teil der Vorgabe). **Offen (10.10.2026): nichts ändern.**
 4. Storno: auch ein Storno-Entwurf zählt beim Anlegen (wie bei der Schlussrechnung) -- ein zweiter Klick auf "Stornieren" antwortet
    409 statt eines zweiten Entwurfs. Storno eines Entwurfs bleibt 400 wie bisher; Storno einer schon stornierten Rechnung jetzt 409.
 5. Punkt 5: jeder pauschale Abschlag, der nicht `storniert` ist -- auch ein Entwurf -- sperrt Anlegen und Festschreiben der
    Schlussrechnung. Ein pauschaler Abschlag darf neben einem Schlussrechnungs-Entwurf entstehen; dann ist dessen Festschreiben
    gesperrt. Der Text nennt Grund und Nummern, keinen Ausweg (ob stornieren oder auf R4 warten, entscheidet das Büro).
+   **Als Übergang bestätigt; seit 1.8.73 mit Ausweg**: nur Entwürfe -> "Ausweg: den Entwurf löschen.", sonst "Schlussrechnungen
+   mit pauschalen Abschlägen kommen mit R4."
 6. Mahnung: zusätzlich zur Vorgabe auch der E-Mail-Versand einer schon festgeschriebenen Mahnung nach Storno oder Zahlung gesperrt --
    ohne Sperre der Auftragszeile, weil der Versand sie sonst über die Verbindung zum Mailserver hielte. Ein vorhandener Entwurf bleibt
    stehen (löschbar), die Mahnwesen-Liste nennt den Grund. Bezahlt markieren und Storno löschen keine Mahnungsentwürfe.
@@ -752,8 +759,9 @@ den nächsten Abschlag das Ende des Zeitraums des vorigen. Nicht gebaut.
    bleiben.
 8. Keine Datenbank-Bedingung (eindeutiger Teilindex je Auftrag bzw. Original): Altbestand könnte sie verletzen und die Migration auf
    dem Server scheitern lassen. Prüfabfragen 1c/1e/1f oben. Unter SQLite (nur Entwicklung) wirkt `FOR UPDATE` nicht.
+   **Gilt nur für die Geschäftsregeln, nicht für Rechnungsnummern** (Rückmeldung 10.10.2026).
 9. Nicht unter der Sperre (nicht Teil der Vorgabe): "Rechnung aus Aufwand" anlegen, Positionen und Kopf bearbeiten, Entwurf löschen
-   (siehe Nebenbefund 2).
+   (siehe Nebenbefund 2). Seit 1.8.73 ist "Entwurf löschen" unter der Sperre.
 
 ### Tests und Prüfung
 
@@ -789,9 +797,9 @@ den nächsten Abschlag das Ende des Zeitraums des vorigen. Nicht gebaut.
 
 ### Nebenbefunde (nur gemeldet)
 
-1. **Doppelte Nummern bei gleichzeitigem Festschreiben** (siehe b, nachgestellt): `issue_number()` ohne Sperre des Nummernkreises,
+1. **(seit 1.8.73 behoben)** **Doppelte Nummern bei gleichzeitigem Festschreiben** (siehe b, nachgestellt): `issue_number()` ohne Sperre des Nummernkreises,
    keine Eindeutigkeit an `invoices.invoice_number` -- betrifft alle Nummernkreise. GoBD-relevant.
-2. **Entwurf löschen gegen Festschreiben** (siehe b, nachgestellt): `delete_invoice_draft()` ohne Sperre löscht unter PostgreSQL eine
+2. **(seit 1.8.73 behoben)** **Entwurf löschen gegen Festschreiben** (siehe b, nachgestellt): `delete_invoice_draft()` ohne Sperre löscht unter PostgreSQL eine
    gerade festgeschriebene Rechnung.
 3. **Finanzen und Dashboard zählen Stornorechnungen als offen**: "Offene Rechnungen"/"Offener Betrag" = alle mit Status `versendet`
    (`finanzen.html:47`, `dashboard.html:137`) -- eine Stornorechnung bleibt `versendet` und geht mit negativem Betrag in den offenen
@@ -800,6 +808,149 @@ den nächsten Abschlag das Ende des Zeitraums des vorigen. Nicht gebaut.
    wird nicht ausgeblendet; der Server lehnt ab (400).
 5. Ein Mahnungsentwurf derselben Stufe lässt sich zweimal anlegen (`create_reminder()` prüft keinen vorhandenen Entwurf); die
    Mahnwesen-Übersicht zeigt nur einen davon.
+
+## Umsetzung 1.8.73: Nummernvergabe und Entwurf löschen unter Sperre (Nebenbefunde 1 und 2 aus 1.8.72)
+
+### Vorgabe vom 10.10.2026 (übernommen wie gegeben)
+
+1.8.72 geprüft. Festlegungen 1, 2, 4, 6 bestätigt.
+5: als Übergang bestätigt. Der Sperrtext soll den Ausweg nennen: bei Entwurf „Entwurf löschen“, sonst, dass Schlussrechnungen mit
+pauschalen Abschlägen mit R4 kommen.
+3: offen, nichts ändern.
+7: gilt für die Geschäftsregeln, nicht für Rechnungsnummern.
+
+1.8.73 – Nebenbefunde 1 und 2:
+- Nummernvergabe je Nummernkreis atomar unter Sperre, für alle Nummernkreise.
+- Entwurf löschen unter derselben Sperre wie Festschreiben. Gelöscht wird nur, was nach der Sperre noch Entwurf ist, sonst 409.
+- Nebenläufigkeitstests unter PostgreSQL mit Gegenprobe, wie in deinem Nachweis.
+- Eindeutige Nummer als Datenbank-Bedingung: noch keine Migration. Liefere eine SQL-Abfrage, die auf dem Server Dubletten und
+  Lücken je Nummernkreis zeigt.
+
+Befund, nichts bauen:
+a) Wie geht eine Rechnung aus Aufwand heute in die Schlussrechnung ein (Gesamtwert, Abzug oder gar nicht)?
+b) Wie ist der Neustart der Nummernkreise auf 1 zum Echtbetrieb vorgesehen, und was passiert dabei mit vorhandenen Rechnungen?
+
+### Vorweg
+
+- Festlegungen 1.8.72 markiert (an der Überschrift, Nummern wie im Archiv -- "7" der Rückmeldung ist dort Nr. 8).
+- Nr. 5: der Sperrtext nennt den Ausweg (`app/invoices.py::_lump_sum_reason()`): nur Entwürfe -> "Ausweg: den Entwurf löschen."
+  (bzw. "die Entwürfe"), sonst -- mindestens ein festgeschriebener -- "Schlussrechnungen mit pauschalen Abschlägen kommen mit R4."
+
+### Was gebaut ist
+
+- **Nummernvergabe atomar** (`app/settings.py`): `issue_number()` sperrt zuerst die Zeile des Nummernkreises (`_lock_sequence()`:
+  ein UPDATE ohne Änderung -- unter PostgreSQL die Zeilensperre, unter SQLite die Schreibsperre der Datenbank) und lädt sie danach
+  frisch (`populate_existing`); Jahreswechsel, Abgleich mit den vorhandenen Nummern und Hochzählen laufen so je Nummernkreis
+  nacheinander, die Sperre hält bis zum Commit des Aufrufers. Wird er zurückgerollt, ist die Nummer nicht verbraucht.
+- **Alle sieben Nummernkreise** vergeben darüber: Kunde, Anfrage, Projekt und Angebot liefen bis 1.8.72 über `preview_number()`
+  ("höchste vorhandene + 1", ohne Hochzählen) -- zwei gleichzeitig angelegte scheiterten am Eindeutigkeitsindex (500); jetzt
+  `next_customer_number()`, `next_inquiry_number()`, `next_project_number()`, `next_quote_number()` -> `issue_number()`.
+  `preview_number()` ist nur noch Anzeige (Kundennummer im Formular, Einstellungen); ein Strukturtest prüft die Aufrufer.
+- **Entwurf löschen** (`delete_invoice_draft()`, `delete_reminder_draft()`): unter derselben Sperre wie das Festschreiben
+  (`lock_order_invoices()`, Auftragszeile), danach frisch geprüft -- nur ein Entwurf wird gelöscht, sonst 409 "Nur Rechnungen im
+  Entwurf können gelöscht werden. Die Rechnung ist inzwischen festgeschrieben (R-…)." (vorher 400 ohne Nummer); schon gelöscht:
+  409 "Der Entwurf wurde inzwischen gelöscht.". Umgekehrt findet das Festschreiben einen inzwischen gelöschten Entwurf nicht mehr
+  und antwortet 409, ohne eine Nummer zu verbrauchen (Rechnung und Mahnung; vorher 500 am Speichern).
+- **Prüfabfrage** `scripts/pruefabfrage_nummernkreise.sql` (siehe unten), keine Migration.
+
+### Prüfabfrage: Dubletten und Lücken je Nummernkreis
+
+`scripts/pruefabfrage_nummernkreise.sql`, nur lesen, auf dem Server z. B. `psql -d dachkonzepte -f scripts/pruefabfrage_nummernkreise.sql`.
+Drei Ergebnisse:
+
+1. **Dubletten** je Nummernkreis (Kunde, Anfrage, Projekt, Angebot, Auftrag, Rechnung inkl. Storno, Mahnung), unabhängig vom Format.
+2. **Lücken** je Nummernkreis und Gruppe (alles außer der laufenden Nummer, z. B. "R-2026-…", also je Jahr): erste, letzte, Anzahl,
+   fehlende dazwischen (bis 50 aufgelistet) und fehlende vor der ersten, gemessen am Startwert. Das Format kommt aus
+   `number_sequences.format_pattern` (`{YYYY}`, `{YY}`, `{N…}`); nur Nummern im aktuellen Format zählen.
+3. **Anderes Format** (Altsystem, früheres Format, von Hand): Anzahl und bis zu 20 Beispiele -- für Lücken nicht gezählt.
+
+Entwürfe ohne Nummer zählen nicht. Geprüft auf einem Wegwerf-Schema der lokalen PostgreSQL mit eingebauter Dublette, Lücke, zwei
+Jahren, fremden Formaten und Entwürfen: alle Fälle richtig erkannt. Gegen echte Daten ist sie nicht gelaufen (Regel 16). Eine Lücke
+bei Kunde, Anfrage, Projekt, Angebot oder Auftrag kann vom Löschen kommen (seit 1.8.73 zählen auch die ersten vier hoch), bei
+Rechnung und Mahnung ist sie erklärungsbedürftig.
+
+### Befund (nichts gebaut)
+
+**a) Rechnung aus Aufwand und Schlussrechnung: gar nicht.** Die Rechnung aus Aufwand (`create_invoice_from_time_entries()`,
+`invoices.py:475`) hat nur Positionen ohne Bezug zum Auftrag (`source_order_item_id = NULL`: Zeit je Mitarbeiter und Tätigkeit,
+Material); die Schlussrechnung setzt jede Auftragsposition auf 100 % und zieht nur Abschläge nach Leistungsstand derselben Position ab
+(`get_previous_cumulative_ist()`, `:265`) -- die Aufwand-Rechnung ist weder im Gesamtwert enthalten noch abgezogen, sie kommt
+obendrauf. Nachgerechnet (Wegwerf-SQLite): Auftrag 5.000 € netto, Aufwand 10 h × 82 € = 820 €, Schlussrechnung 5.000 €; der Auftrag
+zeigt "abgerechnet 5.820 €, noch offen −820 €" (`compute_order_billing_progress()`, `:996`, zählt die Aufwand-Rechnung mit). Auch ein
+Abschlag nach Leistungsstand kennt sie nicht (40 % = 2.000 € unabhängig davon).
+- Beim **Schnellauftrag** (eine Position "Reparatur/Wartung nach Aufwand", 1 × 0 €, `quick_service_orders.py`) ist das gewollt: die
+  Schlussrechnung lautet über 0 €, die Aufwand-Rechnung ist die eigentliche Rechnung.
+- Beim **Auftrag aus einem Angebot mit Preisen** wird dieselbe Leistung doppelt berechnet, wenn die Stunden zu einer LV-Position
+  gehören: die Zeitbuchung trägt `order_item_id`, die Aufwand-Rechnung übernimmt ihn nicht und berechnet die Stunden zusätzlich zum
+  Einheitspreis der Position.
+- Dieselben Buchungen lassen sich in eine zweite Aufwand-Rechnung übernehmen (bekannt, CLAUDE.md "Keine Doppel-Abrechnungs-Sperre").
+- Nach der Schlussrechnung bleibt sie möglich (Festlegung 1.8.72 Nr. 3, offen), ihr Storno ebenso (kein Abschlag).
+- Für R4 (Endrechnung mit Abzug der Abschläge) ist offen, ob und wie Aufwand-Rechnungen darin erscheinen.
+
+**b) Neustart der Nummernkreise auf 1.** **Vorgesehen ist dafür nichts außer der Entscheidung** ("Nummernkreise beim Start auf 1",
+"Entscheidungen Rechnungen"): kein Skript, keine Migration, keine Funktion. Was heute möglich ist und was dabei passiert:
+- **Jahreswechsel**: alle sieben Nummernkreise haben im Standard `{YYYY}` im Format und `reset_yearly` -- bei der ersten Nummer im
+  neuen Jahr beginnen sie von selbst beim Startwert (`_apply_year_reset()`, `settings.py:142`). Beginnt der Echtbetrieb am
+  01.01.2027, steht jede Nummer ohnehin bei 1; die Nummern von 2026 bleiben, wie sie sind.
+- **Anderes Format** (Einstellungen -> Nummernkreise, z. B. "RE-{YYYY}-{NNNN}"): beginnt bei der eingetragenen Nummer; die alten
+  behalten ihr Format, keine Überschneidung.
+- **Gleiches Format, gleiches Jahr, "nächste Nummer" = 1** (`update_sequence()`, `:191`, PUT `/api/settings/number-sequences/{key}`):
+  - Kunde, Anfrage, Projekt, Angebot, Auftrag: der Abgleich mit den vorhandenen Nummern (`_sync_from_existing()`, `:76`) hebt die
+    nächste Nummer wieder über die höchste vorhandene -- ein Neustart findet still nicht statt.
+  - **Rechnung und Mahnung: kein Abgleich** (`_existing_column()`, `:56`, kennt sie nicht) -- die nächste festgeschriebene Rechnung
+    bekommt eine schon vergebene Nummer. **Nachgestellt (Wegwerf-SQLite): R-2026-0001 vorhanden, "nächste Nummer" 1 gespeichert, das
+    nächste Festschreiben vergibt wieder R-2026-0001.** Die Vorschau in den Einstellungen zeigt dabei "R-2026-0001" ohne Warnung.
+- **Vorhandene Rechnungen**: bleiben in jedem Fall unverändert -- Nummer, Status, PDF in der unveränderlichen Ablage, Einträge im
+  Versandprotokoll. In der App lassen sie sich nicht entfernen (nur Entwürfe löschbar, Projekte mit Auftrag nur archivierbar, Ablage
+  und Protokoll unveränderlich); sie bleiben in Finanzen, Dashboard und Mahnwesen sichtbar, überfällige versendete bekommen beim
+  Öffnen des Mahnwesens Mahnungsentwürfe (automatische Entwürfe, wenn eingeschaltet). Ein Neustart im selben Format und Jahr ohne
+  Dubletten hieße, diese Rechnungen außerhalb der App zu entfernen -- gegen Ablage und Protokoll, und unzulässig, falls eine davon
+  echt hinausging. Zu entscheiden: Jahreswechsel bzw. neues Format, neue Datenbank mit übernommenen Stammdaten, oder die
+  Probe-Rechnungen stehen lassen (stornieren).
+- Mit der vorgesehenen eindeutigen Rechnungsnummer (Datenbank-Bedingung) schlüge eine solche Dublette am Speichern fehl (500) statt
+  still zu entstehen.
+
+### Festlegungen – Bitte bestätigen
+
+1. Gesperrt wird mit einem UPDATE ohne Änderung statt `SELECT … FOR UPDATE` -- dieselbe Wirkung unter PostgreSQL, dazu unter SQLite
+   (Entwicklung) die Schreibsperre der Datenbank; die Sperre hält bis zum Commit. Ein Ablauf, der mehrere Nummern zieht
+   (Schnellauftrag: Projekt, Angebot, Auftrag), hält sie bis zum Ende; gleichzeitige Anlagen derselben Art warten kurz.
+2. Kunde, Anfrage, Projekt und Angebot zählen jetzt hoch: eine gelöschte Nummer wird nicht wieder vergeben (vorher die nächste freie
+   über der höchsten). Die Kundennummer wird wie bisher nur beim ersten Anlegen des Profils gezogen -- auch über die zwei GET-Routen,
+   die ein fehlendes Profil nachlegen (`GET /api/customers`, `/{id}`).
+3. Auch der **Mahnungsentwurf** wird unter der Sperre gelöscht (die Vorgabe nennt "Entwurf löschen" allgemein, Nebenbefund 2 betraf
+   Rechnungen).
+4. Löschen eines nicht (mehr) vorhandenen Entwurfs: 409 "inzwischen gelöscht", nicht 404. Ein festgeschriebener: 409 mit Nummer.
+5. Gemischt (festgeschriebener und Entwurf eines pauschalen Abschlags): der Text nennt R4, nicht das Löschen.
+
+### Tests und Prüfung
+
+- Neu `tests/test_v376_nummernkreise.py` (19): je Nummernkreis zwei gleichzeitige Vergaben unter PostgreSQL (7, die zweite Sitzung hält
+  den alten Stand des Nummernkreises), zwei Rechnungen verschiedener Aufträge gleichzeitig (der Nachweis aus 1.8.72, Nebenbefund 1),
+  Löschen gegen Festschreiben in beiden Reihenfolgen für Rechnung und Mahnung (Nebenbefund 2, ohne verbrauchte Nummer), zwei
+  gleichzeitige Vergaben unter SQLite mit Datei (2), Hochzählen statt Vorschau, Rückrollen, Strukturtest der Vorschau-Aufrufer,
+  409 beim Löschen über die Router, Löschen von Entwürfen.
+- `test_v375`: Sperrtext mit Ausweg (Erwartung geändert, wie gewünscht), dazu der gemischte Fall.
+- Gegenproben (Regel 24): 11 von 11 rot -- Sperre des Nummernkreises, frisch lesen nach der Sperre, Projektnummer über die Vorschau,
+  Löschen ohne Sperre, Festschreiben eines gelöschten Entwurfs, 409 statt 400 (Geschäftslogik, Router Rechnung, Router Mahnung),
+  Mahnungsentwurf löschen ohne Sperre, Mahnung gelöschter Entwurf, Ausweg im Text. "Frisch lesen" blieb zuerst grün: der Test lud den
+  Nummernkreis vorher, hielt das Objekt aber nicht fest (die Sitzung hält unveränderte Objekte nur schwach, es wurde neu geladen) --
+  Test korrigiert, dann rot. Jede Datei byte-genau zurück (SHA-256), kein Marker übrig.
+- Klicktest `klicktest_rechnungen_sperren.py` erweitert, 24/24: Ausweg "R4" am festgeschriebenen pauschalen Abschlag, Ausweg "Entwurf
+  löschen" am Entwurf, danach gelöscht und frei.
+- Erwartung geändert: `test_projects.py::test_project_number_sequence` rief `next_project_number()` einmal nur zum Nachsehen auf
+  (Vorschau-Logik) -- jetzt zieht jeder Aufruf eine Nummer; der Test nimmt die erste für das Projekt und erwartet danach 0002.
+- PostgreSQL über das pytest-Plugin (Wegwerf-Schemas): `test_v376`, `test_v375`, `test_projects`, `test_v051`, `test_inquiries`,
+  `test_v05`, `test_v133`, `test_v153`, `test_v192`, `test_v209`: 135 grün, 1 rot (`test_project_number_sequence`, siehe oben) --
+  nach der Anpassung `test_projects` unter SQLite und PostgreSQL 3 grün.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie): 3304 grün, 11 erwartet fehlgeschlagen, 1 rot (derselbe Test,
+  danach angepasst und grün). Sonst nur Doku geändert; VERSION/Strukturtests im Hauptbaum 21 grün.
+
+### Nebenbefunde (nur gemeldet)
+
+1. **Rechnungs- und Mahnungsnummer ohne Abgleich mit den vorhandenen** (siehe b): "nächste Nummer" zurückgesetzt -> Dublette, ohne
+   Warnung. GoBD-relevant; die übrigen fünf Nummernkreise haben den Abgleich.
+2. `_sync_from_existing()` lädt bei jeder Vergabe alle Nummern der Tabelle und prüft sie in Python -- wächst mit dem Bestand.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
@@ -811,6 +962,6 @@ Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
 - **Offene Abschläge** nach der Schlussrechnung nur noch über diese gemahnt.
 - **Zahlung auf den Zahlbetrag**: Vorschlag zuerst auf offene Abschläge (ältester zuerst), dann Schlussrechnung, das Büro bestätigt.
 - **Rechnungsdatum** = Tag der Ausgabe, jede Rechnung mit Pflicht-Leistungszeitraum, Nummer beim Festschreiben, Nummernkreise beim
-  Start auf 1.
+  Start auf 1. (Was dabei heute passiert: "Umsetzung 1.8.73" -> Befund b.)
 - **Storno**: höchstens ein Storno je Rechnung, kein Storno eines Stornos.
 - **Steuersatz**: keine mehreren Steuersätze je Rechnung.

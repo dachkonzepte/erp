@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.72** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.73** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -938,8 +938,10 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   bzw. abgeschlossen ist (`sync_block_reasons()`), Untertitel unter PostgreSQL, Projektstatus bleibt; Spaltenschlüssel gekürzt
   und eindeutig; Auftragsdatum aus Berlin; Hinweis fürs Büro, wenn die Fläche der Vertragsposition fremd ist; "Entscheidungen
   Rechnungen" festgehalten, nicht gebaut; seit 1.8.72 (R3) 1c, 1e-1h behoben: Sperren an Schlussrechnung, Abschlag, Storno und
-  Mahnung unter der Sperre der Auftragszeile, Grund statt Knopf; offen gemeldet: doppelte Nummern bei gleichzeitigem Festschreiben
-  verschiedener Aufträge, Entwurf löschen gegen Festschreiben; 1a, 1b, 1d und 4a-4c für R4) -- `docs/archiv/befund-vor-echtbetrieb.md`
+  Mahnung unter der Sperre der Auftragszeile, Grund statt Knopf; seit 1.8.73 Nummernvergabe atomar je Nummernkreis, Entwurf löschen
+  unter der Sperre, Prüfabfrage `scripts/pruefabfrage_nummernkreise.sql` (Dubletten und Lücken); offen gemeldet: Rechnungs- und
+  Mahnungsnummer gleichen nicht mit den vorhandenen ab ("nächste Nummer" zurückgesetzt -> Dublette); 1a, 1b, 1d und 4a-4c für R4)
+  -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
   `docs/archiv/grunddaten-beim-start.md`
@@ -1007,6 +1009,10 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   2 MB und 5000 Pixel je Seite, nicht leer) -- ein neuer Unterschrift-Weg ruft sie auf, bevor er speichert;
   `tests/test_v358_unterschrift_pruefung.py` ordnet jede Spalte ein, die nach Unterschrift klingt, und sucht jeden
   speichernden Weg per AST.
+- **Nummern nur über `app/settings.py::issue_number()`** (seit 1.8.73): sperrt die Zeile des Nummernkreises bis zum Commit des
+  Aufrufers (UPDATE ohne Änderung -- Zeilensperre unter PostgreSQL, Schreibsperre unter SQLite), alle sieben Nummernkreise.
+  `preview_number()` ist nur Anzeige; `tests/test_v376_nummernkreise.py` prüft die Aufrufer. Einen Entwurf mit späterer Nummer
+  (Rechnung, Mahnung) löscht nur, wer dieselbe Sperre wie das Festschreiben hält.
 - **KI-Aufrufe ausschließlich über `call_ai()`/`call_ai_async()`** (`app/ai_service.py`) --
   nie einen Adapter (`app/ai_adapters.py`) direkt importieren/aufrufen. `call_ai_async()` aus
   `async def`-Routen, `call_ai()` nur aus gewöhnlichen `def`-Routen (Starlette-Threadpool) --
@@ -1351,7 +1357,8 @@ Objekt des eigenen Auftrags, sonst ruhiger Hinweis, 412 px) und `klicktest_abgle
 Angebots-Editor nennen den Grund der Sperre statt des Knopfs, API 409, freier Auftrag gleicht ab und behält den Projektstatus;
 Einsatzbericht mit Hinweis fürs Büro, Monteurin auf 412 px ohne) und `klicktest_rechnungen_sperren.py` (1.8.72, Auftragsseite
 "Neue Rechnung" mit Grund statt Knopf je Rechnungsart, Rechnungsseite ohne Finalisieren bzw. Stornieren mit Grund, hell und dunkel,
-Mahnwesen-Entwurf zu bezahlter Rechnung, API 409). Ein
+Mahnwesen-Entwurf zu bezahlter Rechnung, API 409; seit 1.8.73 der Ausweg im Sperrtext: "R4" bzw. "Entwurf löschen", gelöscht ->
+frei). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

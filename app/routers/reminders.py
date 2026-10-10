@@ -159,6 +159,8 @@ def delete_reminder(reminder_id: int, db: Session = Depends(get_db), _role: AppU
     reminder = _get_reminder_or_404(db, reminder_id)
     try:
         delete_reminder_draft(db, reminder)
+    except InvoiceBlocked as e:  # seit 1.8.73: nicht (mehr) Entwurf nach der Sperre
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"deleted": True}
