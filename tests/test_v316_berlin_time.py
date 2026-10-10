@@ -171,18 +171,10 @@ m = order.date.today()
 # Spaltenvorgaben und default_factory, die beim Einführen der Suche (1.8.46, Befund Stufe 2c, Widerspruch 2)
 # schon da waren. Darf nur kürzer werden: ein neuer Fund ist rot, ein Eintrag ohne Fund auch (dann streichen).
 # Abhilfe je Fall: Vorgabe weg und das Datum beim Anlegen ausdrücklich mit berlin_today() setzen.
-_UTC_DATUM = ("Datum beim Anlegen aus der Uhr des Rechners -- auf dem Server UTC, zwischen 0 und 2 Uhr der Vortag "
-              "(Befund Stufe 2c, 03.10.2026)")
-BEKANNTE_VORGABEN = {
-    "app/models.py::QuoteDocumentMeta.quote_date": _UTC_DATUM + "; neue Angebote setzen es aus created_at in "
-                                                               "Europe/Berlin (ensure_quote_structure)",
-    "app/models.py::Order.order_date": _UTC_DATUM,
-    "app/models.py::Invoice.invoice_date": _UTC_DATUM + "; Rechnungsdatum = Tag des Entwurfs, beim Versand nicht "
-                                                        "erneuert",
-    "app/models.py::Reminder.reminder_date": _UTC_DATUM,
-    "app/models.py::ServiceReport.performed_at": _UTC_DATUM,
-    # app/schemas.py::OrderCreateFromQuote.order_date seit 1.8.71 aus berlin_today() (Befund 4d)
-}
+# Seit 1.8.75 leer: QuoteDocumentMeta.quote_date, Order.order_date, Invoice.invoice_date, Reminder.reminder_date und
+# ServiceReport.performed_at nehmen berlin_today() als Vorgabe (gesetzt wird das Datum beim Anlegen ausdrücklich, das
+# Rechnungsdatum beim Festschreiben neu, Befund 4a-4c); app/schemas.py::OrderCreateFromQuote.order_date seit 1.8.71 (4d).
+BEKANNTE_VORGABEN: dict[str, str] = {}
 
 
 def test_no_local_clock_as_column_default_in_app():

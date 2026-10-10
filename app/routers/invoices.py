@@ -4,7 +4,8 @@ Endpunkte für das Rechnungswesen -- Geschäftslogik liegt vollständig in
 app/invoices.py, hier nur die HTTP-Anbindung und die Übersetzung von
 ValueError (unzulässiger Zustandsübergang, z.B. Bearbeitung einer bereits
 versendeten Rechnung) in aussagekräftige 400-Antworten -- seit 1.8.72 InvoiceBlocked
-(zweite Schlussrechnung, Abschlag nach der Schlussrechnung, zweites Storno usw.) in 409.
+(zweite Schlussrechnung, Abschlag nach der Schlussrechnung, zweites Storno usw.) in 409, seit
+1.8.75 auch beim Bearbeiten eines Entwurfs, der nach der Sperre keiner mehr ist (vorher 400).
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -115,6 +116,8 @@ def post_invoice_from_time_entries(order_id: int, payload: InvoiceCreateFromOrde
     materials = list_materials_for_invoicing(db, order_id)
     try:
         invoice = create_invoice_from_time_entries(db, order, entries, materials, due_date=payload.due_date)
+    except InvoiceBlocked as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     result = invoice_to_dict(invoice)
@@ -135,6 +138,8 @@ def put_invoice_header(invoice_id: int, payload: InvoiceHeaderUpdate, db: Sessio
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         update_invoice_header(db, invoice, **payload.model_dump(exclude_unset=True))
+    except InvoiceBlocked as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return invoice_to_dict(invoice)
@@ -145,6 +150,8 @@ def put_invoice_payment_term(invoice_id: int, payload: InvoicePaymentTermUpdate,
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         update_invoice_payment_term(db, invoice, payload.payment_term_id)
+    except InvoiceBlocked as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return invoice_to_dict(invoice)
@@ -155,6 +162,8 @@ def put_invoice_tax_key(invoice_id: int, payload: TaxKeySelection, db: Session =
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         update_invoice_tax_key(db, invoice, payload.tax_key_id)
+    except InvoiceBlocked as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return invoice_to_dict(invoice)
@@ -170,6 +179,8 @@ def post_invoice_item(invoice_id: int, payload: InvoiceItemCreate, db: Session =
             source_order_item_id=payload.source_order_item_id, soll_quantity=payload.soll_quantity,
             position_number=payload.position_number,
         )
+    except InvoiceBlocked as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return invoice_to_dict(invoice)
@@ -186,6 +197,8 @@ def put_invoice_item(invoice_id: int, item_id: int, payload: InvoiceItemUpdate, 
             db, invoice, item, short_text=payload.short_text, long_text=payload.long_text,
             unit=payload.unit, unit_price=payload.unit_price, ist_quantity=payload.ist_quantity,
         )
+    except InvoiceBlocked as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return invoice_to_dict(invoice)
@@ -196,6 +209,8 @@ def delete_invoice_item(invoice_id: int, item_id: int, db: Session = Depends(get
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         found = remove_invoice_item(db, invoice, item_id)
+    except InvoiceBlocked as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     if not found:

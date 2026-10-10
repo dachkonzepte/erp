@@ -2023,6 +2023,10 @@ class InvoiceOut(BaseModel):
     service_period_end: date | None = None
     service_period_text: str | None = None
     service_period_proposal: dict | None = None
+    # Seit 1.8.75 (app/invoices.py::_date_info()): im Entwurf {invoice_date, due_date, payment_days} -- was das Festschreiben
+    # heute setzen würde; danach der Hinweis, wenn der Versand später als das Rechnungsdatum liegt.
+    finalize_dates: dict | None = None
+    send_hint: str | None = None
     items: list[InvoiceItemOut] = Field(default_factory=list)
     net_total: Decimal
     vat_total: Decimal

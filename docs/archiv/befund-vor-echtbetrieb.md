@@ -223,7 +223,8 @@ PostgreSQL rot (dieselbe `ForeignKeyViolation`) -- er lief bisher nur unter SQLi
 
 ## Punkt 4: Rechnungsdatum -- nachgestellt: ja
 
-4d seit 1.8.71 behoben ("Umsetzung 1.8.71"); 4a-4c offen, Entscheidungen dazu unter "Entscheidungen Rechnungen".
+4d seit 1.8.71 behoben ("Umsetzung 1.8.71"); 4a-4c seit 1.8.75 ("Umsetzung 1.8.75": Rechnungsdatum = Tag des Festschreibens in
+Berlin, Fälligkeit rückt mit); Entscheidungen dazu unter "Entscheidungen Rechnungen".
 
 - **Wo und wann**: `Invoice.invoice_date` setzt keine Funktion ausdrücklich; es greift die Spaltenvorgabe `default=date.today`
   (`models.py:1657`) beim Anlegen des **Entwurfs** -- jede Art (pauschal, Leistungsstand, Schluss, aus Aufwand, Storno;
@@ -735,7 +736,8 @@ den nächsten Abschlag das Ende des Zeitraums des vorigen. Nicht gebaut.
 Der Bericht nannte sieben Punkte (Nr. 7 dort = Nr. 8 hier; Nr. 7 und 9 hier standen nicht im Bericht). Bestätigt: 1, 2, 4,
 6. Nr. 5 als Übergang bestätigt, der Sperrtext nennt seit 1.8.73 den Ausweg. Nr. 3 offen, nichts ändern. Nr. 8 gilt für die
 Geschäftsregeln, nicht für Rechnungsnummern (dort ist eine Datenbank-Bedingung vorgesehen, siehe "Umsetzung 1.8.73"). Nr. 7 und 9
-unbestätigt; aus Nr. 9 ist "Entwurf löschen" seit 1.8.73 unter der Sperre.
+unbestätigt; aus Nr. 9 ist "Entwurf löschen" seit 1.8.73 unter der Sperre. **Nr. 7 bestätigt, Nr. 9 nicht (Vorgabe 1.8.75)** --
+seit 1.8.75 laufen auch die übrigen dort genannten Wege unter der Sperre ("Umsetzung 1.8.75").
 
 1. "Gültig" heißt festgeschrieben und nicht storniert (`versendet`/`bezahlt`). Wo die Vorgabe "auch als Entwurf" sagt (Punkt 1,
    Anlegen der Schlussrechnung), zählt der Entwurf mit; Punkt 3 nur die festgeschriebene -- ein Entwurf der Schlussrechnung sperrt
@@ -761,7 +763,8 @@ unbestätigt; aus Nr. 9 ist "Entwurf löschen" seit 1.8.73 unter der Sperre.
    dem Server scheitern lassen. Prüfabfragen 1c/1e/1f oben. Unter SQLite (nur Entwicklung) wirkt `FOR UPDATE` nicht.
    **Gilt nur für die Geschäftsregeln, nicht für Rechnungsnummern** (Rückmeldung 10.10.2026).
 9. Nicht unter der Sperre (nicht Teil der Vorgabe): "Rechnung aus Aufwand" anlegen, Positionen und Kopf bearbeiten, Entwurf löschen
-   (siehe Nebenbefund 2). Seit 1.8.73 ist "Entwurf löschen" unter der Sperre.
+   (siehe Nebenbefund 2). Seit 1.8.73 ist "Entwurf löschen" unter der Sperre. **Nicht bestätigt -- seit 1.8.75 alle unter der
+   Sperre.**
 
 ### Tests und Prüfung
 
@@ -1007,13 +1010,14 @@ Die Datenbank-Bedingung für eindeutige Nummern folgt nach meiner Prüfabfrage a
   - Altbestand: keine Spalte wird befüllt; festgeschriebene Rechnungen ohne Zeitraum bleiben, wie sie waren (PDF ohne Zeile,
     unveränderlich).
 
-### Festlegungen – Bitte bestätigen
+### Festlegungen 1.8.74 (bestätigt am 10.10.2026; Nr. 2 geändert, Vorgabe 1.8.75)
 
 1. Nächste Nummer: Ablehnung mit 409 (die übrigen Fehler der Seite bleiben 422). Gemessen am neuen Format im laufenden Jahr; die
    Startnummer prüft nichts (sie gilt erst beim Jahreswechsel).
 2. Die Vergabe springt weiter still über vergebene Nummern, wenn die nächste Nummer an den Einstellungen vorbei darunter liegt
    (Nummer von Hand, Import, Datenbank) -- statt das Festschreiben einer Rechnung zu blockieren. "Kein stilles Überspringen" gilt für
-   das Speichern in den Einstellungen.
+   das Speichern in den Einstellungen. **Geändert (Vorgabe 1.8.75): das Überspringen bleibt, aber nicht still -- `logger.warning` mit
+   Nummernkreis und übersprungenen Nummern** (gebaut in 1.8.76).
 3. Pflicht für jede Rechnungsart, auch Storno. Storno einer Rechnung ohne Zeitraum (vor 1.8.74): kein Vorschlag, von Hand eintragen.
 4. Zeitbuchungen im Vorschlag: gebucht, mit Stunden, ohne Schlechtwetter -- dieselbe Auswahl wie die Rechnung aus Aufwand; Fahrzeit
    zählt.
@@ -1069,6 +1073,132 @@ Die Datenbank-Bedingung für eindeutige Nummern folgt nach meiner Prüfabfrage a
 3. Ein Format ohne Jahr mit "Jahreswechsel: auf Startnummer zurück" setzt die nächste Nummer zum Jahreswechsel auf die Startnummer --
    die Vergabe springt dann still über die vergebenen (Festlegung 2); die Einstellungen warnen vor der Kombination nicht.
 
+## Umsetzung 1.8.75: Rechnungsdatum = Tag des Festschreibens, jeder schreibende Weg an einer Rechnung unter der Sperre (4a-4c, Punkte 1 und 2)
+
+### Vorgabe vom 10.10.2026 (übernommen wie gegeben)
+
+1.8.74 geprüft. Festlegungen 1.8.74 bestätigt, mit einer Änderung zu 2: Die Vergabe springt weiter über eine vergebene Nummer, aber
+nicht still: logger.warning mit Nummernkreis und übersprungenen Nummern. Archiv-Punkt 7 aus 1.8.72 bestätigt; Punkt 9 nicht, siehe 2.
+
+1.8.75:
+1. Rechnungsdatum = Tag des Festschreibens in Berliner Zeit (Tag der Ausgabe). Fälligkeit und Skonto werden beim Festschreiben ab
+   diesem Datum gerechnet. Beim Versand an einem späteren Tag ein Hinweis. Die xfail-Tests 4a–4c müssen grün werden;
+   Regel-20-Ausnahmeliste kürzen.
+2. Rechnung aus Aufwand anlegen sowie Positionen und Kopf bearbeiten unter derselben Sperre wie das Festschreiben; geändert wird nur,
+   was danach noch Entwurf ist, sonst 409. Strukturtest: Jeder schreibende Weg an einer Rechnung läuft unter dieser Sperre.
+3. Nummern: Gibt es Aufrufer, die eine Nummer nur anzeigen wollen und seit 1.8.73 eine verbrauchen (Vorschau in Einstellungen oder
+   Formularen)? Liste aller Aufrufer; eine Anzeige darf nie eine Nummer verbrauchen.
+4. Einstellungen: Format ohne Jahr zusammen mit „Jahreswechsel: auf Startnummer zurück“ wird abgelehnt (409 mit Grund). Den
+   veralteten Satz unter Nummernkreise entfernen.
+5. Klicktests: Ist die rote Prüfung in klicktest_versandverlauf.py durch Festlegung 3 aus 1.8.66 überholt? Dann Erwartung anpassen.
+   Dazu ein Skript, das alle Klicktests nacheinander laufen lässt; Laufzeit melden.
+
+Angriffstests mit Gegenprobe, Gleichzeitigkeit gegen PostgreSQL. Eigene Festlegungen mit „Bitte bestätigen“. Nebenbefunde nur
+melden. Wird der Umfang zu groß: nach Punkt 2 committen und den Rest auflisten. Commit nach Regel 13, Bericht kurz.
+
+### Vorweg
+
+- Festlegungen 1.8.74 an der Überschrift als bestätigt markiert, Nr. 2 mit der Änderung (Warnung im Log) -- gebaut in 1.8.76.
+- Festlegungen 1.8.72: Nr. 7 bestätigt; Nr. 9 nicht -- die dort genannten Wege ("aus Aufwand" anlegen, Positionen und Kopf
+  bearbeiten) laufen seit 1.8.75 unter der Sperre (Punkt 2).
+- Umfang: nach Punkt 2 committet (1.8.75), Punkte 3-5 als eigene Version 1.8.76 (siehe dort).
+
+### Was gebaut ist
+
+- **Rechnungsdatum = Tag des Festschreibens** (`app/invoices.py::finalize_dates()`, aufgerufen in `finalize_and_send_invoice()`):
+  das Festschreiben setzt `invoice_date` auf `berlin_today()` -- jede Art, auch Storno. Die Fälligkeit behält das Zahlungsziel des
+  Entwurfs (Tage zwischen seinem Datum und seiner Fälligkeit, aus der Zahlungsbedingung oder wie angegeben) und rückt mit; ohne
+  Fälligkeit (Storno) bleibt sie leer. Das Skontodatum rechnet ohnehin ab `invoice_date` (`format_payment_terms_sentence()`), also
+  ebenfalls ab dem Tag des Festschreibens. Die Nummer nimmt wie bisher das Berliner Jahr -- an Silvester passen Datum und Nummer.
+- **Entwurf**: trägt bis dahin das Datum seines Anlegens, ausdrücklich aus `berlin_today()` (`_default_invoice_header_fields()`,
+  Storno-Entwurf ebenso) -- dieselbe Uhr wie die Fälligkeit beim Anlegen (4b). Die Rechnungsseite zeigt unter den Rechnungsdaten,
+  was das Finalisieren heute setzen würde ("Finalisiert heute: Rechnungsdatum …, fällig …", `invoice_to_dict()["finalize_dates"]`,
+  nur gelesen); der Statustext nennt es beim Finalisieren mit.
+- **Hinweis beim späteren Versand** (`send_hint()`, `invoice_to_dict()["send_hint"]`): eine festgeschriebene, nicht bezahlte Rechnung,
+  deren Rechnungsdatum vor heute liegt, zeigt über "Per E-Mail senden": "Die Rechnung ist vom … (Tag des Finalisierens), heute ist
+  der …. Fälligkeit (…) und Skontofrist (bis …) rechnen ab dem Rechnungsdatum, nicht ab dem Versand." -- dazu "Die Fälligkeit ist
+  schon überschritten." bzw. "Die Skontofrist ist schon abgelaufen.". Nur ein Hinweis, der Versand bleibt möglich.
+- **Regel-20-Ausnahmeliste leer**: die fünf Spaltenvorgaben (`Invoice.invoice_date`, `Order.order_date`, `Reminder.reminder_date`,
+  `ServiceReport.performed_at`, `QuoteDocumentMeta.quote_date`) nehmen `berlin_today()` statt `date.today`; `BEKANNTE_VORGABEN` in
+  `test_v316_berlin_time.py` ist leer. Die vier übrigen griffen ohnehin nirgends (Befund Punkt 4, "Die übrigen Fälle").
+- **Jeder schreibende Weg an einer Rechnung unter der Sperre** (`lock_order_invoices()`, Auftragszeile): neu `_lock_draft()` vor
+  jeder Änderung an einem Entwurf -- Positionen hinzufügen, ändern, entfernen, Kopf (auch Pauschalbetrag und Leistungszeitraum),
+  Zahlungsbedingung, Steuerschlüssel. Danach sind Rechnung und Positionen frisch geladen; geändert wird nur, was noch Entwurf ist,
+  sonst `InvoiceBlocked` = 409 "Nur Rechnungen im Entwurf können bearbeitet werden. Die Rechnung ist inzwischen festgeschrieben
+  (R-…)." bzw. "Der Entwurf wurde inzwischen gelöscht." / "Die Position wurde inzwischen entfernt.". "Rechnung aus Aufwand" anlegen
+  nimmt die Sperre (`_check_create(…, "aufwand")`, ohne eigene Regel), ebenso der Versandnachweis an der Rechnung nach dem Senden
+  (`email_sent_at/_to`, Sperre erst nach dem Senden). Router: 409 vor 400.
+- **Vorher (bis 1.8.74)**: die Änderung prüfte "Entwurf" ohne Sperre am vorher geladenen Objekt; unter PostgreSQL wartete ihr UPDATE
+  auf ein gleichzeitiges Festschreiben und schrieb danach in die festgeschriebene Rechnung (Positionen, Betrag, Zeitraum) -- in den
+  Gegenproben nachgestellt.
+- **Strukturtest** `tests/test_v378_rechnung_sperre_und_datum.py`: (1) AST über `app/invoices.py` -- jede öffentliche Funktion, die
+  schreibt (über die Hilfsfunktionen des Moduls), sperrt vor dem ersten Schreiben; (2) außerhalb von `app/invoices.py` legt niemand
+  `Invoice`/`InvoiceItem` an und schreibt kein Feld einer Rechnung (`incoming_invoices.py` ausgenommen: Eingangsrechnungen); (3)
+  Rundgang über jeden schreibenden Endpunkt der Rechnungen (aus dem Router, ein neuer ohne Szenario ist rot) mit einem Beobachter an
+  der Sitzung, der jede geschriebene Rechnung und Position gegen die Sperre ihres Auftrags hält (`SELECT orders … FOR UPDATE`, auch
+  unter SQLite sichtbar). Ausnahmeliste `OHNE_SPERRE` leer.
+- Klicktest `scripts/klicktest_rechnungsdatum.py`.
+
+### Festlegungen 1.8.75 – Bitte bestätigen
+
+1. **Zahlungsziel = Abstand im Entwurf**: die Fälligkeit rückt um denselben Abstand mit, den sie im Entwurf zum Rechnungsdatum hatte
+   (Zahlungsbedingung, Vorgabe des Kunden/Systems, oder über die API angegeben) -- kein neues Feld "Tage". Ein über die API vor das
+   Entwurfsdatum gesetztes Fälligkeitsdatum bleibt ebenso viele Tage vor dem Rechnungsdatum (die Oberfläche setzt es nie).
+2. **Der Entwurf trägt bis zum Festschreiben das Datum seines Anlegens** (die Spalte ist Pflicht); Feld und Entwurfs-PDF zeigen es
+   weiter, die Rechnungsseite darunter "Finalisiert heute: …". Kein Neuberechnen beim Lesen (Regel 23).
+3. **Hinweis beim Versand** nur für Status "versendet" (nicht "bezahlt") und nur auf der Rechnungsseite über dem E-Mail-Versand, nicht
+   bei "Zustellung nachtragen"; er sperrt nichts. Storno (ohne Fälligkeit): nur Rechnungsdatum und heute.
+4. **Alle fünf Spaltenvorgaben** der Regel-20-Ausnahmeliste auf `berlin_today()`, nicht nur das Rechnungsdatum -- die vier übrigen
+   griffen nirgends, die Liste ist leer.
+5. **Bearbeiten einer festgeschriebenen Rechnung: 409 mit Nummer statt 400** -- wie das Löschen seit 1.8.73: dieselbe Lage, ein Code,
+   unabhängig davon, ob das Festschreiben gleichzeitig oder vor Tagen war. Die übrigen 400 beim Bearbeiten (Position der pauschalen
+   Rechnung, fremde Auftragsposition, Ende vor Beginn, unbekannte Zahlungsbedingung/Steuerschlüssel) bleiben 400 (Festlegung 1.8.72
+   Nr. 7).
+6. **Auch der Versandnachweis** an der Rechnung (`email_sent_at/_to`) schreibt unter der Sperre -- genommen erst nach dem Senden, nicht
+   über die Verbindung zum Mailserver gehalten. Damit hat der Strukturtest keine Ausnahme.
+7. **"Rechnung aus Aufwand"**: nur die Sperre, keine neue Regel (Festlegung 1.8.72 Nr. 3 bleibt offen).
+8. **Mahnungen** zählen nicht als "Rechnung" im Sinne von Punkt 2: Anlegen, Festschreiben und Löschen liefen schon unter der Sperre
+   (1.8.72/1.8.73), das Bearbeiten eines Mahnungsentwurfs nicht -- als Nebenbefund gemeldet.
+
+### Tests und Prüfung
+
+- Neu `tests/test_v378_rechnung_sperre_und_datum.py` (56, davon 10 gegen PostgreSQL): Rechnungsdatum und Fälligkeit beim späteren
+  Festschreiben, Fälligkeit über die API, Storno, Silvester (Datum 01.01.2027 zu R-2027-…), Vorschau im Entwurf ohne Schreiben,
+  Versandhinweis (gleicher Tag, später, Skonto abgelaufen, überfällig, bezahlt), PDF mit dem Tag des Festschreibens; Bearbeiten je
+  Weg (7) an einer festgeschriebenen Rechnung 409 mit Nummer und unverändert, am Entwurf weiter möglich, gelöschter Entwurf 409, Router
+  409; Strukturtest in drei Teilen (siehe oben) samt Selbstprüfung der AST-Analyse und des Beobachters. **Gleichzeitig (PostgreSQL,
+  Commit der ersten Aktion eine Sekunde angehalten, die zweite lädt vorher ihre Objekte wie der Router):** jede der sieben Änderungen
+  gegen Festschreiben (wartet, 409 mit Nummer), Festschreiben gegen laufende Änderung (wartet, schreibt deren Stand fest), Änderung
+  gegen Löschen, zweite Änderung derselben Position rechnet mit der Menge der ersten (4 × 60 statt 100 × 60), Pauschalbetrag gegen
+  Festschreiben, "aus Aufwand" gegen Festschreiben.
+- `test_v372_befund_rechnungsdatum`: xfail bei 4a (2), 4b, 4c entfernt -- grün, keine Prüfung geändert. **Erwartung geändert**:
+  `test_today_invoice_date_is_neither_editable_nor_renewed` hieß "nicht erneuert" und erwartete das Datum des Entwurfs nach dem
+  Festschreiben -- jetzt `test_invoice_date_is_not_editable_and_renewed_when_finalized`, erwartet den Tag des Festschreibens.
+  `test_v316`: `BEKANNTE_VORGABEN` leer.
+- Gegenproben (Regel 24): 19 von 19 rot -- Rechnungsdatum beim Festschreiben, Fälligkeit rückt mit, Entwurfsdatum aus Berlin,
+  Spaltenvorgabe, Sperre je Weg (Position ändern, hinzufügen, entfernen, Kopf, Zahlungsbedingung, Steuerschlüssel, aus Aufwand,
+  Versandnachweis; je durch die alte Prüfung ohne Sperre ersetzt), Positionen frisch nach der Sperre, "noch Entwurf" und "noch da"
+  nach der Sperre, Router 409, Versandhinweis, Vorschau im Entwurf, Schreiben außerhalb von `app/invoices.py` (in `app/reminders.py`).
+  Dabei gesehen: der PostgreSQL-Test "aus Aufwand wartet" blieb ohne die Sperre grün -- das Anlegen wartet dort auch über den
+  Fremdschlüssel auf die gesperrte Auftragszeile; rot wurden Strukturtest, Beobachter und Rundgang (am Test vermerkt). Jede Datei
+  byte-genau zurück (SHA-256), kein Marker übrig.
+- Klicktest `klicktest_rechnungsdatum.py` 13/13: Entwurf von vor drei Wochen mit "Finalisiert heute", Finalisieren -> Datum heute,
+  fällig in 14 Tagen, Skonto ab heute; vor zehn Tagen finalisierte Rechnung mit Versandhinweis (hell und dunkel); veraltete Seite nach
+  Finalisieren in anderer Sitzung -> Meldung mit Nummer, nichts geändert, Position 409.
+- Rechnungs-Testdateien (alle `tests/test_*.py` mit "invoice"/"rechnung", mit den opt-in-Tests gegen PostgreSQL): 1493 grün,
+  7 erwartet fehlgeschlagen (1a, 1b, 1d).
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie): 3391 grün, 0 rot, 7 erwartet fehlgeschlagen (1a, 1b, 1d).
+  Danach nur Doku geändert.
+
+### Nebenbefunde (nur gemeldet)
+
+1. **Mahnungsentwurf bearbeiten ohne Sperre**: `update_reminder_draft()` (`PUT /api/reminders/{id}`, Text, Gebühr, neue Frist) prüft
+   "Entwurf" am vorher geladenen Objekt -- dasselbe Rennen wie bis 1.8.74 bei Rechnungen: gleichzeitig zum Festschreiben der Mahnung
+   kann die Änderung danach in die festgeschriebene Mahnung schreiben. Anlegen, Festschreiben und Löschen der Mahnung laufen schon
+   unter der Sperre.
+2. **Mahndatum bleibt der Tag des Entwurfs** (Befund Punkt 4, "übrige Fälle"): `Reminder.reminder_date` und die neue Frist (Datum +
+   Tage der Stufe) werden beim Festschreiben nicht erneuert -- dieselbe Frage wie 4c, jetzt für Mahnungen.
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
@@ -1079,6 +1209,7 @@ Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
 - **Offene Abschläge** nach der Schlussrechnung nur noch über diese gemahnt.
 - **Zahlung auf den Zahlbetrag**: Vorschlag zuerst auf offene Abschläge (ältester zuerst), dann Schlussrechnung, das Büro bestätigt.
 - **Rechnungsdatum** = Tag der Ausgabe, jede Rechnung mit Pflicht-Leistungszeitraum, Nummer beim Festschreiben, Nummernkreise beim
-  Start auf 1. (Was dabei heute passiert: "Umsetzung 1.8.73" -> Befund b.) Pflicht-Leistungszeitraum seit 1.8.74 gebaut.
+  Start auf 1. (Was dabei heute passiert: "Umsetzung 1.8.73" -> Befund b.) Pflicht-Leistungszeitraum seit 1.8.74 gebaut,
+  Rechnungsdatum = Tag des Festschreibens seit 1.8.75.
 - **Storno**: höchstens ein Storno je Rechnung, kein Storno eines Stornos.
 - **Steuersatz**: keine mehreren Steuersätze je Rechnung.

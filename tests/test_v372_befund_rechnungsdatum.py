@@ -10,7 +10,8 @@ nimmt das Berliner Jahr beim Festschreiben.
 server_uhr stellt den Server nach: die Uhr der App (app.berlin_time) läuft auf einem UTC-Zeitpunkt, und die Spaltenvorgabe
 date.today liefert dessen UTC-Datum. date.today selbst lässt sich nicht ersetzen; die Vorgabe der Spalte wird deshalb über
 SQLAlchemys Beschreibung der Vorgabe umgelenkt (Column._default_description_tuple, SQLAlchemy 2.0) -- eine Vorbedingung prüft, dass
-die Umlenkung greift. Fehler als xfail (tests/befund_vor_echtbetrieb.py); 4d seit 1.8.71 behoben, sein Test ist der Abnahmetest."""
+die Umlenkung greift. Fehler als xfail (tests/befund_vor_echtbetrieb.py); 4d seit 1.8.71 behoben, 4a-4c seit 1.8.75 (Rechnungsdatum =
+Tag des Festschreibens in Berlin, die Fälligkeit rückt mit, app/invoices.py::finalize_dates()) -- ihre Tests sind die Abnahmetests."""
 
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
@@ -27,7 +28,7 @@ from app.invoices import (
     update_invoice_payment_term,
 )
 from app.models import Invoice, PaymentTerm
-from tests.befund_vor_echtbetrieb import befund, vorbedingung
+from tests.befund_vor_echtbetrieb import vorbedingung
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.leistungszeitraum import festschreiben
 
@@ -66,10 +67,10 @@ def _entwurf(db, order, utc_naive):
 # 4a-4c: Rechnung
 # ---------------------------------------------------------------------------
 
-@befund("4a", "Rechnungsdatum aus der Rechner-Uhr (Server: UTC) -- zwischen 0 und 1 bzw. 2 Uhr der Vortag, an Silvester das "
-              "alte Jahr bei einer Nummer des neuen")
 @pytest.mark.parametrize("utc_naive", [SOMMER_UTC, SILVESTER_UTC], ids=["sommer", "silvester"])
 def test_invoice_date_is_the_berlin_date(server_uhr, utc_naive):
+    """4a, seit 1.8.75 behoben (bis dahin xfail): Rechnungsdatum aus der Rechner-Uhr (Server: UTC) -- zwischen 0 und 1 bzw. 2 Uhr
+    der Vortag, an Silvester das alte Jahr bei einer Nummer des neuen."""
     db = db_session()
     heute = server_uhr(utc_naive)
     order, _ = make_order_with_item(db)
@@ -78,9 +79,9 @@ def test_invoice_date_is_the_berlin_date(server_uhr, utc_naive):
     assert invoice.invoice_date == heute
 
 
-@befund("4b", "Fälligkeit beim Anlegen ab berlin_today(), Skontodatum und Fälligkeit nach Wahl einer Zahlungsbedingung ab "
-              "invoice_date -- nachts um einen Tag versetzt")
 def test_due_date_and_cash_discount_date_count_from_the_same_day(server_uhr):
+    """4b, seit 1.8.75 behoben (bis dahin xfail): Fälligkeit beim Anlegen ab berlin_today(), Skontodatum und Fälligkeit nach
+    Wahl einer Zahlungsbedingung ab invoice_date -- nachts um einen Tag versetzt."""
     db = db_session()
     server_uhr(SOMMER_UTC)
     order, term = _auftrag_mit_zahlungsbedingung(db)
@@ -94,9 +95,9 @@ def test_due_date_and_cash_discount_date_count_from_the_same_day(server_uhr):
     assert invoice.due_date == beim_anlegen
 
 
-@befund("4c", "Fälligkeit und Skontofrist stehen beim Entwurf fest -- ein später festgeschriebener Entwurf ist bei Versand "
-              "schon fällig (und wird gleich als überfällig geführt)")
 def test_a_draft_finalized_later_is_not_already_due(server_uhr):
+    """4c, seit 1.8.75 behoben (bis dahin xfail): Fälligkeit und Skontofrist standen beim Entwurf fest -- ein später
+    festgeschriebener Entwurf war bei Versand schon fällig (und wurde gleich als überfällig geführt)."""
     db = db_session()
     server_uhr(SOMMER_UTC)
     order, _ = _auftrag_mit_zahlungsbedingung(db)
@@ -106,9 +107,9 @@ def test_a_draft_finalized_later_is_not_already_due(server_uhr):
     assert invoice.due_date >= heute
 
 
-def test_today_invoice_date_is_neither_editable_nor_renewed():
-    """Grün, zur Einordnung: das Rechnungsdatum entsteht mit dem Entwurf; das Teil-Update des Kopfs kennt es nicht, das
-    Festschreiben (Nummer, Status) lässt es stehen."""
+def test_invoice_date_is_not_editable_and_renewed_when_finalized():
+    """Grün, zur Einordnung: das Teil-Update des Kopfs kennt das Rechnungsdatum nicht; das Festschreiben setzt es seit 1.8.75 auf
+    den Tag des Festschreibens (bis 1.8.74 blieb das Datum des Entwurfs stehen -- Erwartung geändert)."""
     from app.invoices import INVOICE_HEADER_FIELDS
     from app.schemas import InvoiceHeaderUpdate
 
@@ -118,7 +119,7 @@ def test_today_invoice_date_is_neither_editable_nor_renewed():
     invoice = create_schlussrechnung(db, order)
     invoice.invoice_date = date(2026, 7, 1)  # wie ein älterer Entwurf
     db.commit()
-    assert festschreiben(db, invoice).invoice_date == date(2026, 7, 1)
+    assert festschreiben(db, invoice).invoice_date == berlin_today()
 
 
 # ---------------------------------------------------------------------------

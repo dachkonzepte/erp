@@ -2,6 +2,7 @@ from datetime import date, datetime, time as dt_time
 from decimal import Decimal
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, Time, UniqueConstraint, event, inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from .berlin_time import berlin_today
 from .database import Base
 
 
@@ -955,7 +956,7 @@ class QuoteDocumentMeta(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     quote_id: Mapped[int] = mapped_column(ForeignKey("quotes.id"), index=True)
-    quote_date: Mapped[date] = mapped_column(Date, default=date.today)
+    quote_date: Mapped[date] = mapped_column(Date, default=berlin_today)  # seit 1.8.75 Berlin (Regel 20)
     valid_until: Mapped[date | None] = mapped_column(Date, nullable=True)
     contact_person: Mapped[str | None] = mapped_column(String(255), nullable=True)
     payment_terms: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -1029,7 +1030,7 @@ class Order(Base):
     property_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     property_address: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    order_date: Mapped[date] = mapped_column(Date, default=date.today)
+    order_date: Mapped[date] = mapped_column(Date, default=berlin_today)  # seit 1.8.75 Berlin (Regel 20)
     execution_start: Mapped[date | None] = mapped_column(Date, nullable=True)
     execution_end: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Freitext-Ausführungszeitraum (seit 1.8.32): beim Beauftragen aus dem Angebot übernommen
@@ -1654,7 +1655,10 @@ class Invoice(Base):
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
     invoice_type: Mapped[str] = mapped_column(String(30), index=True)  # 'abschlag_pauschal' | 'abschlag_leistungsstand' | 'schluss' | 'aufwand' | 'storno'
     status: Mapped[str] = mapped_column(String(20), default="entwurf", index=True)  # 'entwurf' | 'versendet' | 'bezahlt' | 'storniert'
-    invoice_date: Mapped[date] = mapped_column(Date, default=date.today)
+    # Rechnungsdatum (seit 1.8.75): im Entwurf der Tag des Anlegens, beim Festschreiben der Tag des Festschreibens in
+    # Berliner Zeit (app/invoices.py::finalize_dates(), Befund 4a-4c); vorher blieb es der Tag des Entwurfs aus der Uhr
+    # des Rechners (Server: UTC).
+    invoice_date: Mapped[date] = mapped_column(Date, default=berlin_today)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     paid_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Leistungszeitraum (seit 1.8.74, Regel: jede Rechnung hat einen): Pflicht beim Festschreiben, Ende >= Beginn
@@ -1842,7 +1846,7 @@ class Reminder(Base):
     invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"), index=True)
     level: Mapped[int] = mapped_column(index=True)  # 1, 2 oder 3
     status: Mapped[str] = mapped_column(String(20), default="entwurf", index=True)  # 'entwurf' | 'versendet'
-    reminder_date: Mapped[date] = mapped_column(Date, default=date.today)
+    reminder_date: Mapped[date] = mapped_column(Date, default=berlin_today)  # seit 1.8.75 Berlin (Regel 20)
     new_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     outstanding_amount: Mapped[Decimal] = mapped_column(Numeric(18, 6), default=Decimal("0"))
     fee_amount: Mapped[Decimal] = mapped_column(Numeric(18, 6), default=Decimal("0"))
@@ -3278,7 +3282,7 @@ class ServiceReport(Base):
     report_type: Mapped[str] = mapped_column(String(30))  # rapport|wartung
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True)
-    performed_at: Mapped[date] = mapped_column(Date, default=date.today)
+    performed_at: Mapped[date] = mapped_column(Date, default=berlin_today)  # seit 1.8.75 Berlin (Regel 20)
     signature_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     signature_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     signed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

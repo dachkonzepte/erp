@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.75 – Rechnungsdatum = Tag des Festschreibens, Rechnung nur unter der Sperre bearbeiten
+
+Das Rechnungsdatum ist jetzt der Tag des Festschreibens in Berliner Zeit, nicht mehr der Tag, an dem der Entwurf entstand – und
+nicht mehr aus der Uhr des Servers (UTC), die nachts den Vortag und an Silvester das alte Jahr lieferte. Die Fälligkeit rückt mit
+(das Zahlungsziel des Entwurfs bleibt), das Skonto rechnet ab diesem Tag: ein drei Wochen später versendeter Entwurf ist nicht mehr
+schon bei Versand überfällig. Im Entwurf zeigt die Rechnungsseite, was das Finalisieren heute setzen würde; liegt der E-Mail-Versand
+später als das Rechnungsdatum, steht darüber ein Hinweis (mit „Skontofrist abgelaufen“ bzw. „Fälligkeit überschritten“). Die
+Befund-Tests 4a–4c sind grün; die Ausnahmeliste zu Regel 20 ist leer (alle fünf Datumsvorgaben aus Berlin).
+
+Jeder schreibende Weg an einer Rechnung läuft jetzt unter derselben Sperre wie das Festschreiben: „Rechnung aus Aufwand“ anlegen,
+Positionen, Kopf, Zahlungsbedingung und Steuerschlüssel ändern, dazu der Versandnachweis. Geändert wird nur, was danach noch Entwurf
+ist, sonst 409 mit der Rechnungsnummer (vorher 400). Bis 1.8.74 wartete eine Änderung unter PostgreSQL auf ein gleichzeitiges
+Festschreiben und schrieb danach in die festgeschriebene Rechnung. Ein Strukturtest prüft das in drei Teilen (AST über
+`app/invoices.py`, niemand sonst schreibt Rechnungen, Rundgang über jeden schreibenden Endpunkt mit Beobachter an der Sitzung).
+
+Neu `test_v378_rechnung_sperre_und_datum` (56, davon 10 gegen PostgreSQL) und `klicktest_rechnungsdatum.py` 13/13. Gegenproben 19 von
+19 rot. Eine Erwartung geändert (`test_v372_befund_rechnungsdatum`: Rechnungsdatum beim Festschreiben erneuert). Volle Suite (mit
+den opt-in-Tests gegen PostgreSQL): 3391 grün, 0 rot, 7 erwartet fehlgeschlagen (1a, 1b, 1d). Festlegungen zum
+Bestätigen in `docs/archiv/befund-vor-echtbetrieb.md`, „Umsetzung 1.8.75“; die Punkte 3–5 der Vorgabe folgen als 1.8.76.
+
 ## 1.8.74 – Leistungszeitraum an der Rechnung, nächste Nummer nicht unter eine vergebene
 
 Jede Rechnung hat jetzt einen Leistungszeitraum: Beginn und Ende stehen an der Rechnung (Ende nicht vor Beginn) und auf dem PDF

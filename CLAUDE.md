@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.74** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.75** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -573,7 +573,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     dort bis 1–2 Uhr nachts den Vortag und an Silvester das alte Jahr -- lokal unter deutscher
     Windows-Zeit unsichtbar. Beide sind unter `app/` verboten, `tests/test_v316_berlin_time.py`
     sucht sie per AST -- seit 1.8.46 auch als Spaltenvorgabe ohne Klammern (`default=date.today`,
-    `default_factory=date.today`); die Altfälle (seit 1.8.71 fünf) stehen in `BEKANNTE_VORGABEN`, die Liste darf nur kürzer werden. Gespeicherte Zeitstempel aus `datetime.utcnow()` bleiben naive UTC; wer sie
+    `default_factory=date.today`); `BEKANNTE_VORGABEN` ist seit 1.8.75 leer (die fünf Altfälle nehmen `berlin_today()`) und bleibt es. Gespeicherte Zeitstempel aus `datetime.utcnow()` bleiben naive UTC; wer sie
     druckt oder ein Datum daraus ableitet, rechnet mit `to_berlin()` um. Beginn/Ende einer
     Zeitbuchung sind dagegen naive Ortszeit. Browser-Seite: `_berlin_date.html`. Details und die
     offenen Browser-Stellen: `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Kalenderdatum in
@@ -666,7 +666,12 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Auftragszeile (`app/invoices.py::lock_order_invoices()`, Gründe `*_block_reason()`, `InvoiceBlocked` = 409). Seit 1.8.74
   hat jede Rechnung einen Leistungszeitraum (`service_period_start/_end`, Ende >= Beginn, auf dem PDF), Pflicht beim
   Festschreiben (409); der Vorschlag mit Quelle (`app/service_period.py::proposal()`) wird nur per Klick übernommen, nie still
-  eingetragen; Storno übernimmt den Zeitraum; Altbestand ohne Zeitraum bleibt.
+  eingetragen; Storno übernimmt den Zeitraum; Altbestand ohne Zeitraum bleibt. Seit 1.8.75 ist das Rechnungsdatum der Tag des
+  Festschreibens in Berlin (`finalize_dates()`, die Fälligkeit rückt mit dem Zahlungsziel des Entwurfs mit; der Entwurf trägt bis
+  dahin das Datum seines Anlegens), und jeder schreibende Weg an einer Rechnung läuft unter der Sperre der Auftragszeile
+  (`_lock_draft()` vor jeder Änderung am Entwurf: nur, was danach noch Entwurf ist, sonst 409) --
+  `tests/test_v378_rechnung_sperre_und_datum.py` prüft das per AST und Rundgang mit Beobachter; neue Schreibwege nur in
+  `app/invoices.py`, mit Sperre vor dem ersten Schreiben.
 - `Reminder`: hängt an überfälligen Rechnungen, hat Stufen (1./2./3. Mahnung), jede Stufe mit
   eigenen Fristen/Gebühren/Textvorlagen (`ReminderLevel`). `Reminder.text` ist beim Anlegen
   (`create_reminder()`) eine reine Kopie von `ReminderLevel.text_template` mit noch
@@ -945,7 +950,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   unter der Sperre, Prüfabfrage `scripts/pruefabfrage_nummernkreise.sql` (Dubletten und Lücken); offen gemeldet: Rechnungs- und
   Mahnungsnummer gleichen nicht mit den vorhandenen ab ("nächste Nummer" zurückgesetzt -> Dublette) -- seit 1.8.74 behoben: die
   Einstellungen lehnen eine nächste Nummer auf oder unter einer vergebenen ab (409); seit 1.8.74 Pflicht-Leistungszeitraum;
-  1a, 1b, 1d und 4a-4c für R4)
+  seit 1.8.75 4a-4c behoben (Rechnungsdatum = Tag des Festschreibens, Fälligkeit rückt mit, Hinweis bei späterem Versand) und jeder
+  schreibende Weg an einer Rechnung unter der Sperre; 1a, 1b und 1d für R4)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
@@ -1373,7 +1379,9 @@ Einsatzbericht mit Hinweis fürs Büro, Monteurin auf 412 px ohne) und `klicktes
 Mahnwesen-Entwurf zu bezahlter Rechnung, API 409; seit 1.8.73 der Ausweg im Sperrtext: "R4" bzw. "Entwurf löschen", gelöscht ->
 frei) und `klicktest_leistungszeitraum.py` (1.8.74, Rechnungsseite: Vorschlag mit Quelle, Grund statt Finalisieren, nichts still
 eingetragen, "Übernehmen", Ende vor Beginn, Finalisieren; geplanter Zeitraum; Nummernkreis: Meldung mit der höchsten vergebenen,
-nichts gespeichert). Ein
+nichts gespeichert) und `klicktest_rechnungsdatum.py` (1.8.75, Entwurf von vor drei Wochen mit "Finalisiert heute", Finalisieren ->
+Datum und Fälligkeit ab heute; Versandhinweis bei einer früher finalisierten Rechnung; veraltete Seite nach Finalisieren in anderer
+Sitzung -> 409 mit Nummer). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

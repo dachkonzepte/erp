@@ -23,6 +23,13 @@ Abschlags; je Rechnung höchstens ein Storno, keins eines Stornos; bis zur Umste
 Schlussrechnung neben einem nicht stornierten pauschalen Abschlag. Geprüft beim Anlegen und noch einmal beim
 Festschreiben, unter der Sperre der Auftragszeile (lock_order_invoices()) -- die Gründe kommen aus
 create_block_reason()/finalize_block_reason()/storno_block_reason(), dieselben Texte zeigen Auftrags- und Rechnungsseite.
+Seit 1.8.75 läuft jeder schreibende Weg an einer Rechnung unter dieser Sperre, auch "Rechnung aus Aufwand" anlegen und
+Positionen, Kopf, Zahlungsbedingung und Steuerschlüssel eines Entwurfs bearbeiten (_lock_draft(): geändert wird nur, was nach
+der Sperre noch Entwurf ist, sonst InvoiceBlocked = 409) -- tests/test_v378_rechnung_sperre_und_datum.py prüft das.
+
+Rechnungsdatum (seit 1.8.75, Befund 4a-4c): der Tag des Festschreibens in Berliner Zeit (Tag der Ausgabe), nicht der Tag des
+Entwurfs. Beim Festschreiben rücken Rechnungsdatum und Fälligkeit auf diesen Tag (finalize_dates(): das Zahlungsziel des
+Entwurfs bleibt); das Skontodatum rechnet ohnehin ab dem Rechnungsdatum. Bis dahin trägt der Entwurf das Datum seines Anlegens.
 """
 
 from datetime import date, timedelta
@@ -175,6 +182,30 @@ def _check_create(db: Session, order: Order, invoice_type: str) -> None:
         raise InvoiceBlocked(reason)
 
 
+def _lock_draft(db: Session, invoice: Invoice) -> None:
+    """Dieselbe Sperre wie beim Festschreiben (seit 1.8.75), vor jeder Änderung an einem Entwurf: danach ist die Rechnung
+    samt Positionen frisch geladen, geändert wird nur, was noch Entwurf ist -- sonst InvoiceBlocked (409, vorher 400 ohne
+    Nummer). Ohne die Sperre wartete eine Änderung auf ein gleichzeitiges Festschreiben und schrieb danach in die
+    festgeschriebene Rechnung (Positionen, Betrag, Zeitraum). Wer nach der Sperre ablehnt, rollt zurück (gibt sie frei)."""
+    invoices = lock_order_invoices(db, invoice.order_id)
+    if not _still_there(invoices, invoice):
+        db.rollback()
+        raise InvoiceBlocked("Der Entwurf wurde inzwischen gelöscht.")
+    if invoice.status != EDITABLE_STATUS:
+        number = f" Die Rechnung ist inzwischen festgeschrieben ({invoice.invoice_number})." if invoice.invoice_number else ""
+        db.rollback()
+        raise InvoiceBlocked(f"Nur Rechnungen im Entwurf können bearbeitet werden.{number}")
+    # Positionen frisch: populate_existing oben lädt nur die Rechnungen, nicht ihre Positionen.
+    db.scalars(select(InvoiceItem).where(InvoiceItem.invoice_id == invoice.id).execution_options(populate_existing=True)).all()
+    db.expire(invoice, ["items"])
+
+
+def _reject(db: Session, error: Exception) -> Exception:
+    """Ablehnen nach der Sperre: zurückrollen (gibt sie frei), dann den Fehler werfen -- raise _reject(db, ValueError(...))."""
+    db.rollback()
+    return error
+
+
 def _snapshot_order_fields(db: Session, order: Order) -> dict:
     tax_notice_text = None
     if order.tax_key_id is not None:
@@ -256,10 +287,12 @@ def _fallback_payment_terms(db: Session, order: Order) -> tuple[str | None, int,
 
 def _default_invoice_header_fields(db: Session, order: Order, *, due_date: date | None) -> dict:
     label, days, skonto_percent, skonto_days, text_template = _default_payment_terms_for_order(db, order)
+    today = berlin_today()  # Datum des Entwurfs; das Festschreiben setzt das Rechnungsdatum neu (finalize_dates())
     return {
         **_snapshot_order_fields(db, order),
+        "invoice_date": today,
         "payment_terms": label,
-        "due_date": due_date or (berlin_today() + timedelta(days=days)),
+        "due_date": due_date or (today + timedelta(days=days)),
         "skonto_percent": skonto_percent,
         "skonto_days": skonto_days,
         "payment_terms_text_template": text_template,
@@ -522,6 +555,9 @@ def create_invoice_from_time_entries(
     # ungesicherten Stand trägt. (Bis 1.8.41 kam beim ersten Aufruf noch ein eigener Commit dazu.)
     settings = load_calculation_settings(db)
     hourly_rate = settings.labor_rate
+    # Seit 1.8.75 unter derselben Sperre wie das Festschreiben (nach den Einstellungen, siehe oben); keine eigene Regel --
+    # "aus Aufwand" bleibt auch nach der Schlussrechnung möglich (Festlegung 1.8.72 Nr. 3, offen).
+    _check_create(db, order, "aufwand")
 
     # Seit 1.8.74: erster und letzter Arbeitstag der übernommenen Buchungen -- Quelle des Vorschlags für den
     # Leistungszeitraum (app/service_period.py); welche Buchungen abgerechnet wurden, steht sonst nirgends.
@@ -603,18 +639,18 @@ def add_invoice_item(
     ausdrücklich eine bestehende Auftragsposition erneut hinzuzufügen, falls
     sie zuvor entfernt wurde. Seit 1.8.70 (Befund 2i) nur eine Position des
     Auftrags dieser Rechnung -- vorher auch die eines fremden Auftrags (volle
-    Menge berechnet, nach dem Festschreiben unveränderlich)."""
-    if not is_invoice_editable(invoice):
-        raise ValueError("Nur Rechnungen im Entwurf können bearbeitet werden.")
+    Menge berechnet, nach dem Festschreiben unveränderlich). Seit 1.8.75 unter
+    der Sperre (_lock_draft())."""
+    _lock_draft(db, invoice)
     if source_order_item_id is not None:
         source = db.get(OrderItem, source_order_item_id)
         if source is None or source.order_id != invoice.order_id:
-            raise ValueError("Die Auftragsposition gehört nicht zum Auftrag dieser Rechnung.")
+            raise _reject(db, ValueError("Die Auftragsposition gehört nicht zum Auftrag dieser Rechnung."))
     if invoice.invoice_type == "abschlag_pauschal":
-        raise ValueError(
+        raise _reject(db, ValueError(
             "Pauschale Abschlagsrechnungen haben nur die eine, automatisch erzeugte Position -- "
             "Bezeichnung und Betrag über das Pauschalbetrag-Feld ändern."
-        )
+        ))
     billed_quantity, billed_total = compute_billed_quantity_and_total(
         db, invoice.order_id, invoice.id, source_order_item_id, ist_quantity, unit_price,
     )
@@ -637,13 +673,17 @@ def update_invoice_item(
     long_text: str | None = None, unit: str | None = None, unit_price: Decimal | None = None,
     ist_quantity: Decimal | None = None,
 ) -> InvoiceItem:
-    if not is_invoice_editable(invoice):
-        raise ValueError("Nur Rechnungen im Entwurf können bearbeitet werden.")
+    """Seit 1.8.75 unter der Sperre (_lock_draft()); die Position wird danach frisch geladen -- gerechnet wird mit dem Stand
+    nach einer gleichzeitigen Änderung, nicht mit dem vorher geladenen."""
+    _lock_draft(db, invoice)
     if invoice.invoice_type == "abschlag_pauschal":
-        raise ValueError(
+        raise _reject(db, ValueError(
             "Die Position einer pauschalen Abschlagsrechnung ist eine reine Projektion von "
             "Bezeichnung/Betrag -- bitte dort ändern, siehe _sync_lump_sum_pauschal_item()."
-        )
+        ))
+    item = next((i for i in invoice.items if i.id == item.id), None)
+    if item is None:
+        raise _reject(db, InvoiceBlocked("Die Position wurde inzwischen entfernt."))
     if short_text is not None:
         item.short_text = short_text
     if long_text is not None:
@@ -664,12 +704,13 @@ def update_invoice_item(
 
 
 def remove_invoice_item(db: Session, invoice: Invoice, item_id: int) -> bool:
-    if not is_invoice_editable(invoice):
-        raise ValueError("Nur Rechnungen im Entwurf können bearbeitet werden.")
+    """Seit 1.8.75 unter der Sperre (_lock_draft())."""
+    _lock_draft(db, invoice)
     if invoice.invoice_type == "abschlag_pauschal":
-        raise ValueError("Die Position einer pauschalen Abschlagsrechnung kann nicht einzeln entfernt werden.")
+        raise _reject(db, ValueError("Die Position einer pauschalen Abschlagsrechnung kann nicht einzeln entfernt werden."))
     item = next((i for i in invoice.items if i.id == item_id), None)
     if item is None:
+        db.rollback()  # gibt die Sperre frei
         return False
     # Aus der Collection entfernen, nicht db.delete(item) direkt -- siehe
     # ausführlicher Kommentar bei remove_material_from_service in services.py,
@@ -677,6 +718,17 @@ def remove_invoice_item(db: Session, invoice: Invoice, item_id: int) -> bool:
     invoice.items.remove(item)
     db.commit()
     return True
+
+
+def finalize_dates(invoice: Invoice, today: date) -> tuple[date, date | None]:
+    """(Rechnungsdatum, Fälligkeit) beim Festschreiben an diesem Tag (seit 1.8.75, Befund 4a-4c): das Rechnungsdatum ist der
+    Tag des Festschreibens, die Fälligkeit behält das Zahlungsziel des Entwurfs -- die Tage zwischen seinem Datum und seiner
+    Fälligkeit (Zahlungsbedingung, sonst wie angegeben) -- und rückt mit. Vorher blieben beide auf dem Tag des Entwurfs: ein
+    drei Wochen später versendeter Entwurf mit 14 Tagen Ziel war schon bei Versand überfällig. Ohne Fälligkeit (Storno)
+    bleibt sie leer."""
+    if invoice.due_date is None or invoice.invoice_date is None:
+        return today, invoice.due_date
+    return today, today + (invoice.due_date - invoice.invoice_date)
 
 
 def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
@@ -701,6 +753,8 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
     if reason:
         db.rollback()
         raise InvoiceBlocked(reason)
+    # Seit 1.8.75: Rechnungsdatum = Tag des Festschreibens (Berlin), die Fälligkeit rückt mit (finalize_dates()).
+    invoice.invoice_date, invoice.due_date = finalize_dates(invoice, berlin_today())
     invoice.invoice_number = issue_number(db, "invoice")
     invoice.status = "versendet"
     if invoice.invoice_type == "storno" and invoice.storno_of_invoice_id is not None:
@@ -772,7 +826,7 @@ def create_storno_draft(db: Session, original: Invoice) -> Invoice:
         raise InvoiceBlocked(reason)
     storno = Invoice(
         order_id=original.order_id, invoice_type="storno", status="entwurf",
-        storno_of_invoice_id=original.id,
+        storno_of_invoice_id=original.id, invoice_date=berlin_today(),
         customer_name=original.customer_name, customer_number=original.customer_number,
         customer_address=original.customer_address, property_name=original.property_name,
         property_address=original.property_address, vat_rate=original.vat_rate,
@@ -813,17 +867,20 @@ INVOICE_HEADER_FIELDS = ("due_date", "progress_description", "lump_sum_net", "in
 
 def update_invoice_header(db: Session, invoice: Invoice, **changes) -> Invoice:
     """Teil-Update (seit 1.8.25): nur die übergebenen Felder ändern sich -- "Pauschale speichern"
-    leerte vorher den Schlusstext 2, den es nicht mitschickte."""
+    leerte vorher den Schlusstext 2, den es nicht mitschickte. Seit 1.8.75 unter der Sperre (_lock_draft())."""
     unknown = set(changes) - set(INVOICE_HEADER_FIELDS)
     if unknown:
         raise TypeError(f"Unbekannte Felder: {sorted(unknown)}")
-    if not is_invoice_editable(invoice):
-        raise ValueError("Nur Rechnungen im Entwurf können bearbeitet werden.")
+    _lock_draft(db, invoice)
     if invoice.invoice_type != "abschlag_pauschal":
         changes.pop("lump_sum_net", None)
-    # Seit 1.8.74: Leistungszeitraum -- Ende >= Beginn, auch wenn nur eine Seite gesendet wird (gegen den gespeicherten Wert).
-    check_order(changes.get("service_period_start", invoice.service_period_start),
-                changes.get("service_period_end", invoice.service_period_end))
+    # Seit 1.8.74: Leistungszeitraum -- Ende >= Beginn, auch wenn nur eine Seite gesendet wird (gegen den gespeicherten Wert,
+    # seit 1.8.75 den nach der Sperre).
+    try:
+        check_order(changes.get("service_period_start", invoice.service_period_start),
+                    changes.get("service_period_end", invoice.service_period_end))
+    except ValueError as e:
+        raise _reject(db, e) from None
     for key, value in changes.items():
         setattr(invoice, key, value)
     if invoice.invoice_type == "abschlag_pauschal":
@@ -838,12 +895,13 @@ def update_invoice_payment_term(db: Session, invoice: Invoice, payment_term_id: 
     Zahlungsbedingung neu (invoice_date + Tage) -- die Dropdown-Auswahl aus
     der Erfassungsoberfläche, getrennt von update_invoice_header, da dort
     due_date auch weiterhin direkt (unabhängig von einer Zahlungsbedingung)
-    gesetzt werden kann."""
-    if not is_invoice_editable(invoice):
-        raise ValueError("Nur Rechnungen im Entwurf können bearbeitet werden.")
+    gesetzt werden kann. Seit 1.8.75 unter der Sperre (_lock_draft()); das
+    Festschreiben rückt die Fälligkeit danach mit dem Rechnungsdatum auf den
+    Tag des Festschreibens (finalize_dates())."""
+    _lock_draft(db, invoice)
     term = db.get(PaymentTerm, payment_term_id)
     if term is None:
-        raise ValueError("Zahlungsbedingung nicht gefunden.")
+        raise _reject(db, ValueError("Zahlungsbedingung nicht gefunden."))
     invoice.payment_terms = term.label
     invoice.due_date = invoice.invoice_date + timedelta(days=term.days)
     invoice.skonto_percent = term.skonto_percent
@@ -857,12 +915,12 @@ def update_invoice_payment_term(db: Session, invoice: Invoice, payment_term_id: 
 def update_invoice_tax_key(db: Session, invoice: Invoice, tax_key_id: int) -> Invoice:
     """Setzt tax_key_id, vat_rate UND den eingefrorenen Hinweistext neu --
     wie bei Skonto/Zahlungsbedingung eingefroren, nicht live nachgeladen (der
-    Grund steht ausführlich am Invoice.tax_notice_text-Feld in models.py)."""
-    if not is_invoice_editable(invoice):
-        raise ValueError("Nur Rechnungen im Entwurf können bearbeitet werden.")
+    Grund steht ausführlich am Invoice.tax_notice_text-Feld in models.py).
+    Seit 1.8.75 unter der Sperre (_lock_draft())."""
+    _lock_draft(db, invoice)
     key = db.get(TaxKey, tax_key_id)
     if key is None:
-        raise ValueError("Steuerschlüssel nicht gefunden.")
+        raise _reject(db, ValueError("Steuerschlüssel nicht gefunden."))
     invoice.tax_key_id = tax_key_id
     invoice.vat_rate = key.vat_rate
     invoice.tax_notice_text = key.notice_text
@@ -928,6 +986,41 @@ def _service_period_info(invoice: Invoice) -> dict:
     }
 
 
+def _de(d: date) -> str:
+    return d.strftime("%d.%m.%Y")
+
+
+def send_hint(invoice: Invoice, today: date) -> str | None:
+    """Hinweis beim Versand an einem späteren Tag als dem Rechnungsdatum (seit 1.8.75): Fälligkeit und Skontofrist rechnen ab
+    dem Rechnungsdatum (Tag des Festschreibens), nicht ab dem Versand. Nur für eine festgeschriebene, nicht bezahlte."""
+    if invoice.status != "versendet" or invoice.invoice_date is None or invoice.invoice_date >= today:
+        return None
+    text = f"Die Rechnung ist vom {_de(invoice.invoice_date)} (Tag des Finalisierens), heute ist der {_de(today)}."
+    if invoice.due_date is None:
+        return text
+    skonto_until = (invoice.invoice_date + timedelta(days=invoice.skonto_days)
+                    if invoice.skonto_percent and invoice.skonto_days is not None else None)
+    deadlines = f"Fälligkeit ({_de(invoice.due_date)})" + (f" und Skontofrist (bis {_de(skonto_until)})" if skonto_until else "")
+    text += f" {deadlines} rechnen ab dem Rechnungsdatum, nicht ab dem Versand."
+    if invoice.due_date < today:
+        text += " Die Fälligkeit ist schon überschritten."
+    elif skonto_until is not None and skonto_until < today:
+        text += " Die Skontofrist ist schon abgelaufen."
+    return text
+
+
+def _date_info(invoice: Invoice) -> dict:
+    """Seit 1.8.75: im Entwurf, was das Festschreiben heute als Rechnungsdatum und Fälligkeit setzen würde (nur Anzeige);
+    danach der Hinweis für einen späteren Versand."""
+    today = berlin_today()
+    if invoice.status == EDITABLE_STATUS:
+        invoice_date, due_date = finalize_dates(invoice, today)
+        days = (invoice.due_date - invoice.invoice_date).days if invoice.due_date and invoice.invoice_date else None
+        return {"finalize_dates": {"invoice_date": invoice_date, "due_date": due_date, "payment_days": days},
+                "send_hint": None}
+    return {"finalize_dates": None, "send_hint": send_hint(invoice, today)}
+
+
 def _action_blocks(invoice: Invoice) -> dict:
     invoices = list(invoice.order.invoices) if invoice.order is not None else [invoice]
     return {
@@ -984,6 +1077,8 @@ def invoice_to_dict(invoice: Invoice) -> dict:
         **_action_blocks(invoice),
         # Seit 1.8.74: Leistungszeitraum, im Entwurf mit Vorschlag samt Quelle (übernommen nur per Klick).
         **_service_period_info(invoice),
+        # Seit 1.8.75: Rechnungsdatum = Tag des Festschreibens -- Vorschau im Entwurf, Hinweis beim späteren Versand.
+        **_date_info(invoice),
         "items": [
             {
                 "id": i.id, "source_order_item_id": i.source_order_item_id, "sort_order": i.sort_order,
@@ -1168,5 +1263,9 @@ def send_invoice_email(
         subject=subject, body_text=body, attachment_bytes=pdf.content, attachment_filename=pdf.filename,
         archived_document=pdf.archived, user_id=user_id, user_name=user_name,
     )
+    # Seit 1.8.75 schreibt auch der Versandnachweis an der Rechnung (email_sent_at/_to) unter der Sperre -- erst nach dem
+    # Senden genommen, damit sie nicht über die Verbindung zum Mailserver gehalten wird (Festlegung 1.8.72 Nr. 6).
+    if result.newly_sent:  # sonst schreibt mark_document_sent() nichts
+        lock_order_invoices(db, invoice.order_id)
     mark_document_sent(db, invoice, result)
     return invoice
