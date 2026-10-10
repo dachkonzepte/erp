@@ -146,11 +146,7 @@ SCHREIBT_BEKANNT: dict[str, tuple[set[str], str]] = {
         "ensure_quote_structure() legt Meta und Positionslayout eines Angebots beim ersten Lesen an -- "
         "POST /api/projects/{id}/quotes legt sie nicht an. Je Angebot, keine Grunddaten (1.8.42 gemeldet).",
     ),
-    "/api/settings/number-sequences": (
-        {"number_sequences", "audit_logs"},
-        "preview_number() gleicht next_value mit schon vergebenen Nummern ab und setzt das Jahr zurück "
-        "(flush ohne commit), audit_logs ist der Protokolleintrag dazu (1.8.42 gemeldet).",
-    ),
+    # "/api/settings/number-sequences" seit 1.8.76 gestrichen: preview_number() rechnet nur noch, schreibt nichts.
 }
 
 

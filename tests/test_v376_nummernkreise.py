@@ -78,7 +78,8 @@ def test_a_rolled_back_number_is_not_used_up():
 def test_nothing_issues_numbers_through_the_preview():
     """preview_number() ist nur Anzeige: aufgerufen nur in den Vorschau-Funktionen und den Einstellungs-Routen -- eine neue
     Vergabe über die Vorschau fiele hier auf (so liefen Kunde, Anfrage, Projekt und Angebot bis 1.8.72)."""
-    erlaubt = {("app/crm.py", "customer_number_preview"), ("app/routers/settings.py", "list_number_sequences"),
+    # seit 1.8.76 ohne app/crm.py::customer_number_preview (unbenutzt, entfernt)
+    erlaubt = {("app/routers/settings.py", "list_number_sequences"),
                ("app/routers/settings.py", "put_number_sequence"), ("app/routers/settings.py", "get_number_preview")}
     gefunden = set()
     for path in (ROOT / "app").rglob("*.py"):

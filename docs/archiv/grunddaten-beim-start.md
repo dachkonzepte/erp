@@ -173,9 +173,12 @@ vorhandenen Grunddaten laufen über `anlegen()` selbst.
    der erste Lesezugriff auf jedes neue Angebot. Je Datensatz, keine Grunddaten -- in `SCHREIBT_BEKANNT`.
 2. **`GET /api/settings/number-sequences` schreibt** (`preview_number()`): gleicht `next_value` mit schon
    vergebenen Nummern ab und setzt im neuen Jahr zurück, flusht (UPDATE samt Protokolleintrag), committet nie.
-   Unter PostgreSQL sperrt das die Nummernkreis-Zeile für die Dauer der Anfrage. In `SCHREIBT_BEKANNT`.
+   Unter PostgreSQL sperrt das die Nummernkreis-Zeile für die Dauer der Anfrage. In `SCHREIBT_BEKANNT`. **Seit 1.8.76 behoben**:
+   `preview_number()` rechnet nur noch, die GET-Routen committen nichts, der Eintrag ist gestrichen
+   (`docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.76").
 3. **Weitere Anleger je Datensatz in GET-Pfaden, die der Rundgang nicht auslöst** (seine Testdaten sind
-   vollständig): `GET /api/customers` und `/api/customers/{id}` (`ensure_customer_profile(s)`), `GET /api/employees`,
+   vollständig): `GET /api/customers` und `/api/customers/{id}` (`ensure_customer_profile(s)`; **seit 1.8.76 nicht mehr** -- sie
+   zogen dabei eine Kundennummer, siehe `befund-vor-echtbetrieb.md`, "Umsetzung 1.8.76"), `GET /api/employees`,
    `/caseworkers`, `/{id}` (`ensure_employee_profiles`), `GET /api/orders/{id}/work-preparation`
    (`ensure_preparation`; ein Auftrag aus dem Beauftragen hat noch keine Arbeitsvorbereitung),
    `GET /api/quotes/{id}/items/{item_id}/calculation` (`ensure_quote_item_calculation`). Die

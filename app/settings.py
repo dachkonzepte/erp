@@ -1,3 +1,4 @@
+import logging
 import re
 
 from sqlalchemy import select, update
@@ -9,6 +10,8 @@ from .berlin_time import berlin_now
 from .models import (
     CustomerProfile, GeneralSettings, Inquiry, Invoice, NumberSequence, Project, Quote, Order, Reminder,
 )
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SEQUENCES = {
     "customer": {"label": "Kundennummer", "format": "K-{YYYY}-{NNNN}", "start": 1, "reset_yearly": True},
@@ -68,9 +71,22 @@ def _existing_column(sequence_key: str):
     return mapping.get(sequence_key)
 
 
-class NumberBelowExisting(ValueError):
+class SequenceConflict(ValueError):
+    """Speichern eines Nummernkreises abgelehnt -- der Router antwortet 409 mit dem Text (seit 1.8.76 gemeinsame Oberklasse)."""
+
+
+class NumberBelowExisting(SequenceConflict):
     """Die nächste Nummer läge auf oder unter einer vergebenen desselben Formats und Jahres (seit 1.8.74) -- der Router
     antwortet 409 mit der höchsten vergebenen."""
+
+
+class YearlyResetWithoutYear(SequenceConflict):
+    """Format ohne Jahr mit "Jahreswechsel: auf Startnummer zurück" (seit 1.8.76) -- die Nummern des neuen Jahres wären die des
+    alten; die Vergabe spränge danach über die vergebenen (mit Warnung im Log, issue_number())."""
+
+
+def has_year(format_pattern: str) -> bool:
+    return "{YYYY}" in format_pattern or "{YY}" in format_pattern
 
 
 def highest_existing(db: Session, sequence_key: str, format_pattern: str) -> tuple[int, str] | None:
@@ -98,8 +114,9 @@ def _pattern_regex(pattern: str, year: int) -> re.Pattern:
 
 
 def _sync_from_existing(db: Session, sequence: NumberSequence) -> None:
-    """Sicherheitsnetz der Vergabe: liegt die nächste Nummer auf oder unter einer vergebenen (Nummer von Hand, Import, Bestand
-    vor 1.8.74), springt sie darüber. Die Einstellungen lehnen das dagegen ab (update_sequence(), seit 1.8.74)."""
+    """Nur noch beim Anlegen eines Nummernkreises (_create_sequence()): die nächste Nummer über die höchste vergebene. Die
+    Vergabe rechnet seit 1.8.76 selbst (issue_number(), mit Warnung beim Überspringen), die Vorschau nur lesend; die
+    Einstellungen lehnen eine nächste Nummer auf oder unter einer vergebenen ab (update_sequence(), seit 1.8.74)."""
     best = highest_existing(db, sequence.sequence_key, sequence.format_pattern)
     if best is not None and best[0] >= sequence.next_value:
         sequence.next_value = best[0] + 1
@@ -156,21 +173,34 @@ def ensure_default_sequences(db: Session) -> None:
         _create_sequence(db, key)
 
 
-def _apply_year_reset(sequence: NumberSequence) -> None:
-    year = berlin_now().year
+def _planned_value(sequence: NumberSequence, year: int) -> int:
+    """Nächste Nummer laut Nummernkreis -- nach dem Jahreswechsel die Startnummer (reset_yearly)."""
     if sequence.reset_yearly and sequence.last_year is not None and sequence.last_year != year:
-        sequence.next_value = sequence.start_value
-    sequence.last_year = year
+        return sequence.start_value
+    return sequence.next_value
+
+
+def _free_value(db: Session, sequence: NumberSequence, planned: int) -> int:
+    """planned, oder -- liegt es auf oder unter einer vergebenen Nummer desselben Formats und Jahres -- die nächste darüber."""
+    best = highest_existing(db, sequence.sequence_key, sequence.format_pattern)
+    return best[0] + 1 if best is not None and best[0] >= planned else planned
 
 
 def preview_number(db: Session, sequence_key: str) -> str:
     """Nur zur Anzeige ("nächste Nummer" in Formularen und Einstellungen), ohne Sperre und ohne Hochzählen -- seit 1.8.73
-    vergibt nichts mehr hierüber (tests/test_v376_nummernkreise.py prüft die Aufrufer)."""
+    vergibt nichts mehr hierüber (tests/test_v376_nummernkreise.py prüft die Aufrufer). Seit 1.8.76 schreibt sie auch nichts:
+    Jahreswechsel und Abgleich mit den vergebenen Nummern werden nur ausgerechnet. Vorher setzte sie beides am Nummernkreis,
+    ohne Sperre, und die GET-Routen der Einstellungen committeten es -- mit einem veralteten Stand konnte das die nächste
+    Nummer unter eine gelöschte zurücksetzen (tests/test_v379_nummern_anzeige.py)."""
     sequence = load_sequence(db, sequence_key)
-    _apply_year_reset(sequence)
-    _sync_from_existing(db, sequence)
-    db.flush()
-    return format_sequence_number(sequence.format_pattern, sequence.next_value)
+    return format_sequence_number(sequence.format_pattern, effective_next_value(db, sequence))
+
+
+def effective_next_value(db: Session, sequence: NumberSequence) -> int:
+    """Die laufende Nummer, die die nächste Vergabe zöge -- Jahreswechsel und Abgleich ausgerechnet, nichts geschrieben (seit
+    1.8.76). Die Einstellungen zeigen sie als "Nächste Nr.": der gespeicherte Wert stammt nach dem Jahreswechsel bis zur ersten
+    Vergabe noch aus dem alten Jahr -- wer die Zeile dann unverändert speicherte, hätte den Jahreswechsel überschrieben."""
+    return _free_value(db, sequence, _planned_value(sequence, berlin_now().year))
 
 
 def _lock_sequence(db: Session, sequence_key: str) -> NumberSequence:
@@ -195,14 +225,27 @@ def issue_number(db: Session, sequence_key: str) -> str:
     zum Commit des Aufrufers: Jahreswechsel, Abgleich mit den vorhandenen Nummern und Hochzählen laufen für jeden
     Nummernkreis nacheinander. Alle sieben Nummernkreise vergeben hierüber (Kunde, Anfrage, Projekt und Angebot bis 1.8.72
     über preview_number() ohne Hochzählen -- gleichzeitig angelegt, scheiterte der zweite an der Eindeutigkeit). Wird der
-    Aufrufer zurückgerollt, ist auch die Nummer nicht verbraucht."""
+    Aufrufer zurückgerollt, ist auch die Nummer nicht verbraucht.
+
+    Liegt die nächste Nummer auf oder unter einer vergebenen (Nummer von Hand, Import, Datenbank, Format ohne Jahr mit
+    Jahreswechsel), springt die Vergabe darüber -- seit 1.8.76 nicht still: logger.warning mit Nummernkreis und übersprungenen
+    Nummern (Festlegung 1.8.74 Nr. 2, geändert; nur Nummern, Regel 18)."""
     sequence = _lock_sequence(db, sequence_key)
-    _apply_year_reset(sequence)
-    _sync_from_existing(db, sequence)
-    value = format_sequence_number(sequence.format_pattern, sequence.next_value)
-    sequence.next_value += 1
+    year = berlin_now().year
+    planned = _planned_value(sequence, year)
+    value = _free_value(db, sequence, planned)
+
+    def number(v: int) -> str:
+        return format_sequence_number(sequence.format_pattern, v, year)
+
+    if value > planned:
+        skipped = number(planned) if value - 1 == planned else f"{number(planned)} bis {number(value - 1)}"
+        logger.warning("Nummernkreis %s: nächste Nummer %s lag auf oder unter einer vergebenen -- übersprungen: %s, "
+                       "vergeben wird %s.", sequence_key, number(planned), skipped, number(value))
+    sequence.last_year = year
+    sequence.next_value = value + 1
     db.flush()
-    return value
+    return number(value)
 
 
 def update_sequence(
@@ -212,6 +255,11 @@ def update_sequence(
     validate_number_pattern(format_pattern)
     if start_value < 0 or next_value < 0:
         raise ValueError("Start- und nächste Nummer müssen größer oder gleich 0 sein.")
+    # Seit 1.8.76: ohne Jahr im Format kein Zurücksetzen zum Jahreswechsel -- die Nummern des neuen Jahres wären die des alten.
+    if reset_yearly and not has_year(format_pattern):
+        raise YearlyResetWithoutYear(
+            "Ein Format ohne Jahr ({YYYY} oder {YY}) kann zum Jahreswechsel nicht auf die Startnummer zurückgehen -- die Nummern "
+            "des neuen Jahres wären dieselben wie die des alten. Bitte das Jahr ins Format aufnehmen oder „fortlaufend“ wählen.")
     sequence = load_sequence(db, sequence_key)
     # Seit 1.8.74: nicht auf oder unter eine vergebene Nummer desselben Formats und Jahres -- ablehnen mit der höchsten
     # vergebenen, statt (wie bis 1.8.73 die Vorschau danach) still darüber zu springen; bei Rechnung und Mahnung entstand

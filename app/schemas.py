@@ -243,7 +243,8 @@ class CustomerOut(CustomerCreate):
     model_config = ConfigDict(from_attributes=True)
     id: int
     name: str
-    customer_number: str
+    # Seit 1.8.76 leer möglich: ein Altkunde ohne Profil -- das Lesen legt keins mehr an (keine Nummer beim Anzeigen).
+    customer_number: str | None = None
     extra_infos: list[CustomerExtraInfoOut] = Field(default_factory=list)
 
 

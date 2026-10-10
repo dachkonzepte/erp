@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.75** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.76** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -951,7 +951,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Mahnungsnummer gleichen nicht mit den vorhandenen ab ("nächste Nummer" zurückgesetzt -> Dublette) -- seit 1.8.74 behoben: die
   Einstellungen lehnen eine nächste Nummer auf oder unter einer vergebenen ab (409); seit 1.8.74 Pflicht-Leistungszeitraum;
   seit 1.8.75 4a-4c behoben (Rechnungsdatum = Tag des Festschreibens, Fälligkeit rückt mit, Hinweis bei späterem Versand) und jeder
-  schreibende Weg an einer Rechnung unter der Sperre; 1a, 1b und 1d für R4)
+  schreibende Weg an einer Rechnung unter der Sperre; seit 1.8.76 Nummernkreise: keine Anzeige schreibt oder verbraucht eine
+  Nummer, Überspringen mit Warnung, Format ohne Jahr nicht mit Jahreswechsel; 1a, 1b und 1d für R4)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
@@ -1026,6 +1027,11 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   (Rechnung, Mahnung) löscht nur, wer dieselbe Sperre wie das Festschreiben hält. Seit 1.8.74 lehnt
   `update_sequence()` eine nächste Nummer auf oder unter der höchsten vergebenen desselben Formats und Jahres ab
   (`NumberBelowExisting`, 409); alle sieben Kreise gleichen bei der Vergabe mit den vergebenen ab (`_existing_column()`).
+  Seit 1.8.76: eine Anzeige schreibt und verbraucht nie eine Nummer -- `preview_number()`/`effective_next_value()` rechnen
+  Jahreswechsel und Abgleich nur aus (geschrieben wird erst bei der Vergabe), kein GET-Endpunkt erreicht `issue_number()`
+  (`tests/test_v379_nummern_anzeige.py`, AST); springt die Vergabe über vergebene Nummern, schreibt sie `logger.warning`; ein
+  Format ohne Jahr mit "Jahreswechsel: auf Startnummer zurück" lehnt `update_sequence()` ab (`YearlyResetWithoutYear`, 409,
+  gemeinsame Oberklasse `SequenceConflict`).
 - **KI-Aufrufe ausschließlich über `call_ai()`/`call_ai_async()`** (`app/ai_service.py`) --
   nie einen Adapter (`app/ai_adapters.py`) direkt importieren/aufrufen. `call_ai_async()` aus
   `async def`-Routen, `call_ai()` nur aus gewöhnlichen `def`-Routen (Starlette-Threadpool) --
@@ -1379,7 +1385,7 @@ Einsatzbericht mit Hinweis fürs Büro, Monteurin auf 412 px ohne) und `klicktes
 Mahnwesen-Entwurf zu bezahlter Rechnung, API 409; seit 1.8.73 der Ausweg im Sperrtext: "R4" bzw. "Entwurf löschen", gelöscht ->
 frei) und `klicktest_leistungszeitraum.py` (1.8.74, Rechnungsseite: Vorschlag mit Quelle, Grund statt Finalisieren, nichts still
 eingetragen, "Übernehmen", Ende vor Beginn, Finalisieren; geplanter Zeitraum; Nummernkreis: Meldung mit der höchsten vergebenen,
-nichts gespeichert) und `klicktest_rechnungsdatum.py` (1.8.75, Entwurf von vor drei Wochen mit "Finalisiert heute", Finalisieren ->
+nichts gespeichert; seit 1.8.76 Format ohne Jahr mit Jahreswechsel abgelehnt) und `klicktest_rechnungsdatum.py` (1.8.75, Entwurf von vor drei Wochen mit "Finalisiert heute", Finalisieren ->
 Datum und Fälligkeit ab heute; Versandhinweis bei einer früher finalisierten Rechnung; veraltete Seite nach Finalisieren in anderer
 Sitzung -> 409 mit Nummer). Ein
 Klicktest, der als
@@ -1388,7 +1394,9 @@ hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `Mobile
 meldet `/mobil` ab, eine 403-Prüfung sähe abends 401; `--wanduhr HH:MM` täuscht eine andere Uhrzeit vor (Gegenprobe),
 `tests/test_v339_feste_uhr.py` prüft, dass jeder solche Klicktest `uhr=` setzt. Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
 im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten (Vorlage dort). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
-Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
+Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite. **Alle nacheinander** (seit 1.8.76):
+`.venv\Scripts\python.exe scripts\klicktest_alle.py` (je Test eigener Arbeitsordner unter einem Ausgabeordner, Übersicht mit
+Ergebnis, Prüfungen und Laufzeit, `--nur`/`--ab`, Zeitlimit je Test, beendet nur den eigenen Prozessbaum).
 
 ## Arbeitsweise, die sich bewährt hat
 
@@ -1440,9 +1448,9 @@ Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite.
 - ~~Vier `ensure_default_*()` ohne UNIQUE (stille Dopplung) und das "get_or_create_settings(id=1)"-Singleton-
   Muster~~ -- seit 1.8.42 gelöst: Grunddaten legt der Start an, serialisiert über eine Sperrzeile (Regel 23,
   `docs/archiv/grunddaten-beim-start.md`), ohne neue Constraints.
-- **Zwei GET-Endpunkte schreiben noch** (1.8.42, `SCHREIBT_BEKANNT` in `test_v326_monteur_datengrenze.py`):
-  `GET /api/projects/{id}/quotes` legt je Angebot Meta und Positionslayout an (`ensure_quote_structure()`),
-  `GET /api/settings/number-sequences` gleicht in `preview_number()` den Nummernkreis ab (flush ohne commit).
+- **Ein GET-Endpunkt schreibt noch** (1.8.42, `SCHREIBT_BEKANNT` in `test_v326_monteur_datengrenze.py`):
+  `GET /api/projects/{id}/quotes` legt je Angebot Meta und Positionslayout an (`ensure_quote_structure()`);
+  `GET /api/settings/number-sequences` schreibt seit 1.8.76 nicht mehr, die Kunden-GETs legen kein Profil mehr an.
   Weitere Anleger je Datensatz in Lesepfaden, die der Rundgang mit seinen Testdaten nicht auslöst, siehe
   `docs/archiv/grunddaten-beim-start.md`, "Nebenbefunde".
 - ~~Kolonnenführer-Rolle für Gruppenbuchungen~~ -- seit 1.7.12 gelöst über das Kennzeichen

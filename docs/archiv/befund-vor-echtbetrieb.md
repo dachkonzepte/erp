@@ -920,7 +920,8 @@ Abschlag nach Leistungsstand kennt sie nicht (40 % = 2.000 € unabhängig davon
    (Schnellauftrag: Projekt, Angebot, Auftrag), hält sie bis zum Ende; gleichzeitige Anlagen derselben Art warten kurz.
 2. Kunde, Anfrage, Projekt und Angebot zählen jetzt hoch: eine gelöschte Nummer wird nicht wieder vergeben (vorher die nächste freie
    über der höchsten). Die Kundennummer wird wie bisher nur beim ersten Anlegen des Profils gezogen -- auch über die zwei GET-Routen,
-   die ein fehlendes Profil nachlegen (`GET /api/customers`, `/{id}`).
+   die ein fehlendes Profil nachlegen (`GET /api/customers`, `/{id}`). **Seit 1.8.76 eingeengt: die GET-Routen legen kein Profil
+   mehr an (eine Anzeige verbraucht keine Nummer, "Umsetzung 1.8.76").**
 3. Auch der **Mahnungsentwurf** wird unter der Sperre gelöscht (die Vorgabe nennt "Entwurf löschen" allgemein, Nebenbefund 2 betraf
    Rechnungen).
 4. Löschen eines nicht (mehr) vorhandenen Entwurfs: 409 "inzwischen gelöscht", nicht 404. Ein festgeschriebener: 409 mit Nummer.
@@ -1162,7 +1163,7 @@ melden. Wird der Umfang zu groß: nach Punkt 2 committen und den Rest auflisten.
 
 ### Tests und Prüfung
 
-- Neu `tests/test_v378_rechnung_sperre_und_datum.py` (56, davon 10 gegen PostgreSQL): Rechnungsdatum und Fälligkeit beim späteren
+- Neu `tests/test_v378_rechnung_sperre_und_datum.py` (56, davon 12 gegen PostgreSQL; im Commit 1.8.75 stand "10", berichtigt in 1.8.76): Rechnungsdatum und Fälligkeit beim späteren
   Festschreiben, Fälligkeit über die API, Storno, Silvester (Datum 01.01.2027 zu R-2027-…), Vorschau im Entwurf ohne Schreiben,
   Versandhinweis (gleicher Tag, später, Skonto abgelaufen, überfällig, bezahlt), PDF mit dem Tag des Festschreibens; Bearbeiten je
   Weg (7) an einer festgeschriebenen Rechnung 409 mit Nummer und unverändert, am Entwurf weiter möglich, gelöschter Entwurf 409, Router
@@ -1198,6 +1199,115 @@ melden. Wird der Umfang zu groß: nach Punkt 2 committen und den Rest auflisten.
    unter der Sperre.
 2. **Mahndatum bleibt der Tag des Entwurfs** (Befund Punkt 4, "übrige Fälle"): `Reminder.reminder_date` und die neue Frist (Datum +
    Tage der Stufe) werden beim Festschreiben nicht erneuert -- dieselbe Frage wie 4c, jetzt für Mahnungen.
+
+## Umsetzung 1.8.76: Nummernkreise -- keine Anzeige schreibt, Überspringen mit Warnung, Format ohne Jahr; Klicktests (Punkte 3-5)
+
+Vorgabe: siehe "Umsetzung 1.8.75" (Punkte 3-5 und die Änderung zu Festlegung 1.8.74 Nr. 2). Nach Punkt 2 committet (1.8.75), der
+Rest hier als eigene Version.
+
+### Zu 3: Aufrufer der Nummernkreise (Befund)
+
+**Vergabe** (`app/settings.py::issue_number()`, zählt hoch, unter der Sperre der Nummernkreis-Zeile):
+
+| Nummernkreis | Funktion | Aufgerufen von |
+|---|---|---|
+| Kunde | `crm.py::next_customer_number()` <- `ensure_customer_profile()` | `POST /api/customers` (`routers/customers.py:163`), `PUT /api/customers/{id}` nur ohne Profil (`:80`), Adressimport (`address_import.py:349`); **bis 1.8.75 auch `GET /api/customers` und `/{id}`** (siehe unten) |
+| Anfrage | `inquiries.py::next_inquiry_number()` | `POST /api/inquiries` (`routers/inquiries.py:90`) |
+| Projekt | `projects.py::next_project_number()` | `POST /api/projects` (`routers/projects.py:147`), Anfrage -> Projekt (`routers/inquiries.py:126`), `duplicate_project()` (`projects.py:770`: Kopieren, als Mustervorgang, aus Muster), Schnellauftrag (`quick_service_orders.py:46`) |
+| Angebot | `projects.py::next_quote_number()` | `POST /api/projects/{id}/quotes` (`routers/projects.py:327`), Anfrage -> Angebot (`routers/inquiries.py:142`), `duplicate_project()` (`projects.py:657`), Schnellauftrag (`quick_service_orders.py:53`) |
+| Auftrag | `orders.py::create_order_from_quote()` (`:732`) | Beauftragen, Schnellauftrag |
+| Rechnung | `invoices.py::finalize_and_send_invoice()` | Finalisieren (auch Storno) |
+| Mahnung | `reminders.py::finalize_and_send_reminder()` (`:237`) | Mahnung versenden |
+
+**Vorschau** (`preview_number()`, zählt nie hoch): `GET /api/settings/number-sequences` (Einstellungen), `PUT …/{key}` (Antwort nach
+dem Speichern), `GET …/{key}/preview` (Kundenformular `master_data_form.html`: vorgeschlagene Kundennummer); `crm.py::
+customer_number_preview()` war unbenutzt -- entfernt.
+
+**Ergebnis**: Keine Vorschau in Einstellungen oder Formularen hat seit 1.8.73 eine Nummer verbraucht -- `preview_number()` zählte nie
+hoch. Aber zwei Anzeigewege schrieben:
+- **`preview_number()` schrieb** Jahreswechsel (`next_value` = Startnummer, `last_year`) und Abgleich (`next_value` über die höchste
+  vergebene) in den Nummernkreis, ohne Sperre; `GET /api/settings/number-sequences` und `/{key}/preview` committeten das (in
+  `SCHREIBT_BEKANNT` seit 1.8.42). Mit einem veralteten Stand gelesen (vor dem Commit einer gleichzeitigen Vergabe) konnte das die
+  nächste Nummer unter eine schon vergebene, später gelöschte zurücksetzen (Kunde, Anfrage, Projekt, Angebot -- deren Nummern werden
+  seit 1.8.73 nicht wieder vergeben).
+- **`GET /api/customers` und `/{id}` zogen eine Kundennummer**, wenn ein Kunde kein Profil hatte (Festlegung 1.8.73 Nr. 2: "auch über
+  die zwei GET-Routen") -- seit 1.8.73 über `issue_number()`, also verbraucht. Jeder Anlegeweg legt das Profil an; betroffen sind nur
+  Altkunden ohne Profil.
+
+### Was gebaut ist
+
+- **Vorschau nur lesend** (`preview_number()`, neu `effective_next_value()`): Jahreswechsel und Abgleich werden ausgerechnet, nicht
+  geschrieben; geschrieben werden sie erst bei der Vergabe, unter der Sperre. Die beiden GET-Routen committen nichts mehr,
+  `SCHREIBT_BEKANNT` (`test_v326`) ohne den Eintrag. Die Einstellungen zeigen als "Nächste Nr." die Nummer, die die nächste Vergabe
+  zöge -- nach dem Jahreswechsel also die Startnummer, nicht den gespeicherten Wert des alten Jahres (sonst überschriebe ein
+  unverändertes Speichern der Zeile den Jahreswechsel).
+- **Kunden-GET legt kein Profil an**: ein Altkunde ohne Profil zeigt keine Kundennummer (Kategorie "Privatkunde"), bis er
+  gespeichert wird (`PUT` legt das Profil an und zieht die Nummer). `CustomerOut.customer_number` darf leer sein; die Oberflächen
+  zeigen dann nichts. `crm.py::ensure_customer_profiles()` (nur von dort benutzt) entfernt.
+- **Strukturtest**: kein GET-Endpunkt erreicht `issue_number()` (AST über alle Funktionen in `app/`, Aufrufweg im Fehlertext,
+  `GET_MIT_NUMMER` leer).
+- **Überspringen mit Warnung** (Festlegung 1.8.74 Nr. 2, geändert): liegt die nächste Nummer bei der Vergabe auf oder unter einer
+  vergebenen, springt `issue_number()` weiter darüber und schreibt `logger.warning`: "Nummernkreis invoice: nächste Nummer R-2026-0002
+  lag auf oder unter einer vergebenen -- übersprungen: R-2026-0002 bis R-2026-0003, vergeben wird R-2026-0004." (nur Nummernkreis und
+  Nummern, Regel 18).
+- **Zu 4**: `update_sequence()` lehnt ein Format ohne `{YYYY}`/`{YY}` mit "Jahreswechsel: auf Startnummer zurück" ab
+  (`YearlyResetWithoutYear`, 409): "Ein Format ohne Jahr ({YYYY} oder {YY}) kann zum Jahreswechsel nicht auf die Startnummer
+  zurückgehen -- die Nummern des neuen Jahres wären dieselben wie die des alten. Bitte das Jahr ins Format aufnehmen oder
+  „fortlaufend“ wählen." Gemeinsame Oberklasse `SequenceConflict` (auch `NumberBelowExisting`), der Router antwortet darauf 409; ein
+  ungültiges Format bleibt 422 und wird zuerst geprüft. Der veraltete Satz unter Nummernkreise ist entfernt, der Hinweis zu den
+  Platzhaltern nennt die Regel.
+- **Zu 5a**: die rote Prüfung in `klicktest_versandverlauf.py` ("PDF-Knopf weiter in voller Auflösung, über 3 MB") ist durch
+  Festlegung 3 aus 1.8.66 überholt -- die Checkliste im Klicktest wird abgeschlossen, ihr PDF-Knopf liefert seitdem die feste Fassung
+  (Fotos verkleinert bis unter 3 MB; "die Fassung ersetzt den Download in voller Auflösung"). Neue Erwartung: der PDF-Knopf liefert
+  dieselbe Datei wie der Anhang der Mail (SHA-256 gleich), unter 3 MB.
+- **Zu 5b**: `scripts/klicktest_alle.py` lässt alle `scripts/klicktest_*.py` nacheinander laufen, je einer mit eigenem Arbeitsordner
+  unter einem gemeinsamen Ausgabeordner (Protokoll je Test, Screenshots), Zeitlimit je Test (Vorgabe 900 s, danach der eigene
+  Prozessbaum über die PID beendet, Regel 12), Übersicht mit Ergebnis, Prüfungen und Laufzeit je Test und gesamt
+  (`zusammenfassung.txt`); `--nur`, `--ab`.
+
+### Festlegungen 1.8.76 – Bitte bestätigen
+
+1. **Kunde ohne Profil**: die beiden GET-Routen legen keins mehr an, die Kundennummer bleibt leer, bis der Kunde gespeichert wird --
+   engt Festlegung 1.8.73 Nr. 2 ein ("auch über die zwei GET-Routen" gilt nicht mehr). Kein Nachlegen beim Start: jeder Anlegeweg legt
+   das Profil an, betroffen wäre nur Altbestand.
+2. **"Nächste Nr." in den Einstellungen** ist die Nummer, die die nächste Vergabe zöge (Jahreswechsel und Abgleich ausgerechnet),
+   nicht der gespeicherte Wert.
+3. **Warnung nur bei der Vergabe** (nicht bei Vorschau oder beim Anlegen eines Nummernkreises beim Start), Stufe WARNING, Text nur mit
+   dem Schlüssel des Nummernkreises und den Nummern.
+4. **Format ohne Jahr mit Jahreswechsel**: geprüft nur beim Speichern; ein schon so eingestellter Nummernkreis bleibt, bis er
+   gespeichert wird (die Vergabe springt dort mit Warnung). `{YY}` zählt als Jahr. Reihenfolge: ungültiges Format (422), dann diese
+   Prüfung (409), dann "nächste Nummer zu tief" (409).
+5. **Alle Klicktests**: Zeitlimit 900 s je Test; nicht Teil der pytest-Suite; der Ausgabeordner bleibt liegen (Temp, wie bei
+   einzelnen Klicktests).
+
+### Tests und Prüfung
+
+- Neu `tests/test_v379_nummern_anzeige.py` (26): Vorschau nach dem Jahreswechsel und über vergebenen Nummern ohne Schreiben, GET-Routen
+  der Einstellungen ohne Schreiben und mit "Nächste Nr." = was die Vergabe zöge, unverändertes Speichern nach dem Jahreswechsel behält
+  ihn, Kunden-GET ohne Profil und ohne Nummer (PUT zieht sie), Strukturtest kein GET erreicht `issue_number()`, Warnung beim
+  Überspringen (mehrere, eine) und keine bei normaler Vergabe (7), Format ohne Jahr mit Jahreswechsel je Nummernkreis abgelehnt (7),
+  fortlaufend und `{YY}` erlaubt, 422 vor 409, Route 409 mit Grund, Satz entfernt.
+- **Erwartung geändert**: `test_v05_customer_and_quote_calc.py::test_customer_number_category_and_legacy_backfill` erwartete, dass
+  `GET /api/customers` einem Altkunden ohne Profil eins samt Kundennummer anlegt -- jetzt
+  `…_legacy_without_profile`: keine Nummer, kein Profil. Angepasst: `test_v376` (Liste der Vorschau-Aufrufer ohne die entfernte
+  Funktion), `test_v326` (`SCHREIBT_BEKANNT` ohne die Nummernkreise).
+- Gegenproben (Regel 24): 8 von 8 rot -- Vorschau schreibt (flush; und mit commit im Rundgang `test_kein_get_schreibt`), Kunden-GET legt
+  Profil an (auch der Strukturtest wurde rot), Warnung, Jahreswechsel bei der Vergabe, Format ohne Jahr, Router 409, "Nächste Nr." aus
+  dem gespeicherten Wert. Jede Datei byte-genau zurück (SHA-256), kein Marker übrig.
+- Klicktests: `klicktest_leistungszeitraum.py` 20/20 (neu: Satz weg, "ANF-{NNNN}" mit Jahreswechsel -> Grund, nichts gespeichert,
+  fortlaufend gespeichert), `klicktest_versandverlauf.py` 32/32 (Erwartung zu 5a).
+- **Alle Klicktests** (`scripts/klicktest_alle.py`, Arbeitskopie mit dem Stand 1.8.76): 45 von 46 wie erwartet, **Laufzeit
+  gesamt 9:49 min** (je Klicktest 7-30 s, die längsten Versandprotokoll, Behinderungsanzeige-Abschluss, Vertrag-Unterschrift).
+  Rot: `klicktest_vertragsvorlagen.py` 35/36 (Nebenbefund 1).
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie): 3417 grün, 0 rot, 7 erwartet fehlgeschlagen (1a, 1b, 1d).
+  Danach nur Doku geändert.
+
+### Nebenbefunde (nur gemeldet)
+
+1. **`klicktest_vertragsvorlagen.py`: Platzhalterliste 23 statt erwartet 22** -- seit 1.8.50 gibt es `{gewaehrleistung}`, der
+   Klicktest wurde zuletzt in 1.8.42 geändert; veraltete Erwartung, nicht von dieser Änderung (Prüfung in Zeile 88).
+2. **Einstellungen -> Nummernkreise bei 1280 px Fensterbreite**: jede Zeile ragt rechts über die Karte ("Speichern" angeschnitten,
+   die Seite scrollt seitlich) -- im Screenshot des Klicktests gesehen, nicht untersucht.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 

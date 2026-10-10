@@ -33,7 +33,9 @@ def make_db():
     return sessionmaker(bind=engine)()
 
 
-def test_customer_number_category_and_legacy_backfill():
+def test_customer_number_category_and_legacy_without_profile():
+    """Seit 1.8.76 legt das Lesen einem Altkunden ohne Profil keins mehr an (vorher samt Kundennummer -- eine Anzeige zog eine
+    Nummer; Erwartung geändert): er zeigt keine Nummer, die Kategorie fällt auf "Privatkunde" zurück."""
     db = make_db()
     c1 = create_customer(CustomerCreate(last_name="Hausverwaltung Test", category="Hausverwaltung"), db)
     c2 = create_customer(CustomerCreate(last_name="Privat Test"), db)
@@ -49,9 +51,9 @@ def test_customer_number_category_and_legacy_backfill():
     db.commit()
     customers = list_customers(db)
     legacy = next(c for c in customers if c.name == "Altkunde ohne Profil")
-    assert legacy.customer_number.startswith("K-")
+    assert legacy.customer_number is None
     assert legacy.category == "Privatkunde"
-    assert db.scalar(select(CustomerProfile).where(CustomerProfile.customer_id == legacy.id)) is not None
+    assert db.scalar(select(CustomerProfile).where(CustomerProfile.customer_id == legacy.id)) is None
 
 
 def test_project_specific_quote_calculation_updates_ep_without_catalog_change():

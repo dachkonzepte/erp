@@ -2,7 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .models import Customer, CustomerProfile
-from .settings import issue_number, preview_number
+from .settings import issue_number
 
 
 def compose_customer_name(salutation: str | None, title: str | None, first_name: str | None, last_name: str) -> str:
@@ -19,10 +19,6 @@ def next_customer_number(db: Session) -> str:
     """Vergibt die nächste automatische Kundennummer -- seit 1.8.73 über issue_number() (gesperrt, hochgezählt); vorher
     nur die Vorschau, zwei gleichzeitig angelegte Kunden bekamen dieselbe."""
     return issue_number(db, "customer")
-
-
-def customer_number_preview(db: Session) -> str:
-    return preview_number(db, "customer")
 
 
 def ensure_customer_profile(
@@ -67,13 +63,3 @@ def ensure_customer_profile(
         if set_payment_term:
             profile.default_payment_term_id = default_payment_term_id
     return profile
-
-
-def ensure_customer_profiles(db: Session, customers: list[Customer]) -> None:
-    changed = False
-    for customer in customers:
-        if customer.profile is None:
-            ensure_customer_profile(db, customer)
-            changed = True
-    if changed:
-        db.commit()

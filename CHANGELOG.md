@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.76 – Nummernkreise: keine Anzeige schreibt, Überspringen mit Warnung, Format ohne Jahr; alle Klicktests
+
+Keine Anzeige verbraucht oder schreibt mehr eine Nummer. Die Vorschau der Nummernkreise (Einstellungen, Kundenformular) rechnet
+Jahreswechsel und Abgleich mit den vergebenen Nummern nur aus – bisher schrieb sie beides ohne Sperre in den Nummernkreis, und zwei
+GET-Routen committeten es. Die Einstellungen zeigen als „Nächste Nr.“ die Nummer, die die nächste Vergabe zöge. Die Kundenliste und
+die Kundenseite legen einem Altkunden ohne Profil keins mehr an und ziehen dafür keine Kundennummer mehr; er bekommt sie beim
+Speichern. Ein Strukturtest prüft, dass kein GET-Endpunkt die Nummernvergabe erreicht. Springt die Vergabe über eine schon vergebene
+Nummer, steht das jetzt als Warnung im Protokoll (Nummernkreis und übersprungene Nummern).
+
+In den Einstellungen wird ein Format ohne Jahr zusammen mit „Jahreswechsel: auf Startnummer zurück“ abgelehnt (409 mit Grund); der
+veraltete Satz unter Nummernkreise ist weg. Die rote Prüfung in `klicktest_versandverlauf.py` war durch Festlegung 3 aus 1.8.66
+überholt (der PDF-Knopf einer abgeschlossenen Checkliste liefert die feste Fassung) und prüft jetzt genau das. Neu
+`scripts/klicktest_alle.py` lässt alle Klicktests nacheinander laufen und meldet Ergebnis und Laufzeit.
+
+Neu `test_v379_nummern_anzeige` (26). Gegenproben 8 von 8 rot. Eine Erwartung geändert (`test_v05`: Kunde ohne Profil bekommt beim
+Lesen keine Nummer mehr). Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3417 grün, 0 rot, 7 erwartet fehlgeschlagen. Alle
+Klicktests: 45 von 46 in 9:49 min (rot `klicktest_vertragsvorlagen.py`, veraltete Erwartung seit 1.8.50, gemeldet). Berichtigt:
+`test_v378` hat 12 Tests gegen PostgreSQL (unter 1.8.75 stand 10). Festlegungen zum Bestätigen in
+`docs/archiv/befund-vor-echtbetrieb.md`, „Umsetzung 1.8.76“.
+
 ## 1.8.75 – Rechnungsdatum = Tag des Festschreibens, Rechnung nur unter der Sperre bearbeiten
 
 Das Rechnungsdatum ist jetzt der Tag des Festschreibens in Berliner Zeit, nicht mehr der Tag, an dem der Entwurf entstand – und
@@ -19,7 +39,7 @@ ist, sonst 409 mit der Rechnungsnummer (vorher 400). Bis 1.8.74 wartete eine Än
 Festschreiben und schrieb danach in die festgeschriebene Rechnung. Ein Strukturtest prüft das in drei Teilen (AST über
 `app/invoices.py`, niemand sonst schreibt Rechnungen, Rundgang über jeden schreibenden Endpunkt mit Beobachter an der Sitzung).
 
-Neu `test_v378_rechnung_sperre_und_datum` (56, davon 10 gegen PostgreSQL) und `klicktest_rechnungsdatum.py` 13/13. Gegenproben 19 von
+Neu `test_v378_rechnung_sperre_und_datum` (56, davon 12 gegen PostgreSQL) und `klicktest_rechnungsdatum.py` 13/13. Gegenproben 19 von
 19 rot. Eine Erwartung geändert (`test_v372_befund_rechnungsdatum`: Rechnungsdatum beim Festschreiben erneuert). Volle Suite (mit
 den opt-in-Tests gegen PostgreSQL): 3391 grün, 0 rot, 7 erwartet fehlgeschlagen (1a, 1b, 1d). Festlegungen zum
 Bestätigen in `docs/archiv/befund-vor-echtbetrieb.md`, „Umsetzung 1.8.75“; die Punkte 3–5 der Vorgabe folgen als 1.8.76.

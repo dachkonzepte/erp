@@ -10,7 +10,9 @@ klicktest_versandprotokoll.py, nichts verlässt den Rechner) und prüft:
 - Auftrag und Angebot: Verlauf da, nach dem Versand eine Zeile.
 - Mahnwesen: "Verlauf" klappt die Zeile auf.
 - Checkliste mit 20 Fotos (Büro): Versandbereich mit vorbelegtem Kunden, Versand, der Anhang in der
-  Mail ist ein PDF unter 3.000.000 Bytes, der PDF-Knopf liefert weiter volle Auflösung (über 3 MB);
+  Mail ist ein PDF unter 3.000.000 Bytes, der PDF-Knopf liefert dieselbe feste Fassung (seit 1.8.75 erwartet: bis 1.8.74
+  prüfte er volle Auflösung über 3 MB -- überholt durch Festlegung 3 aus 1.8.66, die Fassung ersetzt den Download in voller
+  Auflösung, die Originale bleiben im ERP);
   Monteur: kein Versandbereich, keine JS-Fehler; 412 px ohne seitliches Scrollen.
 - /versandprotokoll: Filter Checkliste, nachgetragene Zustellung mit "Zugestellt am" und Beleg.
 - Hell und dunkel auf der Rechnung.
@@ -24,6 +26,7 @@ Optionen, Ablauf, Rückgabecode und Regeln (isolierte Wegwerf-Datenbank, Prozess
 eigene PID beenden): siehe scripts/cdp_klicktest.py.
 """
 
+import hashlib
 import socket
 import sys
 import tempfile
@@ -227,8 +230,12 @@ async def _pruefen(tab, seed, p):
     p.pruefe("Checkliste: eine Verlaufszeile", await tab.js("document.querySelectorAll('#clDispatchHistory .dh-row').length"), 1)
     anhang = _anhang(POSTFACH[-1]) if POSTFACH else None
     p.pruefe("Checkliste: Anhang ist ein PDF unter 3.000.000 Bytes", bool(anhang and anhang.startswith(b"%PDF") and len(anhang) <= GRENZE), True)
-    voll = await tab.js(f"fetch('/api/checklists/{cid}/pdf').then(r=>r.arrayBuffer()).then(b=>b.byteLength)")
-    p.pruefe("Checkliste: PDF-Knopf weiter in voller Auflösung (über 3 MB)", (voll or 0) > GRENZE, True)
+    # Seit 1.8.75 erwartet: der PDF-Knopf einer abgeschlossenen Checkliste liefert die feste Fassung -- dieselbe Datei wie der
+    # Anhang (Festlegung 3 aus 1.8.66: Fotos verkleinert bis unter 3 MB, die Fassung ersetzt den Download in voller Auflösung).
+    knopf = await tab.js(f"fetch('/api/checklists/{cid}/pdf').then(r=>r.arrayBuffer()).then(b=>crypto.subtle.digest('SHA-256',b)"
+                         ".then(h=>[b.byteLength,[...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('')]))")
+    p.pruefe("Checkliste: PDF-Knopf liefert die feste Fassung (dieselbe Datei wie der Anhang, unter 3 MB)",
+             bool(anhang and knopf and knopf[0] <= GRENZE and knopf[1] == hashlib.sha256(anhang).hexdigest()), True)
     p.pruefe("Checkliste: JS-Fehler", tab.fehler, [])
     await tab.bild("checkliste_versand")
 

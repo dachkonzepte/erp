@@ -1,4 +1,4 @@
-"""Klicktest: Leistungszeitraum an der Rechnung und nächste Nummer in den Einstellungen (1.8.74).
+"""Klicktest: Leistungszeitraum an der Rechnung und nächste Nummer in den Einstellungen (1.8.74; seit 1.8.76 Format ohne Jahr).
 
 docs/archiv/befund-vor-echtbetrieb.md, "Umsetzung 1.8.74":
 
@@ -7,7 +7,9 @@ docs/archiv/befund-vor-echtbetrieb.md, "Umsetzung 1.8.74":
                        Felder gefüllt und gespeichert, Finalisieren erscheint; Ende vor Beginn -> Fehler, Werte bleiben;
                        Finalisieren -> festgeschrieben mit Zeitraum (hell und dunkel)
     ohne Zeitbuchungen Vorschlag "Geplanter Zeitraum des Auftrags"
-    Einstellungen      Nummernkreis Rechnung: nächste Nummer 1 trotz vergebener -> Meldung mit der höchsten, nichts gespeichert
+    Einstellungen      Nummernkreis Rechnung: nächste Nummer 1 trotz vergebener -> Meldung mit der höchsten, nichts gespeichert;
+                       seit 1.8.76 Anfrage "ANF-{NNNN}" mit Jahreswechsel -> Grund, nichts gespeichert, fortlaufend -> gespeichert;
+                       der veraltete Satz unter Nummernkreise ist weg
 
 AUFRUF (aus dem Projektordner):
 
@@ -165,6 +167,26 @@ async def pruefen(tab, seed, p):
     await tab.js("showSettingsSection('numbers');document.querySelector('.sequence[data-key=\"invoice\"]')"
                  ".scrollIntoView({block:'center'})")
     await tab.bild("nummernkreis_abgelehnt")
+
+    # --- seit 1.8.76: Format ohne Jahr mit "Jahreswechsel: auf Startnummer zurück" ---
+    await tab.oeffnen("/settings", "typeof sequences!=='undefined'&&sequences.length>0&&document.querySelector('.sequence')")
+    p.pruefe("Nummernkreise: veralteter Satz weg",
+             "werden bereits gespeichert" in (await tab.js("document.getElementById('settings-numbers').textContent") or ""), False)
+    await tab.js("(()=>{const r=document.querySelector('.sequence[data-key=\"inquiry\"]');r.querySelector('.format').value='ANF-{NNNN}';"
+                 "r.querySelector('.reset').value='true';saveSequence('inquiry')})()")
+    p.pruefe("Format ohne Jahr mit Jahreswechsel: Grund",
+             await tab.warten("document.querySelector('.sequence[data-key=\"inquiry\"] .seqStatus').textContent"
+                              ".includes('Ein Format ohne Jahr')"), True)
+    p.pruefe("Format ohne Jahr mit Jahreswechsel: nichts gespeichert",
+             await tab.js("fetch('/api/settings/number-sequences').then(r=>r.json()).then(l=>l.find(s=>s.sequence_key==='inquiry')"
+                          ".format_pattern)"), "ANF-{YYYY}-{NNNN}")
+    await tab.js("(()=>{const r=document.querySelector('.sequence[data-key=\"inquiry\"]');r.querySelector('.reset').value='false';"
+                 "saveSequence('inquiry')})()")
+    p.pruefe("Format ohne Jahr fortlaufend: gespeichert",  # load() zeichnet die Liste danach neu
+             await tab.warten("(sequences.find(s=>s.sequence_key==='inquiry')||{}).format_pattern==='ANF-{NNNN}'"), True)
+    await tab.js("showSettingsSection('numbers');document.querySelector('.sequence[data-key=\"inquiry\"]')"
+                 ".scrollIntoView({block:'center'})")
+    await tab.bild("nummernkreis_ohne_jahr")
     p.pruefe("JS-Fehler", tab.fehler, [])
     print(json.dumps({k: v for k, v in seed.items() if k != "cookies"}, ensure_ascii=False))
 

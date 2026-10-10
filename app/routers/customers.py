@@ -16,7 +16,7 @@ from fastapi import Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from ..crm import compose_customer_name, ensure_customer_profile, ensure_customer_profiles
+from ..crm import compose_customer_name, ensure_customer_profile
 from ..customer_documents import MAX_UPLOAD_BYTES, customer_directory, make_stored_filename
 from ..database import get_db
 from ..document_categories import resolve_category_id
@@ -43,7 +43,9 @@ def list_customers(db: Session = Depends(get_db), _role: AppUser = _role_dep):
         .options(selectinload(Customer.extra_infos), selectinload(Customer.profile))
         .order_by(Customer.name)
     ).all()
-    ensure_customer_profiles(db, customers)
+    # Seit 1.8.76 legt das Lesen kein fehlendes Profil mehr an (vorher samt Kundennummer aus dem Nummernkreis -- eine Anzeige
+    # verbrauchte eine Nummer, Regel 23). Jeder Anlegeweg legt das Profil an; ein Altkunde ohne Profil zeigt keine Nummer, bis
+    # er gespeichert wird.
     return customers
 
 
@@ -56,9 +58,7 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _role: AppUser
     )
     if customer is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
-    ensure_customer_profile(db, customer)
-    db.commit()
-    return customer
+    return customer  # seit 1.8.76 ohne Anlegen eines fehlenden Profils, siehe list_customers()
 
 
 @router.put("/api/customers/{customer_id}", response_model=CustomerOut)

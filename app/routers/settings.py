@@ -31,7 +31,8 @@ from ..option_settings import get_option_group, load_option_groups, option_group
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, require_min_role
 from ..schemas import AppearanceSettingsOut, AppearanceSettingsUpdate, CalculationSettingsOut, CalculationSettingsUpdate, EmployeeFunctionCreate, EmployeeFunctionOut, EmployeeFunctionUpdate, GeneralSettingsOut, GeneralSettingsUpdate, NumberPreviewOut, NumberSequenceOut, NumberSequenceUpdate, SettingOptionCreate, SettingOptionGroupOut, SettingOptionOut, SettingOptionUpdate
 from ..settings import (
-    NumberBelowExisting, get_accent_color, load_general_settings, load_sequences, preview_number, set_accent_color,
+    SequenceConflict, effective_next_value, get_accent_color, load_general_settings, load_sequences, preview_number,
+    set_accent_color,
     update_sequence,
 )
 
@@ -326,10 +327,9 @@ def list_number_sequences(db: Session = Depends(get_db), _role: AppUser = _role_
         result.append(NumberSequenceOut(
             sequence_key=sequence.sequence_key, label=sequence.label,
             format_pattern=sequence.format_pattern, start_value=sequence.start_value,
-            next_value=sequence.next_value, reset_yearly=sequence.reset_yearly,
-            preview=preview_number(db, sequence.sequence_key),
+            next_value=effective_next_value(db, sequence), reset_yearly=sequence.reset_yearly,
+            preview=preview_number(db, sequence.sequence_key),  # seit 1.8.76 nur lesend, kein commit mehr
         ))
-    db.commit()
     return result
 
 
@@ -342,23 +342,21 @@ def put_number_sequence(sequence_key: str, payload: NumberSequenceUpdate, db: Se
             reset_yearly=payload.reset_yearly,
         )
         preview = preview_number(db, sequence_key)
-        db.commit()
-    except NumberBelowExisting as exc:  # seit 1.8.74: auf/unter einer vergebenen Nummer
+    except SequenceConflict as exc:  # 409: auf/unter einer vergebenen Nummer (1.8.74), Format ohne Jahr mit Jahreswechsel (1.8.76)
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return NumberSequenceOut(
         sequence_key=sequence.sequence_key, label=sequence.label,
         format_pattern=sequence.format_pattern, start_value=sequence.start_value,
-        next_value=sequence.next_value, reset_yearly=sequence.reset_yearly, preview=preview,
+        next_value=effective_next_value(db, sequence), reset_yearly=sequence.reset_yearly, preview=preview,
     )
 
 
 @router.get("/api/settings/number-sequences/{sequence_key}/preview", response_model=NumberPreviewOut)
 def get_number_preview(sequence_key: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     try:
-        value = preview_number(db, sequence_key)
-        db.commit()
+        value = preview_number(db, sequence_key)  # seit 1.8.76 nur lesend, kein commit mehr
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return NumberPreviewOut(sequence_key=sequence_key, preview=value)
