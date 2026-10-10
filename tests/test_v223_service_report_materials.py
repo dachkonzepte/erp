@@ -80,18 +80,20 @@ def test_add_material_rejects_non_positive_quantity():
 
 
 def test_add_material_rejects_roof_area_not_covered_by_report():
+    """Seit 1.8.70 lehnt require_in_order_property() eine Fläche eines ANDEREN Objekts schon vorher ab (404, test_v373) --
+    dieser Test prüft deshalb seit 1.8.71 wieder seinen eigentlichen Fall: eine Fläche des eigenen Objekts, die nicht am
+    Bericht ist (bis dahin lief er mit einer fremden Fläche über die neue Prüfung, deren Text auch "Dachfläche" enthält)."""
     db = db_session()
     customer, prop = make_customer_and_property(db)
-    other_customer, other_prop = make_customer_and_property(db)
-    foreign_area = create_roof_area(db, other_prop.id, "Fremde Fläche")
     order = _make_order_for_report(db, prop)
     area = create_roof_area(db, prop.id, "Eigene Fläche")
+    not_covered = create_roof_area(db, prop.id, "Fläche außerhalb des Berichts")
     report = create_report(db, order.id, "wartung", roof_area_ids=[area["id"]])
     try:
-        add_material(db, report["id"], description="Test", quantity=Decimal("1"), roof_area_id=foreign_area["id"])
+        add_material(db, report["id"], description="Test", quantity=Decimal("1"), roof_area_id=not_covered["id"])
         assert False, "sollte ValueError auslösen"
     except ValueError as exc:
-        assert "Dachfläche" in str(exc)
+        assert str(exc) == "Diese Dachfläche gehört nicht zu diesem Bericht."
 
 
 def test_add_material_rejects_inspection_item_and_finding_from_other_report():

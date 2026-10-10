@@ -10,7 +10,10 @@ höchsten waren -- auf eine neue Position mit derselben ID; unter PostgreSQL bri
 Dazu setzt er den Projektstatus ohne Bedingung auf "beauftragt".
 
 Die Welt legt deshalb nach dem abzugleichenden Auftrag einen zweiten an: seine Positionen haben höhere IDs, wie im Betrieb.
-Fehler als xfail (tests/befund_vor_echtbetrieb.py); ein Abbruch an der Datenbank wird zu AssertionError (_abgleich()). Ablehnen
+Seit 1.8.71 behoben (bis dahin xfail, tests/befund_vor_echtbetrieb.py), die Tests 3a-3e sind die Abnahmetests: der Abgleich ist
+gesperrt (SyncBlockedError, Router 409), sobald an den Positionen etwas hängt oder der Auftrag storniert bzw. abgeschlossen ist;
+erlaubt, gelingt er auch mit Untertiteln unter PostgreSQL und lässt den Projektstatus stehen (app/orders.py::sync_block_reasons(),
+weitere Fälle in tests/test_v374_abgleich_sperre.py). Ein Abbruch an der Datenbank wird zu AssertionError (_abgleich()). Ablehnen
 des Abgleichs (ValueError) ist erlaubt -- geprüft wird die Eigenschaft: Rechnungen und Zeitbuchungen behalten ihre Position, der
 Auftrag wird nicht doppelt abgerechnet. Die Tests mit pg laufen gegen die lokale PostgreSQL (ERP_TEST_POSTGRES_URL, opt-in)."""
 
@@ -32,7 +35,7 @@ from app.models import Employee, InvoiceItem, OrderItem, Project, QuoteItem, Quo
 from app.orders import load_order, sync_order_from_source_quote
 from app.projects import ensure_quote_structure, load_quote
 from app.time_tracking import create_manual_entry
-from tests.befund_vor_echtbetrieb import befund, pg_sitzung, vorbedingung
+from tests.befund_vor_echtbetrieb import pg_sitzung, vorbedingung
 from tests.test_v153_mahnwesen import db_session
 from tests.test_v325_contract_basis import beauftragen, make_quote
 
@@ -107,9 +110,9 @@ def _auftragssumme(db, order_id):
 # SQLite (und mit dem pytest-Plugin auch PostgreSQL): Folgen für Rechnungen und Zeitbuchungen
 # ---------------------------------------------------------------------------
 
-@befund("3a", "nach dem Abgleich zieht die Schlussrechnung einen festgeschriebenen Abschlag nach Leistungsstand nicht mehr "
-              "ab -- die Position ist doppelt abgerechnet")
 def test_final_invoice_after_sync_bills_the_order_once():
+    """3a (seit 1.8.71 behoben): nach einem festgeschriebenen Abschlag ist der Abgleich gesperrt -- die Position wird nicht
+    doppelt abgerechnet."""
     db = db_session()
     quote_id, order_id, _ = _welt(db)
     finalize_and_send_invoice(db, _leistungsstand(db, order_id, "4"))
@@ -119,8 +122,8 @@ def test_final_invoice_after_sync_bills_the_order_once():
     assert compute_order_billing_progress(db, order_id)["invoiced_net"] == _auftragssumme(db, order_id)
 
 
-@befund("3b", "nach dem Abgleich zeigt die Zeitbuchung auf keine Position des Auftrags mehr (oder auf eine andere)")
 def test_time_entry_keeps_its_position_after_sync():
+    """3b (seit 1.8.71 behoben)."""
     db = db_session()
     quote_id, order_id, employee_id = _welt(db)
     item = load_order(db, order_id).items[0]
@@ -134,8 +137,8 @@ def test_time_entry_keeps_its_position_after_sync():
     assert _position(db, db.get(TimeEntry, entry.id).order_item_id) == vorher
 
 
-@befund("3c", "nach dem Abgleich zeigt die Position einer festgeschriebenen Rechnung auf keine Auftragsposition mehr")
 def test_finalized_invoice_keeps_its_order_item_after_sync():
+    """3c (seit 1.8.71 behoben)."""
     db = db_session()
     quote_id, order_id, _ = _welt(db)
     invoice = finalize_and_send_invoice(db, _leistungsstand(db, order_id, "4"))
@@ -147,9 +150,9 @@ def test_finalized_invoice_keeps_its_order_item_after_sync():
     assert {i: _position(db, db.get(InvoiceItem, i).source_order_item_id) for i in rows} == rows
 
 
-@befund("3d", "der Abgleich setzt den Projektstatus ohne Bedingung auf \"beauftragt\" zurück")
 @pytest.mark.parametrize("status", ["ausfuehrung", "abgeschlossen"])
 def test_sync_keeps_the_project_status(status):
+    """3d (seit 1.8.71 behoben): der Abgleich fasst den Projektstatus nicht an."""
     db = db_session()
     quote_id, order_id, _ = _welt(db)
     project = load_order(db, order_id).project
@@ -198,12 +201,21 @@ def _pg_vorbereiten(db, fall):
     return order_id
 
 
-@befund("3e", "unter PostgreSQL bricht der Abgleich mit IntegrityError ab (500): verschachtelte Titel (order_sections.parent_id), "
-              "Zeitbuchung oder Rechnung -- auch ein Entwurf -- an einer Position")
 @pytest.mark.parametrize("fall", ["titel", "zeitbuchung", "rechnung_entwurf", "rechnung"])
 def test_postgresql_sync_does_not_break_on_foreign_keys(pg, fall):
+    """3e (seit 1.8.71 behoben): kein Abbruch an der Datenbank -- mit Untertiteln gelingt der Abgleich, mit Zeitbuchung oder
+    Rechnung (auch Entwurf) an einer Position ist er gesperrt."""
     order_id = _pg_vorbereiten(pg, fall)
-    _abgleich(pg, order_id)
+    erlaubt = _abgleich(pg, order_id)
+    assert erlaubt == (fall == "titel")
+    if erlaubt:
+        order = load_order(pg, order_id)
+        assert [i.position_number for i in order.items] == ["1", "2"]
+        titel = {s.id: s for s in order.sections}
+        assert sorted((s.section_number, titel[s.parent_id].section_number if s.parent_id else None)
+                      for s in titel.values()) == [("01", None), ("01.01", "01")]
+        assert next(i for i in order.items if i.position_number == "1").section_id == next(
+            s.id for s in titel.values() if s.section_number == "01.01")
 
 
 def test_today_postgresql_sync_without_titles_invoices_or_time_entries_works(pg):

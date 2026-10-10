@@ -4,6 +4,35 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.71 – Reparatur Abgleich, Spaltenschlüssel und Auftragsdatum
+
+Behebt die Punkte 3, 5 und 4d des Befunds „Vor dem Echtbetrieb: Geld und Sicherheit“. Der Abgleich eines Auftrags mit dem
+geänderten Angebot ersetzt alle Positionen durch neue – was an den alten hing, zeigte danach ins Leere (SQLite) oder ließ den
+Abgleich mit 500 abbrechen (PostgreSQL). Jetzt ist er mit Begründung gesperrt (409), sobald an den Positionen eine Rechnung hängt
+(auch ein Entwurf), eine Zeit- oder Gruppenbuchung oder Material der Arbeitsvorbereitung, eine Abnahme besteht oder der Auftrag
+storniert bzw. abgeschlossen ist. Auftragsseite und Angebots-Editor nennen den Grund statt den Abgleich anzubieten. Ist er erlaubt,
+gelingt er auch mit Untertiteln unter PostgreSQL (die Titel wurden in beliebiger Reihenfolge gelöscht), und der Projektstatus
+bleibt, wie er ist.
+
+Der Schlüssel einer neuen Aufgaben- oder Pipelinespalte wird beim Entstehen gekürzt und bleibt eindeutig – passend zur kürzesten
+Spalte, in die er geschrieben wird, die Länge aus dem Modell (`app/spaltenlaenge.py`, Aufgaben 30 wegen `Task.status`, Pipeline
+40). Ein Auftrag aus dem Angebot ohne Datum in der Anfrage bekommt das Berliner Datum statt der Uhr des Servers; die
+Regel-20-Ausnahmeliste ist um diesen Fall kürzer.
+
+Vorweg: eine unbekannte Projekt-ID an der Aufgabe und ein unbekannter Kunde bei Schnellauftrag und Wartungsvertrag ohne Objekt
+antworten 404 statt 500 am Fremdschlüssel. Der Strukturtest hatte sie als „frei“ eingeordnet und dort nur den Grund verlangt;
+seither verlangt er auch für diese Einträge die Existenzprüfung (Funktion und Vergleich auf dem Weg vom Endpunkt). Gehört die
+Dachfläche der Vertragsposition nicht zum Objekt des Auftrags, entsteht der Einsatzbericht weiter ohne sie, aber nicht mehr still:
+Warnung im Protokoll und ein Hinweis am Bericht, nur fürs Büro. Objektansicht und Dokumente in /mobil bleiben offen – daran
+hängen drei Abläufe (Objektsuche, Dateiablage je Objekt, Checklisten im Kontext Objekt), gemeldet statt gebaut. Die Entscheidungen
+zu Rechnungen (Schlussrechnung als Endrechnung, Storno, Rechnungsdatum …) stehen im Archiv, gebaut ist davon nichts.
+
+Die xfail-Tests zu 3, 5 und 4d sind grün, ihre Markierung ist entfernt; `test_v325` ist auch gegen PostgreSQL grün. Neu
+`test_v374_abgleich_sperre` (20), `test_v374_spaltenlaenge` (12), `test_v374_unbekannte_ids_und_hinweis` (11). Gegenproben 20 von
+20 rot, Klicktest `klicktest_abgleich_sperre.py` 13/13. Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3236 grün, 0 rot, 19 erwartet fehlgeschlagen
+(Punkt 1 und 4a–4c). Festlegungen zum Bestätigen in
+`docs/archiv/befund-vor-echtbetrieb.md`, „Umsetzung 1.8.71“.
+
 ## 1.8.70 – Reparatur Sicherheit: IDs aus der Anfrage nur mit Zugehörigkeitsprüfung
 
 Behebt Punkt 2 des Befunds „Vor dem Echtbetrieb: Geld und Sicherheit“. Der Server nahm IDs aus der Anfrage an, ohne zu prüfen,

@@ -23,6 +23,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .models import Project, ProjectPipelineColumn
+from .spaltenlaenge import eindeutig_gekuerzt, laenge
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 
@@ -63,12 +64,10 @@ def _slugify(label: str) -> str:
 
 
 def _unique_key(db: Session, base_key: str) -> str:
-    key = base_key
-    suffix = 2
-    while db.scalar(select(ProjectPipelineColumn).where(ProjectPipelineColumn.key == key)) is not None:
-        key = f"{base_key}_{suffix}"
-        suffix += 1
-    return key
+    """Eindeutig und gekürzt (seit 1.8.71, Befund 5): der Schlüssel steht nur in ProjectPipelineColumn.key (Projekte verweisen
+    über die ID) und passt in diese Spalte (app/spaltenlaenge.py)."""
+    return eindeutig_gekuerzt(base_key, laenge(ProjectPipelineColumn.key),
+                              lambda key: db.scalar(select(ProjectPipelineColumn.id).where(ProjectPipelineColumn.key == key)) is not None)
 
 
 def _column_to_dict(column: ProjectPipelineColumn) -> dict:

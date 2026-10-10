@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session, selectinload
 from .grunddaten import einzelzeile
 from .audit import TASK_ENTITY_TYPE, record_audit_entry
 from .models import AppUser, Employee, Task, TaskChecklistItem, TaskColumn, TaskSettings
+from .zugehoerigkeit import require_project
 from .permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLES, has_min_role, has_role
 
 PRIORITIES = ("niedrig", "normal", "hoch", "dringend")
@@ -335,6 +336,8 @@ def create_task(db: Session, title: str, description: str | None = None, priorit
     min_visible_role ist dann folgenlos, aber kein Fehler."""
     if min_visible_role is not None and min_visible_role not in ROLES:
         raise ValueError(f"Unbekannte Rolle: {min_visible_role}")
+    if project_id is not None:  # seit 1.8.71: unbekannt 404 statt Fremdschlüssel (PostgreSQL 500)
+        require_project(db, project_id)
     columns_by_key = _columns_by_key(db)
     if status is None:
         status = _default_column_key(db)
@@ -370,6 +373,8 @@ def update_task(db: Session, task_id: int, **changes) -> dict | None:
     task = db.get(Task, task_id)
     if task is None:
         return None
+    if changes.get("project_id") is not None:  # seit 1.8.71: unbekannt 404 statt Fremdschlüssel (PostgreSQL 500)
+        require_project(db, changes["project_id"])
     columns_by_key = _columns_by_key(db)
     if "status" in changes:
         _validate_status(changes["status"], columns_by_key)

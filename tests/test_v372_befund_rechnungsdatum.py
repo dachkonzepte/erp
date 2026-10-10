@@ -10,7 +10,7 @@ nimmt das Berliner Jahr beim Festschreiben.
 server_uhr stellt den Server nach: die Uhr der App (app.berlin_time) läuft auf einem UTC-Zeitpunkt, und die Spaltenvorgabe
 date.today liefert dessen UTC-Datum. date.today selbst lässt sich nicht ersetzen; die Vorgabe der Spalte wird deshalb über
 SQLAlchemys Beschreibung der Vorgabe umgelenkt (Column._default_description_tuple, SQLAlchemy 2.0) -- eine Vorbedingung prüft, dass
-die Umlenkung greift. Fehler als xfail (tests/befund_vor_echtbetrieb.py)."""
+die Umlenkung greift. Fehler als xfail (tests/befund_vor_echtbetrieb.py); 4d seit 1.8.71 behoben, sein Test ist der Abnahmetest."""
 
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
@@ -124,8 +124,8 @@ def test_today_invoice_date_is_neither_editable_nor_renewed():
 # 4d: die übrigen Fälle der Ausnahmeliste
 # ---------------------------------------------------------------------------
 
-@befund("4d", "Auftrag aus dem Angebot ohne Datum in der Anfrage (OrderCreateFromQuote) nimmt die Rechner-Uhr")
 def test_order_date_default_of_the_api_is_the_berlin_date(server_uhr):
+    """4d, seit 1.8.71 behoben (Abnahmetest, bis dahin xfail): ohne Datum in der Anfrage das Berliner Datum."""
     from app.schemas import OrderCreateFromQuote
 
     heute = server_uhr(SOMMER_UTC)

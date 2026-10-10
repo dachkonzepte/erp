@@ -7,10 +7,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from .models import (
-    ContractBasisClause, Employee, Order, OrderItem, OrderSection, OrderRevision,
+    ContractBasisClause, Employee, Invoice, InvoiceItem, Order, OrderItem, OrderSection, OrderRevision,
     OrderItemCalculationSnapshot, OrderItemMaterialSnapshot,
-    Project, QuoteEmployeeAssignment, ServiceReport, TaxKey,
-    WorkPreparation, WorkPreparationEmployee, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee,
+    Project, QuoteEmployeeAssignment, ServiceReport, TaxKey, TimeEntry, TimeEntryGroup,
+    WorkPreparation, WorkPreparationEmployee, WorkPreparationMaterial, WorkPreparationTeamAssignment,
+    WorkPreparationTeamEmployee,
 )
 from .acceptances import ensure_no_active_acceptance, has_active_acceptance
 from .contract_basis import clause_is_reviewed, contract_basis_label, ensure_contract_not_signed
@@ -447,6 +448,7 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
         if db is None:
             # Best effort for callers that only need the snapshot representation.
             result["source_quote_in_sync"] = None
+            result["source_quote_sync_blocked"] = None
             result["has_active_acceptance"] = None
             result["warranty_lock_text"] = None
             result["invoiced_net"] = None
@@ -455,6 +457,9 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
             result["open_gross"] = None
         else:
             result["source_quote_in_sync"] = order_matches_source_quote(db, order)
+            # Seit 1.8.71: warum der Abgleich gesperrt ist (Status, an den Positionen Hängendes) -- nur, wenn er abweicht.
+            result["source_quote_sync_blocked"] = (None if result["source_quote_in_sync"] is not False
+                                                   else sync_block_text(db, order))
             # Seit 1.8.46: eine nicht verworfene Abnahme sperrt den Abgleich mit dem Angebot.
             result["has_active_acceptance"] = has_active_acceptance(db, order.id)
             # Seit 1.8.50: ein festgeschriebener Vertrag mit {gewaehrleistung} sperrt Leistungsart und Dauer.
@@ -610,7 +615,14 @@ def _copy_quote_scope_to_order(db: Session, order: Order, quote) -> None:
     # Existing scope is replaced as one controlled synchronization transaction.
     for item in list(order.items):
         db.delete(item)
-    for section in list(order.sections):
+    db.flush()
+    # Seit 1.8.71: Untertitel zeigen über parent_id auf ihren Titel -- erst die Verweise lösen, dann löschen. Vorher brach der
+    # Abgleich unter PostgreSQL am Fremdschlüssel order_sections_parent_id_fkey ab (Befund Punkt 3e), SQLite merkte es nicht.
+    old_sections = list(order.sections)
+    for section in old_sections:
+        section.parent_id = None
+    db.flush()
+    for section in old_sections:
         db.delete(section)
     db.flush()
 
@@ -756,12 +768,72 @@ def create_order_from_quote(
     return load_order(db, order.id)
 
 
+class SyncBlockedError(ValueError):
+    """Abgleich mit dem Angebot gesperrt (seit 1.8.71): Auftrag storniert oder abgeschlossen, oder an den Positionen hängt
+    etwas -- Router 409 mit dem Grund."""
+
+
+SYNC_BLOCKED_STATUSES = {"storniert": "Der Auftrag ist storniert", "abgeschlossen": "Der Auftrag ist abgeschlossen"}
+
+
+def sync_block_reasons(db: Session, order: Order) -> list[str]:
+    """Warum der Abgleich mit dem Angebot gesperrt ist (seit 1.8.71, Befund „Vor dem Echtbetrieb“ Punkt 3,
+    docs/archiv/befund-vor-echtbetrieb.md) -- leer: erlaubt. Der Abgleich ersetzt alle Positionen (neue IDs); was an einer
+    hängt, verlöre sie: Rechnungspositionen (jeder Status und jede Art, auch Entwurf, Storno und stornierte -- ein pauschaler
+    Abschlag ohne Positionsbezug nicht), Zeitbuchungen und Gruppenbuchungen, Material der Arbeitsvorbereitung (entsteht aus
+    der Kalkulation der Positionen, mit Disposition). Vertrag und Abnahme sperren getrennt (ContractSignedError,
+    AcceptanceExistsError)."""
+    reasons = []
+    if order.status in SYNC_BLOCKED_STATUSES:
+        reasons.append(SYNC_BLOCKED_STATUSES[order.status])
+    item_ids = select(OrderItem.id).where(OrderItem.order_id == order.id)
+    invoices = db.execute(
+        select(Invoice.id, Invoice.invoice_number).join(InvoiceItem, InvoiceItem.invoice_id == Invoice.id)
+        .where(InvoiceItem.source_order_item_id.in_(item_ids)).distinct().order_by(Invoice.id)
+    ).all()
+    if invoices:
+        entwuerfe = sum(1 for _, number in invoices if not number)
+        labels = [number for _, number in invoices if number] + (
+            [f"{entwuerfe} Entwurf" if entwuerfe == 1 else f"{entwuerfe} Entwürfe"] if entwuerfe else [])
+        reasons.append(f"an den Positionen hängen Rechnungen ({', '.join(labels)})")
+    entries = db.scalar(select(func.count()).select_from(TimeEntry).where(TimeEntry.order_item_id.in_(item_ids)))
+    groups = db.scalar(select(func.count()).select_from(TimeEntryGroup).where(TimeEntryGroup.order_item_id.in_(item_ids)))
+    if entries or groups:
+        teile = [f"{entries} Zeitbuchung{'' if entries == 1 else 'en'}"] if entries else []
+        teile += [f"{groups} Gruppenbuchung{'' if groups == 1 else 'en'}"] if groups else []
+        reasons.append(f"an den Positionen hängen {' und '.join(teile)}")
+    snapshot_ids = (select(OrderItemMaterialSnapshot.id)
+                    .join(OrderItemCalculationSnapshot, OrderItemCalculationSnapshot.id == OrderItemMaterialSnapshot.calculation_id)
+                    .where(OrderItemCalculationSnapshot.order_item_id.in_(item_ids)))
+    materials = db.scalar(select(func.count()).select_from(WorkPreparationMaterial).where(
+        WorkPreparationMaterial.source_order_item_id.in_(item_ids)
+        | WorkPreparationMaterial.source_material_snapshot_id.in_(snapshot_ids)))
+    if materials:
+        reasons.append(f"an den Positionen hängt Material der Arbeitsvorbereitung ({materials} "
+                       f"Zeile{'' if materials == 1 else 'n'})")
+    return reasons
+
+
+def sync_block_text(db: Session, order: Order) -> str | None:
+    """Die Begründung für Router (409) und Oberfläche -- None: der Abgleich ist (von hier aus) erlaubt."""
+    reasons = sync_block_reasons(db, order)
+    if not reasons:
+        return None
+    return ("Der Abgleich mit dem Angebot ist gesperrt: " + "; ".join(reasons)
+            + ". Änderungen (z. B. Nachträge) direkt am Auftrag erfassen.")
+
+
 def sync_order_from_source_quote(db: Session, order: Order, *, actor_name: str = "System", reason: str | None = None) -> Order:
     # Seit 1.8.34: nach der Unterschrift unter dem Vertrag gesperrt (ContractSignedError, Router 409).
     ensure_contract_not_signed(db, order.id, "der Abgleich mit dem Angebot")
     # Seit 1.8.46: ebenso, solange eine nicht verworfene Abnahme besteht (AcceptanceExistsError, Router 409). Sperrt
     # die Zeile des Auftrags -- eine gleichzeitig erfasste Abnahme wartet, bis der Abgleich durch ist, und umgekehrt.
     ensure_no_active_acceptance(db, order.id, "der Abgleich mit dem Angebot")
+    # Seit 1.8.71: ebenso bei storniertem oder abgeschlossenem Auftrag und sobald an den Positionen etwas hängt (Router 409).
+    # Vorher zeigten Rechnung und Zeitbuchung danach ins Leere (SQLite) bzw. brach der Abgleich ab (PostgreSQL).
+    blocked = sync_block_text(db, order)
+    if blocked:
+        raise SyncBlockedError(blocked)
     quote = load_quote(db, order.source_quote_id)
     if quote is None:
         raise ValueError("Quellangebot nicht gefunden.")
@@ -770,20 +842,13 @@ def sync_order_from_source_quote(db: Session, order: Order, *, actor_name: str =
     if order_matches_source_quote(db, order):
         return order
 
-    # Preserve manually planned procurement data before replacing order-item IDs.
-    from .work_preparation import capture_preparation_material_state, refresh_preparation_materials, load_preparation
-    preserved = capture_preparation_material_state(db, order.id)
-    prep = load_preparation(db, order.id)
-    if prep is not None:
-        # Release FK references before the old order-item snapshot is replaced.
-        for row in prep.materials:
-            row.source_material_snapshot_id = None
-            row.source_order_item_id = None
-        db.flush()
+    # Material der Arbeitsvorbereitung hängt an den Positionen und sperrt oben -- eine Arbeitsvorbereitung ohne Material
+    # bekommt nach dem Abgleich das Material der neuen Positionen (refresh_preparation_materials() unten).
+    from .work_preparation import refresh_preparation_materials
 
     _copy_quote_scope_to_order(db, order, quote)
     quote.status = "beauftragt"
-    order.project.status = "beauftragt"
+    # Seit 1.8.71 bleibt der Projektstatus, wie er ist (vorher ohne Bedingung "beauftragt", Befund 3d).
     db.commit()
     order = load_order(db, order.id)
     create_order_revision(
@@ -793,7 +858,7 @@ def sync_order_from_source_quote(db: Session, order: Order, *, actor_name: str =
         source="quote_sync",
         actor_name=actor_name,
     )
-    refresh_preparation_materials(db, order.id, preserved=preserved)
+    refresh_preparation_materials(db, order.id)
     return load_order(db, order.id)
 
 

@@ -4,6 +4,8 @@ from typing import ClassVar, Literal
 from urllib.parse import urlparse
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 
+from .berlin_time import berlin_today
+
 
 class PartialUpdate(BaseModel):
     """Teil-Update (seit 1.8.25): jedes Feld darf fehlen, der Handler übernimmt nur die gesendeten
@@ -1200,7 +1202,8 @@ class AuditLogOut(BaseModel):
 
 
 class OrderCreateFromQuote(BaseModel):
-    order_date: date = Field(default_factory=date.today)
+    # Seit 1.8.71 (Befund 4d): ohne Datum in der Anfrage das Berliner Datum, nicht die Uhr des Rechners (Server: UTC).
+    order_date: date = Field(default_factory=berlin_today)
     execution_start: date | None = None
     execution_end: date | None = None
     caseworker_employee_id: int | None = None
@@ -1354,6 +1357,7 @@ class OrderOut(BaseModel):
     warranty_proposals: dict[str, dict | None] | None = None
     warranty_lock_text: str | None = None  # seit 1.8.50
     has_active_acceptance: bool | None = None  # seit 1.8.46: sperrt den Abgleich mit dem Angebot
+    source_quote_sync_blocked: str | None = None  # seit 1.8.71: Grund, warum der Abgleich gesperrt ist (Status, Positionen)
 
 
 class OrderFieldAccessItemOut(BaseModel):

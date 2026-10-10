@@ -11,13 +11,37 @@ Route und verlangt, dass sie über eine Prüfung läuft (die Prüfungen dieser D
   nicht, ob es die ID gibt.
 - property_customer_mismatch() / require_confirmed_property(): Objekt eines anderen Kunden (Generalunternehmer,
   Hausverwaltung) nur mit bewusster Bestätigung (Schnellauftrag, Wartungsvertrag) -- dasselbe Muster wie der abweichende
-  Kunde der Anzeigen (app/notice_letters.py::customer_mismatch()): Hinweistext, Häkchen, ohne Bestätigung 409."""
+  Kunde der Anzeigen (app/notice_letters.py::customer_mismatch()): Hinweistext, Häkchen, ohne Bestätigung 409.
+- IdNichtGefunden / require_customer() (seit 1.8.71): eine unbekannte ID antwortet 404 mit Text, nicht 500 am Fremdschlüssel
+  (PostgreSQL) bzw. still gespeichert (SQLite) -- Kunde beim Schnellauftrag und Wartungsvertrag, auch ohne Objekt."""
 
 from collections.abc import Iterable
 
 from sqlalchemy.orm import Session
 
-from .models import Customer, Order, Property, RoofArea, RoofComponent
+from .models import Customer, Order, Project, Property, RoofArea, RoofComponent
+
+
+class IdNichtGefunden(ValueError):
+    """Eine ID aus der Anfrage gibt es nicht (seit 1.8.71) -- Router: 404 mit dem Text. Ein ValueError, damit Aufrufer, die
+    ValueError fangen, unverändert bleiben."""
+
+
+def require_customer(db: Session, customer_id: int) -> Customer:
+    """Der Kunde aus der Anfrage -- IdNichtGefunden, wenn es ihn nicht gibt."""
+    customer = db.get(Customer, customer_id)
+    if customer is None:
+        raise IdNichtGefunden("Kunde nicht gefunden.")
+    return customer
+
+
+def require_project(db: Session, project_id: int) -> Project:
+    """Das Projekt aus der Anfrage -- IdNichtGefunden, wenn es es nicht gibt (Aufgabe: frei an jedes Projekt, aber an ein
+    vorhandenes)."""
+    project = db.get(Project, project_id)
+    if project is None:
+        raise IdNichtGefunden("Projekt nicht gefunden.")
+    return project
 
 
 class NotInOrderProperty(ValueError):
@@ -69,18 +93,16 @@ class PropertyCustomerMismatch(ValueError):
 
 
 def property_customer_mismatch(db: Session, customer_id: int, property_id: int | None) -> dict | None:
-    """Gehört das Objekt einem anderen Kunden? None = kein Objekt oder dasselbe. ValueError, wenn es Objekt oder Kunden nicht
-    gibt (dann gibt es auch nichts zu bestätigen)."""
+    """Gehört das Objekt einem anderen Kunden? None = kein Objekt oder dasselbe. IdNichtGefunden (seit 1.8.71, vorher
+    ValueError -> 400), wenn es Objekt oder Kunden nicht gibt (dann gibt es auch nichts zu bestätigen)."""
     if property_id is None:
         return None
     prop = db.get(Property, property_id)
     if prop is None:
-        raise ValueError("Objekt nicht gefunden.")
+        raise IdNichtGefunden("Objekt nicht gefunden.")
     if prop.customer_id == customer_id:
         return None
-    customer = db.get(Customer, customer_id)
-    if customer is None:
-        raise ValueError("Kunde nicht gefunden.")
+    customer = require_customer(db, customer_id)
     owner = db.get(Customer, prop.customer_id)
     owner_name = owner.name if owner is not None else "einem anderen Kunden"
     return {
@@ -93,7 +115,9 @@ def property_customer_mismatch(db: Session, customer_id: int, property_id: int |
 
 def require_confirmed_property(db: Session, customer_id: int, property_id: int | None, confirmed: bool) -> dict | None:
     """PropertyCustomerMismatch, solange ein Objekt eines anderen Kunden nicht bestätigt ist; sonst die (bestätigte)
-    Abweichung oder None."""
+    Abweichung oder None. Seit 1.8.71 zuerst der Kunde selbst (IdNichtGefunden) -- auch ohne Objekt: vorher prüfte ihn beim
+    Schnellauftrag und Wartungsvertrag ohne Objekt nur der Fremdschlüssel (PostgreSQL 500)."""
+    require_customer(db, customer_id)
     mismatch = property_customer_mismatch(db, customer_id, property_id)
     if mismatch is not None and not confirmed:
         raise PropertyCustomerMismatch(mismatch["text"])

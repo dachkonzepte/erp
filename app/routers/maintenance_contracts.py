@@ -21,7 +21,7 @@ from ..maintenance_contracts import (
 )
 from ..modules import is_module_enabled
 from ..service_reports import list_contract_history
-from ..zugehoerigkeit import PropertyCustomerMismatch
+from ..zugehoerigkeit import IdNichtGefunden, PropertyCustomerMismatch
 from .service_reports import _employee_for_request
 from ..schemas import (
     MaintenanceContractCreate, MaintenanceContractCreateProjectRequest, MaintenanceContractFromProjectCreate,
@@ -114,6 +114,8 @@ def post_maintenance_contract(payload: MaintenanceContractCreate, db: Session = 
         )
     except PropertyCustomerMismatch as exc:  # seit 1.8.70: Objekt eines anderen Kunden ohne Bestätigung
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except IdNichtGefunden as exc:  # seit 1.8.71: unbekannter Kunde bzw. unbekanntes Objekt
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -130,6 +132,8 @@ def put_maintenance_contract(contract_id: int, payload: MaintenanceContractUpdat
         )
     except PropertyCustomerMismatch as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except IdNichtGefunden as exc:  # seit 1.8.71: unbekanntes Objekt
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if result is None:

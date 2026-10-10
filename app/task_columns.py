@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .models import Task, TaskColumn
+from .spaltenlaenge import eindeutig_gekuerzt, laenge
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 
@@ -53,12 +54,11 @@ def _slugify(label: str) -> str:
 
 
 def _unique_key(db: Session, base_key: str) -> str:
-    key = base_key
-    suffix = 2
-    while db.scalar(select(TaskColumn).where(TaskColumn.key == key)) is not None:
-        key = f"{base_key}_{suffix}"
-        suffix += 1
-    return key
+    """Eindeutig und gekürzt (seit 1.8.71, Befund 5): der Schlüssel steht in TaskColumn.key und in Task.status jeder Aufgabe
+    der Spalte -- er passt in die kürzere der beiden (app/spaltenlaenge.py). Vorher ungekürzt: unter PostgreSQL scheiterte das
+    Anlegen ab 41 Zeichen, ab 31 jede Aufgabe in der Spalte."""
+    return eindeutig_gekuerzt(base_key, laenge(TaskColumn.key, Task.status),
+                              lambda key: db.scalar(select(TaskColumn.id).where(TaskColumn.key == key)) is not None)
 
 
 def _column_to_dict(column: TaskColumn) -> dict:

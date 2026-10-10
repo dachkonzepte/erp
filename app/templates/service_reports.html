@@ -33,6 +33,7 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
 .badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
 .badge.unterschrieben{background:var(--success-soft);color:var(--success)}
 .badge.entwurf{background:var(--warning-soft);color:var(--warning)}
+.office-hint{margin-top:8px;padding:8px 10px;border:1px solid var(--warning);background:var(--warning-soft);color:var(--ink)}
 .report-desc{white-space:pre-wrap;margin-top:8px;font-size:13.5px}
 .report-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .report-actions button,.report-actions a{padding:7px 10px;font-size:12.5px}
@@ -530,6 +531,7 @@ function reportCard(r){
     <div class="report-head">
       <div>${badges.join(' ')} <span class="muted small">${fmtDate(r.performed_at)}${r.created_by_employee_name?' · '+esc(r.created_by_employee_name):''}</span></div>
     </div>
+    ${r.office_hint?`<div class="office-hint small">${esc(r.office_hint)}</div>`:''}
     ${r.description?`<div class="report-desc">${esc(r.description)}</div>`:''}
     ${signedInfo}
     <div class="report-actions">${actions.join('')}</div>

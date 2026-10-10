@@ -149,7 +149,7 @@ def get_service_reports(order_id: int, db: Session = Depends(get_db), _role: App
     _require_module_enabled(db)
     require_field_order_access(db, _role, order_id)
     if _role.role != ROLE_FIELD:
-        return list_reports(db, order_id)
+        return list_reports(db, order_id, office_hints=True)  # seit 1.8.71 mit Hinweis fürs Büro (office_hint)
     return [
         (ServiceReportOut if is_own else ServiceReportHistoryOut).model_validate(row).model_dump(mode="json")
         for row, is_own in list_reports_for_field(db, order_id, _role.employee_id)

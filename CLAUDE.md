@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.70** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.71** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -573,7 +573,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     dort bis 1–2 Uhr nachts den Vortag und an Silvester das alte Jahr -- lokal unter deutscher
     Windows-Zeit unsichtbar. Beide sind unter `app/` verboten, `tests/test_v316_berlin_time.py`
     sucht sie per AST -- seit 1.8.46 auch als Spaltenvorgabe ohne Klammern (`default=date.today`,
-    `default_factory=date.today`); die sechs Altfälle stehen in `BEKANNTE_VORGABEN`, die Liste darf nur kürzer werden. Gespeicherte Zeitstempel aus `datetime.utcnow()` bleiben naive UTC; wer sie
+    `default_factory=date.today`); die Altfälle (seit 1.8.71 fünf) stehen in `BEKANNTE_VORGABEN`, die Liste darf nur kürzer werden. Gespeicherte Zeitstempel aus `datetime.utcnow()` bleiben naive UTC; wer sie
     druckt oder ein Datum daraus ableitet, rechnet mit `to_berlin()` um. Beginn/Ende einer
     Zeitbuchung sind dagegen naive Ortszeit. Browser-Seite: `_berlin_date.html`. Details und die
     offenen Browser-Stellen: `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Kalenderdatum in
@@ -644,9 +644,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Bauteil nur aus dem Objekt des Auftrags, fremd wie unbekannt 404 ohne Grund; `require_confirmed_property()`: Objekt eines
     anderen Kunden nur mit Bestätigung, sonst 409) oder eine eigene. `tests/test_v373_zugehoerigkeit_struktur.py` findet jede
     ID-Eingabe schreibender Routen (Body, Formular, Query) und jedes ID-Paar im Pfad; jede steht in `STAMMDATEN` (Feldname),
-    `GEPRUEFT` (Funktion und Vergleich, der Test verlangt beides auf dem Weg vom Endpunkt), `FREI` (legt Besitzer/Kontext fest)
-    oder `AUSNAHMEN` (darf nur kürzer werden). "Erfasst von"/"geschlossen von" setzt der Server aus der Anmeldung, mitgeschickt
-    422. Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.70".
+    `GEPRUEFT` (Funktion und Vergleich, der Test verlangt beides auf dem Weg vom Endpunkt), `FREI` (legt Besitzer/Kontext fest;
+    seit 1.8.71 ebenfalls mit Funktion und Vergleich der Existenzprüfung -- unbekannt 404 statt 500 am Fremdschlüssel,
+    `IdNichtGefunden`) oder `AUSNAHMEN` (darf nur kürzer werden). "Erfasst von"/"geschlossen von" setzt der Server aus der
+    Anmeldung, mitgeschickt 422. Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.70" und "Umsetzung 1.8.71".
 
 ## Fachbegriffe & Domänenmodell
 
@@ -929,8 +930,11 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
 - **Befund „Vor dem Echtbetrieb: Geld und Sicherheit“** (09.10.2026: Abschläge/Schlussrechnung/Storno, fremde IDs ohne
   Zugehörigkeitsprüfung, Abgleich mit dem Angebot, Rechnungsdatum, Spaltenschlüssel; je Fehler ein Test unter
   `tests/test_v372_befund_*.py`, xfail bis zur Reparatur; seit 1.8.70 Punkt 2 behoben: Zugehörigkeit, Historie in /mobil,
-  "erfasst/geschlossen von", Objekt eines anderen Kunden mit Bestätigung, Strukturtest Regel 25) --
-  `docs/archiv/befund-vor-echtbetrieb.md`
+  "erfasst/geschlossen von", Objekt eines anderen Kunden mit Bestätigung, Strukturtest Regel 25; seit 1.8.71 Punkte 3, 5 und
+  4d behoben: Abgleich mit dem Angebot gesperrt mit Grund (409), sobald an den Positionen etwas hängt oder der Auftrag storniert
+  bzw. abgeschlossen ist (`sync_block_reasons()`), Untertitel unter PostgreSQL, Projektstatus bleibt; Spaltenschlüssel gekürzt
+  und eindeutig; Auftragsdatum aus Berlin; Hinweis fürs Büro, wenn die Fläche der Vertragsposition fremd ist; "Entscheidungen
+  Rechnungen" festgehalten, nicht gebaut) -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
   `docs/archiv/grunddaten-beim-start.md`
@@ -987,7 +991,9 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   jede Spalte mit festen Werten gegen ihre Länge -- aus den Konstanten im Code (`FESTE_WERTE`), aus Literalen ohne Konstante
   (`FESTE_LITERALE`), dazu per AST jedes Literal in Konstruktoren, `update().values()` und Vergleichen; jede Spalte mit einem
   Namen nach festen Werten (status, kind, type, mode, key …) muss eingeordnet sein. Eine neue Spalte oder Konstante kommt dort
-  in die passende Liste.
+  in die passende Liste. **Abgeleitete Werte** (seit 1.8.71, z. B. der Schlüssel einer Spalte aus ihrer Bezeichnung) werden dort
+  gekürzt, wo sie entstehen, gegen die kürzeste Spalte, in die sie geschrieben werden -- Länge aus dem Modell
+  (`app/spaltenlaenge.py`: `laenge()`, `eindeutig_gekuerzt()`).
 - **Unterschriften zeichnen über `app/templates/_unterschrift.html`** (seit 1.8.34, `unterschriftsfeld(canvas)`
   auf einem `<canvas class="dk-unterschrift">`): Checkliste, Einsatzbericht und Vertrag teilen sich die Fläche
   (weiß mit dunklem Strich in beiden Themes, Geräteauflösung; seit 1.8.58 neu vermessen bei Drehen und Größenänderung,
@@ -1336,7 +1342,9 @@ Fassung, Hinweis und Rückfrage bei geänderten Beteiligten; seit 1.8.69 Adresse
 an:“ ohne Mail" im Versandverlauf; ebenso seit 1.8.69 `klicktest_behinderungsanzeige_versand.py`: CC fest statt Eingabefeld) und
 `klicktest_objekt_anderer_kunde.py` (1.8.70, Schnellauftrag, Vertragsanlage und Vertragsseite am Objekt eines anderen Kunden: nur
 mit Häkchen, API ohne Bestätigung 409, gespeichertes Objekt "bestätigt", neu gewählt wieder Rückfrage; /mobil: Historie nur am
-Objekt des eigenen Auftrags, sonst ruhiger Hinweis, 412 px). Ein
+Objekt des eigenen Auftrags, sonst ruhiger Hinweis, 412 px) und `klicktest_abgleich_sperre.py` (1.8.71, Auftragsseite und
+Angebots-Editor nennen den Grund der Sperre statt des Knopfs, API 409, freier Auftrag gleicht ab und behält den Projektstatus;
+Einsatzbericht mit Hinweis fürs Büro, Monteurin auf 412 px ohne). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

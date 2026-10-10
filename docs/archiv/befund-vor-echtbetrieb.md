@@ -37,9 +37,9 @@ Nebenbefunde nur melden. Commit nach Regel 13, nur Tests und Archiv.
 | `tests/test_v372_befund_an_pflicht.py` | Vorab (An) | 0 | 14 |
 | `tests/test_v372_befund_schlussrechnung.py` | 1 | 15 | 4 |
 | `tests/test_v372_befund_fremdes_objekt.py` | 2 | 0 (seit 1.8.70 behoben, vorher 10) | 12 |
-| `tests/test_v372_befund_abgleich.py` | 3 | 9 (4 nur PostgreSQL) | 2 (1 nur PostgreSQL) |
-| `tests/test_v372_befund_rechnungsdatum.py` | 4 | 5 | 2 |
-| `tests/test_v372_befund_spaltenschluessel.py` | 5 | 5 (alle nur PostgreSQL) | 2 (1 nur PostgreSQL) |
+| `tests/test_v372_befund_abgleich.py` | 3 | 0 (seit 1.8.71 behoben, vorher 9) | 11 (5 nur PostgreSQL) |
+| `tests/test_v372_befund_rechnungsdatum.py` | 4 | 4 (4d seit 1.8.71 behoben) | 3 |
+| `tests/test_v372_befund_spaltenschluessel.py` | 5 | 0 (seit 1.8.71 behoben, vorher 5) | 7 (6 nur PostgreSQL) |
 
 - `tests/befund_vor_echtbetrieb.py`: `befund(nr, text)` = `xfail(strict=True, raises=AssertionError, reason=…)` mit Verweis auf
   diese Datei. **strict**: ist ein Fehler behoben, wird sein Test rot (XPASS), bis die Markierung fällt -- dann ist er der
@@ -69,6 +69,8 @@ Nebenbefunde nur melden. Commit nach Regel 13, nur Tests und Archiv.
   gilt nur für die Kopien. Test: `test_v372_befund_an_pflicht.py`, Abnahmeprotokoll und Brief der Behinderungsanzeige, je 7 Fälle.
 
 ## Punkt 1: Abschläge, Schlussrechnung, Storno -- nachgestellt: ja
+
+Entscheidungen dazu (10.10.2026, festgehalten, nicht gebaut): siehe "Entscheidungen Rechnungen" unten.
 
 **Wie heute abgezogen wird** (`app/invoices.py`, grün festgehalten):
 
@@ -183,6 +185,8 @@ WHERE ra.property_id IS DISTINCT FROM p.property_id;
 
 ## Punkt 3: Abgleich mit dem Angebot -- nachgestellt: ja (SQLite und PostgreSQL)
 
+**Seit 1.8.71 behoben**, siehe "Umsetzung 1.8.71".
+
 `app/orders.py::sync_order_from_source_quote()` (`POST /api/orders/{id}/sync-source-quote`, buero_auftrag) löscht alle Positionen und
 Titel des Auftrags und legt sie neu an (`_copy_quote_scope_to_order()`, `orders.py:596–601`) -- neue IDs, keine Zuordnung über die
 Angebotsposition. Er prüft weder Rechnungen noch Zeitbuchungen noch den Status des Auftrags. Der Router fängt nur
@@ -216,6 +220,8 @@ test_abgleich_copies_every_field_marked_so_and_keeps_the_others` (verschachtelte
 PostgreSQL rot (dieselbe `ForeignKeyViolation`) -- er lief bisher nur unter SQLite.
 
 ## Punkt 4: Rechnungsdatum -- nachgestellt: ja
+
+4d seit 1.8.71 behoben ("Umsetzung 1.8.71"); 4a-4c offen, Entscheidungen dazu unter "Entscheidungen Rechnungen".
 
 - **Wo und wann**: `Invoice.invoice_date` setzt keine Funktion ausdrücklich; es greift die Spaltenvorgabe `default=date.today`
   (`models.py:1657`) beim Anlegen des **Entwurfs** -- jede Art (pauschal, Leistungsstand, Schluss, aus Aufwand, Storno;
@@ -256,6 +262,8 @@ WHERE invoice_date <> ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Berl
 ```
 
 ## Punkt 5: Spaltenschlüssel -- nachgestellt: ja (PostgreSQL)
+
+**Seit 1.8.71 behoben**, siehe "Umsetzung 1.8.71".
 
 Der Schlüssel entsteht aus der Bezeichnung (`_slugify()`: Kleinbuchstaben, alles außer a–z/0–9 wird "_", auch Umlaute; bei
 Gleichheit "_2" …), ungekürzt (`task_columns.py:50–61`, `project_pipeline_columns.py:60–71`). Erlaubt sind 80 Zeichen Bezeichnung
@@ -372,7 +380,7 @@ und den Rest auflisten. Commit nach Regel 13, Bericht kurz.
   Durchsicht aller Eingaben bis zur Speicherstelle (87 Felder, 24 Pfad-Paare; zwei weitere Pfad-Paare der
   Positions-Kalkulation fand erst der Test).
 
-### Festlegungen – Bitte bestätigen
+### Festlegungen 1.8.70 (bestätigt am 10.10.2026, Vorgabe R2; Nr. 5 geändert, Nr. 7 erweitert gewünscht -- siehe dort)
 
 1. 404-Texte „Dachfläche nicht gefunden.“ / „Bauteil nicht gefunden.“ – gleich für fremd und unbekannt. Die Prüfung sitzt in der
    Geschäftslogik und gilt für jede Rolle, auch fürs Büro.
@@ -380,10 +388,14 @@ und den Rest auflisten. Commit nach Regel 13, Bericht kurz.
 3. Archivierte Dachflächen und Bauteile des eigenen Objekts bleiben erlaubt.
 4. Auftrag ohne Objekt am Projekt (Hauptadresse): keine Dachfläche annehmbar – wie die Auswahl, die dort keine anbietet.
 5. Ohne ausdrückliche Auswahl nimmt der Bericht die Fläche der Vertragsposition – gehört sie nicht zum Objekt des Auftrags, wird
-   sie still weggelassen (kein Fehler), damit „Wartung durchführen“ an älteren Vorgängen nicht scheitert.
+   sie still weggelassen (kein Fehler), damit „Wartung durchführen“ an älteren Vorgängen nicht scheitert. **Geändert am
+   10.10.2026 (in der Vorgabe „Zu 2“): nicht still** -- Hinweis am Bericht fürs Büro und `logger.warning`, kein Fehler für den
+   Monteur. Gebaut in 1.8.71.
 6. Material an einer Fläche des eigenen Objekts, die nicht am Bericht ist: weiter 400 mit Grund (kein Geheimnis).
 7. Historie: Liste für ein Objekt ohne eigenen Auftrag 403 mit Hinweis (das Objekt selbst ist für den Monteur offen, also kein
-   Geheimnis), PDF 404. Der Weg „eigener Bericht“ zählt mit, ein Zeitfenster nicht.
+   Geheimnis), PDF 404. Der Weg „eigener Bericht“ zählt mit, ein Zeitfenster nicht. **Am 10.10.2026 (in der Vorgabe „Zu 3“)
+   gewünscht: Objektansicht und Dokumente in /mobil nach derselben Regel, einheitlich 404; hängt ein Ablauf an der offenen
+   Ansicht, melden statt bauen** -- es hängen drei daran, gemeldet in 1.8.71 (siehe dort, „Zu 3“), nicht gebaut.
 8. „Erfasst von“ / „geschlossen von“ für jede Rolle aus der Anmeldung, auch Admin (vorher war der Admin frei); ein Konto ohne
    Mitarbeiter setzt leer. Mitgeschickt 422, auch mit dem eigenen Wert. Ändert das Büro ein Ergebnis nach, ist es danach
    „erfasst von“ (wie `recorded_at`). Bei „sofort behoben“ beim Anlegen gilt die Anmeldung, auch wenn ein Admin einen anderen
@@ -404,6 +416,13 @@ und den Rest auflisten. Commit nach Regel 13, Bericht kurz.
 
 ### Tests und Prüfung
 
+- **Nachtrag 1.8.71** (Frage „nur Testdaten oder auch Erwartungen?“): angepasst wurden 43 Testfunktionen in den neun Dateien
+  unten (test_v213 13, test_v214 6, test_v222 7, test_v223 3, test_v233 1, test_v234 4, test_v237 4, test_v267 2, test_v273 3)
+  und die Hilfsfunktionen `_make_order_for_report` (vier Dateien) und `_current_order_at` (neu). **Nur Testdaten**: im
+  AST-Vergleich alter gegen neuer Stand ist keine `assert`-Anweisung geändert. Eine Erwartung lief danach aber über einen
+  anderen Weg: `test_v223::test_add_material_rejects_roof_area_not_covered_by_report` übergab eine Fläche eines fremden Objekts,
+  die seit 1.8.70 schon `require_in_order_property()` ablehnt (Text „Dachfläche nicht gefunden.“ erfüllt `"Dachfläche" in …`) --
+  seit 1.8.71 prüft er wieder seinen Fall (Fläche des eigenen Objekts, nicht am Bericht, genauer Text).
 - Die zehn xfail-Tests aus `test_v372_befund_fremdes_objekt.py` (2a ×2, 2b–2i) meldeten nach der Reparatur XPASS; Markierungen
   entfernt, sie sind die Abnahmetests.
 - Neu `tests/test_v373_zugehoerigkeit.py` (30): je Weg fremd und unbekannt gleich (404), nichts angelegt, Büro dieselbe Antwort,
@@ -438,3 +457,183 @@ und den Rest auflisten. Commit nach Regel 13, Bericht kurz.
 5. Ein von Hand ergänzter Prüfpunkt wird gegen das Objekt geprüft, nicht gegen die Flächen des Berichts – Nebenbefund 1 oben
    (Punkt fehlt im PDF) bleibt so möglich.
 6. Kundenwechsel einer Anfrage ist bis zur Projektanlage frei.
+
+## Umsetzung 1.8.71: Abgleich, Spaltenschlüssel, Auftragsdatum (Punkte 3, 5, 4d)
+
+### Vorgabe vom 10.10.2026 (übernommen wie gegeben)
+
+R2: Abgleich mit dem Angebot, Spaltenschlüssel und 4d (befund-vor-echtbetrieb.md, Punkte 3, 5 und 4d). Festlegungen 1.8.70 als
+bestätigt markieren, mit diesen Änderungen:
+- Zu 2: Eine Fläche der Vertragsposition aus einem fremden Objekt wird nicht still weggelassen: Hinweis am Bericht fürs Büro und
+  logger.warning, kein Fehler für den Monteur.
+- Zu 3: Objektansicht und Dokumente in /mobil nach derselben Regel wie die Historie; einheitlich 404 wie bei den übrigen fremden
+  IDs. Hängt ein Ablauf an der offenen Ansicht: melden statt bauen.
+
+Vorweg:
+- task.project_id sowie customer_id bei Schnellauftrag und Vertrag ohne Objekt: Eine unbekannte ID ergibt 404 statt 500. Wie
+  waren sie in test_v373 eingeordnet, dass der Test das nicht bemerkt hat? Lücke im Test schließen.
+- Die 42 angepassten Alttests aus 1.8.70: nur Testdaten geändert oder auch Erwartungen? Falls Erwartungen: Liste.
+- Ins Archiv befund-vor-echtbetrieb.md, Abschnitt „Entscheidungen Rechnungen“ (nur festhalten, nicht bauen): Schlussrechnung
+  als Endrechnung, alle Positionen zu 100 %, Abzug aller festgeschriebenen, nicht stornierten Abschlagsrechnungen je mit Netto
+  und USt, darunter „zzgl. noch offen aus Abschlag Nr. …“ und Zahlbetrag. Abschlagsrechnungen selbst nicht kumuliert. Offene
+  Abschläge nach der Schlussrechnung nur noch über diese gemahnt. Zahlung auf den Zahlbetrag: Vorschlag zuerst auf offene
+  Abschläge (ältester zuerst), dann Schlussrechnung, das Büro bestätigt. Rechnungsdatum = Tag der Ausgabe, jede Rechnung mit
+  Pflicht-Leistungszeitraum, Nummer beim Festschreiben, Nummernkreise beim Start auf 1. Höchstens ein Storno je Rechnung, kein
+  Storno eines Stornos. Keine mehreren Steuersätze je Rechnung.
+
+1. Abgleich: gesperrt mit Begründung (409), sobald an den Positionen etwas hängt (Rechnung auch als Entwurf, Zeitbuchung,
+   AV-Material), eine Abnahme besteht oder der Auftrag storniert oder abgeschlossen ist. Ist er erlaubt, funktioniert er auch mit
+   Untertiteln unter PostgreSQL. Den Projektstatus fasst er nicht an.
+2. Spaltenschlüssel von Aufgaben und Pipeline: gekürzt und eindeutig, passend zur kürzesten Spalte, in die er geschrieben wird.
+   Muster: Abgeleitete Werte werden dort gekürzt, wo sie entstehen, gegen die Spaltenlänge aus dem Modell.
+3. 4d: OrderCreateFromQuote ohne Rechner-Uhr; fehlt das Datum, gilt das Berliner Datum. Regel-20-Ausnahmeliste entsprechend
+   kürzen.
+
+Die xfail-Tests zu 3, 5 und 4d müssen grün werden, Markierung dann entfernen; test_v325 auch gegen PostgreSQL grün. Angriffstests
+mit Gegenprobe. Eigene Festlegungen mit „Bitte bestätigen“. Nebenbefunde nur melden. Commit nach Regel 13, Bericht kurz.
+
+### Vorweg
+
+- **Wie waren sie eingeordnet?** Alle drei standen in `FREI` ("die ID legt den Besitzer bzw. Kontext fest -- jede vorhandene ist
+  richtig"), die Aufgabe sogar mit dem Vermerk "Existenz prüft nur der Fremdschlüssel". `FREI` trug bis 1.8.70 nur einen Grund;
+  der Test prüfte die Einordnung, nicht ob eine **unbekannte** ID abgefangen wird. **Lücke geschlossen**: jeder `FREI`-Eintrag
+  trägt jetzt wie `GEPRUEFT` die Funktion und den Vergleich der Existenzprüfung, und der Test verlangt beides auf dem Weg vom
+  Endpunkt (`test_geprueft_wird_vom_endpunkt_erreicht_und_enthaelt_den_vergleich`). Durchsicht der 30 `FREI`-Einträge: 26 prüften
+  schon (404 bzw. 422), 4 nicht -- Aufgabe POST/PUT (`project_id`), Schnellauftrag und Wartungsvertrag ohne Objekt
+  (`customer_id`; mit Objekt prüfte ihn `property_customer_mismatch()` nur, wenn das Objekt einem anderen Kunden gehört).
+  Gebaut: `app/zugehoerigkeit.py::IdNichtGefunden` (ein `ValueError`, Router 404 mit Text), `require_customer()` (in
+  `require_confirmed_property()` vor allem anderen, also auch ohne Objekt), `require_project()` (in `create_task()`/`update_task()`
+  bei gesetzter ID). Ein unbekanntes Objekt beim Schnellauftrag und Vertrag (POST/PUT) antwortet seither ebenfalls 404 statt 400.
+  Dieselbe Lücke hat `STAMMDATEN` (siehe Nebenbefunde).
+- **Die angepassten Alttests aus 1.8.70**: 43 Testfunktionen (nicht 42), nur Testdaten, keine Erwartung geändert -- Einzelheiten
+  oben unter "Umsetzung 1.8.70" -> "Tests und Prüfung" (Nachtrag), dort auch der eine Test, der seither über einen anderen Weg lief
+  (`test_v223`, in 1.8.71 zurückgeholt).
+- **Entscheidungen Rechnungen**: festgehalten im eigenen Abschnitt unten, nicht gebaut.
+- **Festlegungen 1.8.70**: an der Überschrift als bestätigt markiert; Nr. 5 geändert (gebaut, siehe unten), Nr. 7 gemeldet.
+
+### Was gebaut ist
+
+- **Abgleich gesperrt** (`app/orders.py`): `sync_block_reasons()` sammelt die Gründe -- Auftrag `storniert` oder `abgeschlossen`;
+  an einer Position hängt eine Rechnungsposition (`invoice_items.source_order_item_id`, jeder Status und jede Art), eine Zeitbuchung
+  (`time_entries.order_item_id`) oder Gruppenbuchung (`time_entry_groups.order_item_id`), Material der Arbeitsvorbereitung
+  (`work_preparation_materials.source_order_item_id` oder `source_material_snapshot_id`). `sync_block_text()` macht daraus
+  "Der Abgleich mit dem Angebot ist gesperrt: …; …. Änderungen (z. B. Nachträge) direkt am Auftrag erfassen." mit Rechnungsnummern
+  bzw. Anzahl der Entwürfe und Anzahl der Buchungen und Materialzeilen. `sync_order_from_source_quote()` wirft nach Vertrag und
+  Abnahme (unverändert) `SyncBlockedError` (ein `ValueError`), der Router antwortet 409. Vorher nichts geändert, keine Revision.
+  Die Freigabe des AV-Materials vor dem Ersetzen entfällt (es sperrt jetzt); eine Arbeitsvorbereitung ohne Material bekommt nach
+  dem Abgleich das Material der neuen Positionen (`refresh_preparation_materials()`).
+- **Untertitel unter PostgreSQL**: `_copy_quote_scope_to_order()` löscht erst die Positionen, löst dann `parent_id` aller Titel des
+  Auftrags und löscht sie danach -- vorher in einem Flush in beliebiger Reihenfolge (`order_sections_parent_id_fkey`).
+- **Projektstatus**: der Abgleich setzt ihn nicht mehr; das Angebot bleibt "beauftragt" wie bisher.
+- **Oberfläche**: `order_to_dict()` liefert `source_quote_sync_blocked` (der Text, nur wenn der Auftrag vom Angebot abweicht).
+  Auftragsseite: Karte "Quellangebot geändert" mit dem Grund statt des Knopfs (nach den Hinweisen zu Abnahme und Vertrag).
+  Angebots-Editor: bei Sperre (Grund oder Abnahme) "Auftrag … öffnen" statt "Änderungen … übernehmen", der Grund im Hinweis.
+- **Spaltenschlüssel** (`app/spaltenlaenge.py`): `laenge(*spalten)` liest die kürzeste Länge aus dem Modell,
+  `eindeutig_gekuerzt(basis, max_laenge, belegt)` kürzt, lässt ein "_" am Ende weg und hängt bei Gleichheit "_2", "_3" … an (die
+  Basis dafür weiter gekürzt). Aufgabenspalte: `laenge(TaskColumn.key, Task.status)` = 30, Pipelinespalte:
+  `laenge(ProjectPipelineColumn.key)` = 40 (Projekte verweisen über die ID). Muster im Moduldocstring; Gegenstück für feste Werte
+  bleibt `test_v364`.
+- **4d**: `OrderCreateFromQuote.order_date = Field(default_factory=berlin_today)`; Eintrag aus `BEKANNTE_VORGABEN` gestrichen (jetzt
+  fünf).
+- **Zu 2 -- Fläche der Vertragsposition aus einem fremden Objekt** (`app/service_reports.py`): der Bericht entsteht weiter ohne sie
+  (kein Fehler für den Monteur), dazu `logger.warning` mit Bericht, Fläche, Vertragsposition und Auftrag -- nur IDs (Regel 18).
+  `contract_area_hint()` rechnet den Hinweis live aus Vertragsposition und Auftrag; die Büro-Liste
+  (`GET /api/orders/{id}/service-reports`, nicht `field`) liefert ihn als `office_hint`, `service_reports.html` zeigt ihn über dem
+  Bericht. Der Monteur bekommt seine Berichte über `ServiceReportOut`, das das Feld nicht kennt.
+
+### Zu 3 -- gemeldet, nicht gebaut
+
+An der offenen Objektansicht in /mobil hängen drei Abläufe:
+
+1. **Objektsuche in der Kopfzeile** jeder Monteursseite (`_mobile_header.html`, `GET /api/field-view/properties/search`,
+   `app/search.py`): findet jedes Objekt und verlinkt auf `/mobil/objekt/{id}` -- der Hauptweg zu einem Objekt ohne eigenen Auftrag.
+2. **Dateiablage je Objekt** (Betreiberentscheidung, `docs/archiv/rechtekonzept.md` "jeder Mitarbeiter -- auch Monteure -- kann
+  Bilder und Dokumente zu einem Objekt hochladen und ansehen", "ein Monteur erreicht JEDES Objekt über seine ID"): Dokumentliste,
+  Ansehen/Laden und Upload (`app/routers/field_view.py`, `mobil_objekt.html`).
+3. **Checklisten im Kontext Objekt** (Betreiberentscheidung A, `docs/archiv/modul-checklisten.md`): angelegt aus der Objektansicht
+  (`_checklists_section.html`), Rücksprung `checklist.html` -> `/mobil/objekt/{id}`; die Checkliste speichert Objektname, Adresse
+  und Kunde (`app/checklists.py::_context_snapshot()`) -- auch bei gesperrter Ansicht ein Weg zu diesen Daten.
+
+Die Sperre würde diese drei Entscheidungen zurücknehmen; dazu bräche `test_v267` (sieben Tests: "fremdes Objekt öffnen -- erlaubt"),
+`test_v373::test_history_only_for_properties_of_own_orders` (Objektansicht/Dokumente 200), `test_v260` (`/mobil/objekt/1`) und
+der Klicktest `klicktest_objekt_anderer_kunde.py`. "Einheitlich 404" beträfe auch die Historie selbst: heute Liste 403 mit
+ruhigem Hinweis, PDF 404 "Bericht nicht gefunden." (unbekanntes Objekt "Objekt nicht gefunden.").
+
+### Festlegungen – Bitte bestätigen
+
+1. "Rechnung an einer Position" = jede Rechnungsposition mit Bezug auf eine Position des Auftrags, jeder Status und jede Art (auch
+   Entwurf, Storno, stornierte Rechnung) -- an allen hängt der Fremdschlüssel. Ein pauschaler Abschlag (Position ohne Bezug) sperrt
+   nicht.
+2. Zeitbuchung: Einzel- und Gruppenbuchung mit Position, auch eine laufende; eine Buchung nur auf den Auftrag sperrt nicht.
+3. AV-Material: jede Materialzeile mit Bezug auf eine Position oder deren Kalkulation. Da es aus der Kalkulation entsteht, sperrt
+   praktisch jede Arbeitsvorbereitung mit kalkuliertem Material den Abgleich; eine ohne Material nicht.
+4. Abnahme: wie seit 1.8.46 nur eine nicht verworfene; der unterschriebene Vertrag sperrt weiter.
+5. Status: nur "storniert" und "abgeschlossen" sperren ("pausiert", "in_ausfuehrung", "arbeitsvorbereitung" nicht).
+6. Die Sperre greift vor dem Vergleich: auch ein Auftrag ohne Abweichung antwortet 409 (wie Vertrag und Abnahme). Die Oberfläche
+   bietet den Abgleich ohnehin nur bei Abweichung an.
+7. Alle Gründe auf einmal, Rechnungen mit Nummer (Entwürfe als Anzahl), Buchungen und Material als Anzahl.
+8. Spaltenschlüssel: Kürzung ohne Rücksicht auf Wortgrenzen. Bestehende Schlüssel werden nicht umbenannt (keine Migration). Auf dem
+   Server zu prüfen (nur lesen): `SELECT key FROM task_columns WHERE length(key) > 30;` -- ein Treffer kann keine Aufgabe aufnehmen;
+   steht er vorn, scheitert jede neue Aufgabe ohne Status. Bei Treffern: melden, dann eine Migration.
+9. Unbekannte ID: 404 mit Text "Projekt nicht gefunden." / "Kunde nicht gefunden." / "Objekt nicht gefunden." (Büro-Wege, kein
+   Geheimnis); das unbekannte Objekt bei Schnellauftrag und Vertrag dabei 400 -> 404 (`test_v373` angepasst).
+10. Aufgabe: Projekt nur bei gesetzter ID geprüft, `null` bleibt erlaubt; auch die Aufgaben aus Modulen (Mangel, Folgen) laufen
+    über die Prüfung.
+11. Hinweis fürs Büro: live gerechnet, keine neue Spalte -- erscheint auch an Berichten vor 1.8.71 und verschwindet, wenn der Vertrag
+    korrigiert ist; ebenso bei ausdrücklicher Flächenwahl, wenn die Fläche der Vertragsposition fremd ist (sie steht dann ebenfalls
+    nicht im Bericht). Er nennt Fläche und Objekt (nur Büro).
+12. `FREI` verlangt die Existenzprüfung, `STAMMDATEN` nicht (unverändert, siehe Nebenbefunde).
+
+### Tests und Prüfung
+
+- xfail entfernt: `test_v372_befund_abgleich.py` 3a-3e (9), `test_v372_befund_spaltenschluessel.py` 5a-5c (5),
+  `test_v372_befund_rechnungsdatum.py` 4d (1). 3e prüft jetzt zusätzlich: mit Untertiteln gelingt der Abgleich (Baum und Zuordnung
+  der Position), mit Zeitbuchung oder Rechnung ist er gesperrt. Angepasst, weil das Verhalten sich gewollt ändert: der grün
+  festgehaltene "Schlüssel ungekürzt"-Test (jetzt: gekürzt, auch unter SQLite) und die Vorbedingung von 5c (verlangte den
+  40 Zeichen langen Schlüssel, aus dem der Fehler entstand).
+- Neu: `test_v374_abgleich_sperre.py` (20), `test_v374_spaltenlaenge.py` (12, einer gegen PostgreSQL),
+  `test_v374_unbekannte_ids_und_hinweis.py` (11); Strukturtest mit Existenzprüfung für `FREI`.
+- Erwartung geändert: `test_v373::test_quick_order_at_a_property_of_another_customer_needs_confirmation` (unbekanntes Objekt 400
+  -> 404); `test_v316` ein Eintrag weniger; `test_v223::test_add_material_rejects_roof_area_not_covered_by_report` wieder auf
+  seinen Fall (genauer Text).
+- Gegenproben (Regel 24): 20 von 20 rot -- Status, Rechnung, Zeitbuchung, Gruppenbuchung allein, AV-Material über Position und
+  über Kalkulation, Projektstatus, Untertitel (PostgreSQL, auch `test_v325`), Router 409, Aufgabenspalte gekürzt und gegen
+  `Task.status`, Pipelinespalte, Eindeutigkeit mit Anhang, 4d (auch `test_v316`), Projekt der Aufgabe (Anlegen, Prüffunktion
+  samt Strukturtest), Kunde vorhanden, Router 404, Hinweis, Warnung. Die Gegenprobe "Gruppenbuchung allein" war zuerst falsch
+  gebaut (die Einzelbuchungen der Gruppe sperrten ohnehin, Test grün) -- neuer Test mit Gruppenbuchung ohne Einzelbuchung an der
+  Position, dann rot. Jede Datei byte-genau zurück (SHA-256), kein Marker übrig.
+- PostgreSQL (pytest-Plugin, Wegwerf-Schemas der lokalen Instanz): `test_v374_*` (3 Dateien), `test_v373_zugehoerigkeit`, die vier
+  Befunddateien zu 2-5, `test_v325_quote_order_copy_fields` (Untertitel), `test_v081`, `test_v223`: 139 grün, 4 erwartet
+  fehlgeschlagen (4a-4c, offen).
+- Klicktest `scripts/klicktest_abgleich_sperre.py` 13/13: gesperrter Auftrag zeigt den Grund ohne Knopf (hell/dunkel), API 409;
+  freier Auftrag gleicht ab, Projektstatus bleibt "ausfuehrung"; Angebots-Editor "Auftrag … öffnen" mit Grund; Einsatzbericht:
+  Hinweis fürs Büro (hell/dunkel), Monteurin auf 412 px ohne Hinweis und ohne Namen des fremden Objekts.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3236 grün, 0 rot, 19 erwartet fehlgeschlagen (Punkt 1: 15, 4a-4c: 4).
+
+### Nebenbefunde (nur gemeldet)
+
+1. **`STAMMDATEN` hat dieselbe Lücke wie `FREI` bis 1.8.70**: 100 ID-Eingaben (35 Feldnamen) sind nach Feldname eingeordnet, ohne
+   dass der Test eine Existenzprüfung verlangt. Beispiel laut Code: `POST /api/tasks` mit unbekanntem `assigned_employee_id` --
+   `create_task()` prüft nicht, unter PostgreSQL 500 am Fremdschlüssel.
+2. **Gleichzeitig angelegte Rechnung**: die Prüfung im Abgleich sperrt die Zeile des Auftrags (über die Abnahme-Prüfung), das
+   Anlegen einer Rechnung nicht. Unter PostgreSQL scheitert im Wettlauf eine Seite am Fremdschlüssel (500, kein Schaden); unter
+   SQLite bleibt ein schmales Fenster.
+3. **Auftragsseite und Angebots-Editor bei 1280 px Breite**: der Inhalt läuft rechts über (waagrechte Scrollleiste, Spaltenkopf
+   "GP" bzw. "Gesamtpreis" unter der Seitenspalte) -- in den Screenshots des Klicktests sichtbar, unabhängig von dieser Änderung,
+   nicht weiter geprüft.
+4. Der Angebots-Editor kennt den unterschriebenen Vertrag nicht (`OrderOut` ohne Vertragsstatus): dort bleibt der Knopf
+   "Änderungen … übernehmen", der Klick antwortet 409 mit Text (wie bisher).
+
+## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
+
+Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
+
+- **Schlussrechnung als Endrechnung**: alle Positionen zu 100 %, Abzug aller festgeschriebenen, nicht stornierten
+  Abschlagsrechnungen je mit Netto und USt, darunter „zzgl. noch offen aus Abschlag Nr. …“ und Zahlbetrag.
+- **Abschlagsrechnungen** selbst nicht kumuliert.
+- **Offene Abschläge** nach der Schlussrechnung nur noch über diese gemahnt.
+- **Zahlung auf den Zahlbetrag**: Vorschlag zuerst auf offene Abschläge (ältester zuerst), dann Schlussrechnung, das Büro bestätigt.
+- **Rechnungsdatum** = Tag der Ausgabe, jede Rechnung mit Pflicht-Leistungszeitraum, Nummer beim Festschreiben, Nummernkreise beim
+  Start auf 1.
+- **Storno**: höchstens ein Storno je Rechnung, kein Storno eines Stornos.
+- **Steuersatz**: keine mehreren Steuersätze je Rechnung.

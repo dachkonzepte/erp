@@ -8,8 +8,10 @@ der Spalte einer Aufgabe -- String(30). Unter SQLite wird jeder Wert still gespe
 (StringDataRightTruncation -> DataError, Router 500). tests/test_v364_feste_werte_spaltenlaenge.py sieht nur feste Werte, diese
 Spalten stehen dort als Nutzerwerte in OHNE_FESTE_WERTE.
 
-Fehler als xfail (tests/befund_vor_echtbetrieb.py); ein Abbruch an der Datenbank wird zu AssertionError (_ohne_datenbankfehler()).
-Ablehnen mit Meldung (ValueError, Router 400) ist erlaubt."""
+Seit 1.8.71 behoben: der Schlüssel wird beim Entstehen gekürzt, passend zur kürzesten Spalte, in die er geschrieben wird
+(app/spaltenlaenge.py) -- Aufgabenspalte 30 (Task.status), Pipelinespalte 40. Die Tests 5a-5c sind die Abnahmetests (bis dahin
+xfail, tests/befund_vor_echtbetrieb.py); ein Abbruch an der Datenbank wird zu AssertionError (_ohne_datenbankfehler()). Ablehnen mit
+Meldung (ValueError, Router 400) ist erlaubt."""
 
 import pytest
 from sqlalchemy import select
@@ -18,7 +20,7 @@ from sqlalchemy.exc import DBAPIError
 from app import project_pipeline_columns, task_columns
 from app.models import ProjectPipelineColumn, Task, TaskColumn
 from app.tasks import create_task, update_task
-from tests.befund_vor_echtbetrieb import befund, pg_sitzung, vorbedingung
+from tests.befund_vor_echtbetrieb import pg_sitzung, vorbedingung
 from tests.test_v133_invoices import db_session
 
 # 40 Zeichen Schlüssel ("Rückmeldung" -> "r_ckmeldung"): passt in TaskColumn.key, nicht in Task.status.
@@ -45,37 +47,40 @@ def _ohne_datenbankfehler(db, fn, *args, **kwargs):
         return None
 
 
-def test_today_keys_come_from_the_label_without_shortening():
-    """Grün, zur Einordnung (SQLite): die Schlüssel sind 40 bzw. 63 Zeichen lang und werden still gespeichert."""
+def test_keys_are_shortened_where_they_arise_also_under_sqlite():
+    """Seit 1.8.71 (bis dahin hier grün festgehalten: 40 bzw. 63 Zeichen still gespeichert): auch SQLite bekommt nur gekürzte
+    Schlüssel -- Aufgabenspalte höchstens 30 (Task.status), Pipelinespalte höchstens 40."""
     db = db_session()
     vorbedingung(len(task_columns._slugify(LABEL_40)) == 40 and len(task_columns._slugify(LABEL_63)) == 63)
-    assert len(task_columns.create_column(db, LABEL_63)["key"]) == 63
-    assert len(project_pipeline_columns.create_column(db, LABEL_63)["key"]) == 63
+    assert task_columns.create_column(db, LABEL_63)["key"] == "wartet_auf_r_ckmeldung_des_auf"
+    assert project_pipeline_columns.create_column(db, LABEL_63)["key"] == "wartet_auf_r_ckmeldung_des_auftraggebers"
     spalte = task_columns.create_column(db, LABEL_40)
+    assert spalte["key"] == "wartet_auf_r_ckmeldung_des_a_2"  # gleiche ersten 30 Zeichen: eindeutig, passt trotzdem
     task = create_task(db, "Rückruf", status=spalte["key"])
-    assert len(db.get(Task, task["id"]).status) == 40  # String(30)
+    assert db.get(Task, task["id"]).status == spalte["key"]
 
 
-@befund("5a", "Aufgabenspalte mit erlaubter Bezeichnung, Schlüssel über 40 Zeichen: Anlegen bricht unter PostgreSQL ab (500)")
 def test_postgresql_task_column_with_a_long_label(pg):
+    """5a (seit 1.8.71 behoben): Aufgabenspalte mit erlaubter Bezeichnung, Schlüssel über 40 Zeichen."""
     _ohne_datenbankfehler(pg, task_columns.create_column, pg, LABEL_63)
     assert all(len(k) <= 40 for k in pg.scalars(select(TaskColumn.key)))
 
 
-@befund("5b", "Pipelinespalte mit erlaubter Bezeichnung, Schlüssel über 40 Zeichen: Anlegen bricht unter PostgreSQL ab (500)")
 def test_postgresql_pipeline_column_with_a_long_label(pg):
+    """5b (seit 1.8.71 behoben): Pipelinespalte mit erlaubter Bezeichnung, Schlüssel über 40 Zeichen."""
     _ohne_datenbankfehler(pg, project_pipeline_columns.create_column, pg, LABEL_63)
     assert all(len(k) <= 40 for k in pg.scalars(select(ProjectPipelineColumn.key)))
 
 
-@befund("5c", "Aufgabenspalte mit Schlüssel von 31 bis 40 Zeichen entsteht, aber keine Aufgabe kommt hinein (Task.status "
-              "String(30)) -- steht sie vorn, scheitert jede neue Aufgabe, auch die automatischen")
 @pytest.mark.parametrize("weg", ["verschieben", "neu_in_der_spalte", "neu_ohne_status"])
 def test_postgresql_task_column_with_a_key_of_31_to_40_characters(pg, weg):
+    """5c (seit 1.8.71 behoben): Aufgabenspalte, deren Schlüssel aus der Bezeichnung 40 Zeichen hätte -- eine Aufgabe kommt
+    hinein, auch wenn die Spalte vorn steht. Bis 1.8.70 verlangte die Vorbedingung den 40 Zeichen langen Schlüssel (so
+    entstand der Fehler); seither nur, dass er aus der Bezeichnung kommt."""
     spalte = _ohne_datenbankfehler(pg, task_columns.create_column, pg, LABEL_40)
     if spalte is None:
         return  # abgelehnt mit Meldung: es gibt die Spalte nicht
-    vorbedingung(len(spalte["key"]) == 40, spalte["key"])
+    vorbedingung(spalte["key"].startswith("wartet_auf_r_ckmeldung"), spalte["key"])
     if weg == "verschieben":
         task = create_task(pg, "Rückruf")
         _ohne_datenbankfehler(pg, update_task, pg, task["id"], status=spalte["key"])

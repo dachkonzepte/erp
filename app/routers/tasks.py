@@ -28,6 +28,7 @@ from ..tasks import (
     task_visible_for_user, update_checklist_item, update_task, update_task_settings,
 )
 from ..models import AppUser, Task
+from ..zugehoerigkeit import IdNichtGefunden
 
 router = APIRouter()
 
@@ -85,6 +86,8 @@ def post_task(payload: TaskCreate, request: Request, db: Session = Depends(get_d
             project_id=payload.project_id, created_by_user_id=getattr(user, "id", None),
             status=payload.status, min_visible_role=payload.min_visible_role,
         )
+    except IdNichtGefunden as exc:  # seit 1.8.71: unbekanntes Projekt
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -95,6 +98,8 @@ def put_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db), _
     _require_visible_task(db, _role, task_id)
     try:
         result = update_task(db, task_id, **payload.model_dump(exclude_unset=True))
+    except IdNichtGefunden as exc:  # seit 1.8.71: unbekanntes Projekt
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if result is None:

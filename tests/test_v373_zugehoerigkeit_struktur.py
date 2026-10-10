@@ -15,7 +15,10 @@ Jede gefundene Eingabe ist eingeordnet:
               Funktion vom Endpunkt aus aufgerufen wird (Aufrufgraph über app/, per AST) und den Vergleich wörtlich enthält
               (Leerzeichen egal) -- fällt der Vergleich weg oder wird die Funktion nicht mehr erreicht, ist der Test rot;
   FREI        je Route und Feld, mit Grund: die ID legt den Besitzer oder Kontext des Datensatzes erst fest (Kunde eines neuen
-              Objekts, Projekt einer Eingangsrechnung) -- jede vorhandene ist richtig;
+              Objekts, Projekt einer Eingangsrechnung) -- jede VORHANDENE ist richtig. Seit 1.8.71 dazu wie bei GEPRUEFT die
+              Funktion und der Vergleich, mit dem die Existenz geprüft wird (unbekannte ID 404/422 statt Fremdschlüssel: unter
+              PostgreSQL 500, unter SQLite still gespeichert). Bis 1.8.70 trug FREI nur den Grund -- so blieben Aufgabe
+              (project_id) sowie Schnellauftrag und Wartungsvertrag ohne Objekt (customer_id) ohne Prüfung unbemerkt;
   AUSNAHMEN   je Route und Feld, mit Grund: gehört geprüft, ist es nicht. Die Liste darf nur kürzer werden: ein Eintrag, der
               nicht mehr gefunden wird, ist rot (dann streichen); ein neuer Eintrag braucht eine Begründung im Archiv.
 Eine neue ID-Eingabe, die nirgends eingeordnet ist, ist rot -- Prüfung bauen (app/zugehoerigkeit.py oder eine eigene) und in
@@ -230,40 +233,79 @@ GEPRUEFT = {
 
 _BESITZER = "legt den Besitzer des neuen bzw. geänderten Datensatzes fest -- jeder vorhandene ist richtig"
 _KONTEXT = "wählt den Auftrag als Kontext; der Monteur nur einen zugeordneten (require_field_order_access() bzw. _require_bookable_order())"
+_AUFTRAG_FEHLT = 'if order is None: raise ValueError("Auftrag wurde nicht gefunden.")'
 
+# {"METHODE /pfad feld": (Grund, Funktion mit der Existenzprüfung, Vergleich)} -- geprüft wie GEPRUEFT.
 FREI = {
-    "POST /api/projects customer_id": _BESITZER,
-    "PUT /api/projects/{project_id} customer_id": _BESITZER + "; Kundenwechsel gesperrt bei festem Vertrag oder Beteiligtem "
-                                                             "(check_client_change())",
-    "POST /api/properties customer_id": _BESITZER,
-    "POST /api/inquiries customer_id": _BESITZER,
-    "PUT /api/inquiries/{inquiry_id} customer_id": _BESITZER + "; nach Projektanlage gegen den Kunden des Projekts gesperrt",
-    "POST /api/quick-service-orders customer_id": _BESITZER + " (Objekt dazu: property_id, mit Bestätigung)",
-    "POST /api/maintenance-contracts customer_id": _BESITZER + " (Objekt dazu: property_id, mit Bestätigung)",
-    "POST /api/roof-areas property_id": _BESITZER,
-    "POST /api/address-import/unassigned/{entry_id}/assign-property customer_id":
+    "POST /api/projects customer_id": (_BESITZER, "routers.projects.create_project",
+                                       "customer = db.get(Customer, payload.customer_id) if customer is None"),
+    "PUT /api/projects/{project_id} customer_id": (
+        _BESITZER + "; Kundenwechsel gesperrt bei festem Vertrag oder Beteiligtem (check_client_change())",
+        "routers.projects.update_project", "customer = db.get(Customer, payload.customer_id) if customer is None"),
+    "POST /api/properties customer_id": (_BESITZER, "routers.properties.create_property",
+                                         "customer = db.get(Customer, payload.customer_id) if customer is None"),
+    "POST /api/inquiries customer_id": (_BESITZER, "routers.inquiries._validate_inquiry_customer_property",
+                                        "customer = db.get(Customer, customer_id) if customer is None"),
+    "PUT /api/inquiries/{inquiry_id} customer_id": (
+        _BESITZER + "; nach Projektanlage gegen den Kunden des Projekts gesperrt",
+        "routers.inquiries._validate_inquiry_customer_property", "customer = db.get(Customer, customer_id) if customer is None"),
+    "POST /api/quick-service-orders customer_id": (
+        _BESITZER + " (Objekt dazu: property_id, mit Bestätigung)",
+        "zugehoerigkeit.require_customer", "customer = db.get(Customer, customer_id) if customer is None"),
+    "POST /api/maintenance-contracts customer_id": (
+        _BESITZER + " (Objekt dazu: property_id, mit Bestätigung)",
+        "zugehoerigkeit.require_customer", "customer = db.get(Customer, customer_id) if customer is None"),
+    "POST /api/roof-areas property_id": (_BESITZER, "roof_areas.create_roof_area", "if db.get(Property, property_id) is None"),
+    "POST /api/address-import/unassigned/{entry_id}/assign-property customer_id": (
         "legt den Kunden des neuen Objekts aus einer Importzeile ohne Kunden fest (Admin)",
-    "POST /api/checklists property_id": "Checkliste im Kontext Objekt: jedes Objekt (Betreiberentscheidung A, "
-                                        "app/routers/checklists.py Moduldocstring)",
-    "POST /api/checklists order_id": _KONTEXT,
-    "POST /api/planning/slots order_id": "verplant genau diesen Auftrag (Büro)",
-    "POST /api/planning/suggestion order_id": "rechnet nur, speichert nichts",
-    **{f"{route} order_id": _KONTEXT for route in (
-        "POST /api/time-entries", "POST /api/time-entries/start", "PUT /api/time-entries/{entry_id}",
-        "POST /api/time-entry-groups", "POST /api/time-entry-groups/start", "PUT /api/time-entry-groups/{group_id}")},
-    "POST /api/calendar-events project_id": "Termin frei an jedes Projekt (Büro), nur entweder Projekt oder Angebot",
-    "POST /api/calendar-events quote_id": "Termin frei an jedes Angebot (Büro), nur entweder Projekt oder Angebot",
-    "PUT /api/calendar-events/{event_id} project_id": "wie beim Anlegen",
-    "PUT /api/calendar-events/{event_id} quote_id": "wie beim Anlegen",
-    "POST /api/incoming-invoices project_id": "Kosten einer Eingangsrechnung frei an jedes Projekt (Buchhaltung)",
-    "PUT /api/incoming-invoices/{invoice_id} project_id": "wie beim Anlegen",
-    "POST /api/tasks project_id": "Aufgabe frei an jedes Projekt (Büro); Existenz prüft nur der Fremdschlüssel",
-    "PUT /api/tasks/{task_id} project_id": "wie beim Anlegen",
-    "POST /api/projects/{project_id}/participants contact_id":
+        "address_import.resolve_as_property", "customer = db.get(Customer, customer_id) if customer is None"),
+    "POST /api/checklists property_id": (
+        "Checkliste im Kontext Objekt: jedes Objekt (Betreiberentscheidung A, app/routers/checklists.py Moduldocstring)",
+        "checklists._context_snapshot", "prop = db.get(Property, property_id) if property_id else None if prop is None"),
+    "POST /api/checklists order_id": (_KONTEXT, "checklists._context_snapshot",
+                                      "order = db.get(Order, order_id) if order_id else None if order is None"),
+    "POST /api/planning/slots order_id": ("verplant genau diesen Auftrag (Büro)", "planning.create_slot",
+                                          "order = db.get(Order, order_id) if order is None"),
+    "POST /api/planning/suggestion order_id": ("rechnet nur, speichert nichts", "planning.planning_suggestion",
+                                               "order = load_order(db, order_id) if order is None"),
+    "POST /api/time-entries order_id": (_KONTEXT, "time_tracking.create_manual_entry", _AUFTRAG_FEHLT),
+    "POST /api/time-entries/start order_id": (_KONTEXT, "time_tracking.start_timer", _AUFTRAG_FEHLT),
+    "PUT /api/time-entries/{entry_id} order_id": (_KONTEXT, "time_tracking.update_entry", _AUFTRAG_FEHLT),
+    "POST /api/time-entry-groups order_id": (_KONTEXT, "time_tracking.create_group_manual_entry", _AUFTRAG_FEHLT),
+    "POST /api/time-entry-groups/start order_id": (_KONTEXT, "time_tracking.start_group_timer", _AUFTRAG_FEHLT),
+    "PUT /api/time-entry-groups/{group_id} order_id": (_KONTEXT, "time_tracking.update_group", _AUFTRAG_FEHLT),
+    "POST /api/calendar-events project_id": (
+        "Termin frei an jedes Projekt (Büro), nur entweder Projekt oder Angebot",
+        "calendar_events._validate_referenced_entities", "project_id is not None and db.get(Project, project_id) is None"),
+    "POST /api/calendar-events quote_id": (
+        "Termin frei an jedes Angebot (Büro), nur entweder Projekt oder Angebot",
+        "calendar_events._validate_referenced_entities", "quote_id is not None and db.get(Quote, quote_id) is None"),
+    "PUT /api/calendar-events/{event_id} project_id": (
+        "wie beim Anlegen", "calendar_events._validate_referenced_entities",
+        "project_id is not None and db.get(Project, project_id) is None"),
+    "PUT /api/calendar-events/{event_id} quote_id": (
+        "wie beim Anlegen", "calendar_events._validate_referenced_entities",
+        "quote_id is not None and db.get(Quote, quote_id) is None"),
+    "POST /api/incoming-invoices project_id": (
+        "Kosten einer Eingangsrechnung frei an jedes Projekt (Buchhaltung)", "incoming_invoices._validate_referenced_entities",
+        'fields["project_id"] is not None and db.get(Project, fields["project_id"]) is None'),
+    "PUT /api/incoming-invoices/{invoice_id} project_id": (
+        "wie beim Anlegen", "incoming_invoices._validate_referenced_entities",
+        'fields["project_id"] is not None and db.get(Project, fields["project_id"]) is None'),
+    "POST /api/tasks project_id": ("Aufgabe frei an jedes Projekt (Büro); seit 1.8.71 unbekannt 404 statt Fremdschlüssel",
+                                   "zugehoerigkeit.require_project", "project = db.get(Project, project_id) if project is None"),
+    "PUT /api/tasks/{task_id} project_id": ("wie beim Anlegen", "zugehoerigkeit.require_project",
+                                            "project = db.get(Project, project_id) if project is None"),
+    "POST /api/projects/{project_id}/participants contact_id": (
         "Adressbuch des Betriebs; nicht der Auftraggeber (check_not_client())",
-    "POST /api/projects/{project_id}/participants customer_id":
+        "routers.project_participants.post_project_participant", "contact = db.get(Contact, payload.contact_id) if contact is None"),
+    "POST /api/projects/{project_id}/participants customer_id": (
         "jeder Kunde kann Beteiligter sein, nur nicht der Auftraggeber (check_not_client())",
-    "POST /api/email-dispatches/manual document_id": "das Dokument ist selbst Gegenstand des Eintrags",
+        "routers.project_participants.post_project_participant",
+        "customer = db.get(Customer, payload.customer_id) if customer is None"),
+    "POST /api/email-dispatches/manual document_id": (
+        "das Dokument ist selbst Gegenstand des Eintrags", "dispatch_documents.dispatch_document",
+        "row = document_row(db, document_type, document_id) if row is None"),
 }
 
 AUSNAHMEN = {
@@ -452,9 +494,11 @@ def test_jede_id_eingabe_ist_eingeordnet():
 
 
 def test_geprueft_wird_vom_endpunkt_erreicht_und_enthaelt_den_vergleich():
+    """GEPRUEFT (Zugehörigkeit) und seit 1.8.71 FREI (Existenz): Funktion vom Endpunkt aus erreicht, Vergleich darin."""
     eingaben, index, aliase = id_eingaben(), _funktionen(), _import_aliase()
     funde = []
-    for schluessel, (funktion, vergleich) in sorted(GEPRUEFT.items()):
+    pruefstellen = {**GEPRUEFT, **{k: (funktion, vergleich) for k, (_, funktion, vergleich) in FREI.items()}}
+    for schluessel, (funktion, vergleich) in sorted(pruefstellen.items()):
         route = eingaben.get(schluessel)
         if route is None:
             continue  # veraltet -- test_keine_veralteten_eintraege
@@ -480,7 +524,7 @@ def test_keine_veralteten_eintraege():
 
 def test_ausnahmen_werden_nur_weniger():
     assert len(AUSNAHMEN) <= HOECHSTENS_AUSNAHMEN, "Die Ausnahmeliste darf nur kürzer werden."
-    assert all(grund.strip() for grund in [*FREI.values(), *AUSNAHMEN.values(), *STAMMDATEN.values()])
+    assert all(grund.strip() for grund in [*(g for g, _, _ in FREI.values()), *AUSNAHMEN.values(), *STAMMDATEN.values()])
 
 
 def test_erfasst_und_geschlossen_von_nimmt_kein_schema_an():

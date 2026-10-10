@@ -14,6 +14,7 @@ einer späteren Vorlagenänderung nicht rückwirkend ändert. sync_inspection_it
 und regenerate_inspection_items() (vollständiger Neuaufbau, nur Entwurf) sind die beiden
 Antworten auf einen sich zwischen Berichtsanlage und Ausführung ändernden Bauteilbestand."""
 
+import logging
 import os
 from datetime import date, datetime
 from pathlib import Path
@@ -38,7 +39,9 @@ from .roof_areas import list_roof_areas
 from .service_report_photos import delete_photo_file, resize_and_store_photo
 from .signature_image import MAX_SIGNATURE_PNG_BYTES as _MAX_SIGNATURE_PNG_BYTES, check_signature_png
 from .tasks import create_task
-from .zugehoerigkeit import require_in_order_property, roof_area_in_order_property
+from .zugehoerigkeit import order_property_id, require_in_order_property, roof_area_in_order_property
+
+logger = logging.getLogger(__name__)
 
 
 @event.listens_for(ServiceReportPhoto, "before_delete")
@@ -175,14 +178,39 @@ def count_reports_for_order(db: Session, order_id: int) -> int:
     return db.scalar(select(func.count(ServiceReport.id)).where(ServiceReport.order_id == order_id)) or 0
 
 
-def list_reports(db: Session, order_id: int) -> list[dict]:
+def list_reports(db: Session, order_id: int, *, office_hints: bool = False) -> list[dict]:
+    """office_hints (seit 1.8.71): je Bericht "office_hint" (contract_area_hint()) -- nur für die Büro-Liste; der Monteur
+    bekommt seine Berichte über ServiceReportOut, das das Feld nicht kennt."""
     query = (
         select(ServiceReport)
         .options(selectinload(ServiceReport.order), selectinload(ServiceReport.created_by_employee))
         .where(ServiceReport.order_id == order_id)
         .order_by(ServiceReport.performed_at.desc(), ServiceReport.id.desc())
     )
-    return [report_to_dict(r) for r in db.scalars(query).all()]
+    rows = []
+    for report in db.scalars(query).all():
+        row = report_to_dict(report)
+        if office_hints:
+            row["office_hint"] = contract_area_hint(db, report)
+        rows.append(row)
+    return rows
+
+
+def contract_area_hint(db: Session, report: ServiceReport) -> str | None:
+    """Hinweis fürs Büro (seit 1.8.71): die Dachfläche der Vertragsposition, aus der der Vorgang entstand, gehört nicht zum
+    Objekt des Auftrags -- create_report() übernimmt sie dann nicht (Befund 2, Festlegung 1.8.70 Nr. 5). Live aus Vertrag und
+    Auftrag gerechnet, deshalb auch für Berichte vor 1.8.71 und nach einer Korrektur am Vertrag wieder weg. Enthält Namen des
+    anderen Objekts -- nie an den Monteur."""
+    if report.maintenance_contract_item_id is None:
+        return None
+    item = db.get(MaintenanceContractItem, report.maintenance_contract_item_id)
+    area = db.get(RoofArea, item.roof_area_id) if item is not None and item.roof_area_id is not None else None
+    order = db.get(Order, report.order_id)
+    if area is None or area.property_id == order_property_id(order):
+        return None
+    owner = db.get(Property, area.property_id)
+    return (f"Die Dachfläche „{area.name}“ der Vertragsposition gehört zum Objekt „{owner.name if owner else '?'}“, nicht zum "
+            f"Objekt dieses Auftrags – sie steht deshalb nicht im Bericht. Bitte Wartungsvertrag und Vorgang prüfen.")
 
 
 # Deckt sowohl report_to_dict() (order, created_by_employee, roof_area, inspection_template,
@@ -542,6 +570,11 @@ def create_report(db: Session, order_id: int, report_type: str, description: str
         # gehört (ein älterer Vorgang aus einem Mustervorgang kann an einem anderen Objekt hängen); sonst ohne Fläche.
         item = db.get(MaintenanceContractItem, report.maintenance_contract_item_id)
         resolved_ids = [item.roof_area_id] if item is not None and roof_area_in_order_property(db, order, item.roof_area_id) else []
+        if item is not None and not resolved_ids:
+            # Seit 1.8.71 nicht mehr still: Warnung im Protokoll (nur IDs, Regel 18) und Hinweis am Bericht fürs Büro
+            # (contract_area_hint()); für den Monteur kein Fehler, der Bericht entsteht ohne Fläche.
+            logger.warning("Einsatzbericht %s: Dachfläche %s der Vertragsposition %s gehört nicht zum Objekt von Auftrag %s "
+                           "-- nicht übernommen", report.id, item.roof_area_id, item.id, order.id)
     else:
         resolved_ids = []
 

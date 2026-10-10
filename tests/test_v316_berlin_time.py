@@ -181,8 +181,7 @@ BEKANNTE_VORGABEN = {
                                                         "erneuert",
     "app/models.py::Reminder.reminder_date": _UTC_DATUM,
     "app/models.py::ServiceReport.performed_at": _UTC_DATUM,
-    "app/schemas.py::OrderCreateFromQuote.order_date": _UTC_DATUM + "; Vorgabe, wenn der Beauftragen-Dialog kein "
-                                                                    "Datum schickt",
+    # app/schemas.py::OrderCreateFromQuote.order_date seit 1.8.71 aus berlin_today() (Befund 4d)
 }
 
 

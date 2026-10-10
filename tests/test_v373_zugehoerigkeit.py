@@ -424,10 +424,10 @@ def test_quick_order_at_a_property_of_another_customer_needs_confirmation(welt, 
     assert ok.status_code == 200, ok.text
     projekt = welt["db"].get(Project, ok.json()["project_id"])
     assert (projekt.customer_id, projekt.property_id) == (welt["kunde"].id, welt["fremd"].id)
-    # eigenes Objekt und Hauptadresse ohne Bestätigung, unbekanntes Objekt 400
+    # eigenes Objekt und Hauptadresse ohne Bestätigung, unbekanntes Objekt seit 1.8.71 404 (vorher 400)
     assert _schnellauftrag(welt, welt["eigen"].id).status_code == 200
     assert _schnellauftrag(welt, None).status_code == 200
-    assert _antwort(_schnellauftrag(welt, welt["unbekannt"], True)) == (400, {"detail": "Objekt nicht gefunden."})
+    assert _antwort(_schnellauftrag(welt, welt["unbekannt"], True)) == (404, {"detail": "Objekt nicht gefunden."})
 
 
 def _vertrag_body(w, property_id, **extra):

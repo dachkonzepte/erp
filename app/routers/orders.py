@@ -28,7 +28,7 @@ from ..email_dispatch import DispatchConflict
 from ..invoices import invoice_summary_for_order
 from ..models import AppUser, Order, ServiceReport
 from ..order_pdf import build_order_pdf
-from ..orders import create_order_revision, field_may_access_order, list_order_revisions, load_order, order_to_dict, send_order_email, sync_order_from_source_quote, update_order_header, update_order_item, update_order_section, update_order_tax_key
+from ..orders import SyncBlockedError, create_order_revision, field_may_access_order, list_order_revisions, load_order, order_to_dict, send_order_email, sync_order_from_source_quote, update_order_header, update_order_item, update_order_section, update_order_tax_key
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import OrderContractBasisChangeOut, OrderContractBasisUpdate, OrderEmailSend, OrderFieldAccessOut, OrderItemUpdate, OrderListOut, OrderOut, OrderRevisionCreate, OrderRevisionOut, OrderSectionUpdate, OrderSyncRequest, OrderUpdate, TaxKeySelection
 
@@ -204,7 +204,8 @@ def sync_order_source(order_id: int, payload: OrderSyncRequest, request: Request
     actor_name = getattr(actor, "display_name", None) or getattr(actor, "username", None) or "System"
     try:
         order = sync_order_from_source_quote(db, order, actor_name=actor_name, reason=payload.reason)
-    except (ContractSignedError, AcceptanceExistsError) as exc:  # seit 1.8.34 Vertrag unterschrieben, 1.8.46 Abnahme
+    # seit 1.8.34 Vertrag unterschrieben, 1.8.46 Abnahme, 1.8.71 Status oder an den Positionen Hängendes
+    except (ContractSignedError, AcceptanceExistsError, SyncBlockedError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
