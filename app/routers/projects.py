@@ -22,7 +22,7 @@ from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_documents import MAX_UPLOAD_BYTES, make_stored_filename, project_directory
 from ..project_participants import ClientChangeConflict, check_client_change
 from ..project_pipeline_columns import default_pipeline_column_id
-from ..projects import delete_project, duplicate_project, load_project, load_quote, next_project_number, next_quote_number, quote_to_dict, set_project_archived
+from ..projects import delete_project, duplicate_project, ensure_quote_structure, load_project, load_quote, next_project_number, next_quote_number, quote_to_dict, set_project_archived
 from ..service_reports import count_reports_for_order
 from ..schemas import InvoiceOverviewOut, OrderListOut, ProjectCreate, ProjectDetailOut, ProjectDocumentOut, ProjectDuplicateRequest, ProjectListOut, ProjectPipelineColumnMove, ProjectUpdate, QuoteCreate, QuoteListOut, QuoteOut
 from ..settings import load_general_settings
@@ -340,5 +340,7 @@ def create_quote(project_id: int, payload: QuoteCreate, db: Session = Depends(ge
     )
     db.add(quote)
     db.commit()
+    # Seit 1.8.84: Kopfzeile beim Anlegen -- vorher legte sie erst der erste Lesezugriff an (Regel 23).
+    ensure_quote_structure(db, load_quote(db, quote.id))
     quote = load_quote(db, quote.id)
     return QuoteOut.model_validate(quote_to_dict(quote))

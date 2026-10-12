@@ -1856,7 +1856,7 @@ auflisten. Commit nach Regel 13, Bericht kurz.
   jede Eingabe gesperrt, keine Bearbeiten-Knöpfe an Positionen und Titeln. Der Hinweis "Prozesslogik" nennt die Sperren.
 - Klicktest `scripts/klicktest_auftrag_sperren.py`.
 
-### Festlegungen 1.8.82 (Bitte bestätigen)
+### Festlegungen 1.8.82 (Nr. 1–5 bestätigt am 12.10.2026, Vorgabe R4b; Nr. 6–9 dort nicht genannt)
 
 1. **Feste Fassung jeder Art**, auch Storno; im selben Commit wie das Festschreiben. Scheitert das PDF oder die Ablage, ist nichts
    festgeschrieben (400 mit Text) -- lieber kein Festschreiben als eine Rechnung ohne Fassung.
@@ -1974,7 +1974,7 @@ Vorgabe wie bei 1.8.82 (dort wörtlich); nach Punkt 2 committet (1.8.82), die Pu
   auf den Nachtrag.
 - Klicktest `scripts/klicktest_nachtrag.py`.
 
-### Festlegungen 1.8.83 (Bitte bestätigen)
+### Festlegungen 1.8.83 (Nr. 1–5 bestätigt am 12.10.2026, Vorgabe R4b; Nr. 6 geändert, siehe dort; Nr. 7–8 dort nicht genannt)
 
 1. **Kennzeichen und Nummer**: `is_addendum` an der Auftragsposition, Nummer "N" + laufende Zahl je Auftrag (die höchste vergebene + 1,
    ein entfernter wird nicht neu vergeben, solange ein höherer steht), hinter allen anderen Positionen, ohne LV-Titel. In Rechnungen
@@ -1990,6 +1990,8 @@ Vorgabe wie bei 1.8.82 (dort wörtlich); nach Punkt 2 committet (1.8.82), die Pu
 6. **Negativer Abschlag**: maßgeblich der Rechnungsbetrag; 0 € ist nicht negativ, eine einzelne Position unter dem letzten Stand bei
    positivem Betrag geht. Geprüft beim Festschreiben, nicht beim Bearbeiten des Entwurfs (die Seite zeigt den Grund vorher). Nur Abschlag
    nach Leistungsstand -- der pauschale ist schon über 0 € Pflicht.
+   **Geändert am 12.10.2026 (Vorgabe R4b):** ein Abschlag muss über 0 € liegen; 0 € wird wie negativ abgelehnt (umgesetzt mit R4b,
+   siehe "Umsetzung R4b" unten).
 7. **Zeitpunkt des Festschreibens** als neue Spalte (naive UTC wie alle gespeicherten Zeitpunkte), nicht die Rechnungsnummer (Format
    und Jahreswechsel). Bestehende Rechnungen bekommen keinen nachträglich. Bestehende Entwürfe werden nicht nachgerechnet (1b bleibt bis
    R4b offen).
@@ -2053,6 +2055,44 @@ Vorgabe wie bei 1.8.82 (dort wörtlich); nach Punkt 2 committet (1.8.82), die Pu
    (UNIQUE) mit 500 -- die Seite zeigt Sachbearbeiter und Projektleiter als "Bisheriger Mitarbeiter (nicht mehr verfügbar)". So im
    Gesamtlauf der Klicktests 1.8.83 bei `klicktest_auswahl_inaktiv` gesehen (Server-Protokoll des Laufs), einzeln nicht wieder. Ein
    Lesepfad, der schreibt (Regel 23), vom Rundgang in `test_v326` nicht ausgelöst, weil dessen Testdaten Profile haben.
+
+## Umsetzung R4b: Schlussrechnung als Endrechnung (ab 1.8.84)
+
+### Vorgabe vom 12.10.2026 (übernommen wie gegeben)
+
+R4a geprüft. Festlegungen 1.8.82/83 Nr. 1–5 bestätigt. Nr. 6 geändert: Ein Abschlag muss über 0 € liegen; 0 € wird wie negativ
+abgelehnt.
+
+Vorweg:
+1. Regel 23 als Muster: GET /api/employees legt Profile an (Ursache des roten Klicktests). Alle Stellen suchen und beheben, an denen ein
+   Lesepfad etwas anlegt oder schreibt (get_or_create, „ensure“, Profile, Metadaten beim ersten Lesen). Strukturtest: Ein Beobachter an
+   der Sitzung meldet jedes Schreiben während eines GET-Aufrufs, über alle GET-Endpunkte, auch mit fehlenden Profilen und ähnlichen
+   Lücken in den Testdaten.
+
+R4b Endrechnung (Entscheidungen Rechnungen im Archiv):
+2. Schlussrechnung: alle Auftragspositionen einschließlich Nachträge mit Ist-Mengen (Vorschlag Ist = letzter Stand, im Entwurf
+   änderbar), Gesamtleistung netto, USt, brutto. Darunter Abzugsblock: jede festgeschriebene, nicht stornierte Abschlagsrechnung und
+   Rechnung aus Aufwand mit Nummer, Datum, Netto, USt, Brutto. Rechnungsbetrag = Gesamtleistung − Abzüge; das ist der Betrag der
+   Rechnung für Zahlungen, offene Posten und „abgerechnet“.
+3. Beim Festschreiben wird alles unter der Sperre neu gerechnet (1b). Weichen Preise oder Steuerschlüssel eines Entwurfs vom Auftrag
+   ab: 409 mit Hinweis zum Aktualisieren, für jede Rechnungsart (Nebenbefunde 1 und 2). Hat ein abgezogener Abschlag einen anderen
+   Steuersatz: Hinweis.
+4. Zahlungshinweis „Stand <Tag des Festschreibens>“: je Abschlag mit offenem Betrag, einschließlich Einbehalt, „zzgl. noch offen aus
+   Abschlag Nr. …“, darunter der Zahlbetrag. Die Mahnfähigkeit nach der Schlussrechnung regelt R4c.
+5. Die Sperre der Schlussrechnung nach pauschalen Abschlägen entfällt. Nach der gültigen Schlussrechnung keine Rechnung aus Aufwand mehr
+   im selben Auftrag.
+6. Schnellauftrag: Eine Rechnung aus Aufwand kann als abschließend gekennzeichnet werden und zählt dann als „vollständig abgerechnet“;
+   keine Schlussrechnung über 0 €.
+
+xfail 1a und 1b müssen grün werden, Markierung dann entfernen. Ein negativer Rechnungsbetrag wird bis R4c mit 409 abgelehnt.
+Angriffstests mit Gegenprobe, Gleichzeitigkeit gegen PostgreSQL. Eigene Festlegungen mit „Bitte bestätigen“. Nebenbefunde nur melden.
+Wird der Umfang zu groß: nach Punkt 3 committen und den Rest auflisten. Commit nach Regel 13, Bericht kurz.
+
+### Vorweg
+
+- Festlegungen 1.8.82 und 1.8.83 Nr. 1–5 an den Überschriften als bestätigt markiert, 1.8.83 Nr. 6 mit der Änderung. Die Vorgabe nennt
+  1.8.82 Nr. 6–9 und 1.8.83 Nr. 7–8 nicht -- dort steht das so, ohne Bestätigung.
+- Punkt 1 (kein Lesepfad legt an) ist Version 1.8.84: `docs/archiv/grunddaten-beim-start.md`, "Umsetzung 1.8.84".
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 

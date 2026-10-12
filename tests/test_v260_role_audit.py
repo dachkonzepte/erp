@@ -184,13 +184,11 @@ class TestRoleGateOnTheHighRiskBatch:
         siehe CLAUDE.md 'Rechtekonzept' -- liefert dafür nur EmployeeNameOut (id/first_name/
         last_name/active), kein Lohn-/Gehaltsfeld. Die übrige Verwaltung (Einzelabruf/Anlegen/
         Ändern/Sachbearbeiter-Liste) bleibt für field weiterhin gesperrt."""
-        from app.employees import ensure_employee_profiles
         from app.models import Employee
         from app.routers.employees import router as employees_router
         emp = Employee(first_name="Erika", last_name="Testfrau", employee_group="angestellt",
                         hourly_wage="45", weekly_hours="40", active=True)
         threaded_db_session.add(emp); threaded_db_session.commit()
-        ensure_employee_profiles(threaded_db_session)
 
         client = router_test_client(threaded_db_session, employees_router, role="field")
         response = client.get("/api/employees")

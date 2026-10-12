@@ -18,7 +18,7 @@ from .contract_basis import clause_is_reviewed, contract_basis_label, ensure_con
 from .invoices import compute_order_billing_progress, create_block_reason, list_invoices_for_order, lock_order_invoices
 from .order_locks import OrderLocked, final_lock_reason, item_change_reason, lock_info, tax_lock_reason, valid_invoices
 from .placeholders import apply_placeholders
-from .projects import ensure_quote_structure, load_quote
+from .projects import ensure_quote_structure, load_quote, quote_structure
 from .rounding import round_money
 from .settings import issue_number
 from .warranty import order_warranty_info, warranty_contract_lock
@@ -79,7 +79,7 @@ def _quote_scope_payload(db: Session, quote_id: int) -> dict | None:
     quote = load_quote(db, quote_id)
     if quote is None:
         return None
-    meta, sections, layouts = ensure_quote_structure(db, quote)
+    meta, sections, layouts = quote_structure(db, quote)  # seit 1.8.84 nur lesen (Abgleich-Status auf GET-Wegen)
     sec_rows = sorted(sections, key=lambda s: (s.sort_order, s.id))
     item_rows = sorted(
         quote.items,

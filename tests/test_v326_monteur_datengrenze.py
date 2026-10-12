@@ -137,17 +137,9 @@ OHNE_200 = {
 # Für Monteure freigegeben, Antwort im Durchlauf leer -- jeweils mit Grund.
 LEER_ERLAUBT: dict[str, str] = {}
 
-# GET-Endpunkte, die heute noch in die Datenbank schreiben (seit 1.8.42): Route -> (Tabellen, Grund).
-# Darf nur kürzer werden -- ein neuer schreibender GET färbt test_kein_get_schreibt rot, ebenso ein
-# Eintrag, der nicht mehr (oder anders) schreibt.
-SCHREIBT_BEKANNT: dict[str, tuple[set[str], str]] = {
-    "/api/projects/{project_id}/quotes": (
-        {"quote_document_meta", "quote_item_layouts"},
-        "ensure_quote_structure() legt Meta und Positionslayout eines Angebots beim ersten Lesen an -- "
-        "POST /api/projects/{id}/quotes legt sie nicht an. Je Angebot, keine Grunddaten (1.8.42 gemeldet).",
-    ),
-    # "/api/settings/number-sequences" seit 1.8.76 gestrichen: preview_number() rechnet nur noch, schreibt nichts.
-}
+# Seit 1.8.84 schreibt kein GET-Endpunkt mehr (Regel 23) -- die Liste der bekannten Ausnahmen (SCHREIBT_BEKANNT, seit 1.8.42)
+# ist leer und entfallen: GET /api/projects/{id}/quotes legte Kopf und Positionslayout an (gestrichen mit 1.8.84),
+# GET /api/settings/number-sequences glich die nächste Nummer ab (seit 1.8.76 nicht mehr).
 
 
 def _verboten(key: str) -> bool:
@@ -512,26 +504,54 @@ _SCHREIBEN = re.compile(r'^\s*(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+"?(\w+)',
 
 def _durchlauf(db: Session, welt: dict, routers, user_id: int | None = None) -> dict:
     """Ruft jeden GET-Endpunkt unter /api/ auf, als welt["user_id"] (Monteur) oder user_id. Seit 1.8.42
-    merkt ein Datenbank-Listener je Route die Tabellen, in die der Aufruf schreibt ("schreibt")."""
+    merkt ein Datenbank-Listener je Route die Tabellen, in die der Aufruf schreibt ("schreibt").
+
+    Seit 1.8.84 dazu ein Beobachter an der Sitzung: ein Flush während des Aufrufs (before_flush, mit den Tabellen der neuen,
+    geänderten und gelöschten Objekte) und nach dem Aufruf, was die Sitzung noch ungeflusht hält (new/dirty/deleted) -- eine
+    Änderung ohne Flush schriebe sonst erst der nächste Aufruf (dieselbe Sitzung für alle Aufrufe), unter fremdem Namen. Was der
+    Aufruf so liegen ließ, wird danach verworfen."""
     client = _monteur_client(db, routers, user_id or welt["user_id"])
     ohne_wert, antworten = [], []
     schreibt: dict[str, set] = {}
     route_jetzt = [None]
 
+    def _merken(tabelle: str) -> None:
+        if route_jetzt[0]:
+            schreibt.setdefault(route_jetzt[0], set()).add(tabelle)
+
     def _schreiben_merken(conn, cursor, statement, params, context, executemany):
         treffer = _SCHREIBEN.match(statement)
-        if treffer and route_jetzt[0]:
-            schreibt.setdefault(route_jetzt[0], set()).add(treffer.group(1))
+        if treffer:
+            _merken(treffer.group(1))
+
+    def _flush_merken(session, flush_context, instances):
+        for tabelle in _liegen_gelassen(session):
+            _merken(tabelle)
+
+    def _nach_aufruf():
+        liegen = _liegen_gelassen(db)
+        for tabelle in liegen:
+            _merken(tabelle)
+        if liegen:
+            db.rollback()
 
     event.listen(db.get_bind(), "before_cursor_execute", _schreiben_merken)
+    event.listen(db, "before_flush", _flush_merken)
     try:
-        _rundgang(client, welt, routers, ohne_wert, antworten, route_jetzt)
+        _rundgang(client, welt, routers, ohne_wert, antworten, route_jetzt, _nach_aufruf)
     finally:
         event.remove(db.get_bind(), "before_cursor_execute", _schreiben_merken)
+        event.remove(db, "before_flush", _flush_merken)
     return {"ohne_wert": ohne_wert, "antworten": antworten, "schreibt": schreibt}
 
 
-def _rundgang(client, welt: dict, routers, ohne_wert: list, antworten: list, route_jetzt: list) -> None:
+def _liegen_gelassen(db: Session) -> set[str]:
+    """Tabellen der Objekte, die die Sitzung nach einem Aufruf noch ungeflusht hält (seit 1.8.84)."""
+    return {o.__table__.name for o in [*db.new, *db.deleted, *(o for o in db.dirty if db.is_modified(o))]}
+
+
+def _rundgang(client, welt: dict, routers, ohne_wert: list, antworten: list, route_jetzt: list,
+              nach_aufruf=lambda: None) -> None:
     for router in routers:
         for route in router.routes:
             if not isinstance(route, APIRoute) or not route.path.startswith("/api/") or "GET" not in route.methods:
@@ -554,6 +574,7 @@ def _rundgang(client, welt: dict, routers, ohne_wert: list, antworten: list, rou
             route_jetzt[0] = route.path
             try:
                 response = client.get(route.path.format(**werte), params=query)
+                nach_aufruf()
             finally:
                 route_jetzt[0] = None
             is_json = response.headers.get("content-type", "").startswith("application/json")
@@ -645,6 +666,55 @@ def durchlauf_admin():
         engine.dispose()
 
 
+def _luecken_welt(db: Session) -> dict:
+    """Die Büro-Welt mit den Lücken, die echte Daten haben (seit 1.8.84, Regel 23): Mitarbeiter ohne Profil und ohne
+    Lohnstammdaten (angelegt vor dem Profil, über Skripte oder den Import), Kunde ohne Profil, ein Angebot ohne Kopf und
+    Positionslayout, dessen Katalogposition keine Kalkulation hat, ein Auftrag ohne Arbeitsvorbereitung. Ein Lesepfad, der
+    eine solche Lücke beim Lesen füllt, schreibt -- die vollständigen Testdaten der beiden anderen Rundgänge verdeckten das
+    (Nebenbefund 4 aus 1.8.83: GET /api/employees legte Profile an und kollidierte mit sich selbst)."""
+    from app.models import ImportBatch, Quote, QuoteItem, Service, WorkPreparation
+
+    welt = _buero_welt(db)
+    for model in (EmployeeProfile, EmployeePayrollSettings, CustomerProfile):
+        for row in db.scalars(select(model)).all():
+            db.delete(row)
+    customer = db.get(Customer, welt["customer_id"])
+    nackt = _auftrag(db, 903, customer, db.get(Property, welt["property_id"]))
+    assert db.scalar(select(WorkPreparation).where(WorkPreparation.order_id == nackt.id)) is None
+    batch = ImportBatch(source_type="manual", source_name="Test", filename="-")
+    db.add(batch)
+    db.flush()
+    service = Service(import_batch_id=batch.id, source_type="manual", external_id="L-1", short_text="Eindecken",
+                      quantity=Decimal("1"), unit="m²", site_time_raw=Decimal("30"), workshop_time_raw=Decimal("0"),
+                      time_unit="min", sale_price=Decimal("50"))
+    db.add(service)
+    db.flush()
+    quote = Quote(quote_number="A-2026-0002", project_id=nackt.project_id, title="Ohne Kopf", vat_rate=Decimal("19"))
+    db.add(quote)
+    db.flush()
+    position = QuoteItem(quote_id=quote.id, sort_order=10, position_number="1", short_text="Eindecken",
+                         quantity=Decimal("10"), unit="m²", unit_price=Decimal("50"), source_service_id=service.id)
+    db.add(position)
+    db.commit()
+    return {**welt, "order_id": nackt.id, "project_id": nackt.project_id, "quote_id": quote.id, "item_id": position.id}
+
+
+@pytest.fixture(scope="module")
+def durchlauf_luecken():
+    """Der Rundgang als Admin auf der Welt mit Lücken (seit 1.8.84)."""
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    db = sessionmaker(bind=engine)()
+    try:
+        with uhr_festhalten():
+            welt = _luecken_welt(db)
+            yield {"db": db, "welt": welt,
+                   **_durchlauf(db, welt, _routers_in_betriebsreihenfolge(), user_id=welt["admin_id"])}
+    finally:
+        db.close()
+        engine.dispose()
+
+
 # ---------------------------------------------------------------------------
 # Die Prüfungen
 # ---------------------------------------------------------------------------
@@ -684,19 +754,38 @@ def test_keine_verbotenen_schluessel_in_monteur_antworten(durchlauf):
     assert set(ERLAUBT_JE_ROUTE) - genutzt == set(), "Ausnahme greift nicht mehr -- aus ERLAUBT_JE_ROUTE streichen"
 
 
-def test_kein_get_schreibt(durchlauf, durchlauf_admin):
-    """Seit 1.8.42: ein GET-Aufruf schreibt nichts in die Datenbank -- weder als Monteur noch als Admin.
-    Grunddaten legt der Start an (app/grunddaten.py), nicht der erste Lesezugriff. Was heute noch schreibt,
-    steht mit Grund in SCHREIBT_BEKANNT; die Liste darf nur kürzer werden."""
+def test_kein_get_schreibt(durchlauf, durchlauf_admin, durchlauf_luecken):
+    """Seit 1.8.42: ein GET-Aufruf schreibt nichts in die Datenbank -- weder als Monteur noch als Admin. Grunddaten legt der
+    Start an (app/grunddaten.py), Daten je Datensatz sein Anlegen, nie der erste Lesezugriff (Regel 23). Seit 1.8.84 ohne
+    Ausnahme, zusätzlich auf der Welt mit Lücken (Mitarbeiter ohne Profil, Angebot ohne Kopf usw.) und mit dem Beobachter an
+    der Sitzung (Flush während des Aufrufs, ungeflushte Änderungen danach)."""
     schreibt: dict[str, set] = {}
-    for lauf in (durchlauf, durchlauf_admin):
+    for lauf in (durchlauf, durchlauf_admin, durchlauf_luecken):
         for route, tabellen in lauf["schreibt"].items():
             schreibt.setdefault(route, set()).update(tabellen)
-    neu = sorted(f"{route}: {', '.join(sorted(tabellen))}" for route, tabellen in schreibt.items()
-                 if SCHREIBT_BEKANNT.get(route, (set(),))[0] != tabellen)
-    assert neu == [], "\n".join(["GET-Aufrufe, die schreiben:", *neu])
-    veraltet = sorted(set(SCHREIBT_BEKANNT) - set(schreibt))
-    assert veraltet == [], f"Schreibt nicht mehr -- aus SCHREIBT_BEKANNT streichen: {veraltet}"
+    gefunden = sorted(f"{route}: {', '.join(sorted(tabellen))}" for route, tabellen in schreibt.items())
+    assert gefunden == [], "\n".join(["GET-Aufrufe, die schreiben:", *gefunden])
+
+
+def test_luecken_durchlauf_ohne_serverfehler(durchlauf_luecken):
+    """Seit 1.8.84: ein Lesepfad, der eine Lücke nicht mehr füllt, muss mit ihr lesen können -- kein 500."""
+    fehler = sorted(f"{a['status']} {a['route']}" for a in durchlauf_luecken["antworten"] if a["status"] >= 500)
+    assert fehler == []
+    assert sum(a["status"] == 200 for a in durchlauf_luecken["antworten"]) > 180
+
+
+def test_luecken_bleiben_lesend_gefuellt(durchlauf_luecken):
+    """Die Lesepfade zeigen die Vorgaben, die bis 1.8.83 das Lesen angelegt hätte: die Vorschau der Arbeitsvorbereitung (ohne
+    ID), den Kopf des Angebots, die Kalkulation der Katalogposition, Mitarbeiter ohne Profil."""
+    antworten = {a["route"]: a for a in durchlauf_luecken["antworten"]}
+    av = antworten["/api/orders/{order_id}/work-preparation"]
+    assert (av["status"], av["body"]["id"], av["body"]["status"]) == (200, None, "offen")
+    angebot = antworten["/api/quotes/{quote_id}"]
+    assert angebot["status"] == 200 and angebot["body"]["document_meta"]["valid_until"] is not None
+    kalkulation = antworten["/api/quotes/{quote_id}/items/{item_id}/calculation"]
+    assert kalkulation["status"] == 200 and kalkulation["body"]["site_time_minutes"] is not None
+    mitarbeiter = antworten["/api/employees"]
+    assert mitarbeiter["status"] == 200 and len(mitarbeiter["body"]) == 2
 
 
 def test_admin_durchlauf_ohne_serverfehler(durchlauf_admin):
@@ -887,7 +976,7 @@ def test_gegenprobe_alter_kontext_und_mitarbeiterbestand_fallen_auf(threaded_db_
     """1.8.24, Punkt 2: der alte Zeiterfassungs-Kontext (Büro-Fassung, wie bis 1.8.23 an den Monteur)
     und der Mitarbeiterbestand im Büro-Schema, als neue Endpunkte in denselben Durchlauf gehängt.
     Er muss Personalnummer, Geburtsdatum und Privatadresse finden, ohne die Routen zu kennen."""
-    from app.employees import employee_to_dict, ensure_employee_profiles
+    from app.employees import employee_to_dict, load_employees
     from app.time_tracking import time_tracking_context
     db = threaded_db_session
     welt = _monteur_welt(db)
@@ -899,7 +988,7 @@ def test_gegenprobe_alter_kontext_und_mitarbeiterbestand_fallen_auf(threaded_db_
 
     @alt.get("/api/employees-alt", response_model=list[EmployeeRosterOut])
     def _bestand_alt(db: Session = Depends(get_db), _role: AppUser = Depends(require_min_role(ROLE_FIELD))):
-        return [EmployeeRosterOut.model_validate(employee_to_dict(e, db)) for e in ensure_employee_profiles(db)]
+        return [EmployeeRosterOut.model_validate(employee_to_dict(e, db)) for e in load_employees(db)]
 
     ergebnis = _durchlauf(db, welt, [*_routers_in_betriebsreihenfolge(), alt])
     gefunden, _ = _verstoesse(ergebnis["antworten"])

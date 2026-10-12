@@ -4,6 +4,22 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.84 – Kein Lesepfad legt an (R4b, Vorweg 1)
+
+Fünf GET-Wege füllten beim Lesen eine Lücke und committeten: Mitarbeiterprofile (`GET /api/employees` – zwei gleichzeitige Aufrufe der
+Auftragsseite kollidierten am Profil, 500, der rote Klicktest aus 1.8.83), Kopf und Positionslayout eines Angebots (Angebots-, Projekt-
+und Auftragsseite), die Kalkulation einer Katalogposition, die Arbeitsvorbereitung samt Materialbedarf (danach war der Abgleich mit dem
+Angebot gesperrt, obwohl nur jemand die Seite angesehen hatte) und die Lohnstammdaten (Lohnliste, DATEV-Export, Stundenzettel). Seither
+lesen sie nur und zeigen die Vorgabe, die das Anlegen ergäbe; angelegt wird beim Anlegen des Datensatzes oder im ersten Schreibweg. Die
+Kopfzeile eines Angebots entsteht jetzt beim Anlegen; die Arbeitsvorbereitung mit der ersten Änderung oder dem neuen Knopf
+„Arbeitsvorbereitung anlegen“.
+
+Der Strukturtest über alle GET-Endpunkte hat keine Ausnahmeliste mehr, einen dritten Rundgang auf Testdaten mit Lücken (Mitarbeiter ohne
+Profil, Angebot ohne Kopf, Auftrag ohne Arbeitsvorbereitung …) und einen Beobachter an der Sitzung (Flush während des Aufrufs, ungeflushte
+Änderungen danach). Neu `test_v387_lesepfade_ohne_anlegen` (7, davon 1 gegen PostgreSQL: 13 Lesewege je zweimal gleichzeitig, alle 200,
+nichts geschrieben). Gegenproben 7 von 7 rot. Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3744 grün, 6 erwartet fehlgeschlagen (1a, 1b). Alle Klicktests: 51 von 52 wie erwartet in 12:31 min; rot einmal `klicktest_mahnwesen` (28/29, liest die Liste vor dem Neuladen – unter Last, Nebenbefund 2), einzeln zweimal 29/29. Festlegungen zum Bestätigen in
+`docs/archiv/grunddaten-beim-start.md`, "Umsetzung 1.8.84".
+
 ## 1.8.83 – Nachtrag am Auftrag, kein negativer Abschlag, letzter Stand, Storno 1d (R4a, Punkte 3–6)
 
 Ein Nachtrag ist jetzt eine gekennzeichnete Position am Auftrag („+ Nachtrag“ auf der Auftragsseite, Nummer N1, N2 …, unter

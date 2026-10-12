@@ -193,3 +193,83 @@ vorhandenen Grunddaten laufen über `anlegen()` selbst.
    existiert** (Migration 1.0.14): auf `:memory:`-SQLite verwirft das geflushte, nicht committete Änderungen
    (1.8.42 in `test_v052` erneut gesehen, Test umgestellt). Seit dem Start mit `anlegen()` fiele eine fehlende
    Spalte ohnehin beim Start auf -- die Prüfung je Aufruf wäre entbehrlich.
+
+## Umsetzung 1.8.84: kein Lesepfad legt an (Vorgabe R4b, "Vorweg" 1)
+
+Vorgabe wörtlich in `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung R4b". Anlass: Nebenbefund 4 aus 1.8.83 -- `GET /api/employees`
+legte fehlende Mitarbeiterprofile an, zwei gleichzeitige Aufrufe der Auftragsseite kollidierten an `employee_profiles.employee_id`
+(UNIQUE, 500), der Klicktest `klicktest_auswahl_inaktiv` war im Gesamtlauf rot.
+
+### Gesucht
+
+- **Statisch**: von jedem GET-Endpunkt unter `/api/` über die Aufrufe (nach Funktionsnamen) jede erreichbare Funktion mit `db.add`,
+  `flush`, `commit` oder `delete` (Skript im Scratchpad). Treffer außer den unten behobenen: Namensgleichheiten (PDF-Wege, die Bauteile
+  wie `_finish()` erreichen, die nur Schreibwege rufen), `sync_school_holidays()` hinter der Plantafel (nur mit `auto_sync=True`, das
+  kein GET übergibt), `validity_row(create=True)` hinter den Arbeitszeitmodell-Zuordnungen (dort `create=False`). Seitenrouten und die
+  Middleware lesen nur.
+- **Im Rundgang**: ein dritter Rundgang als Admin auf einer Welt mit Lücken (unten) -- er fand die fünf Stellen.
+
+### Was gebaut ist
+
+| Lesepfad (bis 1.8.83 angelegt) | Tabelle | jetzt |
+|---|---|---|
+| `GET /api/employees`, `/caseworkers`, `/{id}` (`ensure_employee_profiles()`, dazu eine Funktion aus der alten Berufsbezeichnung) | `employee_profiles`, `employee_functions` | `load_employees()` liest; ohne Profil zeigt `employee_to_dict()` die gleichnamige Funktion (`legacy_function()`, nur lesen), sonst die Berufsbezeichnung. Das Profil entsteht beim Speichern (`apply_employee_payload()`); `ensure_employee_profile(s)` und `_function_for_legacy_employee()` entfallen |
+| `GET /api/quotes`, `/api/quotes/{id}`, `/api/projects/{id}/quotes`, Auftrag und Auftragsliste (Abgleich-Status über `_quote_scope_payload()`) | `quote_document_meta`, `quote_item_layouts` | `quote_structure()` liest: fehlende Kopfzeile bzw. Positionslayout als Vorgabe außerhalb der Sitzung (`document_meta.id` leer), ein Layout mit verschwundenem Abschnitt gilt als ohne Abschnitt. `ensure_quote_structure()` nur noch in Schreibwegen; die Kopfzeile entsteht jetzt beim Anlegen (Angebot zum Projekt, Anfrage umwandeln; Schnellauftrag und Kopieren hatten sie schon) |
+| `GET /api/quotes/{id}/items/{item_id}/calculation` (`ensure_quote_item_calculation()`) | `quote_item_calculations` | `quote_item_calculation_preview()`: die gespeicherte, sonst eine Vorschau aus dem Katalog ohne IDs der Materialzeilen; angelegt beim Speichern (PUT), die Zeilen der Vorschau werden dort nach ihrer Reihenfolge zugeordnet |
+| `GET /api/orders/{id}/work-preparation` (`ensure_preparation()`) | `work_preparations` samt Material | `preparation_preview()`: die gespeicherte, sonst die Vorschau (`id` leer, Material ohne IDs). Angelegt mit der ersten Änderung oder dem neuen Knopf "Arbeitsvorbereitung anlegen" (`POST /api/orders/{id}/work-preparation`); die Seite zeigt den Hinweis und disponiert Material erst danach |
+| `GET /api/time-backoffice/payroll-employees`, `/datev-export`, Stundenzettel (`get_employee_payroll()`) | `employee_payroll_settings` | `load_employee_payroll()`: die gespeicherten, sonst die Vorgabe (Export an, ohne Personalnummer); angelegt nur beim Speichern |
+
+### Festlegungen 1.8.84 (Bitte bestätigen)
+
+1. **Daten je Datensatz** (Profil, Kopfzeile, Layout, Kalkulation, Arbeitsvorbereitung, Lohnstammdaten) entstehen beim Anlegen des
+   Datensatzes oder im ersten Schreibweg. Ein Lesepfad zeigt die Vorgabe, die das Anlegen ergäbe, ohne sie zu speichern -- erkennbar am
+   leeren `id`.
+2. **Keine Nachfüll-Migration**: was heute fehlt, bleibt bis zum ersten Schreibweg eine Lücke. Bis dahin folgt die Vorgabe dem heutigen
+   Stand (Zahlungsbedingung des Angebotskopfs nach der Standard-Zahlungsbedingung, Kalkulation nach dem Katalog). Bestandsangebote haben
+   ihre Kopfzeile seit der Migration `8af8137cc57c`; auf dem Server hat jedes Angebot, das je geöffnet wurde, Kopf und Layout.
+3. **Arbeitsvorbereitung**: Ansehen legt nicht an. Angelegt mit "Arbeitsvorbereitung anlegen" oder der ersten Änderung (Kopf speichern,
+   Team, Mitarbeiter, Aufgabe, Lieferschein). Materialzeilen der Vorschau lassen sich erst danach disponieren. Folge: ihr Material sperrt
+   den Abgleich mit dem Angebot erst ab dem Anlegen (vorher schon ab dem ersten Ansehen der Seite).
+4. **Mitarbeiter ohne Profil**: keine Funktion mehr aus der alten Berufsbezeichnung; angezeigt die gleichnamige Funktion, wenn es sie gibt,
+   sonst die Berufsbezeichnung; ohne Berufsbezeichnung die Standardfunktion der Gruppe. Das Büro wählt die Funktion beim Speichern.
+5. **Kalkulation einer Angebotsposition ohne gespeicherte Kalkulation**: die Vorschau trägt keine IDs der Materialzeilen; das Speichern
+   legt an und ordnet die Zeilen nach ihrer Reihenfolge zu.
+6. **Strukturtest ohne Ausnahmeliste**: `SCHREIBT_BEKANNT` entfällt, jeder schreibende GET ist rot.
+
+### Strukturtest
+
+`tests/test_v326_monteur_datengrenze.py`:
+- **Beobachter an der Sitzung** (neben dem Listener auf Cursor-Ebene): `before_flush` meldet die Tabellen der neuen, geänderten und
+  gelöschten Objekte während eines Aufrufs; nach jedem Aufruf meldet `_liegen_gelassen()`, was die Sitzung noch ungeflusht hält, und
+  verwirft es -- sonst schriebe es erst der nächste Aufruf (die Rundgänge teilen sich eine Sitzung), unter fremdem Namen.
+- **Welt mit Lücken** (`_luecken_welt()`, Rundgang `durchlauf_luecken` als Admin): die Büro-Welt ohne Mitarbeiterprofile und
+  Lohnstammdaten, Kunde ohne Profil, Auftrag ohne Arbeitsvorbereitung, Angebot ohne Kopf und Layout mit Katalogposition ohne Kalkulation.
+- `test_kein_get_schreibt` über alle drei Rundgänge, ohne Ausnahmeliste; `test_luecken_durchlauf_ohne_serverfehler` (ein Lesepfad muss
+  mit der Lücke lesen können); `test_luecken_bleiben_lesend_gefuellt` (Vorschau, Kopf, Kalkulation, Mitarbeiter).
+
+### Tests und Prüfung
+
+- Neu `tests/test_v387_lesepfade_ohne_anlegen.py` (7, davon 1 gegen PostgreSQL): die 13 Lesewege legen nichts an und zeigen die
+  Vorgaben; Ansehen der Arbeitsvorbereitung sperrt den Abgleich nicht, Anlegen (zweimal: eine) und erste Änderung legen an; Kalkulation
+  speichern ordnet die Zeilen der Vorschau zu; Angebot anlegen und Anfrage umwandeln legen den Kopf an; Lohnstammdaten erst beim
+  Speichern. **Gleichzeitig (PostgreSQL, jede Anfrage mit eigener Verbindung):** die 13 Wege je zweimal zugleich -- alle 200, nichts
+  geschrieben.
+- **Erwartung geändert**: `test_v053` (ein Mitarbeiter ohne Profil wird gelesen, nicht ergänzt), `test_v260` und `test_v326` (Gegenprobe
+  der Datengrenze) ohne `ensure_employee_profiles()`.
+- Gegenproben (Regel 24): 7 von 7 rot -- Mitarbeiterliste legt Profil an, Angebot lesen legt Kopf an, Abgleich-Status legt den Kopf an,
+  Arbeitsvorbereitung, Kalkulation bzw. Lohnstammdaten beim Lesen angelegt, ein GET ändert ein Objekt ohne Flush. Jede Datei byte-genau
+  zurück, kein Marker.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3744 grün, 6 erwartet fehlgeschlagen (1a,
+  1b), 0 rot.
+- Alle Klicktests (Regel 26, `scripts/klicktest_alle.py`, Arbeitskopie): 51 von 52 wie erwartet, Laufzeit gesamt 12:31 min. Rot:
+  `klicktest_mahnwesen` 28/29 ("Liste danach leer, Entwürfe in 'Weitere'": [3, 0] statt [0, 3]) -- Nebenbefund 2; einzeln zweimal
+  29/29. Die Erwartung ist richtig und bleibt.
+
+### Nebenbefunde (nur gemeldet)
+
+1. **`school_holidays_for_range(auto_sync=True)`** ist die Vorgabe der Funktion: wer sie ohne Argument aus einem Lesepfad ruft, holt die
+   Ferien über das Netz und schreibt (`sync_school_holidays()`). Heute übergibt die Plantafel `auto_sync=False`; ein neuer Aufrufer
+   bemerkte das nicht.
+2. **`klicktest_mahnwesen` prüft die Liste vor dem Neuladen**: `createSelectedReminders()` (`mahnwesen.html`) setzt "3 Entwürfe
+   angelegt." vor `await reload()`; der Klicktest wartet auf diesen Text und liest die Liste sofort -- unter Last (Suite parallel) noch
+   die alte. Gesehen im Gesamtlauf 1.8.84, einzeln nicht. Kein Fehler der App.

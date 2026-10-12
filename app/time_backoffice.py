@@ -97,6 +97,7 @@ def update_time_settings(db: Session, payload) -> TimeTrackingSettings:
 
 
 def get_employee_payroll(db: Session, employee_id: int) -> EmployeePayrollSettings:
+    """Lohnstammdaten eines Mitarbeiters, fehlend angelegt -- seit 1.8.84 nur im Schreibweg (set_employee_payroll())."""
     row = db.scalar(select(EmployeePayrollSettings).where(EmployeePayrollSettings.employee_id == employee_id))
     if row is None:
         row = EmployeePayrollSettings(employee_id=employee_id, payroll_export_enabled=True)
@@ -104,11 +105,20 @@ def get_employee_payroll(db: Session, employee_id: int) -> EmployeePayrollSettin
     return row
 
 
+def load_employee_payroll(db: Session, employee_id: int) -> EmployeePayrollSettings:
+    """Lohnstammdaten zum Lesen (seit 1.8.84, Regel 23): die gespeicherten, sonst die Vorgabe (Export an, ohne
+    DATEV-Personalnummer), die nicht in die Sitzung geht. Bis 1.8.83 legten Lohnliste, DATEV-Export und Stundenzettel die Zeile
+    beim Lesen an und committeten."""
+    row = db.scalar(select(EmployeePayrollSettings).where(EmployeePayrollSettings.employee_id == employee_id))
+    return row if row is not None else EmployeePayrollSettings(employee_id=employee_id, payroll_export_enabled=True,
+                                                                datev_personnel_number=None)
+
+
 def effective_datev_personnel_number(db: Session, employee: Employee, payroll: EmployeePayrollSettings | None = None) -> str | None:
     advanced = load_advanced_settings(db)
     if advanced.datev_personnel_equals_erp_number:
         return (employee.employee_number or "").strip() or None
-    payroll = payroll or get_employee_payroll(db, employee.id)
+    payroll = payroll or load_employee_payroll(db, employee.id)
     return (payroll.datev_personnel_number or "").strip() or None
 
 
@@ -117,7 +127,7 @@ def payroll_rows(db: Session) -> list[dict]:
     advanced = load_advanced_settings(db)
     result=[]
     for emp in employees:
-        p=get_employee_payroll(db, emp.id)
+        p=load_employee_payroll(db, emp.id)
         result.append({
             "employee_id": emp.id,
             "employee_name": f"{emp.first_name} {emp.last_name}".strip(),
@@ -275,7 +285,7 @@ def build_datev_export(db: Session, start_date: date, end_date: date) -> tuple[b
     aggregated=defaultdict(Decimal); warnings=[]
     payroll={x.employee_id:x for x in db.scalars(select(EmployeePayrollSettings)).all()}
     for r in rows:
-        p=payroll.get(r.employee_id) or get_employee_payroll(db,r.employee_id)
+        p=payroll.get(r.employee_id) or load_employee_payroll(db,r.employee_id)
         if not p.payroll_export_enabled: continue
         pnr=effective_datev_personnel_number(db, r.employee, p)
         if not pnr:

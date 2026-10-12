@@ -555,7 +555,7 @@ class QuoteDocumentMetaUpdate(BaseModel):
 
 
 class QuoteDocumentMetaOut(QuoteDocumentMetaUpdate):
-    id: int
+    id: int | None  # seit 1.8.84 leer: Kopfzeile noch nicht gespeichert, Vorgabe (app/projects.py::quote_structure())
     quote_id: int
     contract_basis_label: str | None = None
     contract_basis_clause_reviewed: bool | None = None
@@ -651,7 +651,7 @@ class QuoteItemOut(BaseModel):
 
 
 class QuoteItemMaterialCalculationUpdate(BaseModel):
-    id: int
+    id: int | None  # seit 1.8.84: ohne ID aus der Vorschau einer noch nicht gespeicherten Kalkulation
     quantity: Decimal = Field(ge=0)
     waste_pct: Decimal = Field(default=Decimal("0"), ge=-100)
     purchase_price: Decimal = Field(ge=0)
@@ -674,7 +674,7 @@ class QuoteItemCalculationUpdate(BaseModel):
 
 
 class QuoteItemMaterialCalculationOut(BaseModel):
-    id: int
+    id: int | None  # seit 1.8.84: ohne ID in der Vorschau (GET ohne gespeicherte Kalkulation)
     source_material_id: int | None
     name: str
     article_number: str | None
@@ -2654,7 +2654,7 @@ class WorkPreparationTaskOut(BaseModel):
 
 
 class WorkPreparationMaterialOut(BaseModel):
-    id: int
+    id: int | None  # seit 1.8.84 leer in der Vorschau (noch keine Arbeitsvorbereitung)
     article_number: str | None
     name: str
     unit: str
@@ -2671,7 +2671,7 @@ class WorkPreparationMaterialOut(BaseModel):
 
 
 class WorkPreparationOut(BaseModel):
-    id: int
+    id: int | None  # seit 1.8.84 leer: noch nicht angelegt, Vorschau (app/work_preparation.py::preparation_preview())
     order_id: int
     order_number: str
     project_id: int

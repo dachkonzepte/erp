@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.83** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.84** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -629,9 +629,12 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Einstellung oder ein neuer Standardsatz kommt in `grunddaten.py`, nie als Anlegen in eine Lesefunktion;
     Anlegeschritte committen nicht (ein Commit gäbe die Sperre frei). `test_kein_get_schreibt`
     (`tests/test_v326_monteur_datengrenze.py`) ruft jeden GET-Endpunkt als Monteur und als Admin mit
-    Datenbank-Listener auf; `SCHREIBT_BEKANNT` darf nur kürzer werden. Testdatenbanken bekommen die Grunddaten
-    nach `create_all()` (conftest), ohne sie: `tests/grunddaten_schalter.py`. Details:
-    `docs/archiv/grunddaten-beim-start.md`.
+    Datenbank-Listener auf; seit 1.8.84 ohne Ausnahmeliste, mit einem dritten Rundgang auf Testdaten mit Lücken und einem
+    Beobachter an der Sitzung. **Daten je Datensatz** (Profil, Angebotskopf und -layout, Kalkulation, Arbeitsvorbereitung,
+    Lohnstammdaten) legt das Anlegen des Datensatzes oder der erste Schreibweg an; ein Lesepfad zeigt die Vorgabe ohne zu speichern
+    (`load_employees()`, `quote_structure()`, `quote_item_calculation_preview()`, `preparation_preview()`, `load_employee_payroll()`,
+    leeres `id`). Testdatenbanken bekommen die Grunddaten nach `create_all()` (conftest), ohne sie: `tests/grunddaten_schalter.py`.
+    Details: `docs/archiv/grunddaten-beim-start.md`.
 
 24. **Eine Gegenprobe bleibt nie im Code, seit 1.8.55.** Eine Gegenprobe hebelt einen Schutz in `app/` absichtlich aus, um
     zu zeigen, dass sein Test dann rot wird. Jede Änderung dafür trägt den Marker `GEGENPROBE` (Kommentar in der geänderten
@@ -1041,7 +1044,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Nebenforderungen nach § 367 BGB, Rechtstexte, keine Gebühr neben der Pauschale, Storno nur ohne offene Nebenforderungen, Regel 27)
   -- `docs/archiv/zahlungen.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
-  Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
+  Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite; seit 1.8.84 auch keine Daten je
+  Datensatz beim Lesen, Rundgang mit Lücken, Beobachter an der Sitzung) --
   `docs/archiv/grunddaten-beim-start.md`
 - **Speichern nur gesendeter Felder** (`PartialUpdate`, Strukturtest über alle PUT-Handler, Liste der
   Altfälle, Nebenbefunde der Durchsicht aller Speichern-Aufrufer) -- `docs/archiv/teil-updates.md`
@@ -1568,11 +1572,9 @@ jedem Bericht, Ergebnis im Bericht (Regel 26).
 - ~~Vier `ensure_default_*()` ohne UNIQUE (stille Dopplung) und das "get_or_create_settings(id=1)"-Singleton-
   Muster~~ -- seit 1.8.42 gelöst: Grunddaten legt der Start an, serialisiert über eine Sperrzeile (Regel 23,
   `docs/archiv/grunddaten-beim-start.md`), ohne neue Constraints.
-- **Ein GET-Endpunkt schreibt noch** (1.8.42, `SCHREIBT_BEKANNT` in `test_v326_monteur_datengrenze.py`):
-  `GET /api/projects/{id}/quotes` legt je Angebot Meta und Positionslayout an (`ensure_quote_structure()`);
-  `GET /api/settings/number-sequences` schreibt seit 1.8.76 nicht mehr, die Kunden-GETs legen kein Profil mehr an.
-  Weitere Anleger je Datensatz in Lesepfaden, die der Rundgang mit seinen Testdaten nicht auslöst, siehe
-  `docs/archiv/grunddaten-beim-start.md`, "Nebenbefunde".
+- ~~Ein GET-Endpunkt schreibt noch~~ -- seit 1.8.84 gelöst: kein Lesepfad legt mehr an (Angebotskopf, Mitarbeiterprofile,
+  Kalkulation, Arbeitsvorbereitung, Lohnstammdaten), der Strukturtest hat keine Ausnahmeliste mehr
+  (`docs/archiv/grunddaten-beim-start.md`, "Umsetzung 1.8.84").
 - ~~Kolonnenführer-Rolle für Gruppenbuchungen~~ -- seit 1.7.12 gelöst über das Kennzeichen
   `TeamEmployee.is_crew_leader` (keine eigene Rolle), siehe `docs/archiv/rechtekonzept.md`,
   "Zeiterfassung für Monteure" -> "Nachtrag (seit 1.7.12)".

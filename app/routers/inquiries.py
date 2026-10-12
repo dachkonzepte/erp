@@ -16,7 +16,7 @@ from ..models import AppUser, Customer, Inquiry, Project, Property, Quote
 from ..option_settings import default_option_value
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_pipeline_columns import default_pipeline_column_id
-from ..projects import load_project, load_quote, next_project_number, next_quote_number, quote_to_dict
+from ..projects import ensure_quote_structure, load_project, load_quote, next_project_number, next_quote_number, quote_to_dict
 from ..schemas import InquiryConvertOut, InquiryConvertRequest, InquiryCreate, InquiryOut, InquiryUpdate, ProjectListOut, QuoteOut
 from ..settings import load_general_settings
 
@@ -153,6 +153,8 @@ def convert_inquiry(inquiry_id: int, payload: InquiryConvertRequest, db: Session
     project = load_project(db, project.id)
     quote_out = None
     if quote is not None:
+        # Seit 1.8.84: Kopfzeile beim Anlegen -- vorher legte sie erst der erste Lesezugriff an (Regel 23).
+        ensure_quote_structure(db, load_quote(db, quote.id))
         quote = load_quote(db, quote.id)
         quote_out = QuoteOut.model_validate(quote_to_dict(quote))
     return InquiryConvertOut(

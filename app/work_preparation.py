@@ -49,21 +49,17 @@ def _load_order_full(db: Session, order_id: int) -> Order | None:
     )
 
 
-def ensure_preparation(db: Session, order_id: int) -> WorkPreparation:
-    prep = load_preparation(db, order_id)
-    if prep is not None:
-        return prep
-    order = _load_order_full(db, order_id)
-    if order is None:
-        raise ValueError("Auftrag nicht gefunden.")
+def _new_preparation(order: Order) -> WorkPreparation:
+    """Arbeitsvorbereitung eines Auftrags, der noch keine hat, mit dem Materialbedarf aus der Kalkulation seiner Positionen --
+    noch nicht in der Sitzung (seit 1.8.84 getrennt vom Anlegen)."""
     prep = WorkPreparation(
         order_id=order.id,
         status="offen",
         planned_start=order.execution_start,
         planned_end=order.execution_end,
+        site_notes=None,
+        material_notes=None,
     )
-    db.add(prep)
-    db.flush()
     for item in order.items:
         calc = item.calculation_snapshot
         if calc is None:
@@ -71,8 +67,7 @@ def ensure_preparation(db: Session, order_id: int) -> WorkPreparation:
         for m in calc.materials:
             effective_per_unit = _d(m.quantity) * (Decimal("1") + _d(m.waste_pct) / Decimal("100"))
             total = (effective_per_unit * _d(item.quantity)).quantize(QTY, rounding=ROUND_HALF_UP)
-            db.add(WorkPreparationMaterial(
-                preparation_id=prep.id,
+            prep.materials.append(WorkPreparationMaterial(
                 source_material_snapshot_id=m.id,
                 source_order_item_id=item.id,
                 article_number=m.article_number,
@@ -82,6 +77,32 @@ def ensure_preparation(db: Session, order_id: int) -> WorkPreparation:
                 planned_quantity=total,
                 status="bedarf",
             ))
+    return prep
+
+
+def preparation_preview(db: Session, order_id: int) -> WorkPreparation:
+    """Die Arbeitsvorbereitung zum Lesen (seit 1.8.84, Regel 23): die gespeicherte, sonst die Vorschau, die das Anlegen
+    ergäbe (ohne IDs, nicht in der Sitzung). Bis 1.8.83 legte GET /api/orders/{id}/work-preparation sie beim ersten Öffnen an
+    -- samt Materialbedarf, der danach den Abgleich mit dem Angebot sperrte (app/orders.py::_attached()), obwohl nur
+    jemand die Seite angesehen hatte. Angelegt wird sie mit der ersten Änderung oder "Arbeitsvorbereitung anlegen"."""
+    prep = load_preparation(db, order_id)
+    if prep is not None:
+        return prep
+    order = _load_order_full(db, order_id)
+    if order is None:
+        raise ValueError("Auftrag nicht gefunden.")
+    return _new_preparation(order)
+
+
+def ensure_preparation(db: Session, order_id: int) -> WorkPreparation:
+    """Legt die Arbeitsvorbereitung an, wenn sie fehlt -- seit 1.8.84 nur in Schreibwegen (siehe preparation_preview())."""
+    prep = load_preparation(db, order_id)
+    if prep is not None:
+        return prep
+    order = _load_order_full(db, order_id)
+    if order is None:
+        raise ValueError("Auftrag nicht gefunden.")
+    db.add(_new_preparation(order))
     db.commit()
     return load_preparation(db, order_id)
 
@@ -96,6 +117,10 @@ def planned_hours(order: Order) -> Decimal:
 
 
 def preparation_to_dict(db: Session, prep: WorkPreparation) -> dict:
+    """prep: seit 1.8.84 auch die Vorschau aus preparation_preview() (ohne ID) -- dann ohne Zuordnungen, Teams und
+    Lieferscheine, "id" leer."""
+    if prep.id is None:
+        return _preview_to_dict(db, prep)
     order = _load_order_full(db, prep.order_id)
     hours = planned_hours(order)
     employee_hours = round_hours(sum((_d(x.planned_hours) for x in prep.employees), Decimal("0")))
@@ -221,6 +246,36 @@ def preparation_to_dict(db: Session, prep: WorkPreparation) -> dict:
         } for x in sorted(prep.tasks, key=lambda r:(r.sort_order,r.id))],
         "materials": material_rows,
         "delivery_notes": delivery_rows,
+    }
+
+
+def _preview_to_dict(db: Session, prep: WorkPreparation) -> dict:
+    """Die Vorschau (seit 1.8.84): was das Anlegen ergäbe -- Kopf aus dem Auftrag, Materialbedarf aus der Kalkulation,
+    Ist-Stunden aus der Zeiterfassung; ohne IDs, Zuordnungen, Teams, Aufgaben und Lieferscheine."""
+    order = _load_order_full(db, prep.order_id)
+    planned = planned_hours(order)
+    actual = order_actual_hours(db, order.id)
+    item_actual = order_item_actual_hours(db, order.id)
+    items = {item.id: item for item in order.items}
+    materials = [{
+        "id": None, "article_number": m.article_number, "name": m.name, "unit": m.unit,
+        "calculated_quantity": m.calculated_quantity, "planned_quantity": m.planned_quantity, "status": m.status,
+        "supplier_id": None, "supplier": None, "notes": None, "source_order_item_id": m.source_order_item_id,
+        "source_position": ((items[m.source_order_item_id].gaeb_oz or items[m.source_order_item_id].position_number)
+                            if m.source_order_item_id in items else None),
+        "source_short_text": items[m.source_order_item_id].short_text if m.source_order_item_id in items else None,
+        "delivery_notes": [],
+    } for m in prep.materials]
+    return {
+        "id": None, "order_id": order.id, "order_number": order.order_number, "project_id": order.project_id,
+        "project_number": order.project.project_number, "project_name": order.project.name, "status": prep.status,
+        "planned_start": prep.planned_start, "planned_end": prep.planned_end, "site_notes": None, "material_notes": None,
+        "planned_total_hours": planned, "actual_total_hours": actual["productive_hours"],
+        "actual_travel_hours": actual["travel_hours"], "actual_all_hours": actual["total_hours"],
+        "hours_variance": round_hours(actual["productive_hours"] - planned), "time_by_type": actual["by_type"],
+        "order_item_actual_hours": {str(k): v for k, v in item_actual.items()},
+        "assigned_planned_hours": Decimal("0"), "open_task_count": 0, "material_count": len(materials),
+        "employees": [], "teams": [], "tasks": [], "materials": materials, "delivery_notes": [],
     }
 
 

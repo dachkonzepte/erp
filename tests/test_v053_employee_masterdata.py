@@ -5,9 +5,9 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.employees import (
     apply_employee_payload, employee_to_dict, ensure_default_employee_functions, load_employee_functions,
-    ensure_employee_profiles,
+    load_employees,
 )
-from app.models import Employee, EmployeeFunction
+from app.models import Employee, EmployeeFunction, EmployeeProfile
 from app.schemas import EmployeeCreate
 
 
@@ -40,7 +40,6 @@ def test_employee_profile_stores_address_contact_birthday_and_info():
     employee = Employee(first_name="Max", last_name="Muster", employee_group="gewerblich", hourly_wage=Decimal("21.50"), weekly_hours=Decimal("40"))
     apply_employee_payload(db, employee, payload)
     db.add(employee); db.commit(); db.refresh(employee)
-    ensure_employee_profiles(db)
     out = employee_to_dict(db.get(Employee, employee.id))
     assert out["function_name"] == "Dachdecker Geselle"
     assert out["city"] == "Übach-Palenberg"
@@ -49,15 +48,25 @@ def test_employee_profile_stores_address_contact_birthday_and_info():
     assert out["important_info"] == "Führerschein BE"
 
 
-def test_legacy_employee_gets_profile_and_function_without_altering_employee_table():
+def test_legacy_employee_is_read_without_creating_profile_or_function():
+    """Seit 1.8.84 (Regel 23): ein Mitarbeiter ohne Profil wird gelesen, nicht ergänzt -- bis 1.8.83 legte das Lesen Profil
+    und eine Funktion aus der Berufsbezeichnung an. Angezeigt wird die Berufsbezeichnung; gibt es eine gleichnamige Funktion,
+    deren ID; das Profil entsteht beim Speichern."""
     db = new_db()
     employee = Employee(
         first_name="Alt", last_name="Bestand", job_title="Eigene Altfunktion",
         employee_group="gewerblich", hourly_wage=Decimal("20"), weekly_hours=Decimal("40"), active=True,
     )
     db.add(employee); db.commit()
-    employees = ensure_employee_profiles(db)
-    out = employee_to_dict(employees[0])
+    out = employee_to_dict(load_employees(db)[0], db)
     assert out["function_name"] == "Eigene Altfunktion"
-    assert out["function_id"] is not None
-    assert db.scalar(select(EmployeeFunction).where(EmployeeFunction.name == "Eigene Altfunktion")) is not None
+    assert out["function_id"] is None
+    assert db.scalar(select(EmployeeFunction).where(EmployeeFunction.name == "Eigene Altfunktion")) is None
+    assert db.scalar(select(EmployeeProfile)) is None
+    assert not db.new and not db.dirty
+    gleichnamig = db.scalar(select(EmployeeFunction).where(EmployeeFunction.name == "Dachdecker Geselle"))
+    employee.job_title = "Dachdecker Geselle"
+    db.commit()
+    out = employee_to_dict(load_employees(db)[0], db)
+    assert (out["function_id"], out["function_name"]) == (gleichnamig.id, "Dachdecker Geselle")
+    assert db.scalar(select(EmployeeProfile)) is None

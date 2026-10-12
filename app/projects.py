@@ -60,24 +60,60 @@ def load_quote(db: Session, quote_id: int) -> Quote | None:
     )
 
 
+def _default_quote_meta(db: Session, quote: Quote) -> QuoteDocumentMeta:
+    """Kopfzeile eines Angebots, das noch keine hat -- nicht in der Sitzung (das Anlegen macht ensure_quote_structure())."""
+    # created_at ist UTC: ein Angebot von 0:30 Uhr trägt sonst das Datum des Vortags
+    qdate = to_berlin(quote.created_at).date() if quote.created_at else berlin_today()
+    default_term = get_default_payment_term(db)
+    return QuoteDocumentMeta(
+        quote_id=quote.id,
+        quote_date=qdate,
+        valid_until=qdate + timedelta(days=30),
+        contact_person=None,
+        payment_terms=default_term.label if default_term else None,
+        execution_period=None,
+        internal_note=None,
+        # Neues Angebot (seit 1.8.21): Vorgabe aus dem Kunden. Bestandsangebote haben ihre
+        # Kopfzeile seit der Migration 8af8137cc57c alle (mit "bgb"), landen also nicht hier.
+        contract_basis=default_contract_basis_for_customer(quote.project.customer if quote.project else None),
+    )
+
+
+def quote_structure(db: Session, quote: Quote) -> tuple[QuoteDocumentMeta, list[QuoteSection], dict[int, QuoteItemLayout]]:
+    """Kopfzeile, Gliederung und Positionslayout eines Angebots -- nur lesen (seit 1.8.84, Regel 23). Fehlt die Kopfzeile oder
+    das Layout einer Position, kommt der Vorgabewert zurück, der nicht in die Sitzung geht; ein Layout mit verschwundenem
+    Abschnitt gilt als ohne Abschnitt. Angelegt wird beim Anlegen des Angebots bzw. der Position und in jedem Schreibweg
+    (ensure_quote_structure()). Bis 1.8.83 legte jeder Lesezugriff an und committete: GET /api/projects/{id}/quotes, die
+    Angebots- und Auftragsseite (Abgleich) schrieben beim ersten Lesen eines neuen Angebots."""
+    meta = db.scalar(select(QuoteDocumentMeta).where(QuoteDocumentMeta.quote_id == quote.id)) or _default_quote_meta(db, quote)
+    sections = db.scalars(
+        select(QuoteSection).where(QuoteSection.quote_id == quote.id).order_by(QuoteSection.sort_order, QuoteSection.id)
+    ).all()
+    section_ids = {s.id for s in sections}
+    stored = {
+        row.quote_item_id: row for row in db.scalars(
+            select(QuoteItemLayout).join(QuoteItem, QuoteItemLayout.quote_item_id == QuoteItem.id).where(QuoteItem.quote_id == quote.id)
+        ).all()
+    }
+    layouts = {}
+    for item in quote.items:
+        row = stored.get(item.id)
+        if row is None:
+            row = QuoteItemLayout(quote_item_id=item.id, section_id=None, sort_order=item.sort_order or 10, include_in_total=True)
+        elif row.section_id is not None and row.section_id not in section_ids:
+            row = QuoteItemLayout(quote_item_id=item.id, section_id=None, sort_order=row.sort_order,
+                                  include_in_total=row.include_in_total)
+        layouts[item.id] = row
+    return meta, sections, layouts
+
+
 def ensure_quote_structure(db: Session, quote: Quote) -> tuple[QuoteDocumentMeta, list[QuoteSection], dict[int, QuoteItemLayout]]:
-    """Stellt 0.6-Zusatztabellen auch für bestehende 0.5-Angebote her."""
+    """Stellt 0.6-Zusatztabellen auch für bestehende 0.5-Angebote her. Seit 1.8.84 nur in Schreibwegen (Anlegen des Angebots,
+    Beauftragen, Abgleich, Bearbeiten) -- Lesepfade nehmen quote_structure()."""
     changed = False
     meta = db.scalar(select(QuoteDocumentMeta).where(QuoteDocumentMeta.quote_id == quote.id))
     if meta is None:
-        # created_at ist UTC: ein Angebot von 0:30 Uhr trägt sonst das Datum des Vortags
-        qdate = to_berlin(quote.created_at).date() if quote.created_at else berlin_today()
-        default_term = get_default_payment_term(db)
-        meta = QuoteDocumentMeta(
-            quote_id=quote.id,
-            quote_date=qdate,
-            valid_until=qdate + timedelta(days=30),
-            contact_person=None,
-            payment_terms=default_term.label if default_term else None,
-            # Neues Angebot (seit 1.8.21): Vorgabe aus dem Kunden. Bestandsangebote haben ihre
-            # Kopfzeile seit der Migration 8af8137cc57c alle (mit "bgb"), landen also nicht hier.
-            contract_basis=default_contract_basis_for_customer(quote.project.customer if quote.project else None),
-        )
+        meta = _default_quote_meta(db, quote)
         db.add(meta)
         changed = True
 
@@ -111,8 +147,10 @@ def ensure_quote_structure(db: Session, quote: Quote) -> tuple[QuoteDocumentMeta
     return meta, sections, layouts
 
 
-def build_quote_item_calculation(item: QuoteItem) -> dict | None:
-    calc = item.project_calculation
+def build_quote_item_calculation(item: QuoteItem, calc: QuoteItemCalculation | None = None) -> dict | None:
+    """calc: seit 1.8.84 auch eine Vorschau aus dem Katalog, die nicht in der Sitzung steht
+    (quote_item_calculation_preview()); sonst die gespeicherte Projektkalkulation der Position."""
+    calc = calc if calc is not None else item.project_calculation
     if calc is None:
         return None
 
@@ -195,7 +233,8 @@ def build_quote_item_calculation(item: QuoteItem) -> dict | None:
     }
 
 
-def create_project_calculation_snapshot(db: Session, item: QuoteItem, service, catalog_calc: dict) -> QuoteItemCalculation:
+def _calculation_snapshot(item: QuoteItem, catalog_calc: dict) -> QuoteItemCalculation:
+    """Projektkalkulation aus der Katalogkalkulation -- noch nicht in der Sitzung (seit 1.8.84 getrennt vom Speichern)."""
     calc = QuoteItemCalculation(
         quote_item_id=item.id,
         site_time_minutes=Decimal(catalog_calc["site_time_minutes"]),
@@ -210,9 +249,6 @@ def create_project_calculation_snapshot(db: Session, item: QuoteItem, service, c
         manual_sale_price=Decimal(catalog_calc["manual_sale_price"]) if catalog_calc["manual_sale_price"] is not None else None,
         notes=catalog_calc.get("notes"),
     )
-    db.add(calc)
-    db.flush()
-    item.project_calculation = calc
     for m in catalog_calc["materials"]:
         base_qty = Decimal(m["quantity_override"]) if m.get("quantity_override") is not None else Decimal(m["source_quantity"] or 0)
         calc.materials.append(QuoteItemMaterialCalculation(
@@ -230,16 +266,41 @@ def create_project_calculation_snapshot(db: Session, item: QuoteItem, service, c
     return calc
 
 
-def ensure_quote_item_calculation(db: Session, item: QuoteItem) -> QuoteItemCalculation | None:
-    if item.project_calculation is not None:
-        return item.project_calculation
+def create_project_calculation_snapshot(db: Session, item: QuoteItem, service, catalog_calc: dict) -> QuoteItemCalculation:
+    calc = _calculation_snapshot(item, catalog_calc)
+    db.add(calc)
+    db.flush()
+    item.project_calculation = calc
+    return calc
+
+
+def _catalog_calculation(db: Session, item: QuoteItem) -> tuple[object, dict] | None:
     if item.source_service_id is None:
         return None
     service = get_service_for_calculation(db, item.source_service_id)
     if service is None:
         return None
-    catalog_calc = build_calculation(service, get_settings_for_catalog(db, service.catalog_id))
-    calc = create_project_calculation_snapshot(db, item, service, catalog_calc)
+    return service, build_calculation(service, get_settings_for_catalog(db, service.catalog_id))
+
+
+def quote_item_calculation_preview(db: Session, item: QuoteItem) -> QuoteItemCalculation | None:
+    """Kalkulation einer Angebotsposition zum Lesen (seit 1.8.84, Regel 23): die gespeicherte, sonst eine Vorschau aus dem
+    Katalog, die nicht in die Sitzung geht (ohne IDs der Materialzeilen). Bis 1.8.83 legte GET .../calculation sie beim ersten
+    Lesen an -- jede Katalogposition, die über add_service_to_quote() kam, hat sie ohnehin; fehlen kann sie nur an älteren."""
+    if item.project_calculation is not None:
+        return item.project_calculation
+    found = _catalog_calculation(db, item)
+    return _calculation_snapshot(item, found[1]) if found else None
+
+
+def ensure_quote_item_calculation(db: Session, item: QuoteItem) -> QuoteItemCalculation | None:
+    """Legt die Projektkalkulation an, wenn sie fehlt -- seit 1.8.84 nur im Schreibweg (PUT .../calculation)."""
+    if item.project_calculation is not None:
+        return item.project_calculation
+    found = _catalog_calculation(db, item)
+    if found is None:
+        return None
+    calc = create_project_calculation_snapshot(db, item, found[0], found[1])
     db.commit()
     return calc
 
@@ -488,7 +549,7 @@ def quote_to_dict(quote: Quote) -> dict:
     db = object_session(quote)
     meta = None; sections = []; layouts = {}
     if db is not None:
-        meta, sections, layouts = ensure_quote_structure(db, quote)
+        meta, sections, layouts = quote_structure(db, quote)  # seit 1.8.84 nur lesen
     items = []
     net = Decimal("0"); optional = Decimal("0")
     def item_key(item):

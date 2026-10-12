@@ -17,7 +17,7 @@ from ..email_dispatch import DispatchConflict
 from ..models import AppUser, Employee, EmployeeRoleSettings, Order, Project, Quote, QuoteEmployeeAssignment, QuoteItem, QuoteItemCalculation, QuoteItemLayout
 from ..orders import create_order_from_quote, load_order, order_to_dict
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
-from ..projects import add_service_to_quote, auto_number_quote, build_quote_item_calculation, create_free_quote_item, create_quote_section, delete_quote_section, duplicate_quote_item, ensure_quote_item_calculation, load_quote, quote_to_dict, reorder_quote, send_quote_email, set_item_layout, update_quote_section, update_quote_tax_key
+from ..projects import add_service_to_quote, auto_number_quote, build_quote_item_calculation, create_free_quote_item, create_quote_section, delete_quote_section, duplicate_quote_item, ensure_quote_item_calculation, load_quote, quote_item_calculation_preview, quote_to_dict, reorder_quote, send_quote_email, set_item_layout, update_quote_section, update_quote_tax_key
 from ..quote_framed_pdf import build_quote_framed_pdf
 from ..schemas import OrderCreateFromQuote, OrderOut, QuoteDocumentMetaUpdate, QuoteEmailSend, QuoteFreeItemCreate, QuoteItemCalculationOut, QuoteItemCalculationUpdate, QuoteItemCreate, QuoteItemLayoutUpdate, QuoteItemUpdate, QuoteOut, QuoteReorderRequest, QuoteSectionCreate, QuoteSectionUpdate, QuoteUpdate, TaxKeySelection
 
@@ -324,15 +324,12 @@ def get_quote_item_calculation(quote_id: int, item_id: int, db: Session = Depend
     )
     if item is None:
         raise HTTPException(status_code=404, detail="Angebotsposition nicht gefunden.")
-    calc = ensure_quote_item_calculation(db, item)
+    # Seit 1.8.84 nur lesen (Regel 23): fehlt die Projektkalkulation, eine Vorschau aus dem Katalog -- angelegt wird sie erst
+    # beim Speichern (PUT unten).
+    calc = quote_item_calculation_preview(db, item)
     if calc is None:
         raise HTTPException(status_code=422, detail="Für diese Position ist keine Katalogkalkulation vorhanden.")
-    item = db.scalar(
-        select(QuoteItem)
-        .options(selectinload(QuoteItem.project_calculation).selectinload(QuoteItemCalculation.materials))
-        .where(QuoteItem.id == item_id)
-    )
-    return QuoteItemCalculationOut.model_validate(build_quote_item_calculation(item))
+    return QuoteItemCalculationOut.model_validate(build_quote_item_calculation(item, calc))
 
 
 @router.put(
@@ -350,6 +347,7 @@ def update_quote_item_calculation(
     )
     if item is None:
         raise HTTPException(status_code=404, detail="Angebotsposition nicht gefunden.")
+    preview = item.project_calculation is None
     calc = ensure_quote_item_calculation(db, item)
     if calc is None:
         raise HTTPException(status_code=422, detail="Für diese Position ist keine Katalogkalkulation vorhanden.")
@@ -367,8 +365,11 @@ def update_quote_item_calculation(
     calc.notes = payload.notes
 
     rows = {row.id: row for row in calc.materials}
-    for material in payload.materials:
-        row = rows.get(material.id)
+    for index, material in enumerate(payload.materials):
+        # Seit 1.8.84: die Vorschau (GET ohne gespeicherte Kalkulation) hat Materialzeilen ohne ID -- sie stehen in derselben
+        # Reihenfolge wie die eben angelegten.
+        row = rows.get(material.id) if material.id is not None else (
+            calc.materials[index] if preview and index < len(calc.materials) else None)
         if row is None:
             raise HTTPException(status_code=422, detail=f"Material {material.id} gehört nicht zu dieser Angebotsposition.")
         row.quantity = material.quantity

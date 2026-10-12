@@ -17,7 +17,7 @@ from ..models import AppUser, Employee, Order, PlanningSlot, ProjectDocument, Su
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_documents import MAX_UPLOAD_BYTES, document_path, make_stored_filename, project_directory
 from ..schemas import WorkPreparationEmployeeCreate, WorkPreparationEmployeeUpdate, WorkPreparationMaterialBulkAssign, WorkPreparationMaterialUpdateV082, WorkPreparationOut, WorkPreparationTaskCreate, WorkPreparationTaskUpdate, WorkPreparationTeamAssign, WorkPreparationUpdate
-from ..work_preparation import ensure_preparation, list_open_tasks, load_preparation, preparation_to_dict
+from ..work_preparation import ensure_preparation, list_open_tasks, load_preparation, preparation_preview, preparation_to_dict
 
 router = APIRouter()
 
@@ -47,9 +47,19 @@ def get_open_work_preparation_tasks(request: Request, employee_id: int | None = 
 
 @router.get("/api/orders/{order_id}/work-preparation", response_model=WorkPreparationOut)
 def get_work_preparation(order_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Seit 1.8.84 nur lesen (Regel 23): fehlt die Arbeitsvorbereitung, die Vorschau ("id" leer) -- angelegt wird sie mit
+    der ersten Änderung oder über POST."""
     try:
-        prep = ensure_preparation(db, order_id)
-        return preparation_to_dict(db, prep)
+        return preparation_to_dict(db, preparation_preview(db, order_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post("/api/orders/{order_id}/work-preparation", response_model=WorkPreparationOut)
+def create_work_preparation(order_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Arbeitsvorbereitung anlegen (seit 1.8.84, "Arbeitsvorbereitung anlegen" auf der Seite) -- eine vorhandene bleibt."""
+    try:
+        return preparation_to_dict(db, ensure_preparation(db, order_id))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 

@@ -61,56 +61,27 @@ def get_employee_function(db: Session, function_id: int | None) -> EmployeeFunct
     return db.get(EmployeeFunction, function_id)
 
 
-def _function_for_legacy_employee(db: Session, employee: Employee) -> EmployeeFunction:
-    if employee.job_title:
-        existing = db.scalar(select(EmployeeFunction).where(EmployeeFunction.name == employee.job_title.strip()))
-        if existing:
-            return existing
-        fn = EmployeeFunction(
-            name=employee.job_title.strip(),
-            employee_group=employee.employee_group,
-            sort_order=500,
-            active=True,
-            description="Automatisch aus bestehender Mitarbeiterfunktion übernommen.",
-        )
-        db.add(fn)
-        db.flush()
-        return fn
-    fallback = "Gewerblicher Mitarbeiter" if employee.employee_group == "gewerblich" else "Kaufmännischer Mitarbeiter"
-    return db.scalar(select(EmployeeFunction).where(EmployeeFunction.name == fallback))
-
-
-def ensure_employee_profile(db: Session, employee: Employee) -> EmployeeProfile:
-    profile = employee.profile
-    if profile is None:
-        function = _function_for_legacy_employee(db, employee)
-        profile = EmployeeProfile(employee_id=employee.id, function_id=function.id if function else None)
-        db.add(profile)
-        db.flush()
-        employee.profile = profile
-        db.commit()
-        db.refresh(employee)
-    return profile
-
-
-def ensure_employee_profiles(db: Session) -> list[Employee]:
-    employees = db.scalars(
+def load_employees(db: Session) -> list[Employee]:
+    """Alle Mitarbeiter mit Profil und Funktion -- nur lesen (seit 1.8.84, Regel 23). Bis 1.8.83 legte
+    ensure_employee_profiles() hier fehlende Profile (und eine Funktion aus der alten Berufsbezeichnung) an und committete:
+    GET /api/employees, /caseworkers und /{id} schrieben, zwei gleichzeitige Aufrufe der Auftragsseite kollidierten an
+    employee_profiles.employee_id (UNIQUE, 500 -- Nebenbefund 4 aus 1.8.83). Ein Mitarbeiter ohne Profil zeigt seither die
+    Funktion seiner Berufsbezeichnung, wenn es sie gibt (legacy_function()); das Profil entsteht beim Speichern."""
+    return db.scalars(
         select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function))
         .order_by(Employee.active.desc(), Employee.last_name, Employee.first_name)
     ).all()
-    changed = False
-    for employee in employees:
-        if employee.profile is None:
-            function = _function_for_legacy_employee(db, employee)
-            db.add(EmployeeProfile(employee_id=employee.id, function_id=function.id if function else None))
-            changed = True
-    if changed:
-        db.commit()
-        employees = db.scalars(
-            select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function))
-            .order_by(Employee.active.desc(), Employee.last_name, Employee.first_name)
-        ).all()
-    return employees
+
+
+def legacy_function(db: Session, employee: Employee) -> EmployeeFunction | None:
+    """Funktion eines Mitarbeiters ohne Profil -- nur lesen (seit 1.8.84): die gleichnamige Funktion seiner
+    Berufsbezeichnung, ohne Berufsbezeichnung die Standardfunktion seiner Gruppe; gibt es sie nicht, keine. Bis 1.8.83 legte
+    _function_for_legacy_employee() beim Lesen eine Funktion aus der Berufsbezeichnung an; heute wählt das Büro die Funktion
+    beim Speichern (apply_employee_payload() legt dabei das Profil an)."""
+    if employee.job_title:
+        return db.scalar(select(EmployeeFunction).where(EmployeeFunction.name == employee.job_title.strip()))
+    fallback = "Gewerblicher Mitarbeiter" if employee.employee_group == "gewerblich" else "Kaufmännischer Mitarbeiter"
+    return db.scalar(select(EmployeeFunction).where(EmployeeFunction.name == fallback))
 
 
 def get_or_create_role_settings(db: Session, employee: Employee) -> EmployeeRoleSettings:
@@ -232,6 +203,8 @@ def annual_gross_wage(employee: Employee, weeks_per_year: Decimal | int | float 
 def employee_to_dict(employee: Employee, db: Session | None = None) -> dict:
     p = employee.profile
     f = p.function if p else None
+    if p is None and db is not None:
+        f = legacy_function(db, employee)  # seit 1.8.84: ohne Profil gelesen, nicht angelegt
     role = None
     weeks_per_year = Decimal("52")
     if db is not None and employee.id:

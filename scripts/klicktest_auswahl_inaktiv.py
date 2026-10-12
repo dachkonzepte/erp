@@ -68,7 +68,7 @@ def befuellen(db, k):
             "cookies": {"anna": k.cookies(admin)}}
 
 
-# Projektleiter-Liste und Arbeitsvorbereitung nennen die Funktion mit (Vorgabe aus ensure_employee_profiles()).
+# Projektleiter-Liste und Arbeitsvorbereitung nennen die Funktion mit (seit 1.8.84 gelesen über legacy_function(), nicht angelegt).
 MIT_FUNKTION = "Erika Ehemalig · Kaufmännischer Mitarbeiter (inaktiv)"
 
 

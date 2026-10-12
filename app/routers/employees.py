@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
-from ..employees import apply_employee_payload, employee_to_dict, ensure_employee_profiles, set_cost_allocation, set_planning_visibility
+from ..employees import apply_employee_payload, employee_to_dict, load_employees, set_cost_allocation, set_planning_visibility
 from ..models import AppUser, Employee, EmployeeProfile, EmployeeRoleSettings
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, require_min_role
 from ..schemas import EmployeeCreate, EmployeeNameOut, EmployeeOut, EmployeeRosterOut, EmployeeUpdate
@@ -57,13 +57,13 @@ def _employee_out_for_role(role: AppUser, data: dict):
 
 @router.get("/api/employees", response_model=list[EmployeeOut] | list[EmployeeRosterOut] | list[EmployeeNameOut])
 def list_employees(db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
-    employees = [employee_to_dict(e, db) for e in ensure_employee_profiles(db)]
+    employees = [employee_to_dict(e, db) for e in load_employees(db)]  # seit 1.8.84 nur lesen (Regel 23)
     return [_employee_out_for_role(_role, e) for e in employees]
 
 
 @router.get("/api/employees/caseworkers", response_model=list[EmployeeOut] | list[EmployeeRosterOut])
 def list_caseworkers(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    employees = ensure_employee_profiles(db)
+    employees = load_employees(db)  # seit 1.8.84 nur lesen (Regel 23)
     result = []
     for employee in employees:
         role = db.scalar(select(EmployeeRoleSettings).where(EmployeeRoleSettings.employee_id == employee.id))
@@ -74,7 +74,6 @@ def list_caseworkers(db: Session = Depends(get_db), _role: AppUser = _role_dep):
 
 @router.get("/api/employees/{employee_id}", response_model=EmployeeOut | EmployeeRosterOut)
 def get_employee(employee_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    ensure_employee_profiles(db)
     employee = db.scalar(
         select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function))
         .where(Employee.id == employee_id)
