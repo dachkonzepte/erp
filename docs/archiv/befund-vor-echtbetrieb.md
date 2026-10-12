@@ -72,7 +72,7 @@ Nebenbefunde nur melden. Commit nach Regel 13, nur Tests und Archiv.
 
 Entscheidungen dazu (10.10.2026, festgehalten, nicht gebaut): siehe "Entscheidungen Rechnungen" unten. **1c, 1e, 1f, 1g, 1h seit
 1.8.72 behoben** (Sperren, siehe "Umsetzung 1.8.72"); 1a, 1b, 1d offen bis R4 -- bis dahin ist die Schlussrechnung neben einem
-nicht stornierten pauschalen Abschlag gesperrt.
+nicht stornierten pauschalen Abschlag gesperrt. Befund zu R4 (Schlussrechnung als Endrechnung, 12.10.2026): "Befund R4" unten.
 
 **Wie heute abgezogen wird** (`app/invoices.py`, grün festgehalten):
 
@@ -1500,6 +1500,295 @@ Zahlungstabelle, kein offener Betrag je Rechnung.
 8. **Probebelege entfernen** (Entscheidung unten): einen Weg dafür gibt es nicht -- bewusst, Ablage und Versandprotokoll sind
    unveränderlich, Rechnungen nur als Entwurf löschbar. Es bräuchte ein einmaliges Skript (Rechnungen, Mahnungen, Ablage-Dateien unter
    `ERP_DATA_DIR`, Versandprotokoll, Nummernkreise zusammen), gegen `spielwiese` geprobt.
+
+## Befund R4: Schlussrechnung als Endrechnung (12.10.2026)
+
+Nur gelesen: App-Code und Tests unverändert, keine Lösungsvorschläge. Zeilen nach dem Stand 1.8.81 (`b7cd16e`). "Nachgerechnet" =
+in einer Wegwerf-SQLite im Speicher mit den Testhelfern (`tests/test_v133_invoices.py::make_order_with_item()`,
+`tests/leistungszeitraum.py::festschreiben()`), Skript nur im Scratchpad, nicht im Repo; "laut Code" = abgeleitet. Beispiel wie in
+Punkt 1: Auftrag 100 m² × 50 € = 5.000 € netto, 19 % = 5.950 € brutto. Grundlage: Punkt 1 oben, xfail 1a, 1b, 1d
+(`tests/test_v372_befund_schlussrechnung.py`), "Entscheidungen Rechnungen" unten.
+
+### Vorgabe vom 12.10.2026 (übernommen wie gegeben)
+
+1.8.81 geprüft. Festlegungen 1–18 bestätigt.
+
+R4 Schlussrechnung, zuerst Befund: nur lesen, keine Lösungsvorschläge, mit Fundstellen. Grundlage: „Entscheidungen Rechnungen“ im
+Archiv, befund-vor-echtbetrieb.md Punkt 1, xfail 1a, 1b, 1d.
+a) Wie entsteht die Schlussrechnung heute Schritt für Schritt (Mengen, Abzüge, Nachträge, Steuer), und wo müsste die Endrechnung
+   ansetzen?
+b) Abschläge nach Leistungsstand: Wie hängt die abgerechnete Menge je Position an der Schlussrechnung, und was davon bleibt in einer
+   Endrechnung nötig?
+c) Rechnung aus Aufwand am Auftrag mit Preisen und am Schnellauftrag: Wie ist sie heute aufgebaut, und was bedeutet „vollständig
+   abgerechnet“ beim Schnellauftrag?
+d) Negativer Rest (Überzahlung): Wo verhindern Schema, Rundung, PDF und Zahlungen heute eine Schlussrechnung mit negativem
+   Rechnungsbetrag?
+e) 1d: Warum lautet das Storno eines alten pauschalen Abschlags auf 0 €?
+f) Mahnwesen und Zahlungen: Was müsste sich ändern, damit nach der Schlussrechnung nur noch ihr Zahlbetrag gemahnt wird und die
+   Abschläge nicht mehr einzeln?
+g) PDF der Schlussrechnung: Aufbau heute, und wo stünden Abzugsblock und Zahlungshinweis.
+
+Befund ins Archiv. Nebenbefunde nur melden. Commit nach Regel 13, nur Archiv.
+
+### Vorweg
+
+- Festlegungen 1.8.81 Nr. 1–18 in `zahlungen.md` an der Überschrift als bestätigt markiert.
+
+### a) Wie die Schlussrechnung heute entsteht
+
+1. **Anlegen**: Auftragsseite "Neue Rechnung" → `POST /api/orders/{id}/invoices/schlussrechnung` (`routers/invoices.py:102`) →
+   `create_schlussrechnung()` (`invoices.py:521`). Unter der Sperre der Auftragszeile (`_check_create()`, `:203`): keine zweite
+   nicht stornierte Schlussrechnung, auch kein Entwurf (`create_block_reason()`, `:141`); bis R4 kein nicht stornierter pauschaler
+   Abschlag (`_lump_sum_reason()`, `:117`). Die Auftragsseite zeigt den Grund statt des Knopfs (`orders.py:474`, `order.html:308`).
+2. **Kopf**: Schnappschuss aus dem Auftrag (`_snapshot_order_fields()`, `:234`: Kunde, Objekt, `vat_rate`, Steuerschlüssel samt
+   Hinweistext), Zahlungsbedingung mit Skonto (`:280`), Einleitung und Schlusstext; Rechnungsdatum = Tag des Entwurfs (`:313`).
+   Keine Bezeichnung (`progress_description`), kein Bezug auf die Abschläge.
+3. **Mengen**: `_copy_order_items_with_default_ist(full_completion=True)` (`:420`) kopiert jede Auftragsposition mit "in Summe"
+   (Bedarfs- und Alternativpositionen fallen weg, `:429`): Ist = **heutige** Menge der Auftragsposition (`:432`), EP = **heutiger** EP
+   (`:442`), Soll nur informativ.
+4. **Abzüge -- nur über die Menge, je Position**: abgerechnet = Ist − Ist der letzten gültigen Rechnung derselben Auftragsposition
+   (`compute_billed_quantity_and_total()`, `:360`; `get_previous_cumulative_ist()`, `:329`: nur die Arten `abschlag_leistungsstand`
+   und `schluss`, `:349`, Status `versendet`, `:348`, nach Rechnungsdatum, dann ID, `:352`). Gerechnet und gespeichert
+   (`billed_quantity`/`billed_total`) beim Anlegen des Entwurfs und bei jeder Positionsänderung (`update_invoice_item()`, `:723`),
+   **nicht beim Festschreiben** (1b). Pauschale Abschläge (Position ohne Bezug, `:474`) und Rechnungen aus Aufwand (`:610`, `:647`)
+   kommen in der Suche nicht vor (1a, c). Abgezogen wird Gestelltes, Zahlungen spielen keine Rolle. Abzugszeilen gibt es nicht -- der
+   Abzug steckt in der kleineren Menge.
+5. **Nachträge**: einen Nachtrag am Auftrag gibt es nicht. Am Rechnungsentwurf lässt sich eine Position ohne Bezug hinzufügen
+   (`add_invoice_item()`, `:657`, "für Nachträge/neue Positionen") -- mit voller Ist-Menge berechnet (`:368`), auf keine spätere
+   Rechnung übernommen, von keiner abgezogen. Nachgerechnet: Nachtrag 10 m × 100 € auf einem Abschlag (40 %) -- die Schlussrechnung
+   kennt ihn nicht (nur Position 1 mit 60 m²), der Auftrag zeigt danach 6.000 € abgerechnet bei 5.000 € Auftragssumme. Ändern lässt
+   sich dagegen jederzeit die Auftragsposition selbst (Nebenbefund 1).
+6. **Steuer**: ein Satz je Rechnung (`Invoice.vat_rate`), beim Anlegen vom Auftrag (`:245`), im Entwurf über den Steuerschlüssel
+   änderbar (`update_invoice_tax_key()`, `:964`). Die USt wird einmal auf die Nettosumme der Rechnung gerundet
+   (`compute_invoice_totals()`, `:416`); die Schlussrechnung rechnet sie nur auf ihren Rest, die USt der Abschläge erscheint nicht.
+   Nichts gleicht den Satz der Abschläge mit dem der Schlussrechnung ab -- nachgerechnet: Abschlag mit Steuerschlüssel 0 % (3.000 €
+   netto samt Nachtrag, 0 € USt), Schlussrechnung 19 % auf 60 m² (3.570 € brutto).
+7. **Summen**: `compute_invoice_totals()` (`:394`): Netto = Summe der auf den Cent gerundeten Positionsbeträge, USt, Brutto -- nie
+   gespeichert, bei jedem Lesen neu (Regel 19).
+8. **Festschreiben** (`finalize_and_send_invoice()`, `:759`): unter der Sperre `finalize_block_reason()` (`:181`: zweite
+   Schlussrechnung, pauschaler Abschlag, Leistungszeitraum), Rechnungsdatum und Fälligkeit auf heute (`:782`), Kunde, Name und
+   Anschrift vom Auftrag (`:785`), Nummer (`:791`). Die Beträge werden nicht neu gerechnet.
+9. **Danach**: keine Abschläge mehr (`:132`), kein Storno eines Abschlags (`:164`), "vollständig abgerechnet"
+   (`invoice_summary_for_order()`, `:1191`). Zahlstand, Mahnung und Abrechnungsstand nehmen das Brutto der Schlussrechnung = den Rest
+   (siehe f).
+
+**Wo die Endrechnung ansetzen müsste** -- die Stellen, die heute Betrag und Bedeutung der Schlussrechnung tragen:
+- **Positionen zu 100 %**: `_copy_order_items_with_default_ist()` `:431-437` -- heute "100 % minus letzter Stand" je Position.
+- **Betrag**: `compute_invoice_totals()` (`:394`) ist die einzige Rechenstelle, jeder Leser nimmt `gross_total` als den einen Betrag
+  der Rechnung: Zahlstand und Buchen (`payable_gross()`, `payments.py:77`), Skonto (`skonto_offer()`, `invoices.py:981`), Mahnung
+  (über den Zahlstand, `reminders.py:701`), Abrechnungsstand am Auftrag (`invoices.py:1203`), Finanzen und Projektmappe
+  (`invoice_overview_row()`, `:1250`), Rechnungs-Mail `{gesamtbetrag}` (`:1330`), PDF (`invoice_pdf.py:181`), Rechnungsseite
+  (`invoice_detail.html:96`). **Einen Zahlbetrag neben dem Rechnungsbetrag gibt es nirgends**, auch nicht als Begriff im Code.
+- **Abzugsliste**: die festgeschriebenen, nicht stornierten Abschläge eines Auftrags sind über `VALID_STATUSES` (`:69`) und
+  `PROGRESS_INVOICE_TYPES` (`:66`) bestimmbar, Rechnungen aus Aufwand (Entscheidung 12.10.) über die Art `aufwand`. "Noch offen aus
+  Abschlag" liefert je Abschlag der Zahlstand (`payments.py:166`: offen, Einbehalt offen, mahnfähig) -- live, mit jeder Buchung anders.
+- **Zeitpunkt**: das Festschreiben (`invoices.py:759`) liest vom Stand der anderen Rechnungen nur die Sperrgründe; der Abzug stammt
+  aus dem Entwurf (1b).
+- **Sperre**: `_lump_sum_reason()` (`:117`) ist der Übergang bis R4.
+- **Abrechnungsstand**: `compute_order_billing_progress()` (`:1203`) summiert das Brutto jeder gültigen Rechnung außer Stornos
+  (`:1213`) -- stimmig, solange die Schlussrechnung nur den Rest trägt; mit der Gesamtleistung als Rechnungsbetrag zählten die
+  Abschläge doppelt. Daran messen die Auftragsseite ("Noch offen", `orders.py:471`) und die xfail-Tests 1a/1b (siehe unten).
+- **Storno der Schlussrechnung**: kopiert ihre Positionen mit umgekehrtem Vorzeichen (`invoices.py:893`); danach sind die Abschläge
+  wieder stornierbar, eine neue Schlussrechnung rechnet neu (grün, Punkt 1).
+
+### b) Abschläge nach Leistungsstand: die abgerechnete Menge je Position
+
+- **Verknüpfung**: `InvoiceItem.source_order_item_id` (`models.py:1808`) auf die Auftragsposition; `ist_quantity` = kumulierter
+  Stand, `billed_quantity`/`billed_total` = Differenz zur letzten gültigen Rechnung derselben Position (Abschlag nach Leistungsstand
+  oder Schluss, `invoices.py:329`, `:360`). Ein neuer Abschlag beginnt mit Ist = letzter Stand (`:434`, abgerechnet 0), das Büro
+  trägt den neuen Stand ein (`update_invoice_item()`, `:696`; Rechnungsseite "Ist (gesamt)", `invoice_detail.html:139`). Die
+  Schlussrechnung setzt Ist = Menge des Auftrags und rechnet so den Rest (a 3/4).
+- **"Letzter Stand"** ist der der Rechnung mit dem spätesten Rechnungsdatum (seit 1.8.75 der Tag des Festschreibens), am selben Tag
+  der mit der höheren ID (= später **angelegt**, nicht später festgeschrieben, `:352`) -- nicht der höchste Stand. Unterschiedlich
+  nur bei Entwürfen nebeneinander (1b).
+- **Preis**: abgerechnet wird Menge × EP der Schlussrechnung = heutiger EP der Auftragsposition; die Abschläge tragen den EP ihres
+  Anlegens. Nachgerechnet: Abschlag 40 m² × 50 € (2.000 €), danach Auftragsposition auf 120 m² × 60 € geändert (Nebenbefund 1),
+  Schlussrechnung 80 m² × 60 € = 4.800 € -- zusammen 6.800 € bei 7.200 € Auftragssumme, "noch offen" 400 € trotz gültiger
+  Schlussrechnung.
+- **Wer die Mengen-Differenz liest** (`grep` über `app/`): Anlegen und Bearbeiten der Abschläge nach Leistungsstand (`:434-437`,
+  `:723`), Anlegen der Schlussrechnung (`:431-437`), Nachtrags-Positionen (`:368`), Storno (übernimmt Ist, kehrt `billed_*` um,
+  `:893-900`; die Suche schließt die Art `storno` aus, `:349`), Sperre des Abgleichs mit dem Angebot (`orders.py:842-850`, über
+  `source_order_item_id`), PDF (Menge = `billed_quantity`, `invoice_pdf.py:138`; Positionen mit Ist 0 ausgeblendet,
+  `invoices.py:910`), Rechnungsseite (Soll / Ist (gesamt) / abgerechnet, `invoice_detail.html:23`, `:139`). Sonst niemand.
+- **In einer Endrechnung** (laut Entscheidung alle Positionen zu 100 %, Abzug je Abschlag mit Netto und USt) bestimmt die
+  Mengen-Differenz den Betrag der Schlussrechnung nicht mehr. Weiter auf sie angewiesen sind dann: der Abschlag nach Leistungsstand
+  selbst (er zeigt nur seinen Zuwachs, Entscheidung "nicht kumuliert" -- heute genau `billed_quantity`), der Vorschlag "Ist = letzter
+  Stand" beim nächsten Abschlag, die Sperre des Abgleichs (über die Verknüpfung), die Anzeige Soll/Ist am Abschlag. Pauschale
+  Abschläge und Rechnungen aus Aufwand haben keine Mengen je Auftragsposition, nur Beträge -- ein Abzug über die Menge erreicht sie
+  nicht (1a), über Beträge stehen alle drei Arten gleich da. Von 1b betreffen (a) und (c) den Abzug der Schlussrechnung (aus dem
+  Entwurf); (b), zwei Abschläge nach Leistungsstand als Entwürfe nebeneinander, bleibt auch mit einer Endrechnung ein Fall der
+  Mengen-Differenz.
+
+### c) Rechnung aus Aufwand
+
+- **Aufbau**: Auftragsseite "Rechnung aus Aufwand", nur angeboten, wenn gebuchte Zeiten oder Material da sind (`order.html:329`);
+  `POST …/invoices/aus-zeitbuchungen` (`routers/invoices.py:112`) übergibt **alle** Zeitbuchungen des Auftrags und das Material
+  unterschriebener Einsatzberichte (`service_reports.py:1136`). `create_invoice_from_time_entries()` (`invoices.py:539`): nur
+  `booked`, mit Stunden, ohne Schlechtwetter (`:569`); je Mitarbeiter und Tätigkeit eine Position Stunden × globaler
+  Stundenverrechnungssatz (`:581`, `:598-615`); Katalogmaterial zusammengefasst mit heutigem Einkaufspreis + Aufschlag (`:619-640`),
+  freies Material mit EP 0 (`:641`); alle Positionen ohne `source_order_item_id` (`:610`, `:647`), ohne Soll, abgerechnet = Ist.
+  Erster und letzter Arbeitstag als Quelle des Leistungszeitraums (`:589`, `service_period.py:103`). Steuer, Kunde, Zahlungsbedingung
+  wie jede Rechnung. `TimeEntry.order_item_id` wird nicht ausgewertet.
+- **Regeln**: unter der Sperre der Auftragszeile, aber ohne eigene Regel (`create_block_reason()` liefert für `aufwand` nichts,
+  `:139-149`; die Auftragsseite kennt für sie keinen Sperrgrund, `orders.py:475-477`). Keine Markierung an Buchung oder Material:
+  dieselben Buchungen gehen in eine zweite Rechnung (nachgerechnet: zweimal 246 €; bekannt, CLAUDE.md).
+- **Am Auftrag mit Preisen**: Befund 1.8.73 a gilt unverändert -- weder im Gesamtwert der Schlussrechnung noch abgezogen, kommt
+  obendrauf, "noch offen" wird negativ (`orders.py:471`); nach der Schlussrechnung weiter möglich (nachgerechnet; die Entscheidung
+  vom 12.10. ist nicht gebaut). Stunden zu einer LV-Position werden zusätzlich zu deren EP berechnet.
+- **Schnellauftrag** (`quick_service_orders.py:58`): eine Position "Reparatur/Wartung nach Aufwand", 1 pauschal × 0 €; ebenso die
+  Wartung aus dem Wartungsvertrag (`maintenance_contracts.py:691`) und der Auftrag aus einem Befund (`findings.py:244`).
+  Auftragssumme 0 €; abgerechnet wird über die Rechnung aus Aufwand (Anstoß: Aufgabe "Rechnung erstellen" nach der Unterschrift des
+  Einsatzberichts, `service_reports.py:1336`).
+- **"Vollständig abgerechnet"** heißt überall: es gibt eine festgeschriebene, nicht stornierte Schlussrechnung
+  (`invoice_summary_for_order()`, `invoices.py:1191-1200`) -- angezeigt in der Projektmappe (`project_folder.html:197`) und in den
+  Auftragslisten (`routers/orders.py:105`, `routers/projects.py:299`). Beim Schnellauftrag also nur mit einer Schlussrechnung über
+  0 €. Nachgerechnet: Aufwand 3 h × 82 € = 246 € netto festgeschrieben → 1 Rechnung, **nicht** vollständig abgerechnet, "noch
+  offen" −246 €; Schlussrechnung über 0 € festgeschrieben (eigene Nummer, "lautet über 0 € oder weniger und ist nicht bebuchbar")
+  → vollständig abgerechnet; danach weiter eine Rechnung aus Aufwand möglich. Ohne Schlussrechnung bleibt ein Schnellauftrag
+  dauerhaft "nicht vollständig abgerechnet", mit ihr gibt es eine Rechnung über 0 € mit Nummer.
+- Aus den Entscheidungen vom 12.10. folgt für den Schnellauftrag rechnerisch (festgestellt, nicht bewertet): der Aufwand zählt zum
+  Gesamtwert und wird abgezogen, nach der Schlussrechnung keine Rechnung aus Aufwand -- die Schlussrechnung eines Schnellauftrags
+  trüge den Aufwand als Gesamtwert und einen Zahlbetrag von 0 €; "vollständig abgerechnet" bliebe an sie gebunden. Welche Stunden
+  abrechenbar sind, regelt Stufe 2d.
+
+### d) Negativer Rest
+
+Ein negativer Betrag entsteht heute nicht über die Eingaben, sondern über die Mengen-Differenz: Ist der Schlussrechnung (oder eines
+Abschlags) unter dem schon abgerechneten Stand, z. B. Aufmaß kleiner als abgeschlagen (`invoices.py:374`). Nachgerechnet: Abschlag
+100 m² (5.950 €), Schlussrechnung Ist 80 → −20 m², −1.000 € netto, −1.190 € brutto, festgeschrieben mit Nummer. Eine Überzahlung im
+Sinne der Endrechnung (Abschläge über der Gesamtleistung) gibt es heute nicht als eigenen Betrag -- die Schlussrechnung *ist* der
+Rest.
+- **Schema**: Eingaben nicht negativ -- Ist und EP einer Rechnungsposition `ge=0` (`schemas.py:2423-2424`, `:2434-2435`),
+  Pauschalbetrag `gt=0` (`:2396`, `:2410`), Menge und EP der Auftragsposition `ge=0` (`:1267`, `:1269`). Keine Prüfung des
+  Rechnungsbetrags beim Festschreiben (`finalize_block_reason()`, `invoices.py:181`), keine CHECK-Bedingung in der Datenbank
+  (`models.py:1806-1819`). Eine negative Schlussrechnung verhindert also nichts.
+- **Rundung**: `round_money()` rundet symmetrisch (Hälfte vom Nullpunkt weg, `rounding.py`), USt und Skonto ebenso
+  (`invoices.py:416`, `:989`) -- verhindert nichts; das Skonto wird negativ.
+- **PDF**: kein Sonderfall, das PDF entsteht fehlerfrei: "Schlussrechnung", "Rechnungsbetrag brutto -1.190,00 EUR"
+  (`invoice_pdf.py:181`), darunter der Zahlungssatz "Zahlbar rein netto bis zum … Bei Zahlung bis zum … gewähren wir 2 % Skonto, das
+  entspricht -23,80 €." (`invoices.py:1026-1031`, nachgerechnet). Die Rechnungs-Mail nennt `{gesamtbetrag}` negativ (`:1330`).
+- **Zahlungen**: hier wird abgelehnt -- `not_payable_reason()`: "lautet über 0 € oder weniger und ist nicht bebuchbar"
+  (`payments.py:94`), kein Zahlstand (`:186`): nie offen, nie überfällig, keine Mahnung (`reminders.py:286`, derselbe Text,
+  nachgerechnet), nicht im "Offenen Betrag" (`finanzen.html:56`). Eine Erstattung lässt sich nicht buchen: Zahlungen nur über 0 €
+  (`payments.py:526`, `_cents()` `:383-391`), Zuordnungen nicht negativ; die Gegenbuchung (`reverse_payment()`) nimmt eine Buchung
+  zurück, sie zahlt nichts aus. Ein Guthaben des Kunden erscheint nirgends: die bezahlten Abschläge bleiben "bezahlt", "nicht
+  zugeordnet" zählt nur Eingänge (`unallocated_by_customer()`, `payments.py:755`).
+- **Abrechnungsstand**: zählt die negative Schlussrechnung mit (nachgerechnet 4.000 € abgerechnet, "vollständig abgerechnet"). Ihr
+  Storno lautet positiv (+1.190 €) und ist als Stornorechnung nie offen (`payments.py:86`).
+- In einer Endrechnung wäre der Rechnungsbetrag (Gesamtleistung) positiv und nur der Zahlbetrag negativ; heute gibt es nur den einen
+  Betrag, an dem `payable_gross()` hängt (a).
+
+### e) 1d: das Storno eines alten pauschalen Abschlags lautet über 0 €
+
+- Bis 1.3.24 hatte der pauschale Abschlag keine Position, der Betrag stand nur in `lump_sum_net` (`models.py:1735-1739`). Seit 1.3.24
+  spiegelt ihn eine Projektionsposition (`_sync_lump_sum_pauschal_item()`, `invoices.py:451`); festgeschriebene Altfälle bekamen sie
+  nie -- sie entsteht nur beim Anlegen und beim Bearbeiten eines Entwurfs (`:499`, `:935-936`).
+- `create_storno_draft()` (`:857`) legt eine Rechnung der Art `storno` an, übernimmt `lump_sum_net` negiert (`:884`) und kopiert die
+  Positionen mit umgekehrtem Vorzeichen (`:893-900`) -- beim Altfall keine. Die Rundungsregel wird übernommen (`:892`), beim Altfall
+  leer.
+- `compute_invoice_totals()` liest `lump_sum_net` nur für die Art `abschlag_pauschal` (`:406`, `:412`), für jede andere Art die Summe
+  der Positionen (`:409`, `:415`). Das Storno hat die Art `storno` -- also 0. Nachgerechnet: Storno-Entwurf mit `lump_sum_net`
+  −2.000, 0 Positionen, Regel leer → netto 0, USt 0, brutto 0. Zum Vergleich ein pauschaler Abschlag mit Projektionsposition: Storno
+  −2.000 / −380 / −2.380 €.
+- Das Festschreiben setzt das Original trotzdem auf `storniert` (`:793-796`) -- es fällt aus Abrechnungsstand, Zahlungen und
+  Mahnwesen heraus, eine Gutschrift über 2.380 € steht nirgends. Das PDF des Stornos zeigt "Stornierung zu Rechnung …", eine leere
+  Positionstabelle und 0,00 EUR (`invoice_pdf.py:117-119`, `:125-182`).
+- Betroffen: pauschale Abschläge ohne Position (vor 1.3.24), laut `projektliste-und-mappe.md` R-2026-0001/-0002 im alten lokalen
+  Bestand. Auf dem Server Probebelege, die zum Echtbetrieb entfernt werden (Entscheidung 12.10.); dort nichts geprüft (Regel 16),
+  Prüfabfrage 1d in Punkt 1.
+
+### f) Mahnwesen und Zahlungen nach der Schlussrechnung
+
+Heute ist jede Rechnung für sich offen und wird für sich gemahnt; die Schlussrechnung ist eine weitere, über den Rest. Nachgerechnet:
+Abschlag 40 % festgeschrieben und überfällig, danach Schlussrechnung festgeschrieben und überfällig -- "zur Mahnung fällig" listet
+beide (2.380 € und 3.570 €), zum Abschlag entsteht weiter ein Mahnungsentwurf.
+
+Die Stellen, die das Mahnen an eine einzelne Rechnung binden:
+1. **Liste "zur Mahnung fällig"** (`list_invoices_needing_attention()`, `reminders.py:1082`): jede festgeschriebene, überfällige
+   Rechnung außer Stornos (`:1088-1091`) mit mahnfähigem Betrag -- ohne Blick auf eine Schlussrechnung am Auftrag. Darauf bauen
+   Dashboard ("Mahnung" je überfälliger Rechnung) und Finanzen ("überfällig").
+2. **Anlegen und Festschreiben** (`create_block_reason()`, `:291`; `finalize_and_send_reminder()`, `:730`): die Gründe kennen Storno,
+   bezahlt, Einbehalt, Fälligkeit und Stufe, nicht die Art der Rechnung oder eine Schlussrechnung. Eine festgeschriebene Mahnung zum
+   Abschlag geht nach der Schlussrechnung weiter hinaus, solange ihr Betrag stimmt (`dispatch_block_reason()`, `:592`;
+   nachgerechnet: M-2026-0001 zum Abschlag, danach Schlussrechnung festgeschrieben -- kein Sperrgrund).
+3. **Die Mahnung hängt an genau einer Rechnung** (`Reminder.invoice_id`, `models.py:1892`): Betrag = mahnfähiger Betrag dieser
+   Rechnung (`reminders.py:701`), Aufstellung aus ihrem Zahlstand (`amounts_snapshot()`, `:406`), PDF "zu Rechnung …" mit deren
+   Beträgen (`reminder_pdf.py:57-65`, `:117`).
+4. **Stufen je Rechnung**: erreichte und nächste Stufe, Frist aus den Mahnungen und der Fälligkeit dieser Rechnung (`_step()`,
+   `:259`). Die Schlussrechnung beginnt bei Stufe 0, auch wenn ein Abschlag schon in der 2. Mahnung steht.
+5. **Verzug und Nebenforderungen je Rechnung**: Verzugsbeginn (`InvoiceDefaultStart.invoice_id`, `models.py:2038`), Nebenforderung
+   (`InvoiceCharge.invoice_id`, `:2011`), Pauschale einmal je Rechnung (`dunning_charges.py:489-512`), Verzugszinsen auf den
+   mahnfähigen Betrag der Rechnung (`interest_proposal()`, `default_interest.py:238`). Was an einem Abschlag entstanden ist, bleibt
+   dort; das Storno eines Abschlags ist nach der Schlussrechnung gesperrt (`invoices.py:164`).
+6. **Zahlstand je Rechnung** (`payments.py:166`): offen = Brutto dieser Rechnung − Zahlungen − Skonto; Einbehalt je Rechnung. Ein
+   Einbehalt am Abschlag steht nach der Schlussrechnung weiter dort ("Einbehalt offen"); einen Zahlungshinweis der Schlussrechnung,
+   der ihn nennt, gibt es nicht (g).
+7. **Zahlungen**: der Vorschlag geht schon heute zuerst auf die älteren offenen Rechnungen desselben Auftrags, dann auf die gewählte
+   (`proposal()`, `payments.py:285-287`) -- nachgerechnet: 5.950 € auf die Schlussrechnung → 2.380 € Abschlag, 3.570 €
+   Schlussrechnung, Rest 0. Das entspricht der Entscheidung "zuerst offene Abschläge, ältester zuerst", nimmt aber auch Rechnungen aus
+   Aufwand des Auftrags mit und nur solche mit älterem Rechnungsdatum. Mit der Gesamtleistung als Rechnungsbetrag wäre das "offen" der
+   Schlussrechnung die Gesamtleistung, nicht der Zahlbetrag (`payable_gross()`, a).
+8. Ob ein Abschlag nach der Schlussrechnung noch selbständig gemahnt oder verzinst werden darf, ist eine Rechtsfrage und hier nicht
+   bewertet.
+
+### g) PDF der Schlussrechnung
+
+Aufbau heute (`build_invoice_pdf()`, `invoice_pdf.py:61`), für alle Arten gleich:
+1. DIN-5008-Kopf mit Rechnungsnr., Datum, Kunden-Nr., Vorgangs-Nr., Seite (`:92-98`), Objektadresse (`:100`).
+2. Überschrift "Schlussrechnung" (`:16-22`, `:106`), Leistungszeitraum (`:109`), Einleitung (`:120`) -- eine Bezeichnung wie beim
+   Abschlag hat die Schlussrechnung nicht.
+3. Positionstabelle Pos. / Menge Einh. / Leistung / EP / GP (`:125-180`): Menge = **abgerechnete** Menge (`:138`), GP = abgerechneter
+   Betrag (`:142`); Positionen mit Ist 0 ausgeblendet -- eine von Abschlägen ganz abgedeckte Position erscheint mit Menge 0 und 0,00.
+4. Summenblock "Nettosumme (diese Rechnung)" / "zzgl. MwSt. x %" / "Rechnungsbetrag brutto" (`:181-182`, `_totals_table()`, `:25`).
+5. Schlussblock (`build_payment_tax_closing_block()`, `document_pdf.py:267`): "Zahlungsbedingungen" mit dem Zahlungssatz
+   (`format_payment_terms_sentence()`, `invoices.py:992`: Fälligkeit, Skonto auf das Brutto dieser Rechnung, `:981`), Hinweis zur
+   Umsatzsteuer, Schlusstexte.
+
+- **Abzugsblock**: stünde zwischen Positionstabelle bzw. Summenblock (`invoice_pdf.py:180-182`) und Schlussblock (`:187`) -- der
+  Summenblock ist die einzige Stelle, an der Beträge zusammengezählt werden; heute steht dort nur der Rest.
+- **Zahlungshinweis**: der Zahlungssatz im Schlussblock (`:188`) kennt nur Fälligkeit und Skonto; Einbehalt, "noch offen aus
+  Abschlag" und Zahlbetrag kommen nirgends vor. Rechnungsseite (Netto/USt/Brutto, `invoice_detail.html:96`) und Rechnungs-Mail
+  (`{gesamtbetrag}`) kennen ebenfalls nur den einen Betrag.
+- **Zeitpunkt**: bis zum ersten Versand entsteht das PDF einer festgeschriebenen Rechnung bei jedem Abruf neu
+  (`frozen_or_fresh_pdf()`, `sent_documents.py:172`; Download `routers/invoices.py:278`), erst ab dem Versand liegt es in der Ablage
+  (Regel 21). Beträge werden nie gespeichert (Regel 19); einen eingefrorenen Stand von Zahlungen gibt es heute nur an der Mahnung
+  (`Reminder.amounts_json`). Ein Abzugsblock mit "noch offen aus Abschlag" aus dem Zahlstand ergäbe zwischen Festschreiben und
+  Versand je nach Buchungsstand ein anderes PDF.
+- **Steuer**: ein Satz je Rechnung ("zzgl. MwSt. x %", `invoice_pdf.py:181`); ein Abschlag mit anderem Satz (a 6) brächte im
+  Abzugsblock einen zweiten -- die Entscheidung "keine mehreren Steuersätze je Rechnung" betrifft das (festgestellt, nicht bewertet).
+  Die USt jeder Rechnung ist einmal gerundet (`invoices.py:416`); die Summe der gerundeten USt der Abschläge kann vom auf die
+  Gesamtleistung gerundeten Betrag um Cent abweichen (drei Abschläge zu 100,03 € netto: 3 × 19,01 = 57,03 €; 300,09 € × 19 % =
+  57,0171 → 57,02 €; gerechnet, nicht im Test). Ob die Endrechnung so § 14 Abs. 5 UStG genügt, ist eine Rechtsfrage.
+
+### Zu den xfail-Tests 1a, 1b, 1d
+
+- **1a und 1b** messen über `compute_order_billing_progress()`: "die gültigen Rechnungen eines Auftrags zusammen = Auftragssumme"
+  (`test_v372_befund_schlussrechnung.py:9-12`, `_abgerechnet()` `:59-61`). Das trägt, solange die Schlussrechnung nur den Rest als
+  Rechnungsbetrag hat; trägt sie die Gesamtleistung, zählt dieselbe Funktion die Abschläge doppelt (a). Eigenschaft der Tests und
+  Bedeutung von "abgerechnet" hängen an derselben Frage.
+- **1a** (`:120-141`) verlangt dazu eine gültige Schlussrechnung neben dem pauschalen Abschlag -- bis R4 gesperrt.
+- **1d** (`:236-252`) prüft netto −2.000 und brutto −2.380 am Storno -- unabhängig von der Endrechnung.
+
+### Klicktests (Regel 26)
+
+`scripts/klicktest_alle.py` auf dem Stand 1.8.81 (`b7cd16e`, Arbeitskopie; App-Code in dieser Runde unverändert): 50 von 50 wie
+erwartet, Laufzeit gesamt 10:43 min. Keine rote Prüfung.
+
+### Nebenbefunde (nur gemeldet)
+
+1. **Auftragspositionen jederzeit änderbar**: Menge, Einheit, EP, Texte und "in Summe" lassen sich auf der Auftragsseite direkt in
+   der Zeile ändern (`order.html:101`, `quickItem()` `:314`; `PUT /api/orders/{id}/items/{item_id}`, `routers/orders.py:180`;
+   `update_order_item()`, `orders.py:925`) -- ohne Sperre der Auftragszeile, ohne Prüfung auf Rechnungen, Abnahme oder Vertrag, ohne
+   Revision. CLAUDE.md nennt den Auftrag einen "unveränderlichen LV-Snapshot". Nachgerechnet (b): nach einem Abschlag Menge und EP
+   geändert → Schlussrechnung mit neuem EP, 400 € "noch offen" trotz gültiger Schlussrechnung; danach noch einmal geändert → 2.200 €
+   "noch offen". Ebenso der Steuersatz des Auftrags (`update_order_tax_key()`, `orders.py:599`).
+2. **Negative Abschläge**: ein Abschlag nach Leistungsstand mit Ist unter dem letzten Stand rechnet negativ (`invoices.py:374`) und
+   lässt sich festschreiben -- nie offen, wie die negative Schlussrechnung. Nachgerechnet: Abschlag 40 m², danach Abschlag mit Ist
+   30 → −10 m², −595 € brutto, mit Nummer.
+3. **"Vertragspauschale" ohne Grundlage**: der Docstring von `create_maintenance_visit()` (`maintenance_contracts.py:663`) sagt,
+   Wartung werde "über die Vertragspauschale oder nach Aufwand" abgerechnet; der Wartungsvertrag hat kein Preisfeld
+   (`MaintenanceContract`, `MaintenanceContractItem`), und die Wartung ist ein Schnellauftrag über 0 €. Eine Pauschale ginge dort nur
+   als pauschaler Abschlag -- der sperrt bis R4 die Schlussrechnung.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 

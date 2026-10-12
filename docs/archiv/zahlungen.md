@@ -861,7 +861,7 @@ Zinsen, Aufstellung Format 3, Basiszinssatz oder Rechtstext.
 **Rollen**: Basiszinssatz und Rechtstexte schreiben nur Admin, lesen ab buero_auftrag; Zinsen übernehmen, Zahlungen auf Nebenforderungen ab
 buero_auftrag; der Monteur nirgends (403). Historie: Basiszinssatz und Rechtstext je Änderung (`app/audit.py`).
 
-### Festlegungen 1.8.81 – Bitte bestätigen
+### Festlegungen 1.8.81 (alle bestätigt am 12.10.2026, Nr. 1–18; Vorgabe R4-Befund, siehe `befund-vor-echtbetrieb.md`)
 
 1. **Basiszinssatz je Halbjahr**: "gültig ab" nur 1. Januar oder 1. Juli, eine Zeile gilt genau ihr Halbjahr -- auch ein unveränderter Satz
    muss für jedes Halbjahr eingetragen werden, sonst "fehlt ein Zeitraum".
