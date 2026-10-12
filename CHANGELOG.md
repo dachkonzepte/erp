@@ -4,6 +4,25 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.77 – Jede Nummer eindeutig in der Datenbank, Klicktests vor jedem Bericht, Befund Zahlungsstufe
+
+Jede vergebene Nummer ist jetzt in allen sieben Nummernkreisen auch in der Datenbank eindeutig. Kunde, Anfrage, Projekt, Angebot und
+Auftrag waren es seit der Baseline schon; die Migration `f3a8c2d6b190` ergänzt Rechnung (auch Storno) und Mahnung. Entwürfe ohne
+Nummer bleiben beliebig viele erlaubt. Bevor sie etwas ändert, sucht die Migration in allen sieben Kreisen nach mehrfach vergebenen
+Nummern und prüft, dass die fünf alten Bedingungen da sind – sonst bricht sie mit einer Liste ab (Nummernkreis, Nummer, Anzahl,
+IDs, Verweis auf die Prüfabfrage) statt mit einem Datenbankfehler. Die Vergabe selbst bleibt, wie sie war (Sperre, Überspringen mit
+Warnung); die Bedingung fängt nur, was am Nummernkreis vorbei geschrieben würde.
+
+`klicktest_vertragsvorlagen.py` erwartet 23 Platzhalter (seit 1.8.50 `{gewaehrleistung}`). Neue Regel 26 in CLAUDE.md: vor jedem
+Bericht laufen alle Klicktests, das Ergebnis steht im Bericht. Im Archiv `befund-vor-echtbetrieb.md` ergänzt: Entscheidungen zu
+Einbehalt, Rechnung aus Aufwand in der Schlussrechnung und Probebelegen zum Echtbetrieb (festgehalten, nicht gebaut), dazu der
+Befund zur Zahlungsstufe („bezahlt“ lesen, Buchhaltung, Skonto, Mahnungsentwürfe) mit acht Nebenbefunden.
+
+Neu `test_v380_nummern_eindeutig` (20, davon 5 gegen PostgreSQL), Angriffe je Nummernkreis, gleichzeitig und über die Migration.
+Gegenproben 6 von 6 rot. Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3437 grün, 0 rot, 7 erwartet fehlgeschlagen. Alle
+Klicktests: 46 von 46 wie erwartet in 9:50 min. Festlegungen zum Bestätigen in `docs/archiv/befund-vor-echtbetrieb.md`,
+„Umsetzung 1.8.77“.
+
 ## 1.8.76 – Nummernkreise: keine Anzeige schreibt, Überspringen mit Warnung, Format ohne Jahr; alle Klicktests
 
 Keine Anzeige verbraucht oder schreibt mehr eine Nummer. Die Vorschau der Nummernkreise (Einstellungen, Kundenformular) rechnet

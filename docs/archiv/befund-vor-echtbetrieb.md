@@ -746,7 +746,8 @@ seit 1.8.75 laufen auch die übrigen dort genannten Wege unter der Sperre ("Umse
    Entwürfen: der zuerst festgeschriebene gilt, der andere bleibt Entwurf ohne Nummer (löschbar).
 3. "Keine weiteren Abschläge" gilt für pauschal und nach Leistungsstand, beim Anlegen und beim Festschreiben eines älteren Entwurfs.
    Ein Entwurf der Schlussrechnung sperrt keinen Abschlag. **"Rechnung aus Aufwand" bleibt nach der Schlussrechnung möglich** (kein
-   Abschlag, nicht Teil der Vorgabe). **Offen (10.10.2026): nichts ändern.**
+   Abschlag, nicht Teil der Vorgabe). **Offen (10.10.2026): nichts ändern.** **Entschieden am 12.10.2026: nach der
+   Schlussrechnung keine Rechnung aus Aufwand im selben Auftrag** (festgehalten, nicht gebaut -- "Entscheidungen Rechnungen").
 4. Storno: auch ein Storno-Entwurf zählt beim Anlegen (wie bei der Schlussrechnung) -- ein zweiter Klick auf "Stornieren" antwortet
    409 statt eines zweiten Entwurfs. Storno eines Entwurfs bleibt 400 wie bisher; Storno einer schon stornierten Rechnung jetzt 409.
 5. Punkt 5: jeder pauschale Abschlag, der nicht `storniert` ist -- auch ein Entwurf -- sperrt Anlegen und Festschreiben der
@@ -911,7 +912,8 @@ Abschlag nach Leistungsstand kennt sie nicht (40 % = 2.000 € unabhängig davon
   echt hinausging. Zu entscheiden: Jahreswechsel bzw. neues Format, neue Datenbank mit übernommenen Stammdaten, oder die
   Probe-Rechnungen stehen lassen (stornieren).
 - Mit der vorgesehenen eindeutigen Rechnungsnummer (Datenbank-Bedingung) schlüge eine solche Dublette am Speichern fehl (500) statt
-  still zu entstehen.
+  still zu entstehen. **Seit 1.8.77 gebaut** (alle sieben Nummernkreise, "Umsetzung 1.8.77"); die Vergabe springt seit 1.8.74/1.8.76
+  ohnehin über vergebene Nummern.
 
 ### Festlegungen 1.8.73 (bestätigt am 10.10.2026, Vorgabe 1.8.74)
 
@@ -1140,7 +1142,7 @@ melden. Wird der Umfang zu groß: nach Punkt 2 committen und den Rest auflisten.
   unter SQLite sichtbar). Ausnahmeliste `OHNE_SPERRE` leer.
 - Klicktest `scripts/klicktest_rechnungsdatum.py`.
 
-### Festlegungen 1.8.75 – Bitte bestätigen
+### Festlegungen 1.8.75 (bestätigt am 12.10.2026, Nr. 1–8)
 
 1. **Zahlungsziel = Abstand im Entwurf**: die Fälligkeit rückt um denselben Abstand mit, den sie im Entwurf zum Rechnungsdatum hatte
    (Zahlungsbedingung, Vorgabe des Kunden/Systems, oder über die API angegeben) -- kein neues Feld "Tage". Ein über die API vor das
@@ -1199,6 +1201,8 @@ melden. Wird der Umfang zu groß: nach Punkt 2 committen und den Rest auflisten.
    unter der Sperre.
 2. **Mahndatum bleibt der Tag des Entwurfs** (Befund Punkt 4, "übrige Fälle"): `Reminder.reminder_date` und die neue Frist (Datum +
    Tage der Stufe) werden beim Festschreiben nicht erneuert -- dieselbe Frage wie 4c, jetzt für Mahnungen.
+
+**Beide kommen mit der Zahlungsstufe** (Rückmeldung 12.10.2026, Vorgabe 1.8.77).
 
 ## Umsetzung 1.8.76: Nummernkreise -- keine Anzeige schreibt, Überspringen mit Warnung, Format ohne Jahr; Klicktests (Punkte 3-5)
 
@@ -1265,7 +1269,7 @@ hoch. Aber zwei Anzeigewege schrieben:
   Prozessbaum über die PID beendet, Regel 12), Übersicht mit Ergebnis, Prüfungen und Laufzeit je Test und gesamt
   (`zusammenfassung.txt`); `--nur`, `--ab`.
 
-### Festlegungen 1.8.76 – Bitte bestätigen
+### Festlegungen 1.8.76 (bestätigt am 12.10.2026, Nr. 1–5)
 
 1. **Kunde ohne Profil**: die beiden GET-Routen legen keins mehr an, die Kundennummer bleibt leer, bis der Kunde gespeichert wird --
    engt Festlegung 1.8.73 Nr. 2 ein ("auch über die zwei GET-Routen" gilt nicht mehr). Kein Nachlegen beim Start: jeder Anlegeweg legt
@@ -1304,10 +1308,198 @@ hoch. Aber zwei Anzeigewege schrieben:
 
 ### Nebenbefunde (nur gemeldet)
 
-1. **`klicktest_vertragsvorlagen.py`: Platzhalterliste 23 statt erwartet 22** -- seit 1.8.50 gibt es `{gewaehrleistung}`, der
+1. **(seit 1.8.77 behoben)** **`klicktest_vertragsvorlagen.py`: Platzhalterliste 23 statt erwartet 22** -- seit 1.8.50 gibt es `{gewaehrleistung}`, der
    Klicktest wurde zuletzt in 1.8.42 geändert; veraltete Erwartung, nicht von dieser Änderung (Prüfung in Zeile 88).
 2. **Einstellungen -> Nummernkreise bei 1280 px Fensterbreite**: jede Zeile ragt rechts über die Karte ("Speichern" angeschnitten,
    die Seite scrollt seitlich) -- im Screenshot des Klicktests gesehen, nicht untersucht.
+
+## Umsetzung 1.8.77: eindeutige Nummer in der Datenbank, Klicktests vor jedem Bericht; Befund Zahlungsstufe
+
+### Vorgabe vom 12.10.2026 (übernommen wie gegeben)
+
+1.8.75/76 geprüft. Festlegungen bestätigt (1.8.75 Nr. 1–8, 1.8.76 Nr. 1–5). Die Mahnungen (Sperre beim Bearbeiten, Mahndatum beim
+Festschreiben) kommen mit der Zahlungsstufe.
+
+1.8.77:
+1. Eindeutige Nummer als Datenbank-Bedingung für alle sieben Nummernkreise; die Prüfabfrage auf dem Server fand keine Dubletten.
+   Entwürfe ohne Nummer bleiben erlaubt. Die Migration sucht vorher selbst nach Dubletten und bricht mit klarer Liste ab statt mit
+   einem Datenbankfehler.
+2. klicktest_vertragsvorlagen.py auf 23 Platzhalter. In CLAUDE.md als Regel: Vor jedem Bericht läuft scripts/klicktest_alle.py, das
+   Ergebnis steht im Bericht.
+3. Ins Archiv befund-vor-echtbetrieb.md, Abschnitt „Entscheidungen Rechnungen“ ergänzen (nur festhalten, nicht bauen): Einbehalt nur
+   bewusst gebucht, nie automatisch aus einer Unterzahlung; wird nicht gemahnt; Zustand „Einbehalt offen“; erscheint im
+   Zahlungshinweis der Schlussrechnung; Gewährleistungseinbehalt mit Freigabedatum später. Rechnungen aus Aufwand zählen in der
+   Schlussrechnung zum Gesamtwert und werden wie Abschläge abgezogen; nach der Schlussrechnung keine Rechnung aus Aufwand im selben
+   Auftrag; welche Stunden abrechenbar sind, regelt Stufe 2d. Auf dem Server sind keine echten Bewegungsdaten: Zum Echtbetrieb werden
+   die Probebelege entfernt.
+
+Befund Zahlungsstufe, nur lesen, mit Fundstellen:
+a) Wo wird „bezahlt“ heute gelesen (Mahnwesen, Finanzen, Dashboard, Buchhaltung, Export)?
+b) Was bieten Buchhaltung Stufe 1 und 2 für Zahlungen (Bankkonto, Kontoauszug, Buchungen)? Ließe sich ein Zahlungseingang dort
+   anbinden?
+c) Skonto: Wo stehen Satz und Frist, und wie wird es heute angezeigt?
+d) Wie entstehen Mahnungsentwürfe, und über welchen Betrag mahnen sie?
+
+Angriffstests mit Gegenprobe für Punkt 1. Nebenbefunde nur melden. Commit nach Regel 13, Bericht kurz.
+
+### Vorweg
+
+- Festlegungen 1.8.75 und 1.8.76 an der Überschrift als bestätigt markiert; die beiden Mahnungs-Nebenbefunde aus 1.8.75 tragen den
+  Vermerk "kommen mit der Zahlungsstufe".
+- Zu 3: unten unter "Entscheidungen Rechnungen" ergänzt; Festlegung 1.8.72 Nr. 3 ("Aufwand nach der Schlussrechnung möglich") trägt
+  den Vermerk der Entscheidung.
+
+### Was gebaut ist
+
+- **Fünf von sieben waren schon eindeutig**: Kunde, Anfrage, Projekt, Angebot und Auftrag tragen seit der Baseline (`2befd7907eef`)
+  eine UNIQUE-Bedingung (`uq_customer_number`, `uq_inquiry_number`, `uq_project_number`, `uq_quote_number`, `uq_order_number`) --
+  der Server bekam sein Schema über `alembic upgrade head` (`scripts/migrate_sqlite_to_postgres.py`), also auch diese. Es fehlten
+  **Rechnung und Mahnung** (nur ein Index, `ix_invoices_invoice_number`/`ix_reminders_reminder_number`).
+- **Migration `f3a8c2d6b190`** (`nummern_eindeutig`): `uq_invoice_number` auf `invoices.invoice_number`, `uq_reminder_number` auf
+  `reminders.reminder_number`; der Index bleibt (wie bei den übrigen fünf). Entwürfe haben NULL -- in einer UNIQUE-Bedingung unter
+  PostgreSQL und SQLite nie gleich, also beliebig viele. Stornorechnungen gehören zum Kreis der Rechnungen.
+  - **Vorher, ohne etwas zu ändern** (`pruefen()`): je Nummernkreis (alle sieben) jede Nummer, die mehr als einmal vergeben ist, mit
+    Anzahl und IDs, dazu jede der fünf alten Bedingungen, die in der Datenbank fehlt (sie wird nicht still angelegt). Abbruch mit:
+    "Migration abgebrochen, nichts geändert: jede vergebene Nummer soll in ihrem Nummernkreis eindeutig sein, aber in dieser
+    Datenbank\n  - Rechnung R-2026-0001: 2-mal vergeben (invoices.id 1, 2)\n  - …\nBitte zuerst klären (Dubletten und Lücken zeigt
+    scripts/pruefabfrage_nummernkreise.sql), dann erneut einspielen." Die Zuordnung Nummernkreis -> Tabelle/Spalte steht fest in
+    der Migration (wie `_existing_column()`, ein Test hält beide gleich).
+  - `downgrade()`: entfernt die beiden Bedingungen, keine Nummer geht verloren -- daher nicht verweigert.
+- **Modell**: `Invoice`/`Reminder` mit `__table_args__` (UniqueConstraint wie die übrigen fünf). Veralteter Docstring an `Invoice`
+  ("`issue_invoice()`", "beim Versenden") korrigiert.
+- **Klicktest** `klicktest_vertragsvorlagen.py`: Platzhalterliste 23 (seit 1.8.50 `{gewaehrleistung}`).
+- **CLAUDE.md Regel 26**: vor jedem Bericht `scripts/klicktest_alle.py`, Ergebnis im Bericht.
+
+### Befund Zahlungsstufe (nur gelesen; Zeilen nach dem Stand 1.8.77)
+
+Der Befund aus 1.8.72 (a) gilt weiter: **"bezahlt" ist ein Status mit Datum** -- kein Betrag, keine Teilzahlung, keine
+Zahlungstabelle, kein offener Betrag je Rechnung.
+
+**a) Wo "bezahlt" gesetzt und gelesen wird**
+- **Setzen**: `mark_invoice_paid()` (`app/invoices.py:769`) unter `lock_order_invoices()`, nur aus `versendet`, `paid_date` aus der
+  Anfrage oder `berlin_today()`; `POST /api/invoices/{id}/mark-paid` (`routers/invoices.py:252`, ab `buero_auftrag`), Schema
+  `InvoiceMarkPaid` ohne Prüfung des Datums; die Rechnungsseite schickt `{}` (`invoice_detail.html:201`) -- immer heute. **Kein
+  Zurücknehmen** (nur Storno; das Original wird `storniert`, `paid_date` bleibt), **kein Audit** (`Invoice` nicht in
+  `AUDITED_TYPES`, `app/audit.py:46`).
+- **"gültig" = versendet oder bezahlt** (`VALID_STATUSES`, `invoices.py:55`): Sperrgründe (`_final_invoices()`,
+  `storno_block_reason()`), Abzug in der Schlussrechnung (`get_previous_cumulative_ist()`, `:304`), Abrechnungsstand am Auftrag
+  (`compute_order_billing_progress()`, `:1121` -- "noch offen" dort = noch nicht abgerechnet, nicht unbezahlt), Vorschlag des
+  Leistungszeitraums (`service_period.py:27`).
+- **Überfällig** = `versendet` und Fälligkeit vor heute (`invoice_to_dict()`/`invoice_overview_row()`, `:1073`/`:1174`); ein Storno
+  hat keine Fälligkeit, ist also nie überfällig. `paid_date` steht nur in `invoice_to_dict()`, nicht in der Übersicht
+  (`invoice_overview_row()`, `:1161`) -- Finanzen und Projektmappe zeigen kein Zahldatum.
+- **Mahnwesen**: `send_block_reason()` (`reminders.py:176`, "bezahlt (am …)", "storniert"), Anlegen nur zu `versendet`
+  (`create_reminder()`, `:207`), Liste und Kennzahlen aus `list_invoices_needing_attention()` (`:455`: versendet und überfällig,
+  offener Betrag = volles Brutto, `:473`).
+- **Finanzen** (`finanzen.html:47-51`) und **Dashboard** (`dashboard.html:137-138`): "Offene Rechnungen"/"Offener Betrag" = alle mit
+  Status `versendet` (Abschläge, Aufwand und Stornorechnungen mit negativem Betrag eingeschlossen), "Bezahlt (gesamt)" = Brutto aller
+  mit `bezahlt`; Dashboard-Aufgaben: eine Zeile "Mahnung" je überfälliger Rechnung (`dashboard.html:120`).
+- **Rechnungsseite**: Statusknöpfe (`invoice_detail.html:156-171`; bei `versendet` "Als bezahlt markieren" -- auch an einer
+  Stornorechnung), Mahnkarte nur bei `versendet` (`:99`).
+- **Buchhaltung**: liest den Status der Ausgangsrechnungen nicht. **Export**: für Ausgangsrechnungen keiner (CSV/DATEV nur Stunden
+  und Lohn, `routers/time_backoffice.py:133`). PDF der Rechnung, Suche, Projektliste/Kanban: kein Zahlstatus.
+
+**b) Buchhaltung und Zahlungen**
+- **Stufe 1** (1.6.0, `modul-buchhaltung.md`): Eingangsrechnungen (`IncomingInvoice`, `models.py:4697`) mit `payment_status`
+  offen/bezahlt und `payment_date` (`:4775`), Skonto-Satz und -Frist, Beleg; "bezahlt" per Bearbeiten zurücknehmbar
+  (`incoming_invoices.py:283`), offene Verbindlichkeiten (`open_liabilities_summary()`, `:388`), Skonto-Erinnerung als Aufgabe
+  (`:406`). Kein Betrag, keine Teilzahlung, kein gezogenes Skonto.
+- **Stufe 2, erster Teil** (1.6.1): Kontenstamm `Account` (`models.py:4435`: Nummer, Bezeichnung, Steuersatz, aktiv -- **kein
+  Kontotyp**) und Vorkontierung an Eingangsrechnung und Position ("Vorkontierung, keine Buchung"). Geplant, nicht gebaut: Import der
+  Kontendatei, DATEV-Export; Stufe 3 KI-Belegauswertung.
+- **Nicht vorhanden, auch nicht geplant**: Bankkonto, Kontoauszug-Import (CAMT/MT940/CSV), Buchungen/Journal, Zahlungen, Debitoren.
+  "iban" gibt es nur als eigene Bankverbindung in den Einstellungen (`GeneralSettings.iban`, `models.py:2590`).
+- **Anbinden**: an die Buchhaltung nicht -- dort gibt es nur das Muster "Status mit Datum"; Ein- und Ausgang sind bewusst getrennte
+  Tabellen, und die Buchhaltung ist nur für `buero_finanzen` mit Modul `buchhaltung` offen (`routers/incoming_invoices.py:36`),
+  Rechnungen und Mahnwesen ab `buero_auftrag`. Anknüpfen ließe sich am Rechnungswesen: `Invoice.id` als Ziel einer Zahlung,
+  `lock_order_invoices()` als Sperre (bezahlt und Mahnung laufen schon darunter), `compute_invoice_totals()["gross_total"]` als
+  Soll, `mark_invoice_paid()` als die Stelle, die "bezahlt" aus Zahlungen ableiten würde, `create_reminder()`/
+  `list_invoices_needing_attention()`/`invoice_overview_row()` für den offenen Betrag. Es fehlen: Zahlungstabelle (Betrag, Datum,
+  Weg, Referenz, Skontoabzug), Zuordnung Zahlung <-> Rechnung (die Entscheidung "Zahlung auf den Zahlbetrag, zuerst offene
+  Abschläge" braucht mehrere Rechnungen je Zahlung), eine Funktion "offener Betrag", Korrektur einer Zahlung, Audit; Bankkonto und
+  Kontoauszug nur, wenn gewünscht.
+
+**c) Skonto**
+- **Satz und Frist** an der Zahlungsbedingung (`PaymentTerm.skonto_percent/skonto_days`, `models.py:381`; beide oder keins, Frist ≤
+  Zahlungsziel, `payment_terms.py:44`; die Standardbedingungen haben keins). Vorgabe je Kunde über
+  `CustomerProfile.default_payment_term_id`; am Auftrag nur die Bezeichnung (`Order.payment_terms`).
+- **An der Rechnung eingefroren** (`Invoice.skonto_percent/skonto_days`, `:1720`) beim Anlegen (`_default_payment_terms_for_order()`,
+  `invoices.py:255`: Bedingung laut Auftrag, sonst Kunde, sonst System), im Entwurf änderbar (`update_invoice_payment_term()`, `:893`).
+  Skontodatum = Rechnungsdatum + Tage, seit 1.8.75 also ab dem Tag des Festschreibens. Ein Storno übernimmt kein Skonto.
+- **Anzeige**: Zahlungssatz `format_payment_terms_sentence()` (`:932`, Platzhalter `{skontodatum}`, `{skontoprozent}`,
+  `{skontobetrag}` = der Abzug, nicht der Zahlbetrag) im PDF und auf der Rechnungsseite; Versandhinweis (`send_hint()`, `:993`,
+  "Skontofrist schon abgelaufen"). Mahnung und Rechnungs-Mail kennen kein Skonto. Die Skonto-Erinnerung (`incoming_invoices.py:406`)
+  gilt nur für Eingangsrechnungen. **Ob Skonto gezogen wurde, hält nichts fest.**
+
+**d) Mahnungsentwürfe**
+- **Von Hand**: `create_reminder()` (`reminders.py:207`) unter der Sperre: Rechnung `versendet`, weder storniert noch bezahlt, Stufe
+  aktiv -- nicht geprüft: Fälligkeit, Art der Rechnung, Reihenfolge der Stufen, vorhandener Entwurf.
+- **Automatisch**: `auto_create_due_reminder_drafts()` (`:397`) beim Öffnen des Mahnwesens (`POST /api/reminders/auto-create`,
+  `mahnwesen.html:240`), Schalter `reminders_auto_create_drafts` (Standard an, `models.py:2623`): je überfälliger Rechnung ohne
+  Entwurf, deren nächste Stufe fällig ist (`compute_reminder_status()`, `:107`: nächste aktive Stufe über der höchsten versendeten,
+  fällig ab Fälligkeit bzw. Datum der letzten Mahnung + Tage der nächsten Stufe; Vorgabe 7/7/7 Tage, 5/10/15 €).
+- **Betrag**: `outstanding_amount = compute_invoice_totals(invoice)["gross_total"]` (`:220`) -- das volle Brutto dieser einen
+  Rechnung, ohne frühere Mahngebühren, ohne Bezug zu Abschlägen oder Schlussrechnung, im Entwurf nicht änderbar. Gebühr aus der
+  Stufe, neue Frist = heute + Tage der Stufe (`:219`). Text, PDF-Tabelle "Offener Rechnungsbetrag / Mahngebühr / Gesamtbetrag"
+  (`reminder_pdf.py:83`) und Mail nehmen diesen Betrag; die Mahnwesen-Liste rechnet ihn live.
+
+### Festlegungen 1.8.77 – Bitte bestätigen
+
+1. **Die fünf alten Bedingungen bleiben, wie sie sind**; die Migration legt nur Rechnung und Mahnung an und prüft, dass die fünf da
+   sind -- fehlt eine, bricht sie mit Namen ab, statt sie still anzulegen (das bliebe in `downgrade()` unsichtbar).
+2. **Geprüft werden alle sieben Kreise auf Dubletten** (dieselbe Frage wie die Prüfabfrage), nicht nur die zwei neuen.
+3. **`downgrade()` ist erlaubt** (nimmt nur die Bedingungen weg).
+4. **Keine eigene Fehlerbehandlung in der App**: Die Vergabe läuft unter der Sperre und springt über vergebene Nummern; eine Dublette
+   erreicht die Datenbank nur am Nummernkreis vorbei (Skript, Import, Fehler) -- dann 500 mit zurückgerolltem Vorgang, nichts halb
+   (Storno bleibt Entwurf, Original nicht storniert; im Test nachgestellt).
+5. **Klicktest**: die Erwartung ist die feste Zahl 23 (wie verlangt), nicht die Länge der Liste im Code -- ein neuer Platzhalter
+   fällt damit beim nächsten Gesamtlauf auf (Regel 26).
+
+### Tests und Prüfung
+
+- Neu `tests/test_v380_nummern_eindeutig.py` (20, davon 5 gegen PostgreSQL): Struktur (jeder Nummernkreis aus `DEFAULT_SEQUENCES`
+  hat seine Bedingung im Modell; die Migration deckt genau die sieben ab); **Angriffe**: dieselbe Nummer am Nummernkreis vorbei ein
+  zweites Mal speichern, je Nummernkreis (SQLite 7, PostgreSQL alle sieben -- die Meldung nennt die Bedingung); Entwürfe ohne Nummer
+  (je drei Rechnungen und Mahnungen, SQLite und PostgreSQL); die Vergabe liefert eine vergebene Nummer (Storno-Festschreiben unter
+  SQLite und PostgreSQL, Mahnung) -> abgelehnt, nichts halb; zwei Sitzungen schreiben gleichzeitig dieselbe Rechnungsnummer
+  (PostgreSQL, die erste hält ihren Commit eine Sekunde: die zweite wartet am Index und wird abgelehnt); **Migration** auf einem
+  Bestand mit Dubletten (2 Rechnungen, 3 Mahnungen) und Entwürfen, SQLite und PostgreSQL: Abbruch mit der Liste und den IDs, kein
+  `IntegrityError`, Stand und Schema unverändert; geklärt -> hoch, Bedingungen da, Entwürfe unverändert, Dublette danach abgelehnt;
+  runter (Nummern bleiben), wieder hoch; Prüfung meldet eine fehlende alte Bedingung samt Dublette dort, ein sauberer Bestand geht
+  durch.
+- Gegenproben (Regel 24): 6 von 6 rot, je alle genannten Tests -- Bedingung an der Rechnung im Modell (6 Tests), an der Mahnung (4),
+  Migration ohne Prüfung vorher (2: Datenbankfehler statt Liste), Migration ohne Anlegen der Bedingungen (2), Prüfung übersieht eine
+  fehlende alte Bedingung (1), Prüfung zählt Entwürfe ohne Nummer als Dublette (4). Jede Datei byte-genau zurück (SHA-256), kein
+  Marker unter `app/` und `alembic/`.
+- Migration `f3a8c2d6b190`: SQLite (Wegwerf-Datei) und PostgreSQL (Wegwerf-Schema, leer): hoch, `current` head, `check` ohne
+  Unterschied, runter, wieder hoch; danach alle sieben Spalten mit Bedingung (Reflexion).
+- **Alle Klicktests** (`scripts/klicktest_alle.py`, Arbeitskopie mit dem Stand 1.8.77, Regel 26): 46 von 46 wie erwartet, Laufzeit
+  gesamt 9:50 min; `klicktest_vertragsvorlagen.py` 36/36.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie): 3437 grün, 0 rot, 7 erwartet fehlgeschlagen (1a, 1b, 1d). Keine
+  Erwartung geändert. Danach nur Doku geändert.
+
+### Nebenbefunde (nur gemeldet)
+
+1. **Stornorechnung zählt in Finanzen und Dashboard als offen** (Nebenbefund 3 aus 1.8.72, weiter offen); ein bezahltes, danach
+   storniertes Original fällt aus "Bezahlt (gesamt)" heraus, `paid_date` bleibt an ihm stehen.
+2. **Eine Stornorechnung lässt sich "bezahlt" markieren**: `mark_invoice_paid()` prüft die Art nicht, die Rechnungsseite zeigt den
+   Knopf.
+3. **`create_reminder()` über die API** (`POST /api/invoices/{id}/reminders`, Stufe 1–3): auch zu einer Stornorechnung (negativer
+   Betrag), zu einer noch nicht fälligen Rechnung, in beliebiger Stufe und ein zweiter Entwurf derselben Stufe (letzteres Nebenbefund
+   5 aus 1.8.72).
+4. **Nächste Mahnstufe ab dem Mahndatum, nicht ab der gesetzten Frist**: fällig = Datum der letzten Mahnung + Tage der nächsten Stufe
+   (`compute_reminder_status()`), die Frist in der Mahnung = Datum + Tage ihrer Stufe. Mit der Vorgabe 7/7/7 wird die nächste Stufe am
+   letzten Tag der Frist fällig; bei kürzeren Tagen der nächsten Stufe oder einer im Entwurf verlängerten Frist schon davor.
+5. **Zustellung einer Mahnung auf anderem Weg** (Einschreiben usw.) geht auch bei bezahlter oder stornierter Rechnung
+   (`dispatch_documents.py:84`, ohne `send_block_reason()`) -- der Moduldocstring sagt "dieselben Bedingungen wie beim E-Mail-Versand".
+6. **Dashboard verliert die "Mahnung"-Zeilen**, sobald ein Mitarbeiter gewählt ist (für Nicht-Admins mit Mitarbeiter immer): gefiltert
+   wird auf `Invoice.caseworker_employee_id`, die nie gesetzt wird (bekannt aus CLAUDE.md, die Folge im Dashboard nicht).
+7. "Bezahlt": Datum ohne Prüfung (Zukunft, vor dem Rechnungsdatum), keine Rücknahme, kein Audit; die Rechnungsseite blendet die
+   Mahnhistorie aus, sobald die Rechnung bezahlt oder storniert ist (`invoice_detail.html:99`); eine bezahlte oder stornierte Rechnung
+   lässt sich weiter per E-Mail senden (`send_invoice_email()` sperrt nur Entwürfe).
+8. **Probebelege entfernen** (Entscheidung unten): einen Weg dafür gibt es nicht -- bewusst, Ablage und Versandprotokoll sind
+   unveränderlich, Rechnungen nur als Entwurf löschbar. Es bräuchte ein einmaliges Skript (Rechnungen, Mahnungen, Ablage-Dateien unter
+   `ERP_DATA_DIR`, Versandprotokoll, Nummernkreise zusammen), gegen `spielwiese` geprobt.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
@@ -1323,3 +1515,13 @@ Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
   Rechnungsdatum = Tag des Festschreibens seit 1.8.75.
 - **Storno**: höchstens ein Storno je Rechnung, kein Storno eines Stornos.
 - **Steuersatz**: keine mehreren Steuersätze je Rechnung.
+
+Ergänzt am 12.10.2026 (Vorgabe 1.8.77, Punkt 3), übernommen wie gegeben:
+
+- **Einbehalt**: nur bewusst gebucht, nie automatisch aus einer Unterzahlung; wird nicht gemahnt; Zustand „Einbehalt offen“;
+  erscheint im Zahlungshinweis der Schlussrechnung; Gewährleistungseinbehalt mit Freigabedatum später.
+- **Rechnungen aus Aufwand** zählen in der Schlussrechnung zum Gesamtwert und werden wie Abschläge abgezogen; nach der
+  Schlussrechnung keine Rechnung aus Aufwand im selben Auftrag; welche Stunden abrechenbar sind, regelt Stufe 2d. (Heute: weder im
+  Gesamtwert noch abgezogen, nach der Schlussrechnung möglich -- "Umsetzung 1.8.73" -> Befund a, Festlegung 1.8.72 Nr. 3.)
+- **Echtbetrieb**: Auf dem Server sind keine echten Bewegungsdaten: zum Echtbetrieb werden die Probebelege entfernt. (Damit ist die
+  offene Wahl aus "Umsetzung 1.8.73" -> Befund b getroffen; wie entfernt wird, ist nicht festgelegt -- Nebenbefund 8 aus 1.8.77.)

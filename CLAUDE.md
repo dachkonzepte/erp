@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.76** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.77** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -649,6 +649,12 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     `IdNichtGefunden`) oder `AUSNAHMEN` (darf nur kürzer werden). "Erfasst von"/"geschlossen von" setzt der Server aus der
     Anmeldung, mitgeschickt 422. Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.70" und "Umsetzung 1.8.71".
 
+26. **Vor jedem Bericht läuft `scripts/klicktest_alle.py`, das Ergebnis steht im Bericht, seit 1.8.77.** Alle Klicktests auf
+    dem Stand, über den berichtet wird (Arbeitskopie wie bei der vollen Suite): wie viele wie erwartet, welche rot mit der roten
+    Prüfung, Laufzeit. Eine rote Prüfung wird benannt, nicht still angepasst -- ist ihre Erwartung veraltet, sagt der Bericht das
+    und seit wann. Anlass: `klicktest_vertragsvorlagen.py` erwartete seit 1.8.50 22 statt 23 Platzhalter; aufgefallen erst beim
+    ersten Gesamtlauf (1.8.76).
+
 ## Fachbegriffe & Domänenmodell
 
 - **"Vorgang"** (in normalem Gespräch) = **Projekt** (`Project`) – wurde in der Sitzung explizit
@@ -952,7 +958,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Einstellungen lehnen eine nächste Nummer auf oder unter einer vergebenen ab (409); seit 1.8.74 Pflicht-Leistungszeitraum;
   seit 1.8.75 4a-4c behoben (Rechnungsdatum = Tag des Festschreibens, Fälligkeit rückt mit, Hinweis bei späterem Versand) und jeder
   schreibende Weg an einer Rechnung unter der Sperre; seit 1.8.76 Nummernkreise: keine Anzeige schreibt oder verbraucht eine
-  Nummer, Überspringen mit Warnung, Format ohne Jahr nicht mit Jahreswechsel; 1a, 1b und 1d für R4)
+  Nummer, Überspringen mit Warnung, Format ohne Jahr nicht mit Jahreswechsel; seit 1.8.77 jede Nummer eindeutig in der Datenbank
+  (alle sieben Nummernkreise), Befund Zahlungsstufe, Entscheidungen zu Einbehalt und Rechnung aus Aufwand; 1a, 1b und 1d für R4)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
@@ -1031,7 +1038,9 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
   Jahreswechsel und Abgleich nur aus (geschrieben wird erst bei der Vergabe), kein GET-Endpunkt erreicht `issue_number()`
   (`tests/test_v379_nummern_anzeige.py`, AST); springt die Vergabe über vergebene Nummern, schreibt sie `logger.warning`; ein
   Format ohne Jahr mit "Jahreswechsel: auf Startnummer zurück" lehnt `update_sequence()` ab (`YearlyResetWithoutYear`, 409,
-  gemeinsame Oberklasse `SequenceConflict`).
+  gemeinsame Oberklasse `SequenceConflict`). Seit 1.8.77 ist jede vergebene Nummer auch in der Datenbank eindeutig (UNIQUE je
+  Spalte aus `_existing_column()`, Entwürfe ohne Nummer beliebig viele); ein neuer Nummernkreis braucht seine Bedingung
+  (`tests/test_v380_nummern_eindeutig.py`).
 - **KI-Aufrufe ausschließlich über `call_ai()`/`call_ai_async()`** (`app/ai_service.py`) --
   nie einen Adapter (`app/ai_adapters.py`) direkt importieren/aufrufen. `call_ai_async()` aus
   `async def`-Routen, `call_ai()` nur aus gewöhnlichen `def`-Routen (Starlette-Threadpool) --
@@ -1396,7 +1405,8 @@ meldet `/mobil` ab, eine 403-Prüfung sähe abends 401; `--wanduhr HH:MM` täusc
 im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten (Vorlage dort). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite. **Alle nacheinander** (seit 1.8.76):
 `.venv\Scripts\python.exe scripts\klicktest_alle.py` (je Test eigener Arbeitsordner unter einem Ausgabeordner, Übersicht mit
-Ergebnis, Prüfungen und Laufzeit, `--nur`/`--ab`, Zeitlimit je Test, beendet nur den eigenen Prozessbaum).
+Ergebnis, Prüfungen und Laufzeit, `--nur`/`--ab`, Zeitlimit je Test, beendet nur den eigenen Prozessbaum). Seit 1.8.77 vor
+jedem Bericht, Ergebnis im Bericht (Regel 26).
 
 ## Arbeitsweise, die sich bewährt hat
 

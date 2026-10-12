@@ -85,7 +85,8 @@ async def pruefen(tab, seed, p):
     bereit = "document.querySelectorAll('[data-ct]').length===3"
     await tab.oeffnen("/settings#contract-templates", bereit)
     p.pruefe("Einstellungen: Abschnitt aktiv", await tab.js("document.getElementById('settings-contract-templates').classList.contains('active')"), True)
-    p.pruefe("Einstellungen: Platzhalterliste", await tab.js("document.querySelectorAll('#contractPlaceholderRows tr').length"), 22)
+    # 23 seit 1.8.50 ({gewaehrleistung}); die Erwartung stand bis 1.8.77 auf 22
+    p.pruefe("Einstellungen: Platzhalterliste", await tab.js("document.querySelectorAll('#contractPlaceholderRows tr').length"), 23)
     vob = "document.querySelector('[data-ct=\"vob_b\"]')"
     p.pruefe("VOB/B: noch keine Vorlage", "Keine Vorlage" in (await tab.js(f"{vob}.textContent") or ""), True)
     p.pruefe("Verbraucher-Vorlage: nicht geprüft", "Nicht geprüft" in (await tab.js("document.querySelector('[data-ct=\"bgb_vob_c_4_5\"]').textContent") or ""), True)

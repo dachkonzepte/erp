@@ -1642,13 +1642,17 @@ class Invoice(Base):
     Rechnungen.
 
     invoice_number bleibt NULL, solange status='entwurf' -- die Nummer aus
-    dem Nummernkreis wird erst beim Versenden vergeben (siehe issue_invoice()
-    in app/invoices.py), damit verworfene Entwürfe keine Lücken in der
+    dem Nummernkreis wird erst beim Festschreiben vergeben (siehe
+    finalize_and_send_invoice() in app/invoices.py und issue_number() in
+    app/settings.py), damit verworfene Entwürfe keine Lücken in der
     Nummernfolge hinterlassen (GoBD-Anforderung an lückenlose Rechnungsnummern).
     Ab 'versendet' gilt die Rechnung als unveränderlich, genau wie ein Auftrag
     nach Beauftragung."""
 
     __tablename__ = "invoices"
+    # Seit 1.8.77 eindeutig in der Datenbank wie die übrigen fünf Nummernkreise (Migration f3a8c2d6b190); Entwürfe ohne
+    # Nummer (NULL) bleiben beliebig viele erlaubt. Stornorechnungen ziehen aus demselben Nummernkreis.
+    __table_args__ = (UniqueConstraint("invoice_number", name="uq_invoice_number"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     invoice_number: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
@@ -1840,6 +1844,8 @@ class Reminder(Base):
     versendete Mahnung nicht rückwirkend verändern."""
 
     __tablename__ = "reminders"
+    # Seit 1.8.77 eindeutig in der Datenbank (Migration f3a8c2d6b190); Entwürfe ohne Nummer (NULL) bleiben erlaubt.
+    __table_args__ = (UniqueConstraint("reminder_number", name="uq_reminder_number"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     reminder_number: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
