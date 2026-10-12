@@ -378,6 +378,8 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
             "unit_price": item.unit_price,
             "include_in_total": item.include_in_total,
             "price_lock": None,  # seit 1.8.82, unten gesetzt (app/order_locks.py)
+            "is_addendum": bool(item.is_addendum),  # seit 1.8.83: Nachtrag am Auftrag
+            "addendum_lock": None,  # seit 1.8.83, unten gesetzt: warum der Nachtrag nicht entfernt werden kann
             "line_total": line,
             "has_calculation_snapshot": item.calculation_snapshot is not None,
             "planned_hours_per_unit": ((Decimal(item.calculation_snapshot.site_time_minutes or 0) + Decimal(item.calculation_snapshot.workshop_time_minutes or 0)) / Decimal("60")) if item.calculation_snapshot else Decimal("0"),
@@ -460,6 +462,7 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
             result["invoice_create_blocks"] = None
             result["order_lock"] = None
             result["tax_lock"] = None
+            result["addendum_create_block"] = None
         else:
             result["source_quote_in_sync"] = order_matches_source_quote(db, order)
             # Seit 1.8.71: warum der Abgleich gesperrt ist (Status, an den Positionen Hängendes) -- nur, wenn er abweicht.
@@ -483,8 +486,13 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
             locks = lock_info(db, order.id, invoices)
             result["order_lock"] = locks["order_lock"]
             result["tax_lock"] = locks["tax_lock"]
+            by_id = {item.id: item for item in items}
             for row in item_rows:
                 row["price_lock"] = locks["item_locks"].get(row["id"])
+                if row["is_addendum"]:
+                    row["addendum_lock"] = addendum_lock_reason(db, by_id[row["id"]], invoices)
+            # Seit 1.8.83 (R4a Punkt 3): warum kein Nachtrag mehr angelegt werden kann (Schlussrechnung, storniert).
+            result["addendum_create_block"] = addendum_create_reason(order, invoices)
     return result
 
 
@@ -858,30 +866,14 @@ def sync_block_reasons(db: Session, order: Order) -> list[str]:
     if order.status in SYNC_BLOCKED_STATUSES:
         reasons.append(SYNC_BLOCKED_STATUSES[order.status])
     item_ids = select(OrderItem.id).where(OrderItem.order_id == order.id)
-    invoices = db.execute(
-        select(Invoice.id, Invoice.invoice_number).join(InvoiceItem, InvoiceItem.invoice_id == Invoice.id)
-        .where(InvoiceItem.source_order_item_id.in_(item_ids)).distinct().order_by(Invoice.id)
-    ).all()
-    if invoices:
-        entwuerfe = sum(1 for _, number in invoices if not number)
-        labels = [number for _, number in invoices if number] + (
-            [f"{entwuerfe} Entwurf" if entwuerfe == 1 else f"{entwuerfe} Entwürfe"] if entwuerfe else [])
-        reasons.append(f"an den Positionen hängen Rechnungen ({', '.join(labels)})")
-    entries = db.scalar(select(func.count()).select_from(TimeEntry).where(TimeEntry.order_item_id.in_(item_ids)))
-    groups = db.scalar(select(func.count()).select_from(TimeEntryGroup).where(TimeEntryGroup.order_item_id.in_(item_ids)))
-    if entries or groups:
-        teile = [f"{entries} Zeitbuchung{'' if entries == 1 else 'en'}"] if entries else []
-        teile += [f"{groups} Gruppenbuchung{'' if groups == 1 else 'en'}"] if groups else []
-        reasons.append(f"an den Positionen hängen {' und '.join(teile)}")
-    snapshot_ids = (select(OrderItemMaterialSnapshot.id)
-                    .join(OrderItemCalculationSnapshot, OrderItemCalculationSnapshot.id == OrderItemMaterialSnapshot.calculation_id)
-                    .where(OrderItemCalculationSnapshot.order_item_id.in_(item_ids)))
-    materials = db.scalar(select(func.count()).select_from(WorkPreparationMaterial).where(
-        WorkPreparationMaterial.source_order_item_id.in_(item_ids)
-        | WorkPreparationMaterial.source_material_snapshot_id.in_(snapshot_ids)))
-    if materials:
-        reasons.append(f"an den Positionen hängt Material der Arbeitsvorbereitung ({materials} "
-                       f"Zeile{'' if materials == 1 else 'n'})")
+    reasons += [f"an den Positionen {verb} {what}" for verb, what in _attached(db, item_ids)]
+    # Seit 1.8.83 (R4a Punkt 3): Nachträge stehen nicht im Angebot -- der Abgleich ersetzte alle Positionen und löschte sie.
+    addenda = list(db.scalars(select(OrderItem.position_number).where(OrderItem.order_id == order.id,
+                                                                      OrderItem.is_addendum.is_(True))
+                              .order_by(OrderItem.sort_order, OrderItem.id)))
+    if addenda:
+        reasons.append(f"am Auftrag steht der Nachtrag {addenda[0]}, den der Abgleich löschen würde" if len(addenda) == 1
+                       else f"am Auftrag stehen die Nachträge {', '.join(addenda)}, die der Abgleich löschen würde")
     # Seit 1.8.82 (R4a Punkt 2, app/order_locks.py): nach der Schlussrechnung ist alles gesperrt, ab der ersten gültigen Rechnung
     # der Steuersatz -- auch eine, die an keiner Position hängt (pauschaler Abschlag, Aufwand), oder eine Schlussrechnung ohne
     # Positionen.
@@ -896,6 +888,37 @@ def sync_block_reasons(db: Session, order: Order) -> list[str]:
             reasons.append(f"der Steuersatz ist gesperrt, am Auftrag besteht eine festgeschriebene Rechnung ({numbers}) -- "
                            "das Angebot hat einen anderen Steuerschlüssel")
     return reasons
+
+
+def _attached(db: Session, item_ids) -> list[tuple[str, str]]:
+    """Was an den Positionen (item_ids: Abfrage oder Liste) hängt, je (Verb, Text) -- Rechnungspositionen jedes Status und jeder
+    Art, Zeit- und Gruppenbuchungen, Material der Arbeitsvorbereitung (auch über die Kalkulation). Bis 1.8.82 Teil von
+    sync_block_reasons(), seit 1.8.83 auch für das Entfernen eines Nachtrags (addendum_lock_reason())."""
+    found = []
+    invoices = db.execute(
+        select(Invoice.id, Invoice.invoice_number).join(InvoiceItem, InvoiceItem.invoice_id == Invoice.id)
+        .where(InvoiceItem.source_order_item_id.in_(item_ids)).distinct().order_by(Invoice.id)
+    ).all()
+    if invoices:
+        entwuerfe = sum(1 for _, number in invoices if not number)
+        labels = [number for _, number in invoices if number] + (
+            [f"{entwuerfe} Entwurf" if entwuerfe == 1 else f"{entwuerfe} Entwürfe"] if entwuerfe else [])
+        found.append(("hängen", f"Rechnungen ({', '.join(labels)})"))
+    entries = db.scalar(select(func.count()).select_from(TimeEntry).where(TimeEntry.order_item_id.in_(item_ids)))
+    groups = db.scalar(select(func.count()).select_from(TimeEntryGroup).where(TimeEntryGroup.order_item_id.in_(item_ids)))
+    if entries or groups:
+        teile = [f"{entries} Zeitbuchung{'' if entries == 1 else 'en'}"] if entries else []
+        teile += [f"{groups} Gruppenbuchung{'' if groups == 1 else 'en'}"] if groups else []
+        found.append(("hängen", " und ".join(teile)))
+    snapshot_ids = (select(OrderItemMaterialSnapshot.id)
+                    .join(OrderItemCalculationSnapshot, OrderItemCalculationSnapshot.id == OrderItemMaterialSnapshot.calculation_id)
+                    .where(OrderItemCalculationSnapshot.order_item_id.in_(item_ids)))
+    materials = db.scalar(select(func.count()).select_from(WorkPreparationMaterial).where(
+        WorkPreparationMaterial.source_order_item_id.in_(item_ids)
+        | WorkPreparationMaterial.source_material_snapshot_id.in_(snapshot_ids)))
+    if materials:
+        found.append(("hängt", f"Material der Arbeitsvorbereitung ({materials} Zeile{'' if materials == 1 else 'n'})"))
+    return found
 
 
 def sync_block_text(db: Session, order: Order) -> str | None:
@@ -975,6 +998,81 @@ def update_order_item(db: Session, order_id: int, item_id: int, **values) -> Ord
     db.commit()
     from .work_preparation import refresh_preparation_materials
     refresh_preparation_materials(db, order_id)
+    return load_order(db, order_id)
+
+
+ADDENDUM_PREFIX = "N"
+
+
+def addendum_create_reason(order: Order, invoices: list[Invoice]) -> str | None:
+    """Warum kein Nachtrag mehr angelegt werden kann (seit 1.8.83) -- nach der Schlussrechnung, am stornierten Auftrag."""
+    if order.status == "storniert":
+        return "Der Auftrag ist storniert – ein Nachtrag ist nicht mehr möglich."
+    return final_lock_reason(invoices)
+
+
+def addendum_lock_reason(db: Session, item: OrderItem, invoices: list[Invoice]) -> str | None:
+    """Warum dieser Nachtrag nicht (mehr) entfernt werden kann -- nach der Schlussrechnung, oder etwas hängt an ihm."""
+    final = final_lock_reason(invoices)
+    if final:
+        return final
+    attached = _attached(db, [item.id])
+    if attached:
+        return (f"Der Nachtrag {item.position_number} lässt sich nicht entfernen: an ihm "
+                + "; ".join(f"{verb} {what}" for verb, what in attached) + ".")
+    return None
+
+
+def add_order_addendum(db: Session, order_id: int, *, short_text: str, long_text: str, quantity, unit: str, unit_price,
+                       include_in_total: bool = True, actor_name: str = "System") -> Order:
+    """Nachtrag am Auftrag (seit 1.8.83, R4a Punkt 3): eine gekennzeichnete Position (OrderItem.is_addendum, Nummer "N1", "N2" …,
+    hinter allen anderen), die jede folgende Rechnung und die Schlussrechnung wie jede andere Position übernehmen -- vorher gab es
+    Nachträge nur als freie Position in einer einzelnen Rechnung (keine spätere übernahm oder zog sie ab). Unter der Sperre der
+    Auftragszeile, nicht nach einer gültigen Schlussrechnung und nicht am stornierten Auftrag (OrderLocked, 409). Mit Revision."""
+    invoices = lock_order_invoices(db, order_id)
+    order = db.get(Order, order_id)
+    if order is None:
+        db.rollback()  # gibt die Sperre frei
+        raise ValueError("Auftrag nicht gefunden.")
+    reason = addendum_create_reason(order, invoices)
+    if reason:
+        db.rollback()
+        raise OrderLocked(reason)
+    items = list(db.scalars(select(OrderItem).where(OrderItem.order_id == order_id)))
+    numbers = [int(i.position_number[len(ADDENDUM_PREFIX):]) for i in items if i.is_addendum
+               and i.position_number.startswith(ADDENDUM_PREFIX) and i.position_number[len(ADDENDUM_PREFIX):].isdigit()]
+    number = f"{ADDENDUM_PREFIX}{max(numbers, default=0) + 1}"
+    db.add(OrderItem(
+        order_id=order_id, section_id=None, source_quote_item_id=None,
+        sort_order=max((i.sort_order for i in items), default=0) + 10, position_number=number, gaeb_oz=None,
+        position_type="normal", short_text=short_text.strip(), long_text=long_text or "", quantity=quantity, unit=unit,
+        unit_price=unit_price, include_in_total=include_in_total, is_addendum=True,
+    ))
+    db.commit()
+    create_order_revision(db, load_order(db, order_id), reason=f"Nachtrag {number} angelegt", actor_name=actor_name)
+    return load_order(db, order_id)
+
+
+def remove_order_addendum(db: Session, order_id: int, item_id: int, *, actor_name: str = "System") -> Order:
+    """Einen Nachtrag wieder entfernen (seit 1.8.83) -- nur einen Nachtrag, an dem nichts hängt (Rechnung jeder Art und jedes
+    Status, Zeit- oder Gruppenbuchung, Material der Arbeitsvorbereitung) und nicht nach der Schlussrechnung (OrderLocked, 409).
+    Positionen aus dem Angebot bleiben dem Abgleich vorbehalten. Unter der Sperre der Auftragszeile, mit Revision."""
+    invoices = lock_order_invoices(db, order_id)
+    item = db.scalar(select(OrderItem).where(OrderItem.id == item_id).execution_options(populate_existing=True))
+    if item is None or item.order_id != order_id:
+        db.rollback()  # gibt die Sperre frei
+        raise ValueError("Auftragsposition nicht gefunden.")
+    if not item.is_addendum:
+        db.rollback()
+        raise OrderLocked("Entfernen lässt sich nur ein Nachtrag – die Positionen aus dem Angebot ändert der Abgleich.")
+    reason = addendum_lock_reason(db, item, invoices)
+    if reason:
+        db.rollback()
+        raise OrderLocked(reason)
+    number = item.position_number
+    db.delete(item)
+    db.commit()
+    create_order_revision(db, load_order(db, order_id), reason=f"Nachtrag {number} entfernt", actor_name=actor_name)
     return load_order(db, order_id)
 
 

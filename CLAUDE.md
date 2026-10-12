@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.82** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.83** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -699,7 +699,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   als feste Fassung in der Ablage (Regel 21), und der Auftrag ist nicht mehr frei änderbar (`app/order_locks.py`, `OrderLocked` = 409
   mit Grund, unter der Sperre der Auftragszeile): Einheitspreis, Einheit und "in Summe" einer Position gesperrt, sobald eine gültige
   Rechnung sie abrechnet (Verweis, Ist ≠ 0); der Steuerschlüssel ab der ersten gültigen Rechnung; Mengen und Texte bis zur
-  Schlussrechnung, danach alles (Positionen, LV-Titel, Steuerschlüssel, Abgleich mit dem Angebot).
+  Schlussrechnung, danach alles (Positionen, LV-Titel, Steuerschlüssel, Abgleich mit dem Angebot). Seit 1.8.83: ein Nachtrag ist
+  eine gekennzeichnete Auftragsposition (`OrderItem.is_addendum`, "N1" …, `app/orders.py::add_order_addendum()`, entfernen nur ohne
+  Anhänge), jede folgende Rechnung übernimmt ihn; freie Positionen ohne Auftragsbezug nur in Rechnungen aus Aufwand (`FREE_ITEM_TEXT`,
+  409); kein negativer Abschlag nach Leistungsstand; "letzter Stand" einer Position = der zuletzt festgeschriebenen Rechnung
+  (`Invoice.finalized_at`, je Auftrag streng steigend).
 - **Zahlung** (`Payment`, seit 1.8.78, Zahlungsstufe Z1, `app/payments.py`): Zahlungseingang eines Kunden (Eingangsdatum, Betrag,
   Notiz), zugeordnet über `PaymentAllocation` (Art `zahlung`, Abzüge `skonto`/`einbehalt`) auf festgeschriebene Rechnungen desselben
   Kunden (seit 1.8.79 der an der Rechnung festgehaltene); der Rest bleibt am Kunden (Kundenakte). Je Rechnung abgeleitet, nie gespeichert (`payment_state()`):
@@ -1024,7 +1028,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Nummer, Überspringen mit Warnung, Format ohne Jahr nicht mit Jahreswechsel; seit 1.8.77 jede Nummer eindeutig in der Datenbank
   (alle sieben Nummernkreise), Befund Zahlungsstufe, Entscheidungen zu Einbehalt und Rechnung aus Aufwand; 1a, 1b und 1d für R4; Befund R4 "Schlussrechnung als
   Endrechnung", Entscheidungen R4a; seit 1.8.82 R4a Punkte 1 und 2: feste Fassung der Rechnung beim Festschreiben, Sperren am
-  Auftrag)
+  Auftrag; seit 1.8.83 Punkte 3–6: Nachtrag als Auftragsposition, freie Positionen nur aus Aufwand, kein negativer Abschlag, letzter
+  Stand nach dem Festschreiben, 1d behoben)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1497,7 +1502,10 @@ ungeprüfte Rechtstexte, Festschreiben mit Zinsen, Aufstellung Format 3; Zahlung
 Nebenforderung sperrt das Storno; Mahnwesen: Ersatz nennt die gegengebuchte Gebühr in Zeile und Rückfrage; Monteurin 403; 412 px dunkel)
 und `klicktest_auftrag_sperren.py` (1.8.82, Auftragsseite: abgerechnete Position mit gesperrtem Preis und Einheit, Grund als Hinweis,
 im Dialog und am Steuerschlüssel, Menge speicherbar, API 409; nach der Schlussrechnung Hinweis über dem LV, jede Eingabe gesperrt;
-Rechnungs-PDF aus der Ablage, Entwurf neu erzeugt; hell, dunkel, 412 px).
+Rechnungs-PDF aus der Ablage, Entwurf neu erzeugt; hell, dunkel, 412 px) und `klicktest_nachtrag.py` (1.8.83, Auftragsseite:
+"+ Nachtrag" mit Dialog, N1 unter "Nachträge" hinter dem Titel, Summe, entfernen; mit Rechnungsentwurf Grund statt Entfernen;
+Rechnungsseite: Schlussrechnung ohne "+ Position" mit Hinweis und N1, Aufwand mit Knopf, negativer Abschlag mit Grund statt
+Finalisieren; hell, dunkel, 412 px).
 Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,

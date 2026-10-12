@@ -4,6 +4,27 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.83 – Nachtrag am Auftrag, kein negativer Abschlag, letzter Stand, Storno 1d (R4a, Punkte 3–6)
+
+Ein Nachtrag ist jetzt eine gekennzeichnete Position am Auftrag („+ Nachtrag“ auf der Auftragsseite, Nummer N1, N2 …, unter
+„Nachträge“ hinter allen Titeln, auch im Auftrags-PDF): jede folgende Rechnung und die Schlussrechnung übernehmen ihn, der Auftrag zählt
+ihn zur Summe. Bis 1.8.82 stand ein Nachtrag als freie Position nur in der einen Rechnung, keine spätere übernahm oder zog ihn ab. Freie
+Positionen ohne Auftragsbezug gibt es nur noch in Rechnungen aus Aufwand; ein Entwurf mit freier Position von früher lässt sich nicht
+mehr festschreiben. Ein Nachtrag ohne Anhänge lässt sich wieder entfernen; nach der Schlussrechnung und am stornierten Auftrag gibt es
+keinen neuen, und der Abgleich mit dem Angebot ist gesperrt, solange Nachträge stehen.
+
+Ein Abschlag nach Leistungsstand mit negativem Betrag lässt sich nicht mehr festschreiben – 409 mit Hinweis auf Storno oder
+Schlussrechnung. Der „letzte Stand“ einer Position ist der der zuletzt festgeschriebenen Rechnung (neuer Zeitpunkt des Festschreibens),
+nicht mehr der der zuletzt angelegten. Das Storno eines pauschalen Abschlags ohne Position (vor 1.3.24) lautet auf den Gegenbetrag statt
+über 0 € (Befund 1d, Markierung entfernt). Migration `3b8f1d6c9e24` (ändert keine Daten), auf SQLite und PostgreSQL mit Bestand geprobt.
+
+Neu `test_v386_nachtrag_und_abschlag` (25, davon 3 gegen PostgreSQL) und `test_v386_nachtrag_migration` (2, davon 1 gegen PostgreSQL);
+1d ohne Markierung; Tests mit freien Positionen an Schlussrechnung oder Abschlag angepasst. Gegenproben 16 von 16 rot. Volle Suite (mit
+den opt-in-Tests gegen PostgreSQL): 3733 grün, 2 rot (beide überholte Erwartungen, angepasst), 6 erwartet fehlgeschlagen (1a, 1b). Alle
+Klicktests: 51 von 52 wie erwartet in 10:58 min; rot einmal `klicktest_auswahl_inaktiv` an einem vorhandenen Fehler (GET /api/employees
+schreibt, Nebenbefund 4), einzeln 13/13. Festlegungen zum Bestätigen und Nebenbefunde in `docs/archiv/befund-vor-echtbetrieb.md`,
+"Umsetzung 1.8.83".
+
 ## 1.8.82 – Feste Fassung der Rechnung, Sperren am Auftrag (R4a, Punkte 1 und 2)
 
 Das PDF jeder Rechnung – jede Art, auch Storno – entsteht jetzt beim Festschreiben im selben Commit und liegt ab dann mit Prüfsumme in
@@ -18,11 +39,11 @@ Rechnung; Mengen und Texte bleiben bis zur Schlussrechnung offen, danach ist all
 und der Abgleich mit dem Angebot. 409 mit Grund, geprüft unter der Sperre der Auftragszeile wie das Festschreiben; die Auftragsseite
 zeigt die Gründe statt der Eingabe. Migration `6d1e8b3f2a47` (ändert keine Daten), auf SQLite und PostgreSQL mit Bestand geprobt.
 
-Neu `test_v385_feste_fassung_rechnung` (17, davon 2 gegen PostgreSQL), `test_v385_auftrag_sperren` (36, davon 4 gegen
-PostgreSQL) und `test_v385_feste_fassung_migration` (2, davon 1 gegen PostgreSQL); Tests, die vor dem ersten Versand eine leere
-Ablage erwarteten, angepasst. Gegenproben 21 von 21 rot. Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3706 grün, 1 rot
-(eine solche Erwartung, angepasst), 7 erwartet fehlgeschlagen. Alle Klicktests: 51 von 51 wie erwartet in 10:38 min. Festlegungen zum Bestätigen und Nebenbefunde in
-`docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.82".
+Neu `test_v385_feste_fassung_rechnung` (17, davon 2 gegen PostgreSQL), `test_v385_auftrag_sperren` (36, davon 4 gegen PostgreSQL) und
+`test_v385_feste_fassung_migration` (2, davon 1 gegen PostgreSQL); Tests, die vor dem ersten Versand eine leere Ablage erwarteten,
+angepasst. Gegenproben 21 von 21 rot. Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3706 grün, 1 rot (eine solche Erwartung,
+angepasst), 7 erwartet fehlgeschlagen. Alle Klicktests: 51 von 51 wie erwartet in 10:38 min. Festlegungen zum Bestätigen und
+Nebenbefunde in `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.82".
 
 ## 1.8.81 – Verzugszinsen, Zahlungen auf Nebenforderungen, Rechtstexte (Z2b, Punkte 7–9)
 

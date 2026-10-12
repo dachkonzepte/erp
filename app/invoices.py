@@ -47,7 +47,7 @@ Invoice.pdf_document_id) -- Download, Versand und nachgetragene Zustellung nehme
 """
 
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal
 
 from sqlalchemy import func, select
@@ -197,14 +197,50 @@ def _finalize_rule_reason(invoices: list[Invoice], invoice: Invoice) -> str | No
         other = _final_invoices(invoices, with_drafts=False, exclude_id=invoice.id)
         if other:
             return f"Am Auftrag besteht schon eine festgeschriebene Schlussrechnung ({_labels(other)})."
-        return _lump_sum_reason(invoices)
+        return _lump_sum_reason(invoices) or free_items_reason(invoice)  # freie Positionen seit 1.8.83
     if invoice.invoice_type in PROGRESS_INVOICE_TYPES:
-        return _progress_after_final_reason(invoices)
+        # Seit 1.8.83 (R4a Punkte 3 und 4): kein negativer Abschlag nach Leistungsstand, keine freie Position.
+        return _progress_after_final_reason(invoices) or negative_progress_reason(invoice) or free_items_reason(invoice)
     if invoice.invoice_type == "storno" and invoice.storno_of_invoice_id is not None:
         original = next((i for i in invoices if i.id == invoice.storno_of_invoice_id), None)
         if original is not None:
             return storno_block_reason(invoices, original, storno_draft_id=invoice.id)
     return None
+
+
+def _eur(amount: Decimal) -> str:
+    return f"{amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " €"
+
+
+def negative_progress_reason(invoice: Invoice) -> str | None:
+    """Seit 1.8.83 (R4a Punkt 4, Befund R4 Nebenbefund 2): ein Abschlag nach Leistungsstand mit negativem Betrag -- ein Ist unter
+    dem zuletzt abgerechneten Stand -- lässt sich nicht festschreiben (vorher: mit Nummer, nie offen, eine Gutschrift, die
+    niemand als solche bucht). Zu viel Abgerechnetes korrigieren Storno oder Schlussrechnung. Ein Betrag von 0 € ist nicht
+    negativ (Festlegung 1.8.83 Nr. 4)."""
+    if invoice.invoice_type != "abschlag_leistungsstand":
+        return None
+    gross = compute_invoice_totals(invoice)["gross_total"]
+    if gross >= 0:
+        return None
+    return (f"Der Abschlag lautet über {_eur(gross)}: das Ist liegt unter dem zuletzt abgerechneten Stand. Ein Abschlag nach "
+            "Leistungsstand nimmt nichts zurück – zu viel Abgerechnetes korrigiert das Storno des Abschlags, der zu viel "
+            "abgerechnet hat, oder die Schlussrechnung.")
+
+
+def free_items_reason(invoice: Invoice) -> str | None:
+    """Seit 1.8.83 (R4a Punkt 3): freie Positionen ohne Auftragsbezug gibt es nur in Rechnungen aus Aufwand -- ein Nachtrag
+    kommt als gekennzeichnete Position an den Auftrag (app/orders.py::add_order_addendum()) und steht so in jeder folgenden
+    Rechnung und in der Schlussrechnung. Beim Festschreiben eines Abschlags nach Leistungsstand oder einer Schlussrechnung
+    geprüft, die vor 1.8.83 eine freie Position bekam (Anlegen lehnt add_invoice_item() seither ab). Die Projektionsposition
+    des pauschalen Abschlags hat bewusst keinen Bezug (_sync_lump_sum_pauschal_item())."""
+    if invoice.invoice_type not in ("abschlag_leistungsstand", "schluss"):
+        return None
+    free = [i.short_text for i in sorted(invoice.items, key=lambda x: (x.sort_order, x.id)) if i.source_order_item_id is None]
+    if not free:
+        return None
+    return (f"Die Rechnung enthält {'eine freie Position' if len(free) == 1 else f'{len(free)} freie Positionen'} ohne "
+            f"Auftragsbezug („{'“, „'.join(free)}“). Freie Positionen gibt es nur in Rechnungen aus Aufwand; einen Nachtrag am "
+            "Auftrag anlegen („+ Nachtrag“), dann die Position hier entfernen bzw. die Rechnung neu anlegen.")
 
 
 def _check_create(db: Session, order: Order, invoice_type: str) -> None:
@@ -336,7 +372,7 @@ def _default_invoice_header_fields(db: Session, order: Order, *, due_date: date 
 def get_previous_cumulative_ist(
     db: Session, order_id: int, source_order_item_id: int, *, exclude_invoice_id: int | None = None,
 ) -> Decimal:
-    """Kumulierter Ist-Stand der zeitlich letzten, bereits festgeschriebenen
+    """Kumulierter Ist-Stand der zuletzt festgeschriebenen
     (NICHT: Entwurf, NICHT: stornierte) Rechnung für dieselbe
     Auftragsposition. Entwürfe zählen bewusst nicht mit, da sie noch nicht
     endgültig sind -- eine stornierte Rechnung zählt bewusst nicht mit, da ihr
@@ -346,7 +382,12 @@ def get_previous_cumulative_ist(
     eine Storno-Rechnung übernimmt ist_quantity unverändert von der Rechnung,
     die sie storniert (nur billed_quantity/-total werden negiert, siehe
     create_storno_draft) -- sie selbst würde sonst fälschlich als neuer,
-    aktueller Stand erkannt, obwohl sie das genaue Gegenteil bedeutet."""
+    aktueller Stand erkannt, obwohl sie das genaue Gegenteil bedeutet.
+
+    "Zuletzt" seit 1.8.83 (R4a Punkt 5): nach dem Zeitpunkt des Festschreibens (Invoice.finalized_at) -- vorher nach
+    Rechnungsdatum und ID, am selben Tag also die zuletzt ANGELEGTE (zwei Entwürfe nebeneinander, der ältere zuletzt
+    festgeschrieben: es galt der Stand des jüngeren, Befund R4 b). Rechnungen von vor 1.8.83 (ohne Zeitpunkt) wie bisher, hinter
+    jeder späteren."""
     stmt = (
         select(InvoiceItem.ist_quantity)
         .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
@@ -356,7 +397,7 @@ def get_previous_cumulative_ist(
             Invoice.invoice_type.in_(["abschlag_leistungsstand", "schluss"]),
             InvoiceItem.source_order_item_id == source_order_item_id,
         )
-        .order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
+        .order_by(Invoice.finalized_at.is_(None), Invoice.finalized_at.desc(), Invoice.invoice_date.desc(), Invoice.id.desc())
     )
     if exclude_invoice_id is not None:
         stmt = stmt.where(Invoice.id != exclude_invoice_id)
@@ -661,18 +702,25 @@ def create_invoice_from_time_entries(
     return invoice
 
 
+FREE_ITEM_TEXT = ("Freie Positionen ohne Auftragsbezug gibt es nur in Rechnungen aus Aufwand. Ein Nachtrag kommt als Position an "
+                  "den Auftrag („+ Nachtrag“ auf der Auftragsseite) und steht dann in jeder folgenden Rechnung.")
+
+
 def add_invoice_item(
     db: Session, invoice: Invoice, *, short_text: str, long_text: str, unit: str,
     unit_price: Decimal, ist_quantity: Decimal, source_order_item_id: int | None = None,
     soll_quantity: Decimal | None = None, position_number: str | None = None,
     sort_order: int | None = None,
 ) -> InvoiceItem:
-    """Für Nachträge/neue Positionen (source_order_item_id=None) sowie um
+    """Für freie Positionen (source_order_item_id=None) sowie um
     ausdrücklich eine bestehende Auftragsposition erneut hinzuzufügen, falls
     sie zuvor entfernt wurde. Seit 1.8.70 (Befund 2i) nur eine Position des
     Auftrags dieser Rechnung -- vorher auch die eines fremden Auftrags (volle
     Menge berechnet, nach dem Festschreiben unveränderlich). Seit 1.8.75 unter
-    der Sperre (_lock_draft())."""
+    der Sperre (_lock_draft()). Seit 1.8.83 (R4a Punkt 3) freie Positionen nur
+    in Rechnungen aus Aufwand (sonst InvoiceBlocked, 409) -- ein Nachtrag kommt
+    als gekennzeichnete Position an den Auftrag (app/orders.py::add_order_addendum());
+    vorher stand er nur in der einen Rechnung, keine spätere übernahm oder zog ihn ab."""
     _lock_draft(db, invoice)
     if source_order_item_id is not None:
         source = db.get(OrderItem, source_order_item_id)
@@ -683,6 +731,8 @@ def add_invoice_item(
             "Pauschale Abschlagsrechnungen haben nur die eine, automatisch erzeugte Position -- "
             "Bezeichnung und Betrag über das Pauschalbetrag-Feld ändern."
         ))
+    if source_order_item_id is None and invoice.invoice_type != "aufwand":
+        raise _reject(db, InvoiceBlocked(FREE_ITEM_TEXT))
     billed_quantity, billed_total = compute_billed_quantity_and_total(
         db, invoice.order_id, invoice.id, source_order_item_id, ist_quantity, unit_price,
     )
@@ -797,6 +847,7 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
         invoice.customer_address = order.customer_address
     invoice.invoice_number = issue_number(db, "invoice")
     invoice.status = "versendet"
+    invoice.finalized_at = _finalized_at(invoices)  # seit 1.8.83 (R4a Punkt 5)
     if invoice.invoice_type == "storno" and invoice.storno_of_invoice_id is not None:
         original = db.get(Invoice, invoice.storno_of_invoice_id)
         if original is not None:
@@ -806,6 +857,15 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
     db.commit()
     db.refresh(invoice)
     return invoice
+
+
+def _finalized_at(invoices: list[Invoice]) -> datetime:
+    """Zeitpunkt des Festschreibens (seit 1.8.83, R4a Punkt 5): jetzt (naive UTC), mindestens eine Mikrosekunde nach dem
+    jüngsten des Auftrags -- unter der Sperre der Auftragszeile sind die Zeitpunkte je Auftrag so streng steigend, auch wenn die
+    Uhr des Servers einmal zurückgestellt wird. Grundlage von "letzter Stand" (get_previous_cumulative_ist())."""
+    now = datetime.utcnow()
+    latest = max((i.finalized_at for i in invoices if i.finalized_at is not None), default=None)
+    return now if latest is None or now > latest else latest + timedelta(microseconds=1)
 
 
 def _store_fixed_pdf(db: Session, invoice: Invoice) -> None:
@@ -926,6 +986,17 @@ def create_storno_draft(db: Session, original: Invoice) -> Invoice:
     # Seit 1.8.11: dieselbe Rundungsregel wie das Original, damit sich beide auf den Cent aufheben.
     # Erst nach dem flush: ein None im Konstruktor ersetzt SQLAlchemy durch den Vorgabewert "half_up".
     storno.rounding_rule = original.rounding_rule
+    if original.invoice_type == "abschlag_pauschal" and not original.items:
+        # Seit 1.8.83 (R4a Punkt 6, Befund 1d): ein pauschaler Abschlag von vor 1.3.24 hat keine Position, sein Betrag steht nur
+        # in lump_sum_net -- das Storno (Art "storno", gerechnet aus den Positionen) lautete deshalb über 0 €. Es bekommt die
+        # Projektionsposition, die das Original heute hätte, mit umgekehrtem Vorzeichen: Gegenbetrag des Originals.
+        amount = original.lump_sum_net if original.lump_sum_net is not None else Decimal("0")
+        db.add(InvoiceItem(
+            invoice_id=storno.id, sort_order=10, position_number="1",
+            short_text=original.progress_description or "Abschlagszahlung gemäß Auftrag", long_text="", unit=LUMP_SUM_ITEM_UNIT,
+            unit_price=amount, soll_quantity=Decimal("1"), ist_quantity=Decimal("1"),
+            billed_quantity=Decimal("-1"), billed_total=-amount,
+        ))
     for item in original.items:
         db.add(InvoiceItem(
             invoice_id=storno.id, source_order_item_id=item.source_order_item_id,

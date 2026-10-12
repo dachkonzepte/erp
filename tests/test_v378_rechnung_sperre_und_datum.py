@@ -194,8 +194,10 @@ EDITS = {
     "zeitraum": lambda s, inv: update_invoice_header(s, inv, service_period_end=date(2026, 9, 29)),
     "zahlungsbedingung": lambda s, inv: update_invoice_payment_term(s, inv, _term_id(s, inv)),
     "steuerschluessel": lambda s, inv: update_invoice_tax_key(s, inv, _tax_key_id(s)),
+    # Seit 1.8.83 keine freie Position an einer Schlussrechnung -- die Position des Auftrags noch einmal (bis 1.8.82 frei).
     "position_neu": lambda s, inv: add_invoice_item(s, inv, short_text="Nachtrag", long_text="", unit="Std.",
-                                                    unit_price=Decimal("50"), ist_quantity=Decimal("2")),
+                                                    unit_price=Decimal("50"), ist_quantity=Decimal("2"),
+                                                    source_order_item_id=inv.items[0].source_order_item_id),
     "position_aendern": lambda s, inv: update_invoice_item(s, inv, inv.items[0], ist_quantity=Decimal("50")),
     "position_entfernen": lambda s, inv: remove_invoice_item(s, inv, inv.items[0].id),
 }
@@ -557,7 +559,9 @@ SZENARIEN = {
     ("PUT", "/api/invoices/{invoice_id}/tax-key"): _sz_entwurf(
         lambda c, i, db: c.put(f"/api/invoices/{i}/tax-key", json={"tax_key_id": _tax_key_id(db)})),
     ("POST", "/api/invoices/{invoice_id}/items"): _sz_entwurf(lambda c, i, db: c.post(f"/api/invoices/{i}/items", json={
-        "short_text": "Nachtrag", "long_text": "", "unit": "Std.", "unit_price": "50", "ist_quantity": "2"})),
+        "short_text": "Nachtrag", "long_text": "", "unit": "Std.", "unit_price": "50", "ist_quantity": "2",
+        # seit 1.8.83 die Position des Auftrags noch einmal (freie Positionen nur in Rechnungen aus Aufwand)
+        "source_order_item_id": c.get(f"/api/invoices/{i}").json()["items"][0]["source_order_item_id"]})),
     ("PUT", "/api/invoices/{invoice_id}/items/{item_id}"): _sz_entwurf(
         lambda c, i, db: c.put(f"/api/invoices/{i}/items/{_erste_position(c, i)}", json={"ist_quantity": "7"})),
     ("DELETE", "/api/invoices/{invoice_id}/items/{item_id}"): _sz_entwurf(

@@ -80,10 +80,15 @@ def test_currency_removed_from_item_values_kept_in_headers_and_totals():
 
     db = db_session()
     # Zweite Position mit anderem Betrag, damit der Zeilenwert eindeutig vom (weiterhin "EUR"
-    # tragenden) Summenblock unterscheidbar bleibt -- add_invoice_item() vor dem Finalisieren.
+    # tragenden) Summenblock unterscheidbar bleibt -- seit 1.8.83 als Position des Auftrags (freie Positionen nur noch in
+    # Rechnungen aus Aufwand), vorher add_invoice_item() vor dem Finalisieren.
+    from app.models import OrderItem
     order, _ = make_order_with_item(db, quantity=Decimal("3"), unit_price=Decimal("7"))
+    db.add(OrderItem(order_id=order.id, sort_order=20, position_number="2", short_text="Zweite Position", quantity=Decimal("1"),
+                     unit="Stk", unit_price=Decimal("50")))
+    db.commit()
+    db.refresh(order)
     invoice = create_schlussrechnung(db, order)
-    add_invoice_item(db, invoice, short_text="Zweite Position", long_text="", unit="Stk", unit_price=Decimal("50"), ist_quantity=Decimal("1"))
     invoice = festschreiben(db, invoice)
 
     pdf_bytes = build_invoice_pdf(db, invoice)

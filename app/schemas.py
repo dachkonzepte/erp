@@ -1263,6 +1263,19 @@ class OrderItemOut(BaseModel):
     line_total: Decimal
     # Seit 1.8.82 (R4a Punkt 2): warum Einheitspreis, Einheit und "in Summe" gesperrt sind (abgerechnet), sonst None.
     price_lock: str | None = None
+    # Seit 1.8.83 (R4a Punkt 3): Nachtrag am Auftrag, und warum er nicht (mehr) entfernt werden kann.
+    is_addendum: bool = False
+    addendum_lock: str | None = None
+
+
+class OrderAddendumCreate(BaseModel):
+    """Nachtrag am Auftrag anlegen (seit 1.8.83, R4a Punkt 3) -- Nummer ("N1" …) und Reihenfolge vergibt der Server."""
+    short_text: str = Field(min_length=1)
+    long_text: str = ""
+    quantity: Decimal = Field(ge=0)
+    unit: str = Field(min_length=1, max_length=50)
+    unit_price: Decimal = Field(ge=0)
+    include_in_total: bool = True
 
 
 class OrderItemUpdate(BaseModel):
@@ -1371,6 +1384,7 @@ class OrderOut(BaseModel):
     # gültigen Rechnung der Steuersatz (tax_lock) -- je der Grund, sonst None.
     order_lock: str | None = None
     tax_lock: str | None = None
+    addendum_create_block: str | None = None  # seit 1.8.83: warum kein Nachtrag mehr angelegt werden kann
 
 
 class OrderFieldAccessItemOut(BaseModel):

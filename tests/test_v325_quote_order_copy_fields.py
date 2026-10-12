@@ -107,6 +107,8 @@ ORDER_FIELDS: dict[type, dict[str, tuple]] = {
         "unit": von("QuoteItem.unit"),
         "unit_price": von("QuoteItem.unit_price"),
         "include_in_total": von("QuoteItemLayout.include_in_total"),
+        "is_addendum": eigen("Nachtrag, am Auftrag angelegt (seit 1.8.83, app/orders.py::add_order_addendum()) -- nie aus dem "
+                             "Angebot; der Abgleich ist gesperrt, solange einer steht"),
     },
     OrderItemCalculationSnapshot: {
         "id": eigen("Primärschlüssel"),

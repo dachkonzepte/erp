@@ -101,7 +101,8 @@ def build_order_pdf(db, order) -> bytes:
         for s in data['sections']: children.setdefault(s['parent_id'], []).append(s)
         for rows in children.values(): rows.sort(key=lambda x: (x['sort_order'], x['id']))
         by = {}
-        for i in data['items']: by.setdefault(i['section_id'], []).append(i)
+        # Seit 1.8.83 (R4a Punkt 3): Nachträge hinter allen Titeln, unter eigener Überschrift.
+        for i in data['items']: by.setdefault('nachtrag' if i.get('is_addendum') else i['section_id'], []).append(i)
         for rows in by.values(): rows.sort(key=lambda x: (x['sort_order'], x['id']))
 
         fixed_width = sum(ITEMS_COL_WIDTHS_MM.values()) * mm
@@ -164,6 +165,9 @@ def build_order_pdf(db, order) -> bytes:
                 story.append(Paragraph(f"{escape(child.get('section_number') or '')} {escape(child['title'])}", h3))
                 if child.get('description'): story.append(Paragraph(ptext(child['description']), small))
                 add_items(child['id'])
+        if by.get('nachtrag'):
+            story.append(Paragraph("Nachträge", h2))
+            add_items('nachtrag')
         story.append(Spacer(1, 5*mm))
         totals = [["Nettosumme", money(data['net_total'])], [f"zzgl. MwSt. {qty(data['vat_rate'])} %", money(data['vat_total'])], ["Auftragssumme brutto", money(data['gross_total'])]]
         if data['optional_total']: totals.insert(1, ["Optionale Positionen (nicht enthalten)", money(data['optional_total'])])

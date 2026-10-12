@@ -1618,6 +1618,10 @@ class OrderItem(Base):
     unit: Mapped[str] = mapped_column(String(50))
     unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 6), default=Decimal("0"))
     include_in_total: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Nachtrag (seit 1.8.83, R4a Punkt 3): am Auftrag angelegt, nicht aus dem Angebot (app/orders.py::add_order_addendum()),
+    # Positionsnummer "N1", "N2" … -- steht in jeder folgenden Rechnung und in der Schlussrechnung wie jede andere Position.
+    # Freie Positionen ohne Auftragsbezug gibt es seither nur in Rechnungen aus Aufwand. Migration 3b8f1d6c9e24.
+    is_addendum: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
     order: Mapped[Order] = relationship(back_populates="items")
     calculation_snapshot: Mapped["OrderItemCalculationSnapshot | None"] = relationship(back_populates="order_item", cascade="all, delete-orphan", uselist=False)
@@ -1770,6 +1774,11 @@ class Invoice(Base):
     # 6d1e8b3f2a47.
     pdf_document_id: Mapped[int | None] = mapped_column(
         ForeignKey("sent_documents.id", name="fk_invoices_pdf_document_id"), nullable=True)
+    # Zeitpunkt des Festschreibens (seit 1.8.83, R4a Punkt 5; naive UTC): der "letzte Stand" einer Position ist der der zuletzt
+    # festgeschriebenen Rechnung (app/invoices.py::get_previous_cumulative_ist()), je Auftrag streng steigend (Festschreiben
+    # unter der Sperre der Auftragszeile). Leer: Entwurf, oder vor 1.8.83 festgeschrieben -- dann zählen Rechnungsdatum und ID
+    # wie bisher, hinter jeder späteren. Migration 3b8f1d6c9e24.
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

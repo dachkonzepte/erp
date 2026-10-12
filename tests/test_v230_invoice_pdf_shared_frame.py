@@ -34,15 +34,16 @@ def _make_finalized_invoice(db, **kwargs):
 
 
 def _make_finalized_multipage_invoice(db):
-    """Viele zusätzliche Positionen (vor dem Finalisieren, solange die Rechnung noch im Entwurf
-    editierbar ist) erzwingen einen echten Seitenumbruch."""
+    """Viele zusätzliche Positionen erzwingen einen echten Seitenumbruch -- seit 1.8.83 als Positionen des Auftrags (freie
+    Positionen gibt es nur noch in Rechnungen aus Aufwand), vorher mit add_invoice_item() am Entwurf."""
+    from app.models import OrderItem
     order, item = make_order_with_item(db)
-    invoice = create_schlussrechnung(db, order)
     for i in range(60):
-        add_invoice_item(
-            db, invoice, short_text=f"Zusatzposition {i}", long_text="", unit="Stk",
-            unit_price=Decimal("10"), ist_quantity=Decimal("1"),
-        )
+        db.add(OrderItem(order_id=order.id, sort_order=20 + i, position_number=str(2 + i), short_text=f"Zusatzposition {i}",
+                         quantity=Decimal("1"), unit="Stk", unit_price=Decimal("10")))
+    db.commit()
+    db.refresh(order)
+    invoice = create_schlussrechnung(db, order)
     invoice = festschreiben(db, invoice)
     return invoice
 

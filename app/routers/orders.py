@@ -29,9 +29,9 @@ from ..invoices import invoice_summary_for_order
 from ..models import AppUser, Order, ServiceReport
 from ..order_locks import OrderLocked
 from ..order_pdf import build_order_pdf
-from ..orders import SyncBlockedError, create_order_revision, field_may_access_order, list_order_revisions, load_order, order_to_dict, send_order_email, sync_order_from_source_quote, update_order_header, update_order_item, update_order_section, update_order_tax_key
+from ..orders import SyncBlockedError, add_order_addendum, create_order_revision, field_may_access_order, list_order_revisions, load_order, order_to_dict, remove_order_addendum, send_order_email, sync_order_from_source_quote, update_order_header, update_order_item, update_order_section, update_order_tax_key
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
-from ..schemas import OrderContractBasisChangeOut, OrderContractBasisUpdate, OrderEmailSend, OrderFieldAccessOut, OrderItemUpdate, OrderListOut, OrderOut, OrderRevisionCreate, OrderRevisionOut, OrderSectionUpdate, OrderSyncRequest, OrderUpdate, TaxKeySelection
+from ..schemas import OrderAddendumCreate, OrderContractBasisChangeOut, OrderContractBasisUpdate, OrderEmailSend, OrderFieldAccessOut, OrderItemUpdate, OrderListOut, OrderOut, OrderRevisionCreate, OrderRevisionOut, OrderSectionUpdate, OrderSyncRequest, OrderUpdate, TaxKeySelection
 
 router = APIRouter()
 
@@ -185,6 +185,36 @@ def put_order_item(order_id: int, item_id: int, payload: OrderItemUpdate, db: Se
     try:
         order = update_order_item(db, order_id, item_id, **payload.model_dump())
     except OrderLocked as exc:  # seit 1.8.82: abgerechnete Position bzw. nach der Schlussrechnung
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return OrderOut.model_validate(order_to_dict(order, db))
+
+
+def _actor_name(request: Request) -> str:
+    actor = getattr(request.state, "erp_user", None)
+    return getattr(actor, "display_name", None) or getattr(actor, "username", None) or "System"
+
+
+@router.post("/api/orders/{order_id}/items", response_model=OrderOut)
+def post_order_addendum(order_id: int, payload: OrderAddendumCreate, request: Request, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Nachtrag am Auftrag (seit 1.8.83, R4a Punkt 3) -- die einzige Art, dem Auftrag eine Position hinzuzufügen. 409 nach der
+    Schlussrechnung und am stornierten Auftrag."""
+    try:
+        order = add_order_addendum(db, order_id, **payload.model_dump(), actor_name=_actor_name(request))
+    except OrderLocked as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return OrderOut.model_validate(order_to_dict(order, db))
+
+
+@router.delete("/api/orders/{order_id}/items/{item_id}", response_model=OrderOut)
+def delete_order_addendum(order_id: int, item_id: int, request: Request, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Einen Nachtrag entfernen (seit 1.8.83) -- nur einen Nachtrag, an dem nichts hängt, nicht nach der Schlussrechnung (409)."""
+    try:
+        order = remove_order_addendum(db, order_id, item_id, actor_name=_actor_name(request))
+    except OrderLocked as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

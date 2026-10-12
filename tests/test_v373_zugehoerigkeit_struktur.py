@@ -210,6 +210,8 @@ GEPRUEFT = {
         ("invoices.remove_invoice_item", "invoice.items if i.id == item_id"),
     "PUT /api/orders/{order_id}/items/{item_id} item_id":
         ("orders.update_order_item", "item is None or item.order_id != order_id"),
+    "DELETE /api/orders/{order_id}/items/{item_id} item_id":  # seit 1.8.83: Nachtrag entfernen
+        ("orders.remove_order_addendum", "item is None or item.order_id != order_id"),
     "PUT /api/orders/{order_id}/sections/{section_id} section_id":
         ("orders.update_order_section", "section is None or section.order_id != order_id"),
     "PUT /api/quotes/{quote_id}/sections/{section_id} section_id":

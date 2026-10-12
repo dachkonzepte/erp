@@ -13,7 +13,8 @@ Aktion, die die Reparatur ablehnen darf, läuft über _versuch().
 
 Seit 1.8.72 (R3) behoben und ohne Markierung: 1c, 1e, 1f, 1g, 1h. Weil die Reparatur schon das Anlegen einer zweiten
 Schlussrechnung bzw. eines zweiten Stornos ablehnt, läuft dort auch das zweite Anlegen über _versuch() (die Prüfungen sind
-unverändert); den Altbestand mit zwei Entwürfen prüft tests/test_v375_rechnungen_sperren.py. Offen bis R4: 1a, 1b, 1d -- bei 1a
+unverändert); den Altbestand mit zwei Entwürfen prüft tests/test_v375_rechnungen_sperren.py. Seit 1.8.83 (R4a Punkt 6) behoben
+und ohne Markierung: 1d. Offen bis R4: 1a, 1b -- bei 1a
 ist die Schlussrechnung neben einem pauschalen Abschlag bis dahin gesperrt; der Test verlangt deshalb zusätzlich, dass eine
 gültige Schlussrechnung besteht (sonst wäre er ohne sie zufällig grün: 2.000 pauschal + 60 % = 5.000)."""
 
@@ -233,8 +234,9 @@ def test_today_cancelled_final_invoice_allows_a_new_one():
 # 1d-1g: Storno
 # ---------------------------------------------------------------------------
 
-@befund("1d", "Storno eines pauschalen Abschlags ohne Position (vor 1.3.24, z. B. R-2026-0001/-0002) lautet über 0,00 EUR")
 def test_cancellation_of_a_legacy_lump_sum_invoice_reverses_its_amount():
+    """1d, seit 1.8.83 behoben (R4a Punkt 6): vorher lautete das Storno eines pauschalen Abschlags ohne Position (vor 1.3.24,
+    z. B. R-2026-0001/-0002) über 0,00 EUR -- das Original fiel trotzdem als storniert heraus."""
     db = db_session()
     order, _ = make_order_with_item(db)
     pauschal = create_abschlag_pauschal(db, order, lump_sum_net=Decimal("2000"))

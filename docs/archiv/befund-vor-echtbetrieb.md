@@ -1817,7 +1817,7 @@ auflisten. Commit nach Regel 13, Bericht kurz.
 ### Vorweg
 
 - Klarstellung und Entscheidungen R4a unter "Entscheidungen Rechnungen" (Ende dieser Datei) eingetragen.
-- Umfang: nach Punkt 2 committet (1.8.82); Punkte 3–6 als eigene Version 1.8.83 (siehe dort).
+- Umfang: nach Punkt 2 committet (1.8.82); Punkte 3–6 als eigene Version 1.8.83 ("Umsetzung 1.8.83" unten).
 
 ### Was gebaut ist
 
@@ -1916,7 +1916,8 @@ auflisten. Commit nach Regel 13, Bericht kurz.
 - Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie): 3706 grün, 1 rot, 7 erwartet fehlgeschlagen (1a, 1b, 1d) -- rot
   war `test_v382_mahnwesen.py::test_manual_delivery_counts_the_state_on_the_delivery_day` (erwartete eine leere Ablage, siehe "Erwartung
   geändert"), angepasst, die Datei danach 34 grün.
-- Alle Klicktests (Regel 26, `scripts/klicktest_alle.py`, Arbeitskopie): 51 von 51 wie erwartet, Laufzeit gesamt 10:38 min. Keine rote Prüfung.
+- Alle Klicktests (Regel 26, `scripts/klicktest_alle.py`, Arbeitskopie): 51 von 51 wie erwartet, Laufzeit gesamt 10:38 min. Keine rote
+  Prüfung.
 
 ### Nebenbefunde (nur gemeldet)
 
@@ -1932,6 +1933,126 @@ auflisten. Commit nach Regel 13, Bericht kurz.
    das volle `order_to_dict()` mit Abgleich, Abrechnungsstand, Rechnungssperren und seit 1.8.82 den Sperren am Auftrag auf -- nur um
    Netto und Brutto zu zeigen; dazu je Auftrag `invoice_summary_for_order()`. Bei wachsender Zahl der Aufträge eine Abfrageflut
    (CLAUDE.md "Datenmenge wächst"); vorher schon so, 1.8.82 legt je Auftrag eine Abfrage dazu.
+
+## Umsetzung 1.8.83: Nachtrag am Auftrag, kein negativer Abschlag, letzter Stand, Storno 1d (R4a, Punkte 3–6)
+
+Vorgabe wie bei 1.8.82 (dort wörtlich); nach Punkt 2 committet (1.8.82), die Punkte 3–6 als diese Version.
+
+### Was gebaut ist
+
+- **Nachtrag als gekennzeichnete Auftragsposition** (Punkt 3; `app/orders.py::add_order_addendum()`, `POST /api/orders/{id}/items`):
+  `OrderItem.is_addendum` (Migration `3b8f1d6c9e24`), Positionsnummer "N1", "N2" … (höchste vergebene + 1), hinter allen anderen
+  Positionen, ohne LV-Titel; unter der Sperre der Auftragszeile, mit Revision "Nachtrag N1 angelegt". Jede folgende Rechnung kopiert
+  ihn wie jede Position (Abschlag nach Leistungsstand mit Ist = letzter Stand, Schlussrechnung zu 100 %), der Auftrag zählt ihn zur
+  Summe -- abgerechnet = Auftragssumme mit Nachtrag. Gesperrt nach einer gültigen Schlussrechnung und am stornierten Auftrag
+  (`OrderLocked`, 409). **Entfernen** (`remove_order_addendum()`, `DELETE /api/orders/{id}/items/{item_id}`): nur ein Nachtrag, an dem
+  nichts hängt (Rechnung jeder Art und jedes Status, Zeit- oder Gruppenbuchung, Material der Arbeitsvorbereitung), nicht nach der
+  Schlussrechnung, mit Revision; eine Position aus dem Angebot nie (409). Was an Positionen hängt, prüft seither eine Funktion für
+  Abgleich und Nachtrag (`_attached()`, Texte des Abgleichs unverändert). **Abgleich mit dem Angebot** gesperrt, solange Nachträge
+  stehen ("am Auftrag steht der Nachtrag N1, den der Abgleich löschen würde").
+- **Freie Positionen nur in Rechnungen aus Aufwand**: `add_invoice_item()` ohne Auftragsbezug an jeder anderen Art 409
+  (`FREE_ITEM_TEXT`, mit Hinweis auf "+ Nachtrag"); ein Entwurf von Abschlag nach Leistungsstand oder Schlussrechnung, der vorher eine
+  freie Position bekam, lässt sich nicht festschreiben (`free_items_reason()`, nennt die Positionen). Die Projektionsposition des
+  pauschalen Abschlags bleibt ohne Bezug. Vorher (bis 1.8.82) stand ein Nachtrag nur in der einen Rechnung, keine spätere übernahm oder
+  zog ihn ab (Befund R4 a 5).
+- **Kein negativer Abschlag nach Leistungsstand** (Punkt 4, `negative_progress_reason()` in den Regeln des Festschreibens): Betrag
+  unter 0 -> 409 "Der Abschlag lautet über -595,00 €: das Ist liegt unter dem zuletzt abgerechneten Stand. Ein Abschlag nach
+  Leistungsstand nimmt nichts zurück – zu viel Abgerechnetes korrigiert das Storno des Abschlags, der zu viel abgerechnet hat, oder die
+  Schlussrechnung."; die Rechnungsseite zeigt den Grund statt "Finalisieren". 0 € und eine einzelne Position darunter bei positivem
+  Betrag gehen.
+- **Letzter Stand = zuletzt festgeschrieben** (Punkt 5): `Invoice.finalized_at` (naive UTC, Migration `3b8f1d6c9e24`), gesetzt beim
+  Festschreiben (`_finalized_at()`: mindestens eine Mikrosekunde nach dem jüngsten des Auftrags -- unter der Sperre je Auftrag streng
+  steigend, auch bei zurückgestellter Uhr); `get_previous_cumulative_ist()` ordnet danach, Rechnungen ohne Zeitpunkt (vor 1.8.83) wie
+  bisher nach Datum und ID hinter jeder späteren. Vorher galt am selben Tag der Stand der zuletzt angelegten Rechnung.
+- **1d** (Punkt 6, `create_storno_draft()`): das Storno eines pauschalen Abschlags ohne Position (vor 1.3.24) bekommt die
+  Projektionsposition mit umgekehrtem Vorzeichen -- Gegenbetrag des Originals (-2.000 / -380 / -2.380 €), im PDF als Zeile; xfail 1d
+  grün, Markierung entfernt.
+- **Oberfläche**: Auftragsseite "+ Nachtrag" unter dem LV (derselbe Dialog als "Nachtrag anlegen", ohne Positionstyp und OZ),
+  Nachträge mit Kennzeichen unter "Nachträge" hinter allen Titeln, im Dialog "Nachtrag entfernen" bzw. der Grund, warum nicht; nach der
+  Schlussrechnung oder am stornierten Auftrag statt des Knopfs der Grund. Auftrags-PDF: Abschnitt "Nachträge" hinter allen Titeln.
+  Rechnungsseite: "+ Position hinzufügen" nur bei Rechnung aus Aufwand, bei Abschlag nach Leistungsstand und Schlussrechnung der Hinweis
+  auf den Nachtrag.
+- Klicktest `scripts/klicktest_nachtrag.py`.
+
+### Festlegungen 1.8.83 (Bitte bestätigen)
+
+1. **Kennzeichen und Nummer**: `is_addendum` an der Auftragsposition, Nummer "N" + laufende Zahl je Auftrag (die höchste vergebene + 1,
+   ein entfernter wird nicht neu vergeben, solange ein höherer steht), hinter allen anderen Positionen, ohne LV-Titel. In Rechnungen
+   steht er als Position "N1" (die Nummer wird wie jede Positionsnummer kopiert); das Auftrags-PDF bekommt den Abschnitt "Nachträge".
+2. **Wann ein Nachtrag geht**: jederzeit bis zur gültigen Schlussrechnung -- auch nach Vertrag, Abnahme oder "abgeschlossen" (ein
+   Nachtrag nach Vertragsschluss ist der Normalfall) --, nicht am stornierten Auftrag. Nach dem Storno der Schlussrechnung wieder.
+3. **Entfernen** nur eines Nachtrags ohne Anhänge, auch ohne Rechnungsentwurf; sonst bleibt er (Menge 0 oder "in Summe" aus, solange
+   nicht abgerechnet). Mit Revision je Anlegen und Entfernen.
+4. **Abgleich mit dem Angebot** gesperrt, solange Nachträge stehen -- er ersetzte alle Positionen und löschte sie.
+5. **Freie Positionen**: nur in Rechnungen aus Aufwand; an Abschlag nach Leistungsstand, Schlussrechnung und Storno 409. Altbestand:
+   Entwürfe mit freier Position werden beim Festschreiben abgelehnt (Position entfernen, Nachtrag anlegen, neu anlegen) -- nicht still
+   umgewandelt. Ein bestehender Entwurf übernimmt einen später angelegten Nachtrag nicht von selbst.
+6. **Negativer Abschlag**: maßgeblich der Rechnungsbetrag; 0 € ist nicht negativ, eine einzelne Position unter dem letzten Stand bei
+   positivem Betrag geht. Geprüft beim Festschreiben, nicht beim Bearbeiten des Entwurfs (die Seite zeigt den Grund vorher). Nur Abschlag
+   nach Leistungsstand -- der pauschale ist schon über 0 € Pflicht.
+7. **Zeitpunkt des Festschreibens** als neue Spalte (naive UTC wie alle gespeicherten Zeitpunkte), nicht die Rechnungsnummer (Format
+   und Jahreswechsel). Bestehende Rechnungen bekommen keinen nachträglich. Bestehende Entwürfe werden nicht nachgerechnet (1b bleibt bis
+   R4b offen).
+8. **1d über eine Position** statt über einen Sonderfall in der Summe: das Storno zeigt wie jedes Storno eine Zeile mit umgekehrtem
+   Vorzeichen, die Rundungsregel bleibt die des Originals.
+
+### Tests und Prüfung
+
+- Neu `tests/test_v386_nachtrag_und_abschlag.py` (25, davon 3 gegen PostgreSQL): Nachtrag mit Kennzeichen, Nummer N1/N2 (nach dem
+  Entfernen die höchste + 1), hinter allen Positionen, Revisionen; folgende Abschläge und die Schlussrechnung übernehmen ihn,
+  abgerechnet = Auftragssumme mit Nachtrag; kein Nachtrag nach der Schlussrechnung (nach ihrem Storno wieder) und am stornierten
+  Auftrag; freie Position an Abschlag, Schlussrechnung und Storno 409, an Rechnung aus Aufwand weiter; Altbestand mit freier Position
+  nicht festschreibbar; Projektionsposition des pauschalen Abschlags bleibt; Entfernen mit Rechnungsentwurf 409 mit Grund, Position aus
+  dem Angebot 409, fremder Auftrag 404, ohne Anhang entfernt; Abgleich gesperrt; Auftrags-PDF mit "Nachträge" hinter dem Titel; Router.
+  Negativer Abschlag 409 mit Weg (-595,00 €), 0 € und gemischte Positionen gehen, Router 409. Letzter Stand = zuletzt festgeschrieben,
+  Vorschlag des nächsten Abschlags; Zeitpunkte steigen auch bei zurückgestellter Uhr; Altbestand ohne Zeitpunkt dahinter. 1d: Storno
+  mit Zeile, -2.000/-380/-2.380 €, Abrechnungsstand zurück auf 0, Beträge in der festen Fassung; Storno des heutigen pauschalen
+  Abschlags unverändert. **Gleichzeitig (PostgreSQL):** zwei Nachträge zugleich -> N1 und N2; ein Nachtrag wartet auf das
+  Festschreiben der Schlussrechnung und wird abgelehnt; Entfernen wartet auf einen neuen Rechnungsentwurf und wird abgelehnt.
+- Neu `tests/test_v386_nachtrag_migration.py` (2, davon 1 gegen PostgreSQL): Bestand bleibt, keine Position ist Nachtrag, keine
+  Rechnung hat einen Zeitpunkt, Vorgabe "nein" für neue Zeilen, Rückweg exakt, mit Nachtrag bzw. Zeitpunkt verweigert. `alembic check`:
+  keine Abweichung.
+- `test_v372_befund_schlussrechnung`: xfail 1d entfernt -- grün, keine Prüfung geändert. **Erwartung geändert** (freie Positionen nur
+  noch aus Aufwand): `test_v133` (`test_nachtrag_ohne_auftragsbezug_wird_voll_abgerechnet` heißt jetzt
+  `test_freie_position_nur_in_rechnung_aus_aufwand_und_voll_abgerechnet`: an der Schlussrechnung 409, an der Rechnung aus Aufwand voll
+  abgerechnet), `test_v230`/`test_v231` (weitere Positionen am Auftrag statt frei an der Rechnung), `test_v315` und `test_v378`
+  ("Position neu" und Rundgang: die Position des Auftrags noch einmal), `test_v373_zugehoerigkeit` (freie Position an der
+  Schlussrechnung 409 statt 200), `test_v373_zugehoerigkeit_struktur` (neue Route `DELETE /api/orders/{order_id}/items/{item_id}` in
+  GEPRUEFT), `test_v325_quote_order_copy_fields` (`OrderItem.is_addendum` als eigenes Feld des Auftrags eingeordnet),
+  `test_v381_zahlungen_migration` (der negative Abschlag, an dem die Migration ihre Bruttorechnung prüft, entsteht jetzt als
+  Altbestand wie vor 1.8.83 -- die App schreibt ihn nicht mehr fest).
+- Gegenproben (Regel 24): 16 von 16 rot -- freie Position überall, Altbestand festschreibbar, Nachtrag nach der Schlussrechnung,
+  Nachtrag ohne Zeilensperre (PostgreSQL), ohne Kennzeichen, Entfernen trotz Anhang, Position aus dem Angebot entfernbar, Abgleich
+  löscht Nachträge, Nachträge im PDF vorn, Router 404 statt 409; negativer Abschlag festschreibbar, auch 0 € abgelehnt; letzter Stand =
+  zuletzt angelegt, Zeitpunkt nur von der Uhr, Zeitpunkt nicht gesetzt; Storno des alten Abschlags über 0 €. Jede Datei byte-genau
+  zurück, kein Marker.
+- Klicktest `klicktest_nachtrag.py` 13/13.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie): 3733 grün, 2 rot, 6 erwartet fehlgeschlagen (1a, 1b) -- rot waren
+  `test_v325_quote_order_copy_fields.py::test_every_field_is_classified` (das neue Feld nicht eingeordnet) und
+  `test_v381_zahlungen_migration.py::test_the_migration_computes_the_same_gross_as_the_app` (schrieb einen negativen Abschlag fest),
+  beide angepasst (siehe "Erwartung geändert"), die zwei Dateien danach 7 grün.
+- Alle Klicktests (Regel 26, `scripts/klicktest_alle.py`, Arbeitskopie): 51 von 52 wie erwartet, Laufzeit gesamt 10:58 min. Rot:
+  `klicktest_auswahl_inaktiv` (11/13 -- Sachbearbeiter und Projektleiter am Auftrag "Bisheriger Mitarbeiter (nicht mehr verfügbar)"
+  statt "Erika Ehemalig (inaktiv)"). Ursache laut Server-Protokoll ein 500 bei `GET /api/employees` (Nebenbefund 4: zwei gleichzeitige
+  Lesezugriffe legen dasselbe Mitarbeiterprofil an), nicht von 1.8.83; einzeln wiederholt 13/13. Die Erwartung des Klicktests ist
+  richtig und bleibt.
+
+### Nebenbefunde (nur gemeldet)
+
+1. **Kein Weg, eine Auftragsposition in einen Entwurf zurückzuholen**: `add_invoice_item(source_order_item_id=…)` gibt es nur über die
+   API; die Rechnungsseite kennt nur freie Positionen. Ein Entwurf, der vor einem Nachtrag angelegt wurde, bekommt ihn nur durch
+   Löschen und neu Anlegen.
+2. **Nachtrag ohne Kalkulation**: ein Nachtrag hat keinen Kalkulations-Schnappschuss -- Arbeitsvorbereitung und Plantafel sehen für ihn
+   keine Planstunden und kein Material.
+3. **Negativ-Prüfung nach dem Stand des Entwurfs**: der Betrag eines Abschlags wird beim Anlegen und Bearbeiten gerechnet, nicht beim
+   Festschreiben (1b) -- zwei Abschläge als Entwürfe nebeneinander rechnen gegen denselben Stand; der zweite kann danach zu viel oder zu
+   wenig abrechnen, ohne negativ zu sein.
+4. **`GET /api/employees` schreibt -- und kollidiert mit sich selbst**: `ensure_employee_profiles()` (`app/employees.py`, aufgerufen
+   von `GET /api/employees`, `/api/employees/caseworkers` u. a.) legt beim Lesen fehlende Mitarbeiterprofile an und committet. Die
+   Auftragsseite ruft beide gleichzeitig ab; fehlt ein Profil, legen beide es an, der zweite scheitert an `employee_profiles.employee_id`
+   (UNIQUE) mit 500 -- die Seite zeigt Sachbearbeiter und Projektleiter als "Bisheriger Mitarbeiter (nicht mehr verfügbar)". So im
+   Gesamtlauf der Klicktests 1.8.83 bei `klicktest_auswahl_inaktiv` gesehen (Server-Protokoll des Laufs), einzeln nicht wieder. Ein
+   Lesepfad, der schreibt (Regel 23), vom Rundgang in `test_v326` nicht ausgelöst, weil dessen Testdaten Profile haben.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
@@ -1971,6 +2092,8 @@ Ergänzt am 12.10.2026 (Vorgabe R4a nach dem Befund R4), übernommen wie gegeben
   verweist; Steuersatz gesperrt ab der ersten festgeschriebenen Rechnung; Mengen bis zur Schlussrechnung änderbar; nach gültiger
   Schlussrechnung alles gesperrt. 409 mit Grund. (Seit 1.8.82 gebaut.)
 - **Nachträge** nur als gekennzeichnete Auftragsposition; freie Positionen ohne Auftragsbezug nur in Rechnungen aus Aufwand.
-- **Negativer Abschlag nach Leistungsstand** wird abgelehnt, 409 mit Hinweis auf Storno oder Schlussrechnung.
-- **„Letzter Stand“** einer Position ist der des zuletzt festgeschriebenen Abschlags, nicht des zuletzt angelegten.
-- **Storno eines pauschalen Abschlags ohne Positionen** (1d) lautet auf den Gegenbetrag des Originals.
+  (Seit 1.8.83 gebaut.)
+- **Negativer Abschlag nach Leistungsstand** wird abgelehnt, 409 mit Hinweis auf Storno oder Schlussrechnung. (Seit 1.8.83 gebaut.)
+- **„Letzter Stand“** einer Position ist der des zuletzt festgeschriebenen Abschlags, nicht des zuletzt angelegten. (Seit 1.8.83
+  gebaut.)
+- **Storno eines pauschalen Abschlags ohne Positionen** (1d) lautet auf den Gegenbetrag des Originals. (Seit 1.8.83 gebaut.)

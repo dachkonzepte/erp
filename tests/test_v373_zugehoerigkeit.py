@@ -391,7 +391,8 @@ def test_invoice_item_only_from_the_order_of_the_invoice(welt):
         r = c.post(f"/api/invoices/{rechnung.id}/items", json={**body, "source_order_item_id": falsch})
         assert _antwort(r) == (400, {"detail": "Die Auftragsposition gehört nicht zum Auftrag dieser Rechnung."})
     assert c.post(f"/api/invoices/{rechnung.id}/items", json={**body, "source_order_item_id": eigene}).status_code == 200
-    assert c.post(f"/api/invoices/{rechnung.id}/items", json=body).status_code == 200  # Nachtrag ohne Position
+    # Seit 1.8.83 (R4a Punkt 3): keine freie Position an einer Schlussrechnung -- ein Nachtrag kommt an den Auftrag.
+    assert c.post(f"/api/invoices/{rechnung.id}/items", json=body).status_code == 409
 
 
 # ---------------------------------------------------------------------------

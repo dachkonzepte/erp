@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -253,17 +254,27 @@ def test_bezahlt_nur_ab_versendet():
 # Positionen hinzufügen/bearbeiten/entfernen (Nachträge)
 # ---------------------------------------------------------------------------
 
-def test_nachtrag_ohne_auftragsbezug_wird_voll_abgerechnet():
+def test_freie_position_nur_in_rechnung_aus_aufwand_und_voll_abgerechnet():
+    """Seit 1.8.83 (R4a Punkt 3): freie Positionen ohne Auftragsbezug nur in Rechnungen aus Aufwand -- ein Nachtrag kommt als
+    Position an den Auftrag (tests/test_v386_nachtrag_und_abschlag.py). Bis 1.8.82 hieß dieser Test
+    test_nachtrag_ohne_auftragsbezug_wird_voll_abgerechnet und legte die freie Position an einer Schlussrechnung an."""
+    from types import SimpleNamespace
+    from app.invoices import InvoiceBlocked, create_invoice_from_time_entries
     db = db_session()
     order, _ = make_order_with_item(db)
-    invoice = create_schlussrechnung(db, order)
-    nachtrag = add_invoice_item(
-        db, invoice, short_text="Zusätzliche Kaminverblechung", long_text="", unit="Stk",
+    schluss = create_schlussrechnung(db, order)
+    with pytest.raises(InvoiceBlocked):
+        add_invoice_item(db, schluss, short_text="Zusätzliche Kaminverblechung", long_text="", unit="Stk",
+                         unit_price=Decimal("250"), ist_quantity=Decimal("2"))
+    aufwand = create_invoice_from_time_entries(
+        db, order, [], [SimpleNamespace(material_id=None, description="Blech", unit="Stk", quantity=Decimal("1"))])
+    frei = add_invoice_item(
+        db, aufwand, short_text="Zusätzliche Kaminverblechung", long_text="", unit="Stk",
         unit_price=Decimal("250"), ist_quantity=Decimal("2"),
     )
-    assert nachtrag.source_order_item_id is None
-    assert nachtrag.billed_quantity == Decimal("2")  # kein vorheriger Stand, volle Menge
-    assert nachtrag.billed_total == Decimal("500")
+    assert frei.source_order_item_id is None
+    assert frei.billed_quantity == Decimal("2")  # kein vorheriger Stand, volle Menge
+    assert frei.billed_total == Decimal("500")
 
 
 def test_remove_invoice_item():

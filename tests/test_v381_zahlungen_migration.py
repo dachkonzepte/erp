@@ -48,7 +48,11 @@ def _brutto_der_migration(invoice: Invoice) -> Decimal:
                                [i.billed_total for i in invoice.items])
 
 
-def test_the_migration_computes_the_same_gross_as_the_app():
+def test_the_migration_computes_the_same_gross_as_the_app(monkeypatch):
+    # Der zweite Abschlag (Ist 3 nach 4) lautet negativ -- seit 1.8.83 (R4a Punkt 4) nicht mehr festschreibbar, im Altbestand
+    # aber möglich, und die Migration muss ihn rechnen: hier festgeschrieben wie vor 1.8.83.
+    import app.invoices as invoices_module
+    monkeypatch.setattr(invoices_module, "negative_progress_reason", lambda invoice: None)
     db = db_session()
     anlegen(db)
     db.commit()
