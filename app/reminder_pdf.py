@@ -30,6 +30,10 @@ nur den offenen Rechnungsbetrag. Ein Entwurf zeigt Datum und Frist des Festschre
 Seit 1.8.80 (Z2b Nr. 4): unter dem angemahnten Betrag die Nebenforderungen der Rechnung (Mahngebühren, Pauschale) je Zeile und der
 Gesamtbetrag (app/reminders.py::charges_view()); ohne Umsatzsteuer, nie im Rechnungsbetrag. Bei ausgeschalteten Mahngebühren keine
 Zeile dafür -- nur der Gesamtbetrag. Mahnungen von vor 1.8.80 wie bisher mit "Mahngebühr".
+
+Seit 1.8.81 (Z2b Punkte 7-9): unter jeder Zinszeile ihre Abschnitte (Zeitraum, Hauptbetrag, Zinssatz, Tage), Zahlungen auf
+Nebenforderungen als eine Zeile "abzüglich Zahlungen auf Nebenforderungen", nach der Aufstellung die geprüften Rechtstexte zu
+Verzug, Zinsen und Pauschale (ungeprüfte nie, app/dunning_texts.py).
 """
 
 from reportlab.lib import colors
@@ -62,13 +66,20 @@ def amount_rows(reminder) -> list[list[str]]:
     return rows
 
 
-def total_rows(reminder) -> list[list[str]]:
+def total_rows(reminder, view: dict | None = None) -> list[list[str]]:
     """Zeilen nach dem angemahnten Betrag (seit 1.8.80): je Nebenforderung eine Zeile, dann der Gesamtbetrag -- bei Mahnungen von
-    vor 1.8.80 wie bisher Mahngebühr und Gesamtbetrag."""
-    view = charges_view(reminder)
+    vor 1.8.80 wie bisher Mahngebühr und Gesamtbetrag. Seit 1.8.81 unter einer Zinszeile ihre Abschnitte (ohne Betrag, mit
+    "  " davor) und, wenn auf Nebenforderungen gezahlt ist, eine Zeile "abzüglich Zahlungen auf Nebenforderungen"."""
+    view = view or charges_view(reminder)
     if view["enabled"] is None:
         return [["Mahngebühr", money(reminder.fee_amount)], ["Gesamtbetrag", money(view["total"])]]
-    return [[line["label"], money(line["amount"])] for line in view["lines"]] + [["Gesamtbetrag", money(view["total"])]]
+    rows = []
+    for line in view["lines"]:
+        rows.append([line["label"], money(line["amount"])])
+        rows += [[f"  {s['text']}", ""] for s in line.get("sections") or []]
+    if view.get("paid"):
+        rows.append(["abzüglich Zahlungen auf Nebenforderungen", money(-view["paid"])])
+    return rows + [["Gesamtbetrag", money(view["total"])]]
 
 
 def build_reminder_pdf(db, reminder) -> bytes:
@@ -118,7 +129,11 @@ def build_reminder_pdf(db, reminder) -> bytes:
         story.append(Paragraph(label, h1))
         story += [Paragraph(ptext(data["formatted_text"]), body), Spacer(1, 6*mm)]
 
-        rows = amount_rows(reminder) + total_rows(reminder)
+        view = charges_view(reminder)
+        rows = amount_rows(reminder) + total_rows(reminder, view)
+        section_rows = [i for i, r in enumerate(rows) if r[0].startswith("  ") and r[1] == ""]
+        for i in section_rows:  # Abschnitte der Zinsen umbrechen statt über den Rand zu laufen
+            rows[i] = [Paragraph(ptext(rows[i][0].strip()), styles["small"]), ""]
         # Spalten summieren sich auf die volle Rahmenbreite (statt vorher 160mm mit
         # hAlign="RIGHT", das die Tabelle nur innerhalb des Rahmens nach rechts schob, dabei aber
         # ihre linke Kante spürbar vom Satzspiegel wegrückte -- gemessen, nicht geraten, siehe
@@ -131,8 +146,13 @@ def build_reminder_pdf(db, reminder) -> bytes:
             ("FONTSIZE", (0, 0), (-1, -1), 9), ("ALIGN", (1, 0), (1, -1), "RIGHT"),
             ("LINEABOVE", (0, -1), (-1, -1), .8, colors.black), ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
             ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ]))
+        ] + [("TOPPADDING", (0, i), (-1, i), 0) for i in section_rows]
+          + [("LEFTPADDING", (0, i), (0, i), 3*mm) for i in section_rows]))
         story += [tt, Spacer(1, 7*mm)]
+        # Seit 1.8.81: die geprüften Rechtstexte, die diese Mahnung nennt (festgeschrieben: die eingefrorenen).
+        for legal in view.get("legal_texts") or []:
+            story.append(Paragraph(f"<b>{ptext(legal['title'])}</b><br/>{ptext(legal['text'])}", body))
+            story.append(Spacer(1, 3*mm))
         return story
 
     return render_framed_pdf(

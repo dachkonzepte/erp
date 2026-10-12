@@ -16,8 +16,8 @@ from ..email_dispatch import actor_of
 from ..invoices import get_invoice
 from ..models import AppUser, Customer, Payment, PaymentAllocation
 from ..payments import (
-    Line, PaymentRejected, allocate_rest, book_payment, customer_payments, open_invoices_of_customer, payment_to_dict,
-    proposal, reverse_allocation, reverse_payment, unallocated_by_customer,
+    ChargeLine, Line, PaymentRejected, allocate_rest, book_payment, customer_payments, open_invoices_of_customer,
+    payment_to_dict, proposal, reverse_allocation, reverse_payment, unallocated_by_customer,
 )
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import (
@@ -32,7 +32,9 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Zahlungen sin
 
 
 def _lines(payload_lines) -> list[Line]:
-    return [Line(invoice_id=line.invoice_id, zahlung=line.zahlung, skonto=line.skonto, einbehalt=line.einbehalt)
+    # Seit 1.8.81 mit den Zahlungen auf Nebenforderungen der Rechnung (§ 367 BGB, app/payments.py).
+    return [Line(invoice_id=line.invoice_id, zahlung=line.zahlung, skonto=line.skonto, einbehalt=line.einbehalt,
+                 charges=tuple(ChargeLine(c.charge_id, c.amount) for c in line.charges))
             for line in payload_lines]
 
 

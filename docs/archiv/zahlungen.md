@@ -1,4 +1,4 @@
-# Zahlungen (Zahlungsstufe Z1 seit 1.8.78, Mahnwesen Z2a seit 1.8.79, Mahngebühren und Verzug Z2b ab 1.8.80)
+# Zahlungen (Zahlungsstufe Z1 seit 1.8.78, Mahnwesen Z2a seit 1.8.79, Mahngebühren und Verzug Z2b seit 1.8.80/1.8.81)
 
 Grundlage: Befund Zahlungsstufe in `befund-vor-echtbetrieb.md` ("Umsetzung 1.8.77" -> "Befund Zahlungsstufe") und dort
 "Entscheidungen Rechnungen" (Zahlung auf den Zahlbetrag, Einbehalt). Code: `app/payments.py` (Geschäftslogik),
@@ -6,7 +6,8 @@ Grundlage: Befund Zahlungsstufe in `befund-vor-echtbetrieb.md` ("Umsetzung 1.8.7
 Das Mahnwesen (Z2a, seit 1.8.79): `app/reminders.py`, `app/routers/reminders.py`, Migration `5db1a12b4a66` -- siehe
 "Umsetzung 1.8.79"; ältere Herleitung des Mahnwesens in `mahnwesen.md`. Mahngebühren und Verzugszinsen (Z2b): Befund in
 "Umsetzung 1.8.79", gebaut ab 1.8.80 (`app/dunning_charges.py`, `app/routers/dunning_charges.py`, Migration `8e2f4b6d1c97`) -- siehe
-"Umsetzung 1.8.80"; offen sind dort die Punkte 7–9 (Verzugszinsen, Zahlungen auf Nebenforderungen, Rechtstexte).
+"Umsetzung 1.8.80"; die Punkte 7–9 (Verzugszinsen, Zahlungen auf Nebenforderungen, Rechtstexte) seit 1.8.81 (`app/default_interest.py`,
+`app/dunning_texts.py`, Migration `a4c9e2f7b815`) -- siehe "Umsetzung 1.8.81".
 
 ## Umsetzung 1.8.78: Zahlungseingänge (Z1)
 
@@ -609,7 +610,7 @@ sonst Texte und Gebühr zurück, soweit sie noch genau auf dem Stand der Migrati
 
 **Rollen**: Schalter nur Admin (lesen ab `buero_auftrag`), alles andere ab `buero_auftrag` wie die Rechnungen; der Monteur nirgends (403).
 
-### Festlegungen 1.8.80 – Bitte bestätigen
+### Festlegungen 1.8.80 (alle bestätigt am 12.10.2026; zu Nr. 2 und 13 siehe "Umsetzung 1.8.81", Vorweg)
 
 1. **Hinausgegangen** heißt: E-Mail gesendet oder Zustellung nachgetragen, beim Auftraggeber angekommen (nicht "unzustellbar", nicht nur an
    Beteiligte ohne Empfangsvollmacht) -- wie bei den Briefen der Anzeigen; "in Arbeit" zählt nicht. Bestand: eine E-Mail von vor dem
@@ -735,3 +736,240 @@ sonst Texte und Gebühr zurück, soweit sie noch genau auf dem Stand der Migrati
    -- seit 1.8.80 über `tests/bestand_alt.py` (Core-Insert mit den Spalten des jeweiligen Stands).
 7. Unverändert: Rechnung per E-Mail auch bezahlt oder storniert, Mahnhistorie auf der Rechnungsseite nur bei "versendet" (1.8.77 Nr. 7),
    Probebelege entfernen (1.8.77 Nr. 8), Mahnwesen lädt alle Mahnungen (1.8.79 Nr. 3).
+
+## Umsetzung 1.8.81: Verzugszinsen, Zahlungen auf Nebenforderungen, Rechtstexte (Z2b, Punkte 7–9)
+
+### Vorgabe vom 12.10.2026 (übernommen wie gegeben)
+
+1.8.80 geprüft. Festlegungen 1–14 bestätigt. Zu 2: Der Dialog nennt vor dem Ersetzen die Nebenforderungen, die gegengebucht werden. Zu
+13: Die 30-Tage-Regel gilt nur für Kunden, die keine Verbraucher sind, solange Rechnungen an Verbraucher keinen Hinweis nach § 286 Abs. 3
+BGB tragen; ist das schon so, nur bestätigen.
+
+Vorweg:
+1. Ist für eine Rechnung die Pauschale gebucht, schlägt die Mahnung keine Gebühr mehr vor, mit Hinweis „durch die Pauschale abgegolten
+   (§ 288 Abs. 5 S. 3 BGB)“.
+2. Storno nur ohne offene Nebenforderungen, wie bei Zahlungen; sonst 409 mit Hinweis.
+3. Muster: Kein Test gegen PostgreSQL läuft im Schema public der Spielwiese; Strukturtest. Migrationen, die Daten ändern, auch gegen
+   PostgreSQL mit Daten prüfen, nicht nur auf leerem Schema.
+
+Punkte 7–9:
+4. Zinsen: Basiszinssatz-Tabelle (nur Admin, „geprüft am/durch“); fehlt ein Zeitraum, kein Vorschlag, mit Hinweis. Tatsächliche Tage
+   durch 365. Zinsen laufen ab dem Tag nach dem Zugang der Mahnung, nach der 30-Tage-Regel ab dem 31. Tag. Je Abschnitt exakt, gerundet
+   wird einmal am Ende kaufmännisch. Vorschlag bis zum Mahndatum, die Nebenforderung entsteht beim Festschreiben.
+5. Verteilung nach § 367 BGB: je Rechnung erst Kosten (Gebühr, Pauschale), dann Zinsen, dann Rechnung; über mehrere Rechnungen weiter die
+   älteste zuerst. Vorschlag, das Büro bestätigt.
+6. Rechtstexte für Verzug, Zinsen und Pauschale wie vorgegeben (nur Admin, geprüft; ungeprüft nicht gedruckt, mit Warnung).
+
+Angriffstests mit Gegenprobe, Gleichzeitigkeit gegen PostgreSQL. Eigene Festlegungen mit „Bitte bestätigen“. Nebenbefunde nur melden.
+Commit nach Regel 13, Bericht kurz.
+
+### Vorweg
+
+- Festlegungen 1.8.80 an ihrer Überschrift als bestätigt markiert.
+- **Zu Nr. 2**: Liste ("Alle Mahnungen", "Weitere überfällige", "Zur Mahnung fällig"), Mahnungs-Editor und die Rückfrage vor dem
+  Festschreiben nennen die Mahnungen, die das Festschreiben ersetzt, und je Mahnung die Nebenforderungen, die dabei gegengebucht werden
+  ("Beim Festschreiben ersetzt: M-… – gegengebucht werden: Mahngebühr (2. Mahnung M-…) 10,00 €"); vom Server `reminder_to_dict()["replaces"]`
+  (`replaces_info()`) und `compute_reminder_status()["pending"]["charges"]`.
+- **Zu Nr. 13**: ist schon so -- nur bestätigt. Die 30-Tage-Regel gilt nur für Kunden, die keine Verbraucher sind
+  (`app/dunning_charges.py::default_start_proposal()`); die Rechnung trägt keinen Hinweis nach § 286 Abs. 3 BGB (das Rechnungs-PDF nennt
+  weder Verzug noch 30 Tage, Test `test_thirty_day_rule_only_for_customers_who_are_not_consumers`). Kommt der Hinweis auf die Rechnung,
+  muss der Vorschlag für Verbraucher angepasst werden.
+- Der Umfang blieb in einer Version: Vorweg 1–3 und die Punkte 4–6 gebaut, ein Commit.
+
+### Was gebaut ist
+
+**Vorweg 1 -- keine Gebühr neben der Pauschale** (`fee_block_reason()`, `app/dunning_charges.py`): gilt an der Rechnung eine Pauschale
+(die der Mahnungen, die der Entwurf ersetzen wird, zählen nicht), schlägt ein neuer Entwurf keine Gebühr vor (`fee_amount` 0), die
+Vorschläge tragen `fee.block` "Keine Mahngebühr – durch die Pauschale abgegolten (§ 288 Abs. 5 S. 3 BGB): die Pauschale ist an dieser
+Rechnung gebucht (mit der Mahnung …)". Übernimmt der Entwurf selbst die Pauschale, gilt dasselbe für ihn. Geprüft beim Übernehmen
+(`set_reminder_charges()`, 409) und beim Festschreiben unter der Sperre (409). Editor: Hinweis statt Vorschlag, das Häkchen der Pauschale
+sperrt das der Gebühr.
+
+**Vorweg 2 -- Storno nur ohne offene Nebenforderungen** (`charges_storno_block_reason()`, aus `app/invoices.py::storno_block_reason()`):
+beim Anlegen und beim Festschreiben des Stornos unter der Sperre: "An der Rechnung gelten offene Nebenforderungen (Mahngebühr 10,00 €).
+Erst gegenbuchen (Karte „Nebenforderungen und Verzug“, mit Begründung), dann stornieren." -- 409, die Rechnungsseite zeigt den Grund statt
+"Stornieren". Eine bezahlte Nebenforderung sperrt über ihre Zuordnung (wie jede Zahlung, `allocation_block_reason()`).
+
+**Vorweg 3 -- kein Test gegen PostgreSQL im Schema public** (`tests/pg_schutz.py`, Regel 27): ein Wächter für den ganzen Testprozess
+(`tests/conftest.py`): jede neue PostgreSQL-Verbindung merkt sich `current_schema()`; in `public` lässt er nur CREATE/DROP SCHEMA,
+`pg_terminate_backend` und die Anfragen des Treibers beim Verbinden durch, alles andere bricht mit `SchemaPublicVerboten` ab.
+Kindprozesse (alembic, ein Start von `app.main`) sieht er nicht: jede Funktion unter `tests/`, die `DATABASE_URL` an einen Kindprozess
+gibt, prüft die URL mit `pg_url_pruefen()` (PostgreSQL nur mit eigenem `search_path`, nicht `public`). Strukturtest
+`tests/test_v384_pg_nicht_public.py`: Wächter eingerichtet; Kindprozess-Weitergaben geprüft (AST); jede Engine auf
+`ERP_TEST_POSTGRES_URL` hat ein eigenes Schema oder dient nur der Verwaltung (AST); gegen PostgreSQL: eine Verbindung in public darf
+nichts außer Schemas anlegen/löschen. Alle 147 bestehenden PostgreSQL-Tests laufen mit dem Wächter. **Migrationen mit Daten**: die
+Migration dieser Runde ändert keine Daten, ist aber trotzdem auf einem Bestand gegen PostgreSQL geprobt
+(`tests/test_v384_verzugszinsen_migration.py`).
+
+**Punkt 4 -- Basiszinssatz und Verzugszinsen** (`app/default_interest.py`):
+- `BaseInterestRate` (`base_interest_rates`): je Halbjahr eine Zeile (`half_year_start` 1. Januar oder 1. Juli, UNIQUE), Satz in Prozent
+  (auch negativ, drei Nachkommastellen), "geprüft am/durch". Gezählt wird nur ein geprüfter Satz; ändert sich der Satz ohne neue
+  Prüfangabe, fällt sie weg (`update_rate()`, `review_reset`); löschen nur ungeprüft. `GET /api/base-interest-rates` ab buero_auftrag,
+  `POST`/`PUT`/`DELETE` nur Admin (409 Halbjahr doppelt bzw. geprüft löschen, 422 Eingabe). Einstellungen → Mahnstufen, Tabelle mit
+  Halbjahr, Satz, Prüfangabe und einer Zeile "Neu, gültig ab". Keine vorgegebenen Werte.
+- Vorschlag (`interest_proposal(db, invoice, until=Mahndatum)`): Zinsbeginn (`interest_start_day()`) der Tag nach dem Verzugsbeginn
+  (Zugang der Mahnung, ebenso ein abweichend festgelegter), nach der 30-Tage-Regel der Verzugsbeginn selbst (der 31. Tag); ohne
+  bestätigten Verzugsbeginn kein Vorschlag. Schließt an geltende Zinsen an (ab dem Tag nach ihrem spätesten Ende, `last_interest_end()`).
+  Fehlt im Zeitraum ein Halbjahr oder ist es ungeprüft: kein Vorschlag, Hinweis mit den Halbjahren (`rate_gap_reason()`). Zinssatz =
+  Basiszinssatz + 5 (Verbraucher) bzw. 9 Prozentpunkte (Kunde der Rechnung). Verzinst wird der mahnfähige Betrag (`payment_state_on()`);
+  Abschnitte beginnen am Eingangstag einer Zahlung (der gezahlte Teil ist ab dann zinsfrei) und am Halbjahresbeginn, gleiche
+  aufeinanderfolgende werden zusammengefasst. Je Abschnitt `Hauptbetrag × Satz × Tage / (100 × 365)` exakt (Decimal), tatsächliche Tage
+  mit beiden Enden, auch im Schaltjahr durch 365; die Summe einmal kaufmännisch auf den Cent (`round_money()`).
+- Im Entwurf ein Vorschlag mit Häkchen (`Reminder.interest_accepted`, `PUT /api/reminders/{id}/charges` mit `interest_accepted`, Pflicht;
+  409 ohne Vorschlag), mit Zeitraum und Abschnitten. Beim Festschreiben unter der Sperre frisch bis zu dessen Tag berechnet; nicht mehr
+  möglich (Verzugsbeginn verworfen, Satz nicht mehr geprüft …) -> 409, nichts geschrieben. Die Nebenforderung (`InvoiceCharge` Art
+  `zinsen`) trägt `period_start`, `period_end` und `calculation_json` (je Abschnitt von, bis, Hauptbetrag, Basiszinssatz, Satz, Tage,
+  Zinsen exakt; Zuschlag; 365). Ausgeschaltet: nichts.
+- Verwerfen des Verzugsbeginns gesperrt, solange Zinsen gelten (wie bei der Pauschale). Bucht jemand später eine Zahlung mit früherem
+  Eingang, bleibt die gebuchte Zinsforderung; die Karte zeigt "Mit dem Stand heute ergäben sich …" (`recalculated()`).
+
+**Punkt 5 -- Zahlungen auf Nebenforderungen nach § 367 BGB** (`app/payments.py`):
+- `PaymentAllocation` Art `nebenforderung` mit `charge_id` (Nebenforderung derselben Rechnung, Gegenbuchung mit derselben `charge_id`).
+  Sie mindert die Nebenforderung (offen = Betrag − Zahlungen, `charge_paid()`, `open_charges()`), nicht den Zahlstand der Rechnung; sie
+  zählt zum zugeordneten Teil der Zahlung (`payment_rest()`, "Nicht zugeordnet").
+- Vorschlag (`proposal()`): je Rechnung zuerst ihre offenen Nebenforderungen -- Kosten (Gebühr, Pauschale), dann Zinsen, je Art die älteste
+  zuerst (`open_charge_rows()`) --, dann der Rechnungsbetrag; über die Rechnungen des Auftrags weiter die älteste zuerst. Skonto nur am
+  Rechnungsbetrag, "Betrag passt genau" zählt die Nebenforderungen mit. `GET /api/customers/{id}/open-invoices` listet auch Rechnungen mit
+  nur offenen Nebenforderungen.
+- Buchen (`POST /api/payments`, `POST /api/payments/{id}/allocations`, Zeile mit `charges: [{charge_id, amount}]`), unter derselben Sperre
+  (Aufträge, dann Zahlung): nur eine geltende Nebenforderung derselben Rechnung (409 "gehört nicht zur Rechnung", unbekannt 404,
+  gegengebucht 409), höchstens ihr offener Rest (409 "Überbuchung der Nebenforderung"), mit dem Rest der Zahlung zusammen gezählt,
+  jede Nebenforderung höchstens einmal je Buchung. Gebucht wird, was das Büro bestätigt -- auch abweichend.
+- Gegenbuchung einer Nebenforderung erst nach gelöster Zuordnung (409); ebenso der Ersatz einer Mahnung, deren Nebenforderung bezahlt ist
+  (409 "lässt sich nicht ersetzen"). "Zahlung zurücknehmen" bucht die Zuordnungen auf Nebenforderungen mit gegen.
+- Eine festgeschriebene Mahnung geht nach einer Zahlung auf eine Nebenforderung nicht mehr hinaus (ihre Nebenforderungen stimmen nicht mehr).
+- Oberfläche: Zahlungsdialog mit einer Zeile je offener Nebenforderung vor der Rechnung, Betrag vorbelegt mit Rechnungsbetrag +
+  Nebenforderungen, Warnung bei Überbuchung einer Nebenforderung; Karte "Nebenforderungen und Verzug" mit "gezahlt … · offen …" und "darauf
+  gezahlt"; "Zahlungseingang buchen" auch bei nur offenen Nebenforderungen. Die Kundenakte ordnet ihren Rest weiter nur Rechnungsbeträgen zu.
+
+**Punkt 6 -- Rechtstexte** (`app/dunning_texts.py`, `DunningLegalText`): drei feste Schlüssel `verzug`, `zinsen`, `pauschale`; Text mit
+Platzhaltern (`{verzugsbeginn}`; `{prozentpunkte}`, `{zinsen_von}`, `{zinsen_bis}`; `{pauschale}`, unbekannte gewarnt), "geprüft am/durch"
+wie die Klauseln (geänderter Text hebt die Prüfung auf). `GET /api/dunning-legal-texts` ab buero_auftrag, `PUT …/{key}` nur Admin. Die
+Mahnung druckt einen Text nur geprüft und nur, wenn sie das Thema nennt (`legal_topics()`): Verzug = bestätigter Verzugsbeginn bis zum
+Mahndatum, Zinsen bzw. Pauschale = eine solche Zeile in der Aufstellung; nur eingeschaltet. Ungeprüft: Warnung im Entwurf und in der
+Liste ("Der Rechtstext „Verzug“ ist nicht geprüft – er wird nicht gedruckt …"). Beim Festschreiben in der Aufstellung eingefroren.
+
+**Aufstellung Format 3** (`amounts_snapshot()`): je geltender Nebenforderung Betrag, darauf gezahlt, bei Zinsen die Abschnitte;
+`charges_paid`, `charges_open` = Summe − gezahlt, `total`; die gedruckten Rechtstexte. PDF: unter jeder Zinszeile ihre Abschnitte, eine Zeile
+"abzüglich Zahlungen auf Nebenforderungen", nach der Aufstellung die Rechtstexte. Format 1/2 bleiben lesbar.
+
+**Migration `a4c9e2f7b815`** (ändert keine Daten): Tabellen `base_interest_rates`, `dunning_legal_texts`; Spalten
+`invoice_charges.period_start/period_end/calculation_json`, `reminders.interest_accepted` (server_default 0),
+`payment_allocations.charge_id` (FK, Index). `downgrade()` verweigert bei Verzugszinsen, Zuordnungen auf Nebenforderungen, übernommenen
+Zinsen, Aufstellung Format 3, Basiszinssatz oder Rechtstext.
+
+**Rollen**: Basiszinssatz und Rechtstexte schreiben nur Admin, lesen ab buero_auftrag; Zinsen übernehmen, Zahlungen auf Nebenforderungen ab
+buero_auftrag; der Monteur nirgends (403). Historie: Basiszinssatz und Rechtstext je Änderung (`app/audit.py`).
+
+### Festlegungen 1.8.81 – Bitte bestätigen
+
+1. **Basiszinssatz je Halbjahr**: "gültig ab" nur 1. Januar oder 1. Juli, eine Zeile gilt genau ihr Halbjahr -- auch ein unveränderter Satz
+   muss für jedes Halbjahr eingetragen werden, sonst "fehlt ein Zeitraum".
+2. **Prüfung wie bei den Klauseln**: ändert sich der Satz ohne neue Prüfangabe, fällt sie weg; nur ungeprüfte Sätze lassen sich löschen;
+   gebuchte Zinsen behalten den Satz ihrer Berechnung.
+3. **Zinsbeginn bei abweichend festgelegtem Verzugsbeginn**: der Tag danach (wie beim Zugang der Mahnung); nur "30 Tage" beginnt am
+   Verzugsbeginn selbst.
+4. **Eingangstag**: der gezahlte Teil ist ab dem Eingangstag zinsfrei (der neue Abschnitt beginnt an ihm).
+5. **Verzinst wird der mahnfähige Betrag** (offen − Einbehalt); Zahlungen auf Nebenforderungen mindern ihn nicht; auf Nebenforderungen
+   keine Zinsen (§ 289 BGB).
+6. **Zinsen sind ein Vorschlag mit Häkchen** wie Gebühr und Pauschale, beim Festschreiben bis zu dessen Tag neu berechnet; ist der
+   Vorschlag dann nicht mehr möglich, 409 (nicht still ohne Zinsen).
+7. **Anschluss**: ab dem Tag nach dem spätesten Ende geltender Zinsen; eine gegengebuchte Zinsforderung öffnet ihren Zeitraum (die nächste
+   Mahnung rechnet ihn neu). Wird eine mittlere gegengebucht, bleibt deren Zeitraum offen (Lücke).
+8. **Später gebuchte Zahlung mit früherem Eingang**: die gebuchten Zinsen bleiben; die Karte zeigt die Neuberechnung, Korrektur per
+   Gegenbuchung.
+9. **Verzugsbeginn verwerfen** gesperrt, solange Zinsen oder die Pauschale gelten.
+10. **"Vorweg" 1 auch innerhalb einer Mahnung**: übernimmt sie die Pauschale, keine Gebühr daneben (409). Gebühren früherer Mahnungen werden
+    nicht auf die Pauschale angerechnet (Nebenbefund 2).
+11. **Storno**: offene Nebenforderungen gegenbuchen, bezahlte erst über die Zuordnung lösen; Ersatz einer Mahnung mit bezahlter
+    Nebenforderung 409.
+12. **§ 367 BGB als Vorschlag**, keine Sperre (§ 366 Abs. 1: eine Tilgungsbestimmung des Kunden geht vor); je Art die älteste zuerst; Skonto
+    nur am Rechnungsbetrag. Zahlungen auf Nebenforderungen nur über die Rechnungsseite (Kundenakte: nur Rechnungsbeträge).
+13. **Finanzen**: "Bezahlt (gesamt)" zählt weiter nur Zahlungen auf Rechnungsbeträge; Zahlungen auf Nebenforderungen gelten als zugeordnet
+    (nicht im Rest "Nicht zugeordnet").
+14. **Rechtstexte**: gedruckt nur eingeschaltet, geprüft und zum Thema der Mahnung (Verzug: bestätigter Verzugsbeginn bis zum Mahndatum);
+    beim Festschreiben eingefroren; Platzhalter je Text wie oben.
+15. **Aufstellung Format 3**: jede geltende Nebenforderung mit vollem Betrag, alle Zahlungen darauf als eine Zeile "abzüglich Zahlungen auf
+    Nebenforderungen", die Zinsabschnitte unter ihrer Zeile.
+16. **Rückweg der Migration** verweigert auch bei Basiszinssatz oder Rechtstext (beides ginge verloren).
+17. **Regel 27**: in public erlaubt nur CREATE/DROP SCHEMA, `pg_terminate_backend` und die Anfragen des Treibers beim Verbinden; jede
+    Weitergabe von `DATABASE_URL` an einen Kindprozess unter `tests/` geht durch `pg_url_pruefen()`, auch SQLite.
+18. **Rollen** wie oben: schreiben von Basiszinssatz und Rechtstexten nur Admin, alles andere ab buero_auftrag.
+
+### Tests und Prüfung
+
+- Neu `tests/test_v384_verzugszinsen.py` (53): Vorweg 1 (kein Gebührvorschlag nach gebuchter Pauschale mit Hinweis, Übernehmen 409,
+  Festschreiben am Entwurf vorbei 409; nicht beides in derselben Mahnung -- Router 409/Senden 409; die Pauschale einer zu ersetzenden
+  Mahnung sperrt die Gebühr nicht); Vorweg 2 (Storno anlegen 409 mit Grund, Router 409, Storno-Entwurf von vor der Nebenforderung nicht
+  festschreibbar, nach Gegenbuchung frei; Zahlung auf Nebenforderung sperrt wie jede Zuordnung); Festlegung 1.8.80 Nr. 2 (`pending.charges`,
+  `replaces`); Nr. 13; Basiszinssatz (Regeln, nur Admin -- vier Rollen, Router 409/422/404, schreibt keine Zeile eines Auftrags);
+  Zinsen (Zinsbeginn je Grundlage; Abschnitte exakt mit Zahlung und Halbjahreswechsel, einmal gerundet 257,94 € statt 257,95 €;
+  Schaltjahr durch 365; 5/9 Punkte; fehlendes und ungeprüftes Halbjahr; ohne Verzug; nur mahnfähiger Betrag; vom Tag nach dem Zugang bis
+  zum Mahndatum, Nebenforderung mit eingefrorener Berechnung, Format 3, PDF; nicht übernommen; Anschluss und nach Gegenbuchung wieder ab
+  Zinsbeginn; **Angriffe** Übernehmen ohne Verzug bzw. Satz, Satz beim Festschreiben ungeprüft -> 409 ohne Nummer; frisch beim
+  Festschreiben; Verwerfen gesperrt; Hinweis bei später gebuchter Zahlung; ausgeschaltet); § 367 (Kosten, Zinsen, Rechnung; älteste
+  Rechnung zuerst; Buchung mindert die Nebenforderungen, nicht die Rechnung, Rest und "nicht zugeordnet", Zurücknehmen öffnet sie wieder;
+  **Angriffe** Nebenforderung einer anderen Rechnung, Rechnung eines anderen Kunden, unbekannt 404, gegengebucht, Gegenbuchung,
+  Überbuchung der Nebenforderung und der Zahlung -- je nichts geschrieben; doppelte Nebenforderung; Gegenbuchung erst nach gelöster
+  Zuordnung; Ersatz mit bezahlter Nebenforderung 409; Mahnung geht nach Zahlung auf eine Nebenforderung nicht mehr hinaus; offene Rechnungen
+  mit nur Nebenforderungen; Router 200/404/422/409); Rechtstexte (Regeln; ungeprüft nicht gedruckt mit Warnung, geprüft gedruckt mit
+  Platzhaltern; nur genannte Themen, ausgeschaltet keine; eingefroren); Pflichtfeld `interest_accepted` 422, Monteurin 403; **Rundgang mit
+  Beobachter**: Zinsen übernehmen, Festschreiben mit Zinsen, Zahlung auf eine Nebenforderung schreiben nur unter der Sperre der Auftragszeile.
+- Neu `tests/test_v384_verzugszinsen_pg.py` (10, gegen PostgreSQL): zwei Zahlungen auf dieselbe Nebenforderung -> eine; Gegenbuchung gegen
+  Zahlung in beiden Reihenfolgen; Festschreiben mit Zinsen gegen Verwerfen des Verzugsbeginns in beiden Reihenfolgen; Festschreiben mit
+  Gebühr gegen Storno in beiden Reihenfolgen; Festschreiben wartet auf eine Zahlung auf eine Nebenforderung und zeigt sie; derselbe
+  Basiszinssatz zweimal -> einer; derselbe Rechtstext zweimal zum ersten Mal -> eine Zeile.
+- Neu `tests/test_v384_verzugszinsen_migration.py` (2, davon 1 gegen PostgreSQL): Bestand auf `8e2f4b6d1c97` (Auftrag, Rechnung, Mahnung
+  Format 2, Gebühr, Pauschale samt Gegenbuchung, Verzugsbeginn, Zahlung) -> hoch: jede Zeile unverändert, neue Spalten leer; runter: exakt
+  wie vorher; wieder hoch, Basiszinssatz bzw. Zahlung auf die Gebühr -> Rückweg verweigert, nichts geändert.
+- Neu `tests/test_v384_pg_nicht_public.py` (5, davon 1 gegen PostgreSQL), siehe Vorweg 3.
+- **Angepasst, weil die Vorgabe die Erwartung überholt**: `test_v383` (Gebühr und Pauschale nicht mehr in derselben Mahnung -- die
+  Summen-, Ersatz-, Router- und Rundgang-Tests nehmen eine von beiden; der Ersatz-Test legt die Gebühr der alten Mahnung als Bestand von
+  1.8.80 an; Format 3; `interest_accepted` im PUT; Vorschlag der Gebühr mit `block`; die schreibenden Routen des Routers um Basiszinssatz und
+  Rechtstexte), `test_v382` (Format 3, `interest_accepted`). Strukturtests: `test_v364` (`dunning_legal_texts.text_key`), `test_v373`
+  (`lines.charges.charge_id` als GEPRUEFT in `payments._check_charge_lines`). Kindprozesse mit `pg_url_pruefen()`: `test_v380::_alembic`,
+  `test_v345::_start`, `test_v252`. Klicktest `klicktest_nebenforderungen.py`: Gebühr und Pauschale in derselben Mahnung -- seit 1.8.81
+  veraltet, jetzt nur die Pauschale mit gesperrter Gebühr.
+- **Gegenproben** (Regel 24): 44 von 44 rot -- keine Gebühr neben gebuchter Pauschale (1), nicht beides in einer Mahnung (1), beim
+  Festschreiben (1), Storno mit offenen Nebenforderungen (2, davon 1 PostgreSQL), Zahlung auf Nebenforderung sperrt das Storno (1),
+  Ersatz nennt die Gegenbuchungen (1), Basiszinssatz: Halbjahr (1), Prüfung fällt weg (1), nur Admin (1); Zinsen: fehlendes Halbjahr (1),
+  nur geprüfte Sätze (2), Zinsbeginn (2), einmal gerundet (1), durch 365 im Schaltjahr (1), Eingangstag zinsfrei (1), 5/9 Punkte (1),
+  mahnfähiger Betrag (1), Anschluss (2), beim Festschreiben neu geprüft (2, davon 1 PostgreSQL), Übernehmen nur mit Vorschlag (1),
+  ausgeschaltet (1), Verwerfen gesperrt (2, davon 1 PostgreSQL); § 367: Kosten vor Zinsen (1), Nebenforderungen vor der Rechnung (2);
+  Zahlung: derselben Rechnung (2, davon der Strukturtest Regel 25), nur geltende (1), keine Überbuchung (2, davon 1 PostgreSQL), Rest (1),
+  nicht zugeordnet (1), Gegenbuchung erst nach gelöster Zuordnung (2, davon 1 PostgreSQL), Ersatz mit bezahlter Nebenforderung (1),
+  Gegenbuchung der Zuordnung trägt die Nebenforderung (2), offen = Betrag − Zahlungen (1), offene Rechnungen nur mit Nebenforderungen (1);
+  Rechtstexte: ungeprüft nicht gedruckt (1), nur genannte Themen (1), eingefroren (1), Prüfung fällt weg (1); Sperre der Auftragszeile
+  bei Zahlungen auf Nebenforderungen (1, PostgreSQL); Migration: Rückweg verweigert (1); Regel 27: Wächter (1, PostgreSQL), URL der
+  Kindprozesse (1), Strukturtest Kindprozesse (1), Strukturtest Engines (1). Je Probe mit `-x` -- die Zahl in Klammern nennt die
+  angegebenen Tests, rot wurde jeweils mindestens der erste. Jede Datei byte-genau zurück (SHA-256), kein Marker unter `app/`,
+  `alembic/` und `tests/`. Probe 41 (Wächter) lief auffällig schnell -- einzeln wiederholt: rot mit "DID NOT RAISE", der richtige Grund.
+- Migration `a4c9e2f7b815`: Wegwerf-SQLite hoch, `current` head, `check` ohne Unterschied, runter, wieder hoch; leeres Wegwerf-Schema der lokalen PostgreSQL ebenso; dazu die
+  Proben mit Bestand (SQLite und PostgreSQL).
+- Klicktests: neu `klicktest_verzugszinsen.py` 27/27 (die ersten Läufe 26/27: eine Prüfung im Skript hatte doppelte Klammern in einem
+  Nicht-f-String -- Skriptfehler, behoben; die Tabelle des Basiszinssatzes lief in der Einstellungskarte über -- Prüfangaben übereinander,
+  danach ohne Scrollbalken). `klicktest_nebenforderungen.py` angepasst (siehe oben). **Alle Klicktests** (`scripts/klicktest_alle.py`,
+  Arbeitskopie, Regel 26): 50 von 50 wie erwartet, 11:50 min; weil sich währenddessen drei Vorlagen noch änderten (siehe Suite), die
+  sechs Klicktests, die sie öffnen und vorher liefen, auf dem Endstand noch einmal: 6 von 6.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, in drei Teilen parallel, längster 14:01 min): 3650 grün, 2 rot, 7
+  erwartet fehlgeschlagen (1a, 1b, 1d). Beide rot waren echte Funde in der neuen Oberfläche: `test_v054` (die Einstellungsseite lädt
+  Bereiche nur mit `Promise.allSettled`, der neue Lader für Basiszinssatz und Rechtstexte nahm `Promise.all` -- ein Fehlschlag hätte
+  beide Bereiche geleert) und `test_v377` (die Rechnungsseite darf "festschreiben" nicht enthalten, das neue Datenattribut
+  `data-ersetzt-beim-festschreiben` tat es -- jetzt `data-ersatz-hinweis`). Behoben; danach die 49 Testdateien, die die geänderten
+  Vorlagen lesen, auf dem Endstand: 731 grün. Danach nur Doku geändert.
+
+### Nebenbefunde (nur gemeldet)
+
+1. **Zinsen und Nebenforderungen ohne mahnfähigen Betrag**: beides entsteht bzw. wird angemahnt nur mit einer Mahnung, und eine Mahnung
+   gibt es nur mit mahnfähigem Rechnungsbetrag. Bucht das Büro eine Zahlung über den Rechnungsbetrag ganz auf die Rechnung (statt nach
+   § 367 erst auf Kosten und Zinsen), lassen sich Zinsen bis zur Zahlung und offene Nebenforderungen nicht mehr anmahnen. Naheliegend: eine
+   Forderungsaufstellung bzw. Mahnung nur für Nebenforderungen.
+2. **Gebühren vor der Pauschale** (§ 288 Abs. 5 S. 3 BGB): eine Mahngebühr einer früheren Mahnung bleibt neben einer später gebuchten
+   Pauschale stehen, sie wird nicht angerechnet (seit 1.8.81 nur: keine neue Gebühr neben der Pauschale).
+3. **Finanzen und Dashboard** zeigen offene Nebenforderungen nicht -- nur die Rechnungsseite.
+4. **Kundenakte**: "Rest zuordnen" bedient nur Rechnungsbeträge, Nebenforderungen nur über den Dialog der Rechnungsseite.
+5. **Zinsen bei später gebuchter Zahlung mit früherem Eingang**: nur ein Hinweis an der Nebenforderung (Festlegung 8), keine Sperre der
+   Mahnung.
+6. Unverändert: Rechnung per E-Mail auch bezahlt oder storniert, Mahnhistorie auf der Rechnungsseite nur bei "versendet" (1.8.77 Nr. 7),
+   Probebelege entfernen (1.8.77 Nr. 8), Mahnwesen lädt alle Mahnungen (1.8.79 Nr. 3), Mahnung per E-Mail ohne Sperre (1.8.79 Nr. 2,
+   1.8.80 Nr. 4).

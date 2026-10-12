@@ -4,9 +4,10 @@ Pauschale (zuschaltbar), Verzugsbeginn.
     Einstellungen      Büro: Schalter "Mahngebühren und Verzugszinsen" aus, nur lesen, keine Gebührenfelder, Einschalten per API
                        403; Admin schaltet ein -> Gebühr je Stufe als "Vorschlag" (Stufe 1: 0 €)
     Rechnungsseite     Karte "Nebenforderungen und Verzug": Vorschlag "Verzug ab" mit Quelle (Zugang der 1. Mahnung), bestätigen;
-                       2. Mahnung anlegen, im Editor Vorschlag Gebühr 10 € und Pauschale, beides übernehmen -> Aufstellung mit
-                       "(neu)", Gesamtbetrag; Festschreiben -> zwei Nebenforderungen, offen 50 €; Gebühr gegenbuchen mit Begründung
-                       -> offen 40 €, die Mahnung geht nicht mehr hinaus ("nennt Nebenforderungen")
+                       2. Mahnung anlegen, im Editor Vorschlag Gebühr 10 € und Pauschale; seit 1.8.81 sperrt das Häkchen der
+                       Pauschale die Gebühr ("abgegolten", § 288 Abs. 5 S. 3 BGB) -> nur die Pauschale übernehmen, Aufstellung mit
+                       "(neu)", Gesamtbetrag; Festschreiben -> eine Nebenforderung, offen 40 €; Pauschale gegenbuchen mit
+                       Begründung -> offen 0 €, die Mahnung geht nicht mehr hinaus ("nennt Nebenforderungen")
     Mahnwesen          nie hinausgegangene, überholte 1. Mahnung: Zeile "zur Mahnung fällig" mit "(ersetzt …)"; Status
                        "Hinausgegangen" bzw. "Festgeschrieben, noch nicht hinaus"; Ersatz anlegen und festschreiben -> "Ersetzt"
     Projektmappe       Kundenwechsel mit Auftrag: Begründungsfeld erscheint, ohne Begründung abgelehnt, mit Begründung gespeichert ->
@@ -174,24 +175,30 @@ async def pruefen(tab, seed, p):
         "[document.querySelector('[data-gebuehr-vorschlag]').textContent.includes('Mahngebühr 10,00'),"
         "document.getElementById('reminderEditorFeeAccepted').checked,document.getElementById('reminderEditorFlatAccepted')"
         ".disabled,!!document.querySelector('[data-pauschale-grund]')]"), [True, False, False, False])
+    # Seit 1.8.81 ("Vorweg" 1): keine Gebühr neben der Pauschale -- das Häkchen der Pauschale sperrt die Gebühr.
     await tab.js("document.getElementById('reminderEditorFeeAccepted').checked=true;"
-                 "document.getElementById('reminderEditorFlatAccepted').checked=true;saveReminderEditNow()")
-    p.pruefe("übernommen: Aufstellung mit (neu), Gesamtbetrag 1.240 €", await tab.warten(
-        f"currentReminders.some(r=>r.id==={entwurf}&&r.fee_accepted&&r.flat_fee_accepted&&r.total_amount==='1240.00')"), True)
+                 "(()=>{const f=document.getElementById('reminderEditorFlatAccepted');f.checked=true;"
+                 "f.dispatchEvent(new Event('change'))})()")
+    p.pruefe("Pauschale gewählt: Gebühr gesperrt, Hinweis abgegolten", await tab.js(
+        "[document.getElementById('reminderEditorFeeAccepted').checked,document.getElementById('reminderEditorFeeAccepted')"
+        ".disabled,getComputedStyle(document.querySelector('[data-gebuehr-abgegolten]')).display!=='none']"), [False, True, True])
+    await tab.js("saveReminderEditNow()")
+    p.pruefe("übernommen: Aufstellung mit (neu), Gesamtbetrag 1.230 €", await tab.warten(
+        f"currentReminders.some(r=>r.id==={entwurf}&&!r.fee_accepted&&r.flat_fee_accepted&&r.total_amount==='1230.00')"), True)
     p.pruefe("Aufstellung in der Liste", await tab.js(
         "[...document.querySelectorAll('[data-aufstellung]')].some(e=>e.textContent.includes('Pauschale nach § 288 Abs. 5 BGB (neu)'))"),
         True)
     await _bild(tab, "entwurf_mit_nebenforderungen", "remindersCard")
     await tab.js(f"sendReminderNow({entwurf})")
-    p.pruefe("festgeschrieben: zwei Nebenforderungen, offen 50 €", await tab.warten(
-        "chargesView&&chargesView.charges.length===2&&chargesView.open_total==='50.00'"), True)
-    gebuehr = await tab.js("chargesView.charges.find(c=>c.kind==='gebuehr').id")
-    await tab.js(f"document.querySelector('[data-nebenforderung=\"{gebuehr}\"] button').click();"
-                 f"document.getElementById('crevReason-{gebuehr}').value='Kulanz, Stammkunde';reverseCharge({gebuehr})")
-    p.pruefe("Gebühr gegengebucht: offen 40 €", await tab.warten(
-        "chargesView.open_total==='40.00'&&!!document.querySelector('[data-gegenbuchung]')"), True)
+    p.pruefe("festgeschrieben: eine Nebenforderung, offen 40 €", await tab.warten(
+        "chargesView&&chargesView.charges.length===1&&chargesView.open_total==='40.00'"), True)
+    pauschale = await tab.js("chargesView.charges.find(c=>c.kind==='pauschale').id")
+    await tab.js(f"document.querySelector('[data-nebenforderung=\"{pauschale}\"] button').click();"
+                 f"document.getElementById('crevReason-{pauschale}').value='Kulanz, Stammkunde';reverseCharge({pauschale})")
+    p.pruefe("Pauschale gegengebucht: offen 0 €", await tab.warten(
+        "chargesView.open_total==='0.00'&&!!document.querySelector('[data-gegenbuchung]')"), True)
     p.pruefe("Mahnung mit geänderten Nebenforderungen geht nicht hinaus", await tab.warten(
-        f"currentReminders.some(r=>r.id==={entwurf}&&(r.send_block||'').includes('nennt Nebenforderungen von 50,00'))"), True)
+        f"currentReminders.some(r=>r.id==={entwurf}&&(r.send_block||'').includes('nennt Nebenforderungen von 40,00'))"), True)
     p.pruefe("PDF der Mahnung", await tab.js(
         f"fetch('/api/reminders/{entwurf}/pdf').then(r=>[r.status,r.headers.get('content-type')])"), [200, "application/pdf"])
     await _bild(tab, "rechnung_nebenforderungen", "chargesCard", dunkel=True)

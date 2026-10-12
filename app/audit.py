@@ -15,7 +15,7 @@ from .models import (
     NumberSequence, SettingOptionGroup, SettingOption, AppUser, ServiceCalculation, MaterialCalculationOverride,
     Checklist, ChecklistAttachment, ChecklistAssetRelease, OperationalAsset, Contact, ProjectParticipant,
     OrderAcceptance, Defect, DefectEvent, Invoice, Payment, PaymentAllocation,
-    InvoiceCharge, InvoiceDefaultStart, OrderCustomerChange,
+    InvoiceCharge, InvoiceDefaultStart, OrderCustomerChange, BaseInterestRate, DunningLegalText,
 )
 
 _actor_id = contextvars.ContextVar("audit_actor_id", default=None)
@@ -42,6 +42,7 @@ TYPE_LABELS = {
     OrderAcceptance: "Abnahme", Defect: "Mangel", DefectEvent: "Mangel",
     Payment: "Zahlungseingang", PaymentAllocation: "Zahlungseingang",
     InvoiceCharge: "Nebenforderung", InvoiceDefaultStart: "Verzugsbeginn", OrderCustomerChange: "Auftrag",
+    BaseInterestRate: "Basiszinssatz", DunningLegalText: "Rechtstext Mahnwesen",
 }
 
 EXTENSION_TYPES = (CustomerProfile, ProjectProfile, EmployeeProfile, EmployeeRoleSettings, EmployeeCompensationSettings, EmployeeCostAllocationSettings, QuoteDocumentMeta, QuoteItemLayout, QuoteEmployeeAssignment)
@@ -71,6 +72,8 @@ AUDITED_TYPES = (
     # Seit 1.8.80 (Zahlungsstufe Z2b): Nebenforderungen und ihre Gegenbuchung, Verzugsbeginn (bestätigt, verworfen), Kundenwechsel
     # am Auftrag mit Begründung (unter der Kennung des Auftrags). Geändert oder gelöscht wird nichts (ORM-Sperre).
     InvoiceCharge, InvoiceDefaultStart, OrderCustomerChange,
+    # Seit 1.8.81 (Z2b Punkte 7 und 9): Basiszinssatz je Halbjahr und Rechtstexte -- jede Änderung samt Prüfangabe.
+    BaseInterestRate, DunningLegalText,
 )
 
 FIELD_LABELS = {
@@ -116,6 +119,10 @@ FIELD_LABELS = {
     "source_text":"Vorschlag (Quelle)","proposal_on":"Vorschlag","old_customer_id":"Kunde bisher","new_customer_id":"Kunde neu",
     "old_customer_name":"Kunde bisher (Name)","new_customer_name":"Kunde neu (Name)","changed_by_name":"Geändert von",
     "changed_by_user_id":"Geändert von (Konto)","dunning_charges_enabled":"Mahngebühren und Verzugszinsen",
+    # seit 1.8.81: Basiszinssatz, Rechtstexte, Verzugszinsen, Zahlung auf Nebenforderung
+    "half_year_start":"Halbjahr ab","rate_percent":"Basiszinssatz (%)","reviewed_on":"Geprüft am","reviewed_by":"Geprüft durch",
+    "text_key":"Rechtstext","body":"Text","period_start":"Zinsen ab","period_end":"Zinsen bis",
+    "calculation_json":"Zinsberechnung","charge_id":"Nebenforderung","interest_accepted":"Verzugszinsen übernommen",
 }
 
 
@@ -310,6 +317,12 @@ def _normalize(session, obj):
             return "Nebenforderung", str(obj.reverses_charge_id or obj.id), label[:255], order.project_id if order else None
         label = f"Verzug ab {obj.starts_on.strftime('%d.%m.%Y')} · {number}"
         return "Verzugsbeginn", str(obj.id), label[:255], order.project_id if order else None
+    if isinstance(obj, BaseInterestRate):
+        from .default_interest import half_year_label  # lokal: nur hier gebraucht
+        return "Basiszinssatz", str(obj.id), f"Basiszinssatz {half_year_label(obj.half_year_start)}"[:255], None
+    if isinstance(obj, DunningLegalText):
+        from .dunning_texts import LEGAL_TEXT_LABELS  # lokal: nur hier gebraucht
+        return "Rechtstext Mahnwesen", obj.text_key, f"Rechtstext {LEGAL_TEXT_LABELS.get(obj.text_key, obj.text_key)}"[:255], None
     if isinstance(obj, OrderCustomerChange):
         o = session.get(Order, obj.order_id)
         label = f"Kundenwechsel {obj.old_customer_name} → {obj.new_customer_name} · {_entity_label(o) or ''}".strip(" ·")

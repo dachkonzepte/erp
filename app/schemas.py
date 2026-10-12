@@ -1799,10 +1799,12 @@ class ReminderUpdate(BaseModel):
 
 
 class ReminderChargesUpdate(BaseModel):
-    """Seit 1.8.80 (Z2b Nr. 5 und 6): Gebühr und Pauschale im Mahnungsentwurf bewusst übernehmen -- alle Felder Pflicht."""
+    """Seit 1.8.80 (Z2b Nr. 5 und 6): Gebühr und Pauschale im Mahnungsentwurf bewusst übernehmen -- alle Felder Pflicht. Seit
+    1.8.81 (Punkt 7) dazu die Verzugszinsen."""
     fee_amount: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
     fee_accepted: bool
     flat_fee_accepted: bool
+    interest_accepted: bool
 
 
 class ReminderPaymentLineOut(BaseModel):
@@ -1815,6 +1817,15 @@ class ReminderChargeLineOut(BaseModel):
     label: str
     amount: Decimal
     new: bool = False  # im Entwurf übernommen, entsteht beim Festschreiben
+    paid: Decimal = Decimal("0")  # seit 1.8.81: darauf gezahlt
+    sections: list[dict] = []  # seit 1.8.81: Abschnitte der Zinsen ({"text", …})
+
+
+class LegalTextOut(BaseModel):
+    """Seit 1.8.81: ein gedruckter Rechtstext der Mahnung (Platzhalter eingesetzt)."""
+    key: str
+    title: str
+    text: str
 
 
 class ReminderAmountsOut(BaseModel):
@@ -1828,13 +1839,16 @@ class ReminderAmountsOut(BaseModel):
     dunnable: Decimal
     charges_enabled: bool = False
     charges: list[ReminderChargeLineOut] = []
+    charges_paid: Decimal = Decimal("0")  # seit 1.8.81 (Format 3)
     charges_open: Decimal | None = None
     total: Decimal | None = None
+    legal_texts: list[LegalTextOut] = []  # seit 1.8.81 (Format 3): beim Festschreiben eingefroren
 
 
 class ReminderFeeProposalOut(BaseModel):
     amount: Decimal
     level_label: str
+    block: str | None = None  # seit 1.8.81: keine Gebühr neben der Pauschale (§ 288 Abs. 5 S. 3 BGB)
 
 
 class ReminderFlatFeeProposalOut(BaseModel):
@@ -1842,10 +1856,34 @@ class ReminderFlatFeeProposalOut(BaseModel):
     block: str | None = None
 
 
+class ReminderInterestProposalOut(BaseModel):
+    """Seit 1.8.81 (Punkt 7): Verzugszinsen bis zum Mahndatum -- oder block mit dem Grund, warum es keinen Vorschlag gibt."""
+    amount: Decimal | None = None
+    period_start: date | None = None
+    period_end: date | None = None
+    surcharge: Decimal | None = None
+    sections: list[dict] = []
+    block: str | None = None
+
+
 class ReminderProposalsOut(BaseModel):
-    """Seit 1.8.80: was der Entwurf vorschlägt (nur bei eingeschalteten Mahngebühren)."""
+    """Seit 1.8.80: was der Entwurf vorschlägt (nur bei eingeschalteten Mahngebühren); seit 1.8.81 mit den Zinsen."""
     fee: ReminderFeeProposalOut
     flat_fee: ReminderFlatFeeProposalOut
+    interest: ReminderInterestProposalOut | None = None
+
+
+class ReplacedChargeOut(BaseModel):
+    label: str
+    amount: Decimal
+
+
+class ReminderReplacesOut(BaseModel):
+    """Seit 1.8.81: eine Mahnung, die das Festschreiben ersetzt, mit den Nebenforderungen, die dabei gegengebucht werden."""
+    id: int
+    reminder_number: str | None
+    level: int
+    charges: list[ReplacedChargeOut] = []
 
 
 class ReminderPendingOut(BaseModel):
@@ -1856,6 +1894,7 @@ class ReminderPendingOut(BaseModel):
     label: str
     reminder_date: date
     dispatch_block: str | None = None
+    charges: list[ReplacedChargeOut] = []  # seit 1.8.81: was beim Ersetzen gegengebucht würde
 
 
 class ReminderOut(BaseModel):
@@ -1889,10 +1928,15 @@ class ReminderOut(BaseModel):
     replaced_by_number: str | None = None
     fee_accepted: bool = False
     flat_fee_accepted: bool = False
+    interest_accepted: bool = False  # seit 1.8.81
     charges_enabled: bool | None = None
     charges: list[ReminderChargeLineOut] = []
+    charges_paid: Decimal = Decimal("0")  # seit 1.8.81
     charges_open: Decimal | None = None
     proposals: ReminderProposalsOut | None = None
+    legal_texts: list[LegalTextOut] = []  # seit 1.8.81: gedruckte Rechtstexte
+    legal_text_warnings: list[str] = []  # seit 1.8.81: ungeprüft, nicht gedruckt
+    replaces: list[ReminderReplacesOut] = []  # seit 1.8.81: im Entwurf, was das Festschreiben ersetzt
 
 
 class ReminderBulkRejectedOut(BaseModel):
@@ -1950,12 +1994,19 @@ class InvoiceChargeReversalOut(BaseModel):
 
 
 class InvoiceChargeOut(BaseModel):
-    """Seit 1.8.80: Nebenforderung einer Rechnung (Mahngebühr, Pauschale) mit Gegenbuchung, falls es eine gibt."""
+    """Seit 1.8.80: Nebenforderung einer Rechnung (Mahngebühr, Pauschale) mit Gegenbuchung, falls es eine gibt. Seit 1.8.81 auch
+    Verzugszinsen (Zeitraum, Abschnitte, Hinweis bei abweichender Neuberechnung) und die Zahlungen darauf."""
     id: int
     kind: str
     kind_label: str
     label: str
     amount: Decimal
+    paid: Decimal = Decimal("0")
+    open: Decimal = Decimal("0")
+    period_start: date | None = None
+    period_end: date | None = None
+    sections: list[dict] = []
+    recalculated: Decimal | None = None
     reminder_id: int | None
     reminder_number: str | None
     created_at: datetime
@@ -1988,6 +2039,7 @@ class InvoiceChargesOut(BaseModel):
     enabled: bool
     charges: list[InvoiceChargeOut]
     open_total: Decimal
+    paid_total: Decimal = Decimal("0")  # seit 1.8.81: auf Nebenforderungen gezahlt
     default_start: InvoiceDefaultStartOut | None
     default_proposal: InvoiceDefaultProposalOut | None
     today: date
@@ -2001,6 +2053,56 @@ class InvoiceDefaultStartCreate(BaseModel):
 class ReasonIn(BaseModel):
     """Begründung (Pflicht) für Gegenbuchung bzw. Verwerfen."""
     reason: str = Field(min_length=1, max_length=2000)
+
+
+class BaseInterestRateOut(BaseModel):
+    """Seit 1.8.81 (Z2b Punkt 7): Basiszinssatz eines Halbjahres."""
+    id: int
+    half_year_start: date
+    half_year_end: date
+    rate_percent: Decimal
+    reviewed_on: date | None = None
+    reviewed_by: str | None = None
+    reviewed: bool
+    updated_at: datetime | None = None
+    updated_by_name: str | None = None
+    review_reset: bool = False  # nur in der Antwort auf PUT: Satz geändert, Prüfangaben gelöscht
+
+
+class BaseInterestRateCreate(BaseModel):
+    half_year_start: date
+    rate_percent: Decimal = Field(max_digits=6, decimal_places=3)
+    reviewed_on: date | None
+    reviewed_by: str | None = Field(max_length=160)
+
+
+class BaseInterestRateUpdate(BaseModel):
+    """Alle Felder Pflicht (Regel 22): die Seite schickt Satz und Prüfangaben zusammen."""
+    rate_percent: Decimal = Field(max_digits=6, decimal_places=3)
+    reviewed_on: date | None
+    reviewed_by: str | None = Field(max_length=160)
+
+
+class DunningLegalTextOut(BaseModel):
+    """Seit 1.8.81 (Z2b Punkt 9): Rechtstext zu Verzug, Zinsen oder Pauschale."""
+    text_key: str
+    label: str
+    body: str | None = None
+    reviewed_on: date | None = None
+    reviewed_by: str | None = None
+    reviewed: bool
+    placeholders: list[dict] = []
+    unknown_placeholders: list[str] = []
+    updated_at: datetime | None = None
+    updated_by_name: str | None = None
+    review_reset: bool = False
+
+
+class DunningLegalTextUpdate(BaseModel):
+    """Alle Felder Pflicht (Regel 22)."""
+    body: str | None = Field(max_length=5000)
+    reviewed_on: date | None
+    reviewed_by: str | None = Field(max_length=160)
 
 
 class SmtpSettingsOut(BaseModel):
@@ -2169,9 +2271,10 @@ class PaymentAllocationOut(BaseModel):
     invoice_id: int
     invoice_number: str | None = None
     order_id: int | None = None
-    kind: str  # zahlung | skonto | einbehalt
+    kind: str  # zahlung | skonto | einbehalt | nebenforderung (seit 1.8.81)
     kind_label: str
     amount: Decimal
+    charge_id: int | None = None  # seit 1.8.81: die Nebenforderung einer Zuordnung "nebenforderung"
     received_on: date | None = None
     payment_note: str | None = None
     payment_origin: str | None = None
@@ -2335,13 +2438,20 @@ class InvoiceItemUpdate(BaseModel):
 _CENT_FIELD = {"max_digits": 16, "decimal_places": 2}
 
 
+class PaymentChargeLineIn(BaseModel):
+    """Seit 1.8.81: was von der Zahlung auf eine Nebenforderung der Rechnung der Zeile geht."""
+    charge_id: int
+    amount: Decimal = Field(gt=0, **_CENT_FIELD)
+
+
 class PaymentLineIn(BaseModel):
     """Eine bestätigte Zeile (seit 1.8.78): was von der Zahlung auf die Rechnung geht und welche Abzüge mit ihr gebucht
-    werden -- auf den Cent, nicht negativ."""
+    werden -- auf den Cent, nicht negativ. Seit 1.8.81 dazu die Zahlungen auf Nebenforderungen dieser Rechnung."""
     invoice_id: int
     zahlung: Decimal = Field(default=Decimal("0"), ge=0, **_CENT_FIELD)
     skonto: Decimal = Field(default=Decimal("0"), ge=0, **_CENT_FIELD)
     einbehalt: Decimal = Field(default=Decimal("0"), ge=0, **_CENT_FIELD)
+    charges: list[PaymentChargeLineIn] = Field(default_factory=list, max_length=50)
 
 
 class PaymentCreate(BaseModel):
@@ -2391,6 +2501,7 @@ class OpenInvoiceOut(BaseModel):
     order_number: str | None = None
     payment: PaymentStateOut
     skonto_offer: dict | None = None  # {until, amount}
+    charges: list[dict] = []  # seit 1.8.81: offene Nebenforderungen {charge_id, kind, label, open}
 
 
 class PaymentProposalLineOut(BaseModel):
@@ -2405,6 +2516,7 @@ class PaymentProposalLineOut(BaseModel):
     skonto: Decimal
     einbehalt: Decimal
     skonto_offer: dict | None = None  # {until, amount, in_period}
+    charges: list[dict] = []  # seit 1.8.81, § 367 BGB: {charge_id, kind, label, open, amount}
 
 
 class PaymentProposalOut(BaseModel):

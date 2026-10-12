@@ -1915,6 +1915,9 @@ class Reminder(Base):
     # ein Insert ohne die Spalten (Bestand, Migrationsproben älterer Stände) bleibt gültig.
     fee_accepted: Mapped[bool] = mapped_column(Boolean, server_default="0")
     flat_fee_accepted: Mapped[bool] = mapped_column(Boolean, server_default="0")
+    # Seit 1.8.81 (Z2b Punkt 7): Verzugszinsen im Entwurf bewusst übernommen -- berechnet bis zum Mahndatum, beim Festschreiben
+    # frisch unter der Sperre (app/default_interest.py::interest_proposal()) und dann eine Nebenforderung.
+    interest_accepted: Mapped[bool] = mapped_column(Boolean, server_default="0")
     # Versand-Nachweis (seit 1.0.74) -- getrennt von status='versendet'
     # (das die fachliche Finalisierung/Nummernvergabe meint, siehe oben):
     # eine Mahnung kann finalisiert, aber noch nie oder mehrfach per E-Mail
@@ -1964,7 +1967,11 @@ class PaymentAllocation(Base):
     (app/payments.py::invoice_payment_state()).
 
     Unveränderlich und nie gelöscht; Korrektur nur als Gegenbuchung (reverses_allocation_id, Betrag negativ, Begründung),
-    höchstens eine je Eintrag (UNIQUE)."""
+    höchstens eine je Eintrag (UNIQUE).
+
+    Seit 1.8.81 (Z2b Punkt 8) kind "nebenforderung": Teil der Zahlung auf eine Nebenforderung der Rechnung (charge_id, eine
+    InvoiceCharge derselben Rechnung) -- nach § 367 BGB vorgeschlagen (erst Kosten, dann Zinsen, dann die Rechnung). Sie mindert
+    die Nebenforderung, nicht den Zahlstand der Rechnung; ihre Gegenbuchung trägt dieselbe charge_id."""
 
     __tablename__ = "payment_allocations"
     __table_args__ = (UniqueConstraint("reverses_allocation_id", name="uq_payment_allocation_reverses"),)
@@ -1972,8 +1979,9 @@ class PaymentAllocation(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id"), index=True)
     invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"), index=True)
-    kind: Mapped[str] = mapped_column(String(20))  # 'zahlung' | 'skonto' | 'einbehalt'
+    kind: Mapped[str] = mapped_column(String(20))  # 'zahlung' | 'skonto' | 'einbehalt' | 'nebenforderung' (seit 1.8.81)
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    charge_id: Mapped[int | None] = mapped_column(ForeignKey("invoice_charges.id"), nullable=True, index=True)
     reverses_allocation_id: Mapped[int | None] = mapped_column(
         ForeignKey("payment_allocations.id"), nullable=True, index=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -1990,18 +1998,25 @@ class InvoiceCharge(Base):
 
     Unveränderlich und nie gelöscht (ORM-Sperre am Ende der Datei). Korrektur oder Erlass nur als Gegenbuchung: eine zweite
     Zeile mit reverses_charge_id auf diese, umgekehrtem Vorzeichen und Begründung -- höchstens eine je Nebenforderung (UNIQUE).
-    created_by_user_id ohne Fremdschlüssel wie bei der Zahlung."""
+    created_by_user_id ohne Fremdschlüssel wie bei der Zahlung.
+
+    Seit 1.8.81 (Z2b Punkt 7) kind "zinsen": Verzugszinsen für period_start bis period_end (beide eingeschlossen), die Berechnung
+    eingefroren in calculation_json (je Abschnitt von, bis, Hauptbetrag, Basiszinssatz, Zuschlag, Tage, Zinsen exakt;
+    app/default_interest.py). Zahlungen darauf: PaymentAllocation kind "nebenforderung"."""
 
     __tablename__ = "invoice_charges"
     __table_args__ = (UniqueConstraint("reverses_charge_id", name="uq_invoice_charge_reverses"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"), index=True)
-    kind: Mapped[str] = mapped_column(String(20))  # 'gebuehr' | 'pauschale'
+    kind: Mapped[str] = mapped_column(String(20))  # 'gebuehr' | 'pauschale' | 'zinsen' (seit 1.8.81)
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2))
     reminder_id: Mapped[int | None] = mapped_column(ForeignKey("reminders.id"), nullable=True, index=True)
     reverses_charge_id: Mapped[int | None] = mapped_column(ForeignKey("invoice_charges.id"), nullable=True, index=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    period_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    period_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+    calculation_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
     created_by_name: Mapped[str] = mapped_column(String(160), default="System")
@@ -2033,6 +2048,44 @@ class InvoiceDefaultStart(Base):
     discarded_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
     discarded_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     discard_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class BaseInterestRate(Base):
+    """Basiszinssatz nach § 247 BGB je Halbjahr (seit 1.8.81, Zahlungsstufe Z2b Punkt 7, app/default_interest.py). Eine Zeile gilt
+    vom half_year_start (1. Januar oder 1. Juli -- zu diesen Tagen verändert sich der Satz, § 247 Abs. 1 S. 2 BGB) bis zum Ende
+    dieses Halbjahres; fehlt ein Halbjahr oder ist sein Satz nicht geprüft, gibt es für Zinszeiträume darin keinen Vorschlag.
+    rate_percent in Prozent, auch negativ. Pflege nur Admin, mit "geprüft am/durch" wie die Klauseln der Vertragsgrundlagen:
+    ändert sich der Satz ohne neue Prüfangabe, fällt die Prüfung weg. Gebuchte Zinsen behalten den Satz ihrer Berechnung
+    (InvoiceCharge.calculation_json). Keine vorgegebenen Werte -- Zeilen entstehen beim Speichern."""
+
+    __tablename__ = "base_interest_rates"
+    __table_args__ = (UniqueConstraint("half_year_start", name="uq_base_interest_rate_half_year"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    half_year_start: Mapped[date] = mapped_column(Date)
+    rate_percent: Mapped[Decimal] = mapped_column(Numeric(6, 3))
+    reviewed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    updated_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class DunningLegalText(Base):
+    """Rechtstext zu Verzug, Verzugszinsen und Pauschale (seit 1.8.81, Zahlungsstufe Z2b Punkt 9, app/dunning_texts.py): je
+    text_key ein Text, gepflegt nur vom Admin, mit "geprüft am/durch" wie die Klauseln. Die Mahnung druckt ihn nur geprüft und nur,
+    wenn sie das Thema nennt (Verzug bestätigt, Zinsen, Pauschale) -- ungeprüft nicht, der Entwurf warnt. Beim Festschreiben
+    eingefroren in der Aufstellung der Mahnung (Reminder.amounts_json). Zeilen entstehen beim ersten Speichern, kein Seeding."""
+
+    __tablename__ = "dunning_legal_texts"
+    __table_args__ = (UniqueConstraint("text_key", name="uq_dunning_legal_text_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    text_key: Mapped[str] = mapped_column(String(20))  # 'verzug' | 'zinsen' | 'pauschale'
+    body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    updated_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class WorkPreparation(Base):

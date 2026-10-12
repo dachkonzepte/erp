@@ -317,7 +317,8 @@ function paymentCardHtml(p){
   const sub=`<div class="muted small">Zahlung Nr. ${p.id} · erfasst von ${esc(p.created_by_name)}${p.reversed?` · <b>zurückgenommen</b> von ${esc(p.reversal.created_by_name)}: ${esc(p.reversal.reason)}`:` · nicht zugeordnet: <b data-rest>${money(p.rest)}</b>`}</div>`;
   let actions='';
   if(!p.reversed){
-    const opts=customerOpenInvoices.map(o=>`<option value="${o.invoice_id}">${esc(o.invoice_number)} · offen ${money(o.payment.open)}</option>`).join('');
+    // Seit 1.8.81 kommen auch Rechnungen mit nur offenen Nebenforderungen -- deren Zuordnung läuft über die Rechnungsseite (§ 367 BGB).
+    const opts=customerOpenInvoices.filter(o=>Number(o.payment.open)>0).map(o=>`<option value="${o.invoice_id}">${esc(o.invoice_number)} · offen ${money(o.payment.open)}</option>`).join('');
     actions='<div class="pay-actions">'+(Number(p.rest)>0&&opts?`<span><select id="restInvoice-${p.id}" onchange="restInvoiceChanged(${p.id})"><option value="">Rest zuordnen auf …</option>${opts}</select><input id="restAmount-${p.id}" inputmode="decimal" placeholder="Betrag" value="${fmt(p.rest)}"><button class="secondary" onclick="allocateRest(${p.id})">Zuordnen</button></span>`:'')+`<span><button class="secondary" onclick="showPaymentReverse(${p.id})">Zahlung zurücknehmen</button><span id="payRev-${p.id}" style="display:none"><input id="payRevReason-${p.id}" placeholder="Begründung (Pflicht)"><button class="danger" onclick="reversePayment(${p.id})">Zurücknahme bestätigen</button></span></span></div>`;
   }
   return `<div class="project-card" data-zahlung="${p.id}">${head}${sub}<div style="margin-top:6px">${allocs}</div>${actions}</div>`;

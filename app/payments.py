@@ -23,6 +23,12 @@ reverse_payment()), nichts wird gelöscht. Buchen und Korrigieren laufen unter d
 Reihenfolge: erst die Aufträge aufsteigend nach ID (app/invoices.py::lock_order_invoices(), dieselbe Sperre wie Festschreiben,
 Storno und Mahnung), dann die Zahlungen aufsteigend (lock_for_booking()) -- zwei Buchungen aus dem Rest derselben Zahlung auf
 Rechnungen verschiedener Aufträge warten so aufeinander.
+
+Seit 1.8.81 (Z2b Punkt 8): Zahlungen auch auf Nebenforderungen (Mahngebühr, Pauschale, Verzugszinsen; app/dunning_charges.py) --
+Zuordnung Art "nebenforderung" mit der Nebenforderung (charge_id), an der Rechnung dieser Nebenforderung, unter derselben Sperre.
+Der Vorschlag verteilt nach § 367 Abs. 1 BGB: je Rechnung erst die Kosten (Gebühr, Pauschale), dann die Zinsen, dann die Rechnung;
+über mehrere Rechnungen weiter die älteste zuerst. Gebucht wird, was das Büro bestätigt -- auch abweichend (§ 366 Abs. 1 BGB:
+eine Tilgungsbestimmung des Kunden geht vor). Eine Zahlung auf eine Nebenforderung mindert den Zahlstand der Rechnung nicht.
 """
 
 from dataclasses import dataclass
@@ -37,13 +43,14 @@ from .berlin_time import berlin_today
 from .invoices import (  # invoice_customer_id: seit 1.8.79 dort (der festgehaltene Kunde), hier weiter importierbar
     EDITABLE_STATUS, compute_invoice_totals, invoice_customer_id, invoice_rounding, lock_order_invoices, skonto_offer,
 )
-from .models import Customer, Invoice, Payment, PaymentAllocation
+from .models import Customer, Invoice, InvoiceCharge, Payment, PaymentAllocation, Reminder
 from .rounding import CENT, round_money
 from .zugehoerigkeit import IdNichtGefunden
 
 ORIGINS = ("erfasst", "uebernommen")
-KINDS = ("zahlung", "skonto", "einbehalt")
-KIND_LABELS = {"zahlung": "Zahlung", "skonto": "Skonto", "einbehalt": "Einbehalt"}
+KINDS = ("zahlung", "skonto", "einbehalt", "nebenforderung")
+KIND_LABELS = {"zahlung": "Zahlung", "skonto": "Skonto", "einbehalt": "Einbehalt", "nebenforderung": "Zahlung auf Nebenforderung"}
+MONEY_KINDS = ("zahlung", "nebenforderung")  # Teile des Betrags der Zahlung (Skonto und Einbehalt sind Abzüge)
 STATES = ("offen", "teilweise_bezahlt", "einbehalt_offen", "bezahlt")
 STATE_LABELS = {"offen": "offen", "teilweise_bezahlt": "teilweise bezahlt", "einbehalt_offen": "Einbehalt offen",
                 "bezahlt": "bezahlt"}
@@ -100,10 +107,11 @@ class Sums:
     skonto: Decimal = ZERO
     retained: Decimal = ZERO
     last_received_on: date | None = None  # Eingangsdatum der jüngsten noch geltenden Zahlung
+    charges_paid: Decimal = ZERO  # seit 1.8.81: Zahlungen auf Nebenforderungen der Rechnung (nicht im Zahlstand)
 
     @property
     def any(self) -> bool:
-        return bool(self.paid or self.skonto or self.retained)
+        return bool(self.paid or self.skonto or self.retained or self.charges_paid)
 
 
 def allocation_sums(db: Session, invoice_ids: Iterable[int], *, received_until: date | None = None) -> dict[int, Sums]:
@@ -133,7 +141,8 @@ def allocation_sums(db: Session, invoice_ids: Iterable[int], *, received_until: 
         last_stmt = last_stmt.where(Payment.received_on <= received_until)
     last = dict(db.execute(last_stmt).all())
     return {i: Sums(paid=totals.get(i, {}).get("zahlung", ZERO), skonto=totals.get(i, {}).get("skonto", ZERO),
-                    retained=totals.get(i, {}).get("einbehalt", ZERO), last_received_on=last.get(i)) for i in ids}
+                    retained=totals.get(i, {}).get("einbehalt", ZERO), last_received_on=last.get(i),
+                    charges_paid=totals.get(i, {}).get("nebenforderung", ZERO)) for i in ids}
 
 
 @dataclass(frozen=True)
@@ -221,7 +230,8 @@ def allocation_block_reason(db: Session, invoice: Invoice) -> str | None:
     if not sums.any:
         return None
     parts = [f"{KIND_LABELS[k]} {money(v)}" for k, v in (("zahlung", sums.paid), ("skonto", sums.skonto),
-                                                         ("einbehalt", sums.retained)) if v]
+                                                         ("einbehalt", sums.retained),
+                                                         ("nebenforderung", sums.charges_paid)) if v]
     return (f"Der Rechnung sind Zahlungen zugeordnet ({', '.join(parts)}). Erst die Zuordnungen lösen (Gegenbuchung mit "
             "Begründung) -- die Zahlung bleibt dann beim Kunden, nicht zugeordnet.")
 
@@ -266,6 +276,8 @@ def proposal(db: Session, invoice: Invoice, *, amount: Decimal, received_on: dat
     zugeordnet und der Rest bleibt am Kunden. Skonto nur, wo der Eingang in der Frist liegt und der Betrag genau passt: entweder
     für alle mit Skonto zusammen, oder an der Rechnung, an der der Betrag endet. Einbehalt nie. Nur ein Vorschlag -- gebucht wird
     erst mit book_payment()."""
+    from .dunning_charges import charge_lines, open_charge_rows  # lokal: app/dunning_charges.py importiert app/invoices.py
+
     reason = not_payable_reason(invoice)
     if reason:
         raise PaymentRejected(reason)
@@ -277,29 +289,46 @@ def proposal(db: Session, invoice: Invoice, *, amount: Decimal, received_on: dat
     rows = []
     for inv in candidates:
         state = states[inv.id]
-        if inv.id != invoice.id and (state is None or state.open == 0):
+        # Seit 1.8.81: offene Nebenforderungen der Rechnung, in der Reihenfolge nach § 367 Abs. 1 BGB (Kosten, dann Zinsen).
+        charges = open_charge_rows(db, inv) if state is not None else []
+        if inv.id != invoice.id and (state is None or (state.open == 0 and not charges)):
             continue
-        rows.append({"invoice": inv, "state": state, "skonto": _skonto_proposal(inv, state, received_on)})
+        rows.append({"invoice": inv, "state": state, "skonto": _skonto_proposal(inv, state, received_on),
+                     "charges": charges})
 
     def eligible(row) -> Decimal | None:
         return row["skonto"]["amount"] if row["skonto"] and row["skonto"]["in_period"] else None
 
+    def charges_open(row) -> Decimal:
+        return sum((rest for _, rest in row["charges"]), ZERO)
+
     alloc = {r["invoice"].id: [ZERO, ZERO] for r in rows}  # [zahlung, skonto]
-    total_open = sum((r["state"].open for r in rows), ZERO)
-    with_skonto = sum((r["state"].open - (eligible(r) or ZERO) for r in rows), ZERO)
+    charge_alloc: dict[int, Decimal] = {}
+    total_open = sum((charges_open(r) + r["state"].open for r in rows), ZERO)
+    with_skonto = sum((charges_open(r) + r["state"].open - (eligible(r) or ZERO) for r in rows), ZERO)
     if amount >= total_open:
         for r in rows:
+            charge_alloc.update({c.id: rest for c, rest in r["charges"]})
             alloc[r["invoice"].id][0] = r["state"].open
     elif any(eligible(r) for r in rows) and amount == with_skonto:
         for r in rows:
             s = eligible(r) or ZERO
+            charge_alloc.update({c.id: rest for c, rest in r["charges"]})
             alloc[r["invoice"].id] = [r["state"].open - s, s]
     else:
+        # § 367 Abs. 1 BGB je Rechnung: Kosten, Zinsen, dann die Rechnung -- die älteste Rechnung zuerst.
         remaining = amount
         for r in rows:
+            for c, rest in r["charges"]:
+                if remaining <= 0:
+                    break
+                charge_alloc[c.id] = min(rest, remaining)
+                remaining -= charge_alloc[c.id]
             if remaining <= 0:
                 break
             open_, s = r["state"].open, eligible(r)
+            if open_ <= 0:
+                continue
             if remaining >= open_:
                 alloc[r["invoice"].id][0] = open_
             elif s is not None and remaining == open_ - s:
@@ -311,13 +340,16 @@ def proposal(db: Session, invoice: Invoice, *, amount: Decimal, received_on: dat
     for r in rows:
         inv, state, sk = r["invoice"], r["state"], r["skonto"]
         zahlung, skonto = alloc[inv.id]
+        labels = {line["id"]: line for line in charge_lines(db, [c for c, _ in r["charges"]])}
         lines.append({
             "invoice_id": inv.id, "invoice_number": inv.invoice_number, "invoice_type": inv.invoice_type,
             "invoice_date": inv.invoice_date, "order_id": inv.order_id, "is_selected": inv.id == invoice.id,
             "open": state.open, "zahlung": zahlung, "skonto": skonto, "einbehalt": ZERO,
             "skonto_offer": ({"until": sk["until"], "amount": sk["amount"], "in_period": sk["in_period"]} if sk else None),
+            "charges": [{"charge_id": c.id, "kind": c.kind, "label": labels[c.id]["label"], "open": rest,
+                         "amount": charge_alloc.get(c.id, ZERO)} for c, rest in r["charges"]],
         })
-    allocated = sum((line["zahlung"] for line in lines), ZERO)
+    allocated = sum((line["zahlung"] + sum((c["amount"] for c in line["charges"]), ZERO) for line in lines), ZERO)
     return {"amount": amount, "received_on": received_on, "lines": lines, "rest": amount - allocated}
 
 
@@ -326,12 +358,26 @@ def proposal(db: Session, invoice: Invoice, *, amount: Decimal, received_on: dat
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
+class ChargeLine:
+    """Seit 1.8.81: was von der Zahlung auf eine Nebenforderung der Rechnung der Zeile geht."""
+    charge_id: int
+    amount: Decimal
+
+
+@dataclass(frozen=True)
 class Line:
-    """Eine bestätigte Zeile: was von der Zahlung auf die Rechnung geht und welche Abzüge mit ihr gebucht werden."""
+    """Eine bestätigte Zeile: was von der Zahlung auf die Rechnung geht und welche Abzüge mit ihr gebucht werden; seit 1.8.81
+    dazu, was auf ihre Nebenforderungen geht (charges)."""
     invoice_id: int
     zahlung: Decimal = ZERO
     skonto: Decimal = ZERO
     einbehalt: Decimal = ZERO
+    charges: tuple[ChargeLine, ...] = ()
+
+    @property
+    def money_total(self) -> Decimal:
+        """Was von der Zahlung auf diese Zeile geht (Rechnung und Nebenforderungen, ohne Abzüge)."""
+        return self.zahlung + sum((c.amount for c in self.charges), ZERO)
 
 
 def _cents(value: Decimal, label: str, *, positive: bool = False) -> Decimal:
@@ -346,16 +392,24 @@ def _cents(value: Decimal, label: str, *, positive: bool = False) -> Decimal:
 
 
 def _check_lines(lines: list[Line]) -> list[Line]:
-    seen = set()
+    seen, seen_charges = set(), set()
     checked = []
     for line in lines:
         if line.invoice_id in seen:
             raise ValueError("Jede Rechnung höchstens einmal je Buchung.")
         seen.add(line.invoice_id)
         z, s, e = (_cents(line.zahlung, "Zahlung"), _cents(line.skonto, "Skonto"), _cents(line.einbehalt, "Einbehalt"))
-        if not (z or s or e):
+        charges = []
+        for c in line.charges:
+            if c.charge_id in seen_charges:
+                raise ValueError("Jede Nebenforderung höchstens einmal je Buchung.")
+            seen_charges.add(c.charge_id)
+            amount = _cents(c.amount, "Zahlung auf Nebenforderung")
+            if amount:
+                charges.append(ChargeLine(c.charge_id, amount))
+        if not (z or s or e or charges):
             raise ValueError("Eine Zeile ohne Betrag -- bitte weglassen.")
-        checked.append(Line(line.invoice_id, z, s, e))
+        checked.append(Line(line.invoice_id, z, s, e, tuple(charges)))
     return checked
 
 
@@ -388,7 +442,7 @@ def payment_rest(db: Session, payment: Payment) -> Decimal:
     if payment.reverses_payment_id is not None or payment.id in _reversed_payment_ids(db, [payment.id]):
         return ZERO
     allocated = db.scalar(select(func.coalesce(func.sum(PaymentAllocation.amount), 0)).where(
-        PaymentAllocation.payment_id == payment.id, PaymentAllocation.kind == "zahlung"))
+        PaymentAllocation.payment_id == payment.id, PaymentAllocation.kind.in_(MONEY_KINDS)))
     return round_money(Decimal(payment.amount) - Decimal(allocated or 0))
 
 
@@ -406,7 +460,7 @@ def _apply(db: Session, payment: Payment, lines: list[Line], invoices: dict[int,
     """Prüft unter der Sperre und schreibt die Zuordnungen. Wirft PaymentRejected -- der Aufrufer rollt zurück."""
     if payment.reverses_payment_id is not None or payment.id in _reversed_payment_ids(db, [payment.id]):
         raise PaymentRejected("Die Zahlung ist zurückgenommen -- daraus lässt sich nichts mehr zuordnen.")
-    total = sum((line.zahlung for line in lines), ZERO)
+    total = sum((line.money_total for line in lines), ZERO)
     rest = payment_rest(db, payment)
     if total > rest:
         raise PaymentRejected(f"Überbuchung der Zahlung: zugeordnet werden sollen {money(total)}, offen an der Zahlung sind "
@@ -429,11 +483,41 @@ def _apply(db: Session, payment: Payment, lines: list[Line], invoices: dict[int,
         if state.retained + line.einbehalt > open_after and line.einbehalt:
             raise PaymentRejected(
                 f"Der Einbehalt an der Rechnung {number} wäre höher als der danach offene Betrag ({money(open_after)}).")
+        _check_charge_lines(db, invoice, line)
     for line in lines:
         for kind, value in (("zahlung", line.zahlung), ("skonto", line.skonto), ("einbehalt", line.einbehalt)):
             if value:
                 db.add(PaymentAllocation(payment_id=payment.id, invoice_id=line.invoice_id, kind=kind, amount=value,
                                          created_by_user_id=user_id, created_by_name=name))
+        for c in line.charges:
+            db.add(PaymentAllocation(payment_id=payment.id, invoice_id=line.invoice_id, kind="nebenforderung", amount=c.amount,
+                                     charge_id=c.charge_id, created_by_user_id=user_id, created_by_name=name))
+
+
+def _check_charge_lines(db: Session, invoice: Invoice, line: Line) -> None:
+    """Seit 1.8.81: nur auf eine geltende Nebenforderung dieser Rechnung, höchstens ihren offenen Rest (unter der Sperre der
+    Auftragszeile -- Nebenforderungen entstehen und werden gegengebucht unter derselben)."""
+    from .dunning_charges import charge_label, charge_paid, charges_in_force  # lokal: Zirkel-Import
+
+    if not line.charges:
+        return
+    number = invoice.invoice_number or "(Entwurf)"
+    in_force = {c.id: c for c in charges_in_force(db, [invoice.id])[invoice.id]}
+    paid = charge_paid(db, [c.charge_id for c in line.charges])
+    for c in line.charges:
+        charge = db.get(InvoiceCharge, c.charge_id)
+        if charge is None:
+            raise IdNichtGefunden(f"Nebenforderung {c.charge_id} nicht gefunden.")
+        if charge.invoice_id != line.invoice_id:
+            raise PaymentRejected(f"Die Nebenforderung {c.charge_id} gehört nicht zur Rechnung {number}.")
+        if charge.id not in in_force:
+            raise PaymentRejected(f"Die Nebenforderung {c.charge_id} ist gegengebucht bzw. eine Gegenbuchung -- darauf lässt "
+                                  "sich nichts buchen.")
+        rest = round_money(Decimal(charge.amount) - paid.get(charge.id, ZERO))
+        if c.amount > rest:
+            label = charge_label(charge, None, {})
+            raise PaymentRejected(f"Überbuchung der Nebenforderung „{label}“ an der Rechnung {number}: offen sind {money(rest)}, "
+                                  f"gebucht werden sollen {money(c.amount)}.")
 
 
 def book_payment(db: Session, *, customer_id: int, received_on: date, amount: Decimal, note: str | None,
@@ -495,8 +579,9 @@ def _reversed_allocation_ids(db: Session, allocation_ids: Iterable[int]) -> set[
 
 def _counter(allocation: PaymentAllocation, reason: str, user_id, name) -> PaymentAllocation:
     return PaymentAllocation(payment_id=allocation.payment_id, invoice_id=allocation.invoice_id, kind=allocation.kind,
-                             amount=-allocation.amount, reverses_allocation_id=allocation.id, reason=reason,
-                             created_by_user_id=user_id, created_by_name=name)
+                             amount=-allocation.amount, charge_id=allocation.charge_id,  # seit 1.8.81: dieselbe Nebenforderung
+                             reverses_allocation_id=allocation.id, reason=reason, created_by_user_id=user_id,
+                             created_by_name=name)
 
 
 def reverse_allocation(db: Session, allocation: PaymentAllocation, *, reason: str | None, user_id: int | None = None,
@@ -578,6 +663,9 @@ def _allocation_rows(db: Session, rows: list[PaymentAllocation]) -> list[dict]:
     if missing:
         for c in db.scalars(select(PaymentAllocation).where(PaymentAllocation.reverses_allocation_id.in_(missing))):
             counters[c.reverses_allocation_id] = c
+    from .dunning_charges import _level_labels, charge_label  # lokal: Zirkel-Import
+
+    labels = _level_labels(db) if any(a.charge_id for a in rows) else {}
     result = []
     for a in rows:
         if a.reverses_allocation_id is not None:
@@ -585,10 +673,15 @@ def _allocation_rows(db: Session, rows: list[PaymentAllocation]) -> list[dict]:
         invoice = db.get(Invoice, a.invoice_id)
         payment = db.get(Payment, a.payment_id)
         counter = counters.get(a.id)
+        charge = db.get(InvoiceCharge, a.charge_id) if a.charge_id else None
+        kind_label = KIND_LABELS.get(a.kind, a.kind)
+        if charge is not None:
+            kind_label = "Zahlung auf " + charge_label(charge, db.get(Reminder, charge.reminder_id) if charge.reminder_id
+                                                       else None, labels)
         result.append({
             "id": a.id, "payment_id": a.payment_id, "invoice_id": a.invoice_id,
             "invoice_number": invoice.invoice_number if invoice else None, "order_id": invoice.order_id if invoice else None,
-            "kind": a.kind, "kind_label": KIND_LABELS.get(a.kind, a.kind), "amount": a.amount,
+            "kind": a.kind, "kind_label": kind_label, "amount": a.amount, "charge_id": a.charge_id,
             "received_on": payment.received_on if payment else None, "payment_note": payment.note if payment else None,
             "payment_origin": payment.origin if payment else None,
             "created_at": a.created_at, "created_by_name": a.created_by_name,
@@ -633,6 +726,8 @@ def open_invoices_of_customer(db: Session, customer_id: int) -> list[dict]:
     """Offene, bebuchbare Rechnungen des Kunden -- für "weitere Rechnungen von Hand" und das Zuordnen eines Rests."""
     # Seit 1.8.79 nach dem Kunden, den die Rechnung beim Festschreiben festhielt (Invoice.customer_id), nicht mehr nach dem
     # Kunden ihres Projekts.
+    from .dunning_charges import charge_lines, open_charge_rows  # lokal: Zirkel-Import
+
     invoices = list(db.scalars(
         select(Invoice).where(Invoice.customer_id == customer_id, Invoice.status == "versendet", Invoice.invoice_type != "storno")
         .order_by(Invoice.invoice_date, Invoice.id)))
@@ -640,13 +735,20 @@ def open_invoices_of_customer(db: Session, customer_id: int) -> list[dict]:
     result = []
     for inv in invoices:
         state = states[inv.id]
-        if state is None or state.open == 0:
+        if state is None:
             continue
+        # Seit 1.8.81 auch mit offenen Nebenforderungen allein (Rechnung bezahlt, Mahngebühr offen).
+        charges = open_charge_rows(db, inv)
+        if state.open == 0 and not charges:
+            continue
+        labels = {line["id"]: line["label"] for line in charge_lines(db, [c for c, _ in charges])}
         offer = skonto_offer(inv)
         result.append({"invoice_id": inv.id, "invoice_number": inv.invoice_number, "invoice_type": inv.invoice_type,
                        "invoice_date": inv.invoice_date, "order_id": inv.order_id,
                        "order_number": inv.order.order_number if inv.order else None, "payment": state.as_dict(),
-                       "skonto_offer": {"until": offer[0], "amount": offer[1]} if offer else None})
+                       "skonto_offer": {"until": offer[0], "amount": offer[1]} if offer else None,
+                       "charges": [{"charge_id": c.id, "kind": c.kind, "label": labels[c.id], "open": rest}
+                                   for c, rest in charges]})
     return result
 
 
@@ -654,7 +756,7 @@ def unallocated_by_customer(db: Session) -> list[dict]:
     """Kunden mit nicht zugeordnetem Rest (Finanzen): Summe der Zahlungen minus Zuordnungen, ohne zurückgenommene."""
     reversed_ids = select(Payment.reverses_payment_id).where(Payment.reverses_payment_id.is_not(None))
     allocated = (select(PaymentAllocation.payment_id, func.sum(PaymentAllocation.amount).label("allocated"))
-                 .where(PaymentAllocation.kind == "zahlung").group_by(PaymentAllocation.payment_id).subquery())
+                 .where(PaymentAllocation.kind.in_(MONEY_KINDS)).group_by(PaymentAllocation.payment_id).subquery())
     rows = db.execute(
         select(Payment.customer_id, func.sum(Payment.amount - func.coalesce(allocated.c.allocated, 0)))
         .outerjoin(allocated, allocated.c.payment_id == Payment.id)

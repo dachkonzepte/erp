@@ -41,6 +41,11 @@ Seit 1.8.80 (Zahlungsstufe Z2b, docs/archiv/zahlungen.md "Umsetzung 1.8.80"):
   ebenso; beides bewusst übernommen (set_reminder_charges()), erst beim Festschreiben eine Nebenforderung. Die Aufstellung
   (Format 2) zeigt unter dem angemahnten Betrag die geltenden Nebenforderungen der Rechnung und den Gesamtbetrag; ausgeschaltet
   keine. Versand und Zustellung prüfen auch die Nebenforderungen.
+
+Seit 1.8.81 (Z2b Punkte 7-9, "Vorweg" 1): Verzugszinsen als Vorschlag bis zum Mahndatum, bewusst übernommen
+(Reminder.interest_accepted), beim Festschreiben frisch unter der Sperre berechnet und eine Nebenforderung; keine Gebühr neben
+einer gebuchten oder übernommenen Pauschale; die Aufstellung (Format 3) zeigt je Nebenforderung, was darauf gezahlt ist, die
+Abschnitte der Zinsen und die gedruckten Rechtstexte (app/dunning_texts.py) -- eingefroren beim Festschreiben.
 """
 
 import json
@@ -51,10 +56,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, object_session, selectinload
 
 from .berlin_time import berlin_today
+from .default_interest import interest_proposal
 from .dunning_charges import (
-    DISABLED_TEXT, add_charges, charge_lines, charges_enabled, charges_in_force, draft_proposals, flat_fee_block_reason,
-    new_charge_lines, open_charges, reverse_charges_of,
+    DISABLED_TEXT, FLAT_FEE, ChargeRejected, active_default_start, add_charges, charge_lines, charges_enabled, charges_in_force,
+    charges_of_reminders, draft_proposals, fee_block_reason, flat_fee_block_reason, money, new_charge_lines, open_charges,
+    reverse_charges_of,
 )
+from .dunning_texts import texts_for
 from .invoices import InvoiceBlocked, invoice_customer, invoice_rounding, lock_order_invoices
 from .models import Invoice, Reminder, ReminderLevel
 from .placeholders import apply_placeholders
@@ -237,6 +245,17 @@ def replaceable(invoice: Invoice, reached: dict[int, date], level: int, *, exclu
             and r.level <= level]
 
 
+def replaces_info(db: Session, reminders: list[Reminder]) -> list[dict]:
+    """Seit 1.8.81 (Festlegung 1.8.80 Nr. 2): je Mahnung, die ein Festschreiben ersetzt, ihre Nummer und die Nebenforderungen, die
+    dabei gegengebucht werden -- die Oberfläche nennt sie vor dem Ersetzen."""
+    result = []
+    for old in sorted(reminders, key=lambda r: (r.level, r.id)):
+        lines = charge_lines(db, charges_of_reminders(db, [old]))
+        result.append({"id": old.id, "reminder_number": old.reminder_number, "level": old.level,
+                       "charges": [{"label": line["label"], "amount": line["amount"]} for line in lines]})
+    return result
+
+
 def _step(invoice: Invoice, levels: dict[int, ReminderLevel], reached: dict[int, date]) -> dict:
     """Aktuelle Stufe (höchste erreichte -- seit 1.8.80 nur eine versendete oder zugestellte Mahnung), ihre letzte Mahnung,
     nächste aktive Stufe und ab wann sie möglich ist."""
@@ -339,7 +358,9 @@ def compute_reminder_status(db: Session, invoice: Invoice, *, state=_UNSET,
     if pending is not None:
         pending_dict = {"id": pending.id, "reminder_number": pending.reminder_number, "level": pending.level,
                         "label": _label(levels, pending.level), "reminder_date": pending.reminder_date,
-                        "dispatch_block": dispatch_block_reason(db, pending, state=state, levels=levels, reached=reached)}
+                        "dispatch_block": dispatch_block_reason(db, pending, state=state, levels=levels, reached=reached),
+                        # seit 1.8.81: was beim Ersetzen gegengebucht würde
+                        "charges": replaces_info(db, [pending])[0]["charges"]}
     if invoice.status != FINALIZED or invoice.due_date is None or state is None or state.dunnable <= 0:
         return {"current_level": 0, "next_level": None, "next_due_on": None, "is_due_now": False,
                 "draft": draft_dict, "create_block": block, "pending": pending_dict}
@@ -356,21 +377,54 @@ def compute_reminder_status(db: Session, invoice: Invoice, *, state=_UNSET,
 # Aufstellung des gemahnten Betrags (seit 1.8.79, Vorgabe Z2a Nr. 4)
 # ---------------------------------------------------------------------------
 
-def amounts_snapshot(db: Session, invoice: Invoice, state, *, enabled: bool) -> str:
+def legal_topics(db: Session, invoice: Invoice, lines: list[dict], on: date) -> dict[str, dict]:
+    """Welche Rechtstexte die Mahnung vom Tag on nennt, mit den Werten ihrer Platzhalter (seit 1.8.81, app/dunning_texts.py):
+    "verzug", wenn ein bestätigter Verzugsbeginn am Mahndatum gilt; "zinsen", wenn sie Verzugszinsen zeigt (Werte der jüngsten
+    Zinszeile); "pauschale", wenn sie die Pauschale zeigt."""
+    topics: dict[str, dict] = {}
+    start = active_default_start(db, invoice.id)
+    if start is not None and start.starts_on <= on:
+        topics["verzug"] = {"{verzugsbeginn}": _de(start.starts_on)}
+    interest = [line for line in lines if line["kind"] == "zinsen"]
+    if interest:
+        last = interest[-1]
+        surcharge = last.get("surcharge")
+        topics["zinsen"] = {
+            "{prozentpunkte}": f"{Decimal(surcharge).normalize():f}" if surcharge is not None else "",
+            "{zinsen_von}": _de(last["period_start"]) if last.get("period_start") else "",
+            "{zinsen_bis}": _de(last["period_end"]) if last.get("period_end") else ""}
+    if any(line["kind"] == "pauschale" for line in lines):
+        topics["pauschale"] = {"{pauschale}": money(FLAT_FEE)}
+    return topics
+
+
+def _line_json(line: dict) -> dict:
+    return {"kind": line["kind"], "label": line["label"], "amount": str(line["amount"]), "paid": str(line.get("paid") or 0),
+            "sections": [{"text": s["text"]} for s in line.get("sections") or []]}
+
+
+def amounts_snapshot(db: Session, invoice: Invoice, state, *, enabled: bool, on: date | None = None) -> str:
     """Aufstellung aus dem Zahlstand als kanonisches JSON: Brutto, je noch geltender Zahlung Eingangsdatum und Betrag, Skonto,
     Einbehalt (der abgezogene Teil, höchstens der offene Betrag), mahnfähig. Brutto − Zahlungen − Skonto − Einbehalt =
     mahnfähig. Seit 1.8.80 (Format 2) dazu die geltenden Nebenforderungen der Rechnung (Bezeichnung, Betrag) und der
-    Gesamtbetrag = mahnfähig + Nebenforderungen; bei ausgeschalteten Mahngebühren (enabled) keine."""
+    Gesamtbetrag = mahnfähig + Nebenforderungen; bei ausgeschalteten Mahngebühren (enabled) keine. Seit 1.8.81 (Format 3) je
+    Nebenforderung das darauf Gezahlte, bei Zinsen die Abschnitte, offen = Summe − Gezahltes, und die gedruckten Rechtstexte der
+    Mahnung vom Tag on (Platzhalter eingesetzt)."""
     from .payments import invoice_payment_lines  # lokal: Zirkel-Import
+    on = on or berlin_today()
     lines = charge_lines(db, charges_in_force(db, [invoice.id])[invoice.id]) if enabled else []
-    charges_open = sum((line["amount"] for line in lines), Decimal("0.00"))
+    charges_sum = sum((line["amount"] for line in lines), Decimal("0.00"))
+    charges_paid = sum((line["paid"] for line in lines), Decimal("0.00"))
+    printed = texts_for(db, legal_topics(db, invoice, lines, on))[0] if enabled else []
     data = {
-        "format": 2, "gross": str(state.gross),
+        "format": 3, "gross": str(state.gross),
         "payments": [{"received_on": d.isoformat(), "amount": str(a)} for d, a in invoice_payment_lines(db, invoice)],
         "skonto": str(state.skonto), "retained": str(state.retained_open), "dunnable": str(state.dunnable),
         "charges_enabled": bool(enabled),
-        "charges": [{"kind": line["kind"], "label": line["label"], "amount": str(line["amount"])} for line in lines],
-        "charges_open": str(charges_open), "total": str(state.dunnable + charges_open),
+        "charges": [_line_json(line) for line in lines],
+        "charges_paid": str(charges_paid), "charges_open": str(charges_sum - charges_paid),
+        "total": str(state.dunnable + charges_sum - charges_paid),
+        "legal_texts": printed,
     }
     return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
@@ -388,37 +442,54 @@ def amounts(reminder: Reminder) -> dict | None:
                      for p in raw["payments"]],
         "skonto": Decimal(raw["skonto"]), "retained": Decimal(raw["retained"]), "dunnable": Decimal(raw["dunnable"]),
         "charges_enabled": bool(raw.get("charges_enabled", False)),
-        "charges": [{"kind": c["kind"], "label": c["label"], "amount": Decimal(c["amount"])} for c in raw.get("charges", [])],
+        "charges": [{"kind": c["kind"], "label": c["label"], "amount": Decimal(c["amount"]),
+                     "paid": Decimal(c.get("paid", "0")), "sections": c.get("sections", [])} for c in raw.get("charges", [])],
+        "charges_paid": Decimal(raw.get("charges_paid", "0")),
         "charges_open": Decimal(raw["charges_open"]) if "charges_open" in raw else None,
         "total": Decimal(raw["total"]) if "total" in raw else None,
+        "legal_texts": raw.get("legal_texts", []),
     }
 
 
-def charges_view(reminder: Reminder, db: Session | None = None) -> dict:
-    """Nebenforderungen und Gesamtbetrag, wie die Mahnung sie zeigt (seit 1.8.80): {"enabled", "lines", "open", "total"}.
-    - Festgeschrieben ab 1.8.80: aus der Aufstellung (lines nur, wenn beim Festschreiben eingeschaltet).
-    - Entwurf: eingeschaltet die geltenden Nebenforderungen der Rechnung und die übernommenen neuen (Gebühr, Pauschale; "new"),
-      sonst keine -- Gesamtbetrag = angemahnter Betrag + Nebenforderungen.
+def charges_view(reminder: Reminder, db: Session | None = None, *, interest=_UNSET) -> dict:
+    """Nebenforderungen und Gesamtbetrag, wie die Mahnung sie zeigt (seit 1.8.80): {"enabled", "lines", "paid", "open", "total",
+    "legal_texts", "legal_warnings"}.
+    - Festgeschrieben ab 1.8.80: aus der Aufstellung (lines nur, wenn beim Festschreiben eingeschaltet; seit 1.8.81 Format 3 mit
+      dem Gezahlten je Nebenforderung und den gedruckten Rechtstexten).
+    - Entwurf: eingeschaltet die geltenden Nebenforderungen der Rechnung und die übernommenen neuen (Gebühr, Pauschale, seit
+      1.8.81 Zinsen bis heute; "new"), sonst keine -- Gesamtbetrag = angemahnter Betrag + Nebenforderungen − darauf gezahlt;
+      die Rechtstexte live, mit Warnung für ungeprüfte. interest: der schon berechnete Zinsvorschlag (sonst frisch).
     - Vor 1.8.80 festgeschrieben: wie bisher angemahnter Betrag + Mahngebühr (lines leer, enabled None)."""
+    zero = Decimal("0.00")
     breakdown = amounts(reminder)
     if reminder.status != "entwurf":
         if breakdown is not None and breakdown["format"] >= 2:
             return {"enabled": breakdown["charges_enabled"], "lines": [dict(c, new=False) for c in breakdown["charges"]],
-                    "open": breakdown["charges_open"], "total": breakdown["total"]}
+                    "paid": breakdown["charges_paid"], "open": breakdown["charges_open"], "total": breakdown["total"],
+                    "legal_texts": breakdown["legal_texts"], "legal_warnings": []}
         total = (reminder.outstanding_amount + reminder.fee_amount).quantize(CENT, rounding=invoice_rounding(reminder.invoice))
-        return {"enabled": None, "lines": [], "open": None, "total": total}
+        return {"enabled": None, "lines": [], "paid": zero, "open": None, "total": total, "legal_texts": [],
+                "legal_warnings": []}
     db = db or object_session(reminder)
     enabled = charges_enabled(db) if db is not None else False
     principal = reminder_amount(reminder)
     if not enabled:
-        return {"enabled": False, "lines": [], "open": Decimal("0.00"), "total": principal}
+        return {"enabled": False, "lines": [], "paid": zero, "open": zero, "total": principal, "legal_texts": [],
+                "legal_warnings": []}
     # Was der Entwurf ersetzen wird, zählt nicht: dessen Nebenforderungen werden beim Festschreiben gegengebucht.
     ignore = {r.id for r in replaceable(reminder.invoice, reached_map(db, reminder.invoice.reminders), reminder.level)}
     in_force = [c for c in charges_in_force(db, [reminder.invoice_id])[reminder.invoice_id] if c.reminder_id not in ignore]
+    today = berlin_today()
+    if interest is _UNSET:
+        interest = (interest_proposal(db, reminder.invoice, until=today, ignore_reminder_ids=ignore)
+                    if reminder.interest_accepted else None)
     lines = ([dict(line, new=False) for line in charge_lines(db, in_force)]
-             + [dict(line, new=True) for line in new_charge_lines(db, reminder, enabled=True)])
-    open_ = sum((line["amount"] for line in lines), Decimal("0.00"))
-    return {"enabled": True, "lines": lines, "open": open_, "total": principal + open_}
+             + [dict(line, new=True) for line in new_charge_lines(db, reminder, enabled=True, interest=interest)])
+    total_charges = sum((line["amount"] for line in lines), zero)
+    paid = sum((line.get("paid") or zero for line in lines), zero)
+    printed, warnings = texts_for(db, legal_topics(db, reminder.invoice, lines, today))
+    return {"enabled": True, "lines": lines, "paid": paid, "open": total_charges - paid,
+            "total": principal + total_charges - paid, "legal_texts": printed, "legal_warnings": warnings}
 
 
 def fee_of(reminder: Reminder, view: dict | None = None) -> Decimal:
@@ -620,14 +691,17 @@ def create_reminder(db: Session, invoice: Invoice, level: int | None = None) -> 
     cfg = levels[_step(invoice, levels, reached)["next_level"]]
     today = berlin_today()
     enabled = charges_enabled(db)
+    # Seit 1.8.81 ("Vorweg" 1): neben einer gebuchten Pauschale keine Gebühr als Vorschlag (§ 288 Abs. 5 S. 3 BGB).
+    ignore = [r.id for r in replaceable(invoice, reached, cfg.level)]
+    propose_fee = enabled and fee_block_reason(db, invoice, flat_fee_accepted=False, ignore_reminder_ids=ignore) is None
     reminder = Reminder(
         invoice_id=invoice.id, level=cfg.level, status="entwurf", reminder_date=today,
         new_due_date=today + timedelta(days=cfg.days_after_previous_step),
         # Seit 1.8.78 der mahnfähige Betrag (offen − Einbehalt), vorher das volle Brutto.
-        outstanding_amount=state.dunnable, amounts_json=amounts_snapshot(db, invoice, state, enabled=enabled),
+        outstanding_amount=state.dunnable, amounts_json=amounts_snapshot(db, invoice, state, enabled=enabled, on=today),
         # Seit 1.8.80 nur ein Vorschlag (eingeschaltet), bewusst übernommen über set_reminder_charges(); aus: keine Gebühr.
-        fee_amount=cfg.fee_amount if enabled else Decimal("0"), fee_accepted=False, flat_fee_accepted=False,
-        text=cfg.text_template,
+        fee_amount=cfg.fee_amount if propose_fee else Decimal("0"), fee_accepted=False, flat_fee_accepted=False,
+        interest_accepted=False, text=cfg.text_template,
     )
     db.add(reminder)
     db.commit()
@@ -683,6 +757,7 @@ def finalize_and_send_reminder(db: Session, reminder: Reminder) -> Reminder:
     enabled = charges_enabled(db)
     if not enabled:
         reminder.fee_amount, reminder.fee_accepted, reminder.flat_fee_accepted = Decimal("0"), False, False
+        reminder.interest_accepted = False
     elif not reminder.fee_accepted:
         reminder.fee_amount = Decimal("0")
     reminder.reminder_date, reminder.new_due_date = finalize_dates(reminder, levels, today)
@@ -694,15 +769,31 @@ def finalize_and_send_reminder(db: Session, reminder: Reminder) -> Reminder:
         for old in replaced:
             old.replaced_by_id, old.replaced_at = reminder.id, now
         numbers = ", ".join(r.reminder_number or "" for r in replaced)
-        reverse_charges_of(db, replaced, reason=f"Mahnung {numbers} ging nie hinaus und ist durch die Mahnung "
-                                                f"{reminder.reminder_number} ersetzt.")
+        try:
+            reverse_charges_of(db, replaced, reason=f"Mahnung {numbers} ging nie hinaus und ist durch die Mahnung "
+                                                    f"{reminder.reminder_number} ersetzt.")
+        except ChargeRejected as e:  # seit 1.8.81: eine Zahlung auf eine Nebenforderung der ersetzten Mahnung
+            raise _reject(db, f"Die Mahnung {numbers} lässt sich nicht ersetzen: {e}") from None
     if enabled and reminder.flat_fee_accepted:
         reason = flat_fee_block_reason(db, invoice, on=today)
         if reason:
             raise _reject(db, reason)
+    # Seit 1.8.81 ("Vorweg" 1): keine Gebühr neben einer gebuchten oder dieser Pauschale.
+    if enabled and reminder.fee_accepted and Decimal(reminder.fee_amount or 0) > 0:
+        reason = fee_block_reason(db, invoice, flat_fee_accepted=bool(reminder.flat_fee_accepted))
+        if reason:
+            raise _reject(db, reason)
+    # Seit 1.8.81 (Punkt 7): die Zinsen frisch bis zum Mahndatum (heute), unter der Sperre -- eine inzwischen gebuchte Zahlung,
+    # ein verworfener Verzugsbeginn oder ein fehlender Basiszinssatz zählen.
+    interest = None
+    if enabled and reminder.interest_accepted:
+        interest = interest_proposal(db, invoice, until=today)
+        if interest["block"]:
+            raise _reject(db, f"Die übernommenen Verzugszinsen sind nicht mehr möglich: {interest['block']} Bitte den Entwurf "
+                              "anpassen.")
     if enabled:
-        add_charges(db, reminder)
-    reminder.amounts_json = amounts_snapshot(db, invoice, state, enabled=enabled)
+        add_charges(db, reminder, interest=interest)
+    reminder.amounts_json = amounts_snapshot(db, invoice, state, enabled=enabled, on=today)
     db.commit()
     db.refresh(reminder)
     return reminder
@@ -825,10 +916,12 @@ def update_reminder_draft(
 
 
 def set_reminder_charges(db: Session, reminder: Reminder, *, fee_amount: Decimal, fee_accepted: bool,
-                         flat_fee_accepted: bool) -> Reminder:
+                         flat_fee_accepted: bool, interest_accepted: bool = False) -> Reminder:
     """Gebühr und Pauschale im Entwurf bewusst übernehmen oder nicht (seit 1.8.80, Z2b Nr. 5 und 6) -- nur bei eingeschalteten
     Mahngebühren (sonst 409), unter der Sperre der Auftragszeile, nur im Entwurf. Die Pauschale nur, wenn sie heute möglich ist
-    (app/dunning_charges.py::flat_fee_block_reason(), 409 mit Grund); beim Festschreiben wird sie noch einmal geprüft."""
+    (app/dunning_charges.py::flat_fee_block_reason(), 409 mit Grund); beim Festschreiben wird sie noch einmal geprüft.
+    Seit 1.8.81: keine Gebühr neben einer gebuchten oder hier übernommenen Pauschale (fee_block_reason(), 409); Verzugszinsen
+    (interest_accepted) nur, wenn es heute einen Vorschlag gibt (interest_proposal(), 409 mit Grund)."""
     fee_amount = Decimal(fee_amount)
     if fee_amount < 0 or fee_amount != round_money(fee_amount):
         raise ValueError("Die Gebühr: höchstens zwei Nachkommastellen, nicht negativ.")
@@ -839,14 +932,23 @@ def set_reminder_charges(db: Session, reminder: Reminder, *, fee_amount: Decimal
     if reminder.status != "entwurf":
         raise _reject(db, "Nur Mahnungen im Entwurf können bearbeitet werden. Die Mahnung ist inzwischen festgeschrieben "
                           f"({reminder.reminder_number}).")
+    ignore = [r.id for r in replaceable(reminder.invoice, reached_map(db, reminder.invoice.reminders), reminder.level)]
     if flat_fee_accepted:
-        ignore = [r.id for r in replaceable(reminder.invoice, reached_map(db, reminder.invoice.reminders), reminder.level)]
         reason = flat_fee_block_reason(db, reminder.invoice, on=berlin_today(), ignore_reminder_ids=ignore)
         if reason:
             raise _reject(db, reason)
+    if fee_accepted and fee_amount > 0:
+        reason = fee_block_reason(db, reminder.invoice, flat_fee_accepted=bool(flat_fee_accepted), ignore_reminder_ids=ignore)
+        if reason:
+            raise _reject(db, reason)
+    if interest_accepted:
+        proposal = interest_proposal(db, reminder.invoice, until=berlin_today(), ignore_reminder_ids=ignore)
+        if proposal["block"]:
+            raise _reject(db, proposal["block"])
     reminder.fee_amount = fee_amount
     reminder.fee_accepted = bool(fee_accepted)
     reminder.flat_fee_accepted = bool(flat_fee_accepted)
+    reminder.interest_accepted = bool(interest_accepted)
     db.commit()
     db.refresh(reminder)
     return reminder
@@ -913,11 +1015,14 @@ def reminder_to_dict(reminder: Reminder, *, state=_UNSET, levels: dict[int, Remi
     reached = reached or {}
     reminder_date, new_due_date = effective_dates(reminder, levels or {})
     breakdown = amounts(reminder)
-    view = charges_view(reminder, db)
     replaced_by = db.get(Reminder, reminder.replaced_by_id) if db is not None and reminder.replaced_by_id else None
-    proposals = (draft_proposals(db, reminder, on=reminder_date,
-                                 ignore_reminder_ids=[r.id for r in replaceable(invoice, reached, reminder.level)])
-                 if db is not None and reminder.status == "entwurf" else None)
+    draft = db is not None and reminder.status == "entwurf"
+    to_replace = replaceable(invoice, reached, reminder.level) if draft else []
+    proposals = (draft_proposals(db, reminder, on=reminder_date, ignore_reminder_ids=[r.id for r in to_replace])
+                 if draft else None)
+    # Seit 1.8.81: der Zinsvorschlag einmal berechnet -- für die Vorschläge und die neue Zeile im Entwurf.
+    view = (charges_view(reminder, db, interest=proposals["interest"] if reminder.interest_accepted else None)
+            if proposals is not None else charges_view(reminder, db))
     return {
         "id": reminder.id,
         "reminder_number": reminder.reminder_number,
@@ -942,10 +1047,17 @@ def reminder_to_dict(reminder: Reminder, *, state=_UNSET, levels: dict[int, Remi
         "replaced_by_number": replaced_by.reminder_number if replaced_by else None,
         "fee_accepted": bool(reminder.fee_accepted),
         "flat_fee_accepted": bool(reminder.flat_fee_accepted),
+        "interest_accepted": bool(reminder.interest_accepted),
         "charges_enabled": view["enabled"],
         "charges": view["lines"],
+        "charges_paid": view["paid"],
         "charges_open": view["open"],
         "proposals": proposals,
+        # Seit 1.8.81: gedruckte Rechtstexte und Warnungen (ungeprüft, nicht gedruckt); im Entwurf, was das Festschreiben ersetzt
+        # und welche Nebenforderungen es dabei gegenbucht (für die Rückfrage vor dem Festschreiben).
+        "legal_texts": view["legal_texts"],
+        "legal_text_warnings": view["legal_warnings"],
+        "replaces": replaces_info(db, to_replace) if draft else [],
         "text": reminder.text,
         "formatted_text": format_reminder_text(reminder),
         "customer_name": invoice.customer_name,

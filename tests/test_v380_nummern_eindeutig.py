@@ -39,6 +39,7 @@ from tests.befund_vor_echtbetrieb import pg_sitzung
 from tests.bestand_alt import auftrag_zeile, startspalte
 from tests.leistungszeitraum import festschreiben, mit_zeitraum
 from tests.mahnung import frist_ablaufen, zustellen
+from tests.pg_schutz import pg_url_pruefen
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
 from tests.test_v375_rechnungen_sperren import _run, _vorbereiten, pg  # noqa: F401  (pg ist eine Fixture)
@@ -288,7 +289,7 @@ def test_pg_two_sessions_writing_the_same_number_at_once(pg):
 # ---------------------------------------------------------------------------
 
 def _alembic(url: str, *args: str):
-    env = dict(os.environ, DATABASE_URL=url, PYTHONIOENCODING="utf-8")
+    env = dict(os.environ, DATABASE_URL=pg_url_pruefen(url), PYTHONIOENCODING="utf-8")  # seit 1.8.81: nie public (Regel 27)
     return subprocess.run([sys.executable, "-m", "alembic", *args], cwd=str(ROOT), env=env, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=600)
 

@@ -317,7 +317,8 @@ def test_switch_is_off_by_default_and_then_no_fee_and_no_amounts():
     finalize_and_send_reminder(db, draft)
     assert (draft.fee_amount, draft.fee_accepted, _anzahl(db, InvoiceCharge)) == (0, False, 0)
     breakdown = amounts(draft)
-    assert breakdown["format"] == 2 and breakdown["charges_enabled"] is False and breakdown["charges"] == []
+    # seit 1.8.81 Format 3 (Zahlungen auf Nebenforderungen, Rechtstexte)
+    assert breakdown["format"] == 3 and breakdown["charges_enabled"] is False and breakdown["charges"] == []
     assert breakdown["total"] == breakdown["dunnable"]
 
 
@@ -326,7 +327,8 @@ def test_charges_route_is_409_when_switched_off(threaded_db_session, router_test
     reminder = create_reminder(db, _rechnung(db))
     client = router_test_client(db, reminders_router)
     response = client.put(f"/api/reminders/{reminder.id}/charges",
-                          json={"fee_amount": "5.00", "fee_accepted": True, "flat_fee_accepted": False})
+                          json={"fee_amount": "5.00", "fee_accepted": True, "flat_fee_accepted": False,
+                                "interest_accepted": False})
     assert response.status_code == 409 and "ausgeschaltet" in response.json()["detail"]
     db.refresh(reminder)
     assert reminder.fee_accepted is False
@@ -359,22 +361,22 @@ def test_reminder_level_update_takes_only_sent_fields(threaded_db_session, route
 # ---------------------------------------------------------------------------
 
 def test_fee_and_flat_fee_become_charges_summed_in_every_later_reminder_never_in_the_invoice():
+    # Seit 1.8.81 ("Vorweg" 1) keine Gebühr neben der Pauschale -- die Gebühr mit der 2., die Pauschale mit der 3. Mahnung.
     db = _db()
     invoice, second = _zweite_stufe_mit_verzug(db)
     gross_before = payment_state(db, invoice).gross
-    set_reminder_charges(db, second, fee_amount=D("10.00"), fee_accepted=True, flat_fee_accepted=True)
+    set_reminder_charges(db, second, fee_amount=D("10.00"), fee_accepted=True, flat_fee_accepted=False)
     data = reminder_to_dict(second)
-    assert [c["new"] for c in data["charges"]] == [True, True] and data["charges_open"] == D("50.00")
+    assert [c["new"] for c in data["charges"]] == [True] and data["charges_open"] == D("10.00")
     festschreiben_und_ablaufen(db, second)
     charges = charges_in_force(db, [invoice.id])[invoice.id]
-    assert sorted((c.kind, c.amount, c.reminder_id) for c in charges) == [("gebuehr", D("10.00"), second.id),
-                                                                          ("pauschale", D("40.00"), second.id)]
+    assert sorted((c.kind, c.amount, c.reminder_id) for c in charges) == [("gebuehr", D("10.00"), second.id)]
     third = create_reminder(db, invoice)
-    set_reminder_charges(db, third, fee_amount=D("15.00"), fee_accepted=True, flat_fee_accepted=False)
+    set_reminder_charges(db, third, fee_amount=D("0"), fee_accepted=False, flat_fee_accepted=True)
     finalize_and_send_reminder(db, third)
     breakdown = amounts(third)
-    assert [c["amount"] for c in breakdown["charges"]] == [D("10.00"), D("40.00"), D("15.00")]
-    assert breakdown["charges_open"] == D("65.00") and breakdown["total"] == breakdown["dunnable"] + D("65.00")
+    assert [c["amount"] for c in breakdown["charges"]] == [D("10.00"), D("40.00")]
+    assert breakdown["charges_open"] == D("50.00") and breakdown["total"] == breakdown["dunnable"] + D("50.00")
     text = _pdf_text(db, third)
     assert "Pauschale nach" in text and "Gesamtbetrag" in text and "Mahngeb" in text
     # nie im Rechnungsbetrag, kein Zahlstand, keine Umsatzsteuer
@@ -436,7 +438,8 @@ def test_fee_is_a_proposal_and_only_charged_when_accepted():
     db = _db()
     invoice, second = _zweite_stufe_mit_verzug(db)
     data = reminder_to_dict(second)
-    assert data["proposals"]["fee"] == {"amount": D("10.00"), "level_label": "2. Mahnung"} and not data["fee_accepted"]
+    assert data["proposals"]["fee"] == {"amount": D("10.00"), "level_label": "2. Mahnung", "block": None} \
+        and not data["fee_accepted"]
     assert second.fee_amount == D("10.00") and data["charges"] == []
     finalize_and_send_reminder(db, second)
     assert (second.fee_amount, _anzahl(db, InvoiceCharge)) == (0, 0)
@@ -502,20 +505,23 @@ def test_flat_fee_once_per_invoice():
 def test_replacement_reverses_the_old_charges_and_may_take_the_flat_fee_again():
     db = _db()
     invoice, second = _zweite_stufe_mit_verzug(db)
-    set_reminder_charges(db, second, fee_amount=D("10.00"), fee_accepted=True, flat_fee_accepted=True)
+    set_reminder_charges(db, second, fee_amount=D("0"), fee_accepted=False, flat_fee_accepted=True)
     finalize_and_send_reminder(db, second)  # nie hinausgegangen
+    # Bestand von 1.8.80: Gebühr und Pauschale an derselben Mahnung (seit 1.8.81 nicht mehr, "Vorweg" 1).
+    db.add(InvoiceCharge(invoice_id=invoice.id, kind="gebuehr", amount=D("10.00"), reminder_id=second.id))
+    db.commit()
     _zahlen(db, invoice, "100")
     db.refresh(invoice)
     replacement = create_reminder(db, invoice)
     assert replacement.level == 2
     data = reminder_to_dict(replacement)
     assert data["proposals"]["flat_fee"]["block"] is None and data["charges"] == []  # die alten zählen nicht mehr
-    set_reminder_charges(db, replacement, fee_amount=D("10.00"), fee_accepted=True, flat_fee_accepted=True)
+    set_reminder_charges(db, replacement, fee_amount=D("0"), fee_accepted=False, flat_fee_accepted=True)
     finalize_and_send_reminder(db, replacement)
     db.refresh(second)
     assert second.replaced_by_id == replacement.id
     in_force = charges_in_force(db, [invoice.id])[invoice.id]
-    assert sorted((c.kind, c.reminder_id) for c in in_force) == [("gebuehr", replacement.id), ("pauschale", replacement.id)]
+    assert sorted((c.kind, c.reminder_id) for c in in_force) == [("pauschale", replacement.id)]
     counters = db.scalars(select(InvoiceCharge).where(InvoiceCharge.reverses_charge_id.is_not(None))).all()
     assert len(counters) == 2 and all("ersetzt" in c.reason and second.reminder_number in c.reason for c in counters)
 
@@ -600,13 +606,16 @@ def test_routes_for_charges_and_default_start(threaded_db_session, router_test_c
     db = threaded_db_session
     invoice, second = _zweite_stufe_mit_verzug(db, "0201")
     client = router_test_client(db, charges_router, reminders_router, user_id=3, display_name="Büro Test")
+    # Seit 1.8.81 mit interest_accepted (Pflicht) und nur die Pauschale (keine Gebühr daneben, "Vorweg" 1).
     response = client.put(f"/api/reminders/{second.id}/charges",
-                          json={"fee_amount": "10.00", "fee_accepted": True, "flat_fee_accepted": True})
-    assert response.status_code == 200 and response.json()["charges_open"] == "50.00", response.text
+                          json={"fee_amount": "0", "fee_accepted": False, "flat_fee_accepted": True, "interest_accepted": False})
+    assert response.status_code == 200 and response.json()["charges_open"] == "40.00", response.text
     assert client.put(f"/api/reminders/{second.id}/charges", json={"fee_amount": "10.00", "fee_accepted": True}).status_code == 422
     assert client.post(f"/api/reminders/{second.id}/send").status_code == 200
     view = client.get(f"/api/invoices/{invoice.id}/charges").json()
-    assert view["enabled"] and view["open_total"] == "50.00" and view["default_start"]["basis"] == "mahnung"
+    assert view["enabled"] and view["open_total"] == "40.00" and view["default_start"]["basis"] == "mahnung"
+    start_id = view["default_start"]["id"]
+    assert client.post(f"/api/invoice-default-starts/{start_id}/discard", json={"reason": "x"}).status_code == 409  # Pauschale
     charge_id = view["charges"][0]["id"]
     assert client.post(f"/api/invoice-charges/{charge_id}/reverse", json={"reason": ""}).status_code == 422
     response = client.post(f"/api/invoice-charges/{charge_id}/reverse", json={"reason": "Kulanz"})
@@ -614,8 +623,6 @@ def test_routes_for_charges_and_default_start(threaded_db_session, router_test_c
     assert client.post(f"/api/invoice-charges/{charge_id}/reverse", json={"reason": "nochmal"}).status_code == 409
     assert client.post("/api/invoice-charges/999999/reverse", json={"reason": "x"}).status_code == 404
     assert client.post(f"/api/invoices/{invoice.id}/default-start", json={"starts_on": str(HEUTE)}).status_code == 409
-    start_id = view["default_start"]["id"]
-    assert client.post(f"/api/invoice-default-starts/{start_id}/discard", json={"reason": "x"}).status_code == 409  # Pauschale
     assert client.get("/api/invoices/999999/charges").status_code == 404
 
 
@@ -624,7 +631,8 @@ def test_routes_for_charges_and_default_start(threaded_db_session, router_test_c
     ("post", "/api/invoices/{i}/default-start", {"starts_on": "2026-01-01"}),
     ("post", "/api/invoice-charges/1/reverse", {"reason": "x"}),
     ("post", "/api/invoice-default-starts/1/discard", {"reason": "x"}),
-    ("put", "/api/reminders/1/charges", {"fee_amount": "0", "fee_accepted": False, "flat_fee_accepted": False}),
+    ("put", "/api/reminders/1/charges", {"fee_amount": "0", "fee_accepted": False, "flat_fee_accepted": False,
+                                         "interest_accepted": False}),
 ])
 def test_field_role_gets_403_everywhere(threaded_db_session, router_test_client, method, path, body):
     db = threaded_db_session
@@ -669,7 +677,7 @@ def _welt_mit_verzug():
 
 
 def _gebucht(db, second):
-    set_reminder_charges(db, second, fee_amount=D("10.00"), fee_accepted=True, flat_fee_accepted=True)
+    set_reminder_charges(db, second, fee_amount=D("10.00"), fee_accepted=True, flat_fee_accepted=False)
     finalize_and_send_reminder(db, second)
     return db.scalar(select(InvoiceCharge).where(InvoiceCharge.kind == "gebuehr"))
 
@@ -685,11 +693,13 @@ def _projektwechsel(c, db, invoice):
 
 
 RUNDGANG = {
-    "festschreiben mit Gebühr und Pauschale": lambda c, db, inv, r: (
-        set_reminder_charges(db, r, fee_amount=D("10.00"), fee_accepted=True, flat_fee_accepted=True),
+    # Seit 1.8.81 ("Vorweg" 1) Gebühr und Pauschale nicht mehr in derselben Mahnung.
+    "festschreiben mit Pauschale": lambda c, db, inv, r: (
+        set_reminder_charges(db, r, fee_amount=D("0"), fee_accepted=False, flat_fee_accepted=True),
         c.post(f"/api/reminders/{r.id}/send"))[1],
-    "Gebühr und Pauschale übernehmen": lambda c, db, inv, r: c.put(
-        f"/api/reminders/{r.id}/charges", json={"fee_amount": "10.00", "fee_accepted": True, "flat_fee_accepted": True}),
+    "Gebühr übernehmen": lambda c, db, inv, r: c.put(
+        f"/api/reminders/{r.id}/charges", json={"fee_amount": "10.00", "fee_accepted": True, "flat_fee_accepted": False,
+                                                "interest_accepted": False}),
     "Nebenforderung gegenbuchen": lambda c, db, inv, r: c.post(
         f"/api/invoice-charges/{_gebucht(db, r).id}/reverse", json={"reason": "Kulanz"}),
     "Verzugsbeginn verwerfen": lambda c, db, inv, r: c.post(
@@ -716,6 +726,10 @@ def test_every_new_writing_way_writes_only_under_the_order_lock(name, router_tes
 
 def test_every_writing_route_of_the_new_router_is_in_the_round():
     routes = {(m, r.path) for r in charges_router.routes for m in r.methods if m not in ("GET", "HEAD")}
+    # Seit 1.8.81 dazu Basiszinssatz und Rechtstexte: sie schreiben keine Zeile eines Auftrags
+    # (tests/test_v384_verzugszinsen.py::test_rates_and_texts_routes_write_no_order_rows).
     assert routes == {("PUT", "/api/dunning-settings"), ("POST", "/api/invoices/{invoice_id}/default-start"),
                       ("POST", "/api/invoice-default-starts/{start_id}/discard"),
-                      ("POST", "/api/invoice-charges/{charge_id}/reverse")}
+                      ("POST", "/api/invoice-charges/{charge_id}/reverse"),
+                      ("POST", "/api/base-interest-rates"), ("PUT", "/api/base-interest-rates/{rate_id}"),
+                      ("DELETE", "/api/base-interest-rates/{rate_id}"), ("PUT", "/api/dunning-legal-texts/{text_key}")}

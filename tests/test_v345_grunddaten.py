@@ -49,6 +49,7 @@ from app.settings import DEFAULT_SEQUENCES
 from app.task_columns import DEFAULT_COLUMNS as DEFAULT_TASK_COLUMNS
 from app.tax_keys import DEFAULT_TAX_KEYS
 from tests.grunddaten_schalter import ohne_grunddaten
+from tests.pg_schutz import pg_url_pruefen
 
 ROOT = Path(__file__).resolve().parents[1]
 PG_TEST_DATABASE_URL = os.getenv("ERP_TEST_POSTGRES_URL")
@@ -261,7 +262,8 @@ def _start(url: str, data_dir: Path, *, production: bool, go_file: Path | None =
     """import app.main in einem eigenen Prozess -- wie ein gunicorn-Arbeitsprozess. Mit go_file: erst die
     Fachmodule laden, ready_file schreiben, dann warten, bis go_file existiert (zwei Prozesse treffen sich
     beim Anlegen)."""
-    env = {**os.environ, "DATABASE_URL": url, "ERP_DATA_DIR": str(data_dir), "ERP_SECRET_KEY": "test-" + "x" * 40}
+    env = {**os.environ, "DATABASE_URL": pg_url_pruefen(url), "ERP_DATA_DIR": str(data_dir),  # seit 1.8.81: nie public
+           "ERP_SECRET_KEY": "test-" + "x" * 40}
     env.pop("ERP_ENV", None)
     if production:
         env["ERP_ENV"] = "production"

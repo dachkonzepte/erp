@@ -4,21 +4,27 @@ Geschäftslogik in app/dunning_charges.py; hier die HTTP-Anbindung: am Stand nic
 Verzugsbeginn schon bestätigt, Pauschale hängt daran), falsche Eingabe 400. Der Schalter "Mahngebühren und Verzugszinsen" nur
 Admin (lesen ab buero_auftrag), alles andere ab buero_auftrag wie die Rechnungen; der Monteur nirgends. "Erfasst von" kommt aus
 der Anmeldung.
+
+Seit 1.8.81 (Z2b Punkte 7 und 9): Basiszinssatz je Halbjahr und Rechtstexte zu Verzug, Zinsen und Pauschale -- lesen ab
+buero_auftrag, pflegen nur Admin (die Prüfangabe entscheidet, ob gerechnet bzw. gedruckt wird, wie bei den Klauseln).
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..default_interest import RateConflict, create_rate, delete_rate, list_rates, rate_to_dict, update_rate
 from ..dunning_charges import (
     ChargeRejected, charges_enabled, confirm_default_start, default_start_to_dict, discard_default_start,
     invoice_charges_view, reverse_charge, set_charges_enabled,
 )
+from ..dunning_texts import LEGAL_TEXT_KEYS, list_texts, update_text
 from ..email_dispatch import actor_of
 from ..invoices import get_invoice
-from ..models import AppUser, InvoiceCharge, InvoiceDefaultStart
+from ..models import AppUser, BaseInterestRate, InvoiceCharge, InvoiceDefaultStart
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import (
+    BaseInterestRateCreate, BaseInterestRateOut, BaseInterestRateUpdate, DunningLegalTextOut, DunningLegalTextUpdate,
     DunningSettingsOut, DunningSettingsUpdate, InvoiceChargesOut, InvoiceDefaultStartCreate, InvoiceDefaultStartOut, ReasonIn,
 )
 
@@ -26,6 +32,7 @@ router = APIRouter()
 
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Mahnwesen ist nur für Büro und Administratoren verfügbar."))
 _admin_dep = Depends(require_min_role(ROLE_ADMIN, message="Mahngebühren und Verzugszinsen schaltet nur ein Administrator."))
+_rates_admin_dep = Depends(require_min_role(ROLE_ADMIN, message="Basiszinssatz und Rechtstexte pflegen nur Administratoren."))
 
 
 def _http(error: Exception) -> HTTPException:
@@ -95,3 +102,83 @@ def post_reverse_charge(charge_id: int, payload: ReasonIn, db: Session = Depends
     except ValueError as e:
         raise _http(e)
     return invoice_charges_view(db, _invoice_or_404(db, charge.invoice_id))
+
+
+# ---------------------------------------------------------------------------
+# Basiszinssatz (seit 1.8.81, Z2b Punkt 7)
+# ---------------------------------------------------------------------------
+
+def _actor_name(user: AppUser) -> str:
+    return actor_of(user)[1] or "System"
+
+
+def _rate_or_404(db: Session, rate_id: int) -> BaseInterestRate:
+    row = db.get(BaseInterestRate, rate_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Basiszinssatz nicht gefunden.")
+    return row
+
+
+def _rate_http(error: Exception) -> HTTPException:
+    if isinstance(error, RateConflict):
+        return HTTPException(status_code=409, detail=str(error))
+    return HTTPException(status_code=422, detail=str(error))
+
+
+@router.get("/api/base-interest-rates", response_model=list[BaseInterestRateOut])
+def get_base_interest_rates(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    return list_rates(db)
+
+
+@router.post("/api/base-interest-rates", response_model=BaseInterestRateOut)
+def post_base_interest_rate(payload: BaseInterestRateCreate, db: Session = Depends(get_db), user: AppUser = _rates_admin_dep):
+    try:
+        row = create_rate(db, half_year_start=payload.half_year_start, rate_percent=payload.rate_percent,
+                          reviewed_on=payload.reviewed_on, reviewed_by=payload.reviewed_by, actor_name=_actor_name(user))
+    except ValueError as e:
+        raise _rate_http(e) from e
+    return rate_to_dict(row)
+
+
+@router.put("/api/base-interest-rates/{rate_id}", response_model=BaseInterestRateOut)
+def put_base_interest_rate(rate_id: int, payload: BaseInterestRateUpdate, db: Session = Depends(get_db),
+                           user: AppUser = _rates_admin_dep):
+    row = _rate_or_404(db, rate_id)
+    try:
+        row, review_reset = update_rate(db, row, rate_percent=payload.rate_percent, reviewed_on=payload.reviewed_on,
+                                        reviewed_by=payload.reviewed_by, actor_name=_actor_name(user))
+    except ValueError as e:
+        raise _rate_http(e) from e
+    return {**rate_to_dict(row), "review_reset": review_reset}
+
+
+@router.delete("/api/base-interest-rates/{rate_id}")
+def delete_base_interest_rate(rate_id: int, db: Session = Depends(get_db), _admin: AppUser = _rates_admin_dep):
+    row = _rate_or_404(db, rate_id)
+    try:
+        delete_rate(db, row)
+    except ValueError as e:
+        raise _rate_http(e) from e
+    return {"deleted": True}
+
+
+# ---------------------------------------------------------------------------
+# Rechtstexte zu Verzug, Zinsen und Pauschale (seit 1.8.81, Z2b Punkt 9)
+# ---------------------------------------------------------------------------
+
+@router.get("/api/dunning-legal-texts", response_model=list[DunningLegalTextOut])
+def get_dunning_legal_texts(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    return list_texts(db)
+
+
+@router.put("/api/dunning-legal-texts/{text_key}", response_model=DunningLegalTextOut)
+def put_dunning_legal_text(text_key: str, payload: DunningLegalTextUpdate, db: Session = Depends(get_db),
+                           user: AppUser = _rates_admin_dep):
+    if text_key not in LEGAL_TEXT_KEYS:
+        raise HTTPException(status_code=404, detail="Unbekannter Rechtstext.")
+    try:
+        text, review_reset = update_text(db, text_key, body=payload.body, reviewed_on=payload.reviewed_on,
+                                         reviewed_by=payload.reviewed_by, actor_name=_actor_name(user))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return {**text, "review_reset": review_reset}

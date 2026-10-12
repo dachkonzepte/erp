@@ -137,6 +137,10 @@ GEPRUEFT = {
     "POST /api/payments lines.invoice_id": ("payments._apply", "invoice_customer_id(invoice) != payment.customer_id"),
     "POST /api/payments/{payment_id}/allocations lines.invoice_id":
         ("payments._apply", "invoice_customer_id(invoice) != payment.customer_id"),
+    # seit 1.8.81: Zahlung auf eine Nebenforderung nur derselben Rechnung (409, Angriffstest in test_v384_verzugszinsen.py)
+    "POST /api/payments lines.charges.charge_id": ("payments._check_charge_lines", "charge.invoice_id != line.invoice_id"),
+    "POST /api/payments/{payment_id}/allocations lines.charges.charge_id":
+        ("payments._check_charge_lines", "charge.invoice_id != line.invoice_id"),
     **{f"{route} order_item_id": ("time_tracking.validate_order_item", "item is None or item.order_id != order_id") for route in (
         "POST /api/time-entries", "POST /api/time-entries/start", "PUT /api/time-entries/{entry_id}",
         "POST /api/time-entry-groups", "POST /api/time-entry-groups/start", "PUT /api/time-entry-groups/{group_id}")},

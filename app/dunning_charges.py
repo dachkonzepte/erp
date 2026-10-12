@@ -20,23 +20,37 @@ zugestellt, app/email_dispatch.py::document_reached_on()), bei Kunden, die keine
 Fälligkeit und Zugang der Rechnung (§ 286 Abs. 3 BGB) -- das frühere von beiden. Das Büro bestätigt ihn oder legt ihn abweichend mit
 Begründung fest (confirm_default_start()); Korrektur durch Verwerfen mit Begründung (discard_default_start()), solange keine
 Pauschale gilt. Keine Rechtsberatung: jeder Vorschlag nennt seine Quelle, entscheiden tut das Büro.
+
+Seit 1.8.81 (Z2b Punkte 7 und 8, "Vorweg" 1 und 2):
+- Verzugszinsen als Nebenforderung Art "zinsen" (app/default_interest.py): Vorschlag im Entwurf bis zum Mahndatum, bewusst
+  übernommen (Reminder.interest_accepted), beim Festschreiben frisch berechnet und mit Zeitraum und Berechnung eingefroren.
+- Zahlungen auf Nebenforderungen (PaymentAllocation Art "nebenforderung", app/payments.py): "offen" einer Nebenforderung = Betrag
+  − Zahlungen darauf (charge_paid()). Gegenbuchen erst nach gelöster Zuordnung.
+- Ist die Pauschale gebucht (oder übernimmt der Entwurf sie), schlägt die Mahnung keine Gebühr vor -- sie ist durch die Pauschale
+  abgegolten (§ 288 Abs. 5 S. 3 BGB, fee_block_reason()).
+- Storno nur ohne offene Nebenforderungen (charges_storno_block_reason(), app/invoices.py::storno_block_reason()).
 """
 
+import json
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Iterable
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .audit import current_actor
 from .berlin_time import berlin_today, to_berlin
+from .default_interest import calculation_json, interest_label, interest_proposal, sections_of
 from .invoices import invoice_customer, lock_order_invoices
-from .models import GeneralSettings, Invoice, InvoiceCharge, InvoiceDefaultStart, Reminder, ReminderLevel
+from .models import GeneralSettings, Invoice, InvoiceCharge, InvoiceDefaultStart, Payment, PaymentAllocation, Reminder, ReminderLevel
 from .rounding import round_money
 
-KINDS = ("gebuehr", "pauschale")
-KIND_LABELS = {"gebuehr": "Mahngebühr", "pauschale": "Pauschale nach § 288 Abs. 5 BGB"}
+KINDS = ("gebuehr", "pauschale", "zinsen")
+KIND_LABELS = {"gebuehr": "Mahngebühr", "pauschale": "Pauschale nach § 288 Abs. 5 BGB", "zinsen": "Verzugszinsen"}
+# § 367 Abs. 1 BGB: erst die Kosten, dann die Zinsen, dann die Hauptleistung -- Reihenfolge der Nebenforderungen je Rechnung.
+COST_KINDS = ("gebuehr", "pauschale")
+FEE_ABSORBED = "durch die Pauschale abgegolten (§ 288 Abs. 5 S. 3 BGB)"
 BASES = ("mahnung", "dreissig_tage", "von_hand")
 BASIS_LABELS = {"mahnung": "Zugang der ersten Mahnung", "dreissig_tage": "30 Tage nach Fälligkeit und Zugang der Rechnung",
                 "von_hand": "abweichend festgelegt"}
@@ -123,9 +137,37 @@ def charges_total(charges: Iterable[InvoiceCharge]) -> Decimal:
     return round_money(sum((Decimal(c.amount) for c in charges), ZERO))
 
 
+def charge_paid(db: Session, charge_ids: Iterable[int], *, received_until: date | None = None) -> dict[int, Decimal]:
+    """Geltende Zahlungen je Nebenforderung (seit 1.8.81, Zuordnungen Art "nebenforderung", Gegenbuchungen abgezogen -- sie tragen
+    dieselbe charge_id). received_until: nur aus Zahlungen mit Eingangsdatum bis zu diesem Tag (Stand an einem Tag)."""
+    ids = sorted(set(charge_ids))
+    if not ids:
+        return {}
+    stmt = (select(PaymentAllocation.charge_id, func.sum(PaymentAllocation.amount))
+            .where(PaymentAllocation.charge_id.in_(ids), PaymentAllocation.kind == "nebenforderung")
+            .group_by(PaymentAllocation.charge_id))
+    if received_until is not None:
+        stmt = stmt.join(Payment, Payment.id == PaymentAllocation.payment_id).where(Payment.received_on <= received_until)
+    paid = {cid: round_money(amount or 0) for cid, amount in db.execute(stmt)}
+    return {i: paid.get(i, ZERO) for i in ids}
+
+
 def open_charges(db: Session, invoice: Invoice, *, on: date | None = None) -> Decimal:
-    """Offene Nebenforderungen der Rechnung: die geltenden (Zahlungen darauf kommen mit Punkt 8)."""
-    return charges_total(charges_in_force(db, [invoice.id], on=on)[invoice.id])
+    """Offene Nebenforderungen der Rechnung: die geltenden, abzüglich der Zahlungen darauf (seit 1.8.81). on: Stand an diesem Tag
+    (bis dahin entstanden, Zahlungen mit Eingang bis dahin)."""
+    charges = charges_in_force(db, [invoice.id], on=on)[invoice.id]
+    paid = charge_paid(db, [c.id for c in charges], received_until=on)
+    return round_money(charges_total(charges) - sum(paid.values(), ZERO))
+
+
+def open_charge_rows(db: Session, invoice: Invoice) -> list[tuple[InvoiceCharge, Decimal]]:
+    """Geltende Nebenforderungen mit offenem Rest > 0, in der Reihenfolge nach § 367 Abs. 1 BGB: erst die Kosten (Gebühr,
+    Pauschale), dann die Zinsen -- je Art die älteste zuerst."""
+    charges = charges_in_force(db, [invoice.id])[invoice.id]
+    paid = charge_paid(db, [c.id for c in charges])
+    rows = [(c, round_money(Decimal(c.amount) - paid[c.id])) for c in charges]
+    rows = [(c, rest) for c, rest in rows if rest > 0]
+    return sorted(rows, key=lambda r: (0 if r[0].kind in COST_KINDS else 1, r[0].id))
 
 
 def _level_labels(db: Session) -> dict[int, str]:
@@ -133,36 +175,64 @@ def _level_labels(db: Session) -> dict[int, str]:
 
 
 def charge_label(charge: InvoiceCharge, reminder: Reminder | None, labels: dict[int, str]) -> str:
-    """"Mahngebühr (2. Mahnung M-2026-0004)", "Pauschale nach § 288 Abs. 5 BGB"."""
+    """"Mahngebühr (2. Mahnung M-2026-0004)", "Pauschale nach § 288 Abs. 5 BGB", "Verzugszinsen vom 01.03.2026 bis …"."""
     if charge.kind == "gebuehr" and reminder is not None:
         level = labels.get(reminder.level, f"{reminder.level}. Mahnung")
         return f"Mahngebühr ({level} {reminder.reminder_number or ''})".replace(" )", ")")
+    if charge.kind == "zinsen":
+        return interest_label(charge.period_start, charge.period_end)
     return KIND_LABELS.get(charge.kind, charge.kind)
 
 
-def charge_lines(db: Session, charges: list[InvoiceCharge]) -> list[dict]:
-    """Zeilen für Mahnung und Aufstellung: Bezeichnung und Betrag je geltender Nebenforderung."""
+def _sections_out(calculation: str | None) -> list[dict]:
+    from .default_interest import section_text  # lokal: section_text braucht money() von hier
+    return [dict(s, text=section_text(s)) for s in sections_of(calculation)]
+
+
+def charge_lines(db: Session, charges: list[InvoiceCharge], *, received_until: date | None = None) -> list[dict]:
+    """Zeilen für Mahnung und Aufstellung: Bezeichnung, Betrag und (seit 1.8.81) darauf gezahlt je geltender Nebenforderung, bei
+    Zinsen dazu Zeitraum und Abschnitte."""
     labels = _level_labels(db)
+    paid = charge_paid(db, [c.id for c in charges], received_until=received_until)
     return [{"id": c.id, "kind": c.kind, "label": charge_label(c, db.get(Reminder, c.reminder_id) if c.reminder_id else None,
                                                              labels),
-             "amount": round_money(Decimal(c.amount))} for c in charges]
+             "amount": round_money(Decimal(c.amount)), "paid": paid.get(c.id, ZERO),
+             "period_start": c.period_start, "period_end": c.period_end,
+             "surcharge": _surcharge_of(c), "sections": _sections_out(c.calculation_json) if c.kind == "zinsen" else []}
+            for c in charges]
+
+
+def _surcharge_of(charge: InvoiceCharge) -> Decimal | None:
+    if charge.kind != "zinsen" or not charge.calculation_json:
+        return None
+    return Decimal(json.loads(charge.calculation_json)["surcharge"])
 
 
 def charge_rows(db: Session, invoice: Invoice) -> list[dict]:
-    """Alle Nebenforderungen der Rechnung für die Rechnungsseite -- je Eintrag mit Gegenbuchung, falls es eine gibt."""
+    """Alle Nebenforderungen der Rechnung für die Rechnungsseite -- je Eintrag mit Gegenbuchung, falls es eine gibt, mit den
+    Zahlungen darauf und (Zinsen) einem Hinweis, wenn eine Neuberechnung mit dem Stand heute anders ausfiele."""
+    from .default_interest import recalculated  # lokal: liest den Zahlstand
+
     rows = list(db.scalars(select(InvoiceCharge).where(InvoiceCharge.invoice_id == invoice.id).order_by(InvoiceCharge.id)))
     counters = {r.reverses_charge_id: r for r in rows if r.reverses_charge_id is not None}
     labels = _level_labels(db)
+    paid = charge_paid(db, [r.id for r in rows if r.reverses_charge_id is None])
     result = []
     for r in rows:
         if r.reverses_charge_id is not None:
             continue
         reminder = db.get(Reminder, r.reminder_id) if r.reminder_id else None
         counter = counters.get(r.id)
+        amount = round_money(Decimal(r.amount))
+        recalc = recalculated(db, invoice, r) if r.kind == "zinsen" and counter is None else None
         result.append({
             "id": r.id, "kind": r.kind, "kind_label": KIND_LABELS.get(r.kind, r.kind), "label": charge_label(r, reminder, labels),
-            "amount": round_money(Decimal(r.amount)), "reminder_id": r.reminder_id,
-            "reminder_number": reminder.reminder_number if reminder else None,
+            "amount": amount, "paid": paid.get(r.id, ZERO),
+            "open": ZERO if counter is not None else round_money(amount - paid.get(r.id, ZERO)),
+            "reminder_id": r.reminder_id, "reminder_number": reminder.reminder_number if reminder else None,
+            "period_start": r.period_start, "period_end": r.period_end,
+            "sections": _sections_out(r.calculation_json) if r.kind == "zinsen" else [],
+            "recalculated": recalc if recalc is not None and recalc != amount else None,
             "created_at": r.created_at, "created_by_name": r.created_by_name, "reversed": counter is not None,
             "reversal": ({"reason": counter.reason, "created_at": counter.created_at, "created_by_name": counter.created_by_name}
                          if counter else None),
@@ -176,10 +246,23 @@ def _counter(charge: InvoiceCharge, reason: str, user_id: int | None, name: str)
                          created_by_user_id=user_id, created_by_name=name)
 
 
+def paid_block_reason(db: Session, charges: list[InvoiceCharge]) -> str | None:
+    """Seit 1.8.81: eine Nebenforderung mit geltender Zahlung darauf wird nicht gegengebucht -- erst die Zuordnung lösen."""
+    paid = charge_paid(db, [c.id for c in charges])
+    with_payment = [c for c in charges if paid.get(c.id, ZERO) > 0]
+    if not with_payment:
+        return None
+    labels = _level_labels(db)
+    listed = ", ".join(f"{charge_label(c, db.get(Reminder, c.reminder_id) if c.reminder_id else None, labels)} "
+                       f"({money(paid[c.id])} gezahlt)" for c in with_payment)
+    return (f"Auf die Nebenforderung ist eine Zahlung gebucht: {listed}. Erst die Zuordnung gegenbuchen (Karte „Zahlungen“, mit "
+            "Begründung) – die Zahlung bleibt dann beim Kunden –, dann die Nebenforderung.")
+
+
 def reverse_charge(db: Session, charge: InvoiceCharge, *, reason: str | None, user_id: int | None = None,
                    user_name: str | None = None) -> InvoiceCharge:
     """Gegenbuchung einer Nebenforderung, ganz (Korrektur oder Erlass), mit Begründung -- unter der Sperre der Auftragszeile;
-    höchstens einmal je Nebenforderung."""
+    höchstens einmal je Nebenforderung. Seit 1.8.81 nicht, solange eine Zahlung darauf gebucht ist (paid_block_reason())."""
     reason = _reason(reason)
     user_id, name = _actor(user_id, user_name)
     invoice = db.get(Invoice, charge.invoice_id)
@@ -189,6 +272,9 @@ def reverse_charge(db: Session, charge: InvoiceCharge, *, reason: str | None, us
             raise ChargeRejected("Eine Gegenbuchung lässt sich nicht gegenbuchen.")
         if charge.id in _reversed_ids(db, [charge.id]):
             raise ChargeRejected("Diese Nebenforderung ist schon gegengebucht.")
+        blocked = paid_block_reason(db, [charge])
+        if blocked:
+            raise ChargeRejected(blocked)
         counter = _counter(charge, reason, user_id, name)
         db.add(counter)
         db.flush()
@@ -200,23 +286,44 @@ def reverse_charge(db: Session, charge: InvoiceCharge, *, reason: str | None, us
     return counter
 
 
-def reverse_charges_of(db: Session, reminders: list[Reminder], *, reason: str) -> int:
-    """Gegenbuchung der geltenden Nebenforderungen dieser Mahnungen (Vorgabe "Vorweg" 2: eine ersetzte Mahnung ging nie hinaus,
-    ihre Gebühr und Pauschale gelten nicht). Unter der Sperre des Aufrufers, ohne Commit. Gibt die Zahl zurück."""
+def charges_of_reminders(db: Session, reminders: list[Reminder]) -> list[InvoiceCharge]:
+    """Die geltenden Nebenforderungen dieser Mahnungen (die beim Ersatz gegengebucht werden), älteste zuerst."""
     ids = [r.id for r in reminders]
     if not ids:
-        return 0
+        return []
     rows = list(db.scalars(select(InvoiceCharge).where(
         InvoiceCharge.reminder_id.in_(ids), InvoiceCharge.reverses_charge_id.is_(None)).order_by(InvoiceCharge.id)))
     done = _reversed_ids(db, [r.id for r in rows])
+    return [r for r in rows if r.id not in done]
+
+
+def reverse_charges_of(db: Session, reminders: list[Reminder], *, reason: str) -> int:
+    """Gegenbuchung der geltenden Nebenforderungen dieser Mahnungen (Vorgabe "Vorweg" 2: eine ersetzte Mahnung ging nie hinaus,
+    ihre Gebühr und Pauschale gelten nicht). Unter der Sperre des Aufrufers, ohne Commit. Gibt die Zahl zurück. Seit 1.8.81
+    ChargeRejected, wenn auf eine davon eine Zahlung gebucht ist (der Aufrufer rollt zurück)."""
+    rows = charges_of_reminders(db, reminders)
+    blocked = paid_block_reason(db, rows)
+    if blocked:
+        raise ChargeRejected(blocked)
     user_id, name = _actor(None, None)
-    count = 0
     for r in rows:
-        if r.id not in done:
-            db.add(_counter(r, reason, user_id, name))
-            count += 1
+        db.add(_counter(r, reason, user_id, name))
     db.flush()
-    return count
+    return len(rows)
+
+
+def charges_storno_block_reason(db: Session, invoice: Invoice) -> str | None:
+    """Seit 1.8.81 ("Vorweg" 2): eine Rechnung mit offenen Nebenforderungen wird nicht storniert -- wie bei Zahlungen erst lösen
+    (gegenbuchen mit Begründung). Zahlungen auf eine Nebenforderung sperren das Storno schon als Zuordnung
+    (app/payments.py::allocation_block_reason())."""
+    rows = open_charge_rows(db, invoice)
+    if not rows:
+        return None
+    labels = _level_labels(db)
+    listed = ", ".join(f"{charge_label(c, db.get(Reminder, c.reminder_id) if c.reminder_id else None, labels)} {money(rest)}"
+                       for c, rest in rows)
+    return (f"An der Rechnung gelten offene Nebenforderungen ({listed}). Erst gegenbuchen (Karte „Nebenforderungen und Verzug“, "
+            "mit Begründung), dann stornieren.")
 
 
 # ---------------------------------------------------------------------------
@@ -346,7 +453,8 @@ def confirm_default_start(db: Session, invoice: Invoice, *, starts_on: date, rea
 
 def discard_default_start(db: Session, row: InvoiceDefaultStart, *, reason: str | None, user_id: int | None = None,
                           user_name: str | None = None) -> InvoiceDefaultStart:
-    """Verzugsbeginn verwerfen (mit Begründung) -- nicht, solange an der Rechnung eine Pauschale gilt (sie hängt an ihm)."""
+    """Verzugsbeginn verwerfen (mit Begründung) -- nicht, solange an der Rechnung eine Pauschale oder (seit 1.8.81) Verzugszinsen
+    gelten (sie hängen an ihm)."""
     reason = _reason(reason)
     user_id, name = _actor(user_id, user_name)
     invoice = db.get(Invoice, row.invoice_id)
@@ -355,10 +463,12 @@ def discard_default_start(db: Session, row: InvoiceDefaultStart, *, reason: str 
         db.refresh(row)
         if row.discarded_at is not None:
             raise ChargeRejected("Dieser Verzugsbeginn ist schon verworfen.")
-        flat = [c for c in charges_in_force(db, [invoice.id])[invoice.id] if c.kind == "pauschale"]
-        if flat:
-            raise ChargeRejected("An der Rechnung gilt eine Pauschale, die auf diesem Verzugsbeginn beruht – erst die Pauschale "
-                                 "gegenbuchen (mit Begründung), dann den Verzugsbeginn verwerfen.")
+        depending = [c for c in charges_in_force(db, [invoice.id])[invoice.id] if c.kind in ("pauschale", "zinsen")]
+        if depending:
+            what = " und ".join(dict.fromkeys({"pauschale": "die Pauschale", "zinsen": "Verzugszinsen"}[c.kind]
+                                              for c in depending))
+            raise ChargeRejected(f"An der Rechnung gelten {what}, die auf diesem Verzugsbeginn beruhen – erst gegenbuchen (mit "
+                                 "Begründung), dann den Verzugsbeginn verwerfen.")
         row.discarded_at = datetime.utcnow()
         row.discarded_by_user_id = user_id
         row.discarded_by_name = name
@@ -403,37 +513,79 @@ def flat_fee_block_reason(db: Session, invoice: Invoice, *, on: date, ignore_rem
     return None
 
 
+def flat_fee_in_force(db: Session, invoice: Invoice, *, ignore_reminder_ids: Iterable[int] = ()) -> InvoiceCharge | None:
+    ignore = set(ignore_reminder_ids)
+    return next((c for c in charges_in_force(db, [invoice.id])[invoice.id]
+                 if c.kind == "pauschale" and c.reminder_id not in ignore), None)
+
+
+def fee_block_reason(db: Session, invoice: Invoice, *, flat_fee_accepted: bool,
+                     ignore_reminder_ids: Iterable[int] = ()) -> str | None:
+    """Seit 1.8.81 ("Vorweg" 1): ist an der Rechnung die Pauschale gebucht -- oder übernimmt dieser Entwurf sie --, schlägt die
+    Mahnung keine Gebühr vor und übernimmt keine: sie ist durch die Pauschale abgegolten (§ 288 Abs. 5 S. 3 BGB). Sonst None.
+    ignore_reminder_ids: Mahnungen, die der Entwurf ersetzen wird (ihre Pauschale wird gegengebucht)."""
+    flat = flat_fee_in_force(db, invoice, ignore_reminder_ids=ignore_reminder_ids)
+    if flat is not None:
+        reminder = db.get(Reminder, flat.reminder_id) if flat.reminder_id else None
+        with_ = f" (mit der Mahnung {reminder.reminder_number})" if reminder is not None else ""
+        return f"Keine Mahngebühr – {FEE_ABSORBED}: die Pauschale ist an dieser Rechnung gebucht{with_}."
+    if flat_fee_accepted:
+        return f"Keine Mahngebühr neben der Pauschale dieser Mahnung – {FEE_ABSORBED}."
+    return None
+
+
 def draft_proposals(db: Session, reminder: Reminder, *, on: date, ignore_reminder_ids: Iterable[int] = ()) -> dict | None:
-    """Was der Entwurf vorschlägt (nur eingeschaltet, sonst None): die Gebühr der Stufe und die Pauschale mit Grund, falls sie
-    nicht möglich ist."""
+    """Was der Entwurf vorschlägt (nur eingeschaltet, sonst None): die Gebühr der Stufe -- seit 1.8.81 keine neben einer
+    gebuchten oder übernommenen Pauschale (block) --, die Pauschale mit Grund, falls sie nicht möglich ist, und (seit 1.8.81) die
+    Verzugszinsen bis zum Tag on (dem Mahndatum, app/default_interest.py::interest_proposal())."""
     if not charges_enabled(db):
         return None
+    ignore = list(ignore_reminder_ids)
     level = db.scalar(select(ReminderLevel).where(ReminderLevel.level == reminder.level))
+    fee_block = fee_block_reason(db, reminder.invoice, flat_fee_accepted=bool(reminder.flat_fee_accepted),
+                                 ignore_reminder_ids=ignore)
+    level_fee = round_money(Decimal(level.fee_amount)) if level is not None else ZERO
+    from .default_interest import section_text  # lokal: section_text braucht money() von hier
+
+    interest = interest_proposal(db, reminder.invoice, until=on, ignore_reminder_ids=ignore)
+    interest["sections"] = [dict(s, text=section_text(s)) for s in interest["sections"]]
     return {
-        "fee": {"amount": round_money(Decimal(level.fee_amount)) if level is not None else ZERO,
-                "level_label": level.label if level is not None else f"{reminder.level}. Mahnung"},
+        "fee": {"amount": ZERO if fee_block else level_fee,
+                "level_label": level.label if level is not None else f"{reminder.level}. Mahnung", "block": fee_block},
         "flat_fee": {"amount": FLAT_FEE, "block": flat_fee_block_reason(db, reminder.invoice, on=on,
-                                                                        ignore_reminder_ids=ignore_reminder_ids)},
+                                                                        ignore_reminder_ids=ignore)},
+        "interest": interest,
     }
 
 
-def new_charge_lines(db: Session, reminder: Reminder, *, enabled: bool) -> list[dict]:
-    """Die im Entwurf übernommenen, beim Festschreiben neu entstehenden Nebenforderungen (Bezeichnung, Betrag)."""
+def new_charge_lines(db: Session, reminder: Reminder, *, enabled: bool, interest: dict | None = None) -> list[dict]:
+    """Die im Entwurf übernommenen, beim Festschreiben neu entstehenden Nebenforderungen (Bezeichnung, Betrag). interest: der
+    Zinsvorschlag des Entwurfs (seit 1.8.81) -- übernommen und möglich, eine Zeile mit Zeitraum und Abschnitten."""
+    from .default_interest import section_text
+
     if not enabled or reminder.status != "entwurf":
         return []
     lines = []
     if reminder.fee_accepted and Decimal(reminder.fee_amount or 0) > 0:
         labels = _level_labels(db)
-        lines.append({"id": None, "kind": "gebuehr", "amount": round_money(Decimal(reminder.fee_amount)),
-                      "label": f"Mahngebühr ({labels.get(reminder.level, f'{reminder.level}. Mahnung')})"})
+        lines.append({"id": None, "kind": "gebuehr", "amount": round_money(Decimal(reminder.fee_amount)), "paid": ZERO,
+                      "label": f"Mahngebühr ({labels.get(reminder.level, f'{reminder.level}. Mahnung')})", "sections": []})
     if reminder.flat_fee_accepted:
-        lines.append({"id": None, "kind": "pauschale", "amount": FLAT_FEE, "label": KIND_LABELS["pauschale"]})
+        lines.append({"id": None, "kind": "pauschale", "amount": FLAT_FEE, "paid": ZERO, "label": KIND_LABELS["pauschale"],
+                      "sections": []})
+    if reminder.interest_accepted and interest is not None and interest["block"] is None:
+        lines.append({"id": None, "kind": "zinsen", "amount": interest["amount"], "paid": ZERO,
+                      "label": interest_label(interest["period_start"], interest["period_end"]),
+                      "period_start": interest["period_start"], "period_end": interest["period_end"],
+                      "surcharge": interest["surcharge"],
+                      "sections": [dict(s, text=section_text(s)) for s in interest["sections"]]})
     return lines
 
 
-def add_charges(db: Session, reminder: Reminder) -> list[InvoiceCharge]:
-    """Beim Festschreiben (unter der Sperre der Auftragszeile, ohne Commit): Gebühr und Pauschale, die der Entwurf übernahm, als
-    Nebenforderungen dieser Mahnung. Die Prüfung der Pauschale macht der Aufrufer vorher (flat_fee_block_reason())."""
+def add_charges(db: Session, reminder: Reminder, *, interest: dict | None = None) -> list[InvoiceCharge]:
+    """Beim Festschreiben (unter der Sperre der Auftragszeile, ohne Commit): Gebühr, Pauschale und (seit 1.8.81) Verzugszinsen, die
+    der Entwurf übernahm, als Nebenforderungen dieser Mahnung. Die Prüfungen macht der Aufrufer vorher (flat_fee_block_reason(),
+    fee_block_reason(), interest: der unter der Sperre berechnete Vorschlag ohne block)."""
     user_id, name = _actor(None, None)
     rows = []
     if reminder.fee_accepted and Decimal(reminder.fee_amount or 0) > 0:
@@ -442,6 +594,11 @@ def add_charges(db: Session, reminder: Reminder) -> list[InvoiceCharge]:
     if reminder.flat_fee_accepted:
         rows.append(InvoiceCharge(invoice_id=reminder.invoice_id, kind="pauschale", amount=FLAT_FEE, reminder_id=reminder.id,
                                   created_by_user_id=user_id, created_by_name=name))
+    if reminder.interest_accepted and interest is not None:
+        rows.append(InvoiceCharge(invoice_id=reminder.invoice_id, kind="zinsen", amount=interest["amount"],
+                                  reminder_id=reminder.id, period_start=interest["period_start"],
+                                  period_end=interest["period_end"], calculation_json=calculation_json(interest),
+                                  created_by_user_id=user_id, created_by_name=name))
     for row in rows:
         db.add(row)
     db.flush()
@@ -449,13 +606,14 @@ def add_charges(db: Session, reminder: Reminder) -> list[InvoiceCharge]:
 
 
 def invoice_charges_view(db: Session, invoice: Invoice) -> dict:
-    """Karte "Nebenforderungen und Verzug" der Rechnungsseite."""
+    """Karte "Nebenforderungen und Verzug" der Rechnungsseite. Seit 1.8.81 offen = geltende Nebenforderungen − Zahlungen darauf,
+    dazu Zinszeitraum und Abschnitte je Zins-Nebenforderung."""
     enabled = charges_enabled(db)
     rows = charge_rows(db, invoice)
-    in_force = charges_in_force(db, [invoice.id])[invoice.id]
     start = active_default_start(db, invoice.id)
     return {
-        "enabled": enabled, "charges": rows, "open_total": charges_total(in_force),
+        "enabled": enabled, "charges": rows, "open_total": open_charges(db, invoice),
+        "paid_total": round_money(sum((r["paid"] for r in rows if not r["reversed"]), ZERO)),
         "default_start": default_start_to_dict(start),
         "default_proposal": default_start_proposal(db, invoice) if invoice.status == "versendet" and start is None else None,
         "today": berlin_today(),

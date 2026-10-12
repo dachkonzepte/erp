@@ -168,10 +168,13 @@ def storno_block_reason(invoices: list[Invoice], original: Invoice, *, storno_dr
                     "solange sie gilt -- zuerst die Schlussrechnung stornieren.")
     # Seit 1.8.78 (Vorgabe Z1 Nr. 5): erst die Zuordnungen lösen, dann stornieren -- die Zahlung bleibt nicht zugeordnet am
     # Kunden. Beim Anlegen und beim Festschreiben des Stornos unter der Sperre geprüft (Zuordnungen buchen unter derselben).
+    # Seit 1.8.81 (Z2b "Vorweg" 2): ebenso erst ohne offene Nebenforderungen (gegenbuchen mit Begründung) -- Nebenforderungen
+    # entstehen und werden gegengebucht unter derselben Sperre.
     db = object_session(original)
     if db is not None and original.status in VALID_STATUSES:
+        from .dunning_charges import charges_storno_block_reason  # lokal: app/dunning_charges.py importiert dieses Modul
         from .payments import allocation_block_reason  # lokal: app/payments.py importiert dieses Modul
-        return allocation_block_reason(db, original)
+        return allocation_block_reason(db, original) or charges_storno_block_reason(db, original)
     return None
 
 

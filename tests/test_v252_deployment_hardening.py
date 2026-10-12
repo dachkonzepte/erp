@@ -26,6 +26,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app import company_logo
+from tests.pg_schutz import pg_url_pruefen
 from app.routers import pages as pages_router_module
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -66,7 +67,7 @@ def test_alembic_upgrade_head_honors_the_given_database_url(tmp_path):
     SQLite-Vorgabedatei, die dieselbe URL nur zufällig träfe, wenn man sie nicht explizit setzt."""
     db_path = tmp_path / "alembic_env_test.db"
     env = dict(os.environ)
-    env["DATABASE_URL"] = f"sqlite:///{db_path.as_posix()}"
+    env["DATABASE_URL"] = pg_url_pruefen(f"sqlite:///{db_path.as_posix()}")  # seit 1.8.81: jede Weitergabe geprüft (Regel 27)
 
     upgrade_result = _run_alembic(["upgrade", "head"], env)
     assert upgrade_result.returncode == 0, upgrade_result.stdout + upgrade_result.stderr

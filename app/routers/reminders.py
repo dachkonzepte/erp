@@ -153,11 +153,12 @@ def put_reminder(reminder_id: int, payload: ReminderUpdate, db: Session = Depend
 def put_reminder_charges(reminder_id: int, payload: ReminderChargesUpdate, db: Session = Depends(get_db),
                          _role: AppUser = _role_dep):
     """Seit 1.8.80 (Z2b Nr. 5 und 6): Gebühr und Pauschale im Entwurf bewusst übernehmen. 409, wenn Mahngebühren ausgeschaltet
-    sind, die Mahnung kein Entwurf mehr ist oder die Pauschale nicht möglich ist (mit Grund)."""
+    sind, die Mahnung kein Entwurf mehr ist oder die Pauschale nicht möglich ist (mit Grund). Seit 1.8.81 dazu die
+    Verzugszinsen (409 ohne Vorschlag) und keine Gebühr neben der Pauschale (409)."""
     reminder = _get_reminder_or_404(db, reminder_id)
     try:
         set_reminder_charges(db, reminder, fee_amount=payload.fee_amount, fee_accepted=payload.fee_accepted,
-                             flat_fee_accepted=payload.flat_fee_accepted)
+                             flat_fee_accepted=payload.flat_fee_accepted, interest_accepted=payload.interest_accepted)
     except InvoiceBlocked as e:
         raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:

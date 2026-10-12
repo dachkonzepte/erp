@@ -44,7 +44,11 @@ from app.auth import hash_password
 from app.database import Base, get_db
 from app.models import AppUser
 from tests.grunddaten_schalter import grunddaten_aus, ohne_grunddaten
+from tests.pg_schutz import schema_waechter_einrichten
 from tests.uhr import uhr_festhalten
+
+# Seit 1.8.81 (Regel 27): kein Test gegen PostgreSQL im Schema public der Spielwiese -- für jede Engine dieses Testprozesses.
+schema_waechter_einrichten()
 
 
 @event.listens_for(Base.metadata, "after_create")

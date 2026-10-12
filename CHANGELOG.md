@@ -4,6 +4,33 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.81 – Verzugszinsen, Zahlungen auf Nebenforderungen, Rechtstexte (Z2b, Punkte 7–9)
+
+Verzugszinsen kommen als Vorschlag in den Mahnungsentwurf, berechnet bis zum Mahndatum und erst beim Festschreiben – frisch unter der
+Sperre der Auftragszeile – eine Nebenforderung mit eingefrorener Berechnung: Basiszinssatz je Halbjahr aus einer Tabelle (nur Admin,
+„geprüft am/durch“; fehlt ein Halbjahr oder ist es ungeprüft, gibt es keinen Vorschlag, mit Hinweis), 5 Prozentpunkte darüber bei
+Verbrauchern, sonst 9; Zinsen ab dem Tag nach dem Zugang der Mahnung, nach der 30-Tage-Regel ab dem 31. Tag; tatsächliche Tage durch 365,
+je Abschnitt exakt (Zahlungseingang, Halbjahr) und einmal am Ende kaufmännisch gerundet; eine spätere Mahnung schließt an die schon
+berechneten an. Zahlungen lassen sich auf Nebenforderungen buchen; der Vorschlag verteilt nach § 367 BGB – je Rechnung erst Kosten,
+dann Zinsen, dann die Rechnung, über mehrere Rechnungen die älteste zuerst –, das Büro bestätigt. Rechtstexte zu Verzug, Zinsen und
+Pauschale pflegt nur der Admin; die Mahnung druckt sie nur geprüft und nur, wenn sie das Thema nennt, und friert sie beim Festschreiben
+ein; ungeprüft warnt der Entwurf.
+
+Vorweg: ist die Pauschale gebucht, schlägt die Mahnung keine Gebühr mehr vor („durch die Pauschale abgegolten, § 288 Abs. 5 S. 3 BGB“),
+und dieselbe Mahnung übernimmt nie beides. Ein Storno geht nur ohne offene Nebenforderungen (409 mit Hinweis, wie bei Zahlungen); eine
+Nebenforderung mit Zahlung darauf wird erst nach gelöster Zuordnung gegengebucht. Vor dem Ersetzen einer Mahnung nennen Liste,
+Entwurf und Rückfrage die Nebenforderungen, die gegengebucht werden. Kein Test gegen PostgreSQL läuft mehr im Schema `public` der
+Spielwiese: ein Wächter im Testprozess bricht ab, Kindprozesse prüfen ihre URL, ein Strukturtest erzwingt beides (Regel 27). Migration
+`a4c9e2f7b815` (ändert keine Daten), auf SQLite und PostgreSQL mit Bestand geprobt.
+
+Neu `test_v384_verzugszinsen` (53), `test_v384_verzugszinsen_pg` (10, gegen PostgreSQL), `test_v384_verzugszinsen_migration` (2, davon 1
+gegen PostgreSQL) und `test_v384_pg_nicht_public` (5, davon 1 gegen PostgreSQL); Tests, deren Erwartung die neue Vorgabe überholt,
+angepasst (Liste im Archiv). Gegenproben 44 von 44 rot. Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3650 grün, 2 rot, 7
+erwartet fehlgeschlagen -- beide rot waren echte Funde in der neuen Oberfläche (Einstellungsseite lud mit `Promise.all`, ein
+Datenattribut der Rechnungsseite enthielt „festschreiben“), behoben; danach die 49 Testdateien zu den geänderten Vorlagen auf dem
+Endstand: 731 grün. Alle Klicktests: 50 von 50 wie erwartet in 11:50 min, die sechs zu den danach geänderten Vorlagen auf dem
+Endstand noch einmal 6 von 6. Festlegungen zum Bestätigen und Nebenbefunde in `docs/archiv/zahlungen.md`.
+
 ## 1.8.80 – Vertragspartner am Auftrag, Mahnung ersetzen, Mahngebühren und Pauschale (Z2b, Punkte 3–6)
 
 Der Auftrag hält beim Beauftragen seinen Kunden fest; eine Rechnung übernimmt beim Festschreiben Kunde, Name, Kundennummer und
