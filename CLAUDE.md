@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.78** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.79** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -678,19 +678,21 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   (`_lock_draft()` vor jeder Änderung am Entwurf: nur, was danach noch Entwurf ist, sonst 409) --
   `tests/test_v378_rechnung_sperre_und_datum.py` prüft das per AST und Rundgang mit Beobachter; neue Schreibwege nur in
   `app/invoices.py`, mit Sperre vor dem ersten Schreiben. Seit 1.8.78 kein Status "bezahlt" mehr (nur `entwurf`/`versendet`/
-  `storniert`, `paid_date` wird nicht mehr geschrieben): der Zahlstand ist abgeleitet, siehe "Zahlung".
+  `storniert`, `paid_date` wird nicht mehr geschrieben): der Zahlstand ist abgeleitet, siehe "Zahlung". Seit 1.8.79 hält die
+  Rechnung beim Festschreiben ihren Kunden fest (`Invoice.customer_id`, Storno: der der stornierten; `invoice_customer()`): Zahlungen,
+  offene Rechnungen des Kunden und die Empfängeradresse folgen ihm; Kundenwechsel am Projekt mit festgeschriebener Rechnung 409
+  (`check_client_change()`, unter der Sperre der Auftragszeilen).
 - **Zahlung** (`Payment`, seit 1.8.78, Zahlungsstufe Z1, `app/payments.py`): Zahlungseingang eines Kunden (Eingangsdatum, Betrag,
   Notiz), zugeordnet über `PaymentAllocation` (Art `zahlung`, Abzüge `skonto`/`einbehalt`) auf festgeschriebene Rechnungen desselben
-  Kunden (Kunde ihres Projekts); der Rest bleibt am Kunden (Kundenakte). Je Rechnung abgeleitet, nie gespeichert (`payment_state()`):
+  Kunden (seit 1.8.79 der an der Rechnung festgehaltene); der Rest bleibt am Kunden (Kundenakte). Je Rechnung abgeleitet, nie gespeichert (`payment_state()`):
   offen = Brutto auf den Cent − Zahlungen − Skonto, mahnfähig = offen − Einbehalt (der Einbehalt deckt höchstens den offenen Betrag),
   Zustand offen / teilweise bezahlt / Einbehalt offen / bezahlt; Entwurf, Storno(rechnung) und Rechnung über 0 € oder weniger haben
   keinen. Vorschlag (`proposal()`) zuerst auf ältere offene Rechnungen desselben Auftrags, Skonto nur in der Frist und bei passendem
   Betrag, Einbehalt nie; gebucht wird nur Bestätigtes (`book_payment()`, `allocate_rest()`), ohne Überbuchung von Rechnung oder
   Zahlung. Unveränderlich (ORM-Sperre); Korrektur nur als Gegenbuchung mit Begründung (`reverse_allocation()`, `reverse_payment()`).
   Sperren in fester Reihenfolge: Auftragszeilen aufsteigend, dann Zahlung (`lock_for_booking()`). Storno erst nach gelösten
-  Zuordnungen (`storno_block_reason()`). Mahnwesen bis Z2 nur: mahnfähiger Betrag, ohne ihn keine Mahnung, Entwurf mit veraltetem
-  Betrag 409. Migration `c7d41e9a2b63` übernahm "bezahlt" als Zahlung (Herkunft `uebernommen`). Details:
-  `docs/archiv/zahlungen.md`.
+  Zuordnungen (`storno_block_reason()`). Mahnwesen: mahnfähiger Betrag, ohne ihn keine Mahnung (seit 1.8.79 Z2a, siehe `Reminder`).
+  Migration `c7d41e9a2b63` übernahm "bezahlt" als Zahlung (Herkunft `uebernommen`). Details: `docs/archiv/zahlungen.md`.
 - `Reminder`: hängt an überfälligen Rechnungen, hat Stufen (1./2./3. Mahnung), jede Stufe mit
   eigenen Fristen/Gebühren/Textvorlagen (`ReminderLevel`). `Reminder.text` ist beim Anlegen
   (`create_reminder()`) eine reine Kopie von `ReminderLevel.text_template` mit noch
@@ -701,7 +703,14 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   `update_reminder_draft()` (seit 1.3.21, `PUT /api/reminders/{id}`) ändern – Statusschutz sitzt
   in der Geschäftsfunktion selbst, gleiches Muster wie `update_report()` beim Einsatzbericht,
   siehe Abschnitt "Mahnwesen: Löschen/Versenden/Bearbeiten" unten. Nach `finalize_and_send_reminder()`
-  (Status `versendet`, Nummernvergabe) unveränderlich wie `Invoice`/`Order` (Regel 5).
+  (Status `versendet`, Nummernvergabe) unveränderlich wie `Invoice`/`Order` (Regel 5). **Seit 1.8.79 (Z2a, `app/reminders.py`)**:
+  kein Entwurf von selbst -- "zur Mahnung fällig" liest nur, Entwürfe per Klick einzeln oder für mehrere (`create_reminders()`);
+  `create_block_reason()` beim Anlegen und Festschreiben unter der Sperre der Auftragszeile (nichts zu mahnen, nicht fällig = vor dem
+  Tag nach der Fälligkeit, höchstens ein Entwurf, nur die nächste aktive Stufe, die erst ab dem Tag nach dem Fristende der vorigen);
+  je Stufe eine Zahl, die Zahlungsfrist (`ReminderLevel.days_after_previous_step`, Name von früher); Bearbeiten und Löschen unter der
+  Sperre, Frist im Entwurf in Tagen, Mahndatum = Tag des Festschreibens; Aufstellung (Brutto, Zahlungen, Skonto, Einbehalt,
+  mahnfähig) eingefroren in `Reminder.amounts_json`; E-Mail und nachgetragene Zustellung nur mit passendem Betrag und nicht storniert
+  (`dispatch_block_reason()`, Zustellung: Stand am Zustelltag). Details: `docs/archiv/zahlungen.md`, "Umsetzung 1.8.79".
 - **`Property`** ("Objekt", `app/models.py`): eigenständige Tabelle (`customer_id`, `name`,
   `street`, `postal_code`, `city`, `notes`) für ein zusätzliches Gebäude/Objekt eines Kunden
   über dessen eigene Hauptadresse hinaus. Per 09.09.2026 verifiziert (siehe
@@ -976,7 +985,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
-  offenem Betrag, Migration "bezahlt"; Mahnwesen folgt in Z2) -- `docs/archiv/zahlungen.md`
+  offenem Betrag, Migration "bezahlt"; seit 1.8.79 Z2a: Mahnwesen ohne Automatik, Prüfungen unter der Sperre, Mahndatum beim
+  Festschreiben, Aufstellung an der Mahnung, Versand nur mit passendem Betrag, Rechnung hält ihren Kunden, Kundenwechsel gesperrt;
+  Befund Z2b Mahngebühren/Verzugszinsen) -- `docs/archiv/zahlungen.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
   `docs/archiv/grunddaten-beim-start.md`
@@ -1415,7 +1426,10 @@ Datum und Fälligkeit ab heute; Versandhinweis bei einer früher finalisierten R
 Sitzung -> 409 mit Nummer) und `klicktest_zahlungen.py` (1.8.78, Karte "Zahlungen" und Dialog "Zahlungseingang buchen": Vorschlag
 zuerst auf den älteren Abschlag, Skonto bei passendem Betrag, Einbehalt von Hand -> "Einbehalt offen", Überbuchung gesperrt,
 Gegenbuchen mit Begründung -> Storno frei; Kundenakte: Rest zuordnen, Zahlung zurücknehmen; Finanzen mit offenem Betrag; API fremder
-Kunde 409; 412 px dunkel). Ein
+Kunde 409; 412 px dunkel) und `klicktest_mahnwesen.py` (1.8.79, Mahnwesen: Öffnen legt nichts an, "Zur Mahnung fällig" mit Auswahl ->
+Entwürfe für mehrere, Grund statt Knopf in der Frist, Frist in Tagen, Festschreiben heute; überholte Mahnung mit Grund statt E-Mail,
+API 409 für E-Mail, Zustellung und Kundenwechsel; Rechnungsseite mit Aufstellung; Einstellungen ohne Automatik; Dashboard mit
+Mitarbeiter; 412 px dunkel). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)
@@ -1541,7 +1555,8 @@ jedem Bericht, Ergebnis im Bericht (Regel 26).
   nie gebraucht wurde, ist nicht bekannt. Deshalb bewusst OHNE "Sachbearbeiter"-Zeile im neuen,
   gemeinsamen Kopfbereich der Rechnung (siehe dort) -- eine leere Zeile wäre schlechter als keine.
   Ein eigener, kleiner Punkt für später (Durchreichen beim Anlegen ergänzen, falls tatsächlich
-  gewünscht), kein Teil der 1.3.7-Etappe.
+  gewünscht), kein Teil der 1.3.7-Etappe. Seit 1.8.79 filtert das Dashboard Mahnungen deshalb nach dem Sachbearbeiter des
+  Auftrags (`list_invoices_needing_attention()`), nicht nach dieser Spalte.
 - Roadmap für zurückgestellte Vorhaben wurde in einer früheren Sitzung als Datei
   `Roadmap_Zurueckgestellte_Vorhaben.md` erstellt und zum Download angeboten – **per Prüfung am
   09.09.2026 nicht im Projektverzeichnis vorhanden** (`Glob` über das ganze Projekt, kein

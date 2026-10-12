@@ -48,6 +48,7 @@ from app.routers.reminders import router as reminders_router
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
 from tests.leistungszeitraum import ZEITRAUM_JSON, festschreiben, mit_zeitraum
+from tests.mahnung import frist_ablaufen
 from tests.zahlung import voll_bezahlen
 
 PG_TEST_DATABASE_URL = os.getenv("ERP_TEST_POSTGRES_URL")
@@ -398,12 +399,15 @@ def test_reminder_routes_answer_409(threaded_db_session, router_test_client):
     db = threaded_db_session
     invoice = make_sent_overdue_invoice(db)
     client = router_test_client(db, reminders_router)
-    entwurf = client.post(f"/api/invoices/{invoice.id}/reminders", json={"level": 1}).json()
-    gesendet = client.post(f"/api/invoices/{invoice.id}/reminders", json={"level": 1}).json()  # zweiter Entwurf, wie bisher
+    gesendet = client.post(f"/api/invoices/{invoice.id}/reminders", json={"level": 1}).json()
     client.post(f"/api/reminders/{gesendet['id']}/send")
+    # Seit 1.8.79 (Z2a Nr. 2) höchstens ein Entwurf je Rechnung und die nächste Stufe erst nach Ablauf der Frist -- bis 1.8.78
+    # stand hier ein zweiter Entwurf derselben Stufe.
+    frist_ablaufen(db, db.get(Reminder, gesendet["id"]))
+    entwurf = client.post(f"/api/invoices/{invoice.id}/reminders", json={"level": 2}).json()
     voll_bezahlen(db, db.get(Invoice, invoice.id), received_on=date(2026, 10, 2))
     for response in (client.post(f"/api/reminders/{entwurf['id']}/send"),
-                     client.post(f"/api/invoices/{invoice.id}/reminders", json={"level": 2}),
+                     client.post(f"/api/invoices/{invoice.id}/reminders", json={"level": 3}),
                      client.post(f"/api/reminders/{gesendet['id']}/send-email",
                                  json={"to_email": "kunde@example.com", "dispatch_key": "mahnung-test-000000001"})):
         assert response.status_code == 409 and "ist bezahlt (am 02.10.2026)" in response.json()["detail"], response.text

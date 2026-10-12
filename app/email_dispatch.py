@@ -560,6 +560,9 @@ def record_manual_delivery(
         if len(receipt_bytes) > MAX_RECEIPT_BYTES:
             raise ValueError(f"Der Beleg ist größer als {MAX_RECEIPT_BYTES // 1_000_000} MB.")
         receipt_type = receipt_content_type(receipt_bytes)
+    if document.before_delivery is not None:
+        # Seit 1.8.79 (Mahnung): Prüfung am Zustelltag unter der Sperre, die bis zum Commit des Eintrags hält.
+        document.before_delivery(delivered_on)
     try:
         pdf = document.pdf()
     except ArchiveFileError as e:

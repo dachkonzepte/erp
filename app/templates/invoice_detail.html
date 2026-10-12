@@ -37,10 +37,10 @@
         <li><code>{rechnungsnummer}</code> – Rechnungsnummer</li>
         <li><code>{rechnungsdatum}</code> – Rechnungsdatum</li>
         <li><code>{faelligkeitsdatum}</code> – ursprüngliches Fälligkeitsdatum der Rechnung</li>
-        <li><code>{offener_betrag}</code> – noch offener Rechnungsbetrag</li>
+        <li><code>{offener_betrag}</code> – angemahnter Betrag (offen abzüglich Einbehalt)</li>
         <li><code>{mahngebuehr}</code> – Mahngebühr (Feld „Mahngebühr" unten)</li>
         <li><code>{gesamtbetrag}</code> – offener Betrag zzgl. Mahngebühr</li>
-        <li><code>{neue_frist}</code> – neue Zahlungsfrist (Feld „Neue Zahlungsfrist" unten)</li>
+        <li><code>{neue_frist}</code> – neue Zahlungsfrist (Tag des Festschreibens + Feld „Zahlungsfrist" unten)</li>
         <li><code>{vorheriges_mahndatum}</code> – Datum der vorherigen Mahnstufe, falls vorhanden</li>
       </ul>
     </div>
@@ -48,10 +48,11 @@
       <label class="small muted">Mahngebühr
         <input id="reminderEditorFeeAmount" type="number" step="0.01" min="0" style="display:block;padding:6px 8px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);margin-top:4px;width:140px">
       </label>
-      <label class="small muted">Neue Zahlungsfrist
-        <input id="reminderEditorNewDueDate" type="date" style="display:block;padding:6px 8px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);margin-top:4px">
+      <label class="small muted">Zahlungsfrist (Tage ab Festschreiben)
+        <input id="reminderEditorPaymentDays" type="number" min="1" max="365" step="1" style="display:block;padding:6px 8px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);margin-top:4px;width:140px">
       </label>
     </div>
+    <div class="small muted" id="reminderEditorDatesHint" style="margin-bottom:8px"></div>
     <div style="display:flex;gap:6px"><button onclick="saveReminderEditNow()">Speichern</button><button class="secondary" onclick="cancelReminderEdit()">Abbrechen</button></div>
   </div>
 </div>
@@ -75,7 +76,7 @@ const qty=x=>x==null?'—':Number(x).toLocaleString('de-DE',{maximumFractionDigi
 const TYPE_LABELS={abschlag_pauschal:'Abschlagsrechnung (Pauschal)',abschlag_leistungsstand:'Abschlagsrechnung (nach Leistungsstand)',schluss:'Schlussrechnung',aufwand:'Rechnung nach Aufwand (Zeitbuchungen)',storno:'Stornorechnung'};
 const STATUS_LABELS={entwurf:'Entwurf',versendet:'Finalisiert',bezahlt:'Bezahlt',storniert:'Storniert'};
 // Seit 1.8.78 über fehlerText() (_fehlertext.html): eine 422 der Schemaprüfung erscheint lesbar statt als "[object Object]".
-const FELDNAMEN={amount:'Betrag',received_on:'Eingangsdatum',note:'Notiz',zahlung:'Zahlung',skonto:'Skonto',einbehalt:'Einbehalt',reason:'Begründung',service_period_start:'Leistungszeitraum Beginn',service_period_end:'Leistungszeitraum Ende'};
+const FELDNAMEN={payment_days:'Zahlungsfrist',fee_amount:'Mahngebühr',amount:'Betrag',received_on:'Eingangsdatum',note:'Notiz',zahlung:'Zahlung',skonto:'Skonto',einbehalt:'Einbehalt',reason:'Begründung',service_period_start:'Leistungszeitraum Beginn',service_period_end:'Leistungszeitraum Ende'};
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,FELDNAMEN));return r.json()}
 
 function renderBreadcrumb(){
@@ -286,18 +287,21 @@ async function deleteInvoiceDraft(){if(!confirm('Diesen Rechnungsentwurf unwider
 
 const REMINDER_LEVEL_LABELS={1:'1. Mahnung',2:'2. Mahnung',3:'3. Mahnung'};
 let currentReminders=[];
-function renderReminders(status,list){currentReminders=list;let info=status.current_level>0?`Aktuell auf Stufe ${status.current_level} (${REMINDER_LEVEL_LABELS[status.current_level]}).`:'Bisher keine Mahnung versendet.';info+=status.next_level?` Nächste Stufe (${REMINDER_LEVEL_LABELS[status.next_level]}) `+(status.is_due_now?'ist fällig.':`wird ab ${new Date(status.next_due_on).toLocaleDateString('de-DE')} fällig.`):' Keine weitere Mahnstufe aktiv/verfügbar.';document.getElementById('reminderStatusInfo').textContent=info;document.getElementById('reminderList').innerHTML=list.length?list.map(r=>`<div style="border:1px solid var(--line);padding:8px;margin-bottom:6px"><b>${REMINDER_LEVEL_LABELS[r.level]||'Stufe '+r.level}</b> ${r.reminder_number?esc(r.reminder_number):'(Entwurf)'} · ${money(r.total_amount)}<div class="small muted">${new Date(r.reminder_date).toLocaleDateString('de-DE')}${r.status==='entwurf'?' · Entwurf':' · Versendet'}</div><div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap">${r.status==='entwurf'?`<button class="secondary iconbtn" onclick="sendReminderNow(${r.id})">Versenden</button><button class="secondary iconbtn" onclick="editReminderNow(${r.id})">Bearbeiten</button><button class="danger iconbtn" onclick="deleteReminderNow(${r.id})">Löschen</button>`:''}<button class="secondary iconbtn" onclick="window.open('/api/reminders/${r.id}/pdf','_blank')">PDF</button></div></div>`).join(''):'<div class="small muted">Noch keine Mahnung zu dieser Rechnung.</div>';document.getElementById('reminderActions').innerHTML=status.next_level?`<button onclick="createReminderNow(${status.next_level})">${REMINDER_LEVEL_LABELS[status.next_level]} erstellen</button>`:''}
+// Seit 1.8.79 (Z2a): Aufstellung je Mahnung (Brutto, Zahlungen, Skonto, Einbehalt, angemahnt), Grund statt Knopf
+// (create_block: kein neuer Entwurf; send_block: Entwurf nicht festschreibbar bzw. Mahnung geht nicht mehr hinaus).
+function reminderAmountsLine(a){if(!a)return '';const parts=[`Brutto ${money(a.gross)}`].concat(a.payments.map(p=>`Zahlung ${dateDe(p.received_on)} − ${money(p.amount)}`));if(Number(a.skonto))parts.push(`Skonto − ${money(a.skonto)}`);if(Number(a.retained))parts.push(`Einbehalt − ${money(a.retained)}`);parts.push(`angemahnt ${money(a.dunnable)}`);return `<div class="small muted" data-aufstellung>${esc(parts.join(' · '))}</div>`}
+function renderReminders(status,list){currentReminders=list;let info=status.current_level>0?`Aktuell auf Stufe ${status.current_level} (${REMINDER_LEVEL_LABELS[status.current_level]}).`:'Bisher keine Mahnung festgeschrieben.';info+=status.next_level?` Nächste Stufe (${REMINDER_LEVEL_LABELS[status.next_level]}) `+(status.is_due_now?'ist möglich.':`ist ab ${dateDe(status.next_due_on)} möglich.`):' Keine weitere Mahnstufe aktiv/verfügbar.';document.getElementById('reminderStatusInfo').textContent=info;document.getElementById('reminderList').innerHTML=list.length?list.map(r=>{const draft=r.status==='entwurf';const block=r.send_block?`<div class="small" data-sperre style="color:var(--danger)">${esc(r.send_block)}</div>`:'';return `<div style="border:1px solid var(--line);padding:8px;margin-bottom:6px"><b>${REMINDER_LEVEL_LABELS[r.level]||'Stufe '+r.level}</b> ${r.reminder_number?esc(r.reminder_number):'(Entwurf)'} · ${money(r.total_amount)}<div class="small muted">${draft?`beim Festschreiben heute: ${dateDe(r.effective_reminder_date)}, Frist bis ${dateDe(r.effective_new_due_date)} · Entwurf`:`${dateDe(r.reminder_date)}${r.new_due_date?', Frist bis '+dateDe(r.new_due_date):''} · Festgeschrieben`}</div>${reminderAmountsLine(r.amounts)}${block}<div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap">${draft?`${r.send_block?'':`<button class="secondary iconbtn" onclick="sendReminderNow(${r.id})">Versenden</button>`}<button class="secondary iconbtn" onclick="editReminderNow(${r.id})">Bearbeiten</button><button class="danger iconbtn" onclick="deleteReminderNow(${r.id})">Löschen</button>`:''}<button class="secondary iconbtn" onclick="window.open('/api/reminders/${r.id}/pdf','_blank')">PDF</button></div></div>`}).join(''):'<div class="small muted">Noch keine Mahnung zu dieser Rechnung.</div>';document.getElementById('reminderActions').innerHTML=status.next_level&&!status.create_block?`<button onclick="createReminderNow(${status.next_level},this)">${REMINDER_LEVEL_LABELS[status.next_level]} als Entwurf anlegen</button>`:(status.create_block?`<div class="small muted" data-grund>${esc(status.create_block)}</div>`:'')}
 async function loadAndRenderReminders(){try{const [status,list]=await Promise.all([api('/api/invoices/'+invoiceId+'/reminder-status'),api('/api/invoices/'+invoiceId+'/reminders')]);renderReminders(status,list)}catch(e){document.getElementById('reminderStatusInfo').textContent='Fehler: '+e.message}}
-async function createReminderNow(level){const st=document.getElementById('reminderStatusMsg');try{await api('/api/invoices/'+invoiceId+'/reminders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({level})});st.textContent='Mahnung erstellt.';loadAndRenderReminders()}catch(e){st.textContent='Fehler: '+e.message}}
+async function createReminderNow(level,btn){const st=document.getElementById('reminderStatusMsg');if(btn)btn.disabled=true;try{await api('/api/invoices/'+invoiceId+'/reminders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({level})});st.textContent='Mahnungsentwurf angelegt.';loadAndRenderReminders()}catch(e){st.textContent='Fehler: '+e.message;if(btn)btn.disabled=false}}
 async function sendReminderNow(id){if(!confirm('Mahnung jetzt versenden? Die Mahnungsnummer wird vergeben, danach ist keine Bearbeitung mehr möglich. Das ist kein tatsächlicher Versand an den Kunden – das PDF muss weiterhin separat heruntergeladen und verschickt werden.'))return;const st=document.getElementById('reminderStatusMsg');try{await api('/api/reminders/'+id+'/send',{method:'POST'});st.textContent='Versendet.';loadAndRenderReminders()}catch(e){st.textContent='Fehler: '+e.message}}
 async function deleteReminderNow(id){if(!confirm('Diesen Mahnungsentwurf unwiderruflich löschen?'))return;const st=document.getElementById('reminderStatusMsg');try{await api('/api/reminders/'+id,{method:'DELETE'});st.textContent='Gelöscht.';loadAndRenderReminders()}catch(e){st.textContent='Fehler: '+e.message}}
 
-function reminderMissingPlaceholderWarning(text,feeAmount,newDueDate){
+function reminderMissingPlaceholderWarning(text,feeAmount,paymentDays){
   // Reiner Hinweis, kein Blockieren (Nutzerentscheidung 1.3.21) -- es kann gute Gründe geben,
   // einen Platzhalter absichtlich durch eine feste Zahl zu ersetzen.
   const missing=[];
   if(feeAmount!==''&&feeAmount!==null&&!text.includes('{mahngebuehr}')) missing.push('{mahngebuehr} (Mahngebühr)');
-  if(newDueDate&&!text.includes('{neue_frist}')) missing.push('{neue_frist} (neue Zahlungsfrist)');
+  if(paymentDays&&!text.includes('{neue_frist}')) missing.push('{neue_frist} (neue Zahlungsfrist)');
   if(!missing.length) return '';
   return ` Hinweis: ${missing.join(', ')} fehlt im Text -- der Wert wird bei einer künftigen Änderung nicht mehr automatisch nachgezogen.`;
 }
@@ -309,7 +313,8 @@ function editReminderNow(id){
   document.getElementById('reminderEditorSubtitle').textContent=`${REMINDER_LEVEL_LABELS[r.level]||'Stufe '+r.level} bearbeiten`;
   document.getElementById('reminderEditorText').value=r.text||'';
   document.getElementById('reminderEditorFeeAmount').value=r.fee_amount;
-  document.getElementById('reminderEditorNewDueDate').value=r.new_due_date||'';
+  document.getElementById('reminderEditorPaymentDays').value=r.payment_days||'';
+  document.getElementById('reminderEditorDatesHint').textContent=`Mahndatum ist der Tag des Festschreibens, die Frist rechnet ab dann – heute festgeschrieben: Mahndatum ${dateDe(r.effective_reminder_date)}, Frist bis ${dateDe(r.effective_new_due_date)}.`;
   document.getElementById('reminderEditor').style.display='block';
 }
 function cancelReminderEdit(){editingReminderId=null;document.getElementById('reminderEditor').style.display='none'}
@@ -317,11 +322,11 @@ async function saveReminderEditNow(){
   if(editingReminderId===null)return;
   const text=document.getElementById('reminderEditorText').value;
   const feeAmount=document.getElementById('reminderEditorFeeAmount').value;
-  const newDueDate=document.getElementById('reminderEditorNewDueDate').value;
-  const warning=reminderMissingPlaceholderWarning(text,feeAmount,newDueDate);
+  const paymentDays=document.getElementById('reminderEditorPaymentDays').value;
+  const warning=reminderMissingPlaceholderWarning(text,feeAmount,paymentDays);
   const st=document.getElementById('reminderStatusMsg');
   try{
-    await api(`/api/reminders/${editingReminderId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text||null,fee_amount:feeAmount,new_due_date:newDueDate||null})});
+    await api(`/api/reminders/${editingReminderId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text||null,fee_amount:feeAmount,payment_days:Number(paymentDays)})});
     if(warning) alert('Gespeichert.'+warning);
     cancelReminderEdit();
     st.textContent='Gespeichert.';

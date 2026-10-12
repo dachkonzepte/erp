@@ -246,7 +246,8 @@ FREI = {
     "POST /api/projects customer_id": (_BESITZER, "routers.projects.create_project",
                                        "customer = db.get(Customer, payload.customer_id) if customer is None"),
     "PUT /api/projects/{project_id} customer_id": (
-        _BESITZER + "; Kundenwechsel gesperrt bei festem Vertrag oder Beteiligtem (check_client_change())",
+        _BESITZER + "; Kundenwechsel gesperrt bei festem Vertrag, Beteiligtem oder (seit 1.8.79) festgeschriebener Rechnung "
+        "(check_client_change())",
         "routers.projects.update_project", "customer = db.get(Customer, payload.customer_id) if customer is None"),
     "POST /api/properties customer_id": (_BESITZER, "routers.properties.create_property",
                                          "customer = db.get(Customer, payload.customer_id) if customer is None"),
@@ -312,6 +313,10 @@ FREI = {
     "POST /api/email-dispatches/manual document_id": (
         "das Dokument ist selbst Gegenstand des Eintrags", "dispatch_documents.dispatch_document",
         "row = document_row(db, document_type, document_id) if row is None"),
+    "POST /api/reminders/bulk invoice_ids": (  # seit 1.8.79 (Z2a Nr. 1)
+        "je Rechnung ein eigener Mahnungsentwurf -- die Rechnung ist selbst Gegenstand, kein Bezug zu einem anderen Datensatz "
+        "der Anfrage; unbekannt steht abgelehnt in der Antwort", "reminders.create_reminders",
+        "invoice = db.get(Invoice, invoice_id) if invoice is None"),
 }
 
 AUSNAHMEN = {

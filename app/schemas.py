@@ -1776,13 +1776,34 @@ class ReminderLevelUpdate(BaseModel):
 
 
 class ReminderCreate(BaseModel):
-    level: int = Field(ge=1, le=3)
+    # Seit 1.8.79 nur die nächste Stufe: leer = die nächste; angegeben muss sie es sein (sonst 409).
+    level: int | None = Field(default=None, ge=1, le=3)
+
+
+class ReminderBulkCreate(BaseModel):
+    """Seit 1.8.79 (Z2a Nr. 1): Entwürfe für mehrere Rechnungen, je die nächste Stufe."""
+    invoice_ids: list[int] = Field(min_length=1, max_length=200)
 
 
 class ReminderUpdate(BaseModel):
-    text: str | None = None
+    # Seit 1.8.79 alle Felder Pflicht (Regel 22) und die Frist als Länge in Tagen -- sie rechnet ab dem Festschreiben.
+    text: str | None
     fee_amount: Decimal = Field(ge=0)
-    new_due_date: date | None = None
+    payment_days: int = Field(ge=1, le=365)
+
+
+class ReminderPaymentLineOut(BaseModel):
+    received_on: date
+    amount: Decimal
+
+
+class ReminderAmountsOut(BaseModel):
+    """Seit 1.8.79 (Z2a Nr. 4): Aufstellung des gemahnten Betrags, eingefroren an der Mahnung."""
+    gross: Decimal
+    payments: list[ReminderPaymentLineOut]
+    skonto: Decimal
+    retained: Decimal
+    dunnable: Decimal
 
 
 class ReminderOut(BaseModel):
@@ -1795,9 +1816,14 @@ class ReminderOut(BaseModel):
     status: str
     reminder_date: date
     new_due_date: date | None
+    # Seit 1.8.79: im Entwurf, was das Festschreiben heute setzen würde, und die Frist in Tagen.
+    effective_reminder_date: date | None = None
+    effective_new_due_date: date | None = None
+    payment_days: int | None = None
     outstanding_amount: Decimal
     fee_amount: Decimal
     total_amount: Decimal
+    amounts: ReminderAmountsOut | None = None
     text: str | None
     formatted_text: str
     customer_name: str
@@ -1807,12 +1833,24 @@ class ReminderOut(BaseModel):
     send_block: str | None = None  # seit 1.8.72: Rechnung storniert oder bezahlt -- kein Versand (app/reminders.py)
 
 
+class ReminderBulkRejectedOut(BaseModel):
+    invoice_id: int
+    invoice_number: str | None
+    reason: str
+
+
+class ReminderBulkOut(BaseModel):
+    created: list[ReminderOut]
+    rejected: list[ReminderBulkRejectedOut]
+
+
 class ReminderStatusOut(BaseModel):
     current_level: int
     next_level: int | None
     next_due_on: date | None
     is_due_now: bool
     draft: ReminderOut | None = None
+    create_block: str | None = None  # seit 1.8.79: warum jetzt kein Entwurf entsteht
 
 
 class InvoiceNeedingAttentionOut(BaseModel):
@@ -1828,14 +1866,7 @@ class InvoiceNeedingAttentionOut(BaseModel):
     next_due_on: date | None
     is_due_now: bool
     draft: ReminderOut | None = None
-
-
-class ReminderSettingsOut(BaseModel):
-    auto_create_drafts: bool
-
-
-class ReminderSettingsUpdate(BaseModel):
-    auto_create_drafts: bool
+    create_block: str | None = None  # seit 1.8.79: leer und is_due_now = "zur Mahnung fällig"
 
 
 class SmtpSettingsOut(BaseModel):

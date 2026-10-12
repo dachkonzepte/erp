@@ -21,6 +21,11 @@ _NumberedCanvas.save(), siehe app/document_frame.py) -- der Inhalt wird deshalb 
 fertige Liste, sondern als Funktion build_story(total_pages) an render_framed_pdf() übergeben, das
 sie bei Bedarf zweimal aufruft (siehe dort für die Begründung gegen einen nachträglich
 überschriebenen Platzhalter).
+
+Seit 1.8.79 (Zahlungsstufe Z2a Nr. 4): die Forderungsaufstellung zeigt Rechnungsbetrag (brutto), je Zahlung Eingangsdatum und
+Betrag, Skonto und Einbehalt (nur, wenn gebucht) und den angemahnten Betrag -- aus der Aufstellung, die die Mahnung beim
+Anlegen bzw. Festschreiben festhielt (app/reminders.py::amounts()). Mahnungen von vor 1.8.79 haben keine und zeigen wie bisher
+nur den offenen Rechnungsbetrag. Ein Entwurf zeigt Datum und Frist des Festschreibens heute (effective_dates()).
 """
 
 from reportlab.lib import colors
@@ -30,10 +35,27 @@ from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
 from .document_frame import frame_content_width, render_framed_pdf
 from .document_page_margins import get_margins
 from .document_pdf import build_din5008_header_block, build_object_address_block, build_styles, money, ptext
-from .reminders import reminder_to_dict
+from .reminders import amounts, reminder_to_dict
 from .settings import load_general_settings
 
 LEVEL_LABELS = {1: "1. Mahnung", 2: "2. Mahnung", 3: "3. Mahnung"}
+
+
+def amount_rows(reminder) -> list[list[str]]:
+    """Zeilen der Forderungsaufstellung vor Mahngebühr und Gesamtbetrag (seit 1.8.79): mit Aufstellung Brutto, Abzüge und
+    angemahnter Betrag; ohne (vor 1.8.79) nur der offene Rechnungsbetrag wie bisher."""
+    breakdown = amounts(reminder)
+    if breakdown is None:
+        return [["Offener Rechnungsbetrag", money(reminder.outstanding_amount)]]
+    rows = [["Rechnungsbetrag (brutto)", money(breakdown["gross"])]]
+    rows += [[f"abzüglich Zahlung vom {p['received_on'].strftime('%d.%m.%Y')}", money(-p["amount"])]
+             for p in breakdown["payments"]]
+    if breakdown["skonto"]:
+        rows.append(["abzüglich Skonto", money(-breakdown["skonto"])])
+    if breakdown["retained"]:
+        rows.append(["abzüglich Einbehalt (wird nicht angemahnt)", money(-breakdown["retained"])])
+    rows.append(["Angemahnter Betrag", money(reminder.outstanding_amount)])
+    return rows
 
 
 def build_reminder_pdf(db, reminder) -> bytes:
@@ -67,7 +89,7 @@ def build_reminder_pdf(db, reminder) -> bytes:
         page_value = f"1 / {total_pages}" if total_pages is not None else "1 / …"
         meta_rows = [
             ("Mahnungsnr.", data["reminder_number"] or "(Entwurf)"),
-            ("Datum", reminder.reminder_date.strftime("%d.%m.%Y")),
+            ("Datum", data["effective_reminder_date"].strftime("%d.%m.%Y")),
             ("zu Rechnung", data["invoice_number"] or "(Entwurf)"),
             ("vom", invoice.invoice_date.strftime("%d.%m.%Y")),
             ("Seite", page_value),
@@ -83,8 +105,7 @@ def build_reminder_pdf(db, reminder) -> bytes:
         story.append(Paragraph(label, h1))
         story += [Paragraph(ptext(data["formatted_text"]), body), Spacer(1, 6*mm)]
 
-        rows = [
-            ["Offener Rechnungsbetrag", money(data["outstanding_amount"])],
+        rows = amount_rows(reminder) + [
             ["Mahngebühr", money(data["fee_amount"])],
             ["Gesamtbetrag", money(data["total_amount"])],
         ]

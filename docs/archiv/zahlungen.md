@@ -1,9 +1,11 @@
-# Zahlungen (Zahlungsstufe Z1 seit 1.8.78)
+# Zahlungen (Zahlungsstufe Z1 seit 1.8.78, Mahnwesen Z2a seit 1.8.79)
 
 Grundlage: Befund Zahlungsstufe in `befund-vor-echtbetrieb.md` ("Umsetzung 1.8.77" -> "Befund Zahlungsstufe") und dort
 "Entscheidungen Rechnungen" (Zahlung auf den Zahlbetrag, Einbehalt). Code: `app/payments.py` (Geschäftslogik),
 `app/routers/payments.py` (Endpunkte), Modelle `Payment`/`PaymentAllocation` (`app/models.py`), Migration `c7d41e9a2b63`.
-Das Mahnwesen folgt in Z2.
+Das Mahnwesen (Z2a, seit 1.8.79): `app/reminders.py`, `app/routers/reminders.py`, Migration `5db1a12b4a66` -- siehe
+"Umsetzung 1.8.79"; ältere Herleitung des Mahnwesens in `mahnwesen.md`. Mahngebühren und Verzugszinsen (Z2b): Befund in
+"Umsetzung 1.8.79".
 
 ## Umsetzung 1.8.78: Zahlungseingänge (Z1)
 
@@ -122,7 +124,7 @@ abgelehnte Antworten über `fehlerText()`.
 gleich). `downgrade()` stellt "bezahlt" exakt wieder her und entfernt die Tabellen; verweigert, sobald etwas gebucht ist, das der
 Rückweg verlöre (erfasste Zahlung, Gegenbuchung, weitere Zuordnung).
 
-### Festlegungen 1.8.78 – Bitte bestätigen
+### Festlegungen 1.8.78 (Nr. 3, 4, 5, 6, 11, 12 bestätigt am 12.10.2026; die übrigen in "Umsetzung 1.8.79" je in einer Zeile vorgelegt)
 
 1. **Status nur noch Dokument-Lebenslauf**: `Invoice.status` = Entwurf / versendet / storniert; "bezahlt" wird nicht mehr gespeichert.
    `paid_date` bleibt als Spalte stehen und wird nicht mehr geschrieben (Nachweis, Rückweg der Migration).
@@ -214,3 +216,260 @@ Rückweg verlöre (erfasste Zahlung, Gegenbuchung, weitere Zuordnung).
    Abfragen für alle dazu, nicht je Rechnung; die Last der Positionen bestand vorher.
 7. Unverändert aus 1.8.77: Rechnung per E-Mail auch bezahlt oder storniert (Nr. 7), Dashboard ohne "Mahnung"-Zeilen bei gewähltem
    Mitarbeiter (Nr. 6), Probebelege entfernen (Nr. 8).
+
+## Umsetzung 1.8.79: Mahnwesen Z2a, die Rechnung hält ihren Kunden fest; Befund Z2b
+
+### Vorgabe vom 12.10.2026 (übernommen wie gegeben)
+
+Z1 (1.8.78) geprüft. Festlegungen 3, 4, 5, 6, 11, 12 bestätigt. Die übrigen (1, 2, 7–10, 13–15) bitte je in einer Zeile vorlegen.
+
+Vorweg (Nebenbefund 1 aus 1.8.78):
+- Eine Rechnung hält ab dem Festschreiben ihren Kunden fest.
+- Kundenwechsel am Projekt gesperrt (409 mit Grund), sobald eine Rechnung festgeschrieben oder eine Zahlung gebucht ist. Ausweg:
+  stornieren, neu anlegen.
+
+Z2a Mahnwesen (zahlungen.md fortschreiben):
+1. Keine Mahnungsentwürfe mehr beim Öffnen des Mahnwesens. Stattdessen eine Liste „zur Mahnung fällig“, nur lesend; Entwürfe
+   entstehen per Klick, einzeln oder für mehrere.
+2. Prüfungen beim Anlegen und Festschreiben, unter der Sperre: keine Mahnung zu einem Storno, zu einer nicht fälligen oder nicht
+   mahnfähigen Rechnung; nur die nächste Stufe; die nächste Stufe frühestens nach Ablauf der Frist der vorigen. Je Stufe eine Zahl:
+   die Zahlungsfrist.
+3. Mahnungsentwurf bearbeiten und löschen unter derselben Sperre. Mahndatum = Tag des Festschreibens (Berliner Zeit), Frist ab dann.
+4. Die Mahnung zeigt Brutto, gezahlte Beträge, Skonto, Einbehalt und den mahnfähigen Betrag.
+5. Versand und Zustellung einer festgeschriebenen Mahnung nur, solange ihr Betrag noch dem mahnfähigen entspricht und die Rechnung
+   nicht storniert ist; sonst 409 mit Hinweis auf eine neue Mahnung.
+6. Dashboard: Mahnungen auch bei gewähltem Mitarbeiter (Nebenbefund 6 aus 1.8.77).
+
+Befund für Z2b (Mahngebühren und Verzugszinsen als zuschaltbare Funktion), nur lesen, mit Fundstellen:
+a) Welche Gebühren-Einstellungen gibt es heute je Stufe, und wo wirken sie?
+b) Welche Zugangsdaten von Rechnung und Mahnung hält das ERP fest (Versand, nachgetragene Zustellung)?
+c) Wie ließen sich Nebenforderungen (Gebühren, Zinsen) je Rechnung abbilden, ohne den Rechnungsbetrag zu ändern?
+
+Angriffstests mit Gegenprobe, Gleichzeitigkeit gegen PostgreSQL. Eigene Festlegungen mit „Bitte bestätigen“. Nebenbefunde nur
+melden. Wird der Umfang zu groß: nach Punkt 3 committen und den Rest auflisten. Commit nach Regel 13, Bericht kurz.
+
+### Vorweg
+
+- Festlegungen 1.8.78 Nr. 3, 4, 5, 6, 11, 12 an der Überschrift als bestätigt markiert. Die übrigen, je in einer Zeile:
+  1. `Invoice.status` nur Entwurf / versendet / storniert; „bezahlt“ wird nicht mehr gespeichert, `paid_date` bleibt ungeschrieben
+     stehen.
+  2. Gebucht wird gegen das Brutto auf den Cent nach der Rundungsregel der Rechnung, jeder Betrag einer Zahlung auf den Cent.
+  7. Eingangsdatum nicht in der Zukunft; vor dem Rechnungsdatum erlaubt.
+  8. Keine Überzahlung einer Rechnung: was darüber hinausgeht, bleibt Rest am Kunden.
+  9. Gegenbuchung je Eintrag nur ganz; ein falscher Betrag wird gegengebucht und neu gebucht.
+  10. Sperrreihenfolge: Auftragszeilen aufsteigend, dann Zahlungszeilen aufsteigend.
+  13. Überfällig = mahnfähiger Betrag und Fälligkeit vor heute; ein offener Einbehalt ist nicht überfällig.
+  14. Zahlungen buchen, zuordnen und gegenbuchen ab `buero_auftrag`; der Monteur nirgends (403).
+  15. Finanzen „Bezahlt (gesamt)“ = Summe der zugeordneten Zahlungen ohne Skonto und Rest; der Rest steht eigens als „Nicht
+      zugeordnet“.
+- Der Umfang blieb in einer Version: Vorweg und alle sechs Punkte gebaut, Befund Z2b geschrieben, ein Commit.
+
+### Was gebaut ist
+
+**Vorweg: die Rechnung hält ihren Kunden fest** (Migration `5db1a12b4a66`):
+- `Invoice.customer_id` (FK `customers`, Index): beim Festschreiben gesetzt (`app/invoices.py::_customer_at_finalize()`, frisch nach
+  der Sperre der Auftragszeile gelesen) -- der Kunde des Projekts, beim Storno der Kunde der stornierten Rechnung; im Entwurf leer.
+  `invoice_customer()`/`invoice_customer_id()` (jetzt in `app/invoices.py`, in `app/payments.py` weiter importierbar): festgeschrieben
+  der festgehaltene, im Entwurf der des Projekts. Zahlungen buchen nur auf Rechnungen dieses Kunden, „offene Rechnungen des Kunden“
+  (`open_invoices_of_customer()`) nach ihm, die Empfängeradresse von Rechnung und Mahnung ist seine, `invoice_to_dict()["customer_id"]`
+  (Rechnungsseite, Zahlungsdialog) ebenso.
+- **Kundenwechsel** (`app/project_participants.py::check_client_change()`, `PUT /api/projects/{id}`): sperrt alle Auftragszeilen des
+  Projekts (aufsteigend, dieselbe Sperre wie das Festschreiben) und lehnt ab (409, `ClientChangeConflict`), sobald am Projekt eine
+  Rechnung festgeschrieben ist -- auch storniert oder ein Storno; Entwürfe zählen nicht. Grund: „Am Projekt ist die Rechnung … fest-
+  geschrieben -- sie gehören zum Kunden …. Der Kunde lässt sich im Projekt nicht mehr wechseln. Ausweg: die Rechnungen stornieren
+  und für den richtigen Kunden in einem eigenen Projekt neu anlegen.“ Eine gebuchte Zahlung hängt immer an einer festgeschriebenen
+  Rechnung, ist also mit gesperrt. Gleichzeitig: ein Festschreiben wartet auf den Wechsel und hält danach den neuen Kunden, ein
+  Wechsel wartet auf das Festschreiben und lehnt ab.
+- Migration: jede nicht als Entwurf geführte Rechnung bekommt den Kunden ihres Projekts (bis 1.8.78 galt genau der als Kunde der
+  Rechnung); Rückweg entfernt die Spalten, verweigert, solange eine festgeschriebene Mahnung eine Aufstellung trägt.
+
+**Nr. 1 -- keine Entwürfe von selbst**: `auto_create_due_reminder_drafts()`, `POST /api/reminders/auto-create`, `GET/PUT
+/api/reminder-settings` und der Schalter in Einstellungen → Mahnstufen entfallen (`GeneralSettings.reminders_auto_create_drafts` bleibt
+ungenutzt stehen). `list_invoices_needing_attention()` (`GET /api/reminders/overdue`) liest nur: überfällige Rechnungen mit
+mahnfähigem Betrag, je mit Stufe, `next_due_on`, `is_due_now` und `create_block` (warum jetzt kein Entwurf entsteht); „zur Mahnung
+fällig“ = `is_due_now` und kein Grund, diese zuerst. Mahnwesen-Seite: Karte „Zur Mahnung fällig“ mit Auswahl je Zeile und „alle“,
+Knopf je Zeile und „Entwürfe für Auswahl anlegen (n)“ (`POST /api/reminders/bulk`, `create_reminders()`: je Rechnung einzeln unter ihrer
+Sperre, eine abgelehnte hält die anderen nicht auf, Antwort mit angelegten und abgelehnten samt Grund); Karte „Weitere überfällige
+Rechnungen“ mit offenem Entwurf oder Grund; Kennzahlen „Zur Mahnung fällig“, „Entwürfe offen“, „Überfällig gesamt“, „Festgeschrieben“.
+
+**Nr. 2 -- Prüfungen** (`create_block_reason()`, beim Anlegen und noch einmal beim Festschreiben unter der Sperre der Auftragszeile,
+`InvoiceBlocked` = 409, nichts geschrieben), in dieser Reihenfolge: nichts zu mahnen (Entwurf, storniert, Stornorechnung, bezahlt, nur
+Einbehalt, 0 €); keine Fälligkeit oder nicht fällig (Stufe 1 ab dem Tag nach der Fälligkeit); schon ein Entwurf (nur beim Anlegen);
+keine weitere aktive Stufe; nicht die nächste Stufe (verlangt beim Anlegen bzw. die Stufe des Entwurfs: „überholt … bitte löschen“);
+die nächste erst ab dem Tag nach dem Ende der Frist der vorigen (`deadline_of()`: ihre neue Frist, bei Altbestand ohne Frist Mahndatum
++ Tage der Stufe). **Je Stufe eine Zahl**: `ReminderLevel.days_after_previous_step` ist jetzt die Zahlungsfrist in Tagen ab dem
+Mahndatum (Spaltenname von früher; Einstellungen: „Zahlungsfrist (Tage ab Mahndatum)“). `POST /api/invoices/{id}/reminders` nimmt die
+Stufe nur noch zur Kontrolle (leer = die nächste). Rechnungsseite: Grund statt „… anlegen“.
+
+**Nr. 3 -- Bearbeiten und Löschen unter der Sperre; Mahndatum = Festschreiben**: `update_reminder_draft()` sperrt die Auftragszeile,
+lädt frisch und ändert nur, was noch Entwurf ist (sonst 409, vorher 400 ohne Sperre); `delete_reminder_draft()` tat das seit 1.8.73.
+Die Frist ist im Entwurf eine Länge in Tagen (`payment_days`, 1–365; `PUT /api/reminders/{id}` verlangt `text`, `fee_amount`,
+`payment_days` -- Regel 22, aus der Liste der Altfälle gestrichen). Festschreiben: Mahndatum = heute (Berlin), Frist = heute + Tage
+(`finalize_dates()`). Ein Entwurf zeigt in Liste, Text (`{neue_frist}`) und PDF die Daten des Festschreibens heute
+(`effective_dates()`), der Editor einen Hinweis dazu.
+
+**Nr. 4 -- Aufstellung**: `Reminder.amounts_json` (kanonisches JSON: Brutto, je noch geltender Zahlung Eingangsdatum und Betrag,
+Skonto, Einbehalt = der abgezogene Teil, mahnfähig), beim Anlegen und beim Festschreiben unter der Sperre aus dem Zahlstand
+geschrieben (`amounts_snapshot()`), danach fest. PDF: „Rechnungsbetrag (brutto)“, „abzüglich Zahlung vom …“ je Zahlung, „abzüglich
+Skonto“ und „abzüglich Einbehalt (wird nicht angemahnt)“ nur, wenn gebucht, „Angemahnter Betrag“, Mahngebühr, Gesamtbetrag
+(`app/reminder_pdf.py::amount_rows()`); Rechnungsseite eine Zeile je Mahnung. Mahnungen von vor 1.8.79 ohne Aufstellung: wie bisher
+„Offener Rechnungsbetrag“.
+
+**Nr. 5 -- Versand und Zustellung** (`dispatch_block_reason()`): eine festgeschriebene Mahnung geht nicht mehr hinaus, wenn die
+Rechnung storniert ist oder ihr Betrag nicht mehr dem mahnfähigen entspricht -- 409 „Die Mahnung … lautet über …, mahnfähig sind
+inzwischen … -- sie geht nicht mehr hinaus. Bitte eine neue Mahnung anlegen -- die 2. Mahnung ist ab dem … möglich.“ E-Mail
+(`send_reminder_email()`) prüft den Stand heute, ohne Sperre (wie seit 1.8.72: sonst hielte der Versand sie über die Verbindung zum
+Mailserver). Zustellung nachtragen (`record_manual_delivery()` → `DispatchDocument.before_delivery` → `check_delivery()`) prüft unter
+der Sperre der Auftragszeile den Stand am Zustelltag (`payment_state_on()`: Zahlungen mit Eingangsdatum bis dahin, eine
+zurückgenommene Buchung gilt nie); der Router antwortet 409. Mahnwesen-Seite und Rechnungsseite zeigen den Grund statt E-Mail bzw.
+„Versenden“.
+
+**Nr. 6 -- Dashboard**: `caseworker_employee_id` der Mahnungszeilen ist der Sachbearbeiter des Auftrags (die Spalte an der Rechnung
+setzt niemand); bei gewähltem Mitarbeiter erscheinen seine und die ohne Sachbearbeiter.
+
+**Oberfläche**: Mahnwesen-Seite seit 1.8.79 über `fehlerText()` (lesbare 422). Keine Popups für Eingaben (Regel 4).
+
+### Festlegungen 1.8.79 – Bitte bestätigen
+
+1. **Kundenwechsel dauerhaft gesperrt**, sobald am Projekt irgendeine Rechnung festgeschrieben ist -- auch nach dem Storno. „Neu
+   anlegen“ heißt: ein eigenes Projekt für den richtigen Kunden. (Nach dem Storno freizugeben hätte neue Rechnungen mit dem Namen aus
+   dem Auftrag, also dem alten Kunden, erzeugt -- siehe Nebenbefund 1.)
+2. **Kunde der Rechnung**: beim Storno der der stornierten Rechnung; Altbestand (Migration) der Kunde des Projekts am Tag der Migration.
+3. **Empfänger** von Rechnung und Mahnung: die Adresse von heute des festgehaltenen Kunden (nicht des Projekts).
+4. **Stufe 1 ab dem Tag nach der Fälligkeit**, ohne Wartezeit; jede weitere ab dem Tag nach dem Fristende der vorigen (die Frist schließt
+   ihren letzten Tag ein). Die eine Zahl je Stufe ist die Zahlungsfrist; die Spalte behält ihren alten Namen.
+5. **Höchstens ein Entwurf je Rechnung** (beim Anlegen). Beim Festschreiben zählt ein zweiter (Altbestand) nicht -- er ist danach
+   „überholt“ und nur noch löschbar.
+6. **Eine festgeschriebene Mahnung zählt als erreichte Stufe**, auch wenn sie nach einer Teilzahlung nicht mehr hinausgeht oder nie
+   hinausging; die neue Mahnung ist die nächste Stufe nach Ablauf der Frist. (Alternative, nicht gebaut: Ersatz derselben Stufe, wenn
+   die überholte nie versendet oder zugestellt wurde.)
+7. **Frist im Entwurf in Tagen** (1–365), nicht mehr als Datum; leeren lässt sie sich nicht mehr.
+8. **Automatik ganz entfernt** (Funktion, Endpunkte, Schalter); die Spalte `reminders_auto_create_drafts` bleibt ungenutzt stehen.
+9. **Entwürfe für mehrere**: je Rechnung einzeln, Antwort 200 mit angelegten und abgelehnten (Grund); höchstens 200 Rechnungen je Aufruf.
+10. **Aufstellung**: eingefroren an der Mahnung (beim Anlegen, frisch beim Festschreiben), Zahlungen je Eingang mit Datum, Skonto und
+    Einbehalt nur, wenn gebucht; im PDF „Angemahnter Betrag“ statt „mahnfähig“.
+11. **Zustellung nachtragen prüft den Stand am Zustelltag** (eine danach eingegangene Zahlung verhindert den Nachtrag nicht -- die
+    Zustellung war richtig und ist für Z2b ein Zugangsnachweis); E-Mail den Stand heute; „storniert“ sperrt beides immer.
+12. **Dashboard**: Sachbearbeiter des Auftrags; Mahnungen ohne Sachbearbeiter für jeden gewählten Mitarbeiter.
+
+### Befund Z2b: Mahngebühren und Verzugszinsen (nur gelesen; Zeilen nach dem Stand 1.8.79)
+
+Zur Einordnung, keine Rechtsberatung: Verzug setzt Fälligkeit und Mahnung voraus oder tritt ohne Mahnung ein (kalendermäßig bestimmte
+Zeit, § 286 Abs. 2 Nr. 1 BGB; 30 Tage nach Fälligkeit und Zugang der Rechnung, bei Verbrauchern nur mit Hinweis darauf, Abs. 3).
+Verzugszinsen 5 Prozentpunkte über dem Basiszinssatz, ohne Verbraucher 9 (§ 288 Abs. 1/2), dazu ohne Verbraucher 40 € Pauschale
+(Abs. 5). Mahngebühren sind Verzugsschaden -- die verzugsbegründende erste Mahnung selbst gehört nach verbreiteter Ansicht nicht
+dazu. Für Z2b heißt das: Zugang und Verbraucher-Eigenschaft müssen nachweisbar im ERP stehen.
+
+**a) Gebühren-Einstellungen je Stufe und wo sie wirken**
+- **Einstellung**: `ReminderLevel.fee_amount` (`app/models.py:1827`, `Numeric(18, 6)`), Vorgabe 5 / 10 / 15 € für Stufe 1 / 2 / 3
+  (`app/reminders.py:75` ff., `DEFAULT_REMINDER_LEVELS`), bearbeitbar unter Einstellungen → Mahnstufen (`settings.html:1800`, `PUT
+  /api/reminder-levels/{id}`, `ReminderLevelUpdate` mit `fee_amount >= 0`, `app/schemas.py:1771`). Laut Docstring bewusst ohne
+  Steuersatz („umsatzsteuerfrei, Schadensersatz“, `app/models.py:1814`). Kein Schalter: jede Stufe hat immer eine Gebühr (auch 0 €),
+  auch die erste.
+- **Wirkung**: beim Anlegen als Kopie an der Mahnung (`Reminder.fee_amount`, `app/models.py:1874`; `create_reminder()`,
+  `app/reminders.py:495`), im Entwurf änderbar (`update_reminder_draft()`, `:660`). Gesamtbetrag = mahnfähiger Betrag + Gebühr
+  (`reminder_total()`, `:62`); Platzhalter `{mahngebuehr}` und `{gesamtbetrag}` in Mahntext und E-Mail (`_reminder_placeholders()`,
+  `:336`), die Standardtexte aller drei Stufen fordern „zuzüglich einer Mahngebühr“; PDF-Zeilen „Mahngebühr“ und „Gesamtbetrag“
+  (`app/reminder_pdf.py:109`).
+- **Wo sie nicht wirkt**: nirgends als Forderung. Der Zahlstand kennt nur Brutto, Zahlungen, Skonto, Einbehalt (`app/payments.py:157`,
+  `_state()`); eine Zahlung über Rechnung + Gebühr wäre an der Rechnung eine Überbuchung -- der Gebührenanteil bliebe Rest am Kunden.
+  Finanzen, Dashboard, Kundenakte und Mahnwesen-Liste zeigen keine Gebühren; die nächste Mahnung nimmt die Gebühr der vorigen nicht mit
+  (jede Stufe nur ihre eigene). Keine Verzugszinsen, kein Basiszinssatz, keine Pauschale -- im Code nirgends.
+
+**b) Zugangsdaten von Rechnung und Mahnung**
+- **Am Dokument**: `Invoice.email_sent_at/_to` (`app/models.py:1738`), `Reminder.email_sent_at/_to` (`:1888`) -- nur der letzte
+  E-Mail-Versand (`mark_document_sent()`, `app/email_dispatch.py:362`), überschrieben bei jedem neuen. Daten des Dokuments selbst:
+  Rechnungsdatum = Tag des Festschreibens, Fälligkeit (`Invoice.due_date`, im PDF „Zahlbar rein netto bis zum …“,
+  `format_payment_terms_sentence()`, `app/invoices.py:980`), Mahndatum und Frist (`Reminder.reminder_date/new_due_date`).
+- **Versandprotokoll** (`EmailDispatch`, `app/models.py:5410`), je Versand eine Zeile, unveränderlich, mit Dokumentart und -ID:
+  E-Mail mit `finished_at` (Übergabe an SMTP bzw. Microsoft 365 -- nicht der Zugang), Empfänger, PDF in der Ablage; **nachgetragene
+  Zustellung** (Einschreiben, persönlich, Bote, Fax; `record_manual_delivery()`, `app/email_dispatch.py:503`) mit `delivered_on`
+  (`:5452`, „Datum der Zustellung“), Notiz, optional Beleg und `delivered_to_client` (`:5458`).
+- **Versandergebnis** (`DispatchOutcome`, `app/models.py:5579`; `record_dispatch_outcome()`, `app/email_dispatch.py:674`): je Eintrag
+  höchstens einmal „Empfang bestätigt am“ (`outcome_on`, optional Beleg, z. B. Rückschein) oder „unzustellbar“. Das ist der einzige
+  ausdrückliche Zugangsnachweis.
+- **Was fehlt**: eine Auswertung „zugegangen am“ je Dokument gibt es nur für die Briefe der Anzeigen (`reached_client()`,
+  `app/notice_letters.py:392`: gesendet, nicht unzustellbar, an den Auftraggeber) -- für Rechnung und Mahnung nicht. Ob der
+  Verbraucher-Hinweis nach § 286 Abs. 3 auf der Rechnung steht, hält nichts fest (nur, ob der Kunde Verbraucher ist:
+  `Customer.is_consumer`, `app/models.py:268`). Der Basiszinssatz ist nirgends hinterlegt.
+
+**c) Nebenforderungen je Rechnung, ohne den Rechnungsbetrag zu ändern** (Vorschlag, nichts gebaut)
+- **Eigene Tabelle „Nebenforderung“** je Rechnung (nicht an `Invoice`, nicht in `compute_invoice_totals()`): Art (`mahngebuehr`,
+  `verzugszinsen`, `pauschale`), Betrag, Grundlage (Mahnung, bzw. Hauptbetrag, Zinssatz, von–bis), angelegt von/am. Unveränderlich wie
+  Zahlungen (ORM-Sperre), Korrektur und Erlass nur als Gegenbuchung mit Begründung. Die Rechnung, ihr Zahlstand (`payment_state()`) und
+  das Rechnungs-PDF bleiben unverändert; „offen“ der Nebenforderungen ist eine eigene, abgeleitete Summe.
+- **Mahngebühr**: entsteht beim Festschreiben der Mahnung (dieselbe Transaktion, je Mahnung höchstens eine, UNIQUE), nicht im Entwurf;
+  der Betrag aus `Reminder.fee_amount`. Schalter „Mahngebühren berechnen“ (aus = keine Zeile, Gebühr 0 und nicht im Text).
+- **Verzugszinsen**: nur berechnet, nicht laufend gespeichert -- festgehalten erst als Zeile, wenn eine Mahnung oder Forderungsaufstellung
+  sie nennt (Stand an deren Tag). Brauchen: Verzugsbeginn (Zugang der ersten Mahnung aus b, oder die Fälligkeit, wenn sie als
+  kalendermäßig bestimmt gelten soll -- Rechtsfrage), Basiszinssatz je Halbjahr (Tabelle mit Gültigkeit, von Hand gepflegt),
+  Zuschlag 5 bzw. 9 Prozentpunkte nach `is_consumer`, Hauptbetrag je Tag (mahnfähiger Betrag; Zahlungen mit Eingangsdatum mindern ab
+  dann -- `payment_state_on()` gibt es seit 1.8.79). Pauschale 40 € nur ohne Verbraucher, einmal je Rechnung.
+- **Zahlungen darauf**: `PaymentAllocation` bekäme ein zweites Ziel (Verweis auf die Nebenforderung statt auf die Rechnung, Art
+  `nebenforderung`), unter derselben Sperre der Auftragszeile. Entscheiden: die Anrechnungsreihenfolge (§ 367 BGB: Kosten, Zinsen,
+  Hauptforderung -- der heutige Vorschlag bucht alles auf die Rechnung) und ob eine Teilzahlung die Mahnung damit zusätzlich „überholt“.
+- **Zuschaltbar**: nicht über die Modul-Liste (`OPTIONAL_MODULES`, `app/modules.py:16`): die gilt ohne Eintrag als *an* -- ein Update
+  schaltete Gebühren und Zinsen still ein. Besser ein Schalter in den Einstellungen mit Vorgabe *aus* (Grunddaten, Regel 23).
+- **Mahnung**: die Aufstellung (`amounts_json`) bekäme die offenen Nebenforderungen als eigene Zeilen unter dem angemahnten Betrag;
+  „Betrag stimmt noch“ (Nr. 5) vergliche dann Hauptbetrag und Nebenforderungen.
+
+### Tests und Prüfung
+
+- Neu `tests/test_v382_mahnwesen.py` (33): Vorweg (Rechnung hält ihren Kunden, Storno den der stornierten; Zahlung, offene Rechnungen
+  und Empfänger folgen ihm; Kundenwechsel abgelehnt, auch nach dem Storno, mit nur Entwürfen erlaubt -- Funktion und Router);
+  Nr. 1 (Entwürfe für mehrere mit abgelehnten samt Grund, Router, Liste liest nur); **Angriffe Nr. 2**, je nichts geschrieben:
+  Stornorechnung und stornierte, heute fällig (ab morgen geht es), bezahlt und nur Einbehalt, Stufe 2 zuerst, Stufe 1 zweimal, Stufe 3
+  statt 2, zweiter Entwurf, nächste Stufe am letzten Tag der Frist, Altbestand mit zwei Entwürfen bzw. einem Entwurf der 2. Stufe vor
+  Fristende beim Festschreiben, deaktivierte Stufe übersprungen, Router 409 mit demselben Grund wie die Rechnungsseite; Nr. 3
+  (Entwurf von vor drei Wochen: Festschreiben heute, Frist heute + 10; festgeschriebene bzw. gelöschte nicht bearbeitbar, 409; PUT ohne
+  ein Feld oder mit 0 Tagen 422); Nr. 4 (Aufstellung mit zwei Zahlungen, Skonto, Einbehalt im JSON und im PDF; frisch beim
+  Festschreiben; Altbestand wie bisher); **Angriffe Nr. 5** (E-Mail nach Teilzahlung abgelehnt, nichts gesendet, kein
+  Protokolleintrag; Zustellung heute abgelehnt, gestern -- vor der Zahlung -- eingetragen; Zustellung zu einer stornierten Rechnung
+  409); Nr. 6; **Rundgang mit Beobachter**: jeder schreibende Endpunkt des Mahnwesens schreibt Mahnungen nur unter der Sperre der
+  Auftragszeile; kein `Reminder(…)` außerhalb von `app/reminders.py` (AST).
+- Neu `tests/test_v382_mahnwesen_pg.py` (8, gegen PostgreSQL): zwei Entwürfe gleichzeitig (die zweite Sitzung hat die Mahnungen
+  vorher geladen) und Entwurf für mehrere gegen einzeln -> einer; Bearbeiten wartet auf das Festschreiben und wird abgelehnt;
+  Festschreiben wartet auf das Bearbeiten und nimmt dessen Frist; Festschreiben bzw. Zustellung warten auf eine Zahlung und lehnen den
+  alten Betrag ab; Kundenwechsel wartet auf das Festschreiben einer Rechnung und lehnt ab, Festschreiben wartet auf den Wechsel und hält
+  den neuen Kunden.
+- Neu `tests/test_v382_mahnwesen_migration.py` (2, davon 1 gegen PostgreSQL): Bestand (versendet, zweiter Kunde, storniert, Storno,
+  Entwurf, Mahnungen) -> Kunde je festgeschriebener Rechnung, Entwurf leer; Rückweg mit Aufstellung nur an einem Entwurf geht, mit einer
+  an einer festgeschriebenen Mahnung verweigert, nichts geändert.
+- **Angepasst, weil die Vorgabe die Erwartung überholt**: `test_v171` (die Automatik gibt es nicht mehr -- jetzt: Funktionen,
+  Endpunkte, Schalter weg, Liste legt nichts an); `test_v153` (Stufe 1 ab dem Tag nach der Fälligkeit statt Fälligkeit + 7, nächste
+  Stufe nach dem Fristende, vor jeder weiteren Stufe die Frist ablaufen lassen -- Hilfe `tests/mahnung.py`); `test_v236` (Frist in
+  Tagen statt Datum, leeren nicht mehr möglich, festgeschrieben bearbeiten 409 statt 400); `test_v375` (kein zweiter Entwurf derselben
+  Stufe mehr -- der Entwurf ist jetzt die 2. Stufe nach abgelaufener Frist); `test_v380` (Stufe 2 erst nach Ablauf der Frist);
+  `test_v315` und `test_v372_befund_rechnungsdatum` (Mahnung erst nach der Fälligkeit -- dort Fälligkeit auf gestern);
+  `test_v227` (die Forderungstabelle beginnt mit „Rechnungsbetrag (brutto)“). Bestand der Migrationsproben 1.8.77/1.8.78
+  (`test_v380`, `test_v381_zahlungen_migration`) als Core-Insert statt ORM (das ORM schreibt `invoices.customer_id`, die es vor der
+  Migration nicht gibt); die Z1-Probe fährt bis `c7d41e9a2b63`, danach bis head und zurück über diese. Strukturtests: `test_v329`
+  (`PUT /api/reminders/{id}` aus den Altfällen, zu den reparierten), `test_v373` (`POST /api/reminders/bulk invoice_ids` als FREI).
+- **Gegenproben** (Regel 24): 21 von 21 rot -- Kundenwechsel-Sperre (3 Tests), Sperre der Auftragszeilen beim Wechsel (2, PostgreSQL),
+  Kunde beim Festschreiben (3), Kunde beim Storno (1), nichts zu mahnen (3), nicht fällig (3), ein Entwurf (3), nächste Stufe (2),
+  Fristende (3), frisches Lesen nach der Sperre (1, PostgreSQL), Bearbeiten unter der Sperre (2), Mahndatum beim Festschreiben (1),
+  Aufstellung beim Anlegen (1) und beim Festschreiben (1), E-Mail nur mit passendem Betrag (1), Zustellung prüft vorher (3), Stand am
+  Zustelltag (1), Sperre bei der Zustellung (1, PostgreSQL), Dashboard (1), Migration übernimmt den Kunden (2), Rückweg verweigert (2).
+  Jede Datei byte-genau zurück (SHA-256), kein Marker unter `app/` und `alembic/`. Ein erster Lauf zeigte Probe 10 grün: das
+  zusätzliche Nachladen der Mahnungen nach der Sperre war überflüssig (`lock_order_invoices()` lädt die Rechnungen mit
+  `populate_existing` und verwirft dabei die geladene Liste) -- entfernt, die Probe trifft jetzt genau diesen Mechanismus.
+- Migration `5db1a12b4a66`: Wegwerf-SQLite und leeres Wegwerf-Schema der lokalen PostgreSQL: hoch, `current` head, `check` ohne
+  Unterschied, runter, wieder hoch.
+- Klicktests: neu `klicktest_mahnwesen.py` 27/27 (der erste Lauf fand „2 Entwurfe angelegt“ -- Plural ohne Umlaut, behoben).
+  **Alle Klicktests** (`scripts/klicktest_alle.py`, Arbeitskopie mit dem Endstand, Regel 26): 48 von 48 wie erwartet, 10:43 min.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, Endstand): 3518 grün, 0 rot, 7 erwartet fehlgeschlagen (1a, 1b,
+  1d), 27:42 min. Danach nur Doku geändert.
+
+### Nebenbefunde (nur gemeldet)
+
+1. **Name auf der Rechnung kommt aus dem Auftrag**: Rechnungen übernehmen Kundenname und -adresse aus dem Schnappschuss des Auftrags
+   (`_snapshot_order_fields()`, `app/invoices.py`). Wird der Kunde am Projekt gewechselt, solange nur ein Auftrag (ohne festgeschriebene
+   Rechnung) besteht, trägt jede spätere Rechnung den Namen des alten Kunden, gehört aber zum neuen (`customer_id`) und geht an dessen
+   Adresse. Naheliegend: Kundenwechsel schon ab einem Auftrag sperren, oder den Schnappschuss beim Wechsel prüfen.
+2. **Mahnung als E-Mail ohne Sperre**: zwischen der Prüfung (Betrag stimmt) und dem Senden kann eine Zahlung gebucht werden -- dieselbe
+   bewusste Lücke wie seit 1.8.72 (Festlegung 1.8.72 Nr. 6), jetzt auch für den Betrag.
+3. **Mahnwesen lädt alle Mahnungen** ohne Begrenzung (`GET /api/reminders`); der Zahlstand kommt seit 1.8.79 für alle in zwei Abfragen,
+   je Entwurf aber eine Abfrage der Stufen (Datum beim Festschreiben) und je Mahnung der Kunde (Adresse).
+4. **Gebühr der ersten Mahnung**: die Vorgabe fordert schon in der ersten Mahnung 5 € (Befund a) -- siehe die Einordnung oben.
+5. Unverändert: Rechnung per E-Mail auch bezahlt oder storniert, Mahnhistorie auf der Rechnungsseite nur bei „versendet“ (1.8.77 Nr. 7),
+   Probebelege entfernen (1.8.77 Nr. 8).

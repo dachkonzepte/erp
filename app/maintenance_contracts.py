@@ -1,8 +1,8 @@
 """Wartungsverträge (seit 1.2.0, Modul "wartungen").
 
 Bewusst kein Scheduler: check_due_contracts_and_create_reminders() wird beim Aufruf der
-Wartungsverträge-Seite ausgelöst (gleiches On-Demand-Muster wie
-auto_create_due_reminder_drafts() in app/reminders.py) und erinnert per Aufgabe an einen
+Wartungsverträge-Seite ausgelöst (On-Demand-Muster; bis 1.8.78 ebenso die Mahnungsentwürfe, seit
+1.8.79 entstehen die nur noch per Klick) und erinnert per Aufgabe an einen
 zuständigen Mitarbeiter -- ein neuer Vorgang wird nie selbständig erzeugt, das bleibt ein
 bewusster Klick (create_project_from_contract()).
 

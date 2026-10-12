@@ -14,7 +14,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, func, inspect, select, text
+from sqlalchemy import create_engine, func, insert, inspect, select, text
 from sqlalchemy.orm import sessionmaker
 
 from app.grunddaten import anlegen
@@ -78,19 +78,19 @@ def _rechnung(db, order, *, status, invoice_type="abschlag_leistungsstand", net=
     """Rechnung wie im Altbestand, direkt angelegt (die App-Wege prüfen seit 1.8.78 Zuordnungen, deren Tabelle vor der
     Migration fehlt). net = Positionsbetrag (abgerechnet), bei abschlag_pauschal der Pauschalbetrag."""
     sign = -1 if invoice_type == "storno" else 1
-    invoice = Invoice(order_id=order.id, invoice_type=invoice_type, status=status, invoice_date=invoice_date,
-                      due_date=invoice_date, paid_date=paid_date, customer_name=order.customer_name, vat_rate=D("19"),
-                      storno_of_invoice_id=storno_of,
-                      lump_sum_net=D(net) if invoice_type == "abschlag_pauschal" else None,
-                      invoice_number=f"R-ALT-{uuid.uuid4().hex[:6]}")
-    db.add(invoice)
-    db.flush()
-    invoice.rounding_rule = rule
-    db.add(InvoiceItem(invoice_id=invoice.id, source_order_item_id=None, sort_order=10, position_number="1",
+    # Seit 1.8.79 als Core-Insert mit genau diesen Spalten: das ORM schriebe jede Spalte des heutigen Modells (auch
+    # invoices.customer_id), die es auf dem Stand vor der Migration noch nicht gibt.
+    invoice_id = db.execute(insert(Invoice.__table__).values(
+        order_id=order.id, invoice_type=invoice_type, status=status, invoice_date=invoice_date, due_date=invoice_date,
+        paid_date=paid_date, customer_name=order.customer_name, vat_rate=D("19"), storno_of_invoice_id=storno_of,
+        lump_sum_net=D(net) if invoice_type == "abschlag_pauschal" else None,
+        invoice_number=f"R-ALT-{uuid.uuid4().hex[:6]}", rounding_rule=rule,
+    )).inserted_primary_key[0]
+    db.add(InvoiceItem(invoice_id=invoice_id, source_order_item_id=None, sort_order=10, position_number="1",
                        short_text="Dach", unit="m2", unit_price=D(net), soll_quantity=D("1"), ist_quantity=D("1"),
                        billed_quantity=D(sign), billed_total=D(net) * sign))
     db.commit()
-    return invoice.id
+    return invoice_id
 
 
 def _status(db, invoice_id):
@@ -122,8 +122,10 @@ def _migrationsprobe(url: str, engine, Session) -> None:
         vorher = {k: tuple(_status(db, i)) for k, i in ids.items()}
         db.close()
 
-        _ok(_alembic(url, "upgrade", "head"))
+        _ok(_alembic(url, "upgrade", MIGRATION))
         assert MIGRATION in _ok(_alembic(url, "current")).stdout
+        # Seit 1.8.79 folgen weitere Migrationen; das ORM liest den heutigen Stand (invoices.customer_id) -- also bis head.
+        _ok(_alembic(url, "upgrade", "head"))
         db = Session()
         payments = {p.id: p for p in db.scalars(select(Payment))}
         allocations = list(db.scalars(select(PaymentAllocation).order_by(PaymentAllocation.invoice_id)))
@@ -145,7 +147,8 @@ def _migrationsprobe(url: str, engine, Session) -> None:
             "ohne_datum": ("bezahlt", date(2026, 9, 1)), "offen": ("offen", None), "storniert": None, "storno": None}
         db.close()
 
-        # Rückweg ohne Erfasstes: "bezahlt" exakt wie vorher, Tabellen weg.
+        # Rückweg ohne Erfasstes: "bezahlt" exakt wie vorher, Tabellen weg (die späteren Migrationen zuerst zurück).
+        _ok(_alembic(url, "downgrade", MIGRATION))
         _ok(_alembic(url, "downgrade", "-1"))
         engine.dispose()
         db = Session()
@@ -162,13 +165,14 @@ def _migrationsprobe(url: str, engine, Session) -> None:
         book_payment(db, customer_id=kunde, received_on=date(2026, 10, 1), amount=D("100"), note=None,
                      lines=[Line(offen.id, zahlung=D("100"))])
         db.close()
+        _ok(_alembic(url, "downgrade", MIGRATION))
         lauf = _alembic(url, "downgrade", "-1")
         ausgabe = lauf.stdout + lauf.stderr
         assert lauf.returncode != 0 and "Downgrade verweigert: 1 erfasste Zahlungen" in ausgabe, ausgabe[-1500:]
         assert MIGRATION in _ok(_alembic(url, "current")).stdout
         engine.dispose()
         db = Session()
-        assert db.scalar(select(func.count()).select_from(Payment)) == 4
+        assert db.execute(text("SELECT COUNT(*) FROM payments")).scalar() == 4  # roh: das ORM kennt invoices.customer_id
         assert _status(db, ids["bezahlt"]).status == "versendet"
     finally:
         db.close()

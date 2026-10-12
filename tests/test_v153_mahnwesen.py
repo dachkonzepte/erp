@@ -23,6 +23,7 @@ from app.reminders import (
     update_reminder_level,
 )
 from tests.leistungszeitraum import festschreiben
+from tests.mahnung import festschreiben_und_ablaufen, frist_ablaufen
 
 
 def db_session():
@@ -127,21 +128,23 @@ def test_compute_reminder_status_for_invoice_not_yet_sent():
 def test_compute_reminder_status_overdue_invoice_without_reminders():
     db = db_session()
     ensure_default_reminder_levels(db)
-    invoice = make_sent_overdue_invoice(db, days_overdue=16)  # Standard-Stufe-1-Frist: 7 Tage
+    invoice = make_sent_overdue_invoice(db, days_overdue=16)
     status = compute_reminder_status(db, invoice)
     assert status["current_level"] == 0
     assert status["next_level"] == 1
-    assert status["next_due_on"] == invoice.due_date + timedelta(days=7)
-    assert status["is_due_now"] is True  # 16 Tage überfällig > 7 Tage Frist
+    # Seit 1.8.79 (Z2a Nr. 2): Stufe 1 ab dem Tag nach der Fälligkeit (bis 1.8.78: Fälligkeit + 7 Tage der Stufe).
+    assert status["next_due_on"] == invoice.due_date + timedelta(days=1)
+    assert status["is_due_now"] is True
 
 
 def test_compute_reminder_status_not_yet_due():
     db = db_session()
     ensure_default_reminder_levels(db)
-    invoice = make_sent_overdue_invoice(db, days_overdue=2)  # unter der 7-Tage-Frist
+    invoice = make_sent_overdue_invoice(db, days_overdue=0)  # heute fällig, noch nicht überfällig (seit 1.8.79)
     status = compute_reminder_status(db, invoice)
     assert status["next_level"] == 1
     assert status["is_due_now"] is False
+    assert "fällig" in status["create_block"]
 
 
 def test_compute_reminder_status_progresses_after_sent_reminder():
@@ -155,7 +158,9 @@ def test_compute_reminder_status_progresses_after_sent_reminder():
     status = compute_reminder_status(db, invoice)
     assert status["current_level"] == 1
     assert status["next_level"] == 2
-    assert status["next_due_on"] == r1.reminder_date + timedelta(days=7)
+    # Seit 1.8.79: ab dem Tag nach dem Ende der Frist der 1. Mahnung (Mahndatum + 7 Tage Zahlungsfrist).
+    assert r1.new_due_date == r1.reminder_date + timedelta(days=7)
+    assert status["next_due_on"] == r1.new_due_date + timedelta(days=1)
     assert status["is_due_now"] is False  # gerade erst versendet
 
 
@@ -183,8 +188,7 @@ def test_compute_reminder_status_none_when_all_levels_exhausted():
     invoice = make_sent_overdue_invoice(db, days_overdue=60)
     for level in (1, 2, 3):
         r = create_reminder(db, invoice, level)
-        finalize_and_send_reminder(db, r)
-        db.refresh(invoice)
+        festschreiben_und_ablaufen(db, r)  # seit 1.8.79: die nächste Stufe erst nach Ablauf der Frist
     status = compute_reminder_status(db, invoice)
     assert status["current_level"] == 3
     assert status["next_level"] is None
@@ -264,6 +268,8 @@ def test_delete_reminder_draft_only_works_on_drafts():
     except ValueError:
         pass
 
+    frist_ablaufen(db, reminder)  # seit 1.8.79: Stufe 2 erst nach Ablauf der Frist der 1. Mahnung
+    db.refresh(invoice)
     reminder2 = create_reminder(db, invoice, 2)
     delete_reminder_draft(db, reminder2)
     remaining = list_reminders_for_invoice(db, invoice.id)
@@ -291,8 +297,7 @@ def test_format_reminder_text_shows_previous_reminder_date_on_level_two():
     ensure_default_reminder_levels(db)
     invoice = make_sent_overdue_invoice(db, days_overdue=30)
     r1 = create_reminder(db, invoice, 1)
-    finalize_and_send_reminder(db, r1)
-    db.refresh(invoice)
+    festschreiben_und_ablaufen(db, r1)  # seit 1.8.79: Stufe 2 erst nach Ablauf der Frist
     r2 = create_reminder(db, invoice, 2)
     text = format_reminder_text(r2)
     assert r1.reminder_date.strftime("%d.%m.%Y") in text

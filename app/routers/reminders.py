@@ -2,7 +2,9 @@
 
 Endpunkte für das Mahnwesen -- Geschäftslogik liegt vollständig in
 app/reminders.py, hier nur die HTTP-Anbindung, analog zu app/routers/invoices.py. Seit 1.8.72
-InvoiceBlocked (Rechnung storniert oder bezahlt) als 409.
+InvoiceBlocked (Rechnung storniert oder bezahlt) als 409. Seit 1.8.79 (Z2a) keine Entwürfe mehr von selbst
+(POST /api/reminders/auto-create und /api/reminder-settings entfallen), dafür Entwürfe für mehrere Rechnungen
+(POST /api/reminders/bulk); Bearbeiten eines festgeschriebenen 409.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,13 +18,14 @@ from ..models import AppUser, Reminder, ReminderLevel
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..reminder_pdf import build_reminder_pdf
 from ..reminders import (
-    auto_create_due_reminder_drafts, compute_reminder_status, create_reminder, delete_reminder_draft,
-    finalize_and_send_reminder, get_reminder_auto_create_setting,
-    list_all_reminders, list_invoices_needing_attention, list_reminder_levels,
-    list_reminders_for_invoice, reminder_to_dict, send_reminder_email, set_reminder_auto_create_setting,
-    update_reminder_draft, update_reminder_level,
+    compute_reminder_status, create_reminder, create_reminders, delete_reminder_draft, finalize_and_send_reminder,
+    list_all_reminders, list_invoices_needing_attention, list_reminder_levels, list_reminders_for_invoice,
+    reminder_to_dict, reminders_to_dicts, send_reminder_email, update_reminder_draft, update_reminder_level,
 )
-from ..schemas import ReminderCreate, ReminderEmailSend, ReminderLevelOut, ReminderLevelUpdate, ReminderOut, ReminderSettingsOut, ReminderSettingsUpdate, ReminderStatusOut, ReminderUpdate, InvoiceNeedingAttentionOut
+from ..schemas import (
+    InvoiceNeedingAttentionOut, ReminderBulkCreate, ReminderBulkOut, ReminderCreate, ReminderEmailSend, ReminderLevelOut,
+    ReminderLevelUpdate, ReminderOut, ReminderStatusOut, ReminderUpdate,
+)
 
 router = APIRouter()
 
@@ -69,22 +72,15 @@ def get_overdue_invoices(db: Session = Depends(get_db), _role: AppUser = _role_d
 
 @router.get("/api/reminders", response_model=list[ReminderOut])
 def get_all_reminders(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    return [reminder_to_dict(r) for r in list_all_reminders(db)]
+    return reminders_to_dicts(db, list_all_reminders(db))
 
 
-@router.get("/api/reminder-settings", response_model=ReminderSettingsOut)
-def get_reminder_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    return ReminderSettingsOut(auto_create_drafts=get_reminder_auto_create_setting(db))
-
-
-@router.put("/api/reminder-settings", response_model=ReminderSettingsOut)
-def put_reminder_settings(payload: ReminderSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    return ReminderSettingsOut(auto_create_drafts=set_reminder_auto_create_setting(db, payload.auto_create_drafts))
-
-
-@router.post("/api/reminders/auto-create", response_model=list[ReminderOut])
-def post_auto_create_reminder_drafts(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    return [reminder_to_dict(r) for r in auto_create_due_reminder_drafts(db)]
+@router.post("/api/reminders/bulk", response_model=ReminderBulkOut)
+def post_reminders_bulk(payload: ReminderBulkCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Seit 1.8.79 (Z2a Nr. 1): je Rechnung ein Entwurf der nächsten Stufe, jede einzeln unter ihrer Sperre geprüft -- eine
+    abgelehnte hält die anderen nicht auf, die Antwort nennt sie mit Grund (immer 200)."""
+    result = create_reminders(db, payload.invoice_ids)
+    return {"created": reminders_to_dicts(db, result["created"]), "rejected": result["rejected"]}
 
 
 @router.get("/api/invoices/{invoice_id}/reminder-status", response_model=ReminderStatusOut)
@@ -96,7 +92,7 @@ def get_invoice_reminder_status(invoice_id: int, db: Session = Depends(get_db), 
 @router.get("/api/invoices/{invoice_id}/reminders", response_model=list[ReminderOut])
 def get_invoice_reminders(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _get_invoice_or_404(db, invoice_id)
-    return [reminder_to_dict(r) for r in list_reminders_for_invoice(db, invoice_id)]
+    return reminders_to_dicts(db, list_reminders_for_invoice(db, invoice_id))
 
 
 @router.post("/api/invoices/{invoice_id}/reminders", response_model=ReminderOut)
@@ -147,8 +143,10 @@ def put_reminder(reminder_id: int, payload: ReminderUpdate, db: Session = Depend
     reminder = _get_reminder_or_404(db, reminder_id)
     try:
         update_reminder_draft(
-            db, reminder, text=payload.text, fee_amount=payload.fee_amount, new_due_date=payload.new_due_date,
+            db, reminder, text=payload.text, fee_amount=payload.fee_amount, payment_days=payload.payment_days,
         )
+    except InvoiceBlocked as e:  # seit 1.8.79: unter der Sperre nicht (mehr) Entwurf
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return reminder_to_dict(reminder)

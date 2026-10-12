@@ -184,8 +184,10 @@ def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depend
     try:
         # Seit 1.8.41: ist der neue Kunde hier schon Beteiligter, stünde der Auftraggeber doppelt da -- 409 mit Namen.
         # Seit 1.8.44 zuerst: ein Auftrag mit festgeschriebenem Vertrag sperrt den Wechsel -- 409.
+        # Seit 1.8.79 davor: eine festgeschriebene Rechnung am Projekt sperrt ihn ebenso (unter der Sperre der Auftragszeilen).
         check_client_change(db, project, payload.customer_id)
     except ClientChangeConflict as e:
+        db.rollback()  # gibt die Sperre der Auftragszeilen frei
         raise HTTPException(status_code=409, detail=str(e))
     project.customer_id = payload.customer_id
     project.property_id = payload.property_id

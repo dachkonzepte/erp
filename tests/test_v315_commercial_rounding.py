@@ -127,6 +127,14 @@ def _invoice(db, quantity, unit_price, vat_rate=Decimal("19.00"), finalize=False
     return festschreiben(db, invoice) if finalize else invoice
 
 
+def _ueberfaellig(db, invoice):
+    """Seit 1.8.79 (Z2a Nr. 2) entsteht eine Mahnung erst ab dem Tag nach der Fälligkeit: die Fälligkeit der festgeschriebenen
+    Rechnung direkt in der Datenbank auf gestern -- hier geht es nur um das Runden."""
+    invoice.due_date = date.today() - timedelta(days=1)
+    db.commit(); db.refresh(invoice)
+    return invoice
+
+
 def _pdf(db, invoice) -> bytes:
     return _extract_pdf_text(build_invoice_pdf(db, invoice))
 
@@ -203,7 +211,7 @@ def test_skonto_half_cent_rounds_up():
 def test_reminder_takes_rounded_gross_and_rounds_its_total_up():
     db = db_session()
     ensure_default_reminder_levels(db)
-    invoice = _invoice(db, "1", "1.50", finalize=True)
+    invoice = _ueberfaellig(db, _invoice(db, "1", "1.50", finalize=True))
     reminder = create_reminder(db, invoice, 1)
     assert reminder.outstanding_amount == Decimal("1.79")    # alt 1,785 gespeichert
     reminder.fee_amount = Decimal("2.515"); db.commit()     # 1,79 + 2,515 = 4,305
@@ -328,7 +336,7 @@ def test_legacy_invoice_storno_inherits_rule_and_mirrors_exactly():
 def test_legacy_invoice_reminder_total_keeps_half_even():
     db = db_session()
     ensure_default_reminder_levels(db)
-    invoice = _legacy(db, "1", "1.50")
+    invoice = _ueberfaellig(db, _legacy(db, "1", "1.50"))
     reminder = create_reminder(db, invoice, 1)
     reminder.fee_amount = Decimal("2.50"); db.commit()
     assert reminder_to_dict(reminder)["total_amount"] == Decimal("4.28")   # 1,785 + 2,50 = 4,285, halb-gerade

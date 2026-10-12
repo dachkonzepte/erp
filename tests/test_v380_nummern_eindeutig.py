@@ -23,7 +23,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from sqlalchemy import UniqueConstraint, create_engine, func, inspect, select, text
+from sqlalchemy import UniqueConstraint, create_engine, func, insert, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
@@ -36,6 +36,7 @@ from app.reminders import create_reminder, finalize_and_send_reminder
 from app.settings import DEFAULT_SEQUENCES, _existing_column
 from tests.befund_vor_echtbetrieb import pg_sitzung
 from tests.leistungszeitraum import festschreiben, mit_zeitraum
+from tests.mahnung import frist_ablaufen
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
 from tests.test_v375_rechnungen_sperren import _run, _vorbereiten, pg  # noqa: F401  (pg ist eine Fixture)
@@ -99,16 +100,17 @@ def _mit_nummer(db, key: str, nummer: str | None) -> int:
     db.add(order); db.flush()
     if key == "order":
         return order.id
-    invoice = Invoice(order_id=order.id, invoice_type="schluss", customer_name="K", vat_rate=Decimal("19"),
-                      status=("versendet" if nummer else "entwurf") if key == "invoice" else "versendet",
-                      invoice_number=nummer if key == "invoice" else f"X-R-{n}")
-    db.add(invoice); db.flush()
+    # Rechnung und Mahnung seit 1.8.79 als Core-Insert mit genau diesen Spalten: das ORM schriebe jede Spalte des heutigen
+    # Modells (invoices.customer_id, reminders.amounts_json), die es im Bestand vor der Migration noch nicht gibt.
+    invoice_id = db.execute(insert(Invoice.__table__).values(
+        order_id=order.id, invoice_type="schluss", customer_name="K", vat_rate=Decimal("19"),
+        status=("versendet" if nummer else "entwurf") if key == "invoice" else "versendet",
+        invoice_number=nummer if key == "invoice" else f"X-R-{n}")).inserted_primary_key[0]
     if key == "invoice":
-        return invoice.id
-    row = Reminder(invoice_id=invoice.id, level=1, status="versendet" if nummer else "entwurf", reminder_number=nummer,
-                   reminder_date=date(2026, 10, 1), outstanding_amount=Decimal("1"), fee_amount=Decimal("0"))
-    db.add(row); db.flush()
-    return row.id
+        return invoice_id
+    return db.execute(insert(Reminder.__table__).values(
+        invoice_id=invoice_id, level=1, status="versendet" if nummer else "entwurf", reminder_number=nummer,
+        reminder_date=date(2026, 10, 1), outstanding_amount=Decimal("1"), fee_amount=Decimal("0"))).inserted_primary_key[0]
 
 
 def _anzahl(db, key: str, nummer: str) -> int:
@@ -227,6 +229,8 @@ def test_issuing_an_issued_reminder_number_is_refused_and_nothing_changes(monkey
     db = _db()
     invoice = make_sent_overdue_invoice(db, days_overdue=40)
     erste = finalize_and_send_reminder(db, create_reminder(db, invoice, 1))
+    frist_ablaufen(db, erste)  # seit 1.8.79: Stufe 2 erst nach Ablauf der Frist der 1. Mahnung
+    db.refresh(invoice)
     zweite = create_reminder(db, invoice, 2)
     zweite_id, nummer = zweite.id, erste.reminder_number
     monkeypatch.setattr("app.reminders.issue_number", lambda _db, key: nummer)

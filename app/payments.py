@@ -34,8 +34,10 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, aliased
 
 from .berlin_time import berlin_today
-from .invoices import EDITABLE_STATUS, compute_invoice_totals, invoice_rounding, lock_order_invoices, skonto_offer
-from .models import Customer, Invoice, Order, Payment, PaymentAllocation, Project
+from .invoices import (  # invoice_customer_id: seit 1.8.79 dort (der festgehaltene Kunde), hier weiter importierbar
+    EDITABLE_STATUS, compute_invoice_totals, invoice_customer_id, invoice_rounding, lock_order_invoices, skonto_offer,
+)
+from .models import Customer, Invoice, Payment, PaymentAllocation
 from .rounding import CENT, round_money
 from .zugehoerigkeit import IdNichtGefunden
 
@@ -104,26 +106,32 @@ class Sums:
         return bool(self.paid or self.skonto or self.retained)
 
 
-def allocation_sums(db: Session, invoice_ids: Iterable[int]) -> dict[int, Sums]:
-    """Summen je Rechnung in zwei Abfragen (Finanzen, Mahnwesen: viele Rechnungen auf einmal)."""
+def allocation_sums(db: Session, invoice_ids: Iterable[int], *, received_until: date | None = None) -> dict[int, Sums]:
+    """Summen je Rechnung in zwei Abfragen (Finanzen, Mahnwesen: viele Rechnungen auf einmal). received_until (seit 1.8.79):
+    nur Buchungen aus Zahlungen mit Eingangsdatum bis zu diesem Tag -- der Stand an einem Tag (payment_state_on()). Eine
+    Gegenbuchung hängt an derselben Zahlung wie ihre Zuordnung, zählt also mit ihr oder gar nicht: zurückgenommen gilt nie."""
     ids = sorted(set(invoice_ids))
     if not ids:
         return {}
     totals: dict[int, dict[str, Decimal]] = {}
-    for invoice_id, kind, amount in db.execute(
-        select(PaymentAllocation.invoice_id, PaymentAllocation.kind, func.sum(PaymentAllocation.amount))
-        .where(PaymentAllocation.invoice_id.in_(ids)).group_by(PaymentAllocation.invoice_id, PaymentAllocation.kind)
-    ):
+    stmt = (select(PaymentAllocation.invoice_id, PaymentAllocation.kind, func.sum(PaymentAllocation.amount))
+            .where(PaymentAllocation.invoice_id.in_(ids)).group_by(PaymentAllocation.invoice_id, PaymentAllocation.kind))
+    if received_until is not None:
+        stmt = stmt.join(Payment, Payment.id == PaymentAllocation.payment_id).where(Payment.received_on <= received_until)
+    for invoice_id, kind, amount in db.execute(stmt):
         totals.setdefault(invoice_id, {})[kind] = round_money(amount)
     reversal = aliased(PaymentAllocation)
-    last = dict(db.execute(
+    last_stmt = (
         select(PaymentAllocation.invoice_id, func.max(Payment.received_on))
         .join(Payment, Payment.id == PaymentAllocation.payment_id)
         .outerjoin(reversal, reversal.reverses_allocation_id == PaymentAllocation.id)
         .where(PaymentAllocation.invoice_id.in_(ids), PaymentAllocation.kind == "zahlung",
                PaymentAllocation.reverses_allocation_id.is_(None), reversal.id.is_(None))
         .group_by(PaymentAllocation.invoice_id)
-    ).all())
+    )
+    if received_until is not None:
+        last_stmt = last_stmt.where(Payment.received_on <= received_until)
+    last = dict(db.execute(last_stmt).all())
     return {i: Sums(paid=totals.get(i, {}).get("zahlung", ZERO), skonto=totals.get(i, {}).get("skonto", ZERO),
                     retained=totals.get(i, {}).get("einbehalt", ZERO), last_received_on=last.get(i)) for i in ids}
 
@@ -173,6 +181,29 @@ def payment_state(db: Session, invoice: Invoice) -> PaymentState | None:
     return _state(invoice, allocation_sums(db, [invoice.id])[invoice.id])
 
 
+def payment_state_on(db: Session, invoice: Invoice, day: date) -> PaymentState | None:
+    """Zahlstand der Rechnung, wie er an diesem Tag war (seit 1.8.79, Zustellung einer Mahnung nachtragen): nur Zahlungen mit
+    Eingangsdatum bis dahin; eine zurückgenommene Buchung gilt nie."""
+    if not payable(invoice):
+        return None
+    return _state(invoice, allocation_sums(db, [invoice.id], received_until=day)[invoice.id])
+
+
+def invoice_payment_lines(db: Session, invoice: Invoice) -> list[tuple[date, Decimal]]:
+    """Noch geltende Zahlungen an der Rechnung je Zahlungseingang (Eingangsdatum, Betrag), ältester zuerst -- für die
+    Aufstellung der Mahnung (seit 1.8.79). Summe = Sums.paid."""
+    reversal = aliased(PaymentAllocation)
+    rows = db.execute(
+        select(Payment.received_on, Payment.id, func.sum(PaymentAllocation.amount))
+        .join(Payment, Payment.id == PaymentAllocation.payment_id)
+        .outerjoin(reversal, reversal.reverses_allocation_id == PaymentAllocation.id)
+        .where(PaymentAllocation.invoice_id == invoice.id, PaymentAllocation.kind == "zahlung",
+               PaymentAllocation.reverses_allocation_id.is_(None), reversal.id.is_(None))
+        .group_by(Payment.received_on, Payment.id).order_by(Payment.received_on, Payment.id)
+    ).all()
+    return [(received_on, round_money(amount)) for received_on, _, amount in rows if amount]
+
+
 def payment_states(db: Session, invoices: Iterable[Invoice]) -> dict[int, PaymentState | None]:
     invoices = list(invoices)
     sums = allocation_sums(db, [i.id for i in invoices if payable(i)])
@@ -195,12 +226,17 @@ def allocation_block_reason(db: Session, invoice: Invoice) -> str | None:
             "Begründung) -- die Zahlung bleibt dann beim Kunden, nicht zugeordnet.")
 
 
-def dunning_block_reason(db: Session, invoice: Invoice) -> str | None:
-    """Warum zu dieser Rechnung keine Mahnung entsteht oder hinausgeht, weil nichts mahnfähig ist (app/reminders.py)."""
+_UNSET = object()
+
+
+def dunning_block_reason(db: Session, invoice: Invoice, state=_UNSET) -> str | None:
+    """Warum zu dieser Rechnung keine Mahnung entsteht oder hinausgeht, weil nichts mahnfähig ist (app/reminders.py).
+    state: der schon geladene Zahlstand (seit 1.8.79, Listen), sonst frisch."""
     number = invoice.invoice_number or "(Entwurf)"
     if invoice.invoice_type == "storno":
         return f"{number} ist eine Stornorechnung -- sie ist nie offen, dazu geht keine Mahnung hinaus."
-    state = payment_state(db, invoice)
+    if state is _UNSET:
+        state = payment_state(db, invoice)
     if state is None or state.dunnable > 0:
         return None
     if state.state == "bezahlt":
@@ -208,12 +244,6 @@ def dunning_block_reason(db: Session, invoice: Invoice) -> str | None:
         return f"Die Rechnung {number} ist bezahlt{paid} -- dazu geht keine Mahnung mehr hinaus."
     return (f"Von der Rechnung {number} ist nur noch der Einbehalt offen ({money(state.retained_open)}) -- ein Einbehalt "
             "wird nicht gemahnt.")
-
-
-def invoice_customer_id(invoice: Invoice) -> int | None:
-    """Kunde der Rechnung = Kunde ihres Projekts (die Rechnung trägt nur einen Schnappschuss des Namens)."""
-    order = invoice.order
-    return order.project.customer_id if order is not None and order.project is not None else None
 
 
 # ---------------------------------------------------------------------------
@@ -601,9 +631,10 @@ def customer_payments(db: Session, customer_id: int) -> dict:
 
 def open_invoices_of_customer(db: Session, customer_id: int) -> list[dict]:
     """Offene, bebuchbare Rechnungen des Kunden -- für "weitere Rechnungen von Hand" und das Zuordnen eines Rests."""
+    # Seit 1.8.79 nach dem Kunden, den die Rechnung beim Festschreiben festhielt (Invoice.customer_id), nicht mehr nach dem
+    # Kunden ihres Projekts.
     invoices = list(db.scalars(
-        select(Invoice).join(Order, Order.id == Invoice.order_id).join(Project, Project.id == Order.project_id)
-        .where(Project.customer_id == customer_id, Invoice.status == "versendet", Invoice.invoice_type != "storno")
+        select(Invoice).where(Invoice.customer_id == customer_id, Invoice.status == "versendet", Invoice.invoice_type != "storno")
         .order_by(Invoice.invoice_date, Invoice.id)))
     states = payment_states(db, invoices)
     result = []

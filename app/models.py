@@ -1692,6 +1692,10 @@ class Invoice(Base):
     customer_address: Mapped[str | None] = mapped_column(Text, nullable=True)
     property_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     property_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Seit 1.8.79: der Kunde, zu dem die Rechnung gehört -- gesetzt beim Festschreiben (Kunde des Projekts, beim Storno der
+    # Kunde der stornierten Rechnung), danach fest; im Entwurf leer (dann gilt der Kunde des Projekts,
+    # app/payments.py::invoice_customer_id()). Zahlungen buchen nur auf Rechnungen dieses Kunden.
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), nullable=True, index=True)
 
     vat_rate: Mapped[Decimal] = mapped_column(Numeric(9, 4), default=Decimal("19.00"))
     # Schnappschuss des gewählten Steuerschlüssels zum Erstellzeitpunkt (seit
@@ -1737,6 +1741,7 @@ class Invoice(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     order: Mapped["Order"] = relationship(back_populates="invoices")
+    customer: Mapped["Customer | None"] = relationship()  # seit 1.8.79, siehe customer_id
     items: Mapped[list["InvoiceItem"]] = relationship(back_populates="invoice", cascade="all, delete-orphan", order_by="InvoiceItem.sort_order")
     reminders: Mapped[list["Reminder"]] = relationship(back_populates="invoice", cascade="all, delete-orphan", order_by="Reminder.level")
 
@@ -1797,10 +1802,14 @@ class ReminderLevel(Base):
     (Klärung dazu: "bis 3 Stufen, aber auswählbar wie viele man
     tatsächlich nutzt").
 
-    days_after_previous_step ist die Frist in Tagen, ab der diese Stufe
-    fällig wird -- bei Stufe 1 gerechnet ab der Fälligkeit der Rechnung
-    selbst, bei Stufe 2/3 ab dem Versanddatum der jeweils vorherigen
-    Mahnung (siehe compute_reminder_status() in app/reminders.py).
+    days_after_previous_step ist seit 1.8.79 (Z2a, "je Stufe eine Zahl") die
+    Zahlungsfrist dieser Stufe in Tagen ab dem Mahndatum (Tag des
+    Festschreibens): die Frist der Mahnung endet Mahndatum + Tage. Die erste
+    Stufe ist ab dem Tag nach der Fälligkeit der Rechnung möglich, jede weitere
+    ab dem Tag nach dem Ende der Frist der vorigen (app/reminders.py::
+    compute_reminder_status()). Bis 1.8.78 hieß die Zahl "Tage, ab denen diese
+    Stufe fällig wird" (ab Fälligkeit bzw. ab der vorigen Mahnung) und war
+    zugleich die Frist -- der Spaltenname stammt von dort.
 
     fee_amount ist die Mahngebühr dieser Stufe in Euro. Bewusst ohne
     eigenen Steuersatz: Mahngebühren gelten umsatzsteuerlich in der Regel
@@ -1857,11 +1866,18 @@ class Reminder(Base):
     invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"), index=True)
     level: Mapped[int] = mapped_column(index=True)  # 1, 2 oder 3
     status: Mapped[str] = mapped_column(String(20), default="entwurf", index=True)  # 'entwurf' | 'versendet'
+    # Seit 1.8.79 (Z2a): im Entwurf der Tag des Anlegens, beim Festschreiben der Tag des Festschreibens (Berlin); die Frist
+    # (new_due_date) rückt mit -- im Entwurf trägt der Abstand beider die Zahlungsfrist in Tagen.
     reminder_date: Mapped[date] = mapped_column(Date, default=berlin_today)  # seit 1.8.75 Berlin (Regel 20)
     new_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    outstanding_amount: Mapped[Decimal] = mapped_column(Numeric(18, 6), default=Decimal("0"))
+    outstanding_amount: Mapped[Decimal] = mapped_column(Numeric(18, 6), default=Decimal("0"))  # seit 1.8.78 der mahnfähige
     fee_amount: Mapped[Decimal] = mapped_column(Numeric(18, 6), default=Decimal("0"))
     text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Seit 1.8.79 (Z2a Nr. 4): Aufstellung des gemahnten Betrags als kanonisches JSON -- Brutto, je Zahlung Eingangsdatum und
+    # Betrag, Skonto, Einbehalt (der abgezogene Teil), mahnfähig (= outstanding_amount). Beim Anlegen und beim Festschreiben
+    # unter der Sperre aus dem Zahlstand geschrieben (app/reminders.py::amounts_snapshot()), danach fest wie der Betrag. Leer
+    # bei Mahnungen von vor 1.8.79: die zeigen nur den offenen Betrag.
+    amounts_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Versand-Nachweis (seit 1.0.74) -- getrennt von status='versendet'
     # (das die fachliche Finalisierung/Nummernvergabe meint, siehe oben):
     # eine Mahnung kann finalisiert, aber noch nie oder mehrfach per E-Mail
@@ -2677,6 +2693,8 @@ class GeneralSettings(Base):
     # fällig ist -- versendet wird dadurch nie automatisch, das bleibt
     # immer ein bewusster, manueller Schritt. server_default nötig, siehe
     # Lektion aus 1.0.68 (NOT-NULL-Spalte auf bereits bestehender Tabelle).
+    # Seit 1.8.79 (Z2a Nr. 1) ungenutzt: Mahnungsentwürfe entstehen nur noch per Klick. Die Spalte bleibt stehen (kein
+    # Rückweg nötig, wie Invoice.paid_date).
     reminders_auto_create_drafts: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     # Individualisierbare Akzentfarbe der Oberfläche (Buttons, aktive Navigation,
     # Hervorhebungen) -- Hex-Code, gilt zentral für alle Benutzer. server_default

@@ -7,7 +7,8 @@ gehört und welches PDF in die Ablage kommt:
 
 - Rechnung (auch Storno) und Mahnung: die maßgebliche Fassung aus der Ablage, wenn es sie schon
   gibt (app/sent_documents.py::frozen_or_fresh_pdf()), sonst neu erzeugt -- und damit ab jetzt
-  maßgeblich.
+  maßgeblich. Eine Mahnung seit 1.8.79 nur, solange die Rechnung nicht storniert ist und ihr Betrag
+  am Zustelltag dem mahnfähigen entsprach (before_delivery, app/reminders.py::check_delivery(), 409).
 - Angebot, Auftrag: neu erzeugt, wie beim E-Mail-Versand.
 - Checkliste: seit 1.8.66 die feste Fassung des Abschlusses aus der Ablage (app/checklist_versions.py) -- nie neu
   erzeugt; nur vor 1.8.66 abgeschlossene wie bisher neu erzeugt in voller Auflösung (so wie über den PDF-Knopf).
@@ -25,6 +26,7 @@ Rollenlos; wer zustellen darf, entscheidet der Router. PDF-Renderer werden lokal
 """
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Callable
 
 from sqlalchemy.orm import Session
@@ -43,6 +45,8 @@ class DispatchDocument:
     pdf: Callable[[], DocumentPdf]  # wirft ArchiveFileError, wenn die maßgebliche Fassung beschädigt ist
     # seit 1.8.40: nach dem Eintrag einer Zustellung; seit 1.8.41 mit dem Eintrag (an wen ging sie?)
     after_delivery: Callable[[EmailDispatch], None] | None = None
+    # seit 1.8.79: vor dem Eintrag einer Zustellung mit ihrem Datum -- wirft InvoiceBlocked (409), dann wird nichts geschrieben
+    before_delivery: Callable[[date], None] | None = None
 
 
 def _fresh(build: Callable[[], bytes], filename: str) -> Callable[[], DocumentPdf]:
@@ -83,6 +87,7 @@ def _invoice(db: Session, invoice: Invoice) -> DispatchDocument:
 
 def _reminder(db: Session, reminder: Reminder) -> DispatchDocument:
     from .reminder_pdf import build_reminder_pdf
+    from .reminders import check_delivery
 
     if reminder.status != "versendet":
         raise ValueError("Ein Mahnungsentwurf wird nicht zugestellt.")
@@ -92,6 +97,7 @@ def _reminder(db: Session, reminder: Reminder) -> DispatchDocument:
         order.project_id if order else None,
         lambda: frozen_or_fresh_pdf(db, "mahnung", reminder.id, build=lambda: build_reminder_pdf(db, reminder),
                                     filename=f"{reminder.reminder_number}.pdf"),
+        before_delivery=lambda day: check_delivery(db, reminder, day),
     )
 
 

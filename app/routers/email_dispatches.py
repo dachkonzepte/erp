@@ -27,6 +27,7 @@ from ..email_dispatch import (
     DISPATCH_TYPES, MAX_RECEIPT_BYTES, STATUSES, DispatchConflict, actor_of, delivery_recipients, dispatch_authorizations,
     dispatch_to_dict, list_dispatches, record_dispatch_outcome, record_manual_delivery, resolve_stuck_dispatch,
 )
+from ..invoices import InvoiceBlocked
 from ..modules import is_module_enabled
 from ..models import AppUser, EmailDispatch, SentDocument
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, has_role, require_min_role
@@ -145,7 +146,7 @@ def post_manual_delivery(
             receipt_filename=receipt.filename if receipt is not None else None, user_id=user_id, user_name=user_name,
             to_client=to_client, participant_ids=participant_ids,
         )
-    except DispatchConflict as e:
+    except (DispatchConflict, InvoiceBlocked) as e:  # InvoiceBlocked seit 1.8.79: Mahnung nicht mehr zustellbar
         raise HTTPException(status_code=409, detail=str(e))
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))

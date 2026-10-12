@@ -145,6 +145,9 @@ def test_today_other_dates_of_the_list_are_set_from_berlin_today(server_uhr):
     db = db_session()
     heute = server_uhr(SOMMER_UTC)
     invoice = make_sent_overdue_invoice(db)
+    # Seit 1.8.79 entsteht eine Mahnung erst ab dem Tag nach der Fälligkeit -- die Fälligkeit liegt sonst nach dem Sommertag.
+    invoice.due_date = heute - timedelta(days=1)
+    db.commit()
     assert create_reminder(db, invoice, 1).reminder_date == heute
     report = create_report(db, invoice.order_id, "rapport")
     assert report["performed_at"] == heute

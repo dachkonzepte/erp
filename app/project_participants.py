@@ -175,12 +175,34 @@ def check_client_change(db: Session, project: Project, new_customer_id: int) -> 
     schon Beteiligter, stünde der Auftraggeber doppelt da. Festlegung: ablehnen und nennen, wo er eingetragen ist --
     das Büro entfernt ihn im Reiter "Beteiligte" bewusst (Kopie bei Anzeigen, Vollmacht gingen sonst still verloren).
     Seit 1.8.44 zuerst: hat ein Auftrag des Projekts einen festgeschriebenen Vertrag (mindestens eine Fassung), ist
-    der Kunde Vertragspartner -- kein Wechsel. Wirft ClientChangeConflict."""
+    der Kunde Vertragspartner -- kein Wechsel. Seit 1.8.79 (Vorgabe Z2a "Vorweg") davor: ist am Projekt eine Rechnung
+    festgeschrieben (auch storniert oder ein Storno; nur Entwürfe zählen nicht), gehört sie zu diesem Kunden
+    (Invoice.customer_id) und Zahlungen buchen nur auf seine Rechnungen -- kein Wechsel. Geprüft unter der Sperre aller
+    Auftragszeilen des Projekts (aufsteigend, dieselbe Sperre wie das Festschreiben einer Rechnung): ein gleichzeitiges
+    Festschreiben wartet und liest danach den neuen Kunden, oder der Wechsel wartet und findet die Rechnung. Wirft
+    ClientChangeConflict; der Aufrufer rollt zurück (gibt die Sperre frei)."""
+    from .acceptances import lock_order
     from .contacts import contact_display_name
-    from .models import Order, OrderContract, OrderContractVersion
+    from .models import Customer, Invoice, Order, OrderContract, OrderContractVersion
 
     if new_customer_id == project.customer_id:
         return
+    for order_id in sorted(db.scalars(select(Order.id).where(Order.project_id == project.id))):
+        lock_order(db, order_id)
+    invoices = db.execute(
+        select(Invoice.invoice_number, Invoice.customer_id).join(Order, Order.id == Invoice.order_id)
+        .where(Order.project_id == project.id, Invoice.status != "entwurf").order_by(Invoice.id)
+    ).all()
+    if invoices:
+        numbers = [number or "(ohne Nummer)" for number, _ in invoices]
+        listed = numbers[0] if len(numbers) == 1 else ", ".join(numbers[:-1]) + " und " + numbers[-1]
+        owner = db.get(Customer, invoices[0][1]) if invoices[0][1] is not None else project.customer
+        whose = f" -- sie gehören zum Kunden {owner.name}" if owner is not None else ""
+        raise ClientChangeConflict(
+            f"Am Projekt {'ist die Rechnung' if len(numbers) == 1 else 'sind die Rechnungen'} {listed} festgeschrieben"
+            f"{whose}. Der Kunde lässt sich im Projekt nicht mehr wechseln. Ausweg: die Rechnungen stornieren und für den "
+            "richtigen Kunden in einem eigenen Projekt neu anlegen."
+        )
     frozen = db.execute(
         select(Order.order_number, func.max(OrderContractVersion.version_no))
         .join(OrderContract, OrderContract.order_id == Order.id)

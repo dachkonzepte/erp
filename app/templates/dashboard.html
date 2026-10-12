@@ -117,7 +117,9 @@ async function loadAndRenderTasks(empId,isAdmin){
   const rows=[];
   wpTasks.forEach(t=>rows.push({type:'Arbeitsvorbereitung',cls:'wp',title:t.title,sub:`${t.order_number} · ${t.project_name}`,due:t.due_date,urgent:t.priority==='dringend'||t.priority==='hoch',href:`/orders/${t.order_id}/work-preparation`}));
   myTasks.filter(t=>!t.status_is_done).forEach(t=>rows.push({type:'Aufgabe',cls:'task',title:t.title,sub:t.project_number?`${t.project_number} · ${t.project_name}`:(t.source_label||''),due:t.due_date,urgent:t.priority==='dringend'||t.priority==='hoch',href:`/tasks?task=${t.id}`}));
-  overdueInvoices.filter(i=>!empIdNum||i.caseworker_employee_id===empIdNum).forEach(i=>rows.push({type:'Mahnung',cls:'reminder',title:`${i.invoice_number||'Rechnung'} überfällig`,sub:i.customer_name,due:i.due_date,urgent:!!i.is_due_now,href:`/invoices/${i.invoice_id}`}));
+  // Seit 1.8.79 (Nebenbefund 6 aus 1.8.77): Sachbearbeiter des Auftrags (die Spalte an der Rechnung setzt niemand); ohne
+  // Sachbearbeiter für jeden gewählten Mitarbeiter sichtbar.
+  overdueInvoices.filter(i=>!empIdNum||!i.caseworker_employee_id||i.caseworker_employee_id===empIdNum).forEach(i=>rows.push({type:'Mahnung',cls:'reminder',title:`${i.invoice_number||'Rechnung'} überfällig`,sub:i.customer_name,due:i.due_date,urgent:!!i.is_due_now,href:`/invoices/${i.invoice_id}`}));
   const soon=new Date();soon.setDate(soon.getDate()+7);
   quotes.filter(q=>q.valid_until&&['versendet','in_pruefung'].includes(q.status)&&new Date(q.valid_until)<=soon&&(!empIdNum||q.caseworker_employee_id===empIdNum)).forEach(q=>rows.push({type:'Bindefrist',cls:'quote',title:`${q.quote_number} läuft ab`,sub:q.customer_name,due:q.valid_until,urgent:true,href:`/quotes/${q.id}/edit`}));
   let nameNeedle=null;

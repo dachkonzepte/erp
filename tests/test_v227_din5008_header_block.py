@@ -187,7 +187,8 @@ def test_left_edge_of_sender_line_heading_body_and_amount_table_line_up():
     db = db_session()
     pdf_bytes = _build_measurable_reminder_pdf(db)
     left_margin_mm = 18.0
-    for needle in ["DACHKONZEPTE", "Ausführungsort", "1. Mahnung", "Trotz Fälligkeit", "Offener Rechnungsbetrag"]:
+    # Seit 1.8.79 beginnt die Forderungstabelle mit "Rechnungsbetrag (brutto)" (Aufstellung, Z2a Nr. 4).
+    for needle in ["DACHKONZEPTE", "Ausführungsort", "1. Mahnung", "Trotz Fälligkeit", "Rechnungsbetrag (brutto)"]:
         r = _char_x_range_mm(pdf_bytes, needle)
         assert r is not None, f"{needle!r} nicht im PDF gefunden"
         left, _ = r

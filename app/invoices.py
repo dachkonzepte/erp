@@ -35,6 +35,11 @@ Zahlungen (seit 1.8.78, Zahlungsstufe Z1, app/payments.py): "bezahlt" ist kein S
 festgeschrieben ("versendet") und storniert; offen, teilweise bezahlt, Einbehalt offen und bezahlt leiten sich aus den
 gebuchten Zahlungen ab. Eine Rechnung mit zugeordneten Zahlungen lässt sich erst stornieren, wenn die Zuordnungen gelöst sind
 (storno_block_reason()); eine Stornorechnung ist nie offen.
+
+Kunde der Rechnung (seit 1.8.79, Vorgabe Z2a "Vorweg"): beim Festschreiben hält die Rechnung ihren Kunden fest
+(Invoice.customer_id: der Kunde des Projekts, beim Storno der der stornierten Rechnung) -- danach gehört sie zu ihm, auch für
+Zahlungen und den Versand an seine Adresse (invoice_customer()). Den Kunden eines Projekts mit festgeschriebener Rechnung kann
+niemand mehr wechseln (app/project_participants.py::check_client_change(), dieselbe Sperre der Auftragszeilen).
 """
 
 from datetime import date, timedelta
@@ -46,7 +51,9 @@ from sqlalchemy.orm import Session, object_session
 from .acceptances import lock_order
 from .berlin_time import berlin_today
 from .calculation import effective_material_sale_price, load_calculation_settings
-from .models import Invoice, InvoiceItem, Material, Order, OrderItem, PaymentTerm, ServiceReportMaterial, TaxKey, TimeEntry
+from .models import (
+    Customer, Invoice, InvoiceItem, Material, Order, OrderItem, PaymentTerm, Project, ServiceReportMaterial, TaxKey, TimeEntry,
+)
 from .option_settings import default_option_value
 from .payment_terms import get_default_payment_term
 from .placeholders import apply_placeholders
@@ -770,6 +777,8 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
         raise InvoiceBlocked(reason)
     # Seit 1.8.75: Rechnungsdatum = Tag des Festschreibens (Berlin), die Fälligkeit rückt mit (finalize_dates()).
     invoice.invoice_date, invoice.due_date = finalize_dates(invoice, berlin_today())
+    # Seit 1.8.79: ab hier hält die Rechnung ihren Kunden fest (_customer_at_finalize()).
+    invoice.customer_id = _customer_at_finalize(db, invoice)
     invoice.invoice_number = issue_number(db, "invoice")
     invoice.status = "versendet"
     if invoice.invoice_type == "storno" and invoice.storno_of_invoice_id is not None:
@@ -779,6 +788,34 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
     db.commit()
     db.refresh(invoice)
     return invoice
+
+
+def _customer_at_finalize(db: Session, invoice: Invoice) -> int | None:
+    """Der Kunde, den die Rechnung beim Festschreiben festhält (seit 1.8.79): beim Storno der Kunde der stornierten Rechnung,
+    sonst der des Projekts -- frisch gelesen nach der Sperre der Auftragszeile. Ein Kundenwechsel am Projekt nimmt dieselbe
+    Sperre (app/project_participants.py::check_client_change()): wartet das Festschreiben auf ihn, liest es danach den neuen
+    Kunden; wartet er auf das Festschreiben, findet er die festgeschriebene Rechnung und lehnt ab."""
+    if invoice.invoice_type == "storno" and invoice.storno_of_invoice_id is not None:
+        original = db.get(Invoice, invoice.storno_of_invoice_id)
+        if original is not None and original.customer_id is not None:
+            return original.customer_id
+    return db.scalar(select(Project.customer_id).join(Order, Order.project_id == Project.id).where(Order.id == invoice.order_id))
+
+
+def invoice_customer(invoice: Invoice) -> Customer | None:
+    """Kunde der Rechnung (seit 1.8.79): festgeschrieben der festgehaltene, im Entwurf der Kunde des Projekts."""
+    if invoice.customer_id is not None:
+        return invoice.customer
+    order = invoice.order
+    return order.project.customer if order is not None and order.project is not None else None
+
+
+def invoice_customer_id(invoice: Invoice) -> int | None:
+    """ID des Kunden der Rechnung (siehe invoice_customer()), ohne den Kunden zu laden."""
+    if invoice.customer_id is not None:
+        return invoice.customer_id
+    order = invoice.order
+    return order.project.customer_id if order is not None and order.project is not None else None
 
 
 def delete_invoice_draft(db: Session, invoice: Invoice) -> None:
@@ -1082,7 +1119,7 @@ def invoice_to_dict(invoice: Invoice) -> dict:
         "order_number": invoice.order.order_number,
         "project_id": invoice.order.project_id,
         "project_number": invoice.order.project.project_number,
-        "customer_id": invoice.order.project.customer_id,
+        "customer_id": invoice_customer_id(invoice),  # seit 1.8.79 der festgehaltene Kunde
         "invoice_type": invoice.invoice_type,
         "status": invoice.status,
         "invoice_date": invoice.invoice_date,
@@ -1235,9 +1272,8 @@ DEFAULT_INVOICE_EMAIL_BODY = (
 def get_invoice_recipient_email(invoice: Invoice) -> str | None:
     """Aktuelle, live nachgeschlagene Kunden-E-Mail -- analog zu
     get_reminder_recipient_email() in app/reminders.py. Bewusst defensiv
-    gegen fehlende Zwischenglieder (order/project/customer)."""
-    order = invoice.order
-    customer = order.project.customer if order and order.project else None
+    gegen fehlende Zwischenglieder (order/project/customer). Seit 1.8.79 die des Kunden der Rechnung (invoice_customer())."""
+    customer = invoice_customer(invoice)
     return (customer.email or None) if customer else None
 
 

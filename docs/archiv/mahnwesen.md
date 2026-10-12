@@ -7,6 +7,11 @@ wortgetreu (per Skript, zeilenweise) aus der vorherigen CLAUDE.md übernommen, k
 Umformulierung. Versionsangaben ("seit 1.x.y") beziehen sich auf den Stand zum
 jeweiligen Zeitpunkt der ursprünglichen Aufzeichnung.
 
+**Seit 1.8.79 (Zahlungsstufe Z2a)** gelten für Anlegen, Fristen, Bearbeiten, Festschreiben und Versand die Regeln in
+`zahlungen.md`, "Umsetzung 1.8.79": keine Entwürfe von selbst, Prüfungen unter der Sperre, Frist im Entwurf in Tagen (das
+Bearbeiten-Panel unten nimmt seither keine "Neue Zahlungsfrist" als Datum mehr), Mahndatum = Tag des Festschreibens. Der Hinweis bei
+fehlenden Platzhaltern und die Platzhalterliste unten gelten unverändert.
+
 ---
 
 ## Mahnwesen: Löschen/Versenden/Bearbeiten (seit 1.3.21)

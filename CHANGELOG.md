@@ -4,6 +4,29 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.79 – Mahnwesen Z2a, die Rechnung hält ihren Kunden fest
+
+Eine Rechnung hält ab dem Festschreiben ihren Kunden fest (beim Storno den der stornierten Rechnung); Zahlungen, die offenen
+Rechnungen eines Kunden und die Empfängeradresse folgen ihm. Den Kunden eines Projekts mit festgeschriebener Rechnung kann niemand
+mehr wechseln (409 mit Grund und Ausweg); geprüft unter der Sperre der Auftragszeilen, ein gleichzeitiges Festschreiben wartet und
+hält danach den neuen Kunden. Die Migration `5db1a12b4a66` trägt den Kunden an jeder festgeschriebenen Rechnung nach.
+
+Das Mahnwesen legt keine Entwürfe mehr von selbst an: „Zur Mahnung fällig“ liest nur, Entwürfe entstehen per Klick, einzeln oder für
+die ausgewählten Rechnungen. Beim Anlegen und noch einmal beim Festschreiben, unter der Sperre der Auftragszeile: keine Mahnung zu
+einer Stornorechnung, einer stornierten, einer nicht fälligen oder nicht mahnfähigen Rechnung, nur die nächste aktive Stufe, die erst
+nach Ablauf der Frist der vorigen, höchstens ein Entwurf. Je Stufe gibt es eine Zahl, die Zahlungsfrist; Mahndatum ist der Tag des
+Festschreibens, die Frist rechnet ab dann (im Entwurf eine Länge in Tagen). Bearbeiten und Löschen eines Entwurfs laufen unter
+derselben Sperre. Die Mahnung zeigt Rechnungsbetrag, jede Zahlung mit Datum, Skonto, Einbehalt und den angemahnten Betrag, eingefroren
+beim Festschreiben. Eine festgeschriebene Mahnung geht per E-Mail und als nachgetragene Zustellung nur hinaus, solange ihr Betrag noch
+dem mahnfähigen entspricht (Zustellung: am Zustelltag) und die Rechnung nicht storniert ist; sonst 409 mit Hinweis auf eine neue
+Mahnung. Das Dashboard zeigt Mahnungen auch bei gewähltem Mitarbeiter (Sachbearbeiter des Auftrags, ohne ihn für jeden). Dazu der
+Befund für Z2b (Mahngebühren, Zugangsdaten, Nebenforderungen) im Archiv.
+
+Neu `test_v382_mahnwesen` (33), `test_v382_mahnwesen_pg` (8, gegen PostgreSQL) und `test_v382_mahnwesen_migration` (2, davon 1
+gegen PostgreSQL); Tests, deren Erwartung die neuen Fristregeln überholen, angepasst (Liste im Archiv). Gegenproben 21 von 21 rot.
+Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3518 grün, 0 rot, 7 erwartet fehlgeschlagen. Alle Klicktests: 48 von 48 wie
+erwartet in 10:43 min. Festlegungen zum Bestätigen, Befund Z2b und Nebenbefunde in `docs/archiv/zahlungen.md`.
+
 ## 1.8.78 – Zahlungseingänge (Zahlungsstufe Z1)
 
 „Bezahlt“ ist kein Knopf und kein Status mehr, sondern folgt aus gebuchten Zahlungen. Ein Zahlungseingang (Kunde, Eingangsdatum,

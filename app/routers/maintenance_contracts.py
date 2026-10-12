@@ -94,8 +94,8 @@ def get_maintenance_contract(contract_id: int, db: Session = Depends(get_db), _r
 
 @router.post("/api/maintenance-contracts/check-due")
 def post_check_due_maintenance_contracts(db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    """Analog zu POST /api/reminders/auto-create -- vom Frontend beim Seitenaufruf
-    ausgelöst, kein Hintergrund-Job (siehe Modul-Docstring in app/maintenance_contracts.py)."""
+    """Vom Frontend beim Seitenaufruf ausgelöst, kein Hintergrund-Job (siehe Modul-Docstring in
+    app/maintenance_contracts.py)."""
     _require_module_enabled(db)
     reminded = check_due_contracts_and_create_reminders(db)
     return {"reminded_contract_ids": reminded}

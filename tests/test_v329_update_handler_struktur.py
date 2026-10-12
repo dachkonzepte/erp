@@ -238,7 +238,6 @@ BEKANNT = {
     "PUT /api/quotes/{quote_id}/sections/{section_id}": _VOLLES_FORMULAR,
     "PUT /api/recurring-costs/{cost_id}": _VOLLES_FORMULAR,
     "PUT /api/reminder-levels/{level_id}": _VOLLES_FORMULAR,
-    "PUT /api/reminders/{reminder_id}": _VOLLES_FORMULAR,
     "PUT /api/resources/{resource_id}": _VOLLES_FORMULAR,
     "PUT /api/roof-component-types/{component_type_id}": _VOLLES_FORMULAR,
     "PUT /api/roof-components/{component_id}": _VOLLES_FORMULAR,
@@ -274,6 +273,7 @@ REPARIERT_1_8_25 = {
 REPARIERT_SPAETER = {
     "PUT /api/orders/{order_id}",  # 1.8.32: neues Feld execution_period, ein Aufrufer ohne es hätte es geleert
     "PUT /api/roof-areas/{roof_area_id}",  # 1.8.46: Garantie Dritter umbenannt, Speicherweg auf Teil-Update
+    "PUT /api/reminders/{reminder_id}",  # 1.8.79: Frist in Tagen statt Datum, alle Felder Pflicht (Z2a Nr. 3)
 }
 
 
