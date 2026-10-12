@@ -231,7 +231,8 @@ def test_invalid_address_never_reaches_graph(db_session, graph, address):
         send_invoice_email(db, invoice, to_email=f"ok@example.com; {address}", dispatch_key="rechnung-adr-0001")
     assert f"„{address}“ ist keine gültige E-Mail-Adresse – " in str(exc.value)
     assert graph.urls == [], "die Adresse hat Microsoft 365 erreicht"
-    assert _dispatches(db) == [] and db.scalars(select(SentDocument)).all() == []
+    # Seit 1.8.82 liegt die feste Fassung schon vom Festschreiben in der Ablage -- der Versand legt nichts dazu.
+    assert _dispatches(db) == [] and [d.id for d in db.scalars(select(SentDocument))] == [invoice.pdf_document_id]
 
 
 def test_valid_addresses_pass_both_our_check_and_the_graph_fake(db_session, graph):
@@ -447,9 +448,11 @@ def test_reprint_of_a_sent_invoice_is_byte_identical_after_letterhead_change(off
     client = _client(db, router_test_client)
     invoice = make_sent_overdue_invoice(db)
     before = client.get(f"/api/invoices/{invoice.id}/pdf")
-    assert before.status_code == 200 and "X-DK-Ablage" not in before.headers  # noch nie versendet: neu erzeugt
+    # Seit 1.8.82: schon vor dem ersten Versand die feste Fassung vom Festschreiben (bis 1.8.81 hier neu erzeugt).
+    assert before.status_code == 200 and before.headers.get("X-DK-Ablage") == str(invoice.pdf_document_id)
     send_invoice_email(db, invoice, to_email="kunde@example.com", dispatch_key="rechnung-druck-0001")
     sent_bytes = _attachment(FakeSMTP.sent[0]["message"])
+    assert sent_bytes == before.content
     [first] = _dispatches(db)
     assert _archive_path(first.sent_document).read_bytes() == sent_bytes
     _assert_reprint_is_the_archive(db, client, f"/api/invoices/{invoice.id}/pdf", sent_bytes,
@@ -488,13 +491,26 @@ def test_reprint_of_a_sent_reminder_is_byte_identical(office_world, router_test_
                                    lambda: build_reminder_pdf(db, reminder))
     send_reminder_email(db, reminder, dispatch_key="mahnung-druck-0002")
     assert _attachment(FakeSMTP.sent[1]["message"]) == sent_bytes
-    assert len(db.scalars(select(SentDocument)).all()) == 1
+    # Seit 1.8.82 liegt dazu die feste Fassung der Rechnung in der Ablage -- gezählt wird die Mahnung.
+    assert len(db.scalars(select(SentDocument).where(SentDocument.document_type == "mahnung")).all()) == 1
+
+
+def vor_1_8_82(db, invoice):
+    """So steht eine vor 1.8.82 festgeschriebene Rechnung in der Datenbank: ohne feste Fassung -- für sie gilt die Regel
+    "ab dem ersten Versand aus der Ablage" weiter (wie für Mahnungen). Core-UPDATE an der ORM-Sperre vorbei; in der App setzt
+    nichts den Verweis zurück. Die Datei vom Festschreiben bleibt ohne Versand und zählt so nicht als maßgeblich."""
+    table = Invoice.__table__
+    db.execute(update(table).where(table.c.id == invoice.id).values(pdf_document_id=None))
+    db.commit()
+    db.refresh(invoice)
+    return invoice
 
 
 def test_failed_first_dispatch_does_not_freeze_the_document(db_session, graph):
+    """Seit 1.8.82 an einer Rechnung von vor 1.8.82 (die neuen haben die feste Fassung vom Festschreiben)."""
     db = db_session
     _configure_graph(db)
-    invoice = make_sent_overdue_invoice(db)
+    invoice = vor_1_8_82(db, make_sent_overdue_invoice(db))
     graph.fail_status = 503
     with pytest.raises(ValueError):
         send_invoice_email(db, invoice, to_email="kunde@example.com", dispatch_key="rechnung-frost-0001")
@@ -509,10 +525,10 @@ def test_failed_first_dispatch_does_not_freeze_the_document(db_session, graph):
 
 def test_stuck_dispatch_freezes_until_resolved_as_failed(db_session, smtp):
     """Hängend heißt "womöglich beim Kunden" -- die Fassung gilt, bis das Büro klärt, dass sie nicht
-    hinausging."""
+    hinausging. Seit 1.8.82 an einer Rechnung von vor 1.8.82."""
     db = db_session
     _configure_smtp(db)
-    invoice = make_sent_overdue_invoice(db)
+    invoice = vor_1_8_82(db, make_sent_overdue_invoice(db))
     smtp.during_send = lambda: (_ for _ in ()).throw(SystemExit("Prozess bricht ab"))
     with pytest.raises(SystemExit):
         send_invoice_email(db, invoice, to_email="kunde@example.com", dispatch_key="rechnung-abbruch-0001")

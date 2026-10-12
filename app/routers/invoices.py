@@ -278,7 +278,9 @@ def delete_invoice(invoice_id: int, db: Session = Depends(get_db), _role: AppUse
 @router.get("/api/invoices/{invoice_id}/pdf")
 def get_invoice_pdf(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     """Seit 1.8.19 ab dem ersten Versand die abgelegte Fassung (Nachdruck = genau das, was der Kunde
-    bekam, auch nach geändertem Briefkopf), sonst neu erzeugt -- siehe document_pdf_response()."""
+    bekam, auch nach geändertem Briefkopf), sonst neu erzeugt -- siehe document_pdf_response(). Seit 1.8.82
+    ab dem Festschreiben (feste Fassung, Invoice.pdf_document_id); neu erzeugt nur noch ein Entwurf und eine
+    Rechnung von vor 1.8.82 bis zu ihrem ersten Versand."""
     invoice = _get_invoice_or_404(db, invoice_id)
     name_part = invoice.invoice_number or f"Entwurf-{invoice.id}"
     filename = f"Rechnung_{name_part}.pdf".replace("/", "-")

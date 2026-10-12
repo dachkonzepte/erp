@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.82 – Feste Fassung der Rechnung, Sperren am Auftrag (R4a, Punkte 1 und 2)
+
+Das PDF jeder Rechnung – jede Art, auch Storno – entsteht jetzt beim Festschreiben im selben Commit und liegt ab dann mit Prüfsumme in
+der Ablage; die Rechnung verweist darauf, der Verweis steht fest. Download, E-Mail-Versand und nachgetragene Zustellung nehmen nur diese
+Bytes, auch vor dem ersten Versand und nach einem geänderten Briefkopf; eine veränderte oder fehlende Datei wird nicht still ersetzt.
+Bis 1.8.81 entstand das PDF bis zum ersten Versand bei jedem Abruf neu, mit dem Briefkopf von heute. Scheitert das PDF oder die Ablage,
+ist die Rechnung nicht festgeschrieben und keine Nummer verbraucht. Rechnungen von vor 1.8.82 behalten die alte Regel.
+
+Der Auftrag lässt sich nicht mehr unbegrenzt ändern (Befund R4, Nebenbefund 1): Einheitspreis, Einheit und „in Summe“ einer Position
+sind gesperrt, sobald eine festgeschriebene, nicht stornierte Rechnung sie abrechnet; der Steuerschlüssel ab der ersten solchen
+Rechnung; Mengen und Texte bleiben bis zur Schlussrechnung offen, danach ist alles gesperrt – Positionen, LV-Titel, Steuerschlüssel
+und der Abgleich mit dem Angebot. 409 mit Grund, geprüft unter der Sperre der Auftragszeile wie das Festschreiben; die Auftragsseite
+zeigt die Gründe statt der Eingabe. Migration `6d1e8b3f2a47` (ändert keine Daten), auf SQLite und PostgreSQL mit Bestand geprobt.
+
+Neu `test_v385_feste_fassung_rechnung` (17, davon 2 gegen PostgreSQL), `test_v385_auftrag_sperren` (36, davon 4 gegen
+PostgreSQL) und `test_v385_feste_fassung_migration` (2, davon 1 gegen PostgreSQL); Tests, die vor dem ersten Versand eine leere
+Ablage erwarteten, angepasst. Gegenproben 21 von 21 rot. Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3706 grün, 1 rot
+(eine solche Erwartung, angepasst), 7 erwartet fehlgeschlagen. Alle Klicktests: 51 von 51 wie erwartet in 10:38 min. Festlegungen zum Bestätigen und Nebenbefunde in
+`docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.82".
+
 ## 1.8.81 – Verzugszinsen, Zahlungen auf Nebenforderungen, Rechtstexte (Z2b, Punkte 7–9)
 
 Verzugszinsen kommen als Vorschlag in den Mahnungsentwurf, berechnet bis zum Mahndatum und erst beim Festschreiben – frisch unter der

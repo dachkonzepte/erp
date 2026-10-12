@@ -266,7 +266,8 @@ def test_invalid_manual_delivery_writes_nothing(invoice_world, router_test_clien
         pytest.skip("Datum liegt nicht in der Zukunft (Zeitzone)")
     response = _manual(office, "rechnung", invoice.id, **kwargs)
     assert response.status_code == status and text in response.json()["detail"], response.text
-    assert _dispatches(db) == [] and db.scalars(select(SentDocument)).all() == []
+    # Seit 1.8.82 liegt die feste Fassung schon vom Festschreiben in der Ablage -- die Zustellung legt nichts dazu.
+    assert _dispatches(db) == [] and [d.id for d in db.scalars(select(SentDocument))] == [invoice.pdf_document_id]
 
 
 def test_too_large_receipt_is_rejected(invoice_world, router_test_client, monkeypatch):

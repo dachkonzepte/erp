@@ -40,8 +40,13 @@ Kunde der Rechnung (seit 1.8.79, Vorgabe Z2a "Vorweg"): beim Festschreiben hält
 (Invoice.customer_id: der Kunde des Projekts, beim Storno der der stornierten Rechnung) -- danach gehört sie zu ihm, auch für
 Zahlungen und den Versand an seine Adresse (invoice_customer()). Den Kunden eines Projekts mit festgeschriebener Rechnung kann
 niemand mehr wechseln (app/project_participants.py::check_client_change(), dieselbe Sperre der Auftragszeilen).
+
+Feste Fassung (seit 1.8.82, R4a Punkt 1, docs/archiv/befund-vor-echtbetrieb.md "Umsetzung 1.8.82"): das PDF jeder Rechnung (jede
+Art, auch Storno) entsteht beim Festschreiben im selben Commit und liegt ab dann mit SHA-256 in der Ablage (_store_fixed_pdf(),
+Invoice.pdf_document_id) -- Download, Versand und nachgetragene Zustellung nehmen nur diese Bytes, nie ein neu erzeugtes PDF.
 """
 
+import logging
 from datetime import date, timedelta
 from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal
 
@@ -61,7 +66,9 @@ from .rounding import CENT, INVOICE_ROUNDING_HALF_UP, round_money
 from .service_period import check_order, missing_reason, period_text, proposal as service_period_proposal
 from .settings import issue_number
 
-INVOICE_TYPES = {"abschlag_pauschal", "abschlag_leistungsstand", "schluss", "aufwand", "storno"}
+logger = logging.getLogger(__name__)
+
+INVOICE_TYPES ={"abschlag_pauschal", "abschlag_leistungsstand", "schluss", "aufwand", "storno"}
 EDITABLE_STATUS = "entwurf"
 PROGRESS_INVOICE_TYPES = ("abschlag_pauschal", "abschlag_leistungsstand")
 # Festgeschrieben und nicht storniert -- "gültig". Bis 1.8.77 auch "bezahlt"; seit 1.8.78 ist der Zahlstand abgeleitet
@@ -794,9 +801,38 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
         original = db.get(Invoice, invoice.storno_of_invoice_id)
         if original is not None:
             original.status = "storniert"
+    # Seit 1.8.82 (R4a Punkt 1): die feste Fassung im selben Commit -- keine festgeschriebene Rechnung ohne PDF in der Ablage.
+    _store_fixed_pdf(db, invoice)
     db.commit()
     db.refresh(invoice)
     return invoice
+
+
+def _store_fixed_pdf(db: Session, invoice: Invoice) -> None:
+    """Die feste Fassung (seit 1.8.82, R4a Punkt 1): das PDF im Stand des Festschreibens -- Nummer, Datum, Kunde und Anschrift
+    schon gesetzt --, abgelegt mit SHA-256 (app/sent_documents.py, Art "rechnung", Dokument-ID = Rechnung) und an der Rechnung
+    vermerkt (Invoice.pdf_document_id). Danach entsteht es nie neu: Download, Versand und nachgetragene Zustellung nehmen die
+    abgelegten Bytes, nur mit stimmender Prüfsumme (frozen_version()). Vorher (bis 1.8.81) entstand das PDF bis zum ersten Versand
+    bei jedem Abruf neu -- mit dem Briefkopf und den Einstellungen von heute. Scheitert das PDF oder die Ablage, rollt das
+    Festschreiben zurück (keine Nummer, kein Status) -- ValueError, Router 400. Aufruf unter der Sperre der Auftragszeile."""
+    from .audit import current_actor
+    from .invoice_pdf import build_invoice_pdf  # lokal: app/invoice_pdf.py importiert dieses Modul (Regel 3)
+    from .sent_documents import store_sent_document
+
+    db.flush()
+    try:
+        content = build_invoice_pdf(db, invoice)
+        user_id, user_name = current_actor()
+        document = store_sent_document(
+            db, document_type="rechnung", document_id=invoice.id, document_number=invoice.invoice_number,
+            filename=f"{invoice.invoice_number}.pdf", content=content, user_id=user_id, user_name=user_name,
+        )
+    except Exception as exc:  # noqa: BLE001 -- ohne feste Fassung kein Festschreiben
+        logger.error("Rechnung %s: feste Fassung nicht erstellt (%s)", invoice.id, type(exc).__name__)
+        raise _reject(db, ValueError(
+            "Das PDF der Rechnung ließ sich nicht erstellen bzw. ablegen – die Rechnung ist nicht festgeschrieben, keine Nummer "
+            "vergeben. Bitte erneut versuchen; bleibt es dabei, die Einstellungen (Briefkopf, Ränder) prüfen.")) from exc
+    invoice.pdf_document_id = document.id
 
 
 def _customer_at_finalize(db: Session, invoice: Invoice) -> int | None:
@@ -1308,7 +1344,8 @@ def send_invoice_email(
     mehrere Empfänger und CC. Ein schon gesendeter Schlüssel ändert nichts mehr.
 
     Seit 1.8.19 geht ab dem ersten Versand die abgelegte Fassung hinaus, nicht ein neu erzeugtes
-    PDF (app/sent_documents.py::frozen_or_fresh_pdf()) -- auch bei einer Stornorechnung."""
+    PDF (app/sent_documents.py::frozen_or_fresh_pdf()) -- auch bei einer Stornorechnung. Seit 1.8.82 schon
+    beim ersten Versand: die feste Fassung vom Festschreiben (_store_fixed_pdf())."""
     from .document_email_templates import get_email_template
     from .email_dispatch import actor_of, dispatch_email, mark_document_sent, new_dispatch_key
     from .invoice_pdf import build_invoice_pdf

@@ -27,6 +27,7 @@ from ..database import get_db
 from ..email_dispatch import DispatchConflict
 from ..invoices import invoice_summary_for_order
 from ..models import AppUser, Order, ServiceReport
+from ..order_locks import OrderLocked
 from ..order_pdf import build_order_pdf
 from ..orders import SyncBlockedError, create_order_revision, field_may_access_order, list_order_revisions, load_order, order_to_dict, send_order_email, sync_order_from_source_quote, update_order_header, update_order_item, update_order_section, update_order_tax_key
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
@@ -146,6 +147,8 @@ def put_order_tax_key(order_id: int, payload: TaxKeySelection, db: Session = Dep
     if order is None: raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
     try:
         order = update_order_tax_key(db, order, payload.tax_key_id)
+    except OrderLocked as exc:  # seit 1.8.82: ab der ersten gültigen Rechnung gesperrt
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return OrderOut.model_validate(order_to_dict(order, db))
@@ -181,6 +184,8 @@ def get_order_contract_basis_changes(order_id: int, db: Session = Depends(get_db
 def put_order_item(order_id: int, item_id: int, payload: OrderItemUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     try:
         order = update_order_item(db, order_id, item_id, **payload.model_dump())
+    except OrderLocked as exc:  # seit 1.8.82: abgerechnete Position bzw. nach der Schlussrechnung
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return OrderOut.model_validate(order_to_dict(order, db))
@@ -190,6 +195,8 @@ def put_order_item(order_id: int, item_id: int, payload: OrderItemUpdate, db: Se
 def put_order_section(order_id: int, section_id: int, payload: OrderSectionUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     try:
         order = update_order_section(db, order_id, section_id, title=payload.title, description=payload.description)
+    except OrderLocked as exc:  # seit 1.8.82: nach der Schlussrechnung
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return OrderOut.model_validate(order_to_dict(order, db))

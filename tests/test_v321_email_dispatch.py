@@ -538,7 +538,9 @@ def test_invalid_address_is_rejected_before_anything_is_written(db_session, smtp
     invoice = make_sent_overdue_invoice(db)
     with pytest.raises(ValueError):
         send_invoice_email(db, invoice, to_email=to, cc_email=cc, dispatch_key="rechnung-adresse-0001")
-    assert smtp.sent == [] and _dispatches(db) == [] and db.scalars(select(SentDocument)).all() == []
+    # Seit 1.8.82 liegt die feste Fassung schon vom Festschreiben in der Ablage -- der Versand legt nichts dazu.
+    assert smtp.sent == [] and _dispatches(db) == []
+    assert [d.id for d in db.scalars(select(SentDocument))] == [invoice.pdf_document_id]
 
 
 @pytest.mark.parametrize("channel", ["smtp", "graph"])
@@ -619,7 +621,10 @@ def test_every_document_sender_logs_and_archives(db_session, smtp, make):
     assert (row.document_type, row.document_id, row.document_number) == (document_type, document.id, number)
     assert (row.to_recipients, row.cc_recipients, row.status) == ("kunde@example.com", "chef@example.com", "gesendet")
     assert (row.created_by_user_id, row.created_by_name) == (user.id, "Anna Büro")
-    assert row.sent_document.created_by_name == "Anna Büro"
+    if document_type == "rechnung":  # seit 1.8.82: die feste Fassung vom Festschreiben (hier ohne Anfrage: "System")
+        assert row.sent_document_id == document.pdf_document_id and row.sent_document.created_by_name == "System"
+    else:
+        assert row.sent_document.created_by_name == "Anna Büro"
     assert _archive_path(row.sent_document).read_bytes() == _attachment(mail["message"])
     assert document.email_sent_to == "kunde@example.com"
 

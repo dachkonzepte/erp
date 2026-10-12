@@ -58,7 +58,8 @@ def _archive_http_error(e: ArchiveFileError) -> HTTPException:
 def document_pdf_response(db: Session, document_type: str, document_id: int, *, build: Callable[[], bytes],
                           filename: str) -> Response:
     """PDF-Antwort für Nachdruck/Download von Rechnung, Storno und Mahnung (seit 1.8.19): ab dem
-    ersten Versand die abgelegte Fassung (Kopfzeile X-DK-Ablage mit ihrer ID), sonst neu erzeugt.
+    ersten Versand die abgelegte Fassung (Kopfzeile X-DK-Ablage mit ihrer ID), sonst neu erzeugt; eine
+    Rechnung seit 1.8.82 ab dem Festschreiben (feste Fassung).
     Ist die abgelegte Datei verändert oder fehlt sie, wird nicht still neu erzeugt -- 409 bzw. 410
     wie beim Abruf aus dem Versandprotokoll. Die Rollenprüfung macht der aufrufende Router."""
     try:

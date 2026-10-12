@@ -1763,11 +1763,19 @@ class Invoice(Base):
     # sein (erneuter Versand z.B. falls der Kunde sie nicht erhalten hat).
     email_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     email_sent_to: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Feste Fassung (seit 1.8.82, R4a Punkt 1): das PDF, beim Festschreiben im selben Commit erzeugt und in der Ablage abgelegt
+    # (SentDocument mit SHA-256) -- danach nie neu erzeugt, Versand und Download nur von dort (app/invoices.py::
+    # finalize_and_send_invoice(), app/sent_documents.py::frozen_version()). Einmal gesetzt, steht es fest (ORM-Sperre unten).
+    # Leer: Entwurf, oder vor 1.8.82 festgeschrieben (dann wie bisher ab dem ersten Versand aus der Ablage). Migration
+    # 6d1e8b3f2a47.
+    pdf_document_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sent_documents.id", name="fk_invoices_pdf_document_id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     order: Mapped["Order"] = relationship(back_populates="invoices")
     customer: Mapped["Customer | None"] = relationship()  # seit 1.8.79, siehe customer_id
+    pdf_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[pdf_document_id])  # seit 1.8.82
     items: Mapped[list["InvoiceItem"]] = relationship(back_populates="invoice", cascade="all, delete-orphan", order_by="InvoiceItem.sort_order")
     reminders: Mapped[list["Reminder"]] = relationship(back_populates="invoice", cascade="all, delete-orphan", order_by="Reminder.level")
 
@@ -5808,6 +5816,18 @@ def _dispatch_limited_update(mapper, connection, target):
 @event.listens_for(EmailDispatch, "before_delete")
 def _dispatch_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Ein Protokolleintrag wird nie gelöscht.")
+
+
+# Feste Fassung einer Rechnung (seit 1.8.82): pdf_document_id genau einmal von leer auf die Ablage (beim Festschreiben).
+@event.listens_for(Invoice, "before_update")
+def _invoice_pdf_fixed(mapper, connection, target):
+    if not inspect(target).attrs.pdf_document_id.history.has_changes():
+        return
+    table = Invoice.__table__
+    stored = connection.execute(
+        table.select().with_only_columns(table.c.pdf_document_id).where(table.c.id == target.id)).scalar()
+    if stored is not None:
+        raise ArchiveImmutableError("Die feste Fassung einer Rechnung steht fest.")
 
 
 # Festgeschriebene Vertragsfassung (seit 1.8.33): nur superseded_at darf sich ändern, und nur einmal

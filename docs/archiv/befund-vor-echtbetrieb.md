@@ -1790,6 +1790,149 @@ erwartet, Laufzeit gesamt 10:43 min. Keine rote Prüfung.
    (`MaintenanceContract`, `MaintenanceContractItem`), und die Wartung ist ein Schnellauftrag über 0 €. Eine Pauschale ginge dort nur
    als pauschaler Abschlag -- der sperrt bis R4 die Schlussrechnung.
 
+## Umsetzung 1.8.82: feste Fassung der Rechnung, Sperren am Auftrag (R4a, Punkte 1 und 2)
+
+### Vorgabe vom 12.10.2026 (übernommen wie gegeben)
+
+Befund R4 geprüft. Klarstellung zu den xfail-Tests: Der Betrag der Schlussrechnung (Brutto für Zahlungen, offene Posten,
+„abgerechnet“) ist der Rechnungsbetrag nach dem Abzugsblock, nicht die Gesamtleistung; die Gesamtleistung ist nur Anzeige im PDF.
+Damit bleibt „abgerechnet = Summe der gültigen Rechnungsbeträge“ richtig, und 1a und 1b messen das Richtige.
+
+R4a Fundament (befund-vor-echtbetrieb.md, „Befund R4“; Entscheidungen ins Archiv):
+1. Rechnungs-PDF jeder Art wird beim Festschreiben erzeugt und als feste Fassung mit Prüfsumme abgelegt; danach nie neu erzeugt.
+   Versand und Download nur aus der Ablage.
+2. Sperren am Auftrag (Nebenbefund 1): Einheitspreis und „in Summe“ einer Position gesperrt, sobald eine festgeschriebene Rechnung
+   auf sie verweist; Steuersatz gesperrt ab der ersten festgeschriebenen Rechnung; Mengen bis zur Schlussrechnung änderbar; nach
+   gültiger Schlussrechnung alles gesperrt. 409 mit Grund.
+3. Nachträge nur als gekennzeichnete Auftragsposition; freie Positionen ohne Auftragsbezug nur in Rechnungen aus Aufwand.
+4. Ein Abschlag nach Leistungsstand mit negativem Betrag wird abgelehnt, 409 mit Hinweis auf Storno oder Schlussrechnung
+   (Nebenbefund 2).
+5. „Letzter Stand“ einer Position ist der des zuletzt festgeschriebenen Abschlags, nicht des zuletzt angelegten.
+6. 1d: Das Storno eines pauschalen Abschlags ohne Positionen lautet auf den Gegenbetrag des Originals.
+
+xfail 1d muss grün werden, Markierung dann entfernen. Angriffstests mit Gegenprobe, Gleichzeitigkeit gegen PostgreSQL. Eigene
+Festlegungen mit „Bitte bestätigen“. Nebenbefunde nur melden. Wird der Umfang zu groß: nach Punkt 2 committen und den Rest
+auflisten. Commit nach Regel 13, Bericht kurz.
+
+### Vorweg
+
+- Klarstellung und Entscheidungen R4a unter "Entscheidungen Rechnungen" (Ende dieser Datei) eingetragen.
+- Umfang: nach Punkt 2 committet (1.8.82); Punkte 3–6 als eigene Version 1.8.83 (siehe dort).
+
+### Was gebaut ist
+
+- **Feste Fassung beim Festschreiben** (`app/invoices.py::_store_fixed_pdf()`, aufgerufen in `finalize_and_send_invoice()` nach
+  Datum, Kunde, Nummer und Status, vor dem Commit): das PDF jeder Rechnung -- jede Art, auch Storno -- entsteht im Stand des
+  Festschreibens und geht in die Ablage (`app/sent_documents.py::store_sent_document()`, Art "rechnung", Dokument-ID = Rechnung,
+  Nummer, Datei `<Nummer>.pdf`, SHA-256, angelegt von der festschreibenden Person). Die Rechnung verweist darauf
+  (`Invoice.pdf_document_id`, FK `sent_documents`, Migration `6d1e8b3f2a47`). Alles in einem Commit: keine festgeschriebene
+  Rechnung ohne Fassung. Scheitert das PDF oder die Ablage, rollt das Festschreiben zurück -- Status Entwurf, keine Nummer, der
+  Nummernkreis unverändert --, ValueError mit Text, Router 400; `logger.error` mit Rechnungs-ID und Klassenname (Regel 18).
+- **Danach nie neu erzeugt**: `frozen_version()` liefert bei einer Rechnung zuerst die feste Fassung -- Download
+  (`GET /api/invoices/{id}/pdf`, Kopfzeile `X-DK-Ablage`), E-Mail-Versand (`send_invoice_email()`: der Anhang IST die Fassung, der
+  Eintrag verweist nur, legt nichts ab) und nachgetragene Zustellung (`app/dispatch_documents.py`) nehmen nur diese Bytes, nur mit
+  stimmender Prüfsumme (sonst 409/410 bzw. "nicht mehr unversehrt", nie still neu erzeugt) -- auch vor dem ersten Versand, nach
+  einem geänderten Briefkopf und nach einem fehlgeschlagenen Versand. Vorher (bis 1.8.81) entstand das PDF bis zum ersten
+  nicht fehlgeschlagenen Versand bei jedem Abruf neu, mit dem Briefkopf von heute.
+- **Verweis steht fest**: ORM-Sperre `_invoice_pdf_fixed` (`app/models.py`) -- `pdf_document_id` einmal von leer auf die Ablage,
+  danach weder auf ein anderes Dokument noch zurück auf leer (`ArchiveImmutableError`).
+- **Sperren am Auftrag** (neu `app/order_locks.py`, geprüft unter der Sperre der Auftragszeile `lock_order_invoices()`, dieselbe
+  wie das Festschreiben; abgelehnt wird nur eine tatsächliche Änderung, `OrderLocked` = 409 mit Grund):
+  - **Einheitspreis, Einheit, "in Summe"** einer Position (`update_order_item()`): gesperrt, sobald eine gültige Rechnung
+    (festgeschrieben, nicht storniert, kein Storno) sie abrechnet -- Rechnungsposition mit Verweis und Ist ≠ 0. Grund nennt die
+    Rechnungen: "Einheitspreis, Einheit und „in Summe“ sind gesperrt: die Position ist in R-… abgerechnet. Die Menge bleibt bis zur
+    Schlussrechnung änderbar; für einen anderen Preis zuerst die Rechnung stornieren."
+  - **Steuerschlüssel** (`update_order_tax_key()`): ab der ersten gültigen Rechnung gleich welcher Art (auch pauschal, Aufwand).
+  - **Menge, Texte, Positionstyp, OZ**: bis zur Schlussrechnung frei.
+  - **Nach einer gültigen Schlussrechnung**: jedes Feld jeder Position, LV-Titel (`update_order_section()`), Steuerschlüssel --
+    "Nach der Schlussrechnung R-… ist der Auftrag abgerechnet: … Ausweg: die Schlussrechnung stornieren."
+  - **Abgleich mit dem Angebot** (`sync_block_reasons()`): zusätzlich gesperrt nach einer gültigen Schlussrechnung (auch einer ohne
+    Positionen) und, solange eine gültige Rechnung besteht, wenn das Angebot einen anderen Steuerschlüssel oder Satz hat (vorher
+    hätte ein pauschaler Abschlag, der an keiner Position hängt, den Abgleich samt Steuersatz durchgelassen).
+  - Router (`app/routers/orders.py`): Position, Steuerschlüssel, LV-Titel 409 vor 400/404.
+- **Auftragsseite** (`order.html`, `order_to_dict()`: `order_lock`, `tax_lock`, je Position `price_lock`): an einer abgerechneten
+  Position "Abgerechnet – Einheitspreis, Einheit und „in Summe“ gesperrt", Preis und Einheit gesperrt (Grund als Tooltip, im Dialog
+  als Hinweis, dort auch "in Summe"); Steuerschlüssel gesperrt mit Grund darunter; nach der Schlussrechnung der Grund über dem LV,
+  jede Eingabe gesperrt, keine Bearbeiten-Knöpfe an Positionen und Titeln. Der Hinweis "Prozesslogik" nennt die Sperren.
+- Klicktest `scripts/klicktest_auftrag_sperren.py`.
+
+### Festlegungen 1.8.82 (Bitte bestätigen)
+
+1. **Feste Fassung jeder Art**, auch Storno; im selben Commit wie das Festschreiben. Scheitert das PDF oder die Ablage, ist nichts
+   festgeschrieben (400 mit Text) -- lieber kein Festschreiben als eine Rechnung ohne Fassung.
+2. **Altbestand** (vor 1.8.82 festgeschrieben, ohne Fassung): bleibt bei der alten Regel -- bis zum ersten nicht fehlgeschlagenen
+   Versand neu erzeugt, danach aus der Ablage. Keine nachträgliche Fassung, weder per Migration (sie entstünde mit dem Briefkopf von
+   heute) noch beim Lesen (Regel 23). Auf dem Server sind es Probebelege.
+3. **Entwurf**: die PDF-Vorschau entsteht weiter neu ("(Entwurf)", ohne Ablage). Mahnungen bleiben bei der alten Regel -- Punkt 1
+   nennt nur Rechnungen.
+4. **"Verweist" = rechnet ab**: eine Rechnungsposition mit Verweis und Ist ≠ 0 einer gültigen Rechnung (festgeschrieben, nicht
+   storniert, kein Storno). Eine Position mit Ist 0 steht nicht auf der Rechnung (ein Abschlag kopiert alle Positionen, auch die
+   noch nicht begonnenen) und sperrt nicht; ist die Rechnung storniert, ist die Position wieder frei -- so lässt sich ein falscher
+   Preis über Storno und neuen Abschlag berichtigen.
+5. **Mit dem Einheitspreis auch die Einheit**: der Preis gilt je Einheit, "m² → Stk." bei gleichem Preis änderte, was abgerechnet
+   ist. Texte, Positionstyp und OZ bleiben bis zur Schlussrechnung frei wie die Menge.
+6. **Steuersatz = Steuerschlüssel** (Satz und Hinweistext); gesperrt, solange eine gültige Rechnung besteht -- sind alle storniert,
+   wieder frei. Derselbe Schlüssel noch einmal geht durch.
+7. **"Alles" nach der Schlussrechnung** = Positionen (jedes Feld), LV-Titel, Steuerschlüssel und der Abgleich. Nicht gesperrt: die
+   Auftragsdaten im Kopf (Status -- "abgeschlossen" kommt nach der Schlussrechnung --, Termine, Sachbearbeiter, Texte, Bemerkungen);
+   Vertragsgrundlage und Gewährleistung haben eigene Sperren. Nach dem Storno der Schlussrechnung wieder offen, die Preise der von
+   Abschlägen abgerechneten Positionen bleiben gesperrt.
+8. **Nur eine tatsächliche Änderung wird abgelehnt**: die Oberfläche schickt beim Speichern einer Position alle Felder; unverändert
+   (auch "50.000" statt "50") geht durch (200).
+9. **Abgleich mit dem Angebot**: zusätzlich gesperrt nach gültiger Schlussrechnung und bei anderem Steuerschlüssel/Satz des Angebots,
+   solange eine gültige Rechnung besteht (sonst ein zweiter Weg am gesperrten Steuersatz vorbei).
+
+### Tests und Prüfung
+
+- Neu `tests/test_v385_feste_fassung_rechnung.py` (17, davon 2 gegen PostgreSQL): feste Fassung je Art (pauschal, Leistungsstand,
+  Schluss, Aufwand) mit Nummer, Datum und Briefkopf vom Festschreiben, Storno mit eigener Fassung (die des Originals bleibt), Entwurf
+  neu erzeugt ohne Ablage; Download und erster Versand nach geändertem Briefkopf = Fassung, ein fehlgeschlagener Versand ändert nichts,
+  eine nachgetragene Zustellung verweist auf sie. **Angriffe**: Datei verändert bzw. gelöscht -> 409/410, kein Versand, nicht neu
+  erzeugt; Verweis über das ORM ändern oder leeren -> abgelehnt; PDF bzw. Ablage scheitert -> nichts festgeschrieben, Nummer frei,
+  Router 400. **Gleichzeitig (PostgreSQL, Commit der ersten Aktion eine Sekunde angehalten):** zwei Festschreiben desselben Entwurfs
+  -> eine Nummer, eine Fassung; das Festschreiben wartet auf eine laufende Änderung und legt deren Stand ab.
+- Neu `tests/test_v385_auftrag_sperren.py` (36, davon 4 gegen PostgreSQL): Preis, Einheit und "in Summe" je gesperrt nach einem
+  Abschlag, Menge und Texte offen, unverändertes Speichern geht; frei ohne Rechnung, mit Entwurf, mit Ist 0, nach Storno, mit
+  pauschalem Abschlag; Steuerschlüssel nach Abschlag nach Leistungsstand, pauschalem Abschlag und Rechnung aus Aufwand gesperrt, nach
+  Storno aller frei; nach der Schlussrechnung jedes Feld, LV-Titel und Steuerschlüssel, nach ihrem Storno wieder offen (der Preis der
+  vom Abschlag abgerechneten Position bleibt gesperrt); Gründe für die Auftragsseite; Router 409 bzw. 404; Abgleich gesperrt nach einer
+  Schlussrechnung ohne Positionen und bei anderem Steuersatz. **Gleichzeitig (PostgreSQL):** Preis-, Mengen- und Steueränderung warten
+  auf das Festschreiben und lehnen danach ab; das Festschreiben wartet auf eine Mengenänderung, die durchgeht.
+- Neu `tests/test_v385_feste_fassung_migration.py` (2, davon 1 gegen PostgreSQL): Bestand bleibt, keine nachträgliche Fassung, Rückweg
+  exakt, mit Fassung verweigert. `alembic check` auf einer Wegwerf-SQLite: keine Abweichung zwischen Modell und Migrationen.
+- **Erwartung geändert** (die Regel "bis zum ersten Versand neu erzeugt" gilt für Rechnungen nicht mehr, "nichts abgelegt" heißt jetzt
+  "nur die feste Fassung"): `test_v321` (ungültige Adresse; Versender "rechnung": die Fassung vom Festschreiben), `test_v323` (ungültige
+  Adresse; Nachdruck schon vor dem Versand aus der Ablage; Nachdruck der Mahnung zählt nur Mahnungen; fehlgeschlagener und hängender
+  erster Versand jetzt an einer Rechnung von vor 1.8.82, `vor_1_8_82()`), `test_v324` (ungültige Zustellung), `test_v382` (Zustellung
+  einer Mahnung).
+- Gegenproben (Regel 24): 21 von 21 rot -- Festschreiben ohne Fassung, Fassung vor der Nummer, Fehler beim PDF ohne Rücknahme,
+  maßgeblich erst ab Versand, ORM-Sperre aus; Position bzw. Steuer ohne Zeilensperre (PostgreSQL), Preis bzw. Einheit nicht gesperrt,
+  nach der Schlussrechnung nicht alles, Entwurf, Storno bzw. Ist 0 sperren den Preis, Steuer nicht gesperrt bzw. Storno zählt, Titel
+  frei, Abgleich ohne Schlussrechnung bzw. Steuer, Auftragsseite ohne Gründe, Router 404 statt 409, unveränderte Werte abgelehnt. Jede
+  Datei byte-genau zurück (SHA-256), kein Marker.
+- Klicktest `klicktest_auftrag_sperren.py` 17/17 (abgerechnete Position mit gesperrtem Preis und Einheit, Grund im Tooltip, an der
+  Position und im Dialog, Menge gespeichert, API 409; Steuerschlüssel gesperrt; nach der Schlussrechnung Grund über dem LV, jede Eingabe
+  gesperrt, keine Bearbeiten-Knöpfe; Rechnungs-PDF aus der Ablage, Entwurf neu erzeugt; hell, dunkel, 412 px).
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie): 3706 grün, 1 rot, 7 erwartet fehlgeschlagen (1a, 1b, 1d) -- rot
+  war `test_v382_mahnwesen.py::test_manual_delivery_counts_the_state_on_the_delivery_day` (erwartete eine leere Ablage, siehe "Erwartung
+  geändert"), angepasst, die Datei danach 34 grün.
+- Alle Klicktests (Regel 26, `scripts/klicktest_alle.py`, Arbeitskopie): 51 von 51 wie erwartet, Laufzeit gesamt 10:38 min. Keine rote Prüfung.
+
+### Nebenbefunde (nur gemeldet)
+
+1. **Rechnungsentwurf mit altem Einheitspreis**: ein Entwurf übernimmt den Preis beim Anlegen. Ändert das Büro den Preis am Auftrag,
+   solange die Position nur in Entwürfen steht (das ist erlaubt), schreibt das Festschreiben des Entwurfs den alten Preis fest --
+   danach ist der Auftrag mit dem neuen gesperrt, Auftrag und Rechnung weichen ab. Ebenso lässt sich der Preis einer Position mit
+   Auftragsbezug im Entwurf frei ändern (`update_invoice_item(unit_price=…)`, Rechnungsseite). Gehört zu 1b (Abzug aus dem Entwurf).
+2. **Steuerschlüssel des Rechnungsentwurfs frei**: `update_invoice_tax_key()` wählt je Rechnung einen beliebigen Schlüssel, unabhängig
+   vom gesperrten Steuersatz des Auftrags -- Abschlag mit 0 %, Schlussrechnung mit 19 % bleibt möglich (Befund R4 a6).
+3. **Datei ohne Eintrag**: scheitert der Commit nach dem Ablegen (Datenbankfehler), bleibt die Datei der Fassung ohne Eintrag in der
+   Ablage liegen -- dasselbe wie bei Vertrag und Checkliste; nichts verweist auf sie.
+4. **Auftragsliste rechnet je Auftrag alles**: `GET /api/orders` (`app/routers/orders.py::list_all_orders()`) ruft für jeden Auftrag
+   das volle `order_to_dict()` mit Abgleich, Abrechnungsstand, Rechnungssperren und seit 1.8.82 den Sperren am Auftrag auf -- nur um
+   Netto und Brutto zu zeigen; dazu je Auftrag `invoice_summary_for_order()`. Bei wachsender Zahl der Aufträge eine Abfrageflut
+   (CLAUDE.md "Datenmenge wächst"); vorher schon so, 1.8.82 legt je Auftrag eine Abfrage dazu.
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
@@ -1816,3 +1959,18 @@ Ergänzt am 12.10.2026 (Vorgabe 1.8.77, Punkt 3), übernommen wie gegeben:
   Gesamtwert noch abgezogen, nach der Schlussrechnung möglich -- "Umsetzung 1.8.73" -> Befund a, Festlegung 1.8.72 Nr. 3.)
 - **Echtbetrieb**: Auf dem Server sind keine echten Bewegungsdaten: zum Echtbetrieb werden die Probebelege entfernt. (Damit ist die
   offene Wahl aus "Umsetzung 1.8.73" -> Befund b getroffen; wie entfernt wird, ist nicht festgelegt -- Nebenbefund 8 aus 1.8.77.)
+
+Ergänzt am 12.10.2026 (Vorgabe R4a nach dem Befund R4), übernommen wie gegeben:
+
+- **Betrag der Schlussrechnung** (Brutto für Zahlungen, offene Posten, „abgerechnet“) ist der Rechnungsbetrag nach dem Abzugsblock,
+  nicht die Gesamtleistung; die Gesamtleistung ist nur Anzeige im PDF. „Abgerechnet = Summe der gültigen Rechnungsbeträge“ bleibt
+  richtig, die xfail-Tests 1a und 1b messen das Richtige.
+- **Rechnungs-PDF** jeder Art wird beim Festschreiben erzeugt und als feste Fassung mit Prüfsumme abgelegt; danach nie neu erzeugt.
+  Versand und Download nur aus der Ablage. (Seit 1.8.82 gebaut.)
+- **Sperren am Auftrag**: Einheitspreis und „in Summe“ einer Position gesperrt, sobald eine festgeschriebene Rechnung auf sie
+  verweist; Steuersatz gesperrt ab der ersten festgeschriebenen Rechnung; Mengen bis zur Schlussrechnung änderbar; nach gültiger
+  Schlussrechnung alles gesperrt. 409 mit Grund. (Seit 1.8.82 gebaut.)
+- **Nachträge** nur als gekennzeichnete Auftragsposition; freie Positionen ohne Auftragsbezug nur in Rechnungen aus Aufwand.
+- **Negativer Abschlag nach Leistungsstand** wird abgelehnt, 409 mit Hinweis auf Storno oder Schlussrechnung.
+- **„Letzter Stand“** einer Position ist der des zuletzt festgeschriebenen Abschlags, nicht des zuletzt angelegten.
+- **Storno eines pauschalen Abschlags ohne Positionen** (1d) lautet auf den Gegenbetrag des Originals.

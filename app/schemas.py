@@ -1261,6 +1261,8 @@ class OrderItemOut(BaseModel):
     unit_price: Decimal
     include_in_total: bool
     line_total: Decimal
+    # Seit 1.8.82 (R4a Punkt 2): warum Einheitspreis, Einheit und "in Summe" gesperrt sind (abgerechnet), sonst None.
+    price_lock: str | None = None
 
 
 class OrderItemUpdate(BaseModel):
@@ -1365,6 +1367,10 @@ class OrderOut(BaseModel):
     # Seit 1.8.72: je Rechnungsart (abschlag_pauschal, abschlag_leistungsstand, schluss) der Grund, warum eine neue gesperrt
     # ist, sonst None (app/invoices.py::create_block_reason()).
     invoice_create_blocks: dict[str, str | None] | None = None
+    # Seit 1.8.82 (R4a Punkt 2, app/order_locks.py): nach der Schlussrechnung ist alles gesperrt (order_lock), ab der ersten
+    # gültigen Rechnung der Steuersatz (tax_lock) -- je der Grund, sonst None.
+    order_lock: str | None = None
+    tax_lock: str | None = None
 
 
 class OrderFieldAccessItemOut(BaseModel):

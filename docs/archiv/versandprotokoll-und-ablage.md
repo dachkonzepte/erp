@@ -353,3 +353,12 @@ dem Senden im `before_send`-Haken angelegt, ORM-Sperre, Fremdschlüssel nur auf 
 Kopie ging oder warum keine Mail (keine oder ungültige Adresse, nicht mehr im Adressbuch). Eigene Tabelle wie Vollmacht und
 Versandergebnis, damit die Sperre des Protokolleintrags unverändert bleibt. Versandverlauf und Versandprotokoll zeigen "Laut
 „Kopie an:“ ohne Mail: …", die API liefert alle Zeilen am Eintrag (`copies`).
+
+## Nachtrag 1.8.82 -- feste Fassung der Rechnung beim Festschreiben
+
+Seit 1.8.82 (R4a Punkt 1, `docs/archiv/befund-vor-echtbetrieb.md` "Umsetzung 1.8.82") nimmt die Ablage das PDF einer Rechnung (jede
+Art, auch Storno) schon beim Festschreiben auf (`app/invoices.py::_store_fixed_pdf()`, `Invoice.pdf_document_id`) -- wie beim Vertrag
+IST es ab dann das Dokument. `frozen_version()` liefert für eine Rechnung zuerst diese Fassung; Download, Versand und nachgetragene
+Zustellung verweisen auf sie und legen nichts erneut ab, auch vor dem ersten und nach einem fehlgeschlagenen Versand. Die Regel "ab
+dem ersten nicht fehlgeschlagenen Versand maßgeblich" (1.8.19) gilt nur noch für Mahnungen und für Rechnungen, die vor 1.8.82
+festgeschrieben wurden.

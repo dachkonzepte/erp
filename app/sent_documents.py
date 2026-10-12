@@ -23,6 +23,11 @@ hängend); eine fehlgeschlagene zählt nicht, dann wird beim nächsten Versand n
 abgelegt. Rechnungen, die vor 1.8.17 oder nie per E-Mail hinausgingen, haben keine abgelegte
 Fassung und werden wie bisher neu erzeugt.
 
+Rechnung seit 1.8.82 (R4a Punkt 1): die Ablage nimmt das PDF schon beim Festschreiben auf (app/invoices.py::
+_store_fixed_pdf(), Invoice.pdf_document_id) -- wie beim Vertrag IST es ab dann das Dokument, auch vor jedem Versand und
+unabhängig von einem fehlgeschlagenen. Die Regel oben gilt nur noch für Mahnungen und für Rechnungen, die vor 1.8.82
+festgeschrieben wurden.
+
 Vertrag (seit 1.8.33): die Ablage nimmt die festgeschriebene Fassung beim Festschreiben auf, also
 vor jedem Versand -- sie IST ab dann das Dokument (app/contract_versions.py). Versand und
 nachgetragene Zustellung verweisen auf diesen Eintrag, legen nichts erneut ab.
@@ -42,7 +47,7 @@ from typing import Callable, NamedTuple
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import EmailDispatch, SentDocument
+from .models import EmailDispatch, Invoice, SentDocument
 from .paths import data_dir
 
 SENT_DOCUMENT_ROOT = Path(os.getenv("DACHKONZEPTE_SENT_DOCUMENT_ROOT", data_dir() / "sent_documents"))
@@ -155,9 +160,15 @@ def read_sent_document(doc: SentDocument) -> bytes:
 
 
 def frozen_version(db: Session, document_type: str, document_id: int) -> SentDocument | None:
-    """Die maßgebliche Fassung: die zuerst abgelegte, deren Versand nicht fehlgeschlagen ist."""
+    """Die maßgebliche Fassung: bei einer Rechnung seit 1.8.82 die feste Fassung vom Festschreiben (Invoice.pdf_document_id),
+    sonst die zuerst abgelegte, deren Versand nicht fehlgeschlagen ist."""
     if document_type not in FROZEN_AFTER_FIRST_DISPATCH:
         return None
+    if document_type == "rechnung":
+        fixed = db.scalar(select(SentDocument).join(Invoice, Invoice.pdf_document_id == SentDocument.id)
+                          .where(Invoice.id == document_id))
+        if fixed is not None:
+            return fixed
     not_failed = select(EmailDispatch.id).where(
         EmailDispatch.sent_document_id == SentDocument.id, EmailDispatch.status != "fehlgeschlagen",
     ).exists()

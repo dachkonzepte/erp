@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.81** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.82** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -585,8 +585,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     unveränderlichen Ablage. `tests/test_v321_email_dispatch.py` sucht jeden anderen Aufrufer per
     AST. Eine neue Versandstelle von der Oberfläche schickt einen `dispatch_key` je Klick mit
     (`_email_dispatch.html`). Ablage und Protokoll werden nie geändert oder gelöscht (einzige
-    Ausnahme seit 1.8.19: ein hängender Eintrag wird einmal mit Notiz geklärt). Rechnung, Storno und
-    Mahnung kommen ab dem ersten Versand aus der Ablage (`frozen_or_fresh_pdf()`), nie neu erzeugt; der Vertrag
+    Ausnahme seit 1.8.19: ein hängender Eintrag wird einmal mit Notiz geklärt). Rechnung und Storno liegen seit 1.8.82 ab dem
+    Festschreiben dort (feste Fassung im selben Commit, `Invoice.pdf_document_id`, `app/invoices.py::_store_fixed_pdf()`; ohne PDF
+    kein Festschreiben), die Mahnung und Rechnungen von vor 1.8.82 ab dem ersten Versand -- alle aus der Ablage
+    (`frozen_or_fresh_pdf()`), nie neu erzeugt; der Vertrag
     liegt seit 1.8.33 schon ab dem Festschreiben dort (Fassung, `app/contract_versions.py`), seit 1.8.34 auch
     Unterschriftsblatt, Unterschriftsbilder und Papier-Scan (`app/contract_signatures.py`), seit 1.8.35 die
     unterschriebene Abschrift (Fassung + Blatt bzw. Scan), die Versand und Zustellung danach hinausgeben; seit 1.8.40 ebenso die
@@ -693,7 +695,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   (`Order.customer_id`, Vertragspartner, beim Beauftragen unter der Sperre der Projektzeile); die Rechnung übernimmt beim Festschreiben
   Kunde, Name, Kundennummer und Anschrift vom Auftrag. Kundenwechsel am Projekt mit Auftrag nur mit Begründung
   (`customer_change_reason`), der Auftrag wechselt mit (`app/orders.py::change_orders_customer()`, Historie `OrderCustomerChange`,
-  Rechnungsentwürfe ebenso), nie mit festgeschriebener Rechnung oder Vertrag.
+  Rechnungsentwürfe ebenso), nie mit festgeschriebener Rechnung oder Vertrag. Seit 1.8.82 (R4a) entsteht das PDF beim Festschreiben
+  als feste Fassung in der Ablage (Regel 21), und der Auftrag ist nicht mehr frei änderbar (`app/order_locks.py`, `OrderLocked` = 409
+  mit Grund, unter der Sperre der Auftragszeile): Einheitspreis, Einheit und "in Summe" einer Position gesperrt, sobald eine gültige
+  Rechnung sie abrechnet (Verweis, Ist ≠ 0); der Steuerschlüssel ab der ersten gültigen Rechnung; Mengen und Texte bis zur
+  Schlussrechnung, danach alles (Positionen, LV-Titel, Steuerschlüssel, Abgleich mit dem Angebot).
 - **Zahlung** (`Payment`, seit 1.8.78, Zahlungsstufe Z1, `app/payments.py`): Zahlungseingang eines Kunden (Eingangsdatum, Betrag,
   Notiz), zugeordnet über `PaymentAllocation` (Art `zahlung`, Abzüge `skonto`/`einbehalt`) auf festgeschriebene Rechnungen desselben
   Kunden (seit 1.8.79 der an der Rechnung festgehaltene); der Rest bleibt am Kunden (Kundenakte). Je Rechnung abgeleitet, nie gespeichert (`payment_state()`):
@@ -1016,7 +1022,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   seit 1.8.75 4a-4c behoben (Rechnungsdatum = Tag des Festschreibens, Fälligkeit rückt mit, Hinweis bei späterem Versand) und jeder
   schreibende Weg an einer Rechnung unter der Sperre; seit 1.8.76 Nummernkreise: keine Anzeige schreibt oder verbraucht eine
   Nummer, Überspringen mit Warnung, Format ohne Jahr nicht mit Jahreswechsel; seit 1.8.77 jede Nummer eindeutig in der Datenbank
-  (alle sieben Nummernkreise), Befund Zahlungsstufe, Entscheidungen zu Einbehalt und Rechnung aus Aufwand; 1a, 1b und 1d für R4)
+  (alle sieben Nummernkreise), Befund Zahlungsstufe, Entscheidungen zu Einbehalt und Rechnung aus Aufwand; 1a, 1b und 1d für R4; Befund R4 "Schlussrechnung als
+  Endrechnung", Entscheidungen R4a; seit 1.8.82 R4a Punkte 1 und 2: feste Fassung der Rechnung beim Festschreiben, Sperren am
+  Auftrag)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1486,7 +1494,10 @@ Begründung; Monteurin 403; 412 px dunkel; seit 1.8.81 nur die Pauschale, sie sp
 Einstellungen: Büro liest Basiszinssatz und Rechtstexte, Admin legt das laufende Halbjahr und einen geprüften Rechtstext an, unbekannter
 Platzhalter gewarnt; Rechnungsseite: Zinsvorschlag erst nach dem Halbjahr, mit Abschnitt, Pauschale sperrt die Gebühr, Warnungen für
 ungeprüfte Rechtstexte, Festschreiben mit Zinsen, Aufstellung Format 3; Zahlungsdialog nach § 367 BGB, gebucht, Storno gesperrt; offene
-Nebenforderung sperrt das Storno; Mahnwesen: Ersatz nennt die gegengebuchte Gebühr in Zeile und Rückfrage; Monteurin 403; 412 px dunkel).
+Nebenforderung sperrt das Storno; Mahnwesen: Ersatz nennt die gegengebuchte Gebühr in Zeile und Rückfrage; Monteurin 403; 412 px dunkel)
+und `klicktest_auftrag_sperren.py` (1.8.82, Auftragsseite: abgerechnete Position mit gesperrtem Preis und Einheit, Grund als Hinweis,
+im Dialog und am Steuerschlüssel, Menge speicherbar, API 409; nach der Schlussrechnung Hinweis über dem LV, jede Eingabe gesperrt;
+Rechnungs-PDF aus der Ablage, Entwurf neu erzeugt; hell, dunkel, 412 px).
 Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,

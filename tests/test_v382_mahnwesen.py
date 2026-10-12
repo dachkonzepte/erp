@@ -464,7 +464,8 @@ def test_manual_delivery_counts_the_state_on_the_delivery_day():
     _zahlen(db, invoice, "1000", received_on=HEUTE)
     # Heute zugestellt: die Zahlung von heute zählt -- abgelehnt, nichts abgelegt.
     _geblockt(_zustellen, db, reminder, HEUTE, "zustellung-heute-0001", grund="mahnfähig waren am")
-    assert _anzahl(db, EmailDispatch) == 0 and _anzahl(db, SentDocument) == 0
+    # Seit 1.8.82 liegt in der Ablage nur die feste Fassung der Rechnung vom Festschreiben.
+    assert _anzahl(db, EmailDispatch) == 0 and [d.id for d in db.scalars(select(SentDocument))] == [invoice.pdf_document_id]
     # Gestern zugestellt (die Zahlung kam danach): der Betrag stimmte -- eingetragen.
     result = _zustellen(db, reminder, HEUTE - timedelta(days=1), "zustellung-gestern-0001")
     assert result.dispatch.status == "gesendet" and _anzahl(db, EmailDispatch) == 1

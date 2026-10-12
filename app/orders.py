@@ -9,13 +9,14 @@ from sqlalchemy.orm import Session, selectinload
 from .models import (
     ContractBasisClause, Employee, Invoice, InvoiceItem, Order, OrderCustomerChange, OrderItem, OrderSection, OrderRevision,
     OrderItemCalculationSnapshot, OrderItemMaterialSnapshot,
-    Project, QuoteEmployeeAssignment, ServiceReport, TaxKey, TimeEntry, TimeEntryGroup,
+    Project, Quote, QuoteEmployeeAssignment, ServiceReport, TaxKey, TimeEntry, TimeEntryGroup,
     WorkPreparation, WorkPreparationEmployee, WorkPreparationMaterial, WorkPreparationTeamAssignment,
     WorkPreparationTeamEmployee,
 )
 from .acceptances import ensure_no_active_acceptance, has_active_acceptance
 from .contract_basis import clause_is_reviewed, contract_basis_label, ensure_contract_not_signed
-from .invoices import compute_order_billing_progress, create_block_reason, list_invoices_for_order
+from .invoices import compute_order_billing_progress, create_block_reason, list_invoices_for_order, lock_order_invoices
+from .order_locks import OrderLocked, final_lock_reason, item_change_reason, lock_info, tax_lock_reason, valid_invoices
 from .placeholders import apply_placeholders
 from .projects import ensure_quote_structure, load_quote
 from .rounding import round_money
@@ -376,6 +377,7 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
             "unit": item.unit,
             "unit_price": item.unit_price,
             "include_in_total": item.include_in_total,
+            "price_lock": None,  # seit 1.8.82, unten gesetzt (app/order_locks.py)
             "line_total": line,
             "has_calculation_snapshot": item.calculation_snapshot is not None,
             "planned_hours_per_unit": ((Decimal(item.calculation_snapshot.site_time_minutes or 0) + Decimal(item.calculation_snapshot.workshop_time_minutes or 0)) / Decimal("60")) if item.calculation_snapshot else Decimal("0"),
@@ -456,6 +458,8 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
             result["open_net"] = None
             result["open_gross"] = None
             result["invoice_create_blocks"] = None
+            result["order_lock"] = None
+            result["tax_lock"] = None
         else:
             result["source_quote_in_sync"] = order_matches_source_quote(db, order)
             # Seit 1.8.71: warum der Abgleich gesperrt ist (Status, an den Positionen Hängendes) -- nur, wenn er abweicht.
@@ -475,6 +479,12 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
             result["invoice_create_blocks"] = {
                 kind: create_block_reason(invoices, kind) for kind in ("abschlag_pauschal", "abschlag_leistungsstand", "schluss")
             }
+            # Seit 1.8.82 (R4a Punkt 2): was am Auftrag gesperrt ist -- die Auftragsseite zeigt den Grund statt der Eingabe.
+            locks = lock_info(db, order.id, invoices)
+            result["order_lock"] = locks["order_lock"]
+            result["tax_lock"] = locks["tax_lock"]
+            for row in item_rows:
+                row["price_lock"] = locks["item_locks"].get(row["id"])
     return result
 
 
@@ -599,10 +609,19 @@ def send_order_email(
 def update_order_tax_key(db: Session, order: Order, tax_key_id: int) -> Order:
     """Setzt tax_key_id UND vat_rate zusammen aus dem gewählten
     Steuerschlüssel -- die eigentliche Summenberechnung (order_to_dict) liest
-    weiterhin nur vat_rate und merkt vom Steuerschlüssel selbst nichts."""
+    weiterhin nur vat_rate und merkt vom Steuerschlüssel selbst nichts.
+
+    Seit 1.8.82 (R4a Punkt 2) unter der Sperre der Auftragszeile: ab der ersten gültigen Rechnung ist der Steuerschlüssel
+    gesperrt (OrderLocked, 409; app/order_locks.py::tax_lock_reason()) -- derselbe Schlüssel noch einmal geht durch."""
+    invoices = lock_order_invoices(db, order.id)
     key = db.get(TaxKey, tax_key_id)
     if key is None:
+        db.rollback()  # gibt die Sperre frei
         raise ValueError("Steuerschlüssel nicht gefunden.")
+    reason = tax_lock_reason(invoices) if tax_key_id != order.tax_key_id else None
+    if reason:
+        db.rollback()
+        raise OrderLocked(reason)
     order.tax_key_id = tax_key_id
     order.vat_rate = key.vat_rate
     db.commit()
@@ -863,6 +882,19 @@ def sync_block_reasons(db: Session, order: Order) -> list[str]:
     if materials:
         reasons.append(f"an den Positionen hängt Material der Arbeitsvorbereitung ({materials} "
                        f"Zeile{'' if materials == 1 else 'n'})")
+    # Seit 1.8.82 (R4a Punkt 2, app/order_locks.py): nach der Schlussrechnung ist alles gesperrt, ab der ersten gültigen Rechnung
+    # der Steuersatz -- auch eine, die an keiner Position hängt (pauschaler Abschlag, Aufwand), oder eine Schlussrechnung ohne
+    # Positionen.
+    invoices = list(db.scalars(select(Invoice).where(Invoice.order_id == order.id)))
+    final = [i for i in valid_invoices(invoices) if i.invoice_type == "schluss"]
+    if final:
+        reasons.append(f"die Schlussrechnung {', '.join(i.invoice_number for i in final)} ist festgeschrieben")
+    elif valid_invoices(invoices):
+        quote = db.get(Quote, order.source_quote_id) if order.source_quote_id is not None else None
+        if quote is not None and (quote.tax_key_id != order.tax_key_id or Decimal(quote.vat_rate) != Decimal(order.vat_rate)):
+            numbers = ", ".join(i.invoice_number for i in valid_invoices(invoices))
+            reasons.append(f"der Steuersatz ist gesperrt, am Auftrag besteht eine festgeschriebene Rechnung ({numbers}) -- "
+                           "das Angebot hat einen anderen Steuerschlüssel")
     return reasons
 
 
@@ -923,9 +955,18 @@ def update_order_header(db: Session, order: Order, **values) -> Order:
 
 
 def update_order_item(db: Session, order_id: int, item_id: int, **values) -> Order:
-    item = db.get(OrderItem, item_id)
+    """Seit 1.8.82 (R4a Punkt 2) unter der Sperre der Auftragszeile, mit den Sperren aus app/order_locks.py: Einheitspreis,
+    Einheit und "in Summe" einer abgerechneten Position, nach der Schlussrechnung alles (OrderLocked, 409). Die Position wird nach
+    der Sperre frisch geladen -- verglichen wird mit dem Stand nach einer gleichzeitigen Änderung."""
+    invoices = lock_order_invoices(db, order_id)
+    item = db.scalar(select(OrderItem).where(OrderItem.id == item_id).execution_options(populate_existing=True))
     if item is None or item.order_id != order_id:
+        db.rollback()  # gibt die Sperre frei
         raise ValueError("Auftragsposition nicht gefunden.")
+    reason = item_change_reason(db, invoices, item, values)
+    if reason:
+        db.rollback()
+        raise OrderLocked(reason)
     for key, value in values.items():
         setattr(item, key, value)
     # Keep the effective snapshot sales price aligned with direct EP edits.
@@ -938,9 +979,17 @@ def update_order_item(db: Session, order_id: int, item_id: int, **values) -> Ord
 
 
 def update_order_section(db: Session, order_id: int, section_id: int, *, title: str, description: str | None) -> Order:
-    section = db.get(OrderSection, section_id)
+    """Seit 1.8.82 (R4a Punkt 2): nach einer gültigen Schlussrechnung gesperrt (OrderLocked, 409), unter der Sperre der
+    Auftragszeile."""
+    invoices = lock_order_invoices(db, order_id)
+    section = db.scalar(select(OrderSection).where(OrderSection.id == section_id).execution_options(populate_existing=True))
     if section is None or section.order_id != order_id:
+        db.rollback()  # gibt die Sperre frei
         raise ValueError("Auftragstitel nicht gefunden.")
+    reason = final_lock_reason(invoices)
+    if reason and (section.title, section.description) != (title.strip(), description):
+        db.rollback()
+        raise OrderLocked(reason)
     section.title = title.strip()
     section.description = description
     db.commit()

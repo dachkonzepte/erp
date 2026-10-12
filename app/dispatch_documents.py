@@ -7,7 +7,8 @@ gehört und welches PDF in die Ablage kommt:
 
 - Rechnung (auch Storno) und Mahnung: die maßgebliche Fassung aus der Ablage, wenn es sie schon
   gibt (app/sent_documents.py::frozen_or_fresh_pdf()), sonst neu erzeugt -- und damit ab jetzt
-  maßgeblich. Eine Mahnung seit 1.8.79 nur, solange die Rechnung nicht storniert ist und ihr Betrag
+  maßgeblich. Eine Rechnung hat sie seit 1.8.82 immer (feste Fassung vom Festschreiben); neu erzeugt
+  wird nur noch eine von vor 1.8.82. Eine Mahnung seit 1.8.79 nur, solange die Rechnung nicht storniert ist und ihr Betrag
   am Zustelltag dem mahnfähigen entsprach (before_delivery, app/reminders.py::check_delivery(), 409).
 - Angebot, Auftrag: neu erzeugt, wie beim E-Mail-Versand.
 - Checkliste: seit 1.8.66 die feste Fassung des Abschlusses aus der Ablage (app/checklist_versions.py) -- nie neu
