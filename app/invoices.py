@@ -44,9 +44,20 @@ niemand mehr wechseln (app/project_participants.py::check_client_change(), diese
 Feste Fassung (seit 1.8.82, R4a Punkt 1, docs/archiv/befund-vor-echtbetrieb.md "Umsetzung 1.8.82"): das PDF jeder Rechnung (jede
 Art, auch Storno) entsteht beim Festschreiben im selben Commit und liegt ab dann mit SHA-256 in der Ablage (_store_fixed_pdf(),
 Invoice.pdf_document_id) -- Download, Versand und nachgetragene Zustellung nehmen nur diese Bytes, nie ein neu erzeugtes PDF.
+
+Schlussrechnung als Endrechnung (seit 1.8.85, R4b Punkte 2, 3 und 5, docs/archiv/befund-vor-echtbetrieb.md "Umsetzung R4b"): alle
+Auftragspositionen samt Nachträgen mit ihrer Ist-Menge (Vorschlag: die Menge des Auftrags) -- die Gesamtleistung --, darunter der Abzug jeder
+festgeschriebenen, nicht stornierten Abschlagsrechnung und Rechnung aus Aufwand mit Netto, USt und Brutto (Rechnungen aus Aufwand
+zählen zugleich zur Gesamtleistung). Rechnungsbetrag = Gesamtleistung − Abzüge (final_breakdown()); er ist der Betrag der Rechnung
+für Zahlungen, offene Posten und "abgerechnet" (compute_invoice_totals()). Im Entwurf zieht sie die gerade gültigen Rechnungen ab,
+beim Festschreiben unter der Sperre frieren die Abzüge ein (InvoiceDeduction). Beim Festschreiben jeder Art wird unter der Sperre
+neu gerechnet (_recompute_draft(), Befund 1b), ein Entwurf, dessen Preise, Einheiten, Positionen oder Steuerschlüssel vom Auftrag
+abweichen, nicht festgeschrieben (order_deviation_reason(), 409, Ausweg refresh_draft_from_order()). Ein Abschlag muss über 0 €
+liegen, eine Schlussrechnung darf bis R4c nicht unter 0 € lauten (amount_block_reason()).
 """
 
 import logging
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal
 
@@ -57,7 +68,8 @@ from .acceptances import lock_order
 from .berlin_time import berlin_today
 from .calculation import effective_material_sale_price, load_calculation_settings
 from .models import (
-    Customer, Invoice, InvoiceItem, Material, Order, OrderItem, PaymentTerm, Project, ServiceReportMaterial, TaxKey, TimeEntry,
+    Customer, Invoice, InvoiceDeduction, InvoiceItem, Material, Order, OrderItem, PaymentTerm, Project, ServiceReportMaterial,
+    TaxKey, TimeEntry,
 )
 from .option_settings import default_option_value
 from .payment_terms import get_default_payment_term
@@ -71,6 +83,8 @@ logger = logging.getLogger(__name__)
 INVOICE_TYPES ={"abschlag_pauschal", "abschlag_leistungsstand", "schluss", "aufwand", "storno"}
 EDITABLE_STATUS = "entwurf"
 PROGRESS_INVOICE_TYPES = ("abschlag_pauschal", "abschlag_leistungsstand")
+# Seit 1.8.85 (R4b): was die Schlussrechnung abzieht -- Abschläge und Rechnungen aus Aufwand ("Entscheidungen Rechnungen" 12.10.).
+DEDUCTED_INVOICE_TYPES = (*PROGRESS_INVOICE_TYPES, "aufwand")
 # Festgeschrieben und nicht storniert -- "gültig". Bis 1.8.77 auch "bezahlt"; seit 1.8.78 ist der Zahlstand abgeleitet
 # (app/payments.py), die Migration c7d41e9a2b63 setzte bezahlte Rechnungen auf "versendet".
 VALID_STATUSES = ("versendet",)
@@ -121,38 +135,30 @@ def _final_invoices(invoices: list[Invoice], *, with_drafts: bool, exclude_id: i
     return [i for i in invoices if i.invoice_type == "schluss" and i.status in statuses and i.id != exclude_id]
 
 
-def _lump_sum_reason(invoices: list[Invoice]) -> str | None:
-    """Bis R4 (Schlussrechnung als Endrechnung, "Entscheidungen Rechnungen" im Befund): die Schlussrechnung zieht einen
-    pauschalen Abschlag nicht ab (Befund 1a) -- neben einem nicht stornierten, auch einem Entwurf, ist sie gesperrt."""
-    lump_sums = [i for i in invoices if i.invoice_type == "abschlag_pauschal" and i.status != "storniert"]
-    if not lump_sums:
-        return None
-    # Ausweg (seit 1.8.73, Festlegung 1.8.72 Nr. 5): nur Entwürfe -> löschen; ein festgeschriebener bleibt bis R4.
-    if all(i.status == EDITABLE_STATUS for i in lump_sums):
-        way_out = "Ausweg: den Entwurf löschen." if len(lump_sums) == 1 else "Ausweg: die Entwürfe löschen."
-    else:
-        way_out = "Schlussrechnungen mit pauschalen Abschlägen kommen mit R4."
-    return (f"Die Schlussrechnung ist vorerst gesperrt: am Auftrag besteht ein pauschaler Abschlag ({_labels(lump_sums)}). "
-            f"Die Schlussrechnung zieht pauschale Abschläge noch nicht ab -- der Auftrag wäre doppelt abgerechnet. {way_out}")
-
-
-def _progress_after_final_reason(invoices: list[Invoice]) -> str | None:
+def _progress_after_final_reason(invoices: list[Invoice], invoice_type: str = "abschlag_leistungsstand") -> str | None:
+    """Nach einer gültigen Schlussrechnung keine Abschläge mehr (seit 1.8.72) und seit 1.8.85 (R4b Punkt 5) keine Rechnung aus
+    Aufwand -- die Schlussrechnung hätte sie weder in der Gesamtleistung noch abgezogen."""
     final = _final_invoices(invoices, with_drafts=False)
     if not final:
         return None
+    if invoice_type == "aufwand":
+        return (f"Nach der Schlussrechnung {_labels(final)} ist keine Rechnung aus Aufwand mehr möglich -- die Schlussrechnung "
+                "hat sie weder in der Gesamtleistung noch abgezogen. Ausweg: die Schlussrechnung stornieren.")
     return f"Nach der Schlussrechnung {_labels(final)} sind keine weiteren Abschlagsrechnungen möglich."
 
 
 def create_block_reason(invoices: list[Invoice], invoice_type: str) -> str | None:
-    """Warum eine neue Rechnung dieser Art am Auftrag gesperrt ist (invoices = alle Rechnungen des Auftrags), sonst None."""
+    """Warum eine neue Rechnung dieser Art am Auftrag gesperrt ist (invoices = alle Rechnungen des Auftrags), sonst None.
+    Bis 1.8.84 sperrte zusätzlich ein pauschaler Abschlag die Schlussrechnung (sie zog ihn nicht ab, Befund 1a) -- seit 1.8.85
+    zieht die Endrechnung jeden Abschlag ab (R4b Punkt 5)."""
     if invoice_type == "schluss":
         existing = _final_invoices(invoices, with_drafts=True)
         if existing:
             return (f"Am Auftrag besteht schon eine Schlussrechnung ({_labels(existing)}). Eine weitere ist erst möglich, "
                     "wenn sie storniert bzw. der Entwurf gelöscht ist.")
-        return _lump_sum_reason(invoices)
-    if invoice_type in PROGRESS_INVOICE_TYPES:
-        return _progress_after_final_reason(invoices)
+        return None
+    if invoice_type in DEDUCTED_INVOICE_TYPES:
+        return _progress_after_final_reason(invoices, invoice_type)
     return None
 
 
@@ -168,10 +174,11 @@ def storno_block_reason(invoices: list[Invoice], original: Invoice, *, storno_dr
         return f"Zu dieser Rechnung besteht schon eine Stornorechnung ({_labels(others)})."
     if original.status == "storniert":
         return "Diese Rechnung ist schon storniert."
-    if original.invoice_type in PROGRESS_INVOICE_TYPES:
+    if original.invoice_type in DEDUCTED_INVOICE_TYPES:
         final = _final_invoices(invoices, with_drafts=False)
         if final:
-            return (f"Der Abschlag ist in der Schlussrechnung {_labels(final)} verrechnet und lässt sich nicht stornieren, "
+            what = "Die Rechnung aus Aufwand" if original.invoice_type == "aufwand" else "Der Abschlag"
+            return (f"{what} ist in der Schlussrechnung {_labels(final)} verrechnet und lässt sich nicht stornieren, "
                     "solange sie gilt -- zuerst die Schlussrechnung stornieren.")
     # Seit 1.8.78 (Vorgabe Z1 Nr. 5): erst die Zuordnungen lösen, dann stornieren -- die Zahlung bleibt nicht zugeordnet am
     # Kunden. Beim Anlegen und beim Festschreiben des Stornos unter der Sperre geprüft (Zuordnungen buchen unter derselben).
@@ -187,9 +194,12 @@ def storno_block_reason(invoices: list[Invoice], original: Invoice, *, storno_dr
 
 def finalize_block_reason(invoices: list[Invoice], invoice: Invoice) -> str | None:
     """Warum dieser Entwurf nicht festgeschrieben werden kann -- dieselben Regeln wie beim Anlegen, für Entwürfe, die vor
-    einer anderen Festschreibung entstanden sind (oder als Altbestand vor 1.8.72). Seit 1.8.74 zuletzt der
-    Leistungszeitraum (Pflicht, app/service_period.py::missing_reason())."""
-    return _finalize_rule_reason(invoices, invoice) or missing_reason(invoice)
+    einer anderen Festschreibung entstanden sind (oder als Altbestand vor 1.8.72). Seit 1.8.74 der Leistungszeitraum (Pflicht,
+    app/service_period.py::missing_reason()), zuletzt. Seit 1.8.85 (R4b Punkt 3) davor die Abweichung vom Auftrag (Preise,
+    Einheiten, Positionen, Steuerschlüssel) und der Betrag (amount_block_reason(), wie bis 1.8.84 der negative Abschlag vor dem
+    Zeitraum) -- beim Festschreiben nach der Neuberechnung unter der Sperre (_recompute_draft())."""
+    return (_finalize_rule_reason(invoices, invoice) or order_deviation_reason(invoice) or amount_block_reason(invoice)
+            or missing_reason(invoice))
 
 
 def _finalize_rule_reason(invoices: list[Invoice], invoice: Invoice) -> str | None:
@@ -197,10 +207,10 @@ def _finalize_rule_reason(invoices: list[Invoice], invoice: Invoice) -> str | No
         other = _final_invoices(invoices, with_drafts=False, exclude_id=invoice.id)
         if other:
             return f"Am Auftrag besteht schon eine festgeschriebene Schlussrechnung ({_labels(other)})."
-        return _lump_sum_reason(invoices) or free_items_reason(invoice)  # freie Positionen seit 1.8.83
-    if invoice.invoice_type in PROGRESS_INVOICE_TYPES:
-        # Seit 1.8.83 (R4a Punkte 3 und 4): kein negativer Abschlag nach Leistungsstand, keine freie Position.
-        return _progress_after_final_reason(invoices) or negative_progress_reason(invoice) or free_items_reason(invoice)
+        return free_items_reason(invoice)  # freie Positionen seit 1.8.83
+    if invoice.invoice_type in DEDUCTED_INVOICE_TYPES:
+        # Seit 1.8.83 (R4a Punkt 3): keine freie Position; seit 1.8.85 kein Aufwand nach der Schlussrechnung (R4b Punkt 5).
+        return _progress_after_final_reason(invoices, invoice.invoice_type) or free_items_reason(invoice)
     if invoice.invoice_type == "storno" and invoice.storno_of_invoice_id is not None:
         original = next((i for i in invoices if i.id == invoice.storno_of_invoice_id), None)
         if original is not None:
@@ -212,19 +222,81 @@ def _eur(amount: Decimal) -> str:
     return f"{amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " €"
 
 
-def negative_progress_reason(invoice: Invoice) -> str | None:
-    """Seit 1.8.83 (R4a Punkt 4, Befund R4 Nebenbefund 2): ein Abschlag nach Leistungsstand mit negativem Betrag -- ein Ist unter
-    dem zuletzt abgerechneten Stand -- lässt sich nicht festschreiben (vorher: mit Nummer, nie offen, eine Gutschrift, die
-    niemand als solche bucht). Zu viel Abgerechnetes korrigieren Storno oder Schlussrechnung. Ein Betrag von 0 € ist nicht
-    negativ (Festlegung 1.8.83 Nr. 4)."""
-    if invoice.invoice_type != "abschlag_leistungsstand":
-        return None
+def amount_block_reason(invoice: Invoice) -> str | None:
+    """Der Betrag, mit dem ein Entwurf nicht festgeschrieben wird.
+
+    - Abschlag (pauschal und nach Leistungsstand): nur über 0 €. Seit 1.8.83 (R4a Punkt 4) kein negativer Abschlag nach
+      Leistungsstand -- ein Ist unter dem zuletzt abgerechneten Stand; zu viel Abgerechnetes korrigieren Storno oder
+      Schlussrechnung. Seit 1.8.85 (Festlegung 1.8.83 Nr. 6 geändert, Vorgabe R4b) auch 0 € nicht -- vorher ging ein Abschlag
+      über 0,00 € mit Nummer durch.
+    - Schlussrechnung (seit 1.8.85, R4b): nicht unter 0 € -- Abschläge über der Gesamtleistung (Überzahlung) regelt R4c."""
     gross = compute_invoice_totals(invoice)["gross_total"]
-    if gross >= 0:
+    if invoice.invoice_type == "abschlag_leistungsstand" and gross < 0:
+        return (f"Der Abschlag lautet über {_eur(gross)}: das Ist liegt unter dem zuletzt abgerechneten Stand. Ein Abschlag nach "
+                "Leistungsstand nimmt nichts zurück – zu viel Abgerechnetes korrigiert das Storno des Abschlags, der zu viel "
+                "abgerechnet hat, oder die Schlussrechnung.")
+    if invoice.invoice_type == "abschlag_leistungsstand" and gross == 0:
+        return ("Der Abschlag lautet über 0,00 €: seit dem zuletzt abgerechneten Stand ist nichts dazugekommen. Ein Abschlag muss "
+                "über 0 € liegen – das Ist der Positionen eintragen oder den Entwurf löschen.")
+    if invoice.invoice_type == "abschlag_pauschal" and gross <= 0:
+        return f"Der Abschlag lautet über {_eur(gross)}. Ein Abschlag muss über 0 € liegen – den Betrag eintragen."
+    if invoice.invoice_type == "schluss" and gross < 0:
+        return (f"Die Schlussrechnung lautet über {_eur(gross)}: die Abzüge übersteigen die Gesamtleistung (Überzahlung). Eine "
+                "Schlussrechnung mit Erstattung kommt mit R4c – bis dahin die Ist-Mengen prüfen oder den Abschlag stornieren, der zu "
+                "viel abgerechnet hat.")
+    return None
+
+
+def _rate_text(rate) -> str:
+    return f"{Decimal(rate or 0).normalize():f}".replace(".", ",") + " %"
+
+
+def order_deviations(db: Session, invoice: Invoice) -> list[str]:
+    """Wo ein Entwurf vom Auftrag abweicht (seit 1.8.85, R4b Punkt 3, Befund R4 Nebenbefunde 1 und 2 aus 1.8.82): Steuerschlüssel
+    bzw. Steuersatz (jede Art außer Storno), Einheitspreis und Einheit einer Position mit Auftragsbezug, eine Position, die nicht
+    mehr in der Summe des Auftrags steht, und bei der Schlussrechnung fehlende Positionen des Auftrags. Leer: keine Abweichung.
+    Ein Storno spiegelt seine Rechnung und weicht nie ab."""
+    if invoice.invoice_type == "storno" or invoice.status != EDITABLE_STATUS:
+        return []
+    order = db.get(Order, invoice.order_id)
+    if order is None:
+        return []
+    parts = []
+    if invoice.tax_key_id != order.tax_key_id or Decimal(invoice.vat_rate or 0) != Decimal(order.vat_rate or 0):
+        parts.append(f"Steuerschlüssel (Entwurf {_rate_text(invoice.vat_rate)}, Auftrag {_rate_text(order.vat_rate)})")
+    order_items = {item.id: item for item in order.items}
+    present = set()
+    for item in sorted(invoice.items, key=lambda x: (x.sort_order, x.id)):
+        if item.source_order_item_id is None:
+            continue
+        present.add(item.source_order_item_id)
+        label = item.gaeb_oz or item.position_number or item.short_text
+        source = order_items.get(item.source_order_item_id)
+        if source is None or not source.include_in_total:
+            parts.append(f"Pos. {label} steht nicht mehr in der Summe des Auftrags")
+            continue
+        if Decimal(item.unit_price or 0) != Decimal(source.unit_price or 0):
+            parts.append(f"Einheitspreis Pos. {label} (Entwurf {_eur(Decimal(item.unit_price))}, "
+                         f"Auftrag {_eur(Decimal(source.unit_price))})")
+        if (item.unit or "") != (source.unit or ""):
+            parts.append(f"Einheit Pos. {label} (Entwurf {item.unit or '–'}, Auftrag {source.unit or '–'})")
+    if invoice.invoice_type == "schluss":
+        missing = [item.gaeb_oz or item.position_number or item.short_text
+                   for item in sorted(order.items, key=lambda x: (x.sort_order, x.id))
+                   if item.include_in_total and item.id not in present]
+        if missing:
+            parts.append(f"es fehlen Positionen des Auftrags ({', '.join(missing)})")
+    return parts
+
+
+def order_deviation_reason(invoice: Invoice) -> str | None:
+    """Der Grund für die Rechnungsseite und das Festschreiben (409) -- None: der Entwurf passt zum Auftrag."""
+    db = object_session(invoice)
+    parts = order_deviations(db, invoice) if db is not None else []
+    if not parts:
         return None
-    return (f"Der Abschlag lautet über {_eur(gross)}: das Ist liegt unter dem zuletzt abgerechneten Stand. Ein Abschlag nach "
-            "Leistungsstand nimmt nichts zurück – zu viel Abgerechnetes korrigiert das Storno des Abschlags, der zu viel "
-            "abgerechnet hat, oder die Schlussrechnung.")
+    return ("Der Entwurf weicht vom Auftrag ab: " + "; ".join(parts) + ". „Aus dem Auftrag aktualisieren“ übernimmt Preise, "
+            "Einheiten, Positionen und Steuerschlüssel des Auftrags.")
 
 
 def free_items_reason(invoice: Invoice) -> str | None:
@@ -407,13 +479,15 @@ def get_previous_cumulative_ist(
 
 def compute_billed_quantity_and_total(
     db: Session, order_id: int, invoice_id: int | None, source_order_item_id: int | None,
-    ist_quantity: Decimal, unit_price: Decimal,
+    ist_quantity: Decimal, unit_price: Decimal, *, invoice_type: str | None = None,
 ) -> tuple[Decimal, Decimal]:
     """Berechnet, was auf EINER Rechnung für eine Position tatsächlich
     abgerechnet wird. Ohne Bezug zu einer Auftragsposition (neue Position/
     Nachtrag) wird die komplette ist_quantity abgerechnet, da es keinen
-    vorherigen Stand gibt."""
-    if source_order_item_id is None:
+    vorherigen Stand gibt. Seit 1.8.85 (R4b) rechnet die Schlussrechnung als Endrechnung
+    ebenso die volle Ist-Menge -- die Abschläge zieht sie als Beträge ab (final_breakdown()),
+    nicht mehr über die Menge."""
+    if source_order_item_id is None or invoice_type == "schluss":
         billed_quantity = ist_quantity
     else:
         previous = get_previous_cumulative_ist(
@@ -430,13 +504,23 @@ def invoice_rounding(invoice: Invoice) -> str:
     return ROUND_HALF_UP if invoice.rounding_rule == INVOICE_ROUNDING_HALF_UP else ROUND_HALF_EVEN
 
 
+def _billed(invoice: Invoice, item: InvoiceItem) -> tuple[Decimal, Decimal]:
+    """(abgerechnete Menge, Betrag) einer Position. Ein Entwurf der Schlussrechnung rechnet seit 1.8.85 die volle Ist-Menge
+    (Endrechnung) -- unabhängig davon, was ein Entwurf von vor 1.8.85 als Rest gespeichert hat; das Festschreiben speichert
+    die volle Menge (_recompute_draft())."""
+    if invoice.invoice_type == "schluss" and invoice.status == EDITABLE_STATUS:
+        return item.ist_quantity, item.ist_quantity * item.unit_price
+    return item.billed_quantity, item.billed_total
+
+
 def invoice_line_total(invoice: Invoice, item: InvoiceItem) -> Decimal:
     """Positionsbetrag, wie er auf der Rechnung steht. billed_total ist mit sechs
     Nachkommastellen gespeichert (Menge x Preis) und bleibt so; ab 1.8.11 zählt der
     kaufmännisch auf den Cent gerundete Betrag, vorher der ungerundete."""
+    total = _billed(invoice, item)[1]
     if invoice.rounding_rule == INVOICE_ROUNDING_HALF_UP:
-        return round_money(item.billed_total)
-    return item.billed_total
+        return round_money(total)
+    return total
 
 
 def compute_invoice_totals(invoice: Invoice) -> dict:
@@ -454,9 +538,13 @@ def compute_invoice_totals(invoice: Invoice) -> dict:
         if invoice.invoice_type == "abschlag_pauschal":
             net = invoice.lump_sum_net or Decimal("0")
         else:
-            net = sum((item.billed_total for item in invoice.items), Decimal("0"))
+            net = sum((_billed(invoice, item)[1] for item in invoice.items), Decimal("0"))
         vat = net * invoice.vat_rate / Decimal("100")
         return {"net_total": net, "vat_total": vat, "gross_total": net + vat}
+    # Seit 1.8.85 (R4b): die Schlussrechnung als Endrechnung (und ihr Storno) -- Rechnungsbetrag = Gesamtleistung − Abzüge.
+    breakdown = final_breakdown(invoice)
+    if breakdown is not None:
+        return {"net_total": breakdown.amount_net, "vat_total": breakdown.amount_vat, "gross_total": breakdown.amount_gross}
     if invoice.invoice_type == "abschlag_pauschal":
         net = round_money(invoice.lump_sum_net)
     else:
@@ -465,32 +553,144 @@ def compute_invoice_totals(invoice: Invoice) -> dict:
     return {"net_total": net, "vat_total": vat, "gross_total": net + vat}
 
 
-def _copy_order_items_with_default_ist(
-    db: Session, invoice: Invoice, order: Order, *, full_completion: bool,
-) -> None:
-    """Kopiert alle Auftragspositionen als Rechnungspositionen. full_completion
-    steuert den Ausgangswert von ist_quantity: bei einer Schlussrechnung wird
-    sinnvollerweise von 100% Fertigstellung ausgegangen (soll_quantity), bei
-    einer Abschlagsrechnung nach Leistungsstand vom zuletzt kumulierten Stand
-    (0, falls noch nie abgerechnet) -- beides vom Nutzer danach anpassbar."""
+@dataclass(frozen=True)
+class DeductionLine:
+    """Eine abgezogene Rechnung in der Endrechnung (seit 1.8.85) -- Beträge aus der Rechnung selbst, beim Storno mit umgekehrtem
+    Vorzeichen."""
+    invoice: Invoice
+    net: Decimal
+    vat: Decimal
+    gross: Decimal
+
+    def as_dict(self) -> dict:
+        inv = self.invoice
+        return {"invoice_id": inv.id, "invoice_number": inv.invoice_number, "invoice_date": inv.invoice_date,
+                "invoice_type": inv.invoice_type, "description": inv.progress_description, "vat_rate": inv.vat_rate,
+                "net": self.net, "vat": self.vat, "gross": self.gross}
+
+
+@dataclass(frozen=True)
+class FinalBreakdown:
+    """Aufstellung der Endrechnung (seit 1.8.85, R4b Punkt 2): Positionen (volle Ist-Menge) und Rechnungen aus Aufwand ergeben die
+    Gesamtleistung (netto, USt auf den Cent, brutto); davon gehen die Abzüge ab (je Netto, USt, Brutto der abgezogenen Rechnung);
+    Rechnungsbetrag = Gesamtleistung − Abzüge, netto, USt und brutto je für sich -- so geht die Summe auf den Cent auf."""
+    positions_net: Decimal
+    effort: list[DeductionLine]
+    total_net: Decimal
+    total_vat: Decimal
+    total_gross: Decimal
+    deductions: list[DeductionLine]
+    deducted_net: Decimal
+    deducted_vat: Decimal
+    deducted_gross: Decimal
+    amount_net: Decimal
+    amount_vat: Decimal
+    amount_gross: Decimal
+    tax_notes: list[str]
+
+    def as_dict(self) -> dict:
+        return {"positions_net": self.positions_net, "effort": [line.as_dict() for line in self.effort],
+                "total_net": self.total_net, "total_vat": self.total_vat, "total_gross": self.total_gross,
+                "deductions": [line.as_dict() for line in self.deductions], "deducted_net": self.deducted_net,
+                "deducted_vat": self.deducted_vat, "deducted_gross": self.deducted_gross, "amount_net": self.amount_net,
+                "amount_vat": self.amount_vat, "amount_gross": self.amount_gross, "tax_notes": self.tax_notes}
+
+
+def _deduction_order(invoice: Invoice):
+    """Älteste zuerst: nach dem Zeitpunkt des Festschreibens; Rechnungen von vor 1.8.83 (ohne) davor, nach Datum und ID."""
+    return (invoice.finalized_at is not None, invoice.finalized_at or datetime.min, invoice.invoice_date or date.min, invoice.id)
+
+
+def deductible_invoices(invoices: list[Invoice], final: Invoice) -> list[Invoice]:
+    """Was die Schlussrechnung gerade abzöge (seit 1.8.85): jede festgeschriebene, nicht stornierte Abschlagsrechnung und Rechnung
+    aus Aufwand desselben Auftrags, älteste zuerst."""
+    return sorted((i for i in invoices if i.order_id == final.order_id and i.id != final.id
+                   and i.invoice_type in DEDUCTED_INVOICE_TYPES and i.status in VALID_STATUSES), key=_deduction_order)
+
+
+def _deducted(invoice: Invoice) -> tuple[list[Invoice], int] | None:
+    """(abgezogene Rechnungen, Vorzeichen) einer Endrechnung, None für jede andere Rechnung: der Entwurf der Schlussrechnung zieht
+    die gerade gültigen ab, die festgeschriebene ihre eingefrorenen (InvoiceDeduction), ihr Storno die des Originals mit
+    umgekehrtem Vorzeichen. Eine festgeschriebene Schlussrechnung ohne Abzüge (auch jede von vor 1.8.85, deren Positionen den Rest
+    über die Menge tragen) rechnet wie jede Rechnung aus ihren Positionen."""
+    if invoice.invoice_type == "schluss":
+        if invoice.status == EDITABLE_STATUS:
+            db = object_session(invoice)
+            if db is None or invoice.order_id is None:
+                return None
+            others = list(db.scalars(select(Invoice).where(Invoice.order_id == invoice.order_id)))
+            found = deductible_invoices(others, invoice)
+        else:
+            found = [row.deducted_invoice for row in invoice.deductions]
+        return (found, 1) if found else None
+    if invoice.invoice_type == "storno" and invoice.storno_of_invoice_id is not None:
+        db = object_session(invoice)
+        original = db.get(Invoice, invoice.storno_of_invoice_id) if db is not None else None
+        if original is None or original.invoice_type != "schluss" or not original.deductions:
+            return None
+        return [row.deducted_invoice for row in original.deductions], -1
+    return None
+
+
+def final_breakdown(invoice: Invoice) -> FinalBreakdown | None:
+    """Die Aufstellung der Endrechnung (siehe FinalBreakdown), None für jede Rechnung ohne Abzüge."""
+    found = _deducted(invoice)
+    if found is None:
+        return None
+    deducted, sign = found
+    positions_net = sum((invoice_line_total(invoice, item) for item in invoice.items), Decimal("0"))
+    lines = []
+    for other in deducted:
+        totals = compute_invoice_totals(other)
+        lines.append(DeductionLine(other, sign * totals["net_total"], sign * totals["vat_total"], sign * totals["gross_total"]))
+    effort = [line for line in lines if line.invoice.invoice_type == "aufwand"]
+    total_net = positions_net + sum((line.net for line in effort), Decimal("0"))
+    total_vat = round_money(total_net * invoice.vat_rate / Decimal("100"))
+    deducted_net = sum((line.net for line in lines), Decimal("0"))
+    deducted_vat = sum((line.vat for line in lines), Decimal("0"))
+    amount_net, amount_vat = total_net - deducted_net, total_vat - deducted_vat
+    tax_notes = [f"{line.invoice.invoice_number or 'Entwurf'} ist mit {_rate_text(line.invoice.vat_rate)} USt abgerechnet, die "
+                 f"Schlussrechnung mit {_rate_text(invoice.vat_rate)} – abgezogen wird die USt, die dort steht."
+                 for line in lines if Decimal(line.invoice.vat_rate or 0) != Decimal(invoice.vat_rate or 0)]
+    return FinalBreakdown(
+        positions_net=positions_net, effort=effort, total_net=total_net, total_vat=total_vat, total_gross=total_net + total_vat,
+        deductions=lines, deducted_net=deducted_net, deducted_vat=deducted_vat, deducted_gross=deducted_net + deducted_vat,
+        amount_net=amount_net, amount_vat=amount_vat, amount_gross=amount_net + amount_vat, tax_notes=tax_notes,
+    )
+
+
+def _copy_order_items_with_default_ist(db: Session, invoice: Invoice, order: Order) -> None:
+    """Kopiert alle Auftragspositionen (in der Summe, samt Nachträgen) als Rechnungspositionen -- Ist vom Nutzer danach
+    anpassbar (_proposed_ist())."""
     for order_item in order.items:
         if not order_item.include_in_total:
             continue
-        if full_completion:
-            ist_quantity = order_item.quantity
-        else:
-            ist_quantity = get_previous_cumulative_ist(db, order.id, order_item.id)
-        billed_quantity, billed_total = compute_billed_quantity_and_total(
-            db, order.id, invoice.id, order_item.id, ist_quantity, order_item.unit_price,
-        )
-        db.add(InvoiceItem(
-            invoice_id=invoice.id, source_order_item_id=order_item.id,
-            sort_order=order_item.sort_order, position_number=order_item.position_number,
-            gaeb_oz=order_item.gaeb_oz, short_text=order_item.short_text, long_text=order_item.long_text,
-            unit=order_item.unit, unit_price=order_item.unit_price,
-            soll_quantity=order_item.quantity, ist_quantity=ist_quantity,
-            billed_quantity=billed_quantity, billed_total=billed_total,
-        ))
+        _add_order_item(db, invoice, order, order_item)
+
+
+def _proposed_ist(db: Session, invoice: Invoice, order: Order, order_item: OrderItem) -> Decimal:
+    """Vorgeschlagenes Ist einer Position: beim Abschlag nach Leistungsstand der zuletzt abgerechnete Stand (0, falls noch nie
+    abgerechnet), bei der Schlussrechnung die Menge des Auftrags -- der letzte Stand des Auftrags, dessen Mengen bis zur
+    Schlussrechnung änderbar bleiben (R4a). Seit 1.8.85 rechnet die Schlussrechnung diese Ist-Mengen voll ab (Endrechnung,
+    Festlegung 1.8.85 Nr. 1)."""
+    if invoice.invoice_type == "schluss":
+        return order_item.quantity
+    return get_previous_cumulative_ist(db, order.id, order_item.id, exclude_invoice_id=invoice.id)
+
+
+def _add_order_item(db: Session, invoice: Invoice, order: Order, order_item: OrderItem) -> None:
+    ist_quantity = _proposed_ist(db, invoice, order, order_item)
+    billed_quantity, billed_total = compute_billed_quantity_and_total(
+        db, order.id, invoice.id, order_item.id, ist_quantity, order_item.unit_price, invoice_type=invoice.invoice_type,
+    )
+    db.add(InvoiceItem(
+        invoice_id=invoice.id, source_order_item_id=order_item.id,
+        sort_order=order_item.sort_order, position_number=order_item.position_number,
+        gaeb_oz=order_item.gaeb_oz, short_text=order_item.short_text, long_text=order_item.long_text,
+        unit=order_item.unit, unit_price=order_item.unit_price,
+        soll_quantity=order_item.quantity, ist_quantity=ist_quantity,
+        billed_quantity=billed_quantity, billed_total=billed_total,
+    ))
 
 
 LUMP_SUM_ITEM_UNIT = "pschl."
@@ -560,7 +760,7 @@ def create_abschlag_leistungsstand(db: Session, order: Order, *, due_date: date 
     )
     db.add(invoice)
     db.flush()
-    _copy_order_items_with_default_ist(db, invoice, order, full_completion=False)
+    _copy_order_items_with_default_ist(db, invoice, order)
     db.commit()
     db.refresh(invoice)
     return invoice
@@ -574,7 +774,7 @@ def create_schlussrechnung(db: Session, order: Order, *, due_date: date | None =
     )
     db.add(invoice)
     db.flush()
-    _copy_order_items_with_default_ist(db, invoice, order, full_completion=True)
+    _copy_order_items_with_default_ist(db, invoice, order)
     db.commit()
     db.refresh(invoice)
     return invoice
@@ -628,8 +828,8 @@ def create_invoice_from_time_entries(
     # ungesicherten Stand trägt. (Bis 1.8.41 kam beim ersten Aufruf noch ein eigener Commit dazu.)
     settings = load_calculation_settings(db)
     hourly_rate = settings.labor_rate
-    # Seit 1.8.75 unter derselben Sperre wie das Festschreiben (nach den Einstellungen, siehe oben); keine eigene Regel --
-    # "aus Aufwand" bleibt auch nach der Schlussrechnung möglich (Festlegung 1.8.72 Nr. 3, offen).
+    # Seit 1.8.75 unter derselben Sperre wie das Festschreiben (nach den Einstellungen, siehe oben); seit 1.8.85 (R4b Punkt 5)
+    # nach einer gültigen Schlussrechnung gesperrt (bis 1.8.84 möglich, Festlegung 1.8.72 Nr. 3).
     _check_create(db, order, "aufwand")
 
     # Seit 1.8.74: erster und letzter Arbeitstag der übernommenen Buchungen -- Quelle des Vorschlags für den
@@ -704,6 +904,11 @@ def create_invoice_from_time_entries(
 
 FREE_ITEM_TEXT = ("Freie Positionen ohne Auftragsbezug gibt es nur in Rechnungen aus Aufwand. Ein Nachtrag kommt als Position an "
                   "den Auftrag („+ Nachtrag“ auf der Auftragsseite) und steht dann in jeder folgenden Rechnung.")
+# Seit 1.8.85 (R4b Punkt 3): Einheitspreis und Einheit einer Position mit Auftragsbezug kommen aus dem Auftrag.
+PRICE_FROM_ORDER_TEXT = ("Einheitspreis und Einheit einer Position mit Auftragsbezug kommen aus dem Auftrag – dort ändern (solange "
+                         "sie nicht abgerechnet ist), dann „Aus dem Auftrag aktualisieren“.")
+TAX_FROM_ORDER_TEXT = ("Der Steuerschlüssel einer Rechnung kommt aus dem Auftrag – dort ändern (bis zur ersten festgeschriebenen "
+                       "Rechnung), dann „Aus dem Auftrag aktualisieren“.")
 
 
 def add_invoice_item(
@@ -733,8 +938,11 @@ def add_invoice_item(
         ))
     if source_order_item_id is None and invoice.invoice_type != "aufwand":
         raise _reject(db, InvoiceBlocked(FREE_ITEM_TEXT))
+    if source_order_item_id is not None and (Decimal(unit_price) != Decimal(source.unit_price or 0)
+                                             or (unit or "") != (source.unit or "")):
+        raise _reject(db, InvoiceBlocked(PRICE_FROM_ORDER_TEXT))
     billed_quantity, billed_total = compute_billed_quantity_and_total(
-        db, invoice.order_id, invoice.id, source_order_item_id, ist_quantity, unit_price,
+        db, invoice.order_id, invoice.id, source_order_item_id, ist_quantity, unit_price, invoice_type=invoice.invoice_type,
     )
     item = InvoiceItem(
         invoice_id=invoice.id, source_order_item_id=source_order_item_id,
@@ -766,6 +974,12 @@ def update_invoice_item(
     item = next((i for i in invoice.items if i.id == item.id), None)
     if item is None:
         raise _reject(db, InvoiceBlocked("Die Position wurde inzwischen entfernt."))
+    # Seit 1.8.85 (R4b Punkt 3): Preis und Einheit einer Position mit Auftragsbezug nur aus dem Auftrag -- abgelehnt wird nur eine
+    # tatsächliche Änderung (die Oberfläche schickt beim Speichern alle Felder).
+    if item.source_order_item_id is not None and (
+            (unit_price is not None and Decimal(unit_price) != Decimal(item.unit_price or 0))
+            or (unit is not None and unit != item.unit)):
+        raise _reject(db, InvoiceBlocked(PRICE_FROM_ORDER_TEXT))
     if short_text is not None:
         item.short_text = short_text
     if long_text is not None:
@@ -779,6 +993,7 @@ def update_invoice_item(
     # Neuberechnung immer, auch wenn nur unit_price sich geändert hat.
     item.billed_quantity, item.billed_total = compute_billed_quantity_and_total(
         db, invoice.order_id, invoice.id, item.source_order_item_id, item.ist_quantity, item.unit_price,
+        invoice_type=invoice.invoice_type,
     )
     db.commit()
     db.refresh(item)
@@ -823,7 +1038,11 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
 
     Seit 1.8.72 unter der Sperre der Auftragszeile und mit den Regeln aus finalize_block_reason() (InvoiceBlocked): ein
     Entwurf, der vor einer anderen Festschreibung oder einem Storno desselben Auftrags entstand, wird hier noch einmal
-    geprüft. Ein zweites, gleichzeitiges Festschreiben desselben Entwurfs findet ihn danach schon festgeschrieben."""
+    geprüft. Ein zweites, gleichzeitiges Festschreiben desselben Entwurfs findet ihn danach schon festgeschrieben.
+
+    Seit 1.8.85 (R4b Punkt 3, Befund 1b): vor der Prüfung wird der Entwurf unter der Sperre neu gerechnet (_recompute_draft():
+    der Abschlag gegen den letzten Stand von jetzt, die Schlussrechnung mit der vollen Ist-Menge); die Schlussrechnung friert
+    ihre Abzüge ein (InvoiceDeduction), danach ziehen die übrigen Entwürfe des Auftrags nach (_refresh_other_drafts())."""
     invoices = lock_order_invoices(db, invoice.order_id)
     if not _still_there(invoices, invoice):
         db.rollback()
@@ -831,6 +1050,9 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
     if invoice.status != "entwurf":
         db.rollback()
         raise ValueError("Nur Rechnungen im Entwurf können versendet werden.")
+    db.scalars(select(InvoiceItem).where(InvoiceItem.invoice_id == invoice.id).execution_options(populate_existing=True)).all()
+    db.expire(invoice, ["items"])
+    _recompute_draft(db, invoice)
     reason = finalize_block_reason(invoices, invoice)
     if reason:
         db.rollback()
@@ -845,6 +1067,11 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
         invoice.customer_name = order.customer_name
         invoice.customer_number = order.customer_number
         invoice.customer_address = order.customer_address
+    # Seit 1.8.85 (R4b Punkt 2): die Abzüge der Endrechnung, wie sie unter der Sperre gelten -- vor dem Statuswechsel, danach
+    # rechnet die Schlussrechnung mit ihnen statt mit den gerade gültigen.
+    if invoice.invoice_type == "schluss":
+        for index, other in enumerate(deductible_invoices(invoices, invoice), start=1):
+            invoice.deductions.append(InvoiceDeduction(deducted_invoice_id=other.id, sort_order=index * 10))
     invoice.invoice_number = issue_number(db, "invoice")
     invoice.status = "versendet"
     invoice.finalized_at = _finalized_at(invoices)  # seit 1.8.83 (R4a Punkt 5)
@@ -852,8 +1079,72 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
         original = db.get(Invoice, invoice.storno_of_invoice_id)
         if original is not None:
             original.status = "storniert"
+    _refresh_other_drafts(db, invoices, invoice)
     # Seit 1.8.82 (R4a Punkt 1): die feste Fassung im selben Commit -- keine festgeschriebene Rechnung ohne PDF in der Ablage.
     _store_fixed_pdf(db, invoice)
+    db.commit()
+    db.refresh(invoice)
+    return invoice
+
+
+def _recompute_draft(db: Session, invoice: Invoice) -> None:
+    """Rechnet die abgerechneten Mengen eines Entwurfs neu, mit dem Stand unter der Sperre (seit 1.8.85, R4b Punkt 3, Befund 1b):
+    beim Abschlag nach Leistungsstand Ist − letzter Stand von jetzt (vorher galt der Stand beim Anlegen bzw. letzten Bearbeiten
+    -- zwei Entwürfe nebeneinander rechneten beide gegen denselben), bei der Schlussrechnung die volle Ist-Menge. Ändert nur
+    billed_*, nie Ist, Preis oder Text. Ohne Commit: der Aufrufer schreibt fest oder rollt zurück."""
+    if invoice.invoice_type not in ("abschlag_leistungsstand", "schluss"):
+        return
+    for item in invoice.items:
+        if item.source_order_item_id is None:
+            continue
+        billed = compute_billed_quantity_and_total(db, invoice.order_id, invoice.id, item.source_order_item_id,
+                                                   item.ist_quantity, item.unit_price, invoice_type=invoice.invoice_type)
+        if (item.billed_quantity, item.billed_total) != billed:
+            item.billed_quantity, item.billed_total = billed
+
+
+def _refresh_other_drafts(db: Session, invoices: list[Invoice], finalized: Invoice) -> None:
+    """Nach einem Festschreiben (auch eines Stornos) zieht jeder andere Entwurf eines Abschlags nach Leistungsstand desselben
+    Auftrags seine abgerechneten Mengen nach (seit 1.8.85) -- im selben Commit, unter derselben Sperre. So zeigt die
+    Rechnungsseite eines Entwurfs, was das Festschreiben ergäbe."""
+    db.flush()
+    for other in invoices:
+        if other.id != finalized.id and other.status == EDITABLE_STATUS and other.invoice_type == "abschlag_leistungsstand":
+            _recompute_draft(db, other)
+
+
+def refresh_draft_from_order(db: Session, invoice: Invoice) -> Invoice:
+    """„Aus dem Auftrag aktualisieren“ (seit 1.8.85, R4b Punkt 3): der Entwurf übernimmt Steuerschlüssel, Einheitspreise und
+    Einheiten des Auftrags; Positionen, die nicht mehr in der Summe des Auftrags stehen, gehen heraus; beim Abschlag nach
+    Leistungsstand und der Schlussrechnung kommen fehlende Positionen des Auftrags (auch spätere Nachträge) mit Ist = letzter
+    Stand dazu. Ist-Mengen und Texte bleiben. Unter der Sperre (_lock_draft()); ein Storno spiegelt seine Rechnung und wird nicht
+    aktualisiert."""
+    _lock_draft(db, invoice)
+    if invoice.invoice_type == "storno":
+        raise _reject(db, InvoiceBlocked("Ein Storno spiegelt die stornierte Rechnung und wird nicht aus dem Auftrag aktualisiert."))
+    order = db.scalar(select(Order).where(Order.id == invoice.order_id).execution_options(populate_existing=True))
+    snapshot = _snapshot_order_fields(db, order)
+    invoice.tax_key_id, invoice.vat_rate = snapshot["tax_key_id"], snapshot["vat_rate"]
+    invoice.tax_notice_text = snapshot["tax_notice_text"]
+    order_items = {item.id: item for item in db.scalars(
+        select(OrderItem).where(OrderItem.order_id == order.id).execution_options(populate_existing=True))}
+    present = set()
+    for item in list(invoice.items):
+        if item.source_order_item_id is None:
+            continue
+        source = order_items.get(item.source_order_item_id)
+        if source is None or not source.include_in_total:
+            invoice.items.remove(item)
+            continue
+        present.add(source.id)
+        item.unit_price, item.unit = source.unit_price, source.unit
+        item.billed_quantity, item.billed_total = compute_billed_quantity_and_total(
+            db, invoice.order_id, invoice.id, item.source_order_item_id, item.ist_quantity, item.unit_price,
+            invoice_type=invoice.invoice_type)
+    if invoice.invoice_type in ("abschlag_leistungsstand", "schluss"):
+        for source in sorted(order_items.values(), key=lambda x: (x.sort_order, x.id)):
+            if source.include_in_total and source.id not in present:
+                _add_order_item(db, invoice, order, source)
     db.commit()
     db.refresh(invoice)
     return invoice
@@ -1077,6 +1368,15 @@ def update_invoice_tax_key(db: Session, invoice: Invoice, tax_key_id: int) -> In
     key = db.get(TaxKey, tax_key_id)
     if key is None:
         raise _reject(db, ValueError("Steuerschlüssel nicht gefunden."))
+    # Seit 1.8.85 (R4b Punkt 3, Befund R4 Nebenbefund 2 aus 1.8.82): nur der Schlüssel des Auftrags -- beim Storno der der
+    # stornierten Rechnung. Vorher wählte jede Rechnung einen beliebigen (Abschlag 0 %, Schlussrechnung 19 %).
+    if invoice.invoice_type == "storno":
+        original = db.get(Invoice, invoice.storno_of_invoice_id) if invoice.storno_of_invoice_id else None
+        expected = original.tax_key_id if original is not None else invoice.tax_key_id
+        if tax_key_id != expected:
+            raise _reject(db, InvoiceBlocked("Ein Storno hat den Steuerschlüssel der stornierten Rechnung."))
+    elif tax_key_id != db.scalar(select(Order.tax_key_id).where(Order.id == invoice.order_id)):
+        raise _reject(db, InvoiceBlocked(TAX_FROM_ORDER_TEXT))
     invoice.tax_key_id = tax_key_id
     invoice.vat_rate = key.vat_rate
     invoice.tax_notice_text = key.notice_text
@@ -1199,6 +1499,8 @@ def _action_blocks(invoice: Invoice) -> dict:
     return {
         "finalize_block": finalize_block_reason(invoices, invoice) if invoice.status == EDITABLE_STATUS else None,
         "storno_block": storno_block_reason(invoices, invoice) if invoice.status in VALID_STATUSES else None,
+        # Seit 1.8.85 (R4b Punkt 3): weicht der Entwurf vom Auftrag ab, zeigt die Rechnungsseite „Aus dem Auftrag aktualisieren“.
+        "order_deviation": order_deviation_reason(invoice) if invoice.status == EDITABLE_STATUS else None,
     }
 
 
@@ -1274,10 +1576,12 @@ def invoice_to_dict(invoice: Invoice) -> dict:
                 "position_number": i.position_number, "gaeb_oz": i.gaeb_oz, "short_text": i.short_text,
                 "long_text": i.long_text, "unit": i.unit, "unit_price": i.unit_price,
                 "soll_quantity": i.soll_quantity, "ist_quantity": i.ist_quantity,
-                "billed_quantity": i.billed_quantity, "billed_total": invoice_line_total(invoice, i),
+                "billed_quantity": _billed(invoice, i)[0], "billed_total": invoice_line_total(invoice, i),
             }
             for i in items
         ],
+        # Seit 1.8.85 (R4b Punkt 2): Aufstellung der Endrechnung (Gesamtleistung, Abzüge, Rechnungsbetrag), sonst leer.
+        "final_breakdown": breakdown.as_dict() if (breakdown := final_breakdown(invoice)) is not None else None,
         "email_sent_at": invoice.email_sent_at,
         "email_sent_to": invoice.email_sent_to,
         "recipient_email": get_invoice_recipient_email(invoice),

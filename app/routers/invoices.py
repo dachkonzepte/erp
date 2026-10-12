@@ -22,7 +22,7 @@ from ..invoices import (
     InvoiceBlocked, add_invoice_item, create_abschlag_leistungsstand, create_abschlag_pauschal,
     create_invoice_from_time_entries, create_schlussrechnung, create_storno_draft,
     delete_invoice_draft, finalize_and_send_invoice, get_invoice, invoice_overview_rows,
-    invoice_to_dict, list_all_invoices, list_invoices_for_order,
+    invoice_to_dict, list_all_invoices, list_invoices_for_order, refresh_draft_from_order,
     remove_invoice_item, send_invoice_email, update_invoice_header, update_invoice_item,
     update_invoice_payment_term, update_invoice_tax_key,
 )
@@ -217,6 +217,20 @@ def delete_invoice_item(invoice_id: int, item_id: int, db: Session = Depends(get
         raise HTTPException(status_code=400, detail=str(e))
     if not found:
         raise HTTPException(status_code=404, detail="Rechnungsposition nicht gefunden.")
+    return invoice_to_dict(invoice)
+
+
+@router.post("/api/invoices/{invoice_id}/refresh-from-order", response_model=InvoiceOut)
+def post_refresh_from_order(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """„Aus dem Auftrag aktualisieren“ (seit 1.8.85, R4b Punkt 3): Steuerschlüssel, Preise, Einheiten und Positionen des Auftrags
+    in den Entwurf übernehmen -- app/invoices.py::refresh_draft_from_order()."""
+    invoice = _get_invoice_or_404(db, invoice_id)
+    try:
+        refresh_draft_from_order(db, invoice)
+    except InvoiceBlocked as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return invoice_to_dict(invoice)
 
 

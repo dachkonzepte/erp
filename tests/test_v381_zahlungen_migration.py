@@ -52,7 +52,9 @@ def test_the_migration_computes_the_same_gross_as_the_app(monkeypatch):
     # Der zweite Abschlag (Ist 3 nach 4) lautet negativ -- seit 1.8.83 (R4a Punkt 4) nicht mehr festschreibbar, im Altbestand
     # aber möglich, und die Migration muss ihn rechnen: hier festgeschrieben wie vor 1.8.83.
     import app.invoices as invoices_module
-    monkeypatch.setattr(invoices_module, "negative_progress_reason", lambda invoice: None)
+    monkeypatch.setattr(invoices_module, "amount_block_reason", lambda invoice: None)  # seit 1.8.85 (vorher negative_progress_reason)
+    # Altbestand mit anderem Preis als der Auftrag -- seit 1.8.85 (R4b Punkt 3) nicht mehr festschreibbar.
+    monkeypatch.setattr(invoices_module, "order_deviation_reason", lambda invoice: None)
     db = db_session()
     anlegen(db)
     db.commit()

@@ -29,6 +29,7 @@ from sqlalchemy.orm import close_all_sessions, sessionmaker
 from app.database import Base
 from app.invoices import (
     InvoiceBlocked,
+    compute_invoice_totals,
     create_abschlag_leistungsstand,
     create_abschlag_pauschal,
     create_invoice_from_time_entries,
@@ -160,22 +161,26 @@ def test_progress_draft_from_before_the_final_invoice_cannot_be_finalized():
     delete_invoice_draft(db, db.get(Invoice, abschlag.id))
 
 
-def test_time_based_invoice_stays_possible_after_the_final_invoice():
-    """Festlegung 1.8.72: "Rechnung aus Aufwand" ist kein Abschlag -- nicht Teil der Sperre."""
+def test_time_based_invoice_is_blocked_after_the_final_invoice():
+    """Seit 1.8.85 (R4b Punkt 5): nach der gültigen Schlussrechnung keine Rechnung aus Aufwand mehr -- bis 1.8.84 möglich
+    (Festlegung 1.8.72 Nr. 3), sie stand dann weder in der Gesamtleistung noch im Abzug."""
     db = db_session()
     order, _ = make_order_with_item(db)
-    _final(db, create_schlussrechnung(db, order))
+    schluss = _final(db, create_schlussrechnung(db, order))
     eintrag = SimpleNamespace(status="booked", hours=Decimal("2"), entry_type="work", employee_id=None, employee=None,
                               activity="Nacharbeit", work_date=date(2026, 10, 2))
-    assert create_invoice_from_time_entries(db, db.get(Order, order.id), [eintrag], []).invoice_type == "aufwand"
+    text_ = _gesperrt(create_invoice_from_time_entries, db, db.get(Order, order.id), [eintrag], [])
+    assert text_.startswith(f"Nach der Schlussrechnung {schluss.invoice_number} ist keine Rechnung aus Aufwand mehr möglich")
 
 
 # ---------------------------------------------------------------------------
-# 5: bis R4 keine Schlussrechnung neben einem nicht stornierten pauschalen Abschlag
+# 5: bis R4 keine Schlussrechnung neben einem nicht stornierten pauschalen Abschlag -- seit 1.8.85 (R4b Punkt 5) entfallen
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("status", ["entwurf", "versendet", "bezahlt"])
-def test_final_invoice_is_blocked_by_a_lump_sum_that_is_not_cancelled(status):
+def test_final_invoice_is_possible_next_to_a_lump_sum(status):
+    """Seit 1.8.85: die Endrechnung zieht den pauschalen Abschlag ab -- die Sperre (bis 1.8.84 mit Grund "kommen mit R4")
+    entfällt; ein Entwurf wird nicht abgezogen."""
     db = db_session()
     order, _ = make_order_with_item(db)
     pauschal = create_abschlag_pauschal(db, order, lump_sum_net=Decimal("2000"))
@@ -183,26 +188,10 @@ def test_final_invoice_is_blocked_by_a_lump_sum_that_is_not_cancelled(status):
         pauschal = _final(db, pauschal)
     if status == "bezahlt":
         voll_bezahlen(db, pauschal, received_on=date(2026, 10, 1))
-    text_ = _gesperrt(create_schlussrechnung, db, order)
-    genannt = pauschal.invoice_number or "ein Entwurf"
-    # Seit 1.8.73 mit Ausweg (Festlegung 1.8.72 Nr. 5): Entwurf -> löschen, sonst R4.
-    ausweg = ("Ausweg: den Entwurf löschen." if status == "entwurf"
-              else "Schlussrechnungen mit pauschalen Abschlägen kommen mit R4.")
-    assert text_ == (f"Die Schlussrechnung ist vorerst gesperrt: am Auftrag besteht ein pauschaler Abschlag ({genannt}). "
-                     f"Die Schlussrechnung zieht pauschale Abschläge noch nicht ab -- der Auftrag wäre doppelt abgerechnet. "
-                     f"{ausweg}")
-    assert _anzahl(db, order, "schluss") == 0
-
-
-def test_lump_sum_draft_next_to_a_finalized_one_names_r4_not_deleting():
-    """Ein festgeschriebener und ein Entwurf: Löschen allein hilft nicht -- der Text nennt R4."""
-    db = db_session()
-    order, _ = make_order_with_item(db)
-    erster = _final(db, create_abschlag_pauschal(db, order, lump_sum_net=Decimal("1000")))
-    create_abschlag_pauschal(db, order, lump_sum_net=Decimal("500"))
-    text_ = _gesperrt(create_schlussrechnung, db, order)
-    assert f"({erster.invoice_number} und ein Entwurf)" in text_
-    assert text_.endswith("Schlussrechnungen mit pauschalen Abschlägen kommen mit R4.")
+    schluss = _final(db, create_schlussrechnung(db, order))
+    erwartet = Decimal("5000.00") if status == "entwurf" else Decimal("3000.00")
+    assert compute_invoice_totals(schluss)["net_total"] == erwartet
+    assert _anzahl(db, order, "schluss") == 1
 
 
 @pytest.mark.parametrize("weg", ["storniert", "geloescht"])
@@ -218,13 +207,15 @@ def test_final_invoice_is_possible_after_the_lump_sum_was_cancelled_or_its_draft
     assert schluss.status == "versendet"
 
 
-def test_final_draft_is_blocked_at_finalizing_when_a_lump_sum_appeared_after_it():
+def test_final_draft_deducts_a_lump_sum_that_appeared_after_it():
+    """Seit 1.8.85: bis 1.8.84 sperrte ein später angelegter pauschaler Abschlag das Festschreiben; jetzt zieht die
+    Schlussrechnung ab, was beim Festschreiben gilt."""
     db = db_session()
     order, _ = make_order_with_item(db)
     schluss = create_schlussrechnung(db, order)
-    create_abschlag_pauschal(db, order, lump_sum_net=Decimal("2000"))
-    assert "pauschaler Abschlag (ein Entwurf)" in _gesperrt(_final, db, schluss)
-    assert db.get(Invoice, schluss.id).status == "entwurf"
+    _final(db, create_abschlag_pauschal(db, order, lump_sum_net=Decimal("2000")))
+    schluss = _final(db, db.get(Invoice, schluss.id))
+    assert compute_invoice_totals(schluss)["net_total"] == Decimal("3000.00")
 
 
 # ---------------------------------------------------------------------------
@@ -421,10 +412,10 @@ def test_order_and_invoice_name_the_reasons_for_the_page(threaded_db_session, ro
     order, _ = make_order_with_item(db)
     client = router_test_client(db, invoices_router, orders_router)
     blocks = client.get(f"/api/orders/{order.id}").json()["invoice_create_blocks"]
-    assert blocks == {"abschlag_pauschal": None, "abschlag_leistungsstand": None, "schluss": None}
+    assert blocks == {"abschlag_pauschal": None, "abschlag_leistungsstand": None, "schluss": None, "aufwand": None}
     pauschal = client.post(f"/api/orders/{order.id}/invoices/abschlag-pauschal", json={"lump_sum_net": "100"}).json()
-    schluss_text = client.get(f"/api/orders/{order.id}").json()["invoice_create_blocks"]["schluss"]
-    assert schluss_text.startswith("Die Schlussrechnung ist vorerst gesperrt")
+    # Seit 1.8.85 keine Sperre der Schlussrechnung neben einem pauschalen Abschlag (bis 1.8.84 "vorerst gesperrt").
+    assert client.get(f"/api/orders/{order.id}").json()["invoice_create_blocks"]["schluss"] is None
     client.put(f"/api/invoices/{pauschal['id']}", json=ZEITRAUM_JSON)  # seit 1.8.74 Pflicht
     assert client.get(f"/api/invoices/{pauschal['id']}").json()["finalize_block"] is None
     client.delete(f"/api/invoices/{pauschal['id']}")
@@ -438,6 +429,7 @@ def test_order_and_invoice_name_the_reasons_for_the_page(threaded_db_session, ro
     blocks = client.get(f"/api/orders/{order.id}").json()["invoice_create_blocks"]
     assert blocks["schluss"].startswith("Am Auftrag besteht schon eine Schlussrechnung (R-")
     assert blocks["abschlag_pauschal"] == blocks["abschlag_leistungsstand"] != None  # noqa: E711
+    assert "keine Rechnung aus Aufwand mehr möglich" in blocks["aufwand"]  # seit 1.8.85
 
 
 def test_pages_show_the_reason_instead_of_the_button():
@@ -626,12 +618,14 @@ def test_postgresql_progress_draft_waits_for_the_final_invoice_and_is_rejected(p
         "entwurf", None)
 
 
-def test_postgresql_final_invoice_waits_for_a_lump_sum_and_is_rejected(pg):
+def test_postgresql_final_invoice_waits_for_a_lump_sum_and_is_created(pg):
+    """Seit 1.8.85 (R4b Punkt 5): die Schlussrechnung wartet auf das Anlegen des pauschalen Abschlags und entsteht danach -- bis
+    1.8.84 wurde sie abgelehnt."""
     Session, order_id = pg
     _, second = _run(Session, lambda s: create_abschlag_pauschal(s, _order(s, order_id), lump_sum_net=Decimal("100")).id,
-                     lambda s: create_schlussrechnung(s, _order(s, order_id)))
-    assert isinstance(second, InvoiceBlocked) and "pauschaler Abschlag" in str(second), second
-    assert _zaehlen(Session, order_id, invoice_type="schluss") == 0
+                     lambda s: create_schlussrechnung(s, _order(s, order_id)).invoice_type)
+    assert second == "schluss", second
+    assert _zaehlen(Session, order_id, invoice_type="schluss") == 1
 
 
 def test_postgresql_same_draft_finalized_twice_at_once_gets_one_number(pg):

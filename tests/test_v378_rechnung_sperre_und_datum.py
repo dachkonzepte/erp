@@ -189,14 +189,24 @@ def _tax_key_id(s):
     return s.scalar(select(TaxKey.id).order_by(TaxKey.id.desc()).limit(1))
 
 
+def _auftrag_schluessel(s, inv):
+    """Seit 1.8.85 (R4b Punkt 3) nimmt ein Entwurf nur den Steuerschlüssel des Auftrags -- der Auftrag wird vorher (wie vor der
+    ersten Rechnung erlaubt) direkt umgestellt."""
+    order = s.get(Order, inv.order_id)
+    order.tax_key_id = _tax_key_id(s)
+    s.commit()
+    return order.tax_key_id
+
+
 EDITS = {
     "kopf": lambda s, inv: update_invoice_header(s, inv, intro_text="Geändert"),
     "zeitraum": lambda s, inv: update_invoice_header(s, inv, service_period_end=date(2026, 9, 29)),
     "zahlungsbedingung": lambda s, inv: update_invoice_payment_term(s, inv, _term_id(s, inv)),
-    "steuerschluessel": lambda s, inv: update_invoice_tax_key(s, inv, _tax_key_id(s)),
-    # Seit 1.8.83 keine freie Position an einer Schlussrechnung -- die Position des Auftrags noch einmal (bis 1.8.82 frei).
-    "position_neu": lambda s, inv: add_invoice_item(s, inv, short_text="Nachtrag", long_text="", unit="Std.",
-                                                    unit_price=Decimal("50"), ist_quantity=Decimal("2"),
+    "steuerschluessel": lambda s, inv: update_invoice_tax_key(s, inv, _auftrag_schluessel(s, inv)),
+    # Seit 1.8.83 keine freie Position an einer Schlussrechnung -- die Position des Auftrags noch einmal (bis 1.8.82 frei), seit
+    # 1.8.85 mit Einheit und Preis des Auftrags.
+    "position_neu": lambda s, inv: add_invoice_item(s, inv, short_text="Nachtrag", long_text="", unit=inv.items[0].unit,
+                                                    unit_price=inv.items[0].unit_price, ist_quantity=Decimal("2"),
                                                     source_order_item_id=inv.items[0].source_order_item_id),
     "position_aendern": lambda s, inv: update_invoice_item(s, inv, inv.items[0], ist_quantity=Decimal("50")),
     "position_entfernen": lambda s, inv: remove_invoice_item(s, inv, inv.items[0].id),
@@ -269,8 +279,8 @@ def test_edit_routes_answer_409_for_a_finalized_invoice(threaded_db_session, rou
 
 
 def test_time_based_invoice_is_created_under_the_lock():
-    """Rechnung aus Aufwand anlegen nimmt die Sperre (geprüft am Beobachter) -- ohne eigene Regel, auch nach der
-    Schlussrechnung (Festlegung 1.8.72 Nr. 3)."""
+    """Rechnung aus Aufwand anlegen nimmt die Sperre (geprüft am Beobachter) -- seit 1.8.85 mit eigener Regel: nicht nach der
+    gültigen Schlussrechnung (R4b Punkt 5; bis 1.8.84 auch danach, Festlegung 1.8.72 Nr. 3)."""
     db = db_session()
     order, _ = make_order_with_item(db)
     _buchung(db, order)
@@ -544,6 +554,23 @@ def _sz_fest(aktion):
     return vorbereiten
 
 
+def _sz_steuer(c, order_id, db):
+    """Steuerschlüssel des Entwurfs: seit 1.8.85 nur der des Auftrags -- der Auftrag wird vorher umgestellt."""
+    invoice_id = _entwurf(c, order_id)
+    _auftrag_schluessel(db, db.get(Invoice, invoice_id))
+    return lambda: c.put(f"/api/invoices/{invoice_id}/tax-key", json={"tax_key_id": _tax_key_id(db)})
+
+
+def _sz_aktualisieren(c, order_id, db):
+    """Aus dem Auftrag aktualisieren (seit 1.8.85): der Preis am Auftrag wird vorher geändert, sonst änderte es nichts."""
+    from app.models import OrderItem
+    invoice_id = _entwurf(c, order_id)
+    item = db.scalar(select(OrderItem).where(OrderItem.order_id == order_id))
+    item.unit_price = item.unit_price + 1
+    db.commit()
+    return lambda: c.post(f"/api/invoices/{invoice_id}/refresh-from-order")
+
+
 SZENARIEN = {
     ("POST", "/api/orders/{order_id}/invoices/abschlag-pauschal"):
         lambda c, o, db: lambda: c.post(f"/api/orders/{o}/invoices/abschlag-pauschal", json={"lump_sum_net": "100"}),
@@ -556,12 +583,13 @@ SZENARIEN = {
     ("PUT", "/api/invoices/{invoice_id}"): _sz_entwurf(lambda c, i, db: c.put(f"/api/invoices/{i}", json={"intro_text": "x"})),
     ("PUT", "/api/invoices/{invoice_id}/payment-term"): _sz_entwurf(
         lambda c, i, db: c.put(f"/api/invoices/{i}/payment-term", json={"payment_term_id": _term_id(db, db.get(Invoice, i))})),
-    ("PUT", "/api/invoices/{invoice_id}/tax-key"): _sz_entwurf(
-        lambda c, i, db: c.put(f"/api/invoices/{i}/tax-key", json={"tax_key_id": _tax_key_id(db)})),
+    ("PUT", "/api/invoices/{invoice_id}/tax-key"): _sz_steuer,
     ("POST", "/api/invoices/{invoice_id}/items"): _sz_entwurf(lambda c, i, db: c.post(f"/api/invoices/{i}/items", json={
-        "short_text": "Nachtrag", "long_text": "", "unit": "Std.", "unit_price": "50", "ist_quantity": "2",
-        # seit 1.8.83 die Position des Auftrags noch einmal (freie Positionen nur in Rechnungen aus Aufwand)
-        "source_order_item_id": c.get(f"/api/invoices/{i}").json()["items"][0]["source_order_item_id"]})),
+        "short_text": "Nachtrag", "long_text": "", "ist_quantity": "2",
+        # seit 1.8.83 die Position des Auftrags noch einmal (freie Positionen nur in Rechnungen aus Aufwand), seit 1.8.85 mit
+        # Einheit und Preis des Auftrags
+        **{k: c.get(f"/api/invoices/{i}").json()["items"][0][k] for k in ("unit", "unit_price", "source_order_item_id")}})),
+    ("POST", "/api/invoices/{invoice_id}/refresh-from-order"): _sz_aktualisieren,  # seit 1.8.85
     ("PUT", "/api/invoices/{invoice_id}/items/{item_id}"): _sz_entwurf(
         lambda c, i, db: c.put(f"/api/invoices/{i}/items/{_erste_position(c, i)}", json={"ist_quantity": "7"})),
     ("DELETE", "/api/invoices/{invoice_id}/items/{item_id}"): _sz_entwurf(
@@ -659,19 +687,19 @@ def test_postgresql_edit_waits_for_the_delete_and_is_rejected(pg):
 
 
 def test_postgresql_second_edit_of_a_position_computes_with_the_first(pg):
-    """Zwei Änderungen derselben Position: die zweite (nur der Preis) rechnet nach der Sperre mit der Menge der ersten --
-    nicht mit der vorher geladenen."""
+    """Zwei Änderungen derselben Position: die zweite (nur der Text) rechnet nach der Sperre mit der Menge der ersten -- nicht
+    mit der vorher geladenen. (Bis 1.8.84 änderte die zweite den Preis; seit 1.8.85 kommt er aus dem Auftrag.)"""
     Session, order_id = pg
     invoice_id = _pg_entwurf(Session, order_id)
 
-    def preis(s):
+    def text(s):
         invoice = s.get(Invoice, invoice_id)
         item = invoice.items[0]
-        return update_invoice_item(s, invoice, item, unit_price=Decimal("60")).billed_total
+        return update_invoice_item(s, invoice, item, short_text="Eindecken (geändert)").billed_total
 
     _, second = _run(Session, lambda s: update_invoice_item(s, s.get(Invoice, invoice_id), s.get(Invoice, invoice_id).items[0],
-                                                             ist_quantity=Decimal("4")) and "menge", preis)
-    assert second == Decimal("240"), second  # 4 x 60, nicht 100 x 60
+                                                             ist_quantity=Decimal("4")) and "menge", text)
+    assert second == Decimal("200"), second  # 4 x 50, nicht 10 x 50
 
 
 def test_postgresql_time_based_invoice_waits_for_the_lock(pg):
@@ -680,7 +708,9 @@ def test_postgresql_time_based_invoice_waits_for_the_lock(pg):
     wird, prüfen der Strukturtest und test_time_based_invoice_is_created_under_the_lock."""
     Session, order_id = pg
     _vorbereiten(Session, lambda s: _buchung(s, s.get(Order, order_id)))
-    invoice_id = _pg_entwurf(Session, order_id)
+    # Seit 1.8.85 ein pauschaler Abschlag statt der Schlussrechnung -- nach ihr gibt es keine Rechnung aus Aufwand mehr.
+    invoice_id = _vorbereiten(Session, lambda s: mit_zeitraum(s, create_abschlag_pauschal(
+        s, s.get(Order, order_id), lump_sum_net=Decimal("100"))).id)
 
     def aufwand(s):
         order = s.get(Order, order_id)

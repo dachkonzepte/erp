@@ -272,4 +272,5 @@ legte fehlende Mitarbeiterprofile an, zwei gleichzeitige Aufrufe der Auftragssei
    bemerkte das nicht.
 2. **`klicktest_mahnwesen` prüft die Liste vor dem Neuladen**: `createSelectedReminders()` (`mahnwesen.html`) setzt "3 Entwürfe
    angelegt." vor `await reload()`; der Klicktest wartet auf diesen Text und liest die Liste sofort -- unter Last (Suite parallel) noch
-   die alte. Gesehen im Gesamtlauf 1.8.84, einzeln nicht. Kein Fehler der App.
+   die alte. Gesehen im Gesamtlauf 1.8.84, einzeln nicht. Kein Fehler der App. Nachtrag (13.10.2026): seit etwa 23 Uhr auch
+   einzeln jedes Mal rot, ebenso auf dem Stand 1.8.83 (`e3ae7f9`) -- also nicht von 1.8.84/1.8.85.

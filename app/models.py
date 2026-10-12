@@ -1786,6 +1786,9 @@ class Invoice(Base):
     customer: Mapped["Customer | None"] = relationship()  # seit 1.8.79, siehe customer_id
     pdf_document: Mapped["SentDocument | None"] = relationship(foreign_keys=[pdf_document_id])  # seit 1.8.82
     items: Mapped[list["InvoiceItem"]] = relationship(back_populates="invoice", cascade="all, delete-orphan", order_by="InvoiceItem.sort_order")
+    # Seit 1.8.85 (R4b): die Abzüge einer Schlussrechnung (Endrechnung), beim Festschreiben eingefroren -- siehe InvoiceDeduction.
+    deductions: Mapped[list["InvoiceDeduction"]] = relationship(
+        foreign_keys="InvoiceDeduction.invoice_id", cascade="all, delete-orphan", order_by="InvoiceDeduction.sort_order")
     reminders: Mapped[list["Reminder"]] = relationship(back_populates="invoice", cascade="all, delete-orphan", order_by="Reminder.level")
 
 
@@ -1836,6 +1839,27 @@ class InvoiceItem(Base):
     billed_total: Mapped[Decimal] = mapped_column(Numeric(18, 6), default=Decimal("0"))
 
     invoice: Mapped[Invoice] = relationship(back_populates="items")
+
+
+class InvoiceDeduction(Base):
+    """Abzug einer Schlussrechnung (Endrechnung, seit 1.8.85, R4b Punkt 2, docs/archiv/befund-vor-echtbetrieb.md "Umsetzung
+    R4b"): eine festgeschriebene, nicht stornierte Abschlagsrechnung (pauschal oder nach Leistungsstand) oder Rechnung aus Aufwand
+    desselben Auftrags, die die Schlussrechnung mit Netto, USt und Brutto abzieht. Die Zeilen entstehen beim Festschreiben der
+    Schlussrechnung unter der Sperre der Auftragszeile (im Entwurf rechnet der Abzug mit den gerade gültigen Rechnungen) und sind
+    danach unveränderlich (ORM-Sperre unten) -- so bleibt der Betrag einer festgeschriebenen Schlussrechnung derselbe, auch wenn
+    nach ihrem Storno ein Abschlag storniert wird. Beträge stehen nicht hier: sie ergeben sich aus der abgezogenen Rechnung, die
+    selbst unveränderlich ist (Regel 19). Rechnungsbetrag = Gesamtleistung − Abzüge (app/invoices.py::final_breakdown())."""
+
+    __tablename__ = "invoice_deductions"
+    __table_args__ = (UniqueConstraint("invoice_id", "deducted_invoice_id", name="uq_invoice_deduction"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"), index=True)
+    deducted_invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"), index=True)
+    sort_order: Mapped[int] = mapped_column(default=10)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    deducted_invoice: Mapped[Invoice] = relationship(foreign_keys=[deducted_invoice_id])
 
 
 class ReminderLevel(Base):
@@ -5837,6 +5861,17 @@ def _invoice_pdf_fixed(mapper, connection, target):
         table.select().with_only_columns(table.c.pdf_document_id).where(table.c.id == target.id)).scalar()
     if stored is not None:
         raise ArchiveImmutableError("Die feste Fassung einer Rechnung steht fest.")
+
+
+# Abzüge der Schlussrechnung (seit 1.8.85): beim Festschreiben angelegt, danach weder geändert noch gelöscht.
+@event.listens_for(InvoiceDeduction, "before_update")
+def _invoice_deduction_immutable(mapper, connection, target):
+    raise ArchiveImmutableError("Die Abzüge einer festgeschriebenen Schlussrechnung stehen fest.")
+
+
+@event.listens_for(InvoiceDeduction, "before_delete")
+def _invoice_deduction_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Die Abzüge einer festgeschriebenen Schlussrechnung werden nie gelöscht.")
 
 
 # Festgeschriebene Vertragsfassung (seit 1.8.33): nur superseded_at darf sich ändern, und nur einmal

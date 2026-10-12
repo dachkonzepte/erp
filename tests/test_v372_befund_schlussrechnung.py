@@ -1,10 +1,10 @@
 """Befund „Vor dem Echtbetrieb: Geld und Sicherheit“ (09.10.2026, docs/archiv/befund-vor-echtbetrieb.md), Punkt 1:
 Abschläge, Schlussrechnung und Storno.
 
-Heutiges Verhalten, festgehalten (grün): die Schlussrechnung zieht Abschläge nach Leistungsstand über die Menge ab
-(app/invoices.py::get_previous_cumulative_ist(), compute_billed_quantity_and_total()) -- netto (Menge x EP), die USt nur auf den
-Rest mit dem Satz der Schlussrechnung, nach gestellten Rechnungen (versendet/bezahlt), nicht nach Zahlungen; Entwürfe und
-stornierte zählen nicht.
+Heutiges Verhalten, festgehalten (grün): seit 1.8.85 (R4b) ist die Schlussrechnung eine Endrechnung -- alle Positionen mit der vollen
+Ist-Menge (Gesamtleistung), darunter jeder festgeschriebene, nicht stornierte Abschlag und jede Rechnung aus Aufwand mit Netto, USt
+und Brutto abgezogen (app/invoices.py::final_breakdown()), nach gestellten Rechnungen, nicht nach Zahlungen; Entwürfe und stornierte
+zählen nicht. Bis 1.8.84 zog sie Abschläge nach Leistungsstand über die Menge ab (Rest = Ist − letzter Stand), pauschale gar nicht.
 
 Fehler, nachgestellt als xfail (tests/befund_vor_echtbetrieb.py) -- sie werden die Abnahmetests der Reparatur. Geprüft wird
 jeweils eine Eigenschaft, kein Weg: nach einer gültigen Schlussrechnung sind die gültigen Rechnungen eines Auftrags zusammen genau
@@ -14,9 +14,10 @@ Aktion, die die Reparatur ablehnen darf, läuft über _versuch().
 Seit 1.8.72 (R3) behoben und ohne Markierung: 1c, 1e, 1f, 1g, 1h. Weil die Reparatur schon das Anlegen einer zweiten
 Schlussrechnung bzw. eines zweiten Stornos ablehnt, läuft dort auch das zweite Anlegen über _versuch() (die Prüfungen sind
 unverändert); den Altbestand mit zwei Entwürfen prüft tests/test_v375_rechnungen_sperren.py. Seit 1.8.83 (R4a Punkt 6) behoben
-und ohne Markierung: 1d. Offen bis R4: 1a, 1b -- bei 1a
-ist die Schlussrechnung neben einem pauschalen Abschlag bis dahin gesperrt; der Test verlangt deshalb zusätzlich, dass eine
-gültige Schlussrechnung besteht (sonst wäre er ohne sie zufällig grün: 2.000 pauschal + 60 % = 5.000)."""
+und ohne Markierung: 1d. Seit 1.8.85 (R4b) behoben und ohne Markierung: 1a (die Endrechnung zieht den pauschalen Abschlag ab), 1b
+(das Festschreiben rechnet unter der Sperre neu, die Schlussrechnung zieht die beim Festschreiben gültigen Rechnungen ab) -- keine
+Prüfung geändert. Bei 1a verlangt der Test zusätzlich, dass eine gültige Schlussrechnung besteht (sonst wäre er ohne sie zufällig
+grün: 2.000 pauschal + 60 % = 5.000)."""
 
 from datetime import date, timedelta
 from decimal import Decimal
@@ -36,7 +37,7 @@ from app.invoices import (
 )
 from app.models import Invoice, Reminder
 from app.reminders import create_reminder, finalize_and_send_reminder
-from tests.befund_vor_echtbetrieb import befund, vorbedingung
+from tests.befund_vor_echtbetrieb import vorbedingung
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.zahlung import voll_bezahlen  # seit 1.8.78 statt mark_invoice_paid()
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
@@ -86,9 +87,10 @@ def _schluss_festschreiben(db, order):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("bezahlt", [False, True])
-def test_today_progress_invoices_are_deducted_net_by_quantity_after_invoicing_not_payment(bezahlt):
-    """Abschlag nach Leistungsstand 40 m² (2.000 netto, 2.380 brutto), bezahlt oder nicht: die Schlussrechnung rechnet 60 m² =
-    3.000 netto + 19 % auf den Rest = 3.570 brutto. Die USt des Abschlags erscheint dort nicht; ein Entwurf zählt nicht."""
+def test_today_final_invoice_deducts_progress_invoices_with_net_and_vat_after_invoicing_not_payment(bezahlt):
+    """Seit 1.8.85 (R4b): Abschlag nach Leistungsstand 40 m² (2.000 netto, 2.380 brutto), bezahlt oder nicht: die Schlussrechnung
+    rechnet 100 m² = 5.000 netto Gesamtleistung, 950 USt, 5.950 brutto, zieht den Abschlag mit 2.000 / 380 / 2.380 ab und lautet
+    über 3.000 / 570 / 3.570. Ein Entwurf zählt nicht. (Bis 1.8.84: 60 m² über die Menge, dieselben 3.570 €.)"""
     db = db_session()
     order, _ = make_order_with_item(db)
     abschlag = _final(db, _leistungsstand(db, order, "40"))
@@ -99,7 +101,13 @@ def test_today_progress_invoices_are_deducted_net_by_quantity_after_invoicing_no
     _leistungsstand(db, order, "90")  # Entwurf, zählt nicht
     schluss = create_schlussrechnung(db, order)
     [item] = schluss.items
-    assert (item.ist_quantity, item.billed_quantity) == (Decimal("100"), Decimal("60"))
+    assert (item.ist_quantity, item.billed_quantity) == (Decimal("100"), Decimal("100"))
+    from app.invoices import final_breakdown
+    aufstellung = final_breakdown(schluss)
+    assert (aufstellung.total_net, aufstellung.total_vat, aufstellung.total_gross) == (
+        Decimal("5000.00"), Decimal("950.00"), Decimal("5950.00"))
+    assert [(z.invoice.id, z.net, z.vat, z.gross) for z in aufstellung.deductions] == [
+        (abschlag.id, Decimal("2000.00"), Decimal("380.00"), Decimal("2380.00"))]
     assert compute_invoice_totals(schluss) == {"net_total": Decimal("3000.00"), "vat_total": Decimal("570.00"),
                                                "gross_total": Decimal("3570.00")}
 
@@ -115,12 +123,13 @@ def test_today_pauschal_has_no_reference_to_order_items():
 
 
 # ---------------------------------------------------------------------------
-# 1a: pauschale Abschläge zieht die Schlussrechnung nicht ab
+# 1a: pauschale Abschläge zog die Schlussrechnung nicht ab (seit 1.8.85 behoben)
 # ---------------------------------------------------------------------------
 
-@befund("1a", "pauschale Abschläge werden von der Schlussrechnung nicht abgezogen -- der Auftrag wird doppelt abgerechnet")
 @pytest.mark.parametrize("bezahlt", [False, True])
 def test_final_invoice_after_lump_sum_progress_invoice_bills_the_order_once(bezahlt):
+    """1a, seit 1.8.85 behoben (R4b): vorher zog die Schlussrechnung einen pauschalen Abschlag nicht ab -- der Auftrag wurde
+    doppelt abgerechnet (7.000 statt 5.000 netto); bis R4 war sie neben ihm gesperrt."""
     db = db_session()
     order, _ = make_order_with_item(db)
     pauschal = _final(db, create_abschlag_pauschal(db, order, lump_sum_net=Decimal("2000")))
@@ -131,8 +140,9 @@ def test_final_invoice_after_lump_sum_progress_invoice_bills_the_order_once(beza
     assert _abgerechnet(db, order) == (AUFTRAG_NETTO, AUFTRAG_BRUTTO)
 
 
-@befund("1a", "pauschale Abschläge zählen auch für einen folgenden Abschlag nach Leistungsstand nicht")
 def test_lump_sum_then_progress_by_quantity_then_final_bills_the_order_once():
+    """1a, seit 1.8.85 behoben: pauschal 2.000, nach Leistungsstand 60 m² (3.000) -- die Endrechnung über 0 € schließt den
+    Auftrag mit 5.000 ab (vorher 7.000)."""
     db = db_session()
     order, _ = make_order_with_item(db)
     _final(db, create_abschlag_pauschal(db, order, lump_sum_net=Decimal("2000")))
@@ -143,11 +153,11 @@ def test_lump_sum_then_progress_by_quantity_then_final_bills_the_order_once():
 
 
 # ---------------------------------------------------------------------------
-# 1b: der Abzug wird beim Anlegen des Entwurfs gerechnet, beim Festschreiben nicht neu
+# 1b: der Abzug wurde beim Anlegen des Entwurfs gerechnet, beim Festschreiben nicht neu (seit 1.8.85 behoben)
 # ---------------------------------------------------------------------------
 
-@befund("1b", "Schlussrechnung als Entwurf, danach ein Abschlag festgeschrieben -- die Schlussrechnung zieht ihn nicht ab")
 def test_final_invoice_drafted_before_a_progress_invoice_bills_the_order_once():
+    """1b (a), seit 1.8.85 behoben: vorher zog eine Schlussrechnung, die vor dem Abschlag als Entwurf entstand, ihn nicht ab."""
     db = db_session()
     order, _ = make_order_with_item(db)
     schluss = create_schlussrechnung(db, order)
@@ -156,8 +166,9 @@ def test_final_invoice_drafted_before_a_progress_invoice_bills_the_order_once():
     assert _abgerechnet(db, order) == (AUFTRAG_NETTO, AUFTRAG_BRUTTO)
 
 
-@befund("1b", "zwei Abschläge nach Leistungsstand als Entwurf nebeneinander -- beide rechnen gegen den Stand 0")
 def test_two_parallel_progress_drafts_bill_the_cumulative_quantity_once():
+    """1b (b), seit 1.8.85 behoben: vorher rechneten zwei Abschläge, als Entwurf nebeneinander angelegt, beide gegen den Stand 0
+    (6.000 statt 4.000) -- das Festschreiben rechnet jetzt unter der Sperre gegen den letzten Stand von dann."""
     db = db_session()
     order, _ = make_order_with_item(db)
     erster = _leistungsstand(db, order, "40")
@@ -167,8 +178,9 @@ def test_two_parallel_progress_drafts_bill_the_cumulative_quantity_once():
     assert _abgerechnet(db, order) == (Decimal("4000.00"), Decimal("4760.00"))  # 80 m² kumuliert
 
 
-@befund("1b", "Abschlag storniert, während die Schlussrechnung Entwurf ist -- sie zieht den stornierten weiter ab")
 def test_final_invoice_drafted_before_a_cancellation_bills_the_order_once():
+    """1b (c), seit 1.8.85 behoben: vorher zog die Schlussrechnung einen Abschlag weiter ab, der während ihres Entwurfs storniert
+    wurde (3.000 statt 5.000)."""
     db = db_session()
     order, _ = make_order_with_item(db)
     abschlag = _final(db, _leistungsstand(db, order, "40"))

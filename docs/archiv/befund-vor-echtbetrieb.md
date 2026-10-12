@@ -2093,6 +2093,142 @@ Wird der Umfang zu groß: nach Punkt 3 committen und den Rest auflisten. Commit 
 - Festlegungen 1.8.82 und 1.8.83 Nr. 1–5 an den Überschriften als bestätigt markiert, 1.8.83 Nr. 6 mit der Änderung. Die Vorgabe nennt
   1.8.82 Nr. 6–9 und 1.8.83 Nr. 7–8 nicht -- dort steht das so, ohne Bestätigung.
 - Punkt 1 (kein Lesepfad legt an) ist Version 1.8.84: `docs/archiv/grunddaten-beim-start.md`, "Umsetzung 1.8.84".
+- Umfang: nach Punkt 3 committet (1.8.85, mit Punkt 5 -- die Sperre neben dem pauschalen Abschlag hängt an der Endrechnung, der
+  Aufwand nach der Schlussrechnung an ihrem Abzug); Punkte 4 und 6 als 1.8.86.
+
+### Umsetzung 1.8.85: Endrechnung, Neuberechnung beim Festschreiben, Abweichung vom Auftrag (Punkte 2, 3 und 5)
+
+#### Was gebaut ist
+
+- **Endrechnung** (`app/invoices.py::final_breakdown()`, `FinalBreakdown`): die Schlussrechnung trägt alle Auftragspositionen samt
+  Nachträgen mit der vollen Ist-Menge (abgerechnete Menge = Ist, `compute_billed_quantity_and_total(invoice_type="schluss")`),
+  Vorschlag beim Anlegen die Menge des Auftrags (`_proposed_ist()`, Festlegung 1). Gesamtleistung = Positionen + jede Rechnung aus
+  Aufwand (eigene Zeile "Leistungen nach Aufwand, Rechnung … vom …"), USt einmal auf die Gesamtleistung; darunter der Abzugsblock:
+  jede festgeschriebene, nicht stornierte Abschlagsrechnung (pauschal, nach Leistungsstand) und Rechnung aus Aufwand desselben
+  Auftrags mit Nummer, Datum, Netto, USt, Brutto, älteste zuerst (`deductible_invoices()`). Rechnungsbetrag = Gesamtleistung −
+  Abzüge, netto, USt und brutto je als Differenz -- `compute_invoice_totals()` liefert ihn, also Zahlungen (`payable_gross()`),
+  offene Posten, Skonto, Mahnung, `{gesamtbetrag}` und "abgerechnet" (`compute_order_billing_progress()`, Summe der gültigen
+  Rechnungsbeträge = Gesamtleistung).
+- **Abzüge eingefroren**: im Entwurf zählen die gerade gültigen Rechnungen; beim Festschreiben unter der Sperre der Auftragszeile
+  entstehen die Zeilen `InvoiceDeduction` (neue Tabelle `invoice_deductions`, Migration `8c2e5a7d4f19`, UNIQUE je Schlussrechnung und
+  abgezogener Rechnung, ORM-Sperre: nie geändert, nie gelöscht). Beträge stehen dort nicht -- sie kommen aus der abgezogenen Rechnung,
+  die selbst unveränderlich ist (Regel 19). Das Storno einer Endrechnung lautet auf den Gegenbetrag (ihre Positionen negiert, die
+  Abzüge des Originals mit umgekehrtem Vorzeichen); ihr Betrag und der des Stornos bleiben, auch wenn danach ein Abschlag storniert
+  wird.
+- **PDF** (`app/invoice_pdf.py::_final_invoice_blocks()`): zwischen Positionstabelle und Schlussblock "Summe der Positionen" und je
+  Rechnung aus Aufwand eine Zeile (nur wenn es sie gibt), Gesamtleistung netto/MwSt./brutto, "Abzüglich bereits gestellter
+  Rechnungen" (Rechnung, Datum, Art -- bei anderem Steuersatz mit dem Satz --, netto, USt, brutto, Summe), Rechnungsbetrag
+  netto/MwSt./brutto. Ohne Abzüge wie bisher.
+- **Rechnungsseite**: Karte "Endrechnung" mit derselben Aufstellung (Links auf die abgezogenen Rechnungen), Hinweis bei anderem
+  Steuersatz; oben Netto/MwSt./Brutto = Rechnungsbetrag.
+- **Neu rechnen beim Festschreiben** (Befund 1b; `_recompute_draft()`): unter der Sperre, vor den Prüfungen -- Abschlag nach
+  Leistungsstand gegen den letzten Stand von jetzt, Schlussrechnung mit der vollen Ist-Menge. Danach ziehen im selben Commit die
+  anderen Entwürfe eines Abschlags nach Leistungsstand desselben Auftrags nach (`_refresh_other_drafts()`), auch nach einem Storno.
+- **Abweichung vom Auftrag** (`order_deviations()`, `order_deviation_reason()`, Teil von `finalize_block_reason()`): jede Art außer
+  Storno -- Steuerschlüssel bzw. Satz, Einheitspreis und Einheit einer Position mit Auftragsbezug, eine Position, die nicht mehr in
+  der Summe des Auftrags steht, bei der Schlussrechnung fehlende Positionen des Auftrags (z. B. ein späterer Nachtrag). 409 mit
+  "Der Entwurf weicht vom Auftrag ab: … „Aus dem Auftrag aktualisieren“ übernimmt …". Im Entwurf lassen sich Preis und Einheit einer
+  Position mit Auftragsbezug (`update_invoice_item()`, `add_invoice_item()`) und der Steuerschlüssel (`update_invoice_tax_key()`)
+  nicht mehr abweichend setzen (409, nur eine tatsächliche Änderung) -- Befund R4 Nebenbefunde 1 und 2 aus 1.8.82; beim Storno nur
+  der Schlüssel des Originals.
+- **"Aus dem Auftrag aktualisieren"** (`refresh_draft_from_order()`, `POST /api/invoices/{id}/refresh-from-order`): übernimmt
+  Steuerschlüssel, Satz und Hinweistext, Einheitspreise und Einheiten; Positionen außerhalb der Summe gehen heraus, beim Abschlag nach
+  Leistungsstand und der Schlussrechnung kommen fehlende Positionen mit dem Ist-Vorschlag dazu (auch spätere Nachträge -- löst
+  Nebenbefund 1 aus 1.8.83); Ist-Mengen und Texte bleiben. Rechnungsseite: Knopf neben dem Grund; Steuerschlüssel gesperrt mit
+  Hinweis, Preis und Einheit einer Position mit Auftragsbezug im Dialog gesperrt.
+- **Beträge** (`amount_block_reason()`, ersetzt `negative_progress_reason()`): Abschlag nach Leistungsstand unter 0 € wie bisher, über
+  0 € neu abgelehnt (Festlegung 1.8.83 Nr. 6 geändert), pauschaler Abschlag (gerundet) über 0 € oder weniger abgelehnt;
+  Schlussrechnung unter 0 € (Abzüge über der Gesamtleistung) 409 bis R4c, über 0 € geht (Endrechnung nach voller Abdeckung).
+- **Punkt 5**: die Sperre der Schlussrechnung neben einem pauschalen Abschlag (`_lump_sum_reason()`, seit 1.8.72) entfällt. Nach der
+  gültigen Schlussrechnung keine Rechnung aus Aufwand mehr -- weder anlegen noch einen älteren Entwurf festschreiben -- und kein
+  Storno einer abgezogenen Rechnung aus Aufwand (wie beim Abschlag); nach dem Storno der Schlussrechnung wieder. Auftragsseite: Grund
+  auch für "Rechnung aus Aufwand" (`invoice_create_blocks["aufwand"]`).
+- Klicktest `scripts/klicktest_endrechnung.py`.
+
+#### Festlegungen 1.8.85 (Bitte bestätigen)
+
+1. **Vorschlag Ist der Schlussrechnung = Menge des Auftrags** (der letzte Stand des Auftrags, dessen Mengen bis zur Schlussrechnung
+   änderbar bleiben), im Entwurf änderbar. Gelesen wurde "letzter Stand" damit nicht wie beim Abschlag (Ist der zuletzt
+   festgeschriebenen Rechnung): eine Schlussrechnung ohne vorherigen Abschlag nach Leistungsstand schlüge sonst überall 0 vor, und die
+   Abnahmetests 1a und 1b setzen "Aufmaß wie beauftragt" voraus (sie legen die Schlussrechnung an und schreiben sie fest, ohne ein Ist
+   einzutragen). War der Stand der Abschläge gemeint: eine Zeile (`_proposed_ist()`), die Tests 1a/1b trügen dann ihr Ist ein.
+2. **Gesamtleistung** = Positionen (volle Ist-Menge) + Rechnungen aus Aufwand (netto, je eine Zeile), USt einmal auf die
+   Gesamtleistung gerundet; jeder Abzug mit seiner eigenen USt; Rechnungsbetrag netto, USt, brutto je als Differenz -- er geht auf den
+   Cent auf, die USt des Rechnungsbetrags kann von "19 % des Rechnungsbetrags netto" um Cent abweichen (Befund R4 g).
+3. **Abzüge**: jede festgeschriebene, nicht stornierte Abschlagsrechnung und Rechnung aus Aufwand des Auftrags, älteste zuerst (nach
+   dem Zeitpunkt des Festschreibens, Altbestand davor) -- auch eine aus dem Altbestand über 0 € oder darunter. Im Entwurf die gerade
+   gültigen, beim Festschreiben eingefroren; ohne Beträge in der eigenen Tabelle.
+4. **Altbestand**: eine Schlussrechnung von vor 1.8.85 behält ihren Betrag (Rest über die Menge, keine Abzüge). Ein Entwurf von vor
+   1.8.85 rechnet ab sofort als Endrechnung (volle Ist-Menge statt des gespeicherten Rests); keine Migration der Daten.
+5. **Storno der Endrechnung**: Gegenbetrag samt umgekehrter Abzüge; ihr PDF zeigt dieselbe Aufstellung mit umgekehrtem Vorzeichen.
+6. **Abweichung**: geprüft werden Steuerschlüssel/Satz, Einheitspreis, Einheit, "in Summe" und bei der Schlussrechnung die
+   Vollständigkeit -- nicht Mengen (das Ist ist Sache der Rechnung) und nicht Texte. Ein Entwurf übernimmt Preis, Einheit und
+   Steuerschlüssel nur aus dem Auftrag (im Entwurf 409 bei Abweichung), der Storno den Schlüssel des Originals.
+7. **Aktualisieren** übernimmt auch fehlende Positionen beim Abschlag nach Leistungsstand (nicht nur bei der Schlussrechnung), ohne
+   Rückfrage; Texte, die im Entwurf geändert wurden, bleiben.
+8. **Nachziehen anderer Entwürfe**: nur Abschläge nach Leistungsstand (ihre abgerechnete Menge hängt am letzten Stand); die
+   Schlussrechnung im Entwurf rechnet ihre Abzüge ohnehin beim Lesen.
+9. **Beträge**: 0 € gilt für jeden Abschlag als abgelehnt (pauschal: der auf den Cent gerundete Betrag); eine Schlussrechnung über 0 €
+   ist erlaubt (Endrechnung, wenn die Abschläge die Gesamtleistung decken) -- ausgenommen beim Schnellauftrag (Punkt 6, 1.8.86);
+   unter 0 € 409 bis R4c, der Grund nennt Ist-Mengen und Storno als Ausweg.
+10. **Anderer Steuersatz eines Abzugs**: Hinweis auf der Rechnungsseite, im PDF der Satz in der Spalte "Art"; kein Sperrgrund.
+11. **Nach der gültigen Schlussrechnung** gilt für Rechnungen aus Aufwand dasselbe wie für Abschläge: kein neues Anlegen, kein
+    Festschreiben eines älteren Entwurfs, kein Storno (sie ist abgezogen).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v388_endrechnung.py` (28, davon 5 gegen PostgreSQL): Gesamtleistung mit Aufwand, Abzüge in Reihenfolge (Entwurf und
+  stornierte zählen nicht), Rechnungsbetrag für Zahlungen und "abgerechnet"; Nachtrag und eingetragenes Ist; ohne Abzüge die
+  Gesamtleistung; eingefrorene Abzüge nach Storno von Schlussrechnung und Abschlag, Storno mit Gegenbetrag; ORM-Sperre (ändern,
+  löschen, leeren); anderer Steuersatz mit Hinweis; PDF; andere Entwürfe ziehen nach; Preisänderung am Auftrag sperrt Abschlag und
+  Schlussrechnung bis zum Aktualisieren; Steueränderung sperrt jede Art; Aktualisieren ergänzt einen Nachtrag und nimmt eine Position
+  außerhalb der Summe heraus; Preis/Einheit und Steuerschlüssel im Entwurf nur aus dem Auftrag, Storno mit dem des Originals; Router
+  (409, Aktualisieren, kein Entwurf mehr 409); Abschlag über 0 € und negativ abgelehnt; Schlussrechnung negativ 409, über 0 € erlaubt;
+  Schlussrechnung neben pauschalem Abschlag; kein Aufwand nach der Schlussrechnung (anlegen, Entwurf, Storno), nach ihrem Storno
+  wieder; Auftragsseite. **Gleichzeitig (PostgreSQL, Commit der ersten Aktion eine Sekunde angehalten):** zwei Abschläge -> der zweite
+  rechnet gegen den ersten; Schlussrechnung wartet auf einen Abschlag und zieht ihn ab; Abschlag wartet auf die Schlussrechnung und
+  wird abgelehnt; Storno vor der Schlussrechnung -> nicht abgezogen; Preisänderung am Auftrag vor dem Festschreiben -> 409 mit
+  Abweichung.
+- Neu `tests/test_v388_endrechnung_migration.py` (2, davon 1 gegen PostgreSQL): Bestand mit alter Schlussrechnung bleibt, keine Abzüge,
+  Rückweg exakt, mit Abzug verweigert. `alembic check` auf einer Wegwerf-SQLite: keine Abweichung.
+- `test_v372_befund_schlussrechnung`: xfail 1a und 1b entfernt -- grün, keine Prüfung geändert; der "heutige" Test beschreibt jetzt
+  die Endrechnung (derselbe Rechnungsbetrag 3.570 €). **Erwartung geändert**: `test_v133` (Schlussrechnung nach zwei Abschlägen:
+  volle Menge, Rechnungsbetrag der Rest; Preisänderung nur an freier Position), `test_v144` (Steuerschlüssel über den Auftrag),
+  `test_v315` (Position mit Einheit des Auftrags), `test_v375` (Sperre neben pauschalem Abschlag entfallen, kein Aufwand nach der
+  Schlussrechnung, Gründe der Auftragsseite mit "aufwand", PostgreSQL: Schlussrechnung entsteht nach dem Warten), `test_v378`
+  (Steuerschlüssel über den Auftrag, Position mit Einheit und Preis des Auftrags, Szenario für "Aus dem Auftrag aktualisieren", zweite
+  Änderung über den Text statt den Preis, Aufwand neben einem Abschlag statt nach der Schlussrechnung), `test_v381_zahlungen_migration`
+  (Altbestand mit anderem Preis: Abweichungsprüfung ausgesetzt wie die Betragsprüfung), `test_v386` (Nachtrag in der Schlussrechnung
+  mit voller Menge, Abschlag über 0 € abgelehnt, letzter Stand mit dem höheren Stand zuletzt festgeschrieben).
+- Gegenproben (Regel 24): 17 von 17 rot -- Abzüge nicht eingefroren, pauschaler Abschlag nicht abgezogen, Aufwand nicht in der
+  Gesamtleistung, keine Neuberechnung, andere Entwürfe ziehen nicht nach, Abweichung bzw. fehlende Positionen nicht geprüft,
+  Aktualisieren ohne Nachtrag, Preis bzw. Steuerschlüssel im Entwurf frei, Abschlag über 0 € bzw. negative Schlussrechnung geht durch,
+  Aufwand bzw. sein Storno nach der Schlussrechnung, ORM-Sperre aus, PDF ohne Abzugsblock, Festschreiben ohne Zeilensperre
+  (PostgreSQL). Jede Datei byte-genau zurück, kein Marker.
+- Klicktest `klicktest_endrechnung.py` 14/14 (Karte Endrechnung mit Gesamtleistung samt Aufwand, drei Abzügen, Rechnungsbetrag = oben
+  Brutto; Steuerschlüssel und Preis/Einheit gesperrt; finalisieren, PDF aus der Ablage; Grund für Aufwand auf der Auftragsseite;
+  Abweichung mit Grund und "Aus dem Auftrag aktualisieren"; hell, dunkel, 412 px).
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3780 grün, 0 rot, keine erwarteten Fehlschläge mehr. Danach die Reihenfolge der Gründe beim Finalisieren korrigiert (Abweichung, Betrag, erst dann der Leistungszeitraum -- wie bis 1.8.84 der negative Abschlag vor dem Zeitraum; im ersten Gesamtlauf nannte `klicktest_nachtrag` den Zeitraum zuerst) und alle rechnungsnahen Testdateien auf dem Endstand nachlaufen lassen: 1870 grün.
+- Alle Klicktests (Regel 26, `scripts/klicktest_alle.py`, Arbeitskopie): 50 von 53 wie erwartet, Laufzeit gesamt 13:15 min. Rot: `klicktest_mahnwesen` 28/29 (Nebenbefund 2 aus 1.8.84, seit etwa 23 Uhr auch einzeln und auf 1.8.83 jedes Mal rot -- nicht von dieser Version); `klicktest_nachtrag` 12/13 (Reihenfolge der Gründe, korrigiert, danach 13/13); `klicktest_rechnungen_sperren` 19/24 -- **Erwartung veraltet seit 1.8.85**: er prüfte die Sperre der Schlussrechnung neben einem pauschalen Abschlag (Grund, Ausweg R4 bzw. Entwurf löschen, API 409), die mit R4b Punkt 5 entfällt; angepasst (frei, Knopf da, API 200), danach 22/22. `klicktest_endrechnung` 14/14.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Rechnungsseite breiter als das Fenster**: bei 1280 px ragen die Spalte "Betrag" der Positionen und die rechte Spalte über den
+   Rand (waagerechte Bildlaufleiste) -- schon vor 1.8.85 so (Screenshot des Klicktests `klicktest_nachtrag` aus 1.8.84).
+2. **Der Abzug ändert das Mahnen noch nicht**: nach der Endrechnung lassen sich Abschläge weiter einzeln mahnen, und die Endrechnung
+   mahnt nur ihren Rechnungsbetrag -- die Vorgabe verweist das auf R4c.
+3. **Entwurf der Schlussrechnung in Listen**: jede Berechnung ihres Betrags fragt die Rechnungen des Auftrags ab (Abzüge im Entwurf
+   live) -- in Finanzen und Projektmappe je Entwurf einer Schlussrechnung eine Abfrage mehr.
+4. **"Rechnung aus Aufwand" auf der Auftragsseite** erscheint in der Auswahl nur mit gebuchten Zeiten oder Material eines
+   unterschriebenen Berichts (`renderInvoiceTypeOptions()`); der Grund aus `invoice_create_blocks["aufwand"]` zeigt sich deshalb nur,
+   wo die Auswahl ihn anbietet.
+5. **Testhelfer `_run` (`tests/test_v375_rechnungen_sperren.py`) schließt die Sitzung der zweiten Aktion nicht**: wirft sie (wie
+   erwartet) nach der Sperre, bleibt ihre Transaktion offen und hält die Sperre der Auftragszeile. Trifft die erste Aktion danach noch
+   darauf, wartet sie ewig -- so hing `test_v383_nebenforderungen_pg.py::test_pg_client_change_waits_for_ordering_and_asks_for_a_reason`
+   einmal im Nachlauf 1.8.85 (Beauftragen: Revision anlegen nach dem Kundenwechsel, der die Auftragszeile sperrte), während parallel ein
+   zweiter Testlauf gegen dieselbe PostgreSQL lief; in allen vollen Läufen grün. Kein Fehler der App (der Router rollt eine abgelehnte
+   Anfrage zurück). Im selben parallelen Lauf brach in `test_v382_mahnwesen_pg.py` einmal die Verbindung ab ("server closed the
+   connection unexpectedly"), einzeln grün.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
@@ -2137,3 +2273,20 @@ Ergänzt am 12.10.2026 (Vorgabe R4a nach dem Befund R4), übernommen wie gegeben
 - **„Letzter Stand“** einer Position ist der des zuletzt festgeschriebenen Abschlags, nicht des zuletzt angelegten. (Seit 1.8.83
   gebaut.)
 - **Storno eines pauschalen Abschlags ohne Positionen** (1d) lautet auf den Gegenbetrag des Originals. (Seit 1.8.83 gebaut.)
+
+Ergänzt am 12.10.2026 (Vorgabe R4b), übernommen wie gegeben -- Wortlaut unter "Umsetzung R4b":
+
+- **Festlegung 1.8.83 Nr. 6 geändert**: ein Abschlag muss über 0 € liegen; 0 € wird wie negativ abgelehnt. (Seit 1.8.85 gebaut.)
+- **Schlussrechnung als Endrechnung**: alle Auftragspositionen einschließlich Nachträge mit Ist-Mengen (Vorschlag Ist = letzter Stand,
+  im Entwurf änderbar), Gesamtleistung netto, USt, brutto; Abzugsblock je festgeschriebener, nicht stornierter Abschlagsrechnung und
+  Rechnung aus Aufwand mit Nummer, Datum, Netto, USt, Brutto; Rechnungsbetrag = Gesamtleistung − Abzüge, der Betrag für Zahlungen,
+  offene Posten und „abgerechnet“. (Seit 1.8.85 gebaut; Vorschlag Ist siehe Festlegung 1.8.85 Nr. 1.)
+- **Beim Festschreiben** wird unter der Sperre neu gerechnet; weichen Preise oder Steuerschlüssel eines Entwurfs vom Auftrag ab, 409
+  mit Hinweis zum Aktualisieren, für jede Rechnungsart; anderer Steuersatz eines abgezogenen Abschlags: Hinweis. (Seit 1.8.85 gebaut.)
+- **Zahlungshinweis** „Stand <Tag des Festschreibens>“: je Abschlag mit offenem Betrag, einschließlich Einbehalt, „zzgl. noch offen
+  aus Abschlag Nr. …“, darunter der Zahlbetrag; Mahnfähigkeit nach der Schlussrechnung regelt R4c.
+- **Keine Sperre** der Schlussrechnung nach pauschalen Abschlägen; nach der gültigen Schlussrechnung keine Rechnung aus Aufwand mehr im
+  selben Auftrag. (Seit 1.8.85 gebaut.)
+- **Schnellauftrag**: eine Rechnung aus Aufwand kann als abschließend gekennzeichnet werden und zählt dann als „vollständig
+  abgerechnet“; keine Schlussrechnung über 0 €.
+- **Negativer Rechnungsbetrag** wird bis R4c mit 409 abgelehnt. (Seit 1.8.85 gebaut.)

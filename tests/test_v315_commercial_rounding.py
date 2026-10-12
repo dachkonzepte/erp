@@ -171,8 +171,9 @@ def test_invoice_several_lines_net_is_sum_of_rounded_line_totals():
     db = db_session()
     invoice = _invoice(db, "1", "0.125", vat_rate="0")
     # Seit 1.8.83 keine freie Position mehr an einer Schlussrechnung -- die Position des Auftrags noch einmal.
-    add_invoice_item(db, invoice, short_text="Kleinteil", long_text="", unit="Stk", unit_price=Decimal("0.125"), ist_quantity=Decimal("1"),
-                     source_order_item_id=invoice.items[0].source_order_item_id)
+    # Seit 1.8.85 mit Einheit und Preis des Auftrags (R4b Punkt 3).
+    add_invoice_item(db, invoice, short_text="Kleinteil", long_text="", unit=invoice.items[0].unit, unit_price=Decimal("0.125"),
+                     ist_quantity=Decimal("1"), source_order_item_id=invoice.items[0].source_order_item_id)
     db.refresh(invoice)
     assert [row["billed_total"] for row in invoice_to_dict(invoice)["items"]] == [Decimal("0.13"), Decimal("0.13")]
     assert compute_invoice_totals(invoice)["net_total"] == Decimal("0.26")

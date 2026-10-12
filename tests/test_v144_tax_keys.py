@@ -138,6 +138,8 @@ def test_steuerschluessel_bei_rechnung_setzt_mwst_und_friert_hinweistext_ein():
     # Rechnung wurde ohne Steuerschlüssel erstellt (Auftrag hatte keinen) -> normale 19%
     assert invoice.vat_rate == Decimal("19.00")
 
+    # Seit 1.8.85 (R4b Punkt 3) kommt der Steuerschlüssel aus dem Auftrag: dort umstellen, dann am Entwurf übernehmen.
+    update_order_tax_key(db, order, key_13b.id)
     update_invoice_tax_key(db, invoice, key_13b.id)
     assert invoice.vat_rate == Decimal("0.00")
     assert invoice.tax_notice_text == "Reverse Charge Hinweis."
@@ -152,8 +154,9 @@ def test_storno_uebernimmt_steuerschluessel_und_hinweistext_vom_original():
     db = db_session()
     key_13b = create_tax_key(db, "§13b Bauleistungen", Decimal("0.00"), "Reverse Charge Hinweis.")
     order, _ = make_order_with_item(db, quantity=Decimal("100"), unit_price=Decimal("50"))
+    update_order_tax_key(db, order, key_13b.id)  # seit 1.8.85 kommt der Steuerschlüssel aus dem Auftrag
     invoice = create_schlussrechnung(db, order)
-    update_invoice_tax_key(db, invoice, key_13b.id)
+    assert invoice.tax_key_id == key_13b.id
     from app.invoices import finalize_and_send_invoice
     festschreiben(db, invoice)
 

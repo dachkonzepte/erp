@@ -1,3 +1,4 @@
+from decimal import Decimal
 from html import escape
 
 from reportlab.lib import colors
@@ -56,6 +57,55 @@ def _totals_table(rows: list[list[str]], content_width: float) -> Table:
 # ihrer Einheit statt ohne. "EH" (14mm) matcht exakt die Spaltenbreite/Beschriftung, die
 # order_pdf.py und quote_layout_pdf.py für dieselbe Einheiten-Spalte bereits verwenden.
 ITEMS_COL_WIDTHS_MM = {"position": 18, "menge": 20, "eh": 14, "ep": 20, "betrag": 25}
+
+DEDUCTION_TYPE_LABELS = {"abschlag_pauschal": "Abschlag", "abschlag_leistungsstand": "Abschlag nach Leistungsstand",
+                         "aufwand": "Rechnung nach Aufwand"}
+
+
+def _de_date(value) -> str:
+    return value.strftime("%d.%m.%Y") if value else ""
+
+
+def _final_invoice_blocks(fb: dict, vat_rate, content_width: float, styles) -> list:
+    """Endrechnung (seit 1.8.85, R4b Punkt 2): Gesamtleistung netto/USt/brutto -- Rechnungen aus Aufwand zählen dazu --, darunter
+    der Abzugsblock (jede abgezogene Rechnung mit Nummer, Datum, Netto, USt, Brutto) und der Rechnungsbetrag. Steht zwischen
+    Positionstabelle und Schlussblock, wo bis 1.8.84 nur der Rest über die Menge stand (Befund R4 g)."""
+    body, small = styles["body"], styles["small"]
+    rate = qty(vat_rate)
+    blocks = []
+    rows = []
+    if fb["effort"]:
+        rows.append(["Summe der Positionen netto", money(fb["positions_net"])])
+        for line in fb["effort"]:
+            rows.append([f"Leistungen nach Aufwand, Rechnung {line['invoice_number'] or ''} vom {_de_date(line['invoice_date'])}",
+                         money(line["net"])])
+    rows += [["Gesamtleistung netto", money(fb["total_net"])], [f"zzgl. MwSt. {rate} %", money(fb["total_vat"])],
+             ["Gesamtleistung brutto", money(fb["total_gross"])]]
+    blocks += [_totals_table(rows, content_width), Spacer(1, 5*mm),
+               Paragraph("<b>Abzüglich bereits gestellter Rechnungen</b>", body), Spacer(1, 1.5*mm)]
+    widths = [30*mm, 22*mm, content_width - (30 + 22 + 25 + 22 + 25) * mm, 25*mm, 22*mm, 25*mm]
+    table = [["Rechnung", "Datum", "Art", "netto", "USt", "brutto"]]
+    for line in fb["deductions"]:
+        art = DEDUCTION_TYPE_LABELS.get(line["invoice_type"], "Rechnung")
+        if Decimal(line["vat_rate"] or 0) != Decimal(vat_rate or 0):
+            art += f" ({qty(line['vat_rate'])} % USt)"
+        table.append([escape(line["invoice_number"] or ""), _de_date(line["invoice_date"]), Paragraph(escape(art), small),
+                      money(line["net"]), money(line["vat"]), money(line["gross"])])
+    table.append(["Summe der Abzüge", "", "", money(fb["deducted_net"]), money(fb["deducted_vat"]), money(fb["deducted_gross"])])
+    t = Table(table, colWidths=widths, repeatRows=1)
+    t.setStyle(TableStyle([
+        ("FONTSIZE", (0, 0), (-1, -1), 8), ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor('#eeeeee')), ("ALIGN", (3, 0), (5, -1), "RIGHT"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"), ("LINEBELOW", (0, 0), (-1, -2), .25, colors.HexColor('#cccccc')),
+        ("LINEABOVE", (0, -1), (-1, -1), .8, colors.black), ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("SPAN", (0, -1), (2, -1)),
+        ("LEFTPADDING", (0, 0), (0, -1), 0), ("RIGHTPADDING", (-1, 0), (-1, -1), 0),
+    ]))
+    blocks += [t, Spacer(1, 5*mm)]
+    blocks += [_totals_table([["Rechnungsbetrag netto (Gesamtleistung abzüglich Abzüge)", money(fb["amount_net"])],
+                              ["zzgl. MwSt. (Gesamtleistung abzüglich der USt der Abzüge)", money(fb["amount_vat"])],
+                              ["Rechnungsbetrag brutto", money(fb["amount_gross"])]], content_width)]
+    return blocks
 
 
 def build_invoice_pdf(db, invoice) -> bytes:
@@ -178,8 +228,12 @@ def build_invoice_pdf(db, invoice) -> bytes:
                 ("LEFTPADDING", (0,0), (0,-1), 0), ("RIGHTPADDING", (-1,0), (-1,-1), 0),
             ]))
             story += [t, Spacer(1, 4*mm)]
-            totals = [["Nettosumme (diese Rechnung)", money(data['net_total'])], [f"zzgl. MwSt. {qty(data['vat_rate'])} %", money(data['vat_total'])], ["Rechnungsbetrag brutto", money(data['gross_total'])]]
-            story += [_totals_table(totals, content_width), Spacer(1, 7*mm)]
+            if data.get("final_breakdown"):
+                # Seit 1.8.85 (R4b): Endrechnung -- Gesamtleistung, Abzugsblock, Rechnungsbetrag.
+                story += [*_final_invoice_blocks(data["final_breakdown"], data["vat_rate"], content_width, styles), Spacer(1, 7*mm)]
+            else:
+                totals = [["Nettosumme (diese Rechnung)", money(data['net_total'])], [f"zzgl. MwSt. {qty(data['vat_rate'])} %", money(data['vat_total'])], ["Rechnungsbetrag brutto", money(data['gross_total'])]]
+                story += [_totals_table(totals, content_width), Spacer(1, 7*mm)]
 
         # Einzige Stelle unter den drei Dokumenttypen, die den automatisch generierten
         # Fälligkeits-/Skontosatz mit echtem Datum zeigt (payment_terms_sentence) --

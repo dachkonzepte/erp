@@ -23,7 +23,8 @@ from sqlalchemy import select, update
 from app.invoices import (
     FREE_ITEM_TEXT, InvoiceBlocked, add_invoice_item, compute_invoice_totals, compute_order_billing_progress,
     create_abschlag_leistungsstand, create_abschlag_pauschal, create_invoice_from_time_entries, create_schlussrechnung,
-    create_storno_draft, finalize_and_send_invoice, get_previous_cumulative_ist, invoice_to_dict, update_invoice_item,
+    create_storno_draft, delete_invoice_draft, finalize_and_send_invoice, get_previous_cumulative_ist, invoice_to_dict,
+    update_invoice_item,
 )
 from app.models import Invoice, InvoiceItem, Order, OrderItem, OrderRevision, Quote
 from app.order_locks import OrderLocked
@@ -94,7 +95,8 @@ def test_every_later_invoice_and_the_final_invoice_take_the_addendum():
     assert [i.source_order_item_id for i in zweiter.items if i.ist_quantity][-1] == nachtrag.id
     schluss = festschreiben(db, create_schlussrechnung(db, load_order(db, order.id)))
     zeile = next(i for i in schluss.items if i.source_order_item_id == nachtrag.id)
-    assert (zeile.position_number, zeile.ist_quantity, zeile.billed_quantity) == ("N1", Decimal("10"), Decimal("6"))
+    # Seit 1.8.85 (R4b) rechnet die Schlussrechnung als Endrechnung die volle Ist-Menge (bis 1.8.84: der Rest, 6).
+    assert (zeile.position_number, zeile.ist_quantity, zeile.billed_quantity) == ("N1", Decimal("10"), Decimal("10"))
     data = order_to_dict(load_order(db, order.id), db)
     assert data["net_total"] == Decimal("6000")
     assert compute_order_billing_progress(db, order.id)["invoiced_net"] == Decimal("6000") and data["open_net"] == 0
@@ -262,12 +264,16 @@ def test_a_negative_progress_invoice_is_rejected_with_the_way_out():
     assert (db.get(Invoice, zurueck.id).status, db.get(Invoice, zurueck.id).invoice_number) == ("entwurf", None)
 
 
-def test_a_progress_invoice_over_zero_or_with_one_lower_position_goes_through():
+def test_a_progress_invoice_with_one_lower_position_goes_through_but_not_one_over_zero():
+    """Seit 1.8.85 (Festlegung 1.8.83 Nr. 6 geändert, Vorgabe R4b): ein Abschlag über 0 € wird wie ein negativer abgelehnt --
+    bis 1.8.84 ging er mit Nummer durch."""
     db = db_session()
     order, _ = make_order_with_item(db)
     festschreiben(db, _leistungsstand(db, order, "40"))
-    null = festschreiben(db, _leistungsstand(db, order, "40"))  # Ist = letzter Stand: 0 €, nicht negativ
-    assert compute_invoice_totals(null)["gross_total"] == 0 and null.invoice_number
+    null = mit_zeitraum(db, _leistungsstand(db, order, "40"))  # Ist = letzter Stand: 0 €
+    with pytest.raises(InvoiceBlocked, match="lautet über 0,00 €"):
+        finalize_and_send_invoice(db, null)
+    delete_invoice_draft(db, db.get(Invoice, null.id))
     _nachtrag(db, order, menge="10", preis="100")
     gemischt = festschreiben(db, _leistungsstand(db, load_order(db, order.id), "39", "5"))  # -50 + 500
     assert compute_invoice_totals(gemischt)["net_total"] == Decimal("450")
@@ -289,18 +295,20 @@ def test_the_finalize_route_answers_409_for_a_negative_progress_invoice(router_t
 
 def test_the_last_state_is_the_one_of_the_invoice_finalized_last_not_created_last():
     """Zwei Abschläge als Entwürfe nebeneinander, der zuerst angelegte zuletzt festgeschrieben (am selben Tag): sein Stand gilt.
-    Bis 1.8.82 galt der des zuletzt angelegten (Rechnungsdatum, dann ID)."""
+    Bis 1.8.82 galt der des zuletzt angelegten (Rechnungsdatum, dann ID). Seit 1.8.85 rechnet das Festschreiben unter der
+    Sperre neu -- der zuerst angelegte trägt deshalb hier den höheren Stand (60 nach 40); mit dem niedrigeren wäre er negativ."""
     db = db_session()
     order, item = make_order_with_item(db)
-    a = _leistungsstand(db, order, "40")
-    b = _leistungsstand(db, order, "60")
+    a = _leistungsstand(db, order, "60")
+    b = _leistungsstand(db, order, "40")
     festschreiben(db, b)
     festschreiben(db, a)
     db.refresh(a), db.refresh(b)
     assert a.invoice_date == b.invoice_date and a.id < b.id and a.finalized_at > b.finalized_at
-    assert get_previous_cumulative_ist(db, order.id, item.id) == Decimal("40")
+    assert a.items[0].billed_quantity == Decimal("20")  # gegen den Stand von b, neu gerechnet beim Festschreiben
+    assert get_previous_cumulative_ist(db, order.id, item.id) == Decimal("60")
     naechster = create_abschlag_leistungsstand(db, load_order(db, order.id))
-    assert naechster.items[0].ist_quantity == Decimal("40")  # Vorschlag "Ist = letzter Stand"
+    assert naechster.items[0].ist_quantity == Decimal("60")  # Vorschlag "Ist = letzter Stand"
 
 
 def test_finalizing_times_rise_within_an_order_even_if_the_clock_goes_back(monkeypatch):

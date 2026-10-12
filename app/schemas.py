@@ -2342,6 +2342,10 @@ class InvoiceOut(BaseModel):
     payment_allocations: list[PaymentAllocationOut] = Field(default_factory=list)
     finalize_block: str | None = None  # seit 1.8.72: warum "Finalisieren" gesperrt ist (app/invoices.py)
     storno_block: str | None = None  # seit 1.8.72: warum "Stornieren" gesperrt ist
+    # Seit 1.8.85 (R4b): Abweichung des Entwurfs vom Auftrag (Preise, Einheiten, Positionen, Steuerschlüssel) und die Aufstellung
+    # der Endrechnung (Gesamtleistung, Abzüge, Rechnungsbetrag; app/invoices.py::final_breakdown()).
+    order_deviation: str | None = None
+    final_breakdown: dict | None = None
     # Seit 1.8.74: Leistungszeitraum; im Entwurf der Vorschlag {start, end, source} (app/service_period.py::proposal()).
     service_period_start: date | None = None
     service_period_end: date | None = None

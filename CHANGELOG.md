@@ -4,6 +4,25 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.85 – Schlussrechnung als Endrechnung (R4b, Punkte 2, 3 und 5)
+
+Die Schlussrechnung ist jetzt eine Endrechnung: alle Auftragspositionen samt Nachträgen mit ihrer vollen Ist-Menge und die Rechnungen
+aus Aufwand ergeben die Gesamtleistung (netto, USt, brutto), darunter zieht sie jede festgeschriebene, nicht stornierte
+Abschlagsrechnung und Rechnung aus Aufwand mit Nummer, Datum, Netto, USt und Brutto ab. Der Rechnungsbetrag – Gesamtleistung minus
+Abzüge – ist der Betrag für Zahlungen, offene Posten und „abgerechnet“. Im Entwurf zählen die gerade gültigen Rechnungen, beim
+Finalisieren frieren die Abzüge ein (neue Tabelle, unveränderlich). Rechnungsseite und PDF zeigen Gesamtleistung, Abzugsblock und
+Rechnungsbetrag. Damit zieht die Schlussrechnung auch pauschale Abschläge ab (Befund 1a), die Sperre neben ihnen entfällt; nach der
+Schlussrechnung gibt es keine Rechnung aus Aufwand mehr.
+
+Beim Finalisieren wird jede Rechnung unter der Sperre neu gerechnet (Befund 1b), andere Abschlagsentwürfe ziehen nach. Weichen Preise,
+Einheiten, Positionen oder Steuerschlüssel eines Entwurfs vom Auftrag ab, lehnt das Finalisieren mit dem Grund ab; „Aus dem Auftrag
+aktualisieren“ übernimmt den Stand des Auftrags. Preis, Einheit und Steuerschlüssel lassen sich im Entwurf nicht mehr abweichend
+setzen. Ein Abschlag über 0 € wird wie ein negativer abgelehnt, eine Schlussrechnung unter 0 € bis R4c. Migration `8c2e5a7d4f19` (ändert
+keine Daten), auf SQLite und PostgreSQL mit Bestand geprobt. Neu `test_v388_endrechnung` (28, davon 5 gegen PostgreSQL),
+`test_v388_endrechnung_migration` (2, davon 1 gegen PostgreSQL), Klicktest `klicktest_endrechnung` 14/14; 1a und 1b ohne Markierung.
+Gegenproben 17 von 17 rot. Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3780 grün, 0 rot. Alle Klicktests: 50 von 53 wie erwartet in 13:15 min; rot `klicktest_mahnwesen` (vorhandener Fehler des Klicktests, auch auf 1.8.83), `klicktest_nachtrag` (Reihenfolge der Gründe, korrigiert, 13/13) und `klicktest_rechnungen_sperren` (prüfte die entfallene Sperre, angepasst, 22/22). Festlegungen zum Bestätigen in `docs/archiv/befund-vor-echtbetrieb.md`,
+"Umsetzung 1.8.85".
+
 ## 1.8.84 – Kein Lesepfad legt an (R4b, Vorweg 1)
 
 Fünf GET-Wege füllten beim Lesen eine Lücke und committeten: Mitarbeiterprofile (`GET /api/employees` – zwei gleichzeitige Aufrufe der

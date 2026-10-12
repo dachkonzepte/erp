@@ -2,7 +2,8 @@
 
 Befund „Vor dem Echtbetrieb“ Punkt 1 (docs/archiv/befund-vor-echtbetrieb.md, "Umsetzung 1.8.72"):
 
-    Auftragsseite      "Neue Rechnung": Schlussrechnung neben einem pauschalen Abschlag gesperrt (Grund, kein Knopf, API 409);
+    Auftragsseite      "Neue Rechnung": Schlussrechnung neben einem pauschalen Abschlag bis 1.8.84 gesperrt, seit 1.8.85 (R4b,
+                       Endrechnung) frei -- kein Grund, Knopf da, API 200;
                        nach festgeschriebener Schlussrechnung Abschläge und eine zweite Schlussrechnung gesperrt; ein freier
                        Auftrag zeigt den Knopf; Schlussrechnung als Entwurf -> gesperrt, Entwurf in der Liste löschen -> frei
     Rechnungsseite     Abschlagsentwurf von vor der Schlussrechnung: Grund statt "Rechnung finalisieren", "Entwurf löschen"
@@ -10,8 +11,8 @@ Befund „Vor dem Echtbetrieb“ Punkt 1 (docs/archiv/befund-vor-echtbetrieb.md,
                        (hell und dunkel)
     Mahnwesen          Mahnungsentwurf zu einer inzwischen bezahlten Rechnung: Grund statt "Versenden", API 409 (seit 1.8.78
                        bezahlt über eine gebuchte Zahlung; der Knopf "Als bezahlt markieren" ist entfallen)
-    Ausweg (1.8.73)    Schlussrechnung neben festgeschriebenem pauschalem Abschlag: "… kommen mit R4."; neben einem Entwurf:
-                       "Ausweg: den Entwurf löschen.", gelöscht -> frei
+    Ausweg (1.8.73)    bis 1.8.84: Schlussrechnung neben festgeschriebenem pauschalem Abschlag "… kommen mit R4.", neben einem
+                       Entwurf "Ausweg: den Entwurf löschen."; seit 1.8.85 entfallen -- neben einem Entwurf frei
 
 AUFRUF (aus dem Projektordner):
 
@@ -138,21 +139,15 @@ async def pruefen(tab, seed, p):
     await tab.fenster(1280, 1000)
     await tab.anmelden(seed["cookies"]["buero"])
 
-    # --- Auftrag A: Schlussrechnung neben pauschalem Abschlag ---
+    # --- Auftrag A: Schlussrechnung neben pauschalem Abschlag -- seit 1.8.85 (R4b, Endrechnung) frei ---
     await tab.oeffnen(f"/orders/{seed['a']}", ORDER_READY)
-    sichtbar, text, knopf = await _art(tab, "schluss")
-    p.pruefe("A Schluss: Grund sichtbar, Knopf weg", [sichtbar, knopf], [True, False])
-    p.pruefe("A Schluss: Grund nennt den Abschlag",
-             text.startswith(f"Die Schlussrechnung ist vorerst gesperrt: am Auftrag besteht ein pauschaler Abschlag "
-                             f"({seed['pauschal']})"), True)
-    p.pruefe("A Schluss: Ausweg R4 (festgeschrieben)",
-             text.endswith("Schlussrechnungen mit pauschalen Abschlägen kommen mit R4."), True)
+    p.pruefe("A Schluss neben pauschalem Abschlag: frei (seit 1.8.85)", await _art(tab, "schluss"), [False, "", True])
     p.pruefe("A Abschlag nach Leistungsstand: frei", await _art(tab, "abschlag_leistungsstand"), [False, "", True])
     api = await tab.js(f"fetch('/api/orders/{seed['a']}/invoices/schlussrechnung',{{method:'POST',headers:{{'Content-Type':"
-                       "'application/json'},body:'{}'}).then(async r=>[r.status,(await r.json()).detail.slice(0,42)])")
-    p.pruefe("A Schluss: API 409", api, [409, "Die Schlussrechnung ist vorerst gesperrt: "])
+                       "'application/json'},body:'{}'}).then(r=>r.status)")
+    p.pruefe("A Schluss: API 200", api, 200)
     await _art(tab, "schluss")
-    await _bild(tab, "auftrag_a_schluss_gesperrt", "newInvoiceBlock")
+    await _bild(tab, "auftrag_a_schluss_frei", "newInvoiceType")
 
     # --- Auftrag B: nach der Schlussrechnung ---
     await tab.oeffnen(f"/orders/{seed['b']}", ORDER_READY)
@@ -201,12 +196,9 @@ async def pruefen(tab, seed, p):
              await tab.warten("invoices.length===0&&!document.getElementById('newInvoiceButton').hidden"), True)
     p.pruefe("E nach dem Löschen: Hinweis weg", await tab.js("document.getElementById('newInvoiceBlock').hidden"), True)
 
-    # --- Auftrag G: pauschaler Abschlag als Entwurf -> Ausweg "Entwurf löschen", danach frei (1.8.73) ---
+    # --- Auftrag G: pauschaler Abschlag als Entwurf -- bis 1.8.84 Ausweg "Entwurf löschen", seit 1.8.85 frei ---
     await tab.oeffnen(f"/orders/{seed['g']}", ORDER_READY)
-    sichtbar, text, knopf = await _art(tab, "schluss")
-    p.pruefe("G Schluss neben pauschalem Entwurf: Ausweg löschen",
-             [sichtbar, knopf, "(ein Entwurf)" in text, text.endswith("Ausweg: den Entwurf löschen.")], [True, False, True, True])
-    await _bild(tab, "auftrag_g_ausweg_loeschen", "newInvoiceBlock")
+    p.pruefe("G Schluss neben pauschalem Entwurf: frei (seit 1.8.85)", await _art(tab, "schluss"), [False, "", True])
     await tab.js(f"deleteDraftFromList(new Event('click'),{seed['g_pauschal']})")
     p.pruefe("G nach dem Löschen: Schluss frei",
              await tab.warten("invoices.length===0&&!document.getElementById('newInvoiceButton').hidden"), True)

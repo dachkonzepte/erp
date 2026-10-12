@@ -159,16 +159,18 @@ def test_kumulierte_abrechnung_ueber_zwei_abschlaege_und_schlussrechnung():
     assert item2.billed_total == Decimal("1500")
     festschreiben(db, inv2)
 
-    # Schlussrechnung: Vorbelegung mit voller Menge (100), abgerechnet wird der Rest
+    # Schlussrechnung: Vorbelegung mit voller Menge (100). Seit 1.8.85 (R4b) als Endrechnung: abgerechnet wird die volle
+    # Menge (Gesamtleistung 5.000), die Abschläge zieht sie als Beträge ab -- ihr Rechnungsbetrag ist der Rest (bis 1.8.84: 30 m²).
     inv3 = create_schlussrechnung(db, order)
     item3 = inv3.items[0]
     assert item3.ist_quantity == Decimal("100")
-    assert item3.billed_quantity == Decimal("30")  # 100 - 70
-    assert item3.billed_total == Decimal("1500")
+    assert item3.billed_quantity == Decimal("100")
+    assert item3.billed_total == Decimal("5000")
     festschreiben(db, inv3)
+    assert compute_invoice_totals(inv3)["net_total"] == Decimal("1500")
 
     # Summe über alle drei Rechnungen muss den vollen Auftragswert ergeben
-    total_billed = item1.billed_total + item2.billed_total + item3.billed_total
+    total_billed = item1.billed_total + item2.billed_total + compute_invoice_totals(inv3)["net_total"]
     assert total_billed == Decimal("5000")
 
 
@@ -288,10 +290,19 @@ def test_remove_invoice_item():
 
 
 def test_update_invoice_item_unit_price_aendert_billed_total():
+    """Seit 1.8.85 (R4b Punkt 3) nur an einer freien Position (Rechnung aus Aufwand) -- der Preis einer Position mit
+    Auftragsbezug kommt aus dem Auftrag (409, tests/test_v388_endrechnung.py)."""
+    from types import SimpleNamespace
+    from app.invoices import InvoiceBlocked, create_invoice_from_time_entries
     db = db_session()
     order, _ = make_order_with_item(db, quantity=Decimal("10"), unit_price=Decimal("50"))
-    invoice = create_schlussrechnung(db, order)
+    schluss = create_schlussrechnung(db, order)
+    with pytest.raises(InvoiceBlocked):
+        update_invoice_item(db, schluss, schluss.items[0], unit_price=Decimal("60"))
+    invoice = create_invoice_from_time_entries(
+        db, order, [], [SimpleNamespace(material_id=None, description="Blech", unit="Stk", quantity=Decimal("10"))])
     item = invoice.items[0]
+    update_invoice_item(db, invoice, item, unit_price=Decimal("50"))
     assert item.billed_total == Decimal("500")  # 10 * 50
     update_invoice_item(db, invoice, item, unit_price=Decimal("60"))
     assert item.billed_total == Decimal("600")  # 10 * 60, neu berechnet

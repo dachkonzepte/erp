@@ -480,7 +480,8 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
             # Seit 1.8.72: warum eine neue Rechnung dieser Art gesperrt ist -- die Auftragsseite zeigt den Grund.
             invoices = list_invoices_for_order(db, order.id)
             result["invoice_create_blocks"] = {
-                kind: create_block_reason(invoices, kind) for kind in ("abschlag_pauschal", "abschlag_leistungsstand", "schluss")
+                kind: create_block_reason(invoices, kind)
+                for kind in ("abschlag_pauschal", "abschlag_leistungsstand", "schluss", "aufwand")  # "aufwand" seit 1.8.85
             }
             # Seit 1.8.82 (R4a Punkt 2): was am Auftrag gesperrt ist -- die Auftragsseite zeigt den Grund statt der Eingabe.
             locks = lock_info(db, order.id, invoices)
