@@ -205,5 +205,6 @@ def test_reminder_amount_table_follows_custom_margins_too():
     right_margin_mm = 210.0 - 25.0
     left, _ = _char_x_range_mm(pdf_bytes, "DACHKONZEPTE")
     assert abs(left - left_margin_mm) < 0.6
-    _, right = _char_x_range_mm(pdf_bytes, "5.955,00 EUR")
+    # Seit 1.8.80 ohne Mahngebühr (ausgeschaltet): 5.950,00 statt 5.955,00 -- rechtsbündig in derselben Spalte.
+    _, right = _char_x_range_mm(pdf_bytes, "5.950,00 EUR")
     assert abs(right - right_margin_mm) < 0.6

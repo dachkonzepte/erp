@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.79** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.80** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -681,7 +681,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   `storniert`, `paid_date` wird nicht mehr geschrieben): der Zahlstand ist abgeleitet, siehe "Zahlung". Seit 1.8.79 hält die
   Rechnung beim Festschreiben ihren Kunden fest (`Invoice.customer_id`, Storno: der der stornierten; `invoice_customer()`): Zahlungen,
   offene Rechnungen des Kunden und die Empfängeradresse folgen ihm; Kundenwechsel am Projekt mit festgeschriebener Rechnung 409
-  (`check_client_change()`, unter der Sperre der Auftragszeilen).
+  (`check_client_change()`, unter der Sperre der Auftragszeilen). Seit 1.8.80 (Z2b "Vorweg" 1) hält der Auftrag seinen Kunden
+  (`Order.customer_id`, Vertragspartner, beim Beauftragen unter der Sperre der Projektzeile); die Rechnung übernimmt beim Festschreiben
+  Kunde, Name, Kundennummer und Anschrift vom Auftrag. Kundenwechsel am Projekt mit Auftrag nur mit Begründung
+  (`customer_change_reason`), der Auftrag wechselt mit (`app/orders.py::change_orders_customer()`, Historie `OrderCustomerChange`,
+  Rechnungsentwürfe ebenso), nie mit festgeschriebener Rechnung oder Vertrag.
 - **Zahlung** (`Payment`, seit 1.8.78, Zahlungsstufe Z1, `app/payments.py`): Zahlungseingang eines Kunden (Eingangsdatum, Betrag,
   Notiz), zugeordnet über `PaymentAllocation` (Art `zahlung`, Abzüge `skonto`/`einbehalt`) auf festgeschriebene Rechnungen desselben
   Kunden (seit 1.8.79 der an der Rechnung festgehaltene); der Rest bleibt am Kunden (Kundenakte). Je Rechnung abgeleitet, nie gespeichert (`payment_state()`):
@@ -711,6 +715,16 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Sperre, Frist im Entwurf in Tagen, Mahndatum = Tag des Festschreibens; Aufstellung (Brutto, Zahlungen, Skonto, Einbehalt,
   mahnfähig) eingefroren in `Reminder.amounts_json`; E-Mail und nachgetragene Zustellung nur mit passendem Betrag und nicht storniert
   (`dispatch_block_reason()`, Zustellung: Stand am Zustelltag). Details: `docs/archiv/zahlungen.md`, "Umsetzung 1.8.79".
+  **Seit 1.8.80 (Z2b)**: erreicht ist eine Stufe erst mit Versand oder Zustellung (`reached_map()`,
+  `app/email_dispatch.py::document_reached_on()`); eine festgeschriebene, nie hinausgegangene Mahnung ersetzt eine neue derselben Stufe
+  beim Festschreiben (`Reminder.replaced_by_id`, danach geht sie nicht mehr hinaus, ihre Nebenforderungen werden gegengebucht).
+  **Nebenforderung** (`InvoiceCharge`, `app/dunning_charges.py`): Mahngebühr oder Pauschale nach § 288 Abs. 5 BGB je Rechnung, nie im
+  Rechnungsbetrag, ohne USt, unveränderlich, Gegenbuchung mit Begründung; entsteht beim Festschreiben einer Mahnung aus dem, was ihr
+  Entwurf bewusst übernahm (`fee_accepted`/`flat_fee_accepted`, `PUT /api/reminders/{id}/charges`); jede Mahnung zeigt die geltenden
+  aufsummiert (Aufstellung Format 2). Zuschaltbar: `GeneralSettings.dunning_charges_enabled`, nur Admin, Vorgabe aus -- aus heißt keine
+  Gebühr, keine Beträge. Pauschale nur ohne Verbraucher, einmal je Rechnung, ab bestätigtem **Verzugsbeginn** (`InvoiceDefaultStart`,
+  Vorschlag aus dem Zugang der ersten Mahnung bzw. 30 Tagen nach Fälligkeit und Zugang der Rechnung). Offen: Zinsen, Zahlungen auf
+  Nebenforderungen, Rechtstexte (Punkte 7–9). Details: `docs/archiv/zahlungen.md`, "Umsetzung 1.8.80".
 - **`Property`** ("Objekt", `app/models.py`): eigenständige Tabelle (`customer_id`, `name`,
   `street`, `postal_code`, `city`, `notes`) für ein zusätzliches Gebäude/Objekt eines Kunden
   über dessen eigene Hauptadresse hinaus. Per 09.09.2026 verifiziert (siehe
@@ -987,7 +1001,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
   offenem Betrag, Migration "bezahlt"; seit 1.8.79 Z2a: Mahnwesen ohne Automatik, Prüfungen unter der Sperre, Mahndatum beim
   Festschreiben, Aufstellung an der Mahnung, Versand nur mit passendem Betrag, Rechnung hält ihren Kunden, Kundenwechsel gesperrt;
-  Befund Z2b Mahngebühren/Verzugszinsen) -- `docs/archiv/zahlungen.md`
+  Befund Z2b Mahngebühren/Verzugszinsen; seit 1.8.80 Z2b Punkte 3–6: Auftrag hält seinen Kunden, Kundenwechsel mit Begründung, erreicht
+  erst mit Versand oder Zustellung, Ersatz einer nie versendeten Mahnung, Schalter Mahngebühren, Nebenforderungen, Gebühr als
+  Vorschlag, Pauschale, Verzugsbeginn; offen 7–9) -- `docs/archiv/zahlungen.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
   `docs/archiv/grunddaten-beim-start.md`
@@ -1272,6 +1288,11 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   `with ohne_grunddaten():` (`tests/grunddaten_schalter.py`) an. Audit-Zähler in Tests: die Grunddaten schreiben
   "System angelegt"-Einträge -- vorher/nachher vergleichen statt absolut zählen.
 
+- **Mahnung zustellen in Tests** (seit 1.8.80): eine Stufe ist erst mit Versand oder Zustellung erreicht --
+  `tests/mahnung.py::zustellen(db, reminder)` trägt eine Zustellung ins Versandprotokoll ein (ohne PDF), `festschreiben_und_ablaufen()`
+  schreibt fest, stellt zu und lässt die Frist ablaufen. **Bestand älterer Stände** für Migrationsproben über `tests/bestand_alt.py`
+  (Core-Insert mit den Spalten des jeweiligen Stands, ohne `anlegen()`) -- das ORM von heute schreibt Spalten, die es dort nicht gibt.
+
 - **Rechnung festschreiben in Tests** (seit 1.8.74): jede Rechnung braucht beim Festschreiben einen Leistungszeitraum --
   `tests/leistungszeitraum.py::festschreiben(db, invoice)` trägt in einen Entwurf ohne Zeitraum einen ein (wie "Übernehmen")
   und schreibt fest; `mit_zeitraum()` nur den Zeitraum, `ZEITRAUM_JSON` für ein PUT vor `/send`. In Gleichzeitigkeitstests
@@ -1429,7 +1450,11 @@ Gegenbuchen mit Begründung -> Storno frei; Kundenakte: Rest zuordnen, Zahlung z
 Kunde 409; 412 px dunkel) und `klicktest_mahnwesen.py` (1.8.79, Mahnwesen: Öffnen legt nichts an, "Zur Mahnung fällig" mit Auswahl ->
 Entwürfe für mehrere, Grund statt Knopf in der Frist, Frist in Tagen, Festschreiben heute; überholte Mahnung mit Grund statt E-Mail,
 API 409 für E-Mail, Zustellung und Kundenwechsel; Rechnungsseite mit Aufstellung; Einstellungen ohne Automatik; Dashboard mit
-Mitarbeiter; 412 px dunkel). Ein
+Mitarbeiter; 412 px dunkel; seit 1.8.80 Zustellung nachgetragen, Ersatz der nie versendeten Mahnung unter "zur Mahnung fällig") und
+`klicktest_nebenforderungen.py` (1.8.80, Schalter: Büro liest, Admin schaltet ein; Rechnungsseite: Verzugsbeginn aus dem Zugang der
+1. Mahnung bestätigen, 2. Mahnung mit Gebühr und Pauschale übernehmen und festschreiben, Gebühr gegenbuchen -> Mahnung geht nicht mehr
+hinaus; Mahnwesen: Ersatz einer nie versendeten Mahnung, Status hinausgegangen/ersetzt; Projektmappe: Kundenwechsel mit Auftrag nur mit
+Begründung; Monteurin 403; 412 px dunkel). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

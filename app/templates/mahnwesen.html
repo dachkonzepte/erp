@@ -16,6 +16,8 @@ td{padding:10px 8px;border-bottom:1px solid var(--line);font-size:13px;vertical-
 .pill{background:var(--soft);padding:4px 9px;font-size:11px;font-weight:800;display:inline-block}
 .pill.overdue{background:var(--danger-soft);color:var(--danger)}
 .pill.entwurf{background:var(--warning-soft);color:var(--warning)}
+.pill.offen{background:var(--warning-soft);color:var(--warning)}
+.pill.ersetzt{background:var(--soft);color:var(--muted);text-decoration:line-through}
 a.link{color:var(--accent);font-weight:700;text-decoration:none}
 .empty{padding:30px;text-align:center;color:var(--muted)}
 .row-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
@@ -49,16 +51,14 @@ button.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
         <li><code>{rechnungsdatum}</code> – Rechnungsdatum</li>
         <li><code>{faelligkeitsdatum}</code> – ursprüngliches Fälligkeitsdatum der Rechnung</li>
         <li><code>{offener_betrag}</code> – angemahnter Betrag (offen abzüglich Einbehalt)</li>
-        <li><code>{mahngebuehr}</code> – Mahngebühr (Feld „Mahngebühr" unten)</li>
-        <li><code>{gesamtbetrag}</code> – offener Betrag zzgl. Mahngebühr</li>
+        <li><code>{gesamtbetrag}</code> – angemahnter Betrag samt Nebenforderungen (bei ausgeschalteten Mahngebühren = angemahnter Betrag)</li>
+        <li><code>{mahngebuehr}</code>, <code>{nebenforderungen}</code> – Gebühr dieser Mahnung bzw. alle Nebenforderungen (nur bei eingeschalteten Mahngebühren)</li>
         <li><code>{neue_frist}</code> – neue Zahlungsfrist (Tag des Festschreibens + Feld „Zahlungsfrist" unten)</li>
-        <li><code>{vorheriges_mahndatum}</code> – Datum der vorherigen Mahnstufe, falls vorhanden</li>
+        <li><code>{vorheriges_mahndatum}</code> – Datum der vorherigen Mahnstufe, die hinausging</li>
       </ul>
     </div>
+    <div id="editorCharges"></div>
     <div style="display:flex;gap:14px;flex-wrap:wrap">
-      <label class="small muted">Mahngebühr
-        <input id="editorFeeAmount" type="number" step="0.01" min="0" style="display:block;padding:6px 8px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);margin-top:4px;width:140px">
-      </label>
       <label class="small muted">Zahlungsfrist (Tage ab Festschreiben)
         <input id="editorPaymentDays" type="number" min="1" max="365" step="1" style="display:block;padding:6px 8px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);margin-top:4px;width:140px">
       </label>
@@ -73,14 +73,14 @@ button.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
 </div>
 <div class="card" id="dueCard">
   <h2>Zur Mahnung fällig</h2>
-  <div class="muted small" style="margin-bottom:10px">Überfällige Rechnungen, deren nächste Mahnstufe jetzt möglich ist (Stufe 1 ab dem Tag nach der Fälligkeit, jede weitere nach Ablauf der Frist der vorigen). Die Liste legt nichts an – Entwürfe entstehen per Klick, einzeln oder für die ausgewählten.</div>
+  <div class="muted small" style="margin-bottom:10px">Überfällige Rechnungen, deren nächste Mahnstufe jetzt möglich ist (Stufe 1 ab dem Tag nach der Fälligkeit, jede weitere nach Ablauf der Frist der vorigen). Erreicht ist eine Stufe erst, wenn ihre Mahnung versendet oder zugestellt wurde. Die Liste legt nichts an – Entwürfe entstehen per Klick, einzeln oder für die ausgewählten.</div>
   <div class="row-actions" style="margin-bottom:8px"><button class="primary" id="bulkCreateBtn" onclick="createSelectedReminders(this)" disabled>Entwürfe für Auswahl anlegen</button><span class="status-msg" id="bulkStatus"></span></div>
   <div id="bulkResult"></div>
   <div style="overflow:auto"><table><thead><tr><th style="width:28px"><input type="checkbox" id="dueSelectAll" onchange="toggleAllDue(this.checked)" title="Alle auswählen" aria-label="Alle auswählen"></th><th>Rechnung</th><th>Kunde</th><th>Fällig seit</th><th class="number">Mahnfähig</th><th>Stufe</th><th></th></tr></thead><tbody id="dueRows"></tbody></table></div>
 </div>
 <div class="card">
   <h2>Weitere überfällige Rechnungen</h2>
-  <div class="muted small" style="margin-bottom:10px">Mit offenem Entwurf, in der Frist der letzten Mahnung oder ohne weitere aktive Stufe – je Zeile mit Grund.</div>
+  <div class="muted small" style="margin-bottom:10px">Mit offenem Entwurf, mit einer festgeschriebenen Mahnung, die noch hinausgehen muss, in der Frist der letzten Mahnung oder ohne weitere aktive Stufe – je Zeile mit Grund.</div>
   <div style="overflow:auto"><table><thead><tr><th>Rechnung</th><th>Kunde</th><th>Fällig seit</th><th class="number">Mahnfähig</th><th>Stufe</th><th></th></tr></thead><tbody id="attentionRows"></tbody></table></div>
 </div>
 <div class="card">
@@ -93,13 +93,14 @@ button.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
 </div>
 <script>
 let levelLabels={},attentionRows=[],allReminders=[];
-// Seit 1.8.79 (Z2a Nr. 1): "zur Mahnung fällig" = nächste Stufe jetzt möglich und kein Grund dagegen (create_block leer).
-const isDue=r=>r.is_due_now&&!r.create_block;
+// Seit 1.8.79 (Z2a Nr. 1): "zur Mahnung fällig" = nächste Stufe jetzt möglich und kein Grund dagegen; seit 1.8.80 vom Server
+// (due_for_reminder): nicht, solange eine festgeschriebene Mahnung noch hinausgehen kann.
+const isDue=r=>r.due_for_reminder;
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const money=x=>Number(x||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const fmtDate=s=>s?new Date(s+'T00:00:00').toLocaleDateString('de-DE'):'—';
 // Seit 1.8.79 über fehlerText() (_fehlertext.html): eine 422 der Schemaprüfung erscheint lesbar statt als "[object Object]".
-const FELDNAMEN={payment_days:'Zahlungsfrist',fee_amount:'Mahngebühr',text:'Mahntext',invoice_ids:'Auswahl',level:'Stufe'};
+const FELDNAMEN={payment_days:'Zahlungsfrist',fee_amount:'Mahngebühr',fee_accepted:'Mahngebühr übernehmen',flat_fee_accepted:'Pauschale übernehmen',text:'Mahntext',invoice_ids:'Auswahl',level:'Stufe'};
 async function api(u,opts){const r=await fetch(u,opts);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,FELDNAMEN));return r.status===204?null:r.json()}
 
 function levelLabel(level){return levelLabels[level]||`Stufe ${level}`}
@@ -124,7 +125,7 @@ function stufeText(r){
 // Seit 1.8.79: die Liste legt nichts an -- je Zeile ein Knopf, dazu Auswahl für mehrere (POST /api/reminders/bulk).
 function renderDueRows(){
   const rows=attentionRows.filter(isDue);
-  document.getElementById('dueRows').innerHTML=rows.length?rows.map(r=>`<tr data-faellig="${r.invoice_id}"><td><input type="checkbox" class="due-select" value="${r.invoice_id}" onchange="updateBulkButton()" aria-label="${esc(r.invoice_number||'Rechnung')} auswählen"></td><td><b>${esc(r.invoice_number||'—')}</b> <a class="link small" href="/invoices/${r.invoice_id}">öffnen</a></td><td>${esc(r.customer_name)}</td><td>${fmtDate(r.due_date)}</td><td class="number">${money(r.outstanding_amount)}</td><td>${stufeText(r)}</td><td><button onclick="createReminder(${r.invoice_id},${r.next_level},this)">${esc(levelLabel(r.next_level))} als Entwurf anlegen</button></td></tr>`).join(''):'<tr><td colspan="7" class="empty">Nichts zur Mahnung fällig.</td></tr>';
+  document.getElementById('dueRows').innerHTML=rows.length?rows.map(r=>`<tr data-faellig="${r.invoice_id}"><td><input type="checkbox" class="due-select" value="${r.invoice_id}" onchange="updateBulkButton()" aria-label="${esc(r.invoice_number||'Rechnung')} auswählen"></td><td><b>${esc(r.invoice_number||'—')}</b> <a class="link small" href="/invoices/${r.invoice_id}">öffnen</a></td><td>${esc(r.customer_name)}</td><td>${fmtDate(r.due_date)}</td><td class="number">${money(r.outstanding_amount)}</td><td>${stufeText(r)}</td><td><button onclick="createReminder(${r.invoice_id},${r.next_level},this)">${esc(levelLabel(r.next_level))} als Entwurf anlegen${r.pending&&r.pending.level===r.next_level?` (ersetzt ${esc(r.pending.reminder_number||'')})`:''}</button>${r.pending?`<div class="small muted" data-ersetzt-grund style="max-width:320px">${esc(r.pending.reminder_number||'')} ging nie hinaus: ${esc(r.pending.dispatch_block||'')}</div>`:''}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">Nichts zur Mahnung fällig.</td></tr>';
   document.getElementById('dueSelectAll').checked=false;
   updateBulkButton();
 }
@@ -149,6 +150,9 @@ function renderAttentionRows(){
         <button onclick="editReminder(${r.draft.id})">Bearbeiten</button>
         <button onclick="window.open('/api/reminders/${r.draft.id}/pdf','_blank')">PDF</button>
         <button class="danger" onclick="deleteReminder(${r.draft.id})">Löschen</button></div>`;
+    } else if(r.pending&&!r.pending.dispatch_block){
+      // Seit 1.8.80: festgeschrieben, aber noch nicht versendet oder zugestellt -- erst dann gilt die Stufe als erreicht.
+      actions=`<div class="small" data-noch-nicht-hinaus style="color:var(--warning);max-width:320px">${esc(r.pending.label)} ${esc(r.pending.reminder_number||'')} ist festgeschrieben, ging aber noch nicht hinaus – bitte versenden oder die Zustellung nachtragen.</div>${!r.create_block&&r.next_level?`<button style="margin-top:4px" onclick="createReminder(${r.invoice_id},${r.next_level},this)">Durch neue ersetzen</button>`:''}`;
     } else {
       actions=r.create_block?`<div class="small muted" data-grund style="max-width:320px">${esc(r.create_block)}</div>`:'<span class="small muted">—</span>';
     }
@@ -157,7 +161,8 @@ function renderAttentionRows(){
 }
 
 function emailStatusLabel(r){
-  if(!r.email_sent_at) return '<span class="small muted">noch nicht versendet</span>';
+  // Seit 1.8.80: eine auf anderem Weg zugestellte Mahnung ist hinausgegangen, nur nicht per E-Mail.
+  if(!r.email_sent_at) return r.reached_on?'<span class="small muted">nicht per E-Mail (zugestellt)</span>':'<span class="small muted">noch nicht versendet</span>';
   return `<span class="small muted">versendet ${fmtDate(r.email_sent_at.slice(0,10))} an ${esc(r.email_sent_to)}</span>`;
 }
 function renderAllRows(){
@@ -178,8 +183,15 @@ function renderAllRows(){
     // Versandverlauf (seit 1.8.20) in einer eigenen, zunächst verborgenen Zeile darunter.
     const historyRow = r.status==='entwurf' ? '' : `<tr id="dhRow${r.id}" style="display:none"><td colspan="9"><div id="dh${r.id}"></div></td></tr>`;
     // Seit 1.8.79: ein Entwurf zeigt das Datum, das das Festschreiben heute setzen würde.
-    return `<tr><td><b>${esc(r.reminder_number||'(Entwurf)')}</b></td><td><a class="link" href="/invoices/${r.invoice_id}">${esc(r.invoice_number||'—')}</a></td><td>${esc(r.customer_name)}</td><td>${esc(levelLabel(r.level))}</td><td>${fmtDate(r.status==='entwurf'?r.effective_reminder_date:r.reminder_date)}${r.status==='entwurf'?'<div class="small muted">beim Festschreiben</div>':''}</td><td class="number">${money(r.total_amount)}</td><td>${r.status==='entwurf'?'<span class="pill entwurf">Entwurf</span>':'<span class="pill">Versendet</span>'}</td><td>${actions}</td><td>${emailAction}</td></tr>${historyRow}`;
+    return `<tr><td><b>${esc(r.reminder_number||'(Entwurf)')}</b></td><td><a class="link" href="/invoices/${r.invoice_id}">${esc(r.invoice_number||'—')}</a></td><td>${esc(r.customer_name)}</td><td>${esc(levelLabel(r.level))}</td><td>${fmtDate(r.status==='entwurf'?r.effective_reminder_date:r.reminder_date)}${r.status==='entwurf'?'<div class="small muted">beim Festschreiben</div>':''}</td><td class="number">${money(r.total_amount)}</td><td>${statusPill(r)}</td><td>${actions}</td><td>${emailAction}</td></tr>${historyRow}`;
   }).join(''):'<tr><td colspan="9" class="empty">Noch keine Mahnungen erstellt.</td></tr>';
+}
+// Seit 1.8.80 ("Vorweg" 2): festgeschrieben heißt noch nicht erreicht -- erst Versand oder Zustellung zählt.
+function statusPill(r){
+  if(r.status==='entwurf')return '<span class="pill entwurf">Entwurf</span>';
+  if(r.replaced_by_id)return `<span class="pill ersetzt" data-status="ersetzt">Ersetzt</span><div class="small muted">durch ${esc(r.replaced_by_number||'')}</div>`;
+  if(r.reached_on)return `<span class="pill" data-status="hinaus">Hinausgegangen</span><div class="small muted">${fmtDate(r.reached_on)}</div>`;
+  return '<span class="pill offen" data-status="festgeschrieben">Festgeschrieben</span><div class="small muted">noch nicht hinaus</div>';
 }
 function toggleReminderHistory(id){
   const row = document.getElementById('dhRow'+id);
@@ -245,7 +257,7 @@ function editReminder(id){
   editingReminderId=id;
   document.getElementById('editorSubtitle').textContent=`${levelLabel(r.level)} zu Rechnung ${r.invoice_number||'—'} (${r.customer_name})`;
   document.getElementById('editorText').value=r.text||'';
-  document.getElementById('editorFeeAmount').value=r.fee_amount;
+  document.getElementById('editorCharges').innerHTML=chargesEditorHtml(r,'editor');
   document.getElementById('editorPaymentDays').value=r.payment_days||'';
   document.getElementById('editorDatesHint').textContent=`Mahndatum ist der Tag des Festschreibens, die Frist rechnet ab dann – heute festgeschrieben: Mahndatum ${fmtDate(r.effective_reminder_date)}, Frist bis ${fmtDate(r.effective_new_due_date)}.`;
   document.getElementById('editorStatus').textContent='';
@@ -257,25 +269,43 @@ function cancelEditReminder(){
   editingReminderId=null;
   document.getElementById('editorCard').style.display='none';
 }
-function reminderMissingPlaceholderWarning(text,feeAmount,paymentDays){
+function reminderMissingPlaceholderWarning(text,paymentDays,r){
   // Reiner Hinweis, kein Blockieren (Nutzerentscheidung 1.3.21) -- es kann gute Gründe geben,
   // einen Platzhalter absichtlich durch eine feste Zahl zu ersetzen.
   const missing=[];
-  if(feeAmount!==''&&feeAmount!==null&&!text.includes('{mahngebuehr}')) missing.push('{mahngebuehr} (Mahngebühr)');
   if(paymentDays&&!text.includes('{neue_frist}')) missing.push('{neue_frist} (neue Zahlungsfrist)');
-  if(!missing.length) return '';
-  return ` Hinweis: ${missing.join(', ')} fehlt im Text -- der Wert wird bei einer künftigen Änderung nicht mehr automatisch nachgezogen.`;
+  if(r&&r.charges_enabled&&(r.charges||[]).length&&!text.includes('{gesamtbetrag}')) missing.push('{gesamtbetrag} (Betrag samt Nebenforderungen)');
+  let hint=missing.length?` Hinweis: ${missing.join(', ')} fehlt im Text -- der Wert wird bei einer künftigen Änderung nicht mehr automatisch nachgezogen.`:'';
+  if(r&&!r.charges_enabled&&text.includes('{mahngebuehr}')) hint+=' Hinweis: Mahngebühren sind ausgeschaltet – {mahngebuehr} ergibt 0,00 €.';
+  return hint;
+}
+// Seit 1.8.80 (Z2b Nr. 5 und 6): Gebühr und Pauschale nur bei eingeschalteten Mahngebühren, je Mahnung bewusst übernommen.
+function chargesEditorHtml(r,prefix){
+  if(!r.charges_enabled||!r.proposals)return '';
+  const f=r.proposals.fee,fl=r.proposals.flat_fee,existing=(r.charges||[]).filter(c=>!c.new);
+  return `<div data-nebenforderungen-editor style="border:1px solid var(--line);padding:10px">
+    <div class="small" style="font-weight:800;margin-bottom:4px">Nebenforderungen dieser Mahnung (ohne USt, nie im Rechnungsbetrag)</div>
+    ${existing.length?`<div class="small muted" style="margin-bottom:6px">Schon an der Rechnung: ${existing.map(c=>`${esc(c.label)} ${money(c.amount)}`).join(' · ')}</div>`:''}
+    <div class="small muted" data-gebuehr-vorschlag>Vorschlag ${esc(f.level_label)}: Mahngebühr ${money(f.amount)} – gilt erst mit Häkchen.</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0"><label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="${prefix}FeeAccepted" ${r.fee_accepted?'checked':''}> Mahngebühr übernehmen</label><input id="${prefix}FeeAmount" type="number" step="0.01" min="0" value="${esc(r.fee_amount)}" style="width:120px;padding:5px 7px;border:1px solid var(--field-border);background:var(--card);color:var(--ink)"> €</div>
+    <label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="${prefix}FlatAccepted" ${r.flat_fee_accepted?'checked':''} ${fl.block&&!r.flat_fee_accepted?'disabled':''}> Pauschale ${money(fl.amount)} nach § 288 Abs. 5 BGB übernehmen</label>
+    ${fl.block?`<div class="small muted" data-pauschale-grund>${esc(fl.block)}</div>`:''}
+  </div>`;
+}
+async function saveReminderCharges(id,prefix){
+  const acc=document.getElementById(prefix+'FeeAccepted');if(!acc)return;
+  await api(`/api/reminders/${id}/charges`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({fee_amount:(Number(document.getElementById(prefix+'FeeAmount').value)||0).toFixed(2),fee_accepted:acc.checked,flat_fee_accepted:document.getElementById(prefix+'FlatAccepted').checked})});
 }
 async function saveReminderEdit(){
   if(editingReminderId===null)return;
   const text=document.getElementById('editorText').value;
-  const feeAmount=document.getElementById('editorFeeAmount').value;
   const paymentDays=document.getElementById('editorPaymentDays').value;
-  const warning=reminderMissingPlaceholderWarning(text,feeAmount,paymentDays);
+  const warning=reminderMissingPlaceholderWarning(text,paymentDays,allReminders.find(x=>x.id===editingReminderId));
   try{
     await api(`/api/reminders/${editingReminderId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      text: text||null, fee_amount: feeAmount, payment_days: Number(paymentDays),
+      text: text||null, payment_days: Number(paymentDays),
     })});
+    await saveReminderCharges(editingReminderId,'editor');
     if(warning) alert('Gespeichert.'+warning);
     cancelEditReminder();
     await reload();

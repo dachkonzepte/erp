@@ -26,6 +26,10 @@ Seit 1.8.79 (Zahlungsstufe Z2a Nr. 4): die Forderungsaufstellung zeigt Rechnungs
 Betrag, Skonto und Einbehalt (nur, wenn gebucht) und den angemahnten Betrag -- aus der Aufstellung, die die Mahnung beim
 Anlegen bzw. Festschreiben festhielt (app/reminders.py::amounts()). Mahnungen von vor 1.8.79 haben keine und zeigen wie bisher
 nur den offenen Rechnungsbetrag. Ein Entwurf zeigt Datum und Frist des Festschreibens heute (effective_dates()).
+
+Seit 1.8.80 (Z2b Nr. 4): unter dem angemahnten Betrag die Nebenforderungen der Rechnung (Mahngebühren, Pauschale) je Zeile und der
+Gesamtbetrag (app/reminders.py::charges_view()); ohne Umsatzsteuer, nie im Rechnungsbetrag. Bei ausgeschalteten Mahngebühren keine
+Zeile dafür -- nur der Gesamtbetrag. Mahnungen von vor 1.8.80 wie bisher mit "Mahngebühr".
 """
 
 from reportlab.lib import colors
@@ -35,7 +39,7 @@ from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
 from .document_frame import frame_content_width, render_framed_pdf
 from .document_page_margins import get_margins
 from .document_pdf import build_din5008_header_block, build_object_address_block, build_styles, money, ptext
-from .reminders import amounts, reminder_to_dict
+from .reminders import amounts, charges_view, reminder_to_dict
 from .settings import load_general_settings
 
 LEVEL_LABELS = {1: "1. Mahnung", 2: "2. Mahnung", 3: "3. Mahnung"}
@@ -56,6 +60,15 @@ def amount_rows(reminder) -> list[list[str]]:
         rows.append(["abzüglich Einbehalt (wird nicht angemahnt)", money(-breakdown["retained"])])
     rows.append(["Angemahnter Betrag", money(reminder.outstanding_amount)])
     return rows
+
+
+def total_rows(reminder) -> list[list[str]]:
+    """Zeilen nach dem angemahnten Betrag (seit 1.8.80): je Nebenforderung eine Zeile, dann der Gesamtbetrag -- bei Mahnungen von
+    vor 1.8.80 wie bisher Mahngebühr und Gesamtbetrag."""
+    view = charges_view(reminder)
+    if view["enabled"] is None:
+        return [["Mahngebühr", money(reminder.fee_amount)], ["Gesamtbetrag", money(view["total"])]]
+    return [[line["label"], money(line["amount"])] for line in view["lines"]] + [["Gesamtbetrag", money(view["total"])]]
 
 
 def build_reminder_pdf(db, reminder) -> bytes:
@@ -105,10 +118,7 @@ def build_reminder_pdf(db, reminder) -> bytes:
         story.append(Paragraph(label, h1))
         story += [Paragraph(ptext(data["formatted_text"]), body), Spacer(1, 6*mm)]
 
-        rows = amount_rows(reminder) + [
-            ["Mahngebühr", money(data["fee_amount"])],
-            ["Gesamtbetrag", money(data["total_amount"])],
-        ]
+        rows = amount_rows(reminder) + total_rows(reminder)
         # Spalten summieren sich auf die volle Rahmenbreite (statt vorher 160mm mit
         # hAlign="RIGHT", das die Tabelle nur innerhalb des Rahmens nach rechts schob, dabei aber
         # ihre linke Kante spürbar vom Satzspiegel wegrückte -- gemessen, nicht geraten, siehe

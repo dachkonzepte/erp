@@ -19,6 +19,7 @@ from app.berlin_time import berlin_today
 from app.email_dispatch import record_manual_delivery
 from app.invoices import InvoiceBlocked, create_abschlag_pauschal
 from app.models import Customer, EmailDispatch, Invoice, Order, Project, Reminder
+from app.orders import change_orders_customer
 from app.payments import Line, book_payment, invoice_customer_id
 from app.project_participants import ClientChangeConflict, check_client_change
 from app.reminders import create_reminder, create_reminders, finalize_and_send_reminder, update_reminder_draft
@@ -79,7 +80,7 @@ def test_pg_editing_waits_for_finalizing_and_is_refused(pg):
     reminder_id = _vorbereiten(Session, lambda s: create_reminder(s, s.get(Invoice, invoice_id)).id)
     _, second = _run(Session, lambda s: finalize_and_send_reminder(s, s.get(Reminder, reminder_id)).id,
                      lambda s: update_reminder_draft(s, s.get(Reminder, reminder_id), text="nachträglich",
-                                                     fee_amount=D("0"), payment_days=30))
+                                                     payment_days=30))
     assert isinstance(second, InvoiceBlocked) and "festgeschrieben" in str(second), second
     assert _vorbereiten(Session, lambda s: (s.get(Reminder, reminder_id).status, s.get(Reminder, reminder_id).text != "nachträglich",
                                             s.get(Reminder, reminder_id).new_due_date)) == (
@@ -90,7 +91,7 @@ def test_pg_finalizing_waits_for_editing_and_takes_its_deadline(pg):
     Session, order_id = pg
     invoice_id = _vorbereiten(Session, lambda s: _faellig(s, order_id))
     reminder_id = _vorbereiten(Session, lambda s: create_reminder(s, s.get(Invoice, invoice_id)).id)
-    _, second = _run(Session, lambda s: update_reminder_draft(s, s.get(Reminder, reminder_id), text="neu", fee_amount=D("0"),
+    _, second = _run(Session, lambda s: update_reminder_draft(s, s.get(Reminder, reminder_id), text="neu",
                                                               payment_days=20).id,
                      lambda s: finalize_and_send_reminder(s, s.get(Reminder, reminder_id)).new_due_date)
     assert second == HEUTE + timedelta(days=20), second
@@ -149,8 +150,10 @@ def test_pg_finalizing_waits_for_a_client_change_and_holds_the_new_customer(pg):
                                                                                         lump_sum_net=D("100"))).id)
 
     def wechseln(s):
+        # Seit 1.8.80 (Z2b "Vorweg" 1) mit Auftrag nur zusammen mit dessen Vertragspartner und mit Begründung.
         project = _projekt(s, order_id)
-        check_client_change(s, project, other)
+        check_client_change(s, project, other, reason="Vertragspartner falsch")
+        change_orders_customer(s, project.id, s.get(Customer, other), reason="Vertragspartner falsch")
         project.customer_id = other
         s.commit()
         return project.id

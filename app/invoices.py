@@ -777,8 +777,14 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
         raise InvoiceBlocked(reason)
     # Seit 1.8.75: Rechnungsdatum = Tag des Festschreibens (Berlin), die Fälligkeit rückt mit (finalize_dates()).
     invoice.invoice_date, invoice.due_date = finalize_dates(invoice, berlin_today())
-    # Seit 1.8.79: ab hier hält die Rechnung ihren Kunden fest (_customer_at_finalize()).
+    # Seit 1.8.79: ab hier hält die Rechnung ihren Kunden fest (_customer_at_finalize()). Seit 1.8.80 (Vorgabe Z2b "Vorweg" 1)
+    # Kunde, Name und Anschrift vom Auftrag -- frisch nach der Sperre, unter der auch ein Kundenwechsel am Auftrag läuft.
     invoice.customer_id = _customer_at_finalize(db, invoice)
+    if invoice.invoice_type != "storno":
+        order = db.get(Order, invoice.order_id)
+        invoice.customer_name = order.customer_name
+        invoice.customer_number = order.customer_number
+        invoice.customer_address = order.customer_address
     invoice.invoice_number = issue_number(db, "invoice")
     invoice.status = "versendet"
     if invoice.invoice_type == "storno" and invoice.storno_of_invoice_id is not None:
@@ -792,22 +798,23 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
 
 def _customer_at_finalize(db: Session, invoice: Invoice) -> int | None:
     """Der Kunde, den die Rechnung beim Festschreiben festhält (seit 1.8.79): beim Storno der Kunde der stornierten Rechnung,
-    sonst der des Projekts -- frisch gelesen nach der Sperre der Auftragszeile. Ein Kundenwechsel am Projekt nimmt dieselbe
-    Sperre (app/project_participants.py::check_client_change()): wartet das Festschreiben auf ihn, liest es danach den neuen
-    Kunden; wartet er auf das Festschreiben, findet er die festgeschriebene Rechnung und lehnt ab."""
+    sonst seit 1.8.80 der des Auftrags (Order.customer_id, Vorgabe Z2b "Vorweg" 1; bis 1.8.79 der des Projekts) -- frisch gelesen
+    nach der Sperre der Auftragszeile. Ein Kundenwechsel am Projekt nimmt dieselbe Sperre
+    (app/project_participants.py::check_client_change()) und wechselt den Kunden des Auftrags mit: wartet das Festschreiben auf
+    ihn, liest es danach den neuen Kunden; wartet er auf das Festschreiben, findet er die festgeschriebene Rechnung und lehnt ab."""
     if invoice.invoice_type == "storno" and invoice.storno_of_invoice_id is not None:
         original = db.get(Invoice, invoice.storno_of_invoice_id)
         if original is not None and original.customer_id is not None:
             return original.customer_id
-    return db.scalar(select(Project.customer_id).join(Order, Order.project_id == Project.id).where(Order.id == invoice.order_id))
+    return db.scalar(select(Order.customer_id).where(Order.id == invoice.order_id))
 
 
 def invoice_customer(invoice: Invoice) -> Customer | None:
-    """Kunde der Rechnung (seit 1.8.79): festgeschrieben der festgehaltene, im Entwurf der Kunde des Projekts."""
+    """Kunde der Rechnung (seit 1.8.79): festgeschrieben der festgehaltene, im Entwurf seit 1.8.80 der Kunde des Auftrags."""
     if invoice.customer_id is not None:
         return invoice.customer
     order = invoice.order
-    return order.project.customer if order is not None and order.project is not None else None
+    return order.customer if order is not None else None
 
 
 def invoice_customer_id(invoice: Invoice) -> int | None:
@@ -815,7 +822,7 @@ def invoice_customer_id(invoice: Invoice) -> int | None:
     if invoice.customer_id is not None:
         return invoice.customer_id
     order = invoice.order
-    return order.project.customer_id if order is not None and order.project is not None else None
+    return order.customer_id if order is not None else None
 
 
 def delete_invoice_draft(db: Session, invoice: Invoice) -> None:

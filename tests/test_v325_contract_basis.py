@@ -138,9 +138,10 @@ def _seed_pre_migration(engine):
         without_meta = conn.execute(text("INSERT INTO quotes (quote_number, project_id, title, status, vat_rate, source_format, created_at, updated_at) "
                                          "VALUES ('A-2', :p, 'Ohne Kopf', 'entwurf', 19, 'manual', '2026-03-01 23:30:00', '2026-03-01 23:30:00') RETURNING id"),
                                     {"p": pid}).scalar()
-        conn.execute(text("INSERT INTO orders (order_number, project_id, source_quote_id, quote_number_snapshot, title, status, vat_rate, customer_name, order_date, created_at, updated_at) "
-                          "VALUES ('AU-1', :p, :q, 'A-1', 'Alt', 'beauftragt', 19, 'gewerbe', '2026-02-02', '2026-02-02 00:00:00', '2026-02-02 00:00:00')"),
-                     {"p": pid, "q": with_meta})
+        # customer_id seit 1.8.80 (Vertragspartner am Auftrag, NOT NULL im heutigen Schema)
+        conn.execute(text("INSERT INTO orders (order_number, project_id, source_quote_id, quote_number_snapshot, title, status, vat_rate, customer_name, order_date, created_at, updated_at, customer_id) "
+                          "VALUES ('AU-1', :p, :q, 'A-1', 'Alt', 'beauftragt', 19, 'gewerbe', '2026-02-02', '2026-02-02 00:00:00', '2026-02-02 00:00:00', :c)"),
+                     {"p": pid, "q": with_meta, "c": ids["gewerbe"]})
     return ids, with_meta, without_meta
 
 

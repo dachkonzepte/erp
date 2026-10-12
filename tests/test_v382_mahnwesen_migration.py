@@ -14,9 +14,8 @@ import pytest
 from sqlalchemy import create_engine, insert, inspect, text
 from sqlalchemy.orm import sessionmaker
 
-from app.grunddaten import anlegen
 from app.models import Invoice, Reminder
-from tests.test_v325_contract_basis import beauftragen, make_quote
+from tests.bestand_alt import auftrag
 from tests.test_v380_nummern_eindeutig import _alembic, _ok
 
 MIGRATION = "5db1a12b4a66"
@@ -49,11 +48,10 @@ def _migrationsprobe(url: str, engine, Session) -> None:
     _ok(_alembic(url, "upgrade", VORHER))
     db = Session()
     try:
-        anlegen(db)
-        db.commit()
-        order = beauftragen(db, make_quote(db, is_consumer=False, number="0001"))
-        fremd = beauftragen(db, make_quote(db, is_consumer=False, number="0002"))  # anderer Kunde
-        kunde, kunde_fremd = order.project.customer_id, fremd.project.customer_id
+        # Seit 1.8.80 ohne Grunddaten und ORM (tests/bestand_alt.py).
+        order = auftrag(db, number="0001")
+        fremd = auftrag(db, number="0002")  # anderer Kunde
+        kunde, kunde_fremd = order.customer_id, fremd.customer_id
         assert kunde != kunde_fremd
         ids = {
             "versendet": _rechnung(db, order, status="versendet"),

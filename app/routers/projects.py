@@ -17,7 +17,7 @@ from ..invoices import invoice_overview_rows, invoice_summary_for_order, list_in
 from ..work_preparation import planned_hours
 from ..models import AppUser, Customer, Order, Project, ProjectDocument, ProjectPipelineColumn, ProjectProfile, Property, Quote
 from ..option_settings import default_option_value
-from ..orders import load_order, order_to_dict
+from ..orders import change_orders_customer, load_order, order_to_dict
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_documents import MAX_UPLOAD_BYTES, make_stored_filename, project_directory
 from ..project_participants import ClientChangeConflict, check_client_change
@@ -165,7 +165,7 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db), _role:
 
 
 @router.put("/api/projects/{project_id}", response_model=ProjectDetailOut)
-def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depends(get_db), user: AppUser = _role_dep):
     project = db.get(Project, project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
@@ -185,7 +185,12 @@ def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depend
         # Seit 1.8.41: ist der neue Kunde hier schon Beteiligter, stünde der Auftraggeber doppelt da -- 409 mit Namen.
         # Seit 1.8.44 zuerst: ein Auftrag mit festgeschriebenem Vertrag sperrt den Wechsel -- 409.
         # Seit 1.8.79 davor: eine festgeschriebene Rechnung am Projekt sperrt ihn ebenso (unter der Sperre der Auftragszeilen).
-        check_client_change(db, project, payload.customer_id)
+        # Seit 1.8.80: mit Auftrag nur zusammen mit dessen Vertragspartner und mit Begründung (customer_change_reason).
+        check_client_change(db, project, payload.customer_id, reason=payload.customer_change_reason)
+        if payload.customer_id != project.customer_id:
+            change_orders_customer(db, project.id, customer, reason=payload.customer_change_reason or "",
+                                   user_id=getattr(user, "id", None), user_name=getattr(user, "display_name", None)
+                                   or getattr(user, "username", None))
     except ClientChangeConflict as e:
         db.rollback()  # gibt die Sperre der Auftragszeilen frei
         raise HTTPException(status_code=409, detail=str(e))

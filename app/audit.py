@@ -15,6 +15,7 @@ from .models import (
     NumberSequence, SettingOptionGroup, SettingOption, AppUser, ServiceCalculation, MaterialCalculationOverride,
     Checklist, ChecklistAttachment, ChecklistAssetRelease, OperationalAsset, Contact, ProjectParticipant,
     OrderAcceptance, Defect, DefectEvent, Invoice, Payment, PaymentAllocation,
+    InvoiceCharge, InvoiceDefaultStart, OrderCustomerChange,
 )
 
 _actor_id = contextvars.ContextVar("audit_actor_id", default=None)
@@ -40,6 +41,7 @@ TYPE_LABELS = {
     Contact: "Kontakt (Adressbuch)", ProjectParticipant: "Projektbeteiligter",
     OrderAcceptance: "Abnahme", Defect: "Mangel", DefectEvent: "Mangel",
     Payment: "Zahlungseingang", PaymentAllocation: "Zahlungseingang",
+    InvoiceCharge: "Nebenforderung", InvoiceDefaultStart: "Verzugsbeginn", OrderCustomerChange: "Auftrag",
 }
 
 EXTENSION_TYPES = (CustomerProfile, ProjectProfile, EmployeeProfile, EmployeeRoleSettings, EmployeeCompensationSettings, EmployeeCostAllocationSettings, QuoteDocumentMeta, QuoteItemLayout, QuoteEmployeeAssignment)
@@ -66,6 +68,9 @@ AUDITED_TYPES = (
     # Zahlungseingang (seit 1.8.78): jede Zahlung, Zuordnung, jeder Abzug und jede Gegenbuchung unter der Kennung der Zahlung;
     # Zuordnungen erscheinen auch in der Historie der Projektmappe. Geändert oder gelöscht wird nichts (ORM-Sperre).
     Payment, PaymentAllocation,
+    # Seit 1.8.80 (Zahlungsstufe Z2b): Nebenforderungen und ihre Gegenbuchung, Verzugsbeginn (bestätigt, verworfen), Kundenwechsel
+    # am Auftrag mit Begründung (unter der Kennung des Auftrags). Geändert oder gelöscht wird nichts (ORM-Sperre).
+    InvoiceCharge, InvoiceDefaultStart, OrderCustomerChange,
 )
 
 FIELD_LABELS = {
@@ -106,6 +111,11 @@ FIELD_LABELS = {
     "location":"Ortsangabe","remedy_due_on":"Beseitigungsfrist","task_id":"Aufgabe","defect_id":"Mangel",
     "previous_value":"Stand davor","event_date":"Datum","reason":"Begründung",
     "previous_event_sha256":"Prüfsumme des vorigen Eintrags",
+    # seit 1.8.80: Nebenforderung, Verzugsbeginn, Kundenwechsel am Auftrag
+    "amount":"Betrag","reminder_id":"Mahnung","reverses_charge_id":"Gegenbuchung zu","starts_on":"Verzug ab","basis":"Grundlage",
+    "source_text":"Vorschlag (Quelle)","proposal_on":"Vorschlag","old_customer_id":"Kunde bisher","new_customer_id":"Kunde neu",
+    "old_customer_name":"Kunde bisher (Name)","new_customer_name":"Kunde neu (Name)","changed_by_name":"Geändert von",
+    "changed_by_user_id":"Geändert von (Konto)","dunning_charges_enabled":"Mahngebühren und Verzugszinsen",
 }
 
 
@@ -289,6 +299,21 @@ def _normalize(session, obj):
             label = (f"{label} · {what}{KIND_LABELS.get(obj.kind, obj.kind)} {money(abs(obj.amount))} an "
                      f"{invoice.invoice_number if invoice else 'Rechnung'}")
         return "Zahlungseingang", str(payment.id if payment else obj.payment_id), label[:255], project_id
+    if isinstance(obj, (InvoiceCharge, InvoiceDefaultStart)):
+        from .dunning_charges import KIND_LABELS, money  # lokal: nur hier gebraucht
+        invoice = session.get(Invoice, obj.invoice_id)
+        order = session.get(Order, invoice.order_id) if invoice else None
+        number = invoice.invoice_number if invoice else f"Rechnung {obj.invoice_id}"
+        if isinstance(obj, InvoiceCharge):
+            what = "Gegenbuchung " if obj.reverses_charge_id is not None else ""
+            label = f"{what}{KIND_LABELS.get(obj.kind, obj.kind)} {money(abs(obj.amount))} · {number}"
+            return "Nebenforderung", str(obj.reverses_charge_id or obj.id), label[:255], order.project_id if order else None
+        label = f"Verzug ab {obj.starts_on.strftime('%d.%m.%Y')} · {number}"
+        return "Verzugsbeginn", str(obj.id), label[:255], order.project_id if order else None
+    if isinstance(obj, OrderCustomerChange):
+        o = session.get(Order, obj.order_id)
+        label = f"Kundenwechsel {obj.old_customer_name} → {obj.new_customer_name} · {_entity_label(o) or ''}".strip(" ·")
+        return "Auftrag", str(obj.order_id), label[:255], o.project_id if o else None
     if isinstance(obj, OrderRevision):
         o = session.get(Order, obj.order_id); return "Auftragsrevision", str(obj.id), f"Revision {obj.revision_number} · {_entity_label(o) or ''}".strip(), o.project_id if o else None
     if isinstance(obj, OrderSection):

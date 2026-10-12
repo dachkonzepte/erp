@@ -671,6 +671,49 @@ def _dispatch_day(dispatch: EmailDispatch) -> date:
     return dispatch.delivered_on or to_berlin(dispatch.finished_at or dispatch.created_at).date()
 
 
+def reached_client(dispatch: EmailDispatch, outcome: DispatchOutcome | None, has_authorization: bool) -> bool:
+    """Kam dieser Eintrag beim Auftraggeber an? (seit 1.8.41 für die Briefe der Anzeigen, seit 1.8.80 hier für jede
+    Dokumentart) Gesendet, nicht als unzustellbar vermerkt, und: per E-Mail (An ist immer der Auftraggeber), oder nachgetragen
+    an den Auftraggeber, an einen empfangsbevollmächtigten Beteiligten (festgehaltene Vollmacht) oder ohne Empfängerauswahl
+    (wie vor 1.8.41)."""
+    if dispatch.status != "gesendet" or (outcome is not None and outcome.outcome == "unzustellbar"):
+        return False
+    if dispatch.channel not in MANUAL_CHANNELS:
+        return True
+    return dispatch.delivered_to_client is not False or has_authorization
+
+
+def document_reached_on(db: Session, document_type: str, documents) -> dict[int, date]:
+    """Je Dokument (Mahnung, Rechnung …; Zeilen mit id und email_sent_at) der erste Tag, an dem es beim Auftraggeber ankam
+    (seit 1.8.80, Zahlungsstufe Z2b): versendet oder zugestellt im Sinne von reached_client(), Tag nach _dispatch_day() --
+    E-Mail: Abschluss in Europe/Berlin, nachgetragene Zustellung: Zustelldatum. Bestand von vor dem Versandprotokoll (1.8.17):
+    ein Dokument ganz ohne Eintrag, aber mit email_sent_at, kam an diesem Tag an. Fehlt eine ID, kam das Dokument (noch) nie an."""
+    from .berlin_time import to_berlin
+
+    documents = list(documents)
+    ids = sorted({d.id for d in documents})
+    if not ids:
+        return {}
+    rows = db.scalars(select(EmailDispatch).where(
+        EmailDispatch.document_type == document_type, EmailDispatch.document_id.in_(ids))).all()
+    with_protocol = {r.document_id for r in rows}
+    sent = [r for r in rows if r.status == "gesendet"]
+    sent_ids = [r.id for r in sent]
+    outcomes = dispatch_outcomes(db, sent_ids) if sent_ids else {}
+    authorized = set(db.scalars(select(DispatchAuthorization.dispatch_id).where(
+        DispatchAuthorization.dispatch_id.in_(sent_ids)))) if sent_ids else set()
+    result: dict[int, date] = {}
+    for r in sent:
+        if reached_client(r, outcomes.get(r.id), r.id in authorized):
+            day = _dispatch_day(r)
+            if r.document_id not in result or day < result[r.document_id]:
+                result[r.document_id] = day
+    for d in documents:
+        if d.id not in with_protocol and getattr(d, "email_sent_at", None) is not None:
+            result[d.id] = to_berlin(d.email_sent_at).date()
+    return result
+
+
 def record_dispatch_outcome(
     db: Session, dispatch_id: int, *, outcome: str, outcome_on: date, note: str | None,
     receipt_bytes: bytes | None = None, receipt_filename: str | None = None,

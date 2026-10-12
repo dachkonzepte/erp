@@ -24,6 +24,7 @@ from app.models import Invoice, InvoiceItem, Order, Payment, PaymentAllocation
 from app.payments import Line, book_payment, payable_gross, payment_state
 from tests.leistungszeitraum import festschreiben
 from tests.test_v133_invoices import db_session
+from tests.bestand_alt import auftrag
 from tests.test_v325_contract_basis import beauftragen, make_quote
 from tests.test_v380_nummern_eindeutig import _alembic, _ok
 
@@ -105,10 +106,10 @@ def _migrationsprobe(url: str, engine, Session) -> None:
     _ok(_alembic(url, "upgrade", VORHER))
     db = Session()
     try:
-        anlegen(db)
-        db.commit()
-        order = beauftragen(db, make_quote(db, is_consumer=False, number="0001"))
-        fremd = beauftragen(db, make_quote(db, is_consumer=False, number="0002"))  # anderer Kunde
+        # Seit 1.8.80 ohne Grunddaten und ORM: der Bestand dieses Stands kennt Spalten des heutigen Modells noch nicht
+        # (tests/bestand_alt.py).
+        order = auftrag(db, number="0001")
+        fremd = auftrag(db, number="0002")  # anderer Kunde
         ids = {
             "bezahlt": _rechnung(db, order, status="bezahlt", net="2000", paid_date=date(2026, 9, 30)),
             "alt": _rechnung(db, fremd, status="bezahlt", net="400.168", rule=None, paid_date=date(2026, 9, 29)),
@@ -118,7 +119,7 @@ def _migrationsprobe(url: str, engine, Session) -> None:
         }
         ids["storno"] = _rechnung(db, order, status="bezahlt", invoice_type="storno", net="100",
                                   paid_date=date(2026, 9, 20), storno_of=ids["storniert"])
-        kunde, kunde_fremd = order.project.customer_id, fremd.project.customer_id
+        kunde, kunde_fremd = order.customer_id, fremd.customer_id
         vorher = {k: tuple(_status(db, i)) for k, i in ids.items()}
         db.close()
 

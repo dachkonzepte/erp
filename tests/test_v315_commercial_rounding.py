@@ -208,13 +208,25 @@ def test_skonto_half_cent_rounds_up():
     assert format_payment_terms_sentence(invoice) == "Skonto 0,21 €"
 
 
+def _als_bestand(db, reminder, *, fee):
+    """Wie eine vor 1.8.80 festgeschriebene Mahnung: Gebühr an der Mahnung, keine Aufstellung."""
+    from sqlalchemy import update
+    from app.models import Reminder
+    db.execute(update(Reminder).where(Reminder.id == reminder.id).values(
+        status="versendet", reminder_number=f"M-ALT-{reminder.id}", amounts_json=None, fee_amount=Decimal(fee)))
+    db.commit()
+    db.refresh(reminder)
+
+
 def test_reminder_takes_rounded_gross_and_rounds_its_total_up():
     db = db_session()
     ensure_default_reminder_levels(db)
     invoice = _ueberfaellig(db, _invoice(db, "1", "1.50", finalize=True))
     reminder = create_reminder(db, invoice, 1)
     assert reminder.outstanding_amount == Decimal("1.79")    # alt 1,785 gespeichert
-    reminder.fee_amount = Decimal("2.515"); db.commit()     # 1,79 + 2,515 = 4,305
+    # Seit 1.8.80 zählt eine Gebühr nur übernommen und eingeschaltet, als Nebenforderung auf den Cent -- die Rundung des
+    # Gesamtbetrags aus offenem Betrag + Gebühr bleibt für Mahnungen von vor 1.8.80 (Bestand ohne Aufstellung).
+    _als_bestand(db, reminder, fee="2.515")                # 1,79 + 2,515 = 4,305
     assert reminder_to_dict(reminder)["total_amount"] == Decimal("4.31")  # alt 4,30
     reminder.text = "Offen {offener_betrag}, gesamt {gesamtbetrag}"
     assert format_reminder_text(reminder) == "Offen 1,79 €, gesamt 4,31 €"
@@ -338,7 +350,7 @@ def test_legacy_invoice_reminder_total_keeps_half_even():
     ensure_default_reminder_levels(db)
     invoice = _ueberfaellig(db, _legacy(db, "1", "1.50"))
     reminder = create_reminder(db, invoice, 1)
-    reminder.fee_amount = Decimal("2.50"); db.commit()
+    _als_bestand(db, reminder, fee="2.50")  # seit 1.8.80: Mahnung von vor 1.8.80, siehe oben
     assert reminder_to_dict(reminder)["total_amount"] == Decimal("4.28")   # 1,785 + 2,50 = 4,285, halb-gerade
 
 

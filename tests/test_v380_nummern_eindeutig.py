@@ -21,6 +21,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import UniqueConstraint, create_engine, func, insert, inspect, select, text
@@ -35,8 +36,9 @@ from app.project_pipeline_columns import default_pipeline_column_id
 from app.reminders import create_reminder, finalize_and_send_reminder
 from app.settings import DEFAULT_SEQUENCES, _existing_column
 from tests.befund_vor_echtbetrieb import pg_sitzung
+from tests.bestand_alt import auftrag_zeile, startspalte
 from tests.leistungszeitraum import festschreiben, mit_zeitraum
-from tests.mahnung import frist_ablaufen
+from tests.mahnung import frist_ablaufen, zustellen
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
 from tests.test_v375_rechnungen_sperren import _run, _vorbereiten, pg  # noqa: F401  (pg ist eine Fixture)
@@ -95,9 +97,11 @@ def _mit_nummer(db, key: str, nummer: str | None) -> int:
     db.add(quote); db.flush()
     if key == "quote":
         return quote.id
-    order = Order(order_number=nummer if key == "order" else f"X-AUF-{n}", project_id=project.id, source_quote_id=quote.id,
-                  quote_number_snapshot=quote.quote_number, title="T", customer_name="Kunde")
-    db.add(order); db.flush()
+    # Seit 1.8.80 als Core-Insert (tests/bestand_alt.py): das ORM schriebe orders.customer_id, die es auf dem Stand vor den
+    # Migrationen der Zahlungsstufe noch nicht gibt.
+    order = SimpleNamespace(id=auftrag_zeile(db, order_number=nummer if key == "order" else f"X-AUF-{n}",
+                                             project_id=project.id, quote_id=quote.id, quote_number=quote.quote_number,
+                                             customer_name="Kunde"))
     if key == "order":
         return order.id
     # Rechnung und Mahnung seit 1.8.79 als Core-Insert mit genau diesen Spalten: das ORM schriebe jede Spalte des heutigen
@@ -230,6 +234,7 @@ def test_issuing_an_issued_reminder_number_is_refused_and_nothing_changes(monkey
     invoice = make_sent_overdue_invoice(db, days_overdue=40)
     erste = finalize_and_send_reminder(db, create_reminder(db, invoice, 1))
     frist_ablaufen(db, erste)  # seit 1.8.79: Stufe 2 erst nach Ablauf der Frist der 1. Mahnung
+    zustellen(db, erste)  # seit 1.8.80: und erst, wenn die 1. hinausging
     db.refresh(invoice)
     zweite = create_reminder(db, invoice, 2)
     zweite_id, nummer = zweite.id, erste.reminder_number
@@ -305,7 +310,7 @@ def _migrationsprobe(url: str, engine, Session) -> None:
     _ok(_alembic(url, "upgrade", VORHER))
     db = Session()
     try:
-        anlegen(db)
+        startspalte(db)  # seit 1.8.80 statt app.grunddaten.anlegen() (tests/bestand_alt.py)
         db.commit()
         r1, r2 = (_mit_nummer(db, "invoice", "R-2026-0001") for _ in range(2))
         m1, m2, m3 = (_mit_nummer(db, "reminder", "M-2026-0005") for _ in range(3))

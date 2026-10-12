@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from .models import (
-    ContractBasisClause, Employee, Invoice, InvoiceItem, Order, OrderItem, OrderSection, OrderRevision,
+    ContractBasisClause, Employee, Invoice, InvoiceItem, Order, OrderCustomerChange, OrderItem, OrderSection, OrderRevision,
     OrderItemCalculationSnapshot, OrderItemMaterialSnapshot,
     Project, QuoteEmployeeAssignment, ServiceReport, TaxKey, TimeEntry, TimeEntryGroup,
     WorkPreparation, WorkPreparationEmployee, WorkPreparationMaterial, WorkPreparationTeamAssignment,
@@ -409,7 +409,7 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
             clause_is_reviewed(db.scalar(select(ContractBasisClause).where(ContractBasisClause.basis_key == order.contract_basis)))
             if db is not None else None
         ),
-        "customer_id": order.project.customer_id if order.project else None,
+        "customer_id": order.customer_id,  # seit 1.8.80 der Vertragspartner des Auftrags (vorher der Kunde des Projekts)
         "customer_name": order.customer_name,
         "customer_number": order.customer_number,
         "customer_address": order.customer_address,
@@ -489,14 +489,53 @@ DEFAULT_ORDER_EMAIL_BODY = (
 
 def get_order_recipient_email(order: Order) -> str | None:
     """Aktuelle, live nachgeschlagene Kunden-E-Mail -- analog zu
-    get_quote_recipient_email()/get_invoice_recipient_email(). order.project
-    ist wie bei Quote eine direkte Beziehung. Bewusst NICHT order.customer_name
+    get_quote_recipient_email()/get_invoice_recipient_email(). Bewusst NICHT order.customer_name
     verwendet, das ist ein reiner Anzeige-Snapshot vom Beauftragungszeitpunkt,
     keine E-Mail-Adresse -- für den tatsächlichen Versand zählt immer der
-    aktuelle Kundenstammdatensatz, falls sich die Adresse seither geändert hat."""
-    project = order.project
-    customer = project.customer if project else None
+    aktuelle Kundenstammdatensatz, falls sich die Adresse seither geändert hat. Seit 1.8.80 der Kunde des Auftrags
+    (Order.customer_id), nicht mehr der des Projekts."""
+    customer = order.customer
     return (customer.email or None) if customer else None
+
+
+def customer_snapshot(customer) -> dict:
+    """Name, Kundennummer und Anschrift des Kunden als Schnappschuss für Auftrag und Rechnung ("Straße, PLZ Ort")."""
+    customer_city = " ".join(x for x in [customer.postal_code, customer.city] if x)
+    return {"customer_name": customer.name, "customer_number": customer.customer_number,
+            "customer_address": _address(customer.street, customer_city)}
+
+
+def change_orders_customer(db: Session, project_id: int, customer, *, reason: str, user_id: int | None = None,
+                           user_name: str | None = None) -> list[OrderCustomerChange]:
+    """Kundenwechsel an den Aufträgen eines Projekts (seit 1.8.80, Vorgabe Z2b "Vorweg" 1): je Auftrag der neue Kunde samt
+    Schnappschuss (Name, Kundennummer, Anschrift), eine Zeile in OrderCustomerChange mit der Begründung, dazu der Schnappschuss
+    der Rechnungsentwürfe. Ohne Commit, unter der Sperre des Aufrufers (app/project_participants.py::check_client_change() hat
+    geprüft, dass weder eine Rechnung noch ein Vertrag festgeschrieben ist)."""
+    orders = [o for o in db.scalars(select(Order).where(Order.project_id == project_id).order_by(Order.id))
+              if o.customer_id != customer.id]
+    if not orders:
+        return []
+    reason = (reason or "").strip()
+    if not reason:
+        raise ValueError("Bitte eine Begründung für den Kundenwechsel am Auftrag angeben.")
+    snapshot = customer_snapshot(customer)
+    rows = []
+    for order in orders:
+        old = order.customer
+        rows.append(OrderCustomerChange(
+            order_id=order.id, old_customer_id=order.customer_id, new_customer_id=customer.id,
+            old_customer_name=(old.name if old is not None else order.customer_name)[:255], new_customer_name=customer.name[:255],
+            reason=reason, changed_by_user_id=user_id, changed_by_name=(user_name or "System")[:160]))
+        order.customer_id = customer.id
+        for key, value in snapshot.items():
+            setattr(order, key, value)
+        for invoice in db.scalars(select(Invoice).where(Invoice.order_id == order.id, Invoice.status == "entwurf")):
+            for key, value in snapshot.items():
+                setattr(invoice, key, value)
+    for row in rows:
+        db.add(row)
+    db.flush()
+    return rows
 
 
 def send_order_email(
@@ -587,7 +626,9 @@ def _validate_employees(db: Session, caseworker_employee_id: int | None, project
 def _copy_quote_scope_to_order(db: Session, order: Order, quote) -> None:
     meta, sections, layouts = ensure_quote_structure(db, quote)
     project = quote.project
-    customer = project.customer
+    # Seit 1.8.80: der Kunde des Auftrags (Vertragspartner, beim Beauftragen festgehalten) -- der Abgleich zieht nur dessen
+    # Stammdaten nach, er wechselt ihn nicht.
+    customer = order.customer if order.customer_id is not None else project.customer
     prop = project.property
 
     customer_city = " ".join(x for x in [customer.postal_code, customer.city] if x)
@@ -721,6 +762,10 @@ def create_order_from_quote(
         raise ValueError("Das Angebot enthält keine Positionen und kann nicht beauftragt werden.")
     meta, _, _ = ensure_quote_structure(db, quote)
     project = quote.project
+    # Seit 1.8.80: Sperre der Projektzeile -- ein gleichzeitiger Kundenwechsel am Projekt (check_client_change()) nimmt sie
+    # zuerst; der Auftrag hält danach den Kunden, der dann am Projekt steht (frisch gelesen).
+    db.execute(select(Project.id).where(Project.id == project.id).with_for_update())
+    db.refresh(project)
 
     if caseworker_employee_id is None:
         assignment = db.scalar(select(QuoteEmployeeAssignment).where(QuoteEmployeeAssignment.quote_id == quote.id))
@@ -742,6 +787,7 @@ def create_order_from_quote(
         outro_text_2=quote.outro_text_2,
         contract_basis=meta.contract_basis,
         contract_basis_manual=False,
+        customer_id=project.customer_id,  # seit 1.8.80: der Vertragspartner, festgehalten
         customer_name=project.customer.name,
         customer_number=project.customer.customer_number,
         customer_address=None,

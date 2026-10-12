@@ -521,7 +521,9 @@ def test_client_change_refused_while_the_new_client_is_a_participant(nworld, rou
     assert "Hausverwaltung Süd" in res.json()["detail"] and "Hausverwaltung" in res.json()["detail"]
     db.expire_all()
     assert db.get(Project, project.id).customer_id == old_customer_id
-    # Ein anderer neuer Kunde geht; nach dem Entfernen des Beteiligten auch dieser.
+    # Ein anderer neuer Kunde geht; nach dem Entfernen des Beteiligten auch dieser. Seit 1.8.80 (Z2b "Vorweg" 1) mit Auftrag
+    # nur mit Begründung -- der Auftrag wechselt mit.
+    body["customer_change_reason"] = "Auftraggeber falsch erfasst"
     other = _new_customer(db, "Neuer Bauherr")
     assert client.put(f"/api/projects/{project.id}", json={**body, "customer_id": other.id}).status_code == 200
     db.delete(db.get(type(participant), participant.id))

@@ -23,7 +23,7 @@ from app.reminders import (
     update_reminder_level,
 )
 from tests.leistungszeitraum import festschreiben
-from tests.mahnung import festschreiben_und_ablaufen, frist_ablaufen
+from tests.mahnung import festschreiben_und_ablaufen, frist_ablaufen, zustellen
 
 
 def db_session():
@@ -80,7 +80,8 @@ def test_ensure_default_reminder_levels_seeds_three_active_levels():
     assert len(levels) == 3
     assert [l.level for l in levels] == [1, 2, 3]
     assert all(l.active for l in levels)
-    assert all(l.fee_amount > 0 for l in levels)
+    # Seit 1.8.80 (Z2b Nr. 5): die Gebühr ist ein Vorschlag, Stufe 1 ohne (bis 1.8.79: 5 / 10 / 15 €).
+    assert [l.fee_amount for l in levels] == [0, 10, 15]
 
 
 def test_ensure_default_reminder_levels_does_not_duplicate_on_second_call():
@@ -153,6 +154,7 @@ def test_compute_reminder_status_progresses_after_sent_reminder():
     invoice = make_sent_overdue_invoice(db, days_overdue=16)
     r1 = create_reminder(db, invoice, 1)
     finalize_and_send_reminder(db, r1)
+    zustellen(db, r1)  # seit 1.8.80: erreicht erst mit Versand oder Zustellung
     db.refresh(invoice)
 
     status = compute_reminder_status(db, invoice)
@@ -175,6 +177,7 @@ def test_compute_reminder_status_skips_inactive_level():
     invoice = make_sent_overdue_invoice(db, days_overdue=16)
     r1 = create_reminder(db, invoice, 1)
     finalize_and_send_reminder(db, r1)
+    zustellen(db, r1)  # seit 1.8.80: erreicht erst mit Versand oder Zustellung
     db.refresh(invoice)
 
     status = compute_reminder_status(db, invoice)
@@ -233,7 +236,7 @@ def test_create_reminder_snapshots_outstanding_amount_and_fee():
     invoice = make_sent_overdue_invoice(db, quantity=Decimal("100"), unit_price=Decimal("50"))  # 5000 netto -> 5950 brutto
     reminder = create_reminder(db, invoice, 1)
     assert reminder.outstanding_amount == Decimal("5950.000000")
-    assert reminder.fee_amount == Decimal("5.00")  # Standard-Gebühr Stufe 1
+    assert reminder.fee_amount == 0  # seit 1.8.80: Mahngebühren ausgeschaltet (Vorgabe), Stufe 1 ohnehin ohne Gebühr
     assert reminder.status == "entwurf"
     assert reminder.reminder_number is None
 
@@ -269,6 +272,7 @@ def test_delete_reminder_draft_only_works_on_drafts():
         pass
 
     frist_ablaufen(db, reminder)  # seit 1.8.79: Stufe 2 erst nach Ablauf der Frist der 1. Mahnung
+    zustellen(db, reminder)  # seit 1.8.80: und erst, wenn sie hinausging
     db.refresh(invoice)
     reminder2 = create_reminder(db, invoice, 2)
     delete_reminder_draft(db, reminder2)
@@ -288,8 +292,7 @@ def test_format_reminder_text_replaces_all_placeholders():
     text = format_reminder_text(reminder)
     assert "{" not in text and "}" not in text
     assert invoice.invoice_number in text
-    assert "5.950,00 €" in text  # offener Betrag
-    assert "5,00 €" in text      # Mahngebühr
+    assert "5.950,00 €" in text  # Gesamtbetrag (seit 1.8.80 ohne Mahngebühr im Standardtext, ausgeschaltet)
 
 
 def test_format_reminder_text_shows_previous_reminder_date_on_level_two():
@@ -335,7 +338,8 @@ def test_reminder_to_dict_includes_total_amount():
     invoice = make_sent_overdue_invoice(db, quantity=Decimal("100"), unit_price=Decimal("50"))
     reminder = create_reminder(db, invoice, 1)
     data = reminder_to_dict(reminder)
-    assert data["total_amount"] == Decimal("5955.000000").quantize(Decimal("0.01"))
+    # Seit 1.8.80: Gesamtbetrag = angemahnter Betrag + Nebenforderungen -- ausgeschaltet keine (bis 1.8.79: + 5 € Gebühr).
+    assert data["total_amount"] == Decimal("5950.00")
     assert data["invoice_number"] == invoice.invoice_number
 
 

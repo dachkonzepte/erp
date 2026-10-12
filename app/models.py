@@ -1029,6 +1029,11 @@ class Order(Base):
     customer_address: Mapped[str | None] = mapped_column(Text, nullable=True)
     property_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     property_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Seit 1.8.80 (Vorgabe Z2b "Vorweg" 1): der Vertragspartner -- beim Beauftragen festgehalten (der Kunde des Projekts in
+    # diesem Moment, siehe _order_holds_customer() unten), danach nur zusammen mit dem Kunden des Projekts und mit Begründung
+    # geändert (app/orders.py::change_order_customer(), Historie in OrderCustomerChange). Rechnungen übernehmen Kunde, Name und
+    # Anschrift von hier. Migration: der Kunde des Projekts am Tag der Migration.
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), index=True)
 
     order_date: Mapped[date] = mapped_column(Date, default=berlin_today)  # seit 1.8.75 Berlin (Regel 20)
     execution_start: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -1060,6 +1065,7 @@ class Order(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     project: Mapped[Project] = relationship(back_populates="orders")
+    customer: Mapped["Customer"] = relationship()  # seit 1.8.80, siehe customer_id
     source_quote: Mapped[Quote] = relationship()
     sections: Mapped[list["OrderSection"]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="OrderSection.sort_order")
     items: Mapped[list["OrderItem"]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="OrderItem.sort_order")
@@ -1358,6 +1364,26 @@ class OrderContractBasisChange(Base):
     changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     order: Mapped[Order] = relationship(back_populates="contract_basis_changes")
+
+
+class OrderCustomerChange(Base):
+    """Kundenwechsel am Auftrag (seit 1.8.80, Vorgabe Z2b "Vorweg" 1): der Kunde des Projekts wechselt bei einem Auftrag nur
+    zusammen mit dem Vertragspartner des Auftrags, mit Pflicht-Begründung, und nur solange am Projekt weder eine Rechnung noch
+    ein Vertrag festgeschrieben ist (app/orders.py::change_order_customer()). Je Auftrag eine Zeile mit altem und neuem Kunden
+    (Name als Schnappschuss). Unveränderlich und nie gelöscht (ORM-Sperre am Ende der Datei), außer mit dem Auftrag selbst."""
+
+    __tablename__ = "order_customer_changes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
+    old_customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    new_customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    old_customer_name: Mapped[str] = mapped_column(String(255))
+    new_customer_name: Mapped[str] = mapped_column(String(255))
+    reason: Mapped[str] = mapped_column(Text)
+    changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    changed_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    changed_by_name: Mapped[str] = mapped_column(String(160), default="System")
 
 
 class ContractBasisClause(Base):
@@ -1878,6 +1904,17 @@ class Reminder(Base):
     # unter der Sperre aus dem Zahlstand geschrieben (app/reminders.py::amounts_snapshot()), danach fest wie der Betrag. Leer
     # bei Mahnungen von vor 1.8.79: die zeigen nur den offenen Betrag.
     amounts_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Seit 1.8.80 (Vorgabe Z2b "Vorweg" 2): eine festgeschriebene Mahnung, die nie hinausging (weder versendet noch zugestellt),
+    # wird durch eine neue derselben Stufe ersetzt -- beim Festschreiben der neuen bekommt sie deren ID hier
+    # (app/reminders.py::finalize_and_send_reminder()). Danach geht sie nicht mehr hinaus.
+    replaced_by_id: Mapped[int | None] = mapped_column(ForeignKey("reminders.id"), nullable=True, index=True)
+    replaced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Seit 1.8.80 (Z2b Nr. 5 und 6): im Entwurf bewusst übernommen -- die Gebühr (fee_amount, vorgeschlagen aus der Stufe) und die
+    # Pauschale nach § 288 Abs. 5 BGB. Erst beim Festschreiben entsteht daraus eine Nebenforderung (InvoiceCharge); nicht
+    # übernommen heißt keine. Nur bei eingeschalteten Mahngebühren (GeneralSettings.dunning_charges_enabled). Nur server_default:
+    # ein Insert ohne die Spalten (Bestand, Migrationsproben älterer Stände) bleibt gültig.
+    fee_accepted: Mapped[bool] = mapped_column(Boolean, server_default="0")
+    flat_fee_accepted: Mapped[bool] = mapped_column(Boolean, server_default="0")
     # Versand-Nachweis (seit 1.0.74) -- getrennt von status='versendet'
     # (das die fachliche Finalisierung/Nummernvergabe meint, siehe oben):
     # eine Mahnung kann finalisiert, aber noch nie oder mehrfach per E-Mail
@@ -1943,6 +1980,59 @@ class PaymentAllocation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
     created_by_name: Mapped[str] = mapped_column(String(160), default="System")
+
+
+class InvoiceCharge(Base):
+    """Nebenforderung zu einer Rechnung (seit 1.8.80, Zahlungsstufe Z2b Nr. 4, app/dunning_charges.py): Mahngebühr, Pauschale
+    nach § 288 Abs. 5 BGB (und ab Punkt 7 Verzugszinsen). Nie Teil des Rechnungsbetrags und ohne Umsatzsteuer -- die Rechnung,
+    ihr Zahlstand (app/payments.py) und ihr PDF bleiben unverändert; jede Mahnung zeigt die Nebenforderungen aufsummiert.
+    reminder_id: die Mahnung, mit deren Festschreiben sie entstand.
+
+    Unveränderlich und nie gelöscht (ORM-Sperre am Ende der Datei). Korrektur oder Erlass nur als Gegenbuchung: eine zweite
+    Zeile mit reverses_charge_id auf diese, umgekehrtem Vorzeichen und Begründung -- höchstens eine je Nebenforderung (UNIQUE).
+    created_by_user_id ohne Fremdschlüssel wie bei der Zahlung."""
+
+    __tablename__ = "invoice_charges"
+    __table_args__ = (UniqueConstraint("reverses_charge_id", name="uq_invoice_charge_reverses"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))  # 'gebuehr' | 'pauschale'
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    reminder_id: Mapped[int | None] = mapped_column(ForeignKey("reminders.id"), nullable=True, index=True)
+    reverses_charge_id: Mapped[int | None] = mapped_column(ForeignKey("invoice_charges.id"), nullable=True, index=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(160), default="System")
+
+
+class InvoiceDefaultStart(Base):
+    """Verzugsbeginn einer Rechnung (seit 1.8.80, Zahlungsstufe Z2b Nr. 6/7, app/dunning_charges.py): vom Büro bestätigt -- der
+    Vorschlag (Zugang der ersten Mahnung; bei Kunden, die keine Verbraucher sind, spätestens 30 Tage nach Fälligkeit und Zugang
+    der Rechnung) oder abweichend mit Begründung. starts_on ist der erste Tag im Verzug; basis sagt, woraus er folgt ("mahnung",
+    "dreissig_tage", "von_hand"), source_text beschreibt den Vorschlag so, wie das Büro ihn sah (proposal_on sein Datum).
+
+    Höchstens einer je Rechnung gilt (geprüft unter der Sperre der Auftragszeile). Nach dem Speichern unveränderlich, nie
+    gelöscht (ORM-Sperre am Ende der Datei); Korrektur nur durch Verwerfen mit Begründung -- solange keine Pauschale an der
+    Rechnung gilt -- und einen neuen Eintrag."""
+
+    __tablename__ = "invoice_default_starts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"), index=True)
+    starts_on: Mapped[date] = mapped_column(Date)
+    basis: Mapped[str] = mapped_column(String(20))  # 'mahnung' | 'dreissig_tage' | 'von_hand'
+    source_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    proposal_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(160), default="System")
+    discarded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    discarded_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    discarded_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    discard_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class WorkPreparation(Base):
@@ -2696,6 +2786,9 @@ class GeneralSettings(Base):
     # Seit 1.8.79 (Z2a Nr. 1) ungenutzt: Mahnungsentwürfe entstehen nur noch per Klick. Die Spalte bleibt stehen (kein
     # Rückweg nötig, wie Invoice.paid_date).
     reminders_auto_create_drafts: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    # Mahngebühren und Verzugszinsen (seit 1.8.80, Zahlungsstufe Z2b Nr. 3), nur Admin, Vorgabe aus. Aus heißt: keine Felder,
+    # keine Beträge -- auch die Gebühren je Stufe wirken nicht, keine Nebenforderung entsteht (app/dunning_charges.py).
+    dunning_charges_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     # Individualisierbare Akzentfarbe der Oberfläche (Buttons, aktive Navigation,
     # Hervorhebungen) -- Hex-Code, gilt zentral für alle Benutzer. server_default
     # nötig, siehe Lektion aus 1.0.68 (NOT-NULL-Spalte auf bereits bestehender Tabelle).
@@ -5853,3 +5946,47 @@ def _payment_no_update(mapper, connection, target):
 @event.listens_for(PaymentAllocation, "before_delete")
 def _payment_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Eine gebuchte Zahlung bzw. Zuordnung wird nie gelöscht.")
+
+
+# Nebenforderung (seit 1.8.80): unveränderlich und nie gelöscht -- Korrektur oder Erlass nur als Gegenbuchung mit Begründung
+# (app/dunning_charges.py::reverse_charge()). Kundenwechsel am Auftrag ebenso (Historie).
+@event.listens_for(InvoiceCharge, "before_update")
+@event.listens_for(OrderCustomerChange, "before_update")
+def _charge_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs):
+        raise ArchiveImmutableError("Eine Nebenforderung bzw. ein festgehaltener Kundenwechsel ist unveränderlich – Korrektur "
+                                    "nur als Gegenbuchung mit Begründung.")
+
+
+@event.listens_for(InvoiceCharge, "before_delete")
+@event.listens_for(OrderCustomerChange, "before_delete")
+def _charge_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Eine Nebenforderung bzw. ein festgehaltener Kundenwechsel wird nie gelöscht.")
+
+
+# Verzugsbeginn (seit 1.8.80): nach dem Bestätigen unveränderlich bis auf das Verwerfen mit Begründung, nie gelöscht.
+_DEFAULT_START_DISCARD_FIELDS = {"discarded_at", "discarded_by_user_id", "discarded_by_name", "discard_reason"}
+
+
+@event.listens_for(InvoiceDefaultStart, "before_update")
+def _default_start_no_update(mapper, connection, target):
+    state = inspect(target)
+    if any(attr.history.has_changes() for attr in state.attrs if attr.key not in _DEFAULT_START_DISCARD_FIELDS):
+        raise ArchiveImmutableError("Ein bestätigter Verzugsbeginn ist unveränderlich – Korrektur nur durch Verwerfen mit "
+                                    "Begründung und einen neuen Eintrag.")
+    if state.attrs.discarded_at.history.deleted and state.attrs.discarded_at.history.deleted[0] is not None:
+        raise ArchiveImmutableError("Ein verworfener Verzugsbeginn bleibt verworfen.")
+
+
+@event.listens_for(InvoiceDefaultStart, "before_delete")
+def _default_start_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Ein bestätigter Verzugsbeginn wird nie gelöscht.")
+
+
+# Seit 1.8.80 (Vorgabe Z2b "Vorweg" 1): ein Auftrag hält beim Beauftragen seinen Kunden fest. create_order_from_quote() setzt
+# ihn ausdrücklich; wer einen Auftrag ohne ihn anlegt, bekommt den Kunden des Projekts in diesem Moment.
+@event.listens_for(Order, "before_insert")
+def _order_holds_customer(mapper, connection, target):
+    if target.customer_id is None:
+        from sqlalchemy import select
+        target.customer_id = connection.scalar(select(Project.customer_id).where(Project.id == target.project_id))

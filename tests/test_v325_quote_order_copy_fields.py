@@ -59,6 +59,8 @@ ORDER_FIELDS: dict[type, dict[str, tuple]] = {
         "customer_name": eigen("Schnappschuss aus dem Kunden des Projekts, nicht aus dem Angebot"),
         "customer_number": eigen("Schnappschuss aus dem Kunden des Projekts"),
         "customer_address": eigen("Schnappschuss aus dem Kunden des Projekts"),
+        "customer_id": eigen("Vertragspartner, beim Beauftragen vom Projekt festgehalten (seit 1.8.80); wechselt nur mit dem "
+                             "Kunden des Projekts und mit Begründung"),
         "property_name": eigen("Schnappschuss aus dem Objekt des Projekts"),
         "property_address": eigen("Schnappschuss aus dem Objekt des Projekts"),
         "order_date": eigen("im Beauftragen-Dialog eingegeben"),

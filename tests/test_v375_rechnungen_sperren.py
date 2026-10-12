@@ -48,7 +48,7 @@ from app.routers.reminders import router as reminders_router
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
 from tests.leistungszeitraum import ZEITRAUM_JSON, festschreiben, mit_zeitraum
-from tests.mahnung import frist_ablaufen
+from tests.mahnung import frist_ablaufen, zustellen
 from tests.zahlung import voll_bezahlen
 
 PG_TEST_DATABASE_URL = os.getenv("ERP_TEST_POSTGRES_URL")
@@ -404,6 +404,7 @@ def test_reminder_routes_answer_409(threaded_db_session, router_test_client):
     # Seit 1.8.79 (Z2a Nr. 2) höchstens ein Entwurf je Rechnung und die nächste Stufe erst nach Ablauf der Frist -- bis 1.8.78
     # stand hier ein zweiter Entwurf derselben Stufe.
     frist_ablaufen(db, db.get(Reminder, gesendet["id"]))
+    zustellen(db, db.get(Reminder, gesendet["id"]))  # seit 1.8.80: Stufe 2 erst, wenn die 1. hinausging
     entwurf = client.post(f"/api/invoices/{invoice.id}/reminders", json={"level": 2}).json()
     voll_bezahlen(db, db.get(Invoice, invoice.id), received_on=date(2026, 10, 2))
     for response in (client.post(f"/api/reminders/{entwurf['id']}/send"),

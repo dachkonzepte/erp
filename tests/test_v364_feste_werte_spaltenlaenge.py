@@ -107,6 +107,8 @@ FESTE_WERTE = {
     "contract_templates.basis_key": [_GRUNDLAGEN],
     "defect_events.kind": [("app.defects", "mod.EVENT_KINDS")],
     "payment_allocations.kind": [("app.payments", "mod.KINDS")],  # seit 1.8.78
+    "invoice_charges.kind": [("app.dunning_charges", "mod.KINDS")],  # seit 1.8.80
+    "invoice_default_starts.basis": [("app.dunning_charges", "mod.BASES")],  # seit 1.8.80
     "payments.origin": [("app.payments", "mod.ORIGINS")],
     "defect_events.value": [_MANGELWERTE],
     "defect_events.previous_value": [_MANGELWERTE],

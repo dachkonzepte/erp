@@ -4,6 +4,31 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.80 – Vertragspartner am Auftrag, Mahnung ersetzen, Mahngebühren und Pauschale (Z2b, Punkte 3–6)
+
+Der Auftrag hält beim Beauftragen seinen Kunden fest; eine Rechnung übernimmt beim Festschreiben Kunde, Name, Kundennummer und
+Anschrift vom Auftrag. Den Kunden eines Projekts mit Auftrag wechselt man nur noch mit Begründung – Kunde und Schnappschuss der Aufträge
+und Rechnungsentwürfe wechseln mit, je Auftrag festgehalten –, und nie mehr, sobald eine Rechnung oder ein Vertrag festgeschrieben ist.
+Eine Mahnstufe gilt erst als erreicht, wenn ihre Mahnung per E-Mail hinausging oder ihre Zustellung nachgetragen ist; eine
+festgeschriebene, nie hinausgegangene Mahnung wird durch eine neue derselben Stufe ersetzt und geht danach nicht mehr hinaus.
+
+Mahngebühren und Verzugszinsen lassen sich in den Einstellungen einschalten (nur Admin, Vorgabe aus; aus heißt keine Gebühr und keine
+Beträge). Eingeschaltet ist die Gebühr der Stufe nur ein Vorschlag, den jede Mahnung bewusst übernimmt (Stufe 1: 0 €), ebenso die
+Pauschale nach § 288 Abs. 5 BGB – nur bei Kunden, die keine Verbraucher sind, einmal je Rechnung und erst ab einem bestätigten
+Verzugsbeginn (Vorschlag aus dem Zugang der ersten Mahnung bzw. 30 Tagen nach Fälligkeit und Zugang der Rechnung). Übernommenes wird
+beim Festschreiben zu einer unveränderlichen Nebenforderung der Rechnung, nie im Rechnungsbetrag und ohne Umsatzsteuer, korrigiert nur
+per Gegenbuchung mit Begründung; jede Mahnung zeigt die geltenden aufsummiert. Die Standard-Mahntexte nennen den Gesamtbetrag statt
+"zuzüglich einer Mahngebühr". Migration `8e2f4b6d1c97`; Prüfabfragen `scripts/pruefabfrage_auftrag_kunde.sql` und
+`scripts/pruefabfrage_mahnungen_zugang.sql`. Nach Punkt 6 committet: Verzugszinsen, Zahlungen auf Nebenforderungen und Rechtstexte
+(Punkte 7–9) sind offen.
+
+Neu `test_v383_nebenforderungen` (52), `test_v383_nebenforderungen_pg` (8, gegen PostgreSQL) und
+`test_v383_nebenforderungen_migration` (3, davon 1 gegen PostgreSQL); Tests, deren Erwartung die neue Vorgabe überholt, angepasst (Liste
+im Archiv), die Migrationsproben älterer Stände über `tests/bestand_alt.py`, die Outlook-Tests gegen PostgreSQL in ein Wegwerf-Schema.
+Gegenproben 33 von 33 rot. Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3582 grün, 0 rot, 7 erwartet fehlgeschlagen. Alle
+Klicktests: 49 von 49 wie erwartet in 10:49 min. Festlegungen zum Bestätigen, der Rest (Punkte 7–9) und Nebenbefunde in
+`docs/archiv/zahlungen.md`.
+
 ## 1.8.79 – Mahnwesen Z2a, die Rechnung hält ihren Kunden fest
 
 Eine Rechnung hält ab dem Festschreiben ihren Kunden fest (beim Storno den der stornierten Rechnung); Zahlungen, die offenen

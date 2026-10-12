@@ -31,20 +31,34 @@ Seit 1.8.79 (Zahlungsstufe Z2a, docs/archiv/zahlungen.md):
 - Die Mahnung zeigt Brutto, Zahlungen, Skonto, Einbehalt und den mahnfähigen Betrag (Reminder.amounts_json, amounts()).
 - Eine festgeschriebene Mahnung geht per E-Mail und als nachgetragene Zustellung nur hinaus, solange ihr Betrag dem mahnfähigen
   entspricht und die Rechnung nicht storniert ist (dispatch_block_reason()) -- sonst 409 mit Hinweis auf eine neue Mahnung.
+
+Seit 1.8.80 (Zahlungsstufe Z2b, docs/archiv/zahlungen.md "Umsetzung 1.8.80"):
+- Erreicht ist eine Stufe erst mit Versand oder Zustellung ("Vorweg" 2): zählt nur eine festgeschriebene Mahnung, die beim
+  Auftraggeber ankam (reached_map(), app/email_dispatch.py::document_reached_on()). Eine festgeschriebene, die nie hinausging, lässt
+  sich durch eine neue derselben Stufe ersetzen -- beim Festschreiben der neuen gilt sie als ersetzt (replaced_by_id), geht nicht
+  mehr hinaus, und ihre Nebenforderungen werden gegengebucht.
+- Mahngebühren und Pauschale nur eingeschaltet (app/dunning_charges.py): die Gebühr der Stufe ist ein Vorschlag, die Pauschale
+  ebenso; beides bewusst übernommen (set_reminder_charges()), erst beim Festschreiben eine Nebenforderung. Die Aufstellung
+  (Format 2) zeigt unter dem angemahnten Betrag die geltenden Nebenforderungen der Rechnung und den Gesamtbetrag; ausgeschaltet
+  keine. Versand und Zustellung prüfen auch die Nebenforderungen.
 """
 
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, object_session, selectinload
 
 from .berlin_time import berlin_today
+from .dunning_charges import (
+    DISABLED_TEXT, add_charges, charge_lines, charges_enabled, charges_in_force, draft_proposals, flat_fee_block_reason,
+    new_charge_lines, open_charges, reverse_charges_of,
+)
 from .invoices import InvoiceBlocked, invoice_customer, invoice_rounding, lock_order_invoices
 from .models import Invoice, Reminder, ReminderLevel
 from .placeholders import apply_placeholders
-from .rounding import CENT
+from .rounding import CENT, round_money
 from .settings import issue_number
 
 FINALIZED = "versendet"
@@ -60,11 +74,12 @@ def _money(x: Decimal) -> str:
 
 
 def reminder_total(reminder: Reminder) -> Decimal:
-    """Offener Betrag + Mahngebühr, auf den Cent nach der Rundungsregel der Rechnung (seit
-    1.8.11, app/invoices.py::invoice_rounding()): kaufmännisch bei Rechnungen ab 1.8.11,
-    halb-gerade wie bisher bei vorher versendeten -- deren offener Betrag ist ungerundet
-    gespeichert, und eine versendete Mahnung soll beim Nachdruck denselben Gesamtbetrag zeigen."""
-    return (reminder.outstanding_amount + reminder.fee_amount).quantize(CENT, rounding=invoice_rounding(reminder.invoice))
+    """Gesamtbetrag der Mahnung (seit 1.8.80 aus charges_view()): angemahnter Betrag + Nebenforderungen. Mahnungen von vor 1.8.80:
+    offener Betrag + Mahngebühr, auf den Cent nach der Rundungsregel der Rechnung (seit 1.8.11,
+    app/invoices.py::invoice_rounding()): kaufmännisch bei Rechnungen ab 1.8.11, halb-gerade wie bisher bei vorher
+    versendeten -- deren offener Betrag ist ungerundet gespeichert, und eine versendete Mahnung soll beim Nachdruck denselben
+    Gesamtbetrag zeigen."""
+    return charges_view(reminder)["total"]
 
 
 def reminder_amount(reminder: Reminder) -> Decimal:
@@ -74,28 +89,30 @@ def reminder_amount(reminder: Reminder) -> Decimal:
 
 DEFAULT_REMINDER_LEVELS = [
     # (level, label, days_after_previous_step = Zahlungsfrist in Tagen seit 1.8.79, fee_amount, text_template)
+    # Seit 1.8.80 (Z2b): die Gebühr ist nur ein Vorschlag (bei eingeschalteten Mahngebühren), Stufe 1 ohne (die erste Mahnung
+    # begründet meist erst den Verzug); die Texte nennen den Gesamtbetrag, die Aufstellung im PDF zeigt die Teile -- ohne
+    # "zuzüglich einer Mahngebühr", das bei ausgeschalteten Gebühren "0,00 €" drucken würde. Die Migration 8e2f4b6d1c97 stellt
+    # unveränderte Standardtexte und die Gebühr 5,00 € der Stufe 1 ebenso um.
     (
-        1, "1. Mahnung", 7, Decimal("5.00"),
+        1, "1. Mahnung", 7, Decimal("0.00"),
         "Trotz Fälligkeit am {faelligkeitsdatum} konnten wir bis heute keinen Zahlungseingang zu "
         "Rechnung {rechnungsnummer} vom {rechnungsdatum} feststellen. Bitte begleichen Sie den "
-        "offenen Betrag von {offener_betrag} zuzüglich einer Mahngebühr von {mahngebuehr}, "
-        "insgesamt {gesamtbetrag}, bis zum {neue_frist}. Sollte Ihre Zahlung bereits erfolgt sein, "
-        "betrachten Sie dieses Schreiben bitte als gegenstandslos.",
+        "Betrag von {gesamtbetrag} (Aufstellung unten) bis zum {neue_frist}. Sollte Ihre Zahlung "
+        "bereits erfolgt sein, betrachten Sie dieses Schreiben bitte als gegenstandslos.",
     ),
     (
         2, "2. Mahnung", 7, Decimal("10.00"),
         "Leider konnten wir trotz unserer Zahlungserinnerung vom {vorheriges_mahndatum} bis heute "
         "keinen Zahlungseingang zu Rechnung {rechnungsnummer} vom {rechnungsdatum} feststellen. Wir "
-        "bitten Sie letztmalig, den offenen Betrag von {offener_betrag} zuzüglich einer Mahngebühr "
-        "von {mahngebuehr}, insgesamt {gesamtbetrag}, bis zum {neue_frist} zu begleichen.",
+        "bitten Sie letztmalig, den Betrag von {gesamtbetrag} (Aufstellung unten) bis zum "
+        "{neue_frist} zu begleichen.",
     ),
     (
         3, "3. Mahnung", 7, Decimal("15.00"),
         "Auch nach unserer 2. Mahnung vom {vorheriges_mahndatum} ist Rechnung {rechnungsnummer} vom "
-        "{rechnungsdatum} weiterhin nicht ausgeglichen. Wir bitten Sie letztmalig um Zahlung des "
-        "offenen Betrags von {offener_betrag} zuzüglich einer Mahngebühr von {mahngebuehr}, "
-        "insgesamt {gesamtbetrag}, bis zum {neue_frist}. Nach fruchtlosem Ablauf dieser Frist "
-        "behalten wir uns weitere rechtliche Schritte vor.",
+        "{rechnungsdatum} weiterhin nicht ausgeglichen. Wir bitten Sie letztmalig um Zahlung von "
+        "{gesamtbetrag} (Aufstellung unten) bis zum {neue_frist}. Nach fruchtlosem Ablauf dieser "
+        "Frist behalten wir uns weitere rechtliche Schritte vor.",
     ),
 ]
 
@@ -122,18 +139,18 @@ def list_reminder_levels(db: Session) -> list[ReminderLevel]:
     return db.scalars(select(ReminderLevel).order_by(ReminderLevel.sort_order, ReminderLevel.level)).all()
 
 
-def update_reminder_level(
-    db: Session, level_row: ReminderLevel, *, label: str, days_after_previous_step: int,
-    fee_amount: Decimal, text_template: str | None, active: bool,
-    email_subject_template: str | None = None, email_body_template: str | None = None,
-) -> ReminderLevel:
-    level_row.label = label
-    level_row.days_after_previous_step = days_after_previous_step
-    level_row.fee_amount = fee_amount
-    level_row.text_template = text_template
-    level_row.email_subject_template = email_subject_template
-    level_row.email_body_template = email_body_template
-    level_row.active = active
+LEVEL_FIELDS = ("label", "days_after_previous_step", "fee_amount", "text_template", "email_subject_template",
+                "email_body_template", "active")
+
+
+def update_reminder_level(db: Session, level_row: ReminderLevel, **changes) -> ReminderLevel:
+    """Seit 1.8.80 nur die gesendeten Felder (Regel 22): die Seite schickt die Gebühr nur bei eingeschalteten Mahngebühren, der
+    Bereich "E-Mail-Vorlagen" nur Betreff und Text."""
+    unknown = set(changes) - set(LEVEL_FIELDS)
+    if unknown:
+        raise ValueError(f"Unbekannte Felder: {', '.join(sorted(unknown))}")
+    for key, value in changes.items():
+        setattr(level_row, key, value)
     db.commit()
     db.refresh(level_row)
     return level_row
@@ -190,13 +207,40 @@ def effective_dates(reminder: Reminder, levels: dict[int, ReminderLevel] | None 
     return finalize_dates(reminder, levels, berlin_today())
 
 
-def _sent(invoice: Invoice) -> list[Reminder]:
+def _finalized(invoice: Invoice) -> list[Reminder]:
     return [r for r in invoice.reminders if r.status == FINALIZED]
 
 
-def _step(invoice: Invoice, levels: dict[int, ReminderLevel]) -> dict:
-    """Aktuelle Stufe (höchste festgeschriebene), ihre letzte Mahnung, nächste aktive Stufe und ab wann sie möglich ist."""
-    sent = _sent(invoice)
+def reached_map(db: Session, reminders) -> dict[int, date]:
+    """Je festgeschriebener Mahnung der Tag, an dem sie zuerst hinausging -- versendet oder zugestellt und beim Auftraggeber
+    angekommen (seit 1.8.80, "Vorweg" 2, app/email_dispatch.py::document_reached_on()). Fehlt eine, ging sie nie hinaus."""
+    from .email_dispatch import document_reached_on  # lokal: app/email_dispatch.py zieht den Versand nach
+
+    return document_reached_on(db, "mahnung", [r for r in reminders if r.status == FINALIZED])
+
+
+def _reached_of(db: Session, invoice: Invoice, reached: dict[int, date] | None) -> dict[int, date]:
+    return reached if reached is not None else reached_map(db, invoice.reminders)
+
+
+def pending_reminder(invoice: Invoice, reached: dict[int, date]) -> Reminder | None:
+    """Die jüngste festgeschriebene Mahnung, die nie hinausging und nicht ersetzt ist -- sie lässt sich versenden oder durch eine
+    neue derselben Stufe ersetzen (seit 1.8.80)."""
+    rows = [r for r in _finalized(invoice) if r.id not in reached and r.replaced_by_id is None]
+    return max(rows, key=lambda r: (r.level, r.reminder_date, r.id)) if rows else None
+
+
+def replaceable(invoice: Invoice, reached: dict[int, date], level: int, *, exclude_id: int | None = None) -> list[Reminder]:
+    """Die festgeschriebenen Mahnungen bis zu dieser Stufe, die nie hinausgingen und nicht ersetzt sind -- eine neue dieser Stufe
+    ersetzt sie beim Festschreiben (seit 1.8.80, "Vorweg" 2)."""
+    return [r for r in _finalized(invoice) if r.id != exclude_id and r.id not in reached and r.replaced_by_id is None
+            and r.level <= level]
+
+
+def _step(invoice: Invoice, levels: dict[int, ReminderLevel], reached: dict[int, date]) -> dict:
+    """Aktuelle Stufe (höchste erreichte -- seit 1.8.80 nur eine versendete oder zugestellte Mahnung), ihre letzte Mahnung,
+    nächste aktive Stufe und ab wann sie möglich ist."""
+    sent = [r for r in _finalized(invoice) if r.id in reached]
     current = max((r.level for r in sent), default=0)
     last = max((r for r in sent if r.level == current), key=lambda r: (r.reminder_date, r.id)) if current else None
     next_level = min((lvl for lvl, cfg in levels.items() if cfg.active and lvl > current), default=None)
@@ -226,11 +270,13 @@ def _amount_reason(db: Session, invoice: Invoice, state) -> str | None:
 
 
 def create_block_reason(db: Session, invoice: Invoice, *, state=_UNSET, levels: dict[int, ReminderLevel] | None = None,
-                        level: int | None = None, draft: Reminder | None = None) -> str | None:
+                        level: int | None = None, draft: Reminder | None = None,
+                        reached: dict[int, date] | None = None) -> str | None:
     """Warum zu dieser Rechnung jetzt keine Mahnung entsteht (Vorgabe Z2a Nr. 2), sonst None -- beim Anlegen (level: die
     verlangte Stufe, None = die nächste) und beim Festschreiben (draft: dieser Entwurf, seine Stufe muss die nächste sein).
     Reihenfolge: nichts zu mahnen (Storno, storniert, bezahlt, nur Einbehalt), nicht fällig, schon ein Entwurf, keine weitere
-    Stufe, nicht die nächste Stufe, Frist der vorigen noch nicht abgelaufen."""
+    Stufe, nicht die nächste Stufe, Frist der vorigen noch nicht abgelaufen. Seit 1.8.80 zählt als erreicht nur eine
+    versendete oder zugestellte Mahnung -- eine nie hinausgegangene derselben Stufe hält eine neue nicht auf (sie wird ersetzt)."""
     from .payments import payment_state  # lokal: Zirkel-Import
     if state is _UNSET:
         state = payment_state(db, invoice)
@@ -252,7 +298,7 @@ def create_block_reason(db: Session, invoice: Invoice, *, state=_UNSET, levels: 
     if other is not None:
         return (f"Zu dieser Rechnung besteht schon ein Mahnungsentwurf ({_label(levels, other.level)}) -- erst festschreiben "
                 "oder löschen.")
-    step = _step(invoice, levels)
+    step = _step(invoice, levels, _reached_of(db, invoice, reached))
     if step["next_level"] is None:
         if step["last"] is None:
             return "Keine Mahnstufe ist aktiv (Einstellungen → Mahnstufen)."
@@ -272,30 +318,37 @@ def create_block_reason(db: Session, invoice: Invoice, *, state=_UNSET, levels: 
 
 
 def compute_reminder_status(db: Session, invoice: Invoice, *, state=_UNSET,
-                            levels: dict[int, ReminderLevel] | None = None) -> dict:
+                            levels: dict[int, ReminderLevel] | None = None, reached: dict[int, date] | None = None) -> dict:
     """Auf welcher Mahnstufe die Rechnung steht, welche aktive Stufe als Nächstes kommt und ab wann (seit 1.8.79: ab dem Tag
     nach der Fälligkeit bzw. nach dem Ende der Frist der vorigen Mahnung). Deaktivierte Stufen werden übersprungen.
 
     draft: der bestehende Entwurf (reminder_to_dict()) oder None; create_block (seit 1.8.79): warum jetzt kein Entwurf
-    entsteht -- die Oberfläche zeigt den Grund statt des Knopfs."""
+    entsteht -- die Oberfläche zeigt den Grund statt des Knopfs. pending (seit 1.8.80): eine festgeschriebene Mahnung, die nie
+    hinausging -- mit dispatch_block, falls sie auch nicht mehr hinausgehen kann (dann ist eine neue fällig, die sie ersetzt)."""
     from .payments import payment_state  # lokal: Zirkel-Import
     if state is _UNSET:
         state = payment_state(db, invoice)
     if levels is None:
         levels = _levels(db)
-    block = create_block_reason(db, invoice, state=state, levels=levels)
+    reached = _reached_of(db, invoice, reached)
+    block = create_block_reason(db, invoice, state=state, levels=levels, reached=reached)
     draft = next((r for r in invoice.reminders if r.status == "entwurf"), None)
+    draft_dict = reminder_to_dict(draft, state=state, levels=levels, reached=reached) if draft is not None else None
+    pending = pending_reminder(invoice, reached)
+    pending_dict = None
+    if pending is not None:
+        pending_dict = {"id": pending.id, "reminder_number": pending.reminder_number, "level": pending.level,
+                        "label": _label(levels, pending.level), "reminder_date": pending.reminder_date,
+                        "dispatch_block": dispatch_block_reason(db, pending, state=state, levels=levels, reached=reached)}
     if invoice.status != FINALIZED or invoice.due_date is None or state is None or state.dunnable <= 0:
         return {"current_level": 0, "next_level": None, "next_due_on": None, "is_due_now": False,
-                "draft": reminder_to_dict(draft, state=state, levels=levels) if draft is not None else None,
-                "create_block": block}
-    step = _step(invoice, levels)
+                "draft": draft_dict, "create_block": block, "pending": pending_dict}
+    step = _step(invoice, levels, reached)
     is_due_now = step["next_level"] is not None and berlin_today() >= step["next_due_on"]
     return {
         "current_level": step["current_level"], "next_level": step["next_level"],
         "next_due_on": step["next_due_on"] if step["next_level"] is not None else None, "is_due_now": is_due_now,
-        "draft": reminder_to_dict(draft, state=state, levels=levels) if draft is not None else None,
-        "create_block": block,
+        "draft": draft_dict, "create_block": block, "pending": pending_dict,
     }
 
 
@@ -303,30 +356,78 @@ def compute_reminder_status(db: Session, invoice: Invoice, *, state=_UNSET,
 # Aufstellung des gemahnten Betrags (seit 1.8.79, Vorgabe Z2a Nr. 4)
 # ---------------------------------------------------------------------------
 
-def amounts_snapshot(db: Session, invoice: Invoice, state) -> str:
+def amounts_snapshot(db: Session, invoice: Invoice, state, *, enabled: bool) -> str:
     """Aufstellung aus dem Zahlstand als kanonisches JSON: Brutto, je noch geltender Zahlung Eingangsdatum und Betrag, Skonto,
     Einbehalt (der abgezogene Teil, höchstens der offene Betrag), mahnfähig. Brutto − Zahlungen − Skonto − Einbehalt =
-    mahnfähig."""
+    mahnfähig. Seit 1.8.80 (Format 2) dazu die geltenden Nebenforderungen der Rechnung (Bezeichnung, Betrag) und der
+    Gesamtbetrag = mahnfähig + Nebenforderungen; bei ausgeschalteten Mahngebühren (enabled) keine."""
     from .payments import invoice_payment_lines  # lokal: Zirkel-Import
+    lines = charge_lines(db, charges_in_force(db, [invoice.id])[invoice.id]) if enabled else []
+    charges_open = sum((line["amount"] for line in lines), Decimal("0.00"))
     data = {
-        "format": 1, "gross": str(state.gross),
+        "format": 2, "gross": str(state.gross),
         "payments": [{"received_on": d.isoformat(), "amount": str(a)} for d, a in invoice_payment_lines(db, invoice)],
         "skonto": str(state.skonto), "retained": str(state.retained_open), "dunnable": str(state.dunnable),
+        "charges_enabled": bool(enabled),
+        "charges": [{"kind": line["kind"], "label": line["label"], "amount": str(line["amount"])} for line in lines],
+        "charges_open": str(charges_open), "total": str(state.dunnable + charges_open),
     }
     return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def amounts(reminder: Reminder) -> dict | None:
-    """Die Aufstellung der Mahnung (Beträge als Decimal, Daten als date), None bei Mahnungen von vor 1.8.79."""
+    """Die Aufstellung der Mahnung (Beträge als Decimal, Daten als date), None bei Mahnungen von vor 1.8.79. format 1 (1.8.79)
+    ohne Nebenforderungen, format 2 (seit 1.8.80) mit charges_enabled, charges, charges_open und total."""
     if not reminder.amounts_json:
         return None
     raw = json.loads(reminder.amounts_json)
     return {
+        "format": raw.get("format", 1),
         "gross": Decimal(raw["gross"]),
         "payments": [{"received_on": date.fromisoformat(p["received_on"]), "amount": Decimal(p["amount"])}
                      for p in raw["payments"]],
         "skonto": Decimal(raw["skonto"]), "retained": Decimal(raw["retained"]), "dunnable": Decimal(raw["dunnable"]),
+        "charges_enabled": bool(raw.get("charges_enabled", False)),
+        "charges": [{"kind": c["kind"], "label": c["label"], "amount": Decimal(c["amount"])} for c in raw.get("charges", [])],
+        "charges_open": Decimal(raw["charges_open"]) if "charges_open" in raw else None,
+        "total": Decimal(raw["total"]) if "total" in raw else None,
     }
+
+
+def charges_view(reminder: Reminder, db: Session | None = None) -> dict:
+    """Nebenforderungen und Gesamtbetrag, wie die Mahnung sie zeigt (seit 1.8.80): {"enabled", "lines", "open", "total"}.
+    - Festgeschrieben ab 1.8.80: aus der Aufstellung (lines nur, wenn beim Festschreiben eingeschaltet).
+    - Entwurf: eingeschaltet die geltenden Nebenforderungen der Rechnung und die übernommenen neuen (Gebühr, Pauschale; "new"),
+      sonst keine -- Gesamtbetrag = angemahnter Betrag + Nebenforderungen.
+    - Vor 1.8.80 festgeschrieben: wie bisher angemahnter Betrag + Mahngebühr (lines leer, enabled None)."""
+    breakdown = amounts(reminder)
+    if reminder.status != "entwurf":
+        if breakdown is not None and breakdown["format"] >= 2:
+            return {"enabled": breakdown["charges_enabled"], "lines": [dict(c, new=False) for c in breakdown["charges"]],
+                    "open": breakdown["charges_open"], "total": breakdown["total"]}
+        total = (reminder.outstanding_amount + reminder.fee_amount).quantize(CENT, rounding=invoice_rounding(reminder.invoice))
+        return {"enabled": None, "lines": [], "open": None, "total": total}
+    db = db or object_session(reminder)
+    enabled = charges_enabled(db) if db is not None else False
+    principal = reminder_amount(reminder)
+    if not enabled:
+        return {"enabled": False, "lines": [], "open": Decimal("0.00"), "total": principal}
+    # Was der Entwurf ersetzen wird, zählt nicht: dessen Nebenforderungen werden beim Festschreiben gegengebucht.
+    ignore = {r.id for r in replaceable(reminder.invoice, reached_map(db, reminder.invoice.reminders), reminder.level)}
+    in_force = [c for c in charges_in_force(db, [reminder.invoice_id])[reminder.invoice_id] if c.reminder_id not in ignore]
+    lines = ([dict(line, new=False) for line in charge_lines(db, in_force)]
+             + [dict(line, new=True) for line in new_charge_lines(db, reminder, enabled=True)])
+    open_ = sum((line["amount"] for line in lines), Decimal("0.00"))
+    return {"enabled": True, "lines": lines, "open": open_, "total": principal + open_}
+
+
+def fee_of(reminder: Reminder, view: dict | None = None) -> Decimal:
+    """Die Gebühr dieser Mahnung: im Entwurf nur übernommen und eingeschaltet, festgeschrieben die gespeicherte (seit 1.8.80 beim
+    Festschreiben die übernommene oder 0)."""
+    if reminder.status != "entwurf":
+        return reminder.fee_amount
+    view = view or charges_view(reminder)
+    return reminder.fee_amount if view["enabled"] and reminder.fee_accepted else Decimal("0.00")
 
 
 # ---------------------------------------------------------------------------
@@ -338,17 +439,23 @@ def _reminder_placeholders(reminder: Reminder) -> dict:
     (seit 1.0.74, vorher nur für format_reminder_text() intern). Seit 1.8.79 im Entwurf mit Mahndatum und Frist des
     Festschreibens heute (effective_dates())."""
     invoice = reminder.invoice
-    total = reminder_total(reminder)
-    previous = [r for r in invoice.reminders if r.status == FINALIZED and r.level == reminder.level - 1]
-    previous_date = previous[0].reminder_date.strftime("%d.%m.%Y") if previous else ""
+    view = charges_view(reminder)
+    db = object_session(reminder)
+    # Seit 1.8.80 die vorige Stufe, die hinausging (eine ersetzte zählt nicht).
+    reached = reached_map(db, invoice.reminders) if db is not None else {}
+    previous = sorted((r for r in invoice.reminders
+                       if r.status == FINALIZED and r.level == reminder.level - 1 and r.id in reached),
+                      key=lambda r: (r.reminder_date, r.id))
+    previous_date = previous[-1].reminder_date.strftime("%d.%m.%Y") if previous else ""
     _, new_due_date = effective_dates(reminder)
     return {
         "{rechnungsnummer}": invoice.invoice_number or "",
         "{rechnungsdatum}": invoice.invoice_date.strftime("%d.%m.%Y"),
         "{faelligkeitsdatum}": invoice.due_date.strftime("%d.%m.%Y") if invoice.due_date else "",
         "{offener_betrag}": _money(reminder.outstanding_amount),
-        "{mahngebuehr}": _money(reminder.fee_amount),
-        "{gesamtbetrag}": _money(total),
+        "{mahngebuehr}": _money(fee_of(reminder, view)),
+        "{nebenforderungen}": _money(view["open"] or Decimal("0")),
+        "{gesamtbetrag}": _money(view["total"]),
         "{neue_frist}": new_due_date.strftime("%d.%m.%Y") if new_due_date else "",
         "{vorheriges_mahndatum}": previous_date,
     }
@@ -399,9 +506,10 @@ def stale_amount_reason(db: Session, reminder: Reminder, *, state=_UNSET) -> str
             "Anlegen wurde eine Zahlung gebucht. Bitte den Entwurf löschen und neu anlegen.")
 
 
-def _new_reminder_hint(db: Session, invoice: Invoice, levels: dict[int, ReminderLevel]) -> str:
+def _new_reminder_hint(db: Session, invoice: Invoice, levels: dict[int, ReminderLevel],
+                       reached: dict[int, date] | None = None) -> str:
     """"Bitte eine neue Mahnung anlegen …" mit Stufe und Tag, ab dem sie möglich ist."""
-    step = _step(invoice, levels)
+    step = _step(invoice, levels, _reached_of(db, invoice, reached))
     if step["next_level"] is None:
         return " Eine weitere Mahnstufe ist nicht aktiv."
     label = _label(levels, step["next_level"])
@@ -410,17 +518,25 @@ def _new_reminder_hint(db: Session, invoice: Invoice, levels: dict[int, Reminder
     return f" Bitte eine neue Mahnung anlegen ({label})."
 
 
-def dispatch_block_reason(db: Session, reminder: Reminder, *, on: date | None = None, state=_UNSET) -> str | None:
+def dispatch_block_reason(db: Session, reminder: Reminder, *, on: date | None = None, state=_UNSET,
+                          levels: dict[int, ReminderLevel] | None = None, reached: dict[int, date] | None = None) -> str | None:
     """Warum diese festgeschriebene Mahnung nicht (mehr) hinausgeht (Vorgabe Z2a Nr. 5), sonst None: die Rechnung ist storniert,
     oder ihr Betrag entspricht nicht mehr dem mahnfähigen. on: der Tag einer nachgetragenen Zustellung -- dann zählt der
     mahnfähige Betrag an diesem Tag (Zahlungen mit Eingangsdatum bis dahin; eine zurückgenommene Buchung gilt nie); ohne on der
-    Stand heute (E-Mail-Versand). Storniert sperrt immer, auch eine Zustellung von vor dem Storno."""
+    Stand heute (E-Mail-Versand). Storniert sperrt immer, auch eine Zustellung von vor dem Storno.
+
+    Seit 1.8.80: eine ersetzte Mahnung geht nie mehr hinaus ("Vorweg" 2); eine mit Nebenforderungen (Format 2, eingeschaltet)
+    nur, solange deren Summe noch stimmt -- am Tag der Zustellung die bis dahin entstandenen, eine gegengebuchte gilt nie."""
     from .payments import payment_state, payment_state_on  # lokal: Zirkel-Import
     if reminder.status != FINALIZED:
         return None
     invoice = reminder.invoice
     number = reminder.reminder_number or ""
     inv_number = invoice.invoice_number or "(Entwurf)"
+    if reminder.replaced_by_id is not None:
+        newer = db.get(Reminder, reminder.replaced_by_id)
+        newer_number = f" {newer.reminder_number}" if newer is not None and newer.reminder_number else ""
+        return f"Die Mahnung {number} ging nie hinaus und ist durch die Mahnung{newer_number} ersetzt -- sie geht nicht mehr hinaus."
     if invoice.status == "storniert":
         return f"Die Rechnung {inv_number} ist storniert -- die Mahnung {number} geht nicht mehr hinaus."
     if invoice.invoice_type == "storno":
@@ -431,11 +547,22 @@ def dispatch_block_reason(db: Session, reminder: Reminder, *, on: date | None = 
         current_state = payment_state_on(db, invoice, on)
     current = current_state.dunnable if current_state is not None else Decimal("0")
     amount = reminder_amount(reminder)
-    if current == amount:
-        return None
-    when = f"waren am {_de(on)}" if on is not None else "sind inzwischen"
-    return (f"Die Mahnung {number} lautet über {_money(amount)}, mahnfähig {when} {_money(current)} -- sie geht nicht mehr "
-            f"hinaus.{_new_reminder_hint(db, invoice, _levels(db))}")
+
+    def hint() -> str:
+        return _new_reminder_hint(db, invoice, levels or _levels(db), reached)
+
+    if current != amount:
+        when = f"waren am {_de(on)}" if on is not None else "sind inzwischen"
+        return (f"Die Mahnung {number} lautet über {_money(amount)}, mahnfähig {when} {_money(current)} -- sie geht nicht mehr "
+                f"hinaus.{hint()}")
+    breakdown = amounts(reminder)
+    if breakdown is not None and breakdown["format"] >= 2 and breakdown["charges_enabled"]:
+        charges_now = open_charges(db, invoice, on=on)
+        if charges_now != breakdown["charges_open"]:
+            gelten = f"galten am {_de(on)}" if on is not None else "gelten inzwischen"
+            return (f"Die Mahnung {number} nennt Nebenforderungen von {_money(breakdown['charges_open'])}, {gelten} "
+                    f"{_money(charges_now)} -- sie geht nicht mehr hinaus.{hint()}")
+    return None
 
 
 def check_delivery(db: Session, reminder: Reminder, delivered_on: date) -> None:
@@ -443,7 +570,11 @@ def check_delivery(db: Session, reminder: Reminder, delivered_on: date) -> None:
     Auftragszeile (Buchungen und Storno nehmen dieselbe) der Stand am Zustelltag -- InvoiceBlocked (409), der Aufrufer schreibt
     dann nichts. Die Sperre bleibt bis zum Commit des Eintrags."""
     lock_order_invoices(db, reminder.invoice.order_id)
+    db.refresh(reminder)  # seit 1.8.80: inzwischen ersetzt? (das Festschreiben der neuen nimmt dieselbe Sperre)
     reason = dispatch_block_reason(db, reminder, on=delivered_on)
+    if reason is None and delivered_on < reminder.reminder_date:
+        reason = (f"Die Mahnung {reminder.reminder_number} ist vom {_de(reminder.reminder_date)} -- eine Zustellung davor ist "
+                  "nicht möglich.")
     if reason:
         db.rollback()
         raise InvoiceBlocked(reason)
@@ -482,17 +613,21 @@ def create_reminder(db: Session, invoice: Invoice, level: int | None = None) -> 
     _lock_fresh(db, invoice)
     levels = _levels(db)
     state = payment_state(db, invoice)
-    reason = create_block_reason(db, invoice, state=state, levels=levels, level=level)
+    reached = reached_map(db, invoice.reminders)
+    reason = create_block_reason(db, invoice, state=state, levels=levels, level=level, reached=reached)
     if reason:
         raise _reject(db, reason)
-    cfg = levels[_step(invoice, levels)["next_level"]]
+    cfg = levels[_step(invoice, levels, reached)["next_level"]]
     today = berlin_today()
+    enabled = charges_enabled(db)
     reminder = Reminder(
         invoice_id=invoice.id, level=cfg.level, status="entwurf", reminder_date=today,
         new_due_date=today + timedelta(days=cfg.days_after_previous_step),
         # Seit 1.8.78 der mahnfähige Betrag (offen − Einbehalt), vorher das volle Brutto.
-        outstanding_amount=state.dunnable, amounts_json=amounts_snapshot(db, invoice, state),
-        fee_amount=cfg.fee_amount, text=cfg.text_template,
+        outstanding_amount=state.dunnable, amounts_json=amounts_snapshot(db, invoice, state, enabled=enabled),
+        # Seit 1.8.80 nur ein Vorschlag (eingeschaltet), bewusst übernommen über set_reminder_charges(); aus: keine Gebühr.
+        fee_amount=cfg.fee_amount if enabled else Decimal("0"), fee_accepted=False, flat_fee_accepted=False,
+        text=cfg.text_template,
     )
     db.add(reminder)
     db.commit()
@@ -522,7 +657,11 @@ def finalize_and_send_reminder(db: Session, reminder: Reminder) -> Reminder:
     """Festschreiben (Nummer, unveränderlich). Unter der Sperre der Auftragszeile: die Rechnung darf weder storniert noch
     bezahlt sein (seit 1.8.72), der Entwurf muss die nächste Stufe sein und deren Zeit gekommen (seit 1.8.79, dieselben
     Prüfungen wie beim Anlegen), sein Betrag noch stimmen (seit 1.8.78). Mahndatum = heute (Berlin), die Frist rückt mit
-    (finalize_dates()); die Aufstellung wird unter der Sperre frisch geschrieben (der Betrag ist geprüft gleich)."""
+    (finalize_dates()); die Aufstellung wird unter der Sperre frisch geschrieben (der Betrag ist geprüft gleich).
+
+    Seit 1.8.80: festgeschriebene Mahnungen bis zu dieser Stufe, die nie hinausgingen, gelten danach als ersetzt (replaced_by_id),
+    ihre Nebenforderungen werden gegengebucht. Eingeschaltet entstehen aus der übernommenen Gebühr und Pauschale
+    Nebenforderungen dieser Mahnung (die Pauschale noch einmal geprüft, sonst 409); ausgeschaltet trägt die Mahnung keine Gebühr."""
     from .payments import payment_state  # lokal: Zirkel-Import
     invoice = reminder.invoice
     _lock_fresh(db, invoice)
@@ -535,14 +674,35 @@ def finalize_and_send_reminder(db: Session, reminder: Reminder) -> Reminder:
         raise ValueError("Nur Mahnungen im Entwurf können versendet werden.")
     levels = _levels(db)
     state = payment_state(db, invoice)
-    reason = create_block_reason(db, invoice, state=state, levels=levels, draft=reminder) or \
+    reached = reached_map(db, invoice.reminders)
+    reason = create_block_reason(db, invoice, state=state, levels=levels, draft=reminder, reached=reached) or \
         stale_amount_reason(db, reminder, state=state)
     if reason:
         raise _reject(db, reason)
-    reminder.reminder_date, reminder.new_due_date = finalize_dates(reminder, levels, berlin_today())
-    reminder.amounts_json = amounts_snapshot(db, invoice, state)
+    today = berlin_today()
+    enabled = charges_enabled(db)
+    if not enabled:
+        reminder.fee_amount, reminder.fee_accepted, reminder.flat_fee_accepted = Decimal("0"), False, False
+    elif not reminder.fee_accepted:
+        reminder.fee_amount = Decimal("0")
+    reminder.reminder_date, reminder.new_due_date = finalize_dates(reminder, levels, today)
     reminder.reminder_number = issue_number(db, "reminder")
     reminder.status = FINALIZED
+    replaced = replaceable(invoice, reached, reminder.level, exclude_id=reminder.id)
+    if replaced:
+        now = datetime.utcnow()
+        for old in replaced:
+            old.replaced_by_id, old.replaced_at = reminder.id, now
+        numbers = ", ".join(r.reminder_number or "" for r in replaced)
+        reverse_charges_of(db, replaced, reason=f"Mahnung {numbers} ging nie hinaus und ist durch die Mahnung "
+                                                f"{reminder.reminder_number} ersetzt.")
+    if enabled and reminder.flat_fee_accepted:
+        reason = flat_fee_block_reason(db, invoice, on=today)
+        if reason:
+            raise _reject(db, reason)
+    if enabled:
+        add_charges(db, reminder)
+    reminder.amounts_json = amounts_snapshot(db, invoice, state, enabled=enabled)
     db.commit()
     db.refresh(reminder)
     return reminder
@@ -639,12 +799,13 @@ def send_reminder_email(
 
 
 def update_reminder_draft(
-    db: Session, reminder: Reminder, *, text: str | None, fee_amount: Decimal, payment_days: int,
+    db: Session, reminder: Reminder, *, text: str | None, payment_days: int,
 ) -> Reminder:
     """Bearbeiten eines noch nicht festgeschriebenen Mahnungsentwurfs (seit 1.3.21). Seit 1.8.79 (Vorgabe Z2a Nr. 3) unter der
     Sperre der Auftragszeile wie Festschreiben und Löschen: geändert wird nur, was danach noch Entwurf ist, sonst
     InvoiceBlocked (409) -- vorher wartete eine Änderung auf ein gleichzeitiges Festschreiben und schrieb danach in die
     festgeschriebene Mahnung. Die Frist ist eine Länge in Tagen (1–365): sie rechnet ab dem Tag des Festschreibens.
+    Seit 1.8.80 nur Text und Frist; Gebühr und Pauschale über set_reminder_charges() (nur eingeschaltet).
 
     text bleibt bewusst das ROHE Textfeld mit unaufgelösten Platzhaltern (`{mahngebuehr}` usw.,
     siehe ReminderLevel.text_template/format_reminder_text()) -- exakt dieselbe Konvention wie
@@ -657,8 +818,35 @@ def update_reminder_draft(
         raise _reject(db, "Nur Mahnungen im Entwurf können bearbeitet werden. Die Mahnung ist inzwischen festgeschrieben "
                           f"({reminder.reminder_number}).")
     reminder.text = text
-    reminder.fee_amount = fee_amount
     reminder.new_due_date = reminder.reminder_date + timedelta(days=int(payment_days))
+    db.commit()
+    db.refresh(reminder)
+    return reminder
+
+
+def set_reminder_charges(db: Session, reminder: Reminder, *, fee_amount: Decimal, fee_accepted: bool,
+                         flat_fee_accepted: bool) -> Reminder:
+    """Gebühr und Pauschale im Entwurf bewusst übernehmen oder nicht (seit 1.8.80, Z2b Nr. 5 und 6) -- nur bei eingeschalteten
+    Mahngebühren (sonst 409), unter der Sperre der Auftragszeile, nur im Entwurf. Die Pauschale nur, wenn sie heute möglich ist
+    (app/dunning_charges.py::flat_fee_block_reason(), 409 mit Grund); beim Festschreiben wird sie noch einmal geprüft."""
+    fee_amount = Decimal(fee_amount)
+    if fee_amount < 0 or fee_amount != round_money(fee_amount):
+        raise ValueError("Die Gebühr: höchstens zwei Nachkommastellen, nicht negativ.")
+    if not charges_enabled(db):
+        raise InvoiceBlocked(DISABLED_TEXT)
+    lock_order_invoices(db, reminder.invoice.order_id)
+    _refresh_or_gone(db, reminder)
+    if reminder.status != "entwurf":
+        raise _reject(db, "Nur Mahnungen im Entwurf können bearbeitet werden. Die Mahnung ist inzwischen festgeschrieben "
+                          f"({reminder.reminder_number}).")
+    if flat_fee_accepted:
+        ignore = [r.id for r in replaceable(reminder.invoice, reached_map(db, reminder.invoice.reminders), reminder.level)]
+        reason = flat_fee_block_reason(db, reminder.invoice, on=berlin_today(), ignore_reminder_ids=ignore)
+        if reason:
+            raise _reject(db, reason)
+    reminder.fee_amount = fee_amount
+    reminder.fee_accepted = bool(fee_accepted)
+    reminder.flat_fee_accepted = bool(flat_fee_accepted)
     db.commit()
     db.refresh(reminder)
     return reminder
@@ -699,17 +887,20 @@ def list_all_reminders(db: Session) -> list[Reminder]:
     ).all()
 
 
-def _block_of(db: Session, reminder: Reminder, state, levels: dict[int, ReminderLevel]) -> str | None:
+def _block_of(db: Session, reminder: Reminder, state, levels: dict[int, ReminderLevel],
+              reached: dict[int, date] | None = None) -> str | None:
     """Was die Oberfläche statt "Versenden" (Entwurf) bzw. statt E-Mail und Zustellung (festgeschrieben) zeigt."""
     if reminder.status == "entwurf":
         return (send_block_reason(reminder.invoice)
-                or create_block_reason(db, reminder.invoice, state=state, levels=levels, draft=reminder)
+                or create_block_reason(db, reminder.invoice, state=state, levels=levels, draft=reminder, reached=reached)
                 or stale_amount_reason(db, reminder, state=state))
-    return send_block_reason(reminder.invoice) or dispatch_block_reason(db, reminder, state=state)
+    return send_block_reason(reminder.invoice) or dispatch_block_reason(db, reminder, state=state, levels=levels,
+                                                                        reached=reached)
 
 
-def reminder_to_dict(reminder: Reminder, *, state=_UNSET, levels: dict[int, ReminderLevel] | None = None) -> dict:
-    """state/levels: schon geladen (Listen, reminders_to_dicts()), sonst frisch."""
+def reminder_to_dict(reminder: Reminder, *, state=_UNSET, levels: dict[int, ReminderLevel] | None = None,
+                     reached: dict[int, date] | None = None) -> dict:
+    """state/levels/reached: schon geladen (Listen, reminders_to_dicts()), sonst frisch."""
     from .payments import payment_state  # lokal: Zirkel-Import
     invoice = reminder.invoice
     db = object_session(reminder)
@@ -717,8 +908,16 @@ def reminder_to_dict(reminder: Reminder, *, state=_UNSET, levels: dict[int, Remi
         state = payment_state(db, invoice)
     if db is not None and levels is None:
         levels = _levels(db)
+    if db is not None and reached is None:
+        reached = reached_map(db, invoice.reminders)
+    reached = reached or {}
     reminder_date, new_due_date = effective_dates(reminder, levels or {})
     breakdown = amounts(reminder)
+    view = charges_view(reminder, db)
+    replaced_by = db.get(Reminder, reminder.replaced_by_id) if db is not None and reminder.replaced_by_id else None
+    proposals = (draft_proposals(db, reminder, on=reminder_date,
+                                 ignore_reminder_ids=[r.id for r in replaceable(invoice, reached, reminder.level)])
+                 if db is not None and reminder.status == "entwurf" else None)
     return {
         "id": reminder.id,
         "reminder_number": reminder.reminder_number,
@@ -735,25 +934,37 @@ def reminder_to_dict(reminder: Reminder, *, state=_UNSET, levels: dict[int, Remi
         "payment_days": payment_days(reminder, levels or {}) if reminder.status == "entwurf" else None,
         "outstanding_amount": reminder.outstanding_amount,
         "fee_amount": reminder.fee_amount,
-        "total_amount": reminder_total(reminder),
+        "total_amount": view["total"],
         "amounts": breakdown,
+        # Seit 1.8.80: hinausgegangen (versendet oder zugestellt) am, ersetzt durch, Nebenforderungen und Vorschläge.
+        "reached_on": reached.get(reminder.id),
+        "replaced_by_id": reminder.replaced_by_id,
+        "replaced_by_number": replaced_by.reminder_number if replaced_by else None,
+        "fee_accepted": bool(reminder.fee_accepted),
+        "flat_fee_accepted": bool(reminder.flat_fee_accepted),
+        "charges_enabled": view["enabled"],
+        "charges": view["lines"],
+        "charges_open": view["open"],
+        "proposals": proposals,
         "text": reminder.text,
         "formatted_text": format_reminder_text(reminder),
         "customer_name": invoice.customer_name,
         "email_sent_at": reminder.email_sent_at,
         "email_sent_to": reminder.email_sent_to,
         "recipient_email": get_reminder_recipient_email(reminder),
-        "send_block": _block_of(db, reminder, state, levels or {}) if db is not None else send_block_reason(invoice),
+        "send_block": (_block_of(db, reminder, state, levels or {}, reached) if db is not None
+                       else send_block_reason(invoice)),
     }
 
 
 def reminders_to_dicts(db: Session, reminders: list[Reminder]) -> list[dict]:
-    """Viele Mahnungen auf einmal: Zahlstand aller Rechnungen in zwei Abfragen, Stufen einmal."""
+    """Viele Mahnungen auf einmal: Zahlstand aller Rechnungen in zwei Abfragen, Stufen einmal, erreicht für alle zusammen."""
     from .payments import payment_states  # lokal: Zirkel-Import
     invoices = {r.invoice_id: r.invoice for r in reminders}
     states = payment_states(db, invoices.values())
     levels = _levels(db)
-    return [reminder_to_dict(r, state=states.get(r.invoice_id), levels=levels) for r in reminders]
+    reached = reached_map(db, [r for inv in invoices.values() for r in inv.reminders])
+    return [reminder_to_dict(r, state=states.get(r.invoice_id), levels=levels, reached=reached) for r in reminders]
 
 
 def list_invoices_needing_attention(db: Session) -> list[dict]:
@@ -769,12 +980,13 @@ def list_invoices_needing_attention(db: Session) -> list[dict]:
     # Seit 1.8.78 nur mit mahnfähigem Betrag (offen − Einbehalt), und dieser statt des Bruttos.
     states = payment_states(db, overdue)
     levels = _levels(db)
+    reached = reached_map(db, [r for inv in overdue for r in inv.reminders])
     rows = []
     for invoice in overdue:
         state = states.get(invoice.id)
         if state is None or state.dunnable <= 0:
             continue
-        status = compute_reminder_status(db, invoice, state=state, levels=levels)
+        status = compute_reminder_status(db, invoice, state=state, levels=levels, reached=reached)
         rows.append({
             "invoice_id": invoice.id,
             "invoice_number": invoice.invoice_number,
@@ -784,6 +996,15 @@ def list_invoices_needing_attention(db: Session) -> list[dict]:
             "outstanding_amount": state.dunnable,
             "caseworker_employee_id": invoice.order.caseworker_employee_id if invoice.order else None,
             **status,
+            "due_for_reminder": due_for_reminder(status),
         })
-    rows.sort(key=lambda r: (not (r["is_due_now"] and r["create_block"] is None), r["due_date"]))
+    rows.sort(key=lambda r: (not r["due_for_reminder"], r["due_date"]))
     return rows
+
+
+def due_for_reminder(status: dict) -> bool:
+    """"Zur Mahnung fällig" (seit 1.8.79): nächste Stufe jetzt möglich und kein Grund dagegen -- seit 1.8.80 nicht, solange eine
+    festgeschriebene Mahnung noch hinausgehen kann (dann ist sie zu versenden, nicht zu ersetzen)."""
+    pending = status.get("pending")
+    return bool(status["is_due_now"] and status["create_block"] is None
+                and not (pending and pending["dispatch_block"] is None))

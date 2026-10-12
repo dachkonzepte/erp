@@ -15,12 +15,13 @@ import json
 import logging
 import os
 import urllib.error
+import uuid
 import urllib.parse
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import create_engine, delete, select
+from sqlalchemy import create_engine, delete, select, text
 from sqlalchemy.orm import sessionmaker
 
 from app.auth import hash_password
@@ -74,13 +75,31 @@ requires_postgres_opt_in = pytest.mark.skipif(
 
 
 def pg_db_session():
-    """Verbindet gegen die in ERP_TEST_POSTGRES_URL angegebene, ECHTE PostgreSQL-Datenbank.
-    Base.metadata.create_all() ist idempotent (überspringt bereits vorhandene Tabellen) -- läuft
-    also unabhängig davon, ob das Ziel bereits per Alembic migriert ist (Regelfall für
-    "spielwiese", siehe CLAUDE.md) oder eine frische, leere Datenbank ist."""
-    engine = create_engine(PG_TEST_DATABASE_URL)
+    """Verbindet gegen die in ERP_TEST_POSTGRES_URL angegebene, ECHTE PostgreSQL-Datenbank -- seit 1.8.80 in einem eigenen
+    Wegwerf-Schema (wie die übrigen PostgreSQL-Tests, Regel 16), aufgeräumt mit pg_aufraeumen(). Bis 1.8.79 im Schema public:
+    create_all() legt dort nur fehlende Tabellen an, eine neue Spalte an einer bestehenden (1.8.80:
+    general_settings.dunning_charges_enabled) fehlte dann, und die Tests brachen ab."""
+    schema = f"pgtest_outlook_{uuid.uuid4().hex[:8]}"
+    admin = create_engine(PG_TEST_DATABASE_URL)
+    with admin.begin() as conn:
+        conn.execute(text(f"CREATE SCHEMA {schema}"))
+    admin.dispose()
+    engine = create_engine(PG_TEST_DATABASE_URL, connect_args={"options": f"-csearch_path={schema}",
+                                                               "application_name": schema})
+    engine.info_schema = schema
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)(), engine
+
+
+def pg_aufraeumen(engine) -> None:
+    """Schließt die Verbindungen und löscht das Wegwerf-Schema aus pg_db_session()."""
+    schema = engine.info_schema
+    engine.dispose()
+    admin = create_engine(PG_TEST_DATABASE_URL)
+    with admin.begin() as conn:
+        conn.execute(text("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = :n"), {"n": schema})
+        conn.execute(text(f"DROP SCHEMA {schema} CASCADE"))
+    admin.dispose()
 
 
 def _cleanup_pg_test_data(db, *usernames: str) -> None:
@@ -1425,7 +1444,7 @@ def test_no_oscillation_all_counters_reach_zero_from_the_second_run_and_stay_zer
     finally:
         _cleanup_pg_test_data(db, "pgtest_schaukel_1")
         db.close()
-        engine.dispose()
+        pg_aufraeumen(engine)
 
 
 def _check_no_oscillation_with_genuine_edit(db, owner) -> None:
@@ -1505,7 +1524,7 @@ def test_no_oscillation_holds_even_with_a_genuine_later_edit_from_outlook_in_bet
     finally:
         _cleanup_pg_test_data(db, "pgtest_schaukel_2")
         db.close()
-        engine.dispose()
+        pg_aufraeumen(engine)
 
 
 # ---------------------------------------------------------------------------
@@ -1806,7 +1825,7 @@ def test_no_oscillation_with_series_all_counters_reach_zero_from_the_second_run_
     finally:
         _cleanup_pg_test_data(db, "pgtest_schaukel_serie")
         db.close()
-        engine.dispose()
+        pg_aufraeumen(engine)
 
 
 def test_moving_window_neither_duplicates_nor_loses_occurrences():

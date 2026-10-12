@@ -17,7 +17,7 @@ from .material_groups import backfill_existing_materials, ensure_import_material
 from .materials import backfill_existing_service_materials
 from .orders import ensure_existing_order_revisions
 from .routers import (
-    absence_requests, acceptances, account, accounts, address_import, ai_settings, audit, auth, calendar_events, catalogs, changelog, checklist_templates, checklists, contacts, contract_basis, contract_templates, customer_documents, customers, defects, email_dispatches,
+    absence_requests, acceptances, account, accounts, address_import, ai_settings, audit, auth, calendar_events, catalogs, changelog, checklist_templates, checklists, contacts, contract_basis, contract_templates, customer_documents, customers, defects, dunning_charges, email_dispatches,
     dashboard, document_categories, document_email_templates, document_layout, email_settings, employees, field_defects, field_view, findings, imports, incoming_invoices, inquiries, inspection_templates, invoices, labor_rate, maintenance_contracts, materials, modules, notice_letters, operational_assets, orders,
     outlook_sync_settings, pages, payment_terms, payments, planning, project_documents, project_participants, project_pipeline_columns, projects, properties, property_documents, quick_service_orders, quotes, recurring_costs, reminders,
     resource_planning, roof_areas, search, service_reports, services, settings, task_columns, tasks, tax_keys, time_backoffice, time_tracking, users,
@@ -130,6 +130,7 @@ app.include_router(catalogs.router)
 app.include_router(materials.router)
 app.include_router(invoices.router)
 app.include_router(payments.router)  # seit 1.8.78: Zahlungseingänge
+app.include_router(dunning_charges.router)  # seit 1.8.80: Mahngebühren, Pauschale, Verzugsbeginn
 app.include_router(payment_terms.router)
 app.include_router(tax_keys.router)
 app.include_router(changelog.router)

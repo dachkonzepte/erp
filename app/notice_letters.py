@@ -390,16 +390,11 @@ def client_address(order: Order, confirm_customer: bool, *, what: str = "den Bri
 
 
 def reached_client(dispatch: EmailDispatch, outcome: DispatchOutcome | None, has_authorization: bool) -> bool:
-    """Kam dieser Eintrag beim Auftraggeber an? (seit 1.8.41) Gesendet, nicht als unzustellbar vermerkt, und: per
-    E-Mail (An ist immer der Auftraggeber), oder nachgetragen an den Auftraggeber, an einen empfangsbevollmächtigten
-    Beteiligten (festgehaltene Vollmacht) oder ohne Empfängerauswahl (wie vor 1.8.41)."""
-    from .email_dispatch import MANUAL_CHANNELS
+    """Kam dieser Eintrag beim Auftraggeber an? (seit 1.8.41) Seit 1.8.80 in app/email_dispatch.py für jede Dokumentart
+    (Mahnung, Rechnung: app/email_dispatch.py::document_reached_on()) -- hier unverändert weiter aufrufbar."""
+    from .email_dispatch import reached_client as _reached_client
 
-    if dispatch.status != "gesendet" or (outcome is not None and outcome.outcome == "unzustellbar"):
-        return False
-    if dispatch.channel not in MANUAL_CHANNELS:
-        return True
-    return dispatch.delivered_to_client is not False or has_authorization
+    return _reached_client(dispatch, outcome, has_authorization)
 
 
 def delivered_dispatches(db: Session, kind: str, checklist_id: int) -> list[EmailDispatch]:

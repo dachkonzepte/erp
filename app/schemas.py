@@ -349,6 +349,9 @@ class ProjectUpdate(BaseModel):
     status: str = Field(default="anfrage", max_length=50)
     category: str | None = Field(default=None, max_length=100)
     description: str | None = None
+    # Seit 1.8.80 (Vorgabe Z2b "Vorweg" 1): Begründung, wenn der Kunde wechselt und am Projekt ein Auftrag hängt -- der wechselt
+    # dann mit (Vertragspartner). Wird nur für den Wechsel gebraucht, nicht gespeichert am Projekt (Historie am Auftrag).
+    customer_change_reason: str | None = Field(default=None, max_length=2000)
 
 
 class ProjectListOut(BaseModel):
@@ -1765,14 +1768,17 @@ class ReminderLevelOut(BaseModel):
     active: bool
 
 
-class ReminderLevelUpdate(BaseModel):
-    label: str = Field(min_length=1, max_length=120)
-    days_after_previous_step: int = Field(ge=1, le=365)
-    fee_amount: Decimal = Field(ge=0)
+class ReminderLevelUpdate(PartialUpdate):
+    """Seit 1.8.80 Teil-Update (Regel 22): bei ausgeschalteten Mahngebühren schickt die Seite keine Gebühr, der Bereich
+    "E-Mail-Vorlagen" nur Betreff und Text -- vorher schickte er den beim Laden gemerkten Stand aller Felder mit."""
+    NOT_NULL = frozenset({"label", "days_after_previous_step", "fee_amount", "active"})
+    label: str | None = Field(default=None, min_length=1, max_length=120)
+    days_after_previous_step: int | None = Field(default=None, ge=1, le=365)
+    fee_amount: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     text_template: str | None = None
-    email_subject_template: str | None = None
+    email_subject_template: str | None = Field(default=None, max_length=255)
     email_body_template: str | None = None
-    active: bool = True
+    active: bool | None = None
 
 
 class ReminderCreate(BaseModel):
@@ -1786,10 +1792,17 @@ class ReminderBulkCreate(BaseModel):
 
 
 class ReminderUpdate(BaseModel):
-    # Seit 1.8.79 alle Felder Pflicht (Regel 22) und die Frist als Länge in Tagen -- sie rechnet ab dem Festschreiben.
+    # Seit 1.8.79 alle Felder Pflicht (Regel 22) und die Frist als Länge in Tagen -- sie rechnet ab dem Festschreiben. Seit
+    # 1.8.80 ohne Gebühr: die geht über PUT /api/reminders/{id}/charges (nur bei eingeschalteten Mahngebühren).
     text: str | None
-    fee_amount: Decimal = Field(ge=0)
     payment_days: int = Field(ge=1, le=365)
+
+
+class ReminderChargesUpdate(BaseModel):
+    """Seit 1.8.80 (Z2b Nr. 5 und 6): Gebühr und Pauschale im Mahnungsentwurf bewusst übernehmen -- alle Felder Pflicht."""
+    fee_amount: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
+    fee_accepted: bool
+    flat_fee_accepted: bool
 
 
 class ReminderPaymentLineOut(BaseModel):
@@ -1797,13 +1810,52 @@ class ReminderPaymentLineOut(BaseModel):
     amount: Decimal
 
 
+class ReminderChargeLineOut(BaseModel):
+    kind: str
+    label: str
+    amount: Decimal
+    new: bool = False  # im Entwurf übernommen, entsteht beim Festschreiben
+
+
 class ReminderAmountsOut(BaseModel):
-    """Seit 1.8.79 (Z2a Nr. 4): Aufstellung des gemahnten Betrags, eingefroren an der Mahnung."""
+    """Seit 1.8.79 (Z2a Nr. 4): Aufstellung des gemahnten Betrags, eingefroren an der Mahnung; seit 1.8.80 (Format 2) mit den
+    Nebenforderungen und dem Gesamtbetrag."""
+    format: int = 1
     gross: Decimal
     payments: list[ReminderPaymentLineOut]
     skonto: Decimal
     retained: Decimal
     dunnable: Decimal
+    charges_enabled: bool = False
+    charges: list[ReminderChargeLineOut] = []
+    charges_open: Decimal | None = None
+    total: Decimal | None = None
+
+
+class ReminderFeeProposalOut(BaseModel):
+    amount: Decimal
+    level_label: str
+
+
+class ReminderFlatFeeProposalOut(BaseModel):
+    amount: Decimal
+    block: str | None = None
+
+
+class ReminderProposalsOut(BaseModel):
+    """Seit 1.8.80: was der Entwurf vorschlägt (nur bei eingeschalteten Mahngebühren)."""
+    fee: ReminderFeeProposalOut
+    flat_fee: ReminderFlatFeeProposalOut
+
+
+class ReminderPendingOut(BaseModel):
+    """Seit 1.8.80: eine festgeschriebene Mahnung, die nie hinausging (nicht ersetzt)."""
+    id: int
+    reminder_number: str | None
+    level: int
+    label: str
+    reminder_date: date
+    dispatch_block: str | None = None
 
 
 class ReminderOut(BaseModel):
@@ -1831,6 +1883,16 @@ class ReminderOut(BaseModel):
     email_sent_to: str | None = None
     recipient_email: str | None = None  # aktuell hinterlegte Kunden-E-Mail, für die Versand-Oberfläche
     send_block: str | None = None  # seit 1.8.72: Rechnung storniert oder bezahlt -- kein Versand (app/reminders.py)
+    # Seit 1.8.80 (Z2b): hinausgegangen am, ersetzt durch, Gebühr/Pauschale übernommen, Nebenforderungen, Vorschläge.
+    reached_on: date | None = None
+    replaced_by_id: int | None = None
+    replaced_by_number: str | None = None
+    fee_accepted: bool = False
+    flat_fee_accepted: bool = False
+    charges_enabled: bool | None = None
+    charges: list[ReminderChargeLineOut] = []
+    charges_open: Decimal | None = None
+    proposals: ReminderProposalsOut | None = None
 
 
 class ReminderBulkRejectedOut(BaseModel):
@@ -1851,6 +1913,7 @@ class ReminderStatusOut(BaseModel):
     is_due_now: bool
     draft: ReminderOut | None = None
     create_block: str | None = None  # seit 1.8.79: warum jetzt kein Entwurf entsteht
+    pending: ReminderPendingOut | None = None  # seit 1.8.80: festgeschrieben, nie hinausgegangen
 
 
 class InvoiceNeedingAttentionOut(BaseModel):
@@ -1867,6 +1930,77 @@ class InvoiceNeedingAttentionOut(BaseModel):
     is_due_now: bool
     draft: ReminderOut | None = None
     create_block: str | None = None  # seit 1.8.79: leer und is_due_now = "zur Mahnung fällig"
+    pending: ReminderPendingOut | None = None  # seit 1.8.80: festgeschrieben, nie hinausgegangen
+    due_for_reminder: bool = False  # seit 1.8.80: "zur Mahnung fällig" (app/reminders.py::due_for_reminder())
+
+
+class DunningSettingsOut(BaseModel):
+    """Seit 1.8.80 (Z2b Nr. 3): Mahngebühren und Verzugszinsen eingeschaltet?"""
+    charges_enabled: bool
+
+
+class DunningSettingsUpdate(BaseModel):
+    charges_enabled: bool
+
+
+class InvoiceChargeReversalOut(BaseModel):
+    reason: str | None
+    created_at: datetime
+    created_by_name: str
+
+
+class InvoiceChargeOut(BaseModel):
+    """Seit 1.8.80: Nebenforderung einer Rechnung (Mahngebühr, Pauschale) mit Gegenbuchung, falls es eine gibt."""
+    id: int
+    kind: str
+    kind_label: str
+    label: str
+    amount: Decimal
+    reminder_id: int | None
+    reminder_number: str | None
+    created_at: datetime
+    created_by_name: str
+    reversed: bool
+    reversal: InvoiceChargeReversalOut | None = None
+
+
+class InvoiceDefaultStartOut(BaseModel):
+    id: int
+    starts_on: date
+    basis: str
+    basis_label: str
+    source_text: str | None
+    proposal_on: date | None
+    reason: str | None
+    created_at: datetime
+    created_by_name: str
+
+
+class InvoiceDefaultProposalOut(BaseModel):
+    starts_on: date | None
+    basis: str | None
+    source_text: str | None
+    reason: str | None
+
+
+class InvoiceChargesOut(BaseModel):
+    """Seit 1.8.80: Karte "Nebenforderungen und Verzug" der Rechnungsseite."""
+    enabled: bool
+    charges: list[InvoiceChargeOut]
+    open_total: Decimal
+    default_start: InvoiceDefaultStartOut | None
+    default_proposal: InvoiceDefaultProposalOut | None
+    today: date
+
+
+class InvoiceDefaultStartCreate(BaseModel):
+    starts_on: date
+    reason: str | None = Field(default=None, max_length=2000)
+
+
+class ReasonIn(BaseModel):
+    """Begründung (Pflicht) für Gegenbuchung bzw. Verwerfen."""
+    reason: str = Field(min_length=1, max_length=2000)
 
 
 class SmtpSettingsOut(BaseModel):

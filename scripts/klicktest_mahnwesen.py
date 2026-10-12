@@ -1,6 +1,7 @@
 """Klicktest: Mahnwesen Z2a (1.8.79, Zahlungsstufe Z2a, docs/archiv/zahlungen.md).
 
-    Mahnwesen          Öffnen legt nichts an; "Zur Mahnung fällig" mit den zwei überfälligen Rechnungen, die übrigen mit Grund
+    Mahnwesen          Öffnen legt nichts an; "Zur Mahnung fällig" mit den zwei überfälligen Rechnungen (seit 1.8.80 dazu der
+                       Ersatz einer nie versendeten Mahnung), die übrigen mit Grund
                        ("erst ab dem …"); beide auswählen -> "Entwürfe für Auswahl anlegen (2)" -> zwei Entwürfe; Bearbeiten:
                        Zahlungsfrist in Tagen (10), Hinweis "Mahndatum ist der Tag des Festschreibens"; Versenden -> Mahndatum
                        heute, Frist heute + 10; Mahnung nach einer Teilzahlung: Grund statt E-Mail ("neue Mahnung")
@@ -34,7 +35,7 @@ def befuellen(db, k):
 
     from app.berlin_time import berlin_today
     from app.invoices import create_abschlag_pauschal, finalize_and_send_invoice, update_invoice_header
-    from app.models import AppUser, Customer, Employee, Project, Quote, QuoteItem
+    from app.models import AppUser, Customer, EmailDispatch, Employee, Project, Quote, QuoteItem
     from app.orders import create_order_from_quote, load_order
     from app.payments import Line, book_payment
     from app.project_pipeline_columns import default_pipeline_column_id
@@ -77,8 +78,13 @@ def befuellen(db, k):
     a = rechnung("M-1", "1000", 10)          # 1.190,00, zur Mahnung fällig
     b = rechnung("M-2", "500", 5)            # 595,00, zur Mahnung fällig
     nicht_faellig = rechnung("M-3", "200", -7)   # erst in einer Woche fällig
-    in_frist = rechnung("M-4", "300", 20)    # 1. Mahnung festgeschrieben, Frist läuft
+    in_frist = rechnung("M-4", "300", 20)    # 1. Mahnung festgeschrieben und zugestellt, Frist läuft
     m4 = finalize_and_send_reminder(db, create_reminder(db, in_frist))
+    # Seit 1.8.80 ist eine Stufe erst mit Versand oder Zustellung erreicht -- die 1. Mahnung ging per Einschreiben hinaus.
+    db.add(EmailDispatch(dispatch_key="klick-m4-zustellung", message_ref="klick-m4-zustellung", status="gesendet",
+                         channel="einschreiben", document_type="mahnung", document_id=m4.id, document_number=m4.reminder_number,
+                         to_recipients="Bauherr Mahn", subject="Mahnung", delivered_on=heute, delivered_to_client=True))
+    db.commit()
     ueberholt = rechnung("M-5", "400", 20)   # 476,00, festgeschrieben, danach Teilzahlung 100
     m5 = finalize_and_send_reminder(db, create_reminder(db, ueberholt))
     book_payment(db, customer_id=kunde.id, received_on=heute, amount=Decimal("100"), note="Teilzahlung",
@@ -122,10 +128,15 @@ async def pruefen(tab, seed, p):
     vorher = await _anzahl_mahnungen(tab)
     await tab.oeffnen("/mahnwesen", MAHNWESEN_READY)
     p.pruefe("Öffnen legt keine Entwürfe an", [vorher, await _anzahl_mahnungen(tab)], [2, 2])
-    p.pruefe("zur Mahnung fällig: die zwei überfälligen", await tab.js(
+    # Seit 1.8.80 ("Vorweg" 2) auch M-5: ihre 1. Mahnung ging nie hinaus und geht nach der Teilzahlung so nicht mehr hinaus --
+    # eine neue derselben Stufe ersetzt sie.
+    p.pruefe("zur Mahnung fällig: die zwei überfälligen und der Ersatz", await tab.js(
         "[...document.querySelectorAll('#dueRows tr[data-faellig]')].map(r=>Number(r.dataset.faellig)).sort((x,y)=>x-y)"),
-             sorted([seed["a"], seed["b"]]))
-    p.pruefe("Kennzahl", await tab.js("document.querySelector('[data-kennzahl-faellig]').textContent"), "2")
+             sorted([seed["a"], seed["b"], seed["ueberholt"]]))
+    p.pruefe("Ersatz mit Hinweis", await tab.js(
+        f"(document.querySelector('#dueRows tr[data-faellig=\"{seed['ueberholt']}\"]')?.textContent||'')"
+        f".includes('(ersetzt {seed['m5_nr']})')"), True)
+    p.pruefe("Kennzahl", await tab.js("document.querySelector('[data-kennzahl-faellig]').textContent"), "3")
     gruende = await tab.js("[...document.querySelectorAll('#attentionRows [data-grund]')].map(e=>e.textContent)")
     p.pruefe("in der Frist: Grund statt Knopf", any(
         g.startswith(f"Die 2. Mahnung ist erst ab dem") and seed["m4_nr"] in g and seed["m4_frist"] in g for g in gruende), True)
@@ -134,15 +145,15 @@ async def pruefen(tab, seed, p):
     p.pruefe("Auswahl: Knopf gesperrt ohne Auswahl", await tab.js("document.getElementById('bulkCreateBtn').disabled"), True)
     await tab.js("(()=>{const c=document.getElementById('dueSelectAll');c.checked=true;c.dispatchEvent(new Event('change'))})()")
     p.pruefe("Auswahl: Knopf mit Anzahl", await tab.js("document.getElementById('bulkCreateBtn').textContent"),
-             "Entwürfe für Auswahl anlegen (2)")
+             "Entwürfe für Auswahl anlegen (3)")
     await _bild(tab, "zur_mahnung_faellig", "dueCard", dunkel=True)
     await tab.js("document.getElementById('bulkCreateBtn').click()")
-    p.pruefe("zwei Entwürfe angelegt", await tab.warten(
-        "document.getElementById('bulkStatus').textContent==='2 Entwürfe angelegt.'"), True)
+    p.pruefe("drei Entwürfe angelegt", await tab.warten(
+        "document.getElementById('bulkStatus').textContent==='3 Entwürfe angelegt.'"), True)
     p.pruefe("Liste danach leer, Entwürfe in 'Weitere'", await tab.js(
         "[document.querySelectorAll('#dueRows tr[data-faellig]').length,"
-        "document.querySelectorAll('#attentionRows .pill.entwurf').length]"), [0, 2])
-    p.pruefe("API: jetzt vier Mahnungen", await _anzahl_mahnungen(tab), 4)
+        "document.querySelectorAll('#attentionRows .pill.entwurf').length]"), [0, 3])
+    p.pruefe("API: jetzt fünf Mahnungen", await _anzahl_mahnungen(tab), 5)
 
     # --- Bearbeiten: Zahlungsfrist in Tagen; Versenden: Mahndatum heute, Frist ab dann ---
     entwurf = await tab.js(f"allReminders.find(r=>r.invoice_id==={seed['a']}&&r.status==='entwurf').id")
@@ -158,6 +169,14 @@ async def pruefen(tab, seed, p):
     p.pruefe("festgeschrieben: heute, Frist heute + 10", await tab.warten(
         f"allReminders.some(r=>r.id==={entwurf}&&r.status==='versendet'&&r.reminder_date==='{seed['heute_iso']}'"
         f"&&r.new_due_date==='{seed['frist10_iso']}')"), True)
+
+    # Seit 1.8.80: erst mit Versand oder Zustellung erreicht -- Zustellung per Einschreiben nachtragen.
+    zugestellt = await tab.js(
+        "(()=>{const f=new FormData();f.append('document_type','mahnung');" + f"f.append('document_id','{entwurf}');"
+        "f.append('channel','einschreiben');f.append('delivered_on','" + seed["heute_iso"] + "');"
+        "f.append('note','Einschreiben RR 2 DE');f.append('dispatch_key','zustellung-klick-0002');"
+        "return fetch('/api/email-dispatches/manual',{method:'POST',body:f}).then(r=>r.status)})()")
+    p.pruefe("Zustellung der neuen Mahnung nachgetragen", zugestellt, 200)
 
     # --- Überholte Mahnung: Grund statt E-Mail ---
     sperre = await tab.js(

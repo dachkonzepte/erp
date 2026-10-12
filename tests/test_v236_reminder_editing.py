@@ -13,18 +13,16 @@ from tests.test_v153_mahnwesen import db_session, make_sent_overdue_invoice
 # Punkt 2: update_reminder_draft() -- Geschäftslogik
 # ---------------------------------------------------------------------------
 
-def test_update_reminder_draft_changes_text_fee_and_due_date():
+def test_update_reminder_draft_changes_text_and_due_date():
     db = db_session()
     ensure_default_reminder_levels(db)
     invoice = make_sent_overdue_invoice(db)
     reminder = create_reminder(db, invoice, 1)
 
-    # Seit 1.8.79 (Z2a Nr. 3) die Frist als Länge in Tagen -- sie rechnet ab dem Festschreiben.
-    updated = update_reminder_draft(
-        db, reminder, text="Neuer Text mit {mahngebuehr}", fee_amount=Decimal("12.50"), payment_days=21,
-    )
-    assert updated.text == "Neuer Text mit {mahngebuehr}"
-    assert updated.fee_amount == Decimal("12.50")
+    # Seit 1.8.79 (Z2a Nr. 3) die Frist als Länge in Tagen -- sie rechnet ab dem Festschreiben. Seit 1.8.80 (Z2b Nr. 5) ohne
+    # Gebühr: die wird über set_reminder_charges() bewusst übernommen (tests/test_v383_nebenforderungen.py).
+    updated = update_reminder_draft(db, reminder, text="Neuer Text mit {gesamtbetrag}", payment_days=21)
+    assert updated.text == "Neuer Text mit {gesamtbetrag}"
     assert updated.new_due_date == updated.reminder_date + timedelta(days=21)
 
 
@@ -38,7 +36,7 @@ def test_update_reminder_draft_rejects_already_sent_reminder():
 
     original_text = reminder.text
     try:
-        update_reminder_draft(db, reminder, text="Manipuliert", fee_amount=Decimal("0"), payment_days=7)
+        update_reminder_draft(db, reminder, text="Manipuliert", payment_days=7)
         assert False, "hätte ValueError werfen müssen (bereits versendet)"
     except ValueError:  # seit 1.8.79 InvoiceBlocked (Unterklasse, 409)
         pass
@@ -54,7 +52,7 @@ def test_update_reminder_draft_needs_a_payment_period():
     reminder = create_reminder(db, invoice, 1)
     for days in (0, 366):
         try:
-            update_reminder_draft(db, reminder, text=reminder.text, fee_amount=reminder.fee_amount, payment_days=days)
+            update_reminder_draft(db, reminder, text=reminder.text, payment_days=days)
             assert False, "hätte ValueError werfen müssen"
         except ValueError:
             pass
@@ -72,13 +70,14 @@ def test_put_reminder_endpoint_updates_draft(threaded_db_session, router_test_cl
     reminder = create_reminder(db, invoice, 1)
     client = router_test_client(db, reminders_router)
 
+    # Seit 1.8.80 ohne Gebühr (PUT /api/reminders/{id}/charges); eine mitgeschickte bleibt wirkungslos.
     resp = client.put(f"/api/reminders/{reminder.id}", json={
         "text": "Bitte zahlen Sie {offener_betrag}.", "fee_amount": "7.50", "payment_days": 14,
     })
     assert resp.status_code == 200
     body = resp.json()
     assert body["text"] == "Bitte zahlen Sie {offener_betrag}."
-    assert Decimal(body["fee_amount"]) == Decimal("7.50")
+    assert Decimal(body["fee_amount"]) == 0
     assert body["payment_days"] == 14
 
 
@@ -91,9 +90,7 @@ def test_put_reminder_endpoint_rejects_sent_reminder_with_409(threaded_db_sessio
     finalize_and_send_reminder(db, reminder)
     client = router_test_client(db, reminders_router)
 
-    resp = client.put(f"/api/reminders/{reminder.id}", json={
-        "text": "Manipuliert", "fee_amount": "0", "payment_days": 7,
-    })
+    resp = client.put(f"/api/reminders/{reminder.id}", json={"text": "Manipuliert", "payment_days": 7})
     assert resp.status_code == 409  # seit 1.8.79 unter der Sperre: nicht (mehr) Entwurf (bis 1.8.78 400)
     assert "festgeschrieben" in resp.json()["detail"]
 
@@ -102,7 +99,7 @@ def test_put_reminder_endpoint_404_for_unknown_id(threaded_db_session, router_te
     db = threaded_db_session
     ensure_default_reminder_levels(db)
     client = router_test_client(db, reminders_router)
-    resp = client.put("/api/reminders/999999", json={"text": None, "fee_amount": "0", "payment_days": 7})
+    resp = client.put("/api/reminders/999999", json={"text": None, "payment_days": 7})
     assert resp.status_code == 404
 
 
@@ -137,7 +134,9 @@ def test_edit_panels_list_placeholders_with_meaning_and_exclude_mahnstufe():
     Bearbeiten-Panel deshalb nicht auftauchen (siehe reminders.py:_reminder_placeholders())."""
     for filename in ("mahnwesen.html", "invoice_detail.html"):
         html = (Path(__file__).parents[1] / "app" / "templates" / filename).read_text(encoding="utf-8")
-        assert "{mahngebuehr}</code> – Mahngebühr" in html, filename
+        # Seit 1.8.80: {gesamtbetrag} samt Nebenforderungen, {mahngebuehr} nur bei eingeschalteten Mahngebühren.
+        assert "{gesamtbetrag}</code> – angemahnter Betrag samt Nebenforderungen" in html, filename
+        assert "{mahngebuehr}</code>, <code>{nebenforderungen}</code> – Gebühr dieser Mahnung" in html, filename
         assert "{neue_frist}</code> – neue Zahlungsfrist" in html, filename
         assert "{mahnstufe}" not in html, filename
 

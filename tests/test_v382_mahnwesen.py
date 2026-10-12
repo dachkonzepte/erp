@@ -44,7 +44,7 @@ from app.routers.email_dispatches import router as dispatch_router
 from app.routers.projects import router as projects_router
 from app.routers.reminders import router as reminders_router
 from tests.leistungszeitraum import festschreiben
-from tests.mahnung import festschreiben_und_ablaufen, frist_ablaufen
+from tests.mahnung import festschreiben_und_ablaufen, frist_ablaufen, zustellen
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
 from tests.test_v213_inspection_items import _extract_pdf_text
 from tests.zahlung import voll_bezahlen
@@ -167,7 +167,9 @@ def test_client_change_with_drafts_only_is_allowed(threaded_db_session, router_t
     # Am zweiten Projekt nur ein Entwurf (die festgeschriebene Rechnung direkt zurück auf Entwurf gesetzt).
     db.execute(update(Invoice).where(Invoice.id == second.id).values(status="entwurf", invoice_number=None, customer_id=None))
     db.commit()
-    response = client.put(f"/api/projects/{order2.project_id}", json={**payload, "name": "P2"})
+    # Seit 1.8.80 (Z2b "Vorweg" 1): mit Auftrag nur zusammen mit dessen Vertragspartner und mit Begründung.
+    response = client.put(f"/api/projects/{order2.project_id}",
+                          json={**payload, "name": "P2", "customer_change_reason": "falscher Kunde angelegt"})
     assert response.status_code == 200, response.text
 
 
@@ -206,7 +208,7 @@ def test_overdue_list_reads_only_and_marks_what_is_due():
     db = _db()
     due = _rechnung(db, "0001")
     waiting = _rechnung(db, "0002")
-    finalize_and_send_reminder(db, create_reminder(db, waiting))  # Frist der 1. Mahnung läuft noch
+    zustellen(db, finalize_and_send_reminder(db, create_reminder(db, waiting)))  # Frist der 1. Mahnung läuft noch
     db.refresh(waiting)
     before = _anzahl(db, Reminder)
     rows = {r["invoice_id"]: r for r in list_invoices_needing_attention(db)}
@@ -268,6 +270,7 @@ def test_next_level_only_after_the_previous_deadline_has_passed():
     db = _db()
     invoice = _rechnung(db)
     first = finalize_and_send_reminder(db, create_reminder(db, invoice))
+    zustellen(db, first)  # seit 1.8.80: erreicht erst mit Versand oder Zustellung
     db.refresh(invoice)
     ende = first.new_due_date
     assert ende == HEUTE + timedelta(days=7)
@@ -300,6 +303,7 @@ def test_finalizing_rechecks_level_and_deadline_for_old_drafts():
     db.add(b)
     db.commit()
     finalize_and_send_reminder(db, a)
+    zustellen(db, a)  # seit 1.8.80: ging a nie hinaus, ersetzte b sie beim Festschreiben (tests/test_v383_nebenforderungen.py)
     _geblockt(finalize_and_send_reminder, db, b, grund="ist überholt")
     db.refresh(b)
     assert (b.status, b.reminder_number) == ("entwurf", None)
@@ -331,7 +335,7 @@ def test_finalizing_sets_today_and_moves_the_deadline_with_it():
     db = _db()
     invoice = _rechnung(db)
     draft = create_reminder(db, invoice)
-    update_reminder_draft(db, draft, text=draft.text, fee_amount=draft.fee_amount, payment_days=10)
+    update_reminder_draft(db, draft, text=draft.text, payment_days=10)
     # Der Entwurf ist drei Wochen alt.
     db.execute(update(Reminder).where(Reminder.id == draft.id).values(
         reminder_date=HEUTE - timedelta(days=21), new_due_date=HEUTE - timedelta(days=11)))
@@ -350,7 +354,7 @@ def test_editing_and_deleting_a_finalized_reminder_is_refused():
     invoice = _rechnung(db)
     reminder = finalize_and_send_reminder(db, create_reminder(db, invoice))
     text_before = reminder.text
-    _geblockt(update_reminder_draft, db, reminder, text="neu", fee_amount=D("0"), payment_days=7, grund="festgeschrieben")
+    _geblockt(update_reminder_draft, db, reminder, text="neu", payment_days=7, grund="festgeschrieben")
     _geblockt(delete_reminder_draft, db, reminder, grund="festgeschrieben")
     db.refresh(reminder)
     assert reminder.text == text_before and _anzahl(db, Reminder) == 1
@@ -362,15 +366,15 @@ def test_editing_a_deleted_draft_is_refused():
     draft = create_reminder(db, invoice)
     assert draft.invoice.order_id  # geladen, wie im Router vor dem Warten auf die Sperre
     db.execute(delete(Reminder).where(Reminder.id == draft.id))  # inzwischen gelöscht
-    _geblockt(update_reminder_draft, db, draft, text="neu", fee_amount=D("0"), payment_days=7, grund="gelöscht")
+    _geblockt(update_reminder_draft, db, draft, text="neu", payment_days=7, grund="gelöscht")
 
 
 def test_put_route_needs_all_fields(threaded_db_session, router_test_client):
     db = threaded_db_session
     draft = create_reminder(db, _rechnung(db))
     client = router_test_client(db, reminders_router)
-    for body in ({"text": "x", "fee_amount": "1"}, {"text": "x", "payment_days": 7}, {"fee_amount": "1", "payment_days": 7},
-                 {"text": "x", "fee_amount": "1", "payment_days": 0}):
+    # Seit 1.8.80 ohne Gebühr (die geht über PUT /api/reminders/{id}/charges).
+    for body in ({"text": "x"}, {"payment_days": 7}, {"text": "x", "payment_days": 0}):
         assert client.put(f"/api/reminders/{draft.id}", json=body).status_code == 422, body
 
 
@@ -386,11 +390,13 @@ def test_reminder_holds_gross_payments_skonto_retention_and_dunnable():
     reminder = create_reminder(db, invoice)
     assert reminder.outstanding_amount == D("4100.00")  # 5950 − 1500 − 50 − 300
     a = amounts(reminder)
-    assert a == {"gross": D("5950.00"), "payments": [
+    assert {k: a[k] for k in ("gross", "payments", "skonto", "retained", "dunnable")} == {"gross": D("5950.00"), "payments": [
         {"received_on": HEUTE - timedelta(days=5), "amount": D("1000.00")},
         {"received_on": HEUTE - timedelta(days=2), "amount": D("500.00")}],
         "skonto": D("50.00"), "retained": D("300.00"), "dunnable": D("4100.00")}
-    assert json.loads(reminder.amounts_json)["format"] == 1
+    # Seit 1.8.80 Format 2 (mit Nebenforderungen und Gesamtbetrag; ausgeschaltet keine).
+    assert json.loads(reminder.amounts_json)["format"] == 2
+    assert (a["charges_enabled"], a["charges"], a["total"]) == (False, [], D("4100.00"))
     text = _pdf_text(db, reminder)
     for needle in ("Rechnungsbetrag (brutto)", "5.950,00 EUR", f"glich Zahlung vom {HEUTE - timedelta(days=5):%d.%m.%Y}",
                    "-1.000,00 EUR", "glich Skonto", "-50,00 EUR", "glich Einbehalt (wird nicht angemahnt)",
@@ -453,6 +459,8 @@ def test_manual_delivery_counts_the_state_on_the_delivery_day():
     db = _db()
     invoice = _rechnung(db)
     reminder = finalize_and_send_reminder(db, create_reminder(db, invoice))
+    # Seit 1.8.80 keine Zustellung vor dem Mahndatum -- die Mahnung ist eine Woche alt.
+    frist_ablaufen(db, reminder, tage_her=0)
     _zahlen(db, invoice, "1000", received_on=HEUTE)
     # Heute zugestellt: die Zahlung von heute zählt -- abgelehnt, nichts abgelegt.
     _geblockt(_zustellen, db, reminder, HEUTE, "zustellung-heute-0001", grund="mahnfähig waren am")
@@ -552,12 +560,22 @@ def _entwurf(db):
     return create_reminder(db, _rechnung(db, "0101"))
 
 
+def _eingeschaltet(db):
+    from app.models import GeneralSettings
+    db.get(GeneralSettings, 1).dunning_charges_enabled = True
+    db.commit()
+    return _entwurf(db)
+
+
 SZENARIEN = {
     ("POST", "/api/invoices/{invoice_id}/reminders"): lambda c, db: c.post(f"/api/invoices/{_rechnung(db, '0101').id}/reminders", json={}),
     ("POST", "/api/reminders/bulk"): lambda c, db: c.post("/api/reminders/bulk", json={"invoice_ids": [_rechnung(db, "0101").id]}),
     ("POST", "/api/reminders/{reminder_id}/send"): lambda c, db: c.post(f"/api/reminders/{_entwurf(db).id}/send"),
     ("PUT", "/api/reminders/{reminder_id}"): lambda c, db: c.put(f"/api/reminders/{_entwurf(db).id}", json={
-        "text": "x", "fee_amount": "1", "payment_days": 9}),
+        "text": "x", "payment_days": 9}),
+    # seit 1.8.80: Gebühr und Pauschale im Entwurf (nur eingeschaltet)
+    ("PUT", "/api/reminders/{reminder_id}/charges"): lambda c, db: c.put(f"/api/reminders/{_eingeschaltet(db).id}/charges", json={
+        "fee_amount": "5.00", "fee_accepted": True, "flat_fee_accepted": False}),
     ("DELETE", "/api/reminders/{reminder_id}"): lambda c, db: c.delete(f"/api/reminders/{_entwurf(db).id}"),
 }
 # Schreiben keine Mahnung: Stufen-Einstellungen, E-Mail (protokolliert über app/email_dispatch.py, Nr. 5 prüft vorher).

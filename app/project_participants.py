@@ -170,7 +170,7 @@ class ClientChangeConflict(ValueError):
     """Der neue Kunde des Projekts ist dort schon Beteiligter -- Router: 409."""
 
 
-def check_client_change(db: Session, project: Project, new_customer_id: int) -> None:
+def check_client_change(db: Session, project: Project, new_customer_id: int, *, reason: str | None = None) -> None:
     """Kundenwechsel am Projekt (seit 1.8.41, 1.8.39 Nebenbefund 1): ist der neue Kunde über seinen Adressbuch-Eintrag
     schon Beteiligter, stünde der Auftraggeber doppelt da. Festlegung: ablehnen und nennen, wo er eingetragen ist --
     das Büro entfernt ihn im Reiter "Beteiligte" bewusst (Kopie bei Anzeigen, Vollmacht gingen sonst still verloren).
@@ -180,13 +180,19 @@ def check_client_change(db: Session, project: Project, new_customer_id: int) -> 
     (Invoice.customer_id) und Zahlungen buchen nur auf seine Rechnungen -- kein Wechsel. Geprüft unter der Sperre aller
     Auftragszeilen des Projekts (aufsteigend, dieselbe Sperre wie das Festschreiben einer Rechnung): ein gleichzeitiges
     Festschreiben wartet und liest danach den neuen Kunden, oder der Wechsel wartet und findet die Rechnung. Wirft
-    ClientChangeConflict; der Aufrufer rollt zurück (gibt die Sperre frei)."""
+    ClientChangeConflict; der Aufrufer rollt zurück (gibt die Sperre frei).
+
+    Seit 1.8.80 (Vorgabe Z2b "Vorweg" 1): hängt am Projekt ein Auftrag, wechselt der Kunde nur zusammen mit dem Vertragspartner
+    des Auftrags und mit Begründung (reason; der Aufrufer wechselt danach die Aufträge, app/orders.py::change_orders_customer()).
+    Zuerst die Sperre der Projektzeile: ein gleichzeitiges Beauftragen (app/orders.py::create_order_from_quote()) nimmt sie
+    ebenfalls -- es wartet und hält danach den neuen Kunden, oder der Wechsel wartet und findet den neuen Auftrag."""
     from .acceptances import lock_order
     from .contacts import contact_display_name
     from .models import Customer, Invoice, Order, OrderContract, OrderContractVersion
 
     if new_customer_id == project.customer_id:
         return
+    db.execute(select(Project.id).where(Project.id == project.id).with_for_update())
     for order_id in sorted(db.scalars(select(Order.id).where(Order.project_id == project.id))):
         lock_order(db, order_id)
     invoices = db.execute(
@@ -227,6 +233,14 @@ def check_client_change(db: Session, project: Project, new_customer_id: int) -> 
         raise ClientChangeConflict(
             f"{name} ist in diesem Projekt schon Beteiligter ({roles}) und stünde als Auftraggeber doppelt da. "
             "Bitte zuerst im Reiter „Beteiligte“ entfernen, dann den Kunden wechseln."
+        )
+    orders = db.scalars(select(Order.order_number).where(Order.project_id == project.id).order_by(Order.id)).all()
+    if orders and not (reason or "").strip():
+        listed = orders[0] if len(orders) == 1 else ", ".join(orders[:-1]) + " und " + orders[-1]
+        raise ClientChangeConflict(
+            f"Am Projekt {'hängt der Auftrag' if len(orders) == 1 else 'hängen die Aufträge'} {listed}. Der Kunde wechselt "
+            "nur zusammen mit dem Vertragspartner des Auftrags (Name und Anschrift im Auftrag und in Rechnungsentwürfen) – "
+            "bitte eine Begründung angeben."
         )
 
 

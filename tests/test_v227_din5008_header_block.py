@@ -202,7 +202,8 @@ def test_right_edge_of_meta_value_and_amount_table_line_up_with_right_margin():
     db = db_session()
     pdf_bytes = _build_measurable_reminder_pdf(db)
     right_margin_mm = 210.0 - 16.0
-    for needle in ["R-2026-0001", "5.955,00 EUR"]:
+    # Seit 1.8.80 ohne Mahngebühr (ausgeschaltet): Gesamtbetrag = angemahnter Betrag 5.950,00 (bis 1.8.79: + 5 € = 5.955,00).
+    for needle in ["R-2026-0001", "5.950,00 EUR"]:
         r = _char_x_range_mm(pdf_bytes, needle)
         assert r is not None, f"{needle!r} nicht im PDF gefunden"
         _, right = r
