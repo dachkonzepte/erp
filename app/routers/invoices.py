@@ -6,6 +6,8 @@ ValueError (unzulässiger Zustandsübergang, z.B. Bearbeitung einer bereits
 versendeten Rechnung) in aussagekräftige 400-Antworten -- seit 1.8.72 InvoiceBlocked
 (zweite Schlussrechnung, Abschlag nach der Schlussrechnung, zweites Storno usw.) in 409, seit
 1.8.75 auch beim Bearbeiten eines Entwurfs, der nach der Sperre keiner mehr ist (vorher 400).
+Seit 1.8.78 kein "als bezahlt markieren" mehr (POST /api/invoices/{id}/mark-paid entfällt): Zahlungen bucht
+app/routers/payments.py, der Zahlstand ist abgeleitet.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,8 +21,8 @@ from ..invoice_pdf import build_invoice_pdf
 from ..invoices import (
     InvoiceBlocked, add_invoice_item, create_abschlag_leistungsstand, create_abschlag_pauschal,
     create_invoice_from_time_entries, create_schlussrechnung, create_storno_draft,
-    delete_invoice_draft, finalize_and_send_invoice, get_invoice, invoice_overview_row,
-    invoice_to_dict, list_all_invoices, list_invoices_for_order, mark_invoice_paid,
+    delete_invoice_draft, finalize_and_send_invoice, get_invoice, invoice_overview_rows,
+    invoice_to_dict, list_all_invoices, list_invoices_for_order,
     remove_invoice_item, send_invoice_email, update_invoice_header, update_invoice_item,
     update_invoice_payment_term, update_invoice_tax_key,
 )
@@ -30,7 +32,7 @@ from ..service_reports import list_materials_for_invoicing
 from ..time_tracking import list_entries
 from ..schemas import (
     InvoiceCreateAbschlagPauschal, InvoiceCreateFromOrder, InvoiceEmailSend, InvoiceHeaderUpdate,
-    InvoiceItemCreate, InvoiceItemUpdate, InvoiceListOut, InvoiceMarkPaid, InvoiceOut,
+    InvoiceItemCreate, InvoiceItemUpdate, InvoiceListOut, InvoiceOut,
     InvoiceOverviewOut, InvoicePaymentTermUpdate, TaxKeySelection,
 )
 
@@ -65,7 +67,7 @@ def get_invoices_for_order(order_id: int, db: Session = Depends(get_db), _role: 
 @router.get("/api/invoices", response_model=list[InvoiceOverviewOut])
 def get_all_invoices(status: str | None = None, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     invoices = list_all_invoices(db, status=status)
-    return [invoice_overview_row(inv) for inv in invoices]
+    return invoice_overview_rows(db, list(invoices))
 
 
 @router.get("/api/invoices/{invoice_id}", response_model=InvoiceOut)
@@ -244,16 +246,6 @@ def post_send_invoice_email(invoice_id: int, payload: InvoiceEmailSend, db: Sess
         )
     except DispatchConflict as e:
         raise HTTPException(status_code=409, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    return invoice_to_dict(invoice)
-
-
-@router.post("/api/invoices/{invoice_id}/mark-paid", response_model=InvoiceOut)
-def post_mark_paid(invoice_id: int, payload: InvoiceMarkPaid, db: Session = Depends(get_db), _role: AppUser = _role_dep):
-    invoice = _get_invoice_or_404(db, invoice_id)
-    try:
-        mark_invoice_paid(db, invoice, paid_date=payload.paid_date)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return invoice_to_dict(invoice)

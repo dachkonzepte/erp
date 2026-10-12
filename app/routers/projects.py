@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
 from ..document_categories import resolve_category_id
-from ..invoices import invoice_overview_row, invoice_summary_for_order, list_invoices_for_project
+from ..invoices import invoice_overview_rows, invoice_summary_for_order, list_invoices_for_project
 from ..work_preparation import planned_hours
 from ..models import AppUser, Customer, Order, Project, ProjectDocument, ProjectPipelineColumn, ProjectProfile, Property, Quote
 from ..option_settings import default_option_value
@@ -298,7 +298,7 @@ def list_project_orders(project_id: int, db: Session = Depends(get_db), _role: A
 def list_project_invoices(project_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     if db.get(Project, project_id) is None: raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
     invoices = list_invoices_for_project(db, project_id)
-    return [invoice_overview_row(inv) for inv in invoices]
+    return invoice_overview_rows(db, list(invoices))
 
 
 @router.get("/api/projects/{project_id}/quotes", response_model=list[QuoteListOut])

@@ -31,13 +31,13 @@ from app.invoices import (
     create_schlussrechnung,
     create_storno_draft,
     finalize_and_send_invoice,
-    mark_invoice_paid,
     update_invoice_item,
 )
 from app.models import Invoice, Reminder
 from app.reminders import create_reminder, finalize_and_send_reminder
 from tests.befund_vor_echtbetrieb import befund, vorbedingung
 from tests.test_v133_invoices import db_session, make_order_with_item
+from tests.zahlung import voll_bezahlen  # seit 1.8.78 statt mark_invoice_paid()
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
 from tests.leistungszeitraum import ZEITRAUM, festschreiben
 
@@ -94,7 +94,7 @@ def test_today_progress_invoices_are_deducted_net_by_quantity_after_invoicing_no
     assert compute_invoice_totals(abschlag) == {"net_total": Decimal("2000.00"), "vat_total": Decimal("380.00"),
                                                 "gross_total": Decimal("2380.00")}
     if bezahlt:
-        mark_invoice_paid(db, abschlag, paid_date=date(2026, 9, 30))
+        voll_bezahlen(db, abschlag, received_on=date(2026, 9, 30))
     _leistungsstand(db, order, "90")  # Entwurf, zählt nicht
     schluss = create_schlussrechnung(db, order)
     [item] = schluss.items
@@ -124,7 +124,7 @@ def test_final_invoice_after_lump_sum_progress_invoice_bills_the_order_once(beza
     order, _ = make_order_with_item(db)
     pauschal = _final(db, create_abschlag_pauschal(db, order, lump_sum_net=Decimal("2000")))
     if bezahlt:
-        mark_invoice_paid(db, pauschal, paid_date=date(2026, 9, 30))
+        voll_bezahlen(db, pauschal, received_on=date(2026, 9, 30))
     _schluss_festschreiben(db, order)
     assert _gueltige_schlussrechnungen(db, order) == 1
     assert _abgerechnet(db, order) == (AUFTRAG_NETTO, AUFTRAG_BRUTTO)
@@ -305,8 +305,11 @@ def test_reminder_draft_cannot_be_sent_after_the_invoice_was_cancelled_or_paid(d
     if danach == "storniert":
         _final(db, create_storno_draft(db, invoice))
     else:
-        mark_invoice_paid(db, invoice, paid_date=date.today() - timedelta(days=1))
-    vorbedingung(db.get(Invoice, invoice.id).status == danach)
+        voll_bezahlen(db, invoice, received_on=date.today() - timedelta(days=1))
+    # Seit 1.8.78 ist "bezahlt" abgeleitet (der Status bleibt "versendet").
+    from app.payments import payment_state
+    vorbedingung(db.get(Invoice, invoice.id).status == "storniert" if danach == "storniert"
+                 else payment_state(db, db.get(Invoice, invoice.id)).state == "bezahlt")
     _versuch(finalize_and_send_reminder, db, mahnung)
     db.expire_all()
     assert (db.get(Reminder, mahnung.id).status, db.get(Reminder, mahnung.id).reminder_number) == ("entwurf", None)

@@ -4,6 +4,30 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.78 – Zahlungseingänge (Zahlungsstufe Z1)
+
+„Bezahlt“ ist kein Knopf und kein Status mehr, sondern folgt aus gebuchten Zahlungen. Ein Zahlungseingang (Kunde, Eingangsdatum,
+Betrag, Notiz) wird an der Rechnung gebucht und auf eine oder mehrere festgeschriebene Rechnungen desselben Kunden verteilt; Skonto
+und Einbehalt werden je Rechnung mit ihm gebucht, ein nicht zugeordneter Rest bleibt in der Kundenakte sichtbar und lässt sich dort
+später zuordnen. Der Vorschlag nimmt zuerst die älteren offenen Rechnungen desselben Auftrags, Skonto nur in der Frist und bei genau
+passendem Betrag, einen Einbehalt nie; weitere Rechnungen kommen nur von Hand dazu, gebucht wird, was das Büro bestätigt. Je
+Rechnung ergeben sich offen (Brutto − Zahlungen − Skonto), mahnfähig (offen − Einbehalt) und der Zustand offen, teilweise bezahlt,
+Einbehalt offen oder bezahlt. Gebuchtes ist unveränderlich; korrigiert wird nur durch eine Gegenbuchung mit Begründung, eine
+Zuordnung einzeln oder die ganze Zahlung. Buchen und Gegenbuchen laufen unter der Sperre der betroffenen Auftragszeilen in fester
+Reihenfolge, danach unter der Sperre der Zahlung.
+
+Eine Rechnung mit zugeordneten Zahlungen lässt sich erst nach den Gegenbuchungen stornieren, die Zahlung bleibt dann als Rest am
+Kunden; eine Stornorechnung ist nie offen und nicht bebuchbar. Finanzen und Dashboard rechnen mit dem offenen Betrag, „überfällig“
+gilt nur mit mahnfähigem Betrag, Auftragsseite und Projektmappe zeigen den Zahlstand. Im Mahnwesen nur, was der Zahlstand verlangt:
+gemahnt wird der mahnfähige Betrag, ohne ihn entsteht keine Mahnung, und ein Entwurf mit inzwischen veraltetem Betrag wird nicht
+festgeschrieben. Die Migration `c7d41e9a2b63` legt für jede bisher bezahlte Rechnung eine übernommene Zahlung über das Brutto zum
+bezahlt-Datum an; ihr Rückweg stellt „bezahlt“ wieder her und verweigert, sobald etwas erfasst ist.
+
+Neu `test_v381_zahlungen` (30), `test_v381_zahlungen_pg` (12, davon 5 gegen PostgreSQL) und `test_v381_zahlungen_migration` (3,
+davon 1 gegen PostgreSQL); Tests, die `mark_invoice_paid()` nutzten, buchen jetzt eine Zahlung (`tests/zahlung.py`). Gegenproben
+14 von 14 rot. Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3481 grün, 0 rot, 7 erwartet fehlgeschlagen. Alle Klicktests: 47 von 47
+wie erwartet in 9:54 min. Festlegungen zum Bestätigen und Nebenbefunde in `docs/archiv/zahlungen.md`.
+
 ## 1.8.77 – Jede Nummer eindeutig in der Datenbank, Klicktests vor jedem Bericht, Befund Zahlungsstufe
 
 Jede vergebene Nummer ist jetzt in allen sieben Nummernkreisen auch in der Datenbank eindeutig. Kunde, Anfrage, Projekt, Angebot und

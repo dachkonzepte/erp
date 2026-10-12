@@ -14,7 +14,6 @@ from app.invoices import (
     create_storno_draft,
     finalize_and_send_invoice,
     is_invoice_editable,
-    mark_invoice_paid,
     remove_invoice_item,
     update_invoice_item,
     visible_items,
@@ -22,6 +21,7 @@ from app.invoices import (
 from app.models import Order, OrderItem, Customer, Project
 from app.project_pipeline_columns import default_pipeline_column_id
 from tests.leistungszeitraum import festschreiben
+from tests.zahlung import voll_bezahlen
 
 
 def db_session():
@@ -229,19 +229,24 @@ def test_invoice_numbers_sind_fortlaufend_ueber_mehrere_rechnungen():
     assert inv1.invoice_number != inv2.invoice_number
 
 
-def test_mark_paid_nur_ab_versendet():
+def test_bezahlt_nur_ab_versendet():
+    """Seit 1.8.78 (Zahlungsstufe Z1): "bezahlt" ist abgeleitet -- ein Entwurf ist nicht bebuchbar, nach dem Festschreiben
+    macht eine Zahlung über das Brutto die Rechnung bezahlt (am Eingangsdatum); der Status bleibt "versendet". Bis 1.8.77
+    prüfte dieser Test mark_invoice_paid() (test_mark_paid_nur_ab_versendet)."""
+    from app.payments import PaymentRejected, payment_state
     db = db_session()
     order, _ = make_order_with_item(db)
     invoice = create_abschlag_pauschal(db, order, lump_sum_net=Decimal("1000"), progress_description=None)
     try:
-        mark_invoice_paid(db, invoice)
-        assert False, "hätte ValueError auslösen müssen (noch Entwurf)"
-    except ValueError:
+        voll_bezahlen(db, invoice)
+        assert False, "hätte PaymentRejected auslösen müssen (noch Entwurf)"
+    except PaymentRejected:
         pass
     festschreiben(db, invoice)
-    mark_invoice_paid(db, invoice, paid_date=date(2026, 10, 1))
-    assert invoice.status == "bezahlt"
-    assert invoice.paid_date == date(2026, 10, 1)
+    voll_bezahlen(db, invoice, received_on=date(2026, 10, 1))
+    assert invoice.status == "versendet"
+    state = payment_state(db, invoice)
+    assert (state.state, state.paid_on, state.open) == ("bezahlt", date(2026, 10, 1), Decimal("0.00"))
 
 
 # ---------------------------------------------------------------------------
@@ -339,7 +344,7 @@ def test_stornierte_rechnung_zaehlt_nicht_mehr_als_vorheriger_stand():
     assert item2.ist_quantity == Decimal("0")  # inv1 zählt nicht mehr, zurück auf 0
 
 
-def test_storno_nur_fuer_versendete_oder_bezahlte_rechnungen():
+def test_storno_nur_fuer_festgeschriebene_rechnungen():
     db = db_session()
     order, _ = make_order_with_item(db)
     invoice = create_abschlag_pauschal(db, order, lump_sum_net=Decimal("100"), progress_description=None)

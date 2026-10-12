@@ -41,7 +41,6 @@ from app.invoices import (
     finalize_and_send_invoice,
     format_payment_terms_sentence,
     invoice_to_dict,
-    mark_invoice_paid,
     remove_invoice_item,
     send_hint,
     update_invoice_header,
@@ -158,7 +157,8 @@ def test_send_hint_only_for_a_finalized_invoice_on_a_later_day(uhr):
         "Skontofrist (bis 22.07.2026) rechnen ab dem Rechnungsdatum, nicht ab dem Versand.")
     assert send_hint(invoice, date(2026, 7, 25)).endswith("Die Skontofrist ist schon abgelaufen.")
     assert send_hint(invoice, date(2026, 8, 1)).endswith("Die Fälligkeit ist schon überschritten.")
-    mark_invoice_paid(db, invoice)
+    from tests.zahlung import voll_bezahlen  # seit 1.8.78 statt mark_invoice_paid()
+    voll_bezahlen(db, invoice)
     assert invoice_to_dict(invoice)["send_hint"] is None
 
 
@@ -373,7 +373,7 @@ def test_every_public_writer_in_invoices_locks_before_it_writes():
     # Die Suche läuft nicht ins Leere: diese schreiben bekanntlich (Stand 1.8.75).
     assert writers >= {
         "create_abschlag_pauschal", "create_abschlag_leistungsstand", "create_schlussrechnung", "create_invoice_from_time_entries",
-        "add_invoice_item", "update_invoice_item", "remove_invoice_item", "finalize_and_send_invoice", "mark_invoice_paid",
+        "add_invoice_item", "update_invoice_item", "remove_invoice_item", "finalize_and_send_invoice",
         "delete_invoice_draft", "create_storno_draft", "update_invoice_header", "update_invoice_payment_term",
         "update_invoice_tax_key", "send_invoice_email",
     }, writers
@@ -565,7 +565,6 @@ SZENARIEN = {
     ("POST", "/api/invoices/{invoice_id}/send"): _sz_entwurf(lambda c, i, db: c.post(f"/api/invoices/{i}/send")),
     ("POST", "/api/invoices/{invoice_id}/send-email"): _sz_fest(lambda c, i, db: c.post(
         f"/api/invoices/{i}/send-email", json={"dispatch_key": "rundgang-rechnung-1"})),
-    ("POST", "/api/invoices/{invoice_id}/mark-paid"): _sz_fest(lambda c, i, db: c.post(f"/api/invoices/{i}/mark-paid", json={})),
     ("POST", "/api/invoices/{invoice_id}/storno"): _sz_fest(lambda c, i, db: c.post(f"/api/invoices/{i}/storno")),
     ("DELETE", "/api/invoices/{invoice_id}"): _sz_entwurf(lambda c, i, db: c.delete(f"/api/invoices/{i}")),
 }

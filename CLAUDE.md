@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.77** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.78** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -677,7 +677,20 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   dahin das Datum seines Anlegens), und jeder schreibende Weg an einer Rechnung läuft unter der Sperre der Auftragszeile
   (`_lock_draft()` vor jeder Änderung am Entwurf: nur, was danach noch Entwurf ist, sonst 409) --
   `tests/test_v378_rechnung_sperre_und_datum.py` prüft das per AST und Rundgang mit Beobachter; neue Schreibwege nur in
-  `app/invoices.py`, mit Sperre vor dem ersten Schreiben.
+  `app/invoices.py`, mit Sperre vor dem ersten Schreiben. Seit 1.8.78 kein Status "bezahlt" mehr (nur `entwurf`/`versendet`/
+  `storniert`, `paid_date` wird nicht mehr geschrieben): der Zahlstand ist abgeleitet, siehe "Zahlung".
+- **Zahlung** (`Payment`, seit 1.8.78, Zahlungsstufe Z1, `app/payments.py`): Zahlungseingang eines Kunden (Eingangsdatum, Betrag,
+  Notiz), zugeordnet über `PaymentAllocation` (Art `zahlung`, Abzüge `skonto`/`einbehalt`) auf festgeschriebene Rechnungen desselben
+  Kunden (Kunde ihres Projekts); der Rest bleibt am Kunden (Kundenakte). Je Rechnung abgeleitet, nie gespeichert (`payment_state()`):
+  offen = Brutto auf den Cent − Zahlungen − Skonto, mahnfähig = offen − Einbehalt (der Einbehalt deckt höchstens den offenen Betrag),
+  Zustand offen / teilweise bezahlt / Einbehalt offen / bezahlt; Entwurf, Storno(rechnung) und Rechnung über 0 € oder weniger haben
+  keinen. Vorschlag (`proposal()`) zuerst auf ältere offene Rechnungen desselben Auftrags, Skonto nur in der Frist und bei passendem
+  Betrag, Einbehalt nie; gebucht wird nur Bestätigtes (`book_payment()`, `allocate_rest()`), ohne Überbuchung von Rechnung oder
+  Zahlung. Unveränderlich (ORM-Sperre); Korrektur nur als Gegenbuchung mit Begründung (`reverse_allocation()`, `reverse_payment()`).
+  Sperren in fester Reihenfolge: Auftragszeilen aufsteigend, dann Zahlung (`lock_for_booking()`). Storno erst nach gelösten
+  Zuordnungen (`storno_block_reason()`). Mahnwesen bis Z2 nur: mahnfähiger Betrag, ohne ihn keine Mahnung, Entwurf mit veraltetem
+  Betrag 409. Migration `c7d41e9a2b63` übernahm "bezahlt" als Zahlung (Herkunft `uebernommen`). Details:
+  `docs/archiv/zahlungen.md`.
 - `Reminder`: hängt an überfälligen Rechnungen, hat Stufen (1./2./3. Mahnung), jede Stufe mit
   eigenen Fristen/Gebühren/Textvorlagen (`ReminderLevel`). `Reminder.text` ist beim Anlegen
   (`create_reminder()`) eine reine Kopie von `ReminderLevel.text_template` mit noch
@@ -961,6 +974,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Nummer, Überspringen mit Warnung, Format ohne Jahr nicht mit Jahreswechsel; seit 1.8.77 jede Nummer eindeutig in der Datenbank
   (alle sieben Nummernkreise), Befund Zahlungsstufe, Entscheidungen zu Einbehalt und Rechnung aus Aufwand; 1a, 1b und 1d für R4)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
+- **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
+  Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
+  offenem Betrag, Migration "bezahlt"; Mahnwesen folgt in Z2) -- `docs/archiv/zahlungen.md`
 - **Grunddaten beim Start** (Einstellungen und Standardsätze in `app/grunddaten.py`, Liste der umgestellten
   Lesepfade, kein GET schreibt, Sperre gegen zwei gleichzeitige Starts, SAVEPOINT unter SQLite) --
   `docs/archiv/grunddaten-beim-start.md`
@@ -1396,7 +1412,10 @@ frei) und `klicktest_leistungszeitraum.py` (1.8.74, Rechnungsseite: Vorschlag mi
 eingetragen, "Übernehmen", Ende vor Beginn, Finalisieren; geplanter Zeitraum; Nummernkreis: Meldung mit der höchsten vergebenen,
 nichts gespeichert; seit 1.8.76 Format ohne Jahr mit Jahreswechsel abgelehnt) und `klicktest_rechnungsdatum.py` (1.8.75, Entwurf von vor drei Wochen mit "Finalisiert heute", Finalisieren ->
 Datum und Fälligkeit ab heute; Versandhinweis bei einer früher finalisierten Rechnung; veraltete Seite nach Finalisieren in anderer
-Sitzung -> 409 mit Nummer). Ein
+Sitzung -> 409 mit Nummer) und `klicktest_zahlungen.py` (1.8.78, Karte "Zahlungen" und Dialog "Zahlungseingang buchen": Vorschlag
+zuerst auf den älteren Abschlag, Skonto bei passendem Betrag, Einbehalt von Hand -> "Einbehalt offen", Überbuchung gesperrt,
+Gegenbuchen mit Begründung -> Storno frei; Kundenakte: Rest zuordnen, Zahlung zurücknehmen; Finanzen mit offenem Betrag; API fremder
+Kunde 409; 412 px dunkel). Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)

@@ -13,6 +13,7 @@
     .roof-table-wrap{overflow-x:auto}.roof-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}.roof-table th,.roof-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}.roof-table th{color:var(--muted);font-size:10.5px;text-transform:uppercase;font-weight:650}.roof-table a{color:var(--accent);font-weight:650;text-decoration:none}
     .upload{border:2px dashed var(--field-border);padding:16px;background:var(--card);margin-bottom:14px}.upload.drag{border-color:var(--accent);background:var(--soft)}.upload-grid{display:grid;grid-template-columns:150px 150px 140px minmax(160px,1fr) auto;gap:9px;align-items:end}.file-picker{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}.file-picker input{max-width:420px}.category-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-bottom:14px}.cat{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:10px;text-align:left;cursor:pointer}.cat.active{background:var(--soft);border-color:var(--accent)}.cat b{display:block}.documents{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}.doc{border:1px solid var(--line);overflow:hidden;background:var(--card);min-width:0}.thumb{height:120px;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:34px;color:var(--muted);overflow:hidden}.thumb img{width:100%;height:100%;object-fit:cover}.doc-body{padding:11px}.doc-name{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.doc-meta{font-size:11px;color:var(--muted);margin:5px 0 9px}.doc-description{font-size:12px;margin:0 0 9px;white-space:pre-wrap}.doc-actions{display:flex;gap:6px;flex-wrap:wrap}.doc-actions a,.doc-actions button{font-size:11px;padding:6px 8px;border:0;text-decoration:none;cursor:pointer;font-weight:750}.doc-actions a,.doc-actions .edit{background:var(--soft);color:var(--accent)}.search-row{display:flex;gap:9px;align-items:center;margin-bottom:12px}
     @media(max-width:900px){.grid,.fields,.summary{grid-template-columns:1fr}.extra-row{grid-template-columns:1fr}.quote{grid-template-columns:1fr}.number{text-align:left}main{padding:12px}.upload-grid,.documents,.category-cards{grid-template-columns:1fr}}
+    .pay-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}.pay-actions>span,.pay-actions span[id]{display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center}.pay-actions input,.pay-actions select{border:1px solid var(--field-border);padding:7px 9px;background:var(--card);color:var(--ink);font:inherit;font-size:13px}.pay-actions input{min-width:110px}.pay-reversed{text-decoration:line-through;color:var(--muted)}[data-zahlung] a{color:var(--accent);font-weight:650;text-decoration:none}
   </style>
 </head>
 <body>
@@ -117,6 +118,12 @@
     <div id="projects"></div>
     <div id="projectsEmpty" class="muted small">Noch keine Projekte vorhanden.</div>
   </section>
+
+  <section class="card" id="zahlungen" style="display:none">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Zahlungen</h2><div class="muted small">Zahlungseingänge dieses Kunden. Gebucht wird an der Rechnung; ein nicht zugeordneter Rest bleibt hier stehen und lässt sich einer offenen Rechnung zuordnen.</div></div><span class="badge" id="paymentRestBadge"></span></div>
+    <div id="customerPayments"></div>
+    <div id="customerPaymentsStatus" class="muted small" style="margin-top:8px"></div>
+  </section>
 </main>
 </div>
 </div>
@@ -146,6 +153,7 @@ async function load(){
   roofAreas.clear();
   await Promise.all(properties.map(async p=>{roofAreas.set(p.id,await api(`/api/roof-areas?property_id=${p.id}`).catch(()=>[]))}));
   render();
+  loadPayments();
 }
 function render(){
   document.getElementById('pageTitle').textContent=customer.name;document.getElementById('pageSub').textContent=[customer.customer_number,customer.category,customer.contact_person,customer.city].filter(Boolean).join(' · ');document.getElementById('customerIdBadge').textContent=customer.customer_number;
@@ -288,6 +296,44 @@ const docZone=document.getElementById('docUploadZone');
 ['dragleave','drop'].forEach(e=>docZone.addEventListener(e,x=>{x.preventDefault();docZone.classList.remove('drag')}));
 docZone.addEventListener('drop',e=>{document.getElementById('docFiles').files=e.dataTransfer.files;showSelectedDocs()});
 
+// Seit 1.8.78: Zahlungen des Kunden (app/payments.py) -- Rest zuordnen und Zahlung zurücknehmen, beides ohne Popup (Regel 4).
+let customerPaymentsData=null,customerOpenInvoices=[];
+const fmt=x=>Number(x||0).toFixed(2).replace('.',',');
+function num(s){let t=String(s??'').trim();if(!t)return 0;if(t.includes(','))t=t.replace(/\./g,'').replace(',','.');return Number(t)}
+const dt=d=>new Date(d+'T00:00:00').toLocaleDateString('de-DE');
+async function loadPayments(){
+  try{[customerPaymentsData,customerOpenInvoices]=await Promise.all([api(`/api/customers/${customerId}/payments`),api(`/api/customers/${customerId}/open-invoices`)])}catch(e){return}  // Rolle ohne Zahlungen: Karte bleibt verborgen
+  renderPayments();
+}
+function renderPayments(){
+  const d=customerPaymentsData,card=document.getElementById('zahlungen');card.style.display='block';
+  document.getElementById('paymentRestBadge').textContent=Number(d.rest)?`Nicht zugeordnet: ${money(d.rest)}`:'Nichts offen zuzuordnen';
+  document.getElementById('customerPayments').innerHTML=d.payments.length?d.payments.map(paymentCardHtml).join(''):'<div class="muted small">Noch keine Zahlung gebucht.</div>';
+  if(location.hash==='#zahlungen')card.scrollIntoView();
+}
+function paymentCardHtml(p){
+  const allocs=p.allocations.map(a=>`<div class="small ${a.reversed?'pay-reversed':''}">${esc(a.kind_label)} ${money(a.amount)} an <a href="/invoices/${a.invoice_id}">${esc(a.invoice_number||'Rechnung')}</a>${a.reversed?` – gegengebucht: ${esc(a.reversal.reason)}`:''}</div>`).join('')||'<div class="small muted">Noch nichts zugeordnet.</div>';
+  const head=`<b class="${p.reversed?'pay-reversed':''}">${dt(p.received_on)} · ${money(p.amount)}</b>${p.note?' · '+esc(p.note):''}${p.origin==='uebernommen'?' <span class="badge">übernommen aus „bezahlt“</span>':''}`;
+  const sub=`<div class="muted small">Zahlung Nr. ${p.id} · erfasst von ${esc(p.created_by_name)}${p.reversed?` · <b>zurückgenommen</b> von ${esc(p.reversal.created_by_name)}: ${esc(p.reversal.reason)}`:` · nicht zugeordnet: <b data-rest>${money(p.rest)}</b>`}</div>`;
+  let actions='';
+  if(!p.reversed){
+    const opts=customerOpenInvoices.map(o=>`<option value="${o.invoice_id}">${esc(o.invoice_number)} · offen ${money(o.payment.open)}</option>`).join('');
+    actions='<div class="pay-actions">'+(Number(p.rest)>0&&opts?`<span><select id="restInvoice-${p.id}" onchange="restInvoiceChanged(${p.id})"><option value="">Rest zuordnen auf …</option>${opts}</select><input id="restAmount-${p.id}" inputmode="decimal" placeholder="Betrag" value="${fmt(p.rest)}"><button class="secondary" onclick="allocateRest(${p.id})">Zuordnen</button></span>`:'')+`<span><button class="secondary" onclick="showPaymentReverse(${p.id})">Zahlung zurücknehmen</button><span id="payRev-${p.id}" style="display:none"><input id="payRevReason-${p.id}" placeholder="Begründung (Pflicht)"><button class="danger" onclick="reversePayment(${p.id})">Zurücknahme bestätigen</button></span></span></div>`;
+  }
+  return `<div class="project-card" data-zahlung="${p.id}">${head}${sub}<div style="margin-top:6px">${allocs}</div>${actions}</div>`;
+}
+function restInvoiceChanged(pid){const p=customerPaymentsData.payments.find(x=>x.id===pid),o=customerOpenInvoices.find(x=>String(x.invoice_id)===document.getElementById('restInvoice-'+pid).value);if(p&&o)document.getElementById('restAmount-'+pid).value=fmt(Math.min(Number(p.rest),Number(o.payment.open)))}
+function showPaymentReverse(pid){document.getElementById('payRev-'+pid).style.display='inline-flex';document.getElementById('payRevReason-'+pid).focus()}
+async function allocateRest(pid){
+  const st=document.getElementById('customerPaymentsStatus'),invoiceId=Number(document.getElementById('restInvoice-'+pid).value),amount=num(document.getElementById('restAmount-'+pid).value);
+  if(!invoiceId){st.textContent='Bitte eine Rechnung wählen.';return}if(!(amount>0)){st.textContent='Bitte einen Betrag angeben.';return}
+  try{await api(`/api/payments/${pid}/allocations`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lines:[{invoice_id:invoiceId,zahlung:amount.toFixed(2)}]})});await loadPayments();document.getElementById('customerPaymentsStatus').textContent='Zugeordnet.'}catch(e){st.textContent='Fehler: '+e.message}
+}
+async function reversePayment(pid){
+  const st=document.getElementById('customerPaymentsStatus'),reason=document.getElementById('payRevReason-'+pid).value.trim();
+  if(!reason){st.textContent='Bitte eine Begründung angeben.';return}
+  try{await api(`/api/payments/${pid}/reverse`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});await loadPayments();document.getElementById('customerPaymentsStatus').textContent='Zahlung zurückgenommen.'}catch(e){st.textContent='Fehler: '+e.message}
+}
 load().catch(e=>{document.getElementById('pageTitle').textContent='Kundenakte konnte nicht geladen werden';document.getElementById('pageSub').textContent=e.message});
 </script>
 </body>

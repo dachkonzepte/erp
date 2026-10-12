@@ -14,7 +14,7 @@ from .models import (
     EmployeeFunction, GeneralSettings, CalculationSettings, LaborRateSettings, LaborRateOverheadSettings,
     NumberSequence, SettingOptionGroup, SettingOption, AppUser, ServiceCalculation, MaterialCalculationOverride,
     Checklist, ChecklistAttachment, ChecklistAssetRelease, OperationalAsset, Contact, ProjectParticipant,
-    OrderAcceptance, Defect, DefectEvent,
+    OrderAcceptance, Defect, DefectEvent, Invoice, Payment, PaymentAllocation,
 )
 
 _actor_id = contextvars.ContextVar("audit_actor_id", default=None)
@@ -39,6 +39,7 @@ TYPE_LABELS = {
     Checklist: "Checkliste", ChecklistAssetRelease: "Gerät als repariert markiert",
     Contact: "Kontakt (Adressbuch)", ProjectParticipant: "Projektbeteiligter",
     OrderAcceptance: "Abnahme", Defect: "Mangel", DefectEvent: "Mangel",
+    Payment: "Zahlungseingang", PaymentAllocation: "Zahlungseingang",
 }
 
 EXTENSION_TYPES = (CustomerProfile, ProjectProfile, EmployeeProfile, EmployeeRoleSettings, EmployeeCompensationSettings, EmployeeCostAllocationSettings, QuoteDocumentMeta, QuoteItemLayout, QuoteEmployeeAssignment)
@@ -62,6 +63,9 @@ AUDITED_TYPES = (
     # Mangel (seit 1.8.49): Anlegen mit dem ganzen Inhalt und jeder Eintrag im Verlauf (Haltung, Status, Freigabe,
     # Fotos) unter der Kennung des Mangels; das Verwerfen schreibt seine Zeile selbst (app/defects.py::discard_defect()).
     Defect, DefectEvent,
+    # Zahlungseingang (seit 1.8.78): jede Zahlung, Zuordnung, jeder Abzug und jede Gegenbuchung unter der Kennung der Zahlung;
+    # Zuordnungen erscheinen auch in der Historie der Projektmappe. Geändert oder gelöscht wird nichts (ORM-Sperre).
+    Payment, PaymentAllocation,
 )
 
 FIELD_LABELS = {
@@ -264,6 +268,27 @@ def _normalize(session, obj):
         if isinstance(obj, DefectEvent):
             label = f"{label} · {EVENT_KINDS.get(obj.kind, obj.kind)}"[:255]
         return ENTITY_TYPE, str(defect.id if defect else obj.defect_id), label, o.project_id if o else None
+    if isinstance(obj, (Payment, PaymentAllocation)):
+        from .payments import KIND_LABELS, money  # lokal: nur hier gebraucht
+        # Die Gegenbuchung einer Zahlung steht unter der Kennung der Zahlung, die sie zurücknimmt.
+        if isinstance(obj, Payment):
+            payment = session.get(Payment, obj.reverses_payment_id) if obj.reverses_payment_id is not None else obj
+        else:
+            payment = session.get(Payment, obj.payment_id)
+        customer = session.get(Customer, payment.customer_id) if payment else None
+        label = (f"Zahlung {money(abs(payment.amount))} vom {payment.received_on.strftime('%d.%m.%Y')}"
+                 f"{' · ' + customer.name if customer else ''}") if payment else f"Zahlung Nr. {obj.payment_id}"
+        if isinstance(obj, Payment) and obj.reverses_payment_id is not None:
+            label = f"{label} · zurückgenommen"
+        project_id = None
+        if isinstance(obj, PaymentAllocation):
+            invoice = session.get(Invoice, obj.invoice_id)
+            order = session.get(Order, invoice.order_id) if invoice else None
+            project_id = order.project_id if order else None
+            what = "Gegenbuchung " if obj.reverses_allocation_id is not None else ""
+            label = (f"{label} · {what}{KIND_LABELS.get(obj.kind, obj.kind)} {money(abs(obj.amount))} an "
+                     f"{invoice.invoice_number if invoice else 'Rechnung'}")
+        return "Zahlungseingang", str(payment.id if payment else obj.payment_id), label[:255], project_id
     if isinstance(obj, OrderRevision):
         o = session.get(Order, obj.order_id); return "Auftragsrevision", str(obj.id), f"Revision {obj.revision_number} · {_entity_label(o) or ''}".strip(), o.project_id if o else None
     if isinstance(obj, OrderSection):

@@ -106,6 +106,8 @@ FESTE_WERTE = {
     "contract_basis_clauses.basis_key": [_GRUNDLAGEN],
     "contract_templates.basis_key": [_GRUNDLAGEN],
     "defect_events.kind": [("app.defects", "mod.EVENT_KINDS")],
+    "payment_allocations.kind": [("app.payments", "mod.KINDS")],  # seit 1.8.78
+    "payments.origin": [("app.payments", "mod.ORIGINS")],
     "defect_events.value": [_MANGELWERTE],
     "defect_events.previous_value": [_MANGELWERTE],
     "defect_events.declared_by": [("app.acceptances", "mod.DECLARERS")],
@@ -203,7 +205,8 @@ FESTE_LITERALE = {
     "imported_addresses.classification": ("customer", "supplier", "unassigned", "duplicate"),
     "imported_addresses.resolution": ("created_as_customer", "assigned_as_property", "discarded"),
     "invoice_items.unit": ("pschl.", "Std."),  # invoices.py; sonst Einheit aus Auftragsposition/Material
-    "invoices.status": ("entwurf", "versendet", "bezahlt", "storniert"),  # invoices.py
+    # invoices.py; "bezahlt" bis 1.8.77 (schreibt seit 1.8.78 nur noch der Rückweg der Migration c7d41e9a2b63)
+    "invoices.status": ("entwurf", "versendet", "bezahlt", "storniert"),
     "invoices.rounding_rule": ("half_up",),
     "labor_rate_overhead_settings.fixed_overhead_mode": ("eur", "pct"),
     "labor_rate_overhead_settings.variable_overhead_mode": ("eur", "pct"),

@@ -133,6 +133,10 @@ GEPRUEFT = {
     # --- Rechnung (Befund 2i) und Zeitbuchung ---
     "POST /api/invoices/{invoice_id}/items source_order_item_id":
         ("invoices.add_invoice_item", "source is None or source.order_id != invoice.order_id"),
+    # --- Zahlung (seit 1.8.78): nur Rechnungen desselben Kunden wie die Zahlung (409, Angriffstest in test_v381_zahlungen.py) ---
+    "POST /api/payments lines.invoice_id": ("payments._apply", "invoice_customer_id(invoice) != payment.customer_id"),
+    "POST /api/payments/{payment_id}/allocations lines.invoice_id":
+        ("payments._apply", "invoice_customer_id(invoice) != payment.customer_id"),
     **{f"{route} order_item_id": ("time_tracking.validate_order_item", "item is None or item.order_id != order_id") for route in (
         "POST /api/time-entries", "POST /api/time-entries/start", "PUT /api/time-entries/{entry_id}",
         "POST /api/time-entry-groups", "POST /api/time-entry-groups/start", "PUT /api/time-entry-groups/{group_id}")},
@@ -237,6 +241,8 @@ _AUFTRAG_FEHLT = 'if order is None: raise ValueError("Auftrag wurde nicht gefund
 
 # {"METHODE /pfad feld": (Grund, Funktion mit der Existenzprüfung, Vergleich)} -- geprüft wie GEPRUEFT.
 FREI = {
+    "POST /api/payments customer_id": (_BESITZER + " (Kunde der Zahlung; zugeordnet wird nur auf seine Rechnungen)",
+                                       "payments.book_payment", "if db.get(Customer, customer_id) is None"),
     "POST /api/projects customer_id": (_BESITZER, "routers.projects.create_project",
                                        "customer = db.get(Customer, payload.customer_id) if customer is None"),
     "PUT /api/projects/{project_id} customer_id": (

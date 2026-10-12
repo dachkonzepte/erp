@@ -1658,12 +1658,17 @@ class Invoice(Base):
     invoice_number: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
     invoice_type: Mapped[str] = mapped_column(String(30), index=True)  # 'abschlag_pauschal' | 'abschlag_leistungsstand' | 'schluss' | 'aufwand' | 'storno'
-    status: Mapped[str] = mapped_column(String(20), default="entwurf", index=True)  # 'entwurf' | 'versendet' | 'bezahlt' | 'storniert'
+    # 'entwurf' | 'versendet' (festgeschrieben) | 'storniert'. Bis 1.8.77 auch 'bezahlt' -- seit 1.8.78 ist der Zahlstand
+    # abgeleitet (offen, teilweise bezahlt, Einbehalt offen, bezahlt; app/payments.py), die Migration c7d41e9a2b63 setzte
+    # jede bezahlte Rechnung auf 'versendet' mit einer übernommenen Zahlung.
+    status: Mapped[str] = mapped_column(String(20), default="entwurf", index=True)
     # Rechnungsdatum (seit 1.8.75): im Entwurf der Tag des Anlegens, beim Festschreiben der Tag des Festschreibens in
     # Berliner Zeit (app/invoices.py::finalize_dates(), Befund 4a-4c); vorher blieb es der Tag des Entwurfs aus der Uhr
     # des Rechners (Server: UTC).
     invoice_date: Mapped[date] = mapped_column(Date, default=berlin_today)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Bis 1.8.77 der Tag von "bezahlt"; seit 1.8.78 nicht mehr geschrieben -- Nachweis der übernommenen Zahlung
+    # (Payment.origin "uebernommen") und Rückweg der Migration c7d41e9a2b63.
     paid_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Leistungszeitraum (seit 1.8.74, Regel: jede Rechnung hat einen): Pflicht beim Festschreiben, Ende >= Beginn
     # (app/invoices.py::finalize_block_reason()); der Vorschlag (app/service_period.py) wird nie still eingetragen. Ein
@@ -1870,6 +1875,58 @@ class Reminder(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     invoice: Mapped[Invoice] = relationship(back_populates="reminders")
+
+
+class Payment(Base):
+    """Zahlungseingang eines Kunden (seit 1.8.78, Zahlungsstufe Z1, docs/archiv/zahlungen.md): Eingangsdatum, Betrag, Notiz.
+    Zugeordnet wird er in PaymentAllocation auf eine oder mehrere festgeschriebene Rechnungen desselben Kunden; was nicht
+    zugeordnet ist, bleibt als Rest am Kunden (app/payments.py::customer_payments()) und lässt sich später zuordnen.
+
+    Unveränderlich und nie gelöscht (ORM-Sperre am Ende der Datei). Korrektur nur als Gegenbuchung: eine zweite Zeile mit
+    reverses_payment_id auf diese, dem Betrag mit umgekehrtem Vorzeichen und einer Begründung (reason) -- höchstens eine je
+    Zahlung (UNIQUE). origin "uebernommen": aus dem Status "bezahlt" bis 1.8.77 übernommen (Migration c7d41e9a2b63), Betrag =
+    Brutto, Eingangsdatum = das damalige bezahlt-Datum. created_by_user_id ohne Fremdschlüssel wie bei der Abnahme (Benutzer
+    löschen, Befund 1.8.13); "erfasst von" setzt der Server aus der Anmeldung."""
+
+    __tablename__ = "payments"
+    __table_args__ = (UniqueConstraint("reverses_payment_id", name="uq_payment_reverses"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), index=True)
+    received_on: Mapped[date] = mapped_column(Date)
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    origin: Mapped[str] = mapped_column(String(20), default="erfasst")  # 'erfasst' | 'uebernommen'
+    reverses_payment_id: Mapped[int | None] = mapped_column(ForeignKey("payments.id"), nullable=True, index=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(160), default="System")
+
+
+class PaymentAllocation(Base):
+    """Zuordnung einer Zahlung auf eine Rechnung bzw. ein Abzug an ihr (seit 1.8.78): kind "zahlung" (Teil des Betrags der
+    Zahlung), "skonto" oder "einbehalt" (Abzüge -- kein Geld aus der Zahlung, mit ihr gebucht und mit ihr zurückgenommen).
+    Je Rechnung, nie gespeichert: offen = Brutto − Zahlungen − Skonto, mahnfähig = offen − Einbehalt
+    (app/payments.py::invoice_payment_state()).
+
+    Unveränderlich und nie gelöscht; Korrektur nur als Gegenbuchung (reverses_allocation_id, Betrag negativ, Begründung),
+    höchstens eine je Eintrag (UNIQUE)."""
+
+    __tablename__ = "payment_allocations"
+    __table_args__ = (UniqueConstraint("reverses_allocation_id", name="uq_payment_allocation_reverses"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id"), index=True)
+    invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))  # 'zahlung' | 'skonto' | 'einbehalt'
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    reverses_allocation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("payment_allocations.id"), nullable=True, index=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(160), default="System")
 
 
 class WorkPreparation(Base):
@@ -5762,3 +5819,19 @@ def _defect_file_no_update(mapper, connection, target):
 @event.listens_for(DefectFile, "before_delete")
 def _defect_part_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Verlauf und Dateien eines Mangels werden nie gelöscht.")
+
+
+# Zahlungseingang und Zuordnung (seit 1.8.78): unveränderlich und nie gelöscht -- Korrektur nur als Gegenbuchung mit
+# Begründung (app/payments.py::reverse_payment()/reverse_allocation()), keine Ausnahme.
+@event.listens_for(Payment, "before_update")
+@event.listens_for(PaymentAllocation, "before_update")
+def _payment_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs):
+        raise ArchiveImmutableError("Eine gebuchte Zahlung bzw. Zuordnung ist unveränderlich – Korrektur nur als "
+                                    "Gegenbuchung mit Begründung.")
+
+
+@event.listens_for(Payment, "before_delete")
+@event.listens_for(PaymentAllocation, "before_delete")
+def _payment_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Eine gebuchte Zahlung bzw. Zuordnung wird nie gelöscht.")

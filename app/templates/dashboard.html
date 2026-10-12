@@ -134,8 +134,9 @@ async function loadAndRenderTasks(empId,isAdmin){
 async function renderKpisWidget(container){
   if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
   const [invoices,overdue,projects]=await Promise.all([api('/api/invoices'),api('/api/reminders/overdue'),api('/api/projects')]);
-  const open=invoices.filter(i=>i.status==='versendet');
-  const openSum=open.reduce((s,i)=>s+Number(i.gross_total||0),0);
+  // Seit 1.8.78 der offene Betrag (abgeleitet, app/payments.py) statt des Bruttos; eine Stornorechnung ist nie offen.
+  const open=invoices.filter(i=>i.payment&&Number(i.payment.open)>0);
+  const openSum=open.reduce((s,i)=>s+Number(i.payment.open||0),0);
   const active=projects.filter(p=>!p.archived&&['planung','beauftragt','ausfuehrung'].includes(p.status));
   let hoursHtml='';
   if(authStatus.user.employee_id){

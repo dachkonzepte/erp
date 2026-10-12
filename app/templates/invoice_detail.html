@@ -5,6 +5,7 @@
 :root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--warning:#e0a94a;--warning-soft:#3a2f14;--success:#4ade95;--success-soft:#173226;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}.nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap}button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 12px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}main{padding:18px;max-width:1750px;margin:0}.top{background:var(--card);border:1px solid var(--line);padding:12px 14px;display:flex;align-items:center;gap:15px;margin-bottom:12px;flex-wrap:wrap}.top-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.top-actions a{padding:9px 12px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-weight:650;font-size:13.5px}.top-actions a:hover{background:var(--soft)}.grow{flex:1}.muted{color:var(--muted)}.small{font-size:12px}.badge{background:var(--soft);color:var(--ink);padding:6px 9px;font-size:12px;font-weight:800}.badge.versendet{background:var(--soft);color:var(--accent)}.badge.bezahlt{background:var(--success-soft);color:var(--success)}.badge.storniert{background:var(--danger-soft);color:var(--danger)}.badge.overdue{background:var(--danger-soft);color:var(--danger)}.metrics{display:flex;gap:18px}.metric small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase}.metric b{font-size:15px;color:var(--ink)}.layout{display:grid;grid-template-columns:minmax(680px,1fr) 390px;gap:12px}.card{background:var(--card);border:1px solid var(--line);padding:13px;margin-bottom:12px}.sticky{position:sticky;top:12px;align-self:start;max-height:calc(100vh - 24px);overflow:auto}.notice{background:var(--soft);border-left:4px solid var(--accent);padding:10px;margin-bottom:12px;font-size:13px;color:var(--ink)}.warning{background:var(--warning-soft);border-left-color:var(--warning)}h2,h3{margin:0 0 10px;color:var(--ink)}.fields{display:grid;grid-template-columns:1fr 1fr;gap:9px}.field label{display:block;font-size:11px;font-weight:800;color:var(--muted);margin-bottom:4px}.field input,.field select,.field textarea,dialog input,dialog select,dialog textarea{width:100%;border:1px solid var(--field-border);padding:8px;background:var(--card);color:var(--ink)}.field input:hover,.field select:hover,.field textarea:hover,dialog input:hover,dialog select:hover,dialog textarea:hover{border-color:var(--field-border-hover)}.field input:focus,.field select:focus,.field textarea:focus,dialog input:focus,dialog select:focus,dialog textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}.field textarea,dialog textarea{min-height:70px}.full{grid-column:1/-1}.status{font-size:12px;margin-top:7px;color:var(--muted)}.inv-head,.inv-row{display:grid;grid-template-columns:70px minmax(220px,1fr) 90px 100px 90px 90px 100px 60px;gap:8px;align-items:center}.inv-head{background:var(--soft);padding:8px;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:850}.inv-row{padding:8px;border-bottom:1px solid var(--line);font-size:13px}.inv-row:last-child{border-bottom:0}.inv-row input{width:100%;border:1px solid var(--field-border);padding:5px;text-align:right;background:var(--card);color:var(--ink)}.num{text-align:right}.actions-row{display:flex;flex-direction:column;gap:6px;margin-top:6px}.summary-line{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)}.summary-line.total{font-weight:850;font-size:16px;border-top:2px solid var(--ink);border-bottom:0;margin-top:4px;padding-top:10px}dialog{border:1px solid var(--line);padding:0;width:min(650px,94vw);box-shadow:0 20px 70px rgba(0,0,0,.35);background:var(--card);color:var(--ink)}dialog::backdrop{background:rgba(10,15,13,.5)}.dialog{padding:18px}.dialog-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}.iconbtn{padding:5px 7px;background:var(--soft);color:var(--ink);border:1px solid var(--line);font-size:12px}.iconbtn:hover{background:color-mix(in srgb,var(--ink) 8%,var(--soft))}.iconbtn.danger{background:var(--danger-soft);color:var(--danger);border-color:transparent}@media(max-width:1100px){.layout{grid-template-columns:1fr}.sticky{position:static;max-height:none}}@media(max-width:760px){.inv-head{display:none}.inv-row{grid-template-columns:1fr 80px}.inv-row span:not(:nth-child(2)):not(:nth-child(1)){display:none}}
 .breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:8px}.breadcrumb a{color:var(--accent);text-decoration:none;font-weight:650}
+.badge.einbehalt{background:var(--warning-soft);color:var(--warning)}.alloc{border-top:1px solid var(--line);padding:8px 0;font-size:13px}.alloc.reversed .alloc-main{text-decoration:line-through;color:var(--muted)}.alloc-reverse{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px;align-items:center}.alloc-reverse input{border:1px solid var(--field-border);padding:5px 7px;background:var(--card);color:var(--ink);font:inherit;font-size:12.5px;min-width:180px;flex:1}#paymentDialog{width:min(900px,96vw)}.py-head,.py-row{display:grid;grid-template-columns:minmax(170px,1fr) 100px 110px 110px 110px 34px;gap:8px;align-items:center}.py-head{background:var(--soft);padding:7px 8px;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:850;margin-top:12px}.py-row{padding:8px;border-bottom:1px solid var(--line);font-size:13px}.py-row input{width:100%;border:1px solid var(--field-border);padding:6px;text-align:right;background:var(--card);color:var(--ink);font:inherit}.py-row.over input[data-feld="zahlung"],.py-row.over input[data-feld="skonto"]{border-color:var(--danger)}.py-sum{margin-top:10px;font-size:13px;line-height:1.6}.py-cell{display:block}.py-label{display:none;font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;margin-bottom:3px;text-align:left}#pyConfirm:disabled{opacity:.45;cursor:not-allowed}#paymentActions a{color:var(--accent);font-weight:650;text-decoration:none}@media(max-width:760px){.py-head{display:none}.py-row{grid-template-columns:1fr 1fr}.py-row>span:first-child{grid-column:1/-1}.py-label{display:block}}
 </style></head><body>
 <div class="app-layout">
 {% include "_sidebar.html" %}
@@ -12,6 +13,8 @@
 {% include "_topbar.html" %}
 {% include "_email_dispatch.html" %}
 {% include "_auswahl.html" %}
+{% include "_fehlertext.html" %}
+{% include "_berlin_date.html" %}
 <main><div class="breadcrumb" id="breadcrumb">Lädt …</div><div class="top"><div class="grow"><b id="invTitle">Rechnung wird geladen …</b><div id="invContext" class="muted small"></div></div><div class="top-actions"><a id="backOrder" href="#">← Auftrag</a><button class="secondary" onclick="window.open('/api/invoices/'+invoiceId+'/pdf','_blank')">PDF herunterladen</button></div><span id="statusBadge" class="badge">—</span><div class="metrics"><div class="metric"><small>Netto</small><b id="mNet">—</b></div><div class="metric"><small>MwSt.</small><b id="mVat">—</b></div><div class="metric"><small>Brutto</small><b id="mGross">—</b></div></div></div>
 <div id="editLockNotice" class="notice warning" style="display:none">Diese Rechnung ist versendet und kann nicht mehr bearbeitet werden. Korrekturen laufen über eine Stornorechnung.</div>
 <div class="layout">
@@ -22,6 +25,7 @@
 <aside class="sticky">
 <div class="card"><h3>Rechnungsdaten</h3><div class="fields"><div class="field"><label>Rechnungsdatum</label><input id="iDate" type="date" disabled></div><div class="field"><label>Zahlungsbedingung</label><select id="iPaymentTermSelect" onchange="changePaymentTerm()"></select></div><div class="field"><label>Fällig bis</label><input id="iDue" type="date" disabled></div><div class="field"><label>Steuerschlüssel</label><select id="iTaxKeySelect" onchange="changeTaxKey()"></select></div><div class="field full" id="dateNote"></div><div class="field"><label>Leistungszeitraum Beginn</label><input id="iPeriodStart" type="date" onchange="savePeriod('service_period_start',this.value)"></div><div class="field"><label>Leistungszeitraum Ende</label><input id="iPeriodEnd" type="date" onchange="savePeriod('service_period_end',this.value)"></div><div class="field full" id="periodProposal"></div><div class="field full"><label>Automatischer Fälligkeits-/Skontohinweis <span class="small muted">(wird mit dem Schlusstext auf der Rechnung angezeigt)</span></label><div id="paymentTermsSentence" class="small muted" style="border:1px solid var(--field-border);padding:8px;background:var(--soft)"></div></div><div class="field full"><label>Einleitungstext</label><select id="iIntroTemplate" onchange="applyTextTemplate('iIntro','iIntroTemplate')" style="margin-bottom:6px"></select><textarea id="iIntro"></textarea></div><div class="field full"><label>Schlusstext</label><select id="iOutroTemplate" onchange="applyTextTemplate('iOutro','iOutroTemplate')" style="margin-bottom:6px"></select><textarea id="iOutro"></textarea></div><div class="field full"><label>Schlusstext 2 <span class="small muted">(optional, zweiter, unabhängiger Textblock)</span></label><select id="iOutro2Template" onchange="applyTextTemplate('iOutro2','iOutro2Template')" style="margin-bottom:6px"></select><textarea id="iOutro2"></textarea></div></div><button onclick="saveHeader()" style="margin-top:8px">Kopfdaten speichern</button><div id="headerStatus" class="status"></div></div>
 <div class="card"><h3>Status</h3><div id="statusInfo" class="small muted" style="margin-bottom:10px"></div><div class="actions-row" id="statusActions"></div><div id="statusActionMsg" class="status"></div><div id="invoiceDispatchHistory"></div></div>
+<div class="card" id="paymentsCard" style="display:none"><h3>Zahlungen</h3><div id="paymentSummary"></div><div id="paymentAllocations"></div><div class="actions-row" id="paymentActions" style="margin-top:8px"></div><div id="paymentStatusMsg" class="status"></div></div>
 <div class="card" id="remindersCard" style="display:none"><h3>Mahnwesen</h3><div id="reminderStatusInfo" class="small muted" style="margin-bottom:10px"></div><div id="reminderList"></div><div class="actions-row" id="reminderActions"></div><div id="reminderStatusMsg" class="status"></div>
   <div id="reminderEditor" style="display:none;border:1px solid var(--line);padding:10px;margin-top:10px">
     <div class="small muted" id="reminderEditorSubtitle" style="margin-bottom:6px"></div>
@@ -54,6 +58,12 @@
 </aside>
 </div>
 </main>
+<dialog id="paymentDialog"><div class="dialog"><div class="dialog-head"><h3>Zahlungseingang buchen</h3><button class="secondary" onclick="document.getElementById('paymentDialog').close()">✕</button></div>
+<div class="fields"><div class="field full"><label>Woher</label><select id="pySource" onchange="paySourceChanged()"></select></div><div class="field"><label>Eingangsdatum</label><input id="pyDate" type="date" onchange="payProposal()"></div><div class="field"><label>Betrag (€)</label><input id="pyAmount" inputmode="decimal" placeholder="0,00" oninput="payProposalDebounced()"></div><div class="field full"><label>Notiz (optional)</label><input id="pyNote" placeholder="z. B. Verwendungszweck der Überweisung"></div></div>
+<div class="small muted" style="margin-top:10px">Vorschlag: zuerst ältere offene Rechnungen dieses Auftrags, dann diese. Skonto nur, wenn der Eingang in der Frist liegt und der Betrag passt; einen Einbehalt trägt nur ein, wer ihn bewusst bucht. Gebucht wird erst mit „Buchung bestätigen“.</div>
+<div id="pyLines"></div><div class="field" id="pyAddWrap" style="margin-top:10px;display:none"><label>Weitere Rechnung des Kunden von Hand</label><select id="pyAdd" onchange="payAddInvoice()"></select></div>
+<div id="pySummary" class="py-sum"></div><div id="pyStatus" class="status"></div>
+<div class="dialog-actions"><button class="secondary" onclick="document.getElementById('paymentDialog').close()">Abbrechen</button><button id="pyConfirm" onclick="confirmPayment()">Buchung bestätigen</button></div></div></dialog>
 <dialog id="itemDialog"><div class="dialog"><div class="dialog-head"><h3 id="itemDialogTitle">Position</h3><button class="secondary" onclick="document.getElementById('itemDialog').close()">✕</button></div><div class="fields"><div class="field full"><label>Kurztext</label><input id="itShort"></div><div class="field full"><label>Langtext</label><textarea id="itLong"></textarea></div><div class="field"><label>Einheit</label><input id="itUnit"></div><div class="field"><label>Einheitspreis (€)</label><input id="itPrice"></div><div class="field"><label>Ist-Menge (kumuliert gesamt)</label><input id="itIst"></div><div class="field" id="itSollField"><label>Soll-Menge (aus Auftrag)</label><input id="itSoll" disabled></div></div><div class="dialog-actions"><button class="secondary" onclick="document.getElementById('itemDialog').close()">Abbrechen</button><button onclick="saveItemDialog()">Speichern</button></div><div id="itemStatus" class="status"></div></div></dialog>
 </div>
 </div>
@@ -64,7 +74,9 @@ const money=x=>Number(x||0).toLocaleString('de-DE',{style:'currency',currency:'E
 const qty=x=>x==null?'—':Number(x).toLocaleString('de-DE',{maximumFractionDigits:3});
 const TYPE_LABELS={abschlag_pauschal:'Abschlagsrechnung (Pauschal)',abschlag_leistungsstand:'Abschlagsrechnung (nach Leistungsstand)',schluss:'Schlussrechnung',aufwand:'Rechnung nach Aufwand (Zeitbuchungen)',storno:'Stornorechnung'};
 const STATUS_LABELS={entwurf:'Entwurf',versendet:'Finalisiert',bezahlt:'Bezahlt',storniert:'Storniert'};
-async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+// Seit 1.8.78 über fehlerText() (_fehlertext.html): eine 422 der Schemaprüfung erscheint lesbar statt als "[object Object]".
+const FELDNAMEN={amount:'Betrag',received_on:'Eingangsdatum',note:'Notiz',zahlung:'Zahlung',skonto:'Skonto',einbehalt:'Einbehalt',reason:'Begründung',service_period_start:'Leistungszeitraum Beginn',service_period_end:'Leistungszeitraum Ende'};
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,FELDNAMEN));return r.json()}
 
 function renderBreadcrumb(){
   const customerLink=`<a href="/customers/${invoice.customer_id}">${esc(invoice.customer_name)}</a>`;
@@ -76,7 +88,10 @@ function render(){
   renderBreadcrumb();
   document.getElementById('invTitle').textContent=`${invoice.invoice_number||'Entwurf'} · ${TYPE_LABELS[invoice.invoice_type]||invoice.invoice_type}`;
   document.getElementById('invContext').textContent=`${invoice.customer_name}${invoice.property_name?' · '+invoice.property_name:''}`;
-  const badge=document.getElementById('statusBadge');badge.textContent=STATUS_LABELS[invoice.status]||invoice.status;badge.className='badge '+invoice.status+(invoice.is_overdue?' overdue':'');
+  // Seit 1.8.78: der Zahlstand (abgeleitet) statt "bezahlt" als Status.
+  const badge=document.getElementById('statusBadge'),pay=invoice.payment;
+  badge.textContent=pay?pay.state_label.charAt(0).toUpperCase()+pay.state_label.slice(1):(STATUS_LABELS[invoice.status]||invoice.status);
+  badge.className='badge '+(pay?({bezahlt:'bezahlt',einbehalt_offen:'einbehalt'}[pay.state]||'versendet'):invoice.status)+(invoice.is_overdue?' overdue':'');
   if(invoice.is_overdue)badge.textContent+=' · überfällig';
   document.getElementById('mNet').textContent=money(invoice.net_total);document.getElementById('mVat').textContent=money(invoice.vat_total);document.getElementById('mGross').textContent=money(invoice.gross_total);
   document.getElementById('backOrder').href='/orders/'+invoice.order_id;
@@ -95,7 +110,7 @@ function render(){
   document.querySelector('aside .card button').style.display=invoice.is_editable?'inline-block':'none';
 
   renderPeriod();renderDateNote();
-  renderStatusActions();
+  renderStatusActions();renderPayments();
   document.getElementById('remindersCard').style.display=invoice.status==='versendet'?'block':'none';
   if(invoice.status==='versendet')loadAndRenderReminders();
 }
@@ -161,11 +176,9 @@ function renderStatusActions(){
     // Seit 1.8.72: gesperrtes Finalisieren bzw. Stornieren zeigt den Grund vom Server statt des Knopfs.
     html+=(invoice.finalize_block?blockNoticeHtml(invoice.finalize_block):'<button onclick="sendInvoice()">Rechnung finalisieren</button>')+'<button class="danger" onclick="deleteInvoiceDraft()">Entwurf löschen</button>';
   }else if(invoice.status==='versendet'){
-    info.textContent=invoice.paid_date?`Bezahlt am ${new Date(invoice.paid_date).toLocaleDateString('de-DE')}.`:'Diese Rechnung ist finalisiert und wartet auf Zahlung.';
-    html+=sendHintHtml()+emailSendControlsHtml()+'<button onclick="markPaid()">Als bezahlt markieren</button>'+stornoActionHtml();
-  }else if(invoice.status==='bezahlt'){
-    info.textContent=`Bezahlt am ${invoice.paid_date?new Date(invoice.paid_date).toLocaleDateString('de-DE'):'—'}.`;
-    html+=emailSendControlsHtml()+stornoActionHtml();
+    // Seit 1.8.78 kein "Als bezahlt markieren" mehr: bezahlt ergibt sich aus den gebuchten Zahlungen (Karte "Zahlungen").
+    info.textContent=paymentInfoText();
+    html+=sendHintHtml()+emailSendControlsHtml()+stornoActionHtml();
   }else if(invoice.status==='storniert'){
     info.textContent='Diese Rechnung wurde storniert.';
   }
@@ -198,7 +211,76 @@ async function sendInvoiceEmail(btn){
 }
 
 async function sendInvoice(){if(!confirm('Rechnung jetzt finalisieren? Die Rechnungsnummer wird vergeben, danach ist keine Bearbeitung mehr möglich. Das ist kein tatsächlicher Versand an den Kunden – dafür steht nach dem Finalisieren der Knopf "Per E-Mail senden" zur Verfügung.'))return;const st=document.getElementById('statusActionMsg');try{invoice=await api(`/api/invoices/${invoiceId}/send`,{method:'POST'});st.textContent='Finalisiert.';render()}catch(e){st.textContent='Fehler: '+e.message}}
-async function markPaid(){const st=document.getElementById('statusActionMsg');try{invoice=await api(`/api/invoices/${invoiceId}/mark-paid`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});st.textContent='Als bezahlt markiert.';render()}catch(e){st.textContent='Fehler: '+e.message}}
+// --- Zahlungen (seit 1.8.78, app/payments.py): Zahlstand, Zuordnungen mit Gegenbuchung, Dialog "Zahlungseingang buchen" ---
+function paymentInfoText(){const p=invoice.payment;if(!p)return invoice.not_payable_reason||'Diese Rechnung ist finalisiert.';if(p.state==='bezahlt')return `Bezahlt${p.paid_on?' am '+dateDe(p.paid_on):''}.`;if(p.state==='einbehalt_offen')return `Offen ist nur noch der Einbehalt von ${money(p.retained_open)} – er wird nicht gemahnt.`;if(p.state==='teilweise_bezahlt')return `Teilweise bezahlt – offen ${money(p.open)}.`;return 'Diese Rechnung ist finalisiert und wartet auf Zahlung.'}
+function renderPayments(){
+  const card=document.getElementById('paymentsCard');const p=invoice.payment,rows=invoice.payment_allocations||[];
+  card.style.display=invoice.status==='entwurf'?'none':'block';if(invoice.status==='entwurf')return;
+  let sum;
+  if(p){sum=`<div class="summary-line"><span>Brutto</span><b>${money(p.gross)}</b></div><div class="summary-line"><span>Zahlungen</span><span>− ${money(p.paid)}</span></div>`+(Number(p.skonto)?`<div class="summary-line"><span>Skonto</span><span>− ${money(p.skonto)}</span></div>`:'')+`<div class="summary-line total"><span>Offen</span><span data-offen>${money(p.open)}</span></div>`+(Number(p.retained_open)?`<div class="summary-line"><span>davon Einbehalt (wird nicht gemahnt)</span><span data-einbehalt>${money(p.retained_open)}</span></div><div class="summary-line"><span>Mahnfähig</span><span data-mahnfaehig>${money(p.dunnable)}</span></div>`:'')+`<div class="small muted" style="margin-top:6px" data-zahlstand>Zahlstand: ${esc(p.state_label)}${p.paid_on?' am '+dateDe(p.paid_on):''}</div>`}
+  else sum=`<div class="notice" style="margin:0" data-nicht-bebuchbar>${esc(invoice.not_payable_reason||'Nicht bebuchbar.')}</div>`;
+  document.getElementById('paymentSummary').innerHTML=sum;
+  document.getElementById('paymentAllocations').innerHTML=rows.length?rows.map(allocationHtml).join(''):(p?'<div class="small muted" style="margin-top:8px">Noch keine Zahlung gebucht.</div>':'');
+  document.getElementById('paymentActions').innerHTML=(p&&Number(p.open)>0?'<button onclick="openPaymentDialog()">Zahlungseingang buchen</button>':'')+`<a class="small" href="/customers/${invoice.customer_id}#zahlungen">Zahlungen des Kunden</a>`;
+}
+function allocationHtml(a){
+  const head=`${dateDe(a.received_on)} · ${esc(a.kind_label)} ${money(a.amount)}`;
+  const sub=`Zahlung Nr. ${a.payment_id}${a.payment_note?' · '+esc(a.payment_note):''}${a.payment_origin==='uebernommen'?' · übernommen aus „bezahlt“':''} · gebucht von ${esc(a.created_by_name)}`;
+  if(a.reversed)return `<div class="alloc reversed" data-zuordnung="${a.id}"><div class="alloc-main">${head}</div><div class="small muted">${sub}</div><div class="small" data-gegenbuchung>Gegengebucht von ${esc(a.reversal.created_by_name)}: ${esc(a.reversal.reason)}</div></div>`;
+  return `<div class="alloc" data-zuordnung="${a.id}"><div class="alloc-main">${head}</div><div class="small muted">${sub}</div><div class="alloc-reverse"><button class="secondary iconbtn" onclick="showReverse(${a.id})">Gegenbuchen</button><span id="rev-${a.id}" style="display:none;gap:6px;flex:1;flex-wrap:wrap"><input id="revReason-${a.id}" placeholder="Begründung (Pflicht)"><button class="danger iconbtn" onclick="reverseAllocation(${a.id})">Gegenbuchung bestätigen</button></span></div></div>`;
+}
+function showReverse(id){document.getElementById('rev-'+id).style.display='inline-flex';document.getElementById('revReason-'+id).focus()}
+async function reverseAllocation(id){const reason=document.getElementById('revReason-'+id).value.trim();const st=document.getElementById('paymentStatusMsg');if(!reason){st.textContent='Bitte eine Begründung angeben.';return}try{await api(`/api/payment-allocations/${id}/reverse`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});await reload();document.getElementById('paymentStatusMsg').textContent='Gegengebucht.'}catch(e){st.textContent='Fehler: '+e.message}}
+// Beträge: Eingabe mit Komma (1.166,20) oder Punkt (1166.20); gerechnet wird in Cent.
+function num(s){let t=String(s??'').trim();if(!t)return 0;if(t.includes(','))t=t.replace(/\./g,'').replace(',','.');return Number(t)}
+const cents=s=>Math.round(num(s)*100);
+const fmt=x=>Number(x||0).toFixed(2).replace('.',',');
+function todayBerlin(){const {year,month,day}=berlinDateParts();return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`}
+let payLines=[],payPayments=[],payOpen=[];
+async function openPaymentDialog(){
+  document.getElementById('pyStatus').textContent='';
+  try{[payPayments,payOpen]=await Promise.all([api(`/api/customers/${invoice.customer_id}/payments`).then(d=>d.payments.filter(p=>Number(p.rest)>0&&!p.reversed)),api(`/api/customers/${invoice.customer_id}/open-invoices`)])}catch(e){document.getElementById('paymentStatusMsg').textContent='Fehler: '+e.message;return}
+  document.getElementById('pySource').innerHTML='<option value="neu">Neuer Zahlungseingang</option>'+payPayments.map(p=>`<option value="${p.id}">Rest der Zahlung Nr. ${p.id} vom ${dateDe(p.received_on)}: ${money(p.rest)}</option>`).join('');
+  document.getElementById('pyDate').value=todayBerlin();document.getElementById('pyAmount').value=fmt(invoice.payment.open);document.getElementById('pyNote').value='';
+  document.getElementById('paymentDialog').showModal();paySourceChanged();
+}
+function paySource(){const v=document.getElementById('pySource').value;return v==='neu'?null:payPayments.find(p=>String(p.id)===v)}
+function paySourceChanged(){const src=paySource(),d=document.getElementById('pyDate'),a=document.getElementById('pyAmount'),n=document.getElementById('pyNote');d.disabled=a.disabled=n.disabled=!!src;if(src){d.value=src.received_on;a.value=fmt(src.rest);n.value=src.note||''}else{a.value=fmt(invoice.payment.open);n.value=''}payProposal()}
+let _payTimer=null;function payProposalDebounced(){clearTimeout(_payTimer);_payTimer=setTimeout(payProposal,400)}
+async function payProposal(){
+  const st=document.getElementById('pyStatus');st.textContent='';
+  const amount=num(document.getElementById('pyAmount').value),on=document.getElementById('pyDate').value;
+  if(!(amount>0)||!on){payLines=[];renderPayLines();return}
+  try{const p=await api(`/api/invoices/${invoiceId}/payment-proposal?amount=${amount.toFixed(2)}&received_on=${on}`);payLines=p.lines.map(l=>({...l,zahlung:fmt(l.zahlung),skonto:fmt(l.skonto),einbehalt:fmt(l.einbehalt)}));renderPayLines()}catch(e){payLines=[];renderPayLines();st.textContent='Fehler: '+e.message}
+}
+function skontoHint(l){const o=l.skonto_offer;if(!o)return '';return `<div class="small ${o.in_period?'':'muted'}" data-skonto-hinweis>Skonto laut Rechnung ${money(o.amount)} bis ${dateDe(o.until)}${o.in_period?'':' – Eingang außerhalb der Frist'}</div>`}
+function renderPayLines(){
+  const head='<div class="py-head"><span>Rechnung</span><span class="num">offen</span><span class="num">Zahlung</span><span class="num">Skonto</span><span class="num">Einbehalt</span><span></span></div>';
+  document.getElementById('pyLines').innerHTML=payLines.length?head+payLines.map((l,i)=>`<div class="py-row" data-zeile="${l.invoice_id}"><span><b>${esc(l.invoice_number)}</b>${l.is_selected?' <span class="small muted">(diese Rechnung)</span>':''}<div class="small muted">${esc(TYPE_LABELS[l.invoice_type]||l.invoice_type)} · ${dateDe(l.invoice_date)}</div>${skontoHint(l)}</span><span class="num"><span class="py-label">offen</span>${money(l.open)}</span><label class="py-cell"><span class="py-label">Zahlung</span><input data-feld="zahlung" inputmode="decimal" value="${l.zahlung}" oninput="payEdit(${i},'zahlung',this.value)"></label><label class="py-cell"><span class="py-label">Skonto</span><input data-feld="skonto" inputmode="decimal" value="${l.skonto}" oninput="payEdit(${i},'skonto',this.value)"></label><label class="py-cell"><span class="py-label">Einbehalt</span><input data-feld="einbehalt" inputmode="decimal" value="${l.einbehalt}" oninput="payEdit(${i},'einbehalt',this.value)"></label><button class="iconbtn" title="Zeile entfernen" onclick="payRemove(${i})">✕</button></div>`).join(''):'<div class="small muted" style="margin:10px 0">Betrag und Eingangsdatum angeben – der Vorschlag erscheint hier.</div>';
+  const used=new Set(payLines.map(l=>l.invoice_id)),more=payOpen.filter(o=>!used.has(o.invoice_id));
+  document.getElementById('pyAdd').innerHTML='<option value="">— Rechnung wählen … —</option>'+more.map(o=>`<option value="${o.invoice_id}">${esc(o.invoice_number)}${o.order_number?' · Auftrag '+esc(o.order_number):''} · offen ${money(o.payment.open)}</option>`).join('');
+  document.getElementById('pyAddWrap').style.display=more.length?'block':'none';
+  renderPaySummary();
+}
+function payAddInvoice(){const id=Number(document.getElementById('pyAdd').value);const o=payOpen.find(x=>x.invoice_id===id);if(!o)return;const on=document.getElementById('pyDate').value;payLines.push({invoice_id:o.invoice_id,invoice_number:o.invoice_number,invoice_type:o.invoice_type,invoice_date:o.invoice_date,is_selected:false,open:o.payment.open,zahlung:'0,00',skonto:'0,00',einbehalt:'0,00',skonto_offer:o.skonto_offer?{...o.skonto_offer,in_period:!!on&&on<=o.skonto_offer.until}:null});renderPayLines()}
+function payEdit(i,field,value){payLines[i][field]=value;renderPaySummary()}
+function payRemove(i){payLines.splice(i,1);renderPayLines()}
+function renderPaySummary(){
+  const amount=cents(document.getElementById('pyAmount').value);let z=0,s=0,e=0,bad=false,over=false;
+  payLines.forEach((l,i)=>{const lz=cents(l.zahlung),ls=cents(l.skonto),le=cents(l.einbehalt);if([lz,ls,le].some(x=>isNaN(x)||x<0))bad=true;z+=lz;s+=ls;e+=le;const row=document.querySelectorAll('#pyLines .py-row')[i];const o=lz+ls>cents(l.open);if(row)row.classList.toggle('over',o);over=over||o});
+  const warn=[];if(bad)warn.push('Bitte nur Beträge ab 0 eintragen.');if(z>amount)warn.push('Zugeordnet ist mehr als der Betrag.');if(over)warn.push('Zahlung und Skonto übersteigen den offenen Betrag einer Rechnung.');
+  document.getElementById('pySummary').innerHTML=`Betrag <b>${money(amount/100)}</b> · zugeordnet <b data-zugeordnet>${money(z/100)}</b> · Rest <b data-rest>${money((amount-z)/100)}</b>${amount-z>0?' – bleibt beim Kunden, nicht zugeordnet':''}${s?` · Skonto ${money(s/100)}`:''}${e?` · Einbehalt ${money(e/100)}`:''}`+(warn.length?`<div class="notice warning" style="margin:8px 0 0" data-warnung>${esc(warn.join(' '))}</div>`:'');
+  document.getElementById('pyConfirm').disabled=bad||z>amount||over||!(amount>0);
+}
+async function confirmPayment(){
+  const st=document.getElementById('pyStatus'),src=paySource();
+  const lines=payLines.map(l=>({invoice_id:l.invoice_id,zahlung:(cents(l.zahlung)/100).toFixed(2),skonto:(cents(l.skonto)/100).toFixed(2),einbehalt:(cents(l.einbehalt)/100).toFixed(2)})).filter(l=>Number(l.zahlung)||Number(l.skonto)||Number(l.einbehalt));
+  try{
+    if(src){if(!lines.length){st.textContent='Bitte mindestens eine Rechnung mit Betrag angeben.';return}await api(`/api/payments/${src.id}/allocations`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lines})})}
+    else await api('/api/payments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_id:invoice.customer_id,received_on:document.getElementById('pyDate').value,amount:(cents(document.getElementById('pyAmount').value)/100).toFixed(2),note:document.getElementById('pyNote').value.trim()||null,lines})});
+    document.getElementById('paymentDialog').close();await reload();document.getElementById('paymentStatusMsg').textContent='Gebucht.';
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
 async function stornoInvoice(){if(!confirm('Stornorechnung anlegen? Sie wird zunächst als Entwurf angelegt und muss anschließend selbst versendet werden.'))return;try{const storno=await api(`/api/invoices/${invoiceId}/storno`,{method:'POST'});location.href='/invoices/'+storno.id}catch(e){document.getElementById('statusActionMsg').textContent='Fehler: '+e.message}}
 async function deleteInvoiceDraft(){if(!confirm('Diesen Rechnungsentwurf unwiderruflich löschen? Das kann nicht rückgängig gemacht werden.'))return;const orderId=invoice.order_id;try{await api(`/api/invoices/${invoiceId}`,{method:'DELETE'});location.href='/orders/'+orderId}catch(e){document.getElementById('statusActionMsg').textContent='Fehler: '+e.message}}
 

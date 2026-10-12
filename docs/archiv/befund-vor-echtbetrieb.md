@@ -1443,7 +1443,7 @@ Zahlungstabelle, kein offener Betrag je Rechnung.
   Stufe, neue Frist = heute + Tage der Stufe (`:219`). Text, PDF-Tabelle "Offener Rechnungsbetrag / Mahngebühr / Gesamtbetrag"
   (`reminder_pdf.py:83`) und Mail nehmen diesen Betrag; die Mahnwesen-Liste rechnet ihn live.
 
-### Festlegungen 1.8.77 – Bitte bestätigen
+### Festlegungen 1.8.77 (bestätigt am 12.10.2026, Nr. 1–5; Vorgabe Z1, siehe `zahlungen.md`)
 
 1. **Die fünf alten Bedingungen bleiben, wie sie sind**; die Migration legt nur Rechnung und Mahnung an und prüft, dass die fünf da
    sind -- fehlt eine, bricht sie mit Namen ab, statt sie still anzulegen (das bliebe in `downgrade()` unsichtbar).
@@ -1510,6 +1510,7 @@ Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
 - **Abschlagsrechnungen** selbst nicht kumuliert.
 - **Offene Abschläge** nach der Schlussrechnung nur noch über diese gemahnt.
 - **Zahlung auf den Zahlbetrag**: Vorschlag zuerst auf offene Abschläge (ältester zuerst), dann Schlussrechnung, das Büro bestätigt.
+  (Seit 1.8.78 gebaut als Zahlungsstufe Z1: Vorschlag zuerst auf die älteren offenen Rechnungen desselben Auftrags -- `zahlungen.md`.)
 - **Rechnungsdatum** = Tag der Ausgabe, jede Rechnung mit Pflicht-Leistungszeitraum, Nummer beim Festschreiben, Nummernkreise beim
   Start auf 1. (Was dabei heute passiert: "Umsetzung 1.8.73" -> Befund b.) Pflicht-Leistungszeitraum seit 1.8.74 gebaut,
   Rechnungsdatum = Tag des Festschreibens seit 1.8.75.
@@ -1519,7 +1520,8 @@ Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
 Ergänzt am 12.10.2026 (Vorgabe 1.8.77, Punkt 3), übernommen wie gegeben:
 
 - **Einbehalt**: nur bewusst gebucht, nie automatisch aus einer Unterzahlung; wird nicht gemahnt; Zustand „Einbehalt offen“;
-  erscheint im Zahlungshinweis der Schlussrechnung; Gewährleistungseinbehalt mit Freigabedatum später.
+  erscheint im Zahlungshinweis der Schlussrechnung; Gewährleistungseinbehalt mit Freigabedatum später. (Seit 1.8.78 gebaut: bewusst
+  gebucht, nicht gemahnt, Zustand „Einbehalt offen“ -- `zahlungen.md`; Zahlungshinweis der Schlussrechnung und Freigabedatum offen.)
 - **Rechnungen aus Aufwand** zählen in der Schlussrechnung zum Gesamtwert und werden wie Abschläge abgezogen; nach der
   Schlussrechnung keine Rechnung aus Aufwand im selben Auftrag; welche Stunden abrechenbar sind, regelt Stufe 2d. (Heute: weder im
   Gesamtwert noch abgezogen, nach der Schlussrechnung möglich -- "Umsetzung 1.8.73" -> Befund a, Festlegung 1.8.72 Nr. 3.)

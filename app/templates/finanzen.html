@@ -18,6 +18,7 @@ td{padding:10px 8px;border-bottom:1px solid var(--line);font-size:13px}
 .number{text-align:right}
 .pill{background:var(--soft);padding:4px 9px;font-size:11px;font-weight:800}
 .pill.overdue{background:var(--danger-soft);color:var(--danger)}
+.pill.bezahlt{color:var(--accent)}
 a.link{color:var(--accent);font-weight:700;text-decoration:none}
 .empty{padding:30px;text-align:center;color:var(--muted)}
 </style></head><body>
@@ -28,10 +29,11 @@ a.link{color:var(--accent);font-weight:700;text-decoration:none}
 <main>
 <div class="card"><h1>Finanzen</h1><div class="muted">Alle Rechnungen im Überblick. Weitere buchhalterische Themen folgen hier künftig.</div></div>
 <div class="metrics" id="metrics"></div>
+<div class="card" id="unallocatedCard" style="display:none"><h2 style="margin:0 0 4px">Nicht zugeordnete Zahlungen</h2><div class="muted small" style="margin-bottom:8px">Zahlungseingänge, die noch keiner Rechnung zugeordnet sind -- zuordnen in der Kundenakte.</div><div id="unallocatedRows"></div></div>
 <div class="card" id="reminderCard" style="display:none"><h2 style="margin:0 0 4px">Mahnwesen</h2><div class="muted small" id="reminderSummaryText" style="margin-bottom:8px"></div><a class="link" href="/mahnwesen">Zum Mahnwesen →</a></div>
 <div class="card">
   <div class="filters" id="filters"></div>
-  <div style="overflow:auto"><table><thead><tr><th>Rechnung</th><th>Typ</th><th>Kunde</th><th>Auftrag</th><th>Datum</th><th>Fällig</th><th>Status</th><th class="number">Brutto</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+  <div style="overflow:auto"><table><thead><tr><th>Rechnung</th><th>Typ</th><th>Kunde</th><th>Auftrag</th><th>Datum</th><th>Fällig</th><th>Status</th><th class="number">Brutto</th><th class="number">Offen</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
 </div>
 </main>
 </div>
@@ -41,24 +43,37 @@ let allInvoices=[],statusFilter='';
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const money=x=>Number(x||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const TYPE_LABELS={abschlag_pauschal:'Abschlag (Pauschal)',abschlag_leistungsstand:'Abschlag (Leistungsstand)',schluss:'Schlussrechnung',aufwand:'Aufwand (Zeitbuchungen)',storno:'Storno'};
-const STATUS_LABELS={entwurf:'Entwurf',versendet:'Finalisiert',bezahlt:'Bezahlt',storniert:'Storniert'};
+const STATUS_LABELS={entwurf:'Entwurf',versendet:'Finalisiert',storniert:'Storniert'};
+// Seit 1.8.78: "bezahlt" ist kein Status mehr, sondern der abgeleitete Zahlstand (payment.state, app/payments.py); offen und
+// überfällig rechnen mit dem offenen bzw. mahnfähigen Betrag, eine Stornorechnung ist nie offen (payment ist dort leer).
+const STATE_LABELS={offen:'Offen',teilweise_bezahlt:'Teilweise bezahlt',einbehalt_offen:'Einbehalt offen',bezahlt:'Bezahlt'};
+const statusText=i=>i.payment?STATE_LABELS[i.payment.state]:(i.invoice_type==='storno'&&i.status==='versendet'?'Storno':(STATUS_LABELS[i.status]||i.status));
+const FILTERS=[['','Alle',()=>true],['entwurf','Entwurf',i=>i.status==='entwurf'],['offen','Offen',i=>i.payment&&['offen','teilweise_bezahlt'].includes(i.payment.state)],['einbehalt_offen','Einbehalt offen',i=>i.payment&&i.payment.state==='einbehalt_offen'],['bezahlt','Bezahlt',i=>i.payment&&i.payment.state==='bezahlt'],['storniert','Storniert / Storno',i=>i.status==='storniert'||(i.invoice_type==='storno'&&i.status!=='entwurf')]];
+let unallocated=[];
 async function api(u){const r=await fetch(u);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
 
 function renderMetrics(){
-  const open=allInvoices.filter(i=>i.status==='versendet');
+  const open=allInvoices.filter(i=>i.payment&&Number(i.payment.open)>0);
   const overdue=allInvoices.filter(i=>i.is_overdue);
-  const openSum=open.reduce((s,i)=>s+Number(i.gross_total),0);
-  const paidTotal=allInvoices.filter(i=>i.status==='bezahlt').reduce((s,i)=>s+Number(i.gross_total),0);
+  const openSum=open.reduce((s,i)=>s+Number(i.payment.open),0);
+  const retained=open.reduce((s,i)=>s+Number(i.payment.retained_open),0);
+  const paidTotal=allInvoices.filter(i=>i.payment).reduce((s,i)=>s+Number(i.payment.paid),0);
+  const unallocatedSum=unallocated.reduce((s,r)=>s+Number(r.rest),0);
   document.getElementById('metrics').innerHTML=`
-    <div class="metric"><small>Offene Rechnungen</small><b>${open.length}</b></div>
-    <div class="metric"><small>Offener Betrag</small><b>${money(openSum)}</b></div>
+    <div class="metric"><small>Offene Rechnungen</small><b data-offen-anzahl>${open.length}</b></div>
+    <div class="metric"><small>Offener Betrag</small><b data-offen-betrag>${money(openSum)}</b></div>
+    ${retained?`<div class="metric"><small>davon Einbehalt</small><b>${money(retained)}</b></div>`:''}
     <div class="metric"><small>Überfällig</small><b style="${overdue.length?'color:var(--danger)':''}">${overdue.length}</b></div>
-    <div class="metric"><small>Bezahlt (gesamt)</small><b>${money(paidTotal)}</b></div>`;
+    <div class="metric"><small>Bezahlt (gesamt)</small><b data-bezahlt>${money(paidTotal)}</b></div>
+    ${unallocatedSum?`<div class="metric"><small>Nicht zugeordnet</small><b>${money(unallocatedSum)}</b></div>`:''}`;
+}
+function renderUnallocated(){
+  document.getElementById('unallocatedCard').style.display=unallocated.length?'block':'none';
+  document.getElementById('unallocatedRows').innerHTML=unallocated.map(r=>`<div style="padding:4px 0"><a class="link" href="/customers/${r.customer_id}#zahlungen">${esc(r.customer_name||'Kunde')}</a> · ${money(r.rest)}</div>`).join('');
 }
 
 function renderFilters(){
-  const options=[['','Alle'],['entwurf','Entwurf'],['versendet','Finalisiert'],['bezahlt','Bezahlt'],['storniert','Storniert']];
-  document.getElementById('filters').innerHTML=options.map(([val,label])=>`<button class="${statusFilter===val?'active':''}" onclick="setFilter('${val}')">${label}</button>`).join('');
+  document.getElementById('filters').innerHTML=FILTERS.map(([val,label])=>`<button class="${statusFilter===val?'active':''}" onclick="setFilter('${val}')">${label}</button>`).join('');
 }
 function setFilter(val){statusFilter=val;renderFilters();renderRows()}
 
@@ -70,14 +85,15 @@ function renderReminderOverview(rows){
 }
 
 function renderRows(){
-  const rows=statusFilter?allInvoices.filter(i=>i.status===statusFilter):allInvoices;
-  document.getElementById('rows').innerHTML=rows.length?rows.map(i=>`<tr><td><b>${esc(i.invoice_number||'Entwurf')}</b></td><td>${esc(TYPE_LABELS[i.invoice_type]||i.invoice_type)}</td><td>${esc(i.customer_name)}</td><td>${i.order_number?`<a class="link" href="/orders/${i.order_id}">${esc(i.order_number)}</a>${i.project_number?` <span class="muted small">(${esc(i.project_number)})</span>`:''}`:'—'}</td><td>${new Date(i.invoice_date+'T00:00:00').toLocaleDateString('de-DE')}</td><td>${i.due_date?new Date(i.due_date+'T00:00:00').toLocaleDateString('de-DE'):'—'}</td><td><span class="pill ${i.is_overdue?'overdue':''}">${esc(STATUS_LABELS[i.status]||i.status)}${i.is_overdue?' · überfällig':''}</span></td><td class="number">${money(i.gross_total)}</td><td><a class="link" href="/invoices/${i.id}">Öffnen</a></td></tr>`).join(''):'<tr><td colspan="9" class="empty">Keine Rechnungen'+(statusFilter?' mit diesem Status':'')+'.</td></tr>';
+  const test=(FILTERS.find(f=>f[0]===statusFilter)||FILTERS[0])[2];
+  const rows=allInvoices.filter(test);
+  document.getElementById('rows').innerHTML=rows.length?rows.map(i=>`<tr><td><b>${esc(i.invoice_number||'Entwurf')}</b></td><td>${esc(TYPE_LABELS[i.invoice_type]||i.invoice_type)}</td><td>${esc(i.customer_name)}</td><td>${i.order_number?`<a class="link" href="/orders/${i.order_id}">${esc(i.order_number)}</a>${i.project_number?` <span class="muted small">(${esc(i.project_number)})</span>`:''}`:'—'}</td><td>${new Date(i.invoice_date+'T00:00:00').toLocaleDateString('de-DE')}</td><td>${i.due_date?new Date(i.due_date+'T00:00:00').toLocaleDateString('de-DE'):'—'}</td><td><span class="pill ${i.is_overdue?'overdue':''} ${i.payment&&i.payment.state==='bezahlt'?'bezahlt':''}">${esc(statusText(i))}${i.is_overdue?' · überfällig':''}</span></td><td class="number">${money(i.gross_total)}</td><td class="number">${i.payment?money(i.payment.open):'—'}</td><td><a class="link" href="/invoices/${i.id}">Öffnen</a></td></tr>`).join(''):'<tr><td colspan="10" class="empty">Keine Rechnungen'+(statusFilter?' mit diesem Status':'')+'.</td></tr>';
 }
 
 async function load(){
-  const [invoices,reminderRows]=await Promise.all([api('/api/invoices'),api('/api/reminders/overdue').catch(()=>[])]);
-  allInvoices=invoices;
-  renderMetrics();renderFilters();renderRows();renderReminderOverview(reminderRows);
+  const [invoices,reminderRows,unallocatedRows]=await Promise.all([api('/api/invoices'),api('/api/reminders/overdue').catch(()=>[]),api('/api/payments/unallocated').catch(()=>[])]);
+  allInvoices=invoices;unallocated=unallocatedRows;
+  renderMetrics();renderFilters();renderRows();renderReminderOverview(reminderRows);renderUnallocated();
 }
 load().catch(e=>document.querySelector('main').innerHTML='<div class="card">Fehler: '+esc(e.message)+'</div>');
 </script></body></html>

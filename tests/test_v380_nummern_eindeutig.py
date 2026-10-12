@@ -311,7 +311,7 @@ def _migrationsprobe(url: str, engine, Session) -> None:
             _mit_nummer(db, "reminder", None)
         db.commit()
 
-        lauf = _alembic(url, "upgrade", "head")
+        lauf = _alembic(url, "upgrade", MIGRATION)  # bis 1.8.77 "head"; seit 1.8.78 folgt c7d41e9a2b63
         ausgabe = lauf.stdout + lauf.stderr
         assert lauf.returncode != 0
         assert "Migration abgebrochen, nichts geändert" in ausgabe, ausgabe[-2000:]
@@ -330,7 +330,7 @@ def _migrationsprobe(url: str, engine, Session) -> None:
         db.execute(text("UPDATE reminders SET reminder_number = 'M-2026-0007' WHERE id = :i"), {"i": m3})
         db.commit()
         db.close()
-        _ok(_alembic(url, "upgrade", "head"))
+        _ok(_alembic(url, "upgrade", MIGRATION))
         assert MIGRATION in _ok(_alembic(url, "current")).stdout
         engine.dispose()
         assert _eindeutig(engine, "invoices", "invoice_number")
@@ -349,7 +349,7 @@ def _migrationsprobe(url: str, engine, Session) -> None:
         db = Session()
         assert db.scalar(select(Invoice.invoice_number).where(Invoice.id == r2)) == "R-2026-0003"  # nichts verloren
         db.close()
-        _ok(_alembic(url, "upgrade", "head"))
+        _ok(_alembic(url, "upgrade", MIGRATION))
         engine.dispose()
         assert _eindeutig(engine, "invoices", "invoice_number")
     finally:

@@ -8,7 +8,8 @@ Befund „Vor dem Echtbetrieb“ Punkt 1 (docs/archiv/befund-vor-echtbetrieb.md,
     Rechnungsseite     Abschlagsentwurf von vor der Schlussrechnung: Grund statt "Rechnung finalisieren", "Entwurf löschen"
                        bleibt; verrechneter Abschlag: Grund statt "Stornieren"; Stornorechnung: "lässt sich nicht stornieren"
                        (hell und dunkel)
-    Mahnwesen          Mahnungsentwurf zu einer inzwischen bezahlten Rechnung: Grund statt "Versenden", API 409
+    Mahnwesen          Mahnungsentwurf zu einer inzwischen bezahlten Rechnung: Grund statt "Versenden", API 409 (seit 1.8.78
+                       bezahlt über eine gebuchte Zahlung; der Knopf "Als bezahlt markieren" ist entfallen)
     Ausweg (1.8.73)    Schlussrechnung neben festgeschriebenem pauschalem Abschlag: "… kommen mit R4."; neben einem Entwurf:
                        "Ausweg: den Entwurf löschen.", gelöscht -> frei
 
@@ -36,8 +37,9 @@ def befuellen(db, k):
     from app.berlin_time import berlin_today
     from app.invoices import (
         create_abschlag_leistungsstand, create_abschlag_pauschal, create_schlussrechnung, create_storno_draft,
-        finalize_and_send_invoice, mark_invoice_paid, update_invoice_item,
+        finalize_and_send_invoice, update_invoice_item,
     )
+    from app.payments import Line, book_payment, payable_gross
     from app.models import AppUser, Customer, Project, Quote, QuoteItem
     from app.orders import create_order_from_quote, load_order
     from app.project_pipeline_columns import default_pipeline_column_id
@@ -93,7 +95,9 @@ def befuellen(db, k):
     f = auftrag("KT-6")
     rechnung = festschreiben(create_schlussrechnung(db, f, due_date=berlin_today() - timedelta(days=20)))
     mahnung = create_reminder(db, rechnung, 1)
-    mark_invoice_paid(db, rechnung, paid_date=berlin_today() - timedelta(days=1))
+    brutto = payable_gross(rechnung)  # seit 1.8.78: bezahlt über eine gebuchte Zahlung (vorher mark_invoice_paid())
+    book_payment(db, customer_id=kunde.id, received_on=berlin_today() - timedelta(days=1), amount=brutto, note=None,
+                 lines=[Line(rechnung.id, zahlung=brutto)])
     # G (seit 1.8.73): pauschaler Abschlag nur als Entwurf -> Ausweg "Entwurf löschen"
     g = auftrag("KT-7")
     g_pauschal = create_abschlag_pauschal(db, g, lump_sum_net=Decimal("150"))
@@ -172,7 +176,8 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen(f"/invoices/{seed['abschlag']}", "invoice&&document.getElementById('statusActions').innerHTML.length>0")
     akt = await _aktionen(tab)
     p.pruefe("Abschlag: kein Stornieren", "Stornieren" in akt["knoepfe"], False)
-    p.pruefe("Abschlag: Bezahlt-Knopf bleibt", "Als bezahlt markieren" in akt["knoepfe"], True)
+    # Bis 1.8.77 "Bezahlt-Knopf bleibt"; seit 1.8.78 gibt es den Knopf nicht mehr (Zahlungen bucht die Karte "Zahlungen").
+    p.pruefe("Abschlag: kein Bezahlt-Knopf mehr", "Als bezahlt markieren" in akt["knoepfe"], False)
     p.pruefe("Abschlag: Grund", (akt["sperre"] or "").startswith(f"Der Abschlag ist in der Schlussrechnung {seed['schluss']}"),
              True)
     await _bild(tab, "rechnung_abschlag_storno_gesperrt", "statusActions", dunkel=True)

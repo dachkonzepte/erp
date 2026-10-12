@@ -30,6 +30,11 @@ der Sperre noch Entwurf ist, sonst InvoiceBlocked = 409) -- tests/test_v378_rech
 Rechnungsdatum (seit 1.8.75, Befund 4a-4c): der Tag des Festschreibens in Berliner Zeit (Tag der Ausgabe), nicht der Tag des
 Entwurfs. Beim Festschreiben rücken Rechnungsdatum und Fälligkeit auf diesen Tag (finalize_dates(): das Zahlungsziel des
 Entwurfs bleibt); das Skontodatum rechnet ohnehin ab dem Rechnungsdatum. Bis dahin trägt der Entwurf das Datum seines Anlegens.
+
+Zahlungen (seit 1.8.78, Zahlungsstufe Z1, app/payments.py): "bezahlt" ist kein Status mehr -- der Status kennt nur Entwurf,
+festgeschrieben ("versendet") und storniert; offen, teilweise bezahlt, Einbehalt offen und bezahlt leiten sich aus den
+gebuchten Zahlungen ab. Eine Rechnung mit zugeordneten Zahlungen lässt sich erst stornieren, wenn die Zuordnungen gelöst sind
+(storno_block_reason()); eine Stornorechnung ist nie offen.
 """
 
 from datetime import date, timedelta
@@ -52,12 +57,15 @@ from .settings import issue_number
 INVOICE_TYPES = {"abschlag_pauschal", "abschlag_leistungsstand", "schluss", "aufwand", "storno"}
 EDITABLE_STATUS = "entwurf"
 PROGRESS_INVOICE_TYPES = ("abschlag_pauschal", "abschlag_leistungsstand")
-VALID_STATUSES = ("versendet", "bezahlt")  # festgeschrieben und nicht storniert -- "gültig"
+# Festgeschrieben und nicht storniert -- "gültig". Bis 1.8.77 auch "bezahlt"; seit 1.8.78 ist der Zahlstand abgeleitet
+# (app/payments.py), die Migration c7d41e9a2b63 setzte bezahlte Rechnungen auf "versendet".
+VALID_STATUSES = ("versendet",)
 
 
 class InvoiceBlocked(ValueError):
     """Eine Aktion ist am Stand des Auftrags gesperrt (seit 1.8.72, siehe Moduldocstring "Sperren"; auch die Mahnung zu
-    einer stornierten oder bezahlten Rechnung, app/reminders.py). Die Router antworten 409 mit dem Text."""
+    einer stornierten oder bezahlten Rechnung, app/reminders.py, und seit 1.8.78 das Storno einer Rechnung mit zugeordneten
+    Zahlungen). Die Router antworten 409 mit dem Text."""
 
 
 def is_invoice_editable(invoice: Invoice) -> bool:
@@ -70,7 +78,8 @@ def lock_order_invoices(db: Session, order_id: int) -> list[Invoice]:
     Storno und "bezahlt" der Rechnungen eines Auftrags und Anlegen und Versenden ihrer Mahnungen laufen so nacheinander,
     jede Prüfung sieht den Stand, den die vorige hinterlassen hat. populate_existing: der Router hat Auftrag und Rechnung
     vorher ungesperrt geladen -- ohne das blieben deren Werte von vor dem Warten stehen. Wirkt unter PostgreSQL; SQLite
-    (nur Entwicklung) ignoriert FOR UPDATE."""
+    (nur Entwicklung) ignoriert FOR UPDATE. Seit 1.8.78 buchen auch Zahlungen und ihre Gegenbuchungen unter dieser Sperre
+    (app/payments.py::lock_for_booking(), mehrere Aufträge aufsteigend nach ID)."""
     lock_order(db, order_id)
     db.scalar(select(Order).where(Order.id == order_id).execution_options(populate_existing=True))
     return list(db.scalars(
@@ -150,6 +159,12 @@ def storno_block_reason(invoices: list[Invoice], original: Invoice, *, storno_dr
         if final:
             return (f"Der Abschlag ist in der Schlussrechnung {_labels(final)} verrechnet und lässt sich nicht stornieren, "
                     "solange sie gilt -- zuerst die Schlussrechnung stornieren.")
+    # Seit 1.8.78 (Vorgabe Z1 Nr. 5): erst die Zuordnungen lösen, dann stornieren -- die Zahlung bleibt nicht zugeordnet am
+    # Kunden. Beim Anlegen und beim Festschreiben des Stornos unter der Sperre geprüft (Zuordnungen buchen unter derselben).
+    db = object_session(original)
+    if db is not None and original.status in VALID_STATUSES:
+        from .payments import allocation_block_reason  # lokal: app/payments.py importiert dieses Modul
+        return allocation_block_reason(db, original)
     return None
 
 
@@ -304,8 +319,8 @@ def _default_invoice_header_fields(db: Session, order: Order, *, due_date: date 
 def get_previous_cumulative_ist(
     db: Session, order_id: int, source_order_item_id: int, *, exclude_invoice_id: int | None = None,
 ) -> Decimal:
-    """Kumulierter Ist-Stand der zeitlich letzten, bereits versendeten oder
-    bezahlten (NICHT: Entwurf, NICHT: stornierte) Rechnung für dieselbe
+    """Kumulierter Ist-Stand der zeitlich letzten, bereits festgeschriebenen
+    (NICHT: Entwurf, NICHT: stornierte) Rechnung für dieselbe
     Auftragsposition. Entwürfe zählen bewusst nicht mit, da sie noch nicht
     endgültig sind -- eine stornierte Rechnung zählt bewusst nicht mit, da ihr
     Stand damit rückgängig gemacht wurde.
@@ -320,7 +335,7 @@ def get_previous_cumulative_ist(
         .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
         .where(
             Invoice.order_id == order_id,
-            Invoice.status.in_(["versendet", "bezahlt"]),
+            Invoice.status.in_(VALID_STATUSES),
             Invoice.invoice_type.in_(["abschlag_leistungsstand", "schluss"]),
             InvoiceItem.source_order_item_id == source_order_item_id,
         )
@@ -766,20 +781,6 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
     return invoice
 
 
-def mark_invoice_paid(db: Session, invoice: Invoice, *, paid_date: date | None = None) -> Invoice:
-    """Seit 1.8.72 unter der Sperre der Auftragszeile: eine gleichzeitig versendete Mahnung (app/reminders.py) wartet
-    darauf und findet die Rechnung danach bezahlt."""
-    lock_order_invoices(db, invoice.order_id)
-    if invoice.status != "versendet":
-        db.rollback()
-        raise ValueError("Nur versendete Rechnungen können als bezahlt markiert werden.")
-    invoice.status = "bezahlt"
-    invoice.paid_date = paid_date or berlin_today()
-    db.commit()
-    db.refresh(invoice)
-    return invoice
-
-
 def delete_invoice_draft(db: Session, invoice: Invoice) -> None:
     """Löscht eine Rechnung unwiderruflich -- nur im Entwurf möglich. Bewusst
     keine Nummernkreis-Rücknahme nötig: ein Entwurf hat noch keine
@@ -807,19 +808,20 @@ def delete_invoice_draft(db: Session, invoice: Invoice) -> None:
 
 
 def create_storno_draft(db: Session, original: Invoice) -> Invoice:
-    """Erzeugt den Entwurf einer Stornorechnung zu einer bereits versendeten
-    oder bezahlten Rechnung -- kehrt Betrag und alle Positionen um (negatives
+    """Erzeugt den Entwurf einer Stornorechnung zu einer bereits festgeschriebenen
+    Rechnung -- kehrt Betrag und alle Positionen um (negatives
     Vorzeichen). Die Original-Rechnung wird NICHT sofort auf 'storniert'
     gesetzt, sondern erst, wenn dieser Entwurf tatsächlich versendet wird
     (siehe finalize_and_send_invoice) -- ein verworfener Storno-Entwurf lässt
     die Original-Rechnung also unangetastet.
 
     Seit 1.8.72 (Befund 1e-1g) unter der Sperre der Auftragszeile: höchstens ein Storno je Rechnung (auch ein Entwurf
-    zählt), keins eines Stornos, keins eines Abschlags hinter einer gültigen Schlussrechnung -- storno_block_reason()."""
+    zählt), keins eines Stornos, keins eines Abschlags hinter einer gültigen Schlussrechnung -- storno_block_reason(); seit
+    1.8.78 keins, solange der Rechnung Zahlungen zugeordnet sind."""
     invoices = lock_order_invoices(db, original.order_id)
     if original.status == EDITABLE_STATUS:
         db.rollback()
-        raise ValueError("Nur versendete oder bezahlte Rechnungen können storniert werden.")
+        raise ValueError("Nur festgeschriebene Rechnungen können storniert werden.")
     reason = storno_block_reason(invoices, original)  # auch "schon storniert" (409 statt bis 1.8.71 400)
     if reason:
         db.rollback()
@@ -929,6 +931,17 @@ def update_invoice_tax_key(db: Session, invoice: Invoice, tax_key_id: int) -> In
     return invoice
 
 
+def skonto_offer(invoice: Invoice) -> tuple[date, Decimal] | None:
+    """(Skontodatum, Skontobetrag) laut Rechnung, None ohne Skonto -- derselbe Betrag wie im Zahlungssatz ({skontobetrag}:
+    der Abzug, nicht der Zahlbetrag); seit 1.8.78 auch Grundlage des Skonto-Vorschlags beim Zahlungseingang
+    (app/payments.py::proposal())."""
+    if not (invoice.skonto_percent and invoice.skonto_days is not None):
+        return None
+    until = invoice.invoice_date + timedelta(days=invoice.skonto_days)
+    gross = compute_invoice_totals(invoice)["gross_total"]
+    return until, (gross * invoice.skonto_percent / Decimal("100")).quantize(CENT, rounding=invoice_rounding(invoice))
+
+
 def format_payment_terms_sentence(invoice: Invoice) -> str:
     """Automatisch aus Fälligkeitsdatum und Skonto erzeugter Satz mit echten
     Daten (nicht nur der abstrakten Bezeichnung wie '14 Tage netto') --
@@ -945,12 +958,11 @@ def format_payment_terms_sentence(invoice: Invoice) -> str:
     if invoice.due_date is None:
         return ""
     due_str = invoice.due_date.strftime("%d.%m.%Y")
-    has_skonto = bool(invoice.skonto_percent) and invoice.skonto_days is not None
+    offer = skonto_offer(invoice)
+    has_skonto = offer is not None
     skonto_date_str = percent_text = amount_text = ""
     if has_skonto:
-        skonto_date = invoice.invoice_date + timedelta(days=invoice.skonto_days)
-        totals = compute_invoice_totals(invoice)
-        skonto_amount = (totals["gross_total"] * invoice.skonto_percent / Decimal("100")).quantize(CENT, rounding=invoice_rounding(invoice))
+        skonto_date, skonto_amount = offer
         skonto_date_str = skonto_date.strftime("%d.%m.%Y")
         percent_text = f"{invoice.skonto_percent:.2f}".rstrip("0").rstrip(".").replace(".", ",")
         amount_text = f"{skonto_amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -992,9 +1004,16 @@ def _de(d: date) -> str:
 
 def send_hint(invoice: Invoice, today: date) -> str | None:
     """Hinweis beim Versand an einem späteren Tag als dem Rechnungsdatum (seit 1.8.75): Fälligkeit und Skontofrist rechnen ab
-    dem Rechnungsdatum (Tag des Festschreibens), nicht ab dem Versand. Nur für eine festgeschriebene, nicht bezahlte."""
+    dem Rechnungsdatum (Tag des Festschreibens), nicht ab dem Versand. Nur für eine festgeschriebene, nicht bezahlte (seit
+    1.8.78 aus den gebuchten Zahlungen, app/payments.py)."""
     if invoice.status != "versendet" or invoice.invoice_date is None or invoice.invoice_date >= today:
         return None
+    db = object_session(invoice)
+    if db is not None:
+        from .payments import payment_state  # lokal: Zirkel-Import
+        state = payment_state(db, invoice)
+        if state is not None and state.state == "bezahlt":
+            return None
     text = f"Die Rechnung ist vom {_de(invoice.invoice_date)} (Tag des Finalisierens), heute ist der {_de(today)}."
     if invoice.due_date is None:
         return text
@@ -1029,6 +1048,24 @@ def _action_blocks(invoice: Invoice) -> dict:
     }
 
 
+def _payment_info(invoice: Invoice, state=None, *, with_allocations: bool) -> dict:
+    """Seit 1.8.78: Zahlstand (offen, mahnfähig, Zustand) statt Status "bezahlt"; überfällig nur mit mahnfähigem Betrag (ein
+    offener Einbehalt wird nicht gemahnt, eine Stornorechnung ist nie offen)."""
+    from .payments import invoice_allocations, not_payable_reason, payment_state  # lokal: Zirkel-Import
+    db = object_session(invoice)
+    if state is None and db is not None:
+        state = payment_state(db, invoice)
+    info = {
+        "payment": state.as_dict() if state is not None else None,
+        "not_payable_reason": not_payable_reason(invoice) if invoice.status != EDITABLE_STATUS else None,
+        "is_overdue": (state is not None and state.dunnable > 0 and invoice.due_date is not None
+                       and invoice.due_date < berlin_today()),
+    }
+    if with_allocations:
+        info["payment_allocations"] = invoice_allocations(db, invoice) if db is not None else []
+    return info
+
+
 def invoice_to_dict(invoice: Invoice) -> dict:
     """Rechnung inkl. Positionen und berechneter Summen für API-Antworten und
     PDF-Erzeugung. visible_items() (Ist=0 ausgeblendet) wird bewusst NICHT
@@ -1050,7 +1087,6 @@ def invoice_to_dict(invoice: Invoice) -> dict:
         "status": invoice.status,
         "invoice_date": invoice.invoice_date,
         "due_date": invoice.due_date,
-        "paid_date": invoice.paid_date,
         "storno_of_invoice_id": invoice.storno_of_invoice_id,
         "customer_name": invoice.customer_name,
         "customer_number": invoice.customer_number,
@@ -1070,9 +1106,8 @@ def invoice_to_dict(invoice: Invoice) -> dict:
         "skonto_days": invoice.skonto_days,
         "payment_terms_sentence": format_payment_terms_sentence(invoice),
         "is_editable": is_invoice_editable(invoice),
-        "is_overdue": (
-            invoice.status == "versendet" and invoice.due_date is not None and invoice.due_date < berlin_today()
-        ),
+        # Seit 1.8.78: Zahlstand und Zuordnungen, überfällig nur mit mahnfähigem Betrag (app/payments.py).
+        **_payment_info(invoice, with_allocations=True),
         # Seit 1.8.72: warum "Finalisieren" bzw. "Stornieren" gesperrt ist -- die Rechnungsseite zeigt den Grund statt des Knopfs.
         **_action_blocks(invoice),
         # Seit 1.8.74: Leistungszeitraum, im Entwurf mit Vorschlag samt Quelle (übernommen nur per Klick).
@@ -1114,21 +1149,21 @@ def invoice_summary_for_order(db: Session, order_id: int) -> tuple[int, bool]:
     existiert."""
     invoices = list_invoices_for_order(db, order_id)
     active = [i for i in invoices if i.status != "storniert"]
-    fully_invoiced = any(i.invoice_type == "schluss" and i.status in ("versendet", "bezahlt") for i in active)
+    fully_invoiced = any(i.invoice_type == "schluss" and i.status in VALID_STATUSES for i in active)
     return len(active), fully_invoiced
 
 
 def compute_order_billing_progress(db: Session, order_id: int) -> dict:
     """Wie viel von einem Auftrag bereits (verbindlich) abgerechnet wurde,
     Netto und Brutto -- für die Anzeige im Auftrag selbst. Zählt nur
-    finalisierte Rechnungen (versendet/bezahlt); Entwürfe zählen bewusst
+    festgeschriebene Rechnungen; Entwürfe zählen bewusst
     nicht mit, da sie noch nicht endgültig sind. Stornierte Rechnungen UND
     die zugehörigen Storno-Rechnungen selbst zählen bewusst BEIDE nicht mit
     (nicht: eine zählt positiv, die andere negativ) -- sonst würde eine
     stornierte Position fälschlich einen negativen Betrag beitragen, statt
     schlicht wieder auf 'nicht abgerechnet' zurückzufallen."""
     invoices = list_invoices_for_order(db, order_id)
-    counted = [i for i in invoices if i.status in ("versendet", "bezahlt") and i.invoice_type != "storno"]
+    counted = [i for i in invoices if i.status in VALID_STATUSES and i.invoice_type != "storno"]
     invoiced_net = Decimal("0")
     invoiced_gross = Decimal("0")
     for inv in counted:
@@ -1158,11 +1193,19 @@ def list_invoices_for_project(db: Session, project_id: int) -> list[Invoice]:
     ).all()
 
 
-def invoice_overview_row(invoice: Invoice) -> dict:
+def invoice_overview_rows(db: Session, invoices: list[Invoice]) -> list[dict]:
+    """Zeilen für Finanzen und Projektmappe, der Zahlstand aller Rechnungen in einer Abfrage (seit 1.8.78)."""
+    from .payments import payment_states  # lokal: Zirkel-Import
+    states = payment_states(db, invoices)
+    return [invoice_overview_row(inv, states.get(inv.id)) for inv in invoices]
+
+
+def invoice_overview_row(invoice: Invoice, state=None) -> dict:
     """Leichtgewichtige Zeile für die Finanzen-Übersicht (ohne Positionen,
     dafür mit Auftrags-/Projektbezug) -- bewusst getrennt von
     invoice_to_dict(), das für Detailansicht/PDF die volle Positionsliste
-    mitliefert, die hier für eine Liste vieler Rechnungen unnötig wäre."""
+    mitliefert, die hier für eine Liste vieler Rechnungen unnötig wäre.
+    Seit 1.8.78 mit Zahlstand (state aus invoice_overview_rows(), sonst einzeln geladen)."""
     totals = compute_invoice_totals(invoice)
     return {
         "id": invoice.id,
@@ -1171,9 +1214,7 @@ def invoice_overview_row(invoice: Invoice) -> dict:
         "status": invoice.status,
         "invoice_date": invoice.invoice_date,
         "due_date": invoice.due_date,
-        "is_overdue": (
-            invoice.status == "versendet" and invoice.due_date is not None and invoice.due_date < berlin_today()
-        ),
+        **_payment_info(invoice, state, with_allocations=False),
         "customer_name": invoice.customer_name,
         "order_id": invoice.order_id,
         "order_number": invoice.order.order_number if invoice.order else None,

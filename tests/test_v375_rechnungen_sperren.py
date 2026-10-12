@@ -4,7 +4,8 @@ docs/archiv/befund-vor-echtbetrieb.md "Umsetzung 1.8.72").
 - Je Auftrag höchstens eine nicht stornierte Schlussrechnung, auch als Entwurf; nach der festgeschriebenen keine Abschläge.
 - Je Rechnung höchstens ein Storno (auch ein Entwurf zählt), keins eines Stornos.
 - Kein Storno eines Abschlags, solange eine gültige (festgeschriebene, nicht stornierte) Schlussrechnung besteht.
-- Mahnung: Anlegen, Festschreiben und E-Mail nur, solange die Rechnung weder storniert noch bezahlt ist.
+- Mahnung: Anlegen, Festschreiben und E-Mail nur, solange die Rechnung weder storniert noch bezahlt ist (seit 1.8.78 ist
+  "bezahlt" abgeleitet: tests/zahlung.py::voll_bezahlen() statt mark_invoice_paid()).
 - Bis R4: keine Schlussrechnung neben einem nicht stornierten pauschalen Abschlag (409 mit Begründung).
 
 Geprüft beim Anlegen und noch einmal beim Festschreiben (Altbestand: zwei Entwürfe von vor 1.8.72, hier nachgebaut), unter der
@@ -36,7 +37,6 @@ from app.invoices import (
     delete_invoice_draft,
     finalize_and_send_invoice,
     invoice_to_dict,
-    mark_invoice_paid,
     update_invoice_item,
 )
 from app.models import EmailDispatch, Invoice, InvoiceItem, NumberSequence, Order, Reminder
@@ -48,6 +48,7 @@ from app.routers.reminders import router as reminders_router
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
 from tests.leistungszeitraum import ZEITRAUM_JSON, festschreiben, mit_zeitraum
+from tests.zahlung import voll_bezahlen
 
 PG_TEST_DATABASE_URL = os.getenv("ERP_TEST_POSTGRES_URL")
 
@@ -180,7 +181,7 @@ def test_final_invoice_is_blocked_by_a_lump_sum_that_is_not_cancelled(status):
     if status != "entwurf":
         pauschal = _final(db, pauschal)
     if status == "bezahlt":
-        mark_invoice_paid(db, pauschal, paid_date=date(2026, 10, 1))
+        voll_bezahlen(db, pauschal, received_on=date(2026, 10, 1))
     text_ = _gesperrt(create_schlussrechnung, db, order)
     genannt = pauschal.invoice_number or "ein Entwurf"
     # Seit 1.8.73 mit Ausweg (Festlegung 1.8.72 Nr. 5): Entwurf -> löschen, sonst R4.
@@ -254,7 +255,7 @@ def test_storno_of_a_storno_is_rejected_and_the_draft_case_stays_400():
     order, _ = make_order_with_item(db)
     abschlag = _final(db, _leistungsstand(db, order, "40"))
     storno = create_storno_draft(db, abschlag)
-    with pytest.raises(ValueError, match="Nur versendete oder bezahlte") as exc:
+    with pytest.raises(ValueError, match="Nur festgeschriebene Rechnungen") as exc:  # bis 1.8.77 "versendete oder bezahlte"
         create_storno_draft(db, storno)
     assert not isinstance(exc.value, InvoiceBlocked)
     storno = _final(db, storno)
@@ -330,7 +331,7 @@ def _storniert_oder_bezahlt(db, invoice, danach):
     if danach == "storniert":
         _final(db, create_storno_draft(db, invoice))
     else:
-        mark_invoice_paid(db, invoice, paid_date=date(2026, 10, 2))
+        voll_bezahlen(db, invoice, received_on=date(2026, 10, 2))
     return db.get(Invoice, invoice.id)
 
 
@@ -363,7 +364,7 @@ def test_sent_reminder_is_not_emailed_after_the_invoice_was_paid():
     invoice = make_sent_overdue_invoice(db)
     mahnung = finalize_and_send_reminder(db, create_reminder(db, invoice, 1))
     assert reminder_to_dict(mahnung)["send_block"] is None
-    mark_invoice_paid(db, invoice, paid_date=date(2026, 10, 2))
+    voll_bezahlen(db, invoice, received_on=date(2026, 10, 2))
     assert "bezahlt" in _gesperrt(send_reminder_email, db, db.get(Reminder, mahnung.id), to_email="kunde@example.com")
     assert db.scalar(select(func.count()).select_from(EmailDispatch)) == 0
 
@@ -400,7 +401,7 @@ def test_reminder_routes_answer_409(threaded_db_session, router_test_client):
     entwurf = client.post(f"/api/invoices/{invoice.id}/reminders", json={"level": 1}).json()
     gesendet = client.post(f"/api/invoices/{invoice.id}/reminders", json={"level": 1}).json()  # zweiter Entwurf, wie bisher
     client.post(f"/api/reminders/{gesendet['id']}/send")
-    mark_invoice_paid(db, db.get(Invoice, invoice.id), paid_date=date(2026, 10, 2))
+    voll_bezahlen(db, db.get(Invoice, invoice.id), received_on=date(2026, 10, 2))
     for response in (client.post(f"/api/reminders/{entwurf['id']}/send"),
                      client.post(f"/api/invoices/{invoice.id}/reminders", json={"level": 2}),
                      client.post(f"/api/reminders/{gesendet['id']}/send-email",
@@ -655,7 +656,7 @@ def test_postgresql_reminder_waits_for_storno_or_payment_and_is_rejected(pg, ers
         storno_id = _vorbereiten(Session, lambda s: create_storno_draft(s, _inv(s, invoice_id)).id)
         first = lambda s: festschreiben(s, _inv(s, storno_id)).id  # noqa: E731
     else:
-        first = lambda s: mark_invoice_paid(s, _inv(s, invoice_id), paid_date=date(2026, 10, 2)).id  # noqa: E731
+        first = lambda s: voll_bezahlen(s, _inv(s, invoice_id), received_on=date(2026, 10, 2)).id  # noqa: E731
     _, second = _run(Session, first, lambda s: finalize_and_send_reminder(s, s.get(Reminder, reminder_id)))
     assert isinstance(second, InvoiceBlocked), second
     assert _vorbereiten(Session, lambda s: (s.get(Reminder, reminder_id).status,
@@ -665,7 +666,7 @@ def test_postgresql_reminder_waits_for_storno_or_payment_and_is_rejected(pg, ers
 def test_postgresql_new_reminder_waits_for_the_payment_and_is_rejected(pg):
     Session, order_id = pg
     invoice_id, _ = _rechnung_mit_mahnung(Session, order_id, mahnung=False)
-    _, second = _run(Session, lambda s: mark_invoice_paid(s, _inv(s, invoice_id), paid_date=date(2026, 10, 2)).id,
+    _, second = _run(Session, lambda s: voll_bezahlen(s, _inv(s, invoice_id), received_on=date(2026, 10, 2)).id,
                      lambda s: create_reminder(s, _inv(s, invoice_id), 1))
     assert isinstance(second, InvoiceBlocked), second
     assert _vorbereiten(Session, lambda s: s.scalar(select(func.count()).select_from(Reminder))) == 0

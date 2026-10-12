@@ -25,7 +25,7 @@ from .models import Invoice, Order, OrderAcceptance, TimeEntry
 
 NOT_WORK_ENTRY_TYPES = ("weather_winter", "weather_summer")  # wie create_invoice_from_time_entries()
 PROGRESS_TYPES = ("abschlag_pauschal", "abschlag_leistungsstand")
-VALID = ("versendet", "bezahlt")
+VALID = ("versendet",)  # festgeschrieben, nicht storniert (bis 1.8.77 auch "bezahlt", seit 1.8.78 abgeleitet)
 
 
 @dataclass

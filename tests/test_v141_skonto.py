@@ -272,13 +272,14 @@ def test_finalisierte_rechnung_kann_nicht_geloescht_werden():
 
 
 def test_bezahlte_rechnung_kann_nicht_geloescht_werden():
-    from app.invoices import delete_invoice_draft, mark_invoice_paid
+    from app.invoices import delete_invoice_draft
+    from tests.zahlung import voll_bezahlen  # seit 1.8.78 statt mark_invoice_paid()
 
     db = db_session()
     order, _ = make_order_with_item(db)
     invoice = create_schlussrechnung(db, order)
     festschreiben(db, invoice)
-    mark_invoice_paid(db, invoice)
+    voll_bezahlen(db, invoice)
     try:
         delete_invoice_draft(db, invoice)
         assert False, "hätte ValueError auslösen müssen"

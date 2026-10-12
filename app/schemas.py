@@ -1984,6 +1984,38 @@ class InvoiceItemOut(BaseModel):
     billed_total: Decimal
 
 
+class PaymentStateOut(BaseModel):
+    """Zahlstand einer Rechnung (seit 1.8.78, app/payments.py::PaymentState) -- abgeleitet, nie gespeichert."""
+    gross: Decimal
+    paid: Decimal
+    skonto: Decimal
+    retained: Decimal
+    open: Decimal
+    retained_open: Decimal
+    dunnable: Decimal
+    state: str  # offen | teilweise_bezahlt | einbehalt_offen | bezahlt
+    state_label: str
+    paid_on: date | None = None
+
+
+class PaymentAllocationOut(BaseModel):
+    id: int
+    payment_id: int
+    invoice_id: int
+    invoice_number: str | None = None
+    order_id: int | None = None
+    kind: str  # zahlung | skonto | einbehalt
+    kind_label: str
+    amount: Decimal
+    received_on: date | None = None
+    payment_note: str | None = None
+    payment_origin: str | None = None
+    created_at: datetime
+    created_by_name: str
+    reversed: bool
+    reversal: dict | None = None  # {id, reason, created_at, created_by_name}
+
+
 class InvoiceOut(BaseModel):
     id: int
     invoice_number: str | None
@@ -1996,7 +2028,6 @@ class InvoiceOut(BaseModel):
     status: str
     invoice_date: date
     due_date: date | None
-    paid_date: date | None
     storno_of_invoice_id: int | None
     customer_name: str
     customer_number: str | None
@@ -2017,6 +2048,10 @@ class InvoiceOut(BaseModel):
     payment_terms_sentence: str
     is_editable: bool
     is_overdue: bool
+    # Seit 1.8.78: Zahlstand statt Status "bezahlt"; None bei Entwurf, Storno(rechnung) und Rechnung über 0 € oder weniger.
+    payment: PaymentStateOut | None = None
+    not_payable_reason: str | None = None
+    payment_allocations: list[PaymentAllocationOut] = Field(default_factory=list)
     finalize_block: str | None = None  # seit 1.8.72: warum "Finalisieren" gesperrt ist (app/invoices.py)
     storno_block: str | None = None  # seit 1.8.72: warum "Stornieren" gesperrt ist
     # Seit 1.8.74: Leistungszeitraum; im Entwurf der Vorschlag {start, end, source} (app/service_period.py::proposal()).
@@ -2069,6 +2104,7 @@ class InvoiceListOut(BaseModel):
     is_overdue: bool
     net_total: Decimal
     gross_total: Decimal
+    payment: PaymentStateOut | None = None  # seit 1.8.78
 
 
 class InvoiceOverviewOut(BaseModel):
@@ -2084,6 +2120,8 @@ class InvoiceOverviewOut(BaseModel):
     order_number: str | None
     project_number: str | None
     gross_total: Decimal
+    payment: PaymentStateOut | None = None  # seit 1.8.78
+    not_payable_reason: str | None = None
 
 
 class InvoiceCreateAbschlagPauschal(BaseModel):
@@ -2129,8 +2167,92 @@ class InvoiceItemUpdate(BaseModel):
     ist_quantity: Decimal | None = Field(default=None, ge=0)
 
 
-class InvoiceMarkPaid(BaseModel):
-    paid_date: date | None = None
+_CENT_FIELD = {"max_digits": 16, "decimal_places": 2}
+
+
+class PaymentLineIn(BaseModel):
+    """Eine bestätigte Zeile (seit 1.8.78): was von der Zahlung auf die Rechnung geht und welche Abzüge mit ihr gebucht
+    werden -- auf den Cent, nicht negativ."""
+    invoice_id: int
+    zahlung: Decimal = Field(default=Decimal("0"), ge=0, **_CENT_FIELD)
+    skonto: Decimal = Field(default=Decimal("0"), ge=0, **_CENT_FIELD)
+    einbehalt: Decimal = Field(default=Decimal("0"), ge=0, **_CENT_FIELD)
+
+
+class PaymentCreate(BaseModel):
+    """Zahlungseingang erfassen (seit 1.8.78); lines leer = alles bleibt Rest am Kunden. "Erfasst von" setzt der Server."""
+    customer_id: int
+    received_on: date
+    amount: Decimal = Field(gt=0, **_CENT_FIELD)
+    note: str | None = Field(default=None, max_length=2000)
+    lines: list[PaymentLineIn] = Field(default_factory=list)
+
+
+class PaymentAllocate(BaseModel):
+    lines: list[PaymentLineIn] = Field(min_length=1)
+
+
+class PaymentReverse(BaseModel):
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class PaymentOut(BaseModel):
+    id: int
+    customer_id: int
+    received_on: date
+    amount: Decimal
+    note: str | None = None
+    origin: str  # erfasst | uebernommen
+    created_at: datetime
+    created_by_name: str
+    rest: Decimal
+    reversed: bool
+    reversal: dict | None = None  # {reason, created_at, created_by_name}
+    allocations: list[PaymentAllocationOut] = Field(default_factory=list)
+
+
+class CustomerPaymentsOut(BaseModel):
+    customer_id: int
+    payments: list[PaymentOut]
+    rest: Decimal
+
+
+class OpenInvoiceOut(BaseModel):
+    invoice_id: int
+    invoice_number: str | None
+    invoice_type: str
+    invoice_date: date
+    order_id: int
+    order_number: str | None = None
+    payment: PaymentStateOut
+    skonto_offer: dict | None = None  # {until, amount}
+
+
+class PaymentProposalLineOut(BaseModel):
+    invoice_id: int
+    invoice_number: str | None
+    invoice_type: str
+    invoice_date: date
+    order_id: int
+    is_selected: bool
+    open: Decimal
+    zahlung: Decimal
+    skonto: Decimal
+    einbehalt: Decimal
+    skonto_offer: dict | None = None  # {until, amount, in_period}
+
+
+class PaymentProposalOut(BaseModel):
+    amount: Decimal
+    received_on: date
+    lines: list[PaymentProposalLineOut]
+    rest: Decimal
+
+
+class UnallocatedPaymentsOut(BaseModel):
+    customer_id: int
+    customer_name: str | None = None
+    rest: Decimal
 
 
 class InvoicePaymentTermUpdate(BaseModel):
