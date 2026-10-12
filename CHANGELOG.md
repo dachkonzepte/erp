@@ -4,6 +4,21 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.86 – Zahlungshinweis der Endrechnung, abschließende Rechnung aus Aufwand (R4b, Punkte 4 und 6)
+
+Die Endrechnung nennt jetzt einen Zahlungshinweis „Stand <Tag>“: unter dem Rechnungsbetrag je abgezogener Rechnung, was dort noch
+offen ist (einschließlich Einbehalt, als „davon Einbehalt“ genannt) – „zzgl. noch offen aus Abschlag Nr. …“ –, darunter der Zahlbetrag.
+Im Entwurf gilt der Stand von heute, beim Finalisieren friert er unter der Sperre ein (Stand = Rechnungsdatum); spätere Zahlungen ändern
+ihn nicht. Der Betrag der Rechnung für Zahlungen, Skonto und Mahnung bleibt der Rechnungsbetrag.
+
+Ein Auftrag nach Aufwand (Auftragssumme 0 €, z. B. Schnellauftrag) schließt jetzt mit einer als abschließend gekennzeichneten Rechnung aus
+Aufwand ab (Häkchen auf der Rechnungsseite) statt mit einer Schlussrechnung über 0 €, die es dort nicht mehr gibt. Danach gilt er als
+vollständig abgerechnet und gesperrt wie nach einer Schlussrechnung; das Storno der abschließenden öffnet ihn wieder. Migration
+`4e7a9c2b6d58` (ändert keine Daten), auf SQLite und PostgreSQL mit Bestand geprobt. Neu `test_v389_zahlungshinweis_abschliessend` (12,
+davon 3 gegen PostgreSQL) und `test_v389_zahlungshinweis_migration` (2, davon 1 gegen PostgreSQL); Klicktest `klicktest_endrechnung`
+erweitert, 22/22. Gegenproben 12 von 12 rot. Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3794 grün, 0 rot. Alle Klicktests: 51 von 53 wie erwartet in 13:13 min; rot `klicktest_mahnwesen` und `klicktest_teil_updates` (um Mitternacht; beide auf 1.8.83 genauso, vorhandene Fehler). Festlegungen zum Bestätigen in
+`docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.86".
+
 ## 1.8.85 – Schlussrechnung als Endrechnung (R4b, Punkte 2, 3 und 5)
 
 Die Schlussrechnung ist jetzt eine Endrechnung: alle Auftragspositionen samt Nachträgen mit ihrer vollen Ist-Menge und die Rechnungen

@@ -267,21 +267,27 @@ def test_the_quote_sync_is_blocked_by_a_valid_final_invoice_and_by_a_different_t
     assert db.get(Order, order.id).vat_rate == Decimal("19")
 
 
-def test_the_quote_sync_is_blocked_after_a_final_invoice_without_positions():
-    """Eine Schlussrechnung ohne Positionen (alle Positionen nicht "in Summe") hängt an keiner Position -- sie sperrt trotzdem."""
+def test_the_quote_sync_is_blocked_after_a_closing_invoice_without_positions():
+    """Eine abschließende Rechnung, die an keiner Position hängt, sperrt trotzdem. Bis 1.8.85 eine Schlussrechnung ohne
+    Positionen (alle Positionen nicht "in Summe") -- seit 1.8.86 ist das ein Auftrag nach Aufwand (Auftragssumme 0 €) ohne
+    Schlussrechnung; er schließt mit einer abschließenden Rechnung aus Aufwand ab (R4b Punkt 6)."""
+    from types import SimpleNamespace
+    from app.invoices import update_invoice_header
     db = db_session()
     order = beauftragen(db, make_quote(db, is_consumer=False))
     for item in order.items:
         item.include_in_total = False
     db.commit()
-    schluss = festschreiben(db, create_schlussrechnung(db, load_order(db, order.id)))
-    assert schluss.items == []
+    aufwand = create_invoice_from_time_entries(
+        db, load_order(db, order.id), [], [SimpleNamespace(material_id=None, description="Blech", unit="Stk", quantity=Decimal("1"))])
+    update_invoice_header(db, aufwand, closes_order=True)
+    aufwand = festschreiben(db, db.get(Invoice, aufwand.id))
     quote = db.get(Quote, order.source_quote_id)
     quote.title = "Geändert"
     db.commit()
     with pytest.raises(SyncBlockedError) as exc:
         sync_order_from_source_quote(db, load_order(db, order.id))
-    assert f"die Schlussrechnung {schluss.invoice_number} ist festgeschrieben" in str(exc.value)
+    assert f"die abschließende Rechnung aus Aufwand {aufwand.invoice_number} ist festgeschrieben" in str(exc.value)
 
 
 # ---------------------------------------------------------------------------

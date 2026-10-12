@@ -1,4 +1,5 @@
-"""Klicktest: Schlussrechnung als Endrechnung, Abweichung vom Auftrag (1.8.85, R4b Punkte 2, 3 und 5).
+"""Klicktest: Schlussrechnung als Endrechnung, Abweichung vom Auftrag (1.8.85, R4b Punkte 2, 3 und 5); Zahlungshinweis und
+abschließende Rechnung aus Aufwand (1.8.86, Punkte 4 und 6).
 
 docs/archiv/befund-vor-echtbetrieb.md, "Umsetzung R4b":
 
@@ -9,6 +10,11 @@ docs/archiv/befund-vor-echtbetrieb.md, "Umsetzung R4b":
     Abweichung        Preis am Auftrag nach dem Anlegen des Entwurfs geändert: Grund statt "Finalisieren", Knopf "Aus dem Auftrag
                       aktualisieren", danach Preis übernommen und "Finalisieren" wieder da
     Auftragsseite     nach der Schlussrechnung der Grund für "Rechnung aus Aufwand"
+    Zahlungshinweis   (seit 1.8.86) in der Karte "Endrechnung": "Stand <heute>", je offener abgezogener Rechnung "zzgl. noch
+                      offen aus …" (einer mit Einbehalt), Zahlbetrag; nach dem Finalisieren derselbe Stand
+    Abschließend      (seit 1.8.86) Rechnung aus Aufwand eines Auftrags nach Aufwand: Häkchen "Abschließende Rechnung", gesetzt,
+                      finalisiert -> Hinweis, Auftrag "vollständig abgerechnet", Schlussrechnung dort mit Grund; an einem Auftrag
+                      mit Preisen das Häkchen gesperrt mit Grund
 
 AUFRUF (aus dem Projektordner):
 
@@ -67,6 +73,11 @@ def befuellen(db, k):
     abschlag = create_abschlag_leistungsstand(db, load_order(db, order.id))
     update_invoice_item(db, abschlag, abschlag.items[0], ist_quantity=Decimal("4"))
     fest(abschlag)
+    # Seit 1.8.86: am Abschlag 100 € gezahlt und 38 € Einbehalt -- offen 138 €, davon Einbehalt 38 €.
+    from app.berlin_time import berlin_today
+    from app.payments import Line, book_payment
+    book_payment(db, customer_id=kunde.id, received_on=berlin_today(), amount=Decimal("100"), note=None,
+                 lines=[Line(abschlag.id, zahlung=Decimal("100"), einbehalt=Decimal("38"))], user_name="Test")
     aufwand = create_invoice_from_time_entries(
         db, load_order(db, order.id), [], [SimpleNamespace(material_id=None, description="Kehlblech", unit="Stk.",
                                                            quantity=Decimal("1"))])
@@ -81,7 +92,25 @@ def befuellen(db, k):
     update_invoice_header(db, entwurf, service_period_start=date(2026, 10, 1), service_period_end=date(2026, 10, 10))
     abweichend.items[0].unit_price = Decimal("60")  # am Auftrag geändert, solange nichts abgerechnet ist (erlaubt)
     db.commit()
-    return {"auftrag": order.id, "schluss": schluss.id, "entwurf": entwurf.id, "cookies": {"buero": k.cookies(buero)}}
+
+    def aufwand_entwurf(o):
+        inv = create_invoice_from_time_entries(db, load_order(db, o.id), [], [SimpleNamespace(
+            material_id=None, description="Kleinmaterial", unit="Stk.", quantity=Decimal("1"))])
+        add_invoice_item(db, inv, short_text="Reparatur", long_text="", unit="Std.", unit_price=Decimal("82"),
+                         ist_quantity=Decimal("3"))
+        update_invoice_header(db, inv, service_period_start=date(2026, 10, 1), service_period_end=date(2026, 10, 2))
+        return inv
+
+    # Seit 1.8.86: Auftrag nach Aufwand wie der Schnellauftrag (1 pauschal × 0 €) mit einem Entwurf aus Aufwand; dazu ein Entwurf
+    # aus Aufwand am Auftrag mit Preisen (dort kein "abschließend").
+    nach_aufwand = auftrag("KT-3")
+    nach_aufwand.items[0].unit_price = Decimal("0")
+    nach_aufwand.items[0].quantity = Decimal("1")
+    db.commit()
+    schnell = aufwand_entwurf(nach_aufwand)
+    mit_preis = aufwand_entwurf(abweichend)
+    return {"auftrag": order.id, "schluss": schluss.id, "entwurf": entwurf.id, "schnell_auftrag": nach_aufwand.id,
+            "schnell": schnell.id, "mit_preis": mit_preis.id, "cookies": {"buero": k.cookies(buero)}}
 
 
 async def pruefen(tab, seed, p):
@@ -97,11 +126,11 @@ async def pruefen(tab, seed, p):
     p.pruefe("Karte Endrechnung sichtbar", await tab.js("getComputedStyle(document.getElementById('finalCard')).display"),
              "block")
     p.pruefe("Gesamtleistung netto (500 + Aufwand 50)",
-             await tab.js("document.querySelector('[data-gesamt-netto]').textContent"), "550,00 €")
+             await tab.js("document.querySelector('[data-gesamt-netto]').textContent"), "550,00\u00a0€")
     p.pruefe("Abzugsblock: drei Rechnungen", await tab.js("document.querySelectorAll('[data-abzug]').length"), 3)
     p.pruefe("Rechnungsbetrag brutto = oben Brutto",
              await tab.js("[document.querySelector('[data-rechnungsbetrag]').textContent,"
-                          "document.getElementById('mGross').textContent]"), ["238,00 €", "238,00 €"])
+                          "document.getElementById('mGross').textContent]"), ["238,00\u00a0€", "238,00\u00a0€"])
     p.pruefe("Steuerschlüssel gesperrt, Hinweis",
              await tab.js("[document.getElementById('iTaxKeySelect').disabled,document.getElementById('taxKeyHint').hidden]"),
              [True, False])
@@ -111,6 +140,12 @@ async def pruefen(tab, seed, p):
              await tab.js("[document.getElementById('itPrice').disabled,document.getElementById('itUnit').disabled,"
                           "document.getElementById('itIst').disabled]"), [True, True, False])
     await tab.js("document.getElementById('itemDialog').close()")
+    # Seit 1.8.86: Zahlungshinweis -- offen sind der pauschale Abschlag (119 €), der Abschlag (138 €, davon Einbehalt 38 €) und die
+    # Rechnung aus Aufwand (59,50 €); Zahlbetrag 238 + 119 + 138 + 59,50 = 554,50 €.
+    p.pruefe("Zahlungshinweis: drei offene, einer mit Einbehalt, Zahlbetrag",
+             await tab.js("[document.querySelectorAll('[data-noch-offen]').length,"
+                          "[...document.querySelectorAll('[data-noch-offen]')].some(r=>r.textContent.includes('davon Einbehalt 38,00')),"
+                          "document.querySelector('[data-zahlbetrag]').textContent]"), [3, True, "554,50\u00a0€"])
     await tab.js("document.getElementById('finalCard').scrollIntoView()")
     await tab.bild("endrechnung_entwurf_hell")
 
@@ -119,7 +154,10 @@ async def pruefen(tab, seed, p):
     p.pruefe("finalisiert", await tab.warten("invoice.status==='versendet'"), True)
     p.pruefe("Endrechnung danach mit eingefrorenen Abzügen",
              await tab.js("[document.querySelectorAll('[data-abzug]').length,"
-                          "document.querySelector('[data-rechnungsbetrag]').textContent]"), [3, "238,00 €"])
+                          "document.querySelector('[data-rechnungsbetrag]').textContent]"), [3, "238,00\u00a0€"])
+    p.pruefe("Zahlungshinweis danach: Stand des Finalisierens",
+             await tab.js("[invoice.payment_note.as_of===invoice.invoice_date,document.querySelector('[data-zahlbetrag]').textContent]"),
+             [True, "554,50\u00a0€"])
     pdf = await tab.js(f"fetch('/api/invoices/{s}/pdf').then(r=>[r.status,r.headers.get('content-type'),"
                        "r.headers.get('X-DK-Ablage')!==null])")
     p.pruefe("PDF aus der Ablage", pdf, [200, "application/pdf", True])
@@ -153,9 +191,32 @@ async def pruefen(tab, seed, p):
              await tab.warten("invoice.order_deviation===null&&Number(invoice.items[0].unit_price)===60&&"
                               "[...document.querySelectorAll('#statusActions button')].some(b=>b.textContent==='Rechnung finalisieren')"),
              True)
-    p.pruefe("Brutto nach dem Aktualisieren", await tab.js("document.getElementById('mGross').textContent"), "714,00 €")
+    p.pruefe("Brutto nach dem Aktualisieren", await tab.js("document.getElementById('mGross').textContent"), "714,00\u00a0€")
     await tab.js("document.getElementById('statusActions').scrollIntoView()")
     await tab.bild("aktualisiert")
+
+    # --- Seit 1.8.86: abschließende Rechnung aus Aufwand ---
+    await tab.oeffnen(f"/invoices/{seed['mit_preis']}", "invoice&&invoice.id&&document.getElementById('closingBox').innerHTML")
+    p.pruefe("Auftrag mit Preisen: Häkchen gesperrt mit Grund",
+             await tab.js("[document.getElementById('closesOrder').disabled,(document.querySelector('[data-abschliessend-grund]')"
+                          "?.textContent||'').startsWith('„Abschließend“ gibt es nur bei einem Auftrag nach Aufwand')]"), [True, True])
+    await tab.oeffnen(f"/invoices/{seed['schnell']}", "invoice&&invoice.id&&document.getElementById('closingBox').innerHTML")
+    p.pruefe("Auftrag nach Aufwand: Häkchen frei", await tab.js("document.getElementById('closesOrder').disabled"), False)
+    await tab.js("document.getElementById('closesOrder').click()")
+    p.pruefe("als abschließend gekennzeichnet", await tab.warten("invoice.closes_order===true"), True)
+    await tab.js("document.getElementById('closingBox').scrollIntoView()")
+    await tab.bild("abschliessend_entwurf")
+    await tab.js("sendInvoice()")
+    p.pruefe("finalisiert mit Hinweis „Abschließende Rechnung“",
+             await tab.warten("invoice.status==='versendet'&&!!document.querySelector('[data-abschliessend]')"), True)
+    auftrag = await tab.js(f"fetch('/api/orders/{seed['schnell_auftrag']}').then(r=>r.json()).then(o=>o.invoice_create_blocks)")
+    p.pruefe("Auftrag nach Aufwand: keine Schlussrechnung über 0 €, kein weiterer Aufwand",
+             [auftrag["schluss"].startswith("Ein Auftrag nach Aufwand"), "vollständig abgerechnet" in (auftrag["aufwand"] or "")],
+             [True, True])
+    liste = await tab.js(f"fetch('/api/orders').then(r=>r.json()).then(l=>l.find(o=>o.id==={seed['schnell_auftrag']}))")
+    p.pruefe("Auftragsliste: vollständig abgerechnet", bool(liste and liste.get("fully_invoiced")), True)
+    await tab.js("document.documentElement.setAttribute('data-theme','dark');document.getElementById('closingBox').scrollIntoView()")
+    await tab.bild("abschliessend_dunkel")
     p.pruefe("JS-Fehler", tab.fehler, [])
     print(json.dumps({"schluss": s, "entwurf": e}, ensure_ascii=False))
 

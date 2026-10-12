@@ -2346,6 +2346,10 @@ class InvoiceOut(BaseModel):
     # der Endrechnung (Gesamtleistung, Abzüge, Rechnungsbetrag; app/invoices.py::final_breakdown()).
     order_deviation: str | None = None
     final_breakdown: dict | None = None
+    # Seit 1.8.86 (R4b Punkte 4 und 6): Zahlungshinweis der Endrechnung; abschließende Rechnung aus Aufwand und warum nicht.
+    payment_note: dict | None = None
+    closes_order: bool = False
+    closing_block: str | None = None
     # Seit 1.8.74: Leistungszeitraum; im Entwurf der Vorschlag {start, end, source} (app/service_period.py::proposal()).
     service_period_start: date | None = None
     service_period_end: date | None = None
@@ -2429,6 +2433,7 @@ class InvoiceCreateFromOrder(BaseModel):
 class InvoiceHeaderUpdate(PartialUpdate):
     """Teil-Update: "Pauschale speichern" schickt nur Bezeichnung und Betrag, "Texte speichern" nur
     die drei Texte (bis 1.8.24 leerte die Pauschale den Schlusstext 2)."""
+    NOT_NULL = frozenset({"closes_order"})  # seit 1.8.86: NOT-NULL-Spalte
     due_date: date | None = None
     progress_description: str | None = None
     lump_sum_net: Decimal | None = Field(default=None, gt=0)
@@ -2438,6 +2443,7 @@ class InvoiceHeaderUpdate(PartialUpdate):
     payment_terms: str | None = None
     service_period_start: date | None = None  # seit 1.8.74: Leistungszeitraum, Ende >= Beginn (app/service_period.py)
     service_period_end: date | None = None
+    closes_order: bool | None = None  # seit 1.8.86: Rechnung aus Aufwand schließt einen Auftrag nach Aufwand ab
 
 
 class InvoiceItemCreate(BaseModel):

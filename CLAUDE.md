@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.85** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.86** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -713,7 +713,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   eingefroren (`InvoiceDeduction`, unveränderlich), im Entwurf live. Beim Festschreiben jeder Art neu gerechnet (`_recompute_draft()`)
   und gegen den Auftrag geprüft (`order_deviation_reason()`: Preis, Einheit, Steuerschlüssel, Positionen; 409, Ausweg
   `refresh_draft_from_order()`); Preis, Einheit und Steuerschlüssel eines Entwurfs nur aus dem Auftrag. Abschlag nur über 0 €,
-  Schlussrechnung nicht unter 0 € (bis R4c); nach der gültigen Schlussrechnung keine Rechnung aus Aufwand.
+  Schlussrechnung nicht unter 0 € (bis R4c); nach der gültigen Schlussrechnung keine Rechnung aus Aufwand. Seit 1.8.86: Zahlungshinweis
+  der Endrechnung "Stand <Tag>" (`payment_note()`: je abgezogener Rechnung noch offen samt Einbehalt, Zahlbetrag; beim Festschreiben an
+  den Abzügen eingefroren, nur Hinweis -- Betrag der Rechnung bleibt der Rechnungsbetrag); ein **Auftrag nach Aufwand** (Auftragssumme
+  0 €, `effort_only()`) schließt mit einer abschließenden Rechnung aus Aufwand ab (`Invoice.closes_order`, `closing_invoices()`:
+  vollständig abgerechnet und gesperrt wie nach der Schlussrechnung), eine Schlussrechnung gibt es dort nicht.
 - **Zahlung** (`Payment`, seit 1.8.78, Zahlungsstufe Z1, `app/payments.py`): Zahlungseingang eines Kunden (Eingangsdatum, Betrag,
   Notiz), zugeordnet über `PaymentAllocation` (Art `zahlung`, Abzüge `skonto`/`einbehalt`) auf festgeschriebene Rechnungen desselben
   Kunden (seit 1.8.79 der an der Rechnung festgehaltene); der Rest bleibt am Kunden (Kundenakte). Je Rechnung abgeleitet, nie gespeichert (`payment_state()`):
@@ -1041,7 +1045,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Auftrag; seit 1.8.83 Punkte 3–6: Nachtrag als Auftragsposition, freie Positionen nur aus Aufwand, kein negativer Abschlag, letzter
   Stand nach dem Festschreiben, 1d behoben; R4b ab 1.8.84: seit 1.8.85 Punkte 2, 3, 5 -- Endrechnung mit Abzugsblock, Neuberechnung
   beim Festschreiben, Abweichung vom Auftrag mit "Aus dem Auftrag aktualisieren", Abschlag über 0 €, kein Aufwand nach der
-  Schlussrechnung, 1a und 1b behoben)
+  Schlussrechnung, 1a und 1b behoben; seit 1.8.86 Punkte 4 und 6 -- Zahlungshinweis "Stand …", abschließende Rechnung aus Aufwand am
+  Auftrag nach Aufwand)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1520,7 +1525,8 @@ Rechnungs-PDF aus der Ablage, Entwurf neu erzeugt; hell, dunkel, 412 px) und `kl
 Rechnungsseite: Schlussrechnung ohne "+ Position" mit Hinweis und N1, Aufwand mit Knopf, negativer Abschlag mit Grund statt
 Finalisieren; hell, dunkel, 412 px) und `klicktest_endrechnung.py` (1.8.85, Rechnungsseite: Karte "Endrechnung" mit Gesamtleistung
 samt Aufwand, Abzugsblock und Rechnungsbetrag, Steuerschlüssel und Preis aus dem Auftrag gesperrt, finalisieren, PDF aus der Ablage;
-Abweichung vom Auftrag mit Grund und "Aus dem Auftrag aktualisieren"; Grund für Aufwand auf der Auftragsseite; hell, dunkel, 412 px).
+Abweichung vom Auftrag mit Grund und "Aus dem Auftrag aktualisieren"; Grund für Aufwand auf der Auftragsseite; hell, dunkel, 412 px;
+seit 1.8.86 Zahlungshinweis mit Einbehalt und Zahlbetrag, Häkchen "abschließend" am Auftrag nach Aufwand).
 Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,

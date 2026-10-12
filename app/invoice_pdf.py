@@ -108,6 +108,21 @@ def _final_invoice_blocks(fb: dict, vat_rate, content_width: float, styles) -> l
     return blocks
 
 
+def _payment_note_blocks(note: dict, content_width: float, styles) -> list:
+    """Zahlungshinweis der Endrechnung (seit 1.8.86, R4b Punkt 4): "Stand <Tag des Festschreibens>", je abgezogener Rechnung mit
+    offenem Betrag "zzgl. noch offen aus Abschlag Nr. …" (einschließlich Einbehalt), darunter der Zahlbetrag."""
+    rows = [["Rechnungsbetrag brutto", money(note["invoice_amount"])]]
+    for line in note["lines"]:
+        what = "Rechnung" if line["invoice_type"] == "aufwand" else "Abschlag"
+        text = f"zzgl. noch offen aus {what} Nr. {line['invoice_number'] or ''}"
+        if Decimal(line["retained"] or 0) > 0:
+            text += f" (davon Einbehalt {money(line['retained'])})"
+        rows.append([text, money(line["open"])])
+    rows.append(["Zahlbetrag", money(note["pay_amount"])])
+    return [Paragraph(f"<b>Zahlungshinweis</b> (Stand {_de_date(note['as_of'])})", styles["body"]), Spacer(1, 1.5*mm),
+            _totals_table(rows, content_width)]
+
+
 def build_invoice_pdf(db, invoice) -> bytes:
     data = invoice_to_dict(invoice)
     general = load_general_settings(db)
@@ -231,6 +246,8 @@ def build_invoice_pdf(db, invoice) -> bytes:
             if data.get("final_breakdown"):
                 # Seit 1.8.85 (R4b): Endrechnung -- Gesamtleistung, Abzugsblock, Rechnungsbetrag.
                 story += [*_final_invoice_blocks(data["final_breakdown"], data["vat_rate"], content_width, styles), Spacer(1, 7*mm)]
+                if data.get("payment_note"):  # seit 1.8.86
+                    story += [*_payment_note_blocks(data["payment_note"], content_width, styles), Spacer(1, 7*mm)]
             else:
                 totals = [["Nettosumme (diese Rechnung)", money(data['net_total'])], [f"zzgl. MwSt. {qty(data['vat_rate'])} %", money(data['vat_total'])], ["Rechnungsbetrag brutto", money(data['gross_total'])]]
                 story += [_totals_table(totals, content_width), Spacer(1, 7*mm)]

@@ -2094,7 +2094,7 @@ Wird der Umfang zu groß: nach Punkt 3 committen und den Rest auflisten. Commit 
   1.8.82 Nr. 6–9 und 1.8.83 Nr. 7–8 nicht -- dort steht das so, ohne Bestätigung.
 - Punkt 1 (kein Lesepfad legt an) ist Version 1.8.84: `docs/archiv/grunddaten-beim-start.md`, "Umsetzung 1.8.84".
 - Umfang: nach Punkt 3 committet (1.8.85, mit Punkt 5 -- die Sperre neben dem pauschalen Abschlag hängt an der Endrechnung, der
-  Aufwand nach der Schlussrechnung an ihrem Abzug); Punkte 4 und 6 als 1.8.86.
+  Aufwand nach der Schlussrechnung an ihrem Abzug); Punkte 4 und 6 als 1.8.86 -- R4b damit vollständig.
 
 ### Umsetzung 1.8.85: Endrechnung, Neuberechnung beim Festschreiben, Abweichung vom Auftrag (Punkte 2, 3 und 5)
 
@@ -2230,6 +2230,83 @@ Wird der Umfang zu groß: nach Punkt 3 committen und den Rest auflisten. Commit 
    Anfrage zurück). Im selben parallelen Lauf brach in `test_v382_mahnwesen_pg.py` einmal die Verbindung ab ("server closed the
    connection unexpectedly"), einzeln grün.
 
+### Umsetzung 1.8.86: Zahlungshinweis, abschließende Rechnung aus Aufwand (Punkte 4 und 6)
+
+#### Was gebaut ist
+
+- **Zahlungshinweis** (`app/invoices.py::payment_note()`): jede Endrechnung (Schlussrechnung mit Abzügen) nennt "Zahlungshinweis (Stand
+  <Tag>)" -- Rechnungsbetrag brutto, je abgezogener Rechnung mit offenem Betrag "zzgl. noch offen aus Abschlag Nr. …" (bei einer
+  Rechnung aus Aufwand "aus Rechnung Nr. …"), offen = Brutto − Zahlungen − Skonto einschließlich Einbehalt ("davon Einbehalt …"),
+  darunter der Zahlbetrag = Rechnungsbetrag + noch Offenes. Im Entwurf der Stand von heute aus dem Zahlstand
+  (`app/payments.py::payment_states()`); beim Festschreiben unter der Sperre der Auftragszeile -- unter der auch Zahlungen buchen --
+  an den Abzügen eingefroren (`InvoiceDeduction.open_amount`, `.retained_open`, Migration `4e7a9c2b6d58`), Stand = Rechnungsdatum (Tag
+  des Festschreibens). Danach gebuchte Zahlungen ändern den Hinweis nicht. PDF (`_payment_note_blocks()`, unter dem
+  Rechnungsbetrag) und Rechnungsseite (Karte "Endrechnung"). Der Betrag der Rechnung -- für Zahlungen, offene Posten, Skonto, Mahnung
+  -- bleibt der Rechnungsbetrag.
+- **Abschließende Rechnung aus Aufwand** (`Invoice.closes_order`, gleiche Migration): an einem **Auftrag nach Aufwand** (Auftragssumme
+  0 €, `effort_only()` -- Schnellauftrag, Wartung aus dem Vertrag, Auftrag aus einem Befund: "… nach Aufwand", 1 × 0 €) lässt sich
+  eine Rechnung aus Aufwand im Entwurf als abschließend kennzeichnen (Rechnungsseite: Häkchen "Abschließende Rechnung",
+  `PUT /api/invoices/{id}` mit `closes_order`; `closing_block_reason()`: nur Aufwand, nur Auftrag nach Aufwand, keine gültige
+  Schlussrechnung, keine andere abschließende -- geprüft beim Setzen und beim Festschreiben, unter der Sperre). Festgeschrieben gilt
+  der Auftrag als vollständig abgerechnet (`closing_invoices()`: `invoice_summary_for_order()`, Projektmappe, Auftragslisten) und wie
+  nach einer Schlussrechnung: keine weitere Rechnung (Abschlag, Aufwand, Schlussrechnung), Auftrag gesperrt (`order_locks.py`:
+  Positionen, Titel, Steuer; Nachtrag; Abgleich mit dem Angebot), kein Storno einer anderen Rechnung des Auftrags -- Ausweg: das Storno
+  der abschließenden.
+- **Keine Schlussrechnung über 0 €** am Auftrag nach Aufwand: Anlegen und Festschreiben 409 (`ZERO_FINAL_TEXT`, mit dem Weg über
+  "abschließend"); ein Entwurf von einem Auftrag, der damals Preise hatte, wird beim Festschreiben abgelehnt.
+- Klicktest `scripts/klicktest_endrechnung.py` um Zahlungshinweis und "abschließend" erweitert.
+
+#### Festlegungen 1.8.86 (Bitte bestätigen)
+
+1. **Zahlungshinweis an jeder Endrechnung**, auch wenn nichts mehr offen ist (dann Zahlbetrag = Rechnungsbetrag); je abgezogener
+   Rechnung mit offenem Betrag -- auch Rechnungen aus Aufwand ("aus Rechnung Nr. …"). Offen ohne Nebenforderungen (Mahngebühr,
+   Pauschale, Zinsen), mit Einbehalt (genannt als "davon Einbehalt").
+2. **Stand**: im Entwurf heute, festgeschrieben der Tag des Festschreibens (eingefroren, wie die feste Fassung des PDFs); keine
+   Aktualisierung danach.
+3. **Der Zahlbetrag ist ein Hinweis**: der Betrag der Rechnung bleibt der Rechnungsbetrag (Zahlungen, offene Posten, Skonto, Mahnung,
+   Mail `{gesamtbetrag}`); wie nach der Endrechnung gemahnt wird, regelt R4c.
+4. **Kein Zahlungshinweis** am Storno einer Endrechnung und an Abzügen aus 1.8.85 ohne eingefrorenen Stand.
+5. **Auftrag nach Aufwand** = Auftragssumme 0 € (Positionen in der Summe, je Position gerundet) -- kein eigenes Kennzeichen am Auftrag.
+   Ein Nachtrag mit Preis macht ihn zum Auftrag mit Preisen; eine schon gekennzeichnete Rechnung lässt sich dann nicht als abschließende
+   festschreiben (Kennzeichen entfernen geht immer).
+6. **Höchstens eine gültige abschließende Rechnung** je Auftrag; danach gilt alles, was nach einer Schlussrechnung gilt, auch die
+   Sperre der Storni anderer Rechnungen des Auftrags.
+7. **PDF der abschließenden Rechnung unverändert** ("Rechnung nach Aufwand") -- das Kennzeichen wirkt nur im Ablauf.
+8. **Keine Schlussrechnung am Auftrag nach Aufwand** -- weder anlegen noch festschreiben, auch nicht über 0 € nach einem pauschalen
+   Abschlag (dort lautete sie ohnehin negativ).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v389_zahlungshinweis_abschliessend.py` (12, davon 3 gegen PostgreSQL): Zahlungshinweis mit Einbehalt und Aufwand, Stand
+  heute, eingefroren beim Festschreiben, spätere Zahlung ändert ihn nicht, PDF; ohne Offenes und nicht am Storno; Abzüge ohne Stand ohne
+  Hinweis; abschließende Rechnung: vollständig abgerechnet, alle Sperren, Storno öffnet wieder; keine Schlussrechnung über 0 € (anlegen,
+  Entwurf von früher); nur Aufwand am Auftrag nach Aufwand; Nachtrag mit Preis sperrt das Festschreiben, nur eine abschließende; Router.
+  **Gleichzeitig (PostgreSQL):** Zahlung wartet auf das Festschreiben -> Stand davor; Festschreiben wartet auf die Zahlung -> Stand
+  danach; zwei abschließende gleichzeitig -> eine.
+- Neu `tests/test_v389_zahlungshinweis_migration.py` (2, davon 1 gegen PostgreSQL). `alembic check`: keine Abweichung.
+- **Erwartung geändert**: `test_v385_auftrag_sperren` -- der Abgleich mit dem Angebot ist nach einer abschließenden Rechnung aus Aufwand
+  gesperrt (vorher: nach einer Schlussrechnung ohne Positionen, die es am Auftrag mit Auftragssumme 0 € nicht mehr gibt).
+- **Fund beim Test**: `Invoice.closes_order` hat nur die Vorgabe der Datenbank, keine in Python -- mit einer Python-Vorgabe schrieben
+  die Migrationsproben älterer Stände (`test_v380`, `test_v381_zahlungen_migration`, `test_v382_mahnwesen_migration`, Core-Insert mit der
+  heutigen Tabelle) die Spalte in Tabellen, die sie noch nicht haben (6 rot, behoben).
+- Gegenproben (Regel 24): 12 von 12 rot -- Hinweis nicht eingefroren bzw. nach dem Festschreiben live, Einbehalt nicht im offenen
+  Betrag, PDF ohne Hinweis; abschließend zählt nicht, auch am Auftrag mit Preisen, Schlussrechnung über 0 € am Auftrag nach Aufwand,
+  danach weitere Rechnungen, Auftrag nicht gesperrt, zwei abschließende, Storno daneben, Kennzeichen ohne Prüfung. Jede Datei byte-genau
+  zurück, kein Marker.
+- Klicktest `klicktest_endrechnung.py` 22/22 (dazu: Zahlungshinweis mit drei offenen, einer mit Einbehalt, Zahlbetrag; nach dem
+  Finalisieren derselbe Stand; Häkchen "abschließend" am Auftrag mit Preisen gesperrt mit Grund, am Auftrag nach Aufwand gesetzt,
+  finalisiert mit Hinweis, Auftrag vollständig abgerechnet, Schlussrechnung dort mit Grund).
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3794 grün, 0 rot, keine erwarteten Fehlschläge.
+- Alle Klicktests (Regel 26, `scripts/klicktest_alle.py`, Arbeitskopie): 51 von 53 wie erwartet, Laufzeit gesamt 13:13 min (`klicktest_endrechnung` 22/22, alle übrigen Rechnungs-Klicktests grün). Rot: `klicktest_mahnwesen` 28/29 (vorhandener Fehler des Klicktests, Nebenbefund 2 aus 1.8.84, auch auf 1.8.83) und `klicktest_teil_updates` 8/9 ("/time-tracking: Seite nicht bereit", Buchung ändern: Notiz unverändert) -- gelaufen um 00:11 Uhr; um 00:22 auf 1.8.83 (`e3ae7f9`) genauso rot. Ursache ist der bekannte offene Punkt "Kalenderdatum im Browser noch an weiteren Stellen aus UTC abgeleitet" (CLAUDE.md): `today()` der Büro-Zeiterfassung nimmt zwischen 0 und 2 Uhr den Vortag -- nicht von dieser Version.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Die Rechnungs-Mail nennt den Zahlbetrag nicht**: `{gesamtbetrag}` ist der Rechnungsbetrag; den Zahlungshinweis trägt nur das PDF.
+2. **Skonto und Zahlbetrag**: der Zahlungssatz bietet Skonto auf den Rechnungsbetrag an; der Zahlbetrag enthält offene Abschläge, deren
+   eigene Skontofrist längst vorbei sein kann -- der Satz unterscheidet das nicht.
+3. **"Rechnung aus Aufwand" am Schnellauftrag** erscheint auf der Auftragsseite erst mit gebuchten Zeiten oder Material eines
+   unterschriebenen Berichts (Nebenbefund 4 aus 1.8.85) -- dort auch das Häkchen erst nach dem Anlegen auf der Rechnungsseite.
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
@@ -2284,9 +2361,9 @@ Ergänzt am 12.10.2026 (Vorgabe R4b), übernommen wie gegeben -- Wortlaut unter 
 - **Beim Festschreiben** wird unter der Sperre neu gerechnet; weichen Preise oder Steuerschlüssel eines Entwurfs vom Auftrag ab, 409
   mit Hinweis zum Aktualisieren, für jede Rechnungsart; anderer Steuersatz eines abgezogenen Abschlags: Hinweis. (Seit 1.8.85 gebaut.)
 - **Zahlungshinweis** „Stand <Tag des Festschreibens>“: je Abschlag mit offenem Betrag, einschließlich Einbehalt, „zzgl. noch offen
-  aus Abschlag Nr. …“, darunter der Zahlbetrag; Mahnfähigkeit nach der Schlussrechnung regelt R4c.
+  aus Abschlag Nr. …“, darunter der Zahlbetrag; Mahnfähigkeit nach der Schlussrechnung regelt R4c. (Seit 1.8.86 gebaut.)
 - **Keine Sperre** der Schlussrechnung nach pauschalen Abschlägen; nach der gültigen Schlussrechnung keine Rechnung aus Aufwand mehr im
   selben Auftrag. (Seit 1.8.85 gebaut.)
 - **Schnellauftrag**: eine Rechnung aus Aufwand kann als abschließend gekennzeichnet werden und zählt dann als „vollständig
-  abgerechnet“; keine Schlussrechnung über 0 €.
+  abgerechnet“; keine Schlussrechnung über 0 €. (Seit 1.8.86 gebaut.)
 - **Negativer Rechnungsbetrag** wird bis R4c mit 409 abgelehnt. (Seit 1.8.85 gebaut.)

@@ -1779,6 +1779,11 @@ class Invoice(Base):
     # unter der Sperre der Auftragszeile). Leer: Entwurf, oder vor 1.8.83 festgeschrieben -- dann zählen Rechnungsdatum und ID
     # wie bisher, hinter jeder späteren. Migration 3b8f1d6c9e24.
     finalized_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Seit 1.8.86 (R4b Punkt 6): eine Rechnung aus Aufwand schließt einen Auftrag nach Aufwand (Schnellauftrag, Auftragssumme 0 €)
+    # ab -- er zählt dann als vollständig abgerechnet wie nach einer Schlussrechnung (app/invoices.py::closing_invoices()).
+    # Nur die Vorgabe der Datenbank, keine in Python: Migrationsproben älterer Stände schreiben Bestand per Core-Insert mit dieser
+    # Tabelle -- eine Python-Vorgabe stünde dort in Tabellen ohne die Spalte. Vor dem ersten Flush ist der Wert leer (= nein).
+    closes_order: Mapped[bool] = mapped_column(Boolean, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -1857,6 +1862,11 @@ class InvoiceDeduction(Base):
     invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"), index=True)
     deducted_invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"), index=True)
     sort_order: Mapped[int] = mapped_column(default=10)
+    # Seit 1.8.86 (R4b Punkt 4): Zahlungshinweis "Stand <Tag des Festschreibens>" -- was an der abgezogenen Rechnung beim
+    # Festschreiben noch offen war (einschließlich Einbehalt) und wie viel davon Einbehalt. Eingefroren wie die Zeile selbst;
+    # leer bei Zeilen von 1.8.85 (dann ohne Zahlungshinweis).
+    open_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    retained_open: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     deducted_invoice: Mapped[Invoice] = relationship(foreign_keys=[deducted_invoice_id])

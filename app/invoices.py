@@ -54,6 +54,12 @@ beim Festschreiben unter der Sperre frieren die Abzüge ein (InvoiceDeduction). 
 neu gerechnet (_recompute_draft(), Befund 1b), ein Entwurf, dessen Preise, Einheiten, Positionen oder Steuerschlüssel vom Auftrag
 abweichen, nicht festgeschrieben (order_deviation_reason(), 409, Ausweg refresh_draft_from_order()). Ein Abschlag muss über 0 €
 liegen, eine Schlussrechnung darf bis R4c nicht unter 0 € lauten (amount_block_reason()).
+
+Zahlungshinweis und abschließende Rechnung aus Aufwand (seit 1.8.86, R4b Punkte 4 und 6): die Endrechnung nennt "Stand <Tag des
+Festschreibens>" je abgezogener Rechnung, was dort noch offen ist (einschließlich Einbehalt), und den Zahlbetrag (payment_note(),
+beim Festschreiben an den Abzügen eingefroren). Ein Auftrag nach Aufwand (Auftragssumme 0 €, z. B. Schnellauftrag) schließt mit
+einer als abschließend gekennzeichneten Rechnung aus Aufwand ab (Invoice.closes_order) -- statt einer Schlussrechnung über 0 €, die
+es dort nicht gibt. Danach gilt er als vollständig abgerechnet wie nach einer Schlussrechnung (closing_invoices()).
 """
 
 import logging
@@ -135,28 +141,67 @@ def _final_invoices(invoices: list[Invoice], *, with_drafts: bool, exclude_id: i
     return [i for i in invoices if i.invoice_type == "schluss" and i.status in statuses and i.id != exclude_id]
 
 
+def _closing_effort(invoices: list[Invoice], *, exclude_id: int | None = None) -> list[Invoice]:
+    """Gültige, als abschließend gekennzeichnete Rechnungen aus Aufwand (seit 1.8.86, R4b Punkt 6)."""
+    return [i for i in invoices if i.invoice_type == "aufwand" and i.closes_order and i.status in VALID_STATUSES
+            and i.id != exclude_id]
+
+
+def closing_invoices(invoices: list[Invoice]) -> list[Invoice]:
+    """Was einen Auftrag abschließt -- danach gilt er als vollständig abgerechnet: die gültige Schlussrechnung und seit 1.8.86
+    eine gültige abschließende Rechnung aus Aufwand (R4b Punkt 6)."""
+    return _final_invoices(invoices, with_drafts=False) + _closing_effort(invoices)
+
+
+def order_sum(order: Order) -> Decimal:
+    """Auftragssumme netto (Positionen in der Summe, kaufmännisch je Position gerundet)."""
+    return sum((round_money(item.quantity * item.unit_price) for item in order.items if item.include_in_total), Decimal("0"))
+
+
+def effort_only(order: Order) -> bool:
+    """Auftrag nach Aufwand (seit 1.8.86): Auftragssumme 0 € -- Schnellauftrag, Wartung aus dem Vertrag, Auftrag aus einem Befund
+    ("… nach Aufwand", 1 × 0 €). Abgerechnet wird er über Rechnungen aus Aufwand, abgeschlossen mit einer abschließenden."""
+    return order_sum(order) == 0
+
+
+ZERO_FINAL_TEXT = ("Ein Auftrag nach Aufwand (Auftragssumme 0 €) wird nicht mit einer Schlussrechnung über 0 € abgeschlossen – die "
+                   "Rechnung aus Aufwand als „abschließend“ kennzeichnen.")
+
+
+def _closing_effort_reason(invoices: list[Invoice], *, exclude_id: int | None = None) -> str | None:
+    closing = _closing_effort(invoices, exclude_id=exclude_id)
+    if not closing:
+        return None
+    return (f"Der Auftrag ist mit der abschließenden Rechnung aus Aufwand {_labels(closing)} vollständig abgerechnet – keine "
+            "weitere Rechnung. Ausweg: sie stornieren.")
+
+
 def _progress_after_final_reason(invoices: list[Invoice], invoice_type: str = "abschlag_leistungsstand") -> str | None:
     """Nach einer gültigen Schlussrechnung keine Abschläge mehr (seit 1.8.72) und seit 1.8.85 (R4b Punkt 5) keine Rechnung aus
-    Aufwand -- die Schlussrechnung hätte sie weder in der Gesamtleistung noch abgezogen."""
+    Aufwand -- die Schlussrechnung hätte sie weder in der Gesamtleistung noch abgezogen. Seit 1.8.86 ebenso nach einer
+    abschließenden Rechnung aus Aufwand."""
     final = _final_invoices(invoices, with_drafts=False)
     if not final:
-        return None
+        return _closing_effort_reason(invoices)
     if invoice_type == "aufwand":
         return (f"Nach der Schlussrechnung {_labels(final)} ist keine Rechnung aus Aufwand mehr möglich -- die Schlussrechnung "
                 "hat sie weder in der Gesamtleistung noch abgezogen. Ausweg: die Schlussrechnung stornieren.")
     return f"Nach der Schlussrechnung {_labels(final)} sind keine weiteren Abschlagsrechnungen möglich."
 
 
-def create_block_reason(invoices: list[Invoice], invoice_type: str) -> str | None:
+def create_block_reason(invoices: list[Invoice], invoice_type: str, order: Order | None = None) -> str | None:
     """Warum eine neue Rechnung dieser Art am Auftrag gesperrt ist (invoices = alle Rechnungen des Auftrags), sonst None.
     Bis 1.8.84 sperrte zusätzlich ein pauschaler Abschlag die Schlussrechnung (sie zog ihn nicht ab, Befund 1a) -- seit 1.8.85
-    zieht die Endrechnung jeden Abschlag ab (R4b Punkt 5)."""
+    zieht die Endrechnung jeden Abschlag ab (R4b Punkt 5). Seit 1.8.86 (Punkt 6) keine Schlussrechnung an einem Auftrag nach
+    Aufwand (sie lautete über 0 €) und keine Rechnung nach einer abschließenden Rechnung aus Aufwand."""
     if invoice_type == "schluss":
         existing = _final_invoices(invoices, with_drafts=True)
         if existing:
             return (f"Am Auftrag besteht schon eine Schlussrechnung ({_labels(existing)}). Eine weitere ist erst möglich, "
                     "wenn sie storniert bzw. der Entwurf gelöscht ist.")
-        return None
+        if order is not None and effort_only(order):
+            return ZERO_FINAL_TEXT
+        return _closing_effort_reason(invoices)
     if invoice_type in DEDUCTED_INVOICE_TYPES:
         return _progress_after_final_reason(invoices, invoice_type)
     return None
@@ -180,6 +225,11 @@ def storno_block_reason(invoices: list[Invoice], original: Invoice, *, storno_dr
             what = "Die Rechnung aus Aufwand" if original.invoice_type == "aufwand" else "Der Abschlag"
             return (f"{what} ist in der Schlussrechnung {_labels(final)} verrechnet und lässt sich nicht stornieren, "
                     "solange sie gilt -- zuerst die Schlussrechnung stornieren.")
+        # Seit 1.8.86: neben einer abschließenden Rechnung aus Aufwand gilt der Auftrag als vollständig abgerechnet.
+        closing = _closing_effort(invoices, exclude_id=original.id)
+        if closing:
+            return (f"Der Auftrag ist mit der abschließenden Rechnung aus Aufwand {_labels(closing)} vollständig abgerechnet -- "
+                    "zuerst sie stornieren.")
     # Seit 1.8.78 (Vorgabe Z1 Nr. 5): erst die Zuordnungen lösen, dann stornieren -- die Zahlung bleibt nicht zugeordnet am
     # Kunden. Beim Anlegen und beim Festschreiben des Stornos unter der Sperre geprüft (Zuordnungen buchen unter derselben).
     # Seit 1.8.81 (Z2b "Vorweg" 2): ebenso erst ohne offene Nebenforderungen (gegenbuchen mit Begründung) -- Nebenforderungen
@@ -207,10 +257,14 @@ def _finalize_rule_reason(invoices: list[Invoice], invoice: Invoice) -> str | No
         other = _final_invoices(invoices, with_drafts=False, exclude_id=invoice.id)
         if other:
             return f"Am Auftrag besteht schon eine festgeschriebene Schlussrechnung ({_labels(other)})."
-        return free_items_reason(invoice)  # freie Positionen seit 1.8.83
+        if invoice.order is not None and effort_only(invoice.order):  # seit 1.8.86 (R4b Punkt 6)
+            return ZERO_FINAL_TEXT
+        return _closing_effort_reason(invoices) or free_items_reason(invoice)  # freie Positionen seit 1.8.83
     if invoice.invoice_type in DEDUCTED_INVOICE_TYPES:
-        # Seit 1.8.83 (R4a Punkt 3): keine freie Position; seit 1.8.85 kein Aufwand nach der Schlussrechnung (R4b Punkt 5).
-        return _progress_after_final_reason(invoices, invoice.invoice_type) or free_items_reason(invoice)
+        # Seit 1.8.83 (R4a Punkt 3): keine freie Position; seit 1.8.85 kein Aufwand nach der Schlussrechnung (R4b Punkt 5); seit
+        # 1.8.86 die Regeln einer abschließenden Rechnung aus Aufwand (Punkt 6).
+        return (_progress_after_final_reason(invoices, invoice.invoice_type) or free_items_reason(invoice)
+                or (closing_block_reason(invoices, invoice) if invoice.closes_order else None))
     if invoice.invoice_type == "storno" and invoice.storno_of_invoice_id is not None:
         original = next((i for i in invoices if i.id == invoice.storno_of_invoice_id), None)
         if original is not None:
@@ -244,6 +298,25 @@ def amount_block_reason(invoice: Invoice) -> str | None:
         return (f"Die Schlussrechnung lautet über {_eur(gross)}: die Abzüge übersteigen die Gesamtleistung (Überzahlung). Eine "
                 "Schlussrechnung mit Erstattung kommt mit R4c – bis dahin die Ist-Mengen prüfen oder den Abschlag stornieren, der zu "
                 "viel abgerechnet hat.")
+    return None
+
+
+def closing_block_reason(invoices: list[Invoice], invoice: Invoice) -> str | None:
+    """Warum diese Rechnung nicht als abschließend gekennzeichnet bzw. als abschließende festgeschrieben werden kann (seit 1.8.86,
+    R4b Punkt 6): nur eine Rechnung aus Aufwand an einem Auftrag nach Aufwand (Auftragssumme 0 €), nicht neben einer gültigen
+    Schlussrechnung oder einer anderen abschließenden Rechnung."""
+    if invoice.invoice_type != "aufwand":
+        return "Als abschließend kennzeichnen lässt sich nur eine Rechnung aus Aufwand."
+    order = invoice.order
+    if order is not None and not effort_only(order):
+        return (f"„Abschließend“ gibt es nur bei einem Auftrag nach Aufwand (Auftragssumme 0 €) – dieser Auftrag hat Positionen mit "
+                f"Preis ({_eur(order_sum(order))} netto); ihn schließt die Schlussrechnung ab.")
+    final = _final_invoices(invoices, with_drafts=False)
+    if final:
+        return f"Am Auftrag besteht schon eine Schlussrechnung ({_labels(final)})."
+    other = _closing_effort(invoices, exclude_id=invoice.id)
+    if other:
+        return f"Am Auftrag besteht schon eine abschließende Rechnung aus Aufwand ({_labels(other)})."
     return None
 
 
@@ -316,7 +389,9 @@ def free_items_reason(invoice: Invoice) -> str | None:
 
 
 def _check_create(db: Session, order: Order, invoice_type: str) -> None:
-    reason = create_block_reason(lock_order_invoices(db, order.id), invoice_type)
+    invoices = lock_order_invoices(db, order.id)
+    db.expire(order, ["items"])  # seit 1.8.86: Auftrag nach Aufwand? -- Positionen nach der Sperre
+    reason = create_block_reason(invoices, invoice_type, order)
     if reason:
         db.rollback()  # gibt die Sperre frei
         raise InvoiceBlocked(reason)
@@ -657,6 +732,36 @@ def final_breakdown(invoice: Invoice) -> FinalBreakdown | None:
         deductions=lines, deducted_net=deducted_net, deducted_vat=deducted_vat, deducted_gross=deducted_net + deducted_vat,
         amount_net=amount_net, amount_vat=amount_vat, amount_gross=amount_net + amount_vat, tax_notes=tax_notes,
     )
+
+
+def payment_note(invoice: Invoice) -> dict | None:
+    """Zahlungshinweis der Endrechnung (seit 1.8.86, R4b Punkt 4): "Stand <Tag>" -- je abgezogener Rechnung mit offenem Betrag
+    (einschließlich Einbehalt) "zzgl. noch offen aus …", darunter der Zahlbetrag = Rechnungsbetrag + noch Offenes. Im Entwurf der
+    Stand von heute (live), festgeschrieben der vom Tag des Festschreibens (an den Abzügen eingefroren, Rechnungsdatum). Der
+    Rechnungsbetrag bleibt der Betrag der Rechnung (Zahlungen, Mahnung); die Mahnfähigkeit danach regelt R4c. None für jede
+    andere Rechnung, ein Storno und Abzüge von 1.8.85 ohne eingefrorenen Stand."""
+    if invoice.invoice_type != "schluss":
+        return None
+    breakdown = final_breakdown(invoice)
+    if breakdown is None:
+        return None
+    if invoice.status == EDITABLE_STATUS:
+        from .payments import payment_states  # lokal: app/payments.py importiert dieses Modul
+        db = object_session(invoice)
+        states = payment_states(db, [line.invoice for line in breakdown.deductions])
+        rows = [(line.invoice, states[line.invoice.id].open if states.get(line.invoice.id) else Decimal("0.00"),
+                 states[line.invoice.id].retained_open if states.get(line.invoice.id) else Decimal("0.00"))
+                for line in breakdown.deductions]
+        as_of = berlin_today()
+    else:
+        if any(row.open_amount is None for row in invoice.deductions):
+            return None
+        rows = [(row.deducted_invoice, row.open_amount, row.retained_open or Decimal("0.00")) for row in invoice.deductions]
+        as_of = invoice.invoice_date
+    lines = [{"invoice_id": other.id, "invoice_number": other.invoice_number, "invoice_type": other.invoice_type,
+              "open": open_, "retained": retained} for other, open_, retained in rows if open_ > 0]
+    return {"as_of": as_of, "invoice_amount": breakdown.amount_gross, "lines": lines,
+            "pay_amount": breakdown.amount_gross + sum((line["open"] for line in lines), Decimal("0"))}
 
 
 def _copy_order_items_with_default_ist(db: Session, invoice: Invoice, order: Order) -> None:
@@ -1052,6 +1157,8 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
         raise ValueError("Nur Rechnungen im Entwurf können versendet werden.")
     db.scalars(select(InvoiceItem).where(InvoiceItem.invoice_id == invoice.id).execution_options(populate_existing=True)).all()
     db.expire(invoice, ["items"])
+    if invoice.order is not None:
+        db.expire(invoice.order, ["items"])  # seit 1.8.86: Auftrag nach Aufwand? -- Positionen nach der Sperre
     _recompute_draft(db, invoice)
     reason = finalize_block_reason(invoices, invoice)
     if reason:
@@ -1070,8 +1177,17 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
     # Seit 1.8.85 (R4b Punkt 2): die Abzüge der Endrechnung, wie sie unter der Sperre gelten -- vor dem Statuswechsel, danach
     # rechnet die Schlussrechnung mit ihnen statt mit den gerade gültigen.
     if invoice.invoice_type == "schluss":
-        for index, other in enumerate(deductible_invoices(invoices, invoice), start=1):
-            invoice.deductions.append(InvoiceDeduction(deducted_invoice_id=other.id, sort_order=index * 10))
+        # Seit 1.8.86 (R4b Punkt 4): mit dem, was an jeder abgezogenen Rechnung jetzt noch offen ist (Zahlungshinweis) -- Zahlungen
+        # buchen unter derselben Sperre (app/payments.py::lock_for_booking()).
+        from .payments import payment_states  # lokal: app/payments.py importiert dieses Modul
+        deducted = deductible_invoices(invoices, invoice)
+        states = payment_states(db, deducted)
+        for index, other in enumerate(deducted, start=1):
+            state = states.get(other.id)
+            invoice.deductions.append(InvoiceDeduction(
+                deducted_invoice_id=other.id, sort_order=index * 10,
+                open_amount=state.open if state is not None else Decimal("0.00"),
+                retained_open=state.retained_open if state is not None else Decimal("0.00")))
     invoice.invoice_number = issue_number(db, "invoice")
     invoice.status = "versendet"
     invoice.finalized_at = _finalized_at(invoices)  # seit 1.8.83 (R4a Punkt 5)
@@ -1309,7 +1425,8 @@ def visible_items(invoice: Invoice) -> list[InvoiceItem]:
 
 
 INVOICE_HEADER_FIELDS = ("due_date", "progress_description", "lump_sum_net", "intro_text", "outro_text",
-                         "outro_text_2", "payment_terms", "service_period_start", "service_period_end")
+                         "outro_text_2", "payment_terms", "service_period_start", "service_period_end",
+                         "closes_order")  # closes_order seit 1.8.86
 
 
 def update_invoice_header(db: Session, invoice: Invoice, **changes) -> Invoice:
@@ -1328,6 +1445,15 @@ def update_invoice_header(db: Session, invoice: Invoice, **changes) -> Invoice:
                     changes.get("service_period_end", invoice.service_period_end))
     except ValueError as e:
         raise _reject(db, e) from None
+    # Seit 1.8.86 (R4b Punkt 6): "abschließend" nur an einer Rechnung aus Aufwand eines Auftrags nach Aufwand.
+    if changes.get("closes_order"):
+        if invoice.order is not None:
+            db.expire(invoice.order, ["items"])
+        reason = closing_block_reason(list(db.scalars(select(Invoice).where(Invoice.order_id == invoice.order_id))), invoice)
+        if reason:
+            raise _reject(db, InvoiceBlocked(reason))
+    elif "closes_order" in changes:
+        changes["closes_order"] = False
     for key, value in changes.items():
         setattr(invoice, key, value)
     if invoice.invoice_type == "abschlag_pauschal":
@@ -1501,6 +1627,9 @@ def _action_blocks(invoice: Invoice) -> dict:
         "storno_block": storno_block_reason(invoices, invoice) if invoice.status in VALID_STATUSES else None,
         # Seit 1.8.85 (R4b Punkt 3): weicht der Entwurf vom Auftrag ab, zeigt die Rechnungsseite „Aus dem Auftrag aktualisieren“.
         "order_deviation": order_deviation_reason(invoice) if invoice.status == EDITABLE_STATUS else None,
+        # Seit 1.8.86 (R4b Punkt 6): warum sich eine Rechnung aus Aufwand nicht als abschließend kennzeichnen lässt (None: sie kann).
+        "closing_block": (closing_block_reason(invoices, invoice)
+                          if invoice.invoice_type == "aufwand" and invoice.status == EDITABLE_STATUS else None),
     }
 
 
@@ -1582,6 +1711,9 @@ def invoice_to_dict(invoice: Invoice) -> dict:
         ],
         # Seit 1.8.85 (R4b Punkt 2): Aufstellung der Endrechnung (Gesamtleistung, Abzüge, Rechnungsbetrag), sonst leer.
         "final_breakdown": breakdown.as_dict() if (breakdown := final_breakdown(invoice)) is not None else None,
+        # Seit 1.8.86 (R4b Punkte 4 und 6): Zahlungshinweis der Endrechnung; abschließende Rechnung aus Aufwand.
+        "payment_note": payment_note(invoice),
+        "closes_order": bool(invoice.closes_order),
         "email_sent_at": invoice.email_sent_at,
         "email_sent_to": invoice.email_sent_to,
         "recipient_email": get_invoice_recipient_email(invoice),
@@ -1607,7 +1739,7 @@ def invoice_summary_for_order(db: Session, order_id: int) -> tuple[int, bool]:
     existiert."""
     invoices = list_invoices_for_order(db, order_id)
     active = [i for i in invoices if i.status != "storniert"]
-    fully_invoiced = any(i.invoice_type == "schluss" and i.status in VALID_STATUSES for i in active)
+    fully_invoiced = bool(closing_invoices(active))  # seit 1.8.86 auch eine abschließende Rechnung aus Aufwand
     return len(active), fully_invoiced
 
 

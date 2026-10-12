@@ -9,7 +9,8 @@ offen" trotz gültiger Schlussrechnung). Seither:
   Rechnung nicht, app/invoices.py::visible_items()). Ist die Rechnung storniert, ist die Position wieder frei.
 - **Steuersatz** (Steuerschlüssel) des Auftrags: gesperrt, sobald eine gültige Rechnung besteht, gleich welcher Art.
 - **Mengen und Texte**: bis zur Schlussrechnung änderbar.
-- **Nach einer gültigen Schlussrechnung**: alles -- Positionen, LV-Titel, Steuersatz.
+- **Nach einer gültigen Schlussrechnung**: alles -- Positionen, LV-Titel, Steuersatz. Seit 1.8.86 ebenso nach einer gültigen
+  abschließenden Rechnung aus Aufwand (Auftrag nach Aufwand, R4b Punkt 6).
 
 Abgelehnt wird nur eine tatsächliche Änderung (OrderLocked, Router 409 mit dem Grund); ein Speichern mit unveränderten Werten geht
 durch. Geprüft unter der Sperre der Auftragszeile (app/invoices.py::lock_order_invoices()) -- dieselbe wie das Festschreiben: eine
@@ -23,7 +24,7 @@ price_lock) statt der Eingabe."""
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .invoices import VALID_STATUSES
+from .invoices import VALID_STATUSES, closing_invoices
 from .models import Invoice, InvoiceItem, OrderItem
 
 # Was eine abgerechnete Position nicht mehr ändern darf -- die Menge bleibt bis zur Schlussrechnung offen.
@@ -44,12 +45,16 @@ def valid_invoices(invoices: list[Invoice]) -> list[Invoice]:
 
 
 def final_lock_reason(invoices: list[Invoice]) -> str | None:
-    """Nach einer gültigen Schlussrechnung ist alles gesperrt."""
-    final = [i for i in valid_invoices(invoices) if i.invoice_type == "schluss"]
-    if not final:
+    """Nach einer gültigen Schlussrechnung ist alles gesperrt -- seit 1.8.86 auch nach einer abschließenden Rechnung aus Aufwand."""
+    final = [i for i in closing_invoices(invoices) if i.invoice_type == "schluss"]
+    if final:
+        return (f"Nach der Schlussrechnung {_numbers([i.invoice_number for i in final])} ist der Auftrag abgerechnet: Positionen, "
+                "LV-Titel und Steuersatz lassen sich nicht mehr ändern. Ausweg: die Schlussrechnung stornieren.")
+    closing = closing_invoices(invoices)
+    if not closing:
         return None
-    return (f"Nach der Schlussrechnung {_numbers([i.invoice_number for i in final])} ist der Auftrag abgerechnet: Positionen, "
-            "LV-Titel und Steuersatz lassen sich nicht mehr ändern. Ausweg: die Schlussrechnung stornieren.")
+    return (f"Nach der abschließenden Rechnung aus Aufwand {_numbers([i.invoice_number for i in closing])} ist der Auftrag "
+            "abgerechnet: Positionen, LV-Titel und Steuersatz lassen sich nicht mehr ändern. Ausweg: sie stornieren.")
 
 
 def tax_lock_reason(invoices: list[Invoice]) -> str | None:
