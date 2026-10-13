@@ -67,7 +67,9 @@ def amount_rows(reminder) -> list[list[str]]:
     if breakdown["retained"]:
         rows.append(["abzüglich Einbehalt (wird nicht angemahnt)", money(-breakdown["retained"])])
     if breakdown.get("deducted"):
-        rows.append(["Mahnfähig aus dieser Rechnung", money(breakdown["dunnable"])])
+        # Seit 1.8.90: an einer Endrechnung unter 0 € ist ihr Teil die Überzahlung (negativ).
+        label = "Überzahlung aus dieser Rechnung" if breakdown["dunnable"] < 0 else "Mahnfähig aus dieser Rechnung"
+        rows.append([label, money(breakdown["dunnable"])])
         for d in breakdown["deducted"]:
             word = "Rechnung" if d["invoice_type"] == "aufwand" else "Abschlag"
             retained = (f" (davon Einbehalt {money(d['retained'])}, mit der Schlussrechnung fällig)" if d["retained"] else "")

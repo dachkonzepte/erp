@@ -4,6 +4,22 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.90 – Überzahlung: Schlussrechnung unter 0 €, Erstattung als Zahlungsausgang, E-Mail mit Zahlbetrag (R4c, Punkte 6 und 7)
+
+Eine Schlussrechnung darf jetzt unter 0 € lauten – die Abschläge übersteigen die Gesamtleistung (Überzahlung). Ist der Zahlbetrag
+negativ, nennen Zahlungshinweis, Rechnungsseite und PDF einen Erstattungsbetrag; statt der Zahlungsbedingungen steht „Erstattung: Den
+Erstattungsbetrag von … überweisen wir Ihnen.“, ohne Skonto und ohne „zahlbar“. Skonto gibt es nur noch bei positivem Rechnungsbetrag.
+Das Guthaben des Kunden – die Überzahlung nach Verrechnung mit noch offenen abgezogenen Rechnungen – steht in der Kundenakte und an der
+Schlussrechnung; dort wird die Erstattung als Zahlungsausgang gebucht (höchstens das Guthaben, zurücknehmen nur als Ganzes in der
+Kundenakte, Storno der Schlussrechnung erst danach). Liegt der Rechnungsbetrag unter 0 €, aber der Zahlbetrag darüber, wird der Zahlbetrag
+gemahnt („Überzahlung aus dieser Rechnung“ in der Aufstellung).
+
+Die E-Mail zur Schlussrechnung nennt den Zahl- bzw. Erstattungsbetrag laut Zahlungshinweis – neue Platzhalter `{zahlbetrag}`,
+`{erstattungsbetrag}`, `{zahlungshinweis}`; nennt eine eigene Vorlage keinen davon, steht der Satz als eigener Absatz vor dem Gruß. Keine
+Migration (Zahlungsausgang = Zahlung mit negativem Betrag und Zuordnung Art „erstattung“). Neu `test_v393_ueberzahlung` (16, davon 2
+gegen PostgreSQL) und Klicktest `klicktest_ueberzahlung` 16/16. Gegenproben 16 von 16 rot. Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3854 grün, 0 rot. Alle Klicktests (Regel 26, Arbeitskopie): 56 von 56 wie erwartet in 12:45 min. Festlegungen zum Bestätigen in `docs/archiv/befund-vor-echtbetrieb.md`,
+"Umsetzung R4c". R4c damit vollständig.
+
 ## 1.8.89 – Mahnen nach der Endrechnung: Zahlbetrag statt einzelner Abschläge (R4c, Punkte 3–5)
 
 Nach der gültigen Schlussrechnung (Endrechnung) wird eine darin abgezogene Rechnung nicht mehr einzeln gemahnt: sie steht nicht mehr in

@@ -37,7 +37,7 @@ from .rounding import round_money
 SURCHARGE_CONSUMER = Decimal("5")
 SURCHARGE_BUSINESS = Decimal("9")
 DAYS_PER_YEAR = Decimal(365)
-PRINCIPAL_KINDS = ("zahlung", "skonto", "einbehalt")  # was den mahnfähigen Betrag ändert (nicht "nebenforderung")
+PRINCIPAL_KINDS = ("zahlung", "skonto", "einbehalt", "erstattung")  # was den angemahnten Betrag ändert (nicht "nebenforderung")
 MAX_RATE = Decimal("100")
 
 

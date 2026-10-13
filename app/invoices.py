@@ -57,7 +57,10 @@ liegen, eine Schlussrechnung darf bis R4c nicht unter 0 € lauten (amount_block
 
 Zahlungshinweis und abschließende Rechnung aus Aufwand (seit 1.8.86, R4b Punkte 4 und 6): die Endrechnung nennt "Stand <Tag des
 Festschreibens>" je abgezogener Rechnung, was dort noch offen ist (einschließlich Einbehalt), und den Zahlbetrag (payment_note(),
-beim Festschreiben an den Abzügen eingefroren). Ein Auftrag nach Aufwand (Auftragssumme 0 €, z. B. Schnellauftrag) schließt mit
+beim Festschreiben an den Abzügen eingefroren). Seit 1.8.90 (R4c Punkte 6 und 7): eine Schlussrechnung darf unter 0 € lauten
+(Überzahlung); ist der Zahlbetrag negativ, nennen PDF, Rechnungsseite und E-Mail einen Erstattungsbetrag, ohne Skonto und ohne
+"zahlbar" (format_payment_terms_sentence()); Skonto gibt es nur bei positivem Rechnungsbetrag (skonto_offer()). Die Erstattung
+bucht app/payments.py::book_refund() als Zahlungsausgang, das Guthaben steht am Kunden. Ein Auftrag nach Aufwand (Auftragssumme 0 €, z. B. Schnellauftrag) schließt mit
 einer als abschließend gekennzeichneten Rechnung aus Aufwand ab (Invoice.closes_order) -- statt einer Schlussrechnung über 0 €, die
 es dort nicht gibt. Danach gilt er als vollständig abgerechnet wie nach einer Schlussrechnung (closing_invoices()).
 """
@@ -283,7 +286,8 @@ def amount_block_reason(invoice: Invoice) -> str | None:
       Leistungsstand -- ein Ist unter dem zuletzt abgerechneten Stand; zu viel Abgerechnetes korrigieren Storno oder
       Schlussrechnung. Seit 1.8.85 (Festlegung 1.8.83 Nr. 6 geändert, Vorgabe R4b) auch 0 € nicht -- vorher ging ein Abschlag
       über 0,00 € mit Nummer durch.
-    - Schlussrechnung (seit 1.8.85, R4b): nicht unter 0 € -- Abschläge über der Gesamtleistung (Überzahlung) regelt R4c."""
+    - Schlussrechnung (seit 1.8.85, R4b): bis 1.8.89 nicht unter 0 €; seit 1.8.90 (R4c Punkt 6) darf sie unter 0 € lauten -- die
+      Abschläge übersteigen die Gesamtleistung (Überzahlung), der Kunde bekommt den Erstattungsbetrag."""
     gross = compute_invoice_totals(invoice)["gross_total"]
     if invoice.invoice_type == "abschlag_leistungsstand" and gross < 0:
         return (f"Der Abschlag lautet über {_eur(gross)}: das Ist liegt unter dem zuletzt abgerechneten Stand. Ein Abschlag nach "
@@ -294,10 +298,6 @@ def amount_block_reason(invoice: Invoice) -> str | None:
                 "über 0 € liegen – das Ist der Positionen eintragen oder den Entwurf löschen.")
     if invoice.invoice_type == "abschlag_pauschal" and gross <= 0:
         return f"Der Abschlag lautet über {_eur(gross)}. Ein Abschlag muss über 0 € liegen – den Betrag eintragen."
-    if invoice.invoice_type == "schluss" and gross < 0:
-        return (f"Die Schlussrechnung lautet über {_eur(gross)}: die Abzüge übersteigen die Gesamtleistung (Überzahlung). Eine "
-                "Schlussrechnung mit Erstattung kommt mit R4c – bis dahin die Ist-Mengen prüfen oder den Abschlag stornieren, der zu "
-                "viel abgerechnet hat.")
     return None
 
 
@@ -748,7 +748,7 @@ def payment_note(invoice: Invoice) -> dict | None:
     if invoice.status == EDITABLE_STATUS:
         from .payments import payment_states  # lokal: app/payments.py importiert dieses Modul
         db = object_session(invoice)
-        states = payment_states(db, [line.invoice for line in breakdown.deductions])
+        states = payment_states(db, [line.invoice for line in breakdown.deductions])  # Altbestand über 0 € oder weniger: None
         rows = [(line.invoice, states[line.invoice.id].open if states.get(line.invoice.id) else Decimal("0.00"),
                  states[line.invoice.id].retained_open if states.get(line.invoice.id) else Decimal("0.00"))
                 for line in breakdown.deductions]
@@ -760,8 +760,21 @@ def payment_note(invoice: Invoice) -> dict | None:
         as_of = invoice.invoice_date
     lines = [{"invoice_id": other.id, "invoice_number": other.invoice_number, "invoice_type": other.invoice_type,
               "open": open_, "retained": retained} for other, open_, retained in rows if open_ > 0]
-    return {"as_of": as_of, "invoice_amount": breakdown.amount_gross, "lines": lines,
-            "pay_amount": breakdown.amount_gross + sum((line["open"] for line in lines), Decimal("0"))}
+    pay_amount = breakdown.amount_gross + sum((line["open"] for line in lines), Decimal("0"))
+    # Seit 1.8.90 (R4c Punkt 6): ein negativer Zahlbetrag ist ein Erstattungsbetrag (Überzahlung).
+    return {"as_of": as_of, "invoice_amount": breakdown.amount_gross, "lines": lines, "pay_amount": pay_amount,
+            "refund_amount": -pay_amount if pay_amount < 0 else None}
+
+
+def refund_due(invoice: Invoice) -> Decimal | None:
+    """Der Erstattungsbetrag laut Zahlungshinweis (seit 1.8.90), None ohne Überzahlung."""
+    note = payment_note(invoice)
+    return note["refund_amount"] if note is not None else None
+
+
+def refund_sentence(amount: Decimal) -> str:
+    """Satz statt der Zahlungsbedingungen bei einem Erstattungsbetrag (seit 1.8.90): ohne Skonto und ohne "zahlbar"."""
+    return f"Den Erstattungsbetrag von {_eur(amount)} überweisen wir Ihnen."
 
 
 def _copy_order_items_with_default_ist(db: Session, invoice: Invoice, order: Order) -> None:
@@ -1545,8 +1558,10 @@ def skonto_offer(invoice: Invoice) -> tuple[date, Decimal] | None:
     (app/payments.py::proposal())."""
     if not (invoice.skonto_percent and invoice.skonto_days is not None):
         return None
-    until = invoice.invoice_date + timedelta(days=invoice.skonto_days)
     gross = compute_invoice_totals(invoice)["gross_total"]
+    if gross <= 0:  # seit 1.8.90 (R4c Punkt 6): Skonto nur bei positivem Rechnungsbetrag
+        return None
+    until = invoice.invoice_date + timedelta(days=invoice.skonto_days)
     return until, (gross * invoice.skonto_percent / Decimal("100")).quantize(CENT, rounding=invoice_rounding(invoice))
 
 
@@ -1562,7 +1577,13 @@ def format_payment_terms_sentence(invoice: Invoice) -> str:
     verwendet -- mit denselben, per .replace() ersetzten Platzhaltern wie
     unten. Ein unbekannter/falsch geschriebener Platzhalter bleibt einfach
     als Text stehen (kein Fehler), damit ein Tippfehler in der Vorlage nicht
-    die ganze Rechnung blockiert."""
+    die ganze Rechnung blockiert.
+
+    Seit 1.8.90 (R4c Punkt 6): weist der Zahlungshinweis einer Endrechnung einen Erstattungsbetrag aus, steht statt der
+    Zahlungsbedingungen (auch statt einer Textvorlage) der Satz zur Erstattung -- ohne Skonto und ohne "zahlbar"."""
+    refund = refund_due(invoice) if invoice.invoice_type == "schluss" else None
+    if refund is not None:
+        return refund_sentence(refund)
     if invoice.due_date is None:
         return ""
     due_str = invoice.due_date.strftime("%d.%m.%Y")
@@ -1861,6 +1882,32 @@ DEFAULT_INVOICE_EMAIL_BODY = (
     "über {gesamtbetrag}. Alle Einzelheiten entnehmen Sie bitte dem beigefügten PDF.\n\n"
     "Mit freundlichen Grüßen"
 )
+# Seit 1.8.90 (R4c Punkt 7): Platzhalter des Zahlungshinweises einer Endrechnung.
+PAYMENT_NOTE_PLACEHOLDERS = ("{zahlbetrag}", "{erstattungsbetrag}", "{zahlungshinweis}")
+
+
+def payment_note_sentence(invoice: Invoice) -> str:
+    """Der Satz der E-Mail zum Zahlungshinweis einer Endrechnung (seit 1.8.90, R4c Punkt 7): der Zahlbetrag bzw. der
+    Erstattungsbetrag laut Zahlungshinweis (Stand des PDFs) -- leer für jede andere Rechnung."""
+    note = payment_note(invoice)
+    if note is None:
+        return ""
+    as_of = note["as_of"].strftime("%d.%m.%Y")
+    if note["refund_amount"] is not None:
+        return (f"Laut Zahlungshinweis (Stand {as_of}) ergibt sich ein Erstattungsbetrag von {_eur(note['refund_amount'])} – "
+                "den überweisen wir Ihnen.")
+    return f"Laut Zahlungshinweis (Stand {as_of}) beträgt der Zahlbetrag {_eur(note['pay_amount'])}."
+
+
+def _with_payment_note(body: str, template: str, sentence: str) -> str:
+    """Seit 1.8.90: nennt die Vorlage keinen Platzhalter des Zahlungshinweises, steht sein Satz als eigener Absatz vor dem letzten
+    (dem Gruß) -- so nennt jede E-Mail zur Endrechnung den Zahl- bzw. Erstattungsbetrag, auch mit einer eigenen Vorlage."""
+    if not sentence or any(p in template for p in PAYMENT_NOTE_PLACEHOLDERS):
+        return body
+    parts = body.rstrip().split("\n\n")
+    if len(parts) < 2:
+        return body.rstrip() + "\n\n" + sentence
+    return "\n\n".join(parts[:-1] + [sentence, parts[-1]])
 
 
 def get_invoice_recipient_email(invoice: Invoice) -> str | None:
@@ -1908,19 +1955,26 @@ def send_invoice_email(
 
     totals = compute_invoice_totals(invoice)
     money = lambda x: f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " €"  # noqa: E731
+    # Seit 1.8.90 (R4c Punkt 7): an der Endrechnung der Zahl- bzw. Erstattungsbetrag laut Zahlungshinweis, sonst der Rechnungsbetrag.
+    note = payment_note(invoice) if invoice.invoice_type == "schluss" else None
+    sentence = payment_note_sentence(invoice) if note is not None else ""
     placeholders = {
         "{rechnungsnummer}": invoice.invoice_number or "",
         "{rechnungsdatum}": invoice.invoice_date.strftime("%d.%m.%Y"),
         "{faelligkeitsdatum}": invoice.due_date.strftime("%d.%m.%Y") if invoice.due_date else "",
         "{gesamtbetrag}": money(totals["gross_total"]),
         "{kundenname}": invoice.customer_name,
+        "{zahlbetrag}": (money(totals["gross_total"]) if note is None
+                         else money(note["pay_amount"]) if note["refund_amount"] is None else ""),
+        "{erstattungsbetrag}": money(note["refund_amount"]) if note is not None and note["refund_amount"] is not None else "",
+        "{zahlungshinweis}": sentence,
     }
 
     template = get_email_template(db, "invoice")
     subject_template = (template.subject_template if template else None) or DEFAULT_INVOICE_EMAIL_SUBJECT
     body_template = (template.body_template if template else None) or DEFAULT_INVOICE_EMAIL_BODY
     subject = apply_placeholders(subject_template, placeholders)
-    body = apply_placeholders(body_template, placeholders)
+    body = _with_payment_note(apply_placeholders(body_template, placeholders), body_template, sentence)
 
     try:
         pdf = frozen_or_fresh_pdf(db, "rechnung", invoice.id, build=lambda: build_invoice_pdf(db, invoice),

@@ -121,6 +121,7 @@
 
   <section class="card" id="zahlungen" style="display:none">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Zahlungen</h2><div class="muted small">Zahlungseingänge dieses Kunden. Gebucht wird an der Rechnung; ein nicht zugeordneter Rest bleibt hier stehen und lässt sich einer offenen Rechnung zuordnen.</div></div><span class="badge" id="paymentRestBadge"></span></div>
+    <div id="customerCredits"></div>
     <div id="customerPayments"></div>
     <div id="customerPaymentsStatus" class="muted small" style="margin-top:8px"></div>
   </section>
@@ -307,14 +308,16 @@ async function loadPayments(){
 }
 function renderPayments(){
   const d=customerPaymentsData,card=document.getElementById('zahlungen');card.style.display='block';
-  document.getElementById('paymentRestBadge').textContent=Number(d.rest)?`Nicht zugeordnet: ${money(d.rest)}`:'Nichts offen zuzuordnen';
+  document.getElementById('paymentRestBadge').textContent=(Number(d.rest)?`Nicht zugeordnet: ${money(d.rest)}`:'Nichts offen zuzuordnen')+(Number(d.credit_total)?` · Guthaben: ${money(d.credit_total)}`:'');
+  // Seit 1.8.90 (R4c Punkt 6): Guthaben aus Schlussrechnungen mit Überzahlung -- erstattet wird an der Rechnung.
+  document.getElementById('customerCredits').innerHTML=(d.credits||[]).length?`<div class="notice" data-guthaben style="margin-bottom:10px">Guthaben des Kunden: ${d.credits.map(c=>`<b>${money(c.credit)}</b> aus <a href="/invoices/${c.invoice_id}">${esc(c.invoice_number||'Schlussrechnung')}</a>`).join(', ')} – die Erstattung an der Rechnung buchen.</div>`:'';
   document.getElementById('customerPayments').innerHTML=d.payments.length?d.payments.map(paymentCardHtml).join(''):'<div class="muted small">Noch keine Zahlung gebucht.</div>';
   if(location.hash==='#zahlungen')card.scrollIntoView();
 }
 function paymentCardHtml(p){
   const allocs=p.allocations.map(a=>`<div class="small ${a.reversed?'pay-reversed':''}">${esc(a.kind_label)} ${money(a.amount)} an <a href="/invoices/${a.invoice_id}">${esc(a.invoice_number||'Rechnung')}</a>${a.reversed?` – gegengebucht: ${esc(a.reversal.reason)}`:''}</div>`).join('')||'<div class="small muted">Noch nichts zugeordnet.</div>';
-  const head=`<b class="${p.reversed?'pay-reversed':''}">${dt(p.received_on)} · ${money(p.amount)}</b>${p.note?' · '+esc(p.note):''}${p.origin==='uebernommen'?' <span class="badge">übernommen aus „bezahlt“</span>':''}`;
-  const sub=`<div class="muted small">Zahlung Nr. ${p.id} · erfasst von ${esc(p.created_by_name)}${p.reversed?` · <b>zurückgenommen</b> von ${esc(p.reversal.created_by_name)}: ${esc(p.reversal.reason)}`:` · nicht zugeordnet: <b data-rest>${money(p.rest)}</b>`}</div>`;
+  const head=`<b class="${p.reversed?'pay-reversed':''}">${dt(p.received_on)} · ${money(p.amount)}</b>${p.is_refund?' <span class="badge" data-zahlungsausgang>Zahlungsausgang (Erstattung)</span>':''}${p.note?' · '+esc(p.note):''}${p.origin==='uebernommen'?' <span class="badge">übernommen aus „bezahlt“</span>':''}`;
+  const sub=`<div class="muted small">${p.is_refund?'Zahlungsausgang':'Zahlung'} Nr. ${p.id} · erfasst von ${esc(p.created_by_name)}${p.reversed?` · <b>zurückgenommen</b> von ${esc(p.reversal.created_by_name)}: ${esc(p.reversal.reason)}`:p.is_refund?'':` · nicht zugeordnet: <b data-rest>${money(p.rest)}</b>`}</div>`;
   let actions='';
   if(!p.reversed){
     // Seit 1.8.81 kommen auch Rechnungen mit nur offenen Nebenforderungen -- deren Zuordnung läuft über die Rechnungsseite (§ 367 BGB).

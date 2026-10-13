@@ -13,6 +13,10 @@ DunningState ist, was zu einer Rechnung gemahnt werden kann: der Zahlstand der R
 nie offen ist), an der Endrechnung die offenen abgezogenen Rechnungen (deducted), an einer abgezogenen die Endrechnung (settled_in), und
 der angemahnte Hauptbetrag (dunnable). Nur Ableitung, nichts gespeichert; Zahlungen bleiben je Rechnung. Eine Schlussrechnung von vor
 1.8.85 (ohne Abzüge) und jede Rechnung daneben bleiben bei der Regel je Rechnung.
+
+Seit 1.8.90 (R4c Punkt 6): eine Endrechnung darf unter 0 € lauten. Ihr eigener Teil ist dann die Überzahlung (negativ) zuzüglich der
+schon gebuchten Erstattungen; angemahnt wird, was nach Verrechnung mit den offenen abgezogenen Rechnungen bleibt, und übersteigt die
+Überzahlung sie, ist der Rest ein Guthaben des Kunden (credit), das als Erstattung gebucht wird (app/payments.py::book_refund()).
 """
 
 from dataclasses import dataclass, field
@@ -58,6 +62,8 @@ class DunningState:
     deducted: tuple[DeductedOpen, ...] = field(default_factory=tuple)
     settled_in: Invoice | None = None
     is_final: bool = False  # gültige Endrechnung (Schlussrechnung mit Abzügen)
+    own_part: Decimal = ZERO  # seit 1.8.90: eigener Teil am Zahlbetrag (an einer Überzahlung negativ, abzüglich Erstattungen)
+    credit: Decimal = ZERO  # seit 1.8.90: Guthaben des Kunden aus der Endrechnung (noch zu erstatten)
 
     @property
     def own_dunnable(self) -> Decimal:
@@ -68,7 +74,8 @@ class DunningState:
         return sum((d.open for d in self.deducted), ZERO)
 
     def as_dict(self) -> dict:
-        return {"dunnable": self.dunnable, "own_dunnable": self.own_dunnable, "is_final": self.is_final,
+        return {"dunnable": self.dunnable, "own_dunnable": self.own_dunnable, "own_part": self.own_part, "credit": self.credit,
+                "is_final": self.is_final,
                 "deducted": [d.as_dict() for d in self.deducted], "deducted_open": self.deducted_open,
                 "settled_in": ({"invoice_id": self.settled_in.id, "invoice_number": self.settled_in.invoice_number,
                                 "invoice_date": self.settled_in.invoice_date} if self.settled_in is not None else None)}
@@ -119,7 +126,7 @@ def principal_invoice_ids(db: Session, invoice: Invoice) -> list[int]:
 def dunning_states(db: Session, invoices: Iterable[Invoice], *, on: date | None = None) -> dict[int, DunningState]:
     """Was zu jeder Rechnung gemahnt werden kann (siehe Moduldocstring), für viele Rechnungen in wenigen Abfragen. on: der Stand an
     diesem Tag (nur Zahlungen mit Eingangsdatum bis dahin, app/payments.py::allocation_sums()), sonst heute."""
-    from .payments import _state, allocation_sums, payable  # lokal: app/payments.py importiert app/invoices.py
+    from .payments import _state, allocation_sums, payable, payable_gross  # lokal: app/payments.py importiert app/invoices.py
 
     invoices = list(invoices)
     settled = settling_finals(db, [i.id for i in invoices if i.invoice_type != "schluss"])
@@ -129,7 +136,7 @@ def dunning_states(db: Session, invoices: Iterable[Invoice], *, on: date | None 
     for rows in deductions.values():
         involved.update({d.id: d for d in rows})
     payable_ids = [i.id for i in involved.values() if payable(i)]
-    sums = allocation_sums(db, payable_ids, received_until=on)
+    sums = allocation_sums(db, payable_ids + [f.id for f in finals if f.id not in payable_ids], received_until=on)
     states = {i: _state(involved[i], sums[i]) for i in payable_ids}
     result = {}
     for inv in invoices:
@@ -141,13 +148,16 @@ def dunning_states(db: Session, invoices: Iterable[Invoice], *, on: date | None 
             continue
         rows = deductions.get(inv.id) or []
         if not rows:
-            result[inv.id] = DunningState(invoice=inv, own=own, dunnable=own.dunnable if own is not None else ZERO)
+            own_dunnable = own.dunnable if own is not None else ZERO
+            result[inv.id] = DunningState(invoice=inv, own=own, dunnable=own_dunnable, own_part=own_dunnable)
             continue
         parts = tuple(DeductedOpen(d, states[d.id].open, states[d.id].retained_open)
                       for d in rows if d.id in states and states[d.id].open > 0)
-        own_part = own.dunnable if own is not None else ZERO
+        # Seit 1.8.90: eine Endrechnung unter 0 € trägt ihre Überzahlung (negativ) zuzüglich der Erstattungen bei.
+        own_part = own.dunnable if own is not None else min(payable_gross(inv), ZERO) + sums[inv.id].refunded
         total = own_part + sum((p.open for p in parts), ZERO)
-        result[inv.id] = DunningState(invoice=inv, own=own, dunnable=max(total, ZERO), deducted=parts, is_final=True)
+        result[inv.id] = DunningState(invoice=inv, own=own, dunnable=max(total, ZERO), deducted=parts, is_final=True,
+                                      own_part=own_part, credit=max(-total, ZERO))
     return result
 
 
@@ -175,6 +185,9 @@ def nothing_to_dun_reason(db: Session, invoice: Invoice, state: DunningState) ->
     if state.dunnable > 0:
         return None
     if state.is_final:
+        if state.credit > 0:  # seit 1.8.90
+            return (f"Die Schlussrechnung {number} weist eine Überzahlung aus -- Guthaben des Kunden {_money(state.credit)}, nichts "
+                    "zu mahnen.")
         if state.own is not None and state.own.retained_open > 0:
             return (f"Vom Zahlbetrag der Schlussrechnung {number} ist nur noch ihr Einbehalt offen "
                     f"({_money(state.own.retained_open)}) -- ein Einbehalt wird nicht gemahnt.")

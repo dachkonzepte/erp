@@ -2521,6 +2521,13 @@ class PaymentReverse(BaseModel):
     reason: str = Field(min_length=1, max_length=2000)
 
 
+class RefundCreate(BaseModel):
+    """Seit 1.8.90 (R4c Punkt 6): Erstattung eines Guthabens als Zahlungsausgang an einer Endrechnung mit Überzahlung."""
+    paid_on: date
+    amount: Decimal = Field(gt=0, **_CENT_FIELD)
+    note: str | None = Field(default=None, max_length=2000)
+
+
 class PaymentOut(BaseModel):
     id: int
     customer_id: int
@@ -2534,12 +2541,16 @@ class PaymentOut(BaseModel):
     reversed: bool
     reversal: dict | None = None  # {reason, created_at, created_by_name}
     allocations: list[PaymentAllocationOut] = Field(default_factory=list)
+    is_refund: bool = False  # seit 1.8.90: Zahlungsausgang (Erstattung)
 
 
 class CustomerPaymentsOut(BaseModel):
     customer_id: int
     payments: list[PaymentOut]
     rest: Decimal
+    # Seit 1.8.90: Guthaben aus Endrechnungen mit Überzahlung {invoice_id, invoice_number, invoice_date, credit}.
+    credits: list[dict] = Field(default_factory=list)
+    credit_total: Decimal = Decimal("0")
 
 
 class OpenInvoiceOut(BaseModel):

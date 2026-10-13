@@ -2456,7 +2456,7 @@ Wird der Umfang zu groß: nach Punkt 5 committen und den Rest auflisten. Commit 
 
 ### Umsetzung 1.8.89: Mahnen nach der Endrechnung (Punkte 3–5)
 
-Umfang: nach Punkt 5 committet (Vorgabe); Punkte 6 und 7 als eigene Version (unten bzw. Rest).
+Umfang: nach Punkt 5 committet (Vorgabe); Punkte 6 und 7 als eigene Version 1.8.90 (unten) -- R4c damit vollständig.
 
 #### Was gebaut ist
 
@@ -2547,6 +2547,83 @@ Umfang: nach Punkt 5 committet (Vorgabe); Punkte 6 und 7 als eigene Version (unt
 3. **Liste "Alle Mahnungen"** lädt je Mahnung die Abzüge ihrer Rechnung (`dunning_states()` je Liste, nicht je Zeile) -- eine Abfrage
    mehr je Liste.
 
+### Umsetzung 1.8.90: Überzahlung, Erstattung, E-Mail (Punkte 6 und 7)
+
+#### Was gebaut ist
+
+- **Schlussrechnung unter 0 €** (`app/invoices.py::amount_block_reason()`): die Sperre "nicht unter 0 € bis R4c" entfällt; ein Abschlag
+  bleibt über 0 € Pflicht. Zahlungshinweis (`payment_note()`): bei negativem Zahlbetrag zusätzlich `refund_amount` (= −Zahlbetrag); PDF
+  "Erstattungsbetrag (Überzahlung)" statt "Zahlbetrag", Rechnungsseite ebenso.
+- **Ohne Skonto und ohne "zahlbar"**: `format_payment_terms_sentence()` liefert bei einem Erstattungsbetrag "Den Erstattungsbetrag von
+  … überweisen wir Ihnen." (auch statt einer Textvorlage der Zahlungsbedingung), das PDF überschreibt den Block "Erstattung:" statt
+  "Zahlungsbedingungen: …" (`build_payment_tax_closing_block(payment_label=…)`). `skonto_offer()`: kein Skonto bei einem
+  Rechnungsbetrag von 0 € oder weniger -- auch kein Skonto-Vorschlag beim Zahlungseingang.
+- **Guthaben** (`app/final_dunning.py`): an einer Endrechnung unter 0 € ist ihr eigener Teil die Überzahlung (negativ) zuzüglich der
+  gebuchten Erstattungen (`own_part`); was nach Verrechnung mit den offenen abgezogenen Rechnungen negativ bleibt, ist das Guthaben
+  (`credit`), positiv bleibt der angemahnte Zahlbetrag. `app/payments.py::customer_credits()` je Kunde; `GET
+  /api/customers/{id}/payments` mit `credits` und `credit_total`. Mahnung: "Die Schlussrechnung … weist eine Überzahlung aus --
+  Guthaben des Kunden …, nichts zu mahnen."; mit offenem Abschlag über den Rest, Aufstellung "Überzahlung aus dieser Rechnung".
+- **Erstattung als Zahlungsausgang** (`app/payments.py::book_refund()`, `POST /api/invoices/{invoice_id}/refunds`): eine Zahlung des
+  Kunden über −Betrag mit einer Zuordnung Art `erstattung` (ebenfalls −Betrag) an der Schlussrechnung -- unter der Sperre der
+  Auftragszeile, nur an einer gültigen Endrechnung mit Guthaben, höchstens das Guthaben, Datum nicht in der Zukunft (409 bzw. 400).
+  Zahlungsausgang ohne "nicht zugeordnet" (Art `erstattung` zählt zum Betrag der Zahlung), Zuordnung allein nicht gegenbuchbar (409),
+  zurück nur als Ganzes (`reverse_payment()`); Storno der Schlussrechnung gesperrt, solange eine Erstattung gebucht ist
+  (`allocation_block_reason()` nennt sie). `not_payable_reason()` nennt die Überzahlung statt "über 0 € oder weniger".
+- **Oberfläche**: Rechnungsseite -- Kennzeichen "Guthaben …", Karte "Zahlungen" mit Guthaben und "Erstattung buchen" (Datum, Betrag,
+  Notiz, ohne Popup), Erstattung in den Zuordnungen mit Verweis auf die Kundenakte; Kundenakte -- "Guthaben: …" mit Verweis auf die
+  Rechnung, Zahlungsausgang gekennzeichnet; Einstellungen -- die neuen Platzhalter der E-Mail-Vorlage.
+- **E-Mail zur Schlussrechnung** (`send_invoice_email()`, Punkt 7): `{zahlbetrag}` (an der Endrechnung der Zahlbetrag, bei Erstattung
+  leer, sonst der Rechnungsbetrag), `{erstattungsbetrag}`, `{zahlungshinweis}` ("Laut Zahlungshinweis (Stand …) beträgt der Zahlbetrag
+  … ." bzw. "… ergibt sich ein Erstattungsbetrag von … – den überweisen wir Ihnen."); nennt die Vorlage keinen der drei, steht der Satz
+  als eigener Absatz vor dem letzten (`_with_payment_note()`). `{gesamtbetrag}` bleibt der Rechnungsbetrag.
+- Klicktest `scripts/klicktest_ueberzahlung.py`.
+
+#### Festlegungen 1.8.90 (Bitte bestätigen)
+
+1. **Unter 0 € nur die Schlussrechnung**; ein Abschlag bleibt über 0 € Pflicht (Festlegung 1.8.83 Nr. 6 geändert).
+2. **Erstattungsbetrag** = −Zahlbetrag laut Zahlungshinweis (beim Festschreiben eingefroren, wie der Zahlbetrag); "Erstattung" mit
+   festem Satz statt der Zahlungsbedingungen, auch statt einer Textvorlage. Liegt nur der Rechnungsbetrag unter 0 € und der Zahlbetrag
+   darüber, bleibt der Zahlungssatz (ohne Skonto).
+3. **Skonto** nur über 0 € -- für jede Rechnung (unter 0 € gibt es nur die Schlussrechnung, 0 € nur Altbestand).
+4. **Guthaben** live (wie der angemahnte Betrag): Überzahlung − offene abgezogene Rechnungen − gebuchte Erstattungen; eine spätere Zahlung
+   auf einen abgezogenen Abschlag erhöht es. Verrechnet wird nur in der Rechnung (Zahlbetrag), nicht als Buchung an den Abschlägen.
+5. **Zahlungsausgang** als Zahlung mit negativem Betrag (keine neue Tabelle, keine Migration); höchstens das Guthaben, nie in die Zukunft,
+   nur an der Schlussrechnung gebucht, nur als Ganzes zurückgenommen.
+6. **Storno** einer Schlussrechnung mit gebuchter Erstattung erst nach deren Rücknahme (wie jede Zuordnung).
+7. **E-Mail**: der Betrag laut Zahlungshinweis (Stand des PDFs), nicht der Stand des Versandtags; Satz als eigener Absatz vor dem Gruß,
+   wenn die Vorlage keinen der neuen Platzhalter nennt.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v393_ueberzahlung.py` (16, davon 2 gegen PostgreSQL): Schlussrechnung −1.190 € festschreibbar, Erstattungsbetrag, Satz statt Skonto, kein Skonto,
+  Guthaben, nicht bebuchbar mit Grund; PDF mit "Erstattungsbetrag" und "Erstattung:", ohne "Zahlbar", "Skonto" und
+  "Zahlungsbedingungen:"; Entwurf live, Mehrmenge mit Skonto; Rechnungsbetrag negativ mit offenem Abschlag -> Mahnung über den Rest
+  (760 €) mit "Überzahlung aus dieser Rechnung"; teilweise offener Abschlag mindert das Guthaben; Guthaben am Kunden, Erstattung 1.000 €
+  (Zahlung −1.000 €, Zuordnung "erstattung", Rest 0), zu viel 409, Rest 190 €, danach "kein Guthaben"; nichts zu mahnen bei Überzahlung;
+  keine Erstattung ohne Guthaben bzw. am Abschlag, nicht in die Zukunft (nichts geschrieben); Zuordnung allein nicht gegenbuchbar, Storno
+  gesperrt bis zur Rücknahme, danach Storno +1.190 €; Router (200, 409, 404, Kundenakte); E-Mail mit Erstattungsbetrag bzw. Zahlbetrag
+  als Absatz vor dem Gruß, eigene Vorlage mit Platzhalter ohne Zusatz, andere Rechnung unverändert. **Gleichzeitig (PostgreSQL):** zwei
+  Erstattungen zugleich -> die zweite 409 (nur noch 19 €); Erstattung wartet auf das Storno der Schlussrechnung und wird abgelehnt.
+- **Erwartung geändert**: `test_v388_endrechnung` (die negative Schlussrechnung geht jetzt durch, statt 409 "bis R4c"),
+  `test_v381_zahlungen_pg` (Rundgang über jeden schreibenden Zahlungsweg: neues Szenario für `POST /api/invoices/{invoice_id}/refunds`,
+  unter der Sperre der Auftragszeile).
+- Klicktest `klicktest_ueberzahlung.py` 16/16 (Entwurf −119 € mit Erstattungsbetrag und Satz statt Fälligkeit und Skonto, finalisieren;
+  Kennzeichen und Karte Guthaben, Erstattung 100 € gebucht, Guthaben 19 €, Zeile ohne Gegenbuchen, zu viel 409, PDF; Kundenakte mit
+  Guthaben und Zahlungsausgang ohne "nicht zugeordnet", zurückgenommen -> Guthaben 119 €; 412 px dunkel; Monteurin 403).
+- Gegenproben 16 von 16 rot.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3854 grün, 0 rot.
+- Alle Klicktests (Regel 26, Arbeitskopie): 56 von 56 wie erwartet in 12:45 min.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Schlusstext der Rechnung**: die Vorgabe "Bitte überweisen Sie den Rechnungsbetrag …" steht auch auf einer Schlussrechnung mit
+   Erstattungsbetrag -- der Text wird nicht von selbst angepasst (im Entwurf änderbar).
+2. **Verrechnung nur im Zahlbetrag**: verrechnet die Überzahlung einen noch offenen Abschlag, bleibt dieser je Rechnung "teilweise
+   bezahlt" mit offenem Betrag stehen (Zahlstand je Rechnung, Festlegung 4) -- auch nach der Erstattung des Rests; Finanzen zählen ihn
+   im "Offenen Betrag" mit, das Guthaben nicht dagegen (Nebenbefund 1 aus 1.8.89).
+3. **Rest einer Zahlung und Guthaben** stehen in der Kundenakte nebeneinander -- ein nicht zugeordneter Rest wird nicht mit einem Guthaben
+   verrechnet und umgekehrt.
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
@@ -2619,5 +2696,5 @@ Ergänzt am 13.10.2026 (Vorgabe R4c), übernommen wie gegeben -- Wortlaut unter 
   Rechnungen, in der Aufstellung je Rechnung mit Nummer. (Seit 1.8.89 gebaut.)
 - **Überzahlung**: ein negativer Rechnungsbetrag wird zulässig; ist der Zahlbetrag negativ, weist das PDF einen Erstattungsbetrag aus,
   ohne Skonto und ohne „zahlbar“; die Erstattung ist als Zahlungsausgang buchbar, ein Guthaben steht am Kunden; Skonto nur bei
-  positivem Rechnungsbetrag.
-- **E-Mail zur Schlussrechnung** nennt den Zahlbetrag bzw. den Erstattungsbetrag.
+  positivem Rechnungsbetrag. (Seit 1.8.90 gebaut.)
+- **E-Mail zur Schlussrechnung** nennt den Zahlbetrag bzw. den Erstattungsbetrag. (Seit 1.8.90 gebaut.)

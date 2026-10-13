@@ -21,7 +21,9 @@ from sqlalchemy.pool import StaticPool
 from app.berlin_time import berlin_today
 from app.database import Base
 from app.grunddaten import anlegen
-from app.invoices import InvoiceBlocked, create_abschlag_pauschal, create_storno_draft
+from app.invoices import (
+    InvoiceBlocked, create_abschlag_pauschal, create_schlussrechnung, create_storno_draft, finalize_and_send_invoice,
+)
 from app.models import Invoice, Order, Payment, PaymentAllocation, Project, Quote, QuoteItem
 from app.payments import Line, PaymentRejected, allocate_rest, book_payment, invoice_customer_id, reverse_allocation
 from app.project_pipeline_columns import default_pipeline_column_id
@@ -234,8 +236,18 @@ def _szenario_zuordnung_zurueck(c, db, a, b):
     return c.post(f"/api/payment-allocations/{allocation.id}/reverse", json={"reason": "falsche Rechnung"})
 
 
+def _szenario_erstattung(c, db, a, b):
+    # Seit 1.8.90 (R4c Punkt 6): der bezahlte pauschale Abschlag (1.190 €) übersteigt den Auftrag (595 €) -- Schlussrechnung −595 €,
+    # Guthaben des Kunden, davon 100 € als Zahlungsausgang erstattet.
+    _buchen(db, a, "1190")
+    schluss = mit_zeitraum(db, create_schlussrechnung(db, db.get(Invoice, a).order))
+    finalize_and_send_invoice(db, schluss)
+    return c.post(f"/api/invoices/{schluss.id}/refunds", json={"paid_on": str(HEUTE), "amount": "100.00"})
+
+
 SZENARIEN = {
     ("POST", "/api/payments"): _szenario_buchen,
+    ("POST", "/api/invoices/{invoice_id}/refunds"): _szenario_erstattung,
     ("POST", "/api/payments/{payment_id}/allocations"): _szenario_rest,
     ("POST", "/api/payments/{payment_id}/reverse"): _szenario_zahlung_zurueck,
     ("POST", "/api/payment-allocations/{allocation_id}/reverse"): _szenario_zuordnung_zurueck,

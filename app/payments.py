@@ -29,6 +29,12 @@ Zuordnung Art "nebenforderung" mit der Nebenforderung (charge_id), an der Rechnu
 Der Vorschlag verteilt nach § 367 Abs. 1 BGB: je Rechnung erst die Kosten (Gebühr, Pauschale), dann die Zinsen, dann die Rechnung;
 über mehrere Rechnungen weiter die älteste zuerst. Gebucht wird, was das Büro bestätigt -- auch abweichend (§ 366 Abs. 1 BGB:
 eine Tilgungsbestimmung des Kunden geht vor). Eine Zahlung auf eine Nebenforderung mindert den Zahlstand der Rechnung nicht.
+
+Seit 1.8.90 (R4c Punkt 6): Erstattung als Zahlungsausgang (book_refund()). Lautet eine gültige Endrechnung unter 0 € und übersteigt die
+Überzahlung, was aus den abgezogenen Rechnungen noch offen ist, steht ein Guthaben am Kunden (app/final_dunning.py, DunningState.credit,
+customer_credits()). Die Erstattung ist eine Zahlung mit negativem Betrag (Geld geht hinaus) und einer Zuordnung Art "erstattung" an
+der Endrechnung, ebenfalls negativ -- höchstens das Guthaben, unter der Sperre der Auftragszeile; zurückgenommen nur als Ganzes
+(reverse_payment()).
 """
 
 from dataclasses import dataclass
@@ -48,9 +54,11 @@ from .rounding import CENT, round_money
 from .zugehoerigkeit import IdNichtGefunden
 
 ORIGINS = ("erfasst", "uebernommen")
-KINDS = ("zahlung", "skonto", "einbehalt", "nebenforderung")
-KIND_LABELS = {"zahlung": "Zahlung", "skonto": "Skonto", "einbehalt": "Einbehalt", "nebenforderung": "Zahlung auf Nebenforderung"}
-MONEY_KINDS = ("zahlung", "nebenforderung")  # Teile des Betrags der Zahlung (Skonto und Einbehalt sind Abzüge)
+KINDS = ("zahlung", "skonto", "einbehalt", "nebenforderung", "erstattung")  # erstattung seit 1.8.90
+KIND_LABELS = {"zahlung": "Zahlung", "skonto": "Skonto", "einbehalt": "Einbehalt", "nebenforderung": "Zahlung auf Nebenforderung",
+               "erstattung": "Erstattung (Zahlungsausgang)"}
+# Teile des Betrags der Zahlung (Skonto und Einbehalt sind Abzüge); eine Erstattung ist der (negative) Betrag eines Zahlungsausgangs.
+MONEY_KINDS = ("zahlung", "nebenforderung", "erstattung")
 STATES = ("offen", "teilweise_bezahlt", "einbehalt_offen", "bezahlt")
 STATE_LABELS = {"offen": "offen", "teilweise_bezahlt": "teilweise bezahlt", "einbehalt_offen": "Einbehalt offen",
                 "bezahlt": "bezahlt"}
@@ -91,7 +99,11 @@ def not_payable_reason(invoice: Invoice) -> str | None:
         return f"Die Rechnung {number} ist storniert und nicht bebuchbar."
     if invoice.status != "versendet":
         return f"Die Rechnung {number} ist nicht bebuchbar (Status {invoice.status})."
-    if payable_gross(invoice) <= 0:
+    gross = payable_gross(invoice)
+    if gross < 0 and invoice.invoice_type == "schluss":  # seit 1.8.90 (R4c Punkt 6)
+        return (f"Die Schlussrechnung {number} weist eine Überzahlung aus ({money(-gross)}) -- auf sie wird nichts gebucht; ein "
+                "Guthaben des Kunden wird als Erstattung (Zahlungsausgang) gebucht.")
+    if gross <= 0:
         return f"Die Rechnung {number} lautet über 0 € oder weniger und ist nicht bebuchbar."
     return None
 
@@ -108,10 +120,11 @@ class Sums:
     retained: Decimal = ZERO
     last_received_on: date | None = None  # Eingangsdatum der jüngsten noch geltenden Zahlung
     charges_paid: Decimal = ZERO  # seit 1.8.81: Zahlungen auf Nebenforderungen der Rechnung (nicht im Zahlstand)
+    refunded: Decimal = ZERO  # seit 1.8.90: erstattet (Zahlungsausgang an einer Endrechnung mit Überzahlung), positiv
 
     @property
     def any(self) -> bool:
-        return bool(self.paid or self.skonto or self.retained or self.charges_paid)
+        return bool(self.paid or self.skonto or self.retained or self.charges_paid or self.refunded)
 
 
 def allocation_sums(db: Session, invoice_ids: Iterable[int], *, received_until: date | None = None) -> dict[int, Sums]:
@@ -142,7 +155,8 @@ def allocation_sums(db: Session, invoice_ids: Iterable[int], *, received_until: 
     last = dict(db.execute(last_stmt).all())
     return {i: Sums(paid=totals.get(i, {}).get("zahlung", ZERO), skonto=totals.get(i, {}).get("skonto", ZERO),
                     retained=totals.get(i, {}).get("einbehalt", ZERO), last_received_on=last.get(i),
-                    charges_paid=totals.get(i, {}).get("nebenforderung", ZERO)) for i in ids}
+                    charges_paid=totals.get(i, {}).get("nebenforderung", ZERO),
+                    refunded=-totals.get(i, {}).get("erstattung", ZERO)) for i in ids}
 
 
 @dataclass(frozen=True)
@@ -231,9 +245,12 @@ def allocation_block_reason(db: Session, invoice: Invoice) -> str | None:
         return None
     parts = [f"{KIND_LABELS[k]} {money(v)}" for k, v in (("zahlung", sums.paid), ("skonto", sums.skonto),
                                                          ("einbehalt", sums.retained),
-                                                         ("nebenforderung", sums.charges_paid)) if v]
+                                                         ("nebenforderung", sums.charges_paid),
+                                                         ("erstattung", sums.refunded)) if v]
+    refund = (" Eine Erstattung wird als Ganzes zurückgenommen (Kundenakte, „Zahlung zurücknehmen“)." if sums.refunded
+              else "")  # seit 1.8.90
     return (f"Der Rechnung sind Zahlungen zugeordnet ({', '.join(parts)}). Erst die Zuordnungen lösen (Gegenbuchung mit "
-            "Begründung) -- die Zahlung bleibt dann beim Kunden, nicht zugeordnet.")
+            f"Begründung) -- die Zahlung bleibt dann beim Kunden, nicht zugeordnet.{refund}")
 
 
 _UNSET = object()
@@ -566,6 +583,59 @@ def allocate_rest(db: Session, payment: Payment, lines: list[Line], *, user_id: 
 
 
 # ---------------------------------------------------------------------------
+# Erstattung (seit 1.8.90, R4c Punkt 6)
+# ---------------------------------------------------------------------------
+
+def book_refund(db: Session, invoice: Invoice, *, paid_on: date, amount: Decimal, note: str | None,
+                user_id: int | None = None, user_name: str | None = None) -> Payment:
+    """Erstattung eines Guthabens als Zahlungsausgang: eine Zahlung des Kunden über −amount mit einer Zuordnung Art "erstattung"
+    (ebenfalls −amount) an der Endrechnung. Unter der Sperre der Auftragszeile geprüft: gültige Endrechnung mit Guthaben
+    (app/final_dunning.py::DunningState.credit), höchstens das Guthaben, Ausgangsdatum nicht in der Zukunft."""
+    from .final_dunning import dunning_state  # lokal: app/final_dunning.py importiert app/payments.py
+
+    amount = _cents(amount, "Der Betrag", positive=True)
+    if paid_on > berlin_today():
+        raise ValueError("Das Datum des Zahlungsausgangs liegt in der Zukunft.")
+    name = (user_name or "System")[:160]
+    lock_order_invoices(db, invoice.order_id)
+    try:
+        number = invoice.invoice_number or "(Entwurf)"
+        state = dunning_state(db, invoice) if invoice.status == "versendet" else None
+        if state is None or not state.is_final:
+            raise PaymentRejected(f"Eine Erstattung gibt es nur zu einer festgeschriebenen Schlussrechnung mit Überzahlung -- "
+                                  f"{number} ist keine.")
+        if state.credit <= 0:
+            raise PaymentRejected(f"Aus der Schlussrechnung {number} steht kein Guthaben des Kunden offen.")
+        if amount > state.credit:
+            raise PaymentRejected(f"Überbuchung: das Guthaben aus der Schlussrechnung {number} beträgt {money(state.credit)}, "
+                                  f"erstattet werden sollen {money(amount)}.")
+        payment = Payment(customer_id=invoice_customer_id(invoice), received_on=paid_on, amount=-amount,
+                          note=(note or "").strip() or None, origin="erfasst", created_by_user_id=user_id, created_by_name=name)
+        db.add(payment)
+        db.flush()
+        db.add(PaymentAllocation(payment_id=payment.id, invoice_id=invoice.id, kind="erstattung", amount=-amount,
+                                 created_by_user_id=user_id, created_by_name=name))
+        db.flush()
+    except Exception:
+        db.rollback()
+        raise
+    db.commit()
+    db.refresh(payment)
+    return payment
+
+
+def customer_credits(db: Session, customer_id: int) -> list[dict]:
+    """Guthaben des Kunden (seit 1.8.90): je gültiger Endrechnung mit Überzahlung, was nach den Erstattungen noch zu erstatten ist."""
+    from .final_dunning import dunning_states  # lokal: Zirkel-Import
+
+    finals = list(db.scalars(select(Invoice).where(Invoice.customer_id == customer_id, Invoice.invoice_type == "schluss",
+                                                   Invoice.status == "versendet").order_by(Invoice.invoice_date, Invoice.id)))
+    states = dunning_states(db, finals)
+    return [{"invoice_id": inv.id, "invoice_number": inv.invoice_number, "invoice_date": inv.invoice_date,
+             "credit": states[inv.id].credit} for inv in finals if states[inv.id].credit > 0]
+
+
+# ---------------------------------------------------------------------------
 # Gegenbuchung
 # ---------------------------------------------------------------------------
 
@@ -595,6 +665,8 @@ def reverse_allocation(db: Session, allocation: PaymentAllocation, *, reason: st
     try:
         if allocation.reverses_allocation_id is not None:
             raise PaymentRejected("Eine Gegenbuchung lässt sich nicht gegenbuchen.")
+        if allocation.kind == "erstattung":  # seit 1.8.90: der Zahlungsausgang als Ganzes
+            raise PaymentRejected("Eine Erstattung wird als Ganzes zurückgenommen – in der Kundenakte „Zahlung zurücknehmen“.")
         if allocation.id in _reversed_allocation_ids(db, [allocation.id]):
             raise PaymentRejected("Diese Zuordnung ist schon gegengebucht.")
         counter = _counter(allocation, reason, user_id, name)
@@ -706,6 +778,7 @@ def payment_to_dict(db: Session, payment: Payment) -> dict:
         "id": payment.id, "customer_id": payment.customer_id, "received_on": payment.received_on, "amount": payment.amount,
         "note": payment.note, "origin": payment.origin, "created_at": payment.created_at,
         "created_by_name": payment.created_by_name, "rest": payment_rest(db, payment),
+        "is_refund": Decimal(payment.amount) < 0,  # seit 1.8.90: Zahlungsausgang (Erstattung)
         "reversed": counter is not None,
         "reversal": ({"reason": counter.reason, "created_at": counter.created_at, "created_by_name": counter.created_by_name}
                      if counter else None),
@@ -719,7 +792,9 @@ def customer_payments(db: Session, customer_id: int) -> dict:
                                                      Payment.reverses_payment_id.is_(None))
                                .order_by(Payment.received_on.desc(), Payment.id.desc())))
     rows = [payment_to_dict(db, p) for p in payments]
-    return {"customer_id": customer_id, "payments": rows, "rest": sum((r["rest"] for r in rows), ZERO)}
+    credits = customer_credits(db, customer_id)  # seit 1.8.90
+    return {"customer_id": customer_id, "payments": rows, "rest": sum((r["rest"] for r in rows), ZERO),
+            "credits": credits, "credit_total": sum((c["credit"] for c in credits), ZERO)}
 
 
 def open_invoices_of_customer(db: Session, customer_id: int) -> list[dict]:

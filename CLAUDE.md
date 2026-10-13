@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.89** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.90** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -737,7 +737,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   abgezogene Rechnung nicht mehr einzeln gemahnt (nicht fällig, kein Entwurf, ein offener überholt, eine festgeschriebene Mahnung geht ab
   dem Tag der Endrechnung nicht mehr hinaus), ihr Einbehalt ist mit der Endrechnung fällig, und die Mahnung der Endrechnung lautet über
   den Zahlbetrag (ihr mahnfähiger Betrag + offene abgezogene Rechnungen, Aufstellung Format 4 je Rechnung mit Nummer); `DunningState`
-  ist überall im Mahnwesen der Stand (`dunnable` = angemahnter Betrag), auch für Verzugszinsen und "überfällig".
+  ist überall im Mahnwesen der Stand (`dunnable` = angemahnter Betrag), auch für Verzugszinsen und "überfällig". **Seit 1.8.90 (Punkte
+  6–7)**: eine Schlussrechnung darf unter 0 € lauten; ein negativer Zahlbetrag ist ein Erstattungsbetrag (PDF "Erstattung", ohne Skonto
+  und "zahlbar"; Skonto nur über 0 €); das Guthaben (`DunningState.credit`) steht am Kunden und wird als Zahlungsausgang erstattet
+  (`app/payments.py::book_refund()`: Zahlung mit negativem Betrag, Zuordnung Art `erstattung`, nur als Ganzes zurück); die E-Mail nennt
+  Zahl- bzw. Erstattungsbetrag (`{zahlbetrag}`, `{erstattungsbetrag}`, `{zahlungshinweis}`, sonst eigener Absatz).
 - `Reminder`: hängt an überfälligen Rechnungen, hat Stufen (1./2./3. Mahnung), jede Stufe mit
   eigenen Fristen/Gebühren/Textvorlagen (`ReminderLevel`). `Reminder.text` ist beim Anlegen
   (`create_reminder()`) eine reine Kopie von `ReminderLevel.text_template` mit noch
@@ -1054,7 +1058,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Schlussrechnung, 1a und 1b behoben; seit 1.8.86 Punkte 4 und 6 -- Zahlungshinweis "Stand …", abschließende Rechnung aus Aufwand am
   Auftrag nach Aufwand; R4c ab 1.8.87: Vorweg -- "heute" im Browser aus Berlin, Klicktest Mahnwesen wartet, Testhelfer `_run`;
   seit 1.8.88 Mengenvergleich im Entwurf der Schlussrechnung: Auftragsmenge, zuletzt abgerechnet, Ist, Abweichungen markiert; seit
-  1.8.89 Punkte 3–5: Mahnen nach der Endrechnung über den Zahlbetrag, abgezogene Rechnungen nicht mehr einzeln, Einbehalt fällig)
+  1.8.89 Punkte 3–5: Mahnen nach der Endrechnung über den Zahlbetrag, abgezogene Rechnungen nicht mehr einzeln, Einbehalt fällig; seit
+  1.8.90 Punkte 6–7: Schlussrechnung unter 0 €, Erstattungsbetrag, Guthaben und Zahlungsausgang, E-Mail mit Zahlbetrag -- R4c vollständig)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1541,7 +1546,9 @@ Abweichung vom Auftrag mit Grund und "Aus dem Auftrag aktualisieren"; Grund für
 seit 1.8.86 Zahlungshinweis mit Einbehalt und Zahlbetrag, Häkchen "abschließend" am Auftrag nach Aufwand; seit 1.8.88 Mengenvergleich
 im Entwurf mit Markierung) und `klicktest_mahnen_endrechnung.py` (1.8.89, Mahnwesen ohne die abgezogenen Abschläge, Schlussrechnung
 über den Zahlbetrag samt Abschlägen, Entwurf zum Abschlag überholt, Hinweis am Abschlag mit fälligem Einbehalt, Aufstellung je Rechnung
-mit Nummer, neuer Zahlbetrag nach Zahlung auf den Abschlag, 412 px dunkel, Monteurin 403) und
+mit Nummer, neuer Zahlbetrag nach Zahlung auf den Abschlag, 412 px dunkel, Monteurin 403) und `klicktest_ueberzahlung.py` (1.8.90,
+Schlussrechnung −119 € mit Erstattungsbetrag und Satz statt Skonto, finalisieren, Guthaben, Erstattung buchen, zu viel 409, Kundenakte
+mit Guthaben und Zahlungsausgang, zurücknehmen, 412 px dunkel, Monteurin 403) und
 `klicktest_browser_datum.py` (1.8.87, Instanz und Browser-Uhr um 00:30 Uhr, Browser in UTC und New York: Monteur-Zeiterfassung mit der
 Buchung von heute, Stundenzettel, Büro-Zeiterfassung, Aufgaben überfällig, Plantafel, Kalender).
 Ein

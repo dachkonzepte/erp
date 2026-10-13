@@ -14,15 +14,15 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..email_dispatch import actor_of
 from ..invoices import get_invoice
-from ..models import AppUser, Customer, Payment, PaymentAllocation
+from ..models import AppUser, Customer, Invoice, Payment, PaymentAllocation
 from ..payments import (
-    ChargeLine, Line, PaymentRejected, allocate_rest, book_payment, customer_payments, open_invoices_of_customer,
+    ChargeLine, Line, PaymentRejected, allocate_rest, book_payment, book_refund, customer_payments, open_invoices_of_customer,
     payment_to_dict, proposal, reverse_allocation, reverse_payment, unallocated_by_customer,
 )
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import (
     CustomerPaymentsOut, OpenInvoiceOut, PaymentAllocate, PaymentCreate, PaymentOut, PaymentProposalOut, PaymentReverse,
-    UnallocatedPaymentsOut,
+    RefundCreate, UnallocatedPaymentsOut,
 )
 from ..zugehoerigkeit import IdNichtGefunden
 
@@ -121,6 +121,21 @@ def post_payment_reverse(payment_id: int, payload: PaymentReverse, db: Session =
     user_id, user_name = actor_of(user)
     try:
         reverse_payment(db, payment, reason=payload.reason, user_id=user_id, user_name=user_name)
+    except ValueError as e:
+        raise _http(e) from e
+    return payment_to_dict(db, payment)
+
+
+@router.post("/api/invoices/{invoice_id}/refunds", response_model=PaymentOut)
+def post_refund(invoice_id: int, payload: RefundCreate, db: Session = Depends(get_db), user: AppUser = _role_dep):
+    """Seit 1.8.90 (R4c Punkt 6): Erstattung eines Guthabens als Zahlungsausgang (app/payments.py::book_refund())."""
+    invoice = db.get(Invoice, invoice_id)
+    if invoice is None:
+        raise HTTPException(status_code=404, detail="Rechnung nicht gefunden.")
+    user_id, user_name = actor_of(user)
+    try:
+        payment = book_refund(db, invoice, paid_on=payload.paid_on, amount=payload.amount, note=payload.note, user_id=user_id,
+                              user_name=user_name)
     except ValueError as e:
         raise _http(e) from e
     return payment_to_dict(db, payment)

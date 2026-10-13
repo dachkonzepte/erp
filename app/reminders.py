@@ -435,7 +435,7 @@ def amounts_snapshot(db: Session, invoice: Invoice, state, *, enabled: bool, on:
         "payments": ([{"received_on": d.isoformat(), "amount": str(a)} for d, a in invoice_payment_lines(db, invoice)]
                      if own is not None else []),
         "skonto": str(own.skonto if own is not None else zero),
-        "retained": str(own.retained_open if own is not None else zero), "dunnable": str(state.own_dunnable),
+        "retained": str(own.retained_open if own is not None else zero), "dunnable": str(state.own_part),
         "deducted": [{"invoice_id": d.invoice.id, "invoice_number": d.invoice.invoice_number,
                       "invoice_type": d.invoice.invoice_type, "open": str(d.open), "retained": str(d.retained)}
                      for d in state.deducted],

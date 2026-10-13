@@ -336,14 +336,15 @@ def test_a_progress_invoice_of_zero_is_rejected_like_a_negative_one():
     assert db.get(Invoice, null.id).invoice_number is None
 
 
-def test_a_negative_final_invoice_is_rejected_until_r4c_and_zero_is_allowed():
+def test_a_negative_final_invoice_is_allowed_since_r4c_and_zero_is_allowed():
+    """Bis 1.8.89 lehnte das Festschreiben eine Schlussrechnung unter 0 € ab (bis R4c); seit 1.8.90 (R4c Punkt 6) geht sie durch --
+    Überzahlung mit Erstattungsbetrag (tests/test_v393_ueberzahlung.py)."""
     db = db_session()
     order, _ = make_order_with_item(db)
     zu_viel = festschreiben(db, create_abschlag_pauschal(db, order, lump_sum_net=D("6000")))
     schluss = mit_zeitraum(db, create_schlussrechnung(db, order))
-    grund = _blocked(finalize_and_send_invoice, db, schluss)
-    assert "lautet über -1.190,00 €" in grund and "R4c" in grund
-    assert invoice_to_dict(db.get(Invoice, schluss.id))["finalize_block"] == grund
+    assert invoice_to_dict(db.get(Invoice, schluss.id))["finalize_block"] is None
+    assert _totals(schluss) == (D("-1000.00"), D("-190.00"), D("-1190.00"))
     db.delete(db.get(Invoice, schluss.id))
     db.commit()
     festschreiben(db, create_storno_draft(db, zu_viel))

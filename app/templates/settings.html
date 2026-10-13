@@ -1953,7 +1953,7 @@ async function saveOutlookSyncSettings(){
 }
 
 const EMAIL_TEMPLATE_PLACEHOLDER_HINTS = {
-  invoice: 'Verfügbare Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {gesamtbetrag} {kundenname}',
+  invoice: 'Verfügbare Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {gesamtbetrag} {kundenname} – an der Schlussrechnung (Endrechnung) dazu {zahlbetrag} {erstattungsbetrag} {zahlungshinweis}; fehlen alle drei, steht der Satz zum Zahl- bzw. Erstattungsbetrag als eigener Absatz vor dem Gruß',
   quote: 'Verfügbare Platzhalter: {angebotsnummer} {gesamtbetrag} {kundenname}',
   order: 'Verfügbare Platzhalter: {auftragsnummer} {gesamtbetrag} {kundenname}',
   checklist: 'Verfügbare Platzhalter: {checkliste} {checklistennummer} {bezug} {kundenname}',

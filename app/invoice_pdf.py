@@ -110,7 +110,8 @@ def _final_invoice_blocks(fb: dict, vat_rate, content_width: float, styles) -> l
 
 def _payment_note_blocks(note: dict, content_width: float, styles) -> list:
     """Zahlungshinweis der Endrechnung (seit 1.8.86, R4b Punkt 4): "Stand <Tag des Festschreibens>", je abgezogener Rechnung mit
-    offenem Betrag "zzgl. noch offen aus Abschlag Nr. …" (einschließlich Einbehalt), darunter der Zahlbetrag."""
+    offenem Betrag "zzgl. noch offen aus Abschlag Nr. …" (einschließlich Einbehalt), darunter der Zahlbetrag -- seit 1.8.90 (R4c
+    Punkt 6) bei einem negativen der Erstattungsbetrag."""
     rows = [["Rechnungsbetrag brutto", money(note["invoice_amount"])]]
     for line in note["lines"]:
         what = "Rechnung" if line["invoice_type"] == "aufwand" else "Abschlag"
@@ -118,7 +119,10 @@ def _payment_note_blocks(note: dict, content_width: float, styles) -> list:
         if Decimal(line["retained"] or 0) > 0:
             text += f" (davon Einbehalt {money(line['retained'])})"
         rows.append([text, money(line["open"])])
-    rows.append(["Zahlbetrag", money(note["pay_amount"])])
+    if note.get("refund_amount") is not None:
+        rows.append(["Erstattungsbetrag (Überzahlung)", money(note["refund_amount"])])
+    else:
+        rows.append(["Zahlbetrag", money(note["pay_amount"])])
     return [Paragraph(f"<b>Zahlungshinweis</b> (Stand {_de_date(note['as_of'])})", styles["body"]), Spacer(1, 1.5*mm),
             _totals_table(rows, content_width)]
 
@@ -255,8 +259,12 @@ def build_invoice_pdf(db, invoice) -> bytes:
         # Einzige Stelle unter den drei Dokumenttypen, die den automatisch generierten
         # Fälligkeits-/Skontosatz mit echtem Datum zeigt (payment_terms_sentence) --
         # Angebot/Auftrag haben noch keine feste Fälligkeit.
+        # Seit 1.8.90 (R4c Punkt 6): bei einem Erstattungsbetrag "Erstattung" statt der Zahlungsbedingungen -- ohne Skonto, ohne
+        # "zahlbar" (der Satz kommt aus format_payment_terms_sentence()).
+        refund = bool(data.get("payment_note") and data["payment_note"].get("refund_amount") is not None)
         story += build_payment_tax_closing_block(
-            styles, payment_terms=data.get('payment_terms'), payment_terms_sentence=data.get('payment_terms_sentence'),
+            styles, payment_terms=None if refund else data.get('payment_terms'),
+            payment_terms_sentence=data.get('payment_terms_sentence'), payment_label="Erstattung" if refund else "Zahlungsbedingungen",
             tax_notice_text=data.get('tax_notice_text'), outro_text=data.get('outro_text'), outro_text_2=data.get('outro_text_2'),
         )
         return story

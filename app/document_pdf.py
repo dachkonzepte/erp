@@ -267,7 +267,7 @@ def build_object_address_block(property_name: str | None, address_lines: list[st
 def build_payment_tax_closing_block(
     styles: dict, *, payment_terms: str | None = None, payment_terms_sentence: str | None = None,
     tax_notice_text: str | None = None, outro_text: str | None = None, outro_text_2: str | None = None,
-    contract_clause_text: str | None = None,
+    contract_clause_text: str | None = None, payment_label: str = "Zahlungsbedingungen",
 ) -> list:
     """Zahlungsbedingungen (mit automatischem Fälligkeitssatz, sofern
     payment_terms_sentence mitgegeben wird -- nur bei Rechnungen der Fall),
@@ -283,13 +283,16 @@ def build_payment_tax_closing_block(
 
     contract_clause_text (seit 1.8.21): der Klauseltext zur Vertragsgrundlage, vor dem Schlusstext.
     Der Aufrufer reicht ihn nur durch, wenn er rechtlich geprüft ist
-    (app/contract_basis.py::printable_clause_text()) -- sonst None, und es erscheint nichts."""
+    (app/contract_basis.py::printable_clause_text()) -- sonst None, und es erscheint nichts.
+
+    payment_label (seit 1.8.90): die Überschrift des Zahlungsblocks -- "Erstattung" bei einer Endrechnung mit Erstattungsbetrag."""
     body = styles["body"]
     if outro_text_2 and outro_text and outro_text_2.strip() == outro_text.strip():
         outro_text_2 = None
     story = []
     if payment_terms or payment_terms_sentence:
-        label_line = f"<b>Zahlungsbedingungen:</b> {escape(payment_terms)}" if payment_terms else "<b>Zahlungsbedingungen:</b>"
+        label_line = (f"<b>{escape(payment_label)}:</b> {escape(payment_terms)}" if payment_terms
+                      else f"<b>{escape(payment_label)}:</b>")
         sentence_line = f"<br/>{escape(payment_terms_sentence)}" if payment_terms_sentence else ""
         story += [Paragraph(label_line + sentence_line, body), Spacer(1, 3 * mm)]
     if tax_notice_text:
