@@ -777,6 +777,23 @@ def refund_sentence(amount: Decimal) -> str:
     return f"Den Erstattungsbetrag von {_eur(amount)} überweisen wir Ihnen."
 
 
+REFUND_OUTRO_GROUP = "invoice_refund_texts"  # seit 1.8.92: Auswahlliste "Rechnungs-Schlusstexte bei Erstattung"
+
+
+def refund_outro_text(invoice: Invoice) -> str | None:
+    """Der Schlusstext einer Schlussrechnung mit Erstattungsbetrag (seit 1.8.92, Nacharbeit R4c Punkt 2): statt des Schlusstexts mit
+    der Zahlungsaufforderung der Standard-Eintrag der Auswahlliste "Rechnungs-Schlusstexte bei Erstattung" (Einstellungen). Im
+    Entwurf live (der Zahlbetrag kann sich bis zum Festschreiben ändern), beim Festschreiben in outro_text eingefroren
+    (finalize_and_send_invoice()). None, wenn er nicht gilt -- jede andere Rechnung, kein Erstattungsbetrag, festgeschrieben (dort
+    steht er schon in outro_text); "" ohne aktiven Eintrag (die Rechnung erscheint dann ohne Schlusstext)."""
+    if invoice.invoice_type != "schluss" or invoice.status != EDITABLE_STATUS or refund_due(invoice) is None:
+        return None
+    db = object_session(invoice)
+    if db is None:
+        return None
+    return default_option_value(db, REFUND_OUTRO_GROUP) or ""
+
+
 def _copy_order_items_with_default_ist(db: Session, invoice: Invoice, order: Order) -> None:
     """Kopiert alle Auftragspositionen (in der Summe, samt Nachträgen) als Rechnungspositionen -- Ist vom Nutzer danach
     anpassbar (_proposed_ist())."""
@@ -1232,6 +1249,10 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
     invoice.invoice_number = issue_number(db, "invoice")
     invoice.status = "versendet"
     invoice.finalized_at = _finalized_at(invoices)  # seit 1.8.83 (R4a Punkt 5)
+    # Seit 1.8.92 (Nacharbeit R4c Punkt 2): ist der Zahlbetrag negativ (laut dem eben eingefrorenen Zahlungshinweis), entfällt die
+    # Zahlungsaufforderung im Schlusstext -- der Text für die Erstattung aus den Einstellungen wird der Schlusstext dieser Rechnung.
+    if invoice.invoice_type == "schluss" and refund_due(invoice) is not None:
+        invoice.outro_text = default_option_value(db, REFUND_OUTRO_GROUP) or None
     if invoice.invoice_type == "storno" and invoice.storno_of_invoice_id is not None:
         original = db.get(Invoice, invoice.storno_of_invoice_id)
         if original is not None:
@@ -1717,6 +1738,7 @@ def invoice_to_dict(invoice: Invoice) -> dict:
     totals = compute_invoice_totals(invoice)
     items = sorted(invoice.items, key=lambda x: (x.sort_order, x.id))
     quantity_checks = final_quantity_checks(invoice)  # seit 1.8.88: Entwurf der Schlussrechnung
+    refund_outro = refund_outro_text(invoice)  # seit 1.8.92: Schlusstext bei Erstattung (im Entwurf live)
     return {
         "id": invoice.id,
         "invoice_number": invoice.invoice_number,
@@ -1743,6 +1765,10 @@ def invoice_to_dict(invoice: Invoice) -> dict:
         "intro_text": invoice.intro_text,
         "outro_text": invoice.outro_text,
         "outro_text_2": invoice.outro_text_2,
+        # Seit 1.8.92 (Nacharbeit R4c Punkt 2): im Entwurf einer Schlussrechnung mit Erstattungsbetrag der Text für die Erstattung
+        # statt des Schlusstexts (sonst None); printed_outro_text ist, was das PDF druckt.
+        "refund_outro_text": refund_outro,
+        "printed_outro_text": invoice.outro_text if refund_outro is None else (refund_outro or None),
         "payment_terms": invoice.payment_terms,
         "tax_key_id": invoice.tax_key_id,
         "tax_notice_text": invoice.tax_notice_text,

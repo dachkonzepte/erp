@@ -265,7 +265,8 @@ def build_invoice_pdf(db, invoice) -> bytes:
         story += build_payment_tax_closing_block(
             styles, payment_terms=None if refund else data.get('payment_terms'),
             payment_terms_sentence=data.get('payment_terms_sentence'), payment_label="Erstattung" if refund else "Zahlungsbedingungen",
-            tax_notice_text=data.get('tax_notice_text'), outro_text=data.get('outro_text'), outro_text_2=data.get('outro_text_2'),
+            tax_notice_text=data.get('tax_notice_text'), outro_text=data.get('printed_outro_text'),  # seit 1.8.92: bei Erstattung
+            outro_text_2=data.get('outro_text_2'),
         )
         return story
 

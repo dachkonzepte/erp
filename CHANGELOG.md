@@ -4,6 +4,22 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.92 – Schlusstext bei Erstattung (Nacharbeiten R4c, Punkt 2)
+
+Ist der Zahlbetrag einer Schlussrechnung negativ (Erstattung), entfällt die Zahlungsaufforderung im Schlusstext („Bitte überweisen Sie
+den Rechnungsbetrag …“); stattdessen steht der Text für die Erstattung aus den Einstellungen – neue Auswahlliste „Rechnungs-Schlusstexte
+bei Erstattung“ (Einstellungen → Auswahllisten), es gilt ihr Standard-Eintrag. Im Entwurf gilt das live mit dem Zahlbetrag von heute
+(Hinweis am Schlusstext der Rechnungsseite, PDF-Vorschau), beim Finalisieren wird der Text unter der Sperre der Auftragszeile mit dem
+eingefrorenen Zahlungshinweis zum Schlusstext der Rechnung; eine spätere Änderung der Einstellung ändert eine finalisierte Rechnung
+nicht. Liegt nur der Rechnungsbetrag unter 0 €, der Zahlbetrag aber darüber, bleibt der Schlusstext mit der Zahlungsaufforderung.
+Schlusstext 2 bleibt unverändert. Bis 1.8.91 stand die Zahlungsaufforderung auch auf einer Schlussrechnung mit Erstattungsbetrag
+(Nebenbefund 1 aus 1.8.90).
+
+Keine Migration (die Auswahlliste legen die Grunddaten beim Start an). Neu `test_v395_erstattung_schlusstext` (14, davon 1 gegen
+PostgreSQL); Klicktest `klicktest_ueberzahlung` um Hinweis, Schlusstext nach dem Finalisieren und Einstellungen erweitert, 19/19.
+Gegenproben 10 von 10 rot. Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3880 grün, 0 rot. Alle Klicktests auf dem Stand 1.8.93, der diese Version enthält (siehe dort). Festlegungen zum Bestätigen in `docs/archiv/befund-vor-echtbetrieb.md`,
+"Nacharbeiten R4c".
+
 ## 1.8.91 – Finanzen und Dashboard zählen nach der Schlussrechnung je Auftrag den Zahlbetrag (Nacharbeiten R4c, Punkt 1)
 
 Nach der gültigen Schlussrechnung zählen Finanzen und Dashboard je Auftrag nur noch ihren Zahlbetrag: positiv als offen (mit den

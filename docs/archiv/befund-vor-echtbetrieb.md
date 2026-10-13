@@ -2743,6 +2743,58 @@ Regel 13, Bericht kurz.
    wird je Rechnung, der Vorschlag geht schon zuerst auf die älteren des Auftrags) -- richtig, aber in Finanzen steht die Rechnung ohne
    offenen Betrag.
 
+### Umsetzung 1.8.92: Schlusstext bei Erstattung (Punkt 2)
+
+#### Was gebaut ist
+
+- **Auswahlliste** "Rechnungs-Schlusstexte bei Erstattung" (`invoice_refund_texts`, `app/option_settings.py`, angelegt von den
+  Grunddaten beim Start, Regel 23) mit dem Standard-Eintrag "Vielen Dank für Ihren Auftrag. Sollte sich Ihre Bankverbindung geändert
+  haben, teilen Sie uns diese bitte für die Erstattung mit." -- gepflegt unter Einstellungen → Auswahllisten (ab Büro, wie die anderen
+  Textvorlagen).
+- **Welcher Schlusstext gilt** (`app/invoices.py::refund_outro_text()`): im Entwurf einer Schlussrechnung mit Erstattungsbetrag (negativer
+  Zahlbetrag laut Zahlungshinweis, `refund_due()`) der Standard-Eintrag der Auswahlliste, "" ohne aktiven Eintrag; sonst keiner.
+  `invoice_to_dict()` liefert `refund_outro_text` und `printed_outro_text` (was das PDF druckt); `outro_text` bleibt der gespeicherte.
+- **Festschreiben** (`finalize_and_send_invoice()`): nach dem Einfrieren des Zahlungshinweises, unter der Sperre der Auftragszeile -- ist
+  der Zahlbetrag negativ, wird der Text der Erstattung der Schlusstext der Rechnung (`outro_text`, ohne aktiven Eintrag leer), vor der
+  festen Fassung des PDFs. Danach druckt die Rechnung ihren gespeicherten Schlusstext.
+- **PDF** (`app/invoice_pdf.py`): Schlusstext = `printed_outro_text`.
+- **Rechnungsseite**: im Entwurf mit Erstattungsbetrag ein Hinweis am Schlusstext mit dem Text aus den Einstellungen bzw. "dort ist kein
+  Eintrag aktiv"; das Feld Schlusstext bleibt bearbeitbar und gilt, sobald der Zahlbetrag nicht mehr negativ ist.
+
+#### Festlegungen 1.8.92 (Bitte bestätigen)
+
+1. **Ganzer Schlusstext statt eines Teils**: bei negativem Zahlbetrag ersetzt der Text der Erstattung den Schlusstext ganz, auch einen von
+   Hand geänderten -- im Schlusstext steht in der Vorgabe nur die Zahlungsaufforderung; Schlusstext 2 bleibt.
+2. **Auswahlliste statt eines Einzelfelds**: gepflegt unter Einstellungen → Auswahllisten wie die anderen Rechnungstexte; es gilt der
+   Standard-Eintrag, eine Auswahl je Rechnung gibt es nicht.
+3. **Live im Entwurf, eingefroren beim Festschreiben**: maßgeblich ist der Zahlbetrag beim Festschreiben (unter der Sperre), nicht der
+   Stand der Seite; danach ändern weder die Einstellung noch spätere Zahlungen den Schlusstext.
+4. **Nur negativer Zahlbetrag**: ist nur der Rechnungsbetrag negativ und der Zahlbetrag positiv (offene Abschläge), bleibt der
+   Schlusstext mit der Zahlungsaufforderung; bei einem Zahlbetrag von genau 0 € ebenso.
+5. **Ohne aktiven Eintrag kein Schlusstext** (nicht die Zahlungsaufforderung als Rückfall).
+6. **Storno** einer solchen Schlussrechnung: unverändert, ein Storno übernimmt keinen Schlusstext.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v395_erstattung_schlusstext.py` (14, davon 1 gegen PostgreSQL): Auswahlliste aus den Grunddaten; Entwurf mit
+  Erstattungsbetrag druckt den Text der Erstattung statt der Zahlungsaufforderung (PDF); Zahlbetrag positiv trotz negativem
+  Rechnungsbetrag behält den Schlusstext; andere Rechnungen unverändert; im Entwurf live mit Einstellung und Zahlbetrag; ohne aktiven
+  Eintrag kein Schlusstext; Festschreiben friert ein, spätere Einstellung ändert nichts; von Hand geänderter Schlusstext ersetzt,
+  Schlusstext 2 bleibt; Zahlbetrag wird vor dem Festschreiben negativ bzw. positiv -- maßgeblich der Stand beim Festschreiben; Storno
+  ohne den Text; Router und Einstellungen; Monteurin 403 beim Ändern. **Gleichzeitig (PostgreSQL):** das Festschreiben wartet auf
+  eine Zahlung auf den Abschlag und nimmt den Text der Erstattung.
+- Klicktest `klicktest_ueberzahlung.py` erweitert, 19/19: Hinweis am Schlusstext im Entwurf, nach dem Finalisieren Schlusstext = Text
+  der Erstattung, Auswahlliste in den Einstellungen.
+- Gegenproben (Regel 24): 10 von 10 rot -- Entwurf druckt die Zahlungsaufforderung, PDF nimmt den gespeicherten Schlusstext, Text der Erstattung auch bei positivem Zahlbetrag, Festschreiben friert nicht ein, Festschreiben nach dem Stand der Seite, festgeschrieben weiter live aus den Einstellungen, ohne aktiven Eintrag die Zahlungsaufforderung, Auswahlliste fehlt in den Grunddaten, Schema ohne den Text, Zahlung ohne Zeilensperre (PostgreSQL: das Festschreiben wartet nicht). Jede Datei byte-genau zurück, kein Marker.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3880 grün, 0 rot. Alle Klicktests auf dem Stand 1.8.93, der diese Version enthält (siehe dort).
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Zahlbetrag genau 0 €**: die Schlussrechnung trägt weiter "Bitte überweisen Sie den Rechnungsbetrag …" und die Zahlungsbedingungen
+   ("zahlbar bis …"), obwohl nichts zu zahlen ist (Festlegung 4).
+2. **E-Mail-Vorlage**: der Text der E-Mail zur Schlussrechnung kommt weiter aus der einen Vorlage "Rechnung"; einen eigenen Text für die
+   Erstattung gibt es dort nicht (nur den Satz `{zahlungshinweis}`).
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
@@ -2824,5 +2876,5 @@ Ergänzt am 13.10.2026 (Nacharbeiten R4c), übernommen wie gegeben -- Wortlaut u
   Guthaben; die abgezogenen Rechnungen zählen nicht mehr einzeln, an ihnen steht „enthalten in Schlussrechnung R-…“ statt „teilweise
   bezahlt“. (Seit 1.8.91 gebaut.)
 - **Schlusstext bei negativem Zahlbetrag**: ohne Zahlungsaufforderung, stattdessen ein eigener Text für die Erstattung, gepflegt in den
-  Einstellungen.
+  Einstellungen. (Seit 1.8.92 gebaut.)
 - **Guthaben des Kunden**: nicht zugeordneter Rest und Guthaben zusammen, aufgeschlüsselt; eine Erstattung kann beides ausgleichen.

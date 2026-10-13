@@ -2344,6 +2344,7 @@ class InvoiceOut(BaseModel):
     intro_text: str | None
     outro_text: str | None
     outro_text_2: str | None = None
+    refund_outro_text: str | None = None  # seit 1.8.92: Schlusstext bei Erstattung (Entwurf einer Schlussrechnung)
     payment_terms: str | None
     tax_key_id: int | None = None
     tax_notice_text: str | None = None

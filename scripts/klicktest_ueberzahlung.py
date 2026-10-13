@@ -1,11 +1,15 @@
-"""Klicktest: Überzahlung -- Schlussrechnung unter 0 €, Erstattung als Zahlungsausgang, Guthaben am Kunden (1.8.90, R4c Punkte 6 und 7).
+"""Klicktest: Überzahlung -- Schlussrechnung unter 0 €, Erstattung als Zahlungsausgang, Guthaben am Kunden (1.8.90, R4c Punkte 6 und 7;
+seit 1.8.92 Schlusstext bei Erstattung, Nacharbeit R4c Punkt 2).
 
 Ein Auftrag (10 m² × 50 € = 595 € brutto) mit einem Abschlag nach Leistungsstand über 10 m² (595 €), voll bezahlt; die Schlussrechnung
 mit dem Aufmaß 8 m² lautet über −119 € (Überzahlung). Dazu ein Zahlungsbedingungs-Skonto am Entwurf.
 
     Rechnungsseite     Entwurf: Rechnungsbetrag −119 €, Zahlungshinweis "Erstattungsbetrag (Überzahlung) 119,00 €", Satz "Den
                        Erstattungsbetrag … überweisen wir Ihnen." statt Fälligkeit und Skonto, Finalisieren möglich; danach Kennzeichen
-                       "Guthaben 119,00 €", Karte Zahlungen mit Guthaben und Erstattung buchen (100 €) -> Guthaben 19 €; PDF
+                       "Guthaben 119,00 €", Karte Zahlungen mit Guthaben und Erstattung buchen (100 €) -> Guthaben 19 €; PDF;
+                       seit 1.8.92 im Entwurf der Hinweis "Text für die Erstattung" am Schlusstext, nach dem Finalisieren ist er
+                       der Schlusstext
+    Einstellungen      Auswahlliste "Rechnungs-Schlusstexte bei Erstattung" (seit 1.8.92)
     Kundenakte         Guthaben 19 € mit Link, Zahlungsausgang (Erstattung) −100 € ohne "nicht zugeordnet", zurücknehmen -> Guthaben 119 €
     API                zu viel erstattet 409; Monteurin 403
     412 px dunkel      Rechnungsseite
@@ -78,6 +82,8 @@ def _passt(p, name, ist, bedingung):
 
 
 READY = "invoice&&invoice.id&&document.getElementById('finalBody').innerHTML"
+ERSTATTUNG_TEXT = ("Vielen Dank für Ihren Auftrag. Sollte sich Ihre Bankverbindung geändert haben, teilen Sie uns diese bitte für die "
+                   "Erstattung mit.")  # Vorgabe der Auswahlliste (app/option_settings.py, seit 1.8.92)
 CUSTOMER_READY = "customerPaymentsData&&document.getElementById('zahlungen').style.display==='block'"
 
 
@@ -100,10 +106,17 @@ async def pruefen(tab, seed, p):
              "Den Erstattungsbetrag von 119,00 € überweisen wir Ihnen.")
     p.pruefe("Entwurf: Finalisieren möglich (kein Grund)", await tab.js(
         "!!document.querySelector('#statusActions button[onclick=\"sendInvoice()\"]')&&!invoice.finalize_block"), True)
+    _passt(p, "Entwurf: Hinweis „Text für die Erstattung“ am Schlusstext (seit 1.8.92)", await tab.js(
+        "document.querySelector('[data-erstattung-schlusstext]')?.textContent||''"),
+        lambda v: "Rechnungs-Schlusstexte bei Erstattung" in v and ERSTATTUNG_TEXT in v)
+    await tab.js("document.getElementById('refundOutroNote').scrollIntoView({block:'center'})")
+    await tab.bild("ueberzahlung_schlusstext")
     await tab.js("document.getElementById('finalCard').scrollIntoView()")
     await tab.bild("ueberzahlung_entwurf")
     await tab.js("sendInvoice()")
     p.pruefe("finalisiert", await tab.warten("invoice.status==='versendet'"), True)
+    p.pruefe("finalisiert: Schlusstext = Text für die Erstattung, Hinweis weg", await tab.js(
+        "[invoice.outro_text,!!document.querySelector('[data-erstattung-schlusstext]')]"), [ERSTATTUNG_TEXT, False])
 
     # --- Guthaben und Erstattung ---
     p.pruefe("Kennzeichen Guthaben", await tab.js("document.getElementById('statusBadge').textContent.includes('Guthaben 119,00')"),
@@ -138,6 +151,11 @@ async def pruefen(tab, seed, p):
     p.pruefe("zurückgenommen: Guthaben wieder 119 €", await tab.warten("Number(customerPaymentsData.credit_total)===119"), True)
     await tab.js("document.getElementById('zahlungen').scrollIntoView()")
     await tab.bild("kundenakte_guthaben")
+    # --- Einstellungen (seit 1.8.92) ---
+    await tab.oeffnen("/settings", "optionGroups.length>0")
+    p.pruefe("Einstellungen: Auswahlliste „Rechnungs-Schlusstexte bei Erstattung“", await tab.js(
+        "(()=>{const g=optionGroups.find(x=>x.group_key==='invoice_refund_texts');return g?[g.label,g.options[0].value]:null})()"),
+        ["Rechnungs-Schlusstexte bei Erstattung", ERSTATTUNG_TEXT])
     p.pruefe("JS-Fehler Büro", tab.fehler, [])
 
     # --- 412 px dunkel ---

@@ -70,6 +70,18 @@ DEFAULT_OPTION_GROUPS = {
             (10, "Standard", "Bitte überweisen Sie den Rechnungsbetrag unter Angabe der Rechnungsnummer auf das unten genannte Konto.", True),
         ],
     },
+    # Seit 1.8.92 (Nacharbeit R4c Punkt 2): Schlusstext einer Schlussrechnung mit Erstattungsbetrag statt der Zahlungsaufforderung
+    # (app/invoices.py::refund_outro_text()) -- es gilt der Standard-Eintrag.
+    "invoice_refund_texts": {
+        "label": "Rechnungs-Schlusstexte bei Erstattung",
+        "description": "Schlusstext einer Schlussrechnung mit Erstattungsbetrag (negativer Zahlbetrag) statt der Zahlungsaufforderung. "
+                       "Es gilt der Standard-Eintrag; ohne aktiven Eintrag erscheint die Rechnung ohne Schlusstext.",
+        "sort_order": 47,
+        "options": [
+            (10, "Standard", "Vielen Dank für Ihren Auftrag. Sollte sich Ihre Bankverbindung geändert haben, teilen Sie uns diese bitte "
+                             "für die Erstattung mit.", True),
+        ],
+    },
     "customer_categories": {
         "label": "Kundenkategorien",
         "description": "Zentrale Auswahl zur Kategorisierung von Kunden.",
