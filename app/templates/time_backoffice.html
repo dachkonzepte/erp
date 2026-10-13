@@ -13,6 +13,7 @@
 <div class="app-content">
 {% include "_topbar.html" %}
 {% include "_auswahl.html" %}
+{% include "_berlin_date.html" %}
 <div class="layout"><aside>
 <h3>Zeiterfassung</h3><button data-tab="dashboard" class="active" onclick="showTab('dashboard')">Dashboard</button><button data-tab="entries" onclick="showTab('entries')">Buchungen</button><button data-tab="absences" onclick="showTab('absences')">Abwesenheiten</button>
 <h3>Ausgabe</h3><button data-tab="timesheets" onclick="showTab('timesheets')">Stundenzettel</button><button data-tab="datev" onclick="showTab('datev')">DATEV / Lohn</button>
@@ -47,9 +48,9 @@
 <script>
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));let employees=[],entries=[],absence=[],payroll=[],settings={},groups=[],editingEntry=null,workModels=[],workAssignments=[],timeContext={orders:[]};const editDialog=$('editDialog'),modelDialog=$('modelDialog');
 async function api(url,opt={}){const r=await fetch(url,opt);if(!r.ok){let d={};try{d=await r.json()}catch{}throw Error(d.detail||`${r.status} ${r.statusText}`)}return r.status===204?null:r.json()}
-function dateISO(d){const z=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));return z.toISOString().slice(0,10)}
-function monthRange(){const d=new Date(),f=new Date(d.getFullYear(),d.getMonth(),1),t=new Date(d.getFullYear(),d.getMonth()+1,0);$('from').value=dateISO(f);$('to').value=dateISO(t)}
-function currentMonthRange(){const d=new Date(),f=new Date(d.getFullYear(),d.getMonth(),1),t=new Date(d.getFullYear(),d.getMonth()+1,0);return [dateISO(f),dateISO(t)]}
+function dateISO(d){return localDateIso(d)}
+function monthRange(){const [f,t]=berlinMonthRange();$('from').value=f;$('to').value=t}
+function currentMonthRange(){return berlinMonthRange()}
 function de(x){return Number(x||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})}function fd(x){return x?new Date(x+'T00:00:00').toLocaleDateString('de-DE'):''}
 function showTab(t){document.querySelectorAll('.section').forEach(x=>x.classList.toggle('active',x.id==='tab-'+t));document.querySelectorAll('.layout aside button').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));location.hash=t}
 function qs(){let q=`start_date=${$('from').value}&end_date=${$('to').value}`;if($('employeeFilter').value)q+=`&employee_id=${$('employeeFilter').value}`;return q}

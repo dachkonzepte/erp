@@ -62,6 +62,7 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
 <div class="app-content">
 {% include "_topbar.html" %}
 {% include "_auswahl.html" %}
+{% include "_berlin_date.html" %}
 <main>
 {% if is_module_enabled('aufgabenmanagement') %}
 <div class="hero"><div><h1>Aufgaben</h1><div class="muted small">Eigene und zugewiesene Aufgaben, optional mit einem Projekt verknüpft.</div></div><button onclick="openCreateEditor()">+ Aufgabe</button></div>
@@ -135,7 +136,7 @@ let authStatus=null,employees=[],projects=[],tasks=[],unassignedTasks=[],columns
 // (GET /api/tasks?unassigned_only=true, für jedes Büro-Konto). Das Board zeigt sie nicht noch einmal.
 function findTask(id){return tasks.find(x=>x.id===id)||unassignedTasks.find(x=>x.id===id)}
 
-function isOverdue(t){return t.due_date&&!t.status_is_done&&new Date(t.due_date+'T00:00:00')<new Date(new Date().toDateString())}
+function isOverdue(t){return t.due_date&&!t.status_is_done&&String(t.due_date).slice(0,10)<berlinToday()}
 
 async function loadColumns(){
   columns=await api('/api/task-columns');

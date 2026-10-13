@@ -77,6 +77,7 @@
 {% include "_topbar.html" %}
 {% include "_auswahl.html" %}
 {% include "_debounce.html" %}
+{% include "_berlin_date.html" %}
 <main>
 <div class="toolbar">
   <h1>Kalender</h1>
@@ -145,7 +146,7 @@ const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 async function api(u,o){const r=await fetch(u,o);if(!r.ok){let d={};try{d=await r.json()}catch{}throw Error(d.detail||r.statusText)}return r.headers.get('content-type')?.includes('json')?r.json():r}
 
 let view=localStorage.getItem('erp_calendar_view')||'month';
-let anchor=new Date();anchor.setHours(0,0,0,0);
+let anchor=berlinTodayDate();  // seit 1.8.87 der Berliner Tag
 let owners=[];
 let events=[];
 let selectedLink=null; // {type:'project'|'quote', id, label}
@@ -163,7 +164,7 @@ function navigate(dir){
   else{anchor=new Date(anchor.getFullYear(),anchor.getMonth()+dir,1)}
   render()
 }
-function goToday(){anchor=new Date();anchor.setHours(0,0,0,0);render()}
+function goToday(){anchor=berlinTodayDate();render()}
 
 function periodRange(){
   if(view==='day')return{start:new Date(anchor),end:addDays(anchor,1)};
@@ -234,7 +235,7 @@ function render(){
 
 function renderMonth(){
   const {start:gridStart}=gridRange();
-  const todayStr=toDateStr(new Date());
+  const todayStr=berlinToday();
   const monthIdx=anchor.getMonth();
   let html='<div class="card"><div class="month-grid">';
   ['Mo','Di','Mi','Do','Fr','Sa','So'].forEach(d=>html+=`<div class="month-head">${d}</div>`);
@@ -255,7 +256,7 @@ function renderMonth(){
 
 function renderWeek(){
   const s=startOfWeek(anchor);
-  const todayStr=toDateStr(new Date());
+  const todayStr=berlinToday();
   let html='<div class="week-grid">';
   for(let i=0;i<7;i++){
     const d=addDays(s,i);
@@ -303,7 +304,7 @@ function resetModal(){
   document.getElementById('modalStatus').textContent='';
   document.getElementById('deleteBtn').style.display='none';
   selectedLink=null;
-  const now=new Date();
+  const now=berlinTodayDate();
   document.getElementById('eStartDate').value=toDateStr(anchor.getFullYear&&view!=='month'?anchor:now);
   document.getElementById('eEndDate').value=toDateStr(anchor.getFullYear&&view!=='month'?anchor:now);
   document.getElementById('eStartTime').value='09:00';

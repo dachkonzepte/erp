@@ -120,8 +120,8 @@ async function loadAndRenderTasks(empId,isAdmin){
   // Seit 1.8.79 (Nebenbefund 6 aus 1.8.77): Sachbearbeiter des Auftrags (die Spalte an der Rechnung setzt niemand); ohne
   // Sachbearbeiter für jeden gewählten Mitarbeiter sichtbar.
   overdueInvoices.filter(i=>!empIdNum||!i.caseworker_employee_id||i.caseworker_employee_id===empIdNum).forEach(i=>rows.push({type:'Mahnung',cls:'reminder',title:`${i.invoice_number||'Rechnung'} überfällig`,sub:i.customer_name,due:i.due_date,urgent:!!i.is_due_now,href:`/invoices/${i.invoice_id}`}));
-  const soon=new Date();soon.setDate(soon.getDate()+7);
-  quotes.filter(q=>q.valid_until&&['versendet','in_pruefung'].includes(q.status)&&new Date(q.valid_until)<=soon&&(!empIdNum||q.caseworker_employee_id===empIdNum)).forEach(q=>rows.push({type:'Bindefrist',cls:'quote',title:`${q.quote_number} läuft ab`,sub:q.customer_name,due:q.valid_until,urgent:true,href:`/quotes/${q.id}/edit`}));
+  const soon=berlinAddDays(berlinToday(),7);  // seit 1.8.87 Kalendertage in Berlin
+  quotes.filter(q=>q.valid_until&&['versendet','in_pruefung'].includes(q.status)&&String(q.valid_until).slice(0,10)<=soon&&(!empIdNum||q.caseworker_employee_id===empIdNum)).forEach(q=>rows.push({type:'Bindefrist',cls:'quote',title:`${q.quote_number} läuft ab`,sub:q.customer_name,due:q.valid_until,urgent:true,href:`/quotes/${q.id}/edit`}));
   let nameNeedle=null;
   if(empIdNum){const emp=employees.find(e=>e.id===empIdNum);if(emp)nameNeedle=(emp.first_name+' '+emp.last_name).toLowerCase()}
   inquiries.filter(i=>!isInquiryClosed(i)&&i.follow_up_at&&new Date(i.follow_up_at)<=new Date())
@@ -313,7 +313,7 @@ function renderShell(){
 function renderGreeting(){
   const el=document.getElementById('greeting');
   if(authStatus&&authStatus.authenticated){
-    const hour=new Date().getHours();
+    const hour=Number(berlinTime().slice(0,2));
     const salute=hour<11?'Guten Morgen':hour<18?'Guten Tag':'Guten Abend';
     el.textContent=`${salute}, ${authStatus.user.display_name}.`;
   }else{

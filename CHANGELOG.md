@@ -4,6 +4,23 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.87 – „Heute“ im Browser aus Berlin, Wartebedingung im Klicktest Mahnwesen, Testhelfer schließt die Sitzung (R4c, Vorweg)
+
+Jede Seite bildet das heutige Datum jetzt in Europe/Berlin über `_berlin_date.html` (neu `berlinToday()`, `berlinMonth()`,
+`berlinTime()`, `berlinAddDays()`, `localDateIso()`, `berlinTodayDate()`), unabhängig von der Zeitzone des Geräts. Bis 1.8.86 nahmen
+Büro- und Monteur-Zeiterfassung, Einsatzbericht, Projektmappe, Eingangsrechnung und Plantafel „heute“ über `toISOString()` in UTC –
+zwischen 0 und 2 Uhr den Vortag (Anlass: `klicktest_teil_updates` um Mitternacht, die Monteur-Zeiterfassung blieb leer) –, Kalender,
+Aufgaben, Befunde, Stundenzettel, Checkliste, Angebot, Dashboard und Einstellungen die Zeitzone des Geräts. Neu
+`test_v390_browser_datum` (Strukturtest über alle Vorlagen: jedes `toISOString()`, `new Date()` und `Date.now()` ohne Argument nur als
+begründeter Zeitpunkt, kein `getTimezoneOffset()`/`toDateString()`, Helfer nur mit Einbindung; die Helfer in node an Berliner
+Mitternacht mit vier Zeitzonen) und Klicktest `klicktest_browser_datum` (Instanz und Browser um 00:30 Uhr, Browser in UTC und New York),
+21/21, auf 1.8.86 9/21.
+
+`klicktest_mahnwesen` wartet nach „3 Entwürfe angelegt.“ auf die neu geladene Liste (der Text steht vor `reload()`); der Testhelfer
+`_run` (`tests/test_v375_rechnungen_sperren.py`) schließt die Sitzung der zweiten Aktion – sie hielt nach einem Fehler die Sperre der
+Auftragszeile (Nebenbefund 5 aus 1.8.85), neu `test_v390_testhelfer` gegen PostgreSQL. Gegenproben 8 von 8 rot.
+Volle Suite (mit den opt-in-Tests gegen PostgreSQL): 3808 grün, 0 rot. Alle Klicktests: 54 von 54 wie erwartet in 11:17 min (`klicktest_mahnwesen` und `klicktest_teil_updates` wieder grün). Festlegungen zum Bestätigen in `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung R4c".
+
 ## 1.8.86 – Zahlungshinweis der Endrechnung, abschließende Rechnung aus Aufwand (R4b, Punkte 4 und 6)
 
 Die Endrechnung nennt jetzt einen Zahlungshinweis „Stand <Tag>“: unter dem Rechnungsbetrag je abgezogener Rechnung, was dort noch

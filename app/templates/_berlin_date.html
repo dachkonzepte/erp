@@ -1,11 +1,14 @@
-
 <script>
 /* Geteilter Helfer (seit 1.8.10) für Kalenderdaten in Europe/Berlin, unabhängig von der Zeitzone
    des Browsers. Ein Datum nie über toISOString() bilden: das rechnet in UTC um und liefert für
    Mitternacht Ortszeit (new Date(jahr, monat, 1)) immer den Vortag, für "jetzt" zwischen 0 Uhr und
    1 Uhr (Winterzeit) bzw. 2 Uhr (Sommerzeit) ebenfalls noch den Vortag. Ergebnisse als 'JJJJ-MM-TT',
    wie die API sie erwartet. tests/test_v314_dashboard_month_berlin.py prüft Monats- und
-   Jahreswechsel, jeweils mit mehreren Zeitzonen des Browsers. */
+   Jahreswechsel, jeweils mit mehreren Zeitzonen des Browsers.
+   Seit 1.8.87 bildet jede Vorlage "heute" nur hier (berlinToday() u. a.); tests/test_v390_browser_datum.py
+   sucht toISOString(), getTimezoneOffset(), toDateString() und jedes new Date()/Date.now() ohne Argument
+   in den Vorlagen und lässt nur begründete Zeitpunkte zu. */
+function _berlinPad2(n) { return String(n).padStart(2, '0'); }
 function berlinDateParts(now = new Date()) {
   const parts = {};
   for (const p of new Intl.DateTimeFormat('en-US', {timeZone: 'Europe/Berlin', year: 'numeric', month: 'numeric', day: 'numeric'}).formatToParts(now)) parts[p.type] = Number(p.value);
@@ -16,5 +19,38 @@ function berlinMonthRange(now = new Date()) {
   const ym = `${year}-${String(month).padStart(2, '0')}`;
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();  // Tag 0 des Folgemonats
   return [`${ym}-01`, `${ym}-${String(lastDay).padStart(2, '0')}`];
+}
+/* Heute in Berlin als 'JJJJ-MM-TT' (seit 1.8.87). */
+function berlinToday(now = new Date()) {
+  const {year, month, day} = berlinDateParts(now);
+  return `${year}-${_berlinPad2(month)}-${_berlinPad2(day)}`;
+}
+/* Laufender Monat in Berlin als 'JJJJ-MM' (seit 1.8.87, z. B. Vorgabe eines Monatsfelds). */
+function berlinMonth(now = new Date()) {
+  const {year, month} = berlinDateParts(now);
+  return `${year}-${_berlinPad2(month)}`;
+}
+/* Uhrzeit in Berlin als 'HH:MM' (seit 1.8.87). */
+function berlinTime(now = new Date()) {
+  const parts = {};
+  for (const p of new Intl.DateTimeFormat('en-US', {timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'}).formatToParts(now)) parts[p.type] = p.value;
+  return `${parts.hour}:${parts.minute}`;
+}
+/* Kalendertag 'JJJJ-MM-TT' plus n Tage (seit 1.8.87) -- reine Kalenderrechnung über UTC-Mitternacht, ohne Zeitzone und
+   Sommerzeit. */
+function berlinAddDays(iso, n) {
+  const [y, m, d] = String(iso).split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + Number(n || 0)));
+  return `${t.getUTCFullYear()}-${_berlinPad2(t.getUTCMonth() + 1)}-${_berlinPad2(t.getUTCDate())}`;
+}
+/* Kalendertag eines Date, das aus einem Datum gebaut wurde (new Date('JJJJ-MM-TT' + 'T12:00:00'), Plantafel, Kalender) --
+   seine Ortszeit-Bestandteile, nie toISOString() (seit 1.8.87). */
+function localDateIso(d) {
+  return `${d.getFullYear()}-${_berlinPad2(d.getMonth() + 1)}-${_berlinPad2(d.getDate())}`;
+}
+/* Mitternacht (Ortszeit des Browsers) des Berliner Tages -- Ausgangspunkt für Kalender und Plantafel, die mit Date-Objekten
+   blättern (seit 1.8.87). */
+function berlinTodayDate(now = new Date()) {
+  return new Date(berlinToday(now) + 'T00:00:00');
 }
 </script>

@@ -91,6 +91,7 @@
 
 {% include "_time_entries_list.html" %}
 {% include "_fehlertext.html" %}
+{% include "_berlin_date.html" %}
 <script>
 const projectId={{ project_id }};let project=null,documents=[],quotes=[],orders=[],projectInvoices=[],timeEntries=[],timeList={rows:[],total:0},timeTotals=null,categories=[],projectCategories=[],customers=[],historyRows=[],calendarEvents=[],participants=[],participantRoles=[],activeCategory='',activeSubfolder='',editingDocumentId=null,openMenuId=null;
 const maintenanceModuleEnabled={{ 'true' if is_module_enabled('wartungen') else 'false' }};
@@ -163,7 +164,7 @@ async function toggleArchivedHere(){
 
 function openMaintenanceContractModal(){
   document.getElementById('mcIntervalMonths').value='12';
-  document.getElementById('mcNextDueDate').value=new Date().toISOString().slice(0,10);
+  document.getElementById('mcNextDueDate').value=berlinToday();
   document.getElementById('maintenanceContractStatus').textContent='';
   openModal('maintenanceContractModal');
 }

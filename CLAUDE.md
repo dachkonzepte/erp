@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.86** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.87** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -575,9 +575,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     sucht sie per AST -- seit 1.8.46 auch als Spaltenvorgabe ohne Klammern (`default=date.today`,
     `default_factory=date.today`); `BEKANNTE_VORGABEN` ist seit 1.8.75 leer (die fünf Altfälle nehmen `berlin_today()`) und bleibt es. Gespeicherte Zeitstempel aus `datetime.utcnow()` bleiben naive UTC; wer sie
     druckt oder ein Datum daraus ableitet, rechnet mit `to_berlin()` um. Beginn/Ende einer
-    Zeitbuchung sind dagegen naive Ortszeit. Browser-Seite: `_berlin_date.html`. Details und die
-    offenen Browser-Stellen: `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Kalenderdatum in
-    Europe/Berlin statt UTC".
+    Zeitbuchung sind dagegen naive Ortszeit. Browser-Seite: "heute" nur aus `_berlin_date.html` (`berlinToday()` u. a.,
+    seit 1.8.87); `tests/test_v390_browser_datum.py` lässt `toISOString()`, `new Date()`/`Date.now()` ohne Argument in den
+    Vorlagen nur als begründeten Zeitpunkt zu. Details und die offenen Browser-Stellen (Zeitstempel):
+    `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Kalenderdatum in Europe/Berlin statt UTC".
 
 21. **Jede E-Mail geht über `app/email_dispatch.py::dispatch_email()`, seit 1.8.17** -- nie direkt
     über `app/email_sending.py::send_message()`, SMTP oder Graph. Nur so entsteht der
@@ -1046,7 +1047,7 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Stand nach dem Festschreiben, 1d behoben; R4b ab 1.8.84: seit 1.8.85 Punkte 2, 3, 5 -- Endrechnung mit Abzugsblock, Neuberechnung
   beim Festschreiben, Abweichung vom Auftrag mit "Aus dem Auftrag aktualisieren", Abschlag über 0 €, kein Aufwand nach der
   Schlussrechnung, 1a und 1b behoben; seit 1.8.86 Punkte 4 und 6 -- Zahlungshinweis "Stand …", abschließende Rechnung aus Aufwand am
-  Auftrag nach Aufwand)
+  Auftrag nach Aufwand; R4c ab 1.8.87: Vorweg -- "heute" im Browser aus Berlin, Klicktest Mahnwesen wartet, Testhelfer `_run`)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1342,6 +1343,10 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   `with ohne_grunddaten():` (`tests/grunddaten_schalter.py`) an. Audit-Zähler in Tests: die Grunddaten schreiben
   "System angelegt"-Einträge -- vorher/nachher vergleichen statt absolut zählen.
 
+- **Gleichzeitigkeit in Tests** (`tests/test_v375_rechnungen_sperren.py::_run()`): die erste Aktion hält ihre Sperren eine Sekunde,
+  die zweite wartet; seit 1.8.87 schließt `_run` auch die Sitzung der zweiten Aktion (sie hielt nach einem Fehler die Sperre der
+  Auftragszeile) -- die zweite Aktion gibt Werte zurück, keine Objekte, die erst danach nachladen.
+
 - **Mahnung zustellen in Tests** (seit 1.8.80): eine Stufe ist erst mit Versand oder Zustellung erreicht --
   `tests/mahnung.py::zustellen(db, reminder)` trägt eine Zustellung ins Versandprotokoll ein (ohne PDF), `festschreiben_und_ablaufen()`
   schreibt fest, stellt zu und lässt die Frist ablaufen. **Bestand älterer Stände** für Migrationsproben über `tests/bestand_alt.py`
@@ -1526,7 +1531,9 @@ Rechnungsseite: Schlussrechnung ohne "+ Position" mit Hinweis und N1, Aufwand mi
 Finalisieren; hell, dunkel, 412 px) und `klicktest_endrechnung.py` (1.8.85, Rechnungsseite: Karte "Endrechnung" mit Gesamtleistung
 samt Aufwand, Abzugsblock und Rechnungsbetrag, Steuerschlüssel und Preis aus dem Auftrag gesperrt, finalisieren, PDF aus der Ablage;
 Abweichung vom Auftrag mit Grund und "Aus dem Auftrag aktualisieren"; Grund für Aufwand auf der Auftragsseite; hell, dunkel, 412 px;
-seit 1.8.86 Zahlungshinweis mit Einbehalt und Zahlbetrag, Häkchen "abschließend" am Auftrag nach Aufwand).
+seit 1.8.86 Zahlungshinweis mit Einbehalt und Zahlbetrag, Häkchen "abschließend" am Auftrag nach Aufwand) und
+`klicktest_browser_datum.py` (1.8.87, Instanz und Browser-Uhr um 00:30 Uhr, Browser in UTC und New York: Monteur-Zeiterfassung mit der
+Buchung von heute, Stundenzettel, Büro-Zeiterfassung, Aufgaben überfällig, Plantafel, Kalender).
 Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,
@@ -1747,9 +1754,7 @@ vollständig aufgelöst: `_search_tasks()` (`app/search.py`) nutzt seither `list
   `onupdate`) neu durchdenken, nicht nur `datetime.utcnow()` durch `datetime.now(UTC)` ersetzen.
   Bewusst NICHT jetzt umgebaut -- eigene, spätere, sorgfältig zu planende Runde, kein Teil der
   CLAUDE.md-Aufräumung.
-- **Kalenderdatum im Browser noch an weiteren Stellen aus UTC abgeleitet** (Dashboard seit
-  1.8.10 und alle Server-Stellen seit 1.8.12 behoben, Regel 20): `toISOString().slice(0,10)`
-  (u. a. `today()` der Büro- und der Monteur-Zeiterfassung, Bezahltdatum Eingangsrechnung) und
-  naive UTC-Zeitstempel ohne `'Z'` an `new Date()` (u. a. E-Mail-Versandzeit bei Rechnung, Auftrag,
-  Angebot). Liste mit Zeilen: `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Kalenderdatum in
-  Europe/Berlin statt UTC". Für den Browser steht `_berlin_date.html` bereit.
+- **Zeitstempel im Browser noch aus UTC gelesen** ("heute" seit 1.8.87 überall aus Berlin, Server seit 1.8.12, Regel
+  20): naive UTC-Zeitstempel ohne `'Z'` an `new Date()` (u. a. E-Mail-Versandzeit bei Rechnung, Auftrag, Angebot) und
+  `slice(0,10)` eines Zeitstempels (u. a. Mahnwesen "versendet …"). Liste mit Zeilen:
+  `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Kalenderdatum in Europe/Berlin statt UTC".

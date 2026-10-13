@@ -59,6 +59,7 @@ tr:last-child td{border-bottom:none}
 <div class="app-content">
 {% include "_topbar.html" %}
 {% include "_auswahl.html" %}
+{% include "_berlin_date.html" %}
 <main>
 {% if is_module_enabled('buchhaltung') %}
 <div class="hero"><div><h1>Eingangsrechnungen</h1><div class="muted small">Vorbereitende Buchhaltung -- Lieferantenrechnungen mit Beleg erfassen und ablegen, für die spätere Kontierung und den Steuerberater.</div></div><button onclick="openCreateEditor()">+ Eingangsrechnung</button></div>
@@ -546,7 +547,7 @@ async function markPaidNow(id){
     supplier_id:inv.supplier_id,supplier_invoice_number:inv.supplier_invoice_number,invoice_date:inv.invoice_date,
     net_amount:inv.net_amount,tax_rate_pct:inv.tax_rate_pct,due_date:inv.due_date,
     skonto_percent:inv.skonto_percent,skonto_deadline:inv.skonto_deadline,
-    payment_status:'bezahlt',payment_date:new Date().toISOString().slice(0,10),
+    payment_status:'bezahlt',payment_date:berlinToday(),
     project_id:inv.project_id,asset_id:inv.asset_id,recurring_cost_id:inv.recurring_cost_id,
     account_id:inv.account_id,notes:inv.notes,
     items:(inv.items||[]).map(i=>({description:i.description,net_amount:i.net_amount,tax_rate_pct:i.tax_rate_pct,account_id:i.account_id})),

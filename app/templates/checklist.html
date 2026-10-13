@@ -205,6 +205,7 @@ textarea{min-height:90px;resize:vertical}
 {% if not is_field %}{% include "_email_dispatch.html" %}{% endif %}
 {% include "_unterschrift.html" %}
 {% include "_fehlertext.html" %}
+{% include "_berlin_date.html" %}
 <script>
 const checklistId={{ checklist_id }};
 const IS_FIELD={{ 'true' if is_field else 'false' }};
@@ -1087,11 +1088,10 @@ async function deleteDraft(){
 }
 
 // "mit jetzt vorbelegen": ein noch leeres Datums-/Zeitfeld bekommt beim ersten Öffnen die
-// aktuelle Zeit (lokal) und wird gespeichert -- sichtbar und jederzeit änderbar.
+// aktuelle Zeit (seit 1.8.87 in Berlin, _berlin_date.html) und wird gespeichert -- sichtbar und jederzeit änderbar.
 async function prefillNow(){
   if(!cl.can_edit)return;
-  const pad=n=>String(n).padStart(2,'0');const d=new Date();
-  const day=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,tm=`${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const day=berlinToday(),tm=berlinTime();
   for(const f of cl.fields){
     if(!f.prefill_now||answerOf(f)||!editable(f))continue;
     const v={datum:day,uhrzeit:tm,datum_uhrzeit:`${day}T${tm}`}[f.field_type];

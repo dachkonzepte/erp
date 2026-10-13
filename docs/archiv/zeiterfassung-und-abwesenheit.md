@@ -280,6 +280,17 @@ Weiter offen, alle im Browser (unabhängig von der Serverzeitzone):
   `+'Z'`: `address_import.html` Z. 208, `operational_asset_field.html` Z. 75. Suche vom 29.09.2026
   nur über diese Muster, nicht vollständig.
 
+**Nachtrag (1.8.87): "heute" im Browser behoben** (Vorgabe R4c "Vorweg" 1, Anlass `klicktest_teil_updates` um
+Mitternacht). Jede Vorlage bildet das heutige Datum über `_berlin_date.html` (`berlinToday()`, `berlinMonth()`,
+`berlinTime()`, `berlinAddDays()`, `localDateIso()`, `berlinTodayDate()`) -- die `today()`-Stellen aus dem ersten
+Absatz oben, dazu die Stellen, die die Zeitzone des Geräts nahmen (Kalender, Aufgaben, Befunde, Stundenzettel,
+Checkliste "mit jetzt vorbelegen", Angebot `localToday()`, Dashboard, Einstellungen). `tests/test_v390_browser_datum.py`
+lässt in den Vorlagen `toISOString()`, `new Date()` und `Date.now()` ohne Argument nur als begründeten Zeitpunkt zu
+(`ERLAUBT`), dazu kein `getTimezoneOffset()`/`toDateString()`; Klicktest `scripts/klicktest_browser_datum.py` (Instanz
+und Browser um 00:30 Uhr, Browser in UTC und New York). Weiter offen: die naiven UTC-Zeitstempel aus dem Absatz direkt
+darüber (Anzeige und `slice(0, 10)` eines Zeitstempels) -- `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.87",
+Festlegung 2. Details dort.
+
 ## Krankheitssichtbarkeit: buero_auftrag sieht nur noch "abwesend" (seit 1.5.4)
 
 Kurskorrektur zu 1.5.3, wo der Betreiber einen ersten Redaktions-Vorschlag noch abgelehnt hatte

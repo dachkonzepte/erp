@@ -122,6 +122,7 @@ a{color:var(--accent)}
 {% include "_debounce.html" %}
 {% include "_unterschrift.html" %}
 {% include "_time_entries_list.html" %}
+{% include "_berlin_date.html" %}
 {% if is_module_enabled('checklisten') %}{% include "_offene_bedenken.html" %}{% endif %}
 <div class="app-content">
 {% include "_topbar.html" %}
@@ -341,7 +342,7 @@ function openCreateEditor(){
   editingReportId=null;
   document.getElementById('editorHeading').textContent='Bericht anlegen';
   document.getElementById('editType').value='rapport';
-  document.getElementById('editPerformedAt').value=new Date().toISOString().slice(0,10);
+  document.getElementById('editPerformedAt').value=berlinToday();
   document.getElementById('editEmployee').innerHTML=employeeOptionsHtml(authStatus.user?authStatus.user.employee_id:null);
   document.getElementById('editRoofAreaChecks').innerHTML=editRoofAreaChecksHtml([]);
   document.getElementById('editInspectionTemplate').innerHTML=inspectionTemplateOptionsHtml(null,'rapport');
@@ -1384,7 +1385,7 @@ async function init(){
   document.getElementById('teType').innerHTML=optionsHtml(timeEntryTypes,'site');
   document.getElementById('teType').value='site';
   document.getElementById('teActivity').innerHTML=optionsHtml(timeEntryActivities,null);
-  document.getElementById('teDate').value=new Date().toISOString().slice(0,10);
+  document.getElementById('teDate').value=berlinToday();
   await loadReports();
   // "Wartung durchführen" (Vertragsseite, seit 1.2.22) navigiert direkt hierher mit
   // ?report=<id> -- öffnet nur das Prüfpunkte-Panel dieses Berichts, die Dachflächen-Blöcke

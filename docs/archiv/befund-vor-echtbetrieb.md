@@ -2145,7 +2145,7 @@ Wird der Umfang zu groß: nach Punkt 3 committen und den Rest auflisten. Commit 
   auch für "Rechnung aus Aufwand" (`invoice_create_blocks["aufwand"]`).
 - Klicktest `scripts/klicktest_endrechnung.py`.
 
-#### Festlegungen 1.8.85 (Bitte bestätigen)
+#### Festlegungen 1.8.85 (Nr. 1–11 bestätigt am 13.10.2026, Nr. 1 mit Ergänzung, Vorgabe R4c)
 
 1. **Vorschlag Ist der Schlussrechnung = Menge des Auftrags** (der letzte Stand des Auftrags, dessen Mengen bis zur Schlussrechnung
    änderbar bleiben), im Entwurf änderbar. Gelesen wurde "letzter Stand" damit nicht wie beim Abschlag (Ist der zuletzt
@@ -2256,7 +2256,7 @@ Wird der Umfang zu groß: nach Punkt 3 committen und den Rest auflisten. Commit 
   "abschließend"); ein Entwurf von einem Auftrag, der damals Preise hatte, wird beim Festschreiben abgelehnt.
 - Klicktest `scripts/klicktest_endrechnung.py` um Zahlungshinweis und "abschließend" erweitert.
 
-#### Festlegungen 1.8.86 (Bitte bestätigen)
+#### Festlegungen 1.8.86 (Nr. 1–8 bestätigt am 13.10.2026, Vorgabe R4c)
 
 1. **Zahlungshinweis an jeder Endrechnung**, auch wenn nichts mehr offen ist (dann Zahlbetrag = Rechnungsbetrag); je abgezogener
    Rechnung mit offenem Betrag -- auch Rechnungen aus Aufwand ("aus Rechnung Nr. …"). Offen ohne Nebenforderungen (Mahngebühr,
@@ -2306,6 +2306,116 @@ Wird der Umfang zu groß: nach Punkt 3 committen und den Rest auflisten. Commit 
    eigene Skontofrist längst vorbei sein kann -- der Satz unterscheidet das nicht.
 3. **"Rechnung aus Aufwand" am Schnellauftrag** erscheint auf der Auftragsseite erst mit gebuchten Zeiten oder Material eines
    unterschriebenen Berichts (Nebenbefund 4 aus 1.8.85) -- dort auch das Häkchen erst nach dem Anlegen auf der Rechnungsseite.
+
+## Umsetzung R4c: Mahnen nach der Endrechnung, Überzahlung (ab 1.8.87)
+
+### Vorgabe vom 13.10.2026 (übernommen wie gegeben)
+
+R4b geprüft. Festlegungen bestätigt, Nr. 1 mit Ergänzung: Der Entwurf der Schlussrechnung zeigt je Position Auftragsmenge, zuletzt
+abgerechnete Menge und Ist nebeneinander und markiert Abweichungen. Die Festlegungen 1.8.82 Nr. 6–9 und 1.8.83 Nr. 7–8 bitte je in
+einer Zeile vorlegen.
+
+Vorweg:
+1. Datum im Browser: Alle Stellen, die das heutige Datum aus UTC bilden (toISOString und Ähnliches), auf das Berliner Datum umstellen;
+   Strukturtest über Vorlagen und JavaScript. Anlass: klicktest_teil_updates um Mitternacht.
+2. klicktest_mahnwesen wartet auf das Neuladen der Liste. Der Testhelfer _run schließt die Sitzung der zweiten Aktion.
+
+R4c (Entscheidungen Rechnungen im Archiv):
+3. Nach der gültigen Schlussrechnung stehen abgezogene Rechnungen nicht mehr einzeln in „zur Mahnung fällig“ und lassen sich nicht
+   einzeln mahnen; offene Mahnungsentwürfe zu ihnen gelten als überholt.
+4. Einbehalte auf abgezogene Rechnungen werden mit der gültigen Schlussrechnung fällig.
+5. Mahnung der Schlussrechnung über den Zahlbetrag: mahnfähiger Betrag der Schlussrechnung plus offene Beträge der abgezogenen
+   Rechnungen, in der Aufstellung je Rechnung mit Nummer.
+6. Überzahlung: Ein negativer Rechnungsbetrag wird zulässig. Ist der Zahlbetrag negativ, weist das PDF einen Erstattungsbetrag aus, ohne
+   Skonto und ohne „zahlbar“. Die Erstattung ist als Zahlungsausgang buchbar, ein Guthaben steht am Kunden. Skonto nur bei positivem
+   Rechnungsbetrag.
+7. Die E-Mail zur Schlussrechnung nennt den Zahlbetrag bzw. den Erstattungsbetrag.
+
+Angriffstests mit Gegenprobe, Gleichzeitigkeit gegen PostgreSQL. Eigene Festlegungen mit „Bitte bestätigen“. Nebenbefunde nur melden.
+Wird der Umfang zu groß: nach Punkt 5 committen und den Rest auflisten. Commit nach Regel 13, Bericht kurz.
+
+### Vorweg
+
+- Festlegungen 1.8.85 Nr. 1–11 und 1.8.86 Nr. 1–8 an den Überschriften als bestätigt markiert, 1.8.85 Nr. 1 mit der Ergänzung
+  (gebaut als 1.8.88, siehe unten).
+- **Zur Bestätigung vorgelegt, je eine Zeile** (Wortlaut oben unter "Umsetzung 1.8.82" bzw. "Umsetzung 1.8.83"):
+  - 1.8.82 Nr. 6: Steuersatz = Steuerschlüssel (Satz und Hinweistext), gesperrt, solange eine gültige Rechnung besteht; sind alle
+    storniert, wieder frei.
+  - 1.8.82 Nr. 7: Nach der Schlussrechnung gesperrt sind Positionen, LV-Titel, Steuerschlüssel und Abgleich, nicht die Kopfdaten des
+    Auftrags; nach ihrem Storno wieder offen, Preise schon abgerechneter Positionen bleiben gesperrt.
+  - 1.8.82 Nr. 8: Abgelehnt wird nur eine tatsächliche Änderung; unverändert gespeicherte Werte (auch „50.000“ statt „50“) gehen durch.
+  - 1.8.82 Nr. 9: Der Abgleich mit dem Angebot ist zusätzlich gesperrt nach gültiger Schlussrechnung und, solange eine gültige
+    Rechnung besteht, bei anderem Steuerschlüssel des Angebots.
+  - 1.8.83 Nr. 7: Der Zeitpunkt des Festschreibens ist eine eigene Spalte (naive UTC), nicht aus der Rechnungsnummer abgeleitet;
+    Bestand ohne Zeitpunkt, Entwürfe nicht nachgerechnet.
+  - 1.8.83 Nr. 8: 1d über eine Position: das Storno eines pauschalen Abschlags ohne Position zeigt eine Zeile mit umgekehrtem
+    Vorzeichen, mit der Rundungsregel des Originals.
+
+### Umsetzung 1.8.87: "heute" im Browser aus Berlin, Klicktest Mahnwesen, Testhelfer _run (Vorweg 1 und 2)
+
+#### Was gebaut ist
+
+- **Helfer** (`app/templates/_berlin_date.html`): `berlinToday()` ('JJJJ-MM-TT'), `berlinMonth()` ('JJJJ-MM'), `berlinTime()` ('HH:MM'),
+  `berlinAddDays(tag, n)` (Kalenderrechnung über UTC-Mitternacht, ohne Zeitumstellung), `localDateIso(d)` (Kalendertag eines aus
+  einem Datum gebauten Date, Plantafel und Kalender), `berlinTodayDate()` (Ortsmitternacht des Berliner Tages als Startpunkt für
+  Kalender und Plantafel); dazu wie bisher `berlinDateParts()` und `berlinMonthRange()`.
+- **Aus UTC** (bis 1.8.86 `toISOString().slice(0, 10)`, zwischen 0 und 2 Uhr der Vortag): Büro-Zeiterfassung `today()`,
+  Monteur-Zeiterfassung `today()`, ihr 14-Tage-Fenster und das Mindestdatum nach dem Sperrdatum, Einsatzbericht (Ausführungsdatum,
+  Datum der Zeitbuchung), Projektmappe (nächste Fälligkeit des Wartungsvertrags), Eingangsrechnung (Bezahltdatum), Plantafel (`iso()`,
+  Wochenbeginn, Markierung "heute"), Backoffice-Zeiterfassung (`dateISO()` jetzt über `localDateIso()`, Monat über
+  `berlinMonthRange()`).
+- **Aus der Zeitzone des Geräts**: Kalender (Ausgangstag, "heute"), Aufgaben und Befunde ("überfällig" bzw. Wiedervorlage über
+  `toDateString()`), Stundenzettel (Vorgabemonat), Checkliste ("mit jetzt vorbelegen": Datum und Uhrzeit), Angebot (`localToday()` über
+  `getTimezoneOffset()`), Dashboard (Bindefrist in sieben Tagen, Begrüßung nach der Uhrzeit), Einstellungen (Jahr für Basiszinssatz und
+  Schulferien). Die Rechnungsseite nahm `berlinDateParts()` schon (seit 1.8.78), jetzt über `berlinToday()`.
+- **Bewusst Zeitpunkte** (kein Kalendertag, in `ERLAUBT` des Strukturtests mit Grund): Zeitraum der Kalenderabfrage, Erfassungszeit
+  einer Checklistenantwort auf dem Gerät, Wiedervorlage einer Anfrage (Zeitpunktvergleich), Cache-Brecher zweier Bilder, laufende Uhr
+  des Timers, `berlinTodayIso()` im Versandverlauf (schon Europe/Berlin über Intl).
+- **Klicktest Mahnwesen**: nach "3 Entwürfe angelegt." wartet er auf die neu geladene Liste, dann liest er sie
+  (`createSelectedReminders()` setzt den Text vor `await reload()`; Nebenbefund 2 aus 1.8.84).
+- **Testhelfer `_run`** (`tests/test_v375_rechnungen_sperren.py`): schließt nach dem Ende beider Aktionen auch die Sitzung der
+  zweiten (Nebenbefund 5 aus 1.8.85) -- wirft sie nach der Sperre der Auftragszeile, hielt ihre offene Transaktion die Sperre; eine
+  spätere Aktion auf derselben Zeile wartete ewig.
+
+#### Festlegungen 1.8.87 (Bitte bestätigen)
+
+1. **"Heute" = Berliner Tag auf jeder Seite**, auch wo bisher die Zeitzone des Geräts galt (Kalender, Aufgaben, Checkliste, Angebot …)
+   -- wie der Server (Regel 20); ein Gerät in einer anderen Zeitzone sieht den Berliner Tag.
+2. **Umfang**: das heutige Datum (und Uhrzeit beim Vorbelegen). Gespeicherte naive UTC-Zeitstempel, die eine Seite als Ortszeit
+   liest oder per `slice(0, 10)` kürzt (Versandzeit, Hochladezeit, Datum einer Nebenforderung …), sind nicht Teil davon -- weiter
+   offen (CLAUDE.md "Bekannte, bewusst offene Punkte").
+3. **Plantafel und Kalender** rechnen weiter mit Date-Objekten in Ortszeit des Geräts (12 bzw. 0 Uhr), nur ihr Ausgangstag ist der
+   Berliner; ein Tag daraus wird über `localDateIso()` gebildet, nie über `toISOString()`.
+4. **Strukturtest per Muster über den Text der Vorlagen**, nicht über einen JavaScript-Parser: jede Fundstelle braucht einen Eintrag mit
+   Grund, ein Eintrag ohne Fundstelle wird angemahnt.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v390_browser_datum.py` (13): kein `toISOString()`, `new Date()` und `Date.now()` ohne Argument außer den neun
+  begründeten Zeitpunkten, keine veralteten Einträge, kein `getTimezoneOffset()`/`toDateString()`, jede Vorlage mit Helfer bindet
+  `_berlin_date.html` ein, die Zeiterfassungen nehmen `berlinToday()`; in node (vier Zeitzonen) `berlinToday()`, `berlinTime()`,
+  `berlinMonth()` an Berliner Mitternacht, Monats- und Jahreswechsel und Zeitumstellung, `berlinAddDays()` über Monats-, Jahres- und
+  Schaltjahrgrenzen und die Zeitumstellung, `localDateIso()` und `berlinTodayDate()`.
+- Neu `tests/test_v390_testhelfer.py` (1, gegen PostgreSQL): die zweite Aktion wirft mit gehaltener Sperre; danach sperrt eine dritte
+  Sitzung dieselbe Auftragszeile innerhalb von 2 s (`lock_timeout`).
+- Gegenproben (Regel 24): 8 von 8 rot -- `_run` ohne Schließen, Büro-Zeiterfassung und 14-Tage-Fenster aus UTC, "überfällig" über
+  `toDateString()`, `getTimezoneOffset()`, fehlende Einbindung, `berlinToday()` über `toISOString()`, `berlinAddDays()` über Ortszeit.
+  Jede Datei byte-genau zurück (SHA-256), kein Marker.
+- Klicktest `scripts/klicktest_browser_datum.py` (neu): Instanz ab 00:30 Uhr, Browser-Uhr fest auf heute 00:30 Uhr Berliner Zeit, Zeitzone
+  des Browsers UTC und New York (dort noch gestern) -- Monteur-Zeiterfassung mit der Buchung von heute, `today()`, Stundenzettel-Monat,
+  Büro-Zeiterfassung, Aufgaben überfällig, Plantafel Wochenbeginn und Markierung, Kalender: 21/21; derselbe Klicktest auf 1.8.86
+  (Arbeitskopie): 9/21 -- die Monteur-Zeiterfassung "Seite nicht bereit" wie im Anlass. `klicktest_mahnwesen` 29/29,
+  `klicktest_teil_updates` 9/9.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3808 grün, 0 rot.
+- Alle Klicktests (Regel 26, `scripts/klicktest_alle.py`, Arbeitskopie): 54 von 54 wie erwartet, Laufzeit gesamt 11:17 min. Keine rote Prüfung -- `klicktest_mahnwesen` (29/29) und `klicktest_teil_updates` (9/9) sind wieder grün.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Zeitstempel ohne Zeitzone im Browser** (bekannt, Festlegung 2): `new Date(r.email_sent_at)` liest naive UTC als Ortszeit, `.slice(0,
+   10)` auf einem Zeitstempel ergibt zwischen 0 und 2 Uhr den UTC-Tag (u. a. Mahnwesen "versendet …", Nebenforderung "gebucht …",
+   Hochladezeiten).
+2. **Wiedervorlage einer Anfrage**: `follow_up_at` ist eine DateTime-Spalte, Dashboard und Anfragen vergleichen sie als Zeitpunkt in
+   Ortszeit des Geräts -- ob sie als naive UTC oder als Ortszeit gespeichert wird, ist hier nicht geprüft.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
@@ -2367,3 +2477,17 @@ Ergänzt am 12.10.2026 (Vorgabe R4b), übernommen wie gegeben -- Wortlaut unter 
 - **Schnellauftrag**: eine Rechnung aus Aufwand kann als abschließend gekennzeichnet werden und zählt dann als „vollständig
   abgerechnet“; keine Schlussrechnung über 0 €. (Seit 1.8.86 gebaut.)
 - **Negativer Rechnungsbetrag** wird bis R4c mit 409 abgelehnt. (Seit 1.8.85 gebaut.)
+
+Ergänzt am 13.10.2026 (Vorgabe R4c), übernommen wie gegeben -- Wortlaut unter "Umsetzung R4c":
+
+- **Mengen im Entwurf der Schlussrechnung** (Ergänzung zu Festlegung 1.8.85 Nr. 1): je Position Auftragsmenge, zuletzt abgerechnete
+  Menge und Ist nebeneinander, Abweichungen markiert.
+- **Abgezogene Rechnungen** stehen nach der gültigen Schlussrechnung nicht mehr einzeln in „zur Mahnung fällig“ und lassen sich nicht
+  einzeln mahnen; offene Mahnungsentwürfe zu ihnen gelten als überholt.
+- **Einbehalte** auf abgezogene Rechnungen werden mit der gültigen Schlussrechnung fällig.
+- **Mahnung der Schlussrechnung** über den Zahlbetrag: mahnfähiger Betrag der Schlussrechnung plus offene Beträge der abgezogenen
+  Rechnungen, in der Aufstellung je Rechnung mit Nummer.
+- **Überzahlung**: ein negativer Rechnungsbetrag wird zulässig; ist der Zahlbetrag negativ, weist das PDF einen Erstattungsbetrag aus,
+  ohne Skonto und ohne „zahlbar“; die Erstattung ist als Zahlungsausgang buchbar, ein Guthaben steht am Kunden; Skonto nur bei
+  positivem Rechnungsbetrag.
+- **E-Mail zur Schlussrechnung** nennt den Zahlbetrag bzw. den Erstattungsbetrag.

@@ -260,7 +260,7 @@ async function reverseAllocation(id){const reason=document.getElementById('revRe
 function num(s){let t=String(s??'').trim();if(!t)return 0;if(t.includes(','))t=t.replace(/\./g,'').replace(',','.');return Number(t)}
 const cents=s=>Math.round(num(s)*100);
 const fmt=x=>Number(x||0).toFixed(2).replace('.',',');
-function todayBerlin(){const {year,month,day}=berlinDateParts();return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`}
+function todayBerlin(){return berlinToday()}
 let payLines=[],payPayments=[],payOpen=[];
 async function openPaymentDialog(){
   document.getElementById('pyStatus').textContent='';

@@ -59,6 +59,7 @@
   </div>
 </main>
 {% include "_time_entries_list.html" %}
+{% include "_berlin_date.html" %}
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -118,8 +119,7 @@ async function init(){
     showLoadWarning('Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. Bitte unter Einstellungen → Benutzer & Zugriff einen Mitarbeiter zuordnen lassen.');
     return;
   }
-  const now=new Date();
-  const currentYm=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const currentYm=berlinMonth();  // seit 1.8.87 der Berliner Monat
   $('monthInput').value=currentYm;
   $('monthInput').addEventListener('change',()=>{if($('monthInput').value)loadMonth($('monthInput').value)});
   await loadMonth(currentYm);

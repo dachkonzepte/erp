@@ -83,6 +83,7 @@
 <body>
 {% include "_mobile_header.html" %}
 {% include "_auswahl.html" %}
+{% include "_berlin_date.html" %}
 <main>
   <div id="loadWarning" class="card error" hidden></div>
 
@@ -221,7 +222,7 @@
 <script>
 const $=id=>document.getElementById(id);
 const params=new URLSearchParams(location.search),initialOrderId=Number(params.get('order_id')||0);
-const today=()=>new Date().toISOString().slice(0,10);
+const today=()=>berlinToday();  // seit 1.8.87 Berlin statt UTC (_berlin_date.html)
 const fmtDate=s=>s?new Date(s+'T12:00:00').toLocaleDateString('de-DE'):'—';
 const num=x=>Number(x||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -237,7 +238,7 @@ function typeCssClass(v){return v==='travel'?'travel':v==='workshop'?'workshop':
 const WEATHER_TYPES=['weather_winter','weather_summer'];
 // Gesetzliche Schlechtwetterzeit im Dachdeckerhandwerk: 1.12.-31.3. Winter, sonst Sommer --
 // reiner Vorschlag anhand des Buchungsdatums, beide Kacheln bleiben unabhaengig davon anklickbar.
-function weatherSeasonFor(dateStr){const d=dateStr?new Date(dateStr+'T12:00:00'):new Date();const m=d.getMonth()+1;return (m===12||m<=3)?'weather_winter':'weather_summer'}
+function weatherSeasonFor(dateStr){const d=new Date((dateStr||today())+'T12:00:00');const m=d.getMonth()+1;return (m===12||m<=3)?'weather_winter':'weather_summer'}
 function orderOptions(selected){return '<option value="">— Auftrag wählen —</option>'+orders.map(o=>`<option value="${o.id}" ${String(o.id)===String(selected)?'selected':''}>${esc(o.order_number)}${o.customer_name?' · '+esc(o.customer_name):''}${o.property_address?' · '+esc(o.property_address.replace(/\n/g,', ')):''}</option>`).join('')}
 
 function renderQuickTiles(){
@@ -393,8 +394,8 @@ function renderEntry(e){
 }
 let allEntries=[];
 async function loadEntries(){
-  const from=new Date();from.setDate(from.getDate()-14);
-  const list=await fetchTimeEntries(`/api/time-entries?start_date=${from.toISOString().slice(0,10)}&end_date=${today()}`);
+  const from=berlinAddDays(today(),-14);
+  const list=await fetchTimeEntries(`/api/time-entries?start_date=${from}&end_date=${today()}`);
   allEntries=list.rows.filter(e=>e.status==='booked');
   const todayRows=allEntries.filter(e=>e.work_date===today());
   const prod=todayRows.filter(e=>e.counts_as_productive).reduce((a,b)=>a+Number(b.hours),0);
@@ -496,7 +497,7 @@ async function init(){
   myEmployeeId=auth.user.employee_id;
   try{timeSettings=await api('/api/time-tracking/settings')}catch(e){console.warn('Zeiterfassungs-Einstellungen konnten nicht geladen werden',e)}
   $('openManualBtn').hidden=!timeSettings.allow_manual_entries;
-  if(timeSettings.locked_until){const d=new Date(timeSettings.locked_until+'T12:00:00');d.setDate(d.getDate()+1);$('manualDate').min=$('crewDialogDate').min=d.toISOString().slice(0,10)}
+  if(timeSettings.locked_until){$('manualDate').min=$('crewDialogDate').min=berlinAddDays(timeSettings.locked_until,1)}
   try{orders=await api('/api/field-view/time-tracking/orders')}catch(e){orders=[]}
   const defaultTypes=[{label:'Baustellenzeit',value:'site',active:true,is_default:true},{label:'Fahrzeit',value:'travel',active:true},{label:'Werkstattzeit',value:'workshop',active:true},{label:'Sonstige Arbeitszeit',value:'other',active:true}];
   const tg=await safeOptionGroup('time_entry_types',defaultTypes);

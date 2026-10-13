@@ -23,6 +23,7 @@ dialog{border:1px solid var(--line);padding:0;max-width:720px;width:calc(100% - 
 {% include "_topbar.html" %}
 {% include "_email_dispatch.html" %}
 {% include "_auswahl.html" %}
+{% include "_berlin_date.html" %}
 <main>
 <div class="breadcrumb" id="breadcrumb">Lädt …</div>
 <div class="toolbar">
@@ -289,7 +290,7 @@ async function sendQuoteEmail(btn){
 }
 
 function employeeOptionHtml(rows,selected){return '<option value="">— nicht zugeordnet —</option>'+rows.filter(x=>x.active).map(e=>`<option value="${e.id}" ${Number(selected)===e.id?'selected':''}>${esc(e.first_name+' '+e.last_name)}${e.function_name?' · '+esc(e.function_name):''}</option>`).join('')}
-function localToday(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10)}
+function localToday(){return berlinToday()}  // seit 1.8.87 Berlin statt der Zeitzone des Geräts
 function openOrderDialog(){if(!quote.items.length){alert('Das Angebot enthält noch keine Positionen.');return}const m=quote.document_meta||{};setv('oDate',localToday());setv('oStart','');setv('oEnd','');setv('oStatus','beauftragt');setv('oRemarks','');document.getElementById('oCaseworker').innerHTML=employeeOptionHtml(caseworkers,m.contact_person_employee_id);document.getElementById('oManager').innerHTML=employeeOptionHtml(employees,null);const rows=activeOptions('quote_payment_terms');let html='<option value="">— keine —</option>'+rows.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');if(m.payment_terms&&!rows.some(o=>o.value===m.payment_terms))html+=`<option value="${esc(m.payment_terms)}">Bisher gespeicherte Zahlungsbedingung</option>`;document.getElementById('oPayment').innerHTML=html;setv('oPayment',m.payment_terms||defaultOption('quote_payment_terms')?.value||'');document.getElementById('orderStatus').textContent='';document.getElementById('orderDialog').showModal()}
 async function syncExistingOrder(){if(!existingOrder)return;if(!confirm(`Die aktuellen Änderungen aus ${quote.quote_number} in Auftrag ${existingOrder.order_number} übernehmen? Der bisherige Auftragsstand bleibt als Revision erhalten.`))return;try{existingOrder=await api(`/api/orders/${existingOrder.id}/sync-source-quote`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:`Änderungen aus ${quote.quote_number} übernommen`})});await load();location.href='/orders/'+existingOrder.id}catch(e){alert('Fehler: '+e.message)}}
 async function createOrder(){const st=document.getElementById('orderStatus');try{st.textContent='Auftrag wird erzeugt …';const order=await api(`/api/quotes/${quoteId}/convert-to-order`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order_date:v('oDate'),execution_start:v('oStart')||null,execution_end:v('oEnd')||null,caseworker_employee_id:v('oCaseworker')?Number(v('oCaseworker')):null,project_manager_employee_id:v('oManager')?Number(v('oManager')):null,payment_terms:v('oPayment')||null,remarks:v('oRemarks')||null,status:v('oStatus')})});window.location.href='/orders/'+order.id}catch(e){st.textContent='Fehler: '+e.message}}

@@ -38,6 +38,7 @@ a.row-link:hover{text-decoration:underline}
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
+{% include "_berlin_date.html" %}
 <main>
 {% if is_module_enabled('wartungen') %}
 <div class="hero"><div><h1>Mängel</h1><div class="muted small">Mängel aus Einsatzberichten, über alle Objekte.</div></div></div>
@@ -76,7 +77,7 @@ const SEVERITIES=[['gering','Gering'],['mittel','Mittel'],['dringend','Dringend'
 const STATUSES=[['offen','Offen'],['in_bearbeitung','In Bearbeitung'],['erledigt','Erledigt'],['zurueckgestellt','Zurückgestellt']];
 
 function isOverdue(f){
-  return f.action==='zurueckgestellt'&&f.resubmission_date&&f.status!=='erledigt'&&new Date(f.resubmission_date+'T00:00:00')<new Date(new Date().toDateString());
+  return f.action==='zurueckgestellt'&&f.resubmission_date&&f.status!=='erledigt'&&f.resubmission_date<berlinToday();
 }
 
 function findingRow(f){

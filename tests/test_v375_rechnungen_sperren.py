@@ -531,18 +531,26 @@ def _timed(fn) -> dict:
 
 def _run(Session, first, second):
     """first hält die Sperre eine Sekunde; second startet währenddessen in einer eigenen Sitzung, lädt dort zuerst seine
-    Objekte (alter Stand, wie der Router) und muss dann warten."""
+    Objekte (alter Stand, wie der Router) und muss dann warten.
+
+    Seit 1.8.87 (Nebenbefund 5 aus 1.8.85) schließt _run auch die Sitzung der zweiten Aktion: wirft sie nach der Sperre (wie
+    erwartet), blieb ihre Transaktion offen und hielt die Sperre der Auftragszeile -- traf eine spätere Aktion darauf, wartete
+    sie ewig. Schließen rollt zurück und gibt die Verbindung frei; schon geladene Werte des Ergebnisses bleiben lesbar, ein
+    nicht geladenes Attribut lädt danach nicht mehr nach (DetachedInstanceError)."""
     ready = threading.Event()
     holder, release, thread, first_result = _held(Session, first, ready)
     assert ready.wait(timeout=10)
     result = {}
-    other = threading.Thread(target=lambda: result.update(_timed(lambda: second(Session()))))
+    second_session = Session()
+    other = threading.Thread(target=lambda: result.update(_timed(lambda: second(second_session))))
     other.start()
     time.sleep(1.0)
     release.set()
     other.join(timeout=30)
     thread.join(timeout=30)
     holder.close()
+    if not other.is_alive():  # hängt sie noch, nicht aus diesem Thread an ihre Verbindung gehen
+        second_session.close()
     first = first_result.get("result")
     assert not isinstance(first, Exception), first
     assert result["seconds"] >= 0.9, result  # hat auf die Sperre gewartet
