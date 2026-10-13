@@ -117,6 +117,7 @@ tr:last-child td{border-bottom:none}
 </div>
 </div>
 {% include "_fehlertext.html" %}
+{% include "_speichern.html" %}
 <script>
 const templateId={{ template_id }};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -127,7 +128,10 @@ const FELDNAMEN={label:'Bezeichnung',description:'Beschreibung',contexts:'Kontex
   task_description:'Beschreibung der Aufgabe',operand:'Vergleichswert',due_in_days:'Fällig in (Tagen)',link_purpose:'Aufgabe verlinkt auf',
   new_label:'Bezeichnung der Kopie'};
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,FELDNAMEN));return r.json()}
-const json=(method,body)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+// Seit 1.8.95 läuft jedes Speichern über den Baustein (_speichern.html): method steht im Aufruf, json() liefert nur Kopf und
+// Body -- vor dem Aufruf berechnet. Bereiche: 'fassung' (Antwort = Fassung mit Feldern und Regeln), 'vorlage' (Antwort = Vorlage;
+// reloadTemplate() liest über lesen()).
+const json=body=>({headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 
 const FIELD_TYPES=[['ja_nein','Ja/Nein'],['text','Text'],['zahl','Zahl'],['auswahl','Auswahl'],['datum','Datum'],['uhrzeit','Uhrzeit'],['datum_uhrzeit','Datum und Uhrzeit'],['foto','Foto'],['beleg','Beleg (PDF oder Foto)'],['unterschrift','Unterschrift'],['hinweis','Hinweistext']];
 // Mängel (seit 1.8.60) und Dachflächen (seit 1.8.61) nur als Systemfeld eines Zwecks
@@ -334,7 +338,8 @@ function readFieldForm(id){
 
 async function saveField(id){
   try{
-    version=await api(`/api/checklist-template-fields/${id}`,json('PUT',readFieldForm(id)));
+    const daten=json(readFieldForm(id));
+    await speichern('fassung',()=>api(`/api/checklist-template-fields/${id}`,{method:'PUT',...daten}),{anwenden:d=>{version=d}});
     await reloadTemplate(false);
     renderFields();renderRules();
     setStatus('fst_'+id,'Gespeichert.','ok');
@@ -344,7 +349,8 @@ async function saveField(id){
 async function changeType(id,type){
   // Typwechsel sofort speichern -- die typabhängigen Einstellungen im Formular ändern sich damit.
   try{
-    version=await api(`/api/checklist-template-fields/${id}`,json('PUT',{...readFieldForm(id),field_type:type}));
+    const daten=json({...readFieldForm(id),field_type:type});
+    await speichern('fassung',()=>api(`/api/checklist-template-fields/${id}`,{method:'PUT',...daten}),{anwenden:d=>{version=d}});
     await reloadTemplate(false);renderFields();renderRules();
   }catch(e){setStatus('fst_'+id,'Fehler: '+e.message,'err')}
 }
@@ -352,7 +358,8 @@ async function changeType(id,type){
 async function addField(){
   const type=document.getElementById('newFieldType').value;
   try{
-    version=await api(`/api/checklist-template-versions/${version.id}/fields`,json('POST',{field_type:type,label:'Neues Feld: '+TYPE_LABEL[type]}));
+    const url=`/api/checklist-template-versions/${version.id}/fields`,daten=json({field_type:type,label:'Neues Feld: '+TYPE_LABEL[type]});
+    await speichern('fassung',()=>api(url,{method:'POST',...daten}),{anwenden:d=>{version=d}});
     openFieldId=version.fields[version.fields.length-1]?.id??null;
     await reloadTemplate(false);renderFields();
     setStatus('fieldStatus','');
@@ -363,7 +370,7 @@ async function addField(){
 async function deleteField(id){
   if(!confirm('Dieses Feld wirklich löschen?'))return;
   try{
-    version=await api(`/api/checklist-template-fields/${id}`,{method:'DELETE'});
+    await speichern('fassung',()=>api(`/api/checklist-template-fields/${id}`,{method:'DELETE'}),{anwenden:d=>{version=d}});
     openFieldId=null;await reloadTemplate(false);renderFields();
   }catch(e){setStatus('fst_'+id,'Fehler: '+e.message,'err')}
 }
@@ -372,7 +379,7 @@ async function moveField(index,delta){
   const ids=version.fields.map(f=>f.id);
   const j=index+delta;
   [ids[index],ids[j]]=[ids[j],ids[index]];
-  try{version=await api(`/api/checklist-template-versions/${version.id}/fields/reorder`,json('POST',{field_ids:ids}));renderFields()}
+  try{const url=`/api/checklist-template-versions/${version.id}/fields/reorder`,daten=json({field_ids:ids});await speichern('fassung',()=>api(url,{method:'POST',...daten}),{anwenden:d=>{version=d;renderFields()}})}
   catch(e){setStatus('fieldStatus','Fehler: '+e.message,'err')}
 }
 
@@ -380,15 +387,15 @@ async function addOption(fieldId){
   const input=document.getElementById('newOpt_'+fieldId);
   const label=input.value.trim();
   if(!label)return;
-  try{version=await api(`/api/checklist-template-fields/${fieldId}/options`,json('POST',{label}));renderFields();renderRules();document.getElementById('newOpt_'+fieldId)?.focus()}
+  try{const daten=json({label});await speichern('fassung',()=>api(`/api/checklist-template-fields/${fieldId}/options`,{method:'POST',...daten}),{anwenden:d=>{version=d;renderFields();renderRules()}});document.getElementById('newOpt_'+fieldId)?.focus()}
   catch(e){setStatus('fst_'+fieldId,'Fehler: '+e.message,'err')}
 }
 async function renameOption(optionId,label){
-  try{version=await api(`/api/checklist-template-field-options/${optionId}`,json('PUT',{label}));renderRules()}
+  try{const daten=json({label});await speichern('fassung',()=>api(`/api/checklist-template-field-options/${optionId}`,{method:'PUT',...daten}),{anwenden:d=>{version=d;renderRules()}})}
   catch(e){alert('Fehler: '+e.message)}
 }
 async function deleteOption(optionId){
-  try{version=await api(`/api/checklist-template-field-options/${optionId}`,{method:'DELETE'});renderFields();renderRules()}
+  try{await speichern('fassung',()=>api(`/api/checklist-template-field-options/${optionId}`,{method:'DELETE'}),{anwenden:d=>{version=d;renderFields();renderRules()}})}
   catch(e){alert('Fehler: '+e.message)}
 }
 
@@ -492,8 +499,8 @@ async function saveRule(id){
   delete payload.id;delete payload.version_id;delete payload.sort_order;
   if(payload.operator==='immer'){payload.field_key=null;payload.operand=null}
   try{
-    version=id?await api(`/api/checklist-template-rules/${id}`,json('PUT',payload))
-              :await api(`/api/checklist-template-versions/${version.id}/rules`,json('POST',payload));
+    const url=id?`/api/checklist-template-rules/${id}`:`/api/checklist-template-versions/${version.id}/rules`,daten=json(payload);
+    await speichern('fassung',()=>api(url,{method:id?'PUT':'POST',...daten}),{anwenden:d=>{version=d}});
     openRuleId=null;ruleDraft=null;renderRules();
     setStatus('ruleStatus','Gespeichert.','ok');
   }catch(e){setStatus('rst','Fehler: '+e.message,'err')}
@@ -501,7 +508,7 @@ async function saveRule(id){
 
 async function deleteRule(id){
   if(!confirm('Diese Regel wirklich löschen?'))return;
-  try{version=await api(`/api/checklist-template-rules/${id}`,{method:'DELETE'});openRuleId=null;ruleDraft=null;renderRules()}
+  try{await speichern('fassung',()=>api(`/api/checklist-template-rules/${id}`,{method:'DELETE'}),{anwenden:d=>{version=d}});openRuleId=null;ruleDraft=null;renderRules()}
   catch(e){setStatus('rst','Fehler: '+e.message,'err')}
 }
 
@@ -519,7 +526,8 @@ async function saveMeta(){
   const purposeChanged=payload.purpose!==undefined&&payload.purpose!==template.purpose;
   if(purposeChanged&&!confirm('Zweck ändern? Die Systemfelder des neuen Zwecks werden im Entwurf angelegt, die des bisherigen werden gewöhnliche Felder.'))return;
   try{
-    template=await api(`/api/checklist-templates/${templateId}`,json('PUT',payload));
+    const daten=json(payload);
+    await speichern('vorlage',()=>api(`/api/checklist-templates/${templateId}`,{method:'PUT',...daten}),{anwenden:d=>{template=d}});
     if(purposeChanged){version=template.editable_version;openFieldId=null;renderAll()}else renderHead();
     renderVersionNotice();
     setStatus('metaStatus','Gespeichert.','ok');
@@ -529,7 +537,7 @@ async function saveMeta(){
 async function templateAction(url,method,confirmText){
   if(confirmText&&!confirm(confirmText))return;
   try{
-    template=await api(url,{method});
+    await speichern('vorlage',()=>api(url,{method:method}),{anwenden:d=>{template=d}});
     version=template.editable_version;openFieldId=null;openRuleId=null;ruleDraft=null;
     renderAll();setStatus('pageStatus','');
   }catch(e){setStatus('pageStatus','Fehler: '+e.message,'err');window.scrollTo(0,0)}
@@ -542,27 +550,30 @@ const toggleArchived=()=>templateAction(`/api/checklist-templates/${templateId}/
 async function copyTemplate(){
   const label=document.getElementById('copyLabel').value.trim();
   if(!label){setStatus('pageStatus','Bitte einen Namen für die Kopie angeben.','err');return}
-  try{const c=await api(`/api/checklist-templates/${templateId}/copy`,json('POST',{label}));location.href='/checklisten/vorlagen/'+c.id}
+  try{const daten=json({label});const c=await speichern('vorlage',()=>api(`/api/checklist-templates/${templateId}/copy`,{method:'POST',...daten}));location.href='/checklisten/vorlagen/'+c.id}
   catch(e){setStatus('pageStatus','Fehler: '+e.message,'err')}
 }
 
 async function deleteTemplate(){
   if(!confirm('Diese Vorlage mit allen Fassungen wirklich löschen?'))return;
-  try{await api(`/api/checklist-templates/${templateId}`,{method:'DELETE'});location.href='/checklisten/vorlagen'}
+  try{await speichern('vorlage',()=>api(`/api/checklist-templates/${templateId}`,{method:'DELETE'}));location.href='/checklisten/vorlagen'}
   catch(e){setStatus('pageStatus','Fehler: '+e.message,'err');window.scrollTo(0,0)}
 }
 
 async function syncSystemFields(){
   try{
-    version=await api(`/api/checklist-template-versions/${version.id}/system-fields`,{method:'POST'});
+    const url=`/api/checklist-template-versions/${version.id}/system-fields`;
+    await speichern('fassung',()=>api(url,{method:'POST'}),{anwenden:d=>{version=d}});
     await reloadTemplate(false);renderFields();renderRules();
   }catch(e){setStatus('syncStatus','Fehler: '+e.message,'err')}
 }
 
 async function reloadTemplate(resetVersion=true){
-  template=await api(`/api/checklist-templates/${templateId}`);
-  if(resetVersion)version=template.editable_version;
-  renderHead();renderVersions();renderVersionNotice();
+  await lesen('vorlage',()=>api(`/api/checklist-templates/${templateId}`),d=>{
+    template=d;
+    if(resetVersion)version=template.editable_version;
+    renderHead();renderVersions();renderVersionNotice();
+  });
 }
 
 function renderAll(){renderHead();renderMeta();renderVersionNotice();renderFields();renderRules();renderVersions()}

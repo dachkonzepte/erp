@@ -120,6 +120,7 @@ h1{color:var(--ink)}
 </div>
 
 {% include "_auswahl.html" %}
+{% include "_speichern.html" %}
 <script>
 const serviceId = {{ service_id|default('null') }};
 const editing = serviceId !== null;
@@ -249,14 +250,16 @@ async function addMaterialRow() {
 
   if (editing) {
     try {
-      const updated = await api(`/api/services/${serviceId}/materials`, {
+      // Seit 1.8.95 über speichern() (_speichern.html): die Antwort trägt alle Materialzeilen der Leistung (Bereich 'material').
+      await speichern('material', () => api(`/api/services/${serviceId}/materials`, {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ material_id: materialId, quantity, waste_pct: wastePct }),
-      });
-      materialRows = (updated.materials || []).map(m => ({
-        serviceMaterialId: m.id, materialId: null, name: m.name, quantity: Number(m.quantity),
-        unit: m.unit, wastePct: Number(m.waste_raw || 0), purchasePrice: Number(m.purchase_price), priceBasis: Number(m.price_basis || 1),
-      }));
+      }), {anwenden: updated => {
+        materialRows = (updated.materials || []).map(m => ({
+          serviceMaterialId: m.id, materialId: null, name: m.name, quantity: Number(m.quantity),
+          unit: m.unit, wastePct: Number(m.waste_raw || 0), purchasePrice: Number(m.purchase_price), priceBasis: Number(m.price_basis || 1),
+        }));
+      }});
       el('msg').textContent = 'Material hinzugefügt.';
     } catch (e) { el('msg').textContent = 'Fehler: ' + e.message; return; }
   } else {
@@ -275,11 +278,12 @@ async function removeMaterialRow(index) {
   const row = materialRows[index];
   if (editing && row.serviceMaterialId) {
     try {
-      const updated = await api(`/api/services/${serviceId}/materials/${row.serviceMaterialId}`, {method:'DELETE'});
-      materialRows = (updated.materials || []).map(m => ({
-        serviceMaterialId: m.id, materialId: null, name: m.name, quantity: Number(m.quantity),
-        unit: m.unit, wastePct: Number(m.waste_raw || 0), purchasePrice: Number(m.purchase_price), priceBasis: Number(m.price_basis || 1),
-      }));
+      await speichern('material', () => api(`/api/services/${serviceId}/materials/${row.serviceMaterialId}`, {method:'DELETE'}), {anwenden: updated => {
+        materialRows = (updated.materials || []).map(m => ({
+          serviceMaterialId: m.id, materialId: null, name: m.name, quantity: Number(m.quantity),
+          unit: m.unit, wastePct: Number(m.waste_raw || 0), purchasePrice: Number(m.purchase_price), priceBasis: Number(m.price_basis || 1),
+        }));
+      }});
     } catch (e) { el('msg').textContent = 'Fehler: ' + e.message; return; }
   } else {
     materialRows.splice(index, 1);
@@ -359,8 +363,8 @@ async function save() {
 
   try {
     if (editing) {
-      await api(`/api/services/${serviceId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(basePayload)});
-      await api(`/api/services/${serviceId}/calculation`, {
+      await speichern('leistung', () => api(`/api/services/${serviceId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(basePayload)}));
+      await speichern('leistung', () => api(`/api/services/${serviceId}/calculation`, {
         method: 'PUT', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
           site_time_minutes: v('siteTime').replace(',', '.') || '0',
@@ -374,7 +378,7 @@ async function save() {
           risk_profit_pct_override: v('riskOverride') !== '' ? v('riskOverride').replace(',', '.') : null,
           manual_sale_price: manualPrice,
         }),
-      });
+      }));
       location.href = `/leistungskatalog?catalog_id=${currentService.catalog_id ?? ''}`;
     } else {
       const payload = {
@@ -392,7 +396,7 @@ async function save() {
         sale_price: manualPrice,
         materials: materialRows.map(r => ({ material_id: r.materialId, quantity: String(r.quantity), waste_pct: String(r.wastePct) })),
       };
-      await api('/api/services', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+      await speichern('leistung', () => api('/api/services', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}));
       location.href = `/leistungskatalog?catalog_id=${initialCatalogId ?? ''}`;
     }
   } catch (e) {

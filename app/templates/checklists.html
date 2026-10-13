@@ -70,6 +70,7 @@ td a{color:var(--accent);text-decoration:none;font-weight:650}
 </div>
 </div>
 {% include "_fehlertext.html" %}
+{% include "_speichern.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 // Abgelehnte Antworten lesbar über fehlerText() (_fehlertext.html, seit 1.8.38 auch hier).
@@ -84,14 +85,17 @@ async function load(){
   for(const [k,id] of [['status','fStatus'],['context','fContext'],['template_id','fTemplate']]){const v=document.getElementById(id).value;if(v)q.set(k,v)}
   st.textContent='Lädt …';st.className='status';
   try{
-    const rows=await api('/api/checklists?'+q);
-    document.getElementById('rows').innerHTML=rows.map(c=>`<tr>
-      <td><a href="/checklisten/${c.id}">${esc(c.template_label)}</a></td>
-      <td>${esc(CONTEXT_LABELS[c.context_type]||c.context_type)}: ${esc(c.context_label)}<div class="muted small">${esc(c.context_detail)}</div></td>
-      <td>${esc(fmt(c.created_at))}</td><td>${esc(c.created_by_name)}</td>
-      <td>${c.status==='entwurf'?'<span class="badge draft">Entwurf</span>':(c.status==='gegenstandslos'?'<span class="badge">Gegenstandslos</span>':'<span class="badge done">Abgeschlossen</span>')}</td></tr>`).join('')
-      ||'<tr><td colspan="5" class="empty">Keine Checklisten gefunden.</td></tr>';
-    st.innerHTML=onlyOpenRules?'Nur mit nicht angelegten Aufgaben · <a href="#" style="color:var(--accent)" onclick="onlyOpenRules=false;load();return false">alle zeigen</a>':'';
+    // Seit 1.8.95 über lesen() (_speichern.html), ebenso loadOpenRules(): eine spät ankommende, ältere Liste (Filter, Neuladen
+    // nach "Aufgaben anlegen") überschreibt nie eine neuere.
+    await lesen('checklisten',()=>api('/api/checklists?'+q),rows=>{
+      document.getElementById('rows').innerHTML=rows.map(c=>`<tr>
+        <td><a href="/checklisten/${c.id}">${esc(c.template_label)}</a></td>
+        <td>${esc(CONTEXT_LABELS[c.context_type]||c.context_type)}: ${esc(c.context_label)}<div class="muted small">${esc(c.context_detail)}</div></td>
+        <td>${esc(fmt(c.created_at))}</td><td>${esc(c.created_by_name)}</td>
+        <td>${c.status==='entwurf'?'<span class="badge draft">Entwurf</span>':(c.status==='gegenstandslos'?'<span class="badge">Gegenstandslos</span>':'<span class="badge done">Abgeschlossen</span>')}</td></tr>`).join('')
+        ||'<tr><td colspan="5" class="empty">Keine Checklisten gefunden.</td></tr>';
+      st.innerHTML=onlyOpenRules?'Nur mit nicht angelegten Aufgaben · <a href="#" style="color:var(--accent)" onclick="onlyOpenRules=false;load();return false">alle zeigen</a>':'';
+    });
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
@@ -99,11 +103,12 @@ async function load(){
 // entscheidung C) sind hier sichtbar und lassen sich gesammelt nachholen.
 let onlyOpenRules=false;
 async function loadOpenRules(){
-  const rows=await api('/api/checklists?open_rules=true').catch(()=>[]);
-  const card=document.getElementById('openRulesCard');
-  card.style.display=rows.length?'':'none';
-  document.getElementById('openRulesText').textContent=`${rows.length} ${rows.length===1?'Checkliste':'Checklisten'} mit nicht angelegten Aufgaben`;
-  if(!rows.length&&onlyOpenRules){onlyOpenRules=false;load()}
+  await lesen('offene-regeln',()=>api('/api/checklists?open_rules=true').catch(()=>[]),rows=>{
+    const card=document.getElementById('openRulesCard');
+    card.style.display=rows.length?'':'none';
+    document.getElementById('openRulesText').textContent=`${rows.length} ${rows.length===1?'Checkliste':'Checklisten'} mit nicht angelegten Aufgaben`;
+    if(!rows.length&&onlyOpenRules){onlyOpenRules=false;load()}
+  });
 }
 function showOpenRules(){onlyOpenRules=true;load()}
 async function runOpenRules(){
@@ -111,11 +116,11 @@ async function runOpenRules(){
   btn.disabled=true;st.className='status';st.textContent='Legt an …';
   try{
     // Regeln und (seit 1.8.38) Folgen der Zwecke -- beide legen Aufgaben an, beide idempotent.
-    const r=await api('/api/checklists/run-open-rules',{method:'POST'});
-    const f=await api('/api/checklists/run-open-follow-ups',{method:'POST'});
+    // Seit 1.8.95 über den Baustein: die Meldung erst, wenn die Karte neu geladen ist.
+    const r=await speichern('offene-regeln',()=>api('/api/checklists/run-open-rules',{method:'POST'}));
+    const f=await speichern('offene-regeln',()=>api('/api/checklists/run-open-follow-ups',{method:'POST'}),{neuLaden:loadOpenRules});
     const created=r.created+f.done;
     st.textContent=r.module_off||f.module_off?'Das Aufgabenmodul ist ausgeschaltet – bitte zuerst in den Einstellungen aktivieren.':`${created} ${created===1?'Aufgabe':'Aufgaben'} angelegt.`;
-    await loadOpenRules();
   }catch(e){st.className='status err';st.textContent=e.message}
   btn.disabled=false;
 }

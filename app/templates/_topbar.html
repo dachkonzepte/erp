@@ -124,6 +124,7 @@
     {% endif %}
   </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 (function(){
   var btn=document.getElementById('appTopbarAccountBtn');
@@ -144,7 +145,7 @@
   var logoutBtn=document.getElementById('appTopbarLogout');
   if(logoutBtn){
     logoutBtn.addEventListener('click',function(){
-      fetch('/api/auth/logout',{method:'POST'}).finally(function(){
+      speichern('abmelden',()=>fetch('/api/auth/logout',{method:'POST'})).finally(function(){
         location.href='/login?next='+encodeURIComponent(location.pathname);
       });
     });

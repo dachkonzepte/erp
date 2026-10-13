@@ -107,6 +107,7 @@
   <div class="acc-actions"><button id="accSaveBtn" onclick="saveAcceptance(this)">Abnahme speichern</button><button class="secondary" onclick="closeAcceptanceDialog()">Abbrechen</button></div>
   <div id="accDialogStatus" class="status"></div>
 </div></dialog>
+{% include "_speichern.html" %}
 <script>
 let acceptances=[],warrantyChanges=[],acceptanceOptions=null,warrantyPending=null;
 function accDate(s){if(!s)return'';const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}.${m[2]}.${m[1]}`:esc(s)}
@@ -115,25 +116,35 @@ function accSize(n){return n>=1048576?(n/1048576).toLocaleString('de-DE',{maximu
 // Seit 1.8.48: Prüfstatus neben jedem Gewährleistungsende (acceptance_warranty() liefert ihn mit).
 function accCheck(c){return !c?'':c.ok?`<span class="acc-hint">· Prüfung: ${esc(c.text)}</span>`:`<span class="acc-bad">⚠ Prüfung: ${esc(c.text)} – Ende nicht verlässlich</span>`}
 function accRadio(name){const x=document.querySelector(`#acceptanceDialog input[name="${name}"]:checked`);return x?x.value:null}
+// Seit 1.8.95 über den Baustein (_speichern.html): Gewährleistungshistorie, Abnahmen und ausstehende Protokolle je in ihrem
+// Bereich, der Auftrag in 'auftrag' (order.html, ladeAuftrag()); Status erst nach dem Neuladen.
 async function loadAcceptanceSection(){
-  [warrantyChanges,acceptances]=await Promise.all([api(`/api/orders/${orderId}/warranty-changes`).catch(()=>[]),api(`/api/orders/${orderId}/acceptances`).catch(e=>{document.getElementById('acceptanceList').textContent='Abnahmen konnten nicht geladen werden: '+e.message;return null})]);
-  renderWarranty();if(acceptances)renderAcceptances();
+  await Promise.all([
+    lesen('gewaehrleistung',()=>api(`/api/orders/${orderId}/warranty-changes`).catch(()=>[]),d=>{warrantyChanges=d;renderWarranty()}),
+    loadAcceptanceList(),
+  ]);
   loadProtocolPending();
   if(typeof loadDefects==='function')loadDefects();
 }
+async function accNeuLaden(){await ladeAuftrag(renderSync);await loadAcceptanceSection()}
 // Seit 1.8.63: Abnahmeprotokolle mit Unterschrift des Auftraggebers, aus der noch keine Abnahme entstanden ist.
 async function loadProtocolPending(){
   const box=document.getElementById('protocolPending');
-  let rows=[];try{rows=await api(`/api/orders/${orderId}/pending-protocol-acceptances`)}catch(e){box.innerHTML=`<div class="notice warning">Ausstehende Abnahmen aus Protokollen konnten nicht geladen werden: ${esc(e.message)}</div>`;return}
-  box.innerHTML=rows.map(r=>`<div class="notice warning" data-protocol-pending="${r.checklist_id}" style="margin:0 0 8px">⚠ <a href="${esc(r.url)}">${esc(r.label)} (Nr. ${r.checklist_id})</a>: unterschrieben vom Auftraggeber am ${accDateTime(r.signed_at_local)} – die Abnahme am Auftrag ist noch nicht angelegt.${r.problem?`<div class="small acc-bad" style="margin-top:4px">${esc(r.problem)}</div>`:''}<div style="margin-top:6px"><button class="secondary" onclick="runProtocolAcceptance(${r.checklist_id},this)">Abnahme jetzt anlegen</button> <span class="small" id="protocolPendingStatus${r.checklist_id}"></span></div></div>`).join('');
+  try{await lesen('protokoll-abnahmen',()=>api(`/api/orders/${orderId}/pending-protocol-acceptances`),rows=>{box.innerHTML=rowsHtml(rows)})}
+  catch(e){box.innerHTML=`<div class="notice warning">Ausstehende Abnahmen aus Protokollen konnten nicht geladen werden: ${esc(e.message)}</div>`}
+  function rowsHtml(rows){return rows.map(r=>`<div class="notice warning" data-protocol-pending="${r.checklist_id}" style="margin:0 0 8px">⚠ <a href="${esc(r.url)}">${esc(r.label)} (Nr. ${r.checklist_id})</a>: unterschrieben vom Auftraggeber am ${accDateTime(r.signed_at_local)} – die Abnahme am Auftrag ist noch nicht angelegt.${r.problem?`<div class="small acc-bad" style="margin-top:4px">${esc(r.problem)}</div>`:''}<div style="margin-top:6px"><button class="secondary" onclick="runProtocolAcceptance(${r.checklist_id},this)">Abnahme jetzt anlegen</button> <span class="small" id="protocolPendingStatus${r.checklist_id}"></span></div></div>`).join('')}
 }
 async function runProtocolAcceptance(checklistId,btn){
   const st=document.getElementById('protocolPendingStatus'+checklistId);btn.disabled=true;st.textContent='Legt an …';
-  try{await api(`/api/checklists/${checklistId}/acceptance-from-protocol`,{method:'POST'});st.textContent='Abnahme angelegt.';order=await api('/api/orders/'+orderId);renderSync();await loadAcceptanceSection()}
+  try{
+    await speichern('abnahmen',()=>api(`/api/checklists/${checklistId}/acceptance-from-protocol`,{method:'POST'}),{neuLaden:accNeuLaden});
+    // Die Zeile des Protokolls verschwindet beim Neuladen -- der Text steht dann am Abschnitt.
+    const s=document.getElementById('protocolPendingStatus'+checklistId)||document.getElementById('acceptanceStatus');if(s)s.textContent='Abnahme angelegt.';
+  }
   catch(e){st.textContent='Nicht angelegt: '+e.message;btn.disabled=false}
 }
 // Seit 1.8.49: nur die Abnahmen neu laden (Stand der Mängel nach Erfassen/Verwerfen eines Mangels).
-async function loadAcceptanceList(){try{acceptances=await api(`/api/orders/${orderId}/acceptances`);renderAcceptances()}catch(e){}}
+async function loadAcceptanceList(){try{await lesen('abnahmen',()=>api(`/api/orders/${orderId}/acceptances`),d=>{acceptances=d;renderAcceptances()})}catch(e){document.getElementById('acceptanceList').textContent='Abnahmen konnten nicht geladen werden: '+e.message}}
 function renderWarranty(){
   const set=order.warranty_set,last=warrantyChanges[0];
   document.getElementById('warrantyCurrent').innerHTML=`<div>Leistungsart: <b>${esc(order.work_kind_label||'nicht festgelegt')}</b></div><div>Gewährleistungsdauer: <b>${esc(order.warranty_text)}</b>${set&&last?` <span class="muted">(${last.follows_proposal?'Vorschlag übernommen':'abweichend festgelegt'} am ${accDateTime(last.changed_at)} von ${esc(last.changed_by_name)})</span>`:''}</div>`;
@@ -157,7 +168,7 @@ function renderWarrantyProposal(){
 }
 async function putWarranty(body,okText){
   const st=document.getElementById('warrantyStatus');
-  try{order=await api(`/api/orders/${orderId}/warranty`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});st.textContent=okText;cancelWarranty();await loadAcceptanceSection();if(typeof loadContract==='function')loadContract();return true}catch(e){st.textContent='Fehler: '+e.message;return false}
+  try{await speichern('auftrag',()=>api(`/api/orders/${orderId}/warranty`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{anwenden:d=>{order=d},neuLaden:loadAcceptanceSection});st.textContent=okText;cancelWarranty();if(typeof loadContract==='function')loadContract();return true}catch(e){st.textContent='Fehler: '+e.message;return false}
 }
 // Seit 1.8.47: jede Festlegung fragt erst die Vorschau ab. Besteht schon eine Abnahme, zeigt die Karte vor dem Speichern,
 // welche Gewährleistungsenden sich verschieben (bzw. entstehen), mit Begründung -- Pflicht, wenn der Server es verlangt.
@@ -228,7 +239,7 @@ async function discardAcceptance(id,btn){
   const st=document.getElementById('acceptanceStatus'),reason=document.getElementById('accDiscardReason'+id).value.trim();
   if(!reason){st.textContent='Bitte begründen, warum die Abnahme verworfen wird.';return}
   btn.disabled=true;
-  try{await api(`/api/order-acceptances/${id}/discard`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});st.textContent='Abnahme verworfen.';order=await api('/api/orders/'+orderId);renderSync();await loadAcceptanceSection()}catch(e){st.textContent='Fehler: '+e.message;btn.disabled=false}
+  try{await speichern('abnahmen',()=>api(`/api/order-acceptances/${id}/discard`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{neuLaden:accNeuLaden});st.textContent='Abnahme verworfen.'}catch(e){st.textContent='Fehler: '+e.message;btn.disabled=false}
 }
 async function openAcceptanceDialog(){
   const st=document.getElementById('acceptanceStatus');
@@ -273,10 +284,9 @@ async function saveAcceptance(btn){
   const form=new FormData();form.append('data',JSON.stringify(data));[...document.getElementById('accFiles').files].forEach(f=>form.append('files',f));
   btn.disabled=true;st.textContent='Wird gespeichert …';
   try{
-    const r=await fetch(`/api/orders/${orderId}/acceptances`,{method:'POST',body:form});
+    const r=await speichern('abnahmen',()=>fetch(`/api/orders/${orderId}/acceptances`,{method:'POST',body:form}),{neuLaden:accNeuLaden});
     if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,FELDNAMEN));
     closeAcceptanceDialog();document.getElementById('acceptanceStatus').textContent='Abnahme gespeichert.';
-    order=await api('/api/orders/'+orderId);renderSync();await loadAcceptanceSection();
   }catch(e){st.textContent='Fehler: '+e.message}finally{btn.disabled=false}
 }
 </script>

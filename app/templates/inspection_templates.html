@@ -81,6 +81,7 @@ tr:last-child td{border-bottom:none}
 </main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
@@ -109,11 +110,10 @@ function renderDefaultRows(){
 async function saveDefault(roofType,templateId){
   const st=document.getElementById('listStatus');
   try{
-    roofTypeDefaults=await api(`/api/roof-type-template-defaults/${encodeURIComponent(roofType)}`,{
+    await speichern('standardvorlagen',()=>api(`/api/roof-type-template-defaults/${encodeURIComponent(roofType)}`,{
       method:'PUT',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({inspection_template_id:templateId?Number(templateId):null}),
-    });
-    renderDefaultRows();
+    }),{anwenden:d=>{roofTypeDefaults=d;renderDefaultRows()}});
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
@@ -134,7 +134,7 @@ async function saveTemplate(){
   if(!label){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben.';return}
   const payload={label,roof_type:document.getElementById('editRoofType').value||null};
   try{
-    const result=await api('/api/inspection-templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const result=await speichern('vorlage-anlegen',()=>api('/api/inspection-templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
     location.href='/inspection-templates/'+result.id;
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -142,8 +142,7 @@ async function saveTemplate(){
 async function toggleArchived(id,archive){
   const st=document.getElementById('listStatus');
   try{
-    await api(`/api/inspection-templates/${id}/${archive?'archive':'unarchive'}`,{method:'POST'});
-    await loadTemplates();
+    await speichern('vorlagen',()=>api(`/api/inspection-templates/${id}/${archive?'archive':'unarchive'}`,{method:'POST'}),{neuLaden:loadTemplates});
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
@@ -170,8 +169,9 @@ async function loadTemplates(){
   const st=document.getElementById('listStatus');
   st.className='status';st.textContent='Lädt …';
   try{
-    templates=await api('/api/inspection-templates?include_archived=true');
-    renderRows();
+    // Seit 1.8.95 über lesen() (_speichern.html), Bereich 'vorlagen' wie Archivieren (die Standardvorlagen je Dachtyp:
+    // 'standardvorlagen', dort trägt die Antwort des Speicherns alle).
+    await lesen('vorlagen',()=>api('/api/inspection-templates?include_archived=true'),d=>{templates=d;renderRows()});
     st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }

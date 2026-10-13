@@ -134,6 +134,7 @@ tr:last-child td{border-bottom:none}
 </main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
@@ -247,11 +248,12 @@ async function saveCost(){
     active:document.getElementById('editActive').value==='1',
     notes:document.getElementById('editNotes').value.trim()||null,
   };
+  const body=JSON.stringify(payload),editId=currentEditId;
   try{
-    if(currentEditId){
-      await api(`/api/recurring-costs/${currentEditId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(editId){
+      await speichern('kostenposten',()=>api(`/api/recurring-costs/${editId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}));
     }else{
-      const created=await api('/api/recurring-costs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const created=await speichern('kostenposten',()=>api('/api/recurring-costs',{method:'POST',headers:{'Content-Type':'application/json'},body}));
       currentEditId=created.id;
     }
     closeEditor();
@@ -268,8 +270,9 @@ async function toggleActive(id){
     vendor:c.vendor,contract_end_date:c.contract_end_date,notice_period_months:c.notice_period_months,
     asset_id:c.asset_id,active:!c.active,notes:c.notes,
   };
+  const body=JSON.stringify(payload);
   try{
-    await api(`/api/recurring-costs/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    await speichern('kostenposten',()=>api(`/api/recurring-costs/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}));
     await loadAll();
   }catch(e){document.getElementById('listStatus').className='status err';document.getElementById('listStatus').textContent='Fehler: '+e.message}
 }
@@ -277,7 +280,7 @@ async function toggleActive(id){
 async function deleteCostNow(id){
   if(!confirm('Diesen Kostenposten wirklich löschen?'))return;
   try{
-    await api(`/api/recurring-costs/${id}`,{method:'DELETE'});
+    await speichern('kostenposten',()=>api(`/api/recurring-costs/${id}`,{method:'DELETE'}));
     await loadAll();
   }catch(e){document.getElementById('listStatus').className='status err';document.getElementById('listStatus').textContent='Fehler: '+e.message}
 }
@@ -309,10 +312,10 @@ async function submitDocument(){
   form.append('file',file);
   const notes=document.getElementById('docNotes').value.trim();
   if(notes)form.append('notes',notes);
+  const id=currentEditId;
   try{
-    await fetch(`/api/recurring-costs/${currentEditId}/documents`,{method:'POST',body:form}).then(async r=>{
-      if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
-    });
+    const r=await speichern('kostenposten',()=>fetch(`/api/recurring-costs/${id}/documents`,{method:'POST',body:form}));
+    if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
     document.getElementById('docFile').value='';
     document.getElementById('docNotes').value='';
     st.textContent='';
@@ -324,7 +327,7 @@ async function submitDocument(){
 async function deleteDocumentNow(id){
   if(!confirm('Dieses Dokument wirklich löschen?'))return;
   try{
-    await api(`/api/recurring-cost-documents/${id}`,{method:'DELETE'});
+    await speichern('kostenposten',()=>api(`/api/recurring-cost-documents/${id}`,{method:'DELETE'}));
     await loadAll();
     if(currentEditId)openEditEditor(currentEditId);
   }catch(e){document.getElementById('docStatus').className='status err';document.getElementById('docStatus').textContent='Fehler: '+e.message}
@@ -374,16 +377,17 @@ function cancellationRow(c){
 async function renderOverview(){
   const container=document.getElementById('cancellationsOverview');
   try{
-    const summary=await api('/api/recurring-costs/overview');
-    document.getElementById('mMonthly').textContent=fmtMoney(summary.monthly_total);
-    document.getElementById('mAnnual').textContent=fmtMoney(summary.annual_total);
-    document.getElementById('mCount').textContent=summary.cost_count;
-    document.getElementById('mFixed').textContent=fmtMoney(summary.annual_fixed_from_costs);
-    document.getElementById('mUsageDependent').textContent=fmtMoney(summary.annual_usage_dependent_from_costs);
-    document.getElementById('mNone').textContent=fmtMoney(summary.annual_none_from_costs);
-    const rows=[...summary.cancellations_overdue,...summary.cancellations_due];
-    if(!rows.length){container.innerHTML='<div class="empty">Keine fälligen oder überfälligen Kündigungsfristen.</div>';return}
-    container.innerHTML=`<div class="table-scroll"><table><thead><tr><th>Kostenposten</th><th>Kategorie</th><th>Kündigungsfrist</th><th>Status</th></tr></thead><tbody>${rows.map(cancellationRow).join('')}</tbody></table></div>`;
+    await lesen('uebersicht',()=>api('/api/recurring-costs/overview'),summary=>{
+      document.getElementById('mMonthly').textContent=fmtMoney(summary.monthly_total);
+      document.getElementById('mAnnual').textContent=fmtMoney(summary.annual_total);
+      document.getElementById('mCount').textContent=summary.cost_count;
+      document.getElementById('mFixed').textContent=fmtMoney(summary.annual_fixed_from_costs);
+      document.getElementById('mUsageDependent').textContent=fmtMoney(summary.annual_usage_dependent_from_costs);
+      document.getElementById('mNone').textContent=fmtMoney(summary.annual_none_from_costs);
+      const rows=[...summary.cancellations_overdue,...summary.cancellations_due];
+      if(!rows.length){container.innerHTML='<div class="empty">Keine fälligen oder überfälligen Kündigungsfristen.</div>';return}
+      container.innerHTML=`<div class="table-scroll"><table><thead><tr><th>Kostenposten</th><th>Kategorie</th><th>Kündigungsfrist</th><th>Status</th></tr></thead><tbody>${rows.map(cancellationRow).join('')}</tbody></table></div>`;
+    });
   }catch(e){container.innerHTML='<div class="empty">Fehler: '+esc(e.message)+'</div>'}
 }
 
@@ -391,8 +395,9 @@ async function loadAll(){
   const st=document.getElementById('listStatus');
   st.className='status';st.textContent='Lädt …';
   try{
-    costs=await api('/api/recurring-costs?include_inactive=true');
-    renderRows();
+    // Seit 1.8.95 über lesen() (_speichern.html), ebenso renderOverview(): eine spät ankommende, ältere Antwort überschreibt nie
+    // eine neuere.
+    await lesen('kostenposten',()=>api('/api/recurring-costs?include_inactive=true'),d=>{costs=d;renderRows()});
     st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
   await renderOverview();
@@ -413,7 +418,7 @@ async function init(){
   categories=categoryGroup.options||[];
   documentTypes=documentTypeGroup.options||[];
   assets=assetList;
-  await api('/api/recurring-costs/check-due',{method:'POST'}).catch(()=>null);
+  await speichern('kostenposten',()=>api('/api/recurring-costs/check-due',{method:'POST'})).catch(()=>null);
   await loadAll();
 }
 init();

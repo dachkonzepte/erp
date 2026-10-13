@@ -33,6 +33,7 @@ a.cl-row:hover{background:var(--soft)}
 .cl-focus .cl-open{font-size:13.5px;margin-top:8px}
 .cl-focus .cl-open a{color:var(--accent);font-weight:650}
 </style>
+{% include "_speichern.html" %}
 <script>
 if(!window.renderChecklistSection){
   window.newClientUuid=window.newClientUuid||function(){
@@ -93,7 +94,7 @@ if(!window.renderChecklistSection){
           btn.disabled=true;
           var body={template_id:Number(btn.dataset.templateId),context_type:context,client_uuid:window.newClientUuid()};
           if(param)body[param]=contextId;
-          fetch('/api/checklists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){
+          speichern('checkliste-anlegen',()=>fetch('/api/checklists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).then(function(r){
             return r.json().catch(function(){return null}).then(function(d){if(!r.ok)throw new Error(errText(d,r.status));return d});
           }).then(function(c){location.href='/checklisten/'+c.id}).catch(function(err){
             btn.disabled=false;var e=el.querySelector('.cl-error');e.style.display='';e.textContent='Fehler: '+err.message;

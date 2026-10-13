@@ -102,6 +102,7 @@ a{color:var(--accent)}
 </main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 let currentStatus=null;
 async function api(u,o={}){const r=await fetch(u,o);let d={};try{d=await r.json()}catch(_){}if(!r.ok)throw Object.assign(Error(d.detail||r.statusText),{detail:d.detail});return d}
@@ -112,7 +113,8 @@ function hideAll(){['notAuthed','twoFactorSetupCard','recoveryCodesCard','twoFac
 async function load(){
   hide('loadingMsg');
   try{
-    currentStatus=await api('/api/auth/status');
+    // Seit 1.8.95 über lesen() (_speichern.html): eine ältere Antwort zeichnet nicht über eine neuere.
+    if(!await lesen('konto',()=>api('/api/auth/status'),d=>{currentStatus=d}))return;
   }catch(e){
     hideAll();show('notAuthed');return;
   }
@@ -140,17 +142,19 @@ async function load(){
 async function startSetup(){
   const st=document.getElementById('setupStatus');st.className='status';st.textContent='';
   try{
-    const data=await api('/api/account/2fa/setup/start',{method:'POST'});
-    document.getElementById('qrImage').src=data.qr_code_data_uri;
-    document.getElementById('secretKey').textContent=data.secret;
-    document.getElementById('setupCode').value='';
+    await speichern('einrichtung',()=>api('/api/account/2fa/setup/start',{method:'POST'}),{anwenden:data=>{
+      document.getElementById('qrImage').src=data.qr_code_data_uri;
+      document.getElementById('secretKey').textContent=data.secret;
+      document.getElementById('setupCode').value='';
+    }});
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
 async function confirmSetup(){
   const st=document.getElementById('setupStatus');st.className='status';st.textContent='';
   try{
-    const data=await api('/api/account/2fa/setup/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:document.getElementById('setupCode').value.trim()})});
+    const code=document.getElementById('setupCode').value.trim();
+    const data=await speichern('einrichtung',()=>api('/api/account/2fa/setup/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code})}));
     hide('twoFactorSetupCard');
     document.getElementById('recoveryCodesList').innerHTML=data.recovery_codes.map(c=>`<div>${c}</div>`).join('');
     show('recoveryCodesCard');
@@ -168,7 +172,8 @@ async function verifyCode(){
   // /account ist dort das tatsächliche Ziel, kein Zwischenschritt.
   const st=document.getElementById('verifyStatus');st.className='status';st.textContent='';
   try{
-    await api('/api/account/2fa/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:document.getElementById('verifyCode').value.trim(),trust_device:document.getElementById('trustDevice').checked})});
+    const body=JSON.stringify({code:document.getElementById('verifyCode').value.trim(),trust_device:document.getElementById('trustDevice').checked});
+    await speichern('bestaetigen',()=>api('/api/account/2fa/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:body}));
     location.href=new URLSearchParams(location.search).get('next')||'/';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -179,7 +184,7 @@ async function revokeAllTrustedDevices(){
   if(!confirm('Alle vertrauten Geräte abmelden? Bei der nächsten Anmeldung wird auf jedem Gerät wieder der Code verlangt.'))return;
   const st=document.getElementById('trustedDevicesStatus');st.className='status';st.textContent='';
   try{
-    await api('/api/account/trusted-devices/revoke-all',{method:'POST'});
+    await speichern('geraete',()=>api('/api/account/trusted-devices/revoke-all',{method:'POST'}));
     st.className='status ok';st.textContent='Alle vertrauten Geräte wurden abgemeldet.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -189,7 +194,8 @@ async function changePassword(){
   const newPw=document.getElementById('newPassword').value;
   if(newPw!==document.getElementById('newPasswordRepeat').value){st.className='status err';st.textContent='Die beiden neuen Passwörter stimmen nicht überein.';return}
   try{
-    await api('/api/account/change-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({current_password:document.getElementById('currentPassword').value,new_password:newPw})});
+    const body=JSON.stringify({current_password:document.getElementById('currentPassword').value,new_password:newPw});
+    await speichern('passwort',()=>api('/api/account/change-password',{method:'POST',headers:{'Content-Type':'application/json'},body:body}));
     st.className='status ok';st.textContent='Passwort geändert.';
     ['currentPassword','newPassword','newPasswordRepeat'].forEach(id=>document.getElementById(id).value='');
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}

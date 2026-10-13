@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.94** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.95** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -674,6 +674,17 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     auch wenn es viele sind; die ausführliche Fassung bleibt im Archiv. Was noch nicht bestätigt ist, bleibt so lange in dieser Form
     vorgelegt. Anlass: der Bericht zu R4c nannte nur eine Auswahl, die Festlegungen 1.8.87–1.8.90 mussten eigens angefordert werden.
 
+29. **Jedes Speichern per fetch läuft über den Baustein `app/templates/_speichern.html`, seit 1.8.95.** Schreibende Anfrage (Methode
+    ungleich GET, auch Löschen, Versand, Anmelden): `await speichern('<bereich>', ()=>api(url,{method:…}), {anwenden | neuLaden})` -- der
+    Pfeil enthält genau die eine Anfrage; `speichern()` baut sie sofort (Werte vom Klick), sendet je Bereich nacheinander und kehrt erst
+    zurück, wenn die Antwort angewandt bzw. über `lesen(bereich, anfrage, anwenden)` neu geladen ist. Bereich = was eine Antwort ersetzt,
+    je Bereich eine laufende Nummer: eine Antwort, die älter ist als eine schon angewandte, wird verworfen; Lesen wartet auf laufendes
+    Speichern. Erfolgstexte ("Gespeichert.") stehen hinter `await speichern(…)`. `tests/test_v398_speichern_baustein.py` prüft jede
+    Vorlage über einen Scanner (`tests/vorlagen_js.py`): Schreiben nur über `speichern()`, danach nur `lesen()`/`speichern()` (transitiv über
+    die Funktionen der Seite), "Gespeichert" nur danach, einbinden wer nutzt; dazu jedes Seitenskript in node auf Syntax. Klicktest mit
+    zurückgehaltener Antwort: `scripts/klicktest_veraltete_antworten.py` (`Tab.zurueckhalten()`). Details:
+    `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.95".
+
 ## Fachbegriffe & Domänenmodell
 
 - **"Vorgang"** (in normalem Gespräch) = **Projekt** (`Project`) – wurde in der Sitzung explizit
@@ -723,7 +734,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   der Endrechnung "Stand <Tag>" (`payment_note()`: je abgezogener Rechnung noch offen samt Einbehalt, Zahlbetrag; beim Festschreiben an
   den Abzügen eingefroren, nur Hinweis -- Betrag der Rechnung bleibt der Rechnungsbetrag); ein **Auftrag nach Aufwand** (Auftragssumme
   0 €, `effort_only()`) schließt mit einer abschließenden Rechnung aus Aufwand ab (`Invoice.closes_order`, `closing_invoices()`:
-  vollständig abgerechnet und gesperrt wie nach der Schlussrechnung), eine Schlussrechnung gibt es dort nicht.
+  vollständig abgerechnet und gesperrt wie nach der Schlussrechnung), eine Schlussrechnung gibt es dort nicht. Seit 1.8.95 lauten über
+  0 € oder weniger nur ein Storno und eine Endrechnung mit Abzügen; jede andere Rechnung (auch eine abschließende aus Aufwand und eine
+  Schlussrechnung ohne Abzüge) muss über 0 € liegen, sonst 409 beim Festschreiben (`amount_block_reason()`, nach der Neuberechnung unter
+  der Sperre).
 - **Zahlung** (`Payment`, seit 1.8.78, Zahlungsstufe Z1, `app/payments.py`): Zahlungseingang eines Kunden (Eingangsdatum, Betrag,
   Notiz), zugeordnet über `PaymentAllocation` (Art `zahlung`, Abzüge `skonto`/`einbehalt`) auf festgeschriebene Rechnungen desselben
   Kunden (seit 1.8.79 der an der Rechnung festgehaltene); der Rest bleibt am Kunden (Kundenakte). Je Rechnung abgeleitet, nie gespeichert (`payment_state()`):
@@ -1081,7 +1095,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Nacharbeiten R4c ab 1.8.91: Finanzen und Dashboard zählen je Auftrag den Zahlbetrag, "enthalten in Schlussrechnung …"; seit 1.8.92
   Schlusstext bei Erstattung aus den Einstellungen; seit 1.8.93 Guthaben des Kunden aus Rest und Überzahlung, eine Erstattung für
   beides -- Nacharbeiten vollständig; vor dem Abnahmetest 1.8.94: Bezahlt abzüglich Erstattungen, Zahlbetrag 0 €, Zurücknehmen mit
-  Grund, enthaltene Rechnungen gruppiert, Klicktest-Helfer „neu geladen“)
+  Grund, enthaltene Rechnungen gruppiert, Klicktest-Helfer „neu geladen“; seit 1.8.95 Baustein gegen veraltete Antworten
+  (`_speichern.html`, Regel 29) in allen Vorlagen, Rechnungen über 0 € oder weniger nur als Storno oder Endrechnung mit Abzügen)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1397,6 +1412,11 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   den Zeitraum in der Vorbereitung eintragen (der angehaltene Commit soll beim Festschreiben liegen). Die Pflicht selbst prüft
   `tests/test_v377_leistungszeitraum.py` mit `finalize_and_send_invoice()`.
 
+- **Seitenskript in node ausführen** (seit 1.8.95): die Seiten speichern über `speichern()` -- eine Testseite aus Attrappe und
+  Seitenskript braucht `_speichern.html` dazu (Vorbild `tests/test_v334_auswahl_restfaelle.py::seite()`), sonst endet jedes Speichern mit
+  "speichern is not defined". Ein Test, der den Rumpf einer Speicherfunktion wörtlich liest (`tests/test_v329_teil_updates.py::ui_keys`),
+  findet `body:JSON.stringify(` im Pfeil innerhalb von `speichern()`.
+
 - **Feste Uhr statt Tageszeit** (seit 1.8.36): ein Test, dessen Ergebnis von der Uhrzeit abhängt (z. B. Monteur
   an `/api/field-view/today`, ab 19:00 "Feierabend" 401), nimmt die Fixture `feste_uhr` bzw. in einer Modul-Fixture
   `with uhr_festhalten():` (`tests/uhr.py`, laufende Uhr ab heute 10:00 Europe/Berlin über `app.berlin_time._utc_now`).
@@ -1579,6 +1599,11 @@ zuordnen“, Zahlungsdialog gruppiert und umverteilt gebucht, Zahlbetrag 0 € m
 ihn vor dem Neuladen --, sondern `await tab.warte_auf_neu_geladene_liste("…click()", "#liste")` (wartet, bis keine Anfrage der Seite
 mehr unterwegs und die Liste neu gezeichnet ist; ohne Aktion nach `oeffnen()`, bevor geprüft wird, dass etwas NICHT erscheint);
 `tests/test_v397_klicktest_helfer.py`. Ruft der Test die async-Funktion der Seite direkt auf, wartet `tab.js()` ihr Ende schon ab.
+**Antwort zurückhalten** (seit 1.8.95): `await tab.zurueckhalten(r"/api/…$", "GET")` hält die nächste passende Antwort der Seite zurück
+(der Server hat sie bearbeitet), `await tab.freigeben()` gibt sie frei, `art="anfrage"` hält die Anfrage selbst; dazu `warte_bis_gehalten()`,
+`warte_auf_ruhe()` (Ruhe außer den zurückgehaltenen). Eine solche Aktion nie über `tab.js()` abwarten (`void f()` statt `f()`), sonst
+wartet der Test auf die zurückgehaltene Antwort. Vorlage `scripts/klicktest_veraltete_antworten.py` (Checkliste, Abnahme, Mahnung,
+Einstellungen), `tests/test_v398_klicktest_rueckhalt.py`.
 Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,

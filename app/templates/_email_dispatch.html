@@ -1,3 +1,4 @@
+{% include "_speichern.html" %}
 <script>
 /* Geteilter Helfer (seit 1.8.17) für den E-Mail-Versand von Angebot, Auftrag, Rechnung, Mahnung.
    Jeder Versandauftrag trägt einen Schlüssel (dispatch_key); der Server sendet denselben Schlüssel
@@ -54,7 +55,8 @@ async function postEmailDispatch(slot, url, payload, button) {
   if (button) button.disabled = true;
   let r;
   try {
-    r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...payload, dispatch_key: key})});
+    // Seit 1.8.95 über den Baustein (_speichern.html): je Platz nacheinander; neu lädt die Seite selbst danach.
+    r = await speichern('versand-' + slot, () => fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...payload, dispatch_key: key})}));
   } catch (e) {
     throw Error('Keine Antwort vom Server – ob die Mail hinausging, ist unklar. Erneut klicken fragt mit demselben Versandauftrag nach und sendet nicht doppelt.');
   } finally {
@@ -182,7 +184,9 @@ async function saveDispatchOutcome(id, slot) {
   msg.textContent = 'speichere …';
   let r;
   try {
-    r = await fetch(`/api/email-dispatches/${form.dataset.dispatchId}/outcome`, {method: 'POST', body: data});
+    // Seit 1.8.95 über den Baustein: neu geladen wird erst nach der Antwort, über lesen() (renderDispatchHistory bzw. onChange).
+    r = await speichern('versandverlauf-' + slot, () => fetch(`/api/email-dispatches/${form.dataset.dispatchId}/outcome`, {method: 'POST', body: data}),
+                        {neuLaden: () => _dhOutcomeDone[slot] && _dhOutcomeDone[slot]()});
   } catch (e) {
     msg.textContent = 'Keine Antwort vom Server – bitte neu laden und prüfen, ob es vermerkt ist.';
     button.disabled = false;
@@ -192,9 +196,7 @@ async function saveDispatchOutcome(id, slot) {
     const d = await r.json().catch(() => ({}));
     msg.textContent = 'Fehler: ' + (typeof d.detail === 'string' ? d.detail : `Eingabe unvollständig oder ungültig (${r.status}).`);
     button.disabled = false;
-    return;
   }
-  if (_dhOutcomeDone[slot]) await _dhOutcomeDone[slot]();
 }
 function _dhRow(d, containerId, canRecord) {
   const when = d.manual
@@ -229,21 +231,31 @@ function _dhRow(d, containerId, canRecord) {
   return `<div class="dh-row" data-dispatch-row="${d.id}"><div>${when}</div><div><b>${_dhEsc(d.channel_label)}</b>${version}${to}<div class="dh-muted">${_dhEsc(d.created_by_name)}</div>${extra}</div>`
     + `<div class="dh-end">${pill}<div class="dh-links">${links}</div></div></div>`;
 }
+async function _dhJson(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw Error((await r.json().catch(() => ({}))).detail || r.statusText);
+  return r.json();
+}
+/* Seit 1.8.95 über lesen() (_speichern.html): je Container ein Bereich -- ein spät ankommender, älterer Verlauf überschreibt nie
+   einen neueren (z. B. nach "Zustellung nachtragen"). */
 async function renderDispatchHistory(containerId, type, id, opts) {
   const el = document.getElementById(containerId);
   if (!el) return;
   if (opts) _dhOpts[containerId] = opts;
-  const o = _dhOpts[containerId] || {};
   el.classList.add('dh');
-  let data;
   try {
-    const r = await fetch(`/api/email-dispatches?document_type=${encodeURIComponent(type)}&document_id=${id}&limit=100`);
-    if (!r.ok) throw Error((await r.json().catch(() => ({}))).detail || r.statusText);
-    data = await r.json();
+    await lesen('versandverlauf-' + containerId,
+                () => _dhJson(`/api/email-dispatches?document_type=${encodeURIComponent(type)}&document_id=${id}&limit=100`),
+                data => _dhZeichnen(containerId, type, id, data));
   } catch (e) {
     el.innerHTML = `<div class="dh-muted">Versandverlauf nicht geladen: ${_dhEsc(e.message)}</div>`;
-    return;
   }
+}
+function _dhZeichnen(containerId, type, id, data) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const o = _dhOpts[containerId] || {};
+  el.classList.add('dh');
   const items = data.items;
   let hint = '';
   if (type === 'rechnung' || type === 'mahnung') {
@@ -324,7 +336,9 @@ async function saveManualDelivery(containerId, type, id) {
   msg.textContent = 'speichere …';
   let r;
   try {
-    r = await fetch('/api/email-dispatches/manual', {method: 'POST', body: form});
+    // Seit 1.8.95 über den Baustein: der Verlauf lädt erst nach der Antwort neu, über lesen().
+    r = await speichern('versandverlauf-' + containerId, () => fetch('/api/email-dispatches/manual', {method: 'POST', body: form}),
+                        {neuLaden: () => renderDispatchHistory(containerId, type, id)});
   } catch (e) {
     msg.textContent = 'Keine Antwort vom Server – erneut klicken trägt nicht doppelt ein.';
     button.disabled = false;
@@ -335,8 +349,6 @@ async function saveManualDelivery(containerId, type, id) {
     const d = r.status < 500 ? await r.json().catch(() => ({})) : {};
     msg.textContent = 'Fehler: ' + (typeof d.detail === 'string' ? d.detail : (r.status >= 500 ? 'Serverfehler – bitte im Versandprotokoll prüfen; erneut klicken trägt nicht doppelt ein.' : 'Eingabe unvollständig oder ungültig.'));
     button.disabled = false;
-    return;
   }
-  await renderDispatchHistory(containerId, type, id);
 }
 </script>

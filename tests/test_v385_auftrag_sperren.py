@@ -15,7 +15,7 @@ import pytest
 from sqlalchemy import select
 
 from app.invoices import (
-    create_abschlag_leistungsstand, create_abschlag_pauschal, create_invoice_from_time_entries, create_schlussrechnung,
+    add_invoice_item, create_abschlag_leistungsstand, create_abschlag_pauschal, create_invoice_from_time_entries, create_schlussrechnung,
     create_storno_draft, finalize_and_send_invoice, update_invoice_item,
 )
 from app.models import Invoice, Order, OrderItem, OrderSection, Quote, TaxKey
@@ -138,8 +138,12 @@ def test_the_tax_key_is_locked_from_the_first_valid_invoice_of_any_kind(art):
         rechnung = festschreiben(db, create_abschlag_pauschal(db, order, lump_sum_net=Decimal("1000")))
     else:
         from types import SimpleNamespace
-        rechnung = festschreiben(db, create_invoice_from_time_entries(
-            db, order, [], [SimpleNamespace(material_id=None, description="Blech", unit="Stk.", quantity=Decimal("1"))]))
+        rechnung = create_invoice_from_time_entries(
+            db, order, [], [SimpleNamespace(material_id=None, description="Blech", unit="Stk.", quantity=Decimal("1"))])
+        # Seit 1.8.95 muss eine Rechnung aus Aufwand über 0 € liegen (Erwartung geändert): eine Position mit Betrag dazu.
+        add_invoice_item(db, rechnung, short_text="Reparatur", long_text="", unit="Std.", unit_price=Decimal("100"),
+                         ist_quantity=Decimal("1"))
+        rechnung = festschreiben(db, db.get(Invoice, rechnung.id))
     update_order_tax_key(db, load_order(db, order.id), privat.id)  # derselbe Schlüssel: geht
     with pytest.raises(OrderLocked) as exc:
         update_order_tax_key(db, load_order(db, order.id), solar.id)
@@ -281,6 +285,9 @@ def test_the_quote_sync_is_blocked_after_a_closing_invoice_without_positions():
     aufwand = create_invoice_from_time_entries(
         db, load_order(db, order.id), [], [SimpleNamespace(material_id=None, description="Blech", unit="Stk", quantity=Decimal("1"))])
     update_invoice_header(db, aufwand, closes_order=True)
+    # Seit 1.8.95 muss auch die abschließende Rechnung aus Aufwand über 0 € liegen (Erwartung geändert).
+    add_invoice_item(db, aufwand, short_text="Reparatur", long_text="", unit="Std.", unit_price=Decimal("100"),
+                     ist_quantity=Decimal("1"))
     aufwand = festschreiben(db, db.get(Invoice, aufwand.id))
     quote = db.get(Quote, order.source_quote_id)
     quote.title = "Geändert"

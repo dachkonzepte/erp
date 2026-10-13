@@ -42,6 +42,7 @@
 {% set current_user = request.state.erp_user %}
 {% set path = request.url.path %}
 {% include "_debounce.html" %}
+{% include "_speichern.html" %}
 <style>
 .mobile-header-wrap{position:sticky;top:0;z-index:30}
 .mobile-header{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border-bottom:1px solid var(--line);padding:10px 14px}
@@ -92,7 +93,7 @@
   var logoutBtn=document.getElementById('mobileHeaderLogout');
   if(logoutBtn){
     logoutBtn.addEventListener('click',function(){
-      fetch('/api/auth/logout',{method:'POST'}).finally(function(){
+      speichern('abmelden',()=>fetch('/api/auth/logout',{method:'POST'})).finally(function(){
         location.href='/login?next='+encodeURIComponent(location.pathname);
       });
     });

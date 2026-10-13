@@ -155,5 +155,6 @@ def test_edit_panels_warn_but_do_not_block_when_placeholder_is_missing():
         save_body = html[html.index(f"async function {save_fn_name}("):]
         save_body = save_body[:save_body.index("\n}")]
         assert "if(warning)" in save_body
-        assert "await api(" in save_body
+        # seit 1.8.95 (Erwartung geändert) über den Baustein _speichern.html
+        assert "await speichern(" in save_body and "()=>api(`/api/reminders/${id}`" in save_body
         assert "if(warning)return" not in save_body.replace(" ", "")

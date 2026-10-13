@@ -4,6 +4,36 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.95 – Veraltete Antworten: Baustein für Speichern und Neuladen; Rechnungen über 0 € oder weniger nur als Storno oder Endrechnung mit Abzügen
+
+Seiten übernehmen keine Antwort mehr, die älter ist als eine schon angewandte, und melden „Gespeichert.“ erst, wenn die Antwort angewandt
+ist. Neuer gemeinsamer Baustein `app/templates/_speichern.html`: je Bereich (was eine Antwort auf der Seite ersetzt -- Formular, Karte,
+Liste, Feld) bekommt jede Anfrage beim Absenden eine laufende Nummer, angewandt wird nur, was nicht älter ist als das schon Angewandte.
+Speichern geht je Bereich nacheinander hinaus -- gebaut wird die Anfrage beim Klick, nur das Senden wartet --, Lesen erst, wenn kein
+Speichern des Bereichs unterwegs ist; so kennt die zuletzt angewandte Antwort alles davor, auch mit zwei Arbeitsprozessen.
+`speichern()` kehrt erst zurück, wenn die Antwort angewandt bzw. über `lesen()` neu geladen ist, Erfolgstexte stehen dahinter. Alle
+Vorlagen mit schreibenden Anfragen sind umgestellt (jede Anfrage mit Methode ungleich GET, auch Löschen, Versand, Anmelden). Behoben damit:
+die Checkliste übernahm eine spät eintreffende, veraltete Speicher-Antwort („Vor der Unterschrift fehlen noch …“ kam zurück, Nebenbefund 1
+aus 1.8.94), und viele Seiten setzten den Erfolgstext vor dem Neuladen (Nebenbefund 3). Nach dem E-Mail-Versand laden Auftrag, Rechnung und
+Vertrag neu, statt die Antwort des Versands zu übernehmen. Ein Strukturtest prüft jede Vorlage über einen kleinen JavaScript-Scanner
+(`tests/vorlagen_js.py`), ein Klicktest hält je Seite gezielt eine Antwort zurück (neu im Klicktest-Werkzeug: `Tab.zurueckhalten()`).
+
+Rechnungen über 0 € oder weniger gibt es nur noch als Storno oder als Endrechnung mit Abzügen; jede andere -- Rechnung aus Aufwand (auch
+eine abschließende) und Schlussrechnung ohne Abzüge, wie bisher der Abschlag -- muss über 0 € liegen, sonst lehnt das Festschreiben mit 409
+ab, die Rechnungsseite zeigt den Grund statt „Finalisieren“. Geprüft nach der Neuberechnung unter der Sperre der Auftragszeile: fällt der
+Abzug weg (Storno des Abschlags), gilt die Regel ohne Abzüge (Nebenbefund 2 aus 1.8.94).
+
+Keine Migration. Neu `test_v398_speichern_baustein` (319: Baustein in node, Strukturtest je Vorlage, Scanner an Beispielen, jedes Skript
+jeder gerenderten Seite in node auf Syntax), `test_v398_rechnung_ueber_null` (12, davon 1 gegen PostgreSQL), `test_v398_klicktest_rueckhalt`
+(6). Erwartungen geändert seit 1.8.95: `test_v358` und `test_v236` (Speichern über den Baustein), `test_v385` (Rechnung aus Aufwand mit
+Betrag), `test_v334` (Testseite mit dem Baustein); `_mobile_header.html` bindet ihn vor dem Stilblock ein (`test_v269` liest die Struktur des
+Kopfs). Klicktest `klicktest_veraltete_antworten` (neu) 27/27. Gegenproben 19 von 19 rot (16 in pytest, eine davon erst nach Nachschärfen
+des Tests, und 3 Läufe des Klicktests mit ausgehebeltem Baustein). Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei
+Teile parallel): 4285 grün, 4 rot -- zwei erwartet (in der Arbeitskopie lag noch der alte Stand von `settings.html`), zwei in `test_v385`
+(Erwartung veraltet seit 1.8.95, angepasst, danach 36 grün); Nachlauf auf dem Endstand für alle Testdateien, die `settings.html` oder
+`inquiries.html` lesen, dazu `test_v385` und `test_v398_*`: 738 grün. Alle Klicktests (Regel 26): 59 von 59 wie erwartet in 12:18 min. Festlegungen
+zum Bestätigen in `docs/archiv/befund-vor-echtbetrieb.md`, "Veraltete Antworten und Rechnungen über 0 €".
+
 ## 1.8.94 – Kleinkram vor dem Abnahmetest: Bezahlt abzüglich Erstattungen, Zahlbetrag 0 €, Zurücknehmen mit Grund, enthaltene Rechnungen gruppiert, Klicktest-Helfer
 
 Fünf kleine Punkte vor dem Abnahmetest. In Finanzen zieht „Bezahlt (gesamt)“ jetzt die Zahlungsausgänge an Schlussrechnungen ab

@@ -80,6 +80,7 @@
 </main>
 {% include "_berlin_date.html" %}
 {% include "_fehlertext.html" %}
+{% include "_speichern.html" %}
 <script>
 var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false' }};
 var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
@@ -168,7 +169,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
   function performMaintenance(contractId,btn){
     btn.disabled=true;
     btn.textContent='Wird angelegt…';
-    fetch('/api/maintenance-contracts/'+contractId+'/perform-maintenance',{method:'POST'}).then(function(r){
+    speichern('wartung',()=>fetch('/api/maintenance-contracts/'+contractId+'/perform-maintenance',{method:'POST'})).then(function(r){
       if(!r.ok){
         return r.json().catch(function(){return {}}).then(function(d){throw new Error(d.detail||'Fehler beim Anlegen.')});
       }
@@ -239,14 +240,15 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     form.append('data',JSON.stringify({client_uuid:box.dataset.kennung,event_date:date,note:note||null}));
     for(var i=0;i<files.length;i++)form.append('photos',files[i]);
     btn.disabled=true;st.textContent='Wird gesendet…';
-    fetch('/api/field-view/defects/'+card.dataset.defect+'/remedied',{method:'POST',body:form}).then(function(r){
+    // Seit 1.8.95 über speichern()/lesen() (_speichern.html), Bereich 'maengel': die Liste lädt nach der Meldung neu, erst
+    // danach steht die Bestätigung da; eine ältere Liste überschreibt nie eine neuere.
+    speichern('maengel',()=>fetch('/api/field-view/defects/'+card.dataset.defect+'/remedied',{method:'POST',body:form}),{neuLaden:loadDefects}).then(function(r){
       return r.json().catch(function(){return null}).then(function(body){
         if(!r.ok)throw new Error(fehlerText(body,r.status,DEFECT_FIELDS));
         return body;
       });
     }).then(function(){
       document.getElementById('defectsStatus').textContent='Mangel als beseitigt gemeldet – das Büro prüft die Abnahme der Beseitigung.';
-      loadDefects();
     }).catch(function(err){
       st.textContent='Fehler: '+(err.message||'Meldung nicht gesendet.');
       btn.disabled=false;
@@ -254,12 +256,12 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
   }
   function loadDefects(){
     var el=document.getElementById('defectsList');
-    fetch('/api/field-view/defects').then(function(r){
+    return lesen('maengel',()=>fetch('/api/field-view/defects').then(function(r){
       return r.json().catch(function(){return null}).then(function(body){
         if(!r.ok)throw new Error(fehlerText(body,r.status,DEFECT_FIELDS));
         return body;
       });
-    }).then(function(list){renderDefects(list||[])}).catch(function(err){
+    }),function(list){renderDefects(list||[])}).catch(function(err){
       el.className='error';el.textContent=err.message||'Fehler beim Laden.';
     });
   }

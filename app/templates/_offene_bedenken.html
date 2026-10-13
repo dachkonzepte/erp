@@ -13,6 +13,7 @@
 .concern-alert[hidden]{display:none}
 .concern-alert .concern-item{display:block;margin-top:6px;color:var(--danger);font-weight:650;font-size:13.5px}
 </style>
+{% include "_speichern.html" %}
 <script>
 function offeneBedenkenZeigen(boxId,orderId){
   var box=document.getElementById(boxId);
@@ -23,7 +24,8 @@ function offeneBedenkenZeigen(boxId,orderId){
       +(c.decision_due?' – Entscheidung erbeten bis '+new Date(c.decision_due+'T00:00:00').toLocaleDateString('de-DE'):'');
     return c.can_open?'<a class="concern-item" href="/checklisten/'+c.checklist_id+'">'+text+' →</a>':'<span class="concern-item">'+text+'</span>';
   }
-  return fetch('/api/orders/'+orderId+'/open-concerns').then(function(r){return r.ok?r.json():null}).then(function(data){
+  // Seit 1.8.95 über lesen() (_speichern.html): eine spät ankommende, ältere Antwort überschreibt den Kasten nicht.
+  return lesen('offene-bedenken-'+boxId,function(){return fetch('/api/orders/'+orderId+'/open-concerns').then(function(r){return r.ok?r.json():null})},function(data){
     var list=(data&&data.concerns)||[];
     box.hidden=!list.length;
     box.innerHTML=list.length?esc(data.text)+list.map(item).join(''):'';

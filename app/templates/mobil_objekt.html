@@ -91,6 +91,7 @@
   <h1>Frühere Wartungsberichte</h1>
   <div id="historyList" class="loading">Lädt…</div>
 </main>
+{% include "_speichern.html" %}
 <script>
 (function(){
   var propertyId={{ property_id }};
@@ -209,8 +210,10 @@
     document.getElementById('propertyCard').className='error';
     document.getElementById('propertyCard').textContent=err.message||'Objekt nicht gefunden.';
   });
+  // Seit 1.8.95 über lesen()/speichern() (_speichern.html), Bereich 'dokumente': nach dem Hochladen lädt die Liste neu, erst
+  // danach steht "Hochgeladen." da; eine ältere Liste überschreibt nie eine neuere.
   function reloadDocuments(){
-    return api('/api/field-view/properties/'+propertyId+'/documents').then(renderDocuments).catch(function(err){
+    return lesen('dokumente',()=>api('/api/field-view/properties/'+propertyId+'/documents'),renderDocuments).catch(function(err){
       document.getElementById('documentsList').className='error';
       document.getElementById('documentsList').textContent=err.message||'Fehler beim Laden.';
     });
@@ -245,14 +248,13 @@
     var btn=document.getElementById('uploadSubmit');
     var status=document.getElementById('uploadStatus');
     btn.disabled=true;btn.textContent='Wird hochgeladen…';status.className='status';status.textContent='';
-    fetch('/api/field-view/properties/'+propertyId+'/documents',{method:'POST',body:fd}).then(function(r){
+    speichern('dokumente',()=>fetch('/api/field-view/properties/'+propertyId+'/documents',{method:'POST',body:fd}),{neuLaden:reloadDocuments}).then(function(r){
       if(!r.ok)return r.json().catch(function(){return {}}).then(function(d){throw new Error(d.detail||'Fehler beim Hochladen.')});
       return r.json();
     }).then(function(){
       status.className='status ok';status.textContent='Hochgeladen.';
       fileInput.value='';
       document.getElementById('uploadDescription').value='';
-      reloadDocuments();
     }).catch(function(err){
       status.className='status err';status.textContent=err.message||'Fehler beim Hochladen.';
     }).finally(function(){

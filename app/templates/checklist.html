@@ -206,6 +206,7 @@ textarea{min-height:90px;resize:vertical}
 {% include "_unterschrift.html" %}
 {% include "_fehlertext.html" %}
 {% include "_berlin_date.html" %}
+{% include "_speichern.html" %}
 <script>
 const checklistId={{ checklist_id }};
 const IS_FIELD={{ 'true' if is_field else 'false' }};
@@ -276,7 +277,7 @@ async function voidChecklist(){
   if(!confirm(`${cl.purpose_label} als gegenstandslos abschließen?\n\nDanach ist sie nicht mehr änderbar und wird nicht mehr versendet. Sie bleibt mit der Begründung als Beleg erhalten.`))return;
   btn.disabled=true;st.textContent='';
   await flushAll();
-  try{cl=await api(`/api/checklists/${checklistId}/void`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});render();window.scrollTo(0,0)}
+  try{await speichern('checkliste',()=>api(`/api/checklists/${checklistId}/void`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{anwenden:ganzeCheckliste});window.scrollTo(0,0)}
   catch(e){st.textContent=e.message;btn.disabled=false}
 }
 
@@ -492,10 +493,10 @@ let clRecipient=null;
 async function afterRenderSendCard(){
   if(!document.getElementById('sendCard'))return;
   if(clRecipient===null){
-    try{clRecipient=(await api(`/api/checklists/${checklistId}/email-recipient`)).recipient_email||''}catch(e){clRecipient=''}
+    try{await lesen('empfaenger',()=>api(`/api/checklists/${checklistId}/email-recipient`),d=>{clRecipient=d.recipient_email||''})}catch(e){clRecipient=''}
   }
   const to=document.getElementById('clEmailTo');
-  if(to&&!to.value)to.value=clRecipient;
+  if(to&&!to.value)to.value=clRecipient||'';
   renderDispatchHistory('clDispatchHistory','checkliste',checklistId,{});
 }
 async function sendChecklistEmail(btn){
@@ -631,7 +632,7 @@ function needsCustomerConfirmation(kind){
 }
 async function loadNotice(){
   const card=document.getElementById('noticeCard');if(!card)return;
-  try{notice=await api(`/api/checklists/${checklistId}/notice-letters`);renderNoticeCard()}
+  try{await lesen('anzeige',()=>api(`/api/checklists/${checklistId}/notice-letters`),d=>{notice=d;renderNoticeCard()})}
   catch(e){card.innerHTML=`<h2>Anzeige an den Auftraggeber</h2><div class="error-box small">${esc(e.message)}</div>`}
 }
 async function freezeNoticeLetter(kind,btn){
@@ -640,7 +641,7 @@ async function freezeNoticeLetter(kind,btn){
   if(needsCustomerConfirmation(kind))return;
   if(!confirm(`${k.label} jetzt als Brief erstellen? Danach gilt genau dieser Brief für Versand und Zustellung.${warn}`))return;
   btn.disabled=true;
-  try{notice=await api(`/api/checklists/${checklistId}/notice-letters/${kind}/freeze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm_customer:noticeConfirmCustomer})});renderNoticeCard()}
+  try{await speichern('anzeige',()=>api(`/api/checklists/${checklistId}/notice-letters/${kind}/freeze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm_customer:noticeConfirmCustomer})}),{anwenden:d=>{notice=d;renderNoticeCard()}})}
   catch(e){btn.disabled=false;const st=document.getElementById(`notice-${kind}-status`);if(st)st.textContent='Fehler: '+e.message;else alert(e.message)}
 }
 async function sendNoticeLetter(kind,btn){
@@ -694,10 +695,13 @@ function protocolDispatchHtml(s){
 }
 async function loadProtocolDispatch(){
   const card=document.getElementById('protocolDispatchCard');if(!card)return;
-  try{protocolDispatch=await api(`/api/checklists/${checklistId}/protocol-dispatch`)}
-  catch(e){card.innerHTML=`<h2>Protokoll an den Auftraggeber</h2><div class="error-box small">${esc(e.message)}</div>`;return}
-  card.innerHTML=protocolDispatchHtml(protocolDispatch);
-  renderDispatchHistory('protocolDispatchHistory','checkliste',checklistId,{manual:protocolDispatch.ready,onChange:loadProtocolDispatch});
+  try{await lesen('protokoll-versand',()=>api(`/api/checklists/${checklistId}/protocol-dispatch`),d=>{
+    protocolDispatch=d;
+    const c=document.getElementById('protocolDispatchCard');if(!c)return;
+    c.innerHTML=protocolDispatchHtml(protocolDispatch);
+    renderDispatchHistory('protocolDispatchHistory','checkliste',checklistId,{manual:protocolDispatch.ready,onChange:loadProtocolDispatch});
+  })}
+  catch(e){card.innerHTML=`<h2>Protokoll an den Auftraggeber</h2><div class="error-box small">${esc(e.message)}</div>`}
 }
 async function sendProtocol(btn){
   const st=document.getElementById('protocolStatus');
@@ -760,9 +764,11 @@ function render(){
 // erzeugt. Überholt, sobald eine Unterschrift verworfen ist, die das PDF zeigt -- dann nicht mehr versendbar.
 async function loadVersions(){
   const card=document.getElementById('versionsCard');if(!card)return;
-  let rows;
-  try{rows=await api(`/api/checklists/${checklistId}/versions`)}
-  catch(e){card.style.display='';card.innerHTML=`<h2>Feste Fassungen</h2><div class="error-box small">${esc(e.message)}</div>`;return}
+  try{await lesen('fassungen',()=>api(`/api/checklists/${checklistId}/versions`),renderVersions)}
+  catch(e){card.style.display='';card.innerHTML=`<h2>Feste Fassungen</h2><div class="error-box small">${esc(e.message)}</div>`}
+}
+function renderVersions(rows){
+  const card=document.getElementById('versionsCard');if(!card)return;
   if(!rows.length){card.style.display='none';return}
   card.style.display='';
   const anlass=v=>v.signature?`nach der Unterschrift „${esc(v.signature.field_label)}“ (${esc(v.signature.signer_name||'ohne Namen')})`:esc(v.kind_label);
@@ -786,9 +792,11 @@ async function checkVersion(versionId,docId,btn){
 // sich nachholen -- idempotent wie die Regeln.
 async function loadFollowUps(){
   const card=document.getElementById('followUpsCard');if(!card)return;
-  let rows;
-  try{rows=await api(`/api/checklists/${checklistId}/follow-ups`)}
-  catch(e){card.style.display='';card.innerHTML=`<h2>Folgen</h2><div class="error-box small">${esc(e.message)}</div>`;return}
+  try{await lesen('folgen',()=>api(`/api/checklists/${checklistId}/follow-ups`),renderFollowUps)}
+  catch(e){card.style.display='';card.innerHTML=`<h2>Folgen</h2><div class="error-box small">${esc(e.message)}</div>`}
+}
+function renderFollowUps(rows){
+  const card=document.getElementById('followUpsCard');if(!card)return;
   if(!rows.length){card.style.display='none';return}
   // seit 1.8.41: nach "gegenstandslos" keine Folgen mehr; seit 1.8.63 ist "entfallen" (Unterschrift verworfen) nicht offen
   const open=rows.some(r=>r.status==='ausstehend'||r.status==='modul_aus')&&cl.status!=='gegenstandslos';
@@ -801,8 +809,7 @@ async function retryFollowUps(){
   const btn=document.getElementById('followUpsRetryBtn'),st=document.getElementById('followUpsStatus');
   btn.disabled=true;st.textContent='Führt aus …';
   try{
-    const r=await api(`/api/checklists/${checklistId}/run-follow-ups`,{method:'POST'});
-    await loadFollowUps();
+    const r=await speichern('folgen',()=>api(`/api/checklists/${checklistId}/run-follow-ups`,{method:'POST'}),{neuLaden:loadFollowUps});
     const st2=document.getElementById('followUpsStatus');
     if(st2)st2.textContent=r.module_off?'Das Aufgabenmodul ist ausgeschaltet – bitte zuerst in den Einstellungen aktivieren.':(r.failed?'Nicht ausgeführt – bitte später erneut versuchen.':'');
   }catch(e){st.textContent=e.message;btn.disabled=false}
@@ -813,9 +820,11 @@ async function retryFollowUps(){
 // die Regel als "nicht angelegt" da und lässt sich per Knopf nachholen -- idempotent.
 async function loadRules(){
   const card=document.getElementById('rulesCard');if(!card)return;
-  let rows;
-  try{rows=await api(`/api/checklists/${checklistId}/rule-executions`)}
-  catch(e){card.innerHTML=`<h2>Ausgelöste Aufgaben</h2><div class="error-box small">${esc(e.message)}</div>`;return}
+  try{await lesen('regeln',()=>api(`/api/checklists/${checklistId}/rule-executions`),renderRules)}
+  catch(e){card.innerHTML=`<h2>Ausgelöste Aufgaben</h2><div class="error-box small">${esc(e.message)}</div>`}
+}
+function renderRules(rows){
+  const card=document.getElementById('rulesCard');if(!card)return;
   // "aufgabe_vorhanden" (seit 1.8.38): eine Aufgabe mit demselben Link war schon offen -- erledigt, nicht nachzuholen.
   const done=r=>r.status==='aufgabe_angelegt'||r.status==='aufgabe_vorhanden';
   const open=rows.some(r=>!done(r));
@@ -827,8 +836,7 @@ async function retryRules(){
   const btn=document.getElementById('rulesRetryBtn'),st=document.getElementById('rulesStatus');
   btn.disabled=true;st.textContent='Legt an …';
   try{
-    const r=await api(`/api/checklists/${checklistId}/run-rules`,{method:'POST'});
-    await loadRules();
+    const r=await speichern('regeln',()=>api(`/api/checklists/${checklistId}/run-rules`,{method:'POST'}),{neuLaden:loadRules});
     const st2=document.getElementById('rulesStatus');
     if(st2)st2.textContent=r.module_off?'Das Aufgabenmodul ist ausgeschaltet – bitte zuerst in den Einstellungen aktivieren.':'';
   }catch(e){st.textContent=e.message;btn.disabled=false}
@@ -846,14 +854,17 @@ function updateMissing(){
 
 // --- Speichern -------------------------------------------------------------------------
 
-async function sendAnswer(fieldId,value){
+// Seit 1.8.95 über den Baustein (_speichern.html): alles, was den Stand der Checkliste ersetzt (Antworten, Anhänge, Unterschrift,
+// Abschluss, Neuladen), im Bereich 'checkliste' -- Speichern geht nacheinander hinaus, und eine spät ankommende, ältere Antwort
+// überschreibt nie eine neuere (bis 1.8.94 galt die zuletzt ankommende: Nebenbefund 1 aus 1.8.94).
+function uebernimmAntworten(data){cl.answers=data.answers;cl.missing_required=data.missing_required;cl.missing_before_signature=data.missing_before_signature}
+function uebernimmAnhaenge(data){cl.attachments=data.attachments;cl.missing_required=data.missing_required;cl.missing_before_signature=data.missing_before_signature}
+function ganzeCheckliste(data){cl=data;render()}
+async function speichereAntwort(fieldId,value){
   setStatus(fieldId,'Speichert …');
-  const p=api(`/api/checklists/${checklistId}/answers/${fieldId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({value,client_uuid:uuid(),client_recorded_at:new Date().toISOString()})});
-  inflight.add(p);
+  const body=JSON.stringify({value,client_uuid:uuid(),client_recorded_at:new Date().toISOString()});
   try{
-    const data=await p;
-    cl.answers=data.answers;cl.missing_required=data.missing_required;cl.missing_before_signature=data.missing_before_signature;
+    await speichern('checkliste',()=>api(`/api/checklists/${checklistId}/answers/${fieldId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}),{anwenden:uebernimmAntworten});
     setStatus(fieldId,'Gespeichert');updateMissing();
     if(!IS_FIELD&&cl.purpose==='abnahme')loadProtocolSummary();  // seit 1.8.64: Erklärungen aktuell halten
     return true;
@@ -861,8 +872,9 @@ async function sendAnswer(fieldId,value){
     setStatus(fieldId,'Nicht gespeichert: '+e.message,true);
     if(e.status===409)await reload();
     return false;
-  }finally{inflight.delete(p)}
+  }
 }
+function sendAnswer(fieldId,value){const p=speichereAntwort(fieldId,value);inflight.add(p);p.finally(()=>inflight.delete(p));return p}
 
 function queueSave(fieldId,value,delay=700){
   clearTimeout((timers[fieldId]||{}).t);
@@ -892,13 +904,11 @@ async function toggleRoofArea(fieldId,id){  // seit 1.8.61
 }
 function rerenderField(f){const q=document.getElementById('q_'+f.id);if(q)q.querySelector('.q-body').innerHTML=fieldBody(f);if(f.field_type==='unterschrift')setupPad(f.id)}
 
-async function uploadFile(fieldId,blob,filename,extra={}){
+async function uploadFile(fieldId,blob,filename,extra={},anwenden=uebernimmAnhaenge){
   const fd=new FormData();
   fd.append('field_id',fieldId);fd.append('file',blob,filename);fd.append('client_uuid',uuid());
   for(const [k,v] of Object.entries(extra))fd.append(k,v);
-  const data=await api(`/api/checklists/${checklistId}/attachments`,{method:'POST',body:fd});
-  cl.attachments=data.attachments;cl.missing_required=data.missing_required;cl.missing_before_signature=data.missing_before_signature;
-  return data;
+  return speichern('checkliste',()=>api(`/api/checklists/${checklistId}/attachments`,{method:'POST',body:fd}),{anwenden});
 }
 async function uploadPhotos(fieldId,input,what='Foto'){  // what: 'Beleg' für Belegfelder (seit 1.8.45)
   const files=[...input.files];input.value='';
@@ -913,27 +923,31 @@ async function uploadPhotos(fieldId,input,what='Foto'){  // what: 'Beleg' für B
 async function removeAttachment(attachmentId){
   if(!confirm('Wirklich entfernen?'))return;
   const a=cl.attachments.find(x=>x.id===attachmentId);
-  try{const data=await api(`/api/checklist-attachments/${attachmentId}`,{method:'DELETE'});cl.attachments=data.attachments;cl.missing_required=data.missing_required;cl.missing_before_signature=data.missing_before_signature;rerenderField(cl.fields.find(x=>x.id===a.field_id));updateMissing()}
+  try{await speichern('checkliste',()=>api(`/api/checklist-attachments/${attachmentId}`,{method:'DELETE'}),{anwenden:uebernimmAnhaenge});rerenderField(cl.fields.find(x=>x.id===a.field_id));updateMissing()}
   catch(e){alert('Fehler: '+e.message)}
 }
 
 // --- Mängel (seit 1.8.60) -----------------------------------------------------------------
 // Je Mangel Beschreibung, Ort, Frist, Dateien, Prüfstatus; verworfen gekennzeichnet -- "bleibt im Protokoll", wenn erst nach
 // der Unterschrift verworfen (dann steht er in deren Kopie), sonst "nicht im Protokoll".
-let pdefOptions=null;
+let pdefOptions=null,pdefOptionsLaden=null;
 // Dachflächen aus dem Objekt des Auftrags -- für "Mangel erfassen" und seit 1.8.61 das Feld "Dachflächen". Ein Fehler bleibt
 // als Text stehen (sonst lüde jede Darstellung erneut).
-async function loadProtocolOptions(){
-  if(!pdefOptions){try{pdefOptions=await api(`/api/checklists/${checklistId}/protocol-options`)}catch(e){pdefOptions={roof_areas:[],error:e.message}}}
-  return pdefOptions;
+function loadProtocolOptions(){
+  if(!pdefOptionsLaden)pdefOptionsLaden=lesen('dachflaechen',()=>api(`/api/checklists/${checklistId}/protocol-options`),d=>{pdefOptions=d})
+    .catch(e=>{pdefOptions={roof_areas:[],error:e.message}}).then(()=>pdefOptions);
+  return pdefOptionsLaden;
 }
 // --- Erklärungen und Mängel gebündelt (seit 1.8.64, Abnahmeprotokoll, nur Büro) -----------------------------
 // Nach der Unterschrift des Auftraggebers aus ihrer Kopie (was er unterschrieben hat), vorher die aktuellen Angaben; dazu
 // die Abnahme am Auftrag bzw. warum sie aussteht ("Abnahme jetzt anlegen" wie auf der Auftragsseite).
 async function loadProtocolSummary(){
   const card=document.getElementById('protocolSummaryCard');if(!card)return;
-  let s;
-  try{s=await api(`/api/checklists/${checklistId}/protocol-summary`)}catch(e){card.innerHTML=`<h2>Erklärungen und Mängel</h2><div class="pdef-bad">${esc(e.message)}</div>`;return}
+  try{await lesen('erklaerungen',()=>api(`/api/checklists/${checklistId}/protocol-summary`),renderProtocolSummary)}
+  catch(e){card.innerHTML=`<h2>Erklärungen und Mängel</h2><div class="pdef-bad">${esc(e.message)}</div>`}
+}
+function renderProtocolSummary(s){
+  const card=document.getElementById('protocolSummaryCard');if(!card)return;
   if(!s){card.remove();return}
   const due=x=>x?` · Frist ${esc(String(x).split('-').reverse().join('.'))}`:'';
   const defs=s.defects.map(d=>`<div class="psum-def${d.in_protocol===false?' out':''}" data-psum-defect="${d.id}">Mangel Nr. ${d.id}${[d.roof_area_name,d.location].filter(Boolean).map(x=>' · '+esc(x)).join('')}: ${esc(d.description)}${due(d.remedy_due_on)}<span class="psum-tag${d.in_protocol===null?' out':(d.discarded?(d.in_protocol?' warn':' out'):'')}">${esc(d.status_label)}</span></div>`).join('');
@@ -950,18 +964,20 @@ async function loadProtocolSummary(){
 }
 async function runSummaryAcceptance(btn){
   const st=document.getElementById('psumStatus');btn.disabled=true;st.textContent='Legt an …';
-  try{await api(`/api/checklists/${checklistId}/acceptance-from-protocol`,{method:'POST'});await loadProtocolSummary();loadFollowUps()}
+  try{await speichern('erklaerungen',()=>api(`/api/checklists/${checklistId}/acceptance-from-protocol`,{method:'POST'}),{neuLaden:loadProtocolSummary});loadFollowUps()}
   catch(e){st.textContent='Nicht angelegt: '+e.message;btn.disabled=false}
 }
 async function loadProtocolDefects(f){
   const box=document.getElementById('pdefList_'+f.id);if(!box)return;
   try{
-    const list=await api(`/api/checklists/${checklistId}/defects`);
-    if(cl.purpose==='abnahme')loadProtocolSummary();  // seit 1.8.64: Mängel im Bündel mitziehen
-    box.innerHTML=list.length?list.map(d=>protocolDefectHtml(f,d)).join(''):'<div class="muted small">Noch kein Mangel erfasst.</div>';
-    const sel=document.getElementById('pdefArea_'+f.id);
-    if(sel)await loadProtocolOptions();
-    if(sel&&sel.options.length<=1)sel.innerHTML='<option value="">— keine Dachfläche —</option>'+(pdefOptions.roof_areas||[]).map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('');
+    await lesen('maengel-'+f.id,()=>api(`/api/checklists/${checklistId}/defects`),async list=>{
+      if(cl.purpose==='abnahme')loadProtocolSummary();  // seit 1.8.64: Mängel im Bündel mitziehen
+      const b=document.getElementById('pdefList_'+f.id);if(!b)return;
+      b.innerHTML=list.length?list.map(d=>protocolDefectHtml(f,d)).join(''):'<div class="muted small">Noch kein Mangel erfasst.</div>';
+      const sel=document.getElementById('pdefArea_'+f.id);
+      if(sel)await loadProtocolOptions();
+      if(sel&&sel.options.length<=1)sel.innerHTML='<option value="">— keine Dachfläche —</option>'+(pdefOptions.roof_areas||[]).map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('');
+    });
   }catch(e){box.innerHTML=`<div class="pdef-bad">${esc(e.message)}</div>`}
 }
 function protocolDefectHtml(f,d){
@@ -985,9 +1001,9 @@ async function saveProtocolDefect(fieldId,btn){
   for(const x of g('pdefPhotos').files)fd.append('photos',x);
   for(const x of g('pdefReceipts').files)fd.append('receipts',x);
   btn.disabled=true;setStatus(fieldId,'Speichert …');
-  try{await api(`/api/checklists/${checklistId}/defects`,{method:'POST',body:fd});
+  try{await speichern('maengel-'+fieldId,()=>api(`/api/checklists/${checklistId}/defects`,{method:'POST',body:fd}),{neuLaden:()=>loadProtocolDefects(f)});
     ['pdefDesc','pdefLoc','pdefDue','pdefPhotos','pdefReceipts'].forEach(k=>{g(k).value=''});g('pdefArea').value='';
-    setStatus(fieldId,'Mangel erfasst');await loadProtocolDefects(f)}
+    setStatus(fieldId,'Mangel erfasst')}
   catch(e){setStatus(fieldId,'Nicht gespeichert: '+e.message,true);if(e.status===409)await reload()}
   finally{btn.disabled=false}
 }
@@ -996,7 +1012,7 @@ async function discardProtocolDefect(fieldId,defectId,btn){
   if(!reason){setStatus(fieldId,'Bitte begründen, warum der Mangel verworfen wird.',true);return}
   if(!confirm(`Mangel Nr. ${defectId} verwerfen?`))return;
   btn.disabled=true;
-  try{await api(`/api/defects/${defectId}/discard`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});setStatus(fieldId,'Mangel verworfen');await loadProtocolDefects(cl.fields.find(x=>x.id===fieldId))}
+  try{await speichern('maengel-'+fieldId,()=>api(`/api/defects/${defectId}/discard`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{neuLaden:()=>loadProtocolDefects(cl.fields.find(x=>x.id===fieldId))});setStatus(fieldId,'Mangel verworfen')}
   catch(e){setStatus(fieldId,'Nicht verworfen: '+e.message,true);btn.disabled=false}
 }
 
@@ -1053,7 +1069,7 @@ async function saveSignature(fieldId){
   }
   setStatus(fieldId,'Speichert …');
   const blob=await p.alsBlob();
-  try{cl=await uploadFile(fieldId,blob,'unterschrift.png',extra);render();setStatus(fieldId,'Gespeichert')}
+  try{await uploadFile(fieldId,blob,'unterschrift.png',extra,ganzeCheckliste);setStatus(fieldId,'Gespeichert')}
   catch(e){setStatus(fieldId,'Nicht gespeichert: '+e.message,true);if(e.status===409)await reload()}
 }
 
@@ -1065,7 +1081,7 @@ async function discardSignature(){
   if(!reason){st.textContent='Bitte eine Begründung eintragen.';input.focus();return}
   if(!confirm(`Unterschrift verwerfen?\n\n${signatureName(a)}\n${discardWithText(a)}\n\nVerworfene bleiben als Nachweis sichtbar. Was keine verbleibende Unterschrift mehr sperrt, ist danach wieder bearbeitbar.`))return;
   btn.disabled=true;st.textContent='';
-  try{cl=await api(`/api/checklists/${checklistId}/discard-signatures`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signature_id:a.id,reason})});render();window.scrollTo(0,0)}
+  try{await speichern('checkliste',()=>api(`/api/checklists/${checklistId}/discard-signatures`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signature_id:a.id,reason})}),{anwenden:ganzeCheckliste});window.scrollTo(0,0)}
   catch(e){st.textContent=e.message;btn.disabled=false}
 }
 
@@ -1077,13 +1093,13 @@ async function completeChecklist(){
   await flushAll();
   if((cl.missing_required||[]).length){err.textContent='Noch nicht ausgefüllt: '+cl.missing_required.join(', ');btn.disabled=false;return}
   if(!confirm('Checkliste abschließen? Danach ist sie nicht mehr änderbar.')){btn.disabled=false;return}
-  try{cl=await api(`/api/checklists/${checklistId}/complete`,{method:'POST'});render();window.scrollTo(0,0)}
+  try{await speichern('checkliste',()=>api(`/api/checklists/${checklistId}/complete`,{method:'POST'}),{anwenden:ganzeCheckliste});window.scrollTo(0,0)}
   catch(e){err.textContent=e.message;btn.disabled=false}
 }
 async function deleteDraft(){
   if(!confirm('Diesen Entwurf mit allen Angaben und Fotos löschen?'))return;
   const target=backLink();
-  try{await api(`/api/checklists/${checklistId}`,{method:'DELETE'});location.href=target}
+  try{await speichern('checkliste',()=>api(`/api/checklists/${checklistId}`,{method:'DELETE'}));location.href=target}
   catch(e){document.getElementById('pageError').textContent=e.message}
 }
 
@@ -1099,7 +1115,7 @@ async function prefillNow(){
   }
 }
 
-async function reload(){cl=await api(`/api/checklists/${checklistId}`);render()}
+async function reload(){await lesen('checkliste',()=>api(`/api/checklists/${checklistId}`),ganzeCheckliste)}
 
 (async function init(){
   try{await reload();await prefillNow()}

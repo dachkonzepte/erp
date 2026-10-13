@@ -117,6 +117,7 @@ tr:last-child td{border-bottom:none}
 </main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
@@ -226,7 +227,7 @@ function updateCreateProjectButton(){
 async function performMaintenanceNow(){
   const st=document.getElementById('contractStatus');
   try{
-    const result=await api(`/api/maintenance-contracts/${contractId}/perform-maintenance`,{method:'POST'});
+    const result=await speichern('vertrag',()=>api(`/api/maintenance-contracts/${contractId}/perform-maintenance`,{method:'POST'}));
     location.href=`/orders/${result.order_id}/service-reports?report=${result.report_id}`;
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -265,8 +266,7 @@ async function saveContractDetail(){
     confirm_property_customer:!!document.getElementById('editConfirmProperty')?.checked,
   };
   try{
-    contract=await api(`/api/maintenance-contracts/${contractId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    render();
+    await speichern('vertrag',()=>api(`/api/maintenance-contracts/${contractId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{anwenden:d=>{contract=d;render()}});
     st.className='status';st.textContent='Gespeichert.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -274,23 +274,22 @@ async function saveContractDetail(){
 async function setStatus(status){
   const st=document.getElementById('contractStatus');
   try{
-    contract=await api(`/api/maintenance-contracts/${contractId}/status`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
-    render();
+    await speichern('vertrag',()=>api(`/api/maintenance-contracts/${contractId}/status`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})}),{anwenden:d=>{contract=d;render()}});
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
 async function toggleArchived(){
   const st=document.getElementById('contractStatus');
   try{
-    contract=await api(`/api/maintenance-contracts/${contractId}/${contract.archived?'unarchive':'archive'}`,{method:'POST'});
-    render();
+    const url=`/api/maintenance-contracts/${contractId}/${contract.archived?'unarchive':'archive'}`;
+    await speichern('vertrag',()=>api(url,{method:'POST'}),{anwenden:d=>{contract=d;render()}});
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
 async function deleteContractNow(){
   if(!confirm('Diesen Wartungsvertrag wirklich löschen? Das kann nicht rückgängig gemacht werden.'))return;
   try{
-    await api(`/api/maintenance-contracts/${contractId}`,{method:'DELETE'});
+    await speichern('vertrag',()=>api(`/api/maintenance-contracts/${contractId}`,{method:'DELETE'}));
     location.href='/maintenance-contracts';
   }catch(e){document.getElementById('contractStatus').className='status err';document.getElementById('contractStatus').textContent='Fehler: '+e.message}
 }
@@ -305,19 +304,20 @@ async function createProjectNow(itemId){
   const st=document.getElementById('contractStatus');
   const resultPanel=document.getElementById('createProjectResult');
   try{
-    const result=await api(`/api/maintenance-contracts/${contractId}/create-project`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item_id:itemId||null})});
+    const result=await speichern('vertrag',()=>api(`/api/maintenance-contracts/${contractId}/create-project`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item_id:itemId||null})}));
     // Seit 1.2.20 bewusst KEIN sofortiger Sprung zum neuen Vorgang -- der eigentliche nächste
     // Schritt (Einsatzbericht) liegt zwei Ebenen entfernt (Vorgang -> Angebot beauftragen ->
     // Auftrag -> Einsatzbericht); ein stiller Sprung allein zeigt nicht, wie es weitergeht. Statt
     // dessen ein Ergebnis-Panel mit explizitem nächsten Schritt und einem echten Link.
-    const orders=await api(`/api/projects/${result.project_id}/orders`).catch(()=>[]);
-    if(orders.length){
-      const order=orders[0];
-      resultPanel.innerHTML=`Vorgang erstellt: <b>${esc(result.project_number)}</b>. Auftrag <b>${esc(order.order_number)}</b> liegt bereits vor. <a href="/orders/${order.id}/service-reports">Einsatzbericht anlegen</a>`;
-    }else{
-      resultPanel.innerHTML=`Vorgang erstellt: <b>${esc(result.project_number)}</b>. Nächster Schritt: dort das Angebot prüfen und beauftragen -- danach lässt sich über den entstehenden Auftrag ein Einsatzbericht anlegen. <a href="/projects/${result.project_id}">Vorgang öffnen</a>`;
-    }
-    resultPanel.classList.remove('hidden');
+    await lesen('vorgang-ergebnis',()=>api(`/api/projects/${result.project_id}/orders`).catch(()=>[]),orders=>{
+      if(orders.length){
+        const order=orders[0];
+        resultPanel.innerHTML=`Vorgang erstellt: <b>${esc(result.project_number)}</b>. Auftrag <b>${esc(order.order_number)}</b> liegt bereits vor. <a href="/orders/${order.id}/service-reports">Einsatzbericht anlegen</a>`;
+      }else{
+        resultPanel.innerHTML=`Vorgang erstellt: <b>${esc(result.project_number)}</b>. Nächster Schritt: dort das Angebot prüfen und beauftragen -- danach lässt sich über den entstehenden Auftrag ein Einsatzbericht anlegen. <a href="/projects/${result.project_id}">Vorgang öffnen</a>`;
+      }
+      resultPanel.classList.remove('hidden');
+    });
     st.textContent='';
     await reloadContract();
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
@@ -354,9 +354,10 @@ function renderItems(){
   document.getElementById('itemInspectionTemplate').innerHTML=inspectionTemplateOptionsHtml();
 }
 
+// Seit 1.8.95 über lesen() (_speichern.html), Bereich 'vertrag' wie jedes Speichern am Vertrag: ein älterer Stand
+// überschreibt nie einen neueren (ebenso das Ergebnis-Panel von "Vorgang erstellen", Bereich 'vorgang-ergebnis').
 async function reloadContract(){
-  contract=await api(`/api/maintenance-contracts/${contractId}`);
-  render();
+  await lesen('vertrag',()=>api(`/api/maintenance-contracts/${contractId}`),d=>{contract=d;render()});
 }
 
 async function addContractItem(){
@@ -376,7 +377,7 @@ async function addContractItem(){
     description:description||null,
   };
   try{
-    await api(`/api/maintenance-contracts/${contractId}/items`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    await speichern('vertrag',()=>api(`/api/maintenance-contracts/${contractId}/items`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
     document.getElementById('itemDuration').value='';document.getElementById('itemDescription').value='';
     st.textContent='';
     await reloadContract();
@@ -386,8 +387,7 @@ async function addContractItem(){
 async function toggleItemArchived(itemId,archived){
   const st=document.getElementById('itemStatus');
   try{
-    await api(`/api/maintenance-contract-items/${itemId}/${archived?'archive':'unarchive'}`,{method:'POST'});
-    await reloadContract();
+    await speichern('vertrag',()=>api(`/api/maintenance-contract-items/${itemId}/${archived?'archive':'unarchive'}`,{method:'POST'}),{neuLaden:reloadContract});
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
@@ -395,8 +395,7 @@ async function deleteContractItem(itemId){
   if(!confirm('Diese Dachfläche wirklich von diesem Vertrag entfernen?'))return;
   const st=document.getElementById('itemStatus');
   try{
-    await api(`/api/maintenance-contract-items/${itemId}`,{method:'DELETE'});
-    await reloadContract();
+    await speichern('vertrag',()=>api(`/api/maintenance-contract-items/${itemId}`,{method:'DELETE'}),{neuLaden:reloadContract});
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 

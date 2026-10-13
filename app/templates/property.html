@@ -149,6 +149,7 @@ tr:last-child td{border-bottom:none}
 </main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 const propertyId={{ property_id }};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -204,8 +205,10 @@ async function saveProperty(){
   };
   st.className='status';st.textContent='Speichert …';
   try{
-    property=await api(`/api/properties/${propertyId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    renderBreadcrumb();renderHeader();
+    await speichern('objekt',()=>api(`/api/properties/${propertyId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{anwenden:d=>{
+      property=d;
+      renderBreadcrumb();renderHeader();
+    }});
     st.textContent='Gespeichert.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -248,9 +251,12 @@ async function loadAcceptanceWarranties(){
   document.getElementById('acceptanceWarrantyRows').innerHTML=acceptanceWarranty.acceptances.map(acceptanceWarrantyRow).join('')||'<tr><td colspan="5" class="empty">Keine Abnahme an diesem Objekt erfasst.</td></tr>';
 }
 
+// Seit 1.8.95 über lesen() (_speichern.html), ebenso loadPropertyDocuments(): eine ältere Antwort zeichnet nicht über eine neuere.
 async function loadRoofAreas(){
-  roofAreas=await api(`/api/roof-areas?property_id=${propertyId}`).catch(()=>[]);
-  document.getElementById('roofAreaRows').innerHTML=roofAreas.map(roofAreaRow).join('')||'<tr><td colspan="7" class="empty">Noch keine Dachflächen angelegt.</td></tr>';
+  await lesen('dachflaechen',()=>api(`/api/roof-areas?property_id=${propertyId}`).catch(()=>[]),d=>{
+    roofAreas=d;
+    document.getElementById('roofAreaRows').innerHTML=roofAreas.map(roofAreaRow).join('')||'<tr><td colspan="7" class="empty">Noch keine Dachflächen angelegt.</td></tr>';
+  });
 }
 
 function toggleBulkForm(){
@@ -275,11 +281,10 @@ async function submitBulkRoofAreas(){
   const roofType=document.getElementById('bulkRoofType').value||null;
   const names=[...document.querySelectorAll('#bulkNameRows input')].map(i=>i.value);
   try{
-    await api(`/api/properties/${propertyId}/roof-areas/bulk`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({roof_type:roofType,names})});
+    await speichern('dachflaechen',()=>api(`/api/properties/${propertyId}/roof-areas/bulk`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({roof_type:roofType,names})}),{neuLaden:loadRoofAreas});
     document.getElementById('bulkNameRows').innerHTML='';
     document.getElementById('bulkForm').classList.add('hidden');
     st.textContent='';
-    await loadRoofAreas();
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
@@ -311,8 +316,9 @@ function propertyDocumentRow(d){
 }
 
 async function loadPropertyDocuments(){
-  const docs=await api(`/api/properties/${propertyId}/documents`).catch(()=>[]);
-  document.getElementById('propertyDocRows').innerHTML=docs.map(propertyDocumentRow).join('')||'<tr><td colspan="5" class="empty">Noch keine Dateien hinterlegt.</td></tr>';
+  await lesen('dokumente',()=>api(`/api/properties/${propertyId}/documents`).catch(()=>[]),docs=>{
+    document.getElementById('propertyDocRows').innerHTML=docs.map(propertyDocumentRow).join('')||'<tr><td colspan="5" class="empty">Noch keine Dateien hinterlegt.</td></tr>';
+  });
 }
 
 async function loadDocumentCategoriesForUpload(){
@@ -331,18 +337,16 @@ async function uploadPropertyDocument(){
   if(description)fd.append('description',description);
   st.className='status';st.textContent='Wird hochgeladen …';
   try{
-    await api(`/api/properties/${propertyId}/documents`,{method:'POST',body:fd});
+    await speichern('dokumente',()=>api(`/api/properties/${propertyId}/documents`,{method:'POST',body:fd}),{neuLaden:loadPropertyDocuments});
     fileInput.value='';document.getElementById('propertyDocDescription').value='';
     st.textContent='Hochgeladen.';
-    await loadPropertyDocuments();
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
 async function deletePropertyDocument(id){
   if(!confirm('Diese Datei wirklich löschen?'))return;
   try{
-    await api(`/api/property-documents/${id}`,{method:'DELETE'});
-    await loadPropertyDocuments();
+    await speichern('dokumente',()=>api(`/api/property-documents/${id}`,{method:'DELETE'}),{neuLaden:loadPropertyDocuments});
   }catch(e){alert('Fehler: '+e.message)}
 }
 

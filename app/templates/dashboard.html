@@ -64,6 +64,7 @@ a.link{color:var(--accent);font-weight:650;text-decoration:none}
 </div>
 </div>
 {% include "_berlin_date.html" %}
+{% include "_speichern.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const money=x=>Number(x||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
@@ -84,7 +85,7 @@ async function renderMyTasksWidget(container){
   let selectorHtml='';
   if(isAdmin){
     if(selectedTaskEmployeeId===''&&authStatus.user.employee_id)selectedTaskEmployeeId=String(authStatus.user.employee_id);
-    if(!employees.length)employees=await api('/api/employees').catch(()=>[]);
+    if(!employees.length)await lesen('mitarbeiter',()=>api('/api/employees').catch(()=>[]),d=>{employees=d});
     const opts=['<option value="">Alle</option>'].concat(employees.filter(e=>e.active).map(e=>`<option value="${e.id}" ${String(e.id)===selectedTaskEmployeeId?'selected':''}>${esc(e.first_name+' '+e.last_name)}</option>`));
     selectorHtml=`<div class="field"><label>Aufgaben von</label><select id="taskEmployeeFilter">${opts.join('')}</select></div>`;
   }
@@ -105,8 +106,11 @@ async function loadAndRenderTasks(empId,isAdmin){
   const area=document.getElementById('taskListArea');
   const empIdNum=empId?Number(empId):null;
   const qs=empId?('?employee_id='+empId):'';
+  // Seit 1.8.95 über lesen() (_speichern.html): nach "Übernehmen" bzw. Wechsel des Mitarbeiters überschreibt eine spät ankommende,
+  // ältere Liste nie eine neuere.
+  await lesen('meine-aufgaben',async()=>{
   const tasksEnabled=await isModuleEnabled('aufgabenmanagement');
-  const [wpTasks,overdueInvoices,quotes,inquiries,absences,myTasks]=await Promise.all([
+  return Promise.all([
     api('/api/work-preparation/tasks'+qs).catch(()=>[]),
     api('/api/reminders/overdue').catch(()=>[]),
     api('/api/quotes').catch(()=>[]),
@@ -114,6 +118,7 @@ async function loadAndRenderTasks(empId,isAdmin){
     isAdmin?api('/api/absence-requests?status=pending').catch(()=>[]):Promise.resolve([]),
     tasksEnabled?api('/api/tasks'+qs).catch(()=>[]):Promise.resolve([]),
   ]);
+  },([wpTasks,overdueInvoices,quotes,inquiries,absences,myTasks])=>{
   const rows=[];
   wpTasks.forEach(t=>rows.push({type:'Arbeitsvorbereitung',cls:'wp',title:t.title,sub:`${t.order_number} · ${t.project_name}`,due:t.due_date,urgent:t.priority==='dringend'||t.priority==='hoch',href:`/orders/${t.order_id}/work-preparation`}));
   myTasks.filter(t=>!t.status_is_done).forEach(t=>rows.push({type:'Aufgabe',cls:'task',title:t.title,sub:t.project_number?`${t.project_number} · ${t.project_name}`:(t.source_label||''),due:t.due_date,urgent:t.priority==='dringend'||t.priority==='hoch',href:`/tasks?task=${t.id}`}));
@@ -131,6 +136,7 @@ async function loadAndRenderTasks(empId,isAdmin){
   rows.sort((a,b)=>(a.due||'9999')<(b.due||'9999')?-1:1);
   area.className='';
   area.innerHTML=rows.length?`<div class="task-list">${rows.map(r=>`<a class="task-row ${r.urgent?'urgent':''}" href="${r.href}"><span class="task-type ${r.cls}">${esc(r.type)}</span><span class="task-main"><span class="task-title">${esc(r.title)}</span><span class="muted small">${esc(r.sub||'')}</span></span>${r.due?`<span class="task-due">${fmtDate(r.due)}</span>`:''}</a>`).join('')}</div>`:'<div class="status ok">Keine offenen Aufgaben.</div>';
+  });
 }
 
 async function renderKpisWidget(container){
@@ -214,16 +220,18 @@ async function renderOpenOfficeTasksWidget(container){
 }
 
 async function loadAndRenderOpenOfficeTasks(container,message){
-  const rows=(await api('/api/tasks?unassigned_only=true').catch(()=>[])).filter(t=>!t.status_is_done&&!t.archived);
+  await lesen('ohne-zustaendigkeit',()=>api('/api/tasks?unassigned_only=true').catch(()=>[]),d=>{
+  const rows=d.filter(t=>!t.status_is_done&&!t.archived);
   const note=message?`<div class="status ${message.err?'err':'ok'}" style="margin-bottom:8px">${esc(message.text)}</div>`:'';
   container.innerHTML=note+(rows.length?`<div class="task-list">${rows.map(t=>`<div class="task-row" data-unassigned-task="${t.id}"><span class="task-type">Aufgabe</span><a class="task-main" href="/tasks?task=${t.id}" style="color:inherit;text-decoration:none"><span class="task-title">${esc(t.title)}</span><span class="muted small">${esc(t.project_number?`${t.project_number} · ${t.project_name}`:(t.source_label||''))}</span></a>${t.due_date?`<span class="task-due">${fmtDate(t.due_date)}</span>`:''}<button class="secondary" style="flex:0 0 auto" onclick="claimOpenTask(${t.id})">Übernehmen</button></div>`).join('')}</div>`:'<div class="status ok">Keine Aufgaben ohne Zuständigkeit.</div>');
+  });
 }
 
 async function claimOpenTask(taskId){
   const body=document.getElementById('widget-body-open_office_tasks');
   let message={text:'Übernommen – die Aufgabe steht jetzt unter „Meine Aufgaben“.'};
   try{
-    await api('/api/tasks/'+taskId+'/claim',{method:'POST'});
+    await speichern('ohne-zustaendigkeit',()=>api('/api/tasks/'+taskId+'/claim',{method:'POST'}));
     const myTasks=document.getElementById('widget-body-my_tasks');
     if(myTasks)renderMyTasksWidget(myTasks);
   }catch(e){message={err:true,text:e.message}}
@@ -250,7 +258,7 @@ const WIDGETS={
 
 function visibleWidgets(){return layout.filter(w=>w.visible).sort((a,b)=>a.sort_order-b.sort_order)}
 
-async function persistLayout(){if(!authStatus.authenticated)return;await api('/api/dashboard/widgets',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({widgets:layout})}).catch(()=>{})}
+async function persistLayout(){if(!authStatus.authenticated)return;await speichern('layout',()=>api('/api/dashboard/widgets',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({widgets:layout})})).catch(()=>{})}
 
 async function moveWidget(key,dir){
   const vis=visibleWidgets();

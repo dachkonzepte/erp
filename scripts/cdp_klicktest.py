@@ -74,6 +74,12 @@ Eine dritte (seit 1.8.94): nach einer Aktion, die speichert und neu lädt, beleg
 Neuladen gesetzt) noch eine feste Pause, dass die Anzeige neu ist. Dafür
 `await tab.warte_auf_neu_geladene_liste("…click()", "#liste")` -- wartet, bis keine Anfrage der Seite mehr läuft und die
 Liste neu gezeichnet ist; ohne Aktion direkt nach `oeffnen()`, bevor geprüft wird, dass etwas NICHT erscheint.
+
+ANTWORT ZURÜCKHALTEN (seit 1.8.95): `await tab.zurueckhalten(r"/api/task-columns$", "GET")` hält die nächste passende Antwort
+zurück (der Server hat sie schon bearbeitet, die Seite bekommt sie erst bei `await tab.freigeben()`), mit `art="anfrage"` geht
+die Anfrage erst dann hinaus. `warte_bis_gehalten()`, `gehalten()`, `warte_auf_ruhe()` (Ruhe außer den zurückgehaltenen) --
+für Prüfungen, dass eine spät ankommende, ältere Antwort nichts überschreibt (Baustein _speichern.html); Vorlage
+`scripts/klicktest_veraltete_antworten.py`.
 """
 
 from __future__ import annotations
@@ -157,6 +163,32 @@ const f=window.fetch;
 window.fetch=function(...a){z.gestartet++;z.offen++;let p;try{p=f.apply(this,a)}catch(e){fertig();throw e}p.then(fertig,fertig);return p};
 const s=XMLHttpRequest.prototype.send;
 XMLHttpRequest.prototype.send=function(...a){z.gestartet++;z.offen++;this.addEventListener('loadend',fertig,{once:true});return s.apply(this,a)};
+})()"""
+
+
+# Seit 1.8.95: hält gezielt eine Antwort (oder eine Anfrage) der Seite zurück -- für Klicktests, die zeigen, dass eine spät
+# ankommende, ältere Antwort nichts überschreibt (_speichern.html). In jedes Dokument VOR dem Anfragenzähler eingesetzt (_lauf()),
+# damit der Zähler eine zurückgehaltene Antwort als unterwegs zählt. Regel: {muster (RegExp-Quelltext auf die URL), methode,
+# anzahl, art}; art "antwort": die Anfrage geht sofort hinaus, der Server bearbeitet sie, die Seite bekommt die Antwort erst bei
+# freigeben(); art "anfrage": die Anfrage geht erst bei freigeben() hinaus. gehalten: je Fall {url, methode, art, beantwortet}.
+ANTWORT_RUECKHALT = """(()=>{if(window.__dkRueckhalt)return;
+const R=window.__dkRueckhalt={regeln:[],gehalten:[],freigegeben:0};
+const f=window.fetch;
+window.fetch=function(input,init){
+  const url=typeof input==='string'?input:((input&&input.url)||String(input));
+  const methode=String((init&&init.method)||(input&&input.method)||'GET').toUpperCase();
+  const r=R.regeln.find(x=>x.anzahl>0&&new RegExp(x.muster).test(url)&&(!x.methode||x.methode===methode));
+  if(!r)return f.apply(this,arguments);
+  r.anzahl--;
+  const self=this,args=arguments,fall={url,methode,art:r.art,beantwortet:false};
+  return new Promise((ok,fehler)=>{
+    if(r.art==='anfrage'){fall.los=()=>{const p=f.apply(self,args);p.then(()=>{fall.beantwortet=true},()=>{fall.beantwortet=true});p.then(ok,fehler)}}
+    else{const p=f.apply(self,args);p.then(()=>{fall.beantwortet=true},()=>{fall.beantwortet=true});fall.los=()=>p.then(ok,fehler)}
+    R.gehalten.push(fall);
+  });
+};
+R.freigeben=()=>{const fall=R.gehalten.shift();if(!fall)return false;R.freigegeben++;fall.los();return true};
+R.stand=()=>R.gehalten.map(x=>({url:x.url,methode:x.methode,art:x.art,beantwortet:x.beantwortet}));
 })()"""
 
 
@@ -267,6 +299,42 @@ class Tab:
         stand = await self.js("JSON.stringify(window.__dkAnfragen)")
         self.nicht_geladen.append(f"nicht neu geladen: {liste or aktion or 'Seite'}")
         print(f"XX  nicht neu geladen ({liste or aktion or 'Seite'}), Anfragen {stand}")
+        return False
+
+    async def zurueckhalten(self, muster: str, methode: str | None = None, *, anzahl: int = 1, art: str = "antwort") -> None:
+        """Seit 1.8.95: hält die nächsten `anzahl` Anfragen des geladenen Dokuments zurück, deren URL auf `muster` passt
+        (regulärer Ausdruck, z. B. r"/api/task-columns$") und deren Methode `methode` ist (None: jede). art "antwort": die Anfrage
+        geht sofort hinaus und der Server bearbeitet sie, die Seite bekommt die Antwort erst bei freigeben() -- eine spät
+        ankommende Antwort; art "anfrage": sie geht erst bei freigeben() hinaus (ANTWORT_RUECKHALT)."""
+        regel = {"muster": muster, "methode": methode.upper() if methode else None, "anzahl": anzahl, "art": art}
+        await self.js(f"window.__dkRueckhalt.regeln.push({json.dumps(regel)})")
+
+    async def gehalten(self) -> list:
+        """Die zurückgehaltenen Fälle: [{url, methode, art, beantwortet}] (beantwortet: der Server hat geantwortet)."""
+        return await self.js("window.__dkRueckhalt.stand()") or []
+
+    async def warte_bis_gehalten(self, anzahl: int = 1, *, beantwortet: bool = True, timeout: float = 15) -> bool:
+        """Wartet, bis `anzahl` Fälle zurückgehalten sind (mit beantwortet: und der Server auf sie geantwortet hat)."""
+        teil = "s.slice(0,%d).every(x=>x.beantwortet)" % anzahl if beantwortet else "true"
+        if await self.warten(f"(()=>{{const s=window.__dkRueckhalt.stand();return s.length>={anzahl}&&{teil}}})()", timeout):
+            return True
+        self.nicht_geladen.append(f"nicht zurückgehalten: {anzahl} Fall/Fälle")
+        print(f"XX  nicht zurückgehalten ({anzahl}), Stand {await self.gehalten()}")
+        return False
+
+    async def freigeben(self) -> bool:
+        """Gibt den ältesten zurückgehaltenen Fall frei (Antwort an die Seite bzw. Anfrage hinaus)."""
+        return bool(await self.js("window.__dkRueckhalt.freigeben()"))
+
+    async def warte_auf_ruhe(self, *, ruhe: float = 0.3, timeout: float = 15) -> bool:
+        """Wartet, bis außer den zurückgehaltenen Fällen keine Anfrage der Seite mehr unterwegs ist und `ruhe` Sekunden nichts
+        fertig wurde (der Anfragenzähler zählt eine zurückgehaltene Antwort als unterwegs)."""
+        bedingung = ("(()=>{const z=window.__dkAnfragen,R=window.__dkRueckhalt;return !!z&&z.offen===R.gehalten.length"
+                     f"&&performance.now()-z.ruhigSeit>={int(ruhe * 1000)}}})()")
+        if await self.warten(bedingung, timeout):
+            return True
+        self.nicht_geladen.append("keine Ruhe außer den zurückgehaltenen")
+        print(f"XX  keine Ruhe, Anfragen {await self.js('JSON.stringify(window.__dkAnfragen)')}, gehalten {await self.gehalten()}")
         return False
 
     async def warten(self, bedingung: str, timeout: float = 15) -> bool:
@@ -476,6 +544,7 @@ async def _lauf(pruefen, seed, cdp_port: int, base_url: str, shots: Path) -> boo
         tab = Tab(ws, base_url, shots)
         for domain in ("Page", "Runtime", "Network"):
             await tab.cmd(f"{domain}.enable")
+        await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source=ANTWORT_RUECKHALT)  # seit 1.8.95, vor dem Zähler
         await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source=ANFRAGEN_ZAEHLER)  # seit 1.8.94
         await tab.fenster(1400, 1000)
         await pruefen(tab, seed, p)

@@ -2947,7 +2947,7 @@ Angriffstests mit Gegenprobe. Eigene Festlegungen je in einer Zeile. Nebenbefund
   `klicktest_vertragsgrundlage` und `klicktest_maengel` rufen die async-Funktion der Seite direkt auf, `Tab.js()` wartet ihr Ende ab.
   Die übrigen Pausen stehen vor Screenshots, beim Zeichnen oder zwischen Mausereignissen.
 
-#### Festlegungen 1.8.94 (Bitte bestätigen)
+#### Festlegungen 1.8.94 (alle bestätigt am 13.10.2026, Vorgabe 1.8.95; zu Nr. 2: eine andere Rechnung über 0,00 € lässt sich seit 1.8.95 nicht mehr festschreiben, Punkt 2)
 
 1. **"Bezahlt (gesamt)" abzüglich nur der Erstattungen an Schlussrechnungen** (Zuordnung "erstattung"); eine Erstattung aus dem Rest einer
    Zahlung zieht nichts ab, weil der Rest dort nie mitzählte. Unter der Kennzahl "abzüglich Erstattungen …".
@@ -3020,6 +3020,158 @@ Angriffstests mit Gegenprobe. Eigene Festlegungen je in einer Zeile. Nebenbefund
    Für Klicktests fängt das der Helfer ab; an den Seiten nichts geändert.
 4. **Überflüssige feste Pausen** ohne Nachladen dazwischen (`klicktest_beleg_und_hinweis`, `klicktest_checkliste_unterschrift`,
    `klicktest_checkliste_zweck`, `klicktest_maengel_monteur`, `klicktest_zeitbuchungen_liste`) -- gelassen, schaden nicht.
+
+## Veraltete Antworten und Rechnungen über 0 € (1.8.95)
+
+### Vorgabe vom 13.10.2026 (übernommen wie gegeben)
+
+1.8.94 geprüft. Festlegungen 1–11 bestätigt.
+
+1.8.95:
+1. Veraltete Antworten (Nebenbefunde 1 und 3): Seiten übernehmen nie eine Antwort, die älter ist als eine schon angewandte. Gemeinsamer
+   Baustein in den Vorlagen, z. B. eine laufende Nummer je Formular oder Feld; „Gespeichert.“ erst, wenn die Antwort angewandt ist.
+   Strukturtest: Jedes Speichern per fetch läuft über den Baustein. Klicktest mit gezielt zurückgehaltener Antwort, mindestens für
+   Checkliste, Abnahme, Mahnung und Einstellungen.
+2. Rechnungen über 0 € oder weniger gibt es nur als Storno oder als Endrechnung mit Abzügen; jede andere Rechnung muss über 0 € liegen,
+   sonst 409 beim Festschreiben (Nebenbefund 2).
+
+Angriffstests mit Gegenprobe. Eigene Festlegungen je in einer Zeile. Nebenbefunde nur melden. Commit nach Regel 13, Bericht kurz.
+
+### Umsetzung 1.8.95
+
+#### Was gebaut ist
+
+- **Baustein `app/templates/_speichern.html`** mit zwei Funktionen. Ein Bereich ist, was eine Antwort auf der Seite ersetzt (Formular,
+  Karte, Liste, Feld; Name je Seite frei). Je Bereich bekommt jede Anfrage, deren Antwort die Seite übernimmt, beim Absenden die nächste
+  laufende Nummer; übernommen wird eine Antwort nur, wenn keine mit höherer Nummer schon angewandt ist.
+  - `lesen(bereich, anfrage, anwenden)`: Lesen geht erst hinaus, wenn im Bereich kein Speichern unterwegs ist; `anwenden` läuft nur für
+    eine nicht veraltete Antwort (Rückgabe true/false).
+  - `speichern(bereich, anfrage, {anwenden | neuLaden})`: `anfrage` ist genau ein schreibender Aufruf `()=>api(…)`/`()=>fetch(…)`.
+    Speichern geht je Bereich nacheinander hinaus (das nächste erst nach der Antwort des vorigen) -- so bearbeitet der Server sie in der
+    Reihenfolge der Nummern, auch mit zwei Arbeitsprozessen, und die zuletzt angewandte Antwort kennt alles davor. Gebaut wird die Anfrage
+    trotzdem beim Aufruf (URL und Body mit den Werten vom Klick): `fetch()` ist während des Aufrufs durch eine Fassung ersetzt, die bis zur
+    Freigabe wartet -- sonst schickte ein wartendes Speichern ein Formular, das die Antwort des vorigen inzwischen neu gezeichnet hat
+    (beim Umbau der Arbeitsvorbereitung gefunden). Erreicht der Pfeil `fetch()` nicht sofort, meldet der Baustein es (`console.error`).
+    `speichern()` kehrt erst zurück, wenn `anwenden` gelaufen bzw. über `neuLaden` (mit `lesen()`) neu geladen ist; ein Fehler geht an den
+    Aufrufer, eine fetch-Antwort mit Fehlerstatus kommt unverändert zurück -- beides ohne anzuwenden.
+  - Mehrfach einbindbar (Stand an `window`), jede Vorlage, die ihn selbst nutzt, bindet ihn ein.
+- **Alle Vorlagen umgestellt**: jede Anfrage mit Methode ungleich GET (Speichern, Anlegen, Löschen, Versand, Hochladen, Anmelden,
+  Abmelden) über `speichern()`; die Ladefunktionen, die danach laufen, über `lesen()`; Erfolgstexte hinter `await speichern(…)`. Behoben
+  damit Nebenbefund 1 aus 1.8.94 (Checkliste: Feld und Kachel gehen nacheinander hinaus, eine ältere Antwort überschreibt die neuere nicht
+  mehr) und Nebenbefund 3 (Statustext vor dem Neuladen). Wo eine Seite die Antwort des E-Mail-Versands direkt übernahm (Auftrag, Rechnung,
+  Vertrag), lädt sie jetzt neu. Bereiche je Seite (Auswahl): Checkliste `checkliste` (Antworten, Anhänge, Unterschrift, Abschluss,
+  Neuladen), `anzeige`, `protokoll-versand`, `fassungen`, `folgen`, `regeln`, `erklaerungen`, `maengel-<Feld>`; Auftrag `auftrag`
+  (`ladeAuftrag(zeichnen)`: ist die Antwort veraltet, zeichnet die Stelle aus dem schon neueren Auftrag), `vertrag`, `vertrag-anlage`,
+  `vertragsgrundlage`, `rechnungen`, `gewaehrleistung`, `abnahmen`, `protokoll-abnahmen`, `maengel`, `einsatzberichte`; Rechnung
+  `rechnung`, `zahlungen`, `zahlungsvorschlag`, `mahnungen`, `nebenforderungen`; Mahnwesen `mahnwesen`; Versandverlauf
+  `versandverlauf-<Container>`, Versand `versand-<Platz>`. Die Umstellung der übrigen Vorlagen haben sechs parallele Helfer nach einer
+  gemeinsamen Anleitung gemacht, der Strukturtest ist das Abnahmekriterium; ihre Berichte sind in die Nebenbefunde eingegangen.
+- **Strukturtest** `tests/test_v398_speichern_baustein.py` über einen Scanner `tests/vorlagen_js.py` (Tokenizer für Strings,
+  Template-Literale, Regex, Kommentare, Klammern; Jinja-Includes eingesetzt, Positionen der Vorlage für die Meldung), je Vorlage:
+  (a) jede schreibende Anfrage ist der ganze Rumpf eines Pfeils ohne Parameter als zweites Argument eines abgewarteten `speichern()`
+  (`await`/`return` davor oder `.then`/`.finally` danach), die Optionen mit `method` direkt im Aufruf; (b) in jeder Funktion, die
+  speichert (selbst oder über eine Funktion der Seite), fragt alles danach -- Aufrufe, übergebene Funktionen, `anwenden`, `neuLaden`,
+  transitiv über Funktionsnamen der Seite samt Teilvorlagen -- nur über `lesen()`/`speichern()` an; (c) "Gespeichert" in einem String nur
+  hinter einem abgewarteten Speichern derselben Funktion; (d) wer den Baustein selbst aufruft, bindet ihn ein, wer nicht, nicht. Dazu der
+  Scanner an Beispielen und jedes Skript jeder gerenderten Seite (als Admin und als Monteur) in node auf Syntax (`vm.Script`).
+- **Klicktest-Werkzeug**: `ANTWORT_RUECKHALT` in `scripts/cdp_klicktest.py`, in jedes Dokument vor dem Anfragenzähler eingesetzt;
+  `Tab.zurueckhalten(muster, methode, art="antwort"|"anfrage")`, `freigeben()`, `gehalten()`, `warte_bis_gehalten()`, `warte_auf_ruhe()`.
+  Neuer Klicktest `scripts/klicktest_veraltete_antworten.py`.
+- **Rechnungen über 0 € oder weniger** (`app/invoices.py::amount_block_reason()`): nur ein Storno und eine Schlussrechnung mit mindestens
+  einem Abzug (`final_breakdown()` nicht leer) dürfen 0 € oder weniger lauten; jede andere -- Abschlag (wie bisher), Rechnung aus Aufwand
+  (auch die abschließende) und Schlussrechnung ohne Abzüge -- wird beim Festschreiben mit 409 abgelehnt, Grund mit dem Satz "Über 0 € oder
+  weniger lauten nur ein Storno und eine Schlussrechnung mit abgezogenen Rechnungen." (`NOT_ABOVE_ZERO_TEXT`), auf der Rechnungsseite statt
+  "Finalisieren" (`finalize_block`). Geprüft nach der Neuberechnung unter der Sperre der Auftragszeile (wie jede Regel in
+  `finalize_block_reason()`): fällt der Abzug weg, weil der Abschlag inzwischen storniert ist, gilt die Regel ohne Abzüge.
+
+#### Festlegungen 1.8.95 (Bitte bestätigen)
+
+1. **"Speichern" = jede Anfrage mit Methode ungleich GET** in einer Vorlage, ohne Ausnahmeliste (auch Löschen, Versand, Hochladen,
+   Anmelden, Abmelden).
+2. **Bereich = was eine Antwort ersetzt**, Name je Seite frei; laufende Nummer je Bereich beim Absenden; unabhängige Formulare in eigenen
+   Bereichen.
+3. **Veraltet = eine Antwort mit kleinerer Nummer als die schon angewandte** desselben Bereichs; sie wird verworfen. Schlägt die neuere
+   fehl, wird die ältere noch angewandt (sie ist dann die neueste angekommene).
+4. **Speichern je Bereich nacheinander, Lesen wartet auf laufendes Speichern** -- statt eines Stands vom Server; die Antwort mit der
+   höchsten Nummer kennt so alles davor, auch bei zwei Arbeitsprozessen.
+5. **Die Anfrage wird beim Aufruf gebaut, nur das Senden wartet** (`fetch()` während des Aufrufs zurückgestellt); ein Pfeil, der `fetch()`
+   nicht sofort erreicht, wird gemeldet (`console.error`, im Klicktest ein Fehler).
+6. **"Gespeichert." und jeder Erfolgstext erst nach dem Anwenden bzw. Neuladen** (hinter `await speichern(…)`); ist das eigene Neuladen
+   veraltet, gilt das schon angewandte neuere -- es kennt dieses Speichern.
+7. **Antwort des Versands nicht mehr direkt übernommen** (Auftrag, Rechnung, Vertrag): nach dem Versand wird neu geladen.
+8. **Lesen ohne vorheriges Speichern** (erstes Laden, Filter, Blättern) muss nicht über den Baustein; die umgestellten Seiten nutzen ihn
+   dort meist trotzdem, wo dieselbe Ladefunktion auch nach dem Speichern läuft.
+9. **Fehler wie bisher**: der Fehlertext der Seite bleibt; ein Fehler eines älteren Lesens kann eine neuere Anzeige noch mit einer
+   Fehlermeldung überschreiben (nicht abgefangen).
+10. **Strukturtest folgt Funktionen über ihren Namen** auf der Seite samt Teilvorlagen; Aufrufe über Parameter oder Tabellen
+    (`WIDGETS[…]`, Rückrufe wie `onChange`) sieht er nicht -- dort gilt die Regel ohne mechanische Prüfung.
+11. **Klicktest hält Antworten in der Seite zurück** (fetch-Wrapper, der Server hat die Anfrage schon bearbeitet), nicht im Netz;
+    Einstellungen geprüft an den Aufgabenspalten, Mahnung auf Rechnungsseite und im Mahnwesen.
+12. **Über 0 € oder weniger nur Storno und Schlussrechnung mit mindestens einem Abzug**; jede andere Rechnung, auch die abschließende
+    Rechnung aus Aufwand und die Schlussrechnung ohne Abzüge, muss über 0 € liegen -- geprüft beim Festschreiben, nicht beim Anlegen;
+    Altbestand bleibt, wie er ist.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v398_speichern_baustein.py` (319): der Baustein in node mit gestelltem fetch (16: älteres Lesen nach neuerem verworfen, in
+  Reihenfolge beide angewandt, andere Bereiche unabhängig, Speichern nacheinander, andere Bereiche zusammen, Lesen wartet nur auf Speichern
+  seines Bereichs, vorher abgeschicktes Lesen überschreibt die Antwort des Speicherns nicht, Rückkehr erst nach dem Neuladen, zwei Speichern
+  mit Neuladen enden beim neuesten Stand, Fehler blockiert nichts, Fehlerstatus ohne Anwenden, Checklisten-Fall mit Server, der B zuerst
+  bearbeitet, wartendes Speichern mit den Werten vom Klick, Pfeil ohne sofortiges fetch gemeldet, sofortiger Fehler gibt den Bereich frei,
+  doppelt eingebunden); Strukturtest je Vorlage (4 × 70); Scanner an 21 Beispielen; jedes Skript jeder gerenderten Seite als Admin und als
+  Monteur in node auf Syntax.
+- Neu `tests/test_v398_rechnung_ueber_null.py` (12, davon 1 gegen PostgreSQL): Aufwand 0 € und negativ abgelehnt (nichts festgeschrieben,
+  keine Nummer verbraucht, Grund in `finalize_block`), über 0 € geht; abschließende Rechnung aus Aufwand 0 € abgelehnt; Schlussrechnung ohne
+  Abzüge 0 € abgelehnt, über 0 € geht; Schlussrechnung mit Abzügen 0 € und −1.190 € geht; Storno negativ und positiv; **Angriffstests:** API
+  `/send` 409 mit dem Grund der Seite, negative Position schon 422, Menge auf 0 gesetzt und dann `/send` 409; Abzug vor dem Festschreiben
+  storniert -> abgelehnt. **Gleichzeitig (PostgreSQL):** das Festschreiben der Schlussrechnung wartet auf den Storno ihres Abzugs und wird
+  danach abgelehnt.
+- Neu `tests/test_v398_klicktest_rueckhalt.py` (6): Rückhalter in node mit dem Anfragenzähler -- Antwort erst nach Freigabe (zählt als
+  unterwegs), Anfrage erst nach Freigabe, andere URL/Methode geht durch, Freigabe in Reihenfolge; Rückhalter vor dem Zähler eingesetzt; der
+  Klicktest hält auf jeder der vier verlangten Seiten eine Antwort zurück.
+- Erwartungen geändert seit 1.8.95: `test_v358` (Antworten und Anhänge über zwei Übernahme-Funktionen), `test_v236` (Speichern der Mahnung
+  über den Baustein), `test_v385` (zwei Rechnungen aus Aufwand mit Betrag), `test_v334::seite()` (Testseite mit dem Baustein); in
+  `_mobile_header.html` steht das Einbinden vor dem Stilblock (`test_v269` liest die Struktur des Kopfs).
+- Klicktest `scripts/klicktest_veraltete_antworten.py` (neu) 27/27.
+- Gegenproben (Regel 24): 19 von 19 rot -- im Baustein kein Verwerfen, nicht nacheinander (der Checklisten-Fall in node war dabei zunächst
+  grün, weil er A vor B beantwortete; nachgeschärft: ist B schon beim Server, bearbeitet er B zuerst), Lesen wartet nicht, Rückkehr vor dem
+  Neuladen, Anfrage erst beim Senden gebaut, Fehlerstatus angewandt, keine Meldung ohne sofortiges fetch; Strukturtest mit Schreiben ohne
+  Baustein (Checkliste), ungeprüftem Neuladen (Abnahme), "Gespeichert." vor dem Speichern (Rechnung), fehlendem Einbinden (Mahnwesen),
+  Syntaxfehler (Finanzen); Rückhalter ohne Wirkung; Rechnungen: Regel aus, Schlussrechnung ohne Prüfung der Abzüge, Storno nicht ausgenommen;
+  dazu der Klicktest mit ausgehebeltem Verwerfen (Abnahme, Mahnung, Mahnwesen, Einstellungen rot), ohne "nacheinander" (Checkliste rot) und
+  ohne Warten auf das Neuladen (Texte zu früh). Jede Datei byte-genau zurück (SHA-256), kein Marker.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 4285 grün, 4 rot -- zwei Strukturtests zu
+  `settings.html` (in der Arbeitskopie lag noch der alte Stand, der Umbau lief parallel), zwei in `test_v385` (Erwartung veraltet seit 1.8.95:
+  Rechnung aus Aufwand über 0,00 €), angepasst, danach 36 grün. Nachlauf auf dem Endstand für alle Testdateien, die `settings.html` oder
+  `inquiries.html` lesen, dazu `test_v385`, `test_v218`, `test_v328`, `test_v334`, `test_v269` und `test_v398_*`: 35 Dateien, 738 grün.
+- Alle Klicktests (Regel 26): 59 von 59 wie erwartet in 12:18 min, `klicktest_veraltete_antworten` 27/27 darunter. In einem Frühlauf
+  während der Umstellung war `klicktest_vertragsgrundlage` einmal rot (29/30): beim Öffnen der Kundenakte kam eine von neun Anfragen nie
+  beim Server an (nicht protokolliert), die Seite wartete -- einzeln und im Endlauf grün; parallel liefen damals Suite und ein weiterer
+  Klicktest.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Adressimport: endlose Anfragen bei gefülltem Suchfeld** (schon vor 1.8.95): `renderWorklist()` ruft bei Suchtext `loadWorklist(q)` auf,
+   das wieder `renderWorklist()` -- solange etwas im Suchfeld steht, gehen ohne Ende Anfragen hinaus (`address_import.html`).
+2. **Auftrag nach Aufwand ohne Betrag** (Folge von Punkt 2): eine abschließende Rechnung aus Aufwand über 0,00 € geht nicht mehr durch;
+   einen anderen Weg, so einen Auftrag "vollständig abgerechnet" zu schließen, gibt es nicht.
+3. **Erfolgstexte, die nie zu sehen sind** (schon vorher): "Benutzer aktualisiert./angelegt." (`users.html`, `cancelEdit()` leert sofort),
+   "Titel gespeichert." im Angebots-Editor (`resetSectionEditor()`).
+4. **Angebots-Editor, zwei schnelle Inline-Änderungen derselben Position** (schon vorher, Thema Regel 22): `saveInlineField` baut den Body
+   aus dem gemerkten `quote.items` -- die zweite schreibt den alten Wert der ersten zurück.
+5. **Lesen ohne Baustein, wo vorher nichts gespeichert wird** (Festlegung 8): Monatswechsel im Stundenzettel (`field_timesheet.html`),
+   Dachtyp-Wechsel der Schichten (`roof_area.html`), erstes Laden u. a. der Einstellungen -- dort kann eine späte, ältere Antwort noch eine
+   neuere überschreiben.
+6. **Zwei Bereiche teilen einen Stand** (selten): `checklist_template.html` setzt `version` aus den Antworten von "vorlage" und "fassung";
+   die Kundenakte lädt Dokumente in `load()` (Bereich "kunde") und getrennt (Bereich "dokumente"); E-Mail-Vorlagen in den Einstellungen
+   setzen die Felder der Mahnstufe ohne Anfrage, eine späte Antwort eines vorher gewählten Dokumenttyps kann sie überschreiben.
+7. **Dashboard nach dem Speichern des Layouts**: die Widgets laden über eine Tabelle (`WIDGETS[…]`), die der Strukturtest nicht verfolgt
+   (Festlegung 10); unschädlich, die alten Container sind weg.
+8. **Einsatzbericht**: die Unterschrift (Bereich `berichte`) wartet nicht auf ein laufendes Speichern eines Prüfpunkts (Bereich
+   `pruefpunkte-<Bericht>`) -- wie vorher.
+9. **Kundenakte**: `allProjects` ist eine nicht deklarierte, implizit globale Variable (schon vorher).
+10. **Windows-Pfadlänge in Klicktests**: `klicktest_maengel_monteur` scheitert beim Befüllen, wenn der Ausgabeordner tief liegt (Pfad über
+    260 Zeichen unter `acceptance_documents/maengel/…`); mit kurzem `--ausgabe` grün.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
@@ -3105,3 +3257,8 @@ Ergänzt am 13.10.2026 (Nacharbeiten R4c), übernommen wie gegeben -- Wortlaut u
   Einstellungen. (Seit 1.8.92 gebaut.)
 - **Guthaben des Kunden**: nicht zugeordneter Rest und Guthaben zusammen, aufgeschlüsselt; eine Erstattung kann beides ausgleichen.
   (Seit 1.8.93 gebaut.)
+
+Ergänzt am 13.10.2026 (Vorgabe 1.8.95, Punkt 2), übernommen wie gegeben -- Wortlaut unter "Veraltete Antworten und Rechnungen über 0 €":
+
+- **Rechnungen über 0 € oder weniger** gibt es nur als Storno oder als Endrechnung mit Abzügen; jede andere Rechnung muss über 0 € liegen,
+  sonst 409 beim Festschreiben. (Seit 1.8.95 gebaut.)

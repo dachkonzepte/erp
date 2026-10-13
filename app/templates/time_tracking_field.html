@@ -219,6 +219,7 @@
 </dialog>
 
 {% include "_time_entries_list.html" %}
+{% include "_speichern.html" %}
 <script>
 const $=id=>document.getElementById(id);
 const params=new URLSearchParams(location.search),initialOrderId=Number(params.get('order_id')||0);
@@ -258,8 +259,11 @@ function renderManualTiles(){
   $('manualTiles').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{manualType=b.dataset.value;renderManualTiles()}));
 }
 
+// Seit 1.8.95 laden loadActive/loadCrews/loadCrewState/loadEntries/loadAbsenceRows über lesen() (_speichern.html): je Anzeige ein Bereich,
+// eine spät ankommende ältere Antwort überschreibt nie eine neuere.
 async function loadActive(){
-  active=await api('/api/time-entries/active');
+  await lesen('timer',()=>api('/api/time-entries/active'),d=>{
+  active=d;
   $('activeCard').hidden=!active;
   $('quickCard').hidden=!!active;
   if(tick){clearInterval(tick);tick=null}
@@ -267,6 +271,7 @@ async function loadActive(){
     $('activeContext').textContent=`${active.order_number||''}${active.project_name?' · '+active.project_name:''} · ${typeLabel(active.entry_type)}`;
     updateClock();tick=setInterval(updateClock,1000);
   }
+  });
 }
 function updateClock(){if(!active?.started_at)return;const sec=Math.max(0,(Date.now()-new Date(active.started_at).getTime())/1000),h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=Math.floor(sec%60);$('activeTime').textContent=[h,m,s].map(x=>String(x).padStart(2,'0')).join(':')}
 
@@ -279,14 +284,16 @@ async function startQuick(type){
     // ist -- der Router ueberschreibt einen fremden Wert ohnehin auf die eigene Person
     // (_time_entry_employee_for_request()), das Feld muss aber im Request stehen, sonst lehnt
     // Pydantic die Anfrage schon vor dem Router mit 422 ab.
-    await api('/api/time-entries/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({employee_id:myEmployeeId,order_id:order,entry_type:type,activity:$('quickActivity').value||null})});
-    await loadActive();await loadCrewState();
+    const body=JSON.stringify({employee_id:myEmployeeId,order_id:order,entry_type:type,activity:$('quickActivity').value||null});
+    await speichern('timer',()=>api('/api/time-entries/start',{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:loadActive});
+    await loadCrewState();
   }catch(e){$('quickStatus').textContent='Fehler: '+e.message}
 }
 async function stopCurrent(){
   if(!active)return;
   try{
-    await api(`/api/time-entries/${active.id}/stop`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({break_minutes:Number($('stopBreak').value||0)})});
+    const url=`/api/time-entries/${active.id}/stop`,body=JSON.stringify({break_minutes:Number($('stopBreak').value||0)});
+    await speichern('timer',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}));
     $('stopBreak').value=0;await loadActive();await loadEntries();await loadCrewState();
   }catch(e){alert(e.message)}
 }
@@ -309,7 +316,7 @@ function crewSelectedNames(){const c=crewTeam();const ids=new Set(crewSelectedId
 function typeOptions(selected){return auswahlOptionen(allTypes,selected||types.find(t=>t.is_default)?.value,t=>t.label,{wert:t=>t.value,aktiv:t=>t.active!==false})}
 function activityOptions(selected){return auswahlOptionen(allActivities,selected,x=>x.label,{wert:x=>x.value,aktiv:x=>x.active!==false,leer:'— optional —'})}
 async function loadCrews(){
-  try{crews=await api('/api/time-tracking/crews')}catch(e){crews=[]}
+  try{await lesen('kolonnen',()=>api('/api/time-tracking/crews'),d=>{crews=d})}catch(e){crews=[]}
   $('crewCard').hidden=!crews.length;
   if(!crews.length)return;
   $('crewTeam').innerHTML=crews.map(c=>`<option value="${c.team_id}">${esc(c.name)}</option>`).join('');
@@ -327,7 +334,8 @@ function renderCrewGroup(g){
 }
 async function loadCrewState(){
   if(!crews.length)return;
-  crewActive=await api('/api/time-entry-groups/active');
+  await lesen('kolonne',()=>Promise.all([api('/api/time-entry-groups/active'),api('/api/time-entry-groups/mine')]),([laufend,gruppen])=>{
+  crewActive=laufend;
   $('crewRunning').hidden=!crewActive;
   $('crewStartRow').hidden=!!crewActive;
   $('crewStartBtn').hidden=!!active;
@@ -335,16 +343,18 @@ async function loadCrewState(){
     const since=crewActive.started_at?new Date(crewActive.started_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'';
     $('crewRunning').innerHTML=`<b>Kolonnenzeit läuft</b>${since?' seit '+since:''} für ${crewActive.member_entries.map(m=>esc(m.employee_name)).join(', ')}.<br>„Zeit stoppen" oben beendet sie für alle.`;
   }
-  crewGroups=await api('/api/time-entry-groups/mine');
+  crewGroups=gruppen;
   $('crewGroups').innerHTML=crewGroups.length?crewGroups.map(renderCrewGroup).join(''):'<div class="empty">Noch keine Kolonnenbuchungen in den letzten 14 Tagen.</div>';
+  });
 }
 async function startCrew(){
   const order=Number($('crewOrder').value||0);
   if(!order){$('crewStatus').textContent='Bitte Auftrag auswählen.';return}
   $('crewStatus').textContent='';
   try{
-    await api('/api/time-entry-groups/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({employee_ids:crewSelectedIds(),team_id:Number($('crewTeam').value),order_id:order,entry_type:$('crewType').value,activity:$('crewActivity').value||null})});
-    await loadActive();await loadCrewState();
+    const body=JSON.stringify({employee_ids:crewSelectedIds(),team_id:Number($('crewTeam').value),order_id:order,entry_type:$('crewType').value,activity:$('crewActivity').value||null});
+    await speichern('timer',()=>api('/api/time-entry-groups/start',{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:loadActive});
+    await loadCrewState();
   }catch(e){$('crewStatus').textContent='Fehler: '+e.message}
 }
 function openCrewDialog(groupId=null){
@@ -369,8 +379,8 @@ async function saveCrewDialog(){
   const body={order_id:orderId,work_date:$('crewDialogDate').value,entry_type:$('crewDialogType').value,activity:$('crewDialogActivity').value||null,hours,notes:$('crewDialogNotes').value.trim()||null};
   try{
     let saved;
-    if(crewEditingId)saved=await api(`/api/time-entry-groups/${crewEditingId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    else saved=await api('/api/time-entry-groups',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,break_minutes:timeSettings.default_break_minutes||0,employee_ids:crewSelectedIds(),team_id:Number($('crewTeam').value)})});
+    if(crewEditingId)saved=await speichern('kolonne',()=>api(`/api/time-entry-groups/${crewEditingId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}));
+    else{const neu=JSON.stringify({...body,break_minutes:timeSettings.default_break_minutes||0,employee_ids:crewSelectedIds(),team_id:Number($('crewTeam').value)});saved=await speichern('kolonne',()=>api('/api/time-entry-groups',{method:'POST',headers:{'Content-Type':'application/json'},body:neu}))}
     crewDialog.close();await loadEntries();await loadCrewState();
     const skipped=saved?.skipped_members||[];
     $('crewStatus').innerHTML=skipped.length?`<span class="error">Nicht übernommen bei: ${skipped.map(esc).join(', ')}</span> – hat die eigene Buchung nach der Gruppenbuchung selbst geändert. Deren Buchung bleibt, wie sie ist.`:(crewEditingId?'Korrektur gespeichert.':'');
@@ -379,7 +389,7 @@ async function saveCrewDialog(){
 async function deleteCrewGroup(id){
   if(!confirm('Diese Kolonnenbuchung löschen? Selbst geänderte Buchungen einzelner Mitglieder bleiben bestehen.'))return;
   try{
-    const r=await api(`/api/time-entry-groups/${id}`,{method:'DELETE'});await loadEntries();await loadCrewState();
+    const r=await speichern('kolonne',()=>api(`/api/time-entry-groups/${id}`,{method:'DELETE'}));await loadEntries();await loadCrewState();
     const kept=r?.kept_members||[];
     $('crewStatus').innerHTML=kept.length?`Gelöscht. <span class="error">Bestehen geblieben bei: ${kept.map(esc).join(', ')}</span> – selbst geänderte Buchung.`:'Gelöscht.';
   }catch(e){alert(e.message)}
@@ -395,7 +405,7 @@ function renderEntry(e){
 let allEntries=[];
 async function loadEntries(){
   const from=berlinAddDays(today(),-14);
-  const list=await fetchTimeEntries(`/api/time-entries?start_date=${from}&end_date=${today()}`);
+  await lesen('buchungen',()=>fetchTimeEntries(`/api/time-entries?start_date=${from}&end_date=${today()}`),list=>{
   allEntries=list.rows.filter(e=>e.status==='booked');
   const todayRows=allEntries.filter(e=>e.work_date===today());
   const prod=todayRows.filter(e=>e.counts_as_productive).reduce((a,b)=>a+Number(b.hours),0);
@@ -403,6 +413,7 @@ async function loadEntries(){
   const total=todayRows.reduce((a,b)=>a+Number(b.hours),0);
   $('todayProductive').textContent=num(prod)+' h';$('todayTravel').textContent=num(travel)+' h';$('todayTotal').textContent=num(total)+' h';
   $('entriesList').innerHTML=timeEntriesTruncatedNotice(list)+(allEntries.length?allEntries.map(renderEntry).join(''):'<div class="empty">Noch keine Buchungen in den letzten 14 Tagen.</div>');
+  });
 }
 
 function setMode(mode){
@@ -449,22 +460,23 @@ async function saveManual(){
   // Ändern schickt nur, was der Dialog zeigt -- Pause und LV-Position bleiben (seit 1.8.25).
   const body={order_id:orderId,work_date:$('manualDate').value,entry_type:manualType,activity:$('manualActivity').value||null,hours,notes:$('manualNotes').value.trim()||null};
   try{
-    if(editingId)await api(`/api/time-entries/${editingId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    else await api('/api/time-entries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,employee_id:myEmployeeId,break_minutes:timeSettings.default_break_minutes||0})});
+    if(editingId)await speichern('buchungen',()=>api(`/api/time-entries/${editingId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}));
+    else{const neu=JSON.stringify({...body,employee_id:myEmployeeId,break_minutes:timeSettings.default_break_minutes||0});await speichern('buchungen',()=>api('/api/time-entries',{method:'POST',headers:{'Content-Type':'application/json'},body:neu}))}
     manualDialog.close();await loadEntries();
   }catch(e){$('manualStatus').textContent='Fehler: '+e.message}
 }
 async function deleteEntry(id){
   if(!confirm('Zeitbuchung wirklich löschen?'))return;
-  try{await api(`/api/time-entries/${id}`,{method:'DELETE'});await loadEntries()}catch(e){alert(e.message)}
+  try{await speichern('buchungen',()=>api(`/api/time-entries/${id}`,{method:'DELETE'}),{neuLaden:loadEntries})}catch(e){alert(e.message)}
 }
 
 function absenceStatusLabel(s){return ({pending:'Offen',approved:'Genehmigt',rejected:'Abgelehnt',cancelled:'Zurückgezogen'}[s]||s)}
 const ABSENCE_CATEGORY_LABELS={urlaub:'Urlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',unbekannt:'Unbekannt'};
 async function loadAbsenceRows(){
   try{
-    const rows=await api('/api/absence-requests');
+    await lesen('antraege',()=>api('/api/absence-requests'),rows=>{
     $('absenceListRows').innerHTML=rows.length?rows.map(r=>`<div class="request-row"><div class="request-head"><div><b>${esc(ABSENCE_CATEGORY_LABELS[r.absence_category]||r.absence_category)}</b><div class="small muted">${esc(r.absence_type)} · ${fmtDate(r.start_date)}–${fmtDate(r.end_date)}</div></div><span class="pill">${esc(absenceStatusLabel(r.status))}</span></div>${r.notes?`<div class="small muted" style="margin-top:5px">${esc(r.notes)}</div>`:''}${r.review_notes?`<div class="small" style="margin-top:5px">Freigabe: ${esc(r.review_notes)}</div>`:''}${r.status==='pending'?`<div style="margin-top:7px"><button class="danger" onclick="cancelAbsence(${r.id})">Zurückziehen</button></div>`:''}</div>`).join(''):'<div class="empty">Keine Abwesenheitsanträge vorhanden.</div>';
+    });
   }catch(e){$('absenceListRows').innerHTML=`<div class="empty">${esc(e.message)}</div>`}
 }
 function openAbsence(){
@@ -477,13 +489,13 @@ function openAbsence(){
 async function submitAbsence(){
   try{
     const body={employee_id:myEmployeeId,absence_category:$('absenceCategory').value,absence_type:$('absenceType').value,start_date:$('absenceStart').value,end_date:$('absenceEnd').value,notes:$('absenceNotes').value.trim()||null};
-    await api('/api/absence-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    $('absenceStatus').textContent='Antrag wurde gesendet.';await loadAbsenceRows();
+    await speichern('antraege',()=>api('/api/absence-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:loadAbsenceRows});
+    $('absenceStatus').textContent='Antrag wurde gesendet.';
   }catch(e){$('absenceStatus').textContent='Fehler: '+e.message}
 }
 async function cancelAbsence(id){
   if(!confirm('Abwesenheitsantrag wirklich zurückziehen?'))return;
-  try{await api(`/api/absence-requests/${id}`,{method:'DELETE'});await loadAbsenceRows()}catch(e){alert(e.message)}
+  try{await speichern('antraege',()=>api(`/api/absence-requests/${id}`,{method:'DELETE'}),{neuLaden:loadAbsenceRows})}catch(e){alert(e.message)}
 }
 
 function showLoadWarning(message){const el=$('loadWarning');if(!message){el.hidden=true;el.textContent='';return}el.hidden=false;el.textContent=message}

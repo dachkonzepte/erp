@@ -54,6 +54,7 @@ tr:last-child td{border-bottom:none}
 </main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
@@ -66,7 +67,7 @@ async function createTemplate(){
   // eingeblendetes Formular (Regel 10), Beschriftung wird im Editor vergeben.
   const st=document.getElementById('listStatus');
   try{
-    const t=await api('/api/checklist-templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:'Neue Vorlage'})});
+    const t=await speichern('vorlagen',()=>api('/api/checklist-templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:'Neue Vorlage'})}));
     location.href='/checklisten/vorlagen/'+t.id;
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }

@@ -43,17 +43,21 @@
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button id="defSaveBtn" onclick="saveDefect(this)">Mangel speichern</button><button class="secondary" onclick="closeDefectDialog()">Abbrechen</button></div>
   <div id="defDialogStatus" class="status"></div>
 </div></dialog>
+{% include "_speichern.html" %}
 <script>
 let defects=[],defectAcceptanceId=null,defectOptionsCache={},defectHashDone=false;
 // FELDNAMEN definiert order.html erst NACH diesem Include -- deshalb erst beim Aufruf zusammensetzen, nie beim Laden.
 function defFeldnamen(){return {...FELDNAMEN,description:'Beschreibung',location:'Ortsangabe',remedy_due_on:'Beseitigungsfrist',roof_area_id:'Dachfläche',stance:'Haltung',released:'Freigabe',event_date:'Datum',due_on:'Neue Beseitigungsfrist'}}
 async function defApi(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,defFeldnamen()));return r.json()}
+// Seit 1.8.95 über den Baustein (_speichern.html), Bereich 'maengel': Speichern nacheinander, eine ältere Antwort überschreibt
+// die Liste nicht.
 async function loadDefects(){
-  try{defects=await defApi(`/api/orders/${orderId}/defects`)}catch(e){document.getElementById('defectList').textContent='Mängel konnten nicht geladen werden: '+e.message;return}
-  renderDefects();
-  // Verweis aus der Aufgabe (/orders/{id}#mangel-{id}): der Mangel entsteht erst hier -- einmal hinspringen.
-  const m=!defectHashDone&&location.hash.match(/^#mangel-(\d+)$/);defectHashDone=true;
-  if(m)defFlash(Number(m[1]));
+  try{await lesen('maengel',()=>defApi(`/api/orders/${orderId}/defects`),d=>{
+    defects=d;renderDefects();
+    // Verweis aus der Aufgabe (/orders/{id}#mangel-{id}): der Mangel entsteht erst hier -- einmal hinspringen.
+    const m=!defectHashDone&&location.hash.match(/^#mangel-(\d+)$/);defectHashDone=true;
+    if(m)defFlash(Number(m[1]));
+  })}catch(e){document.getElementById('defectList').textContent='Mängel konnten nicht geladen werden: '+e.message}
 }
 function defFlash(id){const el=document.getElementById('mangel-'+id);if(el){el.scrollIntoView({block:'center'});el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),2500)}}
 function renderDefects(){
@@ -141,20 +145,21 @@ function defStatusUpdate(id){
   const p=o&&decl==='beteiligter'&&pid?o.participants.find(x=>String(x.participant_id)===pid):null,warn=document.getElementById('defPoa'+id);
   warn.hidden=!(p&&!p.poa_on_record);warn.textContent=p&&!p.poa_on_record?`Für ${p.name} ist keine Vollmacht zur Abnahme hinterlegt – gespeichert wird trotzdem, gekennzeichnet „ohne Vollmacht zur Abnahme“.`:'';
 }
-async function defSend(id,url,options,okText,btn){
+// body: Objekt (als JSON gesendet) oder FormData.
+async function defSend(id,url,body,okText,btn){
   const st=document.getElementById('defPanelStatus'+id);btn.disabled=true;st.textContent='Wird gespeichert …';
-  try{const v=await defApi(url,options);defects=defects.map(x=>x.id===id?v:x);renderDefects();document.getElementById('defectStatus').textContent=okText;loadAcceptanceList();return true}
+  const json=!(body instanceof FormData);
+  try{await speichern('maengel',()=>defApi(url,{method:'POST',headers:json?{'Content-Type':'application/json'}:{},body:json?JSON.stringify(body):body}),{anwenden:v=>{defects=defects.map(x=>x.id===id?v:x);renderDefects()}});document.getElementById('defectStatus').textContent=okText;loadAcceptanceList();return true}
   catch(e){st.textContent='Fehler: '+e.message;btn.disabled=false;return false}
 }
-function defJson(body){return {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}}
 async function defStance(id,btn){
   const box=document.getElementById('defPanel'+id),stance=defRadio(box,'defStance'+id),reason=document.getElementById('defReason'+id).value.trim();
   if(!stance){document.getElementById('defPanelStatus'+id).textContent='Bitte die Haltung wählen.';return}
-  await defSend(id,`/api/defects/${id}/stance`,defJson({stance,reason:reason||null}),'Haltung gespeichert.',btn);
+  await defSend(id,`/api/defects/${id}/stance`,{stance,reason:reason||null},'Haltung gespeichert.',btn);
 }
 async function defRelease(id,released,btn){
   const reason=document.getElementById('defReason'+id).value.trim();
-  await defSend(id,`/api/defects/${id}/release`,defJson({released,reason:reason||null}),released?'Zur Beseitigung freigegeben.':'Freigabe zurückgenommen.',btn);
+  await defSend(id,`/api/defects/${id}/release`,{released,reason:reason||null},released?'Zur Beseitigung freigegeben.':'Freigabe zurückgenommen.',btn);
 }
 async function defStatus(id,btn){
   const box=document.getElementById('defPanel'+id),st=document.getElementById('defPanelStatus'+id),status=defRadio(box,'defNext'+id);
@@ -165,24 +170,24 @@ async function defStatus(id,btn){
   const form=new FormData();
   if(status==='beseitigung_abgenommen'){data.declared_by=defRadio(box,'defDecl'+id);if(data.declared_by==='beteiligter'){const v=document.getElementById('defPart'+id).value;data.participant_id=v?Number(v):null}[...document.getElementById('defReceipts'+id).files].forEach(f=>form.append('receipts',f))}
   form.append('data',JSON.stringify(data));
-  await defSend(id,`/api/defects/${id}/status`,{method:'POST',body:form},'Status gespeichert.',btn);
+  await defSend(id,`/api/defects/${id}/status`,form,'Status gespeichert.',btn);
 }
 async function defPhotos(id,btn){
   const files=[...document.getElementById('defMorePhotos'+id).files];
   if(!files.length){document.getElementById('defPanelStatus'+id).textContent='Bitte mindestens ein Foto wählen.';return}
   const form=new FormData();files.forEach(f=>form.append('photos',f));
-  await defSend(id,`/api/defects/${id}/photos`,{method:'POST',body:form},'Fotos ergänzt.',btn);
+  await defSend(id,`/api/defects/${id}/photos`,form,'Fotos ergänzt.',btn);
 }
 async function defMoreReceipts(id,btn){
   const files=[...document.getElementById('defMoreReceipts'+id).files];
   if(!files.length){document.getElementById('defPanelStatus'+id).textContent='Bitte mindestens einen Beleg wählen.';return}
   const form=new FormData();files.forEach(f=>form.append('receipts',f));
-  await defSend(id,`/api/defects/${id}/receipts`,{method:'POST',body:form},'Belege ergänzt.',btn);
+  await defSend(id,`/api/defects/${id}/receipts`,form,'Belege ergänzt.',btn);
 }
 async function defDiscard(id,btn){
   const reason=document.getElementById('defReason'+id).value.trim();
   if(!reason){document.getElementById('defPanelStatus'+id).textContent='Bitte begründen, warum der Mangel verworfen wird.';return}
-  await defSend(id,`/api/defects/${id}/discard`,defJson({reason}),'Mangel verworfen.',btn);
+  await defSend(id,`/api/defects/${id}/discard`,{reason},'Mangel verworfen.',btn);
 }
 async function openDefectDialog(acceptanceId){
   const st=document.getElementById('acceptanceStatus');let o;
@@ -206,9 +211,8 @@ async function saveDefect(btn){
   [...document.getElementById('defPhotos').files].forEach(f=>form.append('photos',f));[...document.getElementById('defReceipts').files].forEach(f=>form.append('receipts',f));
   btn.disabled=true;st.textContent='Wird gespeichert …';
   try{
-    const d=await defApi(`/api/order-acceptances/${defectAcceptanceId}/defects`,{method:'POST',body:form});
+    const d=await speichern('maengel',()=>defApi(`/api/order-acceptances/${defectAcceptanceId}/defects`,{method:'POST',body:form}),{neuLaden:()=>Promise.all([loadDefects(),loadAcceptanceList()])});
     closeDefectDialog();document.getElementById('defectStatus').textContent='Mangel gespeichert.';
-    await Promise.all([loadDefects(),loadAcceptanceList()]);
     defFlash(d.id);
   }catch(e){st.textContent='Fehler: '+e.message}finally{btn.disabled=false}
 }

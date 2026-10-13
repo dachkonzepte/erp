@@ -842,8 +842,13 @@
 </main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 let sequences=[],employeeFunctions=[],editingFunctionId=null,optionGroups=[],currentOptionGroup=null,editingOptionId=null,planningSettings=null,planningHolidays=[],editingHolidayId=null,paymentTerms=[],editingPaymentTermId=null,taxKeys=[],editingTaxKeyId=null,reminderLevels=[],generalSettings=null,settingsAccounts=[],editingAccountId=null;
+// Seit 1.8.95 speichert die Seite über den Baustein (_speichern.html) und lädt danach über lesen() neu, je Abschnitt in einem
+// eigenen Bereich ('allgemein', 'nummernkreise', 'aufgabenspalten', 'zahlungsbedingungen', 'mahnstufen' …): eine spät ankommende,
+// ältere Antwort überschreibt nie eine neuere, Statustexte erst nach dem Anwenden bzw. Neuladen. Die lade…()-Funktionen laden eine
+// Liste neu, ohne Fehler abzufangen (er erreicht so das Speichern); load() lädt beim Öffnen wie bisher alles auf einmal.
 // Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8): Kalkulationsgrundlagen/Stundenverrechnungssatz
 // sind buero_finanzen/admin-only -- die zugehoerigen <section>-Bloecke sind fuer buero_auftrag
 // bereits per Jinja aus dem Markup entfernt, load() darf ihre Endpunkte fuer diese Rolle deshalb
@@ -856,40 +861,41 @@ const canEditContractClauses={{ 'true' if can(current_user, 'admin') else 'false
 // Aus heißt: keine Gebühr je Stufe -- das Feld fehlt dann, gespeichert wird ohne (Teil-Update, Regel 22).
 const canSwitchDunningCharges={{ 'true' if can(current_user, 'admin') else 'false' }};
 let dunningSettings=null;
-async function loadDunningSettings(){try{dunningSettings=await api('/api/dunning-settings')}catch(e){dunningSettings={charges_enabled:false,error:e.message}}renderReminderLevels()}
+async function loadDunningSettings(){try{await lesen('mahngebuehren',()=>api('/api/dunning-settings'),d=>{dunningSettings=d})}catch(e){dunningSettings={charges_enabled:false,error:e.message}}renderReminderLevels()}
 function renderDunningSwitch(){const box=document.getElementById('dunningSwitch');if(!box)return;if(!dunningSettings){box.innerHTML='<span class="muted small">Lädt …</span>';return}const on=dunningSettings.charges_enabled;box.innerHTML=`<h3 style="margin:0 0 6px">Mahngebühren und Verzugszinsen</h3><div class="small" data-schalter-zustand style="margin-bottom:8px">${on?'<b>Eingeschaltet.</b> Die Gebühr je Stufe ist ein Vorschlag, den jede Mahnung bewusst übernimmt; die Pauschale nach § 288 Abs. 5 BGB (40 €, nur Kunden, die keine Verbraucher sind, ab Verzug) ebenso. Nebenforderungen stehen nie im Rechnungsbetrag.':'<b>Ausgeschaltet.</b> Keine Gebühren, keine Pauschale, keine Beträge – auch die Gebühr je Stufe wirkt nicht.'}</div>${dunningSettings.error?`<div class="status err">Fehler: ${esc(dunningSettings.error)}</div>`:''}${canSwitchDunningCharges?`<label style="display:flex;align-items:center;gap:8px;font-weight:650"><input type="checkbox" id="dunningChargesEnabled" style="width:auto" ${on?'checked':''} onchange="saveDunningSwitch(this.checked)"> Mahngebühren und Verzugszinsen berechnen</label>`:'<div class="small muted">Nur Administratoren schalten das um.</div>'}<span class="status" id="dunningSwitchStatus"></span>`}
-async function saveDunningSwitch(enabled){const st=document.getElementById('dunningSwitchStatus');try{dunningSettings=await api('/api/dunning-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({charges_enabled:enabled})});renderReminderLevels();document.getElementById('dunningSwitchStatus').textContent=enabled?'Eingeschaltet.':'Ausgeschaltet.'}catch(e){st.className='status err';st.textContent='Fehler: '+e.message;renderReminderLevels()}}
+async function saveDunningSwitch(enabled){const st=document.getElementById('dunningSwitchStatus');try{await speichern('mahngebuehren',()=>api('/api/dunning-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({charges_enabled:enabled})}),{anwenden:d=>{dunningSettings=d;renderReminderLevels()}});document.getElementById('dunningSwitchStatus').textContent=enabled?'Eingeschaltet.':'Ausgeschaltet.'}catch(e){st.className='status err';st.textContent='Fehler: '+e.message;renderReminderLevels()}}
 // Basiszinssatz und Rechtstexte (seit 1.8.81, Z2b Punkte 7 und 9): lesen Büro und Admin, pflegen nur Administratoren
 // (POST/PUT/DELETE serverseitig admin-only) -- wie die Klauseln mit "geprüft am/durch"; nur Geprüftes zählt bzw. wird gedruckt.
 let baseRates=null,legalTexts=null;
 const pctDe=x=>Number(x).toLocaleString('de-DE',{maximumFractionDigits:3,useGrouping:false});
 const dDe=s=>s?new Date(s+'T00:00:00').toLocaleDateString('de-DE'):'';
 // Wie load(): je Aufruf einzeln (allSettled) -- schlägt einer fehl, bleibt der andere Bereich nutzbar.
-async function loadDunningLegal(){const [r,t]=await Promise.allSettled([api('/api/base-interest-rates'),api('/api/dunning-legal-texts')]);baseRates=r.status==='fulfilled'?r.value:[];legalTexts=t.status==='fulfilled'?t.value:[];renderBaseRates();renderLegalTexts();[[r,'baseRatesBox','Basiszinssätze'],[t,'legalTextsBox','Rechtstexte']].forEach(([x,id,was])=>{if(x.status!=='fulfilled'){const box=document.getElementById(id);if(box)box.insertAdjacentHTML('afterbegin',`<div class="status err">${was} konnten nicht geladen werden: ${esc(x.reason.message)}</div>`)}})}
+async function loadDunningLegal(){const [r,t]=await Promise.allSettled([lesen('basiszins',()=>api('/api/base-interest-rates'),d=>{baseRates=d}),lesen('rechtstexte',()=>api('/api/dunning-legal-texts'),d=>{legalTexts=d})]);if(r.status!=='fulfilled')baseRates=[];if(t.status!=='fulfilled')legalTexts=[];renderBaseRates();renderLegalTexts();[[r,'baseRatesBox','Basiszinssätze'],[t,'legalTextsBox','Rechtstexte']].forEach(([x,id,was])=>{if(x.status!=='fulfilled'){const box=document.getElementById(id);if(box)box.insertAdjacentHTML('afterbegin',`<div class="status err">${was} konnten nicht geladen werden: ${esc(x.reason.message)}</div>`)}})}
+function ladeBasiszins(){return lesen('basiszins',()=>api('/api/base-interest-rates'),d=>{baseRates=d;renderBaseRates()})}
 function rateValue(s){return String(s||'').trim().replace(/\s|%/g,'').replace(',','.')}
 function renderBaseRates(){const box=document.getElementById('baseRatesBox');if(!box||baseRates===null)return;const ro=canSwitchDunningCharges?'':'disabled';
   const rows=baseRates.map(r=>`<tr data-basiszins="${r.id}"><td>${dDe(r.half_year_start)}–${dDe(r.half_year_end)}<div class="small ${r.reviewed?'':'muted'}" data-basiszins-stand>${r.reviewed?'geprüft':'nicht geprüft – zählt nicht'}</div></td><td style="white-space:nowrap"><input class="brRate" inputmode="decimal" value="${esc(pctDe(r.rate_percent))}" style="width:70px" ${ro}> %</td><td><input class="brOn" type="date" value="${esc(r.reviewed_on||'')}" style="width:140px" ${ro}><input class="brBy" value="${esc(r.reviewed_by||'')}" placeholder="durch (Name)" style="width:140px;margin-top:4px" ${ro}></td><td style="white-space:nowrap">${canSwitchDunningCharges?`<button class="secondary" onclick="saveBaseRate(${r.id})">Speichern</button>${r.reviewed?'':` <button class="secondary" onclick="deleteBaseRate(${r.id})">Löschen</button>`}`:''} <span class="status brStatus"></span></td></tr>`).join('')||'<tr><td colspan="4" class="muted small">Noch kein Basiszinssatz hinterlegt – ohne ihn gibt es keine Zinsvorschläge.</td></tr>';
   box.innerHTML=`<h3 style="margin:0 0 6px">Basiszinssatz (§ 247 BGB)</h3><div class="small muted" style="margin-bottom:8px">Je Halbjahr ein Satz (gültig ab 1. Januar bzw. 1. Juli bis zum Ende des Halbjahres). Verzugszinsen: Verbraucher 5, sonst 9 Prozentpunkte darüber. Gerechnet wird nur mit geprüften Sätzen – fehlt im Zinszeitraum ein Halbjahr oder ist es nicht geprüft, gibt es keinen Zinsvorschlag. Ändert sich ein Satz ohne neue Prüfangabe, fällt die Prüfung weg; schon gebuchte Zinsen behalten ihren Satz.</div>${canSwitchDunningCharges?'':'<div class="hint">Nur Administratoren pflegen den Basiszinssatz.</div>'}<div style="overflow:auto"><table><thead><tr><th>Halbjahr</th><th>Satz</th><th>Geprüft am / durch</th><th></th></tr></thead><tbody id="baseRateRows">${rows}${canSwitchDunningCharges?`<tr data-basiszins-neu><td><div class="small muted" style="margin-bottom:3px">Neu, gültig ab</div><div style="display:flex;gap:6px"><select id="brNewHalf" style="width:auto"><option value="01-01">1. Januar</option><option value="07-01">1. Juli</option></select><input id="brNewYear" type="number" min="2000" max="2100" step="1" style="width:76px" value="${berlinDateParts().year}"></div></td><td style="white-space:nowrap;vertical-align:bottom"><input id="brNewRate" inputmode="decimal" placeholder="1,27" style="width:70px"> %</td><td style="vertical-align:bottom"><input id="brNewOn" type="date" style="width:140px"><input id="brNewBy" placeholder="durch (Name)" style="width:140px;margin-top:4px"></td><td style="vertical-align:bottom"><button onclick="createBaseRate()">Hinzufügen</button><div class="status" id="brNewStatus"></div></td></tr>`:''}</tbody></table></div>`}
-async function createBaseRate(){const st=document.getElementById('brNewStatus');st.className='status';try{const year=Number(document.getElementById('brNewYear').value);if(!year)throw Error('Bitte ein Jahr angeben.');await api('/api/base-interest-rates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({half_year_start:`${year}-${document.getElementById('brNewHalf').value}`,rate_percent:rateValue(document.getElementById('brNewRate').value),reviewed_on:document.getElementById('brNewOn').value||null,reviewed_by:document.getElementById('brNewBy').value.trim()||null})});baseRates=await api('/api/base-interest-rates');renderBaseRates();const s2=document.getElementById('brNewStatus');s2.className='status ok';s2.textContent='Hinzugefügt.'}catch(e){st.className='status err';st.textContent='Fehler: '+e.message}}
-async function saveBaseRate(id){const row=document.querySelector(`[data-basiszins="${id}"]`),st=row.querySelector('.brStatus');st.className='status brStatus';try{const d=await api(`/api/base-interest-rates/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({rate_percent:rateValue(row.querySelector('.brRate').value),reviewed_on:row.querySelector('.brOn').value||null,reviewed_by:row.querySelector('.brBy').value.trim()||null})});baseRates=await api('/api/base-interest-rates');renderBaseRates();const s2=document.querySelector(`[data-basiszins="${id}"] .brStatus`);s2.classList.add('ok');s2.textContent=d.review_reset?'Gespeichert. Der Satz wurde geändert – die bisherige Prüfangabe gilt nicht mehr.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
-async function deleteBaseRate(id){if(!confirm('Diesen ungeprüften Basiszinssatz löschen?'))return;const row=document.querySelector(`[data-basiszins="${id}"]`),st=row.querySelector('.brStatus');try{await api(`/api/base-interest-rates/${id}`,{method:'DELETE'});baseRates=await api('/api/base-interest-rates');renderBaseRates()}catch(e){st.className='status brStatus err';st.textContent='Fehler: '+e.message}}
+async function createBaseRate(){const st=document.getElementById('brNewStatus');st.className='status';try{const year=Number(document.getElementById('brNewYear').value);if(!year)throw Error('Bitte ein Jahr angeben.');await speichern('basiszins',()=>api('/api/base-interest-rates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({half_year_start:`${year}-${document.getElementById('brNewHalf').value}`,rate_percent:rateValue(document.getElementById('brNewRate').value),reviewed_on:document.getElementById('brNewOn').value||null,reviewed_by:document.getElementById('brNewBy').value.trim()||null})}),{neuLaden:ladeBasiszins});const s2=document.getElementById('brNewStatus');s2.className='status ok';s2.textContent='Hinzugefügt.'}catch(e){st.className='status err';st.textContent='Fehler: '+e.message}}
+async function saveBaseRate(id){const row=document.querySelector(`[data-basiszins="${id}"]`),st=row.querySelector('.brStatus');st.className='status brStatus';try{const d=await speichern('basiszins',()=>api(`/api/base-interest-rates/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({rate_percent:rateValue(row.querySelector('.brRate').value),reviewed_on:row.querySelector('.brOn').value||null,reviewed_by:row.querySelector('.brBy').value.trim()||null})}),{neuLaden:ladeBasiszins});const s2=document.querySelector(`[data-basiszins="${id}"] .brStatus`);s2.classList.add('ok');s2.textContent=d.review_reset?'Gespeichert. Der Satz wurde geändert – die bisherige Prüfangabe gilt nicht mehr.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
+async function deleteBaseRate(id){if(!confirm('Diesen ungeprüften Basiszinssatz löschen?'))return;const row=document.querySelector(`[data-basiszins="${id}"]`),st=row.querySelector('.brStatus');try{await speichern('basiszins',()=>api(`/api/base-interest-rates/${id}`,{method:'DELETE'}),{neuLaden:ladeBasiszins})}catch(e){st.className='status brStatus err';st.textContent='Fehler: '+e.message}}
 function renderLegalTexts(){const box=document.getElementById('legalTextsBox');if(!box||legalTexts===null)return;const ro=canSwitchDunningCharges?'':'disabled';box.innerHTML=`<h3 style="margin:0 0 6px">Rechtstexte zu Verzug, Zinsen und Pauschale</h3><div class="small muted" style="margin-bottom:8px">Die Mahnung druckt einen Text nur, wenn er geprüft ist und sie das Thema nennt (Verzug bestätigt, Verzugszinsen, Pauschale). Ungeprüft wird nichts gedruckt – der Mahnungsentwurf warnt. Beim Festschreiben bleibt der gedruckte Text an der Mahnung.</div>${canSwitchDunningCharges?'':'<div class="hint">Nur Administratoren können Rechtstexte und Prüfangaben ändern.</div>'}`+legalTexts.map(t=>`<div data-rechtstext="${esc(t.text_key)}" style="border-top:1px solid var(--line);padding-top:12px;margin-top:12px"><b>${esc(t.label)}</b><div class="small ${t.reviewed?'':'muted'}" data-rechtstext-stand style="margin:2px 0 6px">${t.reviewed?'Geprüft – wird gedruckt, wenn die Mahnung das Thema nennt.':'Nicht geprüft – wird nicht gedruckt.'}${t.updated_by_name?` · zuletzt gespeichert von ${esc(t.updated_by_name)}`:''}</div><div class="field"><label>Text <span class="muted small">(Platzhalter: ${t.placeholders.map(p=>`<code title="${esc(p.label)}">${esc(p.key)}</code>`).join(' ')})</span></label><textarea class="ltBody" rows="3" ${ro}>${esc(t.body||'')}</textarea></div>${t.unknown_placeholders.length?`<div class="hint" data-unbekannt style="border-left-color:var(--warning)">Unbekannte Platzhalter: ${t.unknown_placeholders.map(p=>`<code>${esc(p)}</code>`).join(' ')} – sie blieben im Brief stehen.</div>`:''}<div class="fields-2col"><div class="field"><label>Rechtlich geprüft am</label><input class="ltOn" type="date" value="${esc(t.reviewed_on||'')}" ${ro}></div><div class="field"><label>durch</label><input class="ltBy" value="${esc(t.reviewed_by||'')}" placeholder="z. B. Kanzlei Muster" ${ro}></div></div>${canSwitchDunningCharges?`<button onclick="saveLegalText('${esc(t.text_key)}')">Speichern</button>`:''} <span class="status ltStatus"></span></div>`).join('')}
-async function saveLegalText(key){const row=document.querySelector(`[data-rechtstext="${key}"]`),st=row.querySelector('.ltStatus');st.className='status ltStatus';try{const d=await api(`/api/dunning-legal-texts/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:row.querySelector('.ltBody').value.trim()||null,reviewed_on:row.querySelector('.ltOn').value||null,reviewed_by:row.querySelector('.ltBy').value.trim()||null})});legalTexts=legalTexts.map(t=>t.text_key===key?d:t);renderLegalTexts();const s2=document.querySelector(`[data-rechtstext="${key}"] .ltStatus`);s2.classList.add('ok');s2.textContent=d.review_reset?'Gespeichert. Der Text wurde geändert – die bisherige Prüfangabe gilt nicht mehr, bitte nach erneuter Prüfung neu eintragen.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
+async function saveLegalText(key){const row=document.querySelector(`[data-rechtstext="${key}"]`),st=row.querySelector('.ltStatus');st.className='status ltStatus';try{const d=await speichern('rechtstexte',()=>api(`/api/dunning-legal-texts/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:row.querySelector('.ltBody').value.trim()||null,reviewed_on:row.querySelector('.ltOn').value||null,reviewed_by:row.querySelector('.ltBy').value.trim()||null})}),{anwenden:neu=>{legalTexts=legalTexts.map(t=>t.text_key===key?neu:t);renderLegalTexts()}});const s2=document.querySelector(`[data-rechtstext="${key}"] .ltStatus`);s2.classList.add('ok');s2.textContent=d.review_reset?'Gespeichert. Der Text wurde geändert – die bisherige Prüfangabe gilt nicht mehr, bitte nach erneuter Prüfung neu eintragen.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
 function feePlaceholderWarning(x){if(!dunningSettings||dunningSettings.charges_enabled)return '';const used=[x.text_template,x.email_subject_template,x.email_body_template].some(t=>(t||'').includes('{mahngebuehr}'));return used?'<div class="hint" data-warnung-gebuehr style="border-left-color:var(--warning)">Der Text enthält <code>{mahngebuehr}</code> – Mahngebühren sind ausgeschaltet, im Brief stünde „0,00 €“. Besser <code>{gesamtbetrag}</code> verwenden (die Aufstellung im PDF zeigt die Teile).</div>':''}
 let contractBasisClauses=[];
-async function loadContractBasisClauses(){const box=document.getElementById('contractBasisClauseRows');try{contractBasisClauses=await api('/api/settings/contract-basis-clauses');renderContractBasisClauses()}catch(e){box.innerHTML=`<div class="status err">Fehler: ${esc(e.message)}</div>`}}
+async function loadContractBasisClauses(){const box=document.getElementById('contractBasisClauseRows');try{await lesen('vertragsklauseln',()=>api('/api/settings/contract-basis-clauses'),d=>{contractBasisClauses=d;renderContractBasisClauses()})}catch(e){box.innerHTML=`<div class="status err">Fehler: ${esc(e.message)}</div>`}}
 function renderContractBasisClauses(){const ro=canEditContractClauses?'':'disabled';document.getElementById('contractBasisClauseRows').innerHTML=(canEditContractClauses?'':'<div class="hint">Nur Administratoren können Klauseltexte und Prüfangaben ändern.</div>')+contractBasisClauses.map(c=>`<div class="list-narrow" data-basis="${esc(c.basis_key)}" style="border-top:1px solid var(--line);padding-top:14px;margin-top:14px"><h3 style="margin:0 0 4px">${esc(c.label)}</h3><div class="small ${c.reviewed?'':'muted'}" style="margin-bottom:8px">${c.reviewed?'Rechtlich geprüft – wird auf Angebot und Auftrag gedruckt.':'Nicht geprüft – wird nicht gedruckt.'}${c.updated_by_name?` · zuletzt gespeichert von ${esc(c.updated_by_name)}`:''}</div><div class="field"><label>Klauseltext</label><textarea class="cbText" rows="5" ${ro}>${esc(c.clause_text||'')}</textarea></div><div class="fields-2col"><div class="field"><label>Rechtlich geprüft am</label><input class="cbReviewedOn" type="date" value="${esc(c.reviewed_on||'')}" ${ro}></div><div class="field"><label>durch</label><input class="cbReviewedBy" value="${esc(c.reviewed_by||'')}" placeholder="z. B. Kanzlei Muster, RA Beispiel" ${ro}></div></div>${canEditContractClauses?`<button onclick="saveContractBasisClause('${esc(c.basis_key)}')">Speichern</button>`:''}<span class="status cbStatus"></span></div>`).join('')}
-async function saveContractBasisClause(key){const row=document.querySelector(`[data-basis="${key}"]`),st=row.querySelector('.cbStatus');st.className='status cbStatus';try{const d=await api(`/api/settings/contract-basis-clauses/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({clause_text:row.querySelector('.cbText').value.trim()||null,reviewed_on:row.querySelector('.cbReviewedOn').value||null,reviewed_by:row.querySelector('.cbReviewedBy').value.trim()||null})});contractBasisClauses=contractBasisClauses.map(c=>c.basis_key===key?d:c);renderContractBasisClauses();const st2=document.querySelector(`[data-basis="${key}"] .cbStatus`);st2.classList.add('ok');st2.textContent=d.review_reset?'Gespeichert. Der Text wurde geändert – die bisherige Prüfangabe gilt nicht mehr, bitte nach erneuter Prüfung neu eintragen.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
+async function saveContractBasisClause(key){const row=document.querySelector(`[data-basis="${key}"]`),st=row.querySelector('.cbStatus');st.className='status cbStatus';try{const d=await speichern('vertragsklauseln',()=>api(`/api/settings/contract-basis-clauses/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({clause_text:row.querySelector('.cbText').value.trim()||null,reviewed_on:row.querySelector('.cbReviewedOn').value||null,reviewed_by:row.querySelector('.cbReviewedBy').value.trim()||null})}),{anwenden:neu=>{contractBasisClauses=contractBasisClauses.map(c=>c.basis_key===key?neu:c);renderContractBasisClauses()}});const st2=document.querySelector(`[data-basis="${key}"] .cbStatus`);st2.classList.add('ok');st2.textContent=d.review_reset?'Gespeichert. Der Text wurde geändert – die bisherige Prüfangabe gilt nicht mehr, bitte nach erneuter Prüfung neu eintragen.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
 // Vorbehalte in Anzeigen (seit 1.8.40): wie die Klauseln -- lesen Büro und Admin, speichern nur Administratoren
 // (PUT serverseitig admin-only); je Briefart und Gruppe der Vertragsgrundlage eine Zeile.
 let noticeReservations=[];
-async function loadNoticeReservations(){const box=document.getElementById('noticeReservationRows');try{noticeReservations=await api('/api/settings/notice-reservations');renderNoticeReservations()}catch(e){box.innerHTML=`<div class="status err">Fehler: ${esc(e.message)}</div>`}}
+async function loadNoticeReservations(){const box=document.getElementById('noticeReservationRows');try{await lesen('vorbehalte',()=>api('/api/settings/notice-reservations'),d=>{noticeReservations=d;renderNoticeReservations()})}catch(e){box.innerHTML=`<div class="status err">Fehler: ${esc(e.message)}</div>`}}
 function renderNoticeReservations(){const ro=canEditContractClauses?'':'disabled';document.getElementById('noticeReservationRows').innerHTML=(canEditContractClauses?'':'<div class="hint">Nur Administratoren können Vorbehalte und Prüfangaben ändern.</div>')+noticeReservations.map(r=>{const key=`${r.letter_kind}/${r.basis_group}`;return `<div class="list-narrow" data-reservation="${esc(key)}" style="border-top:1px solid var(--line);padding-top:14px;margin-top:14px"><h3 style="margin:0 0 4px">${esc(r.letter_label)} · ${esc(r.basis_label)}</h3><div class="small ${r.reviewed?'':'muted'}" style="margin-bottom:8px">${r.reviewed?'Rechtlich geprüft – wird im Brief gedruckt.':(r.has_text?'Nicht geprüft – wird nicht gedruckt.':'Kein Text – der Brief enthält keinen Vorbehalt.')}${r.updated_by_name?` · zuletzt gespeichert von ${esc(r.updated_by_name)}`:''}</div><div class="field"><label>Vorbehalt</label><textarea class="nrText" rows="4" ${ro}>${esc(r.reservation_text||'')}</textarea></div><div class="fields-2col"><div class="field"><label>Rechtlich geprüft am</label><input class="nrReviewedOn" type="date" value="${esc(r.reviewed_on||'')}" ${ro}></div><div class="field"><label>durch</label><input class="nrReviewedBy" maxlength="160" value="${esc(r.reviewed_by||'')}" placeholder="z. B. Kanzlei Muster, RA Beispiel" ${ro}></div></div>${canEditContractClauses?`<button onclick="saveNoticeReservation('${esc(key)}')">Speichern</button>`:''}<span class="status nrStatus"></span></div>`}).join('')}
-async function saveNoticeReservation(key){const row=document.querySelector(`[data-reservation="${key}"]`),st=row.querySelector('.nrStatus');st.className='status nrStatus';try{const d=await api(`/api/settings/notice-reservations/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reservation_text:row.querySelector('.nrText').value.trim()||null,reviewed_on:row.querySelector('.nrReviewedOn').value||null,reviewed_by:row.querySelector('.nrReviewedBy').value.trim()||null})});noticeReservations=noticeReservations.map(r=>`${r.letter_kind}/${r.basis_group}`===key?d:r);renderNoticeReservations();const st2=document.querySelector(`[data-reservation="${key}"] .nrStatus`);st2.classList.add('ok');st2.textContent=d.review_reset?'Gespeichert. Der Text wurde geändert – die bisherige Prüfangabe gilt nicht mehr, bitte nach erneuter Prüfung neu eintragen.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
+async function saveNoticeReservation(key){const row=document.querySelector(`[data-reservation="${key}"]`),st=row.querySelector('.nrStatus');st.className='status nrStatus';try{const d=await speichern('vorbehalte',()=>api(`/api/settings/notice-reservations/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reservation_text:row.querySelector('.nrText').value.trim()||null,reviewed_on:row.querySelector('.nrReviewedOn').value||null,reviewed_by:row.querySelector('.nrReviewedBy').value.trim()||null})}),{anwenden:neu=>{noticeReservations=noticeReservations.map(r=>`${r.letter_kind}/${r.basis_group}`===key?neu:r);renderNoticeReservations()}});const st2=document.querySelector(`[data-reservation="${key}"] .nrStatus`);st2.classList.add('ok');st2.textContent=d.review_reset?'Gespeichert. Der Text wurde geändert – die bisherige Prüfangabe gilt nicht mehr, bitte nach erneuter Prüfung neu eintragen.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
 // Vertragsvorlagen (seit 1.8.32): wie die Klauseln -- lesen Büro und Admin, speichern nur Administratoren.
 // Gespeichert wird immer die ganze Vorlage (Titel, Abschnitte in Reihenfolge, Prüfangaben).
 let contractTemplates=[],contractPlaceholders=[];
-async function loadContractTemplates(){const box=document.getElementById('contractTemplateRows');try{const d=await api('/api/settings/contract-templates');contractPlaceholders=d.placeholders;contractTemplates=d.templates;document.getElementById('contractPlaceholderRows').innerHTML=contractPlaceholders.map(p=>`<tr><td><code>${esc(p.placeholder)}</code></td><td>${esc(p.description)}</td></tr>`).join('');renderContractTemplates()}catch(e){box.innerHTML=`<div class="status err">Fehler: ${esc(e.message)}</div>`}}
+async function loadContractTemplates(){const box=document.getElementById('contractTemplateRows');try{await lesen('vertragsvorlagen',()=>api('/api/settings/contract-templates'),d=>{contractPlaceholders=d.placeholders;contractTemplates=d.templates;document.getElementById('contractPlaceholderRows').innerHTML=contractPlaceholders.map(p=>`<tr><td><code>${esc(p.placeholder)}</code></td><td>${esc(p.description)}</td></tr>`).join('');renderContractTemplates()})}catch(e){box.innerHTML=`<div class="status err">Fehler: ${esc(e.message)}</div>`}}
 function ctSectionHtml(key,s,i,count){const ro=canEditContractClauses?'':'disabled';return `<div class="ctSection" style="border:1px solid var(--line);padding:12px 14px;margin:10px 0"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><b class="small muted" style="flex:1">Abschnitt ${i+1}</b>${canEditContractClauses?`<button class="secondary" type="button" title="Nach oben" onclick="ctMove('${key}',${i},-1)" ${i===0?'disabled':''}>↑</button><button class="secondary" type="button" title="Nach unten" onclick="ctMove('${key}',${i},1)" ${i===count-1?'disabled':''}>↓</button><button class="danger" type="button" onclick="ctRemove('${key}',${i})">Entfernen</button>`:''}</div><div class="field"><label>Überschrift</label><input class="ctHeading" maxlength="255" value="${esc(s.heading||'')}" ${ro}></div><div class="field"><label>Text</label><textarea class="ctBody" rows="6" ${ro}>${esc(s.body_text||'')}</textarea></div><div style="display:flex;gap:22px;flex-wrap:wrap;padding-top:8px"><label style="display:flex;gap:8px;align-items:center;margin:0;font-weight:600"><input type="checkbox" class="ctConsumer" ${s.consumer_only?'checked':''} ${ro}> nur bei Verbrauchern</label><label style="display:flex;gap:8px;align-items:center;margin:0;font-weight:600"><input type="checkbox" class="ctCheckbox" ${s.with_checkbox?'checked':''} ${ro}> Ankreuzfeld vor dem Text</label><label style="display:flex;gap:8px;align-items:center;margin:0;font-weight:600" title="Nur mit Ankreuzfeld und „nur bei Verbrauchern“, höchstens ein Abschnitt je Vorlage. Daraus der Vermerk bei der Widerrufsfrist nach der Unterschrift; ändert keinen Text im Vertrag und setzt die Prüfung nicht zurück."><input type="checkbox" class="ctEarly" ${s.early_start?'checked':''} ${ro}> = Verlangen des vorzeitigen Beginns</label></div></div>`}
 function renderContractTemplates(){const ro=canEditContractClauses?'':'disabled';document.getElementById('contractTemplateRows').innerHTML=(canEditContractClauses?'':'<div class="hint">Nur Administratoren können Vertragsvorlagen und Prüfangaben ändern.</div>')+contractTemplates.map(t=>{const warn=[];if(t.unknown_placeholders.length)warn.push(`Unbekannte Platzhalter – sie bleiben unverändert im Vertrag stehen: ${t.unknown_placeholders.map(p=>`<code>${esc(p)}</code>`).join(', ')}`);if(t.unused_case_fields.length)warn.push(`Nicht verwendet – diese Fallfelder des Vertragsentwurfs erscheinen nicht im Vertrag: ${t.unused_case_fields.map(f=>`${esc(f.label)} (<code>${esc(f.placeholder)}</code>)`).join(', ')}`);const status=!t.has_content?'Keine Vorlage – beim Beauftragen entsteht kein Vertragsentwurf.':(t.reviewed?'Rechtlich geprüft – Vertrag ohne Wasserzeichen.':'Nicht geprüft – jede Seite des Vertrags trägt „Entwurf – Vertragstext nicht geprüft“.');return `<div class="list-narrow ctTemplate" data-ct="${esc(t.basis_key)}" style="border-top:1px solid var(--line);padding-top:14px;margin-top:14px"><h3 style="margin:0 0 4px">${esc(t.label)}</h3><div class="small ${t.reviewed?'':'muted'}" style="margin-bottom:8px">${status}${t.updated_by_name?` · zuletzt gespeichert von ${esc(t.updated_by_name)}`:''}</div>${warn.map(w=>`<div class="hint" style="border-left-color:var(--danger)">${w}</div>`).join('')}<div class="field"><label>Titel des Vertrags</label><input class="ctTitle" maxlength="255" placeholder="z. B. Bauvertrag" value="${esc(t.title||'')}" ${ro}></div><div class="ctSections">${t.sections.map((s,i)=>ctSectionHtml(t.basis_key,s,i,t.sections.length)).join('')}</div>${canEditContractClauses?`<button class="secondary" type="button" onclick="ctAdd('${esc(t.basis_key)}')">+ Abschnitt hinzufügen</button>`:''}<div class="fields-2col" style="margin-top:8px"><div class="field"><label>Rechtlich geprüft am</label><input class="ctReviewedOn" type="date" value="${esc(t.reviewed_on||'')}" ${ro}></div><div class="field"><label>durch</label><input class="ctReviewedBy" maxlength="160" value="${esc(t.reviewed_by||'')}" placeholder="z. B. Kanzlei Muster, RA Beispiel" ${ro}></div></div>${canEditContractClauses?`<button type="button" onclick="saveContractTemplate('${esc(t.basis_key)}')">Speichern</button>`:''}<span class="status ctStatus"></span></div>`}).join('')}
 // Liest die Eingaben einer Vorlage aus der Seite -- vor jedem Umbau der Abschnittsliste, damit nichts Getipptes verloren geht.
@@ -898,7 +904,8 @@ function ctRebuild(key,change){const d=ctRead(key);change(d.sections);contractTe
 function ctAdd(key){ctRebuild(key,list=>list.push({heading:null,body_text:null,consumer_only:false,with_checkbox:false,early_start:false}))}
 function ctRemove(key,i){ctRebuild(key,list=>list.splice(i,1))}
 function ctMove(key,i,dir){ctRebuild(key,list=>{const j=i+dir;if(j<0||j>=list.length)return;[list[i],list[j]]=[list[j],list[i]]})}
-async function saveContractTemplate(key){const st=document.querySelector(`[data-ct="${key}"] .ctStatus`);st.className='status ctStatus';try{const d=await api(`/api/settings/contract-templates/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(ctRead(key))});contractTemplates=contractTemplates.map(t=>t.basis_key===key?d:t);renderContractTemplates();const st2=document.querySelector(`[data-ct="${key}"] .ctStatus`);st2.classList.add('ok');st2.textContent=d.review_reset?'Gespeichert. Der Inhalt wurde geändert – die bisherige Prüfangabe gilt nicht mehr, bitte nach erneuter Prüfung neu eintragen.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
+// Inhalt beim Klick gelesen (seit 1.8.95): wartet das Speichern auf das einer anderen Vorlage, hat deren Antwort die Liste schon neu gezeichnet.
+async function saveContractTemplate(key){const st=document.querySelector(`[data-ct="${key}"] .ctStatus`);st.className='status ctStatus';try{const daten=ctRead(key);const d=await speichern('vertragsvorlagen',()=>api(`/api/settings/contract-templates/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(daten)}),{anwenden:neu=>{contractTemplates=contractTemplates.map(t=>t.basis_key===key?neu:t);renderContractTemplates()}});const st2=document.querySelector(`[data-ct="${key}"] .ctStatus`);st2.classList.add('ok');st2.textContent=d.review_reset?'Gespeichert. Der Inhalt wurde geändert – die bisherige Prüfangabe gilt nicht mehr, bitte nach erneuter Prüfung neu eintragen.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
 async function api(url,options={}){const r=await fetch(url,options);let d=null;try{d=await r.json()}catch(_){ }if(!r.ok)throw new Error(d?.detail||r.statusText||'Fehler');return d}
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 (function(){
@@ -976,7 +983,8 @@ async function load(){
   sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadDocumentCategoriesSection();loadMobileSection();loadDocumentLayoutSection();loadProjectPipelineSection();}
 
 function renderModuleStates(){document.getElementById('moduleRows').innerHTML=moduleStates.length?moduleStates.map(m=>`<div class="field"><label style="display:flex;align-items:center;gap:10px;font-weight:650"><input type="checkbox" style="width:auto" ${m.enabled?'checked':''} onchange="toggleModule('${m.module_key}',this.checked)"> ${esc(m.label)}</label><span id="moduleStatus-${m.module_key}" class="status"></span></div>`).join(''):'<div class="muted small">Keine optionalen Module registriert.</div>'}
-async function toggleModule(key,checked){const st=document.getElementById('moduleStatus-'+key);try{await api(`/api/modules/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:checked})});moduleStates=await api('/api/modules');st.textContent=checked?'Aktiviert.':'Deaktiviert.';loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();if(canSeeCalculationSettings){loadRecurringCostsSettingsSection();loadIncomingInvoiceSettingsSection();loadAccountsSection()}}catch(e){st.textContent='Fehler: '+e.message}}
+function ladeModule(){return lesen('module',()=>api('/api/modules'),d=>{moduleStates=d})}
+async function toggleModule(key,checked){const st=document.getElementById('moduleStatus-'+key);try{await speichern('module',()=>api(`/api/modules/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:checked})}),{neuLaden:ladeModule});st.textContent=checked?'Aktiviert.':'Deaktiviert.';loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();if(canSeeCalculationSettings){loadRecurringCostsSettingsSection();loadIncomingInvoiceSettingsSection();loadAccountsSection()}}catch(e){st.textContent='Fehler: '+e.message}}
 
 async function loadOperationalAssetSection(){
   const entry=moduleStates.find(m=>m.module_key==='betriebsmittel');
@@ -985,15 +993,16 @@ async function loadOperationalAssetSection(){
   document.getElementById('operationalAssetModuleContent').style.display=isEnabled?'block':'none';
   if(!isEnabled)return;
   try{
-    const settings=await api('/api/operational-asset-settings');
-    document.getElementById('operationalAssetLeadDays').value=settings.reminder_lead_days;
+    await lesen('betriebsmittel',()=>api('/api/operational-asset-settings'),settings=>{
+      document.getElementById('operationalAssetLeadDays').value=settings.reminder_lead_days;
+    });
   }catch(e){document.getElementById('operationalAssetSettingsStatus').textContent='Fehler: '+e.message}
 }
 async function saveOperationalAssetSettings(){
   const st=document.getElementById('operationalAssetSettingsStatus');
   const leadDays=Number(document.getElementById('operationalAssetLeadDays').value||0);
   try{
-    await api('/api/operational-asset-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reminder_lead_days:leadDays})});
+    await speichern('betriebsmittel',()=>api('/api/operational-asset-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reminder_lead_days:leadDays})}));
     st.className='status';st.textContent='Gespeichert.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -1008,15 +1017,16 @@ async function loadRecurringCostsSettingsSection(){
   document.getElementById('recurringCostModuleContent').style.display=isEnabled?'block':'none';
   if(!isEnabled)return;
   try{
-    const settings=await api('/api/recurring-cost-settings');
-    document.getElementById('recurringCostLeadDays').value=settings.reminder_lead_days;
+    await lesen('betriebskosten',()=>api('/api/recurring-cost-settings'),settings=>{
+      document.getElementById('recurringCostLeadDays').value=settings.reminder_lead_days;
+    });
   }catch(e){document.getElementById('recurringCostSettingsStatus').textContent='Fehler: '+e.message}
 }
 async function saveRecurringCostSettings(){
   const st=document.getElementById('recurringCostSettingsStatus');
   const leadDays=Number(document.getElementById('recurringCostLeadDays').value||0);
   try{
-    await api('/api/recurring-cost-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reminder_lead_days:leadDays})});
+    await speichern('betriebskosten',()=>api('/api/recurring-cost-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reminder_lead_days:leadDays})}));
     st.className='status';st.textContent='Gespeichert.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -1030,15 +1040,16 @@ async function loadIncomingInvoiceSettingsSection(){
   document.getElementById('incomingInvoiceModuleContent').style.display=isEnabled?'block':'none';
   if(!isEnabled)return;
   try{
-    const settings=await api('/api/incoming-invoice-settings');
-    document.getElementById('incomingInvoiceLeadDays').value=settings.skonto_reminder_lead_days;
+    await lesen('eingangsrechnungen',()=>api('/api/incoming-invoice-settings'),settings=>{
+      document.getElementById('incomingInvoiceLeadDays').value=settings.skonto_reminder_lead_days;
+    });
   }catch(e){document.getElementById('incomingInvoiceSettingsStatus').textContent='Fehler: '+e.message}
 }
 async function saveIncomingInvoiceSettings(){
   const st=document.getElementById('incomingInvoiceSettingsStatus');
   const leadDays=Number(document.getElementById('incomingInvoiceLeadDays').value||0);
   try{
-    await api('/api/incoming-invoice-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({skonto_reminder_lead_days:leadDays})});
+    await speichern('eingangsrechnungen',()=>api('/api/incoming-invoice-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({skonto_reminder_lead_days:leadDays})}));
     st.className='status';st.textContent='Gespeichert.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -1054,8 +1065,7 @@ async function loadAccountsSection(){
   document.getElementById('accountsModuleContent').style.display=isEnabled?'block':'none';
   if(!isEnabled)return;
   try{
-    settingsAccounts=await api('/api/accounts?include_inactive=true');
-    renderAccounts();
+    await lesen('konten',()=>api('/api/accounts?include_inactive=true'),d=>{settingsAccounts=d;renderAccounts()});
   }catch(e){document.getElementById('accountStatus').textContent='Fehler: '+e.message}
 }
 function renderAccounts(){
@@ -1074,7 +1084,7 @@ async function saveAccount(){
     const defaultTaxRatePct=v('acTaxRate')?Number(v('acTaxRate')):null;
     const active=editingAccountId?document.getElementById('acActive').value==='1':true;
     const url=editingAccountId?`/api/accounts/${editingAccountId}`:'/api/accounts';
-    await api(url,{method:editingAccountId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_number:accountNumber,label,default_tax_rate_pct:defaultTaxRatePct,active})});
+    await speichern('konten',()=>api(url,{method:editingAccountId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_number:accountNumber,label,default_tax_rate_pct:defaultTaxRatePct,active})}));
     hideAccountEditor();
     await loadAccountsSection();
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
@@ -1087,15 +1097,17 @@ async function loadMaintenanceSection(){
   document.getElementById('maintenanceModuleContent').style.display=isEnabled?'block':'none';
   if(!isEnabled)return;
   try{
-    const [ms2,emps]=[await api('/api/maintenance-settings'),await api('/api/employees').catch(()=>[])];
-    document.getElementById('maintenanceLeadDays').value=ms2.reminder_lead_days;
-    document.getElementById('maintenanceUseRoofAreaItems').checked=!!ms2.use_roof_area_items;
-    document.getElementById('maintenanceDefaultEmployee').innerHTML=auswahlOptionen(emps,ms2.default_responsible_employee_id,e=>e.first_name+' '+e.last_name,{leer:'— keiner —'});
-    maintenanceWindows=await api('/api/maintenance-windows');renderMaintenanceWindows();
+    await lesen('wartung',async()=>[await api('/api/maintenance-settings'),await api('/api/employees').catch(()=>[])],([ms2,emps])=>{
+      document.getElementById('maintenanceLeadDays').value=ms2.reminder_lead_days;
+      document.getElementById('maintenanceUseRoofAreaItems').checked=!!ms2.use_roof_area_items;
+      document.getElementById('maintenanceDefaultEmployee').innerHTML=auswahlOptionen(emps,ms2.default_responsible_employee_id,e=>e.first_name+' '+e.last_name,{leer:'— keiner —'});
+    });
+    await ladeWartungsfenster();
   }catch(e){document.getElementById('maintenanceSettingsStatus').textContent='Fehler: '+e.message}
 }
 
 let maintenanceWindows=[];
+function ladeWartungsfenster(){return lesen('wartungsfenster',()=>api('/api/maintenance-windows'),d=>{maintenanceWindows=d;renderMaintenanceWindows()})}
 function renderMaintenanceWindows(){
   document.getElementById('maintenanceWindowRows').innerHTML=maintenanceWindows.length?maintenanceWindows.map((w,i)=>`<div class="field" style="display:flex;align-items:center;gap:8px">
     <input value="${esc(w.label)}" style="flex:1" onblur="saveMaintenanceWindow(${w.id},this.value,null,null)">
@@ -1115,7 +1127,7 @@ async function saveMaintenanceWindow(id,label,monthFrom,monthTo){
     month_to:monthTo===null?w.month_to:Number(monthTo),
   };
   const st=document.getElementById('maintenanceWindowStatus');
-  try{await api(`/api/maintenance-windows/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});maintenanceWindows=await api('/api/maintenance-windows');renderMaintenanceWindows();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message;renderMaintenanceWindows()}
+  try{await speichern('wartungsfenster',()=>api(`/api/maintenance-windows/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:ladeWartungsfenster});st.textContent=''}catch(e){st.textContent='Fehler: '+e.message;renderMaintenanceWindows()}
 }
 async function moveMaintenanceWindow(index,dir){
   const target=index+dir;
@@ -1123,12 +1135,12 @@ async function moveMaintenanceWindow(index,dir){
   const ids=maintenanceWindows.map(w=>w.id);
   [ids[index],ids[target]]=[ids[target],ids[index]];
   const st=document.getElementById('maintenanceWindowStatus');
-  try{maintenanceWindows=await api('/api/maintenance-windows/reorder',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordered_ids:ids})});renderMaintenanceWindows();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+  try{await speichern('wartungsfenster',()=>api('/api/maintenance-windows/reorder',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordered_ids:ids})}),{anwenden:d=>{maintenanceWindows=d;renderMaintenanceWindows()}});st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
 }
 async function deleteMaintenanceWindow(id){
   if(!confirm('Dieses Wartungsfenster wirklich löschen?'))return;
   const st=document.getElementById('maintenanceWindowStatus');
-  try{await api(`/api/maintenance-windows/${id}`,{method:'DELETE'});maintenanceWindows=await api('/api/maintenance-windows');renderMaintenanceWindows();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+  try{await speichern('wartungsfenster',()=>api(`/api/maintenance-windows/${id}`,{method:'DELETE'}),{neuLaden:ladeWartungsfenster});st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
 }
 async function addMaintenanceWindow(){
   const labelInput=document.getElementById('newMaintenanceWindowLabel');
@@ -1138,9 +1150,9 @@ async function addMaintenanceWindow(){
   const st=document.getElementById('maintenanceWindowStatus');
   if(!label||!monthFrom||!monthTo){st.textContent='Bitte Bezeichnung sowie Start- und Endmonat angeben.';return}
   try{
-    await api('/api/maintenance-windows',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,month_from:monthFrom,month_to:monthTo})});
+    await speichern('wartungsfenster',()=>api('/api/maintenance-windows',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,month_from:monthFrom,month_to:monthTo})}),{neuLaden:ladeWartungsfenster});
     labelInput.value='';document.getElementById('newMaintenanceWindowFrom').value='';document.getElementById('newMaintenanceWindowTo').value='';
-    maintenanceWindows=await api('/api/maintenance-windows');renderMaintenanceWindows();st.textContent='';
+    st.textContent='';
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 
@@ -1163,11 +1175,11 @@ function populateRoofLayerTypeSelects(){
   document.getElementById('roofLayerTypeOptionGroup').innerHTML='<option value="">— keine —</option>'+layerGroups.map(g=>`<option value="${esc(g.group_key)}">${esc(g.label)}</option>`).join('');
 }
 
+function ladeSchichttypen(){return lesen('dachaufbau',()=>api('/api/roof-layer-types?include_inactive=true'),d=>{roofLayerTypes=d;renderRoofLayerTypes()})}
 async function loadRoofLayerTypesSection(){
   populateRoofLayerTypeSelects();
   try{
-    roofLayerTypes=await api('/api/roof-layer-types?include_inactive=true');
-    renderRoofLayerTypes();
+    await ladeSchichttypen();
   }catch(e){document.getElementById('roofLayerTypeStatus').textContent='Fehler: '+e.message}
 }
 
@@ -1204,18 +1216,16 @@ async function moveRoofLayerType(roofType,index,dir){
   [ids[index],ids[target]]=[ids[target],ids[index]];
   const st=document.getElementById('roofLayerTypeStatus');
   try{
-    await api('/api/roof-layer-types/reorder',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({roof_type:roofType,ordered_ids:ids})});
-    roofLayerTypes=await api('/api/roof-layer-types?include_inactive=true');
-    renderRoofLayerTypes();st.textContent='';
+    await speichern('dachaufbau',()=>api('/api/roof-layer-types/reorder',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({roof_type:roofType,ordered_ids:ids})}),{neuLaden:ladeSchichttypen});
+    st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
 async function toggleRoofLayerTypeActive(id,checked){
   const st=document.getElementById('roofLayerTypeStatus');
   try{
-    await api(`/api/roof-layer-types/${id}/${checked?'activate':'deactivate'}`,{method:'POST'});
-    roofLayerTypes=await api('/api/roof-layer-types?include_inactive=true');
-    renderRoofLayerTypes();st.textContent='';
+    await speichern('dachaufbau',()=>api(`/api/roof-layer-types/${id}/${checked?'activate':'deactivate'}`,{method:'POST'}),{neuLaden:ladeSchichttypen});
+    st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
@@ -1268,13 +1278,11 @@ async function saveRoofLayerType(){
   };
   try{
     if(editingRoofLayerTypeId){
-      await api(`/api/roof-layer-types/${editingRoofLayerTypeId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      await speichern('dachaufbau',()=>api(`/api/roof-layer-types/${editingRoofLayerTypeId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:ladeSchichttypen});
     }else{
       if(!key){st.className='status err';st.textContent='Bitte einen technischen Schlüssel angeben.';return}
-      await api('/api/roof-layer-types',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,key})});
+      await speichern('dachaufbau',()=>api('/api/roof-layer-types',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,key})}),{neuLaden:ladeSchichttypen});
     }
-    roofLayerTypes=await api('/api/roof-layer-types?include_inactive=true');
-    renderRoofLayerTypes();
     hideRoofLayerTypeEditor();
     st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
@@ -1284,18 +1292,17 @@ async function deleteRoofLayerType(id){
   if(!confirm('Diesen Schichttyp wirklich löschen?'))return;
   const st=document.getElementById('roofLayerTypeStatus');
   try{
-    await api(`/api/roof-layer-types/${id}`,{method:'DELETE'});
-    roofLayerTypes=await api('/api/roof-layer-types?include_inactive=true');
-    renderRoofLayerTypes();st.textContent='';
+    await speichern('dachaufbau',()=>api(`/api/roof-layer-types/${id}`,{method:'DELETE'}),{neuLaden:ladeSchichttypen});
+    st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
 let componentTypes=[],editingComponentTypeId=null;
 
+function ladeBauteilarten(){return lesen('bauteilarten',()=>api('/api/roof-component-types?include_inactive=true'),d=>{componentTypes=d;renderComponentTypes()})}
 async function loadComponentTypesSection(){
   try{
-    componentTypes=await api('/api/roof-component-types?include_inactive=true');
-    renderComponentTypes();
+    await ladeBauteilarten();
   }catch(e){document.getElementById('componentTypeStatus').textContent='Fehler: '+e.message}
 }
 
@@ -1323,18 +1330,16 @@ async function moveComponentType(index,dir){
   [ids[index],ids[target]]=[ids[target],ids[index]];
   const st=document.getElementById('componentTypeStatus');
   try{
-    await api('/api/roof-component-types/reorder',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordered_ids:ids})});
-    componentTypes=await api('/api/roof-component-types?include_inactive=true');
-    renderComponentTypes();st.textContent='';
+    await speichern('bauteilarten',()=>api('/api/roof-component-types/reorder',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordered_ids:ids})}),{neuLaden:ladeBauteilarten});
+    st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
 async function toggleComponentTypeActive(id,checked){
   const st=document.getElementById('componentTypeStatus');
   try{
-    await api(`/api/roof-component-types/${id}/${checked?'activate':'deactivate'}`,{method:'POST'});
-    componentTypes=await api('/api/roof-component-types?include_inactive=true');
-    renderComponentTypes();st.textContent='';
+    await speichern('bauteilarten',()=>api(`/api/roof-component-types/${id}/${checked?'activate':'deactivate'}`,{method:'POST'}),{neuLaden:ladeBauteilarten});
+    st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
@@ -1372,13 +1377,11 @@ async function saveComponentType(){
   const payload={label, is_area:document.getElementById('componentTypeIsArea').value==='true'};
   try{
     if(editingComponentTypeId){
-      await api(`/api/roof-component-types/${editingComponentTypeId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      await speichern('bauteilarten',()=>api(`/api/roof-component-types/${editingComponentTypeId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:ladeBauteilarten});
     }else{
       if(!key){st.className='status err';st.textContent='Bitte einen technischen Schlüssel angeben.';return}
-      await api('/api/roof-component-types',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,key})});
+      await speichern('bauteilarten',()=>api('/api/roof-component-types',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,key})}),{neuLaden:ladeBauteilarten});
     }
-    componentTypes=await api('/api/roof-component-types?include_inactive=true');
-    renderComponentTypes();
     hideComponentTypeEditor();
     st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
@@ -1388,9 +1391,8 @@ async function deleteComponentType(id){
   if(!confirm('Diese Bauteilart wirklich löschen?'))return;
   const st=document.getElementById('componentTypeStatus');
   try{
-    await api(`/api/roof-component-types/${id}`,{method:'DELETE'});
-    componentTypes=await api('/api/roof-component-types?include_inactive=true');
-    renderComponentTypes();st.textContent='';
+    await speichern('bauteilarten',()=>api(`/api/roof-component-types/${id}`,{method:'DELETE'}),{neuLaden:ladeBauteilarten});
+    st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
@@ -1401,10 +1403,10 @@ async function deleteComponentType(id){
 const HARD_LOCKED_DOCUMENT_CATEGORY_KEYS=['Rechnungen / Belege','Verträge / Freigaben'];
 let documentCategories=[],editingDocumentCategoryId=null;
 
+function ladeDokumentkategorien(){return lesen('dokumentkategorien',()=>api('/api/document-categories?include_inactive=true'),d=>{documentCategories=d;renderDocumentCategories()})}
 async function loadDocumentCategoriesSection(){
   try{
-    documentCategories=await api('/api/document-categories?include_inactive=true');
-    renderDocumentCategories();
+    await ladeDokumentkategorien();
   }catch(e){document.getElementById('documentCategoryStatus').textContent='Fehler: '+e.message}
 }
 
@@ -1427,9 +1429,8 @@ function renderDocumentCategories(){
 async function toggleDocumentCategoryActive(id,checked){
   const st=document.getElementById('documentCategoryStatus');
   try{
-    await api(`/api/document-categories/${id}/${checked?'activate':'deactivate'}`,{method:'POST'});
-    documentCategories=await api('/api/document-categories?include_inactive=true');
-    renderDocumentCategories();st.textContent='';
+    await speichern('dokumentkategorien',()=>api(`/api/document-categories/${id}/${checked?'activate':'deactivate'}`,{method:'POST'}),{neuLaden:ladeDokumentkategorien});
+    st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
@@ -1486,13 +1487,11 @@ async function saveDocumentCategory(){
   const isFieldVisible=document.getElementById('documentCategoryFieldVisible').checked;
   try{
     if(editingDocumentCategoryId){
-      await api(`/api/document-categories/${editingDocumentCategoryId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,is_sensitive:isSensitive,is_field_visible:isFieldVisible})});
+      await speichern('dokumentkategorien',()=>api(`/api/document-categories/${editingDocumentCategoryId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,is_sensitive:isSensitive,is_field_visible:isFieldVisible})}),{neuLaden:ladeDokumentkategorien});
     }else{
       if(!key){st.className='status err';st.textContent='Bitte einen technischen Schlüssel angeben.';return}
-      await api('/api/document-categories',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,label,is_sensitive:isSensitive,is_field_visible:isFieldVisible})});
+      await speichern('dokumentkategorien',()=>api('/api/document-categories',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,label,is_sensitive:isSensitive,is_field_visible:isFieldVisible})}),{neuLaden:ladeDokumentkategorien});
     }
-    documentCategories=await api('/api/document-categories?include_inactive=true');
-    renderDocumentCategories();
     hideDocumentCategoryEditor();
     st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
@@ -1509,7 +1508,7 @@ async function saveMobileSettings(){
   const shiftEndTime=document.getElementById('mobileShiftEndTime').value;
   if(!shiftEndTime){st.textContent='Bitte eine Uhrzeit angeben.';return}
   try{
-    await api('/api/mobile-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({shift_end_time:shiftEndTime})});
+    await speichern('mobil',()=>api('/api/mobile-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({shift_end_time:shiftEndTime})}));
     st.textContent='Gespeichert.';
   }catch(e){st.textContent='Fehler: '+e.message}
 }
@@ -1558,7 +1557,7 @@ async function uploadDocumentLayoutBackground(pageType){
   const fd=new FormData();
   fd.append('file',input.files[0]);
   try{
-    await api(`/api/document-layout/default/backgrounds/${pageType}`,{method:'POST',body:fd});
+    await speichern('briefpapier-'+pageType,()=>api(`/api/document-layout/default/backgrounds/${pageType}`,{method:'POST',body:fd}));
     statusEl.textContent='Gespeichert.';
     input.value='';
     document.getElementById(pageType==='first'?'documentLayoutBgFirstRemove':'documentLayoutBgContinuationRemove').style.display='inline-block';
@@ -1566,7 +1565,7 @@ async function uploadDocumentLayoutBackground(pageType){
 }
 async function removeDocumentLayoutBackground(pageType){
   try{
-    await api(`/api/document-layout/default/backgrounds/${pageType}`,{method:'DELETE'});
+    await speichern('briefpapier-'+pageType,()=>api(`/api/document-layout/default/backgrounds/${pageType}`,{method:'DELETE'}));
     document.getElementById(pageType==='first'?'documentLayoutBgFirstRemove':'documentLayoutBgContinuationRemove').style.display='none';
   }catch(e){alert('Fehler: '+e.message)}
 }
@@ -1585,16 +1584,16 @@ async function uploadCompanyLogo(){
   if(!input.files.length){st.textContent='Bitte eine Datei auswählen.';return}
   const fd=new FormData();fd.append('file',input.files[0]);
   try{
-    generalSettings=await api('/api/settings/general/logo',{method:'POST',body:fd});
-    input.value='';st.textContent='Gespeichert.';renderCompanyLogo();
+    await speichern('allgemein',()=>api('/api/settings/general/logo',{method:'POST',body:fd}),{anwenden:d=>{generalSettings=d;renderCompanyLogo()}});
+    input.value='';st.textContent='Gespeichert.';
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 async function removeCompanyLogo(){
   if(!confirm('Logo wirklich entfernen?'))return;
   const st=document.getElementById('companyLogoStatus');
   try{
-    generalSettings=await api('/api/settings/general/logo',{method:'DELETE'});
-    st.textContent='Entfernt.';renderCompanyLogo();
+    await speichern('allgemein',()=>api('/api/settings/general/logo',{method:'DELETE'}),{anwenden:d=>{generalSettings=d;renderCompanyLogo()}});
+    st.textContent='Entfernt.';
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 function renderSidebarLogoFallbackHint(){
@@ -1625,8 +1624,8 @@ async function saveLogoHeight(){
   if(!Number.isInteger(height)||height<24||height>120){st.textContent='Bitte einen Wert zwischen 24 und 120 eingeben.';return}
   try{
     // Nur die Höhe (seit 1.8.25) -- vorher der beim Laden gemerkte Stand aller Stammdaten.
-    generalSettings=await api('/api/settings/general',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({sidebar_logo_height_px:height})});
-    st.textContent='Gespeichert.';renderSidebarLogo();
+    await speichern('allgemein',()=>api('/api/settings/general',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({sidebar_logo_height_px:height})}),{anwenden:d=>{generalSettings=d;renderSidebarLogo()}});
+    st.textContent='Gespeichert.';
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 async function uploadSidebarLogo(){
@@ -1634,41 +1633,43 @@ async function uploadSidebarLogo(){
   if(!input.files.length){st.textContent='Bitte eine Datei auswählen.';return}
   const fd=new FormData();fd.append('file',input.files[0]);
   try{
-    generalSettings=await api('/api/settings/general/sidebar-logo',{method:'POST',body:fd});
-    input.value='';st.textContent='Gespeichert.';renderSidebarLogo();
+    await speichern('allgemein',()=>api('/api/settings/general/sidebar-logo',{method:'POST',body:fd}),{anwenden:d=>{generalSettings=d;renderSidebarLogo()}});
+    input.value='';st.textContent='Gespeichert.';
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 async function removeSidebarLogo(){
   if(!confirm('Sidebar-Logo wirklich entfernen?'))return;
   const st=document.getElementById('sidebarLogoStatus');
   try{
-    generalSettings=await api('/api/settings/general/sidebar-logo',{method:'DELETE'});
-    st.textContent='Entfernt.';renderSidebarLogo();
+    await speichern('allgemein',()=>api('/api/settings/general/sidebar-logo',{method:'DELETE'}),{anwenden:d=>{generalSettings=d;renderSidebarLogo()}});
+    st.textContent='Entfernt.';
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 async function saveDocumentLayoutMargins(){
   const st=document.getElementById('documentLayoutMarginsStatus');
   try{
-    await api('/api/document-layout/default/margins/first',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    await speichern('raender',()=>api('/api/document-layout/default/margins/first',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       top_mm:Number(v('documentLayoutMarginFirstTop')),bottom_mm:Number(v('documentLayoutMarginFirstBottom')),
       left_mm:Number(v('documentLayoutMarginFirstLeft')),right_mm:Number(v('documentLayoutMarginFirstRight')),
-    })});
-    await api('/api/document-layout/default/margins/continuation',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    })}));
+    await speichern('raender',()=>api('/api/document-layout/default/margins/continuation',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       top_mm:Number(v('documentLayoutMarginContinuationTop')),bottom_mm:Number(v('documentLayoutMarginContinuationBottom')),
       left_mm:Number(v('documentLayoutMarginContinuationLeft')),right_mm:Number(v('documentLayoutMarginContinuationRight')),
-    })});
+    })}));
     st.textContent='Gespeichert.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 async function resetDocumentLayoutMargins(){
   if(!confirm('Randabstände für Seite 1 und Folgeseiten wirklich auf die Standardwerte zurücksetzen?'))return;
   try{
-    const first=await api('/api/document-layout/default/margins/first/reset',{method:'POST'});
-    const cont=await api('/api/document-layout/default/margins/continuation/reset',{method:'POST'});
-    setv('documentLayoutMarginFirstTop',first.top_mm);setv('documentLayoutMarginFirstBottom',first.bottom_mm);
-    setv('documentLayoutMarginFirstLeft',first.left_mm);setv('documentLayoutMarginFirstRight',first.right_mm);
-    setv('documentLayoutMarginContinuationTop',cont.top_mm);setv('documentLayoutMarginContinuationBottom',cont.bottom_mm);
-    setv('documentLayoutMarginContinuationLeft',cont.left_mm);setv('documentLayoutMarginContinuationRight',cont.right_mm);
+    await speichern('raender',()=>api('/api/document-layout/default/margins/first/reset',{method:'POST'}),{anwenden:first=>{
+      setv('documentLayoutMarginFirstTop',first.top_mm);setv('documentLayoutMarginFirstBottom',first.bottom_mm);
+      setv('documentLayoutMarginFirstLeft',first.left_mm);setv('documentLayoutMarginFirstRight',first.right_mm);
+    }});
+    await speichern('raender',()=>api('/api/document-layout/default/margins/continuation/reset',{method:'POST'}),{anwenden:cont=>{
+      setv('documentLayoutMarginContinuationTop',cont.top_mm);setv('documentLayoutMarginContinuationBottom',cont.bottom_mm);
+      setv('documentLayoutMarginContinuationLeft',cont.left_mm);setv('documentLayoutMarginContinuationRight',cont.right_mm);
+    }});
     document.getElementById('documentLayoutMarginsStatus').textContent='Zurückgesetzt.';
   }catch(e){document.getElementById('documentLayoutMarginsStatus').textContent='Fehler: '+e.message}
 }
@@ -1676,10 +1677,10 @@ async function toggleDocumentLayoutBlock(blockType,checked){
   const b=documentLayoutBlocks[blockType];
   if(!b)return;
   try{
-    await api(`/api/document-layout/blocks/${b.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    await speichern('bausteine',()=>api(`/api/document-layout/blocks/${b.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       x_mm:b.x_mm,y_mm:b.y_mm,width_mm:b.width_mm,height_mm:b.height_mm,content:b.content,
       font_size:b.font_size,font_weight:b.font_weight,text_align:b.text_align,visible:checked,
-    })});
+    })}));
     b.visible=checked;
   }catch(e){alert('Fehler: '+e.message)}
 }
@@ -1688,11 +1689,10 @@ async function saveContinuationHeaderPosition(newY){
   const st=document.getElementById('documentLayoutBlocksStatus');
   if(!b)return;
   try{
-    const updated=await api(`/api/document-layout/blocks/${b.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    await speichern('bausteine',()=>api(`/api/document-layout/blocks/${b.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       x_mm:b.x_mm,y_mm:newY,width_mm:b.width_mm,height_mm:b.height_mm,content:b.content,
       font_size:b.font_size,font_weight:b.font_weight,text_align:b.text_align,visible:b.visible,
-    })});
-    documentLayoutBlocks.continuation_header=updated;
+    })}),{anwenden:d=>{documentLayoutBlocks.continuation_header=d}});
     st.textContent='Gespeichert.';
   }catch(e){st.textContent='Fehler: '+e.message}
 }
@@ -1703,12 +1703,14 @@ async function saveMaintenanceSettings(){
   const empId=document.getElementById('maintenanceDefaultEmployee').value;
   const useRoofAreaItems=document.getElementById('maintenanceUseRoofAreaItems').checked;
   try{
-    await api('/api/maintenance-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reminder_lead_days:leadDays,use_roof_area_items:useRoofAreaItems,default_responsible_employee_id:empId?Number(empId):null})});
+    await speichern('wartung',()=>api('/api/maintenance-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reminder_lead_days:leadDays,use_roof_area_items:useRoofAreaItems,default_responsible_employee_id:empId?Number(empId):null})}));
     st.textContent='Gespeichert.';
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 
 let taskColumns=[];
+// zeichnen=false nur nach "zählt als erledigt": das Häkchen steht schon, die Zeilen wurden dort auch bisher nicht neu gezeichnet.
+function ladeAufgabenspalten(zeichnen=true){return lesen('aufgabenspalten',()=>api('/api/task-columns'),d=>{taskColumns=d;if(zeichnen)renderTaskColumns()})}
 async function loadTaskSection(){
   const entry=moduleStates.find(m=>m.module_key==='aufgabenmanagement');
   const isEnabled=entry?entry.enabled:true;
@@ -1716,15 +1718,14 @@ async function loadTaskSection(){
   document.getElementById('taskModuleContent').style.display=isEnabled?'block':'none';
   if(!isEnabled)return;
   try{
-    const ts=await api('/api/task-settings');
-    document.getElementById('notifyOnAssignment').checked=!!ts.notify_on_assignment;
-    taskColumns=await api('/api/task-columns');renderTaskColumns();
+    await lesen('aufgaben',()=>api('/api/task-settings'),ts=>{document.getElementById('notifyOnAssignment').checked=!!ts.notify_on_assignment});
+    await ladeAufgabenspalten();
   }catch(e){document.getElementById('taskColumnStatus').textContent='Fehler: '+e.message}
 }
 async function saveTaskSettings(){
   const st=document.getElementById('taskSettingsStatus');
   const checked=document.getElementById('notifyOnAssignment').checked;
-  try{await api('/api/task-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({notify_on_assignment:checked})});st.textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}
+  try{await speichern('aufgaben',()=>api('/api/task-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({notify_on_assignment:checked})}));st.textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}
 }
 function renderTaskColumns(){
   document.getElementById('taskColumnRows').innerHTML=taskColumns.length?taskColumns.map((c,i)=>`<div class="field" style="display:flex;align-items:center;gap:8px">
@@ -1739,11 +1740,11 @@ async function saveTaskColumnLabel(id,value){
   const label=value.trim();
   if(!label){renderTaskColumns();return}
   const st=document.getElementById('taskColumnStatus');
-  try{await api(`/api/task-columns/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})});taskColumns=await api('/api/task-columns');renderTaskColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+  try{await speichern('aufgabenspalten',()=>api(`/api/task-columns/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})}),{neuLaden:ladeAufgabenspalten});st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
 }
 async function toggleTaskColumnDone(id,checked){
   const st=document.getElementById('taskColumnStatus');
-  try{await api(`/api/task-columns/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_done:checked})});taskColumns=await api('/api/task-columns');st.textContent=''}catch(e){st.textContent='Fehler: '+e.message;renderTaskColumns()}
+  try{await speichern('aufgabenspalten',()=>api(`/api/task-columns/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_done:checked})}),{neuLaden:()=>ladeAufgabenspalten(false)});st.textContent=''}catch(e){st.textContent='Fehler: '+e.message;renderTaskColumns()}
 }
 async function moveTaskColumn(index,dir){
   const target=index+dir;
@@ -1751,24 +1752,25 @@ async function moveTaskColumn(index,dir){
   const ids=taskColumns.map(c=>c.id);
   [ids[index],ids[target]]=[ids[target],ids[index]];
   const st=document.getElementById('taskColumnStatus');
-  try{taskColumns=await api('/api/task-columns/reorder',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordered_ids:ids})});renderTaskColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+  try{await speichern('aufgabenspalten',()=>api('/api/task-columns/reorder',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordered_ids:ids})}),{anwenden:d=>{taskColumns=d;renderTaskColumns()}});st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
 }
 async function deleteTaskColumn(id){
   if(!confirm('Diese Spalte wirklich löschen?'))return;
   const st=document.getElementById('taskColumnStatus');
-  try{await api(`/api/task-columns/${id}`,{method:'DELETE'});taskColumns=await api('/api/task-columns');renderTaskColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+  try{await speichern('aufgabenspalten',()=>api(`/api/task-columns/${id}`,{method:'DELETE'}),{neuLaden:ladeAufgabenspalten});st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
 }
 async function addTaskColumn(){
   const input=document.getElementById('newTaskColumnLabel');
   const label=input.value.trim();
   const st=document.getElementById('taskColumnStatus');
   if(!label){st.textContent='Bitte eine Bezeichnung angeben.';return}
-  try{await api('/api/task-columns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})});input.value='';taskColumns=await api('/api/task-columns');renderTaskColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+  try{await speichern('aufgabenspalten',()=>api('/api/task-columns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})}),{neuLaden:ladeAufgabenspalten});input.value='';st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
 }
 
 let projectPipelineColumns=[];
+function ladePipelinespalten(){return lesen('pipelinespalten',()=>api('/api/project-pipeline-columns'),d=>{projectPipelineColumns=d;renderProjectPipelineColumns()})}
 async function loadProjectPipelineSection(){
-  try{projectPipelineColumns=await api('/api/project-pipeline-columns');renderProjectPipelineColumns()}catch(e){document.getElementById('projectPipelineColumnStatus').textContent='Fehler: '+e.message}
+  try{await ladePipelinespalten()}catch(e){document.getElementById('projectPipelineColumnStatus').textContent='Fehler: '+e.message}
 }
 function renderProjectPipelineColumns(){
   document.getElementById('projectPipelineColumnRows').innerHTML=projectPipelineColumns.length?projectPipelineColumns.map((c,i)=>`<div class="field" style="display:flex;align-items:center;gap:8px">
@@ -1782,7 +1784,7 @@ async function saveProjectPipelineColumnLabel(id,value){
   const label=value.trim();
   if(!label){renderProjectPipelineColumns();return}
   const st=document.getElementById('projectPipelineColumnStatus');
-  try{await api(`/api/project-pipeline-columns/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})});projectPipelineColumns=await api('/api/project-pipeline-columns');renderProjectPipelineColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+  try{await speichern('pipelinespalten',()=>api(`/api/project-pipeline-columns/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})}),{neuLaden:ladePipelinespalten});st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
 }
 async function moveProjectPipelineColumn(index,dir){
   const target=index+dir;
@@ -1790,43 +1792,46 @@ async function moveProjectPipelineColumn(index,dir){
   const ids=projectPipelineColumns.map(c=>c.id);
   [ids[index],ids[target]]=[ids[target],ids[index]];
   const st=document.getElementById('projectPipelineColumnStatus');
-  try{projectPipelineColumns=await api('/api/project-pipeline-columns/reorder',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordered_ids:ids})});renderProjectPipelineColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+  try{await speichern('pipelinespalten',()=>api('/api/project-pipeline-columns/reorder',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordered_ids:ids})}),{anwenden:d=>{projectPipelineColumns=d;renderProjectPipelineColumns()}});st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
 }
 async function deleteProjectPipelineColumn(id){
   if(!confirm('Diese Spalte wirklich löschen?'))return;
   const st=document.getElementById('projectPipelineColumnStatus');
-  try{await api(`/api/project-pipeline-columns/${id}`,{method:'DELETE'});projectPipelineColumns=await api('/api/project-pipeline-columns');renderProjectPipelineColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+  try{await speichern('pipelinespalten',()=>api(`/api/project-pipeline-columns/${id}`,{method:'DELETE'}),{neuLaden:ladePipelinespalten});st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
 }
 async function addProjectPipelineColumn(){
   const input=document.getElementById('newProjectPipelineColumnLabel');
   const label=input.value.trim();
   const st=document.getElementById('projectPipelineColumnStatus');
   if(!label){st.textContent='Bitte eine Bezeichnung angeben.';return}
-  try{await api('/api/project-pipeline-columns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})});input.value='';projectPipelineColumns=await api('/api/project-pipeline-columns');renderProjectPipelineColumns();st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
+  try{await speichern('pipelinespalten',()=>api('/api/project-pipeline-columns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})}),{neuLaden:ladePipelinespalten});input.value='';st.textContent=''}catch(e){st.textContent='Fehler: '+e.message}
 }
 
+function ladeZahlungsbedingungen(){return lesen('zahlungsbedingungen',()=>api('/api/payment-terms?include_archived=true'),d=>{paymentTerms=d;renderPaymentTerms()})}
 function renderPaymentTerms(){document.getElementById('paymentTermRows').innerHTML=paymentTerms.length?paymentTerms.map(x=>`<tr><td><b>${esc(x.label)}</b>${x.text_template?'<div class="muted small">eigener Text hinterlegt</div>':''}</td><td>${x.days}</td><td>${x.skonto_percent?`${String(x.skonto_percent).replace('.',',')} % bei ${x.skonto_days} Tagen`:'<span class="muted">—</span>'}</td><td>${x.is_default?'<span class="badge">Standard</span>':(x.archived?'Archiviert':'Aktiv')}</td><td><button class="secondary" onclick="editPaymentTerm(${x.id})">Bearbeiten</button> ${x.is_default?'':x.archived?`<button class="secondary" onclick="unarchivePaymentTerm(${x.id})">Wiederherstellen</button>`:`<button class="secondary" onclick="setDefaultPaymentTerm(${x.id})">Als Standard</button> <button class="danger" onclick="archivePaymentTerm(${x.id})">Archivieren</button>`}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">Noch keine Zahlungsbedingung hinterlegt.</td></tr>'}
 function showPaymentTermEditor(){document.getElementById('paymentTermEditorPanel').style.display='block';document.getElementById('ptLabel').focus()}
 function hidePaymentTermEditor(){resetPaymentTermForm();document.getElementById('paymentTermEditorPanel').style.display='none'}
 function editPaymentTerm(id){const t=paymentTerms.find(x=>x.id===id);if(!t)return;editingPaymentTermId=id;setv('ptLabel',t.label);setv('ptDays',String(t.days));setv('ptSkontoPercent',t.skonto_percent??'');setv('ptSkontoDays',t.skonto_days??'');setv('ptTextTemplate',t.text_template||'');document.getElementById('paymentTermEditorHeading').textContent='Zahlungsbedingung bearbeiten';document.getElementById('paymentTermSave').textContent='Änderungen speichern';document.getElementById('paymentTermStatus').textContent='';showPaymentTermEditor()}
 function resetPaymentTermForm(){editingPaymentTermId=null;setv('ptLabel','');setv('ptDays','');setv('ptSkontoPercent','');setv('ptSkontoDays','');setv('ptTextTemplate','');document.getElementById('paymentTermEditorHeading').textContent='Zahlungsbedingung hinzufügen';document.getElementById('paymentTermSave').textContent='Hinzufügen';document.getElementById('paymentTermStatus').textContent=''}
-async function savePaymentTerm(){const st=document.getElementById('paymentTermStatus');try{const label=v('ptLabel');const days=Number(v('ptDays'));if(!label||isNaN(days))throw Error('Bitte Bezeichnung und Tage angeben.');const skontoPercent=v('ptSkontoPercent')?Number(v('ptSkontoPercent')):null;const skontoDays=v('ptSkontoDays')?Number(v('ptSkontoDays')):null;const textTemplate=v('ptTextTemplate')||null;const url=editingPaymentTermId?`/api/payment-terms/${editingPaymentTermId}`:'/api/payment-terms';await api(url,{method:editingPaymentTermId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,days,skonto_percent:skontoPercent,skonto_days:skontoDays,text_template:textTemplate})});hidePaymentTermEditor();paymentTerms=await api('/api/payment-terms?include_archived=true');renderPaymentTerms()}catch(e){st.textContent='Fehler: '+e.message}}
-async function setDefaultPaymentTerm(id){try{await api(`/api/payment-terms/${id}/set-default`,{method:'POST'});paymentTerms=await api('/api/payment-terms?include_archived=true');renderPaymentTerms()}catch(e){document.getElementById('paymentTermStatus').textContent='Fehler: '+e.message}}
-async function archivePaymentTerm(id){try{await api(`/api/payment-terms/${id}/archive`,{method:'POST'});paymentTerms=await api('/api/payment-terms?include_archived=true');renderPaymentTerms()}catch(e){document.getElementById('paymentTermStatus').textContent='Fehler: '+e.message}}
-async function unarchivePaymentTerm(id){try{await api(`/api/payment-terms/${id}/unarchive`,{method:'POST'});paymentTerms=await api('/api/payment-terms?include_archived=true');renderPaymentTerms()}catch(e){document.getElementById('paymentTermStatus').textContent='Fehler: '+e.message}}
+async function savePaymentTerm(){const st=document.getElementById('paymentTermStatus');try{const label=v('ptLabel');const days=Number(v('ptDays'));if(!label||isNaN(days))throw Error('Bitte Bezeichnung und Tage angeben.');const skontoPercent=v('ptSkontoPercent')?Number(v('ptSkontoPercent')):null;const skontoDays=v('ptSkontoDays')?Number(v('ptSkontoDays')):null;const textTemplate=v('ptTextTemplate')||null;const url=editingPaymentTermId?`/api/payment-terms/${editingPaymentTermId}`:'/api/payment-terms';await speichern('zahlungsbedingungen',()=>api(url,{method:editingPaymentTermId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,days,skonto_percent:skontoPercent,skonto_days:skontoDays,text_template:textTemplate})}));hidePaymentTermEditor();await ladeZahlungsbedingungen()}catch(e){st.textContent='Fehler: '+e.message}}
+async function setDefaultPaymentTerm(id){try{await speichern('zahlungsbedingungen',()=>api(`/api/payment-terms/${id}/set-default`,{method:'POST'}),{neuLaden:ladeZahlungsbedingungen})}catch(e){document.getElementById('paymentTermStatus').textContent='Fehler: '+e.message}}
+async function archivePaymentTerm(id){try{await speichern('zahlungsbedingungen',()=>api(`/api/payment-terms/${id}/archive`,{method:'POST'}),{neuLaden:ladeZahlungsbedingungen})}catch(e){document.getElementById('paymentTermStatus').textContent='Fehler: '+e.message}}
+async function unarchivePaymentTerm(id){try{await speichern('zahlungsbedingungen',()=>api(`/api/payment-terms/${id}/unarchive`,{method:'POST'}),{neuLaden:ladeZahlungsbedingungen})}catch(e){document.getElementById('paymentTermStatus').textContent='Fehler: '+e.message}}
 
+function ladeSteuerschluessel(){return lesen('steuerschluessel',()=>api('/api/tax-keys?include_archived=true'),d=>{taxKeys=d;renderTaxKeys()})}
 function renderTaxKeys(){document.getElementById('taxKeyRows').innerHTML=taxKeys.length?taxKeys.map(x=>`<tr><td><b>${esc(x.label)}</b>${x.notice_text?'<div class="muted small">Hinweistext hinterlegt</div>':''}</td><td>${String(x.vat_rate).replace('.',',')} %</td><td>${x.is_default?'<span class="badge">Standard</span>':(x.archived?'Archiviert':'Aktiv')}</td><td><button class="secondary" onclick="editTaxKey(${x.id})">Bearbeiten</button> ${x.is_default?'':x.archived?`<button class="secondary" onclick="unarchiveTaxKey(${x.id})">Wiederherstellen</button>`:`<button class="secondary" onclick="setDefaultTaxKey(${x.id})">Als Standard</button> <button class="danger" onclick="archiveTaxKey(${x.id})">Archivieren</button>`}</td></tr>`).join(''):'<tr><td colspan="4" class="muted">Noch kein Steuerschlüssel hinterlegt.</td></tr>'}
 function showTaxKeyEditor(){document.getElementById('taxKeyEditorPanel').style.display='block';document.getElementById('tkLabel').focus()}
 function hideTaxKeyEditor(){resetTaxKeyForm();document.getElementById('taxKeyEditorPanel').style.display='none'}
 function editTaxKey(id){const t=taxKeys.find(x=>x.id===id);if(!t)return;editingTaxKeyId=id;setv('tkLabel',t.label);setv('tkVatRate',String(t.vat_rate));setv('tkNoticeText',t.notice_text||'');document.getElementById('taxKeyEditorHeading').textContent='Steuerschlüssel bearbeiten';document.getElementById('taxKeySave').textContent='Änderungen speichern';document.getElementById('taxKeyStatus').textContent='';showTaxKeyEditor()}
 function resetTaxKeyForm(){editingTaxKeyId=null;setv('tkLabel','');setv('tkVatRate','');setv('tkNoticeText','');document.getElementById('taxKeyEditorHeading').textContent='Steuerschlüssel hinzufügen';document.getElementById('taxKeySave').textContent='Hinzufügen';document.getElementById('taxKeyStatus').textContent=''}
-async function saveTaxKey(){const st=document.getElementById('taxKeyStatus');try{const label=v('tkLabel');const vatRate=Number(v('tkVatRate'));if(!label||isNaN(vatRate))throw Error('Bitte Bezeichnung und MwSt.-Satz angeben.');const noticeText=v('tkNoticeText')||null;const url=editingTaxKeyId?`/api/tax-keys/${editingTaxKeyId}`:'/api/tax-keys';await api(url,{method:editingTaxKeyId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,vat_rate:vatRate,notice_text:noticeText})});hideTaxKeyEditor();taxKeys=await api('/api/tax-keys?include_archived=true');renderTaxKeys()}catch(e){st.textContent='Fehler: '+e.message}}
-async function setDefaultTaxKey(id){try{await api(`/api/tax-keys/${id}/set-default`,{method:'POST'});taxKeys=await api('/api/tax-keys?include_archived=true');renderTaxKeys()}catch(e){document.getElementById('taxKeyStatus').textContent='Fehler: '+e.message}}
-async function archiveTaxKey(id){try{await api(`/api/tax-keys/${id}/archive`,{method:'POST'});taxKeys=await api('/api/tax-keys?include_archived=true');renderTaxKeys()}catch(e){document.getElementById('taxKeyStatus').textContent='Fehler: '+e.message}}
-async function unarchiveTaxKey(id){try{await api(`/api/tax-keys/${id}/unarchive`,{method:'POST'});taxKeys=await api('/api/tax-keys?include_archived=true');renderTaxKeys()}catch(e){document.getElementById('taxKeyStatus').textContent='Fehler: '+e.message}}
+async function saveTaxKey(){const st=document.getElementById('taxKeyStatus');try{const label=v('tkLabel');const vatRate=Number(v('tkVatRate'));if(!label||isNaN(vatRate))throw Error('Bitte Bezeichnung und MwSt.-Satz angeben.');const noticeText=v('tkNoticeText')||null;const url=editingTaxKeyId?`/api/tax-keys/${editingTaxKeyId}`:'/api/tax-keys';await speichern('steuerschluessel',()=>api(url,{method:editingTaxKeyId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,vat_rate:vatRate,notice_text:noticeText})}));hideTaxKeyEditor();await ladeSteuerschluessel()}catch(e){st.textContent='Fehler: '+e.message}}
+async function setDefaultTaxKey(id){try{await speichern('steuerschluessel',()=>api(`/api/tax-keys/${id}/set-default`,{method:'POST'}),{neuLaden:ladeSteuerschluessel})}catch(e){document.getElementById('taxKeyStatus').textContent='Fehler: '+e.message}}
+async function archiveTaxKey(id){try{await speichern('steuerschluessel',()=>api(`/api/tax-keys/${id}/archive`,{method:'POST'}),{neuLaden:ladeSteuerschluessel})}catch(e){document.getElementById('taxKeyStatus').textContent='Fehler: '+e.message}}
+async function unarchiveTaxKey(id){try{await speichern('steuerschluessel',()=>api(`/api/tax-keys/${id}/unarchive`,{method:'POST'}),{neuLaden:ladeSteuerschluessel})}catch(e){document.getElementById('taxKeyStatus').textContent='Fehler: '+e.message}}
 function renderReminderLevels(){renderDunningSwitch();if(dunningSettings===null){loadDunningSettings();}if(baseRates===null){loadDunningLegal()}else{renderBaseRates();renderLegalTexts()}const feeOn=!!(dunningSettings&&dunningSettings.charges_enabled);document.getElementById('reminderLevelRows').innerHTML=reminderLevels.map(x=>`<div class="option-row" data-mahnstufe="${x.level}"><div class="fields"><div class="field"><label>Bezeichnung</label><input id="rl${x.id}Label" value="${esc(x.label)}"></div><div class="field"><label>Zahlungsfrist (Tage ab Mahndatum)</label><input id="rl${x.id}Days" type="number" min="1" max="365" value="${x.days_after_previous_step}"></div>${feeOn?`<div class="field"><label>Mahngebühr € (Vorschlag)</label><input id="rl${x.id}Fee" type="number" min="0" step="0.01" value="${Number(x.fee_amount).toFixed(2)}"></div>`:''}<div class="field" style="display:flex;align-items:flex-end;gap:6px"><label style="display:flex;align-items:center;gap:6px;font-weight:650;margin-bottom:9px"><input id="rl${x.id}Active" type="checkbox" style="width:auto" ${x.active?'checked':''}> Stufe aktiv</label></div></div>${feePlaceholderWarning(x)}<div class="field"><label>Mahntext (PDF) <span class="muted small">(Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {offener_betrag} {gesamtbetrag} {neue_frist} {vorheriges_mahndatum}${feeOn?' {mahngebuehr} {nebenforderungen}':''})</span></label><textarea id="rl${x.id}Text" rows="4">${esc(x.text_template||'')}</textarea></div><div class="field"><label>E-Mail-Betreff <span class="muted small">(zusätzlich: {mahnstufe}, leer = Standardtext) – auch über "E-Mail-Vorlagen" oben bearbeitbar</span></label><input id="rl${x.id}EmailSubject" value="${esc(x.email_subject_template||'')}" placeholder="${x.level}. Mahnung zu Rechnung {rechnungsnummer}"></div><div class="field"><label>E-Mail-Text <span class="muted small">(kurze Nachricht, Details stehen im PDF-Anhang)</span></label><textarea id="rl${x.id}EmailBody" rows="4" placeholder="Sehr geehrte Damen und Herren, anbei erhalten Sie unsere ${x.level}. Mahnung …">${esc(x.email_body_template||'')}</textarea></div><button onclick="saveReminderLevel(${x.id})">Speichern</button> <span id="rlStatus${x.id}" class="status"></span></div>`).join('');populateReminderLevelEmailOptions()}
+function ladeMahnstufen(){return lesen('mahnstufen',()=>api('/api/reminder-levels'),d=>{reminderLevels=d;renderReminderLevels()})}
 // Seit 1.8.80 Teil-Update: die Gebühr nur, wenn das Feld da ist (Mahngebühren eingeschaltet).
-async function saveReminderLevel(id){const st=document.getElementById('rlStatus'+id);try{const label=v('rl'+id+'Label');const days=Number(v('rl'+id+'Days'));const feeInput=document.getElementById('rl'+id+'Fee');const fee=feeInput?Number(feeInput.value):null;if(!label||isNaN(days)||(feeInput&&isNaN(fee)))throw Error('Bitte Bezeichnung, Zahlungsfrist und Gebühr angeben.');const active=document.getElementById('rl'+id+'Active').checked;const textTemplate=v('rl'+id+'Text')||null;const emailSubject=v('rl'+id+'EmailSubject')||null;const emailBody=v('rl'+id+'EmailBody')||null;const body={label,days_after_previous_step:days,text_template:textTemplate,email_subject_template:emailSubject,email_body_template:emailBody,active};if(feeInput)body.fee_amount=fee.toFixed(2);await api(`/api/reminder-levels/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});reminderLevels=await api('/api/reminder-levels');renderReminderLevels();document.getElementById('rlStatus'+id).textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
+async function saveReminderLevel(id){const st=document.getElementById('rlStatus'+id);try{const label=v('rl'+id+'Label');const days=Number(v('rl'+id+'Days'));const feeInput=document.getElementById('rl'+id+'Fee');const fee=feeInput?Number(feeInput.value):null;if(!label||isNaN(days)||(feeInput&&isNaN(fee)))throw Error('Bitte Bezeichnung, Zahlungsfrist und Gebühr angeben.');const active=document.getElementById('rl'+id+'Active').checked;const textTemplate=v('rl'+id+'Text')||null;const emailSubject=v('rl'+id+'EmailSubject')||null;const emailBody=v('rl'+id+'EmailBody')||null;const body={label,days_after_previous_step:days,text_template:textTemplate,email_subject_template:emailSubject,email_body_template:emailBody,active};if(feeInput)body.fee_amount=fee.toFixed(2);await speichern('mahnstufen',()=>api(`/api/reminder-levels/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:ladeMahnstufen});document.getElementById('rlStatus'+id).textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
 
 function onEmailSendMethodChange(){
   const method = document.getElementById('emailSendMethod').value;
@@ -1836,17 +1841,18 @@ function onEmailSendMethodChange(){
 async function loadEmailSettings(){
   const section = document.getElementById('settings-email-settings');
   try{
-    const s = await api('/api/email-settings');
-    document.getElementById('emailSendMethod').value = s.send_method || 'smtp';
-    onEmailSendMethodChange();
-    setv('smtpHost', s.host); setv('smtpPort', s.port); setv('smtpUsername', s.username);
-    document.getElementById('smtpEncryption').value = s.encryption;
-    setv('smtpSenderEmail', s.sender_email); setv('smtpSenderName', s.sender_name);
-    document.getElementById('smtpPasswordHint').textContent = s.has_password ? '(gespeichert – leer lassen für unverändert)' : '(noch keins hinterlegt – bitte ausfüllen)';
-    document.getElementById('smtpPassword').placeholder = s.has_password ? 'unverändert lassen' : 'Passwort eingeben';
-    setv('graphTenantId', s.graph_tenant_id); setv('graphClientId', s.graph_client_id); setv('graphSenderMailbox', s.graph_sender_mailbox);
-    document.getElementById('graphSecretHint').textContent = s.has_graph_client_secret ? '(gespeichert – leer lassen für unverändert)' : '(noch keins hinterlegt – bitte ausfüllen)';
-    document.getElementById('graphClientSecret').placeholder = s.has_graph_client_secret ? 'unverändert lassen' : 'Client-Secret eingeben';
+    await lesen('email', () => api('/api/email-settings'), s => {
+      document.getElementById('emailSendMethod').value = s.send_method || 'smtp';
+      onEmailSendMethodChange();
+      setv('smtpHost', s.host); setv('smtpPort', s.port); setv('smtpUsername', s.username);
+      document.getElementById('smtpEncryption').value = s.encryption;
+      setv('smtpSenderEmail', s.sender_email); setv('smtpSenderName', s.sender_name);
+      document.getElementById('smtpPasswordHint').textContent = s.has_password ? '(gespeichert – leer lassen für unverändert)' : '(noch keins hinterlegt – bitte ausfüllen)';
+      document.getElementById('smtpPassword').placeholder = s.has_password ? 'unverändert lassen' : 'Passwort eingeben';
+      setv('graphTenantId', s.graph_tenant_id); setv('graphClientId', s.graph_client_id); setv('graphSenderMailbox', s.graph_sender_mailbox);
+      document.getElementById('graphSecretHint').textContent = s.has_graph_client_secret ? '(gespeichert – leer lassen für unverändert)' : '(noch keins hinterlegt – bitte ausfüllen)';
+      document.getElementById('graphClientSecret').placeholder = s.has_graph_client_secret ? 'unverändert lassen' : 'Client-Secret eingeben';
+    });
   }catch(e){
     section.innerHTML = '<div class="section-title"><h2>E-Mail-Versand</h2></div><div class="hint">Diese Einstellung ist nur für Administratoren verfügbar.</div>';
   }
@@ -1855,39 +1861,37 @@ async function saveSmtpSettings(){
   const st = document.getElementById('emailSettingsStatus');
   try{
     st.textContent = 'Speichert …';
-    await api('/api/email-settings/method', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({send_method: 'smtp'})});
+    await speichern('email', () => api('/api/email-settings/method', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({send_method: 'smtp'})}));
     const payload = {
       host: v('smtpHost'), port: Number(v('smtpPort')), username: v('smtpUsername'),
       encryption: document.getElementById('smtpEncryption').value,
       sender_email: v('smtpSenderEmail'), sender_name: v('smtpSenderName') || null,
       password: v('smtpPassword') || null,
     };
-    await api('/api/email-settings', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    await speichern('email', () => api('/api/email-settings', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)}), {neuLaden: loadEmailSettings});
     document.getElementById('smtpPassword').value = '';
     st.textContent = 'Gespeichert, SMTP ist jetzt der aktive Versandweg.';
-    await loadEmailSettings();
   }catch(e){ st.textContent = 'Fehler: ' + e.message }
 }
 async function saveGraphSettings(){
   const st = document.getElementById('emailSettingsStatus');
   try{
     st.textContent = 'Speichert …';
-    await api('/api/email-settings/method', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({send_method: 'graph_oauth2'})});
+    await speichern('email', () => api('/api/email-settings/method', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({send_method: 'graph_oauth2'})}));
     const payload = {
       tenant_id: v('graphTenantId'), client_id: v('graphClientId'),
       sender_mailbox: v('graphSenderMailbox'), client_secret: v('graphClientSecret') || null,
     };
-    await api('/api/email-settings/graph', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    await speichern('email', () => api('/api/email-settings/graph', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)}), {neuLaden: loadEmailSettings});
     document.getElementById('graphClientSecret').value = '';
     st.textContent = 'Gespeichert, Microsoft 365 ist jetzt der aktive Versandweg.';
-    await loadEmailSettings();
   }catch(e){ st.textContent = 'Fehler: ' + e.message }
 }
 async function testEmailSettings(){
   const st = document.getElementById('emailSettingsStatus');
   st.textContent = 'Teste Verbindung …';
   try{
-    await api('/api/email-settings/test', {method: 'POST'});
+    await speichern('email', () => api('/api/email-settings/test', {method: 'POST'}));
     st.textContent = 'Verbindung erfolgreich.';
   }catch(e){ st.textContent = 'Fehlgeschlagen: ' + e.message }
 }
@@ -1895,13 +1899,14 @@ async function testEmailSettings(){
 async function loadAiSettings(){
   const section = document.getElementById('settings-ai-settings');
   try{
-    const s = await api('/api/ai-settings');
-    document.getElementById('aiEnabled').checked = !!s.enabled;
-    document.getElementById('aiProvider').value = s.provider || '';
-    setv('aiModel', s.model);
-    setv('aiApiBaseUrl', s.api_base_url);
-    document.getElementById('aiApiKeyHint').textContent = s.has_api_key ? '(gespeichert – leer lassen für unverändert)' : '(noch keiner hinterlegt)';
-    document.getElementById('aiApiKey').placeholder = s.has_api_key ? 'unverändert lassen' : 'Schlüssel eingeben';
+    await lesen('ki', () => api('/api/ai-settings'), s => {
+      document.getElementById('aiEnabled').checked = !!s.enabled;
+      document.getElementById('aiProvider').value = s.provider || '';
+      setv('aiModel', s.model);
+      setv('aiApiBaseUrl', s.api_base_url);
+      document.getElementById('aiApiKeyHint').textContent = s.has_api_key ? '(gespeichert – leer lassen für unverändert)' : '(noch keiner hinterlegt)';
+      document.getElementById('aiApiKey').placeholder = s.has_api_key ? 'unverändert lassen' : 'Schlüssel eingeben';
+    });
   }catch(e){
     section.innerHTML = '<div class="section-title"><h2>KI-Anbieter</h2></div><div class="hint">Diese Einstellung ist nur für Administratoren verfügbar.</div>';
   }
@@ -1917,17 +1922,16 @@ async function saveAiSettings(){
       model: v('aiModel') || null,
       api_key: v('aiApiKey') || null,
     };
-    await api('/api/ai-settings', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    await speichern('ki', () => api('/api/ai-settings', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)}), {neuLaden: loadAiSettings});
     document.getElementById('aiApiKey').value = '';
     st.textContent = 'Gespeichert.';
-    await loadAiSettings();
   }catch(e){ st.textContent = 'Fehler: ' + e.message }
 }
 async function testAiSettings(){
   const st = document.getElementById('aiSettingsStatus');
   st.textContent = 'Teste Verbindung …';
   try{
-    await api('/api/ai-settings/test', {method: 'POST'});
+    await speichern('ki', () => api('/api/ai-settings/test', {method: 'POST'}));
     st.textContent = 'Verbindung erfolgreich.';
   }catch(e){ st.textContent = 'Fehlgeschlagen: ' + e.message }
 }
@@ -1935,9 +1939,10 @@ async function testAiSettings(){
 async function loadOutlookSyncSettings(){
   const section = document.getElementById('settings-outlook-sync');
   try{
-    const s = await api('/api/outlook-sync-settings');
-    document.getElementById('outlookSyncEnabled').checked = !!s.enabled;
-    document.getElementById('outlookGraphMissingHint').classList.toggle('hidden', !!s.graph_configured);
+    await lesen('outlook', () => api('/api/outlook-sync-settings'), s => {
+      document.getElementById('outlookSyncEnabled').checked = !!s.enabled;
+      document.getElementById('outlookGraphMissingHint').classList.toggle('hidden', !!s.graph_configured);
+    });
   }catch(e){
     section.innerHTML = '<div class="section-title"><h2>Outlook-Synchronisation</h2></div><div class="hint">Diese Einstellung ist nur für Administratoren verfügbar.</div>';
   }
@@ -1946,9 +1951,8 @@ async function saveOutlookSyncSettings(){
   const st = document.getElementById('outlookSyncStatus');
   try{
     st.textContent = 'Speichert …';
-    await api('/api/outlook-sync-settings', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({enabled: document.getElementById('outlookSyncEnabled').checked})});
+    await speichern('outlook', () => api('/api/outlook-sync-settings', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({enabled: document.getElementById('outlookSyncEnabled').checked})}), {neuLaden: loadOutlookSyncSettings});
     st.textContent = 'Gespeichert.';
-    await loadOutlookSyncSettings();
   }catch(e){ st.textContent = 'Fehler: ' + e.message }
 }
 
@@ -1989,9 +1993,10 @@ async function loadEmailTemplate(){
       setv('emailTemplateSubject', rl?.email_subject_template);
       document.getElementById('emailTemplateBody').value = rl?.email_body_template || '';
     } else {
-      const t = await api(`/api/document-email-templates/${type}`);
-      setv('emailTemplateSubject', t.subject_template);
-      document.getElementById('emailTemplateBody').value = t.body_template || '';
+      await lesen('emailvorlagen', () => api(`/api/document-email-templates/${type}`), t => {
+        setv('emailTemplateSubject', t.subject_template);
+        document.getElementById('emailTemplateBody').value = t.body_template || '';
+      });
     }
     st.textContent = '';
   }catch(e){ st.textContent = 'Fehler beim Laden: ' + e.message }
@@ -2005,35 +2010,36 @@ async function saveEmailTemplate(){
       const level = Number(type.split(':')[1]);
       const rl = reminderLevels.find(x=>x.level===level);
       if(!rl) throw Error('Mahnstufe nicht gefunden.');
-      await api(`/api/reminder-levels/${rl.id}`, {
+      await speichern('mahnstufen', () => api(`/api/reminder-levels/${rl.id}`, {
         method: 'PUT', headers: {'Content-Type': 'application/json'},
         // Seit 1.8.80 nur Betreff und Text (Teil-Update) -- vorher gingen alle Felder mit dem beim Laden gemerkten Stand mit.
         body: JSON.stringify({
           email_subject_template: v('emailTemplateSubject') || null, email_body_template: v('emailTemplateBody') || null,
         }),
-      });
-      reminderLevels = await api('/api/reminder-levels');
-      renderReminderLevels();  // hält die Mahnstufen-Sektion synchron, da dieselben Felder dort auch angezeigt werden
+      }), {neuLaden: ladeMahnstufen});  // hält die Mahnstufen-Sektion synchron, da dieselben Felder dort auch angezeigt werden
     } else {
-      await api(`/api/document-email-templates/${type}`, {
+      await speichern('emailvorlagen', () => api(`/api/document-email-templates/${type}`, {
         method: 'PUT', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({subject_template: v('emailTemplateSubject') || null, body_template: v('emailTemplateBody') || null}),
-      });
+      }));
     }
     st.textContent = 'Gespeichert.';
   }catch(e){ st.textContent = 'Fehler: ' + e.message }
 }
 
 function renderPlanningSettings(){if(!planningSettings)return;setv('planningDailyHours',planningSettings.daily_work_hours);setv('planningTravelHours',planningSettings.default_travel_hours_per_employee_day);setv('planningState',planningSettings.federal_state_code||'NW');document.getElementById('planningAutoHolidays').checked=planningSettings.auto_public_holidays!==false;document.getElementById('planningSchoolHolidays').checked=planningSettings.show_school_holidays!==false;document.getElementById('planMon').checked=!!planningSettings.monday;document.getElementById('planTue').checked=!!planningSettings.tuesday;document.getElementById('planWed').checked=!!planningSettings.wednesday;document.getElementById('planThu').checked=!!planningSettings.thursday;document.getElementById('planFri').checked=!!planningSettings.friday;document.getElementById('planSat').checked=!!planningSettings.saturday;document.getElementById('planSun').checked=!!planningSettings.sunday}
-async function savePlanningSettings(){const st=document.getElementById('planningStatus');try{planningSettings=await api('/api/planning/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({daily_work_hours:Number(v('planningDailyHours')||0),default_travel_hours_per_employee_day:Number(v('planningTravelHours')||0),monday:document.getElementById('planMon').checked,tuesday:document.getElementById('planTue').checked,wednesday:document.getElementById('planWed').checked,thursday:document.getElementById('planThu').checked,friday:document.getElementById('planFri').checked,saturday:document.getElementById('planSat').checked,sunday:document.getElementById('planSun').checked,federal_state_code:v('planningState')||'NW',auto_public_holidays:document.getElementById('planningAutoHolidays').checked,show_school_holidays:document.getElementById('planningSchoolHolidays').checked})});st.textContent='Planungsgrundlagen gespeichert.';if(planningSettings.show_school_holidays)await syncSchoolHolidays(false)}catch(e){st.textContent='Fehler: '+e.message}}
-async function syncSchoolHolidays(force){const st=document.getElementById('planningStatus');try{st.textContent='Ferientermine werden aktualisiert …';const y=berlinDateParts().year;const r=await api(`/api/planning/school-holidays/sync?start_year=${y}&years=3&force=${force?'true':'false'}`,{method:'POST'});const bad=(r.results||[]).filter(x=>!x.success);st.textContent=bad.length?`Einstellungen gespeichert. Ferien teilweise nicht aktualisiert (${bad.length} Fehler).`:`Ferientermine ${r.state_name||r.state_code} für ${y}–${y+2} aktualisiert.`}catch(e){st.textContent='Einstellungen gespeichert; Ferien-Synchronisierung nicht möglich: '+e.message}}
+async function savePlanningSettings(){const st=document.getElementById('planningStatus');try{await speichern('planung',()=>api('/api/planning/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({daily_work_hours:Number(v('planningDailyHours')||0),default_travel_hours_per_employee_day:Number(v('planningTravelHours')||0),monday:document.getElementById('planMon').checked,tuesday:document.getElementById('planTue').checked,wednesday:document.getElementById('planWed').checked,thursday:document.getElementById('planThu').checked,friday:document.getElementById('planFri').checked,saturday:document.getElementById('planSat').checked,sunday:document.getElementById('planSun').checked,federal_state_code:v('planningState')||'NW',auto_public_holidays:document.getElementById('planningAutoHolidays').checked,show_school_holidays:document.getElementById('planningSchoolHolidays').checked})}),{anwenden:d=>{planningSettings=d}});st.textContent='Planungsgrundlagen gespeichert.';if(planningSettings.show_school_holidays)await syncSchoolHolidays(false)}catch(e){st.textContent='Fehler: '+e.message}}
+async function syncSchoolHolidays(force){const st=document.getElementById('planningStatus');try{st.textContent='Ferientermine werden aktualisiert …';const y=berlinDateParts().year;const r=await speichern('planung',()=>api(`/api/planning/school-holidays/sync?start_year=${y}&years=3&force=${force?'true':'false'}`,{method:'POST'}));const bad=(r.results||[]).filter(x=>!x.success);st.textContent=bad.length?`Einstellungen gespeichert. Ferien teilweise nicht aktualisiert (${bad.length} Fehler).`:`Ferientermine ${r.state_name||r.state_code} für ${y}–${y+2} aktualisiert.`}catch(e){st.textContent='Einstellungen gespeichert; Ferien-Synchronisierung nicht möglich: '+e.message}}
+function ladeFeiertage(){return lesen('feiertage',()=>api('/api/planning/holidays'),d=>{planningHolidays=d;renderHolidays()})}
 function renderHolidays(){document.getElementById('holidayRows').innerHTML=planningHolidays.map(x=>`<tr><td>${esc(x.holiday_date)}</td><td><b>${esc(x.name)}</b></td><td>${x.active?'Aktiv':'Inaktiv'}</td><td><button class="secondary" onclick="editHoliday(${x.id})">Bearbeiten</button> <button class="danger" onclick="deleteHoliday(${x.id})">Löschen</button></td></tr>`).join('')||'<tr><td colspan="4" class="muted">Noch keine Feiertage / betriebsfreien Tage hinterlegt.</td></tr>'}
 function showHolidayEditor(){document.getElementById('holidayEditorPanel').style.display='block';document.getElementById('holidayDate').focus()}
 function hideHolidayEditor(){resetHoliday();document.getElementById('holidayEditorPanel').style.display='none'}
 function resetHoliday(){editingHolidayId=null;setv('holidayDate','');setv('holidayName','');setv('holidayActive','true');document.getElementById('holidayEditorHeading').textContent='Betriebsfreien Tag hinzufügen';document.getElementById('holidaySave').textContent='Hinzufügen';document.getElementById('holidayStatus').textContent=''}
 function editHoliday(id){const x=planningHolidays.find(y=>y.id===id);if(!x)return;editingHolidayId=id;setv('holidayDate',x.holiday_date);setv('holidayName',x.name);setv('holidayActive',String(x.active));document.getElementById('holidayEditorHeading').textContent='Betriebsfreien Tag bearbeiten';document.getElementById('holidaySave').textContent='Änderungen speichern';document.getElementById('holidayStatus').textContent='';showHolidayEditor()}
-async function saveHoliday(){const st=document.getElementById('holidayStatus');try{const payload={holiday_date:v('holidayDate'),name:v('holidayName'),active:v('holidayActive')==='true'};if(!payload.holiday_date||!payload.name)throw Error('Datum und Bezeichnung sind erforderlich.');await api(editingHolidayId?`/api/planning/holidays/${editingHolidayId}`:'/api/planning/holidays',{method:editingHolidayId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});planningHolidays=await api('/api/planning/holidays');renderHolidays();hideHolidayEditor()}catch(e){st.textContent='Fehler: '+e.message}}
-async function deleteHoliday(id){if(!confirm('Feiertag / betriebsfreien Tag wirklich löschen?'))return;try{await api(`/api/planning/holidays/${id}`,{method:'DELETE'});planningHolidays=await api('/api/planning/holidays');renderHolidays()}catch(e){document.getElementById('holidayStatus').textContent='Fehler: '+e.message}}
+async function saveHoliday(){const st=document.getElementById('holidayStatus');try{const payload={holiday_date:v('holidayDate'),name:v('holidayName'),active:v('holidayActive')==='true'};if(!payload.holiday_date||!payload.name)throw Error('Datum und Bezeichnung sind erforderlich.');await speichern('feiertage',()=>api(editingHolidayId?`/api/planning/holidays/${editingHolidayId}`:'/api/planning/holidays',{method:editingHolidayId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:ladeFeiertage});hideHolidayEditor()}catch(e){st.textContent='Fehler: '+e.message}}
+async function deleteHoliday(id){if(!confirm('Feiertag / betriebsfreien Tag wirklich löschen?'))return;try{await speichern('feiertage',()=>api(`/api/planning/holidays/${id}`,{method:'DELETE'}),{neuLaden:ladeFeiertage})}catch(e){document.getElementById('holidayStatus').textContent='Fehler: '+e.message}}
+// Dieselbe Auswahl der Gruppen wie in load().
+function ladeAuswahllisten(){return lesen('auswahllisten',()=>api('/api/settings/option-groups'),og=>{optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups()})}
 function renderOptionGroups(){const sel=document.getElementById('optionGroupSelect');const old=currentOptionGroup?.group_key||sel.value;sel.innerHTML=optionGroups.map(g=>`<option value="${esc(g.group_key)}">${esc(g.label)}</option>`).join('');if(old&&optionGroups.some(g=>g.group_key===old))sel.value=old;currentOptionGroup=optionGroups.find(g=>g.group_key===sel.value)||optionGroups[0]||null;renderOptions()}
 function selectOptionGroup(){currentOptionGroup=optionGroups.find(g=>g.group_key===v('optionGroupSelect'))||null;hideOptionEditor();renderOptions()}
 function renderOptions(){const g=currentOptionGroup;document.getElementById('optionGroupDescription').textContent=g?.description||'';document.getElementById('optionRows').innerHTML=!g?'<tr><td colspan="3" class="muted">Keine Auswahllisten vorhanden.</td></tr>':g.options.map(o=>`<tr><td><b>${esc(o.label)}</b>${o.is_default?' <span class="badge">Standard</span>':''}<div class="muted small" style="white-space:pre-wrap;margin-top:2px">${esc(o.value)}</div></td><td>${o.active?'Aktiv':'Inaktiv'}</td><td><button class="secondary" onclick="editOption(${o.id})">Bearbeiten</button> <button class="danger" onclick="deleteOption(${o.id})">Löschen</button></td></tr>`).join('')||'<tr><td colspan="3" class="muted">Noch keine Einträge. Mit "+ Eintrag" den ersten Wert anlegen.</td></tr>'}
@@ -2041,18 +2047,20 @@ function showOptionEditor(){document.getElementById('optionEditorPanel').style.d
 function hideOptionEditor(){resetOptionEditor();document.getElementById('optionEditorPanel').style.display='none'}
 function resetOptionEditor(){editingOptionId=null;setv('optionLabel','');setv('optionValue','');setv('optionSort','100');setv('optionActive','true');setv('optionDefault','false');document.getElementById('optionEditorHeading').textContent='Eintrag hinzufügen';document.getElementById('optionSaveButton').textContent='Hinzufügen';document.getElementById('optionStatus').textContent=''}
 function editOption(id){const o=currentOptionGroup?.options.find(x=>x.id===id);if(!o)return;editingOptionId=id;setv('optionLabel',o.label);setv('optionValue',o.value);setv('optionSort',o.sort_order);setv('optionActive',String(o.active));setv('optionDefault',String(o.is_default));document.getElementById('optionEditorHeading').textContent='Eintrag bearbeiten';document.getElementById('optionSaveButton').textContent='Änderungen speichern';showOptionEditor()}
-async function saveOption(){const s=document.getElementById('optionStatus');try{if(!currentOptionGroup)throw Error('Keine Auswahlliste ausgewählt.');const payload={label:v('optionLabel'),value:v('optionValue'),sort_order:Number(v('optionSort')||100),active:v('optionActive')==='true',is_default:v('optionDefault')==='true'};if(!payload.label||!payload.value)throw Error('Bezeichnung und Wert sind erforderlich.');const url=`/api/settings/option-groups/${currentOptionGroup.group_key}/options${editingOptionId?'/'+editingOptionId:''}`;await api(url,{method:editingOptionId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});editingOptionId=null;await load();currentOptionGroup=optionGroups.find(g=>g.group_key===v('optionGroupSelect'))||currentOptionGroup;renderOptions();hideOptionEditor()}catch(e){s.textContent='Fehler: '+e.message}}
-async function deleteOption(id){if(!confirm('Eintrag wirklich löschen? Bestehende Dokumente behalten ihren bereits gespeicherten Wert.'))return;const s=document.getElementById('optionStatus');try{await api(`/api/settings/option-groups/${currentOptionGroup.group_key}/options/${id}`,{method:'DELETE'});s.textContent='Gelöscht.';await load()}catch(e){s.textContent='Fehler: '+e.message}}
+async function saveOption(){const s=document.getElementById('optionStatus');try{if(!currentOptionGroup)throw Error('Keine Auswahlliste ausgewählt.');const payload={label:v('optionLabel'),value:v('optionValue'),sort_order:Number(v('optionSort')||100),active:v('optionActive')==='true',is_default:v('optionDefault')==='true'};if(!payload.label||!payload.value)throw Error('Bezeichnung und Wert sind erforderlich.');const url=`/api/settings/option-groups/${currentOptionGroup.group_key}/options${editingOptionId?'/'+editingOptionId:''}`;await speichern('auswahllisten',()=>api(url,{method:editingOptionId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));editingOptionId=null;await ladeAuswahllisten();currentOptionGroup=optionGroups.find(g=>g.group_key===v('optionGroupSelect'))||currentOptionGroup;renderOptions();hideOptionEditor()}catch(e){s.textContent='Fehler: '+e.message}}
+async function deleteOption(id){if(!confirm('Eintrag wirklich löschen? Bestehende Dokumente behalten ihren bereits gespeicherten Wert.'))return;const s=document.getElementById('optionStatus');try{await speichern('auswahllisten',()=>api(`/api/settings/option-groups/${currentOptionGroup.group_key}/options/${id}`,{method:'DELETE'}),{neuLaden:ladeAuswahllisten});s.textContent='Gelöscht.'}catch(e){s.textContent='Fehler: '+e.message}}
+function ladeFunktionen(){return lesen('funktionen',()=>api('/api/settings/employee-functions'),d=>{employeeFunctions=d;renderEmployeeFunctions()})}
 function renderEmployeeFunctions(){document.getElementById('functionRows').innerHTML=employeeFunctions.map(f=>`<tr><td><b>${esc(f.name)}</b>${f.description?`<div class="muted small">${esc(f.description)}</div>`:''}</td><td>${f.employee_group==='gewerblich'?'Gewerblich':'Kaufmännisch'}</td><td>${f.sort_order}</td><td>${f.active?'Aktiv':'Inaktiv'}</td><td><button class="secondary" onclick="editEmployeeFunction(${f.id})">Bearbeiten</button> <button class="danger" onclick="deleteEmployeeFunction(${f.id})">Löschen</button></td></tr>`).join('')||'<tr><td colspan="5" class="muted">Noch keine Funktionen hinterlegt.</td></tr>'}
 function showFunctionEditor(){document.getElementById('functionEditorPanel').style.display='block';document.getElementById('functionName').focus()}
 function hideFunctionEditor(){resetEmployeeFunction();document.getElementById('functionEditorPanel').style.display='none'}
 function resetEmployeeFunction(){editingFunctionId=null;setv('functionName','');setv('functionGroup','gewerblich');setv('functionSort','100');setv('functionActive','true');setv('functionDescription','');document.getElementById('functionEditorHeading').textContent='Funktion hinzufügen';document.getElementById('functionSaveButton').textContent='Hinzufügen';document.getElementById('functionStatus').textContent=''}
 function editEmployeeFunction(id){const f=employeeFunctions.find(x=>x.id===id);if(!f)return;editingFunctionId=id;setv('functionName',f.name);setv('functionGroup',f.employee_group);setv('functionSort',f.sort_order);setv('functionActive',String(f.active));setv('functionDescription',f.description);document.getElementById('functionEditorHeading').textContent='Funktion bearbeiten';document.getElementById('functionSaveButton').textContent='Änderungen speichern';document.getElementById('functionStatus').textContent='';showFunctionEditor()}
-async function saveEmployeeFunction(){const s=document.getElementById('functionStatus');try{const payload={name:v('functionName'),employee_group:v('functionGroup'),description:nv('functionDescription'),sort_order:Number(v('functionSort')||100),active:v('functionActive')==='true'};if(!payload.name)throw new Error('Bitte eine Funktion/Tätigkeit eingeben.');await api(editingFunctionId?`/api/settings/employee-functions/${editingFunctionId}`:'/api/settings/employee-functions',{method:editingFunctionId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});hideFunctionEditor();await load()}catch(e){s.textContent='Fehler: '+e.message}}
-async function deleteEmployeeFunction(id){if(!confirm('Funktion/Tätigkeit wirklich löschen? Zugeordnete Funktionen können nicht gelöscht werden.'))return;const s=document.getElementById('functionStatus');try{await api(`/api/settings/employee-functions/${id}`,{method:'DELETE'});s.textContent='Gelöscht.';await load()}catch(e){s.textContent='Fehler: '+e.message}}
+async function saveEmployeeFunction(){const s=document.getElementById('functionStatus');try{const payload={name:v('functionName'),employee_group:v('functionGroup'),description:nv('functionDescription'),sort_order:Number(v('functionSort')||100),active:v('functionActive')==='true'};if(!payload.name)throw new Error('Bitte eine Funktion/Tätigkeit eingeben.');await speichern('funktionen',()=>api(editingFunctionId?`/api/settings/employee-functions/${editingFunctionId}`:'/api/settings/employee-functions',{method:editingFunctionId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));hideFunctionEditor();await ladeFunktionen()}catch(e){s.textContent='Fehler: '+e.message}}
+async function deleteEmployeeFunction(id){if(!confirm('Funktion/Tätigkeit wirklich löschen? Zugeordnete Funktionen können nicht gelöscht werden.'))return;const s=document.getElementById('functionStatus');try{await speichern('funktionen',()=>api(`/api/settings/employee-functions/${id}`,{method:'DELETE'}),{neuLaden:ladeFunktionen});s.textContent='Gelöscht.'}catch(e){s.textContent='Fehler: '+e.message}}
+function ladeNummernkreise(){return lesen('nummernkreise',()=>api('/api/settings/number-sequences'),d=>{sequences=d;renderSequences()})}
 function renderSequences(){document.getElementById('sequences').innerHTML=sequences.map(s=>`<div class="sequence" data-key="${esc(s.sequence_key)}"><div class="seq-grid"><div class="field"><label>${esc(s.label)} · Format</label><input class="format" value="${esc(s.format_pattern)}"></div><div class="field"><label>Startnummer</label><input class="start" type="number" min="0" value="${s.start_value}"></div><div class="field"><label>Nächste Nr.</label><input class="next" type="number" min="0" value="${s.next_value}"></div><div class="field"><label>Jahreswechsel</label><select class="reset"><option value="false" ${!s.reset_yearly?'selected':''}>fortlaufend</option><option value="true" ${s.reset_yearly?'selected':''}>auf Startnummer zurück</option></select></div><div class="field"><label>Vorschau</label><div class="preview">${esc(s.preview||'—')}</div></div><button onclick="saveSequence('${esc(s.sequence_key)}')">Speichern</button></div><div class="seqStatus status"></div></div>`).join('')}
-async function saveSequence(key){const row=document.querySelector(`.sequence[data-key="${key}"]`),status=row.querySelector('.seqStatus');try{const d=await api(`/api/settings/number-sequences/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({format_pattern:row.querySelector('.format').value.trim(),start_value:Number(row.querySelector('.start').value),next_value:Number(row.querySelector('.next').value),reset_yearly:row.querySelector('.reset').value==='true'})});status.textContent=`Gespeichert. Nächste Vorschau: ${d.preview}`;await load()}catch(e){status.textContent='Fehler: '+e.message}}
-async function saveGeneral(){const s=document.getElementById('generalStatus');try{await api('/api/settings/general',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_name:v('companyName'),managing_director:nv('managingDirector'),street:nv('companyStreet'),postal_code:nv('companyZip'),city:nv('companyCity'),country:v('companyCountry')||'Deutschland',phone:nv('companyPhone'),email:nv('companyEmail'),website:nv('companyWebsite'),public_base_url:nv('publicBaseUrl'),tax_number:nv('taxNumber'),vat_id:nv('vatId'),register_court:nv('registerCourt'),register_number:nv('registerNumber'),iban:nv('iban'),bic:nv('bic'),default_vat_rate:Number(v('defaultVat')||19),default_quote_intro:nv('quoteIntro'),default_quote_outro:nv('quoteOutro')})});s.textContent='Unternehmensstammdaten gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
+async function saveSequence(key){const row=document.querySelector(`.sequence[data-key="${key}"]`),status=row.querySelector('.seqStatus');try{const d=await speichern('nummernkreise',()=>api(`/api/settings/number-sequences/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({format_pattern:row.querySelector('.format').value.trim(),start_value:Number(row.querySelector('.start').value),next_value:Number(row.querySelector('.next').value),reset_yearly:row.querySelector('.reset').value==='true'})}),{neuLaden:ladeNummernkreise});document.querySelector(`.sequence[data-key="${key}"] .seqStatus`).textContent=`Gespeichert. Nächste Vorschau: ${d.preview}`}catch(e){status.textContent='Fehler: '+e.message}}
+async function saveGeneral(){const s=document.getElementById('generalStatus');try{await speichern('allgemein',()=>api('/api/settings/general',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_name:v('companyName'),managing_director:nv('managingDirector'),street:nv('companyStreet'),postal_code:nv('companyZip'),city:nv('companyCity'),country:v('companyCountry')||'Deutschland',phone:nv('companyPhone'),email:nv('companyEmail'),website:nv('companyWebsite'),public_base_url:nv('publicBaseUrl'),tax_number:nv('taxNumber'),vat_id:nv('vatId'),register_court:nv('registerCourt'),register_number:nv('registerNumber'),iban:nv('iban'),bic:nv('bic'),default_vat_rate:Number(v('defaultVat')||19),default_quote_intro:nv('quoteIntro'),default_quote_outro:nv('quoteOutro')})}),{anwenden:d=>{generalSettings=d}});s.textContent='Unternehmensstammdaten gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
 function money(x){return x==null?'—':Number(x).toLocaleString('de-DE',{style:'currency',currency:'EUR'})}
 function num(x){return x==null?'—':Number(x).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})}
 function syncOverheadLabels(){const fm=v('fixedOverheadMode')||'eur',vm=v('variableOverheadMode')||'eur';document.getElementById('fixedOverheadValueLabel').textContent=fm==='pct'?'Fixe Gemeinkosten %':'Fixe Gemeinkosten € / Jahr';document.getElementById('fixedOverheadHelp').textContent=fm==='pct'?'Prozent der direkten Jahreslohnkosten inkl. AG-Lohnnebenkosten.':'Jährlicher Euro-Betrag.';document.getElementById('fixedOverheadValue').step=fm==='pct'?'0.5':'100';document.getElementById('variableOverheadValueLabel').textContent=vm==='pct'?'Zusätzliche variable Gemeinkosten %':'Zusätzliche variable Gemeinkosten € / Jahr';document.getElementById('variableOverheadHelp').textContent=vm==='pct'?'Prozent der direkten Jahreslohnkosten inkl. AG-Lohnnebenkosten; Personalkosten der zugeordneten Mitarbeiter kommen zusätzlich hinzu.':'Zusätzlicher jährlicher Euro-Betrag; Personalkosten der zugeordneten Mitarbeiter kommen zusätzlich hinzu.';document.getElementById('variableOverheadValue').step=vm==='pct'?'0.5':'100'}
@@ -2077,9 +2085,9 @@ function renderLaborRate(r){
   detail.innerHTML=detailVals.map(([k,x])=>`<div class="metric"><div class="k">${k}</div><div class="val">${x}</div></div>`).join('');
   document.getElementById('laborRateApply').innerHTML=`<div class="muted small">Ermittelter Stundenkostenverrechnungssatz</div><div style="font-size:32px;font-weight:900;margin:3px 0 8px">${money(r.suggested_labor_rate)} / h</div><div class="muted small" style="margin-bottom:12px">Aktuell hinterlegt: ${money(r.current_labor_rate)}/h · <span title="Differenz zum aktuell hinterlegten Stundenverrechnungssatz (Kalkulationsgrundlagen).">Abweichung: ${money(r.difference_to_current)}</span></div><button onclick="applyLaborRate()">Als aktuellen Verrechnungssatz übernehmen</button>`;
 }
-async function refreshLaborRate(){renderLaborRate(await api('/api/labor-rate-calculation'))}
-async function saveLaborRateSettings(){const s=document.getElementById('laborRateStatus');try{await api('/api/labor-rate-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({employer_cost_pct:Number(v('employerCostPct')||0),productive_time_pct:Number(v('productiveTimePct')||0),fixed_overhead_mode:v('fixedOverheadMode')||'eur',fixed_overhead_value:Number(v('fixedOverheadValue')||0),variable_overhead_mode:v('variableOverheadMode')||'eur',variable_overhead_value:Number(v('variableOverheadValue')||0),target_profit_pct:Number(v('targetProfitPct')||0),weeks_per_year:Number(v('weeksPerYear')||52)})});s.textContent='Rechengrundlagen gespeichert.';await refreshLaborRate()}catch(e){s.textContent='Fehler: '+e.message}}
-async function applyLaborRate(){const s=document.getElementById('laborRateStatus');try{const c=await api('/api/labor-rate-calculation/apply',{method:'POST'});setv('laborRate',c.labor_rate);s.textContent=`${money(c.labor_rate)}/h als aktueller Stundenkostenverrechnungssatz übernommen.`;await refreshLaborRate()}catch(e){s.textContent='Fehler: '+e.message}}
+async function refreshLaborRate(){await lesen('verrechnungssatz',()=>api('/api/labor-rate-calculation'),renderLaborRate)}
+async function saveLaborRateSettings(){const s=document.getElementById('laborRateStatus');try{await speichern('rechengrundlagen',()=>api('/api/labor-rate-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({employer_cost_pct:Number(v('employerCostPct')||0),productive_time_pct:Number(v('productiveTimePct')||0),fixed_overhead_mode:v('fixedOverheadMode')||'eur',fixed_overhead_value:Number(v('fixedOverheadValue')||0),variable_overhead_mode:v('variableOverheadMode')||'eur',variable_overhead_value:Number(v('variableOverheadValue')||0),target_profit_pct:Number(v('targetProfitPct')||0),weeks_per_year:Number(v('weeksPerYear')||52)})}),{neuLaden:refreshLaborRate});s.textContent='Rechengrundlagen gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
+async function applyLaborRate(){const s=document.getElementById('laborRateStatus');try{const c=await speichern('kalkulation',()=>api('/api/labor-rate-calculation/apply',{method:'POST'}),{anwenden:d=>{setv('laborRate',d.labor_rate)},neuLaden:refreshLaborRate});s.textContent=`${money(c.labor_rate)}/h als aktueller Stundenkostenverrechnungssatz übernommen.`}catch(e){s.textContent='Fehler: '+e.message}}
 
 // Produktivstunden-Rechner (Schicht 3, seit 1.5.1) -- co-located mit dem Stundensatz-Rechner
 // oben, da sein Ergebnis nur productive_time_pct dort speist (kein eigener Abschnitt).
@@ -2117,23 +2125,22 @@ function renderProductiveHours(r){
   }
   document.getElementById('phSickActualHint').innerHTML=`Deine Annahme: ${num(r.average_sick_days)} Tage. ${sickHint}`;
 }
-async function loadProductiveHoursSection(){try{renderProductiveHours(await api('/api/productive-hours-settings'))}catch(e){document.getElementById('phStatus').textContent='Fehler: '+e.message}}
+async function loadProductiveHoursSection(){try{await lesen('produktivstunden',()=>api('/api/productive-hours-settings'),renderProductiveHours)}catch(e){document.getElementById('phStatus').textContent='Fehler: '+e.message}}
 async function saveProductiveHoursSettings(){
   const s=document.getElementById('phStatus');
   try{
     const payload={weekly_hours:Number(v('phWeeklyHours')||0),daily_hours:Number(v('phDailyHours')||0),vacation_days:Number(v('phVacationDays')||0),public_holidays:Number(v('phPublicHolidays')||0),average_sick_days:Number(v('phSickDays')||0),weather_loss_days:Number(v('phWeatherDays')||0),unproductive_time_pct:Number(v('phUnproductivePct')||0)};
-    renderProductiveHours(await api('/api/productive-hours-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
+    await speichern('produktivstunden',()=>api('/api/productive-hours-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{anwenden:renderProductiveHours});
     s.textContent='Gespeichert.';
   }catch(e){s.textContent='Fehler: '+e.message}
 }
 async function applyProductiveHours(){
   const s=document.getElementById('phStatus');
   try{
-    renderProductiveHours(await api('/api/productive-hours-settings/apply',{method:'POST'}));
-    const lrs=await api('/api/labor-rate-settings');
-    setv('productiveTimePct',lrs.productive_time_pct);
-    s.textContent=`${num(lrs.productive_time_pct)}% als „Produktive Zeit %“ oben übernommen.`;
+    await speichern('produktivstunden',()=>api('/api/productive-hours-settings/apply',{method:'POST'}),{anwenden:renderProductiveHours});
+    await lesen('rechengrundlagen',()=>api('/api/labor-rate-settings'),lrs=>{setv('productiveTimePct',lrs.productive_time_pct)});
     await refreshLaborRate();
+    s.textContent=`${num(v('productiveTimePct'))}% als „Produktive Zeit %“ oben übernommen.`;
   }catch(e){s.textContent='Fehler: '+e.message}
 }
 
@@ -2176,8 +2183,10 @@ function renderOverheadProposal(p){
 }
 async function loadOverheadProposalSection(){
   try{
-    lastOverheadProposal=await api('/api/recurring-cost-overhead-proposal');
-    renderOverheadProposal(lastOverheadProposal);
+    await lesen('gemeinkosten',()=>api('/api/recurring-cost-overhead-proposal'),d=>{
+      lastOverheadProposal=d;
+      renderOverheadProposal(lastOverheadProposal);
+    });
   }catch(e){document.getElementById('ocpBuckets').innerHTML='<div class="status err">Fehler: '+esc(e.message)+'</div>'}
 }
 async function applyOverheadProposal(){
@@ -2192,23 +2201,24 @@ async function applyOverheadProposal(){
     :'Betriebskosten-Vorschlag als „Fixe Gemeinkosten“ / „Variable Gemeinkosten“ übernehmen? Beide Eingabearten werden dabei auf „Euro / Jahr“ gesetzt.';
   if(!confirm(warning))return;
   try{
-    lastOverheadProposal=await api('/api/recurring-cost-overhead-proposal/apply',{method:'POST'});
-    renderOverheadProposal(lastOverheadProposal);
-    setv('fixedOverheadMode','eur');setv('fixedOverheadValue',lastOverheadProposal.current.fixed_value);
-    setv('variableOverheadMode','eur');setv('variableOverheadValue',lastOverheadProposal.current.variable_value);
-    syncOverheadLabels();
-    await refreshLaborRate();
+    await speichern('gemeinkosten',()=>api('/api/recurring-cost-overhead-proposal/apply',{method:'POST'}),{anwenden:d=>{
+      lastOverheadProposal=d;
+      renderOverheadProposal(lastOverheadProposal);
+      setv('fixedOverheadMode','eur');setv('fixedOverheadValue',lastOverheadProposal.current.fixed_value);
+      setv('variableOverheadMode','eur');setv('variableOverheadValue',lastOverheadProposal.current.variable_value);
+      syncOverheadLabels();
+    },neuLaden:refreshLaborRate});
     document.getElementById('laborRateStatus').textContent='Betriebskosten-Vorschlag übernommen -- Schritt 2 („Als aktuellen Verrechnungssatz übernehmen“ unten) steht weiterhin separat bereit.';
   }catch(e){document.getElementById('laborRateStatus').textContent='Fehler: '+e.message}
 }
 
-async function saveCalculation(){const s=document.getElementById('calcStatus');try{await api('/api/calculation-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({labor_rate:Number(v('laborRate')||0),material_markup_pct:Number(v('materialMarkup')||0),overhead_pct:Number(v('overhead')||0),risk_profit_pct:Number(v('riskProfit')||0),use_source_time_as_minutes:document.getElementById('sourceMinutes').checked})});s.textContent='Kalkulationsgrundlagen gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
+async function saveCalculation(){const s=document.getElementById('calcStatus');try{await speichern('kalkulation',()=>api('/api/calculation-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({labor_rate:Number(v('laborRate')||0),material_markup_pct:Number(v('materialMarkup')||0),overhead_pct:Number(v('overhead')||0),risk_profit_pct:Number(v('riskProfit')||0),use_source_time_as_minutes:document.getElementById('sourceMinutes').checked})}));s.textContent='Kalkulationsgrundlagen gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
 function isHexColor(x){return /^#[0-9a-fA-F]{6}$/.test(x)}
 function whiteContrastRatio(hex){const r=parseInt(hex.slice(1,3),16)/255,g=parseInt(hex.slice(3,5),16)/255,b=parseInt(hex.slice(5,7),16)/255;const lin=c=>c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4);const L=0.2126*lin(r)+0.7152*lin(g)+0.0722*lin(b);return 1.05/(L+0.05)}
 function checkAccentContrast(hex){const warn=document.getElementById('accentContrastWarning');if(!warn)return;warn.textContent=isHexColor(hex)&&whiteContrastRatio(hex)<3?'Hinweis: Diese Farbe ist sehr hell – weißer Button-Text könnte schwer lesbar sein.':''}
 function previewAccentColor(hex){if(isHexColor(hex)){document.documentElement.style.setProperty('--accent',hex);checkAccentContrast(hex)}}
 async function loadAppearance(){try{const a=await api('/api/settings/appearance');setv('accentColorText',a.accent_color);document.getElementById('accentColorPicker').value=a.accent_color;checkAccentContrast(a.accent_color)}catch(e){}}
-async function saveAccentColor(){const s=document.getElementById('accentColorStatus');const hex=v('accentColorText');if(!isHexColor(hex)){s.textContent='Fehler: bitte einen gültigen Hex-Farbwert eingeben (z. B. #0d9488).';return}try{await api('/api/settings/appearance',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({accent_color:hex})});s.textContent='Gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
+async function saveAccentColor(){const s=document.getElementById('accentColorStatus');const hex=v('accentColorText');if(!isHexColor(hex)){s.textContent='Fehler: bitte einen gültigen Hex-Farbwert eingeben (z. B. #0d9488).';return}try{await speichern('design',()=>api('/api/settings/appearance',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({accent_color:hex})}));s.textContent='Gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
 document.getElementById('accentColorPicker').addEventListener('input',function(){setv('accentColorText',this.value);previewAccentColor(this.value)});
 document.getElementById('accentColorText').addEventListener('input',function(){if(isHexColor(this.value)){document.getElementById('accentColorPicker').value=this.value;previewAccentColor(this.value)}});
 showSettingsSection(settingsSectionFromHash(),false);

@@ -55,6 +55,7 @@ textarea:hover{border-color:var(--field-border-hover)}
 </div>
 </div>
 {% include "_email_dispatch.html" %}
+{% include "_speichern.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
@@ -100,8 +101,9 @@ async function resolveDispatch(id,outcome,btn){
   out.className='small check-bad';
   if(!note){out.textContent='Bitte zuerst in der Notiz festhalten, wie geklärt wurde.';return}
   btn.disabled=true;out.className='small muted';out.textContent='speichere …';
+  const body=JSON.stringify({outcome,note});
   try{
-    await api(`/api/email-dispatches/${id}/resolve`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({outcome,note})});
+    await speichern('versandverlauf-vp',()=>api(`/api/email-dispatches/${id}/resolve`,{method:'POST',headers:{'Content-Type':'application/json'},body}));
     await reload();
   }catch(e){out.className='small check-bad';out.textContent='Fehler: '+e.message;btn.disabled=false}
 }
@@ -132,20 +134,23 @@ async function reload(){
   if(docId) q.set('document_id',docId);
   const rows=document.getElementById('rows');
   try{
-    const data=await api('/api/email-dispatches?'+q.toString());
-    const stuck=document.getElementById('stuckCard');
-    if(data.stuck_count){
-      stuck.style.display='';
-      stuck.innerHTML=`<b>${data.stuck_count===1?'Ein Versand hängt':data.stuck_count+' Versände hängen'}</b> seit mehr als ${data.stuck_after_minutes} Minuten in Arbeit. Ob die Mail hinausging, ist unklar – bitte im Postausgang (Gesendete Elemente) nach der Kennung suchen und den Eintrag hier als gesendet oder fehlgeschlagen klären. Es wird nichts automatisch erneut gesendet; ein neuer Versand ist ein neuer Klick auf der Dokumentseite.`;
-    }else stuck.style.display='none';
-    rows.innerHTML=data.items.length?data.items.map(d=>`<tr>
-      <td>${whenCell(d)}</td>
-      <td>${docLink(d)}</td>
-      <td>${d.to_recipients?esc(d.to_recipients):'<span class="small muted">—</span>'}${d.cc_recipients?`<div class="small muted">CC: ${esc(d.cc_recipients)}</div>`:''}${copyMissedHtml(d)}</td>
-      <td>${esc(d.subject)}</td>
-      <td>${esc(d.channel_label)}<div class="small muted">${esc(d.created_by_name)}</div></td>
-      <td>${statusCell(d)}</td>
-      <td>${archiveCell(d)}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">Keine Einträge.</td></tr>';
+    // Seit 1.8.95 über lesen() (_speichern.html) -- im selben Bereich wie "Klären" und "Empfang bestätigt / unzustellbar"
+    // (saveDispatchOutcome in _email_dispatch.html, Platz 'vp'): eine spät ankommende, ältere Liste überschreibt nie eine neuere.
+    await lesen('versandverlauf-vp',()=>api('/api/email-dispatches?'+q.toString()),data=>{
+      const stuck=document.getElementById('stuckCard');
+      if(data.stuck_count){
+        stuck.style.display='';
+        stuck.innerHTML=`<b>${data.stuck_count===1?'Ein Versand hängt':data.stuck_count+' Versände hängen'}</b> seit mehr als ${data.stuck_after_minutes} Minuten in Arbeit. Ob die Mail hinausging, ist unklar – bitte im Postausgang (Gesendete Elemente) nach der Kennung suchen und den Eintrag hier als gesendet oder fehlgeschlagen klären. Es wird nichts automatisch erneut gesendet; ein neuer Versand ist ein neuer Klick auf der Dokumentseite.`;
+      }else stuck.style.display='none';
+      rows.innerHTML=data.items.length?data.items.map(d=>`<tr>
+        <td>${whenCell(d)}</td>
+        <td>${docLink(d)}</td>
+        <td>${d.to_recipients?esc(d.to_recipients):'<span class="small muted">—</span>'}${d.cc_recipients?`<div class="small muted">CC: ${esc(d.cc_recipients)}</div>`:''}${copyMissedHtml(d)}</td>
+        <td>${esc(d.subject)}</td>
+        <td>${esc(d.channel_label)}<div class="small muted">${esc(d.created_by_name)}</div></td>
+        <td>${statusCell(d)}</td>
+        <td>${archiveCell(d)}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">Keine Einträge.</td></tr>';
+    });
   }catch(e){rows.innerHTML=`<tr><td colspan="7" class="empty">Fehler: ${esc(e.message)}</td></tr>`}
 }
 _dhOutcomeDone.vp=reload;

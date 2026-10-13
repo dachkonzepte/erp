@@ -207,6 +207,7 @@
 </main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 let servicesData = [];
 let availableCatalogs = [];
@@ -224,9 +225,10 @@ async function api(url, options={}) {
 const urlParams = new URLSearchParams(location.search);
 const currentCatalogId = urlParams.get('catalog_id') ? Number(urlParams.get('catalog_id')) : null;
 
+// Seit 1.8.95 über lesen() (_speichern.html): eine spät ankommende, ältere Liste überschreibt nie eine neuere.
 async function loadServices() {
   const url = currentCatalogId ? `/api/services?catalog_id=${currentCatalogId}` : '/api/services';
-  const [svc, cats] = await Promise.all([api(url), api('/api/catalogs')]);
+  await lesen('leistungen', () => Promise.all([api(url), api('/api/catalogs')]), ([svc, cats]) => {
   servicesData = svc;
   availableCatalogs = cats;
   document.getElementById('serviceCount').textContent = `${servicesData.length} Leistungen`;
@@ -237,6 +239,7 @@ async function loadServices() {
     if (cat) document.getElementById('catalogTitle').textContent = `Katalog: ${cat.name}`;
   }
   renderServices();
+  });
 }
 
 function renderServices() {
@@ -258,8 +261,7 @@ async function moveOrCopyService(serviceId, action) {
   const targetCatalogId = select && select.value ? Number(select.value) : null;
   if (!targetCatalogId) { alert('Bitte einen Zielkatalog auswählen.'); return; }
   try {
-    await api(`/api/services/${serviceId}/${action}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({catalog_id: targetCatalogId})});
-    await loadServices();
+    await speichern('leistungen', () => api(`/api/services/${serviceId}/${action}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({catalog_id: targetCatalogId})}), {neuLaden: loadServices});
   } catch (e) {
     alert('Fehler: ' + e.message);
   }
@@ -270,14 +272,13 @@ async function uploadXml() {
   if (!input.files.length) { out.textContent='Bitte zuerst eine XML-Datei auswählen.'; return; }
   const form=new FormData(); form.append('file', input.files[0]); out.textContent='Import läuft …';
   try {
-    const d=await api('/api/imports/leistungen-dach',{method:'POST',body:form});
+    const d=await speichern('leistungen',()=>api('/api/imports/leistungen-dach',{method:'POST',body:form}),{neuLaden:loadServices});
     out.textContent=`Import erfolgreich: ${d.position_count} Leistungen, ${d.material_item_count} Materialpositionen. Neu: ${d.inserted_services}, aktualisiert: ${d.replaced_services}.`;
-    await loadServices();
   } catch(e) { out.textContent='Fehler: '+e.message; }
 }
 
 async function loadDetail(id) {
-  const [s,c] = await Promise.all([api(`/api/services/${id}`), api(`/api/services/${id}/calculation`)]);
+  await lesen('kalkulation', () => Promise.all([api(`/api/services/${id}`), api(`/api/services/${id}/calculation`)]), ([s,c]) => {
   currentService=s; currentCalculation=c;
   document.getElementById('detailCard').classList.remove('hidden');
   document.getElementById('detailTitle').textContent=`${s.external_id} · ${firstLine(s.short_text)}`;
@@ -297,6 +298,7 @@ async function loadDetail(id) {
   renderSummary(c); renderMaterials(c);
   document.getElementById('calcStatus').textContent='';
   document.getElementById('detailCard').scrollIntoView({behavior:'smooth',block:'start'});
+  });
 }
 
 function renderSummary(c) {
@@ -335,9 +337,11 @@ async function saveCalculation() {
     overhead_pct_override:nullableNum('cOverhead'), risk_profit_pct_override:nullableNum('cRiskProfit'), manual_sale_price:nullableNum('cManualSale'),
     notes:document.getElementById('cNotes').value || null, material_overrides:overrides
   };
+  const url=`/api/services/${currentService.id}/calculation`;
   try {
-    const c=await api(`/api/services/${currentService.id}/calculation`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    currentCalculation=c; renderSummary(c); renderMaterials(c); out.textContent='Kalkulation gespeichert.'; await loadServices();
+    await speichern('kalkulation',()=>api(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),
+                    {anwenden:c=>{currentCalculation=c; renderSummary(c); renderMaterials(c);}, neuLaden:loadServices});
+    out.textContent='Kalkulation gespeichert.';
   } catch(e) { out.textContent='Fehler: '+e.message; }
 }
 

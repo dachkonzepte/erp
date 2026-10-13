@@ -221,6 +221,7 @@ a{color:var(--accent)}
 </main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 const orderId={{ order_id }};
 // Seit 1.4.5 (Betriebsmittelverwaltung Stufe 3) -- "wartungen" (diese ganze Seite) und
@@ -290,11 +291,24 @@ const SEVERITIES=[['gering','Gering'],['mittel','Mittel'],['dringend','Dringend'
 const ACTIONS=[['sofort_behoben','Sofort behoben'],['buero_pruefen','Büro prüfen lassen'],['zurueckgestellt','Zurückgestellt']];
 const FINDING_STATUSES=[['offen','Offen'],['in_bearbeitung','In Bearbeitung'],['erledigt','Erledigt'],['zurueckgestellt','Zurückgestellt']];
 
+// Seit 1.8.95 über lesen()/speichern() (_speichern.html): je Bericht ein Bereich je Liste -- 'pruefpunkte-<id>',
+// 'maengel-<id>', 'fotos-<id>', 'material-<id>', 'betriebsmittel-<id>'; dazu 'berichte' (die Berichtsliste), 'zeiten' und
+// 'historie'. Speichern geht je Liste nacheinander hinaus, eine spät ankommende, ältere Liste überschreibt nie eine neuere
+// (Autosave der Prüfpunkte; auch die Antwort des Abgleichs /sync trägt alle Prüfpunkte des Berichts).
 async function loadReportExtras(reportId){
-  findingsCache[reportId]=await api(`/api/service-reports/${reportId}/findings`).catch(()=>[]);
-  photosCache[reportId]=await api(`/api/service-reports/${reportId}/photos`).catch(()=>[]);
-  materialsCache[reportId]=await api(`/api/service-reports/${reportId}/materials`).catch(()=>[]);
-  if(assetsModuleEnabled)assetsCache[reportId]=await api(`/api/service-reports/${reportId}/assets`).catch(()=>[]);
+  await lesen('maengel-'+reportId,()=>api(`/api/service-reports/${reportId}/findings`).catch(()=>[]),d=>{findingsCache[reportId]=d});
+  await lesen('fotos-'+reportId,()=>api(`/api/service-reports/${reportId}/photos`).catch(()=>[]),d=>{photosCache[reportId]=d});
+  await lesen('material-'+reportId,()=>api(`/api/service-reports/${reportId}/materials`).catch(()=>[]),d=>{materialsCache[reportId]=d});
+  if(assetsModuleEnabled)await lesen('betriebsmittel-'+reportId,()=>api(`/api/service-reports/${reportId}/assets`).catch(()=>[]),d=>{assetsCache[reportId]=d});
+}
+function loadMaterials(reportId){
+  return lesen('material-'+reportId,()=>api(`/api/service-reports/${reportId}/materials`),d=>{materialsCache[reportId]=d});
+}
+function loadAssets(reportId){
+  return lesen('betriebsmittel-'+reportId,()=>api(`/api/service-reports/${reportId}/assets`),d=>{assetsCache[reportId]=d});
+}
+function loadInspectionItems(reportId){
+  return lesen('pruefpunkte-'+reportId,()=>api(`/api/service-reports/${reportId}/inspection-items`),d=>{inspectionItemsCache[reportId]=d});
 }
 
 function employeeOptionsHtml(selected){
@@ -393,14 +407,15 @@ async function saveReport(){
   };
   try{
     if(editingReportId){
-      await api(`/api/service-reports/${editingReportId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const url=`/api/service-reports/${editingReportId}`;
+      await speichern('berichte',()=>api(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
     }else{
       payload.created_by_employee_id=document.getElementById('editEmployee').value?Number(document.getElementById('editEmployee').value):null;
       const roofAreaIds=getEditRoofAreaIds();
       const inspectionTemplateId=document.getElementById('editInspectionTemplate').value;
       payload.roof_area_ids=roofAreaIds.length?roofAreaIds:null;
       payload.inspection_template_id=inspectionTemplateId?Number(inspectionTemplateId):null;
-      await api(`/api/orders/${orderId}/service-reports`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      await speichern('berichte',()=>api(`/api/orders/${orderId}/service-reports`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
     }
     closeEditor();
     await loadReports();
@@ -411,8 +426,7 @@ async function deleteReportConfirm(id){
   if(!confirm('Diesen Bericht wirklich löschen?'))return;
   const st=document.getElementById('listStatus');
   try{
-    await api(`/api/service-reports/${id}`,{method:'DELETE'});
-    await loadReports();
+    await speichern('berichte',()=>api(`/api/service-reports/${id}`,{method:'DELETE'}),{neuLaden:loadReports});
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
@@ -480,10 +494,12 @@ async function confirmSignatureStep(){
     return;
   }
   try{
-    await api(`/api/service-reports/${signingReportId}/sign`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    const url=`/api/service-reports/${signingReportId}/sign`;
+    const body=JSON.stringify({
       installer_signature_png_base64:installerSigDataUrl, installer_signature_name:installerSigName,
       customer_signature_png_base64:dataUrl, customer_signature_name:name,
-    })});
+    });
+    await speichern('berichte',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}));
     closeSignPanel();
     await loadReports();
   }catch(e){st.textContent='Fehler: '+e.message}
@@ -596,7 +612,7 @@ async function submitFindingForm(reportId){
     // Seit 1.2.21 bewusst KEIN Navigieren mehr nach dem Anlegen -- "buero_pruefen" erzeugt nur
     // noch eine Aufgabe, nie einen Auftrag/Projekt (siehe app/findings.py). Der Monteur bleibt
     // im Bericht, genau wie bei jeder anderen Maßnahme.
-    await api(`/api/service-reports/${reportId}/findings`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    await speichern('maengel-'+reportId,()=>api(`/api/service-reports/${reportId}/findings`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
     closeFindingForm();
     await loadReportExtras(reportId);
     renderReportList();
@@ -652,7 +668,7 @@ async function uploadItemPhoto(itemId,reportId,kind){
   fd.append('inspection_item_id',itemId);
   fd.append('kind',kind);
   try{
-    await api(`/api/service-reports/${reportId}/photos`,{method:'POST',body:fd});
+    await speichern('fotos-'+reportId,()=>api(`/api/service-reports/${reportId}/photos`,{method:'POST',body:fd}));
     input.value='';
     await loadReportExtras(reportId);
     renderReportList();
@@ -666,7 +682,7 @@ async function uploadFindingPhoto(findingId,reportId){
   fd.append('file',input.files[0]);
   fd.append('finding_id',findingId);
   try{
-    await api(`/api/service-reports/${reportId}/photos`,{method:'POST',body:fd});
+    await speichern('fotos-'+reportId,()=>api(`/api/service-reports/${reportId}/photos`,{method:'POST',body:fd}));
     input.value='';
     await loadReportExtras(reportId);
     renderReportList();
@@ -676,8 +692,7 @@ async function uploadFindingPhoto(findingId,reportId){
 async function deletePhotoUI(photoId,reportId){
   if(!confirm('Dieses Foto wirklich löschen?'))return;
   try{
-    await api(`/api/service-report-photos/${photoId}`,{method:'DELETE'});
-    await loadReportExtras(reportId);
+    await speichern('fotos-'+reportId,()=>api(`/api/service-report-photos/${photoId}`,{method:'DELETE'}),{neuLaden:()=>loadReportExtras(reportId)});
     renderReportList();
   }catch(e){alert('Fehler: '+e.message)}
 }
@@ -703,8 +718,7 @@ async function submitFindingFollowup(findingId,reportId){
   if(resubmissionDate)payload.resubmission_date=resubmissionDate;
   if(!Object.keys(payload).length)return;
   try{
-    await api(`/api/findings/${findingId}/followup`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    await loadReportExtras(reportId);
+    await speichern('maengel-'+reportId,()=>api(`/api/findings/${findingId}/followup`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:()=>loadReportExtras(reportId)});
     renderReportList();
   }catch(e){statusEl.textContent='Fehler: '+e.message}
 }
@@ -746,8 +760,7 @@ function findingCard(f,r){
 
 async function retryFindingAction(findingId,reportId){
   try{
-    await api(`/api/findings/${findingId}/followup`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'buero_pruefen'})});
-    await loadReportExtras(reportId);
+    await speichern('maengel-'+reportId,()=>api(`/api/findings/${findingId}/followup`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'buero_pruefen'})}),{neuLaden:()=>loadReportExtras(reportId)});
     renderReportList();
   }catch(e){alert('Fehler: '+e.message)}
 }
@@ -830,11 +843,11 @@ async function saveMaterialRow(reportId){
     unit:unit||null, roof_area_id:roofAreaId, finding_id:pendingMaterialFindingId[reportId]||null,
   };
   try{
-    await api(`/api/service-reports/${reportId}/materials`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    await speichern('material-'+reportId,()=>api(`/api/service-reports/${reportId}/materials`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
     materialFormDraft[reportId]={search:'',description:'',unit:'',quantity:'',roofAreaId:''};
     selectedMaterialCatalogId[reportId]=null;
     materialSearchResults[reportId]=[];
-    materialsCache[reportId]=await api(`/api/service-reports/${reportId}/materials`);
+    await loadMaterials(reportId);
     st.textContent='';
     renderReportList();
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
@@ -853,8 +866,7 @@ async function saveMaterialField(materialId,reportId,field,value){
     payload[field]=value.trim()||null;
   }
   try{
-    await api(`/api/service-report-materials/${materialId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    materialsCache[reportId]=await api(`/api/service-reports/${reportId}/materials`);
+    await speichern('material-'+reportId,()=>api(`/api/service-report-materials/${materialId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:()=>loadMaterials(reportId)});
     renderReportList();
   }catch(e){alert('Fehler: '+e.message)}
 }
@@ -862,8 +874,7 @@ async function saveMaterialField(materialId,reportId,field,value){
 async function deleteMaterialUI(materialId,reportId){
   if(!confirm('Diese Materialzeile wirklich löschen?'))return;
   try{
-    await api(`/api/service-report-materials/${materialId}`,{method:'DELETE'});
-    materialsCache[reportId]=await api(`/api/service-reports/${reportId}/materials`);
+    await speichern('material-'+reportId,()=>api(`/api/service-report-materials/${materialId}`,{method:'DELETE'}),{neuLaden:()=>loadMaterials(reportId)});
     renderReportList();
   }catch(e){alert('Fehler: '+e.message)}
 }
@@ -930,8 +941,7 @@ async function saveAssetRow(reportId){
   const notesInput=document.getElementById('astNotes-'+reportId);
   const notes=(notesInput&&notesInput.value||'').trim();
   try{
-    await api(`/api/service-reports/${reportId}/assets`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({asset_id:assetId,notes:notes||null})});
-    assetsCache[reportId]=await api(`/api/service-reports/${reportId}/assets`);
+    await speichern('betriebsmittel-'+reportId,()=>api(`/api/service-reports/${reportId}/assets`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({asset_id:assetId,notes:notes||null})}),{neuLaden:()=>loadAssets(reportId)});
     st.textContent='';
     renderReportList();
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
@@ -939,8 +949,7 @@ async function saveAssetRow(reportId){
 
 async function saveAssetNotesField(rowId,reportId,value){
   try{
-    await api(`/api/service-report-assets/${rowId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({notes:value.trim()||null})});
-    assetsCache[reportId]=await api(`/api/service-reports/${reportId}/assets`);
+    await speichern('betriebsmittel-'+reportId,()=>api(`/api/service-report-assets/${rowId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({notes:value.trim()||null})}),{neuLaden:()=>loadAssets(reportId)});
     renderReportList();
   }catch(e){alert('Fehler: '+e.message)}
 }
@@ -948,8 +957,7 @@ async function saveAssetNotesField(rowId,reportId,value){
 async function deleteAssetUI(rowId,reportId){
   if(!confirm('Dieses Betriebsmittel wirklich aus dem Bericht entfernen?'))return;
   try{
-    await api(`/api/service-report-assets/${rowId}`,{method:'DELETE'});
-    assetsCache[reportId]=await api(`/api/service-reports/${reportId}/assets`);
+    await speichern('betriebsmittel-'+reportId,()=>api(`/api/service-report-assets/${rowId}`,{method:'DELETE'}),{neuLaden:()=>loadAssets(reportId)});
     renderReportList();
   }catch(e){alert('Fehler: '+e.message)}
 }
@@ -1002,14 +1010,13 @@ async function loadReportInspectionItems(reportId){
   if(!r)return;
   if(r.status==='entwurf'){
     try{
-      const syncResult=await api(`/api/service-reports/${reportId}/inspection-items/sync`,{method:'POST'});
-      inspectionItemsCache[reportId]=syncResult.items;
-      inspectionSyncHints[reportId]=syncResult.added;
+      await speichern('pruefpunkte-'+reportId,()=>api(`/api/service-reports/${reportId}/inspection-items/sync`,{method:'POST'}),
+        {anwenden:syncResult=>{inspectionItemsCache[reportId]=syncResult.items;inspectionSyncHints[reportId]=syncResult.added}});
     }catch(e){
-      inspectionItemsCache[reportId]=await api(`/api/service-reports/${reportId}/inspection-items`).catch(()=>[]);
+      await lesen('pruefpunkte-'+reportId,()=>api(`/api/service-reports/${reportId}/inspection-items`).catch(()=>[]),d=>{inspectionItemsCache[reportId]=d});
     }
   }else{
-    inspectionItemsCache[reportId]=await api(`/api/service-reports/${reportId}/inspection-items`).catch(()=>[]);
+    await lesen('pruefpunkte-'+reportId,()=>api(`/api/service-reports/${reportId}/inspection-items`).catch(()=>[]),d=>{inspectionItemsCache[reportId]=d});
   }
 }
 
@@ -1087,11 +1094,14 @@ async function saveInspectionResult(itemId,overrides){
     });
   }
   Object.assign(payload,overrides||{});
+  // Seit 1.8.95: Bereich ist der Bericht (die Liste danach trägt alle Prüfpunkte) -- auch bei zugeklapptem Panel
+  // (verzögertes Speichern nach dem Zuklappen); neu geladen wird wie bisher nur aufgeklappt.
+  const bereichId=reportId??Object.keys(inspectionItemsCache).find(id=>(inspectionItemsCache[id]||[]).some(i=>i.id===itemId));
   // Seit 1.8.70 setzt der Server "erfasst von" aus der Anmeldung -- mitgeschickt lehnt er ab (422).
   try{
-    await api(`/api/inspection-items/${itemId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    await speichern('pruefpunkte-'+bereichId,()=>api(`/api/inspection-items/${itemId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
     if(reportId){
-      inspectionItemsCache[reportId]=await api(`/api/service-reports/${reportId}/inspection-items`);
+      await loadInspectionItems(reportId);
       renderReportList();
     }
   }catch(e){alert('Fehler: '+e.message)}
@@ -1100,8 +1110,7 @@ async function saveInspectionResult(itemId,overrides){
 async function regenerateInspectionItems(reportId){
   if(!confirm('Prüfpunkte wirklich neu erzeugen? Bereits erfasste Ergebnisse gehen dabei verloren.'))return;
   try{
-    await api(`/api/service-reports/${reportId}/inspection-items/regenerate`,{method:'POST'});
-    inspectionItemsCache[reportId]=await api(`/api/service-reports/${reportId}/inspection-items`);
+    await speichern('pruefpunkte-'+reportId,()=>api(`/api/service-reports/${reportId}/inspection-items/regenerate`,{method:'POST'}),{neuLaden:()=>loadInspectionItems(reportId)});
     renderReportList();
   }catch(e){alert('Fehler: '+e.message)}
 }
@@ -1109,8 +1118,7 @@ async function regenerateInspectionItems(reportId){
 async function deleteInspectionItemUI(itemId,reportId){
   if(!confirm('Diesen Prüfpunkt wirklich löschen?'))return;
   try{
-    await api(`/api/inspection-items/${itemId}`,{method:'DELETE'});
-    inspectionItemsCache[reportId]=await api(`/api/service-reports/${reportId}/inspection-items`);
+    await speichern('pruefpunkte-'+reportId,()=>api(`/api/inspection-items/${itemId}`,{method:'DELETE'}),{neuLaden:()=>loadInspectionItems(reportId)});
     renderReportList();
   }catch(e){alert('Fehler: '+e.message)}
 }
@@ -1123,9 +1131,9 @@ async function addManualInspectionItem(reportId){
   const areaSelect=document.getElementById('newItemArea-'+reportId);
   const roofAreaId=areaSelect&&areaSelect.value?Number(areaSelect.value):null;
   try{
-    await api(`/api/service-reports/${reportId}/inspection-items`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,item_type:itemType,roof_area_id:roofAreaId})});
+    await speichern('pruefpunkte-'+reportId,()=>api(`/api/service-reports/${reportId}/inspection-items`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,item_type:itemType,roof_area_id:roofAreaId})}));
     input.value='';
-    inspectionItemsCache[reportId]=await api(`/api/service-reports/${reportId}/inspection-items`);
+    await loadInspectionItems(reportId);
     renderReportList();
   }catch(e){alert('Fehler: '+e.message)}
 }
@@ -1241,7 +1249,7 @@ async function loadReports(){
   const st=document.getElementById('listStatus');
   st.className='status';st.textContent='Lädt …';
   try{
-    reports=await api(`/api/orders/${orderId}/service-reports`);
+    await lesen('berichte',()=>api(`/api/orders/${orderId}/service-reports`),d=>{reports=d});
     // Prüfpunkte werden seit 1.2.22 für JEDEN Bericht eager geladen (nicht mehr erst beim
     // ersten Aufklappen) -- der Gesamtfortschritt im Bericht-Panel-Kopf braucht die Zahlen
     // schon vor dem ersten Klick auf "Prüfpunkte". Gleiches Muster wie loadReportExtras()
@@ -1290,10 +1298,11 @@ function historyCard(r){
 
 async function loadPropertyHistory(){
   try{
-    const history=await api(`/api/orders/${orderId}/property-service-reports`);
-    if(!history.length)return;
-    document.getElementById('historyCard').classList.remove('hidden');
-    document.getElementById('historyList').innerHTML=history.map(historyCard).join('');
+    await lesen('historie',()=>api(`/api/orders/${orderId}/property-service-reports`),history=>{
+      if(!history.length)return;
+      document.getElementById('historyCard').classList.remove('hidden');
+      document.getElementById('historyList').innerHTML=history.map(historyCard).join('');
+    });
   }catch(e){/* kein Gebäude verknüpft oder Fehler -- Karte bleibt einfach ausgeblendet */}
 }
 
@@ -1301,11 +1310,12 @@ async function loadTimeEntries(){
   try{
     // Seit 1.8.9: die Gesamtsumme kommt per SUM aus der Datenbank (alle Buchungen des Auftrags,
     // für einen Monteur nur die eigenen), nicht mehr aus der auf 500 Zeilen gekürzten Liste.
-    const [list,summary]=await Promise.all([fetchTimeEntries(`/api/time-entries?order_id=${orderId}`),api(`/api/time-entries/summary?order_id=${orderId}`)]);
-    const rows=list.rows.map(e=>`<tr><td data-label="Datum">${fmtDate(e.work_date)}</td><td data-label="Mitarbeiter">${esc(e.employee_name||'')}</td><td data-label="Tätigkeit">${esc(e.activity||'')}</td><td data-label="Stunden">${Number(e.hours).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} h</td></tr>`).join('');
-    if(!rows){document.getElementById('timeEntriesTable').innerHTML='<div class="empty">Noch keine Zeitbuchungen zu diesem Auftrag.</div>';return}
-    const total=Number(summary.total_hours);
-    document.getElementById('timeEntriesTable').innerHTML=`${timeEntriesTruncatedNotice(list,'Die Gesamtsumme enthält alle Buchungen.')}<div class="table-scroll"><table><thead><tr><th>Datum</th><th>Mitarbeiter</th><th>Tätigkeit</th><th>Stunden</th></tr></thead><tbody>${rows}<tr><td colspan="3" data-label="" style="text-align:right"><b>Gesamt</b></td><td data-label="Gesamtstunden"><b>${total.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} h</b></td></tr></tbody></table></div>`;
+    await lesen('zeiten',()=>Promise.all([fetchTimeEntries(`/api/time-entries?order_id=${orderId}`),api(`/api/time-entries/summary?order_id=${orderId}`)]),([list,summary])=>{
+      const rows=list.rows.map(e=>`<tr><td data-label="Datum">${fmtDate(e.work_date)}</td><td data-label="Mitarbeiter">${esc(e.employee_name||'')}</td><td data-label="Tätigkeit">${esc(e.activity||'')}</td><td data-label="Stunden">${Number(e.hours).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} h</td></tr>`).join('');
+      if(!rows){document.getElementById('timeEntriesTable').innerHTML='<div class="empty">Noch keine Zeitbuchungen zu diesem Auftrag.</div>';return}
+      const total=Number(summary.total_hours);
+      document.getElementById('timeEntriesTable').innerHTML=`${timeEntriesTruncatedNotice(list,'Die Gesamtsumme enthält alle Buchungen.')}<div class="table-scroll"><table><thead><tr><th>Datum</th><th>Mitarbeiter</th><th>Tätigkeit</th><th>Stunden</th></tr></thead><tbody>${rows}<tr><td colspan="3" data-label="" style="text-align:right"><b>Gesamt</b></td><td data-label="Gesamtstunden"><b>${total.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} h</b></td></tr></tbody></table></div>`;
+    });
   }catch(e){document.getElementById('timeEntriesTable').innerHTML=`<div class="status err">Fehler: ${esc(e.message)}</div>`}
 }
 
@@ -1344,11 +1354,11 @@ async function saveReportTimeEntry(){
     hours:Number(hours), notes:document.getElementById('teNotes').value.trim()||null,
   };
   try{
-    await api('/api/time-entries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    await speichern('zeiten',()=>api('/api/time-entries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
     document.getElementById('teHours').value='';
     document.getElementById('teNotes').value='';
-    st.textContent='Gebucht.';
     await loadTimeEntries();
+    st.textContent='Gebucht.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 

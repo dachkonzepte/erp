@@ -245,6 +245,7 @@
   </div>
 </aside>
 <div class="app-sidebar-scrim" id="appSidebarScrim"></div>
+{% include "_speichern.html" %}
 <script>
 (function(){
   var sidebar=document.getElementById('appSidebar');
@@ -291,13 +292,11 @@
       e.preventDefault();
       var errorEl=document.getElementById('appSidebarLoginError');
       errorEl.textContent='';
-      fetch('/api/auth/login',{
+      var username=document.getElementById('appSidebarUsername').value,password=document.getElementById('appSidebarPassword').value;
+      speichern('anmeldung',()=>fetch('/api/auth/login',{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          username:document.getElementById('appSidebarUsername').value,
-          password:document.getElementById('appSidebarPassword').value,
-        }),
-      }).then(function(resp){
+        body:JSON.stringify({username:username,password:password}),
+      })).then(function(resp){
         return resp.json().catch(function(){return {}}).then(function(data){
           if(!resp.ok){
             errorEl.textContent=data.detail||'Anmeldung fehlgeschlagen.';

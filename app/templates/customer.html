@@ -130,6 +130,7 @@
 </main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 const customerId={{ customer_id }};
 let customer=null, properties=[], inquiries=[], projects=[], projectQuotes=new Map(), customerCategoryGroup={options:[]}, customerSalutationGroup={options:[]}, paymentTerms=[], roofAreas=new Map();
@@ -148,14 +149,22 @@ function renderCategorySelect(current){document.getElementById('category').inner
 // gekennzeichnet -- vorher fehlte sie, und das nächste Speichern setzte den Kunden auf den Systemstandard.
 function renderPaymentTermSelect(current){document.getElementById('defaultPaymentTerm').innerHTML=auswahlOptionen(paymentTerms,current,t=>`${t.label} (${t.days} Tage)`,{leer:'— Systemstandard verwenden —',aktiv:t=>!t.archived})}
 function renderSalutationSelect(current){const rows=(customerSalutationGroup.options||[]).filter(o=>o.active).sort((a,b)=>a.sort_order-b.sort_order),sel=document.getElementById('salutation');let html='<option value="">—</option>'+rows.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');if(current&&!rows.some(o=>o.value===current))html+=`<option value="${esc(current)}">${esc(current)} · bisher</option>`;sel.innerHTML=html;sel.value=current||''}
+// Seit 1.8.95 über lesen() (_speichern.html): übernommen wird erst, wenn alles da ist, und nie eine ältere Antwort über eine neuere
+// (ebenso loadDocuments() und loadPayments()).
 async function load(){
-  [customer,properties,inquiries,allProjects,customerCategoryGroup,customerSalutationGroup,paymentTerms,customerDocuments,docCategoryGroup]=await Promise.all([api(`/api/customers/${customerId}`),api(`/api/properties?customer_id=${customerId}`),api(`/api/inquiries?customer_id=${customerId}`),api('/api/projects'),api('/api/settings/option-groups/customer_categories'),api('/api/settings/option-groups/customer_salutations'),api('/api/payment-terms?include_archived=true'),api(`/api/customers/${customerId}/documents`),api('/api/settings/option-groups/project_document_categories').catch(()=>({options:[]}))]);
-  projects=allProjects.filter(p=>p.customer_id===customerId);
-  projectQuotes.clear();
-  await Promise.all(projects.map(async p=>{projectQuotes.set(p.id,await api(`/api/projects/${p.id}/quotes`))}));
-  roofAreas.clear();
-  await Promise.all(properties.map(async p=>{roofAreas.set(p.id,await api(`/api/roof-areas?property_id=${p.id}`).catch(()=>[]))}));
-  render();
+  await lesen('kunde',async()=>{
+    const daten=await Promise.all([api(`/api/customers/${customerId}`),api(`/api/properties?customer_id=${customerId}`),api(`/api/inquiries?customer_id=${customerId}`),api('/api/projects'),api('/api/settings/option-groups/customer_categories'),api('/api/settings/option-groups/customer_salutations'),api('/api/payment-terms?include_archived=true'),api(`/api/customers/${customerId}/documents`),api('/api/settings/option-groups/project_document_categories').catch(()=>({options:[]}))]);
+    const projekte=daten[3].filter(p=>p.customer_id===customerId),angebote=new Map(),flaechen=new Map();
+    await Promise.all(projekte.map(async p=>{angebote.set(p.id,await api(`/api/projects/${p.id}/quotes`))}));
+    await Promise.all(daten[1].map(async p=>{flaechen.set(p.id,await api(`/api/roof-areas?property_id=${p.id}`).catch(()=>[]))}));
+    return [daten,projekte,angebote,flaechen];
+  },([daten,projekte,angebote,flaechen])=>{
+    [customer,properties,inquiries,allProjects,customerCategoryGroup,customerSalutationGroup,paymentTerms,customerDocuments,docCategoryGroup]=daten;
+    projects=projekte;
+    projectQuotes=angebote;
+    roofAreas=flaechen;
+    render();
+  });
   loadPayments();
 }
 function render(){
@@ -166,15 +175,15 @@ function render(){
   document.getElementById('metricProperties').textContent=properties.length;document.getElementById('metricInquiries').textContent=inquiries.length;document.getElementById('metricProjects').textContent=projects.length;document.getElementById('metricQuotes').textContent=quoteList.length;document.getElementById('metricNet').textContent=money(net);
   document.getElementById('newProjectLink').href=`/projects/new?customer_id=${customerId}`;document.getElementById('newInquiryLink').href=`/inquiries?customer_id=${customerId}`;
 }
-async function saveCustomer(){const s=document.getElementById('customerStatus');try{if(!v('category'))throw Error('Bitte eine Kundenkategorie wählen.');customer=await api(`/api/customers/${customerId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_number:v('customerNumber'),category:v('category'),salutation:nv('salutation'),title:nv('title'),first_name:nv('firstName'),last_name:v('lastName'),contact_person:nv('contact'),street:nv('street'),country:v('country')||'Deutschland',postal_code:nv('zip'),city:nv('city'),email:nv('email'),email_2:nv('email2'),phone:nv('phone'),mobile:nv('mobile'),fax:nv('fax'),notes:nv('notes'),default_payment_term_id:v('defaultPaymentTerm')?Number(v('defaultPaymentTerm')):null,is_consumer:document.getElementById('isConsumer').checked})});s.textContent='Gespeichert.';await load()}catch(e){s.textContent='Fehler: '+e.message}}
+async function saveCustomer(){const s=document.getElementById('customerStatus');try{if(!v('category'))throw Error('Bitte eine Kundenkategorie wählen.');const body=JSON.stringify({customer_number:v('customerNumber'),category:v('category'),salutation:nv('salutation'),title:nv('title'),first_name:nv('firstName'),last_name:v('lastName'),contact_person:nv('contact'),street:nv('street'),country:v('country')||'Deutschland',postal_code:nv('zip'),city:nv('city'),email:nv('email'),email_2:nv('email2'),phone:nv('phone'),mobile:nv('mobile'),fax:nv('fax'),notes:nv('notes'),default_payment_term_id:v('defaultPaymentTerm')?Number(v('defaultPaymentTerm')):null,is_consumer:document.getElementById('isConsumer').checked});await speichern('kunde',()=>api(`/api/customers/${customerId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:body}),{anwenden:d=>{customer=d},neuLaden:load});s.textContent='Gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
 function typeOptions(type){return [['phone','Telefon'],['email','E-Mail'],['birthday','Geburtstag'],['info','Information']].map(([x,l])=>`<option value="${x}" ${x===type?'selected':''}>${l}</option>`).join('')}
 function extraInputType(type){return type==='email'?'email':type==='birthday'?'date':type==='phone'?'tel':'text'}
 function renderExtras(){const h=document.getElementById('extras');h.innerHTML=customer.extra_infos.map(i=>`<div class="extra-row" data-id="${i.id}"><div class="field"><label>Typ</label><select class="xt" onchange="this.closest('.extra-row').querySelector('.xv').type=extraInputType(this.value)">${typeOptions(i.info_type)}</select></div><div class="field"><label>Bezeichnung</label><input class="xl" value="${esc(i.label||'')}"></div><div class="field"><label>Wert</label><input class="xv" type="${extraInputType(i.info_type)}" value="${esc(i.value)}"></div><button onclick="saveExtra(${i.id})">Speichern</button><button class="danger" onclick="deleteExtra(${i.id})">×</button></div>`).join('');document.getElementById('extraEmpty').classList.toggle('hidden',customer.extra_infos.length>0)}
 function newExtra(){const h=document.getElementById('extras');const d=document.createElement('div');d.className='extra-row';d.dataset.id='new';d.innerHTML=`<div class="field"><label>Typ</label><select class="xt" onchange="this.closest('.extra-row').querySelector('.xv').type=extraInputType(this.value)">${typeOptions('phone')}</select></div><div class="field"><label>Bezeichnung</label><input class="xl" placeholder="z. B. Mobil"></div><div class="field"><label>Wert</label><input class="xv" type="tel"></div><button onclick="createExtra(this)">Speichern</button><button class="secondary" onclick="this.closest('.extra-row').remove()">×</button>`;h.prepend(d);document.getElementById('extraEmpty').classList.add('hidden')}
 function extraPayload(row){return{info_type:row.querySelector('.xt').value,label:row.querySelector('.xl').value.trim()||null,value:row.querySelector('.xv').value.trim()}}
-async function createExtra(btn){const row=btn.closest('.extra-row');try{if(!extraPayload(row).value)throw new Error('Bitte einen Wert eingeben.');await api(`/api/customers/${customerId}/extra-infos`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(extraPayload(row))});await load()}catch(e){alert(e.message)}}
-async function saveExtra(id){const row=document.querySelector(`.extra-row[data-id="${id}"]`);try{await api(`/api/customers/${customerId}/extra-infos/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(extraPayload(row))});await load()}catch(e){alert(e.message)}}
-async function deleteExtra(id){if(!confirm('Diesen Eintrag löschen?'))return;try{await api(`/api/customers/${customerId}/extra-infos/${id}`,{method:'DELETE'});await load()}catch(e){alert(e.message)}}
+async function createExtra(btn){const row=btn.closest('.extra-row');try{if(!extraPayload(row).value)throw new Error('Bitte einen Wert eingeben.');const body=JSON.stringify(extraPayload(row));await speichern('kunde',()=>api(`/api/customers/${customerId}/extra-infos`,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:load})}catch(e){alert(e.message)}}
+async function saveExtra(id){const row=document.querySelector(`.extra-row[data-id="${id}"]`);try{const body=JSON.stringify(extraPayload(row));await speichern('kunde',()=>api(`/api/customers/${customerId}/extra-infos/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:load})}catch(e){alert(e.message)}}
+async function deleteExtra(id){if(!confirm('Diesen Eintrag löschen?'))return;try{await speichern('kunde',()=>api(`/api/customers/${customerId}/extra-infos/${id}`,{method:'DELETE'}),{neuLaden:load})}catch(e){alert(e.message)}}
 function roofAreaRows(propertyId){
   const list=(roofAreas.get(propertyId)||[]).filter(r=>!r.archived);
   if(!list.length)return '<div class="muted small">Noch keine Dachflächen angelegt.</div>';
@@ -187,14 +196,14 @@ async function createRoofArea(propertyId){
   const st=document.getElementById('newRoofAreaStatus-'+propertyId);
   if(!name){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben.';return}
   try{
-    const result=await api('/api/roof-areas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({property_id:propertyId,name})});
+    const result=await speichern('dachflaechen',()=>api('/api/roof-areas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({property_id:propertyId,name})}));
     location.href='/roof-areas/'+result.id;
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 function newProperty(){setv('propertyId','');setv('propertyName','');setv('propertyStreet','');setv('propertyZip','');setv('propertyCity','');setv('propertyNotes','');document.getElementById('propertyEditorTitle').textContent='Neues Objekt';document.getElementById('propertyEditor').classList.remove('hidden')}
 function editProperty(id){const p=properties.find(x=>x.id===id);if(!p)return;setv('propertyId',p.id);setv('propertyName',p.name);setv('propertyStreet',p.street);setv('propertyZip',p.postal_code);setv('propertyCity',p.city);setv('propertyNotes',p.notes);document.getElementById('propertyEditorTitle').textContent='Objekt bearbeiten';document.getElementById('propertyEditor').classList.remove('hidden')}
 function closePropertyEditor(){document.getElementById('propertyEditor').classList.add('hidden')}
-async function saveProperty(){const id=v('propertyId');const payload={name:v('propertyName'),street:nv('propertyStreet'),postal_code:nv('propertyZip'),city:nv('propertyCity'),notes:nv('propertyNotes')};const s=document.getElementById('propertyStatus');try{if(id)await api(`/api/properties/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});else await api('/api/properties',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_id:customerId,...payload})});s.textContent='Gespeichert.';closePropertyEditor();await load()}catch(e){s.textContent='Fehler: '+e.message}}
+async function saveProperty(){const id=v('propertyId');const payload={name:v('propertyName'),street:nv('propertyStreet'),postal_code:nv('propertyZip'),city:nv('propertyCity'),notes:nv('propertyNotes')};const s=document.getElementById('propertyStatus');try{if(id)await speichern('kunde',()=>api(`/api/properties/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:load});else await speichern('kunde',()=>api('/api/properties',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_id:customerId,...payload})}),{neuLaden:load});s.textContent='Gespeichert.';closePropertyEditor()}catch(e){s.textContent='Fehler: '+e.message}}
 function inquiryStatus(x){return({neu:'Neu',termin_offen:'Termin abstimmen',termin_geplant:'Termin geplant',aufmass_erfolgt:'Aufmaß erfolgt',projekt_erstellt:'Projekt / Angebot',gewonnen:'Gewonnen',verloren:'Verloren'}[x]||x)}
 function renderInquiries(){document.getElementById('inquiries').innerHTML=inquiries.map(i=>`<div class="project-card"><div class="section-title"><div><b>${esc(i.inquiry_number)} · ${esc(i.title)}</b><div class="muted small">${esc(i.property_name||'Kein Objekt')} · ${esc(inquiryStatus(i.status))}</div>${i.follow_up_at?`<div class="small" style="margin-top:5px">Wiedervorlage: ${esc(new Date(i.follow_up_at).toLocaleString('de-DE'))}</div>`:''}</div><a href="/inquiries"><button class="secondary">Pipeline öffnen</button></a></div></div>`).join('');document.getElementById('inquiriesEmpty').classList.toggle('hidden',inquiries.length>0)}
 function renderProjects(){const h=document.getElementById('projects');h.innerHTML=projects.map(p=>{const qs=projectQuotes.get(p.id)||[];return`<div class="project-card"><div class="section-title"><div><b>${esc(p.project_number)} · ${esc(p.name)}</b><div class="muted small">${esc(p.property_name||'Kein Objekt')} · Status ${esc(p.status)}</div></div><a href="/projects?project_id=${p.id}"><button class="secondary">Projekt öffnen</button></a></div><div style="margin-top:8px">${qs.length?qs.map(q=>`<div class="quote"><div><b>${esc(q.quote_number)}</b></div><div>${esc(q.title)} <span class="badge">${esc(q.status)}</span></div><div class="number">${money(q.net_total)} netto</div><div class="number">${money(q.gross_total)} brutto</div></div>`).join(''):'<div class="muted small">Noch kein Angebot.</div>'}</div></div>`}).join('');document.getElementById('projectsEmpty').classList.toggle('hidden',projects.length>0)}
@@ -246,14 +255,13 @@ async function uploadDocuments(){
       fd.append('subfolder',document.getElementById('docSubfolder').value.trim());
       fd.append('document_date',document.getElementById('docDate').value);
       fd.append('description',document.getElementById('docDescription').value);
-      await api(`/api/customers/${customerId}/documents`,{method:'POST',body:fd});
+      await speichern('dokumente',()=>api(`/api/customers/${customerId}/documents`,{method:'POST',body:fd}));
       done++;
     }
+    await loadDocuments();
     status.textContent=done+' Datei(en) hochgeladen.';
     input.value='';showSelectedDocs();
     document.getElementById('docDescription').value='';document.getElementById('docSubfolder').value='';
-    customerDocuments=await api(`/api/customers/${customerId}/documents`);
-    renderDocCategories();
   }catch(e){status.textContent='Fehler nach '+done+' Datei(en): '+e.message}
 }
 
@@ -277,23 +285,21 @@ async function saveDocEdit(){
   const st=document.getElementById('docEditStatus');
   try{
     st.textContent='Speichert …';
-    await api(`/api/customer-documents/${editingDocId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    const url=`/api/customer-documents/${editingDocId}`,body=JSON.stringify({
       category:document.getElementById('docEditCategory').value,
       subfolder:document.getElementById('docEditSubfolder').value.trim()||null,
       document_date:document.getElementById('docEditDate').value||null,
       description:document.getElementById('docEditDescription').value.trim()||null,
-    })});
-    customerDocuments=await api(`/api/customers/${customerId}/documents`);
-    renderDocCategories();
+    });
+    await speichern('dokumente',()=>api(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:loadDocuments});
     closeDocEditor();
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 async function removeDocRow(id){
   if(!confirm('Datei wirklich aus der Kundenmappe löschen?'))return;
-  await api(`/api/customer-documents/${id}`,{method:'DELETE'});
-  customerDocuments=await api(`/api/customers/${customerId}/documents`);
-  renderDocCategories();
+  await speichern('dokumente',()=>api(`/api/customer-documents/${id}`,{method:'DELETE'}),{neuLaden:loadDocuments});
 }
+async function loadDocuments(){await lesen('dokumente',()=>api(`/api/customers/${customerId}/documents`),d=>{customerDocuments=d;renderDocCategories()})}
 const docZone=document.getElementById('docUploadZone');
 ['dragenter','dragover'].forEach(e=>docZone.addEventListener(e,x=>{x.preventDefault();docZone.classList.add('drag')}));
 ['dragleave','drop'].forEach(e=>docZone.addEventListener(e,x=>{x.preventDefault();docZone.classList.remove('drag')}));
@@ -305,8 +311,9 @@ const fmt=x=>Number(x||0).toFixed(2).replace('.',',');
 function num(s){let t=String(s??'').trim();if(!t)return 0;if(t.includes(','))t=t.replace(/\./g,'').replace(',','.');return Number(t)}
 const dt=d=>new Date(d+'T00:00:00').toLocaleDateString('de-DE');
 async function loadPayments(){
-  try{[customerPaymentsData,customerOpenInvoices]=await Promise.all([api(`/api/customers/${customerId}/payments`),api(`/api/customers/${customerId}/open-invoices`)])}catch(e){return}  // Rolle ohne Zahlungen: Karte bleibt verborgen
-  renderPayments();
+  let neu;
+  try{neu=await lesen('zahlungen',()=>Promise.all([api(`/api/customers/${customerId}/payments`),api(`/api/customers/${customerId}/open-invoices`)]),([d,o])=>{customerPaymentsData=d;customerOpenInvoices=o})}catch(e){return}  // Rolle ohne Zahlungen: Karte bleibt verborgen
+  if(neu)renderPayments();
 }
 function renderPayments(){
   const d=customerPaymentsData,card=document.getElementById('zahlungen');card.style.display='block';
@@ -340,18 +347,18 @@ function showPaymentReverse(pid){document.getElementById('payRev-'+pid).style.di
 async function allocateRest(pid){
   const st=document.getElementById('customerPaymentsStatus'),invoiceId=Number(document.getElementById('restInvoice-'+pid).value),amount=num(document.getElementById('restAmount-'+pid).value);
   if(!invoiceId){st.textContent='Bitte eine Rechnung wählen.';return}if(!(amount>0)){st.textContent='Bitte einen Betrag angeben.';return}
-  try{await api(`/api/payments/${pid}/allocations`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lines:[{invoice_id:invoiceId,zahlung:amount.toFixed(2)}]})});await loadPayments();document.getElementById('customerPaymentsStatus').textContent='Zugeordnet.'}catch(e){st.textContent='Fehler: '+e.message}
+  try{const body=JSON.stringify({lines:[{invoice_id:invoiceId,zahlung:amount.toFixed(2)}]});await speichern('zahlungen',()=>api(`/api/payments/${pid}/allocations`,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:loadPayments});document.getElementById('customerPaymentsStatus').textContent='Zugeordnet.'}catch(e){st.textContent='Fehler: '+e.message}
 }
 async function bookCustomerRefund(){
   const st=document.getElementById('customerPaymentsStatus'),b=customerPaymentsData.balance,lines=[];
   for(const [i,l] of b.lines.entries()){const amount=num(document.getElementById('refundLine-'+i).value);if(amount>0)lines.push(l.kind==='rest'?{payment_id:l.payment_id,amount:amount.toFixed(2)}:{invoice_id:l.invoice_id,amount:amount.toFixed(2)})}
   if(!lines.length){st.textContent='Bitte mindestens einen Betrag zum Erstatten eintragen.';return}
-  try{await api(`/api/customers/${customerId}/refunds`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({paid_on:document.getElementById('custRefundDate').value,note:document.getElementById('custRefundNote').value.trim()||null,lines})});await loadPayments();document.getElementById('customerPaymentsStatus').textContent='Erstattung gebucht.'}catch(e){st.textContent='Fehler: '+e.message}
+  try{const body=JSON.stringify({paid_on:document.getElementById('custRefundDate').value,note:document.getElementById('custRefundNote').value.trim()||null,lines});await speichern('zahlungen',()=>api(`/api/customers/${customerId}/refunds`,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:loadPayments});document.getElementById('customerPaymentsStatus').textContent='Erstattung gebucht.'}catch(e){st.textContent='Fehler: '+e.message}
 }
 async function reversePayment(pid){
   const st=document.getElementById('customerPaymentsStatus'),reason=document.getElementById('payRevReason-'+pid).value.trim();
   if(!reason){st.textContent='Bitte eine Begründung angeben.';return}
-  try{await api(`/api/payments/${pid}/reverse`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});await loadPayments();document.getElementById('customerPaymentsStatus').textContent='Zahlung zurückgenommen.'}catch(e){st.textContent='Fehler: '+e.message}
+  try{await speichern('zahlungen',()=>api(`/api/payments/${pid}/reverse`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{neuLaden:loadPayments});document.getElementById('customerPaymentsStatus').textContent='Zahlung zurückgenommen.'}catch(e){st.textContent='Fehler: '+e.message}
 }
 load().catch(e=>{document.getElementById('pageTitle').textContent='Kundenakte konnte nicht geladen werden';document.getElementById('pageSub').textContent=e.message});
 </script>

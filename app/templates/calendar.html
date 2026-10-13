@@ -141,6 +141,7 @@
   </div>
 </div>
 
+{% include "_speichern.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 async function api(u,o){const r=await fetch(u,o);if(!r.ok){let d={};try{d=await r.json()}catch{}throw Error(d.detail||r.statusText)}return r.headers.get('content-type')?.includes('json')?r.json():r}
@@ -190,11 +191,14 @@ function periodLabelText(){
 
 async function loadOwners(){owners=await api('/api/calendar-events/owners')}
 
+// Seit 1.8.95 über lesen() (_speichern.html): eine spät ankommende, ältere Terminliste (z. B. nach schnellem Blättern oder
+// nach dem Outlook-Abgleich) überschreibt nie eine neuere.
 async function loadEvents(){
   const{start,end}=gridRange();
   const qs=new URLSearchParams({start:start.toISOString(),end:end.toISOString()}).toString();
-  const [single,series]=await Promise.all([api('/api/calendar-events?'+qs),api('/api/calendar-series-occurrences?'+qs)]);
+  await lesen('termine',()=>Promise.all([api('/api/calendar-events?'+qs),api('/api/calendar-series-occurrences?'+qs)]),([single,series])=>{
   events=single.concat(series);
+  });
 }
 
 function eventsForDay(dateStr){
@@ -414,8 +418,8 @@ async function saveEvent(){
   };
   const id=document.getElementById('eId').value;
   try{
-    if(id)await api('/api/calendar-events/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    else await api('/api/calendar-events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(id)await speichern('termine',()=>api('/api/calendar-events/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}));
+    else await speichern('termine',()=>api('/api/calendar-events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}));
     closeModal();render();
   }catch(e){document.getElementById('modalStatus').textContent='Fehler: '+e.message}
 }
@@ -424,7 +428,7 @@ async function deleteCurrentEvent(){
   const id=document.getElementById('eId').value;
   if(!id)return;
   if(!confirm('Diesen Termin wirklich löschen?'))return;
-  try{await api('/api/calendar-events/'+id,{method:'DELETE'});closeModal();render()}
+  try{await speichern('termine',()=>api('/api/calendar-events/'+id,{method:'DELETE'}));closeModal();render()}
   catch(e){document.getElementById('modalStatus').textContent='Fehler: '+e.message}
 }
 
@@ -441,8 +445,9 @@ async function init(){
   // "Beim Öffnen" (Kalender-Modul Stufe 2, siehe CLAUDE.md "Kalender" -> "Stufe 2" Punkt 5) --
   // synchronisiert best effort das eigene Outlook-Postfach, dann die Ansicht neu laden, falls
   // sich dadurch etwas geändert hat. Fire-and-forget: ein deaktivierter/nicht konfigurierter
-  // Sync liefert einfach {skipped:true}, kein Fehler, kein Blockieren der Seite.
-  api('/api/calendar-events/sync-outlook',{method:'POST'}).then(r=>{if(!r.skipped)render()}).catch(()=>{});
+  // Sync liefert einfach {skipped:true}, kein Fehler, kein Blockieren der Seite. Seit 1.8.95 über den Baustein, in einem
+  // eigenen Bereich -- Blättern und Speichern warten nicht auf den Abgleich.
+  speichern('outlook-abgleich',()=>api('/api/calendar-events/sync-outlook',{method:'POST'})).then(r=>{if(!r.skipped)render()}).catch(()=>{});
   if(params.get('new_project'))openCreate({type:'project',id:Number(params.get('new_project')),label:params.get('new_project_label')||('Projekt #'+params.get('new_project'))});
   else if(params.get('new_quote'))openCreate({type:'quote',id:Number(params.get('new_quote')),label:params.get('new_quote_label')||('Angebot #'+params.get('new_quote'))});
 }

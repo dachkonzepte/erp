@@ -53,7 +53,8 @@ für Zahlungen, offene Posten und "abgerechnet" (compute_invoice_totals()). Im E
 beim Festschreiben unter der Sperre frieren die Abzüge ein (InvoiceDeduction). Beim Festschreiben jeder Art wird unter der Sperre
 neu gerechnet (_recompute_draft(), Befund 1b), ein Entwurf, dessen Preise, Einheiten, Positionen oder Steuerschlüssel vom Auftrag
 abweichen, nicht festgeschrieben (order_deviation_reason(), 409, Ausweg refresh_draft_from_order()). Ein Abschlag muss über 0 €
-liegen, eine Schlussrechnung darf bis R4c nicht unter 0 € lauten (amount_block_reason()).
+liegen, eine Schlussrechnung darf bis R4c nicht unter 0 € lauten (amount_block_reason()). Seit 1.8.95 lauten über 0 € oder weniger
+nur ein Storno und eine Endrechnung mit Abzügen; jede andere Rechnung muss über 0 € liegen (409 beim Festschreiben).
 
 Zahlungshinweis und abschließende Rechnung aus Aufwand (seit 1.8.86, R4b Punkte 4 und 6): die Endrechnung nennt "Stand <Tag des
 Festschreibens>" je abgezogener Rechnung, was dort noch offen ist (einschließlich Einbehalt), und den Zahlbetrag (payment_note(),
@@ -287,7 +288,12 @@ def amount_block_reason(invoice: Invoice) -> str | None:
       Schlussrechnung. Seit 1.8.85 (Festlegung 1.8.83 Nr. 6 geändert, Vorgabe R4b) auch 0 € nicht -- vorher ging ein Abschlag
       über 0,00 € mit Nummer durch.
     - Schlussrechnung (seit 1.8.85, R4b): bis 1.8.89 nicht unter 0 €; seit 1.8.90 (R4c Punkt 6) darf sie unter 0 € lauten -- die
-      Abschläge übersteigen die Gesamtleistung (Überzahlung), der Kunde bekommt den Erstattungsbetrag."""
+      Abschläge übersteigen die Gesamtleistung (Überzahlung), der Kunde bekommt den Erstattungsbetrag.
+    - Seit 1.8.95 (Nebenbefund 2 aus 1.8.94): über 0 € oder weniger lauten nur ein Storno und eine Endrechnung mit Abzügen
+      (Schlussrechnung, die festgeschriebene Rechnungen abzieht, final_breakdown()); jede andere Rechnung -- Rechnung aus Aufwand,
+      auch eine abschließende, und Schlussrechnung ohne Abzüge -- muss über 0 € liegen."""
+    if invoice.invoice_type == "storno" or (invoice.invoice_type == "schluss" and final_breakdown(invoice) is not None):
+        return None
     gross = compute_invoice_totals(invoice)["gross_total"]
     if invoice.invoice_type == "abschlag_leistungsstand" and gross < 0:
         return (f"Der Abschlag lautet über {_eur(gross)}: das Ist liegt unter dem zuletzt abgerechneten Stand. Ein Abschlag nach "
@@ -298,7 +304,19 @@ def amount_block_reason(invoice: Invoice) -> str | None:
                 "über 0 € liegen – das Ist der Positionen eintragen oder den Entwurf löschen.")
     if invoice.invoice_type == "abschlag_pauschal" and gross <= 0:
         return f"Der Abschlag lautet über {_eur(gross)}. Ein Abschlag muss über 0 € liegen – den Betrag eintragen."
-    return None
+    if gross > 0:
+        return None
+    if invoice.invoice_type == "schluss":
+        return (f"Die Schlussrechnung lautet über {_eur(gross)}. Ohne abgezogene Rechnungen muss sie über 0 € liegen – die "
+                "Ist-Mengen eintragen oder den Entwurf löschen. " + NOT_ABOVE_ZERO_TEXT)
+    if invoice.invoice_type == "aufwand":
+        return (f"Die Rechnung aus Aufwand lautet über {_eur(gross)}. Sie muss über 0 € liegen – Positionen mit Betrag eintragen "
+                "oder den Entwurf löschen. " + NOT_ABOVE_ZERO_TEXT)
+    return f"Die Rechnung lautet über {_eur(gross)}. Sie muss über 0 € liegen. " + NOT_ABOVE_ZERO_TEXT
+
+
+# Seit 1.8.95: Hinweis zu amount_block_reason() -- welche Rechnungen über 0 € oder weniger lauten dürfen.
+NOT_ABOVE_ZERO_TEXT = "Über 0 € oder weniger lauten nur ein Storno und eine Schlussrechnung mit abgezogenen Rechnungen."
 
 
 def closing_block_reason(invoices: list[Invoice], invoice: Invoice) -> str | None:

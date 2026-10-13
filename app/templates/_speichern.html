@@ -1,0 +1,84 @@
+<script>
+/* Gemeinsamer Baustein gegen veraltete Antworten (seit 1.8.95, Nebenbefunde 1 und 3 aus 1.8.94; docs/archiv/befund-vor-echtbetrieb.md,
+   "Umsetzung 1.8.95"). Eine Seite übernimmt nie eine Antwort, die älter ist als eine schon angewandte, und meldet "Gespeichert."
+   erst, wenn die Antwort angewandt ist.
+
+   Ein Bereich ist, was eine Antwort auf der Seite ersetzt: ein Formular, eine Karte, eine Liste oder ein Feld (ein Name je Seite,
+   frei gewählt). Je Bereich gilt:
+   - Jede Anfrage, deren Antwort die Seite übernimmt, bekommt beim Absenden die nächste laufende Nummer des Bereichs. Übernommen wird
+     eine Antwort nur, wenn noch keine mit höherer Nummer angewandt ist -- sonst ist sie veraltet und wird verworfen.
+   - Speichern geht nacheinander hinaus: das nächste erst, wenn die Antwort des vorigen da ist. So bearbeitet der Server sie in der
+     Reihenfolge der Nummern, und die Antwort mit der höchsten Nummer kennt alles, was davor gespeichert wurde. Gebaut wird die
+     Anfrage trotzdem sofort (URL und Body mit den Werten, die beim Klick im Formular stehen) -- nur das Senden wartet.
+   - Lesen geht erst hinaus, wenn im Bereich kein Speichern mehr unterwegs ist -- es kennt alles, was vorher gespeichert wurde.
+
+   lesen(bereich, anfrage, anwenden) -> true, wenn angewandt; false, wenn veraltet (verworfen)
+     anfrage(): startet die Anfrage(n) -- auch mehrere über Promise.all -- und gibt deren Ergebnis zurück. anwenden(daten) übernimmt
+     es (Zustand setzen, zeichnen) und läuft nur, wenn es nicht veraltet ist. Ein Fehler der Anfrage geht an den Aufrufer.
+   speichern(bereich, anfrage, {anwenden, neuLaden}) -> Antwort des Speicherns
+     anfrage(): genau ein schreibender Aufruf, ()=>api(…) bzw. ()=>fetch(…), sonst nichts (tests/test_v398_speichern_baustein.py);
+       speichern() ruft ihn sofort auf, der Aufruf muss fetch() sofort erreichen (api() tut das als erste Anweisung).
+     anwenden(daten): die Antwort des Speicherns trägt den Stand des Bereichs (z. B. alle Antworten einer Checkliste) und wird wie bei
+       lesen() nur übernommen, wenn sie nicht veraltet ist.
+     neuLaden(): danach neu laden -- über lesen(), am besten im selben Bereich.
+     speichern() kehrt erst zurück, wenn angewandt bzw. neu geladen ist: ein Statustext wie "Gespeichert." steht deshalb hinter
+     await speichern(…). Bei einem Fehler wird nichts angewandt und nicht neu geladen, der Fehler geht an den Aufrufer; eine
+     fetch-Antwort mit Fehlerstatus (Response.ok false) gibt speichern() unverändert zurück, ebenfalls ohne anzuwenden.
+   Der Baustein darf in einer Seite mehrfach eingebunden sein (Seite und Teilvorlage): der Stand hängt an window. */
+window.__dkBereiche = window.__dkBereiche || new Map();
+function _dkBereich(name) {
+  let b = window.__dkBereiche.get(name);
+  if (!b) { b = {nummer: 0, angewandt: 0, offen: 0, letztes: Promise.resolve()}; window.__dkBereiche.set(name, b); }
+  return b;
+}
+function _dkNeuer(b, nr) {
+  if (nr < b.angewandt) return false;
+  b.angewandt = nr;
+  return true;
+}
+async function lesen(bereich, anfrage, anwenden) {
+  const b = _dkBereich(bereich);
+  while (b.offen) await b.letztes;
+  const nr = ++b.nummer;
+  const daten = await anfrage();
+  if (!_dkNeuer(b, nr)) return false;
+  if (anwenden) await anwenden(daten);
+  return true;
+}
+async function speichern(bereich, anfrage, optionen = {}) {
+  const b = _dkBereich(bereich), vorher = b.letztes;
+  let fertig;
+  b.letztes = new Promise(r => { fertig = r; });
+  b.offen++;
+  // Die Anfrage wird JETZT gebaut -- URL und Body samt der Werte aus dem Formular, wie sie beim Klick stehen --, hinaus geht sie
+  // erst, wenn das vorige Speichern des Bereichs zurück ist: fetch() ist während des Aufrufs von anfrage() durch eine Fassung
+  // ersetzt, die bis zur Freigabe wartet. Sonst läse eine wartende Anfrage ein Formular, das die Antwort des vorigen Speicherns
+  // inzwischen neu gezeichnet hat, und schickte still den alten Stand.
+  let senden, gebaut = 0;
+  const freigabe = new Promise(r => { senden = r; });
+  const echtesFetch = window.fetch;
+  let laufend;
+  try {
+    window.fetch = function (...args) { gebaut++; return freigabe.then(() => echtesFetch.apply(this, args)); };
+    try { laufend = Promise.resolve(anfrage()); } finally { window.fetch = echtesFetch; }
+    if (!gebaut) console.error(`speichern('${bereich}'): die Anfrage ging nicht sofort über fetch() -- sie wartet nicht auf das vorige Speichern`);
+  } catch (e) {
+    laufend = Promise.reject(e);
+  }
+  laufend.catch(() => {});  // der Fehler kommt unten an; bis dahin nicht als unbehandelt melden
+  let daten, nr;
+  try {
+    await vorher;
+    nr = ++b.nummer;
+    senden();
+    daten = await laufend;
+  } finally {
+    b.offen--;
+    fertig();
+  }
+  if (typeof Response !== 'undefined' && daten instanceof Response && !daten.ok) return daten;
+  if (optionen.anwenden && _dkNeuer(b, nr)) await optionen.anwenden(daten);
+  if (optionen.neuLaden) await optionen.neuLaden();
+  return daten;
+}
+</script>

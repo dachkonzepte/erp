@@ -382,4 +382,8 @@ def test_checklist_page_blocks_signature_with_missing_fields():
     assert "Vor der Unterschrift fehlen noch" in page
     # saveSignature bricht vor der Rückfrage ab, und jede gespeicherte Eingabe frischt den Hinweis auf
     assert "if(fehlt){setStatus(fieldId,fehlt,true);updateMissing();return}" in page
-    assert page.count("cl.missing_before_signature=data.missing_before_signature") == 3
+    # Seit 1.8.95 (Erwartung geändert): Antworten und Anhänge übernimmt je eine Funktion als anwenden des Bausteins
+    # (_speichern.html) -- Antwort speichern, Anhang hochladen, Anhang entfernen.
+    assert page.count("cl.missing_before_signature=data.missing_before_signature") == 2
+    assert "{anwenden:uebernimmAntworten}" in page and "anwenden=uebernimmAnhaenge" in page
+    assert "{anwenden:uebernimmAnhaenge}" in page

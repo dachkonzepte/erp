@@ -113,6 +113,7 @@ tr:last-child td{border-bottom:none}
 </main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
@@ -178,7 +179,7 @@ async function saveQuickServiceOrder(){
   };
   st.className='status';st.textContent='Lege Auftrag an …';
   try{
-    const result=await api('/api/quick-service-orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const result=await speichern('schnellauftrag',()=>api('/api/quick-service-orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
     // Direkt zum neuen Auftrag wechseln (etabliertes Navigations-Muster nach dem Anlegen).
     location.href='/orders/'+result.order_id;
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
@@ -224,7 +225,7 @@ async function saveContract(){
     confirm_property_customer:!!document.getElementById('editConfirmProperty')?.checked,
   };
   try{
-    const created=await api('/api/maintenance-contracts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const created=await speichern('vertrag-anlegen',()=>api('/api/maintenance-contracts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
     // Direkt zum neu angelegten Vertrag wechseln (Projektmuster "nach Anlegen direkt zum Datensatz").
     location.href='/maintenance-contracts/'+created.id;
   }catch(e){st.textContent='Fehler: '+e.message}
@@ -253,22 +254,23 @@ function renderRows(){
 async function loadDueOverview(){
   const container=document.getElementById('dueItemsOverview');
   try{
-    const rows=await api('/api/maintenance-contracts/due-items');
-    if(!rows.length){container.innerHTML='<div class="empty">Keine fälligen oder überfälligen Dachflächen.</div>';return}
-    const groups={};
-    rows.forEach(r=>{
-      const key=(r.property_postal_code||'—')+' '+(r.property_city||'');
-      (groups[key]=groups[key]||[]).push(r);
+    await lesen('faellige',()=>api('/api/maintenance-contracts/due-items'),rows=>{
+      if(!rows.length){container.innerHTML='<div class="empty">Keine fälligen oder überfälligen Dachflächen.</div>';return}
+      const groups={};
+      rows.forEach(r=>{
+        const key=(r.property_postal_code||'—')+' '+(r.property_city||'');
+        (groups[key]=groups[key]||[]).push(r);
+      });
+      container.innerHTML=Object.keys(groups).sort().map(key=>{
+        const rowsHtml=groups[key].map(r=>`<tr${r.is_overdue?' class="row-overdue"':''}>
+          <td><a href="/maintenance-contracts/${r.contract_id}" style="color:var(--accent)">${esc(r.contract_title)}</a></td><td>${esc(r.customer_name||'')}</td><td>${esc(r.roof_area_name||'')}</td>
+          <td>${esc(r.maintenance_window_label||'')}</td><td>${fmtDate(r.next_due_date)}</td>
+          <td>${r.is_overdue?'<span class="badge overdue">⚠ überfällig</span>':'<span class="badge due">fällig</span>'}</td>
+        </tr>`).join('');
+        return `<div class="card" style="margin-bottom:10px"><div style="padding:10px 12px;font-weight:650;border-bottom:1px solid var(--line)">${esc(key.trim())}</div>
+          <div class="table-scroll"><table><thead><tr><th>Vertrag</th><th>Kunde</th><th>Dachfläche</th><th>Fenster</th><th>Fälligkeit</th><th>Status</th></tr></thead><tbody>${rowsHtml}</tbody></table></div></div>`;
+      }).join('');
     });
-    container.innerHTML=Object.keys(groups).sort().map(key=>{
-      const rowsHtml=groups[key].map(r=>`<tr${r.is_overdue?' class="row-overdue"':''}>
-        <td><a href="/maintenance-contracts/${r.contract_id}" style="color:var(--accent)">${esc(r.contract_title)}</a></td><td>${esc(r.customer_name||'')}</td><td>${esc(r.roof_area_name||'')}</td>
-        <td>${esc(r.maintenance_window_label||'')}</td><td>${fmtDate(r.next_due_date)}</td>
-        <td>${r.is_overdue?'<span class="badge overdue">⚠ überfällig</span>':'<span class="badge due">fällig</span>'}</td>
-      </tr>`).join('');
-      return `<div class="card" style="margin-bottom:10px"><div style="padding:10px 12px;font-weight:650;border-bottom:1px solid var(--line)">${esc(key.trim())}</div>
-        <div class="table-scroll"><table><thead><tr><th>Vertrag</th><th>Kunde</th><th>Dachfläche</th><th>Fenster</th><th>Fälligkeit</th><th>Status</th></tr></thead><tbody>${rowsHtml}</tbody></table></div></div>`;
-    }).join('');
   }catch(e){container.innerHTML='<div class="empty">Fehler: '+esc(e.message)+'</div>'}
 }
 
@@ -276,8 +278,8 @@ async function loadContracts(){
   const st=document.getElementById('listStatus');
   st.className='status';st.textContent='Lädt …';
   try{
-    contracts=await api('/api/maintenance-contracts?include_archived=true');
-    renderRows();
+    // Seit 1.8.95 über lesen() (_speichern.html), wie die fälligen Dachflächen ('faellige'): läuft nach dem Fälligkeitslauf.
+    await lesen('vertraege',()=>api('/api/maintenance-contracts?include_archived=true'),d=>{contracts=d;renderRows()});
     st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -296,7 +298,7 @@ async function init(){
   document.getElementById('qsoCustomer').innerHTML=customerOptionsHtml(null);
   document.getElementById('qsoProperty').innerHTML=propertyOptionsHtml(null,null,false);
   document.getElementById('qsoResponsible').innerHTML=employeeOptionsHtml(null);
-  await api('/api/maintenance-contracts/check-due',{method:'POST'}).catch(()=>null);
+  await speichern('vertraege',()=>api('/api/maintenance-contracts/check-due',{method:'POST'})).catch(()=>null);
   await loadContracts();
   await loadDueOverview();
 }

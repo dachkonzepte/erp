@@ -170,6 +170,7 @@ tr:last-child td{border-bottom:none}
   <img id="printLabelImg" alt="QR-Code">
   <div id="printLabelName"></div>
 </div>
+{% include "_speichern.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
@@ -297,22 +298,26 @@ async function saveAsset(){
     selectable_in_reports:document.getElementById('editSelectableInReports').value==='1',
   };
   const st1=document.getElementById('editorStatus'),st2=document.getElementById('costStatus');
+  // Seit 1.8.95 über den Baustein (_speichern.html, Bereich 'betriebsmittel'): jede Antwort trägt das ganze Betriebsmittel und wird
+  // nur übernommen, wenn sie nicht veraltet ist -- mit laufenden Kosten zeichnet erst deren Antwort (saveRecurringCost).
+  const body=JSON.stringify(payload),recurringCost=document.getElementById('editRecurringCost').value||null;
   try{
-    asset=await api(`/api/operational-assets/${assetId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    await speichern('betriebsmittel',()=>api(`/api/operational-assets/${assetId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}),
+                    {anwenden:d=>{asset=d;if(!canManageRecurringCost)render()}});
     if(canManageRecurringCost){
-      asset=await saveRecurringCost(document.getElementById('editRecurringCost').value||null,false);
+      await saveRecurringCost(recurringCost,false);
     }
-    render();
     st1.className='status';st1.textContent='Gespeichert.';
     st2.className='status';st2.textContent='Gespeichert.';
   }catch(e){st1.className='status err';st1.textContent='Fehler: '+e.message;st2.className='status err';st2.textContent='Fehler: '+e.message}
 }
 
 async function saveRecurringCost(netAmount,forceRemove){
-  const resp=await fetch(`/api/operational-assets/${assetId}/recurring-cost`,{
+  const body=JSON.stringify({net_amount:netAmount,force_remove:forceRemove});
+  const resp=await speichern('betriebsmittel',()=>fetch(`/api/operational-assets/${assetId}/recurring-cost`,{
     method:'PUT',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({net_amount:netAmount,force_remove:forceRemove}),
-  });
+    body,
+  }),{anwenden:async r=>{asset=await r.json();render()}});
   if(resp.status===409){
     const body=await resp.json().catch(()=>({}));
     const msg=(body.detail&&body.detail.message)||'Der verknüpfte Kostenposten trägt weitere Angaben.';
@@ -322,13 +327,13 @@ async function saveRecurringCost(netAmount,forceRemove){
     throw Error('Laufende Kosten unverändert gelassen -- Entfernen abgebrochen.');
   }
   if(!resp.ok)throw Error((await resp.json().catch(()=>({detail:resp.statusText}))).detail||resp.statusText);
-  return resp.json();
+  return asset;
 }
 
 async function deleteAssetNow(){
   if(!confirm('Dieses Betriebsmittel wirklich löschen? Prüffristen und hinterlegte Dokumente werden mitgelöscht -- eine verknüpfte Ressource bleibt davon unberührt. Das kann nicht rückgängig gemacht werden.'))return;
   try{
-    await api(`/api/operational-assets/${assetId}`,{method:'DELETE'});
+    await speichern('betriebsmittel',()=>api(`/api/operational-assets/${assetId}`,{method:'DELETE'}));
     location.href='/master-data#assets';
   }catch(e){document.getElementById('assetStatus').className='status err';document.getElementById('assetStatus').textContent='Fehler: '+e.message}
 }
@@ -415,11 +420,12 @@ async function submitInspection(){
     inspector:document.getElementById('inspInspector').value.trim()||null,
     notes:document.getElementById('inspNotes').value.trim()||null,
   };
+  const body=JSON.stringify(payload),editingId=editingInspectionId;
   try{
-    if(editingInspectionId){
-      await api(`/api/operational-asset-inspections/${editingInspectionId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(editingId){
+      await speichern('betriebsmittel',()=>api(`/api/operational-asset-inspections/${editingId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}));
     }else{
-      await api(`/api/operational-assets/${assetId}/inspections`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      await speichern('betriebsmittel',()=>api(`/api/operational-assets/${assetId}/inspections`,{method:'POST',headers:{'Content-Type':'application/json'},body}));
     }
     cancelInspectionEdit();
     st.textContent='';
@@ -431,7 +437,7 @@ async function deleteInspectionNow(id){
   if(!confirm('Diese Prüffrist wirklich löschen?'))return;
   const st=document.getElementById('inspStatus');
   try{
-    await api(`/api/operational-asset-inspections/${id}`,{method:'DELETE'});
+    await speichern('betriebsmittel',()=>api(`/api/operational-asset-inspections/${id}`,{method:'DELETE'}));
     if(editingInspectionId===id)cancelInspectionEdit();
     await reloadAsset();
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
@@ -444,9 +450,8 @@ async function uploadInspectionDocument(id){
   const st=document.getElementById('inspStatus');
   const form=new FormData();form.append('file',file);
   try{
-    await fetch(`/api/operational-asset-inspections/${id}/document`,{method:'POST',body:form}).then(async r=>{
-      if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
-    });
+    const r=await speichern('betriebsmittel',()=>fetch(`/api/operational-asset-inspections/${id}/document`,{method:'POST',body:form}));
+    if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
     await reloadAsset();
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -454,7 +459,7 @@ async function uploadInspectionDocument(id){
 async function removeInspectionDocument(id){
   if(!confirm('Dokument wirklich entfernen?'))return;
   try{
-    await api(`/api/operational-asset-inspections/${id}/document`,{method:'DELETE'});
+    await speichern('betriebsmittel',()=>api(`/api/operational-asset-inspections/${id}/document`,{method:'DELETE'}));
     await reloadAsset();
   }catch(e){document.getElementById('inspStatus').className='status err';document.getElementById('inspStatus').textContent='Fehler: '+e.message}
 }
@@ -491,9 +496,8 @@ async function submitDocument(){
   const notes=document.getElementById('docNotes').value.trim();
   if(notes)form.append('notes',notes);
   try{
-    await fetch(`/api/operational-assets/${assetId}/documents`,{method:'POST',body:form}).then(async r=>{
-      if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
-    });
+    const r=await speichern('betriebsmittel',()=>fetch(`/api/operational-assets/${assetId}/documents`,{method:'POST',body:form}));
+    if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
     document.getElementById('docFile').value='';
     document.getElementById('docNotes').value='';
     st.textContent='';
@@ -504,14 +508,14 @@ async function submitDocument(){
 async function deleteDocumentNow(id){
   if(!confirm('Dieses Dokument wirklich löschen?'))return;
   try{
-    await api(`/api/operational-asset-documents/${id}`,{method:'DELETE'});
+    await speichern('betriebsmittel',()=>api(`/api/operational-asset-documents/${id}`,{method:'DELETE'}));
     await reloadAsset();
   }catch(e){document.getElementById('docStatus').className='status err';document.getElementById('docStatus').textContent='Fehler: '+e.message}
 }
 
+// Seit 1.8.95 über lesen() (_speichern.html): ein spät ankommender, älterer Stand überschreibt nie einen neueren.
 async function reloadAsset(){
-  asset=await api(`/api/operational-assets/${assetId}`);
-  render();
+  await lesen('betriebsmittel',()=>api(`/api/operational-assets/${assetId}`),d=>{asset=d;render()});
 }
 
 function render(){
@@ -568,8 +572,9 @@ async function markRepaired(){
   const btn=document.getElementById('releaseBtn'),st=document.getElementById('releaseStatus'),input=document.getElementById('releaseNote');
   if(!input.value.trim()){st.textContent='Bitte eintragen, was repariert wurde.';input.focus();return}
   btn.disabled=true;st.textContent='Speichert …';
+  const body=JSON.stringify({note:input.value});
   try{
-    const r=await fetch(`/api/checklists/asset-readiness/${assetId}/repaired`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:input.value})});
+    const r=await speichern('einsatzbereitschaft',()=>fetch(`/api/checklists/asset-readiness/${assetId}/repaired`,{method:'POST',headers:{'Content-Type':'application/json'},body}));
     const data=await r.json().catch(()=>({}));
     if(!r.ok){st.textContent=data.detail||'Fehler beim Speichern.';btn.disabled=false;return}
     renderReadiness(data);

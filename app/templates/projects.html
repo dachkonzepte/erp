@@ -64,6 +64,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 </section></main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 let projects=[],templates=[],quotes=[],orders=[],columns=[];
 let onlyTemplates=false;
@@ -184,7 +185,7 @@ async function moveProjectColumn(projectId,columnId){
   project.pipeline_column_id=columnId;
   render();
   try{
-    await api(`/api/projects/${projectId}/pipeline-column`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({pipeline_column_id:columnId})});
+    await speichern('projekte',()=>api(`/api/projects/${projectId}/pipeline-column`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({pipeline_column_id:columnId})}));
   }catch(e){
     project.pipeline_column_id=previous;
     render();
@@ -228,35 +229,36 @@ window.addEventListener('resize',closeAllMenus);
 async function duplicateProject(id,asTemplate){
   if(!confirm(asTemplate?'Dieses Projekt als Mustervorgang speichern? Angebot inkl. Positionen und Kalkulation wird dabei kopiert.':'Dieses Projekt kopieren? Ein neues Projekt mit Kopie des Angebots (Positionen, Kalkulation) wird angelegt.'))return;
   try{
-    const result=await api(`/api/projects/${id}/duplicate`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({as_template:asTemplate})});
+    const result=await speichern('projekte',()=>api(`/api/projects/${id}/duplicate`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({as_template:asTemplate})}));
     location.href='/projects/'+result.id;
   }catch(e){alert('Fehler: '+e.message)}
 }
 async function toggleArchived(id,archive){
   try{
-    await api(`/api/projects/${id}/${archive?'archive':'unarchive'}`,{method:'POST'});
-    await load();
+    await speichern('projekte',()=>api(`/api/projects/${id}/${archive?'archive':'unarchive'}`,{method:'POST'}),{neuLaden:load});
   }catch(e){alert('Fehler: '+e.message)}
 }
 async function deleteProjectRow(id){
   if(!confirm('Dieses Projekt endgültig löschen? Das kann nicht rückgängig gemacht werden.'))return;
   try{
-    await api(`/api/projects/${id}`,{method:'DELETE'});
-    await load();
+    await speichern('projekte',()=>api(`/api/projects/${id}`,{method:'DELETE'}),{neuLaden:load});
   }catch(e){alert('Fehler: '+e.message)}
 }
 
+// Seit 1.8.95 über lesen() (_speichern.html): eine spät ankommende, ältere Liste überschreibt nie eine neuere.
 async function load(){
-  [projects,templates,quotes,orders,columns]=await Promise.all([
+  await lesen('projekte',()=>Promise.all([
     api('/api/projects?include_archived=true'),
     api('/api/project-templates?include_archived=true'),
     api('/api/quotes'),
     api('/api/orders'),
     api('/api/project-pipeline-columns'),
-  ]);
+  ]),d=>{
+  [projects,templates,quotes,orders,columns]=d;
   populateCategoryFilter();
   applyViewButtons();
   render();
+  });
 }
 load().catch(e=>document.getElementById('content').innerHTML=`<div class="empty">Fehler: ${esc(e.message)}</div>`);
 </script></body></html>

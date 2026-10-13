@@ -163,6 +163,7 @@ tr:last-child td{border-bottom:none}
 </main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 const roofAreaId={{ roof_area_id }};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -294,10 +295,12 @@ function findOrCreateLayerEntry(typeId,typeMeta){
 async function saveLayerField(typeId,fields){
   const entry=existingLayers.find(l=>l.layer_type_id===typeId);
   const st=document.getElementById('layerStatus');
+  // Seit 1.8.95 über den Baustein (_speichern.html): die Schichten gehen nacheinander hinaus, in der Reihenfolge der Eingabe.
+  const url=`/api/roof-areas/${roofAreaId}/layers/${typeId}`,body=JSON.stringify(fields);
   try{
-    const saved=await api(`/api/roof-areas/${roofAreaId}/layers/${typeId}`,{
-      method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields),
-    });
+    const saved=await speichern('schichten',()=>api(url,{
+      method:'PUT',headers:{'Content-Type':'application/json'},body:body,
+    }));
     if(entry)Object.assign(entry,saved);
     st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
@@ -346,8 +349,9 @@ async function submitNewExecution(typeId,groupKey){
   try{
     const existingOptions=(layerOptionGroupsCache[groupKey]&&layerOptionGroupsCache[groupKey].options)||[];
     const maxSort=existingOptions.reduce((m,o)=>Math.max(m,o.sort_order),0);
-    await api(`/api/settings/option-groups/${groupKey}/options`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:text,value:text,sort_order:maxSort+10})});
-    layerOptionGroupsCache[groupKey]=await api(`/api/settings/option-groups/${groupKey}`);
+    const url=`/api/settings/option-groups/${groupKey}/options`,body=JSON.stringify({label:text,value:text,sort_order:maxSort+10});
+    await speichern('ausfuehrung-'+groupKey,()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),
+      {neuLaden:()=>lesen('ausfuehrung-'+groupKey,()=>api(`/api/settings/option-groups/${groupKey}`),d=>{layerOptionGroupsCache[groupKey]=d})});
     onLayerFieldChange(typeId,'execution',text);
     renderLayerRows();
     st.textContent='';
@@ -413,23 +417,28 @@ async function saveRoofArea(){
   };
   st.className='status';st.textContent='Speichert …';
   try{
-    area=await api(`/api/roof-areas/${roofAreaId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    renderBreadcrumb();renderHeader();
+    await speichern('dachflaeche',()=>api(`/api/roof-areas/${roofAreaId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{anwenden:d=>{
+      area=d;
+      renderBreadcrumb();renderHeader();
+    }});
     st.textContent='Gespeichert.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
 async function toggleAreaArchived(){
+  const url=`/api/roof-areas/${roofAreaId}/${area.archived?'unarchive':'archive'}`;
   try{
-    area=await api(`/api/roof-areas/${roofAreaId}/${area.archived?'unarchive':'archive'}`,{method:'POST'});
-    renderHeader();
+    await speichern('dachflaeche',()=>api(url,{method:'POST'}),{anwenden:d=>{
+      area=d;
+      renderHeader();
+    }});
   }catch(e){alert('Fehler: '+e.message)}
 }
 
 async function deleteRoofAreaNow(){
   if(!confirm('Diese Dachfläche inkl. aller Bauteile und der Skizze endgültig löschen? Das kann nicht rückgängig gemacht werden.'))return;
   try{
-    await api(`/api/roof-areas/${roofAreaId}`,{method:'DELETE'});
+    await speichern('dachflaeche',()=>api(`/api/roof-areas/${roofAreaId}`,{method:'DELETE'}));
     location.href=area.customer_id?`/customers/${area.customer_id}`:'/';
   }catch(e){alert('Fehler: '+e.message)}
 }
@@ -467,7 +476,7 @@ async function uploadSketch(){
   try{
     const fd=new FormData();
     fd.append('file',input.files[0]);
-    area=await api(`/api/roof-areas/${roofAreaId}/sketch`,{method:'POST',body:fd});
+    await speichern('dachflaeche',()=>api(`/api/roof-areas/${roofAreaId}/sketch`,{method:'POST',body:fd}),{anwenden:d=>{area=d}});
     input.value='';
     renderSketch();
     st.textContent='Skizze gespeichert.';
@@ -477,8 +486,10 @@ async function uploadSketch(){
 async function deleteSketchNow(){
   if(!confirm('Skizze wirklich entfernen?'))return;
   try{
-    area=await api(`/api/roof-areas/${roofAreaId}/sketch`,{method:'DELETE'});
-    renderSketch();
+    await speichern('dachflaeche',()=>api(`/api/roof-areas/${roofAreaId}/sketch`,{method:'DELETE'}),{anwenden:d=>{
+      area=d;
+      renderSketch();
+    }});
   }catch(e){alert('Fehler: '+e.message)}
 }
 
@@ -547,8 +558,7 @@ document.getElementById('sketchWrap').addEventListener('pointerup',async e=>{
   }
   cancelPlacing();
   try{
-    await api(`/api/roof-components/${id}/position`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    await loadComponents();
+    await speichern('bauteile',()=>api(`/api/roof-components/${id}/position`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:loadComponents});
   }catch(err){alert('Fehler: '+err.message)}
 });
 
@@ -604,20 +614,19 @@ async function saveComponent(){
   };
   try{
     if(editingComponentId){
-      await api(`/api/roof-components/${editingComponentId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const url=`/api/roof-components/${editingComponentId}`;
+      await speichern('bauteile',()=>api(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:loadComponents});
     }else{
-      await api(`/api/roof-areas/${roofAreaId}/components`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      await speichern('bauteile',()=>api(`/api/roof-areas/${roofAreaId}/components`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:loadComponents});
     }
     closeComponentEditor();
-    await loadComponents();
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 
 async function toggleComponentArchived(id,archive){
   const st=document.getElementById('componentListStatus');
   try{
-    await api(`/api/roof-components/${id}/${archive?'archive':'unarchive'}`,{method:'POST'});
-    await loadComponents();
+    await speichern('bauteile',()=>api(`/api/roof-components/${id}/${archive?'archive':'unarchive'}`,{method:'POST'}),{neuLaden:loadComponents});
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
@@ -625,8 +634,7 @@ async function deleteComponentNow(id){
   if(!confirm('Dieses Bauteil wirklich löschen?'))return;
   const st=document.getElementById('componentListStatus');
   try{
-    await api(`/api/roof-components/${id}`,{method:'DELETE'});
-    await loadComponents();
+    await speichern('bauteile',()=>api(`/api/roof-components/${id}`,{method:'DELETE'}),{neuLaden:loadComponents});
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
@@ -660,10 +668,13 @@ async function loadComponents(){
   const includeArchived=document.getElementById('showArchivedComponents').checked;
   const st=document.getElementById('componentListStatus');
   try{
-    components=await api(`/api/roof-areas/${roofAreaId}/components?include_archived=${includeArchived}`);
-    renderComponentRows();
-    st.textContent='';
-    renderSketch();
+    // Seit 1.8.95 über lesen() (_speichern.html): eine ältere Antwort zeichnet nicht über eine neuere.
+    await lesen('bauteile',()=>api(`/api/roof-areas/${roofAreaId}/components?include_archived=${includeArchived}`),d=>{
+      components=d;
+      renderComponentRows();
+      st.textContent='';
+      renderSketch();
+    });
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 

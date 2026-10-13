@@ -85,6 +85,7 @@ td input,td select{padding:6px 7px;font-size:12.5px}
 </main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 const templateId={{ template_id }};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -125,8 +126,7 @@ async function saveTemplateMeta(){
   if(!label){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben.';return}
   const payload={label,roof_type:document.getElementById('editRoofType').value||null,description:document.getElementById('editDescription').value.trim()||null};
   try{
-    template=await api(`/api/inspection-templates/${templateId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    fillMetaForm();
+    await speichern('vorlage',()=>api(`/api/inspection-templates/${templateId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{anwenden:d=>{template=d;fillMetaForm()}});
     st.textContent='Gespeichert.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -135,7 +135,7 @@ async function copyTemplate(){
   const label=document.getElementById('copyLabel').value.trim();
   if(!label){alert('Bitte einen Namen für die Kopie angeben.');return}
   try{
-    const copy=await api(`/api/inspection-templates/${templateId}/copy`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})});
+    const copy=await speichern('vorlage-kopie',()=>api(`/api/inspection-templates/${templateId}/copy`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})}));
     location.href='/inspection-templates/'+copy.id;
   }catch(e){alert('Fehler: '+e.message)}
 }
@@ -191,15 +191,22 @@ function readItemForm(row){
   };
 }
 
+// Seit 1.8.95 über lesen() (_speichern.html), Bereich 'vorlage' wie jedes Speichern an der Vorlage (Metadaten und
+// Prüfpunkte, auch beim Verlassen eines Felds): Speichern geht nacheinander hinaus, ein älterer Stand überschreibt nie einen neueren.
+function loadTemplate(){
+  return lesen('vorlage',()=>api(`/api/inspection-templates/${templateId}`),d=>{
+    template=d;
+    document.getElementById('versionBadge').textContent=template.version;
+  });
+}
+
 async function saveItem(itemId){
   const st=document.getElementById('itemStatus');
   const row=document.querySelector(`tr[data-item-id="${itemId}"]`);
   const payload=readItemForm(row);
   if(!payload.text){st.className='status err';st.textContent='Bitte einen Prüftext angeben.';return}
   try{
-    await api(`/api/inspection-template-items/${itemId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    template=await api(`/api/inspection-templates/${templateId}`);
-    document.getElementById('versionBadge').textContent=template.version;
+    await speichern('vorlage',()=>api(`/api/inspection-template-items/${itemId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:loadTemplate});
     st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -207,11 +214,9 @@ async function saveItem(itemId){
 async function addItem(){
   const st=document.getElementById('itemStatus');
   try{
-    await api(`/api/inspection-templates/${templateId}/items`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    await speichern('vorlage',()=>api(`/api/inspection-templates/${templateId}/items`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       text:'Neuer Prüfpunkt',item_type:'ja_nein',group_name:null,required:false,sort_order:100,
-    })});
-    template=await api(`/api/inspection-templates/${templateId}`);
-    document.getElementById('versionBadge').textContent=template.version;
+    })}),{neuLaden:loadTemplate});
     renderItems();
     st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
@@ -221,9 +226,7 @@ async function deleteItem(itemId){
   if(!confirm('Diesen Prüfpunkt wirklich löschen?'))return;
   const st=document.getElementById('itemStatus');
   try{
-    await api(`/api/inspection-template-items/${itemId}`,{method:'DELETE'});
-    template=await api(`/api/inspection-templates/${templateId}`);
-    document.getElementById('versionBadge').textContent=template.version;
+    await speichern('vorlage',()=>api(`/api/inspection-template-items/${itemId}`,{method:'DELETE'}),{neuLaden:loadTemplate});
     renderItems();
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }

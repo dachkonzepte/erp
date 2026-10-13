@@ -185,6 +185,7 @@ tr:last-child td{border-bottom:none}
 </main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
@@ -284,8 +285,9 @@ async function createSupplierInline(){
     city:document.getElementById('nsCity').value.trim()||null,
     email:document.getElementById('nsEmail').value.trim()||null,
   };
+  const body=JSON.stringify(payload);
   try{
-    const created=await api('/api/suppliers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const created=await speichern('lieferanten',()=>api('/api/suppliers',{method:'POST',headers:{'Content-Type':'application/json'},body}));
     suppliers.push(created);
     document.getElementById('editSupplier').innerHTML=supplierOptionsHtml(created.id);
     document.getElementById('filterSupplier').innerHTML='<option value="">Alle</option>'+supplierOptionsHtml(null).replace('<option value="">— bitte wählen —</option>','');
@@ -384,11 +386,11 @@ async function uploadDocument(){
   const file=document.getElementById('docFile').files[0];
   if(!file){st.className='status err';st.textContent='Bitte eine Datei wählen.';return}
   const form=new FormData();form.append('file',file);
+  const id=currentEditId;
   try{
-    const updated=await fetch(`/api/incoming-invoices/${currentEditId}/document`,{method:'POST',body:form}).then(async r=>{
-      if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
-      return r.json();
-    });
+    const r=await speichern('eingangsrechnungen',()=>fetch(`/api/incoming-invoices/${id}/document`,{method:'POST',body:form}));
+    if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
+    const updated=await r.json();
     document.getElementById('docFile').value='';
     st.textContent='';
     renderDocumentSection(updated);
@@ -398,8 +400,9 @@ async function uploadDocument(){
 
 async function removeDocument(){
   if(!currentEditId||!confirm('Beleg wirklich entfernen?'))return;
+  const id=currentEditId;
   try{
-    const updated=await api(`/api/incoming-invoices/${currentEditId}/document`,{method:'DELETE'});
+    const updated=await speichern('eingangsrechnungen',()=>api(`/api/incoming-invoices/${id}/document`,{method:'DELETE'}));
     renderDocumentSection(updated);
     await loadAll();
   }catch(e){document.getElementById('docStatus').className='status err';document.getElementById('docStatus').textContent='Fehler: '+e.message}
@@ -508,12 +511,13 @@ async function saveInvoice(){
   // serverseitig der Positions-Summenabgleich), wird der Upload weiter unten nie erreicht --
   // pendingInvoiceDocument bleibt dabei unangetastet, keine Datei geht verloren.
   const docToUpload=currentEditId?null:pendingInvoiceDocument;
+  const body=JSON.stringify(payload),editId=currentEditId;
   try{
     let saved;
-    if(currentEditId){
-      saved=await api(`/api/incoming-invoices/${currentEditId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(editId){
+      saved=await speichern('eingangsrechnungen',()=>api(`/api/incoming-invoices/${editId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}));
     }else{
-      saved=await api('/api/incoming-invoices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      saved=await speichern('eingangsrechnungen',()=>api('/api/incoming-invoices',{method:'POST',headers:{'Content-Type':'application/json'},body}));
     }
     // Rechnung ist jetzt gespeichert -- ein danach fehlschlagender Upload macht das nicht
     // rückgängig. openEditEditor() gleich unten zeigt denselben Bereich "Beleg" (bereits für den
@@ -524,7 +528,7 @@ async function saveInvoice(){
     if(docToUpload){
       const form=new FormData();form.append('file',docToUpload);
       try{
-        const r=await fetch(`/api/incoming-invoices/${saved.id}/document`,{method:'POST',body:form});
+        const r=await speichern('eingangsrechnungen',()=>fetch(`/api/incoming-invoices/${saved.id}/document`,{method:'POST',body:form}));
         if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);
       }catch(e){uploadErrorMsg=`Beleg "${docToUpload.name}" konnte nicht hochgeladen werden: ${e.message}`}
       clearPendingInvoiceDocument();
@@ -552,8 +556,9 @@ async function markPaidNow(id){
     account_id:inv.account_id,notes:inv.notes,
     items:(inv.items||[]).map(i=>({description:i.description,net_amount:i.net_amount,tax_rate_pct:i.tax_rate_pct,account_id:i.account_id})),
   };
+  const body=JSON.stringify(payload);
   try{
-    await api(`/api/incoming-invoices/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    await speichern('eingangsrechnungen',()=>api(`/api/incoming-invoices/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}));
     await loadAll();
   }catch(e){document.getElementById('listStatus').className='status err';document.getElementById('listStatus').textContent='Fehler: '+e.message}
 }
@@ -561,7 +566,7 @@ async function markPaidNow(id){
 async function deleteInvoiceNow(id){
   if(!confirm('Diese Eingangsrechnung wirklich löschen?'))return;
   try{
-    await api(`/api/incoming-invoices/${id}`,{method:'DELETE'});
+    await speichern('eingangsrechnungen',()=>api(`/api/incoming-invoices/${id}`,{method:'DELETE'}));
     await loadAll();
   }catch(e){document.getElementById('listStatus').className='status err';document.getElementById('listStatus').textContent='Fehler: '+e.message}
 }
@@ -609,12 +614,13 @@ function skontoRow(inv){
 async function renderSummary(){
   const container=document.getElementById('skontoOverview');
   try{
-    const summary=await api('/api/incoming-invoices/open-liabilities');
-    document.getElementById('mOpenTotal').textContent=fmtMoney(summary.open_gross_total);
-    document.getElementById('mOpenCount').textContent=summary.open_count;
-    document.getElementById('mOverdueCount').textContent=summary.overdue_count;
-    if(!summary.skonto_due.length){container.innerHTML='<div class="empty">Keine ablaufenden oder verpassten Skontofristen.</div>';return}
-    container.innerHTML=`<div class="table-scroll"><table><thead><tr><th>Lieferant</th><th>Skontofrist</th><th>Skonto</th><th>Status</th></tr></thead><tbody>${summary.skonto_due.map(skontoRow).join('')}</tbody></table></div>`;
+    await lesen('offene-posten',()=>api('/api/incoming-invoices/open-liabilities'),summary=>{
+      document.getElementById('mOpenTotal').textContent=fmtMoney(summary.open_gross_total);
+      document.getElementById('mOpenCount').textContent=summary.open_count;
+      document.getElementById('mOverdueCount').textContent=summary.overdue_count;
+      if(!summary.skonto_due.length){container.innerHTML='<div class="empty">Keine ablaufenden oder verpassten Skontofristen.</div>';return}
+      container.innerHTML=`<div class="table-scroll"><table><thead><tr><th>Lieferant</th><th>Skontofrist</th><th>Skonto</th><th>Status</th></tr></thead><tbody>${summary.skonto_due.map(skontoRow).join('')}</tbody></table></div>`;
+    });
   }catch(e){container.innerHTML='<div class="empty">Fehler: '+esc(e.message)+'</div>'}
 }
 
@@ -639,8 +645,9 @@ async function loadAll(){
   if(dateFrom)params.set('date_from',dateFrom);
   if(dateTo)params.set('date_to',dateTo);
   try{
-    invoices=await api('/api/incoming-invoices?'+params.toString());
-    renderRows();
+    // Seit 1.8.95 über lesen() (_speichern.html), ebenso renderSummary(): eine spät ankommende, ältere Antwort (Filter, Neuladen
+    // nach dem Speichern) überschreibt nie eine neuere.
+    await lesen('eingangsrechnungen',()=>api('/api/incoming-invoices?'+params.toString()),d=>{invoices=d;renderRows()});
     st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
   await renderSummary();
@@ -662,7 +669,7 @@ async function init(){
   ]);
   suppliers=supplierList;projects=projectList;assets=assetList;recurringCosts=recurringCostList;accounts=accountList;
   document.getElementById('filterSupplier').innerHTML='<option value="">Alle</option>'+suppliers.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
-  await api('/api/incoming-invoices/check-due',{method:'POST'}).catch(()=>null);
+  await speichern('eingangsrechnungen',()=>api('/api/incoming-invoices/check-due',{method:'POST'})).catch(()=>null);
   await loadAll();
 }
 init();
