@@ -246,29 +246,40 @@ function currentRoofTypeSelection(){
   return document.getElementById('editRoofType').value||null;
 }
 
+// Seit 1.8.97 über lesen() (_speichern.html), Bereich 'schichten' wie das Speichern einer Schicht: wechselt der Dachtyp schnell
+// hintereinander (auch auf "keine Auswahl"), zeichnet die späte Antwort eines vorher gewählten Dachtyps nie über den zuletzt gewählten
+// (Nebenbefund 5 aus 1.8.95), und das Laden wartet auf ein laufendes Speichern einer Schicht.
 async function loadLayers(){
   const roofType=currentRoofTypeSelection();
   const hint=document.getElementById('layerTypeHint');
   if(!roofType){
-    hint.classList.remove('hidden');
-    hint.textContent='Bitte zuerst oben einen Dachtyp wählen.';
-    document.getElementById('layerRows').innerHTML='';
-    document.getElementById('layerMismatchSection').classList.add('hidden');
+    await lesen('schichten',async()=>null,()=>{
+      hint.classList.remove('hidden');
+      hint.textContent='Bitte zuerst oben einen Dachtyp wählen.';
+      document.getElementById('layerRows').innerHTML='';
+      document.getElementById('layerMismatchSection').classList.add('hidden');
+    });
     return;
   }
-  hint.classList.add('hidden');
-  const [types,layers]=await Promise.all([
-    api(`/api/roof-layer-types?roof_type=${encodeURIComponent(roofType)}&include_inactive=true`),
-    api(`/api/roof-areas/${roofAreaId}/layers`),
-  ]);
-  // Seit 1.8.31: ein inaktiver Schichttyp erscheint, wenn die Dachfläche eine Schicht dazu hat (gekennzeichnet),
-  // neu angeboten werden nur aktive. Bis 1.8.30 fehlten inaktive ganz; ihre vorhandene Schicht landete unter
-  // "Passt nicht zum aktuellen Dachtyp".
-  layerTypesForRoofType=auswahlEintraege(types,layers.map(l=>l.layer_type_id));
-  existingLayers=layers;
-  const groupKeys=[...new Set([...layerTypesForRoofType.map(t=>t.option_group),...layers.map(l=>l.layer_type_option_group)].filter(Boolean))];
-  await Promise.all(groupKeys.map(async k=>{layerOptionGroupsCache[k]=await safeOptionGroup(k)}));
-  renderLayerRows();
+  await lesen('schichten',async()=>{
+    const [types,layers]=await Promise.all([
+      api(`/api/roof-layer-types?roof_type=${encodeURIComponent(roofType)}&include_inactive=true`),
+      api(`/api/roof-areas/${roofAreaId}/layers`),
+    ]);
+    // Seit 1.8.31: ein inaktiver Schichttyp erscheint, wenn die Dachfläche eine Schicht dazu hat (gekennzeichnet),
+    // neu angeboten werden nur aktive. Bis 1.8.30 fehlten inaktive ganz; ihre vorhandene Schicht landete unter
+    // "Passt nicht zum aktuellen Dachtyp".
+    const typen=auswahlEintraege(types,layers.map(l=>l.layer_type_id)),gruppen={};
+    const groupKeys=[...new Set([...typen.map(t=>t.option_group),...layers.map(l=>l.layer_type_option_group)].filter(Boolean))];
+    await Promise.all(groupKeys.map(async k=>{gruppen[k]=await safeOptionGroup(k)}));
+    return {typen,layers,gruppen};
+  },({typen,layers,gruppen})=>{
+    hint.classList.add('hidden');
+    layerTypesForRoofType=typen;
+    existingLayers=layers;
+    Object.assign(layerOptionGroupsCache,gruppen);
+    renderLayerRows();
+  });
 }
 
 function findOrCreateLayerEntry(typeId,typeMeta){
@@ -694,23 +705,27 @@ async function loadAcceptanceWarranties(){
 async function init(){
   findingsModuleEnabled=await isModuleEnabled('wartungen');
   document.getElementById('findingsColHead').classList.toggle('hidden',!findingsModuleEnabled);
-  const [rt,cv,ct,un]=await Promise.all([
-    safeOptionGroup('roof_types'), safeOptionGroup('roof_coverings'),
-    api('/api/roof-component-types?include_inactive=true').catch(()=>[]), safeOptionGroup('units'),
-  ]);
-  roofTypes=rt.options||[];coverings=cv.options||[];
-  // Bauteilarten sind seit 1.2.19 eine echte Tabelle (RoofComponentType), keine SettingOptionGroup
-  // mehr -- auf die von optionsHtml() erwartete {value,label,active}-Form abgebildet, key bleibt
-  // dabei textidentisch zum bisherigen Options-Wert (siehe RoofComponentType-Docstring).
-  componentTypes=ct.map(t=>({value:t.key,label:t.label,active:t.active,is_area:!!t.is_area}));
-  units=un.options||[];
+  // Seit 1.8.97 über lesen() (_speichern.html), Bereich 'dachflaeche' wie das Speichern des Formulars: das erste Laden wartet auf ein
+  // laufendes Speichern und zeichnet nie über eine neuere Antwort.
   try{
-    area=await api(`/api/roof-areas/${roofAreaId}`);
+    await lesen('dachflaeche',()=>Promise.all([
+      safeOptionGroup('roof_types'), safeOptionGroup('roof_coverings'),
+      api('/api/roof-component-types?include_inactive=true').catch(()=>[]), safeOptionGroup('units'),
+      api(`/api/roof-areas/${roofAreaId}`),
+    ]),([rt,cv,ct,un,a])=>{
+      roofTypes=rt.options||[];coverings=cv.options||[];
+      // Bauteilarten sind seit 1.2.19 eine echte Tabelle (RoofComponentType), keine SettingOptionGroup
+      // mehr -- auf die von optionsHtml() erwartete {value,label,active}-Form abgebildet, key bleibt
+      // dabei textidentisch zum bisherigen Options-Wert (siehe RoofComponentType-Docstring).
+      componentTypes=ct.map(t=>({value:t.key,label:t.label,active:t.active,is_area:!!t.is_area}));
+      units=un.options||[];
+      area=a;
+      renderBreadcrumb();renderHeader();fillAreaForm();
+    });
   }catch(e){
     document.getElementById('breadcrumb').textContent='Fehler: '+e.message;
     return;
   }
-  renderBreadcrumb();renderHeader();fillAreaForm();
   await loadAcceptanceWarranties();
   await loadComponents();
   await loadLayers();

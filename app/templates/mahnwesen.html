@@ -334,8 +334,8 @@ async function saveReminderEdit(){
 }
 
 async function init(){
-  const levels=await api('/api/reminder-levels');
-  levels.forEach(l=>levelLabels[l.level]=l.label);
+  // Seit 1.8.97 über lesen() (_speichern.html), eigener Bereich 'mahnstufen' (die Seite speichert keine Mahnstufen).
+  await lesen('mahnstufen',()=>api('/api/reminder-levels'),levels=>{levels.forEach(l=>levelLabels[l.level]=l.label)});
   // Seit 1.8.79 (Z2a Nr. 1) legt das Öffnen keine Entwürfe mehr an -- nur lesen.
   await reload();
 }

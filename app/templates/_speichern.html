@@ -14,7 +14,10 @@
 
    lesen(bereich, anfrage, anwenden) -> true, wenn angewandt; false, wenn veraltet (verworfen)
      anfrage(): startet die Anfrage(n) -- auch mehrere über Promise.all -- und gibt deren Ergebnis zurück. anwenden(daten) übernimmt
-     es (Zustand setzen, zeichnen) und läuft nur, wenn es nicht veraltet ist. Ein Fehler der Anfrage geht an den Aufrufer.
+     es (Zustand setzen, zeichnen) und läuft nur, wenn es nicht veraltet ist. Ein Fehler der Anfrage geht an den Aufrufer -- seit
+     1.8.97 nur, wenn er nicht veraltet ist (sonst false wie bei einer veralteten Antwort); nach einem Fehler des neuesten Lesens wird
+     ein älteres, das danach ankommt, verworfen. Seit 1.8.97 geht jede Anfrage einer Seite über lesen()/speichern()/abschliessen(),
+     auch das erste Laden (tests/test_v400_lesen_ueber_baustein.py, Ausnahmen nur ohne Formular).
    speichern(bereich, anfrage, {anwenden, neuLaden}) -> Antwort des Speicherns
      anfrage(): genau ein schreibender Aufruf, ()=>api(…) bzw. ()=>fetch(…), sonst nichts (tests/test_v398_speichern_baustein.py);
        speichern() ruft ihn sofort auf, der Aufruf muss fetch() sofort erreichen (api() tut das als erste Anweisung).
@@ -36,6 +39,9 @@
    wartende und neue Speichervorgänge dieses Bereichs gehen nicht mehr hinaus (sie enden mit demselben Hinweis), bis die Seite neu
    geladen ist. Solange ein Speichern läuft oder wartet, warnt der Browser beim Verlassen der Seite.
 
+   Doppelklick (seit 1.8.97): dieselbe Anfrage (Methode, Adresse und Body als Text gleich) noch einmal, während die erste im Bereich
+   wartet oder unterwegs ist, geht nicht ein zweites Mal hinaus und zählt nicht als wartend -- sie bekommt das Ergebnis der ersten.
+
    Der Baustein darf in einer Seite mehrfach eingebunden sein (Seite und Teilvorlage): der Stand hängt an window, und es gibt hier
    deshalb keine class/const/let auf oberster Ebene. */
 window.__dkBereiche = window.__dkBereiche || new Map();
@@ -52,7 +58,7 @@ if (!window.__dkVerlassen && typeof window.addEventListener === 'function') {
 }
 function _dkBereich(name) {
   let b = window.__dkBereiche.get(name);
-  if (!b) { b = {nummer: 0, angewandt: 0, offen: 0, letztes: Promise.resolve(), unklar: false}; window.__dkBereiche.set(name, b); }
+  if (!b) { b = {nummer: 0, angewandt: 0, offen: 0, letztes: Promise.resolve(), unklar: false, unterwegs: new Map()}; window.__dkBereiche.set(name, b); }
   return b;
 }
 function _dkNeuer(b, nr) {
@@ -111,7 +117,15 @@ async function lesen(bereich, anfrage, anwenden) {
   const b = _dkBereich(bereich);
   while (b.offen) await b.letztes;
   const nr = ++b.nummer;
-  const daten = await anfrage();
+  let daten;
+  try {
+    daten = await anfrage();
+  } catch (e) {
+    // Seit 1.8.97: ein veralteter Fehler wird verworfen wie ein veralteter Erfolg (false, keine Meldung); ein Fehler des neuesten
+    // Lesens zählt wie eine angewandte Antwort -- ein älteres Lesen, das danach ankommt, wird verworfen (Lesen gegen Lesen).
+    if (!_dkNeuer(b, nr)) return false;
+    throw e;
+  }
   if (!_dkNeuer(b, nr)) return false;
   if (anwenden) await anwenden(daten);
   return true;
@@ -137,19 +151,21 @@ function abschliessen(bereich, anfrage, optionen = {}) {
     }
   });
 }
-async function _dkSpeichern(bereich, anfrage, optionen, voraussetzung) {
-  const b = _dkBereich(bereich), vorher = b.letztes;
-  let fertig, melden;
-  b.letztes = new Promise(r => { fertig = r; });
-  b.offen++;
-  const eintrag = {bereich, ergebnis: new Promise(r => { melden = r; })};
-  window.__dkSpeichern.add(eintrag);
+function _dkSchluessel(ziel, angaben) {
+  // Gleiche Anfrage = gleiche Methode, Adresse und Body als Text; ein anderer Body (FormData, Datei) ist nie gleich.
+  const body = angaben && angaben.body;
+  if (body != null && typeof body !== 'string') return null;
+  const url = typeof ziel === 'string' ? ziel : (ziel && ziel.url) || String(ziel);
+  return String((angaben && angaben.method) || 'GET').toUpperCase() + ' ' + url + ' ' + (body || '');
+}
+function _dkSpeichern(bereich, anfrage, optionen, voraussetzung) {
+  const b = _dkBereich(bereich);
   // Die Anfrage wird JETZT gebaut -- URL und Body samt der Werte aus dem Formular, wie sie beim Klick stehen --, hinaus geht sie
   // erst, wenn das vorige Speichern des Bereichs zurück ist: fetch() ist während des Aufrufs von anfrage() durch eine Fassung
   // ersetzt, die bis zur Freigabe wartet. Sonst läse eine wartende Anfrage ein Formular, das die Antwort des vorigen Speicherns
   // inzwischen neu gezeichnet hat, und schickte still den alten Stand. Dieselbe Fassung gibt jeder Anfrage ein Abbruchsignal für
   // das Zeitlimit mit.
-  let senden, nichtSenden, gebaut = 0;
+  let senden, nichtSenden, gebaut = 0, schluessel = null;
   const freigabe = new Promise((ja, nein) => { senden = ja; nichtSenden = nein; });
   freigabe.catch(() => {});
   const kontrollen = [];
@@ -158,6 +174,7 @@ async function _dkSpeichern(bereich, anfrage, optionen, voraussetzung) {
   try {
     window.fetch = function (input, init) {
       gebaut++;
+      schluessel = gebaut === 1 ? _dkSchluessel(input, init) : null;
       if (typeof AbortController === 'function' && !(init && init.signal)) {
         const k = new AbortController();
         kontrollen.push(k);
@@ -172,6 +189,27 @@ async function _dkSpeichern(bereich, anfrage, optionen, voraussetzung) {
     laufend = Promise.reject(e);
   }
   laufend.catch(() => {});  // der Fehler kommt unten an; bis dahin nicht als unbehandelt melden
+  // Seit 1.8.97: dieselbe Anfrage noch einmal (Doppelklick), während die erste im Bereich wartet oder unterwegs ist, geht nicht ein
+  // zweites Mal hinaus und wartet nicht -- sie bekommt das Ergebnis der ersten (eine fetch-Antwort als eigene Kopie). Sonst hielte
+  // nach "Anmelden" oder "… erstellen" die eingereihte zweite die Weiterleitung mit der Warnung beim Verlassen auf, und eine Aktion
+  // liefe zweimal.
+  const erste = schluessel === null ? null : b.unterwegs.get(schluessel);
+  if (erste) {
+    nichtSenden(_dkFehler('doppelt', 'doppelt'));
+    return erste.versprechen.then(d => (erste.kopie && typeof Response !== 'undefined' && d instanceof Response) ? erste.kopie.clone() : d);
+  }
+  const eintrag = {bereich, schluessel};
+  eintrag.versprechen = _dkSenden(b, eintrag, laufend, kontrollen, senden, nichtSenden, optionen, voraussetzung);
+  return eintrag.versprechen;
+}
+async function _dkSenden(b, eintrag, laufend, kontrollen, senden, nichtSenden, optionen, voraussetzung) {
+  const vorher = b.letztes;
+  let fertig, melden;
+  b.letztes = new Promise(r => { fertig = r; });
+  b.offen++;
+  eintrag.ergebnis = new Promise(r => { melden = r; });
+  window.__dkSpeichern.add(eintrag);
+  if (eintrag.schluessel !== null) b.unterwegs.set(eintrag.schluessel, eintrag);
   let daten, nr, ergebnis = {ok: false, fehler: ''};
   try {
     await vorher;
@@ -180,7 +218,9 @@ async function _dkSpeichern(bereich, anfrage, optionen, voraussetzung) {
     nr = ++b.nummer;
     senden();
     daten = await _dkMitZeitlimit(laufend, kontrollen, b);
-    const fehlstatus = typeof Response !== 'undefined' && daten instanceof Response && !daten.ok;
+    const istAntwort = typeof Response !== 'undefined' && daten instanceof Response;
+    if (istAntwort) eintrag.kopie = daten.clone();  // für eine gleiche zweite Anfrage, bevor der Aufrufer den Body liest
+    const fehlstatus = istAntwort && !daten.ok;
     ergebnis = {ok: !fehlstatus, fehler: fehlstatus ? `Status ${daten.status}` : ''};
   } catch (e) {
     nichtSenden(e);  // noch nicht gesendet (Voraussetzung, unklarer Bereich): die gebaute Anfrage geht nie hinaus
@@ -189,6 +229,7 @@ async function _dkSpeichern(bereich, anfrage, optionen, voraussetzung) {
   } finally {
     b.offen--;
     window.__dkSpeichern.delete(eintrag);
+    if (eintrag.schluessel !== null && b.unterwegs.get(eintrag.schluessel) === eintrag) b.unterwegs.delete(eintrag.schluessel);
     melden(ergebnis);
     fertig();
   }

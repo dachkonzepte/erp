@@ -58,7 +58,9 @@ if(!window.renderChecklistSection){
     };
     var get=function(url){return fetch(url).then(function(r){if(!r.ok)return r.json().catch(function(){return null}).then(function(d){throw new Error(errText(d,r.status))});return r.json()})};
     el.innerHTML='<div class="cl-empty">Lädt …</div>';
-    Promise.all([get(listUrl),get('/api/checklists/startable-templates?context='+encodeURIComponent(context))]).then(function(res){
+    // Seit 1.8.97 über lesen() (_speichern.html), Bereich je Container: eine späte Antwort eines früheren Aufrufs für denselben
+    // Container überschreibt nie eine neuere (veraltet -> nichts gezeichnet, auch kein Fehler).
+    lesen('checklisten-abschnitt-'+containerId,()=>Promise.all([get(listUrl),get('/api/checklists/startable-templates?context='+encodeURIComponent(context))]),function(res){
       var rows=res[0],templates=res[1];
       var html='';
       var startButton=function(t){return '<button type="button" data-template-id="'+t.id+'" title="'+esc(t.description||'')+'">'+esc(t.label)+'</button>'};

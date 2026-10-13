@@ -232,22 +232,22 @@ async function deleteItem(itemId){
 }
 
 async function init(){
-  authStatus=await api('/api/auth/status').catch(()=>({authenticated:false,user:null}));
+  // Seit 1.8.97 über lesen() (_speichern.html), weiter nacheinander: Anmeldestatus und Auswahllisten in eigenen Bereichen, die
+  // Vorlage im Bereich 'vorlage' wie jedes Speichern an ihr -- das erste Laden wartet auf ein laufendes Speichern.
+  await lesen('anmeldestatus',()=>api('/api/auth/status').catch(()=>({authenticated:false,user:null})),d=>{authStatus=d});
   if(!authStatus.authenticated){
     document.getElementById('metaStatus').className='status err';
     document.getElementById('metaStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
     return;
   }
-  const roofTypeGroup=await api('/api/settings/option-groups/roof_types').catch(()=>({options:[]}));
-  roofTypes=roofTypeGroup.options||[];
-  // Bauteilarten sind seit 1.2.19 eine echte Tabelle (RoofComponentType), keine SettingOptionGroup
-  // mehr -- key bleibt textidentisch zum bisherigen Options-Wert, deshalb hier nur auf die von
-  // componentTypeOptionsHtml() erwartete {value,label}-Form abgebildet.
-  const componentTypeRows=await api('/api/roof-component-types?include_inactive=true').catch(()=>[]);
-  componentTypes=componentTypeRows.map(t=>({value:t.key,label:t.label,active:t.active}));
-  template=await api(`/api/inspection-templates/${templateId}`);
-  fillMetaForm();
-  renderItems();
+  await lesen('auswahl',async()=>[await api('/api/settings/option-groups/roof_types').catch(()=>({options:[]})),await api('/api/roof-component-types?include_inactive=true').catch(()=>[])],([roofTypeGroup,componentTypeRows])=>{
+    roofTypes=roofTypeGroup.options||[];
+    // Bauteilarten sind seit 1.2.19 eine echte Tabelle (RoofComponentType), keine SettingOptionGroup
+    // mehr -- key bleibt textidentisch zum bisherigen Options-Wert, deshalb hier nur auf die von
+    // componentTypeOptionsHtml() erwartete {value,label}-Form abgebildet.
+    componentTypes=componentTypeRows.map(t=>({value:t.key,label:t.label,active:t.active}));
+  });
+  await lesen('vorlage',()=>api(`/api/inspection-templates/${templateId}`),d=>{template=d;fillMetaForm();renderItems()});
 }
 init();
 </script>

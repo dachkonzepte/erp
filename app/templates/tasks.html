@@ -139,11 +139,14 @@ function findTask(id){return tasks.find(x=>x.id===id)||unassignedTasks.find(x=>x
 
 function isOverdue(t){return t.due_date&&!t.status_is_done&&String(t.due_date).slice(0,10)<berlinToday()}
 
+// Seit 1.8.97 über lesen() (_speichern.html): die Spalten füllen Board und Status-Auswahl des Editors.
 async function loadColumns(){
-  columns=await api('/api/task-columns');
+  await lesen('spalten',()=>api('/api/task-columns'),d=>{
+  columns=d;
   document.getElementById('board').style.gridTemplateColumns=`repeat(${columns.length||1},minmax(0,1fr))`;
   document.getElementById('board').innerHTML=columns.map(c=>`<div class="column"><div class="column-head"><span>${esc(c.label)}</span><span class="count" id="count-${esc(c.key)}">0</span></div><div id="col-${esc(c.key)}"></div></div>`).join('');
   document.getElementById('editStatus').innerHTML=columns.map(c=>`<option value="${esc(c.key)}">${esc(c.label)}</option>`).join('');
+  });
 }
 
 async function loadFilters(){
@@ -412,14 +415,16 @@ async function toggleArchiveTask(){
   }catch(e){document.getElementById('editorStatus').textContent='Fehler: '+e.message}
 }
 
+// Seit 1.8.97 lädt init() über lesen() (_speichern.html): Anmeldestatus und Stammdaten (Mitarbeiter, Projekte für Filter und
+// Editor) je in einem eigenen Bereich.
 async function init(){
-  authStatus=await api('/api/auth/status').catch(()=>({authenticated:false,user:null}));
-  if(!authStatus.authenticated){
+  await lesen('anmeldung',()=>api('/api/auth/status').catch(()=>({authenticated:false,user:null})),d=>{authStatus=d});
+  if(!authStatus?.authenticated){
     document.getElementById('loadStatus').className='status err';
     document.getElementById('loadStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
     return;
   }
-  [employees,projects]=await Promise.all([api('/api/employees').catch(()=>[]),api('/api/projects?include_archived=true').catch(()=>[])]);
+  await lesen('stammdaten',()=>Promise.all([api('/api/employees').catch(()=>[]),api('/api/projects?include_archived=true').catch(()=>[])]),d=>{[employees,projects]=d});
   await loadColumns();
   await loadFilters();
   await loadTasks();

@@ -189,7 +189,8 @@ function periodLabelText(){
   return `${s.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})} – ${e.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
 }
 
-async function loadOwners(){owners=await api('/api/calendar-events/owners')}
+// Seit 1.8.97 über lesen() (_speichern.html): die Besitzer füllen die Auswahl im Termin-Dialog.
+async function loadOwners(){await lesen('besitzer',()=>api('/api/calendar-events/owners'),d=>{owners=d})}
 
 // Seit 1.8.95 über lesen() (_speichern.html): eine spät ankommende, ältere Terminliste (z. B. nach schnellem Blättern oder
 // nach dem Outlook-Abgleich) überschreibt nie eine neuere.
@@ -337,17 +338,20 @@ function showLinkTag(){
 }
 function clearLink(){selectedLink=null;document.getElementById('eLinkSearch').value='';showLinkTag()}
 
+// Seit 1.8.97 über lesen() (_speichern.html): die Vorschläge füllen die Verknüpfung im Termin-Dialog -- eine spät ankommende
+// Antwort zu einem älteren Suchtext überschreibt nie die neuere.
 const debouncedLinkSearch=debounce(async()=>{
   const q=document.getElementById('eLinkSearch').value.trim();
   const box=document.getElementById('eLinkSuggestBox');
   if(q.length<2){box.style.display='none';return}
   try{
-    const groups=await api('/api/search?q='+encodeURIComponent(q)+'&types=projects,quotes&limit=8');
+    await lesen('verknuepfung-suche',()=>api('/api/search?q='+encodeURIComponent(q)+'&types=projects,quotes&limit=8'),groups=>{
     const hits=[];
     groups.forEach(g=>g.hits.forEach(h=>hits.push({type:g.key==='quotes'?'quote':'project',id:h.id,label:h.title})));
     if(!hits.length){box.style.display='none';return}
     box.innerHTML=hits.map(h=>`<div class="suggest-item" onclick='pickLink(${JSON.stringify(h).replace(/'/g,"&#39;")})'>${h.type==='quote'?'Angebot':'Projekt'}: ${esc(h.label)}</div>`).join('');
     box.style.display='block';
+    });
   }catch(e){box.style.display='none'}
 },300);
 

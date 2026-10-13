@@ -1362,9 +1362,11 @@ async function saveReportTimeEntry(){
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
+// Seit 1.8.97 lädt init() über lesen() (_speichern.html): Anmeldestatus, Auftrag, Objekt und Stammdaten (sie füllen die
+// Formulare für Bericht und Zeitbuchung) je in einem eigenen Bereich, in derselben Reihenfolge wie bisher.
 async function init(){
-  authStatus=await api('/api/auth/status').catch(()=>({authenticated:false,user:null}));
-  if(!authStatus.authenticated){
+  await lesen('anmeldung',()=>api('/api/auth/status').catch(()=>({authenticated:false,user:null})),d=>{authStatus=d});
+  if(!authStatus?.authenticated){
     document.getElementById('listStatus').className='status err';
     document.getElementById('listStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
     return;
@@ -1373,7 +1375,7 @@ async function init(){
   const orderLinkEl=document.getElementById('orderLink');
   if(orderLinkEl)orderLinkEl.href='/orders/'+orderId;
   document.getElementById('timeLink').href='/time-tracking?order_id='+orderId;
-  api(`/api/orders/${orderId}`).then(o=>{
+  lesen('auftrag',()=>api(`/api/orders/${orderId}`),o=>{
     orderData=o;
     document.getElementById('orderContext').textContent=`${o.order_number} · ${o.customer_name}`;
     const customerLink=o.customer_id&&darfBueroSeiten?`<a href="/customers/${o.customer_id}">${esc(o.customer_name)}</a>`:esc(o.customer_name);
@@ -1381,14 +1383,14 @@ async function init(){
     document.getElementById('breadcrumb').innerHTML=[customerLink,orderLink,'Einsatzberichte'].join(' · ');
     refreshTimeEntryOrderItemOptions();
   }).catch(()=>{});
-  employees=await api('/api/employees').catch(()=>[]);
-  roofAreasForOrder=await api(`/api/orders/${orderId}/roof-areas`).catch(()=>[]);
-  renderPropertyCard(await api(`/api/orders/${orderId}/property`).catch(()=>null));
-  inspectionTemplates=await api('/api/inspection-templates').catch(()=>[]);
-  if(assetsModuleEnabled)selectableAssets=await api('/api/operational-assets/selectable-for-report').catch(()=>[]);
-  const [typesGroup,activitiesGroup]=await Promise.all([
+  await lesen('stammdaten',()=>api('/api/employees').catch(()=>[]),d=>{employees=d});
+  await lesen('stammdaten',()=>api(`/api/orders/${orderId}/roof-areas`).catch(()=>[]),d=>{roofAreasForOrder=d});
+  await lesen('objekt',()=>api(`/api/orders/${orderId}/property`).catch(()=>null),p=>renderPropertyCard(p));
+  await lesen('stammdaten',()=>api('/api/inspection-templates').catch(()=>[]),d=>{inspectionTemplates=d});
+  if(assetsModuleEnabled)await lesen('stammdaten',()=>api('/api/operational-assets/selectable-for-report').catch(()=>[]),d=>{selectableAssets=d});
+  await lesen('stammdaten',()=>Promise.all([
     safeOptionGroup('time_entry_types'), safeOptionGroup('time_entry_activities'),
-  ]);
+  ]),([typesGroup,activitiesGroup])=>{
   timeEntryTypes=typesGroup.options||[];
   timeEntryActivities=activitiesGroup.options||[];
   document.getElementById('teEmployee').innerHTML=employeeOptionsHtml(null);
@@ -1396,6 +1398,7 @@ async function init(){
   document.getElementById('teType').value='site';
   document.getElementById('teActivity').innerHTML=optionsHtml(timeEntryActivities,null);
   document.getElementById('teDate').value=berlinToday();
+  });
   await loadReports();
   // "Wartung durchführen" (Vertragsseite, seit 1.2.22) navigiert direkt hierher mit
   // ?report=<id> -- öffnet nur das Prüfpunkte-Panel dieses Berichts, die Dachflächen-Blöcke

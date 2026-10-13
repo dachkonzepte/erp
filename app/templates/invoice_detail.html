@@ -305,12 +305,15 @@ const cents=s=>Math.round(num(s)*100);
 const fmt=x=>Number(x||0).toFixed(2).replace('.',',');
 function todayBerlin(){return berlinToday()}
 let payLines=[],payPayments=[],payOpen=[];
+// Seit 1.8.97 über lesen() (_speichern.html), eigener Bereich des Dialogs 'zahlungsdialog': eine späte, ältere Antwort füllt ihn nicht.
 async function openPaymentDialog(){
   document.getElementById('pyStatus').textContent='';
-  try{[payPayments,payOpen]=await Promise.all([api(`/api/customers/${invoice.customer_id}/payments`).then(d=>d.payments.filter(p=>Number(p.rest)>0&&!p.reversed)),api(`/api/customers/${invoice.customer_id}/open-invoices`)])}catch(e){document.getElementById('paymentStatusMsg').textContent='Fehler: '+e.message;return}
-  document.getElementById('pySource').innerHTML='<option value="neu">Neuer Zahlungseingang</option>'+payPayments.map(p=>`<option value="${p.id}">Rest der Zahlung Nr. ${p.id} vom ${dateDe(p.received_on)}: ${money(p.rest)}</option>`).join('');
-  document.getElementById('pyDate').value=todayBerlin();document.getElementById('pyAmount').value=fmt(owedTotal());document.getElementById('pyNote').value='';
-  document.getElementById('paymentDialog').showModal();paySourceChanged();
+  try{await lesen('zahlungsdialog',()=>Promise.all([api(`/api/customers/${invoice.customer_id}/payments`).then(d=>d.payments.filter(p=>Number(p.rest)>0&&!p.reversed)),api(`/api/customers/${invoice.customer_id}/open-invoices`)]),d=>{
+    [payPayments,payOpen]=d;
+    document.getElementById('pySource').innerHTML='<option value="neu">Neuer Zahlungseingang</option>'+payPayments.map(p=>`<option value="${p.id}">Rest der Zahlung Nr. ${p.id} vom ${dateDe(p.received_on)}: ${money(p.rest)}</option>`).join('');
+    document.getElementById('pyDate').value=todayBerlin();document.getElementById('pyAmount').value=fmt(owedTotal());document.getElementById('pyNote').value='';
+    document.getElementById('paymentDialog').showModal();paySourceChanged();
+  })}catch(e){document.getElementById('paymentStatusMsg').textContent='Fehler: '+e.message}
 }
 function paySource(){const v=document.getElementById('pySource').value;return v==='neu'?null:payPayments.find(p=>String(p.id)===v)}
 // Seit 1.8.81: geschuldet = offener Betrag der Rechnung + offene Nebenforderungen.
@@ -476,6 +479,8 @@ function showDiscardStart(){document.getElementById('discardStart').style.displa
 async function discardStart(id){const reason=document.getElementById('discardStartReason').value.trim();const st=document.getElementById('chargesStatusMsg');if(!reason){st.textContent='Bitte eine Begründung angeben.';return}try{await abschliessen('nebenforderungen',()=>api(`/api/invoice-default-starts/${id}/discard`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{neuLaden:loadCharges});st.textContent='Verzugsbeginn verworfen.';loadAndRenderReminders()}catch(e){st.textContent='Fehler: '+e.message}}
 
 async function reload(){await lesen('rechnung',()=>api('/api/invoices/'+invoiceId),zeigeRechnung)}
-async function load(){[invoice,paymentTerms,introTemplates,outroTemplates,taxKeys]=await Promise.all([api('/api/invoices/'+invoiceId),api('/api/payment-terms'),api('/api/settings/option-groups/invoice_intro_texts').then(g=>g.options||[]).catch(()=>[]),api('/api/settings/option-groups/invoice_outro_texts').then(g=>g.options||[]).catch(()=>[]),api('/api/tax-keys?include_archived=true').catch(()=>[])]);render()}
+// Seit 1.8.97 über lesen() (_speichern.html), Bereich 'rechnung' wie reload() und das Speichern der Rechnung: das erste Laden wartet auf
+// ein laufendes Speichern, und eine späte Antwort überschreibt nie eine neuere.
+async function load(){await lesen('rechnung',()=>Promise.all([api('/api/invoices/'+invoiceId),api('/api/payment-terms'),api('/api/settings/option-groups/invoice_intro_texts').then(g=>g.options||[]).catch(()=>[]),api('/api/settings/option-groups/invoice_outro_texts').then(g=>g.options||[]).catch(()=>[]),api('/api/tax-keys?include_archived=true').catch(()=>[])]),d=>{[invoice,paymentTerms,introTemplates,outroTemplates,taxKeys]=d;render()})}
 load().catch(e=>document.querySelector('main').innerHTML='<div class="card">Fehler: '+esc(e.message)+'</div>');
 </script></body></html>

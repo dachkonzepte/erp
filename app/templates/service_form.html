@@ -151,11 +151,13 @@ function renderServiceType(selected) {
     {wert: x => x.value, aktiv: x => x.active, leer: '— nicht klassifiziert —'});
 }
 
+// Seit 1.8.97 über lesen() (_speichern.html): Kalkulationsvorgaben und Leistungsarten in einem eigenen Bereich, die Leistung
+// samt Kalkulation im Bereich 'leistung' wie ihr Speichern -- das erste Laden wartet auf ein laufendes Speichern.
 async function init() {
-  const [settings, serviceTypeGroup] = await Promise.all([
+  await lesen('einstellungen', () => Promise.all([
     api('/api/calculation-settings'),
     api('/api/settings/option-groups/service_types'),
-  ]);
+  ]), ([settings, serviceTypeGroup]) => {
   globalSettings = settings;
   serviceTypes = serviceTypeGroup.options;
   el('laborRateDefault').textContent = `(Standard: ${money(globalSettings.labor_rate)}/h)`;
@@ -163,12 +165,13 @@ async function init() {
   el('overheadDefault').textContent = `(Standard: ${globalSettings.overhead_pct}%)`;
   el('riskDefault').textContent = `(Standard: ${globalSettings.risk_profit_pct}%)`;
   renderServiceType(null);
+  });
 
   if (editing) {
-    const [service, calc] = await Promise.all([
+    await lesen('leistung', () => Promise.all([
       api(`/api/services/${serviceId}`),
       api(`/api/services/${serviceId}/calculation`),
-    ]);
+    ]), ([service, calc]) => {
     currentService = service;
     if (!isEditable(service)) {
       el('heading').textContent = `${service.external_id} · ${firstLine(service.short_text)}`;
@@ -203,11 +206,13 @@ async function init() {
     // service_type steht nicht im Kalkulations-Endpunkt, sondern direkt an der Leistung.
     renderServiceType(service.service_type);
     renderMaterialRows();
+    recalc();
+    });
   } else {
     el('heading').textContent = 'Leistung anlegen';
     el('help').textContent = 'Wird direkt im gewählten Katalog gespeichert.';
+    recalc();
   }
-  recalc();
 }
 
 function isEditable(service) {

@@ -127,7 +127,7 @@ async def _warten(tab, seed, p):
     await tab.warte_bis_gehalten(1, beantwortet=False)
     p.pruefe("Warten: Seite warnt beim Verlassen, solange das Speichern wartet", await tab.js(VERLASSEN), True)
     await _unterschreiben(tab, bericht)
-    await tab.warten("false", 1.0)  # Zeit, in der eine nicht wartende Seite die Unterschrift schon gesendet hätte
+    await tab.warten("false", 1.0, melden=False)  # Zeit, in der eine nicht wartende Seite die Unterschrift schon gesendet hätte
     p.pruefe("Warten: Unterschrift nicht gesendet, Bericht Entwurf", [await tab.js(_sign_gesendet(bericht)),
              await tab.js(_status(bericht, auftrag))], [0, "entwurf"])
     await tab.freigeben()
@@ -150,7 +150,7 @@ async def _scheitern(tab, seed, p):
     await _eintragen(tab, punkt, "Rinne voll Laub")
     await tab.warte_bis_gehalten(1, beantwortet=False)
     await _unterschreiben(tab, bericht)
-    await tab.warten("false", 0.6)
+    await tab.warten("false", 0.6, melden=False)
     # Jemand anderes löscht den Prüfpunkt (Testhandlung, direkt an der API vorbei am Baustein).
     p.pruefe("Scheitern: Prüfpunkt anderswo gelöscht", await tab.js(
         f"fetch('/api/inspection-items/{punkt}',{{method:'DELETE'}}).then(r=>r.status)"), 200)

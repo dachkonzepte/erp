@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.96** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.97** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -674,23 +674,27 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     auch wenn es viele sind; die ausführliche Fassung bleibt im Archiv. Was noch nicht bestätigt ist, bleibt so lange in dieser Form
     vorgelegt. Anlass: der Bericht zu R4c nannte nur eine Auswahl, die Festlegungen 1.8.87–1.8.90 mussten eigens angefordert werden.
 
-29. **Jedes Speichern per fetch läuft über den Baustein `app/templates/_speichern.html`, seit 1.8.95.** Schreibende Anfrage (Methode
-    ungleich GET, auch Löschen, Versand, Anmelden): `await speichern('<bereich>', ()=>api(url,{method:…}), {anwenden | neuLaden})` -- der
-    Pfeil enthält genau die eine Anfrage; `speichern()` baut sie sofort (Werte vom Klick), sendet je Bereich nacheinander und kehrt erst
-    zurück, wenn die Antwort angewandt bzw. über `lesen(bereich, anfrage, anwenden)` neu geladen ist. Bereich = was eine Antwort ersetzt;
-    alles gilt je Bereich: laufende Nummer, eine Antwort, die älter ist als eine schon angewandte, wird verworfen, Lesen wartet auf
-    laufendes Speichern desselben Bereichs, Speichern geht nacheinander. Erfolgstexte ("Gespeichert.") stehen hinter `await speichern(…)`.
-    Seit 1.8.96: ohne Antwort 60 s nach dem Senden bricht der Baustein ab, der Bereich ist "unklar" (Fehler und Hinweis oben "Seite neu
-    laden", bis dahin geht in diesem Bereich nichts mehr hinaus); solange ein Speichern läuft oder wartet, warnt die Seite beim Verlassen.
-    **Abschließende Aktionen** (Unterschrift, Festschreiben, Versand, Buchung, Storno, Abnahme, Mangel u. ä.) über
-    `abschliessen()` statt `speichern()`: gesendet erst, wenn jedes beim Klick laufende oder wartende Speichern der Seite zurück ist, gar
-    nicht, wenn eines davon scheiterte oder ein Bereich unklar ist; eine neue gehört in `ABSCHLIESSEND` (`tests/test_v399_abschliessen.py`,
-    prüft auch Adressen, die nach einer abschließenden Aktion klingen). `tests/test_v398_speichern_baustein.py` prüft jede
-    Vorlage über einen Scanner (`tests/vorlagen_js.py`): Schreiben nur über `speichern()`/`abschliessen()`, danach nur `lesen()`/`speichern()`
-    (transitiv über die Funktionen der Seite), "Gespeichert" nur danach, einbinden wer nutzt; dazu jedes Seitenskript in node auf Syntax.
-    Klicktests mit zurückgehaltener Antwort: `scripts/klicktest_veraltete_antworten.py` (`Tab.zurueckhalten()`),
-    `scripts/klicktest_abschliessen.py` (Prüfpunkt zurückhalten, dann unterschreiben; Zeitlimit über `window.__dkZeitlimit`). Details:
-    `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.95" und "Umsetzung 1.8.96".
+29. **Jede Anfrage per fetch läuft über den Baustein `app/templates/_speichern.html`, seit 1.8.95 (Lesen ohne Ausnahme seit 1.8.97).**
+    Schreibende Anfrage (Methode ungleich GET, auch Löschen, Versand, Anmelden): `await speichern('<bereich>', ()=>api(url,{method:…}),
+    {anwenden | neuLaden})` -- der Pfeil enthält genau die eine Anfrage; `speichern()` baut sie sofort (Werte vom Klick), sendet je Bereich
+    nacheinander und kehrt erst zurück, wenn die Antwort angewandt bzw. über `lesen()` neu geladen ist; Erfolgstexte ("Gespeichert.")
+    stehen dahinter. Lesen: `await lesen('<bereich>', ()=>api(…), anwenden)` -- auch das erste Laden, das Öffnen eines Dialogs, der Wechsel
+    einer Auswahl (auch auf "keine", als Lesen ohne Anfrage), im Bereich des Speicherns, dessen Antwort denselben Stand ersetzt; zwei Bereiche
+    setzen nie denselben Stand. Bereich = was eine Antwort ersetzt; alles gilt **je Bereich**: laufende Nummer, eine Antwort oder ein Fehler,
+    älter als eine schon angewandte, wird verworfen (nach einem Fehler des neuesten Lesens auch ein älteres), Lesen wartet auf laufendes
+    Speichern desselben Bereichs, Speichern geht nacheinander, dieselbe Anfrage (Doppelklick) geht nicht ein zweites Mal hinaus, solange
+    die erste wartet oder unterwegs ist (seit 1.8.97). Ohne Antwort 60 s nach dem Senden bricht der Baustein ab, der Bereich ist
+    "unklar" (Fehler, Hinweis oben "Seite neu laden", bis zum Neuladen geht dort nichts mehr hinaus); solange ein Speichern läuft oder wartet,
+    warnt die Seite beim Verlassen (seit 1.8.96). **Abschließende Aktionen** (Unterschrift, Festschreiben, Versand, Buchung, Storno, Abnahme,
+    Mangel u. ä.) über `abschliessen()`: gesendet erst, wenn jedes beim Klick laufende oder wartende Speichern der Seite zurück ist, gar
+    nicht nach einem gescheiterten oder in einem unklaren Bereich; eine neue gehört in `ABSCHLIESSEND` (`tests/test_v399_abschliessen.py`,
+    prüft auch abschließend klingende Adressen). Eine Anfrage außerhalb des Bausteins gibt es nur ohne Formular (nur Anzeige, Suche,
+    Anmeldestatus, Prüfung), eingetragen in `AUSNAHMEN` (`tests/test_v400_lesen_ueber_baustein.py`, Scanner
+    `tests/vorlagen_js.py::anfragen_ausserhalb()`; darf nur kürzer werden). `tests/test_v398_speichern_baustein.py` prüft jede Vorlage:
+    Schreiben nur über `speichern()`/`abschliessen()`, danach nur `lesen()`/`speichern()` (transitiv), "Gespeichert" nur danach, einbinden wer
+    nutzt, jedes Seitenskript in node auf Syntax. Klicktests: `klicktest_veraltete_antworten` (`Tab.zurueckhalten()`), `klicktest_abschliessen`
+    (Zeitlimit über `window.__dkZeitlimit`), `klicktest_anmelden`; das Klicktest-Werkzeug nennt beim Scheitern die offenen Anfragen
+    (Netzwerkprotokoll). Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.95" bis "Umsetzung 1.8.97".
 
 ## Fachbegriffe & Domänenmodell
 
@@ -1105,7 +1109,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Grund, enthaltene Rechnungen gruppiert, Klicktest-Helfer „neu geladen“; seit 1.8.95 Baustein gegen veraltete Antworten
   (`_speichern.html`, Regel 29) in allen Vorlagen, Rechnungen über 0 € oder weniger nur als Storno oder Endrechnung mit Abzügen;
   seit 1.8.96 Zeitlimit im Baustein (60 s, Bereich unklar, Warnung beim Verlassen), abschließende Aktionen über `abschliessen()` (warten
-  auf das Speichern der Seite), Teil-Updates statt gemerkter Werte an acht Endpunkten mit Zeilensperren;
+  auf das Speichern der Seite), Teil-Updates statt gemerkter Werte an acht Endpunkten mit Zeilensperren; seit 1.8.97 jedes Lesen über
+  den Baustein (Ausnahmen nur ohne Formular), Klicktests Anmelden/Abmelden mit Netzwerkprotokoll im Werkzeug, Regel 29 nachgezogen;
   festgehalten 13.10.2026, nicht gebaut: Gewährleistungs- und Kulanzstunden für Stufe 2d und die Rüge, „Abschließen ohne Rechnung“ im
   neuen Abschnitt „Parkplatz vor dem Echtbetrieb“)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
@@ -1605,7 +1610,7 @@ mit Guthaben und Zahlungsausgang, zurücknehmen, 412 px dunkel, Monteurin 403) u
 `klicktest_browser_datum.py` (1.8.87, Instanz und Browser-Uhr um 00:30 Uhr, Browser in UTC und New York: Monteur-Zeiterfassung mit der
 Buchung von heute, Stundenzettel, Büro-Zeiterfassung, Aufgaben überfällig, Plantafel, Kalender) und `klicktest_zahlungen_kleinkram.py`
 (1.8.94, Finanzen „Bezahlt (gesamt)“ abzüglich Erstattungen, Kundenakte mit Grund statt „Zahlung zurücknehmen“ und gruppiertem „Rest
-zuordnen“, Zahlungsdialog gruppiert und umverteilt gebucht, Zahlbetrag 0 € mit Satz und ohne Schlusstext, 412 px dunkel, Monteurin 403) und `klicktest_abschliessen.py` (1.8.96, Einsatzbericht: Prüfpunkt zurückhalten, dann unterschreiben -- Unterschrift erst nach dem Prüfpunkt; Prüfpunkt scheitert -- Unterschrift nicht ausgeführt; Zeitlimit 2 s über `window.__dkZeitlimit` -- Meldung, Hinweis oben, Unterschrift abgelehnt).
+zuordnen“, Zahlungsdialog gruppiert und umverteilt gebucht, Zahlbetrag 0 € mit Satz und ohne Schlusstext, 412 px dunkel, Monteurin 403) und `klicktest_abschliessen.py` (1.8.96, Einsatzbericht: Prüfpunkt zurückhalten, dann unterschreiben -- Unterschrift erst nach dem Prüfpunkt; Prüfpunkt scheitert -- Unterschrift nicht ausgeführt; Zeitlimit 2 s über `window.__dkZeitlimit` -- Meldung, Hinweis oben, Unterschrift abgelehnt) und `klicktest_anmelden.py` (1.8.97, Formular mit falschem und richtigem Passwort, Doppelklick nicht parallel, Admin bis zum zweiten Faktor, Abmelden über beide Kopfzeilen -- die Seite wartet die Abmeldung ab --, Seitenleiste nachgestellt, Angriffe auf `next` als `BEFUND`-Zeilen). **Netzwerkprotokoll** (seit 1.8.97): jeder Tab zeichnet die Network-Ereignisse auf (`tab.netz`); beim Scheitern (Abweichung in `pruefe()`, Seite nicht bereit, Warte-Helfer abgebrochen, `warten()` abgelaufen, Ende eines nicht erfolgreichen Laufs) druckt das Werkzeug die offenen Anfragen mit Adresse, Startzeit und "gesendet ja/nein"; eine gewollte Pause `warten("false", 1.0, melden=False)`; `tab.im_netz_anhalten()` hält eine Anfrage an, bevor sie gesendet wird.
 **Nach einer Aktion, die neu lädt** (seit 1.8.94), nie eine feste Pause oder einen Statustext als Beleg nehmen -- viele Seiten setzen
 ihn vor dem Neuladen --, sondern `await tab.warte_auf_neu_geladene_liste("…click()", "#liste")` (wartet, bis keine Anfrage der Seite
 mehr unterwegs und die Liste neu gezeichnet ist; ohne Aktion nach `oeffnen()`, bevor geprüft wird, dass etwas NICHT erscheint);

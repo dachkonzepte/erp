@@ -131,7 +131,9 @@ async function defOpen(id,kind){
   }
   box.innerHTML=html+`<div id="defPanelStatus${id}" class="status"></div>`;box.hidden=false;
   if(kind==='status'){
-    try{const o=await defOptions(d.acceptance_id);document.getElementById('defPart'+id).innerHTML='<option value="">— bitte wählen —</option>'+o.participants.map(p=>`<option value="${p.participant_id}" ${p.archived?'disabled':''}>${esc(p.name)} (${esc(p.role_label)})${p.archived?' – archiviert':''}</option>`).join('')}catch(e){}
+    // Seit 1.8.97 über lesen() (_speichern.html), je Mangel ein eigener Bereich 'mangelstatus-<id>': eine späte, ältere Antwort
+    // füllt die Auswahl "Beteiligter" nicht.
+    try{await lesen('mangelstatus-'+id,()=>defOptions(d.acceptance_id),o=>{document.getElementById('defPart'+id).innerHTML='<option value="">— bitte wählen —</option>'+o.participants.map(p=>`<option value="${p.participant_id}" ${p.archived?'disabled':''}>${esc(p.name)} (${esc(p.role_label)})${p.archived?' – archiviert':''}</option>`).join('')})}catch(e){}
     defStatusUpdate(id);
   }
 }
@@ -189,17 +191,20 @@ async function defDiscard(id,btn){
   if(!reason){document.getElementById('defPanelStatus'+id).textContent='Bitte begründen, warum der Mangel verworfen wird.';return}
   await defSend(id,`/api/defects/${id}/discard`,{reason},'Mangel verworfen.',btn);
 }
+// Seit 1.8.97 über lesen() (_speichern.html), eigener Bereich des Dialogs 'mangeldialog': die späte Antwort eines früheren Klicks
+// (andere Abnahme) füllt ihn nicht -- sonst ginge der Mangel an die falsche Abnahme.
 async function openDefectDialog(acceptanceId){
-  const st=document.getElementById('acceptanceStatus');let o;
-  try{delete defectOptionsCache[acceptanceId];o=await defOptions(acceptanceId)}catch(e){st.textContent='Fehler: '+e.message;return}
-  if(!o.allowed){st.textContent=o.not_allowed_text;return}
-  defectAcceptanceId=acceptanceId;
-  document.getElementById('defAcceptanceInfo').innerHTML=`Abnahme: <b>${esc(o.acceptance.scope_label)} vom ${accDate(o.acceptance.accepted_on)}</b> (${esc(o.acceptance.kind_label)}, ${esc(o.acceptance.result_text)})`;
-  document.getElementById('defRoofArea').innerHTML=(o.property?`<option value="">— keine Dachfläche —</option>`+o.roof_areas.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join(''):'<option value="">— kein Objekt an der Abnahme —</option>');
-  ['defDescription','defLocation','defDue','defPhotos','defReceipts'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('defLimits').textContent=`Höchstens ${o.max_files} Dateien, je ${o.max_file_mb} MB, zusammen ${o.max_total_mb} MB.`;
-  document.getElementById('defDialogStatus').textContent='';
-  document.getElementById('defectDialog').showModal();
+  const st=document.getElementById('acceptanceStatus');
+  try{delete defectOptionsCache[acceptanceId];await lesen('mangeldialog',()=>defOptions(acceptanceId),o=>{
+    if(!o.allowed){st.textContent=o.not_allowed_text;return}
+    defectAcceptanceId=acceptanceId;
+    document.getElementById('defAcceptanceInfo').innerHTML=`Abnahme: <b>${esc(o.acceptance.scope_label)} vom ${accDate(o.acceptance.accepted_on)}</b> (${esc(o.acceptance.kind_label)}, ${esc(o.acceptance.result_text)})`;
+    document.getElementById('defRoofArea').innerHTML=(o.property?`<option value="">— keine Dachfläche —</option>`+o.roof_areas.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join(''):'<option value="">— kein Objekt an der Abnahme —</option>');
+    ['defDescription','defLocation','defDue','defPhotos','defReceipts'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('defLimits').textContent=`Höchstens ${o.max_files} Dateien, je ${o.max_file_mb} MB, zusammen ${o.max_total_mb} MB.`;
+    document.getElementById('defDialogStatus').textContent='';
+    document.getElementById('defectDialog').showModal();
+  })}catch(e){st.textContent='Fehler: '+e.message}
 }
 function closeDefectDialog(){document.getElementById('defectDialog').close()}
 async function saveDefect(btn){

@@ -150,21 +150,23 @@ function renderCategorySelect(current){document.getElementById('category').inner
 function renderPaymentTermSelect(current){document.getElementById('defaultPaymentTerm').innerHTML=auswahlOptionen(paymentTerms,current,t=>`${t.label} (${t.days} Tage)`,{leer:'— Systemstandard verwenden —',aktiv:t=>!t.archived})}
 function renderSalutationSelect(current){const rows=(customerSalutationGroup.options||[]).filter(o=>o.active).sort((a,b)=>a.sort_order-b.sort_order),sel=document.getElementById('salutation');let html='<option value="">—</option>'+rows.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');if(current&&!rows.some(o=>o.value===current))html+=`<option value="${esc(current)}">${esc(current)} · bisher</option>`;sel.innerHTML=html;sel.value=current||''}
 // Seit 1.8.95 über lesen() (_speichern.html): übernommen wird erst, wenn alles da ist, und nie eine ältere Antwort über eine neuere
-// (ebenso loadDocuments() und loadPayments()).
+// (ebenso loadDocuments() und loadPayments()). Seit 1.8.97 lädt load() die Dokumente nicht mehr selbst, sondern über loadDocuments()
+// im Bereich 'dokumente' -- vorher setzten beide Bereiche customerDocuments, und ein spätes Laden des Kunden (z. B. nach dem Speichern
+// einer Zusatzinfo) konnte eine neuere Dokumentliste überschreiben (Nebenbefund 6 aus 1.8.95).
 async function load(){
-  await lesen('kunde',async()=>{
-    const daten=await Promise.all([api(`/api/customers/${customerId}`),api(`/api/properties?customer_id=${customerId}`),api(`/api/inquiries?customer_id=${customerId}`),api('/api/projects'),api('/api/settings/option-groups/customer_categories'),api('/api/settings/option-groups/customer_salutations'),api('/api/payment-terms?include_archived=true'),api(`/api/customers/${customerId}/documents`),api('/api/settings/option-groups/project_document_categories').catch(()=>({options:[]}))]);
+  await Promise.all([lesen('kunde',async()=>{
+    const daten=await Promise.all([api(`/api/customers/${customerId}`),api(`/api/properties?customer_id=${customerId}`),api(`/api/inquiries?customer_id=${customerId}`),api('/api/projects'),api('/api/settings/option-groups/customer_categories'),api('/api/settings/option-groups/customer_salutations'),api('/api/payment-terms?include_archived=true'),api('/api/settings/option-groups/project_document_categories').catch(()=>({options:[]}))]);
     const projekte=daten[3].filter(p=>p.customer_id===customerId),angebote=new Map(),flaechen=new Map();
     await Promise.all(projekte.map(async p=>{angebote.set(p.id,await api(`/api/projects/${p.id}/quotes`))}));
     await Promise.all(daten[1].map(async p=>{flaechen.set(p.id,await api(`/api/roof-areas?property_id=${p.id}`).catch(()=>[]))}));
     return [daten,projekte,angebote,flaechen];
   },([daten,projekte,angebote,flaechen])=>{
-    [customer,properties,inquiries,allProjects,customerCategoryGroup,customerSalutationGroup,paymentTerms,customerDocuments,docCategoryGroup]=daten;
+    [customer,properties,inquiries,allProjects,customerCategoryGroup,customerSalutationGroup,paymentTerms,docCategoryGroup]=daten;
     projects=projekte;
     projectQuotes=angebote;
     roofAreas=flaechen;
     render();
-  });
+  }),loadDocuments()]);
   loadPayments();
 }
 function render(){

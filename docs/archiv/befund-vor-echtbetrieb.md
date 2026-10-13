@@ -3376,6 +3376,195 @@ stand schon im "Parkplatz vor dem Echtbetrieb".)
 11. **Zahl der Altfälle in der Doku war falsch**: Regel 22 nannte 72, `BEKANNT` hatte vor dieser Runde 70 (jetzt 62) -- in CLAUDE.md
     nachgezogen.
 
+### Umsetzung 1.8.97: Lesen über den Baustein (Punkt 4), Anmelden und Abmelden im Klicktest, Netzwerkprotokoll (Punkt 5), Regel 29 (Punkt 6)
+
+#### Was gebaut ist
+
+- **Veraltete Fehler** (`app/templates/_speichern.html`, `lesen()`): ein Fehler eines Lesens, das inzwischen veraltet ist, kommt nicht mehr
+  an -- `lesen()` gibt false zurück wie bei einer veralteten Antwort. Ein Fehler des neuesten Lesens zählt wie eine angewandte Antwort:
+  ein älteres Lesen, das danach ankommt, wird verworfen (Bestätigung zu Festlegung 1.8.95 Nr. 3: Lesen gegen Lesen). Beim Speichern bleibt
+  es bei Festlegung 1.8.95 Nr. 3 (scheitert ein Speichern, gilt die zuletzt angekommene Antwort).
+- **Keine Anfrage außerhalb des Bausteins** (Strukturtest `tests/test_v400_lesen_ueber_baustein.py`, Scanner
+  `tests/vorlagen_js.py::anfragen_ausserhalb()`): jede Stelle, an der eine Seite außerhalb von `lesen()`/`speichern()`/`abschliessen()`
+  anfragt -- fetch direkt oder über einen Anfrage-Helfer der Seite (eine Funktion, die selbst fetch ruft, z. B. `api()`) --, ist ein Fund
+  (Datei, Funktion, Ziel). Eine Funktion, die nur innerhalb des Anfrage-Arguments erreicht wird, ist frei; ein Aufruf aus dem HTML
+  (`on…="name(…)"`, auch in Template-Literalen) zählt als Verweis außerhalb. Vorher 101 Funde; **64 umgestellt**, 37 stehen in `AUSNAHMEN`,
+  jede mit einem von vier Gründen ohne Formular: nur Anzeige (Dashboard-Widgets, Finanzen, Verlauf, Changelog, Befunde, Hinweise
+  "offene Bedenken" und Gewährleistungen, /mobil-Übersichten u. ä.), Suche (Kopfzeilen, Suchergebnisse, Material- und Beteiligtensuche),
+  Anmeldestatus (Seitenleiste, Stundenzettel), Prüfung ohne Formular (Modulstatus, Ablage prüfen, Fassung prüfen, Knopf "Projekt anlegen").
+  Die Liste darf nur kürzer werden: ein neuer Fund ist rot, ein Eintrag ohne Fund ebenso.
+- **Jedes Lesen, das ein Formular füllt, über `lesen()`**, im Bereich des Speicherns, dessen Antwort denselben Stand ersetzt -- so wartet
+  das erste Laden auf ein laufendes Speichern und überschreibt nie eine neuere Antwort. Die fünf ausdrücklich verlangten Stellen:
+  - **E-Mail-Vorlagen** (Einstellungen): beide Arten über `lesen('emailvorlagen')`; die Mahnstufe kommt frisch vom Server
+    (`/api/reminder-levels`) statt aus dem gemerkten Stand, ihr Speichern läuft im Bereich des Formulars -- die zuletzt gewählte Art gilt
+    (Nebenbefund 6 aus 1.8.95).
+  - **Dokumente der Kundenakte**: `load()` lädt die Dokumente nicht mehr selbst (Bereich 'kunde'), sondern über `loadDocuments()` im
+    Bereich 'dokumente' -- vorher setzten beide Bereiche `customerDocuments` (Nebenbefund 6 aus 1.8.95).
+  - **Checklisten-Vorlage**: ein Bereich 'vorlage' für Vorlage und Fassung (beide setzen `version`), erstes Laden darüber, Ansicht einer alten
+    Fassung im Bereich 'fassungsansicht' (Nebenbefund 6 aus 1.8.95).
+  - **Dachtyp-Wechsel** (Dachfläche): `loadLayers()` über `lesen('schichten')` wie das Speichern einer Schicht, auch der Wechsel auf "keine
+    Auswahl" (ein Lesen ohne Anfrage, damit eine späte Antwort des vorher gewählten Dachtyps verworfen wird); erstes Laden im Bereich
+    'dachflaeche' (Nebenbefund 5 aus 1.8.95).
+  - **Monatswechsel im Stundenzettel**: `loadMonth()` über `lesen('monat')` (Nebenbefund 5 aus 1.8.95).
+  Dazu die Einstellungen ganz: `load()` lädt jeden Abschnitt im Bereich, in dem er speichert (13 Abschnitte, ein nicht geladener bekommt wie
+  bisher seinen leeren Stand und steht in der Meldung), ebenso Mobil, Dokumentlayout (Bausteine, Briefpapier, Ränder, Stand der Umstellung)
+  und Design. Die übrigen 33 Vorlagen haben drei Helfer nach einer gemeinsamen Anleitung umgestellt (Auftrag, Rechnung, Mahnwesen,
+  Angebot, Eingangsrechnungen, Kostenposten, Projektmappe und -formular, Abnahme-, Mängel- und Versand-Teilvorlagen; Kalender, Plantafel,
+  Zeiterfassung Büro und mobil, Backoffice, Aufgaben, Arbeitsvorbereitung, Wartungsverträge, Einsatzbericht, Leistung; Checklisten-Abschnitt,
+  Adressimport, Checklisten- und Prüfvorlagen, Dashboard-Layout, Anfragen, Stammsatz-Formular, Betriebsmittel, Objekt), der Strukturtest
+  ist das Abnahmekriterium; ihre Berichte sind in die Festlegungen und Nebenbefunde eingegangen. Dialoge, die beim Öffnen Optionen laden,
+  haben je einen eigenen Bereich (Abnahme, Mangel, Zahlung, Abwesenheit, Beteiligter, Buchung).
+- **Angebots-Editor, Kalkulation in eigenem Bereich** 'kalkulation' (Laden beim Öffnen einer Position und `saveCalc`): im Bereich
+  'angebot' verwarfen sich das Laden der Kalkulation und das Neuladen des LV gegenseitig (beim Umbau gefunden); eine Position ohne
+  Kalkulation liest ebenfalls über den Bereich -- eine späte Kalkulation der vorher gewählten Position wird verworfen, statt den EP der neuen
+  zu setzen (vorher schon so).
+- **Doppelklick: dieselbe Anfrage nur einmal** (`_speichern.html`, gefunden mit dem neuen Klicktest Anmelden): seit 1.8.96 warnt die
+  Seite beim Verlassen, solange ein Speichern wartet -- nach einem Doppelklick auf "Anmelden" (oder "… erstellen" mit Weiterleitung) wartete
+  die eingereihte zweite, gleiche Anfrage noch, als die erste weiterleitete, und Chrome hielt die Seite mit "Seite verlassen?" fest (im
+  Gesamtlauf blieb `klicktest_anmelden` bis zum Zeitlimit hängen). Jetzt geht dieselbe Anfrage (Methode, Adresse, Body als Text) nicht ein
+  zweites Mal hinaus, solange die erste im Bereich wartet oder unterwegs ist: sie bekommt deren Ergebnis (eine fetch-Antwort als eigene
+  Kopie, ein Fehler ebenso) und zählt nicht als wartend. Ein anderer Body oder eine Datei (FormData) ist nie dieselbe Anfrage; nach der
+  Antwort geht dieselbe Anfrage wieder normal hinaus. Damit läuft auch eine doppelt geklickte abschließende Aktion nur einmal, und ein
+  Doppelklick mit falschem Passwort zählt nur einen Fehlversuch.
+- **Netzwerkprotokoll im Klicktest-Werkzeug** (`scripts/cdp_klicktest.py`, `Netzprotokoll`, je Tab `tab.netz`; Punkt 5): je Anfrage Adresse,
+  Methode, Start, gesendet (`requestWillBeSentExtraInfo` oder schon ein Antwort-Kopf), Antwort-Kopf, fertig oder fehlgeschlagen mit
+  `errorText`. Beim Scheitern -- Abweichung in `pruefe()`, Seite nicht bereit, abgebrochener Warte-Helfer, abgelaufenes `warten()` (Zeile mit
+  "--"; `melden=False` für eine gewollte Pause) und am Ende eines nicht erfolgreichen Laufs -- druckt es die offenen Anfragen samt Startzeit
+  und "gesendet ja/nein", die beim Dokumentwechsel offen gebliebenen, die fehlgeschlagenen und den Anfragenzähler der Seite, wenn er abweicht
+  (je Abschnitt höchstens 8). Neu "im Netz anhalten" (CDP Fetch, Stufe Request: begonnen, nicht gesendet), `warten()` übersteht eine
+  Navigation.
+- **Klicktest `scripts/klicktest_anmelden.py`** (Punkt 5): Formular mit falschem und richtigem Passwort (Weiterleitung auf `next`, Cookie
+  httpOnly und SameSite=Lax), Doppelklick nicht parallel, Admin bis zum zweiten Faktor, Abmelden über die Kopfzeile im Büro und in /mobil
+  (Abmeldung im Netz angehalten: die Seite bleibt, bis die Antwort da ist; danach gesendet, 200, Navigation erst danach, Cookies weg, API 401),
+  Anmelden über die Seitenleiste (nachgestellt, siehe Festlegung 1.8.97 Nr. 27 und Nebenbefund 5), serverseitiges `next` gegen fremde
+  Adressen. Gefundene Lücken stehen als `BEFUND`-Zeilen da und zählen nicht als Prüfung.
+- **`klicktest_alle.py` ungepuffert** (Festlegung Nr. 32).
+- **Regel 29 nachgezogen** (Punkt 6): jede Anfrage über den Baustein, alles je Bereich, Zeitlimit, abschließende Aktionen, Ausnahmen nur
+  ohne Formular, veraltete Fehler.
+
+#### Festlegungen 1.8.97 (Bitte bestätigen)
+
+1. **"Kein fetch() außerhalb von _speichern.html" = keine Anfrage außerhalb von `lesen()`/`speichern()`/`abschliessen()`**; der Anfrage-Helfer
+   der Seite (`api()`) ruft fetch weiter selbst und zählt als innerhalb, solange er nur dort aufgerufen wird.
+2. **Ausnahmen nur ohne Formular, vier Gründe** (nur Anzeige, Suche, Anmeldestatus, Prüfung ohne Formular); Liste je Datei, Funktion und Ziel.
+3. **Ein Aufruf aus dem HTML zählt als Verweis außerhalb**; eine Funktion, die nur im Anfrage-Argument erreicht wird, ist frei.
+4. **Veralteter Fehler beim Lesen: false ohne Meldung; ein Fehler des neuesten Lesens verwirft ältere**; beim Speichern wie bisher.
+5. **Erstes Laden im Bereich des Speicherns, das denselben Stand ersetzt**; setzen zwei Bereiche denselben Stand, wird es einer
+   (Checklisten-Vorlage, Kundenakte, E-Mail-Vorlagen).
+6. **Ein Wechsel ohne Anfrage läuft trotzdem durch den Bereich** (Dachtyp "keine Auswahl", Position ohne Kalkulation) -- eine späte Antwort
+   der vorigen Auswahl wird verworfen.
+7. **Kalkulation im Angebots-Editor in eigenem Bereich** 'kalkulation', getrennt vom LV ('angebot').
+8. **E-Mail-Vorlage einer Mahnstufe frisch vom Server und im Bereich des Formulars gespeichert** (nicht mehr 'mahnstufen'); die Karte
+   "Mahnstufen" lädt danach wie bisher neu.
+9. **Einstellungen: jeder Abschnitt in eigenem Bereich**; ein nicht geladener Abschnitt bekommt wie bisher seinen leeren Stand, gesammelt in
+   einer Meldung.
+10. **Dialoge, die beim Öffnen laden, je eigener Bereich** (Abnahme, Mangel, Zahlung, Abwesenheit, Beteiligter, Buchung im Backoffice).
+11. **Suchen bleiben Ausnahme** (Kopfzeilen, Suchergebnisse, Material-, Beteiligtensuche); die Verknüpfungssuche im Kalender geht trotzdem
+    über `lesen()` (sie füllt den Termin-Dialog).
+12. **Anmeldestatus bleibt direkt** (Seitenleiste, Stundenzettel); auf anderen Seiten liest er mit über `lesen('anmeldestatus'|'anmeldung')`.
+13. **Erstes Laden wird ganz verworfen, wenn schon eine neuere Antwort desselben Bereichs angewandt ist** (Auftrag, Rechnung, Projektmappe):
+    nur möglich, wenn vor dem Ende des Ladens gespeichert wird; die Auswahllisten bleiben dann bis zum nächsten Laden leer.
+14. **Fehler beim Zeichnen des Formulars im Breadcrumb** (Betriebsmittel, Objekt) statt einer unbehandelten Ausnahme.
+15. **`prepareWarranty()`: eine später ankommende, ältere Vorschau wird verworfen und speichert nicht**; das Speichern steht nicht im anwenden.
+16. **Gesendet = `requestWillBeSentExtraInfo` (oder schon ein Antwort-Kopf) für den letzten Schritt der Anfrage**; `requestWillBeSent`
+    allein heißt nur "die Seite will senden", aus dem Cache = nicht gesendet (im echten Chrome belegt).
+17. **Gemeldet werden offene Anfragen, die beim letzten Dokumentwechsel offen gebliebenen und fehlgeschlagene mit `errorText`**;
+    abgeschlossene nicht.
+18. **Höchstens 8 Anfragen je Abschnitt, eine unveränderte Meldung nur einmal**; am Ende eines nicht erfolgreichen Laufs vollständig.
+19. **`pruefe()` bleibt synchron und druckt den Stand des letzten Lesens**; die async Stellen lesen vorher nach (0,2 s, dann ein
+    `Runtime.evaluate`).
+20. **Der Anfragenzähler der Seite erscheint nur, wenn er von den offenen Fetch/XHR im Netz abweicht.**
+21. **`warten()` meldet nach Ablauf mit "--", nicht als Fehler**; `melden=False` für eine gewollte Pause.
+22. **`warten()` übersteht eine Navigation**, wie `oeffnen()`.
+23. **"Im Netz anhalten" (CDP Fetch, Stufe Request) neben `zurueckhalten()`** in der Seite.
+24. **Eine Ausnahme in `pruefen()` druckt das Netzwerkprotokoll und geht danach weiter** (Rückgabecode wie bisher).
+25. **Klicktest Anmelden tippt und klickt über CDP-Eingabeereignisse**, nicht über `value=` und `.click()`.
+26. **Abmelden ist richtig, wenn die Seite bis zur Antwort bleibt, der POST gesendet und mit 200 beantwortet ist und die Navigation danach
+    beginnt**; "fertig" (`loadingFinished`) wird nicht verlangt (Chrome liefert es teils erst aus dem Back-Forward-Cache).
+27. **Die Seitenleiste wird angemeldet, indem die Sitzung beim Laden endet** (Statusabfrage angehalten, Cookie gelöscht, fortgesetzt) -- der
+    einzige erreichbare Weg (Nebenbefund 5).
+28. **Lücken aus Angriffen sind im Klicktest `BEFUND`-Zeilen, gemeldet und nicht gezählt** -- nach einer Behebung werden sie Prüfungen.
+29. **Die "fremde Adresse" der Angriffe ist 127.0.0.1 auf einem freien Port** (verlässt den Rechner nicht).
+30. **Doppelklick auf "Anmelden" = genau eine Anmeldung** (solange die erste hängt, ist nur sie im Netz; die zweite, gleiche geht gar
+    nicht hinaus -- Nr. 31; im Bericht des Helfers stand noch "zwei Anmeldungen, nacheinander").
+31. **Dieselbe Anfrage (Methode, Adresse, Body als Text), während die erste im Bereich wartet oder unterwegs ist, geht nicht ein zweites
+    Mal hinaus**; sie bekommt das Ergebnis der ersten und zählt nicht als wartend; Dateien (FormData) nie zusammengefasst.
+32. **`klicktest_alle.py` startet jeden Klicktest ungepuffert** (`PYTHONUNBUFFERED=1`) -- bei einem Zeitlimit steht im Protokoll, was der Test
+    bis zuletzt gedruckt hat, auch das Netzwerkprotokoll; gepuffert ging es beim Beenden verloren.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v400_lesen_ueber_baustein.py` (25): veraltete Fehler in node (ein älteres Lesen, das nach einem angewandten neueren
+  scheitert, endet still; nach einem gescheiterten neueren wird ein älteres verworfen; ein Fehler des neuesten kommt an; beim Speichern wie
+  bisher); keine Anfrage außerhalb des Bausteins über die Ausnahmen hinaus, jede Ausnahme mit einem Grund ohne Formular, der Scanner an
+  sieben Beispielen (direkt, Helfer nur im Baustein, Helfer außerhalb, Ladefunktion im Baustein und zusätzlich direkt, oben im Skript,
+  Aufruf aus dem HTML); die verlangten Stellen mit der echten Funktion der Vorlage in node und Antworten in falscher Reihenfolge -- E-Mail-
+  Vorlagen (Rechnung, dann Mahnstufe: es bleibt die Mahnstufe), Speichern der Mahnstufe im Bereich des Formulars, Dachtyp (A, dann B, und
+  A, dann "keine Auswahl"), Monat (September, dann Oktober), Kundenakte (Dokumente nur in ihrem Bereich), Checklisten-Vorlage (ein
+  Bereich); Angebots-Editor (Kalkulation und LV verwerfen sich nicht, späte Kalkulation einer vorher gewählten Position verworfen);
+  Doppelklick (dieselbe Anfrage einmal, wartet nicht; anderer Body und Datei zweimal; nach der Antwort wieder; eigene lesbare
+  fetch-Antwort, gemeinsamer Fehler; abschließende Aktion einmal).
+- Neu `tests/test_v400_klicktest_netzwerk.py` (31, ohne Chrome): Recorder mit gestellten CDP-Ereignissen (offen, gesendet in sechs Fällen,
+  Weiterleitung, Cache, fehlgeschlagen, Dokumentwechsel, im Netz angehalten, Anfragenzähler nur bei Abweichung, Kürzen auf 8, unveränderte
+  Meldung einmal), Tab mit gestelltem websocket (`cmd()` reicht weiter, `pruefe()`, `oeffnen()` und jeder Warte-Helfer drucken beim
+  Scheitern, `warten(…, melden=False)` nicht, Ende des Laufs druckt, ein erfolgreicher nicht).
+- Klicktest `scripts/klicktest_anmelden.py` (neu) 50/50 (8 `BEFUND`-Zeilen, Nebenbefunde 1–4); `klicktest_abschliessen` mit gewollten
+  Pausen ohne Meldung; die drei Helfer haben je Seite mit Klicktest mindestens einen passenden laufen lassen (alle wie erwartet) und für
+  Seiten ohne eigenen einen Wegwerf-Klicktest mit zurückgehaltener Antwort.
+- Gegenproben (Regel 24): 36 von 36 rot. Punkt 4 (18): veralteter Fehler kommt an, neuerer Fehler markiert nicht, Mahnstufe aus dem
+  gemerkten Stand, Mahnstufe im alten Bereich, Dachtyp direkt, "keine Auswahl" direkt, Monat direkt, Dokumente wieder in `load()`,
+  Checklisten-Vorlage mit zweitem Bereich, Scanner ohne Aufrufe aus dem HTML, Scanner ohne "nur im Baustein erreicht", erstes Laden des
+  Auftrags direkt, Kalkulation im Bereich 'angebot', dazu (Helfer A, in einer Kopie) Projektformular und Projektmappe auf dem alten Stand:
+  Objektliste des vorher gewählten Kunden überschreibt die Auswahl; Einstellungen ohne Fehlerfang je Abschnitt (`test_v054`); Doppelklick
+  zweimal gesendet, ohne eigene Kopie der Antwort, auch mit Datei zusammengefasst. Punkt 5 (18): Werkzeug 14 von 14 (ExtraInfo nicht gezählt, `pruefe()`
+  und `oeffnen()` drucken nicht, kein Nachlesen, Dokumentwechsel nicht ausgewertet, je Warte-Helfer, kein Schlussbericht, Anhalten und
+  Fehlschlag nicht aufgezeichnet, `cmd()` reicht nichts weiter), Klicktest 4 von 4 (Abmelden ohne Abwarten in beiden Kopfzeilen -- das
+  Protokoll nennt den POST als "gesendet: nein, im Netz angehalten" --, Anmelden ohne Baustein: zwei POST parallel, `_safe_next_target()`
+  ohne Prüfung). Jede Datei byte-genau zurück, kein Marker.
+- Volle Suite (mit den Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 4539 grün, 1 rot -- `test_v054` (Erwartung veraltet seit 1.8.97: prüfte den alten Aufbau von `load()` wörtlich), angepasst, danach grün; nach der Änderung am Baustein (Doppelklick) alle 24 Testdateien, die den Baustein oder Seitenskripte in node ausführen: 817 grün (19 Tests gegen PostgreSQL ohne Bezug zum Baustein dabei übersprungen).
+- Alle Klicktests (Regel 26): 61 von 61 wie erwartet in 13:47 min (`klicktest_anmelden` 50/50). Davor zwei Gesamtläufe mit `klicktest_anmelden` im Zeitlimit: der erste vor der Doppelklick-Änderung (Dialog "Seite verlassen?", siehe oben), der zweite danach -- Ursache nicht belegt (Ausgabe gepuffert; während des Laufs wurde `_speichern.html` in der Arbeitskopie neu geschrieben, nur ein Kommentar, gegen die eigene Regel); einzeln, über den Läufer und in der Reihenfolge des Gesamtlaufs je 50/50, danach der Gesamtlauf neu (ungepuffert, Festlegung Nr. 32).
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Skript über `next` im Anmeldeformular (XSS)**: `login.html` setzt nach der Anmeldung `location.href` ungeprüft auf `next` --
+   `/login?next=javascript:…` führt das Skript im ERP aus, mit der frischen Sitzung (im Klicktest belegt). Wer sich über einen solchen Link
+   anmeldet, führt es mit den eigenen Rechten aus; ein Admin mit vertrautem Gerät sofort, sonst nach dem zweiten Faktor über
+   `account.html` (Zeile 177 setzt `next` ebenso ungeprüft; nach Code). Abhilfe wäre die Regel von `_safe_next_target()` auch im Browser.
+2. **Offene Weiterleitung über `next` im Anmeldeformular** (bekannt seit 1.3.48): absolute Adresse, `//host`, `/\host`; serverseitig
+   geschlossen.
+3. **Abmelden beendet die Sitzung nicht serverseitig**: das Cookie ist zustandslos (12 h), der alte Wert bekommt nach dem Abmelden weiter
+   200; auch ein Passwortwechsel beendet keine Sitzung (nach Code).
+4. **"Zurück" nach dem Abmelden zeigt die Daten** (Back-Forward-Cache, ohne ihn der HTTP-Cache: Seite und 9 API-Antworten); kein
+   `Cache-Control: no-store` -- auf dem Fahrzeug-Tablet mit mehreren Monteuren.
+5. **Formular "Nicht angemeldet" der Seitenleiste praktisch nicht erreichbar** (jede Seite verlangt die Anmeldung, der Status wird nur
+   beim Laden abgefragt); der Kopfkommentar in `_sidebar.html` stimmt nicht.
+6. **Abmelden ohne Antwort**: `.finally` navigiert trotzdem, `/login` leitet zurück -- ohne Meldung weiter angemeldet.
+7. **Anmelden im Formular ohne Netz** zeigt nichts (unbehandelte Ablehnung; nach Code).
+8. **Doppelklick mit falschem Passwort** zählte zwei Fehlversuche (der Baustein reihte ein) -- seit Festlegung 1.8.97 Nr. 31 behoben (eine
+   Anfrage).
+9. **`GET /api/employees` 500 für Admin und Büro – Finanzen**, sobald ein Mitarbeiter mit Kostenzuordnung "labor_rate" keinen Stundenlohn
+   hat (der Validator von `EmployeeOut` läuft auch beim Ausgeben, `app/routers/employees.py::_employee_out_for_role`): Mitarbeiterfilter im
+   Dashboard still leer, "Kolonne / Team" und "Mitarbeiter bearbeiten" nur mit Fehler. Ob es solche Zeilen im Bestand gibt, ist nicht
+   geprüft.
+10. **Angebots-Editor `saveCalc()` lädt mit der gerade gewählten Position neu**: wird während des Speicherns eine andere Position gewählt,
+    kann sie die Kalkulation der ersten zeigen (schon vorher).
+11. **Setzen ohne Anfrage kann noch überschrieben werden**: Kalender blendet bei Suchtext unter 2 Zeichen die Vorschläge ohne Anfrage aus,
+    eine laufende ältere Suche blendet sie wieder ein; `time_tracking.html::openManual()` setzt die Positionen direkt, eine laufende Antwort
+    aus `orderChanged('manual')` kann sie danach überschreiben.
+12. **Materialsuchen** (Leistung, Einsatzbericht) füllen eine Auswahl, aus der gespeichert wird -- eine späte ältere Trefferliste kann die
+    neuere ersetzen (gespeichert wird nur Gewähltes); als Suche in den Ausnahmen, die Verknüpfungssuche im Kalender dagegen umgestellt.
+13. **Projekt anlegen/bearbeiten**: vorher konnte das Objekt eines anderen Kunden in der Auswahl landen und mitgeschickt werden (späte
+    Objektliste nach Kundenwechsel) -- durch die Umstellung behoben; ob der Server es ablehnt (Regel 25), ist nicht geprüft.
+14. **Kleinigkeiten**: `time_tracking.html::groupOrderChanged()` lädt keine Positionen nach (Gruppen-Dialog ohne LV-Positionen, wenn der
+    Kontext nicht lud); `ensureOrderItems()` legt Positionen im Zwischenspeicher je Auftrag schon in der Anfrage ab; `defOptions()` legt auch
+    eine verworfene Antwort im Cache ihrer Abnahme ab; `operational_asset.html::markRepaired()` übernimmt die Antwort nach dem Speichern
+    direkt; `inspection_template.html::loadTemplate()` setzt das Metadaten-Formular nicht -- alle schon vorher, unschädlich.
+15. **Adressimport, endlose Anfragen bei gefülltem Suchfeld** (Nebenbefund 1 aus 1.8.95) besteht unverändert.
+16. **Drei Klicktests warten je 15 s auf eine Bedingung, die nie eintritt, und sind danach grün** (`klicktest_behinderungsanzeige_abschluss`
+    Z. 204, `klicktest_versandprotokoll` Z. 280, `klicktest_vertrag_unterschrift` Z. 287) -- sichtbar erst durch die neue "--"-Zeile.
+17. **Zum roten `klicktest_vertragsgrundlage` aus 1.8.95** (nur Hinweis): die Kundenakte startet beim Laden 13 Anfragen gleichzeitig, Chrome
+    öffnet höchstens sechs Verbindungen je Server; eine wartende stünde jetzt im Protokoll als offen mit "gesendet: nein".
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):

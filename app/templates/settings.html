@@ -931,56 +931,54 @@ function showSettingsSection(key,updateHash=true){
 }
 function settingsSectionFromHash(){const key=location.hash.replace('#','');return SETTINGS_SECTIONS.includes(key)?key:'general'}
 window.addEventListener('hashchange',()=>showSettingsSection(settingsSectionFromHash(),false));
+// Seit 1.8.97 lädt jeder Abschnitt über lesen() (_speichern.html) im Bereich, in dem er speichert: das erste Laden wartet auf ein
+// laufendes Speichern des Abschnitts und überschreibt nie eine neuere Antwort -- bis 1.8.96 lud load() alle Abschnitte direkt, und wer
+// vor dem Ende des Ladens schon speicherte, bekam das Formular danach mit dem alten Stand zurück (Nebenbefund 5 aus 1.8.95). Ein
+// Abschnitt, der nicht lädt, bekommt wie bisher seinen leeren Stand und steht in der Meldung.
 async function load(){
-  const specs=[
-    ['Unternehmensstammdaten','/api/settings/general',{}],
-    ['Nummernkreise','/api/settings/number-sequences',[]],
-    ['Kalkulationsgrundlagen','/api/calculation-settings',{}],
-    ['Stundenverrechnungssatz','/api/labor-rate-settings',{}],
-    ['Stundenverrechnungssatz-Berechnung','/api/labor-rate-calculation',{}],
-    ['Funktionen/Tätigkeiten','/api/settings/employee-functions',[]],
-    ['Auswahllisten','/api/settings/option-groups',[]],
-    ['Plantafel-Einstellungen','/api/planning/settings',{}],
-    ['Feiertage','/api/planning/holidays',[]],
-    ['Zahlungsbedingungen','/api/payment-terms?include_archived=true',[]],
-    ['Steuerschlüssel','/api/tax-keys?include_archived=true',[]],
-    ['Mahnstufen','/api/reminder-levels',[]],
-    ['Module','/api/modules',[]],
-  ];
-  const results=await Promise.allSettled(specs.map(([label,url],i)=>{
-    // Kalkulationsgrundlagen/Stundenverrechnungssatz sind fuer buero_auftrag verengt (403) --
-    // fuer diese Rolle gar nicht erst abrufen, sonst zeigt load() faelschlich einen
-    // "Migration nicht ausgefuehrt"-Alarm statt der eigentlichen Ursache (fehlende Rolle).
-    if(!canSeeCalculationSettings&&i>=2&&i<=4)return Promise.resolve(specs[i][2]);
-    return api(url);
-  }));
   const failed=[];
-  const [g,n,c,lr,lrc,ef,og,ps,ph,pt,tk,rl,ms]=results.map((r,i)=>{
-    if(r.status==='fulfilled')return r.value;
-    failed.push(`${specs[i][0]}: ${r.reason.message}`);
-    return specs[i][2];
-  });
+  const lade=(label,bereich,url,leer,anwenden)=>lesen(bereich,()=>api(url).catch(e=>{failed.push(`${label}: ${e.message}`);return leer}),anwenden);
+  const teile=[
+    lade('Unternehmensstammdaten','allgemein','/api/settings/general',{},g=>{
+      setv('companyName',g.company_name);setv('managingDirector',g.managing_director);setv('companyStreet',g.street);setv('companyZip',g.postal_code);setv('companyCity',g.city);setv('companyCountry',g.country);setv('companyPhone',g.phone);setv('companyEmail',g.email);setv('companyWebsite',g.website);setv('publicBaseUrl',g.public_base_url);setv('taxNumber',g.tax_number);setv('vatId',g.vat_id);setv('registerCourt',g.register_court);setv('registerNumber',g.register_number);setv('iban',g.iban);setv('bic',g.bic);setv('defaultVat',g.default_vat_rate);setv('quoteIntro',g.default_quote_intro);setv('quoteOutro',g.default_quote_outro);
+      generalSettings=g;renderCompanyLogo();renderSidebarLogo();
+    }),
+    lade('Nummernkreise','nummernkreise','/api/settings/number-sequences',[],n=>{sequences=n;renderSequences()}),
+    lade('Funktionen/Tätigkeiten','funktionen','/api/settings/employee-functions',[],ef=>{employeeFunctions=ef;renderEmployeeFunctions()}),
+    lade('Auswahllisten','auswahllisten','/api/settings/option-groups',[],og=>{optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups()}),
+    lade('Plantafel-Einstellungen','planung','/api/planning/settings',{},ps=>{planningSettings=ps;renderPlanningSettings()}),
+    lade('Feiertage','feiertage','/api/planning/holidays',[],ph=>{planningHolidays=ph;renderHolidays()}),
+    lade('Zahlungsbedingungen','zahlungsbedingungen','/api/payment-terms?include_archived=true',[],pt=>{paymentTerms=pt;renderPaymentTerms()}),
+    lade('Steuerschlüssel','steuerschluessel','/api/tax-keys?include_archived=true',[],tk=>{taxKeys=tk;renderTaxKeys()}),
+    lade('Mahnstufen','mahnstufen','/api/reminder-levels',[],rl=>{reminderLevels=rl;renderReminderLevels()}),
+    lade('Module','module','/api/modules',[],ms=>{moduleStates=ms;renderModuleStates()}),
+  ];
+  // Kalkulationsgrundlagen/Stundenverrechnungssatz sind fuer buero_auftrag verengt (403) --
+  // fuer diese Rolle gar nicht erst abrufen, sonst zeigt load() faelschlich einen
+  // "Migration nicht ausgefuehrt"-Alarm statt der eigentlichen Ursache (fehlende Rolle).
+  if(canSeeCalculationSettings)teile.push(
+    lade('Kalkulationsgrundlagen','kalkulation','/api/calculation-settings',{},c=>{
+      setv('laborRate',c.labor_rate);setv('materialMarkup',c.material_markup_pct);setv('overhead',c.overhead_pct);setv('riskProfit',c.risk_profit_pct);document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
+    }),
+    lade('Stundenverrechnungssatz','rechengrundlagen','/api/labor-rate-settings',{},lr=>{
+      setv('employerCostPct',lr.employer_cost_pct);setv('productiveTimePct',lr.productive_time_pct);setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',lr.fixed_overhead_value||0);setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',lr.variable_overhead_value||0);setv('targetProfitPct',lr.target_profit_pct);setv('weeksPerYear',lr.weeks_per_year);syncOverheadLabels();
+    }),
+    lade('Stundenverrechnungssatz-Berechnung','verrechnungssatz','/api/labor-rate-calculation',{},renderLaborRate),
+  );
+  await Promise.all(teile);
   if(failed.length){
     alert('Diese Einstellungen konnten nicht geladen werden, der Rest der Seite funktioniert trotzdem:\n\n'+failed.join('\n')+'\n\nMöglicherweise wurde eine Datenbank-Migration noch nicht (vollständig) ausgeführt -- bitte "alembic upgrade head" prüfen.');
   }
-  setv('companyName',g.company_name);setv('managingDirector',g.managing_director);setv('companyStreet',g.street);setv('companyZip',g.postal_code);setv('companyCity',g.city);setv('companyCountry',g.country);setv('companyPhone',g.phone);setv('companyEmail',g.email);setv('companyWebsite',g.website);setv('publicBaseUrl',g.public_base_url);setv('taxNumber',g.tax_number);setv('vatId',g.vat_id);setv('registerCourt',g.register_court);setv('registerNumber',g.register_number);setv('iban',g.iban);setv('bic',g.bic);setv('defaultVat',g.default_vat_rate);setv('quoteIntro',g.default_quote_intro);setv('quoteOutro',g.default_quote_outro);
-  generalSettings=g;renderCompanyLogo();renderSidebarLogo();
-  // moduleStates muss vor loadRecurringCostsSettingsSection() im if-Block unten stehen --
-  // vorher (bis 1.5.10) wurde es erst danach (Zeile mit renderModuleStates()) zugewiesen,
-  // was dort ein "ReferenceError: moduleStates is not defined" auslöste (per echtem
-  // Browsertest gefunden, unabhaengig von der Stundenverrechnungssatz-Neugestaltung selbst --
-  // renderModuleStates() bleibt unten, die erneute Zuweisung dort ist redundant, aber harmlos).
-  moduleStates=ms;
+  // Die Abschnitte unten lesen moduleStates (Module) -- erst nach dem Laden oben.
   if(canSeeCalculationSettings){
-    setv('laborRate',c.labor_rate);setv('materialMarkup',c.material_markup_pct);setv('overhead',c.overhead_pct);setv('riskProfit',c.risk_profit_pct);document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
-    setv('employerCostPct',lr.employer_cost_pct);setv('productiveTimePct',lr.productive_time_pct);setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',lr.fixed_overhead_value||0);setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',lr.variable_overhead_value||0);setv('targetProfitPct',lr.target_profit_pct);setv('weeksPerYear',lr.weeks_per_year);syncOverheadLabels();renderLaborRate(lrc);
     loadProductiveHoursSection();
     loadOverheadProposalSection();
     loadRecurringCostsSettingsSection();
     loadIncomingInvoiceSettingsSection();
     loadAccountsSection();
   }
-  sequences=n;renderSequences();employeeFunctions=ef;renderEmployeeFunctions();optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups();planningSettings=ps;planningHolidays=ph;renderPlanningSettings();renderHolidays();paymentTerms=pt;renderPaymentTerms();taxKeys=tk;renderTaxKeys();reminderLevels=rl;renderReminderLevels();moduleStates=ms;renderModuleStates();loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadDocumentCategoriesSection();loadMobileSection();loadDocumentLayoutSection();loadProjectPipelineSection();}
+  loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadDocumentCategoriesSection();loadMobileSection();loadDocumentLayoutSection();loadProjectPipelineSection();
+}
 
 function renderModuleStates(){document.getElementById('moduleRows').innerHTML=moduleStates.length?moduleStates.map(m=>`<div class="field"><label style="display:flex;align-items:center;gap:10px;font-weight:650"><input type="checkbox" style="width:auto" ${m.enabled?'checked':''} onchange="toggleModule('${m.module_key}',this.checked)"> ${esc(m.label)}</label><span id="moduleStatus-${m.module_key}" class="status"></span></div>`).join(''):'<div class="muted small">Keine optionalen Module registriert.</div>'}
 function ladeModule(){return lesen('module',()=>api('/api/modules'),d=>{moduleStates=d})}
@@ -1499,8 +1497,7 @@ async function saveDocumentCategory(){
 
 async function loadMobileSection(){
   try{
-    const ms=await api('/api/mobile-settings');
-    document.getElementById('mobileShiftEndTime').value=ms.shift_end_time;
+    await lesen('mobil',()=>api('/api/mobile-settings'),ms=>{document.getElementById('mobileShiftEndTime').value=ms.shift_end_time});  // seit 1.8.97 über lesen()
   }catch(e){document.getElementById('mobileSettingsStatus').textContent='Fehler: '+e.message}
 }
 async function saveMobileSettings(){
@@ -1516,37 +1513,41 @@ async function saveMobileSettings(){
 let documentLayoutBlocks={};
 async function loadDocumentLayoutSection(){
   try{
-    const rollout=await api('/api/document-layout/rollout-status');
+    await lesen('layout-stand',()=>api('/api/document-layout/rollout-status'),rollout=>{
     const line=(rows)=>rows.map(r=>esc(r.label)).join(', ')||'—';
     document.getElementById('documentLayoutRollout').innerHTML=
       `<b>Nutzt diese Einstellungen bereits:</b> ${line(rollout.using_shared_settings)}<br>`+
       `<b>Noch nicht umgestellt:</b> ${line(rollout.not_yet_migrated)} (folgen in eigenen Etappen)<br>`+
       `<b>Nicht Teil davon:</b> ${line(rollout.excluded)}`;
+    });
   }catch(e){document.getElementById('documentLayoutRollout').textContent='Fehler: '+e.message}
+  // Seit 1.8.97 über lesen() in den Bereichen, in denen die Karte speichert ('bausteine', 'briefpapier-<Seite>', 'raender').
   try{
-    const blocks=await api('/api/document-layout/default');
-    documentLayoutBlocks={};
-    blocks.forEach(b=>{documentLayoutBlocks[b.block_type]=b});
-    document.getElementById('documentLayoutBlockLogo').checked=!!documentLayoutBlocks.logo?.visible;
-    document.getElementById('documentLayoutBlockHeader').checked=!!documentLayoutBlocks.company_header?.visible;
-    document.getElementById('documentLayoutBlockFooter').checked=!!documentLayoutBlocks.footer_text?.visible;
-    document.getElementById('documentLayoutBlockContinuation').checked=!!documentLayoutBlocks.continuation_header?.visible;
-    if(documentLayoutBlocks.continuation_header)document.getElementById('documentLayoutContinuationY').value=documentLayoutBlocks.continuation_header.y_mm;
+    await lesen('bausteine',()=>api('/api/document-layout/default'),blocks=>{
+      documentLayoutBlocks={};
+      blocks.forEach(b=>{documentLayoutBlocks[b.block_type]=b});
+      document.getElementById('documentLayoutBlockLogo').checked=!!documentLayoutBlocks.logo?.visible;
+      document.getElementById('documentLayoutBlockHeader').checked=!!documentLayoutBlocks.company_header?.visible;
+      document.getElementById('documentLayoutBlockFooter').checked=!!documentLayoutBlocks.footer_text?.visible;
+      document.getElementById('documentLayoutBlockContinuation').checked=!!documentLayoutBlocks.continuation_header?.visible;
+      if(documentLayoutBlocks.continuation_header)document.getElementById('documentLayoutContinuationY').value=documentLayoutBlocks.continuation_header.y_mm;
+    });
   }catch(e){document.getElementById('documentLayoutBlocksStatus').textContent='Fehler: '+e.message}
   for(const pageType of ['first','continuation']){
     const removeBtn=document.getElementById(pageType==='first'?'documentLayoutBgFirstRemove':'documentLayoutBgContinuationRemove');
     try{
-      const status=await api(`/api/document-layout/default/backgrounds/${pageType}`);
-      removeBtn.style.display=status.has_background?'inline-block':'none';
+      await lesen('briefpapier-'+pageType,()=>api(`/api/document-layout/default/backgrounds/${pageType}`),status=>{
+        removeBtn.style.display=status.has_background?'inline-block':'none';
+      });
     }catch(e){/* noch kein Hintergrund -- Button bleibt ausgeblendet */}
   }
   try{
-    const first=await api('/api/document-layout/default/margins/first');
-    const cont=await api('/api/document-layout/default/margins/continuation');
-    setv('documentLayoutMarginFirstTop',first.top_mm);setv('documentLayoutMarginFirstBottom',first.bottom_mm);
-    setv('documentLayoutMarginFirstLeft',first.left_mm);setv('documentLayoutMarginFirstRight',first.right_mm);
-    setv('documentLayoutMarginContinuationTop',cont.top_mm);setv('documentLayoutMarginContinuationBottom',cont.bottom_mm);
-    setv('documentLayoutMarginContinuationLeft',cont.left_mm);setv('documentLayoutMarginContinuationRight',cont.right_mm);
+    await lesen('raender',()=>Promise.all([api('/api/document-layout/default/margins/first'),api('/api/document-layout/default/margins/continuation')]),([first,cont])=>{
+      setv('documentLayoutMarginFirstTop',first.top_mm);setv('documentLayoutMarginFirstBottom',first.bottom_mm);
+      setv('documentLayoutMarginFirstLeft',first.left_mm);setv('documentLayoutMarginFirstRight',first.right_mm);
+      setv('documentLayoutMarginContinuationTop',cont.top_mm);setv('documentLayoutMarginContinuationBottom',cont.bottom_mm);
+      setv('documentLayoutMarginContinuationLeft',cont.left_mm);setv('documentLayoutMarginContinuationRight',cont.right_mm);
+    });
   }catch(e){document.getElementById('documentLayoutMarginsStatus').textContent='Fehler: '+e.message}
 }
 async function uploadDocumentLayoutBackground(pageType){
@@ -1986,12 +1987,17 @@ async function loadEmailTemplate(){
   const st = document.getElementById('emailTemplateStatus');
   const isReminder = type.startsWith('reminder:');
   document.getElementById('emailTemplatePlaceholderHint').textContent = EMAIL_TEMPLATE_PLACEHOLDER_HINTS[isReminder?'reminder':type] || '';
+  // Seit 1.8.97 beide Arten über lesen() im Bereich 'emailvorlagen' (auch das Speichern der Mahnstufe hier): bis 1.8.96 setzte die
+  // Mahnstufe die Felder ohne Anfrage aus dem gemerkten Stand, und eine späte Antwort eines vorher gewählten Dokumenttyps überschrieb
+  // sie (Nebenbefund 6 aus 1.8.95). Jetzt gilt die zuletzt gewählte Art, und die Mahnstufe kommt frisch vom Server.
   try{
     if(isReminder){
       const level = Number(type.split(':')[1]);
-      const rl = reminderLevels.find(x=>x.level===level);
-      setv('emailTemplateSubject', rl?.email_subject_template);
-      document.getElementById('emailTemplateBody').value = rl?.email_body_template || '';
+      await lesen('emailvorlagen', () => api('/api/reminder-levels'), levels => {
+        const rl = levels.find(x=>x.level===level);
+        setv('emailTemplateSubject', rl?.email_subject_template);
+        document.getElementById('emailTemplateBody').value = rl?.email_body_template || '';
+      });
     } else {
       await lesen('emailvorlagen', () => api(`/api/document-email-templates/${type}`), t => {
         setv('emailTemplateSubject', t.subject_template);
@@ -2010,7 +2016,7 @@ async function saveEmailTemplate(){
       const level = Number(type.split(':')[1]);
       const rl = reminderLevels.find(x=>x.level===level);
       if(!rl) throw Error('Mahnstufe nicht gefunden.');
-      await speichern('mahnstufen', () => api(`/api/reminder-levels/${rl.id}`, {
+      await speichern('emailvorlagen', () => api(`/api/reminder-levels/${rl.id}`, {  // seit 1.8.97 im Bereich des Formulars
         method: 'PUT', headers: {'Content-Type': 'application/json'},
         // Seit 1.8.80 nur Betreff und Text (Teil-Update) -- vorher gingen alle Felder mit dem beim Laden gemerkten Stand mit.
         body: JSON.stringify({
@@ -2217,7 +2223,7 @@ function isHexColor(x){return /^#[0-9a-fA-F]{6}$/.test(x)}
 function whiteContrastRatio(hex){const r=parseInt(hex.slice(1,3),16)/255,g=parseInt(hex.slice(3,5),16)/255,b=parseInt(hex.slice(5,7),16)/255;const lin=c=>c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4);const L=0.2126*lin(r)+0.7152*lin(g)+0.0722*lin(b);return 1.05/(L+0.05)}
 function checkAccentContrast(hex){const warn=document.getElementById('accentContrastWarning');if(!warn)return;warn.textContent=isHexColor(hex)&&whiteContrastRatio(hex)<3?'Hinweis: Diese Farbe ist sehr hell – weißer Button-Text könnte schwer lesbar sein.':''}
 function previewAccentColor(hex){if(isHexColor(hex)){document.documentElement.style.setProperty('--accent',hex);checkAccentContrast(hex)}}
-async function loadAppearance(){try{const a=await api('/api/settings/appearance');setv('accentColorText',a.accent_color);document.getElementById('accentColorPicker').value=a.accent_color;checkAccentContrast(a.accent_color)}catch(e){}}
+async function loadAppearance(){try{await lesen('design',()=>api('/api/settings/appearance'),a=>{setv('accentColorText',a.accent_color);document.getElementById('accentColorPicker').value=a.accent_color;checkAccentContrast(a.accent_color)})}catch(e){}}  // seit 1.8.97 über lesen()
 async function saveAccentColor(){const s=document.getElementById('accentColorStatus');const hex=v('accentColorText');if(!isHexColor(hex)){s.textContent='Fehler: bitte einen gültigen Hex-Farbwert eingeben (z. B. #0d9488).';return}try{await speichern('design',()=>api('/api/settings/appearance',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({accent_color:hex})}));s.textContent='Gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
 document.getElementById('accentColorPicker').addEventListener('input',function(){setv('accentColorText',this.value);previewAccentColor(this.value)});
 document.getElementById('accentColorText').addEventListener('input',function(){if(isHexColor(this.value)){document.getElementById('accentColorPicker').value=this.value;previewAccentColor(this.value)}});

@@ -295,28 +295,29 @@ function toggleManualDelivery(containerId) {
   form.style.display = form.style.display === 'none' ? 'grid' : 'none';
   if (form.style.display !== 'none') loadDeliveryRecipients(containerId, form.dataset.type, form.dataset.id);
 }
-/* Seit 1.8.41: Auftraggeber (vorgewählt) und Beteiligte des Projekts, einmal je Formular geladen. */
+/* Seit 1.8.41: Auftraggeber (vorgewählt) und Beteiligte des Projekts, einmal je Formular geladen.
+   Seit 1.8.97 über lesen() (_speichern.html), je Container ein eigener Bereich 'zustellung-empfaenger-<Container>' (nicht der des
+   Verlaufs -- ein Lesen der Empfänger soll kein Neuladen des Verlaufs verwerfen): eine späte, ältere Antwort füllt die Auswahl nicht. */
 async function loadDeliveryRecipients(containerId, type, id) {
   const box = document.getElementById(`${containerId}-recipients`);
   if (!box || box.dataset.loaded) return;
-  let data;
   try {
-    const r = await fetch(`/api/email-dispatches/delivery-recipients?document_type=${encodeURIComponent(type)}&document_id=${id}`);
-    if (!r.ok) throw Error((await r.json().catch(() => ({}))).detail || r.statusText);
-    data = await r.json();
+    await lesen('zustellung-empfaenger-' + containerId,
+                () => _dhJson(`/api/email-dispatches/delivery-recipients?document_type=${encodeURIComponent(type)}&document_id=${id}`),
+                data => {
+      box.dataset.loaded = '1';
+      if (!data.client && !data.participants.length) { box.innerHTML = '<span class="dh-muted">Kein Projekt – Empfänger bitte unten als Text angeben.</span>'; return; }
+      let html = '<span class="dh-muted" style="font-weight:600">Empfänger</span>';
+      if (data.client) html += `<label class="dh-check"><input type="checkbox" id="${containerId}-client" checked><span><b>${_dhEsc(data.client.name)}</b> – Auftraggeber${data.client.address ? `<span class="dh-muted">${_dhEsc(data.client.address)}</span>` : ''}</span></label>`;
+      for (const p of data.participants) {
+        const poa = p.authorized ? (p.has_poa ? 'empfangsbevollmächtigt – die Vollmacht wird festgehalten' : 'empfangsbevollmächtigt – keine Vollmacht hinterlegt') : 'Kopie';
+        html += `<label class="dh-check"><input type="checkbox" class="${containerId}-participant" value="${Number(p.participant_id)}" data-authorized="${p.authorized ? '1' : ''}"><span><b>${_dhEsc(p.name)}</b> (${_dhEsc(p.role_label)})${p.archived ? ' · archiviert' : ''}<span class="dh-muted">${_dhEsc(poa)}${p.email ? '' : ' · ohne E-Mail'}</span></span></label>`;
+      }
+      box.innerHTML = html;
+    });
   } catch (e) {
     box.innerHTML = `<span class="dh-muted">Empfänger nicht geladen: ${_dhEsc(e.message)} – bitte als Text angeben.</span>`;
-    return;
   }
-  box.dataset.loaded = '1';
-  if (!data.client && !data.participants.length) { box.innerHTML = '<span class="dh-muted">Kein Projekt – Empfänger bitte unten als Text angeben.</span>'; return; }
-  let html = '<span class="dh-muted" style="font-weight:600">Empfänger</span>';
-  if (data.client) html += `<label class="dh-check"><input type="checkbox" id="${containerId}-client" checked><span><b>${_dhEsc(data.client.name)}</b> – Auftraggeber${data.client.address ? `<span class="dh-muted">${_dhEsc(data.client.address)}</span>` : ''}</span></label>`;
-  for (const p of data.participants) {
-    const poa = p.authorized ? (p.has_poa ? 'empfangsbevollmächtigt – die Vollmacht wird festgehalten' : 'empfangsbevollmächtigt – keine Vollmacht hinterlegt') : 'Kopie';
-    html += `<label class="dh-check"><input type="checkbox" class="${containerId}-participant" value="${Number(p.participant_id)}" data-authorized="${p.authorized ? '1' : ''}"><span><b>${_dhEsc(p.name)}</b> (${_dhEsc(p.role_label)})${p.archived ? ' · archiviert' : ''}<span class="dh-muted">${_dhEsc(poa)}${p.email ? '' : ' · ohne E-Mail'}</span></span></label>`;
-  }
-  box.innerHTML = html;
 }
 async function saveManualDelivery(containerId, type, id) {
   const $ = s => document.getElementById(`${containerId}-${s}`);

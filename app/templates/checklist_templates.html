@@ -96,8 +96,8 @@ async function init(){
   if(!st)return;
   st.textContent='Lädt …';
   try{
-    templates=await api('/api/checklist-templates?include_archived=true');
-    renderRows();
+    // Seit 1.8.97 über lesen() (_speichern.html), Bereich wie das Anlegen.
+    await lesen('vorlagen',()=>api('/api/checklist-templates?include_archived=true'),d=>{templates=d;renderRows()});
     st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }

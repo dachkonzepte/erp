@@ -500,25 +500,27 @@ async function cancelAbsence(id){
 
 function showLoadWarning(message){const el=$('loadWarning');if(!message){el.hidden=true;el.textContent='';return}el.hidden=false;el.textContent=message}
 
+// Seit 1.8.97 lädt init() über lesen() (_speichern.html): Anmeldestatus, Einstellungen, eigene Aufträge und Auswahllisten je in
+// einem eigenen Bereich (sie füllen die Formulare für Schnellstart, Nachtrag und Abwesenheit).
 async function init(){
-  const auth=await api('/api/auth/status');
-  if(!auth.authenticated||!auth.user?.employee_id){
+  let auth=null;
+  await lesen('anmeldung',()=>api('/api/auth/status'),a=>{auth=a});
+  if(!auth?.authenticated||!auth.user?.employee_id){
     showLoadWarning('Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. Bitte unter Einstellungen → Benutzer & Zugriff einen Mitarbeiter zuordnen lassen.');
     return;
   }
   myEmployeeId=auth.user.employee_id;
-  try{timeSettings=await api('/api/time-tracking/settings')}catch(e){console.warn('Zeiterfassungs-Einstellungen konnten nicht geladen werden',e)}
+  try{await lesen('einstellungen',()=>api('/api/time-tracking/settings'),s=>{timeSettings=s})}catch(e){console.warn('Zeiterfassungs-Einstellungen konnten nicht geladen werden',e)}
   $('openManualBtn').hidden=!timeSettings.allow_manual_entries;
   if(timeSettings.locked_until){$('manualDate').min=$('crewDialogDate').min=berlinAddDays(timeSettings.locked_until,1)}
-  try{orders=await api('/api/field-view/time-tracking/orders')}catch(e){orders=[]}
+  try{await lesen('auftraege',()=>api('/api/field-view/time-tracking/orders'),d=>{orders=d})}catch(e){orders=[]}
   const defaultTypes=[{label:'Baustellenzeit',value:'site',active:true,is_default:true},{label:'Fahrzeit',value:'travel',active:true},{label:'Werkstattzeit',value:'workshop',active:true},{label:'Sonstige Arbeitszeit',value:'other',active:true}];
-  const tg=await safeOptionGroup('time_entry_types',defaultTypes);
-  allTypes=tg.options||defaultTypes;types=allTypes.filter(x=>x.active!==false);
   const defaultActivities=[{label:'Allgemeine Baustellenarbeiten',value:'Allgemeine Baustellenarbeiten',active:true,is_default:true}];
-  const ag=await safeOptionGroup('time_entry_activities',defaultActivities);
+  await lesen('optionen',()=>Promise.all([safeOptionGroup('time_entry_types',defaultTypes),safeOptionGroup('time_entry_activities',defaultActivities),safeOptionGroup('absence_types',[{label:'Urlaub',value:'Urlaub',active:true,is_default:true},{label:'Krankheit',value:'Krankheit',active:true}])]),([tg,ag,abg])=>{
+  allTypes=tg.options||defaultTypes;types=allTypes.filter(x=>x.active!==false);
   allActivities=ag.options||defaultActivities;activities=allActivities.filter(x=>x.active!==false);
-  const abg=await safeOptionGroup('absence_types',[{label:'Urlaub',value:'Urlaub',active:true,is_default:true},{label:'Krankheit',value:'Krankheit',active:true}]);
   absenceTypes=(abg.options||[]).filter(x=>x.active!==false);
+  });
 
   $('quickActivity').innerHTML='<option value="">— optional —</option>'+activities.map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('');
   $('manualActivity').innerHTML=activityOptions(null);

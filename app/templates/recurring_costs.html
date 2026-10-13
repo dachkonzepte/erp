@@ -399,21 +399,27 @@ async function loadAll(){
   await renderOverview();
 }
 
+// Seit 1.8.97 über lesen() (_speichern.html): Anmeldestatus im Bereich 'anmeldestatus', die Auswahllisten des Formulars im Bereich
+// 'stammdaten' (die Seite speichert sie nicht) -- eine späte, ältere Antwort überschreibt nie eine neuere.
 async function init(){
-  const authStatus=await api('/api/auth/status').catch(()=>({authenticated:false,user:null}));
-  if(!authStatus.authenticated){
-    document.getElementById('listStatus').className='status err';
-    document.getElementById('listStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
-    return;
-  }
-  const [categoryGroup,documentTypeGroup,assetList]=await Promise.all([
+  let angemeldet=false;
+  await lesen('anmeldestatus',()=>api('/api/auth/status').catch(()=>({authenticated:false,user:null})),authStatus=>{
+    angemeldet=!!authStatus.authenticated;
+    if(!angemeldet){
+      document.getElementById('listStatus').className='status err';
+      document.getElementById('listStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
+    }
+  });
+  if(!angemeldet)return;
+  await lesen('stammdaten',()=>Promise.all([
     safeOptionGroup('recurring_cost_categories'),
     safeOptionGroup('recurring_cost_document_types'),
     api('/api/operational-assets').catch(()=>[]),
-  ]);
-  categories=categoryGroup.options||[];
-  documentTypes=documentTypeGroup.options||[];
-  assets=assetList;
+  ]),([categoryGroup,documentTypeGroup,assetList])=>{
+    categories=categoryGroup.options||[];
+    documentTypes=documentTypeGroup.options||[];
+    assets=assetList;
+  });
   await speichern('kostenposten',()=>api('/api/recurring-costs/check-due',{method:'POST'})).catch(()=>null);
   await loadAll();
 }

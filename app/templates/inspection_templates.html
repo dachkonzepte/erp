@@ -177,17 +177,17 @@ async function loadTemplates(){
 }
 
 async function init(){
-  authStatus=await api('/api/auth/status').catch(()=>({authenticated:false,user:null}));
+  // Seit 1.8.97 über lesen() (_speichern.html), weiter nacheinander: Anmeldestatus und Dachtypen in eigenen Bereichen, die
+  // Standardvorlagen je Dachtyp im Bereich 'standardvorlagen' wie ihr Speichern.
+  await lesen('anmeldestatus',()=>api('/api/auth/status').catch(()=>({authenticated:false,user:null})),d=>{authStatus=d});
   if(!authStatus.authenticated){
     document.getElementById('listStatus').className='status err';
     document.getElementById('listStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
     return;
   }
-  const roofTypeGroup=await api('/api/settings/option-groups/roof_types').catch(()=>({options:[]}));
-  roofTypes=roofTypeGroup.options||[];
+  await lesen('auswahl',()=>api('/api/settings/option-groups/roof_types').catch(()=>({options:[]})),roofTypeGroup=>{roofTypes=roofTypeGroup.options||[]});
   await loadTemplates();
-  roofTypeDefaults=await api('/api/roof-type-template-defaults').catch(()=>[]);
-  renderDefaultRows();
+  await lesen('standardvorlagen',()=>api('/api/roof-type-template-defaults').catch(()=>[]),d=>{roofTypeDefaults=d;renderDefaultRows()});
 }
 init();
 </script>

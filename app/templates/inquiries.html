@@ -125,7 +125,8 @@ async function saveInquiry(){const s=el('editStatusMsg');try{const payload=inqui
 async function convertInquiry(){if(!currentInquiry||currentInquiry.project_id)return;if(!confirm('Projekt und erstes Angebot aus dieser Anfrage erzeugen?'))return;const s=el('editStatusMsg');try{const url=`/api/inquiries/${currentInquiry.id}/convert`,body=JSON.stringify({project_name:currentInquiry.title,quote_title:'Angebot Dacharbeiten',create_quote:true,vat_rate:defaultVat});const result=await speichern('anfragen',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:loadAll});s.textContent=`${result.project.project_number} und ${result.quote?.quote_number||'Projekt'} erzeugt.`;currentInquiry=inquiries.find(x=>x.id===result.inquiry.id);fillEditor()}catch(e){s.textContent='Fehler: '+e.message}}
 function openLinkedProject(){if(currentInquiry?.project_id)location.href=`/projects?project_id=${currentInquiry.project_id}`}
 async function init(){
-  try{const g=await api('/api/settings/general');defaultVat=Number(g.default_vat_rate||19)}catch(e){}
+  // Seit 1.8.97 über lesen() (_speichern.html): Umsatzsteuer-Vorgabe fürs Umwandeln (eigener Bereich, kein Speichern ersetzt sie).
+  try{await lesen('einstellungen',()=>api('/api/settings/general'),g=>{defaultVat=Number(g.default_vat_rate||19)})}catch(e){}
   try{await loadAll()}catch(e){el('createStatus').textContent='Fehler beim Laden: '+e.message;return}
   // Direkteinstieg vom Dashboard-Widget (?inquiry=<id>, seit 1.3.24, Muster ?report= aus 1.2.22) --
   // fehlt die Anfrage in der geladenen Liste, passiert nichts, kein Fehler.

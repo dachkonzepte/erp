@@ -60,6 +60,7 @@
 </main>
 {% include "_time_entries_list.html" %}
 {% include "_berlin_date.html" %}
+{% include "_speichern.html" %}
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -82,13 +83,16 @@ async function loadMonth(ym){
   const area=$('entriesArea');
   area.className='loading';area.textContent='Lädt…';
   $('monthTotalRow').hidden=true;
-  let list;
+  // Seit 1.8.97 über lesen() (_speichern.html): wechselt der Monat schnell hintereinander, überschreibt die späte Antwort eines vorher
+  // gewählten Monats nie den zuletzt gewählten (Nebenbefund 5 aus 1.8.95); ein veralteter Fehler kommt nicht mehr an.
   try{
-    list=await fetchTimeEntries(`/api/time-entries?start_date=${start}&end_date=${end}&limit=2000`);
+    await lesen('monat',()=>fetchTimeEntries(`/api/time-entries?start_date=${start}&end_date=${end}&limit=2000`),zeigeMonat);
   }catch(e){
     area.className='error';area.textContent='Fehler beim Laden: '+e.message;
-    return;
   }
+}
+function zeigeMonat(list){
+  const area=$('entriesArea');
   const rows=list.rows.filter(r=>r.status==='booked');
   if(!rows.length){
     area.className='empty';area.textContent='Keine Zeitbuchungen in diesem Monat.';

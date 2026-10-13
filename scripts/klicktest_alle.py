@@ -68,7 +68,9 @@ def main() -> int:
     ausgabe.mkdir(parents=True, exist_ok=True)
     liste = klicktests(args.nur, args.ab)
     print(f"{len(liste)} Klicktests, Ausgabe {ausgabe}", flush=True)
-    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    # Seit 1.8.97 ungepuffert: läuft ein Test ins Zeitlimit, steht im Protokoll bis zuletzt, was er gedruckt hat (auch das
+    # Netzwerkprotokoll des Werkzeugs) -- gepuffert ging es beim Beenden verloren.
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
     zeilen, gesamt_start = [], time.monotonic()
     for nr, skript in enumerate(liste, start=1):
         name = skript.stem

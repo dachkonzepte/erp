@@ -647,22 +647,28 @@ async function loadAll(){
   await renderSummary();
 }
 
+// Seit 1.8.97 über lesen() (_speichern.html): Anmeldestatus im Bereich 'anmeldestatus', die Auswahllisten des Formulars im Bereich
+// 'lieferanten' (wie das Anlegen eines Lieferanten) -- eine späte, ältere Antwort überschreibt nie eine neuere.
 async function init(){
-  const authStatus=await api('/api/auth/status').catch(()=>({authenticated:false,user:null}));
-  if(!authStatus.authenticated){
-    document.getElementById('listStatus').className='status err';
-    document.getElementById('listStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
-    return;
-  }
-  const [supplierList,projectList,assetList,recurringCostList,accountList]=await Promise.all([
+  let angemeldet=false;
+  await lesen('anmeldestatus',()=>api('/api/auth/status').catch(()=>({authenticated:false,user:null})),authStatus=>{
+    angemeldet=!!authStatus.authenticated;
+    if(!angemeldet){
+      document.getElementById('listStatus').className='status err';
+      document.getElementById('listStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
+    }
+  });
+  if(!angemeldet)return;
+  await lesen('lieferanten',()=>Promise.all([
     api('/api/suppliers').catch(()=>[]),
     api('/api/projects?include_archived=true').catch(()=>[]),
     api('/api/operational-assets').catch(()=>[]),
     api('/api/recurring-costs?include_inactive=true').catch(()=>[]),
     api('/api/accounts?include_inactive=true').catch(()=>[]),
-  ]);
-  suppliers=supplierList;projects=projectList;assets=assetList;recurringCosts=recurringCostList;accounts=accountList;
-  document.getElementById('filterSupplier').innerHTML='<option value="">Alle</option>'+suppliers.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  ]),([supplierList,projectList,assetList,recurringCostList,accountList])=>{
+    suppliers=supplierList;projects=projectList;assets=assetList;recurringCosts=recurringCostList;accounts=accountList;
+    document.getElementById('filterSupplier').innerHTML='<option value="">Alle</option>'+suppliers.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  });
   await speichern('eingangsrechnungen',()=>api('/api/incoming-invoices/check-due',{method:'POST'})).catch(()=>null);
   await loadAll();
 }

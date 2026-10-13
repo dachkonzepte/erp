@@ -334,15 +334,15 @@ function renderGreeting(){
 }
 
 async function init(){
-  authStatus=await api('/api/auth/status').catch(()=>({authenticated:false,user:null}));
-  renderGreeting();
+  // Seit 1.8.97 über lesen() (_speichern.html): Anmeldestatus (eigener Bereich), Layout der Widgets samt Mitarbeitern im Bereich
+  // "layout" wie persistLayout() -- weiter nacheinander, gezeichnet wird erst beim Anwenden.
+  await lesen('anmeldestatus',()=>api('/api/auth/status').catch(()=>({authenticated:false,user:null})),d=>{authStatus=d;renderGreeting()});
   if(authStatus.authenticated){
-    layout=await api('/api/dashboard/widgets').catch(()=>DEFAULT_LAYOUT.map(w=>({...w})));
-    employees=await api('/api/employees').catch(()=>[]);
+    await lesen('layout',async()=>[await api('/api/dashboard/widgets').catch(()=>DEFAULT_LAYOUT.map(w=>({...w}))),await api('/api/employees').catch(()=>[])],([l,e])=>{layout=l;employees=e;renderShell()});
   }else{
     layout=DEFAULT_LAYOUT.map(w=>({...w}));
+    renderShell();
   }
-  renderShell();
 }
 init();
 </script>

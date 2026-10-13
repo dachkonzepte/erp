@@ -321,9 +321,12 @@ async function loadPropertyDocuments(){
   });
 }
 
+// Seit 1.8.97 über lesen() (_speichern.html): Kategorien der Auswahl im Upload-Formular, eigener Bereich (kein Speichern ersetzt sie).
 async function loadDocumentCategoriesForUpload(){
-  documentCategories=await api('/api/document-categories').catch(()=>[]);
-  document.getElementById('propertyDocCategory').innerHTML=documentCategories.map(c=>`<option value="${c.id}">${esc(c.label)}</option>`).join('');
+  await lesen('dokument-kategorien',()=>api('/api/document-categories').catch(()=>[]),d=>{
+    documentCategories=d;
+    document.getElementById('propertyDocCategory').innerHTML=documentCategories.map(c=>`<option value="${c.id}">${esc(c.label)}</option>`).join('');
+  });
 }
 
 async function uploadPropertyDocument(){
@@ -353,24 +356,28 @@ async function deletePropertyDocument(id){
 async function loadMaintenanceContracts(){
   if(!await isModuleEnabled('wartungen'))return;
   try{
-    const contracts=await api(`/api/properties/${propertyId}/maintenance-contracts`);
-    if(!contracts.length)return;
-    document.getElementById('maintenanceCard').classList.remove('hidden');
-    document.getElementById('maintenanceRows').innerHTML=contracts.map(maintenanceRow).join('');
+    // Seit 1.8.97 über lesen() (_speichern.html), eigener Bereich.
+    await lesen('wartungsvertraege',()=>api(`/api/properties/${propertyId}/maintenance-contracts`),contracts=>{
+      if(!contracts.length)return;
+      document.getElementById('maintenanceCard').classList.remove('hidden');
+      document.getElementById('maintenanceRows').innerHTML=contracts.map(maintenanceRow).join('');
+    });
   }catch(e){/* Modul deaktiviert oder Fehler -- Karte bleibt einfach ausgeblendet */}
 }
 
 async function init(){
-  const rt=await safeOptionGroup('roof_types');
-  roofTypes=rt.options||[];
+  // Seit 1.8.97 über lesen() (_speichern.html), weiter nacheinander: Dachtypen (Auswahl der Sammelanlage) in eigenem Bereich,
+  // Objekt samt Kunde im Bereich 'objekt' wie saveProperty() -- Formular erst beim Anwenden.
+  await lesen('auswahl',()=>safeOptionGroup('roof_types'),rt=>{roofTypes=rt.options||[]});
   try{
-    property=await api(`/api/properties/${propertyId}`);
-    customer=await api(`/api/customers/${property.customer_id}`).catch(()=>null);
+    await lesen('objekt',async()=>{
+      const geladen=await api(`/api/properties/${propertyId}`);
+      return [geladen,await api(`/api/customers/${geladen.customer_id}`).catch(()=>null)];
+    },([geladen,kunde])=>{property=geladen;customer=kunde;renderBreadcrumb();renderHeader();fillPropertyForm()});
   }catch(e){
     document.getElementById('breadcrumb').textContent='Fehler: '+e.message;
     return;
   }
-  renderBreadcrumb();renderHeader();fillPropertyForm();
   await loadAcceptanceWarranties();
   await loadRoofAreas();
   await loadDocumentCategoriesForUpload();

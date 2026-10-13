@@ -80,6 +80,27 @@ zurück (der Server hat sie schon bearbeitet, die Seite bekommt sie erst bei `aw
 die Anfrage erst dann hinaus. `warte_bis_gehalten()`, `gehalten()`, `warte_auf_ruhe()` (Ruhe außer den zurückgehaltenen) --
 für Prüfungen, dass eine spät ankommende, ältere Antwort nichts überschreibt (Baustein _speichern.html); Vorlage
 `scripts/klicktest_veraltete_antworten.py`.
+
+NETZWERKPROTOKOLL (seit 1.8.97): jeder Tab zeichnet die Network-Ereignisse des Browsers je Anfrage auf (`tab.netz`, Klasse
+Netzprotokoll): Adresse, Methode, Art, Start, gesendet (der Browser meldet requestWillBeSentExtraInfo: die Kopfzeilen gehen auf die
+Leitung), Antwort-Kopf, fertig oder fehlgeschlagen (errorText). Scheitert etwas -- eine Prüfung (Pruefungen.pruefe), eine Seite wird
+nicht bereit (oeffnen), ein Warte-Helfer bricht ab (warte_auf_neu_geladene_liste, warte_bis_gehalten, warte_auf_ruhe,
+warte_bis_im_netz_angehalten, warten nach Ablauf der Zeit), der Lauf endet nicht wie erwartet --, druckt das Werkzeug die offenen
+Anfragen, je eine Zeile:
+
+        GET /api/customers/3/documents [Fetch]  seit 10:31:02.417 (12,3 s)  gesendet: nein  Antwort-Kopf: nein
+
+dazu die fehlgeschlagenen mit errorText, die beim letzten Wechsel des Dokuments offen gebliebenen und den Anfragenzähler der Seite
+(ANFRAGEN_ZAEHLER), wenn er von den offenen Fetch/XHR abweicht. Eine unveränderte Meldung kommt nur einmal. Die Ereignisse kommen
+nur an, solange Tab.cmd() liest -- vor dem Drucken liest das Werkzeug deshalb nach (nicht in pruefe(), das synchron ist: dort steht
+der Stand des letzten Lesens, meist der Prüfung selbst). Eine gewollte Pause ohne Meldung: `warten("false", 0.8, melden=False)`.
+Im Klicktest selbst: `await tab.nachlesen()`, dann `tab.netz.suche(r"/api/auth/logout$", "POST")` -- die Einträge (dict) mit
+gesendet()/antwort_kopf(), "fertig", "fehler", "ts_start"/"ts_antwort" (Zeitstempel des Browsers, vergleichbar).
+
+IM NETZ ANHALTEN (seit 1.8.97): `await tab.im_netz_anhalten("*/api/auth/logout")` hält passende Anfragen an, BEVOR sie gesendet
+werden (CDP Fetch, Stufe Request) -- der Server hat sie noch nicht, anders als bei zurueckhalten(); das Netzwerkprotokoll zeigt sie
+offen, nicht gesendet, "im Netz angehalten". `warte_bis_im_netz_angehalten()`, `im_netz_fortsetzen()`. Vorlage
+`scripts/klicktest_anmelden.py`.
 """
 
 from __future__ import annotations
@@ -89,6 +110,7 @@ import asyncio
 import base64
 import json
 import os
+import re
 import secrets
 import shutil
 import socket
@@ -205,14 +227,251 @@ def neu_geladen_bedingung(vorher: int | None, mit_liste: bool, ruhe: float) -> s
     return "(()=>{const z=window.__dkAnfragen;return " + "&&".join(teile) + "})()"
 
 
+# ---------------------------------------------------------------------------
+# Netzwerkprotokoll (seit 1.8.97)
+# ---------------------------------------------------------------------------
+
+NETZ_EREIGNISSE = frozenset({
+    "Network.requestWillBeSent", "Network.requestWillBeSentExtraInfo", "Network.responseReceived",
+    "Network.responseReceivedExtraInfo", "Network.requestServedFromCache", "Network.loadingFinished", "Network.loadingFailed",
+    "Fetch.requestPaused", "Page.frameNavigated",
+})
+NETZ_ZEILEN = 8  # höchstens so viele Anfragen je Abschnitt eines Berichts, der Rest als "… und N weitere"
+
+# Stand des Anfragenzählers der Seite (ANFRAGEN_ZAEHLER) samt zurückgehaltener Antworten (ANTWORT_RUECKHALT), für den Bericht.
+SEITE_STAND = ("(()=>{const z=window.__dkAnfragen,R=window.__dkRueckhalt;"
+               "return z?{offen:z.offen,gestartet:z.gestartet,gehalten:R?R.gehalten.length:0}:null})()")
+
+
+def _uhrzeit(wall: float | None) -> str:
+    if wall is None:
+        return "?"
+    return time.strftime("%H:%M:%S", time.localtime(wall)) + f".{int(round((wall % 1) * 1000)) % 1000:03d}"
+
+
+def _sekunden(wert: float) -> str:
+    return f"{max(wert, 0):.1f}".replace(".", ",") + " s"
+
+
+def _beendet(e: dict) -> bool:
+    return e["fertig"] or e["fehler"] is not None
+
+
+def gesendet(e: dict) -> bool:
+    """Ob die Anfrage (in ihrem letzten Schritt, nach einer Weiterleitung der neue) auf die Leitung gegangen ist: der Browser hat
+    requestWillBeSentExtraInfo gemeldet oder einen Antwort-Kopf. Aus dem Cache: nein."""
+    if e["cache"]:
+        return False
+    schritte = max(e["schritte"], 1)
+    return e["gesendet_n"] >= schritte or e["kopf_n"] >= schritte or e["antwort"]
+
+
+def antwort_kopf(e: dict) -> bool:
+    return e["antwort"] or e["kopf_n"] >= max(e["schritte"], 1)
+
+
+class Netzprotokoll:
+    """Seit 1.8.97: die Network-Ereignisse eines Tabs je Anfrage (requestId). Tab.cmd() reicht jedes Ereignis aus NETZ_EREIGNISSE an
+    ereignis() weiter -- ein Ereignis kommt also nur an, solange cmd() liest.
+
+    Gesendet (Festlegung 1.8.97): für die Anfrage kam requestWillBeSentExtraInfo (oder schon ein Antwort-Kopf). Chrome meldet es
+    aus dem Netzwerkdienst mit den Kopfzeilen, wie sie auf die Leitung gehen (ohne es zeigen die DevTools "Provisional headers"),
+    je Schritt einer Weiterleitung einmal, in beliebiger Reihenfolge zu requestWillBeSent. requestWillBeSent allein heißt nur "die
+    Seite will senden": es kommt auch für eine Anfrage, die auf eine freie Verbindung wartet (höchstens sechs je Server), die im
+    Netz angehalten ist (Tab.im_netz_anhalten()) oder die der Browser vor dem Senden abbricht. Aus dem Cache bedient: nicht gesendet.
+
+    Wechselt das Hauptdokument (Page.frameNavigated ohne parentId, neuer loaderId), gehören die offenen und fehlgeschlagenen
+    Anfragen des alten Dokuments bis zum nächsten Wechsel zu "beim Wechsel offen" bzw. "fehlgeschlagen" -- ein Browser meldet für
+    eine Anfrage, die mit ihrem Dokument verschwindet, nicht immer ein Ende. Danach erscheinen sie nicht mehr; verlauf behält alles."""
+
+    def __init__(self, basis: str = ""):
+        self.basis = basis.rstrip("/")
+        self.verlauf: list[dict] = []           # jede Anfrage, in der Reihenfolge ihres ersten Ereignisses
+        self._nach_id: dict[str, dict] = {}
+        self._aktuell: dict[str, dict] = {}     # Anfragen des aktuellen Hauptdokuments
+        self._alt: list[dict] = []              # beim letzten Wechsel offene oder fehlgeschlagene des alten Dokuments
+        self.dokument: str | None = None        # loaderId des Hauptdokuments
+        self.wechsel: dict | None = None        # letzter Wechsel: {"url", "zeit"}
+        self.angehalten: dict[str, str] = {}    # Fetch-requestId -> requestId der im Netz angehaltenen Anfragen
+        self._gemeldet: tuple | None = None
+
+    def _eintrag(self, rid: str, jetzt: float) -> dict:
+        e = self._nach_id.get(rid)
+        if e is None:
+            e = {"id": rid, "url": None, "methode": None, "art": None, "loader": None, "start": None, "ts_start": None,
+                 "erstes": jetzt, "schritte": 0, "gesendet_n": 0, "gesendet_um": None, "kopf_n": 0, "antwort": False,
+                 "status": None, "ts_antwort": None, "cache": False, "fertig": False, "fehler": None, "abgebrochen": False,
+                 "ts_ende": None, "angehalten": False}
+            self._nach_id[rid] = e
+            self._aktuell[rid] = e
+            self.verlauf.append(e)
+        return e
+
+    def ereignis(self, methode: str, params: dict, jetzt: float | None = None) -> None:
+        jetzt = time.time() if jetzt is None else jetzt
+        if methode == "Page.frameNavigated":
+            self._dokumentwechsel(params.get("frame") or {}, jetzt)
+            return
+        if methode == "Fetch.requestPaused":
+            rid = params.get("networkId") or params["requestId"]
+            e = self._eintrag(rid, jetzt)
+            anfrage = params.get("request") or {}
+            e["url"] = e["url"] or anfrage.get("url")
+            e["methode"] = e["methode"] or anfrage.get("method")
+            e["start"] = e["start"] or jetzt
+            e["angehalten"] = True
+            self.angehalten[params["requestId"]] = rid
+            return
+        rid = params.get("requestId")
+        if rid is None:
+            return
+        e = self._eintrag(rid, jetzt)
+        if methode == "Network.requestWillBeSent":
+            anfrage = params.get("request") or {}
+            e["schritte"] += 1
+            e["url"], e["methode"] = anfrage.get("url"), anfrage.get("method")
+            e["art"] = params.get("type") or e["art"]
+            e["loader"] = params.get("loaderId") or e["loader"]
+            if e["start"] is None or e["ts_start"] is None:
+                e["start"] = params.get("wallTime") or e["start"] or jetzt
+                e["ts_start"] = params.get("timestamp")
+            if self.dokument is not None and e["loader"] == self.dokument and rid not in self._aktuell:
+                self._aktuell[rid] = e
+        elif methode == "Network.requestWillBeSentExtraInfo":
+            e["gesendet_n"] += 1
+            e["gesendet_um"] = jetzt
+        elif methode == "Network.responseReceivedExtraInfo":
+            e["kopf_n"] += 1
+            e["status"] = e["status"] or params.get("statusCode")
+        elif methode == "Network.responseReceived":
+            antwort = params.get("response") or {}
+            e["antwort"] = True
+            e["status"] = antwort.get("status", e["status"])
+            e["ts_antwort"] = params.get("timestamp")
+            if antwort.get("fromDiskCache") or antwort.get("fromPrefetchCache") or antwort.get("fromServiceWorker"):
+                e["cache"] = True
+        elif methode == "Network.requestServedFromCache":
+            e["cache"] = True
+        elif methode == "Network.loadingFinished":
+            e["fertig"], e["ts_ende"] = True, params.get("timestamp")
+        elif methode == "Network.loadingFailed":
+            e["fehler"] = params.get("errorText") or params.get("blockedReason") or "?"
+            e["abgebrochen"] = bool(params.get("canceled"))
+            e["ts_ende"] = params.get("timestamp")
+        if _beendet(e) and e["angehalten"]:
+            self.fortgesetzt(next((f for f, r in self.angehalten.items() if r == rid), None), rid)
+
+    def _dokumentwechsel(self, rahmen: dict, jetzt: float) -> None:
+        neu = rahmen.get("loaderId")
+        if rahmen.get("parentId") or not neu or neu == self.dokument:
+            return
+        bleibt, alt = {}, []
+        for rid, e in self._aktuell.items():
+            if e["loader"] == neu:
+                bleibt[rid] = e
+            elif e["url"] is not None and (not _beendet(e) or e["fehler"] is not None):
+                alt.append(e)
+        self.dokument, self._aktuell, self._alt = neu, bleibt, alt
+        self.wechsel = {"url": rahmen.get("url"), "zeit": jetzt}
+
+    def fortgesetzt(self, fetch_id: str | None, rid: str | None = None) -> None:
+        """Eine im Netz angehaltene Anfrage geht weiter (oder ist beendet)."""
+        rid = self.angehalten.pop(fetch_id, None) if fetch_id is not None else rid
+        if rid is not None and rid in self._nach_id:
+            self._nach_id[rid]["angehalten"] = False
+
+    # -- Abfragen -------------------------------------------------------------
+
+    def suche(self, muster: str, methode: str | None = None, *, ab: int = 0) -> list[dict]:
+        """Einträge aus dem Verlauf (ab Index ab, z. B. len(netz.verlauf) vor einer Aktion), deren URL auf den regulären Ausdruck
+        muster passt und deren Methode methode ist (None: jede)."""
+        return [e for e in self.verlauf[ab:] if e["url"] and re.search(muster, e["url"])
+                and (methode is None or e["methode"] == methode.upper())]
+
+    def offen(self) -> list[dict]:
+        return [e for e in self._aktuell.values() if e["url"] is not None and not _beendet(e)]
+
+    def beim_wechsel_offen(self) -> list[dict]:
+        return [e for e in self._alt if not _beendet(e)]
+
+    def fehlgeschlagen(self) -> list[dict]:
+        return [e for e in (*self._aktuell.values(), *self._alt) if e["fehler"] is not None]
+
+    # -- Bericht --------------------------------------------------------------
+
+    def _adresse(self, url: str | None) -> str:
+        if not url:
+            return "?"
+        if self.basis and url.startswith(self.basis + "/"):
+            url = url[len(self.basis):]
+        return url if len(url) <= 90 else url[:89] + "…"
+
+    def _zeile(self, e: dict, jetzt: float, fehlgeschlagen: bool) -> str:
+        was = f"{e['methode'] or '?'} {self._adresse(e['url'])}" + (f" [{e['art']}]" if e["art"] else "")
+        if fehlgeschlagen:
+            wann = f"{_uhrzeit(e['start'])}  {e['fehler']}" + (" (abgebrochen)" if e["abgebrochen"] else "")
+        else:
+            wann = f"seit {_uhrzeit(e['start'])} ({_sekunden(jetzt - (e['start'] or jetzt))})"
+        zeile = (f"      {was}  {wann}  gesendet: {'ja' if gesendet(e) else ('nein (Cache)' if e['cache'] else 'nein')}"
+                 f"  Antwort-Kopf: {'ja' if antwort_kopf(e) else 'nein'}")
+        return zeile + ("  im Netz angehalten" if e["angehalten"] else "")
+
+    def _liste(self, eintraege: list[dict], jetzt: float, fehlgeschlagen: bool = False) -> list[str]:
+        zeilen = [self._zeile(e, jetzt, fehlgeschlagen) for e in eintraege[:NETZ_ZEILEN]]
+        if len(eintraege) > NETZ_ZEILEN:
+            zeilen.append(f"      … und {len(eintraege) - NETZ_ZEILEN} weitere")
+        return zeilen
+
+    def _seite_weicht_ab(self, seite: dict | None) -> str | None:
+        if not seite:
+            return None
+        im_netz = sum(1 for e in self.offen() if e["art"] in ("Fetch", "XHR"))
+        if seite.get("offen") == im_netz:
+            return None
+        gehalten = seite.get("gehalten") or 0
+        return (f"    Seite: Anfragenzähler offen {seite.get('offen')}" + (f", davon zurückgehalten {gehalten}" if gehalten else "")
+                + f" -- im Netz offen (Fetch/XHR): {im_netz}")
+
+    def bericht(self, jetzt: float | None = None, seite: dict | None = None) -> list[str]:
+        """Zeilen: offene Anfragen des aktuellen Dokuments, die beim letzten Wechsel offen gebliebenen, die fehlgeschlagenen (beider
+        Dokumente) mit errorText; dazu der Anfragenzähler der Seite (seite: SEITE_STAND), wenn er abweicht."""
+        jetzt = time.time() if jetzt is None else jetzt
+        offen, alt, fehl = self.offen(), self.beim_wechsel_offen(), self.fehlgeschlagen()
+        zeilen = [f"    Netzwerk: {len(offen)} offen" if offen else "    Netzwerk: keine offenen Anfragen"]
+        zeilen += self._liste(offen, jetzt)
+        if alt:
+            zeilen.append(f"    Netzwerk: beim Wechsel auf {self._adresse((self.wechsel or {}).get('url'))} offen geblieben: {len(alt)}")
+            zeilen += self._liste(alt, jetzt)
+        if fehl:
+            zeilen.append(f"    Netzwerk: fehlgeschlagen: {len(fehl)}")
+            zeilen += self._liste(fehl, jetzt, fehlgeschlagen=True)
+        abweichung = self._seite_weicht_ab(seite)
+        return zeilen + ([abweichung] if abweichung else [])
+
+    def melden(self, jetzt: float | None = None, seite: dict | None = None, *, immer: bool = False) -> list[str]:
+        """Wie bericht(); hat sich seit der letzten Meldung nichts geändert (dieselben Anfragen im selben Zustand), nur eine Zeile
+        -- ein Klicktest, dessen Seite nicht lädt, scheitert oft an vielen Prüfungen nacheinander."""
+        offen, alt, fehl = self.offen(), self.beim_wechsel_offen(), self.fehlgeschlagen()
+        schluessel = (tuple((e["id"], gesendet(e), antwort_kopf(e), e["fehler"], e["angehalten"]) for e in (*offen, *alt, *fehl)),
+                      self._seite_weicht_ab(seite))
+        if not immer and schluessel == self._gemeldet:
+            return [f"    Netzwerk: unverändert seit der letzten Meldung ({len(offen)} offen"
+                    + (f", {len(alt)} beim Wechsel offen geblieben" if alt else "")
+                    + (f", {len(fehl)} fehlgeschlagen" if fehl else "") + ")"]
+        self._gemeldet = schluessel
+        return self.bericht(jetzt, seite)
+
+
 class Tab:
-    """Eine Browser-Seite. fehler sammelt JS-Ausnahmen und console.error seit dem letzten oeffnen()."""
+    """Eine Browser-Seite. fehler sammelt JS-Ausnahmen und console.error seit dem letzten oeffnen(); netz (seit 1.8.97) zeichnet
+    die Netzwerk-Ereignisse auf (Netzprotokoll)."""
 
     def __init__(self, ws, base_url: str, shots: Path):
         self.ws, self.base, self.shots = ws, base_url, shots
         self.n = 0
         self.fehler: list[str] = []
         self.nicht_geladen: list[str] = []
+        self.netz = Netzprotokoll(base_url)
 
     async def cmd(self, method: str, **params):
         self.n += 1
@@ -220,6 +479,8 @@ class Tab:
         await self.ws.send(json.dumps({"id": my, "method": method, "params": params}))
         while True:
             msg = json.loads(await self.ws.recv())
+            if msg.get("method") in NETZ_EREIGNISSE:
+                self.netz.ereignis(msg["method"], msg.get("params") or {})
             if msg.get("method") == "Runtime.exceptionThrown":
                 d = msg["params"]["exceptionDetails"]
                 self.fehler.append((d.get("exception", {}).get("description") or d.get("text", "?"))[:300])
@@ -266,7 +527,63 @@ class Tab:
                 pass  # Navigation noch nicht fertig
         self.nicht_geladen.append(pfad)
         print(f"XX  {pfad}: Seite nicht bereit ({bereit[:80]})")
+        await self.netz_melden()
         return False
+
+    async def nachlesen(self) -> dict | None:
+        """Seit 1.8.97: holt die inzwischen eingetroffenen Ereignisse ab -- sie kommen nur an, solange cmd() liest -- über einen
+        günstigen Befehl nach einer kurzen Pause (Ereignisse aus dem Netzwerkdienst können der Antwort der Seite nachlaufen).
+        Rückgabe: Stand des Anfragenzählers der Seite (SEITE_STAND) oder None. Füllt nie self.fehler."""
+        await asyncio.sleep(0.2)
+        try:
+            res = await self.cmd("Runtime.evaluate", expression=SEITE_STAND, returnByValue=True)
+        except Exception:  # Seite mitten im Wechsel, Verbindung weg: dann bleibt der Stand des letzten Lesens
+            return None
+        if "exceptionDetails" in res:
+            return None
+        return (res.get("result") or {}).get("value")
+
+    async def netz_melden(self, anlass: str | None = None, *, immer: bool = False) -> list[str]:
+        """Seit 1.8.97: liest nach und druckt die offenen Anfragen (Netzprotokoll.melden()); anlass als eigene Zeile davor."""
+        seite = await self.nachlesen()
+        zeilen = ([anlass] if anlass else []) + self.netz.melden(seite=seite, immer=immer)
+        print("\n".join(zeilen), flush=True)
+        return zeilen
+
+    async def im_netz_anhalten(self, muster: str) -> None:
+        """Seit 1.8.97: hält jede Anfrage, deren URL auf das Muster passt (CDP-Muster mit * und ?, z. B. "*/api/auth/logout"), im
+        Netz an, bevor sie gesendet wird (Fetch-Domäne, Stufe "Request"), bis im_netz_fortsetzen(). Anders als zurueckhalten()
+        (in der Seite, der Server hat die Anfrage schon) hat der Server sie dann noch nicht. Eine angehaltene Anfrage, deren
+        Dokument verschwindet, bricht der Browser ab."""
+        await self.cmd("Fetch.enable", patterns=[{"urlPattern": muster, "requestStage": "Request"}])
+
+    async def warte_bis_im_netz_angehalten(self, anzahl: int = 1, *, timeout: float = 15) -> bool:
+        ende = time.monotonic() + timeout
+        while time.monotonic() < ende:
+            if len(self.netz.angehalten) >= anzahl:
+                return True
+            await asyncio.sleep(0.05)
+            try:
+                await self.cmd("Runtime.evaluate", expression="0")  # liest die Ereignisse ab
+            except RuntimeError:
+                pass
+        self.nicht_geladen.append(f"nicht im Netz angehalten: {anzahl}")
+        await self.netz_melden(f"XX  nicht im Netz angehalten ({anzahl})")
+        return False
+
+    async def im_netz_fortsetzen(self) -> int:
+        """Setzt die im Netz angehaltenen Anfragen fort und hält nichts mehr an; Rückgabe: wie viele weitergingen (eine, die der
+        Browser inzwischen abgebrochen hat, nicht)."""
+        weiter = 0
+        for fetch_id in list(self.netz.angehalten):
+            try:
+                await self.cmd("Fetch.continueRequest", requestId=fetch_id)
+                weiter += 1
+            except RuntimeError:
+                pass  # schon abgebrochen (Dokument gewechselt)
+            self.netz.fortgesetzt(fetch_id)
+        await self.cmd("Fetch.disable")
+        return weiter
 
     async def warte_auf_neu_geladene_liste(self, aktion: str | None = None, liste: str | None = None, *, timeout: float = 15,
                                            ruhe: float = 0.3) -> bool:
@@ -291,14 +608,17 @@ class Tab:
         if vorher is None:
             self.nicht_geladen.append(f"Anfragenzähler fehlt ({liste or aktion or 'Seite'})")
             print("XX  Anfragenzähler fehlt -- Seite nicht über oeffnen() geladen?")
+            await self.netz_melden()
             return False
         if aktion is not None:
             await self.js(aktion)
-        if await self.warten(neu_geladen_bedingung(vorher if aktion is not None else None, liste is not None, ruhe), timeout):
+        if await self.warten(neu_geladen_bedingung(vorher if aktion is not None else None, liste is not None, ruhe), timeout,
+                             melden=False):
             return True
         stand = await self.js("JSON.stringify(window.__dkAnfragen)")
         self.nicht_geladen.append(f"nicht neu geladen: {liste or aktion or 'Seite'}")
         print(f"XX  nicht neu geladen ({liste or aktion or 'Seite'}), Anfragen {stand}")
+        await self.netz_melden()
         return False
 
     async def zurueckhalten(self, muster: str, methode: str | None = None, *, anzahl: int = 1, art: str = "antwort") -> None:
@@ -316,10 +636,12 @@ class Tab:
     async def warte_bis_gehalten(self, anzahl: int = 1, *, beantwortet: bool = True, timeout: float = 15) -> bool:
         """Wartet, bis `anzahl` Fälle zurückgehalten sind (mit beantwortet: und der Server auf sie geantwortet hat)."""
         teil = "s.slice(0,%d).every(x=>x.beantwortet)" % anzahl if beantwortet else "true"
-        if await self.warten(f"(()=>{{const s=window.__dkRueckhalt.stand();return s.length>={anzahl}&&{teil}}})()", timeout):
+        if await self.warten(f"(()=>{{const s=window.__dkRueckhalt.stand();return s.length>={anzahl}&&{teil}}})()", timeout,
+                             melden=False):
             return True
         self.nicht_geladen.append(f"nicht zurückgehalten: {anzahl} Fall/Fälle")
         print(f"XX  nicht zurückgehalten ({anzahl}), Stand {await self.gehalten()}")
+        await self.netz_melden()
         return False
 
     async def freigeben(self) -> bool:
@@ -331,18 +653,27 @@ class Tab:
         fertig wurde (der Anfragenzähler zählt eine zurückgehaltene Antwort als unterwegs)."""
         bedingung = ("(()=>{const z=window.__dkAnfragen,R=window.__dkRueckhalt;return !!z&&z.offen===R.gehalten.length"
                      f"&&performance.now()-z.ruhigSeit>={int(ruhe * 1000)}}})()")
-        if await self.warten(bedingung, timeout):
+        if await self.warten(bedingung, timeout, melden=False):
             return True
         self.nicht_geladen.append("keine Ruhe außer den zurückgehaltenen")
         print(f"XX  keine Ruhe, Anfragen {await self.js('JSON.stringify(window.__dkAnfragen)')}, gehalten {await self.gehalten()}")
+        await self.netz_melden()
         return False
 
-    async def warten(self, bedingung: str, timeout: float = 15) -> bool:
+    async def warten(self, bedingung: str, timeout: float = 15, *, melden: bool = True) -> bool:
+        """Wartet, bis der JS-Ausdruck wahr ist. Läuft die Zeit ab, druckt es seit 1.8.97 die offenen Anfragen (mit "--", denn ein
+        Ablauf ist nicht immer ein Fehler -- meist scheitert danach die Prüfung); melden=False für eine gewollte Pause. Seit 1.8.97
+        übersteht es wie oeffnen() eine Navigation (Ausführungskontext gerade weg)."""
         ende = time.monotonic() + timeout
         while time.monotonic() < ende:
-            if await self.js(f"(()=>{{try{{return !!({bedingung})}}catch(e){{return false}}}})()"):
-                return True
+            try:
+                if await self.js(f"(()=>{{try{{return !!({bedingung})}}catch(e){{return false}}}})()"):
+                    return True
+            except RuntimeError:
+                pass  # Navigation noch nicht fertig
             await asyncio.sleep(0.1)
+        if melden:
+            await self.netz_melden(f"--  warten: nach {timeout:g} s nicht erfüllt: {bedingung[:80]}")
         return False
 
     async def bild(self, name: str) -> Path:
@@ -355,11 +686,16 @@ class Tab:
 class Pruefungen:
     def __init__(self):
         self.ergebnisse: list[bool] = []
+        # Seit 1.8.97: das Netzprotokoll des Tabs (von _lauf() gesetzt) -- eine Abweichung druckt die offenen Anfragen. pruefe() ist
+        # synchron und liest nicht nach: es druckt den Stand des letzten Lesens (meist der Prüfung selbst, z. B. await tab.js(…)).
+        self.netz: Netzprotokoll | None = None
 
     def pruefe(self, name: str, ist, soll) -> bool:
         ok = ist == soll
         self.ergebnisse.append(ok)
         print(f"{'OK ' if ok else 'XX '} {name}: {ist!r}" + ("" if ok else f"   (erwartet {soll!r})"))
+        if not ok and self.netz is not None:
+            print("\n".join(self.netz.melden()), flush=True)
         return ok
 
 
@@ -542,15 +878,34 @@ async def _lauf(pruefen, seed, cdp_port: int, base_url: str, shots: Path) -> boo
     p = Pruefungen()
     async with websockets.connect(seite["webSocketDebuggerUrl"], max_size=64_000_000) as ws:
         tab = Tab(ws, base_url, shots)
+        p.netz = tab.netz  # seit 1.8.97
         for domain in ("Page", "Runtime", "Network"):
             await tab.cmd(f"{domain}.enable")
         await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source=ANTWORT_RUECKHALT)  # seit 1.8.95, vor dem Zähler
         await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source=ANFRAGEN_ZAEHLER)  # seit 1.8.94
         await tab.fenster(1400, 1000)
-        await pruefen(tab, seed, p)
-    ok = all(p.ergebnisse) and not tab.nicht_geladen
+        ok = await _pruefen_und_melden(pruefen, tab, seed, p)
     print(f"{p.ergebnisse.count(True)} von {len(p.ergebnisse)} Prüfungen wie erwartet"
           + ("" if not tab.nicht_geladen else f", nicht geladen: {tab.nicht_geladen}") + f". Screenshots: {shots}")
+    return ok
+
+
+async def _pruefen_und_melden(pruefen, tab: Tab, seed, p: Pruefungen) -> bool:
+    """Seit 1.8.97: führt pruefen() aus; endet der Lauf nicht wie erwartet (eine Abweichung, eine Seite nicht geladen oder eine
+    Ausnahme), druckt es danach das Netzprotokoll -- auch ohne Änderung seit der letzten Meldung. Eine Ausnahme geht danach weiter."""
+    fehler = None
+    try:
+        await pruefen(tab, seed, p)
+    except Exception as exc:
+        fehler = exc
+    ok = fehler is None and all(p.ergebnisse) and not tab.nicht_geladen
+    if not ok:
+        try:
+            await asyncio.wait_for(tab.netz_melden("--  Netzwerk am Ende des Laufs (nicht wie erwartet):", immer=True), 15)
+        except Exception as exc:
+            print(f"--  Netzprotokoll am Ende nicht lesbar ({type(exc).__name__})", flush=True)
+    if fehler is not None:
+        raise fehler
     return ok
 
 

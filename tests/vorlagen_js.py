@@ -4,7 +4,9 @@
 Ein kleiner Tokenizer (Strings, Template-Literale mit ${…}, Kommentare, Regex-Literale, Klammern) und darauf die Fragen, die der
 Strukturtest stellt: wo steht eine schreibende Anfrage (Objekt mit method ungleich 'GET'), ist sie der ganze Rumpf eines Pfeils,
 der als zweites Argument an speichern() geht, und was läuft nach einem Speichern noch ohne lesen()/speichern(). Kein vollständiger
-JS-Parser -- Funktionen erkennt er an `function name(` und `name = (…) =>`/`name = function`, Aufrufe an `name(`.
+JS-Parser -- Funktionen erkennt er an `function name(` und `name = (…) =>`/`name = function`, Aufrufe an `name(`. Seit 1.8.96
+zählt abschliessen() wie speichern() (tests/test_v399_abschliessen.py), seit 1.8.97 findet anfragen_ausserhalb() jede Anfrage außerhalb
+von lesen()/speichern()/abschliessen() (tests/test_v400_lesen_ueber_baustein.py).
 
 Jinja in der Vorlage: {% include "x.html" %} wird eingesetzt (rekursiv), sonstige {% … %} und {{ … }} werden zu Leerzeichen bzw.
 einer 0 gleicher Länge -- die Stellen behalten ihre Position, Meldungen nennen Datei und Zeile der Vorlage."""
@@ -547,3 +549,62 @@ def nach_dem_speichern(a: Analyse) -> list[tuple[int, str]]:
                 for _, weg in ungepruefte_anfragen(a, n, anfrage_memo, gepr):
                     out.append((k, f"{name}: nach dem Speichern {weg}"))
     return sorted(set(out))
+
+
+# --- Anfragen außerhalb des Bausteins (seit 1.8.97, Vorgabe 1.8.96 Punkt 4) ----------------------------------------------
+
+_HANDLER = re.compile(r"""\bon[a-z]+\s*=\s*(?:"([^"]*)"|'([^']*)'|\\"(.*?)\\")""", re.S)
+_NAME_AUFRUF = re.compile(r"([A-Za-z_$][\w$]*)\s*\(")
+
+
+def _umgebend(a: Analyse, k: int) -> str:
+    """Name der innersten Funktion um den Token k, sonst "<oben>" (Skript auf oberster Ebene)."""
+    beste, laenge = "<oben>", None
+    for n, liste in a.funktionen.items():
+        for s, e in liste:
+            if s <= k <= e and (laenge is None or e - s < laenge):
+                beste, laenge = n, e - s
+    return beste
+
+
+def aus_dem_html(a: Analyse, vorlage: str | None, html: str | None = None) -> set:
+    """Funktionen der Seite, die ein on…-Attribut aufruft -- im Markup und in Strings/Template-Literalen der Skripte."""
+    text = vorlage_mit_includes(vorlage)[0] if vorlage else (html or "")
+    namen = set()
+    for m in _HANDLER.finditer(text):
+        for n in _NAME_AUFRUF.findall(m.group(1) or m.group(2) or m.group(3) or ""):
+            if n in a.funktionen:
+                namen.add(n)
+    return namen
+
+
+def anfragen_ausserhalb(a: Analyse, vorlage: str | None, html: str | None = None) -> set[tuple[str, str, str]]:
+    """Jede Stelle, an der die Seite eine Anfrage außerhalb von lesen()/speichern()/abschliessen() abschickt: (Datei, Funktion, Ziel).
+
+    - Anfrage-Helfer: eine Funktion der Seite, die fetch außerhalb eines geprüften Bereichs verwendet (api(), get() …).
+    - Geprüfter Bereich: das Anfrage-Argument (das zweite) von lesen()/speichern()/abschliessen().
+    - Nur im Baustein erreicht (G): eine Funktion, deren sämtliche Verweise in geprüften Bereichen oder in G-Funktionen stehen; ein Aufruf
+      aus dem HTML (on…="name(…)") zählt als Verweis außerhalb.
+    - Fund: ein Verweis auf fetch oder einen Anfrage-Helfer außerhalb geprüfter Bereiche, in einer Funktion (oder oben im Skript), die
+      weder in G noch selbst ein Anfrage-Helfer ist. Ziel ist fetch bzw. der Name des Helfers; die Datei ist die, in der der Verweis
+      steht (eine Teilvorlage zählt einmal, egal wie viele Seiten sie einbinden)."""
+    gepr = a.gepruefte_bereiche()
+    alle = list(verweise(a, 0, len(a.t) - 1))
+    helfer = {n for n, liste in a.funktionen.items() if n not in a.baustein
+              and any(m == "fetch" and not _in(gepr, k) for s, e in liste for k, m in verweise(a, s, e))}
+    G = {n for n in a.funktionen if n not in a.baustein} - aus_dem_html(a, vorlage, html)
+    umgebend = {k: _umgebend(a, k) for k, _ in alle}
+    while True:
+        raus = {m for k, m in alle if m in G and not _in(gepr, k) and umgebend[k] != m and umgebend[k] not in G}
+        if not raus:
+            break
+        G -= raus
+    funde = set()
+    for k, m in alle:
+        if (m != "fetch" and m not in helfer) or _in(gepr, k) or a.quelle.datei(a.t[k].pos) == BAUSTEIN:
+            continue
+        f = umgebend[k]
+        if f in G or f in helfer or f in a.baustein:
+            continue
+        funde.add((a.quelle.datei(a.t[k].pos), f, m))
+    return funde

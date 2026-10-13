@@ -4,6 +4,29 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.97 – Jedes Lesen über den Baustein, Klicktests Anmelden/Abmelden mit Netzwerkprotokoll, Regel 29
+
+Jede Anfrage einer Seite geht jetzt über `lesen()`/`speichern()`/`abschliessen()` -- auch das erste Laden, das Öffnen eines Dialogs und
+der Wechsel einer Auswahl, die ein Formular füllen, aus dem gespeichert wird. Bis 1.8.96 mussten nur das Speichern und das Lesen danach
+über den Baustein; eine späte Antwort des ersten Ladens oder einer vorher gewählten Auswahl konnte eine neuere überschreiben, und das
+Formular zeigte den alten Stand, aus dem danach gespeichert wurde. Verlangt und mit eigenen Tests belegt: E-Mail-Vorlagen (die Mahnstufe
+kommt frisch vom Server, die zuletzt gewählte Art gilt), Dokumente der Kundenakte (nur noch in ihrem eigenen Bereich), Checklisten-Vorlage
+(ein Bereich für Vorlage und Fassung), Wechsel des Dachtyps und Monatswechsel im Stundenzettel; insgesamt 64 Stellen in 37 Vorlagen, die
+Einstellungen je Abschnitt im Bereich seines Speicherns, die Kalkulation im Angebots-Editor in eigenem Bereich. Ein Strukturtest findet
+jede Anfrage außerhalb des Bausteins; übrig sind 37 Ausnahmen ohne Formular (Anzeige, Suche, Anmeldestatus, Prüfung), die Liste darf nur
+kürzer werden. Veraltete Fehler verwirft der Baustein wie veraltete Erfolge.
+
+Das Klicktest-Werkzeug zeichnet die Netzwerkereignisse des Browsers auf und nennt beim Scheitern die offenen Anfragen mit Adresse,
+Startzeit und ob sie gesendet wurden; neu „im Netz anhalten“. Neuer Klicktest `klicktest_anmelden`: Anmelden über das Formular und die
+Seitenleiste, Abmelden über beide Kopfzeilen (die Seite wartet die Abmeldung ab). Seine Angriffe fanden eine Skriptausführung über `next`
+im Anmeldeformular (`/login?next=javascript:…`) -- nur gemeldet, nicht behoben. Der Klicktest fand außerdem eine Folge der Warnung beim
+Verlassen aus 1.8.96: nach einem Doppelklick auf „Anmelden“ hielt die eingereihte zweite Anmeldung die Weiterleitung mit „Seite verlassen?“
+fest -- seit 1.8.97 geht dieselbe Anfrage, während die erste wartet oder unterwegs ist, nicht ein zweites Mal hinaus (auch eine doppelt
+geklickte abschließende Aktion läuft nur einmal). Regel 29 nachgezogen.
+
+Keine Migration. Neu `test_v400_lesen_ueber_baustein` (25), `test_v400_klicktest_netzwerk` (31); Erwartung geändert seit 1.8.97:
+`test_v054` (Einstellungen laden je Abschnitt). Klicktest `klicktest_anmelden` (neu) 50/50. Gegenproben 36 von 36 rot. Volle Suite: 4539 grün, 1 rot -- `test_v054` (Erwartung veraltet seit 1.8.97: prüfte den alten Aufbau von `load()` wörtlich), angepasst, danach grün; nach der Änderung am Baustein (Doppelklick) alle 24 Testdateien, die den Baustein oder Seitenskripte in node ausführen: 817 grün (19 Tests gegen PostgreSQL ohne Bezug zum Baustein dabei übersprungen). Alle Klicktests: 61 von 61 wie erwartet in 13:47 min (`klicktest_anmelden` 50/50). Davor zwei Gesamtläufe mit `klicktest_anmelden` im Zeitlimit: der erste vor der Doppelklick-Änderung (Dialog "Seite verlassen?", siehe oben), der zweite danach -- Ursache nicht belegt (Ausgabe gepuffert; während des Laufs wurde `_speichern.html` in der Arbeitskopie neu geschrieben, nur ein Kommentar, gegen die eigene Regel); einzeln, über den Läufer und in der Reihenfolge des Gesamtlaufs je 50/50, danach der Gesamtlauf neu (ungepuffert, Festlegung Nr. 32).
+
 ## 1.8.96 – Zeitlimit im Baustein, abschließende Aktionen warten auf das Speichern der Seite, Teil-Updates statt gemerkter Werte
 
 Der Baustein `_speichern.html` bricht ein Speichern ab, auf das 60 s nach dem Senden keine Antwort kommt. Der Bereich ist danach

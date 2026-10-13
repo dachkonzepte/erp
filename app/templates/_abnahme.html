@@ -172,10 +172,12 @@ async function putWarranty(body,okText){
 }
 // Seit 1.8.47: jede Festlegung fragt erst die Vorschau ab. Besteht schon eine Abnahme, zeigt die Karte vor dem Speichern,
 // welche Gewährleistungsenden sich verschieben (bzw. entstehen), mit Begründung -- Pflicht, wenn der Server es verlangt.
+// Seit 1.8.97 über lesen() (_speichern.html), eigener Bereich 'gewaehrleistung-vorschau': die späte Vorschau eines früheren Klicks
+// wird verworfen (false) -- sie speichert nicht und füllt die Rückfrage nicht.
 async function prepareWarranty(body,okText){
   const st=document.getElementById('warrantyStatus');st.textContent='';
   let v;
-  try{v=await api(`/api/orders/${orderId}/warranty-preview?`+new URLSearchParams({work_kind:body.work_kind,warranty_months:body.warranty_months,warranty_days:body.warranty_days}))}catch(e){st.textContent='Fehler: '+e.message;return false}
+  try{if(!await lesen('gewaehrleistung-vorschau',()=>api(`/api/orders/${orderId}/warranty-preview?`+new URLSearchParams({work_kind:body.work_kind,warranty_months:body.warranty_months,warranty_days:body.warranty_days})),d=>{v=d}))return false}catch(e){st.textContent='Fehler: '+e.message;return false}
   if(!v.after_acceptance&&!(v.reason_required&&!body.reason))return putWarranty(body,okText);
   warrantyPending={body,okText,v};
   const box=document.getElementById('warrantyConfirm');
@@ -241,18 +243,21 @@ async function discardAcceptance(id,btn){
   btn.disabled=true;
   try{await abschliessen('abnahmen',()=>api(`/api/order-acceptances/${id}/discard`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{neuLaden:accNeuLaden});st.textContent='Abnahme verworfen.'}catch(e){st.textContent='Fehler: '+e.message;btn.disabled=false}
 }
+// Seit 1.8.97 über lesen() (_speichern.html), eigener Bereich des Dialogs 'abnahmedialog': eine späte, ältere Antwort füllt ihn nicht.
 async function openAcceptanceDialog(){
   const st=document.getElementById('acceptanceStatus');
-  try{acceptanceOptions=await api(`/api/orders/${orderId}/acceptance-options`)}catch(e){st.textContent='Fehler: '+e.message;return}
-  const dlg=document.getElementById('acceptanceDialog');
-  dlg.querySelectorAll('input[type=radio],input[type=checkbox]').forEach(x=>x.checked=false);
-  ['accDate','accScopeDesc','accObjections','accConductReason','accFiles'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('accClientLabel').textContent='Auftraggeber: '+acceptanceOptions.client_name;
-  const o=acceptanceOptions,areas=document.getElementById('accRoofAreas');
-  areas.innerHTML=o.property?(o.roof_areas.length?`<label>Dachflächen (optional, aus dem Objekt „${esc(o.property.name)}“)</label>`+o.roof_areas.map(r=>`<label class="choice"><input type="checkbox" class="acc-area" value="${r.id}"> ${esc(r.name)}</label>`).join(''):`<div class="small muted">Das Objekt „${esc(o.property.name)}“ hat keine Dachflächen.</div>`):'<div class="small muted">Das Projekt hat kein Objekt – keine Dachflächen wählbar.</div>';
-  document.getElementById('accParticipant').innerHTML='<option value="">— bitte wählen —</option>'+o.participants.map(p=>`<option value="${p.participant_id}" ${p.archived?'disabled':''}>${esc(p.name)} (${esc(p.role_label)})${p.archived?' – archiviert':''}</option>`).join('');
-  document.getElementById('accDialogStatus').textContent='';
-  accUpdate();dlg.showModal();
+  try{await lesen('abnahmedialog',()=>api(`/api/orders/${orderId}/acceptance-options`),d=>{
+    acceptanceOptions=d;
+    const dlg=document.getElementById('acceptanceDialog');
+    dlg.querySelectorAll('input[type=radio],input[type=checkbox]').forEach(x=>x.checked=false);
+    ['accDate','accScopeDesc','accObjections','accConductReason','accFiles'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('accClientLabel').textContent='Auftraggeber: '+acceptanceOptions.client_name;
+    const o=acceptanceOptions,areas=document.getElementById('accRoofAreas');
+    areas.innerHTML=o.property?(o.roof_areas.length?`<label>Dachflächen (optional, aus dem Objekt „${esc(o.property.name)}“)</label>`+o.roof_areas.map(r=>`<label class="choice"><input type="checkbox" class="acc-area" value="${r.id}"> ${esc(r.name)}</label>`).join(''):`<div class="small muted">Das Objekt „${esc(o.property.name)}“ hat keine Dachflächen.</div>`):'<div class="small muted">Das Projekt hat kein Objekt – keine Dachflächen wählbar.</div>';
+    document.getElementById('accParticipant').innerHTML='<option value="">— bitte wählen —</option>'+o.participants.map(p=>`<option value="${p.participant_id}" ${p.archived?'disabled':''}>${esc(p.name)} (${esc(p.role_label)})${p.archived?' – archiviert':''}</option>`).join('');
+    document.getElementById('accDialogStatus').textContent='';
+    accUpdate();dlg.showModal();
+  })}catch(e){st.textContent='Fehler: '+e.message}
 }
 function closeAcceptanceDialog(){document.getElementById('acceptanceDialog').close()}
 function accUpdate(){

@@ -132,7 +132,7 @@ async def _checkliste(tab, seed, p):
                  "el.dispatchEvent(new Event('input'));el.dispatchEvent(new Event('blur'))})()")
     await tab.warte_bis_gehalten(1)
     await tab.js(f"document.querySelector('#q_{f['befund']} .tile').click()")
-    await tab.warten("false", 0.8)  # Zeit, in der eine nicht wartende Seite die Kachel schon gespeichert hätte
+    await tab.warten("false", 0.8, melden=False)  # Zeit, in der eine nicht wartende Seite die Kachel schon gespeichert hätte
     p.pruefe("Checkliste: Kachel wartet auf die Antwort des Felds (nicht gesendet)", await tab.js(gesendet("befund")), 0)
     p.pruefe("Checkliste: beide Felder 'Speichert …', nichts 'Gespeichert'", [await tab.js(status("ende")), await tab.js(status("befund"))],
              ["Speichert …", "Speichert …"])

@@ -409,32 +409,34 @@ function render(){
   renderBreadcrumb();renderHero();fillEditor();renderItems();
 }
 
+// Seit 1.8.97 über lesen() (_speichern.html): die Dachflächen füllen die Auswahl beim Zuordnen.
 async function loadRoofAreasIfNeeded(){
   if(!maintenanceSettings.use_roof_area_items||!contract.property_id){roofAreas=[];return}
-  roofAreas=await api('/api/roof-areas?property_id='+contract.property_id).catch(()=>[]);
+  await lesen('dachflaechen',()=>api('/api/roof-areas?property_id='+contract.property_id).catch(()=>[]),d=>{roofAreas=d});
 }
 
+// Seit 1.8.97 lädt init() über lesen() (_speichern.html): der Vertrag im Bereich 'vertrag' wie jedes Speichern am Vertrag (das
+// erste Laden wartet auf ein laufendes Speichern), Auswahllisten und Verlauf je in einem eigenen Bereich.
 async function init(){
   try{
-    contract=await api(`/api/maintenance-contracts/${contractId}`);
+    await lesen('vertrag',()=>api(`/api/maintenance-contracts/${contractId}`),d=>{contract=d});
   }catch(e){
     document.getElementById('breadcrumb').textContent='Fehler: '+e.message;
     return;
   }
-  [maintenanceSettings,properties,customers,employees,templates]=await Promise.all([
+  await lesen('stammdaten',()=>Promise.all([
     api('/api/maintenance-settings').catch(()=>({use_roof_area_items:false})),
     api('/api/properties').catch(()=>[]), api('/api/customers').catch(()=>[]), api('/api/employees').catch(()=>[]),
     api('/api/project-templates?include_archived=true').catch(()=>[]),
-  ]);
+  ]),d=>{[maintenanceSettings,properties,customers,employees,templates]=d});
   if(maintenanceSettings.use_roof_area_items){
-    [maintenanceWindows,inspectionTemplates]=await Promise.all([
+    await lesen('stammdaten',()=>Promise.all([
       api('/api/maintenance-windows').catch(()=>[]), api('/api/inspection-templates').catch(()=>[]),
-    ]);
+    ]),d=>{[maintenanceWindows,inspectionTemplates]=d});
     await loadRoofAreasIfNeeded();
   }
   render();
-  history=await api(`/api/maintenance-contracts/${contractId}/history`).catch(()=>[]);
-  renderHistory();
+  await lesen('verlauf',()=>api(`/api/maintenance-contracts/${contractId}/history`).catch(()=>[]),d=>{history=d;renderHistory()});
 }
 init();
 </script>

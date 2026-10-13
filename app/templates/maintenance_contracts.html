@@ -284,20 +284,23 @@ async function loadContracts(){
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
+// Seit 1.8.97 lädt init() über lesen() (_speichern.html): Anmeldestatus und Stammdaten (sie füllen Schnellauftrag und
+// "Neuer Vertrag") je in einem eigenen Bereich.
 async function init(){
-  authStatus=await api('/api/auth/status').catch(()=>({authenticated:false,user:null}));
-  if(!authStatus.authenticated){
+  await lesen('anmeldung',()=>api('/api/auth/status').catch(()=>({authenticated:false,user:null})),d=>{authStatus=d});
+  if(!authStatus?.authenticated){
     document.getElementById('listStatus').className='status err';
     document.getElementById('listStatus').textContent='Bitte zuerst als ERP-Benutzer anmelden.';
     return;
   }
-  [customers,properties,employees,templates]=await Promise.all([
+  await lesen('stammdaten',()=>Promise.all([
     api('/api/customers').catch(()=>[]), api('/api/properties').catch(()=>[]),
     api('/api/employees').catch(()=>[]), api('/api/project-templates').catch(()=>[]),
-  ]);
+  ]),d=>{[customers,properties,employees,templates]=d;
   document.getElementById('qsoCustomer').innerHTML=customerOptionsHtml(null);
   document.getElementById('qsoProperty').innerHTML=propertyOptionsHtml(null,null,false);
   document.getElementById('qsoResponsible').innerHTML=employeeOptionsHtml(null);
+  });
   await speichern('vertraege',()=>api('/api/maintenance-contracts/check-due',{method:'POST'})).catch(()=>null);
   await loadContracts();
   await loadDueOverview();

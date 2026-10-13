@@ -65,8 +65,11 @@ def test_settings_load_is_resilient_to_a_single_failed_request():
     typgerechten Ausweich-Werten (leeres Array/Objekt) je fehlgeschlagenem
     Aufruf, damit ein einzelner Fehler nicht die ganze Seite leert."""
     html = (Path(__file__).parents[1] / "app" / "templates" / "settings.html").read_text(encoding="utf-8")
-    assert "Promise.allSettled" in html
-    assert "Promise.all(" not in html.replace("Promise.allSettled(", "")
-    assert "status==='fulfilled'" in html
+    # Erwartung geändert seit 1.8.97: load() lädt jeden Abschnitt über lesen() im Bereich seines Speicherns (Vorgabe 1.8.96 Punkt 4)
+    # statt über ein Promise.allSettled() -- jede Anfrage fängt ihren Fehler selbst ab und liefert den Ausweich-Wert des Abschnitts, das
+    # Promise.all() über die Abschnitte kann deshalb nicht an einem einzelnen Fehler scheitern.
+    assert "const lade=(label,bereich,url,leer,anwenden)=>lesen(bereich,()=>api(url).catch(e=>{failed.push(`${label}: ${e.message}`);return leer}),anwenden);" in html
+    assert "await Promise.all(teile);" in html
+    assert html.count("lade('") >= 13
     # Klare, aufrufspezifische Fehlermeldung statt nur der ersten Ablehnung.
     assert "konnten nicht geladen werden" in html

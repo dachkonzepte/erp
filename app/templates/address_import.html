@@ -224,7 +224,8 @@ async function revertRun(id) {
 }
 
 async function init() {
-  customers = await api('/api/customers');
+  // Seit 1.8.97 über lesen() (_speichern.html): die Kundenliste für die Auswahl der Arbeitsliste (eigener Bereich, kein Speichern ersetzt sie).
+  await lesen('kunden', () => api('/api/customers'), d => { customers = d; });
   await Promise.all([loadPendingPreview(), loadWorklist(), loadRuns()]);
 }
 init().catch(e => { document.getElementById('uploadStatus').textContent = 'Startfehler: ' + e.message; document.getElementById('uploadStatus').className = 'status err'; });
